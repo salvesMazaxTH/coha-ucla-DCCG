@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Deckbuilder - Arena de UCLA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Montserrat", "sans-serif"],
+            },
+            colors: {
+              ink: "#0a0f1f",
+              panel: "#111a36",
+              ember: "#ee6c3a",
+              mint: "#3fe0b6",
+              mist: "#a0b0d0",
+            },
+          },
+        },
+      };
+    </script>
+  </head>
+  <body class="min-h-screen bg-ink text-white font-sans">
+    <main class="max-w-7xl mx-auto px-4 py-6 md:py-10">
+      <header class="mb-8 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p class="text-mint uppercase tracking-[0.2em] text-xs font-semibold">
+            Deckbuilder
+          </p>
+          <h1 class="text-2xl md:text-3xl font-extrabold">
+            Montagem de Deck Autoritativa
+          </h1>
+          <p class="text-mist text-sm mt-1">
+            Meta: 48 cartas, coesao por essencia e limites por tipo/raridade.
+          </p>
+        </div>
+        <div class="flex gap-2">
+          <a
+            href="/index.html"
+            class="px-4 py-2 rounded-lg bg-panel border border-white/10 hover:border-mint/60"
+            >Ir para Partida</a
+          >
+          <button
+            id="clear-deck"
+            class="px-4 py-2 rounded-lg bg-ember/20 border border-ember/60 hover:bg-ember/30"
+          >
+            Limpar
+          </button>
+        </div>
+      </header>
+
+      <section class="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-6">
+        <div class="bg-panel/80 rounded-2xl border border-white/10 p-4 md:p-5">
+          <h2 class="text-lg font-bold mb-3">Catalogo</h2>
+          <div
+            id="card-list"
+            class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3"
+          ></div>
+        </div>
+
+        <aside
+          class="bg-panel/80 rounded-2xl border border-white/10 p-4 md:p-5"
+        >
+          <h2 class="text-lg font-bold">Deck Atual</h2>
+          <p id="deck-size" class="text-sm text-mist mt-1">0 / 48 cartas</p>
+
+          <div
+            id="precheck"
+            class="mt-3 text-sm rounded-xl border border-white/10 p-3 bg-black/20"
+          ></div>
+
+          <div class="mt-4 flex gap-2">
+            <button
+              id="generate-code"
+              class="flex-1 py-2 rounded-lg bg-mint/20 border border-mint/60 hover:bg-mint/30 font-semibold"
+            >
+              Gerar Codigo
+            </button>
+            <button
+              id="validate-backend"
+              class="flex-1 py-2 rounded-lg bg-amber-200/20 border border-amber-300/60 hover:bg-amber-300/30 font-semibold"
+            >
+              Validar no Backend
+            </button>
+          </div>
+
+          <label for="deck-code" class="block mt-4 text-sm font-semibold"
+            >Deck Code</label
+          >
+          <textarea
+            id="deck-code"
+            rows="4"
+            class="w-full mt-1 rounded-lg bg-black/30 border border-white/20 p-2 text-xs"
+          ></textarea>
+          <div class="mt-2 flex gap-2">
+            <button
+              id="import-code"
+              class="flex-1 py-2 rounded-lg bg-white/10 border border-white/20 hover:bg-white/15"
+            >
+              Importar
+            </button>
+            <button
+              id="save-and-play"
+              class="flex-1 py-2 rounded-lg bg-emerald-400/20 border border-emerald-300/60 hover:bg-emerald-400/30 font-semibold"
+            >
+              Salvar e Jogar
+            </button>
+          </div>
+
+          <ul
+            id="deck-entries"
+            class="mt-4 max-h-72 overflow-auto space-y-2 text-sm"
+          ></ul>
+        </aside>
+      </section>
+    </main>
+
+    <script type="module" src="/js/deckbuilder.js"></script>
+  </body>
+</html>
