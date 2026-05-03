@@ -1,0 +1,27 @@
+{
+  "name": "ucla-card-game",
+  "version": "1.0.0",
+  "description": "A multiplayer card game engine - Arena dos Campeões",
+  "type": "module",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node --watch server/server.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "card-game",
+    "multiplayer",
+    "rpg"
+  ],
+  "author": "Thiago",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.22.1",
+    "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.3",
+    "tailwindcss": "^3.3.6"
+  }
+}

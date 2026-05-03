@@ -11,11 +11,11 @@ This roadmap delivers a server-authoritative multiplayer card game by reusing pr
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: Card Domain and Shared Contracts** - Canonical card model and cross-runtime contracts are established from RPG-inspired foundations.
-- [ ] **Phase 2: Authoritative Deck Validation** - Backend enforces all deck legality rules with structured errors and trust boundaries.
-- [ ] **Phase 3: Deckbuilder UX and Revalidation Loop** - Dedicated deckbuilding experience integrates with backend revalidation without client authority.
-- [ ] **Phase 4: Deterministic Match Flow and Sync** - Multiplayer match lifecycle runs through deterministic server pipeline and ordered state sync.
-- [ ] **Phase 5: Verification and Protocol Hardening** - Automated tests lock deck rules, deck code contracts, and socket flow reliability.
+- [x] **Phase 1: Card Domain and Shared Contracts** - Canonical card model and cross-runtime contracts are established from RPG-inspired foundations.
+- [x] **Phase 2: Authoritative Deck Validation** - Backend enforces all deck legality rules with structured errors and trust boundaries.
+- [x] **Phase 3: Deckbuilder UX and Revalidation Loop** - Dedicated deckbuilding experience integrates with backend revalidation without client authority.
+- [x] **Phase 4: Deterministic Match Flow and Sync** - Multiplayer match lifecycle runs through deterministic server pipeline and ordered state sync.
+- [x] **Phase 5: Verification and Protocol Hardening** - Automated tests lock deck rules, deck code contracts, and socket flow reliability.
 
 ## Phase Mapping Table
 
@@ -96,10 +96,10 @@ This roadmap delivers a server-authoritative multiplayer card game by reusing pr
 
 ## Progress
 
-| Phase                                   | Plans Complete | Status      | Completed |
-| --------------------------------------- | -------------- | ----------- | --------- |
-| 1. Card Domain and Shared Contracts     | 0/TBD          | Not started | -         |
-| 2. Authoritative Deck Validation        | 0/TBD          | Not started | -         |
-| 3. Deckbuilder UX and Revalidation Loop | 0/TBD          | Not started | -         |
-| 4. Deterministic Match Flow and Sync    | 0/TBD          | Not started | -         |
-| 5. Verification and Protocol Hardening  | 0/TBD          | Not started | -         |
+| Phase                                   | Plans Complete | Status   | Completed  |
+| --------------------------------------- | -------------- | -------- | ---------- |
+| 1. Card Domain and Shared Contracts     | 1/1            | Complete | 2026-05-03 |
+| 2. Authoritative Deck Validation        | 1/1            | Complete | 2026-05-03 |
+| 3. Deckbuilder UX and Revalidation Loop | 1/1            | Complete | 2026-05-03 |
+| 4. Deterministic Match Flow and Sync    | 1/1            | Complete | 2026-05-03 |
+| 5. Verification and Protocol Hardening  | 1/1            | Complete | 2026-05-03 |
