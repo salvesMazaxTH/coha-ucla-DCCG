@@ -81,40 +81,40 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status  |
 | ----------- | ----- | ------- |
-| CARD-01     | TBC   | Pending |
-| CARD-02     | TBC   | Pending |
-| CARD-03     | TBC   | Pending |
-| CARD-04     | TBC   | Pending |
-| CARD-05     | TBC   | Pending |
-| DECK-01     | TBC   | Pending |
-| DECK-02     | TBC   | Pending |
-| DECK-03     | TBC   | Pending |
-| DECK-04     | TBC   | Pending |
-| DECK-05     | TBC   | Pending |
-| DECK-06     | TBC   | Pending |
-| DECK-07     | TBC   | Pending |
-| DBLD-01     | TBC   | Pending |
-| DBLD-02     | TBC   | Pending |
-| DBLD-03     | TBC   | Pending |
-| DBLD-04     | TBC   | Pending |
-| DBLD-05     | TBC   | Pending |
-| ARCH-01     | TBC   | Pending |
-| ARCH-02     | TBC   | Pending |
-| ARCH-03     | TBC   | Pending |
-| ARCH-04     | TBC   | Pending |
-| ARCH-05     | TBC   | Pending |
-| SYNC-01     | TBC   | Pending |
-| SYNC-02     | TBC   | Pending |
-| SYNC-03     | TBC   | Pending |
-| QUAL-01     | TBC   | Pending |
-| QUAL-02     | TBC   | Pending |
-| QUAL-03     | TBC   | Pending |
+| CARD-01     | 1     | Pending |
+| CARD-02     | 1     | Pending |
+| CARD-03     | 1     | Pending |
+| CARD-04     | 1     | Pending |
+| CARD-05     | 1     | Pending |
+| DECK-01     | 2     | Pending |
+| DECK-02     | 2     | Pending |
+| DECK-03     | 2     | Pending |
+| DECK-04     | 2     | Pending |
+| DECK-05     | 2     | Pending |
+| DECK-06     | 2     | Pending |
+| DECK-07     | 2     | Pending |
+| DBLD-01     | 3     | Pending |
+| DBLD-02     | 3     | Pending |
+| DBLD-03     | 3     | Pending |
+| DBLD-04     | 3     | Pending |
+| DBLD-05     | 3     | Pending |
+| ARCH-01     | 2     | Pending |
+| ARCH-02     | 1     | Pending |
+| ARCH-03     | 4     | Pending |
+| ARCH-04     | 1     | Pending |
+| ARCH-05     | 2     | Pending |
+| SYNC-01     | 4     | Pending |
+| SYNC-02     | 4     | Pending |
+| SYNC-03     | 4     | Pending |
+| QUAL-01     | 5     | Pending |
+| QUAL-02     | 5     | Pending |
+| QUAL-03     | 5     | Pending |
 
 **Coverage:**
 
 - v1 requirements: 28 total
-- Mapped to phases: 0
-- Unmapped: 28
+- Mapped to phases: 28
+- Unmapped: 0
 
 ---
 
