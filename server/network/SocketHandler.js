@@ -15,6 +15,52 @@ export function setupSocketHandlers(io) {
   const games = new Map();
   const socketContext = new Map();
 
+  function buildGameOverPayload(game, playerId) {
+    const gameOver = game.getGameOver();
+    if (!gameOver) return null;
+
+    let result = "draw";
+    if (gameOver.winnerId === playerId) {
+      result = "victory";
+    } else if (gameOver.loserId === playerId) {
+      result = "defeat";
+    }
+
+    return {
+      ...gameOver,
+      result,
+      playerId,
+      opponentId: playerId === "p1" ? "p2" : "p1",
+      gameId: game.id,
+    };
+  }
+
+  function emitGameOver(gameId) {
+    const game = games.get(gameId);
+    if (!game) return;
+    if (!game.getGameOver()) return;
+    if (game.gameOverAnnounced) return;
+
+    for (const [socketId, ctx] of socketContext.entries()) {
+      if (ctx.gameId !== gameId) continue;
+      io.to(socketId).emit(
+        ServerEvents.GAME_OVER,
+        buildGameOverPayload(game, ctx.playerId),
+      );
+    }
+
+    game.gameOverAnnounced = true;
+  }
+
+  function emitStateAndMaybeGameOver(gameId) {
+    const game = games.get(gameId);
+    if (!game) return;
+
+    game.resolveGameOverByHealth();
+    emitState(gameId);
+    emitGameOver(gameId);
+  }
+
   function emitState(gameId) {
     const game = games.get(gameId);
     if (!game) return;
@@ -60,7 +106,7 @@ export function setupSocketHandlers(io) {
     p2Entry.socket.emit(ServerEvents.MATCH_FOUND, { gameId, playerId: "p2" });
 
     await game.startMatch();
-    emitState(gameId);
+    emitStateAndMaybeGameOver(gameId);
   }
 
   io.on("connection", (socket) => {
@@ -94,7 +140,7 @@ export function setupSocketHandlers(io) {
       try {
         game.playCard(ctx.playerId, cardIndex, slot);
         await game.flushStack();
-        emitState(ctx.gameId);
+        emitStateAndMaybeGameOver(ctx.gameId);
       } catch (error) {
         socket.emit(ServerEvents.SERVER_ERROR, {
           code: ErrorCode.INVALID_ACTION,
@@ -112,7 +158,47 @@ export function setupSocketHandlers(io) {
       try {
         game.endTurn(ctx.playerId);
         await game.flushStack();
-        emitState(ctx.gameId);
+        emitStateAndMaybeGameOver(ctx.gameId);
+      } catch (error) {
+        socket.emit(ServerEvents.SERVER_ERROR, {
+          code: ErrorCode.INVALID_ACTION,
+          message: error.message,
+        });
+      }
+    });
+
+    socket.on(ClientEvents.ATTACK, async ({ attackerId, defenderId }) => {
+      const ctx = socketContext.get(socket.id);
+      if (!ctx) return;
+      const game = games.get(ctx.gameId);
+      if (!game) return;
+
+      try {
+        const attacker = game.state.findEntity(attackerId);
+        if (!attacker || attacker.ownerId !== ctx.playerId) {
+          throw new Error("Invalid attacker");
+        }
+
+        game.attack(attackerId, defenderId);
+        await game.flushStack();
+        emitStateAndMaybeGameOver(ctx.gameId);
+      } catch (error) {
+        socket.emit(ServerEvents.SERVER_ERROR, {
+          code: ErrorCode.INVALID_ACTION,
+          message: error.message,
+        });
+      }
+    });
+
+    socket.on(ClientEvents.SURRENDER, () => {
+      const ctx = socketContext.get(socket.id);
+      if (!ctx) return;
+      const game = games.get(ctx.gameId);
+      if (!game) return;
+
+      try {
+        game.surrender(ctx.playerId);
+        emitStateAndMaybeGameOver(ctx.gameId);
       } catch (error) {
         socket.emit(ServerEvents.SERVER_ERROR, {
           code: ErrorCode.INVALID_ACTION,

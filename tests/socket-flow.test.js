@@ -86,3 +86,54 @@ test("socket flow: two validated decks produce match and game state", async () =
     server.kill();
   }
 });
+
+test("socket flow: surrender ends match and emits game over", async () => {
+  const server = spawn("node", ["server/server.js"], {
+    env: { ...process.env, PORT: String(PORT) },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  try {
+    await waitForServer(server);
+
+    const p1 = createConnectedClient();
+    const p2 = createConnectedClient();
+
+    await Promise.all([once(p1, "connect"), once(p2, "connect")]);
+
+    const deckCode = DeckCoder.encode(buildValidDeckIds());
+
+    const p1MatchPromise = once(p1, ServerEvents.MATCH_FOUND);
+    const p2MatchPromise = once(p2, ServerEvents.MATCH_FOUND);
+    const p1GameOverPromise = once(p1, ServerEvents.GAME_OVER);
+    const p2GameOverPromise = once(p2, ServerEvents.GAME_OVER);
+
+    p1.emit(ClientEvents.SUBMIT_DECK, { deckCode });
+    p2.emit(ClientEvents.SUBMIT_DECK, { deckCode });
+
+    const [[p1Match], [p2Match]] = await Promise.all([
+      p1MatchPromise,
+      p2MatchPromise,
+    ]);
+
+    assert.equal(p1Match.playerId, "p1");
+    assert.equal(p2Match.playerId, "p2");
+
+    p2.emit(ClientEvents.SURRENDER);
+
+    const [[p1GameOver], [p2GameOver]] = await Promise.all([
+      p1GameOverPromise,
+      p2GameOverPromise,
+    ]);
+
+    assert.equal(p1GameOver.reason, "surrender");
+    assert.equal(p2GameOver.reason, "surrender");
+    assert.equal(p1GameOver.result, "victory");
+    assert.equal(p2GameOver.result, "defeat");
+
+    p1.close();
+    p2.close();
+  } finally {
+    server.kill();
+  }
+});

@@ -538,6 +538,13 @@
             </p>
           </div>
 
+          <p
+            id="game-status"
+            class="text-xs font-semibold tracking-wide text-white/80"
+          >
+            Conectando...
+          </p>
+
           <button
             id="surrender-btn"
             class="ml-1 px-2 py-1.5 rounded text-white/20 border border-transparent text-xs transition-all duration-200 hover:text-hp-red-bright hover:border-hp-red/40 hover:bg-hp-red/10"
@@ -697,6 +704,42 @@
 
     <!-- Board Root -->
     <div id="board-root"></div>
+
+    <section
+      id="gameover-overlay"
+      class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/70 backdrop-blur-sm"
+    >
+      <div
+        class="w-[92%] max-w-lg rounded-2xl border border-white/15 bg-game-surface p-6 shadow-neon-glow"
+      >
+        <p
+          class="text-xs uppercase tracking-[0.28em] text-neon/70 font-semibold"
+        >
+          Match Result
+        </p>
+        <h2 id="gameover-title" class="mt-2 text-3xl font-extrabold text-white">
+          Partida encerrada
+        </h2>
+        <p id="gameover-subtitle" class="mt-2 text-sm text-gray-300">
+          O servidor finalizou a partida.
+        </p>
+
+        <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button
+            id="gameover-requeue-btn"
+            class="px-4 py-2 rounded-md bg-neon/20 border border-neon/40 text-neon font-semibold hover:bg-neon/30"
+          >
+            Nova partida
+          </button>
+          <button
+            id="gameover-deckbuilder-btn"
+            class="px-4 py-2 rounded-md bg-white/10 border border-white/20 text-white font-semibold hover:bg-white/20"
+          >
+            Ir ao Deckbuilder
+          </button>
+        </div>
+      </div>
+    </section>
 
     <!-- Socket.io Client -->
     <script src="/socket.io/socket.io.js"></script>

@@ -9,6 +9,14 @@ export class GameInstance {
     this.visualQueue = []; // Acumula eventos para enviar ao front
     this.eventSequence = 0;
     this.state.activePlayerId = "p1";
+    this.gameOver = null;
+    this.gameOverAnnounced = false;
+  }
+
+  assertGameIsActive() {
+    if (this.gameOver) {
+      throw new Error("Game is already over");
+    }
   }
 
   async flushStack() {
@@ -18,15 +26,21 @@ export class GameInstance {
   }
 
   async startMatch() {
-    this.startTurn("p1");
+    this.state.turnCount = 1;
+    this.startTurn("p1", { advanceTurn: false });
     await this.flushStack();
   }
 
   // Ciclo de Turno estilo Hearthstone
-  startTurn(playerId) {
+  startTurn(playerId, options = {}) {
+    this.assertGameIsActive();
+
+    const { advanceTurn = true } = options;
     const player = this.state.players[playerId];
     this.state.activePlayerId = playerId;
-    this.state.turnCount += 1;
+    if (advanceTurn) {
+      this.state.turnCount += 1;
+    }
 
     this.state.stack.push(() => {
       player.refillMana(this.state.turnCount);
@@ -47,6 +61,8 @@ export class GameInstance {
 
   // Ação de Jogar Carta
   playCard(playerId, cardHandIndex, boardSlotIndex) {
+    this.assertGameIsActive();
+
     if (this.state.activePlayerId !== playerId)
       throw new Error("Not your turn");
 
@@ -86,21 +102,36 @@ export class GameInstance {
   }
 
   endTurn(playerId) {
+    this.assertGameIsActive();
+
     if (this.state.activePlayerId !== playerId) {
       throw new Error("Not your turn");
     }
 
     const nextPlayerId = playerId === "p1" ? "p2" : "p1";
-    this.startTurn(nextPlayerId);
+    this.startTurn(nextPlayerId, { advanceTurn: true });
   }
 
   attack(attackerId, defenderId) {
+    this.assertGameIsActive();
+
+    const attackerEntity = this.state.findEntity(attackerId);
+    if (!attackerEntity) {
+      throw new Error("Attacker not found");
+    }
+    if (this.state.activePlayerId !== attackerEntity.ownerId) {
+      throw new Error("Not your turn");
+    }
+
     this.state.stack.push(() => {
       const gameState = this.state;
       const context = this.getContext();
 
       const attacker = gameState.findEntity(attackerId);
       const target = gameState.findEntity(defenderId);
+      if (!attacker || !target) {
+        throw new Error("Invalid attack target");
+      }
 
       const enemyBoard = gameState.players[target.ownerId || target.id].board;
 
@@ -118,6 +149,60 @@ export class GameInstance {
 
       attacker.hasAttackedThisTurn = true;
     });
+  }
+
+  resolveGameOverByHealth() {
+    if (this.gameOver) return this.gameOver;
+
+    const p1 = this.state.players.p1;
+    const p2 = this.state.players.p2;
+
+    const p1Dead = p1.hp <= 0;
+    const p2Dead = p2.hp <= 0;
+
+    if (!p1Dead && !p2Dead) {
+      return null;
+    }
+
+    if (p1Dead && p2Dead) {
+      this.gameOver = {
+        reason: "double_ko",
+        winnerId: null,
+        loserId: null,
+      };
+      return this.gameOver;
+    }
+
+    this.gameOver = p1Dead
+      ? { reason: "hero_defeated", winnerId: "p2", loserId: "p1" }
+      : { reason: "hero_defeated", winnerId: "p1", loserId: "p2" };
+
+    return this.gameOver;
+  }
+
+  surrender(playerId) {
+    this.assertGameIsActive();
+
+    const winnerId = playerId === "p1" ? "p2" : "p1";
+    this.gameOver = {
+      reason: "surrender",
+      winnerId,
+      loserId: playerId,
+      surrenderedBy: playerId,
+    };
+
+    this.getContext().visualEvents.push({
+      type: "GAME_OVER",
+      reason: "surrender",
+      winnerId,
+      loserId: playerId,
+    });
+
+    return this.gameOver;
+  }
+
+  getGameOver() {
+    return this.gameOver;
   }
 
   getContext() {

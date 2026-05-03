@@ -1,7 +1,9 @@
 export const ClientEvents = Object.freeze({
   SUBMIT_DECK: "deck:submit",
   PLAY_CARD: "action:playCard",
+  ATTACK: "action:attack",
   END_TURN: "action:endTurn",
+  SURRENDER: "action:surrender",
 });
 
 export const ServerEvents = Object.freeze({
@@ -10,6 +12,7 @@ export const ServerEvents = Object.freeze({
   MATCH_FOUND: "match:found",
   GAME_STATE: "game:state",
   GAME_EVENTS: "game:events",
+  GAME_OVER: "game:over",
   SERVER_ERROR: "server:error",
 });
 
