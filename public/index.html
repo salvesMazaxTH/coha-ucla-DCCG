@@ -552,15 +552,6 @@
           >
             Render-se
           </button>
-
-          <a
-            id="deckbuilder-link"
-            href="/deckbuilder.html"
-            class="ml-1 px-3 py-1.5 rounded text-neon/80 border border-neon/30 text-xs font-semibold transition-all duration-200 hover:text-neon hover:border-neon/60 hover:bg-neon/10"
-            title="Abrir Deckbuilder"
-          >
-            Deckbuilder
-          </a>
         </div>
       </div>
     </header>
@@ -706,6 +697,83 @@
     <div id="board-root"></div>
 
     <section
+      id="lobby-overlay"
+      class="fixed inset-0 z-40 flex items-center justify-center bg-black/65 backdrop-blur-sm"
+    >
+      <div
+        class="w-[94%] max-w-xl rounded-2xl border border-neon/35 bg-game-surface p-6 shadow-neon-glow"
+      >
+        <p
+          class="text-xs uppercase tracking-[0.28em] text-neon/70 font-semibold"
+        >
+          Lobby
+        </p>
+        <h2 class="mt-2 text-2xl font-extrabold text-white">
+          Entrar na partida
+        </h2>
+
+        <p id="lobby-message" class="mt-2 text-sm text-white/80">
+          Digite seu nome para entrar na fila.
+        </p>
+
+        <div id="lobby-step-username" class="mt-5 space-y-3">
+          <label for="lobby-username-input" class="text-xs text-white/70"
+            >Nome de usuario</label
+          >
+          <input
+            id="lobby-username-input"
+            type="text"
+            maxlength="20"
+            class="w-full rounded-md border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-neon/60"
+            placeholder="Ex: Thiago"
+          />
+          <button
+            id="lobby-register-btn"
+            class="w-full rounded-md bg-neon/20 border border-neon/45 py-2 text-neon font-semibold hover:bg-neon/30"
+          >
+            Entrar na fila
+          </button>
+        </div>
+
+        <div id="lobby-step-waiting" class="mt-5 hidden">
+          <p class="text-sm text-white/80">
+            Jogadores conectados: <span id="lobby-player-count">0</span>
+          </p>
+          <p class="mt-2 text-xs text-white/60">
+            Minimo necessario: 2 jogadores conectados e registrados.
+          </p>
+        </div>
+
+        <div id="lobby-step-deck" class="mt-5 hidden space-y-3">
+          <p class="text-sm text-white/80">
+            Oponente pareado: <span id="lobby-opponent-name">-</span>
+          </p>
+
+          <label for="lobby-deck-code" class="text-xs text-white/70"
+            >Cole seu deck code</label
+          >
+          <textarea
+            id="lobby-deck-code"
+            rows="4"
+            class="w-full rounded-md border border-white/20 bg-black/30 px-3 py-2 text-xs text-white outline-none focus:border-neon/60"
+            placeholder="Cole aqui um deck code valido"
+          ></textarea>
+
+          <button
+            id="lobby-submit-deck-btn"
+            class="w-full rounded-md bg-emerald-400/20 border border-emerald-300/45 py-2 text-emerald-200 font-semibold hover:bg-emerald-400/30"
+          >
+            Confirmar deck
+          </button>
+
+          <p id="lobby-deck-feedback" class="text-xs text-white/70">
+            O jogo inicia quando os dois jogadores confirmarem deck valido.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section
       id="gameover-overlay"
       class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/70 backdrop-blur-sm"
     >
@@ -732,10 +800,10 @@
             Nova partida
           </button>
           <button
-            id="gameover-deckbuilder-btn"
+            id="gameover-lobby-btn"
             class="px-4 py-2 rounded-md bg-white/10 border border-white/20 text-white font-semibold hover:bg-white/20"
           >
-            Ir ao Deckbuilder
+            Voltar ao lobby
           </button>
         </div>
       </div>

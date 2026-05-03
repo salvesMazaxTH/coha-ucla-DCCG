@@ -31,7 +31,16 @@ test("rejects champion copies above limit", () => {
 
 test("rejects non-neutral card without shared essence", () => {
   const deck = buildValidDeckIds();
-  deck[0] = "duskInvoker";
+  const firstDusk = deck.indexOf("duskInvoker");
+  const secondDusk = deck.lastIndexOf("duskInvoker");
+
+  if (firstDusk === -1 || secondDusk === -1 || firstDusk === secondDusk) {
+    throw new Error("Test deck must include two duskInvoker cards");
+  }
+
+  // Keeps one crepuscular card isolated while preserving deck size and copy limits.
+  deck[secondDusk] = "neutralSquire";
+
   const result = DeckValidator.validateDetailed(deck);
   assert.equal(result.valid, false);
   assert.equal(result.error.rule, "cohesion");

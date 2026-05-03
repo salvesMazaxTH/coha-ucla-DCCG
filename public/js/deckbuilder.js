@@ -102,6 +102,9 @@ function renderDeck() {
 }
 
 function addCard(card) {
+  const currentDeckSize = deckArrayFromMap().length;
+  if (currentDeckSize >= TARGET_SIZE) return;
+
   const current = deck.get(card.id) || 0;
   const limit = getCopyLimit(card);
   if (current >= limit) return;

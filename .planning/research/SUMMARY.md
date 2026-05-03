@@ -20,6 +20,7 @@ The top risk is drift: drift between deckbuilder and validator rules, drift betw
 Keep the current platform and harden it incrementally instead of changing technology layers in the same milestone.
 
 **Core technologies:**
+
 - Node.js 22 LTS: production runtime baseline for stability and package compatibility.
 - Express 5.2.x: low-risk modernization of server routing/error behavior with minimal structural churn.
 - Socket.IO 4.8.x: authoritative real-time transport and event contract channel already aligned with current code.
@@ -48,27 +49,33 @@ These are mandatory for a credible v1 and should be treated as launch blockers i
 ### Architecture Guardrails
 
 1. Preserve strict authority boundaries.
+
 - Client provides intent and UX hints only.
 - Server owns legality, state mutation, combat outcomes, and turn progression.
 
 2. Enforce shared contracts for protocol and rules.
+
 - Centralize event names/payload schemas in shared contracts.
 - Centralize deck/card rules in shared schema consumed by validator and deckbuilder adapter.
 
 3. Route all actions through a staged resolver pipeline.
+
 - validateIntent -> preHooks -> applyCoreAction -> resolveDeaths -> postHooks -> flushScheduled -> buildEnvelope.
 - No direct gameplay mutations inside socket handlers.
 
 4. Keep deterministic event processing.
+
 - Snapshot listeners before dispatch.
 - Queue side effects to explicit commit points.
 - Apply stable tie-breakers (turn order + stable entity IDs).
 
 5. Keep client rendering projection-only.
+
 - Render from ordered envelopes/snapshots.
 - Never encode authoritative rules in render modules.
 
 6. Defer high-churn architecture changes.
+
 - No full frontend framework migration.
 - No full TypeScript rewrite.
 - No distributed scaling decomposition before single-instance correctness.
@@ -76,47 +83,57 @@ These are mandatory for a credible v1 and should be treated as launch blockers i
 ### Highest-Risk Pitfalls and Mitigations
 
 1. Rule drift between product deck rules and backend validator.
+
 - Mitigation: shared DeckRules profile, versioned rulesets in deck code/server responses, property-based legality tests.
 
 2. Client/server socket contract drift.
+
 - Mitigation: shared protocol constants + schemas, runtime validation, protocol version handshake, socket round-trip integration tests.
 
 3. Non-deterministic effect and combat ordering.
+
 - Mitigation: explicit timeline stages, queued side effects, stable ordering keys, determinism harness (same seed/state repeated).
 
 4. Deck code fragility and ambiguous decode failures.
+
 - Mitigation: deck code v2 with version prefix and checksum, structured decode error categories, parser fuzz tests.
 
 5. Shared module runtime assumptions (browser vs Node).
+
 - Mitigation: environment-safe utility adapters, dual-runtime CI tests for shared modules on join/combat/deck paths.
 
 ## Suggested Phase Ordering
 
 ### Phase 1: Contracts and Rule Canonicalization
+
 **Rationale:** Everything else depends on stable rules and protocol contracts.  
 **Delivers:** shared protocol map, schema validation boundaries, canonical card/deck schema, DeckRules profile, validator parity baseline.  
 **Features covered:** canonical card model, server deck legality, basic join/start event correctness.  
 **Pitfalls addressed:** rule drift, contract drift.
 
 ### Phase 2: Deterministic Match Core
+
 **Rationale:** v1 credibility depends on fair and repeatable match outcomes.  
 **Delivers:** ActionResolver staged pipeline, TurnManager hardening, EffectBus scoped hooks, deterministic envelope builder, reconnect/concede state machine cleanup.  
 **Features covered:** deterministic turn protocol, core board loop, resolution pipeline, match finalization.  
 **Pitfalls addressed:** non-deterministic ordering, placeholder flow leakage.
 
 ### Phase 3: Client Integration and UX Integrity
+
 **Rationale:** Once backend truth is stable, align the client to that truth for reliable player experience.  
 **Delivers:** EventRouter/EventQueueRenderer integration, action gating from legal moves, snapshot reconciliation, clearer error/feedback/log UX.  
 **Features covered:** reliable sync, clear action feedback, reconnect recovery visibility.  
 **Pitfalls addressed:** ghost UI states, hidden contract mismatch symptoms.
 
 ### Phase 4: Verification and Hardening
+
 **Rationale:** Stabilization must be proven under test and abuse-like inputs before scale or content expansion.  
 **Delivers:** unit + integration + socket E2E suites, determinism replay checks, deck parser fuzzing, telemetry dashboards for rejection and event anomalies.  
 **Features covered:** operational observability, regression resistance for v1 rules.  
 **Pitfalls addressed:** decode fragility, undetected protocol drift, regression churn.
 
 ### Phase 5: Post-v1 Expansion
+
 **Rationale:** Add differentiators only after contracts and determinism are trusted.  
 **Delivers:** spectator/replay, ranked progression, draft/arena experiments, broader card pool increments.  
 **Features covered:** competitive and retention differentiators.  
@@ -132,22 +149,24 @@ These are mandatory for a credible v1 and should be treated as launch blockers i
 ### Research Flags
 
 Phases likely needing deeper research during planning:
+
 - Phase 2 (Deterministic Match Core): resolver staging migration details and hook ordering semantics need targeted design validation.
 - Phase 4 (Verification and Hardening): determinism harness and replay-fidelity strategy may require deeper tooling research.
 - Phase 5 (Post-v1 Expansion): ranked/MMR and replay/spectator architecture choices need product and infra research.
 
 Phases with standard patterns (can usually skip dedicated research-phase):
+
 - Phase 1 (Contracts and Rule Canonicalization): established schema/contract hardening patterns.
 - Phase 3 (Client Integration and UX Integrity): conventional event-driven client reconciliation patterns once contracts are stable.
 
 ## Confidence Assessment
 
-| Area | Confidence | Notes |
-|------|------------|-------|
-| Stack | HIGH | Recommendations align with current codebase and stable 2026 package lines; low migration risk. |
-| Features | HIGH | Strong agreement on v1 table stakes and dependency chain for card game integrity. |
-| Architecture | HIGH | Clear reusable backbone from existing server-authoritative/event-driven structure with explicit adaptation boundaries. |
-| Pitfalls | HIGH | Risks are concrete, observed in current brownfield context, and mapped to testable mitigations. |
+| Area         | Confidence | Notes                                                                                                                  |
+| ------------ | ---------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Stack        | HIGH       | Recommendations align with current codebase and stable 2026 package lines; low migration risk.                         |
+| Features     | HIGH       | Strong agreement on v1 table stakes and dependency chain for card game integrity.                                      |
+| Architecture | HIGH       | Clear reusable backbone from existing server-authoritative/event-driven structure with explicit adaptation boundaries. |
+| Pitfalls     | HIGH       | Risks are concrete, observed in current brownfield context, and mapped to testable mitigations.                        |
 
 **Overall confidence:** HIGH
 
@@ -160,6 +179,7 @@ Phases with standard patterns (can usually skip dedicated research-phase):
 ## Sources
 
 ### Primary
+
 - .planning/research/STACK.md
 - .planning/research/FEATURES.md
 - .planning/research/ARCHITECTURE.md
@@ -167,8 +187,10 @@ Phases with standard patterns (can usually skip dedicated research-phase):
 - .planning/PROJECT.md
 
 ### Secondary
+
 - GAME_ARCHITECTURE_v6_2 (current).md (referenced by research outputs)
 
 ---
+
 Research completed: 2026-05-03  
 Ready for roadmap: yes

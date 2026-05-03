@@ -2,7 +2,6 @@ import { cardDB } from "../public/data/cardDB.js";
 
 export function buildValidDeckIds() {
   const picks = [
-    ["ronan", 4],
     ["blazeAdept", 4],
     ["voltaScout", 4],
     ["sparkMonk", 4],
@@ -13,6 +12,8 @@ export function buildValidDeckIds() {
     ["obsidianBanner", 4],
     ["shadowRogue", 4],
     ["galeRider", 2],
+    ["stoneWarden", 2],
+    ["duskInvoker", 2],
     ["skyArcher", 4],
     ["neutralSquire", 3],
   ];

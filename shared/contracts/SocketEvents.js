@@ -1,4 +1,5 @@
 export const ClientEvents = Object.freeze({
+  REGISTER_PLAYER: "lobby:register-player",
   SUBMIT_DECK: "deck:submit",
   PLAY_CARD: "action:playCard",
   ATTACK: "action:attack",
@@ -7,6 +8,9 @@ export const ClientEvents = Object.freeze({
 });
 
 export const ServerEvents = Object.freeze({
+  LOBBY_STATUS: "lobby:status",
+  PAIR_READY: "lobby:pair-ready",
+  PAIR_CANCELLED: "lobby:pair-cancelled",
   DECK_ACCEPTED: "deck:accepted",
   DECK_REJECTED: "deck:rejected",
   MATCH_FOUND: "match:found",

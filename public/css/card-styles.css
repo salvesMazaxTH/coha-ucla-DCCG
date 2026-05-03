@@ -1,0 +1,418 @@
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* ARENA DOS CAMPEÕES - Card Component Styles */
+/* Reusable CSS classes for dynamic card rendering */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* CARD COMPONENT — Base Styles */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+.card {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 0.5rem;
+  background: linear-gradient(170deg, #181e40 0%, #111633 50%, #0e1229 100%);
+  border: 1px solid #1e2650;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.6),
+    0 0 1px rgba(0, 255, 65, 0.2);
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(0, 255, 65, 0.06),
+    transparent
+  );
+  animation: shimmer 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 8px 25px rgba(0, 0, 0, 0.7),
+    0 0 20px rgba(0, 255, 65, 0.35);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* CARD STATS & ELEMENTS */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Mana Cost Badge */
+.card-cost {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, #5c9ce6 0%, #2b5a8a 100%);
+  border: 1px solid rgba(74, 144, 217, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+}
+
+/* Card Art Area */
+.card-art {
+  width: 3.5rem;
+  height: 3rem;
+
+  margin-top: 1.5rem;
+
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 0.375rem;
+}
+
+.card-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+/* Card Name */
+/* .card-name {
+  font-size: 0.5625rem;
+  color: rgba(156, 163, 175, 1);
+  margin-top: 0.375rem;
+  font-weight: 500;
+  z-index: 10;
+} */
+
+/* Attack Stat Badge */
+.card-atk {
+  position: absolute;
+  bottom: 0.25rem;
+  left: 0.25rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 9999px;
+  background: rgba(245, 200, 66, 0.9);
+  border: 1px solid #c49a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.625rem;
+  font-weight: 800;
+  color: #0a0e17;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+}
+
+/* HP Stat Badge */
+.card-hp {
+  position: absolute;
+  bottom: 0.25rem;
+  right: 0.25rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, #ff4444 0%, #c62828 100%);
+  border: 1px solid rgba(255, 85, 85, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.625rem;
+  font-weight: 800;
+  color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* BOARD CARDS */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+.card-board {
+  width: 5rem;
+  height: 7rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* BOARD SLOTS — Empty Placeholder */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+.board-slot {
+  width: 5rem;
+  height: 7rem;
+  border: 2px dashed rgba(0, 255, 65, 0.15);
+  border-radius: 0.5rem;
+  background: rgba(15, 19, 38, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.board-slot:hover {
+  border-color: rgba(0, 255, 65, 0.3);
+  background: rgba(15, 19, 38, 0.5);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* HAND CARDS */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+.card-hand {
+  width: 4.75rem;
+  height: 6.75rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* HAND CONTAINER & FAN LAYOUT */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+.hand-container {
+  position: relative;
+  overflow: visible;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0.125rem;
+  background: linear-gradient(0deg, rgba(0, 10, 5, 0.6) 0%, transparent 100%);
+  border-radius: 1rem 1rem 0 0;
+  margin-left: 0.5rem;
+  margin-right: 0.5rem;
+  padding-bottom: 0.25rem;
+  z-index: 20;
+}
+
+.hand-card {
+  transition: all 0.3s ease;
+  margin: 0 -0.75rem;
+}
+
+/* Fan layout rotation patterns */
+.hand-card-0 {
+  transform: rotate(-18deg) translateY(0.5rem);
+}
+
+.hand-card-1 {
+  transform: rotate(-9deg) translateY(0.125rem);
+}
+
+.hand-card-2 {
+  transform: rotate(0deg);
+}
+
+.hand-card-3 {
+  transform: rotate(9deg) translateY(0.125rem);
+}
+
+.hand-card-4 {
+  transform: rotate(18deg) translateY(0.5rem);
+}
+
+/* Hover lift effect — applies additional transform */
+.hand-card:hover {
+  transform: translateY(-1rem);
+  z-index: 30;
+}
+
+.hand-card-0:hover {
+  transform: rotate(-18deg) translateY(-1rem);
+}
+
+.hand-card-1:hover {
+  transform: rotate(-9deg) translateY(-1rem);
+}
+
+.hand-card-2:hover {
+  transform: translateY(-1rem);
+}
+
+.hand-card-3:hover {
+  transform: rotate(9deg) translateY(-1rem);
+}
+
+.hand-card-4:hover {
+  transform: rotate(18deg) translateY(-1rem);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* HERO CONTAINER */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+.hero-container {
+  position: relative;
+  width: 5rem;
+  height: 5rem;
+  background: linear-gradient(160deg, #181e40 0%, #0e1229 100%);
+  border: 2px solid #1e2650;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 0 25px rgba(0, 0, 0, 0.8),
+    0 0 12px rgba(0, 255, 65, 0.2);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.hero-container:hover {
+  box-shadow:
+    0 0 30px rgba(0, 0, 0, 0.7),
+    0 0 22px rgba(0, 255, 65, 0.4);
+  border-color: rgba(0, 255, 65, 0.3);
+}
+
+.hero-container .hero-hp {
+  position: absolute;
+  bottom: -0.5rem;
+  right: -0.5rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, #ff4444 0%, #c62828 100%);
+  border: 2px solid rgba(255, 85, 85, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.875rem;
+  color: white;
+  box-shadow: 0 0 15px rgba(255, 51, 51, 0.5);
+}
+
+.hero-container .hero-mana {
+  position: absolute;
+  top: -0.25rem;
+  left: -0.5rem;
+  display: flex;
+  gap: 0.125rem;
+}
+
+.hero-container .mana-orb {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 9999px;
+  border: 1px solid #2b5a8a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.hero-container .mana-orb.active {
+  background: #4a90d9;
+}
+
+.hero-container .mana-orb.inactive {
+  background: rgba(74, 144, 217, 0.2);
+  border-color: rgba(43, 90, 138, 0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* DECK & GRAVEYARD CONTAINERS */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+.zone-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.125rem;
+}
+
+.zone-indicator.deck {
+  opacity: 0.6;
+}
+
+.zone-indicator .zone-card {
+  width: 2.5rem;
+  height: 3.5rem;
+  background: #0f1326;
+  border: 1px solid #1e2650;
+  border-radius: 0.375rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.zone-indicator .zone-count {
+  font-size: 0.625rem;
+  font-weight: 600;
+}
+
+#opponent-deck .zone-count {
+  color: rgba(156, 163, 175, 0.6);
+}
+
+#player-deck .zone-count {
+  color: rgba(0, 255, 65, 0.5);
+}
+
+#opponent-graveyard .zone-count {
+  color: rgba(229, 62, 62, 0.5);
+}
+
+#player-graveyard .zone-count {
+  color: rgba(229, 62, 62, 0.4);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* OPPONENT HAND — Face-down Cards */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+.card-facedown {
+  width: 3rem;
+  height: 4.375rem;
+  background: #0f1326;
+  border: 1px solid #1e2650;
+  border-radius: 0.375rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  margin: 0 -0.375rem;
+}
+
+.card-facedown:nth-child(1) {
+  transform: rotate(-6deg);
+}
+
+.card-facedown:nth-child(2) {
+  transform: rotate(-3deg);
+}
+
+.card-facedown:nth-child(3) {
+  transform: rotate(0deg);
+}
+
+.card-facedown:nth-child(4) {
+  transform: rotate(3deg);
+}
+
+.card-facedown:nth-child(5) {
+  transform: rotate(6deg);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* ANIMATIONS */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-120%);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+}

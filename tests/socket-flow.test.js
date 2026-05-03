@@ -59,6 +59,9 @@ test("socket flow: two validated decks produce match and game state", async () =
 
     const deckCode = DeckCoder.encode(buildValidDeckIds());
 
+    const p1PairReady = once(p1, ServerEvents.PAIR_READY);
+    const p2PairReady = once(p2, ServerEvents.PAIR_READY);
+
     const p1Accepted = once(p1, ServerEvents.DECK_ACCEPTED);
     const p2Accepted = once(p2, ServerEvents.DECK_ACCEPTED);
     const p1Match = once(p1, ServerEvents.MATCH_FOUND);
@@ -66,10 +69,15 @@ test("socket flow: two validated decks produce match and game state", async () =
     const p1State = once(p1, ServerEvents.GAME_STATE);
     const p2State = once(p2, ServerEvents.GAME_STATE);
 
+    p1.emit(ClientEvents.REGISTER_PLAYER, { username: "Thiago" });
+    p2.emit(ClientEvents.REGISTER_PLAYER, { username: "Rival" });
+
+    await Promise.all([p1PairReady, p2PairReady]);
+
     p1.emit(ClientEvents.SUBMIT_DECK, { deckCode });
     p2.emit(ClientEvents.SUBMIT_DECK, { deckCode });
 
-    await Promise.all([
+    const [, , , , [p1StatePayload], [p2StatePayload]] = await Promise.all([
       p1Accepted,
       p2Accepted,
       p1Match,
@@ -77,6 +85,9 @@ test("socket flow: two validated decks produce match and game state", async () =
       p1State,
       p2State,
     ]);
+
+    assert.equal(p1StatePayload.players.p1.hand.length, 6);
+    assert.equal(p2StatePayload.players.p2.hand.length, 6);
 
     p1.close();
     p2.close();
@@ -103,10 +114,18 @@ test("socket flow: surrender ends match and emits game over", async () => {
 
     const deckCode = DeckCoder.encode(buildValidDeckIds());
 
+    const p1PairReady = once(p1, ServerEvents.PAIR_READY);
+    const p2PairReady = once(p2, ServerEvents.PAIR_READY);
+
     const p1MatchPromise = once(p1, ServerEvents.MATCH_FOUND);
     const p2MatchPromise = once(p2, ServerEvents.MATCH_FOUND);
     const p1GameOverPromise = once(p1, ServerEvents.GAME_OVER);
     const p2GameOverPromise = once(p2, ServerEvents.GAME_OVER);
+
+    p1.emit(ClientEvents.REGISTER_PLAYER, { username: "Thiago" });
+    p2.emit(ClientEvents.REGISTER_PLAYER, { username: "Rival" });
+
+    await Promise.all([p1PairReady, p2PairReady]);
 
     p1.emit(ClientEvents.SUBMIT_DECK, { deckCode });
     p2.emit(ClientEvents.SUBMIT_DECK, { deckCode });

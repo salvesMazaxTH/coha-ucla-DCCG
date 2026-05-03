@@ -1,16 +1,4 @@
 export const cardDB = {
-  ronan: {
-    id: "ronan",
-    name: "Ronan",
-    type: "Unit",
-    rarity: "Common",
-    cost: 2,
-    attack: 3,
-    hp: 2,
-    essences: ["ignea"],
-    keywords: [],
-    art: "/assets/cards/ronan.webp",
-  },
   voltaScout: {
     id: "voltaScout",
     name: "Volta Scout",
@@ -21,7 +9,7 @@ export const cardDB = {
     hp: 2,
     essences: ["eletrica"],
     keywords: ["haste"],
-    art: "/assets/cards/ronan.webp",
+    art: "/assets/cards/card-placeholder.svg",
   },
   tideKeeper: {
     id: "tideKeeper",
@@ -33,7 +21,7 @@ export const cardDB = {
     hp: 5,
     essences: ["aquatica"],
     keywords: ["regeneration"],
-    art: "/assets/cards/ronan.webp",
+    art: "/assets/cards/card-placeholder.svg",
   },
   dawnSentinel: {
     id: "dawnSentinel",
@@ -45,7 +33,7 @@ export const cardDB = {
     hp: 4,
     essences: ["sagrada"],
     keywords: ["armored"],
-    art: "/assets/cards/ronan.webp",
+    art: "/assets/cards/card-placeholder.svg",
   },
   duskInvoker: {
     id: "duskInvoker",
@@ -55,7 +43,7 @@ export const cardDB = {
     cost: 5,
     essences: ["crepuscular"],
     keywords: [],
-    art: "/assets/cards/ronan.webp",
+    art: "/assets/cards/card-placeholder.svg",
   },
   obsidianBanner: {
     id: "obsidianBanner",
@@ -65,7 +53,7 @@ export const cardDB = {
     cost: 2,
     essences: ["obscura"],
     keywords: [],
-    art: "/assets/cards/ronan.webp",
+    art: "/assets/cards/card-placeholder.svg",
   },
   galeRider: {
     id: "galeRider",
@@ -78,7 +66,7 @@ export const cardDB = {
     essences: ["aerea", "eletrica"],
     keywords: ["critical"],
     power: { name: "Skyfall", text: "Deal 2 damage to all enemies." },
-    art: "/assets/cards/ronan.webp",
+    art: "/assets/cards/card-placeholder.svg",
   },
   stoneWarden: {
     id: "stoneWarden",
@@ -91,7 +79,7 @@ export const cardDB = {
     essences: ["terrestre"],
     keywords: ["thorns"],
     power: { name: "Wall of Earth", text: "Gain armored 1." },
-    art: "/assets/cards/ronan.webp",
+    art: "/assets/cards/card-placeholder.svg",
   },
   neutralSquire: {
     id: "neutralSquire",
@@ -103,7 +91,7 @@ export const cardDB = {
     hp: 1,
     essences: [],
     keywords: [],
-    art: "/assets/cards/ronan.webp",
+    art: "/assets/cards/card-placeholder.svg",
   },
   blazeAdept: {
     id: "blazeAdept",
@@ -115,7 +103,7 @@ export const cardDB = {
     hp: 3,
     essences: ["ignea"],
     keywords: [],
-    art: "/assets/cards/ronan.webp",
+    art: "/assets/cards/card-placeholder.svg",
   },
   sparkMonk: {
     id: "sparkMonk",
@@ -127,7 +115,7 @@ export const cardDB = {
     hp: 2,
     essences: ["eletrica"],
     keywords: [],
-    art: "/assets/cards/ronan.webp",
+    art: "/assets/cards/card-placeholder.svg",
   },
   frostWitch: {
     id: "frostWitch",
@@ -139,7 +127,7 @@ export const cardDB = {
     hp: 3,
     essences: ["glacial"],
     keywords: [],
-    art: "/assets/cards/ronan.webp",
+    art: "/assets/cards/card-placeholder.svg",
   },
   seaPriest: {
     id: "seaPriest",
@@ -151,7 +139,7 @@ export const cardDB = {
     hp: 4,
     essences: ["aquatica"],
     keywords: [],
-    art: "/assets/cards/ronan.webp",
+    art: "/assets/cards/card-placeholder.svg",
   },
   shadowRogue: {
     id: "shadowRogue",
@@ -163,7 +151,7 @@ export const cardDB = {
     hp: 1,
     essences: ["obscura"],
     keywords: [],
-    art: "/assets/cards/ronan.webp",
+    art: "/assets/cards/card-placeholder.svg",
   },
   skyArcher: {
     id: "skyArcher",
@@ -175,7 +163,7 @@ export const cardDB = {
     hp: 2,
     essences: ["aerea"],
     keywords: [],
-    art: "/assets/cards/ronan.webp",
+    art: "/assets/cards/card-placeholder.svg",
   },
 };
 

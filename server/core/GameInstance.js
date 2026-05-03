@@ -27,7 +27,35 @@ export class GameInstance {
 
   async startMatch() {
     this.state.turnCount = 1;
-    this.startTurn("p1", { advanceTurn: false });
+
+    this.state.stack.push(() => {
+      const context = this.getContext();
+      const p1 = this.state.players.p1;
+      const p2 = this.state.players.p2;
+
+      for (let i = 0; i < 6; i += 1) {
+        p1.drawCard(context);
+        p2.drawCard(context);
+      }
+
+      p1.refillMana(this.state.turnCount);
+      p1.board.forEach((creature) => {
+        creature.hasAttackedThisTurn = false;
+      });
+
+      p2.board.forEach((creature) => {
+        creature.hasAttackedThisTurn = false;
+      });
+
+      this.state.activePlayerId = "p1";
+    });
+
+    this.getContext().visualEvents.push({
+      type: "TURN_STARTED",
+      playerId: "p1",
+      turnCount: this.state.turnCount,
+    });
+
     await this.flushStack();
   }
 
