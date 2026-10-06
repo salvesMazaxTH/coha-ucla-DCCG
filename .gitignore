@@ -1,5 +1,4 @@
-node_modules
+.godot/
 .env
-dist
-build
-analytics/config.js
+/build/
+*.tmp
