@@ -74,7 +74,14 @@ static func _pick_target(g: GameState, p: int, spec: String, src) -> int:
 	for uid in opts:
 		var score := 0
 		if uid < 0:
+			if friendly or uid != GameState.LEADER_UID[g.opponent(p)]:
+				continue
 			score = 3
+			# go face when the damage finishes the enemy Leader
+			if not friendly and src is Dictionary:
+				for e in src.get("effects", []):
+					if e.get("action") == "damage" and int(e["amount"]) >= g.players[g.opponent(p)]["leader_hp"]:
+						score = 999
 		else:
 			var c := g.find_creature(uid)
 			var mine: bool = c["owner"] == p
@@ -109,7 +116,10 @@ static func _try_attack(g: GameState, p: int) -> Array:
 		for e in enemy_board:
 			if g.can_block(e, c) and g.atk_of(e) >= g.hp_left(c) and g.atk_of(c) < g.hp_left(e):
 				safe = false
-		if safe or prov != 0 or enemy_board.size() == 0:
+		# aggression: attacking costs no defense, so push when the enemy is low
+		# or we outnumber their blockers
+		var pressure: bool = g.players[g.opponent(p)]["leader_hp"] <= 10 or g.players[p]["board"].size() > enemy_board.size() + 1
+		if safe or prov != 0 or enemy_board.size() == 0 or pressure:
 			attacks[c["uid"]] = prov
 	if attacks.is_empty():
 		return []
