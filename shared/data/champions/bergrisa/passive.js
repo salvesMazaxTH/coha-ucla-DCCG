@@ -16,7 +16,7 @@ export default {
   subtractionPerSediment: 0.75,
   subtractionCapRatio: 0.5,
   gapRatio: 0.5,
-  maxGapBonus: 60,
+  maxGapBonus: 45,
   incomingDamageBonus: 65,
 
   description() {
@@ -104,7 +104,8 @@ export default {
     if (!defender) return;
 
     const ratio = skill?.defenseGapRatio ?? this.gapRatio;
-    const gap = (attacker.Defense || 0) - (defender.Defense || 0);
+    const reference = skill?.gapReference ?? defender;
+    const gap = (attacker.Defense || 0) - (reference.Defense || 0);
     if (gap <= 0 || ratio <= 0) return;
 
     const cap = skill?.maxGapBonus ?? this.maxGapBonus;

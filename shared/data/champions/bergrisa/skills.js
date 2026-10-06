@@ -5,8 +5,26 @@ import { formatChampionName } from "../../../ui/formatters.js";
 import passive from "./passive.js";
 import totalBlock from "../generic/totalBlock.js";
 
-function strike(skill, user, targets, context, percent = 100) {
+// A partial blow carries the same share of Strata's Defense-gap bonus as of
+// the base damage, measured off the Defense of the enemy the blow was aimed
+// at, so a splash onto a squishier neighbour can never out-bonus the main hit.
+function scaledGapSkill(skill, percent, primary) {
+  if (percent >= 100) return skill;
+
+  const scale = percent / 100;
+  return {
+    ...skill,
+    gapReference: primary,
+    defenseGapRatio: (skill.defenseGapRatio ?? passive.gapRatio) * scale,
+    maxGapBonus: Math.floor(
+      (skill.maxGapBonus ?? passive.maxGapBonus) * scale,
+    ),
+  };
+}
+
+function strike(skill, user, targets, context, percent = 100, primary) {
   const baseDamage = (user.Attack * skill.bf * percent) / 10000;
+  const hitSkill = scaledGapSkill(skill, percent, primary);
   const results = [];
 
   for (const enemy of targets) {
@@ -14,7 +32,7 @@ function strike(skill, user, targets, context, percent = 100) {
       baseDamage,
       attacker: user,
       defender: enemy,
-      skill,
+      skill: hitSkill,
       type: "physical",
       context,
       allChampions: context?.allChampions,
@@ -34,14 +52,14 @@ const bergrisaSkills = [
   {
     key: "valleystride",
     name: "Valleystride",
-    bf: 45,
+    bf: 35,
     damageMode: "standard",
     contact: true,
     priority: 0,
     stunDuration: 1,
     stunSedimentCost: 8,
     stunGapThreshold: 110,
-    splashPercent: 50,
+    splashPercent: 35,
 
     description() {
       return {
@@ -57,7 +75,9 @@ const bergrisaSkills = [
       const results = strike(this, user, [target], context);
 
       const splashed = context.getAdjacentChampions(target) || [];
-      results.push(...strike(this, user, splashed, context, this.splashPercent));
+      results.push(
+        ...strike(this, user, splashed, context, this.splashPercent, target),
+      );
 
       const sediment = user.runtime?.bergrisaSediment || 0;
       if (sediment < this.stunSedimentCost || !target.alive) return results;
@@ -152,7 +172,7 @@ const bergrisaSkills = [
     bf: 30,
     damageMode: "standard",
     defenseGapRatio: 0.8,
-    maxGapBonus: 110,
+    maxGapBonus: 59,
     cannotMiss: true,
     contact: true,
     isUltimate: true,
