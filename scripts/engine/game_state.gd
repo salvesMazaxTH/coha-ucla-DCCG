@@ -396,7 +396,7 @@ func _deal_damage(t: int, amount: int, source: Dictionary) -> int:
 		var tp := LEADER_UID.find(t)
 		players[tp]["leader_hp"] -= amount
 		dealt = amount
-		_emit({"type": "damage", "uid": t, "amount": amount})
+		_emit({"type": "damage", "uid": t, "amount": amount, "src": source.get("uid", 0)})
 	else:
 		var c := find_creature(t)
 		if c.is_empty():
@@ -407,7 +407,7 @@ func _deal_damage(t: int, amount: int, source: Dictionary) -> int:
 			return 0
 		c["damage"] += amount
 		dealt = amount
-		_emit({"type": "damage", "uid": t, "amount": amount})
+		_emit({"type": "damage", "uid": t, "amount": amount, "src": source.get("uid", 0)})
 	if not source.is_empty() and has_kw(source, "roubo_de_vida"):
 		_heal_leader(source["owner"], dealt)
 	return dealt
