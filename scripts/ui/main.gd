@@ -24,6 +24,7 @@ var net: NetClient ## online match link (null offline)
 var online := false
 var opp_online := true
 var code_entry := ""
+var sel_deck := "" ## prebuilt deck picked in the online hub
 
 # input state
 var picked: Array = [] ## mulligan/discard selection
@@ -237,7 +238,7 @@ func _show_menu() -> void:
 	lt.position = Vector2(stage_w - 300, 790)
 	lt.size = Vector2(280, 52)
 	layer.add_child(lt)
-	var ver := _label("alpha 0.1", 13, Color(1, 1, 1, 0.35), HORIZONTAL_ALIGNMENT_RIGHT, "body")
+	var ver := _label("alpha 0.2", 13, Color(1, 1, 1, 0.35), HORIZONTAL_ALIGNMENT_RIGHT, "body")
 	ver.position = Vector2(stage_w - 300, 864)
 	ver.size = Vector2(280, 20)
 	layer.add_child(ver)
@@ -281,8 +282,124 @@ func _reset_input() -> void:
 
 # ---------------------------------------------------------------- online
 
-## Lobby: create a room (pick a Leader) or join one by its 4-letter code.
+## Online hub: pick a prebuilt deck from the grid, then create a room or go on to join one by code.
 func _show_online(msg := "") -> void:
+	_clear_fx()
+	_clear()
+	table.visible = false
+	_set_tints(Color("#3f7bd9"), Color("#e0572b"), 1.6)
+	var ids := DeckDB.ids()
+	if not ids.has(sel_deck):
+		sel_deck = ids[0]
+	var title := _label("ONLINE", 56, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8)
+	title.position = Vector2(0, 24)
+	title.size = Vector2(stage_w, 72)
+	layer.add_child(title)
+	layer.add_child(_ornament(Vector2(stage_w / 2.0, 108), 240))
+	var sub := _label(msg if msg != "" else "Escolha o seu deck", 22, UITheme.TEXT if msg != "" else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
+	sub.position = Vector2(0, 122)
+	sub.size = Vector2(stage_w, 30)
+	layer.add_child(sub)
+
+	var tile := Vector2(300, 400)
+	var gap := 28.0
+	var per_row := clampi(int((stage_w - 80.0 + gap) / (tile.x + gap)), 1, ids.size())
+	var rows := ceili(float(ids.size()) / float(per_row))
+	var y := 172.0
+	for r in rows:
+		var in_row := mini(per_row, ids.size() - r * per_row)
+		var x := (stage_w - (in_row * tile.x + (in_row - 1) * gap)) / 2.0
+		for c in in_row:
+			var id := ids[r * per_row + c]
+			var t := _deck_tile(id, tile, id == sel_deck)
+			t.position = Vector2(x + c * (tile.x + gap), y)
+			t.gui_input.connect(func(ev: InputEvent) -> void:
+				var mb := ev as InputEventMouseButton
+				if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and sel_deck != id:
+					sel_deck = id
+					_show_online.call_deferred(msg))
+			layer.add_child(t)
+		y += tile.y + gap
+
+	var actions: Array = []
+	if net.load_session():
+		actions.append(["RETOMAR PARTIDA (%s)" % net.code, func() -> void:
+			online = true
+			net.resume(), true])
+	actions.append(["CRIAR SALA", func() -> void:
+		online = true
+		net.create(sel_deck)
+		_show_wait("Criando sala…"), true])
+	actions.append(["ENTRAR COM CÓDIGO", func() -> void:
+		code_entry = ""
+		_show_join(), false])
+	var bw := 400.0
+	var bx := (stage_w - (actions.size() * bw + (actions.size() - 1) * 24.0)) / 2.0
+	for i in actions.size():
+		var b := _button(actions[i][0], actions[i][1], actions[i][2])
+		b.position = Vector2(bx + i * (bw + 24.0), y + 4.0)
+		b.size = Vector2(bw, 72)
+		layer.add_child(b)
+	var bk := _button("Voltar", _show_menu)
+	bk.position = Vector2((stage_w - 240.0) / 2.0, y + 96.0)
+	bk.size = Vector2(240, 56)
+	layer.add_child(bk)
+
+## One deck card in the hub grid: Leader art, deck name, Leader line, blurb and size.
+func _deck_tile(id: String, size: Vector2, selected: bool) -> Control:
+	var d := DeckDB.get_deck(id)
+	var ld := CardDB.leader(d["leader"])
+	var col := Color(String(CardDB.essence(ld["essences"][0]).get("color", "#8a8f98")))
+	var bg := Color(0.06, 0.055, 0.085, 0.94)
+	var p := Panel.new()
+	p.size = size
+	p.clip_contents = true
+	p.mouse_filter = Control.MOUSE_FILTER_STOP
+	p.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	p.add_theme_stylebox_override("panel", UITheme.box(bg, 14, UITheme.GOLD if selected else Color(col, 0.6), 5 if selected else 2, 16))
+	var art_h := size.y * 0.52
+	var art := TextureRect.new()
+	art.texture = CardView.texture(String(ld.get("art", "")))
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	art.position = Vector2(4, 4)
+	art.size = Vector2(size.x - 8, art_h)
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.add_child(art)
+	var fade := GradientTexture2D.new()
+	var grad := Gradient.new()
+	grad.colors = PackedColorArray([Color(bg, 0.0), Color(bg, 1.0)])
+	fade.gradient = grad
+	fade.fill_from = Vector2(0, 0)
+	fade.fill_to = Vector2(0, 1)
+	var veil := TextureRect.new()
+	veil.texture = fade
+	veil.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	veil.position = Vector2(4, 4 + art_h * 0.55)
+	veil.size = Vector2(size.x - 8, art_h * 0.45 + 1)
+	veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.add_child(veil)
+	var nm := _label(String(d["name"]), 25, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6)
+	nm.position = Vector2(8, art_h - 22)
+	nm.size = Vector2(size.x - 16, 40)
+	p.add_child(nm)
+	var lead := _label("%s · %d de vida" % [ld["name"], int(ld["hp"])], 17, col.lightened(0.3), HORIZONTAL_ALIGNMENT_CENTER, "bold")
+	lead.position = Vector2(8, art_h + 20)
+	lead.size = Vector2(size.x - 16, 24)
+	p.add_child(lead)
+	var blurb := _label(String(d.get("description", "")), 16, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
+	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	blurb.position = Vector2(18, art_h + 52)
+	blurb.size = Vector2(size.x - 36, size.y - art_h - 98)
+	p.add_child(blurb)
+	var foot := _label("SELECIONADO" if selected else "%d cartas" % DeckDB.card_count(id), 15, UITheme.GOLD if selected else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
+	foot.position = Vector2(8, size.y - 36)
+	foot.size = Vector2(size.x - 16, 22)
+	p.add_child(foot)
+	return p
+
+## Join screen: 4-letter room code keypad, entering with the deck picked in the hub.
+func _show_join(msg := "") -> void:
 	_clear_fx()
 	_clear()
 	table.visible = false
@@ -292,23 +409,8 @@ func _show_online(msg := "") -> void:
 	box.position = Vector2(stage_w / 2.0 - 300, 90)
 	box.custom_minimum_size = Vector2(600, 0)
 	layer.add_child(box)
-	box.add_child(_label("ONLINE", 56, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8))
-	if msg != "":
-		box.add_child(_label(msg, 22, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
-	if net.load_session():
-		var r := _button("RETOMAR PARTIDA (%s)" % net.code, func():
-			online = true
-			net.resume(), true)
-		r.custom_minimum_size = Vector2(600, 64)
-		box.add_child(r)
-	for opt in [["CRIAR SALA COMO RONAN (FOGO)", "fogo"], ["CRIAR SALA COMO NAELTHOS (ÁGUA)", "agua"]]:
-		var b := _button(opt[0], func():
-			online = true
-			net.create(opt[1])
-			_show_wait("Criando sala…"))
-		b.custom_minimum_size = Vector2(600, 64)
-		box.add_child(b)
-	box.add_child(_label("ENTRAR COM CÓDIGO", 22, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
+	box.add_child(_label("ENTRAR NA SALA", 48, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8))
+	box.add_child(_label(msg if msg != "" else "Deck: %s" % DeckDB.get_deck(sel_deck)["name"], 22, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
 	var slots := _label(_code_text(), 64, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6)
 	box.add_child(slots)
 	var grid := GridContainer.new()
@@ -333,11 +435,11 @@ func _show_online(msg := "") -> void:
 	var go := _button("ENTRAR NA SALA", func():
 		if code_entry.length() == 4:
 			online = true
-			net.join(code_entry)
+			net.join(code_entry, sel_deck)
 			_show_wait("Entrando na sala…"), true)
 	go.custom_minimum_size = Vector2(600, 64)
 	box.add_child(go)
-	var bk := _button("Voltar", _show_menu)
+	var bk := _button("Voltar", func() -> void: _show_online())
 	bk.custom_minimum_size = Vector2(600, 52)
 	box.add_child(bk)
 
@@ -772,6 +874,9 @@ func _render_hand(p: int) -> void:
 	for i in n:
 		var c: Dictionary = hand[i]
 		var v := CardView.new().setup(c["card_id"], c, 1.2)
+		var hcd := CardDB.card(c["card_id"])
+		if g.cost_of(p, hcd) != int(hcd["cost"]):
+			v.cost_override = g.cost_of(p, hcd)
 		var k := i - (n - 1) / 2.0
 		v.pivot_offset = Vector2(v.size.x / 2.0, v.size.y)
 		var pos := Vector2(lane_cx + k * step - v.size.x / 2.0, 676 + k * k * 1.4)
@@ -977,7 +1082,7 @@ func _counter_price(sid: int) -> String:
 		if c["uid"] == targeting["uid"]:
 			var cd := CardDB.card(c["card_id"])
 			var extra := g.counter_extra(cd, sid)
-			return "Anular: %d" % (int(cd["cost"]) + extra) + (" (+%d)" % extra if extra > 0 else "")
+			return "Anular: %d" % (g.cost_of(viewer, cd) + extra) + (" (+%d)" % extra if extra > 0 else "")
 	return ""
 
 ## Contextual hint in a pill on the central divider.
@@ -1133,7 +1238,7 @@ func _on_hand_click(v: CardView) -> void:
 				_render()
 				return
 			var cd := CardDB.card(v.card_id)
-			var spec := g.target_spec(cd["effects"])
+			var spec := g.card_spec(cd)
 			var opts := g.card_targets(viewer, cd)
 			if spec != "" and not opts.is_empty():
 				targeting = {"kind": "hand", "uid": v.uid, "spec": spec}
@@ -1167,7 +1272,7 @@ func _self_targetable() -> bool:
 	for c in g.players[viewer]["hand"]:
 		if c["uid"] == targeting["uid"]:
 			inst = c
-	return not inst.is_empty() and CardDB.card(inst["card_id"])["type"] == "creature"
+	return not inst.is_empty() and CardDB.card(inst["card_id"])["type"] == "creature" and not CardDB.card(inst["card_id"]).get("cost_sacrifice", false)
 
 func _on_ability(p: int) -> void:
 	if not _my_input() or not g.can_use_ability(p):
@@ -1278,8 +1383,12 @@ func _show_overlay(v: CardView) -> void:
 	overlay.add_child(big)
 	var txt := "[font_size=48][color=#e8c25a]%s[/color][/font_size]\n" % cd["name"]
 	var rar := {"legendary": "Lendário", "champion": "Campeão", "epic": "Unidade Épica", "common": "Unidade"}
-	var typ := {"creature": rar[cd["rarity"]], "spell": "Feitiço", "equipment": "Equipamento"}
-	txt += "[color=#aaaaaa]%s · %s · custo %d[/color]\n\n" % [typ[cd["type"]], CardDB.essence_names(cd), cd["cost"]]
+	var typ := {"creature": rar.get(cd["rarity"], "Unidade"), "spell": "Feitiço", "equipment": "Equipamento"}
+	var kind: String = typ[cd["type"]]
+	if CardDB.species_names(cd) != "":
+		kind += " — " + CardDB.species_names(cd)
+	var shown_cost: int = v.cost_override if v.cost_override >= 0 else int(cd["cost"])
+	txt += "[color=#aaaaaa]%s · %s · custo %d[/color]\n\n" % [kind, CardDB.essence_names(cd), shown_cost]
 	if cd.get("text", "") != "":
 		var body: String = cd["text"]
 		if v.inst.has("frozen"):
@@ -1482,7 +1591,7 @@ func _reveal_hold(p: int) -> float:
 	return REVEAL_HOLD_OWN if (online or vs_ai) and p == viewer else REVEAL_HOLD
 
 ## A Leader ability has no card to show: a banner with its name and text instead.
-func _ability_banner(p: int, t: float, hold: float) -> void:
+func _ability_banner(p: int, t: float, hold: float, passive := false) -> void:
 	var ab: Dictionary = CardDB.leader(g.players[p]["leader_id"])["ability"]
 	var w := 440.0
 	var box := PanelContainer.new()
@@ -1495,7 +1604,7 @@ func _ability_banner(p: int, t: float, hold: float) -> void:
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_theme_constant_override("separation", 6)
 	box.add_child(col)
-	col.add_child(_label("%s · Habilidade do Líder" % _pname(p), 15, Color(UITheme.TEXT, 0.6), HORIZONTAL_ALIGNMENT_CENTER, "body"))
+	col.add_child(_label("%s · %s do Líder" % [_pname(p), "Passiva" if passive else "Habilidade"], 15, Color(UITheme.TEXT, 0.6), HORIZONTAL_ALIGNMENT_CENTER, "body"))
 	col.add_child(_label(String(ab["name"]), 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "bold", 4))
 	var tx := _label(String(ab.get("text", "")), 18, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "body")
 	tx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1568,6 +1677,10 @@ func _animate(events: Array, old: Dictionary) -> float:
 			"ability":
 				var hold := _reveal_hold(e["player"])
 				_ability_banner(e["player"], cursor, hold)
+				cursor += 0.2 + hold - 0.15
+			"passive":
+				var hold := _reveal_hold(e["player"]) * 0.6
+				_ability_banner(e["player"], cursor, hold, true)
 				cursor += 0.2 + hold - 0.15
 			"resolve":
 				cursor += 0.15
@@ -1687,6 +1800,8 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s jogou %s" % [_pname(e["player"]), _cname(e["card_id"])])
 		"ability":
 			_log("%s usou %s" % [_pname(e["player"]), CardDB.leader(g.players[e["player"]]["leader_id"])["ability"]["name"]])
+		"passive":
+			_log("%s ativou %s" % [_pname(e["player"]), CardDB.leader(g.players[e["player"]]["leader_id"])["ability"]["name"]])
 		"attack":
 			_log("%s atacou com %d" % [_pname(e["player"]), e["attackers"].size()])
 		"death":
@@ -1706,6 +1821,16 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s olhou as %d cartas do topo do deck" % [_pname(e["player"]), e["cards"].size()])
 		"look_bottom":
 			_log("%s colocou as outras no fundo do deck" % _pname(e["player"]))
+		"mill":
+			var milled: Array = []
+			for cid in e["cards"]:
+				milled.append(_cname(cid))
+			_log("%s mandou ao cemitério: %s" % [_pname(e["player"]), ", ".join(milled)])
+		"revive":
+			_log("%s reviveu %s" % [_pname(e["player"]), _cname(e["card_id"])])
+		"sacrifice":
+			var sc := g.find_creature(e["uid"])
+			_log("%s sacrificou %s" % [_pname(e["player"]), "uma criatura" if sc.is_empty() else _cname(sc["card_id"])])
 		"freeze":
 			var fc := g.find_creature(e["uid"])
 			_log("%s foi congelada" % ("Uma criatura" if fc.is_empty() else _cname(fc["card_id"])))

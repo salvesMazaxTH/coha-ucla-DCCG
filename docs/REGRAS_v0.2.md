@@ -1,4 +1,4 @@
-# Regras — alpha 0.1
+# Regras — alpha 0.2
 
 ## Objetivo
 Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida do Líder inimigo. Se os dois Líderes caírem ao mesmo tempo, é empate.
@@ -72,6 +72,11 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - **Feitiço:** produz o efeito e vai para o cemitério.
 - **Equipamento:** dá um bônus permanente a uma criatura aliada.
 
+## Espécies
+- Uma criatura pode ter uma ou mais **espécies** (ex.: Ronan é Dragonoide, Humano e Dragão), no campo `"species"` do JSON. Os nomes ficam em `species` no `cards.json`. Algumas cartas não têm espécie.
+- A espécie aparece numa faixa logo acima do nome, e também no texto completo.
+- Efeitos de busca no deck podem filtrar por espécie (`"species": "merfolk"`). É a base para sinergias de tribo.
+
 ## Keywords
 | Keyword | Efeito |
 |---|---|
@@ -88,7 +93,21 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 | Provocação | Ao atacar, escolha uma criatura inimiga. Ela é obrigada a bloquear esta criatura, mesmo contra Voo ou Furtivo. |
 | Escudo | Anula a próxima instância de dano. |
 | Congelar | A criatura não pode atacar nem bloquear até o fim do próximo turno do dono. Escudo de Feitiço anula. |
+| Indestrutível | Não é destruída por dano. Sacrifício ainda a mata. |
 | Escudo de Feitiço | Anula, uma vez, o próximo efeito **inimigo** que não seja dano de combate (feitiço, habilidade, efeito em área). Depois se dissipa. Efeitos do próprio dono não o consomem. |
+
+## Cemitério e Obscura
+- **Moer N:** as N cartas do topo do seu deck vão para o seu cemitério (termo da comunidade de MTG, nome confirmado).
+- **Reviver:** devolve ao campo uma criatura do cemitério do dono (ex.: Necromante Sepulcral, custo máximo 3). A carta sai do cemitério.
+- **Reviver a si mesma (Ao Morrer):** a criatura volta como uma **nova instância**, por isso não participa do combate em que morreu. Enquanto está em campo, sua entrada deixa o cemitério. O Revivente Eterno volta sempre igual. A Fênix da Chama Profana volta com -2/-2 do que tinha ao morrer e não volta se Ataque ou Vida chegar a 0. Não volta com o campo cheio.
+- **Sacrifício:** a criatura sacrificada morre na hora (efeitos Ao Morrer e Aliado Morre resolvem). Como *efeito* (Cientista da Morte, Colheita de Almas) ou como **custo adicional** (Necrófago Espectral: custa 0, mas exige sacrificar uma criatura que você controla; com o campo cheio, o sacrifício libera a vaga).
+- **Redução de custo por cemitério:** efeito Constante. A Vagante Sombria custa 1 a menos por carta no seu cemitério (de qualquer tipo), nunca menos que 0.
+
+## Passivas de Líder
+- Algumas habilidades de Líder são **passivas**: não custam Momentum, não são clicáveis e disparam sozinhas num gatilho. A passiva do Jeff (*Ceifa*): quando uma criatura aliada morre, 1 de dano ao Líder inimigo e compre 1 carta, **uma vez por turno** (o limite reinicia no começo de cada turno, então pode acontecer até duas vezes por rodada, uma em cada turno do Jeff).
+
+## Identidade visual das essências
+- **Obscura:** gradiente de pretos e cinzas-escuros (mais para o preto), com uma caveira em cinza escuro no lugar da arte ainda não feita.
 
 ## Controles
 - **Clique esquerdo:** jogar uma carta, selecionar atacantes, escolher alvos e atribuir bloqueios (primeiro o seu bloqueador, depois o atacante).
@@ -110,5 +129,8 @@ Gatilhos dizem *quando* um efeito acontece. Eles abrem o texto da carta no lugar
 | Ao Atingir o Líder | A criatura causa dano a um Líder. |
 | No Início do Turno | Começa o turno do dono da criatura. |
 | No Fim do Turno | Termina o turno do dono da criatura. |
+| Aliado Morre | Outra criatura que você controla **vai para o cemitério** (não é o mesmo que morrer: se ela revive no lugar, ou é um Lendário voltando à zona de comando, não conta). A que foi ao cemitério não ativa o próprio efeito (para isso existe Ao Morrer). Sacrifício conta. |
+| (qualquer gatilho) | Um efeito pode ter "uma vez por turno" (`once_per_turn`): o limite é por criatura e reinicia a cada turno, de qualquer jogador (ex.: Cientista da Morte). |
+| Constante | Sempre, enquanto a criatura está em campo. Não dispara: é recalculado a cada mudança de estado (ex.: Jeff The Death recebe +2/+2 por criatura no cemitério do dono; o dano sofrido continua valendo se o bônus encolher). |
 
 Alvos de gatilhos que não pedem escolha do jogador: `self`, `opposed_creature` (a criatura do outro lado do combate, ou a fonte do dano), `all_ally_creatures`, `all_creatures` (ambos os lados; o efeito de dano aceita `ally_reduce` para reduzir o dano em aliados de uma essência), `random_ally_creature`, `random_other_ally_creature`, `random_enemy_creature`, `random_enemy_and_adjacent` (uma criatura inimiga aleatória e as adjacentes), `all_enemy_creatures`, `enemy_leader`, `own_leader` e `both_leaders` (em efeitos de compra, cada líder alvo compra). Só Ao Jogar e Ao Entrar podem usar alvo escolhido pelo jogador.

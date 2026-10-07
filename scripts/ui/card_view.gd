@@ -19,7 +19,7 @@ const STYLES := {
 	"rochosa": {"top": "#8a6b45", "bot": "#2e2216", "trim": "#d2bc94", "glow": "#d6a868"},
 	"metalica": {"top": "#8e9aab", "bot": "#262c36", "trim": "#dfe6ee", "glow": "#c8d8ee"},
 	"eletrica": {"top": "#d9b81f", "bot": "#4a3a0a", "trim": "#fff1a0", "glow": "#fff04a"},
-	"obscura": {"top": "#6a3fa5", "bot": "#1a0e30", "trim": "#c0a0e0", "glow": "#b07aff"},
+	"obscura": {"top": "#34343a", "bot": "#030304", "trim": "#7c7c85", "glow": "#8a8a96"}, ## near-black gradient, dark-grey trim
 	"sagrada": {"top": "#e8d28a", "bot": "#6a5a2a", "trim": "#fff8d8", "glow": "#fff2b0"},
 	"neutra": {"top": "#868a92", "bot": "#2a2c32", "trim": "#b4ab9e", "glow": "#dfe4ec"},
 	"legendary": {"top": "#f6d887", "bot": "#6e4810", "trim": "#fff0b8", "glow": "#ffd35a"},
@@ -237,6 +237,17 @@ func _draw() -> void:
 	if inst.get("tide_mark", false):
 		draw_arc(art.get_center() + Vector2(0, art.size.y * 0.32), art.size.x * 0.3, PI * 1.15, PI * 1.85, 24, Color("#6fd0ff", 0.85), 2 * s, true)
 
+	# species strip on the bottom edge of the art, right above the name plate
+	var sp_s := CardDB.species_names(cd).to_upper()
+	if sp_s != "":
+		var spf := UITheme.font("bold")
+		var sp_fs := _fit(spf, sp_s, 8.0 * s, art.size.x - 16 * s)
+		var sp_w := spf.get_string_size(sp_s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(sp_fs)).x + 10 * s
+		var strip := Rect2(Vector2((size.x - sp_w) / 2, 90.5 * s), Vector2(sp_w, 11 * s))
+		_rrect_fill(strip, 3 * s, Color(0, 0, 0, 0.62))
+		_rrect_line(strip, 3 * s, Color(trim, 0.45), 0.8 * s)
+		_text(spf, sp_s, Vector2(size.x / 2, strip.get_center().y + sp_fs * 0.36), sp_fs, Color("#e9dcc0"))
+
 	# name plate (pointed banner overlapping the art)
 	var py := 102.0 * s
 	var ph := 20.0 * s
@@ -270,17 +281,18 @@ func _draw() -> void:
 	# gems
 	var cost: int = cost_override if cost_override >= 0 else int(cd["cost"])
 	_gem("orb", Vector2(14, 14) * s, 13 * s, COST_COL, str(cost), Color("#2a1c00"), s)
+	_essence_badge(Vector2(BASE.x - 14, 14) * s, 10.5 * s, cd, s)
 	if cd["type"] == "creature":
 		var atk: int = int(cd["atk"])
 		var hp: int = int(cd["hp"])
 		var atk_col := Color.WHITE
 		var hp_col := Color.WHITE
 		if inst.has("damage"):
-			var live_atk: int = max(0, inst["atk"] + inst["temp_atk"])
+			var live_atk: int = max(0, inst["atk"] + inst["temp_atk"] + int(inst.get("bonus_atk", 0)))
 			atk_col = Color("#a8ffa0") if live_atk > atk else Color.WHITE
 			atk = live_atk
-			hp_col = Color("#ff8a80") if inst["damage"] > 0 else (Color("#a8ffa0") if inst["hp"] > hp else Color.WHITE)
-			hp = max(0, inst["hp"] - inst["damage"])
+			hp_col = Color("#ff8a80") if inst["damage"] > 0 else (Color("#a8ffa0") if inst["hp"] + int(inst.get("bonus_hp", 0)) > hp else Color.WHITE)
+			hp = max(0, inst["hp"] + int(inst.get("bonus_hp", 0)) - inst["damage"])
 		_gem("diamond", Vector2(14 * s, size.y - 15 * s), 13.5 * s, ATK_COL, str(atk), atk_col, s)
 		_gem("shield", Vector2(size.x - 14 * s, size.y - 15 * s), 12.5 * s, HP_COL, str(hp), hp_col, s)
 	_finish(r, rad, s)
@@ -399,6 +411,11 @@ func _placeholder(art: Rect2, cd: Dictionary, col: Color, s: float) -> void:
 	for i in 8:
 		draw_circle(c, (46 - i * 5) * s, Color(col.lightened(0.4), 0.05))
 	var kind: String = cd["type"] if cd["type"] != "creature" else String(CardDB.essences_of(cd)[0])
+	if kind == "obscura":
+		_skull(c, 26 * s)
+		var fo := UITheme.font("title_bold")
+		_text(fo, String(cd["name"]).substr(0, 1), Vector2(art.end.x - 12 * s, art.end.y - 6 * s), 13 * s, Color(1, 1, 1, 0.35))
+		return
 	var pts := _sigil(kind, c, 26 * s)
 	draw_colored_polygon(_grow(pts, c, 1.12), Color(0, 0, 0, 0.35))
 	draw_colored_polygon(pts, col.lightened(0.55))
@@ -406,6 +423,21 @@ func _placeholder(art: Rect2, cd: Dictionary, col: Color, s: float) -> void:
 	var f := UITheme.font("title_bold")
 	var initial := String(cd["name"]).substr(0, 1)
 	_text(f, initial, Vector2(art.end.x - 12 * s, art.end.y - 6 * s), 13 * s, Color(1, 1, 1, 0.35))
+
+## Obscura sigil: a dark-grey skull (cranium, jaw, black sockets and nose).
+func _skull(c: Vector2, r: float) -> void:
+	var bone := Color("#55555e")
+	var shade := Color("#3a3a42")
+	draw_circle(c + Vector2(0, -r * 0.2), r * 0.66, Color(0, 0, 0, 0.4))
+	draw_circle(c + Vector2(0, -r * 0.22), r * 0.62, bone)
+	draw_rect(Rect2(c + Vector2(-r * 0.34, r * 0.18), Vector2(r * 0.68, r * 0.52)), bone)
+	draw_rect(Rect2(c + Vector2(-r * 0.34, r * 0.18), Vector2(r * 0.12, r * 0.52)), shade)
+	for i in 3: # teeth gaps
+		var tx := c.x - r * 0.12 + i * r * 0.12
+		draw_line(Vector2(tx, c.y + r * 0.46), Vector2(tx, c.y + r * 0.7), shade, maxf(r * 0.05, 1.0))
+	for sx in [-1.0, 1.0]:
+		draw_circle(c + Vector2(sx * r * 0.27, -r * 0.14), r * 0.19, Color("#050506"))
+	draw_colored_polygon(PackedVector2Array([c + Vector2(0, r * 0.02), c + Vector2(-r * 0.08, r * 0.2), c + Vector2(r * 0.08, r * 0.2)]), Color("#050506"))
 
 func _sigil(kind: String, c: Vector2, r: float) -> PackedVector2Array:
 	var n: Array
@@ -430,6 +462,16 @@ func _sigil(kind: String, c: Vector2, r: float) -> PackedVector2Array:
 				var a := i * TAU / 16 - PI / 2
 				out.append(c + Vector2(cos(a), sin(a)) * r * (1.0 if i % 2 == 0 else 0.38))
 			return out
+		"eletrica": # lightning bolt
+			n = [[0.2, -1], [-0.55, 0.12], [-0.05, 0.12], [-0.25, 1], [0.6, -0.2], [0.08, -0.2], [0.5, -1]]
+		"vegetal": # leaf
+			n = [[0, -1], [0.55, -0.45], [0.7, 0.15], [0.3, 0.7], [0.04, 0.58], [0.04, 1], [-0.04, 1], [-0.04, 0.58], [-0.3, 0.7], [-0.7, 0.15], [-0.55, -0.45]]
+		"rochosa": # faceted boulder
+			n = [[-0.3, -0.85], [0.35, -0.9], [0.9, -0.2], [0.75, 0.6], [0.1, 0.9], [-0.7, 0.65], [-0.95, -0.15]]
+		"metalica": # hex nut
+			n = [[0, -1], [0.87, -0.5], [0.87, 0.5], [0, 1], [-0.87, 0.5], [-0.87, -0.5]]
+		"sagrada": # four-point radiant star
+			n = [[0, -1], [0.18, -0.38], [0.7, -0.7], [0.38, -0.18], [1, 0], [0.38, 0.18], [0.7, 0.7], [0.18, 0.38], [0, 1], [-0.18, 0.38], [-0.7, 0.7], [-0.38, 0.18], [-1, 0], [-0.38, -0.18], [-0.7, -0.7], [-0.18, -0.38]]
 		"equipment":
 			n = [[0, -1], [0.14, -0.82], [0.14, 0.3], [0.5, 0.3], [0.5, 0.44], [0.1, 0.44], [0.1, 0.9], [-0.1, 0.9], [-0.1, 0.44], [-0.5, 0.44], [-0.5, 0.3], [-0.14, 0.3], [-0.14, -0.82]]
 		_:
@@ -438,6 +480,49 @@ func _sigil(kind: String, c: Vector2, r: float) -> PackedVector2Array:
 	for p in n:
 		pts.append(c + Vector2(p[0], p[1]) * r)
 	return pts
+
+## Essence badge in the top-right corner, mirroring the cost orb: metal bezel,
+## body in the essence colour (split on a diagonal for dual essences) and the
+## essence sigil. It names the essence even on cards that have a portrait.
+func _essence_badge(c: Vector2, r: float, cd: Dictionary, s: float) -> void:
+	var ess: Array = CardDB.essences_of(cd).slice(0, 2)
+	var disc := _shape("circle", c, r)
+	var shadow := _grow(disc, c, 1.18)
+	for i in shadow.size():
+		shadow[i] += Vector2(0, 2 * s)
+	draw_colored_polygon(shadow, Color(0, 0, 0, 0.55))
+	draw_colored_polygon(_grow(disc, c, 1.16), UITheme.GOLD_DARK.darkened(0.3))
+	draw_colored_polygon(_grow(disc, c, 1.1), UITheme.GOLD)
+	var halves: Array = [PackedVector2Array()]
+	if ess.size() > 1:
+		halves = [
+			PackedVector2Array([c + Vector2(-2, -2) * r, c + Vector2(0.7, -2) * r, c + Vector2(-0.7, 2) * r, c + Vector2(-2, 2) * r]),
+			PackedVector2Array([c + Vector2(0.7, -2) * r, c + Vector2(2, -2) * r, c + Vector2(2, 2) * r, c + Vector2(-0.7, 2) * r])]
+	for k in ess.size():
+		var kind: String = ess[k]
+		var col := Color("#232328") if kind == "obscura" else Color(CardDB.essence(kind)["color"])
+		_fill_clipped(disc, halves[k], col.darkened(0.35))
+		_fill_clipped(_grow(disc, c - Vector2(0, r * 0.1), 0.86), halves[k], col)
+		_fill_clipped(_grow(disc, c - Vector2(0, r * 0.5), 0.5), halves[k], Color(col.lightened(0.5), 0.35))
+		var sc := c if ess.size() == 1 else c + Vector2(-0.38 if k == 0 else 0.38, 0) * r
+		var sr := r * (0.62 if ess.size() == 1 else 0.4)
+		if kind == "obscura":
+			_skull(sc, sr * 1.15)
+		else:
+			var pts := _sigil(kind, sc, sr)
+			draw_colored_polygon(_grow(pts, sc, 1.15), Color(0, 0, 0, 0.4))
+			draw_colored_polygon(pts, col.lightened(0.6))
+	if ess.size() > 1:
+		draw_line(c + Vector2(0.35, -1) * r, c + Vector2(-0.35, 1) * r, Color(UITheme.GOLD_LIGHT, 0.8), 1.0 * s, true)
+	var rim := _grow(disc, c, 1.1)
+	draw_polyline(rim + PackedVector2Array([rim[0]]), Color(UITheme.GOLD_LIGHT, 0.7), 0.9 * s, true)
+
+func _fill_clipped(poly: PackedVector2Array, clip: PackedVector2Array, col: Color) -> void:
+	if clip.is_empty():
+		draw_colored_polygon(poly, col)
+		return
+	for piece in Geometry2D.intersect_polygons(poly, clip):
+		draw_colored_polygon(piece, col)
 
 ## Rarity gem on the bottom edge: white (common), amethyst (epic), orange
 ## (champion / legendary).

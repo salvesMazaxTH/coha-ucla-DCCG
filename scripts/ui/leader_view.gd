@@ -21,6 +21,7 @@ var deck := 0
 var grave := 0
 var ability_ready := false
 var ability_cost := 0
+var passive := false # passive ability: fires on its own trigger, no cost, not clickable
 var targetable := false
 var active := false ## whose turn it is
 var elem_color := Color.WHITE
@@ -32,6 +33,7 @@ func setup(id: String) -> LeaderView:
 	var ld := CardDB.leader(id)
 	elem_color = Color(CardDB.essence(ld["essences"][0])["color"])
 	ability_cost = int(ld["ability"]["cost"])
+	passive = bool(ld["ability"].get("passive", false))
 	custom_minimum_size = SIZE
 	size = SIZE
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -40,7 +42,8 @@ func setup(id: String) -> LeaderView:
 	gem.position = AC - Vector2(AR, AR)
 	gem.size = Vector2(AR, AR) * 2
 	gem.mouse_filter = Control.MOUSE_FILTER_PASS
-	gem.tooltip_text = "%s (%d Momentum)\n%s" % [ld["ability"]["name"], ability_cost, ld["ability"]["text"]]
+	var cost_txt := "passiva" if passive else "%d Momentum" % ability_cost
+	gem.tooltip_text = "%s (%s)\n%s" % [ld["ability"]["name"], cost_txt, ld["ability"]["text"]]
 	gem.mouse_entered.connect(func():
 		_hover_ability = true
 		queue_redraw())
@@ -86,7 +89,8 @@ func _process(delta: float) -> void:
 func _gui_input(e: InputEvent) -> void:
 	if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
 		if e.position.distance_to(AC) <= AR + 2:
-			ability_clicked.emit()
+			if not passive:
+				ability_clicked.emit()
 		elif e.position.distance_to(PC) <= PR + 8:
 			portrait_clicked.emit()
 		accept_event()
@@ -137,7 +141,7 @@ func _draw() -> void:
 	_text(f_num, str(hp), hc + Vector2(0, 9), 26, Color.WHITE)
 
 	# ability gem
-	var usable := ability_ready
+	var usable := ability_ready or passive
 	var ring := UITheme.GOLD if usable else Color(0.45, 0.42, 0.4)
 	if usable:
 		for i in 5:
@@ -148,10 +152,11 @@ func _draw() -> void:
 	draw_arc(AC, AR, 0, TAU, 48, ring.lightened(0.2) if _hover_ability and usable else ring, 2.5, true)
 	_text(f_title, String(ld["ability"]["name"]).substr(0, 1), AC + Vector2(0, 8), 24, Color.WHITE if usable else Color(1, 1, 1, 0.35))
 	# its cost, a small Momentum gem
-	var cc := AC + Vector2(AR * 0.75, -AR * 0.75)
-	_diamond(cc, 11, UITheme.MOMENTUM.darkened(0.2) if usable else Color(0.3, 0.3, 0.35), Color(1, 1, 1, 0.8))
-	_text(f_num, str(ability_cost), cc + Vector2(0, 5), 14, Color.WHITE)
-	_text(UITheme.font("bold"), "HABILIDADE", AC + Vector2(0, AR + 17), 14, Color(UITheme.TEXT, 0.55))
+	if not passive:
+		var cc := AC + Vector2(AR * 0.75, -AR * 0.75)
+		_diamond(cc, 11, UITheme.MOMENTUM.darkened(0.2) if usable else Color(0.3, 0.3, 0.35), Color(1, 1, 1, 0.8))
+		_text(f_num, str(ability_cost), cc + Vector2(0, 5), 14, Color.WHITE)
+	_text(UITheme.font("bold"), "PASSIVA" if passive else "HABILIDADE", AC + Vector2(0, AR + 17), 14, Color(UITheme.TEXT, 0.55))
 
 	# deck / graveyard counters
 	_counter(Vector2(160, 102), false, deck)
