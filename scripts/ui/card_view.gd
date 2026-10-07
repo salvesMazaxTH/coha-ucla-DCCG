@@ -55,6 +55,10 @@ var flash := 0.0:
 var shadow := true
 
 var _t := 0.0
+var _redraw_acc := 0.0
+var _holding := false
+var _long := false
+var _press_id := 0
 static var _tex_cache := {}
 static var _dissolve: Shader
 
@@ -77,7 +81,29 @@ func setup(id: String, instance: Dictionary = {}, size_scale := 1.0) -> CardView
 func _has_point(p: Vector2) -> bool:
 	return Rect2(Vector2.ZERO, size + Vector2(0, hit_pad)).has_point(p)
 
+## Phones/tablets: no hover and no right button, so tap = click and long-press = overlay.
+static var touched := false ## set by Main on any real touch event; cleared by a real mouse
+
+static func touch_ui() -> bool:
+	return touched or OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios") 		or DisplayServer.is_touchscreen_available()
+
 func _gui_input(e: InputEvent) -> void:
+	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and touch_ui():
+		if e.pressed:
+			_holding = true
+			_long = false
+			var id := Time.get_ticks_msec()
+			_press_id = id
+			get_tree().create_timer(0.4).timeout.connect(func():
+				if _holding and _press_id == id and is_instance_valid(self):
+					_long = true
+					right_clicked.emit(self))
+		else:
+			_holding = false
+			if not _long:
+				left_clicked.emit(self)
+		accept_event()
+		return
 	if e is InputEventMouseButton and e.pressed:
 		if e.button_index == MOUSE_BUTTON_LEFT:
 			left_clicked.emit(self)
@@ -88,7 +114,10 @@ func _gui_input(e: InputEvent) -> void:
 func _process(delta: float) -> void:
 	if highlight.a > 0 or hovered or _legendary():
 		_t += delta
-		queue_redraw()
+		_redraw_acc += delta
+		if _redraw_acc >= 0.033 or highlight.a > 0 or hovered: ## shimmer at ~30 fps is plenty
+			_redraw_acc = 0.0
+			queue_redraw()
 
 static func texture(file: String) -> Texture2D:
 	if file == "":

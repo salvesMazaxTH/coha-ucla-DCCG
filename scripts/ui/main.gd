@@ -41,7 +41,6 @@ const ENEMY_HAND_POSE := {"c": Vector2(830, 30), "rot": 0.0, "w": 60.0}
 func _ready() -> void:
 	theme = UITheme.make()
 	bg = ColorRect.new()
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var m := ShaderMaterial.new()
 	m.shader = load("res://scripts/ui/shaders/table.gdshader")
@@ -49,6 +48,8 @@ func _ready() -> void:
 	m.set_shader_parameter("divider_y", TableView.DIVIDER_Y / 900.0)
 	bg.material = m
 	add_child(bg)
+	get_viewport().size_changed.connect(_fit_viewport)
+	_fit_viewport()
 	table = TableView.new()
 	add_child(table)
 	add_child(_motes())
@@ -62,6 +63,17 @@ func _ready() -> void:
 	ai_timer.timeout.connect(_ai_step)
 	add_child(ai_timer)
 	_show_menu()
+
+## The 1600x900 stage is centred in whatever the window aspect is (stretch "expand");
+## the background fills the extra space instead of black bars.
+func _fit_viewport() -> void:
+	var vp := get_viewport().get_visible_rect().size
+	set_anchors_preset(Control.PRESET_TOP_LEFT)
+	size = Vector2(1600, 900)
+	position = (vp - size) / 2.0
+	bg.position = -position
+	bg.size = vp
+	(bg.material as ShaderMaterial).set_shader_parameter("aspect", vp.x / vp.y)
 
 ## Slow drifting embers over the whole screen, for depth.
 func _motes() -> CPUParticles2D:
@@ -470,7 +482,7 @@ func _render_hand(p: int) -> void:
 ## Fan card lifts, straightens and grows under the cursor, and sits above its
 ## neighbours (GUI picking follows tree order) until the cursor leaves.
 func _hand_hover(v: CardView, on: bool, rest: Dictionary) -> void:
-	if not is_instance_valid(v) or v.is_queued_for_deletion():
+	if not is_instance_valid(v) or v.is_queued_for_deletion() or CardView.touch_ui():
 		return
 	if v.has_meta("tw"):
 		var old: Tween = v.get_meta("tw")
@@ -662,12 +674,16 @@ func _render_game_over() -> void:
 
 # ---------------------------------------------------------------- input
 
+func _input(e: InputEvent) -> void:
+	if e is InputEventScreenTouch or e is InputEventScreenDrag:
+		CardView.touched = true
+
 func _unhandled_input(e: InputEvent) -> void:
 	if overlay and e is InputEventMouseButton and e.pressed:
 		_close_overlay()
 		return
 	var cancel: bool = (e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE) \
-		or (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_RIGHT)
+		or (e is InputEventMouseButton and e.pressed and (e.button_index == MOUSE_BUTTON_RIGHT or CardView.touch_ui()))
 	if cancel and g and (not targeting.is_empty() or provoking != 0 or blocker_pick != 0):
 		targeting = {}
 		provoking = 0
