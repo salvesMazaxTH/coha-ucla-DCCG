@@ -2,6 +2,7 @@
   "name": "Tritão Lanceiro",
   "type": "creature",
   "rarity": "common",
+  "species": ["merfolk"],
   "essence": "aquatica",
   "cost": 2,
   "atk": 2,

@@ -2,6 +2,7 @@
   "name": "Guerreiro Ígneo",
   "type": "creature",
   "rarity": "common",
+  "species": ["humano"],
   "essence": "ignea",
   "cost": 2,
   "atk": 3,

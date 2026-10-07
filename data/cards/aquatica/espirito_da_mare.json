@@ -2,6 +2,7 @@
   "name": "Espírito da Maré",
   "type": "creature",
   "rarity": "common",
+  "species": ["espirito"],
   "essence": "aquatica",
   "cost": 2,
   "atk": 1,

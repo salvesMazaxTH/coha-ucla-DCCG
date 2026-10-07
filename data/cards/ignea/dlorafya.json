@@ -2,6 +2,7 @@
   "name": "D'Lorafya",
   "type": "creature",
   "rarity": "champion",
+  "species": ["divindade", "celestial"],
   "essence": "ignea",
   "cost": 7,
   "atk": 5,

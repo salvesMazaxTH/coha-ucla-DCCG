@@ -56,7 +56,7 @@ func _process(_d: float) -> bool:
 			if m:
 				code = m["code"]
 				check(m["seat"] == 0, "host seat 0")
-				_send(b, {"t": "join", "code": code})
+				_send(b, {"t": "join", "code": code, "deck": "agua"})
 				step = 2
 		2:
 			var sa = _take(0, "start")

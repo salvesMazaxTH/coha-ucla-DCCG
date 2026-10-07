@@ -18,7 +18,7 @@ Por exemplo:
 "keywords": ["golpe_rapido", "impeto"]
 ```
 
-O arquivo `../cards.json` continua guardando elementos, palavras-chave, líderes e decks. O carregamento das cartas individuais é feito por `scripts/engine/card_db.gd`.
+O arquivo `../cards.json` continua guardando elementos, palavras-chave, espécies e líderes. Os decks prontos ficam em `../decks/` (ver o README de lá). O carregamento das cartas individuais é feito por `scripts/engine/card_db.gd`.
 
 ## Tags
 

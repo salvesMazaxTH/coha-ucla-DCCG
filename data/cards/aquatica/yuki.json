@@ -2,6 +2,7 @@
   "name": "Yuki",
   "type": "creature",
   "rarity": "champion",
+  "species": ["humano"],
   "essence": "aquatica",
   "cost": 2,
   "atk": 2,

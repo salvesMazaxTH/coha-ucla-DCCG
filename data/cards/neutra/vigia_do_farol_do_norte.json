@@ -2,6 +2,7 @@
   "name": "Vigia do Farol do Norte",
   "type": "creature",
   "rarity": "common",
+  "species": ["humano"],
   "essence": "neutra",
   "cost": 2,
   "atk": 1,

@@ -1,0 +1,27 @@
+{
+  "name": "Maré de Naelthos",
+  "description": "Jogo longo de compra e cura. Congela, anula feitiços e vence pelo desgaste.",
+  "order": 2,
+  "leader": "naelthos",
+  "cards": {
+    "naelthos": 1,
+    "naelys": 3,
+    "neraqa": 3,
+    "sabrina": 3,
+    "aren_marevoth": 3,
+    "alexa_neruvya": 3,
+    "alexa_neruvya_primordial": 1,
+    "espirito_da_mare": 3,
+    "sentinela_coral": 3,
+    "tritao_lanceiro": 2,
+    "serpente_marinha": 3,
+    "mare_curativa": 2,
+    "negacao_de_neraqa": 2,
+    "lanca_das_mares": 3,
+    "bencao_das_profundezas": 3,
+    "tsunami": 3,
+    "pingente_das_ondas": 2,
+    "vigia_do_farol_do_norte": 3,
+    "engenheiro_louco": 2
+  }
+}

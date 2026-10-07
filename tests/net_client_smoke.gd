@@ -29,7 +29,7 @@ func _on_msg(m: Dictionary, i: int) -> void:
 			if i == 0 and step == 0:
 				code = m["code"]
 				check(m["seat"] == 0, "seat 0")
-				c[1].join(code)
+				c[1].join(code, "agua")
 				step = 1
 		"start":
 			var d: Array = m["decks"]

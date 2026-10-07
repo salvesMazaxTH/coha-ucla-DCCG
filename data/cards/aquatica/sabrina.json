@@ -2,6 +2,7 @@
   "name": "Sabrina",
   "type": "creature",
   "rarity": "champion",
+  "species": ["humano"],
   "essence": [
     "aquatica",
     "glacial"

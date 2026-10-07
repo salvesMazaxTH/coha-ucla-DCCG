@@ -2,6 +2,7 @@
   "name": "Estrondador Ígneo",
   "type": "creature",
   "rarity": "epic",
+  "species": ["demihumano"],
   "essence": "ignea",
   "cost": 2,
   "atk": 2,

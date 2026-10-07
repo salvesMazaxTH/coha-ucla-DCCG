@@ -47,8 +47,8 @@ func send(m: Dictionary) -> void:
 func create(deck: String) -> void:
 	send({"t": "create", "deck": deck})
 
-func join(room_code: String) -> void:
-	send({"t": "join", "code": room_code})
+func join(room_code: String, deck: String) -> void:
+	send({"t": "join", "code": room_code, "deck": deck})
 
 func resume() -> void:
 	want_resume = true

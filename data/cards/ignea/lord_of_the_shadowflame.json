@@ -2,6 +2,7 @@
   "name": "Lorde da Chama Sombria",
   "type": "creature",
   "rarity": "champion",
+  "species": ["humano", "demonio"],
   "essence": "ignea",
   "cost": 6,
   "atk": 5,

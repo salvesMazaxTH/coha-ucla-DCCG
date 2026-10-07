@@ -2,6 +2,7 @@
   "name": "Naelthos",
   "type": "creature",
   "rarity": "champion",
+  "species": ["merfolk"],
   "essence": "aquatica",
   "cost": 5,
   "atk": 3,

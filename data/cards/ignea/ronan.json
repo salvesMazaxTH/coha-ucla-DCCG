@@ -2,6 +2,7 @@
   "name": "Ronan",
   "type": "creature",
   "rarity": "champion",
+  "species": ["dragonoide", "humano", "dragao"],
   "essence": "ignea",
   "cost": 4,
   "atk": 4,

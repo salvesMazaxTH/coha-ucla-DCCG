@@ -2,6 +2,7 @@
   "name": "Neraqa",
   "type": "creature",
   "rarity": "champion",
+  "species": ["divindade", "celestial"],
   "essence": "aquatica",
   "cost": 4,
   "atk": 3,

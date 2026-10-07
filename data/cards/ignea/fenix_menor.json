@@ -2,6 +2,7 @@
   "name": "Fênix Menor",
   "type": "creature",
   "rarity": "common",
+  "species": ["fera"],
   "essence": "ignea",
   "cost": 3,
   "atk": 2,

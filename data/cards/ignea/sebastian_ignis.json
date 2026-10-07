@@ -2,6 +2,7 @@
   "name": "Sebastian Ignis",
   "type": "creature",
   "rarity": "champion",
+  "species": ["semideus"],
   "essence": "ignea",
   "cost": 2,
   "atk": 1,

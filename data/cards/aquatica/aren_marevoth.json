@@ -2,6 +2,7 @@
   "name": "Aren Marevóth",
   "type": "creature",
   "rarity": "champion",
+  "species": ["transfigurado", "forjado_divino"],
   "essence": "aquatica",
   "cost": 5,
   "atk": 5,

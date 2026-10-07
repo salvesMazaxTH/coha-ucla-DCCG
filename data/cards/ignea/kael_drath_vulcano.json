@@ -2,6 +2,7 @@
   "name": "Kael'Drath Vulcano",
   "type": "creature",
   "rarity": "champion",
+  "species": ["tita"],
   "essence": "ignea",
   "cost": 6,
   "atk": 5,

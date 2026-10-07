@@ -2,6 +2,7 @@
   "name": "Gaivota da Tempestade",
   "type": "creature",
   "rarity": "common",
+  "species": ["fera"],
   "essence": "aquatica",
   "cost": 2,
   "atk": 2,

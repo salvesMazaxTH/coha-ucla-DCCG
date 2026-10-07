@@ -2,6 +2,7 @@
   "name": "Vulnara",
   "type": "creature",
   "rarity": "champion",
+  "species": ["humano"],
   "essence": "ignea",
   "cost": 3,
   "atk": 3,

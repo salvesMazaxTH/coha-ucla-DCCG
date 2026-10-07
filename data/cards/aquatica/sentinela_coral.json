@@ -2,6 +2,7 @@
   "name": "Sentinela de Coral",
   "type": "creature",
   "rarity": "common",
+  "species": ["elemental"],
   "essence": "aquatica",
   "cost": 3,
   "atk": 1,

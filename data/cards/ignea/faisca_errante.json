@@ -2,6 +2,7 @@
   "name": "Faísca Errante",
   "type": "creature",
   "rarity": "common",
+  "species": ["elemental"],
   "essence": "ignea",
   "cost": 1,
   "atk": 1,

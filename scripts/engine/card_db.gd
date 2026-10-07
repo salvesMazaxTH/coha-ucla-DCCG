@@ -2,9 +2,6 @@ class_name CardDB
 extends RefCounted
 ## Static card catalog loaded from data/cards.json and data/cards/<essence>/*.json.
 
-const DECK_SIZE := 48
-const MAX_COPIES := 3
-
 static var _data: Dictionary = {}
 
 static func data() -> Dictionary:
@@ -47,9 +44,6 @@ static func is_leader_card(id: String) -> bool:
 			return true
 	return false
 
-static func deck(id: String) -> Dictionary:
-	return data()["decks"][id]
-
 static func keyword(id: String) -> Dictionary:
 	return data()["keywords"][id]
 
@@ -71,29 +65,9 @@ static func essence_names(cd: Dictionary) -> String:
 		names.append(essence(id).get("name", id))
 	return " / ".join(names)
 
-## Returns a list of rule violations; empty means the deck is legal.
-static func validate_deck(deck_id: String) -> Array[String]:
-	var errors: Array[String] = []
-	var d := deck(deck_id)
-	var ld := leader(d["leader"])
-	var total := 0
-	for id in d["cards"]:
-		var n: int = d["cards"][id]
-		total += n
-		var c := card(id)
-		if n > MAX_COPIES:
-			errors.append("%s: mais de %d cópias" % [id, MAX_COPIES])
-		# dual cards are legal when the Leader shares any of their essences
-		var ess := essences_of(c)
-		var legal := ess.has("neutra")
-		for e in ess:
-			legal = legal or ld["essences"].has(e)
-		if not legal:
-			errors.append("%s: essência fora da identidade do Líder" % id)
-		if is_leader_card(id) and id != ld["legendary"]:
-			errors.append("%s: Encarnação de outro Líder" % id)
-	if total != DECK_SIZE:
-		errors.append("deck tem %d cartas (precisa de %d)" % [total, DECK_SIZE])
-	if not d["cards"].has(ld["legendary"]):
-		errors.append("falta a Encarnação do Líder %s" % ld["legendary"])
-	return errors
+## Display name of a card's species ("Humano / Dragão"); empty when it has none.
+static func species_names(cd: Dictionary) -> String:
+	var names: Array = []
+	for id in cd.get("species", []):
+		names.append(data().get("species", {}).get(id, {}).get("name", id))
+	return " / ".join(names)

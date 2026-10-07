@@ -5,15 +5,14 @@ extends SceneTree
 ## Plain ws:// on localhost; tools/serve_web.js proxies wss://<host>:8060/ws to it.
 ##
 ## client -> server (JSON):
-##   {t:"create", deck:"fogo"|"agua"}        -> {t:"room", code, seat, token}
-##   {t:"join", code}                        -> {t:"room", code, seat, token}
+##   {t:"create", deck:<prebuilt id>}        -> {t:"room", code, seat, token}   (ids: DeckDB.ids())
+##   {t:"join", code, deck:<prebuilt id>}    -> {t:"room", code, seat, token}   (mirror matches allowed)
 ##   {t:"resume", code, token}               -> {t:"start", ...} again (reconnect)
 ##   {t:"act", a:<action>, ...args}          -> broadcast {t:"events"} or {t:"reject"} to the sender
 ## actions: mulligan{uids} play{uid,target} legendary{target} ability{target} attack{attacks}
 ##          blocks{blocks} end_turn pass discard{uids} search{uid}
 ## server -> client: room, start{seat,snap}, events{events,snap}, reject{a}, opponent{connected}, error{msg}
 
-const DECKS := ["fogo", "agua"]
 const ROOM_TTL := 1800.0 ## seconds an empty room is kept
 
 var server := TCPServer.new()
@@ -91,13 +90,13 @@ func _code() -> String:
 func _handle_lobby(ws: WebSocketPeer, m: Dictionary) -> void:
 	match m.get("t", ""):
 		"create":
-			var deck: String = m.get("deck", "fogo")
-			if not DECKS.has(deck):
+			var deck: String = m.get("deck", "")
+			if not DeckDB.has(deck):
 				_send(ws, {"t": "error", "msg": "Deck inválido."})
 				return
 			var code := _code()
 			var token := _token()
-			rooms[code] = {"g": null, "decks": [deck, DECKS[1 - DECKS.find(deck)]], "peers": [ws, null],
+			rooms[code] = {"g": null, "decks": [deck, ""], "peers": [ws, null],
 				"tokens": [token, ""], "idle": Time.get_ticks_msec()}
 			_unpend(ws)
 			_send(ws, {"t": "room", "code": code, "seat": 0, "token": token, "deck": deck})
@@ -110,7 +109,12 @@ func _handle_lobby(ws: WebSocketPeer, m: Dictionary) -> void:
 			if r["tokens"][1] != "":
 				_send(ws, {"t": "error", "msg": "Sala cheia."})
 				return
+			var join_deck: String = m.get("deck", "")
+			if not DeckDB.has(join_deck):
+				_send(ws, {"t": "error", "msg": "Deck inválido."})
+				return
 			var token := _token()
+			r["decks"][1] = join_deck
 			r["tokens"][1] = token
 			r["peers"][1] = ws
 			_unpend(ws)
