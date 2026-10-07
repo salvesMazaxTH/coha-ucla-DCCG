@@ -64,7 +64,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"index": i, "deck_id": deck_id, "leader_id": d["leader"],
 		"leader_hp": int(ld["hp"]), "leader_max": int(ld["hp"]),
 		"momentum": 0, "max_momentum": 0,
-		"deck": deck, "hand": [], "board": [], "graveyard": [],
+		"deck": deck, "hand": [], "board": [], "graveyard": [], "banished": [],
 		"legendary": {"card_id": ld["legendary"], "in_zone": true, "casts": 0},
 		"ability_used": false, "passive_used": false, "attacked": false, "fatigue": 0, "mulligan_done": false,
 	}
@@ -500,8 +500,9 @@ func discard(p: int, hand_uids: Array) -> Array:
 	for uid in hand_uids:
 		var c := _hand_card(p, uid)
 		players[p]["hand"].erase(c)
-		players[p]["graveyard"].append(c)
-		_emit({"type": "discard", "player": p, "uid": uid})
+		# Banished, not discarded: the card never reaches the graveyard (hidden from the opponent).
+		players[p]["banished"].append({"uid": c["uid"], "card_id": c["card_id"]})
+		_emit({"type": "ban", "player": p, "uid": uid})
 	phase = "main"
 	_finish_turn()
 	return _flush()
@@ -1073,6 +1074,8 @@ func _check_state() -> void:
 func _fire_leader_passive(p: int, trigger: String) -> void:
 	var ab: Dictionary = CardDB.leader(players[p]["leader_id"])["ability"]
 	if not ab.get("passive", false) or ab.get("trigger", "") != trigger or _trigger_depth >= 4:
+		return
+	if ab.get("own_turn_only", false) and active != p:
 		return
 	if ab.get("once_per_turn", false) and players[p]["passive_used"]:
 		return

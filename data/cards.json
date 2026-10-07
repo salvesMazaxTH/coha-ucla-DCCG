@@ -182,7 +182,7 @@
     "jeff": {
       "name": "Jeff The Death",
       "hp": 20,
-      "art": "",
+      "art": "obscura/jeff_the_death.webp",
       "legendary": "jeff",
       "ability": {
         "name": "Ceifa",
@@ -190,19 +190,15 @@
         "trigger": "on_ally_death",
         "cost": 0,
         "once_per_turn": true,
+        "own_turn_only": true,
         "effects": [
           {
             "action": "damage",
             "target": "enemy_leader",
             "amount": 1
-          },
-          {
-            "action": "draw",
-            "target": "own_leader",
-            "amount": 1
           }
         ],
-        "text": "Passiva. Aliado Morre, uma vez por turno: cause 1 de dano ao Líder inimigo e compre 1 carta."
+        "text": "Passiva. Aliado Morre, só no seu turno e uma vez por turno: cause 1 de dano ao Líder inimigo."
       },
       "essences": [
         "obscura"

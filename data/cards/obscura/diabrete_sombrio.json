@@ -20,12 +20,12 @@
     },
     {
       "trigger": "on_ally_death",
-      "action": "draw",
-      "target": "own_leader",
+      "action": "damage",
+      "target": "enemy_leader",
       "amount": 1
     }
   ],
-  "text": "Ao Morrer: cause 1 de dano ao Líder inimigo. Aliado Morre: compre 1 carta.",
+  "text": "Ao Morrer: cause 1 de dano ao Líder inimigo. Aliado Morre: cause 1 de dano ao Líder inimigo.",
   "flavor": "Ri até o último fôlego.",
   "tags": []
 }

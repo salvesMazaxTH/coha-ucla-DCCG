@@ -6,11 +6,11 @@
     "divindade"
   ],
   "essence": "obscura",
-  "cost": 4,
+  "cost": 6,
   "atk": 2,
   "hp": 2,
   "keywords": [],
-  "art": "",
+  "art": "obscura/jeff_the_death.webp",
   "effects": [
     {
       "trigger": "constante",

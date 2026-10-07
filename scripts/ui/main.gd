@@ -222,11 +222,10 @@ func _show_menu() -> void:
 	box.position = Vector2(stage_w / 2.0 - 210, 390)
 	box.custom_minimum_size = Vector2(420, 0)
 	layer.add_child(box)
-	for opt in [["JOGAR COMO RONAN", "Fogo contra a IA de Naelthos (Água)", true, "fogo", "agua", true],
-			["JOGAR COMO NAELTHOS", "Água contra a IA de Ronan (Fogo)", true, "agua", "fogo", false],
-			["HOT-SEAT", "Dois jogadores no mesmo computador", false, "fogo", "agua", false],
-			["ONLINE", "Jogar contra outra pessoa por código de sala", false, "", "", false]]:
-		var b := _button(opt[0], (func(): _show_online()) if opt[3] == "" else (func(): _start(opt[2], opt[3], opt[4])), opt[5])
+	for opt in [["JOGAR CONTRA A IA", "Escolha o seu deck; a IA joga com outro", func() -> void: _show_hub(true), true],
+			["HOT-SEAT", "Dois jogadores no mesmo computador", func() -> void: _start(false, "fogo", "agua"), false],
+			["ONLINE", "Jogar contra outra pessoa por código de sala", func() -> void: _show_hub(false), false]]:
+		var b := _button(opt[0], opt[2], opt[3])
 		b.custom_minimum_size = Vector2(420, 58)
 		b.tooltip_text = opt[1]
 		box.add_child(b)
@@ -282,8 +281,12 @@ func _reset_input() -> void:
 
 # ---------------------------------------------------------------- online
 
-## Online hub: pick a prebuilt deck from the grid, then create a room or go on to join one by code.
 func _show_online(msg := "") -> void:
+	_show_hub(false, msg)
+
+## Deck hub, shared by both modes: pick a prebuilt deck from the grid, then either start against the AI
+## (ai = true; it plays a random other deck) or create a room / go on to join one by code (online).
+func _show_hub(ai: bool, msg := "") -> void:
 	_clear_fx()
 	_clear()
 	table.visible = false
@@ -291,7 +294,7 @@ func _show_online(msg := "") -> void:
 	var ids := DeckDB.ids()
 	if not ids.has(sel_deck):
 		sel_deck = ids[0]
-	var title := _label("ONLINE", 56, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8)
+	var title := _label("CONTRA A IA" if ai else "ONLINE", 56, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8)
 	title.position = Vector2(0, 24)
 	title.size = Vector2(stage_w, 72)
 	layer.add_child(title)
@@ -317,22 +320,27 @@ func _show_online(msg := "") -> void:
 				var mb := ev as InputEventMouseButton
 				if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and sel_deck != id:
 					sel_deck = id
-					_show_online.call_deferred(msg))
+					_show_hub.call_deferred(ai, msg))
 			layer.add_child(t)
 		y += tile.y + gap
 
 	var actions: Array = []
-	if net.load_session():
+	if ai:
+		actions.append(["JOGAR", func() -> void:
+			var others := ids.filter(func(d: String) -> bool: return d != sel_deck)
+			_start(true, sel_deck, String(others.pick_random()) if not others.is_empty() else sel_deck), true])
+	elif net.load_session():
 		actions.append(["RETOMAR PARTIDA (%s)" % net.code, func() -> void:
 			online = true
 			net.resume(), true])
-	actions.append(["CRIAR SALA", func() -> void:
-		online = true
-		net.create(sel_deck)
-		_show_wait("Criando sala…"), true])
-	actions.append(["ENTRAR COM CÓDIGO", func() -> void:
-		code_entry = ""
-		_show_join(), false])
+	if not ai:
+		actions.append(["CRIAR SALA", func() -> void:
+			online = true
+			net.create(sel_deck)
+			_show_wait("Criando sala…"), true])
+		actions.append(["ENTRAR COM CÓDIGO", func() -> void:
+			code_entry = ""
+			_show_join(), false])
 	var bw := 400.0
 	var bx := (stage_w - (actions.size() * bw + (actions.size() - 1) * 24.0)) / 2.0
 	for i in actions.size():
@@ -959,7 +967,7 @@ func _render_side() -> void:
 		vb.add_child(l)
 
 	# turn plaque
-	var phase_names := {"mulligan": "Mulligan", "main": "Fase Principal", "blocks": "Bloqueios", "discard": "Descarte", "over": "Fim de jogo",
+	var phase_names := {"mulligan": "Mulligan", "main": "Fase Principal", "blocks": "Bloqueios", "discard": "Banimento", "over": "Fim de jogo",
 		"combat": "Combate · " + {"attack": "Ataque", "prepare": "Preparação", "damage": "Dano"}.get(g.window, ""), "search": "Busca"}
 	var mine := g.decider() == viewer and not _is_ai(viewer)
 	var tp := Panel.new()
@@ -1134,7 +1142,7 @@ func _hint() -> String:
 		"blocks":
 			return "Clique numa criatura sua e depois no atacante que ela bloqueia · clique de novo no bloqueador para desfazer."
 		"discard":
-			return "Mão acima de 10: escolha %d para descartar." % (g.players[viewer]["hand"].size() - GameState.HAND_LIMIT)
+			return "Mão acima de 10: escolha %d para banir." % (g.players[viewer]["hand"].size() - GameState.HAND_LIMIT)
 		"main":
 			if provoking != 0:
 				return "Provocação: escolha a criatura inimiga que será obrigada a bloquear."
@@ -1163,7 +1171,7 @@ func _action_buttons() -> Array:
 			out.append(_button("CONFIRMAR BLOQUEIOS", func(): _do(g.declare_blocks(viewer, block_sel.duplicate())), true))
 		"discard":
 			var need: int = g.players[viewer]["hand"].size() - GameState.HAND_LIMIT
-			var b := _button("DESCARTAR (%d/%d)" % [picked.size(), need], func(): _do(g.discard(viewer, picked.duplicate())), true)
+			var b := _button("BANIR (%d/%d)" % [picked.size(), need], func(): _do(g.discard(viewer, picked.duplicate())), true)
 			b.disabled = picked.size() != need
 			out.append(b)
 	return out
@@ -1359,7 +1367,7 @@ func _on_creature_click(v: CardView) -> void:
 					block_sel[v.uid] = blocker_pick
 					blocker_pick = 0
 				else:
-					_toast("Essa criatura não pode bloquear esse atacante (Voo/Furtivo).")
+					_toast("Essa criatura não pode bloquear esse atacante (Voo/Furtividade).")
 				_render()
 
 # ---------------------------------------------------------------- overlay
@@ -1810,8 +1818,8 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s: fadiga %d" % [_pname(e["player"]), e["amount"]])
 		"start_turn":
 			_log("— Turno %d: %s —" % [e["turn"], _pname(e["player"])])
-		"discard":
-			_log("%s descartou uma carta" % _pname(e["player"]))
+		"ban":
+			_log("%s baniu uma carta da mão" % _pname(e["player"]))
 		"search_reveal":
 			var names: Array = []
 			for c in e["cards"]:

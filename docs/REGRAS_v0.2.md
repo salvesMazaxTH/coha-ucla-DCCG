@@ -30,12 +30,13 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 4. **Bloqueios:** o defensor escolhe quem bloqueia. Cada bloqueador bloqueia **um único** atacante, e cada atacante pode ser bloqueado por **um único** bloqueador.
 5. **Dano de combate:** primeiro causam dano as criaturas com Golpe Rápido, depois as demais. O dano é simultâneo dentro de cada passo. Um atacante que não foi bloqueado causa dano ao Líder.
 6. **Segunda fase principal**.
-7. **Fim do turno:** se você tiver mais de **10 cartas** na mão, escolha quais descartar até ficar com 10. Todo o dano nas criaturas é removido, assim como os bônus temporários.
+7. **Fim do turno:** se você tiver mais de **10 cartas** na mão, escolha quais **banir** até ficar com 10 (não vão ao cemitério; o oponente não vê quais foram). Todo o dano nas criaturas é removido, assim como os bônus temporários.
 
 ## Regras gerais
 - Cada lado pode ter no máximo **8 criaturas** em campo.
 - Uma criatura recém-jogada não pode atacar no mesmo turno, a menos que tenha **Ímpeto**. Ela pode bloquear normalmente.
 - A cura do Líder nunca passa da vida inicial dele.
+- **Banimento:** carta banida sai do jogo: não vai ao cemitério, então não alimenta Encarnação, Vagante etc. e não conta como morrer. A compra não tem teto durante o turno (a mão pode passar de 10, inclusive no turno do oponente); só no fim do seu turno você bane as piores até voltar a 10. Banir da mão é oculto para o oponente; efeitos de banimento (ex.: em área) serão públicos.
 - **Fadiga:** comprar uma carta com o deck vazio causa dano ao seu Líder. O dano é de 1 na primeira vez e sobe 1 a cada nova compra (2, 3, …).
 
 ## Velocidade, pilha e janelas
@@ -88,11 +89,11 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 | Ímpeto | Pode atacar no turno em que entra em campo. |
 | Voo | Só pode ser bloqueada por criaturas com Voo ou Longo Alcance. |
 | Longo Alcance | Pode bloquear criaturas com Voo. |
-| Furtivo | Só pode ser bloqueada por criaturas com Furtivo ou Vigia. |
-| Vigia | Pode bloquear criaturas com Furtivo. |
-| Provocação | Ao atacar, escolha uma criatura inimiga. Ela é obrigada a bloquear esta criatura, mesmo contra Voo ou Furtivo. |
+| Furtividade | Só pode ser bloqueada por criaturas com Furtividade ou Vigília. |
+| Vigília | Pode bloquear criaturas com Furtividade. |
+| Provocação | Ao atacar, escolha uma criatura inimiga. Ela é obrigada a bloquear esta criatura, mesmo contra Voo ou Furtividade. |
 | Escudo | Anula a próxima instância de dano. |
-| Congelar | A criatura não pode atacar nem bloquear até o fim do próximo turno do dono. Escudo de Feitiço anula. |
+| Congelamento | A criatura não pode atacar nem bloquear até o fim do próximo turno do dono. Escudo de Feitiço anula. |
 | Indestrutível | Não é destruída por dano. Sacrifício ainda a mata. |
 | Escudo de Feitiço | Anula, uma vez, o próximo efeito **inimigo** que não seja dano de combate (feitiço, habilidade, efeito em área). Depois se dissipa. Efeitos do próprio dono não o consomem. |
 
@@ -104,7 +105,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - **Redução de custo por cemitério:** efeito Constante. A Vagante Sombria custa 1 a menos por carta no seu cemitério (de qualquer tipo), nunca menos que 0.
 
 ## Passivas de Líder
-- Algumas habilidades de Líder são **passivas**: não custam Momentum, não são clicáveis e disparam sozinhas num gatilho. A passiva do Jeff (*Ceifa*): quando uma criatura aliada morre, 1 de dano ao Líder inimigo e compre 1 carta, **uma vez por turno** (o limite reinicia no começo de cada turno, então pode acontecer até duas vezes por rodada, uma em cada turno do Jeff).
+- Algumas habilidades de Líder são **passivas**: não custam Momentum, não são clicáveis e disparam sozinhas num gatilho. A passiva do Jeff (*Ceifa*): quando uma criatura aliada morre **durante o seu turno**, 1 de dano ao Líder inimigo, **uma vez por turno**. Não ativa no turno do oponente.
 
 ## Identidade visual das essências
 - **Obscura:** gradiente de pretos e cinzas-escuros (mais para o preto), com uma caveira em cinza escuro no lugar da arte ainda não feita.

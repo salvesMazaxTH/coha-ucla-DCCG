@@ -4,7 +4,7 @@
   "rarity": "epic",
   "species": [],
   "essence": "obscura",
-  "cost": 3,
+  "cost": 4,
   "atk": 2,
   "hp": 3,
   "keywords": [],
@@ -18,7 +18,7 @@
         {
           "action": "draw",
           "target": "own_leader",
-          "amount": 2
+          "amount": 1
         }
       ]
     },
@@ -30,7 +30,7 @@
       "once_per_turn": true
     }
   ],
-  "text": "Ao Entrar: você pode sacrificar outra criatura aliada. Se sacrificar, compre 2 cartas. Aliado Morre (uma vez por turno): invoque um Esqueleto Guerreiro.",
+  "text": "Ao Entrar: você pode sacrificar outra criatura aliada. Se sacrificar, compre 1 carta. Aliado Morre (uma vez por turno): invoque um Esqueleto Guerreiro.",
   "flavor": "Todo experimento precisa de material.",
   "tags": []
 }

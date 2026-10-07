@@ -18,6 +18,7 @@ func _init() -> void:
 	_test_constant()
 	_test_obscura()
 	_test_obscura_rules()
+	_test_ban()
 	_test_combat()
 	_test_triggers()
 	_test_stack()
@@ -119,11 +120,11 @@ func _test_obscura() -> void:
 	var nec := _put(g, 0, "necrofago_espectral")
 	check(g.players[0]["deck"].size() == deck_before and g.players[0]["graveyard"].is_empty(), "necrófago não manda mais o topo do deck ao cemitério")
 	check(g.atk_of(nec) == 3 and g.hp_left(nec) == 2 and CardDB.card("necrofago_espectral")["species"] == ["morto_vivo", "fera"], "necrófago é uma hiena zumbi 3/2")
-	# Replicador summons two copies of itself without the effect (no chain)
+	# Replicador summons one copy of itself without the effect (no chain)
 	_put(g, 0, "replicador_maldito")
-	check(_count(g, 0, "replicador_maldito") == 3, "replicador invoca duas cópias")
+	check(_count(g, 0, "replicador_maldito") == 2, "replicador invoca uma cópia")
 	var copies: Array = g.players[0]["board"].filter(func(c): return c["card_id"] == "replicador_maldito" and g.card_of(c)["effects"].is_empty())
-	check(copies.size() == 2, "as cópias não têm o efeito")
+	check(copies.size() == 1, "a cópia não tem o efeito")
 	# Revivente returns forever, as a new instance
 	var rev := _put(g, 0, "revivente_eterno")
 	for i in 3:
@@ -151,7 +152,7 @@ func _test_obscura() -> void:
 	gy = g.players[0]["graveyard"].size()
 	_put(g, 0, "necromante_sepulcral")
 	check(g.players[0]["graveyard"].size() == gy - 1, "necromante reviveu do cemitério")
-	# Sacrifice: Cientista kills an ally and draws 2
+	# Sacrifice: Cientista kills an ally and draws 1
 	g.players[0]["board"].clear()
 	var ally := _put(g, 0, "esqueleto_guerreiro")
 	var hand: int = g.players[0]["hand"].size()
@@ -160,7 +161,7 @@ func _test_obscura() -> void:
 	g._check_state()
 	g._flush()
 	check(g.find_creature(ally["uid"]).is_empty(), "cientista sacrificou o aliado")
-	check(g.players[0]["hand"].size() == hand + 2, "sacrifício comprou 2 cartas")
+	check(g.players[0]["hand"].size() == hand + 1, "sacrifício comprou 1 carta")
 	check(_count(g, 0, "esqueleto_guerreiro") == 1, "cientista invoca um esqueleto quando um aliado vai ao cemitério")
 	# Colheita de Almas: sacrifice -> 4 damage to the enemy leader
 	var foe: int = g.players[1]["leader_hp"]
@@ -172,26 +173,27 @@ func _test_obscura() -> void:
 	check(g.players[1]["leader_hp"] == foe - 4 and g.find_creature(fodder["uid"]).is_empty(), "colheita: sacrifica e causa 4")
 
 func _test_obscura_rules() -> void:
-	# Diabrete: draws when another ally dies (not for itself), Ao Morrer hits the Leader
+	# Diabrete: hits the enemy Leader when another ally dies (not for itself), Ao Morrer too
 	var g := _obscura_game()
 	g.players[0]["passive_used"] = true
 	var dia := _put(g, 0, "diabrete_sombrio")
 	check(g.atk_of(dia) == 2 and g.hp_left(dia) == 1 and CardDB.card("diabrete_sombrio")["cost"] == 2, "diabrete 2-drop 2/1")
 	var fodder := _put(g, 0, "esqueleto_guerreiro")
 	var hand: int = g.players[0]["hand"].size()
+	var foe0: int = g.players[1]["leader_hp"]
 	_kill(g, fodder)
-	check(g.players[0]["hand"].size() == hand + 1, "diabrete compra quando um aliado morre")
+	check(g.players[1]["leader_hp"] == foe0 - 1 and g.players[0]["hand"].size() == hand, "diabrete causa 1 ao Líder quando um aliado morre (e não compra)")
 	var foe: int = g.players[1]["leader_hp"]
 	_kill(g, dia)
-	check(g.players[0]["hand"].size() == hand + 1 and g.players[1]["leader_hp"] == foe - 1, "diabrete não ativa por si mesmo; Ao Morrer fere o Líder")
+	check(g.players[1]["leader_hp"] == foe - 1, "diabrete não ativa por si mesmo; Ao Morrer fere o Líder")
 	# Aliado Morre means "went to the graveyard": a Revivente that comes back does not count
 	var gr := _obscura_game()
 	gr.players[0]["passive_used"] = true
 	_put(gr, 0, "diabrete_sombrio")
 	var rv := _put(gr, 0, "revivente_eterno")
-	var hr: int = gr.players[0]["hand"].size()
+	var hr: int = gr.players[1]["leader_hp"]
 	_kill(gr, rv)
-	check(gr.players[0]["hand"].size() == hr and _count(gr, 0, "revivente_eterno") == 1, "revivente que volta não conta como Aliado Morre")
+	check(gr.players[1]["leader_hp"] == hr and _count(gr, 0, "revivente_eterno") == 1, "revivente que volta não conta como Aliado Morre")
 	# Cientista da Morte summons a skeleton on Aliado Morre
 	var sg := _obscura_game()
 	sg.players[0]["passive_used"] = true
@@ -218,9 +220,9 @@ func _test_obscura_rules() -> void:
 	g2.players[0]["passive_used"] = true
 	_put(g2, 0, "diabrete_sombrio")
 	var enemy := _put(g2, 1, "kai")
-	var h2: int = g2.players[0]["hand"].size()
+	var h2: int = g2.players[1]["leader_hp"]
 	_kill(g2, enemy)
-	check(g2.players[0]["hand"].size() == h2, "morte de criatura inimiga não ativa Aliado Morre")
+	check(g2.players[1]["leader_hp"] == h2, "morte de criatura inimiga não ativa Aliado Morre")
 
 	# Jeff passive: once per turn, resets on the next turn
 	var j := _obscura_game()
@@ -229,14 +231,21 @@ func _test_obscura_rules() -> void:
 	var jh: int = j.players[0]["hand"].size()
 	var jf: int = j.players[1]["leader_hp"]
 	_kill(j, a1)
-	check(j.players[1]["leader_hp"] == jf - 1 and j.players[0]["hand"].size() == jh + 1 and j.players[0]["passive_used"], "passiva do Jeff: 1 de dano e compra 1")
+	check(j.players[1]["leader_hp"] == jf - 1 and j.players[0]["hand"].size() == jh and j.players[0]["passive_used"], "passiva do Jeff: 1 de dano, sem comprar")
 	_kill(j, a2)
-	check(j.players[1]["leader_hp"] == jf - 1 and j.players[0]["hand"].size() == jh + 1, "passiva do Jeff só uma vez por turno")
+	check(j.players[1]["leader_hp"] == jf - 1, "passiva do Jeff só uma vez por turno")
 	_quiet(j)
 	j.end_turn(0)
 	check(not j.players[0]["passive_used"], "passiva reseta no turno seguinte")
 	check(not j.can_use_ability(0), "passiva não é ativável")
 	# the dead Leader-owner's passive does not fire for the opponent's deaths
+	# Ceifa only fires on the owner's own turn
+	var jt := _obscura_game()
+	jt.active = 1
+	var at := _put(jt, 0, "esqueleto_guerreiro")
+	var jtf: int = jt.players[1]["leader_hp"]
+	_kill(jt, at)
+	check(jt.players[1]["leader_hp"] == jtf and not jt.players[0]["passive_used"], "Ceifa não ativa no turno do oponente")
 	var j2 := _obscura_game()
 	var e1 := _put(j2, 1, "kai")
 	var jf2: int = j2.players[1]["leader_hp"]
@@ -724,3 +733,27 @@ func _test_sim() -> void:
 			var deck_win: String = g.players[g.winner]["deck_id"] if g.winner < 2 else "draw"
 			wins[0 if deck_win == "fogo" else (1 if deck_win == "agua" else 2)] += 1
 	print("sim fogo/agua/draw: ", wins)
+
+func _test_ban() -> void:
+	# Overdraw is kept in hand; at the end of the owner's turn they choose what to ban
+	var g := _new_game()
+	var pl: Dictionary = g.players[0]
+	while pl["hand"].size() < GameState.HAND_LIMIT:
+		pl["hand"].append({"uid": g._uid(), "card_id": "kai"})
+	var gy: int = pl["graveyard"].size()
+	g._draw(0, 2)
+	g._flush()
+	check(pl["hand"].size() == GameState.HAND_LIMIT + 2, "comprar com a mão cheia mantém as cartas na mão")
+	_quiet(g)
+	g.end_turn(0)
+	check(g.phase == "discard", "mão acima de 10 pede banimento no fim do turno")
+	var pick: Array = [pl["hand"][0]["uid"], pl["hand"][1]["uid"]]
+	check(g.discard(0, [pick[0]]).is_empty(), "banir menos que o necessário é recusado")
+	var ev: Array = g.discard(0, pick)
+	check(pl["hand"].size() == GameState.HAND_LIMIT and pl["banished"].size() == 2, "baniu até 10 cartas")
+	check(pl["graveyard"].size() == gy, "carta banida não vai ao cemitério")
+	check(ev.any(func(e): return e["type"] == "ban") and not ev.any(func(e): return e["type"] == "discard"), "evento ban")
+	# the opponent never sees what was banished from the hand
+	var snap: Dictionary = StateView.snapshot(g, 1)
+	check(snap["players"][0]["banished"].all(func(c): return c["card_id"] == ""), "oponente não vê as cartas banidas da mão")
+	check(StateView.snapshot(g, 0)["players"][0]["banished"].all(func(c): return c["card_id"] != ""), "o dono vê as próprias banidas")

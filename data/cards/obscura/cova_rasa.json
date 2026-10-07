@@ -12,15 +12,9 @@
       "action": "mill",
       "target": "none",
       "amount": 3
-    },
-    {
-      "trigger": "on_play",
-      "action": "draw",
-      "target": "own_leader",
-      "amount": 1
     }
   ],
-  "text": "Moer 3 (as 3 cartas do topo do seu deck vão pro cemitério). Compre 1 carta.",
+  "text": "Moer 3 (as 3 cartas do topo do seu deck vão pro cemitério).",
   "flavor": "",
   "tags": []
 }

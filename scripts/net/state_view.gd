@@ -1,7 +1,7 @@
 class_name StateView
 extends RefCounted
 ## What a given seat is allowed to know about a GameState: the opponent's hand and
-## both decks are reduced to uid-only placeholders (card_id ""), everything else is public.
+## both decks and the opponent's banished cards are reduced to uid-only placeholders (card_id ""), everything else is public.
 
 const HIDDEN := ""
 
@@ -17,6 +17,8 @@ static func snapshot(g: GameState, seat: int) -> Dictionary:
 	for i in 2:
 		var pl: Dictionary = g.players[i].duplicate(true)
 		pl["deck"] = _mask(pl["deck"])
+		if i != seat:
+			pl["banished"] = _mask(pl["banished"]) # cards banished from the hand stay private
 		if i != seat:
 			pl["hand"] = _mask(pl["hand"])
 		players.append(pl)

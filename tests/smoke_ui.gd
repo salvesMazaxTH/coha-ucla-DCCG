@@ -5,6 +5,24 @@ func _init() -> void:
 	var m = load("res://scenes/main.tscn").instantiate()
 	root.add_child(m)
 	await process_frame
+	m._show_menu()
+	m._show_hub(false)
+	m.sel_deck = "obscura"
+	m._show_hub(true)
+	await process_frame
+	var play: Button = null
+	for c in m.layer.get_children():
+		if c is Button and c.text == "JOGAR":
+			play = c
+	if play == null:
+		push_error("hub vs IA sem botão JOGAR")
+		quit(1)
+		return
+	play.pressed.emit()
+	if m.g == null or not m.vs_ai or m.g.players[0]["leader_id"] != "jeff":
+		push_error("hub vs IA não iniciou a partida com o deck escolhido")
+		quit(1)
+		return
 	m._start(false, "fogo", "agua")
 	m.pending_pass = false
 	m._render()
