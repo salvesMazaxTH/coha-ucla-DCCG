@@ -1,0 +1,16 @@
+{
+  "name": "Esqueleto Guerreiro",
+  "type": "creature",
+  "rarity": "common",
+  "species": [],
+  "essence": "obscura",
+  "cost": 2,
+  "atk": 3,
+  "hp": 1,
+  "keywords": [],
+  "art": "",
+  "effects": [],
+  "text": "",
+  "flavor": "Não precisa de carne para golpear.",
+  "tags": []
+}

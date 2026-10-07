@@ -1,0 +1,26 @@
+{
+  "name": "Colheita de Almas",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "obscura",
+  "cost": 2,
+  "speed": "rapido",
+  "art": "",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "sacrifice",
+      "target": "ally_creature",
+      "then": [
+        {
+          "action": "damage",
+          "target": "enemy_leader",
+          "amount": 4
+        }
+      ]
+    }
+  ],
+  "text": "Sacrifique uma criatura aliada: cause 4 de dano ao Líder inimigo.",
+  "flavor": "",
+  "tags": []
+}

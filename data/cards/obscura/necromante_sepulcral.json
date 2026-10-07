@@ -1,0 +1,23 @@
+{
+  "name": "Necromante Sepulcral",
+  "type": "creature",
+  "rarity": "champion",
+  "species": [],
+  "essence": "obscura",
+  "cost": 4,
+  "atk": 3,
+  "hp": 3,
+  "keywords": [],
+  "art": "",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "revive",
+      "target": "none",
+      "max_cost": 3
+    }
+  ],
+  "text": "Ao Entrar: reviva uma criatura aleatória de custo 3 ou menos do seu cemitério.",
+  "flavor": "Os mortos atendem a quem fala baixo.",
+  "tags": []
+}

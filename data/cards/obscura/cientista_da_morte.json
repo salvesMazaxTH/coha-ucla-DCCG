@@ -1,0 +1,36 @@
+{
+  "name": "Cientista da Morte",
+  "type": "creature",
+  "rarity": "epic",
+  "species": [],
+  "essence": "obscura",
+  "cost": 3,
+  "atk": 2,
+  "hp": 3,
+  "keywords": [],
+  "art": "",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "sacrifice",
+      "target": "other_ally_creature",
+      "then": [
+        {
+          "action": "draw",
+          "target": "own_leader",
+          "amount": 2
+        }
+      ]
+    },
+    {
+      "trigger": "on_ally_death",
+      "action": "summon",
+      "target": "none",
+      "card": "esqueleto_guerreiro",
+      "once_per_turn": true
+    }
+  ],
+  "text": "Ao Entrar: você pode sacrificar outra criatura aliada. Se sacrificar, compre 2 cartas. Aliado Morre (uma vez por turno): invoque um Esqueleto Guerreiro.",
+  "flavor": "Todo experimento precisa de material.",
+  "tags": []
+}

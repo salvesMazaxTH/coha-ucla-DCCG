@@ -1,0 +1,22 @@
+{
+  "name": "Revivente Eterno",
+  "type": "creature",
+  "rarity": "epic",
+  "species": [],
+  "essence": "obscura",
+  "cost": 3,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [],
+  "art": "obscura/revivente_eterno.webp",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "revive_self",
+      "target": "none"
+    }
+  ],
+  "text": "Ao Morrer: volte a campo.",
+  "flavor": "A morte lhe pediu desculpas e o devolveu.",
+  "tags": []
+}

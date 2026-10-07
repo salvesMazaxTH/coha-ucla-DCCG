@@ -1,0 +1,20 @@
+{
+  "name": "Necrófago Espectral",
+  "type": "creature",
+  "rarity": "common",
+  "species": [
+    "morto_vivo",
+    "fera"
+  ],
+  "essence": "obscura",
+  "cost": 0,
+  "atk": 3,
+  "hp": 2,
+  "keywords": [],
+  "art": "obscura/necrofago_espectral.webp",
+  "effects": [],
+  "text": "Com o custo adicional de sacrificar uma unidade aliada que você controla.",
+  "flavor": "Come o que os vivos esquecem.",
+  "tags": [],
+  "cost_sacrifice": true
+}

@@ -1,0 +1,37 @@
+{
+  "name": "Replicador Maldito",
+  "type": "creature",
+  "rarity": "common",
+  "species": [],
+  "essence": "obscura",
+  "cost": 4,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [],
+  "art": "",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "summon",
+      "target": "none",
+      "card": "replicador_maldito",
+      "overrides": {
+        "effects": [],
+        "text": "Cópia: sem efeito."
+      }
+    },
+    {
+      "trigger": "on_enter",
+      "action": "summon",
+      "target": "none",
+      "card": "replicador_maldito",
+      "overrides": {
+        "effects": [],
+        "text": "Cópia: sem efeito."
+      }
+    }
+  ],
+  "text": "Ao Entrar: invoque duas cópias deste, sem este efeito.",
+  "flavor": "Cada cópia lembra um pouco menos do original.",
+  "tags": []
+}

@@ -1,0 +1,20 @@
+{
+  "name": "Lamento Fúnebre",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "obscura",
+  "cost": 2,
+  "speed": "rapido",
+  "art": "",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 2
+    }
+  ],
+  "text": "Cause 2 de dano ao Líder inimigo.",
+  "flavor": "",
+  "tags": []
+}

@@ -1,0 +1,26 @@
+{
+  "name": "Fênix da Chama Profana",
+  "type": "creature",
+  "rarity": "epic",
+  "species": [],
+  "essence": "obscura",
+  "cost": 5,
+  "atk": 4,
+  "hp": 3,
+  "keywords": [
+    "voo"
+  ],
+  "art": "",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "revive_self",
+      "target": "none",
+      "atk": -2,
+      "hp": -2
+    }
+  ],
+  "text": "Ao Morrer: volte a campo com -2/-2 do que tinha ao morrer. Com 0 de ataque ou vida, não volta.",
+  "flavor": "Suas cinzas ainda queimam.",
+  "tags": []
+}

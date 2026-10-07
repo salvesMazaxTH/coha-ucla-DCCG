@@ -1,0 +1,31 @@
+{
+  "name": "Diabrete Sombrio",
+  "type": "creature",
+  "rarity": "common",
+  "species": [],
+  "essence": "obscura",
+  "cost": 2,
+  "atk": 2,
+  "hp": 1,
+  "keywords": [
+    "impeto"
+  ],
+  "art": "obscura/diabrete_sombrio.webp",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 1
+    },
+    {
+      "trigger": "on_ally_death",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Morrer: cause 1 de dano ao Líder inimigo. Aliado Morre: compre 1 carta.",
+  "flavor": "Ri até o último fôlego.",
+  "tags": []
+}

@@ -1,0 +1,25 @@
+{
+  "name": "A Vagante Sombria",
+  "type": "creature",
+  "rarity": "epic",
+  "species": [],
+  "essence": "obscura",
+  "cost": 12,
+  "atk": 5,
+  "hp": 5,
+  "keywords": [
+    "indestrutivel"
+  ],
+  "art": "",
+  "effects": [
+    {
+      "trigger": "constante",
+      "action": "cost_reduction",
+      "per": "own_graveyard",
+      "amount": 1
+    }
+  ],
+  "text": "Constante: custa 1 a menos para cada carta no seu cemitério.",
+  "flavor": "Ninguém a convocou. Ela só veio buscar o que já é dela.",
+  "tags": []
+}

@@ -1,0 +1,20 @@
+{
+  "name": "Chamado do Além",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "obscura",
+  "cost": 3,
+  "speed": "lento",
+  "art": "",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "revive",
+      "target": "none",
+      "max_cost": 4
+    }
+  ],
+  "text": "Reviva uma criatura aleatória de custo 4 ou menos do seu cemitério.",
+  "flavor": "",
+  "tags": []
+}

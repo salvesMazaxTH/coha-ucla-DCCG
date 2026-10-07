@@ -1,0 +1,25 @@
+{
+  "name": "Titânico Morcegalma",
+  "type": "creature",
+  "rarity": "epic",
+  "species": [],
+  "essence": "obscura",
+  "cost": 6,
+  "atk": 5,
+  "hp": 6,
+  "keywords": [
+    "longo_alcance"
+  ],
+  "art": "",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "mill",
+      "target": "none",
+      "amount": 2
+    }
+  ],
+  "text": "Ao Entrar: Moer 2 (as 2 cartas do topo do seu deck vão pro cemitério).",
+  "flavor": "Suas asas cobrem a lua e o que jaz embaixo dela.",
+  "tags": []
+}

@@ -30,7 +30,7 @@
     },
     "obscura": {
       "name": "Obscura",
-      "color": "#7a4fb5"
+      "color": "#44444c"
     },
     "sagrada": {
       "name": "Sagrada",
@@ -51,7 +51,29 @@
     "on_damaged": { "name": "Ao Sofrer Dano", "text": "O efeito acontece quando a criatura sofre dano (Escudo anulando o dano não conta)." },
     "on_hit_leader": { "name": "Ao Atingir o Líder", "text": "O efeito acontece quando a criatura causa dano a um Líder." },
     "on_turn_start": { "name": "No Início do Turno", "text": "O efeito acontece no início do turno do dono da criatura." },
-    "on_turn_end": { "name": "No Fim do Turno", "text": "O efeito acontece no fim do turno do dono da criatura." }
+    "on_turn_end": { "name": "No Fim do Turno", "text": "O efeito acontece no fim do turno do dono da criatura." },
+    "on_ally_death": { "name": "Aliado Morre", "text": "O efeito acontece quando outra criatura que você controla vai para o cemitério. Não é o mesmo que morrer: se ela volta ao campo (ex.: Revivente Eterno) ou vai para outro lugar (Lendário volta à zona de comando), não conta. A que foi ao cemitério não ativa o próprio efeito (para isso existe Ao Morrer)." },
+    "constante": { "name": "Constante", "text": "O efeito é contínuo: vale enquanto a criatura está em campo (ou a carta está na mão) e se atualiza sozinho." }
+  },
+  "species": {
+    "humano": {"name": "Humano"},
+    "dragonoide": {"name": "Dragonoide"},
+    "dragao": {"name": "Dragão"},
+    "dragao_primordial": {"name": "Dragão Primordial"},
+    "merfolk": {"name": "Merfolk"},
+    "divindade": {"name": "Divindade"},
+    "celestial": {"name": "Celestial"},
+    "transfigurado": {"name": "Transfigurado"},
+    "forjado_divino": {"name": "Forjado-Divino"},
+    "semideus": {"name": "Semideus"},
+    "tita": {"name": "Titã"},
+    "demonio": {"name": "Demônio"},
+    "espirito": {"name": "Espírito"},
+    "fera": {"name": "Fera"},
+    "elemental": {"name": "Elemental"},
+    "gnomo": {"name": "Gnomo"},
+    "demihumano": {"name": "Demihumano"},
+    "morto_vivo": {"name": "Morto-Vivo"}
   },
   "keywords": {
     "golpe_rapido": {
@@ -101,6 +123,10 @@
     "saque_rapido": {
       "name": "Saque Rápido",
       "text": "Equipamento que pode ser jogado com velocidade Rápida (também nas janelas de combate)."
+    },
+    "indestrutivel": {
+      "name": "Indestrutível",
+      "text": "Não é destruída por dano. Sacrifício ainda a mata."
     },
     "congelar": {
       "name": "Congelar",
@@ -152,59 +178,35 @@
       "essences": [
         "aquatica"
       ]
-    }
-  },
-  "decks": {
-    "fogo": {
-      "name": "Fúria de Ronan",
-      "leader": "ronan",
-      "cards": {
-        "ronan": 1,
-        "kai": 3,
-        "victoria": 2,
-        "irina_lancachamas": 3,
-        "vulnara": 2,
-        "gorvakharr": 3,
-        "sebastian_ignis": 2,
-        "kael_drath_vulcano": 2,
-        "dlorafya": 1,
-        "lord_of_the_shadowflame": 2,
-        "faisca_errante": 3,
-        "batedor_das_cinzas": 1,
-        "guerreiro_igneo": 3,
-        "salamandra": 3,
-        "fenix_menor": 3,
-        "labareda": 3,
-        "bola_de_fogo": 3,
-        "furia_ardente": 2,
-        "manoplas_incandescentes": 3,
-        "estrondador_igneo": 3
-      }
     },
-    "agua": {
-      "name": "Maré de Naelthos",
-      "leader": "naelthos",
-      "cards": {
-        "naelthos": 1,
-        "naelys": 3,
-        "neraqa": 3,
-        "sabrina": 3,
-        "aren_marevoth": 3,
-        "alexa_neruvya": 3,
-        "alexa_neruvya_primordial": 1,
-        "espirito_da_mare": 3,
-        "sentinela_coral": 3,
-        "tritao_lanceiro": 2,
-        "serpente_marinha": 3,
-        "mare_curativa": 2,
-        "negacao_de_neraqa": 2,
-        "lanca_das_mares": 3,
-        "bencao_das_profundezas": 3,
-        "tsunami": 3,
-        "pingente_das_ondas": 2,
-        "vigia_do_farol_do_norte": 3,
-        "engenheiro_louco": 2
-      }
+    "jeff": {
+      "name": "Jeff The Death",
+      "hp": 20,
+      "art": "",
+      "legendary": "jeff",
+      "ability": {
+        "name": "Ceifa",
+        "passive": true,
+        "trigger": "on_ally_death",
+        "cost": 0,
+        "once_per_turn": true,
+        "effects": [
+          {
+            "action": "damage",
+            "target": "enemy_leader",
+            "amount": 1
+          },
+          {
+            "action": "draw",
+            "target": "own_leader",
+            "amount": 1
+          }
+        ],
+        "text": "Passiva. Aliado Morre, uma vez por turno: cause 1 de dano ao Líder inimigo e compre 1 carta."
+      },
+      "essences": [
+        "obscura"
+      ]
     }
   },
   "cards": {}
