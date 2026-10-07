@@ -93,6 +93,10 @@
     "escudo": {
       "name": "Escudo",
       "text": "Anula completamente a próxima instância de dano que receberia."
+    },
+    "escudo_feitico": {
+      "name": "Escudo de Feitiço",
+      "text": "Anula, uma vez, o próximo efeito inimigo que não seja dano de combate (feitiço, habilidade, efeito em área). Depois se dissipa."
     }
   },
   "leaders": {
@@ -105,6 +109,7 @@
         "name": "Pavio Curto",
         "cost": 1,
         "once_per_turn": true,
+        "speed": "instantaneo",
         "effects": [
           {
             "action": "damage",
@@ -112,7 +117,7 @@
             "amount": 1
           }
         ],
-        "text": "1 Momentum, uma vez por turno: cause 1 de dano a uma criatura ou ao Líder inimigo."
+        "text": "Instantânea. 1 Momentum, uma vez por turno: cause 1 de dano a uma criatura ou ao Líder inimigo."
       },
       "essences": [
         "ignea"
@@ -125,18 +130,16 @@
       "legendary": "naelthos",
       "ability": {
         "name": "Mar que Retorna",
-        "cost": 2,
+        "cost": 1,
         "once_per_turn": true,
+        "speed": "rapido",
         "effects": [
           {
-            "action": "buff",
-            "target": "ally_creature",
-            "keywords": [
-              "escudo"
-            ]
+            "action": "tide_mark",
+            "target": "ally_creature"
           }
         ],
-        "text": "2 Momentum, uma vez por turno: conceda Escudo a uma criatura aliada."
+        "text": "Rápida. 1 Momentum, uma vez por turno: marque uma criatura aliada. Na próxima vez que ela sobreviver a dano neste turno, compre 1 carta."
       },
       "essences": [
         "aquatica"

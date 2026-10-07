@@ -6,18 +6,14 @@
   "cost": 3,
   "atk": 2,
   "hp": 3,
-  "keywords": [
-    "escudo"
-  ],
+  "keywords": ["escudo"],
   "art": "ignea/victoria.webp",
   "effects": [
     {
       "trigger": "on_enter",
       "action": "buff",
       "target": "other_ally_creature",
-      "keywords": [
-        "escudo"
-      ]
+      "keywords": ["escudo", "voo"]
     }
   ],
   "text": "Ao Entrar: conceda Escudo a outra criatura aliada.",

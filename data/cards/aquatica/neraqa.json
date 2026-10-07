@@ -5,7 +5,7 @@
   "essence": "aquatica",
   "cost": 4,
   "atk": 3,
-  "hp": 4,
+  "hp": 5,
   "keywords": [
     "vigia"
   ],
@@ -13,12 +13,14 @@
   "effects": [
     {
       "trigger": "on_enter",
-      "action": "damage",
-      "target": "enemy_creature",
-      "amount": 2
+      "action": "buff",
+      "target": "ally_creature",
+      "keywords": [
+        "escudo_feitico"
+      ]
     }
   ],
-  "text": "Ao Entrar: cause 2 de dano a uma criatura inimiga.",
+  "text": "Ao Entrar: conceda Escudo de Feitiço a uma criatura aliada (pode ser ela mesma).",
   "flavor": "Quebra sobre eles, e volta à calma.",
   "tags": []
 }
