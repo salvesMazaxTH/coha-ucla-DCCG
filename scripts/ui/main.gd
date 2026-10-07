@@ -58,7 +58,9 @@ func _apply_light(on: bool, save := false) -> void:
 
 func _light_on() -> bool:
 	var cf := ConfigFile.new()
-	return cf.load("user://settings.cfg") == OK and cf.get_value("ui", "light", false)
+	if cf.load("user://settings.cfg") != OK:
+		return false
+	return bool(cf.get_value("ui", "light", false))
 
 func _ready() -> void:
 	_apply_light(_light_on())
