@@ -1,6 +1,6 @@
 {
   "name": "Gorvakharr",
-  "type": "creature",
+  "type": "unit",
   "rarity": "champion",
   "species": ["demonio"],
   "essence": "ignea",

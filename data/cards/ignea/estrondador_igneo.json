@@ -1,6 +1,6 @@
 {
   "name": "Estrondador Ígneo",
-  "type": "creature",
+  "type": "unit",
   "rarity": "epic",
   "species": ["demihumano"],
   "essence": "ignea",
@@ -17,7 +17,7 @@
       "amount": 1
     }
   ],
-  "text": "Ao Atingir o Líder: cause 1 de dano a uma criatura inimiga aleatória e às adjacentes.",
+  "text": "Ao Atingir o Líder: cause 1 de dano a uma unidade inimiga aleatória e às adjacentes.",
   "flavor": "O estrondo vem antes do fogo.",
   "tags": []
 }

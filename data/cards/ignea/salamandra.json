@@ -1,6 +1,6 @@
 {
   "name": "Salamandra",
-  "type": "creature",
+  "type": "unit",
   "rarity": "common",
   "species": ["fera", "elemental"],
   "essence": "ignea",

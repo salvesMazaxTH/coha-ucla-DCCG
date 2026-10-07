@@ -38,6 +38,13 @@ static func leader(id: String) -> Dictionary:
 	return data()["leaders"][id]
 
 ## True for a Leader's own champion card (cast from the Command Zone).
+## Artifacts are a card type of their own; equipment is an artifact subtype.
+static func is_artifact(cd: Dictionary) -> bool:
+	return cd.get("type", "") == "artifact"
+
+static func is_equipment(cd: Dictionary) -> bool:
+	return is_artifact(cd) and cd.get("subtypes", []).has("equipment")
+
 static func is_leader_card(id: String) -> bool:
 	for lid in data()["leaders"]:
 		if data()["leaders"][lid]["legendary"] == id:

@@ -1,6 +1,6 @@
 {
   "name": "Lorde da Chama Sombria",
-  "type": "creature",
+  "type": "unit",
   "rarity": "champion",
   "species": ["humano", "demonio"],
   "essence": "ignea",
@@ -9,7 +9,7 @@
   "hp": 4,
   "keywords": ["impeto"],
   "art": "ignea/clay_lord_of_the_shadowflame.webp",
-  "effects": [{"trigger":"on_blocked","action":"damage","target":"opposed_creature","amount":2}],
+  "effects": [{"trigger":"on_blocked","action":"damage","target":"opposed_unit","amount":2}],
   "text": "Ao Ser Bloqueada: cause 2 de dano ao bloqueador.",
   "flavor": "A chama sempre cobra o que lhe é devido.",
   "tags": []

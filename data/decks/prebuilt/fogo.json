@@ -1,6 +1,6 @@
 {
   "name": "Fúria de Ronan",
-  "description": "Agressão e pressão de dano. Criaturas com Ímpeto e dano direto para fechar o jogo rápido.",
+  "description": "Agressão e pressão de dano. Unidades com Ímpeto e dano direto para fechar o jogo rápido.",
   "order": 1,
   "leader": "ronan",
   "cards": {

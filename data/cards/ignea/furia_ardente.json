@@ -10,7 +10,7 @@
     {
       "trigger": "on_play",
       "action": "buff",
-      "target": "ally_creature",
+      "target": "ally_unit",
       "atk": 2,
       "temp": true,
       "keywords": [
@@ -18,7 +18,7 @@
       ]
     }
   ],
-  "text": "Uma criatura aliada ganha +2 de Ataque neste turno e Sobrepujança.",
+  "text": "Uma unidade aliada ganha +2 de Ataque neste turno e Sobrepujança.",
   "flavor": "",
   "tags": []
 }

@@ -1,6 +1,6 @@
 {
   "name": "O Espiritomante",
-  "type": "creature",
+  "type": "unit",
   "rarity": "epic",
   "species": [],
   "essence": "obscura",
@@ -19,7 +19,7 @@
       "max_cost": 3
     }
   ],
-  "text": "Ao Entrar: reviva uma criatura aleatória de custo 3 ou menos do seu cemitério.",
+  "text": "Ao Entrar: reviva uma unidade aleatória de custo 3 ou menos do seu cemitério.",
   "flavor": "Os mortos atendem a quem fala baixo.",
   "tags": []
 }

@@ -1,6 +1,6 @@
 {
   "name": "Kai",
-  "type": "creature",
+  "type": "unit",
   "rarity": "champion",
   "species": ["humano"],
   "essence": "ignea",

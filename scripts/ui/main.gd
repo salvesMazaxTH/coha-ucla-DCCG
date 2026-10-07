@@ -734,8 +734,8 @@ func _render_board(p: int, y: float) -> void:
 		v.position = Vector2(x0 + i * w + (w - v.size.x) / 2.0, y)
 		if c["exhausted"] and g.phase != "blocks":
 			v.dim = true
-		_decorate_creature(v, c, p)
-		v.left_clicked.connect(_on_creature_click)
+		_decorate_unit(v, c, p)
+		v.left_clicked.connect(_on_unit_click)
 		v.right_clicked.connect(_show_overlay)
 		layer.add_child(v)
 		views[c["uid"]] = v
@@ -754,8 +754,15 @@ func _render_board(p: int, y: float) -> void:
 			_tag(v, ("PROVOCADA" if pairs[pi]["forced"] else "BLOQUEIA") + num, PAIR_COLS[pi % PAIR_COLS.size()])
 		elif g.is_frozen(c):
 			_tag(v, "CONGELADA", ICE)
+		if c.has("equipment"):
+			# the equipment card sits under its unit, peeking out toward the middle of the table
+			var eq := CardView.new().setup(c["equipment"]["card_id"], {"uid": c["equipment"]["uid"]}, 1.15)
+			eq.position = v.position + Vector2(8, 22 if p == viewer else -22)
+			eq.right_clicked.connect(_show_overlay)
+			layer.add_child(eq)
+			layer.move_child(eq, v.get_index())
 
-func _decorate_creature(v: CardView, c: Dictionary, p: int) -> void:
+func _decorate_unit(v: CardView, c: Dictionary, p: int) -> void:
 	if _is_target(c["uid"]):
 		v.highlight = TARGET
 		return
@@ -772,11 +779,11 @@ func _decorate_creature(v: CardView, c: Dictionary, p: int) -> void:
 		elif p == viewer and not block_sel.values().has(c["uid"]) and not g.attackers.values().has(c["uid"]) and not g.is_frozen(c):
 			v.highlight = OK
 		elif p != viewer and g.attackers.has(c["uid"]):
-			v.highlight = TARGET if blocker_pick != 0 and g.can_block(g.find_creature(blocker_pick), c) else SEL
+			v.highlight = TARGET if blocker_pick != 0 and g.can_block(g.find_unit(blocker_pick), c) else SEL
 	if provoking != 0 and p != viewer and g.phase == "main" and not g.is_frozen(c):
 		v.highlight = TARGET
 
-## Every block assignment visible right now: locked-in blocks, provoked creatures and,
+## Every block assignment visible right now: locked-in blocks, provoked units and,
 ## for the defender only, the picks not yet confirmed. Numbered left to right.
 func _collect_pairs() -> void:
 	pairs.clear()
@@ -785,7 +792,7 @@ func _collect_pairs() -> void:
 	for src in [g.attackers, attack_sel]:
 		for a in src:
 			var b: int = src[a]
-			if b != 0 and not g.find_creature(b).is_empty() and not g.is_frozen(g.find_creature(b)):
+			if b != 0 and not g.find_unit(b).is_empty() and not g.is_frozen(g.find_unit(b)):
 				m[a] = [b, true]
 	if g.phase == "blocks" and viewer == g.decider():
 		for a in block_sel:
@@ -1142,13 +1149,13 @@ func _hint() -> String:
 		"mulligan":
 			return "Clique em até 3 cartas para trocar."
 		"blocks":
-			return "Clique numa criatura sua e depois no atacante que ela bloqueia · clique de novo no bloqueador para desfazer."
+			return "Clique numa unidade sua e depois no atacante que ela bloqueia · clique de novo no bloqueador para desfazer."
 		"discard":
 			return "Mão acima de 10: escolha %d para banir." % (g.players[viewer]["hand"].size() - GameState.HAND_LIMIT)
 		"main":
 			if provoking != 0:
-				return "Provocação: escolha a criatura inimiga que será obrigada a bloquear."
-			return "Jogue cartas e clique nas suas criaturas para atacar · " + ("segure: ver carta" if CardView.touch_ui() else "botão direito: ver carta")
+				return "Provocação: escolha a unidade inimiga que será obrigada a bloquear."
+			return "Jogue cartas e clique nas suas unidades para atacar · " + ("segure: ver carta" if CardView.touch_ui() else "botão direito: ver carta")
 	return ""
 
 func _action_buttons() -> Array:
@@ -1274,15 +1281,15 @@ func _on_legendary(p: int) -> void:
 	else:
 		_do(g.cast_legendary(p, 0))
 
-## A creature whose Ao Entrar targets "ally_creature" may pick itself (click it again).
+## A unit whose Ao Entrar targets "ally_unit" may pick itself (click it again).
 func _self_targetable() -> bool:
-	if targeting.get("kind") != "hand" or targeting.get("spec") != "ally_creature":
+	if targeting.get("kind") != "hand" or targeting.get("spec") != "ally_unit":
 		return false
 	var inst: Dictionary = {}
 	for c in g.players[viewer]["hand"]:
 		if c["uid"] == targeting["uid"]:
 			inst = c
-	return not inst.is_empty() and CardDB.card(inst["card_id"])["type"] == "creature" and not CardDB.card(inst["card_id"]).get("cost_sacrifice", false)
+	return not inst.is_empty() and CardDB.card(inst["card_id"])["type"] == "unit" and not CardDB.card(inst["card_id"]).get("cost_sacrifice", false)
 
 func _on_ability(p: int) -> void:
 	if not _my_input() or not g.can_use_ability(p):
@@ -1322,10 +1329,10 @@ func _on_leader_click(p: int) -> void:
 	if _my_input() and _is_target(GameState.LEADER_UID[p]):
 		_fire_target(GameState.LEADER_UID[p])
 
-func _on_creature_click(v: CardView) -> void:
+func _on_unit_click(v: CardView) -> void:
 	if not _my_input():
 		return
-	var c := g.find_creature(v.uid)
+	var c := g.find_unit(v.uid)
 	if c.is_empty():
 		return
 	if not targeting.is_empty():
@@ -1336,7 +1343,7 @@ func _on_creature_click(v: CardView) -> void:
 		"main":
 			if provoking != 0:
 				if c["owner"] != viewer and g.is_frozen(c):
-					_toast("Criatura congelada não pode ser provocada.")
+					_toast("Unidade congelada não pode ser provocada.")
 					return
 				if c["owner"] != viewer and not attack_sel.values().has(v.uid):
 					attack_sel[provoking] = v.uid
@@ -1357,7 +1364,7 @@ func _on_creature_click(v: CardView) -> void:
 				if g.attackers.values().has(v.uid):
 					return # already forced to block a provoker
 				if g.is_frozen(c):
-					_toast("Criatura congelada não pode bloquear.")
+					_toast("Unidade congelada não pode bloquear.")
 					return
 				for a in block_sel.keys():
 					if block_sel[a] == v.uid:
@@ -1365,11 +1372,11 @@ func _on_creature_click(v: CardView) -> void:
 				blocker_pick = v.uid if blocker_pick != v.uid else 0
 				_render()
 			elif blocker_pick != 0 and g.attackers.has(v.uid) and g.attackers[v.uid] == 0:
-				if g.can_block(g.find_creature(blocker_pick), c):
+				if g.can_block(g.find_unit(blocker_pick), c):
 					block_sel[v.uid] = blocker_pick
 					blocker_pick = 0
 				else:
-					_toast("Essa criatura não pode bloquear esse atacante (Voo/Furtividade).")
+					_toast("Essa unidade não pode bloquear esse atacante (Voo/Furtividade).")
 				_render()
 
 # ---------------------------------------------------------------- overlay
@@ -1393,9 +1400,11 @@ func _show_overlay(v: CardView) -> void:
 	big.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(big)
 	var txt := "[font_size=48][color=#e8c25a]%s[/color][/font_size]\n" % cd["name"]
-	var rar := {"legendary": "Lendário", "champion": "Campeão", "epic": "Unidade Épica", "common": "Unidade"}
-	var typ := {"creature": rar.get(cd["rarity"], "Unidade"), "spell": "Feitiço", "equipment": "Equipamento"}
+	var rar := {"legendary": "Lendário", "champion": "Campeão", "epic": "Unidade Épica", "common": "Unidade Comum"}
+	var typ := {"unit": rar.get(cd["rarity"], "Unidade"), "spell": "Feitiço", "artifact": "Artefato"}
 	var kind: String = typ[cd["type"]]
+	if CardDB.is_equipment(cd):
+		kind += " · Equipamento"
 	if CardDB.species_names(cd) != "":
 		kind += " — " + CardDB.species_names(cd)
 	var shown_cost: int = v.cost_override if v.cost_override >= 0 else int(cd["cost"])
@@ -1442,7 +1451,8 @@ func _render_search_reveal() -> void:
 	var look: bool = g.pending_search.get("look", false)
 	# a private look is face up only for its owner (online, the server already masks the cards)
 	var hidden := look and not _my_input()
-	box.add_child(_label("TOPO DO DECK" if look else "REVELAÇÃO DO DECK", 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
+	box.add_child(_label("CEMITÉRIO" if g.pending_search.get("grave", false) else ("TOPO DO DECK" if look else "REVELAÇÃO DO DECK"), 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
+	var grave: bool = g.pending_search.get("grave", false)
 	var sub := "%s revelou as opções da busca" % _pname(owner)
 	if look:
 		sub = "%s está olhando as %d cartas do topo do deck" % [_pname(owner), g.pending_search["cards"].size()]
@@ -1462,7 +1472,7 @@ func _render_search_reveal() -> void:
 		if _my_input():
 			cv.left_clicked.connect(func(_v): _on_search_choice(card_uid))
 		grid.add_child(cv)
-	var hint := "Escolha 1 para a mão; as outras vão para o fundo do deck." if look else "Clique em uma carta para adicioná-la à sua mão e embaralhar o deck."
+	var hint := "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else "Escolha 1 para a mão; as outras vão para o fundo do deck." if look else "Clique em uma carta para adicioná-la à sua mão e embaralhar o deck."
 	var footer := _label(hint if _my_input() else "A escolha pertence ao oponente.", 16, SEL if _my_input() else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 	box.add_child(footer)
 	_center.call_deferred(search_overlay)
@@ -1592,7 +1602,7 @@ func _embers(c: Vector2, t: float, col: Color, amount := 36) -> void:
 		if is_instance_valid(p):
 			p.queue_free())
 
-## A creature's trigger went off: the card pops with a hot rim light, a ring pulses out of it,
+## A unit's trigger went off: the card pops with a hot rim light, a ring pulses out of it,
 ## light sweeps across it, sparks fly and a tag names the trigger, in the same orange as
 ## trigger names in the rules text, so what follows reads as coming from this card.
 func _trigger_fx(v: Control, trigger: String, t: float) -> void:
@@ -1755,7 +1765,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 	var last_src := 0
 	var last_dst := 0
 	var hit_t := 0.0
-	var trig_src := 0 ## creature whose trigger caused the events that follow (0 = none)
+	var trig_src := 0 ## unit whose trigger caused the events that follow (0 = none)
 	for e in events:
 		var et: String = e["type"]
 		if et in ["play", "ability", "passive", "resolve", "attack", "combat_damage", "start_turn", "end_turn"] \
@@ -1789,7 +1799,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 					origin = old["cmd%d" % e["player"]]["pose"]
 				elif old.has(uid):
 					origin = old[uid]["pose"]
-				if cd["type"] == "creature" and views.has(uid):
+				if cd["type"] == "unit" and views.has(uid):
 					var v: CardView = views[uid]
 					var to := _pose(v)
 					handled[uid] = true
@@ -1965,14 +1975,21 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s mandou ao cemitério: %s" % [_pname(e["player"]), ", ".join(milled)])
 		"revive":
 			_log("%s reviveu %s" % [_pname(e["player"]), _cname(e["card_id"])])
+		"attach":
+			_log("%s foi equipado em uma unidade" % _cname(e["card_id"]))
+		"equipment_break":
+			_log("%s foi ao cemitério com a unidade equipada" % _cname(e["card_id"]))
+		"destroy":
+			var dc := g.find_unit(e["uid"])
+			_log("%s foi destruída" % ("Uma unidade" if dc.is_empty() else _cname(dc["card_id"])))
 		"sacrifice":
-			var sc := g.find_creature(e["uid"])
-			_log("%s sacrificou %s" % [_pname(e["player"]), "uma criatura" if sc.is_empty() else _cname(sc["card_id"])])
+			var sc := g.find_unit(e["uid"])
+			_log("%s sacrificou %s" % [_pname(e["player"]), "uma unidade" if sc.is_empty() else _cname(sc["card_id"])])
 		"freeze":
-			var fc := g.find_creature(e["uid"])
-			_log("%s foi congelada" % ("Uma criatura" if fc.is_empty() else _cname(fc["card_id"])))
+			var fc := g.find_unit(e["uid"])
+			_log("%s foi congelada" % ("Uma unidade" if fc.is_empty() else _cname(fc["card_id"])))
 		"thaw":
-			var tc := g.find_creature(e["uid"])
+			var tc := g.find_unit(e["uid"])
 			if not tc.is_empty():
 				_log("%s descongelou" % _cname(tc["card_id"]))
 		"search_empty":
@@ -1984,7 +2001,7 @@ func _log_event(e: Dictionary) -> void:
 		"countered":
 			_log("%s anulou %s" % [_pname(e["by"]), _cname(e["card_id"]) if e["kind"] == "card" else "a habilidade de " + _pname(e["player"])])
 		"spell_shield_break":
-			var c := g.find_creature(e["uid"])
+			var c := g.find_unit(e["uid"])
 			_log("Escudo de Feitiço anulou o efeito" + ("" if c.is_empty() else " em " + _cname(c["card_id"])))
 		"tide_draw":
 			_log("%s: a maré retorna, compra 1" % _pname(e["player"]))

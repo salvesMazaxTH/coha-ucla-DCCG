@@ -1,6 +1,6 @@
 {
   "name": "Jeff The Death",
-  "type": "creature",
+  "type": "unit",
   "rarity": "champion",
   "species": [
     "divindade"
@@ -15,12 +15,12 @@
     {
       "trigger": "constante",
       "action": "scale",
-      "per": "own_graveyard_creatures",
+      "per": "own_graveyard_units",
       "atk": 2,
       "hp": 2
     }
   ],
-  "text": "Constante: recebe +2/+2 para cada carta de criatura no seu cemitério.",
+  "text": "Constante: recebe +2/+2 para cada carta de unidade no seu cemitério.",
   "flavor": "Todo cemitério é um tesouro para quem sabe contar.",
   "tags": []
 }

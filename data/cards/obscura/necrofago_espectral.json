@@ -1,6 +1,6 @@
 {
   "name": "Necrófago Espectral",
-  "type": "creature",
+  "type": "unit",
   "rarity": "common",
   "species": [
     "morto_vivo",

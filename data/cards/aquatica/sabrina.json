@@ -1,6 +1,6 @@
 {
   "name": "Sabrina",
-  "type": "creature",
+  "type": "unit",
   "rarity": "champion",
   "species": ["humano"],
   "essence": [
@@ -18,10 +18,10 @@
     {
       "trigger": "on_enter",
       "action": "freeze",
-      "target": "enemy_creature"
+      "target": "enemy_unit"
     }
   ],
-  "text": "Ao Entrar: congele uma criatura inimiga.",
+  "text": "Ao Entrar: congele uma unidade inimiga.",
   "flavor": "Dilúvio de inverno.",
   "tags": [
     "congelar"

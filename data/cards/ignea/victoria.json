@@ -1,6 +1,6 @@
 {
   "name": "Victoria",
-  "type": "creature",
+  "type": "unit",
   "rarity": "champion",
   "species": ["humano"],
   "essence": "ignea",
@@ -13,11 +13,11 @@
     {
       "trigger": "on_enter",
       "action": "buff",
-      "target": "other_ally_creature",
+      "target": "other_ally_unit",
       "keywords": ["escudo", "voo"]
     }
   ],
-  "text": "Ao Entrar: conceda Escudo a outra criatura aliada.",
+  "text": "Ao Entrar: conceda Escudo a outra unidade aliada.",
   "flavor": "A égide da fênix nunca se apaga.",
   "tags": []
 }

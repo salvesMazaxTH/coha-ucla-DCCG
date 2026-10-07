@@ -33,7 +33,7 @@ const HP_COL := Color("#2f9e58")
 const FROST := Color("#cfefff")
 
 var card_id := ""
-var inst: Dictionary = {} ## creature on board (live stats) or hand instance
+var inst: Dictionary = {} ## unit on board (live stats) or hand instance
 var uid := 0
 var face_down := false
 var highlight := Color.TRANSPARENT ## outline for selection/targets
@@ -288,7 +288,7 @@ func _draw() -> void:
 	var name_s: String = cd["name"]
 	_text(nf, name_s, Vector2(size.x / 2, py + ph / 2 + 4 * s), _fit(nf, name_s, 11.5 * s, size.x - 24 * s), Color("#fff4dc"))
 
-	# lower panel: keywords (creatures) or card type
+	# lower panel: keywords (units) or card type
 	var panel := Rect2(Vector2(10, 126) * s, Vector2(BASE.x - 20, 34) * s)
 	_rrect_fill(panel, 4 * s, Color(0, 0, 0, 0.38))
 	_rrect_line(panel, 4 * s, Color(trim, 0.25), 1 * s)
@@ -297,7 +297,7 @@ func _draw() -> void:
 	var ly := panel.get_center().y + 3.5 * s - (lines.size() - 1) * 6.25 * s
 	for ln in lines:
 		var room := panel.size.x - 24 * s
-		if cd["type"] == "creature" and ly > 142 * s:
+		if cd["type"] == "unit" and ly > 142 * s:
 			room = size.x - 2 * 31 * s # lines low in the panel sit between the atk/hp gems
 		_text_segments(bf, ln, Vector2(size.x / 2, ly), 11.5 * s, room)
 		ly += 12.5 * s
@@ -310,7 +310,7 @@ func _draw() -> void:
 	var cost: int = cost_override if cost_override >= 0 else int(cd["cost"])
 	_gem("orb", Vector2(14, 14) * s, 13 * s, COST_COL, str(cost), Color("#2a1c00"), s)
 	_essence_badge(Vector2(BASE.x - 14, 14) * s, 10.5 * s, cd, s)
-	if cd["type"] == "creature":
+	if cd["type"] == "unit":
 		var atk: int = int(cd["atk"])
 		var hp: int = int(cd["hp"])
 		var atk_col := Color.WHITE
@@ -361,7 +361,7 @@ func _style_keys(cd: Dictionary) -> Array:
 			out.append(e)
 	return out.slice(0, 2) if not out.is_empty() else ["neutra"]
 
-## Icy veil and frost crystals over the art of a frozen creature.
+## Icy veil and frost crystals over the art of a frozen unit.
 func _draw_frost(art: Rect2, s: float) -> void:
 	draw_rect(art, Color(FROST, 0.26))
 	_vgrad(Rect2(art.position, Vector2(art.size.x, art.size.y * 0.35)), Color(1, 1, 1, 0.22), Color(1, 1, 1, 0))
@@ -383,8 +383,10 @@ func _panel_lines(cd: Dictionary) -> Array:
 		if inst["shield"]:
 			kws.push_front("escudo")
 	var out := []
-	if cd["type"] != "creature":
-		var kind: String = {"spell": "FEITIÇO", "equipment": "EQUIPAMENTO"}[cd["type"]]
+	if cd["type"] != "unit":
+		var kind: String = {"spell": "FEITIÇO", "artifact": "ARTEFATO"}[cd["type"]]
+		if CardDB.is_equipment(cd):
+			kind += " · EQUIPAMENTO"
 		var spd: String = {"rapido": " · RÁPIDO", "instantaneo": " · INSTANTÂNEO"}.get(cd.get("speed", "lento"), "")
 		out.append([[kind + spd, Color("#ffd27a") if spd != "" else Color(UITheme.TEXT, 0.6)]])
 	# tags: keywords first, then trigger names (full text lives in the overlay)
@@ -411,7 +413,7 @@ func _panel_lines(cd: Dictionary) -> Array:
 		if tags.size() > half:
 			out.append(tags.slice(half))
 	if out.is_empty():
-		var rar := {"legendary": "LENDÁRIO", "champion": "CAMPEÃO", "epic": "UNIDADE ÉPICA", "common": "UNIDADE"}
+		var rar := {"legendary": "LENDÁRIO", "champion": "CAMPEÃO", "epic": "UNIDADE ÉPICA", "common": "UNIDADE COMUM"}
 		out.append([[rar.get(cd["rarity"], ""), Color(UITheme.TEXT, 0.45)]])
 	return out
 
@@ -452,7 +454,7 @@ func _placeholder(art: Rect2, cd: Dictionary, col: Color, s: float) -> void:
 	var c := art.get_center() + Vector2(0, 2 * s)
 	for i in 8:
 		draw_circle(c, (46 - i * 5) * s, Color(col.lightened(0.4), 0.05))
-	var kind: String = cd["type"] if cd["type"] != "creature" else String(CardDB.essences_of(cd)[0])
+	var kind: String = String(CardDB.essences_of(cd)[0]) if cd["type"] == "unit" else ("equipment" if CardDB.is_equipment(cd) else cd["type"])
 	if kind == "obscura":
 		_skull(c, 26 * s)
 		var fo := UITheme.font("title_bold")

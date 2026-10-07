@@ -1,6 +1,6 @@
 {
   "name": "Vigia do Farol do Norte",
-  "type": "creature",
+  "type": "unit",
   "rarity": "common",
   "species": ["humano"],
   "essence": "neutra",

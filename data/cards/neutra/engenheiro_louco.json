@@ -1,6 +1,6 @@
 {
   "name": "Engenheiro Louco",
-  "type": "creature",
+  "type": "unit",
   "rarity": "common",
   "species": ["gnomo"],
   "essence": "neutra",

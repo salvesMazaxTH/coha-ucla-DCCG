@@ -1,6 +1,6 @@
 {
   "name": "Guerreiro Ígneo",
-  "type": "creature",
+  "type": "unit",
   "rarity": "common",
   "species": ["humano"],
   "essence": "ignea",

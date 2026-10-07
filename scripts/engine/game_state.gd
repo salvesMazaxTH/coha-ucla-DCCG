@@ -36,11 +36,13 @@ var priority := 0
 ## then blocks, then "damage" (attacker first; damage when both pass in a row).
 var window := ""
 var _search_return := "main"
+## Cards sent to the graveyard by the latest mill (offered by mill_pick).
+var _milled: Array = []
 var rng := RandomNumberGenerator.new()
 var _next_uid := 1
 var _events: Array = []
 var _trigger_depth := 0
-var _dying: Dictionary = {} ## creature whose Ao Morrer is resolving (for summon "self")
+var _dying: Dictionary = {} ## unit whose Ao Morrer is resolving (for summon "self")
 
 func _init(deck_a: String, deck_b: String, seed_value: int = 0) -> void:
 	rng.seed = seed_value if seed_value != 0 else randi()
@@ -106,7 +108,7 @@ func decider() -> int:
 			return priority
 	return active
 
-func find_creature(uid: int) -> Dictionary:
+func find_unit(uid: int) -> Dictionary:
 	for p in players:
 		for c in p["board"]:
 			if c["uid"] == uid:
@@ -129,16 +131,16 @@ func atk_of(c: Dictionary) -> int:
 func hp_left(c: Dictionary) -> int:
 	return c["hp"] + int(c.get("bonus_hp", 0)) - c["damage"]
 
-## Creature cards in a player's graveyard.
-func graveyard_creatures(p: int) -> int:
+## Unit cards in a player's graveyard.
+func graveyard_units(p: int) -> int:
 	var n := 0
 	for e in players[p]["graveyard"]:
-		if CardDB.card(e["card_id"])["type"] == "creature":
+		if CardDB.card(e["card_id"])["type"] == "unit":
 			n += 1
 	return n
 
-## Recomputes the "constante" effects of board creatures. Action "scale" gives
-## atk/hp per counted thing (e.g. +2/+2 per creature card in the own graveyard).
+## Recomputes the "constante" effects of board units. Action "scale" gives
+## atk/hp per counted thing (e.g. +2/+2 per unit card in the own graveyard).
 func _refresh_scaling() -> void:
 	for p in 2:
 		for c in players[p]["board"]:
@@ -155,8 +157,8 @@ func scale_bonus(p: int, cd: Dictionary) -> Vector2i:
 			continue
 		var n := 0
 		match e.get("per", ""):
-			"own_graveyard_creatures": n = graveyard_creatures(p)
-			"enemy_graveyard_creatures": n = graveyard_creatures(opponent(p))
+			"own_graveyard_units": n = graveyard_units(p)
+			"enemy_graveyard_units": n = graveyard_units(opponent(p))
 		out += Vector2i(n * int(e.get("atk", 0)), n * int(e.get("hp", 0)))
 	return out
 
@@ -183,14 +185,14 @@ func can_block(blocker: Dictionary, attacker: Dictionary) -> bool:
 ## Effect spec of a card/ability that needs a chosen target, or "" if none.
 func target_spec(effects: Array) -> String:
 	for e in effects:
-		if e.get("target", "") in ["enemy_creature", "ally_creature", "other_ally_creature", "any_creature", "any", "enemy_stack"]:
+		if e.get("target", "") in ["enemy_unit", "ally_unit", "other_ally_unit", "any_unit", "any", "enemy_stack"]:
 			return e["target"]
 	return ""
 
-## Target a card needs when played: its additional sacrifice cost (the creature to sacrifice)
+## Target a card needs when played: its additional sacrifice cost (the unit to sacrifice)
 ## or the chosen target of its effects.
 func card_spec(cd: Dictionary) -> String:
-	return "ally_creature" if cd.get("cost_sacrifice", false) else target_spec(cd["effects"])
+	return "ally_unit" if cd.get("cost_sacrifice", false) else target_spec(cd["effects"])
 
 ## Momentum cost of a card for player p, after "constante" cost_reduction effects
 ## (e.g. per: "own_graveyard" = 1 less for each card in the own graveyard). Never below 0.
@@ -210,14 +212,14 @@ func valid_targets(p: int, spec: String, self_uid: int = 0) -> Array:
 	var mine: Array = players[p]["board"]
 	var theirs: Array = players[opponent(p)]["board"]
 	match spec:
-		"enemy_creature":
+		"enemy_unit":
 			for c in theirs: out.append(c["uid"])
-		"ally_creature":
+		"ally_unit":
 			for c in mine: out.append(c["uid"])
-		"other_ally_creature":
+		"other_ally_unit":
 			for c in mine:
 				if c["uid"] != self_uid: out.append(c["uid"])
-		"any_creature":
+		"any_unit":
 			for c in mine + theirs: out.append(c["uid"])
 		"any":
 			for c in mine + theirs: out.append(c["uid"])
@@ -288,7 +290,7 @@ func can_cast_speed(p: int, speed: String) -> bool:
 		return p == active
 	return speed != "lento"
 
-## Creatures, the Legendary, attacking and ending the turn: own Main Phase, empty stack.
+## Units, the Legendary, attacking and ending the turn: own Main Phase, empty stack.
 func _sorcery_time(p: int) -> bool:
 	return phase == "main" and p == active and priority == p and stack.is_empty()
 
@@ -299,7 +301,7 @@ func can_play(p: int, hand_uid: int) -> bool:
 	var cd := CardDB.card(inst["card_id"])
 	if cost_of(p, cd) > players[p]["momentum"]:
 		return false
-	if cd["type"] == "creature":
+	if cd["type"] == "unit":
 		if not _sorcery_time(p):
 			return false
 		if cd.get("cost_sacrifice", false):
@@ -360,12 +362,12 @@ func play_card(p: int, hand_uid: int, target: int = 0) -> Array:
 		return []
 	var inst := _hand_card(p, hand_uid)
 	var cd := CardDB.card(inst["card_id"])
-	var sacrifice: bool = cd["type"] == "creature" and cd.get("cost_sacrifice", false)
+	var sacrifice: bool = cd["type"] == "unit" and cd.get("cost_sacrifice", false)
 	var spec := target_spec(cd["effects"])
 	if sacrifice:
-		if not valid_targets(p, "ally_creature").has(target):
+		if not valid_targets(p, "ally_unit").has(target):
 			return []
-	elif cd["type"] != "creature" and spec != "" and not card_targets(p, cd).has(target):
+	elif cd["type"] != "unit" and spec != "" and not card_targets(p, cd).has(target):
 		return []
 	var pl: Dictionary = players[p]
 	pl["momentum"] -= cost_of(p, cd) + (counter_extra(cd, target) if spec == "enemy_stack" else 0)
@@ -373,7 +375,7 @@ func play_card(p: int, hand_uid: int, target: int = 0) -> Array:
 	_emit({"type": "play", "player": p, "uid": hand_uid, "card_id": inst["card_id"]})
 	if sacrifice:
 		# additional cost: the chosen ally dies first (its Ao Morrer / Aliado Morre resolve before the card enters)
-		find_creature(target)["damage"] = 1000000
+		find_unit(target)["damage"] = 1000000
 		_emit({"type": "sacrifice", "player": p, "uid": target})
 		_check_state()
 		if phase == "over":
@@ -382,7 +384,7 @@ func play_card(p: int, hand_uid: int, target: int = 0) -> Array:
 			pl["graveyard"].append({"uid": hand_uid, "card_id": inst["card_id"]})
 			_settle()
 			return _flush()
-	if cd["type"] == "creature":
+	if cd["type"] == "unit":
 		_summon(p, inst["card_id"], hand_uid, false, 0 if sacrifice else target)
 		_check_state()
 	else:
@@ -436,22 +438,22 @@ func declare_attack(p: int, attacks: Dictionary) -> Array:
 		return []
 	var provoked_used: Array = []
 	for uid in attacks:
-		var c := find_creature(uid)
+		var c := find_unit(uid)
 		if c.is_empty() or c["owner"] != p or not can_attack(c):
 			return []
 		var prov: int = attacks[uid]
 		if prov != 0:
-			var t := find_creature(prov)
+			var t := find_unit(prov)
 			if not has_kw(c, "provocacao") or t.is_empty() or t["owner"] == p or provoked_used.has(prov) or is_frozen(t):
 				return []
 			provoked_used.append(prov)
 	attackers = attacks.duplicate()
 	players[p]["attacked"] = true
 	for uid in attacks:
-		find_creature(uid)["exhausted"] = true
+		find_unit(uid)["exhausted"] = true
 	_emit({"type": "attack", "player": p, "attackers": attacks.keys()})
 	for uid in attacks:
-		_fire(find_creature(uid), "on_attack")
+		_fire(find_unit(uid), "on_attack")
 	_check_state()
 	if phase == "over":
 		return _flush()
@@ -461,21 +463,21 @@ func declare_attack(p: int, attacks: Dictionary) -> Array:
 	return _flush()
 
 ## blocks: Dictionary attacker_uid -> blocker_uid. One blocker per attacker,
-## one attacker per blocker. Provoked creatures are forced onto their provoker.
+## one attacker per blocker. Provoked units are forced onto their provoker.
 func declare_blocks(p: int, picks: Dictionary) -> Array:
 	if phase != "blocks" or p != decider():
 		return []
 	var final := {}
 	for a in attackers:
-		if attackers[a] != 0 and not find_creature(attackers[a]).is_empty() and not is_frozen(find_creature(attackers[a])):
+		if attackers[a] != 0 and not find_unit(attackers[a]).is_empty() and not is_frozen(find_unit(attackers[a])):
 			final[a] = attackers[a]
 	var used: Array = final.values()
 	for a in picks:
 		if final.has(a):
 			continue
 		var b: int = picks[a]
-		var att := find_creature(a)
-		var blk := find_creature(b)
+		var att := find_unit(a)
+		var blk := find_unit(b)
 		if not attackers.has(a) or blk.is_empty() or blk["owner"] != p or used.has(b) or not can_block(blk, att):
 			return []
 		final[a] = b
@@ -523,6 +525,24 @@ func choose_search(p: int, card_uid: int) -> Array:
 			break
 	if chosen.is_empty():
 		return []
+	if pending_search.get("grave", false):
+		# Moer + escolher: the card comes out of the graveyard; the others stay there
+		var grave: Array = players[p]["graveyard"]
+		var gi := -1
+		for i in grave.size():
+			if int(grave[i]["uid"]) == card_uid:
+				gi = i
+				break
+		if gi < 0:
+			return []
+		grave.remove_at(gi)
+		players[p]["hand"].append(chosen)
+		pending_search.clear()
+		phase = _search_return
+		_emit({"type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"]})
+		_resolve_stack()
+		_settle()
+		return _flush()
 	var deck: Array = players[p]["deck"]
 	var found := false
 	for c in deck:
@@ -580,11 +600,30 @@ func _resolve_stack() -> void:
 			_emit({"type": "resolve", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"]})
 			_run_effects(p, effects, "on_play" if item["kind"] == "card" else "", int(item["target"]), 0)
 		if item["kind"] == "card":
-			players[p]["graveyard"].append({"uid": item["uid"], "card_id": item["card_id"]})
+			var holder := find_unit(int(item["target"]))
+			if CardDB.is_equipment(CardDB.card(item["card_id"])) and not holder.is_empty() and spec != "" and valid_targets(p, spec).has(int(item["target"])):
+				_attach(holder, item["uid"], item["card_id"])
+			else:
+				players[p]["graveyard"].append({"uid": item["uid"], "card_id": item["card_id"]})
 		_check_state()
 		_prune_attackers()
 	if phase in ["main", "combat"] and stack.is_empty():
 		priority = _window_owner()
+
+## Equipment stays on the board under its unit; a previous one is discarded.
+func _attach(holder: Dictionary, uid: int, card_id: String) -> void:
+	_release_equipment(holder)
+	holder["equipment"] = {"uid": uid, "card_id": card_id}
+	_emit({"type": "attach", "uid": holder["uid"], "equip_uid": uid, "card_id": card_id})
+
+## Sends the unit's equipment (if any) to its owner's graveyard.
+func _release_equipment(c: Dictionary) -> void:
+	if not c.has("equipment"):
+		return
+	var eq: Dictionary = c["equipment"]
+	c.erase("equipment")
+	players[int(c["owner"])]["graveyard"].append(eq)
+	_emit({"type": "equipment_break", "uid": c["uid"], "equip_uid": eq["uid"], "card_id": eq["card_id"]})
 
 ## Removes stack item `sid` without resolving it; a countered card goes to the graveyard.
 func _counter(p: int, sid: int) -> void:
@@ -625,7 +664,7 @@ func _pass() -> void:
 ## Attackers that died during the windows leave combat.
 func _prune_attackers() -> void:
 	for a in attackers.keys():
-		if find_creature(a).is_empty():
+		if find_unit(a).is_empty():
 			attackers.erase(a)
 
 func _to_blocks() -> void:
@@ -644,8 +683,8 @@ func _start_damage(final: Dictionary) -> void:
 	blocks = final
 	_emit({"type": "blocks", "blocks": final})
 	for a in final:
-		_fire(find_creature(final[a]), "on_block", a)
-		_fire(find_creature(a), "on_blocked", final[a])
+		_fire(find_unit(final[a]), "on_block", a)
+		_fire(find_unit(a), "on_blocked", final[a])
 	_check_state()
 	if phase == "over":
 		attackers.clear()
@@ -702,13 +741,13 @@ func _summon(p: int, card_id: String, uid: int, legendary: bool, target: int, ov
 	kws.erase("escudo_feitico")
 	players[p]["board"].append(c)
 	_emit({"type": "summon", "player": p, "uid": uid, "card_id": card_id})
-	# "ally_creature" Ao Entrar with no chosen ally falls back to the creature itself
-	if target == 0 and target_spec(cd["effects"]) == "ally_creature":
+	# "ally_unit" Ao Entrar with no chosen ally falls back to the unit itself
+	if target == 0 and target_spec(cd["effects"]) == "ally_unit":
 		target = uid
 	_announce(c, cd["effects"], "on_enter")
 	_run_effects(p, cd["effects"], "on_enter", target, uid)
 
-## Tells the UI that creature c's `trigger` went off, so it can show where the effects that
+## Tells the UI that unit c's `trigger` went off, so it can show where the effects that
 ## follow come from. Only when at least one of `effects` actually runs for that trigger.
 func _announce(c: Dictionary, effects: Array, trigger: String) -> void:
 	for e in effects:
@@ -716,7 +755,7 @@ func _announce(c: Dictionary, effects: Array, trigger: String) -> void:
 			_emit({"type": "trigger", "uid": c["uid"], "player": c["owner"], "card_id": c["card_id"], "trigger": trigger})
 			return
 
-## Fires a creature's own trigger. Depth-capped so on_damaged chains cannot loop forever.
+## Fires a unit's own trigger. Depth-capped so on_damaged chains cannot loop forever.
 func _fire(c: Dictionary, trigger: String, other_uid: int = 0) -> void:
 	if c.is_empty() or _trigger_depth >= 4:
 		return
@@ -739,7 +778,7 @@ func _fire(c: Dictionary, trigger: String, other_uid: int = 0) -> void:
 ## Gatilhos (cards.json "triggers"): on_play, on_enter, on_death, on_attack, on_block,
 ## on_blocked, on_damaged, on_hit_leader, on_turn_start, on_turn_end. "constante" never fires
 ## here: it is continuous and handled by _refresh_scaling.
-## other_uid is the opposing creature in combat triggers (blocker, attacker, damage source).
+## other_uid is the opposing unit in combat triggers (blocker, attacker, damage source).
 func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid: int, other_uid: int = 0) -> void:
 	for e in effects:
 		if trigger != "" and e.get("trigger", "") != trigger:
@@ -748,10 +787,10 @@ func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid
 			continue
 		var targets: Array = []
 		match e.get("target", ""):
-			"enemy_creature", "ally_creature", "other_ally_creature", "any_creature", "any", "enemy_stack":
+			"enemy_unit", "ally_unit", "other_ally_unit", "any_unit", "any", "enemy_stack":
 				if valid_targets(p, e["target"], self_uid).has(chosen):
 					targets = [chosen]
-			"all_enemy_creatures":
+			"all_enemy_units":
 				for c in players[opponent(p)]["board"]: targets.append(c["uid"])
 			"enemy_leader":
 				targets = [LEADER_UID[opponent(p)]]
@@ -759,7 +798,7 @@ func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid
 				targets = [LEADER_UID[p]]
 			"both_leaders":
 				targets = [LEADER_UID[p], LEADER_UID[opponent(p)]]
-			"random_enemy_creature":
+			"random_enemy_unit":
 				var b: Array = players[opponent(p)]["board"]
 				if not b.is_empty(): targets = [b[rng.randi_range(0, b.size() - 1)]["uid"]]
 			"random_enemy_and_adjacent":
@@ -768,25 +807,27 @@ func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid
 					var ci := rng.randi_range(0, eb.size() - 1)
 					for j in range(maxi(ci - 1, 0), mini(ci + 1, eb.size() - 1) + 1): targets.append(eb[j]["uid"])
 			"self":
-				if not find_creature(self_uid).is_empty(): targets = [self_uid]
+				if not find_unit(self_uid).is_empty(): targets = [self_uid]
 			"none":
 				targets = [0]
-			"opposed_creature":
-				if not find_creature(other_uid).is_empty(): targets = [other_uid]
-			"all_creatures":
+			"opposed_unit":
+				if not find_unit(other_uid).is_empty(): targets = [other_uid]
+			"all_units":
 				for side in [p, opponent(p)]:
 					for c in players[side]["board"]: targets.append(c["uid"])
-			"all_ally_creatures":
+			"all_ally_units":
 				for c in players[p]["board"]: targets.append(c["uid"])
-			"random_ally_creature", "random_other_ally_creature":
+			"random_ally_unit", "random_other_ally_unit":
 				var pool: Array = []
 				for c in players[p]["board"]:
-					if e["target"] == "random_ally_creature" or c["uid"] != self_uid: pool.append(c["uid"])
+					if e["target"] == "random_ally_unit" or c["uid"] != self_uid: pool.append(c["uid"])
 				if not pool.is_empty(): targets = [pool[rng.randi_range(0, pool.size() - 1)]]
 		for t in targets:
 			_apply(p, e, t)
 		if e.get("action", "") == "search_deck" and e.get("trigger", "") == trigger:
 			_begin_search(p, e, self_uid)
+		elif e.get("action", "") == "mill_pick" and e.get("trigger", "") == trigger:
+			_begin_grave_pick(p, self_uid)
 		elif e.get("action", "") == "look_top" and e.get("trigger", "") == trigger:
 			_begin_look(p, int(e.get("count", 4)), self_uid)
 
@@ -826,6 +867,24 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 	phase = "search"
 	_emit({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": matches})
 
+## Offers the cards just milled (public: they are in the graveyard); one goes to the hand.
+func _begin_grave_pick(p: int, source_uid: int) -> void:
+	if phase == "search":
+		return
+	var options: Array = []
+	for c in _milled:
+		for g in players[p]["graveyard"]:
+			if int(g["uid"]) == int(c["uid"]):
+				options.append({"uid": c["uid"], "card_id": c["card_id"]})
+				break
+	if options.is_empty():
+		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
+		return
+	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "grave": true}
+	_search_return = phase
+	phase = "search"
+	_emit({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options})
+
 ## Private look at the top `n` cards: only the owner sees them (StateView hides them from
 ## the other seat); the one taken is revealed by search_take, the rest go to the bottom.
 func _begin_look(p: int, n: int, source_uid: int) -> void:
@@ -848,7 +907,7 @@ func _apply(p: int, e: Dictionary, t: int) -> void:
 		_counter(p, t)
 		return
 	# Escudo de Feitiço: the first non-combat effect from the enemy side is cancelled
-	var hit := find_creature(t) if t > 0 else {}
+	var hit := find_unit(t) if t > 0 else {}
 	if not hit.is_empty() and hit["owner"] != p and hit.get("spell_shield", false):
 		hit["spell_shield"] = false
 		_emit({"type": "spell_shield_break", "uid": t})
@@ -857,23 +916,28 @@ func _apply(p: int, e: Dictionary, t: int) -> void:
 		"damage":
 			var amount := int(e["amount"])
 			var red: Dictionary = e.get("ally_reduce", {})
-			var victim := find_creature(t)
+			var victim := find_unit(t)
 			if not red.is_empty() and not victim.is_empty() and victim["owner"] == p and CardDB.has_essence(card_of(victim), red["essence"]):
 				amount = int(red["amount"])
 			_deal_damage(t, amount, {})
 		"heal_leader":
 			_heal_leader(p, int(e["amount"]))
+		"heal_full":
+			var hc := find_unit(t)
+			if not hc.is_empty() and hc["damage"] > 0:
+				_emit({"type": "heal", "uid": t, "amount": hc["damage"]})
+				hc["damage"] = 0
 		"draw":
 			_draw(opponent(p) if t == LEADER_UID[opponent(p)] else p, int(e["amount"]))
 		"tide_mark":
-			var m := find_creature(t)
+			var m := find_unit(t)
 			if not m.is_empty():
 				m["tide_mark"] = true
 				_emit({"type": "tide_mark", "uid": t})
 		"search_deck", "look_top":
 			pass # Search effects are opened by _run_effects after their trigger resolves.
 		"freeze":
-			var fz := find_creature(t)
+			var fz := find_unit(t)
 			if fz.is_empty():
 				return
 			# thaws at the end of its owner's next turn
@@ -882,22 +946,29 @@ func _apply(p: int, e: Dictionary, t: int) -> void:
 			_emit({"type": "freeze", "uid": t})
 		"summon":
 			_summon_effect(p, e)
-		"mill":
+		"mill", "mill_pick":
 			_mill(p, int(e.get("amount", 1)))
 		"revive":
 			_revive(p, int(e.get("max_cost", 99)))
 		"revive_self":
 			_revive_self(p, e)
+		"destroy":
+			# not damage: ignores size, Escudo and Indestrutível (Escudo de Feitiço still cancels it above)
+			var doomed := find_unit(t)
+			if doomed.is_empty():
+				return
+			doomed["damage"] = 1000000
+			_emit({"type": "destroy", "uid": t})
 		"sacrifice":
-			# kills one of the caster's own creatures; "then" effects run only if it happened
-			var victim := find_creature(t)
+			# kills one of the caster's own units; "then" effects run only if it happened
+			var victim := find_unit(t)
 			if victim.is_empty() or victim["owner"] != p:
 				return
 			victim["damage"] = victim["hp"] + int(victim.get("bonus_hp", 0))
 			_emit({"type": "sacrifice", "player": p, "uid": t})
 			_run_effects(p, e.get("then", []), "", 0, 0)
 		"buff":
-			var c := find_creature(t)
+			var c := find_unit(t)
 			if c.is_empty():
 				return
 			if e.get("temp", false):
@@ -920,23 +991,25 @@ func _apply(p: int, e: Dictionary, t: int) -> void:
 func _mill(p: int, n: int) -> void:
 	var pl: Dictionary = players[p]
 	var cards: Array = []
+	_milled = []
 	for i in n:
 		if pl["deck"].is_empty():
 			break
 		var c: Dictionary = pl["deck"].pop_back()
 		pl["graveyard"].append({"uid": c["uid"], "card_id": c["card_id"]})
+		_milled.append({"uid": c["uid"], "card_id": c["card_id"]})
 		cards.append(c["card_id"])
 	if not cards.is_empty():
 		_emit({"type": "mill", "player": p, "cards": cards})
 
-## Returns a random creature card (cost <= max_cost) from the graveyard to the board.
+## Returns a random unit card (cost <= max_cost) from the graveyard to the board.
 func _revive(p: int, max_cost: int) -> void:
 	if players[p]["board"].size() >= BOARD_LIMIT:
 		return
 	var pool: Array = []
 	for e in players[p]["graveyard"]:
 		var cd := CardDB.card(e["card_id"])
-		if cd["type"] == "creature" and int(cd["cost"]) <= max_cost:
+		if cd["type"] == "unit" and int(cd["cost"]) <= max_cost:
 			pool.append(e)
 	if pool.is_empty():
 		return
@@ -945,7 +1018,7 @@ func _revive(p: int, max_cost: int) -> void:
 	_emit({"type": "revive", "player": p, "card_id": pick["card_id"]})
 	_summon(p, pick["card_id"], _uid(), false, 0)
 
-## Ao Morrer: the dying creature comes back to the board as a new instance (so it no longer takes
+## Ao Morrer: the dying unit comes back to the board as a new instance (so it no longer takes
 ## part in the combat it died in), with base atk/hp changed by e["atk"]/e["hp"] (usually negative)
 ## relative to what it had when it died. It does not return if atk or hp would reach 0.
 ## While on the board it is not a graveyard card, so its entry leaves the graveyard.
@@ -966,7 +1039,7 @@ func _revive_self(p: int, e: Dictionary) -> void:
 	_emit({"type": "revive", "player": p, "card_id": _dying["card_id"]})
 	_summon(p, _dying["card_id"], _uid(), false, 0, over)
 
-## Returns damage actually dealt. source is the dealing creature or {}.
+## Returns damage actually dealt. source is the dealing unit or {}.
 func _deal_damage(t: int, amount: int, source: Dictionary) -> int:
 	if amount <= 0:
 		return 0
@@ -979,7 +1052,7 @@ func _deal_damage(t: int, amount: int, source: Dictionary) -> int:
 		if not source.is_empty():
 			_fire(source, "on_hit_leader")
 	else:
-		var c := find_creature(t)
+		var c := find_unit(t)
 		if c.is_empty():
 			return 0
 		if has_kw(c, "indestrutivel"):
@@ -991,7 +1064,7 @@ func _deal_damage(t: int, amount: int, source: Dictionary) -> int:
 		c["damage"] += amount
 		dealt = amount
 		_emit({"type": "damage", "uid": t, "amount": amount, "src": source.get("uid", 0)})
-		# Mar que Retorna: the marked creature survived damage -> its owner draws once
+		# Mar que Retorna: the marked unit survived damage -> its owner draws once
 		if c.get("tide_mark", false) and hp_left(c) > 0:
 			c.erase("tide_mark")
 			_emit({"type": "tide_draw", "uid": t, "player": c["owner"]})
@@ -1032,8 +1105,8 @@ func _resolve_combat() -> void:
 		pairs.append([a, blocks.get(a, 0)])
 	for first_strike in [true, false]:
 		for pair in pairs:
-			var att := find_creature(pair[0])
-			var blk := find_creature(pair[1]) if pair[1] != 0 else {}
+			var att := find_unit(pair[0])
+			var blk := find_unit(pair[1]) if pair[1] != 0 else {}
 			if not att.is_empty() and has_kw(att, "golpe_rapido") == first_strike:
 				if pair[1] == 0:
 					_deal_damage(LEADER_UID[defender], atk_of(att), att)
@@ -1051,7 +1124,7 @@ func _resolve_combat() -> void:
 			break
 	_end_combat()
 
-## Moves dead creatures out, fires Ao Morrer, checks leaders. Loops until stable.
+## Moves dead units out, fires Ao Morrer, checks leaders. Loops until stable.
 func _check_state() -> void:
 	var changed := true
 	while changed:
@@ -1063,6 +1136,7 @@ func _check_state() -> void:
 					players[p]["board"].erase(c)
 					changed = true
 					_emit({"type": "death", "uid": c["uid"], "player": p})
+					_release_equipment(c)
 					if c["legendary"]:
 						players[p]["legendary"]["in_zone"] = true
 					else:
@@ -1071,7 +1145,7 @@ func _check_state() -> void:
 					_announce(c, card_of(c)["effects"], "on_death")
 					_run_effects(p, card_of(c)["effects"], "on_death", 0, c["uid"])
 					_dying = {}
-					# Aliado Morre fires on every death, even if the creature comes right back (Revivente, Fênix)
+					# Aliado Morre fires on every death, even if the unit comes right back (Revivente, Fênix)
 					# or a Legendary returns to its zone.
 					for ally in players[p]["board"].duplicate():
 						if players[p]["board"].has(ally):
@@ -1084,7 +1158,7 @@ func _check_state() -> void:
 		_emit({"type": "game_over", "winner": winner})
 
 ## Leader passive ("passive": true in the leader's ability): runs its effects when `trigger` happens,
-## once per turn if "once_per_turn". Depth-capped like creature triggers.
+## once per turn if "once_per_turn". Depth-capped like unit triggers.
 func _fire_leader_passive(p: int, trigger: String) -> void:
 	var ab: Dictionary = CardDB.leader(players[p]["leader_id"])["ability"]
 	if not ab.get("passive", false) or ab.get("trigger", "") != trigger or _trigger_depth >= 4:
@@ -1142,7 +1216,7 @@ func _start_turn(p: int, draw: bool) -> void:
 	_check_state()
 
 ## Generic summon: {"action":"summon","target":"none","card":<id|"self">,"overrides":{atk,hp,keywords,effects,text,...}}.
-## "self" is the creature whose effect is running (works from Ao Morrer). Overrides stick to the instance.
+## "self" is the unit whose effect is running (works from Ao Morrer). Overrides stick to the instance.
 func _summon_effect(p: int, e: Dictionary) -> void:
 	var id: String = e.get("card", "self")
 	if id == "self":

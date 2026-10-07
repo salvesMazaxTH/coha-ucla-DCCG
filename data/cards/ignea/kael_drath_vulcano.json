@@ -1,6 +1,6 @@
 {
   "name": "Kael'Drath Vulcano",
-  "type": "creature",
+  "type": "unit",
   "rarity": "champion",
   "species": ["tita"],
   "essence": "ignea",

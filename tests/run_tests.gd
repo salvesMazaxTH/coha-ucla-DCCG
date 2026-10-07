@@ -42,7 +42,7 @@ func _put(g: GameState, p: int, card_id: String, ready := true) -> Dictionary:
 		var options: Array = g.pending_search["cards"]
 		g.choose_search(p, int(options[0]["uid"]))
 		g._flush()
-	var c := g.find_creature(uid)
+	var c := g.find_unit(uid)
 	if ready:
 		c["sick"] = false
 	return c
@@ -83,7 +83,7 @@ func _test_constant() -> void:
 	g.players[0]["graveyard"].append({"uid": g._uid(), "card_id": "gaivota_da_tempestade"})
 	g.players[0]["graveyard"].append({"uid": g._uid(), "card_id": "bola_de_fogo"})
 	g._check_state()
-	check(g.atk_of(jeff) == 6 and g.hp_left(jeff) == 6, "jeff +2/+2 por criatura no cemitério (feitiço não conta)")
+	check(g.atk_of(jeff) == 6 and g.hp_left(jeff) == 6, "jeff +2/+2 por unidade no cemitério (feitiço não conta)")
 	g.players[1]["graveyard"].append({"uid": g._uid(), "card_id": "serpente_marinha"})
 	g._check_state()
 	check(g.atk_of(jeff) == 6, "cemitério inimigo não conta")
@@ -102,7 +102,7 @@ func _obscura_game() -> GameState:
 	g.mulligan(1, [])
 	return g
 
-## Kills a creature by damage and resolves the deaths (revives and triggers included).
+## Kills a unit by damage and resolves the deaths (revives and triggers included).
 func _kill(g: GameState, c: Dictionary) -> void:
 	c["damage"] = 1000
 	g._check_state()
@@ -150,7 +150,7 @@ func _test_obscura() -> void:
 	var tit := _put(g, 0, "titanico_morcegalma")
 	check(g.atk_of(tit) == 5 and g.hp_left(tit) == 6 and g.has_kw(tit, "longo_alcance") and not g.has_kw(tit, "voo"), "titânico 5/6 Longo Alcance sem Voo")
 	check(g.players[0]["deck"].size() == dk - 2 and g.players[0]["graveyard"].size() == gy + 2, "titânico mói 2")
-	# Necromante revives a creature of cost <= 3
+	# Necromante revives a unit of cost <= 3
 	gy = g.players[0]["graveyard"].size()
 	_put(g, 0, "o_espiritomante")
 	check(g.players[0]["graveyard"].size() == gy - 1, "necromante reviveu do cemitério")
@@ -162,7 +162,7 @@ func _test_obscura() -> void:
 	g._summon(0, "cientista_da_morte", uid, false, ally["uid"])
 	g._check_state()
 	g._flush()
-	check(g.find_creature(ally["uid"]).is_empty(), "cientista sacrificou o aliado")
+	check(g.find_unit(ally["uid"]).is_empty(), "cientista sacrificou o aliado")
 	check(g.players[0]["hand"].size() == hand + 1, "sacrifício comprou 1 carta")
 	check(_count(g, 0, "esqueleto_guerreiro") == 1, "cientista invoca um esqueleto quando um aliado vai ao cemitério")
 	# Colheita de Almas: sacrifice -> 4 damage to the enemy leader
@@ -172,7 +172,68 @@ func _test_obscura() -> void:
 	g.players[0]["momentum"] = 10
 	g.play_card(0, spell, fodder["uid"])
 	g._flush()
-	check(g.players[1]["leader_hp"] == foe - 4 and g.find_creature(fodder["uid"]).is_empty(), "colheita: sacrifica e causa 4")
+	check(g.players[1]["leader_hp"] == foe - 4 and g.find_unit(fodder["uid"]).is_empty(), "colheita: sacrifica e causa 4")
+	# Alexa Primordial: Ao Entrar heals every damaged ally fully
+	var hurt := _put(g, 0, "esqueleto_guerreiro")
+	hurt["damage"] = 1
+	g.players[0]["momentum"] = 10
+	var alx := _give(g, 0, "alexa_neruvya_primordial")
+	g.play_card(0, alx, 0)
+	g._flush()
+	check(hurt["damage"] == 0, "alexa primordial cura todos os aliados")
+	# Afogar: rápido, destroys any chosen unit, even one's own, ignoring Escudo
+	var af_t := _put(g, 1, "jeff")
+	af_t["shield"] = true
+	var af_own := _put(g, 0, "esqueleto_guerreiro")
+	g.players[0]["momentum"] = 10
+	var af1 := _give(g, 0, "afogar")
+	g.play_card(0, af1, af_t["uid"])
+	g._resolve_stack()
+	var af2 := _give(g, 0, "afogar")
+	g.play_card(0, af2, af_own["uid"])
+	g._resolve_stack()
+	g._flush()
+	check(g.find_unit(af_t["uid"]).is_empty() and g.find_unit(af_own["uid"]).is_empty(), "afogar destrói a unidade escolhida, inclusive a própria")
+	# Equipment: an artifact attached under the unit; dies with it
+	var holder := _put(g, 0, "esqueleto_guerreiro")
+	var eqid := _give(g, 0, "manoplas_incandescentes")
+	g.players[0]["momentum"] = 10
+	var atk0: int = holder["atk"]
+	g.play_card(0, eqid, holder["uid"])
+	g._resolve_stack()
+	g._flush()
+	check(CardDB.is_equipment(CardDB.card("manoplas_incandescentes")) and CardDB.is_artifact(CardDB.card("manoplas_incandescentes")), "equipamento é artefato")
+	check(holder.get("equipment", {}).get("card_id", "") == "manoplas_incandescentes" and holder["atk"] == atk0 + 2, "equipamento anexado e buff aplicado")
+	var gy0: int = g.players[0]["graveyard"].size()
+	_kill(g, holder)
+	var gy_ids: Array = g.players[0]["graveyard"].map(func(e): return e["card_id"])
+	check(g.players[0]["graveyard"].size() == gy0 + 2 and gy_ids.has("manoplas_incandescentes"), "equipamento vai ao cemitério com a unidade")
+	# Julgamento da Era Afogada: destroys every unit on both sides, whatever its size
+	var jeff := _put(g, 1, "jeff")
+	jeff["shield"] = true
+	jeff["keywords"].append("indestrutivel")
+	var mine := _put(g, 0, "esqueleto_guerreiro")
+	var jul := _give(g, 0, "julgamento_da_era_afogada")
+	g.players[0]["momentum"] = 10
+	g.play_card(0, jul, 0)
+	g._resolve_stack()
+	g._flush()
+	check(g.find_unit(jeff["uid"]).is_empty() and g.find_unit(mine["uid"]).is_empty(), "julgamento destrói todas as unidades, até Jeff com Escudo e Indestrutível")
+	# Tributo ao Abismo: sacrifice -> mill 3 -> pick one of those 3 from the graveyard
+	var ex_fodder := _put(g, 0, "esqueleto_guerreiro")
+	var ex := _give(g, 0, "tributo_ao_abismo")
+	g.players[0]["momentum"] = 10
+	var ex_deck: int = g.players[0]["deck"].size()
+	var ex_hand: int = g.players[0]["hand"].size()
+	g.play_card(0, ex, ex_fodder["uid"])
+	g._flush()
+	check(g.phase == "search" and g.pending_search.get("grave", false) and g.pending_search["cards"].size() == 3, "tributo oferece as 3 cartas moídas")
+	check(g.players[0]["deck"].size() == ex_deck - 3, "tributo moeu 3")
+	var ex_pick: Dictionary = g.pending_search["cards"][1]
+	var ex_grave: int = g.players[0]["graveyard"].size()
+	check(not g.choose_search(0, int(ex_pick["uid"])).is_empty(), "tributo: escolha aceita")
+	check(g.phase != "search" and g.players[0]["graveyard"].size() == ex_grave - 1, "tributo: a carta sai do cemitério")
+	check(g.players[0]["hand"].size() == ex_hand - 1 + 1 and not g._hand_card(0, int(ex_pick["uid"])).is_empty(), "tributo: a carta vai à mão")
 
 func _test_obscura_rules() -> void:
 	# Diabrete: hits the enemy Leader when another ally dies (not for itself), Ao Morrer too
@@ -224,7 +285,7 @@ func _test_obscura_rules() -> void:
 	var enemy := _put(g2, 1, "kai")
 	var h2: int = g2.players[1]["leader_hp"]
 	_kill(g2, enemy)
-	check(g2.players[1]["leader_hp"] == h2, "morte de criatura inimiga não ativa Aliado Morre")
+	check(g2.players[1]["leader_hp"] == h2, "morte de unidade inimiga não ativa Aliado Morre")
 
 	# Jeff passive: once per turn, resets on the next turn
 	var j := _obscura_game()
@@ -267,7 +328,7 @@ func _test_obscura_rules() -> void:
 	check(v.cost_of(1, vag) == 12, "cemitério inimigo não reduz")
 	var vc := _put(v, 0, "a_vagante_sombria")
 	v._apply(1, {"action": "damage", "target": "any", "amount": 99}, vc["uid"])
-	check(not v.find_creature(vc["uid"]).is_empty() and vc["damage"] == 0, "vagante ignora dano")
+	check(not v.find_unit(vc["uid"]).is_empty() and vc["damage"] == 0, "vagante ignora dano")
 	var fresh := _obscura_game()
 	fresh.players[0]["passive_used"] = true
 	var vc2 := _put(fresh, 0, "a_vagante_sombria")
@@ -275,22 +336,22 @@ func _test_obscura_rules() -> void:
 	fresh.players[0]["momentum"] = 10
 	fresh.play_card(0, sc, vc2["uid"])
 	fresh._flush()
-	check(fresh.find_creature(vc2["uid"]).is_empty(), "sacrifício ainda mata a vagante")
+	check(fresh.find_unit(vc2["uid"]).is_empty(), "sacrifício ainda mata a vagante")
 
 	# Necrófago additional cost: sacrifice an ally you control (the AI pays with its weakest)
 	var n := _obscura_game()
 	n.players[0]["passive_used"] = true
 	var nid := _give(n, 0, "necrofago_espectral")
 	n.players[0]["momentum"] = 0
-	check(not n.can_play(0, nid), "necrófago exige uma criatura para sacrificar")
+	check(not n.can_play(0, nid), "necrófago exige uma unidade para sacrificar")
 	var weak := _put(n, 0, "esqueleto_guerreiro")
 	var strong := _put(n, 0, "titanico_morcegalma")
 	check(n.can_play(0, nid), "necrófago custa 0 com um aliado para sacrificar")
-	check(n.card_spec(CardDB.card("necrofago_espectral")) == "ally_creature", "necrófago pede um alvo aliado")
+	check(n.card_spec(CardDB.card("necrofago_espectral")) == "ally_unit", "necrófago pede um alvo aliado")
 	check(n.play_card(0, nid, 0).is_empty(), "necrófago sem alvo de sacrifício não entra")
 	n.play_card(0, nid, weak["uid"])
 	n._flush()
-	check(n.find_creature(weak["uid"]).is_empty() and _count(n, 0, "necrofago_espectral") == 1 and not n.find_creature(strong["uid"]).is_empty(), "necrófago sacrificou o escolhido e entrou")
+	check(n.find_unit(weak["uid"]).is_empty() and _count(n, 0, "necrofago_espectral") == 1 and not n.find_unit(strong["uid"]).is_empty(), "necrófago sacrificou o escolhido e entrou")
 	check(n.players[0]["graveyard"].any(func(e): return e["card_id"] == "esqueleto_guerreiro"), "o sacrificado foi ao cemitério")
 	# full board: the sacrifice itself frees the slot
 	var fb := _obscura_game()
@@ -308,8 +369,8 @@ func _test_freeze() -> void:
 	var g := _new_game()
 	var atk := _put(g, 0, "kai")
 	var f := _put(g, 1, "tritao_lanceiro")
-	g._apply(0, {"action": "freeze", "target": "enemy_creature"}, f["uid"])
-	check(g.is_frozen(f), "congelar marca a criatura")
+	g._apply(0, {"action": "freeze", "target": "enemy_unit"}, f["uid"])
+	check(g.is_frozen(f), "congelar marca a unidade")
 	check(not g.can_block(f, atk), "congelada não bloqueia")
 	_quiet(g)
 	g.end_turn(0)
@@ -319,7 +380,7 @@ func _test_freeze() -> void:
 	check(not g.is_frozen(f), "descongela no fim do próximo turno do dono")
 	var s := _put(g, 1, "tritao_lanceiro")
 	s["spell_shield"] = true
-	g._apply(0, {"action": "freeze", "target": "enemy_creature"}, s["uid"])
+	g._apply(0, {"action": "freeze", "target": "enemy_unit"}, s["uid"])
 	check(not g.is_frozen(s) and not s["spell_shield"], "Escudo de Feitiço anula congelar")
 	check(CardDB.has_essence(CardDB.card("sabrina"), "glacial") and CardDB.has_essence(CardDB.card("sabrina"), "aquatica"), "sabrina é aquática e glacial")
 
@@ -338,8 +399,8 @@ func _test_combat() -> void:
 	var b := _put(g, 1, "tritao_lanceiro") # 2/2
 	_attack(g, {a["uid"]: 0})
 	_block(g, {a["uid"]: b["uid"]})
-	check(g.find_creature(b["uid"]).is_empty(), "first strike kills blocker")
-	check(not g.find_creature(a["uid"]).is_empty(), "first striker survives")
+	check(g.find_unit(b["uid"]).is_empty(), "first strike kills blocker")
+	check(not g.find_unit(a["uid"]).is_empty(), "first striker survives")
 
 	g = _new_game()
 	var t := _put(g, 0, "kael_drath_vulcano") # 5/7 sobrepujança
@@ -347,7 +408,7 @@ func _test_combat() -> void:
 	var hp: int = g.players[1]["leader_hp"]
 	_attack(g, {t["uid"]: 0})
 	_block(g, {t["uid"]: s["uid"]})
-	check(not g.find_creature(s["uid"]).is_empty(), "shield absorbs hit")
+	check(not g.find_unit(s["uid"]).is_empty(), "shield absorbs hit")
 	check(g.players[1]["leader_hp"] == hp - 3, "trample excess vs shield (%d)" % (hp - g.players[1]["leader_hp"]))
 
 	g = _new_game()
@@ -370,9 +431,9 @@ func _test_combat() -> void:
 	var v := _put(g, 1, "serpente_marinha")
 	_attack(g, {k["uid"]: v["uid"]})
 	_block(g, {})
-	check(g.find_creature(v["uid"]).is_empty(), "provoked creature forced to block")
+	check(g.find_unit(v["uid"]).is_empty(), "provoked unit forced to block")
 	g.end_turn(0)
-	check(g.find_creature(k["uid"])["damage"] == 0, "damage resets at end of turn")
+	check(g.find_unit(k["uid"])["damage"] == 0, "damage resets at end of turn")
 
 ## Declares an attack and lets every combat window pass.
 func _attack(g: GameState, attacks: Dictionary) -> void:
@@ -445,9 +506,9 @@ func _test_counter() -> void:
 
 func _test_stack() -> void:
 	_tcard("t_wall2", 1, 2, [])
-	_tspell("t_inst_hp", "instantaneo", [{"trigger": "on_play", "action": "buff", "target": "ally_creature", "hp": 3}])
-	_tspell("t_inst_kill", "instantaneo", [{"trigger": "on_play", "action": "damage", "target": "any_creature", "amount": 9}])
-	_tspell("t_fast", "rapido", [{"trigger": "on_play", "action": "damage", "target": "enemy_creature", "amount": 1}])
+	_tspell("t_inst_hp", "instantaneo", [{"trigger": "on_play", "action": "buff", "target": "ally_unit", "hp": 3}])
+	_tspell("t_inst_kill", "instantaneo", [{"trigger": "on_play", "action": "damage", "target": "any_unit", "amount": 9}])
+	_tspell("t_fast", "rapido", [{"trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 1}])
 
 	# response resolves first (LIFO): +3 HP lands before the 2 damage
 	var g := _new_game()
@@ -457,12 +518,12 @@ func _test_stack() -> void:
 	var inst := _give(g, 1, "t_inst_hp")
 	g.play_card(0, lab, foe["uid"])
 	check(g.stack.size() == 1 and g.priority == 1, "spell goes on the stack, opponent gets priority")
-	check(g.find_creature(foe["uid"])["damage"] == 0, "spell waits on the stack")
+	check(g.find_unit(foe["uid"])["damage"] == 0, "spell waits on the stack")
 	check(not g.can_play(1, _give(g, 1, "lanca_das_mares")), "lento cannot respond")
 	g.play_card(1, inst, foe["uid"])
 	check(g.stack.size() == 2 and g.priority == 0, "instant response stacks and passes priority back")
 	g.pass_priority(0)
-	var fc := g.find_creature(foe["uid"])
+	var fc := g.find_unit(foe["uid"])
 	check(g.stack.is_empty() and g.priority == 0 and g.phase == "main", "pass resolves the whole stack")
 	check(not fc.is_empty() and fc["damage"] == 2, "LIFO: buff before damage")
 
@@ -482,7 +543,7 @@ func _test_stack() -> void:
 	foe = _put(g, 1, "t_wall2")
 	lab = _give(g, 0, "labareda")
 	g.play_card(0, lab, foe["uid"])
-	check(g.stack.is_empty() and g.find_creature(foe["uid"]).is_empty(), "auto-pass when opponent has no response")
+	check(g.stack.is_empty() and g.find_unit(foe["uid"]).is_empty(), "auto-pass when opponent has no response")
 
 	# combat windows: attacker -> defender prepare -> attacker last -> blocks
 	g = _new_game()
@@ -500,7 +561,7 @@ func _test_stack() -> void:
 	g.play_card(1, fast, kai["uid"])
 	check(g.priority == 0 and g.stack.size() == 1, "rapido cast in prepare window")
 	g.pass_priority(0)
-	check(g.find_creature(kai["uid"])["damage"] == 1 and g.priority == 1 and g.window == "prepare", "after resolving, window owner gets priority back")
+	check(g.find_unit(kai["uid"])["damage"] == 1 and g.priority == 1 and g.window == "prepare", "after resolving, window owner gets priority back")
 	g.pass_priority(1)
 	check(g.phase == "blocks", "then blocks")
 	check(not g.can_play(0, _give(g, 0, "lanca_das_mares")), "no lento outside main")
@@ -538,7 +599,7 @@ func _test_stack() -> void:
 	check(wall.get("tide_mark", false), "tide mark resolved")
 	var hn: int = g.players[1]["hand"].size()
 	_block(g, {kai["uid"]: wall["uid"]})
-	check(g.players[1]["hand"].size() == hn + 1 and not wall.has("tide_mark"), "marked creature survived damage -> draw 1")
+	check(g.players[1]["hand"].size() == hn + 1 and not wall.has("tide_mark"), "marked unit survived damage -> draw 1")
 	g._deal_damage(wall["uid"], 1, {})
 	check(g.players[1]["hand"].size() == hn + 1, "mark draws only once")
 
@@ -547,8 +608,8 @@ func _test_damage_window() -> void:
 	_tcard("t_tr22", 2, 2, [])
 	CardDB.data()["cards"]["t_tr22"]["keywords"] = ["sobrepujanca"]
 	_tcard("t_b12", 1, 2, [])
-	_tspell("t_kill", "instantaneo", [{"trigger": "on_play", "action": "damage", "target": "any_creature", "amount": 9}])
-	_tspell("t_pump", "rapido", [{"trigger": "on_play", "action": "buff", "target": "ally_creature", "atk": 3, "temp": true}])
+	_tspell("t_kill", "instantaneo", [{"trigger": "on_play", "action": "damage", "target": "any_unit", "amount": 9}])
+	_tspell("t_pump", "rapido", [{"trigger": "on_play", "action": "buff", "target": "ally_unit", "atk": 3, "temp": true}])
 
 	# post-block trick: pump after blocks kills the blocker, attacker survives
 	var g := _new_game()
@@ -561,7 +622,7 @@ func _test_damage_window() -> void:
 	check(g.window == "damage" and g.priority == 0, "attacker holds priority in damage window")
 	g.play_card(0, pump, at["uid"])
 	_pass_windows(g)
-	check(g.find_creature(bl["uid"]).is_empty() and not g.find_creature(at["uid"]).is_empty(), "post-block pump kills the blocker, attacker survives")
+	check(g.find_unit(bl["uid"]).is_empty() and not g.find_unit(at["uid"]).is_empty(), "post-block pump kills the blocker, attacker survives")
 
 	# blocker dies before damage -> attacker stays blocked
 	g = _new_game()
@@ -574,7 +635,7 @@ func _test_damage_window() -> void:
 	g.declare_blocks(1, {at["uid"]: bl["uid"]})
 	g.play_card(0, kill, bl["uid"])
 	_pass_windows(g)
-	check(g.find_creature(bl["uid"]).is_empty() and g.players[1]["leader_hp"] == hp0, "blocks are final: no leader damage")
+	check(g.find_unit(bl["uid"]).is_empty() and g.players[1]["leader_hp"] == hp0, "blocks are final: no leader damage")
 	check(g.phase == "main", "combat ends")
 
 	# Sobrepujança with a dead blocker: everything tramples through
@@ -600,8 +661,8 @@ func _test_damage_window() -> void:
 	g.declare_blocks(1, {at["uid"]: bl["uid"]})
 	check(g.priority == 1, "attacker with no play auto-passes to the defender")
 	g.play_card(1, kill, at["uid"])
-	check(g.phase == "main" and g.find_creature(at["uid"]).is_empty(), "attacker killed, combat over")
-	check(g.find_creature(bl["uid"])["damage"] == 0, "blocker untouched")
+	check(g.phase == "main" and g.find_unit(at["uid"]).is_empty(), "attacker killed, combat over")
+	check(g.find_unit(bl["uid"])["damage"] == 0, "blocker untouched")
 
 ## No momentum and no leader ability, so only test cards give plays.
 func _quiet(g: GameState) -> void:
@@ -610,14 +671,14 @@ func _quiet(g: GameState) -> void:
 		g.players[p]["ability_used"] = true
 
 func _tcard(id: String, atk: int, hp: int, effects: Array) -> void:
-	CardDB.data()["cards"][id] = {"name": id, "type": "creature", "rarity": "common", "essence": "neutra", "cost": 1,
+	CardDB.data()["cards"][id] = {"name": id, "type": "unit", "rarity": "common", "essence": "neutra", "cost": 1,
 		"atk": atk, "hp": hp, "keywords": [], "art": "", "effects": effects, "text": "", "flavor": "", "tags": []}
 
 func _test_triggers() -> void:
 	_tcard("t_atk", 1, 5, [{"trigger": "on_attack", "action": "damage", "target": "enemy_leader", "amount": 2}])
 	_tcard("t_blk", 1, 5, [{"trigger": "on_block", "action": "buff", "target": "self", "atk": 3, "temp": true}])
 	_tcard("t_turn", 1, 5, [{"trigger": "on_turn_end", "action": "buff", "target": "self", "atk": 1, "hp": 1}])
-	_tcard("t_hurt", 1, 9, [{"trigger": "on_damaged", "action": "damage", "target": "opposed_creature", "amount": 1}])
+	_tcard("t_hurt", 1, 9, [{"trigger": "on_damaged", "action": "damage", "target": "opposed_unit", "amount": 1}])
 	var g := _new_game()
 	var a := _put(g, 0, "t_atk")
 	var hp: int = g.players[1]["leader_hp"]
@@ -629,17 +690,17 @@ func _test_triggers() -> void:
 	var bl := _put(g, 1, "t_blk")
 	_attack(g, {at["uid"]: 0})
 	_block(g, {at["uid"]: bl["uid"]})
-	check(g.find_creature(bl["uid"]).get("temp_atk", 0) == 3 or g.find_creature(bl["uid"]).is_empty(), "on_block fires")
+	check(g.find_unit(bl["uid"]).get("temp_atk", 0) == 3 or g.find_unit(bl["uid"]).is_empty(), "on_block fires")
 
 	g = _new_game()
 	var tt := _put(g, 0, "t_turn")
 	g.end_turn(0)
-	check(g.find_creature(tt["uid"])["atk"] == 2 and g.find_creature(tt["uid"])["hp"] == 6, "on_turn_end fires")
+	check(g.find_unit(tt["uid"])["atk"] == 2 and g.find_unit(tt["uid"])["hp"] == 6, "on_turn_end fires")
 
 	g = _new_game()
 	var h := _put(g, 1, "t_hurt")
 	g._deal_damage(h["uid"], 1, {})
-	check(g.find_creature(h["uid"])["damage"] == 1, "on_damaged no-source safe")
+	check(g.find_unit(h["uid"])["damage"] == 1, "on_damaged no-source safe")
 
 	# Cartas reais: Dlorafya, Salamandra, Espírito da Maré, Ronan
 	g = _new_game()
@@ -647,10 +708,10 @@ func _test_triggers() -> void:
 	var foe := _put(g, 1, "sentinela_coral") # 1/4
 	var foe2 := _put(g, 1, "tritao_lanceiro") # 2/2
 	var d := _put(g, 0, "dlorafya")
-	check(g.find_creature(ally["uid"])["damage"] == 1, "dlorafya: ally igneo takes 1")
+	check(g.find_unit(ally["uid"])["damage"] == 1, "dlorafya: ally igneo takes 1")
 	g._check_state()
-	check(g.find_creature(foe["uid"])["damage"] == 3 and g.find_creature(foe2["uid"]).is_empty(), "dlorafya: enemies take 3")
-	check(g.find_creature(d["uid"])["damage"] == 1, "dlorafya: self takes 1")
+	check(g.find_unit(foe["uid"])["damage"] == 3 and g.find_unit(foe2["uid"]).is_empty(), "dlorafya: enemies take 3")
+	check(g.find_unit(d["uid"])["damage"] == 1, "dlorafya: self takes 1")
 
 	g = _new_game()
 	var sal := _put(g, 0, "salamandra")
@@ -663,19 +724,19 @@ func _test_triggers() -> void:
 	var blk := _put(g, 1, "alexa_neruvya_primordial") # 7/7
 	_attack(g, {lord["uid"]: 0})
 	_block(g, {lord["uid"]: blk["uid"]})
-	check(g.find_creature(blk["uid"]).is_empty(), "lorde Ao Ser Bloqueada: 2 + 5 combat kills 7/7")
+	check(g.find_unit(blk["uid"]).is_empty(), "lorde Ao Ser Bloqueada: 2 + 5 combat kills 7/7")
 
 	g = _new_game()
 	var kai2 := _put(g, 0, "kai")
 	var sp := _put(g, 1, "tritao_lanceiro")
 	_attack(g, {kai2["uid"]: 0})
 	_block(g, {kai2["uid"]: sp["uid"]})
-	check(g.find_creature(kai2["uid"]).get("damage", 0) <= 1, "tritao Ao Bloquear hits attacker")
+	check(g.find_unit(kai2["uid"]).get("damage", 0) <= 1, "tritao Ao Bloquear hits attacker")
 
 	g = _new_game()
 	var ron := _put(g, 0, "ronan")
 	g._deal_damage(ron["uid"], 1, {})
-	check(g.find_creature(ron["uid"])["atk"] == 5, "ronan Ao Sofrer Dano +1 atk")
+	check(g.find_unit(ron["uid"])["atk"] == 5, "ronan Ao Sofrer Dano +1 atk")
 
 	g = _new_game()
 	var vig := _put(g, 0, "vigia_do_farol_do_norte")
@@ -700,7 +761,7 @@ func _test_triggers() -> void:
 	_block(g, {})
 	var hit := 0
 	for w in [w1, w2, w3]:
-		hit += int(g.find_creature(w["uid"])["damage"])
+		hit += int(g.find_unit(w["uid"])["damage"])
 	check(hit >= 2 and hit <= 3, "estrondador AoE hits random + adjacent (%d)" % hit)
 
 	# Fênix Menor: dies, revives as 1/1 with no effects
@@ -709,7 +770,7 @@ func _test_triggers() -> void:
 	check(f["atk"] == 2 and f["hp"] == 1, "fenix is 2/1")
 	g._deal_damage(f["uid"], 5, {})
 	g._check_state()
-	check(g.find_creature(f["uid"]).is_empty(), "fenix original died")
+	check(g.find_unit(f["uid"]).is_empty(), "fenix original died")
 	check(g.players[0]["board"].size() == 1, "fenix revived")
 	var r: Dictionary = g.players[0]["board"][0]
 	check(r["card_id"] == "fenix_menor" and r["atk"] == 1 and r["hp"] == 1, "revived as 1/1")

@@ -1,6 +1,6 @@
 {
   "name": "Sentinela de Coral",
-  "type": "creature",
+  "type": "unit",
   "rarity": "common",
   "species": ["elemental"],
   "essence": "aquatica",

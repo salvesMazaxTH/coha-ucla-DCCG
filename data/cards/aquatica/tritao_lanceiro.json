@@ -1,6 +1,6 @@
 {
   "name": "Tritão Lanceiro",
-  "type": "creature",
+  "type": "unit",
   "rarity": "common",
   "species": ["merfolk"],
   "essence": "aquatica",
@@ -11,7 +11,7 @@
     "longo_alcance"
   ],
   "art": "aquatica/tritao_lanceiro.webp",
-  "effects": [{"trigger":"on_block","action":"damage","target":"opposed_creature","amount":1}],
+  "effects": [{"trigger":"on_block","action":"damage","target":"opposed_unit","amount":1}],
   "text": "Ao Bloquear: cause 1 de dano ao atacante.",
   "flavor": "",
   "tags": []

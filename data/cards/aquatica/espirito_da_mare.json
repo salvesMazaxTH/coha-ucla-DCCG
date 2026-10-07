@@ -1,6 +1,6 @@
 {
   "name": "Espírito da Maré",
-  "type": "creature",
+  "type": "unit",
   "rarity": "common",
   "species": ["espirito"],
   "essence": "aquatica",

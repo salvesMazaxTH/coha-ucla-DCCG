@@ -24,28 +24,28 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - Ele é reabastecido no início do seu turno. O que sobra **não acumula** para o turno seguinte.
 
 ## Turno
-1. **Início:** o Momentum é reabastecido, você compra 1 carta e suas criaturas ficam prontas.
+1. **Início:** o Momentum é reabastecido, você compra 1 carta e suas unidades ficam prontas.
 2. **Fase principal:** jogue cartas, conjure a Encarnação e use a habilidade do Líder.
 3. **Ataque**, uma vez por turno: escolha os atacantes. Os ataques sempre miram o **Líder inimigo**.
 4. **Bloqueios:** o defensor escolhe quem bloqueia. Cada bloqueador bloqueia **um único** atacante, e cada atacante pode ser bloqueado por **um único** bloqueador.
-5. **Dano de combate:** primeiro causam dano as criaturas com Golpe Rápido, depois as demais. O dano é simultâneo dentro de cada passo. Um atacante que não foi bloqueado causa dano ao Líder.
+5. **Dano de combate:** primeiro causam dano as unidades com Golpe Rápido, depois as demais. O dano é simultâneo dentro de cada passo. Um atacante que não foi bloqueado causa dano ao Líder.
 6. **Segunda fase principal**.
-7. **Fim do turno:** se você tiver mais de **10 cartas** na mão, escolha quais **banir** até ficar com 10 (não vão ao cemitério; o oponente não vê quais foram). Todo o dano nas criaturas é removido, assim como os bônus temporários.
+7. **Fim do turno:** se você tiver mais de **10 cartas** na mão, escolha quais **banir** até ficar com 10 (não vão ao cemitério; o oponente não vê quais foram). Todo o dano nas unidades é removido, assim como os bônus temporários.
 
 ## Regras gerais
-- Cada lado pode ter no máximo **8 criaturas** em campo.
-- Uma criatura recém-jogada não pode atacar no mesmo turno, a menos que tenha **Ímpeto**. Ela pode bloquear normalmente.
+- Cada lado pode ter no máximo **8 unidades** em campo.
+- Uma unidade recém-jogada não pode atacar no mesmo turno, a menos que tenha **Ímpeto**. Ela pode bloquear normalmente.
 - A cura do Líder nunca passa da vida inicial dele.
 - **Banimento:** carta banida sai do jogo: não vai ao cemitério, então não alimenta Encarnação, Vagante etc. e não conta como morrer. A compra não tem teto durante o turno (a mão pode passar de 10, inclusive no turno do oponente); só no fim do seu turno você bane as piores até voltar a 10. Banir da mão é oculto para o oponente; efeitos de banimento (ex.: em área) serão públicos.
 - **Fadiga:** comprar uma carta com o deck vazio causa dano ao seu Líder. O dano é de 1 na primeira vez e sobe 1 a cada nova compra (2, 3, …).
 
 ## Velocidade, pilha e janelas
 - Toda carta e habilidade de Líder tem uma velocidade, definida no campo `"speed"` do JSON. Sem o campo, ela é **lenta**.
-  - Equipamentos são lentos, a não ser que tenham a tag **Saque Rápido** (`saque_rapido`), que os torna rápidos.
+  - Equipamentos (artefatos) são lentos, a não ser que tenham a tag **Saque Rápido** (`saque_rapido`), que os torna rápidos.
   - **Lenta:** só na sua fase principal, com a pilha vazia.
   - **Rápida:** também nas janelas de combate.
   - **Instantânea:** também em resposta a qualquer coisa na pilha.
-- Criaturas, a Encarnação, atacar e encerrar o turno seguem a regra das lentas. Criaturas não usam a pilha.
+- Unidades, a Encarnação, atacar e encerrar o turno seguem a regra das lentas. Unidades não usam a pilha.
 - **Pilha:** feitiços, equipamentos e habilidades vão para a pilha, e a prioridade passa para o adversário.
   - Quem tem prioridade pode responder com uma Instantânea ou passar.
   - Quando alguém passa, a pilha inteira resolve, do mais novo para o mais antigo.
@@ -69,43 +69,44 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - Alguns efeitos (ex.: Serpente Marinha) olham as N cartas do topo do deck. Só o dono vê essas cartas; ele coloca 1 na mão, e só essa é revelada ao oponente. As outras vão para o fundo do deck.
 
 ## Tipos de carta
-- **Campeão e Unidade:** são criaturas, com Ataque e Vida.
+- **Unidade (comum ou épica), Campeão e Lendário:** são unidades, com Ataque e Vida.
 - **Feitiço:** produz o efeito e vai para o cemitério.
-- **Equipamento:** dá um bônus permanente a uma criatura aliada.
+- **Artefato:** tipo de carta próprio (categoria ainda em expansão). Fica em jogo até algo o remover.
+  - **Equipamento:** é um artefato ("Artefato · Equipamento"). Anexa-se a uma unidade aliada, fica visível sob ela e dá o bônus. Quando a unidade morre, o equipamento vai junto para o cemitério. Cada unidade tem no máximo um; equipar outro descarta o antigo.
 
 ## Espécies
-- Uma criatura pode ter uma ou mais **espécies** (ex.: Ronan é Dragonoide, Humano e Dragão), no campo `"species"` do JSON. Os nomes ficam em `species` no `cards.json`. Algumas cartas não têm espécie.
+- Uma unidade pode ter uma ou mais **espécies** (ex.: Ronan é Dragonoide, Humano e Dragão), no campo `"species"` do JSON. Os nomes ficam em `species` no `cards.json`. Algumas cartas não têm espécie.
 - A espécie aparece numa faixa logo acima do nome, e também no texto completo.
 - Efeitos de busca no deck podem filtrar por espécie (`"species": "merfolk"`). É a base para sinergias de tribo.
 
 ## Keywords
 | Keyword | Efeito |
 |---|---|
-| Ao Entrar | O efeito acontece quando a criatura entra em campo. |
-| Ao Morrer | O efeito acontece quando a criatura morre. |
-| Golpe Rápido | Causa dano de combate antes das criaturas sem Golpe Rápido. |
+| Ao Entrar | O efeito acontece quando a unidade entra em campo. |
+| Ao Morrer | O efeito acontece quando a unidade morre. |
+| Golpe Rápido | Causa dano de combate antes das unidades sem Golpe Rápido. |
 | Sobrepujança | O dano que exceder a vida restante do bloqueador vai para o Líder inimigo. |
-| Roubo de Vida | O dano causado pela criatura cura o seu Líder. |
+| Roubo de Vida | O dano causado pela unidade cura o seu Líder. |
 | Ímpeto | Pode atacar no turno em que entra em campo. |
-| Voo | Só pode ser bloqueada por criaturas com Voo ou Longo Alcance. |
-| Longo Alcance | Pode bloquear criaturas com Voo. |
-| Furtividade | Só pode ser bloqueada por criaturas com Furtividade ou Vigília. |
-| Vigília | Pode bloquear criaturas com Furtividade. |
-| Provocação | Ao atacar, escolha uma criatura inimiga. Ela é obrigada a bloquear esta criatura, mesmo contra Voo ou Furtividade. |
+| Voo | Só pode ser bloqueada por unidades com Voo ou Longo Alcance. |
+| Longo Alcance | Pode bloquear unidades com Voo. |
+| Furtividade | Só pode ser bloqueada por unidades com Furtividade ou Vigília. |
+| Vigília | Pode bloquear unidades com Furtividade. |
+| Provocação | Ao atacar, escolha uma unidade inimiga. Ela é obrigada a bloquear esta unidade, mesmo contra Voo ou Furtividade. |
 | Escudo | Anula a próxima instância de dano. |
-| Congelamento | A criatura não pode atacar nem bloquear até o fim do próximo turno do dono. Escudo de Feitiço anula. |
+| Congelamento | A unidade não pode atacar nem bloquear até o fim do próximo turno do dono. Escudo de Feitiço anula. |
 | Indestrutível | Não é destruída por dano. Sacrifício ainda a mata. |
 | Escudo de Feitiço | Anula, uma vez, o próximo efeito **inimigo** que não seja dano de combate (feitiço, habilidade, efeito em área). Depois se dissipa. Efeitos do próprio dono não o consomem. |
 
 ## Cemitério e Obscura
 - **Moer N:** as N cartas do topo do seu deck vão para o seu cemitério (termo da comunidade de MTG, nome confirmado).
-- **Reviver:** devolve ao campo uma criatura do cemitério do dono (ex.: O Espiritomante, custo máximo 3). A carta sai do cemitério.
-- **Reviver a si mesma (Ao Morrer):** a criatura volta como uma **nova instância**, por isso não participa do combate em que morreu. Enquanto está em campo, sua entrada deixa o cemitério. O Revivente Eterno volta sempre igual. A Fênix da Chama Profana volta com -2/-2 do que tinha ao morrer e não volta se Ataque ou Vida chegar a 0. Não volta com o campo cheio.
-- **Sacrifício:** a criatura sacrificada morre na hora (efeitos Ao Morrer e Aliado Morre resolvem). Como *efeito* (Cientista da Morte, Colheita de Almas) ou como **custo adicional** (Necrófago Espectral: custa 0, mas exige sacrificar uma criatura que você controla; com o campo cheio, o sacrifício libera a vaga).
+- **Reviver:** devolve ao campo uma unidade do cemitério do dono (ex.: O Espiritomante, custo máximo 3). A carta sai do cemitério.
+- **Reviver a si mesma (Ao Morrer):** a unidade volta como uma **nova instância**, por isso não participa do combate em que morreu. Enquanto está em campo, sua entrada deixa o cemitério. O Revivente Eterno volta sempre igual. A Fênix da Chama Profana volta com -2/-2 do que tinha ao morrer e não volta se Ataque ou Vida chegar a 0. Não volta com o campo cheio.
+- **Sacrifício:** a unidade sacrificada morre na hora (efeitos Ao Morrer e Aliado Morre resolvem). Como *efeito* (Cientista da Morte, Colheita de Almas) ou como **custo adicional** (Necrófago Espectral: custa 0, mas exige sacrificar uma unidade que você controla; com o campo cheio, o sacrifício libera a vaga).
 - **Redução de custo por cemitério:** efeito Constante. A Vagante Sombria custa 1 a menos por carta no seu cemitério (de qualquer tipo), nunca menos que 0.
 
 ## Passivas de Líder
-- Algumas habilidades de Líder são **passivas**: não custam Momentum, não são clicáveis e disparam sozinhas num gatilho. A passiva do Jeff (*Ceifa*): quando uma criatura aliada morre **durante o seu turno**, 1 de dano ao Líder inimigo, **uma vez por turno**. Não ativa no turno do oponente.
+- Algumas habilidades de Líder são **passivas**: não custam Momentum, não são clicáveis e disparam sozinhas num gatilho. A passiva do Jeff (*Ceifa*): quando uma unidade aliada morre **durante o seu turno**, 1 de dano ao Líder inimigo, **uma vez por turno**. Não ativa no turno do oponente.
 
 ## Identidade visual das essências
 - **Obscura:** gradiente de pretos e cinzas-escuros (mais para o preto), com uma caveira em cinza escuro no lugar da arte ainda não feita.
@@ -121,17 +122,17 @@ Gatilhos dizem *quando* um efeito acontece. Eles abrem o texto da carta no lugar
 | Gatilho | Quando |
 |---|---|
 | Ao Jogar | A carta é jogada da mão (feitiços e equipamentos). |
-| Ao Entrar | A criatura entra em campo. |
-| Ao Morrer | A criatura morre. |
-| Ao Atacar | A criatura é declarada atacante. |
-| Ao Bloquear | A criatura é declarada bloqueadora. |
-| Ao Ser Bloqueada | Um bloqueador é atribuído a esta criatura atacante. |
-| Ao Sofrer Dano | A criatura sofre dano (Escudo anulando o dano não conta). |
-| Ao Atingir o Líder | A criatura causa dano a um Líder. |
-| No Início do Turno | Começa o turno do dono da criatura. |
-| No Fim do Turno | Termina o turno do dono da criatura. |
-| Aliado Morre | Outra criatura que você controla **morre**, mesmo que volte na hora (Revivente, Fênix) ou seja um Lendário voltando à zona de comando. A que morreu não ativa o próprio efeito (para isso existe Ao Morrer). Sacrifício conta. |
-| (qualquer gatilho) | Um efeito pode ter "uma vez por turno" (`once_per_turn`): o limite é por criatura e reinicia a cada turno, de qualquer jogador (ex.: Cientista da Morte). |
-| Constante | Sempre, enquanto a criatura está em campo. Não dispara: é recalculado a cada mudança de estado (ex.: Jeff The Death recebe +2/+2 por criatura no cemitério do dono; o dano sofrido continua valendo se o bônus encolher). |
+| Ao Entrar | A unidade entra em campo. |
+| Ao Morrer | A unidade morre. |
+| Ao Atacar | A unidade é declarada atacante. |
+| Ao Bloquear | A unidade é declarada bloqueadora. |
+| Ao Ser Bloqueada | Um bloqueador é atribuído a esta unidade atacante. |
+| Ao Sofrer Dano | A unidade sofre dano (Escudo anulando o dano não conta). |
+| Ao Atingir o Líder | A unidade causa dano a um Líder. |
+| No Início do Turno | Começa o turno do dono da unidade. |
+| No Fim do Turno | Termina o turno do dono da unidade. |
+| Aliado Morre | Outra unidade que você controla **morre**, mesmo que volte na hora (Revivente, Fênix) ou seja um Lendário voltando à zona de comando. A que morreu não ativa o próprio efeito (para isso existe Ao Morrer). Sacrifício conta. |
+| (qualquer gatilho) | Um efeito pode ter "uma vez por turno" (`once_per_turn`): o limite é por unidade e reinicia a cada turno, de qualquer jogador (ex.: Cientista da Morte). |
+| Constante | Sempre, enquanto a unidade está em campo. Não dispara: é recalculado a cada mudança de estado (ex.: Jeff The Death recebe +2/+2 por unidade no cemitério do dono; o dano sofrido continua valendo se o bônus encolher). |
 
-Alvos de gatilhos que não pedem escolha do jogador: `self`, `opposed_creature` (a criatura do outro lado do combate, ou a fonte do dano), `all_ally_creatures`, `all_creatures` (ambos os lados; o efeito de dano aceita `ally_reduce` para reduzir o dano em aliados de uma essência), `random_ally_creature`, `random_other_ally_creature`, `random_enemy_creature`, `random_enemy_and_adjacent` (uma criatura inimiga aleatória e as adjacentes), `all_enemy_creatures`, `enemy_leader`, `own_leader` e `both_leaders` (em efeitos de compra, cada líder alvo compra). Só Ao Jogar e Ao Entrar podem usar alvo escolhido pelo jogador.
+Alvos de gatilhos que não pedem escolha do jogador: `self`, `opposed_unit` (a unidade do outro lado do combate, ou a fonte do dano), `all_ally_units`, `all_units` (ambos os lados; o efeito de dano aceita `ally_reduce` para reduzir o dano em aliados de uma essência), `random_ally_unit`, `random_other_ally_unit`, `random_enemy_unit`, `random_enemy_and_adjacent` (uma unidade inimiga aleatória e as adjacentes), `all_enemy_units`, `enemy_leader`, `own_leader` e `both_leaders` (em efeitos de compra, cada líder alvo compra). Só Ao Jogar e Ao Entrar podem usar alvo escolhido pelo jogador.

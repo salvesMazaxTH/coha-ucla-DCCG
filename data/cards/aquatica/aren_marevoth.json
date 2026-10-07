@@ -1,6 +1,6 @@
 {
   "name": "Aren Marevóth",
-  "type": "creature",
+  "type": "unit",
   "rarity": "champion",
   "species": ["transfigurado", "forjado_divino"],
   "essence": "aquatica",

@@ -10,11 +10,11 @@
     {
       "trigger": "on_play",
       "action": "damage",
-      "target": "any_creature",
+      "target": "any_unit",
       "amount": 3
     }
   ],
-  "text": "Cause 3 de dano a uma criatura.",
+  "text": "Cause 3 de dano a uma unidade.",
   "flavor": "",
   "tags": []
 }

@@ -1,6 +1,6 @@
 {
   "name": "Neraqa",
-  "type": "creature",
+  "type": "unit",
   "rarity": "champion",
   "species": ["divindade", "celestial"],
   "essence": "aquatica",
@@ -15,13 +15,13 @@
     {
       "trigger": "on_enter",
       "action": "buff",
-      "target": "ally_creature",
+      "target": "ally_unit",
       "keywords": [
         "escudo_feitico"
       ]
     }
   ],
-  "text": "Ao Entrar: conceda Escudo de Feitiço a uma criatura aliada (pode ser ela mesma).",
+  "text": "Ao Entrar: conceda Escudo de Feitiço a uma unidade aliada (pode ser ela mesma).",
   "flavor": "Quebra sobre eles, e volta à calma.",
   "tags": []
 }

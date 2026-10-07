@@ -1,6 +1,6 @@
 {
   "name": "Naelthos",
-  "type": "creature",
+  "type": "unit",
   "rarity": "champion",
   "species": ["merfolk"],
   "essence": "aquatica",

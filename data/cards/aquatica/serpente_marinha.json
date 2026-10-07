@@ -1,6 +1,6 @@
 {
   "name": "Serpente Marinha",
-  "type": "creature",
+  "type": "unit",
   "rarity": "common",
   "species": ["fera"],
   "essence": "aquatica",

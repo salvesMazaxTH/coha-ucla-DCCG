@@ -1,6 +1,6 @@
 {
   "name": "D'Lorafya",
-  "type": "creature",
+  "type": "unit",
   "rarity": "champion",
   "species": ["divindade", "celestial"],
   "essence": "ignea",
@@ -9,8 +9,8 @@
   "hp": 5,
   "keywords": [],
   "art": "ignea/dlorafya.webp",
-  "effects": [{"trigger":"on_enter","action":"damage","target":"all_creatures","amount":3,"ally_reduce":{"essence":"ignea","amount":1}}],
-  "text": "Ao Entrar: cause 3 de dano a todas as criaturas; criaturas Ígneas aliadas sofrem apenas 1.",
+  "effects": [{"trigger":"on_enter","action":"damage","target":"all_units","amount":3,"ally_reduce":{"essence":"ignea","amount":1}}],
+  "text": "Ao Entrar: cause 3 de dano a todas as unidades; unidades Ígneas aliadas sofrem apenas 1.",
   "flavor": "O veredito da pira é final.",
   "tags": []
 }

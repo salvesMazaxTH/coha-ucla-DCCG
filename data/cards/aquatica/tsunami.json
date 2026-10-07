@@ -10,11 +10,11 @@
     {
       "trigger": "on_play",
       "action": "damage",
-      "target": "all_enemy_creatures",
+      "target": "all_enemy_units",
       "amount": 4
     }
   ],
-  "text": "Cause 4 de dano a todas as criaturas inimigas.",
+  "text": "Cause 4 de dano a todas as unidades inimigas.",
   "flavor": "",
   "tags": []
 }

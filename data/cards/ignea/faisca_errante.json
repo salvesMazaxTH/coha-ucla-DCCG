@@ -1,6 +1,6 @@
 {
   "name": "Faísca Errante",
-  "type": "creature",
+  "type": "unit",
   "rarity": "common",
   "species": ["elemental"],
   "essence": "ignea",

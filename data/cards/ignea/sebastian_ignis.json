@@ -1,6 +1,6 @@
 {
   "name": "Sebastian Ignis",
-  "type": "creature",
+  "type": "unit",
   "rarity": "champion",
   "species": ["semideus"],
   "essence": "ignea",

@@ -1,6 +1,6 @@
 {
   "name": "Alexa Neruvya",
-  "type": "creature",
+  "type": "unit",
   "rarity": "champion",
   "species": ["dragao_primordial", "dragao"],
   "essence": "aquatica",

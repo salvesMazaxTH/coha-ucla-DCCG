@@ -43,17 +43,17 @@
   },
   "triggers": {
     "on_play": { "name": "Ao Jogar", "text": "O efeito acontece quando a carta é jogada da mão." },
-    "on_enter": { "name": "Ao Entrar", "text": "O efeito acontece quando a criatura entra em campo." },
-    "on_death": { "name": "Ao Morrer", "text": "O efeito acontece quando a criatura morre." },
-    "on_attack": { "name": "Ao Atacar", "text": "O efeito acontece quando a criatura é declarada atacante." },
-    "on_block": { "name": "Ao Bloquear", "text": "O efeito acontece quando a criatura é declarada bloqueadora." },
-    "on_blocked": { "name": "Ao Ser Bloqueada", "text": "O efeito acontece quando um bloqueador é atribuído a esta criatura atacante." },
-    "on_damaged": { "name": "Ao Sofrer Dano", "text": "O efeito acontece quando a criatura sofre dano (Escudo anulando o dano não conta)." },
-    "on_hit_leader": { "name": "Ao Atingir o Líder", "text": "O efeito acontece quando a criatura causa dano a um Líder." },
-    "on_turn_start": { "name": "No Início do Turno", "text": "O efeito acontece no início do turno do dono da criatura." },
-    "on_turn_end": { "name": "No Fim do Turno", "text": "O efeito acontece no fim do turno do dono da criatura." },
-    "on_ally_death": { "name": "Aliado Morre", "text": "O efeito acontece quando outra criatura que você controla morre, mesmo que ela volte logo em seguida (Revivente Eterno, Fênix, Lendário voltando à zona de comando). A que morreu não ativa o próprio efeito (para isso existe Ao Morrer)." },
-    "constante": { "name": "Constante", "text": "O efeito é contínuo: vale enquanto a criatura está em campo (ou a carta está na mão) e se atualiza sozinho." }
+    "on_enter": { "name": "Ao Entrar", "text": "O efeito acontece quando a unidade entra em campo." },
+    "on_death": { "name": "Ao Morrer", "text": "O efeito acontece quando a unidade morre." },
+    "on_attack": { "name": "Ao Atacar", "text": "O efeito acontece quando a unidade é declarada atacante." },
+    "on_block": { "name": "Ao Bloquear", "text": "O efeito acontece quando a unidade é declarada bloqueadora." },
+    "on_blocked": { "name": "Ao Ser Bloqueada", "text": "O efeito acontece quando um bloqueador é atribuído a esta unidade atacante." },
+    "on_damaged": { "name": "Ao Sofrer Dano", "text": "O efeito acontece quando a unidade sofre dano (Escudo anulando o dano não conta)." },
+    "on_hit_leader": { "name": "Ao Atingir o Líder", "text": "O efeito acontece quando a unidade causa dano a um Líder." },
+    "on_turn_start": { "name": "No Início do Turno", "text": "O efeito acontece no início do turno do dono da unidade." },
+    "on_turn_end": { "name": "No Fim do Turno", "text": "O efeito acontece no fim do turno do dono da unidade." },
+    "on_ally_death": { "name": "Aliado Morre", "text": "O efeito acontece quando outra unidade que você controla morre, mesmo que ela volte logo em seguida (Revivente Eterno, Fênix, Lendário voltando à zona de comando). A que morreu não ativa o próprio efeito (para isso existe Ao Morrer)." },
+    "constante": { "name": "Constante", "text": "O efeito é contínuo: vale enquanto a unidade está em campo (ou a carta está na mão) e se atualiza sozinho." }
   },
   "species": {
     "humano": {"name": "Humano"},
@@ -78,7 +78,7 @@
   "keywords": {
     "golpe_rapido": {
       "name": "Golpe Rápido",
-      "text": "Causa seu dano de combate antes das criaturas sem Golpe Rápido."
+      "text": "Causa seu dano de combate antes das unidades sem Golpe Rápido."
     },
     "sobrepujanca": {
       "name": "Sobrepujança",
@@ -86,7 +86,7 @@
     },
     "roubo_de_vida": {
       "name": "Roubo de Vida",
-      "text": "O dano que esta criatura causa cura seu Líder (até a vida inicial dele)."
+      "text": "O dano que esta unidade causa cura seu Líder (até a vida inicial dele)."
     },
     "impeto": {
       "name": "Ímpeto",
@@ -94,23 +94,23 @@
     },
     "voo": {
       "name": "Voo",
-      "text": "Só pode ser bloqueada por criaturas com Voo ou Longo Alcance."
+      "text": "Só pode ser bloqueada por unidades com Voo ou Longo Alcance."
     },
     "longo_alcance": {
       "name": "Longo Alcance",
-      "text": "Pode bloquear criaturas com Voo."
+      "text": "Pode bloquear unidades com Voo."
     },
     "furtivo": {
       "name": "Furtivo",
-      "text": "Só pode ser bloqueada por criaturas com Furtivo ou Vigia."
+      "text": "Só pode ser bloqueada por unidades com Furtivo ou Vigia."
     },
     "vigia": {
       "name": "Vigia",
-      "text": "Pode bloquear criaturas com Furtivo."
+      "text": "Pode bloquear unidades com Furtivo."
     },
     "provocacao": {
       "name": "Provocação",
-      "text": "Ao atacar, escolha uma criatura inimiga: ela é obrigada a bloquear esta criatura."
+      "text": "Ao atacar, escolha uma unidade inimiga: ela é obrigada a bloquear esta unidade."
     },
     "escudo": {
       "name": "Escudo",
@@ -130,7 +130,7 @@
     },
     "congelar": {
       "name": "Congelar",
-      "text": "A criatura não pode atacar nem bloquear até o fim do próximo turno do dono."
+      "text": "A unidade não pode atacar nem bloquear até o fim do próximo turno do dono."
     }
   },
   "leaders": {
@@ -151,7 +151,7 @@
             "amount": 1
           }
         ],
-        "text": "Instantânea. 1 Momentum, uma vez por turno: cause 1 de dano a uma criatura ou ao Líder inimigo."
+        "text": "Instantânea. 1 Momentum, uma vez por turno: cause 1 de dano a uma unidade ou ao Líder inimigo."
       },
       "essences": [
         "ignea"
@@ -170,10 +170,10 @@
         "effects": [
           {
             "action": "tide_mark",
-            "target": "ally_creature"
+            "target": "ally_unit"
           }
         ],
-        "text": "Rápida. 1 Momentum, uma vez por turno: marque uma criatura aliada. Na próxima vez que ela sobreviver a dano neste turno, compre 1 carta."
+        "text": "Rápida. 1 Momentum, uma vez por turno: marque uma unidade aliada. Na próxima vez que ela sobreviver a dano neste turno, compre 1 carta."
       },
       "essences": [
         "aquatica"

@@ -1,6 +1,6 @@
 {
   "name": "Gaivota da Tempestade",
-  "type": "creature",
+  "type": "unit",
   "rarity": "common",
   "species": ["fera"],
   "essence": "aquatica",

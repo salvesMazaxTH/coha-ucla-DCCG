@@ -1,6 +1,6 @@
 {
   "name": "Fênix Menor",
-  "type": "creature",
+  "type": "unit",
   "rarity": "common",
   "species": ["fera"],
   "essence": "ignea",

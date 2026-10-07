@@ -1,6 +1,7 @@
 {
   "name": "Pingente das Ondas",
-  "type": "equipment",
+  "type": "artifact",
+  "subtypes": ["equipment"],
   "rarity": "common",
   "essence": "aquatica",
   "cost": 2,
@@ -9,7 +10,7 @@
     {
       "trigger": "on_play",
       "action": "buff",
-      "target": "ally_creature",
+      "target": "ally_unit",
       "atk": 1,
       "hp": 1,
       "keywords": [
@@ -17,7 +18,7 @@
       ]
     }
   ],
-  "text": "Equipar: a criatura ganha +1/+1 e Roubo de Vida.",
+  "text": "Equipar: a unidade ganha +1/+1 e Roubo de Vida.",
   "flavor": "",
   "tags": []
 }

@@ -1,6 +1,6 @@
 {
   "name": "Irina Lançachamas",
-  "type": "creature",
+  "type": "unit",
   "rarity": "champion",
   "species": ["humano"],
   "essence": "ignea",
@@ -15,11 +15,11 @@
     {
       "trigger": "on_enter",
       "action": "damage",
-      "target": "enemy_creature",
+      "target": "enemy_unit",
       "amount": 1
     }
   ],
-  "text": "Ao Entrar: cause 1 de dano a uma criatura inimiga.",
+  "text": "Ao Entrar: cause 1 de dano a uma unidade inimiga.",
   "flavor": "\"Tá tudo bem.\" Não está.",
   "tags": []
 }

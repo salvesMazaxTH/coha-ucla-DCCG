@@ -1,6 +1,6 @@
 {
   "name": "Batedor das Cinzas",
-  "type": "creature",
+  "type": "unit",
   "rarity": "common",
   "essence": "ignea",
   "cost": 1,

@@ -10,7 +10,7 @@
     {
       "trigger": "on_play",
       "action": "sacrifice",
-      "target": "ally_creature",
+      "target": "ally_unit",
       "then": [
         {
           "action": "damage",
@@ -20,7 +20,7 @@
       ]
     }
   ],
-  "text": "Sacrifique uma criatura aliada: cause 4 de dano ao Líder inimigo.",
+  "text": "Sacrifique uma unidade aliada: cause 4 de dano ao Líder inimigo.",
   "flavor": "",
   "tags": []
 }

@@ -1,7 +1,7 @@
 class_name SimpleAI
 extends RefCounted
 ## Greedy AI: spends Momentum on the most expensive plays, attacks with
-## creatures that survive or trade, blocks to protect the Leader when needed.
+## units that survive or trade, blocks to protect the Leader when needed.
 
 ## Performs one action for player p. Returns its events, or [] when the AI
 ## has nothing more to do (the caller should then stop asking).
@@ -47,7 +47,7 @@ static func _choose_search(g: GameState) -> int:
 	for c in g.pending_search.get("cards", []):
 		var cd := CardDB.card(c["card_id"])
 		var score := int(cd.get("cost", 0)) * 10
-		if cd.get("type", "") == "creature":
+		if cd.get("type", "") == "unit":
 			score += 2
 		if score > best_score:
 			best_score = score
@@ -67,7 +67,7 @@ static func _try_play(g: GameState, p: int) -> Array:
 		var cd := CardDB.card(c["card_id"])
 		var spec := g.card_spec(cd)
 		var t := _pick_sacrifice(g, p) if cd.get("cost_sacrifice", false) else _pick_target(g, p, spec, cd)
-		if spec != "" and t == 0 and cd["type"] != "creature":
+		if spec != "" and t == 0 and cd["type"] != "unit":
 			continue
 		var ev := g.play_card(p, c["uid"], t)
 		if not ev.is_empty():
@@ -105,7 +105,7 @@ static func _pick_target(g: GameState, p: int, spec: String, src) -> int:
 	var opts := g.valid_targets(p, spec)
 	if opts.is_empty():
 		return 0
-	var friendly := spec in ["ally_creature", "other_ally_creature"]
+	var friendly := spec in ["ally_unit", "other_ally_unit"]
 	if not friendly and src is Dictionary and src.has("effects"):
 		for e in src["effects"]:
 			if e.get("action") == "buff":
@@ -124,7 +124,7 @@ static func _pick_target(g: GameState, p: int, spec: String, src) -> int:
 					if e.get("action") == "damage" and int(e["amount"]) >= g.players[g.opponent(p)]["leader_hp"]:
 						score = 999
 		else:
-			var c := g.find_creature(uid)
+			var c := g.find_unit(uid)
 			var mine: bool = c["owner"] == p
 			if mine != friendly:
 				continue
@@ -176,12 +176,12 @@ static func _choose_blocks(g: GameState, p: int) -> Dictionary:
 	var incoming := 0
 	for a in g.attackers:
 		if g.attackers[a] == 0:
-			incoming += g.atk_of(g.find_creature(a))
+			incoming += g.atk_of(g.find_unit(a))
 	var desperate: bool = incoming >= g.players[p]["leader_hp"] - 3
 	for a in g.attackers:
 		if g.attackers[a] != 0:
 			continue
-		var att := g.find_creature(a)
+		var att := g.find_unit(a)
 		var best := 0
 		for b in g.players[p]["board"]:
 			if used.has(b["uid"]) or not g.can_block(b, att):
