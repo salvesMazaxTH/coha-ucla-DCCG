@@ -953,9 +953,9 @@ func _apply(p: int, e: Dictionary, t: int) -> void:
 		"revive_self":
 			_revive_self(p, e)
 		"destroy":
-			# not damage: ignores size, Escudo and Indestrutível (Escudo de Feitiço still cancels it above)
+			# not damage: ignores size and Escudo, but Indestrutível stops it (only removal from the game, e.g. banish, bypasses it)
 			var doomed := find_unit(t)
-			if doomed.is_empty():
+			if doomed.is_empty() or has_kw(doomed, "indestrutivel"):
 				return
 			doomed["damage"] = 1000000
 			_emit({"type": "destroy", "uid": t})
@@ -1056,7 +1056,7 @@ func _deal_damage(t: int, amount: int, source: Dictionary) -> int:
 		if c.is_empty():
 			return 0
 		if has_kw(c, "indestrutivel"):
-			return 0 # damage never destroys it (only sacrifice does)
+			return 0 # damage is always 0 against it (Escudo isn't consumed)
 		if c["shield"]:
 			c["shield"] = false
 			_emit({"type": "shield_break", "uid": t, "src": source.get("uid", 0)})

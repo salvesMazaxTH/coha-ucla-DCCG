@@ -126,7 +126,7 @@
     },
     "indestrutivel": {
       "name": "Indestrutível",
-      "text": "Não é destruída por dano. Sacrifício ainda a mata."
+      "text": "Não sofre dano (sempre 0) e não é destruída por efeitos de \"destruir\" (nem por dano). Sacrifício e remoção do jogo (banimento) ainda a afetam."
     },
     "congelar": {
       "name": "Congelar",

@@ -194,6 +194,15 @@ func _test_obscura() -> void:
 	g._resolve_stack()
 	g._flush()
 	check(g.find_unit(af_t["uid"]).is_empty() and g.find_unit(af_own["uid"]).is_empty(), "afogar destrói a unidade escolhida, inclusive a própria")
+	var af_ind := _put(g, 1, "jeff")
+	af_ind["keywords"].append("indestrutivel")
+	var af3 := _give(g, 0, "afogar")
+	g.players[0]["momentum"] = 10
+	g.play_card(0, af3, af_ind["uid"])
+	g._resolve_stack()
+	g._flush()
+	check(not g.find_unit(af_ind["uid"]).is_empty(), "afogar não destrói Indestrutível")
+	_kill(g, af_ind)
 	# Equipment: an artifact attached under the unit; dies with it
 	var holder := _put(g, 0, "esqueleto_guerreiro")
 	var eqid := _give(g, 0, "manoplas_incandescentes")
@@ -218,7 +227,11 @@ func _test_obscura() -> void:
 	g.play_card(0, jul, 0)
 	g._resolve_stack()
 	g._flush()
-	check(g.find_unit(jeff["uid"]).is_empty() and g.find_unit(mine["uid"]).is_empty(), "julgamento destrói todas as unidades, até Jeff com Escudo e Indestrutível")
+	check(not g.find_unit(jeff["uid"]).is_empty() and g.find_unit(mine["uid"]).is_empty(), "julgamento destrói todas as unidades, exceto Indestrutível")
+	# damage is always 0 against Indestrutível and does not consume its shield
+	var dmg_dealt: int = g._deal_damage(jeff["uid"], 50, {})
+	check(dmg_dealt == 0 and g.find_unit(jeff["uid"])["damage"] == 0 and g.find_unit(jeff["uid"])["shield"], "dano contra Indestrutível é sempre 0")
+	_kill(g, jeff)
 	# Tributo ao Abismo: sacrifice -> mill 3 -> pick one of those 3 from the graveyard
 	var ex_fodder := _put(g, 0, "esqueleto_guerreiro")
 	var ex := _give(g, 0, "tributo_ao_abismo")
