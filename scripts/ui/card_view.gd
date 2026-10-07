@@ -1,6 +1,6 @@
 class_name CardView
 extends Control
-## A card drawn entirely in code: ornate element frame (gold foil for the
+## A card drawn entirely in code: ornate essence frame (gold foil for the
 ## Legendary), art window, name plate, keyword panel, embossed cost /
 ## Ataque / Vida gems, drop shadow, hover glow and the hooks used by the
 ## table animations (shake, flash, dissolve).
@@ -10,15 +10,22 @@ signal right_clicked(view: CardView)
 
 const BASE := Vector2(120, 170)
 
-## Frame palette per element: gradient top/bottom, metal trim, glow.
+## Frame palette per essence: gradient top/bottom, metal trim, glow.
 const STYLES := {
-	"fire": {"top": "#cf4a20", "bot": "#4a120a", "trim": "#e0a862", "glow": "#ff8a3c"},
-	"water": {"top": "#2d7cc4", "bot": "#0b2448", "trim": "#c4dcec", "glow": "#5cc8ff"},
-	"neutral": {"top": "#868a92", "bot": "#2a2c32", "trim": "#b4ab9e", "glow": "#dfe4ec"},
+	"ignea": {"top": "#cf4a20", "bot": "#4a120a", "trim": "#e0a862", "glow": "#ff8a3c"},
+	"aquatica": {"top": "#2d7cc4", "bot": "#0b2448", "trim": "#c4dcec", "glow": "#5cc8ff"},
+	"glacial": {"top": "#5fb8d8", "bot": "#12384e", "trim": "#e0f2fa", "glow": "#9fe8ff"},
+	"vegetal": {"top": "#4a9a3c", "bot": "#12301a", "trim": "#c9d89a", "glow": "#8cf06a"},
+	"rochosa": {"top": "#8a6b45", "bot": "#2e2216", "trim": "#d2bc94", "glow": "#d6a868"},
+	"metalica": {"top": "#8e9aab", "bot": "#262c36", "trim": "#dfe6ee", "glow": "#c8d8ee"},
+	"eletrica": {"top": "#d9b81f", "bot": "#4a3a0a", "trim": "#fff1a0", "glow": "#fff04a"},
+	"obscura": {"top": "#6a3fa5", "bot": "#1a0e30", "trim": "#c0a0e0", "glow": "#b07aff"},
+	"sagrada": {"top": "#e8d28a", "bot": "#6a5a2a", "trim": "#fff8d8", "glow": "#fff2b0"},
+	"neutra": {"top": "#868a92", "bot": "#2a2c32", "trim": "#b4ab9e", "glow": "#dfe4ec"},
 	"legendary": {"top": "#f6d887", "bot": "#6e4810", "trim": "#fff0b8", "glow": "#ffd35a"},
 	"back": {"top": "#2e2658", "bot": "#100c22", "trim": "#c9a24e", "glow": "#9d86ff"},
 }
-const COST_COL := Color("#2f6fe0")
+const COST_COL := UITheme.MOMENTUM
 const ATK_COL := Color("#c8402e")
 const HP_COL := Color("#2f9e58")
 
@@ -154,7 +161,7 @@ func _draw() -> void:
 		return
 
 	var font := UITheme.font("heavy")
-	var col := Color(CardDB.element(cd["element"])["color"])
+	var col := Color(CardDB.essence(cd["essence"])["color"])
 	# art window
 	var art := Rect2(Vector2(7, 8) * s, Vector2(BASE.x - 14, 98) * s)
 	draw_rect(art.grow(1.5 * s), Color("#07060a"))
@@ -203,13 +210,13 @@ func _draw() -> void:
 		_text(bf, ln[0], Vector2(size.x / 2, ly), fs, ln[1])
 		ly += 11 * s
 
-	# element seal on the bottom edge, crest on the top edge
-	_seal(Vector2(size.x / 2, size.y - 3 * s), 5.5 * s, cd["element"], col, trim)
+	# essence seal on the bottom edge, crest on the top edge
+	_seal(Vector2(size.x / 2, size.y - 3 * s), 5.5 * s, cd["essence"], col, trim)
 	_diamond(Vector2(size.x / 2, 2.5 * s), 3.5 * s, trim)
 
 	# gems
 	var cost: int = cost_override if cost_override >= 0 else int(cd["cost"])
-	_gem("orb", Vector2(14, 14) * s, 13 * s, COST_COL, str(cost), Color.WHITE, s)
+	_gem("orb", Vector2(14, 14) * s, 13 * s, COST_COL, str(cost), Color("#2a1c00"), s)
 	if cd["type"] == "creature":
 		var atk: int = int(cd["atk"])
 		var hp: int = int(cd["hp"])
@@ -240,7 +247,7 @@ func _finish(r: Rect2, rad: float, s: float) -> void:
 func _style_key(cd: Dictionary) -> String:
 	if cd["rarity"] == "legendary":
 		return "legendary"
-	return cd["element"] if STYLES.has(cd["element"]) else "neutral"
+	return cd["essence"] if STYLES.has(cd["essence"]) else "neutra"
 
 func _panel_lines(cd: Dictionary) -> Array:
 	var kws: Array = inst.get("keywords", cd.get("keywords", [])).duplicate()
@@ -296,13 +303,13 @@ func _draw_back(r: Rect2, s: float, trim: Color) -> void:
 	for c2 in [Vector2(c.x, inner.position.y + 14 * s), Vector2(c.x, inner.end.y - 14 * s)]:
 		_diamond(c2, 4 * s, Color(trim, 0.7))
 
-## Art stand-in for cards without a portrait: gradient, glow, element sigil.
+## Art stand-in for cards without a portrait: gradient, glow, essence sigil.
 func _placeholder(art: Rect2, cd: Dictionary, col: Color, s: float) -> void:
 	_vgrad(art, col.darkened(0.15), col.darkened(0.75))
 	var c := art.get_center() + Vector2(0, 2 * s)
 	for i in 8:
 		draw_circle(c, (46 - i * 5) * s, Color(col.lightened(0.4), 0.05))
-	var kind: String = cd["type"] if cd["type"] != "creature" else cd["element"]
+	var kind: String = cd["type"] if cd["type"] != "creature" else cd["essence"]
 	var pts := _sigil(kind, c, 26 * s)
 	draw_colored_polygon(_grow(pts, c, 1.12), Color(0, 0, 0, 0.35))
 	draw_colored_polygon(pts, col.lightened(0.55))
@@ -314,9 +321,9 @@ func _placeholder(art: Rect2, cd: Dictionary, col: Color, s: float) -> void:
 func _sigil(kind: String, c: Vector2, r: float) -> PackedVector2Array:
 	var n: Array
 	match kind:
-		"fire":
+		"ignea":
 			n = [[0, -1], [0.22, -0.5], [0.48, -0.72], [0.62, -0.05], [0.52, 0.5], [0, 0.82], [-0.52, 0.5], [-0.62, 0.02], [-0.42, -0.4], [-0.24, -0.15]]
-		"water":
+		"aquatica":
 			var out := PackedVector2Array([c + Vector2(0, -r)])
 			for i in 13:
 				var a := deg_to_rad(-30 + i * 20)
@@ -337,11 +344,11 @@ func _sigil(kind: String, c: Vector2, r: float) -> PackedVector2Array:
 		pts.append(c + Vector2(p[0], p[1]) * r)
 	return pts
 
-func _seal(c: Vector2, r: float, element: String, col: Color, trim: Color) -> void:
+func _seal(c: Vector2, r: float, essence: String, col: Color, trim: Color) -> void:
 	draw_circle(c, r + 1.5, Color("#07060a"))
 	draw_circle(c, r, col.darkened(0.35))
 	draw_arc(c, r, 0, TAU, 24, trim, 1.0, true)
-	draw_colored_polygon(_sigil(element, c, r * 0.62), col.lightened(0.5))
+	draw_colored_polygon(_sigil(essence, c, r * 0.62), col.lightened(0.5))
 
 ## Embossed gem: drop shadow, metal bezel, body, glossy highlight, specular.
 func _gem(kind: String, c: Vector2, r: float, col: Color, t: String, tcol: Color, s: float) -> void:

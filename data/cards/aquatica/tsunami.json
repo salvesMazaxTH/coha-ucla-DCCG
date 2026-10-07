@@ -1,0 +1,19 @@
+{
+  "name": "Tsunami",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "aquatica",
+  "cost": 5,
+  "art": "",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "all_enemy_creatures",
+      "amount": 2
+    }
+  ],
+  "text": "Cause 2 de dano a todas as criaturas inimigas.",
+  "flavor": "",
+  "tags": []
+}

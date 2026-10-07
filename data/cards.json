@@ -1,15 +1,43 @@
 {
-  "elements": {
-    "fire": {
-      "name": "Fogo",
+  "essences": {
+    "ignea": {
+      "name": "Ígnea",
       "color": "#e0572b"
     },
-    "water": {
-      "name": "Água",
+    "aquatica": {
+      "name": "Aquática",
       "color": "#2f8fd6"
     },
-    "neutral": {
-      "name": "Neutro",
+    "glacial": {
+      "name": "Glacial",
+      "color": "#7fd6f0"
+    },
+    "vegetal": {
+      "name": "Vegetal",
+      "color": "#58b34a"
+    },
+    "rochosa": {
+      "name": "Rochosa",
+      "color": "#9a7b4f"
+    },
+    "metalica": {
+      "name": "Metálica",
+      "color": "#aab4c2"
+    },
+    "eletrica": {
+      "name": "Elétrica",
+      "color": "#f2d03b"
+    },
+    "obscura": {
+      "name": "Obscura",
+      "color": "#7a4fb5"
+    },
+    "sagrada": {
+      "name": "Sagrada",
+      "color": "#f4e2a0"
+    },
+    "neutra": {
+      "name": "Neutra",
       "color": "#8a8f98"
     }
   },
@@ -58,9 +86,6 @@
   "leaders": {
     "ronan": {
       "name": "Ronan",
-      "elements": [
-        "fire"
-      ],
       "hp": 20,
       "art": "ronan.webp",
       "legendary": "ronan_lendario",
@@ -76,13 +101,13 @@
           }
         ],
         "text": "1 Momentum, uma vez por turno: cause 1 de dano a uma criatura ou ao Líder inimigo."
-      }
+      },
+      "essences": [
+        "ignea"
+      ]
     },
     "naelthos": {
       "name": "Naelthos",
-      "elements": [
-        "water"
-      ],
       "hp": 30,
       "art": "naelthos.webp",
       "legendary": "naelthos_lendario",
@@ -100,7 +125,10 @@
           }
         ],
         "text": "2 Momentum, uma vez por turno: conceda Escudo a uma criatura aliada."
-      }
+      },
+      "essences": [
+        "aquatica"
+      ]
     }
   },
   "decks": {
@@ -154,44 +182,5 @@
       }
     }
   },
-  "cards": {},
-  "card_files": [
-    "alexa_neruvya_primordial.json",
-    "alexa_neruvya.json",
-    "aren_marevoth.json",
-    "batedor_das_cinzas.json",
-    "bencao_das_profundezas.json",
-    "bola_de_fogo.json",
-    "dlorafya.json",
-    "espirito_da_mare.json",
-    "faisca_errante.json",
-    "fenix_menor.json",
-    "furia_ardente.json",
-    "gaivota_da_tempestade.json",
-    "gorvakharr.json",
-    "guerreiro_igneo.json",
-    "irina_lancachamas.json",
-    "kael_drath_vulcano.json",
-    "kai.json",
-    "labareda.json",
-    "lanca_das_mares.json",
-    "lord_of_the_shadowflame.json",
-    "manoplas_incandescentes.json",
-    "mare_curativa.json",
-    "naelthos_lendario.json",
-    "naelys.json",
-    "neraqa.json",
-    "pingente_das_ondas.json",
-    "ronan_lendario.json",
-    "sabrina.json",
-    "salamandra.json",
-    "sebastian_ignis.json",
-    "sentinela_coral.json",
-    "serpente_marinha.json",
-    "tritao_lanceiro.json",
-    "tsunami.json",
-    "victoria.json",
-    "vulnara.json",
-    "yuki.json"
-  ]
+  "cards": {}
 }

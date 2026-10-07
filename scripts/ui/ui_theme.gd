@@ -10,7 +10,7 @@ const PANEL := Color(0.06, 0.055, 0.085, 0.86)
 const TEXT := Color("#ece6d6")
 const TEXT_DIM := Color(0.93, 0.9, 0.84, 0.55)
 const HP := Color("#e8484a")
-const MOMENTUM := Color("#4fa8ff")
+const MOMENTUM := Color("#f5c518")
 
 static var _fonts := {}
 

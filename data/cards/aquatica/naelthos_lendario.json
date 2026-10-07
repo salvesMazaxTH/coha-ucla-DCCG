@@ -1,0 +1,24 @@
+{
+  "name": "Naelthos",
+  "type": "creature",
+  "rarity": "legendary",
+  "essence": "aquatica",
+  "cost": 5,
+  "atk": 3,
+  "hp": 6,
+  "keywords": [
+    "provocar"
+  ],
+  "art": "naelthos.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount": 3
+    }
+  ],
+  "text": "Ao Entrar: cure 3 de vida do seu Líder.",
+  "flavor": "O mar sempre retorna.",
+  "tags": []
+}

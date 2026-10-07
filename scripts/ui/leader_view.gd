@@ -1,6 +1,6 @@
 class_name LeaderView
 extends Control
-## Leader plate: round portrait in a gold + element frame, HP gem, name
+## Leader plate: round portrait in a gold + essence frame, HP gem, name
 ## ribbon, the ability gem (clickable) and deck/graveyard counters.
 
 signal portrait_clicked
@@ -30,7 +30,7 @@ var _t := 0.0
 func setup(id: String) -> LeaderView:
 	leader_id = id
 	var ld := CardDB.leader(id)
-	elem_color = Color(CardDB.element(ld["elements"][0])["color"])
+	elem_color = Color(CardDB.essence(ld["essences"][0])["color"])
 	ability_cost = int(ld["ability"]["cost"])
 	custom_minimum_size = SIZE
 	size = SIZE
@@ -105,7 +105,7 @@ func _draw() -> void:
 	if targetable:
 		for i in 7:
 			draw_arc(PC, PR + 13 + i * 3, 0, TAU, 72, Color(1, 0.25, 0.2, 0.2 * (1.0 - i / 7.0) * (0.5 + 0.5 * pulse)), 3.2, true)
-	# frame: dark bed, element ring, gold bevel
+	# frame: dark bed, essence ring, gold bevel
 	draw_arc(PC, PR + 5.5, 0, TAU, 72, Color("#120f16"), 11, true)
 	draw_arc(PC, PR + 7, 0, TAU, 72, UITheme.GOLD_DARK, 7, true)
 	draw_arc(PC, PR + 8.5, PI * 1.05, PI * 1.95, 40, UITheme.GOLD_LIGHT, 2, true) # top highlight

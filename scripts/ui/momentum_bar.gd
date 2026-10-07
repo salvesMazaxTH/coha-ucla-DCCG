@@ -26,9 +26,9 @@ func _draw() -> void:
 		if i < current:
 			draw_circle(c, 10, Color(UITheme.MOMENTUM, 0.18))
 			draw_colored_polygon(pts, UITheme.MOMENTUM)
-			draw_colored_polygon(PackedVector2Array([pts[0], pts[1], c + Vector2(0, -1), pts[3]]), Color("#d6ecff"))
+			draw_colored_polygon(PackedVector2Array([pts[0], pts[1], c + Vector2(0, -1), pts[3]]), Color("#fff4b8"))
 			draw_colored_polygon(PackedVector2Array([c + Vector2(0, -1), pts[1], pts[2]]), UITheme.MOMENTUM.darkened(0.35))
-			draw_polyline(outline, Color("#e8f4ff"), 1.0, true)
+			draw_polyline(outline, Color("#fffbe0"), 1.0, true)
 		elif i < maximum:
 			draw_colored_polygon(pts, Color(UITheme.MOMENTUM.darkened(0.7), 0.85))
 			draw_polyline(outline, Color(UITheme.MOMENTUM, 0.55), 1.2, true)
@@ -38,4 +38,4 @@ func _draw() -> void:
 	var t := "%d/%d" % [current, maximum]
 	var x := 9 + cap * step - 4
 	draw_string_outline(font, Vector2(x, 21), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, 4, Color(0, 0, 0, 0.85))
-	draw_string(font, Vector2(x, 21), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color("#cfe6ff"))
+	draw_string(font, Vector2(x, 21), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color("#ffe680"))

@@ -55,7 +55,7 @@ func _test_search() -> void:
 	var picked: Array = g.choose_search(1, int(chosen["uid"]))
 	check(g.phase == "main", "busca termina após escolha")
 	check(g.players[1]["hand"].size() == before_hand + 1, "carta buscada vai para a mão")
-	check(CardDB.card(chosen["card_id"])["element"] == "water" and int(CardDB.card(chosen["card_id"])["cost"]) <= 2, "busca respeita filtro de Água e custo")
+	check(CardDB.card(chosen["card_id"])["essence"] == "aquatica" and int(CardDB.card(chosen["card_id"])["cost"]) <= 2, "busca respeita filtro de Aquática e custo")
 	var took := false
 	for e in picked:
 		if e["type"] == "search_take":

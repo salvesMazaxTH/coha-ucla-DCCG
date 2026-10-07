@@ -1,0 +1,17 @@
+{
+  "name": "Gaivota da Tempestade",
+  "type": "creature",
+  "rarity": "common",
+  "essence": "aquatica",
+  "cost": 2,
+  "atk": 2,
+  "hp": 1,
+  "keywords": [
+    "voar"
+  ],
+  "art": "",
+  "effects": [],
+  "text": "",
+  "flavor": "",
+  "tags": []
+}

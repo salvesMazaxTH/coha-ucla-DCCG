@@ -1,0 +1,19 @@
+{
+  "name": "Labareda",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "ignea",
+  "cost": 1,
+  "art": "labareda.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "any_creature",
+      "amount": 2
+    }
+  ],
+  "text": "Cause 2 de dano a uma criatura.",
+  "flavor": "",
+  "tags": []
+}

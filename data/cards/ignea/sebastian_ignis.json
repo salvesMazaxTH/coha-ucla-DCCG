@@ -1,0 +1,17 @@
+{
+  "name": "Sebastian Ignis",
+  "type": "creature",
+  "rarity": "champion",
+  "essence": "ignea",
+  "cost": 5,
+  "atk": 4,
+  "hp": 5,
+  "keywords": [
+    "avassalar"
+  ],
+  "art": "sebastian_ignis.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "A única coisa que ele faz bem, ele faz muito bem.",
+  "tags": []
+}

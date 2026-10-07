@@ -5,7 +5,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 
 ## Deck
 - O deck tem **48 cartas**, com até **3 cópias** de cada uma. O Líder fica fora dessa contagem.
-- As **afinidades elementais** do Líder definem as cores permitidas no deck. Cartas **neutras** entram em qualquer deck.
+- As **essências** do Líder (ígnea, aquática, glacial, vegetal, rochosa, metálica, elétrica, obscura, sagrada) definem as cartas permitidas no deck. Cartas **neutras** entram em qualquer deck.
 - O deck tem exatamente **1 Campeão Lendário**, que é a versão em carta do próprio Líder.
 
 ## Campeão Lendário (Zona de Comando)

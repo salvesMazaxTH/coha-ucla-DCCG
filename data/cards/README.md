@@ -1,12 +1,14 @@
 # Cartas
 
-Cada carta fica em um arquivo JSON próprio, usando o ID do jogo como nome do arquivo.
+Cada carta fica em um arquivo JSON próprio, usando o ID do jogo como nome do arquivo, dentro da pasta da sua **essência**:
+`ignea/`, `aquatica/`, `glacial/`, `vegetal/`, `rochosa/`, `metalica/`, `eletrica/`, `obscura/`, `sagrada/` e `neutra/`.
+O campo `essence` da carta deve bater com a pasta. Pastas de essências sem cartas ainda não precisam existir.
 
 Exemplos:
 
-- `kai.json` — carta do Kai
-- `ronan_lendario.json` — carta lendária do Ronan
-- `labareda.json` — carta de feitiço Labareda
+- `ignea/kai.json` — carta do Kai
+- `ignea/ronan_lendario.json` — carta lendária do Ronan
+- `ignea/labareda.json` — carta de feitiço Labareda
 
 Para alterar habilidades, edite o campo `keywords` usando os IDs definidos em `../cards.json`, na seção `keywords`.
 

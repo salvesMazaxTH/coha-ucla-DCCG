@@ -1,0 +1,18 @@
+{
+  "name": "Gorvakharr",
+  "type": "creature",
+  "rarity": "champion",
+  "essence": "ignea",
+  "cost": 3,
+  "atk": 3,
+  "hp": 2,
+  "keywords": [
+    "furtivo",
+    "roubo_de_vida"
+  ],
+  "art": "gorvakharr.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "O banquete de cinzas nunca termina.",
+  "tags": []
+}

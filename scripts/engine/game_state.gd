@@ -403,7 +403,7 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 	var seen: Dictionary = {}
 	for c in players[p]["deck"]:
 		var cd := CardDB.card(c["card_id"])
-		if e.get("element", "") != "" and cd.get("element", "") != e["element"]:
+		if e.get("essence", "") != "" and cd.get("essence", "") != e["essence"]:
 			continue
 		if e.has("max_cost") and int(cd.get("cost", 999)) > int(e["max_cost"]):
 			continue

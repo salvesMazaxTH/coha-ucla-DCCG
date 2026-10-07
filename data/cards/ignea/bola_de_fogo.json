@@ -1,0 +1,19 @@
+{
+  "name": "Bola de Fogo",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "ignea",
+  "cost": 3,
+  "art": "bola_de_fogo.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "any",
+      "amount": 3
+    }
+  ],
+  "text": "Cause 3 de dano a uma criatura ou ao Líder inimigo.",
+  "flavor": "",
+  "tags": []
+}

@@ -93,7 +93,7 @@ func _set_tints(top: Color, bottom: Color, intensity := 1.0) -> void:
 	m.set_shader_parameter("intensity", intensity)
 
 func _leader_color(p: int) -> Color:
-	return Color(CardDB.element(CardDB.leader(g.players[p]["leader_id"])["elements"][0])["color"])
+	return Color(CardDB.essence(CardDB.leader(g.players[p]["leader_id"])["essences"][0])["color"])
 
 # ---------------------------------------------------------------- menu
 
@@ -813,7 +813,7 @@ func _show_overlay(v: CardView) -> void:
 	var txt := "[font_size=34][color=#e8c25a]%s[/color][/font_size]\n" % cd["name"]
 	var rar := {"legendary": "Campeão Lendário", "champion": "Campeão", "common": "Unidade"}
 	var typ := {"creature": rar[cd["rarity"]], "spell": "Feitiço", "equipment": "Equipamento"}
-	txt += "[color=#aaaaaa]%s · %s · custo %d[/color]\n\n" % [typ[cd["type"]], CardDB.element(cd["element"]).get("name", cd["element"]), cd["cost"]]
+	txt += "[color=#aaaaaa]%s · %s · custo %d[/color]\n\n" % [typ[cd["type"]], CardDB.essence(cd["essence"]).get("name", cd["essence"]), cd["cost"]]
 	if cd.get("text", "") != "":
 		txt += "[font_size=22]%s[/font_size]\n\n" % cd["text"]
 	for kw in cd.get("keywords", []):
@@ -992,7 +992,7 @@ func _embers(c: Vector2, t: float, col: Color) -> void:
 			p.queue_free())
 
 func _elem_color(card_id: String) -> Color:
-	return Color(CardDB.element(CardDB.card(card_id)["element"]).get("color", "#ffffff"))
+	return Color(CardDB.essence(CardDB.card(card_id)["essence"]).get("color", "#ffffff"))
 
 ## Plays the events out over the freshly rendered table: cards fly from where
 ## they were, attackers lunge, victims shake, numbers float, the dead dissolve.

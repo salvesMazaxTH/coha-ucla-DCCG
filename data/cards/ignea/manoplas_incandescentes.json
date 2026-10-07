@@ -1,0 +1,22 @@
+{
+  "name": "Manoplas Incandescentes",
+  "type": "equipment",
+  "rarity": "common",
+  "essence": "ignea",
+  "cost": 2,
+  "art": "",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_creature",
+      "atk": 2,
+      "keywords": [
+        "golpe_rapido"
+      ]
+    }
+  ],
+  "text": "Equipar: a criatura ganha +2 de Ataque e Golpe Rápido.",
+  "flavor": "",
+  "tags": []
+}

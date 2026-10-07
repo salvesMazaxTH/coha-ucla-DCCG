@@ -1,0 +1,23 @@
+{
+  "name": "Fúria Ardente",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "ignea",
+  "cost": 1,
+  "art": "",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_creature",
+      "atk": 2,
+      "temp": true,
+      "keywords": [
+        "avassalar"
+      ]
+    }
+  ],
+  "text": "Uma criatura aliada ganha +2 de Ataque neste turno e Avassalar.",
+  "flavor": "",
+  "tags": []
+}
