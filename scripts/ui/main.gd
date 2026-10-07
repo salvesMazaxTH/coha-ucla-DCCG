@@ -17,6 +17,10 @@ var g: GameState
 var vs_ai := true
 var viewer := 0 ## whose perspective is drawn
 var pending_pass := false
+var net: NetClient ## online match link (null offline)
+var online := false
+var opp_online := true
+var code_entry := ""
 
 # input state
 var picked: Array = [] ## mulligan/discard selection
@@ -67,6 +71,10 @@ func _ready() -> void:
 	ai_timer.wait_time = 0.55
 	ai_timer.timeout.connect(_ai_step)
 	add_child(ai_timer)
+	net = NetClient.new()
+	add_child(net)
+	net.message.connect(_on_net)
+	net.link_changed.connect(_on_link)
 	_show_menu()
 
 ## The stage is 900 tall and at least 1600 wide: on wider windows (phones in
@@ -130,6 +138,10 @@ func _leader_color(p: int) -> Color:
 # ---------------------------------------------------------------- menu
 
 func _show_menu() -> void:
+	if online:
+		net.disconnect_server() ## the saved session stays: RETOMAR PARTIDA in the lobby
+		online = false
+	g = null
 	_clear_fx()
 	_clear()
 	table.visible = false
@@ -173,8 +185,9 @@ func _show_menu() -> void:
 	layer.add_child(box)
 	for opt in [["JOGAR COMO RONAN", "Fogo contra a IA de Naelthos (Água)", true, "fogo", "agua", true],
 			["JOGAR COMO NAELTHOS", "Água contra a IA de Ronan (Fogo)", true, "agua", "fogo", false],
-			["HOT-SEAT", "Dois jogadores no mesmo computador", false, "fogo", "agua", false]]:
-		var b := _button(opt[0], func(): _start(opt[2], opt[3], opt[4]), opt[5])
+			["HOT-SEAT", "Dois jogadores no mesmo computador", false, "fogo", "agua", false],
+			["ONLINE", "Jogar contra outra pessoa por código de sala", false, "", "", false]]:
+		var b := _button(opt[0], (func(): _show_online()) if opt[3] == "" else (func(): _start(opt[2], opt[3], opt[4])), opt[5])
 		b.custom_minimum_size = Vector2(420, 58)
 		b.tooltip_text = opt[1]
 		box.add_child(b)
@@ -202,6 +215,9 @@ func _ornament(center: Vector2, half: float) -> Control:
 	return o
 
 func _start(ai: bool, deck_a: String, deck_b: String) -> void:
+	if online:
+		net.disconnect_server()
+		online = false
 	vs_ai = ai
 	g = GameState.new(deck_a, deck_b)
 	log_lines = ["Partida iniciada. Escolha até 3 cartas para trocar."]
@@ -219,9 +235,151 @@ func _reset_input() -> void:
 	blocker_pick = 0
 	targeting = {}
 
+# ---------------------------------------------------------------- online
+
+## Lobby: create a room (pick a Leader) or join one by its 4-letter code.
+func _show_online(msg := "") -> void:
+	_clear_fx()
+	_clear()
+	table.visible = false
+	_set_tints(Color("#3f7bd9"), Color("#e0572b"), 1.6)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 14)
+	box.position = Vector2(stage_w / 2.0 - 300, 90)
+	box.custom_minimum_size = Vector2(600, 0)
+	layer.add_child(box)
+	box.add_child(_label("ONLINE", 56, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8))
+	if msg != "":
+		box.add_child(_label(msg, 22, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
+	if net.load_session():
+		var r := _button("RETOMAR PARTIDA (%s)" % net.code, func():
+			online = true
+			net.resume(), true)
+		r.custom_minimum_size = Vector2(600, 64)
+		box.add_child(r)
+	for opt in [["CRIAR SALA COMO RONAN (FOGO)", "fogo"], ["CRIAR SALA COMO NAELTHOS (ÁGUA)", "agua"]]:
+		var b := _button(opt[0], func():
+			online = true
+			net.create(opt[1])
+			_show_wait("Criando sala…"))
+		b.custom_minimum_size = Vector2(600, 64)
+		box.add_child(b)
+	box.add_child(_label("ENTRAR COM CÓDIGO", 22, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
+	var slots := _label(_code_text(), 64, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6)
+	box.add_child(slots)
+	var grid := GridContainer.new()
+	grid.columns = 8
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
+	box.add_child(grid)
+	for ch in "ABCDEFGHJKMNPQRSTUVWXYZ":
+		var kb := _button(ch, func():
+			if code_entry.length() < 4:
+				code_entry += ch
+				slots.text = _code_text())
+		kb.custom_minimum_size = Vector2(68, 60)
+		kb.add_theme_font_size_override("font_size", 26)
+		grid.add_child(kb)
+	var back := _button("⌫", func():
+		code_entry = code_entry.substr(0, code_entry.length() - 1)
+		slots.text = _code_text())
+	back.custom_minimum_size = Vector2(68, 60)
+	back.add_theme_font_size_override("font_size", 26)
+	grid.add_child(back)
+	var go := _button("ENTRAR NA SALA", func():
+		if code_entry.length() == 4:
+			online = true
+			net.join(code_entry)
+			_show_wait("Entrando na sala…"), true)
+	go.custom_minimum_size = Vector2(600, 64)
+	box.add_child(go)
+	var bk := _button("Voltar", _show_menu)
+	bk.custom_minimum_size = Vector2(600, 52)
+	box.add_child(bk)
+
+func _code_text() -> String:
+	return code_entry + "_".repeat(4 - code_entry.length())
+
+func _show_wait(text: String, show_code := "") -> void:
+	_clear_fx()
+	_clear()
+	table.visible = false
+	_set_tints(Color("#3f7bd9"), Color("#e0572b"), 1.6)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 20)
+	box.position = Vector2(stage_w / 2.0 - 300, 260)
+	box.custom_minimum_size = Vector2(600, 0)
+	layer.add_child(box)
+	if show_code != "":
+		box.add_child(_label("CÓDIGO DA SALA", 26, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
+		box.add_child(_label(show_code, 120, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 12))
+	box.add_child(_label(text, 28, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
+	var c := _button("Cancelar", func():
+		net.forget()
+		net.disconnect_server()
+		online = false
+		_show_menu())
+	c.custom_minimum_size = Vector2(600, 56)
+	box.add_child(c)
+
+func _on_link(up: bool) -> void:
+	if not online or g == null:
+		return
+	if up:
+		_toast("Reconectado.")
+	else:
+		_toast("Conexão perdida… reconectando.")
+
+func _on_net(m: Dictionary) -> void:
+	match m.get("t", ""):
+		"room":
+			net.code = m["code"]
+			net.token = m["token"]
+			net.seat = m["seat"]
+			net.want_resume = true
+			net.remember()
+			if m["seat"] == 0:
+				_show_wait("Aguardando o oponente entrar…", m["code"])
+		"start":
+			var d: Array = m["decks"]
+			var rs := RemoteState.new(d[0], d[1])
+			rs.seat = m["seat"]
+			rs.send = net.send
+			rs.apply_snapshot(m["snap"])
+			g = rs
+			vs_ai = false
+			online = true
+			viewer = m["seat"]
+			pending_pass = false
+			opp_online = true
+			if log_lines.is_empty() or m.get("snap", {}).get("turn", 0) == 0:
+				log_lines = ["Partida online iniciada."]
+			_reset_input()
+			_clear_fx()
+			_render()
+		"events":
+			if not (g is RemoteState):
+				return
+			(g as RemoteState).apply_snapshot(m["snap"])
+			_reset_input()
+			for e in m["events"]:
+				_log_event(e)
+			_show_events(m["events"])
+		"reject":
+			_toast("Ação inválida.")
+		"opponent":
+			opp_online = m["connected"]
+			_toast("Oponente reconectou." if opp_online else "Oponente desconectou.")
+		"error":
+			net.forget()
+			online = false
+			_show_online(String(m.get("msg", "Erro.")))
+
 # ---------------------------------------------------------------- actions
 
 func _do(events: Array) -> void:
+	if g is RemoteState:
+		return ## the server answers with "events" (see _on_net)
 	if events.is_empty():
 		_toast("Ação inválida.")
 		return
@@ -579,7 +737,7 @@ func _render_side() -> void:
 	ph.size = Vector2(COL_W, 22)
 	tp.add_child(ph)
 	var d := g.decider()
-	var who := "SUA VEZ" if mine else ("VEZ DA IA" if _is_ai(d) else "VEZ DO JOGADOR %d" % (d + 1))
+	var who := "SUA VEZ" if mine else ("VEZ DA IA" if _is_ai(d) else ("VEZ DO OPONENTE" if online else "VEZ DO JOGADOR %d" % (d + 1)))
 	var wl := _label(who, 15, UITheme.GOLD if mine else Color(UITheme.TEXT, 0.5), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
 	wl.position = Vector2(0, 57)
 	wl.size = Vector2(COL_W, 22)
@@ -675,7 +833,10 @@ func _render_game_over() -> void:
 	pc.add_child(box)
 	var txt := "EMPATE" if g.winner == 2 else "JOGADOR %d VENCEU" % (g.winner + 1)
 	var won := true
-	if vs_ai and g.winner < 2:
+	if online and g.winner < 2:
+		won = g.winner == viewer
+		txt = "VITÓRIA" if won else "DERROTA"
+	elif vs_ai and g.winner < 2:
 		won = g.winner == 0
 		txt = "VITÓRIA" if won else "DERROTA"
 	var big := _label(txt, 64 if txt.length() < 10 else 44, UITheme.GOLD_LIGHT if won else Color("#e0a8a0"), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 10)
@@ -847,7 +1008,7 @@ func _show_overlay(v: CardView) -> void:
 	big.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(big)
 	var txt := "[font_size=48][color=#e8c25a]%s[/color][/font_size]\n" % cd["name"]
-	var rar := {"legendary": "Campeão Lendário", "champion": "Campeão", "epic": "Unidade Épica", "common": "Unidade"}
+	var rar := {"legendary": "Lendário", "champion": "Campeão", "epic": "Unidade Épica", "common": "Unidade"}
 	var typ := {"creature": rar[cd["rarity"]], "spell": "Feitiço", "equipment": "Equipamento"}
 	txt += "[color=#aaaaaa]%s · %s · custo %d[/color]\n\n" % [typ[cd["type"]], CardDB.essence(cd["essence"]).get("name", cd["essence"]), cd["cost"]]
 	if cd.get("text", "") != "":
@@ -855,7 +1016,7 @@ func _show_overlay(v: CardView) -> void:
 	for kw in cd.get("keywords", []):
 		var k := CardDB.keyword(kw)
 		txt += "[color=#ffe9a8][b]%s[/b][/color] — %s\n" % [k["name"], k["text"]]
-	if cd["rarity"] == "legendary":
+	if CardDB.is_leader_card(v.card_id):
 		txt += "\n[color=#e8c25a]Lendário:[/color] fica na Zona de Comando. Cada nova conjuração custa +%d. Ao morrer, volta para a Zona de Comando.\n" % GameState.COMMANDER_TAX
 	if cd.get("flavor", "") != "":
 		txt += "\n[i][color=#888888]%s[/color][/i]" % cd["flavor"]
@@ -1167,6 +1328,8 @@ func _log(t: String) -> void:
 	log_lines.append(t)
 
 func _pname(p: int) -> String:
+	if online:
+		return "Você" if p == viewer else "Oponente"
 	return "IA" if _is_ai(p) else "J%d" % (p + 1)
 
 func _cname(id: String) -> String:
