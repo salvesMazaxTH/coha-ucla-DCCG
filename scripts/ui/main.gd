@@ -31,7 +31,10 @@ var blocker_pick := 0
 var targeting := {} ## {"kind": hand|legendary|ability, "uid": int, "spec": String}
 
 var log_lines: Array = []
-var bg: ColorRect
+var bg: TextureRect ## table surface, baked once into bg_vp (the live shader was too heavy for weak phones)
+var bg_vp: SubViewport
+var bg_rect: ColorRect
+var bg_mat: ShaderMaterial
 var table: TableView
 var layer: Control
 var overlay: Control
@@ -45,15 +48,39 @@ var _hand_base := 0 ## child index of the first hand card in layer
 
 const DECK_POSE := {"c": Vector2(186, 776), "rot": 0.0, "w": 24.0}
 
+## "Modo leve": renders at the 1600x900 base size and upscales (fewer pixels, softer text).
+func _apply_light(on: bool, save := false) -> void:
+	get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_VIEWPORT if on else Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	if save:
+		var cf := ConfigFile.new()
+		cf.set_value("ui", "light", on)
+		cf.save("user://settings.cfg")
+
+func _light_on() -> bool:
+	var cf := ConfigFile.new()
+	return cf.load("user://settings.cfg") == OK and cf.get_value("ui", "light", false)
+
 func _ready() -> void:
+	_apply_light(_light_on())
 	theme = UITheme.make()
-	bg = ColorRect.new()
+	bg_vp = SubViewport.new()
+	bg_vp.size = Vector2i(640, 360)
+	bg_vp.disable_3d = true
+	bg_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	add_child(bg_vp)
+	bg_rect = ColorRect.new()
+	bg_rect.size = Vector2(640, 360)
+	bg_mat = ShaderMaterial.new()
+	bg_mat.shader = load("res://scripts/ui/shaders/table.gdshader")
+	bg_mat.set_shader_parameter("aspect", 1600.0 / 900.0)
+	bg_mat.set_shader_parameter("divider_y", TableView.DIVIDER_Y / 900.0)
+	bg_rect.material = bg_mat
+	bg_vp.add_child(bg_rect)
+	bg = TextureRect.new()
+	bg.texture = bg_vp.get_texture()
+	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	bg.stretch_mode = TextureRect.STRETCH_SCALE
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var m := ShaderMaterial.new()
-	m.shader = load("res://scripts/ui/shaders/table.gdshader")
-	m.set_shader_parameter("aspect", 1600.0 / 900.0)
-	m.set_shader_parameter("divider_y", TableView.DIVIDER_Y / 900.0)
-	bg.material = m
 	add_child(bg)
 	get_viewport().size_changed.connect(_fit_viewport)
 	_fit_viewport()
@@ -93,7 +120,11 @@ func _fit_viewport() -> void:
 	position = (vp - size) / 2.0
 	bg.position = -position
 	bg.size = vp
-	(bg.material as ShaderMaterial).set_shader_parameter("aspect", vp.x / vp.y)
+	var bw := int(360.0 * vp.x / maxf(1.0, vp.y))
+	bg_vp.size = Vector2i(bw, 360)
+	bg_rect.size = Vector2(bw, 360)
+	bg_mat.set_shader_parameter("aspect", vp.x / vp.y)
+	bg_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	if motes:
 		motes.position = Vector2(w / 2.0, 470)
 		motes.emission_rect_extents = Vector2(w / 2.0 + 20.0, 470)
@@ -127,10 +158,10 @@ func _motes() -> CPUParticles2D:
 	return p
 
 func _set_tints(top: Color, bottom: Color, intensity := 1.0) -> void:
-	var m: ShaderMaterial = bg.material
-	m.set_shader_parameter("top_tint", top)
-	m.set_shader_parameter("bottom_tint", bottom)
-	m.set_shader_parameter("intensity", intensity)
+	bg_mat.set_shader_parameter("top_tint", top)
+	bg_mat.set_shader_parameter("bottom_tint", bottom)
+	bg_mat.set_shader_parameter("intensity", intensity)
+	bg_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 
 func _leader_color(p: int) -> Color:
 	return Color(CardDB.essence(CardDB.leader(g.players[p]["leader_id"])["essences"][0])["color"])
@@ -193,6 +224,12 @@ func _show_menu() -> void:
 		box.add_child(b)
 		var sub := _label(opt[1], 14, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 		box.add_child(sub)
+	var lt := _button("Modo leve: %s" % ("LIGADO" if _light_on() else "desligado"), func():
+		_apply_light(not _light_on(), true)
+		_show_menu.call_deferred())
+	lt.position = Vector2(stage_w - 300, 790)
+	lt.size = Vector2(280, 52)
+	layer.add_child(lt)
 	var ver := _label("alpha 0.1", 13, Color(1, 1, 1, 0.35), HORIZONTAL_ALIGNMENT_RIGHT, "body")
 	ver.position = Vector2(stage_w - 300, 864)
 	ver.size = Vector2(280, 20)

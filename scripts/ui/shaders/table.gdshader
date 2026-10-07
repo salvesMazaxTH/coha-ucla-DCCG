@@ -48,7 +48,7 @@ void fragment() {
 	col += veins * 0.035;
 
 	// element light pooling on each half, slowly breathing
-	float breathe = 0.85 + 0.15 * sin(TIME * 0.6);
+	float breathe = 0.85;
 	float top_w = 1.0 - smoothstep(0.0, divider_y, uv.y);
 	float bot_w = smoothstep(divider_y, 1.0, uv.y);
 	float center_x = max(0.0, 1.0 - pow(abs(uv.x - 0.52) * 1.6, 2.0));
