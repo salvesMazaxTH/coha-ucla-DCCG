@@ -1,14 +1,16 @@
 {
-  "name": "Necromante Sepulcral",
+  "name": "O Espiritomante",
   "type": "creature",
-  "rarity": "champion",
+  "rarity": "epic",
   "species": [],
   "essence": "obscura",
   "cost": 4,
   "atk": 3,
   "hp": 3,
-  "keywords": [],
-  "art": "",
+  "keywords": [
+    "roubo_de_vida"
+  ],
+  "art": "obscura/o_espiritomante.webp",
   "effects": [
     {
       "trigger": "on_enter",

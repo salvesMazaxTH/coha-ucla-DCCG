@@ -121,8 +121,10 @@ func _test_obscura() -> void:
 	check(g.players[0]["deck"].size() == deck_before and g.players[0]["graveyard"].is_empty(), "necrófago não manda mais o topo do deck ao cemitério")
 	check(g.atk_of(nec) == 3 and g.hp_left(nec) == 2 and CardDB.card("necrofago_espectral")["species"] == ["morto_vivo", "fera"], "necrófago é uma hiena zumbi 3/2")
 	# Replicador summons one copy of itself without the effect (no chain)
-	_put(g, 0, "replicador_maldito")
-	check(_count(g, 0, "replicador_maldito") == 2, "replicador invoca uma cópia")
+	var repl := _put(g, 0, "replicador_maldito")
+	check(_count(g, 0, "replicador_maldito") == 1, "replicador não invoca ao entrar")
+	_kill(g, repl)
+	check(_count(g, 0, "replicador_maldito") == 1, "replicador invoca uma cópia ao morrer")
 	var copies: Array = g.players[0]["board"].filter(func(c): return c["card_id"] == "replicador_maldito" and g.card_of(c)["effects"].is_empty())
 	check(copies.size() == 1, "a cópia não tem o efeito")
 	# Revivente returns forever, as a new instance
@@ -150,7 +152,7 @@ func _test_obscura() -> void:
 	check(g.players[0]["deck"].size() == dk - 2 and g.players[0]["graveyard"].size() == gy + 2, "titânico mói 2")
 	# Necromante revives a creature of cost <= 3
 	gy = g.players[0]["graveyard"].size()
-	_put(g, 0, "necromante_sepulcral")
+	_put(g, 0, "o_espiritomante")
 	check(g.players[0]["graveyard"].size() == gy - 1, "necromante reviveu do cemitério")
 	# Sacrifice: Cientista kills an ally and draws 1
 	g.players[0]["board"].clear()

@@ -5,7 +5,7 @@
   "essence": "obscura",
   "cost": 3,
   "speed": "lento",
-  "art": "",
+  "art": "obscura/chamado_do_alem.webp",
   "effects": [
     {
       "trigger": "on_play",

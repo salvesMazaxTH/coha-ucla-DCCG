@@ -99,7 +99,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 
 ## Cemitério e Obscura
 - **Moer N:** as N cartas do topo do seu deck vão para o seu cemitério (termo da comunidade de MTG, nome confirmado).
-- **Reviver:** devolve ao campo uma criatura do cemitério do dono (ex.: Necromante Sepulcral, custo máximo 3). A carta sai do cemitério.
+- **Reviver:** devolve ao campo uma criatura do cemitério do dono (ex.: O Espiritomante, custo máximo 3). A carta sai do cemitério.
 - **Reviver a si mesma (Ao Morrer):** a criatura volta como uma **nova instância**, por isso não participa do combate em que morreu. Enquanto está em campo, sua entrada deixa o cemitério. O Revivente Eterno volta sempre igual. A Fênix da Chama Profana volta com -2/-2 do que tinha ao morrer e não volta se Ataque ou Vida chegar a 0. Não volta com o campo cheio.
 - **Sacrifício:** a criatura sacrificada morre na hora (efeitos Ao Morrer e Aliado Morre resolvem). Como *efeito* (Cientista da Morte, Colheita de Almas) ou como **custo adicional** (Necrófago Espectral: custa 0, mas exige sacrificar uma criatura que você controla; com o campo cheio, o sacrifício libera a vaga).
 - **Redução de custo por cemitério:** efeito Constante. A Vagante Sombria custa 1 a menos por carta no seu cemitério (de qualquer tipo), nunca menos que 0.

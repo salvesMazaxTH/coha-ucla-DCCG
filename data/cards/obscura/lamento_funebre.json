@@ -5,7 +5,7 @@
   "essence": "obscura",
   "cost": 2,
   "speed": "rapido",
-  "art": "",
+  "art": "obscura/lamento_funebre.webp",
   "effects": [
     {
       "trigger": "on_play",

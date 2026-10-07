@@ -5,7 +5,7 @@
   "essence": "obscura",
   "cost": 2,
   "speed": "rapido",
-  "art": "",
+  "art": "obscura/colheita_de_almas.webp",
   "effects": [
     {
       "trigger": "on_play",

@@ -695,6 +695,7 @@ func _render_command(p: int, pos: Vector2) -> void:
 	v.pivot_offset = v.size / 2.0
 	v.position = pos
 	v.cost_override = g.legendary_cost(p)
+	v.stat_bonus = g.scale_bonus(p, CardDB.card(l["card_id"]))
 	if p == viewer and g.can_cast_legendary(p) and not _is_ai(p):
 		v.highlight = OK
 	if targeting.get("kind") == "legendary" and p == viewer:
@@ -885,6 +886,7 @@ func _render_hand(p: int) -> void:
 		var hcd := CardDB.card(c["card_id"])
 		if g.cost_of(p, hcd) != int(hcd["cost"]):
 			v.cost_override = g.cost_of(p, hcd)
+		v.stat_bonus = g.scale_bonus(p, hcd)
 		var k := i - (n - 1) / 2.0
 		v.pivot_offset = Vector2(v.size.x / 2.0, v.size.y)
 		var pos := Vector2(lane_cx + k * step - v.size.x / 2.0, 676 + k * k * 1.4)
@@ -1386,6 +1388,7 @@ func _show_overlay(v: CardView) -> void:
 	add_child(overlay)
 	var big := CardView.new().setup(v.card_id, v.inst, 4.18)
 	big.cost_override = v.cost_override
+	big.stat_bonus = v.stat_bonus
 	big.position = Vector2(stage_w / 2.0 - 620, 150)
 	big.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(big)
@@ -1453,6 +1456,8 @@ func _render_search_reveal() -> void:
 		var card_uid: int = option["uid"]
 		var cv := CardView.new().setup(option["card_id"], {"uid": card_uid}, 1.05)
 		cv.face_down = hidden or String(option["card_id"]) == ""
+		if not cv.face_down:
+			cv.stat_bonus = g.scale_bonus(owner, CardDB.card(option["card_id"]))
 		cv.mouse_filter = Control.MOUSE_FILTER_STOP if _my_input() else Control.MOUSE_FILTER_IGNORE
 		if _my_input():
 			cv.left_clicked.connect(func(_v): _on_search_choice(card_uid))
@@ -1555,11 +1560,11 @@ func _impact(target: Control, text: String, col: Color, t: float, hurt: bool) ->
 	lt.tween_property(l, "modulate:a", 0.0, 0.25)
 	lt.tween_callback(l.queue_free)
 
-func _embers(c: Vector2, t: float, col: Color) -> void:
+func _embers(c: Vector2, t: float, col: Color, amount := 36) -> void:
 	var p := CPUParticles2D.new()
 	p.emitting = false
 	p.one_shot = true
-	p.amount = 36
+	p.amount = amount
 	p.lifetime = 1.0
 	p.explosiveness = 0.85
 	p.position = c
@@ -1586,6 +1591,106 @@ func _embers(c: Vector2, t: float, col: Color) -> void:
 	tw.tween_callback(func():
 		if is_instance_valid(p):
 			p.queue_free())
+
+## A creature's trigger went off: the card pops with a hot rim light, a ring pulses out of it,
+## light sweeps across it, sparks fly and a tag names the trigger, in the same orange as
+## trigger names in the rules text, so what follows reads as coming from this card.
+func _trigger_fx(v: Control, trigger: String, t: float) -> void:
+	if v is CardView:
+		var cv: CardView = v
+		var tw := cv.create_tween()
+		tw.tween_interval(t)
+		tw.tween_callback(func(): cv.z_index = maxi(cv.z_index, 15))
+		tw.tween_property(cv, "proc", 1.0, 0.1).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(cv, "proc", 0.0, 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		tw.tween_callback(func(): cv.z_index = 0 if cv.z_index == 15 else cv.z_index)
+		var wt := cv.create_tween()
+		wt.tween_interval(t + 0.04)
+		wt.tween_property(cv, "proc_wave", 1.0, 0.55).from(0.001)
+		wt.tween_callback(func(): cv.proc_wave = 0.0)
+	var c := _center_of(v)
+	_embers(c, t + 0.05, CardView.TRIGGER_COL, 16)
+	var trg: Dictionary = CardDB.data()["triggers"].get(trigger, {})
+	if trg.is_empty():
+		return
+	var tag := _label(String(trg["name"]), 17, CardView.TRIGGER_COL.lightened(0.3), HORIZONTAL_ALIGNMENT_CENTER, "heavy", 4)
+	tag.add_theme_stylebox_override("normal", UITheme.box(Color(0.05, 0.03, 0.02, 0.92), 12, Color(CardView.TRIGGER_COL, 0.95), 2, 10))
+	tag.z_index = 25
+	tag.modulate.a = 0.0
+	fx.add_child(tag)
+	tag.reset_size()
+	tag.pivot_offset = tag.size / 2.0
+	# sits on the card's top edge; pushed inside the screen near its borders
+	var half_h: float = _pose(v)["w"] * CardView.BASE.y / CardView.BASE.x / 2.0 if v is CardView else 60.0
+	var vw := get_viewport_rect().size.x
+	var pos := Vector2(c.x - tag.size.x / 2.0, c.y - half_h - tag.size.y * 0.55)
+	pos.x = clampf(pos.x, 8.0, vw - tag.size.x - 8.0)
+	pos.y = maxf(pos.y, 6.0)
+	tag.position = pos
+	tag.scale = Vector2(0.55, 0.55)
+	var lt := tag.create_tween()
+	lt.tween_interval(t)
+	lt.tween_property(tag, "modulate:a", 1.0, 0.08)
+	lt.parallel().tween_property(tag, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	lt.parallel().tween_property(tag, "position:y", pos.y - 10.0, 0.9).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	lt.tween_property(tag, "modulate:a", 0.0, 0.25)
+	lt.tween_callback(tag.queue_free)
+
+## Bolt of light from a trigger's source to what its effect hits, so the effect visibly comes
+## from that card. Follows both ends if they move. Returns the travel time.
+const STREAK_T := 0.2
+
+func _streak(from: Control, to: Control, t: float, col: Color) -> float:
+	var lines: Array[Line2D] = []
+	for i in 2: # wide soft glow under a thin hot core
+		var ln := Line2D.new()
+		ln.width = 16.0 if i == 0 else 5.0
+		ln.joint_mode = Line2D.LINE_JOINT_ROUND
+		ln.begin_cap_mode = Line2D.LINE_CAP_ROUND
+		ln.end_cap_mode = Line2D.LINE_CAP_ROUND
+		var gr := Gradient.new()
+		var head := col.lightened(0.55) if i == 1 else col
+		gr.set_color(0, Color(head, 0.0))
+		gr.set_color(gr.get_point_count() - 1, Color(head, 0.35 if i == 0 else 1.0))
+		ln.gradient = gr
+		var wc := Curve.new()
+		wc.add_point(Vector2(0, 0.15))
+		wc.add_point(Vector2(1, 1))
+		ln.width_curve = wc
+		ln.z_index = 24
+		ln.visible = false
+		fx.add_child(ln)
+		lines.append(ln)
+	var bend := 1.0 if randf() < 0.5 else -1.0
+	var wf: WeakRef = weakref(from) # either end may be freed mid-flight (re-render, dissolve)
+	var wt: WeakRef = weakref(to)
+	var paint := func(k: float, fade: float):
+		var f: Control = wf.get_ref()
+		var d: Control = wt.get_ref()
+		if f == null or d == null:
+			return
+		var a := _center_of(f)
+		var b := _center_of(d)
+		var ctrl := (a + b) / 2.0 + (b - a).orthogonal().normalized() * minf(a.distance_to(b) * 0.18, 70.0) * bend
+		var head := ease(k, -2.0)
+		var tail := clampf(head - 0.45, 0.0, 1.0) + fade * (head - clampf(head - 0.45, 0.0, 1.0))
+		var pts := PackedVector2Array()
+		for j in 13:
+			var u := lerpf(tail, head, j / 12.0)
+			pts.append(a.lerp(ctrl, u).lerp(ctrl.lerp(b, u), u))
+		for ln in lines:
+			if is_instance_valid(ln):
+				ln.visible = true
+				ln.points = pts
+	var tw := fx.create_tween()
+	tw.tween_interval(t)
+	tw.tween_method(func(k: float): paint.call(k, 0.0), 0.0, 1.0, STREAK_T)
+	tw.tween_method(func(f: float): paint.call(1.0, f), 0.0, 1.0, 0.14)
+	tw.tween_callback(func():
+		for ln in lines:
+			if is_instance_valid(ln):
+				ln.queue_free())
+	return STREAK_T
 
 ## How long a revealed spell/ability stays frozen mid-screen: long enough for the
 ## opponent to read it, short for your own plays (you already know what you cast).
@@ -1650,8 +1755,32 @@ func _animate(events: Array, old: Dictionary) -> float:
 	var last_src := 0
 	var last_dst := 0
 	var hit_t := 0.0
+	var trig_src := 0 ## creature whose trigger caused the events that follow (0 = none)
 	for e in events:
-		match e["type"]:
+		var et: String = e["type"]
+		if et in ["play", "ability", "passive", "resolve", "attack", "combat_damage", "start_turn", "end_turn"] \
+				or (et in ["damage", "shield_break"] and e.get("src", 0) > 0):
+			trig_src = 0
+		# effects of a trigger fly out of their source as a bolt and land when it arrives
+		if trig_src != 0 and et in ["damage", "heal", "shield_break", "buff", "freeze", "tide_mark", "spell_shield_break", "summon"] \
+				and e["uid"] != trig_src and actors.has(trig_src) and actors.has(e["uid"]):
+			cursor += _streak(actors[trig_src], actors[e["uid"]], cursor, CardView.TRIGGER_COL) - 0.04
+		match et:
+			"trigger":
+				if actors.has(e["uid"]):
+					_trigger_fx(actors[e["uid"]], e["trigger"], cursor)
+					trig_src = e["uid"]
+					cursor += 0.3
+			"buff":
+				if actors.has(e["uid"]):
+					var parts: Array = []
+					if int(e["atk"]) != 0 or int(e["hp"]) != 0:
+						parts.append("%+d/%+d" % [e["atk"], e["hp"]])
+					for kw in e.get("keywords", []):
+						parts.append(String(CardDB.data()["keywords"].get(kw, {}).get("name", kw)))
+					if not parts.is_empty():
+						_impact(actors[e["uid"]], " ".join(parts), Color("#a8ffa0"), cursor, false)
+				cursor += 0.15
 			"play":
 				var uid: int = e["uid"]
 				var cd := CardDB.card(e["card_id"])
@@ -1717,7 +1846,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 			"damage", "shield_break", "heal":
 				var dst: int = e["uid"]
 				var t := cursor
-				if e["type"] == "damage" and in_combat and e.get("src", 0) > 0 and actors.has(e["src"]) and actors.has(dst):
+				if e["type"] in ["damage", "shield_break"] and in_combat and e.get("src", 0) > 0 and actors.has(e["src"]) and actors.has(dst):
 					var src: int = e["src"]
 					if src == last_src or (src == last_dst and dst == last_src):
 						t = hit_t
@@ -1807,6 +1936,9 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s usou %s" % [_pname(e["player"]), CardDB.leader(g.players[e["player"]]["leader_id"])["ability"]["name"]])
 		"passive":
 			_log("%s ativou %s" % [_pname(e["player"]), CardDB.leader(g.players[e["player"]]["leader_id"])["ability"]["name"]])
+		"trigger":
+			var trg: Dictionary = CardDB.data()["triggers"].get(e["trigger"], {})
+			_log("%s: %s" % [_cname(e["card_id"]), trg.get("name", e["trigger"])])
 		"attack":
 			_log("%s atacou com %d" % [_pname(e["player"]), e["attackers"].size()])
 		"death":

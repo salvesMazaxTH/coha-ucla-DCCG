@@ -39,6 +39,7 @@ var face_down := false
 var highlight := Color.TRANSPARENT ## outline for selection/targets
 var dim := false
 var cost_override := -1
+var stat_bonus := Vector2i.ZERO ## live "constante" scaling for cards off the board (hand, command zone)
 var hovered := false
 var hit_pad := 0.0 ## extra hit area below the card (lifted hand cards)
 ## Animation hooks, driven by tweens: draw offsets (hit tremor, attack
@@ -54,6 +55,16 @@ var lunge := Vector2.ZERO:
 var flash := 0.0:
 	set(v):
 		flash = v
+		queue_redraw()
+## Trigger going off: proc 0..1 is the pop + rim light, proc_wave 0..1 the ring pulsing out
+## and the light sweeping across the card (0 = off).
+var proc := 0.0:
+	set(v):
+		proc = v
+		queue_redraw()
+var proc_wave := 0.0:
+	set(v):
+		proc_wave = v
 		queue_redraw()
 var shadow := true
 
@@ -161,7 +172,8 @@ func _legendary() -> bool:
 # ---------------------------------------------------------------- drawing
 
 func _draw() -> void:
-	draw_set_transform(shake + lunge)
+	var pop := 1.0 + 0.08 * proc ## scales around the center
+	draw_set_transform(shake + lunge + size / 2.0 * (1.0 - pop), 0.0, Vector2(pop, pop))
 	var s := size.x / BASE.x
 	var r := Rect2(Vector2.ZERO, size)
 	var rad := 10.0 * s
@@ -193,6 +205,13 @@ func _draw() -> void:
 	elif hovered:
 		for i in 3:
 			_rrect_line(r.grow((1.5 + i * 2) * s), rad + i * 2 * s, Color(glow, 0.5 - i * 0.15), 2 * s)
+	# trigger proc: hot rim light, plus a ring pulsing out of the frame
+	if proc > 0:
+		for i in 5:
+			_rrect_line(r.grow((1.5 + i * 2.4) * s), rad + i * 2 * s, Color(TRIGGER_COL.lightened(0.25 - i * 0.05), (0.95 - i * 0.18) * proc), 2.6 * s)
+	if proc_wave > 0 and proc_wave < 1:
+		var k := 1.0 - pow(1.0 - proc_wave, 3.0)
+		_rrect_line(r.grow((3 + 30 * k) * s), rad + 12 * k * s, Color(TRIGGER_COL.lightened(0.35), 0.85 * pow(1.0 - proc_wave, 1.5)), (3.2 - 2.2 * k) * s)
 
 	# frame: gradient body, dark outer edge, metal trim with bevel
 	if keys.size() < 2:
@@ -302,6 +321,11 @@ func _draw() -> void:
 			atk = live_atk
 			hp_col = Color("#ff8a80") if inst["damage"] > 0 else (Color("#a8ffa0") if inst["hp"] + int(inst.get("bonus_hp", 0)) > hp else Color.WHITE)
 			hp = max(0, inst["hp"] + int(inst.get("bonus_hp", 0)) - inst["damage"])
+		elif stat_bonus != Vector2i.ZERO:
+			atk_col = Color("#a8ffa0") if stat_bonus.x > 0 else Color.WHITE
+			hp_col = Color("#a8ffa0") if stat_bonus.y > 0 else Color.WHITE
+			atk = max(0, atk + stat_bonus.x)
+			hp = max(0, hp + stat_bonus.y)
 		_gem("diamond", Vector2(14 * s, size.y - 15 * s), 13.5 * s, ATK_COL, str(atk), atk_col, s)
 		_gem("shield", Vector2(size.x - 14 * s, size.y - 15 * s), 12.5 * s, HP_COL, str(hp), hp_col, s)
 	_finish(r, rad, s)
@@ -313,6 +337,15 @@ func _finish(r: Rect2, rad: float, s: float) -> void:
 		var band := PackedVector2Array([Vector2(x, size.y), Vector2(x + 26 * s, size.y), Vector2(x + 26 * s + size.y, 0), Vector2(x + size.y, 0)])
 		for poly in Geometry2D.intersect_polygons(band, _rrect_pts(r, rad)):
 			draw_colored_polygon(poly, Color(1, 0.96, 0.8, 0.16))
+	if proc_wave > 0 and proc_wave < 1:
+		# a bright band of light sweeping across the card
+		var bx := lerpf(-size.y * 0.6, size.x + 10 * s, proc_wave)
+		var bw := 30 * s
+		var sweep := PackedVector2Array([Vector2(bx - size.y * 0.4, size.y), Vector2(bx - size.y * 0.4 + bw, size.y), Vector2(bx + size.y * 0.6 + bw, 0), Vector2(bx + size.y * 0.6, 0)])
+		for poly in Geometry2D.intersect_polygons(sweep, _rrect_pts(r, rad)):
+			draw_colored_polygon(poly, Color(1, 0.93, 0.8, 0.32 * (1.0 - proc_wave * 0.6)))
+	if proc > 0:
+		_rrect_fill(r, rad, Color(TRIGGER_COL.lightened(0.5), 0.22 * proc))
 	if flash > 0:
 		_rrect_fill(r, rad, Color(1, 0.2, 0.15, 0.45 * flash))
 	if dim:

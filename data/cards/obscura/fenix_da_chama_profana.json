@@ -10,7 +10,7 @@
   "keywords": [
     "voo"
   ],
-  "art": "",
+  "art": "obscura/fenix_da_chama_profana.webp",
   "effects": [
     {
       "trigger": "on_death",

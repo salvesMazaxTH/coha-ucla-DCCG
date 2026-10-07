@@ -5,7 +5,7 @@
   "essence": "obscura",
   "cost": 2,
   "speed": "lento",
-  "art": "",
+  "art": "obscura/cova_rasa.webp",
   "effects": [
     {
       "trigger": "on_play",

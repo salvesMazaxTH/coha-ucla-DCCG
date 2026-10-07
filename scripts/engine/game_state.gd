@@ -142,19 +142,23 @@ func graveyard_creatures(p: int) -> int:
 func _refresh_scaling() -> void:
 	for p in 2:
 		for c in players[p]["board"]:
-			var bonus_atk := 0
-			var bonus_hp := 0
-			for e in card_of(c)["effects"]:
-				if e.get("trigger", "") != "constante" or e.get("action", "") != "scale":
-					continue
-				var n := 0
-				match e.get("per", ""):
-					"own_graveyard_creatures": n = graveyard_creatures(p)
-					"enemy_graveyard_creatures": n = graveyard_creatures(opponent(p))
-				bonus_atk += n * int(e.get("atk", 0))
-				bonus_hp += n * int(e.get("hp", 0))
-			c["bonus_atk"] = bonus_atk
-			c["bonus_hp"] = bonus_hp
+			var b := scale_bonus(p, card_of(c))
+			c["bonus_atk"] = b.x
+			c["bonus_hp"] = b.y
+
+## Atk/hp a card's "constante" scale effects would give it under player p right
+## now. Also used to preview the live stats of cards off the board (hand, command zone).
+func scale_bonus(p: int, cd: Dictionary) -> Vector2i:
+	var out := Vector2i.ZERO
+	for e in cd.get("effects", []):
+		if e.get("trigger", "") != "constante" or e.get("action", "") != "scale":
+			continue
+		var n := 0
+		match e.get("per", ""):
+			"own_graveyard_creatures": n = graveyard_creatures(p)
+			"enemy_graveyard_creatures": n = graveyard_creatures(opponent(p))
+		out += Vector2i(n * int(e.get("atk", 0)), n * int(e.get("hp", 0)))
+	return out
 
 func legendary_cost(p: int) -> int:
 	var l: Dictionary = players[p]["legendary"]
@@ -701,7 +705,16 @@ func _summon(p: int, card_id: String, uid: int, legendary: bool, target: int, ov
 	# "ally_creature" Ao Entrar with no chosen ally falls back to the creature itself
 	if target == 0 and target_spec(cd["effects"]) == "ally_creature":
 		target = uid
+	_announce(c, cd["effects"], "on_enter")
 	_run_effects(p, cd["effects"], "on_enter", target, uid)
+
+## Tells the UI that creature c's `trigger` went off, so it can show where the effects that
+## follow come from. Only when at least one of `effects` actually runs for that trigger.
+func _announce(c: Dictionary, effects: Array, trigger: String) -> void:
+	for e in effects:
+		if e.get("trigger", "") == trigger:
+			_emit({"type": "trigger", "uid": c["uid"], "player": c["owner"], "card_id": c["card_id"], "trigger": trigger})
+			return
 
 ## Fires a creature's own trigger. Depth-capped so on_damaged chains cannot loop forever.
 func _fire(c: Dictionary, trigger: String, other_uid: int = 0) -> void:
@@ -718,6 +731,7 @@ func _fire(c: Dictionary, trigger: String, other_uid: int = 0) -> void:
 			used[i] = turn
 			c["used_turn"] = used
 		effects.append(e)
+	_announce(c, effects, trigger)
 	_trigger_depth += 1
 	_run_effects(c["owner"], effects, trigger, 0, c["uid"], other_uid)
 	_trigger_depth -= 1
@@ -972,7 +986,7 @@ func _deal_damage(t: int, amount: int, source: Dictionary) -> int:
 			return 0 # damage never destroys it (only sacrifice does)
 		if c["shield"]:
 			c["shield"] = false
-			_emit({"type": "shield_break", "uid": t})
+			_emit({"type": "shield_break", "uid": t, "src": source.get("uid", 0)})
 			return 0
 		c["damage"] += amount
 		dealt = amount
@@ -1054,6 +1068,7 @@ func _check_state() -> void:
 					else:
 						players[p]["graveyard"].append({"uid": c["uid"], "card_id": c["card_id"]})
 					_dying = c
+					_announce(c, card_of(c)["effects"], "on_death")
 					_run_effects(p, card_of(c)["effects"], "on_death", 0, c["uid"])
 					_dying = {}
 					# Aliado Morre fires on every death, even if the creature comes right back (Revivente, Fênix)
