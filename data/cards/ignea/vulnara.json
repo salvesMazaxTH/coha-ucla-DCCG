@@ -3,9 +3,9 @@
   "type": "creature",
   "rarity": "champion",
   "essence": "ignea",
-  "cost": 4,
+  "cost": 3,
   "atk": 3,
-  "hp": 3,
+  "hp": 2,
   "keywords": [
     "longo_alcance"
   ],

@@ -41,13 +41,25 @@
       "color": "#8a8f98"
     }
   },
+  "triggers": {
+    "on_play": { "name": "Ao Jogar", "text": "O efeito acontece quando a carta é jogada da mão." },
+    "on_enter": { "name": "Ao Entrar", "text": "O efeito acontece quando a criatura entra em campo." },
+    "on_death": { "name": "Ao Morrer", "text": "O efeito acontece quando a criatura morre." },
+    "on_attack": { "name": "Ao Atacar", "text": "O efeito acontece quando a criatura é declarada atacante." },
+    "on_block": { "name": "Ao Bloquear", "text": "O efeito acontece quando a criatura é declarada bloqueadora." },
+    "on_blocked": { "name": "Ao Ser Bloqueada", "text": "O efeito acontece quando um bloqueador é atribuído a esta criatura atacante." },
+    "on_damaged": { "name": "Ao Sofrer Dano", "text": "O efeito acontece quando a criatura sofre dano (Escudo anulando o dano não conta)." },
+    "on_hit_leader": { "name": "Ao Atingir o Líder", "text": "O efeito acontece quando a criatura causa dano a um Líder." },
+    "on_turn_start": { "name": "No Início do Turno", "text": "O efeito acontece no início do turno do dono da criatura." },
+    "on_turn_end": { "name": "No Fim do Turno", "text": "O efeito acontece no fim do turno do dono da criatura." }
+  },
   "keywords": {
     "golpe_rapido": {
       "name": "Golpe Rápido",
       "text": "Causa seu dano de combate antes das criaturas sem Golpe Rápido."
     },
-    "avassalar": {
-      "name": "Avassalar",
+    "sobrepujanca": {
+      "name": "Sobrepujança",
       "text": "Dano de combate que excede a vida restante do bloqueador atinge o Líder inimigo."
     },
     "roubo_de_vida": {
@@ -58,13 +70,13 @@
       "name": "Ímpeto",
       "text": "Pode atacar no turno em que entra em campo."
     },
-    "voar": {
-      "name": "Voar",
-      "text": "Só pode ser bloqueada por criaturas com Voar ou Longo Alcance."
+    "voo": {
+      "name": "Voo",
+      "text": "Só pode ser bloqueada por criaturas com Voo ou Longo Alcance."
     },
     "longo_alcance": {
       "name": "Longo Alcance",
-      "text": "Pode bloquear criaturas com Voar."
+      "text": "Pode bloquear criaturas com Voo."
     },
     "furtivo": {
       "name": "Furtivo",
@@ -74,8 +86,8 @@
       "name": "Vigia",
       "text": "Pode bloquear criaturas com Furtivo."
     },
-    "provocar": {
-      "name": "Provocar",
+    "provocacao": {
+      "name": "Provocação",
       "text": "Ao atacar, escolha uma criatura inimiga: ela é obrigada a bloquear esta criatura."
     },
     "escudo": {

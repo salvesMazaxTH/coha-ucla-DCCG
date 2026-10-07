@@ -26,6 +26,8 @@ var pending_search: Dictionary = {}
 var rng := RandomNumberGenerator.new()
 var _next_uid := 1
 var _events: Array = []
+var _trigger_depth := 0
+var _dying: Dictionary = {} ## creature whose Ao Morrer is resolving (for summon "self")
 
 func _init(deck_a: String, deck_b: String, seed_value: int = 0) -> void:
 	rng.seed = seed_value if seed_value != 0 else randi()
@@ -97,7 +99,7 @@ func find_creature(uid: int) -> Dictionary:
 	return {}
 
 func card_of(c: Dictionary) -> Dictionary:
-	return CardDB.card(c["card_id"])
+	return CardDB.card_for(c["card_id"], c)
 
 func has_kw(c: Dictionary, kw: String) -> bool:
 	if kw == "escudo":
@@ -118,7 +120,7 @@ func can_attack(c: Dictionary) -> bool:
 	return not c["exhausted"] and (not c["sick"] or has_kw(c, "impeto")) and atk_of(c) > 0
 
 func can_block(blocker: Dictionary, attacker: Dictionary) -> bool:
-	if has_kw(attacker, "voar") and not (has_kw(blocker, "voar") or has_kw(blocker, "longo_alcance")):
+	if has_kw(attacker, "voo") and not (has_kw(blocker, "voo") or has_kw(blocker, "longo_alcance")):
 		return false
 	if has_kw(attacker, "furtivo") and not (has_kw(blocker, "furtivo") or has_kw(blocker, "vigia")):
 		return false
@@ -267,7 +269,7 @@ func declare_attack(p: int, attacks: Dictionary) -> Array:
 		var prov: int = attacks[uid]
 		if prov != 0:
 			var t := find_creature(prov)
-			if not has_kw(c, "provocar") or t.is_empty() or t["owner"] == p or provoked_used.has(prov):
+			if not has_kw(c, "provocacao") or t.is_empty() or t["owner"] == p or provoked_used.has(prov):
 				return []
 			provoked_used.append(prov)
 	attackers = attacks.duplicate()
@@ -275,6 +277,11 @@ func declare_attack(p: int, attacks: Dictionary) -> Array:
 	for uid in attacks:
 		find_creature(uid)["exhausted"] = true
 	_emit({"type": "attack", "player": p, "attackers": attacks.keys()})
+	for uid in attacks:
+		_fire(find_creature(uid), "on_attack")
+	_check_state()
+	if phase == "over":
+		return _flush()
 	if enemy_board.is_empty():
 		return _resolve_combat({})
 	phase = "blocks"
@@ -359,8 +366,8 @@ func choose_search(p: int, card_uid: int) -> Array:
 
 # ---------------------------------------------------------------- internals
 
-func _summon(p: int, card_id: String, uid: int, legendary: bool, target: int) -> void:
-	var cd := CardDB.card(card_id)
+func _summon(p: int, card_id: String, uid: int, legendary: bool, target: int, over: Dictionary = {}) -> void:
+	var cd := CardDB.card_for(card_id, {"over": over})
 	var kws: Array = cd.get("keywords", []).duplicate()
 	var c := {
 		"uid": uid, "card_id": card_id, "owner": p, "legendary": legendary,
@@ -368,12 +375,25 @@ func _summon(p: int, card_id: String, uid: int, legendary: bool, target: int) ->
 		"keywords": kws, "temp_keywords": [], "shield": kws.has("escudo"),
 		"exhausted": false, "sick": true,
 	}
+	if not over.is_empty():
+		c["over"] = over
 	kws.erase("escudo")
 	players[p]["board"].append(c)
 	_emit({"type": "summon", "player": p, "uid": uid, "card_id": card_id})
 	_run_effects(p, cd["effects"], "on_enter", target, uid)
 
-func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid: int) -> void:
+## Fires a creature's own trigger. Depth-capped so on_damaged chains cannot loop forever.
+func _fire(c: Dictionary, trigger: String, other_uid: int = 0) -> void:
+	if c.is_empty() or _trigger_depth >= 4:
+		return
+	_trigger_depth += 1
+	_run_effects(c["owner"], card_of(c)["effects"], trigger, 0, c["uid"], other_uid)
+	_trigger_depth -= 1
+
+## Gatilhos (cards.json "triggers"): on_play, on_enter, on_death, on_attack, on_block,
+## on_blocked, on_damaged, on_hit_leader, on_turn_start, on_turn_end.
+## other_uid is the opposing creature in combat triggers (blocker, attacker, damage source).
+func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid: int, other_uid: int = 0) -> void:
 	for e in effects:
 		if trigger != "" and e.get("trigger", "") != trigger:
 			continue
@@ -391,6 +411,19 @@ func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid
 			"random_enemy_creature":
 				var b: Array = players[opponent(p)]["board"]
 				if not b.is_empty(): targets = [b[rng.randi_range(0, b.size() - 1)]["uid"]]
+			"self":
+				if not find_creature(self_uid).is_empty(): targets = [self_uid]
+			"none":
+				targets = [0]
+			"opposed_creature":
+				if not find_creature(other_uid).is_empty(): targets = [other_uid]
+			"all_ally_creatures":
+				for c in players[p]["board"]: targets.append(c["uid"])
+			"random_ally_creature", "random_other_ally_creature":
+				var pool: Array = []
+				for c in players[p]["board"]:
+					if e["target"] == "random_ally_creature" or c["uid"] != self_uid: pool.append(c["uid"])
+				if not pool.is_empty(): targets = [pool[rng.randi_range(0, pool.size() - 1)]]
 		for t in targets:
 			_apply(p, e, t)
 		if e.get("action", "") == "search_deck" and e.get("trigger", "") == trigger:
@@ -439,6 +472,8 @@ func _apply(p: int, e: Dictionary, t: int) -> void:
 			_draw(p, int(e["amount"]))
 		"search_deck":
 			pass # Search effects are opened by _run_effects after their trigger resolves.
+		"summon":
+			_summon_effect(p, e)
 		"buff":
 			var c := find_creature(t)
 			if c.is_empty():
@@ -467,6 +502,8 @@ func _deal_damage(t: int, amount: int, source: Dictionary) -> int:
 		players[tp]["leader_hp"] -= amount
 		dealt = amount
 		_emit({"type": "damage", "uid": t, "amount": amount, "src": source.get("uid", 0)})
+		if not source.is_empty():
+			_fire(source, "on_hit_leader")
 	else:
 		var c := find_creature(t)
 		if c.is_empty():
@@ -478,6 +515,7 @@ func _deal_damage(t: int, amount: int, source: Dictionary) -> int:
 		c["damage"] += amount
 		dealt = amount
 		_emit({"type": "damage", "uid": t, "amount": amount, "src": source.get("uid", 0)})
+		_fire(c, "on_damaged", source.get("uid", 0))
 	if not source.is_empty() and has_kw(source, "roubo_de_vida"):
 		_heal_leader(source["owner"], dealt)
 	return dealt
@@ -504,6 +542,13 @@ func _draw(p: int, n: int) -> void:
 func _resolve_combat(blocks: Dictionary) -> Array:
 	var defender := opponent(active)
 	_emit({"type": "blocks", "blocks": blocks})
+	for a in blocks:
+		_fire(find_creature(blocks[a]), "on_block", a)
+		_fire(find_creature(a), "on_blocked", blocks[a])
+	_check_state()
+	if phase == "over":
+		attackers.clear()
+		return _flush()
 	var pairs: Array = []
 	for a in attackers:
 		pairs.append([a, blocks.get(a, 0)])
@@ -517,9 +562,9 @@ func _resolve_combat(blocks: Dictionary) -> Array:
 				elif not blk.is_empty():
 					var excess := atk_of(att) - hp_left(blk)
 					_deal_damage(blk["uid"], atk_of(att), att)
-					if has_kw(att, "avassalar") and excess > 0:
+					if has_kw(att, "sobrepujanca") and excess > 0:
 						_deal_damage(LEADER_UID[defender], excess, att)
-				elif has_kw(att, "avassalar"):
+				elif has_kw(att, "sobrepujanca"):
 					_deal_damage(LEADER_UID[defender], atk_of(att), att) # blocker already dead
 			if not blk.is_empty() and has_kw(blk, "golpe_rapido") == first_strike and not att.is_empty():
 				_deal_damage(att["uid"], atk_of(blk), blk)
@@ -546,7 +591,9 @@ func _check_state() -> void:
 						players[p]["legendary"]["in_zone"] = true
 					else:
 						players[p]["graveyard"].append({"uid": c["uid"], "card_id": c["card_id"]})
+					_dying = c
 					_run_effects(p, card_of(c)["effects"], "on_death", 0, c["uid"])
+					_dying = {}
 	var dead := [players[0]["leader_hp"] <= 0, players[1]["leader_hp"] <= 0]
 	if dead[0] or dead[1]:
 		winner = 2 if dead[0] and dead[1] else (1 if dead[0] else 0)
@@ -554,6 +601,11 @@ func _check_state() -> void:
 		_emit({"type": "game_over", "winner": winner})
 
 func _finish_turn() -> void:
+	for c in players[active]["board"].duplicate():
+		_fire(c, "on_turn_end")
+	_check_state()
+	if phase == "over":
+		return
 	for p in players:
 		for c in p["board"]:
 			c["damage"] = 0
@@ -577,6 +629,20 @@ func _start_turn(p: int, draw: bool) -> void:
 		c["exhausted"] = false
 		c["sick"] = false
 	_emit({"type": "start_turn", "player": p, "turn": turn})
+	for c in pl["board"].duplicate():
+		_fire(c, "on_turn_start")
 	if draw:
 		_draw(p, 1)
 	_check_state()
+
+## Generic summon: {"action":"summon","target":"none","card":<id|"self">,"overrides":{atk,hp,keywords,effects,text,...}}.
+## "self" is the creature whose effect is running (works from Ao Morrer). Overrides stick to the instance.
+func _summon_effect(p: int, e: Dictionary) -> void:
+	var id: String = e.get("card", "self")
+	if id == "self":
+		if _dying.is_empty():
+			return
+		id = _dying["card_id"]
+	if players[p]["board"].size() >= BOARD_LIMIT:
+		return
+	_summon(p, id, _uid(), false, 0, e.get("overrides", {}))

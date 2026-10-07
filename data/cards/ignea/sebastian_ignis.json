@@ -3,15 +3,20 @@
   "type": "creature",
   "rarity": "champion",
   "essence": "ignea",
-  "cost": 5,
-  "atk": 4,
+  "cost": 2,
+  "atk": 1,
   "hp": 5,
-  "keywords": [
-    "avassalar"
-  ],
+  "keywords": [],
   "art": "sebastian_ignis.webp",
-  "effects": [],
-  "text": "",
-  "flavor": "A única coisa que ele faz bem, ele faz muito bem.",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 2
+    }
+  ],
+  "text": "Ao Morrer: cause 2 de dano ao Líder inimigo.",
+  "flavor": "Ele não luta. Só não se dá ao trabalho de cair.",
   "tags": []
 }

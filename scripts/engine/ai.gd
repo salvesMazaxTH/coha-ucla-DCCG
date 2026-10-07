@@ -121,7 +121,7 @@ static func _try_attack(g: GameState, p: int) -> Array:
 		if not g.can_attack(c):
 			continue
 		var prov := 0
-		if g.has_kw(c, "provocar"):
+		if g.has_kw(c, "provocacao"):
 			for e in enemy_board:
 				if not used_prov.has(e["uid"]) and g.atk_of(e) < g.hp_left(c) and (g.atk_of(c) >= g.hp_left(e) or e["shield"]):
 					prov = e["uid"]

@@ -608,7 +608,7 @@ func _hint() -> String:
 			return "Mão acima de 10: escolha %d para descartar." % (g.players[viewer]["hand"].size() - GameState.HAND_LIMIT)
 		"main":
 			if provoking != 0:
-				return "Provocar: escolha a criatura inimiga que será obrigada a bloquear."
+				return "Provocação: escolha a criatura inimiga que será obrigada a bloquear."
 			return "Jogue cartas e clique nas suas criaturas para atacar · botão direito: ver carta"
 	return ""
 
@@ -771,7 +771,7 @@ func _on_creature_click(v: CardView) -> void:
 				attack_sel.erase(v.uid)
 			else:
 				attack_sel[v.uid] = 0
-				if g.has_kw(c, "provocar") and not g.players[g.opponent(viewer)]["board"].is_empty():
+				if g.has_kw(c, "provocacao") and not g.players[g.opponent(viewer)]["board"].is_empty():
 					provoking = v.uid
 			_render()
 		"blocks":
@@ -788,7 +788,7 @@ func _on_creature_click(v: CardView) -> void:
 					block_sel[v.uid] = blocker_pick
 					blocker_pick = 0
 				else:
-					_log("Essa criatura não pode bloquear esse atacante (Voar/Furtivo).")
+					_log("Essa criatura não pode bloquear esse atacante (Voo/Furtivo).")
 				_render()
 
 # ---------------------------------------------------------------- overlay
@@ -797,7 +797,7 @@ func _show_overlay(v: CardView) -> void:
 	if v.face_down:
 		return
 	_close_overlay()
-	var cd := CardDB.card(v.card_id)
+	var cd := CardDB.card_for(v.card_id, v.inst)
 	overlay = ColorRect.new()
 	overlay.color = Color(0, 0, 0, 0.82)
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)

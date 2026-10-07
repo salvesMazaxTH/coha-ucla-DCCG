@@ -125,7 +125,7 @@ func _draw() -> void:
 	var r := Rect2(Vector2.ZERO, size)
 	var rad := 10.0 * s
 	var pulse := 0.5 + 0.5 * sin(_t * 4.0)
-	var cd: Dictionary = {} if face_down else CardDB.card(card_id)
+	var cd: Dictionary = {} if face_down else CardDB.card_for(card_id, inst)
 	var st: Dictionary = STYLES["back"] if face_down else STYLES[_style_key(cd)]
 	var trim := Color(st["trim"])
 	var glow := Color(st["glow"])

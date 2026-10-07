@@ -6,10 +6,7 @@
   "cost": 6,
   "atk": 5,
   "hp": 4,
-  "keywords": [
-    "voar",
-    "roubo_de_vida"
-  ],
+  "keywords": ["impeto"],
   "art": "clay_lord_of_the_shadowflame.webp",
   "effects": [],
   "text": "",

@@ -27,6 +27,16 @@ static func data() -> Dictionary:
 static func card(id: String) -> Dictionary:
 	return data()["cards"][id]
 
+## Card data with a summoned instance's overrides (atk, hp, keywords, effects, text...) applied.
+static func card_for(id: String, inst: Dictionary = {}) -> Dictionary:
+	var cd: Dictionary = data()["cards"][id]
+	var over: Dictionary = inst.get("over", {})
+	if over.is_empty():
+		return cd
+	var m := cd.duplicate()
+	m.merge(over, true)
+	return m
+
 static func leader(id: String) -> Dictionary:
 	return data()["leaders"][id]
 

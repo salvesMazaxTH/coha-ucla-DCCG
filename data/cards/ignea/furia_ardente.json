@@ -3,7 +3,7 @@
   "type": "spell",
   "rarity": "common",
   "essence": "ignea",
-  "cost": 1,
+  "cost": 2,
   "art": "",
   "effects": [
     {
@@ -13,11 +13,11 @@
       "atk": 2,
       "temp": true,
       "keywords": [
-        "avassalar"
+        "sobrepujanca"
       ]
     }
   ],
-  "text": "Uma criatura aliada ganha +2 de Ataque neste turno e Avassalar.",
+  "text": "Uma criatura aliada ganha +2 de Ataque neste turno e Sobrepujança.",
   "flavor": "",
   "tags": []
 }

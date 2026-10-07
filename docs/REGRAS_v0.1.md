@@ -49,17 +49,35 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 | Ao Entrar | O efeito acontece quando a criatura entra em campo. |
 | Ao Morrer | O efeito acontece quando a criatura morre. |
 | Golpe Rápido | Causa dano de combate antes das criaturas sem Golpe Rápido. |
-| Avassalar | O dano que exceder a vida restante do bloqueador vai para o Líder inimigo. |
+| Sobrepujança | O dano que exceder a vida restante do bloqueador vai para o Líder inimigo. |
 | Roubo de Vida | O dano causado pela criatura cura o seu Líder. |
 | Ímpeto | Pode atacar no turno em que entra em campo. |
-| Voar | Só pode ser bloqueada por criaturas com Voar ou Longo Alcance. |
-| Longo Alcance | Pode bloquear criaturas com Voar. |
+| Voo | Só pode ser bloqueada por criaturas com Voo ou Longo Alcance. |
+| Longo Alcance | Pode bloquear criaturas com Voo. |
 | Furtivo | Só pode ser bloqueada por criaturas com Furtivo ou Vigia. |
 | Vigia | Pode bloquear criaturas com Furtivo. |
-| Provocar | Ao atacar, escolha uma criatura inimiga. Ela é obrigada a bloquear esta criatura, mesmo contra Voar ou Furtivo. |
+| Provocação | Ao atacar, escolha uma criatura inimiga. Ela é obrigada a bloquear esta criatura, mesmo contra Voo ou Furtivo. |
 | Escudo | Anula a próxima instância de dano. |
 
 ## Controles
 - **Clique esquerdo:** jogar uma carta, selecionar atacantes, escolher alvos e atribuir bloqueios (primeiro o seu bloqueador, depois o atacante).
 - **Clique direito numa carta:** abre o texto completo em tela cheia.
 - **Clique direito ou Esc durante a escolha de alvo:** cancela.
+
+## Gatilhos
+Gatilhos dizem *quando* um efeito acontece. Eles abrem o texto da carta no lugar de frases por extenso, e ficam em `triggers` no `cards.json`.
+
+| Gatilho | Quando |
+|---|---|
+| Ao Jogar | A carta é jogada da mão (feitiços e equipamentos). |
+| Ao Entrar | A criatura entra em campo. |
+| Ao Morrer | A criatura morre. |
+| Ao Atacar | A criatura é declarada atacante. |
+| Ao Bloquear | A criatura é declarada bloqueadora. |
+| Ao Ser Bloqueada | Um bloqueador é atribuído a esta criatura atacante. |
+| Ao Sofrer Dano | A criatura sofre dano (Escudo anulando o dano não conta). |
+| Ao Atingir o Líder | A criatura causa dano a um Líder. |
+| No Início do Turno | Começa o turno do dono da criatura. |
+| No Fim do Turno | Termina o turno do dono da criatura. |
+
+Alvos de gatilhos que não pedem escolha do jogador: `self`, `opposed_creature` (a criatura do outro lado do combate, ou a fonte do dano), `all_ally_creatures`, `random_ally_creature`, `random_other_ally_creature`, `random_enemy_creature`, `all_enemy_creatures`, `enemy_leader` e `own_leader`. Só Ao Jogar e Ao Entrar podem usar alvo escolhido pelo jogador.
