@@ -12,6 +12,7 @@ func _init() -> void:
 	for d in DeckDB.ids():
 		var errs := DeckDB.validate(d)
 		check(errs.is_empty(), "deck %s: %s" % [d, errs])
+	_test_off_essence()
 	_test_setup()
 	_test_search()
 	_test_freeze()
@@ -103,6 +104,33 @@ func _obscura_game() -> GameState:
 	return g
 
 ## Kills a unit by damage and resolves the deaths (revives and triggers included).
+func _test_off_essence() -> void:
+	# fire deck: swap in off-essence (aquática) cards; neutral and own-essence cards don't count
+	var base: Dictionary = DeckDB.get_deck("fogo")["cards"].duplicate()
+	var leader: String = DeckDB.get_deck("fogo")["leader"]
+	var victims: Array = base.keys().filter(func(k): return k != DeckDB.get_deck("fogo")["leader"] and CardDB.card(k).get("rarity", "") != "champion")
+	var swapped := 0
+	for k in victims:
+		if swapped >= 12:
+			break
+		var take: int = mini(int(base[k]), 12 - swapped)
+		base[k] -= take
+		if base[k] == 0:
+			base.erase(k)
+		swapped += take
+	base["afogar"] = 3
+	base["tsunami"] = 3
+	base["bencao_das_profundezas"] = 3
+	base["espirito_da_mare"] = 3
+	check(DeckDB.validate_cards(leader, base).filter(func(e): return "fora da essência" in e).is_empty(), "12 cartas de fora da essência são permitidas")
+	var over: Dictionary = base.duplicate()
+	over["tritao_lanceiro"] = 1
+	over[over.keys().filter(func(k): return k != "afogar" and k != "tsunami" and k != "bencao_das_profundezas" and k != "espirito_da_mare" and k != leader)[0]] -= 1
+	check(not DeckDB.validate_cards(leader, over).filter(func(e): return "máximo 12" in e).is_empty(), "13 cartas de fora da essência são ilegais")
+	var champ: Dictionary = base.duplicate()
+	champ["alexa_neruvya"] = 1 # a champion of another essence
+	check(not DeckDB.validate_cards(leader, champ).filter(func(e): return "Campeão" in e).is_empty(), "Campeão de fora da essência é ilegal")
+
 func _kill(g: GameState, c: Dictionary) -> void:
 	c["damage"] = 1000
 	g._check_state()

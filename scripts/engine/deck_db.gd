@@ -5,6 +5,8 @@ extends RefCounted
 
 const DECK_SIZE := 48
 const MAX_COPIES := 3
+## Cards outside the Leader's essences (neutral ones don't count); champions can never be off-essence.
+const MAX_OFF_ESSENCE := 12
 const PREBUILT_DIR := "res://data/decks/prebuilt"
 
 static var _decks: Dictionary = {}
@@ -54,27 +56,36 @@ static func card_count(id: String) -> int:
 
 ## Returns a list of rule violations; empty means the deck is legal.
 static func validate(deck_id: String) -> Array[String]:
-	var errors: Array[String] = []
 	var d := get_deck(deck_id)
-	var ld := CardDB.leader(d["leader"])
+	return validate_cards(d["leader"], d["cards"])
+
+## Same check for any {card_id: copies} list under the given Leader.
+static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String]:
+	var errors: Array[String] = []
+	var ld := CardDB.leader(leader_id)
 	var total := 0
-	for id in d["cards"]:
-		var n: int = d["cards"][id]
+	var off_essence := 0
+	for id in cards:
+		var n: int = cards[id]
 		total += n
 		var c := CardDB.card(id)
 		if n > MAX_COPIES:
 			errors.append("%s: mais de %d cópias" % [id, MAX_COPIES])
-		# dual cards are legal when the Leader shares any of their essences
+		# dual cards count as on-essence when the Leader shares any of their essences
 		var ess := CardDB.essences_of(c)
 		var legal := ess.has("neutra")
 		for e in ess:
 			legal = legal or ld["essences"].has(e)
 		if not legal:
-			errors.append("%s: essência fora da identidade do Líder" % id)
+			off_essence += n
+			if c.get("rarity", "") == "champion":
+				errors.append("%s: Campeão não pode ser de fora da essência do Líder" % id)
 		if CardDB.is_leader_card(id) and id != ld["legendary"]:
 			errors.append("%s: Encarnação de outro Líder" % id)
+	if off_essence > MAX_OFF_ESSENCE:
+		errors.append("%d cartas de fora da essência do Líder (máximo %d)" % [off_essence, MAX_OFF_ESSENCE])
 	if total != DECK_SIZE:
 		errors.append("deck tem %d cartas (precisa de %d)" % [total, DECK_SIZE])
-	if not d["cards"].has(ld["legendary"]):
+	if not cards.has(ld["legendary"]):
 		errors.append("falta a Encarnação do Líder %s" % ld["legendary"])
 	return errors
