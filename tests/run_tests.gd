@@ -9,12 +9,15 @@ func check(cond: bool, msg: String) -> void:
 		printerr("FAIL: ", msg)
 
 func _init() -> void:
-	for d in ["fogo", "agua"]:
-		var errs := CardDB.validate_deck(d)
+	for d in DeckDB.ids():
+		var errs := DeckDB.validate(d)
 		check(errs.is_empty(), "deck %s: %s" % [d, errs])
 	_test_setup()
 	_test_search()
 	_test_freeze()
+	_test_constant()
+	_test_obscura()
+	_test_obscura_rules()
 	_test_combat()
 	_test_triggers()
 	_test_stack()
@@ -70,6 +73,225 @@ func _test_search() -> void:
 	var rest: Array = top.filter(func(c): return c["uid"] != chosen["uid"]).map(func(c): return c["uid"])
 	check(rest.all(func(u): return bottom_uids.has(u)), "as outras vão para o fundo do deck")
 	check(_has_event(picked, "search_take"), "escolha emite evento de busca")
+
+func _test_constant() -> void:
+	var g := _new_game()
+	var jeff := _put(g, 0, "jeff")
+	check(g.atk_of(jeff) == 2 and g.hp_left(jeff) == 2, "jeff sem cemitério é 2/2")
+	g.players[0]["graveyard"].append({"uid": g._uid(), "card_id": "serpente_marinha"})
+	g.players[0]["graveyard"].append({"uid": g._uid(), "card_id": "gaivota_da_tempestade"})
+	g.players[0]["graveyard"].append({"uid": g._uid(), "card_id": "bola_de_fogo"})
+	g._check_state()
+	check(g.atk_of(jeff) == 6 and g.hp_left(jeff) == 6, "jeff +2/+2 por criatura no cemitério (feitiço não conta)")
+	g.players[1]["graveyard"].append({"uid": g._uid(), "card_id": "serpente_marinha"})
+	g._check_state()
+	check(g.atk_of(jeff) == 6, "cemitério inimigo não conta")
+	g.players[0]["graveyard"].pop_back()
+	g.players[0]["graveyard"].pop_back()
+	g._check_state()
+	check(g.atk_of(jeff) == 4, "bônus encolhe quando o cemitério encolhe")
+	jeff["damage"] = 1
+	g.players[0]["graveyard"].clear()
+	g._check_state()
+	check(g.hp_left(jeff) == 1, "dano persiste ao perder o bônus")
+
+func _obscura_game() -> GameState:
+	var g := GameState.new("obscura", "fogo", 7)
+	g.mulligan(0, [])
+	g.mulligan(1, [])
+	return g
+
+## Kills a creature by damage and resolves the deaths (revives and triggers included).
+func _kill(g: GameState, c: Dictionary) -> void:
+	c["damage"] = 1000
+	g._check_state()
+	g._flush()
+
+func _count(g: GameState, p: int, card_id: String) -> int:
+	return g.players[p]["board"].filter(func(c): return c["card_id"] == card_id).size()
+
+func _test_obscura() -> void:
+	var g := _obscura_game()
+	check(g.players[0]["leader_id"] == "jeff", "deck obscura tem o Jeff como Líder")
+	g.players[0]["passive_used"] = true # silence the Leader passive: it has its own test below
+	var deck_before: int = g.players[0]["deck"].size()
+	# Necrófago: hiena zumbi 0 custo 3/2, no mill any more
+	var nec := _put(g, 0, "necrofago_espectral")
+	check(g.players[0]["deck"].size() == deck_before and g.players[0]["graveyard"].is_empty(), "necrófago não manda mais o topo do deck ao cemitério")
+	check(g.atk_of(nec) == 3 and g.hp_left(nec) == 2 and CardDB.card("necrofago_espectral")["species"] == ["morto_vivo", "fera"], "necrófago é uma hiena zumbi 3/2")
+	# Replicador summons two copies of itself without the effect (no chain)
+	_put(g, 0, "replicador_maldito")
+	check(_count(g, 0, "replicador_maldito") == 3, "replicador invoca duas cópias")
+	var copies: Array = g.players[0]["board"].filter(func(c): return c["card_id"] == "replicador_maldito" and g.card_of(c)["effects"].is_empty())
+	check(copies.size() == 2, "as cópias não têm o efeito")
+	# Revivente returns forever, as a new instance
+	var rev := _put(g, 0, "revivente_eterno")
+	for i in 3:
+		var cur: Array = g.players[0]["board"].filter(func(c): return c["card_id"] == "revivente_eterno")
+		check(cur.size() == 1, "revivente está em campo (morte %d)" % i)
+		_kill(g, cur[0])
+	var back: Array = g.players[0]["board"].filter(func(c): return c["card_id"] == "revivente_eterno")
+	check(back.size() == 1 and back[0]["uid"] != rev["uid"] and g.atk_of(back[0]) == 2 and g.hp_left(back[0]) == 2, "revivente volta sempre, como nova instância")
+	check(not g.players[0]["graveyard"].any(func(e): return e["card_id"] == "revivente_eterno"), "revivente em campo não fica no cemitério")
+	# Fênix: back with -2/-2 of what it had; stops at 0
+	var fen := _put(g, 0, "fenix_da_chama_profana")
+	_kill(g, fen)
+	var fb: Array = g.players[0]["board"].filter(func(c): return c["card_id"] == "fenix_da_chama_profana")
+	check(fb.size() == 1 and g.atk_of(fb[0]) == 2 and g.hp_left(fb[0]) == 1, "fênix volta com -2/-2")
+	_kill(g, fb[0])
+	check(_count(g, 0, "fenix_da_chama_profana") == 0, "fênix com 0 de ataque ou vida não volta")
+	check(g.players[0]["graveyard"].any(func(e): return e["card_id"] == "fenix_da_chama_profana"), "fênix acaba no cemitério")
+	# Titânico: 5/6 Longo Alcance, no Voo, mill 2
+	var gy: int = g.players[0]["graveyard"].size()
+	var dk: int = g.players[0]["deck"].size()
+	var tit := _put(g, 0, "titanico_morcegalma")
+	check(g.atk_of(tit) == 5 and g.hp_left(tit) == 6 and g.has_kw(tit, "longo_alcance") and not g.has_kw(tit, "voo"), "titânico 5/6 Longo Alcance sem Voo")
+	check(g.players[0]["deck"].size() == dk - 2 and g.players[0]["graveyard"].size() == gy + 2, "titânico mói 2")
+	# Necromante revives a creature of cost <= 3
+	gy = g.players[0]["graveyard"].size()
+	_put(g, 0, "necromante_sepulcral")
+	check(g.players[0]["graveyard"].size() == gy - 1, "necromante reviveu do cemitério")
+	# Sacrifice: Cientista kills an ally and draws 2
+	g.players[0]["board"].clear()
+	var ally := _put(g, 0, "esqueleto_guerreiro")
+	var hand: int = g.players[0]["hand"].size()
+	var uid := g._uid()
+	g._summon(0, "cientista_da_morte", uid, false, ally["uid"])
+	g._check_state()
+	g._flush()
+	check(g.find_creature(ally["uid"]).is_empty(), "cientista sacrificou o aliado")
+	check(g.players[0]["hand"].size() == hand + 2, "sacrifício comprou 2 cartas")
+	check(_count(g, 0, "esqueleto_guerreiro") == 1, "cientista invoca um esqueleto quando um aliado vai ao cemitério")
+	# Colheita de Almas: sacrifice -> 4 damage to the enemy leader
+	var foe: int = g.players[1]["leader_hp"]
+	var fodder := _put(g, 0, "esqueleto_guerreiro")
+	var spell := _give(g, 0, "colheita_de_almas")
+	g.players[0]["momentum"] = 10
+	g.play_card(0, spell, fodder["uid"])
+	g._flush()
+	check(g.players[1]["leader_hp"] == foe - 4 and g.find_creature(fodder["uid"]).is_empty(), "colheita: sacrifica e causa 4")
+
+func _test_obscura_rules() -> void:
+	# Diabrete: draws when another ally dies (not for itself), Ao Morrer hits the Leader
+	var g := _obscura_game()
+	g.players[0]["passive_used"] = true
+	var dia := _put(g, 0, "diabrete_sombrio")
+	check(g.atk_of(dia) == 2 and g.hp_left(dia) == 1 and CardDB.card("diabrete_sombrio")["cost"] == 2, "diabrete 2-drop 2/1")
+	var fodder := _put(g, 0, "esqueleto_guerreiro")
+	var hand: int = g.players[0]["hand"].size()
+	_kill(g, fodder)
+	check(g.players[0]["hand"].size() == hand + 1, "diabrete compra quando um aliado morre")
+	var foe: int = g.players[1]["leader_hp"]
+	_kill(g, dia)
+	check(g.players[0]["hand"].size() == hand + 1 and g.players[1]["leader_hp"] == foe - 1, "diabrete não ativa por si mesmo; Ao Morrer fere o Líder")
+	# Aliado Morre means "went to the graveyard": a Revivente that comes back does not count
+	var gr := _obscura_game()
+	gr.players[0]["passive_used"] = true
+	_put(gr, 0, "diabrete_sombrio")
+	var rv := _put(gr, 0, "revivente_eterno")
+	var hr: int = gr.players[0]["hand"].size()
+	_kill(gr, rv)
+	check(gr.players[0]["hand"].size() == hr and _count(gr, 0, "revivente_eterno") == 1, "revivente que volta não conta como Aliado Morre")
+	# Cientista da Morte summons a skeleton on Aliado Morre
+	var sg := _obscura_game()
+	sg.players[0]["passive_used"] = true
+	_put(sg, 0, "cientista_da_morte")
+	var sk := _put(sg, 0, "esqueleto_guerreiro")
+	var n0: int = _count(sg, 0, "esqueleto_guerreiro")
+	_kill(sg, sk)
+	check(_count(sg, 0, "esqueleto_guerreiro") == n0, "cientista substitui o esqueleto que foi ao cemitério")
+	var sk2 := _put(sg, 0, "esqueleto_guerreiro")
+	var sk3 := _put(sg, 0, "esqueleto_guerreiro")
+	var n1: int = _count(sg, 0, "esqueleto_guerreiro")
+	_kill(sg, sk2)
+	_kill(sg, sk3)
+	check(_count(sg, 0, "esqueleto_guerreiro") == n1 - 2, "cientista só invoca uma vez por turno (o primeiro já usou o limite)")
+	sg.end_turn(0)
+	_quiet(sg)
+	sg.end_turn(1)
+	var sk4: Dictionary = sg.players[0]["board"].filter(func(c): return c["card_id"] == "esqueleto_guerreiro")[0]
+	var n2: int = _count(sg, 0, "esqueleto_guerreiro")
+	_kill(sg, sk4)
+	check(_count(sg, 0, "esqueleto_guerreiro") == n2, "cientista volta a invocar no turno seguinte")
+	# an enemy ally dying does not count
+	var g2 := _obscura_game()
+	g2.players[0]["passive_used"] = true
+	_put(g2, 0, "diabrete_sombrio")
+	var enemy := _put(g2, 1, "kai")
+	var h2: int = g2.players[0]["hand"].size()
+	_kill(g2, enemy)
+	check(g2.players[0]["hand"].size() == h2, "morte de criatura inimiga não ativa Aliado Morre")
+
+	# Jeff passive: once per turn, resets on the next turn
+	var j := _obscura_game()
+	var a1 := _put(j, 0, "esqueleto_guerreiro")
+	var a2 := _put(j, 0, "esqueleto_guerreiro")
+	var jh: int = j.players[0]["hand"].size()
+	var jf: int = j.players[1]["leader_hp"]
+	_kill(j, a1)
+	check(j.players[1]["leader_hp"] == jf - 1 and j.players[0]["hand"].size() == jh + 1 and j.players[0]["passive_used"], "passiva do Jeff: 1 de dano e compra 1")
+	_kill(j, a2)
+	check(j.players[1]["leader_hp"] == jf - 1 and j.players[0]["hand"].size() == jh + 1, "passiva do Jeff só uma vez por turno")
+	_quiet(j)
+	j.end_turn(0)
+	check(not j.players[0]["passive_used"], "passiva reseta no turno seguinte")
+	check(not j.can_use_ability(0), "passiva não é ativável")
+	# the dead Leader-owner's passive does not fire for the opponent's deaths
+	var j2 := _obscura_game()
+	var e1 := _put(j2, 1, "kai")
+	var jf2: int = j2.players[1]["leader_hp"]
+	_kill(j2, e1)
+	check(j2.players[1]["leader_hp"] == jf2 and not j2.players[0]["passive_used"], "aliado inimigo morrendo não ativa a passiva")
+
+	# Vagante Sombria: cost drops with the own graveyard, indestructible
+	var v := _obscura_game()
+	var vag: Dictionary = CardDB.card("a_vagante_sombria")
+	check(v.cost_of(0, vag) == 12, "vagante custa 12 com cemitério vazio")
+	for i in 5:
+		v.players[0]["graveyard"].append({"uid": v._uid(), "card_id": "esqueleto_guerreiro"})
+	check(v.cost_of(0, vag) == 7, "vagante custa 1 a menos por carta no cemitério")
+	for i in 20:
+		v.players[0]["graveyard"].append({"uid": v._uid(), "card_id": "cova_rasa"})
+	check(v.cost_of(0, vag) == 0, "custo nunca fica abaixo de 0")
+	check(v.cost_of(1, vag) == 12, "cemitério inimigo não reduz")
+	var vc := _put(v, 0, "a_vagante_sombria")
+	v._apply(1, {"action": "damage", "target": "any", "amount": 99}, vc["uid"])
+	check(not v.find_creature(vc["uid"]).is_empty() and vc["damage"] == 0, "vagante ignora dano")
+	var fresh := _obscura_game()
+	fresh.players[0]["passive_used"] = true
+	var vc2 := _put(fresh, 0, "a_vagante_sombria")
+	var sc := _give(fresh, 0, "colheita_de_almas")
+	fresh.players[0]["momentum"] = 10
+	fresh.play_card(0, sc, vc2["uid"])
+	fresh._flush()
+	check(fresh.find_creature(vc2["uid"]).is_empty(), "sacrifício ainda mata a vagante")
+
+	# Necrófago additional cost: sacrifice an ally you control (the AI pays with its weakest)
+	var n := _obscura_game()
+	n.players[0]["passive_used"] = true
+	var nid := _give(n, 0, "necrofago_espectral")
+	n.players[0]["momentum"] = 0
+	check(not n.can_play(0, nid), "necrófago exige uma criatura para sacrificar")
+	var weak := _put(n, 0, "esqueleto_guerreiro")
+	var strong := _put(n, 0, "titanico_morcegalma")
+	check(n.can_play(0, nid), "necrófago custa 0 com um aliado para sacrificar")
+	check(n.card_spec(CardDB.card("necrofago_espectral")) == "ally_creature", "necrófago pede um alvo aliado")
+	check(n.play_card(0, nid, 0).is_empty(), "necrófago sem alvo de sacrifício não entra")
+	n.play_card(0, nid, weak["uid"])
+	n._flush()
+	check(n.find_creature(weak["uid"]).is_empty() and _count(n, 0, "necrofago_espectral") == 1 and not n.find_creature(strong["uid"]).is_empty(), "necrófago sacrificou o escolhido e entrou")
+	check(n.players[0]["graveyard"].any(func(e): return e["card_id"] == "esqueleto_guerreiro"), "o sacrificado foi ao cemitério")
+	# full board: the sacrifice itself frees the slot
+	var fb := _obscura_game()
+	fb.players[0]["passive_used"] = true
+	for i in GameState.BOARD_LIMIT:
+		_put(fb, 0, "esqueleto_guerreiro")
+	var fid := _give(fb, 0, "necrofago_espectral")
+	check(fb.can_play(0, fid), "com o campo cheio o sacrifício libera a vaga")
+	var ai_pick := SimpleAI._pick_sacrifice(fb, 0)
+	fb.play_card(0, fid, ai_pick)
+	fb._flush()
+	check(fb.players[0]["board"].size() == GameState.BOARD_LIMIT and _count(fb, 0, "necrofago_espectral") == 1, "campo cheio: troca o sacrificado pelo necrófago")
 
 func _test_freeze() -> void:
 	var g := _new_game()

@@ -51,7 +51,7 @@ func _init(deck_a: String, deck_b: String, seed_value: int = 0) -> void:
 	_events.clear()
 
 func _make_player(i: int, deck_id: String) -> Dictionary:
-	var d := CardDB.deck(deck_id)
+	var d := DeckDB.get_deck(deck_id)
 	var ld := CardDB.leader(d["leader"])
 	var deck: Array = []
 	for id in d["cards"]:
@@ -66,7 +66,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"momentum": 0, "max_momentum": 0,
 		"deck": deck, "hand": [], "board": [], "graveyard": [],
 		"legendary": {"card_id": ld["legendary"], "in_zone": true, "casts": 0},
-		"ability_used": false, "attacked": false, "fatigue": 0, "mulligan_done": false,
+		"ability_used": false, "passive_used": false, "attacked": false, "fatigue": 0, "mulligan_done": false,
 	}
 
 func _uid() -> int:
@@ -124,10 +124,37 @@ func has_kw(c: Dictionary, kw: String) -> bool:
 	return c["keywords"].has(kw)
 
 func atk_of(c: Dictionary) -> int:
-	return max(0, c["atk"] + c["temp_atk"])
+	return max(0, c["atk"] + c["temp_atk"] + int(c.get("bonus_atk", 0)))
 
 func hp_left(c: Dictionary) -> int:
-	return c["hp"] - c["damage"]
+	return c["hp"] + int(c.get("bonus_hp", 0)) - c["damage"]
+
+## Creature cards in a player's graveyard.
+func graveyard_creatures(p: int) -> int:
+	var n := 0
+	for e in players[p]["graveyard"]:
+		if CardDB.card(e["card_id"])["type"] == "creature":
+			n += 1
+	return n
+
+## Recomputes the "constante" effects of board creatures. Action "scale" gives
+## atk/hp per counted thing (e.g. +2/+2 per creature card in the own graveyard).
+func _refresh_scaling() -> void:
+	for p in 2:
+		for c in players[p]["board"]:
+			var bonus_atk := 0
+			var bonus_hp := 0
+			for e in card_of(c)["effects"]:
+				if e.get("trigger", "") != "constante" or e.get("action", "") != "scale":
+					continue
+				var n := 0
+				match e.get("per", ""):
+					"own_graveyard_creatures": n = graveyard_creatures(p)
+					"enemy_graveyard_creatures": n = graveyard_creatures(opponent(p))
+				bonus_atk += n * int(e.get("atk", 0))
+				bonus_hp += n * int(e.get("hp", 0))
+			c["bonus_atk"] = bonus_atk
+			c["bonus_hp"] = bonus_hp
 
 func legendary_cost(p: int) -> int:
 	var l: Dictionary = players[p]["legendary"]
@@ -155,6 +182,24 @@ func target_spec(effects: Array) -> String:
 		if e.get("target", "") in ["enemy_creature", "ally_creature", "other_ally_creature", "any_creature", "any", "enemy_stack"]:
 			return e["target"]
 	return ""
+
+## Target a card needs when played: its additional sacrifice cost (the creature to sacrifice)
+## or the chosen target of its effects.
+func card_spec(cd: Dictionary) -> String:
+	return "ally_creature" if cd.get("cost_sacrifice", false) else target_spec(cd["effects"])
+
+## Momentum cost of a card for player p, after "constante" cost_reduction effects
+## (e.g. per: "own_graveyard" = 1 less for each card in the own graveyard). Never below 0.
+func cost_of(p: int, cd: Dictionary) -> int:
+	var c := int(cd["cost"])
+	for e in cd.get("effects", []):
+		if e.get("trigger", "") != "constante" or e.get("action", "") != "cost_reduction":
+			continue
+		var n := 0
+		match e.get("per", ""):
+			"own_graveyard": n = players[p]["graveyard"].size()
+		c -= n * int(e.get("amount", 1))
+	return maxi(c, 0)
 
 func valid_targets(p: int, spec: String, self_uid: int = 0) -> Array:
 	var out: Array = []
@@ -209,14 +254,14 @@ func counter_extra(cd: Dictionary, sid: int) -> int:
 
 ## Targets a card from hand can be played on right now (counters filter by reach and Momentum).
 func card_targets(p: int, cd: Dictionary) -> Array:
-	var spec := target_spec(cd["effects"])
+	var spec := card_spec(cd)
 	var out := valid_targets(p, spec)
 	if spec != "enemy_stack":
 		return out
 	var ok: Array = []
 	for sid in out:
 		var x := counter_extra(cd, sid)
-		if x >= 0 and int(cd["cost"]) + x <= int(players[p]["momentum"]):
+		if x >= 0 and cost_of(p, cd) + x <= int(players[p]["momentum"]):
 			ok.append(sid)
 	return ok
 
@@ -248,10 +293,14 @@ func can_play(p: int, hand_uid: int) -> bool:
 	if inst.is_empty():
 		return false
 	var cd := CardDB.card(inst["card_id"])
-	if int(cd["cost"]) > players[p]["momentum"]:
+	if cost_of(p, cd) > players[p]["momentum"]:
 		return false
 	if cd["type"] == "creature":
-		return _sorcery_time(p) and players[p]["board"].size() < BOARD_LIMIT
+		if not _sorcery_time(p):
+			return false
+		if cd.get("cost_sacrifice", false):
+			return not players[p]["board"].is_empty() # the sacrifice also frees the slot
+		return players[p]["board"].size() < BOARD_LIMIT
 	if not can_cast_speed(p, speed_of(cd)):
 		return false
 	var spec := target_spec(cd["effects"])
@@ -263,6 +312,8 @@ func can_cast_legendary(p: int) -> bool:
 
 func can_use_ability(p: int) -> bool:
 	var ab: Dictionary = CardDB.leader(players[p]["leader_id"])["ability"]
+	if ab.get("passive", false):
+		return false # passives fire on their own trigger
 	if not can_cast_speed(p, speed_of(ab)) or int(ab["cost"]) > players[p]["momentum"]:
 		return false
 	if ab.get("once_per_turn", false) and players[p]["ability_used"]:
@@ -305,15 +356,30 @@ func play_card(p: int, hand_uid: int, target: int = 0) -> Array:
 		return []
 	var inst := _hand_card(p, hand_uid)
 	var cd := CardDB.card(inst["card_id"])
+	var sacrifice: bool = cd["type"] == "creature" and cd.get("cost_sacrifice", false)
 	var spec := target_spec(cd["effects"])
-	if cd["type"] != "creature" and spec != "" and not card_targets(p, cd).has(target):
+	if sacrifice:
+		if not valid_targets(p, "ally_creature").has(target):
+			return []
+	elif cd["type"] != "creature" and spec != "" and not card_targets(p, cd).has(target):
 		return []
 	var pl: Dictionary = players[p]
-	pl["momentum"] -= int(cd["cost"]) + (counter_extra(cd, target) if spec == "enemy_stack" else 0)
+	pl["momentum"] -= cost_of(p, cd) + (counter_extra(cd, target) if spec == "enemy_stack" else 0)
 	pl["hand"].erase(inst)
 	_emit({"type": "play", "player": p, "uid": hand_uid, "card_id": inst["card_id"]})
+	if sacrifice:
+		# additional cost: the chosen ally dies first (its Ao Morrer / Aliado Morre resolve before the card enters)
+		find_creature(target)["damage"] = 1000000
+		_emit({"type": "sacrifice", "player": p, "uid": target})
+		_check_state()
+		if phase == "over":
+			return _flush()
+		if pl["board"].size() >= BOARD_LIMIT: # a death effect refilled the slot
+			pl["graveyard"].append({"uid": hand_uid, "card_id": inst["card_id"]})
+			_settle()
+			return _flush()
 	if cd["type"] == "creature":
-		_summon(p, inst["card_id"], hand_uid, false, target)
+		_summon(p, inst["card_id"], hand_uid, false, 0 if sacrifice else target)
 		_check_state()
 	else:
 		_push(p, "card", hand_uid, inst["card_id"], target, speed_of(cd))
@@ -640,16 +706,30 @@ func _summon(p: int, card_id: String, uid: int, legendary: bool, target: int, ov
 func _fire(c: Dictionary, trigger: String, other_uid: int = 0) -> void:
 	if c.is_empty() or _trigger_depth >= 4:
 		return
+	var effects: Array = []
+	var used: Dictionary = c.get("used_turn", {})
+	var all_effects: Array = card_of(c)["effects"]
+	for i in all_effects.size():
+		var e: Dictionary = all_effects[i]
+		if e.get("trigger", "") == trigger and e.get("once_per_turn", false):
+			if used.get(i, -1) == turn:
+				continue # "once per turn" effect already used this turn
+			used[i] = turn
+			c["used_turn"] = used
+		effects.append(e)
 	_trigger_depth += 1
-	_run_effects(c["owner"], card_of(c)["effects"], trigger, 0, c["uid"], other_uid)
+	_run_effects(c["owner"], effects, trigger, 0, c["uid"], other_uid)
 	_trigger_depth -= 1
 
 ## Gatilhos (cards.json "triggers"): on_play, on_enter, on_death, on_attack, on_block,
-## on_blocked, on_damaged, on_hit_leader, on_turn_start, on_turn_end.
+## on_blocked, on_damaged, on_hit_leader, on_turn_start, on_turn_end. "constante" never fires
+## here: it is continuous and handled by _refresh_scaling.
 ## other_uid is the opposing creature in combat triggers (blocker, attacker, damage source).
 func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid: int, other_uid: int = 0) -> void:
 	for e in effects:
 		if trigger != "" and e.get("trigger", "") != trigger:
+			continue
+		if e.get("trigger", "") == "constante":
 			continue
 		var targets: Array = []
 		match e.get("target", ""):
@@ -707,6 +787,8 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 		if e.has("max_cost") and int(cd.get("cost", 999)) > int(e["max_cost"]):
 			continue
 		if e.has("type") and cd.get("type", "") != e["type"]:
+			continue
+		if e.has("species") and not cd.get("species", []).has(e["species"]):
 			continue
 		if e.has("tags"):
 			var card_tags: Array = cd.get("tags", [])
@@ -785,6 +867,20 @@ func _apply(p: int, e: Dictionary, t: int) -> void:
 			_emit({"type": "freeze", "uid": t})
 		"summon":
 			_summon_effect(p, e)
+		"mill":
+			_mill(p, int(e.get("amount", 1)))
+		"revive":
+			_revive(p, int(e.get("max_cost", 99)))
+		"revive_self":
+			_revive_self(p, e)
+		"sacrifice":
+			# kills one of the caster's own creatures; "then" effects run only if it happened
+			var victim := find_creature(t)
+			if victim.is_empty() or victim["owner"] != p:
+				return
+			victim["damage"] = victim["hp"] + int(victim.get("bonus_hp", 0))
+			_emit({"type": "sacrifice", "player": p, "uid": t})
+			_run_effects(p, e.get("then", []), "", 0, 0)
 		"buff":
 			var c := find_creature(t)
 			if c.is_empty():
@@ -805,6 +901,56 @@ func _apply(p: int, e: Dictionary, t: int) -> void:
 						c["temp_keywords"].append(kw)
 			_emit({"type": "buff", "uid": t, "atk": e.get("atk", 0), "hp": e.get("hp", 0), "keywords": e.get("keywords", [])})
 
+## Top cards of the deck go to the graveyard (no fatigue when the deck runs out).
+func _mill(p: int, n: int) -> void:
+	var pl: Dictionary = players[p]
+	var cards: Array = []
+	for i in n:
+		if pl["deck"].is_empty():
+			break
+		var c: Dictionary = pl["deck"].pop_back()
+		pl["graveyard"].append({"uid": c["uid"], "card_id": c["card_id"]})
+		cards.append(c["card_id"])
+	if not cards.is_empty():
+		_emit({"type": "mill", "player": p, "cards": cards})
+
+## Returns a random creature card (cost <= max_cost) from the graveyard to the board.
+func _revive(p: int, max_cost: int) -> void:
+	if players[p]["board"].size() >= BOARD_LIMIT:
+		return
+	var pool: Array = []
+	for e in players[p]["graveyard"]:
+		var cd := CardDB.card(e["card_id"])
+		if cd["type"] == "creature" and int(cd["cost"]) <= max_cost:
+			pool.append(e)
+	if pool.is_empty():
+		return
+	var pick: Dictionary = pool[rng.randi_range(0, pool.size() - 1)]
+	players[p]["graveyard"].erase(pick)
+	_emit({"type": "revive", "player": p, "card_id": pick["card_id"]})
+	_summon(p, pick["card_id"], _uid(), false, 0)
+
+## Ao Morrer: the dying creature comes back to the board as a new instance (so it no longer takes
+## part in the combat it died in), with base atk/hp changed by e["atk"]/e["hp"] (usually negative)
+## relative to what it had when it died. It does not return if atk or hp would reach 0.
+## While on the board it is not a graveyard card, so its entry leaves the graveyard.
+func _revive_self(p: int, e: Dictionary) -> void:
+	if _dying.is_empty() or _dying["legendary"]:
+		return
+	var atk: int = int(_dying["atk"]) + int(e.get("atk", 0))
+	var hp: int = int(_dying["hp"]) + int(e.get("hp", 0))
+	if atk <= 0 or hp <= 0 or players[p]["board"].size() >= BOARD_LIMIT:
+		return
+	for entry in players[p]["graveyard"]:
+		if entry["uid"] == _dying["uid"]:
+			players[p]["graveyard"].erase(entry)
+			break
+	var over: Dictionary = (_dying.get("over", {}) as Dictionary).duplicate()
+	over["atk"] = atk
+	over["hp"] = hp
+	_emit({"type": "revive", "player": p, "card_id": _dying["card_id"]})
+	_summon(p, _dying["card_id"], _uid(), false, 0, over)
+
 ## Returns damage actually dealt. source is the dealing creature or {}.
 func _deal_damage(t: int, amount: int, source: Dictionary) -> int:
 	if amount <= 0:
@@ -821,6 +967,8 @@ func _deal_damage(t: int, amount: int, source: Dictionary) -> int:
 		var c := find_creature(t)
 		if c.is_empty():
 			return 0
+		if has_kw(c, "indestrutivel"):
+			return 0 # damage never destroys it (only sacrifice does)
 		if c["shield"]:
 			c["shield"] = false
 			_emit({"type": "shield_break", "uid": t})
@@ -893,6 +1041,7 @@ func _check_state() -> void:
 	var changed := true
 	while changed:
 		changed = false
+		_refresh_scaling()
 		for p in 2:
 			for c in players[p]["board"].duplicate():
 				if hp_left(c) <= 0:
@@ -906,11 +1055,32 @@ func _check_state() -> void:
 					_dying = c
 					_run_effects(p, card_of(c)["effects"], "on_death", 0, c["uid"])
 					_dying = {}
+					# Aliado Morre = "went to the graveyard", not just "died": a Legendary returning to its zone or a
+					# creature that revived itself (its entry left the graveyard) does not count.
+					if players[p]["graveyard"].any(func(e): return e["uid"] == c["uid"]):
+						for ally in players[p]["board"].duplicate():
+							if players[p]["board"].has(ally):
+								_fire(ally, "on_ally_death", c["uid"])
+						_fire_leader_passive(p, "on_ally_death")
 	var dead := [players[0]["leader_hp"] <= 0, players[1]["leader_hp"] <= 0]
 	if dead[0] or dead[1]:
 		winner = 2 if dead[0] and dead[1] else (1 if dead[0] else 0)
 		phase = "over"
 		_emit({"type": "game_over", "winner": winner})
+
+## Leader passive ("passive": true in the leader's ability): runs its effects when `trigger` happens,
+## once per turn if "once_per_turn". Depth-capped like creature triggers.
+func _fire_leader_passive(p: int, trigger: String) -> void:
+	var ab: Dictionary = CardDB.leader(players[p]["leader_id"])["ability"]
+	if not ab.get("passive", false) or ab.get("trigger", "") != trigger or _trigger_depth >= 4:
+		return
+	if ab.get("once_per_turn", false) and players[p]["passive_used"]:
+		return
+	players[p]["passive_used"] = true
+	_emit({"type": "passive", "player": p})
+	_trigger_depth += 1
+	_run_effects(p, ab["effects"], "", 0, 0)
+	_trigger_depth -= 1
 
 func _finish_turn() -> void:
 	for c in players[active]["board"].duplicate():
@@ -942,6 +1112,7 @@ func _start_turn(p: int, draw: bool) -> void:
 	pl["momentum"] = pl["max_momentum"]
 	for q in players:
 		q["ability_used"] = false # once per turn: instant abilities can be used on either turn
+		q["passive_used"] = false
 	pl["attacked"] = false
 	for c in pl["board"]:
 		c["exhausted"] = false

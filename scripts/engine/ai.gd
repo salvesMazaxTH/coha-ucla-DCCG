@@ -65,8 +65,8 @@ static func _try_play(g: GameState, p: int) -> Array:
 		if not g.can_play(p, c["uid"]):
 			continue
 		var cd := CardDB.card(c["card_id"])
-		var spec := g.target_spec(cd["effects"])
-		var t := _pick_target(g, p, spec, cd)
+		var spec := g.card_spec(cd)
+		var t := _pick_sacrifice(g, p) if cd.get("cost_sacrifice", false) else _pick_target(g, p, spec, cd)
 		if spec != "" and t == 0 and cd["type"] != "creature":
 			continue
 		var ev := g.play_card(p, c["uid"], t)
@@ -77,6 +77,17 @@ static func _try_play(g: GameState, p: int) -> Array:
 		var t := _pick_target(g, p, g.target_spec(ab["effects"]), ab)
 		return g.use_ability(p, t)
 	return []
+
+## Additional sacrifice cost: give up the weakest ally.
+static func _pick_sacrifice(g: GameState, p: int) -> int:
+	var worst := 0
+	var worst_score := 999
+	for c in g.players[p]["board"]:
+		var score: int = g.atk_of(c) + g.hp_left(c)
+		if score < worst_score:
+			worst_score = score
+			worst = int(c["uid"])
+	return worst
 
 ## Hostile effects pick the biggest enemy (or the Leader); friendly ones the biggest ally.
 static func _pick_target(g: GameState, p: int, spec: String, src) -> int:
