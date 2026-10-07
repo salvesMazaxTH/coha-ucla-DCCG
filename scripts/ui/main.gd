@@ -1402,10 +1402,7 @@ func _show_overlay(v: CardView) -> void:
 		if v.inst.has("frozen"):
 			body = "[color=#9fe8ff][b]Congelada:[/b] não pode atacar nem bloquear até o fim do próximo turno do dono.[/color]
 " + body
-		for tid in CardDB.data()["triggers"]:
-			var tn: String = CardDB.data()["triggers"][tid]["name"]
-			body = body.replace(tn + ":", "[b][color=#%s]%s[/color][/b]:" % [CardView.TRIGGER_COL.to_html(false), tn])
-		txt += "[font_size=32]%s[/font_size]\n\n" % body
+		txt += "[font_size=32]%s[/font_size]\n\n" % CardView.colorize_triggers(body)
 	for kw in cd.get("keywords", []):
 		var k := CardDB.keyword(kw)
 		txt += "[color=#ffe9a8][b]%s[/b][/color] — %s\n" % [k["name"], k["text"]]

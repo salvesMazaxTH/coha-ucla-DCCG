@@ -122,6 +122,15 @@ func _process(delta: float) -> void:
 			_redraw_acc = 0.0
 			queue_redraw()
 
+## Rules text as BBCode with trigger names (and an optional "(...)" qualifier
+## before the colon, e.g. "Aliado Morre (uma vez por turno):") in bold orange.
+static func colorize_triggers(body: String) -> String:
+	for tid in CardDB.data()["triggers"]:
+		var tn: String = CardDB.data()["triggers"][tid]["name"]
+		var re := RegEx.create_from_string(r"(%s(?: \([^)]*\))?):" % tn)
+		body = re.sub(body, "[b][color=#%s]$1[/color][/b]:" % TRIGGER_COL.to_html(false), true)
+	return body
+
 static func texture(file: String) -> Texture2D:
 	if file == "":
 		return null

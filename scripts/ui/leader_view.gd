@@ -27,6 +27,9 @@ var active := false ## whose turn it is
 var elem_color := Color.WHITE
 var _hover_ability := false
 var _t := 0.0
+var _holding := false
+var _long := false
+var _press_id := 0
 
 func setup(id: String) -> LeaderView:
 	leader_id = id
@@ -38,12 +41,13 @@ func setup(id: String) -> LeaderView:
 	size = SIZE
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_build_portrait(ld)
-	var gem := Control.new() # hover area so the tooltip only covers the ability gem
+	var gem := AbilityGem.new() # hover area so the tooltip only covers the ability gem
+	gem.ability = ld["ability"]
+	gem.elem_color = elem_color
 	gem.position = AC - Vector2(AR, AR)
 	gem.size = Vector2(AR, AR) * 2
 	gem.mouse_filter = Control.MOUSE_FILTER_PASS
-	var cost_txt := "passiva" if passive else "%d Momentum" % ability_cost
-	gem.tooltip_text = "%s (%s)\n%s" % [ld["ability"]["name"], cost_txt, ld["ability"]["text"]]
+	gem.tooltip_text = ld["ability"]["name"] # non-empty so Godot asks for the custom tooltip
 	gem.mouse_entered.connect(func():
 		_hover_ability = true
 		queue_redraw())
@@ -87,6 +91,27 @@ func _process(delta: float) -> void:
 		queue_redraw()
 
 func _gui_input(e: InputEvent) -> void:
+	# touch has no hover: long-press the gem (or tap a passive one) to read the ability
+	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and CardView.touch_ui() \
+			and e.position.distance_to(AC) <= AR + 2:
+		if e.pressed:
+			_holding = true
+			_long = false
+			var id := Time.get_ticks_msec()
+			_press_id = id
+			get_tree().create_timer(0.4).timeout.connect(func():
+				if _holding and _press_id == id and is_instance_valid(self):
+					_long = true
+					_show_ability_popup())
+		else:
+			_holding = false
+			if not _long:
+				if passive:
+					_show_ability_popup()
+				else:
+					ability_clicked.emit()
+		accept_event()
+		return
 	if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
 		if e.position.distance_to(AC) <= AR + 2:
 			if not passive:
@@ -201,3 +226,109 @@ func _text(font: Font, t: String, center: Vector2, fs: int, col: Color) -> void:
 	var pos := Vector2(center.x - w / 2, center.y)
 	draw_string_outline(font, pos, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 4, Color(0, 0, 0, 0.85))
 	draw_string(font, pos, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+
+## Touch: the ability panel on a dimmed layer; any tap closes it.
+func _show_ability_popup() -> void:
+	var layer := Control.new()
+	layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.gui_input.connect(func(e):
+		if e is InputEventMouseButton and e.pressed:
+			layer.queue_free())
+	var shade := ColorRect.new()
+	shade.color = Color(0, 0, 0, 0.35)
+	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(shade)
+	var p := PanelContainer.new()
+	p.add_theme_stylebox_override("panel", UITheme.tooltip_box())
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.add_child(ability_panel(CardDB.leader(leader_id)["ability"], elem_color))
+	layer.add_child(p)
+	get_tree().root.add_child(layer)
+	await get_tree().process_frame # let the wrapped text settle its height
+	if not is_instance_valid(p):
+		return
+	var vp := layer.size
+	var want := global_position + AC + Vector2(AR + 12, -AR)
+	p.position = Vector2(clamp(want.x, 8, vp.x - p.size.x - 8), clamp(want.y, 8, vp.y - p.size.y - 8))
+
+const SPEED_NAMES := {"rapido": "Rápida", "instantaneo": "Instantânea"}
+
+## Ability card body: gold title, cost/speed chips, rules text that wraps.
+## The chips already say speed, cost and "1× por turno", so the matching
+## lead-in of the text is dropped.
+static func ability_panel(ab: Dictionary, col: Color) -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var title := Label.new()
+	title.text = ab["name"]
+	title.add_theme_font_override("font", UITheme.font("title_bold"))
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", UITheme.GOLD_LIGHT)
+	title.add_theme_constant_override("outline_size", 6)
+	title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	box.add_child(title)
+
+	var chips := HBoxContainer.new()
+	chips.add_theme_constant_override("separation", 6)
+	var passive := bool(ab.get("passive", false))
+	if passive:
+		chips.add_child(_chip("PASSIVA", col.lightened(0.25)))
+	else:
+		chips.add_child(_chip("◆ %d MOMENTUM" % int(ab["cost"]), UITheme.MOMENTUM))
+	if SPEED_NAMES.has(ab.get("speed", "")):
+		chips.add_child(_chip(SPEED_NAMES[ab["speed"]].to_upper(), Color("#9fd8ff")))
+	if ab.get("once_per_turn", false):
+		chips.add_child(_chip("1× POR TURNO", UITheme.TEXT))
+	box.add_child(chips)
+
+	var rule := ColorRect.new()
+	rule.color = Color(UITheme.GOLD, 0.3)
+	rule.custom_minimum_size = Vector2(0, 1)
+	box.add_child(rule)
+
+	var body: String = ab["text"]
+	for lead in [r"^(Rápida|Instantânea|Passiva)\.\s*", r"^\d+ Momentum, uma vez por turno:\s*", r"^\d+ Momentum:\s*"]:
+		body = RegEx.create_from_string(lead).sub(body, "")
+	if body != "":
+		body = body.substr(0, 1).to_upper() + body.substr(1)
+	var rt := RichTextLabel.new()
+	rt.bbcode_enabled = true
+	rt.fit_content = true
+	rt.scroll_active = false
+	rt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	rt.custom_minimum_size = Vector2(420, 0)
+	rt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rt.add_theme_font_size_override("normal_font_size", 21)
+	rt.add_theme_font_size_override("bold_font_size", 21)
+	rt.add_theme_constant_override("line_separation", 3)
+	rt.text = CardView.colorize_triggers(body)
+	box.add_child(rt)
+	return box
+
+static func _chip(t: String, col: Color) -> Control:
+	var c := PanelContainer.new()
+	var sb := UITheme.box(Color(col.darkened(0.75), 0.9), 5, Color(col, 0.55), 1)
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 2
+	sb.content_margin_bottom = 2
+	c.add_theme_stylebox_override("panel", sb)
+	var l := Label.new()
+	l.text = t
+	l.add_theme_font_override("font", UITheme.font("heavy"))
+	l.add_theme_font_size_override("font_size", 14)
+	l.add_theme_color_override("font_color", col)
+	c.add_child(l)
+	return c
+
+## Hover target over the ability gem; desktop hover shows the ability panel.
+class AbilityGem extends Control:
+	var ability: Dictionary
+	var elem_color := Color.WHITE
+
+	func _make_custom_tooltip(_for_text: String) -> Object:
+		return LeaderView.ability_panel(ability, elem_color)

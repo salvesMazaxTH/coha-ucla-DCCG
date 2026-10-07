@@ -55,6 +55,15 @@ static func panel(radius := 10) -> StyleBoxFlat:
 	sb.set_content_margin_all(12)
 	return sb
 
+## Tooltip / info popover: near-opaque ink, gold rim, soft drop shadow.
+static func tooltip_box() -> StyleBoxFlat:
+	var sb := box(Color("#15121c", 0.97), 10, Color(GOLD, 0.6), 2, 14)
+	sb.content_margin_left = 18
+	sb.content_margin_right = 18
+	sb.content_margin_top = 12
+	sb.content_margin_bottom = 16
+	return sb
+
 static func make() -> Theme:
 	var t := Theme.new()
 	t.default_font = font("bold")
@@ -73,12 +82,10 @@ static func make() -> Theme:
 
 	t.set_stylebox("panel", "Panel", panel())
 	t.set_stylebox("panel", "PanelContainer", panel())
-	var tip := box(Color("#14121b"), 6, Color(GOLD, 0.5), 1, 6)
-	tip.set_content_margin_all(10)
-	t.set_stylebox("panel", "TooltipPanel", tip)
+	t.set_stylebox("panel", "TooltipPanel", tooltip_box())
 	t.set_color("font_color", "TooltipLabel", TEXT)
 	t.set_font("font", "TooltipLabel", font("body"))
-	t.set_font_size("font_size", "TooltipLabel", 15)
+	t.set_font_size("font_size", "TooltipLabel", 20)
 	t.set_font("normal_font", "RichTextLabel", font("body"))
 	t.set_font("bold_font", "RichTextLabel", font("heavy"))
 	t.set_color("default_color", "RichTextLabel", TEXT)
