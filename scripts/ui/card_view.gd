@@ -225,7 +225,7 @@ func _draw() -> void:
 	draw_polyline(plate + PackedVector2Array([plate[0]]), trim, 1.2 * s, true)
 	var nf := UITheme.font("title_bold")
 	var name_s: String = cd["name"]
-	_text(nf, name_s, Vector2(size.x / 2, py + ph / 2 + 4 * s), _fit(nf, name_s, 10.5 * s, size.x - 30 * s), Color("#fff4dc"))
+	_text(nf, name_s, Vector2(size.x / 2, py + ph / 2 + 4 * s), _fit(nf, name_s, 11.5 * s, size.x - 24 * s), Color("#fff4dc"))
 
 	# lower panel: keywords (creatures) or card type
 	var panel := Rect2(Vector2(10, 126) * s, Vector2(BASE.x - 20, 34) * s)
@@ -233,14 +233,14 @@ func _draw() -> void:
 	_rrect_line(panel, 4 * s, Color(trim, 0.25), 1 * s)
 	var lines := _panel_lines(cd)
 	var bf := UITheme.font("bold")
-	var ly := panel.get_center().y + 3.5 * s - (lines.size() - 1) * 5.5 * s
+	var ly := panel.get_center().y + 3.5 * s - (lines.size() - 1) * 6.25 * s
 	for ln in lines:
-		var fs := _fit(bf, ln[0], 9.5 * s, panel.size.x - 34 * s)
+		var fs := _fit(bf, ln[0], 11.5 * s, panel.size.x - 24 * s)
 		_text(bf, ln[0], Vector2(size.x / 2, ly), fs, ln[1])
-		ly += 11 * s
+		ly += 12.5 * s
 
 	# essence seal on the bottom edge, crest on the top edge
-	_seal(Vector2(size.x / 2, size.y - 3 * s), 5.5 * s, cd["essence"], col, trim)
+	_rarity_gem(Vector2(size.x / 2, size.y - 3 * s), 5.5 * s, cd["rarity"], trim)
 	_diamond(Vector2(size.x / 2, 2.5 * s), 3.5 * s, trim)
 
 	# gems
@@ -373,11 +373,25 @@ func _sigil(kind: String, c: Vector2, r: float) -> PackedVector2Array:
 		pts.append(c + Vector2(p[0], p[1]) * r)
 	return pts
 
-func _seal(c: Vector2, r: float, essence: String, col: Color, trim: Color) -> void:
-	draw_circle(c, r + 1.5, Color("#07060a"))
-	draw_circle(c, r, col.darkened(0.35))
-	draw_arc(c, r, 0, TAU, 24, trim, 1.0, true)
-	draw_colored_polygon(_sigil(essence, c, r * 0.62), col.lightened(0.5))
+## Rarity gem on the bottom edge: white (common), amethyst (epic), orange
+## (champion / legendary).
+func _rarity_gem(c: Vector2, r: float, rarity: String, trim: Color) -> void:
+	var col := Color("#f2f2f2")
+	if rarity == "epic":
+		col = Color("#9b4fd6")
+	elif rarity == "champion" or rarity == "legendary":
+		col = Color("#ff8a1c")
+	var pts := PackedVector2Array()
+	for p in [[0, -1.0], [0.85, -0.3], [0.85, 0.3], [0, 1.0], [-0.85, 0.3], [-0.85, -0.3]]:
+		pts.append(c + Vector2(p[0], p[1]) * r)
+	draw_colored_polygon(_grow(pts, c, 1.3), Color("#07060a"))
+	draw_colored_polygon(pts, col.darkened(0.4))
+	# facets
+	draw_colored_polygon(PackedVector2Array([pts[0], pts[1], c, pts[5]]), col.lightened(0.25))
+	draw_colored_polygon(PackedVector2Array([pts[1], pts[2], pts[3], c]), col)
+	draw_colored_polygon(PackedVector2Array([pts[5], c, pts[3], pts[4]]), col.darkened(0.2))
+	draw_polyline(pts + PackedVector2Array([pts[0]]), trim, 1.0, true)
+	draw_circle(c + Vector2(-r * 0.3, -r * 0.4), r * 0.16, Color(1, 1, 1, 0.8))
 
 ## Embossed gem: drop shadow, metal bezel, body, glossy highlight, specular.
 func _gem(kind: String, c: Vector2, r: float, col: Color, t: String, tcol: Color, s: float) -> void:

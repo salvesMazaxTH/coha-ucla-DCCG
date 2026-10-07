@@ -5,8 +5,13 @@ extends Control
 const SEL := Color("#ffd23f")
 const TARGET := Color("#ff5050")
 const OK := Color("#4dff88")
-const COL_X := 1384.0 ## right HUD column
-const COL_W := 200.0
+const COL_W := 232.0 ## right HUD column width
+const STAGE_H := 900.0
+const STAGE_MAX_W := 2100.0
+var stage_w := 1600.0 ## logical width: 1600 or wider, follows the window aspect
+var col_x := 1352.0
+var lane_cx := 882.0
+var motes: CPUParticles2D
 
 var g: GameState
 var vs_ai := true
@@ -32,11 +37,9 @@ var hand_uids := {} ## viewer's hand cards in the current render
 var fx: Control ## persistent layer above the table: ghosts, floats, embers
 var ai_timer: Timer
 
-const HAND_CX := 900.0
 var _hand_base := 0 ## child index of the first hand card in layer
 
 const DECK_POSE := {"c": Vector2(186, 776), "rot": 0.0, "w": 24.0}
-const ENEMY_HAND_POSE := {"c": Vector2(830, 30), "rot": 0.0, "w": 60.0}
 
 func _ready() -> void:
 	theme = UITheme.make()
@@ -52,7 +55,9 @@ func _ready() -> void:
 	_fit_viewport()
 	table = TableView.new()
 	add_child(table)
-	add_child(_motes())
+	motes = _motes()
+	add_child(motes)
+	_fit_viewport()
 	fx = Control.new()
 	fx.set_anchors_preset(Control.PRESET_FULL_RECT)
 	fx.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -64,16 +69,31 @@ func _ready() -> void:
 	add_child(ai_timer)
 	_show_menu()
 
-## The 1600x900 stage is centred in whatever the window aspect is (stretch "expand");
-## the background fills the extra space instead of black bars.
+## The stage is 900 tall and at least 1600 wide: on wider windows (phones in
+## landscape) it grows sideways, so the table uses the space instead of leaving
+## empty bands. Anchored overlays follow because Main itself is the stage.
 func _fit_viewport() -> void:
 	var vp := get_viewport().get_visible_rect().size
+	var w := clampf(STAGE_H * vp.x / max(1.0, vp.y), 1600.0, STAGE_MAX_W)
+	var changed := not is_equal_approx(w, stage_w)
+	stage_w = w
+	col_x = w - 16.0 - COL_W
+	TableView.layout(col_x - 16.0)
+	lane_cx = TableView.ENEMY_LANE.get_center().x
 	set_anchors_preset(Control.PRESET_TOP_LEFT)
-	size = Vector2(1600, 900)
+	size = Vector2(w, STAGE_H)
 	position = (vp - size) / 2.0
 	bg.position = -position
 	bg.size = vp
 	(bg.material as ShaderMaterial).set_shader_parameter("aspect", vp.x / vp.y)
+	if motes:
+		motes.position = Vector2(w / 2.0, 470)
+		motes.emission_rect_extents = Vector2(w / 2.0 + 20.0, 470)
+	if changed and layer:
+		if table.visible and g:
+			_render.call_deferred()
+		elif not table.visible:
+			_show_menu.call_deferred()
 
 ## Slow drifting embers over the whole screen, for depth.
 func _motes() -> CPUParticles2D:
@@ -115,7 +135,7 @@ func _show_menu() -> void:
 	table.visible = false
 	_set_tints(Color("#3f7bd9"), Color("#e0572b"), 1.6)
 	# the two Leaders of the slice, facing each other from the edges
-	for side in [["ignea/ronan.webp", 0.0, 1.0], ["aquatica/naelthos.webp", 1600.0 - 640.0, 0.0]]:
+	for side in [["ignea/ronan.webp", 0.0, 1.0], ["aquatica/naelthos.webp", stage_w - 640.0, 0.0]]:
 		var tex := CardView.texture(side[0])
 		if tex == null:
 			continue
@@ -135,7 +155,7 @@ func _show_menu() -> void:
 		layer.add_child(tr)
 	var sup := _label("CHAMPION SHOWDOWN ARENA", 18, Color(UITheme.GOLD, 0.8), HORIZONTAL_ALIGNMENT_CENTER, "title", 4)
 	sup.position = Vector2(0, 196)
-	sup.size = Vector2(1600, 30)
+	sup.size = Vector2(stage_w, 30)
 	layer.add_child(sup)
 	var title := _label("DUELO DE CARTAS", 76, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 10)
 	title.add_theme_color_override("font_shadow_color", Color(UITheme.GOLD, 0.35))
@@ -143,12 +163,12 @@ func _show_menu() -> void:
 	title.add_theme_constant_override("shadow_offset_x", 0)
 	title.add_theme_constant_override("shadow_offset_y", 0)
 	title.position = Vector2(0, 224)
-	title.size = Vector2(1600, 100)
+	title.size = Vector2(stage_w, 100)
 	layer.add_child(title)
-	layer.add_child(_ornament(Vector2(800, 340), 260))
+	layer.add_child(_ornament(Vector2(stage_w / 2.0, 340), 260))
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 14)
-	box.position = Vector2(800 - 210, 390)
+	box.position = Vector2(stage_w / 2.0 - 210, 390)
 	box.custom_minimum_size = Vector2(420, 0)
 	layer.add_child(box)
 	for opt in [["JOGAR COMO RONAN", "Fogo contra a IA de Naelthos (Água)", true, "fogo", "agua", true],
@@ -161,7 +181,7 @@ func _show_menu() -> void:
 		var sub := _label(opt[1], 14, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 		box.add_child(sub)
 	var ver := _label("alpha 0.1", 13, Color(1, 1, 1, 0.35), HORIZONTAL_ALIGNMENT_RIGHT, "body")
-	ver.position = Vector2(1300, 864)
+	ver.position = Vector2(stage_w - 300, 864)
 	ver.size = Vector2(280, 20)
 	layer.add_child(ver)
 
@@ -203,7 +223,7 @@ func _reset_input() -> void:
 
 func _do(events: Array) -> void:
 	if events.is_empty():
-		_log("Ação inválida.")
+		_toast("Ação inválida.")
 		return
 	_reset_input()
 	for e in events:
@@ -305,7 +325,7 @@ func _veil(alpha := 0.72) -> PanelContainer:
 
 func _center(pc: Control) -> void:
 	pc.reset_size()
-	pc.position = (Vector2(1600, 900) - pc.size) / 2.0
+	pc.position = (size - pc.size) / 2.0
 
 func _render_pass() -> void:
 	var p := viewer
@@ -380,17 +400,17 @@ func _render_enemy_hand(p: int) -> void:
 		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		v.pivot_offset = v.size / 2.0
 		v.rotation = deg_to_rad(-k * 4.0)
-		v.position = Vector2(830 + k * 30 - v.size.x / 2.0, -38 + k * k * 1.2)
+		v.position = Vector2(lane_cx - 68 + k * 30 - v.size.x / 2.0, -38 + k * k * 1.2)
 		layer.add_child(v)
 	if n > 0:
 		var cnt := _label("%d" % n, 15, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 5)
-		cnt.position = Vector2(830 + (n - 1) / 2.0 * 30 + 30, 18)
+		cnt.position = Vector2(lane_cx - 68 + (n - 1) / 2.0 * 30 + 30, 18)
 		cnt.size = Vector2(30, 20)
 		layer.add_child(cnt)
 
 func _render_board(p: int, y: float) -> void:
 	var board: Array = g.players[p]["board"]
-	var w: float = min(146.0, 920.0 / max(1, board.size()))
+	var w: float = min(146.0, (TableView.ENEMY_LANE.size.x - 20.0) / max(1, board.size()))
 	var x0 := TableView.ENEMY_LANE.get_center().x - board.size() * w / 2.0
 	for i in board.size():
 		var c: Dictionary = board[i]
@@ -451,14 +471,14 @@ func _render_hand(p: int) -> void:
 	var hand: Array = g.players[p]["hand"]
 	var n := hand.size()
 	_hand_base = layer.get_child_count()
-	var step: float = min(112.0, 800.0 / max(1, n))
+	var step: float = min(122.0, (TableView.ENEMY_LANE.size.x - 110.0) / max(1, n))
 	var ang: float = min(5.0, 36.0 / max(1, n))
 	for i in n:
 		var c: Dictionary = hand[i]
-		var v := CardView.new().setup(c["card_id"], c, 1.1)
+		var v := CardView.new().setup(c["card_id"], c, 1.2)
 		var k := i - (n - 1) / 2.0
 		v.pivot_offset = Vector2(v.size.x / 2.0, v.size.y)
-		var pos := Vector2(HAND_CX + k * step - v.size.x / 2.0, 688 + k * k * 1.4)
+		var pos := Vector2(lane_cx + k * step - v.size.x / 2.0, 676 + k * k * 1.4)
 		var rot := deg_to_rad(k * ang)
 		if picked.has(c["uid"]):
 			pos.y -= 34
@@ -506,33 +526,33 @@ func _hand_hover(v: CardView, on: bool, rest: Dictionary) -> void:
 func _render_side() -> void:
 	# chronicle (log)
 	var lp := Panel.new()
-	lp.position = Vector2(COL_X, 14)
-	lp.size = Vector2(COL_W, 290)
+	lp.position = Vector2(col_x, 14)
+	lp.size = Vector2(COL_W, 300)
 	lp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(lp)
-	var lh := _label("CRÔNICA", 13, UITheme.GOLD, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
-	lh.position = Vector2(0, 8)
-	lh.size = Vector2(COL_W, 18)
+	var lh := _label("CRÔNICA", 17, UITheme.GOLD, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
+	lh.position = Vector2(0, 4)
+	lh.size = Vector2(COL_W, 24)
 	lp.add_child(lh)
-	lp.add_child(_ornament(Vector2(COL_W / 2.0, 32), 80))
+	lp.add_child(_ornament(Vector2(COL_W / 2.0, 30), 80))
 	var vb := VBoxContainer.new()
-	vb.position = Vector2(12, 42)
-	vb.size = Vector2(COL_W - 24, 238)
+	vb.position = Vector2(12, 36)
+	vb.size = Vector2(COL_W - 24, 258)
 	vb.alignment = BoxContainer.ALIGNMENT_END
 	vb.add_theme_constant_override("separation", 3)
 	vb.clip_contents = true
 	vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lp.add_child(vb)
-	var shown := log_lines.slice(max(0, log_lines.size() - 8))
+	var shown := log_lines.slice(max(0, log_lines.size() - 7))
 	for i in shown.size():
 		var line: String = shown[i]
 		var fresh := float(i + 1) / shown.size()
 		var head := line.begins_with("—")
 		var l: Label
 		if head:
-			l = _label(line.trim_prefix("— ").trim_suffix(" —").to_upper(), 14, Color(UITheme.GOLD, 0.35 + 0.65 * fresh), HORIZONTAL_ALIGNMENT_CENTER, "title_bold")
+			l = _label(line.trim_prefix("— ").trim_suffix(" —").to_upper(), 17, Color(UITheme.GOLD, 0.35 + 0.65 * fresh), HORIZONTAL_ALIGNMENT_CENTER, "title_bold")
 		else:
-			l = _label(line, 16, Color(UITheme.TEXT, 0.3 + 0.7 * fresh), HORIZONTAL_ALIGNMENT_LEFT, "body")
+			l = _label(line, 19, Color(UITheme.TEXT, 0.3 + 0.7 * fresh), HORIZONTAL_ALIGNMENT_LEFT, "body")
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.custom_minimum_size.x = COL_W - 24
 		vb.add_child(l)
@@ -541,8 +561,8 @@ func _render_side() -> void:
 	var phase_names := {"mulligan": "Mulligan", "main": "Fase Principal", "blocks": "Bloqueios", "discard": "Descarte", "over": "Fim de jogo"}
 	var mine := g.decider() == viewer and not _is_ai(viewer)
 	var tp := Panel.new()
-	tp.position = Vector2(COL_X, 318)
-	tp.size = Vector2(COL_W, 74)
+	tp.position = Vector2(col_x, 326)
+	tp.size = Vector2(COL_W, 84)
 	tp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var tsb := UITheme.panel()
 	if mine:
@@ -550,39 +570,39 @@ func _render_side() -> void:
 		tsb.shadow_color = Color(UITheme.GOLD, 0.2)
 	tp.add_theme_stylebox_override("panel", tsb)
 	layer.add_child(tp)
-	var tt := _label("TURNO %d" % g.turn, 20, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 4)
-	tt.position = Vector2(0, 6)
-	tt.size = Vector2(COL_W, 26)
+	var tt := _label("TURNO %d" % g.turn, 24, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 4)
+	tt.position = Vector2(0, 4)
+	tt.size = Vector2(COL_W, 30)
 	tp.add_child(tt)
-	var ph := _label(phase_names.get(g.phase, g.phase), 13, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
-	ph.position = Vector2(0, 32)
-	ph.size = Vector2(COL_W, 18)
+	var ph := _label(phase_names.get(g.phase, g.phase), 17, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
+	ph.position = Vector2(0, 33)
+	ph.size = Vector2(COL_W, 22)
 	tp.add_child(ph)
 	var d := g.decider()
 	var who := "SUA VEZ" if mine else ("VEZ DA IA" if _is_ai(d) else "VEZ DO JOGADOR %d" % (d + 1))
-	var wl := _label(who, 12, UITheme.GOLD if mine else Color(UITheme.TEXT, 0.5), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
-	wl.position = Vector2(0, 50)
-	wl.size = Vector2(COL_W, 18)
+	var wl := _label(who, 15, UITheme.GOLD if mine else Color(UITheme.TEXT, 0.5), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
+	wl.position = Vector2(0, 57)
+	wl.size = Vector2(COL_W, 22)
 	tp.add_child(wl)
 
 	# actions
-	var y := 404.0
+	var y := 424.0
 	if mine:
 		for b: Button in _action_buttons():
-			b.position = Vector2(COL_X, y)
+			b.position = Vector2(col_x, y)
 			b.size = Vector2(COL_W, 56 if b.theme_type_variation == "PrimaryButton" else 40)
 			layer.add_child(b)
 			y += b.size.y + 10
 	elif g.phase != "over":
 		var wait := _button("TURNO DO OPONENTE", func(): pass)
 		wait.disabled = true
-		wait.position = Vector2(COL_X, y)
+		wait.position = Vector2(col_x, y)
 		wait.size = Vector2(COL_W, 56)
 		layer.add_child(wait)
 	var menu := _button("Menu", _show_menu)
-	menu.position = Vector2(1494, 856)
-	menu.size = Vector2(90, 32)
-	menu.add_theme_font_size_override("font_size", 13)
+	menu.position = Vector2(col_x + COL_W - 130, 832)
+	menu.size = Vector2(130, 52)
+	menu.add_theme_font_size_override("font_size", 20)
 	layer.add_child(menu)
 
 ## Contextual hint in a pill on the central divider.
@@ -599,7 +619,7 @@ func _render_hint() -> void:
 	pc.add_theme_stylebox_override("panel", sb)
 	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var col := SEL if not targeting.is_empty() or provoking != 0 else UITheme.TEXT
-	pc.add_child(_label(t, 22, col, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
+	pc.add_child(_label(t, 26, col, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
 	layer.add_child(pc)
 	pc.reset_size()
 	pc.position = Vector2(TableView.ENEMY_LANE.get_center().x - pc.size.x / 2.0, TableView.DIVIDER_Y + 18) # below the divider emblem
@@ -608,7 +628,7 @@ func _hint() -> String:
 	if g.phase == "search":
 		return "Escolha uma das cartas reveladas."
 	if not targeting.is_empty():
-		return "Escolha um alvo (botão direito/Esc cancela)."
+		return ("Escolha um alvo (toque fora cancela)." if CardView.touch_ui() else "Escolha um alvo (botão direito/Esc cancela).")
 	if g.decider() != viewer or _is_ai(viewer):
 		return ""
 	match g.phase:
@@ -621,7 +641,7 @@ func _hint() -> String:
 		"main":
 			if provoking != 0:
 				return "Provocação: escolha a criatura inimiga que será obrigada a bloquear."
-			return "Jogue cartas e clique nas suas criaturas para atacar · botão direito: ver carta"
+			return "Jogue cartas e clique nas suas criaturas para atacar · " + ("segure: ver carta" if CardView.touch_ui() else "botão direito: ver carta")
 	return ""
 
 func _action_buttons() -> Array:
@@ -703,7 +723,7 @@ func _on_hand_click(v: CardView) -> void:
 			_toggle_pick(v.uid, g.players[viewer]["hand"].size() - GameState.HAND_LIMIT)
 		"main":
 			if not g.can_play(viewer, v.uid):
-				_log("Não dá para jogar essa carta agora.")
+				_toast("Não dá para jogar essa carta agora.")
 				_render()
 				return
 			var cd := CardDB.card(v.card_id)
@@ -804,7 +824,7 @@ func _on_creature_click(v: CardView) -> void:
 					block_sel[v.uid] = blocker_pick
 					blocker_pick = 0
 				else:
-					_log("Essa criatura não pode bloquear esse atacante (Voo/Furtivo).")
+					_toast("Essa criatura não pode bloquear esse atacante (Voo/Furtivo).")
 				_render()
 
 # ---------------------------------------------------------------- overlay
@@ -823,15 +843,15 @@ func _show_overlay(v: CardView) -> void:
 	add_child(overlay)
 	var big := CardView.new().setup(v.card_id, v.inst, 3.0)
 	big.cost_override = v.cost_override
-	big.position = Vector2(320, 195)
+	big.position = Vector2(stage_w / 2.0 - 620, 150)
 	big.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(big)
-	var txt := "[font_size=34][color=#e8c25a]%s[/color][/font_size]\n" % cd["name"]
+	var txt := "[font_size=48][color=#e8c25a]%s[/color][/font_size]\n" % cd["name"]
 	var rar := {"legendary": "Campeão Lendário", "champion": "Campeão", "epic": "Unidade Épica", "common": "Unidade"}
 	var typ := {"creature": rar[cd["rarity"]], "spell": "Feitiço", "equipment": "Equipamento"}
 	txt += "[color=#aaaaaa]%s · %s · custo %d[/color]\n\n" % [typ[cd["type"]], CardDB.essence(cd["essence"]).get("name", cd["essence"]), cd["cost"]]
 	if cd.get("text", "") != "":
-		txt += "[font_size=22]%s[/font_size]\n\n" % cd["text"]
+		txt += "[font_size=32]%s[/font_size]\n\n" % cd["text"]
 	for kw in cd.get("keywords", []):
 		var k := CardDB.keyword(kw)
 		txt += "[color=#ffe9a8][b]%s[/b][/color] — %s\n" % [k["name"], k["text"]]
@@ -842,11 +862,11 @@ func _show_overlay(v: CardView) -> void:
 	var rt := RichTextLabel.new()
 	rt.bbcode_enabled = true
 	rt.text = txt
-	rt.position = Vector2(740, 220)
-	rt.size = Vector2(560, 480)
-	rt.add_theme_font_size_override("normal_font_size", 18)
-	rt.add_theme_font_size_override("bold_font_size", 18)
-	rt.add_theme_font_size_override("italics_font_size", 16)
+	rt.position = Vector2(stage_w / 2.0 - 190, 160)
+	rt.size = Vector2(830, 640)
+	rt.add_theme_font_size_override("normal_font_size", 28)
+	rt.add_theme_font_size_override("bold_font_size", 28)
+	rt.add_theme_font_size_override("italics_font_size", 24)
 	rt.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(rt)
 
@@ -1035,7 +1055,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 			"play":
 				var uid: int = e["uid"]
 				var cd := CardDB.card(e["card_id"])
-				var origin: Dictionary = ENEMY_HAND_POSE
+				var origin: Dictionary = {"c": Vector2(lane_cx - 68, 30), "rot": 0.0, "w": 60.0}
 				if e.get("legendary", false) and old.has("cmd%d" % e["player"]):
 					origin = old["cmd%d" % e["player"]]["pose"]
 				elif old.has(uid):
@@ -1054,7 +1074,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 				else:
 					var gh := _ghost(e["card_id"], {}, origin)
 					gh.z_index = 30
-					var tw := _fly(gh, origin, {"c": Vector2(900, 420), "rot": 0.0, "w": 170.0}, cursor, 0.35, 40.0, true)
+					var tw := _fly(gh, origin, {"c": Vector2(lane_cx, 420), "rot": 0.0, "w": 170.0}, cursor, 0.35, 40.0, true)
 					tw.tween_callback(func(): gh.z_index = 0)
 					gh.dissolve(cursor + 0.95, _elem_color(e["card_id"]).lightened(0.15), 0.6)
 					cursor += 0.5
@@ -1121,6 +1141,27 @@ func _animate(events: Array, old: Dictionary) -> float:
 	return max(settle + 0.8, board_t + 0.3)
 
 # ---------------------------------------------------------------- log
+
+var _toast_node: Label
+var _toast_tw: Tween
+
+## Short transient message (refused actions) instead of log spam.
+func _toast(t: String) -> void:
+	if _toast_node and is_instance_valid(_toast_node):
+		_toast_node.queue_free()
+	if _toast_tw:
+		_toast_tw.kill()
+	var l := _label(t, 24, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "bold", 4)
+	l.add_theme_stylebox_override("normal", UITheme.box(Color(0.03, 0.03, 0.05, 0.92), 20, Color(UITheme.GOLD, 0.8), 2, 10))
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fx.add_child(l)
+	l.reset_size()
+	l.position = Vector2(lane_cx - l.size.x / 2.0, 400)
+	_toast_node = l
+	_toast_tw = create_tween()
+	_toast_tw.tween_interval(1.1)
+	_toast_tw.tween_property(l, "modulate:a", 0.0, 0.4)
+	_toast_tw.tween_callback(l.queue_free)
 
 func _log(t: String) -> void:
 	log_lines.append(t)

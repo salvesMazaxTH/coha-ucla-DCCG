@@ -124,7 +124,7 @@ func _draw() -> void:
 	var rib := PackedVector2Array([Vector2(4, ry), Vector2(160, ry), Vector2(168, ry + 13), Vector2(160, ry + 26), Vector2(4, ry + 26), Vector2(12, ry + 13)])
 	draw_colored_polygon(rib, Color("#16131c"))
 	draw_polyline(rib + PackedVector2Array([rib[0]]), Color(UITheme.GOLD, 0.7), 1.5, true)
-	_text(f_title, String(ld["name"]).to_upper(), Vector2(86, ry + 19), 15, UITheme.GOLD_LIGHT)
+	_text(f_title, String(ld["name"]).to_upper(), Vector2(86, ry + 21), 19, UITheme.GOLD_LIGHT)
 
 	# HP gem (shield shape) overlapping the portrait, bottom right
 	var hc := PC + Vector2(PR * 0.78, PR * 0.62)
@@ -151,17 +151,17 @@ func _draw() -> void:
 	var cc := AC + Vector2(AR * 0.75, -AR * 0.75)
 	_diamond(cc, 11, UITheme.MOMENTUM.darkened(0.2) if usable else Color(0.3, 0.3, 0.35), Color(1, 1, 1, 0.8))
 	_text(f_num, str(ability_cost), cc + Vector2(0, 5), 14, Color.WHITE)
-	_text(UITheme.font("bold"), "HABILIDADE", AC + Vector2(0, AR + 15), 11, Color(UITheme.TEXT, 0.55))
+	_text(UITheme.font("bold"), "HABILIDADE", AC + Vector2(0, AR + 17), 14, Color(UITheme.TEXT, 0.55))
 
 	# deck / graveyard counters
-	_counter(Vector2(170, 104), false, deck)
-	_counter(Vector2(210, 104), true, grave)
+	_counter(Vector2(160, 102), false, deck)
+	_counter(Vector2(214, 102), true, grave)
 
 ## Small plate with a drawn icon (card stack or tombstone) and a count.
 func _counter(pos: Vector2, tomb: bool, n: int) -> void:
-	var r := Rect2(pos - Vector2(18, 0), Vector2(36, 24))
+	var r := Rect2(pos - Vector2(25, 0), Vector2(50, 30))
 	draw_style_box(UITheme.box(Color(0, 0, 0, 0.45), 5, Color(UITheme.GOLD, 0.25)), r)
-	var ic := r.position + Vector2(9, 12)
+	var ic := r.position + Vector2(10, 15)
 	var ink := Color(UITheme.TEXT, 0.75)
 	if tomb:
 		var pts := PackedVector2Array()
@@ -176,8 +176,8 @@ func _counter(pos: Vector2, tomb: bool, n: int) -> void:
 		draw_rect(Rect2(ic + Vector2(-5, -5), Vector2(8, 11)), ink)
 	var f := UITheme.font("heavy")
 	var t := str(n)
-	draw_string_outline(f, r.position + Vector2(17, 17), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 3, Color(0, 0, 0, 0.8))
-	draw_string(f, r.position + Vector2(17, 17), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UITheme.TEXT)
+	draw_string_outline(f, r.position + Vector2(20, 22), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, 4, Color(0, 0, 0, 0.8))
+	draw_string(f, r.position + Vector2(20, 22), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, UITheme.TEXT)
 
 func _diamond(c: Vector2, r: float, col: Color, rim: Color) -> void:
 	var pts := PackedVector2Array([c + Vector2(0, -r), c + Vector2(r * 0.8, 0), c + Vector2(0, r), c + Vector2(-r * 0.8, 0)])

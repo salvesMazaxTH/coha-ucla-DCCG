@@ -18,7 +18,7 @@ func setup(cur: int, mx: int) -> MomentumBar:
 func _draw() -> void:
 	var font := UITheme.font("heavy")
 	var cap := GameState.MOMENTUM_CAP
-	var step := 17.0
+	var step := 16.0
 	for i in cap:
 		var c := Vector2(9 + i * step, 15)
 		var pts := PackedVector2Array([c + Vector2(0, -12), c + Vector2(7, -3), c + Vector2(0, 12), c + Vector2(-7, -3)])
@@ -37,5 +37,5 @@ func _draw() -> void:
 			draw_polyline(outline, Color(1, 1, 1, 0.12), 1.0, true)
 	var t := "%d/%d" % [current, maximum]
 	var x := 9 + cap * step - 4
-	draw_string_outline(font, Vector2(x, 21), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, 4, Color(0, 0, 0, 0.85))
-	draw_string(font, Vector2(x, 21), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color("#ffe680"))
+	draw_string_outline(font, Vector2(x, 23), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 21, 4, Color(0, 0, 0, 0.85))
+	draw_string(font, Vector2(x, 23), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 21, Color("#ffe680"))

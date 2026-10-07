@@ -3,13 +3,19 @@ extends Control
 ## Static table furniture drawn over the shader background: the two battle
 ## lanes, the central divider with its emblem and the command-zone sockets.
 
-const ENEMY_LANE := Rect2(428, 150, 940, 240)
-const MY_LANE := Rect2(428, 424, 940, 250)
+static var ENEMY_LANE := Rect2(428, 150, 910, 240)
+static var MY_LANE := Rect2(428, 424, 910, 250)
 const DIVIDER_Y := 407.0
 
 var enemy_color := Color.WHITE
 var my_color := Color.WHITE
 var sockets: Array = [] ## Rect2 of command-zone slots
+
+## Lanes span from the command column to `right_edge` (the stage is wider on wide windows).
+static func layout(right_edge: float) -> void:
+	var w := right_edge - 428.0
+	ENEMY_LANE = Rect2(428, 150, w, 240)
+	MY_LANE = Rect2(428, 424, w, 250)
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
