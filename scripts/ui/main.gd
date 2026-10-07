@@ -26,6 +26,7 @@ var bg: ColorRect
 var table: TableView
 var layer: Control
 var overlay: Control
+var search_overlay: Control
 var views := {} ## uid (or "cmd<p>") -> Control on screen, for animations
 var hand_uids := {} ## viewer's hand cards in the current render
 var fx: Control ## persistent layer above the table: ghosts, floats, embers
@@ -231,6 +232,7 @@ func _clear() -> void:
 	if layer:
 		layer.queue_free()
 	layer = Control.new()
+	search_overlay = null
 	layer.set_anchors_preset(Control.PRESET_FULL_RECT)
 	layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(layer)
@@ -267,6 +269,8 @@ func _render() -> void:
 	_render_hand(me)
 	_render_side()
 	_render_hint()
+	if g.phase == "search":
+		_render_search_reveal()
 	if g.phase == "over":
 		_render_game_over()
 	elif _is_ai(g.decider()):
@@ -589,6 +593,8 @@ func _render_hint() -> void:
 	pc.position = Vector2(TableView.ENEMY_LANE.get_center().x - pc.size.x / 2.0, TableView.DIVIDER_Y + 22) # below the divider emblem
 
 func _hint() -> String:
+	if g.phase == "search":
+		return "Escolha uma das cartas reveladas."
 	if not targeting.is_empty():
 		return "Escolha um alvo (botão direito/Esc cancela)."
 	if g.decider() != viewer or _is_ai(viewer):
@@ -720,6 +726,11 @@ func _on_ability(p: int) -> void:
 	else:
 		_do(g.use_ability(p, 0))
 
+func _on_search_choice(card_uid: int) -> void:
+	if g.phase != "search" or not _my_input():
+		return
+	_do(g.choose_search(viewer, card_uid))
+
 func _is_target(uid: int) -> bool:
 	return not targeting.is_empty() and g.valid_targets(viewer, targeting["spec"], targeting.get("uid", 0)).has(uid)
 
@@ -827,6 +838,33 @@ func _close_overlay() -> void:
 	if overlay:
 		overlay.queue_free()
 		overlay = null
+
+func _render_search_reveal() -> void:
+	if g.pending_search.is_empty():
+		return
+	var owner: int = g.decider()
+	search_overlay = _veil(0.84)
+	var box := VBoxContainer.new()
+	box.custom_minimum_size = Vector2(1120, 0)
+	box.add_theme_constant_override("separation", 12)
+	search_overlay.add_child(box)
+	box.add_child(_label("REVELAÇÃO DO DECK", 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
+	box.add_child(_label("%s revelou opções de Água de custo 2 ou menos" % _pname(owner), 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+	var grid := GridContainer.new()
+	grid.columns = min(7, g.pending_search["cards"].size())
+	grid.add_theme_constant_override("h_separation", 12)
+	grid.add_theme_constant_override("v_separation", 10)
+	box.add_child(grid)
+	for option in g.pending_search["cards"]:
+		var card_uid: int = option["uid"]
+		var cv := CardView.new().setup(option["card_id"], {"uid": card_uid}, 1.05)
+		cv.mouse_filter = Control.MOUSE_FILTER_STOP if _my_input() else Control.MOUSE_FILTER_IGNORE
+		if _my_input():
+			cv.left_clicked.connect(func(_v): _on_search_choice(card_uid))
+		grid.add_child(cv)
+	var footer := _label("Clique em uma carta para adicioná-la à sua mão e embaralhar o deck." if _my_input() else "A escolha pertence ao oponente.", 16, SEL if _my_input() else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
+	box.add_child(footer)
+	_center.call_deferred(search_overlay)
 
 
 # ---------------------------------------------------------------- feedback
@@ -1006,9 +1044,11 @@ func _animate(events: Array, old: Dictionary) -> float:
 					cursor += 0.5
 			"ability":
 				cursor += 0.25
-			"summon", "draw":
+			"summon", "draw", "search_take":
 				appear[e["uid"]] = cursor
 				cursor += 0.1
+			"search_reveal":
+				cursor += 0.35
 			"blocks":
 				in_combat = true
 			"start_turn", "end_turn":
@@ -1091,6 +1131,15 @@ func _log_event(e: Dictionary) -> void:
 			_log("— Turno %d: %s —" % [e["turn"], _pname(e["player"])])
 		"discard":
 			_log("%s descartou uma carta" % _pname(e["player"]))
+		"search_reveal":
+			var names: Array = []
+			for c in e["cards"]:
+				names.append(_cname(c["card_id"]))
+			_log("%s revelou: %s" % [_pname(e["player"]), ", ".join(names)])
+		"search_empty":
+			_log("%s não encontrou uma carta que atendesse à busca" % _pname(e["player"]))
+		"search_take":
+			_log("%s escolheu %s na busca" % [_pname(e["player"]), _cname(e["card_id"])])
 
 
 # ---------------------------------------------------------------- widgets

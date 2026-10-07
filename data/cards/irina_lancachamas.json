@@ -1,0 +1,24 @@
+{
+  "name": "Irina Lançachamas",
+  "type": "creature",
+  "rarity": "champion",
+  "element": "fire",
+  "cost": 3,
+  "atk": 3,
+  "hp": 2,
+  "keywords": [
+    "longo_alcance"
+  ],
+  "art": "irina_lancachamas.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_creature",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Entrar: cause 1 de dano a uma criatura inimiga.",
+  "flavor": "\"Tá tudo bem.\" Não está.",
+  "tags": []
+}

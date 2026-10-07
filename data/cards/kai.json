@@ -1,0 +1,18 @@
+{
+  "name": "Kai",
+  "type": "creature",
+  "rarity": "champion",
+  "element": "fire",
+  "cost": 2,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [
+    "golpe_rapido",
+    "impeto"
+  ],
+  "art": "kai.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "Punhos acesos, guarda baixa.",
+  "tags": []
+}

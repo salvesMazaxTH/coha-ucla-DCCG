@@ -1,0 +1,22 @@
+{
+  "name": "D'Lorafya",
+  "type": "creature",
+  "rarity": "champion",
+  "element": "fire",
+  "cost": 7,
+  "atk": 5,
+  "hp": 5,
+  "keywords": [],
+  "art": "dlorafya.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "all_enemy_creatures",
+      "amount": 2
+    }
+  ],
+  "text": "Ao Entrar: cause 2 de dano a todas as criaturas inimigas.",
+  "flavor": "O veredito da pira é final.",
+  "tags": []
+}

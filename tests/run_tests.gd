@@ -13,6 +13,7 @@ func _init() -> void:
 		var errs := CardDB.validate_deck(d)
 		check(errs.is_empty(), "deck %s: %s" % [d, errs])
 	_test_setup()
+	_test_search()
 	_test_combat()
 	_test_sim()
 	print("tests done, failures: ", failures)
@@ -28,10 +29,38 @@ func _put(g: GameState, p: int, card_id: String, ready := true) -> Dictionary:
 	var uid := g._uid()
 	g._summon(p, card_id, uid, false, 0)
 	g._flush()
+	if g.phase == "search":
+		var options: Array = g.pending_search["cards"]
+		g.choose_search(p, int(options[0]["uid"]))
+		g._flush()
 	var c := g.find_creature(uid)
 	if ready:
 		c["sick"] = false
 	return c
+
+func _test_search() -> void:
+	var g := _new_game()
+	var uid := g._uid()
+	g._summon(1, "serpente_marinha", uid, false, 0)
+	var reveal: Array = g._flush()
+	check(g.phase == "search", "serpente abre escolha de busca")
+	var revealed: Dictionary = {}
+	for e in reveal:
+		if e["type"] == "search_reveal":
+			revealed = e
+	check(not revealed.is_empty(), "busca revela opções publicamente")
+	check(revealed.get("cards", []).size() > 0, "há opções elegíveis no deck")
+	var chosen: Dictionary = revealed["cards"][0]
+	var before_hand: int = g.players[1]["hand"].size()
+	var picked: Array = g.choose_search(1, int(chosen["uid"]))
+	check(g.phase == "main", "busca termina após escolha")
+	check(g.players[1]["hand"].size() == before_hand + 1, "carta buscada vai para a mão")
+	check(CardDB.card(chosen["card_id"])["element"] == "water" and int(CardDB.card(chosen["card_id"])["cost"]) <= 2, "busca respeita filtro de Água e custo")
+	var took := false
+	for e in picked:
+		if e["type"] == "search_take":
+			took = true
+	check(took, "escolha emite evento de busca")
 
 func _test_setup() -> void:
 	var g := GameState.new("fogo", "agua", 1)

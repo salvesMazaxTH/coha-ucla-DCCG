@@ -1,0 +1,24 @@
+{
+  "name": "Ronan",
+  "type": "creature",
+  "rarity": "legendary",
+  "element": "fire",
+  "cost": 4,
+  "atk": 4,
+  "hp": 3,
+  "keywords": [
+    "impeto"
+  ],
+  "art": "ronan.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_creature",
+      "amount": 2
+    }
+  ],
+  "text": "Ao Entrar: cause 2 de dano a uma criatura inimiga.",
+  "flavor": "Pavio curto, punhos mais curtos ainda.",
+  "tags": []
+}

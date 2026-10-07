@@ -1,0 +1,23 @@
+{
+  "name": "Serpente Marinha",
+  "type": "creature",
+  "rarity": "common",
+  "element": "water",
+  "cost": 3,
+  "atk": 2,
+  "hp": 4,
+  "keywords": [],
+  "art": "serpente_marinha.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "search_deck",
+      "target": "own_leader",
+      "element": "water",
+      "max_cost": 2
+    }
+  ],
+  "text": "Ao Entrar: revele as cartas de Água de custo 2 ou menos do seu deck. Escolha uma para colocar na mão e embaralhe o deck.",
+  "flavor": "",
+  "tags": []
+}

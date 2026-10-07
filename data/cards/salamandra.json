@@ -1,0 +1,22 @@
+{
+  "name": "Salamandra",
+  "type": "creature",
+  "rarity": "common",
+  "element": "fire",
+  "cost": 2,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [],
+  "art": "salamandra.webp",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 2
+    }
+  ],
+  "text": "Ao Morrer: cause 2 de dano ao Líder inimigo.",
+  "flavor": "",
+  "tags": []
+}

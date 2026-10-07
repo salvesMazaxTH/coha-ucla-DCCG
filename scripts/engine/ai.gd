@@ -15,6 +15,8 @@ static func step(g: GameState, p: int) -> Array:
 			return g.mulligan(p, back)
 		"blocks":
 			return g.declare_blocks(p, _choose_blocks(g, p))
+		"search":
+			return g.choose_search(p, _choose_search(g))
 		"discard":
 			var hand: Array = g.players[p]["hand"].duplicate()
 			hand.sort_custom(func(a, b): return int(CardDB.card(a["card_id"])["cost"]) > int(CardDB.card(b["card_id"])["cost"]))
@@ -32,6 +34,19 @@ static func step(g: GameState, p: int) -> Array:
 					return ev
 			return g.end_turn(p)
 	return []
+
+static func _choose_search(g: GameState) -> int:
+	var best_uid := 0
+	var best_score := -999
+	for c in g.pending_search.get("cards", []):
+		var cd := CardDB.card(c["card_id"])
+		var score := int(cd.get("cost", 0)) * 10
+		if cd.get("type", "") == "creature":
+			score += 2
+		if score > best_score:
+			best_score = score
+			best_uid = int(c["uid"])
+	return best_uid
 
 static func _try_play(g: GameState, p: int) -> Array:
 	if g.can_cast_legendary(p):

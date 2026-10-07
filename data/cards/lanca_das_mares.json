@@ -1,0 +1,19 @@
+{
+  "name": "Lança das Marés",
+  "type": "spell",
+  "rarity": "common",
+  "element": "water",
+  "cost": 2,
+  "art": "lanca_das_mares.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "any_creature",
+      "amount": 3
+    }
+  ],
+  "text": "Cause 3 de dano a uma criatura.",
+  "flavor": "",
+  "tags": []
+}

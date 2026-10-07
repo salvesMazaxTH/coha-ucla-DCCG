@@ -1,0 +1,23 @@
+{
+  "name": "Bênção das Profundezas",
+  "type": "spell",
+  "rarity": "common",
+  "element": "water",
+  "cost": 2,
+  "art": "",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_creature",
+      "atk": 1,
+      "hp": 2,
+      "keywords": [
+        "escudo"
+      ]
+    }
+  ],
+  "text": "Uma criatura aliada ganha +1/+2 e Escudo.",
+  "flavor": "",
+  "tags": []
+}

@@ -21,6 +21,8 @@ var phase := "mulligan"
 var winner := -1 ## -1 none, 0/1 player, 2 draw
 ## Pending combat: attacker uid -> provoked enemy uid (or 0)
 var attackers: Dictionary = {}
+## Pending deterministic deck search. The matching cards are public until chosen.
+var pending_search: Dictionary = {}
 var rng := RandomNumberGenerator.new()
 var _next_uid := 1
 var _events: Array = []
@@ -83,6 +85,8 @@ func decider() -> int:
 			return 0 if not players[0]["mulligan_done"] else 1
 		"blocks":
 			return opponent(active)
+		"search":
+			return int(pending_search.get("player", active))
 	return active
 
 func find_creature(uid: int) -> Dictionary:
@@ -324,6 +328,35 @@ func discard(p: int, hand_uids: Array) -> Array:
 	_finish_turn()
 	return _flush()
 
+## Choose one of the public cards revealed by a deterministic deck search.
+func choose_search(p: int, card_uid: int) -> Array:
+	if phase != "search" or p != decider():
+		return []
+	var options: Array = pending_search.get("cards", [])
+	var chosen: Dictionary = {}
+	for c in options:
+		if int(c["uid"]) == card_uid:
+			chosen = c
+			break
+	if chosen.is_empty():
+		return []
+	var deck: Array = players[p]["deck"]
+	var found := false
+	for c in deck:
+		if int(c["uid"]) == card_uid:
+			deck.erase(c)
+			found = true
+			break
+	if not found:
+		return []
+	players[p]["hand"].append(chosen)
+	_shuffle(deck)
+	pending_search.clear()
+	phase = "main"
+	_emit({"type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"]})
+	_emit({"type": "search_shuffle", "player": p})
+	return _flush()
+
 # ---------------------------------------------------------------- internals
 
 func _summon(p: int, card_id: String, uid: int, legendary: bool, target: int) -> void:
@@ -360,6 +393,41 @@ func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid
 				if not b.is_empty(): targets = [b[rng.randi_range(0, b.size() - 1)]["uid"]]
 		for t in targets:
 			_apply(p, e, t)
+		if e.get("action", "") == "search_deck" and e.get("trigger", "") == trigger:
+			_begin_search(p, e, self_uid)
+
+func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
+	if phase == "search":
+		return
+	var matches: Array = []
+	var seen: Dictionary = {}
+	for c in players[p]["deck"]:
+		var cd := CardDB.card(c["card_id"])
+		if e.get("element", "") != "" and cd.get("element", "") != e["element"]:
+			continue
+		if e.has("max_cost") and int(cd.get("cost", 999)) > int(e["max_cost"]):
+			continue
+		if e.has("type") and cd.get("type", "") != e["type"]:
+			continue
+		if e.has("tags"):
+			var card_tags: Array = cd.get("tags", [])
+			var matches_tags := true
+			for tag in e["tags"]:
+				if not card_tags.has(tag):
+					matches_tags = false
+					break
+			if not matches_tags:
+				continue
+		if seen.has(c["card_id"]):
+			continue
+		seen[c["card_id"]] = true
+		matches.append({"uid": c["uid"], "card_id": c["card_id"]})
+	if matches.is_empty():
+		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
+		return
+	pending_search = {"player": p, "source_uid": source_uid, "cards": matches}
+	phase = "search"
+	_emit({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": matches})
 
 func _apply(p: int, e: Dictionary, t: int) -> void:
 	match e["action"]:
@@ -369,6 +437,8 @@ func _apply(p: int, e: Dictionary, t: int) -> void:
 			_heal_leader(p, int(e["amount"]))
 		"draw":
 			_draw(p, int(e["amount"]))
+		"search_deck":
+			pass # Search effects are opened by _run_effects after their trigger resolves.
 		"buff":
 			var c := find_creature(t)
 			if c.is_empty():

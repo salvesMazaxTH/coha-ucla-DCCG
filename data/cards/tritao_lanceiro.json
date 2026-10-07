@@ -1,0 +1,17 @@
+{
+  "name": "Tritão Lanceiro",
+  "type": "creature",
+  "rarity": "common",
+  "element": "water",
+  "cost": 2,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [
+    "longo_alcance"
+  ],
+  "art": "",
+  "effects": [],
+  "text": "",
+  "flavor": "",
+  "tags": []
+}

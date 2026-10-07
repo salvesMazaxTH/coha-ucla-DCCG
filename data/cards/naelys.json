@@ -1,0 +1,22 @@
+{
+  "name": "Naelys",
+  "type": "creature",
+  "rarity": "champion",
+  "element": "water",
+  "cost": 3,
+  "atk": 2,
+  "hp": 3,
+  "keywords": [],
+  "art": "naelys.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Entrar: compre 1 carta.",
+  "flavor": "O coração das marés pulsa calmo.",
+  "tags": []
+}
