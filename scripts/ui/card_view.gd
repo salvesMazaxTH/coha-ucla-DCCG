@@ -25,6 +25,7 @@ const STYLES := {
 	"legendary": {"top": "#f6d887", "bot": "#6e4810", "trim": "#fff0b8", "glow": "#ffd35a"},
 	"back": {"top": "#2e2658", "bot": "#100c22", "trim": "#c9a24e", "glow": "#9d86ff"},
 }
+const GOLD_TRIM := Color("#f3d27a")
 const COST_COL := UITheme.MOMENTUM
 const ATK_COL := Color("#c8402e")
 const HP_COL := Color("#2f9e58")
@@ -144,7 +145,7 @@ func dissolve(delay := 0.0, edge := Color(1.0, 0.55, 0.15), dur := 0.75) -> void
 	tw.tween_callback(queue_free)
 
 func _legendary() -> bool:
-	return not face_down and card_id != "" and CardDB.card(card_id)["rarity"] == "legendary"
+	return not face_down and card_id != "" and CardDB.card(card_id)["rarity"] in ["champion", "legendary"]
 
 # ---------------------------------------------------------------- drawing
 
@@ -157,6 +158,8 @@ func _draw() -> void:
 	var cd: Dictionary = {} if face_down else CardDB.card_for(card_id, inst)
 	var st: Dictionary = STYLES["back"] if face_down else STYLES[_style_key(cd)]
 	var trim := Color(st["trim"])
+	if cd.get("rarity", "") == "champion":
+		trim = GOLD_TRIM ## champions keep their essence frame, finished in gold
 	var glow := Color(st["glow"])
 
 	# drop shadow, deeper when the card is lifted
@@ -167,7 +170,7 @@ func _draw() -> void:
 			g.position.y += depth
 			_rrect_fill(g, rad + i * 2 * s, Color(0, 0, 0, 0.11))
 	# legendary halo
-	if not face_down and cd["rarity"] == "legendary":
+	if not face_down and cd["rarity"] in ["champion", "legendary"]:
 		for i in 4:
 			_rrect_line(r.grow((2 + i * 2.5) * s), rad + i * 2 * s, Color(glow, (0.22 - i * 0.05) * (0.6 + 0.4 * pulse)), 2.5 * s)
 	# selection / target glow
@@ -297,7 +300,7 @@ func _panel_lines(cd: Dictionary) -> Array:
 		else:
 			out.append([" · ".join(names), Color("#ffe7a0")])
 	if out.is_empty():
-		var rar := {"legendary": "CAMPEÃO LENDÁRIO", "champion": "CAMPEÃO", "epic": "UNIDADE ÉPICA", "common": "UNIDADE"}
+		var rar := {"legendary": "LENDÁRIO", "champion": "CAMPEÃO", "epic": "UNIDADE ÉPICA", "common": "UNIDADE"}
 		out.append([rar.get(cd["rarity"], ""), Color(UITheme.TEXT, 0.45)])
 	return out
 
