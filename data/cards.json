@@ -150,7 +150,7 @@
       "cards": {
         "ronan_lendario": 1,
         "kai": 3,
-        "victoria": 3,
+        "victoria": 2,
         "irina_lancachamas": 3,
         "vulnara": 2,
         "gorvakharr": 3,
@@ -159,14 +159,15 @@
         "dlorafya": 1,
         "lord_of_the_shadowflame": 2,
         "faisca_errante": 3,
-        "batedor_das_cinzas": 3,
+        "batedor_das_cinzas": 1,
         "guerreiro_igneo": 3,
         "salamandra": 3,
         "fenix_menor": 3,
         "labareda": 3,
         "bola_de_fogo": 3,
         "furia_ardente": 2,
-        "manoplas_incandescentes": 3
+        "manoplas_incandescentes": 3,
+        "estrondador_igneo": 3
       }
     },
     "agua": {
