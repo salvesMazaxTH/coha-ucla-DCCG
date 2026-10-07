@@ -8,7 +8,7 @@
   "atk": 2,
   "hp": 2,
   "keywords": [],
-  "art": "",
+  "art": "obscura/replicador_maldito.webp",
   "effects": [
     {
       "trigger": "on_enter",

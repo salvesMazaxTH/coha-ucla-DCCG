@@ -10,7 +10,7 @@
   "keywords": [
     "longo_alcance"
   ],
-  "art": "",
+  "art": "obscura/titanico_morcegalma.webp",
   "effects": [
     {
       "trigger": "on_enter",

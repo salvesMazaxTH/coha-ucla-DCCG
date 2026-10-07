@@ -8,7 +8,7 @@
   "atk": 2,
   "hp": 3,
   "keywords": [],
-  "art": "",
+  "art": "obscura/cientista_da_morte.webp",
   "effects": [
     {
       "trigger": "on_enter",
