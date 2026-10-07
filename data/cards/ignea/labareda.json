@@ -4,7 +4,7 @@
   "rarity": "common",
   "essence": "ignea",
   "cost": 1,
-  "art": "labareda.webp",
+  "art": "ignea/labareda.webp",
   "effects": [
     {
       "trigger": "on_play",

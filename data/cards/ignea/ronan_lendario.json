@@ -9,16 +9,9 @@
   "keywords": [
     "impeto"
   ],
-  "art": "ronan.webp",
-  "effects": [
-    {
-      "trigger": "on_enter",
-      "action": "damage",
-      "target": "enemy_creature",
-      "amount": 2
-    }
-  ],
-  "text": "Ao Entrar: cause 2 de dano a uma criatura inimiga.",
+  "art": "ignea/ronan.webp",
+  "effects": [{"trigger":"on_enter","action":"damage","target":"enemy_creature","amount":2},{"trigger":"on_damaged","action":"buff","target":"self","atk":1}],
+  "text": "Ao Entrar: cause 2 de dano a uma criatura inimiga.\nAo Sofrer Dano: ganhe +1 de Ataque.",
   "flavor": "Pavio curto, punhos mais curtos ainda.",
   "tags": []
 }

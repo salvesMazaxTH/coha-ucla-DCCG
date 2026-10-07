@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://degbyoqp4dida"
-path="res://.godot/imported/serpente_marinha.webp-f8a20af30419645176dcb0ffb1827d37.ctex"
+path="res://.godot/imported/serpente_marinha.webp-852b19d27856b5dc55c96c7894355c7e.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/portraits/serpente_marinha.webp"
-dest_files=["res://.godot/imported/serpente_marinha.webp-f8a20af30419645176dcb0ffb1827d37.ctex"]
+source_file="res://assets/portraits/aquatica/serpente_marinha.webp"
+dest_files=["res://.godot/imported/serpente_marinha.webp-852b19d27856b5dc55c96c7894355c7e.ctex"]
 
 [params]
 

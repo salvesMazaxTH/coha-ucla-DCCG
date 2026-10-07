@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://n2mcjhye8ej3"
-path="res://.godot/imported/espirito_da_mare.webp-03bfc244a96d4edd4f7c2f92ebafc3fc.ctex"
+path="res://.godot/imported/espirito_da_mare.webp-0e8ea76fc21569f42fe29cac1c0c02fc.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/portraits/espirito_da_mare.webp"
-dest_files=["res://.godot/imported/espirito_da_mare.webp-03bfc244a96d4edd4f7c2f92ebafc3fc.ctex"]
+source_file="res://assets/portraits/aquatica/espirito_da_mare.webp"
+dest_files=["res://.godot/imported/espirito_da_mare.webp-0e8ea76fc21569f42fe29cac1c0c02fc.ctex"]
 
 [params]
 

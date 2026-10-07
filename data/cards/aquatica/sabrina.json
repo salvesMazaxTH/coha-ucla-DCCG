@@ -9,7 +9,7 @@
   "keywords": [
     "longo_alcance"
   ],
-  "art": "sabrina.webp",
+  "art": "aquatica/sabrina.webp",
   "effects": [
     {
       "trigger": "on_enter",

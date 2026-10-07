@@ -7,7 +7,7 @@
   "atk": 2,
   "hp": 3,
   "keywords": [],
-  "art": "naelys.webp",
+  "art": "aquatica/naelys.webp",
   "effects": [
     {
       "trigger": "on_enter",

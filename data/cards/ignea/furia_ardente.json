@@ -4,7 +4,7 @@
   "rarity": "common",
   "essence": "ignea",
   "cost": 2,
-  "art": "",
+  "art": "ignea/furia_ardente.webp",
   "effects": [
     {
       "trigger": "on_play",

@@ -9,9 +9,9 @@
   "keywords": [
     "escudo"
   ],
-  "art": "espirito_da_mare.webp",
-  "effects": [],
-  "text": "",
+  "art": "aquatica/espirito_da_mare.webp",
+  "effects": [{"trigger":"on_block","action":"heal_leader","target":"none","amount":2}],
+  "text": "Ao Bloquear: cure 2 de vida do seu Líder.",
   "flavor": "",
   "tags": [
     "espirito"

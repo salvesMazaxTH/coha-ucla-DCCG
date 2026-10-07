@@ -30,3 +30,7 @@ Exemplo:
 ```json
 "tags": ["espirito"]
 ```
+
+## Retratos
+
+Os retratos ficam em `assets/portraits/<essência>/<id>.webp`, na mesma pasta de essência da carta (`ignea/`, `aquatica/`, `neutra/`…). O campo `art` da carta guarda o caminho relativo a `assets/portraits/`, por exemplo `"art": "ignea/kai.webp"`. Retratos de Líderes ficam na pasta da essência do Líder.

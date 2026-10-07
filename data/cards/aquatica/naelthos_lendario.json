@@ -9,7 +9,7 @@
   "keywords": [
     "provocacao"
   ],
-  "art": "naelthos.webp",
+  "art": "aquatica/naelthos.webp",
   "effects": [
     {
       "trigger": "on_enter",

@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dcl7u64ld6yu6"
-path="res://.godot/imported/alexa_transformed.webp-1661cf9b44e2bf4ebf8a3c237885e693.ctex"
+path="res://.godot/imported/alexa_transformed.webp-f62c51e1cbaafa4f326f4e1e0982ba70.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/portraits/alexa_transformed.webp"
-dest_files=["res://.godot/imported/alexa_transformed.webp-1661cf9b44e2bf4ebf8a3c237885e693.ctex"]
+source_file="res://assets/portraits/aquatica/alexa_transformed.webp"
+dest_files=["res://.godot/imported/alexa_transformed.webp-f62c51e1cbaafa4f326f4e1e0982ba70.ctex"]
 
 [params]
 

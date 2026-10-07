@@ -10,8 +10,8 @@
     "longo_alcance"
   ],
   "art": "",
-  "effects": [],
-  "text": "",
+  "effects": [{"trigger":"on_block","action":"damage","target":"opposed_creature","amount":1}],
+  "text": "Ao Bloquear: cause 1 de dano ao atacante.",
   "flavor": "",
   "tags": []
 }

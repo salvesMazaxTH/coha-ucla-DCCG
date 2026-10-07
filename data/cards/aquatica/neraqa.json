@@ -9,7 +9,7 @@
   "keywords": [
     "vigia"
   ],
-  "art": "neraqa.webp",
+  "art": "aquatica/neraqa.webp",
   "effects": [
     {
       "trigger": "on_enter",

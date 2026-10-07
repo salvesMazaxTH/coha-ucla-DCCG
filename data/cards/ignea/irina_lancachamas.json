@@ -9,7 +9,7 @@
   "keywords": [
     "longo_alcance"
   ],
-  "art": "irina_lancachamas.webp",
+  "art": "ignea/irina_lancachamas.webp",
   "effects": [
     {
       "trigger": "on_enter",

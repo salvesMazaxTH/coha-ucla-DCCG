@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dexc8rpq7jmv3"
-path="res://.godot/imported/sabrina.webp-bf5457b3589af510a0351f0f18d7c89d.ctex"
+path="res://.godot/imported/sabrina.webp-0350bbdc3c07cfc6b4f602354c88bf6b.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/portraits/sabrina.webp"
-dest_files=["res://.godot/imported/sabrina.webp-bf5457b3589af510a0351f0f18d7c89d.ctex"]
+source_file="res://assets/portraits/aquatica/sabrina.webp"
+dest_files=["res://.godot/imported/sabrina.webp-0350bbdc3c07cfc6b4f602354c88bf6b.ctex"]
 
 [params]
 

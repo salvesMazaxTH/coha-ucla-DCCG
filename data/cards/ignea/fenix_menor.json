@@ -10,7 +10,7 @@
     "voo",
     "impeto"
   ],
-  "art": "fenix_menor.webp",
+  "art": "ignea/fenix_menor.webp",
   "effects": [
     {
       "trigger": "on_death",

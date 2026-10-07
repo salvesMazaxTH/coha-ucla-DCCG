@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c3am0n6sk1p2k"
-path="res://.godot/imported/ronan.webp-546316ccde7d1f3547fa8b3033a35931.ctex"
+path="res://.godot/imported/ronan.webp-c9865776295b2dea8d69d4aa1d784472.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/portraits/ronan.webp"
-dest_files=["res://.godot/imported/ronan.webp-546316ccde7d1f3547fa8b3033a35931.ctex"]
+source_file="res://assets/portraits/ignea/ronan.webp"
+dest_files=["res://.godot/imported/ronan.webp-c9865776295b2dea8d69d4aa1d784472.ctex"]
 
 [params]
 

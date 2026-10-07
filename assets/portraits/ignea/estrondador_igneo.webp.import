@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://hx548dtdirgu"
-path="res://.godot/imported/aren_marevoth.webp-04da46c2767d8e2fca09646cb47e0972.ctex"
+uid="uid://10kvv4yrqxbd"
+path="res://.godot/imported/estrondador_igneo.webp-3fc2b59c726eb35dcc350c9550866585.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/portraits/aquatica/aren_marevoth.webp"
-dest_files=["res://.godot/imported/aren_marevoth.webp-04da46c2767d8e2fca09646cb47e0972.ctex"]
+source_file="res://assets/portraits/ignea/estrondador_igneo.webp"
+dest_files=["res://.godot/imported/estrondador_igneo.webp-3fc2b59c726eb35dcc350c9550866585.ctex"]
 
 [params]
 

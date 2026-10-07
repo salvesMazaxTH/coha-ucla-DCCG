@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dc4v53x5ii5gn"
-path="res://.godot/imported/lanca_das_mares.webp-53a76f485792e4c81fcd375f157140f1.ctex"
+path="res://.godot/imported/lanca_das_mares.webp-fa4e32388c013d9da0589013f1b06525.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/portraits/lanca_das_mares.webp"
-dest_files=["res://.godot/imported/lanca_das_mares.webp-53a76f485792e4c81fcd375f157140f1.ctex"]
+source_file="res://assets/portraits/aquatica/lanca_das_mares.webp"
+dest_files=["res://.godot/imported/lanca_das_mares.webp-fa4e32388c013d9da0589013f1b06525.ctex"]
 
 [params]
 

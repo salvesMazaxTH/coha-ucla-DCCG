@@ -9,7 +9,7 @@
   "keywords": [
     "voo"
   ],
-  "art": "alexa_neruvya.webp",
+  "art": "aquatica/alexa_neruvya.webp",
   "effects": [
     {
       "trigger": "on_enter",

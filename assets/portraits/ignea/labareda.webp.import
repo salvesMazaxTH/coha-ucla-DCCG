@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bo7vfwpubbd3a"
-path="res://.godot/imported/labareda.webp-957ef32f6e395a5613e4ae247431b82e.ctex"
+path="res://.godot/imported/labareda.webp-566f92977ef1ffbc25ee9996b6921fc8.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/portraits/labareda.webp"
-dest_files=["res://.godot/imported/labareda.webp-957ef32f6e395a5613e4ae247431b82e.ctex"]
+source_file="res://assets/portraits/ignea/labareda.webp"
+dest_files=["res://.godot/imported/labareda.webp-566f92977ef1ffbc25ee9996b6921fc8.ctex"]
 
 [params]
 

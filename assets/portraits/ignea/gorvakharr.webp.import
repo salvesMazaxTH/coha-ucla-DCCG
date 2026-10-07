@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bvykm4w65sjmy"
-path="res://.godot/imported/gorvakharr.webp-b6c8b706ad8086f5221130ea1503ded3.ctex"
+path="res://.godot/imported/gorvakharr.webp-7ae107e362d02cc9d8f80b41d1c98c6a.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/portraits/gorvakharr.webp"
-dest_files=["res://.godot/imported/gorvakharr.webp-b6c8b706ad8086f5221130ea1503ded3.ctex"]
+source_file="res://assets/portraits/ignea/gorvakharr.webp"
+dest_files=["res://.godot/imported/gorvakharr.webp-7ae107e362d02cc9d8f80b41d1c98c6a.ctex"]
 
 [params]
 

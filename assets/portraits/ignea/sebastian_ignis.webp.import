@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://d3h2o70j4qwso"
-path="res://.godot/imported/sebastian_ignis.webp-b24102428233464fe7a01eb56298510a.ctex"
+path="res://.godot/imported/sebastian_ignis.webp-89068d5c1d562d48588cd9c5a71010b9.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/portraits/sebastian_ignis.webp"
-dest_files=["res://.godot/imported/sebastian_ignis.webp-b24102428233464fe7a01eb56298510a.ctex"]
+source_file="res://assets/portraits/ignea/sebastian_ignis.webp"
+dest_files=["res://.godot/imported/sebastian_ignis.webp-89068d5c1d562d48588cd9c5a71010b9.ctex"]
 
 [params]
 

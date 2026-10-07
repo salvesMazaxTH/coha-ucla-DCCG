@@ -1,0 +1,22 @@
+{
+  "name": "Vigia do Farol do Norte",
+  "type": "creature",
+  "rarity": "common",
+  "essence": "neutra",
+  "cost": 2,
+  "atk": 1,
+  "hp": 2,
+  "keywords": [],
+  "art": "neutra/vigia_do_farol_do_norte.webp",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Morrer: compre 1 carta.",
+  "flavor": "A luz nunca se apaga; só passa de mão.",
+  "tags": []
+}

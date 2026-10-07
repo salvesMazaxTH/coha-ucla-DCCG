@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cd5pnfp1k2qru"
-path="res://.godot/imported/mare_curativa.webp-81ab86b735ace6596d1f17c22e17a0a8.ctex"
+path="res://.godot/imported/mare_curativa.webp-c71aba7ab7dce162d6ab1f9bceb399fb.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/portraits/mare_curativa.webp"
-dest_files=["res://.godot/imported/mare_curativa.webp-81ab86b735ace6596d1f17c22e17a0a8.ctex"]
+source_file="res://assets/portraits/aquatica/mare_curativa.webp"
+dest_files=["res://.godot/imported/mare_curativa.webp-c71aba7ab7dce162d6ab1f9bceb399fb.ctex"]
 
 [params]
 

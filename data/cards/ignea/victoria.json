@@ -9,7 +9,7 @@
   "keywords": [
     "escudo"
   ],
-  "art": "victoria.webp",
+  "art": "ignea/victoria.webp",
   "effects": [
     {
       "trigger": "on_enter",

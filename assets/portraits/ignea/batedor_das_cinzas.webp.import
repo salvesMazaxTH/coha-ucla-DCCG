@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://divjlssux7ih7"
-path="res://.godot/imported/batedor_das_cinzas.webp-e29593ac2038def5b84c22b56ef17866.ctex"
+path="res://.godot/imported/batedor_das_cinzas.webp-0bfb428ce577b98c0b02b35db3348921.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/portraits/batedor_das_cinzas.webp"
-dest_files=["res://.godot/imported/batedor_das_cinzas.webp-e29593ac2038def5b84c22b56ef17866.ctex"]
+source_file="res://assets/portraits/ignea/batedor_das_cinzas.webp"
+dest_files=["res://.godot/imported/batedor_das_cinzas.webp-0bfb428ce577b98c0b02b35db3348921.ctex"]
 
 [params]
 

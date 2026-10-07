@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://hx548dtdirgu"
-path="res://.godot/imported/aren_marevoth.webp-04da46c2767d8e2fca09646cb47e0972.ctex"
+uid="uid://bvynfcble0hkg"
+path="res://.godot/imported/vigia_do_farol_do_norte.webp-6d0bba168af33c41014253c1b7560d6b.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/portraits/aquatica/aren_marevoth.webp"
-dest_files=["res://.godot/imported/aren_marevoth.webp-04da46c2767d8e2fca09646cb47e0972.ctex"]
+source_file="res://assets/portraits/neutra/vigia_do_farol_do_norte.webp"
+dest_files=["res://.godot/imported/vigia_do_farol_do_norte.webp-6d0bba168af33c41014253c1b7560d6b.ctex"]
 
 [params]
 

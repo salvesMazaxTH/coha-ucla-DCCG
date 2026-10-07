@@ -7,16 +7,9 @@
   "atk": 2,
   "hp": 2,
   "keywords": [],
-  "art": "salamandra.webp",
-  "effects": [
-    {
-      "trigger": "on_death",
-      "action": "damage",
-      "target": "enemy_leader",
-      "amount": 2
-    }
-  ],
-  "text": "Ao Morrer: cause 2 de dano ao Líder inimigo.",
+  "art": "ignea/salamandra.webp",
+  "effects": [{"trigger":"on_attack","action":"damage","target":"enemy_leader","amount":2}],
+  "text": "Ao Atacar: cause 2 de dano ao Líder inimigo.",
   "flavor": "",
   "tags": []
 }

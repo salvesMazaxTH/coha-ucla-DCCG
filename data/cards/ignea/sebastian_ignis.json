@@ -7,7 +7,7 @@
   "atk": 1,
   "hp": 5,
   "keywords": [],
-  "art": "sebastian_ignis.webp",
+  "art": "ignea/sebastian_ignis.webp",
   "effects": [
     {
       "trigger": "on_death",

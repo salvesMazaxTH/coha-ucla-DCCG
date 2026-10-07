@@ -9,9 +9,9 @@
   "keywords": [
     "impeto"
   ],
-  "art": "guerreiro_igneo.webp",
-  "effects": [],
-  "text": "",
+  "art": "ignea/guerreiro_igneo.webp",
+  "effects": [{"trigger":"on_attack","action":"buff","target":"self","atk":1,"temp":true}],
+  "text": "Ao Atacar: +1 de Ataque neste turno.",
   "flavor": "",
   "tags": []
 }

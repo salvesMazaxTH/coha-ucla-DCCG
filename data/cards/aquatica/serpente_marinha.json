@@ -7,7 +7,7 @@
   "atk": 2,
   "hp": 4,
   "keywords": [],
-  "art": "serpente_marinha.webp",
+  "art": "aquatica/serpente_marinha.webp",
   "effects": [
     {
       "trigger": "on_enter",

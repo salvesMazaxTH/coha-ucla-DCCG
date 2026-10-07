@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://jle1wkqcvqtu"
-path="res://.godot/imported/bola_de_fogo.webp-9e392333bb2f4854f1b0bc87f6e10dc3.ctex"
+path="res://.godot/imported/bola_de_fogo.webp-abc1c8332a3bb9651f2db83f652b1bde.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/portraits/bola_de_fogo.webp"
-dest_files=["res://.godot/imported/bola_de_fogo.webp-9e392333bb2f4854f1b0bc87f6e10dc3.ctex"]
+source_file="res://assets/portraits/ignea/bola_de_fogo.webp"
+dest_files=["res://.godot/imported/bola_de_fogo.webp-abc1c8332a3bb9651f2db83f652b1bde.ctex"]
 
 [params]
 

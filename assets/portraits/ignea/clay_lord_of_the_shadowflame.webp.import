@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bcy6cb4rodorb"
-path="res://.godot/imported/clay_lord_of_the_shadowflame.webp-ecc523b5d4e0ab4dec6ea028083a5025.ctex"
+path="res://.godot/imported/clay_lord_of_the_shadowflame.webp-d51a61e203d6d9c7d1f6c512091e4183.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/portraits/clay_lord_of_the_shadowflame.webp"
-dest_files=["res://.godot/imported/clay_lord_of_the_shadowflame.webp-ecc523b5d4e0ab4dec6ea028083a5025.ctex"]
+source_file="res://assets/portraits/ignea/clay_lord_of_the_shadowflame.webp"
+dest_files=["res://.godot/imported/clay_lord_of_the_shadowflame.webp-d51a61e203d6d9c7d1f6c512091e4183.ctex"]
 
 [params]
 
