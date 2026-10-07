@@ -511,16 +511,16 @@ func _render_side() -> void:
 	vb.clip_contents = true
 	vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lp.add_child(vb)
-	var shown := log_lines.slice(max(0, log_lines.size() - 10))
+	var shown := log_lines.slice(max(0, log_lines.size() - 8))
 	for i in shown.size():
 		var line: String = shown[i]
 		var fresh := float(i + 1) / shown.size()
 		var head := line.begins_with("—")
 		var l: Label
 		if head:
-			l = _label(line.trim_prefix("— ").trim_suffix(" —").to_upper(), 11, Color(UITheme.GOLD, 0.35 + 0.65 * fresh), HORIZONTAL_ALIGNMENT_CENTER, "title_bold")
+			l = _label(line.trim_prefix("— ").trim_suffix(" —").to_upper(), 14, Color(UITheme.GOLD, 0.35 + 0.65 * fresh), HORIZONTAL_ALIGNMENT_CENTER, "title_bold")
 		else:
-			l = _label(line, 13, Color(UITheme.TEXT, 0.3 + 0.7 * fresh), HORIZONTAL_ALIGNMENT_LEFT, "body")
+			l = _label(line, 16, Color(UITheme.TEXT, 0.3 + 0.7 * fresh), HORIZONTAL_ALIGNMENT_LEFT, "body")
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.custom_minimum_size.x = COL_W - 24
 		vb.add_child(l)
@@ -579,18 +579,18 @@ func _render_hint() -> void:
 	if t == "" or g.phase == "over":
 		return
 	var pc := PanelContainer.new()
-	var sb := UITheme.box(Color(0.03, 0.03, 0.05, 0.88), 16, Color(UITheme.GOLD, 0.4), 1, 6)
-	sb.content_margin_left = 20
-	sb.content_margin_right = 20
-	sb.content_margin_top = 3
-	sb.content_margin_bottom = 3
+	var sb := UITheme.box(Color(0.03, 0.03, 0.05, 0.94), 20, Color(UITheme.GOLD, 0.75), 2, 8)
+	sb.content_margin_left = 30
+	sb.content_margin_right = 30
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 8
 	pc.add_theme_stylebox_override("panel", sb)
 	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var col := SEL if not targeting.is_empty() or provoking != 0 else UITheme.TEXT
-	pc.add_child(_label(t, 14, col, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
+	pc.add_child(_label(t, 22, col, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
 	layer.add_child(pc)
 	pc.reset_size()
-	pc.position = Vector2(TableView.ENEMY_LANE.get_center().x - pc.size.x / 2.0, TableView.DIVIDER_Y + 22) # below the divider emblem
+	pc.position = Vector2(TableView.ENEMY_LANE.get_center().x - pc.size.x / 2.0, TableView.DIVIDER_Y + 18) # below the divider emblem
 
 func _hint() -> String:
 	if g.phase == "search":
