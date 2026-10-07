@@ -3,7 +3,7 @@
   "type": "creature",
   "rarity": "common",
   "essence": "aquatica",
-  "cost": 1,
+  "cost": 2,
   "atk": 1,
   "hp": 2,
   "keywords": [

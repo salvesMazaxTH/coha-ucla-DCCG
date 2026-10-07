@@ -6,6 +6,8 @@ const SEL := Color("#ffd23f")
 const TARGET := Color("#ff5050")
 const OK := Color("#4dff88")
 const ICE := Color("#bfefff")
+## One colour per block pair (arrow, number badge, BLOQUEIA tag), left to right.
+const PAIR_COLS := [Color("#5ec8ff"), Color("#ff7ad9"), Color("#7dffb0"), Color("#ffb35c"), Color("#b48cff"), Color("#f0f07a")]
 const COL_W := 232.0 ## right HUD column width
 const STAGE_H := 900.0
 const STAGE_MAX_W := 2100.0
@@ -30,6 +32,8 @@ var provoking := 0 ## attacker currently choosing a provoke target
 var block_sel: Dictionary = {} ## attacker uid -> blocker uid
 var blocker_pick := 0
 var targeting := {} ## {"kind": hand|legendary|ability, "uid": int, "spec": String}
+var pairs: Array = [] ## who blocks whom this render: [{"a": attacker, "b": blocker, "forced": provoked}]
+var pair_idx := {} ## attacker or blocker uid -> index in pairs
 
 var log_lines: Array = []
 var bg: TextureRect ## table surface, baked once into bg_vp (the live shader was too heavy for weak phones)
@@ -494,8 +498,10 @@ func _render() -> void:
 	_render_command(op, Vector2(274, 14))
 	_render_command(me, Vector2(274, 690))
 	_render_enemy_hand(op)
+	_collect_pairs()
 	_render_board(op, 172)
 	_render_board(me, 460)
+	_render_pairs()
 	_render_hand(me)
 	_render_side()
 	_render_hint()
@@ -622,12 +628,19 @@ func _render_board(p: int, y: float) -> void:
 		v.right_clicked.connect(_show_overlay)
 		layer.add_child(v)
 		views[c["uid"]] = v
+		var pi: int = pair_idx.get(c["uid"], -1)
+		var num := "  %d" % (pi + 1) if pi >= 0 else ""
 		if attack_sel.has(c["uid"]) or g.attackers.has(c["uid"]):
 			v.position.y += -24 if p == viewer else 24
 			var prov: int = attack_sel.get(c["uid"], g.attackers.get(c["uid"], 0))
-			_tag(v, "PROVOCA" if prov != 0 else "ATACA", TARGET if prov != 0 else SEL)
-		if block_sel.values().has(c["uid"]) or g.blocks.values().has(c["uid"]):
-			_tag(v, "BLOQUEIA", OK)
+			if prov != 0:
+				_tag(v, "PROVOCA" + num, TARGET)
+			elif pi < 0 and g.phase == "combat" and g.window == "damage":
+				_tag(v, "NO LÍDER", TARGET) # unblocked: it will hit the Leader
+			else:
+				_tag(v, "ATACA" + num, SEL)
+		elif pi >= 0:
+			_tag(v, ("PROVOCADA" if pairs[pi]["forced"] else "BLOQUEIA") + num, PAIR_COLS[pi % PAIR_COLS.size()])
 		elif g.is_frozen(c):
 			_tag(v, "CONGELADA", ICE)
 
@@ -651,6 +664,89 @@ func _decorate_creature(v: CardView, c: Dictionary, p: int) -> void:
 			v.highlight = TARGET if blocker_pick != 0 and g.can_block(g.find_creature(blocker_pick), c) else SEL
 	if provoking != 0 and p != viewer and g.phase == "main" and not g.is_frozen(c):
 		v.highlight = TARGET
+
+## Every block assignment visible right now: locked-in blocks, provoked creatures and,
+## for the defender only, the picks not yet confirmed. Numbered left to right.
+func _collect_pairs() -> void:
+	pairs.clear()
+	pair_idx.clear()
+	var m := {} # attacker uid -> [blocker uid, forced]
+	for src in [g.attackers, attack_sel]:
+		for a in src:
+			var b: int = src[a]
+			if b != 0 and not g.find_creature(b).is_empty() and not g.is_frozen(g.find_creature(b)):
+				m[a] = [b, true]
+	if g.phase == "blocks" and viewer == g.decider():
+		for a in block_sel:
+			if not m.has(a):
+				m[a] = [block_sel[a], false]
+	for a in g.blocks:
+		m[a] = [g.blocks[a], g.attackers.get(a, 0) == g.blocks[a]]
+	for p in 2:
+		for c in g.players[p]["board"]:
+			if m.has(c["uid"]):
+				pair_idx[c["uid"]] = pairs.size()
+				pair_idx[m[c["uid"]][0]] = pairs.size()
+				pairs.append({"a": c["uid"], "b": m[c["uid"]][0], "forced": m[c["uid"]][1]})
+
+## Arrows from each blocker to the attacker it stops, with the pair number on the curve.
+## Redrawn every frame so they follow cards while they animate.
+func _render_pairs() -> void:
+	if pairs.is_empty():
+		return
+	var o := Control.new()
+	o.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(o)
+	get_tree().process_frame.connect(o.queue_redraw)
+	o.draw.connect(func(): _draw_pairs(o))
+
+func _draw_pairs(o: Control) -> void:
+	var t := Time.get_ticks_msec() / 1000.0
+	var font := UITheme.font("heavy")
+	for i in pairs.size():
+		var vb = views.get(pairs[i]["b"])
+		var va = views.get(pairs[i]["a"])
+		if not (_alive(vb) and _alive(va)):
+			continue
+		var col: Color = PAIR_COLS[i % PAIR_COLS.size()]
+		var rb := Rect2(vb.position, vb.size * vb.scale)
+		var ra := Rect2(va.position, va.size * va.scale)
+		var b_up := rb.get_center().y < ra.get_center().y
+		# the lower card's edge sits above its tag, the upper card's just under its frame
+		var p0 := Vector2(rb.get_center().x, rb.end.y + 4 if b_up else rb.position.y - 26)
+		var p3 := Vector2(ra.get_center().x, ra.position.y - 26 if b_up else ra.end.y + 4)
+		var k := (p3.y - p0.y) * 0.9
+		var c1 := p0 + Vector2(0, k)
+		var c2 := p3 - Vector2(0, k)
+		var pts := PackedVector2Array()
+		for j in 33:
+			pts.append(p0.bezier_interpolate(c1, c2, p3, j / 32.0))
+		o.draw_polyline(pts, Color(0, 0, 0, 0.7), 8.0, true)
+		for j in 32:
+			if not pairs[i]["forced"] or j % 6 < 3: # provoked: dashed
+				o.draw_line(pts[j], pts[j + 1], col, 4.0, true)
+		var dir := (pts[32] - pts[29]).normalized()
+		var base := p3 - dir * 15.0
+		var side := dir.orthogonal() * 9.0
+		var head := PackedVector2Array([p3 + dir * 2.0, base + side, base - side])
+		o.draw_colored_polygon(head, col)
+		o.draw_polyline(PackedVector2Array([head[0], head[1], head[2], head[0]]), Color(0, 0, 0, 0.7), 1.5, true)
+		o.draw_circle(p0, 6.0, Color(0, 0, 0, 0.7))
+		o.draw_circle(p0, 4.0, col)
+		# a spark travelling blocker -> attacker shows the direction at a glance
+		var spark := p0.bezier_interpolate(c1, c2, p3, fmod(t * 0.7 + i * 0.37, 1.0))
+		o.draw_circle(spark, 3.0, Color(1, 1, 1, 0.85))
+		var mid := p0.bezier_interpolate(c1, c2, p3, 0.5)
+		var r := 13.0 + sin(t * 4.0 + i) * 1.0
+		o.draw_circle(mid, r, Color(0.05, 0.04, 0.08, 0.95))
+		o.draw_arc(mid, r, 0, TAU, 28, col, 2.5, true)
+		var n := str(i + 1)
+		var fs := 17
+		var w := font.get_string_size(n, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		o.draw_string(font, mid + Vector2(-w / 2.0, fs * 0.36), n, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col.lightened(0.35))
+
+func _alive(v) -> bool:
+	return v != null and is_instance_valid(v) and not v.is_queued_for_deletion() and v.visible
 
 ## Small enamel tag above a card ("ATACA", "BLOQUEIA"...).
 func _tag(v: Control, t: String, col: Color) -> void:
@@ -931,7 +1027,7 @@ func _hint() -> String:
 		"mulligan":
 			return "Clique em até 3 cartas para trocar."
 		"blocks":
-			return "Clique numa criatura sua e depois no atacante que ela bloqueia."
+			return "Clique numa criatura sua e depois no atacante que ela bloqueia · clique de novo no bloqueador para desfazer."
 		"discard":
 			return "Mão acima de 10: escolha %d para descartar." % (g.players[viewer]["hand"].size() - GameState.HAND_LIMIT)
 		"main":
@@ -1377,6 +1473,46 @@ func _embers(c: Vector2, t: float, col: Color) -> void:
 		if is_instance_valid(p):
 			p.queue_free())
 
+## How long a revealed spell/ability stays frozen mid-screen: long enough for the
+## opponent to read it, short for your own plays (you already know what you cast).
+const REVEAL_HOLD := 2.2
+const REVEAL_HOLD_OWN := 0.8
+
+func _reveal_hold(p: int) -> float:
+	return REVEAL_HOLD_OWN if (online or vs_ai) and p == viewer else REVEAL_HOLD
+
+## A Leader ability has no card to show: a banner with its name and text instead.
+func _ability_banner(p: int, t: float, hold: float) -> void:
+	var ab: Dictionary = CardDB.leader(g.players[p]["leader_id"])["ability"]
+	var w := 440.0
+	var box := PanelContainer.new()
+	var sb := UITheme.box(Color(0.03, 0.03, 0.05, 0.94), 18, Color(UITheme.GOLD, 0.85), 2, 16)
+	sb.set_content_margin_all(16)
+	box.add_theme_stylebox_override("panel", sb)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.custom_minimum_size = Vector2(w, 0)
+	var col := VBoxContainer.new()
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_theme_constant_override("separation", 6)
+	box.add_child(col)
+	col.add_child(_label("%s · Habilidade do Líder" % _pname(p), 15, Color(UITheme.TEXT, 0.6), HORIZONTAL_ALIGNMENT_CENTER, "body"))
+	col.add_child(_label(String(ab["name"]), 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "bold", 4))
+	var tx := _label(String(ab.get("text", "")), 18, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "body")
+	tx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tx.custom_minimum_size = Vector2(w - 32, 0)
+	col.add_child(tx)
+	box.z_index = 30
+	box.modulate.a = 0.0
+	fx.add_child(box)
+	box.reset_size()
+	box.position = Vector2(lane_cx - w / 2.0, 420 - box.size.y / 2.0)
+	var tw := box.create_tween()
+	tw.tween_interval(t)
+	tw.tween_property(box, "modulate:a", 1.0, 0.2)
+	tw.tween_interval(hold)
+	tw.tween_property(box, "modulate:a", 0.0, 0.35)
+	tw.tween_callback(box.queue_free)
+
 func _elem_color(card_id: String) -> Color:
 	return Color(CardDB.essence(CardDB.essences_of(CardDB.card(card_id))[0]).get("color", "#ffffff"))
 
@@ -1426,10 +1562,13 @@ func _animate(events: Array, old: Dictionary) -> float:
 					gh.z_index = 30
 					var tw := _fly(gh, origin, {"c": Vector2(lane_cx, 420), "rot": 0.0, "w": 170.0}, cursor, 0.35, 40.0, true)
 					tw.tween_callback(func(): gh.z_index = 0)
-					gh.dissolve(cursor + 0.95, _elem_color(e["card_id"]).lightened(0.15), 0.6)
-					cursor += 0.5
+					var hold := _reveal_hold(e["player"])
+					gh.dissolve(cursor + 0.35 + hold, _elem_color(e["card_id"]).lightened(0.15), 0.6)
+					cursor += 0.35 + hold - 0.15
 			"ability":
-				cursor += 0.25
+				var hold := _reveal_hold(e["player"])
+				_ability_banner(e["player"], cursor, hold)
+				cursor += 0.2 + hold - 0.15
 			"resolve":
 				cursor += 0.15
 			"fizzle":
