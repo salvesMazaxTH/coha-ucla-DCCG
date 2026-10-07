@@ -411,12 +411,20 @@ func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid
 			"random_enemy_creature":
 				var b: Array = players[opponent(p)]["board"]
 				if not b.is_empty(): targets = [b[rng.randi_range(0, b.size() - 1)]["uid"]]
+			"random_enemy_and_adjacent":
+				var eb: Array = players[opponent(p)]["board"]
+				if not eb.is_empty():
+					var ci := rng.randi_range(0, eb.size() - 1)
+					for j in range(maxi(ci - 1, 0), mini(ci + 1, eb.size() - 1) + 1): targets.append(eb[j]["uid"])
 			"self":
 				if not find_creature(self_uid).is_empty(): targets = [self_uid]
 			"none":
 				targets = [0]
 			"opposed_creature":
 				if not find_creature(other_uid).is_empty(): targets = [other_uid]
+			"all_creatures":
+				for side in [p, opponent(p)]:
+					for c in players[side]["board"]: targets.append(c["uid"])
 			"all_ally_creatures":
 				for c in players[p]["board"]: targets.append(c["uid"])
 			"random_ally_creature", "random_other_ally_creature":
@@ -465,7 +473,12 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 func _apply(p: int, e: Dictionary, t: int) -> void:
 	match e["action"]:
 		"damage":
-			_deal_damage(t, int(e["amount"]), {})
+			var amount := int(e["amount"])
+			var red: Dictionary = e.get("ally_reduce", {})
+			var victim := find_creature(t)
+			if not red.is_empty() and not victim.is_empty() and victim["owner"] == p and card_of(victim).get("essence", "") == red["essence"]:
+				amount = int(red["amount"])
+			_deal_damage(t, amount, {})
 		"heal_leader":
 			_heal_leader(p, int(e["amount"]))
 		"draw":

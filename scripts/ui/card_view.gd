@@ -268,7 +268,7 @@ func _panel_lines(cd: Dictionary) -> Array:
 		else:
 			out.append([" · ".join(names), Color("#ffe7a0")])
 	if out.is_empty():
-		var rar := {"legendary": "CAMPEÃO LENDÁRIO", "champion": "CAMPEÃO", "common": "UNIDADE"}
+		var rar := {"legendary": "CAMPEÃO LENDÁRIO", "champion": "CAMPEÃO", "epic": "UNIDADE ÉPICA", "common": "UNIDADE"}
 		out.append([rar.get(cd["rarity"], ""), Color(UITheme.TEXT, 0.45)])
 	return out
 

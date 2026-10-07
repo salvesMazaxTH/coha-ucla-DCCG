@@ -146,6 +146,62 @@ func _test_triggers() -> void:
 	g._deal_damage(h["uid"], 1, {})
 	check(g.find_creature(h["uid"])["damage"] == 1, "on_damaged no-source safe")
 
+	# Cartas reais: Dlorafya, Salamandra, Espírito da Maré, Ronan
+	g = _new_game()
+	var ally := _put(g, 0, "kai")
+	var foe := _put(g, 1, "sentinela_coral") # 1/4
+	var foe2 := _put(g, 1, "tritao_lanceiro") # 2/2
+	var d := _put(g, 0, "dlorafya")
+	check(g.find_creature(ally["uid"])["damage"] == 1, "dlorafya: ally igneo takes 1")
+	g._check_state()
+	check(g.find_creature(foe["uid"])["damage"] == 3 and g.find_creature(foe2["uid"]).is_empty(), "dlorafya: enemies take 3")
+	check(g.find_creature(d["uid"])["damage"] == 1, "dlorafya: self takes 1")
+
+	g = _new_game()
+	var sal := _put(g, 0, "salamandra")
+	hp = g.players[1]["leader_hp"]
+	g.declare_attack(0, {sal["uid"]: 0})
+	check(g.players[1]["leader_hp"] == hp - 4, "salamandra Ao Atacar (2 + 2 hit)")
+
+	g = _new_game()
+	var lord := _put(g, 0, "lord_of_the_shadowflame")
+	var blk := _put(g, 1, "alexa_neruvya_primordial") # 7/7
+	g.declare_attack(0, {lord["uid"]: 0})
+	g.declare_blocks(1, {lord["uid"]: blk["uid"]})
+	check(g.find_creature(blk["uid"]).is_empty(), "lorde Ao Ser Bloqueada: 2 + 5 combat kills 7/7")
+
+	g = _new_game()
+	var kai2 := _put(g, 0, "kai")
+	var sp := _put(g, 1, "tritao_lanceiro")
+	g.declare_attack(0, {kai2["uid"]: 0})
+	g.declare_blocks(1, {kai2["uid"]: sp["uid"]})
+	check(g.find_creature(kai2["uid"]).get("damage", 0) <= 1, "tritao Ao Bloquear hits attacker")
+
+	g = _new_game()
+	var ron := _put(g, 0, "ronan_lendario")
+	g._deal_damage(ron["uid"], 1, {})
+	check(g.find_creature(ron["uid"])["atk"] == 5, "ronan Ao Sofrer Dano +1 atk")
+
+	g = _new_game()
+	var vig := _put(g, 0, "vigia_do_farol_do_norte")
+	var hand_n: int = g.players[0]["hand"].size()
+	g._deal_damage(vig["uid"], 5, {})
+	g._check_state()
+	check(g.players[0]["hand"].size() == hand_n + 1, "vigia Ao Morrer draws 1")
+
+	_tcard("t_wall", 1, 9, [])
+	g = _new_game()
+	var estr := _put(g, 0, "estrondador_igneo")
+	var w1 := _put(g, 1, "t_wall")
+	var w2 := _put(g, 1, "t_wall")
+	var w3 := _put(g, 1, "t_wall")
+	g.declare_attack(0, {estr["uid"]: 0})
+	g.declare_blocks(1, {})
+	var hit := 0
+	for w in [w1, w2, w3]:
+		hit += int(g.find_creature(w["uid"])["damage"])
+	check(hit >= 2 and hit <= 3, "estrondador AoE hits random + adjacent (%d)" % hit)
+
 	# Fênix Menor: dies, revives as 1/1 with no effects
 	g = _new_game()
 	var f := _put(g, 0, "fenix_menor")

@@ -103,7 +103,7 @@ func _show_menu() -> void:
 	table.visible = false
 	_set_tints(Color("#3f7bd9"), Color("#e0572b"), 1.6)
 	# the two Leaders of the slice, facing each other from the edges
-	for side in [["ronan.webp", 0.0, 1.0], ["naelthos.webp", 1600.0 - 640.0, 0.0]]:
+	for side in [["ignea/ronan.webp", 0.0, 1.0], ["aquatica/naelthos.webp", 1600.0 - 640.0, 0.0]]:
 		var tex := CardView.texture(side[0])
 		if tex == null:
 			continue
@@ -811,7 +811,7 @@ func _show_overlay(v: CardView) -> void:
 	big.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(big)
 	var txt := "[font_size=34][color=#e8c25a]%s[/color][/font_size]\n" % cd["name"]
-	var rar := {"legendary": "Campeão Lendário", "champion": "Campeão", "common": "Unidade"}
+	var rar := {"legendary": "Campeão Lendário", "champion": "Campeão", "epic": "Unidade Épica", "common": "Unidade"}
 	var typ := {"creature": rar[cd["rarity"]], "spell": "Feitiço", "equipment": "Equipamento"}
 	txt += "[color=#aaaaaa]%s · %s · custo %d[/color]\n\n" % [typ[cd["type"]], CardDB.essence(cd["essence"]).get("name", cd["essence"]), cd["cost"]]
 	if cd.get("text", "") != "":

@@ -80,4 +80,4 @@ Gatilhos dizem *quando* um efeito acontece. Eles abrem o texto da carta no lugar
 | No Início do Turno | Começa o turno do dono da criatura. |
 | No Fim do Turno | Termina o turno do dono da criatura. |
 
-Alvos de gatilhos que não pedem escolha do jogador: `self`, `opposed_creature` (a criatura do outro lado do combate, ou a fonte do dano), `all_ally_creatures`, `random_ally_creature`, `random_other_ally_creature`, `random_enemy_creature`, `all_enemy_creatures`, `enemy_leader` e `own_leader`. Só Ao Jogar e Ao Entrar podem usar alvo escolhido pelo jogador.
+Alvos de gatilhos que não pedem escolha do jogador: `self`, `opposed_creature` (a criatura do outro lado do combate, ou a fonte do dano), `all_ally_creatures`, `all_creatures` (ambos os lados; o efeito de dano aceita `ally_reduce` para reduzir o dano em aliados de uma essência), `random_ally_creature`, `random_other_ally_creature`, `random_enemy_creature`, `random_enemy_and_adjacent` (uma criatura inimiga aleatória e as adjacentes), `all_enemy_creatures`, `enemy_leader` e `own_leader`. Só Ao Jogar e Ao Entrar podem usar alvo escolhido pelo jogador.
