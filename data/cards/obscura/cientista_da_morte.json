@@ -2,7 +2,7 @@
   "name": "Cientista da Morte",
   "type": "unit",
   "rarity": "epic",
-  "species": [],
+  "species": ["humano"],
   "essence": "obscura",
   "cost": 4,
   "atk": 2,

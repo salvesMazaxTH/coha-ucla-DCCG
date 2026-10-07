@@ -2,7 +2,7 @@
   "name": "O Espiritomante",
   "type": "unit",
   "rarity": "epic",
-  "species": [],
+  "species": ["humano", "revenante"],
   "essence": "obscura",
   "cost": 4,
   "atk": 3,

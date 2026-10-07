@@ -2,7 +2,7 @@
   "name": "A Vagante Sombria",
   "type": "unit",
   "rarity": "epic",
-  "species": [],
+  "species": ["espirito"],
   "essence": "obscura",
   "cost": 12,
   "atk": 5,

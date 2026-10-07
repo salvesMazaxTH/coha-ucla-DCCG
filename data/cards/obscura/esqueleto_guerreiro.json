@@ -2,7 +2,7 @@
   "name": "Esqueleto Guerreiro",
   "type": "unit",
   "rarity": "common",
-  "species": [],
+  "species": ["morto_vivo"],
   "essence": "obscura",
   "cost": 1,
   "atk": 1,

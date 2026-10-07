@@ -73,7 +73,9 @@
     "elemental": {"name": "Elemental"},
     "gnomo": {"name": "Gnomo"},
     "demihumano": {"name": "Demihumano"},
-    "morto_vivo": {"name": "Morto-Vivo"}
+    "morto_vivo": {"name": "Morto-Vivo"},
+    "revenante": {"name": "Revenante"},
+    "gargoyle": {"name": "Gargoyle"}
   },
   "keywords": {
     "golpe_rapido": {

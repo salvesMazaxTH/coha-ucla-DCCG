@@ -2,7 +2,7 @@
   "name": "Titânico Morcegalma",
   "type": "unit",
   "rarity": "epic",
-  "species": [],
+  "species": ["gargoyle"],
   "essence": "obscura",
   "cost": 6,
   "atk": 5,

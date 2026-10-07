@@ -2,7 +2,7 @@
   "name": "Revivente Eterno",
   "type": "unit",
   "rarity": "epic",
-  "species": [],
+  "species": ["morto_vivo"],
   "essence": "obscura",
   "cost": 3,
   "atk": 2,

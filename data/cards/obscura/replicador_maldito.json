@@ -2,7 +2,7 @@
   "name": "Replicador Maldito",
   "type": "unit",
   "rarity": "common",
-  "species": [],
+  "species": ["demonio"],
   "essence": "obscura",
   "cost": 4,
   "atk": 2,
