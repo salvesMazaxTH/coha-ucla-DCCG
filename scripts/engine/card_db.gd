@@ -40,6 +40,13 @@ static func card_for(id: String, inst: Dictionary = {}) -> Dictionary:
 static func leader(id: String) -> Dictionary:
 	return data()["leaders"][id]
 
+## True for a Leader's own champion card (cast from the Command Zone).
+static func is_leader_card(id: String) -> bool:
+	for lid in data()["leaders"]:
+		if data()["leaders"][lid]["legendary"] == id:
+			return true
+	return false
+
 static func deck(id: String) -> Dictionary:
 	return data()["decks"][id]
 
@@ -63,7 +70,7 @@ static func validate_deck(deck_id: String) -> Array[String]:
 			errors.append("%s: mais de %d cópias" % [id, MAX_COPIES])
 		if c["essence"] != "neutra" and not ld["essences"].has(c["essence"]):
 			errors.append("%s: essência fora da identidade do Líder" % id)
-		if c["rarity"] == "legendary" and id != ld["legendary"]:
+		if is_leader_card(id) and id != ld["legendary"]:
 			errors.append("%s: Lendário diferente do Líder" % id)
 	if total != DECK_SIZE:
 		errors.append("deck tem %d cartas (precisa de %d)" % [total, DECK_SIZE])

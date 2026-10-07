@@ -178,7 +178,7 @@ func _test_triggers() -> void:
 	check(g.find_creature(kai2["uid"]).get("damage", 0) <= 1, "tritao Ao Bloquear hits attacker")
 
 	g = _new_game()
-	var ron := _put(g, 0, "ronan_lendario")
+	var ron := _put(g, 0, "ronan")
 	g._deal_damage(ron["uid"], 1, {})
 	check(g.find_creature(ron["uid"])["atk"] == 5, "ronan Ao Sofrer Dano +1 atk")
 

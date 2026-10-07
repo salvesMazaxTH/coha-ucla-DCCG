@@ -100,7 +100,7 @@
       "name": "Ronan",
       "hp": 20,
       "art": "ignea/ronan.webp",
-      "legendary": "ronan_lendario",
+      "legendary": "ronan",
       "ability": {
         "name": "Pavio Curto",
         "cost": 1,
@@ -122,7 +122,7 @@
       "name": "Naelthos",
       "hp": 30,
       "art": "aquatica/naelthos.webp",
-      "legendary": "naelthos_lendario",
+      "legendary": "naelthos",
       "ability": {
         "name": "Mar que Retorna",
         "cost": 2,
@@ -148,7 +148,7 @@
       "name": "Fúria de Ronan",
       "leader": "ronan",
       "cards": {
-        "ronan_lendario": 1,
+        "ronan": 1,
         "kai": 3,
         "victoria": 2,
         "irina_lancachamas": 3,
@@ -174,7 +174,7 @@
       "name": "Maré de Naelthos",
       "leader": "naelthos",
       "cards": {
-        "naelthos_lendario": 1,
+        "naelthos": 1,
         "yuki": 2,
         "naelys": 3,
         "neraqa": 3,

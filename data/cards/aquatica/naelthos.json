@@ -1,7 +1,7 @@
 {
   "name": "Naelthos",
   "type": "creature",
-  "rarity": "legendary",
+  "rarity": "champion",
   "essence": "aquatica",
   "cost": 5,
   "atk": 3,

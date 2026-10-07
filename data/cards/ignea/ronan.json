@@ -1,7 +1,7 @@
 {
   "name": "Ronan",
   "type": "creature",
-  "rarity": "legendary",
+  "rarity": "champion",
   "essence": "ignea",
   "cost": 4,
   "atk": 4,
