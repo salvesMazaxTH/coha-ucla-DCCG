@@ -52,7 +52,7 @@
     "on_hit_leader": { "name": "Ao Atingir o Líder", "text": "O efeito acontece quando a criatura causa dano a um Líder." },
     "on_turn_start": { "name": "No Início do Turno", "text": "O efeito acontece no início do turno do dono da criatura." },
     "on_turn_end": { "name": "No Fim do Turno", "text": "O efeito acontece no fim do turno do dono da criatura." },
-    "on_ally_death": { "name": "Aliado Morre", "text": "O efeito acontece quando outra criatura que você controla vai para o cemitério. Não é o mesmo que morrer: se ela volta ao campo (ex.: Revivente Eterno) ou vai para outro lugar (Lendário volta à zona de comando), não conta. A que foi ao cemitério não ativa o próprio efeito (para isso existe Ao Morrer)." },
+    "on_ally_death": { "name": "Aliado Morre", "text": "O efeito acontece quando outra criatura que você controla morre, mesmo que ela volte logo em seguida (Revivente Eterno, Fênix, Lendário voltando à zona de comando). A que morreu não ativa o próprio efeito (para isso existe Ao Morrer)." },
     "constante": { "name": "Constante", "text": "O efeito é contínuo: vale enquanto a criatura está em campo (ou a carta está na mão) e se atualiza sozinho." }
   },
   "species": {

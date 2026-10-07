@@ -130,7 +130,7 @@ Gatilhos dizem *quando* um efeito acontece. Eles abrem o texto da carta no lugar
 | Ao Atingir o Líder | A criatura causa dano a um Líder. |
 | No Início do Turno | Começa o turno do dono da criatura. |
 | No Fim do Turno | Termina o turno do dono da criatura. |
-| Aliado Morre | Outra criatura que você controla **vai para o cemitério** (não é o mesmo que morrer: se ela revive no lugar, ou é um Lendário voltando à zona de comando, não conta). A que foi ao cemitério não ativa o próprio efeito (para isso existe Ao Morrer). Sacrifício conta. |
+| Aliado Morre | Outra criatura que você controla **morre**, mesmo que volte na hora (Revivente, Fênix) ou seja um Lendário voltando à zona de comando. A que morreu não ativa o próprio efeito (para isso existe Ao Morrer). Sacrifício conta. |
 | (qualquer gatilho) | Um efeito pode ter "uma vez por turno" (`once_per_turn`): o limite é por criatura e reinicia a cada turno, de qualquer jogador (ex.: Cientista da Morte). |
 | Constante | Sempre, enquanto a criatura está em campo. Não dispara: é recalculado a cada mudança de estado (ex.: Jeff The Death recebe +2/+2 por criatura no cemitério do dono; o dano sofrido continua valendo se o bônus encolher). |
 

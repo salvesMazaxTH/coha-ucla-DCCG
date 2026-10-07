@@ -1056,13 +1056,12 @@ func _check_state() -> void:
 					_dying = c
 					_run_effects(p, card_of(c)["effects"], "on_death", 0, c["uid"])
 					_dying = {}
-					# Aliado Morre = "went to the graveyard", not just "died": a Legendary returning to its zone or a
-					# creature that revived itself (its entry left the graveyard) does not count.
-					if players[p]["graveyard"].any(func(e): return e["uid"] == c["uid"]):
-						for ally in players[p]["board"].duplicate():
-							if players[p]["board"].has(ally):
-								_fire(ally, "on_ally_death", c["uid"])
-						_fire_leader_passive(p, "on_ally_death")
+					# Aliado Morre fires on every death, even if the creature comes right back (Revivente, Fênix)
+					# or a Legendary returns to its zone.
+					for ally in players[p]["board"].duplicate():
+						if players[p]["board"].has(ally):
+							_fire(ally, "on_ally_death", c["uid"])
+					_fire_leader_passive(p, "on_ally_death")
 	var dead := [players[0]["leader_hp"] <= 0, players[1]["leader_hp"] <= 0]
 	if dead[0] or dead[1]:
 		winner = 2 if dead[0] and dead[1] else (1 if dead[0] else 0)

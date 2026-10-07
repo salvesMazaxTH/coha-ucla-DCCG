@@ -186,14 +186,14 @@ func _test_obscura_rules() -> void:
 	var foe: int = g.players[1]["leader_hp"]
 	_kill(g, dia)
 	check(g.players[1]["leader_hp"] == foe - 1, "diabrete não ativa por si mesmo; Ao Morrer fere o Líder")
-	# Aliado Morre means "went to the graveyard": a Revivente that comes back does not count
+	# Aliado Morre fires on every death, even a Revivente that comes right back
 	var gr := _obscura_game()
 	gr.players[0]["passive_used"] = true
 	_put(gr, 0, "diabrete_sombrio")
 	var rv := _put(gr, 0, "revivente_eterno")
 	var hr: int = gr.players[1]["leader_hp"]
 	_kill(gr, rv)
-	check(gr.players[1]["leader_hp"] == hr and _count(gr, 0, "revivente_eterno") == 1, "revivente que volta não conta como Aliado Morre")
+	check(gr.players[1]["leader_hp"] == hr - 1 and _count(gr, 0, "revivente_eterno") == 1, "revivente que volta também ativa Aliado Morre")
 	# Cientista da Morte summons a skeleton on Aliado Morre
 	var sg := _obscura_game()
 	sg.players[0]["passive_used"] = true
