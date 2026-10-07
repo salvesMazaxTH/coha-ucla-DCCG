@@ -408,6 +408,8 @@ func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid
 				targets = [LEADER_UID[opponent(p)]]
 			"own_leader":
 				targets = [LEADER_UID[p]]
+			"both_leaders":
+				targets = [LEADER_UID[p], LEADER_UID[opponent(p)]]
 			"random_enemy_creature":
 				var b: Array = players[opponent(p)]["board"]
 				if not b.is_empty(): targets = [b[rng.randi_range(0, b.size() - 1)]["uid"]]
@@ -482,7 +484,7 @@ func _apply(p: int, e: Dictionary, t: int) -> void:
 		"heal_leader":
 			_heal_leader(p, int(e["amount"]))
 		"draw":
-			_draw(p, int(e["amount"]))
+			_draw(opponent(p) if t == LEADER_UID[opponent(p)] else p, int(e["amount"]))
 		"search_deck":
 			pass # Search effects are opened by _run_effects after their trigger resolves.
 		"summon":

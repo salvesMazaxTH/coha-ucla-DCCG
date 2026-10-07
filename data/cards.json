@@ -191,8 +191,9 @@
         "lanca_das_mares": 3,
         "bencao_das_profundezas": 3,
         "tsunami": 2,
-        "pingente_das_ondas": 3,
-        "vigia_do_farol_do_norte": 2
+        "pingente_das_ondas": 2,
+        "vigia_do_farol_do_norte": 2,
+        "engenheiro_louco": 1
       }
     }
   },

@@ -1,0 +1,22 @@
+{
+  "name": "Engenheiro Louco",
+  "type": "creature",
+  "rarity": "common",
+  "essence": "neutra",
+  "cost": 3,
+  "atk": 1,
+  "hp": 3,
+  "keywords": [],
+  "art": "neutra/engenheiro_louco.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "draw",
+      "target": "both_leaders",
+      "amount": 2
+    }
+  ],
+  "text": "Ao Entrar: cada jogador compra 2 cartas.",
+  "flavor": "\"Funciona! ...Provavelmente funciona.\"",
+  "tags": []
+}

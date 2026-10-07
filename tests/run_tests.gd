@@ -189,6 +189,12 @@ func _test_triggers() -> void:
 	g._check_state()
 	check(g.players[0]["hand"].size() == hand_n + 1, "vigia Ao Morrer draws 1")
 
+	g = _new_game()
+	var h0: int = g.players[0]["hand"].size()
+	var h1: int = g.players[1]["hand"].size()
+	_put(g, 0, "engenheiro_louco")
+	check(g.players[0]["hand"].size() == h0 + 2 and g.players[1]["hand"].size() == h1 + 2, "engenheiro louco: both draw 2")
+
 	_tcard("t_wall", 1, 9, [])
 	g = _new_game()
 	var estr := _put(g, 0, "estrondador_igneo")
