@@ -3,21 +3,20 @@
   "type": "creature",
   "rarity": "common",
   "essence": "aquatica",
-  "cost": 3,
-  "atk": 2,
-  "hp": 4,
+  "cost": 5,
+  "atk": 4,
+  "hp": 5,
   "keywords": [],
   "art": "aquatica/serpente_marinha.webp",
   "effects": [
     {
       "trigger": "on_enter",
-      "action": "search_deck",
+      "action": "look_top",
       "target": "own_leader",
-      "essence": "aquatica",
-      "max_cost": 2
+      "count": 4
     }
   ],
-  "text": "Ao Entrar: revele as cartas de Água de custo 2 ou menos do seu deck. Escolha uma para colocar na mão e embaralhe o deck.",
+  "text": "Ao Entrar: olhe as 4 cartas do topo do seu deck. Coloque 1 na mão e as outras no fundo do deck.",
   "flavor": "",
   "tags": []
 }

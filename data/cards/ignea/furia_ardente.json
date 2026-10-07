@@ -4,6 +4,7 @@
   "rarity": "common",
   "essence": "ignea",
   "cost": 2,
+  "speed": "rapido",
   "art": "ignea/furia_ardente.webp",
   "effects": [
     {

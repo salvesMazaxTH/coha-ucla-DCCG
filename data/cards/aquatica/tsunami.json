@@ -4,6 +4,7 @@
   "rarity": "epic",
   "essence": "aquatica",
   "cost": 6,
+  "speed": "lento",
   "art": "aquatica/tsunami.webp",
   "effects": [
     {

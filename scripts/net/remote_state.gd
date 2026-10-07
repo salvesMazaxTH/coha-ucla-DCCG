@@ -38,7 +38,11 @@ func apply_snapshot(snap: Dictionary) -> void:
 	phase = s["phase"]
 	winner = s["winner"]
 	attackers = s["attackers"]
+	blocks = s.get("blocks", {})
 	pending_search = s["pending_search"]
+	stack = s.get("stack", [])
+	priority = int(s.get("priority", active))
+	window = String(s.get("window", ""))
 
 func _act(m: Dictionary) -> Array:
 	m["t"] = "act"
@@ -60,8 +64,11 @@ func use_ability(_p: int, target: int = 0) -> Array:
 func declare_attack(_p: int, attacks: Dictionary) -> Array:
 	return _act({"a": "attack", "attacks": attacks})
 
-func declare_blocks(_p: int, blocks: Dictionary) -> Array:
-	return _act({"a": "blocks", "blocks": blocks})
+func declare_blocks(_p: int, picks: Dictionary) -> Array:
+	return _act({"a": "blocks", "blocks": picks})
+
+func pass_priority(_p: int) -> Array:
+	return _act({"a": "pass"})
 
 func end_turn(_p: int) -> Array:
 	return _act({"a": "end_turn"})

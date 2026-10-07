@@ -10,7 +10,7 @@ extends SceneTree
 ##   {t:"resume", code, token}               -> {t:"start", ...} again (reconnect)
 ##   {t:"act", a:<action>, ...args}          -> broadcast {t:"events"} or {t:"reject"} to the sender
 ## actions: mulligan{uids} play{uid,target} legendary{target} ability{target} attack{attacks}
-##          blocks{blocks} end_turn discard{uids} search{uid}
+##          blocks{blocks} end_turn pass discard{uids} search{uid}
 ## server -> client: room, start{seat,snap}, events{events,snap}, reject{a}, opponent{connected}, error{msg}
 
 const DECKS := ["fogo", "agua"]
@@ -189,6 +189,7 @@ func _apply(g: GameState, p: int, m: Dictionary) -> Array:
 		"attack": return g.declare_attack(p, _intmap(m.get("attacks")))
 		"blocks": return g.declare_blocks(p, _intmap(m.get("blocks")))
 		"end_turn": return g.end_turn(p)
+		"pass": return g.pass_priority(p)
 		"discard": return g.discard(p, _ints(m.get("uids")))
 		"search": return g.choose_search(p, int(m.get("uid", 0)))
 	return []

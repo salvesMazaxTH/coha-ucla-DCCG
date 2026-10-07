@@ -4,6 +4,7 @@
   "rarity": "common",
   "essence": "ignea",
   "cost": 1,
+  "speed": "instantaneo",
   "art": "ignea/labareda.webp",
   "effects": [
     {

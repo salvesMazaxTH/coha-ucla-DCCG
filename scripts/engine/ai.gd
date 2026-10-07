@@ -24,7 +24,13 @@ static func step(g: GameState, p: int) -> Array:
 			for i in hand.size() - GameState.HAND_LIMIT:
 				uids.append(hand[i]["uid"])
 			return g.discard(p, uids)
+		"combat":
+			var ev := _try_play(g, p)
+			return ev if not ev.is_empty() else g.pass_priority(p)
 		"main":
+			if not g.stack.is_empty() or p != g.active:
+				var resp := _try_play(g, p)
+				return resp if not resp.is_empty() else g.pass_priority(p)
 			var ev := _try_play(g, p)
 			if not ev.is_empty():
 				return ev
@@ -76,6 +82,15 @@ static func _try_play(g: GameState, p: int) -> Array:
 static func _pick_target(g: GameState, p: int, spec: String, src) -> int:
 	if spec == "":
 		return 0
+	if spec == "enemy_stack": # counter the priciest enemy spell/ability in reach
+		var top := 0
+		var top_cost := -1
+		for sid in g.card_targets(p, src):
+			for it in g.stack:
+				if it["sid"] == sid and g.stack_cost(it) > top_cost:
+					top_cost = g.stack_cost(it)
+					top = sid
+		return top
 	var opts := g.valid_targets(p, spec)
 	if opts.is_empty():
 		return 0
@@ -108,6 +123,8 @@ static func _pick_target(g: GameState, p: int, spec: String, src) -> int:
 				for e in src.get("effects", []):
 					if e.get("action") == "damage" and int(e["amount"]) >= g.hp_left(c) and not c["shield"]:
 						score += 10
+				if not friendly and c.get("spell_shield", false):
+					score -= 20 # wasted on Escudo de Feitiço
 		if score > best_score:
 			best_score = score
 			best = uid
@@ -123,7 +140,7 @@ static func _try_attack(g: GameState, p: int) -> Array:
 		var prov := 0
 		if g.has_kw(c, "provocacao"):
 			for e in enemy_board:
-				if not used_prov.has(e["uid"]) and g.atk_of(e) < g.hp_left(c) and (g.atk_of(c) >= g.hp_left(e) or e["shield"]):
+				if not used_prov.has(e["uid"]) and not g.is_frozen(e) and g.atk_of(e) < g.hp_left(c) and (g.atk_of(c) >= g.hp_left(e) or e["shield"]):
 					prov = e["uid"]
 					used_prov.append(prov)
 					break

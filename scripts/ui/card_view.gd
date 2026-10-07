@@ -14,7 +14,7 @@ const BASE := Vector2(120, 170)
 const STYLES := {
 	"ignea": {"top": "#cf4a20", "bot": "#4a120a", "trim": "#e0a862", "glow": "#ff8a3c"},
 	"aquatica": {"top": "#2d7cc4", "bot": "#0b2448", "trim": "#c4dcec", "glow": "#5cc8ff"},
-	"glacial": {"top": "#5fb8d8", "bot": "#12384e", "trim": "#e0f2fa", "glow": "#9fe8ff"},
+	"glacial": {"top": "#a9e4f5", "bot": "#1c4a63", "trim": "#f2fbff", "glow": "#c8f4ff"}, ## frost: pale ice over deep teal
 	"vegetal": {"top": "#4a9a3c", "bot": "#12301a", "trim": "#c9d89a", "glow": "#8cf06a"},
 	"rochosa": {"top": "#8a6b45", "bot": "#2e2216", "trim": "#d2bc94", "glow": "#d6a868"},
 	"metalica": {"top": "#8e9aab", "bot": "#262c36", "trim": "#dfe6ee", "glow": "#c8d8ee"},
@@ -25,10 +25,12 @@ const STYLES := {
 	"legendary": {"top": "#f6d887", "bot": "#6e4810", "trim": "#fff0b8", "glow": "#ffd35a"},
 	"back": {"top": "#2e2658", "bot": "#100c22", "trim": "#c9a24e", "glow": "#9d86ff"},
 }
+const TRIGGER_COL := Color("#ff9a4a") ## trigger tags: same weight as keywords, orange to read as another category
 const GOLD_TRIM := Color("#f3d27a")
 const COST_COL := UITheme.MOMENTUM
 const ATK_COL := Color("#c8402e")
 const HP_COL := Color("#2f9e58")
+const FROST := Color("#cfefff")
 
 var card_id := ""
 var inst: Dictionary = {} ## creature on board (live stats) or hand instance
@@ -156,11 +158,13 @@ func _draw() -> void:
 	var rad := 10.0 * s
 	var pulse := 0.5 + 0.5 * sin(_t * 4.0)
 	var cd: Dictionary = {} if face_down else CardDB.card_for(card_id, inst)
-	var st: Dictionary = STYLES["back"] if face_down else STYLES[_style_key(cd)]
-	var trim := Color(st["trim"])
+	var keys: Array = ["back"] if face_down else _style_keys(cd)
+	var st: Dictionary = STYLES[keys[0]]
+	var st2: Dictionary = STYLES[keys[1]] if keys.size() > 1 else st ## dual essence: half/half frame
+	var trim := Color(st["trim"]).lerp(Color(st2["trim"]), 0.5)
 	if cd.get("rarity", "") == "champion":
 		trim = GOLD_TRIM ## champions keep their essence frame, finished in gold
-	var glow := Color(st["glow"])
+	var glow := Color(st["glow"]).lerp(Color(st2["glow"]), 0.5)
 
 	# drop shadow, deeper when the card is lifted
 	if shadow:
@@ -182,7 +186,10 @@ func _draw() -> void:
 			_rrect_line(r.grow((1.5 + i * 2) * s), rad + i * 2 * s, Color(glow, 0.5 - i * 0.15), 2 * s)
 
 	# frame: gradient body, dark outer edge, metal trim with bevel
-	_rrect_grad(r, rad, Color(st["top"]), Color(st["bot"]))
+	if keys.size() < 2:
+		_rrect_grad(r, rad, Color(st["top"]), Color(st["bot"]))
+	else:
+		_rrect_grad_split(r, rad, st, st2, s)
 	_rrect_line(r.grow(-0.5 * s), rad, Color("#07060a"), 1.6 * s)
 	_rrect_line(r.grow(-2.6 * s), rad - 2 * s, Color(trim, 0.85), 1.1 * s)
 	draw_line(Vector2(rad, 1.6 * s), Vector2(size.x - rad, 1.6 * s), Color(1, 1, 1, 0.3), 1.0 * s)
@@ -193,7 +200,7 @@ func _draw() -> void:
 		return
 
 	var font := UITheme.font("heavy")
-	var col := Color(CardDB.essence(cd["essence"])["color"])
+	var col := Color(CardDB.essence(CardDB.essences_of(cd)[0])["color"])
 	# art window
 	var art := Rect2(Vector2(7, 8) * s, Vector2(BASE.x - 14, 98) * s)
 	draw_rect(art.grow(1.5 * s), Color("#07060a"))
@@ -217,6 +224,18 @@ func _draw() -> void:
 		for i in 3:
 			draw_arc(sc, art.size.x * 0.46 - i * 3 * s, 0, TAU, 48, Color("#9fe3ff", 0.55 - i * 0.15), 2 * s, true)
 		draw_rect(art, Color("#9fe3ff", 0.12))
+	# spell shield: violet runic ring
+	if inst.get("spell_shield", false):
+		var sc := art.get_center()
+		var rr := art.size.x * 0.4
+		draw_arc(sc, rr, 0, TAU, 48, Color("#c9a8ff", 0.7), 1.6 * s, true)
+		for i in 6:
+			var a := _t * 0.6 + i * TAU / 6.0
+			_diamond(sc + Vector2(cos(a), sin(a)) * rr, 2.6 * s, Color("#e3d2ff"))
+	if inst.has("frozen"):
+		_draw_frost(art, s)
+	if inst.get("tide_mark", false):
+		draw_arc(art.get_center() + Vector2(0, art.size.y * 0.32), art.size.x * 0.3, PI * 1.15, PI * 1.85, 24, Color("#6fd0ff", 0.85), 2 * s, true)
 
 	# name plate (pointed banner overlapping the art)
 	var py := 102.0 * s
@@ -238,8 +257,10 @@ func _draw() -> void:
 	var bf := UITheme.font("bold")
 	var ly := panel.get_center().y + 3.5 * s - (lines.size() - 1) * 6.25 * s
 	for ln in lines:
-		var fs := _fit(bf, ln[0], 11.5 * s, panel.size.x - 24 * s)
-		_text(bf, ln[0], Vector2(size.x / 2, ly), fs, ln[1])
+		var room := panel.size.x - 24 * s
+		if cd["type"] == "creature" and ly > 142 * s:
+			room = size.x - 2 * 31 * s # lines low in the panel sit between the atk/hp gems
+		_text_segments(bf, ln, Vector2(size.x / 2, ly), 11.5 * s, room)
 		ly += 12.5 * s
 
 	# essence seal on the bottom edge, crest on the top edge
@@ -276,10 +297,30 @@ func _finish(r: Rect2, rad: float, s: float) -> void:
 	if dim:
 		_rrect_fill(r, rad, Color(0, 0, 0, 0.5))
 
-func _style_key(cd: Dictionary) -> String:
+## Frame styles in essence order: one for mono cards, two for dual-essence cards.
+func _style_keys(cd: Dictionary) -> Array:
 	if cd["rarity"] == "legendary":
-		return "legendary"
-	return cd["essence"] if STYLES.has(cd["essence"]) else "neutra"
+		return ["legendary"]
+	var out: Array = []
+	for e in CardDB.essences_of(cd):
+		if STYLES.has(e) and not out.has(e):
+			out.append(e)
+	return out.slice(0, 2) if not out.is_empty() else ["neutra"]
+
+## Icy veil and frost crystals over the art of a frozen creature.
+func _draw_frost(art: Rect2, s: float) -> void:
+	draw_rect(art, Color(FROST, 0.26))
+	_vgrad(Rect2(art.position, Vector2(art.size.x, art.size.y * 0.35)), Color(1, 1, 1, 0.22), Color(1, 1, 1, 0))
+	var mid := art.get_center()
+	for c in [art.position + Vector2(10, 10) * s, Vector2(art.end.x - 12 * s, art.position.y + 16 * s),
+			Vector2(art.position.x + 16 * s, art.end.y - 14 * s), art.end - Vector2(10, 10) * s, mid]:
+		var rr: float = (9.0 if c == mid else 6.0) * s
+		for i in 3:
+			var a := i * PI / 3.0
+			var d := Vector2(cos(a), sin(a)) * rr
+			draw_line(c - d, c + d, Color(1, 1, 1, 0.75), 1.1 * s, true)
+		_diamond(c, rr * 0.3, Color(1, 1, 1, 0.85))
+	draw_rect(art.grow(-0.5 * s), Color(FROST, 0.8), false, 1.4 * s)
 
 func _panel_lines(cd: Dictionary) -> Array:
 	var kws: Array = inst.get("keywords", cd.get("keywords", [])).duplicate()
@@ -289,19 +330,35 @@ func _panel_lines(cd: Dictionary) -> Array:
 			kws.push_front("escudo")
 	var out := []
 	if cd["type"] != "creature":
-		out.append([{"spell": "FEITIÇO", "equipment": "EQUIPAMENTO"}[cd["type"]], Color(UITheme.TEXT, 0.6)])
-	var names: Array = []
+		var kind: String = {"spell": "FEITIÇO", "equipment": "EQUIPAMENTO"}[cd["type"]]
+		var spd: String = {"rapido": " · RÁPIDO", "instantaneo": " · INSTANTÂNEO"}.get(cd.get("speed", "lento"), "")
+		out.append([[kind + spd, Color("#ffd27a") if spd != "" else Color(UITheme.TEXT, 0.6)]])
+	# tags: keywords first, then trigger names (full text lives in the overlay)
+	var tags: Array = []
+	if inst.has("frozen"):
+		tags.append(["Congelada", FROST])
+	if inst.get("spell_shield", false):
+		tags.append([CardDB.keyword("escudo_feitico")["name"], Color("#c9a8ff")])
 	for kw in kws:
-		names.append(CardDB.keyword(kw)["name"])
-	if names.size() > 0:
-		if names.size() <= 2 and out.is_empty():
-			for n in names:
-				out.append([n, Color("#9fe3ff") if n == CardDB.keyword("escudo")["name"] else Color("#ffe7a0")])
-		else:
-			out.append([" · ".join(names), Color("#ffe7a0")])
+		tags.append([CardDB.keyword(kw)["name"], Color("#9fe3ff") if kw == "escudo" else Color("#ffe7a0")])
+	var seen := {}
+	for e in cd.get("effects", []):
+		var trg: String = e.get("trigger", "")
+		if trg == "" or trg == "on_play" or seen.has(trg):
+			continue
+		seen[trg] = true
+		tags.append([CardDB.data()["triggers"][trg]["name"], TRIGGER_COL])
+	if tags.size() <= 2 and out.is_empty():
+		for tg in tags:
+			out.append([tg])
+	elif tags.size() > 0:
+		var half := (tags.size() + 1) / 2
+		out.append(tags.slice(0, half))
+		if tags.size() > half:
+			out.append(tags.slice(half))
 	if out.is_empty():
 		var rar := {"legendary": "LENDÁRIO", "champion": "CAMPEÃO", "epic": "UNIDADE ÉPICA", "common": "UNIDADE"}
-		out.append([rar.get(cd["rarity"], ""), Color(UITheme.TEXT, 0.45)])
+		out.append([[rar.get(cd["rarity"], ""), Color(UITheme.TEXT, 0.45)]])
 	return out
 
 func _draw_back(r: Rect2, s: float, trim: Color) -> void:
@@ -341,7 +398,7 @@ func _placeholder(art: Rect2, cd: Dictionary, col: Color, s: float) -> void:
 	var c := art.get_center() + Vector2(0, 2 * s)
 	for i in 8:
 		draw_circle(c, (46 - i * 5) * s, Color(col.lightened(0.4), 0.05))
-	var kind: String = cd["type"] if cd["type"] != "creature" else cd["essence"]
+	var kind: String = cd["type"] if cd["type"] != "creature" else String(CardDB.essences_of(cd)[0])
 	var pts := _sigil(kind, c, 26 * s)
 	draw_colored_polygon(_grow(pts, c, 1.12), Color(0, 0, 0, 0.35))
 	draw_colored_polygon(pts, col.lightened(0.55))
@@ -360,6 +417,12 @@ func _sigil(kind: String, c: Vector2, r: float) -> PackedVector2Array:
 			for i in 13:
 				var a := deg_to_rad(-30 + i * 20)
 				out.append(c + Vector2(0, r * 0.25) + Vector2(cos(a), sin(a)) * r * 0.62)
+			return out
+		"glacial": # six-point snow crystal
+			var out := PackedVector2Array()
+			for i in 12:
+				var a := i * TAU / 12 - PI / 2
+				out.append(c + Vector2(cos(a), sin(a)) * r * (1.0 if i % 2 == 0 else 0.42))
 			return out
 		"spell":
 			var out := PackedVector2Array()
@@ -461,6 +524,27 @@ func _rrect_grad(r: Rect2, rad: float, top: Color, bot: Color) -> void:
 		cols.append(top.lerp(bot, clamp((p.y - r.position.y) / r.size.y, 0.0, 1.0)))
 	draw_polygon(pts, cols)
 
+## Dual-essence frame: the body is cut on a diagonal, each half with its own
+## essence gradient, joined by a thin light seam.
+func _rrect_grad_split(r: Rect2, rad: float, a: Dictionary, b: Dictionary, s: float) -> void:
+	var pts := _rrect_pts(r, rad)
+	var x0 := r.position.x + r.size.x * 0.62
+	var x1 := r.position.x + r.size.x * 0.38
+	var big := 10.0 * r.size.x
+	var left := PackedVector2Array([Vector2(r.position.x - big, r.position.y - 2), Vector2(x0, r.position.y - 2),
+		Vector2(x1, r.end.y + 2), Vector2(r.position.x - big, r.end.y + 2)])
+	var right := PackedVector2Array([Vector2(x0, r.position.y - 2), Vector2(r.end.x + big, r.position.y - 2),
+		Vector2(r.end.x + big, r.end.y + 2), Vector2(x1, r.end.y + 2)])
+	for half in [[left, a], [right, b]]:
+		var top := Color(half[1]["top"])
+		var bot := Color(half[1]["bot"])
+		for poly in Geometry2D.intersect_polygons(pts, half[0]):
+			var cols := PackedColorArray()
+			for p in poly:
+				cols.append(top.lerp(bot, clamp((p.y - r.position.y) / r.size.y, 0.0, 1.0)))
+			draw_polygon(poly, cols)
+	draw_line(Vector2(x0, r.position.y + 1.5 * s), Vector2(x1, r.end.y - 1.5 * s), Color(1, 1, 1, 0.35), 1.2 * s, true)
+
 func _vgrad(r: Rect2, top: Color, bot: Color) -> void:
 	draw_polygon(PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]),
 		PackedColorArray([top, top, bot, bot]))
@@ -477,6 +561,21 @@ func _grow(pts: PackedVector2Array, c: Vector2, k: float) -> PackedVector2Array:
 func _fit(font: Font, t: String, fs: float, max_w: float) -> float:
 	var w := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x
 	return fs if w <= max_w else max(7.0, fs * max_w / w)
+
+## One panel line made of [text, color] segments joined by " · ", centered and shrunk to fit.
+func _text_segments(font: Font, segs: Array, center: Vector2, fs: float, max_w: float) -> void:
+	var sep := " · "
+	fs = _fit(font, sep.join(segs.map(func(g): return g[0])), fs, max_w)
+	var x := center.x - font.get_string_size(sep.join(segs.map(func(g): return g[0])), HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x / 2
+	var ol: int = max(2, int(fs / 5))
+	for i in segs.size():
+		var parts := [[sep, Color(UITheme.TEXT, 0.5)]] if i > 0 else []
+		parts.append(segs[i])
+		for g in parts:
+			var p := Vector2(x, center.y)
+			draw_string_outline(font, p, g[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), ol, Color(0, 0, 0, 0.85))
+			draw_string(font, p, g[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), g[1])
+			x += font.get_string_size(g[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x
 
 func _text(font: Font, t: String, center: Vector2, fs: float, col: Color) -> void:
 	var w := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x

@@ -97,6 +97,14 @@
     "escudo_feitico": {
       "name": "Escudo de Feitiço",
       "text": "Anula, uma vez, o próximo efeito inimigo que não seja dano de combate (feitiço, habilidade, efeito em área). Depois se dissipa."
+    },
+    "saque_rapido": {
+      "name": "Saque Rápido",
+      "text": "Equipamento que pode ser jogado com velocidade Rápida (também nas janelas de combate)."
+    },
+    "congelar": {
+      "name": "Congelar",
+      "text": "A criatura não pode atacar nem bloquear até o fim do próximo turno do dono."
     }
   },
   "leaders": {
@@ -125,7 +133,7 @@
     },
     "naelthos": {
       "name": "Naelthos",
-      "hp": 30,
+      "hp": 25,
       "art": "aquatica/naelthos.webp",
       "legendary": "naelthos",
       "ability": {
@@ -178,25 +186,24 @@
       "leader": "naelthos",
       "cards": {
         "naelthos": 1,
-        "yuki": 2,
         "naelys": 3,
         "neraqa": 3,
         "sabrina": 3,
         "aren_marevoth": 3,
-        "alexa_neruvya": 2,
+        "alexa_neruvya": 3,
         "alexa_neruvya_primordial": 1,
         "espirito_da_mare": 3,
         "sentinela_coral": 3,
-        "tritao_lanceiro": 3,
-        "gaivota_da_tempestade": 2,
+        "tritao_lanceiro": 2,
         "serpente_marinha": 3,
-        "mare_curativa": 3,
+        "mare_curativa": 2,
+        "negacao_de_neraqa": 2,
         "lanca_das_mares": 3,
         "bencao_das_profundezas": 3,
-        "tsunami": 2,
+        "tsunami": 3,
         "pingente_das_ondas": 2,
-        "vigia_do_farol_do_norte": 2,
-        "engenheiro_louco": 1
+        "vigia_do_farol_do_norte": 3,
+        "engenheiro_louco": 2
       }
     }
   },

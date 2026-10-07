@@ -1,0 +1,22 @@
+{
+  "name": "Negação de Neraqa",
+  "type": "spell",
+  "rarity": "rare",
+  "essence": "aquatica",
+  "cost": 2,
+  "speed": "instantaneo",
+  "art": "aquatica/negacao_de_neraqa.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "counter",
+      "target": "enemy_stack",
+      "max_cost": 4,
+      "kicker_cost": 3,
+      "kicker_max_cost": 99
+    }
+  ],
+  "text": "Anule um feitiço ou habilidade inimiga de custo 4 ou menos. Pagando +3, anula de qualquer custo.",
+  "flavor": "",
+  "tags": ["anular"]
+}

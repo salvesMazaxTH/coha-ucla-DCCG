@@ -5,6 +5,7 @@ extends Control
 const SEL := Color("#ffd23f")
 const TARGET := Color("#ff5050")
 const OK := Color("#4dff88")
+const ICE := Color("#bfefff")
 const COL_W := 232.0 ## right HUD column width
 const STAGE_H := 900.0
 const STAGE_MAX_W := 2100.0
@@ -625,8 +626,10 @@ func _render_board(p: int, y: float) -> void:
 			v.position.y += -24 if p == viewer else 24
 			var prov: int = attack_sel.get(c["uid"], g.attackers.get(c["uid"], 0))
 			_tag(v, "PROVOCA" if prov != 0 else "ATACA", TARGET if prov != 0 else SEL)
-		if block_sel.values().has(c["uid"]):
+		if block_sel.values().has(c["uid"]) or g.blocks.values().has(c["uid"]):
 			_tag(v, "BLOQUEIA", OK)
+		elif g.is_frozen(c):
+			_tag(v, "CONGELADA", ICE)
 
 func _decorate_creature(v: CardView, c: Dictionary, p: int) -> void:
 	if _is_target(c["uid"]):
@@ -637,16 +640,16 @@ func _decorate_creature(v: CardView, c: Dictionary, p: int) -> void:
 			v.highlight = SEL if provoking != c["uid"] else TARGET
 		elif not g.players[viewer]["attacked"] and g.can_attack(c) and targeting.is_empty():
 			v.highlight = OK
-	elif g.phase == "main" and provoking != 0 and p != viewer and not attack_sel.values().has(c["uid"]):
+	elif g.phase == "main" and provoking != 0 and p != viewer and not attack_sel.values().has(c["uid"]) and not g.is_frozen(c):
 		v.highlight = TARGET
 	if g.phase == "blocks" and viewer == g.decider():
 		if p == viewer and (c["uid"] == blocker_pick):
 			v.highlight = SEL
-		elif p == viewer and not block_sel.values().has(c["uid"]) and not g.attackers.values().has(c["uid"]):
+		elif p == viewer and not block_sel.values().has(c["uid"]) and not g.attackers.values().has(c["uid"]) and not g.is_frozen(c):
 			v.highlight = OK
 		elif p != viewer and g.attackers.has(c["uid"]):
 			v.highlight = TARGET if blocker_pick != 0 and g.can_block(g.find_creature(blocker_pick), c) else SEL
-	if provoking != 0 and p != viewer and g.phase == "main":
+	if provoking != 0 and p != viewer and g.phase == "main" and not g.is_frozen(c):
 		v.highlight = TARGET
 
 ## Small enamel tag above a card ("ATACA", "BLOQUEIA"...).
@@ -683,7 +686,7 @@ func _render_hand(p: int) -> void:
 		elif targeting.get("uid", 0) == c["uid"] and targeting.get("kind") == "hand":
 			pos.y -= 34
 			v.highlight = SEL
-		elif g.phase == "main" and g.can_play(p, c["uid"]) and not _is_ai(p):
+		elif g.phase in ["main", "combat"] and g.can_play(p, c["uid"]) and not _is_ai(p):
 			v.highlight = OK
 		v.position = pos
 		v.rotation = rot
@@ -755,7 +758,8 @@ func _render_side() -> void:
 		vb.add_child(l)
 
 	# turn plaque
-	var phase_names := {"mulligan": "Mulligan", "main": "Fase Principal", "blocks": "Bloqueios", "discard": "Descarte", "over": "Fim de jogo"}
+	var phase_names := {"mulligan": "Mulligan", "main": "Fase Principal", "blocks": "Bloqueios", "discard": "Descarte", "over": "Fim de jogo",
+		"combat": "Combate · " + {"attack": "Ataque", "prepare": "Preparação", "damage": "Dano"}.get(g.window, ""), "search": "Busca"}
 	var mine := g.decider() == viewer and not _is_ai(viewer)
 	var tp := Panel.new()
 	tp.position = Vector2(col_x, 326)
@@ -771,7 +775,10 @@ func _render_side() -> void:
 	tt.position = Vector2(0, 4)
 	tt.size = Vector2(COL_W, 30)
 	tp.add_child(tt)
-	var ph := _label(phase_names.get(g.phase, g.phase), 17, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
+	var ph_t: String = phase_names.get(g.phase, g.phase)
+	if not g.stack.is_empty():
+		ph_t = "Resposta · pilha %d" % g.stack.size()
+	var ph := _label(ph_t, 17, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
 	ph.position = Vector2(0, 33)
 	ph.size = Vector2(COL_W, 22)
 	tp.add_child(ph)
@@ -796,11 +803,86 @@ func _render_side() -> void:
 		wait.position = Vector2(col_x, y)
 		wait.size = Vector2(COL_W, 56)
 		layer.add_child(wait)
+	_render_stack(y + 6)
 	var menu := _button("Menu", _show_menu)
 	menu.position = Vector2(col_x + COL_W - 130, 832)
 	menu.size = Vector2(130, 52)
 	menu.add_theme_font_size_override("font_size", 20)
 	layer.add_child(menu)
+
+## The stack (newest on top) in the side column; right-click/hold a card to read it.
+func _render_stack(y: float) -> void:
+	if g.stack.is_empty():
+		return
+	var cap := _label("PILHA", 15, UITheme.GOLD, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
+	cap.position = Vector2(col_x, y)
+	cap.size = Vector2(COL_W, 20)
+	layer.add_child(cap)
+	y += 24
+	var rows: int = max(1, int((820.0 - y) / 84.0))
+	var items: Array = g.stack.duplicate()
+	items.reverse()
+	for i in min(rows, items.size()):
+		var it: Dictionary = items[i]
+		var row := Panel.new()
+		row.position = Vector2(col_x, y)
+		row.size = Vector2(COL_W, 78)
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var sb := UITheme.panel()
+		if i == 0:
+			sb.border_color = Color(UITheme.GOLD, 0.85)
+		var sid: int = it["sid"]
+		if _is_target(sid):
+			sb.border_color = SEL
+			sb.set_border_width_all(3)
+			row.mouse_filter = Control.MOUSE_FILTER_STOP
+			row.gui_input.connect(func(ev: InputEvent):
+				if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+					_fire_target(sid))
+		row.add_theme_stylebox_override("panel", sb)
+		layer.add_child(row)
+		var title: String
+		if it["kind"] == "ability":
+			title = CardDB.leader(g.players[it["player"]]["leader_id"])["ability"]["name"]
+		else:
+			title = _cname(it["card_id"])
+			var v := CardView.new().setup(it["card_id"], {}, 0.42)
+			v.position = Vector2(6, (78 - v.size.y) / 2.0)
+			v.left_clicked.connect(_show_overlay)
+			v.right_clicked.connect(_show_overlay)
+			row.add_child(v)
+		var tx := 66.0 if it["kind"] == "card" else 12.0
+		var nl := _label(title, 17, UITheme.TEXT, HORIZONTAL_ALIGNMENT_LEFT, "bold")
+		nl.position = Vector2(tx, 8)
+		nl.size = Vector2(COL_W - tx - 8, 40)
+		nl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		nl.add_theme_constant_override("line_spacing", -4)
+		row.add_child(nl)
+		var sp: String = {"lento": "Lento", "rapido": "Rápido", "instantaneo": "Instantâneo"}.get(it["speed"], "")
+		var sub := _label("%s · %s" % [_pname(it["player"]), sp], 14, Color(UITheme.TEXT, 0.55), HORIZONTAL_ALIGNMENT_LEFT, "body")
+		var price := _counter_price(sid)
+		if price != "":
+			sub = _label(price, 15, SEL, HORIZONTAL_ALIGNMENT_LEFT, "bold")
+		sub.position = Vector2(tx, 52)
+		sub.size = Vector2(COL_W - tx - 8, 20)
+		row.add_child(sub)
+		y += 84
+	if items.size() > rows:
+		var more := _label("+%d abaixo" % (items.size() - rows), 13, Color(UITheme.TEXT, 0.5), HORIZONTAL_ALIGNMENT_CENTER, "body")
+		more.position = Vector2(col_x, y - 4)
+		more.size = Vector2(COL_W, 16)
+		layer.add_child(more)
+
+## "Anular: N" for a stack item while a counter is choosing its target ("" otherwise).
+func _counter_price(sid: int) -> String:
+	if targeting.get("spec") != "enemy_stack" or not _is_target(sid):
+		return ""
+	for c in g.players[viewer]["hand"]:
+		if c["uid"] == targeting["uid"]:
+			var cd := CardDB.card(c["card_id"])
+			var extra := g.counter_extra(cd, sid)
+			return "Anular: %d" % (int(cd["cost"]) + extra) + (" (+%d)" % extra if extra > 0 else "")
+	return ""
 
 ## Contextual hint in a pill on the central divider.
 func _render_hint() -> void:
@@ -825,10 +907,27 @@ func _hint() -> String:
 	if g.phase == "search":
 		return "Escolha uma das cartas reveladas."
 	if not targeting.is_empty():
-		return ("Escolha um alvo (toque fora cancela)." if CardView.touch_ui() else "Escolha um alvo (botão direito/Esc cancela).")
+		var t := "Escolha um alvo (toque fora cancela)." if CardView.touch_ui() else "Escolha um alvo (botão direito/Esc cancela)."
+		if targeting["spec"] == "enemy_stack":
+			t = "Toque no feitiço/habilidade da pilha que quer anular."
+		if _self_targetable():
+			t = "Escolha um alvo ou toque de novo na carta para ela mesma."
+		return t
 	if g.decider() != viewer or _is_ai(viewer):
 		return ""
+	if g.phase in ["main", "combat"] and not g.stack.is_empty():
+		return "Responda com um Instantâneo ou passe para resolver a pilha."
 	match g.phase:
+		"combat":
+			match g.window:
+				"attack":
+					return "Janela de ataque: use efeitos Rápidos ou passe."
+				"prepare":
+					return "Prepare a defesa: efeitos Rápidos ou passe."
+				"damage":
+					if viewer == g.active:
+						return "Bloqueios feitos: efeitos Rápidos antes do dano, ou passe."
+					return "Última chance antes do dano: efeitos Rápidos ou passe."
 		"mulligan":
 			return "Clique em até 3 cartas para trocar."
 		"blocks":
@@ -846,8 +945,12 @@ func _action_buttons() -> Array:
 	match g.phase:
 		"mulligan":
 			out.append(_button("CONFIRMAR (%d)" % picked.size(), func(): _do(g.mulligan(viewer, picked.duplicate())), true))
+		"combat":
+			out.append(_button("PASSAR", func(): _do(g.pass_priority(viewer)), true))
 		"main":
-			if not attack_sel.is_empty():
+			if not g.stack.is_empty():
+				out.append(_button("PASSAR", func(): _do(g.pass_priority(viewer)), true))
+			elif not attack_sel.is_empty():
 				out.append(_button("ATACAR (%d)" % attack_sel.size(), func(): _do(g.declare_attack(viewer, attack_sel.duplicate())), true))
 				out.append(_button("Cancelar ataque", func():
 					_reset_input()
@@ -916,19 +1019,27 @@ func _my_input() -> bool:
 func _on_hand_click(v: CardView) -> void:
 	if not _my_input():
 		return
+	if targeting.get("kind") == "hand" and targeting["uid"] == v.uid:
+		if _self_targetable():
+			_do(g.play_card(viewer, v.uid, 0)) # Ao Entrar on itself
+		else:
+			targeting = {}
+			_render()
+		return
 	match g.phase:
 		"mulligan":
 			_toggle_pick(v.uid, GameState.MULLIGAN_MAX)
 		"discard":
 			_toggle_pick(v.uid, g.players[viewer]["hand"].size() - GameState.HAND_LIMIT)
-		"main":
+		"main", "combat":
 			if not g.can_play(viewer, v.uid):
 				_toast("Não dá para jogar essa carta agora.")
 				_render()
 				return
 			var cd := CardDB.card(v.card_id)
 			var spec := g.target_spec(cd["effects"])
-			if spec != "" and not g.valid_targets(viewer, spec).is_empty():
+			var opts := g.card_targets(viewer, cd)
+			if spec != "" and not opts.is_empty():
 				targeting = {"kind": "hand", "uid": v.uid, "spec": spec}
 				attack_sel.clear()
 				_render()
@@ -952,8 +1063,18 @@ func _on_legendary(p: int) -> void:
 	else:
 		_do(g.cast_legendary(p, 0))
 
+## A creature whose Ao Entrar targets "ally_creature" may pick itself (click it again).
+func _self_targetable() -> bool:
+	if targeting.get("kind") != "hand" or targeting.get("spec") != "ally_creature":
+		return false
+	var inst: Dictionary = {}
+	for c in g.players[viewer]["hand"]:
+		if c["uid"] == targeting["uid"]:
+			inst = c
+	return not inst.is_empty() and CardDB.card(inst["card_id"])["type"] == "creature"
+
 func _on_ability(p: int) -> void:
-	if not _my_input():
+	if not _my_input() or not g.can_use_ability(p):
 		return
 	var spec := g.target_spec(CardDB.leader(g.players[p]["leader_id"])["ability"]["effects"])
 	if spec != "":
@@ -968,7 +1089,14 @@ func _on_search_choice(card_uid: int) -> void:
 	_do(g.choose_search(viewer, card_uid))
 
 func _is_target(uid: int) -> bool:
-	return not targeting.is_empty() and g.valid_targets(viewer, targeting["spec"], targeting.get("uid", 0)).has(uid)
+	if targeting.is_empty():
+		return false
+	if targeting["spec"] == "enemy_stack":
+		for c in g.players[viewer]["hand"]:
+			if c["uid"] == targeting["uid"]:
+				return g.card_targets(viewer, CardDB.card(c["card_id"])).has(uid)
+		return false
+	return g.valid_targets(viewer, targeting["spec"], targeting.get("uid", 0)).has(uid)
 
 func _fire_target(uid: int) -> void:
 	match targeting["kind"]:
@@ -996,6 +1124,9 @@ func _on_creature_click(v: CardView) -> void:
 	match g.phase:
 		"main":
 			if provoking != 0:
+				if c["owner"] != viewer and g.is_frozen(c):
+					_toast("Criatura congelada não pode ser provocada.")
+					return
 				if c["owner"] != viewer and not attack_sel.values().has(v.uid):
 					attack_sel[provoking] = v.uid
 					provoking = 0
@@ -1014,6 +1145,9 @@ func _on_creature_click(v: CardView) -> void:
 			if c["owner"] == viewer:
 				if g.attackers.values().has(v.uid):
 					return # already forced to block a provoker
+				if g.is_frozen(c):
+					_toast("Criatura congelada não pode bloquear.")
+					return
 				for a in block_sel.keys():
 					if block_sel[a] == v.uid:
 						block_sel.erase(a)
@@ -1041,7 +1175,7 @@ func _show_overlay(v: CardView) -> void:
 		if e is InputEventMouseButton and e.pressed:
 			_close_overlay())
 	add_child(overlay)
-	var big := CardView.new().setup(v.card_id, v.inst, 3.0)
+	var big := CardView.new().setup(v.card_id, v.inst, 4.18)
 	big.cost_override = v.cost_override
 	big.position = Vector2(stage_w / 2.0 - 620, 150)
 	big.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1049,21 +1183,29 @@ func _show_overlay(v: CardView) -> void:
 	var txt := "[font_size=48][color=#e8c25a]%s[/color][/font_size]\n" % cd["name"]
 	var rar := {"legendary": "Lendário", "champion": "Campeão", "epic": "Unidade Épica", "common": "Unidade"}
 	var typ := {"creature": rar[cd["rarity"]], "spell": "Feitiço", "equipment": "Equipamento"}
-	txt += "[color=#aaaaaa]%s · %s · custo %d[/color]\n\n" % [typ[cd["type"]], CardDB.essence(cd["essence"]).get("name", cd["essence"]), cd["cost"]]
+	txt += "[color=#aaaaaa]%s · %s · custo %d[/color]\n\n" % [typ[cd["type"]], CardDB.essence_names(cd), cd["cost"]]
 	if cd.get("text", "") != "":
-		txt += "[font_size=32]%s[/font_size]\n\n" % cd["text"]
+		var body: String = cd["text"]
+		if v.inst.has("frozen"):
+			body = "[color=#9fe8ff][b]Congelada:[/b] não pode atacar nem bloquear até o fim do próximo turno do dono.[/color]
+" + body
+		for tid in CardDB.data()["triggers"]:
+			var tn: String = CardDB.data()["triggers"][tid]["name"]
+			body = body.replace(tn + ":", "[b][color=#%s]%s[/color][/b]:" % [CardView.TRIGGER_COL.to_html(false), tn])
+		txt += "[font_size=32]%s[/font_size]\n\n" % body
 	for kw in cd.get("keywords", []):
 		var k := CardDB.keyword(kw)
 		txt += "[color=#ffe9a8][b]%s[/b][/color] — %s\n" % [k["name"], k["text"]]
 	if CardDB.is_leader_card(v.card_id):
-		txt += "\n[color=#e8c25a]Lendário:[/color] fica na Zona de Comando. Cada nova conjuração custa +%d. Ao morrer, volta para a Zona de Comando.\n" % GameState.COMMANDER_TAX
+		txt += "\n[color=#e8c25a]Encarnação do Líder:[/color] fica no Santuário. Cada nova conjuração custa +%d. Ao morrer, volta para o Santuário.\n" % GameState.COMMANDER_TAX
 	if cd.get("flavor", "") != "":
 		txt += "\n[i][color=#888888]%s[/color][/i]" % cd["flavor"]
 	var rt := RichTextLabel.new()
 	rt.bbcode_enabled = true
 	rt.text = txt
-	rt.position = Vector2(stage_w / 2.0 - 190, 160)
-	rt.size = Vector2(830, 640)
+	var rt_x := stage_w / 2.0 - 90.0 # card (4.18 * 120 = ~502 px) ends at stage_w/2 - 118
+	rt.position = Vector2(rt_x, 160)
+	rt.size = Vector2(stage_w - 40.0 - rt_x, 640)
 	rt.add_theme_font_size_override("normal_font_size", 28)
 	rt.add_theme_font_size_override("bold_font_size", 28)
 	rt.add_theme_font_size_override("italics_font_size", 24)
@@ -1084,8 +1226,14 @@ func _render_search_reveal() -> void:
 	box.custom_minimum_size = Vector2(1120, 0)
 	box.add_theme_constant_override("separation", 12)
 	search_overlay.add_child(box)
-	box.add_child(_label("REVELAÇÃO DO DECK", 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
-	box.add_child(_label("%s revelou opções de Água de custo 2 ou menos" % _pname(owner), 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+	var look: bool = g.pending_search.get("look", false)
+	# a private look is face up only for its owner (online, the server already masks the cards)
+	var hidden := look and not _my_input()
+	box.add_child(_label("TOPO DO DECK" if look else "REVELAÇÃO DO DECK", 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
+	var sub := "%s revelou as opções da busca" % _pname(owner)
+	if look:
+		sub = "%s está olhando as %d cartas do topo do deck" % [_pname(owner), g.pending_search["cards"].size()]
+	box.add_child(_label(sub, 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
 	var grid := GridContainer.new()
 	grid.columns = min(7, g.pending_search["cards"].size())
 	grid.add_theme_constant_override("h_separation", 12)
@@ -1094,11 +1242,13 @@ func _render_search_reveal() -> void:
 	for option in g.pending_search["cards"]:
 		var card_uid: int = option["uid"]
 		var cv := CardView.new().setup(option["card_id"], {"uid": card_uid}, 1.05)
+		cv.face_down = hidden or String(option["card_id"]) == ""
 		cv.mouse_filter = Control.MOUSE_FILTER_STOP if _my_input() else Control.MOUSE_FILTER_IGNORE
 		if _my_input():
 			cv.left_clicked.connect(func(_v): _on_search_choice(card_uid))
 		grid.add_child(cv)
-	var footer := _label("Clique em uma carta para adicioná-la à sua mão e embaralhar o deck." if _my_input() else "A escolha pertence ao oponente.", 16, SEL if _my_input() else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
+	var hint := "Escolha 1 para a mão; as outras vão para o fundo do deck." if look else "Clique em uma carta para adicioná-la à sua mão e embaralhar o deck."
+	var footer := _label(hint if _my_input() else "A escolha pertence ao oponente.", 16, SEL if _my_input() else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 	box.add_child(footer)
 	_center.call_deferred(search_overlay)
 
@@ -1228,7 +1378,7 @@ func _embers(c: Vector2, t: float, col: Color) -> void:
 			p.queue_free())
 
 func _elem_color(card_id: String) -> Color:
-	return Color(CardDB.essence(CardDB.card(card_id)["essence"]).get("color", "#ffffff"))
+	return Color(CardDB.essence(CardDB.essences_of(CardDB.card(card_id))[0]).get("color", "#ffffff"))
 
 ## Plays the events out over the freshly rendered table: cards fly from where
 ## they were, attackers lunge, victims shake, numbers float, the dead dissolve.
@@ -1280,12 +1430,30 @@ func _animate(events: Array, old: Dictionary) -> float:
 					cursor += 0.5
 			"ability":
 				cursor += 0.25
+			"resolve":
+				cursor += 0.15
+			"fizzle":
+				_toast("%s não teve alvo e foi anulado." % (_cname(e["card_id"]) if e["kind"] == "card" else "A habilidade"))
+				cursor += 0.3
+			"countered":
+				_toast("%s foi anulado!" % (_cname(e["card_id"]) if e["kind"] == "card" else "A habilidade do Líder"))
+				cursor += 0.4
+			"spell_shield_break", "tide_mark", "tide_draw", "freeze", "thaw":
+				if actors.has(e["uid"]):
+					var lbl: String = {"spell_shield_break": "Anulado!", "tide_mark": "Maré", "tide_draw": "+1 carta", "freeze": "Congelada!", "thaw": "Descongelou"}[e["type"]]
+					var col: Color = Color("#6fd0ff")
+					if e["type"] == "spell_shield_break":
+						col = Color("#c9a8ff")
+					elif e["type"] in ["freeze", "thaw"]:
+						col = ICE
+					_impact(actors[e["uid"]], lbl, col, cursor, false)
+				cursor += 0.2
 			"summon", "draw", "search_take":
 				appear[e["uid"]] = cursor
 				cursor += 0.1
-			"search_reveal":
+			"search_reveal", "look_top":
 				cursor += 0.35
-			"blocks":
+			"combat_damage":
 				in_combat = true
 			"start_turn", "end_turn":
 				in_combat = false
@@ -1395,10 +1563,30 @@ func _log_event(e: Dictionary) -> void:
 			for c in e["cards"]:
 				names.append(_cname(c["card_id"]))
 			_log("%s revelou: %s" % [_pname(e["player"]), ", ".join(names)])
+		"look_top":
+			_log("%s olhou as %d cartas do topo do deck" % [_pname(e["player"]), e["cards"].size()])
+		"look_bottom":
+			_log("%s colocou as outras no fundo do deck" % _pname(e["player"]))
+		"freeze":
+			var fc := g.find_creature(e["uid"])
+			_log("%s foi congelada" % ("Uma criatura" if fc.is_empty() else _cname(fc["card_id"])))
+		"thaw":
+			var tc := g.find_creature(e["uid"])
+			if not tc.is_empty():
+				_log("%s descongelou" % _cname(tc["card_id"]))
 		"search_empty":
 			_log("%s não encontrou uma carta que atendesse à busca" % _pname(e["player"]))
 		"search_take":
 			_log("%s escolheu %s na busca" % [_pname(e["player"]), _cname(e["card_id"])])
+		"fizzle":
+			_log("%s foi anulado (alvo inválido)" % (_cname(e["card_id"]) if e["kind"] == "card" else "Habilidade"))
+		"countered":
+			_log("%s anulou %s" % [_pname(e["by"]), _cname(e["card_id"]) if e["kind"] == "card" else "a habilidade de " + _pname(e["player"])])
+		"spell_shield_break":
+			var c := g.find_creature(e["uid"])
+			_log("Escudo de Feitiço anulou o efeito" + ("" if c.is_empty() else " em " + _cname(c["card_id"])))
+		"tide_draw":
+			_log("%s: a maré retorna, compra 1" % _pname(e["player"]))
 
 
 # ---------------------------------------------------------------- widgets

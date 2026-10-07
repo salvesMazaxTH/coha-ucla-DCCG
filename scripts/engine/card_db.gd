@@ -56,6 +56,21 @@ static func keyword(id: String) -> Dictionary:
 static func essence(id: String) -> Dictionary:
 	return data()["essences"][id]
 
+## A card's essences: "essence" is one id or an Array of ids (dual cards, e.g. aquática + glacial).
+static func essences_of(cd: Dictionary) -> Array:
+	var e: Variant = cd.get("essence", "neutra")
+	return (e as Array).duplicate() if e is Array else [String(e)]
+
+static func has_essence(cd: Dictionary, id: String) -> bool:
+	return essences_of(cd).has(id)
+
+## Display name of a card's essences ("Aquática / Glacial").
+static func essence_names(cd: Dictionary) -> String:
+	var names: Array = []
+	for id in essences_of(cd):
+		names.append(essence(id).get("name", id))
+	return " / ".join(names)
+
 ## Returns a list of rule violations; empty means the deck is legal.
 static func validate_deck(deck_id: String) -> Array[String]:
 	var errors: Array[String] = []
@@ -68,12 +83,17 @@ static func validate_deck(deck_id: String) -> Array[String]:
 		var c := card(id)
 		if n > MAX_COPIES:
 			errors.append("%s: mais de %d cópias" % [id, MAX_COPIES])
-		if c["essence"] != "neutra" and not ld["essences"].has(c["essence"]):
+		# dual cards are legal when the Leader shares any of their essences
+		var ess := essences_of(c)
+		var legal := ess.has("neutra")
+		for e in ess:
+			legal = legal or ld["essences"].has(e)
+		if not legal:
 			errors.append("%s: essência fora da identidade do Líder" % id)
 		if is_leader_card(id) and id != ld["legendary"]:
-			errors.append("%s: Lendário diferente do Líder" % id)
+			errors.append("%s: Encarnação de outro Líder" % id)
 	if total != DECK_SIZE:
 		errors.append("deck tem %d cartas (precisa de %d)" % [total, DECK_SIZE])
 	if not d["cards"].has(ld["legendary"]):
-		errors.append("falta o Campeão Lendário %s" % ld["legendary"])
+		errors.append("falta a Encarnação do Líder %s" % ld["legendary"])
 	return errors

@@ -6,12 +6,13 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 ## Deck
 - O deck tem **48 cartas**, com até **3 cópias** de cada uma. O Líder fica fora dessa contagem.
 - As **essências** do Líder (ígnea, aquática, glacial, vegetal, rochosa, metálica, elétrica, obscura, sagrada) definem as cartas permitidas no deck. Cartas **neutras** entram em qualquer deck.
-- O deck tem exatamente **1 Campeão Lendário**, que é a versão em carta do próprio Líder.
+- Uma carta pode ter **mais de uma essência** (ex.: Sabrina é aquática e glacial, com moldura meio a meio). Ela é permitida se tiver **pelo menos uma** das essências do Líder.
+- O deck tem exatamente **1 Encarnação do Líder**, o Campeão que é a versão em carta do próprio Líder.
 
-## Campeão Lendário (Zona de Comando)
-- O Lendário começa na **Zona de Comando**, fora do deck, e pode ser conjurado de lá a qualquer momento da sua fase principal.
+## Encarnação do Líder (Santuário)
+- A Encarnação começa no **Santuário**, fora do deck, e pode ser conjurada de lá a qualquer momento da sua fase principal.
 - Cada conjuração depois da primeira custa **+2 Momentum** a mais que a anterior.
-- Quando o Lendário morre, ele volta para a Zona de Comando. A morte dele não afeta o Líder.
+- Quando a Encarnação morre, ela volta para o Santuário. A morte dela não afeta o Líder.
 
 ## Início da partida
 - Quem joga primeiro começa com **6 cartas** na mão, e o outro jogador com **7**.
@@ -24,7 +25,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 
 ## Turno
 1. **Início:** o Momentum é reabastecido, você compra 1 carta e suas criaturas ficam prontas.
-2. **Fase principal:** jogue cartas, conjure o Lendário e use a habilidade do Líder.
+2. **Fase principal:** jogue cartas, conjure a Encarnação e use a habilidade do Líder.
 3. **Ataque**, uma vez por turno: escolha os atacantes. Os ataques sempre miram o **Líder inimigo**.
 4. **Bloqueios:** o defensor escolhe quem bloqueia. Cada bloqueador bloqueia **um único** atacante, e cada atacante pode ser bloqueado por **um único** bloqueador.
 5. **Dano de combate:** primeiro causam dano as criaturas com Golpe Rápido, depois as demais. O dano é simultâneo dentro de cada passo. Um atacante que não foi bloqueado causa dano ao Líder.
@@ -36,7 +37,35 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - Uma criatura recém-jogada não pode atacar no mesmo turno, a menos que tenha **Ímpeto**. Ela pode bloquear normalmente.
 - A cura do Líder nunca passa da vida inicial dele.
 - **Fadiga:** comprar uma carta com o deck vazio causa dano ao seu Líder. O dano é de 1 na primeira vez e sobe 1 a cada nova compra (2, 3, …).
-- No v0.1 não existem instantâneos. A única ação possível no turno do adversário é bloquear.
+
+## Velocidade, pilha e janelas
+- Toda carta e habilidade de Líder tem uma velocidade, definida no campo `"speed"` do JSON. Sem o campo, ela é **lenta**.
+  - Equipamentos são lentos, a não ser que tenham a tag **Saque Rápido** (`saque_rapido`), que os torna rápidos.
+  - **Lenta:** só na sua fase principal, com a pilha vazia.
+  - **Rápida:** também nas janelas de combate.
+  - **Instantânea:** também em resposta a qualquer coisa na pilha.
+- Criaturas, a Encarnação, atacar e encerrar o turno seguem a regra das lentas. Criaturas não usam a pilha.
+- **Pilha:** feitiços, equipamentos e habilidades vão para a pilha, e a prioridade passa para o adversário.
+  - Quem tem prioridade pode responder com uma Instantânea ou passar.
+  - Quando alguém passa, a pilha inteira resolve, do mais novo para o mais antigo.
+  - Um efeito cujo alvo deixou de ser válido é anulado.
+  - **Anular (counter):** alguns Instantâneos (ex.: Negação de Neraqa) miram um feitiço ou habilidade **inimiga** na pilha. O item anulado sai da pilha sem efeito, e a carta vai para o cemitério. Se o custo do alvo passa do limite da carta, o custo extra (ex.: +3) é cobrado automaticamente quando você escolhe esse alvo.
+- **Janelas de combate:** depois de declarar os atacantes, as janelas vêm nesta ordem:
+  1. Ataque, para o atacante.
+  2. Preparação, para o defensor.
+  3. Bloqueios.
+  4. Dano: o atacante tem a prioridade primeiro.
+- **Na janela de dano:**
+  - Se o atacante passa, a prioridade vai para o defensor.
+  - O dano de combate acontece quando os dois passam seguidos com a pilha vazia.
+  - Se alguém joga algo, a pilha resolve normalmente e a prioridade volta para o atacante.
+- Atacantes que morrem durante as janelas saem do combate.
+- **Os bloqueios são definitivos.** Se o bloqueador morre antes do dano, o atacante continua bloqueado e não acerta o Líder. Com Sobrepujança, todo o dano dele vai para o Líder.
+- Se o atacante morre antes do dano, o bloqueador não causa dano.
+- Quem não tem nenhuma jogada possível passa automaticamente.
+
+## Olhar o topo do deck
+- Alguns efeitos (ex.: Serpente Marinha) olham as N cartas do topo do deck. Só o dono vê essas cartas; ele coloca 1 na mão, e só essa é revelada ao oponente. As outras vão para o fundo do deck.
 
 ## Tipos de carta
 - **Campeão e Unidade:** são criaturas, com Ataque e Vida.
@@ -58,6 +87,8 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 | Vigia | Pode bloquear criaturas com Furtivo. |
 | Provocação | Ao atacar, escolha uma criatura inimiga. Ela é obrigada a bloquear esta criatura, mesmo contra Voo ou Furtivo. |
 | Escudo | Anula a próxima instância de dano. |
+| Congelar | A criatura não pode atacar nem bloquear até o fim do próximo turno do dono. Escudo de Feitiço anula. |
+| Escudo de Feitiço | Anula, uma vez, o próximo efeito **inimigo** que não seja dano de combate (feitiço, habilidade, efeito em área). Depois se dissipa. Efeitos do próprio dono não o consomem. |
 
 ## Controles
 - **Clique esquerdo:** jogar uma carta, selecionar atacantes, escolher alvos e atribuir bloqueios (primeiro o seu bloqueador, depois o atacante).

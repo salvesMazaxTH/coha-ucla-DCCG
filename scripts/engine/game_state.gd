@@ -21,8 +21,21 @@ var phase := "mulligan"
 var winner := -1 ## -1 none, 0/1 player, 2 draw
 ## Pending combat: attacker uid -> provoked enemy uid (or 0)
 var attackers: Dictionary = {}
+## Locked-in blocks (attacker uid -> blocker uid) during the damage window. Final: a
+## blocker that dies before damage still leaves its attacker blocked.
+var blocks: Dictionary = {}
 ## Pending deterministic deck search. The matching cards are public until chosen.
 var pending_search: Dictionary = {}
+## Spells, equipment and leader abilities wait here (LIFO) until both players let them resolve.
+## Item: {sid, player, kind:"card"|"ability", uid, card_id, target, speed}
+var stack: Array = []
+## Who may act during "main"/"combat". Casting hands priority to the opponent (response);
+## a pass with items on the stack resolves the whole stack.
+var priority := 0
+## Combat window while phase == "combat": "attack" (attacker), "prepare" (defender),
+## then blocks, then "damage" (attacker first; damage when both pass in a row).
+var window := ""
+var _search_return := "main"
 var rng := RandomNumberGenerator.new()
 var _next_uid := 1
 var _events: Array = []
@@ -89,6 +102,8 @@ func decider() -> int:
 			return opponent(active)
 		"search":
 			return int(pending_search.get("player", active))
+		"main", "combat":
+			return priority
 	return active
 
 func find_creature(uid: int) -> Dictionary:
@@ -104,6 +119,8 @@ func card_of(c: Dictionary) -> Dictionary:
 func has_kw(c: Dictionary, kw: String) -> bool:
 	if kw == "escudo":
 		return c["shield"]
+	if kw == "escudo_feitico":
+		return c.get("spell_shield", false)
 	return c["keywords"].has(kw)
 
 func atk_of(c: Dictionary) -> int:
@@ -116,10 +133,16 @@ func legendary_cost(p: int) -> int:
 	var l: Dictionary = players[p]["legendary"]
 	return int(CardDB.card(l["card_id"])["cost"]) + COMMANDER_TAX * int(l["casts"])
 
+## Congelada: can't attack or block until the end of its owner's next turn.
+func is_frozen(c: Dictionary) -> bool:
+	return c.has("frozen")
+
 func can_attack(c: Dictionary) -> bool:
-	return not c["exhausted"] and (not c["sick"] or has_kw(c, "impeto")) and atk_of(c) > 0
+	return not is_frozen(c) and not c["exhausted"] and (not c["sick"] or has_kw(c, "impeto")) and atk_of(c) > 0
 
 func can_block(blocker: Dictionary, attacker: Dictionary) -> bool:
+	if is_frozen(blocker):
+		return false
 	if has_kw(attacker, "voo") and not (has_kw(blocker, "voo") or has_kw(blocker, "longo_alcance")):
 		return false
 	if has_kw(attacker, "furtivo") and not (has_kw(blocker, "furtivo") or has_kw(blocker, "vigia")):
@@ -129,7 +152,7 @@ func can_block(blocker: Dictionary, attacker: Dictionary) -> bool:
 ## Effect spec of a card/ability that needs a chosen target, or "" if none.
 func target_spec(effects: Array) -> String:
 	for e in effects:
-		if e.get("target", "") in ["enemy_creature", "ally_creature", "other_ally_creature", "any_creature", "any"]:
+		if e.get("target", "") in ["enemy_creature", "ally_creature", "other_ally_creature", "any_creature", "any", "enemy_stack"]:
 			return e["target"]
 	return ""
 
@@ -150,11 +173,77 @@ func valid_targets(p: int, spec: String, self_uid: int = 0) -> Array:
 		"any":
 			for c in mine + theirs: out.append(c["uid"])
 			out.append(LEADER_UID[opponent(p)])
+		"enemy_stack":
+			for it in stack:
+				if it["player"] != p: out.append(it["sid"])
 	return out
 
-func can_play(p: int, hand_uid: int) -> bool:
-	if phase != "main" or p != active:
+func _stack_item(sid: int) -> Dictionary:
+	for it in stack:
+		if it["sid"] == sid:
+			return it
+	return {}
+
+## Momentum cost of a spell/ability on the stack.
+func stack_cost(item: Dictionary) -> int:
+	if item["kind"] == "ability":
+		return int(CardDB.leader(players[item["player"]]["leader_id"])["ability"]["cost"])
+	return int(CardDB.card(item["card_id"]).get("cost", 0))
+
+## Extra Momentum a counter (action "counter") must pay to hit stack item `sid`:
+## 0 up to max_cost, kicker_cost up to kicker_max_cost, -1 when out of reach.
+func counter_extra(cd: Dictionary, sid: int) -> int:
+	var it := _stack_item(sid)
+	if it.is_empty():
+		return -1
+	for e in cd["effects"]:
+		if e.get("action", "") != "counter":
+			continue
+		var c := stack_cost(it)
+		if c <= int(e.get("max_cost", 99)):
+			return 0
+		if e.has("kicker_cost") and c <= int(e.get("kicker_max_cost", 99)):
+			return int(e["kicker_cost"])
+		return -1
+	return 0
+
+## Targets a card from hand can be played on right now (counters filter by reach and Momentum).
+func card_targets(p: int, cd: Dictionary) -> Array:
+	var spec := target_spec(cd["effects"])
+	var out := valid_targets(p, spec)
+	if spec != "enemy_stack":
+		return out
+	var ok: Array = []
+	for sid in out:
+		var x := counter_extra(cd, sid)
+		if x >= 0 and int(cd["cost"]) + x <= int(players[p]["momentum"]):
+			ok.append(sid)
+	return ok
+
+## Speed of a card or leader ability: "lento" (default), "rapido" or "instantaneo".
+func speed_of(src: Dictionary) -> String:
+	if src.has("speed"):
+		return String(src["speed"])
+	if (src.get("keywords", []) as Array).has("saque_rapido") or (src.get("tags", []) as Array).has("saque_rapido"):
+		return "rapido"
+	return "lento"
+
+## Lento: own Main Phase with an empty stack. Rápido: also combat windows.
+## Instantâneo: also as a response to anything on the stack.
+func can_cast_speed(p: int, speed: String) -> bool:
+	if phase not in ["main", "combat"] or p != priority:
 		return false
+	if not stack.is_empty():
+		return speed == "instantaneo"
+	if phase == "main":
+		return p == active
+	return speed != "lento"
+
+## Creatures, the Legendary, attacking and ending the turn: own Main Phase, empty stack.
+func _sorcery_time(p: int) -> bool:
+	return phase == "main" and p == active and priority == p and stack.is_empty()
+
+func can_play(p: int, hand_uid: int) -> bool:
 	var inst := _hand_card(p, hand_uid)
 	if inst.is_empty():
 		return false
@@ -162,17 +251,19 @@ func can_play(p: int, hand_uid: int) -> bool:
 	if int(cd["cost"]) > players[p]["momentum"]:
 		return false
 	if cd["type"] == "creature":
-		return players[p]["board"].size() < BOARD_LIMIT
+		return _sorcery_time(p) and players[p]["board"].size() < BOARD_LIMIT
+	if not can_cast_speed(p, speed_of(cd)):
+		return false
 	var spec := target_spec(cd["effects"])
-	return spec == "" or not valid_targets(p, spec).is_empty()
+	return spec == "" or not card_targets(p, cd).is_empty()
 
 func can_cast_legendary(p: int) -> bool:
-	return phase == "main" and p == active and players[p]["legendary"]["in_zone"] \
+	return _sorcery_time(p) and players[p]["legendary"]["in_zone"] \
 		and legendary_cost(p) <= players[p]["momentum"] and players[p]["board"].size() < BOARD_LIMIT
 
 func can_use_ability(p: int) -> bool:
 	var ab: Dictionary = CardDB.leader(players[p]["leader_id"])["ability"]
-	if phase != "main" or p != active or int(ab["cost"]) > players[p]["momentum"]:
+	if not can_cast_speed(p, speed_of(ab)) or int(ab["cost"]) > players[p]["momentum"]:
 		return false
 	if ab.get("once_per_turn", false) and players[p]["ability_used"]:
 		return false
@@ -215,18 +306,18 @@ func play_card(p: int, hand_uid: int, target: int = 0) -> Array:
 	var inst := _hand_card(p, hand_uid)
 	var cd := CardDB.card(inst["card_id"])
 	var spec := target_spec(cd["effects"])
-	if cd["type"] != "creature" and spec != "" and not valid_targets(p, spec).has(target):
+	if cd["type"] != "creature" and spec != "" and not card_targets(p, cd).has(target):
 		return []
 	var pl: Dictionary = players[p]
-	pl["momentum"] -= int(cd["cost"])
+	pl["momentum"] -= int(cd["cost"]) + (counter_extra(cd, target) if spec == "enemy_stack" else 0)
 	pl["hand"].erase(inst)
 	_emit({"type": "play", "player": p, "uid": hand_uid, "card_id": inst["card_id"]})
 	if cd["type"] == "creature":
 		_summon(p, inst["card_id"], hand_uid, false, target)
+		_check_state()
 	else:
-		_run_effects(p, cd["effects"], "on_play", target, 0)
-		pl["graveyard"].append(inst)
-	_check_state()
+		_push(p, "card", hand_uid, inst["card_id"], target, speed_of(cd))
+	_settle()
 	return _flush()
 
 func cast_legendary(p: int, target: int = 0) -> Array:
@@ -240,6 +331,7 @@ func cast_legendary(p: int, target: int = 0) -> Array:
 	_emit({"type": "play", "player": p, "uid": uid, "card_id": pl["legendary"]["card_id"], "legendary": true})
 	_summon(p, pl["legendary"]["card_id"], uid, true, target)
 	_check_state()
+	_settle()
 	return _flush()
 
 func use_ability(p: int, target: int = 0) -> Array:
@@ -252,15 +344,26 @@ func use_ability(p: int, target: int = 0) -> Array:
 	players[p]["momentum"] -= int(ab["cost"])
 	players[p]["ability_used"] = true
 	_emit({"type": "ability", "player": p})
-	_run_effects(p, ab["effects"], "", target, 0)
-	_check_state()
+	_push(p, "ability", 0, "", target, speed_of(ab))
+	_settle()
+	return _flush()
+
+## Gives up priority. With items on the stack, everything resolves (newest first);
+## in an empty combat window the combat moves on to the next window.
+func pass_priority(p: int) -> Array:
+	if phase not in ["main", "combat"] or p != priority:
+		return []
+	if stack.is_empty() and phase == "main":
+		return [] # nothing to pass: end the turn instead
+	_emit({"type": "pass", "player": p})
+	_pass()
+	_settle()
 	return _flush()
 
 ## attacks: Dictionary attacker_uid -> provoked enemy uid (0 when none).
 func declare_attack(p: int, attacks: Dictionary) -> Array:
-	if phase != "main" or p != active or players[p]["attacked"] or attacks.is_empty():
+	if not _sorcery_time(p) or players[p]["attacked"] or attacks.is_empty():
 		return []
-	var enemy_board: Array = players[opponent(p)]["board"]
 	var provoked_used: Array = []
 	for uid in attacks:
 		var c := find_creature(uid)
@@ -269,7 +372,7 @@ func declare_attack(p: int, attacks: Dictionary) -> Array:
 		var prov: int = attacks[uid]
 		if prov != 0:
 			var t := find_creature(prov)
-			if not has_kw(c, "provocacao") or t.is_empty() or t["owner"] == p or provoked_used.has(prov):
+			if not has_kw(c, "provocacao") or t.is_empty() or t["owner"] == p or provoked_used.has(prov) or is_frozen(t):
 				return []
 			provoked_used.append(prov)
 	attackers = attacks.duplicate()
@@ -282,35 +385,37 @@ func declare_attack(p: int, attacks: Dictionary) -> Array:
 	_check_state()
 	if phase == "over":
 		return _flush()
-	if enemy_board.is_empty():
-		return _resolve_combat({})
-	phase = "blocks"
+	phase = "combat"
+	_open_window("attack")
+	_settle()
 	return _flush()
 
 ## blocks: Dictionary attacker_uid -> blocker_uid. One blocker per attacker,
 ## one attacker per blocker. Provoked creatures are forced onto their provoker.
-func declare_blocks(p: int, blocks: Dictionary) -> Array:
+func declare_blocks(p: int, picks: Dictionary) -> Array:
 	if phase != "blocks" or p != decider():
 		return []
 	var final := {}
 	for a in attackers:
-		if attackers[a] != 0 and not find_creature(attackers[a]).is_empty():
+		if attackers[a] != 0 and not find_creature(attackers[a]).is_empty() and not is_frozen(find_creature(attackers[a])):
 			final[a] = attackers[a]
 	var used: Array = final.values()
-	for a in blocks:
+	for a in picks:
 		if final.has(a):
 			continue
-		var b: int = blocks[a]
+		var b: int = picks[a]
 		var att := find_creature(a)
 		var blk := find_creature(b)
 		if not attackers.has(a) or blk.is_empty() or blk["owner"] != p or used.has(b) or not can_block(blk, att):
 			return []
 		final[a] = b
 		used.append(b)
-	return _resolve_combat(final)
+	_start_damage(final)
+	_settle()
+	return _flush()
 
 func end_turn(p: int) -> Array:
-	if phase != "main" or p != active:
+	if not _sorcery_time(p):
 		return []
 	if players[p]["hand"].size() > HAND_LIMIT:
 		phase = "discard"
@@ -357,12 +462,157 @@ func choose_search(p: int, card_uid: int) -> Array:
 	if not found:
 		return []
 	players[p]["hand"].append(chosen)
-	_shuffle(deck)
+	var look: bool = pending_search.get("look", false)
+	if look:
+		# the cards not taken go to the bottom of the deck, unrevealed
+		for c in options:
+			if int(c["uid"]) == card_uid:
+				continue
+			for d in deck:
+				if int(d["uid"]) == int(c["uid"]):
+					deck.erase(d)
+					deck.push_front(d)
+					break
+	else:
+		_shuffle(deck)
 	pending_search.clear()
-	phase = "main"
+	phase = _search_return
 	_emit({"type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"]})
-	_emit({"type": "search_shuffle", "player": p})
+	_emit({"type": "look_bottom" if look else "search_shuffle", "player": p})
+	_resolve_stack() # a search opened mid-resolution: finish the rest of the stack
+	_settle()
 	return _flush()
+
+# ---------------------------------------------------------------- stack & windows
+
+func _push(p: int, kind: String, uid: int, card_id: String, target: int, speed: String) -> void:
+	var item := {"sid": _uid(), "player": p, "kind": kind, "uid": uid, "card_id": card_id, "target": target, "speed": speed}
+	stack.append(item)
+	priority = opponent(p)
+	_emit({"type": "stack_push", "item": item.duplicate()})
+
+func _effects_of(item: Dictionary) -> Array:
+	if item["kind"] == "ability":
+		return CardDB.leader(players[item["player"]]["leader_id"])["ability"]["effects"]
+	return CardDB.card(item["card_id"])["effects"]
+
+## Resolves the stack newest-first. Stops early if the game ends or a search needs a choice.
+func _resolve_stack() -> void:
+	while not stack.is_empty() and phase in ["main", "combat"]:
+		var item: Dictionary = stack.pop_back()
+		var p: int = item["player"]
+		var effects := _effects_of(item)
+		var spec := target_spec(effects)
+		if spec != "" and not valid_targets(p, spec).has(int(item["target"])):
+			_emit({"type": "fizzle", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"]})
+		else:
+			_emit({"type": "resolve", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"]})
+			_run_effects(p, effects, "on_play" if item["kind"] == "card" else "", int(item["target"]), 0)
+		if item["kind"] == "card":
+			players[p]["graveyard"].append({"uid": item["uid"], "card_id": item["card_id"]})
+		_check_state()
+		_prune_attackers()
+	if phase in ["main", "combat"] and stack.is_empty():
+		priority = _window_owner()
+
+## Removes stack item `sid` without resolving it; a countered card goes to the graveyard.
+func _counter(p: int, sid: int) -> void:
+	var it := _stack_item(sid)
+	if it.is_empty():
+		return
+	stack.erase(it)
+	if it["kind"] == "card":
+		players[it["player"]]["graveyard"].append({"uid": it["uid"], "card_id": it["card_id"]})
+	_emit({"type": "countered", "sid": sid, "player": it["player"], "by": p, "card_id": it["card_id"], "kind": it["kind"]})
+
+## Damage window: the attacker holds priority after the stack resolves.
+func _window_owner() -> int:
+	return opponent(active) if phase == "combat" and window == "prepare" else active
+
+func _open_window(w: String) -> void:
+	window = w
+	priority = _window_owner()
+	_emit({"type": "window", "window": w, "player": priority})
+
+func _pass() -> void:
+	if not stack.is_empty():
+		_resolve_stack()
+		return
+	match window:
+		"attack":
+			_open_window("prepare")
+		"prepare":
+			_to_blocks()
+		"damage":
+			if priority == active:
+				priority = opponent(active) # attacker passed: the defender may still act
+			else:
+				_resolve_combat() # both passed in a row with an empty stack
+		_:
+			_to_blocks()
+
+## Attackers that died during the windows leave combat.
+func _prune_attackers() -> void:
+	for a in attackers.keys():
+		if find_creature(a).is_empty():
+			attackers.erase(a)
+
+func _to_blocks() -> void:
+	window = ""
+	_prune_attackers()
+	if attackers.is_empty():
+		_end_combat()
+	elif players[opponent(active)]["board"].is_empty():
+		_start_damage({})
+	else:
+		phase = "blocks"
+
+## Blocks are locked in, block triggers fire, then the damage window opens.
+func _start_damage(final: Dictionary) -> void:
+	phase = "combat"
+	blocks = final
+	_emit({"type": "blocks", "blocks": final})
+	for a in final:
+		_fire(find_creature(final[a]), "on_block", a)
+		_fire(find_creature(a), "on_blocked", final[a])
+	_check_state()
+	if phase == "over":
+		attackers.clear()
+		blocks.clear()
+		return
+	_prune_attackers()
+	if attackers.is_empty():
+		_end_combat()
+		return
+	_open_window("damage")
+
+func _end_combat() -> void:
+	attackers.clear()
+	blocks.clear()
+	window = ""
+	if phase != "over":
+		phase = "main"
+		priority = active
+
+## Can p do anything right now besides passing?
+func _has_play(p: int) -> bool:
+	for c in players[p]["hand"]:
+		if can_play(p, c["uid"]):
+			return true
+	return can_use_ability(p)
+
+## Auto-passes for whoever holds priority with no legal play, so windows nobody can use
+## cost no clicks. Stops at a real decision.
+func _settle() -> void:
+	for guard in 64:
+		if phase not in ["main", "combat"]:
+			return
+		if stack.is_empty() and phase == "main":
+			priority = active
+			return
+		if _has_play(priority):
+			return
+		_pass()
 
 # ---------------------------------------------------------------- internals
 
@@ -373,13 +623,17 @@ func _summon(p: int, card_id: String, uid: int, legendary: bool, target: int, ov
 		"uid": uid, "card_id": card_id, "owner": p, "legendary": legendary,
 		"atk": int(cd["atk"]), "hp": int(cd["hp"]), "damage": 0, "temp_atk": 0,
 		"keywords": kws, "temp_keywords": [], "shield": kws.has("escudo"),
-		"exhausted": false, "sick": true,
+		"spell_shield": kws.has("escudo_feitico"), "exhausted": false, "sick": true,
 	}
 	if not over.is_empty():
 		c["over"] = over
 	kws.erase("escudo")
+	kws.erase("escudo_feitico")
 	players[p]["board"].append(c)
 	_emit({"type": "summon", "player": p, "uid": uid, "card_id": card_id})
+	# "ally_creature" Ao Entrar with no chosen ally falls back to the creature itself
+	if target == 0 and target_spec(cd["effects"]) == "ally_creature":
+		target = uid
 	_run_effects(p, cd["effects"], "on_enter", target, uid)
 
 ## Fires a creature's own trigger. Depth-capped so on_damaged chains cannot loop forever.
@@ -399,7 +653,7 @@ func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid
 			continue
 		var targets: Array = []
 		match e.get("target", ""):
-			"enemy_creature", "ally_creature", "other_ally_creature", "any_creature", "any":
+			"enemy_creature", "ally_creature", "other_ally_creature", "any_creature", "any", "enemy_stack":
 				if valid_targets(p, e["target"], self_uid).has(chosen):
 					targets = [chosen]
 			"all_enemy_creatures":
@@ -438,6 +692,8 @@ func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid
 			_apply(p, e, t)
 		if e.get("action", "") == "search_deck" and e.get("trigger", "") == trigger:
 			_begin_search(p, e, self_uid)
+		elif e.get("action", "") == "look_top" and e.get("trigger", "") == trigger:
+			_begin_look(p, int(e.get("count", 4)), self_uid)
 
 func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 	if phase == "search":
@@ -446,7 +702,7 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 	var seen: Dictionary = {}
 	for c in players[p]["deck"]:
 		var cd := CardDB.card(c["card_id"])
-		if e.get("essence", "") != "" and cd.get("essence", "") != e["essence"]:
+		if e.get("essence", "") != "" and not CardDB.has_essence(cd, e["essence"]):
 			continue
 		if e.has("max_cost") and int(cd.get("cost", 999)) > int(e["max_cost"]):
 			continue
@@ -469,24 +725,64 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
 		return
 	pending_search = {"player": p, "source_uid": source_uid, "cards": matches}
+	_search_return = phase
 	phase = "search"
 	_emit({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": matches})
 
+## Private look at the top `n` cards: only the owner sees them (StateView hides them from
+## the other seat); the one taken is revealed by search_take, the rest go to the bottom.
+func _begin_look(p: int, n: int, source_uid: int) -> void:
+	if phase == "search":
+		return
+	var deck: Array = players[p]["deck"]
+	var top: Array = []
+	for i in range(deck.size() - 1, maxi(deck.size() - n, 0) - 1, -1): # top of the deck is the back
+		top.append({"uid": deck[i]["uid"], "card_id": deck[i]["card_id"]})
+	if top.is_empty():
+		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
+		return
+	pending_search = {"player": p, "source_uid": source_uid, "cards": top, "look": true}
+	_search_return = phase
+	phase = "search"
+	_emit({"type": "look_top", "player": p, "source_uid": source_uid, "cards": top})
+
 func _apply(p: int, e: Dictionary, t: int) -> void:
+	if e["action"] == "counter":
+		_counter(p, t)
+		return
+	# Escudo de Feitiço: the first non-combat effect from the enemy side is cancelled
+	var hit := find_creature(t) if t > 0 else {}
+	if not hit.is_empty() and hit["owner"] != p and hit.get("spell_shield", false):
+		hit["spell_shield"] = false
+		_emit({"type": "spell_shield_break", "uid": t})
+		return
 	match e["action"]:
 		"damage":
 			var amount := int(e["amount"])
 			var red: Dictionary = e.get("ally_reduce", {})
 			var victim := find_creature(t)
-			if not red.is_empty() and not victim.is_empty() and victim["owner"] == p and card_of(victim).get("essence", "") == red["essence"]:
+			if not red.is_empty() and not victim.is_empty() and victim["owner"] == p and CardDB.has_essence(card_of(victim), red["essence"]):
 				amount = int(red["amount"])
 			_deal_damage(t, amount, {})
 		"heal_leader":
 			_heal_leader(p, int(e["amount"]))
 		"draw":
 			_draw(opponent(p) if t == LEADER_UID[opponent(p)] else p, int(e["amount"]))
-		"search_deck":
+		"tide_mark":
+			var m := find_creature(t)
+			if not m.is_empty():
+				m["tide_mark"] = true
+				_emit({"type": "tide_mark", "uid": t})
+		"search_deck", "look_top":
 			pass # Search effects are opened by _run_effects after their trigger resolves.
+		"freeze":
+			var fz := find_creature(t)
+			if fz.is_empty():
+				return
+			# thaws at the end of its owner's next turn
+			var until: int = turn + (2 if fz["owner"] == active else 1)
+			fz["frozen"] = maxi(int(fz.get("frozen", 0)), until)
+			_emit({"type": "freeze", "uid": t})
 		"summon":
 			_summon_effect(p, e)
 		"buff":
@@ -501,6 +797,8 @@ func _apply(p: int, e: Dictionary, t: int) -> void:
 			for kw in e.get("keywords", []):
 				if kw == "escudo":
 					c["shield"] = true
+				elif kw == "escudo_feitico":
+					c["spell_shield"] = true
 				elif not c["keywords"].has(kw):
 					c["keywords"].append(kw)
 					if e.get("temp", false):
@@ -530,6 +828,11 @@ func _deal_damage(t: int, amount: int, source: Dictionary) -> int:
 		c["damage"] += amount
 		dealt = amount
 		_emit({"type": "damage", "uid": t, "amount": amount, "src": source.get("uid", 0)})
+		# Mar que Retorna: the marked creature survived damage -> its owner draws once
+		if c.get("tide_mark", false) and hp_left(c) > 0:
+			c.erase("tide_mark")
+			_emit({"type": "tide_draw", "uid": t, "player": c["owner"]})
+			_draw(c["owner"], 1)
 		_fire(c, "on_damaged", source.get("uid", 0))
 	if not source.is_empty() and has_kw(source, "roubo_de_vida"):
 		_heal_leader(source["owner"], dealt)
@@ -554,16 +857,13 @@ func _draw(p: int, n: int) -> void:
 		pl["hand"].append(c)
 		_emit({"type": "draw", "player": p, "uid": c["uid"]})
 
-func _resolve_combat(blocks: Dictionary) -> Array:
+## Dead attackers deal nothing; a blocked attacker whose blocker died hits nothing
+## (Sobrepujança: all of it goes to the leader); a blocker whose attacker died deals nothing.
+func _resolve_combat() -> void:
 	var defender := opponent(active)
-	_emit({"type": "blocks", "blocks": blocks})
-	for a in blocks:
-		_fire(find_creature(blocks[a]), "on_block", a)
-		_fire(find_creature(a), "on_blocked", blocks[a])
-	_check_state()
-	if phase == "over":
-		attackers.clear()
-		return _flush()
+	window = ""
+	_emit({"type": "combat_damage"})
+	_prune_attackers()
 	var pairs: Array = []
 	for a in attackers:
 		pairs.append([a, blocks.get(a, 0)])
@@ -586,10 +886,7 @@ func _resolve_combat(blocks: Dictionary) -> Array:
 		_check_state()
 		if phase == "over":
 			break
-	attackers.clear()
-	if phase != "over":
-		phase = "main"
-	return _flush()
+	_end_combat()
 
 ## Moves dead creatures out, fires Ao Morrer, checks leaders. Loops until stable.
 func _check_state() -> void:
@@ -628,17 +925,23 @@ func _finish_turn() -> void:
 			for kw in c["temp_keywords"]:
 				c["keywords"].erase(kw)
 			c["temp_keywords"].clear()
+			c.erase("tide_mark")
+			if c.has("frozen") and turn >= int(c["frozen"]):
+				c.erase("frozen")
+				_emit({"type": "thaw", "uid": c["uid"]})
 	_emit({"type": "end_turn", "player": active})
 	_start_turn(opponent(active), true)
 
 func _start_turn(p: int, draw: bool) -> void:
 	active = p
+	priority = p
 	turn += 1
 	phase = "main"
 	var pl: Dictionary = players[p]
 	pl["max_momentum"] = min(MOMENTUM_CAP, pl["max_momentum"] + 1)
 	pl["momentum"] = pl["max_momentum"]
-	pl["ability_used"] = false
+	for q in players:
+		q["ability_used"] = false # once per turn: instant abilities can be used on either turn
 	pl["attacked"] = false
 	for c in pl["board"]:
 		c["exhausted"] = false

@@ -2,7 +2,10 @@
   "name": "Sabrina",
   "type": "creature",
   "rarity": "champion",
-  "essence": "aquatica",
+  "essence": [
+    "aquatica",
+    "glacial"
+  ],
   "cost": 4,
   "atk": 3,
   "hp": 3,
@@ -13,12 +16,13 @@
   "effects": [
     {
       "trigger": "on_enter",
-      "action": "damage",
-      "target": "all_enemy_creatures",
-      "amount": 1
+      "action": "freeze",
+      "target": "enemy_creature"
     }
   ],
-  "text": "Ao Entrar: cause 1 de dano a todas as criaturas inimigas.",
+  "text": "Ao Entrar: congele uma criatura inimiga.",
   "flavor": "Dilúvio de inverno.",
-  "tags": []
+  "tags": [
+    "congelar"
+  ]
 }
