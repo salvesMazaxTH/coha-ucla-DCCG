@@ -22,10 +22,10 @@ float noise(vec2 p) {
 		mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
 }
 
-float fbm(vec2 p) {
+float fbm(vec2 p, int octaves) {
 	float v = 0.0;
 	float a = 0.5;
-	for (int i = 0; i < 5; i++) {
+	for (int i = 0; i < octaves; i++) {
 		v += a * noise(p);
 		p = p * 2.03 + vec2(1.7, 9.2);
 		a *= 0.5;
@@ -38,9 +38,11 @@ void fragment() {
 	vec2 p = vec2(uv.x * aspect, uv.y);
 
 	// base slate with large cloudy variation and fine grain
-	float cloud = fbm(p * 2.2);
-	float grain = noise(p * 220.0) * 0.5 + noise(p * 90.0) * 0.5;
-	float veins = smoothstep(0.48, 0.5, fbm(p * 5.0 + cloud * 2.0)) * (1.0 - smoothstep(0.5, 0.53, fbm(p * 5.0 + cloud * 2.0)));
+	// (kept cheap on purpose: this runs on every pixel every frame, phones included)
+	float cloud = fbm(p * 2.2, 3);
+	float grain = hash(floor(p * 220.0));
+	float vn = fbm(p * 5.0 + cloud * 2.0, 3);
+	float veins = smoothstep(0.48, 0.5, vn) * (1.0 - smoothstep(0.5, 0.53, vn));
 	vec3 col = mix(vec3(0.035, 0.032, 0.05), vec3(0.085, 0.078, 0.11), cloud);
 	col += (grain - 0.5) * 0.025;
 	col += veins * 0.035;
