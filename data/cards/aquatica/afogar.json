@@ -1,0 +1,19 @@
+{
+  "name": "Afogar",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "aquatica",
+  "cost": 5,
+  "speed": "rapido",
+  "art": "aquatica/afogar.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "destroy",
+      "target": "any_unit"
+    }
+  ],
+  "text": "Destrua uma unidade à sua escolha.",
+  "flavor": "",
+  "tags": []
+}

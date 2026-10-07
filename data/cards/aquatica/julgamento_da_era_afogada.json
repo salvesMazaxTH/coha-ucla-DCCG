@@ -1,0 +1,19 @@
+{
+  "name": "Julgamento da Era Afogada",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "aquatica",
+  "cost": 7,
+  "speed": "lento",
+  "art": "aquatica/julgamento_da_era_afogada.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "destroy",
+      "target": "all_units"
+    }
+  ],
+  "text": "Destrua todas as unidades.",
+  "flavor": "",
+  "tags": []
+}

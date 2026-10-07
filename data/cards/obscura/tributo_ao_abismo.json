@@ -1,0 +1,26 @@
+{
+  "name": "Tributo ao Abismo",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "obscura",
+  "cost": 3,
+  "speed": "rapido",
+  "art": "obscura/tributo_ao_abismo.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "sacrifice",
+      "target": "ally_unit",
+      "then": [
+        {
+          "action": "mill_pick",
+          "target": "none",
+          "amount": 3
+        }
+      ]
+    }
+  ],
+  "text": "Sacrifique uma unidade aliada: Moer 3, depois escolha 1 dessas cartas no cemitério para adicionar à sua mão.",
+  "flavor": "",
+  "tags": []
+}

@@ -1,6 +1,6 @@
 {
   "name": "Alexa Neruvya Primordial",
-  "type": "creature",
+  "type": "unit",
   "rarity": "champion",
   "species": ["dragao_primordial", "dragao"],
   "essence": "aquatica",
@@ -12,8 +12,14 @@
     "sobrepujanca"
   ],
   "art": "aquatica/alexa_transformed.webp",
-  "effects": [],
-  "text": "",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "heal_full",
+      "target": "all_ally_units"
+    }
+  ],
+  "text": "Ao Entrar: cure totalmente todas as suas unidades.",
   "flavor": "O advento da maré colossal.",
   "tags": []
 }
