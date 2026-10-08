@@ -238,11 +238,11 @@ func _test_obscura() -> void:
 	_kill(g, fb[0])
 	check(_count(g, 0, "fenix_da_chama_profana") == 0, "fênix com 0 de ataque ou vida não volta")
 	check(g.players[0]["graveyard"].any(func(e): return e["card_id"] == "fenix_da_chama_profana"), "fênix acaba no cemitério")
-	# Titânico: 5/6 Longo Alcance, no Voo, mill 2
+	# Titânico: 5/6 Roubo de Vida, no Voo, mill 2
 	var gy: int = g.players[0]["graveyard"].size()
 	var dk: int = g.players[0]["deck"].size()
 	var tit := _put(g, 0, "titanico_morcegalma")
-	check(g.atk_of(tit) == 5 and g.hp_left(tit) == 6 and g.has_kw(tit, "longo_alcance") and not g.has_kw(tit, "voo"), "titânico 5/6 Longo Alcance sem Voo")
+	check(g.atk_of(tit) == 5 and g.hp_left(tit) == 6 and g.has_kw(tit, "roubo_de_vida") and not g.has_kw(tit, "voo"), "titânico 5/6 Roubo de Vida sem Voo")
 	check(g.players[0]["deck"].size() == dk - 2 and g.players[0]["graveyard"].size() == gy + 2, "titânico mói 2")
 	# Necromante revives a unit of cost <= 3 (seeded, so it does not depend on what the mill happened to hit)
 	g.players[0]["graveyard"].append({"uid": g._uid(), "card_id": "esqueleto_guerreiro"})
