@@ -54,6 +54,11 @@ var grave_filter := "all"
 var grave_drag_ms := -1000 ## last finger-drag in the viewer: taps right after it are not clicks
 var views := {} ## uid (or "cmd<p>") -> Control on screen, for animations
 var hand_uids := {} ## viewer's hand cards in the current render
+var hint_text := "" ## the tip pill fades out after a few seconds and returns when the player seems lost
+var hint_since := 0
+var hint_until := 0
+var last_input_ms := 0
+var hint_pill: Control
 var fx: Control ## persistent layer above the table: ghosts, floats, embers
 var ai_timer: Timer
 
@@ -1147,6 +1152,38 @@ func _render_hint() -> void:
 	layer.add_child(pc)
 	pc.reset_size()
 	pc.position = Vector2(TableView.ENEMY_LANE.get_center().x - pc.size.x / 2.0, TableView.DIVIDER_Y + 18) # below the divider emblem
+	var now := Time.get_ticks_msec()
+	if t != hint_text:
+		hint_text = t
+		hint_since = now
+	hint_pill = pc
+	if not targeting.is_empty() or provoking != 0 or g.phase in ["search", "discard"]:
+		return # choices in progress keep their instructions on screen
+	var left := maxi(hint_since + HINT_MS, hint_until) - now
+	if left <= 0:
+		pc.modulate.a = 0.0
+	else:
+		_hint_fade(pc, left / 1000.0)
+
+const HINT_MS := 3500
+
+func _hint_fade(pc: Control, hold: float) -> void:
+	var tw := pc.create_tween()
+	tw.tween_property(pc, "modulate:a", 1.0, 0.2)
+	tw.tween_interval(hold)
+	tw.tween_property(pc, "modulate:a", 0.0, 0.5)
+
+## Bring the tip back (idle for long, or a click that did nothing).
+func _hint_nudge() -> void:
+	if not is_instance_valid(hint_pill) or hint_pill.modulate.a > 0.01 or not _my_input():
+		return
+	hint_until = Time.get_ticks_msec() + 5000
+	_hint_fade(hint_pill, 5.0)
+
+func _process(_dt: float) -> void:
+	if g and Time.get_ticks_msec() - last_input_ms > 15000:
+		last_input_ms = Time.get_ticks_msec()
+		_hint_nudge()
 
 func _hint() -> String:
 	if g.phase == "search":
@@ -1243,12 +1280,16 @@ func _render_game_over() -> void:
 # ---------------------------------------------------------------- input
 
 func _input(e: InputEvent) -> void:
+	if e is InputEventMouseButton or e is InputEventScreenTouch or e is InputEventKey:
+		last_input_ms = Time.get_ticks_msec()
 	if e is InputEventScreenTouch or e is InputEventScreenDrag:
 		CardView.touched = true
 	if grave_view and _grave_scroll_input(e):
 		get_viewport().set_input_as_handled()
 
 func _unhandled_input(e: InputEvent) -> void:
+	if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and g and not overlay:
+		_hint_nudge() # a click that hit nothing: the player may be lost
 	if overlay and e is InputEventMouseButton and e.pressed:
 		_close_overlay()
 		return
@@ -1982,6 +2023,49 @@ func _ability_banner(p: int, t: float, hold: float, passive := false) -> void:
 	tw.tween_property(box, "modulate:a", 0.0, 0.35)
 	tw.tween_callback(box.queue_free)
 
+## Cinematic band announcing who plays first: a dark strip across the board with a gold title.
+func _first_banner(p: int) -> void:
+	var mine: bool = p == viewer if (online or vs_ai) else true
+	var title := "VOCÊ COMEÇA" if mine else "OPONENTE COMEÇA"
+	if not online and not vs_ai:
+		title = "%s COMEÇA" % _pname(p).to_upper()
+	var tint: Color = UITheme.GOLD_LIGHT if mine else Color("#ff8a80")
+	var band := Control.new()
+	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	band.z_index = 40
+	band.modulate.a = 0.0
+	fx.add_child(band)
+	var bg := ColorRect.new()
+	bg.color = Color(0.02, 0.02, 0.04, 0.82)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bg.size = Vector2(stage_w, 120)
+	bg.position = Vector2(0, 360)
+	band.add_child(bg)
+	for y in [360.0, 478.0]:
+		var line := ColorRect.new()
+		line.color = Color(tint, 0.85)
+		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		line.size = Vector2(stage_w, 2)
+		line.position = Vector2(0, y)
+		band.add_child(line)
+	var sub := _label("PRIMEIRO TURNO", 16, Color(UITheme.TEXT, 0.65), HORIZONTAL_ALIGNMENT_CENTER, "body")
+	sub.size = Vector2(stage_w, 24)
+	sub.position = Vector2(0, 376)
+	band.add_child(sub)
+	var lb := _label(title, 46, tint, HORIZONTAL_ALIGNMENT_CENTER, "bold", 6)
+	lb.size = Vector2(stage_w, 64)
+	lb.position = Vector2(0, 404)
+	band.add_child(lb)
+	band.pivot_offset = Vector2(stage_w / 2.0, 420)
+	band.scale = Vector2(1.12, 1.12)
+	var tw := band.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(band, "modulate:a", 1.0, 0.3)
+	tw.tween_property(band, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.chain().tween_interval(1.3)
+	tw.chain().tween_property(band, "modulate:a", 0.0, 0.4)
+	tw.chain().tween_callback(band.queue_free)
+
 func _elem_color(card_id: String) -> Color:
 	return Color(CardDB.essence(CardDB.essences_of(CardDB.card(card_id))[0]).get("color", "#ffffff"))
 
@@ -2018,6 +2102,16 @@ func _animate(events: Array, old: Dictionary) -> float:
 	var last_dst := 0
 	var hit_t := 0.0
 	var trig_src := 0 ## unit whose trigger caused the events that follow (0 = none)
+	# Leader HP: _render drew the final value, so rewind it to what it was before these events
+	# and step it down/up at each hit's moment instead of jumping straight to the end.
+	var leader_hp := {}
+	for e in events:
+		if e["type"] in ["damage", "heal"] and e["uid"] < 0 and views.get(e["uid"]) is LeaderView:
+			if not leader_hp.has(e["uid"]):
+				leader_hp[e["uid"]] = views[e["uid"]].hp
+			leader_hp[e["uid"]] += e["amount"] if e["type"] == "damage" else -e["amount"]
+	for uid in leader_hp:
+		views[uid].hp = leader_hp[uid]
 	for e in events:
 		var et: String = e["type"]
 		if et in ["play", "ability", "passive", "resolve", "attack", "combat_damage", "start_turn", "end_turn"] \
@@ -2121,6 +2215,15 @@ func _animate(events: Array, old: Dictionary) -> float:
 						cursor += 0.42
 				else:
 					cursor += 0.12
+				if leader_hp.has(dst) and e["type"] in ["damage", "heal"]:
+					leader_hp[dst] += -e["amount"] if e["type"] == "damage" else e["amount"]
+					var lv: LeaderView = views[dst]
+					var shown: int = leader_hp[dst]
+					var ltw := lv.create_tween()
+					ltw.tween_interval(t)
+					ltw.tween_callback(func():
+						lv.hp = shown
+						lv.queue_redraw())
 				if actors.has(dst):
 					match e["type"]:
 						"damage":
@@ -2209,6 +2312,8 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s: fadiga %d" % [_pname(e["player"]), e["amount"]])
 		"start_turn":
 			_log("— Turno %d: %s —" % [e["turn"], _pname(e["player"])])
+			if int(e["turn"]) == 1:
+				_first_banner(e["player"])
 		"ban":
 			_log("%s baniu uma carta da mão" % _pname(e["player"]))
 		"search_reveal":
