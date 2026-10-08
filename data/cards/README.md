@@ -31,6 +31,14 @@ Exemplo:
 "tags": ["espirito"]
 ```
 
+## Flavor text
+
+`flavor` é uma string ou uma lista de até 3 strings. Com lista, a primeira é a frase principal (fora de partida) e, durante a partida, cada carta mostra uma frase fixa sorteada no início dela. O sorteio é só visual e usa RNG próprio (`CardDB.flavor_for`).
+
+```json
+"flavor": ["Frase principal.", "Segunda frase.", "Terceira frase."]
+```
+
 ## Retratos
 
 Os retratos ficam em `assets/portraits/<essência>/<id>.webp`, na mesma pasta de essência da carta (`ignea/`, `aquatica/`, `neutra/`…). O campo `art` da carta guarda o caminho relativo a `assets/portraits/`, por exemplo `"art": "ignea/kai.webp"`. Retratos de Líderes ficam na pasta da essência do Líder.

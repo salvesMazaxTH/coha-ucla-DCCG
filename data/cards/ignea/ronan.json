@@ -13,6 +13,10 @@
   "art": "ignea/ronan.webp",
   "effects": [{"trigger":"on_enter","action":"damage","target":"enemy_unit","amount":2},{"trigger":"on_damaged","action":"buff","target":"self","atk":1}],
   "text": "Ao Entrar: cause 2 de dano a uma unidade inimiga.\nAo Sofrer Dano: ganhe +1 de Ataque.",
-  "flavor": "Pavio curto, punhos mais curtos ainda.",
+  "flavor": [
+    "Dragões, seitas, magos... será que dá pra eu só ter uma terça-feira normal?",
+    "Eu tinha um plano: diploma, emprego, boleto pago. Aí veio o dragão.",
+    "Respirei fundo. Contei até dez. Passei do nove."
+  ],
   "tags": []
 }
