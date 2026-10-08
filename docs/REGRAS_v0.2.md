@@ -18,9 +18,10 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - Ser devolvida para a mão não conta: ela mantém o custo que tinha no Santuário.
 
 ## Início da partida
-- Quem joga primeiro começa com **6 cartas** na mão, e o outro jogador com **7**.
+- Os dois jogadores começam com **5 cartas** na mão.
 - **Mulligan:** cada jogador pode devolver até 3 cartas ao deck, que é embaralhado, e comprar a mesma quantidade.
-- Quem joga primeiro **não compra** no primeiro turno.
+- Quem joga primeiro **não compra** no primeiro turno. Quem joga em segundo compra normalmente, então cada um começa o seu primeiro turno com 5 e 6 cartas, respectivamente.
+- Quem joga em segundo ganha **+1 Momentum** nos seus **dois primeiros turnos** (só naquele turno; o máximo não muda).
 
 ## Momentum
 - O Momentum máximo começa em **1** e sobe **+1 por turno**, até o teto de **10**.

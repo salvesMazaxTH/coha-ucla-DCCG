@@ -569,7 +569,7 @@ func _test_freeze() -> void:
 
 func _test_setup() -> void:
 	var g := GameState.new("fogo", "agua", 1)
-	check(g.players[0]["hand"].size() == GameState.START_HAND and g.players[1]["hand"].size() == GameState.START_HAND + 1, "starting hands")
+	check(g.players[0]["hand"].size() == GameState.START_HAND and g.players[1]["hand"].size() == GameState.START_HAND, "starting hands")
 	check(g.players[0]["deck"].size() == 47 - GameState.START_HAND, "legendary not in deck")
 	g.mulligan(0, [g.players[0]["hand"][0]["uid"]])
 	g.mulligan(1, [])
@@ -578,13 +578,20 @@ func _test_setup() -> void:
 
 func _test_first_player() -> void:
 	var g := GameState.new("fogo", "agua", 1, 1)
-	check(g.players[1]["hand"].size() == GameState.START_HAND and g.players[0]["hand"].size() == GameState.START_HAND + 1, "first=1: o segundo jogador (0) tem a carta extra")
+	check(g.players[1]["hand"].size() == GameState.START_HAND and g.players[0]["hand"].size() == GameState.START_HAND, "first=1: mãos iniciais iguais")
 	check(g.decider() == 1, "first=1: mulligan começa pelo jogador 1")
 	g.mulligan(1, [])
 	check(g.decider() == 0, "first=1: depois o jogador 0")
 	g.mulligan(0, [])
 	check(g.phase == "main" and g.active == 1 and g.turn == 1, "first=1: o jogador 1 abre o turno 1")
 	check(g.players[1]["hand"].size() == GameState.START_HAND, "first=1: sem compra no turno 1")
+	g.end_turn(1)
+	check(g.players[0]["hand"].size() == GameState.START_HAND + 1, "first=1: o segundo jogador compra no turno dele")
+	var seen := [[1, 1]]
+	for t in 5:
+		seen.append([g.active, g.players[g.active]["momentum"]])
+		g.end_turn(g.active)
+	check(seen == [[1, 1], [0, 2], [1, 2], [0, 3], [1, 3], [0, 3]], "segundo jogador: +1 Momentum nos 2 primeiros turnos dele (%s)" % [seen])
 
 func _test_combat() -> void:
 	var g := _new_game()

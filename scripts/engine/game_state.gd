@@ -10,6 +10,7 @@ const HAND_LIMIT := 10
 const BOARD_LIMIT := 8
 const MOMENTUM_CAP := 10
 const COMMANDER_TAX := 2
+const SECOND_BONUS_TURNS := 2 ## the second player's first turns that start with +1 Momentum
 
 ## Leaders are addressed with negative uids so targets are a single int.
 const LEADER_UID := [-1, -2]
@@ -17,7 +18,7 @@ const LEADER_UID := [-1, -2]
 var players: Array = []
 var active := 0
 var turn := 0
-var first := 0 ## who takes turn 1 (skips that draw, mulligans first, gets the smaller opening hand)
+var first := 0 ## who takes turn 1 (skips that draw, mulligans first; the other gets the early Momentum bonus)
 var phase := "mulligan"
 var winner := -1 ## -1 none, 0/1 player, 2 draw
 ## Pending combat: attacker uid -> provoked enemy uid (or 0)
@@ -66,7 +67,7 @@ func _init(deck_a: String, deck_b: String, seed_value: int = 0, first_player: in
 	for i in 2:
 		players.append(_make_player(i, [deck_a, deck_b][i]))
 	for i in 2:
-		_draw(i, START_HAND + (1 if i != first else 0)) # second player gets one extra card
+		_draw(i, START_HAND)
 	_events.clear()
 
 func _make_player(i: int, deck_id: String) -> Dictionary:
@@ -1359,6 +1360,8 @@ func _start_turn(p: int, draw: bool) -> void:
 	var pl: Dictionary = players[p]
 	pl["max_momentum"] = min(MOMENTUM_CAP, pl["max_momentum"] + 1)
 	pl["momentum"] = pl["max_momentum"]
+	if p != first and turn <= SECOND_BONUS_TURNS * 2:
+		pl["momentum"] += 1 # going second: +1 Momentum on each of the first SECOND_BONUS_TURNS turns
 	for i in 2:
 		var q: Dictionary = players[i]
 		# once_per_turn: refreshed every turn, so instants can be used on either turn.
