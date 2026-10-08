@@ -111,6 +111,10 @@
       "name": "Vigia",
       "text": "Pode bloquear unidades com Furtivo."
     },
+    "nao_bloqueia": {
+      "name": "Não Bloqueia",
+      "text": "Esta unidade não pode bloquear."
+    },
     "provocacao": {
       "name": "Provocação",
       "text": "Ao atacar, escolha uma unidade inimiga: ela é obrigada a bloquear esta unidade."

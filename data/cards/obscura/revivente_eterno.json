@@ -2,12 +2,16 @@
   "name": "Revivente Eterno",
   "type": "unit",
   "rarity": "epic",
-  "species": ["morto_vivo"],
+  "species": [
+    "morto_vivo"
+  ],
   "essence": "obscura",
   "cost": 3,
   "atk": 2,
   "hp": 2,
-  "keywords": [],
+  "keywords": [
+    "nao_bloqueia"
+  ],
   "art": "obscura/revivente_eterno.webp",
   "effects": [
     {
@@ -16,7 +20,7 @@
       "target": "none"
     }
   ],
-  "text": "Ao Morrer: volte a campo.",
+  "text": "Não Bloqueia. Ao Morrer: volte a campo.",
   "flavor": "A morte lhe pediu desculpas e o devolveu.",
   "tags": []
 }

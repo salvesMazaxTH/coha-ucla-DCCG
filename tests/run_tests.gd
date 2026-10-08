@@ -244,17 +244,6 @@ func _test_obscura() -> void:
 	gy = g.players[0]["graveyard"].size()
 	_put(g, 0, "o_espiritomante")
 	check(g.players[0]["graveyard"].size() == gy - 1, "necromante reviveu do cemitério")
-	# Sacrifice: Cientista kills an ally and draws 1
-	g.players[0]["board"].clear()
-	var ally := _put(g, 0, "esqueleto_guerreiro")
-	var hand: int = g.players[0]["hand"].size()
-	var uid := g._uid()
-	g._summon(0, "cientista_da_morte", uid, false, ally["uid"])
-	g._check_state()
-	g._flush()
-	check(g.find_unit(ally["uid"]).is_empty(), "cientista sacrificou o aliado")
-	check(g.players[0]["hand"].size() == hand + 1, "sacrifício comprou 1 carta")
-	check(_count(g, 0, "esqueleto_guerreiro") == 1, "cientista invoca um esqueleto quando um aliado vai ao cemitério")
 	# Colheita de Almas: sacrifice -> 4 damage to the enemy leader
 	var foe: int = g.players[1]["leader_hp"]
 	var fodder := _put(g, 0, "esqueleto_guerreiro")
@@ -373,14 +362,14 @@ func _test_obscura_rules() -> void:
 	var n1: int = _count(sg, 0, "esqueleto_guerreiro")
 	_kill(sg, sk2)
 	_kill(sg, sk3)
-	check(_count(sg, 0, "esqueleto_guerreiro") == n1 - 2, "cientista só invoca uma vez por turno (o primeiro já usou o limite)")
-	sg.end_turn(0)
-	_quiet(sg)
-	sg.end_turn(1)
-	var sk4: Dictionary = sg.players[0]["board"].filter(func(c): return c["card_id"] == "esqueleto_guerreiro")[0]
-	var n2: int = _count(sg, 0, "esqueleto_guerreiro")
-	_kill(sg, sk4)
-	check(_count(sg, 0, "esqueleto_guerreiro") == n2, "cientista volta a invocar no turno seguinte")
+	check(_count(sg, 0, "esqueleto_guerreiro") == n1, "cientista invoca um esqueleto por aliado que morre (sem limite por turno)")
+	# a death caused by combat damage does not trigger it
+	sg._combat_damage = true
+	var sk5 := _put(sg, 0, "esqueleto_guerreiro")
+	var n3: int = _count(sg, 0, "esqueleto_guerreiro")
+	_kill(sg, sk5)
+	sg._combat_damage = false
+	check(_count(sg, 0, "esqueleto_guerreiro") == n3 - 1, "cientista não invoca quando o aliado morre em combate")
 	# an enemy ally dying does not count
 	var g2 := _obscura_game()
 	g2.players[0]["passive_used"] = true
@@ -535,6 +524,7 @@ func _test_combat() -> void:
 	var y := _put(g, 1, "sentinela_coral") # vigia
 	check(g.can_block(y, gk) and not g.can_block(x, gk), "furtivo/vigia")
 	g.players[0]["leader_hp"] = 10
+	check(not g.can_block(_put(g, 1, "revivente_eterno"), _put(g, 0, "esqueleto_guerreiro")), "revivente eterno não bloqueia")
 	_attack(g, {gk["uid"]: 0})
 	_block(g, {})
 	check(g.players[0]["leader_hp"] == 13, "lifesteal heals leader")

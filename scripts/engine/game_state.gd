@@ -44,6 +44,9 @@ var _next_uid := 1
 var _events: Array = []
 var _trigger_depth := 0
 var _chosen2 := 0 ## second target of the stack item being resolved (e.g. the damage target of a sacrifice spell)
+## True while combat damage is being dealt and the deaths it causes are resolved; effects
+## marked "not_in_combat" stay silent then (Cientista da Morte).
+var _combat_damage := false
 var _sac_atk := 0 ## total attack of the unit the last "sacrifice" killed
 var _dying: Dictionary = {} ## unit whose Ao Morrer is resolving (for summon "self")
 
@@ -178,7 +181,7 @@ func can_attack(c: Dictionary) -> bool:
 	return not is_frozen(c) and not c["exhausted"] and (not c["sick"] or has_kw(c, "impeto")) and atk_of(c) > 0
 
 func can_block(blocker: Dictionary, attacker: Dictionary) -> bool:
-	if is_frozen(blocker):
+	if is_frozen(blocker) or has_kw(blocker, "nao_bloqueia"):
 		return false
 	if has_kw(attacker, "voo") and not (has_kw(blocker, "voo") or has_kw(blocker, "longo_alcance")):
 		return false
@@ -464,7 +467,7 @@ func declare_attack(p: int, attacks: Dictionary) -> Array:
 		var prov: int = attacks[uid]
 		if prov != 0:
 			var t := find_unit(prov)
-			if not has_kw(c, "provocacao") or t.is_empty() or t["owner"] == p or provoked_used.has(prov) or is_frozen(t):
+			if not has_kw(c, "provocacao") or t.is_empty() or t["owner"] == p or provoked_used.has(prov) or is_frozen(t) or has_kw(t, "nao_bloqueia"):
 				return []
 			provoked_used.append(prov)
 	attackers = attacks.duplicate()
@@ -843,6 +846,8 @@ func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid
 				var pool: Array = []
 				for c in players[p]["board"]:
 					if e["target"] == "random_ally_unit" or c["uid"] != self_uid: pool.append(c["uid"])
+		if e.get("trigger", "") == trigger and _combat_damage and e.get("not_in_combat", false):
+			continue
 				if not pool.is_empty(): targets = [pool[rng.randi_range(0, pool.size() - 1)]]
 		for t in targets:
 			_apply(p, e, t)
@@ -1179,6 +1184,7 @@ func _check_state() -> void:
 	if dead[0] or dead[1]:
 		winner = 2 if dead[0] and dead[1] else (1 if dead[0] else 0)
 		phase = "over"
+	_combat_damage = true
 		_emit({"type": "game_over", "winner": winner})
 
 ## Leader passive ("passive": true in the leader's ability): runs its effects when `trigger` happens,
@@ -1202,6 +1208,7 @@ func _finish_turn() -> void:
 		_fire(c, "on_turn_end")
 	_check_state()
 	if phase == "over":
+	_combat_damage = false
 		return
 	for p in players:
 		for c in p["board"]:

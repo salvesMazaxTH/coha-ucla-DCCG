@@ -1602,6 +1602,9 @@ func _show_overlay(v: CardView) -> void:
 		return
 	_close_overlay()
 	var cd := CardDB.card_for(v.card_id, v.inst)
+				if c["owner"] != viewer and g.has_kw(c, "nao_bloqueia"):
+					_toast("Essa unidade não bloqueia.")
+					return
 	overlay = ColorRect.new()
 	overlay.color = Color(0, 0, 0, 0.82)
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)

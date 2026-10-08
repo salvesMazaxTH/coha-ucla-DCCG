@@ -99,6 +99,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 | Vigília | Pode bloquear unidades com Furtividade. |
 | Provocação | Ao atacar, escolha uma unidade inimiga. Ela é obrigada a bloquear esta unidade, mesmo contra Voo ou Furtividade. |
 | Escudo | Anula a próxima instância de dano. |
+| Não Bloqueia | A unidade não pode bloquear (nem ser alvo de Provocação). |
 | Congelamento | A unidade não pode atacar nem bloquear até o fim do próximo turno do dono. Escudo de Feitiço anula. |
 | Indestrutível | Não sofre dano (sempre 0) e não é destruída por efeitos de "destruir". Sacrifício e remoção do jogo (banimento) ainda a afetam. |
 | Escudo de Feitiço | Anula, uma vez, o próximo efeito **inimigo** que não seja dano de combate (feitiço, habilidade, efeito em área). Depois se dissipa. Efeitos do próprio dono não o consomem. |
@@ -107,7 +108,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - **Moer N:** as N cartas do topo do seu deck vão para o seu cemitério (termo da comunidade de MTG, nome confirmado).
 - **Reviver:** devolve ao campo uma unidade do cemitério do dono (ex.: O Espiritomante, custo máximo 3). A carta sai do cemitério.
 - **Reviver a si mesma (Ao Morrer):** a unidade volta como uma **nova instância**, por isso não participa do combate em que morreu. Enquanto está em campo, sua entrada deixa o cemitério. O Revivente Eterno volta sempre igual. A Fênix da Chama Profana volta com -2/-2 do que tinha ao morrer e não volta se Ataque ou Vida chegar a 0. Não volta com o campo cheio.
-- **Sacrifício:** a unidade sacrificada morre na hora (efeitos Ao Morrer e Aliado Morre resolvem). Como *efeito* (Cientista da Morte, Colheita de Almas) ou como **custo adicional** (Necrófago Espectral: custa 0, mas exige sacrificar uma unidade que você controla; com o campo cheio, o sacrifício libera a vaga).
+- **Sacrifício:** a unidade sacrificada morre na hora (efeitos Ao Morrer e Aliado Morre resolvem). Como *efeito* (Colheita de Almas) ou como **custo adicional** (Necrófago Espectral: custa 0, mas exige sacrificar uma unidade que você controla; com o campo cheio, o sacrifício libera a vaga).
 - **Redução de custo por cemitério:** efeito Constante. A Vagante Sombria custa 1 a menos por carta no seu cemitério (de qualquer tipo), nunca menos que 0.
 
 ## Passivas de Líder
@@ -136,8 +137,8 @@ Gatilhos dizem *quando* um efeito acontece. Eles abrem o texto da carta no lugar
 | Ao Atingir o Líder | A unidade causa dano a um Líder. |
 | No Início do Turno | Começa o turno do dono da unidade. |
 | No Fim do Turno | Termina o turno do dono da unidade. |
-| Aliado Morre | Outra unidade que você controla **morre**, mesmo que volte na hora (Revivente, Fênix) ou seja um Lendário voltando à zona de comando. A que morreu não ativa o próprio efeito (para isso existe Ao Morrer). Sacrifício conta. |
-| (qualquer gatilho) | Um efeito pode ter "uma vez por turno" (`once_per_turn`): o limite é por unidade e reinicia a cada turno, de qualquer jogador (ex.: Cientista da Morte). |
+| Aliado Morre | Outra unidade que você controla **morre**, mesmo que volte na hora (Revivente, Fênix) ou seja um Lendário voltando à zona de comando. A que morreu não ativa o próprio efeito (para isso existe Ao Morrer). Sacrifício conta. Um efeito pode ser "exceto dano de combate" (`not_in_combat`): não dispara se a morte vem do dano de combate (ex.: Cientista da Morte). |
+| (qualquer gatilho) | Um efeito pode ter "uma vez por turno" (`once_per_turn`): o limite é por unidade e reinicia a cada turno, de qualquer jogador (ex.: Diabrete Sombrio). |
 | Constante | Sempre, enquanto a unidade está em campo. Não dispara: é recalculado a cada mudança de estado (ex.: Jeff The Death recebe +2/+2 por unidade no cemitério do dono; o dano sofrido continua valendo se o bônus encolher). |
 
 Alvos de gatilhos que não pedem escolha do jogador: `self`, `opposed_unit` (a unidade do outro lado do combate, ou a fonte do dano), `all_ally_units`, `all_units` (ambos os lados; o efeito de dano aceita `ally_reduce` para reduzir o dano em aliados de uma essência), `random_ally_unit`, `random_other_ally_unit`, `random_enemy_unit`, `random_enemy_and_adjacent` (uma unidade inimiga aleatória e as adjacentes), `all_enemy_units`, `enemy_leader`, `own_leader` e `both_leaders` (em efeitos de compra, cada líder alvo compra). Só Ao Jogar e Ao Entrar podem usar alvo escolhido pelo jogador.
