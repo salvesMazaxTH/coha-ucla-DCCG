@@ -20,6 +20,8 @@ var g: GameState
 var vs_ai := true
 var viewer := 0 ## whose perspective is drawn
 var pending_pass := false
+var _over_from := -1 ## index in layer of the first game-over node (-1 = none this frame)
+var _leader_ko_t := -1.0 ## time of the last Leader HP change in the current animation
 var net: NetClient ## online match link (null offline)
 var online := false
 var opp_online := true
@@ -59,6 +61,10 @@ var hint_since := 0
 var hint_until := 0
 var last_input_ms := 0
 var hint_pill: Control
+var aim_arrow: AimArrow ## targeting arrow from the source to the pointer
+var aim_drag := false ## the press that started aiming is still held: releasing on a target fires
+var aim_start := Vector2.ZERO
+var aim_src := Vector2.ZERO ## global source point (leader gem, command card)
 var fx: Control ## persistent layer above the table: ghosts, floats, embers
 var ai_timer: Timer
 
@@ -581,8 +587,18 @@ func _ai_step() -> void:
 ## waits for the animations to play out before its next move.
 func _show_events(events: Array) -> void:
 	var old := _snapshot()
+	_leader_ko_t = -1.0
+	_over_from = -1
 	_render()
 	var end := _animate(events, old)
+	# the Victory/Defeat screen waits for the killing blow to land instead of spoiling it
+	if g.phase == "over" and _over_from >= 0 and end > 0.0:
+		var delay := _leader_ko_t + 0.7 if _leader_ko_t >= 0.0 else end
+		for n in layer.get_children().slice(_over_from):
+			n.modulate.a = 0.0
+			var otw: Tween = n.create_tween()
+			otw.tween_interval(delay)
+			otw.tween_property(n, "modulate:a", 1.0, 0.35)
 	if not ai_timer.is_stopped():
 		ai_timer.start(max(0.55, end + 0.2))
 
@@ -642,6 +658,7 @@ func _render() -> void:
 	if g.phase == "search":
 		_render_search_reveal()
 	if g.phase == "over":
+		_over_from = layer.get_child_count()
 		_render_game_over()
 	elif _is_ai(g.decider()):
 		ai_timer.start()
@@ -942,6 +959,10 @@ func _render_hand(p: int) -> void:
 		v.rotation = rot
 		v.left_clicked.connect(_on_hand_click)
 		v.right_clicked.connect(_show_overlay)
+		v.draggable = p == viewer and g.phase in ["main", "combat"] and targeting.is_empty() and _my_input() and g.can_play(p, c["uid"])
+		v.drag_started.connect(_hand_drag_start)
+		v.drag_moved.connect(_hand_drag_move)
+		v.drag_ended.connect(_hand_drag_end)
 		var rest := {"pos": pos, "rot": rot, "idx": i}
 		v.mouse_entered.connect(_hand_hover.bind(v, true, rest))
 		v.mouse_exited.connect(_hand_hover.bind(v, false, rest))
@@ -952,7 +973,7 @@ func _render_hand(p: int) -> void:
 ## Fan card lifts, straightens and grows under the cursor, and sits above its
 ## neighbours (GUI picking follows tree order) until the cursor leaves.
 func _hand_hover(v: CardView, on: bool, rest: Dictionary) -> void:
-	if not is_instance_valid(v) or v.is_queued_for_deletion() or CardView.touch_ui():
+	if not is_instance_valid(v) or v.is_queued_for_deletion() or CardView.touch_ui() or v.dragging:
 		return
 	if v.has_meta("tw"):
 		var old: Tween = v.get_meta("tw")
@@ -972,6 +993,42 @@ func _hand_hover(v: CardView, on: bool, rest: Dictionary) -> void:
 		tw.tween_property(v, "position", rest["pos"], 0.14)
 		tw.tween_property(v, "rotation", rest["rot"], 0.14)
 		tw.tween_property(v, "scale", Vector2.ONE, 0.14)
+
+## Drag & drop: a playable hand card follows the pointer and is played when released over
+## the board (above PLAY_LINE); released over the hand it snaps back.
+const PLAY_LINE := 600.0
+
+func _hand_drag_start(v: CardView) -> void:
+	if v.has_meta("tw"):
+		var old: Tween = v.get_meta("tw")
+		if old and old.is_valid():
+			old.kill()
+	v.move_to_front()
+	v.set_meta("aim", _hand_spec(v) != "")
+	var tw := v.create_tween().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(v, "rotation", 0.0, 0.12)
+	tw.tween_property(v, "scale", Vector2.ONE * 1.12, 0.12)
+	_hand_drag_move(v)
+
+func _hand_drag_move(v: CardView) -> void:
+	var m := layer.get_local_mouse_position()
+	if v.get_meta("aim", false) and m.y < PLAY_LINE and targeting.is_empty() and _my_input():
+		# a targeted card crossing into the board turns into an aim: it goes back to the hand
+		# (raised) and an arrow follows the finger; releasing on a target plays it there
+		targeting = {"kind": "hand", "uid": v.uid, "card_id": v.card_id, "spec": _hand_spec(v)}
+		attack_sel.clear()
+		aim_drag = true
+		aim_start = Vector2.INF
+		_render()
+		return
+	v.position = m - Vector2(v.size.x / 2.0, v.size.y * 0.75)
+	v.highlight = SEL if m.y < PLAY_LINE else OK
+
+func _hand_drag_end(v: CardView) -> void:
+	if layer.get_local_mouse_position().y < PLAY_LINE and _my_input():
+		_play_from_hand(v)
+	else:
+		_render()
 
 func _render_side() -> void:
 	# chronicle (log)
@@ -1181,6 +1238,7 @@ func _hint_nudge() -> void:
 	_hint_fade(hint_pill, 5.0)
 
 func _process(_dt: float) -> void:
+	_update_aim()
 	if g and Time.get_ticks_msec() - last_input_ms > 15000:
 		last_input_ms = Time.get_ticks_msec()
 		_hint_nudge()
@@ -1189,7 +1247,7 @@ func _hint() -> String:
 	if g.phase == "search":
 		return "Escolha uma das cartas reveladas."
 	if not targeting.is_empty():
-		var t := "Escolha um alvo (toque fora cancela)." if CardView.touch_ui() else "Escolha um alvo (botão direito/Esc cancela)."
+		var t := "Arraste até o alvo (ou toque nele) · toque fora cancela." if CardView.touch_ui() else "Arraste até o alvo (ou clique nele) · botão direito/Esc cancela."
 		if targeting["spec"] == "enemy_stack":
 			t = "Toque no feitiço/habilidade da pilha que quer anular."
 		if _self_targetable():
@@ -1219,7 +1277,9 @@ func _hint() -> String:
 		"main":
 			if provoking != 0:
 				return "Provocação: escolha a unidade inimiga que será obrigada a bloquear."
-			return "Jogue cartas e clique nas suas unidades para atacar · " + ("segure: ver carta" if CardView.touch_ui() else "botão direito: ver carta")
+			if CardView.touch_ui():
+				return "Arraste cartas para o campo e toque nas suas unidades para atacar · toque: ver carta"
+			return "Arraste cartas para o campo e clique nas suas unidades para atacar · clique: ver carta"
 	return ""
 
 func _action_buttons() -> Array:
@@ -1280,12 +1340,34 @@ func _render_game_over() -> void:
 # ---------------------------------------------------------------- input
 
 func _input(e: InputEvent) -> void:
+	if aim_drag and e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and not e.pressed:
+		_aim_release()
 	if e is InputEventMouseButton or e is InputEventScreenTouch or e is InputEventKey:
 		last_input_ms = Time.get_ticks_msec()
 	if e is InputEventScreenTouch or e is InputEventScreenDrag:
 		CardView.touched = true
 	if grave_view and _grave_scroll_input(e):
 		get_viewport().set_input_as_handled()
+
+## Drag-aim released: on a target fires; barely moved (a plain click on the source) keeps
+## click-targeting; anywhere else cancels, like dropping the card back.
+func _aim_release() -> void:
+	aim_drag = false
+	if targeting.is_empty() or not _my_input():
+		return
+	var gp := get_global_mouse_position()
+	var u := _target_at(gp)
+	get_viewport().set_input_as_handled()
+	if u != 0:
+		_fire_target(u)
+		return
+	if _self_targetable() and views.has(targeting["uid"]) and (views[targeting["uid"]] as Control).get_global_rect().has_point(gp):
+		_do(g.play_card(viewer, targeting["uid"], 0))
+		return
+	if gp.distance_to(aim_start) < CardView.DRAG_PX * 2.0 or targeting.has("first"):
+		return
+	targeting = {}
+	_render()
 
 func _unhandled_input(e: InputEvent) -> void:
 	if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and g and not overlay:
@@ -1323,19 +1405,67 @@ func _on_hand_click(v: CardView) -> void:
 		"discard":
 			_toggle_pick(v.uid, g.players[viewer]["hand"].size() - GameState.HAND_LIMIT)
 		"main", "combat":
-			if not g.can_play(viewer, v.uid):
-				_toast("Não dá para jogar essa carta agora.")
-				_render()
-				return
-			var cd := CardDB.card(v.card_id)
-			var spec := g.card_spec(cd)
-			var opts := g.card_targets(viewer, cd)
-			if spec != "" and not opts.is_empty():
-				targeting = {"kind": "hand", "uid": v.uid, "card_id": v.card_id, "spec": spec}
-				attack_sel.clear()
-				_render()
-			else:
-				_do(g.play_card(viewer, v.uid, 0))
+			_show_overlay(v) # a click/tap only inspects; playing is drag & drop (no misclicks)
+
+func _play_from_hand(v: CardView) -> void:
+	if not g.can_play(viewer, v.uid):
+		_toast("Não dá para jogar essa carta agora.")
+		_render()
+		return
+	var spec := _hand_spec(v)
+	if spec != "":
+		targeting = {"kind": "hand", "uid": v.uid, "card_id": v.card_id, "spec": spec}
+		attack_sel.clear()
+		_begin_aim(Vector2.ZERO)
+		_render()
+	else:
+		_do(g.play_card(viewer, v.uid, 0))
+
+## Target spec of a playable hand card that needs a target now ("" if it plays straight away).
+func _hand_spec(v: CardView) -> String:
+	var cd := CardDB.card(v.card_id)
+	var spec := g.card_spec(cd)
+	if spec != "" and not g.card_targets(viewer, cd).is_empty():
+		return spec
+	return ""
+
+## Starts aiming from `src` (global; ZERO = the pointer). If the press is still held, the
+## aim is a drag: releasing over a target fires, elsewhere cancels.
+func _begin_aim(src: Vector2) -> void:
+	aim_src = src if src != Vector2.ZERO else get_global_mouse_position()
+	aim_start = get_global_mouse_position()
+	aim_drag = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+
+## Valid target (unit or leader) under a global point; 0 if none.
+func _target_at(gp: Vector2) -> int:
+	for k in views:
+		if k is int and k != 0 and _is_target(k) and not hand_uids.has(k):
+			var c: Control = views[k]
+			if is_instance_valid(c) and c.get_global_rect().has_point(gp):
+				return k
+	return 0
+
+func _update_aim() -> void:
+	var on: bool = g != null and not targeting.is_empty() and targeting.get("spec") != "enemy_stack" 		and _my_input() and g.phase in ["main", "combat"]
+	if not on:
+		if is_instance_valid(aim_arrow):
+			aim_arrow.visible = false
+		aim_drag = false
+		return
+	if not is_instance_valid(aim_arrow):
+		aim_arrow = AimArrow.new()
+		fx.add_child(aim_arrow)
+	aim_arrow.visible = true
+	aim_arrow.move_to_front()
+	var src := aim_src
+	if targeting["kind"] == "hand" and views.has(targeting["uid"]) and is_instance_valid(views[targeting["uid"]]):
+		var r: Rect2 = (views[targeting["uid"]] as Control).get_global_rect()
+		src = Vector2(r.get_center().x, r.position.y + r.size.y * 0.3)
+	var inv := fx.get_global_transform().affine_inverse()
+	var gp := get_global_mouse_position()
+	aim_arrow.from = inv * src
+	aim_arrow.to = inv * gp
+	aim_arrow.locked = _target_at(gp) != 0
 
 func _toggle_pick(uid: int, cap: int) -> void:
 	if picked.has(uid):
@@ -1350,6 +1480,7 @@ func _on_legendary(p: int) -> void:
 	var spec := g.target_spec(CardDB.card(g.players[p]["legendary"]["card_id"])["effects"])
 	if spec != "" and not g.valid_targets(p, spec).is_empty():
 		targeting = {"kind": "legendary", "uid": 0, "spec": spec}
+		_begin_aim(Vector2.ZERO)
 		_render()
 	else:
 		_do(g.cast_legendary(p, 0))
@@ -1370,6 +1501,8 @@ func _on_ability(p: int) -> void:
 	var spec := g.target_spec(CardDB.leader(g.players[p]["leader_id"])["ability"]["effects"])
 	if spec != "":
 		targeting = {"kind": "ability", "uid": 0, "spec": spec}
+		var lv: Control = views.get(GameState.LEADER_UID[p])
+		_begin_aim(lv.get_global_transform() * LeaderView.AC if is_instance_valid(lv) else Vector2.ZERO)
 		_render()
 	else:
 		_do(g.use_ability(p, 0))
@@ -2221,6 +2354,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 					var shown: int = leader_hp[dst]
 					var ltw := lv.create_tween()
 					ltw.tween_interval(t)
+					_leader_ko_t = maxf(_leader_ko_t, t)
 					ltw.tween_callback(func():
 						lv.hp = shown
 						lv.queue_redraw())
