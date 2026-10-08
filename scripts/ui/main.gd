@@ -69,11 +69,15 @@ func _apply_light(on: bool, save := false) -> void:
 		cf.set_value("ui", "light", on)
 		cf.save("user://settings.cfg")
 
+## Phones default to light mode until the player picks one explicitly.
 func _light_on() -> bool:
 	var cf := ConfigFile.new()
 	if cf.load("user://settings.cfg") != Error.OK:
-		return false
-	return bool(cf.get_value("ui", "light", false))
+		return _is_phone()
+	return bool(cf.get_value("ui", "light", _is_phone()))
+
+func _is_phone() -> bool:
+	return OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios") 			or (OS.has_feature("web") and DisplayServer.is_touchscreen_available())
 
 func _ready() -> void:
 	_apply_light(_light_on())
@@ -108,6 +112,7 @@ func _ready() -> void:
 	fx.set_anchors_preset(Control.PRESET_FULL_RECT)
 	fx.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(fx)
+	_prewarm_fx.call_deferred()
 	ai_timer = Timer.new()
 	ai_timer.one_shot = true
 	ai_timer.wait_time = 0.55
@@ -1763,7 +1768,47 @@ func _impact(target: Control, text: String, col: Color, t: float, hurt: bool) ->
 	lt.tween_property(l, "modulate:a", 0.0, 0.25)
 	lt.tween_callback(l.queue_free)
 
+## Effects budget of the current _animate batch: 1.0 for a lone hit, shrinking as more
+## triggers/deaths pile up (a Diabrete chain would otherwise spawn dozens of emitters at once).
+var _fx_scale := 1.0
+
+## Draws the death shader, a particle burst and a gradient line once, invisibly, so the GPU
+## compiles them at startup instead of freezing the first time a unit dies.
+func _prewarm_fx() -> void:
+	var holder := Control.new()
+	holder.modulate.a = 0.01
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fx.add_child(holder)
+	var r := ColorRect.new()
+	r.size = Vector2(8, 8)
+	var m := ShaderMaterial.new()
+	m.shader = load("res://scripts/ui/shaders/dissolve.gdshader")
+	m.set_shader_parameter("size", r.size)
+	m.set_shader_parameter("edge_color", Color.ORANGE)
+	m.set_shader_parameter("progress", 0.5)
+	r.material = m
+	holder.add_child(r)
+	var p := CPUParticles2D.new()
+	p.amount = 4
+	p.one_shot = true
+	p.emitting = true
+	p.color_ramp = Gradient.new()
+	holder.add_child(p)
+	var ln := Line2D.new()
+	ln.points = PackedVector2Array([Vector2.ZERO, Vector2(8, 8)])
+	ln.gradient = Gradient.new()
+	holder.add_child(ln)
+	# floating numbers / trigger tags: big outlined glyphs are rasterized on first use
+	var num := _label("-0123456789+/!", 46, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 10)
+	num.size = Vector2(400, 58)
+	holder.add_child(num)
+	var tg := _label("Ao Morrer Aliado Morre Ao Entrar Escudo Maré Congelada", 17, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 4)
+	tg.position = Vector2(0, 60)
+	holder.add_child(tg)
+	get_tree().create_timer(0.5).timeout.connect(holder.queue_free)
+
 func _embers(c: Vector2, t: float, col: Color, amount := 36) -> void:
+	amount = maxi(4, int(amount * _fx_scale))
 	var p := CPUParticles2D.new()
 	p.emitting = false
 	p.one_shot = true
@@ -1846,6 +1891,8 @@ const STREAK_T := 0.2
 func _streak(from: Control, to: Control, t: float, col: Color) -> float:
 	var lines: Array[Line2D] = []
 	for i in 2: # wide soft glow under a thin hot core
+		if i == 0 and _fx_scale < 0.7:
+			continue ## big chains: only the thin core, the soft glow is the costly overdraw
 		var ln := Line2D.new()
 		ln.width = 16.0 if i == 0 else 5.0
 		ln.joint_mode = Line2D.LINE_JOINT_ROUND
@@ -1938,12 +1985,24 @@ func _ability_banner(p: int, t: float, hold: float, passive := false) -> void:
 func _elem_color(card_id: String) -> Color:
 	return Color(CardDB.essence(CardDB.essences_of(CardDB.card(card_id))[0]).get("color", "#ffffff"))
 
+func _count_ghosts(old: Dictionary) -> int:
+	var n := 0
+	for k in old:
+		if k is int and k > 0 and not views.has(k) and not old[k]["hand"] and old[k]["inst"].has("damage"):
+			n += 1
+	return n
+
 ## Plays the events out over the freshly rendered table: cards fly from where
 ## they were, attackers lunge, victims shake, numbers float, the dead dissolve.
 ## Returns the time (s) at which everything has settled.
 func _animate(events: Array, old: Dictionary) -> float:
 	if pending_pass or fx == null:
 		return 0.0
+	var bursts := 0
+	for e in events:
+		if e["type"] == "trigger":
+			bursts += 1
+	_fx_scale = 1.0 / maxf(1.0, (bursts + _count_ghosts(old)) / 3.0)
 	var actors := views.duplicate()
 	var ghosts: Array = []
 	for k in old:
