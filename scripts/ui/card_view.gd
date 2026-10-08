@@ -250,13 +250,15 @@ func _draw() -> void:
 	if inst.get("shield", false):
 		var sc := art.get_center()
 		for i in 3:
-			draw_arc(sc, art.size.x * 0.46 - i * 3 * s, 0, TAU, 48, Color("#9fe3ff", 0.55 - i * 0.15), 2 * s, true)
-		draw_rect(art, Color("#9fe3ff", 0.12))
+			draw_arc(sc, art.size.x * 0.46 - i * 3 * s, 0, TAU, 48, Color("#9fe3ff", (0.55 - i * 0.15) * 1.25), 2.5 * s, true) ## ~25% more visible
+		draw_rect(art, Color("#9fe3ff", 0.15))
 	# spell shield: violet runic ring
 	if inst.get("spell_shield", false):
 		var sc := art.get_center()
 		var rr := art.size.x * 0.4
-		draw_arc(sc, rr, 0, TAU, 48, Color("#c9a8ff", 0.7), 1.6 * s, true)
+		for i in 3: ## same weight as the divine shield bubble, only the color differs
+			draw_arc(sc, rr - i * 3 * s, 0, TAU, 48, Color("#c9a8ff", (0.55 - i * 0.15) * 1.25), 2.5 * s, true)
+		draw_rect(art, Color("#c9a8ff", 0.15))
 		for i in 6:
 			var a := _t * 0.6 + i * TAU / 6.0
 			_diamond(sc + Vector2(cos(a), sin(a)) * rr, 2.6 * s, Color("#e3d2ff"))
@@ -308,7 +310,12 @@ func _draw() -> void:
 
 	# gems
 	var cost: int = cost_override if cost_override >= 0 else int(cd["cost"])
-	_gem("orb", Vector2(14, 14) * s, 13 * s, COST_COL, str(cost), Color("#2a1c00"), s)
+	var cost_col := Color.WHITE
+	if cost < int(cd["cost"]):
+		cost_col = Color("#a8ffa0")
+	elif cost > int(cd["cost"]):
+		cost_col = Color("#ff8a80")
+	_gem("orb", Vector2(14, 14) * s, 13 * s, COST_COL, str(cost), cost_col, s)
 	_essence_badge(Vector2(BASE.x - 14, 14) * s, 10.5 * s, cd, s)
 	if cd["type"] == "unit":
 		var atk: int = int(cd["atk"])
