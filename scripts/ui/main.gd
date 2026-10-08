@@ -46,6 +46,12 @@ var table: TableView
 var layer: Control
 var overlay: Control
 var search_overlay: Control
+var grave_view: Control ## graveyard viewer (child of Main, outlives _render)
+var grave_panel: PanelContainer
+var grave_scroll: ScrollContainer
+var grave_owner := 0
+var grave_filter := "all"
+var grave_drag_ms := -1000 ## last finger-drag in the viewer: taps right after it are not clicks
 var views := {} ## uid (or "cmd<p>") -> Control on screen, for animations
 var hand_uids := {} ## viewer's hand cards in the current render
 var fx: Control ## persistent layer above the table: ghosts, floats, embers
@@ -604,6 +610,10 @@ func _render() -> void:
 	table.sockets = [Rect2(268, 8, 150, 208), Rect2(268, 684, 150, 208)]
 	table.visible = true
 	table.queue_redraw()
+	if pending_pass or g.phase in ["search", "over"]:
+		_close_graveyard()
+	else:
+		_refresh_graveyard()
 	if pending_pass:
 		_render_pass()
 		return
@@ -675,6 +685,7 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	lv.active = g.active == p and g.phase != "mulligan"
 	lv.ability_clicked.connect(func(): _on_ability(p))
 	lv.portrait_clicked.connect(func(): _on_leader_click(p))
+	lv.grave_clicked.connect(func(): _show_graveyard(p))
 	layer.add_child(lv)
 	views[uid] = lv
 	var mb := MomentumBar.new()
@@ -1229,10 +1240,15 @@ func _render_game_over() -> void:
 func _input(e: InputEvent) -> void:
 	if e is InputEventScreenTouch or e is InputEventScreenDrag:
 		CardView.touched = true
+	if grave_view and _grave_scroll_input(e):
+		get_viewport().set_input_as_handled()
 
 func _unhandled_input(e: InputEvent) -> void:
 	if overlay and e is InputEventMouseButton and e.pressed:
 		_close_overlay()
+		return
+	if grave_view and e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE:
+		_close_graveyard()
 		return
 	var cancel: bool = (e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE) \
 		or (e is InputEventMouseButton and e.pressed and (e.button_index == MOUSE_BUTTON_RIGHT or CardView.touch_ui()))
@@ -1460,6 +1476,161 @@ func _close_overlay() -> void:
 	if overlay:
 		overlay.queue_free()
 		overlay = null
+
+# ---------------------------------------------------------------- graveyard viewer
+
+const GRAVE_FILTERS := [["all", "TODAS"], ["unit", "UNIDADES"], ["spell", "FEITIÇOS"], ["artifact", "ARTEFATOS"]]
+
+## Persistent viewer (survives re-renders) for either player's graveyard, newest card first.
+func _show_graveyard(p: int) -> void:
+	if grave_view and grave_owner == p:
+		_close_graveyard()
+		return
+	_close_graveyard()
+	grave_owner = p
+	grave_filter = "all"
+	grave_view = Control.new()
+	grave_view.set_anchors_preset(Control.PRESET_FULL_RECT)
+	grave_view.mouse_filter = Control.MOUSE_FILTER_STOP
+	grave_view.gui_input.connect(func(e):
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+			_close_graveyard())
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.78)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	grave_view.add_child(dim)
+	var pc := PanelContainer.new()
+	var sb := UITheme.panel(14)
+	sb.set_content_margin_all(28)
+	sb.set_border_width_all(2)
+	sb.border_color = Color(UITheme.GOLD, 0.6)
+	sb.shadow_size = 40
+	sb.bg_color = Color("#0e0c14", 0.97)
+	pc.add_theme_stylebox_override("panel", sb)
+	pc.mouse_filter = Control.MOUSE_FILTER_STOP
+	pc.custom_minimum_size = Vector2(minf(stage_w - 80.0, 1180.0), 800)
+	pc.size = pc.custom_minimum_size
+	pc.position = (Vector2(stage_w, STAGE_H) - pc.size) / 2.0
+	grave_view.add_child(pc)
+	grave_panel = pc
+	add_child(grave_view)
+	_refresh_graveyard()
+
+func _close_graveyard() -> void:
+	if grave_view:
+		grave_view.queue_free()
+		grave_view = null
+		grave_scroll = null
+		grave_panel = null
+
+## Rebuilds the panel contents (on open, filter change and after every _render).
+func _refresh_graveyard() -> void:
+	if not grave_view or not is_instance_valid(grave_view):
+		return
+	var keep := grave_scroll.scroll_vertical if grave_scroll and is_instance_valid(grave_scroll) else 0
+	for c in grave_panel.get_children():
+		grave_panel.remove_child(c)
+		c.queue_free()
+	var entries: Array = g.players[grave_owner]["graveyard"].duplicate()
+	entries.reverse() # newest first
+	var counts := {"all": entries.size(), "unit": 0, "spell": 0, "artifact": 0}
+	for en in entries:
+		counts[CardDB.card(en["card_id"])["type"]] += 1
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 14)
+	grave_panel.add_child(box)
+
+	# header: title + owner, close button
+	var head := HBoxContainer.new()
+	box.add_child(head)
+	var titles := VBoxContainer.new()
+	titles.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	titles.add_theme_constant_override("separation", 2)
+	head.add_child(titles)
+	titles.add_child(_label("CEMITÉRIO", 34, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_LEFT, "title_bold", 6))
+	var whose := "Seu cemitério" if grave_owner == viewer and not _is_ai(grave_owner) else "Cemitério de %s" % _pname(grave_owner)
+	var n := entries.size()
+	titles.add_child(_label("%s · %s · %d %s" % [whose, CardDB.leader(g.players[grave_owner]["leader_id"])["name"], n, "carta" if n == 1 else "cartas"], 17, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT, "body"))
+	var close := _button("✕", _close_graveyard)
+	close.custom_minimum_size = Vector2(52, 48)
+	close.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	head.add_child(close)
+	var rule := ColorRect.new()
+	rule.color = Color(UITheme.GOLD, 0.3)
+	rule.custom_minimum_size = Vector2(0, 2)
+	box.add_child(rule)
+
+	# filter tabs with counts
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 10)
+	box.add_child(tabs)
+	for f in GRAVE_FILTERS:
+		var fid: String = f[0]
+		var b := _button("%s  %d" % [f[1], counts[fid]], func():
+			grave_filter = fid
+			_refresh_graveyard(), grave_filter == fid)
+		b.custom_minimum_size = Vector2(0, 44)
+		b.disabled = counts[fid] == 0 and fid != "all"
+		tabs.add_child(b)
+
+	# card grid
+	var shown: Array = entries if grave_filter == "all" else entries.filter(func(en): return CardDB.card(en["card_id"])["type"] == grave_filter)
+	if shown.is_empty():
+		var empty := VBoxContainer.new()
+		empty.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		empty.alignment = BoxContainer.ALIGNMENT_CENTER
+		empty.add_theme_constant_override("separation", 8)
+		empty.add_child(_label("☠", 72, Color(UITheme.TEXT, 0.25), HORIZONTAL_ALIGNMENT_CENTER))
+		empty.add_child(_label("Nenhuma carta aqui." if entries.is_empty() else "Nenhuma carta deste tipo.", 24, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "title"))
+		box.add_child(empty)
+		grave_scroll = null
+	else:
+		var sc := ScrollContainer.new()
+		sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		box.add_child(sc)
+		var grid := GridContainer.new()
+		grid.columns = maxi(1, int((grave_panel.custom_minimum_size.x - 72.0) / 146.0))
+		grid.add_theme_constant_override("h_separation", 14)
+		grid.add_theme_constant_override("v_separation", 14)
+		grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		sc.add_child(grid)
+		for en in shown:
+			var cv := CardView.new().setup(en["card_id"], {"uid": en["uid"]}, 1.1)
+			cv.left_clicked.connect(_grave_card_click)
+			cv.right_clicked.connect(_grave_card_click)
+			grid.add_child(cv)
+		grave_scroll = sc
+		_restore_scroll.call_deferred(sc, keep)
+	grave_view.move_to_front()
+	if overlay:
+		overlay.move_to_front()
+
+func _grave_card_click(v: CardView) -> void:
+	if Time.get_ticks_msec() - grave_drag_ms > 250:
+		_show_overlay(v)
+
+func _restore_scroll(sc: ScrollContainer, v: int) -> void:
+	if is_instance_valid(sc):
+		sc.scroll_vertical = v
+
+## Wheel and finger-drag scrolling: the cards swallow those events before the ScrollContainer sees them.
+func _grave_scroll_input(e: InputEvent) -> bool:
+	if not grave_scroll or not is_instance_valid(grave_scroll) or overlay:
+		return false
+	var xf := grave_scroll.get_global_transform_with_canvas()
+	var local: Vector2 = xf.affine_inverse() * e.position if "position" in e else Vector2(-1, -1)
+	if not Rect2(Vector2.ZERO, grave_scroll.size).has_point(local):
+		return false
+	if e is InputEventMouseButton and e.pressed and e.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		grave_scroll.scroll_vertical += (-1 if e.button_index == MOUSE_BUTTON_WHEEL_UP else 1) * 120
+		return true
+	if e is InputEventScreenDrag:
+		grave_scroll.scroll_vertical -= int(e.relative.y / xf.get_scale().y)
+		grave_drag_ms = Time.get_ticks_msec()
+		return true
+	return false
 
 func _render_search_reveal() -> void:
 	if g.pending_search.is_empty():

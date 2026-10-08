@@ -45,6 +45,17 @@ func _init() -> void:
 		if v:
 			m._show_overlay(v)
 			m._close_overlay()
+		if i % 5 == 0: # graveyard viewer: open, every filter, survive a re-render, close
+			m._show_graveyard(i % 2)
+			for f in m.GRAVE_FILTERS:
+				m.grave_filter = f[0]
+				m._refresh_graveyard()
+			m._render()
+			if m.grave_view == null:
+				push_error("cemitério fechou no re-render")
+				quit(1)
+				return
+			m._close_graveyard()
 		await process_frame
 	print("smoke ok, turn ", m.g.turn)
 	quit()

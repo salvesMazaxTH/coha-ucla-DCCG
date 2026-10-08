@@ -5,12 +5,14 @@ extends Control
 
 signal portrait_clicked
 signal ability_clicked
+signal grave_clicked
 
 const SIZE := Vector2(240, 176)
 const PC := Vector2(76, 70) ## portrait center
 const PR := 58.0 ## portrait radius
 const AC := Vector2(192, 52) ## ability gem center
 const AR := 27.0
+const GRAVE_RECT := Rect2(Vector2(183, 96), Vector2(62, 42)) ## graveyard counter + touch padding
 
 static var _portrait_shader: Shader
 
@@ -26,6 +28,7 @@ var targetable := false
 var active := false ## whose turn it is
 var elem_color := Color.WHITE
 var _hover_ability := false
+var _hover_grave := false
 var _t := 0.0
 var _holding := false
 var _long := false
@@ -40,6 +43,10 @@ func setup(id: String) -> LeaderView:
 	custom_minimum_size = SIZE
 	size = SIZE
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	mouse_exited.connect(func():
+		if _hover_grave:
+			_hover_grave = false
+			queue_redraw())
 	_build_portrait(ld)
 	var gem := AbilityGem.new() # hover area so the tooltip only covers the ability gem
 	gem.ability = ld["ability"]
@@ -91,6 +98,18 @@ func _process(delta: float) -> void:
 		queue_redraw()
 
 func _gui_input(e: InputEvent) -> void:
+	if e is InputEventMouseMotion:
+		var over := GRAVE_RECT.has_point(e.position)
+		if over != _hover_grave:
+			_hover_grave = over
+			mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if over else Control.CURSOR_ARROW
+			queue_redraw()
+		return
+	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and GRAVE_RECT.has_point(e.position):
+		if e.pressed:
+			grave_clicked.emit()
+		accept_event()
+		return
 	# touch has no hover: long-press the gem (or tap a passive one) to read the ability
 	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and CardView.touch_ui() \
 			and e.position.distance_to(AC) <= AR + 2:
@@ -185,14 +204,16 @@ func _draw() -> void:
 
 	# deck / graveyard counters
 	_counter(Vector2(160, 102), false, deck)
-	_counter(Vector2(214, 102), true, grave)
+	_counter(Vector2(214, 102), true, grave, true)
 
 ## Small plate with a drawn icon (card stack or tombstone) and a count.
-func _counter(pos: Vector2, tomb: bool, n: int) -> void:
+func _counter(pos: Vector2, tomb: bool, n: int, clickable := false) -> void:
 	var r := Rect2(pos - Vector2(25, 0), Vector2(50, 30))
-	draw_style_box(UITheme.box(Color(0, 0, 0, 0.45), 5, Color(UITheme.GOLD, 0.25)), r)
+	var hot := clickable and _hover_grave
+	var rim := Color(UITheme.GOLD, 0.9 if hot else (0.5 if clickable else 0.25))
+	draw_style_box(UITheme.box(Color(UITheme.GOLD_DARK, 0.35) if hot else Color(0, 0, 0, 0.45), 5, rim, 2 if clickable else 1), r)
 	var ic := r.position + Vector2(10, 15)
-	var ink := Color(UITheme.TEXT, 0.75)
+	var ink := Color(UITheme.GOLD_LIGHT, 0.95) if hot else Color(UITheme.TEXT, 0.75)
 	if tomb:
 		var pts := PackedVector2Array()
 		for i in 9:
