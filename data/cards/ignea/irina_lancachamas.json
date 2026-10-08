@@ -4,9 +4,9 @@
   "rarity": "champion",
   "species": ["humano"],
   "essence": "ignea",
-  "cost": 3,
-  "atk": 3,
-  "hp": 2,
+  "cost": 4,
+  "atk": 6,
+  "hp": 3,
   "keywords": [
     "longo_alcance"
   ],
@@ -15,11 +15,11 @@
     {
       "trigger": "on_enter",
       "action": "damage",
-      "target": "enemy_unit",
-      "amount": 1
+      "target": "any",
+      "amount": 3
     }
   ],
-  "text": "Ao Entrar: cause 1 de dano a uma unidade inimiga.",
+  "text": "Ao Entrar: cause 3 de dano a qualquer alvo.",
   "flavor": "\"Tá tudo bem.\" Não está.",
   "tags": []
 }

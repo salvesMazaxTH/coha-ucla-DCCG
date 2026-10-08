@@ -6,23 +6,21 @@
   "cards": {
     "ronan": 1,
     "kai": 3,
-    "victoria": 2,
+    "victoria": 3,
     "irina_lancachamas": 3,
-    "vulnara": 2,
+    "vulnara": 3,
     "gorvakharr": 3,
-    "sebastian_ignis": 2,
     "kael_drath_vulcano": 2,
-    "dlorafya": 1,
     "lord_of_the_shadowflame": 2,
     "faisca_errante": 3,
-    "batedor_das_cinzas": 1,
     "guerreiro_igneo": 3,
     "salamandra": 3,
     "fenix_menor": 3,
-    "labareda": 3,
     "bola_de_fogo": 3,
-    "furia_ardente": 2,
+    "furia_ardente": 3,
     "manoplas_incandescentes": 3,
-    "estrondador_igneo": 3
+    "estrondador_igneo": 3,
+    "dragaozinho_flamejante": 2,
+    "fada_do_fogo": 2
   }
 }

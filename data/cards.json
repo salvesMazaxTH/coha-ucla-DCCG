@@ -75,7 +75,8 @@
     "demihumano": {"name": "Demihumano"},
     "morto_vivo": {"name": "Morto-Vivo"},
     "revenante": {"name": "Revenante"},
-    "gargoyle": {"name": "Gargoyle"}
+    "gargoyle": {"name": "Gargoyle"},
+    "fada": {"name": "Fada"}
   },
   "keywords": {
     "golpe_rapido": {
@@ -153,7 +154,7 @@
             "amount": 1
           }
         ],
-        "text": "Instantânea. 1 Momentum, uma vez por turno: cause 1 de dano a uma unidade ou ao Líder inimigo."
+        "text": "Instantânea. 1 Momentum, uma vez por turno: cause 1 de dano a qualquer alvo."
       },
       "essences": [
         "ignea"

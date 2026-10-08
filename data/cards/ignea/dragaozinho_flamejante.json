@@ -1,0 +1,20 @@
+{
+  "name": "Dragãozinho Flamejante",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "dragao"
+  ],
+  "essence": "ignea",
+  "cost": 1,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [
+    "voo"
+  ],
+  "art": "",
+  "effects": [],
+  "text": "",
+  "flavor": "",
+  "tags": []
+}

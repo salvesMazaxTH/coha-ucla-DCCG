@@ -7,14 +7,14 @@
   "cost": 3,
   "atk": 2,
   "hp": 3,
-  "keywords": ["escudo"],
+  "keywords": ["escudo", "voo"],
   "art": "ignea/victoria.webp",
   "effects": [
     {
       "trigger": "on_enter",
       "action": "buff",
       "target": "other_ally_unit",
-      "keywords": ["escudo", "voo"]
+      "keywords": ["escudo"]
     }
   ],
   "text": "Ao Entrar: conceda Escudo a outra unidade aliada.",

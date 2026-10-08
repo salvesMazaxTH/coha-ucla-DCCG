@@ -1,0 +1,20 @@
+{
+  "name": "Fada do Fogo",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "fada"
+  ],
+  "essence": "ignea",
+  "cost": 1,
+  "atk": 1,
+  "hp": 3,
+  "keywords": [
+    "voo"
+  ],
+  "art": "",
+  "effects": [],
+  "text": "",
+  "flavor": "",
+  "tags": []
+}
