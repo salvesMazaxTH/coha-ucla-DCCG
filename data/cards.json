@@ -149,7 +149,7 @@
       "ability": {
         "name": "Pavio Curto",
         "cost": 1,
-        "once_per_turn": true,
+        "once_per_cycle": true,
         "speed": "instantaneo",
         "effects": [
           {
@@ -158,7 +158,7 @@
             "amount": 1
           }
         ],
-        "text": "Instantânea. 1 Momentum, uma vez por turno: cause 1 de dano a qualquer alvo."
+        "text": "Instantânea. 1 Momentum: cause 1 de dano a qualquer alvo. Recarrega no início do seu turno (se usada no turno do oponente, só volta no seu)."
       },
       "essences": [
         "ignea"

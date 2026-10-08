@@ -28,6 +28,10 @@ func _init() -> void:
 	_test_triggers()
 	_test_stack()
 	_test_summon_window()
+	_test_leader_cycle()
+	_test_enter_target()
+	_test_legendary_retire()
+	_test_fatigue()
 	_test_counter()
 	_test_damage_window()
 	_test_sim()
@@ -327,6 +331,92 @@ func _test_obscura() -> void:
 	check(not g.choose_search(0, int(ex_pick["uid"])).is_empty(), "tributo: escolha aceita")
 	check(g.phase != "search" and g.players[0]["graveyard"].size() == ex_grave - 1, "tributo: a carta sai do cemitério")
 	check(g.players[0]["hand"].size() == ex_hand - 1 + 1 and not g._hand_card(0, int(ex_pick["uid"])).is_empty(), "tributo: a carta vai à mão")
+
+func _test_fatigue() -> void:
+	var g := _new_game()
+	_quiet(g)
+	g.players[0]["deck"].clear()
+	var hp: int = g.players[0]["leader_hp"]
+	var hits: Array = []
+	for i in 3:
+		g._draw(0, 1)
+		hits.append(hp - g.players[0]["leader_hp"])
+		hp = g.players[0]["leader_hp"]
+	check(hits == [2, 4, 8] and g.fatigue_next(0) == 16, "fadiga dobra: 2, 4, 8, depois 16")
+
+func _test_legendary_retire() -> void:
+	var g := _new_game()
+	_quiet(g)
+	var l: Dictionary = g.players[0]["legendary"]
+	g.players[0]["momentum"] = 10
+	g.cast_legendary(0)
+	if g.phase == "enter_target":
+		g.choose_enter_target(0, 0)
+	if g.summon_window:
+		g.pass_priority(1)
+	var u: Dictionary = g.players[0]["board"].back()
+	u["damage"] = 999
+	g._check_state()
+	check(l["in_zone"] and not l.get("retired", false), "encarnação: morte com custo pagável volta ao Santuário")
+	g.players[0]["momentum"] = 10
+	l["casts"] = 10
+	l["in_zone"] = false
+	g._summon(0, l["card_id"], g._uid(), true, 0)
+	g.players[0]["board"].back()["damage"] = 999
+	var deck_n: int = g.players[0]["deck"].size()
+	g._check_state()
+	var bottom: Dictionary = g.players[0]["deck"][0]
+	check(l["retired"] and not l["in_zone"] and not g.can_cast_legendary(0), "encarnação: custo acima de 10 aposenta")
+	check(g.players[0]["deck"].size() == deck_n + 1 and bottom["card_id"] == l["card_id"], "encarnação: vai para o fundo do deck")
+	g.players[0]["deck"].erase(bottom)
+	g.players[0]["hand"].append(bottom)
+	g.players[0]["momentum"] = 10
+	check(g.can_play(0, bottom["uid"]), "encarnação aposentada: jogável da mão pelo custo normal")
+
+func _test_enter_target() -> void:
+	var g := _new_game()
+	_quiet(g)
+	var foe := _put(g, 1, "esqueleto_guerreiro")
+	g.players[0]["momentum"] = 10
+	var vul := _give(g, 0, "vulnara")
+	g.play_card(0, vul, foe["uid"]) # a target given with the play is ignored: it is picked on the board
+	check(g.phase == "enter_target" and not g.find_unit(vul).is_empty() and g.decider() == 0, "ao entrar: unidade entra antes de escolher o alvo")
+	check(g.find_unit(foe["uid"])["damage"] == 0 and not g.summon_window, "ao entrar: nada resolve antes da escolha")
+	check(g.choose_enter_target(0, vul).is_empty(), "ao entrar: alvo inválido recusado")
+	g.choose_enter_target(0, foe["uid"])
+	check(g.phase == "main" and g.find_unit(foe["uid"]).is_empty(), "ao entrar: dano no alvo escolhido")
+	if g.summon_window:
+		g.pass_priority(1)
+	var foe2 := _put(g, 1, "esqueleto_guerreiro")
+	var ner := _give(g, 0, "neraqa")
+	g.play_card(0, ner)
+	check(g.valid_targets(0, g.pending_enter["spec"], ner).has(ner), "neraqa: pode escolher ela mesma")
+	g.choose_enter_target(0, 0)
+	check(g.phase == "main" and not g.find_unit(ner)["spell_shield"], "ao entrar recusado: sem efeito")
+	check(g.find_unit(foe2["uid"])["damage"] == 0, "ao entrar recusado: nada acontece")
+
+func _test_leader_cycle() -> void:
+	var g := _new_game() # fogo: Ronan's Pavio Curto is once per cycle
+	_quiet(g)
+	_put(g, 1, "esqueleto_guerreiro")
+	g.players[0]["ability_used"] = false
+	g.players[0]["momentum"] = 5
+	g.players[1]["momentum"] = 5
+	check(g.can_use_ability(0), "ronan: habilidade disponível no começo do ciclo")
+	g.use_ability(0, g.players[1]["board"][0]["uid"])
+	g.pass_priority(1)
+	check(g.players[0]["ability_used"] and not g.can_use_ability(0), "ronan: usou no seu turno, bloqueada")
+	g.end_turn(0)
+	g.players[0]["momentum"] = 5
+	check(g.players[0]["ability_used"] and not g.can_use_ability(0), "ronan: continua bloqueada no turno do oponente")
+	g.end_turn(1)
+	check(not g.players[0]["ability_used"], "ronan: recarrega no início do próprio turno")
+	# not used on own turn: usable on the opponent's turn, then reloads anyway
+	g.players[0]["momentum"] = 5
+	g.end_turn(0)
+	g.players[0]["momentum"] = 5
+	g.players[1]["ability_used"] = true
+	check(not g.players[0]["ability_used"], "ronan: sem uso no seu turno, ainda disponível no do oponente")
 
 func _test_obscura_rules() -> void:
 	# Diabrete: hits the enemy Leader when another ally dies (not for itself), Ao Morrer too

@@ -27,6 +27,9 @@ var attackers: Dictionary = {}
 var blocks: Dictionary = {}
 ## Pending deterministic deck search. The matching cards are public until chosen.
 var pending_search: Dictionary = {}
+## Ao Entrar waiting for its owner to pick a target, after the unit is already on the board
+## (phase "enter_target"): {player, uid, card_id, spec}. Optional: target 0 skips the effect.
+var pending_enter: Dictionary = {}
 ## Spells, equipment and leader abilities wait here (LIFO) until both players let them resolve.
 ## Item: {sid, player, kind:"card"|"ability", uid, card_id, target, speed}
 var stack: Array = []
@@ -118,6 +121,8 @@ func decider() -> int:
 			return opponent(active)
 		"search":
 			return int(pending_search.get("player", active))
+		"enter_target":
+			return int(pending_enter.get("player", active))
 		"main", "combat":
 			return priority
 	return active
@@ -176,6 +181,18 @@ func scale_bonus(p: int, cd: Dictionary) -> Vector2i:
 		out += Vector2i(n * int(e.get("atk", 0)), n * int(e.get("hp", 0)))
 	return out
 
+## The Encarnação left the board by dying or being banished (a return to hand doesn't count).
+## If its next cast would cost more than the Momentum cap, it retires: it goes to the bottom of
+## the deck as a normal card at its base cost, for good. Otherwise it goes back to the Santuário.
+func _legendary_leaves(p: int) -> void:
+	var l: Dictionary = players[p]["legendary"]
+	if legendary_cost(p) <= MOMENTUM_CAP:
+		l["in_zone"] = true
+		return
+	l["retired"] = true
+	players[p]["deck"].insert(0, {"uid": _uid(), "card_id": l["card_id"]}) # draws pop the back
+	_emit({"type": "legendary_retired", "player": p, "card_id": l["card_id"]})
+
 func legendary_cost(p: int) -> int:
 	var l: Dictionary = players[p]["legendary"]
 	return int(CardDB.card(l["card_id"])["cost"]) + COMMANDER_TAX * int(l["casts"])
@@ -213,9 +230,20 @@ func second_spec(cd: Dictionary) -> String:
 	return ""
 
 ## Target a card needs when played: its additional sacrifice cost (the unit to sacrifice)
-## or the chosen target of its effects.
+## or the chosen target of its effects. A unit's Ao Entrar target is picked after it enters
+## (see enter_spec), so it is not part of playing it.
 func card_spec(cd: Dictionary) -> String:
-	return "ally_unit" if cd.get("cost_sacrifice", false) else target_spec(cd["effects"])
+	if cd.get("cost_sacrifice", false):
+		return "ally_unit"
+	return "" if cd["type"] == "unit" else target_spec(cd["effects"])
+
+## Target spec of a unit's Ao Entrar, or "".
+func enter_spec(cd: Dictionary) -> String:
+	var on_enter: Array = []
+	for e in cd.get("effects", []):
+		if e.get("trigger", "") == "on_enter":
+			on_enter.append(e)
+	return target_spec(on_enter)
 
 ## Momentum cost of a card for player p, after "constante" cost_reduction effects
 ## (e.g. per: "own_graveyard" = 1 less for each card in the own graveyard). Never below 0.
@@ -349,7 +377,7 @@ func can_use_ability(p: int) -> bool:
 		return false # passives fire on their own trigger
 	if not can_cast_speed(p, speed_of(ab)) or int(ab["cost"]) > players[p]["momentum"]:
 		return false
-	if ab.get("once_per_turn", false) and players[p]["ability_used"]:
+	if (ab.get("once_per_turn", false) or ab.get("once_per_cycle", false)) and players[p]["ability_used"]:
 		return false
 	var spec := target_spec(ab["effects"])
 	return spec == "" or not valid_targets(p, spec).is_empty()
@@ -415,7 +443,7 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0) -> Arra
 			_settle()
 			return _flush()
 	if cd["type"] == "unit":
-		_summon(p, inst["card_id"], hand_uid, false, 0 if sacrifice else target)
+		_summon(p, inst["card_id"], hand_uid, false, 0, {}, true)
 		_check_state()
 		_open_summon_window(p)
 	else:
@@ -423,7 +451,7 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0) -> Arra
 	_settle()
 	return _flush()
 
-func cast_legendary(p: int, target: int = 0) -> Array:
+func cast_legendary(p: int, _target: int = 0) -> Array:
 	if not can_cast_legendary(p):
 		return []
 	var pl: Dictionary = players[p]
@@ -432,7 +460,7 @@ func cast_legendary(p: int, target: int = 0) -> Array:
 	pl["legendary"]["casts"] += 1
 	var uid := _uid()
 	_emit({"type": "play", "player": p, "uid": uid, "card_id": pl["legendary"]["card_id"], "legendary": true})
-	_summon(p, pl["legendary"]["card_id"], uid, true, target)
+	_summon(p, pl["legendary"]["card_id"], uid, true, 0, {}, true)
 	_check_state()
 	_open_summon_window(p)
 	_settle()
@@ -548,6 +576,32 @@ func discard(p: int, hand_uids: Array) -> Array:
 		_emit({"type": "ban", "player": p, "uid": uid})
 	phase = "main"
 	_finish_turn()
+	return _flush()
+
+## Picks the target of the pending Ao Entrar (0 = decline: its targeted effects are skipped,
+## the rest still happen), then the unit's summon response window opens.
+func choose_enter_target(p: int, target: int) -> Array:
+	if phase != "enter_target" or p != decider():
+		return []
+	var uid := int(pending_enter["uid"])
+	if target != 0 and not valid_targets(p, pending_enter["spec"], uid).has(target):
+		return []
+	pending_enter.clear()
+	phase = "main"
+	var c := find_unit(uid)
+	var effects: Array = card_of(c)["effects"]
+	if target == 0:
+		_emit({"type": "enter_skip", "player": p, "uid": uid, "card_id": c["card_id"]})
+		var rest: Array = []
+		for e in effects:
+			if target_spec([e]) == "":
+				rest.append(e)
+		effects = rest
+	_announce(c, effects, "on_enter")
+	_run_effects(p, effects, "on_enter", target, uid)
+	_check_state()
+	_after_search()
+	_settle()
 	return _flush()
 
 ## Choose one of the public cards revealed by a deterministic deck search.
@@ -766,14 +820,15 @@ func _end_combat() -> void:
 
 ## After a unit enters from hand/Santuário in the main phase, the opponent may respond.
 func _open_summon_window(p: int) -> void:
-	if phase == "search" and p == active:
+	if phase in ["search", "enter_target"] and p == active:
 		_summon_pending = true
 		return
 	if phase == "main" and stack.is_empty() and p == active:
 		summon_window = true
 		priority = opponent(p)
 
-## A summon whose on_play searched opens its response window once the pick is made.
+## A summon whose on_play searched (or whose Ao Entrar awaited a target) opens its
+## response window once the pick is made.
 func _after_search() -> void:
 	if _summon_pending and phase == "main":
 		_summon_pending = false
@@ -808,7 +863,9 @@ func _settle() -> void:
 
 # ---------------------------------------------------------------- internals
 
-func _summon(p: int, card_id: String, uid: int, legendary: bool, target: int, over: Dictionary = {}) -> void:
+## ask: played from hand/Santuário, so a targeted Ao Entrar waits for its owner's pick
+## (phase "enter_target") instead of resolving right away.
+func _summon(p: int, card_id: String, uid: int, legendary: bool, target: int, over: Dictionary = {}, ask := false) -> void:
 	var cd := CardDB.card_for(card_id, {"over": over})
 	var kws: Array = cd.get("keywords", []).duplicate()
 	var c := {
@@ -823,6 +880,12 @@ func _summon(p: int, card_id: String, uid: int, legendary: bool, target: int, ov
 	kws.erase("escudo_feitico")
 	players[p]["board"].append(c)
 	_emit({"type": "summon", "player": p, "uid": uid, "card_id": card_id})
+	var spec := enter_spec(cd)
+	if ask and spec != "" and not valid_targets(p, spec, uid).is_empty():
+		pending_enter = {"player": p, "uid": uid, "card_id": card_id, "spec": spec}
+		phase = "enter_target"
+		_emit({"type": "enter_target", "player": p, "uid": uid, "card_id": card_id})
+		return
 	# "ally_unit" Ao Entrar with no chosen ally falls back to the unit itself
 	if target == 0 and target_spec(cd["effects"]) == "ally_unit":
 		target = uid
@@ -1166,13 +1229,18 @@ func _heal_leader(p: int, amount: int) -> void:
 		pl["leader_hp"] += healed
 		_emit({"type": "heal", "uid": LEADER_UID[p], "amount": healed})
 
+## Fadiga: damage of the next draw from an empty deck. Doubles each time: 2, 4, 8, 16…
+func fatigue_next(p: int) -> int:
+	return 2 << int(players[p]["fatigue"])
+
 func _draw(p: int, n: int) -> void:
 	var pl: Dictionary = players[p]
 	for i in n:
 		if pl["deck"].is_empty():
+			var dmg := fatigue_next(p)
 			pl["fatigue"] += 1
-			_emit({"type": "fatigue", "player": p, "amount": pl["fatigue"]})
-			_deal_damage(LEADER_UID[p], pl["fatigue"], {})
+			_emit({"type": "fatigue", "player": p, "amount": dmg})
+			_deal_damage(LEADER_UID[p], dmg, {})
 			continue
 		var c: Dictionary = pl["deck"].pop_back()
 		pl["hand"].append(c)
@@ -1226,7 +1294,7 @@ func _check_state() -> void:
 					_emit({"type": "death", "uid": c["uid"], "player": p})
 					_release_equipment(c)
 					if c["legendary"]:
-						players[p]["legendary"]["in_zone"] = true
+						_legendary_leaves(p)
 					else:
 						players[p]["graveyard"].append({"uid": c["uid"], "card_id": c["card_id"]})
 					_dying = c
@@ -1291,8 +1359,12 @@ func _start_turn(p: int, draw: bool) -> void:
 	var pl: Dictionary = players[p]
 	pl["max_momentum"] = min(MOMENTUM_CAP, pl["max_momentum"] + 1)
 	pl["momentum"] = pl["max_momentum"]
-	for q in players:
-		q["ability_used"] = false # once per turn: instant abilities can be used on either turn
+	for i in 2:
+		var q: Dictionary = players[i]
+		# once_per_turn: refreshed every turn, so instants can be used on either turn.
+		# once_per_cycle: refreshed only when its owner's own turn starts.
+		if i == p or not CardDB.leader(q["leader_id"])["ability"].get("once_per_cycle", false):
+			q["ability_used"] = false
 		q["passive_used"] = false
 	pl["attacked"] = false
 	for c in pl["board"]:

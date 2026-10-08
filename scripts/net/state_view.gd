@@ -35,6 +35,7 @@ static func snapshot(g: GameState, seat: int) -> Dictionary:
 		"attackers": g.attackers.duplicate(true),
 		"blocks": g.blocks.duplicate(true),
 		"pending_search": search,
+		"pending_enter": g.pending_enter.duplicate(true),
 		"stack": g.stack.duplicate(true),
 		"priority": g.priority,
 		"window": g.window,

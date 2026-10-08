@@ -14,6 +14,8 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - A Encarnação começa no **Santuário**, fora do deck, e pode ser conjurada de lá a qualquer momento da sua fase principal.
 - Cada conjuração depois da primeira custa **+2 Momentum** a mais que a anterior.
 - Quando a Encarnação morre, ela volta para o Santuário. A morte dela não afeta o Líder.
+- **Aposentadoria:** se ela morre ou é **banida** e a próxima conjuração passaria de 10 (o máximo de Momentum, contando custo base, taxa e outros modificadores), ela **não** volta ao Santuário: vai para o **fundo do deck** com o custo resetado e vira **carta comum para sempre** (se morrer de novo, vai para o cemitério). Ex.: Ronan (4) se aposenta na 4ª morte (4→6→8→10, a próxima seria 12); Naelthos e Jeff (5), na 3ª (5→7→9, a próxima seria 11).
+- Ser devolvida para a mão não conta: ela mantém o custo que tinha no Santuário.
 
 ## Início da partida
 - Quem joga primeiro começa com **6 cartas** na mão, e o outro jogador com **7**.
@@ -38,7 +40,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - Uma unidade recém-jogada não pode atacar no mesmo turno, a menos que tenha **Ímpeto**. Ela pode bloquear normalmente.
 - A cura do Líder nunca passa da vida inicial dele.
 - **Banimento:** carta banida sai do jogo: não vai ao cemitério, então não alimenta Encarnação, Vagante etc. e não conta como morrer. A compra não tem teto durante o turno (a mão pode passar de 10, inclusive no turno do oponente); só no fim do seu turno você bane as piores até voltar a 10. Banir da mão é oculto para o oponente; efeitos de banimento (ex.: em área) serão públicos.
-- **Fadiga:** comprar uma carta com o deck vazio causa dano ao seu Líder. O dano é de 1 na primeira vez e sobe 1 a cada nova compra (2, 3, …).
+- **Fadiga:** comprar uma carta com o deck vazio causa dano ao seu Líder. O dano é de 2 na primeira vez e **dobra** a cada nova compra (2, 4, 8, 16…): com 20 a 25 de vida, mata em até 4 compras. Com o deck vazio, o contador do deck mostra o próximo dano (ex.: -8).
 
 ## Velocidade, pilha e janelas
 - Toda carta e habilidade de Líder tem uma velocidade, definida no campo `"speed"` do JSON. Sem o campo, ela é **lenta**.
@@ -89,7 +91,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 ## Keywords
 | Keyword | Efeito |
 |---|---|
-| Ao Entrar | O efeito acontece quando a unidade entra em campo. |
+| Ao Entrar | O efeito acontece quando a unidade entra em campo. Se ele pede alvo, o dono escolhe **depois** que a unidade já está no campo (pode ser ela mesma, se o alvo permitir) ou **recusa** e o efeito não acontece. Diferente de custo adicional (Necrófago), que é pago antes de a unidade entrar. |
 | Ao Morrer | O efeito acontece quando a unidade morre. |
 | Golpe Rápido | Causa dano de combate antes das unidades sem Golpe Rápido. |
 | Sobrepujança | O dano que exceder a vida restante do bloqueador vai para o Líder inimigo. |
@@ -113,6 +115,10 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - **Sacrifício:** a unidade sacrificada morre na hora (efeitos Ao Morrer e Aliado Morre resolvem). Como *efeito* (Colheita de Almas) ou como **custo adicional** (Necrófago Espectral: custa 0, mas exige sacrificar uma unidade que você controla; com o campo cheio, o sacrifício libera a vaga).
 - **Redução de custo por cemitério:** efeito Constante. A Vagante Sombria custa 1 a menos por carta no seu cemitério (de qualquer tipo), nunca menos que 0.
 
+## Habilidade de Líder: limite de uso
+- Algumas habilidades têm `once_per_turn`: 1 uso por turno, em qualquer turno (o seu ou o do adversário), reiniciando a cada turno.
+- Outras têm `once_per_cycle` (Pavio Curto, do Ronan): **1 uso entre o início de um turno seu e o início do seu próximo turno**. Só o início do *seu* turno recarrega. Se usou no seu turno, não usa no do adversário; se não usou, pode usar no do adversário (e no seu turno seguinte recarrega de qualquer forma). O jogador vê isso como "1× até seu próximo turno".
+
 ## Passivas de Líder
 - Algumas habilidades de Líder são **passivas**: não custam Momentum, não são clicáveis e disparam sozinhas num gatilho. A passiva do Jeff (*Ceifa*): quando uma unidade aliada morre **durante o seu turno**, 1 de dano ao Líder inimigo, **uma vez por turno**. Não ativa no turno do oponente.
 
@@ -126,6 +132,8 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 
 ## Gatilhos
 Gatilhos dizem *quando* um efeito acontece. Eles abrem o texto da carta no lugar de frases por extenso, e ficam em `triggers` no `cards.json`.
+
+**Gatilhos não vão para a pilha e não podem ser respondidos:** resolvem na hora em que disparam (Ao Entrar, Ao Morrer etc.). Respostas só são possíveis depois, nas janelas normais.
 
 | Gatilho | Quando |
 |---|---|

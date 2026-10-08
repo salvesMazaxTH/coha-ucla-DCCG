@@ -40,6 +40,7 @@ func apply_snapshot(snap: Dictionary) -> void:
 	attackers = s["attackers"]
 	blocks = s.get("blocks", {})
 	pending_search = s["pending_search"]
+	pending_enter = s.get("pending_enter", {})
 	stack = s.get("stack", [])
 	priority = int(s.get("priority", active))
 	window = String(s.get("window", ""))
@@ -83,3 +84,6 @@ func discard(_p: int, hand_uids: Array) -> Array:
 
 func choose_search(_p: int, card_uid: int) -> Array:
 	return _act({"a": "search", "uid": card_uid})
+
+func choose_enter_target(_p: int, target: int) -> Array:
+	return _act({"a": "enter", "target": target})

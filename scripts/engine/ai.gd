@@ -17,6 +17,10 @@ static func step(g: GameState, p: int) -> Array:
 			return g.declare_blocks(p, _choose_blocks(g, p))
 		"search":
 			return g.choose_search(p, _choose_search(g))
+		"enter_target":
+			var cd := CardDB.card(g.pending_enter["card_id"])
+			var ev := g.choose_enter_target(p, _pick_target(g, p, g.pending_enter["spec"], cd, int(g.pending_enter["uid"])))
+			return ev if not ev.is_empty() else g.choose_enter_target(p, 0)
 		"discard":
 			var hand: Array = g.players[p]["hand"].duplicate()
 			hand.sort_custom(func(a, b): return int(CardDB.card(a["card_id"])["cost"]) > int(CardDB.card(b["card_id"])["cost"]))
@@ -56,7 +60,7 @@ static func _choose_search(g: GameState) -> int:
 
 static func _try_play(g: GameState, p: int) -> Array:
 	if g.can_cast_legendary(p):
-		var ev := g.cast_legendary(p, _pick_target(g, p, g.target_spec(CardDB.card(g.players[p]["legendary"]["card_id"])["effects"]), 0))
+		var ev := g.cast_legendary(p)
 		if not ev.is_empty():
 			return ev
 	var hand: Array = g.players[p]["hand"].duplicate()
@@ -91,7 +95,7 @@ static func _pick_sacrifice(g: GameState, p: int) -> int:
 	return worst
 
 ## Hostile effects pick the biggest enemy (or the Leader); friendly ones the biggest ally.
-static func _pick_target(g: GameState, p: int, spec: String, src) -> int:
+static func _pick_target(g: GameState, p: int, spec: String, src, self_uid := 0) -> int:
 	if spec == "":
 		return 0
 	if spec == "enemy_stack": # counter the priciest enemy spell/ability in reach
@@ -103,7 +107,7 @@ static func _pick_target(g: GameState, p: int, spec: String, src) -> int:
 					top_cost = g.stack_cost(it)
 					top = sid
 		return top
-	var opts := g.valid_targets(p, spec)
+	var opts := g.valid_targets(p, spec, self_uid)
 	if opts.is_empty():
 		return 0
 	var friendly := spec in ["ally_unit", "other_ally_unit"]
