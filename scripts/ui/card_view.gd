@@ -72,6 +72,7 @@ var proc_wave := 0.0:
 		proc_wave = v
 		queue_redraw()
 var shadow := true
+var fatigue := 0 ## > 0: not a real card but the Fadiga pseudo-card, showing this much damage
 
 var _t := 0.0
 var _redraw_acc := 0.0
@@ -221,6 +222,9 @@ func _draw() -> void:
 	var s := size.x / BASE.x
 	var r := Rect2(Vector2.ZERO, size)
 	var rad := 10.0 * s
+	if fatigue > 0:
+		_draw_fatigue(r, s, rad)
+		return
 	var pulse := 0.5 + 0.5 * sin(_t * 4.0)
 	var cd: Dictionary = {} if face_down else CardDB.card_for(card_id, inst)
 	var keys: Array = ["back"] if face_down else _style_keys(cd)
@@ -402,6 +406,69 @@ func _finish(r: Rect2, rad: float, s: float) -> void:
 		_rrect_fill(r, rad, Color(1, 0.2, 0.15, 0.45 * flash))
 	if dim:
 		_rrect_fill(r, rad, Color(0, 0, 0, 0.5))
+
+## Fadiga (drawing from an empty deck) shown as if a card had been played: Obscura frame,
+## a hooded skull with ember eyes and the damage spelled out.
+func _draw_fatigue(r: Rect2, s: float, rad: float) -> void:
+	var st: Dictionary = STYLES["obscura"]
+	var trim := Color(st["trim"])
+	if shadow:
+		for i in 5:
+			var g := r.grow((i * 2.2 + 1) * s)
+			g.position.y += 4.0 * s
+			_rrect_fill(g, rad + i * 2 * s, Color(0, 0, 0, 0.11))
+	_rrect_grad(r, rad, Color(st["top"]), Color(st["bot"]))
+	_rrect_line(r.grow(-0.5 * s), rad, Color("#07060a"), 1.6 * s)
+	_rrect_line(r.grow(-2.6 * s), rad - 2 * s, Color(trim, 0.85), 1.1 * s)
+	# art: a cowl in the dark, the skull peering out of it
+	var art := Rect2(Vector2(7, 8) * s, Vector2(BASE.x - 14, 98) * s)
+	draw_rect(art.grow(1.5 * s), Color("#07060a"))
+	_vgrad(art, Color("#2a2338"), Color("#070609"))
+	var c := art.get_center() + Vector2(0, 6 * s)
+	for i in 6:
+		draw_circle(c + Vector2(0, -4 * s), (44 - i * 6) * s, Color(0.55, 0.45, 0.75, 0.04))
+	var hood := PackedVector2Array()
+	for i in 21: # rounded top, flaring down to the bottom of the window
+		var a := PI + i * PI / 20.0
+		hood.append(c + Vector2(cos(a) * 30, -6 + sin(a) * 34) * s)
+	hood.append(Vector2(c.x + 44 * s, art.end.y))
+	hood.append(Vector2(c.x - 44 * s, art.end.y))
+	draw_colored_polygon(hood, Color("#141119"))
+	draw_polyline(hood, Color(0.6, 0.55, 0.75, 0.35), 1.2 * s, true)
+	draw_circle(c + Vector2(0, -2 * s), 20 * s, Color("#030304"))
+	var bone := Color("#bdb5a6")
+	var k := c
+	draw_circle(k + Vector2(0, -6 * s), 14 * s, bone)
+	draw_rect(Rect2(k + Vector2(-8, 2) * s, Vector2(16, 11) * s), bone)
+	for i in 3:
+		var tx := k.x + (-4 + i * 4) * s
+		draw_line(Vector2(tx, k.y + 8 * s), Vector2(tx, k.y + 13 * s), Color("#4a4540"), 1.0 * s)
+	for sx in [-1.0, 1.0]:
+		var eye := k + Vector2(sx * 6, -5) * s
+		draw_circle(eye, 4.4 * s, Color("#050506"))
+		draw_circle(eye, 2.6 * s, Color(1.0, 0.35, 0.15, 0.35))
+		draw_circle(eye, 1.3 * s, Color("#ff7a3a"))
+	draw_colored_polygon(PackedVector2Array([k + Vector2(0, 0), k + Vector2(-2, 4) * s, k + Vector2(2, 4) * s]), Color("#050506"))
+	_vgrad(Rect2(art.position + Vector2(0, art.size.y - 22 * s), Vector2(art.size.x, 22 * s)), Color(0, 0, 0, 0), Color(0, 0, 0, 0.55))
+	draw_rect(art.grow(0.5 * s), Color(trim, 0.9), false, 1.2 * s)
+	# name plate
+	var py := 102.0 * s
+	var ph := 20.0 * s
+	var plate := PackedVector2Array([Vector2(3 * s, py + ph / 2), Vector2(10 * s, py), Vector2(size.x - 10 * s, py),
+		Vector2(size.x - 3 * s, py + ph / 2), Vector2(size.x - 10 * s, py + ph), Vector2(10 * s, py + ph)])
+	draw_colored_polygon(plate, Color("#15121b"))
+	draw_polyline(plate + PackedVector2Array([plate[0]]), trim, 1.2 * s, true)
+	_text(UITheme.font("title_bold"), "Fadiga", Vector2(size.x / 2, py + ph / 2 + 4.5 * s), 14 * s, Color("#fff4dc"))
+	# rules text
+	var panel := Rect2(Vector2(10, 126) * s, Vector2(BASE.x - 20, 36) * s)
+	_rrect_fill(panel, 4 * s, Color(0, 0, 0, 0.38))
+	_rrect_line(panel, 4 * s, Color(trim, 0.25), 1 * s)
+	var bf := UITheme.font("bold")
+	_text(bf, "Sem cartas!", Vector2(size.x / 2, panel.position.y + 15 * s), 12 * s, Color("#e9dcc0"))
+	var dmg := "Tome %d de dano." % fatigue
+	_text(bf, dmg, Vector2(size.x / 2, panel.position.y + 30 * s), _fit(bf, dmg, 12 * s, panel.size.x - 8 * s), Color("#ff8a80"))
+	_diamond(Vector2(size.x / 2, 2.5 * s), 3.5 * s, trim)
+	_finish(r, rad, s)
 
 ## Frame styles in essence order: one for mono cards, two for dual-essence cards.
 func _style_keys(cd: Dictionary) -> Array:

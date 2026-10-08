@@ -34,7 +34,7 @@ var attack_sel: Dictionary = {} ## attacker uid -> provoked uid
 var provoking := 0 ## attacker currently choosing a provoke target
 var block_sel: Dictionary = {} ## attacker uid -> blocker uid
 var blocker_pick := 0
-var targeting := {} ## {"kind": hand|legendary|ability, "uid": int, "spec": String}
+var targeting := {} ## {"kind": hand|legendary|ability|enter, "uid": int, "spec": String}
 var pairs: Array = [] ## who blocks whom this render: [{"a": attacker, "b": blocker, "forced": provoked}]
 var pair_idx := {} ## attacker or blocker uid -> index in pairs
 var atk_order := {} ## attacker uid -> 1-based declaration order (= real damage resolution order)
@@ -683,6 +683,7 @@ func _render() -> void:
 	_render_board(me, 460)
 	_render_pairs()
 	_render_hand(me)
+	_sync_enter_aim()
 	_render_side()
 	_render_hint()
 	if g.phase == "search":
@@ -736,6 +737,7 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	lv.hp = pl["leader_hp"]
 	lv.hp_max = pl["leader_max"]
 	lv.deck = pl["deck"].size()
+	lv.fatigue = g.fatigue_next(p)
 	lv.grave = pl["graveyard"].size()
 	lv.ability_ready = p == viewer and g.can_use_ability(p) and not _is_ai(p)
 	lv.targetable = _is_target(uid)
@@ -758,7 +760,7 @@ func _render_command(p: int, pos: Vector2) -> void:
 		cap.size = Vector2(150, 16)
 		layer.add_child(cap)
 	if not l["in_zone"]:
-		var empty := _label("EM CAMPO", 12, Color(UITheme.TEXT, 0.35), HORIZONTAL_ALIGNMENT_CENTER, "title", 2)
+		var empty := _label("NO DECK" if l.get("retired", false) else "EM CAMPO", 12, Color(UITheme.TEXT, 0.35), HORIZONTAL_ALIGNMENT_CENTER, "title", 2)
 		empty.position = pos + Vector2(-6, 88)
 		empty.size = Vector2(150, 20)
 		layer.add_child(empty)
@@ -1096,7 +1098,7 @@ func _render_side() -> void:
 
 	# turn plaque
 	var phase_names := {"mulligan": "Mulligan", "main": "Fase Principal", "blocks": "Bloqueios", "discard": "Banimento", "over": "Fim de jogo",
-		"combat": "Combate · " + {"attack": "Ataque", "prepare": "Preparação", "damage": "Dano"}.get(g.window, ""), "search": "Busca"}
+		"combat": "Combate · " + {"attack": "Ataque", "prepare": "Preparação", "damage": "Dano"}.get(g.window, ""), "search": "Busca", "enter_target": "Ao Entrar · alvo"}
 	var mine := g.decider() == viewer and not _is_ai(viewer)
 	var tp := Panel.new()
 	tp.position = Vector2(col_x, 326)
@@ -1285,12 +1287,12 @@ func _process(_dt: float) -> void:
 func _hint() -> String:
 	if g.phase == "search":
 		return "Escolha uma das cartas reveladas."
+	if targeting.get("kind") == "enter":
+		return "Ao Entrar de %s: toque no alvo ou pule o efeito." % _cname(g.pending_enter.get("card_id", ""))
 	if not targeting.is_empty():
 		var t := "Arraste até o alvo (ou toque nele) · toque fora cancela." if CardView.touch_ui() else "Arraste até o alvo (ou clique nele) · botão direito/Esc cancela."
 		if targeting["spec"] == "enemy_stack":
 			t = "Toque no feitiço/habilidade da pilha que quer anular."
-		if _self_targetable():
-			t = "Escolha um alvo ou toque de novo na carta para ela mesma."
 		return t
 	if g.decider() != viewer or _is_ai(viewer):
 		return ""
@@ -1343,6 +1345,8 @@ func _action_buttons() -> Array:
 				out.append(_button("ENCERRAR TURNO", func(): _do(g.end_turn(viewer)), true))
 		"blocks":
 			out.append(_button("CONFIRMAR BLOQUEIOS", func(): _do(g.declare_blocks(viewer, block_sel.duplicate())), true))
+		"enter_target":
+			out.append(_button("PULAR EFEITO", func(): _do(g.choose_enter_target(viewer, 0)), true))
 		"discard":
 			var need: int = g.players[viewer]["hand"].size() - GameState.HAND_LIMIT
 			var b := _button("BANIR (%d/%d)" % [picked.size(), need], func(): _do(g.discard(viewer, picked.duplicate())), true)
@@ -1402,10 +1406,7 @@ func _aim_release() -> void:
 	if u != 0:
 		_fire_target(u)
 		return
-	if _self_targetable() and views.has(targeting["uid"]) and (views[targeting["uid"]] as Control).get_global_rect().has_point(gp):
-		_do(g.play_card(viewer, targeting["uid"], 0))
-		return
-	if gp.distance_to(aim_start) < CardView.DRAG_PX * 2.0 or targeting.has("first") or targeting["spec"] == "enemy_stack":
+	if gp.distance_to(aim_start) < CardView.DRAG_PX * 2.0 or targeting.has("first") or targeting["spec"] == "enemy_stack" 			or targeting["kind"] == "enter":
 		return
 	targeting = {}
 	_render()
@@ -1421,7 +1422,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	var cancel: bool = (e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE) \
 		or (e is InputEventMouseButton and e.pressed and (e.button_index == MOUSE_BUTTON_RIGHT or CardView.touch_ui()))
-	if cancel and g and (not targeting.is_empty() or provoking != 0 or blocker_pick != 0):
+	if cancel and g and ((not targeting.is_empty() and targeting["kind"] != "enter") or provoking != 0 or blocker_pick != 0):
 		targeting = {}
 		provoking = 0
 		blocker_pick = 0
@@ -1434,11 +1435,8 @@ func _on_hand_click(v: CardView) -> void:
 	if not _my_input():
 		return
 	if targeting.get("kind") == "hand" and targeting["uid"] == v.uid:
-		if _self_targetable():
-			_do(g.play_card(viewer, v.uid, 0)) # Ao Entrar on itself
-		else:
-			targeting = {}
-			_render()
+		targeting = {}
+		_render()
 		return
 	match g.phase:
 		"mulligan":
@@ -1487,7 +1485,7 @@ func _target_at(gp: Vector2) -> int:
 	return 0
 
 func _update_aim() -> void:
-	var on: bool = g != null and not targeting.is_empty() and targeting.get("spec") != "enemy_stack" 		and _my_input() and g.phase in ["main", "combat"]
+	var on: bool = g != null and not targeting.is_empty() and targeting.get("spec") != "enemy_stack" 		and _my_input() and g.phase in ["main", "combat", "enter_target"]
 	if not on:
 		if is_instance_valid(aim_arrow):
 			aim_arrow.visible = false
@@ -1499,7 +1497,7 @@ func _update_aim() -> void:
 	aim_arrow.visible = true
 	aim_arrow.move_to_front()
 	var src := aim_src
-	if targeting["kind"] == "hand" and views.has(targeting["uid"]) and is_instance_valid(views[targeting["uid"]]):
+	if targeting["kind"] in ["hand", "enter"] and views.has(targeting["uid"]) and is_instance_valid(views[targeting["uid"]]):
 		var r: Rect2 = (views[targeting["uid"]] as Control).get_global_rect()
 		src = Vector2(r.get_center().x, r.position.y + r.size.y * 0.3)
 	var inv := fx.get_global_transform().affine_inverse()
@@ -1518,23 +1516,23 @@ func _toggle_pick(uid: int, cap: int) -> void:
 func _on_legendary(p: int) -> void:
 	if p != viewer or not _my_input() or not g.can_cast_legendary(p):
 		return
-	var spec := g.target_spec(CardDB.card(g.players[p]["legendary"]["card_id"])["effects"])
-	if spec != "" and not g.valid_targets(p, spec).is_empty():
-		targeting = {"kind": "legendary", "uid": 0, "spec": spec}
-		_begin_aim(Vector2.ZERO)
-		_render()
-	else:
-		_do(g.cast_legendary(p, 0))
+	_do(g.cast_legendary(p)) # its Ao Entrar target (if any) is picked once it is on the board
 
-## A unit whose Ao Entrar targets "ally_unit" may pick itself (click it again).
-func _self_targetable() -> bool:
-	if targeting.get("kind") != "hand" or targeting.get("spec") != "ally_unit":
-		return false
-	var inst: Dictionary = {}
-	for c in g.players[viewer]["hand"]:
-		if c["uid"] == targeting["uid"]:
-			inst = c
-	return not inst.is_empty() and CardDB.card(inst["card_id"])["type"] == "unit" and not CardDB.card(inst["card_id"]).get("cost_sacrifice", false)
+## While our Ao Entrar waits for a target, aim from the unit on the board; the choice is
+## optional (the side button skips it), so it cannot be cancelled away.
+func _sync_enter_aim() -> void:
+	if g.phase != "enter_target" or not _my_input():
+		if targeting.get("kind") == "enter":
+			targeting = {}
+		return
+	var uid := int(g.pending_enter["uid"])
+	if targeting.get("kind") != "enter" or targeting["uid"] != uid:
+		targeting = {"kind": "enter", "uid": uid, "spec": g.pending_enter["spec"]}
+		attack_sel.clear()
+		aim_drag = false
+		aim_start = Vector2.INF
+	if views.has(uid) and is_instance_valid(views[uid]):
+		(views[uid] as CardView).highlight = SEL
 
 func _on_ability(p: int) -> void:
 	if not _my_input() or not g.can_use_ability(p):
@@ -1581,6 +1579,8 @@ func _fire_target(uid: int) -> void:
 			_do(g.cast_legendary(viewer, uid))
 		"ability":
 			_do(g.use_ability(viewer, uid))
+		"enter":
+			_do(g.choose_enter_target(viewer, uid))
 
 func _on_leader_click(p: int) -> void:
 	if _my_input() and _is_target(GameState.LEADER_UID[p]):
@@ -1679,7 +1679,7 @@ func _show_overlay(v: CardView) -> void:
 		var k := CardDB.keyword(kw)
 		txt += "[color=#ffe9a8][b]%s[/b][/color] — %s\n" % [k["name"], k["text"]]
 	if CardDB.is_leader_card(v.card_id):
-		txt += "\n[color=#e8c25a]Encarnação do Líder:[/color] fica no Santuário. Cada nova conjuração custa +%d. Ao morrer, volta para o Santuário.\n" % GameState.COMMANDER_TAX
+		txt += "\n[color=#e8c25a]Encarnação do Líder:[/color] fica no Santuário. Cada nova conjuração custa +%d. Ao morrer ou ser banida, volta para o Santuário; se a próxima conjuração passaria de %d, vai para o fundo do deck como carta comum, com o custo normal.\n" % [GameState.COMMANDER_TAX, GameState.MOMENTUM_CAP]
 	var flavor := CardDB.flavor_for(cd, true)
 	if flavor != "":
 		txt += "\n[i][color=#888888]%s[/color][/i]" % flavor
@@ -2341,6 +2341,18 @@ func _animate(events: Array, old: Dictionary) -> float:
 					var hold := _reveal_hold(e["player"])
 					gh.dissolve(cursor + 0.35 + hold, _elem_color(e["card_id"]).lightened(0.15), 0.6)
 					cursor += 0.35 + hold - 0.15
+			"fatigue":
+				# shown like a played card, so the hit on the Leader that follows makes sense
+				var fv := CardView.new().setup("", {}, 1.15)
+				fv.fatigue = int(e["amount"])
+				fv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				fv.pivot_offset = fv.size / 2.0
+				fv.z_index = 30
+				fx.add_child(fv)
+				var from_y := 860.0 if e["player"] == viewer else 30.0
+				_fly(fv, {"c": Vector2(lane_cx - 68, from_y), "rot": 0.0, "w": 60.0}, {"c": Vector2(lane_cx, 420), "rot": 0.0, "w": 240.0}, cursor, 0.35, 40.0, true)
+				fv.dissolve(cursor + 0.35 + REVEAL_HOLD * 0.7, Color(0.75, 0.6, 1.0), 0.6)
+				cursor += 0.35 + REVEAL_HOLD * 0.5
 			"ability":
 				var hold := _reveal_hold(e["player"])
 				_ability_banner(e["player"], cursor, hold)
@@ -2527,6 +2539,10 @@ func _log_event(e: Dictionary) -> void:
 			var tc := g.find_unit(e["uid"])
 			if not tc.is_empty():
 				_log("%s descongelou" % _cname(tc["card_id"]))
+		"legendary_retired":
+			_log("%s foi para o fundo do deck como carta comum" % _cname(e["card_id"]))
+		"enter_skip":
+			_log("%s: Ao Entrar recusado" % _cname(e["card_id"]))
 		"search_empty":
 			_log("%s não encontrou uma carta que atendesse à busca" % _pname(e["player"]))
 		"search_take":

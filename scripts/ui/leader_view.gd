@@ -21,6 +21,7 @@ var leader_id := ""
 var hp := 0
 var hp_max := 0
 var deck := 0
+var fatigue := 0 ## damage of the next draw with the deck empty, shown in place of the 0
 var grave := 0
 var ability_ready := false
 var ability_cost := 0
@@ -237,8 +238,14 @@ func _counter(pos: Vector2, tomb: bool, n: int, clickable := false) -> void:
 		draw_rect(Rect2(ic + Vector2(-5, -5), Vector2(8, 11)), ink)
 	var f := UITheme.font("heavy")
 	var t := str(n)
-	draw_string_outline(f, r.position + Vector2(20, 22), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, 4, Color(0, 0, 0, 0.8))
-	draw_string(f, r.position + Vector2(20, 22), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, UITheme.TEXT)
+	var col := UITheme.TEXT
+	var size := 18
+	if not tomb and n == 0 and fatigue > 0:
+		t = "-%d" % fatigue
+		col = Color(1.0, 0.45, 0.4)
+		size = 15 if fatigue >= 10 else 18
+	draw_string_outline(f, r.position + Vector2(20, 22), t, HORIZONTAL_ALIGNMENT_LEFT, -1, size, 4, Color(0, 0, 0, 0.8))
+	draw_string(f, r.position + Vector2(20, 22), t, HORIZONTAL_ALIGNMENT_LEFT, -1, size, col)
 
 func _diamond(c: Vector2, r: float, col: Color, rim: Color) -> void:
 	var pts := PackedVector2Array([c + Vector2(0, -r), c + Vector2(r * 0.8, 0), c + Vector2(0, r), c + Vector2(-r * 0.8, 0)])
@@ -314,6 +321,8 @@ static func ability_panel(ab: Dictionary, col: Color) -> Control:
 		chips.add_child(_chip(SPEED_NAMES[ab["speed"]].to_upper(), Color("#9fd8ff")))
 	if ab.get("once_per_turn", false):
 		chips.add_child(_chip("1× POR TURNO", UITheme.TEXT))
+	elif ab.get("once_per_cycle", false):
+		chips.add_child(_chip("1× ATÉ SEU PRÓXIMO TURNO", UITheme.TEXT))
 	box.add_child(chips)
 
 	var rule := ColorRect.new()
