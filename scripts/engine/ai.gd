@@ -69,7 +69,8 @@ static func _try_play(g: GameState, p: int) -> Array:
 		var t := _pick_sacrifice(g, p) if cd.get("cost_sacrifice", false) else _pick_target(g, p, spec, cd)
 		if spec != "" and t == 0 and cd["type"] != "unit":
 			continue
-		var ev := g.play_card(p, c["uid"], t)
+		var t2: int = GameState.LEADER_UID[g.opponent(p)] if g.second_spec(cd) != "" else 0
+		var ev := g.play_card(p, c["uid"], t, t2)
 		if not ev.is_empty():
 			return ev
 	if g.can_use_ability(p):

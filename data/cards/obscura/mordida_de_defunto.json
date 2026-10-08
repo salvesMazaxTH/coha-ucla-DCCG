@@ -1,0 +1,27 @@
+{
+  "name": "Mordida de Defunto",
+  "type": "spell",
+  "rarity": "rare",
+  "essence": "obscura",
+  "cost": 4,
+  "speed": "rapido",
+  "art": "",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "sacrifice",
+      "target": "ally_unit",
+      "then": [
+        {
+          "action": "damage",
+          "target": "any",
+          "pick": true,
+          "amount_from": "sacrificed_atk"
+        }
+      ]
+    }
+  ],
+  "text": "Sacrifique uma unidade aliada: cause dano igual ao ataque total dela a qualquer alvo.",
+  "flavor": "",
+  "tags": []
+}

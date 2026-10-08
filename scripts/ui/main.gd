@@ -1269,7 +1269,7 @@ func _on_hand_click(v: CardView) -> void:
 			var spec := g.card_spec(cd)
 			var opts := g.card_targets(viewer, cd)
 			if spec != "" and not opts.is_empty():
-				targeting = {"kind": "hand", "uid": v.uid, "spec": spec}
+				targeting = {"kind": "hand", "uid": v.uid, "card_id": v.card_id, "spec": spec}
 				attack_sel.clear()
 				_render()
 			else:
@@ -1325,12 +1325,22 @@ func _is_target(uid: int) -> bool:
 			if c["uid"] == targeting["uid"]:
 				return g.card_targets(viewer, CardDB.card(c["card_id"])).has(uid)
 		return false
+	if targeting.has("first") and uid == targeting["first"]:
+		return false # the sacrificed unit is already gone
 	return g.valid_targets(viewer, targeting["spec"], targeting.get("uid", 0)).has(uid)
 
 func _fire_target(uid: int) -> void:
 	match targeting["kind"]:
 		"hand":
-			_do(g.play_card(viewer, targeting["uid"], uid))
+			var spec2 := g.second_spec(CardDB.card(targeting["card_id"]))
+			if spec2 != "" and not targeting.has("first"):
+				# second step: pick the damage target after the sacrifice
+				targeting = {"kind": "hand", "uid": targeting["uid"], "card_id": targeting["card_id"], "spec": spec2, "first": uid}
+				_render()
+			elif targeting.has("first"):
+				_do(g.play_card(viewer, targeting["uid"], targeting["first"], uid))
+			else:
+				_do(g.play_card(viewer, targeting["uid"], uid))
 		"legendary":
 			_do(g.cast_legendary(viewer, uid))
 		"ability":

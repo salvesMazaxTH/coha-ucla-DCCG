@@ -15,6 +15,7 @@ func _init() -> void:
 	_test_flavor()
 	_test_off_essence()
 	_test_death_order()
+	_test_sacrifice_damage()
 	_test_setup()
 	_test_search()
 	_test_freeze()
@@ -98,14 +99,14 @@ func _test_constant() -> void:
 	g.players[0]["graveyard"].append({"uid": g._uid(), "card_id": "gaivota_da_tempestade"})
 	g.players[0]["graveyard"].append({"uid": g._uid(), "card_id": "bola_de_fogo"})
 	g._check_state()
-	check(g.atk_of(jeff) == 6 and g.hp_left(jeff) == 6, "jeff +2/+2 por unidade no cemitério (feitiço não conta)")
+	check(g.atk_of(jeff) == 4 and g.hp_left(jeff) == 4, "jeff +1/+1 por unidade no cemitério (feitiço não conta)")
 	g.players[1]["graveyard"].append({"uid": g._uid(), "card_id": "serpente_marinha"})
 	g._check_state()
-	check(g.atk_of(jeff) == 6, "cemitério inimigo não conta")
+	check(g.atk_of(jeff) == 4, "cemitério inimigo não conta")
 	g.players[0]["graveyard"].pop_back()
 	g.players[0]["graveyard"].pop_back()
 	g._check_state()
-	check(g.atk_of(jeff) == 4, "bônus encolhe quando o cemitério encolhe")
+	check(g.atk_of(jeff) == 3, "bônus encolhe quando o cemitério encolhe")
 	jeff["damage"] = 1
 	g.players[0]["graveyard"].clear()
 	g._check_state()
@@ -118,6 +119,35 @@ func _obscura_game() -> GameState:
 	return g
 
 ## Kills a unit by damage and resolves the deaths (revives and triggers included).
+func _test_sacrifice_damage() -> void:
+	var g := _new_game()
+	var jeff := _put(g, 0, "jeff")
+	for i in 3:
+		g.players[0]["graveyard"].append({"uid": g._uid(), "card_id": "esqueleto_guerreiro"})
+	g._check_state()
+	var atk: int = g.atk_of(jeff)
+	check(atk == 5, "jeff com 3 unidades no cemitério tem 5 de ataque")
+	var foe := _put(g, 1, "serpente_marinha")
+	var ally := _put(g, 0, "esqueleto_guerreiro")
+	var spell := {"uid": g._uid(), "card_id": "mordida_de_defunto"}
+	g.players[0]["hand"].append(spell)
+	g.players[0]["momentum"] = 10
+	# the target of the damage can't be the sacrificed unit
+	check(g.play_card(0, spell["uid"], jeff["uid"], jeff["uid"]).is_empty(), "não pode causar dano na própria unidade sacrificada")
+	var lf: int = g.players[1]["leader_hp"]
+	g.play_card(0, spell["uid"], jeff["uid"], GameState.LEADER_UID[1])
+	g.pass_priority(1)
+	g._flush()
+	check(g.find_unit(jeff["uid"]).is_empty(), "unidade foi sacrificada")
+	check(g.players[1]["leader_hp"] == lf - atk, "dano no Líder = ataque total do sacrificado (%d)" % atk)
+	# works against a unit, and against an ally
+	var s2 := {"uid": g._uid(), "card_id": "mordida_de_defunto"}
+	g.players[0]["hand"].append(s2)
+	g.play_card(0, s2["uid"], ally["uid"], foe["uid"])
+	g.pass_priority(1)
+	g._flush()
+	check(g.find_unit(ally["uid"]).is_empty() and g.find_unit(foe["uid"]).get("damage", 0) == 1, "dano também acerta unidade (ataque 1 do esqueleto)")
+
 func _test_death_order() -> void:
 	# simultaneous deaths on both sides resolve active player first (APNAP)
 	for first in 2:

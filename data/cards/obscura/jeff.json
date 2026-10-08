@@ -6,7 +6,7 @@
     "divindade"
   ],
   "essence": "obscura",
-  "cost": 6,
+  "cost": 5,
   "atk": 2,
   "hp": 2,
   "keywords": [],
@@ -16,11 +16,15 @@
       "trigger": "constante",
       "action": "scale",
       "per": "own_graveyard_units",
-      "atk": 2,
-      "hp": 2
+      "atk": 1,
+      "hp": 1
     }
   ],
-  "text": "Constante: recebe +2/+2 para cada carta de unidade no seu cemitério.",
-  "flavor": "Todo cemitério é um tesouro para quem sabe contar.",
+  "text": "Constante: recebe +1/+1 para cada carta de unidade no seu cemitério.",
+  "flavor": [
+    "Todo mundo me deve uma. Eu só cobro no fim.",
+    "Chegou cedo? Sem pressa. A fila anda sozinha.",
+    "Ninguém sai da minha festa. Mas olha, a lista de convidados tá cheia."
+  ],
   "tags": []
 }

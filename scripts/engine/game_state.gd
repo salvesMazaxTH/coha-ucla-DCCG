@@ -42,6 +42,8 @@ var rng := RandomNumberGenerator.new()
 var _next_uid := 1
 var _events: Array = []
 var _trigger_depth := 0
+var _chosen2 := 0 ## second target of the stack item being resolved (e.g. the damage target of a sacrifice spell)
+var _sac_atk := 0 ## total attack of the unit the last "sacrifice" killed
 var _dying: Dictionary = {} ## unit whose Ao Morrer is resolving (for summon "self")
 
 func _init(deck_a: String, deck_b: String, seed_value: int = 0) -> void:
@@ -187,6 +189,15 @@ func target_spec(effects: Array) -> String:
 	for e in effects:
 		if e.get("target", "") in ["enemy_unit", "ally_unit", "other_ally_unit", "any_unit", "any", "enemy_stack"]:
 			return e["target"]
+	return ""
+
+## Second target a card needs on top of its first (e.g. the damage target after the sacrifice), or "".
+## Declared on a "then" effect with "pick": true.
+func second_spec(cd: Dictionary) -> String:
+	for e in cd.get("effects", []):
+		for t in e.get("then", []):
+			if t.get("pick", false):
+				return t["target"]
 	return ""
 
 ## Target a card needs when played: its additional sacrifice cost (the unit to sacrifice)
@@ -357,7 +368,7 @@ func mulligan(p: int, hand_uids: Array) -> Array:
 		_start_turn(0, false)
 	return _flush()
 
-func play_card(p: int, hand_uid: int, target: int = 0) -> Array:
+func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0) -> Array:
 	if not can_play(p, hand_uid):
 		return []
 	var inst := _hand_card(p, hand_uid)
@@ -368,6 +379,9 @@ func play_card(p: int, hand_uid: int, target: int = 0) -> Array:
 		if not valid_targets(p, "ally_unit").has(target):
 			return []
 	elif cd["type"] != "unit" and spec != "" and not card_targets(p, cd).has(target):
+		return []
+	var spec2 := second_spec(cd)
+	if spec2 != "" and (target2 == target or not valid_targets(p, spec2).has(target2)):
 		return []
 	var pl: Dictionary = players[p]
 	pl["momentum"] -= cost_of(p, cd) + (counter_extra(cd, target) if spec == "enemy_stack" else 0)
@@ -388,7 +402,7 @@ func play_card(p: int, hand_uid: int, target: int = 0) -> Array:
 		_summon(p, inst["card_id"], hand_uid, false, 0 if sacrifice else target)
 		_check_state()
 	else:
-		_push(p, "card", hand_uid, inst["card_id"], target, speed_of(cd))
+		_push(p, "card", hand_uid, inst["card_id"], target, speed_of(cd), target2)
 	_settle()
 	return _flush()
 
@@ -576,8 +590,8 @@ func choose_search(p: int, card_uid: int) -> Array:
 
 # ---------------------------------------------------------------- stack & windows
 
-func _push(p: int, kind: String, uid: int, card_id: String, target: int, speed: String) -> void:
-	var item := {"sid": _uid(), "player": p, "kind": kind, "uid": uid, "card_id": card_id, "target": target, "speed": speed}
+func _push(p: int, kind: String, uid: int, card_id: String, target: int, speed: String, target2: int = 0) -> void:
+	var item := {"sid": _uid(), "player": p, "kind": kind, "uid": uid, "card_id": card_id, "target": target, "target2": target2, "speed": speed}
 	stack.append(item)
 	priority = opponent(p)
 	_emit({"type": "stack_push", "item": item.duplicate()})
@@ -598,7 +612,9 @@ func _resolve_stack() -> void:
 			_emit({"type": "fizzle", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"]})
 		else:
 			_emit({"type": "resolve", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"]})
+			_chosen2 = int(item.get("target2", 0))
 			_run_effects(p, effects, "on_play" if item["kind"] == "card" else "", int(item["target"]), 0)
+			_chosen2 = 0
 		if item["kind"] == "card":
 			var holder := find_unit(int(item["target"]))
 			if CardDB.is_equipment(CardDB.card(item["card_id"])) and not holder.is_empty() and spec != "" and valid_targets(p, spec).has(int(item["target"])):
@@ -914,7 +930,7 @@ func _apply(p: int, e: Dictionary, t: int) -> void:
 		return
 	match e["action"]:
 		"damage":
-			var amount := int(e["amount"])
+			var amount := _sac_atk if e.get("amount_from", "") == "sacrificed_atk" else int(e["amount"])
 			var red: Dictionary = e.get("ally_reduce", {})
 			var victim := find_unit(t)
 			if not red.is_empty() and not victim.is_empty() and victim["owner"] == p and CardDB.has_essence(card_of(victim), red["essence"]):
@@ -964,9 +980,10 @@ func _apply(p: int, e: Dictionary, t: int) -> void:
 			var victim := find_unit(t)
 			if victim.is_empty() or victim["owner"] != p:
 				return
+			_sac_atk = atk_of(victim) # last known attack, buffs included
 			victim["damage"] = victim["hp"] + int(victim.get("bonus_hp", 0))
 			_emit({"type": "sacrifice", "player": p, "uid": t})
-			_run_effects(p, e.get("then", []), "", 0, 0)
+			_run_effects(p, e.get("then", []), "", _chosen2, 0)
 		"buff":
 			var c := find_unit(t)
 			if c.is_empty():
