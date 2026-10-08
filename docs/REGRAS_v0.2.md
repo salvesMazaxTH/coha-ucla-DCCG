@@ -65,6 +65,10 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - **Os bloqueios são definitivos.** Se o bloqueador morre antes do dano, o atacante continua bloqueado e não acerta o Líder. Com Sobrepujança, todo o dano dele vai para o Líder.
 - Se o atacante morre antes do dano, o bloqueador não causa dano.
 - Quem não tem nenhuma jogada possível passa automaticamente.
+- **Ordem de resolução no combate:**
+  - Os atacantes causam dano na **ordem em que foram declarados** (a UI mostra esse número em cada atacante). Cada atacante bate primeiro, o bloqueador dele logo em seguida. Golpe Rápido sempre vem antes, em um passo à parte.
+  - O dano dentro de um passo **não é totalmente simultâneo**: efeitos reativos (como Ao Sofrer Dano) resolvem na hora e podem afetar os pares seguintes. As mortes só são processadas ao fim do passo, então quem recebeu dano letal ainda bate de volta no mesmo passo.
+  - Quando unidades dos dois lados morrem ao mesmo tempo, as mortes (Ao Morrer, Aliado Morre) resolvem primeiro para o **jogador da vez**, depois para o oponente.
 
 ## Olhar o topo do deck
 - Alguns efeitos (ex.: Serpente Marinha) olham as N cartas do topo do deck. Só o dono vê essas cartas; ele coloca 1 na mão, e só essa é revelada ao oponente. As outras vão para o fundo do deck.

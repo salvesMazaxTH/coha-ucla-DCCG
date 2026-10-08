@@ -35,6 +35,7 @@ var blocker_pick := 0
 var targeting := {} ## {"kind": hand|legendary|ability, "uid": int, "spec": String}
 var pairs: Array = [] ## who blocks whom this render: [{"a": attacker, "b": blocker, "forced": provoked}]
 var pair_idx := {} ## attacker or blocker uid -> index in pairs
+var atk_order := {} ## attacker uid -> 1-based declaration order (= real damage resolution order)
 
 var log_lines: Array = []
 var bg: TextureRect ## table surface, baked once into bg_vp (the live shader was too heavy for weak phones)
@@ -740,16 +741,17 @@ func _render_board(p: int, y: float) -> void:
 		layer.add_child(v)
 		views[c["uid"]] = v
 		var pi: int = pair_idx.get(c["uid"], -1)
-		var num := "  %d" % (pi + 1) if pi >= 0 else ""
+		var num := "  %d" % pairs[pi]["n"] if pi >= 0 else ""
+		var anum := "  %d" % atk_order[c["uid"]] if atk_order.size() > 1 and atk_order.has(c["uid"]) else ""
 		if attack_sel.has(c["uid"]) or g.attackers.has(c["uid"]):
 			v.position.y += -24 if p == viewer else 24
 			var prov: int = attack_sel.get(c["uid"], g.attackers.get(c["uid"], 0))
 			if prov != 0:
-				_tag(v, "PROVOCA" + num, TARGET)
+				_tag(v, "PROVOCA" + anum, TARGET)
 			elif pi < 0 and g.phase == "combat" and g.window == "damage":
-				_tag(v, "NO LÍDER", TARGET) # unblocked: it will hit the Leader
+				_tag(v, "NO LÍDER" + anum, TARGET) # unblocked: it will hit the Leader
 			else:
-				_tag(v, "ATACA" + num, SEL)
+				_tag(v, "ATACA" + anum, SEL)
 		elif pi >= 0:
 			_tag(v, ("PROVOCADA" if pairs[pi]["forced"] else "BLOQUEIA") + num, PAIR_COLS[pi % PAIR_COLS.size()])
 		elif g.is_frozen(c):
@@ -784,10 +786,16 @@ func _decorate_unit(v: CardView, c: Dictionary, p: int) -> void:
 		v.highlight = TARGET
 
 ## Every block assignment visible right now: locked-in blocks, provoked units and,
-## for the defender only, the picks not yet confirmed. Numbered left to right.
+## for the defender only, the picks not yet confirmed. Numbered by attack declaration order,
+## which is the order the engine resolves combat damage in (not the board position).
 func _collect_pairs() -> void:
 	pairs.clear()
 	pair_idx.clear()
+	atk_order.clear()
+	for src in [g.attackers, attack_sel]:
+		for a in src:
+			if not atk_order.has(a):
+				atk_order[a] = atk_order.size() + 1
 	var m := {} # attacker uid -> [blocker uid, forced]
 	for src in [g.attackers, attack_sel]:
 		for a in src:
@@ -800,12 +808,12 @@ func _collect_pairs() -> void:
 				m[a] = [block_sel[a], false]
 	for a in g.blocks:
 		m[a] = [g.blocks[a], g.attackers.get(a, 0) == g.blocks[a]]
-	for p in 2:
-		for c in g.players[p]["board"]:
-			if m.has(c["uid"]):
-				pair_idx[c["uid"]] = pairs.size()
-				pair_idx[m[c["uid"]][0]] = pairs.size()
-				pairs.append({"a": c["uid"], "b": m[c["uid"]][0], "forced": m[c["uid"]][1]})
+	var ordered: Array = m.keys()
+	ordered.sort_custom(func(x, y): return atk_order.get(x, 99) < atk_order.get(y, 99))
+	for a in ordered:
+		pair_idx[a] = pairs.size()
+		pair_idx[m[a][0]] = pairs.size()
+		pairs.append({"a": a, "b": m[a][0], "forced": m[a][1], "n": atk_order.get(a, pairs.size() + 1)})
 
 ## Arrows from each blocker to the attacker it stops, with the pair number on the curve.
 ## Redrawn every frame so they follow cards while they animate.
@@ -858,7 +866,7 @@ func _draw_pairs(o: Control) -> void:
 		var r := 13.0 + sin(t * 4.0 + i) * 1.0
 		o.draw_circle(mid, r, Color(0.05, 0.04, 0.08, 0.95))
 		o.draw_arc(mid, r, 0, TAU, 28, col, 2.5, true)
-		var n := str(i + 1)
+		var n := str(pairs[i]["n"])
 		var fs := 17
 		var w := font.get_string_size(n, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 		o.draw_string(font, mid + Vector2(-w / 2.0, fs * 0.36), n, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col.lightened(0.35))

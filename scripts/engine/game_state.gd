@@ -1125,12 +1125,13 @@ func _resolve_combat() -> void:
 	_end_combat()
 
 ## Moves dead units out, fires Ao Morrer, checks leaders. Loops until stable.
+## Deaths resolve active player first (APNAP), then the opponent.
 func _check_state() -> void:
 	var changed := true
 	while changed:
 		changed = false
 		_refresh_scaling()
-		for p in 2:
+		for p in [active, opponent(active)]:
 			for c in players[p]["board"].duplicate():
 				if hp_left(c) <= 0:
 					players[p]["board"].erase(c)

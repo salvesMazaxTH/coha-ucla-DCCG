@@ -13,6 +13,7 @@ func _init() -> void:
 		var errs := DeckDB.validate(d)
 		check(errs.is_empty(), "deck %s: %s" % [d, errs])
 	_test_off_essence()
+	_test_death_order()
 	_test_setup()
 	_test_search()
 	_test_freeze()
@@ -104,6 +105,22 @@ func _obscura_game() -> GameState:
 	return g
 
 ## Kills a unit by damage and resolves the deaths (revives and triggers included).
+func _test_death_order() -> void:
+	# simultaneous deaths on both sides resolve active player first (APNAP)
+	for first in 2:
+		var g := _new_game()
+		g.active = first
+		var a := _put(g, 0, "vigia_do_farol_do_norte")
+		var b := _put(g, 1, "vigia_do_farol_do_norte")
+		a["damage"] = 1000
+		b["damage"] = 1000
+		g._check_state()
+		var order: Array = []
+		for e in g._flush():
+			if e.get("type") == "death":
+				order.append(int(e["player"]))
+		check(order == [first, 1 - first], "mortes simultâneas: jogador da vez (%d) primeiro" % first)
+
 func _test_off_essence() -> void:
 	# fire deck: swap in off-essence (aquática) cards; neutral and own-essence cards don't count
 	var base: Dictionary = DeckDB.get_deck("fogo")["cards"].duplicate()
