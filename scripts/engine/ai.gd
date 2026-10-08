@@ -70,7 +70,7 @@ static func _try_play(g: GameState, p: int) -> Array:
 			continue
 		var cd := CardDB.card(c["card_id"])
 		var spec := g.card_spec(cd)
-		var t := _pick_sacrifice(g, p) if cd.get("cost_sacrifice", false) else _pick_target(g, p, spec, cd)
+		var t := _pick_sacrifice(g, p) if cd.get("cost_sacrifice", false) else _pick_target(g, p, spec, cd, 0, cd["type"] != "unit")
 		if spec != "" and t == 0 and cd["type"] != "unit":
 			continue
 		var t2: int = GameState.LEADER_UID[g.opponent(p)] if g.second_spec(cd) != "" else 0
@@ -79,8 +79,10 @@ static func _try_play(g: GameState, p: int) -> Array:
 			return ev
 	if g.can_use_ability(p):
 		var ab: Dictionary = CardDB.leader(g.players[p]["leader_id"])["ability"]
-		var t := _pick_target(g, p, g.target_spec(ab["effects"]), ab)
-		return g.use_ability(p, t)
+		var aspec := g.target_spec(ab["effects"])
+		var t := _pick_target(g, p, aspec, ab, 0, true)
+		if aspec == "" or t != 0:
+			return g.use_ability(p, t)
 	return []
 
 ## Additional sacrifice cost: give up the weakest ally.
@@ -95,7 +97,9 @@ static func _pick_sacrifice(g: GameState, p: int) -> int:
 	return worst
 
 ## Hostile effects pick the biggest enemy (or the Leader); friendly ones the biggest ally.
-static func _pick_target(g: GameState, p: int, spec: String, src, self_uid := 0) -> int:
+## `strict` (spells and abilities): damage to a unit only counts if it kills, because damage on units
+## wears off at end of turn; otherwise only the Leader (permanent damage) is a worthwhile target.
+static func _pick_target(g: GameState, p: int, spec: String, src, self_uid := 0, strict := false) -> int:
 	if spec == "":
 		return 0
 	if spec == "enemy_stack": # counter the priciest enemy spell/ability in reach
@@ -136,9 +140,17 @@ static func _pick_target(g: GameState, p: int, spec: String, src, self_uid := 0)
 			score = g.atk_of(c) + g.hp_left(c)
 			# prefer damage that actually kills
 			if not friendly and src is Dictionary:
+				var hits := false
+				var kills := false
 				for e in src.get("effects", []):
-					if e.get("action") == "damage" and int(e["amount"]) >= g.hp_left(c) and not c["shield"]:
-						score += 10
+					if e.get("action") == "damage":
+						hits = true
+						if int(e["amount"]) >= g.hp_left(c) and not c["shield"]:
+							kills = true
+				if kills:
+					score += 10
+				elif hits and strict:
+					continue # would heal off at end of turn
 				if not friendly and c.get("spell_shield", false):
 					score -= 20 # wasted on Escudo de Feitiço
 		if score > best_score:
@@ -147,12 +159,18 @@ static func _pick_target(g: GameState, p: int, spec: String, src, self_uid := 0)
 	return best
 
 static func _try_attack(g: GameState, p: int) -> Array:
-	var enemy_board: Array = g.players[g.opponent(p)]["board"]
+	var foe := g.opponent(p)
+	var enemy_board: Array = g.players[foe]["board"]
+	var ready: Array = []
+	for c in g.players[p]["board"]:
+		if g.can_attack(c):
+			ready.append(c)
+	if ready.is_empty():
+		return []
+	var all_in := _lethal_push(g, p, ready)
 	var attacks := {}
 	var used_prov: Array = []
-	for c in g.players[p]["board"]:
-		if not g.can_attack(c):
-			continue
+	for c in ready:
 		var prov := 0
 		if g.has_kw(c, "provocacao"):
 			for e in enemy_board:
@@ -166,12 +184,28 @@ static func _try_attack(g: GameState, p: int) -> Array:
 				safe = false
 		# aggression: attacking costs no defense, so push when the enemy is low
 		# or we outnumber their blockers
-		var pressure: bool = g.players[g.opponent(p)]["leader_hp"] <= 10 or g.players[p]["board"].size() > enemy_board.size() + 1
-		if safe or prov != 0 or enemy_board.size() == 0 or pressure:
+		var pressure: bool = g.players[foe]["leader_hp"] <= 10 or g.players[p]["board"].size() > enemy_board.size() + 1
+		if all_in or safe or prov != 0 or enemy_board.size() == 0 or pressure:
 			attacks[c["uid"]] = prov
 	if attacks.is_empty():
 		return []
 	return g.declare_attack(p, attacks)
+
+## True when sending everything kills the Leader even if the enemy blocks our biggest attackers.
+static func _lethal_push(g: GameState, p: int, ready: Array) -> bool:
+	var blockers := 0
+	for e in g.players[g.opponent(p)]["board"]:
+		if not g.is_frozen(e):
+			blockers += 1
+	var atks: Array = []
+	for c in ready:
+		atks.append(g.atk_of(c))
+	atks.sort()
+	atks.reverse()
+	var dmg := 0
+	for i in range(blockers, atks.size()):
+		dmg += atks[i]
+	return dmg >= g.players[g.opponent(p)]["leader_hp"]
 
 static func _choose_blocks(g: GameState, p: int) -> Dictionary:
 	var blocks := {}
@@ -179,24 +213,36 @@ static func _choose_blocks(g: GameState, p: int) -> Dictionary:
 	for a in g.attackers.values():
 		used.append(a)
 	var incoming := 0
+	var order: Array = []
 	for a in g.attackers:
 		if g.attackers[a] == 0:
 			incoming += g.atk_of(g.find_unit(a))
+			order.append(a)
+	order.sort_custom(func(x, y): return g.atk_of(g.find_unit(x)) > g.atk_of(g.find_unit(y)))
 	var desperate: bool = incoming >= g.players[p]["leader_hp"] - 3
-	for a in g.attackers:
-		if g.attackers[a] != 0:
-			continue
+	for a in order:
 		var att := g.find_unit(a)
 		var best := 0
+		var chump := 0
+		var chump_score := 999
 		for b in g.players[p]["board"]:
 			if used.has(b["uid"]) or not g.can_block(b, att):
 				continue
 			var kills: bool = g.atk_of(b) >= g.hp_left(att) and not att["shield"]
 			var survives: bool = g.atk_of(att) < g.hp_left(b) or b["shield"]
-			if survives or (kills and g.atk_of(att) >= g.atk_of(b)) or desperate:
+			if survives or (kills and g.atk_of(att) >= g.atk_of(b)):
 				best = b["uid"]
 				break
+			var worth: int = g.atk_of(b) + g.hp_left(b)
+			if worth < chump_score:
+				chump_score = worth
+				chump = b["uid"]
+		if best == 0 and desperate:
+			best = chump # sacrifice the cheapest body to save life
 		if best != 0:
 			blocks[a] = best
 			used.append(best)
+			if g.attackers[a] == 0:
+				incoming -= g.atk_of(att)
+				desperate = incoming >= g.players[p]["leader_hp"] - 3
 	return blocks
