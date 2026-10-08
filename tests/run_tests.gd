@@ -12,6 +12,7 @@ func _init() -> void:
 	for d in DeckDB.ids():
 		var errs := DeckDB.validate(d)
 		check(errs.is_empty(), "deck %s: %s" % [d, errs])
+	_test_flavor()
 	_test_off_essence()
 	_test_death_order()
 	_test_setup()
@@ -29,6 +30,18 @@ func _init() -> void:
 	_test_sim()
 	print("tests done, failures: ", failures)
 	quit(1 if failures > 0 else 0)
+
+func _test_flavor() -> void:
+	for id in CardDB.data()["cards"]:
+		var f: Variant = CardDB.card(id).get("flavor", "")
+		check(f is String or (f is Array and f.size() <= 3), "%s: flavor é texto ou lista de até 3" % id)
+	var ronan := CardDB.card("ronan")
+	var lines := CardDB.flavor_lines(ronan)
+	check(lines.size() == 3 and CardDB.flavor_for(ronan) == lines[0], "ronan: frase principal fora da partida")
+	CardDB.reroll_flavor()
+	var first := CardDB.flavor_for(ronan, true)
+	check(lines.has(first) and CardDB.flavor_for(ronan, true) == first, "ronan: frase fixa durante a partida")
+	check(CardDB.flavor_for({"flavor": "x"}, true) == "x" and CardDB.flavor_for({}, true) == "", "flavor em texto simples ou ausente")
 
 func _new_game() -> GameState:
 	var g := GameState.new("fogo", "agua", 42)

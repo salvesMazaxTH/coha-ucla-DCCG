@@ -265,6 +265,7 @@ func _start(ai: bool, deck_a: String, deck_b: String) -> void:
 		online = false
 	vs_ai = ai
 	g = GameState.new(deck_a, deck_b)
+	CardDB.reroll_flavor()
 	log_lines = ["Partida iniciada. Escolha até 3 cartas para trocar."]
 	viewer = 0
 	pending_pass = not vs_ai
@@ -501,6 +502,8 @@ func _on_net(m: Dictionary) -> void:
 			rs.seat = m["seat"]
 			rs.send = net.send
 			rs.apply_snapshot(m["snap"])
+			if not (g is RemoteState): # a reconnect keeps the lines already seen
+				CardDB.reroll_flavor()
 			g = rs
 			vs_ai = false
 			online = true
@@ -1428,8 +1431,9 @@ func _show_overlay(v: CardView) -> void:
 		txt += "[color=#ffe9a8][b]%s[/b][/color] — %s\n" % [k["name"], k["text"]]
 	if CardDB.is_leader_card(v.card_id):
 		txt += "\n[color=#e8c25a]Encarnação do Líder:[/color] fica no Santuário. Cada nova conjuração custa +%d. Ao morrer, volta para o Santuário.\n" % GameState.COMMANDER_TAX
-	if cd.get("flavor", "") != "":
-		txt += "\n[i][color=#888888]%s[/color][/i]" % cd["flavor"]
+	var flavor := CardDB.flavor_for(cd, true)
+	if flavor != "":
+		txt += "\n[i][color=#888888]%s[/color][/i]" % flavor
 	var rt := RichTextLabel.new()
 	rt.bbcode_enabled = true
 	rt.text = txt

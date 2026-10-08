@@ -72,6 +72,29 @@ static func essence_names(cd: Dictionary) -> String:
 		names.append(essence(id).get("name", id))
 	return " / ".join(names)
 
+## Flavor text is cosmetic only, so its roll uses its own RNG and never touches the match RNG.
+static var _flavor_rng := RandomNumberGenerator.new()
+static var _flavor_salt := 0
+
+## Call at the start of each match: every card then shows one fixed line for the whole match.
+static func reroll_flavor() -> void:
+	_flavor_salt = _flavor_rng.randi()
+
+## "flavor" is a String or an Array of Strings; the first entry is the card's main line.
+static func flavor_lines(cd: Dictionary) -> Array:
+	var f: Variant = cd.get("flavor", "")
+	var lines: Array = (f as Array).duplicate() if f is Array else [String(f)]
+	return lines.filter(func(s): return String(s) != "")
+
+## The main line outside a match; during a match, the line picked for it ("" if the card has none).
+static func flavor_for(cd: Dictionary, in_match := false) -> String:
+	var lines := flavor_lines(cd)
+	if lines.is_empty():
+		return ""
+	if not in_match or lines.size() == 1:
+		return lines[0]
+	return lines[hash("%s|%d" % [cd.get("name", ""), _flavor_salt]) % lines.size()]
+
 ## Display name of a card's species ("Humano / Dragão"); empty when it has none.
 static func species_names(cd: Dictionary) -> String:
 	var names: Array = []
