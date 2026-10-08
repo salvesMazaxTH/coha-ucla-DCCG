@@ -68,8 +68,6 @@ func _process(_d: float) -> bool:
 				check(sa["seat"] == 0 and sb["seat"] == 1, "seats")
 				check(snap_a["players"][0]["hand"][0]["card_id"] != "", "own hand visible")
 				check(snap_a["players"][1]["hand"][0]["card_id"] == "", "opponent hand hidden (a)")
-				# the first player gets the smaller opening hand
-				fi = 0 if snap_a["players"][0]["hand"].size() < snap_a["players"][1]["hand"].size() else 1
 				check(snap_b["players"][0]["hand"][0]["card_id"] == "", "opponent hand hidden (b)")
 				check(snap_a["players"][0]["deck"][0]["card_id"] == "", "deck hidden")
 				_send(b, {"t": "act", "a": "end_turn"}) # not B's turn: must be rejected
@@ -77,13 +75,22 @@ func _process(_d: float) -> bool:
 		3:
 			var m = _take(1, "reject")
 			if m:
-				_send([a, b][fi], {"t": "act", "a": "mulligan", "uids": []}) # first player mulligans first
+				_send(a, {"t": "act", "a": "mulligan", "uids": []}) # seat 0 tries first: rejected if it is not the first player
 				step = 4
 		4:
+			if _take(0, "reject"):
+				fi = 1
+				_send(b, {"t": "act", "a": "mulligan", "uids": []})
+				step = 41
+			elif _take(0, "events") and _take(1, "events"):
+				fi = 0
+				_send(b, {"t": "act", "a": "mulligan", "uids": []})
+				step = 5
+		41:
 			var ea = _take(0, "events")
 			var eb = _take(1, "events")
 			if ea and eb:
-				_send([a, b][1 - fi], {"t": "act", "a": "mulligan", "uids": []})
+				_send(a, {"t": "act", "a": "mulligan", "uids": []})
 				step = 5
 		5:
 			var ea = _take(0, "events")
@@ -96,6 +103,15 @@ func _process(_d: float) -> bool:
 			var ea = _take(0, "events")
 			if ea:
 				check(ea["snap"]["active"] == 1 - fi, "turn passed")
+				inbox[1].clear() # the other seat's copy of the end_turn events
+				_send([a, b][fi], {"t": "act", "a": "concede"}) # off-turn concede: the other seat wins at once
+				step = 7
+		7:
+			var ea = _take(0, "events")
+			var eb = _take(1, "events")
+			if ea and eb:
+				check(ea["snap"]["phase"] == "over" and ea["snap"]["winner"] == 1 - fi, "concede: opponent wins")
+				check(eb["events"].any(func(e): return e["type"] == "game_over"), "concede: game_over broadcast")
 				print("net smoke done, failures: ", failures)
 				quit(failures)
 				return true

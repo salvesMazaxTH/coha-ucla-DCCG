@@ -3,7 +3,7 @@
   "type": "spell",
   "rarity": "epic",
   "essence": "aquatica",
-  "cost": 7,
+  "cost": 8,
   "speed": "lento",
   "art": "aquatica/julgamento_da_era_afogada.webp",
   "effects": [

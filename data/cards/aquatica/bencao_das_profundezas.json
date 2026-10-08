@@ -5,7 +5,7 @@
   "essence": "aquatica",
   "cost": 2,
   "speed": "instantaneo",
-  "art": "",
+  "art": "aquatica/bencao_das_profundezas.webp",
   "effects": [
     {
       "trigger": "on_play",

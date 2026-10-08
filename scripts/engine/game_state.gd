@@ -9,8 +9,9 @@ const MULLIGAN_MAX := 3
 const HAND_LIMIT := 10
 const BOARD_LIMIT := 8
 const MOMENTUM_CAP := 10
+const RESERVE_CAP := 2 ## unspent Momentum banked at turn start; pays only spells and abilities
 const COMMANDER_TAX := 2
-const SECOND_BONUS_TURNS := 2 ## the second player's first turns that start with +1 Momentum
+const SECOND_BONUS_TURNS := 2 ## the second player's first turns that start with +1 Reserve (the first also with +1 Momentum)
 
 ## Leaders are addressed with negative uids so targets are a single int.
 const LEADER_UID := [-1, -2]
@@ -83,7 +84,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 	return {
 		"index": i, "deck_id": deck_id, "leader_id": d["leader"],
 		"leader_hp": int(ld["hp"]), "leader_max": int(ld["hp"]),
-		"momentum": 0, "max_momentum": 0,
+		"momentum": 0, "max_momentum": 0, "reserve": 0,
 		"deck": deck, "hand": [], "board": [], "graveyard": [], "banished": [],
 		"legendary": {"card_id": ld["legendary"], "in_zone": true, "casts": 0},
 		"ability_used": false, "passive_used": false, "attacked": false, "fatigue": 0, "mulligan_done": false,
@@ -259,6 +260,23 @@ func cost_of(p: int, cd: Dictionary) -> int:
 		c -= n * int(e.get("amount", 1))
 	return maxi(c, 0)
 
+## Momentum p can spend on a play: the Reserva only counts for spells and leader abilities.
+func budget(p: int, spell: bool) -> int:
+	return int(players[p]["momentum"]) + (int(players[p]["reserve"]) if spell else 0)
+
+## Pays `amount`; spells and abilities drain the Reserva first so more plain Momentum is
+## left over to bank next turn.
+func _pay(p: int, amount: int, spell: bool) -> void:
+	var pl: Dictionary = players[p]
+	if spell:
+		var r := mini(amount, int(pl["reserve"]))
+		pl["reserve"] -= r
+		amount -= r
+	pl["momentum"] -= amount
+
+static func _is_spell(cd: Dictionary) -> bool:
+	return cd.get("type", "") == "spell"
+
 func valid_targets(p: int, spec: String, self_uid: int = 0) -> Array:
 	var out: Array = []
 	var mine: Array = players[p]["board"]
@@ -323,7 +341,7 @@ func card_targets(p: int, cd: Dictionary) -> Array:
 	var ok: Array = []
 	for sid in out:
 		var x := counter_extra(cd, sid)
-		if x >= 0 and cost_of(p, cd) + x <= int(players[p]["momentum"]):
+		if x >= 0 and cost_of(p, cd) + x <= budget(p, _is_spell(cd)):
 			ok.append(sid)
 	return ok
 
@@ -355,7 +373,7 @@ func can_play(p: int, hand_uid: int) -> bool:
 	if inst.is_empty():
 		return false
 	var cd := CardDB.card(inst["card_id"])
-	if cost_of(p, cd) > players[p]["momentum"]:
+	if cost_of(p, cd) > budget(p, _is_spell(cd)):
 		return false
 	if cd["type"] == "unit":
 		if not _sorcery_time(p):
@@ -376,7 +394,7 @@ func can_use_ability(p: int) -> bool:
 	var ab: Dictionary = CardDB.leader(players[p]["leader_id"])["ability"]
 	if ab.get("passive", false):
 		return false # passives fire on their own trigger
-	if not can_cast_speed(p, speed_of(ab)) or int(ab["cost"]) > players[p]["momentum"]:
+	if not can_cast_speed(p, speed_of(ab)) or int(ab["cost"]) > budget(p, true):
 		return false
 	if (ab.get("once_per_turn", false) or ab.get("once_per_cycle", false)) and players[p]["ability_used"]:
 		return false
@@ -429,7 +447,7 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0) -> Arra
 	if spec2 != "" and (target2 == target or not valid_targets(p, spec2).has(target2)):
 		return []
 	var pl: Dictionary = players[p]
-	pl["momentum"] -= cost_of(p, cd) + (counter_extra(cd, target) if spec == "enemy_stack" else 0)
+	_pay(p, cost_of(p, cd) + (counter_extra(cd, target) if spec == "enemy_stack" else 0), _is_spell(cd))
 	pl["hand"].erase(inst)
 	_emit({"type": "play", "player": p, "uid": hand_uid, "card_id": inst["card_id"]})
 	if sacrifice:
@@ -474,7 +492,7 @@ func use_ability(p: int, target: int = 0) -> Array:
 	var spec := target_spec(ab["effects"])
 	if spec != "" and not valid_targets(p, spec).has(target):
 		return []
-	players[p]["momentum"] -= int(ab["cost"])
+	_pay(p, int(ab["cost"]), true)
 	players[p]["ability_used"] = true
 	_emit({"type": "ability", "player": p})
 	_push(p, "ability", 0, "", target, speed_of(ab))
@@ -550,6 +568,16 @@ func declare_blocks(p: int, picks: Dictionary) -> Array:
 		used.append(b)
 	_start_damage(final)
 	_settle()
+	return _flush()
+
+## Gives up the match: the opponent wins at once. Allowed at any moment, even off-turn or mid-stack.
+func concede(p: int) -> Array:
+	if phase == "over":
+		return []
+	_emit({"type": "concede", "player": p})
+	winner = opponent(p)
+	phase = "over"
+	_emit({"type": "game_over", "winner": winner})
 	return _flush()
 
 func end_turn(p: int) -> Array:
@@ -1358,10 +1386,14 @@ func _start_turn(p: int, draw: bool) -> void:
 	turn += 1
 	phase = "main"
 	var pl: Dictionary = players[p]
+	pl["reserve"] = mini(RESERVE_CAP, int(pl["reserve"]) + int(pl["momentum"])) # bank what went unspent
 	pl["max_momentum"] = min(MOMENTUM_CAP, pl["max_momentum"] + 1)
 	pl["momentum"] = pl["max_momentum"]
 	if p != first and turn <= SECOND_BONUS_TURNS * 2:
-		pl["momentum"] += 1 # going second: +1 Momentum on each of the first SECOND_BONUS_TURNS turns
+		# going second: +1 Reserve on each of the first SECOND_BONUS_TURNS turns, and +1 Momentum on the very first
+		pl["reserve"] = mini(RESERVE_CAP, int(pl["reserve"]) + 1)
+		if turn == 2:
+			pl["momentum"] += 1
 	for i in 2:
 		var q: Dictionary = players[i]
 		# once_per_turn: refreshed every turn, so instants can be used on either turn.

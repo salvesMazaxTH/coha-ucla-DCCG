@@ -18,6 +18,7 @@ func _init() -> void:
 	_test_sacrifice_damage()
 	_test_setup()
 	_test_first_player()
+	_test_concede()
 	_test_search()
 	_test_freeze()
 	_test_constant()
@@ -33,6 +34,7 @@ func _init() -> void:
 	_test_legendary_retire()
 	_test_fatigue()
 	_test_counter()
+	_test_reserve()
 	_test_damage_window()
 	_test_sim()
 	print("tests done, failures: ", failures)
@@ -269,7 +271,7 @@ func _test_obscura() -> void:
 	var af_t := _put(g, 1, "jeff")
 	af_t["shield"] = true
 	var af_own := _put(g, 0, "esqueleto_guerreiro")
-	g.players[0]["momentum"] = 10
+	g.players[0]["momentum"] = 12
 	var af1 := _give(g, 0, "afogar")
 	g.play_card(0, af1, af_t["uid"])
 	g._resolve_stack()
@@ -587,11 +589,31 @@ func _test_first_player() -> void:
 	check(g.players[1]["hand"].size() == GameState.START_HAND, "first=1: sem compra no turno 1")
 	g.end_turn(1)
 	check(g.players[0]["hand"].size() == GameState.START_HAND + 1, "first=1: o segundo jogador compra no turno dele")
-	var seen := [[1, 1]]
+	var seen := [[1, 1, 0]]
+	g.players[1]["momentum"] = 0
 	for t in 5:
-		seen.append([g.active, g.players[g.active]["momentum"]])
+		seen.append([g.active, g.players[g.active]["momentum"], g.players[g.active]["reserve"]])
+		g.players[g.active]["momentum"] = 0 # spend everything: only the bonus reaches the Reserve
 		g.end_turn(g.active)
-	check(seen == [[1, 1], [0, 2], [1, 2], [0, 3], [1, 3], [0, 3]], "segundo jogador: +1 Momentum nos 2 primeiros turnos dele (%s)" % [seen])
+	check(seen == [[1, 1, 0], [0, 2, 1], [1, 2, 0], [0, 2, 2], [1, 3, 0], [0, 3, 2]], "segundo jogador: 2/1 + 1 de Reserva no 1º turno, +1 de Reserva no 2º (%s)" % [seen])
+	g = GameState.new("fogo", "agua", 1, 1)
+	g.mulligan(1, [])
+	g.mulligan(0, [])
+	g.end_turn(1)
+	g.players[0]["momentum"] = 1 # spent little on the first turn
+	g.end_turn(0)
+	g.end_turn(1)
+	check(g.budget(0, true) == 4 and g.budget(0, false) == 2, "segundo jogador: feitiço de custo 4 no 2º turno se poupou")
+
+func _test_concede() -> void:
+	var g := _new_game()
+	var ev := g.concede(1) # off-turn: it is player 0's turn
+	check(g.phase == "over" and g.winner == 0, "conceder: o oponente vence, mesmo fora do turno")
+	check(ev.any(func(e): return e["type"] == "concede" and e["player"] == 1) and ev.any(func(e): return e["type"] == "game_over" and e["winner"] == 0), "conceder: eventos concede + game_over")
+	check(g.concede(0).is_empty() and g.winner == 0, "conceder: sem efeito depois do fim")
+	g = _new_game()
+	g.concede(0)
+	check(g.winner == 1, "conceder: o jogador 0 desiste, o 1 vence")
 
 func _test_combat() -> void:
 	var g := _new_game()
@@ -667,18 +689,45 @@ func _has_event(events: Array, type: String) -> bool:
 			return true
 	return false
 
+func _test_reserve() -> void:
+	var g := _new_game()
+	var p := g.active
+	g.players[p]["momentum"] = 5
+	g.end_turn(p)
+	g.end_turn(g.active)
+	check(g.active == p and g.players[p]["reserve"] == GameState.RESERVE_CAP, "reserva guarda o Momentum não gasto, até 2")
+	g.players[p]["momentum"] = 0
+	var unit := _give(g, p, "guerreiro_igneo")
+	check(not g.can_play(p, unit), "reserva não paga unidades")
+	g.players[p]["momentum"] = 1
+	var hp: int = g.players[1 - p]["leader_hp"]
+	var bola := _give(g, p, "bola_de_fogo")
+	check(g.can_play(p, bola), "reserva + Momentum pagam feitiço")
+	g.play_card(p, bola, GameState.LEADER_UID[1 - p])
+	_pass_windows(g)
+	check(g.players[p]["reserve"] == 0 and g.players[p]["momentum"] == 0, "feitiço gasta a reserva primeiro")
+	check(g.players[1 - p]["leader_hp"] < hp, "feitiço pago com reserva resolve")
+	var g2 := _new_game()
+	var q := g2.active
+	g2.players[q]["leader_id"] = "ronan"
+	g2.players[q]["momentum"] = 0
+	g2.players[q]["reserve"] = 1
+	check(g2.can_use_ability(q), "reserva paga habilidade do líder")
+	g2.use_ability(q, GameState.LEADER_UID[1 - q])
+	check(g2.players[q]["reserve"] == 0, "habilidade gasta a reserva")
+
 func _test_counter() -> void:
 	# Negação de Neraqa: cost-3 spell is in base reach (no extra)
 	var g := _new_game()
-	g.players[0]["momentum"] = 5
-	g.players[1]["momentum"] = 2
+	g.players[0]["momentum"] = 6
+	g.players[1]["momentum"] = 3
 	var hp: int = g.players[1]["leader_hp"]
 	var neg := _give(g, 1, "negacao_de_neraqa")
 	g.play_card(0, _give(g, 0, "bola_de_fogo"), GameState.LEADER_UID[1])
 	check(g.can_play(1, neg), "counter can answer a spell on the stack")
 	var sid: int = g.stack[0]["sid"]
 	g.play_card(1, neg, sid)
-	check(g.players[1]["momentum"] == 0, "base counter costs 2")
+	check(g.players[1]["momentum"] == 0, "base counter costs 3")
 	check(g.card_targets(0, CardDB.card("negacao_de_neraqa")).size() == 1, "only enemy items are counter targets")
 	var ev := g.pass_priority(0)
 	check(_has_event(ev, "countered") and g.stack.is_empty(), "counter removes the spell")
@@ -692,14 +741,14 @@ func _test_counter() -> void:
 	CardDB.data()["cards"]["t_big"]["cost"] = 5
 	g = _new_game()
 	g.players[0]["momentum"] = 5
-	g.players[1]["momentum"] = 4
+	g.players[1]["momentum"] = 5
 	neg = _give(g, 1, "negacao_de_neraqa")
 	_give(g, 1, "labareda") # keeps priority open (an instant is castable)
 	_put(g, 1, "tritao_lanceiro")
 	g.play_card(0, _give(g, 0, "t_big"), 0)
-	check(g.stack.size() == 1 and not g.can_play(1, neg), "cost 5 out of reach without 5 Momentum")
-	g.players[1]["momentum"] = 5
-	check(g.can_play(1, neg), "kicker reach with 5 Momentum")
+	check(g.stack.size() == 1 and not g.can_play(1, neg), "cost 5 out of reach without 6 Momentum")
+	g.players[1]["momentum"] = 6
+	check(g.can_play(1, neg), "kicker reach with 6 Momentum")
 	g.play_card(1, neg, g.stack[0]["sid"])
 	check(g.players[1]["momentum"] == 0, "kicker charges +3")
 	g.pass_priority(0)

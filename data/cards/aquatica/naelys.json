@@ -5,7 +5,7 @@
   "species": ["merfolk"],
   "essence": "aquatica",
   "cost": 3,
-  "atk": 2,
+  "atk": 3,
   "hp": 3,
   "keywords": [],
   "art": "aquatica/naelys.webp",

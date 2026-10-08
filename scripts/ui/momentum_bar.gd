@@ -1,18 +1,24 @@
 class_name MomentumBar
 extends Control
 ## Momentum as a row of crystals: lit (available), spent (hollow) and locked
-## (not unlocked yet this game), with an "x/y" readout.
+## (not unlocked yet this game), with an "x/y" readout, then the Reserva: up to
+## RESERVE_CAP smaller arcane crystals that only pay for spells and abilities.
+
+const RESERVE_COL := Color("#7fd0ff")
 
 var current := 0
 var maximum := 0
+var reserve := 0
 
-func setup(cur: int, mx: int) -> MomentumBar:
+func setup(cur: int, mx: int, res: int = 0) -> MomentumBar:
 	current = cur
 	maximum = mx
+	reserve = res
 	custom_minimum_size = Vector2(240, 30)
 	size = custom_minimum_size
 	mouse_filter = Control.MOUSE_FILTER_PASS
-	tooltip_text = "Momentum: %d de %d disponíveis" % [cur, mx]
+	tooltip_text = "Momentum: %d de %d disponíveis
+Reserva: %d de %d (só feitiços e habilidades)" % [cur, mx, res, GameState.RESERVE_CAP]
 	return self
 
 func _draw() -> void:
@@ -39,3 +45,17 @@ func _draw() -> void:
 	var x := 9 + cap * step - 4
 	draw_string_outline(font, Vector2(x, 23), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 21, 4, Color(0, 0, 0, 0.85))
 	draw_string(font, Vector2(x, 23), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 21, Color("#ffe680"))
+	var rx := x + font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 21).x + 12
+	for i in GameState.RESERVE_CAP:
+		var c := Vector2(rx + i * 13, 15)
+		var pts := PackedVector2Array([c + Vector2(0, -9), c + Vector2(5.5, -2), c + Vector2(0, 9), c + Vector2(-5.5, -2)])
+		var outline := pts + PackedVector2Array([pts[0]])
+		if i < reserve:
+			draw_circle(c, 8, Color(RESERVE_COL, 0.22))
+			draw_colored_polygon(pts, RESERVE_COL)
+			draw_colored_polygon(PackedVector2Array([pts[0], pts[1], c + Vector2(0, -1), pts[3]]), Color("#e6f7ff"))
+			draw_colored_polygon(PackedVector2Array([c + Vector2(0, -1), pts[1], pts[2]]), RESERVE_COL.darkened(0.4))
+			draw_polyline(outline, Color("#f0faff"), 1.0, true)
+		else:
+			draw_colored_polygon(pts, Color(RESERVE_COL.darkened(0.75), 0.7))
+			draw_polyline(outline, Color(RESERVE_COL, 0.4), 1.0, true)

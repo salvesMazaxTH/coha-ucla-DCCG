@@ -165,7 +165,7 @@ func _handle_room(r: Dictionary, seat: int, m: Dictionary) -> void:
 		for s in 2:
 			_send(r["peers"][s], {"t": "events", "events": StateView.filter_events(ev, s), "snap": StateView.snapshot(g, s)})
 		return
-	var events := _apply(g, seat, m)
+	var events := g.concede(seat) if m.get("a", "") == "concede" else _apply(g, seat, m) # conceding is allowed off-turn
 	if events.is_empty():
 		_send(r["peers"][seat], {"t": "reject", "a": m.get("a", "")})
 		return

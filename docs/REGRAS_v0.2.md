@@ -3,6 +3,8 @@
 ## Objetivo
 Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida do Líder inimigo. Se os dois Líderes caírem ao mesmo tempo, é empate.
 
+**Conceder:** a qualquer momento, mesmo fora do seu turno ou com a pilha ocupada, o jogador pode desistir (botão **Conceder**, com confirmação). O oponente vence na hora. A IA nunca concede.
+
 ## Deck
 - O deck tem **48 cartas**, com até **3 cópias** de cada uma. O Líder fica fora dessa contagem.
 - As **essências** do Líder (ígnea, aquática, glacial, vegetal, rochosa, metálica, elétrica, obscura, sagrada) definem as cartas permitidas no deck. Cartas **neutras** entram em qualquer deck.
@@ -21,11 +23,12 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - Os dois jogadores começam com **5 cartas** na mão.
 - **Mulligan:** cada jogador pode devolver até 3 cartas ao deck, que é embaralhado, e comprar a mesma quantidade.
 - Quem joga primeiro **não compra** no primeiro turno. Quem joga em segundo compra normalmente, então cada um começa o seu primeiro turno com 5 e 6 cartas, respectivamente.
-- Quem joga em segundo ganha **+1 Momentum** nos seus **dois primeiros turnos** (só naquele turno; o máximo não muda).
+- Quem joga em segundo ganha **+1 Momentum** no seu **primeiro turno** (só naquele turno; o máximo não muda) e **+1 na Reserva** nos seus **dois primeiros turnos**.
 
 ## Momentum
 - O Momentum máximo começa em **1** e sobe **+1 por turno**, até o teto de **10**.
-- Ele é reabastecido no início do seu turno. O que sobra **não acumula** para o turno seguinte.
+- Ele é reabastecido no início do seu turno. O que sobra vai para a **Reserva**, que guarda até **2**.
+- A **Reserva** só paga **feitiços** e **habilidades** (nunca unidades nem a Encarnação) e é gasta primeiro.
 
 ## Turno
 1. **Início:** o Momentum é reabastecido, você compra 1 carta e suas unidades ficam prontas.

@@ -49,6 +49,8 @@ var layer: Control
 var overlay: Control
 var search_overlay: Control
 var grave_view: Control ## graveyard viewer (child of Main, outlives _render)
+var concede_view: Control ## "concede?" confirmation (child of Main, outlives _render)
+var conceded := -1 ## player who gave up this match (-1 = nobody); only used for the game-over text
 var grave_panel: PanelContainer
 var grave_scroll: ScrollContainer
 var grave_owner := 0
@@ -230,6 +232,7 @@ func _show_menu() -> void:
 		net.disconnect_server() ## the saved session stays: RETOMAR PARTIDA in the lobby
 		online = false
 	g = null
+	_close_concede()
 	_clear_fx()
 	_clear()
 	table.visible = false
@@ -317,6 +320,7 @@ func _start(ai: bool, deck_a: String, deck_b: String) -> void:
 		g.auto_pass[i] = _auto_pass_on() or _is_ai(i)
 	CardDB.reroll_flavor()
 	log_lines = ["Partida iniciada. Escolha até 3 cartas para trocar."]
+	conceded = -1
 	viewer = 0
 	pending_pass = not vs_ai
 	_reset_input()
@@ -564,6 +568,7 @@ func _on_net(m: Dictionary) -> void:
 			opp_online = true
 			if log_lines.is_empty() or m.get("snap", {}).get("turn", 0) == 0:
 				log_lines = ["Partida online iniciada."]
+				conceded = -1
 			_reset_input()
 			_clear_fx()
 			_render()
@@ -666,6 +671,8 @@ func _render() -> void:
 	table.sockets = [Rect2(268, 8, 150, 208), Rect2(268, 684, 150, 208)]
 	table.visible = true
 	table.queue_redraw()
+	if g.phase == "over":
+		_close_concede()
 	if pending_pass or g.phase in ["search", "over"]:
 		_close_graveyard()
 	else:
@@ -750,7 +757,7 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	var mb := MomentumBar.new()
 	mb.position = mom_pos
 	layer.add_child(mb)
-	mb.setup(pl["momentum"], pl["max_momentum"])
+	mb.setup(pl["momentum"], pl["max_momentum"], int(pl.get("reserve", 0)))
 
 func _render_command(p: int, pos: Vector2) -> void:
 	var l: Dictionary = g.players[p]["legendary"]
@@ -1152,11 +1159,19 @@ func _render_side() -> void:
 	ap.add_theme_font_size_override("font_size", 18)
 	ap.tooltip_text = "Pula sozinho as janelas em que você não tem nenhuma jogada válida."
 	layer.add_child(ap)
+	var half := (COL_W - 8.0) / 2.0
 	var menu := _button("Menu", _show_menu)
 	menu.position = Vector2(col_x, 832)
-	menu.size = Vector2(COL_W, 52)
+	menu.size = Vector2(COL_W if g.phase == "over" else half, 52)
 	menu.add_theme_font_size_override("font_size", 20)
 	layer.add_child(menu)
+	if g.phase != "over":
+		var cc := _button("Conceder", _ask_concede)
+		cc.position = Vector2(col_x + half + 8.0, 832)
+		cc.size = Vector2(half, 52)
+		cc.add_theme_font_size_override("font_size", 18)
+		cc.tooltip_text = "Desiste da partida: o oponente vence."
+		layer.add_child(cc)
 
 ## The stack (newest on top) in the side column; right-click/hold a card to read it.
 func _render_stack(y: float) -> void:
@@ -1375,7 +1390,10 @@ func _render_game_over() -> void:
 	big.add_theme_constant_override("shadow_offset_y", 0)
 	box.add_child(big)
 	if g.winner < 2:
-		box.add_child(_label("%s triunfa na arena" % CardDB.leader(g.players[g.winner]["leader_id"])["name"], 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+		var sub := "%s triunfa na arena" % CardDB.leader(g.players[g.winner]["leader_id"])["name"]
+		if conceded >= 0:
+			sub = "%s desistiu da partida" % ("Você" if (vs_ai and conceded == 0) else _pname(conceded))
+		box.add_child(_label(sub, 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
 	box.add_child(_label("Turno %d" % g.turn, 14, Color(UITheme.TEXT, 0.4), HORIZONTAL_ALIGNMENT_CENTER, "title"))
 	var b := _button("VOLTAR AO MENU", _show_menu, true)
 	b.custom_minimum_size = Vector2(520, 54)
@@ -1699,6 +1717,55 @@ func _close_overlay() -> void:
 	if overlay:
 		overlay.queue_free()
 		overlay = null
+
+# ---------------------------------------------------------------- concede
+
+## Confirmation before giving up; a persistent child of Main so re-renders (AI/opponent moves) don't dismiss it.
+func _ask_concede() -> void:
+	if g == null or g.phase == "over" or concede_view:
+		return
+	concede_view = Control.new()
+	concede_view.set_anchors_preset(Control.PRESET_FULL_RECT)
+	concede_view.mouse_filter = Control.MOUSE_FILTER_STOP
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.72)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	concede_view.add_child(dim)
+	var pc := PanelContainer.new()
+	var sb := UITheme.panel(14)
+	sb.set_content_margin_all(36)
+	sb.border_color = Color(UITheme.GOLD, 0.6)
+	sb.shadow_size = 40
+	pc.add_theme_stylebox_override("panel", sb)
+	var box := VBoxContainer.new()
+	box.custom_minimum_size = Vector2(460, 0)
+	box.add_theme_constant_override("separation", 14)
+	pc.add_child(box)
+	box.add_child(_label("CONCEDER A PARTIDA?", 34, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
+	box.add_child(_label("O oponente vence na hora.", 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+	var yes := _button("CONCEDER", _confirm_concede, true)
+	yes.custom_minimum_size = Vector2(460, 54)
+	box.add_child(yes)
+	var no := _button("CONTINUAR JOGANDO", _close_concede)
+	no.custom_minimum_size = Vector2(460, 48)
+	box.add_child(no)
+	concede_view.add_child(pc)
+	add_child(concede_view)
+	pc.reset_size()
+	pc.position = (Vector2(stage_w, STAGE_H) - pc.size) / 2.0
+	_center.call_deferred(pc)
+
+func _close_concede() -> void:
+	if concede_view:
+		concede_view.queue_free()
+		concede_view = null
+
+func _confirm_concede() -> void:
+	_close_concede()
+	if g == null or g.phase == "over":
+		return
+	_do(g.concede(viewer))
 
 # ---------------------------------------------------------------- graveyard viewer
 
@@ -2498,6 +2565,9 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s atacou com %d" % [_pname(e["player"]), e["attackers"].size()])
 		"death":
 			pass
+		"concede":
+			conceded = e["player"]
+			_log("%s desistiu da partida" % _pname(e["player"]))
 		"fatigue":
 			_log("%s: fadiga %d" % [_pname(e["player"]), e["amount"]])
 		"start_turn":

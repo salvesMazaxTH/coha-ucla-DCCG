@@ -3,7 +3,7 @@
   "type": "spell",
   "rarity": "epic",
   "essence": "aquatica",
-  "cost": 6,
+  "cost": 7,
   "speed": "lento",
   "art": "aquatica/tsunami.webp",
   "effects": [

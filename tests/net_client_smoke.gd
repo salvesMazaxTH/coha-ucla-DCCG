@@ -39,24 +39,26 @@ func _on_msg(m: Dictionary, i: int) -> void:
 			states[i] = rs
 			check(rs.players[i]["hand"][0]["uid"] is int, "uid is int")
 			check(rs.players[i]["hand"][0]["card_id"] != "", "own hand visible")
-			check(rs.decider() == 0, "seat 0 decides mulligan")
+			check(rs.decider() == rs.first, "the coin-flip winner decides the mulligan first")
 			if i == 1:
 				step = 2
-				(states[0] as RemoteState).mulligan(0, [])
+				(states[rs.first] as RemoteState).mulligan(rs.first, [])
 		"events":
 			(states[i] as RemoteState).apply_snapshot(m["snap"])
 			got[i] += 1
 			if step == 2 and got[0] == 1 and got[1] == 1:
 				step = 3
-				(states[1] as RemoteState).mulligan(1, [])
+				var f: int = (states[0] as RemoteState).first
+				(states[1 - f] as RemoteState).mulligan(1 - f, [])
 			elif step == 3 and got[0] == 2 and got[1] == 2:
-				var g0: RemoteState = states[0]
-				check(g0.phase == "main" and g0.decider() == 0, "main phase")
+				var f: int = (states[0] as RemoteState).first
+				var g0: RemoteState = states[f]
+				check(g0.phase == "main" and g0.decider() == f and (states[1 - f] as RemoteState).decider() == f, "main phase")
 				var playable := 0
-				for card in g0.players[0]["hand"]:
-					if g0.can_play(0, card["uid"]):
+				for card in g0.players[f]["hand"]:
+					if g0.can_play(f, card["uid"]):
 						playable += 1
-				print("playable cards for seat 0: ", playable)
+				print("playable cards for seat ", f, ": ", playable)
 				print("net client smoke done, failures: ", failures)
 				quit(failures)
 

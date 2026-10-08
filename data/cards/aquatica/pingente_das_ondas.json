@@ -1,11 +1,13 @@
 {
   "name": "Pingente das Ondas",
   "type": "artifact",
-  "subtypes": ["equipment"],
+  "subtypes": [
+    "equipment"
+  ],
   "rarity": "common",
   "essence": "aquatica",
   "cost": 2,
-  "art": "",
+  "art": "aquatica/pingente_das_ondas.webp",
   "effects": [
     {
       "trigger": "on_play",

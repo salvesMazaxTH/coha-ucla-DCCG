@@ -339,19 +339,27 @@ func _draw() -> void:
 	var name_s: String = cd["name"]
 	_text(nf, name_s, Vector2(size.x / 2, py + ph / 2 + 4 * s), _fit(nf, name_s, 11.5 * s, size.x - 24 * s), Color("#fff4dc"))
 
-	# lower panel: keywords (units) or card type
-	var panel := Rect2(Vector2(10, 126) * s, Vector2(BASE.x - 20, 34) * s)
-	_rrect_fill(panel, 4 * s, Color(0, 0, 0, 0.38))
-	_rrect_line(panel, 4 * s, Color(trim, 0.25), 1 * s)
-	var lines := _panel_lines(cd)
-	var bf := UITheme.font("bold")
-	var ly := panel.get_center().y + 3.5 * s - (lines.size() - 1) * 6.25 * s
-	for ln in lines:
-		var room := panel.size.x - 24 * s
-		if cd["type"] == "unit" and ly > 142 * s:
-			room = size.x - 2 * 31 * s # lines low in the panel sit between the atk/hp gems
-		_text_segments(bf, ln, Vector2(size.x / 2, ly), 11.5 * s, room)
-		ly += 12.5 * s
+	# lower panel: keywords (units), card type (artifacts) or the rules text (spells)
+	if cd["type"] == "spell":
+		# no gems at the bottom corners of a spell, so its panel is wider and taller to fit the text
+		var tp := Rect2(Vector2(8, 124.5) * s, Vector2(BASE.x - 16, 36.5) * s)
+		_rrect_fill(tp, 4 * s, Color(0, 0, 0, 0.5))
+		_rrect_line(tp, 4 * s, Color(trim, 0.25), 1 * s)
+		_wrapped_text(UITheme.font("bold"), str(cd.get("text", "")), tp.grow_individual(-4 * s, -1.5 * s, -4 * s, -1.5 * s), 10.0 * s, 6.0 * s, Color("#f1e8d4"))
+		_speed_badge(Vector2(size.x / 2, 17 * s), str(cd.get("speed", "lento")), s)
+	else:
+		var panel := Rect2(Vector2(10, 126) * s, Vector2(BASE.x - 20, 34) * s)
+		_rrect_fill(panel, 4 * s, Color(0, 0, 0, 0.38))
+		_rrect_line(panel, 4 * s, Color(trim, 0.25), 1 * s)
+		var lines := _panel_lines(cd)
+		var bf := UITheme.font("bold")
+		var ly := panel.get_center().y + 3.5 * s - (lines.size() - 1) * 6.25 * s
+		for ln in lines:
+			var room := panel.size.x - 24 * s
+			if cd["type"] == "unit" and ly > 142 * s:
+				room = size.x - 2 * 31 * s # lines low in the panel sit between the atk/hp gems
+			_text_segments(bf, ln, Vector2(size.x / 2, ly), 11.5 * s, room)
+			ly += 12.5 * s
 
 	# essence seal on the bottom edge, crest on the top edge
 	_rarity_gem(Vector2(size.x / 2, size.y - 3 * s), 5.5 * s, cd["rarity"], trim)
@@ -572,7 +580,8 @@ func _panel_lines(cd: Dictionary) -> Array:
 			kws.push_front("escudo")
 	var out := []
 	if cd["type"] != "unit":
-		var kind: String = {"spell": "FEITIÇO", "artifact": "ARTEFATO"}[cd["type"]]
+		# spells never get here: they print their rules text and carry the speed badge instead
+		var kind := "ARTEFATO"
 		if CardDB.is_equipment(cd):
 			kind += " · EQUIPAMENTO"
 		var spd: String = {"rapido": " · RÁPIDO", "instantaneo": " · INSTANTÂNEO"}.get(cd.get("speed", "lento"), "")
@@ -893,6 +902,75 @@ func _text_segments(font: Font, segs: Array, center: Vector2, fs: float, max_w: 
 			draw_string_outline(font, p, g[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), ol, Color(0, 0, 0, 0.85))
 			draw_string(font, p, g[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), g[1])
 			x += font.get_string_size(g[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x
+
+## Greedy word wrap of `t` at font size `fs` (pixels) into lines no wider than `max_w`.
+func _wrap_words(font: Font, t: String, fs: int, max_w: float) -> PackedStringArray:
+	var lines := PackedStringArray()
+	var cur := ""
+	for w in t.split(" ", false):
+		var trial: String = w if cur == "" else cur + " " + w
+		if cur != "" and font.get_string_size(trial, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > max_w:
+			lines.append(cur)
+			cur = w
+		else:
+			cur = trial
+	if cur != "":
+		lines.append(cur)
+	return lines
+
+## Rules text wrapped and centered inside `box`, at the largest size (max_fs down to min_fs) that fits.
+func _wrapped_text(font: Font, t: String, box: Rect2, max_fs: float, min_fs: float, col: Color) -> void:
+	var fs := int(max_fs)
+	var lines := _wrap_words(font, t, fs, box.size.x)
+	while fs > int(min_fs):
+		var widest := 0.0
+		for ln in lines:
+			widest = max(widest, font.get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+		if lines.size() * fs * 1.12 <= box.size.y and widest <= box.size.x:
+			break
+		fs -= 1
+		lines = _wrap_words(font, t, fs, box.size.x)
+	var lh := fs * 1.12
+	var y := box.get_center().y - (lines.size() - 1) * lh / 2.0 + fs * 0.34
+	for ln in lines:
+		_text(font, ln, Vector2(box.get_center().x, y), fs, col)
+		y += lh
+
+## Spell speed seal on the top edge of the art, between the cost orb and the essence badge:
+## steel hourglass (lento), gold bolt (rápido) or cyan double bolt (instantâneo).
+func _speed_badge(c: Vector2, speed: String, s: float) -> void:
+	var info: Array = {
+		"lento": ["LENTO", Color("#a9b6c8")],
+		"rapido": ["RÁPIDO", Color("#ffd27a")],
+		"instantaneo": ["INSTANTÂNEO", Color("#7fe8ff")],
+	}.get(speed, ["LENTO", Color("#a9b6c8")])
+	var label: String = info[0]
+	var col: Color = info[1]
+	var f := UITheme.font("heavy")
+	var icon_w := (11.0 if speed == "instantaneo" else 7.0) * s
+	var pad := 4.0 * s
+	var gap := 2.5 * s
+	var fs := _fit(f, label, 7.5 * s, 62 * s - 2 * pad - icon_w - gap)
+	var tw := f.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x
+	var w := 2 * pad + icon_w + gap + tw
+	var pill := Rect2(c - Vector2(w / 2, 6.2 * s), Vector2(w, 12.4 * s))
+	_rrect_fill(Rect2(pill.position + Vector2(0, 1.4 * s), pill.size), 6 * s, Color(0, 0, 0, 0.45))
+	_rrect_fill(pill, 6 * s, Color("#0d0b12", 0.9))
+	_rrect_line(pill, 6 * s, Color(col, 0.95), 1.1 * s)
+	var ic := Vector2(pill.position.x + pad + icon_w / 2, c.y)
+	var u := 4.6 * s # half-height of the icon
+	match speed:
+		"rapido":
+			draw_colored_polygon(_unit_pts(ic, u, [[0.3, -1], [-0.6, 0.15], [-0.05, 0.15], [-0.3, 1], [0.6, -0.2], [0.05, -0.2]]), col)
+		"instantaneo":
+			for dx in [-0.5, 0.5]:
+				draw_colored_polygon(_unit_pts(ic + Vector2(dx * 4.2 * s, 0), u, [[0.3, -1], [-0.6, 0.15], [-0.05, 0.15], [-0.3, 1], [0.6, -0.2], [0.05, -0.2]]), col)
+		_:
+			draw_colored_polygon(_unit_pts(ic, u, [[-0.65, -1], [0.65, -1], [0, 0]]), Color(col, 0.55))
+			draw_colored_polygon(_unit_pts(ic, u, [[0, 0], [0.65, 1], [-0.65, 1]]), col)
+			draw_line(ic + Vector2(-0.8, -1) * u, ic + Vector2(0.8, -1) * u, col, 1.0 * s)
+			draw_line(ic + Vector2(-0.8, 1) * u, ic + Vector2(0.8, 1) * u, col, 1.0 * s)
+	_text(f, label, Vector2(pill.position.x + pad + icon_w + gap + tw / 2, c.y + fs * 0.36), fs, col.lightened(0.25))
 
 func _text(font: Font, t: String, center: Vector2, fs: float, col: Color) -> void:
 	var w := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x

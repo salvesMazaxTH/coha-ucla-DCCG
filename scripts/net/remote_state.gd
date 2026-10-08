@@ -35,6 +35,7 @@ func apply_snapshot(snap: Dictionary) -> void:
 	players = s["players"]
 	active = s["active"]
 	turn = s["turn"]
+	first = int(s.get("first", 0))
 	phase = s["phase"]
 	winner = s["winner"]
 	attackers = s["attackers"]
@@ -75,6 +76,9 @@ func set_auto_pass(p: int, on: bool) -> Array:
 
 func pass_priority(_p: int) -> Array:
 	return _act({"a": "pass"})
+
+func concede(_p: int) -> Array:
+	return _act({"a": "concede"})
 
 func end_turn(_p: int) -> Array:
 	return _act({"a": "end_turn"})

@@ -29,6 +29,7 @@ static func snapshot(g: GameState, seat: int) -> Dictionary:
 		"players": players,
 		"active": g.active,
 		"turn": g.turn,
+		"first": g.first,
 		"phase": g.phase,
 		"winner": g.winner,
 		"decider": g.decider(),
