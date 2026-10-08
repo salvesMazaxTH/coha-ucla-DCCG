@@ -17,6 +17,7 @@ func _init() -> void:
 	_test_death_order()
 	_test_sacrifice_damage()
 	_test_setup()
+	_test_first_player()
 	_test_search()
 	_test_freeze()
 	_test_constant()
@@ -238,7 +239,8 @@ func _test_obscura() -> void:
 	var tit := _put(g, 0, "titanico_morcegalma")
 	check(g.atk_of(tit) == 5 and g.hp_left(tit) == 6 and g.has_kw(tit, "longo_alcance") and not g.has_kw(tit, "voo"), "titânico 5/6 Longo Alcance sem Voo")
 	check(g.players[0]["deck"].size() == dk - 2 and g.players[0]["graveyard"].size() == gy + 2, "titânico mói 2")
-	# Necromante revives a unit of cost <= 3
+	# Necromante revives a unit of cost <= 3 (seeded, so it does not depend on what the mill happened to hit)
+	g.players[0]["graveyard"].append({"uid": g._uid(), "card_id": "esqueleto_guerreiro"})
 	gy = g.players[0]["graveyard"].size()
 	_put(g, 0, "o_espiritomante")
 	check(g.players[0]["graveyard"].size() == gy - 1, "necromante reviveu do cemitério")
@@ -487,12 +489,22 @@ func _test_freeze() -> void:
 
 func _test_setup() -> void:
 	var g := GameState.new("fogo", "agua", 1)
-	check(g.players[0]["hand"].size() == 6 and g.players[1]["hand"].size() == 7, "starting hands 6/7")
-	check(g.players[0]["deck"].size() == 41, "legendary not in deck")
+	check(g.players[0]["hand"].size() == GameState.START_HAND and g.players[1]["hand"].size() == GameState.START_HAND + 1, "starting hands")
+	check(g.players[0]["deck"].size() == 47 - GameState.START_HAND, "legendary not in deck")
 	g.mulligan(0, [g.players[0]["hand"][0]["uid"]])
 	g.mulligan(1, [])
 	check(g.phase == "main" and g.active == 0 and g.players[0]["momentum"] == 1, "turn 1 momentum")
-	check(g.players[0]["hand"].size() == 6, "no draw turn 1")
+	check(g.players[0]["hand"].size() == GameState.START_HAND, "no draw turn 1")
+
+func _test_first_player() -> void:
+	var g := GameState.new("fogo", "agua", 1, 1)
+	check(g.players[1]["hand"].size() == GameState.START_HAND and g.players[0]["hand"].size() == GameState.START_HAND + 1, "first=1: o segundo jogador (0) tem a carta extra")
+	check(g.decider() == 1, "first=1: mulligan começa pelo jogador 1")
+	g.mulligan(1, [])
+	check(g.decider() == 0, "first=1: depois o jogador 0")
+	g.mulligan(0, [])
+	check(g.phase == "main" and g.active == 1 and g.turn == 1, "first=1: o jogador 1 abre o turno 1")
+	check(g.players[1]["hand"].size() == GameState.START_HAND, "first=1: sem compra no turno 1")
 
 func _test_combat() -> void:
 	var g := _new_game()

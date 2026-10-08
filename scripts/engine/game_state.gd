@@ -4,7 +4,7 @@ extends RefCounted
 ## state and returns an Array of event Dictionaries the UI can animate.
 ## Invalid actions return [] and leave state untouched.
 
-const START_HAND := 6
+const START_HAND := 5
 const MULLIGAN_MAX := 3
 const HAND_LIMIT := 10
 const BOARD_LIMIT := 8
@@ -17,6 +17,7 @@ const LEADER_UID := [-1, -2]
 var players: Array = []
 var active := 0
 var turn := 0
+var first := 0 ## who takes turn 1 (skips that draw, mulligans first, gets the smaller opening hand)
 var phase := "mulligan"
 var winner := -1 ## -1 none, 0/1 player, 2 draw
 ## Pending combat: attacker uid -> provoked enemy uid (or 0)
@@ -46,12 +47,13 @@ var _chosen2 := 0 ## second target of the stack item being resolved (e.g. the da
 var _sac_atk := 0 ## total attack of the unit the last "sacrifice" killed
 var _dying: Dictionary = {} ## unit whose Ao Morrer is resolving (for summon "self")
 
-func _init(deck_a: String, deck_b: String, seed_value: int = 0) -> void:
+func _init(deck_a: String, deck_b: String, seed_value: int = 0, first_player: int = 0) -> void:
 	rng.seed = seed_value if seed_value != 0 else randi()
+	first = first_player
 	for i in 2:
 		players.append(_make_player(i, [deck_a, deck_b][i]))
 	for i in 2:
-		_draw(i, START_HAND + i) # second player gets one extra card
+		_draw(i, START_HAND + (1 if i != first else 0)) # second player gets one extra card
 	_events.clear()
 
 func _make_player(i: int, deck_id: String) -> Dictionary:
@@ -101,7 +103,7 @@ func opponent(p: int) -> int:
 func decider() -> int:
 	match phase:
 		"mulligan":
-			return 0 if not players[0]["mulligan_done"] else 1
+			return first if not players[first]["mulligan_done"] else opponent(first)
 		"blocks":
 			return opponent(active)
 		"search":
@@ -369,7 +371,7 @@ func mulligan(p: int, hand_uids: Array) -> Array:
 	pl["mulligan_done"] = true
 	_emit({"type": "mulligan", "player": p, "count": back.size()})
 	if players[0]["mulligan_done"] and players[1]["mulligan_done"]:
-		_start_turn(0, false)
+		_start_turn(first, false)
 	return _flush()
 
 func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0) -> Array:

@@ -119,7 +119,7 @@ func _handle_lobby(ws: WebSocketPeer, m: Dictionary) -> void:
 			r["peers"][1] = ws
 			_unpend(ws)
 			_send(ws, {"t": "room", "code": code, "seat": 1, "token": token, "deck": r["decks"][1]})
-			r["g"] = GameState.new(r["decks"][0], r["decks"][1])
+			r["g"] = GameState.new(r["decks"][0], r["decks"][1], 0, randi() % 2) # coin flip, not always the room creator
 			for s in 2:
 				_send_start(r, s)
 		"resume":
