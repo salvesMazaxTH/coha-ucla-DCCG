@@ -1,0 +1,25 @@
+{
+  "name": "Rato do Ossuário",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "fera",
+    "morto_vivo"
+  ],
+  "essence": "obscura",
+  "cost": 1,
+  "atk": 2,
+  "hp": 1,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 2
+    }
+  ],
+  "text": "Ao Morrer: cause 2 de dano ao Líder inimigo.",
+  "flavor": "Rói o que sobra. E morde ao cair.",
+  "tags": []
+}

@@ -1,0 +1,16 @@
+{
+  "name": "Carrasco da Ceifa",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["demonio"],
+  "essence": "obscura",
+  "cost": 4,
+  "atk": 3,
+  "hp": 2,
+  "keywords": ["impeto"],
+  "art": "obscura/carrasco_da_ceifa.webp",
+  "effects": [{"trigger":"on_attack","action":"damage","target":"enemy_leader","amount":2}],
+  "text": "Ao Atacar: cause 2 de dano ao Líder inimigo.",
+  "flavor": "Chega com pressa. Sai sem culpa.",
+  "tags": []
+}
