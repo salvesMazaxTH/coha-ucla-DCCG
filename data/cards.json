@@ -103,13 +103,13 @@
       "name": "Longo Alcance",
       "text": "Pode bloquear unidades com Voo."
     },
-    "furtivo": {
-      "name": "Furtivo",
-      "text": "Só pode ser bloqueada por unidades com Furtivo ou Vigia."
+    "furtividade": {
+      "name": "Furtividade",
+      "text": "Só pode ser bloqueada por unidades com Furtividade ou Vigilância."
     },
-    "vigia": {
-      "name": "Vigia",
-      "text": "Pode bloquear unidades com Furtivo."
+    "vigilancia": {
+      "name": "Vigilância",
+      "text": "Pode bloquear unidades com Furtividade."
     },
     "nao_bloqueia": {
       "name": "Não Bloqueia",

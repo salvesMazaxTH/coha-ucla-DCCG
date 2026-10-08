@@ -43,6 +43,7 @@ func apply_snapshot(snap: Dictionary) -> void:
 	stack = s.get("stack", [])
 	priority = int(s.get("priority", active))
 	window = String(s.get("window", ""))
+	summon_window = bool(s.get("summon_window", false))
 
 func _act(m: Dictionary) -> Array:
 	m["t"] = "act"
@@ -66,6 +67,10 @@ func declare_attack(_p: int, attacks: Dictionary) -> Array:
 
 func declare_blocks(_p: int, picks: Dictionary) -> Array:
 	return _act({"a": "blocks", "blocks": picks})
+
+func set_auto_pass(p: int, on: bool) -> Array:
+	auto_pass[p] = on
+	return _act({"a": "auto", "on": on})
 
 func pass_priority(_p: int) -> Array:
 	return _act({"a": "pass"})

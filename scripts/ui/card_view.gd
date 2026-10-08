@@ -83,6 +83,17 @@ var draggable := false ## set by Main: hand cards that can be played are dragged
 var dragging := false
 static var _tex_cache := {}
 static var _dissolve: Shader
+static var _stealth_shader: Shader
+
+## Keywords that change who can block whom get an icon medallion on the art (MTG Arena style),
+## in this order down the left edge; glyph tint per keyword.
+const BADGES := {
+	"voo": Color("#bfe6ff"),
+	"longo_alcance": Color("#d6efaa"),
+	"furtividade": Color("#cdb6ff"),
+	"vigilancia": Color("#ffe39a"),
+	"nao_bloqueia": Color("#ff7f6e"),
+}
 
 func setup(id: String, instance: Dictionary = {}, size_scale := 1.0) -> CardView:
 	card_id = id
@@ -98,7 +109,18 @@ func setup(id: String, instance: Dictionary = {}, size_scale := 1.0) -> CardView
 	mouse_exited.connect(func():
 		hovered = false
 		queue_redraw())
+	if inst.has("damage") and _keywords(CardDB.card_for(id, inst)).has("furtividade"):
+		_stealth()
 	return self
+
+## Furtividade on the board: half see-through card under a drifting fog (shader, no redraws).
+func _stealth() -> void:
+	if _stealth_shader == null:
+		_stealth_shader = load("res://scripts/ui/shaders/stealth.gdshader")
+	var m := ShaderMaterial.new()
+	m.shader = _stealth_shader
+	m.set_shader_parameter("size", size)
+	material = m
 
 func _has_point(p: Vector2) -> bool:
 	return Rect2(Vector2.ZERO, size + Vector2(0, hit_pad)).has_point(p)
@@ -288,6 +310,7 @@ func _draw() -> void:
 		_draw_frost(art, s)
 	if inst.get("tide_mark", false):
 		draw_arc(art.get_center() + Vector2(0, art.size.y * 0.32), art.size.x * 0.3, PI * 1.15, PI * 1.85, 24, Color("#6fd0ff", 0.85), 2 * s, true)
+	_kw_badges(art, cd, s)
 
 	# species strip on the bottom edge of the art, right above the name plate
 	var sp_s := CardDB.species_names(cd).to_upper()
@@ -405,8 +428,77 @@ func _draw_frost(art: Rect2, s: float) -> void:
 		_diamond(c, rr * 0.3, Color(1, 1, 1, 0.85))
 	draw_rect(art.grow(-0.5 * s), Color(FROST, 0.8), false, 1.4 * s)
 
+## Live keywords on the board, printed ones elsewhere.
+func _keywords(cd: Dictionary) -> Array:
+	return inst.get("keywords", cd.get("keywords", []))
+
+## Round medallions down the left edge of the art, under the cost gem.
+func _kw_badges(art: Rect2, cd: Dictionary, s: float) -> void:
+	var kws := _keywords(cd)
+	var c := Vector2(art.position.x + 11 * s, art.position.y + 33 * s)
+	for kw in BADGES:
+		if kws.has(kw):
+			_kw_badge(kw, c, 10 * s, s)
+			c.y += 23 * s
+
+func _kw_badge(kw: String, c: Vector2, r: float, s: float) -> void:
+	var col: Color = BADGES[kw]
+	# bezel and body, same metal as the gems
+	draw_circle(c + Vector2(0, 1.4 * s), r * 1.18, Color(0, 0, 0, 0.5))
+	draw_circle(c, r * 1.14, UITheme.GOLD_DARK.darkened(0.3))
+	draw_circle(c, r * 1.07, UITheme.GOLD)
+	draw_circle(c, r, col.darkened(0.82))
+	draw_circle(c - Vector2(0, r * 0.35), r * 0.62, Color(col, 0.1))
+	draw_arc(c, r * 1.07, 0, TAU, 24, Color(UITheme.GOLD_LIGHT, 0.7), 0.8 * s, true)
+	var g := r * 0.8 # glyph radius
+	var lit := col.lightened(0.15)
+	match kw:
+		"voo": # a wing, feathers trailing down-left
+			var wing := _unit_pts(c, g, [[-0.66, 0.52], [-0.62, 0.05], [-0.42, -0.32], [-0.06, -0.58], [0.38, -0.72],
+				[0.74, -0.7], [0.44, -0.42], [0.66, -0.36], [0.32, -0.1], [0.52, -0.02], [0.16, 0.18], [0.34, 0.28],
+				[-0.04, 0.42], [-0.32, 0.52]])
+			draw_colored_polygon(wing, lit)
+			draw_polyline(_unit_pts(c, g, [[-0.48, 0.34], [-0.3, -0.1], [0.05, -0.38], [0.5, -0.56]]), Color(col.darkened(0.6), 0.8), 0.8 * s, true)
+		"longo_alcance": # an arrow in flight
+			var tail := c + Vector2(-0.62, 0.62) * g
+			draw_line(tail, c + Vector2(0.36, -0.36) * g, lit, 1.3 * s, true)
+			draw_colored_polygon(_unit_pts(c, g, [[0.74, -0.74], [0.52, -0.16], [0.16, -0.52]]), lit)
+			for k in [0.0, 0.2]:
+				var b := tail + Vector2(k, -k) * g
+				draw_line(b, b + Vector2(-0.3, -0.06) * g, lit, 1.1 * s, true)
+				draw_line(b, b + Vector2(0.06, 0.3) * g, lit, 1.1 * s, true)
+		"vigilancia": # an open eye
+			var eye := PackedVector2Array()
+			for i in 13:
+				eye.append(c + Vector2(-0.8 + 1.6 * i / 12.0, -0.5 * sin(PI * i / 12.0)) * g)
+			for i in range(11, 0, -1):
+				eye.append(c + Vector2(-0.8 + 1.6 * i / 12.0, 0.5 * sin(PI * i / 12.0)) * g)
+			draw_colored_polygon(eye, lit)
+			draw_circle(c, 0.34 * g, col.darkened(0.82))
+			draw_circle(c, 0.16 * g, lit)
+		"furtividade": # a hood with two eyes glinting in the dark
+			draw_colored_polygon(_unit_pts(c, g, [[0, -0.86], [0.44, -0.5], [0.64, 0.05], [0.66, 0.72], [-0.66, 0.72],
+				[-0.64, 0.05], [-0.44, -0.5]]), lit)
+			var face := PackedVector2Array()
+			for i in 20:
+				var a := i * TAU / 20
+				face.append(c + Vector2(cos(a) * 0.36, 0.18 + sin(a) * 0.42) * g)
+			draw_colored_polygon(face, col.darkened(0.85))
+			for x in [-0.15, 0.15]:
+				draw_circle(c + Vector2(x, 0.12) * g, 0.075 * g + 0.3 * s, Color.WHITE)
+		"nao_bloqueia": # a shield under a "no" sign
+			draw_colored_polygon(_shape("shield", c, g * 0.58), Color("#e9e0cf"))
+			draw_arc(c, g * 0.86, 0, TAU, 28, col, 1.5 * s, true)
+			draw_line(c + Vector2(-0.6, -0.6) * g, c + Vector2(0.6, 0.6) * g, col, 1.5 * s, true)
+
+func _unit_pts(c: Vector2, r: float, pts: Array) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for p in pts:
+		out.append(c + Vector2(p[0], p[1]) * r)
+	return out
+
 func _panel_lines(cd: Dictionary) -> Array:
-	var kws: Array = inst.get("keywords", cd.get("keywords", [])).duplicate()
+	var kws: Array = _keywords(cd).duplicate()
 	if inst.has("shield"):
 		kws.erase("escudo")
 		if inst["shield"]:

@@ -36,7 +36,17 @@ var priority := 0
 ## Combat window while phase == "combat": "attack" (attacker), "prepare" (defender),
 ## then blocks, then "damage" (attacker first; damage when both pass in a row).
 var window := ""
+## Main-phase response window right after the active player summoned a unit from hand or
+## the Santuário (stack empty): the opponent holds priority and may cast Rápido/Instantâneo.
+var summon_window := false
+var _summon_pending := false # a summon's search delays its response window
+## Per seat: skip priority windows where that player has no legal play (a player can turn
+## this off to be asked every time). Also skips a block prompt with no possible blocker.
+var auto_pass: Array = [true, true]
 var _search_return := "main"
+## True while combat damage is being dealt and the deaths it causes are resolved; effects
+## marked "not_in_combat" stay silent then (Cientista da Morte).
+var _combat_damage := false
 ## Cards sent to the graveyard by the latest mill (offered by mill_pick).
 var _milled: Array = []
 var rng := RandomNumberGenerator.new()
@@ -44,9 +54,6 @@ var _next_uid := 1
 var _events: Array = []
 var _trigger_depth := 0
 var _chosen2 := 0 ## second target of the stack item being resolved (e.g. the damage target of a sacrifice spell)
-## True while combat damage is being dealt and the deaths it causes are resolved; effects
-## marked "not_in_combat" stay silent then (Cientista da Morte).
-var _combat_damage := false
 var _sac_atk := 0 ## total attack of the unit the last "sacrifice" killed
 var _dying: Dictionary = {} ## unit whose Ao Morrer is resolving (for summon "self")
 
@@ -185,7 +192,7 @@ func can_block(blocker: Dictionary, attacker: Dictionary) -> bool:
 		return false
 	if has_kw(attacker, "voo") and not (has_kw(blocker, "voo") or has_kw(blocker, "longo_alcance")):
 		return false
-	if has_kw(attacker, "furtivo") and not (has_kw(blocker, "furtivo") or has_kw(blocker, "vigia")):
+	if has_kw(attacker, "furtividade") and not (has_kw(blocker, "furtividade") or has_kw(blocker, "vigilancia")):
 		return false
 	return true
 
@@ -307,12 +314,12 @@ func can_cast_speed(p: int, speed: String) -> bool:
 	if not stack.is_empty():
 		return speed == "instantaneo"
 	if phase == "main":
-		return p == active
+		return p == active or (summon_window and speed != "lento")
 	return speed != "lento"
 
 ## Units, the Legendary, attacking and ending the turn: own Main Phase, empty stack.
 func _sorcery_time(p: int) -> bool:
-	return phase == "main" and p == active and priority == p and stack.is_empty()
+	return phase == "main" and p == active and priority == p and stack.is_empty() and not summon_window
 
 func can_play(p: int, hand_uid: int) -> bool:
 	var inst := _hand_card(p, hand_uid)
@@ -410,6 +417,7 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0) -> Arra
 	if cd["type"] == "unit":
 		_summon(p, inst["card_id"], hand_uid, false, 0 if sacrifice else target)
 		_check_state()
+		_open_summon_window(p)
 	else:
 		_push(p, "card", hand_uid, inst["card_id"], target, speed_of(cd), target2)
 	_settle()
@@ -426,6 +434,7 @@ func cast_legendary(p: int, target: int = 0) -> Array:
 	_emit({"type": "play", "player": p, "uid": uid, "card_id": pl["legendary"]["card_id"], "legendary": true})
 	_summon(p, pl["legendary"]["card_id"], uid, true, target)
 	_check_state()
+	_open_summon_window(p)
 	_settle()
 	return _flush()
 
@@ -448,7 +457,7 @@ func use_ability(p: int, target: int = 0) -> Array:
 func pass_priority(p: int) -> Array:
 	if phase not in ["main", "combat"] or p != priority:
 		return []
-	if stack.is_empty() and phase == "main":
+	if stack.is_empty() and phase == "main" and not summon_window:
 		return [] # nothing to pass: end the turn instead
 	_emit({"type": "pass", "player": p})
 	_pass()
@@ -487,13 +496,18 @@ func declare_attack(p: int, attacks: Dictionary) -> Array:
 
 ## blocks: Dictionary attacker_uid -> blocker_uid. One blocker per attacker,
 ## one attacker per blocker. Provoked units are forced onto their provoker.
-func declare_blocks(p: int, picks: Dictionary) -> Array:
-	if phase != "blocks" or p != decider():
-		return []
+## Provoked units must block their provoker (unless dead or frozen).
+func _forced_blocks() -> Dictionary:
 	var final := {}
 	for a in attackers:
 		if attackers[a] != 0 and not find_unit(attackers[a]).is_empty() and not is_frozen(find_unit(attackers[a])):
 			final[a] = attackers[a]
+	return final
+
+func declare_blocks(p: int, picks: Dictionary) -> Array:
+	if phase != "blocks" or p != decider():
+		return []
+	var final := _forced_blocks()
 	var used: Array = final.values()
 	for a in picks:
 		if final.has(a):
@@ -564,6 +578,7 @@ func choose_search(p: int, card_uid: int) -> Array:
 		phase = _search_return
 		_emit({"type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"]})
 		_resolve_stack()
+		_after_search()
 		_settle()
 		return _flush()
 	var deck: Array = players[p]["deck"]
@@ -594,6 +609,7 @@ func choose_search(p: int, card_uid: int) -> Array:
 	_emit({"type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"]})
 	_emit({"type": "look_bottom" if look else "search_shuffle", "player": p})
 	_resolve_stack() # a search opened mid-resolution: finish the rest of the stack
+	_after_search()
 	_settle()
 	return _flush()
 
@@ -602,6 +618,8 @@ func choose_search(p: int, card_uid: int) -> Array:
 func _push(p: int, kind: String, uid: int, card_id: String, target: int, speed: String, target2: int = 0) -> void:
 	var item := {"sid": _uid(), "player": p, "kind": kind, "uid": uid, "card_id": card_id, "target": target, "target2": target2, "speed": speed}
 	stack.append(item)
+	summon_window = false
+	_summon_pending = false
 	priority = opponent(p)
 	_emit({"type": "stack_push", "item": item.duplicate()})
 
@@ -633,6 +651,7 @@ func _resolve_stack() -> void:
 		_check_state()
 		_prune_attackers()
 	if phase in ["main", "combat"] and stack.is_empty():
+		summon_window = false
 		priority = _window_owner()
 
 ## Equipment stays on the board under its unit; a previous one is discarded.
@@ -673,6 +692,10 @@ func _pass() -> void:
 	if not stack.is_empty():
 		_resolve_stack()
 		return
+	if summon_window:
+		summon_window = false
+		priority = active
+		return
 	match window:
 		"attack":
 			_open_window("prepare")
@@ -697,8 +720,8 @@ func _to_blocks() -> void:
 	_prune_attackers()
 	if attackers.is_empty():
 		_end_combat()
-	elif players[opponent(active)]["board"].is_empty():
-		_start_damage({})
+	elif players[opponent(active)]["board"].is_empty() or (auto_pass[opponent(active)] and not _can_block_any()):
+		_start_damage(_forced_blocks())
 	else:
 		phase = "blocks"
 
@@ -721,6 +744,18 @@ func _start_damage(final: Dictionary) -> void:
 		return
 	_open_window("damage")
 
+## Is there any attacker that some defending unit may legally block?
+func _can_block_any() -> bool:
+	var forced := _forced_blocks()
+	for a in attackers:
+		if forced.has(a):
+			continue
+		var att := find_unit(a)
+		for blk in players[opponent(active)]["board"]:
+			if not forced.values().has(blk["uid"]) and can_block(blk, att):
+				return true
+	return false
+
 func _end_combat() -> void:
 	attackers.clear()
 	blocks.clear()
@@ -728,6 +763,28 @@ func _end_combat() -> void:
 	if phase != "over":
 		phase = "main"
 		priority = active
+
+## After a unit enters from hand/Santuário in the main phase, the opponent may respond.
+func _open_summon_window(p: int) -> void:
+	if phase == "search" and p == active:
+		_summon_pending = true
+		return
+	if phase == "main" and stack.is_empty() and p == active:
+		summon_window = true
+		priority = opponent(p)
+
+## A summon whose on_play searched opens its response window once the pick is made.
+func _after_search() -> void:
+	if _summon_pending and phase == "main":
+		_summon_pending = false
+		_open_summon_window(active)
+
+## Turns p's auto-pass on or off. Turning it on while p holds an unusable window passes it.
+func set_auto_pass(p: int, on: bool) -> Array:
+	auto_pass[p] = on
+	if on:
+		_settle()
+	return _flush()
 
 ## Can p do anything right now besides passing?
 func _has_play(p: int) -> bool:
@@ -742,10 +799,10 @@ func _settle() -> void:
 	for guard in 64:
 		if phase not in ["main", "combat"]:
 			return
-		if stack.is_empty() and phase == "main":
+		if stack.is_empty() and phase == "main" and not summon_window:
 			priority = active
 			return
-		if _has_play(priority):
+		if not auto_pass[priority] or _has_play(priority):
 			return
 		_pass()
 
@@ -789,6 +846,8 @@ func _fire(c: Dictionary, trigger: String, other_uid: int = 0) -> void:
 	var all_effects: Array = card_of(c)["effects"]
 	for i in all_effects.size():
 		var e: Dictionary = all_effects[i]
+		if e.get("trigger", "") == trigger and _combat_damage and e.get("not_in_combat", false):
+			continue
 		if e.get("trigger", "") == trigger and e.get("once_per_turn", false):
 			if used.get(i, -1) == turn:
 				continue # "once per turn" effect already used this turn
@@ -846,8 +905,6 @@ func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid
 				var pool: Array = []
 				for c in players[p]["board"]:
 					if e["target"] == "random_ally_unit" or c["uid"] != self_uid: pool.append(c["uid"])
-		if e.get("trigger", "") == trigger and _combat_damage and e.get("not_in_combat", false):
-			continue
 				if not pool.is_empty(): targets = [pool[rng.randi_range(0, pool.size() - 1)]]
 		for t in targets:
 			_apply(p, e, t)
@@ -1127,6 +1184,7 @@ func _resolve_combat() -> void:
 	var defender := opponent(active)
 	window = ""
 	_emit({"type": "combat_damage"})
+	_combat_damage = true
 	_prune_attackers()
 	var pairs: Array = []
 	for a in attackers:
@@ -1150,6 +1208,7 @@ func _resolve_combat() -> void:
 		_check_state()
 		if phase == "over":
 			break
+	_combat_damage = false
 	_end_combat()
 
 ## Moves dead units out, fires Ao Morrer, checks leaders. Loops until stable.
@@ -1184,7 +1243,6 @@ func _check_state() -> void:
 	if dead[0] or dead[1]:
 		winner = 2 if dead[0] and dead[1] else (1 if dead[0] else 0)
 		phase = "over"
-	_combat_damage = true
 		_emit({"type": "game_over", "winner": winner})
 
 ## Leader passive ("passive": true in the leader's ability): runs its effects when `trigger` happens,
@@ -1208,7 +1266,6 @@ func _finish_turn() -> void:
 		_fire(c, "on_turn_end")
 	_check_state()
 	if phase == "over":
-	_combat_damage = false
 		return
 	for p in players:
 		for c in p["board"]:
@@ -1227,6 +1284,8 @@ func _finish_turn() -> void:
 func _start_turn(p: int, draw: bool) -> void:
 	active = p
 	priority = p
+	summon_window = false
+	_summon_pending = false
 	turn += 1
 	phase = "main"
 	var pl: Dictionary = players[p]

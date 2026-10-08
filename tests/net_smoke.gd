@@ -10,6 +10,7 @@ var failures := 0
 var step := 0
 var code := ""
 var started := false
+var fi := 0 ## seat that goes first (random online)
 var t0 := Time.get_ticks_msec()
 
 func check(cond: bool, msg: String) -> void:
@@ -66,7 +67,9 @@ func _process(_d: float) -> bool:
 				var snap_b: Dictionary = sb["snap"]
 				check(sa["seat"] == 0 and sb["seat"] == 1, "seats")
 				check(snap_a["players"][0]["hand"][0]["card_id"] != "", "own hand visible")
-				check(snap_a["players"][1]["hand"].size() == 7 and snap_a["players"][1]["hand"][0]["card_id"] == "", "opponent hand hidden (a)")
+				check(snap_a["players"][1]["hand"][0]["card_id"] == "", "opponent hand hidden (a)")
+				# the first player gets the smaller opening hand
+				fi = 0 if snap_a["players"][0]["hand"].size() < snap_a["players"][1]["hand"].size() else 1
 				check(snap_b["players"][0]["hand"][0]["card_id"] == "", "opponent hand hidden (b)")
 				check(snap_a["players"][0]["deck"][0]["card_id"] == "", "deck hidden")
 				_send(b, {"t": "act", "a": "end_turn"}) # not B's turn: must be rejected
@@ -74,25 +77,25 @@ func _process(_d: float) -> bool:
 		3:
 			var m = _take(1, "reject")
 			if m:
-				_send(a, {"t": "act", "a": "mulligan", "uids": []})
+				_send([a, b][fi], {"t": "act", "a": "mulligan", "uids": []}) # first player mulligans first
 				step = 4
 		4:
 			var ea = _take(0, "events")
 			var eb = _take(1, "events")
 			if ea and eb:
-				_send(b, {"t": "act", "a": "mulligan", "uids": []})
+				_send([a, b][1 - fi], {"t": "act", "a": "mulligan", "uids": []})
 				step = 5
 		5:
 			var ea = _take(0, "events")
 			var eb = _take(1, "events")
 			if ea and eb:
-				check(ea["snap"]["phase"] == "main" and ea["snap"]["active"] == 0, "main phase, seat 0 active")
-				_send(a, {"t": "act", "a": "end_turn"})
+				check(ea["snap"]["phase"] == "main" and ea["snap"]["active"] == fi, "main phase, first seat active")
+				_send([a, b][fi], {"t": "act", "a": "end_turn"})
 				step = 6
 		6:
 			var ea = _take(0, "events")
 			if ea:
-				check(ea["snap"]["active"] == 1, "turn passed")
+				check(ea["snap"]["active"] == 1 - fi, "turn passed")
 				print("net smoke done, failures: ", failures)
 				quit(failures)
 				return true

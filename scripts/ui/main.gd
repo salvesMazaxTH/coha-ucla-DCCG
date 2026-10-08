@@ -87,6 +87,32 @@ func _light_on() -> bool:
 		return _is_phone()
 	return bool(cf.get_value("ui", "light", _is_phone()))
 
+## "Auto-passe": the engine skips priority windows where you have nothing legal to do.
+func _auto_pass_on() -> bool:
+	var cf := ConfigFile.new()
+	return cf.load("user://settings.cfg") != Error.OK or bool(cf.get_value("game", "auto_pass", true))
+
+func _set_auto_pass(on: bool) -> void:
+	var cf := ConfigFile.new()
+	cf.load("user://settings.cfg")
+	cf.set_value("game", "auto_pass", on)
+	cf.save("user://settings.cfg")
+	if g == null:
+		return
+	if g is RemoteState:
+		(g as RemoteState).set_auto_pass(viewer, on)
+		return
+	var ev := []
+	for i in 2:
+		if not _is_ai(i):
+			ev += g.set_auto_pass(i, on)
+	if on and not ev.is_empty():
+		for e in ev:
+			_log_event(e)
+		_show_events(ev)
+	else:
+		_render()
+
 func _is_phone() -> bool:
 	return OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios") 			or (OS.has_feature("web") and DisplayServer.is_touchscreen_available())
 
@@ -287,6 +313,8 @@ func _start(ai: bool, deck_a: String, deck_b: String) -> void:
 		online = false
 	vs_ai = ai
 	g = GameState.new(deck_a, deck_b)
+	for i in 2:
+		g.auto_pass[i] = _auto_pass_on() or _is_ai(i)
 	CardDB.reroll_flavor()
 	log_lines = ["Partida iniciada. Escolha até 3 cartas para trocar."]
 	viewer = 0
@@ -527,6 +555,8 @@ func _on_net(m: Dictionary) -> void:
 			if not (g is RemoteState): # a reconnect keeps the lines already seen
 				CardDB.reroll_flavor()
 			g = rs
+			# always resend: a toggle made while disconnected never reached the server
+			rs.set_auto_pass(rs.seat, _auto_pass_on())
 			vs_ai = false
 			online = true
 			viewer = m["seat"]
@@ -1085,6 +1115,8 @@ func _render_side() -> void:
 	var ph_t: String = phase_names.get(g.phase, g.phase)
 	if not g.stack.is_empty():
 		ph_t = "Resposta · pilha %d" % g.stack.size()
+	elif g.summon_window:
+		ph_t = "Resposta · invocação"
 	var ph := _label(ph_t, 17, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
 	ph.position = Vector2(0, 33)
 	ph.size = Vector2(COL_W, 22)
@@ -1111,9 +1143,16 @@ func _render_side() -> void:
 		wait.size = Vector2(COL_W, 56)
 		layer.add_child(wait)
 	_render_stack(y + 6)
+	var ap_on := _auto_pass_on()
+	var ap := _button("Auto-passe: %s" % ("LIGADO" if ap_on else "desligado"), func(): _set_auto_pass(not _auto_pass_on()))
+	ap.position = Vector2(col_x, 772)
+	ap.size = Vector2(COL_W, 48)
+	ap.add_theme_font_size_override("font_size", 18)
+	ap.tooltip_text = "Pula sozinho as janelas em que você não tem nenhuma jogada válida."
+	layer.add_child(ap)
 	var menu := _button("Menu", _show_menu)
-	menu.position = Vector2(col_x + COL_W - 130, 832)
-	menu.size = Vector2(130, 52)
+	menu.position = Vector2(col_x, 832)
+	menu.size = Vector2(COL_W, 52)
 	menu.add_theme_font_size_override("font_size", 20)
 	layer.add_child(menu)
 
@@ -1126,7 +1165,7 @@ func _render_stack(y: float) -> void:
 	cap.size = Vector2(COL_W, 20)
 	layer.add_child(cap)
 	y += 24
-	var rows: int = max(1, int((820.0 - y) / 84.0))
+	var rows: int = max(1, int((764.0 - y) / 84.0))
 	var items: Array = g.stack.duplicate()
 	items.reverse()
 	for i in min(rows, items.size()):
@@ -1257,6 +1296,8 @@ func _hint() -> String:
 		return ""
 	if g.phase in ["main", "combat"] and not g.stack.is_empty():
 		return "Responda com um Instantâneo ou passe para resolver a pilha."
+	if g.phase == "main" and g.summon_window:
+		return "Unidade invocada: responda com um efeito Rápido/Instantâneo ou passe."
 	match g.phase:
 		"combat":
 			match g.window:
@@ -1290,7 +1331,7 @@ func _action_buttons() -> Array:
 		"combat":
 			out.append(_button("PASSAR", func(): _do(g.pass_priority(viewer)), true))
 		"main":
-			if not g.stack.is_empty():
+			if not g.stack.is_empty() or g.summon_window:
 				out.append(_button("PASSAR", func(): _do(g.pass_priority(viewer)), true))
 			elif not attack_sel.is_empty():
 				out.append(_button("ATACAR (%d)" % attack_sel.size(), func(): _do(g.declare_attack(viewer, attack_sel.duplicate())), true))
@@ -1561,6 +1602,9 @@ func _on_unit_click(v: CardView) -> void:
 				if c["owner"] != viewer and g.is_frozen(c):
 					_toast("Unidade congelada não pode ser provocada.")
 					return
+				if c["owner"] != viewer and g.has_kw(c, "nao_bloqueia"):
+					_toast("Essa unidade não bloqueia.")
+					return
 				if c["owner"] != viewer and not attack_sel.values().has(v.uid):
 					attack_sel[provoking] = v.uid
 					provoking = 0
@@ -1602,9 +1646,6 @@ func _show_overlay(v: CardView) -> void:
 		return
 	_close_overlay()
 	var cd := CardDB.card_for(v.card_id, v.inst)
-				if c["owner"] != viewer and g.has_kw(c, "nao_bloqueia"):
-					_toast("Essa unidade não bloqueia.")
-					return
 	overlay = ColorRect.new()
 	overlay.color = Color(0, 0, 0, 0.82)
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)

@@ -27,6 +27,7 @@ func _init() -> void:
 	_test_combat()
 	_test_triggers()
 	_test_stack()
+	_test_summon_window()
 	_test_counter()
 	_test_damage_window()
 	_test_sim()
@@ -520,11 +521,11 @@ func _test_combat() -> void:
 	check(g.can_block(w, f) and not g.can_block(x, f), "voo/longo alcance")
 
 	g = _new_game()
-	var gk := _put(g, 0, "gorvakharr") # furtivo roubo de vida
-	var y := _put(g, 1, "sentinela_coral") # vigia
-	check(g.can_block(y, gk) and not g.can_block(x, gk), "furtivo/vigia")
-	g.players[0]["leader_hp"] = 10
+	var gk := _put(g, 0, "gorvakharr") # furtividade roubo de vida
+	var y := _put(g, 1, "sentinela_coral") # vigilancia
+	check(g.can_block(y, gk) and not g.can_block(x, gk), "furtividade/vigilancia")
 	check(not g.can_block(_put(g, 1, "revivente_eterno"), _put(g, 0, "esqueleto_guerreiro")), "revivente eterno não bloqueia")
+	g.players[0]["leader_hp"] = 10
 	_attack(g, {gk["uid"]: 0})
 	_block(g, {})
 	check(g.players[0]["leader_hp"] == 13, "lifesteal heals leader")
@@ -606,6 +607,103 @@ func _test_counter() -> void:
 	check(g.players[1]["momentum"] == 0, "kicker charges +3")
 	g.pass_priority(0)
 	check(g.stack.is_empty() and g.players[1]["leader_hp"] == hp, "kicked counter stops the big spell")
+
+func _test_summon_window() -> void:
+	_tcard("t_sw", 1, 1, [])
+	_tspell("t_sw_fast", "rapido", [{"trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 1}])
+	_tspell("t_sw_slow", "lento", [{"trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 1}])
+
+	# opponent with a Rápido gets a window after a unit is played from hand
+	var g := _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 3
+	g.players[1]["momentum"] = 3
+	var fast := _give(g, 1, "t_sw_fast")
+	var u := _give(g, 0, "t_sw")
+	g.play_card(0, u, 0)
+	check(g.summon_window and g.priority == 1 and g.decider() == 1, "summon opens a response window for the opponent")
+	check(not g.can_play(0, _give(g, 0, "t_sw")), "active player cannot act during the window")
+	check(g.end_turn(0).is_empty() and g.declare_attack(0, {}).is_empty(), "no sorcery-speed actions during the window")
+	check(g.can_play(1, fast), "opponent can cast Rápido in the window")
+	g.pass_priority(1)
+	check(not g.summon_window and g.priority == 0 and g.phase == "main", "pass closes the window, turn goes on")
+
+	# casting in the window stacks the spell and gives priority back
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 3
+	g.players[1]["momentum"] = 3
+	g.set_auto_pass(0, false) # otherwise the stack resolves at once: player 0 has nothing to answer with
+	fast = _give(g, 1, "t_sw_fast")
+	var mine := _put(g, 0, "t_sw")
+	g.play_card(0, _give(g, 0, "t_sw"), 0)
+	g.play_card(1, fast, mine["uid"])
+	check(not g.summon_window and g.stack.size() == 1 and g.priority == 0, "spell cast in the window stacks, priority returns")
+	g.pass_priority(0)
+	check(g.stack.is_empty() and g.priority == 0 and g.phase == "main", "stack resolves back to the main phase")
+
+	# a Lento spell is not castable in the window
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 3
+	g.players[1]["momentum"] = 3
+	var slow := _give(g, 1, "t_sw_slow")
+	_put(g, 0, "t_sw")
+	g.play_card(0, _give(g, 0, "t_sw"), 0)
+	check(not g.summon_window and not g.can_play(1, slow) and g.priority == 0, "nothing to cast: window auto-passes")
+
+	# auto-pass off: the window stays open even with no legal play
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 3
+	g.set_auto_pass(1, false)
+	g.play_card(0, _give(g, 0, "t_sw"), 0)
+	check(g.summon_window and g.priority == 1, "auto-pass off keeps the window open")
+	g.pass_priority(1)
+	check(not g.summon_window and g.priority == 0, "manual pass closes it")
+	g.play_card(0, _give(g, 0, "t_sw"), 0)
+	g.set_auto_pass(1, true)
+	check(not g.summon_window and g.priority == 0, "turning auto-pass on passes an unusable window")
+
+	# blocks with no possible blocker are skipped; the prompt stays with auto-pass off
+	_tcard("t_fly", 1, 1, [])
+	CardDB.data()["cards"]["t_fly"]["keywords"] = ["voo"]
+	for auto in [true, false]:
+		g = _new_game()
+		_quiet(g)
+		var at := _put(g, 0, "t_fly")
+		_put(g, 1, "t_sw")
+		g.set_auto_pass(1, auto)
+		_attack(g, {at["uid"]: 0})
+		_pass_windows(g)
+		check((g.phase != "blocks") == auto, "unblockable attacker: block prompt skipped only with auto-pass (%s)" % auto)
+
+	# no possible blocker but a Rápido in hand: still gets the prepare and damage windows
+	g = _new_game()
+	_quiet(g)
+	g.players[1]["momentum"] = 3
+	var at2 := _put(g, 0, "t_fly")
+	_put(g, 1, "t_sw")
+	var fast2 := _give(g, 1, "t_sw_fast")
+	g.declare_attack(0, {at2["uid"]: 0})
+	g.pass_priority(0)
+	check(g.window == "prepare" and g.priority == 1 and g.can_play(1, fast2), "unblockable attack: defender still gets the prepare window with a Rápido")
+	g.pass_priority(1)
+	check(g.window == "damage" and g.phase == "combat", "block prompt skipped, damage window follows")
+	g.pass_priority(0)
+	check(g.priority == 1 and g.can_play(1, fast2), "defender keeps the damage window while holding a Rápido")
+
+	# a summon whose on_play searches opens the window once the pick is made
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 9
+	g.players[1]["momentum"] = 3
+	var fast3 := _give(g, 1, "t_sw_fast")
+	_put(g, 1, "t_sw") # no target for the Rápido otherwise
+	g.play_card(0, _give(g, 0, "serpente_marinha"), 0)
+	check(g.phase == "search" and not g.summon_window, "search comes first")
+	g.choose_search(0, int(g.pending_search["cards"][0]["uid"]))
+	check(g.phase == "main" and g.summon_window and g.priority == 1 and g.can_play(1, fast3), "search done: opponent gets the summon window")
 
 func _test_stack() -> void:
 	_tcard("t_wall2", 1, 2, [])

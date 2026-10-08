@@ -51,7 +51,8 @@ func _init() -> void:
 				m.grave_filter = f[0]
 				m._refresh_graveyard()
 			m._render()
-			if m.grave_view == null:
+			# search/over close it on purpose (see _render)
+			if m.grave_view == null and not m.g.phase in ["search", "over"]:
 				push_error("cemitério fechou no re-render")
 				quit(1)
 				return

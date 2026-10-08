@@ -160,6 +160,11 @@ func _handle_room(r: Dictionary, seat: int, m: Dictionary) -> void:
 	if m.get("t", "") != "act" or r["g"] == null:
 		return
 	var g: GameState = r["g"]
+	if m.get("a", "") == "auto": # a setting, not a move: allowed off-turn, never rejected
+		var ev := g.set_auto_pass(seat, bool(m.get("on", true)))
+		for s in 2:
+			_send(r["peers"][s], {"t": "events", "events": StateView.filter_events(ev, s), "snap": StateView.snapshot(g, s)})
+		return
 	var events := _apply(g, seat, m)
 	if events.is_empty():
 		_send(r["peers"][seat], {"t": "reject", "a": m.get("a", "")})

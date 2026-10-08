@@ -52,6 +52,8 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
   - Quando alguém passa, a pilha inteira resolve, do mais novo para o mais antigo.
   - Um efeito cujo alvo deixou de ser válido é anulado.
   - **Anular (counter):** alguns Instantâneos (ex.: Negação de Neraqa) miram um feitiço ou habilidade **inimiga** na pilha. **Equipar não pode ser anulado**, mas pode ser respondido (o equipamento é conjurado em velocidade lenta e fica na pilha até resolver). O item anulado sai da pilha sem efeito, e a carta vai para o cemitério. Se o custo do alvo passa do limite da carta, o custo extra (ex.: +3) é cobrado automaticamente quando você escolhe esse alvo.
+- **Janela de invocação:** depois que o jogador da vez joga uma unidade da mão ou conjura a Encarnação do Santuário, o adversário recebe a prioridade e pode responder com uma carta ou habilidade **Rápida** ou **Instantânea**. Ao passar (ou sem jogada), o turno segue. Lenta não pode ser usada aqui, e o jogador da vez não age até a janela fechar.
+- **Auto-passe:** cada jogador pode ligar ou desligar (padrão: ligado). Ligado, o sistema passa sozinho toda janela de prioridade em que você não tem nenhuma jogada legal e também pula o pedido de bloqueios quando nenhuma unidade sua pode bloquear. Desligado, você recebe todas as janelas e passa à mão. Ligar o auto-passe durante uma janela inútil já a passa.
 - **Janelas de combate:** depois de declarar os atacantes, as janelas vêm nesta ordem:
   1. Ataque, para o atacante.
   2. Preparação, para o defensor.
@@ -95,11 +97,11 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 | Ímpeto | Pode atacar no turno em que entra em campo. |
 | Voo | Só pode ser bloqueada por unidades com Voo ou Longo Alcance. |
 | Longo Alcance | Pode bloquear unidades com Voo. |
-| Furtividade | Só pode ser bloqueada por unidades com Furtividade ou Vigília. |
-| Vigília | Pode bloquear unidades com Furtividade. |
+| Furtividade | Só pode ser bloqueada por unidades com Furtividade ou Vigilância. |
+| Vigilância | Pode bloquear unidades com Furtividade. |
+| Não Bloqueia | A unidade não pode bloquear (nem ser alvo de Provocação). |
 | Provocação | Ao atacar, escolha uma unidade inimiga. Ela é obrigada a bloquear esta unidade, mesmo contra Voo ou Furtividade. |
 | Escudo | Anula a próxima instância de dano. |
-| Não Bloqueia | A unidade não pode bloquear (nem ser alvo de Provocação). |
 | Congelamento | A unidade não pode atacar nem bloquear até o fim do próximo turno do dono. Escudo de Feitiço anula. |
 | Indestrutível | Não sofre dano (sempre 0) e não é destruída por efeitos de "destruir". Sacrifício e remoção do jogo (banimento) ainda a afetam. |
 | Escudo de Feitiço | Anula, uma vez, o próximo efeito **inimigo** que não seja dano de combate (feitiço, habilidade, efeito em área). Depois se dissipa. Efeitos do próprio dono não o consomem. |

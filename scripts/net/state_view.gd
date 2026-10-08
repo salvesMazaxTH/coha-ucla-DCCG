@@ -38,6 +38,7 @@ static func snapshot(g: GameState, seat: int) -> Dictionary:
 		"stack": g.stack.duplicate(true),
 		"priority": g.priority,
 		"window": g.window,
+		"summon_window": g.summon_window,
 	}
 
 ## Events are public information (a draw carries only a uid, plays show the card being
