@@ -5,7 +5,7 @@
   "essence": "obscura",
   "cost": 4,
   "speed": "rapido",
-  "art": "",
+  "art": "obscura/mordida_de_defunto.webp",
   "effects": [
     {
       "trigger": "on_play",
