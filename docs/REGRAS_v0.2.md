@@ -51,7 +51,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
   - Quem tem prioridade pode responder com uma Instantânea ou passar.
   - Quando alguém passa, a pilha inteira resolve, do mais novo para o mais antigo.
   - Um efeito cujo alvo deixou de ser válido é anulado.
-  - **Anular (counter):** alguns Instantâneos (ex.: Negação de Neraqa) miram um feitiço ou habilidade **inimiga** na pilha. O item anulado sai da pilha sem efeito, e a carta vai para o cemitério. Se o custo do alvo passa do limite da carta, o custo extra (ex.: +3) é cobrado automaticamente quando você escolhe esse alvo.
+  - **Anular (counter):** alguns Instantâneos (ex.: Negação de Neraqa) miram um feitiço ou habilidade **inimiga** na pilha. **Equipar não pode ser anulado**, mas pode ser respondido (o equipamento é conjurado em velocidade lenta e fica na pilha até resolver). O item anulado sai da pilha sem efeito, e a carta vai para o cemitério. Se o custo do alvo passa do limite da carta, o custo extra (ex.: +3) é cobrado automaticamente quando você escolhe esse alvo.
 - **Janelas de combate:** depois de declarar os atacantes, as janelas vêm nesta ordem:
   1. Ataque, para o atacante.
   2. Preparação, para o defensor.

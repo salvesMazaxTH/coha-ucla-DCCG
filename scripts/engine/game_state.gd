@@ -237,8 +237,12 @@ func valid_targets(p: int, spec: String, self_uid: int = 0) -> Array:
 			out.append(LEADER_UID[opponent(p)])
 		"enemy_stack":
 			for it in stack:
-				if it["player"] != p: out.append(it["sid"])
+				if it["player"] != p and not _is_equip_item(it): out.append(it["sid"])
 	return out
+
+## Equipping can be responded to but never countered.
+func _is_equip_item(it: Dictionary) -> bool:
+	return it["kind"] == "card" and CardDB.is_equipment(CardDB.card(it["card_id"]))
 
 func _stack_item(sid: int) -> Dictionary:
 	for it in stack:
@@ -644,7 +648,7 @@ func _release_equipment(c: Dictionary) -> void:
 ## Removes stack item `sid` without resolving it; a countered card goes to the graveyard.
 func _counter(p: int, sid: int) -> void:
 	var it := _stack_item(sid)
-	if it.is_empty():
+	if it.is_empty() or _is_equip_item(it):
 		return
 	stack.erase(it)
 	if it["kind"] == "card":
