@@ -99,6 +99,11 @@ func _process(delta: float) -> void:
 		queue_redraw()
 
 func _gui_input(e: InputEvent) -> void:
+	# touch: dragging off the gem starts aiming right away (the finger stays down)
+	if e is InputEventMouseMotion and _holding and not _long and not passive 			and e.position.distance_to(AC) > AR + 12:
+		_long = true
+		ability_clicked.emit()
+		return
 	if e is InputEventMouseMotion:
 		var over := GRAVE_RECT.has_point(e.position)
 		if over != _hover_grave:

@@ -1364,7 +1364,7 @@ func _aim_release() -> void:
 	if _self_targetable() and views.has(targeting["uid"]) and (views[targeting["uid"]] as Control).get_global_rect().has_point(gp):
 		_do(g.play_card(viewer, targeting["uid"], 0))
 		return
-	if gp.distance_to(aim_start) < CardView.DRAG_PX * 2.0 or targeting.has("first"):
+	if gp.distance_to(aim_start) < CardView.DRAG_PX * 2.0 or targeting.has("first") or targeting["spec"] == "enemy_stack":
 		return
 	targeting = {}
 	_render()

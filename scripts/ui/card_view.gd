@@ -7,6 +7,11 @@ extends Control
 
 signal left_clicked(view: CardView)
 signal right_clicked(view: CardView)
+signal drag_started(view: CardView)
+signal drag_moved(view: CardView)
+signal drag_ended(view: CardView)
+
+const DRAG_PX := 14.0
 
 const BASE := Vector2(120, 170)
 
@@ -73,6 +78,9 @@ var _redraw_acc := 0.0
 var _holding := false
 var _long := false
 var _press_id := 0
+var _press_pos := Vector2.ZERO
+var draggable := false ## set by Main: hand cards that can be played are dragged onto the board
+var dragging := false
 static var _tex_cache := {}
 static var _dissolve: Shader
 
@@ -102,19 +110,33 @@ static func touch_ui() -> bool:
 	return touched or OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios") 		or DisplayServer.is_touchscreen_available()
 
 func _gui_input(e: InputEvent) -> void:
-	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and touch_ui():
+	if e is InputEventMouseMotion and _holding and draggable:
+		if not dragging and e.global_position.distance_to(_press_pos) > DRAG_PX:
+			dragging = true
+			drag_started.emit(self)
+		if dragging:
+			drag_moved.emit(self)
+		accept_event()
+		return
+	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and (touch_ui() or draggable):
 		if e.pressed:
 			_holding = true
 			_long = false
+			dragging = false
+			_press_pos = e.global_position
 			var id := Time.get_ticks_msec()
 			_press_id = id
-			get_tree().create_timer(0.4).timeout.connect(func():
-				if _holding and _press_id == id and is_instance_valid(self):
-					_long = true
-					right_clicked.emit(self))
+			if touch_ui():
+				get_tree().create_timer(0.4).timeout.connect(func():
+					if is_instance_valid(self) and _holding and _press_id == id and not dragging:
+						_long = true
+						right_clicked.emit(self))
 		else:
 			_holding = false
-			if not _long:
+			if dragging:
+				dragging = false
+				drag_ended.emit(self)
+			elif not _long:
 				left_clicked.emit(self)
 		accept_event()
 		return
