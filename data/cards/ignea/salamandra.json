@@ -6,7 +6,7 @@
   "essence": "ignea",
   "cost": 2,
   "atk": 2,
-  "hp": 2,
+  "hp": 1,
   "keywords": [],
   "art": "ignea/salamandra.webp",
   "effects": [{"trigger":"on_attack","action":"damage","target":"enemy_leader","amount":2}],
