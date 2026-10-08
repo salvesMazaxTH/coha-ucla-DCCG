@@ -14,7 +14,7 @@ func setup(cur: int, mx: int, res: int = 0) -> MomentumBar:
 	current = cur
 	maximum = mx
 	reserve = res
-	custom_minimum_size = Vector2(240, 30)
+	custom_minimum_size = Vector2(290, 30)
 	size = custom_minimum_size
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	tooltip_text = "Momentum: %d de %d disponíveis
@@ -59,3 +59,7 @@ func _draw() -> void:
 		else:
 			draw_colored_polygon(pts, Color(RESERVE_COL.darkened(0.75), 0.7))
 			draw_polyline(outline, Color(RESERVE_COL, 0.4), 1.0, true)
+	var rt := "%d/%d" % [reserve, GameState.RESERVE_CAP]
+	var rtx := rx + GameState.RESERVE_CAP * 13 - 1
+	draw_string_outline(font, Vector2(rtx, 22), rt, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, 4, Color(0, 0, 0, 0.85))
+	draw_string(font, Vector2(rtx, 22), rt, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, RESERVE_COL)
