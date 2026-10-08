@@ -5,7 +5,7 @@ config_version=5
 [application]
 
 config/name="CSA Card Game"
-config/version="0.2.0"
+config/version="0.2.2"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.7")
 

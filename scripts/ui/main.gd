@@ -286,7 +286,7 @@ func _show_menu() -> void:
 	lt.position = Vector2(stage_w - 300, 790)
 	lt.size = Vector2(280, 52)
 	layer.add_child(lt)
-	var ver := _label("alpha 0.2", 13, Color(1, 1, 1, 0.35), HORIZONTAL_ALIGNMENT_RIGHT, "body")
+	var ver := _label("0.2.2 Alpha", 13, Color(1, 1, 1, 0.35), HORIZONTAL_ALIGNMENT_RIGHT, "body")
 	ver.position = Vector2(stage_w - 300, 864)
 	ver.size = Vector2(280, 20)
 	layer.add_child(ver)

@@ -1,4 +1,4 @@
-# CSA — Card Game (alpha 0.2)
+# CSA — Card Game (0.2.2 Alpha)
 
 Card game PvP com os campeões do Champion Showdown Arena, feito em **Godot 4.7**.
 

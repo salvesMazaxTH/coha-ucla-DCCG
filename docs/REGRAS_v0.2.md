@@ -1,4 +1,4 @@
-# Regras — alpha 0.2
+# Regras — 0.2.2 Alpha
 
 ## Objetivo
 Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida do Líder inimigo. Se os dois Líderes caírem ao mesmo tempo, é empate.
