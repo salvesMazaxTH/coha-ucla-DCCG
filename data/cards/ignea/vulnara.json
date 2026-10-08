@@ -5,7 +5,7 @@
   "species": ["humano"],
   "essence": "ignea",
   "cost": 3,
-  "atk": 3,
+  "atk": 4,
   "hp": 2,
   "keywords": [
     "longo_alcance"

@@ -5,7 +5,7 @@
   "species": ["humano"],
   "essence": "ignea",
   "cost": 2,
-  "atk": 3,
+  "atk": 2,
   "hp": 1,
   "keywords": [
     "impeto"

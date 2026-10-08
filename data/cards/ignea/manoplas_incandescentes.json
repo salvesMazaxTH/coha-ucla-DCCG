@@ -5,7 +5,7 @@
   "rarity": "common",
   "essence": "ignea",
   "cost": 2,
-  "art": "",
+  "art": "ignea/manoplas_incandescentes.webp",
   "effects": [
     {
       "trigger": "on_play",
