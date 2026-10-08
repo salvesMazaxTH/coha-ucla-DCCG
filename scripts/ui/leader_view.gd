@@ -12,6 +12,7 @@ const PC := Vector2(76, 70) ## portrait center
 const PR := 58.0 ## portrait radius
 const AC := Vector2(192, 52) ## ability gem center
 const AR := 27.0
+const READY_GLOW := Color("#4dff88") ## same as Main.OK, the playable-card glow
 const GRAVE_RECT := Rect2(Vector2(183, 96), Vector2(62, 42)) ## graveyard counter + touch padding
 
 static var _portrait_shader: Shader
@@ -190,6 +191,10 @@ func _draw() -> void:
 	if usable:
 		for i in 5:
 			draw_circle(AC, AR + 4 + i * 2.5, Color(elem_color, 0.07 * (1.0 - i / 5.0) * (0.6 + 0.4 * pulse)))
+	if ability_ready and not passive:
+		# same "playable" green as the hand cards, ~8% hotter since the gem is small and easy to forget
+		for i in 4:
+			draw_arc(AC, AR + 2 + i * 2.4, 0, TAU, 48, Color(READY_GLOW, minf(1.0, (0.9 - i * 0.22) * 1.08) * (0.65 + 0.35 * pulse)), 2.4, true)
 	draw_circle(AC + Vector2(0, 3), AR + 3, Color(0, 0, 0, 0.5))
 	draw_circle(AC, AR, elem_color.darkened(0.55 if usable else 0.8))
 	draw_circle(AC + Vector2(0, -AR * 0.3), AR * 0.62, Color(elem_color.lightened(0.3), 0.22 if usable else 0.06))
