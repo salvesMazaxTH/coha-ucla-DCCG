@@ -13,11 +13,11 @@
       "target": "ally_unit",
       "atk": 2,
       "keywords": [
-        "golpe_rapido"
+        "ataque_rapido"
       ]
     }
   ],
-  "text": "Equipar: a unidade ganha +2 de Ataque e Golpe Rápido.",
+  "text": "Equipar: a unidade ganha +2 de Ataque e Ataque Rápido.",
   "flavor": "",
   "tags": []
 }

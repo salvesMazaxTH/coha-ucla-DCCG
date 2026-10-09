@@ -4,16 +4,22 @@
   "rarity": "epic",
   "species": [],
   "essence": "eletrica",
-  "cost": 7,
-  "atk": 6,
-  "hp": 6,
+  "cost": 9,
+  "atk": 7,
+  "hp": 7,
   "keywords": [
-    "provocacao",
-    "escudo_feitico"
+    "sobrepujanca"
   ],
   "art": "eletrica/gigante_eletrico.webp",
-  "effects": [],
-  "text": "",
+  "effects": [
+    {
+      "action": "cost_reduction",
+      "per": "unspent_momentum",
+      "threshold": 3,
+      "amount": 5
+    }
+  ],
+  "text": "Custa 5 a menos se você terminou o turno anterior com 3 ou mais de Momentum sobrando.",
   "flavor": "",
   "tags": []
 }

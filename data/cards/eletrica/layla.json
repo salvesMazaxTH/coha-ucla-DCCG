@@ -10,7 +10,7 @@
   "atk": 3,
   "hp": 3,
   "keywords": [
-    "golpe_rapido"
+    "ataque_rapido"
   ],
   "art": "eletrica/layla.webp",
   "effects": [

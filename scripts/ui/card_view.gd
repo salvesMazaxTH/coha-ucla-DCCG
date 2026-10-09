@@ -94,7 +94,7 @@ const BADGES := {
 	"furtividade": Color("#cdb6ff"),
 	"vigilancia": Color("#ffe39a"),
 	"nao_bloqueia": Color("#ff7f6e"),
-	"intimidar": Color("#ffa24d"),
+	"intimidacao": Color("#ffa24d"),
 }
 
 func setup(id: String, instance: Dictionary = {}, size_scale := 1.0) -> CardView:
@@ -570,7 +570,7 @@ func _kw_badge(kw: String, c: Vector2, r: float, s: float) -> void:
 			draw_colored_polygon(face, col.darkened(0.85))
 			for x in [-0.15, 0.15]:
 				draw_circle(c + Vector2(x, 0.12) * g, 0.075 * g + 0.3 * s, Color.WHITE)
-		"intimidar": # a glaring pair of eyes under angry brows
+		"intimidacao": # a glaring pair of eyes under angry brows
 			for sx in [-1.0, 1.0]:
 				draw_colored_polygon(_unit_pts(c, g, [[sx * 0.88, -0.38], [sx * 0.08, 0.02], [sx * 0.2, 0.46], [sx * 0.8, 0.3]]), lit)
 				draw_circle(c + Vector2(sx * 0.36, 0.2) * g, 0.1 * g + 0.3 * s, col.darkened(0.85))

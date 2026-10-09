@@ -15,7 +15,7 @@ Para alterar habilidades, edite o campo `keywords` usando os IDs definidos em `.
 Por exemplo:
 
 ```json
-"keywords": ["golpe_rapido", "impeto"]
+"keywords": ["ataque_rapido", "impeto"]
 ```
 
 O arquivo `../cards.json` continua guardando elementos, palavras-chave, espécies e líderes. Os decks prontos ficam em `../decks/` (ver o README de lá). O carregamento das cartas individuais é feito por `scripts/engine/card_db.gd`.
@@ -27,7 +27,7 @@ O arquivo `../cards.json` continua guardando elementos, palavras-chave, espécie
 
 ## Tags
 
-`keywords` representam habilidades mecânicas, como `impeto` e `golpe_rapido`.
+`keywords` representam habilidades mecânicas, como `impeto` e `ataque_rapido`.
 `tags` representam classificações da carta, como `espirito`, e podem ser usadas em efeitos de busca.
 
 Exemplo:

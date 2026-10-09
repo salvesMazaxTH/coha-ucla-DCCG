@@ -42,48 +42,94 @@
     }
   },
   "triggers": {
-    "on_play": { "name": "Ao Jogar", "text": "O efeito acontece quando a carta é jogada da mão." },
-    "on_enter": { "name": "Ao Entrar", "text": "O efeito acontece quando a unidade entra em campo." },
-    "on_death": { "name": "Ao Morrer", "text": "O efeito acontece quando a unidade morre." },
-    "on_attack": { "name": "Ao Atacar", "text": "O efeito acontece quando a unidade é declarada atacante." },
-    "on_block": { "name": "Ao Bloquear", "text": "O efeito acontece quando a unidade é declarada bloqueadora." },
-    "on_blocked": { "name": "Ao Ser Bloqueada", "text": "O efeito acontece quando um bloqueador é atribuído a esta unidade atacante." },
-    "on_damaged": { "name": "Ao Sofrer Dano", "text": "O efeito acontece quando a unidade sofre dano (Escudo anulando o dano não conta)." },
-    "on_hit_leader": { "name": "Ao Atingir o Líder", "text": "O efeito acontece quando a unidade causa dano a um Líder." },
-    "on_turn_start": { "name": "No Início do Turno", "text": "O efeito acontece no início do turno do dono da unidade." },
-    "on_turn_end": { "name": "No Fim do Turno", "text": "O efeito acontece no fim do turno do dono da unidade." },
-    "on_ally_death": { "name": "Aliado Morre", "text": "O efeito acontece quando outra unidade que você controla morre, mesmo que ela volte logo em seguida (Revivente Eterno, Fênix, Lendário voltando ao Santuário). A que morreu não ativa o próprio efeito (para isso existe Ao Morrer)." },
-    "on_activate": { "name": "Ao Ativar", "text": "Habilidade ativável da unidade: o dono escolhe quando usar, pagando o custo em Momentum indicado (a Reserva ajuda). Vai para a pilha como um feitiço da velocidade indicada, então pode ser respondida e anulada." },
-    "transform": { "name": "Transformar", "text": "Ativável na própria Fase Principal com a pilha vazia, pagando o custo em Momentum indicado: a unidade vira outra carta no mesmo lugar (mantém dano e equipamento) e o Ao Entrar da nova forma dispara. Não usa a pilha, então não pode ser anulada." },
-    "constante": { "name": "Constante", "text": "O efeito é contínuo: vale enquanto a unidade está em campo e se atualiza sozinho." }
+    "on_play": {
+      "name": "Ao Jogar",
+      "text": "O efeito acontece quando a carta é jogada da mão."
+    },
+    "on_enter": {
+      "name": "Ao Entrar",
+      "text": "O efeito acontece quando a unidade entra em campo."
+    },
+    "on_death": {
+      "name": "Ao Morrer",
+      "text": "O efeito acontece quando a unidade morre."
+    },
+    "on_attack": {
+      "name": "Ao Atacar",
+      "text": "O efeito acontece quando a unidade é declarada atacante."
+    },
+    "on_block": {
+      "name": "Ao Bloquear",
+      "text": "O efeito acontece quando a unidade é declarada bloqueadora."
+    },
+    "on_blocked": {
+      "name": "Ao Ser Bloqueada",
+      "text": "O efeito acontece quando um bloqueador é atribuído a esta unidade atacante."
+    },
+    "on_damaged": {
+      "name": "Ao Sofrer Dano",
+      "text": "O efeito acontece quando a unidade sofre dano (Escudo anulando o dano não conta)."
+    },
+    "on_hit_leader": {
+      "name": "Ao Atingir o Líder",
+      "text": "O efeito acontece quando a unidade causa dano a um Líder."
+    },
+    "on_turn_start": {
+      "name": "No Início do Turno",
+      "text": "O efeito acontece no início do turno do dono da unidade."
+    },
+    "on_turn_end": {
+      "name": "No Fim do Turno",
+      "text": "O efeito acontece no fim do turno do dono da unidade."
+    },
+    "on_ally_death": {
+      "name": "Aliado Morre",
+      "text": "O efeito acontece quando outra unidade que você controla morre, mesmo que ela volte logo em seguida (Revivente Eterno, Fênix, Lendário voltando ao Santuário). A que morreu não ativa o próprio efeito (para isso existe Ao Morrer)."
+    },
+    "on_activate": {
+      "name": "Ao Ativar",
+      "text": "Habilidade ativável da unidade: o dono escolhe quando usar, pagando o custo em Momentum indicado (a Reserva ajuda). Vai para a pilha como um feitiço da velocidade indicada, então pode ser respondida e anulada."
+    },
+    "transform": {
+      "name": "Transformar",
+      "text": "Ativável na própria Fase Principal com a pilha vazia, pagando o custo em Momentum indicado: a unidade vira outra carta no mesmo lugar (mantém dano e equipamento) e o Ao Entrar da nova forma dispara. Não usa a pilha, então não pode ser anulada."
+    },
+    "constante": {
+      "name": "Constante",
+      "text": "O efeito é contínuo: vale enquanto a unidade está em campo e se atualiza sozinho."
+    }
   },
   "species": {
-    "humano": {"name": "Humano"},
-    "dragonoide": {"name": "Dragonoide"},
-    "dragao": {"name": "Dragão"},
-    "dragao_primordial": {"name": "Dragão Primordial"},
-    "merfolk": {"name": "Merfolk"},
-    "divindade": {"name": "Divindade"},
-    "celestial": {"name": "Celestial"},
-    "transfigurado": {"name": "Transfigurado"},
-    "forjado_divino": {"name": "Forjado-Divino"},
-    "semideus": {"name": "Semideus"},
-    "tita": {"name": "Titã"},
-    "demonio": {"name": "Demônio"},
-    "espirito": {"name": "Espírito"},
-    "fera": {"name": "Fera"},
-    "elemental": {"name": "Elemental"},
-    "gnomo": {"name": "Gnomo"},
-    "demihumano": {"name": "Demihumano"},
-    "morto_vivo": {"name": "Morto-Vivo"},
-    "revenante": {"name": "Revenante"},
-    "gargoyle": {"name": "Gargoyle"},
-    "fada": {"name": "Fada"}
+    "humano": { "name": "Humano" },
+    "dragonoide": { "name": "Dragonoide" },
+    "dragao": { "name": "Dragão" },
+    "dragao_primordial": { "name": "Dragão Primordial" },
+    "merfolk": { "name": "Merfolk" },
+    "divindade": { "name": "Divindade" },
+    "celestial": { "name": "Celestial" },
+    "transfigurado": { "name": "Transfigurado" },
+    "forjado_divino": { "name": "Forjado-Divino" },
+    "semideus": { "name": "Semideus" },
+    "tita": { "name": "Titã" },
+    "demonio": { "name": "Demônio" },
+    "espirito": { "name": "Espírito" },
+    "fera": { "name": "Fera" },
+    "elemental": { "name": "Elemental" },
+    "gnomo": { "name": "Gnomo" },
+    "demihumano": { "name": "Demihumano" },
+    "morto_vivo": { "name": "Morto-Vivo" },
+    "revenante": { "name": "Revenante" },
+    "gargoyle": { "name": "Gargoyle" },
+    "fada": { "name": "Fada" }
   },
   "keywords": {
-    "golpe_rapido": {
-      "name": "Golpe Rápido",
-      "text": "Causa seu dano de combate antes das unidades sem Golpe Rápido."
+    "hipervelocidade": {
+      "name": "Hipervelocidade",
+      "text": "Atacando ou bloqueando, causa seu dano de combate antes das unidades sem Hipervelocidade."
+    },
+    "ataque_rapido": {
+      "name": "Ataque Rápido",
+      "text": "Ao atacar, causa seu dano de combate antes do bloqueador, a menos que ele tenha Hipervelocidade."
     },
     "sobrepujanca": {
       "name": "Sobrepujança",
@@ -113,8 +159,8 @@
       "name": "Vigilância",
       "text": "Pode bloquear unidades com Furtividade."
     },
-    "intimidar": {
-      "name": "Intimidar",
+    "intimidacao": {
+      "name": "Intimidacao",
       "text": "Unidades com ATK 3 ou menor não podem bloquear esta unidade."
     },
     "nao_bloqueia": {
@@ -170,9 +216,7 @@
         ],
         "text": "Instantânea. 1 Momentum: cause 1 de dano a qualquer alvo. Recarrega no início do seu turno (se usada no turno do oponente, só volta no seu)."
       },
-      "essences": [
-        "ignea"
-      ]
+      "essences": ["ignea"]
     },
     "naelthos": {
       "name": "Naelthos",
@@ -192,9 +236,7 @@
         ],
         "text": "Rápida. 1 Momentum, uma vez por turno: marque uma unidade aliada. Na próxima vez que ela sobreviver a dano neste turno, compre 1 carta."
       },
-      "essences": [
-        "aquatica"
-      ]
+      "essences": ["aquatica"]
     },
     "jeff": {
       "name": "Jeff The Death",
@@ -217,9 +259,7 @@
         ],
         "text": "Passiva. Aliado Morre, só no seu turno e uma vez por turno: cause 1 de dano ao Líder inimigo."
       },
-      "essences": [
-        "obscura"
-      ]
+      "essences": ["obscura"]
     },
     "voltexz": {
       "name": "Voltexz",
@@ -243,9 +283,7 @@
         ],
         "text": "Passiva. No início do seu turno, recupere metade do Momentum que vazou da Reserva, arredondada para baixo (máx. 2)."
       },
-      "essences": [
-        "eletrica"
-      ]
+      "essences": ["eletrica"]
     }
   },
   "cards": {}

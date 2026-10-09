@@ -11,7 +11,7 @@ const BOARD_LIMIT := 8
 const MOMENTUM_CAP := 10
 const RESERVE_CAP := 2 ## unspent Momentum banked at turn start; pays only spells and abilities
 const COMMANDER_TAX := 2
-const INTIMIDATE_ATK := 3 ## Intimidar: blockers with this ATK or less cannot block
+const INTIMIDATE_ATK := 3 ## Intimidacao: blockers with this ATK or less cannot block
 const SECOND_BONUS_TURNS := 2 ## the second player's first turns that start with +1 Reserve (the first also with +1 Momentum)
 
 ## Leaders are addressed with negative uids so targets are a single int.
@@ -87,7 +87,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"index": i, "deck_id": deck_id, "leader_id": d["leader"],
 		"leader_hp": int(ld["hp"]), "leader_max": int(ld["hp"]),
 		"momentum": 0, "max_momentum": 0, "reserve": 0,
-			"saved_momentum": 0, "idle_turns": 0, "next_momentum": 0, "leaked": 0,
+			"saved_momentum": 0, "idle_turns": 0, "next_momentum": 0, "leaked": 0, "unspent": 0,
 		"deck": deck, "hand": [], "board": [], "graveyard": [], "banished": [],
 		"legendary": {"card_id": ld["legendary"], "in_zone": true, "casts": 0},
 		"ability_used": false, "passive_used": false, "attacked": false, "fatigue": 0, "mulligan_done": false,
@@ -227,7 +227,7 @@ func can_block(blocker: Dictionary, attacker: Dictionary) -> bool:
 		return false
 	if has_kw(attacker, "furtividade") and not (has_kw(blocker, "furtividade") or has_kw(blocker, "vigilancia")):
 		return false
-	if has_kw(attacker, "intimidar") and atk_of(blocker) <= INTIMIDATE_ATK:
+	if has_kw(attacker, "intimidacao") and atk_of(blocker) <= INTIMIDATE_ATK:
 		return false
 	return true
 
@@ -267,7 +267,8 @@ func enter_spec(cd: Dictionary) -> String:
 ## wherever the card is, not only on the board, so they are not "Constante")
 ## (e.g. per: "own_graveyard" = 1 less for each card in the own graveyard; "saved_momentum" =
 ## per Momentum that leaked past the Reserva by the start of the owner's turns, over the whole game; "idle_turns" =
-## per owner turn that started with Momentum leaking past the Reserva). Never below 0, or below the effect's "min_cost".
+## per owner turn that started with Momentum leaking past the Reserva; "unspent_momentum" = a flat "amount" off when
+## at least "threshold" plain Momentum was left over from the previous turn). Never below 0, or below the effect's "min_cost".
 func cost_of(p: int, cd: Dictionary) -> int:
 	var c := int(cd["cost"])
 	var floor_cost := 0
@@ -279,6 +280,7 @@ func cost_of(p: int, cd: Dictionary) -> int:
 			"own_graveyard": n = players[p]["graveyard"].size()
 			"saved_momentum": n = int(players[p]["saved_momentum"])
 			"idle_turns": n = int(players[p]["idle_turns"])
+			"unspent_momentum": n = 1 if int(players[p]["unspent"]) >= int(e.get("threshold", 1)) else 0
 		c -= n * int(e.get("amount", 1))
 		floor_cost = maxi(floor_cost, int(e.get("min_cost", 0)))
 	return maxi(c, floor_cost)
@@ -1391,8 +1393,8 @@ func _deal_damage(t: int, amount: int, source: Dictionary) -> int:
 			return 0
 		if has_kw(c, "indestrutivel"):
 			return 0 # damage is always 0 against it (Escudo isn't consumed)
-		# Esquiva: the first combat damage each turn from a unit with less attack is avoided
-		if _combat_damage and has_kw(c, "esquiva") and not source.is_empty() 				and atk_of(source) < atk_of(c) and int(c.get("dodge_turn", -1)) != turn:
+		# Esquiva: the first combat damage each turn from a qualifying attacker is avoided
+		if _combat_damage and has_kw(c, "esquiva") and not source.is_empty() and _dodges(c, source) 				and int(c.get("dodge_turn", -1)) != turn:
 			c["dodge_turn"] = turn
 			_emit({"type": "dodge", "uid": t, "src": source.get("uid", 0)})
 			return 0
@@ -1437,6 +1439,26 @@ func _draw(p: int, n: int) -> void:
 		pl["hand"].append(c)
 		_emit({"type": "draw", "player": p, "uid": c["uid"]})
 
+## Esquiva condition: by default the attacker has less ATK than the dodger. A card can override it with
+## "esquiva": {"unless_keywords": [...]} = the attacker has none of those keywords.
+func _dodges(c: Dictionary, source: Dictionary) -> bool:
+	var rule: Dictionary = card_of(c).get("esquiva", {})
+	if rule.has("unless_keywords"):
+		for kw in rule["unless_keywords"]:
+			if has_kw(source, kw):
+				return false
+		return true
+	return atk_of(source) < atk_of(c)
+
+## When a combatant deals its combat damage: 1 = Hipervelocidade (attacking or blocking), 2 = Ataque Rápido
+## (only as the attacker, and not against a blocker with Hipervelocidade), 3 = everyone else.
+func _strike_step(u: Dictionary, other: Dictionary, attacking: bool) -> int:
+	if has_kw(u, "hipervelocidade"):
+		return 1
+	if attacking and has_kw(u, "ataque_rapido") and not (not other.is_empty() and has_kw(other, "hipervelocidade")):
+		return 2
+	return 3
+
 ## Dead attackers deal nothing; a blocked attacker whose blocker died hits nothing
 ## (Sobrepujança: all of it goes to the leader); a blocker whose attacker died deals nothing.
 func _resolve_combat() -> void:
@@ -1448,11 +1470,11 @@ func _resolve_combat() -> void:
 	var pairs: Array = []
 	for a in attackers:
 		pairs.append([a, blocks.get(a, 0)])
-	for first_strike in [true, false]:
+	for step in [1, 2, 3]:
 		for pair in pairs:
 			var att := find_unit(pair[0])
 			var blk := find_unit(pair[1]) if pair[1] != 0 else {}
-			if not att.is_empty() and has_kw(att, "golpe_rapido") == first_strike:
+			if not att.is_empty() and _strike_step(att, blk, true) == step:
 				if pair[1] == 0:
 					_deal_damage(LEADER_UID[defender], atk_of(att), att)
 				elif not blk.is_empty():
@@ -1462,7 +1484,7 @@ func _resolve_combat() -> void:
 						_deal_damage(LEADER_UID[defender], excess, att)
 				elif has_kw(att, "sobrepujanca"):
 					_deal_damage(LEADER_UID[defender], atk_of(att), att) # blocker already dead
-			if not blk.is_empty() and has_kw(blk, "golpe_rapido") == first_strike and not att.is_empty():
+			if not blk.is_empty() and _strike_step(blk, att, false) == step and not att.is_empty():
 				_deal_damage(att["uid"], atk_of(blk), blk)
 		_check_state()
 		if phase == "over":
@@ -1553,6 +1575,7 @@ func _start_turn(p: int, draw: bool) -> void:
 	# unspent (Voltexz and Fulgurvoltz get cheaper by it)
 	var leaked: int = int(pl["reserve"]) + int(pl["momentum"]) - RESERVE_CAP
 	pl["leaked"] = maxi(0, leaked) # Sobrecarga refunds part of it this turn
+	pl["unspent"] = int(pl["momentum"]) # plain Momentum left from the last turn (Gigante Elétrico)
 	if leaked > 0:
 		pl["saved_momentum"] += leaked
 		pl["idle_turns"] += 1

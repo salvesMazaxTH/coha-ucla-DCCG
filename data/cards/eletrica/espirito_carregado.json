@@ -8,8 +8,17 @@
   "essence": "eletrica",
   "cost": 2,
   "atk": 1,
-  "hp": 2,
-  "keywords": [],
+  "hp": 1,
+  "keywords": [
+    "voo",
+    "esquiva"
+  ],
+  "esquiva": {
+    "unless_keywords": [
+      "ataque_rapido",
+      "hipervelocidade"
+    ]
+  },
   "art": "eletrica/espirito_carregado.webp",
   "effects": [
     {
@@ -20,7 +29,8 @@
       "next_turn": true
     }
   ],
-  "text": "Ao Entrar: no início do seu próximo turno, você terá +1 Momentum.",
+  "text": "Esquiva: evita o dano de combate de unidades sem Ataque Rápido nem Hipervelocidade.
+Ao Entrar: no início do seu próximo turno, você terá +1 Momentum.",
   "flavor": "",
   "tags": []
 }

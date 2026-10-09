@@ -7,7 +7,7 @@
   "cost": 2,
   "atk": 2,
   "hp": 1,
-  "keywords": ["furtividade", "golpe_rapido"],
+  "keywords": ["furtividade", "ataque_rapido"],
   "art": "aquatica/yuki.webp",
   "effects": [],
   "activated": {

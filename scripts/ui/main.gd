@@ -774,7 +774,7 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	layer.add_child(mb)
 	mb.setup(pl["momentum"], pl["max_momentum"], int(pl.get("reserve", 0)))
 
-const HAND_SCALE := 1.5275
+const HAND_SCALE := 1.4875
 const HAND_SCALE_MIN := 1.3
 const HAND_SHRINK_FROM := 6
 const HAND_SHRINK_TO := 10
@@ -1783,7 +1783,7 @@ func _on_unit_click(v: CardView) -> void:
 					block_sel[v.uid] = blocker_pick
 					blocker_pick = 0
 				else:
-					_toast("Essa unidade não pode bloquear esse atacante (Voo/Furtividade/Intimidar).")
+					_toast("Essa unidade não pode bloquear esse atacante (Voo/Furtividade/Intimidacao).")
 				_render()
 
 # ---------------------------------------------------------------- overlay

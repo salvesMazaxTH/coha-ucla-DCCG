@@ -25,7 +25,7 @@ func _init() -> void:
 	_test_obscura()
 	_test_obscura_rules()
 	_test_eletrica()
-	_test_intimidar()
+	_test_intimidacao()
 	_test_custo_e_contagem()
 	_test_ban()
 	_test_combat()
@@ -39,6 +39,7 @@ func _init() -> void:
 	_test_counter()
 	_test_reserve()
 	_test_damage_window()
+	_test_strike_order()
 	_test_rusco()
 	_test_sim()
 	print("tests done, failures: ", failures)
@@ -981,6 +982,31 @@ func _test_stack() -> void:
 	g._deal_damage(wall["uid"], 1, {})
 	check(g.players[1]["hand"].size() == hn + 1, "mark draws only once")
 
+## Hipervelocidade strikes first attacking or blocking; Ataque Rápido only as the attacker and not against Hipervelocidade.
+func _strike_result(att_kw: Array, blk_kw: Array) -> String:
+	_tcard("t_s_att", 3, 3, [])
+	_tcard("t_s_blk", 3, 3, [])
+	CardDB.data()["cards"]["t_s_att"]["keywords"] = att_kw
+	CardDB.data()["cards"]["t_s_blk"]["keywords"] = blk_kw
+	var g := _new_game()
+	_quiet(g)
+	var at := _put(g, 0, "t_s_att")
+	var bl := _put(g, 1, "t_s_blk")
+	_attack(g, {at["uid"]: 0})
+	_block(g, {at["uid"]: bl["uid"]})
+	return ("A" if not g.find_unit(at["uid"]).is_empty() else "-") + ("B" if not g.find_unit(bl["uid"]).is_empty() else "-")
+
+func _test_strike_order() -> void:
+	check(_strike_result([], []) == "--", "combate: sem keywords os dois morrem")
+	check(_strike_result(["ataque_rapido"], []) == "A-", "ataque rápido: atacante mata o bloqueador antes")
+	check(_strike_result(["ataque_rapido"], ["ataque_rapido"]) == "A-", "ataque rápido: vale mesmo se o bloqueador também tem")
+	check(_strike_result([], ["ataque_rapido"]) == "--", "ataque rápido: bloqueando não faz nada")
+	check(_strike_result(["ataque_rapido"], ["hipervelocidade"]) == "-B", "ataque rápido: não vale contra Hipervelocidade")
+	check(_strike_result(["hipervelocidade"], []) == "A-", "hipervelocidade: atacando bate primeiro")
+	check(_strike_result([], ["hipervelocidade"]) == "-B", "hipervelocidade: bloqueando bate primeiro")
+	check(_strike_result(["hipervelocidade"], ["ataque_rapido"]) == "A-", "hipervelocidade: bate antes de Ataque Rápido")
+	check(_strike_result(["hipervelocidade"], ["hipervelocidade"]) == "--", "hipervelocidade contra hipervelocidade: simultâneo")
+
 func _test_damage_window() -> void:
 	_tcard("t_a22", 2, 2, [])
 	_tcard("t_tr22", 2, 2, [])
@@ -1292,6 +1318,21 @@ func _test_eletrica() -> void:
 	g.players[a]["saved_momentum"] = 40
 	g.players[a]["idle_turns"] = 40
 	check(g.cost_of(a, vx) == 3 and g.cost_of(a, fg) == 5, "eletrica: pisos 3 e 5")
+	# Gigante Elétrico: 9 base, 5 less when 3+ Momentum was left over from the previous turn
+	var gg: Dictionary = CardDB.card("gigante_eletrico")
+	g = _eletrica_game()
+	a = g.active
+	o = g.opponent(a)
+	check(g.cost_of(a, gg) == 9 and int(gg["atk"]) == 7 and int(gg["hp"]) == 7, "gigante: 7/7 custando 9")
+	check(gg["keywords"] == ["sobrepujanca"], "gigante: só Sobrepujança")
+	g.players[a]["momentum"] = 3
+	g.end_turn(a)
+	g.end_turn(o)
+	check(g.players[a]["unspent"] == 3 and g.cost_of(a, gg) == 4, "gigante: 3 de Momentum sobrando -> custa 4")
+	g.players[a]["momentum"] = 2
+	g.end_turn(a)
+	g.end_turn(o)
+	check(g.players[a]["unspent"] == 2 and g.cost_of(a, gg) == 9, "gigante: só 2 sobrando -> custo base")
 	# Encarnação retirement uses the current cost (with reductions) plus the tax
 	var l: Dictionary = g.players[a]["legendary"]
 	l["casts"] = 1
@@ -1328,14 +1369,14 @@ func _test_eletrica() -> void:
 	g._resolve_stack()
 	g._flush()
 	check(g.players[a]["momentum"] == 6, "carga acumulada: custa 1, dá +2")
-	# Voltexz Ao Entrar: scaled buff capped at +5/+5, Golpe Rápido for her other units (not herself)
+	# Voltexz Ao Entrar: scaled buff capped at +5/+5, Ataque Rápido for her other units (not herself)
 	g = _eletrica_game()
 	a = g.active
 	var ally := _put(g, a, "jack")
 	g.players[a]["momentum"] = 9
 	var vs := _put(g, a, "voltexz")
-	check(atk_ok(g, ally, 2 + 5, 4 + 5) and g.has_kw(ally, "golpe_rapido"), "voltexz: aliados +5/+5 e Golpe Rápido")
-	check(g.atk_of(vs) == 10 and g.has_kw(vs, "golpe_rapido"), "voltexz: não bufa a si própria (ATK base 10, Golpe Rápido é nativo)")
+	check(atk_ok(g, ally, 2 + 5, 4 + 5) and g.has_kw(ally, "ataque_rapido"), "voltexz: aliados +5/+5 e Ataque Rápido")
+	check(g.atk_of(vs) == 8 and g.has_kw(vs, "hipervelocidade") and not g.has_kw(vs, "ataque_rapido"), "voltexz: não bufa a si própria (ATK base 8, Hipervelocidade é nativa)")
 	g = _eletrica_game()
 	a = g.active
 	ally = _put(g, a, "jack")
@@ -1388,6 +1429,17 @@ func _test_eletrica() -> void:
 	g.turn += 1
 	g._deal_damage(th["uid"], 1, weak)
 	check(th["damage"] == 4, "esquiva: dano fora de combate não é evitado")
+	# Esquiva with an override: Espírito Carregado dodges attackers lacking Ataque Rápido / Hipervelocidade
+	var sp := _put(g, o, "espirito_carregado")
+	var slow := _put(g, a, "jack")
+	var fast := _put(g, a, "layla") # Ataque Rápido
+	g.turn += 1
+	g._combat_damage = true
+	g._deal_damage(sp["uid"], 1, fast)
+	check(sp["damage"] == 1, "esquiva (override): atacante com Ataque Rápido acerta")
+	g._deal_damage(sp["uid"], 1, slow)
+	check(sp["damage"] == 1, "esquiva (override): atacante sem velocidade é evitado, mesmo com ATK maior")
+	g._combat_damage = false
 	# Sobrecarga: Reserva cheia no início do turno dá +1 Momentum (só ao dono)
 	g = _eletrica_game()
 	a = g.active
@@ -1407,9 +1459,9 @@ func _test_eletrica() -> void:
 	g._fire_leader_passive(a, "on_turn_start")
 	check(g.players[a]["momentum"] == 2, "sobrecarga: devolve no máximo 2")
 
-func _test_intimidar() -> void:
+func _test_intimidacao() -> void:
 	_tcard("t_int", 4, 4, [])
-	CardDB.data()["cards"]["t_int"]["keywords"] = ["intimidar"]
+	CardDB.data()["cards"]["t_int"]["keywords"] = ["intimidacao"]
 	_tcard("t_low", 3, 3, [])
 	_tcard("t_high", 4, 4, [])
 	var g := _new_game()
@@ -1417,13 +1469,13 @@ func _test_intimidar() -> void:
 	var at := _put(g, 0, "t_int")
 	var low := _put(g, 1, "t_low")
 	var high := _put(g, 1, "t_high")
-	check(not g.can_block(low, at) and g.can_block(high, at), "intimidar: ATK 3 ou menos não bloqueia, ATK 4 bloqueia")
+	check(not g.can_block(low, at) and g.can_block(high, at), "intimidacao: ATK 3 ou menos não bloqueia, ATK 4 bloqueia")
 	low["atk"] = 4
-	check(g.can_block(low, at), "intimidar: usa o ATK atual (buff libera o bloqueio)")
+	check(g.can_block(low, at), "intimidacao: usa o ATK atual (buff libera o bloqueio)")
 	high["atk"] = 3
-	check(not g.can_block(high, at), "intimidar: debuff tira o direito de bloquear")
-	check(g.can_block(high, _put(g, 0, "t_high")), "intimidar: não afeta quem não tem a palavra-chave")
-	# Raiturus: Transformar (8) vira o Primordial 9/9 Intimidar + Ímpeto sem usar a pilha
+	check(not g.can_block(high, at), "intimidacao: debuff tira o direito de bloquear")
+	check(g.can_block(high, _put(g, 0, "t_high")), "intimidacao: não afeta quem não tem a palavra-chave")
+	# Raiturus: Transformar (8) vira o Primordial 9/9 Intimidacao + Ímpeto sem usar a pilha
 	g = _eletrica_game()
 	var rt := _put(g, g.active, "tony_raiturus")
 	g.players[g.active]["momentum"] = 8
@@ -1431,7 +1483,7 @@ func _test_intimidar() -> void:
 	check(g.can_transform(g.active, rt["uid"]), "raiturus pode transformar com 8")
 	g.transform(g.active, rt["uid"])
 	g._flush()
-	check(rt["card_id"] == "tony_raiturus_primordial" and g.atk_of(rt) == 9 and rt["hp"] == 9 and g.has_kw(rt, "intimidar") and g.has_kw(rt, "impeto") and g.stack.is_empty(), "raiturus vira o Primordial 9/9 Intimidar + Ímpeto")
+	check(rt["card_id"] == "tony_raiturus_primordial" and g.atk_of(rt) == 9 and rt["hp"] == 9 and g.has_kw(rt, "intimidacao") and g.has_kw(rt, "impeto") and g.stack.is_empty(), "raiturus vira o Primordial 9/9 Intimidacao + Ímpeto")
 	check(not g.can_transform(g.active, rt["uid"]), "o Primordial não transforma de novo")
 
 func atk_ok(g: GameState, c: Dictionary, atk: int, hp: int) -> bool:
