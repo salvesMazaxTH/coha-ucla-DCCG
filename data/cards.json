@@ -161,7 +161,7 @@
       "text": "Pode bloquear unidades com Furtividade."
     },
     "intimidacao": {
-      "name": "Intimidacao",
+      "name": "Intimidação",
       "text": "Unidades com ATK 3 ou menor não podem bloquear esta unidade."
     },
     "nao_bloqueia": {

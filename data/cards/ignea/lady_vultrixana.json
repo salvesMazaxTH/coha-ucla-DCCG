@@ -10,14 +10,14 @@
   "cost": 6,
   "atk": 4,
   "hp": 4,
-  "keywords": [],
+  "keywords": ["hipervelocidade"],
   "art": "ignea/lady_vultrixana.webp",
   "effects": [
     {
       "trigger": "on_enter",
       "action": "damage",
       "target": "enemy_unit",
-      "amount": 3
+      "amount": 2
     },
     {
       "trigger": "on_enter",
@@ -26,7 +26,7 @@
       "amount": 1
     }
   ],
-  "text": "Ao Entrar: cause 3 de dano a uma unidade inimiga e ganhe +1 Momentum neste turno.",
+  "text": "Ao Entrar: cause 2 de dano a uma unidade inimiga e ganhe +1 Momentum neste turno.",
   "flavor": "",
   "tags": []
 }

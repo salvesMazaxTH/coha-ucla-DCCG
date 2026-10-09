@@ -1275,6 +1275,17 @@ func _apply(p: int, e: Dictionary, t: int) -> void:
 				return
 			doomed["damage"] = 1000000
 			_emit({"type": "destroy", "uid": t})
+		"banish":
+			# exile: stronger than destroy. Ignores Indestrutível, the unit never dies (no Ao Morrer,
+			# no Aliado Morre) and never reaches the graveyard; its equipment does.
+			var exiled := find_unit(t)
+			if exiled.is_empty():
+				return
+			var ow: int = int(exiled["owner"])
+			players[ow]["board"].erase(exiled)
+			_release_equipment(exiled)
+			players[ow]["banished"].append({"uid": exiled["uid"], "card_id": exiled["card_id"]})
+			_emit({"type": "banish", "uid": t, "player": ow, "card_id": exiled["card_id"]})
 		"sacrifice":
 			# kills one of the caster's own units; "then" effects run only if it happened
 			var victim := find_unit(t)

@@ -51,7 +51,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - Cada lado pode ter no máximo **8 unidades** em campo.
 - Uma unidade recém-jogada não pode atacar no mesmo turno, a menos que tenha **Ímpeto**. Ela pode bloquear normalmente.
 - A cura do Líder nunca passa da vida inicial dele.
-- **Banimento:** carta banida sai do jogo: não vai ao cemitério, então não alimenta Encarnação, Vagante etc. e não conta como morrer. A compra não tem teto durante o turno (a mão pode passar de 10, inclusive no turno do oponente); só no fim do seu turno você bane as piores até voltar a 10. Banir da mão é oculto para o oponente; efeitos de banimento (ex.: em área) serão públicos.
+- **Banimento:** carta banida sai do jogo: não vai ao cemitério, então não alimenta Encarnação, Vagante etc. e não conta como morrer. A compra não tem teto durante o turno (a mão pode passar de 10, inclusive no turno do oponente); só no fim do seu turno você bane as piores até voltar a 10. Banir da mão é oculto para o oponente; efeitos de banimento (ex.: em área) serão públicos. **Banir uma unidade em campo** é mais forte que destruir (equivale a exilar): ignora Indestrutível, a unidade não morre (sem Ao Morrer nem Aliado Morre) e não vai ao cemitério; o equipamento dela vai ao cemitério.
 - **Fadiga:** comprar uma carta com o deck vazio causa dano ao seu Líder. O dano é de 2 na primeira vez e **dobra** a cada nova compra (2, 4, 8, 16…): com 20 a 25 de vida, mata em até 4 compras. Com o deck vazio, o contador do deck mostra o próximo dano (ex.: -8).
 
 ## Velocidade, pilha e janelas
