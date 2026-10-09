@@ -266,6 +266,7 @@
       "name": "Voltexz",
       "hp": 25,
       "art": "eletrica/voltexz_lider.webp",
+      "art_focus": 0.2,
       "legendary": "voltexz",
       "ability": {
         "name": "Sobrecarga",

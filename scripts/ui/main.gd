@@ -443,9 +443,9 @@ func _deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 	var compact := size.y < 340.0 ## short tile (several rows): tighter art and text
 	var art_h := size.y * (0.31 if compact else 0.5)
 	var art := TextureRect.new()
-	art.texture = CardView.texture(String(ld.get("art", "")))
+	art.texture = _top_crop(CardView.texture(String(ld.get("art", ""))), Vector2(size.x - 8, art_h), float(ld.get("art_focus", 0.06)))
 	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	art.stretch_mode = TextureRect.STRETCH_SCALE
 	art.position = Vector2(4, 4)
 	art.size = Vector2(size.x - 8, art_h)
 	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -2843,3 +2843,15 @@ func _button(t: String, cb: Callable, primary := false) -> Button:
 		b.theme_type_variation = "PrimaryButton"
 	b.pressed.connect(cb)
 	return b
+
+## Crops a tall portrait to a wide window, anchored near the top so the face stays in frame
+## (a centered crop shows the torso instead).
+func _top_crop(tex: Texture2D, window: Vector2, focus := 0.06) -> Texture2D:
+	if tex == null:
+		return null
+	var ts := tex.get_size()
+	var ch := minf(ts.y, ts.x * window.y / window.x)
+	var at := AtlasTexture.new()
+	at.atlas = tex
+	at.region = Rect2(0, (ts.y - ch) * focus, ts.x, ch)
+	return at
