@@ -1,0 +1,29 @@
+{
+  "name": "Rusco",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "demihumano"
+  ],
+  "essence": "neutra",
+  "cost": 2,
+  "atk": 2,
+  "hp": 2,
+  "max_copies": 1,
+  "keywords": [
+    "escudo"
+  ],
+  "art": "neutra/rusco.webp",
+  "effects": [],
+  "deck_effects": [
+    {
+      "trigger": "on_turn_end",
+      "if": "played_two",
+      "action": "summon_self",
+      "cost": 2
+    }
+  ],
+  "text": "Única.\nNo deck: no fim do seu turno, se você jogou uma carta com custo, ATK ou VIDA exatamente 2 neste turno e pode pagar 2 de Momentum, paga 2 e Rusco sai do deck e entra em campo.",
+  "flavor": "",
+  "tags": []
+}
