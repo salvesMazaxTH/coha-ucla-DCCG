@@ -9,7 +9,8 @@ const ICE := Color("#bfefff")
 ## One colour per block pair (arrow, number badge, BLOQUEIA tag), left to right.
 const PAIR_COLS := [Color("#5ec8ff"), Color("#ff7ad9"), Color("#7dffb0"), Color("#ffb35c"), Color("#b48cff"), Color("#f0f07a")]
 const COL_W := 232.0 ## right HUD column width
-const STAGE_H := 900.0
+const STAGE_H := 1034.0
+const BOT := 134.0 ## extra stage height under the boards: room for the Leader plate between the board and the hand
 const STAGE_MAX_W := 2100.0
 var stage_w := 1600.0 ## logical width: 1600 or wider, follows the window aspect
 var col_x := 1352.0
@@ -72,7 +73,7 @@ var ai_timer: Timer
 
 var _hand_base := 0 ## child index of the first hand card in layer
 
-const DECK_POSE := {"c": Vector2(186, 776), "rot": 0.0, "w": 24.0}
+const DECK_POSE := {"c": Vector2(186, 776.0 + BOT), "rot": 0.0, "w": 24.0}
 
 ## "Modo leve": renders at the 1600x900 base size and upscales (fewer pixels, softer text).
 func _apply_light(on: bool, save := false) -> void:
@@ -131,7 +132,7 @@ func _ready() -> void:
 	bg_mat = ShaderMaterial.new()
 	bg_mat.shader = load("res://scripts/ui/shaders/table.gdshader")
 	bg_mat.set_shader_parameter("aspect", 1600.0 / 900.0)
-	bg_mat.set_shader_parameter("divider_y", TableView.DIVIDER_Y / 900.0)
+	bg_mat.set_shader_parameter("divider_y", TableView.DIVIDER_Y / STAGE_H)
 	bg_rect.material = bg_mat
 	bg_vp.add_child(bg_rect)
 	bg = TextureRect.new()
@@ -200,8 +201,8 @@ func _fit_viewport() -> void:
 	bg_mat.set_shader_parameter("aspect", vp.x / vp.y)
 	bg_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	if motes:
-		motes.position = Vector2(w / 2.0, 470)
-		motes.emission_rect_extents = Vector2(w / 2.0 + 20.0, 470)
+		motes.position = Vector2(w / 2.0, STAGE_H / 2.0)
+		motes.emission_rect_extents = Vector2(w / 2.0 + 20.0, STAGE_H / 2.0)
 	if changed and layer:
 		if table.visible and g:
 			_render.call_deferred()
@@ -262,7 +263,7 @@ func _show_menu() -> void:
 		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 		tr.position = Vector2(side[1], 0)
-		tr.size = Vector2(640, 900)
+		tr.size = Vector2(640, STAGE_H)
 		tr.flip_h = side[2] == 0.0
 		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var sm := ShaderMaterial.new()
@@ -301,11 +302,11 @@ func _show_menu() -> void:
 	var lt := _button("Modo leve: %s" % ("LIGADO" if _light_on() else "desligado"), func():
 		_apply_light(not _light_on(), true)
 		_show_menu.call_deferred())
-	lt.position = Vector2(stage_w - 300, 790)
+	lt.position = Vector2(stage_w - 300, 790.0 + BOT)
 	lt.size = Vector2(280, 52)
 	layer.add_child(lt)
 	var ver := _label("0.2.2 Alpha", 13, Color(1, 1, 1, 0.35), HORIZONTAL_ALIGNMENT_RIGHT, "body")
-	ver.position = Vector2(stage_w - 300, 864)
+	ver.position = Vector2(stage_w - 300, 864.0 + BOT)
 	ver.size = Vector2(280, 20)
 	layer.add_child(ver)
 
@@ -688,7 +689,7 @@ func _render() -> void:
 	_set_tints(_leader_color(op), _leader_color(me))
 	table.enemy_color = _leader_color(op)
 	table.my_color = _leader_color(me)
-	table.sockets = [Rect2(SANCTUARY_X, 8, SANCTUARY_W, 264), Rect2(SANCTUARY_X, 634, SANCTUARY_W, 264)]
+	table.sockets = [Rect2(SANCTUARY_X, 8, SANCTUARY_W, 264), Rect2(SANCTUARY_X, 634.0 + BOT, SANCTUARY_W, 264)]
 	table.visible = true
 	table.queue_redraw()
 	if g.phase == "over":
@@ -700,16 +701,17 @@ func _render() -> void:
 	if pending_pass:
 		_render_pass()
 		return
-	_render_leader(op, Vector2(16, 14), Vector2(20, 192))
-	_render_leader(me, Vector2(16, 660), Vector2(20, 840))
+	# draw order = depth: the hands sit at the back, the Leaders in front of them, the units on top
 	_render_command(op, Vector2(SANCTUARY_X + 1, 14))
-	_render_command(me, Vector2(SANCTUARY_X + 1, 640))
+	_render_command(me, Vector2(SANCTUARY_X + 1, 640.0 + BOT))
 	_render_enemy_hand(op)
+	_render_hand(me)
+	_render_leader(op, Vector2(lane_cx - LeaderView.CX, LEADER_Y_OP), Vector2(20, 192))
+	_render_leader(me, Vector2(lane_cx - LeaderView.CX, LEADER_Y_ME), Vector2(20, 840.0 + BOT))
 	_collect_pairs()
 	_render_board(op, 172)
 	_render_board(me, 460)
 	_render_pairs()
-	_render_hand(me)
 	_sync_enter_aim()
 	_render_side()
 	_render_hint()
@@ -786,6 +788,9 @@ const HAND_SHRINK_TO := 10
 const SANCTUARY_SCALE := 1.48 ## Incarnation card in the Sanctuary
 const SANCTUARY_X := 260.0
 const SANCTUARY_W := 180.0
+const LEADER_Y_OP := 4.0 ## Leader plates: centered, between each hand and its board
+const LEADER_Y_ME := 656.0
+const EHAND_DX := 190.0 ## the opponent hand fans out beside their Leader
 
 func _render_command(p: int, pos: Vector2) -> void:
 	var l: Dictionary = g.players[p]["legendary"]
@@ -824,11 +829,11 @@ func _render_enemy_hand(p: int) -> void:
 		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		v.pivot_offset = v.size / 2.0
 		v.rotation = deg_to_rad(-k * 4.0)
-		v.position = Vector2(lane_cx - 68 + k * 30 - v.size.x / 2.0, -38 + k * k * 1.2)
+		v.position = Vector2(lane_cx + EHAND_DX + k * 30 - v.size.x / 2.0, -38 + k * k * 1.2)
 		layer.add_child(v)
 	if n > 0:
 		var cnt := _label("%d" % n, 15, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 5)
-		cnt.position = Vector2(lane_cx - 68 + (n - 1) / 2.0 * 30 + 30, 18)
+		cnt.position = Vector2(lane_cx + EHAND_DX + (n - 1) / 2.0 * 30 + 30, 18)
 		cnt.size = Vector2(30, 20)
 		layer.add_child(cnt)
 
@@ -1019,7 +1024,7 @@ func _render_hand(p: int) -> void:
 		v.text_suffix = _scale_suffix(p, hcd)
 		var k := i - (n - 1) / 2.0
 		v.pivot_offset = Vector2(v.size.x / 2.0, v.size.y)
-		var pos := Vector2(lane_cx + k * step - v.size.x / 2.0, 676 + k * k * 1.4)
+		var pos := Vector2(lane_cx + k * step - v.size.x / 2.0, 676.0 + BOT + k * k * 1.4)
 		var rot := deg_to_rad(k * ang)
 		if picked.has(c["uid"]):
 			pos.y -= 34
@@ -1189,20 +1194,20 @@ func _render_side() -> void:
 	_render_stack()
 	var ap_on := _auto_pass_on()
 	var ap := _button("Auto-passe: %s" % ("LIGADO" if ap_on else "desligado"), func(): _set_auto_pass(not _auto_pass_on()))
-	ap.position = Vector2(col_x, 772)
+	ap.position = Vector2(col_x, 772.0 + BOT)
 	ap.size = Vector2(COL_W, 48)
 	ap.add_theme_font_size_override("font_size", 18)
 	ap.tooltip_text = "Pula sozinho as janelas em que você não tem nenhuma jogada válida."
 	layer.add_child(ap)
 	var half := (COL_W - 8.0) / 2.0
 	var menu := _button("Menu", _show_menu)
-	menu.position = Vector2(col_x, 832)
+	menu.position = Vector2(col_x, 832.0 + BOT)
 	menu.size = Vector2(COL_W if g.phase == "over" else half, 52)
 	menu.add_theme_font_size_override("font_size", 20)
 	layer.add_child(menu)
 	if g.phase != "over":
 		var cc := _button("Conceder", _ask_concede)
-		cc.position = Vector2(col_x + half + 8.0, 832)
+		cc.position = Vector2(col_x + half + 8.0, 832.0 + BOT)
 		cc.size = Vector2(half, 52)
 		cc.add_theme_font_size_override("font_size", 18)
 		cc.tooltip_text = "Desiste da partida: o oponente vence."
@@ -1799,6 +1804,17 @@ func _scale_suffix(p: int, cd: Dictionary) -> String:
 	var n := g.scale_count(p, cd)
 	return " (agora: %d)" % n if n >= 0 else ""
 
+## Glossary line of a keyword for this card: Esquiva explains the card's own rule (the default one,
+## or "esquiva": {"unless_keywords": [...]}), every other keyword uses the shared text.
+func _keyword_text(cd: Dictionary, kw: String, k: Dictionary) -> String:
+	var rule: Dictionary = cd.get("esquiva", {})
+	if kw == "esquiva" and rule.has("unless_keywords"):
+		var names: Array = []
+		for u in rule["unless_keywords"]:
+			names.append(String(CardDB.keyword(u)["name"]))
+		return "A primeira vez em cada turno que receberia dano de combate de uma unidade sem %s, o dano é evitado." % " nem ".join(names)
+	return k["text"]
+
 func _show_overlay(v: CardView) -> void:
 	if v.face_down:
 		return
@@ -1835,7 +1851,7 @@ func _show_overlay(v: CardView) -> void:
 		txt += "[font_size=32]%s[/font_size]\n\n" % CardView.colorize_triggers(body + v.text_suffix, 32)
 	for kw in cd.get("keywords", []):
 		var k := CardDB.keyword(kw)
-		txt += "[color=#ffe9a8][b]%s[/b][/color] — %s\n" % [k["name"], k["text"]]
+		txt += "[color=#ffe9a8][b]%s[/b][/color] — %s\n" % [k["name"], _keyword_text(cd, kw, k)]
 	if CardDB.is_leader_card(v.card_id):
 		txt += "\n[color=#e8c25a]Encarnação do Líder:[/color] fica no Santuário. Cada nova conjuração custa +%d. Ao morrer ou ser banida, volta para o Santuário; se a próxima conjuração passaria de %d, vai para o fundo do deck como carta comum, com o custo normal.\n" % [GameState.COMMANDER_TAX, GameState.MOMENTUM_CAP]
 	var flavor := CardDB.flavor_for(cd, true)
@@ -1865,14 +1881,14 @@ func _show_overlay(v: CardView) -> void:
 				if views.has(ab_uid) and is_instance_valid(views[ab_uid]):
 					_begin_aim((views[ab_uid] as Control).get_global_rect().get_center())
 				_render(), true)
-		ab_btn.position = Vector2(rt_x, 820)
+		ab_btn.position = Vector2(rt_x, 820.0 + BOT)
 		ab_btn.custom_minimum_size = Vector2(520, 96)
 		overlay.add_child(ab_btn)
 	if cd.has("transform") and g != null and _my_input() and g.can_transform(viewer, v.uid):
 		var tb := _button("Transformar (%d)" % int(cd["transform"]["cost"]), func():
 			_close_overlay()
 			_do(g.transform(viewer, v.uid)), true)
-		tb.position = Vector2(rt_x, 820)
+		tb.position = Vector2(rt_x, 820.0 + BOT)
 		tb.custom_minimum_size = Vector2(520, 96)
 		overlay.add_child(tb)
 
@@ -2549,7 +2565,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 			"play":
 				var uid: int = e["uid"]
 				var cd := CardDB.card(e["card_id"])
-				var origin: Dictionary = {"c": Vector2(lane_cx - 68, 30), "rot": 0.0, "w": 60.0}
+				var origin: Dictionary = {"c": Vector2(lane_cx + EHAND_DX, 30), "rot": 0.0, "w": 60.0}
 				if e.get("legendary", false) and old.has("cmd%d" % e["player"]):
 					origin = old["cmd%d" % e["player"]]["pose"]
 				elif old.has(uid):
@@ -2581,8 +2597,8 @@ func _animate(events: Array, old: Dictionary) -> float:
 				fv.pivot_offset = fv.size / 2.0
 				fv.z_index = 30
 				fx.add_child(fv)
-				var from_y := 860.0 if e["player"] == viewer else 30.0
-				_fly(fv, {"c": Vector2(lane_cx - 68, from_y), "rot": 0.0, "w": 60.0}, {"c": Vector2(lane_cx, 420), "rot": 0.0, "w": FATIGUE_W}, cursor, 0.35, 40.0, true)
+				var from_y := 860.0 + BOT if e["player"] == viewer else 30.0
+				_fly(fv, {"c": Vector2(lane_cx + EHAND_DX, from_y), "rot": 0.0, "w": 60.0}, {"c": Vector2(lane_cx, 420), "rot": 0.0, "w": FATIGUE_W}, cursor, 0.35, 40.0, true)
 				fv.dissolve(cursor + 0.35 + REVEAL_HOLD * 0.7, Color(0.75, 0.6, 1.0), 0.6)
 				cursor += 0.35 + REVEAL_HOLD * 0.5
 			"ability":
@@ -2771,6 +2787,8 @@ func _log_event(e: Dictionary) -> void:
 		"destroy":
 			var dc := g.find_unit(e["uid"])
 			_log("%s foi destruída" % ("Uma unidade" if dc.is_empty() else _cname(dc["card_id"])))
+		"banish":
+			_log("%s foi banida" % _cname(e["card_id"]))
 		"sacrifice":
 			var sc := g.find_unit(e["uid"])
 			_log("%s sacrificou %s" % [_pname(e["player"]), "uma unidade" if sc.is_empty() else _cname(sc["card_id"])])

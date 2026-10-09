@@ -1,21 +1,28 @@
 class_name LeaderView
 extends Control
-## Leader plate: round portrait in a gold + essence frame, HP gem, name
-## ribbon, the ability gem (clickable) and deck/graveyard counters.
+## Leader plate: a card-like frame in the Leader's essence colors with the art
+## in a window, a name banner, the HP gem hanging off the bottom-right corner,
+## the ability gem (clickable) beside it and deck/graveyard counters.
+## The control is wider than the plate: the margins hold the ability gem (left)
+## and the counters (right), and `_has_point` keeps them from eating clicks
+## meant for the hand or the board around it.
 
 signal portrait_clicked
 signal ability_clicked
 signal grave_clicked
 
-const SIZE := Vector2(240, 176)
-const PC := Vector2(76, 70) ## portrait center
-const PR := 58.0 ## portrait radius
-const AC := Vector2(192, 52) ## ability gem center
-const AR := 27.0
+const PLATE := Rect2(52, 0, 140, 128) ## the card itself, in local coordinates
+const SIZE := Vector2(244, 146) ## plate + side margins + the HP gem hanging below
+const CX := 122.0 ## x of the plate's center: place the control at (center - CX)
+const PC := Vector2(122, 50) ## art center, anchor for hit effects and flying text
+const AC := Vector2(26, 50) ## ability gem center
+const AR := 23.0
 const READY_GLOW := Color("#4dff88") ## same as Main.OK, the playable-card glow
-const GRAVE_RECT := Rect2(Vector2(183, 96), Vector2(62, 42)) ## graveyard counter + touch padding
-
-static var _portrait_shader: Shader
+const GRAVE_RECT := Rect2(Vector2(190, 48), Vector2(54, 38)) ## graveyard counter + touch padding
+const HP_C := Vector2(180, 118) ## HP gem center
+const RAD := 10.0
+const ART := Rect2(58, 7, 128, 84)
+const BANNER := Rect2(58, 96, 128, 24)
 
 var leader_id := ""
 var hp := 0
@@ -29,6 +36,8 @@ var passive := false # passive ability: fires on its own trigger, no cost, not c
 var targetable := false
 var active := false ## whose turn it is
 var elem_color := Color.WHITE
+var _style: Dictionary
+var _tex: Texture2D
 var _hover_ability := false
 var _hover_grave := false
 var _t := 0.0
@@ -39,7 +48,10 @@ var _press_id := 0
 func setup(id: String) -> LeaderView:
 	leader_id = id
 	var ld := CardDB.leader(id)
-	elem_color = Color(CardDB.essence(ld["essences"][0])["color"])
+	var ess: String = ld["essences"][0]
+	elem_color = Color(CardDB.essence(ess)["color"])
+	_style = CardView.STYLES.get(ess, CardView.STYLES["neutra"])
+	_tex = CardView.texture(ld["art"])
 	ability_cost = int(ld["ability"]["cost"])
 	passive = bool(ld["ability"].get("passive", false))
 	custom_minimum_size = SIZE
@@ -49,7 +61,6 @@ func setup(id: String) -> LeaderView:
 		if _hover_grave:
 			_hover_grave = false
 			queue_redraw())
-	_build_portrait(ld)
 	var gem := AbilityGem.new() # hover area so the tooltip only covers the ability gem
 	gem.ability = ld["ability"]
 	gem.elem_color = elem_color
@@ -66,33 +77,9 @@ func setup(id: String) -> LeaderView:
 	add_child(gem)
 	return self
 
-func _build_portrait(ld: Dictionary) -> void:
-	var tex := CardView.texture(ld["art"])
-	if tex == null:
-		return
-	if _portrait_shader == null:
-		_portrait_shader = load("res://scripts/ui/shaders/portrait.gdshader")
-	# crop a square from the upper part of the (tall) portrait, where the face is
-	var ts := tex.get_size()
-	var side: float = min(ts.x, ts.y)
-	var at := AtlasTexture.new()
-	at.atlas = tex
-	at.region = Rect2((ts.x - side) / 2, min(ts.y - side, ts.y * 0.04), side, side)
-	var tr := TextureRect.new()
-	tr.texture = at
-	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	tr.stretch_mode = TextureRect.STRETCH_SCALE
-	tr.position = PC - Vector2(PR, PR)
-	tr.size = Vector2(PR, PR) * 2
-	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tr.show_behind_parent = true # frame and HP gem are drawn over it
-	var m := ShaderMaterial.new()
-	m.shader = _portrait_shader
-	m.set_shader_parameter("size", tr.size)
-	tr.material = m
-	tr.name = "Portrait"
-	add_child(tr)
-	move_child(tr, 0)
+## Only the plate, the HP gem, the ability gem and the graveyard counter take input.
+func _has_point(pt: Vector2) -> bool:
+	return PLATE.has_point(pt) or GRAVE_RECT.has_point(pt) or pt.distance_to(AC) <= AR + 4 or pt.distance_to(HP_C) <= 22
 
 func _process(delta: float) -> void:
 	if targetable or ability_ready or active:
@@ -142,7 +129,7 @@ func _gui_input(e: InputEvent) -> void:
 		if e.position.distance_to(AC) <= AR + 2:
 			if not passive:
 				ability_clicked.emit()
-		elif e.position.distance_to(PC) <= PR + 8:
+		else:
 			portrait_clicked.emit()
 		accept_event()
 
@@ -150,39 +137,57 @@ func _draw() -> void:
 	var f_title := UITheme.font("title_bold")
 	var f_num := UITheme.font("heavy")
 	var pulse := 0.5 + 0.5 * sin(_t * 4.0)
+	var ld := CardDB.leader(leader_id)
+	var trim := CardView.GOLD_TRIM
+	var P := PLATE
 
-	# soft drop shadow + turn glow behind the portrait
-	# (rings only: the portrait sits behind this drawing)
-	draw_arc(PC + Vector2(0, 6), PR + 9, 0, TAU, 72, Color(0, 0, 0, 0.45), 12, true)
+	# drop shadow, turn glow and target glow around the plate
+	for i in 5:
+		var g := P.grow(i * 2.2 + 1)
+		g.position.y += 4
+		_rrect_fill(g, RAD + i * 2, Color(0, 0, 0, 0.11))
 	if active:
 		for i in 6:
-			draw_arc(PC, PR + 13 + i * 3, 0, TAU, 72, Color(UITheme.GOLD, 0.12 * (1.0 - i / 6.0) * (0.6 + 0.4 * pulse)), 3.2, true)
+			_rrect_line(P.grow(3 + i * 3), RAD + i * 3, Color(UITheme.GOLD, 0.16 * (1.0 - i / 6.0) * (0.6 + 0.4 * pulse)), 3.2)
 	if targetable:
 		for i in 7:
-			draw_arc(PC, PR + 13 + i * 3, 0, TAU, 72, Color(1, 0.25, 0.2, 0.2 * (1.0 - i / 7.0) * (0.5 + 0.5 * pulse)), 3.2, true)
-	# frame: dark bed, essence ring, gold bevel
-	draw_arc(PC, PR + 5.5, 0, TAU, 72, Color("#120f16"), 11, true)
-	draw_arc(PC, PR + 7, 0, TAU, 72, UITheme.GOLD_DARK, 7, true)
-	draw_arc(PC, PR + 8.5, PI * 1.05, PI * 1.95, 40, UITheme.GOLD_LIGHT, 2, true) # top highlight
-	draw_arc(PC, PR + 7, 0, TAU, 72, Color(UITheme.GOLD, 0.9), 2.5, true)
-	draw_arc(PC, PR + 2, 0, TAU, 72, elem_color.darkened(0.1), 3, true)
-	# four studs on the frame
-	for k in 4:
-		var a := k * PI / 2 + PI / 4
-		_diamond(PC + Vector2(cos(a), sin(a)) * (PR + 7), 6, UITheme.GOLD, UITheme.GOLD_LIGHT)
+			_rrect_line(P.grow(3 + i * 3), RAD + i * 3, Color(1, 0.25, 0.2, 0.28 * (1.0 - i / 7.0) * (0.5 + 0.5 * pulse)), 3.2)
+
+	# frame: essence gradient body, dark outer edge, gold trim with a top highlight
+	_rrect_grad(P, RAD, Color(_style["top"]), Color(_style["bot"]))
+	_rrect_line(P.grow(-0.5), RAD, Color("#07060a"), 1.6)
+	_rrect_line(P.grow(-2.6), RAD - 2, Color(trim, 0.85), 1.1)
+	draw_line(Vector2(P.position.x + RAD, 1.6), Vector2(P.end.x - RAD, 1.6), Color(1, 1, 1, 0.3), 1.0)
+
+	# art window
+	draw_rect(ART.grow(1.5), Color("#07060a"))
+	if _tex:
+		var ts := _tex.get_size()
+		var k: float = max(ART.size.x / ts.x, ART.size.y / ts.y)
+		var src := ART.size / k
+		# the face sits near the top of the (tall) portrait
+		draw_texture_rect_region(_tex, ART, Rect2(Vector2((ts.x - src.x) / 2, clampf(ts.y * 0.02, 0.0, ts.y - src.y)), src))
+	else:
+		draw_rect(ART, elem_color.darkened(0.6))
+	_vgrad(Rect2(ART.position, Vector2(ART.size.x, 12)), Color(0, 0, 0, 0.45), Color(0, 0, 0, 0))
+	_vgrad(Rect2(ART.position + Vector2(0, ART.size.y - 20), Vector2(ART.size.x, 20)), Color(0, 0, 0, 0), Color(0, 0, 0, 0.55))
+	draw_rect(ART.grow(0.5), Color(trim, 0.9), false, 1.2)
+	for c in [ART.position, Vector2(ART.end.x, ART.position.y)]:
+		_diamond(c, 5, trim, UITheme.GOLD_LIGHT)
 	if targetable:
-		draw_arc(PC, PR + 7, 0, TAU, 72, Color(1, 0.35, 0.3, 0.6 + 0.4 * pulse), 3, true)
+		_rrect_line(P.grow(1), RAD, Color(1, 0.35, 0.3, 0.6 + 0.4 * pulse), 3)
 
-	# name ribbon under the portrait
-	var ld := CardDB.leader(leader_id)
-	var ry := 142.0
-	var rib := PackedVector2Array([Vector2(4, ry), Vector2(160, ry), Vector2(168, ry + 13), Vector2(160, ry + 26), Vector2(4, ry + 26), Vector2(12, ry + 13)])
-	draw_colored_polygon(rib, Color("#16131c"))
-	draw_polyline(rib + PackedVector2Array([rib[0]]), Color(UITheme.GOLD, 0.7), 1.5, true)
-	_text(f_title, String(ld["name"]).to_upper(), Vector2(86, ry + 21), 19, UITheme.GOLD_LIGHT)
+	# name banner, kept clear of the HP gem on its right
+	_rrect_fill(BANNER, 5, Color("#16131c"))
+	_rrect_line(BANNER, 5, Color(UITheme.GOLD, 0.7), 1.5)
+	var nm := String(ld["name"]).to_upper()
+	var fs := 17
+	while fs > 9 and f_title.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > 100:
+		fs -= 1
+	_text(f_title, nm, Vector2(BANNER.position.x + 50, BANNER.position.y + 18), fs, UITheme.GOLD_LIGHT)
 
-	# HP gem (shield shape) overlapping the portrait, bottom right
-	var hc := PC + Vector2(PR * 0.78, PR * 0.62)
+	# HP gem (shield shape) hanging off the bottom-right corner
+	var hc := HP_C
 	var low := hp <= 8
 	var sh := PackedVector2Array([hc + Vector2(-20, -20), hc + Vector2(20, -20), hc + Vector2(20, 2), hc + Vector2(0, 24), hc + Vector2(-20, 2)])
 	draw_colored_polygon(_grow(sh, hc, 1.18), Color(0, 0, 0, 0.6))
@@ -205,17 +210,17 @@ func _draw() -> void:
 	draw_circle(AC, AR, elem_color.darkened(0.55 if usable else 0.8))
 	draw_circle(AC + Vector2(0, -AR * 0.3), AR * 0.62, Color(elem_color.lightened(0.3), 0.22 if usable else 0.06))
 	draw_arc(AC, AR, 0, TAU, 48, ring.lightened(0.2) if _hover_ability and usable else ring, 2.5, true)
-	_text(f_title, String(ld["ability"]["name"]).substr(0, 1), AC + Vector2(0, 8), 24, Color.WHITE if usable else Color(1, 1, 1, 0.35))
+	_text(f_title, String(ld["ability"]["name"]).substr(0, 1), AC + Vector2(0, 8), 22, Color.WHITE if usable else Color(1, 1, 1, 0.35))
 	# its cost, a small Momentum gem
 	if not passive:
 		var cc := AC + Vector2(AR * 0.75, -AR * 0.75)
 		_diamond(cc, 11, UITheme.MOMENTUM.darkened(0.2) if usable else Color(0.3, 0.3, 0.35), Color(1, 1, 1, 0.8))
 		_text(f_num, str(ability_cost), cc + Vector2(0, 5), 14, Color.WHITE)
-	_text(UITheme.font("bold"), "PASSIVA" if passive else "HABILIDADE", AC + Vector2(0, AR + 17), 14, Color(UITheme.TEXT, 0.55))
+	_text(UITheme.font("bold"), "PASSIVA" if passive else "HABILIDADE", AC + Vector2(0, AR + 16), 12, Color(UITheme.TEXT, 0.7))
 
 	# deck / graveyard counters
-	_counter(Vector2(160, 102), false, deck)
-	_counter(Vector2(214, 102), true, grave, true)
+	_counter(Vector2(217, 12), false, deck)
+	_counter(Vector2(217, 52), true, grave, true)
 
 ## Small plate with a drawn icon (card stack or tombstone) and a count.
 func _counter(pos: Vector2, tomb: bool, n: int, clickable := false) -> void:
@@ -258,6 +263,35 @@ func _grow(pts: PackedVector2Array, c: Vector2, k: float) -> PackedVector2Array:
 	for p in pts:
 		out.append(c + (p - c) * k)
 	return out
+
+func _rrect_pts(r: Rect2, rad: float) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	var corners := [[Vector2(r.end.x - rad, r.position.y + rad), -PI / 2], [Vector2(r.end.x - rad, r.end.y - rad), 0.0],
+		[Vector2(r.position.x + rad, r.end.y - rad), PI / 2], [Vector2(r.position.x + rad, r.position.y + rad), PI]]
+	for c in corners:
+		for i in 7:
+			var a: float = c[1] + (PI / 2) * i / 6.0
+			pts.append(c[0] + Vector2(cos(a), sin(a)) * rad)
+	return pts
+
+func _rrect_fill(r: Rect2, rad: float, col: Color) -> void:
+	draw_colored_polygon(_rrect_pts(r, rad), col)
+
+func _rrect_line(r: Rect2, rad: float, col: Color, w: float) -> void:
+	var pts := _rrect_pts(r, rad)
+	pts.append(pts[0])
+	draw_polyline(pts, col, w, true)
+
+func _rrect_grad(r: Rect2, rad: float, top: Color, bot: Color) -> void:
+	var pts := _rrect_pts(r, rad)
+	var cols := PackedColorArray()
+	for p in pts:
+		cols.append(top.lerp(bot, clampf((p.y - r.position.y) / r.size.y, 0.0, 1.0)))
+	draw_polygon(pts, cols)
+
+func _vgrad(r: Rect2, top: Color, bot: Color) -> void:
+	draw_polygon(PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]),
+		PackedColorArray([top, top, bot, bot]))
 
 func _text(font: Font, t: String, center: Vector2, fs: int, col: Color) -> void:
 	var w := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
