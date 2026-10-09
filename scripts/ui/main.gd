@@ -379,6 +379,9 @@ func _show_hub(ai: bool, msg := "") -> void:
 	var gap := 28.0
 	var per_row := clampi(int((stage_w - 80.0 + gap) / (tile.x + gap)), 1, ids.size())
 	var rows := ceili(float(ids.size()) / float(per_row))
+	if rows > 1: # several rows: shrink the tiles so the grid and the buttons still fit the stage
+		gap = 16.0
+		tile.y = clampf((STAGE_H - 160.0 - 172.0) / rows - gap, 250.0, 400.0)
 	var y := 172.0
 	for r in rows:
 		var in_row := mini(per_row, ids.size() - r * per_row)
@@ -436,7 +439,8 @@ func _deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 	p.mouse_filter = Control.MOUSE_FILTER_STOP
 	p.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	p.add_theme_stylebox_override("panel", UITheme.box(bg, 14, UITheme.GOLD if selected else Color(col, 0.6), 5 if selected else 2, 16))
-	var art_h := size.y * 0.52
+	var compact := size.y < 340.0 ## short tile (several rows): tighter art and text
+	var art_h := size.y * (0.31 if compact else 0.5)
 	var art := TextureRect.new()
 	art.texture = CardView.texture(String(ld.get("art", "")))
 	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -463,16 +467,17 @@ func _deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 	nm.size = Vector2(size.x - 16, 40)
 	p.add_child(nm)
 	var lead := _label("%s · %d de vida" % [ld["name"], int(ld["hp"])], 17, col.lightened(0.3), HORIZONTAL_ALIGNMENT_CENTER, "bold")
-	lead.position = Vector2(8, art_h + 20)
+	lead.position = Vector2(8, art_h + (18 if compact else 20))
 	lead.size = Vector2(size.x - 16, 24)
 	p.add_child(lead)
-	var blurb := _label(String(d.get("description", "")), 16, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
+	var blurb_y := art_h + (42.0 if compact else 50.0)
+	var blurb := _label(String(d.get("description", "")), 18 if compact else 19, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "body", 3)
 	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	blurb.position = Vector2(18, art_h + 52)
-	blurb.size = Vector2(size.x - 36, size.y - art_h - 98)
+	blurb.position = Vector2(14, blurb_y)
+	blurb.size = Vector2(size.x - 28, size.y - blurb_y - (30.0 if compact else 46.0))
 	p.add_child(blurb)
-	var foot := _label("SELECIONADO" if selected else "%d cartas" % DeckDB.card_count(id), 15, UITheme.GOLD if selected else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
-	foot.position = Vector2(8, size.y - 36)
+	var foot := _label("SELECIONADO" if selected else "%d cartas" % DeckDB.card_count(id), 16, UITheme.GOLD if selected else UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "bold", 3)
+	foot.position = Vector2(8, size.y - (30 if compact else 36))
 	foot.size = Vector2(size.x - 16, 22)
 	p.add_child(foot)
 	return p
@@ -1704,7 +1709,7 @@ func _is_target(uid: int) -> bool:
 			if c["uid"] == targeting["uid"]:
 				return g.card_targets(viewer, CardDB.card(c["card_id"])).has(uid)
 		return false
-	if targeting.has("first") and uid == targeting["first"]:
+	if targeting.has("first") and uid == targeting["first"] and not CardDB.card(targeting["card_id"]).get("same_target_ok", false):
 		return false # the sacrificed unit is already gone
 	return g.valid_targets(viewer, targeting["spec"], targeting.get("uid", 0)).has(uid)
 
@@ -2609,6 +2614,9 @@ func _animate(events: Array, old: Dictionary) -> float:
 			"summon", "draw", "search_take":
 				appear[e["uid"]] = cursor
 				cursor += 0.1
+				if e["type"] == "search_take" and int(e["player"]) != viewer:
+					_toast("%s pegou %s do deck" % [_pname(e["player"]), _cname(e["card_id"])])
+					cursor += 0.5
 			"search_reveal", "look_top":
 				cursor += 0.35
 			"combat_damage":
@@ -2747,6 +2755,8 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s olhou as %d cartas do topo do deck" % [_pname(e["player"]), e["cards"].size()])
 		"look_bottom":
 			_log("%s colocou as outras no fundo do deck" % _pname(e["player"]))
+		"search_shuffle":
+			_log("%s embaralhou o deck" % _pname(e["player"]))
 		"mill":
 			var milled: Array = []
 			for cid in e["cards"]:

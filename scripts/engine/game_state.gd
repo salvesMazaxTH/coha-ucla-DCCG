@@ -239,9 +239,12 @@ func target_spec(effects: Array) -> String:
 	return ""
 
 ## Second target a card needs on top of its first (e.g. the damage target after the sacrifice), or "".
-## Declared on a "then" effect with "pick": true.
+## Declared on a "then" effect with "pick": true, or on a top-level effect with "pick2": true
+## (Relâmpagos Gêmeos; "same_target_ok" on the card lets both picks be the same target).
 func second_spec(cd: Dictionary) -> String:
 	for e in cd.get("effects", []):
+		if e.get("pick2", false):
+			return e["target"]
 		for t in e.get("then", []):
 			if t.get("pick", false):
 				return t["target"]
@@ -494,7 +497,7 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0) -> Arra
 	elif cd["type"] != "unit" and spec != "" and not card_targets(p, cd).has(target):
 		return []
 	var spec2 := second_spec(cd)
-	if spec2 != "" and (target2 == target or not valid_targets(p, spec2).has(target2)):
+	if spec2 != "" and ((target2 == target and not cd.get("same_target_ok", false)) or not valid_targets(p, spec2).has(target2)):
 		return []
 	var pl: Dictionary = players[p]
 	_pay(p, cost_of(p, cd) + (counter_extra(cd, target) if spec == "enemy_stack" else 0), _is_spell(cd))
@@ -772,7 +775,8 @@ func choose_search(p: int, card_uid: int) -> Array:
 		return []
 	players[p]["hand"].append(chosen)
 	var look: bool = pending_search.get("look", false)
-	if look:
+	var reshuffle: bool = pending_search.get("shuffle", false)
+	if look and not reshuffle:
 		# the cards not taken go to the bottom of the deck, unrevealed
 		for c in options:
 			if int(c["uid"]) == card_uid:
@@ -787,7 +791,7 @@ func choose_search(p: int, card_uid: int) -> Array:
 	pending_search.clear()
 	phase = _search_return
 	_emit({"type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"]})
-	_emit({"type": "look_bottom" if look else "search_shuffle", "player": p})
+	_emit({"type": "look_bottom" if look and not reshuffle else "search_shuffle", "player": p})
 	_resolve_stack() # a search opened mid-resolution: finish the rest of the stack
 	_after_search()
 	_settle()
@@ -817,7 +821,10 @@ func _resolve_stack() -> void:
 		var p: int = item["player"]
 		var effects := _effects_of(item)
 		var spec := target_spec(effects)
-		if spec != "" and not valid_targets(p, spec).has(int(item["target"])):
+		var gone := spec != "" and not valid_targets(p, spec).has(int(item["target"]))
+		if gone and item["kind"] == "card" and CardDB.card(item["card_id"]).get("same_target_ok", false) and valid_targets(p, spec).has(int(item.get("target2", 0))):
+			gone = false # twin bolts: the other target is still there, only this bolt is lost
+		if gone:
 			_emit({"type": "fizzle", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"]})
 		else:
 			_emit({"type": "resolve", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"]})
@@ -1069,8 +1076,9 @@ func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid
 		var targets: Array = []
 		match e.get("target", ""):
 			"enemy_unit", "ally_unit", "other_ally_unit", "any_unit", "any", "enemy_stack":
-				if valid_targets(p, e["target"], self_uid).has(chosen):
-					targets = [chosen]
+				var pick := _chosen2 if e.get("pick2", false) else chosen
+				if valid_targets(p, e["target"], self_uid).has(pick):
+					targets = [pick]
 			"all_enemy_units":
 				for c in players[opponent(p)]["board"]: targets.append(c["uid"])
 			"enemy_leader":
@@ -1113,7 +1121,7 @@ func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid
 		elif e.get("action", "") == "mill_pick" and e.get("trigger", "") == trigger:
 			_begin_grave_pick(p, self_uid)
 		elif e.get("action", "") == "look_top" and e.get("trigger", "") == trigger:
-			_begin_look(p, int(e.get("count", 4)), self_uid)
+			_begin_look(p, int(e.get("count", 4)), self_uid, bool(e.get("shuffle", false)))
 
 ## Optional "if" on an effect: "momentum_left" = p still has unspent Momentum, "reserve_full" = p's Reserva is full, "played_two" = p played a card with cost, ATK or HP of exactly 2 this turn.
 func _condition_ok(p: int, cond: String) -> bool:
@@ -1194,8 +1202,8 @@ func _begin_grave_pick(p: int, source_uid: int) -> void:
 	_emit({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options})
 
 ## Private look at the top `n` cards: only the owner sees them (StateView hides them from
-## the other seat); the one taken is revealed by search_take, the rest go to the bottom.
-func _begin_look(p: int, n: int, source_uid: int) -> void:
+## the other seat); the one taken is revealed by search_take, the rest go to the bottom (or, with "shuffle", the deck is shuffled).
+func _begin_look(p: int, n: int, source_uid: int, reshuffle: bool = false) -> void:
 	if phase == "search":
 		return
 	var deck: Array = players[p]["deck"]
@@ -1205,7 +1213,7 @@ func _begin_look(p: int, n: int, source_uid: int) -> void:
 	if top.is_empty():
 		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
 		return
-	pending_search = {"player": p, "source_uid": source_uid, "cards": top, "look": true}
+	pending_search = {"player": p, "source_uid": source_uid, "cards": top, "look": true, "shuffle": reshuffle}
 	_search_return = phase
 	phase = "search"
 	_emit({"type": "look_top", "player": p, "source_uid": source_uid, "cards": top})

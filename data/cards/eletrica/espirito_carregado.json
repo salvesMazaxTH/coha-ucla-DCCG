@@ -29,8 +29,7 @@
       "next_turn": true
     }
   ],
-  "text": "Esquiva: evita o dano de combate de unidades sem Ataque Rápido nem Hipervelocidade.
-Ao Entrar: no início do seu próximo turno, você terá +1 Momentum.",
+  "text": "Esquiva: evita o dano de combate de unidades sem Ataque Rápido nem Hipervelocidade.\nAo Entrar: no início do seu próximo turno, você terá +1 Momentum.",
   "flavor": "",
   "tags": []
 }

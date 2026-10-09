@@ -1,0 +1,27 @@
+{
+  "name": "Full Greedy",
+  "description": "Tudo no Fulgurvoltz: 3 cópias, Momentum guardado, compra de cartas e limpeza de campo até ele cair.",
+  "order": 8,
+  "leader": "voltexz",
+  "cards": {
+    "voltexz": 1,
+    "fulgurvoltz": 3,
+    "jack": 1,
+    "layla": 1,
+    "gigante_eletrico": 3,
+    "eletroad": 3,
+    "espirito_carregado": 3,
+    "carga_acumulada": 3,
+    "descarga_de_ideias": 3,
+    "faisca_viva": 3,
+    "condutor_da_tempestade": 3,
+    "para_raios": 3,
+    "guardiao_da_subestacao": 3,
+    "tempestade_estatica": 2,
+    "raio_encadeado": 1,
+    "relampagos_gemeos": 3,
+    "ressonancia": 3,
+    "engenheiro_louco": 3,
+    "vigia_do_farol_do_norte": 3
+  }
+}

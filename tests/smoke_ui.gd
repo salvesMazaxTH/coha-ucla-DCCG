@@ -7,7 +7,7 @@ func _init() -> void:
 	await process_frame
 	m._show_menu()
 	m._show_hub(false)
-	m.sel_deck = "obscura"
+	m.sel_deck = "obscura_rapido"
 	m._show_hub(true)
 	await process_frame
 	var play: Button = null

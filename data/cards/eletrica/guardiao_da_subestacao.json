@@ -2,7 +2,9 @@
   "name": "Guardião da Subestação",
   "type": "unit",
   "rarity": "common",
-  "species": [],
+  "species": [
+    "ciclope"
+  ],
   "essence": "eletrica",
   "cost": 5,
   "atk": 4,

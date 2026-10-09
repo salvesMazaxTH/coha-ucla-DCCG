@@ -1,0 +1,28 @@
+{
+  "name": "Relâmpagos Gêmeos",
+  "type": "spell",
+  "rarity": "rare",
+  "essence": "eletrica",
+  "cost": 4,
+  "speed": "rapido",
+  "same_target_ok": true,
+  "art": "eletrica/relampagos_gemeos.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "any",
+      "amount": 3
+    },
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "any",
+      "pick2": true,
+      "amount": 3
+    }
+  ],
+  "text": "Cause 3 de dano a um alvo e 3 de dano a um alvo (pode ser o mesmo ou outro).",
+  "flavor": "",
+  "tags": []
+}

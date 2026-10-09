@@ -89,7 +89,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 
 ## Olhar o topo do deck
 
-- Alguns efeitos (ex.: Serpente Marinha) olham as N cartas do topo do deck. Só o dono vê essas cartas; ele coloca 1 na mão, e só essa é revelada ao oponente. As outras vão para o fundo do deck.
+- Alguns efeitos (ex.: Serpente Marinha) olham as N cartas do topo do deck. Só o dono vê essas cartas; ele coloca 1 na mão, e só essa é revelada ao oponente. As outras vão para o fundo do deck. O Oráculo das Marés faz o mesmo, mas revela a carta pega ao oponente e embaralha o deck em vez de mandar as outras para o fundo.
 
 ## Tipos de carta
 
@@ -139,6 +139,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 ## Elétrica: Momentum guardado
 
 - **Redução de custo por Momentum guardado:** efeito sem nome (não é Constante). A Voltexz custa 1 a menos por Momentum que **vazou** da Reserva no início de cada turno seu (acumulado; o que sobra depois do turno do oponente, e só o que não cabe nos 2 da Reserva), nunca menos que 3. O Fulgurvoltz custa 2 a menos por turno iniciado com Momentum vazando, nunca menos que 5. O piso (`min_cost`) é exclusivo dessas duas cartas.
+- **Fulgurvoltz:** não destrói nada ao entrar. Seu Ao Ativar (4, Lento) destrói todas as unidades inimigas; vai para a pilha, então o oponente pode responder e anulá-lo (ex.: Negação de Neraqa). A Reserva paga habilidades, então no piso de custo (5) dá para entrar e ativar no mesmo turno.
 - **Momentum no próximo turno:** o Espírito Carregado dá +1 Momentum no início do seu próximo turno (soma ao Momentum do turno, até 10).
 - **Sobrecarga (Líder Voltexz):** passiva. No início do seu turno, recupere metade (arredondada para baixo, máx. 2) do Momentum que vazou da Reserva, como Momentum neste turno. "Vazar" = o que não cabe nos 2 da Reserva.
 - **Efeitos no deck (`deck_effects`):** efeitos que a carta tem enquanto está no deck, não em campo. `summon_self` tira aquela cópia do deck e a coloca em campo (sem embaralhar e sem comprar; com o campo cheio, ela fica no deck). O `cost` opcional é pago na entrada como uma habilidade (a Reserva vale e é gasta primeiro); sem como pagar, a cópia fica no deck. Rusco: no fim do seu turno, se você jogou da mão uma carta com custo, ATK ou VIDA impressos exatamente 2 (`if: played_two`), e você paga 2 de Momentum, ele sai do deck e entra em campo.

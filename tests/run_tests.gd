@@ -16,6 +16,7 @@ func _init() -> void:
 	_test_off_essence()
 	_test_death_order()
 	_test_sacrifice_damage()
+	_test_twin_bolts()
 	_test_setup()
 	_test_first_player()
 	_test_concede()
@@ -102,7 +103,22 @@ func _test_search() -> void:
 	var bottom_uids: Array = deck.slice(0, 3).map(func(c): return c["uid"])
 	var rest: Array = top.filter(func(c): return c["uid"] != chosen["uid"]).map(func(c): return c["uid"])
 	check(rest.all(func(u): return bottom_uids.has(u)), "as outras vão para o fundo do deck")
-	check(_has_event(picked, "search_take"), "escolha emite evento de busca")
+	check(_has_event(picked, "search_take") and _has_event(picked, "look_bottom") and not _has_event(picked, "search_shuffle"), "serpente: fundo do deck, sem embaralhar")
+	var taken: Array = StateView.filter_events(picked, 0).filter(func(e): return e["type"] == "search_take")
+	check(taken.size() == 1 and taken[0]["card_id"] == chosen["card_id"], "oponente vê a carta pega")
+
+	# Oráculo das Marés: same look, but the rest stay in the deck and it is shuffled
+	g = _new_game()
+	deck = g.players[1]["deck"]
+	deck_size = deck.size()
+	g._summon(1, "oraculo_das_mares", g._uid(), false, 0)
+	g._flush()
+	check(g.phase == "search" and g.pending_search["cards"].size() == 4, "oráculo olha 4 cartas")
+	var pick: int = int(g.pending_search["cards"][2]["uid"])
+	var picked2: Array = g.choose_search(1, pick)
+	check(g.players[1]["deck"].size() == deck_size - 1, "oráculo: deck perde só a escolhida")
+	check(_has_event(picked2, "search_shuffle") and not _has_event(picked2, "look_bottom"), "oráculo embaralha o deck")
+	check(StateView.filter_events(picked2, 0).any(func(e): return e["type"] == "search_take" and e["uid"] == pick and e["card_id"] != ""), "oráculo: oponente vê a carta pega")
 
 func _test_constant() -> void:
 	var g := _new_game()
@@ -126,7 +142,7 @@ func _test_constant() -> void:
 	check(g.hp_left(jeff) == 1, "dano persiste ao perder o bônus")
 
 func _obscura_game() -> GameState:
-	var g := GameState.new("obscura", "fogo", 7)
+	var g := GameState.new("obscura_rapido", "fogo", 7)
 	g.mulligan(0, [])
 	g.mulligan(1, [])
 	return g
@@ -768,21 +784,21 @@ func _test_counter() -> void:
 	for c in g.players[0]["graveyard"]: gy.append(c["card_id"])
 	check(gy.has("bola_de_fogo"), "countered card goes to the graveyard")
 
-	# cost-5 spell needs the +3 kicker
+	# cost-5 spell needs the +2 kicker
 	_tspell("t_big", "lento", [{"trigger": "on_play", "action": "damage", "target": "enemy_leader", "amount": 3}])
 	CardDB.data()["cards"]["t_big"]["cost"] = 5
 	g = _new_game()
 	g.players[0]["momentum"] = 5
-	g.players[1]["momentum"] = 5
+	g.players[1]["momentum"] = 4
 	neg = _give(g, 1, "negacao_de_neraqa")
 	_give(g, 1, "labareda") # keeps priority open (an instant is castable)
 	_put(g, 1, "tritao_lanceiro")
 	g.play_card(0, _give(g, 0, "t_big"), 0)
-	check(g.stack.size() == 1 and not g.can_play(1, neg), "cost 5 out of reach without 6 Momentum")
-	g.players[1]["momentum"] = 6
-	check(g.can_play(1, neg), "kicker reach with 6 Momentum")
+	check(g.stack.size() == 1 and not g.can_play(1, neg), "cost 5 out of reach without 5 Momentum")
+	g.players[1]["momentum"] = 5
+	check(g.can_play(1, neg), "kicker reach with 5 Momentum")
 	g.play_card(1, neg, g.stack[0]["sid"])
-	check(g.players[1]["momentum"] == 0, "kicker charges +3")
+	check(g.players[1]["momentum"] == 0, "kicker charges +2")
 	g.pass_priority(0)
 	check(g.stack.is_empty() and g.players[1]["leader_hp"] == hp, "kicked counter stops the big spell")
 
@@ -1280,7 +1296,7 @@ func _test_ban() -> void:
 	check(StateView.snapshot(g, 0)["players"][0]["banished"].all(func(c): return c["card_id"] != ""), "o dono vê as próprias banidas")
 
 func _eletrica_game() -> GameState:
-	var g := GameState.new("eletrica", "fogo", 42)
+	var g := GameState.new("eletrica_greedy", "fogo", 42)
 	g.mulligan(0, [])
 	g.mulligan(1, [])
 	_quiet(g)
@@ -1333,6 +1349,44 @@ func _test_eletrica() -> void:
 	g.end_turn(a)
 	g.end_turn(o)
 	check(g.players[a]["unspent"] == 2 and g.cost_of(a, gg) == 9, "gigante: só 2 sobrando -> custo base")
+	# Fulgurvoltz: no Ao Entrar; Ao Ativar (4, Lento) destroys every enemy unit, from the stack
+	var fgd: Dictionary = CardDB.card("fulgurvoltz")
+	check(fgd["activated"]["cost"] == 4 and fgd["activated"]["speed"] == "lento", "fulgurvoltz: Ao Ativar custa 4, Lento")
+	g = _eletrica_game()
+	a = g.active
+	o = g.opponent(a)
+	var fv := _put(g, a, "fulgurvoltz")
+	var foe1 := _put(g, o, "tritao_lanceiro")
+	var foe2 := _put(g, o, "serpente_marinha")
+	check(not g.find_unit(foe1["uid"]).is_empty(), "fulgurvoltz: entrar não destrói nada")
+	g.players[a]["momentum"] = 2
+	g.players[a]["reserve"] = 2 # the Reserva pays abilities, so 4 is reachable the turn it lands
+	check(g.can_activate(a, fv["uid"]), "fulgurvoltz: ativável pagando com a Reserva")
+	g.auto_pass[o] = false
+	g.activate(a, fv["uid"])
+	g._flush()
+	check(g.stack.size() == 1 and g.players[a]["momentum"] == 0 and g.players[a]["reserve"] == 0, "fulgurvoltz: vai para a pilha pagando 4")
+	g.pass_priority(o)
+	g._flush()
+	g.auto_pass[o] = true
+	check(g.find_unit(foe1["uid"]).is_empty() and g.find_unit(foe2["uid"]).is_empty() and not g.find_unit(fv["uid"]).is_empty(), "fulgurvoltz: destrói todas as inimigas e fica")
+	# a counter on the stack stops it
+	g = _eletrica_game()
+	a = g.active
+	o = g.opponent(a)
+	fv = _put(g, a, "fulgurvoltz")
+	foe1 = _put(g, o, "tritao_lanceiro")
+	g.players[a]["momentum"] = 4
+	g.players[o]["momentum"] = 3
+	var neg2 := _give(g, o, "negacao_de_neraqa")
+	g.auto_pass[o] = false
+	g.activate(a, fv["uid"])
+	g._flush()
+	check(g.can_play(o, neg2), "fulgurvoltz: Negação de Neraqa pode responder")
+	g.play_card(o, neg2, g.stack[0]["sid"])
+	g.pass_priority(a)
+	g._flush()
+	check(g.stack.is_empty() and not g.find_unit(foe1["uid"]).is_empty(), "fulgurvoltz: habilidade anulada, inimigas ficam")
 	# Encarnação retirement uses the current cost (with reductions) plus the tax
 	var l: Dictionary = g.players[a]["legendary"]
 	l["casts"] = 1
@@ -1504,3 +1558,43 @@ func _test_custo_e_contagem() -> void:
 	var jeff: Dictionary = CardDB.card("jeff")
 	check(g.scale_count(0, jeff) == g.graveyard_units(0), "jeff: contagem do texto = unidades no cemitério")
 	check(g.scale_count(0, vag) == -1, "carta sem escala: -1")
+
+func _test_twin_bolts() -> void:
+	var g := _new_game()
+	g.players[0]["momentum"] = 10
+	var foe := _put(g, 1, "serpente_marinha")
+	var lf: int = g.players[1]["leader_hp"]
+	var leader: int = GameState.LEADER_UID[1]
+	# same target twice
+	var s1 := _give(g, 0, "relampagos_gemeos")
+	check(not g.play_card(0, s1, leader, leader).is_empty(), "Relâmpagos Gêmeos aceita o mesmo alvo duas vezes")
+	_pass_windows(g)
+	g.pass_priority(1)
+	g._flush()
+	check(g.players[1]["leader_hp"] == lf - 6, "mesmo alvo recebe 3 + 3 de dano")
+	# different targets
+	g.players[0]["momentum"] = 10
+	var s2 := _give(g, 0, "relampagos_gemeos")
+	g.play_card(0, s2, foe["uid"], leader)
+	g.pass_priority(1)
+	g._flush()
+	check(g.players[1]["leader_hp"] == lf - 9, "alvo 2 (Líder) recebeu 3 de dano")
+	check(g.find_unit(foe["uid"]).is_empty() or g.find_unit(foe["uid"])["damage"] == 3, "alvo 1 (unidade) recebeu 3 de dano")
+	# the first target is gone before it resolves: the second bolt still lands
+	g.players[0]["momentum"] = 10
+	var s3 := _give(g, 0, "relampagos_gemeos")
+	var victim := _put(g, 1, "esqueleto_guerreiro")
+	var lf2: int = g.players[1]["leader_hp"]
+	g.play_card(0, s3, victim["uid"], leader)
+	victim["damage"] = 1000
+	g._check_state()
+	g.pass_priority(1)
+	g._flush()
+	check(g.players[1]["leader_hp"] == lf2 - 3, "alvo 1 sumiu: o segundo raio ainda acerta")
+	# Diabrete Elétrico: Ímpeto, and Ao Morrer gives next-turn Momentum
+	var d := _put(g, 0, "diabrete_eletrico")
+	check(CardDB.card("diabrete_eletrico")["cost"] <= 1 and "demonio" in CardDB.card("diabrete_eletrico")["species"], "Diabrete Elétrico é barato e Demônio")
+	d["damage"] = 1000
+	g._check_state()
+	g._flush()
+	check(g.find_unit(d["uid"]).is_empty(), "Diabrete Elétrico morre")

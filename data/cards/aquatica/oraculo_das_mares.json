@@ -1,0 +1,24 @@
+{
+  "name": "Oráculo das Marés",
+  "type": "unit",
+  "rarity": "rare",
+  "species": [],
+  "essence": "aquatica",
+  "cost": 4,
+  "atk": 2,
+  "hp": 4,
+  "keywords": [],
+  "art": "aquatica/oraculo_das_mares.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "look_top",
+      "target": "own_leader",
+      "count": 4,
+      "shuffle": true
+    }
+  ],
+  "text": "Ao Entrar: olhe as 4 cartas do topo do seu deck. Coloque 1 na mão, revelando-a ao oponente, e embaralhe o deck.",
+  "flavor": "",
+  "tags": []
+}

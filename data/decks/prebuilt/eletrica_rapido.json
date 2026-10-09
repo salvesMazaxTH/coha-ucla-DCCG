@@ -1,20 +1,20 @@
 {
-  "name": "Slow Midrange",
-  "description": "Ramp elétrico: guarde Momentum para baratear a Voltexz e o Fulgurvoltz e solte os dois bem acima da curva.",
-  "order": 4,
+  "name": "Fast Midrange",
+  "description": "Sem Fulgurvoltz e com menos Gigantes: mais Ressonância e o Rusco, para a Voltexz entrar mais cedo.",
+  "order": 7,
   "leader": "voltexz",
   "cards": {
     "voltexz": 1,
-    "fulgurvoltz": 1,
     "jack": 1,
     "layla": 1,
     "elias_cross": 1,
     "thorwells": 1,
     "tony_raiturus": 1,
     "lady_vultrixana": 1,
+    "rusco": 1,
     "eletroad": 3,
     "espirito_carregado": 3,
-    "gigante_eletrico": 3,
+    "gigante_eletrico": 2,
     "carga_acumulada": 3,
     "descarga_de_ideias": 3,
     "faisca_viva": 3,
@@ -22,9 +22,10 @@
     "raio_encadeado": 3,
     "para_raios": 3,
     "guardiao_da_subestacao": 3,
-    "tempestade_estatica": 2,
+    "tempestade_estatica": 1,
     "ressonancia": 2,
-    "engenheiro_louco": 3,
+    "diabrete_eletrico": 3,
+    "engenheiro_louco": 2,
     "vigia_do_farol_do_norte": 3
   }
 }

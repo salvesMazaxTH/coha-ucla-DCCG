@@ -2,7 +2,9 @@
   "name": "Condutor da Tempestade",
   "type": "unit",
   "rarity": "common",
-  "species": [],
+  "species": [
+    "humano"
+  ],
   "essence": "eletrica",
   "cost": 2,
   "atk": 1,

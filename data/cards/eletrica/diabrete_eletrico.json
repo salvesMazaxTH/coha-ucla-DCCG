@@ -1,0 +1,26 @@
+{
+  "name": "Diabrete Elétrico",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["demonio"],
+  "essence": "eletrica",
+  "cost": 1,
+  "atk": 2,
+  "hp": 1,
+  "keywords": [
+    "impeto"
+  ],
+  "art": "eletrica/diabrete_eletrico.webp",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": 1,
+      "next_turn": true
+    }
+  ],
+  "text": "Ímpeto.\nAo Morrer: no início do seu próximo turno, você terá +1 Momentum.",
+  "flavor": "",
+  "tags": []
+}

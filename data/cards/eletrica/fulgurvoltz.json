@@ -18,14 +18,14 @@
       "per": "idle_turns",
       "amount": 2,
       "min_cost": 5
-    },
-    {
-      "trigger": "on_enter",
-      "action": "destroy",
-      "target": "all_enemy_units"
     }
   ],
-  "text": "Custa 2 a menos por turno seu com Momentum vazado (mín. 5).\nAo Entrar: destrua todas as unidades inimigas.",
+  "activated": {
+    "cost": 4,
+    "speed": "lento",
+    "effects": [{ "action": "destroy", "target": "all_enemy_units" }]
+  },
+  "text": "Custa 2 a menos por turno seu com Momentum vazado (mín. 5).\nAo Ativar (4) {lento}: destrua todas as unidades inimigas.",
   "flavor": "",
   "tags": []
 }

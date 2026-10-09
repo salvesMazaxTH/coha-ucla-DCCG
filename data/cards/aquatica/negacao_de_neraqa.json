@@ -12,11 +12,11 @@
       "action": "counter",
       "target": "enemy_stack",
       "max_cost": 4,
-      "kicker_cost": 3,
+      "kicker_cost": 2,
       "kicker_max_cost": 99
     }
   ],
-  "text": "Anule um feitiço ou habilidade inimiga de custo 4 ou menos. Pagando +3, anula de qualquer custo.",
+  "text": "Anule um feitiço ou habilidade inimiga de custo 4 ou menos. Pagando +2, anula de qualquer custo.",
   "flavor": "Nem a onda mais alta passa por quem Neraqa já decidiu.",
   "tags": ["anular"]
 }

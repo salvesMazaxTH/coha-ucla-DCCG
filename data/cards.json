@@ -120,7 +120,8 @@
     "morto_vivo": { "name": "Morto-Vivo" },
     "revenante": { "name": "Revenante" },
     "gargoyle": { "name": "Gargoyle" },
-    "fada": { "name": "Fada" }
+    "fada": { "name": "Fada" },
+    "ciclope": { "name": "Ciclope" }
   },
   "keywords": {
     "hipervelocidade": {
