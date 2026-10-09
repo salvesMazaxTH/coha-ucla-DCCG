@@ -41,6 +41,7 @@ func _init() -> void:
 	_test_reserve()
 	_test_damage_window()
 	_test_strike_order()
+	_test_overkill()
 	_test_rusco()
 	_test_sim()
 	print("tests done, failures: ", failures)
@@ -1598,3 +1599,22 @@ func _test_twin_bolts() -> void:
 	g._check_state()
 	g._flush()
 	check(g.find_unit(d["uid"]).is_empty(), "Diabrete Elétrico morre")
+
+func _test_overkill() -> void:
+	# Leader at 3: a fast attacker (step 1) kills it, the normal attacker (step 3) still lands; its on_hit_leader does not fire
+	_tcard("t_ok_fast", 4, 3, [])
+	CardDB.data()["cards"]["t_ok_fast"]["keywords"] = ["hipervelocidade"]
+	_tcard("t_ok_late", 5, 3, [{"trigger": "on_hit_leader", "action": "damage", "target": "enemy_leader", "amount": 7}])
+	var g := _new_game()
+	_quiet(g)
+	g.players[1]["leader_hp"] = 3
+	var a := _put(g, 0, "t_ok_fast")
+	var b := _put(g, 0, "t_ok_late")
+	_attack(g, {a["uid"]: 0, b["uid"]: 0})
+	_block(g, {})
+	check(g.phase == "over" and g.winner == 0, "overkill: o jogo acaba depois do combate inteiro")
+	check(g.players[1]["leader_hp"] == 3 - 4 - 5, "overkill: os golpes seguintes do combate ainda acertam o Líder morto")
+	# runaway chain: past EVENT_CAP no trigger resolves
+	var g2 := _new_game()
+	g2._events.resize(GameState.EVENT_CAP)
+	check(g2._chain_stopped(), "cadeia: acima do limite de eventos os gatilhos param")

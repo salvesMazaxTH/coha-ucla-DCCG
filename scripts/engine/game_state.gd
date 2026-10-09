@@ -60,6 +60,7 @@ var rng := RandomNumberGenerator.new()
 var _next_uid := 1
 var _events: Array = []
 var _trigger_depth := 0
+const EVENT_CAP := 300 ## events one action may produce before triggers/effects stop resolving
 var _chosen2 := 0 ## second target of the stack item being resolved (e.g. the damage target of a sacrifice spell)
 var _sac_atk := 0 ## total attack of the unit the last "sacrifice" killed
 var _dying: Dictionary = {} ## unit whose Ao Morrer is resolving (for summon "self")
@@ -107,6 +108,11 @@ func _shuffle(arr: Array) -> void:
 
 func _emit(e: Dictionary) -> void:
 	_events.append(e)
+
+## Triggers and effects stop resolving once a Leader is down (combat strikes still land, so the overkill shows,
+## but nothing new fires off it) or when one action has already produced EVENT_CAP events (runaway chain).
+func _chain_stopped() -> bool:
+	return _events.size() >= EVENT_CAP or players[0]["leader_hp"] <= 0 or players[1]["leader_hp"] <= 0
 
 func _flush() -> Array:
 	var out := _events
@@ -272,8 +278,8 @@ func enter_spec(cd: Dictionary) -> String:
 ## per Momentum that leaked past the Reserva by the start of the owner's turns, over the whole game; "idle_turns" =
 ## per owner turn that started with Momentum leaking past the Reserva; "unspent_momentum" = a flat "amount" off when
 ## at least "threshold" plain Momentum was left over from the previous turn). Never below 0, or below the effect's "min_cost".
-func cost_of(p: int, cd: Dictionary) -> int:
-	var c := int(cd["cost"])
+func cost_of(p: int, cd: Dictionary, inst: Dictionary = {}) -> int:
+	var c := int(cd["cost"]) - int(inst.get("discount", 0)) # per-copy discount (Tecnomante); stacks with cost_reduction, same "min_cost" floor
 	var floor_cost := 0
 	for e in cd.get("effects", []):
 		if e.get("action", "") != "cost_reduction":
@@ -363,7 +369,7 @@ func counter_extra(cd: Dictionary, sid: int) -> int:
 	return 0
 
 ## Targets a card from hand can be played on right now (counters filter by reach and Momentum).
-func card_targets(p: int, cd: Dictionary) -> Array:
+func card_targets(p: int, cd: Dictionary, inst: Dictionary = {}) -> Array:
 	var spec := card_spec(cd)
 	var out := valid_targets(p, spec)
 	if spec != "enemy_stack":
@@ -371,7 +377,7 @@ func card_targets(p: int, cd: Dictionary) -> Array:
 	var ok: Array = []
 	for sid in out:
 		var x := counter_extra(cd, sid)
-		if x >= 0 and cost_of(p, cd) + x <= budget(p, _is_spell(cd)):
+		if x >= 0 and cost_of(p, cd, inst) + x <= budget(p, _is_spell(cd)):
 			ok.append(sid)
 	return ok
 
@@ -403,7 +409,7 @@ func can_play(p: int, hand_uid: int) -> bool:
 	if inst.is_empty():
 		return false
 	var cd := CardDB.card(inst["card_id"])
-	if cost_of(p, cd) > budget(p, _is_spell(cd)):
+	if cost_of(p, cd, inst) > budget(p, _is_spell(cd)):
 		return false
 	if cd["type"] == "unit":
 		if not _sorcery_time(p):
@@ -414,7 +420,7 @@ func can_play(p: int, hand_uid: int) -> bool:
 	if not can_cast_speed(p, speed_of(cd)):
 		return false
 	var spec := target_spec(cd["effects"])
-	return spec == "" or not card_targets(p, cd).is_empty()
+	return spec == "" or not card_targets(p, cd, inst).is_empty()
 
 func can_cast_legendary(p: int) -> bool:
 	return _sorcery_time(p) and players[p]["legendary"]["in_zone"] \
@@ -494,13 +500,13 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0) -> Arra
 	if sacrifice:
 		if not valid_targets(p, "ally_unit").has(target):
 			return []
-	elif cd["type"] != "unit" and spec != "" and not card_targets(p, cd).has(target):
+	elif cd["type"] != "unit" and spec != "" and not card_targets(p, cd, inst).has(target):
 		return []
 	var spec2 := second_spec(cd)
 	if spec2 != "" and ((target2 == target and not cd.get("same_target_ok", false)) or not valid_targets(p, spec2).has(target2)):
 		return []
 	var pl: Dictionary = players[p]
-	_pay(p, cost_of(p, cd) + (counter_extra(cd, target) if spec == "enemy_stack" else 0), _is_spell(cd))
+	_pay(p, cost_of(p, cd, inst) + (counter_extra(cd, target) if spec == "enemy_stack" else 0), _is_spell(cd))
 	pl["hand"].erase(inst)
 	if int(cd.get("cost", 0)) == 2 or int(cd.get("atk", 0)) == 2 or int(cd.get("hp", 0)) == 2:
 		pl["played_two"] = true # Rusco: a card with cost, ATK or HP exactly 2 this turn
@@ -1041,7 +1047,7 @@ func _announce(c: Dictionary, effects: Array, trigger: String) -> void:
 
 ## Fires a unit's own trigger. Depth-capped so on_damaged chains cannot loop forever.
 func _fire(c: Dictionary, trigger: String, other_uid: int = 0) -> void:
-	if c.is_empty() or _trigger_depth >= 4:
+	if c.is_empty() or _trigger_depth >= 4 or _chain_stopped():
 		return
 	var effects: Array = []
 	var used: Dictionary = c.get("used_turn", {})
@@ -1067,6 +1073,8 @@ func _fire(c: Dictionary, trigger: String, other_uid: int = 0) -> void:
 ## other_uid is the opposing unit in combat triggers (blocker, attacker, damage source).
 func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid: int, other_uid: int = 0) -> void:
 	for e in effects:
+		if _chain_stopped():
+			return
 		if trigger != "" and e.get("trigger", "") != trigger:
 			continue
 		if e.get("trigger", "") == "constante" or e.get("action", "") == "cost_reduction":
@@ -1245,6 +1253,8 @@ func _apply(p: int, e: Dictionary, t: int) -> void:
 				hc["damage"] = 0
 		"draw":
 			_draw(opponent(p) if t == LEADER_UID[opponent(p)] else p, int(e["amount"]))
+		"draw_discounted":
+			_draw_discounted(p, int(e.get("min_base_cost", 0)), int(e.get("discount", 1)))
 		"tide_mark":
 			var m := find_unit(t)
 			if not m.is_empty():
@@ -1458,6 +1468,19 @@ func _draw(p: int, n: int) -> void:
 		pl["hand"].append(c)
 		_emit({"type": "draw", "player": p, "uid": c["uid"]})
 
+## Draws the first card (from the top) whose base cost is at least `min_base_cost`; that copy costs
+## `discount` less while it stays in hand (Tecnomante). Nothing happens, and no Fadiga, if none qualifies.
+func _draw_discounted(p: int, min_base_cost: int, discount: int) -> void:
+	var deck: Array = players[p]["deck"]
+	for i in range(deck.size() - 1, -1, -1):
+		if int(CardDB.card(deck[i]["card_id"])["cost"]) >= min_base_cost:
+			var c: Dictionary = deck[i]
+			deck.remove_at(i)
+			c["discount"] = int(c.get("discount", 0)) + discount
+			players[p]["hand"].append(c)
+			_emit({"type": "draw", "player": p, "uid": c["uid"]})
+			return
+
 ## Esquiva condition: by default the attacker has less ATK than the dodger. A card can override it with
 ## "esquiva": {"unless_keywords": [...]} = the attacker has none of those keywords.
 func _dodges(c: Dictionary, source: Dictionary) -> bool:
@@ -1506,9 +1529,9 @@ func _resolve_combat() -> void:
 			if not blk.is_empty() and _strike_step(blk, att, false) == step and not att.is_empty():
 				_deal_damage(att["uid"], atk_of(blk), blk)
 		_check_state()
-		if phase == "over":
-			break
+	# a Leader that drops to 0 mid-combat still takes the remaining strikes (overkill); the result is decided once, here
 	_combat_damage = false
+	_check_leaders()
 	_end_combat()
 
 ## Moves dead units out, fires Ao Morrer, checks leaders. Loops until stable.
@@ -1530,7 +1553,8 @@ func _check_state() -> void:
 					else:
 						players[p]["graveyard"].append({"uid": c["uid"], "card_id": c["card_id"]})
 					_dying = c
-					_announce(c, card_of(c)["effects"], "on_death")
+					if not _chain_stopped():
+						_announce(c, card_of(c)["effects"], "on_death")
 					_run_effects(p, card_of(c)["effects"], "on_death", 0, c["uid"])
 					_dying = {}
 					# Aliado Morre fires on every death, even if the unit comes right back (Revivente, Fênix)
@@ -1539,6 +1563,12 @@ func _check_state() -> void:
 						if players[p]["board"].has(ally):
 							_fire(ally, "on_ally_death", c["uid"])
 					_fire_leader_passive(p, "on_ally_death")
+	if not _combat_damage:
+		_check_leaders()
+
+func _check_leaders() -> void:
+	if phase == "over":
+		return
 	var dead := [players[0]["leader_hp"] <= 0, players[1]["leader_hp"] <= 0]
 	if dead[0] or dead[1]:
 		winner = 2 if dead[0] and dead[1] else (1 if dead[0] else 0)
@@ -1549,7 +1579,7 @@ func _check_state() -> void:
 ## once per turn if "once_per_turn". Depth-capped like unit triggers.
 func _fire_leader_passive(p: int, trigger: String) -> void:
 	var ab: Dictionary = CardDB.leader(players[p]["leader_id"])["ability"]
-	if not ab.get("passive", false) or ab.get("trigger", "") != trigger or _trigger_depth >= 4:
+	if not ab.get("passive", false) or ab.get("trigger", "") != trigger or _trigger_depth >= 4 or _chain_stopped():
 		return
 	if ab.get("own_turn_only", false) and active != p:
 		return

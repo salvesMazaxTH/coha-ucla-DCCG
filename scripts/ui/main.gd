@@ -649,7 +649,7 @@ func _show_events(events: Array) -> void:
 	var end := _animate(events, old)
 	# the Victory/Defeat screen waits for the killing blow to land instead of spoiling it
 	if g.phase == "over" and _over_from >= 0 and end > 0.0:
-		var delay := _leader_ko_t + 0.7 if _leader_ko_t >= 0.0 else end
+		var delay := maxf(_leader_ko_t + 0.7, end) if _leader_ko_t >= 0.0 else end
 		for n in layer.get_children().slice(_over_from):
 			n.modulate.a = 0.0
 			var otw: Tween = n.create_tween()
@@ -1019,8 +1019,8 @@ func _render_hand(p: int) -> void:
 		var c: Dictionary = hand[i]
 		var v := CardView.new().setup(c["card_id"], c, sc)
 		var hcd := CardDB.card(c["card_id"])
-		if g.cost_of(p, hcd) != int(hcd["cost"]):
-			v.cost_override = g.cost_of(p, hcd)
+		if g.cost_of(p, hcd, c) != int(hcd["cost"]):
+			v.cost_override = g.cost_of(p, hcd, c)
 		v.text_suffix = _scale_suffix(p, hcd)
 		var k := i - (n - 1) / 2.0
 		v.pivot_offset = Vector2(v.size.x / 2.0, v.size.y)
