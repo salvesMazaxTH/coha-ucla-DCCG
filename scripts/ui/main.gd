@@ -791,7 +791,7 @@ func _render_command(p: int, pos: Vector2) -> void:
 	v.pivot_offset = v.size / 2.0
 	v.position = pos
 	v.cost_override = g.legendary_cost(p)
-	v.stat_bonus = g.scale_bonus(p, CardDB.card(l["card_id"]))
+	v.text_suffix = _scale_suffix(p, CardDB.card(l["card_id"]))
 	if p == viewer and g.can_cast_legendary(p) and not _is_ai(p):
 		v.highlight = OK
 	if targeting.get("kind") == "legendary" and p == viewer:
@@ -996,7 +996,7 @@ func _render_hand(p: int) -> void:
 		var hcd := CardDB.card(c["card_id"])
 		if g.cost_of(p, hcd) != int(hcd["cost"]):
 			v.cost_override = g.cost_of(p, hcd)
-		v.stat_bonus = g.scale_bonus(p, hcd)
+		v.text_suffix = _scale_suffix(p, hcd)
 		var k := i - (n - 1) / 2.0
 		v.pivot_offset = Vector2(v.size.x / 2.0, v.size.y)
 		var pos := Vector2(lane_cx + k * step - v.size.x / 2.0, 676 + k * k * 1.4)
@@ -1673,10 +1673,16 @@ func _on_unit_click(v: CardView) -> void:
 					block_sel[v.uid] = blocker_pick
 					blocker_pick = 0
 				else:
-					_toast("Essa unidade não pode bloquear esse atacante (Voo/Furtividade).")
+					_toast("Essa unidade não pode bloquear esse atacante (Voo/Furtividade/Intimidar).")
 				_render()
 
 # ---------------------------------------------------------------- overlay
+
+## " (agora: N)" for cards whose text counts something (Jeff: unit cards in the own graveyard), so the
+## player can add it to the base stats. Empty for the rest.
+func _scale_suffix(p: int, cd: Dictionary) -> String:
+	var n := g.scale_count(p, cd)
+	return " (agora: %d)" % n if n >= 0 else ""
 
 func _show_overlay(v: CardView) -> void:
 	if v.face_down:
@@ -1692,7 +1698,7 @@ func _show_overlay(v: CardView) -> void:
 	add_child(overlay)
 	var big := CardView.new().setup(v.card_id, v.inst, 4.18)
 	big.cost_override = v.cost_override
-	big.stat_bonus = v.stat_bonus
+	big.text_suffix = v.text_suffix
 	big.position = Vector2(stage_w / 2.0 - 620, 150)
 	big.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(big)
@@ -1711,7 +1717,7 @@ func _show_overlay(v: CardView) -> void:
 		if v.inst.has("frozen"):
 			body = "[color=#9fe8ff][b]Congelada:[/b] não pode atacar nem bloquear até o fim do próximo turno do dono.[/color]
 " + body
-		txt += "[font_size=32]%s[/font_size]\n\n" % CardView.colorize_triggers(body, 32)
+		txt += "[font_size=32]%s[/font_size]\n\n" % CardView.colorize_triggers(body + v.text_suffix, 32)
 	for kw in cd.get("keywords", []):
 		var k := CardDB.keyword(kw)
 		txt += "[color=#ffe9a8][b]%s[/b][/color] — %s\n" % [k["name"], k["text"]]
@@ -1992,7 +1998,7 @@ func _render_search_reveal() -> void:
 		var cv := CardView.new().setup(option["card_id"], {"uid": card_uid}, 1.05)
 		cv.face_down = hidden or String(option["card_id"]) == ""
 		if not cv.face_down:
-			cv.stat_bonus = g.scale_bonus(owner, CardDB.card(option["card_id"]))
+			cv.text_suffix = _scale_suffix(owner, CardDB.card(option["card_id"]))
 		cv.mouse_filter = Control.MOUSE_FILTER_STOP if _my_input() else Control.MOUSE_FILTER_IGNORE
 		if _my_input():
 			cv.left_clicked.connect(func(_v): _on_search_choice(card_uid))
@@ -2659,6 +2665,8 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s: Ao Entrar recusado" % _cname(e["card_id"]))
 		"search_empty":
 			_log("%s não encontrou uma carta que atendesse à busca" % _pname(e["player"]))
+		"deck_summon":
+			_log("%s saiu do deck e entrou em campo para %s" % [_cname(e["card_id"]), _pname(e["player"])])
 		"search_take":
 			_log("%s escolheu %s na busca" % [_pname(e["player"]), _cname(e["card_id"])])
 		"fizzle":

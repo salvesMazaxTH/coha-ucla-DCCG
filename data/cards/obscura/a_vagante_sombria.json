@@ -13,13 +13,12 @@
   "art": "obscura/a_vagante_sombria.webp",
   "effects": [
     {
-      "trigger": "constante",
       "action": "cost_reduction",
       "per": "own_graveyard",
       "amount": 1
     }
   ],
-  "text": "Constante: custa 1 a menos para cada carta no seu cemitério.",
+  "text": "Custa 1 a menos para cada carta no seu cemitério.",
   "flavor": "Ninguém a convocou. Ela só veio buscar o que já é dela.",
   "tags": []
 }

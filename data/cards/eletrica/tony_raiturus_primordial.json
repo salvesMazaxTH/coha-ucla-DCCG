@@ -1,19 +1,21 @@
 {
-  "name": "Tony Raiturus",
+  "name": "Tony Raiturus Primordial",
   "type": "unit",
   "rarity": "champion",
+  "transform_only": true,
   "species": [
     "dragao_primordial",
     "dragao"
   ],
   "essence": "eletrica",
   "cost": 8,
-  "atk": 6,
-  "hp": 6,
+  "atk": 9,
+  "hp": 9,
   "keywords": [
+    "intimidar",
     "impeto"
   ],
-  "art": "eletrica/tony_raiturus.webp",
+  "art": "eletrica/tony_raiturus_primordial.webp",
   "effects": [
     {
       "trigger": "on_hit_leader",
@@ -22,8 +24,7 @@
       "amount": 3
     }
   ],
-  "transform": {"into": "tony_raiturus_primordial", "cost": 8},
-  "text": "Ao Atingir o Líder: cause 3 de dano a uma unidade inimiga aleatória.\nTransformar (8): Tony Raiturus Primordial.",
+  "text": "Ao Atingir o Líder: cause 3 de dano a uma unidade inimiga aleatória.",
   "flavor": "",
   "tags": []
 }

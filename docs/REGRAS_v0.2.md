@@ -7,6 +7,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 
 ## Deck
 - O deck tem **48 cartas**, com até **3 cópias** de cada uma. O Líder fica fora dessa contagem.
+- **Única:** cartas com `"max_copies": 1` (ex.: Rusco) só podem ter 1 cópia no deck.
 - As **essências** do Líder (ígnea, aquática, glacial, vegetal, rochosa, metálica, elétrica, obscura, sagrada) definem as cartas permitidas no deck. Cartas **neutras** entram em qualquer deck.
 - Uma carta pode ter **mais de uma essência** (ex.: Sabrina é aquática e glacial, com moldura meio a meio). Ela é permitida se tiver **pelo menos uma** das essências do Líder.
 - **Fora da essência:** o deck pode ter até **12 cartas** (contando cópias) de essências que o Líder não tem, de qualquer raridade, com o limite normal de 3 cópias. Cartas neutras não entram nessa conta, e **Campeões** nunca podem ser de fora da essência.
@@ -105,8 +106,9 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 | Longo Alcance | Pode bloquear unidades com Voo. |
 | Furtividade | Só pode ser bloqueada por unidades com Furtividade ou Vigilância. |
 | Vigilância | Pode bloquear unidades com Furtividade. |
+| Intimidar | Unidades com ATK 3 ou menor (o ATK de agora, com buffs e debuffs) não podem bloquear esta unidade. |
 | Não Bloqueia | A unidade não pode bloquear (nem ser alvo de Provocação). |
-| Provocação | Ao atacar, escolha uma unidade inimiga. Ela é obrigada a bloquear esta unidade, mesmo contra Voo ou Furtividade. |
+| Provocação | Ao atacar, escolha uma unidade inimiga. Ela é obrigada a bloquear esta unidade, mesmo contra Voo, Furtividade ou Intimidar. |
 | Escudo | Anula a próxima instância de dano. |
 | Congelamento | A unidade não pode atacar nem bloquear até o fim do próximo turno do dono. Escudo de Feitiço anula. |
 | Indestrutível | Não sofre dano (sempre 0) e não é destruída por efeitos de "destruir". Sacrifício e remoção do jogo (banimento) ainda a afetam. |
@@ -118,13 +120,14 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - **Reviver:** devolve ao campo uma unidade do cemitério do dono (ex.: O Espiritomante, custo máximo 3). A carta sai do cemitério.
 - **Reviver a si mesma (Ao Morrer):** a unidade volta como uma **nova instância**, por isso não participa do combate em que morreu. Enquanto está em campo, sua entrada deixa o cemitério. O Revivente Eterno volta sempre igual. A Fênix da Chama Profana volta com -2/-2 do que tinha ao morrer e não volta se Ataque ou Vida chegar a 0. Não volta com o campo cheio.
 - **Sacrifício:** a unidade sacrificada morre na hora (efeitos Ao Morrer e Aliado Morre resolvem). Como *efeito* (Colheita de Almas) ou como **custo adicional** (Necrófago Espectral: custa 0, mas exige sacrificar uma unidade que você controla; com o campo cheio, o sacrifício libera a vaga).
-- **Redução de custo por cemitério:** efeito Constante. A Vagante Sombria custa 1 a menos por carta no seu cemitério (de qualquer tipo), nunca menos que 0.
+- **Redução de custo por cemitério:** efeito sem nome (não é Constante, pois vale fora de campo). A Vagante Sombria custa 1 a menos por carta no seu cemitério (de qualquer tipo), nunca menos que 0.
 
 ## Elétrica: Momentum guardado
-- **Redução de custo por Momentum guardado:** efeito Constante. A Voltexz custa 1 a menos por Momentum que sobrou no fim de cada turno seu (acumulado), nunca menos que 3. O Fulgurvoltz custa 2 a menos por turno terminado com Momentum sobrando, nunca menos que 5. O piso (`min_cost`) é exclusivo dessas duas cartas.
+- **Redução de custo por Momentum guardado:** efeito sem nome (não é Constante). A Voltexz custa 1 a menos por Momentum que **vazou** da Reserva no início de cada turno seu (acumulado; o que sobra depois do turno do oponente, e só o que não cabe nos 2 da Reserva), nunca menos que 3. O Fulgurvoltz custa 2 a menos por turno iniciado com Momentum vazando, nunca menos que 5. O piso (`min_cost`) é exclusivo dessas duas cartas.
 - **Momentum no próximo turno:** o Espírito Carregado dá +1 Momentum no início do seu próximo turno (soma ao Momentum do turno, até 10).
-- **Sobrecarga (Líder Voltexz):** passiva. No início do seu turno, se a sua Reserva estiver cheia, ganhe +1 Momentum neste turno.
-- Efeitos podem ter condição `if` (ex.: só se sobrou Momentum, só se a Reserva está cheia) e bônus proporcional ao Momentum restante (Voltexz: +1/+1 por Momentum, máximo +5/+5).
+- **Sobrecarga (Líder Voltexz):** passiva. No início do seu turno, recupere metade (arredondada para baixo, máx. 2) do Momentum que vazou da Reserva, como Momentum neste turno. "Vazar" = o que não cabe nos 2 da Reserva.
+- **Efeitos no deck (`deck_effects`):** efeitos que a carta tem enquanto está no deck, não em campo. `summon_self` tira aquela cópia do deck e a coloca em campo (sem embaralhar e sem comprar; com o campo cheio, ela fica no deck). O `cost` opcional é pago na entrada como uma habilidade (a Reserva vale e é gasta primeiro); sem como pagar, a cópia fica no deck. Rusco: no fim do seu turno, se você jogou da mão uma carta com custo, ATK ou VIDA impressos exatamente 2 (`if: played_two`), e você paga 2 de Momentum, ele sai do deck e entra em campo.
+- Efeitos podem ter condição `if` (ex.: só se sobrou Momentum, só se a Reserva está cheia) e bônus proporcional ao Momentum restante (Voltexz: +1/+1 por Momentum nas suas *outras* unidades, de +1/+1 a +5/+5: mesmo sem Momentum sobrando dá +1/+1).
 
 ## Habilidade de Líder: limite de uso
 - Algumas habilidades têm `once_per_turn`: 1 uso por turno, em qualquer turno (o seu ou o do adversário), reiniciando a cada turno.
@@ -166,8 +169,8 @@ Não são gatilhos automáticos: o dono decide quando usar. O custo em Momentum 
 - **Transformar (n):** é um tipo específico de ativável. Só pode ser usado na sua Fase Principal com a pilha vazia. A unidade vira a carta indicada no mesmo lugar (mantém dano e equipamento) e o Ao Entrar da nova forma dispara. **Não usa a pilha**, então não pode ser anulado. Exemplo: Alexa Neruvya, *Transformar (8): Alexa Neruvya Primordial.*
 | Aliado Morre | Outra unidade que você controla **morre**, mesmo que volte na hora (Revivente, Fênix) ou seja um Lendário voltando à zona de comando. A que morreu não ativa o próprio efeito (para isso existe Ao Morrer). Sacrifício conta. Um efeito pode ser "exceto dano de combate" (`not_in_combat`): não dispara se a morte vem do dano de combate (ex.: Cientista da Morte). |
 | (qualquer gatilho) | Um efeito pode ter "uma vez por turno" (`once_per_turn`): o limite é por unidade e reinicia a cada turno, de qualquer jogador (ex.: Diabrete Sombrio). |
-| Constante | Sempre, enquanto a unidade está em campo. Não dispara: é recalculado a cada mudança de estado (ex.: Jeff The Death recebe +2/+2 por unidade no cemitério do dono; o dano sofrido continua valendo se o bônus encolher). |
+| Constante | Sempre, enquanto a unidade está em campo (só em campo; reduções de custo não são Constante). Não dispara: é recalculado a cada mudança de estado (ex.: Jeff The Death recebe +2/+2 por unidade no cemitério do dono; o dano sofrido continua valendo se o bônus encolher). |
 
-Alvos de gatilhos que não pedem escolha do jogador: `self`, `opposed_unit` (a unidade do outro lado do combate, ou a fonte do dano), `all_ally_units`, `all_units` (ambos os lados; o efeito de dano aceita `ally_reduce` para reduzir o dano em aliados de uma essência), `random_ally_unit`, `random_other_ally_unit`, `random_enemy_unit`, `random_enemy_and_adjacent` (uma unidade inimiga aleatória e as adjacentes), `all_enemy_units`, `enemy_leader`, `own_leader` e `both_leaders` (em efeitos de compra, cada líder alvo compra). Só Ao Jogar e Ao Entrar podem usar alvo escolhido pelo jogador.
+Alvos de gatilhos que não pedem escolha do jogador: `self`, `opposed_unit` (a unidade do outro lado do combate, ou a fonte do dano), `all_ally_units`, `other_ally_units` (todas as suas outras unidades, sem a fonte), `all_units` (ambos os lados; o efeito de dano aceita `ally_reduce` para reduzir o dano em aliados de uma essência), `random_ally_unit`, `random_other_ally_unit`, `random_enemy_unit`, `random_enemy_and_adjacent` (uma unidade inimiga aleatória e as adjacentes), `all_enemy_units`, `enemy_leader`, `own_leader` e `both_leaders` (em efeitos de compra, cada líder alvo compra). Só Ao Jogar e Ao Entrar podem usar alvo escolhido pelo jogador.
 
 **"Qualquer alvo"** (texto padrão das cartas, alvo `any`) = qualquer unidade em campo, de qualquer lado, ou o Líder inimigo. Não inclui o seu próprio Líder.

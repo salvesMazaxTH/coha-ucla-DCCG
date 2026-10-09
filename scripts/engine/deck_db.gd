@@ -69,8 +69,9 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 		var n: int = cards[id]
 		total += n
 		var c := CardDB.card(id)
-		if n > MAX_COPIES:
-			errors.append("%s: mais de %d cópias" % [id, MAX_COPIES])
+		var limit: int = int(c.get("max_copies", MAX_COPIES)) # "max_copies": 1 = Única
+		if n > limit:
+			errors.append("%s: mais de %d cópia%s" % [id, limit, "" if limit == 1 else "s"])
 		# dual cards count as on-essence when the Leader shares any of their essences
 		var ess := CardDB.essences_of(c)
 		var legal := ess.has("neutra")

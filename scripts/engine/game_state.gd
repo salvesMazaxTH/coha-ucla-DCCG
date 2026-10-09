@@ -11,6 +11,7 @@ const BOARD_LIMIT := 8
 const MOMENTUM_CAP := 10
 const RESERVE_CAP := 2 ## unspent Momentum banked at turn start; pays only spells and abilities
 const COMMANDER_TAX := 2
+const INTIMIDATE_ATK := 3 ## Intimidar: blockers with this ATK or less cannot block
 const SECOND_BONUS_TURNS := 2 ## the second player's first turns that start with +1 Reserve (the first also with +1 Momentum)
 
 ## Leaders are addressed with negative uids so targets are a single int.
@@ -86,10 +87,11 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"index": i, "deck_id": deck_id, "leader_id": d["leader"],
 		"leader_hp": int(ld["hp"]), "leader_max": int(ld["hp"]),
 		"momentum": 0, "max_momentum": 0, "reserve": 0,
-			"saved_momentum": 0, "idle_turns": 0, "next_momentum": 0,
+			"saved_momentum": 0, "idle_turns": 0, "next_momentum": 0, "leaked": 0,
 		"deck": deck, "hand": [], "board": [], "graveyard": [], "banished": [],
 		"legendary": {"card_id": ld["legendary"], "in_zone": true, "casts": 0},
 		"ability_used": false, "passive_used": false, "attacked": false, "fatigue": 0, "mulligan_done": false,
+		"played_two": false,
 	}
 
 func _uid() -> int:
@@ -172,18 +174,28 @@ func _refresh_scaling() -> void:
 			c["bonus_hp"] = b.y
 
 ## Atk/hp a card's "constante" scale effects would give it under player p right
-## now. Also used to preview the live stats of cards off the board (hand, command zone).
+## now.
 func scale_bonus(p: int, cd: Dictionary) -> Vector2i:
 	var out := Vector2i.ZERO
 	for e in cd.get("effects", []):
 		if e.get("trigger", "") != "constante" or e.get("action", "") != "scale":
 			continue
-		var n := 0
-		match e.get("per", ""):
-			"own_graveyard_units": n = graveyard_units(p)
-			"enemy_graveyard_units": n = graveyard_units(opponent(p))
+		var n := _scale_count(p, e)
 		out += Vector2i(n * int(e.get("atk", 0)), n * int(e.get("hp", 0)))
 	return out
+
+func _scale_count(p: int, e: Dictionary) -> int:
+	match e.get("per", ""):
+		"own_graveyard_units": return graveyard_units(p)
+		"enemy_graveyard_units": return graveyard_units(opponent(p))
+	return 0
+
+## What a "scale" card counts right now (shown in its text off the board), or -1 if it has none.
+func scale_count(p: int, cd: Dictionary) -> int:
+	for e in cd.get("effects", []):
+		if e.get("trigger", "") == "constante" and e.get("action", "") == "scale":
+			return _scale_count(p, e)
+	return -1
 
 ## The Encarnação left the board by dying or being banished (a return to hand doesn't count).
 ## If its next cast would cost more than the Momentum cap, it retires: it goes to the bottom of
@@ -214,6 +226,8 @@ func can_block(blocker: Dictionary, attacker: Dictionary) -> bool:
 	if has_kw(attacker, "voo") and not (has_kw(blocker, "voo") or has_kw(blocker, "longo_alcance")):
 		return false
 	if has_kw(attacker, "furtividade") and not (has_kw(blocker, "furtividade") or has_kw(blocker, "vigilancia")):
+		return false
+	if has_kw(attacker, "intimidar") and atk_of(blocker) <= INTIMIDATE_ATK:
 		return false
 	return true
 
@@ -249,15 +263,16 @@ func enter_spec(cd: Dictionary) -> String:
 			on_enter.append(e)
 	return target_spec(on_enter)
 
-## Momentum cost of a card for player p, after "constante" cost_reduction effects
+## Momentum cost of a card for player p, after its cost_reduction effects (no trigger: they apply
+## wherever the card is, not only on the board, so they are not "Constante")
 ## (e.g. per: "own_graveyard" = 1 less for each card in the own graveyard; "saved_momentum" =
-## per Momentum left unspent at the end of the owner's turns, over the whole game; "idle_turns" =
-## per owner turn ended with Momentum unspent). Never below 0, or below the effect's "min_cost".
+## per Momentum that leaked past the Reserva by the start of the owner's turns, over the whole game; "idle_turns" =
+## per owner turn that started with Momentum leaking past the Reserva). Never below 0, or below the effect's "min_cost".
 func cost_of(p: int, cd: Dictionary) -> int:
 	var c := int(cd["cost"])
 	var floor_cost := 0
 	for e in cd.get("effects", []):
-		if e.get("trigger", "") != "constante" or e.get("action", "") != "cost_reduction":
+		if e.get("action", "") != "cost_reduction":
 			continue
 		var n := 0
 		match e.get("per", ""):
@@ -482,6 +497,8 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0) -> Arra
 	var pl: Dictionary = players[p]
 	_pay(p, cost_of(p, cd) + (counter_extra(cd, target) if spec == "enemy_stack" else 0), _is_spell(cd))
 	pl["hand"].erase(inst)
+	if int(cd.get("cost", 0)) == 2 or int(cd.get("atk", 0)) == 2 or int(cd.get("hp", 0)) == 2:
+		pl["played_two"] = true # Rusco: a card with cost, ATK or HP exactly 2 this turn
 	_emit({"type": "play", "player": p, "uid": hand_uid, "card_id": inst["card_id"]})
 	if sacrifice:
 		# additional cost: the chosen ally dies first (its Ao Morrer / Aliado Morre resolve before the card enters)
@@ -1043,7 +1060,7 @@ func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid
 	for e in effects:
 		if trigger != "" and e.get("trigger", "") != trigger:
 			continue
-		if e.get("trigger", "") == "constante":
+		if e.get("trigger", "") == "constante" or e.get("action", "") == "cost_reduction":
 			continue
 		if not _condition_ok(p, e.get("if", "")):
 			continue
@@ -1079,6 +1096,9 @@ func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid
 					for c in players[side]["board"]: targets.append(c["uid"])
 			"all_ally_units":
 				for c in players[p]["board"]: targets.append(c["uid"])
+			"other_ally_units":
+				for c in players[p]["board"]:
+					if c["uid"] != self_uid: targets.append(c["uid"])
 			"random_ally_unit", "random_other_ally_unit":
 				var pool: Array = []
 				for c in players[p]["board"]:
@@ -1093,12 +1113,29 @@ func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid
 		elif e.get("action", "") == "look_top" and e.get("trigger", "") == trigger:
 			_begin_look(p, int(e.get("count", 4)), self_uid)
 
-## Optional "if" on an effect: "momentum_left" = p still has unspent Momentum, "reserve_full" = p's Reserva is full.
+## Optional "if" on an effect: "momentum_left" = p still has unspent Momentum, "reserve_full" = p's Reserva is full, "played_two" = p played a card with cost, ATK or HP of exactly 2 this turn.
 func _condition_ok(p: int, cond: String) -> bool:
 	match cond:
 		"momentum_left": return int(players[p]["momentum"]) > 0
 		"reserve_full": return int(players[p]["reserve"]) >= RESERVE_CAP
+		"played_two": return bool(players[p]["played_two"])
 	return true
+
+## Effects a card has while it sits in the deck ("deck_effects": [{trigger, if, action}]).
+## "summon_self": that copy leaves the deck and enters its owner's board (no shuffle, nothing is
+## drawn). Optional "cost": paid on the way in like an ability (Reserva first, then Momentum); if it
+## can't be paid, or the board is full, the copy stays in the deck.
+func _fire_deck_effects(p: int, trigger: String) -> void:
+	for c in players[p]["deck"].duplicate():
+		for e in CardDB.card(c["card_id"]).get("deck_effects", []):
+			if e.get("trigger", "") != trigger or not _condition_ok(p, e.get("if", "")):
+				continue
+			var fee := int(e.get("cost", 0))
+			if e.get("action", "") == "summon_self" and players[p]["deck"].has(c) and players[p]["board"].size() < BOARD_LIMIT and budget(p, true) >= fee:
+				_pay(p, fee, true)
+				players[p]["deck"].erase(c)
+				_emit({"type": "deck_summon", "player": p, "uid": c["uid"], "card_id": c["card_id"]})
+				_summon(p, c["card_id"], c["uid"], false, 0)
 
 func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 	if phase == "search":
@@ -1238,20 +1275,28 @@ func _apply(p: int, e: Dictionary, t: int) -> void:
 			_emit({"type": "sacrifice", "player": p, "uid": t})
 			_run_effects(p, e.get("then", []), "", _chosen2, 0)
 		"gain_momentum":
-			# +amount Momentum right now (never above the cap), or at the start of the owner's next turn
+			# +amount Momentum right now (never above the cap), or at the start of the owner's next turn.
+			# "per": "leaked" refunds the Momentum that leaked past the Reserva this turn instead:
+			# floor(leaked / "divisor"), at most "max"
+			var gain: int = int(e.get("amount", 0))
+			if e.get("per", "") == "leaked":
+				var dv: int = maxi(1, int(e.get("divisor", 1)))
+				gain = mini(int(e.get("max", MOMENTUM_CAP)), int(players[p]["leaked"]) / dv)
+				if gain <= 0:
+					return
 			if e.get("next_turn", false):
-				players[p]["next_momentum"] += int(e["amount"])
+				players[p]["next_momentum"] += gain
 			else:
-				players[p]["momentum"] = mini(MOMENTUM_CAP, int(players[p]["momentum"]) + int(e["amount"]))
+				players[p]["momentum"] = mini(MOMENTUM_CAP, int(players[p]["momentum"]) + gain)
 				_emit({"type": "momentum", "player": p})
 		"buff":
 			var c := find_unit(t)
 			if c.is_empty():
 				return
-			# "per": "momentum_left" scales atk/hp by the Momentum p still has (at most "max")
+			# "per": "momentum_left" scales atk/hp by the Momentum p still has (at least "min", at most "max")
 			var mult := 1
 			if e.get("per", "") == "momentum_left":
-				mult = mini(int(players[p]["momentum"]), int(e.get("max", 99)))
+				mult = clampi(int(players[p]["momentum"]), int(e.get("min", 0)), int(e.get("max", 99)))
 			var d_atk: int = int(e.get("atk", 0)) * mult
 			var d_hp: int = int(e.get("hp", 0)) * mult
 			# "cap_atk": this effect can give a unit at most that much attack in total (e.g. Layla)
@@ -1478,14 +1523,10 @@ func _fire_leader_passive(p: int, trigger: String) -> void:
 func _finish_turn() -> void:
 	for c in players[active]["board"].duplicate():
 		_fire(c, "on_turn_end")
+	_fire_deck_effects(active, "on_turn_end")
 	_check_state()
 	if phase == "over":
 		return
-	# Momentum left unspent at the end of the turn (Voltexz and Fulgurvoltz get cheaper)
-	var left: int = int(players[active]["momentum"])
-	if left > 0:
-		players[active]["saved_momentum"] += left
-		players[active]["idle_turns"] += 1
 	for p in players:
 		for c in p["board"]:
 			c["damage"] = 0
@@ -1508,6 +1549,13 @@ func _start_turn(p: int, draw: bool) -> void:
 	turn += 1
 	phase = "main"
 	var pl: Dictionary = players[p]
+	# Momentum that leaks past a full Reserva, after the opponent's turn too, is what really went
+	# unspent (Voltexz and Fulgurvoltz get cheaper by it)
+	var leaked: int = int(pl["reserve"]) + int(pl["momentum"]) - RESERVE_CAP
+	pl["leaked"] = maxi(0, leaked) # Sobrecarga refunds part of it this turn
+	if leaked > 0:
+		pl["saved_momentum"] += leaked
+		pl["idle_turns"] += 1
 	pl["reserve"] = mini(RESERVE_CAP, int(pl["reserve"]) + int(pl["momentum"])) # bank what went unspent
 	pl["max_momentum"] = min(MOMENTUM_CAP, pl["max_momentum"] + 1)
 	pl["momentum"] = pl["max_momentum"]
@@ -1527,6 +1575,7 @@ func _start_turn(p: int, draw: bool) -> void:
 		pl["momentum"] = mini(MOMENTUM_CAP, int(pl["momentum"]) + int(pl["next_momentum"]))
 		pl["next_momentum"] = 0
 	pl["attacked"] = false
+	pl["played_two"] = false
 	for c in pl["board"]:
 		c["exhausted"] = false
 		c["sick"] = false

@@ -44,7 +44,7 @@ var face_down := false
 var highlight := Color.TRANSPARENT ## outline for selection/targets
 var dim := false
 var cost_override := -1
-var stat_bonus := Vector2i.ZERO ## live "constante" scaling for cards off the board (hand, command zone)
+var text_suffix := "" ## live count appended to the rules text in the big view (e.g. "(agora: 3)")
 var hovered := false
 var hit_pad := 0.0 ## extra hit area below the card (lifted hand cards)
 ## Animation hooks, driven by tweens: draw offsets (hit tremor, attack
@@ -94,6 +94,7 @@ const BADGES := {
 	"furtividade": Color("#cdb6ff"),
 	"vigilancia": Color("#ffe39a"),
 	"nao_bloqueia": Color("#ff7f6e"),
+	"intimidar": Color("#ffa24d"),
 }
 
 func setup(id: String, instance: Dictionary = {}, size_scale := 1.0) -> CardView:
@@ -398,11 +399,6 @@ func _draw() -> void:
 			atk = live_atk
 			hp_col = Color("#ff8a80") if inst["damage"] > 0 else (Color("#a8ffa0") if inst["hp"] + int(inst.get("bonus_hp", 0)) > hp else Color.WHITE)
 			hp = max(0, inst["hp"] + int(inst.get("bonus_hp", 0)) - inst["damage"])
-		elif stat_bonus != Vector2i.ZERO:
-			atk_col = Color("#a8ffa0") if stat_bonus.x > 0 else Color.WHITE
-			hp_col = Color("#a8ffa0") if stat_bonus.y > 0 else Color.WHITE
-			atk = max(0, atk + stat_bonus.x)
-			hp = max(0, hp + stat_bonus.y)
 		_gem("diamond", Vector2(14 * s, size.y - 15 * s), 13.5 * s, ATK_COL, str(atk), atk_col, s)
 		_gem("shield", Vector2(size.x - 14 * s, size.y - 15 * s), 12.5 * s, HP_COL, str(hp), hp_col, s)
 	_finish(r, rad, s)
@@ -574,6 +570,10 @@ func _kw_badge(kw: String, c: Vector2, r: float, s: float) -> void:
 			draw_colored_polygon(face, col.darkened(0.85))
 			for x in [-0.15, 0.15]:
 				draw_circle(c + Vector2(x, 0.12) * g, 0.075 * g + 0.3 * s, Color.WHITE)
+		"intimidar": # a glaring pair of eyes under angry brows
+			for sx in [-1.0, 1.0]:
+				draw_colored_polygon(_unit_pts(c, g, [[sx * 0.88, -0.38], [sx * 0.08, 0.02], [sx * 0.2, 0.46], [sx * 0.8, 0.3]]), lit)
+				draw_circle(c + Vector2(sx * 0.36, 0.2) * g, 0.1 * g + 0.3 * s, col.darkened(0.85))
 		"nao_bloqueia": # a shield under a "no" sign
 			draw_colored_polygon(_shape("shield", c, g * 0.58), Color("#e9e0cf"))
 			draw_arc(c, g * 0.86, 0, TAU, 28, col, 1.5 * s, true)

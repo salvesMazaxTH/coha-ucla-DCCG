@@ -25,6 +25,8 @@ func _init() -> void:
 	_test_obscura()
 	_test_obscura_rules()
 	_test_eletrica()
+	_test_intimidar()
+	_test_custo_e_contagem()
 	_test_ban()
 	_test_combat()
 	_test_triggers()
@@ -37,6 +39,7 @@ func _init() -> void:
 	_test_counter()
 	_test_reserve()
 	_test_damage_window()
+	_test_rusco()
 	_test_sim()
 	print("tests done, failures: ", failures)
 	quit(1 if failures > 0 else 0)
@@ -1154,6 +1157,60 @@ func _test_triggers() -> void:
 	g._check_state()
 	check(g.players[0]["board"].is_empty(), "revived fenix stays dead")
 
+func _test_rusco() -> void:
+	var r := CardDB.card("rusco")
+	check(r["rarity"] == "champion" and r["essence"] == "neutra" and r["species"] == ["demihumano"], "rusco: champion neutro demihumano")
+	check(int(r["cost"]) == 2 and int(r["atk"]) == 2 and int(r["hp"]) == 2 and r["keywords"] == ["escudo"], "rusco: 2/2 custo 2 com Escudo")
+	# Única: max_copies 1
+	var leader: String = DeckDB.get_deck("fogo")["leader"]
+	var base: Dictionary = DeckDB.get_deck("fogo")["cards"].duplicate()
+	base["rusco"] = 2
+	check(not DeckDB.validate_cards(leader, base).filter(func(e): return "mais de 1 cópia" in e).is_empty(), "rusco: 2 cópias é ilegal")
+	base["rusco"] = 1
+	check(DeckDB.validate_cards(leader, base).filter(func(e): return "rusco" in e).is_empty(), "rusco: 1 cópia é legal")
+	# deck effect: fetches himself at end of turn only after playing a card with cost/ATK/HP == 2
+	_tcard("t_one", 1, 1, [])
+	_tcard("t_two", 1, 1, [])
+	CardDB.card("t_two")["cost"] = 2
+	_tcard("t_atk2", 2, 1, [])
+	for case in [["t_one", false], ["t_two", true], ["t_atk2", true], ["", false]]:
+		var g := _new_game()
+		var a := g.active
+		g.players[a]["momentum"] = 10
+		var ru := {"uid": g._uid(), "card_id": "rusco"}
+		g.players[a]["deck"].push_front(ru)
+		if case[0] != "":
+			var h := {"uid": g._uid(), "card_id": case[0]}
+			g.players[a]["hand"].append(h)
+			g.play_card(a, h["uid"])
+		g.end_turn(a)
+		var on_board: bool = g.players[a]["board"].any(func(u): return u["uid"] == ru["uid"])
+		check(on_board == case[1] and g.players[a]["deck"].has(ru) != case[1] and not g.players[a]["hand"].has(ru), "rusco: carta '%s' -> entra em campo = %s" % [case[0], case[1]])
+	# the 2 Momentum is paid like an ability: Reserva first, then Momentum
+	for case in [[2, 0, true], [0, 2, true], [1, 1, true], [1, 0, false], [0, 1, false]]:
+		var gp := _new_game()
+		var pa := gp.active
+		var rup := {"uid": gp._uid(), "card_id": "rusco"}
+		gp.players[pa]["deck"].push_front(rup)
+		gp.players[pa]["played_two"] = true
+		gp.players[pa]["momentum"] = case[0]
+		gp.players[pa]["reserve"] = case[1]
+		gp._finish_turn()
+		var came: bool = gp.players[pa]["board"].any(func(u): return u["uid"] == rup["uid"])
+		check(came == case[2] and gp.players[pa]["deck"].has(rup) != case[2], "rusco: Momentum %d + Reserva %d -> entra = %s" % [case[0], case[1], case[2]])
+		if came:
+			check(gp.players[pa]["momentum"] + gp.players[pa]["reserve"] == case[0] + case[1] - 2 and gp.players[pa]["reserve"] == maxi(0, case[1] - 2), "rusco: paga 2, Reserva primeiro")
+	# a Rusco played from the hand does not come back by himself
+	var g2 := _new_game()
+	var b := g2.active
+	g2.players[g2.active]["deck"] = g2.players[g2.active]["deck"].filter(func(c): return c["card_id"] != "rusco") # the fogo deck has its own
+	var ru2 := {"uid": g2._uid(), "card_id": "rusco"}
+	g2.players[b]["hand"].append(ru2)
+	g2.players[b]["momentum"] = 10
+	g2.play_card(b, ru2["uid"])
+	g2.end_turn(b)
+	check(g2.players[b]["hand"].filter(func(c): return c["card_id"] == "rusco").is_empty(), "rusco: jogado da mão não volta sozinho")
+
 func _test_sim() -> void:
 	var wins := [0, 0, 0]
 	for s in range(1, 41):
@@ -1210,14 +1267,28 @@ func _test_eletrica() -> void:
 	# Voltexz / Fulgurvoltz: cost drops with Momentum left unspent, with a floor
 	var vx: Dictionary = CardDB.card("voltexz")
 	var fg: Dictionary = CardDB.card("fulgurvoltz")
-	check(g.cost_of(a, vx) == 20 and g.cost_of(a, fg) == 16, "eletrica: custos base 20 e 16")
+	check(g.cost_of(a, vx) == 16 and g.cost_of(a, fg) == 12, "eletrica: custos base 16 e 12")
+	# only what leaks past the Reserva (2) at the start of the owner's next turn counts
 	g.players[a]["momentum"] = 3
+	g.players[a]["reserve"] = 1
 	g.end_turn(a)
 	g.players[o]["momentum"] = 0
 	g.end_turn(o)
-	check(g.players[a]["saved_momentum"] == 3 and g.players[a]["idle_turns"] == 1, "eletrica: fim de turno com Momentum soma saved e idle")
-	check(g.players[o]["saved_momentum"] == 0 and g.players[o]["idle_turns"] == 0, "eletrica: turno sem sobra não conta")
-	check(g.cost_of(a, vx) == 17 and g.cost_of(a, fg) == 14, "eletrica: custo cai com o que sobrou")
+	check(g.players[a]["saved_momentum"] == 2 and g.players[a]["idle_turns"] == 1, "eletrica: conta só o que vazou da Reserva (1+3-2)")
+	check(g.players[o]["saved_momentum"] == 0 and g.players[o]["idle_turns"] == 0, "eletrica: o que cabe na Reserva não conta")
+	check(g.cost_of(a, vx) == 14 and g.cost_of(a, fg) == 10, "eletrica: custo cai com o que vazou")
+	# spending on the opponent's turn reduces the savings (counted at the owner's next start)
+	g = _eletrica_game()
+	a = g.active
+	o = g.opponent(a)
+	g.players[a]["momentum"] = 3
+	g.players[a]["reserve"] = 2
+	g.end_turn(a)
+	g.players[a]["momentum"] = 1 # spent 2 during the opponent's turn
+	g.end_turn(o)
+	check(g.players[a]["saved_momentum"] == 1, "eletrica: gasto no turno do oponente reduz o que vaza")
+	g = _eletrica_game()
+	a = g.active
 	g.players[a]["saved_momentum"] = 40
 	g.players[a]["idle_turns"] = 40
 	check(g.cost_of(a, vx) == 3 and g.cost_of(a, fg) == 5, "eletrica: pisos 3 e 5")
@@ -1225,16 +1296,16 @@ func _test_eletrica() -> void:
 	var l: Dictionary = g.players[a]["legendary"]
 	l["casts"] = 1
 	g.players[a]["saved_momentum"] = 0
-	check(g.legendary_cost(a) == 22, "voltexz: sem redução, 2a conjuração custa 22")
-	g.players[a]["saved_momentum"] = 12
+	check(g.legendary_cost(a) == 18, "voltexz: sem redução, 2a conjuração custa 18")
+	g.players[a]["saved_momentum"] = 8
 	check(g.legendary_cost(a) == 10, "voltexz: custo atual 8 + taxa 2 = 10")
 	l["in_zone"] = false
 	g._legendary_leaves(a)
 	check(l["in_zone"] and not l.get("retired", false), "voltexz: volta ao Santuário com custo atual 10")
-	g.players[a]["saved_momentum"] = 11
+	g.players[a]["saved_momentum"] = 7
 	l["in_zone"] = false
 	g._legendary_leaves(a)
-	check(l.get("retired", false), "voltexz: custo atual 11 aposenta")
+	check(l.get("retired", false), "voltexz: custo atual 9 + taxa 2 = 11 aposenta")
 	# gain_momentum: now and at the next turn
 	g = _eletrica_game()
 	a = g.active
@@ -1257,14 +1328,14 @@ func _test_eletrica() -> void:
 	g._resolve_stack()
 	g._flush()
 	check(g.players[a]["momentum"] == 6, "carga acumulada: custa 1, dá +2")
-	# Voltexz Ao Entrar: scaled buff capped at +5/+5, Golpe Rápido for everyone
+	# Voltexz Ao Entrar: scaled buff capped at +5/+5, Golpe Rápido for her other units (not herself)
 	g = _eletrica_game()
 	a = g.active
 	var ally := _put(g, a, "jack")
 	g.players[a]["momentum"] = 9
 	var vs := _put(g, a, "voltexz")
 	check(atk_ok(g, ally, 2 + 5, 4 + 5) and g.has_kw(ally, "golpe_rapido"), "voltexz: aliados +5/+5 e Golpe Rápido")
-	check(g.atk_of(vs) == 17 and g.has_kw(vs, "golpe_rapido"), "voltexz: ela também recebe")
+	check(g.atk_of(vs) == 10 and g.has_kw(vs, "golpe_rapido"), "voltexz: não bufa a si própria (ATK base 10, Golpe Rápido é nativo)")
 	g = _eletrica_game()
 	a = g.active
 	ally = _put(g, a, "jack")
@@ -1272,6 +1343,9 @@ func _test_eletrica() -> void:
 	_put(g, a, "faisca_viva")
 	g._run_effects(a, CardDB.card("voltexz")["effects"], "on_enter", 0, 0)
 	check(g.atk_of(ally) == 4 and g.players[a]["board"][0]["hp"] == 6, "voltexz: +1/+1 por Momentum restante")
+	g.players[a]["momentum"] = 0
+	g._run_effects(a, CardDB.card("voltexz")["effects"], "on_enter", 0, 0)
+	check(g.atk_of(ally) == 5 and g.players[a]["board"][0]["hp"] == 7, "voltexz: sem Momentum sobrando, ainda dá +1/+1")
 	# Jack: +1 attack at end of turn only with Momentum left
 	g = _eletrica_game()
 	a = g.active
@@ -1318,12 +1392,63 @@ func _test_eletrica() -> void:
 	g = _eletrica_game()
 	a = g.active
 	g.players[a]["momentum"] = 0
-	g.players[a]["reserve"] = 1
+	g.players[a]["leaked"] = 0
 	g._fire_leader_passive(a, "on_turn_start")
-	check(g.players[a]["momentum"] == 0, "sobrecarga: Reserva não cheia não dá nada")
-	g.players[a]["reserve"] = 2
+	check(g.players[a]["momentum"] == 0, "sobrecarga: nada vazou, nada volta")
+	g.players[a]["leaked"] = 1
 	g._fire_leader_passive(a, "on_turn_start")
-	check(g.players[a]["momentum"] == 1, "sobrecarga: Reserva cheia dá +1 Momentum")
+	check(g.players[a]["momentum"] == 0, "sobrecarga: vazou 1, metade para baixo é 0")
+	g.players[a]["leaked"] = 3
+	g._fire_leader_passive(a, "on_turn_start")
+	check(g.players[a]["momentum"] == 1, "sobrecarga: vazou 3, volta 1 (metade p/ baixo)")
+	g.players[a]["momentum"] = 0
+	g.players[a]["momentum"] = 0
+	g.players[a]["leaked"] = 9
+	g._fire_leader_passive(a, "on_turn_start")
+	check(g.players[a]["momentum"] == 2, "sobrecarga: devolve no máximo 2")
+
+func _test_intimidar() -> void:
+	_tcard("t_int", 4, 4, [])
+	CardDB.data()["cards"]["t_int"]["keywords"] = ["intimidar"]
+	_tcard("t_low", 3, 3, [])
+	_tcard("t_high", 4, 4, [])
+	var g := _new_game()
+	_quiet(g)
+	var at := _put(g, 0, "t_int")
+	var low := _put(g, 1, "t_low")
+	var high := _put(g, 1, "t_high")
+	check(not g.can_block(low, at) and g.can_block(high, at), "intimidar: ATK 3 ou menos não bloqueia, ATK 4 bloqueia")
+	low["atk"] = 4
+	check(g.can_block(low, at), "intimidar: usa o ATK atual (buff libera o bloqueio)")
+	high["atk"] = 3
+	check(not g.can_block(high, at), "intimidar: debuff tira o direito de bloquear")
+	check(g.can_block(high, _put(g, 0, "t_high")), "intimidar: não afeta quem não tem a palavra-chave")
+	# Raiturus: Transformar (8) vira o Primordial 9/9 Intimidar + Ímpeto sem usar a pilha
+	g = _eletrica_game()
+	var rt := _put(g, g.active, "tony_raiturus")
+	g.players[g.active]["momentum"] = 8
+	g.players[g.active]["reserve"] = 0
+	check(g.can_transform(g.active, rt["uid"]), "raiturus pode transformar com 8")
+	g.transform(g.active, rt["uid"])
+	g._flush()
+	check(rt["card_id"] == "tony_raiturus_primordial" and g.atk_of(rt) == 9 and rt["hp"] == 9 and g.has_kw(rt, "intimidar") and g.has_kw(rt, "impeto") and g.stack.is_empty(), "raiturus vira o Primordial 9/9 Intimidar + Ímpeto")
+	check(not g.can_transform(g.active, rt["uid"]), "o Primordial não transforma de novo")
 
 func atk_ok(g: GameState, c: Dictionary, atk: int, hp: int) -> bool:
 	return g.atk_of(c) == atk and int(c["hp"]) == hp
+
+func _test_custo_e_contagem() -> void:
+	# cost reductions aren't "Constante" (they work off the board) and still apply
+	for id in ["a_vagante_sombria", "voltexz", "fulgurvoltz"]:
+		for e in CardDB.card(id)["effects"]:
+			if e["action"] == "cost_reduction":
+				check(e.get("trigger", "") == "" and not str(CardDB.card(id)["text"]).begins_with("Constante"), "%s: redução de custo não é Constante" % id)
+	var g := _new_game()
+	var vag: Dictionary = CardDB.card("a_vagante_sombria")
+	var base: int = g.cost_of(0, vag)
+	g.players[0]["graveyard"].append({"uid": g._uid(), "card_id": "esqueleto_guerreiro"})
+	check(g.cost_of(0, vag) == base - 1, "vagante: ainda custa 1 a menos por carta no cemitério")
+	# Jeff: text counts own unit cards in the graveyard
+	var jeff: Dictionary = CardDB.card("jeff")
+	check(g.scale_count(0, jeff) == g.graveyard_units(0), "jeff: contagem do texto = unidades no cemitério")
+	check(g.scale_count(0, vag) == -1, "carta sem escala: -1")

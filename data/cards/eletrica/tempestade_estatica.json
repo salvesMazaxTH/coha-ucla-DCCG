@@ -3,7 +3,7 @@
   "type": "spell",
   "rarity": "common",
   "essence": "eletrica",
-  "cost": 5,
+  "cost": 6,
   "speed": "lento",
   "art": "eletrica/tempestade_estatica.webp",
   "effects": [
@@ -11,10 +11,10 @@
       "trigger": "on_play",
       "action": "damage",
       "target": "all_enemy_units",
-      "amount": 2
+      "amount": 3
     }
   ],
-  "text": "Cause 2 de dano a todas as unidades inimigas.",
+  "text": "Cause 3 de dano a todas as unidades inimigas.",
   "flavor": "",
   "tags": []
 }

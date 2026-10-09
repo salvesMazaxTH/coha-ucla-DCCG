@@ -20,6 +20,11 @@ Por exemplo:
 
 O arquivo `../cards.json` continua guardando elementos, palavras-chave, espécies e líderes. Os decks prontos ficam em `../decks/` (ver o README de lá). O carregamento das cartas individuais é feito por `scripts/engine/card_db.gd`.
 
+## Campos opcionais
+
+- `max_copies`: máximo de cópias no deck (padrão 3). `1` = **Única**; escreva "Única." na primeira linha do `text`.
+- `deck_effects`: efeitos que valem enquanto a carta está no deck (`trigger`, `if`, `action`). Hoje só existe `summon_self` (a cópia sai do deck e entra em campo; `cost` opcional = Momentum pago na entrada, como uma habilidade: a Reserva vale e é gasta primeiro) (ver `_fire_deck_effects` em `game_state.gd`).
+
 ## Tags
 
 `keywords` representam habilidades mecânicas, como `impeto` e `golpe_rapido`.
