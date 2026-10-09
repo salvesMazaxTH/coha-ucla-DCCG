@@ -1,5 +1,5 @@
 {
-  "name": "Full Greedy",
+  "name": "Tormenta Voraz",
   "description": "Tudo no Fulgurvoltz: 3 cópias, Momentum guardado, compra de cartas e limpeza de campo até ele cair.",
   "order": 8,
   "leader": "voltexz",
@@ -15,13 +15,14 @@
     "descarga_de_ideias": 3,
     "faisca_viva": 3,
     "condutor_da_tempestade": 3,
-    "para_raios": 3,
+    "para_raios": 2,
     "guardiao_da_subestacao": 3,
     "tempestade_estatica": 2,
     "raio_encadeado": 1,
     "relampagos_gemeos": 3,
-    "ressonancia": 3,
+    "ressonancia": 2,
     "engenheiro_louco": 3,
+    "tecnomante": 2,
     "vigia_do_farol_do_norte": 3
   }
 }
