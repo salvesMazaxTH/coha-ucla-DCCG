@@ -1,0 +1,19 @@
+{
+  "name": "Gigante Elétrico",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [],
+  "essence": "eletrica",
+  "cost": 7,
+  "atk": 6,
+  "hp": 6,
+  "keywords": [
+    "provocacao",
+    "escudo_feitico"
+  ],
+  "art": "eletrica/gigante_eletrico.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "",
+  "tags": []
+}

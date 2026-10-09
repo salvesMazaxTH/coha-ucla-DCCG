@@ -1,0 +1,32 @@
+{
+  "name": "Lady Vultrixana",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [],
+  "essence": [
+    "ignea",
+    "eletrica"
+  ],
+  "cost": 6,
+  "atk": 4,
+  "hp": 4,
+  "keywords": [],
+  "art": "ignea/lady_vultrixana.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 3
+    },
+    {
+      "trigger": "on_enter",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Entrar: cause 3 de dano a uma unidade inimiga e ganhe +1 Momentum neste turno.",
+  "flavor": "",
+  "tags": []
+}

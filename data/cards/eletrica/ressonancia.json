@@ -1,0 +1,22 @@
+{
+  "name": "Ressonância",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "eletrica",
+  "cost": 1,
+  "speed": "instantaneo",
+  "art": "eletrica/ressonancia.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "keywords": [
+        "escudo_feitico"
+      ]
+    }
+  ],
+  "text": "Uma unidade aliada ganha Escudo de Feitiço.",
+  "flavor": "",
+  "tags": []
+}

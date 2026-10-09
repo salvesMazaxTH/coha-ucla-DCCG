@@ -1,0 +1,28 @@
+{
+  "name": "Tony Raiturus",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "dragao_primordial",
+    "dragao"
+  ],
+  "essence": "eletrica",
+  "cost": 8,
+  "atk": 6,
+  "hp": 6,
+  "keywords": [
+    "impeto"
+  ],
+  "art": "eletrica/tony_raiturus.webp",
+  "effects": [
+    {
+      "trigger": "on_hit_leader",
+      "action": "damage",
+      "target": "random_enemy_unit",
+      "amount": 3
+    }
+  ],
+  "text": "Ao Atingir o Líder: cause 3 de dano a uma unidade inimiga aleatória.",
+  "flavor": "",
+  "tags": []
+}

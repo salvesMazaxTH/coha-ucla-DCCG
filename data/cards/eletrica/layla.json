@@ -1,0 +1,28 @@
+{
+  "name": "Layla",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "humano"
+  ],
+  "essence": "eletrica",
+  "cost": 4,
+  "atk": 3,
+  "hp": 3,
+  "keywords": [
+    "golpe_rapido"
+  ],
+  "art": "eletrica/layla.webp",
+  "effects": [
+    {
+      "trigger": "on_damaged",
+      "action": "buff",
+      "target": "self",
+      "atk": 1,
+      "cap_atk": 3
+    }
+  ],
+  "text": "Ao Sofrer Dano: ganhe +1 de Ataque (até +3 no total).",
+  "flavor": "",
+  "tags": []
+}

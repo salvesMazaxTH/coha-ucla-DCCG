@@ -53,6 +53,8 @@
     "on_turn_start": { "name": "No Início do Turno", "text": "O efeito acontece no início do turno do dono da unidade." },
     "on_turn_end": { "name": "No Fim do Turno", "text": "O efeito acontece no fim do turno do dono da unidade." },
     "on_ally_death": { "name": "Aliado Morre", "text": "O efeito acontece quando outra unidade que você controla morre, mesmo que ela volte logo em seguida (Revivente Eterno, Fênix, Lendário voltando à zona de comando). A que morreu não ativa o próprio efeito (para isso existe Ao Morrer)." },
+    "on_activate": { "name": "Ao Ativar", "text": "Habilidade ativável da unidade: o dono escolhe quando usar, pagando o custo em Momentum indicado (a Reserva ajuda). Vai para a pilha como um feitiço da velocidade indicada, então pode ser respondida e anulada." },
+    "transform": { "name": "Transformar", "text": "Ativável na própria Fase Principal com a pilha vazia, pagando o custo em Momentum indicado: a unidade vira outra carta no mesmo lugar (mantém dano e equipamento) e o Ao Entrar da nova forma dispara. Não usa a pilha, então não pode ser anulada." },
     "constante": { "name": "Constante", "text": "O efeito é contínuo: vale enquanto a unidade está em campo (ou a carta está na mão) e se atualiza sozinho." }
   },
   "species": {
@@ -138,6 +140,10 @@
     "congelar": {
       "name": "Congelar",
       "text": "A unidade não pode atacar nem bloquear até o fim do próximo turno do dono."
+    },
+    "esquiva": {
+      "name": "Esquiva",
+      "text": "A primeira vez em cada turno que receberia dano de combate de uma unidade com ataque menor que o dela, o dano é evitado."
     }
   },
   "leaders": {
@@ -209,6 +215,31 @@
       },
       "essences": [
         "obscura"
+      ]
+    },
+    "voltexz": {
+      "name": "Voltexz",
+      "hp": 25,
+      "art": "eletrica/voltexz.webp",
+      "legendary": "voltexz",
+      "ability": {
+        "name": "Sobrecarga",
+        "passive": true,
+        "trigger": "on_turn_start",
+        "cost": 0,
+        "own_turn_only": true,
+        "effects": [
+          {
+            "if": "reserve_full",
+            "action": "gain_momentum",
+            "target": "none",
+            "amount": 1
+          }
+        ],
+        "text": "Passiva. No início do seu turno, se a sua Reserva estiver cheia, ganhe +1 Momentum neste turno."
+      },
+      "essences": [
+        "eletrica"
       ]
     }
   },

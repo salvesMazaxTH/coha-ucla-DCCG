@@ -1,0 +1,18 @@
+{
+  "name": "Guardião da Subestação",
+  "type": "unit",
+  "rarity": "common",
+  "species": [],
+  "essence": "eletrica",
+  "cost": 5,
+  "atk": 4,
+  "hp": 5,
+  "keywords": [
+    "vigilancia"
+  ],
+  "art": "eletrica/guardiao_da_subestacao.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "",
+  "tags": []
+}

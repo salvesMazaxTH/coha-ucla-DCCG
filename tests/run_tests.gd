@@ -24,6 +24,7 @@ func _init() -> void:
 	_test_constant()
 	_test_obscura()
 	_test_obscura_rules()
+	_test_eletrica()
 	_test_ban()
 	_test_combat()
 	_test_triggers()
@@ -267,6 +268,33 @@ func _test_obscura() -> void:
 	g.play_card(0, alx, 0)
 	g._flush()
 	check(hurt["damage"] == 0, "alexa primordial cura todos os aliados")
+	# Alexa transforms into the Primordial in place: 8 Momentum, off the stack, Ao Entrar fires
+	var tf_hurt := _put(g, 0, "esqueleto_guerreiro")
+	tf_hurt["damage"] = 1
+	var tf := _put(g, 0, "alexa_neruvya")
+	g.players[0]["momentum"] = 7
+	g.players[0]["reserve"] = 0
+	check(not g.can_transform(0, tf["uid"]), "transformar exige 8 de Momentum")
+	g.players[0]["momentum"] = 8
+	g.transform(0, tf["uid"])
+	g._flush()
+	check(tf["card_id"] == "alexa_neruvya_primordial" and tf["atk"] == 7 and g.has_kw(tf, "sobrepujanca") and g.stack.is_empty(), "alexa vira a Primordial sem usar a pilha")
+	check(tf_hurt["damage"] == 0 and g.players[0]["momentum"] == 0, "transformar paga 8 e dispara o Ao Entrar")
+	check(not g.can_transform(0, tf["uid"]), "a Primordial não transforma de novo")
+	# Yuki's Ao Ativar: goes on the stack (Rápido), +2 temporary attack, once per turn
+	var yk := _put(g, 0, "yuki")
+	g.players[0]["momentum"] = 4
+	g.players[0]["reserve"] = 0
+	check(g.can_activate(0, yk["uid"]), "yuki pode ativar")
+	g.auto_pass[1] = false # keep the response window open
+	g.activate(0, yk["uid"])
+	g._flush()
+	check(g.stack.size() == 1 and g.stack[0]["kind"] == "unit_ability" and g.priority == 1, "ao ativar vai para a pilha")
+	g.pass_priority(1)
+	g._flush()
+	g.auto_pass[1] = true
+	check(g.stack.is_empty() and g.atk_of(yk) == 4 and g.players[0]["momentum"] == 2, "yuki ganha +2 de Ataque temporário")
+	check(not g.can_activate(0, yk["uid"]), "ao ativar da yuki é 1x por turno")
 	# Afogar: rápido, destroys any chosen unit, even one's own, ignoring Escudo
 	var af_t := _put(g, 1, "jeff")
 	af_t["shield"] = true
@@ -1167,3 +1195,135 @@ func _test_ban() -> void:
 	var snap: Dictionary = StateView.snapshot(g, 1)
 	check(snap["players"][0]["banished"].all(func(c): return c["card_id"] == ""), "oponente não vê as cartas banidas da mão")
 	check(StateView.snapshot(g, 0)["players"][0]["banished"].all(func(c): return c["card_id"] != ""), "o dono vê as próprias banidas")
+
+func _eletrica_game() -> GameState:
+	var g := GameState.new("eletrica", "fogo", 42)
+	g.mulligan(0, [])
+	g.mulligan(1, [])
+	_quiet(g)
+	return g
+
+func _test_eletrica() -> void:
+	var g := _eletrica_game()
+	var a := g.active
+	var o := g.opponent(a)
+	# Voltexz / Fulgurvoltz: cost drops with Momentum left unspent, with a floor
+	var vx: Dictionary = CardDB.card("voltexz")
+	var fg: Dictionary = CardDB.card("fulgurvoltz")
+	check(g.cost_of(a, vx) == 20 and g.cost_of(a, fg) == 16, "eletrica: custos base 20 e 16")
+	g.players[a]["momentum"] = 3
+	g.end_turn(a)
+	g.players[o]["momentum"] = 0
+	g.end_turn(o)
+	check(g.players[a]["saved_momentum"] == 3 and g.players[a]["idle_turns"] == 1, "eletrica: fim de turno com Momentum soma saved e idle")
+	check(g.players[o]["saved_momentum"] == 0 and g.players[o]["idle_turns"] == 0, "eletrica: turno sem sobra não conta")
+	check(g.cost_of(a, vx) == 17 and g.cost_of(a, fg) == 14, "eletrica: custo cai com o que sobrou")
+	g.players[a]["saved_momentum"] = 40
+	g.players[a]["idle_turns"] = 40
+	check(g.cost_of(a, vx) == 3 and g.cost_of(a, fg) == 5, "eletrica: pisos 3 e 5")
+	# Encarnação retirement uses the current cost (with reductions) plus the tax
+	var l: Dictionary = g.players[a]["legendary"]
+	l["casts"] = 1
+	g.players[a]["saved_momentum"] = 0
+	check(g.legendary_cost(a) == 22, "voltexz: sem redução, 2a conjuração custa 22")
+	g.players[a]["saved_momentum"] = 12
+	check(g.legendary_cost(a) == 10, "voltexz: custo atual 8 + taxa 2 = 10")
+	l["in_zone"] = false
+	g._legendary_leaves(a)
+	check(l["in_zone"] and not l.get("retired", false), "voltexz: volta ao Santuário com custo atual 10")
+	g.players[a]["saved_momentum"] = 11
+	l["in_zone"] = false
+	g._legendary_leaves(a)
+	check(l.get("retired", false), "voltexz: custo atual 11 aposenta")
+	# gain_momentum: now and at the next turn
+	g = _eletrica_game()
+	a = g.active
+	o = g.opponent(a)
+	_put(g, a, "espirito_carregado")
+	check(g.players[a]["next_momentum"] == 1 and g.players[a]["momentum"] == 0, "espírito carregado: +1 só no próximo turno")
+	g.players[a]["reserve"] = 0 # keep Sobrecarga (full Reserva) out of the count
+	g.end_turn(a)
+	g.end_turn(o)
+	check(g.players[a]["momentum"] == g.players[a]["max_momentum"] + 1 and g.players[a]["next_momentum"] == 0, "espírito carregado: +1 Momentum no início do próximo turno")
+	_put(g, a, "eletroad")
+	g.players[a]["momentum"] = 0
+	g.end_turn(a)
+	g.players[a]["reserve"] = 0
+	g.end_turn(o)
+	check(g.players[a]["momentum"] == g.players[a]["max_momentum"] + 1, "eletroad: +1 Momentum no início do turno")
+	var cu := _give(g, a, "carga_acumulada")
+	g.players[a]["momentum"] = 5
+	g.play_card(a, cu, 0)
+	g._resolve_stack()
+	g._flush()
+	check(g.players[a]["momentum"] == 6, "carga acumulada: custa 1, dá +2")
+	# Voltexz Ao Entrar: scaled buff capped at +5/+5, Golpe Rápido for everyone
+	g = _eletrica_game()
+	a = g.active
+	var ally := _put(g, a, "jack")
+	g.players[a]["momentum"] = 9
+	var vs := _put(g, a, "voltexz")
+	check(atk_ok(g, ally, 2 + 5, 4 + 5) and g.has_kw(ally, "golpe_rapido"), "voltexz: aliados +5/+5 e Golpe Rápido")
+	check(g.atk_of(vs) == 17 and g.has_kw(vs, "golpe_rapido"), "voltexz: ela também recebe")
+	g = _eletrica_game()
+	a = g.active
+	ally = _put(g, a, "jack")
+	g.players[a]["momentum"] = 2
+	_put(g, a, "faisca_viva")
+	g._run_effects(a, CardDB.card("voltexz")["effects"], "on_enter", 0, 0)
+	check(g.atk_of(ally) == 4 and g.players[a]["board"][0]["hp"] == 6, "voltexz: +1/+1 por Momentum restante")
+	# Jack: +1 attack at end of turn only with Momentum left
+	g = _eletrica_game()
+	a = g.active
+	o = g.opponent(a)
+	var jk := _put(g, a, "jack")
+	g.end_turn(a)
+	check(g.atk_of(jk) == 2, "jack: sem Momentum sobrando não cresce")
+	g.end_turn(o)
+	g.players[a]["momentum"] = 2
+	g.end_turn(a)
+	check(g.atk_of(jk) == 3, "jack: Momentum sobrando dá +1 permanente")
+	# Layla: +1 attack per damage taken, up to +3
+	g = _eletrica_game()
+	var ly := _put(g, g.active, "layla")
+	for i in 5:
+		g._deal_damage(ly["uid"], 1, {})
+		ly["damage"] = 0
+	check(g.atk_of(ly) == 6, "layla: +1 por dano, no máximo +3 (%d)" % g.atk_of(ly))
+	# Esquiva: first combat damage per turn from a weaker attacker is avoided
+	g = _eletrica_game()
+	a = g.active
+	o = g.opponent(a)
+	var th := _put(g, o, "thorwells") # 5/6
+	var weak := _put(g, a, "jack") # 2/4
+	g._combat_damage = true
+	g._deal_damage(th["uid"], 2, weak)
+	check(th["damage"] == 0, "esquiva: dano de combate de ataque menor é evitado")
+	g._deal_damage(th["uid"], 2, weak)
+	check(th["damage"] == 2, "esquiva: só a primeira vez no turno")
+	g._combat_damage = false
+	g.turn += 1
+	g._combat_damage = true
+	var strong := _put(g, a, "gigante_eletrico") # 6/6
+	g._deal_damage(th["uid"], 1, strong)
+	check(th["damage"] == 3, "esquiva: ataque maior não é evitado")
+	g.turn += 1
+	g._deal_damage(th["uid"], 1, weak)
+	check(th["damage"] == 3, "esquiva: de novo no turno seguinte")
+	g._combat_damage = false
+	g.turn += 1
+	g._deal_damage(th["uid"], 1, weak)
+	check(th["damage"] == 4, "esquiva: dano fora de combate não é evitado")
+	# Sobrecarga: Reserva cheia no início do turno dá +1 Momentum (só ao dono)
+	g = _eletrica_game()
+	a = g.active
+	g.players[a]["momentum"] = 0
+	g.players[a]["reserve"] = 1
+	g._fire_leader_passive(a, "on_turn_start")
+	check(g.players[a]["momentum"] == 0, "sobrecarga: Reserva não cheia não dá nada")
+	g.players[a]["reserve"] = 2
+	g._fire_leader_passive(a, "on_turn_start")
+	check(g.players[a]["momentum"] == 1, "sobrecarga: Reserva cheia dá +1 Momentum")
+
+func atk_ok(g: GameState, c: Dictionary, atk: int, hp: int) -> bool:
+	return g.atk_of(c) == atk and int(c["hp"]) == hp

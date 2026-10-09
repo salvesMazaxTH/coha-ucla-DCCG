@@ -1,0 +1,20 @@
+{
+  "name": "Tempestade Estática",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "eletrica",
+  "cost": 5,
+  "speed": "lento",
+  "art": "eletrica/tempestade_estatica.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "all_enemy_units",
+      "amount": 2
+    }
+  ],
+  "text": "Cause 2 de dano a todas as unidades inimigas.",
+  "flavor": "",
+  "tags": []
+}

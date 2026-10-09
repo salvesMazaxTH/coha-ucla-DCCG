@@ -11,6 +11,7 @@
   "atk": 2,
   "hp": 1,
   "keywords": [],
+  "art": "obscura/rato_do_ossuario.webp",
   "effects": [
     {
       "trigger": "on_death",

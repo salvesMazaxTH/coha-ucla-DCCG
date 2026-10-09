@@ -1,0 +1,18 @@
+{
+  "name": "Faísca Viva",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "elemental"
+  ],
+  "essence": "eletrica",
+  "cost": 1,
+  "atk": 1,
+  "hp": 2,
+  "keywords": [],
+  "art": "eletrica/faisca_viva.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "",
+  "tags": []
+}

@@ -1,0 +1,20 @@
+{
+  "name": "Carga Acumulada",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "eletrica",
+  "cost": 1,
+  "speed": "rapido",
+  "art": "eletrica/carga_acumulada.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": 2
+    }
+  ],
+  "text": "Ganhe +2 Momentum neste turno.",
+  "flavor": "",
+  "tags": []
+}

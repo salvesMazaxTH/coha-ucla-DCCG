@@ -1,0 +1,18 @@
+{
+  "name": "Pára-Raios",
+  "type": "unit",
+  "rarity": "common",
+  "species": [],
+  "essence": "eletrica",
+  "cost": 4,
+  "atk": 2,
+  "hp": 5,
+  "keywords": [
+    "escudo_feitico"
+  ],
+  "art": "eletrica/para_raios.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "",
+  "tags": []
+}

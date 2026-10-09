@@ -345,7 +345,7 @@ static func ability_panel(ab: Dictionary, col: Color) -> Control:
 	rt.add_theme_font_size_override("normal_font_size", 21)
 	rt.add_theme_font_size_override("bold_font_size", 21)
 	rt.add_theme_constant_override("line_separation", 3)
-	rt.text = CardView.colorize_triggers(body)
+	rt.text = CardView.colorize_triggers(body, 21)
 	box.add_child(rt)
 	return box
 

@@ -80,6 +80,8 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 			off_essence += n
 			if c.get("rarity", "") == "champion":
 				errors.append("%s: Campeão não pode ser de fora da essência do Líder" % id)
+		if c.get("transform_only", false):
+			errors.append("%s: só entra em jogo por transformação" % id)
 		if CardDB.is_leader_card(id) and id != ld["legendary"]:
 			errors.append("%s: Encarnação de outro Líder" % id)
 	if off_essence > MAX_OFF_ESSENCE:

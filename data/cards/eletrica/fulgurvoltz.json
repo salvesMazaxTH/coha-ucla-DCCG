@@ -1,0 +1,32 @@
+{
+  "name": "Fulgurvoltz",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "elemental",
+    "tita"
+  ],
+  "essence": "eletrica",
+  "cost": 16,
+  "atk": 9,
+  "hp": 9,
+  "keywords": [],
+  "art": "eletrica/fulgurvoltz.webp",
+  "effects": [
+    {
+      "trigger": "constante",
+      "action": "cost_reduction",
+      "per": "idle_turns",
+      "amount": 2,
+      "min_cost": 5
+    },
+    {
+      "trigger": "on_enter",
+      "action": "destroy",
+      "target": "all_enemy_units"
+    }
+  ],
+  "text": "Constante: custa 2 a menos para cada turno seu que terminou com Momentum sobrando (mínimo 5).\nAo Entrar: destrua todas as unidades inimigas.",
+  "flavor": "",
+  "tags": []
+}

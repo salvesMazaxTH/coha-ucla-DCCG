@@ -19,7 +19,8 @@
       "amount": 4
     }
   ],
-  "text": "Ao Entrar: cure 4 de vida do seu Líder.",
+  "transform": {"into": "alexa_neruvya_primordial", "cost": 8},
+  "text": "Ao Entrar: cure 4 de vida do seu Líder.\nTransformar (8): Alexa Neruvya Primordial.",
   "flavor": "A graça que permanece.",
   "tags": []
 }

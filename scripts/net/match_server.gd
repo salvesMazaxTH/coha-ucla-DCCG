@@ -195,6 +195,8 @@ func _apply(g: GameState, p: int, m: Dictionary) -> Array:
 		"play": return g.play_card(p, int(m.get("uid", 0)), int(m.get("target", 0)), int(m.get("target2", 0)))
 		"legendary": return g.cast_legendary(p, int(m.get("target", 0)))
 		"ability": return g.use_ability(p, int(m.get("target", 0)))
+		"activate": return g.activate(p, int(m.get("uid", 0)), int(m.get("target", 0)))
+		"transform": return g.transform(p, int(m.get("uid", 0)))
 		"attack": return g.declare_attack(p, _intmap(m.get("attacks")))
 		"blocks": return g.declare_blocks(p, _intmap(m.get("blocks")))
 		"end_turn": return g.end_turn(p)

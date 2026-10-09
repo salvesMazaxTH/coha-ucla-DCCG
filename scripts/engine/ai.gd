@@ -77,6 +77,13 @@ static func _try_play(g: GameState, p: int) -> Array:
 		var ev := g.play_card(p, c["uid"], t, t2)
 		if not ev.is_empty():
 			return ev
+	for c in g.players[p]["board"]:
+		# untargeted Ao Ativar, before attacking (e.g. Yuki's temporary attack)
+		if g.can_activate(p, c["uid"]) and g.target_spec(CardDB.card(c["card_id"])["activated"]["effects"]) == "" and g.can_attack(c):
+			return g.activate(p, c["uid"])
+	for c in g.players[p]["board"]:
+		if g.can_transform(p, c["uid"]):
+			return g.transform(p, c["uid"])
 	if g.can_use_ability(p):
 		var ab: Dictionary = CardDB.leader(g.players[p]["leader_id"])["ability"]
 		var aspec := g.target_spec(ab["effects"])

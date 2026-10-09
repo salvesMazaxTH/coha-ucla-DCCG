@@ -16,7 +16,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - A Encarnação começa no **Santuário**, fora do deck, e pode ser conjurada de lá a qualquer momento da sua fase principal.
 - Cada conjuração depois da primeira custa **+2 Momentum** a mais que a anterior.
 - Quando a Encarnação morre, ela volta para o Santuário. A morte dela não afeta o Líder.
-- **Aposentadoria:** se ela morre ou é **banida** e a próxima conjuração passaria de 10 (o máximo de Momentum, contando custo base, taxa e outros modificadores), ela **não** volta ao Santuário: vai para o **fundo do deck** com o custo resetado e vira **carta comum para sempre** (se morrer de novo, vai para o cemitério). Ex.: Ronan (4) se aposenta na 4ª morte (4→6→8→10, a próxima seria 12); Naelthos e Jeff (5), na 3ª (5→7→9, a próxima seria 11).
+- **Aposentadoria:** se ela morre ou é **banida** e a próxima conjuração passaria de 10 (o máximo de Momentum, contando o **custo atual** com reduções, mais a taxa), ela **não** volta ao Santuário: vai para o **fundo do deck** com o custo resetado e vira **carta comum para sempre** (se morrer de novo, vai para o cemitério). Ex.: Ronan (4) se aposenta na 4ª morte (4→6→8→10, a próxima seria 12); Naelthos e Jeff (5), na 3ª (5→7→9, a próxima seria 11).
 - Ser devolvida para a mão não conta: ela mantém o custo que tinha no Santuário.
 
 ## Início da partida
@@ -110,6 +110,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 | Escudo | Anula a próxima instância de dano. |
 | Congelamento | A unidade não pode atacar nem bloquear até o fim do próximo turno do dono. Escudo de Feitiço anula. |
 | Indestrutível | Não sofre dano (sempre 0) e não é destruída por efeitos de "destruir". Sacrifício e remoção do jogo (banimento) ainda a afetam. |
+| Esquiva | A primeira vez em cada turno que receberia dano de combate de uma unidade com ataque menor que o dela, o dano é evitado. |
 | Escudo de Feitiço | Anula, uma vez, o próximo efeito **inimigo** que não seja dano de combate (feitiço, habilidade, efeito em área). Depois se dissipa. Efeitos do próprio dono não o consomem. |
 
 ## Cemitério e Obscura
@@ -118,6 +119,12 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - **Reviver a si mesma (Ao Morrer):** a unidade volta como uma **nova instância**, por isso não participa do combate em que morreu. Enquanto está em campo, sua entrada deixa o cemitério. O Revivente Eterno volta sempre igual. A Fênix da Chama Profana volta com -2/-2 do que tinha ao morrer e não volta se Ataque ou Vida chegar a 0. Não volta com o campo cheio.
 - **Sacrifício:** a unidade sacrificada morre na hora (efeitos Ao Morrer e Aliado Morre resolvem). Como *efeito* (Colheita de Almas) ou como **custo adicional** (Necrófago Espectral: custa 0, mas exige sacrificar uma unidade que você controla; com o campo cheio, o sacrifício libera a vaga).
 - **Redução de custo por cemitério:** efeito Constante. A Vagante Sombria custa 1 a menos por carta no seu cemitério (de qualquer tipo), nunca menos que 0.
+
+## Elétrica: Momentum guardado
+- **Redução de custo por Momentum guardado:** efeito Constante. A Voltexz custa 1 a menos por Momentum que sobrou no fim de cada turno seu (acumulado), nunca menos que 3. O Fulgurvoltz custa 2 a menos por turno terminado com Momentum sobrando, nunca menos que 5. O piso (`min_cost`) é exclusivo dessas duas cartas.
+- **Momentum no próximo turno:** o Espírito Carregado dá +1 Momentum no início do seu próximo turno (soma ao Momentum do turno, até 10).
+- **Sobrecarga (Líder Voltexz):** passiva. No início do seu turno, se a sua Reserva estiver cheia, ganhe +1 Momentum neste turno.
+- Efeitos podem ter condição `if` (ex.: só se sobrou Momentum, só se a Reserva está cheia) e bônus proporcional ao Momentum restante (Voltexz: +1/+1 por Momentum, máximo +5/+5).
 
 ## Habilidade de Líder: limite de uso
 - Algumas habilidades têm `once_per_turn`: 1 uso por turno, em qualquer turno (o seu ou o do adversário), reiniciando a cada turno.
@@ -151,6 +158,12 @@ Gatilhos dizem *quando* um efeito acontece. Eles abrem o texto da carta no lugar
 | Ao Atingir o Líder | A unidade causa dano a um Líder. |
 | No Início do Turno | Começa o turno do dono da unidade. |
 | No Fim do Turno | Termina o turno do dono da unidade. |
+
+### Habilidades ativáveis
+Não são gatilhos automáticos: o dono decide quando usar. O custo em Momentum aparece entre parênteses logo após o nome, e a Reserva ajuda a pagar.
+
+- **Ao Ativar (n) [selo de velocidade] (limites):** a habilidade **vai para a pilha** como um feitiço da velocidade indicada (Lento, Rápido ou Instantâneo). Pode ser respondida e anulada. Exemplo: Yuki, *Ao Ativar (2) [RÁPIDO] (1x por turno): ganhe +2 de Ataque neste turno.*
+- **Transformar (n):** é um tipo específico de ativável. Só pode ser usado na sua Fase Principal com a pilha vazia. A unidade vira a carta indicada no mesmo lugar (mantém dano e equipamento) e o Ao Entrar da nova forma dispara. **Não usa a pilha**, então não pode ser anulado. Exemplo: Alexa Neruvya, *Transformar (8): Alexa Neruvya Primordial.*
 | Aliado Morre | Outra unidade que você controla **morre**, mesmo que volte na hora (Revivente, Fênix) ou seja um Lendário voltando à zona de comando. A que morreu não ativa o próprio efeito (para isso existe Ao Morrer). Sacrifício conta. Um efeito pode ser "exceto dano de combate" (`not_in_combat`): não dispara se a morte vem do dano de combate (ex.: Cientista da Morte). |
 | (qualquer gatilho) | Um efeito pode ter "uma vez por turno" (`once_per_turn`): o limite é por unidade e reinicia a cada turno, de qualquer jogador (ex.: Diabrete Sombrio). |
 | Constante | Sempre, enquanto a unidade está em campo. Não dispara: é recalculado a cada mudança de estado (ex.: Jeff The Death recebe +2/+2 por unidade no cemitério do dono; o dano sofrido continua valendo se o bônus encolher). |

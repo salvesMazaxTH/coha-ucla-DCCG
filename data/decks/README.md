@@ -8,6 +8,7 @@ data/decks/
     fogo.json
     agua.json
     obscura.json   ("Ceifa de Jeff", mono-Obscura)
+    eletrica.json  ("Slow Midrange", mono-Elétrica)
 ```
 
 ## Formato

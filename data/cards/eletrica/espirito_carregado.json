@@ -1,0 +1,26 @@
+{
+  "name": "Espírito Carregado",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "espirito"
+  ],
+  "essence": "eletrica",
+  "cost": 2,
+  "atk": 1,
+  "hp": 2,
+  "keywords": [],
+  "art": "eletrica/espirito_carregado.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": 1,
+      "next_turn": true
+    }
+  ],
+  "text": "Ao Entrar: no início do seu próximo turno, você terá +1 Momentum.",
+  "flavor": "",
+  "tags": []
+}

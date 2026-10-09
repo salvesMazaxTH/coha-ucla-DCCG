@@ -162,6 +162,21 @@ func _ready() -> void:
 	net.message.connect(_on_net)
 	net.link_changed.connect(_on_link)
 	_show_menu()
+	_load_scenario()
+
+## Dev only: `-- --scenario=<name>` starts a match vs the AI (Maré vs Fogo) set up by
+## tests/scenarios/<name>.gd (static func setup(g)).
+func _load_scenario() -> void:
+	for a in OS.get_cmdline_user_args():
+		if not a.begins_with("--scenario="):
+			continue
+		var script: GDScript = load("res://tests/scenarios/%s.gd" % a.trim_prefix("--scenario="))
+		_start(true, "agua", "fogo")
+		script.setup(g)
+		g.auto_pass[0] = _auto_pass_on()
+		pending_pass = false
+		log_lines = ["Cenário de teste carregado."]
+		_render()
 
 ## The stage is 900 tall and at least 1600 wide: on wider windows (phones in
 ## landscape) it grows sideways, so the table uses the space instead of leaving
@@ -1214,7 +1229,9 @@ func _render_stack(y: float) -> void:
 			v.left_clicked.connect(_show_overlay)
 			v.right_clicked.connect(_show_overlay)
 			row.add_child(v)
-		var tx := 66.0 if it["kind"] == "card" else 12.0
+		if it["kind"] == "unit_ability":
+			title += " · Ao Ativar"
+		var tx := 12.0 if it["kind"] == "ability" else 66.0
 		var nl := _label(title, 17, UITheme.TEXT, HORIZONTAL_ALIGNMENT_LEFT, "bold")
 		nl.position = Vector2(tx, 8)
 		nl.size = Vector2(COL_W - tx - 8, 40)
@@ -1597,6 +1614,8 @@ func _fire_target(uid: int) -> void:
 			_do(g.cast_legendary(viewer, uid))
 		"ability":
 			_do(g.use_ability(viewer, uid))
+		"unit_ability":
+			_do(g.activate(viewer, targeting["uid"], uid))
 		"enter":
 			_do(g.choose_enter_target(viewer, uid))
 
@@ -1692,7 +1711,7 @@ func _show_overlay(v: CardView) -> void:
 		if v.inst.has("frozen"):
 			body = "[color=#9fe8ff][b]Congelada:[/b] não pode atacar nem bloquear até o fim do próximo turno do dono.[/color]
 " + body
-		txt += "[font_size=32]%s[/font_size]\n\n" % CardView.colorize_triggers(body)
+		txt += "[font_size=32]%s[/font_size]\n\n" % CardView.colorize_triggers(body, 32)
 	for kw in cd.get("keywords", []):
 		var k := CardDB.keyword(kw)
 		txt += "[color=#ffe9a8][b]%s[/b][/color] — %s\n" % [k["name"], k["text"]]
@@ -1712,6 +1731,29 @@ func _show_overlay(v: CardView) -> void:
 	rt.add_theme_font_size_override("italics_font_size", 24)
 	rt.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(rt)
+	if cd.has("activated") and g != null and _my_input() and g.can_activate(viewer, v.uid):
+		var ab: Dictionary = cd["activated"]
+		var ab_uid := v.uid
+		var ab_btn := _button("Ativar (%d)" % int(ab["cost"]), func():
+			_close_overlay()
+			var spec := g.target_spec(ab["effects"])
+			if spec == "":
+				_do(g.activate(viewer, ab_uid, 0))
+			else:
+				targeting = {"kind": "unit_ability", "uid": ab_uid, "spec": spec}
+				if views.has(ab_uid) and is_instance_valid(views[ab_uid]):
+					_begin_aim((views[ab_uid] as Control).get_global_rect().get_center())
+				_render(), true)
+		ab_btn.position = Vector2(rt_x, 820)
+		ab_btn.custom_minimum_size = Vector2(520, 96)
+		overlay.add_child(ab_btn)
+	if cd.has("transform") and g != null and _my_input() and g.can_transform(viewer, v.uid):
+		var tb := _button("Transformar (%d)" % int(cd["transform"]["cost"]), func():
+			_close_overlay()
+			_do(g.transform(viewer, v.uid)), true)
+		tb.position = Vector2(rt_x, 820)
+		tb.custom_minimum_size = Vector2(520, 96)
+		overlay.add_child(tb)
 
 func _close_overlay() -> void:
 	if overlay:
@@ -2434,11 +2476,11 @@ func _animate(events: Array, old: Dictionary) -> float:
 				_toast("%s não teve alvo e foi anulado." % (_cname(e["card_id"]) if e["kind"] == "card" else "A habilidade"))
 				cursor += 0.3
 			"countered":
-				_toast("%s foi anulado!" % (_cname(e["card_id"]) if e["kind"] == "card" else "A habilidade do Líder"))
+				_toast("%s foi anulado!" % ("A habilidade do Líder" if e["kind"] == "ability" else _cname(e["card_id"])))
 				cursor += 0.4
-			"spell_shield_break", "tide_mark", "tide_draw", "freeze", "thaw":
+			"spell_shield_break", "tide_mark", "tide_draw", "freeze", "thaw", "dodge":
 				if actors.has(e["uid"]):
-					var lbl: String = {"spell_shield_break": "Anulado!", "tide_mark": "Maré", "tide_draw": "+1 carta", "freeze": "Congelada!", "thaw": "Descongelou"}[e["type"]]
+					var lbl: String = {"spell_shield_break": "Anulado!", "tide_mark": "Maré", "tide_draw": "+1 carta", "freeze": "Congelada!", "thaw": "Descongelou", "dodge": "Esquivou!"}[e["type"]]
 					var col: Color = Color("#6fd0ff")
 					if e["type"] == "spell_shield_break":
 						col = Color("#c9a8ff")
@@ -2556,6 +2598,8 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s jogou %s" % [_pname(e["player"]), _cname(e["card_id"])])
 		"ability":
 			_log("%s usou %s" % [_pname(e["player"]), CardDB.leader(g.players[e["player"]]["leader_id"])["ability"]["name"]])
+		"transform":
+			_log("%s transformou %s em %s" % [_pname(e["player"]), _cname(e["from"]), _cname(e["card_id"])])
 		"passive":
 			_log("%s ativou %s" % [_pname(e["player"]), CardDB.leader(g.players[e["player"]]["leader_id"])["ability"]["name"]])
 		"trigger":

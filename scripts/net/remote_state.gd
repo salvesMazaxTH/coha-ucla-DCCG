@@ -64,6 +64,12 @@ func cast_legendary(_p: int, target: int = 0) -> Array:
 func use_ability(_p: int, target: int = 0) -> Array:
 	return _act({"a": "ability", "target": target})
 
+func activate(_p: int, uid: int, target: int = 0) -> Array:
+	return _act({"a": "activate", "uid": uid, "target": target})
+
+func transform(_p: int, uid: int) -> Array:
+	return _act({"a": "transform", "uid": uid})
+
 func declare_attack(_p: int, attacks: Dictionary) -> Array:
 	return _act({"a": "attack", "attacks": attacks})
 

@@ -180,11 +180,19 @@ func _process(delta: float) -> void:
 
 ## Rules text as BBCode with trigger names (and an optional "(...)" qualifier
 ## before the colon, e.g. "Aliado Morre (uma vez por turno):") in bold orange.
-static func colorize_triggers(body: String) -> String:
+## "Name (cost) {speed} (limits):" -> bold orange, with "{speed}" (lento/rapido/instantaneo)
+## drawn as the spell speed seal (assets/ui/speed_<speed>.png, see tools/render_speed_badges.gd).
+static func colorize_triggers(body: String, line_px := 28) -> String:
+	var open := "[b][color=#%s]" % TRIGGER_COL.to_html(false)
 	for tid in CardDB.data()["triggers"]:
 		var tn: String = CardDB.data()["triggers"][tid]["name"]
-		var re := RegEx.create_from_string(r"(%s(?: \([^)]*\))?):" % tn)
-		body = re.sub(body, "[b][color=#%s]$1[/color][/b]:" % TRIGGER_COL.to_html(false), true)
+		var re := RegEx.create_from_string(r"(%s(?: \([^)]*\))?)(?: \{(lento|rapido|instantaneo)\})?((?: \([^)]*\))?):" % tn)
+		for m in re.search_all(body):
+			var out := open + m.get_string(1) + "[/color][/b]"
+			if m.get_string(2) != "":
+				out += " [img height=%d]res://assets/ui/speed_%s.png[/img]" % [int(line_px * 0.95), m.get_string(2)]
+			out += open + m.get_string(3) + ":[/color][/b]"
+			body = body.replace(m.get_string(0), out)
 	return body
 
 static func texture(file: String) -> Texture2D:
@@ -216,7 +224,12 @@ func _legendary() -> bool:
 
 # ---------------------------------------------------------------- drawing
 
+var badge_only := "" ## tools/render_speed_badges.gd: draw just this speed seal, centered
+
 func _draw() -> void:
+	if badge_only != "":
+		_speed_badge(size / 2.0, badge_only, size.y / 12.4)
+		return
 	var pop := 1.0 + 0.08 * proc ## scales around the center
 	draw_set_transform(shake + lunge + size / 2.0 * (1.0 - pop), 0.0, Vector2(pop, pop))
 	var s := size.x / BASE.x
@@ -601,6 +614,10 @@ func _panel_lines(cd: Dictionary) -> Array:
 			continue
 		seen[trg] = true
 		tags.append([CardDB.data()["triggers"][trg]["name"], TRIGGER_COL])
+	if cd.has("activated"):
+		tags.append([CardDB.data()["triggers"]["on_activate"]["name"], TRIGGER_COL])
+	if cd.has("transform"):
+		tags.append([CardDB.data()["triggers"]["transform"]["name"], TRIGGER_COL])
 	if tags.size() <= 2 and out.is_empty():
 		for tg in tags:
 			out.append([tg])

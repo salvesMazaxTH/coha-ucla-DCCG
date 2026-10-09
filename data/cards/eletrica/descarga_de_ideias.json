@@ -1,0 +1,20 @@
+{
+  "name": "Descarga de Ideias",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "eletrica",
+  "cost": 2,
+  "speed": "instantaneo",
+  "art": "eletrica/descarga_de_ideias.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 2
+    }
+  ],
+  "text": "Compre 2 cartas.",
+  "flavor": "",
+  "tags": []
+}

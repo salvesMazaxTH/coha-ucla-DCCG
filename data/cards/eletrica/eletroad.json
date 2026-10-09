@@ -1,0 +1,25 @@
+{
+  "name": "Eletroad",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "demihumano"
+  ],
+  "essence": "eletrica",
+  "cost": 3,
+  "atk": 2,
+  "hp": 3,
+  "keywords": [],
+  "art": "eletrica/eletroad.webp",
+  "effects": [
+    {
+      "trigger": "on_turn_start",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": 1
+    }
+  ],
+  "text": "No Início do Turno: ganhe +1 Momentum neste turno.",
+  "flavor": "",
+  "tags": []
+}

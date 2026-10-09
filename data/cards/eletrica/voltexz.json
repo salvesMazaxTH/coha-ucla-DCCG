@@ -1,0 +1,42 @@
+{
+  "name": "Voltexz",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "divindade",
+    "elemental"
+  ],
+  "essence": "eletrica",
+  "cost": 20,
+  "atk": 12,
+  "hp": 7,
+  "keywords": [
+    "voo",
+    "golpe_rapido"
+  ],
+  "art": "eletrica/voltexz.webp",
+  "effects": [
+    {
+      "trigger": "constante",
+      "action": "cost_reduction",
+      "per": "saved_momentum",
+      "amount": 1,
+      "min_cost": 3
+    },
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "all_ally_units",
+      "per": "momentum_left",
+      "max": 5,
+      "atk": 1,
+      "hp": 1,
+      "keywords": [
+        "golpe_rapido"
+      ]
+    }
+  ],
+  "text": "Constante: custa 1 a menos para cada Momentum que sobrou no fim dos seus turnos (mínimo 3).\nAo Entrar: todas as suas unidades ganham Golpe Rápido e +1/+1 para cada Momentum que ainda lhe restar (máx. +5/+5).",
+  "flavor": "",
+  "tags": []
+}

@@ -33,7 +33,8 @@ var pending_search: Dictionary = {}
 ## (phase "enter_target"): {player, uid, card_id, spec}. Optional: target 0 skips the effect.
 var pending_enter: Dictionary = {}
 ## Spells, equipment and leader abilities wait here (LIFO) until both players let them resolve.
-## Item: {sid, player, kind:"card"|"ability", uid, card_id, target, speed}
+## Item: {sid, player, kind:"card"|"ability"|"unit_ability", uid, card_id, target, speed}
+## ("unit_ability" = a unit's Ao Ativar; uid is the unit, card_id its card.)
 var stack: Array = []
 ## Who may act during "main"/"combat". Casting hands priority to the opponent (response);
 ## a pass with items on the stack resolves the whole stack.
@@ -85,6 +86,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"index": i, "deck_id": deck_id, "leader_id": d["leader"],
 		"leader_hp": int(ld["hp"]), "leader_max": int(ld["hp"]),
 		"momentum": 0, "max_momentum": 0, "reserve": 0,
+			"saved_momentum": 0, "idle_turns": 0, "next_momentum": 0,
 		"deck": deck, "hand": [], "board": [], "graveyard": [], "banished": [],
 		"legendary": {"card_id": ld["legendary"], "in_zone": true, "casts": 0},
 		"ability_used": false, "passive_used": false, "attacked": false, "fatigue": 0, "mulligan_done": false,
@@ -197,7 +199,7 @@ func _legendary_leaves(p: int) -> void:
 
 func legendary_cost(p: int) -> int:
 	var l: Dictionary = players[p]["legendary"]
-	return int(CardDB.card(l["card_id"])["cost"]) + COMMANDER_TAX * int(l["casts"])
+	return cost_of(p, CardDB.card(l["card_id"])) + COMMANDER_TAX * int(l["casts"])
 
 ## Congelada: can't attack or block until the end of its owner's next turn.
 func is_frozen(c: Dictionary) -> bool:
@@ -248,17 +250,23 @@ func enter_spec(cd: Dictionary) -> String:
 	return target_spec(on_enter)
 
 ## Momentum cost of a card for player p, after "constante" cost_reduction effects
-## (e.g. per: "own_graveyard" = 1 less for each card in the own graveyard). Never below 0.
+## (e.g. per: "own_graveyard" = 1 less for each card in the own graveyard; "saved_momentum" =
+## per Momentum left unspent at the end of the owner's turns, over the whole game; "idle_turns" =
+## per owner turn ended with Momentum unspent). Never below 0, or below the effect's "min_cost".
 func cost_of(p: int, cd: Dictionary) -> int:
 	var c := int(cd["cost"])
+	var floor_cost := 0
 	for e in cd.get("effects", []):
 		if e.get("trigger", "") != "constante" or e.get("action", "") != "cost_reduction":
 			continue
 		var n := 0
 		match e.get("per", ""):
 			"own_graveyard": n = players[p]["graveyard"].size()
+			"saved_momentum": n = int(players[p]["saved_momentum"])
+			"idle_turns": n = int(players[p]["idle_turns"])
 		c -= n * int(e.get("amount", 1))
-	return maxi(c, 0)
+		floor_cost = maxi(floor_cost, int(e.get("min_cost", 0)))
+	return maxi(c, floor_cost)
 
 ## Momentum p can spend on a play: the Reserva only counts for spells and leader abilities.
 func budget(p: int, spell: bool) -> int:
@@ -313,6 +321,8 @@ func _stack_item(sid: int) -> Dictionary:
 func stack_cost(item: Dictionary) -> int:
 	if item["kind"] == "ability":
 		return int(CardDB.leader(players[item["player"]]["leader_id"])["ability"]["cost"])
+	if item["kind"] == "unit_ability":
+		return int(CardDB.card(item["card_id"])["activated"]["cost"])
 	return int(CardDB.card(item["card_id"]).get("cost", 0))
 
 ## Extra Momentum a counter (action "counter") must pay to hit stack item `sid`:
@@ -401,6 +411,29 @@ func can_use_ability(p: int) -> bool:
 	var spec := target_spec(ab["effects"])
 	return spec == "" or not valid_targets(p, spec).is_empty()
 
+## Unit Ao Ativar (cards.json unit field "activated": {cost, speed, effects, once_per_turn}):
+## paid like an ability (Reserva counts) and put on the stack, so it can be answered and countered.
+func can_activate(p: int, uid: int) -> bool:
+	var c := find_unit(uid)
+	if c.is_empty() or int(c["owner"]) != p:
+		return false
+	var ab: Dictionary = card_of(c).get("activated", {})
+	if ab.is_empty() or not can_cast_speed(p, speed_of(ab)) or int(ab["cost"]) > budget(p, true):
+		return false
+	if ab.get("once_per_turn", false) and int(c.get("activated_turn", -1)) == turn:
+		return false
+	var spec := target_spec(ab["effects"])
+	return spec == "" or not valid_targets(p, spec, uid).is_empty()
+
+## Transformar (cards.json unit field "transform": {into, cost}) (cards.json unit field {into, cost}): Lento, paid like an ability
+## (Reserva counts), and it never uses the stack, so it cannot be answered or countered.
+func can_transform(p: int, uid: int) -> bool:
+	var c := find_unit(uid)
+	if c.is_empty() or int(c["owner"]) != p or not _sorcery_time(p):
+		return false
+	var tf: Dictionary = card_of(c).get("transform", {})
+	return not tf.is_empty() and int(tf["cost"]) <= budget(p, true)
+
 func _hand_card(p: int, uid: int) -> Dictionary:
 	for c in players[p]["hand"]:
 		if c["uid"] == uid:
@@ -485,6 +518,21 @@ func cast_legendary(p: int, _target: int = 0) -> Array:
 	_settle()
 	return _flush()
 
+func activate(p: int, uid: int, target: int = 0) -> Array:
+	if not can_activate(p, uid):
+		return []
+	var c := find_unit(uid)
+	var ab: Dictionary = card_of(c)["activated"]
+	var spec := target_spec(ab["effects"])
+	if spec != "" and not valid_targets(p, spec, uid).has(target):
+		return []
+	_pay(p, int(ab["cost"]), true)
+	c["activated_turn"] = turn
+	_emit({"type": "trigger", "uid": uid, "player": p, "card_id": c["card_id"], "trigger": "on_activate"})
+	_push(p, "unit_ability", uid, c["card_id"], target, speed_of(ab))
+	_settle()
+	return _flush()
+
 func use_ability(p: int, target: int = 0) -> Array:
 	if not can_use_ability(p):
 		return []
@@ -496,6 +544,36 @@ func use_ability(p: int, target: int = 0) -> Array:
 	players[p]["ability_used"] = true
 	_emit({"type": "ability", "player": p})
 	_push(p, "ability", 0, "", target, speed_of(ab))
+	_settle()
+	return _flush()
+
+## The unit becomes its "transform" card in place (same uid, keeps damage, exhaustion and
+## equipment; base stats and keywords come from the new card), then its Ao Entrar fires.
+func transform(p: int, uid: int) -> Array:
+	if not can_transform(p, uid):
+		return []
+	var c := find_unit(uid)
+	var tf: Dictionary = card_of(c)["transform"]
+	_pay(p, int(tf["cost"]), true)
+	_emit({"type": "trigger", "uid": uid, "player": p, "card_id": c["card_id"], "trigger": "transform"})
+	var from: String = c["card_id"]
+	var cd := CardDB.card(tf["into"])
+	var kws: Array = cd.get("keywords", []).duplicate()
+	c["card_id"] = tf["into"]
+	c.erase("over")
+	c.erase("used_turn")
+	c["atk"] = int(cd["atk"])
+	c["hp"] = int(cd["hp"])
+	c["shield"] = c["shield"] or kws.has("escudo")
+	c["spell_shield"] = c.get("spell_shield", false) or kws.has("escudo_feitico")
+	kws.erase("escudo")
+	kws.erase("escudo_feitico")
+	c["keywords"] = kws
+	_emit({"type": "transform", "player": p, "uid": uid, "from": from, "card_id": tf["into"]})
+	_announce(c, cd["effects"], "on_enter")
+	var target := uid if target_spec(cd["effects"]) == "ally_unit" else 0
+	_run_effects(p, cd["effects"], "on_enter", target, uid)
+	_check_state()
 	_settle()
 	return _flush()
 
@@ -709,6 +787,8 @@ func _push(p: int, kind: String, uid: int, card_id: String, target: int, speed: 
 func _effects_of(item: Dictionary) -> Array:
 	if item["kind"] == "ability":
 		return CardDB.leader(players[item["player"]]["leader_id"])["ability"]["effects"]
+	if item["kind"] == "unit_ability":
+		return CardDB.card(item["card_id"])["activated"]["effects"]
 	return CardDB.card(item["card_id"])["effects"]
 
 ## Resolves the stack newest-first. Stops early if the game ends or a search needs a choice.
@@ -723,7 +803,8 @@ func _resolve_stack() -> void:
 		else:
 			_emit({"type": "resolve", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"]})
 			_chosen2 = int(item.get("target2", 0))
-			_run_effects(p, effects, "on_play" if item["kind"] == "card" else "", int(item["target"]), 0)
+			var src := int(item["uid"]) if item["kind"] == "unit_ability" else 0
+			_run_effects(p, effects, "on_play" if item["kind"] == "card" else "", int(item["target"]), src)
 			_chosen2 = 0
 		if item["kind"] == "card":
 			var holder := find_unit(int(item["target"]))
@@ -875,6 +956,9 @@ func _has_play(p: int) -> bool:
 	for c in players[p]["hand"]:
 		if can_play(p, c["uid"]):
 			return true
+	for c in players[p]["board"]:
+		if can_activate(p, c["uid"]):
+			return true
 	return can_use_ability(p)
 
 ## Auto-passes for whoever holds priority with no legal play, so windows nobody can use
@@ -961,6 +1045,8 @@ func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid
 			continue
 		if e.get("trigger", "") == "constante":
 			continue
+		if not _condition_ok(p, e.get("if", "")):
+			continue
 		var targets: Array = []
 		match e.get("target", ""):
 			"enemy_unit", "ally_unit", "other_ally_unit", "any_unit", "any", "enemy_stack":
@@ -1006,6 +1092,13 @@ func _run_effects(p: int, effects: Array, trigger: String, chosen: int, self_uid
 			_begin_grave_pick(p, self_uid)
 		elif e.get("action", "") == "look_top" and e.get("trigger", "") == trigger:
 			_begin_look(p, int(e.get("count", 4)), self_uid)
+
+## Optional "if" on an effect: "momentum_left" = p still has unspent Momentum, "reserve_full" = p's Reserva is full.
+func _condition_ok(p: int, cond: String) -> bool:
+	match cond:
+		"momentum_left": return int(players[p]["momentum"]) > 0
+		"reserve_full": return int(players[p]["reserve"]) >= RESERVE_CAP
+	return true
 
 func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 	if phase == "search":
@@ -1144,15 +1237,34 @@ func _apply(p: int, e: Dictionary, t: int) -> void:
 			victim["damage"] = victim["hp"] + int(victim.get("bonus_hp", 0))
 			_emit({"type": "sacrifice", "player": p, "uid": t})
 			_run_effects(p, e.get("then", []), "", _chosen2, 0)
+		"gain_momentum":
+			# +amount Momentum right now (never above the cap), or at the start of the owner's next turn
+			if e.get("next_turn", false):
+				players[p]["next_momentum"] += int(e["amount"])
+			else:
+				players[p]["momentum"] = mini(MOMENTUM_CAP, int(players[p]["momentum"]) + int(e["amount"]))
+				_emit({"type": "momentum", "player": p})
 		"buff":
 			var c := find_unit(t)
 			if c.is_empty():
 				return
+			# "per": "momentum_left" scales atk/hp by the Momentum p still has (at most "max")
+			var mult := 1
+			if e.get("per", "") == "momentum_left":
+				mult = mini(int(players[p]["momentum"]), int(e.get("max", 99)))
+			var d_atk: int = int(e.get("atk", 0)) * mult
+			var d_hp: int = int(e.get("hp", 0)) * mult
+			# "cap_atk": this effect can give a unit at most that much attack in total (e.g. Layla)
+			if e.has("cap_atk"):
+				d_atk = mini(d_atk, int(e["cap_atk"]) - int(c.get("cap_atk_gain", 0)))
+				if d_atk <= 0:
+					return
+				c["cap_atk_gain"] = int(c.get("cap_atk_gain", 0)) + d_atk
 			if e.get("temp", false):
-				c["temp_atk"] += int(e.get("atk", 0))
+				c["temp_atk"] += d_atk
 			else:
-				c["atk"] += int(e.get("atk", 0))
-				c["hp"] += int(e.get("hp", 0))
+				c["atk"] += d_atk
+				c["hp"] += d_hp
 			for kw in e.get("keywords", []):
 				if kw == "escudo":
 					c["shield"] = true
@@ -1162,7 +1274,7 @@ func _apply(p: int, e: Dictionary, t: int) -> void:
 					c["keywords"].append(kw)
 					if e.get("temp", false):
 						c["temp_keywords"].append(kw)
-			_emit({"type": "buff", "uid": t, "atk": e.get("atk", 0), "hp": e.get("hp", 0), "keywords": e.get("keywords", [])})
+			_emit({"type": "buff", "uid": t, "atk": d_atk, "hp": d_hp, "keywords": e.get("keywords", [])})
 
 ## Top cards of the deck go to the graveyard (no fatigue when the deck runs out).
 func _mill(p: int, n: int) -> void:
@@ -1234,6 +1346,11 @@ func _deal_damage(t: int, amount: int, source: Dictionary) -> int:
 			return 0
 		if has_kw(c, "indestrutivel"):
 			return 0 # damage is always 0 against it (Escudo isn't consumed)
+		# Esquiva: the first combat damage each turn from a unit with less attack is avoided
+		if _combat_damage and has_kw(c, "esquiva") and not source.is_empty() 				and atk_of(source) < atk_of(c) and int(c.get("dodge_turn", -1)) != turn:
+			c["dodge_turn"] = turn
+			_emit({"type": "dodge", "uid": t, "src": source.get("uid", 0)})
+			return 0
 		if c["shield"]:
 			c["shield"] = false
 			_emit({"type": "shield_break", "uid": t, "src": source.get("uid", 0)})
@@ -1364,6 +1481,11 @@ func _finish_turn() -> void:
 	_check_state()
 	if phase == "over":
 		return
+	# Momentum left unspent at the end of the turn (Voltexz and Fulgurvoltz get cheaper)
+	var left: int = int(players[active]["momentum"])
+	if left > 0:
+		players[active]["saved_momentum"] += left
+		players[active]["idle_turns"] += 1
 	for p in players:
 		for c in p["board"]:
 			c["damage"] = 0
@@ -1401,11 +1523,15 @@ func _start_turn(p: int, draw: bool) -> void:
 		if i == p or not CardDB.leader(q["leader_id"])["ability"].get("once_per_cycle", false):
 			q["ability_used"] = false
 		q["passive_used"] = false
+	if int(pl["next_momentum"]) > 0:
+		pl["momentum"] = mini(MOMENTUM_CAP, int(pl["momentum"]) + int(pl["next_momentum"]))
+		pl["next_momentum"] = 0
 	pl["attacked"] = false
 	for c in pl["board"]:
 		c["exhausted"] = false
 		c["sick"] = false
 	_emit({"type": "start_turn", "player": p, "turn": turn})
+	_fire_leader_passive(p, "on_turn_start")
 	for c in pl["board"].duplicate():
 		_fire(c, "on_turn_start")
 	if draw:

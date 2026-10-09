@@ -1,0 +1,21 @@
+{
+  "name": "Thorwells",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "divindade"
+  ],
+  "essence": "eletrica",
+  "cost": 7,
+  "atk": 5,
+  "hp": 6,
+  "keywords": [
+    "golpe_rapido",
+    "esquiva"
+  ],
+  "art": "eletrica/thorwells.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "",
+  "tags": []
+}

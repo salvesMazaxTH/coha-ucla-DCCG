@@ -2,6 +2,7 @@
   "name": "Alexa Neruvya Primordial",
   "type": "unit",
   "rarity": "champion",
+  "transform_only": true,
   "species": ["dragao_primordial", "dragao"],
   "essence": "aquatica",
   "cost": 8,

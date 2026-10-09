@@ -1,0 +1,26 @@
+{
+  "name": "Jack",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "humano"
+  ],
+  "essence": "eletrica",
+  "cost": 4,
+  "atk": 2,
+  "hp": 4,
+  "keywords": [],
+  "art": "eletrica/jack.webp",
+  "effects": [
+    {
+      "trigger": "on_turn_end",
+      "if": "momentum_left",
+      "action": "buff",
+      "target": "self",
+      "atk": 1
+    }
+  ],
+  "text": "Fim do Turno: se sobrou Momentum, ganhe +1 de Ataque permanente.",
+  "flavor": "",
+  "tags": []
+}
