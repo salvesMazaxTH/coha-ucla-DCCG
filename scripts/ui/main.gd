@@ -683,7 +683,7 @@ func _render() -> void:
 	_set_tints(_leader_color(op), _leader_color(me))
 	table.enemy_color = _leader_color(op)
 	table.my_color = _leader_color(me)
-	table.sockets = [Rect2(268, 8, 150, 208), Rect2(268, 684, 150, 208)]
+	table.sockets = [Rect2(SANCTUARY_X, 8, SANCTUARY_W, 264), Rect2(SANCTUARY_X, 634, SANCTUARY_W, 264)]
 	table.visible = true
 	table.queue_redraw()
 	if g.phase == "over":
@@ -697,8 +697,8 @@ func _render() -> void:
 		return
 	_render_leader(op, Vector2(16, 14), Vector2(20, 192))
 	_render_leader(me, Vector2(16, 660), Vector2(20, 840))
-	_render_command(op, Vector2(274, 14))
-	_render_command(me, Vector2(274, 690))
+	_render_command(op, Vector2(SANCTUARY_X + 1, 14))
+	_render_command(me, Vector2(SANCTUARY_X + 1, 640))
 	_render_enemy_hand(op)
 	_collect_pairs()
 	_render_board(op, 172)
@@ -774,20 +774,28 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	layer.add_child(mb)
 	mb.setup(pl["momentum"], pl["max_momentum"], int(pl.get("reserve", 0)))
 
+const HAND_SCALE := 1.5275
+const HAND_SCALE_MIN := 1.3
+const HAND_SHRINK_FROM := 6
+const HAND_SHRINK_TO := 10
+const SANCTUARY_SCALE := 1.48 ## Incarnation card in the Sanctuary
+const SANCTUARY_X := 260.0
+const SANCTUARY_W := 180.0
+
 func _render_command(p: int, pos: Vector2) -> void:
 	var l: Dictionary = g.players[p]["legendary"]
 	if p == viewer:
-		var cap := _label("COMANDO", 11, Color(UITheme.GOLD, 0.7), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
-		cap.position = pos + Vector2(-6, -20)
-		cap.size = Vector2(150, 16)
+		var cap := _label("SANTUÁRIO", 13, Color(UITheme.GOLD, 0.7), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
+		cap.position = pos + Vector2(-1, -20)
+		cap.size = Vector2(SANCTUARY_W, 16)
 		layer.add_child(cap)
 	if not l["in_zone"]:
 		var empty := _label("NO DECK" if l.get("retired", false) else "EM CAMPO", 12, Color(UITheme.TEXT, 0.35), HORIZONTAL_ALIGNMENT_CENTER, "title", 2)
-		empty.position = pos + Vector2(-6, 88)
-		empty.size = Vector2(150, 20)
+		empty.position = pos + Vector2(-1, 115)
+		empty.size = Vector2(SANCTUARY_W, 20)
 		layer.add_child(empty)
 		return
-	var v := CardView.new().setup(l["card_id"], {}, 1.15)
+	var v := CardView.new().setup(l["card_id"], {}, SANCTUARY_SCALE)
 	v.pivot_offset = v.size / 2.0
 	v.position = pos
 	v.cost_override = g.legendary_cost(p)
@@ -984,15 +992,22 @@ func _tag(v: Control, t: String, col: Color) -> void:
 	pc.reset_size()
 	pc.position = Vector2((v.size.x - pc.size.x) / 2.0, -22)
 
+## Full size up to HAND_SHRINK_FROM cards, shrinking linearly to HAND_SCALE_MIN at HAND_SHRINK_TO.
+func _hand_scale(n: int) -> float:
+	var t := clampf(float(n - HAND_SHRINK_FROM) / float(HAND_SHRINK_TO - HAND_SHRINK_FROM), 0.0, 1.0)
+	return lerpf(HAND_SCALE, HAND_SCALE_MIN, t)
+
 func _render_hand(p: int) -> void:
 	var hand: Array = g.players[p]["hand"]
 	var n := hand.size()
 	_hand_base = layer.get_child_count()
-	var step: float = min(122.0, (TableView.ENEMY_LANE.size.x - 110.0) / max(1, n))
+	var sc := _hand_scale(n)
+	var cw: float = CardView.BASE.x * sc
+	var step: float = min(cw * 0.85, (TableView.ENEMY_LANE.size.x - 20.0 - cw) / max(1, n - 1))
 	var ang: float = min(5.0, 36.0 / max(1, n))
 	for i in n:
 		var c: Dictionary = hand[i]
-		var v := CardView.new().setup(c["card_id"], c, 1.2)
+		var v := CardView.new().setup(c["card_id"], c, sc)
 		var hcd := CardDB.card(c["card_id"])
 		if g.cost_of(p, hcd) != int(hcd["cost"]):
 			v.cost_override = g.cost_of(p, hcd)
@@ -1166,7 +1181,7 @@ func _render_side() -> void:
 		wait.position = Vector2(col_x, y)
 		wait.size = Vector2(COL_W, 56)
 		layer.add_child(wait)
-	_render_stack(y + 6)
+	_render_stack()
 	var ap_on := _auto_pass_on()
 	var ap := _button("Auto-passe: %s" % ("LIGADO" if ap_on else "desligado"), func(): _set_auto_pass(not _auto_pass_on()))
 	ap.position = Vector2(col_x, 772)
@@ -1188,70 +1203,165 @@ func _render_side() -> void:
 		cc.tooltip_text = "Desiste da partida: o oponente vence."
 		layer.add_child(cc)
 
-## The stack (newest on top) in the side column; right-click/hold a card to read it.
-func _render_stack(y: float) -> void:
+## The stack as a pile of full cards at the right edge of the table, oldest on top and the
+## next one to resolve in front (Arena style). Tap/right-click/hold a card to read it; the
+## front card draws an arrow to what it targets.
+const STACK_SCALE := 1.3
+const STACK_STEP := 80.0 ## vertical peek per card; shrinks when the pile would not fit
+const STACK_MAX_H := 590.0
+const STACK_MAX := 6
+var _stack_seen := {} ## sid -> true for items already drawn once (only new ones animate in)
+
+func _render_stack() -> void:
 	if g.stack.is_empty():
+		_stack_seen.clear()
 		return
-	var cap := _label("PILHA", 15, UITheme.GOLD, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
-	cap.position = Vector2(col_x, y)
-	cap.size = Vector2(COL_W, 20)
-	layer.add_child(cap)
-	y += 24
-	var rows: int = max(1, int((764.0 - y) / 84.0))
-	var items: Array = g.stack.duplicate()
-	items.reverse()
-	for i in min(rows, items.size()):
+	var cw := CardView.BASE.x * STACK_SCALE
+	var ch := CardView.BASE.y * STACK_SCALE
+	var items: Array = g.stack.slice(maxi(0, g.stack.size() - STACK_MAX))
+	var hidden: int = g.stack.size() - items.size()
+	var pw := cw + 32.0
+	var step := STACK_STEP
+	if items.size() > 1:
+		step = minf(STACK_STEP, (STACK_MAX_H - 84.0 - ch) / (items.size() - 1))
+	var ph := 44.0 + ch + step * (items.size() - 1) + 40.0
+	var px := col_x - 14.0 - pw
+	var py := clampf(TableView.DIVIDER_Y - ph / 2.0, 118.0, 700.0 - ph)
+	var back := Panel.new()
+	back.position = Vector2(px, py)
+	back.size = Vector2(pw, ph)
+	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var bsb := UITheme.box(Color(0.035, 0.03, 0.06, 0.88), 14, Color(UITheme.GOLD, 0.6), 2, 22)
+	bsb.shadow_color = Color(UITheme.GOLD, 0.2)
+	back.add_theme_stylebox_override("panel", bsb)
+	layer.add_child(back)
+	var head := _label("PILHA · %d" % g.stack.size(), 16, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
+	head.position = Vector2(px, py + 10)
+	head.size = Vector2(pw, 22)
+	layer.add_child(head)
+	if hidden > 0:
+		var more := _label("+%d antigas" % hidden, 12, Color(UITheme.TEXT, 0.55), HORIZONTAL_ALIGNMENT_CENTER, "body")
+		more.position = Vector2(px, py + 30)
+		more.size = Vector2(pw, 14)
+		layer.add_child(more)
+	var cx := px + 16.0
+	var y0 := py + 44.0
+	var centers := {} ## sid -> center of that card, for arrows that point at a stack item
+	var seen := {}
+	for i in items.size():
 		var it: Dictionary = items[i]
-		var row := Panel.new()
-		row.position = Vector2(col_x, y)
-		row.size = Vector2(COL_W, 78)
-		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var sb := UITheme.panel()
-		if i == 0:
-			sb.border_color = Color(UITheme.GOLD, 0.85)
 		var sid: int = it["sid"]
-		if _is_target(sid):
-			sb.border_color = SEL
-			sb.set_border_width_all(3)
-			row.mouse_filter = Control.MOUSE_FILTER_STOP
-			row.gui_input.connect(func(ev: InputEvent):
-				if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
-					_fire_target(sid))
-		row.add_theme_stylebox_override("panel", sb)
-		layer.add_child(row)
-		var title: String
+		seen[sid] = true
+		var pos := Vector2(cx, y0 + step * i)
+		centers[sid] = pos + Vector2(cw, ch) / 2.0
+		var is_front := i == items.size() - 1
+		var node: Control
 		if it["kind"] == "ability":
-			title = CardDB.leader(g.players[it["player"]]["leader_id"])["ability"]["name"]
+			node = _stack_ability_card(it, Vector2(cw, ch))
 		else:
-			title = _cname(it["card_id"])
-			var v := CardView.new().setup(it["card_id"], {}, 0.42)
-			v.position = Vector2(6, (78 - v.size.y) / 2.0)
-			v.left_clicked.connect(_show_overlay)
+			var v := CardView.new().setup(it["card_id"], {}, STACK_SCALE)
+			v.left_clicked.connect(func(view: CardView):
+				if _is_target(sid):
+					_fire_target(sid)
+				else:
+					_show_overlay(view))
 			v.right_clicked.connect(_show_overlay)
-			row.add_child(v)
+			if _is_target(sid):
+				v.highlight = SEL
+			node = v
+		node.position = pos
+		layer.add_child(node)
+		# owner tab on the left edge: whose spell is whose, at a glance
+		var tab := Panel.new()
+		tab.position = Vector2(cx - 9.0, pos.y + 4.0)
+		tab.size = Vector2(6, (ch if is_front else step) - 8.0)
+		tab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tab.add_theme_stylebox_override("panel", UITheme.box(_leader_color(it["player"]), 3))
+		layer.add_child(tab)
 		if it["kind"] == "unit_ability":
-			title += " · Ao Ativar"
-		var tx := 12.0 if it["kind"] == "ability" else 66.0
-		var nl := _label(title, 17, UITheme.TEXT, HORIZONTAL_ALIGNMENT_LEFT, "bold")
-		nl.position = Vector2(tx, 8)
-		nl.size = Vector2(COL_W - tx - 8, 40)
-		nl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		nl.add_theme_constant_override("line_spacing", -4)
-		row.add_child(nl)
-		var sp: String = {"lento": "Lento", "rapido": "Rápido", "instantaneo": "Instantâneo"}.get(it["speed"], "")
-		var sub := _label("%s · %s" % [_pname(it["player"]), sp], 14, Color(UITheme.TEXT, 0.55), HORIZONTAL_ALIGNMENT_LEFT, "body")
+			var rb := _stack_pill("AO ATIVAR", UITheme.GOLD_LIGHT)
+			rb.position = Vector2(cx + 6.0, pos.y + 4.0)
+			layer.add_child(rb)
 		var price := _counter_price(sid)
 		if price != "":
-			sub = _label(price, 15, SEL, HORIZONTAL_ALIGNMENT_LEFT, "bold")
-		sub.position = Vector2(tx, 52)
-		sub.size = Vector2(COL_W - tx - 8, 20)
-		row.add_child(sub)
-		y += 84
-	if items.size() > rows:
-		var more := _label("+%d abaixo" % (items.size() - rows), 13, Color(UITheme.TEXT, 0.5), HORIZONTAL_ALIGNMENT_CENTER, "body")
-		more.position = Vector2(col_x, y - 4)
-		more.size = Vector2(COL_W, 16)
-		layer.add_child(more)
+			var pb := _stack_pill(price, SEL)
+			pb.position = Vector2(cx + cw - 8.0 - pb.size.x, pos.y + 4.0)
+			layer.add_child(pb)
+		if not _stack_seen.has(sid):
+			node.modulate.a = 0.0
+			node.position = pos + Vector2(-70, 0)
+			var tw := node.create_tween().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+			tw.tween_property(node, "modulate:a", 1.0, 0.22)
+			tw.tween_property(node, "position", pos, 0.26)
+	_stack_seen = seen
+	# caption under the pile: who owns the next thing to resolve, and its speed
+	var top: Dictionary = items[-1]
+	var sp: String = {"lento": "Lento", "rapido": "Rápido", "instantaneo": "Instantâneo"}.get(top["speed"], "")
+	var cap := _label("%s · %s\nresolve primeiro" % [_pname(top["player"]), sp], 13, Color(UITheme.TEXT, 0.7), HORIZONTAL_ALIGNMENT_CENTER, "body")
+	cap.position = Vector2(px, py + ph - 38.0)
+	cap.size = Vector2(pw, 34)
+	layer.add_child(cap)
+	_stack_arrow(top, centers, Vector2(px - 4.0, y0 + step * (items.size() - 1) + ch / 2.0))
+
+## What the front item aims at (a unit, a Leader or another stack item).
+func _stack_arrow(it: Dictionary, centers: Dictionary, from: Vector2) -> void:
+	var t: int = int(it.get("target", 0))
+	if t == 0:
+		return
+	var to := Vector2.ZERO
+	if centers.has(t):
+		to = centers[t]
+	elif views.get(t) is Control and is_instance_valid(views[t]):
+		to = _pose(views[t])["c"]
+	else:
+		return
+	var arrow := AimArrow.new()
+	arrow.from = from
+	arrow.to = to
+	arrow.locked = true
+	layer.add_child(arrow)
+
+func _stack_pill(t: String, col: Color) -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sb := UITheme.box(Color(0.03, 0.03, 0.05, 0.92), 9, Color(col, 0.8), 1)
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 1
+	sb.content_margin_bottom = 1
+	pc.add_theme_stylebox_override("panel", sb)
+	pc.add_child(_label(t, 12, col, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
+	pc.reset_size()
+	return pc
+
+## A Leader ability on the stack: a card-sized plate (it has no card art).
+func _stack_ability_card(it: Dictionary, sz: Vector2) -> Control:
+	var sid: int = it["sid"]
+	var lead := CardDB.leader(g.players[it["player"]]["leader_id"])
+	var pnl := Panel.new()
+	pnl.size = sz
+	var sb := UITheme.box(Color(0.08, 0.06, 0.12), 10, Color(UITheme.GOLD, 0.85), 2, 8)
+	sb.bg_color = Color(0.09, 0.07, 0.14)
+	if _is_target(sid):
+		sb.border_color = SEL
+		sb.set_border_width_all(4)
+		pnl.mouse_filter = Control.MOUSE_FILTER_STOP
+		pnl.gui_input.connect(func(ev: InputEvent):
+			if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+				_fire_target(sid))
+	else:
+		pnl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pnl.add_theme_stylebox_override("panel", sb)
+	var nm := _label(String(lead["ability"]["name"]), 19, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
+	nm.position = Vector2(8, 8)
+	nm.size = Vector2(sz.x - 16, 56)
+	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	pnl.add_child(nm)
+	var sub := _label("Habilidade de Líder\n%s" % String(lead.get("name", "")), 13, Color(UITheme.TEXT, 0.7), HORIZONTAL_ALIGNMENT_CENTER, "body")
+	sub.position = Vector2(8, sz.y - 54)
+	sub.size = Vector2(sz.x - 16, 44)
+	pnl.add_child(sub)
+	return pnl
 
 ## "Anular: N" for a stack item while a counter is choosing its target ("" otherwise).
 func _counter_price(sid: int) -> String:
@@ -2053,8 +2163,8 @@ func _fly(v: Control, from: Dictionary, to: Dictionary, t0: float, dur: float, a
 		0.0, 1.0, dur).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	return tw
 
-func _ghost(card_id: String, inst: Dictionary, pose: Dictionary) -> CardView:
-	var v := CardView.new().setup(card_id, inst, 1.15)
+func _ghost(card_id: String, inst: Dictionary, pose: Dictionary, size_scale := 1.15) -> CardView:
+	var v := CardView.new().setup(card_id, inst, size_scale)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.pivot_offset = v.size / 2.0
 	fx.add_child(v)
@@ -2277,8 +2387,10 @@ func _streak(from: Control, to: Control, t: float, col: Color) -> float:
 
 ## How long a revealed spell/ability stays frozen mid-screen: long enough for the
 ## opponent to read it, short for your own plays (you already know what you cast).
-const REVEAL_HOLD := 2.2
+const REVEAL_HOLD := 2.78
 const REVEAL_HOLD_OWN := 0.8
+const REVEAL_W := 280.0 ## on-screen width of a revealed spell
+const FATIGUE_W := 240.0
 
 func _reveal_hold(p: int) -> float:
 	return REVEAL_HOLD_OWN if (online or vs_ai) and p == viewer else REVEAL_HOLD
@@ -2449,23 +2561,23 @@ func _animate(events: Array, old: Dictionary) -> float:
 					tw.tween_property(v, "scale", fs, 0.1)
 					cursor += 0.45
 				else:
-					var gh := _ghost(e["card_id"], {}, origin)
+					var gh := _ghost(e["card_id"], {}, origin, REVEAL_W / CardView.BASE.x) # built at its final size: scaling up would blur the text
 					gh.z_index = 30
-					var tw := _fly(gh, origin, {"c": Vector2(lane_cx, 420), "rot": 0.0, "w": 170.0}, cursor, 0.35, 40.0, true)
+					var tw := _fly(gh, origin, {"c": Vector2(lane_cx, 420), "rot": 0.0, "w": REVEAL_W}, cursor, 0.35, 40.0, true)
 					tw.tween_callback(func(): gh.z_index = 0)
 					var hold := _reveal_hold(e["player"])
 					gh.dissolve(cursor + 0.35 + hold, _elem_color(e["card_id"]).lightened(0.15), 0.6)
 					cursor += 0.35 + hold - 0.15
 			"fatigue":
 				# shown like a played card, so the hit on the Leader that follows makes sense
-				var fv := CardView.new().setup("", {}, 1.15)
+				var fv := CardView.new().setup("", {}, FATIGUE_W / CardView.BASE.x)
 				fv.fatigue = int(e["amount"])
 				fv.mouse_filter = Control.MOUSE_FILTER_IGNORE
 				fv.pivot_offset = fv.size / 2.0
 				fv.z_index = 30
 				fx.add_child(fv)
 				var from_y := 860.0 if e["player"] == viewer else 30.0
-				_fly(fv, {"c": Vector2(lane_cx - 68, from_y), "rot": 0.0, "w": 60.0}, {"c": Vector2(lane_cx, 420), "rot": 0.0, "w": 240.0}, cursor, 0.35, 40.0, true)
+				_fly(fv, {"c": Vector2(lane_cx - 68, from_y), "rot": 0.0, "w": 60.0}, {"c": Vector2(lane_cx, 420), "rot": 0.0, "w": FATIGUE_W}, cursor, 0.35, 40.0, true)
 				fv.dissolve(cursor + 0.35 + REVEAL_HOLD * 0.7, Color(0.75, 0.6, 1.0), 0.6)
 				cursor += 0.35 + REVEAL_HOLD * 0.5
 			"ability":

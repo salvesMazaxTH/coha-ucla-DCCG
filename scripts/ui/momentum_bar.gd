@@ -1,7 +1,7 @@
 class_name MomentumBar
 extends Control
 ## Momentum as a row of crystals: lit (available), spent (hollow) and locked
-## (not unlocked yet this game), with an "x/y" readout, then the Reserva: up to
+## (not unlocked yet this game), with an "x/y" readout; below it the Reserva: up to
 ## RESERVE_CAP smaller arcane crystals that only pay for spells and abilities.
 
 const RESERVE_COL := Color("#7fd0ff")
@@ -14,7 +14,7 @@ func setup(cur: int, mx: int, res: int = 0) -> MomentumBar:
 	current = cur
 	maximum = mx
 	reserve = res
-	custom_minimum_size = Vector2(290, 30)
+	custom_minimum_size = Vector2(236, 54) # two rows: must fit the Leader column, the Sanctuary card sits right of it
 	size = custom_minimum_size
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	tooltip_text = "Momentum: %d de %d disponíveis
@@ -45,9 +45,10 @@ func _draw() -> void:
 	var x := 9 + cap * step - 4
 	draw_string_outline(font, Vector2(x, 23), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 21, 4, Color(0, 0, 0, 0.85))
 	draw_string(font, Vector2(x, 23), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 21, Color("#ffe680"))
-	var rx := x + font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 21).x + 12
+	var rx := 9.0
+	var ry := 42.0 # Reserva on its own row
 	for i in GameState.RESERVE_CAP:
-		var c := Vector2(rx + i * 13, 15)
+		var c := Vector2(rx + i * 14, ry)
 		var pts := PackedVector2Array([c + Vector2(0, -9), c + Vector2(5.5, -2), c + Vector2(0, 9), c + Vector2(-5.5, -2)])
 		var outline := pts + PackedVector2Array([pts[0]])
 		if i < reserve:
@@ -60,6 +61,6 @@ func _draw() -> void:
 			draw_colored_polygon(pts, Color(RESERVE_COL.darkened(0.75), 0.7))
 			draw_polyline(outline, Color(RESERVE_COL, 0.4), 1.0, true)
 	var rt := "%d/%d" % [reserve, GameState.RESERVE_CAP]
-	var rtx := rx + GameState.RESERVE_CAP * 13 - 1
-	draw_string_outline(font, Vector2(rtx, 22), rt, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, 4, Color(0, 0, 0, 0.85))
-	draw_string(font, Vector2(rtx, 22), rt, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, RESERVE_COL)
+	var rtx := rx + GameState.RESERVE_CAP * 14 - 3
+	draw_string_outline(font, Vector2(rtx, ry + 7), rt, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, 4, Color(0, 0, 0, 0.85))
+	draw_string(font, Vector2(rtx, ry + 7), rt, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, RESERVE_COL)
