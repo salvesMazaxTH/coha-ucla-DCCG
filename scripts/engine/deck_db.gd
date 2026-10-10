@@ -5,6 +5,10 @@ extends RefCounted
 
 const DECK_SIZE := 48
 const MAX_COPIES := 3
+## Legendary cards default to fewer copies than the rest; a card can still override with "max_copies".
+const MAX_LEGENDARY_COPIES := 2
+## Champions + legendaries together (counting copies) in one deck.
+const MAX_ELITE_CARDS := 20
 ## Cards outside the Leader's essences (neutral ones don't count); champions can never be off-essence.
 const MAX_OFF_ESSENCE := 12
 const PREBUILT_DIR := "res://data/decks/prebuilt"
@@ -88,11 +92,16 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 	var ld := CardDB.leader(leader_id)
 	var total := 0
 	var off_essence := 0
+	var elite_cards := 0
 	for id in cards:
 		var n: int = cards[id]
 		total += n
 		var c := CardDB.card(id)
-		var limit: int = int(c.get("max_copies", MAX_COPIES)) # "max_copies": 1 = Única
+		var rarity: String = c.get("rarity", "")
+		var default_limit := MAX_LEGENDARY_COPIES if rarity == "legendary" else MAX_COPIES
+		var limit: int = int(c.get("max_copies", default_limit)) # "max_copies": 1 = Única
+		if rarity == "champion" or rarity == "legendary":
+			elite_cards += n
 		if n > limit:
 			errors.append("%s: mais de %d cópia%s" % [id, limit, "" if limit == 1 else "s"])
 		# dual cards count as on-essence when the Leader shares any of their essences
@@ -110,6 +119,8 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 			errors.append("%s: Encarnação de outro Líder" % id)
 	if off_essence > MAX_OFF_ESSENCE:
 		errors.append("%d cartas de fora da essência do Líder (máximo %d)" % [off_essence, MAX_OFF_ESSENCE])
+	if elite_cards > MAX_ELITE_CARDS:
+		errors.append("%d Campeões + Lendárias (máximo %d)" % [elite_cards, MAX_ELITE_CARDS])
 	if total != DECK_SIZE:
 		errors.append("deck tem %d cartas (precisa de %d)" % [total, DECK_SIZE])
 	if not cards.has(ld["legendary"]):

@@ -47,6 +47,9 @@ func _init() -> void:
 	_test_dud()
 	_test_requiem()
 	_test_rusco()
+	_test_elite_limits()
+	_test_armor()
+	_test_adjacent_armor()
 	_test_sim()
 	for e in CardDB.errors():
 		check(false, e)
@@ -625,6 +628,33 @@ func _test_obscura_rules() -> void:
 	fb.play_card(0, fid, ai_pick)
 	fb._flush()
 	check(fb.players[0]["board"].size() == GameState.BOARD_LIMIT and _count(fb, 0, "necrofago_espectral") == 1, "campo cheio: troca o sacrificado pelo necrófago")
+
+## Armadura reduces every damage instance, stacks when given again, and the temporary part ends at the owner's next turn.
+func _test_armor() -> void:
+	var g := _new_game()
+	var wall := _put(g, 0, "bastionario_de_basalto") # 1/5, no printed armor
+	var armor_effect: Effect = EffectRegistry.parse_list([{"trigger": "on_play", "action": "buff", "target": "ally_unit", "armor": 1, "armor_temp": 2}])[0]
+	armor_effect.apply(EffectContext.new(g, 0, ""), wall.uid)
+	armor_effect.apply(EffectContext.new(g, 0, ""), wall.uid)
+	check(wall.armor_total() == 6, "Armadura soma: 2 x (1 fixa + 2 temporária) = 6 (%d)" % wall.armor_total())
+	check(g._deal_damage(wall.uid, 5, null) == 0 and wall.damage == 0, "dano menor ou igual à Armadura não passa")
+	check(g._deal_damage(wall.uid, 8, null) == 2 and wall.damage == 2, "dano acima da Armadura passa só o excedente")
+	wall.shield = true
+	g._deal_damage(wall.uid, 4, null)
+	check(wall.shield, "dano zerado pela Armadura não gasta o Escudo")
+	g._start_turn(0, false)
+	check(wall.armor_total() == 2, "a parte temporária some no início do próximo turno do dono (%d)" % wall.armor_total())
+
+## Bastionário gives Armadura only to the allies standing right next to it on the board.
+func _test_adjacent_armor() -> void:
+	var g := _new_game()
+	var left := _put(g, 0, "bastionario_de_basalto")
+	var guard := _put(g, 0, "bastionario_de_basalto")
+	var right := _put(g, 0, "escudeiro_de_cascalho")
+	var far := _put(g, 0, "escudeiro_de_cascalho")
+	check(g.armor_of(left) == 1 and g.armor_of(guard) == 1 and g.armor_of(right) == 1, "Armadura adjacente vem dos vizinhos, não da própria unidade")
+	check(g.armor_of(far) == 0, "unidade longe do Bastionário não recebe")
+	check(g._deal_damage(right.uid, 1, null) == 0, "dano 1 é absorvido pela Armadura adjacente")
 
 func _test_freeze() -> void:
 	var g := _new_game()
@@ -1302,6 +1332,22 @@ func _test_triggers() -> void:
 	g._deal_damage(r.uid, 5, null)
 	g._check_state()
 	check(g.players[0]["board"].is_empty(), "revived fenix stays dead")
+
+func _test_elite_limits() -> void:
+	var leader: String = DeckDB.get_deck("fogo")["leader"]
+	var base: Dictionary = DeckDB.get_deck("fogo")["cards"].duplicate()
+	check(DeckDB.validate_cards(leader, base).is_empty(), "fogo: legal com 20 campeões")
+	# one more champion (swapping a common out) goes over the Campeões + Lendárias cap
+	base["lord_of_the_shadowflame"] = 2
+	base["salamandra"] = 2
+	check(not DeckDB.validate_cards(leader, base).filter(func(e): return "Campeões + Lendárias" in e).is_empty(), "21 campeões é ilegal")
+	# legendary default is 2 copies
+	_tcard("t_lenda", 1, 1, [])
+	CardDB.card("t_lenda")["rarity"] = "legendary"
+	var lenda_deck: Dictionary = {"t_lenda": 3}
+	check(not DeckDB.validate_cards(leader, lenda_deck).filter(func(e): return "mais de 2 cópias" in e).is_empty(), "lendária: 3 cópias é ilegal")
+	lenda_deck["t_lenda"] = 2
+	check(DeckDB.validate_cards(leader, lenda_deck).filter(func(e): return "t_lenda" in e).is_empty(), "lendária: 2 cópias é legal")
 
 func _test_rusco() -> void:
 	var r := CardDB.card("rusco")
