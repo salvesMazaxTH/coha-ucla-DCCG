@@ -60,6 +60,7 @@ var rng := RandomNumberGenerator.new()
 var _next_uid := 1
 var _events: Array = []
 var _trigger_depth := 0
+var _bus: TriggerBus ## built on first use (RemoteState never runs GameState._init)
 const EVENT_CAP := 300 ## events one action may produce before triggers/effects stop resolving
 ## Cards played from hand while they wait on the stack (uid -> Card); stack items themselves stay plain dicts.
 var _stack_cards: Dictionary = {}
@@ -72,6 +73,12 @@ func _init(deck_a: String, deck_b: String, seed_value: int = 0, first_player: in
 	for i in 2:
 		_draw(i, START_HAND)
 	_events.clear()
+
+## Delivers GameEvents to the cards that react to them (own triggers and "listen").
+func bus() -> TriggerBus:
+	if _bus == null:
+		_bus = TriggerBus.new(self)
+	return _bus
 
 func _make_player(i: int, deck_id: String) -> Dictionary:
 	var d := DeckDB.get_deck(deck_id)
@@ -149,9 +156,13 @@ func find_unit(uid: int) -> Card:
 ## Moves a card to another zone (the caller takes it out of its old array and puts it in the new one).
 ## The single place a card changes zone, so later "goes to the graveyard" hooks live here.
 func _move(c: Card, to_zone: String) -> void:
+	var from_zone := c.zone
 	c.zone = to_zone
 	if to_zone != "hand":
 		c.discount = 0
+	var moved := GameEvent.new("card_moved", c.owner, c)
+	moved.data = {"from": from_zone, "to": to_zone}
+	bus().emit(moved)
 
 func card_of(c: Card) -> Dictionary:
 	return c.data()
@@ -1146,27 +1157,11 @@ func _announce(c: Card, effects: Array, trigger: String) -> void:
 
 ## Fires a unit's own trigger. Depth-capped so on_damaged chains cannot loop forever.
 func _fire(c: Card, trigger: String, other_uid: int = 0) -> void:
-	if c == null or _trigger_depth >= 4 or _chain_stopped():
+	if c == null:
 		return
-	var effects: Array = []
-	var used: Dictionary = c.used_turn
-	var all_effects: Array = c.data()["effects"]
-	for i in all_effects.size():
-		var e: Dictionary = all_effects[i]
-		if e.get("trigger", "") == trigger and _combat_damage and e.get("not_in_combat", false):
-			continue
-		if e.get("trigger", "") == trigger and e.get("once_per_turn", false):
-			if used.get(i, -1) == turn:
-				continue # "once per turn" effect already used this turn
-			used[i] = turn
-		effects.append(e)
-	_announce(c, effects, trigger)
-	_trigger_depth += 1
-	var fire_context := EffectContext.new(self, c.owner, trigger)
-	fire_context.self_uid = c.uid
-	fire_context.other_uid = other_uid
-	_run_effects(fire_context, effects)
-	_trigger_depth -= 1
+	var event := GameEvent.new(trigger, c.owner, c)
+	event.other_uid = other_uid
+	bus().emit(event)
 
 ## Gatilhos (cards.json "triggers"): on_play, on_enter, on_death, on_attack, on_block,
 ## on_blocked, on_damaged, on_hit_leader, on_turn_start, on_turn_end. "constante" never fires
@@ -1180,6 +1175,8 @@ func _run_effects(context: EffectContext, effects: Array) -> void:
 			return
 		if context.trigger != "" and effect.trigger != context.trigger:
 			continue
+		if context.trigger == "" and effect.listen != "":
+			continue # listening effects only run when their event happens
 		if effect.is_static() or effect.action == "cost_reduction":
 			continue
 		if effect.condition != null and not effect.condition.check(context):
@@ -1287,9 +1284,15 @@ func _deal_damage(t: int, amount: int, source: Card) -> int:
 	var src_uid := source.uid if source != null else 0
 	if t < 0:
 		var tp := LEADER_UID.find(t)
+		var hp_before: int = players[tp]["leader_hp"]
 		players[tp]["leader_hp"] -= amount
 		dealt = amount
 		_emit({"type": "damage", "uid": t, "amount": amount, "src": src_uid})
+		var damaged := GameEvent.new("leader_damaged", tp, source)
+		damaged.amount = amount
+		damaged.hp_before = hp_before
+		damaged.hp_after = players[tp]["leader_hp"]
+		bus().emit(damaged)
 		if source != null:
 			_fire(source, "on_hit_leader")
 	else:
@@ -1324,15 +1327,26 @@ func _heal_leader(p: int, amount: int) -> void:
 	var pl: Dictionary = players[p]
 	var healed: int = min(amount, pl["leader_max"] - pl["leader_hp"])
 	if healed > 0:
+		var hp_before: int = pl["leader_hp"]
 		pl["leader_hp"] += healed
 		_emit({"type": "heal", "uid": LEADER_UID[p], "amount": healed})
+		_emit_leader_healed(p, healed, hp_before)
 
 ## Raises the Leader's maximum life and its current life by the same amount (can pass the starting life).
 func _raise_leader_max(p: int, amount: int) -> void:
 	var pl: Dictionary = players[p]
 	pl["leader_max"] += amount
+	var hp_before: int = pl["leader_hp"]
 	pl["leader_hp"] += amount
 	_emit({"type": "heal", "uid": LEADER_UID[p], "amount": amount})
+	_emit_leader_healed(p, amount, hp_before)
+
+func _emit_leader_healed(p: int, amount: int, hp_before: int) -> void:
+	var healed := GameEvent.new("leader_healed", p)
+	healed.amount = amount
+	healed.hp_before = hp_before
+	healed.hp_after = players[p]["leader_hp"]
+	bus().emit(healed)
 
 ## Fadiga: damage of the next draw from an empty deck. Doubles each time: 2, 4, 8, 16…
 func fatigue_next(p: int) -> int:

@@ -10,6 +10,8 @@ var _effects: Array = [] ## parsed lazily, so every class is loaded before the f
 var _effects_parsed := false
 var _activated_effects: Array = []
 var _activated_parsed := false
+var _listeners: Array = []
+var _listeners_parsed := false
 
 func _init(card_id: String, data: Dictionary) -> void:
 	id = card_id
@@ -21,6 +23,15 @@ func effects() -> Array:
 		_effects = EffectRegistry.parse_list(raw.get("effects", []))
 		_effects_parsed = true
 	return _effects
+
+## Only the effects that "listen" to a game event (see TriggerBus).
+func listeners() -> Array:
+	if not _listeners_parsed:
+		for effect: Effect in effects():
+			if effect.listen != "":
+				_listeners.append(effect)
+		_listeners_parsed = true
+	return _listeners
 
 ## The effects of the card's "activated" ability (empty when it has none).
 func activated_effects() -> Array:

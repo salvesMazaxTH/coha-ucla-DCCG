@@ -15,6 +15,8 @@ static func parse(value: Variant) -> Condition:
 		if value.has("any"): return GroupCondition.new("any", _parse_each(value["any"]))
 		if value.has("not"): return GroupCondition.new("not", [_parse_or_true(value["not"])])
 		if value.has("compare"): return CompareCondition.new(value["compare"])
+		if value.has("crossed_below"): return CrossedCondition.new(true, value["crossed_below"])
+		if value.has("crossed_above"): return CrossedCondition.new(false, value["crossed_above"])
 	return Condition.new()
 
 ## The problem with an "if" value, or "" when it is valid (checked when the catalog loads).
@@ -35,6 +37,8 @@ static func error_of(value: Variant) -> String:
 				return error_of(value["not"])
 			"compare":
 				return CompareCondition.error_of(value["compare"])
+			"crossed_below", "crossed_above":
+				return CrossedCondition.error_of(value[key])
 	return "if desconhecido \"%s\"" % str(value)
 
 static func _parse_each(values: Variant) -> Array:

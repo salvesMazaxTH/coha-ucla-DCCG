@@ -16,6 +16,15 @@ var condition: Condition = null ## the optional "if"; null = always runs
 var uses_second_pick := false ## "pick2": hits the card's second pick instead of the first
 var once_per_turn := false ## "once_per_turn": the trigger works once per turn per unit
 var not_in_combat := false ## "not_in_combat": the trigger is ignored during combat damage
+## "listen": the effect reacts to a game event from anywhere (see TriggerBus). Its `trigger` then
+## becomes LISTEN_PREFIX + the event name, so no ordinary trigger ever matches it.
+var listen := ""
+var scope := "any" ## listen only: self | ally | enemy | any, relative to the card that listens
+var zones: Array = ["board"] ## listen only: where the card must be ("any" = every zone)
+var when: Dictionary = {} ## listen only: facts the event must have, e.g. {"to": "graveyard"}
+
+const LISTEN_PREFIX := "listen_"
+const SCOPES := ["self", "ally", "enemy", "any"]
 
 ## Fills the shared fields, then lets the subclass read its own parameters.
 func setup(data: Dictionary) -> void:
@@ -28,11 +37,22 @@ func setup(data: Dictionary) -> void:
 	uses_second_pick = bool(data.get("pick2", false))
 	once_per_turn = bool(data.get("once_per_turn", false))
 	not_in_combat = bool(data.get("not_in_combat", false))
+	if data.has("listen"):
+		listen = String(data["listen"])
+		trigger = LISTEN_PREFIX + listen
+		scope = String(data.get("scope", "any"))
+		var zone_list: Variant = data.get("zones", ["board"])
+		zones = TriggerBus.ZONES.duplicate() if zone_list is String else zone_list
+		when = data.get("when", {})
 	_read_parameters(data)
 
 ## Subclasses copy their JSON parameters (amount, atk, keywords...) into fields here.
 func _read_parameters(_data: Dictionary) -> void:
 	pass
+
+## True when a card in `zone` should hear this listening effect.
+func listens_in(zone: String) -> bool:
+	return zone in zones
 
 ## Static effects never run from a trigger: "constante" ones are read by the scaling code and
 ## cost reductions by the cost code.

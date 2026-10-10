@@ -13,6 +13,7 @@ var chosen_target := 0 ## the target picked when the card was played
 var second_target := 0 ## the second pick ("pick"/"pick2", e.g. the damage target of a sacrifice spell)
 var dying_card: Card = null ## the unit whose Ao Morrer is resolving (for summon "self" and revive_self)
 var sacrificed_attack := 0 ## total attack of the unit a "sacrifice" just killed (read by its "then" effects)
+var event: GameEvent = null ## the event that made a listening card react (null for plain triggers)
 var milled_cards: Array = [] ## cards the latest mill of this run sent to the graveyard (offered by mill_pick)
 
 func _init(game_state: GameState, controller_player: int, trigger_name: String = "") -> void:

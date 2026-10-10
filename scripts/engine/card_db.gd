@@ -144,10 +144,31 @@ static func _validate_effects(err: Callable, effects: Array) -> void:
 static func _check_trigger_if(err: Callable, e: Dictionary) -> void:
 	if e.has("trigger") and not _data["triggers"].has(e["trigger"]):
 		err.call("trigger desconhecido \"%s\"" % e["trigger"])
+	if e.has("listen"):
+		_check_listen(err, e)
 	if e.has("if"):
 		var problem := ConditionRegistry.error_of(e["if"])
 		if problem != "":
 			err.call(problem)
+
+## The "listen" form: {"listen": event, "scope": ..., "zones": [...] | "any", "when": {...}}.
+static func _check_listen(err: Callable, e: Dictionary) -> void:
+	if e.has("trigger"):
+		err.call("efeito com \"listen\" não pode ter \"trigger\"")
+	if e["listen"] not in GameEvent.LISTENABLE:
+		err.call("listen desconhecido \"%s\"" % e["listen"])
+	if e.get("scope", "any") not in Effect.SCOPES:
+		err.call("scope desconhecido \"%s\"" % e["scope"])
+	var zones: Variant = e.get("zones", ["board"])
+	if zones is String:
+		if zones != "any":
+			err.call("zones texto só aceita \"any\", não \"%s\"" % zones)
+	elif zones is Array:
+		for zone in zones:
+			if zone not in TriggerBus.ZONES:
+				err.call("zona desconhecida \"%s\"" % zone)
+	if not e.get("when", {}) is Dictionary:
+		err.call("when precisa ser um objeto")
 
 static func card(id: String) -> Dictionary:
 	return data()["cards"][id]

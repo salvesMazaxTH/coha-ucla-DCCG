@@ -32,6 +32,7 @@ func _init() -> void:
 	_test_ban()
 	_test_combat()
 	_test_triggers()
+	_test_listeners()
 	_test_stack()
 	_test_summon_window()
 	_test_leader_cycle()
@@ -1111,6 +1112,45 @@ func _quiet(g: GameState) -> void:
 func _tcard(id: String, atk: int, hp: int, effects: Array) -> void:
 	CardDB.data()["cards"][id] = {"name": id, "type": "unit", "rarity": "common", "essence": "neutra", "cost": 1,
 		"atk": atk, "hp": hp, "keywords": [], "art": "", "effects": effects, "text": "", "flavor": "", "tags": []}
+
+## "listen": a card reacting to an event from anywhere, written only in JSON.
+## Fixture: when the enemy Leader falls below 12 life and I control 4+ units, 3 damage to all enemy units.
+func _test_listeners() -> void:
+	_tcard("t_cross", 1, 9, [{"listen": "leader_damaged", "scope": "enemy",
+		"if": {"all": [{"crossed_below": {"who": "enemy", "value": 12}},
+			{"compare": {"stat": "units", "who": "self", "op": ">=", "value": 4}}]},
+		"action": "damage", "target": "all_enemy_units", "amount": 3}])
+	_tcard("t_tough", 1, 9, [])
+	var g := _new_game()
+	_put(g, 0, "t_cross")
+	for i in 3:
+		_put(g, 0, "t_tough")
+	var victim := _put(g, 1, "t_tough")
+	g.players[1]["leader_hp"] = 14
+	g._deal_damage(GameState.LEADER_UID[1], 1, null)
+	check(g.find_unit(victim.uid).damage == 0, "listen: 13 life has not crossed 12 yet")
+	g._deal_damage(GameState.LEADER_UID[1], 3, null)
+	check(g.find_unit(victim.uid).damage == 3, "listen: crossing below 12 with 4 units hits all enemy units")
+	g._deal_damage(GameState.LEADER_UID[1], 1, null)
+	check(g.find_unit(victim.uid).damage == 3, "listen: fires once, not while the life stays below")
+
+	g = _new_game()
+	_put(g, 0, "t_cross")
+	for i in 2:
+		_put(g, 0, "t_tough") # only 3 units
+	victim = _put(g, 1, "t_tough")
+	g.players[1]["leader_hp"] = 14
+	g._deal_damage(GameState.LEADER_UID[1], 3, null)
+	check(g.find_unit(victim.uid).damage == 0, "listen: the if (4+ units) is not met with 3")
+
+	g = _new_game()
+	_put(g, 1, "t_cross") # the enemy owns it: scope "enemy" means the card's own Leader does not count
+	for i in 3:
+		_put(g, 1, "t_tough")
+	victim = _put(g, 0, "t_tough")
+	g.players[1]["leader_hp"] = 14
+	g._deal_damage(GameState.LEADER_UID[1], 3, null)
+	check(g.find_unit(victim.uid).damage == 0, "listen: scope enemy ignores its own Leader")
 
 func _test_triggers() -> void:
 	_tcard("t_atk", 1, 5, [{"trigger": "on_attack", "action": "damage", "target": "enemy_leader", "amount": 2}])
