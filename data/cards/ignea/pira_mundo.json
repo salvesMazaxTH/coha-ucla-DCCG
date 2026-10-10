@@ -5,6 +5,7 @@
   "essence": "ignea",
   "cost": 7,
   "speed": "lento",
+  "art": "ignea/pira_mundo.webp",
   "effects": [
     {
       "trigger": "on_play",

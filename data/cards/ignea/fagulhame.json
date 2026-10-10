@@ -5,6 +5,7 @@
   "essence": "ignea",
   "cost": 2,
   "speed": "rapido",
+  "art": "ignea/fagulhame.webp",
   "effects": [
     {
       "trigger": "on_play",

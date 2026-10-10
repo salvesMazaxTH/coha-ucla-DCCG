@@ -5,6 +5,7 @@
   "essence": "ignea",
   "cost": 5,
   "speed": "rapido",
+  "art": "ignea/reduzir_a_cinzas.webp",
   "effects": [
     {
       "trigger": "on_play",
