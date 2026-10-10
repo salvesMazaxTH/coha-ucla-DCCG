@@ -153,6 +153,15 @@ func find_unit(uid: int) -> Card:
 				return c
 	return null
 
+## The card with this uid in any zone of either player (board, hand, deck, graveyard, banished), or null.
+func find_card(uid: int) -> Card:
+	for p in players:
+		for zone in TriggerBus.ZONES:
+			for c: Card in p[zone]:
+				if c.uid == uid:
+					return c
+	return null
+
 ## Moves a card to another zone (the caller takes it out of its old array and puts it in the new one).
 ## The single place a card changes zone, so later "goes to the graveyard" hooks live here.
 func _move(c: Card, to_zone: String) -> void:
@@ -304,19 +313,20 @@ func enter_spec(cd: Dictionary) -> String:
 
 ## Momentum cost of a card for player p, after its cost_reduction effects (no trigger: they apply
 ## wherever the card is, not only on the board, so they are not "Constante")
-## (e.g. per: "own_graveyard" = 1 less for each card in the own graveyard; "saved_momentum" =
+## (e.g. per: "saved_momentum" =
 ## per Momentum that leaked past the Reserva by the start of the owner's turns, over the whole game; "idle_turns" =
 ## per owner turn that started with Momentum leaking past the Reserva; "unspent_momentum" = a flat "amount" off when
 ## at least "threshold" plain Momentum was left over from the previous turn). Never below 0, or below the effect's "min_cost".
 func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 	var c := int(cd["cost"]) - (card.discount if card != null else 0) # per-copy discount (Tecnomante); stacks with cost_reduction, same "min_cost" floor
+	if card != null:
+		c += card.cost_mod # permanent per-copy change (modify_cost), kept in every zone
 	var floor_cost := 0
 	for e in cd.get("effects", []):
 		if e.get("action", "") != "cost_reduction":
 			continue
 		var n := 0
 		match e.get("per", ""):
-			"own_graveyard": n = players[p]["graveyard"].size()
 			"saved_momentum": n = int(players[p]["saved_momentum"])
 			"idle_turns": n = int(players[p]["idle_turns"])
 			"unspent_momentum": n = 1 if int(players[p]["unspent"]) >= int(e.get("threshold", 1)) else 0

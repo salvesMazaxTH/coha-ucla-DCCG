@@ -13,12 +13,16 @@
   "art": "obscura/a_vagante_sombria.webp",
   "effects": [
     {
-      "action": "cost_reduction",
-      "per": "own_graveyard",
-      "amount": 1
+      "listen": "card_moved",
+      "scope": "ally",
+      "zones": "any",
+      "when": {"to": "graveyard"},
+      "action": "modify_cost",
+      "target": "self_card",
+      "amount": -1
     }
   ],
-  "text": "Custa 1 a menos para cada carta no seu cemitério.",
+  "text": "Sempre que uma carta sua for para o cemitério, reduza o meu custo em (1), onde quer que eu esteja.",
   "flavor": "Ninguém a convocou. Ela só veio buscar o que já é dela.",
   "tags": []
 }

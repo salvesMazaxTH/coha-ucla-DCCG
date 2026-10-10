@@ -558,17 +558,33 @@ func _test_obscura_rules() -> void:
 	_kill(j2, e1)
 	check(j2.players[1]["leader_hp"] == jf2 and not j2.players[0]["passive_used"], "aliado inimigo morrendo não ativa a passiva")
 
-	# Vagante Sombria: cost drops with the own graveyard, indestructible
+	# Vagante Sombria: each card of yours sent to the graveyard makes her 1 cheaper wherever she is; indestructible
 	var v := _obscura_game()
 	var vag: Dictionary = CardDB.card("a_vagante_sombria")
-	check(v.cost_of(0, vag) == 12, "vagante custa 12 com cemitério vazio")
+	var vag_hand := v.find_card(_give(v, 0, "a_vagante_sombria"))
+	var vag_deck := Card.new(v._uid(), "a_vagante_sombria", 0, "deck")
+	v.players[0]["deck"].append(vag_deck)
+	check(v.cost_of(0, vag, vag_hand) == 12, "vagante custa 12 com cemitério vazio")
 	for i in 5:
-		v.players[0]["graveyard"].append(Card.new(v._uid(), "esqueleto_guerreiro", 0, "graveyard"))
-	check(v.cost_of(0, vag) == 7, "vagante custa 1 a menos por carta no cemitério")
+		var dead := Card.new(v._uid(), "esqueleto_guerreiro", 0, "board")
+		v.players[0]["graveyard"].append(dead)
+		v._move(dead, "graveyard")
+	check(v.cost_of(0, vag, vag_hand) == 7, "vagante na mão custa 1 a menos por carta sua que foi ao cemitério")
+	check(v.cost_of(0, vag, vag_deck) == 7, "vagante no deck também baixa o custo")
 	for i in 20:
-		v.players[0]["graveyard"].append(Card.new(v._uid(), "cova_rasa", 0, "graveyard"))
-	check(v.cost_of(0, vag) == 0, "custo nunca fica abaixo de 0")
-	check(v.cost_of(1, vag) == 12, "cemitério inimigo não reduz")
+		var dead2 := Card.new(v._uid(), "cova_rasa", 0, "board")
+		v.players[0]["graveyard"].append(dead2)
+		v._move(dead2, "graveyard")
+	check(v.cost_of(0, vag, vag_hand) == 0, "custo nunca fica abaixo de 0")
+	var enemy_dead := Card.new(v._uid(), "esqueleto_guerreiro", 1, "board")
+	v.players[1]["graveyard"].append(enemy_dead)
+	v._move(enemy_dead, "graveyard")
+	var fresh_copy := Card.new(v._uid(), "a_vagante_sombria", 1, "hand")
+	check(v.cost_of(1, vag, fresh_copy) == 12, "carta do inimigo no cemitério não reduz")
+	var late := _obscura_game()
+	late.players[0]["graveyard"].append(Card.new(late._uid(), "esqueleto_guerreiro", 0, "graveyard"))
+	check(late.cost_of(0, vag, late.find_card(_give(late, 0, "a_vagante_sombria"))) == 12, "cartas que já estavam no cemitério não contam")
+	check(Card.from_dict(vag_hand.to_dict(), "hand", 0).cost_mod == vag_hand.cost_mod, "cost_mod sobrevive à rede")
 	var vc := _put(v, 0, "a_vagante_sombria")
 	v._apply_effect(1, {"action": "damage", "target": "any", "amount": 99}, vc.uid)
 	check(not v.find_unit(vc.uid) == null and vc.damage == 0, "vagante ignora dano")
@@ -1622,15 +1638,12 @@ func atk_ok(g: GameState, c: Card, atk: int, hp: int) -> bool:
 
 func _test_custo_e_contagem() -> void:
 	# cost reductions aren't "Constante" (they work off the board) and still apply
-	for id in ["a_vagante_sombria", "voltexz", "fulgurvoltz"]:
+	for id in ["voltexz", "fulgurvoltz"]:
 		for e in CardDB.card(id)["effects"]:
 			if e["action"] == "cost_reduction":
 				check(e.get("trigger", "") == "" and not str(CardDB.card(id)["text"]).begins_with("Constante"), "%s: redução de custo não é Constante" % id)
 	var g := _new_game()
 	var vag: Dictionary = CardDB.card("a_vagante_sombria")
-	var base: int = g.cost_of(0, vag)
-	g.players[0]["graveyard"].append(Card.new(g._uid(), "esqueleto_guerreiro", 0, "graveyard"))
-	check(g.cost_of(0, vag) == base - 1, "vagante: ainda custa 1 a menos por carta no cemitério")
 	# Jeff: text counts own unit cards in the graveyard
 	var jeff: Dictionary = CardDB.card("jeff")
 	check(g.scale_count(0, jeff) == g.graveyard_units(0), "jeff: contagem do texto = unidades no cemitério")

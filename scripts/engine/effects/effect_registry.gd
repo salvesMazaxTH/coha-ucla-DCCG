@@ -25,6 +25,7 @@ static var ACTIONS: Dictionary = {
 	"gain_momentum": GainMomentumEffect,
 	"buff": BuffEffect,
 	"counter": CounterEffect,
+	"modify_cost": ModifyCostEffect,
 	"cost_reduction": StaticEffect,
 	"scale": StaticEffect,
 }

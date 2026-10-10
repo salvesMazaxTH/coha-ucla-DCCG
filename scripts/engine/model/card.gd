@@ -10,6 +10,7 @@ var card_id: String
 var owner: int
 var zone := "" ## "deck" / "hand" / "board" / "graveyard" / "banished" / "stack" / "equipped" / ""
 var discount := 0 ## costs this much less while it stays in hand (Tecnomante); cleared when it leaves the hand
+var cost_mod := 0 ## added to the cost in every zone and never reset (A Vagante Sombria: -1 per card of yours sent to the graveyard)
 var over: Dictionary = {} ## per-instance overrides of the card data (atk, hp, keywords, effects, text...)
 
 # board state
@@ -102,6 +103,8 @@ func to_dict() -> Dictionary:
 	var d := {"uid": uid, "card_id": card_id}
 	if zone == "hand" and discount > 0:
 		d["discount"] = discount
+	if cost_mod != 0:
+		d["cost_mod"] = cost_mod
 	if zone != "board":
 		return d
 	d.merge({
@@ -134,6 +137,7 @@ func to_dict() -> Dictionary:
 static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card:
 	var c := Card.new(int(d["uid"]), String(d["card_id"]), int(d.get("owner", owner_player)), in_zone)
 	c.discount = int(d.get("discount", 0))
+	c.cost_mod = int(d.get("cost_mod", 0))
 	c.over = d.get("over", {})
 	if in_zone != "board":
 		return c
