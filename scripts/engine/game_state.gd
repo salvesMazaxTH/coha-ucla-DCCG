@@ -287,10 +287,13 @@ func target_spec(effects: Array) -> String:
 ## Second target a card needs on top of its first (e.g. the damage target after the sacrifice), or "".
 ## Declared on a "then" effect with "pick": true, or on a top-level effect with "pick2": true
 ## (Relâmpagos Gêmeos; "same_target_ok" on the card lets both picks be the same target).
+## A "fight" effect names its second unit with "second_target" instead.
 func second_spec(cd: Dictionary) -> String:
 	for e in cd.get("effects", []):
 		if e.get("pick2", false):
 			return e["target"]
+		if e.has("second_target"):
+			return e["second_target"]
 		for t in e.get("then", []):
 			if t.get("pick", false):
 				return t["target"]
@@ -576,12 +579,12 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 	_emit(play_event)
 	if sacrifice:
 		# additional cost: the chosen ally dies first (its Ao Morrer / Aliado Morre resolve before the card enters)
-		find_unit(target).damage = 1000000
-		_emit({"type": "sacrifice", "player": p, "uid": target})
-		_check_state()
 		var sacrificed_index: int = pl["board"].find(find_unit(target))
 		if sacrificed_index >= 0 and sacrificed_index < slot:
 			slot -= 1 # the slot was picked with the sacrificed unit still on the board
+		find_unit(target).damage = 1000000
+		_emit({"type": "sacrifice", "player": p, "uid": target})
+		_check_state()
 		if phase == "over":
 			return _flush()
 		if pl["board"].size() >= BOARD_LIMIT: # a death effect refilled the slot

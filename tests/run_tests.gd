@@ -28,6 +28,7 @@ func _init() -> void:
 	_test_obscura_rules()
 	_test_eletrica()
 	_test_intimidacao()
+	_test_play_slot()
 	_test_custo_e_contagem()
 	_test_ban()
 	_test_combat()
@@ -40,6 +41,8 @@ func _init() -> void:
 	_test_legendary_retire()
 	_test_fatigue()
 	_test_counter()
+	_test_fight()
+	_test_conditional_counter()
 	_test_reserve()
 	_test_damage_window()
 	_test_strike_order()
@@ -823,6 +826,73 @@ func _test_reserve() -> void:
 	check(g2.can_use_ability(q), "reserva paga habilidade do líder")
 	g2.use_ability(q, GameState.LEADER_UID[1 - q])
 	check(g2.players[q]["reserve"] == 0, "habilidade gasta a reserva")
+
+## "fight" (Arena Tectônica): ally and enemy hit each other at the same time, outside combat.
+func _test_fight() -> void:
+	_tcard("t_fighter", 4, 6, [])
+	_tcard("t_target", 2, 3, [])
+	var g := _new_game()
+	g.players[0]["momentum"] = 9
+	var ally := _put(g, 0, "t_fighter")
+	var foe := _put(g, 1, "t_target")
+	g.play_card(0, _give(g, 0, "arena_tectonica"), ally.uid, foe.uid)
+	g.pass_priority(1)
+	check(g.find_unit(foe.uid) == null, "luta: o inimigo toma o Ataque do aliado e morre")
+	check(ally.damage == 2, "luta: o aliado toma o Ataque do inimigo ao mesmo tempo (%d)" % ally.damage)
+
+	# Armadura reduces fight damage like any other damage
+	g = _new_game()
+	g.players[0]["momentum"] = 9
+	var wall := _put(g, 0, "bastionario_de_basalto") # 1/5, Armadura adjacente só para vizinhos
+	var big := _put(g, 1, "t_fighter")
+	wall.armor += 3
+	g.play_card(0, _give(g, 0, "arena_tectonica"), wall.uid, big.uid)
+	g.pass_priority(1)
+	check(wall.damage == 1 and big.damage == 1, "luta: Armadura reduz o dano (parede %d, inimigo %d)" % [wall.damage, big.damage])
+
+	# Escudo de Feitiço on the enemy cancels the whole fight
+	g = _new_game()
+	g.players[0]["momentum"] = 9
+	ally = _put(g, 0, "t_fighter")
+	foe = _put(g, 1, "t_target")
+	foe.spell_shield = true
+	g.play_card(0, _give(g, 0, "arena_tectonica"), ally.uid, foe.uid)
+	g.pass_priority(1)
+	check(not foe.spell_shield and foe.damage == 0 and ally.damage == 0, "luta: Escudo de Feitiço cancela a luta inteira")
+
+	# The AI only picks a fight its unit wins and survives
+	g = _new_game()
+	_put(g, 0, "t_target")
+	_put(g, 1, "t_fighter")
+	check(SimpleAI._pick_fight(g, 0).is_empty(), "IA não escolhe luta que perde")
+	g = _new_game()
+	_put(g, 0, "t_fighter")
+	_put(g, 1, "t_target")
+	check(SimpleAI._pick_fight(g, 0).size() == 2, "IA escolhe luta que ganha")
+
+## Muralha Cara-de-Pedra: only answers a spell that targets one of the caster's opponent's units or Leader.
+func _test_conditional_counter() -> void:
+	_tspell("t_aoe", "lento", [{"trigger": "on_play", "action": "damage", "target": "all_enemy_units", "amount": 1}])
+	var g := _new_game()
+	g.players[0]["momentum"] = 9
+	g.players[1]["momentum"] = 9
+	var wall_card := CardDB.card("muralha_cara_de_pedra")
+	g.play_card(0, _give(g, 0, "t_aoe"), 0)
+	check(g.card_targets(1, wall_card).is_empty(), "Muralha não anula efeito em área")
+	g = _new_game()
+	g.players[0]["momentum"] = 9
+	g.players[1]["momentum"] = 9
+	g.play_card(0, _give(g, 0, "bola_de_fogo"), GameState.LEADER_UID[1])
+	check(g.card_targets(1, wall_card).size() == 1, "Muralha anula feitiço que mira o Líder aliado")
+	g = _new_game()
+	g.players[0]["momentum"] = 9
+	g.players[1]["momentum"] = 9
+	var mine := _put(g, 1, "kai")
+	g.play_card(0, _give(g, 0, "bola_de_fogo"), mine.uid)
+	check(g.card_targets(1, wall_card).size() == 1, "Muralha anula feitiço que mira unidade aliada")
+	g.play_card(1, _give(g, 1, "muralha_cara_de_pedra"), g.stack[0]["sid"])
+	g.pass_priority(0)
+	check(g.stack.is_empty() and mine.damage == 0, "Muralha anula o feitiço")
 
 func _test_counter() -> void:
 	# Negação de Neraqa: cost-3 spell is in base reach (no extra)
@@ -1898,3 +1968,27 @@ func _test_dud() -> void:
 	g.players[0]["graveyard"].append(Card.new(9999, "t_s_att", 0, "graveyard"))
 	check(not g.is_dud(0, cd), "com uma unidade barata no cemitério o feitiço tem efeito")
 	check(not g.is_dud(0, CardDB.card("t_s_att")) , "unidade nunca é considerada inútil")
+
+## Units can enter the board at any position (Hearthstone style), not only on the right edge.
+func _test_play_slot() -> void:
+	_tcard("t_slot", 1, 1, [])
+	var g := _new_game()
+	_quiet(g)
+	var a := _put(g, 0, "t_slot")
+	var b := _put(g, 0, "t_slot")
+	g.players[0]["momentum"] = 5
+	var left := _give(g, 0, "t_slot")
+	check(not g.play_card(0, left, 0, 0, 0).is_empty(), "slot: jogar na esquerda é permitido")
+	var uids: Array = g.players[0]["board"].map(func(c: Card): return c.uid)
+	check(uids == [left, a.uid, b.uid], "slot 0 entra na ponta esquerda: %s" % [uids])
+	var middle := _give(g, 0, "t_slot")
+	g.play_card(0, middle, 0, 0, 2)
+	uids = g.players[0]["board"].map(func(c: Card): return c.uid)
+	check(uids == [left, a.uid, middle, b.uid], "slot 2 entra no meio: %s" % [uids])
+	var right := _give(g, 0, "t_slot")
+	g.play_card(0, right)
+	uids = g.players[0]["board"].map(func(c: Card): return c.uid)
+	check(uids.back() == right, "sem slot continua entrando na direita")
+	var far := _give(g, 0, "t_slot")
+	g.play_card(0, far, 0, 0, 99)
+	check(g.players[0]["board"].back().uid == far, "slot além do fim vira direita")

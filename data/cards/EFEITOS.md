@@ -22,6 +22,7 @@ Cada ação é uma classe em `scripts/engine/effects/`, registrada em `effect_re
 | `tide_mark` | — | põe a Marca da Maré |
 | `search_deck` / `look_top` | `count`, `shuffle` e filtros | abre escolha com cartas do deck |
 | `freeze` | — | alvo não ataca nem bloqueia até o fim do próximo turno do dono |
+| `fight` | `second_target` | o alvo (1ª escolha) e a unidade de `second_target` (2ª escolha) causam, ao mesmo tempo, dano igual ao Ataque de cada uma à outra. Não é combate; Armadura e Escudo valem, Escudo de Feitiço do inimigo cancela a luta |
 | `summon` | `card` (`"self"` ou id), `overrides` | invoca uma carta |
 | `mill` / `mill_pick` | `amount` | manda cartas do deck ao cemitério |
 | `revive` / `revive_self` | `max_cost`, `atk`, `hp` | volta do cemitério |
@@ -29,7 +30,7 @@ Cada ação é uma classe em `scripts/engine/effects/`, registrada em `effect_re
 | `sacrifice` | `then` (lista de efeitos) | sacrifica; o `then` roda depois |
 | `gain_momentum` | `amount`, `per`, `divisor`, `max`, `next_turn` | ganha Momentum |
 | `buff` | `atk`, `hp`, `temp`, `keywords`, `armor`, `armor_temp`, `per`, `min`, `max`, `cap_atk` | bônus de ataque/vida/palavras-chave |
-| `counter` | — | anula a carta escolhida na pilha |
+| `counter` | `max_cost`, `kicker_cost`, `kicker_max_cost`, `only_if_targets_ally` | anula a carta escolhida na pilha. `only_if_targets_ally: true` só permite anular o que escolheu como alvo uma unidade ou o Líder de quem anula (efeitos em área não contam) |
 | `modify_cost` | `amount` | muda o custo da carta (persiste entre zonas) |
 | `cost_reduction` / `scale` | — | habilidades constantes (sem `target`, nunca disparam) |
 

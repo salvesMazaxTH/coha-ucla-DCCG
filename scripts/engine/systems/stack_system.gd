@@ -28,6 +28,20 @@ func stack_cost(item: Dictionary) -> int:
 		return int(CardDB.card(item["card_id"])["activated"]["cost"])
 	return int(CardDB.card(item["card_id"]).get("cost", 0)) + (GameState.REQUIEM_EXTRA_COST if item.get("requiem", false) else 0)
 
+## True when the stack item's chosen target(s) include a unit or the Leader of the player who
+## would counter it (the opponent of whoever cast it). Area effects choose no target, so they never count.
+func targets_countering_side(item: Dictionary) -> bool:
+	var defender: int = game.opponent(item["player"])
+	for chosen in [int(item["target"]), int(item.get("target2", 0))]:
+		if chosen == 0:
+			continue
+		if chosen == GameState.LEADER_UID[defender]:
+			return true
+		var unit := game.find_unit(chosen)
+		if unit != null and unit.owner == defender:
+			return true
+	return false
+
 ## Extra Momentum a counter (action "counter") must pay to hit stack item `sid`:
 ## 0 up to max_cost, kicker_cost up to kicker_max_cost, -1 when out of reach.
 func counter_extra(cd: Dictionary, sid: int) -> int:
@@ -37,6 +51,8 @@ func counter_extra(cd: Dictionary, sid: int) -> int:
 	for e in cd["effects"]:
 		if e.get("action", "") != "counter":
 			continue
+		if e.get("only_if_targets_ally", false) and not targets_countering_side(it):
+			return -1
 		var c := stack_cost(it)
 		if c <= int(e.get("max_cost", 99)):
 			return 0

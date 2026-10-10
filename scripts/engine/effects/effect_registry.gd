@@ -14,6 +14,7 @@ static var ACTIONS: Dictionary = {
 	"search_deck": DeckEffect,
 	"look_top": DeckEffect,
 	"freeze": FreezeEffect,
+	"fight": FightEffect,
 	"summon": SummonEffect,
 	"mill": MillEffect,
 	"mill_pick": MillEffect,

@@ -85,11 +85,18 @@ static func _try_play(g: GameState, p: int) -> Array:
 			continue
 		var spec := g.card_spec(card_data)
 		var target := _pick_sacrifice(g, p) if card_data.get("cost_sacrifice", false) else _pick_target(g, p, spec, card_data, 0, not is_unit)
-		if spec != "" and target == 0 and not is_unit:
-			continue
 		var spec2 := g.second_spec(card_data)
 		var second_target := 0
-		if spec2 != "":
+		if _has_fight(card_data):
+			# a fight needs a matching pair, not the "biggest" unit of each side
+			var pair := _pick_fight(g, p)
+			if pair.is_empty():
+				continue
+			target = pair[0]
+			second_target = pair[1]
+		elif spec != "" and target == 0 and not is_unit:
+			continue
+		elif spec2 != "":
 			var foe_leader: int = GameState.LEADER_UID[g.opponent(p)]
 			second_target = foe_leader if g.valid_targets(p, spec2).has(foe_leader) else _pick_target(g, p, spec2, card_data, 0, true)
 			if second_target == 0:
@@ -112,6 +119,30 @@ static func _try_play(g: GameState, p: int) -> Array:
 		if ability_spec == "" or target != 0:
 			return g.use_ability(p, target)
 	return []
+
+static func _has_fight(card_data: Dictionary) -> bool:
+	for effect in card_data.get("effects", []):
+		if effect.get("action") == "fight":
+			return true
+	return false
+
+## Best fight for a "fight" spell: an ally that kills an enemy unit and survives the fight.
+## Returns [ally uid, enemy uid], or [] when no fight is worth it. Armadura counts on both sides.
+static func _pick_fight(g: GameState, p: int) -> Array:
+	var best_pair: Array = []
+	var best_score := 0
+	for ally: Card in g.players[p]["board"]:
+		for enemy: Card in g.players[g.opponent(p)]["board"]:
+			var damage_to_enemy := maxi(0, ally.atk_total() - g.armor_of(enemy))
+			var damage_to_ally := maxi(0, enemy.atk_total() - g.armor_of(ally))
+			var kills_enemy := damage_to_enemy >= enemy.hp_left() and not enemy.shield and not enemy.spell_shield
+			var ally_survives := damage_to_ally < ally.hp_left() or ally.shield
+			if kills_enemy and ally_survives:
+				var score := enemy.atk_total() + enemy.hp_left()
+				if score > best_score:
+					best_score = score
+					best_pair = [ally.uid, enemy.uid]
+	return best_pair
 
 ## Additional sacrifice cost: give up the weakest ally.
 static func _pick_sacrifice(g: GameState, p: int) -> int:
