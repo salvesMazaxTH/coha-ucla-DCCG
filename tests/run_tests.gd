@@ -1173,6 +1173,29 @@ func _test_listeners() -> void:
 	g._deal_damage(GameState.LEADER_UID[1], 3, null)
 	check(g.find_unit(victim.uid).damage == 0, "listen: scope enemy ignores its own Leader")
 
+	# the other listenable events: unit_damaged, card_drawn, turn_started, turn_ended
+	_tcard("t_pain", 1, 20, [{"listen": "unit_damaged", "scope": "self",
+		"action": "buff", "target": "self", "atk": 1}])
+	_tcard("t_reader", 1, 9, [{"listen": "card_drawn", "scope": "ally", "zones": "any",
+		"action": "buff", "target": "self", "hp": 1}])
+	_tcard("t_clock", 1, 9, [{"listen": "turn_ended", "scope": "ally",
+		"action": "buff", "target": "self", "atk": 2}])
+	g = _new_game()
+	var hurt := _put(g, 0, "t_pain")
+	g._deal_damage(hurt.uid, 2, null)
+	g._check_state()
+	check(g.find_unit(hurt.uid).atk == 2, "listen: unit_damaged fires for the unit hurt")
+	g = _new_game()
+	var reader := _put(g, 0, "t_reader")
+	g._draw(0, 1)
+	g._draw(1, 1)
+	g._check_state()
+	check(g.find_unit(reader.uid).hp == 10, "listen: card_drawn with scope ally counts only own draws")
+	g = _new_game()
+	var clock := _put(g, 0, "t_clock")
+	g.end_turn(0)
+	check(g.find_unit(clock.uid).atk == 3, "listen: turn_ended fires at the end of its owner's turn")
+
 func _test_triggers() -> void:
 	_tcard("t_atk", 1, 5, [{"trigger": "on_attack", "action": "damage", "target": "enemy_leader", "amount": 2}])
 	_tcard("t_blk", 1, 5, [{"trigger": "on_block", "action": "buff", "target": "self", "atk": 3, "temp": true}])

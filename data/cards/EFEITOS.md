@@ -56,7 +56,7 @@ A condição é checada quando o gatilho acontece **e** de novo na resolução.
 
 **Triggers de unidade** (`"trigger"`, só a própria carta): `on_play`, `on_enter`, `on_death`, `on_attack`, `on_block`, `on_blocked`, `on_damaged`, `on_hit_leader`, `on_turn_start`, `on_turn_end`, `on_ally_death`, `on_activate`, `transform`, `constante`.
 
-**Eventos de escuta** (`"listen"`, de qualquer lugar): `leader_damaged`, `leader_healed`, `card_moved`.
+**Eventos de escuta** (`"listen"`, de qualquer lugar): `leader_damaged`, `leader_healed`, `card_moved`, `unit_damaged` (`scope: self` = a própria unidade; tem `amount`, `hp_before`, `hp_after`), `card_drawn`, `turn_started`, `turn_ended` (nos turnos e compras, `ally` = do dono da carta).
 
 ```json
 {

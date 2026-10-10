@@ -1054,6 +1054,12 @@ func _deal_damage(t: int, amount: int, source: Card) -> int:
 		c.damage += amount
 		dealt = amount
 		_emit({"type": "damage", "uid": t, "amount": amount, "src": src_uid})
+		var unit_hurt := GameEvent.new("unit_damaged", c.owner, c)
+		unit_hurt.other_uid = src_uid
+		unit_hurt.amount = amount
+		unit_hurt.hp_before = c.hp_left() + amount
+		unit_hurt.hp_after = c.hp_left()
+		bus().emit(unit_hurt)
 		# Mar que Retorna: the marked unit survived damage -> its owner draws once
 		if c.tide_mark and c.hp_left() > 0:
 			c.tide_mark = false
@@ -1106,6 +1112,7 @@ func _draw(p: int, n: int) -> void:
 		pl["hand"].append(c)
 		_move(c, "hand")
 		_emit({"type": "draw", "player": p, "uid": c.uid})
+		bus().emit(GameEvent.new("card_drawn", p, c))
 
 ## Draws the first card (from the top) whose base cost is at least `min_base_cost`; that copy costs
 ## `discount` less while it stays in hand (Tecnomante). Nothing happens, and no Fadiga, if none qualifies.
@@ -1119,6 +1126,7 @@ func _draw_discounted(p: int, min_base_cost: int, discount: int) -> void:
 			_move(c, "hand")
 			c.discount += discount
 			_emit({"type": "draw", "player": p, "uid": c.uid})
+			bus().emit(GameEvent.new("card_drawn", p, c))
 			return
 
 ## Stabilizes the game after an action: moves dead units out, then resolves the queued triggers one
@@ -1209,6 +1217,7 @@ func _fire_leader_passive(p: int, trigger: String) -> void:
 	queue_trigger(PendingTrigger.new(null, EffectRegistry.parse_list(ab["effects"]), EffectContext.new(self, p, "")))
 
 func _finish_turn() -> void:
+	bus().emit(GameEvent.new("turn_ended", active))
 	for c in players[active]["board"].duplicate():
 		_fire(c, "on_turn_end")
 	_fire_deck_effects(active, "on_turn_end")
@@ -1269,6 +1278,7 @@ func _start_turn(p: int, draw: bool) -> void:
 		c.exhausted = false
 		c.sick = false
 	_emit({"type": "start_turn", "player": p, "turn": turn})
+	bus().emit(GameEvent.new("turn_started", p))
 	_fire_leader_passive(p, "on_turn_start")
 	for c in pl["board"].duplicate():
 		_fire(c, "on_turn_start")
