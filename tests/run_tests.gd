@@ -45,6 +45,9 @@ func _init() -> void:
 	_test_dud()
 	_test_rusco()
 	_test_sim()
+	for e in CardDB.errors():
+		check(false, e)
+	_test_card_validation()
 	for e in preload("res://tests/golden_replay.gd").compare():
 		check(false, e)
 	print("tests done, failures: ", failures)
@@ -1265,6 +1268,16 @@ func _test_rusco() -> void:
 	g2.play_card(b, ru2["uid"])
 	g2.end_turn(b)
 	check(g2.players[b]["hand"].filter(func(c): return c["card_id"] == "rusco").is_empty(), "rusco: jogado da mão não volta sozinho")
+
+## A typo in a card's JSON is reported on load instead of silently doing nothing.
+func _test_card_validation() -> void:
+	var errs := CardDB.errors()
+	var before := errs.size()
+	CardDB._validate_card("teste", {"name": "x", "type": "unit", "cost": 1, "text": "", "atk": 1, "hp": 1,
+		"keywords": ["vooo"], "effects": [{"trigger": "on_entr", "action": "dammage", "target": "self"},
+		{"trigger": "on_enter", "action": "damage", "target": "inimigo", "if": "sempre"}]})
+	check(errs.size() - before == 5, "validação: keyword, trigger, action, target e if errados (%d)" % (errs.size() - before))
+	errs.resize(before)
 
 func _test_sim() -> void:
 	var wins := [0, 0, 0]

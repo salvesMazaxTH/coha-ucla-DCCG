@@ -3,23 +3,153 @@ extends RefCounted
 ## Static card catalog loaded from data/cards.json and data/cards/<essence>/*.json.
 
 static var _data: Dictionary = {}
+static var _defs: Dictionary = {} ## id -> CardDef
+static var _errors: Array[String] = []
+
+## Effect vocabulary the engine understands (checked on load so a typo is an error, not a silent no-op).
+const ACTIONS := ["damage", "heal_leader", "leader_max_up", "heal_full", "draw", "draw_discounted", "tide_mark",
+	"search_deck", "look_top", "freeze", "summon", "mill", "mill_pick", "revive", "revive_self", "destroy",
+	"banish", "sacrifice", "gain_momentum", "buff", "counter", "cost_reduction", "scale"]
+const STATIC_ACTIONS := ["cost_reduction", "scale"] ## not run by a trigger, so no target
+const DECK_ACTIONS := ["summon_self"]
+const TARGETS := ["enemy_unit", "ally_unit", "other_ally_unit", "any_unit", "any", "enemy_stack",
+	"all_enemy_units", "enemy_leader", "own_leader", "both_leaders", "random_enemy_unit",
+	"random_enemy_and_adjacent", "self", "none", "opposed_unit", "all_units", "all_ally_units",
+	"other_ally_units", "random_ally_unit", "random_other_ally_unit"]
+const CONDITIONS := ["momentum_left", "reserve_full", "played_two"]
+const TYPES := ["unit", "spell", "artifact"]
+const SPEEDS := ["lento", "rapido", "instantaneo"]
 
 static func data() -> Dictionary:
 	if _data.is_empty():
-		var f := FileAccess.open("res://data/cards.json", FileAccess.READ)
-		_data = JSON.parse_string(f.get_as_text())
-		_data["cards"] = {}
-		for essence_id in _data["essences"]:
-			var dir_path: String = "res://data/cards/" + str(essence_id)
-			if not DirAccess.dir_exists_absolute(dir_path):
-				continue
-			for file_name in DirAccess.get_files_at(dir_path):
-				if not file_name.ends_with(".json"):
-					continue
-				var card_file := FileAccess.open(dir_path + "/" + file_name, FileAccess.READ)
-				if card_file:
-					_data["cards"][file_name.trim_suffix(".json")] = JSON.parse_string(card_file.get_as_text())
+		_load()
 	return _data
+
+static func _load() -> void:
+	_errors.clear()
+	_defs.clear()
+	_data = _read_json("res://data/cards.json")
+	if _data.is_empty():
+		_data = {"essences": {}, "triggers": {}, "species": {}, "keywords": {}, "leaders": {}}
+	_data["cards"] = {}
+	for essence_id in _data["essences"]:
+		var dir_path: String = "res://data/cards/" + str(essence_id)
+		if not DirAccess.dir_exists_absolute(dir_path):
+			continue
+		for file_name in DirAccess.get_files_at(dir_path):
+			if not file_name.ends_with(".json"):
+				continue
+			var id := file_name.trim_suffix(".json")
+			var cd := _read_json(dir_path + "/" + file_name)
+			if cd.is_empty():
+				continue
+			_data["cards"][id] = cd
+			_defs[id] = CardDef.new(id, cd)
+	for id in _data["cards"]:
+		_validate_card(id, _data["cards"][id])
+	for lid in _data["leaders"]:
+		_validate_leader(lid, _data["leaders"][lid])
+
+static func _read_json(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		_errors.append("%s: arquivo não encontrado" % path)
+		return {}
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not parsed is Dictionary:
+		_errors.append("%s: JSON inválido" % path)
+		return {}
+	return parsed
+
+## Problems found while loading the catalog (empty when every card is well formed).
+static func errors() -> Array[String]:
+	data()
+	return _errors
+
+static func def(id: String) -> CardDef:
+	data()
+	return _defs[id]
+
+static func _validate_card(id: String, cd: Dictionary) -> void:
+	var err := func(msg: String): _errors.append("carta %s: %s" % [id, msg])
+	for field in ["name", "type", "cost", "text"]:
+		if not cd.has(field):
+			err.call("falta \"%s\"" % field)
+	var type: String = cd.get("type", "")
+	if type not in TYPES:
+		err.call("type desconhecido \"%s\"" % type)
+	if type == "unit":
+		for field in ["atk", "hp"]:
+			if not cd.has(field):
+				err.call("unidade sem \"%s\"" % field)
+	for e in essences_of(cd):
+		if not _data["essences"].has(e):
+			err.call("essência desconhecida \"%s\"" % e)
+	for kw in cd.get("keywords", []):
+		if not _data["keywords"].has(kw):
+			err.call("keyword desconhecida \"%s\"" % kw)
+	for s in cd.get("species", []):
+		if not _data.get("species", {}).has(s):
+			err.call("espécie desconhecida \"%s\"" % s)
+	if cd.has("speed") and cd["speed"] not in SPEEDS:
+		err.call("speed desconhecida \"%s\"" % cd["speed"])
+	if cd.has("transform") and not _data["cards"].has(cd["transform"].get("into", "")):
+		err.call("transform.into inexistente \"%s\"" % cd["transform"].get("into", ""))
+	_validate_effects(err, cd.get("effects", []))
+	if cd.has("activated"):
+		var act: Dictionary = cd["activated"]
+		if not act.has("cost"):
+			err.call("activated sem \"cost\"")
+		if act.has("speed") and act["speed"] not in SPEEDS:
+			err.call("activated.speed desconhecida \"%s\"" % act["speed"])
+		_validate_effects(err, act.get("effects", []))
+	for e in cd.get("deck_effects", []):
+		if e.get("action", "") not in DECK_ACTIONS:
+			err.call("deck_effects: action desconhecida \"%s\"" % e.get("action", ""))
+		_check_trigger_if(err, e)
+
+static func _validate_leader(lid: String, ld: Dictionary) -> void:
+	var err := func(msg: String): _errors.append("líder %s: %s" % [lid, msg])
+	for field in ["name", "hp", "legendary", "ability"]:
+		if not ld.has(field):
+			err.call("falta \"%s\"" % field)
+	if not _data["cards"].has(ld.get("legendary", "")):
+		err.call("legendary inexistente \"%s\"" % ld.get("legendary", ""))
+	for e in ld.get("essences", []):
+		if not _data["essences"].has(e):
+			err.call("essência desconhecida \"%s\"" % e)
+	var ab: Dictionary = ld.get("ability", {})
+	if ab.has("trigger") and not _data["triggers"].has(ab["trigger"]):
+		err.call("ability.trigger desconhecido \"%s\"" % ab["trigger"])
+	if ab.has("speed") and ab["speed"] not in SPEEDS:
+		err.call("ability.speed desconhecida \"%s\"" % ab["speed"])
+	_validate_effects(err, ab.get("effects", []))
+
+static func _validate_effects(err: Callable, effects: Array) -> void:
+	for e in effects:
+		if not e is Dictionary:
+			err.call("efeito não é objeto: %s" % str(e))
+			continue
+		var action: String = e.get("action", "")
+		if action not in ACTIONS:
+			err.call("action desconhecida \"%s\"" % action)
+		if action not in STATIC_ACTIONS:
+			if not e.has("target"):
+				err.call("efeito \"%s\" sem target" % action)
+			elif e["target"] not in TARGETS:
+				err.call("target desconhecido \"%s\"" % e["target"])
+		_check_trigger_if(err, e)
+		for kw in e.get("keywords", []):
+			if not _data["keywords"].has(kw):
+				err.call("keyword desconhecida \"%s\" em efeito" % kw)
+		if action == "summon" and e.get("card", "self") != "self" and not _data["cards"].has(e["card"]):
+			err.call("summon de carta inexistente \"%s\"" % e["card"])
+		_validate_effects(err, e.get("then", []))
+
+static func _check_trigger_if(err: Callable, e: Dictionary) -> void:
+	if e.has("trigger") and not _data["triggers"].has(e["trigger"]):
+		err.call("trigger desconhecido \"%s\"" % e["trigger"])
+	if e.has("if") and e["if"] not in CONDITIONS:
+		err.call("if desconhecido \"%s\"" % e["if"])
 
 static func card(id: String) -> Dictionary:
 	return data()["cards"][id]
