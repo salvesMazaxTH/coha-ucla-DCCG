@@ -1,0 +1,27 @@
+{
+  "name": "Pippa Ziguezague",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "fada"
+  ],
+  "essence": "eletrica",
+  "cost": 2,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [
+    "furtividade"
+  ],
+  "art": "",
+  "effects": [
+    {
+      "trigger": "on_hit_leader",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Atingir o Líder: ganhe +1 Momentum neste turno.",
+  "flavor": "Ninguém bloqueia o que não viu chegar.",
+  "tags": []
+}

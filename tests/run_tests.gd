@@ -1586,37 +1586,61 @@ func _test_custo_e_contagem() -> void:
 	check(g.scale_count(0, vag) == -1, "carta sem escala: -1")
 
 func _test_twin_bolts() -> void:
+	_tcard("t_twin_big", 1, 9, [])
 	var g := _new_game()
 	g.players[0]["momentum"] = 10
-	var foe := _put(g, 1, "serpente_marinha")
-	var lf: int = g.players[1]["leader_hp"]
+	var foe := _put(g, 1, "t_twin_big")
+	var foe2 := _put(g, 1, "t_twin_big")
 	var leader: int = GameState.LEADER_UID[1]
+	var lf: int = g.players[1]["leader_hp"]
+	# units only: the enemy Leader is not a valid target for either bolt
+	var s0 := _give(g, 0, "relampagos_gemeos")
+	check(g.play_card(0, s0, leader, foe.uid).is_empty(), "Relâmpagos Gêmeos não mira o Líder (alvo 1)")
+	check(g.play_card(0, s0, foe.uid, leader).is_empty(), "Relâmpagos Gêmeos não mira o Líder (alvo 2)")
 	# same target twice
 	var s1 := _give(g, 0, "relampagos_gemeos")
-	check(not g.play_card(0, s1, leader, leader).is_empty(), "Relâmpagos Gêmeos aceita o mesmo alvo duas vezes")
+	check(not g.play_card(0, s1, foe.uid, foe.uid).is_empty(), "Relâmpagos Gêmeos aceita a mesma unidade duas vezes")
 	_pass_windows(g)
 	g.pass_priority(1)
 	g._flush()
-	check(g.players[1]["leader_hp"] == lf - 6, "mesmo alvo recebe 3 + 3 de dano")
+	check(g.find_unit(foe.uid).damage == 6, "mesma unidade recebe 3 + 3 de dano")
 	# different targets
 	g.players[0]["momentum"] = 10
 	var s2 := _give(g, 0, "relampagos_gemeos")
-	g.play_card(0, s2, foe.uid, leader)
+	g.play_card(0, s2, foe.uid, foe2.uid)
 	g.pass_priority(1)
 	g._flush()
-	check(g.players[1]["leader_hp"] == lf - 9, "alvo 2 (Líder) recebeu 3 de dano")
-	check(g.find_unit(foe.uid) == null or g.find_unit(foe.uid).damage == 3, "alvo 1 (unidade) recebeu 3 de dano")
+	check(g.find_unit(foe2.uid).damage == 3, "alvo 2 recebeu 3 de dano")
+	check(g.find_unit(foe.uid) == null, "alvo 1 recebeu mais 3 de dano (6 + 3 = morreu)")
+	check(g.players[1]["leader_hp"] == lf, "o Líder inimigo não leva dano")
 	# the first target is gone before it resolves: the second bolt still lands
 	g.players[0]["momentum"] = 10
 	var s3 := _give(g, 0, "relampagos_gemeos")
 	var victim := _put(g, 1, "esqueleto_guerreiro")
-	var lf2: int = g.players[1]["leader_hp"]
-	g.play_card(0, s3, victim.uid, leader)
+	var dmg2: int = g.find_unit(foe2.uid).damage
+	g.play_card(0, s3, victim.uid, foe2.uid)
 	victim.damage = 1000
 	g._check_state()
 	g.pass_priority(1)
 	g._flush()
-	check(g.players[1]["leader_hp"] == lf2 - 3, "alvo 1 sumiu: o segundo raio ainda acerta")
+	check(g.find_unit(foe2.uid).damage == dmg2 + 3, "alvo 1 sumiu: o segundo raio ainda acerta")
+	# Choque Direto: 2 to the face only; Choque de Largada: +1 ATK and Ímpeto until end of turn
+	g.players[0]["momentum"] = 10
+	var cd_card := CardDB.card("choque_direto")
+	check(cd_card["cost"] == 2 and cd_card["speed"] == "rapido", "Choque Direto: custo 2, Rápido")
+	var s4 := _give(g, 0, "choque_direto")
+	var lf3: int = g.players[1]["leader_hp"]
+	g.play_card(0, s4, 0, 0)
+	g.pass_priority(1)
+	g._flush()
+	check(g.players[1]["leader_hp"] == lf3 - 2, "Choque Direto causa 2 ao Líder inimigo")
+	var ally := _put(g, 0, "faisca_viva")
+	var s5 := _give(g, 0, "choque_de_largada")
+	check(CardDB.card("choque_de_largada")["speed"] == "instantaneo" and CardDB.card("choque_de_largada")["cost"] == 1, "Choque de Largada: custo 1, Instantâneo")
+	g.play_card(0, s5, ally.uid, 0)
+	g.pass_priority(1)
+	g._flush()
+	check(ally.atk_total() == 2 and g.has_kw(ally, "impeto"), "Choque de Largada: +1 ATK e Ímpeto")
 	# Diabrete Elétrico: Ímpeto, and Ao Morrer gives next-turn Momentum
 	var d := _put(g, 0, "diabrete_eletrico")
 	check(CardDB.card("diabrete_eletrico")["cost"] <= 1 and "demonio" in CardDB.card("diabrete_eletrico")["species"], "Diabrete Elétrico é barato e Demônio")

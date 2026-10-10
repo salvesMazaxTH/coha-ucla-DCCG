@@ -1,0 +1,24 @@
+{
+  "name": "Choque de Largada",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "eletrica",
+  "cost": 1,
+  "speed": "instantaneo",
+  "art": "",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "atk": 1,
+      "temp": true,
+      "keywords": [
+        "impeto"
+      ]
+    }
+  ],
+  "text": "Uma unidade aliada ganha +1 de Ataque neste turno e Ímpeto.",
+  "flavor": "Pronta? Não. Vai assim mesmo.",
+  "tags": []
+}

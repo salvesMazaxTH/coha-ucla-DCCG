@@ -121,6 +121,7 @@
     "revenante": { "name": "Revenante" },
     "gargoyle": { "name": "Gargoyle" },
     "fada": { "name": "Fada" },
+    "elfo": { "name": "Elfo" },
     "ciclope": { "name": "Ciclope" }
   },
   "keywords": {

@@ -11,18 +11,18 @@
     {
       "trigger": "on_play",
       "action": "damage",
-      "target": "any",
+      "target": "enemy_unit",
       "amount": 3
     },
     {
       "trigger": "on_play",
       "action": "damage",
-      "target": "any",
+      "target": "enemy_unit",
       "pick2": true,
       "amount": 3
     }
   ],
-  "text": "Cause 3 de dano a um alvo e 3 de dano a um alvo (pode ser o mesmo ou outro).",
+  "text": "Cause 3 de dano a uma unidade inimiga e 3 de dano a uma unidade inimiga (pode ser a mesma ou outra).",
   "flavor": "",
   "tags": []
 }
