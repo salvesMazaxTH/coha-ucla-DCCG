@@ -13,10 +13,10 @@
       "trigger": "on_block",
       "action": "buff",
       "target": "self",
-      "armor_temp": 1
+      "armor": 1
     }
   ],
-  "text": "Ao Bloquear: ganha Armadura 1 até o início do seu próximo turno.",
+  "text": "Ao Bloquear: ganha Armadura 1 permanente.",
   "flavor": "",
   "tags": []
 }

@@ -13,10 +13,10 @@
       "trigger": "on_turn_start",
       "action": "buff",
       "target": "random_other_ally_unit",
-      "armor_temp": 1
+      "armor": 1
     }
   ],
-  "text": "No início do seu turno, outra unidade aliada aleatória ganha Armadura 1 até o início do seu próximo turno.",
+  "text": "No início do seu turno, outra unidade aliada aleatória ganha Armadura 1 permanente.",
   "flavor": "",
   "tags": []
 }

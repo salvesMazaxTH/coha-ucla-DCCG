@@ -10,10 +10,10 @@
       "trigger": "on_play",
       "action": "buff",
       "target": "ally_unit",
-      "armor_temp": 1
+      "armor": 1
     }
   ],
-  "text": "Rápida. Uma unidade aliada ganha Armadura 1 até o início do seu próximo turno.",
+  "text": "Uma unidade aliada ganha Armadura 1 permanente.",
   "flavor": "",
   "tags": []
 }
