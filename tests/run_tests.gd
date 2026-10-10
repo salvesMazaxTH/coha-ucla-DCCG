@@ -569,12 +569,14 @@ func _test_obscura_rules() -> void:
 		var dead := Card.new(v._uid(), "esqueleto_guerreiro", 0, "board")
 		v.players[0]["graveyard"].append(dead)
 		v._move(dead, "graveyard")
+	v._check_state() # the listeners were queued by the moves; resolve them
 	check(v.cost_of(0, vag, vag_hand) == 7, "vagante na mão custa 1 a menos por carta sua que foi ao cemitério")
 	check(v.cost_of(0, vag, vag_deck) == 7, "vagante no deck também baixa o custo")
 	for i in 20:
 		var dead2 := Card.new(v._uid(), "cova_rasa", 0, "board")
 		v.players[0]["graveyard"].append(dead2)
 		v._move(dead2, "graveyard")
+	v._check_state()
 	check(v.cost_of(0, vag, vag_hand) == 0, "custo nunca fica abaixo de 0")
 	var enemy_dead := Card.new(v._uid(), "esqueleto_guerreiro", 1, "board")
 	v.players[1]["graveyard"].append(enemy_dead)
@@ -1144,10 +1146,13 @@ func _test_listeners() -> void:
 	var victim := _put(g, 1, "t_tough")
 	g.players[1]["leader_hp"] = 14
 	g._deal_damage(GameState.LEADER_UID[1], 1, null)
+	g._check_state()
 	check(g.find_unit(victim.uid).damage == 0, "listen: 13 life has not crossed 12 yet")
 	g._deal_damage(GameState.LEADER_UID[1], 3, null)
+	g._check_state()
 	check(g.find_unit(victim.uid).damage == 3, "listen: crossing below 12 with 4 units hits all enemy units")
 	g._deal_damage(GameState.LEADER_UID[1], 1, null)
+	g._check_state()
 	check(g.find_unit(victim.uid).damage == 3, "listen: fires once, not while the life stays below")
 
 	g = _new_game()
@@ -1230,12 +1235,14 @@ func _test_triggers() -> void:
 	g = _new_game()
 	var ron := _put(g, 0, "ronan")
 	g._deal_damage(ron.uid, 1, null)
+	g._check_state()
 	check(g.find_unit(ron.uid).atk == 5, "ronan Ao Sofrer Dano +1 atk")
 
 	g = _new_game()
 	var vig := _put(g, 0, "vigia_do_farol_do_norte")
 	var hand_n: int = g.players[0]["hand"].size()
 	g._deal_damage(vig.uid, 5, null)
+	g._check_state()
 	g._check_state()
 	check(g.players[0]["hand"].size() == hand_n + 1, "vigia Ao Morrer draws 1")
 
@@ -1550,6 +1557,7 @@ func _test_eletrica() -> void:
 	var ly := _put(g, g.active, "layla")
 	for i in 5:
 		g._deal_damage(ly.uid, 1, null)
+		g._check_state()
 		ly.damage = 0
 	check(g.atk_of(ly) == 6, "layla: +1 por dano, no máximo +3 (%d)" % g.atk_of(ly))
 	# Esquiva: first combat damage per turn from a weaker attacker is avoided
@@ -1593,17 +1601,21 @@ func _test_eletrica() -> void:
 	g.players[a]["momentum"] = 0
 	g.players[a]["leaked"] = 0
 	g._fire_leader_passive(a, "on_turn_start")
+	g._check_state()
 	check(g.players[a]["momentum"] == 0, "sobrecarga: nada vazou, nada volta")
 	g.players[a]["leaked"] = 1
 	g._fire_leader_passive(a, "on_turn_start")
+	g._check_state()
 	check(g.players[a]["momentum"] == 0, "sobrecarga: vazou 1, metade para baixo é 0")
 	g.players[a]["leaked"] = 3
 	g._fire_leader_passive(a, "on_turn_start")
+	g._check_state()
 	check(g.players[a]["momentum"] == 1, "sobrecarga: vazou 3, volta 1 (metade p/ baixo)")
 	g.players[a]["momentum"] = 0
 	g.players[a]["momentum"] = 0
 	g.players[a]["leaked"] = 9
 	g._fire_leader_passive(a, "on_turn_start")
+	g._check_state()
 	check(g.players[a]["momentum"] == 2, "sobrecarga: devolve no máximo 2")
 
 func _test_intimidacao() -> void:

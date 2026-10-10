@@ -59,9 +59,11 @@ var _combat_damage := false
 var rng := RandomNumberGenerator.new()
 var _next_uid := 1
 var _events: Array = []
-var _trigger_depth := 0
+## Triggers that happened but have not resolved yet (PendingTrigger), oldest first.
+var _pending: Array = []
 var _bus: TriggerBus ## built on first use (RemoteState never runs GameState._init)
 const EVENT_CAP := 300 ## events one action may produce before triggers/effects stop resolving
+const MAX_TRIGGERS_PER_ACTION := 60 ## queued triggers resolved in one go, so trigger loops always end
 ## Cards played from hand while they wait on the stack (uid -> Card); stack items themselves stay plain dicts.
 var _stack_cards: Dictionary = {}
 
@@ -858,6 +860,7 @@ func choose_search(p: int, card_uid: int) -> Array:
 		phase = _search_return
 		_emit({"type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"]})
 		_resolve_stack()
+		_check_state() # resumes the triggers that waited for this choice
 		_after_search()
 		_settle()
 		return _flush()
@@ -891,6 +894,7 @@ func choose_search(p: int, card_uid: int) -> Array:
 	_emit({"type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"]})
 	_emit({"type": "look_bottom" if look and not reshuffle else "search_shuffle", "player": p})
 	_resolve_stack() # a search opened mid-resolution: finish the rest of the stack
+	_check_state() # resumes the triggers that waited for this choice
 	_after_search()
 	_settle()
 	return _flush()
@@ -1443,9 +1447,37 @@ func _resolve_combat() -> void:
 	_check_leaders()
 	_end_combat()
 
-## Moves dead units out, fires Ao Morrer, checks leaders. Loops until stable.
-## Deaths resolve active player first (APNAP), then the opponent.
+## Stabilizes the game after an action: moves dead units out, then resolves the queued triggers one
+## at a time (active player's first), looping until nothing is left to do. A trigger that opens a
+## choice (search, enter target) pauses the queue; it resumes when the choice is made.
 func _check_state() -> void:
+	var resolved := 0
+	while true:
+		_move_dead_units()
+		if _pending.is_empty() or phase in ["search", "enter_target"]:
+			break
+		if _chain_stopped() or resolved >= MAX_TRIGGERS_PER_ACTION:
+			_pending.clear() # a Leader is down or a trigger loop ran away: nothing new resolves
+			break
+		resolved += 1
+		_take_next_pending().resolve(self)
+	if not _combat_damage:
+		_check_leaders()
+
+## Called by the TriggerBus (and the death/passive code) when a trigger fires.
+func queue_trigger(trigger: PendingTrigger) -> void:
+	_pending.append(trigger)
+
+## APNAP: the oldest trigger of the active player goes first, else the oldest of the opponent.
+func _take_next_pending() -> PendingTrigger:
+	for i in _pending.size():
+		if _pending[i].controller() == active:
+			return _pending.pop_at(i)
+	return _pending.pop_front()
+
+## Moves dead units out and queues their Ao Morrer / Aliado Morre. Loops until stable.
+## Deaths are processed active player first (APNAP), then the opponent.
+func _move_dead_units() -> void:
 	var changed := true
 	while changed:
 		changed = false
@@ -1471,16 +1503,13 @@ func _check_state() -> void:
 					death_context.self_uid = dead_uid
 					death_context.dying_card = c
 					if not _chain_stopped():
-						_announce(c, effects, "on_death")
-					_run_effects(death_context, effects)
+						queue_trigger(PendingTrigger.new(c, effects, death_context, "on_death"))
 					# Aliado Morre fires on every death, even if the unit comes right back (Revivente, Fênix)
 					# or a Legendary returns to its zone.
 					for ally in players[p]["board"].duplicate():
 						if players[p]["board"].has(ally):
 							_fire(ally, "on_ally_death", dead_uid)
 					_fire_leader_passive(p, "on_ally_death")
-	if not _combat_damage:
-		_check_leaders()
 
 func _check_leaders() -> void:
 	if phase == "over":
@@ -1495,7 +1524,7 @@ func _check_leaders() -> void:
 ## once per turn if "once_per_turn". Depth-capped like unit triggers.
 func _fire_leader_passive(p: int, trigger: String) -> void:
 	var ab: Dictionary = CardDB.leader(players[p]["leader_id"])["ability"]
-	if not ab.get("passive", false) or ab.get("trigger", "") != trigger or _trigger_depth >= 4 or _chain_stopped():
+	if not ab.get("passive", false) or ab.get("trigger", "") != trigger or _chain_stopped():
 		return
 	if ab.get("own_turn_only", false) and active != p:
 		return
@@ -1503,9 +1532,7 @@ func _fire_leader_passive(p: int, trigger: String) -> void:
 		return
 	players[p]["passive_used"] = true
 	_emit({"type": "passive", "player": p})
-	_trigger_depth += 1
-	_run_effects(EffectContext.new(self, p, ""), EffectRegistry.parse_list(ab["effects"]))
-	_trigger_depth -= 1
+	queue_trigger(PendingTrigger.new(null, EffectRegistry.parse_list(ab["effects"]), EffectContext.new(self, p, "")))
 
 func _finish_turn() -> void:
 	for c in players[active]["board"].duplicate():

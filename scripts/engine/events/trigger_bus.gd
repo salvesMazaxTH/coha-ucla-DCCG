@@ -1,7 +1,7 @@
 class_name TriggerBus
 extends RefCounted
-## Delivers GameEvents to the cards that react to them, in one place. Synchronous: the effects
-## run right away, in the same order as the old direct calls.
+## Delivers GameEvents to the cards that react to them, in one place. The reactions are not run
+## here: each one becomes a PendingTrigger in GameState's queue, resolved once the action is over.
 ##
 ## Two kinds of reaction:
 ##   - own trigger: {"trigger": "on_attack"} runs for the unit the event happened to (event.source);
@@ -12,7 +12,6 @@ extends RefCounted
 ## its owner), enemy (about the opponent) or any (default). "zones" is a list among board, hand,
 ## deck, graveyard, banished, or "any" (default: ["board"]).
 
-const MAX_DEPTH := 4 ## nested triggers allowed, so on_damaged chains cannot loop forever
 const ZONES := ["board", "hand", "deck", "graveyard", "banished"]
 
 var game: GameState
@@ -21,7 +20,7 @@ func _init(game_state: GameState) -> void:
 	game = game_state
 
 func emit(event: GameEvent) -> void:
-	if game._trigger_depth >= MAX_DEPTH or game._chain_stopped():
+	if game._chain_stopped():
 		return
 	if event.source != null and event.trigger.begins_with("on_"):
 		_fire_own_effects(event)
@@ -42,14 +41,11 @@ func _fire_own_effects(event: GameEvent) -> void:
 				continue # "once per turn" effect already used this turn
 			card.used_turn[i] = game.turn
 		effects.append(e)
-	game._announce(card, effects, event.trigger)
-	game._trigger_depth += 1
 	var context := EffectContext.new(game, card.owner, event.trigger)
 	context.self_uid = card.uid
 	context.other_uid = event.other_uid
 	context.event = event
-	game._run_effects(context, effects)
-	game._trigger_depth -= 1
+	game.queue_trigger(PendingTrigger.new(card, effects, context, event.trigger))
 
 ## Offers the event to every card that listens to it: active player first, then the other.
 func _broadcast(event: GameEvent) -> void:
@@ -64,7 +60,7 @@ func _broadcast(event: GameEvent) -> void:
 func _offer(card: Card, effect: Effect, event: GameEvent) -> void:
 	if not _scope_matches(effect.scope, card, event) or not _when_matches(effect.when, event):
 		return
-	if game._chain_stopped() or game._trigger_depth >= MAX_DEPTH:
+	if game._chain_stopped():
 		return
 	var context := EffectContext.new(game, card.owner, effect.trigger)
 	context.self_uid = card.uid
@@ -78,9 +74,7 @@ func _offer(card: Card, effect: Effect, event: GameEvent) -> void:
 		if card.used_turn.get(index, -1) == game.turn:
 			return
 		card.used_turn[index] = game.turn
-	game._trigger_depth += 1
-	game._run_effects(context, [effect])
-	game._trigger_depth -= 1
+	game.queue_trigger(PendingTrigger.new(card, [effect], context))
 
 func _scope_matches(scope: String, card: Card, event: GameEvent) -> bool:
 	match scope:
