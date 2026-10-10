@@ -5,7 +5,7 @@
   "essence": "eletrica",
   "cost": 2,
   "speed": "rapido",
-  "art": "",
+  "art": "eletrica/choque_direto.webp",
   "effects": [
     {
       "trigger": "on_play",
