@@ -63,11 +63,11 @@ func _act(m: Dictionary) -> Array:
 func mulligan(_p: int, hand_uids: Array) -> Array:
 	return _act({"a": "mulligan", "uids": hand_uids})
 
-func play_card(_p: int, hand_uid: int, target: int = 0, target2: int = 0) -> Array:
-	return _act({"a": "play", "uid": hand_uid, "target": target, "target2": target2})
+func play_card(_p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: int = -1) -> Array:
+	return _act({"a": "play", "uid": hand_uid, "target": target, "target2": target2, "slot": slot})
 
-func cast_legendary(_p: int, target: int = 0) -> Array:
-	return _act({"a": "legendary", "target": target})
+func cast_legendary(_p: int, target: int = 0, slot: int = -1) -> Array:
+	return _act({"a": "legendary", "target": target, "slot": slot})
 
 func use_ability(_p: int, target: int = 0) -> Array:
 	return _act({"a": "ability", "target": target})

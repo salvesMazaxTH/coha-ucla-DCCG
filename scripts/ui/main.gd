@@ -684,6 +684,7 @@ func _clear_fx() -> void:
 
 func _render() -> void:
 	_clear()
+	drag_gap_slot = -1 # fresh board views have no gap
 	var me := viewer
 	var op := g.opponent(me)
 	_set_tints(_leader_color(op), _leader_color(me))
@@ -838,17 +839,23 @@ func _render_enemy_hand(p: int) -> void:
 		cnt.size = Vector2(30, 20)
 		layer.add_child(cnt)
 
+## Horizontal cell of the unit at `index` in a lane holding `count` units: x = left edge, y = width.
+## The lane is centered, so adding a unit shifts every cell (used to open a gap while dragging).
+func _board_cell(count: int, index: int) -> Vector2:
+	var w: float = min(146.0, (TableView.ENEMY_LANE.size.x - 20.0) / max(1, count))
+	var x0 := TableView.ENEMY_LANE.get_center().x - count * w / 2.0
+	return Vector2(x0 + index * w, w)
+
 func _render_board(p: int, y: float) -> void:
 	var board: Array = g.players[p]["board"]
-	var w: float = min(146.0, (TableView.ENEMY_LANE.size.x - 20.0) / max(1, board.size()))
-	var x0 := TableView.ENEMY_LANE.get_center().x - board.size() * w / 2.0
 	for i in board.size():
 		var unit: Card = board[i]
 		var unit_view_data := unit.to_dict()
 		unit_view_data["armor_total"] = g.armor_of(unit) # includes Armadura given by adjacent allies
 		var v := CardView.new().setup(unit.card_id, unit_view_data, 1.15)
 		v.pivot_offset = v.size / 2.0
-		v.position = Vector2(x0 + i * w + (w - v.size.x) / 2.0, y)
+		var cell := _board_cell(board.size(), i)
+		v.position = Vector2(cell.x + (cell.y - v.size.x) / 2.0, y)
 		# exhaustion never stops blocking, so it only reads as "spent" on its owner's own turn
 		if unit.exhausted and g.phase != "blocks" and p == g.active:
 			v.dim = true
@@ -880,6 +887,7 @@ func _render_board(p: int, y: float) -> void:
 			eq.right_clicked.connect(_show_overlay)
 			layer.add_child(eq)
 			layer.move_child(eq, v.get_index())
+			views["eq%d" % unit.uid] = eq # kept so the drag gap can slide it along with its unit
 
 func _decorate_unit(v: CardView, unit: Card, p: int) -> void:
 	# reminder for new players: the unit's "Ao Ativar" can be used now (even the turn it is summoned)
@@ -1082,6 +1090,7 @@ func _hand_hover(v: CardView, on: bool, rest: Dictionary) -> void:
 ## Drag & drop: a playable hand card follows the pointer and is played when released over
 ## the board (above PLAY_LINE); released over the hand it snaps back.
 const PLAY_LINE := 600.0
+var drag_gap_slot := -1 ## slot the board is currently opened at while a unit is dragged (-1 = no gap)
 
 func _hand_drag_start(v: CardView) -> void:
 	if v.has_meta("tw"):
@@ -1095,12 +1104,51 @@ func _hand_drag_start(v: CardView) -> void:
 	tw.tween_property(v, "scale", Vector2.ONE * 1.12, 0.12)
 	_hand_drag_move(v)
 
+## Board position a unit dropped at local x would take: the number of our units whose centre is
+## to its left. Measured on the resting layout (no gap) so the slot does not flicker as the gap opens.
+func _drop_slot(x: float) -> int:
+	var count: int = g.players[viewer]["board"].size()
+	var slot := 0
+	for i in count:
+		var cell := _board_cell(count, i)
+		if x > cell.x + cell.y / 2.0:
+			slot += 1
+	return slot
+
+## Hearthstone style: our units slide apart to leave a gap at `slot` (-1 = close it again).
+func _show_drop_gap(slot: int) -> void:
+	if slot == drag_gap_slot:
+		return
+	drag_gap_slot = slot
+	var board: Array = g.players[viewer]["board"]
+	var count: int = board.size() + (1 if slot >= 0 else 0)
+	for i in board.size():
+		var unit: Card = board[i]
+		var unit_view: Control = views.get(unit.uid)
+		if not is_instance_valid(unit_view):
+			continue
+		var cell := _board_cell(count, i + (1 if slot >= 0 and i >= slot else 0))
+		var new_x := cell.x + (cell.y - unit_view.size.x) / 2.0
+		var shift := new_x - unit_view.position.x
+		var tw := unit_view.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.tween_property(unit_view, "position:x", new_x, 0.12)
+		var equipment_view: Control = views.get("eq%d" % unit.uid)
+		if is_instance_valid(equipment_view):
+			var eq_tw := equipment_view.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+			eq_tw.tween_property(equipment_view, "position:x", equipment_view.position.x + shift, 0.12)
+
 func _hand_drag_move(v: CardView) -> void:
 	var m := layer.get_local_mouse_position()
+	var is_unit: bool = CardDB.card(v.card_id)["type"] == "unit"
+	if is_unit and m.y < PLAY_LINE and _my_input() and not v.get_meta("aim", false):
+		_show_drop_gap(_drop_slot(m.x))
+	else:
+		_show_drop_gap(-1)
 	if v.get_meta("aim", false) and m.y < PLAY_LINE and targeting.is_empty() and _my_input():
 		# a targeted card crossing into the board turns into an aim: it goes back to the hand
 		# (raised) and an arrow follows the finger; releasing on a target plays it there
-		targeting = {"kind": "hand", "uid": v.uid, "card_id": v.card_id, "spec": _hand_spec(v)}
+		# (a unit with a sacrifice cost also remembers the slot it was dragged to)
+		targeting = {"kind": "hand", "uid": v.uid, "card_id": v.card_id, "spec": _hand_spec(v), "slot": _drop_slot(m.x)}
 		attack_sel.clear()
 		aim_drag = true
 		aim_start = Vector2.INF
@@ -1110,8 +1158,10 @@ func _hand_drag_move(v: CardView) -> void:
 	v.highlight = SEL if m.y < PLAY_LINE else OK
 
 func _hand_drag_end(v: CardView) -> void:
-	if layer.get_local_mouse_position().y < PLAY_LINE and _my_input():
-		_play_from_hand(v)
+	var m := layer.get_local_mouse_position()
+	drag_gap_slot = -1
+	if m.y < PLAY_LINE and _my_input():
+		_play_from_hand(v, _drop_slot(m.x))
 	else:
 		_render()
 
@@ -1607,14 +1657,15 @@ func _on_hand_click(v: CardView) -> void:
 		"main", "combat":
 			_show_overlay(v) # a click/tap only inspects; playing is drag & drop (no misclicks)
 
-func _play_from_hand(v: CardView) -> void:
+## slot: where a unit enters our board (-1 = rightmost); only drag & drop picks one.
+func _play_from_hand(v: CardView, slot := -1) -> void:
 	if not g.can_play(viewer, v.uid):
 		_toast("Não dá para jogar essa carta agora.")
 		_render()
 		return
 	var spec := _hand_spec(v)
 	if spec != "":
-		targeting = {"kind": "hand", "uid": v.uid, "card_id": v.card_id, "spec": spec}
+		targeting = {"kind": "hand", "uid": v.uid, "card_id": v.card_id, "spec": spec, "slot": slot}
 		attack_sel.clear()
 		_begin_aim(Vector2.ZERO)
 		_render()
@@ -1623,7 +1674,7 @@ func _play_from_hand(v: CardView) -> void:
 		_render()
 		_ask_confirm("SEM EFEITO AGORA", "Não há nada para reviver no seu cemitério. Jogar mesmo assim?", "JOGAR MESMO ASSIM", "CANCELAR", _play_dud.bind(v.uid))
 	else:
-		_do(g.play_card(viewer, v.uid, 0))
+		_do(g.play_card(viewer, v.uid, 0, 0, slot))
 
 ## Casts a Réquiem spell from the graveyard through the same flow as a hand card (target aiming, dud confirm).
 func _cast_requiem(uid: int, card_id: String) -> void:
@@ -1750,7 +1801,7 @@ func _fire_target(uid: int) -> void:
 			elif targeting.has("first"):
 				_do(g.play_card(viewer, targeting["uid"], targeting["first"], uid))
 			else:
-				_do(g.play_card(viewer, targeting["uid"], uid))
+				_do(g.play_card(viewer, targeting["uid"], uid, 0, targeting.get("slot", -1)))
 		"legendary":
 			_do(g.cast_legendary(viewer, uid))
 		"ability":

@@ -547,7 +547,8 @@ func mulligan(p: int, hand_uids: Array) -> Array:
 		_start_turn(first, false)
 	return _flush()
 
-func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0) -> Array:
+## slot: where a unit enters the board (0 = leftmost, -1 = rightmost); ignored for spells.
+func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: int = -1) -> Array:
 	if not can_play(p, hand_uid):
 		return []
 	var inst := _castable_card(p, hand_uid)
@@ -578,6 +579,9 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0) -> Arra
 		find_unit(target).damage = 1000000
 		_emit({"type": "sacrifice", "player": p, "uid": target})
 		_check_state()
+		var sacrificed_index: int = pl["board"].find(find_unit(target))
+		if sacrificed_index >= 0 and sacrificed_index < slot:
+			slot -= 1 # the slot was picked with the sacrificed unit still on the board
 		if phase == "over":
 			return _flush()
 		if pl["board"].size() >= BOARD_LIMIT: # a death effect refilled the slot
@@ -586,7 +590,7 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0) -> Arra
 			stack_system().settle()
 			return _flush()
 	if cd["type"] == "unit":
-		_summon(p, inst, false, 0, {}, true)
+		_summon(p, inst, false, 0, {}, true, slot)
 		_check_state()
 		stack_system().open_summon_window(p)
 	else:
@@ -596,7 +600,7 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0) -> Arra
 	stack_system().settle()
 	return _flush()
 
-func cast_legendary(p: int, _target: int = 0) -> Array:
+func cast_legendary(p: int, _target: int = 0, slot: int = -1) -> Array:
 	if not can_cast_legendary(p):
 		return []
 	var pl: Dictionary = players[p]
@@ -605,7 +609,7 @@ func cast_legendary(p: int, _target: int = 0) -> Array:
 	pl["legendary"]["casts"] += 1
 	var c := Card.new(_uid(), pl["legendary"]["card_id"], p)
 	_emit({"type": "play", "player": p, "uid": c.uid, "card_id": c.card_id, "legendary": true})
-	_summon(p, c, true, 0, {}, true)
+	_summon(p, c, true, 0, {}, true, slot)
 	_check_state()
 	stack_system().open_summon_window(p)
 	stack_system().settle()
@@ -859,14 +863,20 @@ func set_auto_pass(p: int, on: bool) -> Array:
 
 ## ask: played from hand/Santuário, so a targeted Ao Entrar waits for its owner's pick
 ## (phase "enter_target") instead of resolving right away.
-func _summon(p: int, c: Card, legendary: bool, target: int, over: Dictionary = {}, ask := false) -> void:
+## slot: board position to enter at (0 = leftmost); -1 or past the end = rightmost. Position
+## matters for adjacency (Armadura from neighbours, "random_enemy_and_adjacent", ...).
+func _summon(p: int, c: Card, legendary: bool, target: int, over: Dictionary = {}, ask := false, slot := -1) -> void:
 	var uid := c.uid
 	var card_id := c.card_id
 	c.owner = p
 	c.enter_board(legendary, over)
 	var cd := c.data()
 	_move(c, "board")
-	players[p]["board"].append(c)
+	var board: Array = players[p]["board"]
+	if slot < 0 or slot >= board.size():
+		board.append(c)
+	else:
+		board.insert(slot, c)
 	_emit({"type": "summon", "player": p, "uid": uid, "card_id": card_id})
 	var spec := enter_spec(cd)
 	if ask and spec != "" and not valid_targets(p, spec, uid).is_empty():
