@@ -4,23 +4,23 @@
   "order": 4,
   "leader": "jeff",
   "cards": {
-    "jeff": 1,
+    "necrofago_espectral": 3,
     "esqueleto_guerreiro": 3,
     "rato_do_ossuario": 3,
-    "necrofago_espectral": 3,
     "diabrete_sombrio": 3,
+    "rusco": 1,
     "vigia_do_farol_do_norte": 3,
-    "revivente_eterno": 3,
+    "colheita_de_almas": 3,
+    "lamento_funebre": 3,
     "cientista_da_morte": 3,
     "replicador_maldito": 3,
+    "revivente_eterno": 3,
+    "chamado_do_alem": 3,
     "carrasco_da_ceifa": 3,
     "o_espiritomante": 3,
-    "fenix_da_chama_profana": 3,
-    "titanico_morcegalma": 1,
-    "lamento_funebre": 3,
-    "colheita_de_almas": 3,
     "mordida_de_defunto": 3,
-    "chamado_do_alem": 3,
-    "rusco": 1
+    "fenix_da_chama_profana": 3,
+    "jeff": 1,
+    "titanico_morcegalma": 1
   }
 }

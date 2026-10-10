@@ -12,6 +12,7 @@ func _init() -> void:
 	for d in DeckDB.ids():
 		var errs := DeckDB.validate(d)
 		check(errs.is_empty(), "deck %s: %s" % [d, errs])
+		check(DeckDB.get_deck(d)["cards"].keys() == DeckDB.sorted_cards(DeckDB.get_deck(d)["cards"]).keys(), "deck %s: cartas fora de ordem de custo (rode tools/sort_decks.gd)" % d)
 	_test_flavor()
 	_test_off_essence()
 	_test_death_order()
@@ -43,8 +44,8 @@ func _init() -> void:
 	_test_strike_order()
 	_test_overkill()
 	_test_dud()
-	_test_rusco()
 	_test_requiem()
+	_test_rusco()
 	_test_sim()
 	for e in CardDB.errors():
 		check(false, e)
@@ -1669,7 +1670,6 @@ func _test_overkill() -> void:
 	g2._events.resize(GameState.EVENT_CAP)
 	check(g2._chain_stopped(), "cadeia: acima do limite de eventos os gatilhos param")
 
-func _test_dud() -> void:
 ## Réquiem: a spell in the graveyard can be cast for its cost + 2, then it is banished (resolved, fizzled or countered).
 func _test_requiem() -> void:
 	var g := _new_game()
@@ -1748,6 +1748,7 @@ func _test_requiem() -> void:
 	SimpleAI.step(g5, p5)
 	check(cova5.zone != "graveyard", "réquiem: a IA lança do cemitério")
 
+func _test_dud() -> void:
 	var g := _new_game()
 	var cd := CardDB.card("chamado_do_alem")
 	check(g.is_dud(0, cd), "feitiço de reviver com cemitério vazio é inútil")

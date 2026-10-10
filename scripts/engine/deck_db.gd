@@ -54,6 +54,29 @@ static func card_count(id: String) -> int:
 		total += int(cards[cid])
 	return total
 
+## The deck list in the order the files are kept: printed cost (lowest first), then units before
+## spells and other types, then card id. Used by tools/sort_decks.gd and checked by the tests.
+static func sorted_cards(cards: Dictionary) -> Dictionary:
+	var card_ids: Array = cards.keys()
+	card_ids.sort_custom(_comes_before)
+	var sorted: Dictionary = {}
+	for card_id in card_ids:
+		sorted[card_id] = cards[card_id]
+	return sorted
+
+static func _comes_before(first_id: String, second_id: String) -> bool:
+	var first_card := CardDB.card(first_id)
+	var second_card := CardDB.card(second_id)
+	var first_cost := int(first_card.get("cost", 0))
+	var second_cost := int(second_card.get("cost", 0))
+	if first_cost != second_cost:
+		return first_cost < second_cost
+	var first_type := CardDB.TYPES.find(first_card.get("type", ""))
+	var second_type := CardDB.TYPES.find(second_card.get("type", ""))
+	if first_type != second_type:
+		return first_type < second_type
+	return first_id < second_id
+
 ## Returns a list of rule violations; empty means the deck is legal.
 static func validate(deck_id: String) -> Array[String]:
 	var d := get_deck(deck_id)
