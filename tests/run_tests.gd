@@ -45,6 +45,8 @@ func _init() -> void:
 	_test_dud()
 	_test_rusco()
 	_test_sim()
+	for e in preload("res://tests/golden_replay.gd").compare():
+		check(false, e)
 	print("tests done, failures: ", failures)
 	quit(1 if failures > 0 else 0)
 
