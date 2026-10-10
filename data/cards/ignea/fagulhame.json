@@ -1,0 +1,19 @@
+{
+  "name": "Fagulhame",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "ignea",
+  "cost": 2,
+  "speed": "rapido",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "all_units",
+      "amount": 1
+    }
+  ],
+  "text": "Cause 1 de dano a todas as unidades.",
+  "flavor": "",
+  "tags": []
+}

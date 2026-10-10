@@ -1,0 +1,25 @@
+{
+  "name": "Pira-Mundo",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "ignea",
+  "cost": 7,
+  "speed": "lento",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "all_units",
+      "amount": 4
+    },
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "both_leaders",
+      "amount": 2
+    }
+  ],
+  "text": "Cause 4 de dano a todas as unidades e 2 de dano a cada Líder.",
+  "flavor": "",
+  "tags": []
+}
