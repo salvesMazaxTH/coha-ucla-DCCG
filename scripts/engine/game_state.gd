@@ -62,6 +62,8 @@ var _events: Array = []
 ## Triggers that happened but have not resolved yet (PendingTrigger), oldest first.
 var _pending: Array = []
 var _bus: TriggerBus ## built on first use (RemoteState never runs GameState._init)
+var _stack_system: StackSystem ## built on first use, like _bus
+var _combat_system: CombatSystem ## built on first use, like _bus
 const EVENT_CAP := 300 ## events one action may produce before triggers/effects stop resolving
 const MAX_TRIGGERS_PER_ACTION := 60 ## queued triggers resolved in one go, so trigger loops always end
 ## Cards played from hand while they wait on the stack (uid -> Card); stack items themselves stay plain dicts.
@@ -75,6 +77,18 @@ func _init(deck_a: String, deck_b: String, seed_value: int = 0, first_player: in
 	for i in 2:
 		_draw(i, START_HAND)
 	_events.clear()
+
+## The stack and priority windows (built on first use, like bus()).
+func stack_system() -> StackSystem:
+	if _stack_system == null:
+		_stack_system = StackSystem.new(self)
+	return _stack_system
+
+## Attack, block and damage resolution (built on first use).
+func combat_system() -> CombatSystem:
+	if _combat_system == null:
+		_combat_system = CombatSystem.new(self)
+	return _combat_system
 
 ## Delivers GameEvents to the cards that react to them (own triggers and "listen").
 func bus() -> TriggerBus:
@@ -373,45 +387,8 @@ func valid_targets(p: int, spec: String, self_uid: int = 0) -> Array:
 			out.append(LEADER_UID[opponent(p)])
 		"enemy_stack":
 			for it in stack:
-				if it["player"] != p and not _is_uncounterable(it): out.append(it["sid"])
+				if it["player"] != p and not stack_system().is_uncounterable(it): out.append(it["sid"])
 	return out
-
-## Equipping and abilities flagged "uncounterable" can be responded to but never countered.
-func _is_uncounterable(it: Dictionary) -> bool:
-	if it["kind"] == "ability":
-		return CardDB.leader(players[it["player"]]["leader_id"])["ability"].get("uncounterable", false)
-	return it["kind"] == "card" and CardDB.is_equipment(CardDB.card(it["card_id"]))
-
-func _stack_item(sid: int) -> Dictionary:
-	for it in stack:
-		if it["sid"] == sid:
-			return it
-	return {}
-
-## Momentum cost of a spell/ability on the stack.
-func stack_cost(item: Dictionary) -> int:
-	if item["kind"] == "ability":
-		return int(CardDB.leader(players[item["player"]]["leader_id"])["ability"]["cost"])
-	if item["kind"] == "unit_ability":
-		return int(CardDB.card(item["card_id"])["activated"]["cost"])
-	return int(CardDB.card(item["card_id"]).get("cost", 0)) + (REQUIEM_EXTRA_COST if item.get("requiem", false) else 0)
-
-## Extra Momentum a counter (action "counter") must pay to hit stack item `sid`:
-## 0 up to max_cost, kicker_cost up to kicker_max_cost, -1 when out of reach.
-func counter_extra(cd: Dictionary, sid: int) -> int:
-	var it := _stack_item(sid)
-	if it.is_empty():
-		return -1
-	for e in cd["effects"]:
-		if e.get("action", "") != "counter":
-			continue
-		var c := stack_cost(it)
-		if c <= int(e.get("max_cost", 99)):
-			return 0
-		if e.has("kicker_cost") and c <= int(e.get("kicker_max_cost", 99)):
-			return int(e["kicker_cost"])
-		return -1
-	return 0
 
 ## Targets a card from hand can be played on right now (counters filter by reach and Momentum).
 func card_targets(p: int, cd: Dictionary, inst: Card = null) -> Array:
@@ -606,17 +583,17 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0) -> Arra
 		if pl["board"].size() >= BOARD_LIMIT: # a death effect refilled the slot
 			pl["graveyard"].append(inst)
 			_move(inst, "graveyard")
-			_settle()
+			stack_system().settle()
 			return _flush()
 	if cd["type"] == "unit":
 		_summon(p, inst, false, 0, {}, true)
 		_check_state()
-		_open_summon_window(p)
+		stack_system().open_summon_window(p)
 	else:
 		_stack_cards[hand_uid] = inst
 		_move(inst, "stack")
-		_push(p, "card", hand_uid, inst.card_id, target, speed_of(cd), target2, from_graveyard)
-	_settle()
+		stack_system().push(p, "card", hand_uid, inst.card_id, target, speed_of(cd), target2, from_graveyard)
+	stack_system().settle()
 	return _flush()
 
 func cast_legendary(p: int, _target: int = 0) -> Array:
@@ -630,8 +607,8 @@ func cast_legendary(p: int, _target: int = 0) -> Array:
 	_emit({"type": "play", "player": p, "uid": c.uid, "card_id": c.card_id, "legendary": true})
 	_summon(p, c, true, 0, {}, true)
 	_check_state()
-	_open_summon_window(p)
-	_settle()
+	stack_system().open_summon_window(p)
+	stack_system().settle()
 	return _flush()
 
 func activate(p: int, uid: int, target: int = 0) -> Array:
@@ -647,8 +624,8 @@ func activate(p: int, uid: int, target: int = 0) -> Array:
 	if ab.get("exhaust", false):
 		c.exhausted = true
 	_emit({"type": "trigger", "uid": uid, "player": p, "card_id": c.card_id, "trigger": "on_activate"})
-	_push(p, "unit_ability", uid, c.card_id, target, speed_of(ab))
-	_settle()
+	stack_system().push(p, "unit_ability", uid, c.card_id, target, speed_of(ab))
+	stack_system().settle()
 	return _flush()
 
 func use_ability(p: int, target: int = 0) -> Array:
@@ -661,8 +638,8 @@ func use_ability(p: int, target: int = 0) -> Array:
 	_pay(p, int(ab["cost"]), true)
 	players[p]["ability_used"] = true
 	_emit({"type": "ability", "player": p})
-	_push(p, "ability", 0, "", target, speed_of(ab))
-	_settle()
+	stack_system().push(p, "ability", 0, "", target, speed_of(ab))
+	stack_system().settle()
 	return _flush()
 
 ## The unit becomes its "transform" card in place (same uid, keeps damage, exhaustion and
@@ -692,7 +669,7 @@ func transform(p: int, uid: int) -> Array:
 	var target := uid if target_spec(cd["effects"]) == "ally_unit" else 0
 	_run_effects(_enter_context(p, uid, target), cd["effects"])
 	_check_state()
-	_settle()
+	stack_system().settle()
 	return _flush()
 
 ## Gives up priority. With items on the stack, everything resolves (newest first);
@@ -703,67 +680,8 @@ func pass_priority(p: int) -> Array:
 	if stack.is_empty() and phase == "main" and not summon_window:
 		return [] # nothing to pass: end the turn instead
 	_emit({"type": "pass", "player": p})
-	_pass()
-	_settle()
-	return _flush()
-
-## attacks: Dictionary attacker_uid -> provoked enemy uid (0 when none).
-func declare_attack(p: int, attacks: Dictionary) -> Array:
-	if not _sorcery_time(p) or players[p]["attacked"] or attacks.is_empty():
-		return []
-	var provoked_used: Array = []
-	for uid in attacks:
-		var c := find_unit(uid)
-		if c == null or c.owner != p or not can_attack(c):
-			return []
-		var prov: int = attacks[uid]
-		if prov != 0:
-			var t := find_unit(prov)
-			if not has_kw(c, "provocacao") or t == null or t.owner == p or provoked_used.has(prov) or is_frozen(t) or has_kw(t, "nao_bloqueia"):
-				return []
-			provoked_used.append(prov)
-	attackers = attacks.duplicate()
-	players[p]["attacked"] = true
-	for uid in attacks:
-		find_unit(uid).exhausted = true
-	_emit({"type": "attack", "player": p, "attackers": attacks.keys()})
-	for uid in attacks:
-		_fire(find_unit(uid), "on_attack")
-	_check_state()
-	if phase == "over":
-		return _flush()
-	phase = "combat"
-	_open_window("attack")
-	_settle()
-	return _flush()
-
-## blocks: Dictionary attacker_uid -> blocker_uid. One blocker per attacker,
-## one attacker per blocker. Provoked units are forced onto their provoker.
-## Provoked units must block their provoker (unless dead or frozen).
-func _forced_blocks() -> Dictionary:
-	var final := {}
-	for a in attackers:
-		if attackers[a] != 0 and find_unit(attackers[a]) != null and not is_frozen(find_unit(attackers[a])):
-			final[a] = attackers[a]
-	return final
-
-func declare_blocks(p: int, picks: Dictionary) -> Array:
-	if phase != "blocks" or p != decider():
-		return []
-	var final := _forced_blocks()
-	var used: Array = final.values()
-	for a in picks:
-		if final.has(a):
-			continue
-		var b: int = picks[a]
-		var att := find_unit(a)
-		var blk := find_unit(b)
-		if not attackers.has(a) or att == null or blk == null or blk.owner != p or used.has(b) or not can_block(blk, att):
-			return []
-		final[a] = b
-		used.append(b)
-	_start_damage(final)
-	_settle()
+	stack_system().pass_once()
+	stack_system().settle()
 	return _flush()
 
 ## Gives up the match: the opponent wins at once. Allowed at any moment, even off-turn or mid-stack.
@@ -826,8 +744,8 @@ func choose_enter_target(p: int, target: int) -> Array:
 	_announce(c, effects, "on_enter")
 	_run_effects(_enter_context(p, uid, target), effects)
 	_check_state()
-	_after_search()
-	_settle()
+	stack_system().after_search()
+	stack_system().settle()
 	return _flush()
 
 ## Choose one of the public cards revealed by a deterministic deck search.
@@ -861,8 +779,8 @@ func choose_search(p: int, card_uid: int) -> Array:
 		_emit({"type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"]})
 		_resolve_stack()
 		_check_state() # resumes the triggers that waited for this choice
-		_after_search()
-		_settle()
+		stack_system().after_search()
+		stack_system().settle()
 		return _flush()
 	var deck: Array = players[p]["deck"]
 	var found: Card = null
@@ -895,238 +813,47 @@ func choose_search(p: int, card_uid: int) -> Array:
 	_emit({"type": "look_bottom" if look and not reshuffle else "search_shuffle", "player": p})
 	_resolve_stack() # a search opened mid-resolution: finish the rest of the stack
 	_check_state() # resumes the triggers that waited for this choice
-	_after_search()
-	_settle()
+	stack_system().after_search()
+	stack_system().settle()
 	return _flush()
 
-# ---------------------------------------------------------------- stack & windows
+# ---------------------------------------------------------------- stack & combat (see systems/)
 
-func _push(p: int, kind: String, uid: int, card_id: String, target: int, speed: String, target2: int = 0, requiem := false) -> void:
-	var item := {"sid": _uid(), "player": p, "kind": kind, "uid": uid, "card_id": card_id, "target": target, "target2": target2, "speed": speed}
-	if requiem:
-		item["requiem"] = true # cast from the graveyard: banished when the cast ends
-	stack.append(item)
-	summon_window = false
-	_summon_pending = false
-	priority = opponent(p)
-	_emit({"type": "stack_push", "item": item.duplicate()})
+## attacks: Dictionary attacker_uid -> provoked enemy uid (0 when none).
+func declare_attack(p: int, attacks: Dictionary) -> Array:
+	return combat_system().declare_attack(p, attacks)
 
-func _effects_of(item: Dictionary) -> Array:
-	if item["kind"] == "ability":
-		return CardDB.leader(players[item["player"]]["leader_id"])["ability"]["effects"]
-	if item["kind"] == "unit_ability":
-		return CardDB.card(item["card_id"])["activated"]["effects"]
-	return CardDB.card(item["card_id"])["effects"]
+## blocks: Dictionary attacker_uid -> blocker_uid.
+func declare_blocks(p: int, picks: Dictionary) -> Array:
+	return combat_system().declare_blocks(p, picks)
 
-## Resolves the stack newest-first. Stops early if the game ends or a search needs a choice.
+## Momentum cost of a spell/ability on the stack.
+func stack_cost(item: Dictionary) -> int:
+	return stack_system().stack_cost(item)
+
+## Extra Momentum a counter must pay to hit stack item `sid` (-1 when out of reach).
+func counter_extra(cd: Dictionary, sid: int) -> int:
+	return stack_system().counter_extra(cd, sid)
+
 func _resolve_stack() -> void:
-	while not stack.is_empty() and phase in ["main", "combat"]:
-		var item: Dictionary = stack.pop_back()
-		var p: int = item["player"]
-		var effects := _effects_of(item)
-		var spec := target_spec(effects)
-		var gone := spec != "" and not valid_targets(p, spec).has(int(item["target"]))
-		if gone and item["kind"] == "card" and CardDB.card(item["card_id"]).get("same_target_ok", false) and valid_targets(p, spec).has(int(item.get("target2", 0))):
-			gone = false # twin bolts: the other target is still there, only this bolt is lost
-		if gone:
-			_emit({"type": "fizzle", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"]})
-		else:
-			_emit({"type": "resolve", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"]})
-			var resolve_context := EffectContext.new(self, p, "on_play" if item["kind"] == "card" else "")
-			resolve_context.chosen_target = int(item["target"])
-			resolve_context.second_target = int(item.get("target2", 0))
-			resolve_context.self_uid = int(item["uid"]) if item["kind"] == "unit_ability" else 0
-			_run_effects(resolve_context, effects)
-		if item["kind"] == "card":
-			var holder := find_unit(int(item["target"]))
-			var played := _take_stack_card(item)
-			if CardDB.is_equipment(CardDB.card(item["card_id"])) and holder != null and spec != "" and valid_targets(p, spec).has(int(item["target"])):
-				_attach(holder, played)
-			elif item.get("requiem", false):
-				_banish_requiem(played)
-			else:
-				players[p]["graveyard"].append(played)
-				_move(played, "graveyard")
-		_check_state()
-		_prune_attackers()
-	if phase in ["main", "combat"] and stack.is_empty():
-		summon_window = false
-		priority = _window_owner()
+	stack_system().resolve_stack()
 
-## The Card a "card" stack item stands for (a fresh one if it was never played from a hand).
-func _take_stack_card(item: Dictionary) -> Card:
-	var uid := int(item["uid"])
-	if _stack_cards.has(uid):
-		var c: Card = _stack_cards[uid]
-		_stack_cards.erase(uid)
-		return c
-	return Card.new(uid, item["card_id"], int(item["player"]), "stack")
-
-## Equipment stays on the board under its unit; a previous one is discarded.
-func _attach(holder: Card, eq: Card) -> void:
-	_release_equipment(holder)
-	holder.equipment = eq
-	_move(eq, "equipped")
-	_emit({"type": "attach", "uid": holder.uid, "equip_uid": eq.uid, "card_id": eq.card_id})
-
-## Sends the unit's equipment (if any) to its owner's graveyard.
-func _release_equipment(c: Card) -> void:
-	if c.equipment == null:
-		return
-	var eq := c.equipment
-	c.equipment = null
-	players[c.owner]["graveyard"].append(eq)
-	_move(eq, "graveyard")
-	_emit({"type": "equipment_break", "uid": c.uid, "equip_uid": eq.uid, "card_id": eq.card_id})
-
-## Removes stack item `sid` without resolving it; a countered card goes to the graveyard.
 func _counter(p: int, sid: int) -> void:
-	var it := _stack_item(sid)
-	if it.is_empty() or _is_uncounterable(it):
-		return
-	stack.erase(it)
-	if it["kind"] == "card":
-		var countered := _take_stack_card(it)
-		if it.get("requiem", false):
-			_banish_requiem(countered)
-		else:
-			players[it["player"]]["graveyard"].append(countered)
-			_move(countered, "graveyard")
-	_emit({"type": "countered", "sid": sid, "player": it["player"], "by": p, "card_id": it["card_id"], "kind": it["kind"]})
+	stack_system().counter(p, sid)
 
-## Damage window: the attacker holds priority after the stack resolves.
-func _window_owner() -> int:
-	return opponent(active) if phase == "combat" and window == "prepare" else active
+func _release_equipment(c: Card) -> void:
+	stack_system().release_equipment(c)
 
-func _open_window(w: String) -> void:
-	window = w
-	priority = _window_owner()
-	_emit({"type": "window", "window": w, "player": priority})
-
-func _pass() -> void:
-	if not stack.is_empty():
-		_resolve_stack()
-		return
-	if summon_window:
-		summon_window = false
-		priority = active
-		return
-	match window:
-		"attack":
-			_open_window("prepare")
-		"prepare":
-			_to_blocks()
-		"damage":
-			if priority == active:
-				priority = opponent(active) # attacker passed: the defender may still act
-			else:
-				_resolve_combat() # both passed in a row with an empty stack
-		_:
-			_to_blocks()
-
-## Attackers that died during the windows leave combat.
-func _prune_attackers() -> void:
-	for a in attackers.keys():
-		if find_unit(a) == null:
-			attackers.erase(a)
-
-func _to_blocks() -> void:
-	window = ""
-	_prune_attackers()
-	if attackers.is_empty():
-		_end_combat()
-	elif players[opponent(active)]["board"].is_empty() or (auto_pass[opponent(active)] and not _can_block_any()):
-		_start_damage(_forced_blocks())
-	else:
-		phase = "blocks"
-
-## Blocks are locked in, block triggers fire, then the damage window opens.
-func _start_damage(final: Dictionary) -> void:
-	phase = "combat"
-	blocks = final
-	_emit({"type": "blocks", "blocks": final})
-	for a in final:
-		_fire(find_unit(final[a]), "on_block", a)
-		_fire(find_unit(a), "on_blocked", final[a])
-	_check_state()
-	if phase == "over":
-		attackers.clear()
-		blocks.clear()
-		return
-	_prune_attackers()
-	if attackers.is_empty():
-		_end_combat()
-		return
-	_open_window("damage")
-
-## Is there any attacker that some defending unit may legally block?
-func _can_block_any() -> bool:
-	var forced := _forced_blocks()
-	for a in attackers:
-		if forced.has(a):
-			continue
-		var att := find_unit(a)
-		for blk in players[opponent(active)]["board"]:
-			if not forced.values().has(blk.uid) and can_block(blk, att):
-				return true
-	return false
-
-func _end_combat() -> void:
-	attackers.clear()
-	blocks.clear()
-	window = ""
-	if phase != "over":
-		phase = "main"
-		priority = active
-
-## After a unit enters from hand/Santuário in the main phase, the opponent may respond.
-func _open_summon_window(p: int) -> void:
-	if phase in ["search", "enter_target"] and p == active:
-		_summon_pending = true
-		return
-	if phase == "main" and stack.is_empty() and p == active:
-		summon_window = true
-		priority = opponent(p)
-
-## A summon whose on_play searched (or whose Ao Entrar awaited a target) opens its
-## response window once the pick is made.
-func _after_search() -> void:
-	if _summon_pending and phase == "main":
-		_summon_pending = false
-		_open_summon_window(active)
+## Can p do anything right now besides passing?
+func _has_play(p: int) -> bool:
+	return stack_system().has_play(p)
 
 ## Turns p's auto-pass on or off. Turning it on while p holds an unusable window passes it.
 func set_auto_pass(p: int, on: bool) -> Array:
 	auto_pass[p] = on
 	if on:
-		_settle()
+		stack_system().settle()
 	return _flush()
-
-## Can p do anything right now besides passing?
-func _has_play(p: int) -> bool:
-	for c in players[p]["hand"]:
-		if can_play(p, c.uid):
-			return true
-	for c in players[p]["board"]:
-		if can_activate(p, c.uid):
-			return true
-	for c in players[p]["graveyard"]:
-		if is_requiem(c) and can_play(p, c.uid):
-			return true
-	return can_use_ability(p)
-
-## Auto-passes for whoever holds priority with no legal play, so windows nobody can use
-## cost no clicks. Stops at a real decision.
-func _settle() -> void:
-	for guard in 64:
-		if phase not in ["main", "combat"]:
-			return
-		if stack.is_empty() and phase == "main" and not summon_window:
-			priority = active
-			return
-		if not auto_pass[priority] or _has_play(priority):
-			return
-		_pass()
 
 # ---------------------------------------------------------------- internals
 
@@ -1316,7 +1043,7 @@ func _deal_damage(t: int, amount: int, source: Card) -> int:
 		if has_kw(c, "indestrutivel"):
 			return 0 # damage is always 0 against it (Escudo isn't consumed)
 		# Esquiva: the first combat damage each turn from a qualifying attacker is avoided
-		if _combat_damage and has_kw(c, "esquiva") and source != null and _dodges(c, source) 				and c.dodge_turn != turn:
+		if _combat_damage and has_kw(c, "esquiva") and source != null and combat_system().dodges(c, source) 				and c.dodge_turn != turn:
 			c.dodge_turn = turn
 			_emit({"type": "dodge", "uid": t, "src": src_uid})
 			return 0
@@ -1393,59 +1120,6 @@ func _draw_discounted(p: int, min_base_cost: int, discount: int) -> void:
 			c.discount += discount
 			_emit({"type": "draw", "player": p, "uid": c.uid})
 			return
-
-## Esquiva condition: by default the attacker has less ATK than the dodger. A card can override it with
-## "esquiva": {"unless_keywords": [...]} = the attacker has none of those keywords.
-func _dodges(c: Card, source: Card) -> bool:
-	var rule: Dictionary = c.data().get("esquiva", {})
-	if rule.has("unless_keywords"):
-		for kw in rule["unless_keywords"]:
-			if source.has_kw(kw):
-				return false
-		return true
-	return source.atk_total() < c.atk_total()
-
-## When a combatant deals its combat damage: 1 = Hipervelocidade (attacking or blocking), 2 = Ataque Rápido
-## (only as the attacker, and not against a blocker with Hipervelocidade), 3 = everyone else.
-func _strike_step(u: Card, other: Card, attacking: bool) -> int:
-	if u.has_kw("hipervelocidade"):
-		return 1
-	if attacking and u.has_kw("ataque_rapido") and not (other != null and other.has_kw("hipervelocidade")):
-		return 2
-	return 3
-
-## Dead attackers deal nothing; a blocked attacker whose blocker died hits nothing
-## (Sobrepujança: all of it goes to the leader); a blocker whose attacker died deals nothing.
-func _resolve_combat() -> void:
-	var defender := opponent(active)
-	window = ""
-	_emit({"type": "combat_damage"})
-	_combat_damage = true
-	_prune_attackers()
-	var pairs: Array = []
-	for a in attackers:
-		pairs.append([a, blocks.get(a, 0)])
-	for step in [1, 2, 3]:
-		for pair in pairs:
-			var att := find_unit(pair[0])
-			var blk: Card = find_unit(pair[1]) if pair[1] != 0 else null
-			if att != null and _strike_step(att, blk, true) == step:
-				if pair[1] == 0:
-					_deal_damage(LEADER_UID[defender], atk_of(att), att)
-				elif blk != null:
-					var excess := atk_of(att) - hp_left(blk)
-					_deal_damage(blk.uid, atk_of(att), att)
-					if has_kw(att, "sobrepujanca") and excess > 0:
-						_deal_damage(LEADER_UID[defender], excess, att)
-				elif has_kw(att, "sobrepujanca"):
-					_deal_damage(LEADER_UID[defender], atk_of(att), att) # blocker already dead
-			if blk != null and _strike_step(blk, att, false) == step and att != null:
-				_deal_damage(att.uid, atk_of(blk), blk)
-		_check_state()
-	# a Leader that drops to 0 mid-combat still takes the remaining strikes (overkill); the result is decided once, here
-	_combat_damage = false
-	_check_leaders()
-	_end_combat()
 
 ## Stabilizes the game after an action: moves dead units out, then resolves the queued triggers one
 ## at a time (active player's first), looping until nothing is left to do. A trigger that opens a
