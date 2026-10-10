@@ -12,7 +12,7 @@
   "keywords": [
     "furtividade"
   ],
-  "art": "",
+  "art": "eletrica/pippa_ziguezague.webp",
   "effects": [
     {
       "trigger": "on_hit_leader",

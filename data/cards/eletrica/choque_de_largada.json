@@ -5,7 +5,7 @@
   "essence": "eletrica",
   "cost": 1,
   "speed": "instantaneo",
-  "art": "",
+  "art": "eletrica/choque_de_largada.webp",
   "effects": [
     {
       "trigger": "on_play",
