@@ -569,7 +569,7 @@ func _test_obscura_rules() -> void:
 	check(v.cost_of(0, vag) == 0, "custo nunca fica abaixo de 0")
 	check(v.cost_of(1, vag) == 12, "cemitério inimigo não reduz")
 	var vc := _put(v, 0, "a_vagante_sombria")
-	v._apply(1, {"action": "damage", "target": "any", "amount": 99}, vc.uid)
+	v._apply_effect(1, {"action": "damage", "target": "any", "amount": 99}, vc.uid)
 	check(not v.find_unit(vc.uid) == null and vc.damage == 0, "vagante ignora dano")
 	var fresh := _obscura_game()
 	fresh.players[0]["passive_used"] = true
@@ -611,7 +611,7 @@ func _test_freeze() -> void:
 	var g := _new_game()
 	var atk := _put(g, 0, "kai")
 	var f := _put(g, 1, "tritao_lanceiro")
-	g._apply(0, {"action": "freeze", "target": "enemy_unit"}, f.uid)
+	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, f.uid)
 	check(g.is_frozen(f), "congelar marca a unidade")
 	check(not g.can_block(f, atk), "congelada não bloqueia")
 	_quiet(g)
@@ -622,7 +622,7 @@ func _test_freeze() -> void:
 	check(not g.is_frozen(f), "descongela no fim do próximo turno do dono")
 	var s := _put(g, 1, "tritao_lanceiro")
 	s.spell_shield = true
-	g._apply(0, {"action": "freeze", "target": "enemy_unit"}, s.uid)
+	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, s.uid)
 	check(not g.is_frozen(s) and not s.spell_shield, "Escudo de Feitiço anula congelar")
 	check(CardDB.has_essence(CardDB.card("sabrina"), "glacial") and CardDB.has_essence(CardDB.card("sabrina"), "aquatica"), "sabrina é aquática e glacial")
 
@@ -989,8 +989,8 @@ func _test_stack() -> void:
 	g.play_card(0, _give(g, 0, "labareda"), ner.uid)
 	check(ner.damage == 2, "second spell hits")
 	var ally := _put(g, 1, "t_wall")
-	g._apply(1, {"action": "buff", "keywords": ["escudo_feitico"]}, ally.uid)
-	g._apply(1, {"action": "buff", "atk": 1}, ally.uid)
+	g._apply_effect(1, {"action": "buff", "keywords": ["escudo_feitico"]}, ally.uid)
+	g._apply_effect(1, {"action": "buff", "atk": 1}, ally.uid)
 	check(g.has_kw(ally, "escudo_feitico") and ally.atk == 2, "own effects don't pop the spell shield")
 
 	# Mar que Retorna (Naelthos): +1 vida máxima e atual, instantânea, respondível mas não anulável
@@ -1011,9 +1011,9 @@ func _test_stack() -> void:
 	g._resolve_stack()
 	check(g.players[1]["leader_hp"] == hp_before + 1 and g.players[1]["leader_max"] == start_hp + 1, "+1 vida atual e máxima")
 	g.players[1]["leader_hp"] = g.players[1]["leader_max"]
-	g._apply(1, {"action": "leader_max_up", "amount": 1}, 0)
+	g._apply_effect(1, {"action": "leader_max_up", "amount": 1}, 0)
 	check(g.players[1]["leader_hp"] == start_hp + 2 and g.players[1]["leader_max"] == start_hp + 2, "passa da vida inicial")
-	g._apply(1, {"action": "heal_leader", "amount": 5}, 0)
+	g._apply_effect(1, {"action": "heal_leader", "amount": 5}, 0)
 	check(g.players[1]["leader_hp"] == start_hp + 2, "cura normal respeita a nova vida máxima")
 
 ## Hipervelocidade strikes first attacking or blocking; Ataque Rápido only as the attacker and not against Hipervelocidade.
@@ -1473,10 +1473,10 @@ func _test_eletrica() -> void:
 	ally = _put(g, a, "jack")
 	g.players[a]["momentum"] = 2
 	_put(g, a, "faisca_viva")
-	g._run_effects(a, CardDB.card("voltexz")["effects"], "on_enter", 0, 0)
+	g._run_effect_dicts(a, CardDB.card("voltexz")["effects"], "on_enter", 0, 0)
 	check(g.atk_of(ally) == 4 and g.players[a]["board"][0].hp == 6, "voltexz: +1/+1 por Momentum restante")
 	g.players[a]["momentum"] = 0
-	g._run_effects(a, CardDB.card("voltexz")["effects"], "on_enter", 0, 0)
+	g._run_effect_dicts(a, CardDB.card("voltexz")["effects"], "on_enter", 0, 0)
 	check(g.atk_of(ally) == 5 and g.players[a]["board"][0].hp == 7, "voltexz: sem Momentum sobrando, ainda dá +1/+1")
 	# Jack: +1 attack at end of turn only with Momentum left
 	g = _eletrica_game()

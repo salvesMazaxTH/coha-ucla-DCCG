@@ -6,17 +6,9 @@ static var _data: Dictionary = {}
 static var _defs: Dictionary = {} ## id -> CardDef
 static var _errors: Array[String] = []
 
-## Effect vocabulary the engine understands (checked on load so a typo is an error, not a silent no-op).
-const ACTIONS := ["damage", "heal_leader", "leader_max_up", "heal_full", "draw", "draw_discounted", "tide_mark",
-	"search_deck", "look_top", "freeze", "summon", "mill", "mill_pick", "revive", "revive_self", "destroy",
-	"banish", "sacrifice", "gain_momentum", "buff", "counter", "cost_reduction", "scale"]
-const STATIC_ACTIONS := ["cost_reduction", "scale"] ## not run by a trigger, so no target
+## The effect vocabulary lives in EffectRegistry, TargetRegistry and ConditionRegistry; a typo is
+## checked on load so it is an error, not a silent no-op.
 const DECK_ACTIONS := ["summon_self"]
-const TARGETS := ["enemy_unit", "ally_unit", "other_ally_unit", "any_unit", "any", "enemy_stack",
-	"all_enemy_units", "enemy_leader", "own_leader", "both_leaders", "random_enemy_unit",
-	"random_enemy_and_adjacent", "self", "none", "opposed_unit", "all_units", "all_ally_units",
-	"other_ally_units", "random_ally_unit", "random_other_ally_unit"]
-const CONDITIONS := ["momentum_left", "reserve_full", "played_two"]
 const TYPES := ["unit", "spell", "artifact"]
 const SPEEDS := ["lento", "rapido", "instantaneo"]
 
@@ -67,7 +59,11 @@ static func errors() -> Array[String]:
 
 static func def(id: String) -> CardDef:
 	data()
-	return _defs[id]
+	if _defs.has(id):
+		return _defs[id]
+	# cards added to the data at runtime (test fixtures) have no cached CardDef: build a fresh one
+	# each time, so later edits to their dictionary are always seen
+	return CardDef.new(id, _data["cards"][id])
 
 static func _validate_card(id: String, cd: Dictionary) -> void:
 	var err := func(msg: String): _errors.append("carta %s: %s" % [id, msg])
@@ -130,12 +126,12 @@ static func _validate_effects(err: Callable, effects: Array) -> void:
 			err.call("efeito não é objeto: %s" % str(e))
 			continue
 		var action: String = e.get("action", "")
-		if action not in ACTIONS:
+		if not EffectRegistry.is_known(action):
 			err.call("action desconhecida \"%s\"" % action)
-		if action not in STATIC_ACTIONS:
+		if action not in EffectRegistry.STATIC_ACTIONS:
 			if not e.has("target"):
 				err.call("efeito \"%s\" sem target" % action)
-			elif e["target"] not in TARGETS:
+			elif not TargetRegistry.is_known(String(e["target"])):
 				err.call("target desconhecido \"%s\"" % e["target"])
 		_check_trigger_if(err, e)
 		for kw in e.get("keywords", []):
@@ -148,8 +144,10 @@ static func _validate_effects(err: Callable, effects: Array) -> void:
 static func _check_trigger_if(err: Callable, e: Dictionary) -> void:
 	if e.has("trigger") and not _data["triggers"].has(e["trigger"]):
 		err.call("trigger desconhecido \"%s\"" % e["trigger"])
-	if e.has("if") and e["if"] not in CONDITIONS:
-		err.call("if desconhecido \"%s\"" % e["if"])
+	if e.has("if"):
+		var problem := ConditionRegistry.error_of(e["if"])
+		if problem != "":
+			err.call(problem)
 
 static func card(id: String) -> Dictionary:
 	return data()["cards"][id]

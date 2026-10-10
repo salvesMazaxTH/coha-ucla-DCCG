@@ -45,6 +45,12 @@ func _init(card_uid: int, id: String, owner_player: int, in_zone: String = "") -
 func data() -> Dictionary:
 	return CardDB.card_for(card_id, {"over": over})
 
+## This instance's effects as Effect objects: its own overrides if it has any, else the catalog's.
+func effect_list() -> Array:
+	if over.has("effects"):
+		return EffectRegistry.parse_list(over["effects"])
+	return CardDB.def(card_id).effects()
+
 ## Puts fresh board state on the card as it enters the board.
 func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	over = overrides
