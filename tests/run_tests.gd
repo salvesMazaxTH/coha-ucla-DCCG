@@ -1398,6 +1398,15 @@ func _test_eletrica() -> void:
 	g._flush()
 	g.auto_pass[o] = true
 	check(g.find_unit(foe1.uid) == null and g.find_unit(foe2.uid) == null and not g.find_unit(fv.uid) == null, "fulgurvoltz: destrói todas as inimigas e fica")
+	# the Ao Ativar exhausts it: no second use, no attack, but it still blocks; a new turn refreshes it
+	check(fgd["activated"].get("exhaust", false) and fv.exhausted, "fulgurvoltz: ativar o exaure")
+	g.players[a]["momentum"] = 4
+	check(not g.can_activate(a, fv.uid) and not g.can_attack(fv), "fulgurvoltz: exausto não ativa de novo nem ataca")
+	var fv_foe := _put(g, o, "tritao_lanceiro")
+	check(g.can_block(fv, fv_foe), "fulgurvoltz: exausto ainda bloqueia")
+	var fv2 := _put(g, a, "fulgurvoltz")
+	fv2.exhausted = true # e.g. it attacked this turn
+	check(not g.can_activate(a, fv2.uid), "fulgurvoltz: quem atacou não ativa")
 	# a counter on the stack stops it
 	g = _eletrica_game()
 	a = g.active

@@ -546,6 +546,23 @@ func _kw_badges(art: Rect2, cd: Dictionary, s: float) -> void:
 		if kws.has(kw):
 			_kw_badge(kw, c, 10 * s, s)
 			c.y += 23 * s
+	# an Ao Ativar that exhausts the unit: lit while it can still be used, dark once spent.
+	# Shown on both turns, since the dim veil only means "can't attack" on the owner's turn.
+	if inst.has("damage") and cd.get("activated", {}).get("exhaust", false):
+		_use_badge(c, 10 * s, s, not inst.get("exhausted", false))
+
+func _use_badge(c: Vector2, r: float, s: float, ready: bool) -> void:
+	var col := TRIGGER_COL if ready else Color("#6f6a78")
+	draw_circle(c + Vector2(0, 1.4 * s), r * 1.18, Color(0, 0, 0, 0.5))
+	draw_circle(c, r * 1.14, UITheme.GOLD_DARK.darkened(0.3 if ready else 0.6))
+	draw_circle(c, r * 1.07, UITheme.GOLD if ready else UITheme.GOLD_DARK)
+	draw_circle(c, r, col.darkened(0.82))
+	if ready:
+		draw_circle(c - Vector2(0, r * 0.35), r * 0.62, Color(col, 0.18))
+	var bolt := _unit_pts(c, r * 0.8, [[0.2, -0.85], [-0.5, 0.1], [-0.05, 0.1], [-0.22, 0.85], [0.5, -0.15], [0.05, -0.15]])
+	draw_colored_polygon(bolt, col.lightened(0.15) if ready else Color(col, 0.55))
+	if not ready:
+		draw_line(c + Vector2(-0.7, 0.7) * r, c + Vector2(0.7, -0.7) * r, Color("#1a171f"), 1.6 * s, true)
 
 func _kw_badge(kw: String, c: Vector2, r: float, s: float) -> void:
 	var col: Color = BADGES[kw]

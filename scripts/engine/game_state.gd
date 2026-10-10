@@ -463,8 +463,10 @@ func can_use_ability(p: int) -> bool:
 	var spec := target_spec(ab["effects"])
 	return spec == "" or not valid_targets(p, spec).is_empty()
 
-## Unit Ao Ativar (cards.json unit field "activated": {cost, speed, effects, once_per_turn}):
+## Unit Ao Ativar (cards.json unit field "activated": {cost, speed, effects, once_per_turn, exhaust}):
 ## paid like an ability (Reserva counts) and put on the stack, so it can be answered and countered.
+## "exhaust": the unit must be ready (not exhausted) and becomes exhausted, so it cannot attack
+## that turn (and an attacker cannot activate). Exhaustion never stops it from blocking.
 func can_activate(p: int, uid: int) -> bool:
 	var c := find_unit(uid)
 	if c == null or c.owner != p:
@@ -473,6 +475,8 @@ func can_activate(p: int, uid: int) -> bool:
 	if ab.is_empty() or not can_cast_speed(p, speed_of(ab)) or int(ab["cost"]) > budget(p, true):
 		return false
 	if ab.get("once_per_turn", false) and c.activated_turn == turn:
+		return false
+	if ab.get("exhaust", false) and c.exhausted:
 		return false
 	var spec := target_spec(ab["effects"])
 	return spec == "" or not valid_targets(p, spec, uid).is_empty()
@@ -621,6 +625,8 @@ func activate(p: int, uid: int, target: int = 0) -> Array:
 		return []
 	_pay(p, int(ab["cost"]), true)
 	c.activated_turn = turn
+	if ab.get("exhaust", false):
+		c.exhausted = true
 	_emit({"type": "trigger", "uid": uid, "player": p, "card_id": c.card_id, "trigger": "on_activate"})
 	_push(p, "unit_ability", uid, c.card_id, target, speed_of(ab))
 	_settle()
