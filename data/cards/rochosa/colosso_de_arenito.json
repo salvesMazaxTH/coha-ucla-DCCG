@@ -1,0 +1,23 @@
+{
+  "name": "Colosso de Arenito",
+  "type": "unit",
+  "rarity": "common",
+  "species": [],
+  "essence": "rochosa",
+  "cost": 5,
+  "atk": 4,
+  "hp": 9,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_ally_death",
+      "action": "buff",
+      "target": "self",
+      "atk": 2,
+      "temp": true
+    }
+  ],
+  "text": "Aliado Morre: ganha +2 de Ataque até o fim do turno.",
+  "flavor": "",
+  "tags": []
+}

@@ -1,0 +1,22 @@
+{
+  "name": "Quartzina Bagunça-Tudo",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [],
+  "essence": "rochosa",
+  "cost": 6,
+  "atk": 4,
+  "hp": 8,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 2
+    }
+  ],
+  "text": "Ao Entrar: compre 2 cartas.",
+  "flavor": "",
+  "tags": []
+}

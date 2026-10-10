@@ -1,0 +1,22 @@
+{
+  "name": "Yrêsa Petronika",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [],
+  "essence": "rochosa",
+  "cost": 8,
+  "atk": 7,
+  "hp": 12,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_damaged",
+      "action": "buff",
+      "target": "random_other_ally_unit",
+      "hp": 1
+    }
+  ],
+  "text": "Ao Sofrer Dano: outra unidade aliada aleatória ganha +1 de Vida.",
+  "flavor": "",
+  "tags": []
+}

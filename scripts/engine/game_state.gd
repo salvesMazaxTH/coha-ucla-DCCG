@@ -1018,6 +1018,19 @@ func _begin_look(p: int, n: int, source_uid: int, reshuffle: bool = false) -> vo
 	_emit({"type": "look_top", "player": p, "source_uid": source_uid, "cards": top})
 
 ## Returns damage actually dealt. source is the dealing unit or null.
+## Armadura a unit really has: its own (printed + buffs) plus "adjacent_armor" from the allies
+## standing right next to it on the board (the board order is the order the units were played).
+func armor_of(c: Card) -> int:
+	var total := c.armor_total()
+	var board: Array = players[c.owner]["board"]
+	var index := board.find(c)
+	if index < 0:
+		return total
+	for neighbour_index in [index - 1, index + 1]:
+		if neighbour_index >= 0 and neighbour_index < board.size():
+			total += int(card_of(board[neighbour_index]).get("adjacent_armor", 0))
+	return total
+
 func _deal_damage(t: int, amount: int, source: Card) -> int:
 	if amount <= 0:
 		return 0
@@ -1047,6 +1060,13 @@ func _deal_damage(t: int, amount: int, source: Card) -> int:
 			c.dodge_turn = turn
 			_emit({"type": "dodge", "uid": t, "src": src_uid})
 			return 0
+		# Armadura: reduces every damage instance; if nothing is left there is no instance, so Escudo stays
+		var armor := armor_of(c)
+		if armor > 0:
+			amount = maxi(0, amount - armor)
+			if amount == 0:
+				_emit({"type": "armor_block", "uid": t, "src": src_uid})
+				return 0
 		if c.shield:
 			c.shield = false
 			_emit({"type": "shield_break", "uid": t, "src": src_uid})
@@ -1277,6 +1297,7 @@ func _start_turn(p: int, draw: bool) -> void:
 	for c in pl["board"]:
 		c.exhausted = false
 		c.sick = false
+		c.temp_armor = 0
 	_emit({"type": "start_turn", "player": p, "turn": turn})
 	bus().emit(GameEvent.new("turn_started", p))
 	_fire_leader_passive(p, "on_turn_start")

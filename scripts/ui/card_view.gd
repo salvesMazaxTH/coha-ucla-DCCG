@@ -42,6 +42,8 @@ var inst: Dictionary = {} ## unit on board (live stats) or hand instance
 var uid := 0
 var face_down := false
 var highlight := Color.TRANSPARENT ## outline for selection/targets
+var ability_ready := false ## an "Ao Ativar" ability can be used right now: violet glow, distinct from the green attack glow
+const ABILITY_GLOW := Color("#c07bff")
 var dim := false
 var cost_override := -1
 var text_suffix := "" ## live count appended to the rules text in the big view (e.g. "(agora: 3)")
@@ -289,6 +291,11 @@ func _draw() -> void:
 	elif hovered:
 		for i in 3:
 			_rrect_line(r.grow((1.5 + i * 2) * s), rad + i * 2 * s, Color(glow, 0.5 - i * 0.15), 2 * s)
+	# usable ability: violet rings; pushed outward when another highlight (e.g. can attack) already uses the inner rings
+	if ability_ready:
+		var first_ring := 4 if highlight.a > 0 else 0
+		for i in 4:
+			_rrect_line(r.grow((2 + (first_ring + i) * 2.2) * s), rad + (first_ring + i) * 2 * s, Color(ABILITY_GLOW, (0.9 - i * 0.22) * (0.65 + 0.35 * pulse)), 2.2 * s)
 	# trigger proc: hot rim light, plus a ring pulsing out of the frame
 	if proc > 0:
 		for i in 5:
@@ -534,6 +541,15 @@ func _draw_frost(art: Rect2, s: float) -> void:
 		_diamond(c, rr * 0.3, Color(1, 1, 1, 0.85))
 	draw_rect(art.grow(-0.5 * s), Color(FROST, 0.8), false, 1.4 * s)
 
+## Armadura shown for a unit: the live total on the board (own + temporary + from adjacent allies,
+## put in the view data by Main as "armor_total"), the printed value everywhere else.
+static func armor_of_view(cd: Dictionary, instance: Dictionary) -> int:
+	if instance.has("armor_total"):
+		return int(instance["armor_total"])
+	if instance.has("damage"):
+		return int(instance.get("armor", 0)) + int(instance.get("temp_armor", 0))
+	return int(cd.get("armor", 0))
+
 ## Live keywords on the board, printed ones elsewhere.
 func _keywords(cd: Dictionary) -> Array:
 	return inst.get("keywords", cd.get("keywords", []))
@@ -546,10 +562,26 @@ func _kw_badges(art: Rect2, cd: Dictionary, s: float) -> void:
 		if kws.has(kw):
 			_kw_badge(kw, c, 10 * s, s)
 			c.y += 23 * s
+	var armor_value := armor_of_view(cd, inst)
+	if armor_value > 0:
+		_armor_badge(c, 10 * s, s, armor_value)
+		c.y += 23 * s
 	# an Ao Ativar that exhausts the unit: lit while it can still be used, dark once spent.
 	# Shown on both turns, since the dim veil only means "can't attack" on the owner's turn.
 	if inst.has("damage") and cd.get("activated", {}).get("exhaust", false):
 		_use_badge(c, 10 * s, s, not inst.get("exhausted", false))
+
+## Armadura medallion: a steel shield with the amount written on it.
+func _armor_badge(c: Vector2, r: float, s: float, amount: int) -> void:
+	var steel := Color("#b8c4d2")
+	draw_circle(c + Vector2(0, 1.4 * s), r * 1.18, Color(0, 0, 0, 0.5))
+	draw_circle(c, r * 1.14, UITheme.GOLD_DARK.darkened(0.3))
+	draw_circle(c, r * 1.07, UITheme.GOLD)
+	draw_circle(c, r, steel.darkened(0.82))
+	draw_arc(c, r * 1.07, 0, TAU, 24, Color(UITheme.GOLD_LIGHT, 0.7), 0.8 * s, true)
+	draw_colored_polygon(_shape("shield", c, r * 0.82), steel.darkened(0.15))
+	draw_colored_polygon(_shape("shield", c, r * 0.64), steel.darkened(0.55))
+	_text(UITheme.font("heavy"), str(amount), c + Vector2(0, r * 0.32), r * 1.05, Color.WHITE)
 
 func _use_badge(c: Vector2, r: float, s: float, ready: bool) -> void:
 	var col := TRIGGER_COL if ready else Color("#6f6a78")
@@ -646,6 +678,9 @@ func _panel_lines(cd: Dictionary) -> Array:
 		tags.append([CardDB.keyword("escudo_feitico")["name"], Color("#c9a8ff")])
 	for kw in kws:
 		tags.append([CardDB.keyword(kw)["name"], Color("#9fe3ff") if kw == "escudo" else Color("#ffe7a0")])
+	var armor_value := armor_of_view(cd, inst)
+	if armor_value > 0:
+		tags.append(["%s %d" % [CardDB.keyword("armadura")["name"], armor_value], Color("#c9d6e6")])
 	var seen := {}
 	for e in cd.get("effects", []):
 		var trg: String = e.get("trigger", "")

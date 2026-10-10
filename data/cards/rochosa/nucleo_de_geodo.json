@@ -1,0 +1,22 @@
+{
+  "name": "Núcleo de Geodo",
+  "type": "artifact",
+  "subtypes": [
+    "equipment"
+  ],
+  "rarity": "common",
+  "essence": "rochosa",
+  "cost": 2,
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "hp": 1,
+      "armor": 1
+    }
+  ],
+  "text": "Equipar: a unidade ganha +1 de Vida e Armadura 1.",
+  "flavor": "",
+  "tags": []
+}

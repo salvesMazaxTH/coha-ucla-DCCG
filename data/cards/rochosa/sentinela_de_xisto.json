@@ -1,0 +1,22 @@
+{
+  "name": "Sentinela de Xisto",
+  "type": "unit",
+  "rarity": "common",
+  "species": [],
+  "essence": "rochosa",
+  "cost": 1,
+  "atk": 1,
+  "hp": 3,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_block",
+      "action": "buff",
+      "target": "self",
+      "armor_temp": 1
+    }
+  ],
+  "text": "Ao Bloquear: ganha Armadura 1 até o início do seu próximo turno.",
+  "flavor": "",
+  "tags": []
+}

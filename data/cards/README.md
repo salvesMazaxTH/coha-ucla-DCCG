@@ -22,7 +22,9 @@ O arquivo `../cards.json` continua guardando elementos, palavras-chave, espécie
 
 ## Campos opcionais
 
-- `max_copies`: máximo de cópias no deck (padrão 3). `1` = **Única**; escreva "Única." na primeira linha do `text`.
+- `max_copies`: máximo de cópias no deck (padrão 3; 2 para cartas Lendárias). `1` = **Única**; escreva "Única." na primeira linha do `text`.
+- `armor`: Armadura impressa da unidade (N). Todo dano que ela receberia cai em N; os valores somam quando um efeito dá mais (`armor` fixo ou `armor_temp` até o início do próximo turno do dono, no `buff`). Dano zerado pela Armadura não gasta o Escudo.
+- `adjacent_armor`: enquanto a unidade estiver no campo, as unidades aliadas ao lado dela (posição anterior e seguinte no campo, que segue a ordem em que foram jogadas) ganham N de Armadura.
 - `token`: `true` = ficha (só existe invocada por `summon`, nunca em deck). Ao morrer ou ser banida some do jogo: não vai ao cemitério nem aos banidos, mas ainda dispara Aliado Morre. Não conta nas cartas únicas da essência.
 - `deck_effects`: efeitos que valem enquanto a carta está no deck (`trigger`, `if`, `action`). Hoje só existe `summon_self` (a cópia sai do deck e entra em campo; `cost` opcional = Momentum pago na entrada, como uma habilidade: a Reserva vale e é gasta primeiro) (ver `_fire_deck_effects` em `game_state.gd`).
 

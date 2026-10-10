@@ -1,0 +1,22 @@
+{
+  "name": "Arquiteto do Leito",
+  "type": "unit",
+  "rarity": "common",
+  "species": [],
+  "essence": "rochosa",
+  "cost": 4,
+  "atk": 3,
+  "hp": 6,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "other_ally_unit",
+      "hp": 1
+    }
+  ],
+  "text": "Ao Entrar: outra unidade aliada ganha +1 de Vida.",
+  "flavor": "",
+  "tags": []
+}

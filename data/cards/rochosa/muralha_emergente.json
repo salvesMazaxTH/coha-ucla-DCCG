@@ -1,0 +1,19 @@
+{
+  "name": "Muralha Emergente",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "rochosa",
+  "cost": 2,
+  "speed": "rapido",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "armor_temp": 1
+    }
+  ],
+  "text": "Rápida. Uma unidade aliada ganha Armadura 1 até o início do seu próximo turno.",
+  "flavor": "",
+  "tags": []
+}

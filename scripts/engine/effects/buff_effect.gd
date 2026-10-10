@@ -1,13 +1,16 @@
 class_name BuffEffect
 extends Effect
 ## "buff": +atk/+hp and keywords on the target unit ("temp": true = attack and keywords only
-## until end of turn).
+## until end of turn). "armor": N adds Armadura permanently (stacks with what it already has);
+## "armor_temp": N is the same until its owner's next turn starts.
 ## "per": "momentum_left" multiplies atk/hp by the Momentum the controller still has
 ## (at least `min`, at most `max`).
 ## "cap_atk": this effect can give one unit at most that much attack in total (e.g. Layla).
 
 var attack := 0
 var health := 0
+var armor := 0
+var temporary_armor := 0
 var temporary := false
 var keywords: Array = []
 var per := ""
@@ -19,6 +22,8 @@ var attack_cap := 0
 func _read_parameters(data: Dictionary) -> void:
 	attack = int(data.get("atk", 0))
 	health = int(data.get("hp", 0))
+	armor = int(data.get("armor", 0))
+	temporary_armor = int(data.get("armor_temp", 0))
 	temporary = bool(data.get("temp", false))
 	keywords = data.get("keywords", [])
 	per = String(data.get("per", ""))
@@ -47,6 +52,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	else:
 		unit.atk += attack_gain
 		unit.hp += health_gain
+	unit.temp_armor += temporary_armor # lasts until the unit's owner starts their next turn
+	unit.armor += armor # Armadura stacks: giving Armadura X to a unit that has Y leaves X + Y
 	for keyword in keywords:
 		if keyword == "escudo":
 			unit.shield = true
@@ -56,4 +63,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 			unit.keywords.append(keyword)
 			if temporary:
 				unit.temp_keywords.append(keyword)
-	game._emit({"type": "buff", "uid": target_uid, "atk": attack_gain, "hp": health_gain, "keywords": raw.get("keywords", [])})
+	var buff_event := {"type": "buff", "uid": target_uid, "atk": attack_gain, "hp": health_gain, "keywords": raw.get("keywords", [])}
+	if armor + temporary_armor > 0:
+		buff_event["armor"] = armor + temporary_armor
+	game._emit(buff_event)

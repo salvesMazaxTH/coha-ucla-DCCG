@@ -198,6 +198,10 @@
       "name": "Congelar",
       "text": "A unidade não pode atacar nem bloquear até o fim do próximo turno do dono."
     },
+    "armadura": {
+      "name": "Armadura",
+      "text": "Armadura X: todo dano que esta unidade receberia é reduzido em X. Se algo der Armadura a uma unidade que já tem, os valores se somam."
+    },
     "esquiva": {
       "name": "Esquiva",
       "text": "A primeira vez em cada turno que receberia dano de combate de uma unidade com ataque menor que o dela, o dano é evitado."
@@ -294,6 +298,27 @@
         "text": "Passiva. No início do seu turno, recupere metade do Momentum que vazou da Reserva, arredondada para baixo (máx. 2)."
       },
       "essences": ["eletrica"]
+    },
+    "tharox": {
+      "name": "Tharox",
+      "hp": 30,
+      "art": "rochosa/tharox.webp",
+      "legendary": "tharox",
+      "ability": {
+        "name": "Massa Inamolgável",
+        "cost": 1,
+        "once_per_turn": true,
+        "speed": "instantaneo",
+        "effects": [
+          {
+            "action": "buff",
+            "target": "ally_unit",
+            "armor_temp": 1
+          }
+        ],
+        "text": "Instantânea. 1 Momentum, uma vez por turno: uma unidade aliada ganha Armadura 1 até o início do seu próximo turno."
+      },
+      "essences": ["rochosa"]
     }
   },
   "cards": {}

@@ -1,0 +1,19 @@
+{
+  "name": "Estrato Reforçado",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "rochosa",
+  "cost": 1,
+  "speed": "rapido",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "armor_temp": 2
+    }
+  ],
+  "text": "Rápida. Uma unidade aliada ganha Armadura 2 até o início do seu próximo turno.",
+  "flavor": "",
+  "tags": []
+}

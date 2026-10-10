@@ -844,7 +844,9 @@ func _render_board(p: int, y: float) -> void:
 	var x0 := TableView.ENEMY_LANE.get_center().x - board.size() * w / 2.0
 	for i in board.size():
 		var unit: Card = board[i]
-		var v := CardView.new().setup(unit.card_id, unit.to_dict(), 1.15)
+		var unit_view_data := unit.to_dict()
+		unit_view_data["armor_total"] = g.armor_of(unit) # includes Armadura given by adjacent allies
+		var v := CardView.new().setup(unit.card_id, unit_view_data, 1.15)
 		v.pivot_offset = v.size / 2.0
 		v.position = Vector2(x0 + i * w + (w - v.size.x) / 2.0, y)
 		# exhaustion never stops blocking, so it only reads as "spent" on its owner's own turn
@@ -880,6 +882,8 @@ func _render_board(p: int, y: float) -> void:
 			layer.move_child(eq, v.get_index())
 
 func _decorate_unit(v: CardView, unit: Card, p: int) -> void:
+	# reminder for new players: the unit's "Ao Ativar" can be used now (even the turn it is summoned)
+	v.ability_ready = p == viewer and targeting.is_empty() and _my_input() and g.can_activate(viewer, unit.uid)
 	if _is_target(unit.uid):
 		v.highlight = TARGET
 		return
@@ -2662,6 +2666,17 @@ func _animate(events: Array, old: Dictionary) -> float:
 			leader_hp[e["uid"]] += e["amount"] if e["type"] == "damage" else -e["amount"]
 	for uid in leader_hp:
 		views[uid].hp = leader_hp[uid]
+	# Same for units on the board: rewind the damage counter shown on each card to what it was
+	# before these events, then step it at each hit (so an AoE visibly ticks every card).
+	var unit_damage := {}
+	for e in events:
+		if e["type"] in ["damage", "heal"] and e["uid"] > 0 and views.get(e["uid"]) is CardView and views[e["uid"]].inst.has("damage"):
+			if not unit_damage.has(e["uid"]):
+				unit_damage[e["uid"]] = views[e["uid"]].inst["damage"]
+			unit_damage[e["uid"]] += -e["amount"] if e["type"] == "damage" else e["amount"]
+	for uid in unit_damage:
+		views[uid].inst["damage"] = unit_damage[uid]
+		views[uid].queue_redraw()
 	for e in events:
 		var et: String = e["type"]
 		if et in ["play", "ability", "passive", "resolve", "attack", "combat_damage", "start_turn", "end_turn"] \
@@ -2793,6 +2808,15 @@ func _animate(events: Array, old: Dictionary) -> float:
 					ltw.tween_callback(func():
 						lv.hp = shown
 						lv.queue_redraw())
+				if unit_damage.has(dst) and e["type"] in ["damage", "heal"]:
+					unit_damage[dst] += e["amount"] if e["type"] == "damage" else -e["amount"]
+					var card_view: CardView = views[dst]
+					var shown_damage: int = unit_damage[dst]
+					var card_tween := card_view.create_tween()
+					card_tween.tween_interval(t)
+					card_tween.tween_callback(func():
+						card_view.inst["damage"] = shown_damage
+						card_view.queue_redraw())
 				if actors.has(dst):
 					match e["type"]:
 						"damage":

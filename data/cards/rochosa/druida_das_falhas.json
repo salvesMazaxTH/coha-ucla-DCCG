@@ -1,0 +1,22 @@
+{
+  "name": "Druida das Falhas",
+  "type": "unit",
+  "rarity": "common",
+  "species": [],
+  "essence": "rochosa",
+  "cost": 3,
+  "atk": 2,
+  "hp": 4,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Entrar: ganhe 1 Momentum.",
+  "flavor": "",
+  "tags": []
+}

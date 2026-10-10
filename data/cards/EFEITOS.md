@@ -28,7 +28,7 @@ Cada ação é uma classe em `scripts/engine/effects/`, registrada em `effect_re
 | `destroy` / `banish` | — | mata / bane a unidade |
 | `sacrifice` | `then` (lista de efeitos) | sacrifica; o `then` roda depois |
 | `gain_momentum` | `amount`, `per`, `divisor`, `max`, `next_turn` | ganha Momentum |
-| `buff` | `atk`, `hp`, `temp`, `keywords`, `per`, `min`, `max`, `cap_atk` | bônus de ataque/vida/palavras-chave |
+| `buff` | `atk`, `hp`, `temp`, `keywords`, `armor`, `armor_temp`, `per`, `min`, `max`, `cap_atk` | bônus de ataque/vida/palavras-chave |
 | `counter` | — | anula a carta escolhida na pilha |
 | `modify_cost` | `amount` | muda o custo da carta (persiste entre zonas) |
 | `cost_reduction` / `scale` | — | habilidades constantes (sem `target`, nunca disparam) |

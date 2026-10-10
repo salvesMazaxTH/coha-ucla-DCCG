@@ -1,0 +1,22 @@
+{
+  "name": "Avarion",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [],
+  "essence": "rochosa",
+  "cost": 4,
+  "atk": 5,
+  "hp": 3,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "other_ally_unit",
+      "armor_temp": 1
+    }
+  ],
+  "text": "Ao Entrar: outra unidade aliada ganha Armadura 1 até o início do seu próximo turno.",
+  "flavor": "",
+  "tags": []
+}

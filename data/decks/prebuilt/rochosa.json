@@ -1,0 +1,30 @@
+{
+  "name": "Monólito de Tharox",
+  "description": "Muralha de unidades resistentes. Armadura protege o time e a mesa cresce até ficar difícil de remover.",
+  "order": 9,
+  "leader": "tharox",
+  "cards": {
+    "sentinela_de_xisto": 3,
+    "estrato_reforcado": 2,
+    "bastionario_de_basalto": 3,
+    "escudeiro_de_cascalho": 2,
+    "geodo_vivo": 3,
+    "erosao_direcionada": 2,
+    "muralha_emergente": 3,
+    "nucleo_de_geodo": 2,
+    "druida_das_falhas": 3,
+    "guardiao_das_camadas": 3,
+    "oraculo_de_quartzo": 3,
+    "predador_de_dolomita": 2,
+    "deslizamento_de_placas": 2,
+    "arquiteto_do_leito": 3,
+    "avarik": 1,
+    "avarion": 1,
+    "farkoveth": 2,
+    "coracao_da_montanha": 2,
+    "colosso_de_arenito": 3,
+    "tharox": 1,
+    "theopetra": 1,
+    "yresa_petronika": 1
+  }
+}

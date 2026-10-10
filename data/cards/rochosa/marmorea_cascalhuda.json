@@ -1,0 +1,22 @@
+{
+  "name": "Marmoréa Cascalhuda",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [],
+  "essence": "rochosa",
+  "cost": 7,
+  "atk": 7,
+  "hp": 12,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "all_ally_units",
+      "armor_temp": 1
+    }
+  ],
+  "text": "Ao Entrar: suas unidades ganham Armadura 1 até o início do seu próximo turno.",
+  "flavor": "",
+  "tags": []
+}

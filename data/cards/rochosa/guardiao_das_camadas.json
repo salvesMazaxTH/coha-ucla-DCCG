@@ -1,0 +1,22 @@
+{
+  "name": "Guardião das Camadas",
+  "type": "unit",
+  "rarity": "common",
+  "species": [],
+  "essence": "rochosa",
+  "cost": 3,
+  "atk": 2,
+  "hp": 6,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_turn_start",
+      "action": "buff",
+      "target": "random_other_ally_unit",
+      "armor_temp": 1
+    }
+  ],
+  "text": "No início do seu turno, outra unidade aliada aleatória ganha Armadura 1 até o início do seu próximo turno.",
+  "flavor": "",
+  "tags": []
+}
