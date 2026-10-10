@@ -33,6 +33,14 @@ static func normalize(v: Variant) -> Variant:
 func apply_snapshot(snap: Dictionary) -> void:
 	var s: Dictionary = normalize(snap)
 	players = s["players"]
+	# the snapshot carries plain card dicts; rebuild Card objects so the engine queries work
+	for player_index in players.size():
+		var player: Dictionary = players[player_index]
+		for zone in StateView.CARD_ZONES:
+			var cards: Array = []
+			for card_dict: Dictionary in player[zone]:
+				cards.append(Card.from_dict(card_dict, zone, player_index))
+			player[zone] = cards
 	active = s["active"]
 	turn = s["turn"]
 	first = int(s.get("first", 0))

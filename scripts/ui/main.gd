@@ -842,23 +842,23 @@ func _render_board(p: int, y: float) -> void:
 	var w: float = min(146.0, (TableView.ENEMY_LANE.size.x - 20.0) / max(1, board.size()))
 	var x0 := TableView.ENEMY_LANE.get_center().x - board.size() * w / 2.0
 	for i in board.size():
-		var c: Dictionary = board[i]
-		var v := CardView.new().setup(c["card_id"], c, 1.15)
+		var unit: Card = board[i]
+		var v := CardView.new().setup(unit.card_id, unit.to_dict(), 1.15)
 		v.pivot_offset = v.size / 2.0
 		v.position = Vector2(x0 + i * w + (w - v.size.x) / 2.0, y)
-		if c["exhausted"] and g.phase != "blocks":
+		if unit.exhausted and g.phase != "blocks":
 			v.dim = true
-		_decorate_unit(v, c, p)
+		_decorate_unit(v, unit, p)
 		v.left_clicked.connect(_on_unit_click)
 		v.right_clicked.connect(_show_overlay)
 		layer.add_child(v)
-		views[c["uid"]] = v
-		var pi: int = pair_idx.get(c["uid"], -1)
+		views[unit.uid] = v
+		var pi: int = pair_idx.get(unit.uid, -1)
 		var num := "  %d" % pairs[pi]["n"] if pi >= 0 else ""
-		var anum := "  %d" % atk_order[c["uid"]] if atk_order.size() > 1 and atk_order.has(c["uid"]) else ""
-		if attack_sel.has(c["uid"]) or g.attackers.has(c["uid"]):
+		var anum := "  %d" % atk_order[unit.uid] if atk_order.size() > 1 and atk_order.has(unit.uid) else ""
+		if attack_sel.has(unit.uid) or g.attackers.has(unit.uid):
 			v.position.y += -24 if p == viewer else 24
-			var prov: int = attack_sel.get(c["uid"], g.attackers.get(c["uid"], 0))
+			var prov: int = attack_sel.get(unit.uid, g.attackers.get(unit.uid, 0))
 			if prov != 0:
 				_tag(v, "PROVOCA" + anum, TARGET)
 			elif pi < 0 and g.phase == "combat" and g.window == "damage":
@@ -867,35 +867,35 @@ func _render_board(p: int, y: float) -> void:
 				_tag(v, "ATACA" + anum, SEL)
 		elif pi >= 0:
 			_tag(v, ("PROVOCADA" if pairs[pi]["forced"] else "BLOQUEIA") + num, PAIR_COLS[pi % PAIR_COLS.size()])
-		elif g.is_frozen(c):
+		elif unit.is_frozen():
 			_tag(v, "CONGELADA", ICE)
-		if c.has("equipment"):
+		if unit.equipment != null:
 			# the equipment card sits under its unit, peeking out toward the middle of the table
-			var eq := CardView.new().setup(c["equipment"]["card_id"], {"uid": c["equipment"]["uid"]}, 1.15)
+			var eq := CardView.new().setup(unit.equipment.card_id, {"uid": unit.equipment.uid}, 1.15)
 			eq.position = v.position + Vector2(8, 22 if p == viewer else -22)
 			eq.right_clicked.connect(_show_overlay)
 			layer.add_child(eq)
 			layer.move_child(eq, v.get_index())
 
-func _decorate_unit(v: CardView, c: Dictionary, p: int) -> void:
-	if _is_target(c["uid"]):
+func _decorate_unit(v: CardView, unit: Card, p: int) -> void:
+	if _is_target(unit.uid):
 		v.highlight = TARGET
 		return
 	if g.phase == "main" and p == viewer and g.active == viewer:
-		if attack_sel.has(c["uid"]):
-			v.highlight = SEL if provoking != c["uid"] else TARGET
-		elif not g.players[viewer]["attacked"] and g.can_attack(c) and targeting.is_empty():
+		if attack_sel.has(unit.uid):
+			v.highlight = SEL if provoking != unit.uid else TARGET
+		elif not g.players[viewer]["attacked"] and g.can_attack(unit) and targeting.is_empty():
 			v.highlight = OK
-	elif g.phase == "main" and provoking != 0 and p != viewer and not attack_sel.values().has(c["uid"]) and not g.is_frozen(c):
+	elif g.phase == "main" and provoking != 0 and p != viewer and not attack_sel.values().has(unit.uid) and not unit.is_frozen():
 		v.highlight = TARGET
 	if g.phase == "blocks" and viewer == g.decider():
-		if p == viewer and (c["uid"] == blocker_pick):
+		if p == viewer and (unit.uid == blocker_pick):
 			v.highlight = SEL
-		elif p == viewer and not block_sel.values().has(c["uid"]) and not g.attackers.values().has(c["uid"]) and not g.is_frozen(c):
+		elif p == viewer and not block_sel.values().has(unit.uid) and not g.attackers.values().has(unit.uid) and not unit.is_frozen():
 			v.highlight = OK
-		elif p != viewer and g.attackers.has(c["uid"]):
-			v.highlight = TARGET if blocker_pick != 0 and g.can_block(g.find_unit(blocker_pick), c) else SEL
-	if provoking != 0 and p != viewer and g.phase == "main" and not g.is_frozen(c):
+		elif p != viewer and g.attackers.has(unit.uid):
+			v.highlight = TARGET if blocker_pick != 0 and g.can_block(g.find_unit(blocker_pick), unit) else SEL
+	if provoking != 0 and p != viewer and g.phase == "main" and not unit.is_frozen():
 		v.highlight = TARGET
 
 ## Every block assignment visible right now: locked-in blocks, provoked units and,
@@ -913,7 +913,7 @@ func _collect_pairs() -> void:
 	for src in [g.attackers, attack_sel]:
 		for a in src:
 			var b: int = src[a]
-			if b != 0 and not g.find_unit(b).is_empty() and not g.is_frozen(g.find_unit(b)):
+			if b != 0 and g.find_unit(b) != null and not g.find_unit(b).is_frozen():
 				m[a] = [b, true]
 	if g.phase == "blocks" and viewer == g.decider():
 		for a in block_sel:
@@ -1016,29 +1016,29 @@ func _render_hand(p: int) -> void:
 	var step: float = min(cw * 0.85, (TableView.ENEMY_LANE.size.x - 20.0 - cw) / max(1, n - 1))
 	var ang: float = min(5.0, 36.0 / max(1, n))
 	for i in n:
-		var c: Dictionary = hand[i]
-		var v := CardView.new().setup(c["card_id"], c, sc)
-		var hcd := CardDB.card(c["card_id"])
-		if g.cost_of(p, hcd, c) != int(hcd["cost"]):
-			v.cost_override = g.cost_of(p, hcd, c)
-		v.text_suffix = _scale_suffix(p, hcd)
+		var hand_card: Card = hand[i]
+		var v := CardView.new().setup(hand_card.card_id, hand_card.to_dict(), sc)
+		var card_data := CardDB.card(hand_card.card_id)
+		if g.cost_of(p, card_data, hand_card) != int(card_data["cost"]):
+			v.cost_override = g.cost_of(p, card_data, hand_card)
+		v.text_suffix = _scale_suffix(p, card_data)
 		var k := i - (n - 1) / 2.0
 		v.pivot_offset = Vector2(v.size.x / 2.0, v.size.y)
 		var pos := Vector2(lane_cx + k * step - v.size.x / 2.0, 676.0 + BOT + k * k * 1.4)
 		var rot := deg_to_rad(k * ang)
-		if picked.has(c["uid"]):
+		if picked.has(hand_card.uid):
 			pos.y -= 34
 			v.highlight = TARGET if g.phase == "discard" else SEL
-		elif targeting.get("uid", 0) == c["uid"] and targeting.get("kind") == "hand":
+		elif targeting.get("uid", 0) == hand_card.uid and targeting.get("kind") == "hand":
 			pos.y -= 34
 			v.highlight = SEL
-		elif g.phase in ["main", "combat"] and g.can_play(p, c["uid"]) and not _is_ai(p):
+		elif g.phase in ["main", "combat"] and g.can_play(p, hand_card.uid) and not _is_ai(p):
 			v.highlight = OK
 		v.position = pos
 		v.rotation = rot
 		v.left_clicked.connect(_on_hand_click)
 		v.right_clicked.connect(_show_overlay)
-		v.draggable = p == viewer and g.phase in ["main", "combat"] and targeting.is_empty() and _my_input() and g.can_play(p, c["uid"])
+		v.draggable = p == viewer and g.phase in ["main", "combat"] and targeting.is_empty() and _my_input() and g.can_play(p, hand_card.uid)
 		v.drag_started.connect(_hand_drag_start)
 		v.drag_moved.connect(_hand_drag_move)
 		v.drag_ended.connect(_hand_drag_end)
@@ -1046,8 +1046,8 @@ func _render_hand(p: int) -> void:
 		v.mouse_entered.connect(_hand_hover.bind(v, true, rest))
 		v.mouse_exited.connect(_hand_hover.bind(v, false, rest))
 		layer.add_child(v)
-		views[c["uid"]] = v
-		hand_uids[c["uid"]] = true
+		views[hand_card.uid] = v
+		hand_uids[hand_card.uid] = true
 
 ## Fan card lifts, straightens and grows under the cursor, and sits above its
 ## neighbours (GUI picking follows tree order) until the cursor leaves.
@@ -1377,11 +1377,11 @@ func _stack_ability_card(it: Dictionary, sz: Vector2) -> Control:
 func _counter_price(sid: int) -> String:
 	if targeting.get("spec") != "enemy_stack" or not _is_target(sid):
 		return ""
-	for c in g.players[viewer]["hand"]:
-		if c["uid"] == targeting["uid"]:
-			var cd := CardDB.card(c["card_id"])
-			var extra := g.counter_extra(cd, sid)
-			return "Anular: %d" % (g.cost_of(viewer, cd) + extra) + (" (+%d)" % extra if extra > 0 else "")
+	for hand_card: Card in g.players[viewer]["hand"]:
+		if hand_card.uid == targeting["uid"]:
+			var card_data := CardDB.card(hand_card.card_id)
+			var extra := g.counter_extra(card_data, sid)
+			return "Anular: %d" % (g.cost_of(viewer, card_data) + extra) + (" (+%d)" % extra if extra > 0 else "")
 	return ""
 
 ## Contextual hint in a pill on the central divider.
@@ -1719,9 +1719,9 @@ func _is_target(uid: int) -> bool:
 	if targeting.is_empty():
 		return false
 	if targeting["spec"] == "enemy_stack":
-		for c in g.players[viewer]["hand"]:
-			if c["uid"] == targeting["uid"]:
-				return g.card_targets(viewer, CardDB.card(c["card_id"])).has(uid)
+		for hand_card: Card in g.players[viewer]["hand"]:
+			if hand_card.uid == targeting["uid"]:
+				return g.card_targets(viewer, CardDB.card(hand_card.card_id)).has(uid)
 		return false
 	if targeting.has("first") and uid == targeting["first"] and not CardDB.card(targeting["card_id"]).get("same_target_ok", false):
 		return false # the sacrificed unit is already gone
@@ -1755,8 +1755,8 @@ func _on_leader_click(p: int) -> void:
 func _on_unit_click(v: CardView) -> void:
 	if not _my_input():
 		return
-	var c := g.find_unit(v.uid)
-	if c.is_empty():
+	var unit := g.find_unit(v.uid)
+	if unit == null:
 		return
 	if not targeting.is_empty():
 		if _is_target(v.uid):
@@ -1765,31 +1765,31 @@ func _on_unit_click(v: CardView) -> void:
 	match g.phase:
 		"main":
 			if provoking != 0:
-				if c["owner"] != viewer and g.is_frozen(c):
+				if unit.owner != viewer and unit.is_frozen():
 					_toast("Unidade congelada não pode ser provocada.")
 					return
-				if c["owner"] != viewer and g.has_kw(c, "nao_bloqueia"):
+				if unit.owner != viewer and unit.has_kw("nao_bloqueia"):
 					_toast("Essa unidade não bloqueia.")
 					return
-				if c["owner"] != viewer and not attack_sel.values().has(v.uid):
+				if unit.owner != viewer and not attack_sel.values().has(v.uid):
 					attack_sel[provoking] = v.uid
 					provoking = 0
 				_render()
 				return
-			if c["owner"] != viewer or g.players[viewer]["attacked"] or not g.can_attack(c):
+			if unit.owner != viewer or g.players[viewer]["attacked"] or not g.can_attack(unit):
 				return
 			if attack_sel.has(v.uid):
 				attack_sel.erase(v.uid)
 			else:
 				attack_sel[v.uid] = 0
-				if g.has_kw(c, "provocacao") and not g.players[g.opponent(viewer)]["board"].is_empty():
+				if unit.has_kw("provocacao") and not g.players[g.opponent(viewer)]["board"].is_empty():
 					provoking = v.uid
 			_render()
 		"blocks":
-			if c["owner"] == viewer:
+			if unit.owner == viewer:
 				if g.attackers.values().has(v.uid):
 					return # already forced to block a provoker
-				if g.is_frozen(c):
+				if unit.is_frozen():
 					_toast("Unidade congelada não pode bloquear.")
 					return
 				for a in block_sel.keys():
@@ -1798,7 +1798,7 @@ func _on_unit_click(v: CardView) -> void:
 				blocker_pick = v.uid if blocker_pick != v.uid else 0
 				_render()
 			elif blocker_pick != 0 and g.attackers.has(v.uid) and g.attackers[v.uid] == 0:
-				if g.can_block(g.find_unit(blocker_pick), c):
+				if g.can_block(g.find_unit(blocker_pick), unit):
 					block_sel[v.uid] = blocker_pick
 					blocker_pick = 0
 				else:
@@ -2017,8 +2017,8 @@ func _refresh_graveyard() -> void:
 	var entries: Array = g.players[grave_owner]["graveyard"].duplicate()
 	entries.reverse() # newest first
 	var counts := {"all": entries.size(), "unit": 0, "spell": 0, "artifact": 0}
-	for en in entries:
-		counts[CardDB.card(en["card_id"])["type"]] += 1
+	for grave_card: Card in entries:
+		counts[CardDB.card(grave_card.card_id)["type"]] += 1
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 14)
 	grave_panel.add_child(box)
@@ -2057,7 +2057,7 @@ func _refresh_graveyard() -> void:
 		tabs.add_child(b)
 
 	# card grid
-	var shown: Array = entries if grave_filter == "all" else entries.filter(func(en): return CardDB.card(en["card_id"])["type"] == grave_filter)
+	var shown: Array = entries if grave_filter == "all" else entries.filter(func(grave_card: Card): return CardDB.card(grave_card.card_id)["type"] == grave_filter)
 	if shown.is_empty():
 		var empty := VBoxContainer.new()
 		empty.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -2078,8 +2078,8 @@ func _refresh_graveyard() -> void:
 		grid.add_theme_constant_override("v_separation", 14)
 		grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		sc.add_child(grid)
-		for en in shown:
-			var cv := CardView.new().setup(en["card_id"], {"uid": en["uid"]}, 1.1)
+		for grave_card: Card in shown:
+			var cv := CardView.new().setup(grave_card.card_id, {"uid": grave_card.uid}, 1.1)
 			cv.left_clicked.connect(_grave_card_click)
 			cv.right_clicked.connect(_grave_card_click)
 			grid.add_child(cv)
@@ -2871,20 +2871,20 @@ func _log_event(e: Dictionary) -> void:
 		"equipment_break":
 			_log("%s foi ao cemitério com a unidade equipada" % _cname(e["card_id"]))
 		"destroy":
-			var dc := g.find_unit(e["uid"])
-			_log("%s foi destruída" % ("Uma unidade" if dc.is_empty() else _cname(dc["card_id"])))
+			var destroyed := g.find_unit(e["uid"])
+			_log("%s foi destruída" % ("Uma unidade" if destroyed == null else _cname(destroyed.card_id)))
 		"banish":
 			_log("%s foi banida" % _cname(e["card_id"]))
 		"sacrifice":
-			var sc := g.find_unit(e["uid"])
-			_log("%s sacrificou %s" % [_pname(e["player"]), "uma unidade" if sc.is_empty() else _cname(sc["card_id"])])
+			var sacrificed := g.find_unit(e["uid"])
+			_log("%s sacrificou %s" % [_pname(e["player"]), "uma unidade" if sacrificed == null else _cname(sacrificed.card_id)])
 		"freeze":
-			var fc := g.find_unit(e["uid"])
-			_log("%s foi congelada" % ("Uma unidade" if fc.is_empty() else _cname(fc["card_id"])))
+			var frozen := g.find_unit(e["uid"])
+			_log("%s foi congelada" % ("Uma unidade" if frozen == null else _cname(frozen.card_id)))
 		"thaw":
-			var tc := g.find_unit(e["uid"])
-			if not tc.is_empty():
-				_log("%s descongelou" % _cname(tc["card_id"]))
+			var thawed := g.find_unit(e["uid"])
+			if thawed != null:
+				_log("%s descongelou" % _cname(thawed.card_id))
 		"legendary_retired":
 			_log("%s foi para o fundo do deck como carta comum" % _cname(e["card_id"]))
 		"enter_skip":
@@ -2900,8 +2900,8 @@ func _log_event(e: Dictionary) -> void:
 		"countered":
 			_log("%s anulou %s" % [_pname(e["by"]), _cname(e["card_id"]) if e["kind"] == "card" else "a habilidade de " + _pname(e["player"])])
 		"spell_shield_break":
-			var c := g.find_unit(e["uid"])
-			_log("Escudo de Feitiço anulou o efeito" + ("" if c.is_empty() else " em " + _cname(c["card_id"])))
+			var shielded := g.find_unit(e["uid"])
+			_log("Escudo de Feitiço anulou o efeito" + ("" if shielded == null else " em " + _cname(shielded.card_id)))
 		"tide_draw":
 			_log("%s: a maré retorna, compra 1" % _pname(e["player"]))
 

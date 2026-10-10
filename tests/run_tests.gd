@@ -71,9 +71,9 @@ func _new_game() -> GameState:
 	g.mulligan(1, [])
 	return g
 
-func _put(g: GameState, p: int, card_id: String, ready := true) -> Dictionary:
+func _put(g: GameState, p: int, card_id: String, ready := true) -> Card:
 	var uid := g._uid()
-	g._summon(p, card_id, uid, false, 0)
+	g._summon(p, Card.new(uid, card_id, p), false, 0)
 	g._flush()
 	if g.phase == "search":
 		var options: Array = g.pending_search["cards"]
@@ -81,7 +81,7 @@ func _put(g: GameState, p: int, card_id: String, ready := true) -> Dictionary:
 		g._flush()
 	var c := g.find_unit(uid)
 	if ready:
-		c["sick"] = false
+		c.sick = false
 	return c
 
 func _test_search() -> void:
@@ -90,7 +90,7 @@ func _test_search() -> void:
 	var top: Array = deck.slice(deck.size() - 4)
 	var deck_size: int = deck.size()
 	var uid := g._uid()
-	g._summon(1, "serpente_marinha", uid, false, 0)
+	g._summon(1, Card.new(uid, "serpente_marinha", 1), false, 0)
 	var evs: Array = g._flush()
 	check(g.phase == "search" and g.pending_search.get("look", false), "serpente olha o topo do deck")
 	check(g.pending_search["cards"].size() == 4, "olha 4 cartas")
@@ -100,25 +100,25 @@ func _test_search() -> void:
 	check(theirs["cards"].all(func(c): return c["card_id"] == ""), "oponente não vê as cartas do topo")
 	var look_ev: Array = StateView.filter_events(evs, 0).filter(func(e): return e["type"] == "look_top")
 	check(look_ev.size() == 1 and look_ev[0]["cards"].all(func(c): return c["card_id"] == ""), "evento do topo mascarado pro oponente")
-	var chosen: Dictionary = top[1]
+	var chosen: Card = top[1]
 	var before_hand: int = g.players[1]["hand"].size()
-	var picked: Array = g.choose_search(1, int(chosen["uid"]))
+	var picked: Array = g.choose_search(1, int(chosen.uid))
 	check(g.phase == "main", "olhar termina após escolha")
-	check(g.players[1]["hand"].size() == before_hand + 1 and g.players[1]["hand"][-1]["uid"] == chosen["uid"], "carta escolhida vai para a mão")
+	check(g.players[1]["hand"].size() == before_hand + 1 and g.players[1]["hand"][-1].uid == chosen.uid, "carta escolhida vai para a mão")
 	deck = g.players[1]["deck"]
 	check(deck.size() == deck_size - 1, "deck perde só a escolhida")
 	var bottom_uids: Array = deck.slice(0, 3).map(func(c): return c["uid"])
-	var rest: Array = top.filter(func(c): return c["uid"] != chosen["uid"]).map(func(c): return c["uid"])
+	var rest: Array = top.filter(func(c): return c["uid"] != chosen.uid).map(func(c): return c["uid"])
 	check(rest.all(func(u): return bottom_uids.has(u)), "as outras vão para o fundo do deck")
 	check(_has_event(picked, "search_take") and _has_event(picked, "look_bottom") and not _has_event(picked, "search_shuffle"), "serpente: fundo do deck, sem embaralhar")
 	var taken: Array = StateView.filter_events(picked, 0).filter(func(e): return e["type"] == "search_take")
-	check(taken.size() == 1 and taken[0]["card_id"] == chosen["card_id"], "oponente vê a carta pega")
+	check(taken.size() == 1 and taken[0]["card_id"] == chosen.card_id, "oponente vê a carta pega")
 
 	# Oráculo das Marés: same look, but the rest stay in the deck and it is shuffled
 	g = _new_game()
 	deck = g.players[1]["deck"]
 	deck_size = deck.size()
-	g._summon(1, "oraculo_das_mares", g._uid(), false, 0)
+	g._summon(1, Card.new(g._uid(), "oraculo_das_mares", 1), false, 0)
 	g._flush()
 	check(g.phase == "search" and g.pending_search["cards"].size() == 4, "oráculo olha 4 cartas")
 	var pick: int = int(g.pending_search["cards"][2]["uid"])
@@ -131,19 +131,19 @@ func _test_constant() -> void:
 	var g := _new_game()
 	var jeff := _put(g, 0, "jeff")
 	check(g.atk_of(jeff) == 2 and g.hp_left(jeff) == 2, "jeff sem cemitério é 2/2")
-	g.players[0]["graveyard"].append({"uid": g._uid(), "card_id": "serpente_marinha"})
-	g.players[0]["graveyard"].append({"uid": g._uid(), "card_id": "gaivota_da_tempestade"})
-	g.players[0]["graveyard"].append({"uid": g._uid(), "card_id": "bola_de_fogo"})
+	g.players[0]["graveyard"].append(Card.new(g._uid(), "serpente_marinha", 0, "graveyard"))
+	g.players[0]["graveyard"].append(Card.new(g._uid(), "gaivota_da_tempestade", 0, "graveyard"))
+	g.players[0]["graveyard"].append(Card.new(g._uid(), "bola_de_fogo", 0, "graveyard"))
 	g._check_state()
 	check(g.atk_of(jeff) == 4 and g.hp_left(jeff) == 4, "jeff +1/+1 por unidade no cemitério (feitiço não conta)")
-	g.players[1]["graveyard"].append({"uid": g._uid(), "card_id": "serpente_marinha"})
+	g.players[1]["graveyard"].append(Card.new(g._uid(), "serpente_marinha", 1, "graveyard"))
 	g._check_state()
 	check(g.atk_of(jeff) == 4, "cemitério inimigo não conta")
 	g.players[0]["graveyard"].pop_back()
 	g.players[0]["graveyard"].pop_back()
 	g._check_state()
 	check(g.atk_of(jeff) == 3, "bônus encolhe quando o cemitério encolhe")
-	jeff["damage"] = 1
+	jeff.damage = 1
 	g.players[0]["graveyard"].clear()
 	g._check_state()
 	check(g.hp_left(jeff) == 1, "dano persiste ao perder o bônus")
@@ -159,30 +159,30 @@ func _test_sacrifice_damage() -> void:
 	var g := _new_game()
 	var jeff := _put(g, 0, "jeff")
 	for i in 3:
-		g.players[0]["graveyard"].append({"uid": g._uid(), "card_id": "esqueleto_guerreiro"})
+		g.players[0]["graveyard"].append(Card.new(g._uid(), "esqueleto_guerreiro", 0, "graveyard"))
 	g._check_state()
 	var atk: int = g.atk_of(jeff)
 	check(atk == 5, "jeff com 3 unidades no cemitério tem 5 de ataque")
 	var foe := _put(g, 1, "serpente_marinha")
 	var ally := _put(g, 0, "esqueleto_guerreiro")
-	var spell := {"uid": g._uid(), "card_id": "mordida_de_defunto"}
+	var spell := Card.new(g._uid(), "mordida_de_defunto", 0, "hand")
 	g.players[0]["hand"].append(spell)
 	g.players[0]["momentum"] = 10
 	# the target of the damage can't be the sacrificed unit
-	check(g.play_card(0, spell["uid"], jeff["uid"], jeff["uid"]).is_empty(), "não pode causar dano na própria unidade sacrificada")
+	check(g.play_card(0, spell.uid, jeff.uid, jeff.uid).is_empty(), "não pode causar dano na própria unidade sacrificada")
 	var lf: int = g.players[1]["leader_hp"]
-	g.play_card(0, spell["uid"], jeff["uid"], GameState.LEADER_UID[1])
+	g.play_card(0, spell.uid, jeff.uid, GameState.LEADER_UID[1])
 	g.pass_priority(1)
 	g._flush()
-	check(g.find_unit(jeff["uid"]).is_empty(), "unidade foi sacrificada")
+	check(g.find_unit(jeff.uid) == null, "unidade foi sacrificada")
 	check(g.players[1]["leader_hp"] == lf - atk, "dano no Líder = ataque total do sacrificado (%d)" % atk)
 	# works against a unit, and against an ally
-	var s2 := {"uid": g._uid(), "card_id": "mordida_de_defunto"}
+	var s2 := Card.new(g._uid(), "mordida_de_defunto", 0, "hand")
 	g.players[0]["hand"].append(s2)
-	g.play_card(0, s2["uid"], ally["uid"], foe["uid"])
+	g.play_card(0, s2.uid, ally.uid, foe.uid)
 	g.pass_priority(1)
 	g._flush()
-	check(g.find_unit(ally["uid"]).is_empty() and g.find_unit(foe["uid"]).get("damage", 0) == 1, "dano também acerta unidade (ataque 1 do esqueleto)")
+	check(g.find_unit(ally.uid) == null and g.find_unit(foe.uid).damage == 1, "dano também acerta unidade (ataque 1 do esqueleto)")
 
 func _test_death_order() -> void:
 	# simultaneous deaths on both sides resolve active player first (APNAP)
@@ -191,8 +191,8 @@ func _test_death_order() -> void:
 		g.active = first
 		var a := _put(g, 0, "vigia_do_farol_do_norte")
 		var b := _put(g, 1, "vigia_do_farol_do_norte")
-		a["damage"] = 1000
-		b["damage"] = 1000
+		a.damage = 1000
+		b.damage = 1000
 		g._check_state()
 		var order: Array = []
 		for e in g._flush():
@@ -227,13 +227,13 @@ func _test_off_essence() -> void:
 	champ["alexa_neruvya"] = 1 # a champion of another essence
 	check(not DeckDB.validate_cards(leader, champ).filter(func(e): return "Campeão" in e).is_empty(), "Campeão de fora da essência é ilegal")
 
-func _kill(g: GameState, c: Dictionary) -> void:
-	c["damage"] = 1000
+func _kill(g: GameState, c: Card) -> void:
+	c.damage = 1000
 	g._check_state()
 	g._flush()
 
 func _count(g: GameState, p: int, card_id: String) -> int:
-	return g.players[p]["board"].filter(func(c): return c["card_id"] == card_id).size()
+	return g.players[p]["board"].filter(func(c: Card): return c.card_id == card_id).size()
 
 func _test_obscura() -> void:
 	var g := _obscura_game()
@@ -249,21 +249,21 @@ func _test_obscura() -> void:
 	check(_count(g, 0, "replicador_maldito") == 1, "replicador não invoca ao entrar")
 	_kill(g, repl)
 	check(_count(g, 0, "replicador_maldito") == 1, "replicador invoca uma cópia ao morrer")
-	var copies: Array = g.players[0]["board"].filter(func(c): return c["card_id"] == "replicador_maldito" and g.card_of(c)["effects"].is_empty())
+	var copies: Array = g.players[0]["board"].filter(func(c: Card): return c.card_id == "replicador_maldito" and g.card_of(c)["effects"].is_empty())
 	check(copies.size() == 1, "a cópia não tem o efeito")
 	# Revivente returns forever, as a new instance
-	var rev := _put(g, 0, "revivente_eterno")
+	var first_uid: int = _put(g, 0, "revivente_eterno").uid
 	for i in 3:
-		var cur: Array = g.players[0]["board"].filter(func(c): return c["card_id"] == "revivente_eterno")
+		var cur: Array = g.players[0]["board"].filter(func(c: Card): return c.card_id == "revivente_eterno")
 		check(cur.size() == 1, "revivente está em campo (morte %d)" % i)
 		_kill(g, cur[0])
-	var back: Array = g.players[0]["board"].filter(func(c): return c["card_id"] == "revivente_eterno")
-	check(back.size() == 1 and back[0]["uid"] != rev["uid"] and g.atk_of(back[0]) == 2 and g.hp_left(back[0]) == 2, "revivente volta sempre, como nova instância")
+	var back: Array = g.players[0]["board"].filter(func(c: Card): return c.card_id == "revivente_eterno")
+	check(back.size() == 1 and back[0].uid != first_uid and g.atk_of(back[0]) == 2 and g.hp_left(back[0]) == 2, "revivente volta sempre, como nova instância")
 	check(not g.players[0]["graveyard"].any(func(e): return e["card_id"] == "revivente_eterno"), "revivente em campo não fica no cemitério")
 	# Fênix: back with -2/-2 of what it had; stops at 0
 	var fen := _put(g, 0, "fenix_da_chama_profana")
 	_kill(g, fen)
-	var fb: Array = g.players[0]["board"].filter(func(c): return c["card_id"] == "fenix_da_chama_profana")
+	var fb: Array = g.players[0]["board"].filter(func(c: Card): return c.card_id == "fenix_da_chama_profana")
 	check(fb.size() == 1 and g.atk_of(fb[0]) == 2 and g.hp_left(fb[0]) == 1, "fênix volta com -2/-2")
 	_kill(g, fb[0])
 	check(_count(g, 0, "fenix_da_chama_profana") == 0, "fênix com 0 de ataque ou vida não volta")
@@ -275,7 +275,7 @@ func _test_obscura() -> void:
 	check(g.atk_of(tit) == 5 and g.hp_left(tit) == 6 and g.has_kw(tit, "roubo_de_vida") and not g.has_kw(tit, "voo"), "titânico 5/6 Roubo de Vida sem Voo")
 	check(g.players[0]["deck"].size() == dk - 2 and g.players[0]["graveyard"].size() == gy + 2, "titânico mói 2")
 	# Necromante revives a unit of cost <= 3 (seeded, so it does not depend on what the mill happened to hit)
-	g.players[0]["graveyard"].append({"uid": g._uid(), "card_id": "esqueleto_guerreiro"})
+	g.players[0]["graveyard"].append(Card.new(g._uid(), "esqueleto_guerreiro", 0, "graveyard"))
 	gy = g.players[0]["graveyard"].size()
 	_put(g, 0, "o_espiritomante")
 	check(g.players[0]["graveyard"].size() == gy - 1, "necromante reviveu do cemitério")
@@ -284,94 +284,94 @@ func _test_obscura() -> void:
 	var fodder := _put(g, 0, "esqueleto_guerreiro")
 	var spell := _give(g, 0, "colheita_de_almas")
 	g.players[0]["momentum"] = 10
-	g.play_card(0, spell, fodder["uid"])
+	g.play_card(0, spell, fodder.uid)
 	g._flush()
-	check(g.players[1]["leader_hp"] == foe - 4 and g.find_unit(fodder["uid"]).is_empty(), "colheita: sacrifica e causa 4")
+	check(g.players[1]["leader_hp"] == foe - 4 and g.find_unit(fodder.uid) == null, "colheita: sacrifica e causa 4")
 	# Alexa Primordial: Ao Entrar heals every damaged ally fully
 	var hurt := _put(g, 0, "esqueleto_guerreiro")
-	hurt["damage"] = 1
+	hurt.damage = 1
 	g.players[0]["momentum"] = 10
 	var alx := _give(g, 0, "alexa_neruvya_primordial")
 	g.play_card(0, alx, 0)
 	g._flush()
-	check(hurt["damage"] == 0, "alexa primordial cura todos os aliados")
+	check(hurt.damage == 0, "alexa primordial cura todos os aliados")
 	# Alexa transforms into the Primordial in place: 8 Momentum, off the stack, Ao Entrar fires
 	var tf_hurt := _put(g, 0, "esqueleto_guerreiro")
-	tf_hurt["damage"] = 1
+	tf_hurt.damage = 1
 	var tf := _put(g, 0, "alexa_neruvya")
 	g.players[0]["momentum"] = 7
 	g.players[0]["reserve"] = 0
-	check(not g.can_transform(0, tf["uid"]), "transformar exige 8 de Momentum")
+	check(not g.can_transform(0, tf.uid), "transformar exige 8 de Momentum")
 	g.players[0]["momentum"] = 8
-	g.transform(0, tf["uid"])
+	g.transform(0, tf.uid)
 	g._flush()
-	check(tf["card_id"] == "alexa_neruvya_primordial" and tf["atk"] == 7 and g.has_kw(tf, "sobrepujanca") and g.stack.is_empty(), "alexa vira a Primordial sem usar a pilha")
-	check(tf_hurt["damage"] == 0 and g.players[0]["momentum"] == 0, "transformar paga 8 e dispara o Ao Entrar")
-	check(not g.can_transform(0, tf["uid"]), "a Primordial não transforma de novo")
+	check(tf.card_id == "alexa_neruvya_primordial" and tf.atk == 7 and g.has_kw(tf, "sobrepujanca") and g.stack.is_empty(), "alexa vira a Primordial sem usar a pilha")
+	check(tf_hurt.damage == 0 and g.players[0]["momentum"] == 0, "transformar paga 8 e dispara o Ao Entrar")
+	check(not g.can_transform(0, tf.uid), "a Primordial não transforma de novo")
 	# Yuki's Ao Ativar: goes on the stack (Rápido), +2 temporary attack, once per turn
 	var yk := _put(g, 0, "yuki")
 	g.players[0]["momentum"] = 4
 	g.players[0]["reserve"] = 0
-	check(g.can_activate(0, yk["uid"]), "yuki pode ativar")
+	check(g.can_activate(0, yk.uid), "yuki pode ativar")
 	g.auto_pass[1] = false # keep the response window open
-	g.activate(0, yk["uid"])
+	g.activate(0, yk.uid)
 	g._flush()
 	check(g.stack.size() == 1 and g.stack[0]["kind"] == "unit_ability" and g.priority == 1, "ao ativar vai para a pilha")
 	g.pass_priority(1)
 	g._flush()
 	g.auto_pass[1] = true
 	check(g.stack.is_empty() and g.atk_of(yk) == 4 and g.players[0]["momentum"] == 2, "yuki ganha +2 de Ataque temporário")
-	check(not g.can_activate(0, yk["uid"]), "ao ativar da yuki é 1x por turno")
+	check(not g.can_activate(0, yk.uid), "ao ativar da yuki é 1x por turno")
 	# Afogar: rápido, destroys any chosen unit, even one's own, ignoring Escudo
 	var af_t := _put(g, 1, "jeff")
-	af_t["shield"] = true
+	af_t.shield = true
 	var af_own := _put(g, 0, "esqueleto_guerreiro")
 	g.players[0]["momentum"] = 12
 	var af1 := _give(g, 0, "afogar")
-	g.play_card(0, af1, af_t["uid"])
+	g.play_card(0, af1, af_t.uid)
 	g._resolve_stack()
 	var af2 := _give(g, 0, "afogar")
-	g.play_card(0, af2, af_own["uid"])
+	g.play_card(0, af2, af_own.uid)
 	g._resolve_stack()
 	g._flush()
-	check(g.find_unit(af_t["uid"]).is_empty() and g.find_unit(af_own["uid"]).is_empty(), "afogar destrói a unidade escolhida, inclusive a própria")
+	check(g.find_unit(af_t.uid) == null and g.find_unit(af_own.uid) == null, "afogar destrói a unidade escolhida, inclusive a própria")
 	var af_ind := _put(g, 1, "jeff")
-	af_ind["keywords"].append("indestrutivel")
+	af_ind.keywords.append("indestrutivel")
 	var af3 := _give(g, 0, "afogar")
 	g.players[0]["momentum"] = 10
-	g.play_card(0, af3, af_ind["uid"])
+	g.play_card(0, af3, af_ind.uid)
 	g._resolve_stack()
 	g._flush()
-	check(not g.find_unit(af_ind["uid"]).is_empty(), "afogar não destrói Indestrutível")
+	check(not g.find_unit(af_ind.uid) == null, "afogar não destrói Indestrutível")
 	_kill(g, af_ind)
 	# Equipment: an artifact attached under the unit; dies with it
 	var holder := _put(g, 0, "esqueleto_guerreiro")
 	var eqid := _give(g, 0, "manoplas_incandescentes")
 	g.players[0]["momentum"] = 10
-	var atk0: int = holder["atk"]
-	g.play_card(0, eqid, holder["uid"])
+	var atk0: int = holder.atk
+	g.play_card(0, eqid, holder.uid)
 	g._resolve_stack()
 	g._flush()
 	check(CardDB.is_equipment(CardDB.card("manoplas_incandescentes")) and CardDB.is_artifact(CardDB.card("manoplas_incandescentes")), "equipamento é artefato")
-	check(holder.get("equipment", {}).get("card_id", "") == "manoplas_incandescentes" and holder["atk"] == atk0 + 2, "equipamento anexado e buff aplicado")
+	check(holder.equipment.card_id == "manoplas_incandescentes" and holder.atk == atk0 + 2, "equipamento anexado e buff aplicado")
 	var gy0: int = g.players[0]["graveyard"].size()
 	_kill(g, holder)
 	var gy_ids: Array = g.players[0]["graveyard"].map(func(e): return e["card_id"])
 	check(g.players[0]["graveyard"].size() == gy0 + 2 and gy_ids.has("manoplas_incandescentes"), "equipamento vai ao cemitério com a unidade")
 	# Julgamento da Era Afogada: destroys every unit on both sides, whatever its size
 	var jeff := _put(g, 1, "jeff")
-	jeff["shield"] = true
-	jeff["keywords"].append("indestrutivel")
+	jeff.shield = true
+	jeff.keywords.append("indestrutivel")
 	var mine := _put(g, 0, "esqueleto_guerreiro")
 	var jul := _give(g, 0, "julgamento_da_era_afogada")
 	g.players[0]["momentum"] = 10
 	g.play_card(0, jul, 0)
 	g._resolve_stack()
 	g._flush()
-	check(not g.find_unit(jeff["uid"]).is_empty() and g.find_unit(mine["uid"]).is_empty(), "julgamento destrói todas as unidades, exceto Indestrutível")
+	check(not g.find_unit(jeff.uid) == null and g.find_unit(mine.uid) == null, "julgamento destrói todas as unidades, exceto Indestrutível")
 	# damage is always 0 against Indestrutível and does not consume its shield
-	var dmg_dealt: int = g._deal_damage(jeff["uid"], 50, {})
-	check(dmg_dealt == 0 and g.find_unit(jeff["uid"])["damage"] == 0 and g.find_unit(jeff["uid"])["shield"], "dano contra Indestrutível é sempre 0")
+	var dmg_dealt: int = g._deal_damage(jeff.uid, 50, null)
+	check(dmg_dealt == 0 and g.find_unit(jeff.uid).damage == 0 and g.find_unit(jeff.uid).shield, "dano contra Indestrutível é sempre 0")
 	_kill(g, jeff)
 	# Tributo ao Abismo: sacrifice -> mill 3 -> pick one of those 3 from the graveyard
 	var ex_fodder := _put(g, 0, "esqueleto_guerreiro")
@@ -379,7 +379,7 @@ func _test_obscura() -> void:
 	g.players[0]["momentum"] = 10
 	var ex_deck: int = g.players[0]["deck"].size()
 	var ex_hand: int = g.players[0]["hand"].size()
-	g.play_card(0, ex, ex_fodder["uid"])
+	g.play_card(0, ex, ex_fodder.uid)
 	g._flush()
 	check(g.phase == "search" and g.pending_search.get("grave", false) and g.pending_search["cards"].size() == 3, "tributo oferece as 3 cartas moídas")
 	check(g.players[0]["deck"].size() == ex_deck - 3, "tributo moeu 3")
@@ -387,7 +387,7 @@ func _test_obscura() -> void:
 	var ex_grave: int = g.players[0]["graveyard"].size()
 	check(not g.choose_search(0, int(ex_pick["uid"])).is_empty(), "tributo: escolha aceita")
 	check(g.phase != "search" and g.players[0]["graveyard"].size() == ex_grave - 1, "tributo: a carta sai do cemitério")
-	check(g.players[0]["hand"].size() == ex_hand - 1 + 1 and not g._hand_card(0, int(ex_pick["uid"])).is_empty(), "tributo: a carta vai à mão")
+	check(g.players[0]["hand"].size() == ex_hand - 1 + 1 and g._hand_card(0, int(ex_pick["uid"])) != null, "tributo: a carta vai à mão")
 
 func _test_fatigue() -> void:
 	var g := _new_game()
@@ -411,24 +411,24 @@ func _test_legendary_retire() -> void:
 		g.choose_enter_target(0, 0)
 	if g.summon_window:
 		g.pass_priority(1)
-	var u: Dictionary = g.players[0]["board"].back()
-	u["damage"] = 999
+	var u: Card = g.players[0]["board"].back()
+	u.damage = 999
 	g._check_state()
 	check(l["in_zone"] and not l.get("retired", false), "encarnação: morte com custo pagável volta ao Santuário")
 	g.players[0]["momentum"] = 10
 	l["casts"] = 10
 	l["in_zone"] = false
-	g._summon(0, l["card_id"], g._uid(), true, 0)
-	g.players[0]["board"].back()["damage"] = 999
+	g._summon(0, Card.new(g._uid(), l["card_id"], 0), true, 0)
+	g.players[0]["board"].back().damage = 999
 	var deck_n: int = g.players[0]["deck"].size()
 	g._check_state()
-	var bottom: Dictionary = g.players[0]["deck"][0]
+	var bottom: Card = g.players[0]["deck"][0]
 	check(l["retired"] and not l["in_zone"] and not g.can_cast_legendary(0), "encarnação: custo acima de 10 aposenta")
-	check(g.players[0]["deck"].size() == deck_n + 1 and bottom["card_id"] == l["card_id"], "encarnação: vai para o fundo do deck")
+	check(g.players[0]["deck"].size() == deck_n + 1 and bottom.card_id == l["card_id"], "encarnação: vai para o fundo do deck")
 	g.players[0]["deck"].erase(bottom)
 	g.players[0]["hand"].append(bottom)
 	g.players[0]["momentum"] = 10
-	check(g.can_play(0, bottom["uid"]), "encarnação aposentada: jogável da mão pelo custo normal")
+	check(g.can_play(0, bottom.uid), "encarnação aposentada: jogável da mão pelo custo normal")
 
 func _test_enter_target() -> void:
 	var g := _new_game()
@@ -436,12 +436,12 @@ func _test_enter_target() -> void:
 	var foe := _put(g, 1, "esqueleto_guerreiro")
 	g.players[0]["momentum"] = 10
 	var vul := _give(g, 0, "vulnara")
-	g.play_card(0, vul, foe["uid"]) # a target given with the play is ignored: it is picked on the board
-	check(g.phase == "enter_target" and not g.find_unit(vul).is_empty() and g.decider() == 0, "ao entrar: unidade entra antes de escolher o alvo")
-	check(g.find_unit(foe["uid"])["damage"] == 0 and not g.summon_window, "ao entrar: nada resolve antes da escolha")
+	g.play_card(0, vul, foe.uid) # a target given with the play is ignored: it is picked on the board
+	check(g.phase == "enter_target" and not g.find_unit(vul) == null and g.decider() == 0, "ao entrar: unidade entra antes de escolher o alvo")
+	check(g.find_unit(foe.uid).damage == 0 and not g.summon_window, "ao entrar: nada resolve antes da escolha")
 	check(g.choose_enter_target(0, vul).is_empty(), "ao entrar: alvo inválido recusado")
-	g.choose_enter_target(0, foe["uid"])
-	check(g.phase == "main" and g.find_unit(foe["uid"]).is_empty(), "ao entrar: dano no alvo escolhido")
+	g.choose_enter_target(0, foe.uid)
+	check(g.phase == "main" and g.find_unit(foe.uid) == null, "ao entrar: dano no alvo escolhido")
 	if g.summon_window:
 		g.pass_priority(1)
 	var foe2 := _put(g, 1, "esqueleto_guerreiro")
@@ -449,8 +449,8 @@ func _test_enter_target() -> void:
 	g.play_card(0, ner)
 	check(g.valid_targets(0, g.pending_enter["spec"], ner).has(ner), "neraqa: pode escolher ela mesma")
 	g.choose_enter_target(0, 0)
-	check(g.phase == "main" and not g.find_unit(ner)["spell_shield"], "ao entrar recusado: sem efeito")
-	check(g.find_unit(foe2["uid"])["damage"] == 0, "ao entrar recusado: nada acontece")
+	check(g.phase == "main" and not g.find_unit(ner).spell_shield, "ao entrar recusado: sem efeito")
+	check(g.find_unit(foe2.uid).damage == 0, "ao entrar recusado: nada acontece")
 
 func _test_leader_cycle() -> void:
 	var g := _new_game() # fogo: Ronan's Pavio Curto is once per cycle
@@ -460,7 +460,7 @@ func _test_leader_cycle() -> void:
 	g.players[0]["momentum"] = 5
 	g.players[1]["momentum"] = 5
 	check(g.can_use_ability(0), "ronan: habilidade disponível no começo do ciclo")
-	g.use_ability(0, g.players[1]["board"][0]["uid"])
+	g.use_ability(0, g.players[1]["board"][0].uid)
 	g.pass_priority(1)
 	check(g.players[0]["ability_used"] and not g.can_use_ability(0), "ronan: usou no seu turno, bloqueada")
 	g.end_turn(0)
@@ -560,23 +560,23 @@ func _test_obscura_rules() -> void:
 	var vag: Dictionary = CardDB.card("a_vagante_sombria")
 	check(v.cost_of(0, vag) == 12, "vagante custa 12 com cemitério vazio")
 	for i in 5:
-		v.players[0]["graveyard"].append({"uid": v._uid(), "card_id": "esqueleto_guerreiro"})
+		v.players[0]["graveyard"].append(Card.new(v._uid(), "esqueleto_guerreiro", 0, "graveyard"))
 	check(v.cost_of(0, vag) == 7, "vagante custa 1 a menos por carta no cemitério")
 	for i in 20:
-		v.players[0]["graveyard"].append({"uid": v._uid(), "card_id": "cova_rasa"})
+		v.players[0]["graveyard"].append(Card.new(v._uid(), "cova_rasa", 0, "graveyard"))
 	check(v.cost_of(0, vag) == 0, "custo nunca fica abaixo de 0")
 	check(v.cost_of(1, vag) == 12, "cemitério inimigo não reduz")
 	var vc := _put(v, 0, "a_vagante_sombria")
-	v._apply(1, {"action": "damage", "target": "any", "amount": 99}, vc["uid"])
-	check(not v.find_unit(vc["uid"]).is_empty() and vc["damage"] == 0, "vagante ignora dano")
+	v._apply(1, {"action": "damage", "target": "any", "amount": 99}, vc.uid)
+	check(not v.find_unit(vc.uid) == null and vc.damage == 0, "vagante ignora dano")
 	var fresh := _obscura_game()
 	fresh.players[0]["passive_used"] = true
 	var vc2 := _put(fresh, 0, "a_vagante_sombria")
 	var sc := _give(fresh, 0, "colheita_de_almas")
 	fresh.players[0]["momentum"] = 10
-	fresh.play_card(0, sc, vc2["uid"])
+	fresh.play_card(0, sc, vc2.uid)
 	fresh._flush()
-	check(fresh.find_unit(vc2["uid"]).is_empty(), "sacrifício ainda mata a vagante")
+	check(fresh.find_unit(vc2.uid) == null, "sacrifício ainda mata a vagante")
 
 	# Necrófago additional cost: sacrifice an ally you control (the AI pays with its weakest)
 	var n := _obscura_game()
@@ -589,9 +589,9 @@ func _test_obscura_rules() -> void:
 	check(n.can_play(0, nid), "necrófago custa 0 com um aliado para sacrificar")
 	check(n.card_spec(CardDB.card("necrofago_espectral")) == "ally_unit", "necrófago pede um alvo aliado")
 	check(n.play_card(0, nid, 0).is_empty(), "necrófago sem alvo de sacrifício não entra")
-	n.play_card(0, nid, weak["uid"])
+	n.play_card(0, nid, weak.uid)
 	n._flush()
-	check(n.find_unit(weak["uid"]).is_empty() and _count(n, 0, "necrofago_espectral") == 1 and not n.find_unit(strong["uid"]).is_empty(), "necrófago sacrificou o escolhido e entrou")
+	check(n.find_unit(weak.uid) == null and _count(n, 0, "necrofago_espectral") == 1 and not n.find_unit(strong.uid) == null, "necrófago sacrificou o escolhido e entrou")
 	check(n.players[0]["graveyard"].any(func(e): return e["card_id"] == "esqueleto_guerreiro"), "o sacrificado foi ao cemitério")
 	# full board: the sacrifice itself frees the slot
 	var fb := _obscura_game()
@@ -609,7 +609,7 @@ func _test_freeze() -> void:
 	var g := _new_game()
 	var atk := _put(g, 0, "kai")
 	var f := _put(g, 1, "tritao_lanceiro")
-	g._apply(0, {"action": "freeze", "target": "enemy_unit"}, f["uid"])
+	g._apply(0, {"action": "freeze", "target": "enemy_unit"}, f.uid)
 	check(g.is_frozen(f), "congelar marca a unidade")
 	check(not g.can_block(f, atk), "congelada não bloqueia")
 	_quiet(g)
@@ -619,16 +619,16 @@ func _test_freeze() -> void:
 	g.end_turn(1)
 	check(not g.is_frozen(f), "descongela no fim do próximo turno do dono")
 	var s := _put(g, 1, "tritao_lanceiro")
-	s["spell_shield"] = true
-	g._apply(0, {"action": "freeze", "target": "enemy_unit"}, s["uid"])
-	check(not g.is_frozen(s) and not s["spell_shield"], "Escudo de Feitiço anula congelar")
+	s.spell_shield = true
+	g._apply(0, {"action": "freeze", "target": "enemy_unit"}, s.uid)
+	check(not g.is_frozen(s) and not s.spell_shield, "Escudo de Feitiço anula congelar")
 	check(CardDB.has_essence(CardDB.card("sabrina"), "glacial") and CardDB.has_essence(CardDB.card("sabrina"), "aquatica"), "sabrina é aquática e glacial")
 
 func _test_setup() -> void:
 	var g := GameState.new("fogo", "agua", 1)
 	check(g.players[0]["hand"].size() == GameState.START_HAND and g.players[1]["hand"].size() == GameState.START_HAND, "starting hands")
 	check(g.players[0]["deck"].size() == 47 - GameState.START_HAND, "legendary not in deck")
-	g.mulligan(0, [g.players[0]["hand"][0]["uid"]])
+	g.mulligan(0, [g.players[0]["hand"][0].uid])
 	g.mulligan(1, [])
 	check(g.phase == "main" and g.active == 0 and g.players[0]["momentum"] == 1, "turn 1 momentum")
 	check(g.players[0]["hand"].size() == GameState.START_HAND, "no draw turn 1")
@@ -674,18 +674,18 @@ func _test_combat() -> void:
 	var g := _new_game()
 	var a := _put(g, 0, "kai") # 2/2 golpe rapido
 	var b := _put(g, 1, "tritao_lanceiro") # 2/2
-	_attack(g, {a["uid"]: 0})
-	_block(g, {a["uid"]: b["uid"]})
-	check(g.find_unit(b["uid"]).is_empty(), "first strike kills blocker")
-	check(not g.find_unit(a["uid"]).is_empty(), "first striker survives")
+	_attack(g, {a.uid: 0})
+	_block(g, {a.uid: b.uid})
+	check(g.find_unit(b.uid) == null, "first strike kills blocker")
+	check(not g.find_unit(a.uid) == null, "first striker survives")
 
 	g = _new_game()
 	var t := _put(g, 0, "kael_drath_vulcano") # 5/7 sobrepujança
 	var s := _put(g, 1, "espirito_da_mare") # 1/2 escudo
 	var hp: int = g.players[1]["leader_hp"]
-	_attack(g, {t["uid"]: 0})
-	_block(g, {t["uid"]: s["uid"]})
-	check(not g.find_unit(s["uid"]).is_empty(), "shield absorbs hit")
+	_attack(g, {t.uid: 0})
+	_block(g, {t.uid: s.uid})
+	check(not g.find_unit(s.uid) == null, "shield absorbs hit")
 	check(g.players[1]["leader_hp"] == hp - 3, "trample excess vs shield (%d)" % (hp - g.players[1]["leader_hp"]))
 
 	g = _new_game()
@@ -700,18 +700,18 @@ func _test_combat() -> void:
 	check(g.can_block(y, gk) and not g.can_block(x, gk), "furtividade/vigilancia")
 	check(not g.can_block(_put(g, 1, "revivente_eterno"), _put(g, 0, "esqueleto_guerreiro")), "revivente eterno não bloqueia")
 	g.players[0]["leader_hp"] = 10
-	_attack(g, {gk["uid"]: 0})
+	_attack(g, {gk.uid: 0})
 	_block(g, {})
 	check(g.players[0]["leader_hp"] == 13, "lifesteal heals leader")
 
 	g = _new_game()
 	var k := _put(g, 0, "kael_drath_vulcano") # provocação
 	var v := _put(g, 1, "serpente_marinha")
-	_attack(g, {k["uid"]: v["uid"]})
+	_attack(g, {k.uid: v.uid})
 	_block(g, {})
-	check(g.find_unit(v["uid"]).is_empty(), "provoked unit forced to block")
+	check(g.find_unit(v.uid) == null, "provoked unit forced to block")
 	g.end_turn(0)
-	check(g.find_unit(k["uid"])["damage"] == 0, "damage resets at end of turn")
+	check(g.find_unit(k.uid).damage == 0, "damage resets at end of turn")
 
 ## Declares an attack and lets every combat window pass.
 func _attack(g: GameState, attacks: Dictionary) -> void:
@@ -731,7 +731,7 @@ func _pass_windows(g: GameState) -> void:
 
 func _give(g: GameState, p: int, card_id: String) -> int:
 	var uid := g._uid()
-	g.players[p]["hand"].append({"uid": uid, "card_id": card_id})
+	g.players[p]["hand"].append(Card.new(uid, card_id, p, "hand"))
 	return uid
 
 func _tspell(id: String, speed: String, effects: Array) -> void:
@@ -790,7 +790,7 @@ func _test_counter() -> void:
 	check(_has_event(ev, "countered") and g.stack.is_empty(), "counter removes the spell")
 	check(g.players[1]["leader_hp"] == hp, "countered spell does nothing")
 	var gy: Array = []
-	for c in g.players[0]["graveyard"]: gy.append(c["card_id"])
+	for c in g.players[0]["graveyard"]: gy.append(c.card_id)
 	check(gy.has("bola_de_fogo"), "countered card goes to the graveyard")
 
 	# cost-5 spell needs the +2 kicker
@@ -840,7 +840,7 @@ func _test_summon_window() -> void:
 	fast = _give(g, 1, "t_sw_fast")
 	var mine := _put(g, 0, "t_sw")
 	g.play_card(0, _give(g, 0, "t_sw"), 0)
-	g.play_card(1, fast, mine["uid"])
+	g.play_card(1, fast, mine.uid)
 	check(not g.summon_window and g.stack.size() == 1 and g.priority == 0, "spell cast in the window stacks, priority returns")
 	g.pass_priority(0)
 	check(g.stack.is_empty() and g.priority == 0 and g.phase == "main", "stack resolves back to the main phase")
@@ -877,7 +877,7 @@ func _test_summon_window() -> void:
 		var at := _put(g, 0, "t_fly")
 		_put(g, 1, "t_sw")
 		g.set_auto_pass(1, auto)
-		_attack(g, {at["uid"]: 0})
+		_attack(g, {at.uid: 0})
 		_pass_windows(g)
 		check((g.phase != "blocks") == auto, "unblockable attacker: block prompt skipped only with auto-pass (%s)" % auto)
 
@@ -888,7 +888,7 @@ func _test_summon_window() -> void:
 	var at2 := _put(g, 0, "t_fly")
 	_put(g, 1, "t_sw")
 	var fast2 := _give(g, 1, "t_sw_fast")
-	g.declare_attack(0, {at2["uid"]: 0})
+	g.declare_attack(0, {at2.uid: 0})
 	g.pass_priority(0)
 	check(g.window == "prepare" and g.priority == 1 and g.can_play(1, fast2), "unblockable attack: defender still gets the prepare window with a Rápido")
 	g.pass_priority(1)
@@ -920,16 +920,16 @@ func _test_stack() -> void:
 	var foe := _put(g, 1, "t_wall2")
 	var lab := _give(g, 0, "labareda")
 	var inst := _give(g, 1, "t_inst_hp")
-	g.play_card(0, lab, foe["uid"])
+	g.play_card(0, lab, foe.uid)
 	check(g.stack.size() == 1 and g.priority == 1, "spell goes on the stack, opponent gets priority")
-	check(g.find_unit(foe["uid"])["damage"] == 0, "spell waits on the stack")
+	check(g.find_unit(foe.uid).damage == 0, "spell waits on the stack")
 	check(not g.can_play(1, _give(g, 1, "lanca_das_mares")), "lento cannot respond")
-	g.play_card(1, inst, foe["uid"])
+	g.play_card(1, inst, foe.uid)
 	check(g.stack.size() == 2 and g.priority == 0, "instant response stacks and passes priority back")
 	g.pass_priority(0)
-	var fc := g.find_unit(foe["uid"])
+	var fc := g.find_unit(foe.uid)
 	check(g.stack.is_empty() and g.priority == 0 and g.phase == "main", "pass resolves the whole stack")
-	check(not fc.is_empty() and fc["damage"] == 2, "LIFO: buff before damage")
+	check(not fc == null and fc.damage == 2, "LIFO: buff before damage")
 
 	# target gone -> fizzle
 	g = _new_game()
@@ -937,8 +937,8 @@ func _test_stack() -> void:
 	foe = _put(g, 1, "t_wall2")
 	lab = _give(g, 0, "labareda")
 	var kill := _give(g, 1, "t_inst_kill")
-	g.play_card(0, lab, foe["uid"])
-	g.play_card(1, kill, foe["uid"])
+	g.play_card(0, lab, foe.uid)
+	g.play_card(1, kill, foe.uid)
 	check(_has_event(g.pass_priority(0), "fizzle"), "spell fizzles when its target is gone")
 
 	# nobody can respond -> resolves at once
@@ -946,8 +946,8 @@ func _test_stack() -> void:
 	g.players[0]["momentum"] = 1
 	foe = _put(g, 1, "t_wall2")
 	lab = _give(g, 0, "labareda")
-	g.play_card(0, lab, foe["uid"])
-	check(g.stack.is_empty() and g.find_unit(foe["uid"]).is_empty(), "auto-pass when opponent has no response")
+	g.play_card(0, lab, foe.uid)
+	check(g.stack.is_empty() and g.find_unit(foe.uid) == null, "auto-pass when opponent has no response")
 
 	# combat windows: attacker -> defender prepare -> attacker last -> blocks
 	g = _new_game()
@@ -956,22 +956,22 @@ func _test_stack() -> void:
 	var kai := _put(g, 0, "kai")
 	var wall := _put(g, 1, "t_wall")
 	_give(g, 1, "t_fast")
-	g.declare_attack(0, {kai["uid"]: 0})
+	g.declare_attack(0, {kai.uid: 0})
 	check(g.phase == "combat" and g.window == "attack" and g.priority == 0, "attacker window")
 	g.pass_priority(0)
 	check(g.window == "prepare" and g.priority == 1, "defender prepare window")
 	_tspell("t_slow", "lento", [])
 	check(not g.can_play(1, _give(g, 1, "t_slow")), "lento not allowed in combat")
-	var fast: int = g.players[1]["hand"][-2]["uid"]
-	g.play_card(1, fast, kai["uid"])
+	var fast: int = g.players[1]["hand"][-2].uid
+	g.play_card(1, fast, kai.uid)
 	check(g.priority == 0 and g.stack.size() == 1, "rapido cast in prepare window")
 	g.pass_priority(0)
-	check(g.find_unit(kai["uid"])["damage"] == 1 and g.priority == 1 and g.window == "prepare", "after resolving, window owner gets priority back")
+	check(g.find_unit(kai.uid).damage == 1 and g.priority == 1 and g.window == "prepare", "after resolving, window owner gets priority back")
 	g.pass_priority(1)
 	check(g.phase == "blocks", "then blocks")
 	check(not g.can_play(0, _give(g, 0, "lanca_das_mares")), "no lento outside main")
-	g.declare_blocks(1, {kai["uid"]: wall["uid"]})
-	check(g.phase == "combat" and g.window == "damage" and g.priority == 0 and g.blocks.has(kai["uid"]), "damage window after blocks, attacker first")
+	g.declare_blocks(1, {kai.uid: wall.uid})
+	check(g.phase == "combat" and g.window == "damage" and g.priority == 0 and g.blocks.has(kai.uid), "damage window after blocks, attacker first")
 	g.pass_priority(0)
 	check(g.window == "damage" and g.priority == 1, "attacker passed: defender gets priority")
 	g.pass_priority(1)
@@ -982,14 +982,14 @@ func _test_stack() -> void:
 	g.players[0]["momentum"] = 5
 	var ner := _put(g, 1, "neraqa")
 	check(g.has_kw(ner, "escudo_feitico"), "neraqa grants herself Escudo de Feitiço")
-	g.play_card(0, _give(g, 0, "labareda"), ner["uid"])
-	check(ner["damage"] == 0 and not g.has_kw(ner, "escudo_feitico"), "spell shield cancels the spell, then breaks")
-	g.play_card(0, _give(g, 0, "labareda"), ner["uid"])
-	check(ner["damage"] == 2, "second spell hits")
+	g.play_card(0, _give(g, 0, "labareda"), ner.uid)
+	check(ner.damage == 0 and not g.has_kw(ner, "escudo_feitico"), "spell shield cancels the spell, then breaks")
+	g.play_card(0, _give(g, 0, "labareda"), ner.uid)
+	check(ner.damage == 2, "second spell hits")
 	var ally := _put(g, 1, "t_wall")
-	g._apply(1, {"action": "buff", "keywords": ["escudo_feitico"]}, ally["uid"])
-	g._apply(1, {"action": "buff", "atk": 1}, ally["uid"])
-	check(g.has_kw(ally, "escudo_feitico") and ally["atk"] == 2, "own effects don't pop the spell shield")
+	g._apply(1, {"action": "buff", "keywords": ["escudo_feitico"]}, ally.uid)
+	g._apply(1, {"action": "buff", "atk": 1}, ally.uid)
+	check(g.has_kw(ally, "escudo_feitico") and ally.atk == 2, "own effects don't pop the spell shield")
 
 	# Mar que Retorna (Naelthos): +1 vida máxima e atual, instantânea, respondível mas não anulável
 	g = _new_game()
@@ -1024,9 +1024,9 @@ func _strike_result(att_kw: Array, blk_kw: Array) -> String:
 	_quiet(g)
 	var at := _put(g, 0, "t_s_att")
 	var bl := _put(g, 1, "t_s_blk")
-	_attack(g, {at["uid"]: 0})
-	_block(g, {at["uid"]: bl["uid"]})
-	return ("A" if not g.find_unit(at["uid"]).is_empty() else "-") + ("B" if not g.find_unit(bl["uid"]).is_empty() else "-")
+	_attack(g, {at.uid: 0})
+	_block(g, {at.uid: bl.uid})
+	return ("A" if not g.find_unit(at.uid) == null else "-") + ("B" if not g.find_unit(bl.uid) == null else "-")
 
 func _test_strike_order() -> void:
 	check(_strike_result([], []) == "--", "combate: sem keywords os dois morrem")
@@ -1053,12 +1053,12 @@ func _test_damage_window() -> void:
 	var at := _put(g, 0, "t_a22")
 	var bl := _put(g, 1, "t_b12")
 	var pump := _give(g, 0, "t_pump")
-	_attack(g, {at["uid"]: 0})
-	g.declare_blocks(1, {at["uid"]: bl["uid"]})
+	_attack(g, {at.uid: 0})
+	g.declare_blocks(1, {at.uid: bl.uid})
 	check(g.window == "damage" and g.priority == 0, "attacker holds priority in damage window")
-	g.play_card(0, pump, at["uid"])
+	g.play_card(0, pump, at.uid)
 	_pass_windows(g)
-	check(g.find_unit(bl["uid"]).is_empty() and not g.find_unit(at["uid"]).is_empty(), "post-block pump kills the blocker, attacker survives")
+	check(g.find_unit(bl.uid) == null and not g.find_unit(at.uid) == null, "post-block pump kills the blocker, attacker survives")
 
 	# blocker dies before damage -> attacker stays blocked
 	g = _new_game()
@@ -1067,11 +1067,11 @@ func _test_damage_window() -> void:
 	bl = _put(g, 1, "t_b12")
 	var hp0: int = g.players[1]["leader_hp"]
 	var kill := _give(g, 0, "t_kill")
-	_attack(g, {at["uid"]: 0})
-	g.declare_blocks(1, {at["uid"]: bl["uid"]})
-	g.play_card(0, kill, bl["uid"])
+	_attack(g, {at.uid: 0})
+	g.declare_blocks(1, {at.uid: bl.uid})
+	g.play_card(0, kill, bl.uid)
 	_pass_windows(g)
-	check(g.find_unit(bl["uid"]).is_empty() and g.players[1]["leader_hp"] == hp0, "blocks are final: no leader damage")
+	check(g.find_unit(bl.uid) == null and g.players[1]["leader_hp"] == hp0, "blocks are final: no leader damage")
 	check(g.phase == "main", "combat ends")
 
 	# Sobrepujança with a dead blocker: everything tramples through
@@ -1081,9 +1081,9 @@ func _test_damage_window() -> void:
 	bl = _put(g, 1, "t_b12")
 	hp0 = g.players[1]["leader_hp"]
 	kill = _give(g, 0, "t_kill")
-	_attack(g, {at["uid"]: 0})
-	g.declare_blocks(1, {at["uid"]: bl["uid"]})
-	g.play_card(0, kill, bl["uid"])
+	_attack(g, {at.uid: 0})
+	g.declare_blocks(1, {at.uid: bl.uid})
+	g.play_card(0, kill, bl.uid)
 	_pass_windows(g)
 	check(g.players[1]["leader_hp"] == hp0 - 2, "trample: dead blocker -> full damage to leader")
 
@@ -1093,12 +1093,12 @@ func _test_damage_window() -> void:
 	at = _put(g, 0, "t_a22")
 	bl = _put(g, 1, "t_b12")
 	kill = _give(g, 1, "t_kill")
-	_attack(g, {at["uid"]: 0})
-	g.declare_blocks(1, {at["uid"]: bl["uid"]})
+	_attack(g, {at.uid: 0})
+	g.declare_blocks(1, {at.uid: bl.uid})
 	check(g.priority == 1, "attacker with no play auto-passes to the defender")
-	g.play_card(1, kill, at["uid"])
-	check(g.phase == "main" and g.find_unit(at["uid"]).is_empty(), "attacker killed, combat over")
-	check(g.find_unit(bl["uid"])["damage"] == 0, "blocker untouched")
+	g.play_card(1, kill, at.uid)
+	check(g.phase == "main" and g.find_unit(at.uid) == null, "attacker killed, combat over")
+	check(g.find_unit(bl.uid).damage == 0, "blocker untouched")
 
 ## No momentum and no leader ability, so only test cards give plays.
 func _quiet(g: GameState) -> void:
@@ -1118,25 +1118,25 @@ func _test_triggers() -> void:
 	var g := _new_game()
 	var a := _put(g, 0, "t_atk")
 	var hp: int = g.players[1]["leader_hp"]
-	_attack(g, {a["uid"]: 0})
+	_attack(g, {a.uid: 0})
 	check(g.players[1]["leader_hp"] == hp - 3, "on_attack fires (2 effect + 1 unblocked hit)")
 
 	g = _new_game()
 	var at := _put(g, 0, "kai")
 	var bl := _put(g, 1, "t_blk")
-	_attack(g, {at["uid"]: 0})
-	_block(g, {at["uid"]: bl["uid"]})
-	check(g.find_unit(bl["uid"]).get("temp_atk", 0) == 3 or g.find_unit(bl["uid"]).is_empty(), "on_block fires")
+	_attack(g, {at.uid: 0})
+	_block(g, {at.uid: bl.uid})
+	check(g.find_unit(bl.uid).temp_atk == 3 or g.find_unit(bl.uid) == null, "on_block fires")
 
 	g = _new_game()
 	var tt := _put(g, 0, "t_turn")
 	g.end_turn(0)
-	check(g.find_unit(tt["uid"])["atk"] == 2 and g.find_unit(tt["uid"])["hp"] == 6, "on_turn_end fires")
+	check(g.find_unit(tt.uid).atk == 2 and g.find_unit(tt.uid).hp == 6, "on_turn_end fires")
 
 	g = _new_game()
 	var h := _put(g, 1, "t_hurt")
-	g._deal_damage(h["uid"], 1, {})
-	check(g.find_unit(h["uid"])["damage"] == 1, "on_damaged no-source safe")
+	g._deal_damage(h.uid, 1, null)
+	check(g.find_unit(h.uid).damage == 1, "on_damaged no-source safe")
 
 	# Cartas reais: Dlorafya, Salamandra, Espírito da Maré, Ronan
 	g = _new_game()
@@ -1144,40 +1144,40 @@ func _test_triggers() -> void:
 	var foe := _put(g, 1, "sentinela_coral") # 1/4
 	var foe2 := _put(g, 1, "tritao_lanceiro") # 2/2
 	var d := _put(g, 0, "dlorafya")
-	check(g.find_unit(ally["uid"])["damage"] == 1, "dlorafya: ally igneo takes 1")
+	check(g.find_unit(ally.uid).damage == 1, "dlorafya: ally igneo takes 1")
 	g._check_state()
-	check(g.find_unit(foe["uid"])["damage"] == 3 and g.find_unit(foe2["uid"]).is_empty(), "dlorafya: enemies take 3")
-	check(g.find_unit(d["uid"])["damage"] == 1, "dlorafya: self takes 1")
+	check(g.find_unit(foe.uid).damage == 3 and g.find_unit(foe2.uid) == null, "dlorafya: enemies take 3")
+	check(g.find_unit(d.uid).damage == 1, "dlorafya: self takes 1")
 
 	g = _new_game()
 	var sal := _put(g, 0, "salamandra")
 	hp = g.players[1]["leader_hp"]
-	_attack(g, {sal["uid"]: 0})
+	_attack(g, {sal.uid: 0})
 	check(g.players[1]["leader_hp"] == hp - 4, "salamandra Ao Atacar (2 + 2 hit)")
 
 	g = _new_game()
 	var lord := _put(g, 0, "lord_of_the_shadowflame")
 	var blk := _put(g, 1, "alexa_neruvya_primordial") # 7/7
-	_attack(g, {lord["uid"]: 0})
-	_block(g, {lord["uid"]: blk["uid"]})
-	check(g.find_unit(blk["uid"]).is_empty(), "lorde Ao Ser Bloqueada: 2 + 5 combat kills 7/7")
+	_attack(g, {lord.uid: 0})
+	_block(g, {lord.uid: blk.uid})
+	check(g.find_unit(blk.uid) == null, "lorde Ao Ser Bloqueada: 2 + 5 combat kills 7/7")
 
 	g = _new_game()
 	var kai2 := _put(g, 0, "kai")
 	var sp := _put(g, 1, "tritao_lanceiro")
-	_attack(g, {kai2["uid"]: 0})
-	_block(g, {kai2["uid"]: sp["uid"]})
-	check(g.find_unit(kai2["uid"]).get("damage", 0) <= 1, "tritao Ao Bloquear hits attacker")
+	_attack(g, {kai2.uid: 0})
+	_block(g, {kai2.uid: sp.uid})
+	check(g.find_unit(kai2.uid).damage <= 1, "tritao Ao Bloquear hits attacker")
 
 	g = _new_game()
 	var ron := _put(g, 0, "ronan")
-	g._deal_damage(ron["uid"], 1, {})
-	check(g.find_unit(ron["uid"])["atk"] == 5, "ronan Ao Sofrer Dano +1 atk")
+	g._deal_damage(ron.uid, 1, null)
+	check(g.find_unit(ron.uid).atk == 5, "ronan Ao Sofrer Dano +1 atk")
 
 	g = _new_game()
 	var vig := _put(g, 0, "vigia_do_farol_do_norte")
 	var hand_n: int = g.players[0]["hand"].size()
-	g._deal_damage(vig["uid"], 5, {})
+	g._deal_damage(vig.uid, 5, null)
 	g._check_state()
 	check(g.players[0]["hand"].size() == hand_n + 1, "vigia Ao Morrer draws 1")
 
@@ -1193,25 +1193,25 @@ func _test_triggers() -> void:
 	var w1 := _put(g, 1, "t_wall")
 	var w2 := _put(g, 1, "t_wall")
 	var w3 := _put(g, 1, "t_wall")
-	_attack(g, {estr["uid"]: 0})
+	_attack(g, {estr.uid: 0})
 	_block(g, {})
 	var hit := 0
 	for w in [w1, w2, w3]:
-		hit += int(g.find_unit(w["uid"])["damage"])
+		hit += int(g.find_unit(w["uid"]).damage)
 	check(hit >= 2 and hit <= 3, "estrondador AoE hits random + adjacent (%d)" % hit)
 
 	# Fênix Menor: dies, revives as 1/1 with no effects
 	g = _new_game()
 	var f := _put(g, 0, "fenix_menor")
-	check(f["atk"] == 2 and f["hp"] == 1, "fenix is 2/1")
-	g._deal_damage(f["uid"], 5, {})
+	check(f.atk == 2 and f.hp == 1, "fenix is 2/1")
+	g._deal_damage(f.uid, 5, null)
 	g._check_state()
-	check(g.find_unit(f["uid"]).is_empty(), "fenix original died")
+	check(g.find_unit(f.uid) == null, "fenix original died")
 	check(g.players[0]["board"].size() == 1, "fenix revived")
-	var r: Dictionary = g.players[0]["board"][0]
-	check(r["card_id"] == "fenix_menor" and r["atk"] == 1 and r["hp"] == 1, "revived as 1/1")
+	var r: Card = g.players[0]["board"][0]
+	check(r.card_id == "fenix_menor" and r.atk == 1 and r.hp == 1, "revived as 1/1")
 	check(g.card_of(r)["effects"].is_empty() and g.card_of(r)["text"] == "", "revived has no text/effects")
-	g._deal_damage(r["uid"], 5, {})
+	g._deal_damage(r.uid, 5, null)
 	g._check_state()
 	check(g.players[0]["board"].is_empty(), "revived fenix stays dead")
 
@@ -1235,39 +1235,39 @@ func _test_rusco() -> void:
 		var g := _new_game()
 		var a := g.active
 		g.players[a]["momentum"] = 10
-		var ru := {"uid": g._uid(), "card_id": "rusco"}
+		var ru := Card.new(g._uid(), "rusco", a, "deck")
 		g.players[a]["deck"].push_front(ru)
 		if case[0] != "":
-			var h := {"uid": g._uid(), "card_id": case[0]}
+			var h := Card.new(g._uid(), case[0], a, "hand")
 			g.players[a]["hand"].append(h)
-			g.play_card(a, h["uid"])
+			g.play_card(a, h.uid)
 		g.end_turn(a)
-		var on_board: bool = g.players[a]["board"].any(func(u): return u["uid"] == ru["uid"])
+		var on_board: bool = g.players[a]["board"].any(func(u: Card): return u.uid == ru.uid)
 		check(on_board == case[1] and g.players[a]["deck"].has(ru) != case[1] and not g.players[a]["hand"].has(ru), "rusco: carta '%s' -> entra em campo = %s" % [case[0], case[1]])
 	# the 2 Momentum is paid like an ability: Reserva first, then Momentum
 	for case in [[2, 0, true], [0, 2, true], [1, 1, true], [1, 0, false], [0, 1, false]]:
 		var gp := _new_game()
 		var pa := gp.active
-		var rup := {"uid": gp._uid(), "card_id": "rusco"}
+		var rup := Card.new(gp._uid(), "rusco", pa, "deck")
 		gp.players[pa]["deck"].push_front(rup)
 		gp.players[pa]["played_two"] = true
 		gp.players[pa]["momentum"] = case[0]
 		gp.players[pa]["reserve"] = case[1]
 		gp._finish_turn()
-		var came: bool = gp.players[pa]["board"].any(func(u): return u["uid"] == rup["uid"])
+		var came: bool = gp.players[pa]["board"].any(func(u: Card): return u.uid == rup.uid)
 		check(came == case[2] and gp.players[pa]["deck"].has(rup) != case[2], "rusco: Momentum %d + Reserva %d -> entra = %s" % [case[0], case[1], case[2]])
 		if came:
 			check(gp.players[pa]["momentum"] + gp.players[pa]["reserve"] == case[0] + case[1] - 2 and gp.players[pa]["reserve"] == maxi(0, case[1] - 2), "rusco: paga 2, Reserva primeiro")
 	# a Rusco played from the hand does not come back by himself
 	var g2 := _new_game()
 	var b := g2.active
-	g2.players[g2.active]["deck"] = g2.players[g2.active]["deck"].filter(func(c): return c["card_id"] != "rusco") # the fogo deck has its own
-	var ru2 := {"uid": g2._uid(), "card_id": "rusco"}
+	g2.players[g2.active]["deck"] = g2.players[g2.active]["deck"].filter(func(c: Card): return c.card_id != "rusco") # the fogo deck has its own
+	var ru2 := Card.new(g2._uid(), "rusco", b, "hand")
 	g2.players[b]["hand"].append(ru2)
 	g2.players[b]["momentum"] = 10
-	g2.play_card(b, ru2["uid"])
+	g2.play_card(b, ru2.uid)
 	g2.end_turn(b)
-	check(g2.players[b]["hand"].filter(func(c): return c["card_id"] == "rusco").is_empty(), "rusco: jogado da mão não volta sozinho")
+	check(g2.players[b]["hand"].filter(func(c: Card): return c.card_id == "rusco").is_empty(), "rusco: jogado da mão não volta sozinho")
 
 ## A typo in a card's JSON is reported on load instead of silently doing nothing.
 func _test_card_validation() -> void:
@@ -1302,7 +1302,7 @@ func _test_ban() -> void:
 	var g := _new_game()
 	var pl: Dictionary = g.players[0]
 	while pl["hand"].size() < GameState.HAND_LIMIT:
-		pl["hand"].append({"uid": g._uid(), "card_id": "kai"})
+		pl["hand"].append(Card.new(g._uid(), "kai", 0, "hand"))
 	var gy: int = pl["graveyard"].size()
 	g._draw(0, 2)
 	g._flush()
@@ -1310,7 +1310,7 @@ func _test_ban() -> void:
 	_quiet(g)
 	g.end_turn(0)
 	check(g.phase == "discard", "mão acima de 10 pede banimento no fim do turno")
-	var pick: Array = [pl["hand"][0]["uid"], pl["hand"][1]["uid"]]
+	var pick: Array = [pl["hand"][0].uid, pl["hand"][1].uid]
 	check(g.discard(0, [pick[0]]).is_empty(), "banir menos que o necessário é recusado")
 	var ev: Array = g.discard(0, pick)
 	check(pl["hand"].size() == GameState.HAND_LIMIT and pl["banished"].size() == 2, "baniu até 10 cartas")
@@ -1384,18 +1384,18 @@ func _test_eletrica() -> void:
 	var fv := _put(g, a, "fulgurvoltz")
 	var foe1 := _put(g, o, "tritao_lanceiro")
 	var foe2 := _put(g, o, "serpente_marinha")
-	check(not g.find_unit(foe1["uid"]).is_empty(), "fulgurvoltz: entrar não destrói nada")
+	check(not g.find_unit(foe1.uid) == null, "fulgurvoltz: entrar não destrói nada")
 	g.players[a]["momentum"] = 2
 	g.players[a]["reserve"] = 2 # the Reserva pays abilities, so 4 is reachable the turn it lands
-	check(g.can_activate(a, fv["uid"]), "fulgurvoltz: ativável pagando com a Reserva")
+	check(g.can_activate(a, fv.uid), "fulgurvoltz: ativável pagando com a Reserva")
 	g.auto_pass[o] = false
-	g.activate(a, fv["uid"])
+	g.activate(a, fv.uid)
 	g._flush()
 	check(g.stack.size() == 1 and g.players[a]["momentum"] == 0 and g.players[a]["reserve"] == 0, "fulgurvoltz: vai para a pilha pagando 4")
 	g.pass_priority(o)
 	g._flush()
 	g.auto_pass[o] = true
-	check(g.find_unit(foe1["uid"]).is_empty() and g.find_unit(foe2["uid"]).is_empty() and not g.find_unit(fv["uid"]).is_empty(), "fulgurvoltz: destrói todas as inimigas e fica")
+	check(g.find_unit(foe1.uid) == null and g.find_unit(foe2.uid) == null and not g.find_unit(fv.uid) == null, "fulgurvoltz: destrói todas as inimigas e fica")
 	# a counter on the stack stops it
 	g = _eletrica_game()
 	a = g.active
@@ -1406,13 +1406,13 @@ func _test_eletrica() -> void:
 	g.players[o]["momentum"] = 3
 	var neg2 := _give(g, o, "negacao_de_neraqa")
 	g.auto_pass[o] = false
-	g.activate(a, fv["uid"])
+	g.activate(a, fv.uid)
 	g._flush()
 	check(g.can_play(o, neg2), "fulgurvoltz: Negação de Neraqa pode responder")
 	g.play_card(o, neg2, g.stack[0]["sid"])
 	g.pass_priority(a)
 	g._flush()
-	check(g.stack.is_empty() and not g.find_unit(foe1["uid"]).is_empty(), "fulgurvoltz: habilidade anulada, inimigas ficam")
+	check(g.stack.is_empty() and not g.find_unit(foe1.uid) == null, "fulgurvoltz: habilidade anulada, inimigas ficam")
 	# Encarnação retirement uses the current cost (with reductions) plus the tax
 	var l: Dictionary = g.players[a]["legendary"]
 	l["casts"] = 1
@@ -1463,10 +1463,10 @@ func _test_eletrica() -> void:
 	g.players[a]["momentum"] = 2
 	_put(g, a, "faisca_viva")
 	g._run_effects(a, CardDB.card("voltexz")["effects"], "on_enter", 0, 0)
-	check(g.atk_of(ally) == 4 and g.players[a]["board"][0]["hp"] == 6, "voltexz: +1/+1 por Momentum restante")
+	check(g.atk_of(ally) == 4 and g.players[a]["board"][0].hp == 6, "voltexz: +1/+1 por Momentum restante")
 	g.players[a]["momentum"] = 0
 	g._run_effects(a, CardDB.card("voltexz")["effects"], "on_enter", 0, 0)
-	check(g.atk_of(ally) == 5 and g.players[a]["board"][0]["hp"] == 7, "voltexz: sem Momentum sobrando, ainda dá +1/+1")
+	check(g.atk_of(ally) == 5 and g.players[a]["board"][0].hp == 7, "voltexz: sem Momentum sobrando, ainda dá +1/+1")
 	# Jack: +1 attack at end of turn only with Momentum left
 	g = _eletrica_game()
 	a = g.active
@@ -1482,8 +1482,8 @@ func _test_eletrica() -> void:
 	g = _eletrica_game()
 	var ly := _put(g, g.active, "layla")
 	for i in 5:
-		g._deal_damage(ly["uid"], 1, {})
-		ly["damage"] = 0
+		g._deal_damage(ly.uid, 1, null)
+		ly.damage = 0
 	check(g.atk_of(ly) == 6, "layla: +1 por dano, no máximo +3 (%d)" % g.atk_of(ly))
 	# Esquiva: first combat damage per turn from a weaker attacker is avoided
 	g = _eletrica_game()
@@ -1492,33 +1492,33 @@ func _test_eletrica() -> void:
 	var th := _put(g, o, "thorwells") # 5/6
 	var weak := _put(g, a, "jack") # 2/4
 	g._combat_damage = true
-	g._deal_damage(th["uid"], 2, weak)
-	check(th["damage"] == 0, "esquiva: dano de combate de ataque menor é evitado")
-	g._deal_damage(th["uid"], 2, weak)
-	check(th["damage"] == 2, "esquiva: só a primeira vez no turno")
+	g._deal_damage(th.uid, 2, weak)
+	check(th.damage == 0, "esquiva: dano de combate de ataque menor é evitado")
+	g._deal_damage(th.uid, 2, weak)
+	check(th.damage == 2, "esquiva: só a primeira vez no turno")
 	g._combat_damage = false
 	g.turn += 1
 	g._combat_damage = true
 	var strong := _put(g, a, "gigante_eletrico") # 6/6
-	g._deal_damage(th["uid"], 1, strong)
-	check(th["damage"] == 3, "esquiva: ataque maior não é evitado")
+	g._deal_damage(th.uid, 1, strong)
+	check(th.damage == 3, "esquiva: ataque maior não é evitado")
 	g.turn += 1
-	g._deal_damage(th["uid"], 1, weak)
-	check(th["damage"] == 3, "esquiva: de novo no turno seguinte")
+	g._deal_damage(th.uid, 1, weak)
+	check(th.damage == 3, "esquiva: de novo no turno seguinte")
 	g._combat_damage = false
 	g.turn += 1
-	g._deal_damage(th["uid"], 1, weak)
-	check(th["damage"] == 4, "esquiva: dano fora de combate não é evitado")
+	g._deal_damage(th.uid, 1, weak)
+	check(th.damage == 4, "esquiva: dano fora de combate não é evitado")
 	# Esquiva with an override: Espírito Carregado dodges attackers lacking Ataque Rápido / Hipervelocidade
 	var sp := _put(g, o, "espirito_carregado")
 	var slow := _put(g, a, "jack")
 	var fast := _put(g, a, "layla") # Ataque Rápido
 	g.turn += 1
 	g._combat_damage = true
-	g._deal_damage(sp["uid"], 1, fast)
-	check(sp["damage"] == 1, "esquiva (override): atacante com Ataque Rápido acerta")
-	g._deal_damage(sp["uid"], 1, slow)
-	check(sp["damage"] == 1, "esquiva (override): atacante sem velocidade é evitado, mesmo com ATK maior")
+	g._deal_damage(sp.uid, 1, fast)
+	check(sp.damage == 1, "esquiva (override): atacante com Ataque Rápido acerta")
+	g._deal_damage(sp.uid, 1, slow)
+	check(sp.damage == 1, "esquiva (override): atacante sem velocidade é evitado, mesmo com ATK maior")
 	g._combat_damage = false
 	# Sobrecarga: Reserva cheia no início do turno dá +1 Momentum (só ao dono)
 	g = _eletrica_game()
@@ -1550,9 +1550,9 @@ func _test_intimidacao() -> void:
 	var low := _put(g, 1, "t_low")
 	var high := _put(g, 1, "t_high")
 	check(not g.can_block(low, at) and g.can_block(high, at), "intimidacao: ATK 3 ou menos não bloqueia, ATK 4 bloqueia")
-	low["atk"] = 4
+	low.atk = 4
 	check(g.can_block(low, at), "intimidacao: usa o ATK atual (buff libera o bloqueio)")
-	high["atk"] = 3
+	high.atk = 3
 	check(not g.can_block(high, at), "intimidacao: debuff tira o direito de bloquear")
 	check(g.can_block(high, _put(g, 0, "t_high")), "intimidacao: não afeta quem não tem a palavra-chave")
 	# Raiturus: Transformar (8) vira o Primordial 9/9 Intimidacao + Ímpeto sem usar a pilha
@@ -1560,14 +1560,14 @@ func _test_intimidacao() -> void:
 	var rt := _put(g, g.active, "tony_raiturus")
 	g.players[g.active]["momentum"] = 8
 	g.players[g.active]["reserve"] = 0
-	check(g.can_transform(g.active, rt["uid"]), "raiturus pode transformar com 8")
-	g.transform(g.active, rt["uid"])
+	check(g.can_transform(g.active, rt.uid), "raiturus pode transformar com 8")
+	g.transform(g.active, rt.uid)
 	g._flush()
-	check(rt["card_id"] == "tony_raiturus_primordial" and g.atk_of(rt) == 9 and rt["hp"] == 9 and g.has_kw(rt, "intimidacao") and g.has_kw(rt, "impeto") and g.stack.is_empty(), "raiturus vira o Primordial 9/9 Intimidacao + Ímpeto")
-	check(not g.can_transform(g.active, rt["uid"]), "o Primordial não transforma de novo")
+	check(rt.card_id == "tony_raiturus_primordial" and g.atk_of(rt) == 9 and rt.hp == 9 and g.has_kw(rt, "intimidacao") and g.has_kw(rt, "impeto") and g.stack.is_empty(), "raiturus vira o Primordial 9/9 Intimidacao + Ímpeto")
+	check(not g.can_transform(g.active, rt.uid), "o Primordial não transforma de novo")
 
-func atk_ok(g: GameState, c: Dictionary, atk: int, hp: int) -> bool:
-	return g.atk_of(c) == atk and int(c["hp"]) == hp
+func atk_ok(g: GameState, c: Card, atk: int, hp: int) -> bool:
+	return g.atk_of(c) == atk and c.hp == hp
 
 func _test_custo_e_contagem() -> void:
 	# cost reductions aren't "Constante" (they work off the board) and still apply
@@ -1578,7 +1578,7 @@ func _test_custo_e_contagem() -> void:
 	var g := _new_game()
 	var vag: Dictionary = CardDB.card("a_vagante_sombria")
 	var base: int = g.cost_of(0, vag)
-	g.players[0]["graveyard"].append({"uid": g._uid(), "card_id": "esqueleto_guerreiro"})
+	g.players[0]["graveyard"].append(Card.new(g._uid(), "esqueleto_guerreiro", 0, "graveyard"))
 	check(g.cost_of(0, vag) == base - 1, "vagante: ainda custa 1 a menos por carta no cemitério")
 	# Jeff: text counts own unit cards in the graveyard
 	var jeff: Dictionary = CardDB.card("jeff")
@@ -1601,18 +1601,18 @@ func _test_twin_bolts() -> void:
 	# different targets
 	g.players[0]["momentum"] = 10
 	var s2 := _give(g, 0, "relampagos_gemeos")
-	g.play_card(0, s2, foe["uid"], leader)
+	g.play_card(0, s2, foe.uid, leader)
 	g.pass_priority(1)
 	g._flush()
 	check(g.players[1]["leader_hp"] == lf - 9, "alvo 2 (Líder) recebeu 3 de dano")
-	check(g.find_unit(foe["uid"]).is_empty() or g.find_unit(foe["uid"])["damage"] == 3, "alvo 1 (unidade) recebeu 3 de dano")
+	check(g.find_unit(foe.uid) == null or g.find_unit(foe.uid).damage == 3, "alvo 1 (unidade) recebeu 3 de dano")
 	# the first target is gone before it resolves: the second bolt still lands
 	g.players[0]["momentum"] = 10
 	var s3 := _give(g, 0, "relampagos_gemeos")
 	var victim := _put(g, 1, "esqueleto_guerreiro")
 	var lf2: int = g.players[1]["leader_hp"]
-	g.play_card(0, s3, victim["uid"], leader)
-	victim["damage"] = 1000
+	g.play_card(0, s3, victim.uid, leader)
+	victim.damage = 1000
 	g._check_state()
 	g.pass_priority(1)
 	g._flush()
@@ -1620,10 +1620,10 @@ func _test_twin_bolts() -> void:
 	# Diabrete Elétrico: Ímpeto, and Ao Morrer gives next-turn Momentum
 	var d := _put(g, 0, "diabrete_eletrico")
 	check(CardDB.card("diabrete_eletrico")["cost"] <= 1 and "demonio" in CardDB.card("diabrete_eletrico")["species"], "Diabrete Elétrico é barato e Demônio")
-	d["damage"] = 1000
+	d.damage = 1000
 	g._check_state()
 	g._flush()
-	check(g.find_unit(d["uid"]).is_empty(), "Diabrete Elétrico morre")
+	check(g.find_unit(d.uid) == null, "Diabrete Elétrico morre")
 
 func _test_overkill() -> void:
 	# Leader at 3: a fast attacker (step 1) kills it, the normal attacker (step 3) still lands; its on_hit_leader does not fire
@@ -1635,7 +1635,7 @@ func _test_overkill() -> void:
 	g.players[1]["leader_hp"] = 3
 	var a := _put(g, 0, "t_ok_fast")
 	var b := _put(g, 0, "t_ok_late")
-	_attack(g, {a["uid"]: 0, b["uid"]: 0})
+	_attack(g, {a.uid: 0, b.uid: 0})
 	_block(g, {})
 	check(g.phase == "over" and g.winner == 0, "overkill: o jogo acaba depois do combate inteiro")
 	check(g.players[1]["leader_hp"] == 3 - 4 - 5, "overkill: os golpes seguintes do combate ainda acertam o Líder morto")
@@ -1648,6 +1648,6 @@ func _test_dud() -> void:
 	var g := _new_game()
 	var cd := CardDB.card("chamado_do_alem")
 	check(g.is_dud(0, cd), "feitiço de reviver com cemitério vazio é inútil")
-	g.players[0]["graveyard"].append({"uid": 9999, "card_id": "t_s_att"})
+	g.players[0]["graveyard"].append(Card.new(9999, "t_s_att", 0, "graveyard"))
 	check(not g.is_dud(0, cd), "com uma unidade barata no cemitério o feitiço tem efeito")
 	check(not g.is_dud(0, CardDB.card("t_s_att")) , "unidade nunca é considerada inútil")

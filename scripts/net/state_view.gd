@@ -5,23 +5,40 @@ extends RefCounted
 
 const HIDDEN := ""
 
+const CARD_ZONES := ["deck", "hand", "board", "graveyard", "banished"]
+
+## Hides which cards these are: keeps only the uid. Accepts Card objects or card dicts.
 static func _mask(cards: Array) -> Array:
 	var out: Array = []
-	for c in cards:
-		out.append({"uid": c["uid"], "card_id": HIDDEN})
+	for card in cards:
+		var card_uid: int = card.uid if card is Card else card["uid"]
+		out.append({"uid": card_uid, "card_id": HIDDEN})
+	return out
+
+## Turns a zone's Card objects into the plain dicts sent over the network.
+static func _zone_to_dicts(cards: Array) -> Array:
+	var out: Array = []
+	for card: Card in cards:
+		out.append(card.to_dict())
 	return out
 
 ## JSON-safe snapshot for `seat`.
 static func snapshot(g: GameState, seat: int) -> Dictionary:
 	var players: Array = []
 	for i in 2:
-		var pl: Dictionary = g.players[i].duplicate(true)
-		pl["deck"] = _mask(pl["deck"])
+		var source: Dictionary = g.players[i]
+		# copy everything except the card zones (Card objects can't be deep-copied into JSON)
+		var player: Dictionary = {}
+		for key in source:
+			if key not in CARD_ZONES:
+				player[key] = source[key].duplicate(true) if source[key] is Dictionary or source[key] is Array else source[key]
+		for zone in CARD_ZONES:
+			player[zone] = _zone_to_dicts(source[zone])
+		player["deck"] = _mask(player["deck"])
 		if i != seat:
-			pl["banished"] = _mask(pl["banished"]) # cards banished from the hand stay private
-		if i != seat:
-			pl["hand"] = _mask(pl["hand"])
-		players.append(pl)
+			player["banished"] = _mask(player["banished"]) # cards banished from the hand stay private
+			player["hand"] = _mask(player["hand"])
+		players.append(player)
 	var search: Dictionary = g.pending_search.duplicate(true)
 	if search.get("look", false) and int(search["player"]) != seat:
 		search["cards"] = _mask(search["cards"]) # a look at the deck top is private
