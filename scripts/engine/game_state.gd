@@ -256,6 +256,21 @@ func second_spec(cd: Dictionary) -> String:
 				return t["target"]
 	return ""
 
+## True when a spell would do nothing right now (only revive effects, and no unit to bring back).
+func is_dud(p: int, cd: Dictionary) -> bool:
+	var effects: Array = cd.get("effects", [])
+	if effects.is_empty():
+		return false
+	for e in effects:
+		if e.get("action") != "revive":
+			return false
+		if players[p]["board"].size() < BOARD_LIMIT:
+			for grave in players[p]["graveyard"]:
+				var gd := CardDB.card(grave["card_id"])
+				if gd["type"] == "unit" and int(gd["cost"]) <= int(e.get("max_cost", 99)):
+					return false
+	return true
+
 ## Target a card needs when played: its additional sacrifice cost (the unit to sacrifice)
 ## or the chosen target of its effects. A unit's Ao Entrar target is picked after it enters
 ## (see enter_spec), so it is not part of playing it.
@@ -330,11 +345,13 @@ func valid_targets(p: int, spec: String, self_uid: int = 0) -> Array:
 			out.append(LEADER_UID[opponent(p)])
 		"enemy_stack":
 			for it in stack:
-				if it["player"] != p and not _is_equip_item(it): out.append(it["sid"])
+				if it["player"] != p and not _is_uncounterable(it): out.append(it["sid"])
 	return out
 
-## Equipping can be responded to but never countered.
-func _is_equip_item(it: Dictionary) -> bool:
+## Equipping and abilities flagged "uncounterable" can be responded to but never countered.
+func _is_uncounterable(it: Dictionary) -> bool:
+	if it["kind"] == "ability":
+		return CardDB.leader(players[it["player"]]["leader_id"])["ability"].get("uncounterable", false)
 	return it["kind"] == "card" and CardDB.is_equipment(CardDB.card(it["card_id"]))
 
 func _stack_item(sid: int) -> Dictionary:
@@ -868,7 +885,7 @@ func _release_equipment(c: Dictionary) -> void:
 ## Removes stack item `sid` without resolving it; a countered card goes to the graveyard.
 func _counter(p: int, sid: int) -> void:
 	var it := _stack_item(sid)
-	if it.is_empty() or _is_equip_item(it):
+	if it.is_empty() or _is_uncounterable(it):
 		return
 	stack.erase(it)
 	if it["kind"] == "card":
@@ -1246,6 +1263,8 @@ func _apply(p: int, e: Dictionary, t: int) -> void:
 			_deal_damage(t, amount, {})
 		"heal_leader":
 			_heal_leader(p, int(e["amount"]))
+		"leader_max_up":
+			_raise_leader_max(p, int(e["amount"]))
 		"heal_full":
 			var hc := find_unit(t)
 			if not hc.is_empty() and hc["damage"] > 0:
@@ -1450,6 +1469,13 @@ func _heal_leader(p: int, amount: int) -> void:
 	if healed > 0:
 		pl["leader_hp"] += healed
 		_emit({"type": "heal", "uid": LEADER_UID[p], "amount": healed})
+
+## Raises the Leader's maximum life and its current life by the same amount (can pass the starting life).
+func _raise_leader_max(p: int, amount: int) -> void:
+	var pl: Dictionary = players[p]
+	pl["leader_max"] += amount
+	pl["leader_hp"] += amount
+	_emit({"type": "heal", "uid": LEADER_UID[p], "amount": amount})
 
 ## Fadiga: damage of the next draw from an empty deck. Doubles each time: 2, 4, 8, 16…
 func fatigue_next(p: int) -> int:

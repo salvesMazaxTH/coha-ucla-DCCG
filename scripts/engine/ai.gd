@@ -69,7 +69,7 @@ static func _try_play(g: GameState, p: int) -> Array:
 		if not g.can_play(p, c["uid"]):
 			continue
 		var cd := CardDB.card(c["card_id"])
-		if cd["type"] != "unit" and _is_dud(g, p, cd):
+		if cd["type"] != "unit" and g.is_dud(p, cd):
 			continue
 		var spec := g.card_spec(cd)
 		var t := _pick_sacrifice(g, p) if cd.get("cost_sacrifice", false) else _pick_target(g, p, spec, cd, 0, cd["type"] != "unit")
@@ -93,21 +93,6 @@ static func _try_play(g: GameState, p: int) -> Array:
 		if aspec == "" or t != 0:
 			return g.use_ability(p, t)
 	return []
-
-## True when a spell would do nothing right now (only revive effects, and no unit to bring back).
-static func _is_dud(g: GameState, p: int, cd: Dictionary) -> bool:
-	var effects: Array = cd.get("effects", [])
-	if effects.is_empty():
-		return false
-	for e in effects:
-		if e.get("action") != "revive":
-			return false
-		if g.players[p]["board"].size() < GameState.BOARD_LIMIT:
-			for grave in g.players[p]["graveyard"]:
-				var gd := CardDB.card(grave["card_id"])
-				if gd["type"] == "unit" and int(gd["cost"]) <= int(e.get("max_cost", 99)):
-					return false
-	return true
 
 ## Additional sacrifice cost: give up the weakest ally.
 static func _pick_sacrifice(g: GameState, p: int) -> int:

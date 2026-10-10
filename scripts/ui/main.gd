@@ -1612,8 +1612,17 @@ func _play_from_hand(v: CardView) -> void:
 		attack_sel.clear()
 		_begin_aim(Vector2.ZERO)
 		_render()
+	elif CardDB.card(v.card_id)["type"] != "unit" and g.is_dud(viewer, CardDB.card(v.card_id)):
+		# allowed (it can bait a counter), but never by accident
+		_render()
+		_ask_confirm("SEM EFEITO AGORA", "Não há nada para reviver no seu cemitério. Jogar mesmo assim?", "JOGAR MESMO ASSIM", "CANCELAR", _play_dud.bind(v.uid))
 	else:
 		_do(g.play_card(viewer, v.uid, 0))
+
+func _play_dud(uid: int) -> void:
+	_close_concede()
+	if g != null and g.can_play(viewer, uid):
+		_do(g.play_card(viewer, uid, 0))
 
 ## Target spec of a playable hand card that needs a target now ("" if it plays straight away).
 func _hand_spec(v: CardView) -> String:
@@ -1901,6 +1910,10 @@ func _close_overlay() -> void:
 
 ## Confirmation before giving up; a persistent child of Main so re-renders (AI/opponent moves) don't dismiss it.
 func _ask_concede() -> void:
+	_ask_confirm("CONCEDER A PARTIDA?", "O oponente vence na hora.", "CONCEDER", "CONTINUAR JOGANDO", _confirm_concede)
+
+## Generic yes/no dialog (same persistent slot as the concede one).
+func _ask_confirm(title: String, text: String, yes_label: String, no_label: String, on_yes: Callable) -> void:
 	if g == null or g.phase == "over" or concede_view:
 		return
 	concede_view = Control.new()
@@ -1921,12 +1934,12 @@ func _ask_concede() -> void:
 	box.custom_minimum_size = Vector2(460, 0)
 	box.add_theme_constant_override("separation", 14)
 	pc.add_child(box)
-	box.add_child(_label("CONCEDER A PARTIDA?", 34, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
-	box.add_child(_label("O oponente vence na hora.", 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
-	var yes := _button("CONCEDER", _confirm_concede, true)
+	box.add_child(_label(title, 34, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
+	box.add_child(_label(text, 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+	var yes := _button(yes_label, on_yes, true)
 	yes.custom_minimum_size = Vector2(460, 54)
 	box.add_child(yes)
-	var no := _button("CONTINUAR JOGANDO", _close_concede)
+	var no := _button(no_label, _close_concede)
 	no.custom_minimum_size = Vector2(460, 48)
 	box.add_child(no)
 	concede_view.add_child(pc)
@@ -2252,6 +2265,14 @@ func _prewarm_fx() -> void:
 	m.set_shader_parameter("progress", 0.5)
 	r.material = m
 	holder.add_child(r)
+	var r2 := ColorRect.new()
+	r2.size = Vector2(8, 8)
+	var m2 := ShaderMaterial.new()
+	m2.shader = load("res://scripts/ui/shaders/banish.gdshader")
+	m2.set_shader_parameter("size", r2.size)
+	m2.set_shader_parameter("progress", 0.5)
+	r2.material = m2
+	holder.add_child(r2)
 	var p := CPUParticles2D.new()
 	p.amount = 4
 	p.one_shot = true
@@ -2300,6 +2321,61 @@ func _embers(c: Vector2, t: float, col: Color, amount := 36) -> void:
 		if is_instance_valid(p):
 			p.emitting = true)
 	tw.tween_interval(1.6)
+	tw.tween_callback(func():
+		if is_instance_valid(p):
+			p.queue_free())
+
+const BANISH_COL := Color(0.8, 0.7, 1.0)
+
+## Banish flourish at a card's center: a pale ring contracting onto it while motes of light
+## are pulled inward (the opposite of the death embers, which rise and scatter).
+func _banish_fx(c: Vector2, w: float, t: float) -> void:
+	var rad := w * 0.75
+	var ring := Line2D.new()
+	var pts := PackedVector2Array()
+	for i in 33:
+		pts.append(Vector2.from_angle(TAU * i / 32.0) * rad)
+	ring.points = pts
+	ring.width = 5.0
+	ring.default_color = Color(BANISH_COL.lightened(0.4), 0.9)
+	ring.position = c
+	ring.z_index = 24
+	ring.visible = false
+	fx.add_child(ring)
+	var rt := ring.create_tween()
+	rt.tween_interval(t)
+	rt.tween_callback(func(): ring.visible = true)
+	rt.tween_property(ring, "scale", Vector2(0.05, 0.05), 0.8).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	rt.parallel().tween_property(ring, "modulate:a", 0.0, 0.8).set_delay(0.5)
+	rt.tween_callback(ring.queue_free)
+	var p := CPUParticles2D.new()
+	p.emitting = false
+	p.one_shot = true
+	p.amount = maxi(6, int(28 * _fx_scale))
+	p.lifetime = 0.7
+	p.explosiveness = 0.7
+	p.position = c
+	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_SPHERE_SURFACE
+	p.emission_sphere_radius = rad
+	p.gravity = Vector2.ZERO
+	p.initial_velocity_min = 0.0
+	p.initial_velocity_max = 10.0
+	p.radial_accel_min = -(rad * 2.4)
+	p.radial_accel_max = -(rad * 3.4)
+	p.scale_amount_min = 2.0
+	p.scale_amount_max = 4.0
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(BANISH_COL.lightened(0.5), 0.0))
+	ramp.set_color(ramp.get_point_count() - 1, Color(BANISH_COL, 1.0))
+	p.color_ramp = ramp
+	p.z_index = 23
+	fx.add_child(p)
+	var tw := fx.create_tween()
+	tw.tween_interval(t)
+	tw.tween_callback(func():
+		if is_instance_valid(p):
+			p.emitting = true)
+	tw.tween_interval(1.0)
 	tw.tween_callback(func():
 		if is_instance_valid(p):
 			p.queue_free())
@@ -2514,11 +2590,17 @@ func _animate(events: Array, old: Dictionary) -> float:
 	_fx_scale = 1.0 / maxf(1.0, (bursts + _count_ghosts(old)) / 3.0)
 	var actors := views.duplicate()
 	var ghosts: Array = []
+	var exiled := {} ## uids banished by these events: they get the banish effect, not the death dissolve
+	for e in events:
+		if e["type"] == "banish":
+			exiled[e["uid"]] = true
+	var ghost_exiled: Array = [] ## parallel to ghosts
 	for k in old:
 		if k is int and k > 0 and not views.has(k) and not old[k]["hand"] and old[k]["inst"].has("damage"):
 			var gh := _ghost(old[k]["card_id"], old[k]["inst"], old[k]["pose"])
 			actors[k] = gh
 			ghosts.append(gh)
+			ghost_exiled.append(exiled.has(k))
 	var cursor := 0.0
 	var handled := {}
 	var appear := {}
@@ -2677,6 +2759,10 @@ func _animate(events: Array, old: Dictionary) -> float:
 	var board_t := settle + (0.4 if not ghosts.is_empty() else 0.0)
 	for i in ghosts.size():
 		var gh: CardView = ghosts[i]
+		if ghost_exiled[i]:
+			gh.banish(settle + i * 0.06, BANISH_COL, 0.9)
+			_banish_fx(_center_of(gh), _pose(gh)["w"], settle + i * 0.06)
+			continue
 		var col := _elem_color(gh.card_id)
 		gh.dissolve(settle + i * 0.06, col.lightened(0.2), 0.75)
 		_embers(_center_of(gh), settle + i * 0.06 + 0.1, col)

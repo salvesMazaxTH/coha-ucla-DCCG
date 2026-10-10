@@ -42,6 +42,7 @@ func _init() -> void:
 	_test_damage_window()
 	_test_strike_order()
 	_test_overkill()
+	_test_dud()
 	_test_rusco()
 	_test_sim()
 	print("tests done, failures: ", failures)
@@ -753,6 +754,8 @@ func _test_reserve() -> void:
 	var bola := _give(g, p, "bola_de_fogo")
 	check(g.can_play(p, bola), "reserva + Momentum pagam feitiço")
 	g.play_card(p, bola, GameState.LEADER_UID[1 - p])
+	if not g.stack.is_empty(): # Naelthos' ability is instant, so its owner may answer
+		g.pass_priority(g.priority)
 	_pass_windows(g)
 	check(g.players[p]["reserve"] == 0 and g.players[p]["momentum"] == 0, "feitiço gasta a reserva primeiro")
 	check(g.players[1 - p]["leader_hp"] < hp, "feitiço pago com reserva resolve")
@@ -760,7 +763,7 @@ func _test_reserve() -> void:
 	var q := g2.active
 	g2.players[q]["leader_id"] = "ronan"
 	g2.players[q]["momentum"] = 0
-	g2.players[q]["reserve"] = 1
+	g2.players[q]["reserve"] = 2
 	check(g2.can_use_ability(q), "reserva paga habilidade do líder")
 	g2.use_ability(q, GameState.LEADER_UID[1 - q])
 	check(g2.players[q]["reserve"] == 0, "habilidade gasta a reserva")
@@ -943,8 +946,8 @@ func _test_stack() -> void:
 
 	# combat windows: attacker -> defender prepare -> attacker last -> blocks
 	g = _new_game()
-	g.players[0]["momentum"] = 1
-	g.players[1]["momentum"] = 1 # Naelthos keeps a Rápida play, so the window doesn't auto-pass
+	g.players[0]["momentum"] = 2 # Pavio Curto (2) keeps a play, so the window doesn't auto-pass
+	g.players[1]["momentum"] = 2
 	var kai := _put(g, 0, "kai")
 	var wall := _put(g, 1, "t_wall")
 	_give(g, 1, "t_fast")
@@ -952,7 +955,8 @@ func _test_stack() -> void:
 	check(g.phase == "combat" and g.window == "attack" and g.priority == 0, "attacker window")
 	g.pass_priority(0)
 	check(g.window == "prepare" and g.priority == 1, "defender prepare window")
-	check(not g.can_play(1, _give(g, 1, "lanca_das_mares")), "lento not allowed in combat")
+	_tspell("t_slow", "lento", [])
+	check(not g.can_play(1, _give(g, 1, "t_slow")), "lento not allowed in combat")
 	var fast: int = g.players[1]["hand"][-2]["uid"]
 	g.play_card(1, fast, kai["uid"])
 	check(g.priority == 0 and g.stack.size() == 1, "rapido cast in prepare window")
@@ -982,22 +986,28 @@ func _test_stack() -> void:
 	g._apply(1, {"action": "buff", "atk": 1}, ally["uid"])
 	check(g.has_kw(ally, "escudo_feitico") and ally["atk"] == 2, "own effects don't pop the spell shield")
 
-	# Mar que Retorna: mark in the prepare window, block, survive -> draw
+	# Mar que Retorna (Naelthos): +1 vida máxima e atual, instantânea, respondível mas não anulável
 	g = _new_game()
-	g.players[0]["momentum"] = 0
-	g.players[1]["momentum"] = 1
-	kai = _put(g, 0, "kai")
-	wall = _put(g, 1, "t_wall")
-	g.declare_attack(0, {kai["uid"]: 0})
-	check(g.window == "prepare" and g.priority == 1, "naelthos (rapida) gets the prepare window")
-	g.use_ability(1, wall["uid"])
-	_pass_windows(g)
-	check(wall.get("tide_mark", false), "tide mark resolved")
-	var hn: int = g.players[1]["hand"].size()
-	_block(g, {kai["uid"]: wall["uid"]})
-	check(g.players[1]["hand"].size() == hn + 1 and not wall.has("tide_mark"), "marked unit survived damage -> draw 1")
-	g._deal_damage(wall["uid"], 1, {})
-	check(g.players[1]["hand"].size() == hn + 1, "mark draws only once")
+	g.players[0]["momentum"] = 2 # can respond, so the ability stays on the stack
+	g.players[1]["momentum"] = 4
+	check(CardDB.leader("naelthos")["ability"]["cost"] == 2 and CardDB.leader("ronan")["ability"]["cost"] == 2, "poderes de Ronan e Naelthos custam 2")
+	var start_hp: int = g.players[1]["leader_max"]
+	g.declare_attack(0, {_put(g, 0, "kai")["uid"]: 0})
+	g.pass_priority(0)
+	check(g.window == "prepare" and g.priority == 1, "naelthos (instantânea) gets the prepare window")
+	var hp_before: int = g.players[1]["leader_hp"]
+	g.use_ability(1)
+	check(g.stack.size() == 1 and g.players[1]["leader_hp"] == hp_before, "poder vai para a pilha antes de resolver")
+	check(g.valid_targets(0, "enemy_stack").is_empty(), "poder do Naelthos não pode ser alvo de anular")
+	g._counter(0, g.stack[0]["sid"])
+	check(g.stack.size() == 1, "_counter ignora poder não anulável")
+	g._resolve_stack()
+	check(g.players[1]["leader_hp"] == hp_before + 1 and g.players[1]["leader_max"] == start_hp + 1, "+1 vida atual e máxima")
+	g.players[1]["leader_hp"] = g.players[1]["leader_max"]
+	g._apply(1, {"action": "leader_max_up", "amount": 1}, 0)
+	check(g.players[1]["leader_hp"] == start_hp + 2 and g.players[1]["leader_max"] == start_hp + 2, "passa da vida inicial")
+	g._apply(1, {"action": "heal_leader", "amount": 5}, 0)
+	check(g.players[1]["leader_hp"] == start_hp + 2, "cura normal respeita a nova vida máxima")
 
 ## Hipervelocidade strikes first attacking or blocking; Ataque Rápido only as the attacker and not against Hipervelocidade.
 func _strike_result(att_kw: Array, blk_kw: Array) -> String:
@@ -1618,3 +1628,11 @@ func _test_overkill() -> void:
 	var g2 := _new_game()
 	g2._events.resize(GameState.EVENT_CAP)
 	check(g2._chain_stopped(), "cadeia: acima do limite de eventos os gatilhos param")
+
+func _test_dud() -> void:
+	var g := _new_game()
+	var cd := CardDB.card("chamado_do_alem")
+	check(g.is_dud(0, cd), "feitiço de reviver com cemitério vazio é inútil")
+	g.players[0]["graveyard"].append({"uid": 9999, "card_id": "t_s_att"})
+	check(not g.is_dud(0, cd), "com uma unidade barata no cemitério o feitiço tem efeito")
+	check(not g.is_dud(0, CardDB.card("t_s_att")) , "unidade nunca é considerada inútil")

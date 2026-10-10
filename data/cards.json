@@ -205,7 +205,7 @@
       "legendary": "ronan",
       "ability": {
         "name": "Pavio Curto",
-        "cost": 1,
+        "cost": 2,
         "once_per_cycle": true,
         "speed": "instantaneo",
         "effects": [
@@ -215,7 +215,7 @@
             "amount": 1
           }
         ],
-        "text": "Instantânea. 1 Momentum: cause 1 de dano a qualquer alvo. Recarrega no início do seu turno (se usada no turno do oponente, só volta no seu)."
+        "text": "Instantânea. 2 Momentum: cause 1 de dano a qualquer alvo. Recarrega no início do seu turno (se usada no turno do oponente, só volta no seu)."
       },
       "essences": ["ignea"]
     },
@@ -226,16 +226,18 @@
       "legendary": "naelthos",
       "ability": {
         "name": "Mar que Retorna",
-        "cost": 1,
+        "cost": 2,
         "once_per_turn": true,
-        "speed": "rapido",
+        "speed": "instantaneo",
+        "uncounterable": true,
         "effects": [
           {
-            "action": "tide_mark",
-            "target": "ally_unit"
+            "action": "leader_max_up",
+            "target": "own_leader",
+            "amount": 1
           }
         ],
-        "text": "Rápida. 1 Momentum, uma vez por turno: marque uma unidade aliada. Na próxima vez que ela sobreviver a dano neste turno, compre 1 carta."
+        "text": "Instantânea. 2 Momentum, uma vez por turno: seu Líder ganha +1 de vida, mesmo acima da vida inicial (aumenta a vida máxima). Pode ser respondida, mas não pode ser anulada."
       },
       "essences": ["aquatica"]
     },

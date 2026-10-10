@@ -84,6 +84,7 @@ var draggable := false ## set by Main: hand cards that can be played are dragged
 var dragging := false
 static var _tex_cache := {}
 static var _dissolve: Shader
+static var _banish: Shader
 static var _stealth_shader: Shader
 
 ## Keywords that change who can block whom get an icon medallion on the art (MTG Arena style),
@@ -219,6 +220,27 @@ func dissolve(delay := 0.0, edge := Color(1.0, 0.55, 0.15), dur := 0.75) -> void
 	tw.tween_interval(delay)
 	tw.tween_property(m, "shader_parameter/progress", 1.0, dur).set_ease(Tween.EASE_IN)
 	tw.tween_callback(queue_free)
+
+## Banished from the field: the card drains pale, spins and shrinks while a hole closes over
+## it, instead of burning away like a death. The node frees itself.
+func banish(delay := 0.0, edge := Color(0.8, 0.7, 1.0), dur := 0.9) -> void:
+	if _banish == null:
+		_banish = load("res://scripts/ui/shaders/banish.gdshader")
+	var m := ShaderMaterial.new()
+	m.shader = _banish
+	m.set_shader_parameter("size", size)
+	m.set_shader_parameter("edge_color", edge)
+	m.set_shader_parameter("progress", 0.0)
+	material = m
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tw := create_tween()
+	tw.tween_interval(delay)
+	tw.tween_property(m, "shader_parameter/progress", 1.0, dur).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(queue_free)
+	var st := create_tween()
+	st.tween_interval(delay)
+	st.tween_property(self, "scale", scale * 0.55, dur).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
+	st.parallel().tween_property(self, "rotation", rotation + 0.5, dur).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
 
 func _legendary() -> bool:
 	return not face_down and card_id != "" and CardDB.card(card_id)["rarity"] in ["champion", "legendary"]
