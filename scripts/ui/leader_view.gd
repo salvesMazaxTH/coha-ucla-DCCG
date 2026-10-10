@@ -30,6 +30,7 @@ var hp_max := 0
 var deck := 0
 var fatigue := 0 ## damage of the next draw with the deck empty, shown in place of the 0
 var grave := 0
+var requiem := 0 ## Réquiem spells castable from the graveyard right now (glow + badge on the counter)
 var ability_ready := false
 var ability_cost := 0
 var passive := false # passive ability: fires on its own trigger, no cost, not clickable
@@ -82,7 +83,7 @@ func _has_point(pt: Vector2) -> bool:
 	return PLATE.has_point(pt) or GRAVE_RECT.has_point(pt) or pt.distance_to(AC) <= AR + 4 or pt.distance_to(HP_C) <= 22
 
 func _process(delta: float) -> void:
-	if targetable or ability_ready or active:
+	if targetable or ability_ready or active or requiem > 0:
 		_t += delta
 		queue_redraw()
 
@@ -226,6 +227,12 @@ func _draw() -> void:
 func _counter(pos: Vector2, tomb: bool, n: int, clickable := false) -> void:
 	var r := Rect2(pos - Vector2(25, 0), Vector2(50, 30))
 	var hot := clickable and _hover_grave
+	var glowing := tomb and requiem > 0
+	if glowing:
+		# same "playable" green as the hand cards: a Réquiem spell can be cast from in here
+		var glow_pulse := 0.5 + 0.5 * sin(_t * 4.0)
+		for i in 4:
+			draw_style_box(UITheme.box(Color(0, 0, 0, 0), 5 + i * 2, Color(READY_GLOW, (0.85 - i * 0.2) * (0.65 + 0.35 * glow_pulse)), 2), r.grow(1.0 + i * 2.0))
 	var rim := Color(UITheme.GOLD, 0.9 if hot else (0.5 if clickable else 0.25))
 	draw_style_box(UITheme.box(Color(UITheme.GOLD_DARK, 0.35) if hot else Color(0, 0, 0, 0.45), 5, rim, 2 if clickable else 1), r)
 	var ic := r.position + Vector2(10, 15)
@@ -251,6 +258,13 @@ func _counter(pos: Vector2, tomb: bool, n: int, clickable := false) -> void:
 		size = 15 if fatigue >= 10 else 18
 	draw_string_outline(f, r.position + Vector2(20, 22), t, HORIZONTAL_ALIGNMENT_LEFT, -1, size, 4, Color(0, 0, 0, 0.8))
 	draw_string(f, r.position + Vector2(20, 22), t, HORIZONTAL_ALIGNMENT_LEFT, -1, size, col)
+	if glowing:
+		# badge on the top-right corner: how many Réquiem spells are castable
+		var badge := r.position + Vector2(r.size.x - 2, 2)
+		draw_circle(badge, 11, Color(0, 0, 0, 0.85))
+		draw_circle(badge, 9, READY_GLOW.darkened(0.35))
+		draw_arc(badge, 9, 0, TAU, 24, READY_GLOW.lightened(0.3), 1.5, true)
+		draw_string(f, badge + Vector2(-5, 6), str(requiem), HORIZONTAL_ALIGNMENT_LEFT, 10, 15, Color.WHITE)
 
 func _diamond(c: Vector2, r: float, col: Color, rim: Color) -> void:
 	var pts := PackedVector2Array([c + Vector2(0, -r), c + Vector2(r * 0.8, 0), c + Vector2(0, r), c + Vector2(-r * 0.8, 0)])

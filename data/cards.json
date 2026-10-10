@@ -125,6 +125,10 @@
     "ciclope": { "name": "Ciclope" }
   },
   "keywords": {
+    "requiem": {
+      "name": "Réquiem",
+      "text": "Você pode lançar este feitiço do seu cemitério pagando 2 a mais. Depois de lançado, ele é banido."
+    },
     "hipervelocidade": {
       "name": "Hipervelocidade",
       "text": "Atacando ou bloqueando, causa seu dano de combate antes das unidades sem Hipervelocidade."

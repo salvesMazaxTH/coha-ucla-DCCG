@@ -768,6 +768,7 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	lv.deck = pl["deck"].size()
 	lv.fatigue = g.fatigue_next(p)
 	lv.grave = pl["graveyard"].size()
+	lv.requiem = g.requiem_cards(p).size() if p == viewer and not _is_ai(p) and g.phase in ["main", "combat"] else 0
 	lv.ability_ready = p == viewer and g.can_use_ability(p) and not _is_ai(p)
 	lv.targetable = _is_target(uid)
 	lv.active = g.active == p and g.phase != "mulligan"
@@ -846,7 +847,8 @@ func _render_board(p: int, y: float) -> void:
 		var v := CardView.new().setup(unit.card_id, unit.to_dict(), 1.15)
 		v.pivot_offset = v.size / 2.0
 		v.position = Vector2(x0 + i * w + (w - v.size.x) / 2.0, y)
-		if unit.exhausted and g.phase != "blocks":
+		# exhaustion never stops blocking, so it only reads as "spent" on its owner's own turn
+		if unit.exhausted and g.phase != "blocks" and p == g.active:
 			v.dim = true
 		_decorate_unit(v, unit, p)
 		v.left_clicked.connect(_on_unit_click)
@@ -1619,6 +1621,12 @@ func _play_from_hand(v: CardView) -> void:
 	else:
 		_do(g.play_card(viewer, v.uid, 0))
 
+## Casts a Réquiem spell from the graveyard through the same flow as a hand card (target aiming, dud confirm).
+func _cast_requiem(uid: int, card_id: String) -> void:
+	var stand_in := CardView.new().setup(card_id, {"uid": uid}, 1.0) # only its uid/card_id are read
+	_play_from_hand(stand_in)
+	stand_in.free()
+
 func _play_dud(uid: int) -> void:
 	_close_concede()
 	if g != null and g.can_play(viewer, uid):
@@ -1893,6 +1901,17 @@ func _show_overlay(v: CardView) -> void:
 		ab_btn.position = Vector2(rt_x, 820.0 + BOT)
 		ab_btn.custom_minimum_size = Vector2(520, 96)
 		overlay.add_child(ab_btn)
+	if g != null and _my_input() and _requiem_uids(viewer).has(v.uid):
+		# a Réquiem spell opened from the graveyard viewer: cast it from here (it is banished afterwards)
+		var requiem_uid := v.uid
+		var requiem_card_id := v.card_id
+		var requiem_btn := _button("Lançar Réquiem (%d)" % v.cost_override, func():
+			_close_overlay()
+			_close_graveyard()
+			_cast_requiem(requiem_uid, requiem_card_id), true)
+		requiem_btn.position = Vector2(rt_x, 820.0 + BOT)
+		requiem_btn.custom_minimum_size = Vector2(520, 96)
+		overlay.add_child(requiem_btn)
 	if cd.has("transform") and g != null and _my_input() and g.can_transform(viewer, v.uid):
 		var tb := _button("Transformar (%d)" % int(cd["transform"]["cost"]), func():
 			_close_overlay()
@@ -1970,7 +1989,7 @@ func _show_graveyard(p: int) -> void:
 		return
 	_close_graveyard()
 	grave_owner = p
-	grave_filter = "all"
+	grave_filter = "requiem" if _requiem_uids(p).size() > 0 else "all" # the glow on the icon promised a castable card in here
 	grave_view = Control.new()
 	grave_view.set_anchors_preset(Control.PRESET_FULL_RECT)
 	grave_view.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -2006,6 +2025,15 @@ func _close_graveyard() -> void:
 		grave_scroll = null
 		grave_panel = null
 
+## Uids of the Réquiem spells the viewer can cast from the own graveyard right now (empty for the opponent's).
+func _requiem_uids(p: int) -> Array:
+	var uids: Array = []
+	if p != viewer or _is_ai(p) or g.phase not in ["main", "combat"]:
+		return uids
+	for requiem_card: Card in g.requiem_cards(p):
+		uids.append(requiem_card.uid)
+	return uids
+
 ## Rebuilds the panel contents (on open, filter change and after every _render).
 func _refresh_graveyard() -> void:
 	if not grave_view or not is_instance_valid(grave_view):
@@ -2016,9 +2044,12 @@ func _refresh_graveyard() -> void:
 		c.queue_free()
 	var entries: Array = g.players[grave_owner]["graveyard"].duplicate()
 	entries.reverse() # newest first
-	var counts := {"all": entries.size(), "unit": 0, "spell": 0, "artifact": 0}
+	var castable_uids := _requiem_uids(grave_owner)
+	var counts := {"all": entries.size(), "unit": 0, "spell": 0, "artifact": 0, "requiem": castable_uids.size()}
 	for grave_card: Card in entries:
 		counts[CardDB.card(grave_card.card_id)["type"]] += 1
+	if grave_filter == "requiem" and castable_uids.is_empty():
+		grave_filter = "all" # nothing castable anymore (Momentum spent, priority passed)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 14)
 	grave_panel.add_child(box)
@@ -2047,7 +2078,10 @@ func _refresh_graveyard() -> void:
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 10)
 	box.add_child(tabs)
-	for f in GRAVE_FILTERS:
+	var filters: Array = GRAVE_FILTERS.duplicate()
+	if not castable_uids.is_empty():
+		filters.push_front(["requiem", "RÉQUIEM"])
+	for f in filters:
 		var fid: String = f[0]
 		var b := _button("%s  %d" % [f[1], counts[fid]], func():
 			grave_filter = fid
@@ -2057,7 +2091,11 @@ func _refresh_graveyard() -> void:
 		tabs.add_child(b)
 
 	# card grid
-	var shown: Array = entries if grave_filter == "all" else entries.filter(func(grave_card: Card): return CardDB.card(grave_card.card_id)["type"] == grave_filter)
+	var shown: Array = entries
+	if grave_filter == "requiem":
+		shown = entries.filter(func(grave_card: Card): return castable_uids.has(grave_card.uid))
+	elif grave_filter != "all":
+		shown = entries.filter(func(grave_card: Card): return CardDB.card(grave_card.card_id)["type"] == grave_filter)
 	if shown.is_empty():
 		var empty := VBoxContainer.new()
 		empty.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -2080,6 +2118,11 @@ func _refresh_graveyard() -> void:
 		sc.add_child(grid)
 		for grave_card: Card in shown:
 			var cv := CardView.new().setup(grave_card.card_id, {"uid": grave_card.uid}, 1.1)
+			if grave_owner == viewer and g.is_requiem(grave_card):
+				# Réquiem shows what it costs from here (base + 2) and glows when it can be cast now
+				cv.cost_override = g.cost_of(viewer, CardDB.card(grave_card.card_id), grave_card)
+				if castable_uids.has(grave_card.uid):
+					cv.highlight = OK
 			cv.left_clicked.connect(_grave_card_click)
 			cv.right_clicked.connect(_grave_card_click)
 			grid.add_child(cv)
@@ -2650,6 +2693,9 @@ func _animate(events: Array, old: Dictionary) -> float:
 				var origin: Dictionary = {"c": Vector2(lane_cx + EHAND_DX, 30), "rot": 0.0, "w": 60.0}
 				if e.get("legendary", false) and old.has("cmd%d" % e["player"]):
 					origin = old["cmd%d" % e["player"]]["pose"]
+				elif e.get("requiem", false) and views.get(GameState.LEADER_UID[e["player"]]) is LeaderView:
+					# a Réquiem spell rises from the graveyard icon of its caster
+					origin = {"c": (views[GameState.LEADER_UID[e["player"]]] as LeaderView).position + Vector2(217, 67), "rot": 0.0, "w": 60.0}
 				elif old.has(uid):
 					origin = old[uid]["pose"]
 				if cd["type"] == "unit" and views.has(uid):
@@ -2823,7 +2869,7 @@ func _cname(id: String) -> String:
 func _log_event(e: Dictionary) -> void:
 	match e["type"]:
 		"play":
-			_log("%s jogou %s" % [_pname(e["player"]), _cname(e["card_id"])])
+			_log("%s jogou %s%s" % [_pname(e["player"]), _cname(e["card_id"]), " (Réquiem)" if e.get("requiem", false) else ""])
 		"ability":
 			_log("%s usou %s" % [_pname(e["player"]), CardDB.leader(g.players[e["player"]]["leader_id"])["ability"]["name"]])
 		"transform":

@@ -74,7 +74,9 @@ static func _try_play(g: GameState, p: int) -> Array:
 		var events := g.cast_legendary(p)
 		if not events.is_empty():
 			return events
-	for card: Card in _hand_most_expensive_first(g, p):
+	# hand first; Réquiem spells in the graveyard are the fallback (they cost 2 more)
+	var candidates: Array = _hand_most_expensive_first(g, p) + g.requiem_cards(p)
+	for card: Card in candidates:
 		if not g.can_play(p, card.uid):
 			continue
 		var card_data := CardDB.card(card.card_id)

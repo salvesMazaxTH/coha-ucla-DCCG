@@ -44,6 +44,7 @@ func _init() -> void:
 	_test_overkill()
 	_test_dud()
 	_test_rusco()
+	_test_requiem()
 	_test_sim()
 	for e in CardDB.errors():
 		check(false, e)
@@ -1669,6 +1670,84 @@ func _test_overkill() -> void:
 	check(g2._chain_stopped(), "cadeia: acima do limite de eventos os gatilhos param")
 
 func _test_dud() -> void:
+## Réquiem: a spell in the graveyard can be cast for its cost + 2, then it is banished (resolved, fizzled or countered).
+func _test_requiem() -> void:
+	var g := _new_game()
+	g.auto_pass = [false, false] # keep the stack open so the test can look at it
+	var p := g.active
+	var cova := Card.new(g._uid(), "cova_rasa", p, "graveyard")
+	g.players[p]["graveyard"].append(cova)
+	g.players[p]["momentum"] = 3
+	check(g.cost_of(p, CardDB.card("cova_rasa"), cova) == 4, "réquiem: custa o custo base + 2 no cemitério")
+	check(not g.can_play(p, cova.uid) and g.requiem_cards(p).is_empty(), "réquiem: sem Momentum para o custo extra não dá para lançar")
+	g.players[p]["momentum"] = 4
+	check(g.can_play(p, cova.uid) and g.requiem_cards(p) == [cova], "réquiem: com Momentum suficiente a carta é jogável do cemitério")
+	var plain := Card.new(g._uid(), "bola_de_fogo", p, "graveyard")
+	g.players[p]["graveyard"].append(plain)
+	check(not g.can_play(p, plain.uid), "réquiem: feitiço sem a palavra-chave não sai do cemitério")
+	var grave_before: int = g.players[p]["graveyard"].size()
+	var events := g.play_card(p, cova.uid)
+	var play_event: Dictionary = events.filter(func(e): return e["type"] == "play")[0]
+	check(play_event.get("requiem", false) and g.players[p]["momentum"] == 0, "réquiem: paga 4 e o evento de jogada marca réquiem")
+	check(g.stack.size() == 1 and g.stack[0].get("requiem", false) and cova.zone == "stack", "réquiem: a carta vai para a pilha")
+	check(not g.players[p]["graveyard"].has(cova), "réquiem: sai do cemitério ao ser lançada")
+	for i in 5:
+		if g.stack.is_empty():
+			break
+		g.pass_priority(g.priority)
+	check(cova.zone == "banished" and g.players[p]["banished"].has(cova) and not g.players[p]["graveyard"].has(cova), "réquiem: banida depois de resolver")
+	check(g.players[p]["graveyard"].size() == grave_before - 1 + 3, "réquiem: o efeito resolveu (Moer 3)")
+
+	# countered while on the stack: still banished
+	var g2 := _new_game()
+	g2.auto_pass = [false, false] # keep the stack open so the test can look at it
+	var p2 := g2.active
+	var chamado := Card.new(g2._uid(), "chamado_do_alem", p2, "graveyard")
+	g2.players[p2]["graveyard"].append(chamado)
+	g2.players[p2]["graveyard"].append(Card.new(g2._uid(), "t_s_att", p2, "graveyard"))
+	g2.players[p2]["momentum"] = 5
+	g2.play_card(p2, chamado.uid)
+	check(g2.stack.size() == 1 and g2.players[p2]["momentum"] == 0, "réquiem: Chamado do Além custa 5 do cemitério")
+	g2._counter(1 - p2, g2.stack[0]["sid"])
+	check(chamado.zone == "banished" and g2.players[p2]["banished"].has(chamado), "réquiem: anulada também é banida")
+
+	# fizzled (target gone): still banished
+	_tspell("t_requiem_bolt", "lento", [{"trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 1}])
+	CardDB.data()["cards"]["t_requiem_bolt"]["keywords"] = ["requiem"]
+	var g3 := _new_game()
+	g3.auto_pass = [false, false] # keep the stack open so the test can look at it
+	var p3 := g3.active
+	var victim := _put(g3, 1 - p3, "t_s_att")
+	var bolt := Card.new(g3._uid(), "t_requiem_bolt", p3, "graveyard")
+	g3.players[p3]["graveyard"].append(bolt)
+	g3.players[p3]["momentum"] = 2
+	g3.play_card(p3, bolt.uid, victim.uid)
+	g3.players[1 - p3]["board"].erase(victim)
+	for i in 5:
+		if g3.stack.is_empty():
+			break
+		g3.pass_priority(g3.priority)
+	check(bolt.zone == "banished", "réquiem: sem alvo (fracassou) também é banida")
+
+	# auto-pass must not skip a window where only a Réquiem is playable
+	var g4 := _new_game()
+	var p4 := g4.active
+	g4.players[p4]["hand"].clear()
+	g4.players[p4]["graveyard"].append(Card.new(g4._uid(), "cova_rasa", p4, "graveyard"))
+	g4.players[p4]["momentum"] = 4
+	check(g4._has_play(p4), "réquiem: conta como jogada possível para o passe automático")
+
+	# the AI casts a Réquiem when it has nothing else
+	var g5 := _new_game()
+	var p5 := g5.active
+	g5.players[p5]["hand"].clear()
+	g5.players[p5]["legendary"]["in_zone"] = false # the AI would cast its Leader first
+	var cova5 := Card.new(g5._uid(), "cova_rasa", p5, "graveyard")
+	g5.players[p5]["graveyard"].append(cova5)
+	g5.players[p5]["momentum"] = 4
+	SimpleAI.step(g5, p5)
+	check(cova5.zone != "graveyard", "réquiem: a IA lança do cemitério")
+
 	var g := _new_game()
 	var cd := CardDB.card("chamado_do_alem")
 	check(g.is_dud(0, cd), "feitiço de reviver com cemitério vazio é inútil")

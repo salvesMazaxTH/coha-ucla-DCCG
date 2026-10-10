@@ -13,6 +13,7 @@ const RESERVE_CAP := 2 ## unspent Momentum banked at turn start; pays only spell
 const COMMANDER_TAX := 2
 const INTIMIDATE_ATK := 3 ## Intimidacao: blockers with this ATK or less cannot block
 const SECOND_BONUS_TURNS := 2 ## the second player's first turns that start with +1 Reserve (the first also with +1 Momentum)
+const REQUIEM_EXTRA_COST := 2 ## Réquiem: a spell cast from the graveyard costs this much more, then is banished
 
 ## Leaders are addressed with negative uids so targets are a single int.
 const LEADER_UID := [-1, -2]
@@ -314,7 +315,8 @@ func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 			"unspent_momentum": n = 1 if int(players[p]["unspent"]) >= int(e.get("threshold", 1)) else 0
 		c -= n * int(e.get("amount", 1))
 		floor_cost = maxi(floor_cost, int(e.get("min_cost", 0)))
-	return maxi(c, floor_cost)
+	var requiem_extra := REQUIEM_EXTRA_COST if card != null and card.zone == "graveyard" else 0
+	return maxi(c, floor_cost) + requiem_extra
 
 ## Momentum p can spend on a play: the Reserva only counts for spells and leader abilities.
 func budget(p: int, spell: bool) -> int:
@@ -373,7 +375,7 @@ func stack_cost(item: Dictionary) -> int:
 		return int(CardDB.leader(players[item["player"]]["leader_id"])["ability"]["cost"])
 	if item["kind"] == "unit_ability":
 		return int(CardDB.card(item["card_id"])["activated"]["cost"])
-	return int(CardDB.card(item["card_id"]).get("cost", 0))
+	return int(CardDB.card(item["card_id"]).get("cost", 0)) + (REQUIEM_EXTRA_COST if item.get("requiem", false) else 0)
 
 ## Extra Momentum a counter (action "counter") must pay to hit stack item `sid`:
 ## 0 up to max_cost, kicker_cost up to kicker_max_cost, -1 when out of reach.
@@ -429,7 +431,7 @@ func _sorcery_time(p: int) -> bool:
 	return phase == "main" and p == active and priority == p and stack.is_empty() and not summon_window
 
 func can_play(p: int, hand_uid: int) -> bool:
-	var inst := _hand_card(p, hand_uid)
+	var inst := _castable_card(p, hand_uid)
 	if inst == null:
 		return false
 	var cd := CardDB.card(inst.card_id)
@@ -490,6 +492,36 @@ func _hand_card(p: int, uid: int) -> Card:
 			return c
 	return null
 
+## True for a spell with Réquiem (it can be cast from the graveyard).
+func is_requiem(c: Card) -> bool:
+	var cd := CardDB.card(c.card_id)
+	return cd["type"] == "spell" and (cd.get("keywords", []) as Array).has("requiem")
+
+## The card a play action with this uid refers to: from the hand, or a Réquiem spell in the graveyard.
+func _castable_card(p: int, uid: int) -> Card:
+	var from_hand := _hand_card(p, uid)
+	if from_hand != null:
+		return from_hand
+	for c: Card in players[p]["graveyard"]:
+		if c.uid == uid and is_requiem(c):
+			return c
+	return null
+
+## Réquiem spells in p's graveyard that p could cast right now, newest first.
+func requiem_cards(p: int) -> Array:
+	var out: Array = []
+	for c: Card in players[p]["graveyard"]:
+		if is_requiem(c) and can_play(p, c.uid):
+			out.append(c)
+	out.reverse()
+	return out
+
+## Banishes a Réquiem spell once its cast is over (resolved, fizzled or countered).
+func _banish_requiem(c: Card) -> void:
+	players[c.owner]["banished"].append(c)
+	_move(c, "banished")
+	_emit({"type": "banish", "uid": c.uid, "player": c.owner, "card_id": c.card_id})
+
 # ---------------------------------------------------------------- actions
 
 ## Put back up to MULLIGAN_MAX cards and redraw that many.
@@ -518,7 +550,8 @@ func mulligan(p: int, hand_uids: Array) -> Array:
 func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0) -> Array:
 	if not can_play(p, hand_uid):
 		return []
-	var inst := _hand_card(p, hand_uid)
+	var inst := _castable_card(p, hand_uid)
+	var from_graveyard := inst.zone == "graveyard" # Réquiem
 	var cd := CardDB.card(inst.card_id)
 	var sacrifice: bool = cd["type"] == "unit" and cd.get("cost_sacrifice", false)
 	var spec := target_spec(cd["effects"])
@@ -532,11 +565,14 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0) -> Arra
 		return []
 	var pl: Dictionary = players[p]
 	_pay(p, cost_of(p, cd, inst) + (counter_extra(cd, target) if spec == "enemy_stack" else 0), _is_spell(cd))
-	pl["hand"].erase(inst)
+	pl["graveyard" if from_graveyard else "hand"].erase(inst)
 	if int(cd.get("cost", 0)) == 2 or int(cd.get("atk", 0)) == 2 or int(cd.get("hp", 0)) == 2:
 		pl["played_two"] = true # Rusco: a card with cost, ATK or HP exactly 2 this turn
 	_move(inst, "")
-	_emit({"type": "play", "player": p, "uid": hand_uid, "card_id": inst.card_id})
+	var play_event := {"type": "play", "player": p, "uid": hand_uid, "card_id": inst.card_id}
+	if from_graveyard:
+		play_event["requiem"] = true
+	_emit(play_event)
 	if sacrifice:
 		# additional cost: the chosen ally dies first (its Ao Morrer / Aliado Morre resolve before the card enters)
 		find_unit(target).damage = 1000000
@@ -556,7 +592,7 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0) -> Arra
 	else:
 		_stack_cards[hand_uid] = inst
 		_move(inst, "stack")
-		_push(p, "card", hand_uid, inst.card_id, target, speed_of(cd), target2)
+		_push(p, "card", hand_uid, inst.card_id, target, speed_of(cd), target2, from_graveyard)
 	_settle()
 	return _flush()
 
@@ -838,8 +874,10 @@ func choose_search(p: int, card_uid: int) -> Array:
 
 # ---------------------------------------------------------------- stack & windows
 
-func _push(p: int, kind: String, uid: int, card_id: String, target: int, speed: String, target2: int = 0) -> void:
+func _push(p: int, kind: String, uid: int, card_id: String, target: int, speed: String, target2: int = 0, requiem := false) -> void:
 	var item := {"sid": _uid(), "player": p, "kind": kind, "uid": uid, "card_id": card_id, "target": target, "target2": target2, "speed": speed}
+	if requiem:
+		item["requiem"] = true # cast from the graveyard: banished when the cast ends
 	stack.append(item)
 	summon_window = false
 	_summon_pending = false
@@ -876,6 +914,8 @@ func _resolve_stack() -> void:
 			var played := _take_stack_card(item)
 			if CardDB.is_equipment(CardDB.card(item["card_id"])) and holder != null and spec != "" and valid_targets(p, spec).has(int(item["target"])):
 				_attach(holder, played)
+			elif item.get("requiem", false):
+				_banish_requiem(played)
 			else:
 				players[p]["graveyard"].append(played)
 				_move(played, "graveyard")
@@ -919,8 +959,11 @@ func _counter(p: int, sid: int) -> void:
 	stack.erase(it)
 	if it["kind"] == "card":
 		var countered := _take_stack_card(it)
-		players[it["player"]]["graveyard"].append(countered)
-		_move(countered, "graveyard")
+		if it.get("requiem", false):
+			_banish_requiem(countered)
+		else:
+			players[it["player"]]["graveyard"].append(countered)
+			_move(countered, "graveyard")
 	_emit({"type": "countered", "sid": sid, "player": it["player"], "by": p, "card_id": it["card_id"], "kind": it["kind"]})
 
 ## Damage window: the attacker holds priority after the stack resolves.
@@ -1038,6 +1081,9 @@ func _has_play(p: int) -> bool:
 			return true
 	for c in players[p]["board"]:
 		if can_activate(p, c.uid):
+			return true
+	for c in players[p]["graveyard"]:
+		if is_requiem(c) and can_play(p, c.uid):
 			return true
 	return can_use_ability(p)
 
