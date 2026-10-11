@@ -5,8 +5,8 @@
   "species": [],
   "essence": "rochosa",
   "cost": 6,
-  "atk": 6,
-  "hp": 10,
+  "atk": 4,
+  "hp": 8,
   "keywords": [],
   "effects": [
     {

@@ -13,10 +13,10 @@
       "trigger": "on_enter",
       "action": "gain_momentum",
       "target": "none",
-      "amount": 1
+      "amount": 3
     }
   ],
-  "text": "Ao Entrar: ganhe 1 Momentum.",
+  "text": "Ao Entrar: recupere 3 Momentum (o custo desta carta) neste turno.",
   "flavor": "",
   "tags": []
 }

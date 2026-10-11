@@ -5,12 +5,33 @@
   "species": [],
   "essence": "rochosa",
   "cost": 6,
-  "atk": 4,
-  "hp": 8,
-  "keywords": [],
+  "atk": 3,
+  "hp": 9,
+  "keywords": [
+    "provocacao"
+  ],
   "art": "rochosa/tharox.webp",
-  "effects": [],
-  "text": "Encarnação. Tharox, Coração do Monólito.",
+  "effects": [
+    {
+      "trigger": "on_damaged",
+      "action": "buff",
+      "target": "self",
+      "armor": 1
+    }
+  ],
+  "activated": {
+    "cost": 2,
+    "speed": "instantaneo",
+    "once_per_turn": true,
+    "effects": [
+      {
+        "action": "heal_unit",
+        "target": "self",
+        "per": "half_armor"
+      }
+    ]
+  },
+  "text": "Ao Sofrer Dano: ganha Armadura 1 permanente (acumula).\nAo Ativar (2) {instantaneo} (1x por turno): cura dano igual à metade da sua Armadura (arredondado pra cima).",
   "flavor": "",
   "tags": []
 }
