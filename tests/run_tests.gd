@@ -32,6 +32,7 @@ func _init() -> void:
 	_test_ossuario()
 	_test_yresa_fusion()
 	_test_deslizamento()
+	_test_self_response()
 	_test_custo_e_contagem()
 	_test_ban()
 	_test_combat()
@@ -82,6 +83,8 @@ func _new_game() -> GameState:
 	var g := GameState.new("fogo", "agua", 42)
 	g.mulligan(0, [])
 	g.mulligan(1, [])
+	# the old stack tests expect priority to go straight to the opponent; _test_self_response turns it back on
+	g.self_response_enabled = false
 	return g
 
 func _put(g: GameState, p: int, card_id: String, ready := true) -> Card:
@@ -1564,6 +1567,7 @@ func _eletrica_game() -> GameState:
 	var g := GameState.new("eletrica_greedy", "fogo", 42)
 	g.mulligan(0, [])
 	g.mulligan(1, [])
+	g.self_response_enabled = false # same reason as in _new_game
 	_quiet(g)
 	return g
 
@@ -2054,6 +2058,31 @@ func _test_ossuario() -> void:
 	g.destroy_relic(relic)
 	g._flush()
 	check(g.find_relic(relic.uid) == null and g.slots_used(0) == 1, "ossuário: destruído libera o espaço")
+
+func _test_self_response() -> void:
+	var g := _new_game()
+	g.self_response_enabled = true
+	_quiet(g)
+	g.players[0]["hand"].clear() # only the bolts below count as legal plays
+	g.auto_pass[1] = false # keep the opponent's window open so the hand-over can be observed
+	var foe := _put(g, 1, "geodo_vivo")
+	var first_bolt := _give(g, 0, "labareda")
+	var second_bolt := _give(g, 0, "labareda")
+	var third_bolt := _give(g, 0, "labareda")
+	g.players[0]["momentum"] = 10
+	g.play_card(0, first_bolt, foe.uid)
+	check(g.priority == 1 and not g.stack_passed and g.stack.size() == 1, "feitiço lançado: o oponente decide primeiro")
+	g.pass_priority(1)
+	check(g.priority == 0 and g.stack_passed and g.stack.size() == 1, "oponente passou: a vez volta pra quem lançou, sem resolver")
+	g.play_card(0, second_bolt, foe.uid)
+	check(g.priority == 1 and not g.stack_passed and g.stack.size() == 2, "empilha por cima do próprio feitiço: o oponente responde de novo")
+	g.pass_priority(1)
+	g.pass_priority(0)
+	check(g.stack.is_empty(), "os dois passaram em sequência: a pilha resolve")
+	# the last bolt leaves no other play in hand, so the caster's turn to follow up is skipped
+	g.play_card(0, third_bolt, foe.uid)
+	g.pass_priority(1)
+	check(g.stack.is_empty(), "sem jogada legal pra quem lançou: a pilha resolve direto quando o oponente passa")
 
 func _test_deslizamento() -> void:
 	var g := _new_game()

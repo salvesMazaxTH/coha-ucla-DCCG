@@ -29,6 +29,8 @@ static func step(g: GameState, p: int) -> Array:
 				uids_to_discard.append(hand[i].uid)
 			return g.discard(p, uids_to_discard)
 		"combat":
+			# when stack_passed is set the opponent let the AI's own item through: stack one more
+			# Instantâneo if there is a worthwhile one, otherwise pass and let it resolve
 			var events := _try_play(g, p)
 			return events if not events.is_empty() else g.pass_priority(p)
 		"main":

@@ -1562,6 +1562,8 @@ func _hint() -> String:
 		return t
 	if g.decider() != viewer or _is_ai(viewer):
 		return ""
+	if g.phase in ["main", "combat"] and g.stack_passed and not g.stack.is_empty():
+		return "O oponente passou: empilhe outro Instantâneo ou passe para resolver a pilha."
 	if g.phase in ["main", "combat"] and not g.stack.is_empty():
 		return "Responda com um Instantâneo ou passe para resolver a pilha."
 	if g.phase == "main" and g.summon_window:

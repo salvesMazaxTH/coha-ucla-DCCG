@@ -54,6 +54,7 @@ func apply_snapshot(snap: Dictionary) -> void:
 	priority = int(s.get("priority", active))
 	window = String(s.get("window", ""))
 	summon_window = bool(s.get("summon_window", false))
+	stack_passed = bool(s.get("stack_passed", false))
 	attack_step = bool(s.get("attack_step", false))
 
 func _act(m: Dictionary) -> Array:

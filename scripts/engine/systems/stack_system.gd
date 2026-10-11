@@ -70,6 +70,7 @@ func push(p: int, kind: String, uid: int, card_id: String, target: int, speed: S
 	game.stack.append(item)
 	game.summon_window = false
 	game._summon_pending = false
+	game.stack_passed = false # every new item restarts the round of passes
 	game.priority = game.opponent(p)
 	game._emit({"type": "stack_push", "item": item.duplicate()})
 
@@ -82,6 +83,7 @@ func effects_of(item: Dictionary) -> Array:
 
 ## Resolves the stack newest-first. Stops early if the game ends or a search needs a choice.
 func resolve_stack() -> void:
+	game.stack_passed = false
 	while not game.stack.is_empty() and game.phase in ["main", "combat"]:
 		var item: Dictionary = game.stack.pop_back()
 		var p: int = item["player"]
@@ -169,7 +171,12 @@ func open_window(w: String) -> void:
 
 func pass_once() -> void:
 	if not game.stack.is_empty():
-		resolve_stack()
+		if game.self_response_enabled and not game.stack_passed:
+			# first pass of the round: the other player may respond (or stack more) before it resolves
+			game.stack_passed = true
+			game.priority = game.opponent(game.priority)
+		else:
+			resolve_stack() # both passed in a row
 		return
 	if game.summon_window:
 		game.summon_window = false
@@ -223,6 +230,8 @@ func settle() -> void:
 	for guard in 64:
 		if game.phase not in ["main", "combat"]:
 			return
+		if game.stack.is_empty():
+			game.stack_passed = false
 		if game.stack.is_empty() and game.phase == "main" and not game.summon_window:
 			game.priority = game.active
 			return

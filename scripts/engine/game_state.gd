@@ -47,6 +47,13 @@ var window := ""
 ## Main-phase response window right after the active player summoned a unit from hand or
 ## the Santuário (stack empty): the opponent holds priority and may cast Rápido/Instantâneo.
 var summon_window := false
+## The other player has already passed since the newest item was put on the stack. The player
+## holding priority may still stack another Instantâneo (and the opponent answers again);
+## passing instead resolves the stack. So the stack resolves when both players pass in a row.
+var stack_passed := false
+## Turns the "pass, then it comes back to the caster" rule on or off (on in real games; with it
+## off, the opponent's pass resolves the stack at once, which the older stack tests expect).
+var self_response_enabled := true
 ## The active player confirmed the end of their first Main Phase ("IR PARA O COMBATE") and is
 ## now choosing attackers. Only Rápido/Instantâneo plays are allowed until they attack or skip.
 var attack_step := false

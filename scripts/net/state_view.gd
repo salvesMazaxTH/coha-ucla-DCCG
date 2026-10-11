@@ -58,6 +58,7 @@ static func snapshot(g: GameState, seat: int) -> Dictionary:
 		"priority": g.priority,
 		"window": g.window,
 		"summon_window": g.summon_window,
+		"stack_passed": g.stack_passed,
 		"attack_step": g.attack_step,
 	}
 
