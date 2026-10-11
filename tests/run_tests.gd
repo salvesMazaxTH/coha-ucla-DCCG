@@ -29,6 +29,7 @@ func _init() -> void:
 	_test_eletrica()
 	_test_intimidacao()
 	_test_play_slot()
+	_test_ossuario()
 	_test_custo_e_contagem()
 	_test_ban()
 	_test_combat()
@@ -1992,3 +1993,30 @@ func _test_play_slot() -> void:
 	var far := _give(g, 0, "t_slot")
 	g.play_card(0, far, 0, 0, 99)
 	check(g.players[0]["board"].back().uid == far, "slot além do fim vira direita")
+
+func _test_ossuario() -> void:
+	_tcard("t_oss", 1, 1, [])
+	var g := _new_game()
+	_quiet(g)
+	var relic := Card.new(g._uid(), "ossuario_sem_fundo", 0)
+	g._place_relic(0, relic)
+	g._flush()
+	check(g.find_relic(relic.uid) != null, "ossuário: fica em campo como relíquia")
+	var unit := _put(g, 0, "t_oss")
+	check(g.slots_used(0) == 2, "ossuário: ocupa um espaço de unidade")
+	var deck_before: int = g.players[0]["deck"].size()
+	_kill(g, unit)
+	check(g.players[0]["deck"].size() == deck_before - 1, "ossuário: aliado morre -> Moer 1")
+	g.players[0]["momentum"] = 4
+	check(g.can_activate(0, relic.uid), "ossuário: pode ativar com 4 e unidade no cemitério")
+	g.activate(0, relic.uid)
+	g._flush()
+	check(g.phase == "search" and g.pending_search.get("revive", false), "ossuário: abre escolha de reviver")
+	if g.phase == "search":
+		var options: Array = g.pending_search["cards"]
+		g.choose_search(0, int(options[0]["uid"]))
+		g._flush()
+	check(_count(g, 0, "t_oss") == 1, "ossuário: cópia revivida em campo")
+	g.destroy_relic(relic)
+	g._flush()
+	check(g.find_relic(relic.uid) == null and g.slots_used(0) == 1, "ossuário: destruído libera o espaço")

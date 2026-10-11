@@ -17,6 +17,6 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 		if context.dying_card == null:
 			return
 		summoned_id = context.dying_card.card_id
-	if game.players[context.controller]["board"].size() >= GameState.BOARD_LIMIT:
+	if not game.has_free_slot(context.controller):
 		return
 	game._summon(context.controller, Card.new(game._uid(), summoned_id, context.controller), false, 0, overrides)

@@ -5,7 +5,7 @@ extends RefCounted
 
 const HIDDEN := ""
 
-const CARD_ZONES := ["deck", "hand", "board", "graveyard", "banished"]
+const CARD_ZONES := ["deck", "hand", "board", "relics", "graveyard", "banished"]
 
 ## Hides which cards these are: keeps only the uid. Accepts Card objects or card dicts.
 static func _mask(cards: Array) -> Array:

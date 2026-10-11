@@ -109,6 +109,11 @@ static func _try_play(g: GameState, p: int) -> Array:
 		var activated_effects: Array = CardDB.card(unit.card_id).get("activated", {}).get("effects", [])
 		if g.can_activate(p, unit.uid) and g.target_spec(activated_effects) == "" and g.can_attack(unit):
 			return g.activate(p, unit.uid)
+	for artifact: Card in g.players[p]["relics"]:
+		# free-standing artifacts' untargeted Ao Ativar (e.g. Ossuário Sem Fundo's revive)
+		var artifact_effects: Array = CardDB.card(artifact.card_id).get("activated", {}).get("effects", [])
+		if g.can_activate(p, artifact.uid) and g.target_spec(artifact_effects) == "":
+			return g.activate(p, artifact.uid)
 	for unit: Card in g.players[p]["board"]:
 		if g.can_transform(p, unit.uid):
 			return g.transform(p, unit.uid)

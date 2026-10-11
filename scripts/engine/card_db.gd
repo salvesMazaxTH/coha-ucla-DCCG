@@ -194,6 +194,11 @@ static func is_artifact(cd: Dictionary) -> bool:
 static func is_equipment(cd: Dictionary) -> bool:
 	return is_artifact(cd) and cd.get("subtypes", []).has("equipment")
 
+## A free-standing artifact (an artifact that is not Equipar): it stays on its owner's side of the
+## field, taking one of the BOARD_LIMIT slots, until an effect destroys it. It never fights.
+static func is_relic(cd: Dictionary) -> bool:
+	return is_artifact(cd) and not is_equipment(cd)
+
 static func is_leader_card(id: String) -> bool:
 	for lid in data()["leaders"]:
 		if data()["leaders"][lid]["legendary"] == id:

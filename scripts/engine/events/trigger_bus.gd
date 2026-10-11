@@ -9,10 +9,10 @@ extends RefCounted
 ##     runs for every card of the match that is in one of its zones and whose scope matches.
 ##
 ## "scope" is relative to the listening card: self (the event is about this card), ally (about
-## its owner), enemy (about the opponent) or any (default). "zones" is a list among board, hand,
+## its owner), enemy (about the opponent) or any (default). "zones" is a list among board, relics, hand,
 ## deck, graveyard, banished, or "any" (default: ["board"]).
 
-const ZONES := ["board", "hand", "deck", "graveyard", "banished"]
+const ZONES := ["board", "relics", "hand", "deck", "graveyard", "banished"]
 
 var game: GameState
 

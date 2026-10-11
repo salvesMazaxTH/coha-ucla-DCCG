@@ -38,6 +38,8 @@ func targets_countering_side(item: Dictionary) -> bool:
 		if chosen == GameState.LEADER_UID[defender]:
 			return true
 		var unit := game.find_unit(chosen)
+		if unit == null:
+			unit = game.find_relic(chosen)
 		if unit != null and unit.owner == defender:
 			return true
 	return false
@@ -102,6 +104,8 @@ func resolve_stack() -> void:
 			var played := take_stack_card(item)
 			if CardDB.is_equipment(CardDB.card(item["card_id"])) and holder != null and spec != "" and game.valid_targets(p, spec).has(int(item["target"])):
 				attach(holder, played)
+			elif CardDB.is_relic(CardDB.card(item["card_id"])) and not gone:
+				game._place_relic(p, played)
 			elif item.get("requiem", false):
 				game._banish_requiem(played)
 			else:
@@ -205,7 +209,7 @@ func has_play(p: int) -> bool:
 	for c in game.players[p]["hand"]:
 		if game.can_play(p, c.uid):
 			return true
-	for c in game.players[p]["board"]:
+	for c in game.players[p]["board"] + game.players[p]["relics"]:
 		if game.can_activate(p, c.uid):
 			return true
 	for c in game.players[p]["graveyard"]:

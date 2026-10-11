@@ -111,7 +111,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"leader_hp": int(ld["hp"]), "leader_max": int(ld["hp"]),
 		"momentum": 0, "max_momentum": 0, "reserve": 0,
 			"saved_momentum": 0, "idle_turns": 0, "next_momentum": 0, "leaked": 0, "unspent": 0,
-		"deck": deck, "hand": [], "board": [], "graveyard": [], "banished": [],
+		"deck": deck, "hand": [], "board": [], "relics": [], "graveyard": [], "banished": [],
 		"legendary": {"card_id": ld["legendary"], "in_zone": true, "casts": 0},
 		"ability_used": false, "passive_used": false, "attacked": false, "fatigue": 0, "mulligan_done": false,
 		"played_two": false,
@@ -177,6 +177,22 @@ func find_card(uid: int) -> Card:
 				if c.uid == uid:
 					return c
 	return null
+
+## The free-standing artifact with this uid on either side of the field, or null.
+func find_relic(uid: int) -> Card:
+	for p in players:
+		for c: Card in p["relics"]:
+			if c.uid == uid:
+				return c
+	return null
+
+## How many of p's BOARD_LIMIT field slots are taken: units plus free-standing artifacts.
+func slots_used(p: int) -> int:
+	return players[p]["board"].size() + players[p]["relics"].size()
+
+## True while p still has a free field slot for a unit or an artifact.
+func has_free_slot(p: int) -> bool:
+	return slots_used(p) < BOARD_LIMIT
 
 ## Moves a card to another zone (the caller takes it out of its old array and puts it in the new one).
 ## The single place a card changes zone, so later "goes to the graveyard" hooks live here.
@@ -280,7 +296,7 @@ func can_block(blocker: Card, attacker: Card) -> bool:
 ## Effect spec of a card/ability that needs a chosen target, or "" if none.
 func target_spec(effects: Array) -> String:
 	for e in effects:
-		if e.get("target", "") in ["enemy_unit", "ally_unit", "other_ally_unit", "any_unit", "any", "enemy_stack"]:
+		if e.get("target", "") in ["enemy_unit", "ally_unit", "other_ally_unit", "any_unit", "any", "enemy_stack", "enemy_artifact"]:
 			return e["target"]
 	return ""
 
@@ -307,7 +323,7 @@ func is_dud(p: int, cd: Dictionary) -> bool:
 	for e in effects:
 		if e.get("action") != "revive":
 			return false
-		if players[p]["board"].size() < BOARD_LIMIT:
+		if has_free_slot(p):
 			for grave: Card in players[p]["graveyard"]:
 				var gd := CardDB.card(grave.card_id)
 				if gd["type"] == "unit" and int(gd["cost"]) <= int(e.get("max_cost", 99)):
@@ -388,6 +404,8 @@ func valid_targets(p: int, spec: String, self_uid: int = 0) -> Array:
 		"any":
 			for c: Card in mine + theirs: out.append(c.uid)
 			out.append(LEADER_UID[opponent(p)])
+		"enemy_artifact": # a free-standing artifact on the opponent's side
+			for c: Card in players[opponent(p)]["relics"]: out.append(c.uid)
 		"enemy_stack":
 			for it in stack:
 				if it["player"] != p and not stack_system().is_uncounterable(it): out.append(it["sid"])
@@ -441,7 +459,9 @@ func can_play(p: int, hand_uid: int) -> bool:
 			return false
 		if cd.get("cost_sacrifice", false):
 			return not players[p]["board"].is_empty() # the sacrifice also frees the slot
-		return players[p]["board"].size() < BOARD_LIMIT
+		return has_free_slot(p)
+	if CardDB.is_relic(cd):
+		return _sorcery_time(p) and has_free_slot(p) # put on the field like a unit, but through the stack
 	if not can_cast_speed(p, speed_of(cd)):
 		return false
 	var spec := target_spec(cd["effects"])
@@ -449,7 +469,7 @@ func can_play(p: int, hand_uid: int) -> bool:
 
 func can_cast_legendary(p: int) -> bool:
 	return _sorcery_time(p) and players[p]["legendary"]["in_zone"] \
-		and legendary_cost(p) <= players[p]["momentum"] and players[p]["board"].size() < BOARD_LIMIT
+		and legendary_cost(p) <= players[p]["momentum"] and has_free_slot(p)
 
 func can_use_ability(p: int) -> bool:
 	var ab: Dictionary = CardDB.leader(players[p]["leader_id"])["ability"]
@@ -467,7 +487,7 @@ func can_use_ability(p: int) -> bool:
 ## "exhaust": the unit must be ready (not exhausted) and becomes exhausted, so it cannot attack
 ## that turn (and an attacker cannot activate). Exhaustion never stops it from blocking.
 func can_activate(p: int, uid: int) -> bool:
-	var c := find_unit(uid)
+	var c := _activatable_card(uid)
 	if c == null or c.owner != p:
 		return false
 	var ab: Dictionary = card_of(c).get("activated", {})
@@ -477,8 +497,22 @@ func can_activate(p: int, uid: int) -> bool:
 		return false
 	if ab.get("exhaust", false) and c.exhausted:
 		return false
+	if _has_action(ab["effects"], "revive_pick") and (not has_free_slot(p) or revive_options(p).is_empty()):
+		return false # nothing to bring back, or no slot for it
 	var spec := target_spec(ab["effects"])
 	return spec == "" or not valid_targets(p, spec, uid).is_empty()
+
+## The card whose Ao Ativar can be used: a unit on the board or a free-standing artifact.
+func _activatable_card(uid: int) -> Card:
+	var unit := find_unit(uid)
+	return unit if unit != null else find_relic(uid)
+
+## True if one of these effect dictionaries has this action.
+func _has_action(effects: Array, action_name: String) -> bool:
+	for e in effects:
+		if e.get("action", "") == action_name:
+			return true
+	return false
 
 ## Transformar (cards.json unit field "transform": {into, cost}) (cards.json unit field {into, cost}): Lento, paid like an ability
 ## (Reserva counts), and it never uses the stack, so it cannot be answered or countered.
@@ -587,7 +621,7 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 		_check_state()
 		if phase == "over":
 			return _flush()
-		if pl["board"].size() >= BOARD_LIMIT: # a death effect refilled the slot
+		if not has_free_slot(p): # a death effect refilled the slot
 			pl["graveyard"].append(inst)
 			_move(inst, "graveyard")
 			stack_system().settle()
@@ -621,7 +655,7 @@ func cast_legendary(p: int, _target: int = 0, slot: int = -1) -> Array:
 func activate(p: int, uid: int, target: int = 0) -> Array:
 	if not can_activate(p, uid):
 		return []
-	var c := find_unit(uid)
+	var c := _activatable_card(uid)
 	var ab: Dictionary = card_of(c)["activated"]
 	var spec := target_spec(ab["effects"])
 	if spec != "" and not valid_targets(p, spec, uid).has(target):
@@ -767,6 +801,18 @@ func choose_search(p: int, card_uid: int) -> Array:
 			break
 	if chosen.is_empty():
 		return []
+	if pending_search.get("revive", false):
+		# a new copy of the chosen card enters the board; the card itself stays in the graveyard
+		pending_search.clear()
+		phase = _search_return
+		_emit({"type": "revive", "player": p, "card_id": chosen["card_id"]})
+		if has_free_slot(p):
+			_summon(p, Card.new(_uid(), chosen["card_id"], p), false, 0)
+		_resolve_stack()
+		_check_state()
+		stack_system().after_search()
+		stack_system().settle()
+		return _flush()
 	if pending_search.get("grave", false):
 		# Moer + escolher: the card comes out of the graveyard; the others stay there
 		var grave: Array = players[p]["graveyard"]
@@ -847,6 +893,27 @@ func _resolve_stack() -> void:
 
 func _counter(p: int, sid: int) -> void:
 	stack_system().counter(p, sid)
+
+## A free-standing artifact resolved: it takes a field slot (or goes to the graveyard if the
+## field filled up while it waited on the stack).
+func _place_relic(p: int, c: Card) -> void:
+	if not has_free_slot(p):
+		players[p]["graveyard"].append(c)
+		_move(c, "graveyard")
+		return
+	players[p]["relics"].append(c)
+	_move(c, "relics")
+	_emit({"type": "relic_enter", "player": p, "uid": c.uid, "card_id": c.card_id})
+
+## Destroys a free-standing artifact: it leaves the field (freeing its slot) for the graveyard.
+func destroy_relic(c: Card) -> void:
+	var p := c.owner
+	if not players[p]["relics"].has(c):
+		return
+	players[p]["relics"].erase(c)
+	players[p]["graveyard"].append(c)
+	_emit({"type": "relic_destroyed", "player": p, "uid": c.uid, "card_id": c.card_id})
+	_move(c, "graveyard")
 
 func _release_equipment(c: Card) -> void:
 	stack_system().release_equipment(c)
@@ -953,7 +1020,7 @@ func _fire_deck_effects(p: int, trigger: String) -> void:
 			if condition != null and not condition.check(EffectContext.new(self, p, trigger)):
 				continue
 			var fee := int(e.get("cost", 0))
-			if e.get("action", "") == "summon_self" and players[p]["deck"].has(c) and players[p]["board"].size() < BOARD_LIMIT and budget(p, true) >= fee:
+			if e.get("action", "") == "summon_self" and players[p]["deck"].has(c) and has_free_slot(p) and budget(p, true) >= fee:
 				_pay(p, fee, true)
 				players[p]["deck"].erase(c)
 				_emit({"type": "deck_summon", "player": p, "uid": c.uid, "card_id": c.card_id})
@@ -1009,6 +1076,32 @@ func _begin_grave_pick(p: int, milled: Array, source_uid: int) -> void:
 		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
 		return
 	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "grave": true}
+	_search_return = phase
+	phase = "search"
+	_emit({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options})
+
+## Unit cards in p's graveyard a "revive_pick" could bring back (one entry per different card).
+func revive_options(p: int, max_cost := 99) -> Array:
+	var options: Array = []
+	var seen: Dictionary = {}
+	for c: Card in players[p]["graveyard"]:
+		var cd := CardDB.card(c.card_id)
+		if cd["type"] != "unit" or int(cd.get("cost", 0)) > max_cost or seen.has(c.card_id):
+			continue
+		seen[c.card_id] = true
+		options.append({"uid": c.uid, "card_id": c.card_id})
+	return options
+
+## Offers the unit cards of p's graveyard; a copy of the chosen one enters the board
+## (Ossuário Sem Fundo). Uses the same choice screen as the searches.
+func _begin_revive_pick(p: int, max_cost: int, source_uid: int) -> void:
+	if phase == "search":
+		return
+	var options := revive_options(p, max_cost)
+	if options.is_empty() or not has_free_slot(p):
+		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
+		return
+	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "revive": true}
 	_search_return = phase
 	phase = "search"
 	_emit({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options})
@@ -1224,6 +1317,8 @@ func _move_dead_units() -> void:
 					for ally in players[p]["board"].duplicate():
 						if players[p]["board"].has(ally):
 							_fire(ally, "on_ally_death", dead_uid)
+					for relic in players[p]["relics"].duplicate(): # free-standing artifacts hear it too
+						_fire(relic, "on_ally_death", dead_uid)
 					_fire_leader_passive(p, "on_ally_death")
 
 func _check_leaders() -> void:

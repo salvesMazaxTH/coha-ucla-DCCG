@@ -8,7 +8,7 @@ extends RefCounted
 var uid: int
 var card_id: String
 var owner: int
-var zone := "" ## "deck" / "hand" / "board" / "graveyard" / "banished" / "stack" / "equipped" / ""
+var zone := "" ## "deck" / "hand" / "board" / "relics" / "graveyard" / "banished" / "stack" / "equipped" / ""
 var discount := 0 ## costs this much less while it stays in hand (Tecnomante); cleared when it leaves the hand
 var cost_mod := 0 ## added to the cost in every zone and never reset (A Vagante Sombria: -1 per card of yours sent to the graveyard)
 var over: Dictionary = {} ## per-instance overrides of the card data (atk, hp, keywords, effects, text...)

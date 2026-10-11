@@ -18,6 +18,7 @@ Cada ação é uma classe em `scripts/engine/effects/`, registrada em `effect_re
 |---|---|---|
 | `damage` | `amount`, `amount_from`, `ally_reduce` | dano ao alvo |
 | `heal_leader` / `leader_max_up` / `heal_full` | `amount` | cura, aumenta a vida máxima ou cura tudo |
+| `heal_unit` | `amount`, `per` (`"armor"`, `"half_armor"`) | cura a unidade em `amount`, ou no valor da Armadura dela (`"armor"`) ou metade arredondada pra cima (`"half_armor"`) |
 | `draw` / `draw_discounted` | `amount`, `min_base_cost`, `discount` | compra cartas (a segunda dá desconto à cópia na mão) |
 | `tide_mark` | — | põe a Marca da Maré |
 | `search_deck` / `look_top` | `count`, `shuffle` e filtros | abre escolha com cartas do deck |

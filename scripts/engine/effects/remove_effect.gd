@@ -6,6 +6,7 @@ extends Effect
 ##   "shield_leader_damage": N = if the unit had Escudo, its owner's Leader takes N damage.
 ## "banish": exile, stronger than destroy. Ignores Indestrutível, the unit never dies (no Ao
 ##   Morrer, no Aliado Morre) and never reaches the graveyard; its equipment does.
+## "destroy_artifact": the target free-standing artifact goes to the graveyard, freeing its slot.
 
 var shield_leader_damage := 0
 
@@ -15,6 +16,10 @@ func _read_parameters(data: Dictionary) -> void:
 func apply(context: EffectContext, target_uid: int) -> void:
 	if action == "banish":
 		_banish(context, target_uid)
+	elif action == "destroy_artifact":
+		var artifact := context.game.find_relic(target_uid)
+		if artifact != null:
+			context.game.destroy_relic(artifact)
 	else:
 		_destroy(context, target_uid)
 
