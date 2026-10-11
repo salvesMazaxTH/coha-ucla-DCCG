@@ -129,7 +129,8 @@
     "fada": { "name": "Fada" },
     "elfo": { "name": "Elfo" },
     "ciclope": { "name": "Ciclope" },
-    "driade": { "name": "Dríade" }
+    "driade": { "name": "Dríade" },
+    "kobold": { "name": "Kobold" }
   },
   "keywords": {
     "requiem": {
