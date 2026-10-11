@@ -5,9 +5,9 @@
   "species": ["golem"],
   "essence": "rochosa",
   "art": "rochosa/geodo_vivo.webp",
-  "cost": 2,
+  "cost": 3,
   "atk": 2,
-  "hp": 4,
+  "hp": 5,
   "keywords": [],
   "effects": [
     {
