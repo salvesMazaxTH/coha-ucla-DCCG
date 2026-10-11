@@ -2,9 +2,10 @@ class_name LeaderView
 extends Control
 ## Leader plate: a card-like frame in the Leader's essence colors with the art
 ## in a window, a name banner, the HP gem hanging off the bottom-right corner,
-## the ability gem (clickable) beside it and deck/graveyard counters.
+## the ability gem (clickable) beside it, the deck as a physical pile of
+## card backs and the graveyard counter.
 ## The control is wider than the plate: the margins hold the ability gem (left)
-## and the counters (right), and `_has_point` keeps them from eating clicks
+## and the deck pile + graveyard counter (right), and `_has_point` keeps them from eating clicks
 ## meant for the hand or the board around it.
 
 signal portrait_clicked
@@ -12,13 +13,19 @@ signal ability_clicked
 signal grave_clicked
 
 const PLATE := Rect2(52, 0, 140, 128) ## the card itself, in local coordinates
-const SIZE := Vector2(244, 146) ## plate + side margins + the HP gem hanging below
+const SIZE := Vector2(258, 146) ## plate + side margins + the HP gem hanging below
 const CX := 122.0 ## x of the plate's center: place the control at (center - CX)
 const PC := Vector2(122, 50) ## art center, anchor for hit effects and flying text
 const AC := Vector2(26, 50) ## ability gem center
 const AR := 23.0
 const READY_GLOW := Color("#4dff88") ## same as Main.OK, the playable-card glow
-const GRAVE_RECT := Rect2(Vector2(190, 48), Vector2(54, 38)) ## graveyard counter + touch padding
+const GRAVE_RECT := Rect2(Vector2(203, 94), Vector2(55, 38)) ## graveyard counter + touch padding
+const GRAVE_CENTER := Vector2(230, 113) ## where cards leave the graveyard from (Réquiem)
+const DECK_CARD_SCALE := 0.42 ## size of each card in the deck pile
+const DECK_BASE_TOP_LEFT := Vector2(206, 17) ## bottom card of the pile (the "table"); the pile grows upward from it
+## Pile thickness in pixels (one pixel = one visible card edge) by deck size:
+## [minimum cards, thickness]. The pile drops to the next step as the deck runs low.
+const DECK_THICKNESS_CHECKPOINTS := [[26, 14], [18, 11], [10, 8], [4, 5], [1, 2]]
 const HP_C := Vector2(180, 118) ## HP gem center
 const RAD := 10.0
 const ART := Rect2(58, 7, 128, 84)
@@ -45,6 +52,7 @@ var _t := 0.0
 var _holding := false
 var _long := false
 var _press_id := 0
+var _deck_pile: DeckPile
 
 func setup(id: String) -> LeaderView:
 	leader_id = id
@@ -76,7 +84,29 @@ func setup(id: String) -> LeaderView:
 		_hover_ability = false
 		queue_redraw())
 	add_child(gem)
+	_deck_pile = DeckPile.new()
+	_deck_pile.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_deck_pile)
 	return self
+
+## Center of the pile's top card, in this control's coordinates: drawn cards fly out from here.
+static func deck_top_center(count: int) -> Vector2:
+	return deck_top_left(count) + CardView.BASE * DECK_CARD_SCALE / 2.0
+
+## Top-left of the pile's top card: the higher the pile, the higher the top card.
+static func deck_top_left(count: int) -> Vector2:
+	return DECK_BASE_TOP_LEFT - Vector2(0, deck_thickness(count))
+
+## Width of one card in the pile (a drawn card starts the flight at this size).
+static func deck_card_width() -> float:
+	return CardView.BASE.x * DECK_CARD_SCALE
+
+## How thick (in pixels) the pile is for a deck of `count` cards.
+static func deck_thickness(count: int) -> int:
+	for checkpoint in DECK_THICKNESS_CHECKPOINTS:
+		if count >= checkpoint[0]:
+			return checkpoint[1]
+	return 0
 
 ## Only the plate, the HP gem, the ability gem and the graveyard counter take input.
 func _has_point(pt: Vector2) -> bool:
@@ -219,11 +249,11 @@ func _draw() -> void:
 		_text(f_num, str(ability_cost), cc + Vector2(0, 5), 14, Color.WHITE)
 	_text(UITheme.font("bold"), "PASSIVA" if passive else "HABILIDADE", AC + Vector2(0, AR + 16), 12, Color(UITheme.TEXT, 0.7))
 
-	# deck / graveyard counters
-	_counter(Vector2(217, 12), false, deck)
-	_counter(Vector2(217, 52), true, grave, true)
+	# deck pile (its own child node, rebuilt here) and graveyard counter
+	_deck_pile.show_count(deck, fatigue)
+	_counter(Vector2(230, 98), true, grave, true)
 
-## Small plate with a drawn icon (card stack or tombstone) and a count.
+## Small plate with a drawn icon (tombstone) and a count.
 func _counter(pos: Vector2, tomb: bool, n: int, clickable := false) -> void:
 	var r := Rect2(pos - Vector2(25, 0), Vector2(50, 30))
 	var hot := clickable and _hover_grave
@@ -238,26 +268,11 @@ func _counter(pos: Vector2, tomb: bool, n: int, clickable := false) -> void:
 	var ic := r.position + Vector2(10, 15)
 	var ink := Color(UITheme.GOLD_LIGHT, 0.95) if hot else Color(UITheme.TEXT, 0.75)
 	if tomb:
-		var pts := PackedVector2Array()
-		for i in 9:
-			var a := PI + PI * i / 8.0
-			pts.append(ic + Vector2(cos(a) * 4.5, -1.5 + sin(a) * 4.5))
-		pts.append(ic + Vector2(4.5, 6))
-		pts.append(ic + Vector2(-4.5, 6))
-		draw_colored_polygon(pts, ink)
-	else:
-		draw_rect(Rect2(ic + Vector2(-2.5, -6.5), Vector2(8, 11)), Color(ink, 0.45))
-		draw_rect(Rect2(ic + Vector2(-5, -5), Vector2(8, 11)), ink)
+		_draw_tombstone_icon(ic, ink)
 	var f := UITheme.font("heavy")
 	var t := str(n)
-	var col := UITheme.TEXT
-	var size := 18
-	if not tomb and n == 0 and fatigue > 0:
-		t = "-%d" % fatigue
-		col = Color(1.0, 0.45, 0.4)
-		size = 15 if fatigue >= 10 else 18
-	draw_string_outline(f, r.position + Vector2(20, 22), t, HORIZONTAL_ALIGNMENT_LEFT, -1, size, 4, Color(0, 0, 0, 0.8))
-	draw_string(f, r.position + Vector2(20, 22), t, HORIZONTAL_ALIGNMENT_LEFT, -1, size, col)
+	draw_string_outline(f, r.position + Vector2(20, 22), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, 4, Color(0, 0, 0, 0.8))
+	draw_string(f, r.position + Vector2(20, 22), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, UITheme.TEXT)
 	if glowing:
 		# badge on the top-right corner: how many Réquiem spells are castable
 		var badge := r.position + Vector2(r.size.x - 2, 2)
@@ -265,6 +280,30 @@ func _counter(pos: Vector2, tomb: bool, n: int, clickable := false) -> void:
 		draw_circle(badge, 9, READY_GLOW.darkened(0.35))
 		draw_arc(badge, 9, 0, TAU, 24, READY_GLOW.lightened(0.3), 1.5, true)
 		draw_string(f, badge + Vector2(-5, 6), str(requiem), HORIZONTAL_ALIGNMENT_LEFT, 10, 15, Color.WHITE)
+
+# Graveyard icon: a rounded-top headstone with an engraved cross, sitting on a little mound of dirt.
+# (Not a skull on purpose: the skull is already the Obscura element symbol.)
+func _draw_tombstone_icon(center: Vector2, ink: Color) -> void:
+	var stone_half_width := 5.5
+	var arch_center := center + Vector2(0, -3)
+	var stone_bottom := center.y + 6.0
+	var stone_outline := PackedVector2Array()
+	for step in 11:
+		var angle := PI + PI * step / 10.0
+		stone_outline.append(arch_center + Vector2(cos(angle), sin(angle)) * stone_half_width)
+	stone_outline.append(Vector2(center.x + stone_half_width, stone_bottom))
+	stone_outline.append(Vector2(center.x - stone_half_width, stone_bottom))
+	draw_colored_polygon(stone_outline, ink)
+	# engraved cross, cut into the stone with a dark color
+	var engraving := Color(0, 0, 0, 0.7)
+	draw_rect(Rect2(center + Vector2(-0.8, -5.5), Vector2(1.6, 7.5)), engraving)
+	draw_rect(Rect2(center + Vector2(-2.8, -3.5), Vector2(5.6, 1.6)), engraving)
+	# mound of dirt at the base, a bit wider than the stone
+	var mound := PackedVector2Array()
+	for step in 9:
+		var angle := PI + PI * step / 8.0
+		mound.append(Vector2(center.x, stone_bottom + 1.5) + Vector2(cos(angle) * 8.5, sin(angle) * 2.5))
+	draw_colored_polygon(mound, ink.darkened(0.45))
 
 func _diamond(c: Vector2, r: float, col: Color, rim: Color) -> void:
 	var pts := PackedVector2Array([c + Vector2(0, -r), c + Vector2(r * 0.8, 0), c + Vector2(0, r), c + Vector2(-r * 0.8, 0)])
@@ -420,3 +459,101 @@ class AbilityGem extends Control:
 
 	func _make_custom_tooltip(_for_text: String) -> Object:
 		return LeaderView.ability_panel(ability, elem_color)
+
+## The deck as a physical pile seen slightly from the front: a soft shadow on the
+## table, the side of the stack with every card edge visible (it gets thinner at
+## each checkpoint as the deck runs low), a slightly crooked card peeking out under
+## the top one, the top card back and a round count badge at the front.
+## Empty deck: a faint outline of where the pile was and the next Fadiga damage.
+class DeckPile extends Control:
+	const EDGE_DARK := Color("#1d1736")
+	const EDGE_LIGHT := Color("#3a2f63")
+	const CORNER := 4
+	var _shown_count := -1
+	var _shown_fatigue := -1
+
+	func show_count(count: int, fatigue: int) -> void:
+		if count == _shown_count and fatigue == _shown_fatigue:
+			return
+		_shown_count = count
+		_shown_fatigue = fatigue
+		for child in get_children():
+			child.queue_free()
+		var top_left := LeaderView.deck_top_left(count)
+		if count >= 2:
+			# a card a bit out of line under the top one, so the pile looks handled, not printed
+			var crooked := _card_back(top_left + Vector2(2, 1), deg_to_rad(5.0))
+			crooked.modulate = Color(0.7, 0.7, 0.75)
+		if count >= 1:
+			_card_back(top_left, deg_to_rad(-1.5))
+		var badge := CountBadge.new()
+		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		badge.count = count
+		badge.fatigue = fatigue
+		var card_size := CardView.BASE * LeaderView.DECK_CARD_SCALE
+		badge.center = LeaderView.DECK_BASE_TOP_LEFT + Vector2(card_size.x / 2.0, card_size.y - 2)
+		add_child(badge)
+		queue_redraw()
+
+	func _card_back(top_left: Vector2, tilt: float) -> CardView:
+		var back := CardView.new().setup("", {}, LeaderView.DECK_CARD_SCALE)
+		back.face_down = true
+		back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		back.pivot_offset = back.size / 2.0
+		back.position = top_left
+		back.rotation = tilt
+		add_child(back)
+		return back
+
+	func _draw() -> void:
+		var card_size := CardView.BASE * LeaderView.DECK_CARD_SCALE
+		var base := Rect2(LeaderView.DECK_BASE_TOP_LEFT, card_size)
+		if _shown_count <= 0:
+			draw_style_box(UITheme.box(Color(0, 0, 0, 0.35), CORNER, Color(UITheme.TEXT, 0.22), 1), base)
+			return
+		# soft shadow cast on the table, longer toward the bottom-right
+		for i in 6:
+			var shadow := base.grow(1.0 + i * 1.6)
+			shadow.position += Vector2(2.5, 3.5)
+			draw_style_box(UITheme.box(Color(0, 0, 0, 0.09), CORNER + i * 2, Color(0, 0, 0, 0), 0), shadow)
+		# side of the stack: one rounded card per pixel of thickness, bottom first,
+		# alternating tones with a tiny sideways jitter so the edges read as separate cards
+		var thickness := LeaderView.deck_thickness(_shown_count)
+		for layer in thickness:
+			var jitter := sin(layer * 12.9898) * 0.9
+			var card := Rect2(base.position + Vector2(jitter, -layer), card_size)
+			var depth := 1.0 - float(layer) / maxf(1.0, thickness) # 1 at the bottom, near 0 at the top
+			var tone := EDGE_LIGHT if layer % 2 == 0 else EDGE_DARK
+			draw_style_box(UITheme.box(tone.darkened(0.35 * depth), CORNER, Color(0, 0, 0, 0), 0), card)
+			if layer % 3 == 1:
+				# thin gold line: the trim of the card backs, seen from the side
+				var y := card.end.y - 0.5
+				draw_line(Vector2(card.position.x + CORNER, y), Vector2(card.end.x - CORNER, y), Color(UITheme.GOLD, 0.35 - 0.2 * depth), 1.0)
+		# light catching the front-bottom edge of the whole stack
+		draw_line(Vector2(base.position.x + CORNER, base.end.y - 0.5), Vector2(base.end.x - CORNER, base.end.y - 0.5), Color(1, 1, 1, 0.12), 1.0)
+
+	## Round count plate at the front of the pile: gold rim, dark face, the number
+	## (or the next Fadiga damage in red when the deck is empty).
+	class CountBadge extends Control:
+		var count := 0
+		var fatigue := 0
+		var center := Vector2.ZERO
+
+		func _draw() -> void:
+			var radius := 13.0
+			draw_circle(center + Vector2(0, 2), radius + 2, Color(0, 0, 0, 0.55))
+			draw_circle(center, radius + 1.5, UITheme.GOLD_DARK)
+			draw_circle(center, radius, Color("#120e22"))
+			draw_arc(center, radius + 1, -PI * 0.95, -PI * 0.05, 16, Color(UITheme.GOLD_LIGHT, 0.8), 1.2, true)
+			var text := str(count)
+			var color := UITheme.TEXT
+			var font_size := 15 if count < 100 else 12
+			if count == 0 and fatigue > 0:
+				text = "-%d" % fatigue
+				color = Color(1.0, 0.45, 0.4)
+				font_size = 13
+			var font := UITheme.font("heavy")
+			var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+			var at := center + Vector2(-width / 2.0, font_size * 0.36)
+			draw_string_outline(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, 3, Color(0, 0, 0, 0.9))
+			draw_string(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)

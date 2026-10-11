@@ -73,7 +73,6 @@ var ai_timer: Timer
 
 var _hand_base := 0 ## child index of the first hand card in layer
 
-const DECK_POSE := {"c": Vector2(186, 776.0 + BOT), "rot": 0.0, "w": 24.0}
 
 ## "Modo leve": renders at the 1600x900 base size and upscales (fewer pixels, softer text).
 func _apply_light(on: bool, save := false) -> void:
@@ -2406,6 +2405,22 @@ func _fly(v: Control, from: Dictionary, to: Dictionary, t0: float, dur: float, a
 		0.0, 1.0, dur).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	return tw
 
+## A drawn card leaves the top of the viewer's deck pile face down, flips
+## face up halfway through the flight and lands in its hand slot.
+func _draw_from_deck(v: CardView, to: Dictionary, t0: float) -> void:
+	const FLIGHT_TIME := 0.5
+	var leader_view = views.get(GameState.LEADER_UID[viewer])
+	var deck_pose := {"c": Vector2(lane_cx, LEADER_Y_ME), "rot": 0.0, "w": LeaderView.deck_card_width()}
+	if leader_view is LeaderView:
+		deck_pose["c"] = leader_view.position + LeaderView.deck_top_center(leader_view.deck)
+	_fly(v, deck_pose, to, t0, FLIGHT_TIME, 60.0, true)
+	v.face_down = true
+	var flip := v.create_tween()
+	flip.tween_interval(t0 + FLIGHT_TIME * 0.45)
+	flip.tween_callback(func():
+		v.face_down = false
+		v.queue_redraw())
+
 func _ghost(card_id: String, inst: Dictionary, pose: Dictionary, size_scale := 1.15) -> CardView:
 	var v := CardView.new().setup(card_id, inst, size_scale)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -2872,7 +2887,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 					origin = old["cmd%d" % e["player"]]["pose"]
 				elif e.get("requiem", false) and views.get(GameState.LEADER_UID[e["player"]]) is LeaderView:
 					# a Réquiem spell rises from the graveyard icon of its caster
-					origin = {"c": (views[GameState.LEADER_UID[e["player"]]] as LeaderView).position + Vector2(217, 67), "rot": 0.0, "w": 96.0}
+					origin = {"c": (views[GameState.LEADER_UID[e["player"]]] as LeaderView).position + LeaderView.GRAVE_CENTER, "rot": 0.0, "w": 96.0}
 				elif old.has(uid):
 					origin = old[uid]["pose"]
 				if cd["type"] == "unit" and views.has(uid):
@@ -3009,7 +3024,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 			if from["c"].distance_to(to["c"]) > 1.0 or abs(from["w"] - to["w"]) > 1.0 or abs(from["rot"] - to["rot"]) > 0.01:
 				_fly(v, from, to, 0.0 if hand_uids.has(k) else board_t, 0.28)
 		elif hand_uids.has(k):
-			_fly(v, DECK_POSE, to, appear.get(k, 0.0) + 0.12 * deck_n, 0.4, 30.0, true)
+			_draw_from_deck(v, to, appear.get(k, 0.0) + 0.12 * deck_n)
 			deck_n += 1
 		else:
 			v.scale = Vector2.ZERO
