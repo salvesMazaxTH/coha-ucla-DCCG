@@ -3,6 +3,7 @@
   "type": "spell",
   "rarity": "common",
   "essence": "rochosa",
+  "art": "rochosa/muralha_emergente.webp",
   "cost": 2,
   "speed": "rapido",
   "effects": [

@@ -3,6 +3,7 @@
   "type": "spell",
   "rarity": "epic",
   "essence": "rochosa",
+  "art": "rochosa/muralha_cara_de_pedra.webp",
   "cost": 2,
   "speed": "instantaneo",
   "effects": [

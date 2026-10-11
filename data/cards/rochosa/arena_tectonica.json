@@ -3,6 +3,7 @@
   "type": "spell",
   "rarity": "common",
   "essence": "rochosa",
+  "art": "rochosa/arena_tectonica.webp",
   "cost": 3,
   "speed": "instantaneo",
   "effects": [
