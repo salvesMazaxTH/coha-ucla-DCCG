@@ -298,7 +298,7 @@ var badge_only := "" ## tools/render_speed_badges.gd: draw just this speed seal,
 
 func _draw() -> void:
 	if badge_only != "":
-		_speed_badge(size / 2.0, badge_only, size.y / 12.4)
+		_speed_badge(size / 2.0, badge_only, size.y / SPEED_PILL_HEIGHT)
 		return
 	var pop := 1.0 + 0.08 * proc ## scales around the center
 	draw_set_transform(shake + lunge + size / 2.0 * (1.0 - pop), 0.0, Vector2(pop, pop))
@@ -463,7 +463,7 @@ func _draw() -> void:
 		var tp := Rect2(Vector2(8, 124.5) * s, Vector2(BASE.x - 16, 36.5) * s)
 		_rrect_fill(tp, 4 * s, Color(0, 0, 0, 0.5))
 		_rrect_line(tp, 4 * s, Color(trim, 0.25), 1 * s)
-		_wrapped_text(UITheme.font("bold"), str(cd.get("text", "")), tp.grow_individual(-4 * s, -1.5 * s, -4 * s, -1.5 * s), 10.0 * s, 6.0 * s, Color("#f1e8d4"))
+		_wrapped_text(UITheme.font("bold"), str(cd.get("text", "")), tp.grow_individual(-3 * s, -1 * s, -3 * s, -1 * s), 11.0 * s, 6.0 * s, Color("#f1e8d4"))
 		_speed_badge(Vector2(size.x / 2, 17 * s), str(cd.get("speed", "lento")), s)
 	else:
 		var panel := Rect2(Vector2(10, 126) * s, Vector2(BASE.x - 20, 34) * s)
@@ -1168,11 +1168,13 @@ func _wrapped_text(font: Font, t: String, box: Rect2, max_fs: float, min_fs: flo
 		var widest := 0.0
 		for ln in lines:
 			widest = max(widest, font.get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
-		if lines.size() * fs * 1.12 <= box.size.y and widest <= box.size.x:
+		# the block is one font size tall plus one leading per extra line (the last line needs no gap below)
+		var block_height := fs + (lines.size() - 1) * fs * 1.08
+		if block_height <= box.size.y and widest <= box.size.x:
 			break
 		fs -= 1
 		lines = _wrap_words(font, t, fs, box.size.x)
-	var lh := fs * 1.12
+	var lh := fs * 1.08
 	var y := box.get_center().y - (lines.size() - 1) * lh / 2.0 + fs * 0.34
 	# keyword names are found in the whole text (so "Escudo de Feitiço" split across two lines is
 	# still found), then cut per line; if the wrap changed the spacing, search each line on its own
@@ -1193,6 +1195,8 @@ func _wrapped_text(font: Font, t: String, box: Rect2, max_fs: float, min_fs: flo
 
 ## Spell speed seal on the top edge of the art, between the cost orb and the essence badge:
 ## steel hourglass (lento), gold bolt (rápido) or cyan double bolt (instantâneo).
+const SPEED_PILL_HEIGHT := 15.0 ## seal height at card scale 1 (was 12.4: the label read too small on phones)
+
 func _speed_badge(c: Vector2, speed: String, s: float) -> void:
 	var info: Array = {
 		"lento": ["LENTO", Color("#a9b6c8")],
@@ -1202,24 +1206,24 @@ func _speed_badge(c: Vector2, speed: String, s: float) -> void:
 	var label: String = info[0]
 	var col: Color = info[1]
 	var f := UITheme.font("heavy")
-	var icon_w := (11.0 if speed == "instantaneo" else 7.0) * s
+	var icon_w := (13.0 if speed == "instantaneo" else 8.5) * s
 	var pad := 4.0 * s
 	var gap := 2.5 * s
-	var fs := _fit(f, label, 7.5 * s, 62 * s - 2 * pad - icon_w - gap)
+	var fs := _fit(f, label, 9.5 * s, 68 * s - 2 * pad - icon_w - gap)
 	var tw := f.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x
 	var w := 2 * pad + icon_w + gap + tw
-	var pill := Rect2(c - Vector2(w / 2, 6.2 * s), Vector2(w, 12.4 * s))
-	_rrect_fill(Rect2(pill.position + Vector2(0, 1.4 * s), pill.size), 6 * s, Color(0, 0, 0, 0.45))
-	_rrect_fill(pill, 6 * s, Color("#0d0b12", 0.9))
-	_rrect_line(pill, 6 * s, Color(col, 0.95), 1.1 * s)
+	var pill := Rect2(c - Vector2(w / 2, SPEED_PILL_HEIGHT / 2 * s), Vector2(w, SPEED_PILL_HEIGHT * s))
+	_rrect_fill(Rect2(pill.position + Vector2(0, 1.4 * s), pill.size), 7.5 * s, Color(0, 0, 0, 0.45))
+	_rrect_fill(pill, 7.5 * s, Color("#0d0b12", 0.9))
+	_rrect_line(pill, 7.5 * s, Color(col, 0.95), 1.1 * s)
 	var ic := Vector2(pill.position.x + pad + icon_w / 2, c.y)
-	var u := 4.6 * s # half-height of the icon
+	var u := 5.6 * s # half-height of the icon
 	match speed:
 		"rapido":
 			draw_colored_polygon(_unit_pts(ic, u, [[0.3, -1], [-0.6, 0.15], [-0.05, 0.15], [-0.3, 1], [0.6, -0.2], [0.05, -0.2]]), col)
 		"instantaneo":
 			for dx in [-0.5, 0.5]:
-				draw_colored_polygon(_unit_pts(ic + Vector2(dx * 4.2 * s, 0), u, [[0.3, -1], [-0.6, 0.15], [-0.05, 0.15], [-0.3, 1], [0.6, -0.2], [0.05, -0.2]]), col)
+				draw_colored_polygon(_unit_pts(ic + Vector2(dx * 5.2 * s, 0), u, [[0.3, -1], [-0.6, 0.15], [-0.05, 0.15], [-0.3, 1], [0.6, -0.2], [0.05, -0.2]]), col)
 		_:
 			draw_colored_polygon(_unit_pts(ic, u, [[-0.65, -1], [0.65, -1], [0, 0]]), Color(col, 0.55))
 			draw_colored_polygon(_unit_pts(ic, u, [[0, 0], [0.65, 1], [-0.65, 1]]), col)
@@ -1242,7 +1246,8 @@ func _text_with_keywords(font: Font, t: String, keyword_spans: Array, center: Ve
 	var x := center.x - total_width / 2
 	for piece in pieces:
 		var pos := Vector2(x, center.y)
-		draw_string_outline(font, pos, piece[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), max(2, int(fs / 5)), Color(0, 0, 0, 0.85))
+		# thin outline: the rules panel is already dark, and a thick one smears small letters together
+		draw_string_outline(font, pos, piece[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), max(1, int(fs / 7)), Color(0, 0, 0, 0.7))
 		draw_string(font, pos, piece[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), piece[1])
 		x += font.get_string_size(piece[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x
 

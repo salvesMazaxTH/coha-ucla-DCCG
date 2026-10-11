@@ -3,7 +3,7 @@ extends SceneTree
 ## used inline in rules text ("Ao Ativar (2) [rapido] ..."). Needs a GPU (not --headless):
 ## Godot --path . -s tools/render_speed_badges.gd
 
-const H := 48 ## seal height in px (12.4 units at scale H / 12.4)
+const H := 48 ## seal height in px (CardView.SPEED_PILL_HEIGHT units tall)
 
 func _init() -> void:
 	_run.call_deferred()
