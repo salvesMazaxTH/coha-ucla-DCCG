@@ -9,7 +9,7 @@ func _init(game_state: GameState) -> void:
 
 ## attacks: Dictionary attacker_uid -> provoked enemy uid (0 when none).
 func declare_attack(p: int, attacks: Dictionary) -> Array:
-	if not game._sorcery_time(p) or game.players[p]["attacked"] or attacks.is_empty():
+	if not game.attack_step or not game._main_phase_idle(p) or game.players[p]["attacked"] or attacks.is_empty():
 		return []
 	var provoked_used: Array = []
 	for uid in attacks:
@@ -23,6 +23,7 @@ func declare_attack(p: int, attacks: Dictionary) -> Array:
 				return []
 			provoked_used.append(prov)
 	game.attackers = attacks.duplicate()
+	game.attack_step = false
 	game.players[p]["attacked"] = true
 	for uid in attacks:
 		game.find_unit(uid).exhausted = true

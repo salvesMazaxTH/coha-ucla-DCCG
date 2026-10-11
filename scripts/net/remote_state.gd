@@ -54,6 +54,7 @@ func apply_snapshot(snap: Dictionary) -> void:
 	priority = int(s.get("priority", active))
 	window = String(s.get("window", ""))
 	summon_window = bool(s.get("summon_window", false))
+	attack_step = bool(s.get("attack_step", false))
 
 func _act(m: Dictionary) -> Array:
 	m["t"] = "act"
@@ -77,6 +78,12 @@ func activate(_p: int, uid: int, target: int = 0) -> Array:
 
 func transform(_p: int, uid: int) -> Array:
 	return _act({"a": "transform", "uid": uid})
+
+func go_to_combat(_p: int) -> Array:
+	return _act({"a": "go_to_combat"})
+
+func skip_combat(_p: int) -> Array:
+	return _act({"a": "skip_combat"})
 
 func declare_attack(_p: int, attacks: Dictionary) -> Array:
 	return _act({"a": "attack", "attacks": attacks})

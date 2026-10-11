@@ -37,6 +37,7 @@ func _init() -> void:
 	_test_listeners()
 	_test_stack()
 	_test_summon_window()
+	_test_combat_step()
 	_test_leader_cycle()
 	_test_enter_target()
 	_test_legendary_retire()
@@ -770,6 +771,7 @@ func _test_combat() -> void:
 
 ## Declares an attack and lets every combat window pass.
 func _attack(g: GameState, attacks: Dictionary) -> void:
+	g.go_to_combat(g.active)
 	g.declare_attack(g.active, attacks)
 	_pass_windows(g)
 
@@ -933,6 +935,32 @@ func _test_counter() -> void:
 	g.pass_priority(0)
 	check(g.stack.is_empty() and g.players[1]["leader_hp"] == hp, "kicked counter stops the big spell")
 
+## Magic-style combat entry: attacking needs the explicit "IR PARA O COMBATE" step first.
+func _test_combat_step() -> void:
+	_tcard("t_cs", 1, 1, [])
+	_tspell("t_cs_slow", "lento", [{"trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 1}])
+	var g := _new_game()
+	_quiet(g)
+	var attacker := _put(g, 0, "t_cs")
+	_put(g, 1, "t_cs") # a target, so the slow spell is castable when allowed
+	var slow := _give(g, 0, "t_cs_slow")
+	g.players[0]["momentum"] = 3
+	check(g.declare_attack(0, {attacker.uid: 0}).is_empty(), "no attack before going to combat")
+	check(g.can_go_to_combat(0) and not g.attack_step, "going to combat is offered with a ready attacker")
+	g.go_to_combat(0)
+	check(g.attack_step and g.phase == "main", "go_to_combat opens the attackers step")
+	check(g.end_turn(0).is_empty() and not g.can_play(0, slow), "no sorcery-speed actions during the attackers step")
+	g.skip_combat(0)
+	check(not g.attack_step and g.players[0]["attacked"] and not g.can_go_to_combat(0), "skipping combat spends the attack for the turn")
+	check(g.can_play(0, slow), "sorcery-speed plays are back in the second main phase")
+	check(g.declare_attack(0, {attacker.uid: 0}).is_empty(), "no attacking after skipping")
+	g.end_turn(0)
+	check(not g.attack_step, "the step never carries over to the next turn")
+
+	g = _new_game()
+	_quiet(g)
+	check(not g.can_go_to_combat(0) and g.go_to_combat(0).is_empty(), "no ready attacker: no combat step")
+
 func _test_summon_window() -> void:
 	_tcard("t_sw", 1, 1, [])
 	_tspell("t_sw_fast", "rapido", [{"trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 1}])
@@ -1010,6 +1038,7 @@ func _test_summon_window() -> void:
 	var at2 := _put(g, 0, "t_fly")
 	_put(g, 1, "t_sw")
 	var fast2 := _give(g, 1, "t_sw_fast")
+	g.go_to_combat(0)
 	g.declare_attack(0, {at2.uid: 0})
 	g.pass_priority(0)
 	check(g.window == "prepare" and g.priority == 1 and g.can_play(1, fast2), "unblockable attack: defender still gets the prepare window with a Rápido")
@@ -1078,6 +1107,7 @@ func _test_stack() -> void:
 	var kai := _put(g, 0, "kai")
 	var wall := _put(g, 1, "t_wall")
 	_give(g, 1, "t_fast")
+	g.go_to_combat(0)
 	g.declare_attack(0, {kai.uid: 0})
 	check(g.phase == "combat" and g.window == "attack" and g.priority == 0, "attacker window")
 	g.pass_priority(0)
@@ -1119,7 +1149,9 @@ func _test_stack() -> void:
 	g.players[1]["momentum"] = 4
 	check(CardDB.leader("naelthos")["ability"]["cost"] == 2 and CardDB.leader("ronan")["ability"]["cost"] == 2, "poderes de Ronan e Naelthos custam 2")
 	var start_hp: int = g.players[1]["leader_max"]
-	g.declare_attack(0, {_put(g, 0, "kai")["uid"]: 0})
+	var naelthos_attacker := _put(g, 0, "kai")
+	g.go_to_combat(0)
+	g.declare_attack(0, {naelthos_attacker.uid: 0})
 	g.pass_priority(0)
 	check(g.window == "prepare" and g.priority == 1, "naelthos (instantânea) gets the prepare window")
 	var hp_before: int = g.players[1]["leader_hp"]
@@ -2020,3 +2052,4 @@ func _test_ossuario() -> void:
 	g.destroy_relic(relic)
 	g._flush()
 	check(g.find_relic(relic.uid) == null and g.slots_used(0) == 1, "ossuário: destruído libera o espaço")
+

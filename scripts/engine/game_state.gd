@@ -47,6 +47,9 @@ var window := ""
 ## Main-phase response window right after the active player summoned a unit from hand or
 ## the Santuário (stack empty): the opponent holds priority and may cast Rápido/Instantâneo.
 var summon_window := false
+## The active player confirmed the end of their first Main Phase ("IR PARA O COMBATE") and is
+## now choosing attackers. Only Rápido/Instantâneo plays are allowed until they attack or skip.
+var attack_step := false
 var _summon_pending := false # a summon's search delays its response window
 ## Per seat: skip priority windows where that player has no legal play (a player can turn
 ## this off to be asked every time). Also skips a block prompt with no possible blocker.
@@ -440,12 +443,45 @@ func can_cast_speed(p: int, speed: String) -> bool:
 	if not stack.is_empty():
 		return speed == "instantaneo"
 	if phase == "main":
+		if attack_step:
+			return p == active and speed != "lento"
 		return p == active or (summon_window and speed != "lento")
 	return speed != "lento"
 
-## Units, the Legendary, attacking and ending the turn: own Main Phase, empty stack.
+## Units, the Legendary and ending the turn: own Main Phase (not the attacker-choosing
+## step), empty stack.
 func _sorcery_time(p: int) -> bool:
+	return _main_phase_idle(p) and not attack_step
+
+## Own Main Phase, empty stack, nothing pending (shared by the sorcery and attack steps).
+func _main_phase_idle(p: int) -> bool:
 	return phase == "main" and p == active and priority == p and stack.is_empty() and not summon_window
+
+## True when p still has a legal attack this turn (so "IR PARA O COMBATE" is worth offering).
+func can_go_to_combat(p: int) -> bool:
+	if not _sorcery_time(p) or players[p]["attacked"]:
+		return false
+	for unit: Card in players[p]["board"]:
+		if can_attack(unit):
+			return true
+	return false
+
+## Confirms the end of the first Main Phase: from now on only attackers are chosen.
+func go_to_combat(p: int) -> Array:
+	if not can_go_to_combat(p):
+		return []
+	attack_step = true
+	_emit({"type": "combat_step", "player": p})
+	return _flush()
+
+## Leaves the attacker-choosing step without attacking: no more attacks this turn (second Main Phase).
+func skip_combat(p: int) -> Array:
+	if not attack_step or not _main_phase_idle(p):
+		return []
+	attack_step = false
+	players[p]["attacked"] = true
+	_emit({"type": "combat_skipped", "player": p})
+	return _flush()
 
 func can_play(p: int, hand_uid: int) -> bool:
 	var inst := _castable_card(p, hand_uid)
@@ -1401,6 +1437,7 @@ func _start_turn(p: int, draw: bool) -> void:
 		pl["momentum"] = mini(MOMENTUM_CAP, int(pl["momentum"]) + int(pl["next_momentum"]))
 		pl["next_momentum"] = 0
 	pl["attacked"] = false
+	attack_step = false
 	pl["played_two"] = false
 	for c in pl["board"]:
 		c.exhausted = false

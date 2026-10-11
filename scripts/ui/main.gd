@@ -945,7 +945,7 @@ func _decorate_unit(v: CardView, unit: Card, p: int) -> void:
 	if g.phase == "main" and p == viewer and g.active == viewer:
 		if attack_sel.has(unit.uid):
 			v.highlight = SEL if provoking != unit.uid else TARGET
-		elif not g.players[viewer]["attacked"] and g.can_attack(unit) and targeting.is_empty():
+		elif g.attack_step and not g.players[viewer]["attacked"] and g.can_attack(unit) and targeting.is_empty():
 			v.highlight = OK
 	elif g.phase == "main" and provoking != 0 and p != viewer and not attack_sel.values().has(unit.uid) and not unit.is_frozen():
 		v.highlight = TARGET
@@ -1587,9 +1587,13 @@ func _hint() -> String:
 		"main":
 			if provoking != 0:
 				return "Provocação: escolha a unidade inimiga que será obrigada a bloquear."
+			if g.attack_step:
+				if CardView.touch_ui():
+					return "Combate: toque nas unidades que vão atacar e confirme em ATACAR"
+				return "Combate: clique nas unidades que vão atacar e confirme em ATACAR"
 			if CardView.touch_ui():
-				return "Arraste cartas para o campo e toque nas suas unidades para atacar · toque: ver carta"
-			return "Arraste cartas para o campo e clique nas suas unidades para atacar · clique: ver carta"
+				return "Arraste cartas para o campo · toque: ver carta · quando acabar, IR PARA O COMBATE"
+			return "Arraste cartas para o campo · clique: ver carta · quando acabar, IR PARA O COMBATE"
 	return ""
 
 func _action_buttons() -> Array:
@@ -1602,11 +1606,17 @@ func _action_buttons() -> Array:
 		"main":
 			if not g.stack.is_empty() or g.summon_window:
 				out.append(_button("PASSAR", func(): _do(g.pass_priority(viewer)), true))
-			elif not attack_sel.is_empty():
-				out.append(_button("ATACAR (%d)" % attack_sel.size(), func(): _do(g.declare_attack(viewer, attack_sel.duplicate())), true))
-				out.append(_button("Cancelar ataque", func():
-					_reset_input()
-					_render()))
+			elif g.attack_step:
+				if attack_sel.is_empty():
+					out.append(_button("SEM ATACAR", func(): _do(g.skip_combat(viewer)), true))
+				else:
+					out.append(_button("ATACAR (%d)" % attack_sel.size(), func(): _do(g.declare_attack(viewer, attack_sel.duplicate())), true))
+					out.append(_button("Cancelar seleção", func():
+						_reset_input()
+						_render()))
+					out.append(_button("Sem atacar", func(): _do(g.skip_combat(viewer))))
+			elif g.can_go_to_combat(viewer):
+				out.append(_button("IR PARA O COMBATE", func(): _do(g.go_to_combat(viewer)), true))
 				out.append(_button("Encerrar turno", func(): _do(g.end_turn(viewer))))
 			else:
 				out.append(_button("ENCERRAR TURNO", func(): _do(g.end_turn(viewer)), true))
@@ -1916,7 +1926,7 @@ func _unit_click_acted(v: CardView) -> bool:
 					provoking = 0
 				_render()
 				return true
-			if unit.owner != viewer or g.players[viewer]["attacked"] or not g.can_attack(unit):
+			if not g.attack_step or unit.owner != viewer or g.players[viewer]["attacked"] or not g.can_attack(unit):
 				return false
 			if attack_sel.has(v.uid):
 				attack_sel.erase(v.uid)

@@ -35,13 +35,15 @@ static func step(g: GameState, p: int) -> Array:
 			if not g.stack.is_empty() or p != g.active:
 				var response := _try_play(g, p)
 				return response if not response.is_empty() else g.pass_priority(p)
+			if g.attack_step:
+				# attackers step: attack with what is worth it, otherwise skip the combat
+				var attack_events := _try_attack(g, p)
+				return attack_events if not attack_events.is_empty() else g.skip_combat(p)
 			var events := _try_play(g, p)
 			if not events.is_empty():
 				return events
-			if not g.players[p]["attacked"]:
-				events = _try_attack(g, p)
-				if not events.is_empty():
-					return events
+			if g.can_go_to_combat(p):
+				return g.go_to_combat(p)
 			return g.end_turn(p)
 	return []
 
