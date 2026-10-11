@@ -2,7 +2,7 @@
   "name": "Tharox",
   "type": "unit",
   "rarity": "champion",
-  "species": [],
+  "species": ["tita"],
   "essence": "rochosa",
   "cost": 6,
   "atk": 3,

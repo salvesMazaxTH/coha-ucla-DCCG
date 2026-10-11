@@ -2,7 +2,7 @@
   "name": "Avarion",
   "type": "unit",
   "rarity": "epic",
-  "species": [],
+  "species": ["elfo"],
   "essence": "rochosa",
   "art": "rochosa/avarion.webp",
   "cost": 4,

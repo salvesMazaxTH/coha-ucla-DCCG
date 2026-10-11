@@ -31,6 +31,7 @@ func _init() -> void:
 	_test_play_slot()
 	_test_ossuario()
 	_test_yresa_fusion()
+	_test_deslizamento()
 	_test_custo_e_contagem()
 	_test_ban()
 	_test_combat()
@@ -365,7 +366,7 @@ func _test_obscura() -> void:
 	g._resolve_stack()
 	g._flush()
 	check(CardDB.is_equipment(CardDB.card("manoplas_incandescentes")) and CardDB.is_artifact(CardDB.card("manoplas_incandescentes")), "equipamento é artefato")
-	check(holder.equipment.card_id == "manoplas_incandescentes" and holder.atk == atk0 + 2, "equipamento anexado e buff aplicado")
+	check(holder.equipment.card_id == "manoplas_incandescentes" and holder.atk == atk0 + 3, "equipamento anexado e buff aplicado")
 	var gy0: int = g.players[0]["graveyard"].size()
 	_kill(g, holder)
 	var gy_ids: Array = g.players[0]["graveyard"].map(func(e): return e["card_id"])
@@ -2053,6 +2054,18 @@ func _test_ossuario() -> void:
 	g.destroy_relic(relic)
 	g._flush()
 	check(g.find_relic(relic.uid) == null and g.slots_used(0) == 1, "ossuário: destruído libera o espaço")
+
+func _test_deslizamento() -> void:
+	var g := _new_game()
+	_quiet(g)
+	var left := _put(g, 1, "geodo_vivo")
+	var center := _put(g, 1, "geodo_vivo")
+	var right := _put(g, 1, "geodo_vivo")
+	var far := _put(g, 1, "geodo_vivo")
+	var effect := EffectRegistry.parse({"action": "damage", "target": "enemy_unit", "amount": 3, "adjacent_amount": 2})
+	var context := EffectContext.new(g, 0, "")
+	effect.apply(context, center.uid)
+	check(center.damage == 3 and left.damage == 2 and right.damage == 2 and far.damage == 0, "deslizamento: 3 no alvo, 2 nas adjacentes (%d/%d/%d/%d)" % [left.damage, center.damage, right.damage, far.damage])
 
 func _test_yresa_fusion() -> void:
 	var g := _new_game()

@@ -6,6 +6,7 @@
   ],
   "rarity": "common",
   "essence": "rochosa",
+  "art": "rochosa/nucleo_de_geodo.webp",
   "cost": 2,
   "effects": [
     {

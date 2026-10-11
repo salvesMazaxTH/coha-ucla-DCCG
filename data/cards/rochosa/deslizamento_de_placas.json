@@ -3,17 +3,19 @@
   "type": "spell",
   "rarity": "common",
   "essence": "rochosa",
-  "cost": 3,
-  "speed": "rapido",
+  "art": "rochosa/deslizamento_de_placas.webp",
+  "cost": 4,
+  "speed": "lento",
   "effects": [
     {
       "trigger": "on_play",
       "action": "damage",
       "target": "enemy_unit",
-      "amount": 3
+      "amount": 3,
+      "adjacent_amount": 2
     }
   ],
-  "text": "Cause 3 de dano a uma unidade inimiga.",
+  "text": "Cause 3 de dano a uma unidade inimiga e 2 às unidades adjacentes a ela.",
   "flavor": "",
   "tags": []
 }

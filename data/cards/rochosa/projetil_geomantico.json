@@ -1,0 +1,20 @@
+{
+  "name": "Projétil Geomântico",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "rochosa",
+  "art": "rochosa/projetil_geomantico.webp",
+  "cost": 4,
+  "speed": "rapido",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 5
+    }
+  ],
+  "text": "Cause 5 de dano a uma unidade inimiga.",
+  "flavor": "",
+  "tags": []
+}

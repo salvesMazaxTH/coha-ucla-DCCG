@@ -11,7 +11,6 @@
   "atk": 5,
   "hp": 11,
   "keywords": [],
-  "max_copies": 1,
   "effects": [
     {
       "trigger": "on_turn_start",
@@ -20,7 +19,7 @@
       "armor_temp": 1
     }
   ],
-  "text": "Única.\nNo início do seu turno, suas unidades ganham Armadura 1 até o início do seu próximo turno.",
+  "text": "No início do seu turno, suas unidades ganham Armadura 1 até o início do seu próximo turno.",
   "flavor": "",
   "tags": []
 }

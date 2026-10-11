@@ -6,6 +6,7 @@
   ],
   "rarity": "common",
   "essence": "rochosa",
+  "art": "rochosa/coracao_da_montanha.webp",
   "cost": 4,
   "effects": [
     {
