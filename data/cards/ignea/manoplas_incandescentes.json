@@ -11,13 +11,10 @@
       "trigger": "on_play",
       "action": "buff",
       "target": "ally_unit",
-      "atk": 2,
-      "keywords": [
-        "ataque_rapido"
-      ]
+      "atk": 3
     }
   ],
-  "text": "Equipar: a unidade ganha +2 de Ataque e Ataque Rápido.",
+  "text": "Equipar: a unidade ganha +3 de Ataque.",
   "flavor": "",
   "tags": []
 }
