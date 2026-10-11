@@ -4,7 +4,7 @@
   "rarity": "legendary",
   "essence": "obscura",
   "cost": 5,
-  "max_copies": 1,
+  "art": "obscura/ossuario_sem_fundo.webp",
   "effects": [
     {
       "trigger": "on_ally_death",
@@ -21,7 +21,7 @@
       }
     ]
   },
-  "text": "Única. Sempre que uma unidade sua morrer, Moer 1.\nNo seu turno, pague 4: reviva uma cópia de uma unidade à sua escolha do seu cemitério.",
+  "text": "Sempre que uma unidade sua morrer, Moer 1.\nNo seu turno, pague 4: reviva uma cópia de uma unidade à sua escolha do seu cemitério.",
   "flavor": "",
   "tags": []
 }
