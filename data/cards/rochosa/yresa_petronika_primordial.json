@@ -38,8 +38,8 @@
         "card": "yresa_sentinel",
         "into": "yresa_colossus",
         "min": 2,
-        "atk_per": 2,
-        "hp_per": 3,
+        "atk_per": 1,
+        "hp_per": 2,
         "armor_per": 1
       }
     ]

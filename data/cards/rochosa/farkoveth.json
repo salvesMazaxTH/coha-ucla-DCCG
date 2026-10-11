@@ -6,6 +6,7 @@
     "gargoyle"
   ],
   "essence": "rochosa",
+  "art": "rochosa/farkoveth.webp",
   "cost": 4,
   "atk": 4,
   "hp": 5,

@@ -25,13 +25,13 @@
     "once_per_turn": true,
     "effects": [
       {
-        "action": "heal_unit",
-        "target": "self",
-        "per": "half_armor"
+        "action": "damage",
+        "target": "random_enemy",
+        "amount_from": "self_half_armor"
       }
     ]
   },
-  "text": "Ao Sofrer Dano: ganha Armadura 1 permanente (acumula).\nAo Ativar (2) {instantaneo} (1x por turno): cura dano igual à metade da sua Armadura (arredondado pra cima).",
+  "text": "Ao Sofrer Dano: ganha Armadura 1 permanente (acumula).\nAo Ativar (2) {instantaneo} (1x por turno): causa dano igual à metade da sua Armadura (arredondado pra cima) a um inimigo aleatório (pode ser o Líder).",
   "flavor": "",
   "tags": []
 }

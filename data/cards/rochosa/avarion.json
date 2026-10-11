@@ -4,6 +4,7 @@
   "rarity": "epic",
   "species": [],
   "essence": "rochosa",
+  "art": "rochosa/avarion.webp",
   "cost": 4,
   "atk": 5,
   "hp": 3,

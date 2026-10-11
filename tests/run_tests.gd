@@ -2071,6 +2071,6 @@ func _test_yresa_fusion() -> void:
 	g._flush()
 	check(_count(g, 0, "yresa_sentinel") == 0 and _count(g, 0, "yresa_colossus") == 1, "fusão: 2 Stonewards viram 1 Colossus")
 	var colossus: Card = g.players[0]["board"].filter(func(c: Card): return c.card_id == "yresa_colossus")[0]
-	check(colossus.atk == 4 and colossus.hp == 6 and colossus.armor == 2, "colossus: +2/+3 e Armadura 1 por Stoneward (%d/%d A%d)" % [colossus.atk, colossus.hp, colossus.armor])
+	check(colossus.atk == 2 and colossus.hp == 4 and colossus.armor == 2, "colossus: +1/+2 e Armadura 1 por Stoneward (%d/%d A%d)" % [colossus.atk, colossus.hp, colossus.armor])
 	check(yresa.exhausted and not g.can_activate(0, yresa.uid), "fusão exaure e precisa de 2+ Stonewards")
 	check(g.players[0]["graveyard"].is_empty() and guard != null, "fichas fundidas não vão pro cemitério")
