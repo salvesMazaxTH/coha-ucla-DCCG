@@ -31,6 +31,7 @@ const STYLES := {
 	"back": {"top": "#2e2658", "bot": "#100c22", "trim": "#c9a24e", "glow": "#9d86ff"},
 }
 const TRIGGER_COL := Color("#ff9a4a") ## trigger tags: same weight as keywords, orange to read as another category
+const KEYWORD_COL := Color("#ffe9a8") ## keyword names wherever they appear inside rules text
 const GOLD_TRIM := Color("#f3d27a")
 const COST_COL := UITheme.MOMENTUM
 const ATK_COL := Color("#c8402e")
@@ -75,6 +76,15 @@ var proc_wave := 0.0:
 		queue_redraw()
 var shadow := true
 var fatigue := 0 ## > 0: not a real card but the Fadiga pseudo-card, showing this much damage
+
+## Frame silhouette of the card being drawn: artifacts get cut (chamfered) corners instead of round ones,
+## so a non-unit permanent reads differently from a unit at a glance. Only the big frame corners are cut.
+var _chamfer_frame := false
+const FRAME_CORNER_MIN := 5.0 ## corner radius (in base px) from which _chamfer_frame applies; small panels stay rounded
+const TOKEN_CORNER_BOOST := 1.8 ## fichas: slightly rounder corners than regular cards
+const ARCH_HEIGHT := 0.42 ## artifacts: how far down the art window (fraction of its height) the arch reaches
+var _art_window := PackedVector2Array() ## outline of the art window of the card being drawn (see _art_window_pts)
+const TOKEN_VEIL :=Color(0.78, 0.9, 1.0, 0.11) ## fichas: cool spectral tint over the frame, "conjured" look
 
 var _t := 0.0
 var _redraw_acc := 0.0
@@ -182,11 +192,46 @@ func _process(delta: float) -> void:
 			_redraw_acc = 0.0
 			queue_redraw()
 
-## Rules text as BBCode with trigger names (and an optional "(...)" qualifier
-## before the colon, e.g. "Aliado Morre (uma vez por turno):") in bold orange.
-## "Name (cost) {speed} (limits):" -> bold orange, with "{speed}" (lento/rapido/instantaneo)
-## drawn as the spell speed seal (assets/ui/speed_<speed>.png, see tools/render_speed_badges.gd).
-static func colorize_triggers(body: String, line_px := 28) -> String:
+## Rules text as BBCode: trigger names in bold orange, and every keyword name in the text (Voo,
+## Escudo de Feitiço, "Armadura 1"...) in bold yellow, so a card that grants or mentions a keyword
+## shows it exactly like the keyword tags do. Use this for any rules text shown in a RichTextLabel.
+static func colorize_rules(body: String, line_px := 28) -> String:
+	body = _colorize_triggers(body, line_px)
+	var ranges := keyword_ranges(body)
+	for i in range(ranges.size() - 1, -1, -1):
+		var span: Array = ranges[i]
+		var word := body.substr(span[0], span[1] - span[0])
+		body = body.substr(0, span[0]) + "[b][color=#%s]%s[/color][/b]" % [KEYWORD_COL.to_html(false), word] + body.substr(span[1])
+	return body
+
+static var _keyword_regex: RegEx
+static var _keyword_names_with_value := {}
+
+## [start, end) character ranges of keyword names in `text`. Longest names win ("Escudo de Feitiço"
+## before "Escudo"), and a keyword with a value ("has_value" in cards.json, e.g. Armadura) swallows
+## the number that follows it ("Armadura 1", "Armadura X").
+static func keyword_ranges(text: String) -> Array:
+	if _keyword_regex == null:
+		var names: Array = []
+		for kw in CardDB.data()["keywords"].values():
+			names.append(String(kw["name"]))
+			if kw.get("has_value", false):
+				_keyword_names_with_value[String(kw["name"])] = true
+		names.sort_custom(func(a, b): return a.length() > b.length())
+		_keyword_regex = RegEx.create_from_string(r"(?<!\p{L})(" + "|".join(names) + r")((?: \d+| X(?!\p{L}))?)(?!\p{L})")
+	var out := []
+	for m in _keyword_regex.search_all(text):
+		var end := m.get_end(1)
+		if _keyword_names_with_value.has(m.get_string(1)):
+			end = m.get_end(2)
+		out.append([m.get_start(1), end])
+	return out
+
+## Trigger names (and an optional "(...)" qualifier before the colon, e.g. "Aliado Morre (uma vez por
+## turno):") in bold orange. "Name (cost) {speed} (limits):" -> bold orange, with "{speed}"
+## (lento/rapido/instantaneo) drawn as the spell speed seal (assets/ui/speed_<speed>.png, see
+## tools/render_speed_badges.gd).
+static func _colorize_triggers(body: String, line_px: int) -> String:
 	var open := "[b][color=#%s]" % TRIGGER_COL.to_html(false)
 	for tid in CardDB.data()["triggers"]:
 		var tn: String = CardDB.data()["triggers"][tid]["name"]
@@ -272,6 +317,11 @@ func _draw() -> void:
 	if cd.get("rarity", "") == "champion":
 		trim = GOLD_TRIM ## champions keep their essence frame, finished in gold
 	var glow := Color(st["glow"]).lerp(Color(st2["glow"]), 0.5)
+	var is_token: bool = not face_down and cd.get("token", false)
+	var is_artifact: bool = not face_down and cd["type"] != "unit" and cd["type"] != "spell"
+	_chamfer_frame = is_artifact
+	if is_token:
+		rad *= TOKEN_CORNER_BOOST
 
 	# drop shadow, deeper when the card is lifted
 	if shadow:
@@ -310,7 +360,15 @@ func _draw() -> void:
 	else:
 		_rrect_grad_split(r, rad, st, st2, s)
 	_rrect_line(r.grow(-0.5 * s), rad, Color("#07060a"), 1.6 * s)
-	_rrect_line(r.grow(-2.6 * s), rad - 2 * s, Color(trim, 0.85), 1.1 * s)
+	if is_token:
+		# ficha: dashed trim and a cool veil instead of the solid metal line
+		_dashed_rrect_line(r.grow(-2.6 * s), rad - 2 * s, trim.lightened(0.65), 2.4 * s, 6.0 * s, 3.5 * s)
+		_rrect_fill(r, rad, TOKEN_VEIL)
+	else:
+		_rrect_line(r.grow(-2.6 * s), rad - 2 * s, Color(trim, 0.85), 1.1 * s)
+	if is_artifact:
+		# artifact: a second engraved line inside the trim, like a plate
+		_rrect_line(r.grow(-5.0 * s), rad - 4 * s, Color(trim, 0.4), 0.8 * s)
 	draw_line(Vector2(rad, 1.6 * s), Vector2(size.x - rad, 1.6 * s), Color(1, 1, 1, 0.3), 1.0 * s)
 
 	if face_down:
@@ -320,36 +378,53 @@ func _draw() -> void:
 
 	var font := UITheme.font("heavy")
 	var col := Color(CardDB.essence(CardDB.essences_of(cd)[0])["color"])
-	# art window
+	# art window: its shape tells the card kinds apart (rectangle = unit/spell, arch = artifact, medallion = ficha)
 	var art := Rect2(Vector2(7, 8) * s, Vector2(BASE.x - 14, 98) * s)
-	draw_rect(art.grow(1.5 * s), Color("#07060a"))
+	var window_kind := "medallion" if is_token else ("arch" if is_artifact else "rect")
+	_art_window = _art_window_pts(art, window_kind)
+	if window_kind == "rect":
+		draw_rect(art.grow(1.5 * s), Color("#07060a"))
+	else:
+		draw_colored_polygon(Geometry2D.offset_polygon(_art_window, 1.5 * s)[0], Color("#07060a"))
 	var tex := texture(cd.get("art", ""))
 	if tex:
 		var ts := tex.get_size()
 		var k: float = max(art.size.x / ts.x, art.size.y / ts.y)
 		var src_size := art.size / k
-		draw_texture_rect_region(tex, art, Rect2(Vector2((ts.x - src_size.x) / 2, 0), src_size))
+		var src_origin := Vector2((ts.x - src_size.x) / 2, 0)
+		if window_kind == "rect":
+			draw_texture_rect_region(tex, art, Rect2(src_origin, src_size))
+		else:
+			# the art is cut to the window shape: every corner of the polygon picks its spot in the texture
+			var uvs := PackedVector2Array()
+			for p in _art_window:
+				uvs.append((src_origin + (p - art.position) / k) / ts)
+			draw_polygon(_art_window, PackedColorArray([Color.WHITE]), uvs, tex)
 	else:
 		_placeholder(art, cd, col, s)
 	# inner shading at the top and bottom of the window
-	_vgrad(Rect2(art.position, Vector2(art.size.x, 14 * s)), Color(0, 0, 0, 0.45), Color(0, 0, 0, 0))
-	_vgrad(Rect2(art.position + Vector2(0, art.size.y - 22 * s), Vector2(art.size.x, 22 * s)), Color(0, 0, 0, 0), Color(0, 0, 0, 0.55))
-	draw_rect(art.grow(0.5 * s), Color(trim, 0.9), false, 1.2 * s)
-	for c in [art.position, Vector2(art.end.x, art.position.y)]:
-		_diamond(c, 3.2 * s, trim)
+	_window_vgrad(Rect2(art.position, Vector2(art.size.x, 14 * s)), Color(0, 0, 0, 0.45), Color(0, 0, 0, 0))
+	_window_vgrad(Rect2(art.position + Vector2(0, art.size.y - 22 * s), Vector2(art.size.x, 22 * s)), Color(0, 0, 0, 0), Color(0, 0, 0, 0.55))
+	if window_kind == "rect":
+		draw_rect(art.grow(0.5 * s), Color(trim, 0.9), false, 1.2 * s)
+		for c in [art.position, Vector2(art.end.x, art.position.y)]:
+			_diamond(c, 3.2 * s, trim)
+	else:
+		var outline := Geometry2D.offset_polygon(_art_window, 0.5 * s)[0]
+		draw_polyline(outline + PackedVector2Array([outline[0]]), Color(trim, 0.9), 1.2 * s, true)
 	# divine shield bubble
 	if inst.get("shield", false):
 		var sc := art.get_center()
 		for i in 3:
 			draw_arc(sc, art.size.x * 0.46 - i * 3 * s, 0, TAU, 48, Color("#9fe3ff", (0.55 - i * 0.15) * 1.25), 2.5 * s, true) ## ~25% more visible
-		draw_rect(art, Color("#9fe3ff", 0.15))
+		draw_colored_polygon(_art_window, Color("#9fe3ff", 0.15))
 	# spell shield: violet runic ring
 	if inst.get("spell_shield", false):
 		var sc := art.get_center()
 		var rr := art.size.x * 0.4
 		for i in 3: ## same weight as the divine shield bubble, only the color differs
 			draw_arc(sc, rr - i * 3 * s, 0, TAU, 48, Color("#c9a8ff", (0.55 - i * 0.15) * 1.25), 2.5 * s, true)
-		draw_rect(art, Color("#c9a8ff", 0.15))
+		draw_colored_polygon(_art_window, Color("#c9a8ff", 0.15))
 		for i in 6:
 			var a := _t * 0.6 + i * TAU / 6.0
 			_diamond(sc + Vector2(cos(a), sin(a)) * rr, 2.6 * s, Color("#e3d2ff"))
@@ -405,7 +480,10 @@ func _draw() -> void:
 			ly += 12.5 * s
 
 	# essence seal on the bottom edge, crest on the top edge
-	_rarity_gem(Vector2(size.x / 2, size.y - 3 * s), 5.5 * s, cd["rarity"], trim)
+	if is_token:
+		_token_seal(Vector2(size.x / 2, size.y - 3 * s), 5.5 * s, trim) # fichas have no rarity
+	else:
+		_rarity_gem(Vector2(size.x / 2, size.y - 3 * s), 5.5 * s, cd["rarity"], trim)
 	_diamond(Vector2(size.x / 2, 2.5 * s), 3.5 * s, trim)
 
 	# gems
@@ -528,8 +606,8 @@ func _style_keys(cd: Dictionary) -> Array:
 
 ## Icy veil and frost crystals over the art of a frozen unit.
 func _draw_frost(art: Rect2, s: float) -> void:
-	draw_rect(art, Color(FROST, 0.26))
-	_vgrad(Rect2(art.position, Vector2(art.size.x, art.size.y * 0.35)), Color(1, 1, 1, 0.22), Color(1, 1, 1, 0))
+	draw_colored_polygon(_art_window, Color(FROST, 0.26))
+	_window_vgrad(Rect2(art.position, Vector2(art.size.x, art.size.y * 0.35)), Color(1, 1, 1, 0.22), Color(1, 1, 1, 0))
 	var mid := art.get_center()
 	for c in [art.position + Vector2(10, 10) * s, Vector2(art.end.x - 12 * s, art.position.y + 16 * s),
 			Vector2(art.position.x + 16 * s, art.end.y - 14 * s), art.end - Vector2(10, 10) * s, mid]:
@@ -539,7 +617,7 @@ func _draw_frost(art: Rect2, s: float) -> void:
 			var d := Vector2(cos(a), sin(a)) * rr
 			draw_line(c - d, c + d, Color(1, 1, 1, 0.75), 1.1 * s, true)
 		_diamond(c, rr * 0.3, Color(1, 1, 1, 0.85))
-	draw_rect(art.grow(-0.5 * s), Color(FROST, 0.8), false, 1.4 * s)
+	draw_polyline(_art_window + PackedVector2Array([_art_window[0]]), Color(FROST, 0.8), 1.4 * s, true)
 
 ## Armadura shown for a unit: the live total on the board (own + temporary + from adjacent allies,
 ## put in the view data by Main as "armor_total"), the printed value everywhere else.
@@ -700,8 +778,10 @@ func _panel_lines(cd: Dictionary) -> Array:
 		out.append(tags.slice(0, half))
 		if tags.size() > half:
 			out.append(tags.slice(half))
+	if out.is_empty() and cd.get("token", false):
+		out.append([["FICHA", Color(UITheme.TEXT, 0.6)]])
 	if out.is_empty():
-		var rar := {"legendary": "LENDÁRIO", "champion": "CAMPEÃO", "epic": "UNIDADE ÉPICA", "common": "UNIDADE COMUM"}
+		var rar :={"legendary": "LENDÁRIO", "champion": "CAMPEÃO", "epic": "UNIDADE ÉPICA", "common": "UNIDADE COMUM"}
 		out.append([[rar.get(cd["rarity"], ""), Color(UITheme.TEXT, 0.45)]])
 	return out
 
@@ -738,7 +818,7 @@ func _draw_back(r: Rect2, s: float, trim: Color) -> void:
 
 ## Art stand-in for cards without a portrait: gradient, glow, essence sigil.
 func _placeholder(art: Rect2, cd: Dictionary, col: Color, s: float) -> void:
-	_vgrad(art, col.darkened(0.15), col.darkened(0.75))
+	_window_vgrad(art,col.darkened(0.15), col.darkened(0.75))
 	var c := art.get_center() + Vector2(0, 2 * s)
 	for i in 8:
 		draw_circle(c, (46 - i * 5) * s, Color(col.lightened(0.4), 0.05))
@@ -876,6 +956,13 @@ func _rarity_gem(c: Vector2, r: float, rarity: String, trim: Color) -> void:
 	draw_polyline(pts + PackedVector2Array([pts[0]]), trim, 1.0, true)
 	draw_circle(c + Vector2(-r * 0.3, -r * 0.4), r * 0.16, Color(1, 1, 1, 0.8))
 
+## Stand-in for the rarity gem on a ficha: a hollow, translucent diamond outline (nothing solid, nothing colored).
+func _token_seal(c: Vector2, r: float, trim: Color) -> void:
+	var pts := PackedVector2Array([c + Vector2(0, -r), c + Vector2(r * 0.8, 0), c + Vector2(0, r), c + Vector2(-r * 0.8, 0)])
+	draw_colored_polygon(_grow(pts, c, 1.3), Color("#07060a"))
+	draw_colored_polygon(pts, Color(0.85, 0.95, 1.0, 0.25))
+	draw_polyline(pts + PackedVector2Array([pts[0]]), Color(trim, 0.9), 1.0, true)
+
 ## Embossed gem: drop shadow, metal bezel, body, glossy highlight, specular.
 func _gem(kind: String, c: Vector2, r: float, col: Color, t: String, tcol: Color, s: float) -> void:
 	var pts := _shape(kind, c, r)
@@ -918,6 +1005,13 @@ func _shape(kind: String, c: Vector2, r: float) -> PackedVector2Array:
 func _rrect_pts(r: Rect2, rad: float) -> PackedVector2Array:
 	rad = min(rad, min(r.size.x, r.size.y) / 2)
 	var pts := PackedVector2Array()
+	if _chamfer_frame and rad >= FRAME_CORNER_MIN * size.x / BASE.x:
+		var cut := rad * 2.0
+		pts.append_array([Vector2(r.position.x + cut, r.position.y), Vector2(r.end.x - cut, r.position.y),
+			Vector2(r.end.x, r.position.y + cut), Vector2(r.end.x, r.end.y - cut),
+			Vector2(r.end.x - cut, r.end.y), Vector2(r.position.x + cut, r.end.y),
+			Vector2(r.position.x, r.end.y - cut), Vector2(r.position.x, r.position.y + cut)])
+		return pts
 	var corners := [[r.position + Vector2(rad, rad), PI], [Vector2(r.end.x - rad, r.position.y + rad), PI * 1.5],
 		[r.end - Vector2(rad, rad), 0.0], [Vector2(r.position.x + rad, r.end.y - rad), PI * 0.5]]
 	for cn in corners:
@@ -933,6 +1027,28 @@ func _rrect_line(r: Rect2, rad: float, col: Color, w: float) -> void:
 	var pts := _rrect_pts(r, rad)
 	pts.append(pts[0])
 	draw_polyline(pts, col, w, true)
+
+## Same outline as _rrect_line but broken into dashes (dash / gap lengths in px), walked along the perimeter.
+func _dashed_rrect_line(r: Rect2, rad: float, col: Color, w: float, dash: float, gap: float) -> void:
+	var pts := _rrect_pts(r, rad)
+	pts.append(pts[0])
+	var pen_down := true
+	var left_in_phase := dash
+	for i in pts.size() - 1:
+		var from := pts[i]
+		var to := pts[i + 1]
+		var remaining := from.distance_to(to)
+		while remaining > 0.0:
+			var step: float = min(remaining, left_in_phase)
+			var next := from.move_toward(to, step)
+			if pen_down:
+				draw_line(from, next, col, w, true)
+			from = next
+			remaining -= step
+			left_in_phase -= step
+			if left_in_phase <= 0.0:
+				pen_down = not pen_down
+				left_in_phase = dash if pen_down else gap
 
 func _rrect_grad(r: Rect2, rad: float, top: Color, bot: Color) -> void:
 	var pts := _rrect_pts(r, rad)
@@ -961,6 +1077,41 @@ func _rrect_grad_split(r: Rect2, rad: float, a: Dictionary, b: Dictionary, s: fl
 				cols.append(top.lerp(bot, clamp((p.y - r.position.y) / r.size.y, 0.0, 1.0)))
 			draw_polygon(poly, cols)
 	draw_line(Vector2(x0, r.position.y + 1.5 * s), Vector2(x1, r.end.y - 1.5 * s), Color(1, 1, 1, 0.35), 1.2 * s, true)
+
+## Shape of the art window: a plain rectangle for units and spells, an arch (relic / stained-glass window)
+## for artifacts, a round medallion (like a coin) for fichas. All of them fit inside the same rectangle,
+## so the card takes the same room on the board whatever its kind.
+func _art_window_pts(art: Rect2, kind: String) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	match kind:
+		"arch":
+			var arch_height := art.size.y * ARCH_HEIGHT
+			var half_width := art.size.x / 2
+			var center_x := art.get_center().x
+			var spring_y := art.position.y + arch_height # where the straight sides turn into the curve
+			pts.append(Vector2(art.position.x, art.end.y))
+			for i in 25:
+				var angle := PI - PI * i / 24.0 # from the left side, over the top, down to the right side
+				pts.append(Vector2(center_x + cos(angle) * half_width, spring_y - sin(angle) * arch_height))
+			pts.append(art.end)
+		"medallion":
+			var radius := art.size.y / 2
+			var center := art.get_center()
+			for i in 48:
+				var angle := TAU * i / 48.0
+				pts.append(center + Vector2(cos(angle), sin(angle)) * radius)
+		_:
+			pts = PackedVector2Array([art.position, Vector2(art.end.x, art.position.y), art.end, Vector2(art.position.x, art.end.y)])
+	return pts
+
+## Like _vgrad, but only the part of the band that falls inside the art window gets painted.
+func _window_vgrad(band: Rect2, top: Color, bot: Color) -> void:
+	var band_pts := PackedVector2Array([band.position, Vector2(band.end.x, band.position.y), band.end, Vector2(band.position.x, band.end.y)])
+	for poly in Geometry2D.intersect_polygons(band_pts, _art_window):
+		var cols := PackedColorArray()
+		for p in poly:
+			cols.append(top.lerp(bot, clamp((p.y - band.position.y) / band.size.y, 0.0, 1.0)))
+		draw_polygon(poly, cols)
 
 func _vgrad(r: Rect2, top: Color, bot: Color) -> void:
 	draw_polygon(PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]),
@@ -1023,8 +1174,21 @@ func _wrapped_text(font: Font, t: String, box: Rect2, max_fs: float, min_fs: flo
 		lines = _wrap_words(font, t, fs, box.size.x)
 	var lh := fs * 1.12
 	var y := box.get_center().y - (lines.size() - 1) * lh / 2.0 + fs * 0.34
+	# keyword names are found in the whole text (so "Escudo de Feitiço" split across two lines is
+	# still found), then cut per line; if the wrap changed the spacing, search each line on its own
+	var whole_ranges := keyword_ranges(t)
+	var wrap_kept_text := " ".join(lines) == t
+	var line_start := 0
 	for ln in lines:
-		_text(font, ln, Vector2(box.get_center().x, y), fs, col)
+		var ranges: Array = []
+		if wrap_kept_text:
+			for span in whole_ranges:
+				if span[1] > line_start and span[0] < line_start + ln.length():
+					ranges.append([maxi(span[0] - line_start, 0), mini(span[1] - line_start, ln.length())])
+		else:
+			ranges = keyword_ranges(ln)
+		_text_with_keywords(font, ln, ranges, Vector2(box.get_center().x, y), fs, col)
+		line_start += ln.length() + 1
 		y += lh
 
 ## Spell speed seal on the top edge of the art, between the cost orb and the essence badge:
@@ -1062,6 +1226,25 @@ func _speed_badge(c: Vector2, speed: String, s: float) -> void:
 			draw_line(ic + Vector2(-0.8, -1) * u, ic + Vector2(0.8, -1) * u, col, 1.0 * s)
 			draw_line(ic + Vector2(-0.8, 1) * u, ic + Vector2(0.8, 1) * u, col, 1.0 * s)
 	_text(f, label, Vector2(pill.position.x + pad + icon_w + gap + tw / 2, c.y + fs * 0.36), fs, col.lightened(0.25))
+
+## Like _text, but the character ranges in `keyword_spans` are drawn in KEYWORD_COL.
+func _text_with_keywords(font: Font, t: String, keyword_spans: Array, center: Vector2, fs: float, col: Color) -> void:
+	var pieces: Array = [] ## [text, color]
+	var cursor := 0
+	for span in keyword_spans:
+		if span[0] > cursor:
+			pieces.append([t.substr(cursor, span[0] - cursor), col])
+		pieces.append([t.substr(span[0], span[1] - span[0]), KEYWORD_COL])
+		cursor = span[1]
+	if cursor < t.length():
+		pieces.append([t.substr(cursor), col])
+	var total_width := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x
+	var x := center.x - total_width / 2
+	for piece in pieces:
+		var pos := Vector2(x, center.y)
+		draw_string_outline(font, pos, piece[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), max(2, int(fs / 5)), Color(0, 0, 0, 0.85))
+		draw_string(font, pos, piece[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), piece[1])
+		x += font.get_string_size(piece[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x
 
 func _text(font: Font, t: String, center: Vector2, fs: float, col: Color) -> void:
 	var w := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x

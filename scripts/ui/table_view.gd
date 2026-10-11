@@ -3,7 +3,7 @@ extends Control
 ## Static table furniture drawn over the shader background: the two battle
 ## lanes, the central divider with its emblem and the command-zone sockets.
 
-const LANE_X := 446.0 ## left edge of both lanes; the Sanctuary column sits between the Leader and here
+const LANE_X := 226.0 ## left edge of both lanes; the Sanctuary column (x 20..200) sits to the left of it
 static var ENEMY_LANE := Rect2(LANE_X, 150, 910, 240)
 static var MY_LANE := Rect2(LANE_X, 424, 910, 250)
 const DIVIDER_Y := 407.0

@@ -120,6 +120,8 @@ func _is_phone() -> bool:
 	return OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios") 			or (OS.has_feature("web") and DisplayServer.is_touchscreen_available())
 
 func _ready() -> void:
+	# the logical screen is as tall as the stage, so a 16:9 window shows all of it (not a cropped middle)
+	get_window().content_scale_size = Vector2i(1600, int(STAGE_H))
 	_apply_light(_light_on())
 	theme = UITheme.make()
 	bg_vp = SubViewport.new()
@@ -305,6 +307,10 @@ func _show_menu() -> void:
 	lt.position = Vector2(stage_w - 300, 790.0 + BOT)
 	lt.size = Vector2(280, 52)
 	layer.add_child(lt)
+	var fs := _button("Tela cheia (F11)", _toggle_fullscreen)
+	fs.position = Vector2(stage_w - 300, 790.0 + BOT - 64.0)
+	fs.size = Vector2(280, 52)
+	layer.add_child(fs)
 	var ver := _label("0.2.2 Alpha", 13, Color(1, 1, 1, 0.35), HORIZONTAL_ALIGNMENT_RIGHT, "body")
 	ver.position = Vector2(stage_w - 300, 864.0 + BOT)
 	ver.size = Vector2(280, 20)
@@ -690,7 +696,7 @@ func _render() -> void:
 	_set_tints(_leader_color(op), _leader_color(me))
 	table.enemy_color = _leader_color(op)
 	table.my_color = _leader_color(me)
-	table.sockets = [Rect2(SANCTUARY_X, 8, SANCTUARY_W, 264), Rect2(SANCTUARY_X, 634.0 + BOT, SANCTUARY_W, 264)]
+	table.sockets = [Rect2(SANCTUARY_X, SANCTUARY_Y_OP, SANCTUARY_W, 264), Rect2(SANCTUARY_X, SANCTUARY_Y_ME, SANCTUARY_W, 264)]
 	table.visible = true
 	table.queue_redraw()
 	if g.phase == "over":
@@ -703,12 +709,12 @@ func _render() -> void:
 		_render_pass()
 		return
 	# draw order = depth: the hands sit at the back, the Leaders in front of them, the units on top
-	_render_command(op, Vector2(SANCTUARY_X + 1, 14))
-	_render_command(me, Vector2(SANCTUARY_X + 1, 640.0 + BOT))
+	_render_command(op, Vector2(SANCTUARY_X + 1, SANCTUARY_Y_OP + 6.0))
+	_render_command(me, Vector2(SANCTUARY_X + 1, SANCTUARY_Y_ME + 6.0))
 	_render_enemy_hand(op)
 	_render_hand(me)
-	_render_leader(op, Vector2(lane_cx - LeaderView.CX, LEADER_Y_OP), Vector2(20, 192))
-	_render_leader(me, Vector2(lane_cx - LeaderView.CX, LEADER_Y_ME), Vector2(20, 840.0 + BOT))
+	_render_leader(op, Vector2(lane_cx - LeaderView.CX, LEADER_Y_OP), Vector2(20, SANCTUARY_Y_OP - 62.0))
+	_render_leader(me, Vector2(lane_cx - LeaderView.CX, LEADER_Y_ME), Vector2(20, SANCTUARY_Y_ME + 272.0))
 	_collect_pairs()
 	_render_board(op, 172)
 	_render_board(me, 460)
@@ -783,12 +789,18 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	layer.add_child(mb)
 	mb.setup(pl["momentum"], pl["max_momentum"], int(pl.get("reserve", 0)))
 
-const HAND_SCALE := 1.4875
+const HAND_SCALE := 1.4875 ## hand cards are cut at the bottom, so they can be bigger than the room they take
 const HAND_SCALE_MIN := 1.3
+const HAND_VISIBLE := 0.78 ## share of a hand card's height that shows (the rest hangs off the screen until hover/click)
+const ENEMY_HAND_SCALE := 0.8
+const ENEMY_HAND_SHOWN := 0.3 ## share of an (upside-down) enemy card that peeks in from the top edge
 const HAND_SHRINK_FROM := 6
 const HAND_SHRINK_TO := 10
 const SANCTUARY_SCALE := 1.48 ## Incarnation card in the Sanctuary
-const SANCTUARY_X := 260.0
+## The Sanctuaries sit in the left margin, each beside its own lane, with the momentum bar next to them
+const SANCTUARY_X := 20.0
+const SANCTUARY_Y_OP := 132.0
+const SANCTUARY_Y_ME := 440.0
 const SANCTUARY_W := 180.0
 const LEADER_Y_OP := 4.0 ## Leader plates: centered, between each hand and its board
 const LEADER_Y_ME := 656.0
@@ -821,21 +833,29 @@ func _render_command(p: int, pos: Vector2) -> void:
 	layer.add_child(v)
 	views["cmd%d" % p] = v
 
+## Stage y of the top / bottom edge of the screen. The window can show more than the stage (black
+## bands on tall windows); hands hang off these real edges, so the cut is the edge of the screen.
+func _screen_top() -> float:
+	return -position.y
+
+func _screen_bottom() -> float:
+	return get_viewport().get_visible_rect().end.y - position.y
+
 ## Opponent's hand: face-down cards fanned along the top edge.
 func _render_enemy_hand(p: int) -> void:
 	var n: int = g.players[p]["hand"].size()
 	for i in n:
 		var k := float(i) - (n - 1) / 2.0
-		var v := CardView.new().setup("", {}, 0.5)
+		var v := CardView.new().setup("", {}, ENEMY_HAND_SCALE)
 		v.face_down = true
 		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		v.pivot_offset = v.size / 2.0
-		v.rotation = deg_to_rad(-k * 4.0)
-		v.position = Vector2(lane_cx + EHAND_DX + k * 30 - v.size.x / 2.0, -38 + k * k * 1.2)
+		v.rotation = PI - deg_to_rad(k * 4.0) # upside down, as if held facing the opponent
+		v.position = Vector2(lane_cx + EHAND_DX + k * 30 - v.size.x / 2.0, _screen_top() - v.size.y * (1.0 - ENEMY_HAND_SHOWN) + k * k * 1.2)
 		layer.add_child(v)
 	if n > 0:
 		var cnt := _label("%d" % n, 15, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 5)
-		cnt.position = Vector2(lane_cx + EHAND_DX + (n - 1) / 2.0 * 30 + 30, 18)
+		cnt.position = Vector2(lane_cx + EHAND_DX + (n - 1) / 2.0 * 30 + 52, _screen_top() + 18.0)
 		cnt.size = Vector2(30, 20)
 		layer.add_child(cnt)
 
@@ -848,13 +868,15 @@ func _board_cell(count: int, index: int) -> Vector2:
 
 func _render_board(p: int, y: float) -> void:
 	var board: Array = g.players[p]["board"]
+	var slots_taken: int = g.slots_used(p) # units first, then the free-standing artifacts
+	_render_relics(p, y, slots_taken)
 	for i in board.size():
 		var unit: Card = board[i]
 		var unit_view_data := unit.to_dict()
 		unit_view_data["armor_total"] = g.armor_of(unit) # includes Armadura given by adjacent allies
 		var v := CardView.new().setup(unit.card_id, unit_view_data, 1.15)
 		v.pivot_offset = v.size / 2.0
-		var cell := _board_cell(board.size(), i)
+		var cell := _board_cell(slots_taken, i)
 		v.position = Vector2(cell.x + (cell.y - v.size.x) / 2.0, y)
 		# exhaustion never stops blocking, so it only reads as "spent" on its owner's own turn
 		if unit.exhausted and g.phase != "blocks" and p == g.active:
@@ -888,6 +910,31 @@ func _render_board(p: int, y: float) -> void:
 			layer.add_child(eq)
 			layer.move_child(eq, v.get_index())
 			views["eq%d" % unit.uid] = eq # kept so the drag gap can slide it along with its unit
+
+## Free-standing artifacts (Ossuário Sem Fundo...) stand in the lane right after the units,
+## each one taking a slot. Click: pick it as a target, or open the overlay (with its Ativar button).
+func _render_relics(p: int, y: float, slots_taken: int) -> void:
+	var relics: Array = g.players[p]["relics"]
+	var first_relic_slot: int = g.players[p]["board"].size()
+	for j in relics.size():
+		var relic: Card = relics[j]
+		var v := CardView.new().setup(relic.card_id, {"uid": relic.uid}, 1.15)
+		v.pivot_offset = v.size / 2.0
+		var cell := _board_cell(slots_taken, first_relic_slot + j)
+		v.position = Vector2(cell.x + (cell.y - v.size.x) / 2.0, y)
+		v.ability_ready = p == viewer and targeting.is_empty() and _my_input() and g.can_activate(viewer, relic.uid)
+		if _is_target(relic.uid):
+			v.highlight = TARGET
+		v.left_clicked.connect(_on_relic_click)
+		v.right_clicked.connect(_show_overlay)
+		layer.add_child(v)
+		views[relic.uid] = v
+
+func _on_relic_click(v: CardView) -> void:
+	if _my_input() and not targeting.is_empty() and _is_target(v.uid):
+		_fire_target(v.uid)
+	elif targeting.is_empty():
+		_show_overlay(v)
 
 func _decorate_unit(v: CardView, unit: Card, p: int) -> void:
 	# reminder for new players: the unit's "Ao Ativar" can be used now (even the turn it is summoned)
@@ -1029,6 +1076,11 @@ func _render_hand(p: int) -> void:
 	var cw: float = CardView.BASE.x * sc
 	var step: float = min(cw * 0.85, (TableView.ENEMY_LANE.size.x - 20.0 - cw) / max(1, n - 1))
 	var ang: float = min(5.0, 36.0 / max(1, n))
+	# MTG Arena style: the hand hangs off the bottom edge of the screen, so only HAND_VISIBLE of each
+	# card shows. Hovered, dragged or selected cards rise by the hidden part and show whole.
+	var hidden_height := CardView.BASE.y * sc * (1.0 - HAND_VISIBLE)
+	var rise := hidden_height + 14.0
+	var rest_y := _screen_bottom() - CardView.BASE.y * sc * HAND_VISIBLE
 	for i in n:
 		var hand_card: Card = hand[i]
 		var v := CardView.new().setup(hand_card.card_id, hand_card.to_dict(), sc)
@@ -1038,13 +1090,13 @@ func _render_hand(p: int) -> void:
 		v.text_suffix = _scale_suffix(p, card_data)
 		var k := i - (n - 1) / 2.0
 		v.pivot_offset = Vector2(v.size.x / 2.0, v.size.y)
-		var pos := Vector2(lane_cx + k * step - v.size.x / 2.0, 676.0 + BOT + k * k * 1.4)
+		var pos := Vector2(lane_cx + k * step - v.size.x / 2.0, rest_y + k * k * 1.4)
 		var rot := deg_to_rad(k * ang)
 		if picked.has(hand_card.uid):
-			pos.y -= 34
+			pos.y -= rise + 20.0 # selected / targeted cards are raised and show whole
 			v.highlight = TARGET if g.phase == "discard" else SEL
 		elif targeting.get("uid", 0) == hand_card.uid and targeting.get("kind") == "hand":
-			pos.y -= 34
+			pos.y -= rise + 20.0
 			v.highlight = SEL
 		elif g.phase in ["main", "combat"] and g.can_play(p, hand_card.uid) and not _is_ai(p):
 			v.highlight = OK
@@ -1056,7 +1108,7 @@ func _render_hand(p: int) -> void:
 		v.drag_started.connect(_hand_drag_start)
 		v.drag_moved.connect(_hand_drag_move)
 		v.drag_ended.connect(_hand_drag_end)
-		var rest := {"pos": pos, "rot": rot, "idx": i}
+		var rest := {"pos": pos, "rot": rot, "idx": i, "rise": rise}
 		v.mouse_entered.connect(_hand_hover.bind(v, true, rest))
 		v.mouse_exited.connect(_hand_hover.bind(v, false, rest))
 		layer.add_child(v)
@@ -1077,7 +1129,7 @@ func _hand_hover(v: CardView, on: bool, rest: Dictionary) -> void:
 	if on:
 		v.move_to_front()
 		v.hit_pad = 40.0
-		tw.tween_property(v, "position", rest["pos"] + Vector2(0, -38), 0.14)
+		tw.tween_property(v, "position", rest["pos"] + Vector2(0, -rest["rise"]), 0.14)
 		tw.tween_property(v, "rotation", 0.0, 0.14)
 		tw.tween_property(v, "scale", Vector2.ONE * 1.28, 0.14)
 	else:
@@ -1107,9 +1159,9 @@ func _hand_drag_start(v: CardView) -> void:
 ## Board position a unit dropped at local x would take: the number of our units whose centre is
 ## to its left. Measured on the resting layout (no gap) so the slot does not flicker as the gap opens.
 func _drop_slot(x: float) -> int:
-	var count: int = g.players[viewer]["board"].size()
+	var count: int = g.slots_used(viewer)
 	var slot := 0
-	for i in count:
+	for i in g.players[viewer]["board"].size(): # artifacts always stay after the units
 		var cell := _board_cell(count, i)
 		if x > cell.x + cell.y / 2.0:
 			slot += 1
@@ -1121,7 +1173,14 @@ func _show_drop_gap(slot: int) -> void:
 		return
 	drag_gap_slot = slot
 	var board: Array = g.players[viewer]["board"]
-	var count: int = board.size() + (1 if slot >= 0 else 0)
+	var count: int = g.slots_used(viewer) + (1 if slot >= 0 else 0)
+	for relic: Card in g.players[viewer]["relics"]: # artifacts sit after the units, so they always slide right
+		var relic_view: Control = views.get(relic.uid)
+		if not is_instance_valid(relic_view):
+			continue
+		var relic_index: int = board.size() + g.players[viewer]["relics"].find(relic) + (1 if slot >= 0 else 0)
+		var relic_cell := _board_cell(count, relic_index)
+		relic_view.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT) 			.tween_property(relic_view, "position:x", relic_cell.x + (relic_cell.y - relic_view.size.x) / 2.0, 0.12)
 	for i in board.size():
 		var unit: Card = board[i]
 		var unit_view: Control = views.get(unit.uid)
@@ -1595,7 +1654,17 @@ func _render_game_over() -> void:
 
 # ---------------------------------------------------------------- input
 
+## Window <-> full screen (F11 or the menu button). In a browser this is the page's full screen,
+## which the browser only allows right after a key press or tap, which is what calls this.
+func _toggle_fullscreen() -> void:
+	var is_full := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if is_full else DisplayServer.WINDOW_MODE_FULLSCREEN)
+
 func _input(e: InputEvent) -> void:
+	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_F11:
+		_toggle_fullscreen()
+		get_viewport().set_input_as_handled()
+		return
 	if aim_drag and e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and not e.pressed:
 		_aim_release()
 	if e is InputEventMouseButton or e is InputEventScreenTouch or e is InputEventKey:
@@ -1815,32 +1884,40 @@ func _on_leader_click(p: int) -> void:
 	if _my_input() and _is_target(GameState.LEADER_UID[p]):
 		_fire_target(GameState.LEADER_UID[p])
 
+## A click on a unit on the field does its job (fire a target, pick an attacker/blocker...);
+## when it has nothing to do there it opens the card overlay instead, like a click in the hand.
 func _on_unit_click(v: CardView) -> void:
+	if not _unit_click_acted(v):
+		_show_overlay(v)
+
+## Runs the click's action and returns true, or returns false when the click had no action.
+func _unit_click_acted(v: CardView) -> bool:
 	if not _my_input():
-		return
+		return false
 	var unit := g.find_unit(v.uid)
 	if unit == null:
-		return
+		return true
 	if not targeting.is_empty():
 		if _is_target(v.uid):
 			_fire_target(v.uid)
-		return
+			return true
+		return false
 	match g.phase:
 		"main":
 			if provoking != 0:
 				if unit.owner != viewer and unit.is_frozen():
 					_toast("Unidade congelada não pode ser provocada.")
-					return
+					return true
 				if unit.owner != viewer and unit.has_kw("nao_bloqueia"):
 					_toast("Essa unidade não bloqueia.")
-					return
+					return true
 				if unit.owner != viewer and not attack_sel.values().has(v.uid):
 					attack_sel[provoking] = v.uid
 					provoking = 0
 				_render()
-				return
+				return true
 			if unit.owner != viewer or g.players[viewer]["attacked"] or not g.can_attack(unit):
-				return
+				return false
 			if attack_sel.has(v.uid):
 				attack_sel.erase(v.uid)
 			else:
@@ -1848,18 +1925,20 @@ func _on_unit_click(v: CardView) -> void:
 				if unit.has_kw("provocacao") and not g.players[g.opponent(viewer)]["board"].is_empty():
 					provoking = v.uid
 			_render()
+			return true
 		"blocks":
 			if unit.owner == viewer:
 				if g.attackers.values().has(v.uid):
-					return # already forced to block a provoker
+					return false # already forced to block a provoker
 				if unit.is_frozen():
 					_toast("Unidade congelada não pode bloquear.")
-					return
+					return true
 				for a in block_sel.keys():
 					if block_sel[a] == v.uid:
 						block_sel.erase(a)
 				blocker_pick = v.uid if blocker_pick != v.uid else 0
 				_render()
+				return true
 			elif blocker_pick != 0 and g.attackers.has(v.uid) and g.attackers[v.uid] == 0:
 				if g.can_block(g.find_unit(blocker_pick), unit):
 					block_sel[v.uid] = blocker_pick
@@ -1867,6 +1946,8 @@ func _on_unit_click(v: CardView) -> void:
 				else:
 					_toast("Essa unidade não pode bloquear esse atacante (Voo/Furtividade/Intimidacao).")
 				_render()
+				return true
+	return false
 
 # ---------------------------------------------------------------- overlay
 
@@ -1886,6 +1967,21 @@ func _keyword_text(cd: Dictionary, kw: String, k: Dictionary) -> String:
 			names.append(String(CardDB.keyword(u)["name"]))
 		return "A primeira vez em cada turno que receberia dano de combate de uma unidade sem %s, o dano é evitado." % " nem ".join(names)
 	return k["text"]
+
+## Keyword ids whose names appear in a rules text, in the order they appear (no repeats).
+func _mentioned_keywords(text: String) -> Array:
+	var found: Array = []
+	var keywords: Dictionary = CardDB.data()["keywords"]
+	for span in CardView.keyword_ranges(text):
+		var mentioned := text.substr(span[0], span[1] - span[0])
+		for id in keywords:
+			var name := String(keywords[id]["name"])
+			# "Armadura 1" starts with "Armadura"; the others need an exact match
+			# (so "Escudo de Feitiço" doesn't also count as "Escudo").
+			var with_value: bool = keywords[id].get("has_value", false) and mentioned.begins_with(name + " ")
+			if (mentioned == name or with_value) and not found.has(id):
+				found.append(id)
+	return found
 
 func _show_overlay(v: CardView) -> void:
 	if v.face_down:
@@ -1920,10 +2016,15 @@ func _show_overlay(v: CardView) -> void:
 		if v.inst.has("frozen"):
 			body = "[color=#9fe8ff][b]Congelada:[/b] não pode atacar nem bloquear até o fim do próximo turno do dono.[/color]
 " + body
-		txt += "[font_size=32]%s[/font_size]\n\n" % CardView.colorize_triggers(body + v.text_suffix, 32)
-	for kw in cd.get("keywords", []):
+		txt += "[font_size=32]%s[/font_size]\n\n" % CardView.colorize_rules(body + v.text_suffix, 32)
+	# Glossary: the card's own keywords first, then any keyword its text mentions ("conceda Voo").
+	var glossary_keywords: Array = cd.get("keywords", []).duplicate()
+	for kw in _mentioned_keywords(String(cd.get("text", "")) + v.text_suffix):
+		if not glossary_keywords.has(kw):
+			glossary_keywords.append(kw)
+	for kw in glossary_keywords:
 		var k := CardDB.keyword(kw)
-		txt += "[color=#ffe9a8][b]%s[/b][/color] — %s\n" % [k["name"], _keyword_text(cd, kw, k)]
+		txt += "[color=#ffe9a8][b]%s[/b][/color] — %s\n" % [k["name"], CardView.colorize_rules(_keyword_text(cd, kw, k))]
 	if CardDB.is_leader_card(v.card_id):
 		txt += "\n[color=#e8c25a]Encarnação do Líder:[/color] fica no Santuário. Cada nova conjuração custa +%d. Ao morrer ou ser banida, volta para o Santuário; se a próxima conjuração passaria de %d, vai para o fundo do deck como carta comum, com o custo normal.\n" % [GameState.COMMANDER_TAX, GameState.MOMENTUM_CAP]
 	var flavor := CardDB.flavor_for(cd, true)
@@ -2756,12 +2857,12 @@ func _animate(events: Array, old: Dictionary) -> float:
 			"play":
 				var uid: int = e["uid"]
 				var cd := CardDB.card(e["card_id"])
-				var origin: Dictionary = {"c": Vector2(lane_cx + EHAND_DX, 30), "rot": 0.0, "w": 60.0}
+				var origin: Dictionary = {"c": Vector2(lane_cx + EHAND_DX, 30), "rot": 0.0, "w": 96.0}
 				if e.get("legendary", false) and old.has("cmd%d" % e["player"]):
 					origin = old["cmd%d" % e["player"]]["pose"]
 				elif e.get("requiem", false) and views.get(GameState.LEADER_UID[e["player"]]) is LeaderView:
 					# a Réquiem spell rises from the graveyard icon of its caster
-					origin = {"c": (views[GameState.LEADER_UID[e["player"]]] as LeaderView).position + Vector2(217, 67), "rot": 0.0, "w": 60.0}
+					origin = {"c": (views[GameState.LEADER_UID[e["player"]]] as LeaderView).position + Vector2(217, 67), "rot": 0.0, "w": 96.0}
 				elif old.has(uid):
 					origin = old[uid]["pose"]
 				if cd["type"] == "unit" and views.has(uid):
@@ -2792,7 +2893,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 				fv.z_index = 30
 				fx.add_child(fv)
 				var from_y := 860.0 + BOT if e["player"] == viewer else 30.0
-				_fly(fv, {"c": Vector2(lane_cx + EHAND_DX, from_y), "rot": 0.0, "w": 60.0}, {"c": Vector2(lane_cx, 420), "rot": 0.0, "w": FATIGUE_W}, cursor, 0.35, 40.0, true)
+				_fly(fv, {"c": Vector2(lane_cx + EHAND_DX, from_y), "rot": 0.0, "w": 96.0}, {"c": Vector2(lane_cx, 420), "rot": 0.0, "w": FATIGUE_W}, cursor, 0.35, 40.0, true)
 				fv.dissolve(cursor + 0.35 + REVEAL_HOLD * 0.7, Color(0.75, 0.6, 1.0), 0.6)
 				cursor += 0.35 + REVEAL_HOLD * 0.5
 			"ability":
@@ -2987,6 +3088,10 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s mandou ao cemitério: %s" % [_pname(e["player"]), ", ".join(milled)])
 		"revive":
 			_log("%s reviveu %s" % [_pname(e["player"]), _cname(e["card_id"])])
+		"relic_enter":
+			_log("%s colocou %s em campo" % [_pname(e["player"]), _cname(e["card_id"])])
+		"relic_destroyed":
+			_log("%s foi destruído" % _cname(e["card_id"]))
 		"attach":
 			_log("%s foi equipado em uma unidade" % _cname(e["card_id"]))
 		"equipment_break":
