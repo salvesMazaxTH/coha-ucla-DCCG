@@ -1597,16 +1597,22 @@ func _hint() -> String:
 			return "Arraste cartas para o campo · clique: ver carta · quando acabar, IR PARA O COMBATE"
 	return ""
 
+## "RESOLVER" when passing now makes the stack resolve (the other player already passed on it);
+## otherwise it just hands the turn to respond over, so it stays "PASSAR".
+func _pass_button_label() -> String:
+	var passing_resolves: bool = not g.stack.is_empty() and (g.stack_passed or not g.self_response_enabled)
+	return "RESOLVER" if passing_resolves else "PASSAR"
+
 func _action_buttons() -> Array:
 	var out: Array = []
 	match g.phase:
 		"mulligan":
 			out.append(_button("CONFIRMAR (%d)" % picked.size(), func(): _do(g.mulligan(viewer, picked.duplicate())), true))
 		"combat":
-			out.append(_button("PASSAR", func(): _do(g.pass_priority(viewer)), true))
+			out.append(_button(_pass_button_label(), func(): _do(g.pass_priority(viewer)), true))
 		"main":
 			if not g.stack.is_empty() or g.summon_window:
-				out.append(_button("PASSAR", func(): _do(g.pass_priority(viewer)), true))
+				out.append(_button(_pass_button_label(), func(): _do(g.pass_priority(viewer)), true))
 			elif g.attack_step:
 				if attack_sel.is_empty():
 					out.append(_button("SEM ATACAR", func(): _do(g.skip_combat(viewer)), true))
