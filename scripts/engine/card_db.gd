@@ -17,6 +17,17 @@ static func data() -> Dictionary:
 		_load()
 	return _data
 
+## A keyword with a value is written "armadura:1" in "keywords". Armadura's value becomes the
+## card's native "armor" (the keyword tag itself is drawn from it), so the entry leaves the list.
+static func _apply_valued_keywords(cd: Dictionary) -> void:
+	var plain_keywords: Array = []
+	for keyword in cd.get("keywords", []):
+		if String(keyword).begins_with("armadura:"):
+			cd["armor"] = int(String(keyword).trim_prefix("armadura:"))
+		else:
+			plain_keywords.append(keyword)
+	cd["keywords"] = plain_keywords
+
 static func _load() -> void:
 	_errors.clear()
 	_defs.clear()
@@ -35,6 +46,7 @@ static func _load() -> void:
 			var cd := _read_json(dir_path + "/" + file_name)
 			if cd.is_empty():
 				continue
+			_apply_valued_keywords(cd)
 			_data["cards"][id] = cd
 			_defs[id] = CardDef.new(id, cd)
 	for id in _data["cards"]:

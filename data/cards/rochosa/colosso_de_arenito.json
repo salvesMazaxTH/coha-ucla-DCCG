@@ -7,18 +7,12 @@
   "art": "rochosa/colosso_de_arenito.webp",
   "cost": 5,
   "atk": 4,
-  "hp": 9,
-  "keywords": [],
-  "effects": [
-    {
-      "trigger": "on_ally_death",
-      "action": "buff",
-      "target": "self",
-      "atk": 2,
-      "temp": true
-    }
+  "hp": 6,
+  "keywords": [
+    "provocacao"
   ],
-  "text": "Aliado Morre: ganha +2 de Ataque até o fim do turno.",
+  "effects": [],
+  "text": "",
   "flavor": "",
   "tags": []
 }

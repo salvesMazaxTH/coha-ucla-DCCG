@@ -6,7 +6,7 @@
   "essence": "rochosa",
   "art": "rochosa/marmorea_cascalhuda.webp",
   "cost": 7,
-  "atk": 7,
+  "atk": 3,
   "hp": 12,
   "keywords": [],
   "effects": [

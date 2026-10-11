@@ -7,7 +7,7 @@
   "art": "rochosa/bastionario_de_basalto.webp",
   "cost": 2,
   "atk": 1,
-  "hp": 5,
+  "hp": 4,
   "keywords": [],
   "adjacent_armor": 1,
   "effects": [],

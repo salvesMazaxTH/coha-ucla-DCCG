@@ -1,14 +1,14 @@
 {
   "name": "Guardião das Camadas",
   "type": "unit",
-  "rarity": "common",
+  "rarity": "epic",
   "species": ["gigante"],
   "essence": "rochosa",
   "art": "rochosa/guardiao_das_camadas.webp",
   "cost": 3,
   "atk": 2,
-  "hp": 6,
-  "keywords": [],
+  "hp": 5,
+  "keywords": ["armadura:1"],
   "effects": [
     {
       "trigger": "on_turn_start",
