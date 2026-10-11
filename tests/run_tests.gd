@@ -30,6 +30,7 @@ func _init() -> void:
 	_test_intimidacao()
 	_test_play_slot()
 	_test_ossuario()
+	_test_yresa_fusion()
 	_test_custo_e_contagem()
 	_test_ban()
 	_test_combat()
@@ -2053,3 +2054,23 @@ func _test_ossuario() -> void:
 	g._flush()
 	check(g.find_relic(relic.uid) == null and g.slots_used(0) == 1, "ossuário: destruído libera o espaço")
 
+func _test_yresa_fusion() -> void:
+	var g := _new_game()
+	_quiet(g)
+	var yresa := _put(g, 0, "yresa_petronika")
+	g.players[0]["momentum"] = 8
+	g.transform(0, yresa.uid)
+	check(_count(g, 0, "yresa_sentinel") == 2, "yrêsa primordial: Ao Entrar invoca 2 Stonewards")
+	var guard := g.players[0]["board"][1] as Card
+	check(g.armor_of(yresa) >= 1, "stoneward: adjacente ganha Armadura 1")
+	g.players[0]["momentum"] = 5
+	check(g.can_activate(0, yresa.uid), "yrêsa: pode fundir com 2 Stonewards")
+	g.activate(0, yresa.uid)
+	g.pass_priority(0)
+	g.pass_priority(1)
+	g._flush()
+	check(_count(g, 0, "yresa_sentinel") == 0 and _count(g, 0, "yresa_colossus") == 1, "fusão: 2 Stonewards viram 1 Colossus")
+	var colossus: Card = g.players[0]["board"].filter(func(c: Card): return c.card_id == "yresa_colossus")[0]
+	check(colossus.atk == 4 and colossus.hp == 6 and colossus.armor == 2, "colossus: +2/+3 e Armadura 1 por Stoneward (%d/%d A%d)" % [colossus.atk, colossus.hp, colossus.armor])
+	check(yresa.exhausted and not g.can_activate(0, yresa.uid), "fusão exaure e precisa de 2+ Stonewards")
+	check(g.players[0]["graveyard"].is_empty() and guard != null, "fichas fundidas não vão pro cemitério")

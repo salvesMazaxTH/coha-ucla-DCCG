@@ -26,6 +26,7 @@ static var ACTIONS: Dictionary = {
 	"destroy_artifact": RemoveEffect,
 	"banish": RemoveEffect,
 	"sacrifice": SacrificeEffect,
+	"fuse": FuseEffect,
 	"gain_momentum": GainMomentumEffect,
 	"buff": BuffEffect,
 	"counter": CounterEffect,

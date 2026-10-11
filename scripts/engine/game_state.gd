@@ -535,6 +535,9 @@ func can_activate(p: int, uid: int) -> bool:
 		return false
 	if _has_action(ab["effects"], "revive_pick") and (not has_free_slot(p) or revive_options(p).is_empty()):
 		return false # nothing to bring back, or no slot for it
+	for fusion in ab["effects"]:
+		if fusion.get("action", "") == "fuse" and EffectRegistry.parse(fusion).available_parts(self, p) == 0:
+			return false # not enough units to fuse
 	var spec := target_spec(ab["effects"])
 	return spec == "" or not valid_targets(p, spec, uid).is_empty()
 

@@ -120,6 +120,7 @@
     "morto_vivo": { "name": "Morto-Vivo" },
     "revenante": { "name": "Revenante" },
     "gargoyle": { "name": "Gargoyle" },
+    "golem": { "name": "Golem" },
     "fada": { "name": "Fada" },
     "elfo": { "name": "Elfo" },
     "ciclope": { "name": "Ciclope" },

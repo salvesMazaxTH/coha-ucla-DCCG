@@ -3102,6 +3102,8 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s colocou %s em campo" % [_pname(e["player"]), _cname(e["card_id"])])
 		"relic_destroyed":
 			_log("%s foi destruído" % _cname(e["card_id"]))
+		"fuse":
+			_log("%d fichas se fundiram em %s" % [int(e["count"]), _cname(e["card_id"])])
 		"attach":
 			_log("%s foi equipado em uma unidade" % _cname(e["card_id"]))
 		"equipment_break":
