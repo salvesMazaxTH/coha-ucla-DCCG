@@ -15,6 +15,6 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		return
 	var then_context := context.for_then_effects()
 	then_context.sacrificed_attack = victim.atk_total() # last known attack, buffs included
-	victim.damage = victim.hp + victim.bonus_hp
+	victim.damage = victim.hp + victim.bonus_hp + victim.temp_hp
 	game._emit({"type": "sacrifice", "player": context.controller, "uid": target_uid})
 	game._run_effects(then_context, then_effects)

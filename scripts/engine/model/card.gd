@@ -19,6 +19,7 @@ var atk := 0
 var hp := 0
 var damage := 0
 var temp_atk := 0
+var temp_hp := 0 ## extra Vida that lasts until the end of the turn (damage is wiped then too, so nothing can die from it expiring)
 var keywords: Array = []
 var temp_keywords: Array = []
 var shield := false
@@ -64,6 +65,7 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	hp = int(cd["hp"])
 	damage = 0
 	temp_atk = 0
+	temp_hp = 0
 	armor = int(cd.get("armor", 0))
 	temp_armor = 0
 	shield = kws.has("escudo")
@@ -99,7 +101,7 @@ func atk_total() -> int:
 	return maxi(0, atk + temp_atk + bonus_atk)
 
 func hp_left() -> int:
-	return hp + bonus_hp - damage
+	return hp + bonus_hp + temp_hp - damage
 
 ## Congelada: can't attack or block until the end of its owner's next turn.
 func is_frozen() -> bool:
@@ -125,6 +127,8 @@ func to_dict() -> Dictionary:
 		d["armor"] = armor
 	if temp_armor > 0:
 		d["temp_armor"] = temp_armor
+	if temp_hp > 0:
+		d["temp_hp"] = temp_hp
 	if has_bonus:
 		d["bonus_atk"] = bonus_atk
 		d["bonus_hp"] = bonus_hp
@@ -161,6 +165,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.temp_keywords = d["temp_keywords"]
 	c.armor = int(d.get("armor", 0))
 	c.temp_armor = int(d.get("temp_armor", 0))
+	c.temp_hp = int(d.get("temp_hp", 0))
 	c.shield = bool(d["shield"])
 	c.spell_shield = bool(d["spell_shield"])
 	c.exhausted = bool(d["exhausted"])

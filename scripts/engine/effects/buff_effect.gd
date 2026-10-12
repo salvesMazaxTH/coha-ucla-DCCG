@@ -1,7 +1,7 @@
 class_name BuffEffect
 extends Effect
-## "buff": +atk/+hp and keywords on the target unit ("temp": true = attack and keywords only
-## until end of turn). "armor": N adds Armadura permanently (stacks with what it already has);
+## "buff": +atk/+hp and keywords on the target unit ("temp": true = attack, hp and keywords
+## only until end of turn). "armor": N adds Armadura permanently (stacks with what it already has);
 ## "armor_temp": N is the same until its owner's next turn starts.
 ## "per": "momentum_left" multiplies atk/hp by the Momentum the controller still has
 ## (at least `min`, at most `max`).
@@ -49,6 +49,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		unit.cap_atk_gain += attack_gain
 	if temporary:
 		unit.temp_atk += attack_gain
+		unit.temp_hp += health_gain
 	else:
 		unit.atk += attack_gain
 		unit.hp += health_gain

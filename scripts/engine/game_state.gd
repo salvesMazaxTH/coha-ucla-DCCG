@@ -1402,6 +1402,7 @@ func _finish_turn() -> void:
 		for c in p["board"]:
 			c.damage = 0
 			c.temp_atk = 0
+			c.temp_hp = 0
 			for kw in c.temp_keywords:
 				c.keywords.erase(kw)
 			c.temp_keywords.clear()

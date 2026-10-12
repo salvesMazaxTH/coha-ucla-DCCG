@@ -30,7 +30,7 @@ Cada ação é uma classe em `scripts/engine/effects/`, registrada em `effect_re
 | `destroy` / `banish` | — | mata / bane a unidade |
 | `sacrifice` | `then` (lista de efeitos) | sacrifica; o `then` roda depois |
 | `gain_momentum` | `amount`, `per`, `divisor`, `max`, `next_turn` | ganha Momentum |
-| `buff` | `atk`, `hp`, `temp`, `keywords`, `armor`, `armor_temp`, `per`, `min`, `max`, `cap_atk` | bônus de ataque/vida/palavras-chave |
+| `buff` | `atk`, `hp`, `temp`, `keywords`, `armor`, `armor_temp`, `per`, `min`, `max`, `cap_atk` | bônus de ataque/vida/palavras-chave. Com `temp: true`, Ataque, Vida e palavras-chave duram só até o fim do turno |
 | `counter` | `max_cost`, `kicker_cost`, `kicker_max_cost`, `only_if_targets_ally` | anula a carta escolhida na pilha. `only_if_targets_ally: true` só permite anular o que escolheu como alvo uma unidade ou o Líder de quem anula (efeitos em área não contam) |
 | `modify_cost` | `amount` | muda o custo da carta (persiste entre zonas) |
 | `cost_reduction` / `scale` | — | habilidades constantes (sem `target`, nunca disparam) |

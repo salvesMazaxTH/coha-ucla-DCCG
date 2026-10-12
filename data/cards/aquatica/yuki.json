@@ -6,17 +6,17 @@
   "essence": "aquatica",
   "cost": 2,
   "atk": 2,
-  "hp": 1,
+  "hp": 2,
   "keywords": ["furtividade", "ataque_rapido"],
   "art": "aquatica/yuki.webp",
   "effects": [],
   "activated": {
-    "cost": 2,
+    "cost": 3,
     "speed": "rapido",
     "once_per_turn": true,
-    "effects": [{ "action": "buff", "target": "self", "atk": 2, "temp": true }]
+    "effects": [{ "action": "buff", "target": "self", "atk": 2, "hp": 2, "temp": true }]
   },
-  "text": "Ao Ativar (2) {rapido} (1x por turno): ganhe +2 de Ataque neste turno.",
+  "text": "Ao Ativar (3) {rapido} (1x por turno): ganhe +2/+2 neste turno.",
   "flavor": "Água parada, lâmina sob a lua.",
   "tags": []
 }
