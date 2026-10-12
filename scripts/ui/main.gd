@@ -70,6 +70,11 @@ var aim_start := Vector2.ZERO
 var aim_src := Vector2.ZERO ## global source point (leader gem, command card)
 var fx: Control ## persistent layer above the table: ghosts, floats, embers
 var ai_timer: Timer
+## Animations are never cut short: while one is still playing, the next batch of events waits here
+## (the engine has already applied it; only the showing is postponed) and plays when the table settles.
+var _animation_busy_until_ms := 0
+var _waiting_event_batches: Array = [] ## each entry is one Array of events, in the order they happened
+var _waiting_events_timer: Timer
 
 var _hand_base := 0 ## child index of the first hand card in layer
 
@@ -159,6 +164,10 @@ func _ready() -> void:
 	ai_timer.wait_time = 0.55
 	ai_timer.timeout.connect(_ai_step)
 	add_child(ai_timer)
+	_waiting_events_timer = Timer.new()
+	_waiting_events_timer.one_shot = true
+	_waiting_events_timer.timeout.connect(_play_waiting_events)
+	add_child(_waiting_events_timer)
 	net = NetClient.new()
 	add_child(net)
 	net.message.connect(_on_net)
@@ -647,11 +656,31 @@ func _ai_step() -> void:
 ## Re-renders and animates from the previous frame's positions; the AI
 ## waits for the animations to play out before its next move.
 func _show_events(events: Array) -> void:
+	var remaining_ms := _animation_busy_until_ms - Time.get_ticks_msec()
+	if remaining_ms > 0 or not _waiting_event_batches.is_empty():
+		# an animation is still playing (or others are already waiting): get in line instead of
+		# redrawing the table, which would cut the running animation short
+		_waiting_event_batches.append(events)
+		_waiting_events_timer.start(maxf(remaining_ms / 1000.0, 0.05))
+		return
+	_play_events(events)
+
+## Plays the oldest waiting batch; the next one (if any) follows when this one settles.
+func _play_waiting_events() -> void:
+	if _waiting_event_batches.is_empty() or g == null:
+		_waiting_event_batches.clear()
+		return
+	_play_events(_waiting_event_batches.pop_front())
+	if not _waiting_event_batches.is_empty():
+		_waiting_events_timer.start(maxf((_animation_busy_until_ms - Time.get_ticks_msec()) / 1000.0, 0.05))
+
+func _play_events(events: Array) -> void:
 	var old := _snapshot()
 	_leader_ko_t = -1.0
 	_over_from = -1
 	_render()
 	var end := _animate(events, old)
+	_animation_busy_until_ms = Time.get_ticks_msec() + int(end * 1000.0)
 	# the Victory/Defeat screen waits for the killing blow to land instead of spoiling it
 	if g.phase == "over" and _over_from >= 0 and end > 0.0:
 		var delay := maxf(_leader_ko_t + 0.7, end) if _leader_ko_t >= 0.0 else end
@@ -683,6 +712,9 @@ func _clear() -> void:
 	hand_uids.clear()
 
 func _clear_fx() -> void:
+	# a new screen or match: nothing from the previous one should still be waiting to play
+	_waiting_event_batches.clear()
+	_animation_busy_until_ms = 0
 	if fx:
 		for c in fx.get_children():
 			c.queue_free()
