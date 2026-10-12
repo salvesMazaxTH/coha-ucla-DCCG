@@ -15,9 +15,15 @@
       "action": "buff",
       "target": "other_ally_unit",
       "keywords": ["escudo"]
+    },
+    {
+      "trigger": "on_attack",
+      "action": "buff",
+      "target": "self",
+      "atk": 1
     }
   ],
-  "text": "Ao Entrar: conceda Escudo a outra unidade aliada.",
+  "text": "Ao Entrar: conceda Escudo a outra unidade aliada.\nAo Atacar: ganhe +1 de Ataque permanente.",
   "flavor": "A égide da fênix nunca se apaga.",
   "tags": []
 }

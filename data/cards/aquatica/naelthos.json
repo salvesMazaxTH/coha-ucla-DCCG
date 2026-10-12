@@ -5,8 +5,8 @@
   "species": ["merfolk"],
   "essence": "aquatica",
   "cost": 5,
-  "atk": 3,
-  "hp": 6,
+  "atk": 4,
+  "hp": 7,
   "keywords": [
     "provocacao"
   ],
@@ -16,10 +16,20 @@
       "trigger": "on_enter",
       "action": "heal_leader",
       "target": "own_leader",
-      "amount": 3
+      "amount": 4
     }
   ],
-  "text": "Ao Entrar: cure 3 de vida do seu Líder.",
+  "activated": {
+    "cost": 4,
+    "speed": "lento",
+    "once_per_turn": true,
+    "effects": [
+      { "action": "heal_leader", "target": "own_leader", "amount": 4 },
+      { "action": "heal_unit", "target": "all_ally_units", "amount": 4 },
+      { "action": "buff", "target": "self", "hp": 1 }
+    ]
+  },
+  "text": "Ao Entrar: cure 4 de vida do seu Líder.\nAo Ativar (4) {lento} (1x por turno): cure 4 de vida do seu Líder e de cada unidade aliada; Naelthos ganha +1 de Vida permanente.",
   "flavor": "O mar sempre retorna.",
   "tags": []
 }

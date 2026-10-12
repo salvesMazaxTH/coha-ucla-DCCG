@@ -5,7 +5,7 @@
   "species": ["demonio"],
   "essence": "ignea",
   "cost": 3,
-  "atk": 3,
+  "atk": 4,
   "hp": 3,
   "keywords": [
     "furtividade",

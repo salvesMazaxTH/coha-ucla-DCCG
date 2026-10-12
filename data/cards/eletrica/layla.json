@@ -7,7 +7,7 @@
   ],
   "essence": "eletrica",
   "cost": 4,
-  "atk": 3,
+  "atk": 4,
   "hp": 3,
   "keywords": [
     "ataque_rapido"
@@ -18,11 +18,10 @@
       "trigger": "on_damaged",
       "action": "buff",
       "target": "self",
-      "atk": 1,
-      "cap_atk": 3
+      "atk": 1
     }
   ],
-  "text": "Ao Sofrer Dano: ganhe +1 de Ataque (até +3 no total).",
+  "text": "Ao Sofrer Dano: ganhe +1 de Ataque permanente.",
   "flavor": "",
   "tags": []
 }

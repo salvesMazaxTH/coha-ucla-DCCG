@@ -11,10 +11,11 @@
       "trigger": "on_play",
       "action": "damage",
       "target": "enemy_unit",
-      "amount": 3
+      "amount": 3,
+      "adjacent_amount": 1
     }
   ],
-  "text": "Cause 3 de dano a uma unidade inimiga.",
+  "text": "Cause 3 de dano a uma unidade inimiga e 1 às unidades adjacentes a ela.",
   "flavor": "",
   "tags": []
 }

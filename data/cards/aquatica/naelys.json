@@ -6,18 +6,19 @@
   "essence": "aquatica",
   "cost": 3,
   "atk": 3,
-  "hp": 3,
+  "hp": 4,
   "keywords": [],
   "art": "aquatica/naelys.webp",
   "effects": [
     {
       "trigger": "on_enter",
-      "action": "draw",
-      "target": "own_leader",
-      "amount": 1
+      "action": "draw_discounted",
+      "target": "none",
+      "min_base_cost": 1,
+      "discount": 1
     }
   ],
-  "text": "Ao Entrar: compre 1 carta.",
+  "text": "Ao Entrar: compre 1 carta; ela custa 1 a menos.",
   "flavor": "O coração das marés pulsa calmo.",
   "tags": []
 }

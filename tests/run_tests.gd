@@ -324,7 +324,7 @@ func _test_obscura() -> void:
 	check(tf.card_id == "alexa_neruvya_primordial" and tf.atk == 7 and g.has_kw(tf, "sobrepujanca") and g.stack.is_empty(), "alexa vira a Primordial sem usar a pilha")
 	check(tf_hurt.damage == 0 and g.players[0]["momentum"] == 0, "transformar paga 8 e dispara o Ao Entrar")
 	check(not g.can_transform(0, tf.uid), "a Primordial não transforma de novo")
-	# Yuki's Ao Ativar: goes on the stack (Rápido), +2 temporary attack, once per turn
+	# Yuki's Ao Ativar: goes on the stack (Rápido), +2/+2 temporary, once per turn
 	var yk := _put(g, 0, "yuki")
 	g.players[0]["momentum"] = 4
 	g.players[0]["reserve"] = 0
@@ -336,8 +336,17 @@ func _test_obscura() -> void:
 	g.pass_priority(1)
 	g._flush()
 	g.auto_pass[1] = true
-	check(g.stack.is_empty() and g.atk_of(yk) == 4 and g.players[0]["momentum"] == 2, "yuki ganha +2 de Ataque temporário")
+	check(g.stack.is_empty() and g.atk_of(yk) == 4 and g.hp_left(yk) == 4 and g.players[0]["momentum"] == 1, "yuki ganha +2/+2 temporário")
 	check(not g.can_activate(0, yk.uid), "ao ativar da yuki é 1x por turno")
+	# the temporary Vida absorbs damage while it lasts and is gone once the turn ends (damage is wiped too)
+	var tg := _new_game()
+	var temp_unit := _put(tg, 0, "yuki")
+	temp_unit.temp_hp = 2
+	temp_unit.temp_atk = 2
+	temp_unit.damage = 3
+	check(tg.hp_left(temp_unit) == 1, "vida temporária absorve dano")
+	tg.end_turn(0)
+	check(temp_unit.temp_hp == 0 and temp_unit.temp_atk == 0 and tg.hp_left(temp_unit) == 2 and tg.atk_of(temp_unit) == 2, "+2/+2 temporário some no fim do turno")
 	# Afogar: rápido, destroys any chosen unit, even one's own, ignoring Escudo
 	var af_t := _put(g, 1, "jeff")
 	af_t.shield = true
@@ -763,7 +772,7 @@ func _test_combat() -> void:
 	g.players[0]["leader_hp"] = 10
 	_attack(g, {gk.uid: 0})
 	_block(g, {})
-	check(g.players[0]["leader_hp"] == 13, "lifesteal heals leader")
+	check(g.players[0]["leader_hp"] == 14, "lifesteal heals leader")
 
 	g = _new_game()
 	var k := _put(g, 0, "kael_drath_vulcano") # provocação
@@ -1707,7 +1716,7 @@ func _test_eletrica() -> void:
 	var ally := _put(g, a, "jack")
 	g.players[a]["momentum"] = 9
 	var vs := _put(g, a, "voltexz")
-	check(atk_ok(g, ally, 2 + 5, 4 + 5) and g.has_kw(ally, "ataque_rapido"), "voltexz: aliados +5/+5 e Ataque Rápido")
+	check(atk_ok(g, ally, 3 + 5, 5 + 5) and g.has_kw(ally, "ataque_rapido"), "voltexz: aliados +5/+5 e Ataque Rápido")
 	check(g.atk_of(vs) == 8 and g.has_kw(vs, "hipervelocidade") and not g.has_kw(vs, "ataque_rapido"), "voltexz: não bufa a si própria (ATK base 8, Hipervelocidade é nativa)")
 	g = _eletrica_game()
 	a = g.active
@@ -1715,29 +1724,36 @@ func _test_eletrica() -> void:
 	g.players[a]["momentum"] = 2
 	_put(g, a, "faisca_viva")
 	g._run_effect_dicts(a, CardDB.card("voltexz")["effects"], "on_enter", 0, 0)
-	check(g.atk_of(ally) == 4 and g.players[a]["board"][0].hp == 6, "voltexz: +1/+1 por Momentum restante")
+	check(g.atk_of(ally) == 5 and g.players[a]["board"][0].hp == 7, "voltexz: +1/+1 por Momentum restante")
 	g.players[a]["momentum"] = 0
 	g._run_effect_dicts(a, CardDB.card("voltexz")["effects"], "on_enter", 0, 0)
-	check(g.atk_of(ally) == 5 and g.players[a]["board"][0].hp == 7, "voltexz: sem Momentum sobrando, ainda dá +1/+1")
+	check(g.atk_of(ally) == 6 and g.players[a]["board"][0].hp == 8, "voltexz: sem Momentum sobrando, ainda dá +1/+1")
 	# Jack: +1 attack at end of turn only with Momentum left
 	g = _eletrica_game()
 	a = g.active
 	o = g.opponent(a)
 	var jk := _put(g, a, "jack")
 	g.end_turn(a)
-	check(g.atk_of(jk) == 2, "jack: sem Momentum sobrando não cresce")
+	check(g.atk_of(jk) == 3, "jack: sem Momentum sobrando não cresce")
 	g.end_turn(o)
 	g.players[a]["momentum"] = 2
 	g.end_turn(a)
-	check(g.atk_of(jk) == 3, "jack: Momentum sobrando dá +1 permanente")
+	check(g.atk_of(jk) == 4, "jack: Momentum sobrando dá +1 permanente")
 	# Layla: +1 attack per damage taken, up to +3
-	g = _eletrica_game()
+	# Layla: +1 attack per damage taken, no cap
 	var ly := _put(g, g.active, "layla")
 	for i in 5:
 		g._deal_damage(ly.uid, 1, null)
 		g._check_state()
 		ly.damage = 0
-	check(g.atk_of(ly) == 6, "layla: +1 por dano, no máximo +3 (%d)" % g.atk_of(ly))
+	check(g.atk_of(ly) == 9, "layla: +1 por dano, sem limite (%d)" % g.atk_of(ly))
+	# Victoria: Ao Atacar, +1 de Ataque permanente
+	g = _new_game()
+	var vic := _put(g, 0, "victoria")
+	_attack(g, {vic.uid: 0})
+	_block(g, {})
+	g._flush()
+	check(g.atk_of(vic) == 3 and vic.atk == 3, "victoria: +1 de Ataque permanente ao atacar (%d)" % g.atk_of(vic))
 	# Esquiva: first combat damage per turn from a weaker attacker is avoided
 	g = _eletrica_game()
 	a = g.active

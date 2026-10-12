@@ -6,7 +6,7 @@
   "essence": "ignea",
   "cost": 6,
   "atk": 5,
-  "hp": 4,
+  "hp": 5,
   "keywords": ["impeto"],
   "art": "ignea/clay_lord_of_the_shadowflame.webp",
   "effects": [{"trigger":"on_blocked","action":"damage","target":"opposed_unit","amount":2}],

@@ -5,7 +5,7 @@
   "species": ["divindade", "celestial"],
   "essence": "ignea",
   "cost": 7,
-  "atk": 5,
+  "atk": 7,
   "hp": 5,
   "keywords": [],
   "art": "ignea/dlorafya.webp",
