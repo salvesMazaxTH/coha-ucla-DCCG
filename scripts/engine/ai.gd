@@ -143,8 +143,8 @@ static func _pick_fight(g: GameState, p: int) -> Array:
 	var best_score := 0
 	for ally: Card in g.players[p]["board"]:
 		for enemy: Card in g.players[g.opponent(p)]["board"]:
-			var damage_to_enemy := maxi(0, ally.atk_total() - g.armor_of(enemy))
-			var damage_to_ally := maxi(0, enemy.atk_total() - g.armor_of(ally))
+			var damage_to_enemy := g.damage_after_armor(enemy, ally.atk_total())
+			var damage_to_ally := g.damage_after_armor(ally, enemy.atk_total())
 			var kills_enemy := damage_to_enemy >= enemy.hp_left() and not enemy.shield and not enemy.spell_shield
 			var ally_survives := damage_to_ally < ally.hp_left() or ally.shield
 			if kills_enemy and ally_survives:
@@ -288,10 +288,10 @@ static func _try_attack(g: GameState, p: int) -> Array:
 ## Rapidez: a faster attacker that kills its target takes nothing back. Challenging also taps the
 ## attacker, so a survivor that the enemy can then kill on their turn counts as a delayed trade.
 static func _challenge_score(g: GameState, attacker: Card, target: Card) -> int:
-	var damage_to_target := 0 if target.shield else maxi(0, g.atk_of(attacker) - g.armor_of(target))
+	var damage_to_target := 0 if target.shield else g.damage_after_armor(target, g.atk_of(attacker))
 	var kills_target := damage_to_target >= g.hp_left(target)
 	var strikes_first := attacker.rapidez_total() > target.rapidez_total()
-	var damage_back := 0 if attacker.shield or (kills_target and strikes_first) else maxi(0, g.atk_of(target) - g.armor_of(attacker))
+	var damage_back := 0 if attacker.shield or (kills_target and strikes_first) else g.damage_after_armor(attacker, g.atk_of(target))
 	var attacker_dies := damage_back >= g.hp_left(attacker)
 	var target_value := _unit_value(g, target)
 	var attacker_value := _unit_value(g, attacker)
@@ -338,8 +338,8 @@ static func _punishable(g: GameState, unit: Card, extra_damage := 0, any_killer 
 	for enemy_unit: Card in g.players[g.opponent(unit.owner)]["board"]:
 		if not g.can_challenge(enemy_unit, unit):
 			continue
-		var kills := not unit.shield and g.atk_of(enemy_unit) - g.armor_of(unit) >= g.hp_left(unit)
-		var survives := enemy_unit.shield or g.atk_of(unit) - g.armor_of(enemy_unit) < g.hp_left(enemy_unit)
+		var kills := not unit.shield and g.damage_after_armor(unit, g.atk_of(enemy_unit)) >= g.hp_left(unit)
+		var survives := enemy_unit.shield or g.damage_after_armor(enemy_unit, g.atk_of(unit)) < g.hp_left(enemy_unit)
 		if kills and (survives or any_killer):
 			punished = true
 	unit.damage -= extra_damage
@@ -363,7 +363,7 @@ static func _wants_enter_tapped(g: GameState, p: int, unit: Card) -> bool:
 	var strongest_enemy_atk := 0
 	for enemy_unit: Card in g.players[g.opponent(p)]["board"]:
 		strongest_enemy_atk = maxi(strongest_enemy_atk, g.atk_of(enemy_unit))
-	var survives := unit.shield or strongest_enemy_atk - g.armor_of(unit) < g.hp_left(unit)
+	var survives := unit.shield or g.damage_after_armor(unit, strongest_enemy_atk) < g.hp_left(unit)
 	return survives or g.players[p]["leader_hp"] <= 10
 
 ## The healing pick: whichever option (own Leader or ally unit) has the most damage to heal.

@@ -147,11 +147,11 @@
     },
     "roubo_de_vida": {
       "name": "Roubo de Vida",
-      "text": "O dano que esta unidade causa cura seu Líder (até a vida inicial dele)."
+      "text": "O dano que esta unidade causa cura seu Líder (até a vida inicial ou máxima dele)."
     },
     "impeto": {
       "name": "Ímpeto",
-      "text": "Pode atacar no turno em que entra em campo, mas só para desafiar (o Líder inimigo, só a partir do próximo turno)."
+      "text": "Pode desafiar unidades no turno em que entra."
     },
     "voo": {
       "name": "Voo",
@@ -179,11 +179,11 @@
     },
     "inalcancavel": {
       "name": "Inalcançável",
-      "text": "Não pode ser alvo de feitiços, habilidades ou efeitos do oponente (efeitos sem alvo, como os de área, ainda a afetam). Ainda pode ser desafiada."
+      "text": "Não pode ser alvo de feitiços, habilidades ou efeitos do oponente (efeitos sem alvo, como os de área, ainda a afetam)."
     },
     "eterea": {
       "name": "Etérea",
-      "text": "Não pode ser desafiada por nada (nem obriga desafios com Provocação). Só sai do campo por feitiços e habilidades."
+      "text": "Não pode ser desafiada por nada (nem obriga desafios com Provocação)."
     },
     "provocacao": {
       "name": "Provocação",
@@ -212,12 +212,12 @@
     "armadura": {
       "name": "Armadura",
       "has_value": true,
-      "text": "Armadura X: todo dano que esta unidade receberia é reduzido em X. Se algo der Armadura a uma unidade que já tem, os valores se somam."
+      "text": "Armadura X: todo dano que esta unidade receberia é reduzido em X, mas nunca abaixo de 1. Se algo der Armadura a uma unidade que já tem, os valores se somam."
     },
     "rapidez": {
       "name": "Rapidez",
       "has_value": true,
-      "text": "Rapidez X (de 1 a 3; sem a palavra, a unidade é a mais lenta): num desafio, quem tem mais Rapidez causa o dano primeiro. Se matar o oponente, não leva o revide. Rapidez igual bate ao mesmo tempo."
+      "text": "Rapidez X: num desafio, quem tem mais Rapidez causa o dano primeiro (se matar, não leva revide). Rapidez igual: dano ao mesmo tempo. Sem Rapidez, a unidade é a mais lenta."
     },
     "esquiva": {
       "name": "Esquiva",

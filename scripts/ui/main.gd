@@ -31,6 +31,7 @@ var online := false
 var opp_online := true
 var code_entry := ""
 var sel_deck := "" ## prebuilt deck picked in the online hub
+var ai_deck := "" ## deck the AI plays, picked in the second step of the AI hub ("" = a random other deck)
 
 # input state
 var picked: Array = [] ## mulligan/discard selection
@@ -362,9 +363,10 @@ func _reset_input() -> void:
 func _show_online(msg := "") -> void:
 	_show_hub(false, msg)
 
-## Deck hub, shared by both modes: pick a prebuilt deck from the grid, then either start against the AI
-## (ai = true; it plays a random other deck) or create a room / go on to join one by code (online).
-func _show_hub(ai: bool, msg := "") -> void:
+## Deck hub, shared by both modes: pick a prebuilt deck from the grid, then either go on to pick the
+## AI's deck (ai = true) or create a room / go on to join one by code (online).
+## `choosing_ai_deck` is the AI mode's second step: the same grid, but the pick is the AI's deck.
+func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 	_clear_fx()
 	_clear()
 	table.visible = false
@@ -372,12 +374,17 @@ func _show_hub(ai: bool, msg := "") -> void:
 	var ids := DeckDB.ids()
 	if not ids.has(sel_deck):
 		sel_deck = ids[0]
+	if ai_deck != "" and not ids.has(ai_deck):
+		ai_deck = ""
 	var title := _label("CONTRA A IA" if ai else "ONLINE", 56, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8)
 	title.position = Vector2(0, 24)
 	title.size = Vector2(stage_w, 72)
 	layer.add_child(title)
 	layer.add_child(_ornament(Vector2(stage_w / 2.0, 108), 240))
-	var sub := _label(msg if msg != "" else "Escolha o seu deck", 22, UITheme.TEXT if msg != "" else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
+	var subtitle := "Escolha o seu deck"
+	if choosing_ai_deck:
+		subtitle = "Escolha o deck da IA (ou deixe aleatório) · você joga com %s" % DeckDB.get_deck(sel_deck)["name"]
+	var sub := _label(msg if msg != "" else subtitle, 22, UITheme.TEXT if msg != "" else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
 	sub.position = Vector2(0, 122)
 	sub.size = Vector2(stage_w, 30)
 	layer.add_child(sub)
@@ -1932,7 +1939,7 @@ func _show_overlay(v: CardView) -> void:
 	if cd.get("text", "") != "":
 		var body: String = cd["text"]
 		if v.inst.has("frozen"):
-			body = "[color=#9fe8ff][b]Congelada:[/b] não pode atacar nem bloquear até o fim do próximo turno do dono.[/color]
+			body = "[color=#9fe8ff][b]Congelada:[/b] ATK 0 até o fim do próximo turno do dono (não pode atacar e, se desafiada, não revida).[/color]
 " + body
 		txt += "[font_size=32]%s[/font_size]\n\n" % CardView.colorize_rules(body + v.text_suffix, 32)
 	# Glossary: the card's own keywords first, then any keyword its text mentions ("conceda Voo").

@@ -506,6 +506,10 @@ func _draw() -> void:
 			var live_atk: int = max(0, inst["atk"] + inst["temp_atk"] + int(inst.get("bonus_atk", 0)))
 			atk_col = Color("#a8ffa0") if live_atk > atk else Color.WHITE
 			atk = live_atk
+			# A Congelada unit has ATK 0 while frozen (buffs don't change that), shown in red
+			if inst.has("frozen"):
+				atk = 0
+				atk_col = Color("#ff8a80")
 			var live_max_hp: int = inst["hp"] + int(inst.get("bonus_hp", 0)) + int(inst.get("temp_hp", 0))
 			hp_col = Color("#ff8a80") if inst["damage"] > 0 else (Color("#a8ffa0") if live_max_hp > hp else Color.WHITE)
 			hp = max(0, live_max_hp - inst["damage"])

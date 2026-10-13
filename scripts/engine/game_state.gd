@@ -1226,6 +1226,13 @@ func armor_of(c: Card) -> int:
 			total += int(card_of(board[neighbour_index]).get("adjacent_armor", 0))
 	return total
 
+## Damage a unit takes from one hit of `amount` after its Armadura: reduced, but never below 1
+## (a hit of 0 stays 0).
+func damage_after_armor(c: Card, amount: int) -> int:
+	if amount <= 0:
+		return 0
+	return maxi(1, amount - armor_of(c))
+
 func _deal_damage(t: int, amount: int, source: Card) -> int:
 	if amount <= 0:
 		return 0
@@ -1255,13 +1262,8 @@ func _deal_damage(t: int, amount: int, source: Card) -> int:
 			c.dodge_turn = turn
 			_emit({"type": "dodge", "uid": t, "src": src_uid})
 			return 0
-		# Armadura: reduces every damage instance; if nothing is left there is no instance, so Escudo stays
-		var armor := armor_of(c)
-		if armor > 0:
-			amount = maxi(0, amount - armor)
-			if amount == 0:
-				_emit({"type": "armor_block", "uid": t, "src": src_uid})
-				return 0
+		# Armadura: reduces every damage instance, but a hit always deals at least 1
+		amount = damage_after_armor(c, amount)
 		if c.shield:
 			c.shield = false
 			_emit({"type": "shield_break", "uid": t, "src": src_uid})

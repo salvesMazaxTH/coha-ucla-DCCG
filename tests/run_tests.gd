@@ -660,11 +660,11 @@ func _test_armor() -> void:
 	armor_effect.apply(EffectContext.new(g, 0, ""), wall.uid)
 	armor_effect.apply(EffectContext.new(g, 0, ""), wall.uid)
 	check(wall.armor_total() == 6, "Armadura soma: 2 x (1 fixa + 2 temporária) = 6 (%d)" % wall.armor_total())
-	check(g._deal_damage(wall.uid, 5, null) == 0 and wall.damage == 0, "dano menor ou igual à Armadura não passa")
-	check(g._deal_damage(wall.uid, 8, null) == 2 and wall.damage == 2, "dano acima da Armadura passa só o excedente")
+	check(g._deal_damage(wall.uid, 5, null) == 1 and wall.damage == 1, "dano menor ou igual à Armadura passa mesmo assim, como 1")
+	check(g._deal_damage(wall.uid, 8, null) == 2 and wall.damage == 3, "dano acima da Armadura passa só o excedente")
 	wall.shield = true
 	g._deal_damage(wall.uid, 4, null)
-	check(wall.shield, "dano zerado pela Armadura não gasta o Escudo")
+	check(not wall.shield, "a Armadura nunca zera o dano: o golpe de 1 gasta o Escudo")
 	g._start_turn(0, false)
 	check(wall.armor_total() == 2, "a parte temporária some no início do próximo turno do dono (%d)" % wall.armor_total())
 
@@ -677,7 +677,7 @@ func _test_adjacent_armor() -> void:
 	var far := _put(g, 0, "escudeiro_de_cascalho")
 	check(g.armor_of(left) == 1 and g.armor_of(guard) == 1 and g.armor_of(right) == 1, "Armadura adjacente vem dos vizinhos, não da própria unidade")
 	check(g.armor_of(far) == 0, "unidade longe do Bastionário não recebe")
-	check(g._deal_damage(right.uid, 1, null) == 0, "dano 1 é absorvido pela Armadura adjacente")
+	check(g._deal_damage(right.uid, 1, null) == 1, "dano 1 passa mesmo com a Armadura adjacente (mínimo 1)")
 
 func _test_freeze() -> void:
 	var g := _new_game()
