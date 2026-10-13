@@ -2,7 +2,9 @@
   "name": "Tritão Lanceiro",
   "type": "unit",
   "rarity": "common",
-  "species": ["merfolk"],
+  "species": [
+    "merfolk"
+  ],
   "essence": "aquatica",
   "cost": 2,
   "atk": 2,
@@ -11,8 +13,15 @@
     "longo_alcance"
   ],
   "art": "aquatica/tritao_lanceiro.webp",
-  "effects": [{"trigger":"on_block","action":"damage","target":"opposed_unit","amount":1}],
-  "text": "Ao Bloquear: cause 1 de dano ao atacante.",
+  "effects": [
+    {
+      "trigger": "on_challenged",
+      "action": "damage",
+      "target": "opposed_unit",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Ser Desafiada: cause 1 de dano ao atacante.",
   "flavor": "Cuidado onde pisa. A água tem dono.",
   "tags": []
 }

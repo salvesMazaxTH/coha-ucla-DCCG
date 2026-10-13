@@ -9,9 +9,8 @@
   "cost": 3,
   "atk": 3,
   "hp": 2,
-  "keywords": [
-    "ataque_rapido"
-  ],
+  "rapidez": 2,
+  "keywords": [],
   "art": "eletrica/aurelia_cabo_solto.webp",
   "effects": [],
   "text": "",

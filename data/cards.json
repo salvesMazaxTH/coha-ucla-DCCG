@@ -56,15 +56,15 @@
     },
     "on_attack": {
       "name": "Ao Atacar",
-      "text": "O efeito acontece quando a unidade é declarada atacante."
+      "text": "O efeito acontece quando a unidade ataca, seja o Líder inimigo ou desafiando uma unidade."
     },
-    "on_block": {
-      "name": "Ao Bloquear",
-      "text": "O efeito acontece quando a unidade é declarada bloqueadora."
+    "on_challenge": {
+      "name": "Ao Desafiar",
+      "text": "O efeito acontece quando esta unidade desafia uma unidade inimiga, antes do dano de combate."
     },
-    "on_blocked": {
-      "name": "Ao Ser Bloqueada",
-      "text": "O efeito acontece quando um bloqueador é atribuído a esta unidade atacante."
+    "on_challenged": {
+      "name": "Ao Ser Desafiada",
+      "text": "O efeito acontece quando uma unidade inimiga desafia esta unidade, antes do dano de combate."
     },
     "on_damaged": {
       "name": "Ao Sofrer Dano",
@@ -137,17 +137,13 @@
       "name": "Réquiem",
       "text": "Você pode lançar este feitiço do seu cemitério pagando 2 a mais. Depois de lançado, ele é banido."
     },
-    "hipervelocidade": {
-      "name": "Hipervelocidade",
-      "text": "Atacando ou bloqueando, causa seu dano de combate antes das unidades sem Hipervelocidade."
-    },
-    "ataque_rapido": {
-      "name": "Ataque Rápido",
-      "text": "Ao atacar, causa seu dano de combate antes do bloqueador, a menos que ele tenha Hipervelocidade."
-    },
     "sobrepujanca": {
       "name": "Sobrepujança",
-      "text": "Dano de combate que excede a vida restante do bloqueador atinge o Líder inimigo."
+      "text": "Ao desafiar, o dano de combate que excede a vida restante da unidade desafiada atinge o Líder inimigo."
+    },
+    "regeneracao": {
+      "name": "Regeneração",
+      "text": "No fim de cada turno, todo o dano desta unidade é curado."
     },
     "roubo_de_vida": {
       "name": "Roubo de Vida",
@@ -155,35 +151,43 @@
     },
     "impeto": {
       "name": "Ímpeto",
-      "text": "Pode atacar no turno em que entra em campo."
+      "text": "Pode atacar no turno em que entra em campo, mas só para desafiar (o Líder inimigo, só a partir do próximo turno)."
     },
     "voo": {
       "name": "Voo",
-      "text": "Só pode ser bloqueada por unidades com Voo ou Longo Alcance."
+      "text": "Só pode ser desafiada por unidades com Voo ou Longo Alcance."
     },
     "longo_alcance": {
       "name": "Longo Alcance",
-      "text": "Pode bloquear unidades com Voo."
+      "text": "Pode desafiar unidades com Voo."
     },
     "furtividade": {
       "name": "Furtividade",
-      "text": "Só pode ser bloqueada por unidades com Furtividade ou Vigilância."
+      "text": "Só pode ser desafiada por unidades com Furtividade ou Vigilância."
     },
     "vigilancia": {
       "name": "Vigilância",
-      "text": "Pode bloquear unidades com Furtividade."
+      "text": "Pode desafiar unidades com Furtividade."
     },
     "intimidacao": {
       "name": "Intimidação",
-      "text": "Unidades com ATK 3 ou menor não podem bloquear esta unidade."
+      "text": "Unidades com ATK 3 ou menor não podem desafiar esta unidade."
     },
-    "nao_bloqueia": {
-      "name": "Não Bloqueia",
-      "text": "Esta unidade não pode bloquear."
+    "obsessao": {
+      "name": "Obsessão",
+      "text": "Esta unidade não pode desafiar: ao atacar, só pode atingir o Líder inimigo."
+    },
+    "inalcancavel": {
+      "name": "Inalcançável",
+      "text": "Não pode ser alvo de feitiços, habilidades ou efeitos do oponente (efeitos sem alvo, como os de área, ainda a afetam). Ainda pode ser desafiada."
+    },
+    "eterea": {
+      "name": "Etérea",
+      "text": "Não pode ser desafiada por nada (nem obriga desafios com Provocação). Só sai do campo por feitiços e habilidades."
     },
     "provocacao": {
       "name": "Provocação",
-      "text": "Ao atacar, escolha uma unidade inimiga: ela é obrigada a bloquear esta unidade."
+      "text": "Ao entrar, você escolhe se ela entra exaurida. Enquanto estiver exaurida, todo atacante inimigo que puder desafiá-la é obrigado a desafiar ela (ou outra Provocação)."
     },
     "escudo": {
       "name": "Escudo",
@@ -203,16 +207,21 @@
     },
     "congelar": {
       "name": "Congelar",
-      "text": "A unidade não pode atacar nem bloquear até o fim do próximo turno do dono."
+      "text": "O ATK da unidade fica 0 até o fim do próximo turno do dono (então ela não pode atacar e, se desafiada, não revida)."
     },
     "armadura": {
       "name": "Armadura",
       "has_value": true,
       "text": "Armadura X: todo dano que esta unidade receberia é reduzido em X. Se algo der Armadura a uma unidade que já tem, os valores se somam."
     },
+    "rapidez": {
+      "name": "Rapidez",
+      "has_value": true,
+      "text": "Rapidez X (de 1 a 3; sem a palavra, a unidade é a mais lenta): num desafio, quem tem mais Rapidez causa o dano primeiro. Se matar o oponente, não leva o revide. Rapidez igual bate ao mesmo tempo."
+    },
     "esquiva": {
       "name": "Esquiva",
-      "text": "A primeira vez em cada turno que receberia dano de combate de uma unidade com ataque menor que o dela, o dano é evitado."
+      "text": "A primeira vez em cada turno que receberia dano de combate de uma unidade com Rapidez menor que a dela, o dano é evitado."
     }
   },
   "leaders": {

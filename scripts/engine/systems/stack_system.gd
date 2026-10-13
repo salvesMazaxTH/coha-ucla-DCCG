@@ -114,7 +114,6 @@ func resolve_stack() -> void:
 				game.players[p]["graveyard"].append(played)
 				game._move(played, "graveyard")
 		game._check_state()
-		game.combat_system().prune_attackers()
 	if game.phase in ["main", "combat"] and game.stack.is_empty():
 		game.summon_window = false
 		game.priority = window_owner()
@@ -160,9 +159,10 @@ func counter(p: int, sid: int) -> void:
 			game._move(countered, "graveyard")
 	game._emit({"type": "countered", "sid": sid, "player": it["player"], "by": p, "card_id": it["card_id"], "kind": it["kind"]})
 
-## Damage window: the attacker holds priority after the stack resolves.
+## Who holds priority when a window opens or the stack empties: always the active player
+## (in the pre-combat window the attacker acts first, then the defender).
 func window_owner() -> int:
-	return game.opponent(game.active) if game.phase == "combat" and game.window == "prepare" else game.active
+	return game.active
 
 func open_window(w: String) -> void:
 	game.window = w
@@ -183,21 +183,17 @@ func pass_once() -> void:
 		game.priority = game.active
 		return
 	match game.window:
-		"attack":
-			open_window("prepare")
-		"prepare":
-			game.combat_system().to_blocks()
-		"damage":
+		"pre_combat":
 			if game.priority == game.active:
 				game.priority = game.opponent(game.active) # attacker passed: the defender may still act
 			else:
-				game.combat_system().resolve_combat() # both passed in a row with an empty stack
-		_:
-			game.combat_system().to_blocks()
+				game.combat_system().start_attacks() # both passed in a row with an empty stack
+		"attacks":
+			game.combat_system().end_combat() # passing during the attacks = ENCERRAR COMBATE
 
 ## After a unit enters from hand/Santuário in the main phase, the opponent may respond.
 func open_summon_window(p: int) -> void:
-	if game.phase in ["search", "enter_target"] and p == game.active:
+	if game.phase in ["search", "enter_target", "enter_tapped"] and p == game.active:
 		game._summon_pending = true
 		return
 	if game.phase == "main" and game.stack.is_empty() and p == game.active:
@@ -230,11 +226,15 @@ func settle() -> void:
 	for guard in 64:
 		if game.phase not in ["main", "combat"]:
 			return
+		if not game.pending_tap.is_empty() and game.ask_enter_tapped():
+			return # a Provocação just entered: its controller chooses tapped or not first
 		if game.stack.is_empty():
 			game.stack_passed = false
 		if game.stack.is_empty() and game.phase == "main" and not game.summon_window:
 			game.priority = game.active
 			return
+		if game.phase == "combat" and game.window == "attacks":
+			return # the attacker declares attacks (or ends combat) by hand; never auto-pass here
 		if not game.auto_pass[game.priority] or has_play(game.priority):
 			return
 		pass_once()

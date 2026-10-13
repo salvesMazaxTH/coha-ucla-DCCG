@@ -2,7 +2,10 @@
   "name": "Alexa Neruvya",
   "type": "unit",
   "rarity": "champion",
-  "species": ["dragao_primordial", "dragao"],
+  "species": [
+    "dragao_primordial",
+    "dragao"
+  ],
   "essence": "aquatica",
   "cost": 6,
   "atk": 4,
@@ -17,10 +20,19 @@
       "action": "heal_leader",
       "target": "own_leader",
       "amount": 4
+    },
+    {
+      "trigger": "on_enter",
+      "action": "heal_unit",
+      "target": "all_ally_units",
+      "amount": 2
     }
   ],
-  "transform": {"into": "alexa_neruvya_primordial", "cost": 8},
-  "text": "Ao Entrar: cure 4 de vida do seu Líder.\nTransformar (8): Alexa Neruvya Primordial.",
+  "transform": {
+    "into": "alexa_neruvya_primordial",
+    "cost": 8
+  },
+  "text": "Ao Entrar: cure 4 de vida do seu Líder e 2 de cada unidade aliada.\nTransformar (8): Alexa Neruvya Primordial.",
   "flavor": "A graça que permanece.",
   "tags": []
 }

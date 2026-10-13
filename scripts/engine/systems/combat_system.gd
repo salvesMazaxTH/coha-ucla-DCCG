@@ -1,176 +1,172 @@
 class_name CombatSystem
 extends RefCounted
-## Combat: declaring attackers and blockers, the damage windows and the strike order.
+## Combat: one attack at a time. Each ready unit taps to hit the enemy Leader's face or to
+## challenge an enemy unit that is already tapped (exhausted). The challenged unit strikes back.
+##
+## Flow of a combat:
+##   1. "IR PARA O COMBATE" opens the "pre_combat" window: the attacker gets priority first, then the
+##      defender; both may cast Rápido/Instantâneo. It ends when both pass in a row with an empty stack.
+##   2. The "attacks" window: the attacker declares attacks one by one (nobody can respond),
+##      until they press "ENCERRAR COMBATE" or no unit can attack anymore.
 
 var game: GameState
 
 func _init(game_state: GameState) -> void:
 	game = game_state
 
-## attacks: Dictionary attacker_uid -> provoked enemy uid (0 when none).
-func declare_attack(p: int, attacks: Dictionary) -> Array:
-	if not game.attack_step or not game._main_phase_idle(p) or game.players[p]["attacked"] or attacks.is_empty():
-		return []
-	var provoked_used: Array = []
-	for uid in attacks:
-		var c := game.find_unit(uid)
-		if c == null or c.owner != p or not game.can_attack(c):
-			return []
-		var prov: int = attacks[uid]
-		if prov != 0:
-			var t := game.find_unit(prov)
-			if not game.has_kw(c, "provocacao") or t == null or t.owner == p or provoked_used.has(prov) or game.is_frozen(t) or game.has_kw(t, "nao_bloqueia"):
-				return []
-			provoked_used.append(prov)
-	game.attackers = attacks.duplicate()
-	game.attack_step = false
-	game.players[p]["attacked"] = true
-	for uid in attacks:
-		game.find_unit(uid).exhausted = true
-	game._emit({"type": "attack", "player": p, "attackers": attacks.keys()})
-	for uid in attacks:
-		game._fire(game.find_unit(uid), "on_attack")
-	game._check_state()
-	if game.phase == "over":
-		return game._flush()
+## Opens the pre-combat window (the attacker holds priority first).
+func start_combat(player: int) -> void:
 	game.phase = "combat"
-	game.stack_system().open_window("attack")
-	game.stack_system().settle()
-	return game._flush()
+	game.stack_passed = false
+	game._emit({"type": "combat_step", "player": player})
+	game.stack_system().open_window("pre_combat")
 
-## blocks: Dictionary attacker_uid -> blocker_uid. One blocker per attacker,
-## one attacker per blocker. Provoked units are forced onto their provoker.
-## Provoked units must block their provoker (unless dead or frozen).
-func forced_blocks() -> Dictionary:
-	var final := {}
-	for a in game.attackers:
-		if game.attackers[a] != 0 and game.find_unit(game.attackers[a]) != null and not game.is_frozen(game.find_unit(game.attackers[a])):
-			final[a] = game.attackers[a]
-	return final
-
-func declare_blocks(p: int, picks: Dictionary) -> Array:
-	if game.phase != "blocks" or p != game.decider():
-		return []
-	var final := forced_blocks()
-	var used: Array = final.values()
-	for a in picks:
-		if final.has(a):
-			continue
-		var b: int = picks[a]
-		var att := game.find_unit(a)
-		var blk := game.find_unit(b)
-		if not game.attackers.has(a) or att == null or blk == null or blk.owner != p or used.has(b) or not game.can_block(blk, att):
-			return []
-		final[a] = b
-		used.append(b)
-	start_damage(final)
-	game.stack_system().settle()
-	return game._flush()
-
-## Attackers that died during the windows leave combat.
-func prune_attackers() -> void:
-	for a in game.attackers.keys():
-		if game.find_unit(a) == null:
-			game.attackers.erase(a)
-
-func to_blocks() -> void:
-	game.window = ""
-	prune_attackers()
-	if game.attackers.is_empty():
+## Both players passed in a row with an empty stack: the attacks begin.
+func start_attacks() -> void:
+	game.stack_system().open_window("attacks")
+	if not has_any_attacker():
 		end_combat()
-	elif game.players[game.opponent(game.active)]["board"].is_empty() or (game.auto_pass[game.opponent(game.active)] and not can_block_any()):
-		start_damage(forced_blocks())
-	else:
-		game.phase = "blocks"
 
-## Blocks are locked in, block triggers fire, then the damage window opens.
-func start_damage(final: Dictionary) -> void:
-	game.phase = "combat"
-	game.blocks = final
-	game._emit({"type": "blocks", "blocks": final})
-	for a in final:
-		game._fire(game.find_unit(final[a]), "on_block", a)
-		game._fire(game.find_unit(a), "on_blocked", final[a])
-	game._check_state()
-	if game.phase == "over":
-		game.attackers.clear()
-		game.blocks.clear()
-		return
-	prune_attackers()
-	if game.attackers.is_empty():
-		end_combat()
-		return
-	game.stack_system().open_window("damage")
-
-## Is there any attacker that some defending unit may legally block?
-func can_block_any() -> bool:
-	var forced := forced_blocks()
-	for a in game.attackers:
-		if forced.has(a):
-			continue
-		var att := game.find_unit(a)
-		for blk in game.players[game.opponent(game.active)]["board"]:
-			if not forced.values().has(blk.uid) and game.can_block(blk, att):
-				return true
+## True while the active player still has a unit that can attack something.
+func has_any_attacker() -> bool:
+	for unit: Card in game.players[game.active]["board"]:
+		if game.can_attack(unit):
+			return true
 	return false
 
+## Can `attacker` challenge `target`? The target must be an enemy unit that is tapped, and the
+## attacker must be able to reach it:
+##   Voo: only an attacker with Voo or Longo Alcance can challenge it.
+##   Furtividade: only an attacker with Furtividade or Vigilância can challenge it.
+##   Intimidação: an attacker with ATK 3 or less cannot challenge it.
+##   Obsessão: the attacker may only hit the Leader.
+##   Etérea: nothing can ever challenge it (not even when it has Provocação).
+func can_challenge(attacker: Card, target: Card) -> bool:
+	if attacker == null or target == null or target.owner == attacker.owner or not target.exhausted:
+		return false
+	if game.has_kw(attacker, "obsessao"):
+		return false
+	if game.has_kw(target, "eterea"):
+		return false
+	if game.has_kw(target, "voo") and not (game.has_kw(attacker, "voo") or game.has_kw(attacker, "longo_alcance")):
+		return false
+	if game.has_kw(target, "furtividade") and not (game.has_kw(attacker, "furtividade") or game.has_kw(attacker, "vigilancia")):
+		return false
+	if game.has_kw(target, "intimidacao") and game.atk_of(attacker) <= GameState.INTIMIDATE_ATK:
+		return false
+	return true
+
+## The tapped enemy Provocação units this attacker is able to challenge. When the list is not
+## empty, the attacker must challenge one of them (it cannot hit the Leader or another unit).
+func forced_taunts(attacker: Card) -> Array:
+	var out: Array = []
+	for enemy_unit: Card in game.players[game.opponent(attacker.owner)]["board"]:
+		if game.has_kw(enemy_unit, "provocacao") and can_challenge(attacker, enemy_unit):
+			out.append(enemy_unit.uid)
+	return out
+
+## Every target this attacker may legally hit right now: uids of units it can challenge and/or
+## the enemy Leader's uid (negative). Empty when it cannot attack at all (or has nothing to hit).
+func attack_targets(attacker: Card) -> Array:
+	if attacker == null or not game.can_attack(attacker):
+		return []
+	var taunts := forced_taunts(attacker)
+	if not taunts.is_empty():
+		return taunts
+	var out: Array = []
+	# Ímpeto lets a unit attack the turn it enters, but only to challenge: the Leader's face
+	# waits until its next turn (otherwise Ímpeto would be free damage now that nobody blocks)
+	if not attacker.sick:
+		out.append(GameState.LEADER_UID[game.opponent(attacker.owner)])
+	for enemy_unit: Card in game.players[game.opponent(attacker.owner)]["board"]:
+		if can_challenge(attacker, enemy_unit):
+			out.append(enemy_unit.uid)
+	return out
+
+## True while `player` may declare an attack (their own "attacks" window, nothing pending).
+func in_attacks_window(player: int) -> bool:
+	return game.phase == "combat" and game.window == "attacks" and player == game.active \
+		and game.priority == player and game.stack.is_empty()
+
+## One attack: `attacker_uid` taps and hits `target_uid` (a negative uid = the enemy Leader's face,
+## otherwise a challenged enemy unit). Everything resolves at once; nobody can respond.
+func attack(player: int, attacker_uid: int, target_uid: int) -> Array:
+	if not in_attacks_window(player):
+		return []
+	var attacker := game.find_unit(attacker_uid)
+	if attacker == null or attacker.owner != player or not attack_targets(attacker).has(target_uid):
+		return []
+	var defender_unit: Card = game.find_unit(target_uid) if target_uid > 0 else null
+	attacker.exhausted = true
+	game._emit({"type": "attack", "player": player, "attacker": attacker_uid, "target": target_uid})
+	# triggers: Ao Atacar always; Ao Desafiar / Ao Ser Desafiada only when a unit is challenged
+	game._fire(attacker, "on_attack", target_uid if defender_unit != null else 0)
+	if defender_unit != null:
+		game._fire(attacker, "on_challenge", target_uid)
+		game._fire(defender_unit, "on_challenged", attacker_uid)
+	game._check_state()
+	if game.phase != "over":
+		_exchange_damage(attacker_uid, target_uid)
+	if game.phase != "over" and not has_any_attacker():
+		end_combat()
+	game.stack_system().settle()
+	return game._flush()
+
+## The attacker and its target deal their combat damage in Rapidez order: the faster one strikes
+## first, equal Rapidez strike at the same time. A unit that is already dead (a trigger above or the
+## faster strike may have killed it) deals nothing. Hitting the Leader takes nothing back.
+func _exchange_damage(attacker_uid: int, target_uid: int) -> void:
+	var defending_player := game.opponent(game.active)
+	game._emit({"type": "combat_damage"})
+	game._combat_damage = true
+	for step in STRIKE_STEPS:
+		var attacker := game.find_unit(attacker_uid)
+		if attacker == null:
+			break
+		if target_uid < 0:
+			if strike_step(attacker) == step:
+				game._deal_damage(target_uid, game.atk_of(attacker), attacker)
+			continue
+		var defender_unit := game.find_unit(target_uid)
+		if strike_step(attacker) == step:
+			if defender_unit != null:
+				var excess := game.atk_of(attacker) - game.hp_left(defender_unit)
+				game._deal_damage(defender_unit.uid, game.atk_of(attacker), attacker)
+				if game.has_kw(attacker, "sobrepujanca") and excess > 0:
+					game._deal_damage(GameState.LEADER_UID[defending_player], excess, attacker)
+			elif game.has_kw(attacker, "sobrepujanca"):
+				game._deal_damage(GameState.LEADER_UID[defending_player], game.atk_of(attacker), attacker) # target already dead
+		defender_unit = game.find_unit(target_uid)
+		attacker = game.find_unit(attacker_uid)
+		if defender_unit != null and attacker != null and strike_step(defender_unit) == step:
+			game._deal_damage(attacker.uid, game.atk_of(defender_unit), defender_unit)
+		game._check_state()
+	# a Leader that drops to 0 still takes the remaining strikes (overkill); the result is decided once, here
+	game._combat_damage = false
+	game._check_state()
+	game._check_leaders()
+
+## Leaves combat: back to the Main Phase, no more attacks this turn.
 func end_combat() -> void:
-	game.attackers.clear()
-	game.blocks.clear()
 	game.window = ""
+	game.stack_passed = false
 	if game.phase != "over":
 		game.phase = "main"
 		game.priority = game.active
+		game.players[game.active]["attacked"] = true
+		game._emit({"type": "combat_end", "player": game.active})
 
-## Esquiva condition: by default the attacker has less ATK than the dodger. A card can override it with
-## "esquiva": {"unless_keywords": [...]} = the attacker has none of those keywords.
+## Esquiva condition (once per turn): by default the other unit has less Rapidez than the dodger.
+## A card can override it with "esquiva": {"max_rapidez": N} = the other unit has Rapidez N or less.
 func dodges(c: Card, source: Card) -> bool:
 	var rule: Dictionary = c.data().get("esquiva", {})
-	if rule.has("unless_keywords"):
-		for kw in rule["unless_keywords"]:
-			if source.has_kw(kw):
-				return false
-		return true
-	return source.atk_total() < c.atk_total()
+	if rule.has("max_rapidez"):
+		return source.rapidez_total() <= int(rule["max_rapidez"])
+	return source.rapidez_total() < c.rapidez_total()
 
-## When a combatant deals its combat damage: 1 = Hipervelocidade (attacking or blocking), 2 = Ataque Rápido
-## (only as the attacker, and not against a blocker with Hipervelocidade), 3 = everyone else.
-func strike_step(u: Card, other: Card, attacking: bool) -> int:
-	if u.has_kw("hipervelocidade"):
-		return 1
-	if attacking and u.has_kw("ataque_rapido") and not (other != null and other.has_kw("hipervelocidade")):
-		return 2
-	return 3
+## The strike steps of one combat, fastest first (Rapidez 4 down to 1).
+const STRIKE_STEPS := [4, 3, 2, 1]
 
-## Dead attackers deal nothing; a blocked attacker whose blocker died hits nothing
-## (Sobrepujança: all of it goes to the leader); a blocker whose attacker died deals nothing.
-func resolve_combat() -> void:
-	var defender := game.opponent(game.active)
-	game.window = ""
-	game._emit({"type": "combat_damage"})
-	game._combat_damage = true
-	prune_attackers()
-	var pairs: Array = []
-	for a in game.attackers:
-		pairs.append([a, game.blocks.get(a, 0)])
-	for step in [1, 2, 3]:
-		for pair in pairs:
-			var att := game.find_unit(pair[0])
-			var blk: Card = game.find_unit(pair[1]) if pair[1] != 0 else null
-			if att != null and strike_step(att, blk, true) == step:
-				if pair[1] == 0:
-					game._deal_damage(GameState.LEADER_UID[defender], game.atk_of(att), att)
-				elif blk != null:
-					var excess := game.atk_of(att) - game.hp_left(blk)
-					game._deal_damage(blk.uid, game.atk_of(att), att)
-					if game.has_kw(att, "sobrepujanca") and excess > 0:
-						game._deal_damage(GameState.LEADER_UID[defender], excess, att)
-				elif game.has_kw(att, "sobrepujanca"):
-					game._deal_damage(GameState.LEADER_UID[defender], game.atk_of(att), att) # blocker already dead
-			if blk != null and strike_step(blk, att, false) == step and att != null:
-				game._deal_damage(att.uid, game.atk_of(blk), blk)
-		game._check_state()
-	# a Leader that drops to 0 mid-combat still takes the remaining strikes (overkill); the result is decided once, here
-	game._combat_damage = false
-	game._check_leaders()
-	end_combat()
+## The step at which a combatant deals its combat damage: its Rapidez.
+func strike_step(unit: Card) -> int:
+	return unit.rapidez_total()

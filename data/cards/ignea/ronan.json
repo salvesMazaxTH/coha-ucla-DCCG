@@ -2,16 +2,34 @@
   "name": "Ronan",
   "type": "unit",
   "rarity": "champion",
-  "species": ["dragonoide", "humano", "dragao"],
+  "species": [
+    "dragonoide",
+    "humano",
+    "dragao"
+  ],
   "essence": "ignea",
   "cost": 4,
   "atk": 4,
   "hp": 3,
   "keywords": [
-    "impeto"
+    "impeto",
+    "regeneracao"
   ],
   "art": "ignea/ronan.webp",
-  "effects": [{"trigger":"on_enter","action":"damage","target":"enemy_unit","amount":2},{"trigger":"on_damaged","action":"buff","target":"self","atk":1}],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 2
+    },
+    {
+      "trigger": "on_damaged",
+      "action": "buff",
+      "target": "self",
+      "atk": 1
+    }
+  ],
   "text": "Ao Entrar: cause 2 de dano a uma unidade inimiga.\nAo Sofrer Dano: ganhe +1 de Ataque.",
   "flavor": [
     "Dragões, seitas, magos... será que dá pra eu só ter uma terça-feira normal?",

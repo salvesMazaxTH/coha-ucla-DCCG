@@ -9,8 +9,8 @@ extends SceneTree
 ##   {t:"join", code, deck:<prebuilt id>}    -> {t:"room", code, seat, token}   (mirror matches allowed)
 ##   {t:"resume", code, token}               -> {t:"start", ...} again (reconnect)
 ##   {t:"act", a:<action>, ...args}          -> broadcast {t:"events"} or {t:"reject"} to the sender
-## actions: mulligan{uids} play{uid,target} legendary{target} ability{target} attack{attacks}
-##          blocks{blocks} end_turn pass discard{uids} search{uid}
+## actions: mulligan{uids} play{uid,target} legendary{target} ability{target} attack{attacker,target}
+##          end_combat enter_tapped{tapped} end_turn pass discard{uids} search{uid}
 ## server -> client: room, start{seat,snap}, events{events,snap}, reject{a}, opponent{connected}, error{msg}
 
 const ROOM_TTL := 1800.0 ## seconds an empty room is kept
@@ -172,14 +172,6 @@ func _handle_room(r: Dictionary, seat: int, m: Dictionary) -> void:
 	for s in 2:
 		_send(r["peers"][s], {"t": "events", "events": StateView.filter_events(events, s), "snap": StateView.snapshot(g, s)})
 
-## JSON objects arrive with string keys; the engine wants int uids.
-func _intmap(d) -> Dictionary:
-	var out := {}
-	if typeof(d) == TYPE_DICTIONARY:
-		for k in d:
-			out[int(k)] = int(d[k])
-	return out
-
 func _ints(a) -> Array:
 	var out: Array = []
 	if typeof(a) == TYPE_ARRAY:
@@ -199,8 +191,9 @@ func _apply(g: GameState, p: int, m: Dictionary) -> Array:
 		"transform": return g.transform(p, int(m.get("uid", 0)))
 		"go_to_combat": return g.go_to_combat(p)
 		"skip_combat": return g.skip_combat(p)
-		"attack": return g.declare_attack(p, _intmap(m.get("attacks")))
-		"blocks": return g.declare_blocks(p, _intmap(m.get("blocks")))
+		"attack": return g.attack_unit(p, int(m.get("attacker", 0)), int(m.get("target", 0)))
+		"end_combat": return g.end_combat(p)
+		"enter_tapped": return g.choose_enter_tapped(p, bool(m.get("tapped", false)))
 		"end_turn": return g.end_turn(p)
 		"pass": return g.pass_priority(p)
 		"discard": return g.discard(p, _ints(m.get("uids")))

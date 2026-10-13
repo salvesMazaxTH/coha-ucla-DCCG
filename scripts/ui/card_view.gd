@@ -99,15 +99,17 @@ static var _dissolve: Shader
 static var _banish: Shader
 static var _stealth_shader: Shader
 
-## Keywords that change who can block whom get an icon medallion on the art (MTG Arena style),
+## Keywords that change who can challenge or target whom get an icon medallion on the art (MTG Arena style),
 ## in this order down the left edge; glyph tint per keyword.
 const BADGES := {
 	"voo": Color("#bfe6ff"),
 	"longo_alcance": Color("#d6efaa"),
 	"furtividade": Color("#cdb6ff"),
 	"vigilancia": Color("#ffe39a"),
-	"nao_bloqueia": Color("#ff7f6e"),
+	"obsessao": Color("#ff7f6e"),
 	"intimidacao": Color("#ffa24d"),
+	"inalcancavel": Color("#9ff0d0"),
+	"eterea": Color("#e6d9ff"),
 }
 
 func setup(id: String, instance: Dictionary = {}, size_scale := 1.0) -> CardView:
@@ -629,6 +631,11 @@ static func armor_of_view(cd: Dictionary, instance: Dictionary) -> int:
 		return int(instance.get("armor", 0)) + int(instance.get("temp_armor", 0))
 	return int(cd.get("armor", 0))
 
+## The number after the keyword "Rapidez": engine speed tier 2 reads "Rapidez 1", 3 "Rapidez 2",
+## 4 "Rapidez 3". Tier 1 is the default and has no keyword, so this gives 0.
+static func rapidez_keyword_level(rapidez_tier: int) -> int:
+	return maxi(0, rapidez_tier - 1)
+
 ## Live keywords on the board, printed ones elsewhere.
 func _keywords(cd: Dictionary) -> Array:
 	return inst.get("keywords", cd.get("keywords", []))
@@ -724,10 +731,24 @@ func _kw_badge(kw: String, c: Vector2, r: float, s: float) -> void:
 			for sx in [-1.0, 1.0]:
 				draw_colored_polygon(_unit_pts(c, g, [[sx * 0.88, -0.38], [sx * 0.08, 0.02], [sx * 0.2, 0.46], [sx * 0.8, 0.3]]), lit)
 				draw_circle(c + Vector2(sx * 0.36, 0.2) * g, 0.1 * g + 0.3 * s, col.darkened(0.85))
-		"nao_bloqueia": # a shield under a "no" sign
-			draw_colored_polygon(_shape("shield", c, g * 0.58), Color("#e9e0cf"))
-			draw_arc(c, g * 0.86, 0, TAU, 28, col, 1.5 * s, true)
-			draw_line(c + Vector2(-0.6, -0.6) * g, c + Vector2(0.6, 0.6) * g, col, 1.5 * s, true)
+		"obsessao": # a crown inside a target: it only hunts the enemy Leader
+			draw_arc(c, g * 0.86, 0, TAU, 28, col, 1.3 * s, true)
+			draw_colored_polygon(_unit_pts(c, g, [[-0.5, 0.36], [-0.56, -0.3], [-0.26, -0.02], [0, -0.46],
+				[0.26, -0.02], [0.56, -0.3], [0.5, 0.36]]), lit)
+		"inalcancavel": # a crosshair crossed out: it can't be aimed at
+			draw_arc(c, g * 0.55, 0, TAU, 24, lit, 1.2 * s, true)
+			for dir in [Vector2.UP, Vector2.DOWN, Vector2.LEFT, Vector2.RIGHT]:
+				draw_line(c + dir * g * 0.3, c + dir * g * 0.85, lit, 1.2 * s, true)
+			draw_line(c + Vector2(-0.7, 0.7) * g, c + Vector2(0.7, -0.7) * g, Color("#ff7f6e"), 1.6 * s, true)
+		"eterea": # a little ghost with a wavy hem
+			var ghost := PackedVector2Array()
+			for i in 13:
+				var a := PI + PI * i / 12.0
+				ghost.append(c + Vector2(cos(a) * 0.5, -0.1 + sin(a) * 0.6) * g)
+			ghost.append_array(_unit_pts(c, g, [[0.5, 0.62], [0.25, 0.42], [0, 0.62], [-0.25, 0.42], [-0.5, 0.62]]))
+			draw_colored_polygon(ghost, Color(lit, 0.85))
+			for x in [-0.18, 0.18]:
+				draw_circle(c + Vector2(x, -0.12) * g, 0.09 * g + 0.3 * s, col.darkened(0.85))
 
 func _unit_pts(c: Vector2, r: float, pts: Array) -> PackedVector2Array:
 	var out := PackedVector2Array()
@@ -760,6 +781,11 @@ func _panel_lines(cd: Dictionary) -> Array:
 	var armor_value := armor_of_view(cd, inst)
 	if armor_value > 0:
 		tags.append(["%s %d" % [CardDB.keyword("armadura")["name"], armor_value], Color("#c9d6e6")])
+	# Rapidez keyword: the engine's speed tier 1 (the default) goes unmentioned and tiers 2-4 read as
+	# "Rapidez 1-3" (a frozen unit keeps its Rapidez and also shows Congelada)
+	var rapidez_level := rapidez_keyword_level(int(inst.get("rapidez", cd.get("rapidez", 1))))
+	if rapidez_level > 0:
+		tags.append(["%s %d" % [CardDB.keyword("rapidez")["name"], rapidez_level], Color("#ffd27a")])
 	var seen := {}
 	for e in cd.get("effects", []):
 		var trg: String = e.get("trigger", "")
@@ -1007,7 +1033,8 @@ func _rrect_pts(r: Rect2, rad: float) -> PackedVector2Array:
 	rad = min(rad, min(r.size.x, r.size.y) / 2)
 	var pts := PackedVector2Array()
 	if _chamfer_frame and rad >= FRAME_CORNER_MIN * size.x / BASE.x:
-		var cut := rad * 2.0
+		# never cut past the middle of a side, or the outline crosses itself
+		var cut := minf(rad * 2.0, min(r.size.x, r.size.y) / 2)
 		pts.append_array([Vector2(r.position.x + cut, r.position.y), Vector2(r.end.x - cut, r.position.y),
 			Vector2(r.end.x, r.position.y + cut), Vector2(r.end.x, r.end.y - cut),
 			Vector2(r.end.x - cut, r.end.y), Vector2(r.position.x + cut, r.end.y),
@@ -1018,7 +1045,13 @@ func _rrect_pts(r: Rect2, rad: float) -> PackedVector2Array:
 	for cn in corners:
 		for i in 6:
 			var a: float = cn[1] + PI / 2 * i / 5.0
-			pts.append(cn[0] + Vector2(cos(a), sin(a)) * rad)
+			var point: Vector2 = cn[0] + Vector2(cos(a), sin(a)) * rad
+			# a fully rounded pill makes neighbouring corners meet at the same point; repeated
+			# points make the polygon impossible to fill (triangulation fails), so skip them
+			if pts.is_empty() or not point.is_equal_approx(pts[pts.size() - 1]):
+				pts.append(point)
+	if pts.size() > 1 and pts[0].is_equal_approx(pts[pts.size() - 1]):
+		pts.remove_at(pts.size() - 1)
 	return pts
 
 func _rrect_fill(r: Rect2, rad: float, col: Color) -> void:

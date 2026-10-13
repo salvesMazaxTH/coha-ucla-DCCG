@@ -9,15 +9,13 @@
   "cost": 2,
   "atk": 1,
   "hp": 1,
+  "rapidez": 3,
   "keywords": [
     "voo",
     "esquiva"
   ],
   "esquiva": {
-    "unless_keywords": [
-      "ataque_rapido",
-      "hipervelocidade"
-    ]
+    "max_rapidez": 1
   },
   "art": "eletrica/espirito_carregado.webp",
   "effects": [

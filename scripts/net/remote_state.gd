@@ -46,16 +46,14 @@ func apply_snapshot(snap: Dictionary) -> void:
 	first = int(s.get("first", 0))
 	phase = s["phase"]
 	winner = s["winner"]
-	attackers = s["attackers"]
-	blocks = s.get("blocks", {})
 	pending_search = s["pending_search"]
 	pending_enter = s.get("pending_enter", {})
+	pending_tap = s.get("pending_tap", [])
 	stack = s.get("stack", [])
 	priority = int(s.get("priority", active))
 	window = String(s.get("window", ""))
 	summon_window = bool(s.get("summon_window", false))
 	stack_passed = bool(s.get("stack_passed", false))
-	attack_step = bool(s.get("attack_step", false))
 
 func _act(m: Dictionary) -> Array:
 	m["t"] = "act"
@@ -86,11 +84,14 @@ func go_to_combat(_p: int) -> Array:
 func skip_combat(_p: int) -> Array:
 	return _act({"a": "skip_combat"})
 
-func declare_attack(_p: int, attacks: Dictionary) -> Array:
-	return _act({"a": "attack", "attacks": attacks})
+func attack_unit(_p: int, attacker_uid: int, target_uid: int) -> Array:
+	return _act({"a": "attack", "attacker": attacker_uid, "target": target_uid})
 
-func declare_blocks(_p: int, picks: Dictionary) -> Array:
-	return _act({"a": "blocks", "blocks": picks})
+func end_combat(_p: int) -> Array:
+	return _act({"a": "end_combat"})
+
+func choose_enter_tapped(_p: int, tapped: bool) -> Array:
+	return _act({"a": "enter_tapped", "tapped": tapped})
 
 func set_auto_pass(p: int, on: bool) -> Array:
 	auto_pass[p] = on

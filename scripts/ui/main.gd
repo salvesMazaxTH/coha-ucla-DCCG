@@ -6,8 +6,11 @@ const SEL := Color("#ffd23f")
 const TARGET := Color("#ff5050")
 const OK := Color("#4dff88")
 const ICE := Color("#bfefff")
-## One colour per block pair (arrow, number badge, BLOQUEIA tag), left to right.
-const PAIR_COLS := [Color("#5ec8ff"), Color("#ff7ad9"), Color("#7dffb0"), Color("#ffb35c"), Color("#b48cff"), Color("#f0f07a")]
+## An exhausted (tapped) unit lies sideways on the table, like a tapped Magic card.
+const TAPPED_TILT_DEGREES := 90.0
+## A tapped card shrinks only a little: lying down it is wider than its cell, so on a crowded row
+## it overlaps its neighbours a bit instead of turning tiny.
+const TAPPED_MIN_SCALE := 0.85
 const COL_W := 232.0 ## right HUD column width
 const STAGE_H := 1034.0
 const BOT := 134.0 ## extra stage height under the boards: room for the Leader plate between the board and the hand
@@ -31,14 +34,7 @@ var sel_deck := "" ## prebuilt deck picked in the online hub
 
 # input state
 var picked: Array = [] ## mulligan/discard selection
-var attack_sel: Dictionary = {} ## attacker uid -> provoked uid
-var provoking := 0 ## attacker currently choosing a provoke target
-var block_sel: Dictionary = {} ## attacker uid -> blocker uid
-var blocker_pick := 0
-var targeting := {} ## {"kind": hand|legendary|ability|enter, "uid": int, "spec": String}
-var pairs: Array = [] ## who blocks whom this render: [{"a": attacker, "b": blocker, "forced": provoked}]
-var pair_idx := {} ## attacker or blocker uid -> index in pairs
-var atk_order := {} ## attacker uid -> 1-based declaration order (= real damage resolution order)
+var targeting := {} ## {"kind": hand|legendary|ability|enter|attack, "uid": int, "spec": String}
 
 var log_lines: Array = []
 var bg: TextureRect ## table surface, baked once into bg_vp (the live shader was too heavy for weak phones)
@@ -359,10 +355,6 @@ func _start(ai: bool, deck_a: String, deck_b: String) -> void:
 
 func _reset_input() -> void:
 	picked.clear()
-	attack_sel.clear()
-	block_sel.clear()
-	provoking = 0
-	blocker_pick = 0
 	targeting = {}
 
 # ---------------------------------------------------------------- online
@@ -746,10 +738,8 @@ func _render() -> void:
 	_render_hand(me)
 	_render_leader(op, Vector2(lane_cx - LeaderView.CX, LEADER_Y_OP), Vector2(20, SANCTUARY_Y_OP - 62.0))
 	_render_leader(me, Vector2(lane_cx - LeaderView.CX, LEADER_Y_ME), Vector2(20, SANCTUARY_Y_ME + 272.0))
-	_collect_pairs()
 	_render_board(op, 172)
 	_render_board(me, 460)
-	_render_pairs()
 	_sync_enter_aim()
 	_render_side()
 	_render_hint()
@@ -909,29 +899,20 @@ func _render_board(p: int, y: float) -> void:
 		v.pivot_offset = v.size / 2.0
 		var cell := _board_cell(slots_taken, i)
 		v.position = Vector2(cell.x + (cell.y - v.size.x) / 2.0, y)
-		# exhaustion never stops blocking, so it only reads as "spent" on its owner's own turn
-		if unit.exhausted and g.phase != "blocks" and p == g.active:
-			v.dim = true
+		# exhausted (tapped) units lie sideways: they already attacked or used an ability, and the
+		# enemy can challenge them. Lying down, the card's height runs along the row, so it shrinks
+		# toward its cell width — but never below TAPPED_MIN_SCALE: on a full row it just overlaps
+		# the neighbours slightly, which looks more natural than a tiny card.
+		if unit.exhausted:
+			v.rotation = deg_to_rad(TAPPED_TILT_DEGREES)
+			var fit_cell_scale := (cell.y - 6.0) / v.size.y
+			v.scale = Vector2.ONE * clampf(fit_cell_scale, TAPPED_MIN_SCALE, 1.0)
 		_decorate_unit(v, unit, p)
 		v.left_clicked.connect(_on_unit_click)
 		v.right_clicked.connect(_show_overlay)
 		layer.add_child(v)
 		views[unit.uid] = v
-		var pi: int = pair_idx.get(unit.uid, -1)
-		var num := "  %d" % pairs[pi]["n"] if pi >= 0 else ""
-		var anum := "  %d" % atk_order[unit.uid] if atk_order.size() > 1 and atk_order.has(unit.uid) else ""
-		if attack_sel.has(unit.uid) or g.attackers.has(unit.uid):
-			v.position.y += -24 if p == viewer else 24
-			var prov: int = attack_sel.get(unit.uid, g.attackers.get(unit.uid, 0))
-			if prov != 0:
-				_tag(v, "PROVOCA" + anum, TARGET)
-			elif pi < 0 and g.phase == "combat" and g.window == "damage":
-				_tag(v, "NO LÍDER" + anum, TARGET) # unblocked: it will hit the Leader
-			else:
-				_tag(v, "ATACA" + anum, SEL)
-		elif pi >= 0:
-			_tag(v, ("PROVOCADA" if pairs[pi]["forced"] else "BLOQUEIA") + num, PAIR_COLS[pi % PAIR_COLS.size()])
-		elif unit.is_frozen():
+		if unit.is_frozen():
 			_tag(v, "CONGELADA", ICE)
 		if unit.equipment != null:
 			# the equipment card sits under its unit, peeking out toward the middle of the table
@@ -973,108 +954,13 @@ func _decorate_unit(v: CardView, unit: Card, p: int) -> void:
 	if _is_target(unit.uid):
 		v.highlight = TARGET
 		return
-	if g.phase == "main" and p == viewer and g.active == viewer:
-		if attack_sel.has(unit.uid):
-			v.highlight = SEL if provoking != unit.uid else TARGET
-		elif g.attack_step and not g.players[viewer]["attacked"] and g.can_attack(unit) and targeting.is_empty():
-			v.highlight = OK
-	elif g.phase == "main" and provoking != 0 and p != viewer and not attack_sel.values().has(unit.uid) and not unit.is_frozen():
-		v.highlight = TARGET
-	if g.phase == "blocks" and viewer == g.decider():
-		if p == viewer and (unit.uid == blocker_pick):
-			v.highlight = SEL
-		elif p == viewer and not block_sel.values().has(unit.uid) and not g.attackers.values().has(unit.uid) and not unit.is_frozen():
-			v.highlight = OK
-		elif p != viewer and g.attackers.has(unit.uid):
-			v.highlight = TARGET if blocker_pick != 0 and g.can_block(g.find_unit(blocker_pick), unit) else SEL
-	if provoking != 0 and p != viewer and g.phase == "main" and not unit.is_frozen():
-		v.highlight = TARGET
-
-## Every block assignment visible right now: locked-in blocks, provoked units and,
-## for the defender only, the picks not yet confirmed. Numbered by attack declaration order,
-## which is the order the engine resolves combat damage in (not the board position).
-func _collect_pairs() -> void:
-	pairs.clear()
-	pair_idx.clear()
-	atk_order.clear()
-	for src in [g.attackers, attack_sel]:
-		for a in src:
-			if not atk_order.has(a):
-				atk_order[a] = atk_order.size() + 1
-	var m := {} # attacker uid -> [blocker uid, forced]
-	for src in [g.attackers, attack_sel]:
-		for a in src:
-			var b: int = src[a]
-			if b != 0 and g.find_unit(b) != null and not g.find_unit(b).is_frozen():
-				m[a] = [b, true]
-	if g.phase == "blocks" and viewer == g.decider():
-		for a in block_sel:
-			if not m.has(a):
-				m[a] = [block_sel[a], false]
-	for a in g.blocks:
-		m[a] = [g.blocks[a], g.attackers.get(a, 0) == g.blocks[a]]
-	var ordered: Array = m.keys()
-	ordered.sort_custom(func(x, y): return atk_order.get(x, 99) < atk_order.get(y, 99))
-	for a in ordered:
-		pair_idx[a] = pairs.size()
-		pair_idx[m[a][0]] = pairs.size()
-		pairs.append({"a": a, "b": m[a][0], "forced": m[a][1], "n": atk_order.get(a, pairs.size() + 1)})
-
-## Arrows from each blocker to the attacker it stops, with the pair number on the curve.
-## Redrawn every frame so they follow cards while they animate.
-func _render_pairs() -> void:
-	if pairs.is_empty():
+	if targeting.get("kind") == "attack" and targeting["uid"] == unit.uid:
+		v.highlight = SEL # the attacker being aimed right now
 		return
-	var o := Control.new()
-	o.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layer.add_child(o)
-	get_tree().process_frame.connect(o.queue_redraw)
-	o.draw.connect(func(): _draw_pairs(o))
-
-func _draw_pairs(o: Control) -> void:
-	var t := Time.get_ticks_msec() / 1000.0
-	var font := UITheme.font("heavy")
-	for i in pairs.size():
-		var vb = views.get(pairs[i]["b"])
-		var va = views.get(pairs[i]["a"])
-		if not (_alive(vb) and _alive(va)):
-			continue
-		var col: Color = PAIR_COLS[i % PAIR_COLS.size()]
-		var rb := Rect2(vb.position, vb.size * vb.scale)
-		var ra := Rect2(va.position, va.size * va.scale)
-		var b_up := rb.get_center().y < ra.get_center().y
-		# the lower card's edge sits above its tag, the upper card's just under its frame
-		var p0 := Vector2(rb.get_center().x, rb.end.y + 4 if b_up else rb.position.y - 26)
-		var p3 := Vector2(ra.get_center().x, ra.position.y - 26 if b_up else ra.end.y + 4)
-		var k := (p3.y - p0.y) * 0.9
-		var c1 := p0 + Vector2(0, k)
-		var c2 := p3 - Vector2(0, k)
-		var pts := PackedVector2Array()
-		for j in 33:
-			pts.append(p0.bezier_interpolate(c1, c2, p3, j / 32.0))
-		o.draw_polyline(pts, Color(0, 0, 0, 0.7), 8.0, true)
-		for j in 32:
-			if not pairs[i]["forced"] or j % 6 < 3: # provoked: dashed
-				o.draw_line(pts[j], pts[j + 1], col, 4.0, true)
-		var dir := (pts[32] - pts[29]).normalized()
-		var base := p3 - dir * 15.0
-		var side := dir.orthogonal() * 9.0
-		var head := PackedVector2Array([p3 + dir * 2.0, base + side, base - side])
-		o.draw_colored_polygon(head, col)
-		o.draw_polyline(PackedVector2Array([head[0], head[1], head[2], head[0]]), Color(0, 0, 0, 0.7), 1.5, true)
-		o.draw_circle(p0, 6.0, Color(0, 0, 0, 0.7))
-		o.draw_circle(p0, 4.0, col)
-		# a spark travelling blocker -> attacker shows the direction at a glance
-		var spark := p0.bezier_interpolate(c1, c2, p3, fmod(t * 0.7 + i * 0.37, 1.0))
-		o.draw_circle(spark, 3.0, Color(1, 1, 1, 0.85))
-		var mid := p0.bezier_interpolate(c1, c2, p3, 0.5)
-		var r := 13.0 + sin(t * 4.0 + i) * 1.0
-		o.draw_circle(mid, r, Color(0.05, 0.04, 0.08, 0.95))
-		o.draw_arc(mid, r, 0, TAU, 28, col, 2.5, true)
-		var n := str(pairs[i]["n"])
-		var fs := 17
-		var w := font.get_string_size(n, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		o.draw_string(font, mid + Vector2(-w / 2.0, fs * 0.36), n, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col.lightened(0.35))
+	# during our attacks, every unit that can still attack glows
+	if p == viewer and targeting.is_empty() and _my_input() and g.combat_system().in_attacks_window(viewer) \
+			and not g.attack_targets(unit).is_empty():
+		v.highlight = OK
 
 func _alive(v) -> bool:
 	return v != null and is_instance_valid(v) and not v.is_queued_for_deletion() and v.visible
@@ -1239,7 +1125,6 @@ func _hand_drag_move(v: CardView) -> void:
 		# (raised) and an arrow follows the finger; releasing on a target plays it there
 		# (a unit with a sacrifice cost also remembers the slot it was dragged to)
 		targeting = {"kind": "hand", "uid": v.uid, "card_id": v.card_id, "spec": _hand_spec(v), "slot": _drop_slot(m.x)}
-		attack_sel.clear()
 		aim_drag = true
 		aim_start = Vector2.INF
 		_render()
@@ -1290,8 +1175,9 @@ func _render_side() -> void:
 		vb.add_child(l)
 
 	# turn plaque
-	var phase_names := {"mulligan": "Mulligan", "main": "Fase Principal", "blocks": "Bloqueios", "discard": "Banimento", "over": "Fim de jogo",
-		"combat": "Combate · " + {"attack": "Ataque", "prepare": "Preparação", "damage": "Dano"}.get(g.window, ""), "search": "Busca", "enter_target": "Ao Entrar · alvo"}
+	var phase_names := {"mulligan": "Mulligan", "main": "Fase Principal", "discard": "Banimento", "over": "Fim de jogo",
+		"combat": "Combate · " + {"pre_combat": "Preparação", "attacks": "Ataques"}.get(g.window, ""), "search": "Busca",
+		"enter_target": "Ao Entrar · alvo", "enter_tapped": "Provocação · entrada"}
 	var mine := g.decider() == viewer and not _is_ai(viewer)
 	var tp := Panel.new()
 	tp.position = Vector2(col_x, 326)
@@ -1543,7 +1429,7 @@ func _render_hint() -> void:
 	sb.content_margin_bottom = 8
 	pc.add_theme_stylebox_override("panel", sb)
 	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var col := SEL if not targeting.is_empty() or provoking != 0 else UITheme.TEXT
+	var col := SEL if not targeting.is_empty() or g.phase == "enter_tapped" else UITheme.TEXT
 	pc.add_child(_label(t, 26, col, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
 	layer.add_child(pc)
 	pc.reset_size()
@@ -1553,7 +1439,7 @@ func _render_hint() -> void:
 		hint_text = t
 		hint_since = now
 	hint_pill = pc
-	if not targeting.is_empty() or provoking != 0 or g.phase in ["search", "discard"]:
+	if not targeting.is_empty() or g.phase in ["search", "discard", "enter_tapped"]:
 		return # choices in progress keep their instructions on screen
 	var left := maxi(hint_since + HINT_MS, hint_until) - now
 	if left <= 0:
@@ -1587,6 +1473,21 @@ func _hint() -> String:
 		return "Escolha uma das cartas reveladas."
 	if targeting.get("kind") == "enter":
 		return "Ao Entrar de %s: toque no alvo ou pule o efeito." % _cname(g.pending_enter.get("card_id", ""))
+	if targeting.get("kind") == "attack":
+		# say why some tapped units don't glow: a Provocação forces the challenge, and a unit
+		# that just came in with Ímpeto can only challenge
+		var attacker := g.find_unit(targeting["uid"])
+		var taunts: Array = g.combat_system().forced_taunts(attacker) if attacker != null else []
+		if not taunts.is_empty():
+			var taunt_names: Array = []
+			for taunt_uid in taunts:
+				taunt_names.append(_cname(g.find_unit(taunt_uid).card_id))
+			return "Provocação: este ataque precisa desafiar %s." % " ou ".join(taunt_names)
+		if attacker != null and attacker.sick:
+			return "Ímpeto: no turno em que entra, ela só pode desafiar (o Líder fica para o próximo turno)."
+		if CardView.touch_ui():
+			return "Toque no alvo que brilha (Líder ou unidade exaurida) · toque fora cancela."
+		return "Arraste até o alvo que brilha (Líder ou unidade exaurida) · botão direito/Esc cancela."
 	if not targeting.is_empty():
 		var t := "Arraste até o alvo (ou toque nele) · toque fora cancela." if CardView.touch_ui() else "Arraste até o alvo (ou clique nele) · botão direito/Esc cancela."
 		if targeting["spec"] == "enemy_stack":
@@ -1603,27 +1504,20 @@ func _hint() -> String:
 	match g.phase:
 		"combat":
 			match g.window:
-				"attack":
-					return "Janela de ataque: use efeitos Rápidos ou passe."
-				"prepare":
-					return "Prepare a defesa: efeitos Rápidos ou passe."
-				"damage":
+				"pre_combat":
 					if viewer == g.active:
-						return "Bloqueios feitos: efeitos Rápidos antes do dano, ou passe."
-					return "Última chance antes do dano: efeitos Rápidos ou passe."
+						return "Antes dos ataques: efeitos Rápidos/Instantâneos ou passe."
+					return "O oponente vai atacar: responda com Rápidos/Instantâneos ou passe."
+				"attacks":
+					if viewer == g.active:
+						return "Arraste uma unidade até o alvo para atacar · ENCERRAR COMBATE quando acabar."
+		"enter_tapped":
+			return "%s tem Provocação: entrar exaurida obriga os inimigos a desafiá-la." % _cname(_pending_tap_card_id())
 		"mulligan":
 			return "Clique em até 3 cartas para trocar."
-		"blocks":
-			return "Clique numa unidade sua e depois no atacante que ela bloqueia · clique de novo no bloqueador para desfazer."
 		"discard":
 			return "Mão acima de 10: escolha %d para banir." % (g.players[viewer]["hand"].size() - GameState.HAND_LIMIT)
 		"main":
-			if provoking != 0:
-				return "Provocação: escolha a unidade inimiga que será obrigada a bloquear."
-			if g.attack_step:
-				if CardView.touch_ui():
-					return "Combate: toque nas unidades que vão atacar e confirme em ATACAR"
-				return "Combate: clique nas unidades que vão atacar e confirme em ATACAR"
 			if CardView.touch_ui():
 				return "Arraste cartas para o campo · toque: ver carta · quando acabar, IR PARA O COMBATE"
 			return "Arraste cartas para o campo · clique: ver carta · quando acabar, IR PARA O COMBATE"
@@ -1641,26 +1535,21 @@ func _action_buttons() -> Array:
 		"mulligan":
 			out.append(_button("CONFIRMAR (%d)" % picked.size(), func(): _do(g.mulligan(viewer, picked.duplicate())), true))
 		"combat":
-			out.append(_button(_pass_button_label(), func(): _do(g.pass_priority(viewer)), true))
+			if g.combat_system().in_attacks_window(viewer):
+				out.append(_button("ENCERRAR COMBATE", func(): _do(g.end_combat(viewer)), true))
+			else:
+				out.append(_button(_pass_button_label(), func(): _do(g.pass_priority(viewer)), true))
 		"main":
 			if not g.stack.is_empty() or g.summon_window:
 				out.append(_button(_pass_button_label(), func(): _do(g.pass_priority(viewer)), true))
-			elif g.attack_step:
-				if attack_sel.is_empty():
-					out.append(_button("SEM ATACAR", func(): _do(g.skip_combat(viewer)), true))
-				else:
-					out.append(_button("ATACAR (%d)" % attack_sel.size(), func(): _do(g.declare_attack(viewer, attack_sel.duplicate())), true))
-					out.append(_button("Cancelar seleção", func():
-						_reset_input()
-						_render()))
-					out.append(_button("Sem atacar", func(): _do(g.skip_combat(viewer))))
 			elif g.can_go_to_combat(viewer):
 				out.append(_button("IR PARA O COMBATE", func(): _do(g.go_to_combat(viewer)), true))
 				out.append(_button("Encerrar turno", func(): _do(g.end_turn(viewer))))
 			else:
 				out.append(_button("ENCERRAR TURNO", func(): _do(g.end_turn(viewer)), true))
-		"blocks":
-			out.append(_button("CONFIRMAR BLOQUEIOS", func(): _do(g.declare_blocks(viewer, block_sel.duplicate())), true))
+		"enter_tapped":
+			out.append(_button("ENTRAR EXAURIDA", func(): _do(g.choose_enter_tapped(viewer, true)), true))
+			out.append(_button("ENTRAR PRONTA", func(): _do(g.choose_enter_tapped(viewer, false)), true))
 		"enter_target":
 			out.append(_button("PULAR EFEITO", func(): _do(g.choose_enter_target(viewer, 0)), true))
 		"discard":
@@ -1751,10 +1640,8 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	var cancel: bool = (e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE) \
 		or (e is InputEventMouseButton and e.pressed and (e.button_index == MOUSE_BUTTON_RIGHT or CardView.touch_ui()))
-	if cancel and g and ((not targeting.is_empty() and targeting["kind"] != "enter") or provoking != 0 or blocker_pick != 0):
+	if cancel and g and not targeting.is_empty() and targeting["kind"] != "enter":
 		targeting = {}
-		provoking = 0
-		blocker_pick = 0
 		_render()
 
 func _my_input() -> bool:
@@ -1784,7 +1671,6 @@ func _play_from_hand(v: CardView, slot := -1) -> void:
 	var spec := _hand_spec(v)
 	if spec != "":
 		targeting = {"kind": "hand", "uid": v.uid, "card_id": v.card_id, "spec": spec, "slot": slot}
-		attack_sel.clear()
 		_begin_aim(Vector2.ZERO)
 		_render()
 	elif CardDB.card(v.card_id)["type"] != "unit" and g.is_dud(viewer, CardDB.card(v.card_id)):
@@ -1820,14 +1706,23 @@ func _begin_aim(src: Vector2) -> void:
 	aim_start = get_global_mouse_position()
 	aim_drag = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
 
-## Valid target (unit or leader) under a global point; 0 if none.
+## On-screen rectangle a card really covers. get_global_rect() ignores rotation, so for a tapped
+## (sideways) card it points at the wrong area; this one turns the card's corners with it.
+func _visual_rect(c: Control) -> Rect2:
+	return c.get_global_transform() * Rect2(Vector2.ZERO, c.size)
+
+## Valid target (unit or leader) under a global point; 0 if none. Tapped cards may overlap their
+## neighbours, so when two are under the point the one drawn on top wins.
 func _target_at(gp: Vector2) -> int:
+	var found_uid := 0
+	var found_draw_order := -1
 	for k in views:
 		if k is int and k != 0 and _is_target(k) and not hand_uids.has(k):
 			var c: Control = views[k]
-			if is_instance_valid(c) and c.get_global_rect().has_point(gp):
-				return k
-	return 0
+			if is_instance_valid(c) and _visual_rect(c).has_point(gp) and c.get_index() > found_draw_order:
+				found_uid = k
+				found_draw_order = c.get_index()
+	return found_uid
 
 func _update_aim() -> void:
 	var on: bool = g != null and not targeting.is_empty() and targeting.get("spec") != "enemy_stack" 		and _my_input() and g.phase in ["main", "combat", "enter_target"]
@@ -1842,8 +1737,8 @@ func _update_aim() -> void:
 	aim_arrow.visible = true
 	aim_arrow.move_to_front()
 	var src := aim_src
-	if targeting["kind"] in ["hand", "enter"] and views.has(targeting["uid"]) and is_instance_valid(views[targeting["uid"]]):
-		var r: Rect2 = (views[targeting["uid"]] as Control).get_global_rect()
+	if targeting["kind"] in ["hand", "enter", "attack"] and views.has(targeting["uid"]) and is_instance_valid(views[targeting["uid"]]):
+		var r: Rect2 = _visual_rect(views[targeting["uid"]] as Control)
 		src = Vector2(r.get_center().x, r.position.y + r.size.y * 0.3)
 	var inv := fx.get_global_transform().affine_inverse()
 	var gp := get_global_mouse_position()
@@ -1873,7 +1768,6 @@ func _sync_enter_aim() -> void:
 	var uid := int(g.pending_enter["uid"])
 	if targeting.get("kind") != "enter" or targeting["uid"] != uid:
 		targeting = {"kind": "enter", "uid": uid, "spec": g.pending_enter["spec"]}
-		attack_sel.clear()
 		aim_drag = false
 		aim_start = Vector2.INF
 	if views.has(uid) and is_instance_valid(views[uid]):
@@ -1904,6 +1798,9 @@ func _is_target(uid: int) -> bool:
 			if hand_card.uid == targeting["uid"]:
 				return g.card_targets(viewer, CardDB.card(hand_card.card_id)).has(uid)
 		return false
+	if targeting["kind"] == "attack":
+		var attacker := g.find_unit(targeting["uid"])
+		return attacker != null and g.attack_targets(attacker).has(uid)
 	if targeting.has("first") and uid == targeting["first"] and not CardDB.card(targeting["card_id"]).get("same_target_ok", false):
 		return false # the sacrificed unit is already gone
 	return g.valid_targets(viewer, targeting["spec"], targeting.get("uid", 0)).has(uid)
@@ -1928,6 +1825,8 @@ func _fire_target(uid: int) -> void:
 			_do(g.activate(viewer, targeting["uid"], uid))
 		"enter":
 			_do(g.choose_enter_target(viewer, uid))
+		"attack":
+			_do(g.attack_unit(viewer, targeting["uid"], uid))
 
 func _on_leader_click(p: int) -> void:
 	if _my_input() and _is_target(GameState.LEADER_UID[p]):
@@ -1951,52 +1850,23 @@ func _unit_click_acted(v: CardView) -> bool:
 			_fire_target(v.uid)
 			return true
 		return false
-	match g.phase:
-		"main":
-			if provoking != 0:
-				if unit.owner != viewer and unit.is_frozen():
-					_toast("Unidade congelada não pode ser provocada.")
-					return true
-				if unit.owner != viewer and unit.has_kw("nao_bloqueia"):
-					_toast("Essa unidade não bloqueia.")
-					return true
-				if unit.owner != viewer and not attack_sel.values().has(v.uid):
-					attack_sel[provoking] = v.uid
-					provoking = 0
-				_render()
-				return true
-			if not g.attack_step or unit.owner != viewer or g.players[viewer]["attacked"] or not g.can_attack(unit):
-				return false
-			if attack_sel.has(v.uid):
-				attack_sel.erase(v.uid)
-			else:
-				attack_sel[v.uid] = 0
-				if unit.has_kw("provocacao") and not g.players[g.opponent(viewer)]["board"].is_empty():
-					provoking = v.uid
-			_render()
+	# our attacks: pick an attacker, then an arrow follows the finger to its target
+	if g.combat_system().in_attacks_window(viewer) and unit.owner == viewer:
+		if g.attack_targets(unit).is_empty():
+			_toast("Essa unidade não pode atacar agora.")
 			return true
-		"blocks":
-			if unit.owner == viewer:
-				if g.attackers.values().has(v.uid):
-					return false # already forced to block a provoker
-				if unit.is_frozen():
-					_toast("Unidade congelada não pode bloquear.")
-					return true
-				for a in block_sel.keys():
-					if block_sel[a] == v.uid:
-						block_sel.erase(a)
-				blocker_pick = v.uid if blocker_pick != v.uid else 0
-				_render()
-				return true
-			elif blocker_pick != 0 and g.attackers.has(v.uid) and g.attackers[v.uid] == 0:
-				if g.can_block(g.find_unit(blocker_pick), unit):
-					block_sel[v.uid] = blocker_pick
-					blocker_pick = 0
-				else:
-					_toast("Essa unidade não pode bloquear esse atacante (Voo/Furtividade/Intimidacao).")
-				_render()
-				return true
+		targeting = {"kind": "attack", "uid": unit.uid, "spec": "attack"}
+		_begin_aim(_visual_rect(v).get_center())
+		_render()
+		return true
 	return false
+
+## card_id of the Provocação waiting for the "enter exhausted?" choice ("" if none).
+func _pending_tap_card_id() -> String:
+	if g.pending_tap.is_empty():
+		return ""
+	var unit := g.find_unit(int(g.pending_tap[0]))
+	return unit.card_id if unit != null else ""
 
 # ---------------------------------------------------------------- overlay
 
@@ -2007,14 +1877,13 @@ func _scale_suffix(p: int, cd: Dictionary) -> String:
 	return " (agora: %d)" % n if n >= 0 else ""
 
 ## Glossary line of a keyword for this card: Esquiva explains the card's own rule (the default one,
-## or "esquiva": {"unless_keywords": [...]}), every other keyword uses the shared text.
+## or "esquiva": {"max_rapidez": N}), every other keyword uses the shared text.
 func _keyword_text(cd: Dictionary, kw: String, k: Dictionary) -> String:
 	var rule: Dictionary = cd.get("esquiva", {})
-	if kw == "esquiva" and rule.has("unless_keywords"):
-		var names: Array = []
-		for u in rule["unless_keywords"]:
-			names.append(String(CardDB.keyword(u)["name"]))
-		return "A primeira vez em cada turno que receberia dano de combate de uma unidade sem %s, o dano é evitado." % " nem ".join(names)
+	if kw == "esquiva" and rule.has("max_rapidez"):
+		var level := CardView.rapidez_keyword_level(int(rule["max_rapidez"]))
+		var speed_limit := "sem Rapidez" if level == 0 else "Rapidez %d ou menos" % level
+		return "A primeira vez em cada turno que receberia dano de combate de uma unidade %s, o dano é evitado." % speed_limit
 	return k["text"]
 
 ## Keyword ids whose names appear in a rules text, in the order they appear (no repeats).
@@ -2068,6 +1937,8 @@ func _show_overlay(v: CardView) -> void:
 		txt += "[font_size=32]%s[/font_size]\n\n" % CardView.colorize_rules(body + v.text_suffix, 32)
 	# Glossary: the card's own keywords first, then any keyword its text mentions ("conceda Voo").
 	var glossary_keywords: Array = cd.get("keywords", []).duplicate()
+	if int(v.inst.get("rapidez", cd.get("rapidez", 1))) > 1:
+		glossary_keywords.append("rapidez") # shown as a tag on the card, so the glossary explains it
 	for kw in _mentioned_keywords(String(cd.get("text", "")) + v.text_suffix):
 		if not glossary_keywords.has(kw):
 			glossary_keywords.append(kw)
@@ -2101,7 +1972,7 @@ func _show_overlay(v: CardView) -> void:
 			else:
 				targeting = {"kind": "unit_ability", "uid": ab_uid, "spec": spec}
 				if views.has(ab_uid) and is_instance_valid(views[ab_uid]):
-					_begin_aim((views[ab_uid] as Control).get_global_rect().get_center())
+					_begin_aim(_visual_rect(views[ab_uid] as Control).get_center())
 				_render(), true)
 		ab_btn.position = Vector2(rt_x, 820.0 + BOT)
 		ab_btn.custom_minimum_size = Vector2(520, 96)
@@ -2469,15 +2340,34 @@ func _ghost(card_id: String, inst: Dictionary, pose: Dictionary, size_scale := 1
 	_apply_pose(v, pose)
 	return v
 
+## Timing of an attack lunge: pull back, rush in, stay on the target a moment, walk back.
+const LUNGE_WINDUP_TIME := 0.16
+const LUNGE_STRIKE_TIME := 0.2
+const LUNGE_HOLD_TIME := 0.08
+const LUNGE_RETURN_TIME := 0.34
+## When the attacker touches its target (where the hit lands), counted from the lunge start.
+const LUNGE_IMPACT_TIME := LUNGE_WINDUP_TIME + LUNGE_STRIKE_TIME
+const LUNGE_TOTAL_TIME := LUNGE_IMPACT_TIME + LUNGE_HOLD_TIME + LUNGE_RETURN_TIME
+## A unit lying down (tap) or standing up (untap): a short pause after the action, then a slow turn.
+const TAP_DELAY := 0.12
+const TAP_TIME := 0.45
+
 func _lunge(a: CardView, target: Control, t: float) -> void:
-	var d: Vector2 = (_center_of(target) - _center_of(a)) * 0.72 / a.scale.x
 	var tw := a.create_tween()
 	tw.tween_interval(t)
-	tw.tween_callback(func(): a.z_index = 20)
-	tw.tween_property(a, "lunge", -d * 0.1, 0.08).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tw.tween_property(a, "lunge", d, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	tw.tween_property(a, "lunge", Vector2.ZERO, 0.26).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tw.tween_callback(func(): a.z_index = 0)
+	# The direction is measured when the lunge starts, not now: the table was already redrawn in its
+	# final state (the attacker lying tapped), but on screen the card still stands where it was until
+	# the tap animation plays after the hit. "lunge" is drawn in the card's own space, so the offset
+	# is turned back by the card's rotation and divided by its scale.
+	tw.tween_callback(func():
+		a.z_index = 20
+		var offset_to_target: Vector2 = ((_center_of(target) - _center_of(a)) * 0.72 / a.scale.x).rotated(-a.rotation)
+		var strike := a.create_tween()
+		strike.tween_property(a, "lunge", -offset_to_target * 0.12, LUNGE_WINDUP_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		strike.tween_property(a, "lunge", offset_to_target, LUNGE_STRIKE_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		strike.tween_interval(LUNGE_HOLD_TIME)
+		strike.tween_property(a, "lunge", Vector2.ZERO, LUNGE_RETURN_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+		strike.tween_callback(func(): a.z_index = 0))
 
 ## Shake + red flash on the target and a floating number over it.
 func _impact(target: Control, text: String, col: Color, t: float, hurt: bool) -> void:
@@ -2997,7 +2887,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 				cursor += 0.35
 			"combat_damage":
 				in_combat = true
-			"start_turn", "end_turn":
+			"start_turn", "end_turn", "combat_end":
 				in_combat = false
 			"damage", "shield_break", "heal":
 				var dst: int = e["uid"]
@@ -3008,11 +2898,11 @@ func _animate(events: Array, old: Dictionary) -> float:
 						t = hit_t
 					else:
 						_lunge(actors[src], actors[dst], cursor)
-						hit_t = cursor + 0.2
+						hit_t = cursor + LUNGE_IMPACT_TIME
 						t = hit_t
 						last_src = src
 						last_dst = dst
-						cursor += 0.42
+						cursor += LUNGE_TOTAL_TIME
 				else:
 					cursor += 0.12
 				if leader_hp.has(dst) and e["type"] in ["damage", "heal"]:
@@ -3054,6 +2944,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 		gh.dissolve(settle + i * 0.06, col.lightened(0.2), 0.75)
 		_embers(_center_of(gh), settle + i * 0.06 + 0.1, col)
 	var deck_n := 0
+	var board_end := board_t + 0.3 ## when the last card has finished moving into place
 	for k in views:
 		var v = views[k]
 		if handled.has(k) or not (v is CardView):
@@ -3061,17 +2952,23 @@ func _animate(events: Array, old: Dictionary) -> float:
 		var to := _pose(v)
 		if old.has(k):
 			var from: Dictionary = old[k]["pose"]
-			if from["c"].distance_to(to["c"]) > 1.0 or abs(from["w"] - to["w"]) > 1.0 or abs(from["rot"] - to["rot"]) > 0.01:
+			var turns := absf(from["rot"] - to["rot"]) > 0.01 # tapping or untapping
+			if turns:
+				# lies down (or stands up) slowly, only after the hit is over and the card is back home
+				_fly(v, from, to, board_t + TAP_DELAY, TAP_TIME)
+				board_end = maxf(board_end, board_t + TAP_DELAY + TAP_TIME)
+			elif from["c"].distance_to(to["c"]) > 1.0 or abs(from["w"] - to["w"]) > 1.0:
 				_fly(v, from, to, 0.0 if hand_uids.has(k) else board_t, 0.28)
 		elif hand_uids.has(k):
 			_draw_from_deck(v, to, appear.get(k, 0.0) + 0.12 * deck_n)
 			deck_n += 1
 		else:
+			var resting_scale: Vector2 = v.scale # a tapped unit rests smaller (see _render_board)
 			v.scale = Vector2.ZERO
 			var tw: Tween = v.create_tween()
 			tw.tween_interval(appear.get(k, settle))
-			tw.tween_property(v, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	return max(settle + 0.8, board_t + 0.3)
+			tw.tween_property(v, "scale", resting_scale, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	return max(settle + 0.8, board_end)
 
 # ---------------------------------------------------------------- log
 
@@ -3121,7 +3018,22 @@ func _log_event(e: Dictionary) -> void:
 			var trg: Dictionary = CardDB.data()["triggers"].get(e["trigger"], {})
 			_log("%s: %s" % [_cname(e["card_id"]), trg.get("name", e["trigger"])])
 		"attack":
-			_log("%s atacou com %d" % [_pname(e["player"]), e["attackers"].size()])
+			var attacker := g.find_unit(e["attacker"])
+			var attacker_name := "uma unidade" if attacker == null else _cname(attacker.card_id)
+			if int(e["target"]) < 0:
+				_log("%s atacou o Líder com %s" % [_pname(e["player"]), attacker_name])
+			else:
+				var challenged := g.find_unit(e["target"])
+				_log("%s desafiou %s com %s" % [_pname(e["player"]), "uma unidade" if challenged == null else _cname(challenged.card_id), attacker_name])
+		"enter_tapped":
+			if e["tapped"]:
+				var tapped_unit := g.find_unit(e["uid"])
+				_log("%s entrou exaurida (Provocação)" % ("Uma unidade" if tapped_unit == null else _cname(tapped_unit.card_id)))
+		"heal":
+			if e.get("regeneration", false):
+				var regenerated := g.find_unit(e["uid"])
+				if regenerated != null:
+					_log("%s regenerou %d" % [_cname(regenerated.card_id), e["amount"]])
 		"death":
 			pass
 		"concede":

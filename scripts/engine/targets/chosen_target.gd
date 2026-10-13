@@ -1,9 +1,10 @@
 class_name ChosenTarget
 extends TargetSelector
-## Targets the player picks: enemy_unit, ally_unit, other_ally_unit, any_unit, any, enemy_stack, enemy_artifact.
+## Targets the player picks: enemy_unit, ally_unit, other_ally_unit, ally_or_own_leader (an ally unit
+## or your own Leader), any_unit, any, enemy_stack, enemy_artifact.
 ## The pick is checked again on resolution (it may have died or left meanwhile).
 
-const NAMES := ["enemy_unit", "ally_unit", "other_ally_unit", "any_unit", "any", "enemy_stack", "enemy_artifact"]
+const NAMES := ["enemy_unit", "ally_unit", "other_ally_unit", "ally_or_own_leader", "any_unit", "any", "enemy_stack", "enemy_artifact"]
 
 func needs_choice() -> bool:
 	return true

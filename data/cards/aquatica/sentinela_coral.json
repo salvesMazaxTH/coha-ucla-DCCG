@@ -2,12 +2,17 @@
   "name": "Sentinela de Coral",
   "type": "unit",
   "rarity": "common",
-  "species": ["elemental"],
+  "species": [
+    "elemental"
+  ],
   "essence": "aquatica",
   "cost": 3,
   "atk": 1,
   "hp": 4,
-  "keywords": ["vigilancia"],
+  "keywords": [
+    "vigilancia",
+    "regeneracao"
+  ],
   "art": "aquatica/sentinela_coral.webp",
   "effects": [],
   "text": "",

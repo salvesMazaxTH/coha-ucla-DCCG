@@ -36,6 +36,8 @@ func _init() -> void:
 	_test_custo_e_contagem()
 	_test_ban()
 	_test_combat()
+	_test_provocacao()
+	_test_persistent_damage()
 	_test_triggers()
 	_test_listeners()
 	_test_stack()
@@ -49,7 +51,7 @@ func _init() -> void:
 	_test_fight()
 	_test_conditional_counter()
 	_test_reserve()
-	_test_damage_window()
+	_test_challenge_triggers()
 	_test_strike_order()
 	_test_overkill()
 	_test_dud()
@@ -96,6 +98,8 @@ func _put(g: GameState, p: int, card_id: String, ready := true) -> Card:
 		g.choose_search(p, int(options[0]["uid"]))
 		g._flush()
 	var c := g.find_unit(uid)
+	# a Provocação put here skips the "enter tapped?" question: tests tap units by hand
+	g.pending_tap.erase(uid)
 	if ready:
 		c.sick = false
 	return c
@@ -338,7 +342,7 @@ func _test_obscura() -> void:
 	g.auto_pass[1] = true
 	check(g.stack.is_empty() and g.atk_of(yk) == 4 and g.hp_left(yk) == 4 and g.players[0]["momentum"] == 1, "yuki ganha +2/+2 temporário")
 	check(not g.can_activate(0, yk.uid), "ao ativar da yuki é 1x por turno")
-	# the temporary Vida absorbs damage while it lasts and is gone once the turn ends (damage is wiped too)
+	# the temporary Vida absorbs damage while it lasts; when it leaves, it takes that much damage with it
 	var tg := _new_game()
 	var temp_unit := _put(tg, 0, "yuki")
 	temp_unit.temp_hp = 2
@@ -346,7 +350,7 @@ func _test_obscura() -> void:
 	temp_unit.damage = 3
 	check(tg.hp_left(temp_unit) == 1, "vida temporária absorve dano")
 	tg.end_turn(0)
-	check(temp_unit.temp_hp == 0 and temp_unit.temp_atk == 0 and tg.hp_left(temp_unit) == 2 and tg.atk_of(temp_unit) == 2, "+2/+2 temporário some no fim do turno")
+	check(temp_unit.temp_hp == 0 and temp_unit.temp_atk == 0 and temp_unit.damage == 1 and tg.atk_of(temp_unit) == 2, "+2/+2 temporário some no fim do turno (fica só o dano além dele)")
 	# Afogar: rápido, destroys any chosen unit, even one's own, ignoring Escudo
 	var af_t := _put(g, 1, "jeff")
 	af_t.shield = true
@@ -681,7 +685,7 @@ func _test_freeze() -> void:
 	var f := _put(g, 1, "tritao_lanceiro")
 	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, f.uid)
 	check(g.is_frozen(f), "congelar marca a unidade")
-	check(not g.can_block(f, atk), "congelada não bloqueia")
+	check(g.atk_of(f) == 0 and f.rapidez_total() == f.rapidez, "congelada: só o ATK fica 0, a Rapidez continua a mesma")
 	_quiet(g)
 	g.end_turn(0)
 	check(g.active == 1 and g.is_frozen(f) and not g.can_attack(f), "congelada não ataca no próximo turno do dono")
@@ -692,6 +696,17 @@ func _test_freeze() -> void:
 	s.spell_shield = true
 	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, s.uid)
 	check(not g.is_frozen(s) and not s.spell_shield, "Escudo de Feitiço anula congelar")
+	# a frozen unit can still be challenged, but strikes back for 0
+	_tcard("t_frz_hit", 1, 5, [])
+	_tcard("t_frz_vic", 3, 5, [])
+	g = _new_game()
+	_quiet(g)
+	var hitter := _put(g, 0, "t_frz_hit")
+	var ice := _put(g, 1, "t_frz_vic")
+	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, ice.uid)
+	ice.exhausted = true
+	_hit(g, hitter, ice.uid)
+	check(hitter.damage == 0 and ice.damage == 1, "congelada: desafiada, revida com 0 de dano")
 	check(CardDB.has_essence(CardDB.card("sabrina"), "glacial") and CardDB.has_essence(CardDB.card("sabrina"), "aquatica"), "sabrina é aquática e glacial")
 
 func _test_setup() -> void:
@@ -719,8 +734,9 @@ func _test_first_player() -> void:
 	for t in 5:
 		seen.append([g.active, g.players[g.active]["momentum"], g.players[g.active]["reserve"]])
 		g.players[g.active]["momentum"] = 0 # spend everything: only the bonus reaches the Reserve
+		g.players[g.active]["reserve"] = 0
 		g.end_turn(g.active)
-	check(seen == [[1, 1, 0], [0, 2, 1], [1, 2, 0], [0, 2, 2], [1, 3, 0], [0, 3, 2]], "segundo jogador: 2/1 + 1 de Reserva no 1º turno, +1 de Reserva no 2º (%s)" % [seen])
+	check(seen == [[1, 1, 0], [0, 2, 1], [1, 2, 0], [0, 3, 1], [1, 3, 0], [0, 3, 0]], "segundo jogador: +1 Momentum e +1 de Reserva nos 2 primeiros turnos (%s)" % [seen])
 	g = GameState.new("fogo", "agua", 1, 1)
 	g.mulligan(1, [])
 	g.mulligan(0, [])
@@ -728,7 +744,7 @@ func _test_first_player() -> void:
 	g.players[0]["momentum"] = 1 # spent little on the first turn
 	g.end_turn(0)
 	g.end_turn(1)
-	check(g.budget(0, true) == 4 and g.budget(0, false) == 2, "segundo jogador: feitiço de custo 4 no 2º turno se poupou")
+	check(g.budget(0, true) == 5 and g.budget(0, false) == 3, "segundo jogador: feitiço de custo 5 no 2º turno se poupou")
 
 func _test_concede() -> void:
 	var g := _new_game()
@@ -741,64 +757,220 @@ func _test_concede() -> void:
 	check(g.winner == 1, "conceder: o jogador 0 desiste, o 1 vence")
 
 func _test_combat() -> void:
+	# only a tapped (exhausted) enemy can be challenged; the faster unit strikes first
 	var g := _new_game()
-	var a := _put(g, 0, "kai") # 2/2 golpe rapido
-	var b := _put(g, 1, "tritao_lanceiro") # 2/2
-	_attack(g, {a.uid: 0})
-	_block(g, {a.uid: b.uid})
-	check(g.find_unit(b.uid) == null, "first strike kills blocker")
-	check(not g.find_unit(a.uid) == null, "first striker survives")
+	_quiet(g)
+	var a := _put(g, 0, "kai") # 2/2, Rapidez 2
+	var b := _put(g, 1, "tritao_lanceiro") # 2/2, Rapidez 1, Ao Ser Desafiada: 1 de dano ao atacante
+	check(g.attack_targets(a) == [GameState.LEADER_UID[1]], "unidade pronta não pode ser desafiada: só o Líder é alvo")
+	b.exhausted = true
+	check(g.attack_targets(a).has(b.uid) and g.attack_targets(a).has(GameState.LEADER_UID[1]), "unidade exaurida pode ser desafiada")
+	_hit(g, a, b.uid)
+	check(g.find_unit(b.uid) == null, "Rapidez 2 mata o desafiado antes dele revidar")
+	check(not g.find_unit(a.uid) == null and a.damage == 1 and a.exhausted, "o atacante exaure e só leva o 1 do Tritão")
 
+	# equal Rapidez: both strike at the same time; hitting the Leader takes nothing back
+	_tcard("t_c33", 3, 3, [])
 	g = _new_game()
-	var t := _put(g, 0, "kael_drath_vulcano") # 5/7 sobrepujança
+	_quiet(g)
+	var left := _put(g, 0, "t_c33")
+	var right := _put(g, 1, "t_c33")
+	right.exhausted = true
+	_hit(g, left, right.uid)
+	check(g.find_unit(left.uid) == null and g.find_unit(right.uid) == null, "mesma Rapidez: os dois morrem")
+	g = _new_game()
+	_quiet(g)
+	var face := _put(g, 0, "t_c33")
+	_put(g, 1, "t_c33").exhausted = true
+	var leader_hp: int = g.players[1]["leader_hp"]
+	_hit(g, face)
+	check(g.players[1]["leader_hp"] == leader_hp - 3 and face.damage == 0, "atacar o Líder: dano na face, nada volta")
+	check(g.phase == "main" and g.players[0]["attacked"], "sem atacantes sobrando, o combate acaba sozinho")
+
+	# Ímpeto: the turn it enters, the unit may only challenge; the Leader's face waits a turn
+	g = _new_game()
+	_quiet(g)
+	var rushing := _put(g, 0, "ronan", false) # Ímpeto, still summoning sick
+	check(g.attack_targets(rushing).is_empty(), "Ímpeto recém-chegado: sem unidade exaurida, não há o que atacar")
+	var tapped_enemy := _put(g, 1, "t_c33")
+	tapped_enemy.exhausted = true
+	check(g.attack_targets(rushing) == [tapped_enemy.uid], "Ímpeto recém-chegado: só desafia, o Líder fica para o próximo turno")
+	rushing.sick = false
+	check(g.attack_targets(rushing).has(GameState.LEADER_UID[1]), "Ímpeto no turno seguinte: o Líder volta a ser alvo")
+
+	# Sobrepujança against Escudo: the shield soaks the hit, the excess goes to the Leader
+	g = _new_game()
+	_quiet(g)
+	var t := _put(g, 0, "kael_drath_vulcano") # 5/8 sobrepujança
 	var s := _put(g, 1, "espirito_da_mare") # 1/2 escudo
+	s.exhausted = true
 	var hp: int = g.players[1]["leader_hp"]
-	_attack(g, {t.uid: 0})
-	_block(g, {t.uid: s.uid})
-	check(not g.find_unit(s.uid) == null, "shield absorbs hit")
-	check(g.players[1]["leader_hp"] == hp - 3, "trample excess vs shield (%d)" % (hp - g.players[1]["leader_hp"]))
+	_hit(g, t, s.uid)
+	check(not g.find_unit(s.uid) == null, "escudo absorve o golpe")
+	check(g.players[1]["leader_hp"] == hp - 3, "sobrepujança: excesso contra escudo (%d)" % (hp - g.players[1]["leader_hp"]))
 
+	# Voo: only Voo or Longo Alcance can challenge it
 	g = _new_game()
-	var f := _put(g, 0, "fenix_menor") # voo
-	var w := _put(g, 1, "tritao_lanceiro") # longo alcance
-	var x := _put(g, 1, "serpente_marinha")
-	check(g.can_block(w, f) and not g.can_block(x, f), "voo/longo alcance")
+	var fly := _put(g, 1, "fenix_menor") # voo
+	fly.exhausted = true
+	check(g.can_challenge(_put(g, 0, "tritao_lanceiro"), fly), "longo alcance desafia voo")
+	check(g.can_challenge(_put(g, 0, "fenix_menor"), fly), "voo desafia voo")
+	check(not g.can_challenge(_put(g, 0, "serpente_marinha"), fly), "sem voo/longo alcance não desafia voo")
 
+	# Furtividade: only Furtividade or Vigilância can challenge it
 	g = _new_game()
-	var gk := _put(g, 0, "gorvakharr") # furtividade roubo de vida
-	var y := _put(g, 1, "sentinela_coral") # vigilancia
-	check(g.can_block(y, gk) and not g.can_block(x, gk), "furtividade/vigilancia")
-	check(not g.can_block(_put(g, 1, "revivente_eterno"), _put(g, 0, "esqueleto_guerreiro")), "revivente eterno não bloqueia")
+	var sneak := _put(g, 1, "gorvakharr") # furtividade
+	sneak.exhausted = true
+	check(g.can_challenge(_put(g, 0, "sentinela_coral"), sneak), "vigilância desafia furtividade")
+	check(g.can_challenge(_put(g, 0, "gorvakharr"), sneak), "furtividade desafia furtividade")
+	check(not g.can_challenge(_put(g, 0, "serpente_marinha"), sneak), "sem furtividade/vigilância não desafia furtividade")
+
+	# Obsessão: the Revivente only hits the Leader
+	var obsessed := _put(g, 0, "revivente_eterno")
+	_put(g, 1, "esqueleto_guerreiro").exhausted = true
+	check(g.attack_targets(obsessed) == [GameState.LEADER_UID[1]], "obsessão: só ataca o Líder")
+
+	# Etérea: never challenged, not even with Provocação (so it forces nobody)
+	_tcard("t_ghost", 1, 3, [])
+	CardDB.data()["cards"]["t_ghost"]["keywords"] = ["eterea", "provocacao"]
+	g = _new_game()
+	var ghost := _put(g, 1, "t_ghost")
+	ghost.exhausted = true
+	var chaser := _put(g, 0, "serpente_marinha")
+	check(not g.can_challenge(chaser, ghost) and g.attack_targets(chaser) == [GameState.LEADER_UID[1]], "etérea: ninguém desafia, a Provocação não obriga")
+
+	# Inalcançável: enemies can't target it, but it can still be challenged
+	_tcard("t_far", 1, 3, [])
+	CardDB.data()["cards"]["t_far"]["keywords"] = ["inalcancavel"]
+	var far := _put(g, 1, "t_far")
+	far.exhausted = true
+	check(not g.valid_targets(0, "enemy_unit").has(far.uid) and g.can_challenge(chaser, far), "inalcançável: sem alvo de inimigos, mas desafiável")
+
+	# Roubo de Vida on the Leader's face
+	g = _new_game()
+	_quiet(g)
+	var thief := _put(g, 0, "gorvakharr") # 4/3 roubo de vida
 	g.players[0]["leader_hp"] = 10
-	_attack(g, {gk.uid: 0})
-	_block(g, {})
-	check(g.players[0]["leader_hp"] == 14, "lifesteal heals leader")
+	_hit(g, thief)
+	check(g.players[0]["leader_hp"] == 14, "roubo de vida cura o Líder")
 
-	g = _new_game()
-	var k := _put(g, 0, "kael_drath_vulcano") # provocação
-	var v := _put(g, 1, "serpente_marinha")
-	_attack(g, {k.uid: v.uid})
-	_block(g, {})
-	check(g.find_unit(v.uid) == null, "provoked unit forced to block")
-	g.end_turn(0)
-	check(g.find_unit(k.uid).damage == 0, "damage resets at end of turn")
+## Goes to combat (if still in the Main Phase) and lets the pre-combat window pass, so attacks can be declared.
+func _open_attacks(g: GameState) -> void:
+	if g.phase == "main":
+		g.go_to_combat(g.active)
+	for i in 20:
+		if g.phase != "combat" or g.window != "pre_combat":
+			return
+		g.pass_priority(g.priority)
 
-## Declares an attack and lets every combat window pass.
-func _attack(g: GameState, attacks: Dictionary) -> void:
-	g.go_to_combat(g.active)
-	g.declare_attack(g.active, attacks)
-	_pass_windows(g)
+## One attack: `attacker` taps and hits `target_uid` (0 = the enemy Leader's face).
+func _hit(g: GameState, attacker: Card, target_uid := 0) -> Array:
+	_open_attacks(g)
+	if target_uid == 0:
+		target_uid = GameState.LEADER_UID[g.opponent(attacker.owner)]
+	return g.attack_unit(g.active, attacker.uid, target_uid)
 
-## Declares blocks and lets the damage window pass.
-func _block(g: GameState, picks: Dictionary) -> void:
-	g.declare_blocks(1, picks)
-	_pass_windows(g)
-
+## Lets every combat priority pass (stack responses, the pre-combat window).
 func _pass_windows(g: GameState) -> void:
 	for i in 20:
 		if g.phase != "combat":
 			return
 		g.pass_priority(g.priority)
+
+func _test_provocacao() -> void:
+	_tcard("t_taunt", 1, 6, [])
+	CardDB.data()["cards"]["t_taunt"]["keywords"] = ["provocacao"]
+	_tcard("t_taunt_fly", 1, 6, [])
+	CardDB.data()["cards"]["t_taunt_fly"]["keywords"] = ["provocacao", "voo"]
+	_tcard("t_other", 1, 6, [])
+
+	# a tapped Provocação forces every attacker that can challenge it
+	var g := _new_game()
+	_quiet(g)
+	var taunt := _put(g, 1, "t_taunt")
+	var other := _put(g, 1, "t_other")
+	other.exhausted = true
+	var attacker := _put(g, 0, "serpente_marinha")
+	check(g.attack_targets(attacker).has(GameState.LEADER_UID[1]), "provocação pronta não obriga ninguém")
+	taunt.exhausted = true
+	check(g.attack_targets(attacker) == [taunt.uid], "provocação exaurida: o único alvo é ela")
+	check(_hit(g, attacker).is_empty() and g.attack_unit(0, attacker.uid, other.uid).is_empty(), "não dá para ir no Líder nem em outra unidade")
+	check(not g.attack_unit(0, attacker.uid, taunt.uid).is_empty() and taunt.damage == 4, "desafiar a provocação funciona")
+
+	# "se puder": an attacker that can't challenge it (Voo) is free
+	g = _new_game()
+	var flying_taunt := _put(g, 1, "t_taunt_fly")
+	flying_taunt.exhausted = true
+	var walker := _put(g, 0, "serpente_marinha")
+	var flyer := _put(g, 0, "fenix_menor")
+	check(g.attack_targets(walker) == [GameState.LEADER_UID[1]], "quem não pode desafiar a provocação fica livre")
+	check(g.attack_targets(flyer) == [flying_taunt.uid], "quem pode é obrigado")
+
+	# two Provocações: the attacker chooses
+	g = _new_game()
+	var first_taunt := _put(g, 1, "t_taunt")
+	var second_taunt := _put(g, 1, "t_taunt")
+	first_taunt.exhausted = true
+	second_taunt.exhausted = true
+	var targets := g.attack_targets(_put(g, 0, "serpente_marinha"))
+	targets.sort()
+	check(targets == [first_taunt.uid, second_taunt.uid], "várias provocações: escolhe qualquer uma")
+
+	# played from hand: its controller chooses whether it enters tapped
+	for tapped in [true, false]:
+		g = _new_game()
+		_quiet(g)
+		g.players[0]["momentum"] = 1
+		var hand_uid := _give(g, 0, "t_taunt")
+		g.play_card(0, hand_uid)
+		check(g.phase == "enter_tapped" and g.decider() == 0, "provocação da mão: pergunta se entra exaurida")
+		check(g.end_turn(0).is_empty(), "nada acontece antes de escolher")
+		g.choose_enter_tapped(0, tapped)
+		check(g.phase == "main" and g.find_unit(hand_uid).exhausted == tapped, "entrou %s" % ("exaurida" if tapped else "pronta"))
+
+	# entering from an effect asks too
+	g = _new_game()
+	_quiet(g)
+	var uid := g._uid()
+	g._summon(0, Card.new(uid, "t_taunt", 0), false, 0)
+	g.stack_system().settle()
+	check(g.phase == "enter_tapped", "provocação que entra por efeito também pergunta")
+	g.choose_enter_tapped(0, true)
+	check(g.find_unit(uid).exhausted and g.phase == "main", "entrou exaurida por efeito")
+
+func _test_persistent_damage() -> void:
+	_tcard("t_pd", 1, 5, [])
+	# damage stays marked between turns
+	var g := _new_game()
+	_quiet(g)
+	var unit := _put(g, 0, "t_pd")
+	g._deal_damage(unit.uid, 3, null)
+	g.end_turn(0)
+	check(unit.damage == 3, "o dano fica marcado entre os turnos")
+
+	# temporary Vida soaks the damage first, and leaves without killing
+	g = _new_game()
+	_quiet(g)
+	var soaker := _put(g, 0, "t_pd")
+	g._apply_effect(0, {"action": "buff", "target": "self", "hp": 3, "temp": true}, soaker.uid)
+	g._deal_damage(soaker.uid, 2, null)
+	var bigger := _put(g, 0, "t_pd")
+	g._apply_effect(0, {"action": "buff", "target": "self", "hp": 3, "temp": true}, bigger.uid)
+	g._deal_damage(bigger.uid, 7, null)
+	g._check_state()
+	check(not g.find_unit(bigger.uid) == null, "com Vida temporária, 7 de dano não mata uma 1/5+3")
+	g.end_turn(0)
+	check(soaker.damage == 0, "vida temporária absorveu o dano todo")
+	check(not g.find_unit(bigger.uid) == null and bigger.damage == 4, "o buff acaba e só sobra o dano além dele (%d)" % bigger.damage)
+
+	# Regeneração: all damage healed at the end of every turn
+	g = _new_game()
+	_quiet(g)
+	var coral := _put(g, 1, "sentinela_coral")
+	check(g.has_kw(coral, "regeneracao"), "sentinela de coral tem regeneração")
+	g._deal_damage(coral.uid, 2, null)
+	g.end_turn(0)
+	check(coral.damage == 0, "regeneração cura no fim do turno (até no turno do oponente)")
 
 func _give(g: GameState, p: int, card_id: String) -> int:
 	var uid := g._uid()
@@ -953,27 +1125,47 @@ func _test_counter() -> void:
 func _test_combat_step() -> void:
 	_tcard("t_cs", 1, 1, [])
 	_tspell("t_cs_slow", "lento", [{"trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 1}])
+	_tspell("t_cs_fast", "rapido", [{"trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 1}])
 	var g := _new_game()
 	_quiet(g)
 	var attacker := _put(g, 0, "t_cs")
-	_put(g, 1, "t_cs") # a target, so the slow spell is castable when allowed
+	_put(g, 0, "t_cs") # a second attacker, so the combat doesn't end after one attack
+	_put(g, 1, "t_cs") # a target, so the spells are castable when allowed
 	var slow := _give(g, 0, "t_cs_slow")
+	var fast_mine := _give(g, 0, "t_cs_fast")
+	var fast_theirs := _give(g, 1, "t_cs_fast")
 	g.players[0]["momentum"] = 3
-	check(g.declare_attack(0, {attacker.uid: 0}).is_empty(), "no attack before going to combat")
-	check(g.can_go_to_combat(0) and not g.attack_step, "going to combat is offered with a ready attacker")
+	g.players[1]["momentum"] = 3
+	var face: int = GameState.LEADER_UID[1]
+	check(g.attack_unit(0, attacker.uid, face).is_empty(), "sem atacar antes de ir para o combate")
+	check(g.can_go_to_combat(0), "IR PARA O COMBATE aparece com um atacante pronto")
 	g.go_to_combat(0)
-	check(g.attack_step and g.phase == "main", "go_to_combat opens the attackers step")
-	check(g.end_turn(0).is_empty() and not g.can_play(0, slow), "no sorcery-speed actions during the attackers step")
-	g.skip_combat(0)
-	check(not g.attack_step and g.players[0]["attacked"] and not g.can_go_to_combat(0), "skipping combat spends the attack for the turn")
-	check(g.can_play(0, slow), "sorcery-speed plays are back in the second main phase")
-	check(g.declare_attack(0, {attacker.uid: 0}).is_empty(), "no attacking after skipping")
+	check(g.phase == "combat" and g.window == "pre_combat" and g.priority == 0, "o combate abre a preparação, atacante primeiro")
+	check(g.can_play(0, fast_mine) and not g.can_play(0, slow), "preparação: só Rápido/Instantâneo")
+	check(g.attack_unit(0, attacker.uid, face).is_empty() and g.end_turn(0).is_empty(), "sem ataques nem fim de turno na preparação")
+	g.pass_priority(0)
+	check(g.window == "pre_combat" and g.priority == 1 and g.can_play(1, fast_theirs), "o defensor também joga na preparação")
+	g.pass_priority(1)
+	check(g.window == "attacks" and g.priority == 0, "os dois passaram: começam os ataques")
+	check(not g.can_play(0, fast_mine) and not g.can_play(1, fast_theirs), "ninguém joga cartas durante os ataques")
+	check(not g.attack_unit(0, attacker.uid, face).is_empty() and g.window == "attacks", "um ataque por vez; o combate continua")
+	check(g.attack_unit(0, attacker.uid, face).is_empty(), "quem já atacou (exaurido) não ataca de novo")
+	g.end_combat(0)
+	check(g.phase == "main" and g.players[0]["attacked"] and not g.can_go_to_combat(0), "ENCERRAR COMBATE: segunda fase principal, sem outro combate")
+	check(g.can_play(0, slow), "lento volta na segunda fase principal")
 	g.end_turn(0)
-	check(not g.attack_step, "the step never carries over to the next turn")
+	check(g.phase == "main" and g.window == "", "o combate nunca passa para o próximo turno")
+
+	# skipping combat from the Main Phase
+	g = _new_game()
+	_quiet(g)
+	_put(g, 0, "t_cs")
+	g.skip_combat(0)
+	check(g.players[0]["attacked"] and not g.can_go_to_combat(0), "pular o combate gasta o ataque do turno")
 
 	g = _new_game()
 	_quiet(g)
-	check(not g.can_go_to_combat(0) and g.go_to_combat(0).is_empty(), "no ready attacker: no combat step")
+	check(not g.can_go_to_combat(0) and g.go_to_combat(0).is_empty(), "sem atacante pronto: sem combate")
 
 func _test_summon_window() -> void:
 	_tcard("t_sw", 1, 1, [])
@@ -990,7 +1182,7 @@ func _test_summon_window() -> void:
 	g.play_card(0, u, 0)
 	check(g.summon_window and g.priority == 1 and g.decider() == 1, "summon opens a response window for the opponent")
 	check(not g.can_play(0, _give(g, 0, "t_sw")), "active player cannot act during the window")
-	check(g.end_turn(0).is_empty() and g.declare_attack(0, {}).is_empty(), "no sorcery-speed actions during the window")
+	check(g.end_turn(0).is_empty() and g.go_to_combat(0).is_empty(), "no sorcery-speed actions during the window")
 	check(g.can_play(1, fast), "opponent can cast Rápido in the window")
 	g.pass_priority(1)
 	check(not g.summon_window and g.priority == 0 and g.phase == "main", "pass closes the window, turn goes on")
@@ -1032,34 +1224,27 @@ func _test_summon_window() -> void:
 	g.set_auto_pass(1, true)
 	check(not g.summon_window and g.priority == 0, "turning auto-pass on passes an unusable window")
 
-	# blocks with no possible blocker are skipped; the prompt stays with auto-pass off
-	_tcard("t_fly", 1, 1, [])
-	CardDB.data()["cards"]["t_fly"]["keywords"] = ["voo"]
+	# the pre-combat window: with nothing to play it auto-passes; auto-pass off keeps it open
 	for auto in [true, false]:
 		g = _new_game()
 		_quiet(g)
-		var at := _put(g, 0, "t_fly")
-		_put(g, 1, "t_sw")
+		_put(g, 0, "t_sw")
+		g.set_auto_pass(0, auto)
 		g.set_auto_pass(1, auto)
-		_attack(g, {at.uid: 0})
-		_pass_windows(g)
-		check((g.phase != "blocks") == auto, "unblockable attacker: block prompt skipped only with auto-pass (%s)" % auto)
+		g.go_to_combat(0)
+		check((g.window == "attacks") == auto, "preparação sem jogadas: pula só com auto-pass (%s)" % auto)
 
-	# no possible blocker but a Rápido in hand: still gets the prepare and damage windows
+	# the defender holding a Rápido gets the pre-combat window
 	g = _new_game()
 	_quiet(g)
 	g.players[1]["momentum"] = 3
-	var at2 := _put(g, 0, "t_fly")
-	_put(g, 1, "t_sw")
+	var at2 := _put(g, 0, "t_sw")
 	var fast2 := _give(g, 1, "t_sw_fast")
 	g.go_to_combat(0)
-	g.declare_attack(0, {at2.uid: 0})
-	g.pass_priority(0)
-	check(g.window == "prepare" and g.priority == 1 and g.can_play(1, fast2), "unblockable attack: defender still gets the prepare window with a Rápido")
-	g.pass_priority(1)
-	check(g.window == "damage" and g.phase == "combat", "block prompt skipped, damage window follows")
-	g.pass_priority(0)
-	check(g.priority == 1 and g.can_play(1, fast2), "defender keeps the damage window while holding a Rápido")
+	check(g.window == "pre_combat" and g.priority == 1 and g.can_play(1, fast2), "defensor com Rápido recebe a preparação")
+	g.play_card(1, fast2, at2.uid)
+	_pass_windows(g)
+	check(g.find_unit(at2.uid) == null and g.phase == "main", "o atacante morreu na preparação: sem ataques, o combate acaba")
 
 	# a summon whose on_play searches opens the window once the pick is made
 	g = _new_game()
@@ -1114,34 +1299,27 @@ func _test_stack() -> void:
 	g.play_card(0, lab, foe.uid)
 	check(g.stack.is_empty() and g.find_unit(foe.uid) == null, "auto-pass when opponent has no response")
 
-	# combat windows: attacker -> defender prepare -> attacker last -> blocks
+	# pre-combat window: a Rápido resolves, then both players must pass again in a row
 	g = _new_game()
-	g.players[0]["momentum"] = 2 # Pavio Curto (2) keeps a play, so the window doesn't auto-pass
+	g.players[0]["momentum"] = 2
 	g.players[1]["momentum"] = 2
 	var kai := _put(g, 0, "kai")
-	var wall := _put(g, 1, "t_wall")
-	_give(g, 1, "t_fast")
+	_put(g, 1, "t_wall")
+	var fast := _give(g, 1, "t_fast")
 	g.go_to_combat(0)
-	g.declare_attack(0, {kai.uid: 0})
-	check(g.phase == "combat" and g.window == "attack" and g.priority == 0, "attacker window")
-	g.pass_priority(0)
-	check(g.window == "prepare" and g.priority == 1, "defender prepare window")
+	check(g.phase == "combat" and g.window == "pre_combat" and g.priority == 0, "preparação: atacante primeiro")
+	if g.priority == 0:
+		g.pass_priority(0)
+	check(g.priority == 1, "depois o defensor")
 	_tspell("t_slow", "lento", [])
-	check(not g.can_play(1, _give(g, 1, "t_slow")), "lento not allowed in combat")
-	var fast: int = g.players[1]["hand"][-2].uid
+	check(not g.can_play(1, _give(g, 1, "t_slow")), "lento não entra no combate")
 	g.play_card(1, fast, kai.uid)
-	check(g.priority == 0 and g.stack.size() == 1, "rapido cast in prepare window")
+	check(g.priority == 0 and g.stack.size() == 1, "rápido vai para a pilha na preparação")
 	g.pass_priority(0)
-	check(g.find_unit(kai.uid).damage == 1 and g.priority == 1 and g.window == "prepare", "after resolving, window owner gets priority back")
-	g.pass_priority(1)
-	check(g.phase == "blocks", "then blocks")
-	check(not g.can_play(0, _give(g, 0, "lanca_das_mares")), "no lento outside main")
-	g.declare_blocks(1, {kai.uid: wall.uid})
-	check(g.phase == "combat" and g.window == "damage" and g.priority == 0 and g.blocks.has(kai.uid), "damage window after blocks, attacker first")
-	g.pass_priority(0)
-	check(g.window == "damage" and g.priority == 1, "attacker passed: defender gets priority")
-	g.pass_priority(1)
-	check(g.phase == "main" and g.priority == 0 and g.blocks.is_empty(), "both passed: damage, back to main")
+	check(g.find_unit(kai.uid).damage == 1 and g.window == "pre_combat", "resolveu; a preparação continua")
+	_open_attacks(g)
+	check(g.window == "attacks", "os dois passaram: ataques")
+	check(not g.can_play(0, _give(g, 0, "lanca_das_mares")), "sem lento fora da fase principal")
 
 	# Escudo de Feitiço (Neraqa falls back to herself)
 	g = _new_game()
@@ -1163,11 +1341,11 @@ func _test_stack() -> void:
 	g.players[1]["momentum"] = 4
 	check(CardDB.leader("naelthos")["ability"]["cost"] == 2 and CardDB.leader("ronan")["ability"]["cost"] == 2, "poderes de Ronan e Naelthos custam 2")
 	var start_hp: int = g.players[1]["leader_max"]
-	var naelthos_attacker := _put(g, 0, "kai")
+	_put(g, 0, "kai")
 	g.go_to_combat(0)
-	g.declare_attack(0, {naelthos_attacker.uid: 0})
-	g.pass_priority(0)
-	check(g.window == "prepare" and g.priority == 1, "naelthos (instantânea) gets the prepare window")
+	if g.priority == 0:
+		g.pass_priority(0)
+	check(g.window == "pre_combat" and g.priority == 1, "naelthos (instantânea) recebe a preparação")
 	var hp_before: int = g.players[1]["leader_hp"]
 	g.use_ability(1)
 	check(g.stack.size() == 1 and g.players[1]["leader_hp"] == hp_before, "poder vai para a pilha antes de resolver")
@@ -1182,91 +1360,65 @@ func _test_stack() -> void:
 	g._apply_effect(1, {"action": "heal_leader", "amount": 5}, 0)
 	check(g.players[1]["leader_hp"] == start_hp + 2, "cura normal respeita a nova vida máxima")
 
-## Hipervelocidade strikes first attacking or blocking; Ataque Rápido only as the attacker and not against Hipervelocidade.
-func _strike_result(att_kw: Array, blk_kw: Array) -> String:
+## A 3/3 challenges a tapped 3/3 with the given Rapidez: "A" = attacker alive, "B" = defender alive.
+func _strike_result(attacker_rapidez: int, defender_rapidez: int, defender_frozen := false) -> String:
 	_tcard("t_s_att", 3, 3, [])
-	_tcard("t_s_blk", 3, 3, [])
-	CardDB.data()["cards"]["t_s_att"]["keywords"] = att_kw
-	CardDB.data()["cards"]["t_s_blk"]["keywords"] = blk_kw
+	_tcard("t_s_def", 3, 3, [])
+	CardDB.data()["cards"]["t_s_att"]["rapidez"] = attacker_rapidez
+	CardDB.data()["cards"]["t_s_def"]["rapidez"] = defender_rapidez
 	var g := _new_game()
 	_quiet(g)
-	var at := _put(g, 0, "t_s_att")
-	var bl := _put(g, 1, "t_s_blk")
-	_attack(g, {at.uid: 0})
-	_block(g, {at.uid: bl.uid})
-	return ("A" if not g.find_unit(at.uid) == null else "-") + ("B" if not g.find_unit(bl.uid) == null else "-")
+	var attacker := _put(g, 0, "t_s_att")
+	var defender := _put(g, 1, "t_s_def")
+	if defender_frozen:
+		g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, defender.uid)
+	defender.exhausted = true
+	_hit(g, attacker, defender.uid)
+	return ("A" if not g.find_unit(attacker.uid) == null else "-") + ("B" if not g.find_unit(defender.uid) == null else "-")
 
 func _test_strike_order() -> void:
-	check(_strike_result([], []) == "--", "combate: sem keywords os dois morrem")
-	check(_strike_result(["ataque_rapido"], []) == "A-", "ataque rápido: atacante mata o bloqueador antes")
-	check(_strike_result(["ataque_rapido"], ["ataque_rapido"]) == "A-", "ataque rápido: vale mesmo se o bloqueador também tem")
-	check(_strike_result([], ["ataque_rapido"]) == "--", "ataque rápido: bloqueando não faz nada")
-	check(_strike_result(["ataque_rapido"], ["hipervelocidade"]) == "-B", "ataque rápido: não vale contra Hipervelocidade")
-	check(_strike_result(["hipervelocidade"], []) == "A-", "hipervelocidade: atacando bate primeiro")
-	check(_strike_result([], ["hipervelocidade"]) == "-B", "hipervelocidade: bloqueando bate primeiro")
-	check(_strike_result(["hipervelocidade"], ["ataque_rapido"]) == "A-", "hipervelocidade: bate antes de Ataque Rápido")
-	check(_strike_result(["hipervelocidade"], ["hipervelocidade"]) == "--", "hipervelocidade contra hipervelocidade: simultâneo")
+	check(_strike_result(1, 1) == "--", "rapidez igual: os dois morrem")
+	check(_strike_result(2, 1) == "A-", "atacante mais rápido mata antes")
+	check(_strike_result(1, 2) == "-B", "desafiado mais rápido mata antes")
+	check(_strike_result(4, 3) == "A-", "rapidez 4 bate antes da 3")
+	check(_strike_result(3, 3) == "--", "rapidez 3 contra 3: simultâneo")
+	check(_strike_result(1, 4, true) == "A-", "congelada: ATK 0, nem revida (mesmo sendo mais rápida)")
 
-func _test_damage_window() -> void:
+## Triggers that resolve before the strikes can change the fight.
+func _test_challenge_triggers() -> void:
 	_tcard("t_a22", 2, 2, [])
-	_tcard("t_tr22", 2, 2, [])
-	CardDB.data()["cards"]["t_tr22"]["keywords"] = ["sobrepujanca"]
+	_tcard("t_ct_ping", 2, 2, [{"trigger": "on_challenge", "action": "damage", "target": "opposed_unit", "amount": 2}])
+	CardDB.data()["cards"]["t_ct_ping"]["keywords"] = ["sobrepujanca"]
 	_tcard("t_b12", 1, 2, [])
-	_tspell("t_kill", "instantaneo", [{"trigger": "on_play", "action": "damage", "target": "any_unit", "amount": 9}])
-	_tspell("t_pump", "rapido", [{"trigger": "on_play", "action": "buff", "target": "ally_unit", "atk": 3, "temp": true}])
 
-	# post-block trick: pump after blocks kills the blocker, attacker survives
+	# Ao Desafiar kills the challenged unit: it never strikes back
 	var g := _new_game()
 	_quiet(g)
-	var at := _put(g, 0, "t_a22")
-	var bl := _put(g, 1, "t_b12")
-	var pump := _give(g, 0, "t_pump")
-	_attack(g, {at.uid: 0})
-	g.declare_blocks(1, {at.uid: bl.uid})
-	check(g.window == "damage" and g.priority == 0, "attacker holds priority in damage window")
-	g.play_card(0, pump, at.uid)
-	_pass_windows(g)
-	check(g.find_unit(bl.uid) == null and not g.find_unit(at.uid) == null, "post-block pump kills the blocker, attacker survives")
+	var lord := _put(g, 0, "lord_of_the_shadowflame") # 5/5, Ao Desafiar: 2 de dano
+	var victim := _put(g, 1, "t_a22")
+	victim.exhausted = true
+	_hit(g, lord, victim.uid)
+	check(g.find_unit(victim.uid) == null and lord.damage == 0, "morto pelo Ao Desafiar: não revida")
 
-	# blocker dies before damage -> attacker stays blocked
+	# Sobrepujança with the target already dead: the full hit goes to the Leader
 	g = _new_game()
 	_quiet(g)
-	at = _put(g, 0, "t_a22")
-	bl = _put(g, 1, "t_b12")
+	var trampler := _put(g, 0, "t_ct_ping")
+	var small := _put(g, 1, "t_b12")
+	small.exhausted = true
 	var hp0: int = g.players[1]["leader_hp"]
-	var kill := _give(g, 0, "t_kill")
-	_attack(g, {at.uid: 0})
-	g.declare_blocks(1, {at.uid: bl.uid})
-	g.play_card(0, kill, bl.uid)
-	_pass_windows(g)
-	check(g.find_unit(bl.uid) == null and g.players[1]["leader_hp"] == hp0, "blocks are final: no leader damage")
-	check(g.phase == "main", "combat ends")
+	_hit(g, trampler, small.uid)
+	check(g.find_unit(small.uid) == null and g.players[1]["leader_hp"] == hp0 - 2, "sobrepujança: alvo já morto, dano todo no Líder")
 
-	# Sobrepujança with a dead blocker: everything tramples through
+	# the attacker dies to Ao Ser Desafiada: it deals nothing
 	g = _new_game()
 	_quiet(g)
-	at = _put(g, 0, "t_tr22")
-	bl = _put(g, 1, "t_b12")
-	hp0 = g.players[1]["leader_hp"]
-	kill = _give(g, 0, "t_kill")
-	_attack(g, {at.uid: 0})
-	g.declare_blocks(1, {at.uid: bl.uid})
-	g.play_card(0, kill, bl.uid)
-	_pass_windows(g)
-	check(g.players[1]["leader_hp"] == hp0 - 2, "trample: dead blocker -> full damage to leader")
-
-	# attacker dies in the damage window -> blocker deals nothing, defender acts after attacker passes
-	g = _new_game()
-	_quiet(g)
-	at = _put(g, 0, "t_a22")
-	bl = _put(g, 1, "t_b12")
-	kill = _give(g, 1, "t_kill")
-	_attack(g, {at.uid: 0})
-	g.declare_blocks(1, {at.uid: bl.uid})
-	check(g.priority == 1, "attacker with no play auto-passes to the defender")
-	g.play_card(1, kill, at.uid)
-	check(g.phase == "main" and g.find_unit(at.uid) == null, "attacker killed, combat over")
-	check(g.find_unit(bl.uid).damage == 0, "blocker untouched")
+	var fragile := _put(g, 0, "t_frz_hit") # 1/5
+	fragile.damage = 4
+	var spear := _put(g, 1, "tritao_lanceiro")
+	spear.exhausted = true
+	_hit(g, fragile, spear.uid)
+	check(g.find_unit(fragile.uid) == null and spear.damage == 0, "atacante morto pelo Ao Ser Desafiada não causa dano")
 
 ## No momentum and no leader ability, so only test cards give plays.
 func _quiet(g: GameState) -> void:
@@ -1345,21 +1497,31 @@ func _test_listeners() -> void:
 
 func _test_triggers() -> void:
 	_tcard("t_atk", 1, 5, [{"trigger": "on_attack", "action": "damage", "target": "enemy_leader", "amount": 2}])
-	_tcard("t_blk", 1, 5, [{"trigger": "on_block", "action": "buff", "target": "self", "atk": 3, "temp": true}])
+	_tcard("t_chd", 1, 5, [{"trigger": "on_challenged", "action": "buff", "target": "self", "atk": 3, "temp": true}])
 	_tcard("t_turn", 1, 5, [{"trigger": "on_turn_end", "action": "buff", "target": "self", "atk": 1, "hp": 1}])
 	_tcard("t_hurt", 1, 9, [{"trigger": "on_damaged", "action": "damage", "target": "opposed_unit", "amount": 1}])
 	var g := _new_game()
 	var a := _put(g, 0, "t_atk")
 	var hp: int = g.players[1]["leader_hp"]
-	_attack(g, {a.uid: 0})
-	check(g.players[1]["leader_hp"] == hp - 3, "on_attack fires (2 effect + 1 unblocked hit)")
+	_hit(g, a)
+	check(g.players[1]["leader_hp"] == hp - 3, "Ao Atacar no Líder (2 do efeito + 1 do golpe)")
 
 	g = _new_game()
+	_quiet(g)
+	var a2 := _put(g, 0, "t_atk")
+	var wall_target := _put(g, 1, "t_turn")
+	wall_target.exhausted = true
+	hp = g.players[1]["leader_hp"]
+	_hit(g, a2, wall_target.uid)
+	check(g.players[1]["leader_hp"] == hp - 2, "Ao Atacar também dispara ao desafiar")
+
+	g = _new_game()
+	_quiet(g)
 	var at := _put(g, 0, "kai")
-	var bl := _put(g, 1, "t_blk")
-	_attack(g, {at.uid: 0})
-	_block(g, {at.uid: bl.uid})
-	check(g.find_unit(bl.uid).temp_atk == 3 or g.find_unit(bl.uid) == null, "on_block fires")
+	var challenged := _put(g, 1, "t_chd")
+	challenged.exhausted = true
+	_hit(g, at, challenged.uid)
+	check(g.find_unit(challenged.uid).temp_atk == 3 and g.find_unit(at.uid) == null, "Ao Ser Desafiada: +3 ATK antes de revidar")
 
 	g = _new_game()
 	var tt := _put(g, 0, "t_turn")
@@ -1385,22 +1547,31 @@ func _test_triggers() -> void:
 	g = _new_game()
 	var sal := _put(g, 0, "salamandra")
 	hp = g.players[1]["leader_hp"]
-	_attack(g, {sal.uid: 0})
+	_hit(g, sal)
 	check(g.players[1]["leader_hp"] == hp - 4, "salamandra Ao Atacar (2 + 2 hit)")
 
 	g = _new_game()
 	var lord := _put(g, 0, "lord_of_the_shadowflame")
-	var blk := _put(g, 1, "alexa_neruvya_primordial") # 7/7
-	_attack(g, {lord.uid: 0})
-	_block(g, {lord.uid: blk.uid})
-	check(g.find_unit(blk.uid) == null, "lorde Ao Ser Bloqueada: 2 + 5 combat kills 7/7")
+	_tcard("t_big77", 7, 7, [])
+	var big := _put(g, 1, "t_big77")
+	big.exhausted = true
+	_hit(g, lord, big.uid)
+	check(g.find_unit(big.uid) == null, "lorde Ao Desafiar: 2 + 5 de combate matam uma 7/7")
 
 	g = _new_game()
 	var kai2 := _put(g, 0, "kai")
 	var sp := _put(g, 1, "tritao_lanceiro")
-	_attack(g, {kai2.uid: 0})
-	_block(g, {kai2.uid: sp.uid})
-	check(g.find_unit(kai2.uid).damage <= 1, "tritao Ao Bloquear hits attacker")
+	sp.exhausted = true
+	_hit(g, kai2, sp.uid)
+	check(g.find_unit(kai2.uid).damage == 1, "tritão Ao Ser Desafiada: 1 de dano no atacante")
+
+	g = _new_game()
+	_quiet(g)
+	var tide := _put(g, 1, "espirito_da_mare")
+	tide.exhausted = true
+	g.players[1]["leader_hp"] = 10
+	_hit(g, _put(g, 0, "serpente_marinha"), tide.uid)
+	check(g.players[1]["leader_hp"] == 12, "espírito da maré Ao Ser Desafiada: cura 2 do Líder")
 
 	g = _new_game()
 	var ron := _put(g, 0, "ronan")
@@ -1423,17 +1594,20 @@ func _test_triggers() -> void:
 	check(g.players[0]["hand"].size() == h0 + 2 and g.players[1]["hand"].size() == h1 + 2, "engenheiro louco: both draw 2")
 
 	_tcard("t_wall", 1, 9, [])
-	g = _new_game()
-	var estr := _put(g, 0, "estrondador_igneo")
-	var w1 := _put(g, 1, "t_wall")
-	var w2 := _put(g, 1, "t_wall")
-	var w3 := _put(g, 1, "t_wall")
-	_attack(g, {estr.uid: 0})
-	_block(g, {})
-	var hit := 0
-	for w in [w1, w2, w3]:
-		hit += int(g.find_unit(w["uid"]).damage)
-	check(hit >= 2 and hit <= 3, "estrondador AoE hits random + adjacent (%d)" % hit)
+	# Estrondador Ígneo: hits the middle of the enemy board (1 unit if odd, the 2 middle ones if even)
+	for wall_count in [1, 2, 3, 4]:
+		g = _new_game()
+		var estr := _put(g, 0, "estrondador_igneo")
+		var walls: Array = []
+		for _i in wall_count:
+			walls.append(_put(g, 1, "t_wall"))
+		_quiet(g)
+		_hit(g, estr)
+		var damages: Array = []
+		for w in walls:
+			damages.append(int(g.find_unit(w["uid"]).damage))
+		var expected: Array = {1: [2], 2: [2, 2], 3: [0, 2, 0], 4: [0, 2, 2, 0]}[wall_count]
+		check(damages == expected, "estrondador hits the center of %d enemy units (%s)" % [wall_count, str(damages)])
 
 	# Fênix Menor: dies, revives as 1/1 with no effects
 	g = _new_game()
@@ -1629,7 +1803,7 @@ func _test_eletrica() -> void:
 	check(g.players[a]["unspent"] == 2 and g.cost_of(a, gg) == 9, "gigante: só 2 sobrando -> custo base")
 	# Fulgurvoltz: no Ao Entrar; Ao Ativar (4, Lento) destroys every enemy unit, from the stack
 	var fgd: Dictionary = CardDB.card("fulgurvoltz")
-	check(fgd["activated"]["cost"] == 4 and fgd["activated"]["speed"] == "lento", "fulgurvoltz: Ao Ativar custa 4, Lento")
+	check(fgd["activated"]["cost"] == 5 and fgd["activated"]["speed"] == "lento", "fulgurvoltz: Ao Ativar custa 5, Lento")
 	g = _eletrica_game()
 	a = g.active
 	o = g.opponent(a)
@@ -1637,23 +1811,22 @@ func _test_eletrica() -> void:
 	var foe1 := _put(g, o, "tritao_lanceiro")
 	var foe2 := _put(g, o, "serpente_marinha")
 	check(not g.find_unit(foe1.uid) == null, "fulgurvoltz: entrar não destrói nada")
-	g.players[a]["momentum"] = 2
-	g.players[a]["reserve"] = 2 # the Reserva pays abilities, so 4 is reachable the turn it lands
+	g.players[a]["momentum"] = 3
+	g.players[a]["reserve"] = 2 # the Reserva pays abilities, so 5 is reachable the turn it lands
 	check(g.can_activate(a, fv.uid), "fulgurvoltz: ativável pagando com a Reserva")
 	g.auto_pass[o] = false
 	g.activate(a, fv.uid)
 	g._flush()
-	check(g.stack.size() == 1 and g.players[a]["momentum"] == 0 and g.players[a]["reserve"] == 0, "fulgurvoltz: vai para a pilha pagando 4")
+	check(g.stack.size() == 1 and g.players[a]["momentum"] == 0 and g.players[a]["reserve"] == 0, "fulgurvoltz: vai para a pilha pagando 5")
 	g.pass_priority(o)
 	g._flush()
 	g.auto_pass[o] = true
 	check(g.find_unit(foe1.uid) == null and g.find_unit(foe2.uid) == null and not g.find_unit(fv.uid) == null, "fulgurvoltz: destrói todas as inimigas e fica")
-	# the Ao Ativar exhausts it: no second use, no attack, but it still blocks; a new turn refreshes it
+	# the Ao Ativar exhausts it: no second use, no attack, and now it can be challenged; a new turn refreshes it
 	check(fgd["activated"].get("exhaust", false) and fv.exhausted, "fulgurvoltz: ativar o exaure")
-	g.players[a]["momentum"] = 4
+	g.players[a]["momentum"] = 5
 	check(not g.can_activate(a, fv.uid) and not g.can_attack(fv), "fulgurvoltz: exausto não ativa de novo nem ataca")
-	var fv_foe := _put(g, o, "tritao_lanceiro")
-	check(g.can_block(fv, fv_foe), "fulgurvoltz: exausto ainda bloqueia")
+	check(not g.can_challenge(_put(g, o, "tritao_lanceiro"), fv) and g.can_challenge(_put(g, o, "serpente_marinha"), fv), "fulgurvoltz exausto: desafiável, mas a Intimidação barra ATK 3 ou menos")
 	var fv2 := _put(g, a, "fulgurvoltz")
 	fv2.exhausted = true # e.g. it attacked this turn
 	check(not g.can_activate(a, fv2.uid), "fulgurvoltz: quem atacou não ativa")
@@ -1663,8 +1836,8 @@ func _test_eletrica() -> void:
 	o = g.opponent(a)
 	fv = _put(g, a, "fulgurvoltz")
 	foe1 = _put(g, o, "tritao_lanceiro")
-	g.players[a]["momentum"] = 4
-	g.players[o]["momentum"] = 3
+	g.players[a]["momentum"] = 5
+	g.players[o]["momentum"] = 5 # the ability now costs 5: above Negação's limit of 4, so it pays the +2
 	var neg2 := _give(g, o, "negacao_de_neraqa")
 	g.auto_pass[o] = false
 	g.activate(a, fv.uid)
@@ -1716,8 +1889,8 @@ func _test_eletrica() -> void:
 	var ally := _put(g, a, "jack")
 	g.players[a]["momentum"] = 9
 	var vs := _put(g, a, "voltexz")
-	check(atk_ok(g, ally, 3 + 5, 5 + 5) and g.has_kw(ally, "ataque_rapido"), "voltexz: aliados +5/+5 e Ataque Rápido")
-	check(g.atk_of(vs) == 8 and g.has_kw(vs, "hipervelocidade") and not g.has_kw(vs, "ataque_rapido"), "voltexz: não bufa a si própria (ATK base 8, Hipervelocidade é nativa)")
+	check(atk_ok(g, ally, 3 + 5, 5 + 5) and ally.rapidez_total() == 2, "voltexz: aliados +5/+5 e Rapidez 2")
+	check(g.atk_of(vs) == 8 and vs.rapidez_total() == 4, "voltexz: não bufa a si própria (ATK base 8, Rapidez 4 nativa)")
 	g = _eletrica_game()
 	a = g.active
 	ally = _put(g, a, "jack")
@@ -1749,12 +1922,12 @@ func _test_eletrica() -> void:
 	check(g.atk_of(ly) == 9, "layla: +1 por dano, sem limite (%d)" % g.atk_of(ly))
 	# Victoria: Ao Atacar, +1 de Ataque permanente
 	g = _new_game()
+	_quiet(g)
 	var vic := _put(g, 0, "victoria")
-	_attack(g, {vic.uid: 0})
-	_block(g, {})
+	_hit(g, vic)
 	g._flush()
 	check(g.atk_of(vic) == 3 and vic.atk == 3, "victoria: +1 de Ataque permanente ao atacar (%d)" % g.atk_of(vic))
-	# Esquiva: first combat damage per turn from a weaker attacker is avoided
+	# Esquiva: the first combat damage per turn from a slower unit is avoided
 	g = _eletrica_game()
 	a = g.active
 	o = g.opponent(a)
@@ -1762,15 +1935,15 @@ func _test_eletrica() -> void:
 	var weak := _put(g, a, "jack") # 2/4
 	g._combat_damage = true
 	g._deal_damage(th.uid, 2, weak)
-	check(th.damage == 0, "esquiva: dano de combate de ataque menor é evitado")
+	check(th.damage == 0, "esquiva: dano de combate de Rapidez menor é evitado")
 	g._deal_damage(th.uid, 2, weak)
 	check(th.damage == 2, "esquiva: só a primeira vez no turno")
 	g._combat_damage = false
 	g.turn += 1
 	g._combat_damage = true
-	var strong := _put(g, a, "gigante_eletrico") # 6/6
+	var strong := _put(g, a, "voltexz") # Rapidez 4, same as Thorwells
 	g._deal_damage(th.uid, 1, strong)
-	check(th.damage == 3, "esquiva: ataque maior não é evitado")
+	check(th.damage == 3, "esquiva: Rapidez igual ou maior não é evitada")
 	g.turn += 1
 	g._deal_damage(th.uid, 1, weak)
 	check(th.damage == 3, "esquiva: de novo no turno seguinte")
@@ -1778,16 +1951,16 @@ func _test_eletrica() -> void:
 	g.turn += 1
 	g._deal_damage(th.uid, 1, weak)
 	check(th.damage == 4, "esquiva: dano fora de combate não é evitado")
-	# Esquiva with an override: Espírito Carregado dodges attackers lacking Ataque Rápido / Hipervelocidade
+	# Esquiva with an override: Espírito Carregado dodges anything with Rapidez 1 or less
 	var sp := _put(g, o, "espirito_carregado")
 	var slow := _put(g, a, "jack")
-	var fast := _put(g, a, "layla") # Ataque Rápido
+	var fast := _put(g, a, "layla") # Rapidez 2
 	g.turn += 1
 	g._combat_damage = true
 	g._deal_damage(sp.uid, 1, fast)
-	check(sp.damage == 1, "esquiva (override): atacante com Ataque Rápido acerta")
+	check(sp.damage == 1, "esquiva (override): Rapidez 2 acerta")
 	g._deal_damage(sp.uid, 1, slow)
-	check(sp.damage == 1, "esquiva (override): atacante sem velocidade é evitado, mesmo com ATK maior")
+	check(sp.damage == 1, "esquiva (override): Rapidez 1 é evitada, mesmo com ATK maior")
 	g._combat_damage = false
 	# Sobrecarga: Reserva cheia no início do turno dá +1 Momentum (só ao dono)
 	g = _eletrica_game()
@@ -1819,15 +1992,18 @@ func _test_intimidacao() -> void:
 	_tcard("t_high", 4, 4, [])
 	var g := _new_game()
 	_quiet(g)
-	var at := _put(g, 0, "t_int")
-	var low := _put(g, 1, "t_low")
-	var high := _put(g, 1, "t_high")
-	check(not g.can_block(low, at) and g.can_block(high, at), "intimidacao: ATK 3 ou menos não bloqueia, ATK 4 bloqueia")
+	var scary := _put(g, 1, "t_int")
+	scary.exhausted = true
+	var low := _put(g, 0, "t_low")
+	var high := _put(g, 0, "t_high")
+	check(not g.can_challenge(low, scary) and g.can_challenge(high, scary), "intimidação: ATK 3 ou menos não desafia, ATK 4 desafia")
 	low.atk = 4
-	check(g.can_block(low, at), "intimidacao: usa o ATK atual (buff libera o bloqueio)")
+	check(g.can_challenge(low, scary), "intimidação: usa o ATK atual (buff libera o desafio)")
 	high.atk = 3
-	check(not g.can_block(high, at), "intimidacao: debuff tira o direito de bloquear")
-	check(g.can_block(high, _put(g, 0, "t_high")), "intimidacao: não afeta quem não tem a palavra-chave")
+	check(not g.can_challenge(high, scary), "intimidação: debuff tira o direito de desafiar")
+	var plain := _put(g, 1, "t_high")
+	plain.exhausted = true
+	check(g.can_challenge(high, plain), "intimidação: não afeta quem não tem a palavra-chave")
 	# Raiturus: Transformar (8) vira o Primordial 9/9 Intimidacao + Ímpeto sem usar a pilha
 	g = _eletrica_game()
 	var rt := _put(g, g.active, "tony_raiturus")
@@ -1920,19 +2096,16 @@ func _test_twin_bolts() -> void:
 	check(g.find_unit(d.uid) == null, "Diabrete Elétrico morre")
 
 func _test_overkill() -> void:
-	# Leader at 3: a fast attacker (step 1) kills it, the normal attacker (step 3) still lands; its on_hit_leader does not fire
-	_tcard("t_ok_fast", 4, 3, [])
-	CardDB.data()["cards"]["t_ok_fast"]["keywords"] = ["hipervelocidade"]
-	_tcard("t_ok_late", 5, 3, [{"trigger": "on_hit_leader", "action": "damage", "target": "enemy_leader", "amount": 7}])
+	# Leader at 3: the first attack kills it and the game ends in the middle of the combat
+	_tcard("t_ok", 4, 3, [])
 	var g := _new_game()
 	_quiet(g)
 	g.players[1]["leader_hp"] = 3
-	var a := _put(g, 0, "t_ok_fast")
-	var b := _put(g, 0, "t_ok_late")
-	_attack(g, {a.uid: 0, b.uid: 0})
-	_block(g, {})
-	check(g.phase == "over" and g.winner == 0, "overkill: o jogo acaba depois do combate inteiro")
-	check(g.players[1]["leader_hp"] == 3 - 4 - 5, "overkill: os golpes seguintes do combate ainda acertam o Líder morto")
+	var a := _put(g, 0, "t_ok")
+	var b := _put(g, 0, "t_ok")
+	_hit(g, a)
+	check(g.phase == "over" and g.winner == 0, "o jogo acaba no meio do combate")
+	check(g.attack_unit(0, b.uid, GameState.LEADER_UID[1]).is_empty() and g.players[1]["leader_hp"] == 3 - 4, "depois do fim, nenhum ataque a mais")
 	# runaway chain: past EVENT_CAP no trigger resolves
 	var g2 := _new_game()
 	g2._events.resize(GameState.EVENT_CAP)

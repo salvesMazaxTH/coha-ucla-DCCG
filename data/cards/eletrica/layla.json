@@ -9,9 +9,8 @@
   "cost": 4,
   "atk": 4,
   "hp": 3,
-  "keywords": [
-    "ataque_rapido"
-  ],
+  "rapidez": 2,
+  "keywords": [],
   "art": "eletrica/layla.webp",
   "effects": [
     {

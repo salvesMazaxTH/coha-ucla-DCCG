@@ -21,12 +21,12 @@
     }
   ],
   "activated": {
-    "cost": 4,
+    "cost": 5,
     "speed": "lento",
     "exhaust": true,
     "effects": [{ "action": "banish", "target": "all_enemy_units" }]
   },
-  "text": "Custa 2 a menos por turno seu com Momentum vazado (mín. 5).\nAo Ativar (4) {lento} (exaure esta unidade): bana todas as unidades inimigas.",
+  "text": "Custa 2 a menos por turno seu com Momentum vazado (mín. 5).\nAo Ativar (5) {lento} (exaure esta unidade): bana todas as unidades inimigas.",
   "flavor": "",
   "tags": []
 }

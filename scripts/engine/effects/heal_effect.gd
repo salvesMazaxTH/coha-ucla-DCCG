@@ -5,6 +5,7 @@ extends Effect
 ## "leader_max_up": raises the controller's Leader maximum HP (and current HP) by `amount`.
 ## "heal_full": removes all damage from the target unit.
 ## "heal_unit": heals the target unit by `amount`, or by its Armadura when "per" is "armor".
+##              A Leader target (negative uid, e.g. from "ally_or_own_leader") heals that Leader instead.
 
 var amount := 0
 var per := ""
@@ -25,6 +26,9 @@ func apply(context: EffectContext, target_uid: int) -> void:
 				context.game._emit({"type": "heal", "uid": target_uid, "amount": unit.damage})
 				unit.damage = 0
 		"heal_unit":
+			if target_uid < 0: # a Leader was picked: heal the controller's Leader
+				context.game._heal_leader(context.controller, amount)
+				return
 			var unit := context.game.find_unit(target_uid)
 			if unit == null or unit.damage <= 0:
 				return

@@ -19,7 +19,8 @@ var atk := 0
 var hp := 0
 var damage := 0
 var temp_atk := 0
-var temp_hp := 0 ## extra Vida that lasts until the end of the turn (damage is wiped then too, so nothing can die from it expiring)
+var temp_hp := 0 ## extra Vida that lasts until the end of the turn; it soaks damage first, so nothing dies from it expiring
+var rapidez := 1 ## Rapidez 1-4 (the card shows it as the keyword Rapidez 1-3: tier 1 is the default and goes unmentioned): in a challenge, the faster unit deals its damage first (equal = at the same time)
 var keywords: Array = []
 var temp_keywords: Array = []
 var shield := false
@@ -66,6 +67,7 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	damage = 0
 	temp_atk = 0
 	temp_hp = 0
+	rapidez = int(cd.get("rapidez", 1))
 	armor = int(cd.get("armor", 0))
 	temp_armor = 0
 	shield = kws.has("escudo")
@@ -97,13 +99,21 @@ func has_kw(kw: String) -> bool:
 func armor_total() -> int:
 	return armor + temp_armor
 
+## ATK right now. A Congelada unit has ATK 0 while the freeze lasts (buffs don't change that).
 func atk_total() -> int:
+	if is_frozen():
+		return 0
 	return maxi(0, atk + temp_atk + bonus_atk)
+
+## Rapidez right now (a Congelada unit keeps it; the freeze only takes its ATK).
+func rapidez_total() -> int:
+	return clampi(rapidez, 1, 4)
 
 func hp_left() -> int:
 	return hp + bonus_hp + temp_hp - damage
 
-## Congelada: can't attack or block until the end of its owner's next turn.
+## Congelada: ATK counts as 0 until the end of its owner's next turn
+## (so it can't attack, and strikes back for 0 if challenged).
 func is_frozen() -> bool:
 	return frozen > 0
 
@@ -129,6 +139,8 @@ func to_dict() -> Dictionary:
 		d["temp_armor"] = temp_armor
 	if temp_hp > 0:
 		d["temp_hp"] = temp_hp
+	if rapidez != 1:
+		d["rapidez"] = rapidez
 	if has_bonus:
 		d["bonus_atk"] = bonus_atk
 		d["bonus_hp"] = bonus_hp
@@ -166,6 +178,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.armor = int(d.get("armor", 0))
 	c.temp_armor = int(d.get("temp_armor", 0))
 	c.temp_hp = int(d.get("temp_hp", 0))
+	c.rapidez = int(d.get("rapidez", 1))
 	c.shield = bool(d["shield"])
 	c.spell_shield = bool(d["spell_shield"])
 	c.exhausted = bool(d["exhausted"])

@@ -50,16 +50,14 @@ static func snapshot(g: GameState, seat: int) -> Dictionary:
 		"phase": g.phase,
 		"winner": g.winner,
 		"decider": g.decider(),
-		"attackers": g.attackers.duplicate(true),
-		"blocks": g.blocks.duplicate(true),
 		"pending_search": search,
 		"pending_enter": g.pending_enter.duplicate(true),
+		"pending_tap": g.pending_tap.duplicate(),
 		"stack": g.stack.duplicate(true),
 		"priority": g.priority,
 		"window": g.window,
 		"summon_window": g.summon_window,
 		"stack_passed": g.stack_passed,
-		"attack_step": g.attack_step,
 	}
 
 ## Events are public information (a draw carries only a uid, plays show the card being

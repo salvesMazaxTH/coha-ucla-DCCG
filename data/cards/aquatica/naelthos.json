@@ -2,13 +2,16 @@
   "name": "Naelthos",
   "type": "unit",
   "rarity": "champion",
-  "species": ["merfolk"],
+  "species": [
+    "merfolk"
+  ],
   "essence": "aquatica",
   "cost": 5,
   "atk": 4,
   "hp": 7,
   "keywords": [
-    "provocacao"
+    "provocacao",
+    "regeneracao"
   ],
   "art": "aquatica/naelthos.webp",
   "effects": [
@@ -24,9 +27,21 @@
     "speed": "lento",
     "once_per_turn": true,
     "effects": [
-      { "action": "heal_leader", "target": "own_leader", "amount": 4 },
-      { "action": "heal_unit", "target": "all_ally_units", "amount": 4 },
-      { "action": "buff", "target": "self", "hp": 1 }
+      {
+        "action": "heal_leader",
+        "target": "own_leader",
+        "amount": 4
+      },
+      {
+        "action": "heal_unit",
+        "target": "all_ally_units",
+        "amount": 4
+      },
+      {
+        "action": "buff",
+        "target": "self",
+        "hp": 1
+      }
     ]
   },
   "text": "Ao Entrar: cure 4 de vida do seu Líder.\nAo Ativar (4) {lento} (1x por turno): cure 4 de vida do seu Líder e de cada unidade aliada; Naelthos ganha +1 de Vida permanente.",

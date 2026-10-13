@@ -7,8 +7,8 @@
   "cost": 3,
   "atk": 2,
   "hp": 2,
+  "rapidez": 2,
   "keywords": [
-    "ataque_rapido",
     "impeto"
   ],
   "art": "ignea/kai.webp",

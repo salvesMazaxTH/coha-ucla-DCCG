@@ -8,16 +8,18 @@
   "cost": 1,
   "atk": 1,
   "hp": 3,
-  "keywords": ["vigilancia"],
+  "keywords": [
+    "vigilancia"
+  ],
   "effects": [
     {
-      "trigger": "on_block",
+      "trigger": "on_challenged",
       "action": "buff",
       "target": "self",
       "armor": 1
     }
   ],
-  "text": "Ao Bloquear: ganha Armadura 1 permanente.",
+  "text": "Ao Ser Desafiada: ganha Armadura 1 permanente.",
   "flavor": "",
   "tags": []
 }

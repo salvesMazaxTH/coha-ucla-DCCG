@@ -9,8 +9,8 @@
   "cost": 7,
   "atk": 6,
   "hp": 6,
+  "rapidez": 4,
   "keywords": [
-    "hipervelocidade",
     "esquiva"
   ],
   "art": "eletrica/thorwells.webp",

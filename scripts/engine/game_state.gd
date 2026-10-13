@@ -11,8 +11,8 @@ const BOARD_LIMIT := 8
 const MOMENTUM_CAP := 10
 const RESERVE_CAP := 2 ## unspent Momentum banked at turn start; pays only spells and abilities
 const COMMANDER_TAX := 2
-const INTIMIDATE_ATK := 3 ## Intimidacao: blockers with this ATK or less cannot block
-const SECOND_BONUS_TURNS := 2 ## the second player's first turns that start with +1 Reserve (the first also with +1 Momentum)
+const INTIMIDATE_ATK := 3 ## Intimidacao: attackers with this ATK or less cannot challenge it
+const SECOND_BONUS_TURNS := 2 ## the second player's first turns that start with +1 Momentum and +1 Reserve (refill)
 const REQUIEM_EXTRA_COST := 2 ## Réquiem: a spell cast from the graveyard costs this much more, then is banished
 
 ## Leaders are addressed with negative uids so targets are a single int.
@@ -24,11 +24,10 @@ var turn := 0
 var first := 0 ## who takes turn 1 (skips that draw, mulligans first; the other gets the early Momentum bonus)
 var phase := "mulligan"
 var winner := -1 ## -1 none, 0/1 player, 2 draw
-## Pending combat: attacker uid -> provoked enemy uid (or 0)
-var attackers: Dictionary = {}
-## Locked-in blocks (attacker uid -> blocker uid) during the damage window. Final: a
-## blocker that dies before damage still leaves its attacker blocked.
-var blocks: Dictionary = {}
+## Units with Provocação that just entered and wait for their controller to choose whether they
+## enter tapped (phase "enter_tapped"), oldest first. Holds uids.
+var pending_tap: Array = []
+var _enter_tapped_return := "main" ## the phase to go back to after the choice
 ## Pending deterministic deck search. The matching cards are public until chosen.
 var pending_search: Dictionary = {}
 ## Ao Entrar waiting for its owner to pick a target, after the unit is already on the board
@@ -41,8 +40,8 @@ var stack: Array = []
 ## Who may act during "main"/"combat". Casting hands priority to the opponent (response);
 ## a pass with items on the stack resolves the whole stack.
 var priority := 0
-## Combat window while phase == "combat": "attack" (attacker), "prepare" (defender),
-## then blocks, then "damage" (attacker first; damage when both pass in a row).
+## Combat window while phase == "combat": "pre_combat" (attacker first, then defender; both may
+## cast Rápido/Instantâneo; ends when both pass in a row), then "attacks" (attacks one by one, no responses).
 var window := ""
 ## Main-phase response window right after the active player summoned a unit from hand or
 ## the Santuário (stack empty): the opponent holds priority and may cast Rápido/Instantâneo.
@@ -54,9 +53,6 @@ var stack_passed := false
 ## Turns the "pass, then it comes back to the caster" rule on or off (on in real games; with it
 ## off, the opponent's pass resolves the stack at once, which the older stack tests expect).
 var self_response_enabled := true
-## The active player confirmed the end of their first Main Phase ("IR PARA O COMBATE") and is
-## now choosing attackers. Only Rápido/Instantâneo plays are allowed until they attack or skip.
-var attack_step := false
 var _summon_pending := false # a summon's search delays its response window
 ## Per seat: skip priority windows where that player has no legal play (a player can turn
 ## this off to be asked every time). Also skips a block prompt with no possible blocker.
@@ -161,8 +157,9 @@ func decider() -> int:
 	match phase:
 		"mulligan":
 			return first if not players[first]["mulligan_done"] else opponent(first)
-		"blocks":
-			return opponent(active)
+		"enter_tapped":
+			var waiting := find_unit(int(pending_tap[0])) if not pending_tap.is_empty() else null
+			return waiting.owner if waiting != null else active
 		"search":
 			return int(pending_search.get("player", active))
 		"enter_target":
@@ -285,28 +282,27 @@ func legendary_cost(p: int) -> int:
 	var l: Dictionary = players[p]["legendary"]
 	return cost_of(p, CardDB.card(l["card_id"])) + COMMANDER_TAX * int(l["casts"])
 
-## Congelada: can't attack or block until the end of its owner's next turn.
+## Congelada: ATK counts as 0 until the end of its owner's next turn.
 func is_frozen(c: Card) -> bool:
 	return c.is_frozen()
 
+## The unit is ready to attack: not tapped, not summoning sick (unless Ímpeto), ATK above 0
+## (a Congelada unit has ATK 0, so it can't attack while frozen).
 func can_attack(c: Card) -> bool:
-	return not is_frozen(c) and not c.exhausted and (not c.sick or has_kw(c, "impeto")) and atk_of(c) > 0
+	return not c.exhausted and (not c.sick or has_kw(c, "impeto")) and atk_of(c) > 0
 
-func can_block(blocker: Card, attacker: Card) -> bool:
-	if is_frozen(blocker) or has_kw(blocker, "nao_bloqueia"):
-		return false
-	if has_kw(attacker, "voo") and not (has_kw(blocker, "voo") or has_kw(blocker, "longo_alcance")):
-		return false
-	if has_kw(attacker, "furtividade") and not (has_kw(blocker, "furtividade") or has_kw(blocker, "vigilancia")):
-		return false
-	if has_kw(attacker, "intimidacao") and atk_of(blocker) <= INTIMIDATE_ATK:
-		return false
-	return true
+## Can `attacker` challenge `target` (an enemy unit that is tapped and reachable)? See CombatSystem.
+func can_challenge(attacker: Card, target: Card) -> bool:
+	return combat_system().can_challenge(attacker, target)
+
+## Every uid `attacker` may hit right now (challengeable units and/or the enemy Leader's negative uid).
+func attack_targets(attacker: Card) -> Array:
+	return combat_system().attack_targets(attacker)
 
 ## Effect spec of a card/ability that needs a chosen target, or "" if none.
 func target_spec(effects: Array) -> String:
 	for e in effects:
-		if e.get("target", "") in ["enemy_unit", "ally_unit", "other_ally_unit", "any_unit", "any", "enemy_stack", "enemy_artifact"]:
+		if e.get("target", "") in ["enemy_unit", "ally_unit", "other_ally_unit", "ally_or_own_leader", "any_unit", "any", "enemy_stack", "enemy_artifact"]:
 			return e["target"]
 	return ""
 
@@ -400,7 +396,12 @@ static func _is_spell(cd: Dictionary) -> bool:
 func valid_targets(p: int, spec: String, self_uid: int = 0) -> Array:
 	var out: Array = []
 	var mine: Array = players[p]["board"]
-	var theirs: Array = players[opponent(p)]["board"]
+	# Inalcançável: enemy units with it can't be picked as a target by this player
+	# (effects that don't aim, like area or random ones, still reach them)
+	var theirs: Array = []
+	for enemy_unit: Card in players[opponent(p)]["board"]:
+		if not has_kw(enemy_unit, "inalcancavel"):
+			theirs.append(enemy_unit)
 	match spec:
 		"enemy_unit":
 			for c: Card in theirs: out.append(c.uid)
@@ -409,6 +410,9 @@ func valid_targets(p: int, spec: String, self_uid: int = 0) -> Array:
 		"other_ally_unit":
 			for c: Card in mine:
 				if c.uid != self_uid: out.append(c.uid)
+		"ally_or_own_leader": # an ally unit or your own Leader (healing like Maré Curativa)
+			for c: Card in mine: out.append(c.uid)
+			out.append(LEADER_UID[p])
 		"any_unit":
 			for c: Card in mine + theirs: out.append(c.uid)
 		"any":
@@ -442,25 +446,23 @@ func speed_of(src: Dictionary) -> String:
 		return "rapido"
 	return "lento"
 
-## Lento: own Main Phase with an empty stack. Rápido: also combat windows.
-## Instantâneo: also as a response to anything on the stack.
+## Lento: own Main Phase with an empty stack. Rápido: also the pre-combat window (both players)
+## and the summon response window. Instantâneo: also as a response to anything on the stack.
+## Nothing can be cast during the attacks themselves.
 func can_cast_speed(p: int, speed: String) -> bool:
 	if phase not in ["main", "combat"] or p != priority:
 		return false
 	if not stack.is_empty():
 		return speed == "instantaneo"
 	if phase == "main":
-		if attack_step:
-			return p == active and speed != "lento"
 		return p == active or (summon_window and speed != "lento")
-	return speed != "lento"
+	return window == "pre_combat" and speed != "lento"
 
-## Units, the Legendary and ending the turn: own Main Phase (not the attacker-choosing
-## step), empty stack.
+## Units, the Legendary and ending the turn: own Main Phase, empty stack.
 func _sorcery_time(p: int) -> bool:
-	return _main_phase_idle(p) and not attack_step
+	return _main_phase_idle(p)
 
-## Own Main Phase, empty stack, nothing pending (shared by the sorcery and attack steps).
+## Own Main Phase, empty stack, nothing pending.
 func _main_phase_idle(p: int) -> bool:
 	return phase == "main" and p == active and priority == p and stack.is_empty() and not summon_window
 
@@ -473,19 +475,34 @@ func can_go_to_combat(p: int) -> bool:
 			return true
 	return false
 
-## Confirms the end of the first Main Phase: from now on only attackers are chosen.
+## Ends the first Main Phase and opens the pre-combat window (attacker first, then defender).
 func go_to_combat(p: int) -> Array:
 	if not can_go_to_combat(p):
 		return []
-	attack_step = true
-	_emit({"type": "combat_step", "player": p})
+	combat_system().start_combat(p)
+	stack_system().settle()
 	return _flush()
 
-## Leaves the attacker-choosing step without attacking: no more attacks this turn (second Main Phase).
-func skip_combat(p: int) -> Array:
-	if not attack_step or not _main_phase_idle(p):
+## One attack during the "attacks" window: `attacker_uid` taps and hits `target_uid`
+## (the enemy Leader's negative uid, or an enemy unit it can challenge). Resolves at once.
+func attack_unit(p: int, attacker_uid: int, target_uid: int) -> Array:
+	return combat_system().attack(p, attacker_uid, target_uid)
+
+## "ENCERRAR COMBATE": the attacker stops attacking and goes to the second Main Phase.
+func end_combat(p: int) -> Array:
+	if not combat_system().in_attacks_window(p):
 		return []
-	attack_step = false
+	combat_system().end_combat()
+	stack_system().settle()
+	return _flush()
+
+## Leaves combat without attacking: no more attacks this turn (second Main Phase).
+## Works from the Main Phase (skipping combat entirely) or from the attacks window.
+func skip_combat(p: int) -> Array:
+	if combat_system().in_attacks_window(p):
+		return end_combat(p)
+	if not _main_phase_idle(p) or players[p]["attacked"]:
+		return []
 	players[p]["attacked"] = true
 	_emit({"type": "combat_skipped", "player": p})
 	return _flush()
@@ -528,7 +545,7 @@ func can_use_ability(p: int) -> bool:
 ## Unit Ao Ativar (cards.json unit field "activated": {cost, speed, effects, once_per_turn, exhaust}):
 ## paid like an ability (Reserva counts) and put on the stack, so it can be answered and countered.
 ## "exhaust": the unit must be ready (not exhausted) and becomes exhausted, so it cannot attack
-## that turn (and an attacker cannot activate). Exhaustion never stops it from blocking.
+## that turn (and an attacker cannot activate). Being exhausted also means the opponent may challenge it.
 func can_activate(p: int, uid: int) -> bool:
 	var c := _activatable_card(uid)
 	if c == null or c.owner != p:
@@ -835,6 +852,37 @@ func choose_enter_target(p: int, target: int) -> Array:
 	stack_system().settle()
 	return _flush()
 
+## A Provocação that just entered waits for its controller: enter tapped or not.
+## Returns false when no living unit is waiting (units that already left are dropped).
+func ask_enter_tapped() -> bool:
+	while not pending_tap.is_empty() and find_unit(int(pending_tap[0])) == null:
+		pending_tap.pop_front()
+	if pending_tap.is_empty():
+		return false
+	if phase != "enter_tapped":
+		_enter_tapped_return = phase
+		phase = "enter_tapped"
+	var unit := find_unit(int(pending_tap[0]))
+	_emit({"type": "enter_tapped_choice", "player": unit.owner, "uid": unit.uid, "card_id": unit.card_id})
+	return true
+
+## The controller's answer for the waiting Provocação: tapped = true makes it enter exhausted,
+## so it forces enemy attackers to challenge it (and can be challenged).
+func choose_enter_tapped(p: int, tapped: bool) -> Array:
+	if phase != "enter_tapped" or pending_tap.is_empty() or p != decider():
+		return []
+	var unit := find_unit(int(pending_tap.pop_front()))
+	if unit != null:
+		if tapped:
+			unit.exhausted = true
+		_emit({"type": "enter_tapped", "player": p, "uid": unit.uid, "tapped": tapped})
+	# the next waiting Provocação is asked by settle(); otherwise the game goes back to where it was
+	phase = _enter_tapped_return
+	_check_state()
+	stack_system().after_search()
+	stack_system().settle()
+	return _flush()
+
 ## Choose one of the public cards revealed by a deterministic deck search.
 func choose_search(p: int, card_uid: int) -> Array:
 	if phase != "search" or p != decider():
@@ -918,14 +966,6 @@ func choose_search(p: int, card_uid: int) -> Array:
 
 # ---------------------------------------------------------------- stack & combat (see systems/)
 
-## attacks: Dictionary attacker_uid -> provoked enemy uid (0 when none).
-func declare_attack(p: int, attacks: Dictionary) -> Array:
-	return combat_system().declare_attack(p, attacks)
-
-## blocks: Dictionary attacker_uid -> blocker_uid.
-func declare_blocks(p: int, picks: Dictionary) -> Array:
-	return combat_system().declare_blocks(p, picks)
-
 ## Momentum cost of a spell/ability on the stack.
 func stack_cost(item: Dictionary) -> int:
 	return stack_system().stack_cost(item)
@@ -994,6 +1034,9 @@ func _summon(p: int, c: Card, legendary: bool, target: int, over: Dictionary = {
 	else:
 		board.insert(slot, c)
 	_emit({"type": "summon", "player": p, "uid": uid, "card_id": card_id})
+	# Provocação: on any entry its controller chooses whether it enters tapped (asked once things settle)
+	if has_kw(c, "provocacao"):
+		pending_tap.append(uid)
 	var spec := enter_spec(cd)
 	if ask and spec != "" and not valid_targets(p, spec, uid).is_empty():
 		pending_enter = {"player": p, "uid": uid, "card_id": card_id, "spec": spec}
@@ -1030,10 +1073,10 @@ func _fire(c: Card, trigger: String, other_uid: int = 0) -> void:
 	event.other_uid = other_uid
 	bus().emit(event)
 
-## Gatilhos (cards.json "triggers"): on_play, on_enter, on_death, on_attack, on_block,
-## on_blocked, on_damaged, on_hit_leader, on_turn_start, on_turn_end. "constante" never fires
+## Gatilhos (cards.json "triggers"): on_play, on_enter, on_death, on_attack, on_challenge,
+## on_challenged, on_damaged, on_hit_leader, on_turn_start, on_turn_end. "constante" never fires
 ## here: it is continuous and handled by _refresh_scaling.
-## other_uid is the opposing unit in combat triggers (blocker, attacker, damage source).
+## other_uid is the opposing unit in combat triggers (challenged unit, attacker, damage source).
 func _run_effects(context: EffectContext, effects: Array) -> void:
 	for entry in effects:
 		# entries are Effect objects (raw card dictionaries are parsed on the fly)
@@ -1308,7 +1351,7 @@ func _check_state() -> void:
 	var resolved := 0
 	while true:
 		_move_dead_units()
-		if _pending.is_empty() or phase in ["search", "enter_target"]:
+		if _pending.is_empty() or phase in ["search", "enter_target", "enter_tapped"]:
 			break
 		if _chain_stopped() or resolved >= MAX_TRIGGERS_PER_ACTION:
 			_pending.clear() # a Leader is down or a trigger loop ran away: nothing new resolves
@@ -1400,9 +1443,16 @@ func _finish_turn() -> void:
 		return
 	for p in players:
 		for c in p["board"]:
-			c.damage = 0
-			c.temp_atk = 0
+			# Damage stays marked between turns. Temporary Vida soaked damage first, so when it
+			# expires it takes that much damage away with it (a unit never dies from a buff ending).
+			c.damage = maxi(0, c.damage - c.temp_hp)
 			c.temp_hp = 0
+			c.temp_atk = 0
+			# Regeneração: at the end of every turn all of this unit's damage is healed
+			if has_kw(c, "regeneracao") and c.damage > 0:
+				var healed_amount: int = c.damage
+				c.damage = 0
+				_emit({"type": "heal", "uid": c.uid, "amount": healed_amount, "regeneration": true})
 			for kw in c.temp_keywords:
 				c.keywords.erase(kw)
 			c.temp_keywords.clear()
@@ -1433,10 +1483,10 @@ func _start_turn(p: int, draw: bool) -> void:
 	pl["max_momentum"] = min(MOMENTUM_CAP, pl["max_momentum"] + 1)
 	pl["momentum"] = pl["max_momentum"]
 	if p != first and turn <= SECOND_BONUS_TURNS * 2:
-		# going second: +1 Reserve on each of the first SECOND_BONUS_TURNS turns, and +1 Momentum on the very first
+		# going second: on each of the first SECOND_BONUS_TURNS turns, +1 Momentum (this turn only)
+		# and 1 Reserva refilled (never past the cap)
 		pl["reserve"] = mini(RESERVE_CAP, int(pl["reserve"]) + 1)
-		if turn == 2:
-			pl["momentum"] += 1
+		pl["momentum"] += 1
 	for i in 2:
 		var q: Dictionary = players[i]
 		# once_per_turn: refreshed every turn, so instants can be used on either turn.
@@ -1448,7 +1498,6 @@ func _start_turn(p: int, draw: bool) -> void:
 		pl["momentum"] = mini(MOMENTUM_CAP, int(pl["momentum"]) + int(pl["next_momentum"]))
 		pl["next_momentum"] = 0
 	pl["attacked"] = false
-	attack_step = false
 	pl["played_two"] = false
 	for c in pl["board"]:
 		c.exhausted = false

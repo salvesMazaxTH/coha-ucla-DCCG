@@ -13,11 +13,11 @@
     {
       "trigger": "on_hit_leader",
       "action": "damage",
-      "target": "random_enemy_and_adjacent",
-      "amount": 1
+      "target": "center_enemy_units",
+      "amount": 2
     }
   ],
-  "text": "Ao Atingir o Líder: cause 1 de dano a uma unidade inimiga aleatória e às adjacentes.",
+  "text": "Ao Atingir o Líder: cause 2 de dano às unidades inimigas no centro do campo.",
   "flavor": "O estrondo vem antes do fogo.",
   "tags": []
 }

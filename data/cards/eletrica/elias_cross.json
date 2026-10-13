@@ -10,7 +10,8 @@
   "cost": 6,
   "atk": 6,
   "hp": 5,
-  "keywords": ["ataque_rapido"],
+  "rapidez": 2,
+  "keywords": [],
   "art": "eletrica/elias_cross.webp",
   "effects": [
     {

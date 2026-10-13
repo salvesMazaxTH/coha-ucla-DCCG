@@ -18,11 +18,11 @@ Cada ação é uma classe em `scripts/engine/effects/`, registrada em `effect_re
 |---|---|---|
 | `damage` | `amount`, `amount_from`, `ally_reduce` | dano ao alvo |
 | `heal_leader` / `leader_max_up` / `heal_full` | `amount` | cura, aumenta a vida máxima ou cura tudo |
-| `heal_unit` | `amount`, `per` (`"armor"`, `"half_armor"`) | cura a unidade em `amount`, ou no valor da Armadura dela (`"armor"`) ou metade arredondada pra cima (`"half_armor"`) |
+| `heal_unit` | `amount`, `per` (`"armor"`, `"half_armor"`) | cura a unidade em `amount` (se o alvo for um Líder, cura o seu Líder), ou no valor da Armadura dela (`"armor"`) ou metade arredondada pra cima (`"half_armor"`) |
 | `draw` / `draw_discounted` | `amount`, `min_base_cost`, `discount` | compra cartas (a segunda dá desconto à cópia na mão) |
 | `tide_mark` | — | põe a Marca da Maré |
 | `search_deck` / `look_top` | `count`, `shuffle` e filtros | abre escolha com cartas do deck |
-| `freeze` | — | alvo não ataca nem bloqueia até o fim do próximo turno do dono |
+| `freeze` | — | ATK do alvo fica 0 até o fim do próximo turno do dono |
 | `fight` | `second_target` | o alvo (1ª escolha) e a unidade de `second_target` (2ª escolha) causam, ao mesmo tempo, dano igual ao Ataque de cada uma à outra. Não é combate; Armadura e Escudo valem, Escudo de Feitiço do inimigo cancela a luta |
 | `summon` | `card` (`"self"` ou id), `overrides` | invoca uma carta |
 | `mill` / `mill_pick` | `amount` | manda cartas do deck ao cemitério |
@@ -39,8 +39,8 @@ Cada ação é uma classe em `scripts/engine/effects/`, registrada em `effect_re
 
 Cada família é uma classe em `scripts/engine/targets/`.
 
-- **Escolhidos pelo jogador:** `enemy_unit`, `ally_unit`, `other_ally_unit`, `any_unit`, `any`, `enemy_stack`
-- **Grupos:** `all_enemy_units`, `all_units`, `all_ally_units`, `other_ally_units`
+- **Escolhidos pelo jogador:** `enemy_unit`, `ally_unit`, `other_ally_unit`, `ally_or_own_leader` (unidade aliada ou o seu Líder), `any_unit`, `any`, `enemy_stack`
+- **Grupos:** `all_enemy_units`, `all_units`, `all_ally_units`, `other_ally_units`, `center_enemy_units` (meio do campo inimigo: 1 unidade se a quantidade é ímpar, as 2 do meio se é par)
 - **Líderes:** `enemy_leader`, `own_leader`, `both_leaders`
 - **Aleatórios:** `random_enemy_unit`, `random_enemy_and_adjacent`, `random_ally_unit`, `random_other_ally_unit`
 - **Da própria carta:** `self`, `self_card`, `opposed_unit`, `none`
@@ -56,7 +56,7 @@ A condição é checada quando o gatilho acontece **e** de novo na resolução.
 
 ## Eventos
 
-**Triggers de unidade** (`"trigger"`, só a própria carta): `on_play`, `on_enter`, `on_death`, `on_attack`, `on_block`, `on_blocked`, `on_damaged`, `on_hit_leader`, `on_turn_start`, `on_turn_end`, `on_ally_death`, `on_activate`, `transform`, `constante`.
+**Triggers de unidade** (`"trigger"`, só a própria carta): `on_play`, `on_enter`, `on_death`, `on_attack`, `on_challenge` (Ao Desafiar: `opposed_unit` = a unidade desafiada), `on_challenged` (Ao Ser Desafiada: `opposed_unit` = o atacante), `on_damaged`, `on_hit_leader`, `on_turn_start`, `on_turn_end`, `on_ally_death`, `on_activate`, `transform`, `constante`.
 
 **Eventos de escuta** (`"listen"`, de qualquer lugar): `leader_damaged`, `leader_healed`, `card_moved`, `unit_damaged` (`scope: self` = a própria unidade; tem `amount`, `hp_before`, `hp_after`), `card_drawn`, `turn_started`, `turn_ended` (nos turnos e compras, `ally` = do dono da carta).
 

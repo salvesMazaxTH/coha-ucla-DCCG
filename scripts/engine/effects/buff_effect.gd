@@ -18,6 +18,7 @@ var multiplier_min := 0
 var multiplier_max := 99
 var has_attack_cap := false
 var attack_cap := 0
+var minimum_rapidez := 0
 
 func _read_parameters(data: Dictionary) -> void:
 	attack = int(data.get("atk", 0))
@@ -31,6 +32,7 @@ func _read_parameters(data: Dictionary) -> void:
 	multiplier_max = int(data.get("max", 99))
 	has_attack_cap = data.has("cap_atk")
 	attack_cap = int(data.get("cap_atk", 0))
+	minimum_rapidez = int(data.get("rapidez_min", 0))
 
 func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
@@ -65,6 +67,9 @@ func apply(context: EffectContext, target_uid: int) -> void:
 			if temporary:
 				unit.temp_keywords.append(keyword)
 	var buff_event := {"type": "buff", "uid": target_uid, "atk": attack_gain, "hp": health_gain, "keywords": raw.get("keywords", [])}
+	if minimum_rapidez > unit.rapidez:
+		unit.rapidez = minimum_rapidez
+		buff_event["rapidez"] = minimum_rapidez
 	if armor + temporary_armor > 0:
 		buff_event["armor"] = armor + temporary_armor
 	game._emit(buff_event)

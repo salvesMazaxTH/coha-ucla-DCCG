@@ -28,7 +28,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - Os dois jogadores começam com **5 cartas** na mão.
 - **Mulligan:** cada jogador pode devolver até 3 cartas ao deck, que é embaralhado, e comprar a mesma quantidade.
 - Quem joga primeiro **não compra** no primeiro turno. Quem joga em segundo compra normalmente, então cada um começa o seu primeiro turno com 5 e 6 cartas, respectivamente.
-- Quem joga em segundo ganha **+1 Momentum** no seu **primeiro turno** (só naquele turno; o máximo não muda) e **+1 na Reserva** nos seus **dois primeiros turnos**.
+- Quem joga em segundo, nos seus **dois primeiros turnos**, ganha **+1 Momentum** (só naquele turno; o máximo não muda) e **recarrega 1 da Reserva** (até o limite de 2).
 
 ## Momentum
 
@@ -38,18 +38,32 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 
 ## Turno
 
-1. **Início:** o Momentum é reabastecido, você compra 1 carta e suas unidades ficam prontas.
+1. **Início:** o Momentum é reabastecido, você compra 1 carta e suas unidades ficam prontas (desviram).
 2. **Fase principal:** jogue cartas, conjure a Encarnação e use a habilidade do Líder.
-3. **Ataque**, uma vez por turno: escolha os atacantes. Os ataques sempre miram o **Líder inimigo**.
-4. **Bloqueios:** o defensor escolhe quem bloqueia. Cada bloqueador bloqueia **um único** atacante, e cada atacante pode ser bloqueado por **um único** bloqueador.
-5. **Dano de combate:** o dano sai em três passos: 1) unidades com Hipervelocidade (atacando ou bloqueando); 2) atacantes com Ataque Rápido, exceto contra um bloqueador com Hipervelocidade; 3) as demais. O dano é simultâneo dentro de cada passo. Um atacante que não foi bloqueado causa dano ao Líder.
-6. **Segunda fase principal**.
-7. **Fim do turno:** se você tiver mais de **10 cartas** na mão, escolha quais **banir** até ficar com 10 (não vão ao cemitério; o oponente não vê quais foram). Todo o dano nas unidades é removido, assim como os bônus temporários.
+3. **Combate**, uma vez por turno (veja _Combate_ abaixo).
+4. **Segunda fase principal**.
+5. **Fim do turno:** se você tiver mais de **10 cartas** na mão, escolha quais **banir** até ficar com 10 (não vão ao cemitério; o oponente não vê quais foram). Os bônus temporários acabam. **O dano nas unidades continua marcado** (só curas e Regeneração o removem).
+
+## Combate
+
+- **Não existe bloqueio.** Para atacar, a unidade **vira (fica exaurida)**, e a carta aparece deitada. Ela só desvira no início do próximo turno do dono, então fica exposta durante o turno inteiro do oponente.
+- Cada ataque escolhe um alvo:
+  - o **Líder inimigo** (não leva dano de volta); ou
+  - **desafiar** uma unidade inimiga que **já está exaurida**. As duas trocam dano de combate.
+- **Restrições de desafio:** Voo, Furtividade, Intimidação, Etérea (no alvo) e Obsessão (no atacante); veja a tabela de keywords.
+- **Provocação:** se o oponente tem uma unidade com Provocação **exaurida**, todo atacante que **puder** desafiá-la é obrigado a desafiar ela (ou outra Provocação exaurida, à escolha). Quem não pode desafiá-la (por Voo, Furtividade, Intimidação etc.) fica livre. Toda unidade com Provocação, em **qualquer** entrada (mão, reviver, invocar), deixa o controlador escolher se ela **entra exaurida**.
+- **Fluxo:**
+  1. **IR PARA O COMBATE** abre a **janela de preparação**: o atacante tem a prioridade primeiro, depois o defensor. Os dois podem usar cartas e habilidades **Rápidas** e **Instantâneas**. Ela fecha quando os dois passam seguidos com a pilha vazia.
+  2. **Ataques:** o atacante declara um ataque de cada vez (arrastando a unidade até o alvo). Cada ataque resolve na hora: **não há janelas entre os ataques** e ninguém pode responder; os gatilhos resolvem na hora.
+  3. **ENCERRAR COMBATE** (ou nenhuma unidade podendo atacar) volta para a fase principal.
+- **Ordem do dano (Rapidez):** toda unidade tem uma velocidade de 4 níveis. A mais lenta (a da vasta maioria) não mostra nada na carta; as mais ágeis têm a palavra-chave **Rapidez 1**, **Rapidez 2** ou **Rapidez 3** (tag na carta). Por dentro, o motor guarda 1 a 4: o nível 1 é o padrão e os níveis 2, 3 e 4 aparecem como Rapidez 1, 2 e 3. Num desafio, quem tem mais Rapidez bate primeiro; se matar, não leva o revide. Rapidez igual bate ao mesmo tempo. Uma unidade **congelada** fica só com ATK 0 (a Rapidez dela não muda).
+- As mortes e o fim de jogo são verificados depois de cada ataque, então o jogo pode acabar no meio do combate.
+- **Vida temporária** (de bônus temporários) absorve o dano primeiro. Quando o bônus acaba, o dano marcado cai na mesma quantidade, então a unidade nunca morre só porque o bônus acabou.
 
 ## Regras gerais
 
 - Cada lado pode ter no máximo **8 unidades** em campo.
-- Uma unidade recém-jogada não pode atacar no mesmo turno, a menos que tenha **Ímpeto**. Ela pode bloquear normalmente.
+- Uma unidade recém-jogada não pode atacar no mesmo turno, a menos que tenha **Ímpeto**, e mesmo com Ímpeto ela só pode **desafiar** nesse turno (o Líder inimigo, só a partir do próximo). Ela pode ser desafiada normalmente se estiver exaurida (ex.: entrou exaurida com Provocação).
 - A cura do Líder nunca passa da vida inicial dele.
 - **Banimento:** carta banida sai do jogo: não vai ao cemitério, então não alimenta Encarnação, Vagante etc. e não conta como morrer. A compra não tem teto durante o turno (a mão pode passar de 10, inclusive no turno do oponente); só no fim do seu turno você bane as piores até voltar a 10. Banir da mão é oculto para o oponente; efeitos de banimento (ex.: em área) serão públicos. **Banir uma unidade em campo** é mais forte que destruir (equivale a exilar): ignora Indestrutível, a unidade não morre (sem Ao Morrer nem Aliado Morre) e não vai ao cemitério; o equipamento dela vai ao cemitério.
 - **Fadiga:** comprar uma carta com o deck vazio causa dano ao seu Líder. O dano é de 2 na primeira vez e **dobra** a cada nova compra (2, 4, 8, 16…): com 20 a 25 de vida, mata em até 4 compras. Com o deck vazio, o contador do deck mostra o próximo dano (ex.: -8).
@@ -68,24 +82,10 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
   - Um efeito cujo alvo deixou de ser válido é anulado.
   - **Anular (counter):** alguns Instantâneos (ex.: Negação de Neraqa) miram um feitiço ou habilidade **inimiga** na pilha. **Equipar não pode ser anulado**, mas pode ser respondido (o equipamento é conjurado em velocidade lenta e fica na pilha até resolver). O item anulado sai da pilha sem efeito, e a carta vai para o cemitério. Se o custo do alvo passa do limite da carta, o custo extra (ex.: +3) é cobrado automaticamente quando você escolhe esse alvo.
 - **Janela de invocação:** depois que o jogador da vez joga uma unidade da mão ou conjura a Encarnação do Santuário, o adversário recebe a prioridade e pode responder com uma carta ou habilidade **Rápida** ou **Instantânea**. Ao passar (ou sem jogada), o turno segue. Lenta não pode ser usada aqui, e o jogador da vez não age até a janela fechar.
-- **Auto-passe:** cada jogador pode ligar ou desligar (padrão: ligado). Ligado, o sistema passa sozinho toda janela de prioridade em que você não tem nenhuma jogada legal e também pula o pedido de bloqueios quando nenhuma unidade sua pode bloquear. Desligado, você recebe todas as janelas e passa à mão. Ligar o auto-passe durante uma janela inútil já a passa.
-- **Janelas de combate:** depois de declarar os atacantes, as janelas vêm nesta ordem:
-  1. Ataque, para o atacante.
-  2. Preparação, para o defensor.
-  3. Bloqueios.
-  4. Dano: o atacante tem a prioridade primeiro.
-- **Na janela de dano:**
-  - Se o atacante passa, a prioridade vai para o defensor.
-  - O dano de combate acontece quando os dois passam seguidos com a pilha vazia.
-  - Se alguém joga algo, a pilha resolve normalmente e a prioridade volta para o atacante.
-- Atacantes que morrem durante as janelas saem do combate.
-- **Os bloqueios são definitivos.** Se o bloqueador morre antes do dano, o atacante continua bloqueado e não acerta o Líder. Com Sobrepujança, todo o dano dele vai para o Líder.
-- Se o atacante morre antes do dano, o bloqueador não causa dano.
+- **Auto-passe:** cada jogador pode ligar ou desligar (padrão: ligado). Ligado, o sistema passa sozinho toda janela de prioridade em que você não tem nenhuma jogada legal. Desligado, você recebe todas as janelas e passa à mão. Ligar o auto-passe durante uma janela inútil já a passa.
+- **Janela de combate:** só existe a janela de preparação, antes dos ataques (veja _Combate_). Durante os ataques ninguém joga nada.
 - Quem não tem nenhuma jogada possível passa automaticamente.
-- **Ordem de resolução no combate:**
-  - Os atacantes causam dano na **ordem em que foram declarados** (a UI mostra esse número em cada atacante). Cada atacante bate primeiro, o bloqueador dele logo em seguida. Hipervelocidade e Ataque Rápido sempre vêm antes, em passos à parte.
-  - O dano dentro de um passo **não é totalmente simultâneo**: efeitos reativos (como Ao Sofrer Dano) resolvem na hora e podem afetar os pares seguintes. As mortes só são processadas ao fim do passo, então quem recebeu dano letal ainda bate de volta no mesmo passo.
-  - Quando unidades dos dois lados morrem ao mesmo tempo, as mortes (Ao Morrer, Aliado Morre) resolvem primeiro para o **jogador da vez**, depois para o oponente.
+- Quando unidades dos dois lados morrem ao mesmo tempo, as mortes (Ao Morrer, Aliado Morre) resolvem primeiro para o **jogador da vez**, depois para o oponente.
 
 ## Olhar o topo do deck
 
@@ -110,22 +110,23 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Ao Entrar         | O efeito acontece quando a unidade entra em campo. Se ele pede alvo, o dono escolhe **depois** que a unidade já está no campo (pode ser ela mesma, se o alvo permitir) ou **recusa** e o efeito não acontece. Diferente de custo adicional (Necrófago), que é pago antes de a unidade entrar. |
 | Ao Morrer         | O efeito acontece quando a unidade morre.                                                                                                                                                                                                                                                     |
-| Hipervelocidade   | Atacando ou bloqueando, causa dano de combate antes das unidades sem Hipervelocidade.                                                                                                                                                                                                         |
-| Ataque Rápido     | Ao atacar, causa dano de combate antes do bloqueador, a menos que ele tenha Hipervelocidade. (Bloqueando, não faz nada.)                                                                                                                                                                      |
-| Sobrepujança      | O dano que exceder a vida restante do bloqueador vai para o Líder inimigo.                                                                                                                                                                                                                    |
+| Sobrepujança      | Ao desafiar, o dano que exceder a vida restante da unidade desafiada vai para o Líder inimigo.                                                                                                                                                                                                |
 | Roubo de Vida     | O dano causado pela unidade cura o seu Líder.                                                                                                                                                                                                                                                 |
-| Ímpeto            | Pode atacar no turno em que entra em campo.                                                                                                                                                                                                                                                   |
-| Voo               | Só pode ser bloqueada por unidades com Voo ou Longo Alcance.                                                                                                                                                                                                                                  |
-| Longo Alcance     | Pode bloquear unidades com Voo.                                                                                                                                                                                                                                                               |
-| Furtividade       | Só pode ser bloqueada por unidades com Furtividade ou Vigilância.                                                                                                                                                                                                                             |
-| Vigilância        | Pode bloquear unidades com Furtividade.                                                                                                                                                                                                                                                       |
-| Intimidacao       | Unidades com ATK 3 ou menor (o ATK de agora, com buffs e debuffs) não podem bloquear esta unidade.                                                                                                                                                                                            |
-| Não Bloqueia      | A unidade não pode bloquear (nem ser alvo de Provocação).                                                                                                                                                                                                                                     |
-| Provocação        | Ao atacar, escolha uma unidade inimiga. Ela é obrigada a bloquear esta unidade, mesmo contra Voo, Furtividade ou Intimidacao.                                                                                                                                                                 |
+| Ímpeto            | Pode atacar no turno em que entra em campo, mas só para desafiar.                                                                                                                                                                                                                                          |
+| Voo               | Só pode ser desafiada por unidades com Voo ou Longo Alcance.                                                                                                                                                                                                                                  |
+| Longo Alcance     | Pode desafiar unidades com Voo.                                                                                                                                                                                                                                                               |
+| Furtividade       | Só pode ser desafiada por unidades com Furtividade ou Vigilância.                                                                                                                                                                                                                             |
+| Vigilância        | Pode desafiar unidades com Furtividade.                                                                                                                                                                                                                                                       |
+| Intimidação       | Unidades com ATK 3 ou menor (o ATK de agora, com buffs e debuffs) não podem desafiar esta unidade.                                                                                                                                                                                            |
+| Obsessão          | Não pode desafiar: ao atacar, só pode atingir o Líder inimigo.                                                                                                                                                                                                                                |
+| Provocação        | Ao entrar, o dono escolhe se ela entra exaurida. Exaurida, obriga todo atacante inimigo que puder desafiá-la a desafiar ela (ou outra Provocação exaurida).                                                                                                                                    |
+| Inalcançável      | Não pode ser alvo de feitiços, habilidades ou efeitos **do oponente**. Efeitos sem alvo (área, aleatórios) ainda a afetam, e ela ainda pode ser desafiada. Os efeitos do próprio dono a miram normalmente.                                                                                    |
+| Etérea            | Não pode ser desafiada por nada (com Provocação, não obriga ninguém). Só sai do campo por feitiços e habilidades.                                                                                                                                                                             |
+| Regeneração       | No fim de cada turno (de qualquer jogador), todo o dano desta unidade é curado.                                                                                                                                                                                                               |
 | Escudo            | Anula a próxima instância de dano.                                                                                                                                                                                                                                                            |
-| Congelamento      | A unidade não pode atacar nem bloquear até o fim do próximo turno do dono. Escudo de Feitiço anula.                                                                                                                                                                                           |
+| Congelamento      | O ATK da unidade fica 0 até o fim do próximo turno do dono: ela não pode atacar e, se desafiada, não revida. Escudo de Feitiço anula.                                                                                                                                            |
 | Indestrutível     | Não sofre dano (sempre 0) e não é destruída por efeitos de "destruir". Sacrifício e remoção do jogo (banimento) ainda a afetam.                                                                                                                                                               |
-| Esquiva           | A primeira vez em cada turno que receberia dano de combate de uma unidade com ataque menor que o dela, o dano é evitado.                                                                                                                                                                      |
+| Esquiva           | A primeira vez em cada turno que receberia dano de combate de uma unidade com **Rapidez** menor que a dela, o dano é evitado. (Algumas cartas trocam a condição, ex.: "sem Rapidez" ou "Rapidez N ou menor".)                                                                                                    |
 | Escudo de Feitiço | Anula, uma vez, o próximo efeito **inimigo** que não seja dano de combate (feitiço, habilidade, efeito em área). Depois se dissipa. Efeitos do próprio dono não o consomem.                                                                                                                   |
 
 ## Cemitério e Obscura
@@ -139,7 +140,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 ## Elétrica: Momentum guardado
 
 - **Redução de custo por Momentum guardado:** efeito sem nome (não é Constante). A Voltexz custa 1 a menos por Momentum que **vazou** da Reserva no início de cada turno seu (acumulado; o que sobra depois do turno do oponente, e só o que não cabe nos 2 da Reserva), nunca menos que 3. O Fulgurvoltz custa 2 a menos por turno iniciado com Momentum vazando, nunca menos que 5. O piso (`min_cost`) é exclusivo dessas duas cartas.
-- **Fulgurvoltz:** não destrói nada ao entrar. Seu Ao Ativar (4, Lento) **exaure a unidade** (não pode estar exausta; quem atacou no turno não ativa, e quem ativou não ataca; exaustão nunca impede de bloquear) e destrói todas as unidades inimigas; vai para a pilha, então o oponente pode responder e anulá-lo (ex.: Negação de Neraqa). A Reserva paga habilidades, então no piso de custo (5) dá para entrar e ativar no mesmo turno.
+- **Fulgurvoltz:** não destrói nada ao entrar. Seu Ao Ativar (5, Lento) **exaure a unidade** (não pode estar exausta; quem atacou no turno não ativa, e quem ativou não ataca; exaurida, ela pode ser desafiada) e destrói todas as unidades inimigas; vai para a pilha, então o oponente pode responder e anulá-lo (ex.: Negação de Neraqa, que precisa pagar o +2, já que o custo passa de 4). A Reserva paga habilidades, então no piso de custo (5) dá para entrar e ativar no mesmo turno.
 - **Momentum no próximo turno:** o Espírito Carregado dá +1 Momentum no início do seu próximo turno (soma ao Momentum do turno, até 10).
 - **Sobrecarga (Líder Voltexz):** passiva. No início do seu turno, recupere metade (arredondada para baixo, máx. 2) do Momentum que vazou da Reserva, como Momentum neste turno. "Vazar" = o que não cabe nos 2 da Reserva.
 - **Efeitos no deck (`deck_effects`):** efeitos que a carta tem enquanto está no deck, não em campo. `summon_self` tira aquela cópia do deck e a coloca em campo (sem embaralhar e sem comprar; com o campo cheio, ela fica no deck). O `cost` opcional é pago na entrada como uma habilidade (a Reserva vale e é gasta primeiro); sem como pagar, a cópia fica no deck. Rusco: no fim do seu turno, se você jogou da mão uma carta com custo, ATK ou VIDA impressos exatamente 2 (`if: played_two`), e você paga 2 de Momentum, ele sai do deck e entra em campo.
@@ -160,7 +161,8 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 
 ## Controles
 
-- **Clique esquerdo:** jogar uma carta, selecionar atacantes, escolher alvos e atribuir bloqueios (primeiro o seu bloqueador, depois o atacante).
+- **Clique esquerdo:** jogar uma carta, escolher alvos e responder às escolhas (ex.: entrar exaurida).
+- **Arrastar uma unidade sua até um alvo** durante os ataques: ataca. Os alvos válidos (unidades inimigas exauridas que ela pode desafiar, ou o Líder) brilham.
 - **Clique direito numa carta:** abre o texto completo em tela cheia.
 - **Clique direito ou Esc durante a escolha de alvo:** cancela.
 
@@ -175,9 +177,9 @@ Gatilhos dizem _quando_ um efeito acontece. Eles abrem o texto da carta no lugar
 | Ao Jogar           | A carta é jogada da mão (feitiços e equipamentos).       |
 | Ao Entrar          | A unidade entra em campo.                                |
 | Ao Morrer          | A unidade morre.                                         |
-| Ao Atacar          | A unidade é declarada atacante.                          |
-| Ao Bloquear        | A unidade é declarada bloqueadora.                       |
-| Ao Ser Bloqueada   | Um bloqueador é atribuído a esta unidade atacante.       |
+| Ao Atacar          | A unidade ataca (o Líder ou desafiando uma unidade).     |
+| Ao Desafiar        | A unidade ataca desafiando uma unidade inimiga.          |
+| Ao Ser Desafiada   | A unidade é desafiada por um atacante inimigo.           |
 | Ao Sofrer Dano     | A unidade sofre dano (Escudo anulando o dano não conta). |
 | Ao Atingir o Líder | A unidade causa dano a um Líder.                         |
 | No Início do Turno | Começa o turno do dono da unidade.                       |
@@ -193,6 +195,6 @@ Não são gatilhos automáticos: o dono decide quando usar. O custo em Momentum 
   | (qualquer gatilho) | Um efeito pode ter "uma vez por turno" (`once_per_turn`): o limite é por unidade e reinicia a cada turno, de qualquer jogador (ex.: Diabrete Sombrio). |
   | Constante | Sempre, enquanto a unidade está em campo (só em campo; reduções de custo não são Constante). Não dispara: é recalculado a cada mudança de estado (ex.: Jeff The Death recebe +2/+2 por unidade no cemitério do dono; o dano sofrido continua valendo se o bônus encolher). |
 
-Alvos de gatilhos que não pedem escolha do jogador: `self`, `opposed_unit` (a unidade do outro lado do combate, ou a fonte do dano), `all_ally_units`, `other_ally_units` (todas as suas outras unidades, sem a fonte), `all_units` (ambos os lados; o efeito de dano aceita `ally_reduce` para reduzir o dano em aliados de uma essência), `random_ally_unit`, `random_other_ally_unit`, `random_enemy_unit`, `random_enemy_and_adjacent` (uma unidade inimiga aleatória e as adjacentes), `all_enemy_units`, `enemy_leader`, `own_leader` e `both_leaders` (em efeitos de compra, cada líder alvo compra). Só Ao Jogar e Ao Entrar podem usar alvo escolhido pelo jogador.
+Alvos de gatilhos que não pedem escolha do jogador: `self`, `opposed_unit` (a unidade do outro lado do desafio, ou a fonte do dano), `all_ally_units`, `other_ally_units` (todas as suas outras unidades, sem a fonte), `all_units` (ambos os lados; o efeito de dano aceita `ally_reduce` para reduzir o dano em aliados de uma essência), `random_ally_unit`, `random_other_ally_unit`, `random_enemy_unit`, `random_enemy_and_adjacent` (uma unidade inimiga aleatória e as adjacentes), `all_enemy_units`, `enemy_leader`, `own_leader` e `both_leaders` (em efeitos de compra, cada líder alvo compra). Só Ao Jogar e Ao Entrar podem usar alvo escolhido pelo jogador.
 
 **"Qualquer alvo"** (texto padrão das cartas, alvo `any`) = qualquer unidade em campo, de qualquer lado, ou o Líder inimigo. Não inclui o seu próprio Líder.

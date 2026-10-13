@@ -10,7 +10,8 @@
   "cost": 6,
   "atk": 5,
   "hp": 4,
-  "keywords": ["hipervelocidade"],
+  "rapidez": 3,
+  "keywords": [],
   "art": "ignea/lady_vultrixana.webp",
   "effects": [
     {

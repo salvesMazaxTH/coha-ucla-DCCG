@@ -10,9 +10,9 @@
   "cost": 16,
   "atk": 8,
   "hp": 6,
+  "rapidez": 4,
   "keywords": [
-    "voo",
-    "hipervelocidade"
+    "voo"
   ],
   "art": "eletrica/voltexz.webp",
   "effects": [
@@ -31,12 +31,10 @@
       "max": 5,
       "atk": 1,
       "hp": 1,
-      "keywords": [
-        "ataque_rapido"
-      ]
+      "rapidez_min": 2
     }
   ],
-  "text": "Custa 1 a menos por Momentum vazado (mín. 3).\nAo Entrar: suas outras unidades ganham Ataque Rápido e +1/+1 por Momentum restante (de +1/+1 a +5/+5).",
+  "text": "Custa 1 a menos por Momentum vazado (mín. 3).\nAo Entrar: suas outras unidades ganham +1/+1 por Momentum restante (de +1/+1 a +5/+5) e Rapidez 1 (se for menor).",
   "flavor": "",
   "tags": []
 }
