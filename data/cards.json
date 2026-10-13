@@ -153,6 +153,10 @@
       "name": "Ímpeto",
       "text": "Pode desafiar unidades no turno em que entra."
     },
+    "rompante": {
+      "name": "Rompante",
+      "text": "No turno em que entra, só pode atacar o Líder inimigo."
+    },
     "voo": {
       "name": "Voo",
       "text": "Só pode ser desafiada por unidades com Voo ou Longo Alcance."
@@ -231,7 +235,7 @@
   "leaders": {
     "ronan": {
       "name": "Ronan",
-      "hp": 20,
+      "hp": 25,
       "art": "ignea/ronan.webp",
       "legendary": "ronan",
       "ability": {
@@ -252,7 +256,7 @@
     },
     "naelthos": {
       "name": "Naelthos",
-      "hp": 25,
+      "hp": 30,
       "art": "aquatica/naelthos.webp",
       "legendary": "naelthos",
       "ability": {
@@ -274,7 +278,7 @@
     },
     "jeff": {
       "name": "Jeff The Death",
-      "hp": 20,
+      "hp": 25,
       "art": "obscura/jeff_the_death.webp",
       "legendary": "jeff",
       "ability": {
@@ -297,7 +301,7 @@
     },
     "voltexz": {
       "name": "Voltexz",
-      "hp": 25,
+      "hp": 30,
       "art": "eletrica/voltexz_lider.webp",
       "art_focus": 0.2,
       "legendary": "voltexz",
@@ -322,7 +326,7 @@
     },
     "tharox": {
       "name": "Tharox",
-      "hp": 30,
+      "hp": 35,
       "art": "rochosa/tharox.webp",
       "legendary": "tharox",
       "ability": {

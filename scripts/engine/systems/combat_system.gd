@@ -44,7 +44,7 @@ func has_any_attacker() -> bool:
 func can_challenge(attacker: Card, target: Card) -> bool:
 	if attacker == null or target == null or target.owner == attacker.owner or not target.exhausted:
 		return false
-	if game.has_kw(attacker, "obsessao"):
+	if game.has_kw(attacker, "obsessao") or is_rompante_rush(attacker):
 		return false
 	if game.has_kw(target, "eterea"):
 		return false
@@ -55,6 +55,11 @@ func can_challenge(attacker: Card, target: Card) -> bool:
 	if game.has_kw(target, "intimidacao") and game.atk_of(attacker) <= GameState.INTIMIDATE_ATK:
 		return false
 	return true
+
+## Rompante: on the turn it enters, the unit can only attack the enemy Leader (it cannot challenge
+## anyone, so a Provocação doesn't stop it). From the next turn on it is a normal unit.
+func is_rompante_rush(attacker: Card) -> bool:
+	return attacker.sick and game.has_kw(attacker, "rompante")
 
 ## The tapped enemy Provocação units this attacker is able to challenge. When the list is not
 ## empty, the attacker must challenge one of them (it cannot hit the Leader or another unit).
@@ -75,8 +80,9 @@ func attack_targets(attacker: Card) -> Array:
 		return taunts
 	var out: Array = []
 	# Ímpeto lets a unit attack the turn it enters, but only to challenge: the Leader's face
-	# waits until its next turn (otherwise Ímpeto would be free damage now that nobody blocks)
-	if not attacker.sick:
+	# waits until its next turn (otherwise Ímpeto would be free damage now that nobody blocks).
+	# Rompante is the opposite: the Leader is the only target on the turn it enters.
+	if not attacker.sick or is_rompante_rush(attacker):
 		out.append(GameState.LEADER_UID[game.opponent(attacker.owner)])
 	for enemy_unit: Card in game.players[game.opponent(attacker.owner)]["board"]:
 		if can_challenge(attacker, enemy_unit):

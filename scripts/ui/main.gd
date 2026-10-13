@@ -1509,6 +1509,8 @@ func _hint() -> String:
 			for taunt_uid in taunts:
 				taunt_names.append(_cname(g.find_unit(taunt_uid).card_id))
 			return "Provocação: este ataque precisa desafiar %s." % " ou ".join(taunt_names)
+		if attacker != null and g.combat_system().is_rompante_rush(attacker):
+			return "Rompante: no turno em que entra, ela só pode atacar o Líder inimigo."
 		if attacker != null and attacker.sick:
 			return "Ímpeto: no turno em que entra, ela só pode desafiar (o Líder fica para o próximo turno)."
 		if CardView.touch_ui():

@@ -287,10 +287,10 @@ func legendary_cost(p: int) -> int:
 func is_frozen(c: Card) -> bool:
 	return c.is_frozen()
 
-## The unit is ready to attack: not tapped, not summoning sick (unless Ímpeto), ATK above 0
+## The unit is ready to attack: not tapped, not summoning sick (unless Ímpeto or Rompante), ATK above 0
 ## (a Congelada unit has ATK 0, so it can't attack while frozen).
 func can_attack(c: Card) -> bool:
-	return not c.exhausted and (not c.sick or has_kw(c, "impeto")) and atk_of(c) > 0
+	return not c.exhausted and (not c.sick or has_kw(c, "impeto") or has_kw(c, "rompante")) and atk_of(c) > 0
 
 ## Can `attacker` challenge `target` (an enemy unit that is tapped and reachable)? See CombatSystem.
 func can_challenge(attacker: Card, target: Card) -> bool:
@@ -1101,11 +1101,12 @@ func _announce(c: Card, effects: Array, trigger: String) -> void:
 			return
 
 ## Fires a unit's own trigger. Depth-capped so on_damaged chains cannot loop forever.
-func _fire(c: Card, trigger: String, other_uid: int = 0) -> void:
+func _fire(c: Card, trigger: String, other_uid: int = 0, event_data: Dictionary = {}) -> void:
 	if c == null:
 		return
 	var event := GameEvent.new(trigger, c.owner, c)
 	event.other_uid = other_uid
+	event.data = event_data
 	bus().emit(event)
 
 ## Gatilhos (cards.json "triggers"): on_play, on_enter, on_death, on_attack, on_challenge,
@@ -1420,6 +1421,7 @@ func _move_dead_units() -> void:
 			for c in players[p]["board"].duplicate():
 				if hp_left(c) <= 0:
 					var dead_uid: int = c.uid # a revive_self below gives c a new uid
+					var dying_is_token: bool = c.data().get("token", false) # "not_token" effects ignore a token dying
 					var effects: Array = c.effect_list()
 					players[p]["board"].erase(c)
 					changed = true
@@ -1442,9 +1444,9 @@ func _move_dead_units() -> void:
 					# or a Legendary returns to its zone.
 					for ally in players[p]["board"].duplicate():
 						if players[p]["board"].has(ally):
-							_fire(ally, "on_ally_death", dead_uid)
+							_fire(ally, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token})
 					for relic in players[p]["relics"].duplicate(): # free-standing artifacts hear it too
-						_fire(relic, "on_ally_death", dead_uid)
+						_fire(relic, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token})
 					_fire_leader_passive(p, "on_ally_death")
 
 func _check_leaders() -> void:

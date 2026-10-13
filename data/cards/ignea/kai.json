@@ -9,7 +9,7 @@
   "hp": 2,
   "keywords": [
     "rapidez:1",
-    "impeto"
+    "rompante"
   ],
   "art": "ignea/kai.webp",
   "effects": [{"trigger":"on_attack","action":"damage","target":"enemy_leader","amount":1}],
