@@ -6,10 +6,10 @@
     "divindade"
   ],
   "essence": "obscura",
-  "cost": 5,
-  "atk": 2,
-  "hp": 2,
-  "keywords": [],
+  "cost": 6,
+  "atk": 3,
+  "hp": 3,
+  "keywords": ["roubo_de_vida"],
   "art": "obscura/jeff_the_death.webp",
   "effects": [
     {

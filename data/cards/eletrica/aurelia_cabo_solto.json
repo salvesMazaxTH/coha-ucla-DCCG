@@ -7,11 +7,12 @@
   ],
   "essence": "eletrica",
   "cost": 3,
-  "atk": 3,
+  "atk": 2,
   "hp": 2,
   "subito": 5,
   "keywords": [
-    "rapidez:1"
+    "rapidez:1",
+    "provocacao"
   ],
   "art": "eletrica/aurelia_cabo_solto.webp",
   "effects": [],
