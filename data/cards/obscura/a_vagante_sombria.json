@@ -5,10 +5,12 @@
   "species": ["espirito"],
   "essence": "obscura",
   "cost": 12,
-  "atk": 5,
-  "hp": 5,
+  "atk": 6,
+  "hp": 6,
   "keywords": [
-    "indestrutivel"
+    "indestrutivel",
+    "eterea",
+    "obsessao"
   ],
   "art": "obscura/a_vagante_sombria.webp",
   "effects": [

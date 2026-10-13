@@ -4,18 +4,19 @@
   "rarity": "champion",
   "species": ["divindade", "celestial"],
   "essence": "aquatica",
-  "cost": 4,
+  "cost": 5,
   "atk": 4,
   "hp": 5,
   "keywords": [
-    "vigilancia"
+    "vigilancia",
+    "inalcancavel"
   ],
   "art": "aquatica/neraqa.webp",
   "effects": [
     {
       "trigger": "on_enter",
       "action": "buff",
-      "target": "ally_unit",
+      "target": "other_ally_unit",
       "keywords": [
         "escudo_feitico"
       ],
@@ -23,7 +24,7 @@
       "hp": 1
     }
   ],
-  "text": "Ao Entrar: conceda Escudo de Feitiço e +1/+1 permanente a uma unidade aliada (pode ser ela mesma).",
+  "text": "Ao Entrar: conceda Escudo de Feitiço e +1/+1 permanente a outra unidade aliada.",
   "flavor": "Quebra sobre eles, e volta à calma.",
   "tags": []
 }

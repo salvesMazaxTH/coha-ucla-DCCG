@@ -6,17 +6,10 @@
   "essence": "neutra",
   "cost": 6,
   "atk": 4,
-  "hp": 7,
+  "hp": 8,
   "keywords": [],
   "art": "neutra/tecnomante.webp",
   "effects": [
-    {
-      "trigger": "on_enter",
-      "action": "draw_discounted",
-      "target": "none",
-      "min_base_cost": 8,
-      "discount": 1
-    },
     {
       "trigger": "on_turn_end",
       "action": "draw_discounted",
@@ -25,7 +18,7 @@
       "discount": 1
     }
   ],
-  "text": "Ao Entrar e no Fim do Turno: compre 1 carta de custo 8 ou mais; ela custa 1 a menos.",
+  "text": "Fim do Turno: compre 1 carta de custo 8 ou mais; ela custa 1 a menos.",
   "flavor": "",
   "tags": []
 }
