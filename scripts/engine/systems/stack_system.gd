@@ -79,6 +79,8 @@ func effects_of(item: Dictionary) -> Array:
 		return CardDB.leader(game.players[item["player"]]["leader_id"])["ability"]["effects"]
 	if item["kind"] == "unit_ability":
 		return CardDB.card(item["card_id"])["activated"]["effects"]
+	if item["kind"] == "subito":
+		return [] # a Súbito summon has no effect of its own: the unit just enters when it resolves
 	return CardDB.card(item["card_id"])["effects"]
 
 ## Resolves the stack newest-first. Stops early if the game ends or a search needs a choice.
@@ -113,10 +115,23 @@ func resolve_stack() -> void:
 			else:
 				game.players[p]["graveyard"].append(played)
 				game._move(played, "graveyard")
+		elif item["kind"] == "subito":
+			_resolve_subito(item)
 		game._check_state()
 	if game.phase in ["main", "combat"] and game.stack.is_empty():
 		game.summon_window = false
 		game.priority = window_owner()
+
+## A Súbito summon resolves: the unit enters at the chosen slot (its Ao Entrar fires as usual).
+## If the board filled up while it waited on the stack, the card goes to the graveyard instead.
+func _resolve_subito(item: Dictionary) -> void:
+	var p: int = item["player"]
+	var unit := take_stack_card(item)
+	if game.has_free_slot(p):
+		game._summon(p, unit, false, 0, {}, false, int(item.get("slot", -1)))
+	else:
+		game.players[p]["graveyard"].append(unit)
+		game._move(unit, "graveyard")
 
 ## The Card a "card" stack item stands for (a fresh one if it was never played from a hand).
 func take_stack_card(item: Dictionary) -> Card:
@@ -150,7 +165,7 @@ func counter(p: int, sid: int) -> void:
 	if it.is_empty() or is_uncounterable(it):
 		return
 	game.stack.erase(it)
-	if it["kind"] == "card":
+	if it["kind"] in ["card", "subito"]:
 		var countered := take_stack_card(it)
 		if it.get("requiem", false):
 			game._banish_requiem(countered)

@@ -34,8 +34,9 @@ var pending_search: Dictionary = {}
 ## (phase "enter_target"): {player, uid, card_id, spec}. Optional: target 0 skips the effect.
 var pending_enter: Dictionary = {}
 ## Spells, equipment and leader abilities wait here (LIFO) until both players let them resolve.
-## Item: {sid, player, kind:"card"|"ability"|"unit_ability", uid, card_id, target, speed}
-## ("unit_ability" = a unit's Ao Ativar; uid is the unit, card_id its card.)
+## Item: {sid, player, kind:"card"|"ability"|"unit_ability"|"subito", uid, card_id, target, speed}
+## ("unit_ability" = a unit's Ao Ativar; uid is the unit, card_id its card.
+## "subito" = a unit summoned with Súbito; uid is the card, plus "slot" where it enters.)
 var stack: Array = []
 ## Who may act during "main"/"combat". Casting hands priority to the opponent (response);
 ## a pass with items on the stack resolves the whole stack.
@@ -507,11 +508,27 @@ func skip_combat(p: int) -> Array:
 	_emit({"type": "combat_skipped", "player": p})
 	return _flush()
 
+## Súbito (cards.json unit field "subito": its Súbito cost, e.g. 5 = "Súbito (5)"): outside your own
+## idle Main Phase, the unit can still be summoned in any window where a Rápido spell could be cast,
+## by paying its Súbito cost. That summon is an ability, not a play: it goes on the stack (Rápido),
+## so the opponent can respond to it and counter it. In your own idle Main Phase it is played normally.
+func is_subito_play(p: int, cd: Dictionary) -> bool:
+	return cd.get("type", "") == "unit" and cd.has("subito") and not _sorcery_time(p) and can_cast_speed(p, "rapido")
+
+## The Súbito cost for this copy: the normal cost (with its discounts) plus the Súbito premium.
+func subito_cost(p: int, cd: Dictionary, card: Card = null) -> int:
+	var premium := int(cd["subito"]) - int(cd["cost"])
+	return cost_of(p, cd, card) + premium
+
 func can_play(p: int, hand_uid: int) -> bool:
 	var inst := _castable_card(p, hand_uid)
 	if inst == null:
 		return false
 	var cd := CardDB.card(inst.card_id)
+	if is_subito_play(p, cd):
+		# paid like an ability, so the Reserva counts
+		return inst.zone == "hand" and has_free_slot(p) and not cd.get("cost_sacrifice", false) \
+			and subito_cost(p, cd, inst) <= budget(p, true)
 	if cost_of(p, cd, inst) > budget(p, _is_spell(cd)):
 		return false
 	if cd["type"] == "unit":
@@ -654,6 +671,8 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 	var inst := _castable_card(p, hand_uid)
 	var from_graveyard := inst.zone == "graveyard" # Réquiem
 	var cd := CardDB.card(inst.card_id)
+	if is_subito_play(p, cd):
+		return _play_subito(p, inst, cd, slot)
 	var sacrifice: bool = cd["type"] == "unit" and cd.get("cost_sacrifice", false)
 	var spec := target_spec(cd["effects"])
 	if sacrifice:
@@ -697,6 +716,22 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 		_stack_cards[hand_uid] = inst
 		_move(inst, "stack")
 		stack_system().push(p, "card", hand_uid, inst.card_id, target, speed_of(cd), target2, from_graveyard)
+	stack_system().settle()
+	return _flush()
+
+## Súbito: pays the Súbito cost and puts the summon on the stack as a Rápido ability. The unit
+## enters (at `slot`) only when that item resolves; if it is countered, the card goes to the graveyard.
+func _play_subito(p: int, inst: Card, cd: Dictionary, slot: int) -> Array:
+	_pay(p, subito_cost(p, cd, inst), true)
+	players[p]["hand"].erase(inst)
+	if int(cd.get("cost", 0)) == 2 or int(cd.get("atk", 0)) == 2 or int(cd.get("hp", 0)) == 2:
+		players[p]["played_two"] = true # Rusco counts it too
+	_move(inst, "")
+	_emit({"type": "play", "player": p, "uid": inst.uid, "card_id": inst.card_id, "subito": true})
+	_stack_cards[inst.uid] = inst
+	_move(inst, "stack")
+	stack_system().push(p, "subito", inst.uid, inst.card_id, 0, "rapido")
+	stack[-1]["slot"] = slot
 	stack_system().settle()
 	return _flush()
 

@@ -42,6 +42,7 @@ func _init() -> void:
 	_test_listeners()
 	_test_stack()
 	_test_summon_window()
+	_test_subito()
 	_test_combat_step()
 	_test_leader_cycle()
 	_test_enter_target()
@@ -476,7 +477,8 @@ func _test_enter_target() -> void:
 	var foe2 := _put(g, 1, "esqueleto_guerreiro")
 	var ner := _give(g, 0, "neraqa")
 	g.play_card(0, ner)
-	check(g.valid_targets(0, g.pending_enter["spec"], ner).has(ner), "neraqa: pode escolher ela mesma")
+	var neraqa_targets := g.valid_targets(0, g.pending_enter["spec"], ner)
+	check(not neraqa_targets.has(ner) and neraqa_targets.has(vul), "neraqa: só outra unidade aliada, nunca ela mesma")
 	g.choose_enter_target(0, 0)
 	check(g.phase == "main" and not g.find_unit(ner).spell_shield, "ao entrar recusado: sem efeito")
 	check(g.find_unit(foe2.uid).damage == 0, "ao entrar recusado: nada acontece")
@@ -1167,6 +1169,53 @@ func _test_combat_step() -> void:
 	_quiet(g)
 	check(not g.can_go_to_combat(0) and g.go_to_combat(0).is_empty(), "sem atacante pronto: sem combate")
 
+## Súbito (N): a unit summoned at Rápido speed by paying N; the summon goes on the stack and can be countered.
+func _test_subito() -> void:
+	_tcard("t_sub_trigger", 1, 1, [])
+	_tcard("t_sub", 2, 2, [])
+	CardDB.data()["cards"]["t_sub"]["subito"] = 3
+
+	# in the opponent's summon window: pays 3, goes on the stack, enters when it resolves
+	var g := _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 1
+	g.players[1]["momentum"] = 3
+	var sub := _give(g, 1, "t_sub")
+	check(not g.can_play(1, sub), "Súbito: not playable while the opponent holds the turn and no window is open")
+	g.play_card(0, _give(g, 0, "t_sub_trigger"), 0)
+	check(g.can_play(1, sub) and g.subito_cost(1, CardDB.card("t_sub")) == 3, "Súbito: playable in the window for its Súbito cost")
+	g.set_auto_pass(0, false)
+	g.play_card(1, sub)
+	check(g.stack.size() == 1 and g.stack[0]["kind"] == "subito" and g.players[1]["momentum"] == 0, "Súbito: paid and put on the stack")
+	check(g.find_unit(sub) == null, "Súbito: the unit is not on the board before it resolves")
+	g.pass_priority(0)
+	check(g.stack.is_empty() and g.find_unit(sub) != null and g.find_unit(sub).owner == 1, "Súbito: the unit enters when it resolves")
+
+	# a counter answers it: the card goes to the graveyard
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 4
+	g.players[1]["momentum"] = 3
+	sub = _give(g, 1, "t_sub")
+	var neg := _give(g, 0, "negacao_de_neraqa")
+	g.play_card(0, _give(g, 0, "t_sub_trigger"), 0)
+	g.play_card(1, sub)
+	check(g.can_play(0, neg), "Súbito: the summon can be countered")
+	g.play_card(0, neg, int(g.stack[0]["sid"]))
+	g.pass_priority(1)
+	var graveyard_ids: Array = []
+	for c in g.players[1]["graveyard"]: graveyard_ids.append(c.card_id)
+	check(g.find_unit(sub) == null and graveyard_ids.has("t_sub"), "Súbito: countered, the card goes to the graveyard")
+
+	# in your own idle Main Phase it is played normally, at its normal cost, without the stack
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 1
+	sub = _give(g, 0, "t_sub")
+	check(not g.is_subito_play(0, CardDB.card("t_sub")) and g.can_play(0, sub), "Súbito: normal play in your own Main Phase")
+	g.play_card(0, sub)
+	check(g.find_unit(sub) != null and g.players[0]["momentum"] == 0, "Súbito: normal play costs the normal cost")
+
 func _test_summon_window() -> void:
 	_tcard("t_sw", 1, 1, [])
 	_tspell("t_sw_fast", "rapido", [{"trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 1}])
@@ -1321,15 +1370,18 @@ func _test_stack() -> void:
 	check(g.window == "attacks", "os dois passaram: ataques")
 	check(not g.can_play(0, _give(g, 0, "lanca_das_mares")), "sem lento fora da fase principal")
 
-	# Escudo de Feitiço (Neraqa falls back to herself)
+	# Escudo de Feitiço (Neraqa only shields another ally; she is Inalcançável herself)
 	g = _new_game()
 	g.players[0]["momentum"] = 5
 	var ner := _put(g, 1, "neraqa")
-	check(g.has_kw(ner, "escudo_feitico"), "neraqa grants herself Escudo de Feitiço")
-	g.play_card(0, _give(g, 0, "labareda"), ner.uid)
-	check(ner.damage == 0 and not g.has_kw(ner, "escudo_feitico"), "spell shield cancels the spell, then breaks")
-	g.play_card(0, _give(g, 0, "labareda"), ner.uid)
-	check(ner.damage == 2, "second spell hits")
+	check(not g.has_kw(ner, "escudo_feitico"), "neraqa never shields herself")
+	check(not g.card_targets(0, CardDB.card("labareda")).has(ner.uid), "neraqa is Inalcançável: enemy spells can't target her")
+	var shielded := _put(g, 1, "t_wall")
+	g._apply_effect(1, {"action": "buff", "keywords": ["escudo_feitico"]}, shielded.uid)
+	g.play_card(0, _give(g, 0, "labareda"), shielded.uid)
+	check(shielded.damage == 0 and not g.has_kw(shielded, "escudo_feitico"), "spell shield cancels the spell, then breaks")
+	g.play_card(0, _give(g, 0, "labareda"), shielded.uid)
+	check(shielded.damage == 2, "second spell hits")
 	var ally := _put(g, 1, "t_wall")
 	g._apply_effect(1, {"action": "buff", "keywords": ["escudo_feitico"]}, ally.uid)
 	g._apply_effect(1, {"action": "buff", "atk": 1}, ally.uid)

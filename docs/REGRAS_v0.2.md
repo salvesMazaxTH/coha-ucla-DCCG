@@ -76,6 +76,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
   - **Rápida:** também nas janelas de combate.
   - **Instantânea:** também em resposta a qualquer coisa na pilha.
 - Unidades, a Encarnação, atacar e encerrar o turno seguem a regra das lentas. Unidades não usam a pilha.
+  - Exceção: **Súbito (N)**. Pagando N (a Reserva ajuda), a unidade pode ser invocada em qualquer janela onde uma Rápida caberia. Essa invocação é uma habilidade, não uma jogada: vai para a pilha (Rápida), pode ser respondida e anulada (anulada, a carta vai para o cemitério) e a unidade só entra quando ela resolve. Na sua fase principal livre, a carta é jogada normalmente, pelo custo normal.
 - **Pilha:** feitiços, equipamentos e habilidades vão para a pilha, e a prioridade passa para o adversário.
   - Quem tem prioridade pode responder com uma Instantânea ou passar.
   - Quando alguém passa, a pilha inteira resolve, do mais novo para o mais antigo.
@@ -128,6 +129,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 | Indestrutível     | Não sofre dano (sempre 0) e não é destruída por efeitos de "destruir". Sacrifício e remoção do jogo (banimento) ainda a afetam.                                                                                                                                                               |
 | Esquiva           | A primeira vez em cada turno que receberia dano de combate de uma unidade com **Rapidez** menor que a dela, o dano é evitado. (Algumas cartas trocam a condição, ex.: "sem Rapidez" ou "Rapidez N ou menor".)                                                                                                    |
 | Escudo de Feitiço | Anula, uma vez, o próximo efeito **inimigo** que não seja dano de combate (feitiço, habilidade, efeito em área). Depois se dissipa. Efeitos do próprio dono não o consomem.                                                                                                                   |
+| Súbito (N)        | Pagando N, pode ser invocada em qualquer janela de velocidade Rápida. A invocação vai para a pilha como habilidade (não é jogada) e pode ser respondida e anulada. Ver "Velocidade, pilha e janelas". |
 
 ## Cemitério e Obscura
 

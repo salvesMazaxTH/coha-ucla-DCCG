@@ -297,7 +297,7 @@ func _show_menu() -> void:
 	box.position = Vector2(stage_w / 2.0 - 210, 390)
 	box.custom_minimum_size = Vector2(420, 0)
 	layer.add_child(box)
-	for opt in [["JOGAR CONTRA A IA", "Escolha o seu deck; a IA joga com outro", func() -> void: _show_hub(true), true],
+	for opt in [["JOGAR CONTRA A IA", "Escolha o seu deck e o da IA", func() -> void: _show_hub(true), true],
 			["HOT-SEAT", "Dois jogadores no mesmo computador", func() -> void: _start(false, "fogo", "agua"), false],
 			["ONLINE", "Jogar contra outra pessoa por código de sala", func() -> void: _show_hub(false), false]]:
 		var b := _button(opt[0], opt[2], opt[3])
@@ -383,7 +383,8 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 	layer.add_child(_ornament(Vector2(stage_w / 2.0, 108), 240))
 	var subtitle := "Escolha o seu deck"
 	if choosing_ai_deck:
-		subtitle = "Escolha o deck da IA (ou deixe aleatório) · você joga com %s" % DeckDB.get_deck(sel_deck)["name"]
+		var ai_deck_name := "aleatório" if ai_deck == "" else String(DeckDB.get_deck(ai_deck)["name"])
+		subtitle = "Deck da IA: %s · toque de novo para voltar ao aleatório" % ai_deck_name
 	var sub := _label(msg if msg != "" else subtitle, 22, UITheme.TEXT if msg != "" else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
 	sub.position = Vector2(0, 122)
 	sub.size = Vector2(stage_w, 30)
@@ -402,21 +403,35 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 		var x := (stage_w - (in_row * tile.x + (in_row - 1) * gap)) / 2.0
 		for c in in_row:
 			var id := ids[r * per_row + c]
-			var t := _deck_tile(id, tile, id == sel_deck)
+			var selected_id := ai_deck if choosing_ai_deck else sel_deck
+			var t := _deck_tile(id, tile, id == selected_id)
 			t.position = Vector2(x + c * (tile.x + gap), y)
 			t.gui_input.connect(func(ev: InputEvent) -> void:
 				var mb := ev as InputEventMouseButton
-				if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and sel_deck != id:
+				if mb == null or not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
+					return
+				if choosing_ai_deck:
+					# touching the AI's chosen deck again clears it back to random
+					ai_deck = "" if ai_deck == id else id
+				elif sel_deck != id:
 					sel_deck = id
-					_show_hub.call_deferred(ai, msg))
+				else:
+					return
+				_show_hub.call_deferred(ai, msg, choosing_ai_deck))
 			layer.add_child(t)
 		y += tile.y + gap
 
 	var actions: Array = []
-	if ai:
+	if ai and not choosing_ai_deck:
+		actions.append(["PRÓXIMO: DECK DA IA", func() -> void:
+			_show_hub.call_deferred(true, "", true), true])
+	elif ai:
 		actions.append(["JOGAR", func() -> void:
-			var others := ids.filter(func(d: String) -> bool: return d != sel_deck)
-			_start(true, sel_deck, String(others.pick_random()) if not others.is_empty() else sel_deck), true])
+			var opponent_deck := ai_deck
+			if opponent_deck == "":
+				var others := ids.filter(func(d: String) -> bool: return d != sel_deck)
+				opponent_deck = String(others.pick_random()) if not others.is_empty() else sel_deck
+			_start(true, sel_deck, opponent_deck), true])
 	elif net.load_session():
 		actions.append(["RETOMAR PARTIDA (%s)" % net.code, func() -> void:
 			online = true
@@ -436,7 +451,9 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 		b.position = Vector2(bx + i * (bw + 24.0), y + 4.0)
 		b.size = Vector2(bw, 72)
 		layer.add_child(b)
-	var bk := _button("Voltar", _show_menu)
+	# from the AI-deck step, Voltar goes back to picking your own deck
+	var back_action := (func() -> void: _show_hub.call_deferred(true)) if choosing_ai_deck else _show_menu
+	var bk := _button("Voltar", back_action)
 	bk.position = Vector2((stage_w - 240.0) / 2.0, y + 96.0)
 	bk.size = Vector2(240, 56)
 	layer.add_child(bk)
@@ -1009,7 +1026,9 @@ func _render_hand(p: int) -> void:
 		var hand_card: Card = hand[i]
 		var v := CardView.new().setup(hand_card.card_id, hand_card.to_dict(), sc)
 		var card_data := CardDB.card(hand_card.card_id)
-		if g.cost_of(p, card_data, hand_card) != int(card_data["cost"]):
+		if g.is_subito_play(p, card_data):
+			v.cost_override = g.subito_cost(p, card_data, hand_card) # Súbito: summoned now at its Súbito cost
+		elif g.cost_of(p, card_data, hand_card) != int(card_data["cost"]):
 			v.cost_override = g.cost_of(p, card_data, hand_card)
 		v.text_suffix = _scale_suffix(p, card_data)
 		var k := i - (n - 1) / 2.0
@@ -1327,8 +1346,8 @@ func _render_stack() -> void:
 		tab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		tab.add_theme_stylebox_override("panel", UITheme.box(_leader_color(it["player"]), 3))
 		layer.add_child(tab)
-		if it["kind"] == "unit_ability":
-			var rb := _stack_pill("AO ATIVAR", UITheme.GOLD_LIGHT)
+		if it["kind"] in ["unit_ability", "subito"]:
+			var rb := _stack_pill("AO ATIVAR" if it["kind"] == "unit_ability" else "SÚBITO", UITheme.GOLD_LIGHT)
 			rb.position = Vector2(cx + 6.0, pos.y + 4.0)
 			layer.add_child(rb)
 		var price := _counter_price(sid)
@@ -2869,7 +2888,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 			"resolve":
 				cursor += 0.15
 			"fizzle":
-				_toast("%s não teve alvo e foi anulado." % (_cname(e["card_id"]) if e["kind"] == "card" else "A habilidade"))
+				_toast("%s não teve alvo e foi anulado." % (_cname(e["card_id"]) if e["kind"] in ["card", "subito"] else "A habilidade"))
 				cursor += 0.3
 			"countered":
 				_toast("%s foi anulado!" % ("A habilidade do Líder" if e["kind"] == "ability" else _cname(e["card_id"])))
@@ -3014,7 +3033,10 @@ func _cname(id: String) -> String:
 func _log_event(e: Dictionary) -> void:
 	match e["type"]:
 		"play":
-			_log("%s jogou %s%s" % [_pname(e["player"]), _cname(e["card_id"]), " (Réquiem)" if e.get("requiem", false) else ""])
+			if e.get("subito", false):
+				_log("%s invocou %s com Súbito" % [_pname(e["player"]), _cname(e["card_id"])])
+			else:
+				_log("%s jogou %s%s" % [_pname(e["player"]), _cname(e["card_id"]), " (Réquiem)" if e.get("requiem", false) else ""])
 		"ability":
 			_log("%s usou %s" % [_pname(e["player"]), CardDB.leader(g.players[e["player"]]["leader_id"])["ability"]["name"]])
 		"transform":
@@ -3108,9 +3130,9 @@ func _log_event(e: Dictionary) -> void:
 		"search_take":
 			_log("%s escolheu %s na busca" % [_pname(e["player"]), _cname(e["card_id"])])
 		"fizzle":
-			_log("%s foi anulado (alvo inválido)" % (_cname(e["card_id"]) if e["kind"] == "card" else "Habilidade"))
+			_log("%s foi anulado (alvo inválido)" % (_cname(e["card_id"]) if e["kind"] in ["card", "subito"] else "Habilidade"))
 		"countered":
-			_log("%s anulou %s" % [_pname(e["by"]), _cname(e["card_id"]) if e["kind"] == "card" else "a habilidade de " + _pname(e["player"])])
+			_log("%s anulou %s" % [_pname(e["by"]), _cname(e["card_id"]) if e["kind"] in ["card", "subito"] else "a habilidade de " + _pname(e["player"])])
 		"spell_shield_break":
 			var shielded := g.find_unit(e["uid"])
 			_log("Escudo de Feitiço anulou o efeito" + ("" if shielded == null else " em " + _cname(shielded.card_id)))

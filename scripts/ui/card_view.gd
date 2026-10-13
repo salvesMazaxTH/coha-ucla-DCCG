@@ -790,6 +790,9 @@ func _panel_lines(cd: Dictionary) -> Array:
 	var rapidez_level := rapidez_keyword_level(int(inst.get("rapidez", cd.get("rapidez", 1))))
 	if rapidez_level > 0:
 		tags.append(["%s %d" % [CardDB.keyword("rapidez")["name"], rapidez_level], Color("#ffd27a")])
+	# Súbito (N): N is the full cost of summoning it at Rápido speed
+	if cd.has("subito"):
+		tags.append(["%s (%d)" % [CardDB.keyword("subito")["name"], int(cd["subito"])], Color("#ffd27a")])
 	var seen := {}
 	for e in cd.get("effects", []):
 		var trg: String = e.get("trigger", "")

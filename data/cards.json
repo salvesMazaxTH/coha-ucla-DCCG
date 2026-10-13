@@ -219,6 +219,10 @@
       "has_value": true,
       "text": "Rapidez X: num desafio, quem tem mais Rapidez causa o dano primeiro (se matar, não leva revide). Rapidez igual: dano ao mesmo tempo. Sem Rapidez, a unidade é a mais lenta."
     },
+    "subito": {
+      "name": "Súbito",
+      "text": "Súbito (N): além do jeito normal, você pode invocar esta unidade pagando N em qualquer janela em que um feitiço Rápido poderia ser lançado (no turno do oponente, no pré-combate, em resposta). Essa invocação é uma habilidade, não uma jogada: vai para a pilha e pode ser respondida e anulada (anulada, a carta vai para o cemitério). A Reserva ajuda a pagar."
+    },
     "esquiva": {
       "name": "Esquiva",
       "text": "A primeira vez em cada turno que receberia dano de combate de uma unidade com Rapidez menor que a dela, o dano é evitado."

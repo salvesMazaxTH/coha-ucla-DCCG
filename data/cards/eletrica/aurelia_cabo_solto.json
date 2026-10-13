@@ -9,11 +9,13 @@
   "cost": 3,
   "atk": 3,
   "hp": 2,
-  "rapidez": 2,
-  "keywords": [],
+  "subito": 5,
+  "keywords": [
+    "rapidez:1"
+  ],
   "art": "eletrica/aurelia_cabo_solto.webp",
   "effects": [],
-  "text": "",
+  "text": "Súbito (5). (Este efeito é uma habilidade, não uma jogada.)",
   "flavor": "Ela jura que o cabo soltou sozinho. O cabo discorda.",
   "tags": []
 }
