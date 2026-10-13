@@ -17,13 +17,17 @@ static func data() -> Dictionary:
 		_load()
 	return _data
 
-## A keyword with a value is written "armadura:1" in "keywords". Armadura's value becomes the
-## card's native "armor" (the keyword tag itself is drawn from it), so the entry leaves the list.
+## A keyword with a value is written "armadura:1" or "rapidez:2" in "keywords". The value becomes
+## the card's internal stat (the keyword tag itself is drawn from it), so the entry leaves the list:
+## - "armadura:N" -> "armor" N
+## - "rapidez:N" (Rapidez 1-3, as printed on the card) -> "rapidez" tier N + 1 (tier 1 = no Rapidez)
 static func _apply_valued_keywords(cd: Dictionary) -> void:
 	var plain_keywords: Array = []
 	for keyword in cd.get("keywords", []):
 		if String(keyword).begins_with("armadura:"):
 			cd["armor"] = int(String(keyword).trim_prefix("armadura:"))
+		elif String(keyword).begins_with("rapidez:"):
+			cd["rapidez"] = int(String(keyword).trim_prefix("rapidez:")) + 1
 		else:
 			plain_keywords.append(keyword)
 	cd["keywords"] = plain_keywords
@@ -98,8 +102,13 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 	for s in cd.get("species", []):
 		if not _data.get("species", {}).has(s):
 			err.call("espécie desconhecida \"%s\"" % s)
+	if cd.has("rapidez") and int(cd["rapidez"]) not in [2, 3, 4]:
+		err.call("rapidez precisa ser \"rapidez:1\" a \"rapidez:3\" em keywords")
 	if cd.has("speed") and cd["speed"] not in SPEEDS:
 		err.call("speed desconhecida \"%s\"" % cd["speed"])
+	# Súbito: "subito" is the full cost of summoning it outside your own idle Main Phase
+	if cd.has("subito") and (type != "unit" or int(cd["subito"]) <= int(cd.get("cost", 0))):
+		err.call("subito precisa ser uma unidade com custo Súbito maior que o custo normal")
 	if cd.has("transform") and not _data["cards"].has(cd["transform"].get("into", "")):
 		err.call("transform.into inexistente \"%s\"" % cd["transform"].get("into", ""))
 	_validate_effects(err, cd.get("effects", []))

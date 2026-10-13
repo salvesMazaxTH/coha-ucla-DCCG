@@ -7,8 +7,10 @@
   "cost": 2,
   "atk": 2,
   "hp": 2,
-  "rapidez": 2,
-  "keywords": ["furtividade"],
+  "keywords": [
+    "rapidez:1",
+    "furtividade"
+  ],
   "art": "aquatica/yuki.webp",
   "effects": [],
   "activated": {

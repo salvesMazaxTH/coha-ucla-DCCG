@@ -10,8 +10,9 @@
   "cost": 6,
   "atk": 6,
   "hp": 5,
-  "rapidez": 2,
-  "keywords": [],
+  "keywords": [
+    "rapidez:1"
+  ],
   "art": "eletrica/elias_cross.webp",
   "effects": [
     {

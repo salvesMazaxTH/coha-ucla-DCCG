@@ -10,8 +10,8 @@
   "cost": 16,
   "atk": 8,
   "hp": 6,
-  "rapidez": 4,
   "keywords": [
+    "rapidez:3",
     "voo"
   ],
   "art": "eletrica/voltexz.webp",

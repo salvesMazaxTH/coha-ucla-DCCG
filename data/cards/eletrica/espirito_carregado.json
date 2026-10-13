@@ -9,8 +9,8 @@
   "cost": 2,
   "atk": 1,
   "hp": 1,
-  "rapidez": 3,
   "keywords": [
+    "rapidez:2",
     "voo",
     "esquiva"
   ],
