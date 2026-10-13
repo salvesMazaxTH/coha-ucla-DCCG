@@ -5,7 +5,7 @@ extends RefCounted
 ## from anywhere ("listen": "leader_damaged", see Effect and TriggerBus).
 
 ## Events a card can listen to with "listen" (the unit triggers of cards.json work too).
-const LISTENABLE := ["leader_damaged", "leader_healed", "card_moved", "unit_damaged", "card_drawn", "turn_started", "turn_ended"]
+const LISTENABLE := ["leader_damaged", "leader_healed", "card_moved", "unit_damaged", "card_drawn", "turn_started", "turn_ended", "spell_cast", "snowball_cast"]
 
 var trigger := "" ## the event name: "on_attack", "leader_damaged", "card_moved"...
 var player := -1 ## whose leader / card / unit it happened to

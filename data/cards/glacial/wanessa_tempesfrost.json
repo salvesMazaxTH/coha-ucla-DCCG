@@ -1,0 +1,35 @@
+{
+  "name": "Wanessa Tempesfrost",
+  "type": "unit",
+  "rarity": "champion",
+  "transform_only": true,
+  "species": [
+    "humano"
+  ],
+  "essence": "glacial",
+  "cost": 5,
+  "atk": 5,
+  "hp": 6,
+  "keywords": [
+    "voo",
+    "sobrepujanca"
+  ],
+  "art": "glacial/wanessa_tempesfrost.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "freeze",
+      "target": "all_enemy_units"
+    },
+    {
+      "trigger": "on_attack",
+      "action": "snowball",
+      "target": "random_enemy"
+    }
+  ],
+  "text": "Voo. Sobrepujança.\nAo Transformar: congele todas as unidades inimigas.\nAo Atacar: lance uma Bola de Neve em um alvo inimigo aleatório (pode ser o Líder, mesmo sem unidades).",
+  "flavor": "A tempestade não pede licença.",
+  "tags": [
+    "bola_de_neve"
+  ]
+}

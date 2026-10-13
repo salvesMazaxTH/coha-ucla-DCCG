@@ -43,11 +43,18 @@ var inst: Dictionary = {} ## unit on board (live stats) or hand instance
 var uid := 0
 var face_down := false
 var highlight := Color.TRANSPARENT ## outline for selection/targets
-var ability_ready := false ## an "Ao Ativar" ability can be used right now: violet glow, distinct from the green attack glow
+var ability_ready := false ## an "Ao Ativar" ability or a Transformar can be used right now: violet glow, distinct from the green attack glow
 const ABILITY_GLOW := Color("#c07bff")
 var dim := false
 var cost_override := -1
 var text_suffix := "" ## live count appended to the rules text in the big view (e.g. "(agora: 3)")
+var snowball_level := 1 ## the owner's Bola de Neve level, shown where the card text says "{nivel}"
+
+## Fills the live numbers of a rules text: "Cause {nivel} de dano" reads "Cause 5 de dano" once the
+## owner's Bola de Neve has grown to 5. Without an owner (collection, deck builder) the level stays
+## at its starting value, 1. Static so the big view in Main fills the text the same way.
+static func fill_live_numbers(rules: String, level: int) -> String:
+	return rules.replace("{nivel}", str(level))
 var hovered := false
 var hit_pad := 0.0 ## extra hit area below the card (lifted hand cards)
 ## Animation hooks, driven by tweens: draw offsets (hit tremor, attack
@@ -465,7 +472,7 @@ func _draw() -> void:
 		var tp := Rect2(Vector2(8, 124.5) * s, Vector2(BASE.x - 16, 36.5) * s)
 		_rrect_fill(tp, 4 * s, Color(0, 0, 0, 0.5))
 		_rrect_line(tp, 4 * s, Color(trim, 0.25), 1 * s)
-		_wrapped_text(UITheme.font("bold"), str(cd.get("text", "")), tp.grow_individual(-3 * s, -1 * s, -3 * s, -1 * s), 11.0 * s, 6.0 * s, Color("#f1e8d4"))
+		_wrapped_text(UITheme.font("bold"), fill_live_numbers(str(cd.get("text", "")), snowball_level), tp.grow_individual(-3 * s, -1 * s, -3 * s, -1 * s), 11.0 * s, 6.0 * s, Color("#f1e8d4"))
 		_speed_badge(Vector2(size.x / 2, 17 * s), str(cd.get("speed", "lento")), s)
 	else:
 		var panel := Rect2(Vector2(10, 126) * s, Vector2(BASE.x - 20, 34) * s)

@@ -63,12 +63,15 @@ static func _hand_most_expensive_first(g: GameState, p: int) -> Array:
 static func _choose_search(g: GameState) -> int:
 	var best_uid := 0
 	var best_score := -999
+	var discarding: bool = g.pending_search.get("discard_hand", false)
 	# search options are plain dicts {uid, card_id}
 	for option in g.pending_search.get("cards", []):
 		var card_data := CardDB.card(option["card_id"])
 		var score := int(card_data.get("cost", 0)) * 10
 		if card_data.get("type", "") == "unit":
 			score += 2
+		if discarding:
+			score = -score # a discard gives up the least valuable card in hand
 		if score > best_score:
 			best_score = score
 			best_uid = int(option["uid"])

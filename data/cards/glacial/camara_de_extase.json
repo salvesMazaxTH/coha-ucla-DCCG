@@ -1,0 +1,13 @@
+{
+  "name": "Câmara de Êxtase",
+  "type": "artifact",
+  "rarity": "epic",
+  "essence": "glacial",
+  "cost": 4,
+  "art": "glacial/camara_de_extase.webp",
+  "effects": [],
+  "lethal_ward": true,
+  "text": "Se o seu Líder fosse morrer por uma instância de dano, anule totalmente esse dano e destrua a Câmara. Depois, até o fim do seu próximo turno, todo dano que o seu Líder sofrer é diminuído pela metade (arredondado para baixo).",
+  "flavor": "Ficou tão feliz que esqueceu de morrer.",
+  "tags": []
+}

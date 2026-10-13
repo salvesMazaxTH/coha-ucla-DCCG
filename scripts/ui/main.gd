@@ -869,6 +869,7 @@ func _render_command(p: int, pos: Vector2) -> void:
 	v.position = pos
 	v.cost_override = g.legendary_cost(p)
 	v.text_suffix = _scale_suffix(p, CardDB.card(l["card_id"]))
+	v.snowball_level = int(g.players[p]["snowball"])
 	if p == viewer and g.can_cast_legendary(p) and not _is_ai(p):
 		v.highlight = OK
 	if targeting.get("kind") == "legendary" and p == viewer:
@@ -973,8 +974,8 @@ func _on_relic_click(v: CardView) -> void:
 		_show_overlay(v)
 
 func _decorate_unit(v: CardView, unit: Card, p: int) -> void:
-	# reminder for new players: the unit's "Ao Ativar" can be used now (even the turn it is summoned)
-	v.ability_ready = p == viewer and targeting.is_empty() and _my_input() and g.can_activate(viewer, unit.uid)
+	# reminder for new players: the unit's "Ao Ativar" can be used now (even the turn it is summoned); Transformar works almost the same way, so it glows too
+	v.ability_ready = p == viewer and targeting.is_empty() and _my_input() and (g.can_activate(viewer, unit.uid) or g.can_transform(viewer, unit.uid))
 	if _is_target(unit.uid):
 		v.highlight = TARGET
 		return
@@ -1031,6 +1032,7 @@ func _render_hand(p: int) -> void:
 		elif g.cost_of(p, card_data, hand_card) != int(card_data["cost"]):
 			v.cost_override = g.cost_of(p, card_data, hand_card)
 		v.text_suffix = _scale_suffix(p, card_data)
+		v.snowball_level = int(g.players[p]["snowball"])
 		var k := i - (n - 1) / 2.0
 		v.pivot_offset = Vector2(v.size.x / 2.0, v.size.y)
 		var pos := Vector2(lane_cx + k * step - v.size.x / 2.0, rest_y + k * k * 1.4)
@@ -1496,7 +1498,7 @@ func _process(_dt: float) -> void:
 
 func _hint() -> String:
 	if g.phase == "search":
-		return "Escolha uma das cartas reveladas."
+		return "Escolha uma carta da sua mão para descartar." if g.pending_search.get("discard_hand", false) else "Escolha uma das cartas reveladas."
 	if targeting.get("kind") == "enter":
 		return "Ao Entrar de %s: toque no alvo ou pule o efeito." % _cname(g.pending_enter.get("card_id", ""))
 	if targeting.get("kind") == "attack":
@@ -1944,6 +1946,7 @@ func _show_overlay(v: CardView) -> void:
 	var big := CardView.new().setup(v.card_id, v.inst, 4.18)
 	big.cost_override = v.cost_override
 	big.text_suffix = v.text_suffix
+	big.snowball_level = v.snowball_level
 	big.position = Vector2(stage_w / 2.0 - 620, 150)
 	big.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(big)
@@ -1958,7 +1961,7 @@ func _show_overlay(v: CardView) -> void:
 	var shown_cost: int = v.cost_override if v.cost_override >= 0 else int(cd["cost"])
 	txt += "[color=#aaaaaa]%s · %s · custo %d[/color]\n\n" % [kind, CardDB.essence_names(cd), shown_cost]
 	if cd.get("text", "") != "":
-		var body: String = cd["text"]
+		var body := CardView.fill_live_numbers(String(cd["text"]), v.snowball_level)
 		if v.inst.has("frozen"):
 			body = "[color=#9fe8ff][b]Congelada:[/b] ATK 0 até o fim do próximo turno do dono (não pode atacar e, se desafiada, não revida).[/color]
 " + body
@@ -2272,11 +2275,14 @@ func _render_search_reveal() -> void:
 	search_overlay.add_child(box)
 	var look: bool = g.pending_search.get("look", false)
 	# a private look is face up only for its owner (online, the server already masks the cards)
-	var hidden := look and not _my_input()
-	box.add_child(_label("CEMITÉRIO" if g.pending_search.get("grave", false) else ("TOPO DO DECK" if look else "REVELAÇÃO DO DECK"), 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
+	var discard_hand: bool = g.pending_search.get("discard_hand", false)
+	var hidden := (look or discard_hand) and not _my_input()
+	box.add_child(_label("DESCARTAR DA MÃO" if discard_hand else "CEMITÉRIO" if g.pending_search.get("grave", false) else ("TOPO DO DECK" if look else "REVELAÇÃO DO DECK"), 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
 	var grave: bool = g.pending_search.get("grave", false)
 	var sub := "%s revelou as opções da busca" % _pname(owner)
-	if look:
+	if discard_hand:
+		sub = "%s escolhe uma carta da mão para descartar" % _pname(owner)
+	elif look:
 		sub = "%s está olhando as %d cartas do topo do deck" % [_pname(owner), g.pending_search["cards"].size()]
 	box.add_child(_label(sub, 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
 	var grid := GridContainer.new()
@@ -2290,11 +2296,12 @@ func _render_search_reveal() -> void:
 		cv.face_down = hidden or String(option["card_id"]) == ""
 		if not cv.face_down:
 			cv.text_suffix = _scale_suffix(owner, CardDB.card(option["card_id"]))
+			cv.snowball_level = int(g.players[owner]["snowball"])
 		cv.mouse_filter = Control.MOUSE_FILTER_STOP if _my_input() else Control.MOUSE_FILTER_IGNORE
 		if _my_input():
 			cv.left_clicked.connect(func(_v): _on_search_choice(card_uid))
 		grid.add_child(cv)
-	var hint := "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else "Escolha 1 para a mão; as outras vão para o fundo do deck." if look else "Clique em uma carta para adicioná-la à sua mão e embaralhar o deck."
+	var hint := "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else "Escolha 1 para a mão; as outras vão para o fundo do deck." if look else "Clique em uma carta para adicioná-la à sua mão e embaralhar o deck."
 	var footer := _label(hint if _my_input() else "A escolha pertence ao oponente.", 16, SEL if _my_input() else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 	box.add_child(footer)
 	_center.call_deferred(search_overlay)
@@ -3140,6 +3147,16 @@ func _log_event(e: Dictionary) -> void:
 			_log("Escudo de Feitiço anulou o efeito" + ("" if shielded == null else " em " + _cname(shielded.card_id)))
 		"tide_draw":
 			_log("%s: a maré retorna, compra 1" % _pname(e["player"]))
+		"snowball":
+			_log("%s: %s com %d de dano inicial" % [_pname(e["player"]), "Grande Bola de Neve" if e["grande"] else "Bola de Neve", int(e["amount"])])
+		"snowball_level":
+			_log("%s: o nível da Bola de Neve sobe para %d" % [_pname(e["player"]), int(e["level"])])
+		"lethal_ward":
+			_log("%s anulou %d de dano que mataria o Líder de %s" % [_cname(e["card_id"]), int(e["amount"]), _pname(e["player"])])
+		"discard_pick":
+			_log("%s escolhe uma carta da mão para descartar" % _pname(e["player"]))
+		"discard":
+			_log("%s descartou %s" % [_pname(e["player"]), _cname(e["card_id"])])
 
 
 # ---------------------------------------------------------------- widgets

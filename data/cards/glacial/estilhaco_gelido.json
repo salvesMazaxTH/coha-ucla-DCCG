@@ -1,0 +1,20 @@
+{
+  "name": "Estilhaço Gélido",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "glacial",
+  "cost": 2,
+  "speed": "rapido",
+  "art": "glacial/estilhaco_gelido.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 3
+    }
+  ],
+  "text": "Cause 3 de dano a uma unidade inimiga.",
+  "flavor": "Dói mais do que parece. Parece bastante.",
+  "tags": []
+}

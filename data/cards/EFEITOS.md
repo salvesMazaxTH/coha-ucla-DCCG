@@ -22,6 +22,9 @@ Cada ação é uma classe em `scripts/engine/effects/`, registrada em `effect_re
 | `draw` / `draw_discounted` | `amount`, `min_base_cost`, `discount` | compra cartas (a segunda dá desconto à cópia na mão) |
 | `tide_mark` | — | põe a Marca da Maré |
 | `search_deck` / `look_top` | `count`, `shuffle` e filtros | abre escolha com cartas do deck |
+| `snowball` | — | Bola de Neve: acerta o alvo com o nível atual do jogador, quica para um lado sorteado entre os que têm unidades (+1 de dano por quique) e o nível final vira o início da próxima. Nível 8 ou mais = Grande Bola (Sobrepujança nos quiques, custo +1 na carta). Num Líder é um golpe só e não aumenta o nível |
+| `discard_hand_pick` | — | depois de comprar, o jogador escolhe uma carta da mão (mesma tela do descarte do overdraw) e ela vai ao **cemitério** (só o overdraw de fim de turno bane) |
+| `transform_self` | `into` | a unidade vira a carta `into` (Ao Entrar da nova carta roda). Use com `target: "self"`, normalmente num `listen` |
 | `freeze` | — | ATK do alvo fica 0 até o fim do próximo turno do dono |
 | `fight` | `second_target` | o alvo (1ª escolha) e a unidade de `second_target` (2ª escolha) causam, ao mesmo tempo, dano igual ao Ataque de cada uma à outra. Não é combate; Armadura e Escudo valem, Escudo de Feitiço do inimigo cancela a luta |
 | `summon` | `card` (`"self"` ou id), `overrides` | invoca uma carta |
@@ -58,7 +61,7 @@ A condição é checada quando o gatilho acontece **e** de novo na resolução.
 
 **Triggers de unidade** (`"trigger"`, só a própria carta): `on_play`, `on_enter`, `on_death`, `on_attack`, `on_challenge` (Ao Desafiar: `opposed_unit` = a unidade desafiada), `on_challenged` (Ao Ser Desafiada: `opposed_unit` = o atacante), `on_damaged`, `on_hit_leader`, `on_turn_start`, `on_turn_end`, `on_ally_death`, `on_activate`, `transform`, `constante`.
 
-**Eventos de escuta** (`"listen"`, de qualquer lugar): `leader_damaged`, `leader_healed`, `card_moved`, `unit_damaged` (`scope: self` = a própria unidade; tem `amount`, `hp_before`, `hp_after`), `card_drawn`, `turn_started`, `turn_ended` (nos turnos e compras, `ally` = do dono da carta).
+**Eventos de escuta** (`"listen"`, de qualquer lugar): `leader_damaged`, `leader_healed`, `card_moved`, `unit_damaged` (`scope: self` = a própria unidade; tem `amount`, `hp_before`, `hp_after`), `card_drawn`, `turn_started`, `turn_ended` (nos turnos e compras, `ally` = do dono da carta), `spell_cast` (feitiço lançado; `essence_<id>: true` nos dados, ex.: `{"essence_glacial": true}`), `snowball_cast` (Bola de Neve lançada, antes dos golpes; `grande: true` se for Grande Bola, `amount` = dano inicial).
 
 ```json
 {
@@ -76,6 +79,12 @@ A condição é checada quando o gatilho acontece **e** de novo na resolução.
 - `listen` e `trigger` não podem aparecer juntos.
 
 Gatilhos que disparam durante uma ação entram numa fila e resolvem depois que a ação termina, um por vez, com o jogador ativo primeiro.
+
+## Campos de carta especiais
+
+- `spell_discount` (equipamento): `{"essence": "glacial", "amount": 1}`. O primeiro feitiço dessa essência lançado por turno pelo dono custa `amount` a menos.
+- `{nivel}` (dentro do `text` de qualquer carta): vira o nível atual da Bola de Neve do dono ao desenhar a carta (mão, Santuário, escolha de cartas e visão ampliada); sem dono, vira 1. É só visual: o motor não lê o texto.
+- `lethal_ward` (artefato, `true`): se o Líder do dono fosse morrer por uma instância de dano, o dano é anulado, o artefato é destruído e, até o fim do próximo turno do dono, todo dano ao Líder é dividido pela metade (arredondado pra baixo).
 
 ## Como criar uma ação nova
 

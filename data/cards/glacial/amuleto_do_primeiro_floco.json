@@ -1,0 +1,26 @@
+{
+  "name": "Amuleto do Primeiro Floco",
+  "type": "artifact",
+  "subtypes": [
+    "equipment"
+  ],
+  "rarity": "epic",
+  "essence": "glacial",
+  "cost": 1,
+  "art": "glacial/amuleto_do_primeiro_floco.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "hp": 2
+    }
+  ],
+  "spell_discount": {
+    "essence": "glacial",
+    "amount": 1
+  },
+  "text": "Equipar: a unidade ganha +2 de Vida. O primeiro feitiço glacial que você lançar em cada turno custa (1) a menos.",
+  "flavor": "O primeiro sempre é o mais barato.",
+  "tags": []
+}

@@ -130,7 +130,8 @@
     "elfo": { "name": "Elfo" },
     "ciclope": { "name": "Ciclope" },
     "driade": { "name": "Dríade" },
-    "kobold": { "name": "Kobold" }
+    "kobold": { "name": "Kobold" },
+    "glacinata": { "name": "Glacinata" }
   },
   "keywords": {
     "requiem": {
@@ -257,7 +258,7 @@
     "naelthos": {
       "name": "Naelthos",
       "hp": 30,
-      "art": "aquatica/naelthos.webp",
+      "art": "aquatica/naelthos_lider.webp",
       "legendary": "naelthos",
       "ability": {
         "name": "Mar que Retorna",
@@ -279,7 +280,7 @@
     "jeff": {
       "name": "Jeff The Death",
       "hp": 25,
-      "art": "obscura/jeff_the_death.webp",
+      "art": "obscura/jeff_lider.webp",
       "legendary": "jeff",
       "ability": {
         "name": "Ceifa",
@@ -327,7 +328,7 @@
     "tharox": {
       "name": "Tharox",
       "hp": 35,
-      "art": "rochosa/tharox.webp",
+      "art": "rochosa/tharox_lider.webp",
       "legendary": "tharox",
       "ability": {
         "name": "Massa Inamolgável",
@@ -344,6 +345,26 @@
         "text": "Instantânea. 1 Momentum, uma vez por turno: uma unidade aliada ganha Armadura 1 até o início do seu próximo turno."
       },
       "essences": ["rochosa"]
+    },
+    "nythera": {
+      "name": "Nythera",
+      "hp": 30,
+      "art": "glacial/nythera_lider.webp",
+      "legendary": "nythera",
+      "ability": {
+        "name": "Sopro Gélido",
+        "cost": 2,
+        "once_per_turn": true,
+        "speed": "instantaneo",
+        "effects": [
+          {
+            "action": "freeze",
+            "target": "enemy_unit"
+          }
+        ],
+        "text": "Instantânea. 2 Momentum, uma vez por turno: congele uma unidade inimiga."
+      },
+      "essences": ["glacial"]
     }
   },
   "cards": {}

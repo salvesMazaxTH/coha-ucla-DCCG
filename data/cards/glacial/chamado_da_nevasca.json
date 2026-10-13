@@ -1,0 +1,24 @@
+{
+  "name": "Chamado da Nevasca",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "glacial",
+  "cost": 1,
+  "speed": "lento",
+  "max_copies": 2,
+  "art": "glacial/chamado_da_nevasca.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "search_deck",
+      "target": "none",
+      "tags": [
+        "bola_de_neve"
+      ],
+      "type": "spell"
+    }
+  ],
+  "text": "Procure a Bola de Neve no seu deck e coloque-a na sua mão.",
+  "flavor": "Assobiou pro vento. O vento trouxe a bola.",
+  "tags": []
+}

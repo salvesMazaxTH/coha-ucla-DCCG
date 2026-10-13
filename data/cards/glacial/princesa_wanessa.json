@@ -1,0 +1,51 @@
+{
+  "name": "Princesa Wanessa",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "humano"
+  ],
+  "essence": "glacial",
+  "cost": 4,
+  "atk": 3,
+  "hp": 5,
+  "keywords": [
+    "escudo_feitico"
+  ],
+  "art": "glacial/princesa_wanessa.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "freeze",
+      "target": "enemy_unit"
+    },
+    {
+      "listen": "spell_cast",
+      "scope": "ally",
+      "zones": [
+        "board"
+      ],
+      "when": {
+        "essence_glacial": true
+      },
+      "action": "freeze",
+      "target": "random_enemy_unit"
+    },
+    {
+      "listen": "snowball_cast",
+      "scope": "ally",
+      "zones": [
+        "board"
+      ],
+      "when": {
+        "grande": true
+      },
+      "action": "transform_self",
+      "target": "self",
+      "into": "wanessa_tempesfrost"
+    }
+  ],
+  "text": "Escudo de Feitiço.\nAo Entrar: congele uma unidade inimiga.\nSempre que você lançar um feitiço glacial, congele uma unidade inimiga aleatória.\nQuando você lançar uma Grande Bola de Neve, Wanessa se transforma em Wanessa Tempesfrost.",
+  "flavor": "A coroa é de gelo. A paciência também.",
+  "tags": []
+}

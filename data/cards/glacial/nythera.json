@@ -1,0 +1,39 @@
+{
+  "name": "Nythera",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "glacinata"
+  ],
+  "essence": "glacial",
+  "cost": 5,
+  "atk": 4,
+  "hp": 7,
+  "keywords": [
+    "provocacao"
+  ],
+  "art": "glacial/nythera.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "snowball",
+      "target": "enemy_unit"
+    },
+    {
+      "trigger": "on_enter",
+      "action": "freeze",
+      "target": "enemy_unit"
+    },
+    {
+      "trigger": "on_turn_start",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
+    }
+  ],
+  "text": "Provocação.\nAo Entrar: lance uma Bola de Neve em uma unidade inimiga e congele uma unidade inimiga.\nNo início do seu turno: compre 1 carta.",
+  "flavor": "O inverno tem nome.",
+  "tags": [
+    "bola_de_neve"
+  ]
+}

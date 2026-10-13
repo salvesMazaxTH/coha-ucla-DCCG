@@ -1,0 +1,39 @@
+{
+  "name": "Cryo Hulglack",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "gigante"
+  ],
+  "essence": "glacial",
+  "cost": 6,
+  "atk": 5,
+  "hp": 7,
+  "keywords": [
+    "provocacao",
+    "armadura:1"
+  ],
+  "art": "glacial/cryo_hulglack.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "all_enemy_units",
+      "amount": 1
+    },
+    {
+      "trigger": "on_enter",
+      "action": "freeze",
+      "target": "enemy_unit"
+    },
+    {
+      "trigger": "on_death",
+      "action": "damage",
+      "target": "all_enemy_units",
+      "amount": 2
+    }
+  ],
+  "text": "Provocação. Armadura 1.\nAo Entrar: cause 1 de dano a todas as unidades inimigas e congele uma delas.\nAo Morrer: cause 2 de dano a todas as unidades inimigas.",
+  "flavor": "Caminha devagar. Não precisa de pressa.",
+  "tags": []
+}

@@ -149,6 +149,16 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - **Efeitos no deck (`deck_effects`):** efeitos que a carta tem enquanto está no deck, não em campo. `summon_self` tira aquela cópia do deck e a coloca em campo (sem embaralhar e sem comprar; com o campo cheio, ela fica no deck). O `cost` opcional é pago na entrada como uma habilidade (a Reserva vale e é gasta primeiro); sem como pagar, a cópia fica no deck. Rusco: no fim do seu turno, se você jogou da mão uma carta com custo, ATK ou VIDA impressos exatamente 2 (`if: played_two`), e você paga 2 de Momentum, ele sai do deck e entra em campo.
 - Efeitos podem ter condição `if` (ex.: só se sobrou Momentum, só se a Reserva está cheia) e bônus proporcional ao Momentum restante (Voltexz: +1/+1 por Momentum nas suas _outras_ unidades, de +1/+1 a +5/+5: mesmo sem Momentum sobrando dá +1/+1).
 
+## Glacial: Bola de Neve
+
+- **Nível da Bola de Neve:** cada jogador tem um nível, que começa em 1. A Bola de Neve (feitiço Lento, Única) acerta uma unidade inimiga com o nível atual de dano e **quica**: sorteia esquerda ou direita (só entre lados que têm unidades) e segue nesse sentido até a última unidade, causando 1 de dano a mais a cada quique. No fim, o dano do último golpe vira o nível de **toda** Bola de Neve futura desse jogador, de qualquer fonte (a carta, Bruno, Nythera, Wanessa Tempesfrost...). O texto da carta mostra o nível atual do dono no lugar de `{nivel}` (na mão, no Santuário, na escolha de cartas e na visão ampliada); fora de uma partida mostra 1.
+- **Líder como alvo:** acertar um Líder é um golpe só e **não** aumenta o nível.
+- **Grande Bola de Neve:** com o nível em 8 ou mais, toda Bola de Neve do jogador vira Grande: a carta custa (1) a mais e cada quique tem Sobrepujança (o excesso vai ao Líder dono da unidade).
+- **Princesa Wanessa** se transforma em Wanessa Tempesfrost automaticamente quando o seu controlador lança uma Grande Bola de Neve (evento `snowball_cast`, antes dos golpes).
+- **Amuleto do Primeiro Floco:** o primeiro feitiço glacial lançado por turno custa (1) a menos.
+- **Câmara de Êxtase:** se o seu Líder fosse morrer por uma instância de dano, o dano é anulado, a Câmara é destruída e, até o fim do seu próximo turno, todo dano ao seu Líder é dividido pela metade (arredondado para baixo).
+- **Descarte da mão (Folheio Pé-na-Neve):** você escolhe a carta na mesma tela do descarte do overdraw, mas ela vai ao **cemitério**. Só o descarte de overdraw no fim do turno bane.
+
 ## Habilidade de Líder: limite de uso
 
 - Algumas habilidades têm `once_per_turn`: 1 uso por turno, em qualquer turno (o seu ou o do adversário), reiniciando a cada turno.
@@ -193,7 +203,7 @@ Gatilhos dizem _quando_ um efeito acontece. Eles abrem o texto da carta no lugar
 Não são gatilhos automáticos: o dono decide quando usar. O custo em Momentum aparece entre parênteses logo após o nome, e a Reserva ajuda a pagar.
 
 - **Ao Ativar (n) [selo de velocidade] (limites):** a habilidade **vai para a pilha** como um feitiço da velocidade indicada (Lento, Rápido ou Instantâneo). Pode ser respondida e anulada. Exemplo: Yuki, _Ao Ativar (2) [RÁPIDO] (1x por turno): ganhe +2 de Ataque neste turno._
-- **Transformar (n):** é um tipo específico de ativável. Só pode ser usado na sua Fase Principal com a pilha vazia. A unidade vira a carta indicada no mesmo lugar (mantém dano e equipamento) e o Ao Entrar da nova forma dispara. **Não usa a pilha**, então não pode ser anulado. Exemplo: Alexa Neruvya, _Transformar (8): Alexa Neruvya Primordial._
+- **Transformar (n):** é um tipo específico de ativável. Só pode ser usado na sua Fase Principal com a pilha vazia. A unidade vira a carta indicada no mesmo lugar (mantém dano e equipamento) e o Ao Entrar da nova forma dispara. A unidade transformada **não fica com enjoo de invocação**: pode atacar e ativar na hora. **Não usa a pilha**, então não pode ser anulado. Exemplo: Alexa Neruvya, _Transformar (8): Alexa Neruvya Primordial._
   | Aliado Morre | Outra unidade que você controla **morre**, mesmo que volte na hora (Revivente, Fênix) ou seja um Lendário voltando ao Santuário. A que morreu não ativa o próprio efeito (para isso existe Ao Morrer). Sacrifício conta. Um efeito pode ser "exceto dano de combate" (`not_in_combat`) ou "exceto fichas" (`not_token`): não dispara se a morte vem do dano de combate / se quem morreu era uma ficha (ex.: Cientista da Morte). |
   | (qualquer gatilho) | Um efeito pode ter "uma vez por turno" (`once_per_turn`): o limite é por unidade e reinicia a cada turno, de qualquer jogador (ex.: Diabrete Sombrio). |
   | Constante | Sempre, enquanto a unidade está em campo (só em campo; reduções de custo não são Constante). Não dispara: é recalculado a cada mudança de estado (ex.: Jeff The Death recebe +1/+1 por unidade no cemitério do dono; o dano sofrido continua valendo se o bônus encolher). |

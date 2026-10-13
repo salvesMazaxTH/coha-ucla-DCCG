@@ -40,8 +40,8 @@ static func snapshot(g: GameState, seat: int) -> Dictionary:
 			player["hand"] = _mask(player["hand"])
 		players.append(player)
 	var search: Dictionary = g.pending_search.duplicate(true)
-	if search.get("look", false) and int(search["player"]) != seat:
-		search["cards"] = _mask(search["cards"]) # a look at the deck top is private
+	if (search.get("look", false) or search.get("discard_hand", false)) and int(search["player"]) != seat:
+		search["cards"] = _mask(search["cards"]) # a look at the deck top, or a pick from a hand, is private
 	return {
 		"players": players,
 		"active": g.active,

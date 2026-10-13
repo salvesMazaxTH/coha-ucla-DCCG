@@ -13,6 +13,7 @@ const RESERVE_CAP := 2 ## unspent Momentum banked at turn start; pays only spell
 const COMMANDER_TAX := 2
 const INTIMIDATE_ATK := 3 ## Intimidacao: attackers with this ATK or less cannot challenge it
 const SECOND_BONUS_TURNS := 2 ## the second player's first turns that start with +1 Momentum and +1 Reserve (refill)
+const SNOWBALL_GRANDE_AT := 8 ## Bola de Neve level from which every Bola de Neve becomes a Grande Bola de Neve
 const REQUIEM_EXTRA_COST := 2 ## Réquiem: a spell cast from the graveyard costs this much more, then is banished
 
 ## Leaders are addressed with negative uids so targets are a single int.
@@ -122,6 +123,9 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"legendary": {"card_id": ld["legendary"], "in_zone": true, "casts": 0},
 		"ability_used": false, "passive_used": false, "attacked": false, "fatigue": 0, "mulligan_done": false,
 		"played_two": false,
+		"snowball": 1, # damage the next Bola de Neve starts at (grows with every Bola de Neve cast)
+		"glacial_discount_used": false, # the Amuleto Glacial discount was already spent this turn
+		"damage_halved_until": 0, # Câmara de Êxtase aftermath: the Leader takes half damage while turn <= this
 	}
 
 func _uid() -> int:
@@ -374,8 +378,36 @@ func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 			"unspent_momentum": n = 1 if int(players[p]["unspent"]) >= int(e.get("threshold", 1)) else 0
 		c -= n * int(e.get("amount", 1))
 		floor_cost = maxi(floor_cost, int(e.get("min_cost", 0)))
+	c += grande_snowball_extra(p, cd)
+	c -= glacial_discount(p, cd)
 	var requiem_extra := REQUIEM_EXTRA_COST if card != null and card.zone == "graveyard" else 0
 	return maxi(c, floor_cost) + requiem_extra
+
+## True once the player's Bola de Neve level reached the Grande threshold: every Bola de Neve
+## from any source becomes a Grande Bola de Neve.
+func snowball_is_grande(p: int, threshold: int = SNOWBALL_GRANDE_AT) -> bool:
+	return int(players[p]["snowball"]) >= threshold
+
+## Extra Momentum a Grande Bola de Neve costs (0 for any other card).
+func grande_snowball_extra(p: int, cd: Dictionary) -> int:
+	for e in cd.get("effects", []):
+		if e.get("action", "") == "snowball" and snowball_is_grande(p, int(e.get("grande_at", SNOWBALL_GRANDE_AT))):
+			return int(e.get("grande_cost", 1))
+	return 0
+
+## Momentum off the first spell of an essence each turn, from an equipped "spell_discount" artifact
+## (Amuleto Glacial) on one of p's units. 0 when there is none, it is not that essence, or it was spent.
+func glacial_discount(p: int, cd: Dictionary) -> int:
+	if cd.get("type", "") != "spell" or players[p]["glacial_discount_used"]:
+		return 0
+	var best := 0
+	for unit: Card in players[p]["board"]:
+		if unit.equipment == null:
+			continue
+		var rule: Dictionary = unit.equipment.data().get("spell_discount", {})
+		if not rule.is_empty() and CardDB.has_essence(cd, String(rule["essence"])):
+			best = maxi(best, int(rule["amount"]))
+	return best
 
 ## Momentum p can spend on a play: the Reserva only counts for spells and leader abilities.
 func budget(p: int, spell: bool) -> int:
@@ -684,7 +716,10 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 	if spec2 != "" and ((target2 == target and not cd.get("same_target_ok", false)) or not valid_targets(p, spec2).has(target2)):
 		return []
 	var pl: Dictionary = players[p]
+	var spent_glacial_discount := glacial_discount(p, cd) > 0 # read before paying: the discount is for the first spell only
 	_pay(p, cost_of(p, cd, inst) + (counter_extra(cd, target) if spec == "enemy_stack" else 0), _is_spell(cd))
+	if spent_glacial_discount:
+		pl["glacial_discount_used"] = true
 	pl["graveyard" if from_graveyard else "hand"].erase(inst)
 	if int(cd.get("cost", 0)) == 2 or int(cd.get("atk", 0)) == 2 or int(cd.get("hp", 0)) == 2:
 		pl["played_two"] = true # Rusco: a card with cost, ATK or HP exactly 2 this turn
@@ -715,6 +750,8 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 	else:
 		_stack_cards[hand_uid] = inst
 		_move(inst, "stack")
+		if cd["type"] == "spell":
+			_announce_spell_cast(p, inst, cd)
 		stack_system().push(p, "card", hand_uid, inst.card_id, target, speed_of(cd), target2, from_graveyard)
 	stack_system().settle()
 	return _flush()
@@ -781,8 +818,7 @@ func use_ability(p: int, target: int = 0) -> Array:
 	stack_system().settle()
 	return _flush()
 
-## The unit becomes its "transform" card in place (same uid, keeps damage, exhaustion and
-## equipment; base stats and keywords come from the new card), then its Ao Entrar fires.
+## Transformar (paid): the unit becomes its "transform" card, then the usual checks run.
 func transform(p: int, uid: int) -> Array:
 	if not can_transform(p, uid):
 		return []
@@ -790,10 +826,21 @@ func transform(p: int, uid: int) -> Array:
 	var tf: Dictionary = card_of(c)["transform"]
 	_pay(p, int(tf["cost"]), true)
 	_emit({"type": "trigger", "uid": uid, "player": p, "card_id": c.card_id, "trigger": "transform"})
+	transform_into(c, tf["into"])
+	_check_state()
+	stack_system().settle()
+	return _flush()
+
+## The unit becomes card `into_id` in place (same uid, keeps damage, exhaustion and equipment; base
+## stats and keywords come from the new card), then its Ao Entrar fires. Used by the paid
+## Transformar and by the "transform_self" effect.
+func transform_into(c: Card, into_id: String) -> void:
+	var uid := c.uid
+	var p := c.owner
 	var from: String = c.card_id
-	var cd := CardDB.card(tf["into"])
+	var cd := CardDB.card(into_id)
 	var kws: Array = cd.get("keywords", []).duplicate()
-	c.card_id = tf["into"]
+	c.card_id = into_id
 	c.over = {}
 	c.used_turn = {}
 	c.atk = int(cd["atk"])
@@ -803,13 +850,11 @@ func transform(p: int, uid: int) -> Array:
 	kws.erase("escudo")
 	kws.erase("escudo_feitico")
 	c.keywords = kws
-	_emit({"type": "transform", "player": p, "uid": uid, "from": from, "card_id": tf["into"]})
+	c.sick = false # a transformed unit is not summoning sick: it can act right away
+	_emit({"type": "transform", "player": p, "uid": uid, "from": from, "card_id": into_id})
 	_announce(c, cd["effects"], "on_enter")
 	var target := uid if target_spec(cd["effects"]) == "ally_unit" else 0
 	_run_effects(_enter_context(p, uid, target), cd["effects"])
-	_check_state()
-	stack_system().settle()
-	return _flush()
 
 ## Gives up priority. With items on the stack, everything resolves (newest first);
 ## in an empty combat window the combat moves on to the next window.
@@ -937,6 +982,22 @@ func choose_search(p: int, card_uid: int) -> Array:
 		_emit({"type": "revive", "player": p, "card_id": chosen["card_id"]})
 		if has_free_slot(p):
 			_summon(p, Card.new(_uid(), chosen["card_id"], p), false, 0)
+		_resolve_stack()
+		_check_state()
+		stack_system().after_search()
+		stack_system().settle()
+		return _flush()
+	if pending_search.get("discard_hand", false):
+		# the chosen card leaves the hand for the graveyard (a normal discard; only overdraw banishes)
+		var discarded_card := _hand_card(p, card_uid)
+		if discarded_card == null:
+			return []
+		players[p]["hand"].erase(discarded_card)
+		players[p]["graveyard"].append(discarded_card)
+		_move(discarded_card, "graveyard")
+		pending_search.clear()
+		phase = _search_return
+		_emit({"type": "discard", "player": p, "uid": card_uid, "card_id": discarded_card.card_id})
 		_resolve_stack()
 		_check_state()
 		stack_system().after_search()
@@ -1084,6 +1145,14 @@ func _summon(p: int, c: Card, legendary: bool, target: int, over: Dictionary = {
 	_announce(c, cd["effects"], "on_enter")
 	_run_effects(_enter_context(p, uid, target), cd["effects"])
 
+## Tells the listening cards (Mestra do Gelo Frígido) that p cast a spell. The event's data says
+## which essences the spell has, one "essence_<id>": true fact each, for the "when" filter.
+func _announce_spell_cast(p: int, spell: Card, cd: Dictionary) -> void:
+	var cast := GameEvent.new("spell_cast", p, spell)
+	for essence_id in CardDB.essences_of(cd):
+		cast.data["essence_" + String(essence_id)] = true
+	bus().emit(cast)
+
 ## Context for a unit's Ao Entrar effects; `target` is the ally the player chose (0 if none).
 func _enter_context(p: int, uid: int, target: int) -> EffectContext:
 	var context := EffectContext.new(self, p, "on_enter")
@@ -1187,6 +1256,22 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 	phase = "search"
 	_emit({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": matches})
 
+## The player picks one card from their own hand to discard to the graveyard.
+## Uses the same choice screen as the overdraw banish; the options are private to the owner.
+func _begin_hand_discard(p: int, source_uid: int) -> void:
+	if phase == "search":
+		return
+	var options: Array = []
+	for c: Card in players[p]["hand"]:
+		options.append({"uid": c.uid, "card_id": c.card_id})
+	if options.is_empty():
+		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
+		return
+	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "discard_hand": true}
+	_search_return = phase
+	phase = "search"
+	_emit({"type": "discard_pick", "player": p, "source_uid": source_uid})
+
 ## Offers the cards just milled (public: they are in the graveyard); one goes to the hand.
 func _begin_grave_pick(p: int, milled: Array, source_uid: int) -> void:
 	if phase == "search":
@@ -1277,6 +1362,16 @@ func _deal_damage(t: int, amount: int, source: Card) -> int:
 	if t < 0:
 		var tp := LEADER_UID.find(t)
 		var hp_before: int = players[tp]["leader_hp"]
+		# Câmara de Êxtase aftermath: half the damage, rounded down
+		if turn <= int(players[tp]["damage_halved_until"]):
+			amount = floori(amount / 2.0)
+			if amount <= 0:
+				return 0
+		# Câmara de Êxtase: a killing blow is cancelled completely and the Chamber is spent
+		var ward := _lethal_ward_of(tp)
+		if ward != null and amount >= hp_before:
+			_trigger_lethal_ward(tp, ward, amount)
+			return 0
 		players[tp]["leader_hp"] -= amount
 		dealt = amount
 		_emit({"type": "damage", "uid": t, "amount": amount, "src": src_uid})
@@ -1322,6 +1417,21 @@ func _deal_damage(t: int, amount: int, source: Card) -> int:
 	if source != null and has_kw(source, "roubo_de_vida"):
 		_heal_leader(source.owner, dealt)
 	return dealt
+
+## The free-standing artifact of player p that cancels a lethal blow to their Leader (Câmara de Êxtase), if any.
+func _lethal_ward_of(p: int) -> Card:
+	for relic: Card in players[p]["relics"]:
+		if relic.data().get("lethal_ward", false):
+			return relic
+	return null
+
+## The Chamber cancels `prevented` damage, is destroyed, and halves the Leader's damage until the end of
+## its controller's next turn.
+func _trigger_lethal_ward(p: int, ward: Card, prevented: int) -> void:
+	var until := turn + (2 if p == active else 1)
+	players[p]["damage_halved_until"] = maxi(int(players[p]["damage_halved_until"]), until)
+	_emit({"type": "lethal_ward", "player": p, "uid": ward.uid, "card_id": ward.card_id, "amount": prevented})
+	destroy_relic(ward)
 
 func _heal_leader(p: int, amount: int) -> void:
 	var pl: Dictionary = players[p]
@@ -1538,6 +1648,7 @@ func _start_turn(p: int, draw: bool) -> void:
 		pl["next_momentum"] = 0
 	pl["attacked"] = false
 	pl["played_two"] = false
+	pl["glacial_discount_used"] = false
 	for c in pl["board"]:
 		c.exhausted = false
 		c.sick = false

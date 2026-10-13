@@ -1,0 +1,27 @@
+{
+  "name": "Nevasca de Nythera",
+  "description": "Feitiços glaciais, congelamento e a Bola de Neve que cresce a cada quique até virar Grande.",
+  "order": 3,
+  "leader": "nythera",
+  "cards": {
+    "chamado_da_nevasca": 2,
+    "folheio_pe_na_neve": 3,
+    "geada_relampago": 3,
+    "amuleto_do_primeiro_floco": 3,
+    "espirito_da_aurora": 3,
+    "bola_de_neve": 1,
+    "estilhaco_gelido": 3,
+    "bruno": 2,
+    "espectro_do_gelo_aprisionante": 3,
+    "mestra_do_gelo_frigido": 3,
+    "weyne": 2,
+    "devaneio_gelado": 3,
+    "princesa_wanessa": 3,
+    "sabrina": 2,
+    "camara_de_extase": 3,
+    "nythera": 1,
+    "avalanche": 3,
+    "cryo_hulglack": 2,
+    "rei_gelado": 3
+  }
+}

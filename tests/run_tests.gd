@@ -31,6 +31,7 @@ func _init() -> void:
 	_test_play_slot()
 	_test_ossuario()
 	_test_yresa_fusion()
+	_test_glacial()
 	_test_deslizamento()
 	_test_self_response()
 	_test_custo_e_contagem()
@@ -2101,6 +2102,15 @@ func _test_intimidacao() -> void:
 	g._flush()
 	check(rt.card_id == "tony_raiturus_primordial" and g.atk_of(rt) == 9 and rt.hp == 9 and g.has_kw(rt, "intimidacao") and g.has_kw(rt, "impeto") and g.stack.is_empty(), "raiturus vira o Primordial 9/9 Intimidacao + Ímpeto")
 	check(not g.can_transform(g.active, rt.uid), "o Primordial não transforma de novo")
+	# a unit transformed the turn it entered is not summoning sick
+	g = _eletrica_game()
+	var fresh := _put(g, g.active, "tony_raiturus", false)
+	g.players[g.active]["momentum"] = 8
+	g.players[g.active]["reserve"] = 0
+	check(fresh.sick, "raiturus recém-jogado está com enjoo de invocação")
+	g.transform(g.active, fresh.uid)
+	g._flush()
+	check(not fresh.sick and g.can_attack(fresh), "unidade transformada não tem enjoo de invocação")
 
 func atk_ok(g: GameState, c: Card, atk: int, hp: int) -> bool:
 	return g.atk_of(c) == atk and c.hp == hp
@@ -2392,3 +2402,135 @@ func _test_yresa_fusion() -> void:
 	check(colossus.atk == 2 and colossus.hp == 4 and colossus.armor == 2, "colossus: +1/+2 e Armadura 1 por Stoneward (%d/%d A%d)" % [colossus.atk, colossus.hp, colossus.armor])
 	check(yresa.exhausted and not g.can_activate(0, yresa.uid), "fusão exaure e precisa de 2+ Stonewards")
 	check(g.players[0]["graveyard"].is_empty() and guard != null, "fichas fundidas não vão pro cemitério")
+
+# ---- Glacial: Bola de Neve, Amuleto, Câmara de Êxtase, descarte da mão ----
+
+func _glacial_game() -> GameState:
+	var g := GameState.new("glacial", "fogo", 42)
+	g.mulligan(0, [])
+	g.mulligan(1, [])
+	g.self_response_enabled = false
+	_quiet(g)
+	return g
+
+## Casts a spell from the hand and lets the whole stack resolve.
+func _cast_and_resolve(g: GameState, p: int, card_id: String, target := 0) -> void:
+	var uid := _give(g, p, card_id)
+	g.play_card(p, uid, target)
+	for guard in 8:
+		if g.stack.is_empty():
+			break
+		g.pass_priority(g.priority)
+	g._flush()
+
+func _test_glacial() -> void:
+	_tcard("teste_alvo_gelo", 0, 20, [])
+	var g := _glacial_game()
+	var a := g.active
+	var o := g.opponent(a)
+	g.players[a]["momentum"] = 30
+	var first := _put(g, o, "teste_alvo_gelo")
+	var middle := _put(g, o, "teste_alvo_gelo")
+	var last := _put(g, o, "teste_alvo_gelo")
+
+	# Bola de Neve from the edge: 1, then 2, then 3 (the direction has no choice at the edge)
+	_cast_and_resolve(g, a, "bola_de_neve", first.uid)
+	check(first.hp_left() == 19 and middle.hp_left() == 18 and last.hp_left() == 17, "bola de neve: 1, 2 e 3 de dano nos quiques (%d/%d/%d)" % [first.hp_left(), middle.hp_left(), last.hp_left()])
+	check(g.players[a]["snowball"] == 3, "bola de neve: a próxima começa onde esta parou")
+	_cast_and_resolve(g, a, "bola_de_neve", first.uid)
+	check(first.hp_left() == 16 and g.players[a]["snowball"] == 5, "segunda bola começa em 3 e termina em 5")
+
+	# the card text shows the owner's current level where it says {nivel}
+	var bola_text := String(CardDB.card("bola_de_neve")["text"])
+	check(bola_text.contains("{nivel}"), "texto da bola de neve tem o marcador {nivel}")
+	var shown_text := CardView.fill_live_numbers(bola_text, int(g.players[a]["snowball"]))
+	check(not shown_text.contains("{nivel}") and shown_text.contains("Cause 5 de dano"), "texto da bola de neve mostra o nível atual (5)")
+	check(CardView.fill_live_numbers(bola_text, 1).contains("Cause 1 de dano"), "sem dono, o texto mostra o nível inicial (1)")
+
+	# a Bola aimed at a Leader is a plain hit and the level doesn't grow
+	var leader_before: int = g.players[o]["leader_hp"]
+	var plain_hit := EffectRegistry.parse({"trigger": "on_attack", "action": "snowball", "target": "random_enemy"})
+	plain_hit.apply(EffectContext.new(g, a, "on_attack"), GameState.LEADER_UID[o])
+	check(g.players[o]["leader_hp"] == leader_before - 5 and g.players[a]["snowball"] == 5, "bola no Líder: um golpe só, sem aumentar o nível")
+
+	# Grande Bola de Neve: from level 8 it costs 1 more and every hit has Sobrepujança
+	var bola: Dictionary = CardDB.card("bola_de_neve")
+	g.players[a]["snowball"] = 7
+	check(g.cost_of(a, bola) == 2, "bola de neve abaixo de 8 custa o normal")
+	g.players[a]["snowball"] = 8
+	check(g.cost_of(a, bola) == 3, "Grande Bola de Neve custa 1 a mais")
+	_tcard("teste_frágil_gelo", 0, 3, [])
+	var fragile := _put(g, o, "teste_frágil_gelo")
+	leader_before = g.players[o]["leader_hp"]
+	_cast_and_resolve(g, a, "bola_de_neve", fragile.uid)
+	check(g.find_unit(fragile.uid) == null and g.players[o]["leader_hp"] <= leader_before - 5, "Grande Bola: o excesso de dano vai pro Líder")
+
+	# Princesa Wanessa becomes Tempesfrost when her controller casts a Grande Bola de Neve
+	g = _glacial_game()
+	a = g.active
+	o = g.opponent(a)
+	g.players[a]["momentum"] = 30
+	var target_unit := _put(g, o, "teste_alvo_gelo")
+	var princess := _put(g, a, "princesa_wanessa")
+	g.players[a]["snowball"] = 3
+	_cast_and_resolve(g, a, "bola_de_neve", target_unit.uid)
+	check(princess.card_id == "princesa_wanessa", "Wanessa não se transforma com uma Bola de Neve comum")
+	g.players[a]["snowball"] = 8
+	_cast_and_resolve(g, a, "bola_de_neve", target_unit.uid)
+	check(princess.card_id == "wanessa_tempesfrost" and princess.keywords.has("voo"), "Wanessa vira Tempesfrost ao ver uma Grande Bola de Neve")
+
+	# Amuleto do Primeiro Floco: only the first glacial spell each turn is cheaper
+	g = _glacial_game()
+	a = g.active
+	g.players[a]["momentum"] = 30
+	var holder := _put(g, a, "teste_alvo_gelo")
+	var amulet := Card.new(g._uid(), "amuleto_do_primeiro_floco", a)
+	g.stack_system().attach(holder, amulet)
+	var avalanche: Dictionary = CardDB.card("avalanche")
+	check(g.cost_of(a, avalanche) == int(avalanche["cost"]) - 1, "amuleto: o primeiro feitiço glacial custa 1 a menos")
+	var momentum_before: int = g.players[a]["momentum"]
+	_cast_and_resolve(g, a, "avalanche")
+	check(momentum_before - int(g.players[a]["momentum"]) == int(avalanche["cost"]) - 1, "amuleto: pagou 1 a menos")
+	check(g.cost_of(a, avalanche) == int(avalanche["cost"]), "amuleto: o segundo feitiço do turno custa o normal")
+
+	# Câmara de Êxtase: cancels a lethal damage once, then halves the damage until the end of the next turn
+	g = _glacial_game()
+	a = g.active
+	var chamber := Card.new(g._uid(), "camara_de_extase", a)
+	g._place_relic(a, chamber)
+	g.players[a]["leader_hp"] = 5
+	g._deal_damage(GameState.LEADER_UID[a], 9, null)
+	check(g.players[a]["leader_hp"] == 5, "câmara: o dano que mataria é anulado")
+	check(g.find_relic(chamber.uid) == null, "câmara: é destruída ao proteger")
+	g._deal_damage(GameState.LEADER_UID[a], 3, null)
+	check(g.players[a]["leader_hp"] == 4, "câmara: depois o dano cai pela metade, arredondado pra baixo (3 -> 1)")
+
+	# Folheio Pé-na-Neve: draws 3, then the player picks a card from the hand and it goes to the graveyard
+	g = _glacial_game()
+	a = g.active
+	g.players[a]["momentum"] = 30
+	var hand_before: int = g.players[a]["hand"].size()
+	var graveyard_before: int = g.players[a]["graveyard"].size()
+	var folheio_uid := _give(g, a, "folheio_pe_na_neve")
+	g.play_card(a, folheio_uid, 0)
+	for guard in 8:
+		if g.stack.is_empty():
+			break
+		g.pass_priority(g.priority)
+	check(g.phase == "search" and g.pending_search.get("discard_hand", false), "folheio: abre a escolha de descarte")
+	var discarded_uid: int = int(g.pending_search["cards"][0]["uid"])
+	g.choose_search(a, discarded_uid)
+	var discarded_in_graveyard: bool = g.players[a]["graveyard"].any(func(c: Card): return c.uid == discarded_uid)
+	check(g.phase == "main" and discarded_in_graveyard, "folheio: a carta escolhida vai pro cemitério")
+	check(g.players[a]["hand"].size() == hand_before + 3 - 1, "folheio: comprou 3 e descartou 1 (a própria carta já saiu da mão)")
+	check(g.players[a]["graveyard"].size() == graveyard_before + 2, "folheio: cemitério ganhou o feitiço e a carta descartada")
+
+	# Mestra do Gelo Frígido pings when a glacial spell is cast
+	g = _glacial_game()
+	a = g.active
+	o = g.opponent(a)
+	g.players[a]["momentum"] = 30
+	var victim := _put(g, o, "teste_alvo_gelo")
+	_put(g, a, "mestra_do_gelo_frigido")
+	_cast_and_resolve(g, a, "estilhaco_gelido", victim.uid)
+	check(victim.hp_left() == 20 - 3 - 1, "Mestra do Gelo Frígido: +1 de dano a cada feitiço glacial")
