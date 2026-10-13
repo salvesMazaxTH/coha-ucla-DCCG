@@ -34,6 +34,8 @@ func _fire_own_effects(event: GameEvent) -> void:
 	var all_effects: Array = card.data()["effects"]
 	for i in all_effects.size():
 		var e: Dictionary = all_effects[i]
+		if e.get("trigger", "") == event.trigger and e.get("not_token", false) and event.data.get("dying_is_token", false):
+			continue # the ally that died was a ficha
 		if e.get("trigger", "") == event.trigger and game._combat_damage and e.get("not_in_combat", false):
 			continue
 		if e.get("trigger", "") == event.trigger and e.get("once_per_turn", false):

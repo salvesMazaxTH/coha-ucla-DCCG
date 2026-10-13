@@ -16,6 +16,7 @@ var condition: Condition = null ## the optional "if"; null = always runs
 var uses_second_pick := false ## "pick2": hits the card's second pick instead of the first
 var once_per_turn := false ## "once_per_turn": the trigger works once per turn per unit
 var not_in_combat := false ## "not_in_combat": the trigger is ignored during combat damage
+var not_token := false ## "not_token": an Aliado Morre trigger is ignored when the unit that died was a ficha (Cientista da Morte)
 ## "listen": the effect reacts to a game event from anywhere (see TriggerBus). Its `trigger` then
 ## becomes LISTEN_PREFIX + the event name, so no ordinary trigger ever matches it.
 var listen := ""
@@ -37,6 +38,7 @@ func setup(data: Dictionary) -> void:
 	uses_second_pick = bool(data.get("pick2", false))
 	once_per_turn = bool(data.get("once_per_turn", false))
 	not_in_combat = bool(data.get("not_in_combat", false))
+	not_token = bool(data.get("not_token", false))
 	if data.has("listen"):
 		listen = String(data["listen"])
 		trigger = LISTEN_PREFIX + listen

@@ -8,19 +8,19 @@
   "essence": "obscura",
   "cost": 3,
   "atk": 1,
-  "hp": 4,
+  "hp": 5,
   "keywords": [],
   "art": "obscura/cientista_da_morte.webp",
   "effects": [
     {
       "trigger": "on_ally_death",
+      "not_token": true,
       "action": "summon",
       "target": "none",
-      "card": "esqueleto_guerreiro",
-      "not_in_combat": true
+      "card": "esqueleto_guerreiro"
     }
   ],
-  "text": "Aliado Morre (exceto dano de combate): invoque um Esqueleto Guerreiro.",
+  "text": "Aliado Morre (exceto ficha): invoque um Esqueleto Guerreiro (ficha 1/1 com Provocação).",
   "flavor": "Todo experimento precisa de material.",
   "tags": []
 }

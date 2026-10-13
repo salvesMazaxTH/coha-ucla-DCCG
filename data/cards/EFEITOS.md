@@ -8,7 +8,7 @@ Um efeito é um objeto:
 { "trigger": "on_enter", "if": "momentum_left", "action": "damage", "target": "enemy_unit", "amount": 2 }
 ```
 
-Campos comuns: `trigger` (ver Eventos), `if` (ver Condições), `action`, `target`, `pick2` (usa a segunda escolha da carta), `once_per_turn`, `not_in_combat`.
+Campos comuns: `trigger` (ver Eventos), `if` (ver Condições), `action`, `target`, `pick2` (usa a segunda escolha da carta), `once_per_turn`, `not_in_combat`, `not_token` (Aliado Morre ignora a morte de ficha).
 
 ## Ações
 

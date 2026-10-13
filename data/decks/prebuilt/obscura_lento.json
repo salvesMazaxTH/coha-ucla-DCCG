@@ -4,11 +4,11 @@
   "order": 5,
   "leader": "jeff",
   "cards": {
-    "esqueleto_guerreiro": 3,
     "diabrete_sombrio": 3,
     "vigia_do_farol_do_norte": 3,
     "colheita_de_almas": 3,
     "cova_rasa": 3,
+    "lamento_funebre": 3,
     "cientista_da_morte": 3,
     "replicador_maldito": 3,
     "revivente_eterno": 3,
@@ -17,8 +17,8 @@
     "o_espiritomante": 3,
     "mordida_de_defunto": 3,
     "fenix_da_chama_profana": 3,
-    "jeff": 1,
     "ossuario_sem_fundo": 2,
+    "jeff": 1,
     "titanico_morcegalma": 3,
     "a_vagante_sombria": 3
   }
