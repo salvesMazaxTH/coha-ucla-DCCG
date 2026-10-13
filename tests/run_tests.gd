@@ -151,23 +151,23 @@ func _test_search() -> void:
 func _test_constant() -> void:
 	var g := _new_game()
 	var jeff := _put(g, 0, "jeff")
-	check(g.atk_of(jeff) == 2 and g.hp_left(jeff) == 2, "jeff sem cemitério é 2/2")
+	check(g.atk_of(jeff) == 3 and g.hp_left(jeff) == 3, "jeff sem cemitério é 3/3")
 	g.players[0]["graveyard"].append(Card.new(g._uid(), "serpente_marinha", 0, "graveyard"))
 	g.players[0]["graveyard"].append(Card.new(g._uid(), "gaivota_da_tempestade", 0, "graveyard"))
 	g.players[0]["graveyard"].append(Card.new(g._uid(), "bola_de_fogo", 0, "graveyard"))
 	g._check_state()
-	check(g.atk_of(jeff) == 4 and g.hp_left(jeff) == 4, "jeff +1/+1 por unidade no cemitério (feitiço não conta)")
+	check(g.atk_of(jeff) == 5 and g.hp_left(jeff) == 5, "jeff +1/+1 por unidade no cemitério (feitiço não conta)")
 	g.players[1]["graveyard"].append(Card.new(g._uid(), "serpente_marinha", 1, "graveyard"))
 	g._check_state()
-	check(g.atk_of(jeff) == 4, "cemitério inimigo não conta")
+	check(g.atk_of(jeff) == 5, "cemitério inimigo não conta")
 	g.players[0]["graveyard"].pop_back()
 	g.players[0]["graveyard"].pop_back()
 	g._check_state()
-	check(g.atk_of(jeff) == 3, "bônus encolhe quando o cemitério encolhe")
+	check(g.atk_of(jeff) == 4, "bônus encolhe quando o cemitério encolhe")
 	jeff.damage = 1
 	g.players[0]["graveyard"].clear()
 	g._check_state()
-	check(g.hp_left(jeff) == 1, "dano persiste ao perder o bônus")
+	check(g.hp_left(jeff) == 2, "dano persiste ao perder o bônus")
 
 func _obscura_game() -> GameState:
 	var g := GameState.new("obscura_rapido", "fogo", 7)
@@ -183,7 +183,7 @@ func _test_sacrifice_damage() -> void:
 		g.players[0]["graveyard"].append(Card.new(g._uid(), "esqueleto_guerreiro", 0, "graveyard"))
 	g._check_state()
 	var atk: int = g.atk_of(jeff)
-	check(atk == 5, "jeff com 3 unidades no cemitério tem 5 de ataque")
+	check(atk == 6, "jeff com 3 unidades no cemitério tem 6 de ataque")
 	var foe := _put(g, 1, "serpente_marinha")
 	var ally := _put(g, 0, "esqueleto_guerreiro")
 	var spell := Card.new(g._uid(), "mordida_de_defunto", 0, "hand")
@@ -279,7 +279,7 @@ func _test_obscura() -> void:
 		check(cur.size() == 1, "revivente está em campo (morte %d)" % i)
 		_kill(g, cur[0])
 	var back: Array = g.players[0]["board"].filter(func(c: Card): return c.card_id == "revivente_eterno")
-	check(back.size() == 1 and back[0].uid != first_uid and g.atk_of(back[0]) == 2 and g.hp_left(back[0]) == 2, "revivente volta sempre, como nova instância")
+	check(back.size() == 1 and back[0].uid != first_uid and g.atk_of(back[0]) == 3 and g.hp_left(back[0]) == 2, "revivente volta sempre, como nova instância")
 	check(not g.players[0]["graveyard"].any(func(e): return e["card_id"] == "revivente_eterno"), "revivente em campo não fica no cemitério")
 	# Fênix: back with -2/-2 of what it had; stops at 0
 	var fen := _put(g, 0, "fenix_da_chama_profana")
@@ -375,7 +375,7 @@ func _test_obscura() -> void:
 	check(not g.find_unit(af_ind.uid) == null, "afogar não destrói Indestrutível")
 	_kill(g, af_ind)
 	# Equipment: an artifact attached under the unit; dies with it
-	var holder := _put(g, 0, "esqueleto_guerreiro")
+	var holder := _put(g, 0, "rato_do_ossuario")
 	var eqid := _give(g, 0, "manoplas_incandescentes")
 	g.players[0]["momentum"] = 10
 	var atk0: int = holder.atk
@@ -511,7 +511,7 @@ func _test_obscura_rules() -> void:
 	var g := _obscura_game()
 	g.players[0]["passive_used"] = true
 	var dia := _put(g, 0, "diabrete_sombrio")
-	check(g.atk_of(dia) == 2 and g.hp_left(dia) == 1 and CardDB.card("diabrete_sombrio")["cost"] == 2, "diabrete 2-drop 2/1")
+	check(g.atk_of(dia) == 2 and g.hp_left(dia) == 2 and CardDB.card("diabrete_sombrio")["cost"] == 2, "diabrete 2-drop 2/2")
 	var fodder := _put(g, 0, "esqueleto_guerreiro")
 	var hand: int = g.players[0]["hand"].size()
 	var foe0: int = g.players[1]["leader_hp"]
@@ -528,27 +528,31 @@ func _test_obscura_rules() -> void:
 	var hr: int = gr.players[1]["leader_hp"]
 	_kill(gr, rv)
 	check(gr.players[1]["leader_hp"] == hr - 1 and _count(gr, 0, "revivente_eterno") == 1, "revivente que volta também ativa Aliado Morre")
-	# Cientista da Morte summons a skeleton on Aliado Morre
+	# Cientista da Morte summons a skeleton on Aliado Morre, but only when a non-token ally dies
 	var sg := _obscura_game()
 	sg.players[0]["passive_used"] = true
 	_put(sg, 0, "cientista_da_morte")
-	var sk := _put(sg, 0, "esqueleto_guerreiro")
+	var rat := _put(sg, 0, "rato_do_ossuario")
 	var n0: int = _count(sg, 0, "esqueleto_guerreiro")
-	_kill(sg, sk)
-	check(_count(sg, 0, "esqueleto_guerreiro") == n0, "cientista substitui o esqueleto que foi ao cemitério")
-	var sk2 := _put(sg, 0, "esqueleto_guerreiro")
-	var sk3 := _put(sg, 0, "esqueleto_guerreiro")
+	_kill(sg, rat)
+	check(_count(sg, 0, "esqueleto_guerreiro") == n0 + 1, "cientista invoca um esqueleto quando um aliado comum morre")
+	var token_skeleton := _put(sg, 0, "esqueleto_guerreiro")
+	var n_token: int = _count(sg, 0, "esqueleto_guerreiro")
+	_kill(sg, token_skeleton)
+	check(_count(sg, 0, "esqueleto_guerreiro") == n_token - 1, "cientista ignora a morte de uma ficha (o esqueleto não gera outro)")
+	var rat2 := _put(sg, 0, "rato_do_ossuario")
+	var rat3 := _put(sg, 0, "rato_do_ossuario")
 	var n1: int = _count(sg, 0, "esqueleto_guerreiro")
-	_kill(sg, sk2)
-	_kill(sg, sk3)
-	check(_count(sg, 0, "esqueleto_guerreiro") == n1, "cientista invoca um esqueleto por aliado que morre (sem limite por turno)")
-	# a death caused by combat damage does not trigger it
+	_kill(sg, rat2)
+	_kill(sg, rat3)
+	check(_count(sg, 0, "esqueleto_guerreiro") == n1 + 2, "cientista invoca um esqueleto por aliado que morre (sem limite por turno)")
+	# a death caused by combat damage triggers it too (no restriction)
 	sg._combat_damage = true
-	var sk5 := _put(sg, 0, "esqueleto_guerreiro")
+	var rat4 := _put(sg, 0, "rato_do_ossuario")
 	var n3: int = _count(sg, 0, "esqueleto_guerreiro")
-	_kill(sg, sk5)
+	_kill(sg, rat4)
 	sg._combat_damage = false
-	check(_count(sg, 0, "esqueleto_guerreiro") == n3 - 1, "cientista não invoca quando o aliado morre em combate")
+	check(_count(sg, 0, "esqueleto_guerreiro") == n3 + 1, "cientista também invoca quando o aliado morre em combate")
 	# an enemy ally dying does not count
 	var g2 := _obscura_game()
 	g2.players[0]["passive_used"] = true
@@ -633,7 +637,7 @@ func _test_obscura_rules() -> void:
 	var nid := _give(n, 0, "necrofago_espectral")
 	n.players[0]["momentum"] = 0
 	check(not n.can_play(0, nid), "necrófago exige uma unidade para sacrificar")
-	var weak := _put(n, 0, "esqueleto_guerreiro")
+	var weak := _put(n, 0, "rato_do_ossuario")
 	var strong := _put(n, 0, "titanico_morcegalma")
 	check(n.can_play(0, nid), "necrófago custa 0 com um aliado para sacrificar")
 	check(n.card_spec(CardDB.card("necrofago_espectral")) == "ally_unit", "necrófago pede um alvo aliado")
@@ -641,7 +645,7 @@ func _test_obscura_rules() -> void:
 	n.play_card(0, nid, weak.uid)
 	n._flush()
 	check(n.find_unit(weak.uid) == null and _count(n, 0, "necrofago_espectral") == 1 and not n.find_unit(strong.uid) == null, "necrófago sacrificou o escolhido e entrou")
-	check(n.players[0]["graveyard"].any(func(e): return e["card_id"] == "esqueleto_guerreiro"), "o sacrificado foi ao cemitério")
+	check(n.players[0]["graveyard"].any(func(e): return e["card_id"] == "rato_do_ossuario"), "o sacrificado foi ao cemitério")
 	# full board: the sacrifice itself frees the slot
 	var fb := _obscura_game()
 	fb.players[0]["passive_used"] = true
@@ -799,6 +803,25 @@ func _test_combat() -> void:
 	check(g.attack_targets(rushing) == [tapped_enemy.uid], "Ímpeto recém-chegado: só desafia, o Líder fica para o próximo turno")
 	rushing.sick = false
 	check(g.attack_targets(rushing).has(GameState.LEADER_UID[1]), "Ímpeto no turno seguinte: o Líder volta a ser alvo")
+
+	# Rompante: the turn it enters, the unit may only hit the Leader (never challenges, ignores Provocação)
+	g = _new_game()
+	_quiet(g)
+	var charging := _put(g, 0, "faisca_errante", false) # Rompante, still summoning sick
+	var tapped_foe := _put(g, 1, "t_c33")
+	tapped_foe.exhausted = true
+	check(g.can_attack(charging), "Rompante recém-chegado pode atacar")
+	check(g.attack_targets(charging) == [GameState.LEADER_UID[1]], "Rompante recém-chegado: só o Líder é alvo")
+	check(not g.can_challenge(charging, tapped_foe), "Rompante recém-chegado não desafia")
+	var taunt_foe := _put(g, 1, "esqueleto_guerreiro") # Provocação
+	taunt_foe.exhausted = true
+	check(g.attack_targets(charging) == [GameState.LEADER_UID[1]], "Rompante recém-chegado ignora a Provocação")
+	var leader_before: int = g.players[1]["leader_hp"]
+	_hit(g, charging, GameState.LEADER_UID[1])
+	check(g.players[1]["leader_hp"] == leader_before - 1 and charging.exhausted, "Rompante bate no Líder e fica exausta")
+	charging.sick = false
+	charging.exhausted = false
+	check(g.attack_targets(charging) == [taunt_foe.uid], "Rompante no turno seguinte: unidade normal, a Provocação obriga")
 
 	# Sobrepujança against Escudo: the shield soaks the hit, the excess goes to the Leader
 	g = _new_game()
@@ -1190,6 +1213,18 @@ func _test_subito() -> void:
 	check(g.find_unit(sub) == null, "Súbito: the unit is not on the board before it resolves")
 	g.pass_priority(0)
 	check(g.stack.is_empty() and g.find_unit(sub) != null and g.find_unit(sub).owner == 1, "Súbito: the unit enters when it resolves")
+
+	# the Reserva pays for Súbito too (drained first, like any ability)
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 1
+	g.players[1]["momentum"] = 1
+	g.players[1]["reserve"] = 2
+	sub = _give(g, 1, "t_sub")
+	g.play_card(0, _give(g, 0, "t_sub_trigger"), 0)
+	check(g.can_play(1, sub), "Súbito: 1 Momentum + 2 Reserva are enough for Súbito (3)")
+	g.play_card(1, sub)
+	check(g.players[1]["reserve"] == 0 and g.players[1]["momentum"] == 0 and g.find_unit(sub) != null, "Súbito: the Reserva is spent first")
 
 	# a counter answers it: the card goes to the graveyard
 	g = _new_game()
@@ -1813,7 +1848,7 @@ func _test_eletrica() -> void:
 	# Voltexz / Fulgurvoltz: cost drops with Momentum left unspent, with a floor
 	var vx: Dictionary = CardDB.card("voltexz")
 	var fg: Dictionary = CardDB.card("fulgurvoltz")
-	check(g.cost_of(a, vx) == 16 and g.cost_of(a, fg) == 12, "eletrica: custos base 16 e 12")
+	check(g.cost_of(a, vx) == 15 and g.cost_of(a, fg) == 12, "eletrica: custos base 15 e 12")
 	# only what leaks past the Reserva (2) at the start of the owner's next turn counts
 	g.players[a]["momentum"] = 3
 	g.players[a]["reserve"] = 1
@@ -1822,7 +1857,7 @@ func _test_eletrica() -> void:
 	g.end_turn(o)
 	check(g.players[a]["saved_momentum"] == 2 and g.players[a]["idle_turns"] == 1, "eletrica: conta só o que vazou da Reserva (1+3-2)")
 	check(g.players[o]["saved_momentum"] == 0 and g.players[o]["idle_turns"] == 0, "eletrica: o que cabe na Reserva não conta")
-	check(g.cost_of(a, vx) == 14 and g.cost_of(a, fg) == 10, "eletrica: custo cai com o que vazou")
+	check(g.cost_of(a, vx) == 13 and g.cost_of(a, fg) == 9, "eletrica: custo cai com o que vazou")
 	# spending on the opponent's turn reduces the savings (counted at the owner's next start)
 	g = _eletrica_game()
 	a = g.active
@@ -1903,16 +1938,16 @@ func _test_eletrica() -> void:
 	var l: Dictionary = g.players[a]["legendary"]
 	l["casts"] = 1
 	g.players[a]["saved_momentum"] = 0
-	check(g.legendary_cost(a) == 18, "voltexz: sem redução, 2a conjuração custa 18")
+	check(g.legendary_cost(a) == 17, "voltexz: sem redução, 2a conjuração custa 17")
 	g.players[a]["saved_momentum"] = 8
-	check(g.legendary_cost(a) == 10, "voltexz: custo atual 8 + taxa 2 = 10")
+	check(g.legendary_cost(a) == 9, "voltexz: custo atual 7 + taxa 2 = 9")
 	l["in_zone"] = false
 	g._legendary_leaves(a)
-	check(l["in_zone"] and not l.get("retired", false), "voltexz: volta ao Santuário com custo atual 10")
-	g.players[a]["saved_momentum"] = 7
+	check(l["in_zone"] and not l.get("retired", false), "voltexz: volta ao Santuário com custo atual 9")
+	g.players[a]["saved_momentum"] = 6
 	l["in_zone"] = false
 	g._legendary_leaves(a)
-	check(l.get("retired", false), "voltexz: custo atual 9 + taxa 2 = 11 aposenta")
+	check(l.get("retired", false), "voltexz: custo atual 9 + taxa 2 = 11 (Momentum vazado 6) aposenta")
 	# gain_momentum: now and at the next turn
 	g = _eletrica_game()
 	a = g.active
