@@ -1066,7 +1066,9 @@ func _test_reserve() -> void:
 	if not g.stack.is_empty(): # Naelthos' ability is instant, so its owner may answer
 		g.pass_priority(g.priority)
 	_pass_windows(g)
-	check(g.players[p]["reserve"] == 0 and g.players[p]["momentum"] == 0, "feitiço gasta a reserva primeiro")
+	# the reserve (2) is spent before the Momentum, whatever the spell costs now
+	var momentum_left := 1 - maxi(0, CardDB.card("bola_de_fogo")["cost"] - GameState.RESERVE_CAP)
+	check(g.players[p]["reserve"] == 0 and g.players[p]["momentum"] == momentum_left, "feitiço gasta a reserva primeiro")
 	check(g.players[1 - p]["leader_hp"] < hp, "feitiço pago com reserva resolve")
 	var g2 := _new_game()
 	var q := g2.active
@@ -2827,11 +2829,20 @@ func _test_glacial() -> void:
 	var amulet := Card.new(g._uid(), "amuleto_do_primeiro_floco", a)
 	g.stack_system().attach(holder, amulet)
 	var avalanche: Dictionary = CardDB.card("avalanche")
-	check(g.cost_of(a, avalanche) == int(avalanche["cost"]) - 1, "amuleto: o primeiro feitiço glacial custa 1 a menos")
+	check(g.cost_of(a, avalanche) == int(avalanche["cost"]) - 2, "amuleto: o primeiro feitiço glacial custa 2 a menos")
 	var momentum_before: int = g.players[a]["momentum"]
 	_cast_and_resolve(g, a, "avalanche")
-	check(momentum_before - int(g.players[a]["momentum"]) == int(avalanche["cost"]) - 1, "amuleto: pagou 1 a menos")
+	check(momentum_before - int(g.players[a]["momentum"]) == int(avalanche["cost"]) - 2, "amuleto: pagou 2 a menos")
 	check(g.cost_of(a, avalanche) == int(avalanche["cost"]), "amuleto: o segundo feitiço do turno custa o normal")
+
+	# two amulets add their discounts, but the amulet's own floor keeps the spell at cost 1 or more
+	g = _glacial_game()
+	a = g.active
+	g.stack_system().attach(_put(g, a, "teste_alvo_gelo"), Card.new(g._uid(), "amuleto_do_primeiro_floco", a))
+	g.stack_system().attach(_put(g, a, "teste_alvo_gelo"), Card.new(g._uid(), "amuleto_do_primeiro_floco", a))
+	check(g.cost_of(a, avalanche) == int(avalanche["cost"]) - 4, "dois amuletos: os descontos se somam")
+	var cheap_spell: Dictionary = CardDB.card("bola_de_neve")
+	check(g.cost_of(a, cheap_spell) >= 1, "dois amuletos: nunca deixam o feitiço abaixo de 1")
 
 	# Câmara de Êxtase: cancels a lethal damage once, then halves the damage until the end of the next turn
 	g = _glacial_game()
@@ -2923,7 +2934,7 @@ func _test_glacial() -> void:
 	check(g.players[a]["hand"].has(bola_in_graveyard) and not g.players[a]["graveyard"].has(bola_in_graveyard), "Ysvane: a Bola de Neve volta do cemitério para a mão")
 	check(bola_in_graveyard.banish_after_cast, "Ysvane: a Bola recuperada fica marcada para ser banida depois de lançada")
 	var shields_on_enter: int = g.players[a]["board"].filter(func(c: Card): return c.shield).size()
-	check(shields_on_enter == 1 and protege.hp_left() + ysvane_card.hp_left() == 27, "Ysvane: Ao Entrar dá +2 de Vida e Escudo a uma aliada aleatória (escudos %d, vida %d)" % [shields_on_enter, protege.hp_left() + ysvane_card.hp_left()])
+	check(shields_on_enter == 1 and protege.hp_left() + ysvane_card.hp_left() == 28, "Ysvane: Ao Entrar dá +2 de Vida e Escudo a uma aliada aleatória (escudos %d, vida %d)" % [shields_on_enter, protege.hp_left() + ysvane_card.hp_left()])
 	protege.shield = false
 	ysvane_card.shield = false
 	var enemy_target := _put(g, o, "teste_alvo_gelo")
@@ -2935,7 +2946,7 @@ func _test_glacial() -> void:
 	g._flush()
 	check(g.players[a]["banished"].has(bola_in_graveyard) and not g.players[a]["graveyard"].has(bola_in_graveyard), "Ysvane: a Bola recuperada é banida depois de lançada, não vai ao cemitério")
 	var shielded_count: int = g.players[a]["board"].filter(func(c: Card): return c.shield).size()
-	check(shielded_count == 1, "Ysvane: um feitiço glacial dá Escudo a uma aliada aleatória (%d)" % shielded_count)
+	check(shielded_count == 0, "Ysvane: lançar feitiço glacial não dá mais Escudo (%d)" % shielded_count)
 	g.players[a]["leader_hp"] = 10
 	_kill(g, ysvane_card)
 	check(g.players[a]["leader_hp"] == 14, "Ysvane: Ao Morrer cura 4 do Líder (%d)" % g.players[a]["leader_hp"])

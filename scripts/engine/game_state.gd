@@ -386,7 +386,11 @@ func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 			"unspent_momentum": n = 1 if int(players[p]["unspent"]) >= int(e.get("threshold", 1)) else 0
 		c -= n * int(e.get("amount", 1))
 		floor_cost = maxi(floor_cost, int(e.get("min_cost", 0)))
-	c -= glacial_discount(p, cd)
+	var amulet_discount := glacial_discount(p, cd)
+	if amulet_discount > 0:
+		# the amulets' own "min_cost" floor never raises a spell that was already cheaper than it
+		floor_cost = maxi(floor_cost, mini(glacial_discount_floor(p, cd), c))
+	c -= amulet_discount
 	var requiem_extra := REQUIEM_EXTRA_COST if card != null and card.zone == "graveyard" else 0
 	return maxi(c, floor_cost) + requiem_extra
 
@@ -424,19 +428,33 @@ func _evolve_snowball_cards(p: int) -> void:
 	if evolved > 0:
 		_emit({"type": "snowball_evolve", "player": p, "count": evolved, "uids": evolved_uids})
 
-## Momentum off the first spell of an essence each turn, from an equipped "spell_discount" artifact
-## (Amuleto Glacial) on one of p's units. 0 when there is none, it is not that essence, or it was spent.
+## Momentum off the first spell of an essence each turn, from the equipped "spell_discount" artifacts
+## (Amuleto do Primeiro Floco) on p's units. The discounts of several amulets add up.
+## 0 when there is none, it is not that essence, or it was spent.
 func glacial_discount(p: int, cd: Dictionary) -> int:
+	var total := 0
+	for rule in _applicable_discount_rules(p, cd):
+		total += int(rule["amount"])
+	return total
+
+## The cost the amulets' discount cannot push the spell under: the highest "min_cost" among the amulets that apply.
+func glacial_discount_floor(p: int, cd: Dictionary) -> int:
+	var floor_cost := 0
+	for rule in _applicable_discount_rules(p, cd):
+		floor_cost = maxi(floor_cost, int(rule.get("min_cost", 0)))
+	return floor_cost
+
+func _applicable_discount_rules(p: int, cd: Dictionary) -> Array:
+	var rules: Array = []
 	if cd.get("type", "") != "spell" or players[p]["glacial_discount_used"]:
-		return 0
-	var best := 0
+		return rules
 	for unit: Card in players[p]["board"]:
 		if unit.equipment == null:
 			continue
 		var rule: Dictionary = unit.equipment.data().get("spell_discount", {})
 		if not rule.is_empty() and CardDB.has_essence(cd, String(rule["essence"])):
-			best = maxi(best, int(rule["amount"]))
-	return best
+			rules.append(rule)
+	return rules
 
 ## Momentum p can spend on a play: the Reserva only counts for spells and leader abilities.
 func budget(p: int, spell: bool) -> int:

@@ -5,7 +5,6 @@
   "essence": "glacial",
   "cost": 2,
   "speed": "lento",
-  "max_copies": 2,
   "art": "glacial/chamado_da_nevasca.webp",
   "effects": [
     {

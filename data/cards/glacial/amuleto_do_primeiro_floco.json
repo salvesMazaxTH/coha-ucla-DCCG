@@ -18,9 +18,10 @@
   ],
   "spell_discount": {
     "essence": "glacial",
-    "amount": 1
+    "amount": 2,
+    "min_cost": 1
   },
-  "text": "Equipar: a unidade ganha +2 de Vida. O primeiro feitiço glacial que você lançar em cada turno custa (1) a menos.",
+  "text": "Equipar: a unidade ganha +2 de Vida. O primeiro feitiço glacial que você lançar em cada turno custa (2) a menos, mas nunca menos de (1).",
   "flavor": "O primeiro sempre é o mais barato.",
   "tags": []
 }

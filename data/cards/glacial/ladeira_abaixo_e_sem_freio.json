@@ -1,11 +1,10 @@
 {
   "name": "Ladeira Abaixo e Sem Freio",
   "type": "spell",
-  "rarity": "epic",
+  "rarity": "legendary",
   "essence": "glacial",
   "cost": 4,
   "speed": "lento",
-  "max_copies": 2,
   "effects": [
     {
       "trigger": "on_play",

@@ -87,7 +87,7 @@ Gatilhos que disparam durante uma ação entram numa fila e resolvem depois que 
 
 ## Campos de carta especiais
 
-- `spell_discount` (equipamento): `{"essence": "glacial", "amount": 1}`. O primeiro feitiço dessa essência lançado por turno pelo dono custa `amount` a menos.
+- `spell_discount` (equipamento): `{"essence": "glacial", "amount": 2, "min_cost": 1}`; vários equipamentos somam, e `min_cost` (opcional) é o piso do custo. O primeiro feitiço dessa essência lançado por turno pelo dono custa `amount` a menos.
 - `face_text` (feitiço, opcional): versão curta do texto, desenhada só no rosto da carta pequena quando o `text` completo não cabe. A visão ampliada continua mostrando o `text`. Aceita `{nivel}`.
 - `{nivel}` (dentro do `text` de qualquer carta): vira o nível atual da Bola de Neve do dono ao desenhar a carta (mão, Santuário, escolha de cartas e visão ampliada); sem dono, vira 1. É só visual: o motor não lê o texto.
 - `lethal_ward` (artefato, `true`): se o Líder do dono fosse morrer por uma instância de dano, o dano é anulado, o artefato é destruído e, até o fim do próximo turno do dono, todo dano ao Líder é dividido pela metade (arredondado pra baixo).
