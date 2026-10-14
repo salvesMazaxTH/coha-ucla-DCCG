@@ -2474,6 +2474,77 @@ func _test_glacial_combo() -> void:
 	check(int(attack_game.players[attack["me"]]["snowball"]) == 8, "Tempesfrost: a Bola lançada no Líder não faz o nível crescer")
 	check(attack["enemies"][0].damage == 0, "Tempesfrost: a Bola no Líder não bate na unidade inimiga")
 
+	# Tempesfrost challenging a tapped enemy unit: the Bola is cast on THAT unit and bounces (the level grows)
+	var duel := _combo_game(8, 2, 0, 0)
+	var duel_game: GameState = duel["game"]
+	var duel_tempesfrost := _put(duel_game, duel["me"], "wanessa_tempesfrost")
+	var duel_target: Card = duel["enemies"][0]
+	duel_target.exhausted = true
+	var duel_leader_before: int = int(duel_game.players[duel["foe"]]["leader_hp"])
+	_hit(duel_game, duel_tempesfrost, duel_target.uid)
+	var duel_total_damage: int = duel["enemies"][0].damage + duel["enemies"][1].damage
+	check(duel_target.damage >= 8, "Tempesfrost: desafiar uma unidade lança a Bola de Neve nela (dano %d)" % duel_target.damage)
+	check(duel["enemies"][1].damage == 9 or duel_total_damage >= 17, "Tempesfrost: a Bola lançada numa unidade quica para a vizinha (total %d)" % duel_total_damage)
+	check(int(duel_game.players[duel["me"]]["snowball"]) >= 9, "Tempesfrost: a Bola numa unidade faz o nível crescer (%d)" % int(duel_game.players[duel["me"]]["snowball"]))
+	check(int(duel_game.players[duel["foe"]]["leader_hp"]) == duel_leader_before, "Tempesfrost: desafiar uma unidade não bate no Líder (a unidade tem 20 de Vida, sem sobra)")
+
+	# Fifi Congela-Passos: Ao Entrar freezes AND exhausts the same enemy unit, which Tempesfrost can then challenge
+	var fifi := _combo_game(8, 2, 10, 0)
+	var fifi_game: GameState = fifi["game"]
+	var fifi_victim: Card = fifi["enemies"][0]
+	var fifi_bystander: Card = fifi["enemies"][1]
+	_cast_and_resolve(fifi_game, fifi["me"], "fifi_congela_passos")
+	fifi_game.choose_enter_target(fifi["me"], fifi_victim.uid) # her Ao Entrar target is chosen after she enters
+	fifi_game._flush()
+	check(fifi_victim.exhausted and fifi_victim.frozen > 0, "Fifi: Ao Entrar congela e exaure a unidade escolhida")
+	check(not fifi_bystander.exhausted and fifi_bystander.frozen == 0, "Fifi: a outra unidade inimiga não é afetada")
+	var fifi_tempesfrost := _put(fifi_game, fifi["me"], "wanessa_tempesfrost")
+	fifi_tempesfrost.sick = false
+	_hit(fifi_game, fifi_tempesfrost, fifi_victim.uid)
+	check(fifi_victim.damage >= 8, "Fifi + Tempesfrost: a unidade exausta pode ser desafiada e leva a Bola (dano %d)" % fifi_victim.damage)
+
+	# Espectro do Gelo Aprisionante: like Fifi, Ao Entrar freezes AND exhausts the chosen enemy unit (cost 4 now)
+	check(int(CardDB.card("espectro_do_gelo_aprisionante")["cost"]) == 4, "Espectro: custo 4")
+	var espectro := _combo_game(8, 2, 10, 0)
+	var espectro_game: GameState = espectro["game"]
+	var espectro_victim: Card = espectro["enemies"][0]
+	_cast_and_resolve(espectro_game, espectro["me"], "espectro_do_gelo_aprisionante")
+	espectro_game.choose_enter_target(espectro["me"], espectro_victim.uid)
+	espectro_game._flush()
+	check(espectro_victim.exhausted and espectro_victim.frozen > 0, "Espectro: Ao Entrar congela e exaure a unidade escolhida")
+	check(not espectro["enemies"][1].exhausted and espectro["enemies"][1].frozen == 0, "Espectro: a outra unidade inimiga não é afetada")
+
+	# Rei Gelado: 5 random slots of the enemy field. Units in them are frozen+exhausted, empty ones are blocked,
+	# so units hit + slots blocked is always 5 (whatever the draw)
+	check(int(CardDB.card("rei_gelado")["atk"]) == 5 and int(CardDB.card("rei_gelado")["hp"]) == 7, "Rei Gelado: 5/7")
+	for enemy_count in [0, 3, 6, 8]:
+		var rei := _combo_game(8, enemy_count, 10, 0)
+		var rei_game: GameState = rei["game"]
+		var rei_foe: int = rei["foe"]
+		_cast_and_resolve(rei_game, rei["me"], "rei_gelado")
+		var frozen_units: Array = rei["enemies"].filter(func(c: Card): return c.frozen > 0)
+		var blocked_slots: int = int(rei_game.players[rei_foe]["frozen_slots"])
+		check(frozen_units.size() + blocked_slots == 5, "Rei Gelado (%d inimigas): unidades atingidas (%d) + espaços vazios bloqueados (%d) = 5" % [enemy_count, frozen_units.size(), blocked_slots])
+		check(frozen_units.all(func(c: Card): return c.exhausted), "Rei Gelado (%d inimigas): toda unidade atingida também fica exausta" % enemy_count)
+		check(rei["enemies"].all(func(c: Card): return c.frozen > 0 or not c.exhausted), "Rei Gelado (%d inimigas): unidade fora dos espaços sorteados não é afetada" % enemy_count)
+		check(rei["princess"].frozen == 0 and int(rei_game.players[rei["me"]]["frozen_slots"]) == 0, "Rei Gelado (%d inimigas): o campo de quem lançou não é afetado" % enemy_count)
+
+	# empty frozen slots take room: with 8 empty slots 5 are blocked, so only 3 units fit
+	var block := _combo_game(8, 0, 10, 0)
+	var block_game: GameState = block["game"]
+	var block_foe: int = block["foe"]
+	_cast_and_resolve(block_game, block["me"], "rei_gelado")
+	check(int(block_game.players[block_foe]["frozen_slots"]) == 5, "Rei Gelado: campo inimigo vazio tem 5 espaços congelados")
+	for filler in 3:
+		check(block_game.has_free_slot(block_foe), "Rei Gelado: ainda cabe a unidade %d nos 3 espaços livres" % (filler + 1))
+		_put(block_game, block_foe, "teste_alvo_gelo")
+	check(not block_game.has_free_slot(block_foe), "Rei Gelado: com 3 unidades e 5 espaços congelados o campo inimigo está cheio")
+	# they thaw at the END of the victim's own next turn, not before
+	block_game.end_turn(block["me"])
+	check(block_game.active == block_foe and int(block_game.players[block_foe]["frozen_slots"]) == 5, "Rei Gelado: os espaços seguem congelados durante o turno do oponente")
+	block_game.end_turn(block_foe)
+	check(int(block_game.players[block_foe]["frozen_slots"]) == 0 and block_game.has_free_slot(block_foe), "Rei Gelado: os espaços descongelam no fim do turno do oponente")
+
 	# Chamado da Nevasca finds the Bola de Neve, the Ritual or a Ladeira, and nothing else
 	var search := _combo_game(3, 0, 10, 0)
 	var search_game: GameState = search["game"]
@@ -2654,6 +2725,19 @@ func _test_glacial() -> void:
 		g._flush()
 		var overflowed: bool = g.players[o]["leader_hp"] < leader_before
 		check(overflowed == (level == 8), "Nythera ao entrar (nível %d): Sobrepujança só com a Bola Grande (nível 8+)" % level)
+
+	# Zero Absoluto: rápido, custa 4 e congela todas as unidades inimigas (e só elas)
+	g = _glacial_game()
+	a = g.active
+	o = g.opponent(a)
+	g.players[a]["momentum"] = 30
+	_tcard("teste_alvo_gelo", 3, 20, [])
+	var frozen_one := _put(g, o, "teste_alvo_gelo")
+	var frozen_two := _put(g, o, "teste_alvo_gelo")
+	var own_unit := _put(g, a, "teste_alvo_gelo")
+	check(g.cost_of(a, CardDB.card("zero_absoluto")) == 4 and CardDB.card("zero_absoluto")["speed"] == "rapido", "Zero Absoluto custa 4 e é rápido")
+	_cast_and_resolve(g, a, "zero_absoluto")
+	check(g.atk_of(frozen_one) == 0 and g.atk_of(frozen_two) == 0 and g.atk_of(own_unit) == 3, "Zero Absoluto congela todas as unidades inimigas e nenhuma aliada")
 
 	# Princesa Wanessa becomes Tempesfrost when her controller casts a Grande Bola de Neve
 	g = _glacial_game()

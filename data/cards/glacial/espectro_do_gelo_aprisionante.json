@@ -6,7 +6,7 @@
     "espirito"
   ],
   "essence": "glacial",
-  "cost": 3,
+  "cost": 4,
   "atk": 2,
   "hp": 2,
   "keywords": [
@@ -17,9 +17,14 @@
       "trigger": "on_enter",
       "action": "freeze",
       "target": "enemy_unit"
+    },
+    {
+      "trigger": "on_enter",
+      "action": "exhaust",
+      "target": "enemy_unit"
     }
   ],
-  "text": "Ao Entrar: congele uma unidade inimiga.",
+  "text": "Ao Entrar: congele e exaure uma unidade inimiga.",
   "flavor": "Preso no gelo há séculos. Resolveu prender os outros também.",
   "tags": []
 }

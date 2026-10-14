@@ -914,8 +914,10 @@ func _board_cell(count: int, index: int) -> Vector2:
 
 func _render_board(p: int, y: float) -> void:
 	var board: Array = g.players[p]["board"]
-	var slots_taken: int = g.slots_used(p) # units first, then the free-standing artifacts
+	# units first, then the free-standing artifacts, then the slots frozen by Rei Gelado
+	var slots_taken: int = _laid_out_slots(p)
 	_render_relics(p, y, slots_taken)
+	_render_frozen_slots(p, y, slots_taken)
 	for i in board.size():
 		var unit: Card = board[i]
 		var unit_view_data := unit.to_dict()
@@ -966,6 +968,28 @@ func _render_relics(p: int, y: float, slots_taken: int) -> void:
 		v.right_clicked.connect(_show_overlay)
 		layer.add_child(v)
 		views[relic.uid] = v
+
+## How many cells the lane of player p is divided into: taken slots plus the ones frozen by Rei Gelado.
+func _laid_out_slots(p: int) -> int:
+	return g.slots_used(p) + int(g.players[p]["frozen_slots"])
+
+## Slots frozen by Rei Gelado: ice tiles at the end of the lane. Nothing can be played into them.
+func _render_frozen_slots(p: int, y: float, slots_taken: int) -> void:
+	var frozen_count: int = int(g.players[p]["frozen_slots"])
+	var first_frozen_slot: int = g.slots_used(p)
+	for j in frozen_count:
+		var tile := PanelContainer.new()
+		tile.custom_minimum_size = CardView.BASE * 1.15
+		tile.size = tile.custom_minimum_size
+		tile.add_theme_stylebox_override("panel", UITheme.box(Color(ICE.darkened(0.75), 0.55), 8, ICE, 2))
+		tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var snowflake := _label("❄", 44, ICE, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
+		snowflake.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		tile.add_child(snowflake)
+		var cell := _board_cell(slots_taken, first_frozen_slot + j)
+		tile.position = Vector2(cell.x + (cell.y - tile.size.x) / 2.0, y)
+		layer.add_child(tile)
+		_tag(tile, "CONGELADO", ICE)
 
 func _on_relic_click(v: CardView) -> void:
 	if _my_input() and not targeting.is_empty() and _is_target(v.uid):
@@ -1104,7 +1128,7 @@ func _hand_drag_start(v: CardView) -> void:
 ## Board position a unit dropped at local x would take: the number of our units whose centre is
 ## to its left. Measured on the resting layout (no gap) so the slot does not flicker as the gap opens.
 func _drop_slot(x: float) -> int:
-	var count: int = g.slots_used(viewer)
+	var count: int = _laid_out_slots(viewer)
 	var slot := 0
 	for i in g.players[viewer]["board"].size(): # artifacts always stay after the units
 		var cell := _board_cell(count, i)
@@ -1118,7 +1142,7 @@ func _show_drop_gap(slot: int) -> void:
 		return
 	drag_gap_slot = slot
 	var board: Array = g.players[viewer]["board"]
-	var count: int = g.slots_used(viewer) + (1 if slot >= 0 else 0)
+	var count: int = _laid_out_slots(viewer) + (1 if slot >= 0 else 0)
 	for relic: Card in g.players[viewer]["relics"]: # artifacts sit after the units, so they always slide right
 		var relic_view: Control = views.get(relic.uid)
 		if not is_instance_valid(relic_view):
@@ -2825,7 +2849,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 				or (et in ["damage", "shield_break"] and e.get("src", 0) > 0):
 			trig_src = 0
 		# effects of a trigger fly out of their source as a bolt and land when it arrives
-		if trig_src != 0 and et in ["damage", "heal", "shield_break", "buff", "freeze", "tide_mark", "spell_shield_break", "summon"] \
+		if trig_src != 0 and et in ["damage", "heal", "shield_break", "buff", "freeze", "exhaust", "tide_mark", "spell_shield_break", "summon"] \
 				and e["uid"] != trig_src and actors.has(trig_src) and actors.has(e["uid"]):
 			cursor += _streak(actors[trig_src], actors[e["uid"]], cursor, CardView.TRIGGER_COL) - 0.04
 		match et:
@@ -2902,9 +2926,9 @@ func _animate(events: Array, old: Dictionary) -> float:
 			"countered":
 				_toast("%s foi anulado!" % ("A habilidade do Líder" if e["kind"] == "ability" else _cname(e["card_id"])))
 				cursor += 0.4
-			"spell_shield_break", "tide_mark", "tide_draw", "freeze", "thaw", "dodge":
+			"spell_shield_break", "tide_mark", "tide_draw", "freeze", "exhaust", "thaw", "dodge":
 				if actors.has(e["uid"]):
-					var lbl: String = {"spell_shield_break": "Anulado!", "tide_mark": "Maré", "tide_draw": "+1 carta", "freeze": "Congelada!", "thaw": "Descongelou", "dodge": "Esquivou!"}[e["type"]]
+					var lbl: String = {"spell_shield_break": "Anulado!", "tide_mark": "Maré", "tide_draw": "+1 carta", "freeze": "Congelada!", "exhaust": "Exausta!", "thaw": "Descongelou", "dodge": "Esquivou!"}[e["type"]]
 					var col: Color = Color("#6fd0ff")
 					if e["type"] == "spell_shield_break":
 						col = Color("#c9a8ff")
@@ -2912,6 +2936,10 @@ func _animate(events: Array, old: Dictionary) -> float:
 						col = ICE
 					_impact(actors[e["uid"]], lbl, col, cursor, false)
 				cursor += 0.2
+			"slots_frozen":
+				if int(e["blocked"]) > 0:
+					_toast("%s: %d espaço(s) vazio(s) congelado(s)!" % [_pname(e["player"]), e["blocked"]])
+				cursor += 0.3
 			"summon", "draw", "search_take":
 				appear[e["uid"]] = cursor
 				cursor += 0.1
@@ -3124,6 +3152,13 @@ func _log_event(e: Dictionary) -> void:
 		"freeze":
 			var frozen := g.find_unit(e["uid"])
 			_log("%s foi congelada" % ("Uma unidade" if frozen == null else _cname(frozen.card_id)))
+		"exhaust":
+			var exhausted_unit := g.find_unit(e["uid"])
+			_log("%s ficou exausta" % ("Uma unidade" if exhausted_unit == null else _cname(exhausted_unit.card_id)))
+		"slots_frozen":
+			_log("%d espaços do campo de %s foram sorteados para congelar (%d vazios bloqueados)" % [e["positions"].size(), _pname(e["player"]), e["blocked"]])
+		"slots_thaw":
+			_log("Os espaços congelados de %s descongelaram" % _pname(e["player"]))
 		"thaw":
 			var thawed := g.find_unit(e["uid"])
 			if thawed != null:

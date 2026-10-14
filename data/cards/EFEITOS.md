@@ -26,11 +26,12 @@ Cada ação é uma classe em `scripts/engine/effects/`, registrada em `effect_re
 | `discard_hand_pick` | — | depois de comprar, o jogador escolhe uma carta da mão (mesma tela do descarte do overdraw) e ela vai ao **cemitério** (só o overdraw de fim de turno bane) |
 | `transform_self` | `into` | a unidade vira a carta `into` (Ao Entrar da nova carta roda). Use com `target: "self"`, normalmente num `listen` |
 | `freeze` | — | ATK do alvo fica 0 só até o próximo início de turno (vale só no turno em que foi aplicado; se o alvo ainda estava com enjoo, cobre também o próximo turno do dono) |
+| `exhaust` | — | a unidade alvo fica exausta (não ataca e pode ser desafiada); levanta no início do turno do dono. Combina com `freeze` na mesma escolha de alvo |
 | `fight` | `second_target` | o alvo (1ª escolha) e a unidade de `second_target` (2ª escolha) causam, ao mesmo tempo, dano igual ao Ataque de cada uma à outra. Não é combate; Armadura e Escudo valem, Escudo de Feitiço do inimigo cancela a luta |
 | `summon` | `card` (`"self"` ou id), `overrides` | invoca uma carta |
 | `mill` / `mill_pick` | `amount` | manda cartas do deck ao cemitério |
 | `grave_retrieve` | `card_id` ou `card_ids` (lista) | escolhe uma cópia no cemitério e leva à mão; ela é banida quando o próximo lançamento acabar |
-| `snowball_level` | `amount` (padrão 1) | sobe o nível da Bola de Neve do controlador sem lançá-la (alvo `none`) |
+| `snowball_level` | `amount` (padrão 1) | sobe o nível da Bola de Neve do controlador sem lançá-la (alvo `none`); `multiply` (ex.: 2) multiplica o nível em vez de somar |
 | `revive` / `revive_self` | `max_cost`, `atk`, `hp` | volta do cemitério |
 | `destroy` / `banish` | — | mata / bane a unidade |
 | `sacrifice` | `then` (lista de efeitos) | sacrifica; o `then` roda depois |
@@ -48,7 +49,7 @@ Cada família é uma classe em `scripts/engine/targets/`.
 - **Grupos:** `all_enemy_units`, `all_units`, `all_ally_units`, `other_ally_units`, `center_enemy_units` (meio do campo inimigo: 1 unidade se a quantidade é ímpar, as 2 do meio se é par)
 - **Líderes:** `enemy_leader`, `own_leader`, `both_leaders`
 - **Aleatórios:** `random_enemy_unit`, `random_enemy_and_adjacent`, `random_ally_unit`, `random_other_ally_unit`
-- **Da própria carta:** `self`, `self_card`, `opposed_unit`, `none`
+- **Da própria carta:** `self`, `self_card`, `opposed_unit`, `attack_target` (só em Ao Atacar: a unidade desafiada, ou o Líder inimigo se o ataque foi no Líder), `none`
 
 ## Condições (`if`)
 
@@ -63,7 +64,7 @@ A condição é checada quando o gatilho acontece **e** de novo na resolução.
 
 **Triggers de unidade** (`"trigger"`, só a própria carta): `on_play`, `on_enter`, `on_death`, `on_attack`, `on_challenge` (Ao Desafiar: `opposed_unit` = a unidade desafiada), `on_challenged` (Ao Ser Desafiada: `opposed_unit` = o atacante), `on_damaged`, `on_hit_leader`, `on_turn_start`, `on_turn_end`, `on_ally_death`, `on_activate`, `transform`, `constante`.
 
-**Eventos de escuta** (`"listen"`, de qualquer lugar): `leader_damaged`, `leader_healed`, `card_moved`, `unit_damaged` (`scope: self` = a própria unidade; tem `amount`, `hp_before`, `hp_after`), `card_drawn`, `turn_started`, `turn_ended` (nos turnos e compras, `ally` = do dono da carta), `spell_cast` (feitiço lançado; `essence_<id>: true` nos dados, ex.: `{"essence_glacial": true}`), `snowball_cast` (Bola de Neve lançada, antes dos golpes; `grande: true` se for Grande Bola, `amount` = dano inicial).
+**Eventos de escuta** (`"listen"`, de qualquer lugar): `leader_damaged`, `leader_healed`, `card_moved`, `unit_damaged` (`scope: self` = a própria unidade; tem `amount`, `hp_before`, `hp_after`), `card_drawn`, `turn_started`, `turn_ended` (nos turnos e compras, `ally` = do dono da carta), `spell_cast` (feitiço lançado; `essence_<id>: true` nos dados, ex.: `{"essence_glacial": true}`), `snowball_cast` (Bola de Neve lançada, antes dos golpes; `grande: true` se for Grande Bola, `amount` = dano inicial), `snowball_grande` (o nível da Bola de Neve acabou de cruzar para Grande; dispara só na passagem).
 
 ```json
 {

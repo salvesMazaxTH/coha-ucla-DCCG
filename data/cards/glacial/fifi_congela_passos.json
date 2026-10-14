@@ -1,0 +1,28 @@
+{
+  "name": "Fifi Congela-Passos",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "glacinata"
+  ],
+  "essence": "glacial",
+  "cost": 3,
+  "atk": 2,
+  "hp": 3,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "freeze",
+      "target": "enemy_unit"
+    },
+    {
+      "trigger": "on_enter",
+      "action": "exhaust",
+      "target": "enemy_unit"
+    }
+  ],
+  "text": "Ao Entrar: congele e exaure uma unidade inimiga.",
+  "flavor": "Passinho curto, pegada longa: onde ela pisa, o chão fica pra sempre.",
+  "tags": []
+}

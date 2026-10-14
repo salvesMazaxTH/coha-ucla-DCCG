@@ -128,6 +128,8 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"snowball": 1, # damage the next Bola de Neve starts at (grows with every Bola de Neve cast)
 		"glacial_discount_used": false, # the Amuleto Glacial discount was already spent this turn
 		"damage_halved_until": 0, # Câmara de Êxtase aftermath: the Leader takes half damage while turn <= this
+		"frozen_slots": 0, # Rei Gelado: empty field slots of this player that accept no permanent
+		"frozen_slots_until": 0, # they thaw at the end of this player's own turn, once the turn counter reaches this
 	}
 
 func _uid() -> int:
@@ -204,9 +206,9 @@ func find_relic(uid: int) -> Card:
 func slots_used(p: int) -> int:
 	return players[p]["board"].size() + players[p]["relics"].size()
 
-## True while p still has a free field slot for a unit or an artifact.
+## True while p still has a free field slot for a unit or an artifact. Slots frozen by Rei Gelado don't count.
 func has_free_slot(p: int) -> bool:
-	return slots_used(p) < BOARD_LIMIT
+	return slots_used(p) + int(players[p]["frozen_slots"]) < BOARD_LIMIT
 
 ## Moves a card to another zone (the caller takes it out of its old array and puts it in the new one).
 ## The single place a card changes zone, so later "goes to the graveyard" hooks live here.
@@ -1659,6 +1661,11 @@ func _finish_turn() -> void:
 				c.keywords.erase(kw)
 			c.temp_keywords.clear()
 			c.tide_mark = false
+	# Rei Gelado: the frozen empty slots thaw at the END of their owner's turn, so that turn really felt them
+	var ending: Dictionary = players[active]
+	if int(ending["frozen_slots"]) > 0 and turn >= int(ending["frozen_slots_until"]):
+		ending["frozen_slots"] = 0
+		_emit({"type": "slots_thaw", "player": active})
 	_emit({"type": "end_turn", "player": active})
 	_start_turn(opponent(active), true)
 

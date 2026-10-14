@@ -24,10 +24,10 @@
     {
       "trigger": "on_attack",
       "action": "snowball",
-      "target": "enemy_leader"
+      "target": "attack_target"
     }
   ],
-  "text": "Voo. Sobrepujança.\nAo Transformar: congele todas as unidades inimigas.\nAo Atacar: lance uma Bola de Neve no Líder inimigo.",
+  "text": "Voo. Sobrepujança.\nAo Transformar: congele todas as unidades inimigas.\nAo Atacar: lance uma Bola de Neve no alvo do ataque.",
   "flavor": "A tempestade não pede licença.",
   "tags": [
     "bola_de_neve"
