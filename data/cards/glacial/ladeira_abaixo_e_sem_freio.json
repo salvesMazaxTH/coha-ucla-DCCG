@@ -1,0 +1,22 @@
+{
+  "name": "Ladeira Abaixo e Sem Freio",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "glacial",
+  "cost": 4,
+  "speed": "lento",
+  "max_copies": 2,
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "snowball_level",
+      "target": "none",
+      "multiply": 2
+    }
+  ],
+  "text": "O nível da sua Bola de Neve dobra.",
+  "flavor": "Foi só um empurrãozinho. Faz uns três minutos que ninguém acha o freio.",
+  "tags": [
+    "combo_degelo"
+  ]
+}

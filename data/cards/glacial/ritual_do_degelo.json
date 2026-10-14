@@ -1,0 +1,28 @@
+{
+  "name": "Ritual do Degelo",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "glacial",
+  "cost": 1,
+  "speed": "rapido",
+  "max_copies": 1,
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": 3
+    },
+    {
+      "trigger": "on_play",
+      "action": "snowball_level",
+      "target": "none",
+      "amount": 1
+    }
+  ],
+  "text": "Única.\nGanhe 3 de Momentum. Sua Bola de Neve sobe 1 nível.",
+  "flavor": "Acendeu uma vela de gelo. Funcionou de um jeito que não devia.",
+  "tags": [
+    "combo_degelo"
+  ]
+}

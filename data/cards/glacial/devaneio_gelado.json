@@ -11,10 +11,16 @@
       "trigger": "on_play",
       "action": "draw",
       "target": "own_leader",
-      "amount": 3
+      "amount": 2
+    },
+    {
+      "trigger": "on_play",
+      "action": "snowball_level",
+      "target": "none",
+      "amount": 1
     }
   ],
-  "text": "Compre 3 cartas.",
-  "flavor": "Ficou olhando o floco cair por tanto tempo que teve três ideias.",
+  "text": "Compre 2 cartas. Sua Bola de Neve sobe 1 nível.",
+  "flavor": "Ficou olhando o floco cair por tanto tempo que teve duas ideias.",
   "tags": []
 }

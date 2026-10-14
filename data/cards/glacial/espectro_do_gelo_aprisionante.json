@@ -12,7 +12,6 @@
   "keywords": [
     "voo"
   ],
-  "art": "glacial/espectro_do_gelo_aprisionante.webp",
   "effects": [
     {
       "trigger": "on_enter",
