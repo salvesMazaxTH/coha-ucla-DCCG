@@ -3155,6 +3155,8 @@ func _log_event(e: Dictionary) -> void:
 		"exhaust":
 			var exhausted_unit := g.find_unit(e["uid"])
 			_log("%s ficou exausta" % ("Uma unidade" if exhausted_unit == null else _cname(exhausted_unit.card_id)))
+		"card_created":
+			_log("%s criou %s no %s" % [_pname(e["player"]), _cname(e["card_id"]), "topo do deck" if e["to"] == "deck_top" else "mão"])
 		"slots_frozen":
 			_log("%d espaços do campo de %s foram sorteados para congelar (%d vazios bloqueados)" % [e["positions"].size(), _pname(e["player"]), e["blocked"]])
 		"slots_thaw":

@@ -904,11 +904,21 @@ func _sigil(kind: String, c: Vector2, r: float) -> PackedVector2Array:
 				var a := deg_to_rad(-30 + i * 20)
 				out.append(c + Vector2(0, r * 0.25) + Vector2(cos(a), sin(a)) * r * 0.62)
 			return out
-		"glacial": # six-point snow crystal
+		"glacial": # snowflake: six thin arms, each with a pair of side branches near the middle
+			# one arm drawn pointing up as (across, along) offsets from the centre: left side going out,
+			# then the mirrored right side coming back in; the arm is then rotated six times
+			var half_width := 0.1
+			var left_side := [
+				Vector2(-half_width, 0.30), Vector2(-0.34, 0.58), Vector2(-0.26, 0.68),
+				Vector2(-half_width, 0.52), Vector2(-half_width, 0.84)]
+			var arm_outline: Array = left_side.duplicate()
+			arm_outline.append(Vector2(0, 1.0))
+			for side_index in range(left_side.size() - 1, -1, -1):
+				arm_outline.append(Vector2(-left_side[side_index].x, left_side[side_index].y))
 			var out := PackedVector2Array()
-			for i in 12:
-				var a := i * TAU / 12 - PI / 2
-				out.append(c + Vector2(cos(a), sin(a)) * r * (1.0 if i % 2 == 0 else 0.42))
+			for arm in 6:
+				for offset: Vector2 in arm_outline:
+					out.append(c + Vector2(offset.x, -offset.y).rotated(arm * TAU / 6) * r)
 			return out
 		"spell":
 			var out := PackedVector2Array()

@@ -27,6 +27,8 @@ Cada ação é uma classe em `scripts/engine/effects/`, registrada em `effect_re
 | `transform_self` | `into` | a unidade vira a carta `into` (Ao Entrar da nova carta roda). Use com `target: "self"`, normalmente num `listen` |
 | `freeze` | — | ATK do alvo fica 0 só até o próximo início de turno (vale só no turno em que foi aplicado; se o alvo ainda estava com enjoo, cobre também o próximo turno do dono) |
 | `exhaust` | — | a unidade alvo fica exausta (não ataca e pode ser desafiada); levanta no início do turno do dono. Combina com `freeze` na mesma escolha de alvo |
+| `freeze_slots` | `count` (padrão 5; o Rei Gelado usa 4) | Rei Gelado: sorteia `count` dos 8 espaços do campo **inimigo** (alvo `none`). Unidade num espaço sorteado é congelada e exaurida (Escudo de Feitiço cancela e quebra); espaço vazio não aceita permanentes e descongela no **fim do próximo turno do oponente**. Espaços ocupados por unidades/relíquias não contam como vazios |
+| `add_card` | `card` (id da carta), `to` (`deck_top` padrão ou `hand`) | Nythera: cria uma carta nova para o dono do efeito (alvo `none`) e a põe no topo do deck (a próxima compra) ou na mão. Uma Bola de Neve criada já nasce Grande se o dono estiver no nível Grande |
 | `fight` | `second_target` | o alvo (1ª escolha) e a unidade de `second_target` (2ª escolha) causam, ao mesmo tempo, dano igual ao Ataque de cada uma à outra. Não é combate; Armadura e Escudo valem, Escudo de Feitiço do inimigo cancela a luta |
 | `summon` | `card` (`"self"` ou id), `overrides` | invoca uma carta |
 | `mill` / `mill_pick` | `amount` | manda cartas do deck ao cemitério |

@@ -18,6 +18,7 @@ static var ACTIONS: Dictionary = {
 	"freeze": FreezeEffect,
 	"exhaust": ExhaustEffect,
 	"freeze_slots": FreezeSlotsEffect,
+	"add_card": AddCardEffect,
 	"snowball": SnowballEffect,
 	"snowball_level": SnowballLevelEffect,
 	"transform_self": TransformEffect,
