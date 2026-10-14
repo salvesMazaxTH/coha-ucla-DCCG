@@ -2,7 +2,8 @@ extends SceneTree
 ## Golden replay: seeded AI vs AI games whose full event log (plus each seat's final snapshot)
 ## must stay identical across engine refactors. Recording overwrites tests/golden/*.json:
 ##   godot --headless --path . -s tests/golden_replay.gd
-## run_tests.gd calls compare() and fails on the first divergent line of each game.
+## tests/golden_check.gd calls compare() and fails on the first divergent line of each game
+## (run_tests.gd does not: balance changes would break it every time).
 
 const DIR := "res://tests/golden/"
 const SEEDS := [1, 2]
