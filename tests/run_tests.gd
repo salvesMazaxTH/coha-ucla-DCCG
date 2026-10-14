@@ -736,7 +736,7 @@ func _test_freeze() -> void:
 func _test_setup() -> void:
 	var g := GameState.new("fogo", "agua", 1)
 	check(g.players[0]["hand"].size() == GameState.START_HAND and g.players[1]["hand"].size() == GameState.START_HAND, "starting hands")
-	check(g.players[0]["deck"].size() == 47 - GameState.START_HAND, "legendary not in deck")
+	check(g.players[0]["deck"].size() == DeckDB.DECK_SIZE - GameState.START_HAND, "legendary not in deck")
 	g.mulligan(0, [g.players[0]["hand"][0].uid])
 	g.mulligan(1, [])
 	check(g.phase == "main" and g.active == 0 and g.players[0]["momentum"] == 1, "turn 1 momentum")
@@ -2579,16 +2579,17 @@ func _test_glacial_combo() -> void:
 	block_game.end_turn(block_foe)
 	check(int(block_game.players[block_foe]["frozen_slots"]) == 0 and block_game.has_free_slot(block_foe), "Rei Gelado: os espaços descongelam no fim do turno do oponente")
 
-	# Chamado da Nevasca finds the Bola de Neve, the Ritual or a Ladeira, and nothing else
+	# Chamado da Nevasca finds any Glacial spell that costs 4 or less, and nothing else
 	var search := _combo_game(3, 0, 10, 0)
 	var search_game: GameState = search["game"]
 	var searcher: int = search["me"]
 	search_game.players[searcher]["deck"].clear()
 	var wanted: Array = []
-	for card_id in ["bola_de_neve", "ritual_do_degelo", "ladeira_abaixo_e_sem_freio", "avalanche", "estilhaco_gelido"]:
+	# the first four qualify; Avalanche costs 5, Nythera is a unit and Carga Acumulada is not Glacial
+	for card_id in ["bola_de_neve", "ritual_do_degelo", "ladeira_abaixo_e_sem_freio", "estilhaco_gelido", "avalanche", "nythera", "carga_acumulada"]:
 		var deck_card := Card.new(search_game._uid(), card_id, searcher, "deck")
 		search_game.players[searcher]["deck"].append(deck_card)
-		if card_id in ["bola_de_neve", "ritual_do_degelo", "ladeira_abaixo_e_sem_freio"]:
+		if card_id in ["bola_de_neve", "ritual_do_degelo", "ladeira_abaixo_e_sem_freio", "estilhaco_gelido"]:
 			wanted.append(deck_card.uid)
 	var chamado_uid := _give(search_game, searcher, "chamado_da_nevasca")
 	search_game.play_card(searcher, chamado_uid)
@@ -2600,7 +2601,7 @@ func _test_glacial_combo() -> void:
 	var offered: Array = search_game.pending_search["cards"].map(func(option: Dictionary): return int(option["uid"]))
 	offered.sort()
 	wanted.sort()
-	check(offered == wanted, "Chamado da Nevasca: oferece só Bola de Neve, Ritual e Ladeira (%s)" % [offered])
+	check(offered == wanted, "Chamado da Nevasca: oferece só feitiços Glaciais de custo 4 ou menos (%s)" % [offered])
 
 	# the new deck: legal and holding the combo pieces
 	var combo_deck := DeckDB.get_deck("glacial_combo")
@@ -2866,7 +2867,10 @@ func _test_glacial() -> void:
 	var victim := _put(g, o, "teste_alvo_gelo")
 	_put(g, a, "mestra_do_gelo_frigido")
 	_cast_and_resolve(g, a, "estilhaco_gelido", victim.uid)
-	check(victim.hp_left() == 20 - 3 - 1, "Mestra do Gelo Frígido: +1 de dano a cada feitiço glacial")
+	check(victim.hp_left() == 20 - 3 - 1 and victim.frozen > 0, "Mestra do Gelo Frígido: o primeiro feitiço glacial do turno dá +1 de dano e congela")
+	_cast_and_resolve(g, a, "estilhaco_gelido", victim.uid)
+	check(victim.hp_left() == 20 - 3 - 1 - 3, "Mestra do Gelo Frígido: só age uma vez por turno (o segundo feitiço não causa o +1)")
+	check(CardDB.card("mestra_do_gelo_frigido")["atk"] == 1 and CardDB.card("mestra_do_gelo_frigido")["hp"] == 5, "Mestra do Gelo Frígido é 1/5")
 
 	# Bruno (Rompante): hitting the enemy Leader raises the Bola de Neve level by 1 (no cast) and opens the search
 	g = _glacial_game()

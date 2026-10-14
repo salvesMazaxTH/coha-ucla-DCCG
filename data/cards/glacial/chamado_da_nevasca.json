@@ -3,7 +3,7 @@
   "type": "spell",
   "rarity": "common",
   "essence": "glacial",
-  "cost": 1,
+  "cost": 2,
   "speed": "lento",
   "max_copies": 2,
   "art": "glacial/chamado_da_nevasca.webp",
@@ -13,13 +13,11 @@
       "action": "search_deck",
       "target": "none",
       "type": "spell",
-      "tags_any": [
-        "bola_de_neve",
-        "combo_degelo"
-      ]
+      "essence": "glacial",
+      "max_cost": 4
     }
   ],
-  "text": "Procure no seu deck a Bola de Neve, um Ritual do Degelo ou uma Ladeira Abaixo e Sem Freio e coloque-a na sua mão.",
+  "text": "Procure no seu deck um feitiço Glacial de custo 4 ou menos e coloque-o na sua mão.",
   "flavor": "Assobiou pro vento. O vento trouxe a bola.",
   "tags": []
 }

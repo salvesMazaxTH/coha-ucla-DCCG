@@ -3,7 +3,8 @@ extends RefCounted
 ## Prebuilt decks, one file each in data/decks/prebuilt/<id>.json.
 ## Fields: name, description, order (grid position), leader, cards {card_id: copies}.
 
-const DECK_SIZE := 48
+## Cards that are drawn: the deck list without the Encarnação, which waits in the Sanctuary instead.
+const DECK_SIZE := 44
 const MAX_COPIES := 3
 ## Legendary cards default to fewer copies than the rest; a card can still override with "max_copies".
 const MAX_LEGENDARY_COPIES := 2
@@ -50,7 +51,7 @@ static func get_deck(id: String) -> Dictionary:
 	_load()
 	return _decks[id]
 
-## Total number of cards in the deck list (the Leader is not counted).
+## Total number of cards in the deck list: DECK_SIZE plus the Encarnação (the Leader is not counted).
 static func card_count(id: String) -> int:
 	var total := 0
 	var cards: Dictionary = get_deck(id)["cards"]
@@ -90,12 +91,13 @@ static func validate(deck_id: String) -> Array[String]:
 static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String]:
 	var errors: Array[String] = []
 	var ld := CardDB.leader(leader_id)
-	var total := 0
+	var total := 0 # cards that are drawn, so the Encarnação is not counted
 	var off_essence := 0
 	var elite_cards := 0
 	for id in cards:
 		var n: int = cards[id]
-		total += n
+		if id != ld["legendary"]:
+			total += n
 		var c := CardDB.card(id)
 		var rarity: String = c.get("rarity", "")
 		var default_limit := MAX_LEGENDARY_COPIES if rarity == "legendary" else MAX_COPIES
@@ -122,7 +124,7 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 	if elite_cards > MAX_ELITE_CARDS:
 		errors.append("%d Campeões + Lendárias (máximo %d)" % [elite_cards, MAX_ELITE_CARDS])
 	if total != DECK_SIZE:
-		errors.append("deck tem %d cartas (precisa de %d)" % [total, DECK_SIZE])
-	if not cards.has(ld["legendary"]):
-		errors.append("falta a Encarnação do Líder %s" % ld["legendary"])
+		errors.append("deck tem %d cartas fora a Encarnação (precisa de %d)" % [total, DECK_SIZE])
+	if int(cards.get(ld["legendary"], 0)) != 1:
+		errors.append("o deck precisa de exatamente 1 Encarnação do Líder (%s)" % ld["legendary"])
 	return errors

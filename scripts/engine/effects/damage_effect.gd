@@ -5,17 +5,20 @@ extends Effect
 ## "self_half_armor" uses half of this unit's own Armadura, rounded up (Tharox).
 ## "ally_reduce": {"essence", "amount"} = own units of that essence take only that much.
 ## "adjacent_amount": the units right beside each target also take this much (Deslizamento de Placas).
+## "freeze": true also freezes each target that survives the damage (Mestra do Gelo Frígido).
 
 var amount := 0
 var amount_from := ""
 var ally_reduce: Dictionary = {}
 var adjacent_amount := 0
+var freezes_target := false
 
 func _read_parameters(data: Dictionary) -> void:
 	amount = int(data.get("amount", 0))
 	amount_from = String(data.get("amount_from", ""))
 	ally_reduce = data.get("ally_reduce", {})
 	adjacent_amount = int(data.get("adjacent_amount", 0))
+	freezes_target = bool(data.get("freeze", false))
 
 func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
@@ -32,6 +35,9 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	game._deal_damage(target_uid, damage_amount, null)
 	for neighbour_uid in neighbour_uids:
 		game._deal_damage(neighbour_uid, adjacent_amount, null)
+	# a unit the damage already killed is gone from the board, so find_unit finds nothing to freeze
+	if freezes_target:
+		FreezeEffect.new().apply(context, target_uid)
 
 ## The units right to the left and right of `unit` on its owner's board.
 func _neighbours_of(game: GameState, unit: Card) -> Array:

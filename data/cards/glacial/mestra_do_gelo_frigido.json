@@ -7,8 +7,8 @@
   ],
   "essence": "glacial",
   "cost": 3,
-  "atk": 2,
-  "hp": 3,
+  "atk": 1,
+  "hp": 5,
   "keywords": [],
   "art": "glacial/mestra_do_gelo_frigido.webp",
   "effects": [
@@ -23,10 +23,12 @@
       },
       "action": "damage",
       "target": "random_enemy_unit",
-      "amount": 1
+      "amount": 1,
+      "freeze": true,
+      "once_per_turn": true
     }
   ],
-  "text": "Sempre que você lançar um feitiço glacial, cause 1 de dano a uma unidade inimiga aleatória.",
+  "text": "Uma vez por turno, ao lançar um feitiço glacial, cause 1 de dano a uma unidade inimiga aleatória e a congele.",
   "flavor": "Cada feitiço dela deixa uma cicatriz de geada.",
   "tags": []
 }

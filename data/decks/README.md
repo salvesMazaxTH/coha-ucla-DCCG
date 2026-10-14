@@ -27,7 +27,7 @@ data/decks/
 - `name`, `description`: texto exibido na tela de seleção.
 - `order`: posição no grid (menor primeiro; desempate pelo ID).
 - `leader`: ID em `leaders` do `../cards.json`.
-- `cards`: `id da carta -> cópias`. Precisa somar **48**, com no máximo **3** cópias, só essências permitidas pelo Líder, e incluir a Encarnação do Líder.
+- `cards`: `id da carta -> cópias`. Precisa somar **44** cartas **mais 1 Encarnação** do Líder (45 no arquivo), com no máximo **3** cópias, só essências permitidas pelo Líder.
 
 ## Carregamento
 
