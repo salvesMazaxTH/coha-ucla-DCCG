@@ -5,6 +5,7 @@
   "essence": "glacial",
   "cost": 4,
   "speed": "lento",
+  "art": "glacial/ladeira_abaixo_e_sem_freio.webp",
   "effects": [
     {
       "trigger": "on_play",
