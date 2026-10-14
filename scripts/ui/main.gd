@@ -31,6 +31,15 @@ var online := false
 var opp_online := true
 var code_entry := ""
 var sel_deck := "" ## prebuilt deck picked in the online hub
+var hub_hotseat := false ## the deck hub's two-step flow is picking decks for hot-seat (player 1, then player 2) instead of AI
+var hub_scroll: ScrollContainer ## the deck hub's scrolling gallery (null/freed outside the hub)
+var hub_scroll_y := 0 ## how far the gallery was scrolled, kept across the hub's redraws
+var hub_drag_distance := 0.0 ## how far the current press has dragged the gallery (a long drag isn't a tap)
+const HUB_MARGIN := 40.0 ## space between the hub's panels and the stage sides
+const HUB_TILE := Vector2(210, 236) ## every deck tile in the gallery has this size, however many decks exist
+const HUB_TILE_GAP := 20.0
+const HUB_TILE_PAD := 10.0 ## room around the gallery's tiles for the hover zoom
+const HUB_DRAG_SLOP := 12.0 ## pixels a press may move and still count as a tap on a deck
 var ai_deck := "" ## deck the AI plays, picked in the second step of the AI hub ("" = a random other deck)
 
 # input state
@@ -316,8 +325,12 @@ func _show_menu() -> void:
 	box.position = Vector2(stage_w / 2.0 - 210, 390)
 	box.custom_minimum_size = Vector2(420, 0)
 	layer.add_child(box)
-	for opt in [["JOGAR CONTRA A IA", "Escolha o seu deck e o da IA", func() -> void: _show_hub(true), true],
-			["HOT-SEAT", "Dois jogadores no mesmo computador", func() -> void: _start(false, "fogo", "agua"), false],
+	for opt in [["JOGAR CONTRA A IA", "Escolha o seu deck e o da IA", func() -> void:
+				hub_hotseat = false
+				_show_hub(true), true],
+			["HOT-SEAT", "Dois jogadores no mesmo aparelho, cada um com o deck que quiser", func() -> void:
+				hub_hotseat = true
+				_show_hub(true), false],
 			["ONLINE", "Jogar contra outra pessoa por código de sala", func() -> void: _show_hub(false), false]]:
 		var b := _button(opt[0], opt[2], opt[3])
 		b.custom_minimum_size = Vector2(420, 58)
@@ -395,54 +408,92 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 		sel_deck = ids[0]
 	if ai_deck != "" and not ids.has(ai_deck):
 		ai_deck = ""
-	var title := _label("CONTRA A IA" if ai else "ONLINE", 56, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8)
+	var title := _label(("HOT-SEAT" if hub_hotseat else "CONTRA A IA") if ai else "ONLINE", 56, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8)
 	title.position = Vector2(0, 24)
 	title.size = Vector2(stage_w, 72)
 	layer.add_child(title)
 	layer.add_child(_ornament(Vector2(stage_w / 2.0, 108), 240))
-	var subtitle := "Escolha o seu deck"
+	var subtitle := "Jogador 1: escolha o seu deck" if hub_hotseat else "Escolha o seu deck"
 	if choosing_ai_deck:
-		var ai_deck_name := "aleatório" if ai_deck == "" else String(DeckDB.get_deck(ai_deck)["name"])
-		subtitle = "Deck da IA: %s · toque de novo para voltar ao aleatório" % ai_deck_name
+		subtitle = "Jogador 2: escolha o seu deck" if hub_hotseat else "Escolha o deck da IA (ou deixe no aleatório)"
 	var sub := _label(msg if msg != "" else subtitle, 22, UITheme.TEXT if msg != "" else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
 	sub.position = Vector2(0, 122)
 	sub.size = Vector2(stage_w, 30)
 	layer.add_child(sub)
 
-	var tile := Vector2(300, 400)
-	var gap := 28.0
-	var per_row := clampi(int((stage_w - 80.0 + gap) / (tile.x + gap)), 1, ids.size())
-	var rows := ceili(float(ids.size()) / float(per_row))
-	if rows > 1: # several rows: shrink the tiles so the grid and the buttons still fit the stage
-		gap = 16.0
-		tile.y = clampf((STAGE_H - 160.0 - 172.0) / rows - gap, 250.0, 400.0)
-	var y := 172.0
-	for r in rows:
-		var in_row := mini(per_row, ids.size() - r * per_row)
-		var x := (stage_w - (in_row * tile.x + (in_row - 1) * gap)) / 2.0
-		for c in in_row:
-			var id := ids[r * per_row + c]
-			var selected_id := ai_deck if choosing_ai_deck else sel_deck
-			var t := _deck_tile(id, tile, id == selected_id)
-			t.position = Vector2(x + c * (tile.x + gap), y)
-			t.gui_input.connect(func(ev: InputEvent) -> void:
-				var mb := ev as InputEventMouseButton
-				if mb == null or not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
-					return
-				if choosing_ai_deck:
-					# touching the AI's chosen deck again clears it back to random
-					ai_deck = "" if ai_deck == id else id
-				elif sel_deck != id:
-					sel_deck = id
-				else:
-					return
-				_show_hub.call_deferred(ai, msg, choosing_ai_deck))
-			layer.add_child(t)
-		y += tile.y + gap
+	# Layout: the chosen deck in a big showcase on the left (full description, never cut), and every
+	# deck as a fixed-size tile in a gallery on the right. More decks only make the gallery taller,
+	# and it scrolls (wheel or finger), so the tiles never shrink however many decks there are.
+	var body_top := 172.0
+	var body_bottom := STAGE_H - 112.0
+	var body_h := body_bottom - body_top
+	var showcase_w := 560.0
+	var selected_id := ai_deck if choosing_ai_deck else sel_deck
+	var showcase := _deck_showcase(selected_id, Vector2(showcase_w, body_h), choosing_ai_deck)
+	showcase.position = Vector2(HUB_MARGIN, body_top)
+	layer.add_child(showcase)
+
+	var gallery_x := HUB_MARGIN + showcase_w + 32.0
+	var gallery_w := stage_w - gallery_x - HUB_MARGIN
+	var gallery_ids: Array = ids.duplicate()
+	if choosing_ai_deck:
+		gallery_ids.push_front("") # the "random deck" tile comes first
+	var columns := maxi(1, int((gallery_w + HUB_TILE_GAP) / (HUB_TILE.x + HUB_TILE_GAP)))
+	var rows := ceili(float(gallery_ids.size()) / float(columns))
+	var content_h := rows * HUB_TILE.y + (rows - 1) * HUB_TILE_GAP
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(gallery_x, body_top)
+	scroll.size = Vector2(gallery_w, body_h)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	# the gallery scrolls by finger or wheel (see _hub_scroll_input), so the bar would only add clutter
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	layer.add_child(scroll)
+	hub_scroll = scroll
+	var content := Control.new()
+	# a few pixels of room around the tiles so the hover zoom and the gold border aren't clipped
+	content.custom_minimum_size = Vector2(gallery_w, content_h + 2.0 * HUB_TILE_PAD)
+	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	scroll.add_child(content)
+	var grid_w := columns * HUB_TILE.x + (columns - 1) * HUB_TILE_GAP
+	var grid_x := (gallery_w - grid_w) / 2.0
+	var selected_tile: Control = null
+	for i in gallery_ids.size():
+		var id: String = gallery_ids[i]
+		var is_selected := id == selected_id
+		var t := _deck_tile(id, HUB_TILE, is_selected)
+		t.position = Vector2(grid_x + (i % columns) * (HUB_TILE.x + HUB_TILE_GAP), HUB_TILE_PAD + (i / columns) * (HUB_TILE.y + HUB_TILE_GAP))
+		if is_selected:
+			selected_tile = t
+		t.gui_input.connect(func(ev: InputEvent) -> void:
+			# picks on release, and not at the end of a scroll drag
+			var mb := ev as InputEventMouseButton
+			if mb == null or mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT or hub_drag_distance > HUB_DRAG_SLOP:
+				return
+			if choosing_ai_deck:
+				ai_deck = id
+			elif sel_deck != id:
+				sel_deck = id
+			else:
+				return
+			hub_scroll_y = scroll.scroll_vertical
+			_show_hub.call_deferred(ai, msg, choosing_ai_deck))
+		content.add_child(t)
+	# edge fades: a hint that there are more decks above or below
+	if content_h + 2.0 * HUB_TILE_PAD > body_h:
+		for at_top in [true, false]:
+			var edge := _hub_edge_fade(at_top)
+			edge.position = Vector2(gallery_x, body_top if at_top else body_bottom - 48.0)
+			edge.size = Vector2(gallery_w, 48)
+			layer.add_child(edge)
+			scroll.get_v_scroll_bar().value_changed.connect(func(_v: float) -> void: _update_hub_edge(edge, scroll, at_top))
+			_update_hub_edge.call_deferred(edge, scroll, at_top)
+	_restore_hub_scroll.call_deferred(scroll, hub_scroll_y, selected_tile)
+	var y := body_bottom + 20.0
 
 	var actions: Array = []
 	if ai and not choosing_ai_deck:
-		actions.append(["PRÓXIMO: DECK DA IA", func() -> void:
+		actions.append(["PRÓXIMO: DECK DO JOGADOR 2" if hub_hotseat else "PRÓXIMO: DECK DA IA", func() -> void:
+			hub_scroll_y = 0
 			_show_hub.call_deferred(true, "", true), true])
 	elif ai:
 		actions.append(["JOGAR", func() -> void:
@@ -450,7 +501,7 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 			if opponent_deck == "":
 				var others := ids.filter(func(d: String) -> bool: return d != sel_deck)
 				opponent_deck = String(others.pick_random()) if not others.is_empty() else sel_deck
-			_start(true, sel_deck, opponent_deck), true])
+			_start(not hub_hotseat, sel_deck, opponent_deck), true])
 	elif net.load_session():
 		actions.append(["RETOMAR PARTIDA (%s)" % net.code, func() -> void:
 			online = true
@@ -463,34 +514,107 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 		actions.append(["ENTRAR COM CÓDIGO", func() -> void:
 			code_entry = ""
 			_show_join(), false])
+	# one row: Voltar on the left, then the actions
 	var bw := 400.0
-	var bx := (stage_w - (actions.size() * bw + (actions.size() - 1) * 24.0)) / 2.0
+	var back_w := 240.0
+	var row_w := back_w + actions.size() * (bw + 24.0)
+	var bx := (stage_w - row_w) / 2.0
+	# from the AI-deck step, Voltar goes back to picking your own deck
+	var back_action := (func() -> void:
+		hub_scroll_y = 0
+		_show_hub.call_deferred(true)) if choosing_ai_deck else _show_menu
+	var bk := _button("Voltar", back_action)
+	bk.position = Vector2(bx, y)
+	bk.size = Vector2(back_w, 72)
+	layer.add_child(bk)
 	for i in actions.size():
 		var b := _button(actions[i][0], actions[i][1], actions[i][2])
-		b.position = Vector2(bx + i * (bw + 24.0), y + 4.0)
+		b.position = Vector2(bx + back_w + 24.0 + i * (bw + 24.0), y)
 		b.size = Vector2(bw, 72)
 		layer.add_child(b)
-	# from the AI-deck step, Voltar goes back to picking your own deck
-	var back_action := (func() -> void: _show_hub.call_deferred(true)) if choosing_ai_deck else _show_menu
-	var bk := _button("Voltar", back_action)
-	bk.position = Vector2((stage_w - 240.0) / 2.0, y + 96.0)
-	bk.size = Vector2(240, 56)
-	layer.add_child(bk)
 
-## One deck card in the hub grid: Leader art, deck name, Leader line, blurb and size.
-func _deck_tile(id: String, size: Vector2, selected: bool) -> Control:
-	var d := DeckDB.get_deck(id)
-	var ld := CardDB.leader(d["leader"])
-	var col := Color(String(CardDB.essence(ld["essences"][0]).get("color", "#8a8f98")))
-	var bg := Color(0.06, 0.055, 0.085, 0.94)
+## Puts the deck gallery back where it was scrolled before the redraw, then makes sure the chosen
+## deck's tile is in view (e.g. when coming back to the hub with a deck far down the list).
+func _restore_hub_scroll(scroll: ScrollContainer, scroll_y: int, selected_tile: Control) -> void:
+	if not is_instance_valid(scroll):
+		return
+	scroll.scroll_vertical = scroll_y
+	if selected_tile != null and is_instance_valid(selected_tile):
+		scroll.ensure_control_visible(selected_tile)
+
+## A strip that fades the gallery's top or bottom edge into the background.
+func _hub_edge_fade(at_top: bool) -> TextureRect:
+	var fade := GradientTexture2D.new()
+	var grad := Gradient.new()
+	var dark := Color(0.02, 0.02, 0.035)
+	grad.colors = PackedColorArray([Color(dark, 0.9), Color(dark, 0.0)] if at_top else [Color(dark, 0.0), Color(dark, 0.9)])
+	fade.gradient = grad
+	fade.fill_from = Vector2(0, 0)
+	fade.fill_to = Vector2(0, 1)
+	var edge := TextureRect.new()
+	edge.texture = fade
+	edge.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return edge
+
+## Shows an edge fade only while there is more gallery hidden past that edge.
+func _update_hub_edge(edge: Control, scroll: ScrollContainer, at_top: bool) -> void:
+	if not is_instance_valid(edge) or not is_instance_valid(scroll):
+		return
+	var bar := scroll.get_v_scroll_bar()
+	var hidden_past_edge := bar.value > 1.0 if at_top else bar.value < bar.max_value - bar.page - 1.0
+	edge.modulate.a = 1.0 if hidden_past_edge else 0.0
+
+## Wheel and finger-drag scrolling of the deck gallery (the tiles swallow those events before the
+## ScrollContainer sees them). Also measures how far a press has moved, so a drag doesn't pick a deck.
+func _hub_scroll_input(e: InputEvent) -> bool:
+	if not is_instance_valid(hub_scroll) or not hub_scroll.is_visible_in_tree():
+		return false
+	var xf := hub_scroll.get_global_transform_with_canvas()
+	var local: Vector2 = xf.affine_inverse() * e.position if "position" in e else Vector2(-1, -1)
+	var inside := Rect2(Vector2.ZERO, hub_scroll.size).has_point(local)
+	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and e.pressed:
+		hub_drag_distance = 0.0 # a new press: nothing dragged yet
+		return false
+	if not inside:
+		return false
+	if e is InputEventMouseButton and e.pressed and e.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		hub_scroll.scroll_vertical += (-1 if e.button_index == MOUSE_BUTTON_WHEEL_UP else 1) * 120
+		return true
+	var drag_y := 0.0
+	if e is InputEventScreenDrag:
+		drag_y = e.relative.y
+	elif e is InputEventMouseMotion and not CardView.touched and (e.button_mask & MOUSE_BUTTON_MASK_LEFT):
+		drag_y = e.relative.y # mouse drag on desktop (on phones the finger already came as a ScreenDrag)
+	else:
+		return false
+	hub_drag_distance += absf(drag_y)
+	if hub_drag_distance > HUB_DRAG_SLOP:
+		hub_scroll.scroll_vertical -= int(drag_y / xf.get_scale().y)
+	return true
+
+## The big panel on the left of the hub: the chosen deck's Leader art, name, Leader line, Encarnação,
+## full description and size. `id` "" is the AI's "random deck" choice.
+func _deck_showcase(id: String, size: Vector2, choosing_ai_deck: bool) -> Control:
+	var bg := Color(0.06, 0.055, 0.085, 0.96)
 	var p := Panel.new()
 	p.size = size
 	p.clip_contents = true
-	p.mouse_filter = Control.MOUSE_FILTER_STOP
-	p.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	p.add_theme_stylebox_override("panel", UITheme.box(bg, 14, UITheme.GOLD if selected else Color(col, 0.6), 5 if selected else 2, 16))
-	var compact := size.y < 340.0 ## short tile (several rows): tighter art and text
-	var art_h := size.y * (0.31 if compact else 0.5)
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var who := ("DECK DO JOGADOR 2" if hub_hotseat else "DECK DA IA") if choosing_ai_deck else ("JOGADOR 1" if hub_hotseat else "SEU DECK")
+	if id == "":
+		p.add_theme_stylebox_override("panel", UITheme.box(bg, 16, UITheme.GOLD, 3, 20))
+		var mark := _label("?", 220, Color(UITheme.GOLD_LIGHT, 0.5), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8)
+		mark.position = Vector2(0, size.y * 0.12)
+		mark.size = Vector2(size.x, 300)
+		p.add_child(mark)
+		_showcase_text(p, size, who, "Deck Aleatório", "", UITheme.GOLD_LIGHT, "A IA joga com um dos outros decks, sorteado na hora de começar.", "", size.y * 0.5)
+		return p
+	var d := DeckDB.get_deck(id)
+	var ld := CardDB.leader(d["leader"])
+	var col := Color(String(CardDB.essence(ld["essences"][0]).get("color", "#8a8f98")))
+	p.add_theme_stylebox_override("panel", UITheme.box(bg, 16, Color(col, 0.85), 3, 20))
+	var art_h := size.y * 0.5
 	var art := TextureRect.new()
 	art.texture = _top_crop(CardView.texture(String(ld.get("art", ""))), Vector2(size.x - 8, art_h), float(ld.get("art_focus", 0.06)))
 	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -499,6 +623,58 @@ func _deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 	art.size = Vector2(size.x - 8, art_h)
 	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	p.add_child(art)
+	p.add_child(_art_fade(bg, Vector2(4, 4 + art_h * 0.45), Vector2(size.x - 8, art_h * 0.55 + 1)))
+	var essence_names: Array = []
+	for essence_id in ld["essences"]:
+		essence_names.append(CardDB.essence(essence_id).get("name", essence_id))
+	var leader_line := "%s · %d de vida · %s" % [ld["name"], int(ld["hp"]), " / ".join(essence_names)]
+	var footer := "%d cartas · Encarnação: %s" % [DeckDB.card_count(id), CardDB.card(ld["legendary"])["name"]]
+	_showcase_text(p, size, who, String(d["name"]), leader_line, col, String(d.get("description", "")), footer, art_h - 30.0)
+	return p
+
+## The showcase's text block, from `top` down: a small "SEU DECK" tag, the deck name, the Leader line,
+## the full description (wrapped, and smaller only if it would not fit) and a footer.
+func _showcase_text(p: Control, size: Vector2, who: String, deck_name: String, leader_line: String, col: Color, description: String, footer: String, top: float) -> void:
+	var tag := _label(who, 15, Color(UITheme.GOLD, 0.9), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
+	tag.position = Vector2(20, top - 26.0)
+	tag.size = Vector2(size.x - 40, 22)
+	p.add_child(tag)
+	var nm := _label(deck_name, 40, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8)
+	nm.position = Vector2(20, top - 6.0)
+	nm.size = Vector2(size.x - 40, 52)
+	nm.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	p.add_child(nm)
+	var y := top + 50.0
+	if leader_line != "":
+		var lead := _label(leader_line, 19, col.lightened(0.35), HORIZONTAL_ALIGNMENT_CENTER, "bold", 3)
+		lead.position = Vector2(20, y)
+		lead.size = Vector2(size.x - 40, 26)
+		lead.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		p.add_child(lead)
+		y += 32.0
+	p.add_child(_ornament(Vector2(size.x / 2.0, y + 8.0), 140))
+	y += 26.0
+	var footer_h := 40.0 if footer != "" else 0.0
+	var room := size.y - y - footer_h - 16.0
+	var blurb := _label(description, 23, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "body", 3)
+	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	blurb.position = Vector2(32, y)
+	blurb.size = Vector2(size.x - 64, room)
+	# a very long description steps the font down until it fits, instead of being cut off
+	for font_size in [23, 21, 19, 17]:
+		blurb.add_theme_font_size_override("font_size", font_size)
+		if blurb.get_line_count() * blurb.get_line_height() <= room:
+			break
+	p.add_child(blurb)
+	if footer != "":
+		var foot := _label(footer, 17, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold", 3)
+		foot.position = Vector2(20, size.y - footer_h)
+		foot.size = Vector2(size.x - 40, 24)
+		foot.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		p.add_child(foot)
+
+## A gradient that melts the bottom of a portrait into the panel color.
+func _art_fade(bg: Color, pos: Vector2, size: Vector2) -> TextureRect:
 	var fade := GradientTexture2D.new()
 	var grad := Gradient.new()
 	grad.colors = PackedColorArray([Color(bg, 0.0), Color(bg, 1.0)])
@@ -508,28 +684,77 @@ func _deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 	var veil := TextureRect.new()
 	veil.texture = fade
 	veil.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	veil.position = Vector2(4, 4 + art_h * 0.55)
-	veil.size = Vector2(size.x - 8, art_h * 0.45 + 1)
+	veil.position = pos
+	veil.size = size
 	veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	p.add_child(veil)
-	var nm := _label(String(d["name"]), 25, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6)
-	nm.position = Vector2(8, art_h - 22)
-	nm.size = Vector2(size.x - 16, 40)
+	return veil
+
+## One deck in the hub gallery: Leader art, deck name and Leader. Always the same size (the full
+## description lives in the showcase). `id` "" is the AI's "random deck" tile.
+func _deck_tile(id: String, size: Vector2, selected: bool) -> Control:
+	var bg := Color(0.06, 0.055, 0.085, 0.94)
+	var col := UITheme.GOLD_LIGHT
+	var p := Panel.new()
+	p.size = size
+	p.pivot_offset = size / 2.0
+	p.clip_contents = true
+	p.mouse_filter = Control.MOUSE_FILTER_STOP
+	p.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	var art_h := size.y * 0.6
+	var deck_name := "Aleatório"
+	var leader_name := "sorteado ao jogar"
+	if id == "":
+		var mark := _label("?", 96, Color(UITheme.GOLD_LIGHT, 0.55), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6)
+		mark.position = Vector2(0, art_h * 0.12)
+		mark.size = Vector2(size.x, art_h)
+		p.add_child(mark)
+	else:
+		var d := DeckDB.get_deck(id)
+		var ld := CardDB.leader(d["leader"])
+		col = Color(String(CardDB.essence(ld["essences"][0]).get("color", "#8a8f98")))
+		deck_name = String(d["name"])
+		leader_name = String(ld["name"])
+		var art := TextureRect.new()
+		art.texture = _top_crop(CardView.texture(String(ld.get("art", ""))), Vector2(size.x - 8, art_h), float(ld.get("art_focus", 0.06)))
+		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		art.stretch_mode = TextureRect.STRETCH_SCALE
+		art.position = Vector2(4, 4)
+		art.size = Vector2(size.x - 8, art_h)
+		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		p.add_child(art)
+		p.add_child(_art_fade(bg, Vector2(4, 4 + art_h * 0.5), Vector2(size.x - 8, art_h * 0.5 + 1)))
+	p.add_theme_stylebox_override("panel", UITheme.box(bg, 12, UITheme.GOLD if selected else Color(col, 0.55), 4 if selected else 2, 12 if selected else 6))
+	# the name may take two lines; long ones shrink a step instead of being cut
+	var nm := _label(deck_name, 21, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 5)
+	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	nm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	nm.position = Vector2(8, art_h - 14.0)
+	nm.size = Vector2(size.x - 16, 54)
+	for font_size in [21, 19, 17]:
+		nm.add_theme_font_size_override("font_size", font_size)
+		if nm.get_line_count() <= 2:
+			break
 	p.add_child(nm)
-	var lead := _label("%s · %d de vida" % [ld["name"], int(ld["hp"])], 17, col.lightened(0.3), HORIZONTAL_ALIGNMENT_CENTER, "bold")
-	lead.position = Vector2(8, art_h + (18 if compact else 20))
-	lead.size = Vector2(size.x - 16, 24)
+	var lead := _label(leader_name, 15, col.lightened(0.3), HORIZONTAL_ALIGNMENT_CENTER, "bold", 3)
+	lead.position = Vector2(8, size.y - 30.0)
+	lead.size = Vector2(size.x - 16, 22)
+	lead.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	p.add_child(lead)
-	var blurb_y := art_h + (42.0 if compact else 50.0)
-	var blurb := _label(String(d.get("description", "")), 18 if compact else 19, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "body", 3)
-	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	blurb.position = Vector2(14, blurb_y)
-	blurb.size = Vector2(size.x - 28, size.y - blurb_y - (30.0 if compact else 46.0))
-	p.add_child(blurb)
-	var foot := _label("SELECIONADO" if selected else "%d cartas" % DeckDB.card_count(id), 16, UITheme.GOLD if selected else UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "bold", 3)
-	foot.position = Vector2(8, size.y - (30 if compact else 36))
-	foot.size = Vector2(size.x - 16, 22)
-	p.add_child(foot)
+	if selected:
+		var check := _label("✔", 20, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 4)
+		var badge := PanelContainer.new()
+		badge.add_theme_stylebox_override("panel", UITheme.box(Color(UITheme.GOLD.darkened(0.6), 0.95), 15, UITheme.GOLD, 2))
+		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		badge.custom_minimum_size = Vector2(32, 32)
+		badge.add_child(check)
+		badge.position = Vector2(size.x - 42, 10)
+		p.add_child(badge)
+	# hover (mouse only): a gentle lift so the gallery feels alive on desktop
+	p.mouse_entered.connect(func() -> void:
+		if not CardView.touched:
+			p.create_tween().tween_property(p, "scale", Vector2.ONE * 1.04, 0.12))
+	p.mouse_exited.connect(func() -> void:
+		p.create_tween().tween_property(p, "scale", Vector2.ONE, 0.12))
 	return p
 
 ## Join screen: 4-letter room code keypad, entering with the deck picked in the hub.
@@ -1797,6 +2022,8 @@ func _input(e: InputEvent) -> void:
 		CardView.touched = true
 	if grave_view and _grave_scroll_input(e):
 		get_viewport().set_input_as_handled()
+	elif is_instance_valid(hub_scroll) and _hub_scroll_input(e):
+		get_viewport().set_input_as_handled()
 
 ## Drag-aim released: on a target fires; barely moved (a plain click on the source) keeps
 ## click-targeting; anywhere else cancels, like dropping the card back.
@@ -2716,6 +2943,50 @@ func _transform_fx(uid: int, from_id: String, into_id: String, actors: Dictionar
 	_embers(_center_of(new_view), t + 0.1, color, 24)
 	_impact(new_view, "Transformou!", color, t + 0.15, false)
 
+## Combat damage at or above this makes the whole screen react (see _crushing_blow_fx).
+const CRUSHING_BLOW_DAMAGE := 7
+const CRUSHING_BLOW_SHAKE_TIME := 1.2
+
+## Heavy-hit feedback, kept cheap on purpose (no full-screen overlays, no scaling of the whole
+## screen): a decaying trauma shake of the screen (strength = trauma squared, 1.2s) plus one
+## shockwave ring and a few sparks at the impact point.
+func _crushing_blow_fx(target: Control, amount: int, t: float) -> void:
+	var center := _center_of(target)
+	var power := clampf(float(amount - CRUSHING_BLOW_DAMAGE) / 8.0, 0.0, 1.0) # 7 dmg = base, 15+ = max
+	var strength := 6.0 + 6.0 * power ## peak shake in pixels
+
+	var rest_position := position
+	var shake_driver := create_tween()
+	shake_driver.tween_interval(t)
+	shake_driver.tween_method(_apply_screen_trauma.bind(rest_position, strength), 0.0, 1.0, CRUSHING_BLOW_SHAKE_TIME)
+	shake_driver.tween_callback(func(): position = rest_position)
+
+	var ring := Line2D.new()
+	var points := PackedVector2Array()
+	for i in 33:
+		points.append(Vector2.from_angle(TAU * i / 32.0) * 60.0)
+	ring.points = points
+	ring.width = 6.0
+	ring.default_color = Color(1.0, 0.85, 0.6, 0.8)
+	ring.position = center
+	ring.z_index = 58
+	ring.scale = Vector2(0.2, 0.2)
+	ring.modulate.a = 0.0
+	fx.add_child(ring)
+	var ring_tween := ring.create_tween()
+	ring_tween.tween_interval(t)
+	ring_tween.tween_property(ring, "modulate:a", 1.0, 0.02)
+	ring_tween.tween_property(ring, "scale", Vector2.ONE * (3.5 + 1.5 * power), 0.45).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	ring_tween.parallel().tween_property(ring, "modulate:a", 0.0, 0.45)
+	ring_tween.tween_callback(ring.queue_free)
+	_embers(center, t, Color(1.0, 0.6, 0.25), 14)
+
+## One frame of the screen shake: trauma falls from 1 to 0 and the offset scales with trauma squared.
+func _apply_screen_trauma(progress: float, rest_position: Vector2, strength: float) -> void:
+	var trauma := 1.0 - progress
+	var intensity := trauma * trauma * strength
+	position = rest_position + Vector2(randf_range(-1, 1), randf_range(-1, 1)) * intensity
+
 ## Shake + red flash on the target and a floating number over it.
 func _impact(target: Control, text: String, col: Color, t: float, hurt: bool) -> void:
 	var tw := target.create_tween()
@@ -3295,6 +3566,9 @@ func _animate(events: Array, old: Dictionary) -> float:
 					match e["type"]:
 						"damage":
 							_impact(actors[dst], "-%d" % e["amount"], Color("#ff5050"), t, true)
+							if in_combat and int(e["amount"]) >= CRUSHING_BLOW_DAMAGE and e.get("src", 0) > 0:
+								_crushing_blow_fx(actors[dst], int(e["amount"]), t)
+								cursor = maxf(cursor, t + 0.35) # let the blow land before the next event
 						"heal":
 							_impact(actors[dst], "+%d" % e["amount"], Color("#5dff8a"), t, false)
 						"shield_break":
