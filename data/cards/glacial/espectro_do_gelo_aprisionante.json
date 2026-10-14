@@ -6,9 +6,9 @@
     "espirito"
   ],
   "essence": "glacial",
-  "cost": 4,
+  "cost": 5,
   "atk": 2,
-  "hp": 2,
+  "hp": 4,
   "keywords": [
     "voo"
   ],
@@ -26,5 +26,6 @@
   ],
   "text": "Ao Entrar: congele e exaure uma unidade inimiga.",
   "flavor": "Preso no gelo há séculos. Resolveu prender os outros também.",
+  "art": "glacial/espectro_do_gelo_aprisionante.webp",
   "tags": []
 }

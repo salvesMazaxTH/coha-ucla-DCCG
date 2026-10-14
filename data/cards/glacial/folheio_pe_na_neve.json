@@ -3,7 +3,7 @@
   "type": "spell",
   "rarity": "common",
   "essence": "glacial",
-  "cost": 1,
+  "cost": 2,
   "speed": "lento",
   "art": "glacial/folheio_pe_na_neve.webp",
   "effects": [

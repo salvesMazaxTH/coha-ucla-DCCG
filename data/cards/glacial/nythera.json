@@ -7,7 +7,7 @@
   ],
   "essence": "glacial",
   "cost": 5,
-  "atk": 4,
+  "atk": 3,
   "hp": 7,
   "keywords": [
     "provocacao"
@@ -16,8 +16,10 @@
   "effects": [
     {
       "trigger": "on_enter",
-      "action": "snowball",
-      "target": "enemy_unit"
+      "action": "add_card",
+      "card": "bola_de_neve",
+      "to": "deck_top",
+      "target": "none"
     },
     {
       "trigger": "on_enter",
@@ -31,7 +33,7 @@
       "amount": 1
     }
   ],
-  "text": "Provocação.\nAo Entrar: lance uma Bola de Neve em uma unidade inimiga e congele uma unidade inimiga.\nNo início do seu turno: compre 1 carta.",
+  "text": "Provocação.\nAo Entrar: ponha uma Bola de Neve no topo do seu deck e congele uma unidade inimiga.\nNo início do seu turno: compre 1 carta.",
   "flavor": "O inverno tem nome.",
   "tags": [
     "bola_de_neve"

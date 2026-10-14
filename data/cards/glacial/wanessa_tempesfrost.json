@@ -8,10 +8,9 @@
   ],
   "essence": "glacial",
   "cost": 5,
-  "atk": 5,
+  "atk": 2,
   "hp": 6,
   "keywords": [
-    "voo",
     "sobrepujanca"
   ],
   "art": "glacial/wanessa_tempesfrost.webp",
@@ -27,7 +26,7 @@
       "target": "attack_target"
     }
   ],
-  "text": "Voo. Sobrepujança.\nAo Transformar: congele todas as unidades inimigas.\nAo Atacar: lance uma Bola de Neve no alvo do ataque.",
+  "text": "Sobrepujança.\nAo Transformar: congele todas as unidades inimigas.\nAo Atacar: lance uma Bola de Neve no alvo do ataque.",
   "flavor": "A tempestade não pede licença.",
   "tags": [
     "bola_de_neve"

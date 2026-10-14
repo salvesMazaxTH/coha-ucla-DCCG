@@ -4,7 +4,7 @@
   "rarity": "legendary",
   "transform_only": true,
   "essence": "glacial",
-  "cost": 3,
+  "cost": 4,
   "speed": "lento",
   "art": "glacial/grande_bola_de_neve.webp",
   "effects": [

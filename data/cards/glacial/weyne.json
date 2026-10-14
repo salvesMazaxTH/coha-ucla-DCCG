@@ -32,7 +32,8 @@
       "action": "buff",
       "target": "self",
       "atk": 1,
-      "hp": 1
+      "hp": 1,
+      "once_per_turn": true
     },
     {
       "listen": "spell_cast",
@@ -44,10 +45,11 @@
         "essence_glacial": true
       },
       "action": "freeze",
-      "target": "random_enemy_unit"
+      "target": "random_enemy_unit",
+      "once_per_turn": true
     }
   ],
-  "text": "Rapidez 1.\nAo Entrar: compre 1 carta.\nSempre que você lançar um feitiço glacial, Weyne ganha +1/+1 permanentemente e congela uma unidade inimiga aleatória.",
+  "text": "Rapidez 1.\nAo Entrar: compre 1 carta.\nUma vez por turno, ao lançar um feitiço glacial, Weyne ganha +1/+1 permanentemente e congela uma unidade inimiga aleatória.",
   "flavor": "Cada feitiço é um motivo pra bater mais forte.",
   "tags": []
 }

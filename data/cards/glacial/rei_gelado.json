@@ -7,7 +7,7 @@
   ],
   "essence": "glacial",
   "cost": 7,
-  "atk": 5,
+  "atk": 6,
   "hp": 7,
   "keywords": [
     "voo"
@@ -17,11 +17,11 @@
     {
       "trigger": "on_enter",
       "action": "freeze_slots",
-      "count": 5,
+      "count": 4,
       "target": "none"
     }
   ],
-  "text": "Ao Entrar: congele 5 espaços aleatórios do campo inimigo. Unidades neles são congeladas e exauridas; espaços vazios não aceitam permanentes até o fim do próximo turno do oponente.",
+  "text": "Ao Entrar: congele 4 espaços aleatórios do campo inimigo. Unidades neles são congeladas e exauridas; espaços vazios não aceitam permanentes até o fim do próximo turno do oponente.",
   "flavor": "Reina sobre tudo que já parou de se mexer.",
   "tags": []
 }
