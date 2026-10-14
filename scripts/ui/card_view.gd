@@ -57,6 +57,13 @@ static func fill_live_numbers(rules: String, level: int) -> String:
 	return rules.replace("{nivel}", str(level))
 var hovered := false
 var hit_pad := 0.0 ## extra hit area below the card (lifted hand cards)
+## Hover / drag zoom. Unlike the node's `scale`, which stretches the already drawn card (and blurs
+## its text), the card is redrawn at the bigger size, so every glyph stays sharp.
+var zoom := 1.0:
+	set(value):
+		zoom = value
+		queue_redraw()
+var _face_size := Vector2.ZERO ## the size the card face is drawn at: size * zoom, in whole pixels
 ## Animation hooks, driven by tweens: draw offsets (hit tremor, attack
 ## lunge) and a red hit flash 0..1.
 var shake := Vector2.ZERO:
@@ -123,7 +130,7 @@ func setup(id: String, instance: Dictionary = {}, size_scale := 1.0) -> CardView
 	card_id = id
 	inst = instance
 	uid = instance.get("uid", 0)
-	custom_minimum_size = BASE * size_scale
+	custom_minimum_size = (BASE * size_scale).round() # whole pixels, so the text on the card stays crisp
 	size = custom_minimum_size
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_t = randf() * 10.0
@@ -147,7 +154,8 @@ func _stealth() -> void:
 	material = m
 
 func _has_point(p: Vector2) -> bool:
-	return Rect2(Vector2.ZERO, size + Vector2(0, hit_pad)).has_point(p)
+	var zoom_shift := pivot_offset * (1.0 - zoom)
+	return Rect2(zoom_shift, size * zoom + Vector2(0, hit_pad)).has_point(p)
 
 ## Phones/tablets: no hover and no right button, so tap = click and long-press = overlay.
 static var touched := false ## set by Main on any real touch event; cleared by a real mouse
@@ -309,10 +317,13 @@ func _draw() -> void:
 	if badge_only != "":
 		_speed_badge(size / 2.0, badge_only, size.y / SPEED_PILL_HEIGHT)
 		return
+	# a zoomed card is drawn at its final size (never stretched), growing around its pivot
+	_face_size = (size * zoom).round()
+	var zoom_shift := (pivot_offset * (1.0 - zoom)).round()
 	var pop := 1.0 + 0.08 * proc ## scales around the center
-	draw_set_transform(shake + lunge + size / 2.0 * (1.0 - pop), 0.0, Vector2(pop, pop))
-	var s := size.x / BASE.x
-	var r := Rect2(Vector2.ZERO, size)
+	draw_set_transform(zoom_shift + shake + lunge + _face_size / 2.0 * (1.0 - pop), 0.0, Vector2(pop, pop))
+	var s := _face_size.x / BASE.x
+	var r := Rect2(Vector2.ZERO, _face_size)
 	var rad := 10.0 * s
 	if fatigue > 0:
 		_draw_fatigue(r, s, rad)
@@ -378,7 +389,7 @@ func _draw() -> void:
 	if is_artifact:
 		# artifact: a second engraved line inside the trim, like a plate
 		_rrect_line(r.grow(-5.0 * s), rad - 4 * s, Color(trim, 0.4), 0.8 * s)
-	draw_line(Vector2(rad, 1.6 * s), Vector2(size.x - rad, 1.6 * s), Color(1, 1, 1, 0.3), 1.0 * s)
+	draw_line(Vector2(rad, 1.6 * s), Vector2(_face_size.x - rad, 1.6 * s), Color(1, 1, 1, 0.3), 1.0 * s)
 
 	if face_down:
 		_draw_back(r, s, trim)
@@ -449,22 +460,22 @@ func _draw() -> void:
 		var spf := UITheme.font("bold")
 		var sp_fs := _fit(spf, sp_s, 8.0 * s, art.size.x - 16 * s)
 		var sp_w := spf.get_string_size(sp_s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(sp_fs)).x + 10 * s
-		var strip := Rect2(Vector2((size.x - sp_w) / 2, 90.5 * s), Vector2(sp_w, 11 * s))
+		var strip := Rect2(Vector2((_face_size.x - sp_w) / 2, 90.5 * s), Vector2(sp_w, 11 * s))
 		_rrect_fill(strip, 3 * s, Color(0, 0, 0, 0.62))
 		_rrect_line(strip, 3 * s, Color(trim, 0.45), 0.8 * s)
-		_text(spf, sp_s, Vector2(size.x / 2, strip.get_center().y + sp_fs * 0.36), sp_fs, Color("#e9dcc0"))
+		_text(spf, sp_s, Vector2(_face_size.x / 2, strip.get_center().y + sp_fs * 0.36), sp_fs, Color("#e9dcc0"))
 
 	# name plate (pointed banner overlapping the art)
 	var py := 102.0 * s
 	var ph := 20.0 * s
-	var plate := PackedVector2Array([Vector2(3 * s, py + ph / 2), Vector2(10 * s, py), Vector2(size.x - 10 * s, py),
-		Vector2(size.x - 3 * s, py + ph / 2), Vector2(size.x - 10 * s, py + ph), Vector2(10 * s, py + ph)])
+	var plate := PackedVector2Array([Vector2(3 * s, py + ph / 2), Vector2(10 * s, py), Vector2(_face_size.x - 10 * s, py),
+		Vector2(_face_size.x - 3 * s, py + ph / 2), Vector2(_face_size.x - 10 * s, py + ph), Vector2(10 * s, py + ph)])
 	draw_colored_polygon(plate, Color("#15121b"))
 	draw_colored_polygon(PackedVector2Array([plate[1], plate[2], plate[3], plate[0]]), Color(1, 1, 1, 0.05))
 	draw_polyline(plate + PackedVector2Array([plate[0]]), trim, 1.2 * s, true)
 	var nf := UITheme.font("title_bold")
 	var name_s: String = cd["name"]
-	_text(nf, name_s, Vector2(size.x / 2, py + ph / 2 + 4 * s), _fit(nf, name_s, 11.5 * s, size.x - 24 * s), Color("#fff4dc"))
+	_text(nf, name_s, Vector2(_face_size.x / 2, py + ph / 2 + 4 * s), _fit(nf, name_s, 12 * s, _face_size.x - 18 * s), Color("#fff4dc"))
 
 	# lower panel: keywords (units), card type (artifacts) or the rules text (spells)
 	if cd["type"] == "spell":
@@ -474,27 +485,30 @@ func _draw() -> void:
 		_rrect_fill(tp, 4 * s, Color(0, 0, 0, 0.5))
 		_rrect_line(tp, 4 * s, Color(trim, 0.25), 1 * s)
 		_wrapped_text(UITheme.font("bold"), fill_live_numbers(str(cd.get("face_text", cd.get("text", ""))), snowball_level), tp.grow_individual(-3 * s, -1 * s, -3 * s, -1 * s), 11.0 * s, 6.0 * s, Color("#f1e8d4"))
-		_speed_badge(Vector2(size.x / 2, 17 * s), str(cd.get("speed", "lento")), s)
+		_speed_badge(Vector2(_face_size.x / 2, 17 * s), str(cd.get("speed", "lento")), s)
 	else:
 		var panel := Rect2(Vector2(10, 126) * s, Vector2(BASE.x - 20, 34) * s)
 		_rrect_fill(panel, 4 * s, Color(0, 0, 0, 0.38))
 		_rrect_line(panel, 4 * s, Color(trim, 0.25), 1 * s)
 		var lines := _panel_lines(cd)
 		var bf := UITheme.font("bold")
-		var ly := panel.get_center().y + 3.5 * s - (lines.size() - 1) * 6.25 * s
+		# keyword / trigger tags: as big as the panel allows (a bigger size beats perfect proportions on a phone)
+		var tag_font_size := 13.0 * s
+		var tag_line_height := 13.5 * s
+		var ly := panel.get_center().y + 4.0 * s - (lines.size() - 1) * tag_line_height / 2.0
 		for ln in lines:
-			var room := panel.size.x - 24 * s
+			var room := panel.size.x - 12 * s
 			if cd["type"] == "unit" and ly > 142 * s:
-				room = size.x - 2 * 31 * s # lines low in the panel sit between the atk/hp gems
-			_text_segments(bf, ln, Vector2(size.x / 2, ly), 11.5 * s, room)
-			ly += 12.5 * s
+				room = _face_size.x - 2 * 29 * s # lines low in the panel sit between the atk/hp gems
+			_text_segments(bf, ln, Vector2(_face_size.x / 2, ly), tag_font_size, room)
+			ly += tag_line_height
 
 	# essence seal on the bottom edge, crest on the top edge
 	if is_token:
-		_token_seal(Vector2(size.x / 2, size.y - 3 * s), 5.5 * s, trim) # fichas have no rarity
+		_token_seal(Vector2(_face_size.x / 2, _face_size.y - 3 * s), 5.5 * s, trim) # fichas have no rarity
 	else:
-		_rarity_gem(Vector2(size.x / 2, size.y - 3 * s), 5.5 * s, cd["rarity"], trim)
-	_diamond(Vector2(size.x / 2, 2.5 * s), 3.5 * s, trim)
+		_rarity_gem(Vector2(_face_size.x / 2, _face_size.y - 3 * s), 5.5 * s, cd["rarity"], trim)
+	_diamond(Vector2(_face_size.x / 2, 2.5 * s), 3.5 * s, trim)
 
 	# gems
 	var cost: int = cost_override if cost_override >= 0 else int(cd["cost"])
@@ -514,29 +528,25 @@ func _draw() -> void:
 			var live_atk: int = max(0, inst["atk"] + inst["temp_atk"] + int(inst.get("bonus_atk", 0)))
 			atk_col = Color("#a8ffa0") if live_atk > atk else Color.WHITE
 			atk = live_atk
-			# A Congelada unit has ATK 0 while frozen (buffs don't change that), shown in red
-			if inst.has("frozen"):
-				atk = 0
-				atk_col = Color("#ff8a80")
 			var live_max_hp: int = inst["hp"] + int(inst.get("bonus_hp", 0)) + int(inst.get("temp_hp", 0))
 			hp_col = Color("#ff8a80") if inst["damage"] > 0 else (Color("#a8ffa0") if live_max_hp > hp else Color.WHITE)
 			hp = max(0, live_max_hp - inst["damage"])
-		_gem("diamond", Vector2(14 * s, size.y - 15 * s), 13.5 * s, ATK_COL, str(atk), atk_col, s)
-		_gem("shield", Vector2(size.x - 14 * s, size.y - 15 * s), 12.5 * s, HP_COL, str(hp), hp_col, s)
+		_gem("diamond", Vector2(14 * s, _face_size.y - 15 * s), 13.5 * s, ATK_COL, str(atk), atk_col, s)
+		_gem("shield", Vector2(_face_size.x - 14 * s, _face_size.y - 15 * s), 12.5 * s, HP_COL, str(hp), hp_col, s)
 	_finish(r, rad, s)
 
 ## Overlays shared by both faces: foil shimmer, hit flash, dim veil.
 func _finish(r: Rect2, rad: float, s: float) -> void:
 	if _legendary():
-		var x := fmod(_t * 0.45, 1.6) * (size.x + size.y) - size.y
-		var band := PackedVector2Array([Vector2(x, size.y), Vector2(x + 26 * s, size.y), Vector2(x + 26 * s + size.y, 0), Vector2(x + size.y, 0)])
+		var x := fmod(_t * 0.45, 1.6) * (_face_size.x + _face_size.y) - _face_size.y
+		var band := PackedVector2Array([Vector2(x, _face_size.y), Vector2(x + 26 * s, _face_size.y), Vector2(x + 26 * s + _face_size.y, 0), Vector2(x + _face_size.y, 0)])
 		for poly in Geometry2D.intersect_polygons(band, _rrect_pts(r, rad)):
 			draw_colored_polygon(poly, Color(1, 0.96, 0.8, 0.16))
 	if proc_wave > 0 and proc_wave < 1:
 		# a bright band of light sweeping across the card
-		var bx := lerpf(-size.y * 0.6, size.x + 10 * s, proc_wave)
+		var bx := lerpf(-_face_size.y * 0.6, _face_size.x + 10 * s, proc_wave)
 		var bw := 30 * s
-		var sweep := PackedVector2Array([Vector2(bx - size.y * 0.4, size.y), Vector2(bx - size.y * 0.4 + bw, size.y), Vector2(bx + size.y * 0.6 + bw, 0), Vector2(bx + size.y * 0.6, 0)])
+		var sweep := PackedVector2Array([Vector2(bx - _face_size.y * 0.4, _face_size.y), Vector2(bx - _face_size.y * 0.4 + bw, _face_size.y), Vector2(bx + _face_size.y * 0.6 + bw, 0), Vector2(bx + _face_size.y * 0.6, 0)])
 		for poly in Geometry2D.intersect_polygons(sweep, _rrect_pts(r, rad)):
 			draw_colored_polygon(poly, Color(1, 0.93, 0.8, 0.32 * (1.0 - proc_wave * 0.6)))
 	if proc > 0:
@@ -593,20 +603,20 @@ func _draw_fatigue(r: Rect2, s: float, rad: float) -> void:
 	# name plate
 	var py := 102.0 * s
 	var ph := 20.0 * s
-	var plate := PackedVector2Array([Vector2(3 * s, py + ph / 2), Vector2(10 * s, py), Vector2(size.x - 10 * s, py),
-		Vector2(size.x - 3 * s, py + ph / 2), Vector2(size.x - 10 * s, py + ph), Vector2(10 * s, py + ph)])
+	var plate := PackedVector2Array([Vector2(3 * s, py + ph / 2), Vector2(10 * s, py), Vector2(_face_size.x - 10 * s, py),
+		Vector2(_face_size.x - 3 * s, py + ph / 2), Vector2(_face_size.x - 10 * s, py + ph), Vector2(10 * s, py + ph)])
 	draw_colored_polygon(plate, Color("#15121b"))
 	draw_polyline(plate + PackedVector2Array([plate[0]]), trim, 1.2 * s, true)
-	_text(UITheme.font("title_bold"), "Fadiga", Vector2(size.x / 2, py + ph / 2 + 4.5 * s), 14 * s, Color("#fff4dc"))
+	_text(UITheme.font("title_bold"), "Fadiga", Vector2(_face_size.x / 2, py + ph / 2 + 4.5 * s), 14 * s, Color("#fff4dc"))
 	# rules text
 	var panel := Rect2(Vector2(10, 126) * s, Vector2(BASE.x - 20, 36) * s)
 	_rrect_fill(panel, 4 * s, Color(0, 0, 0, 0.38))
 	_rrect_line(panel, 4 * s, Color(trim, 0.25), 1 * s)
 	var bf := UITheme.font("bold")
-	_text(bf, "Sem cartas!", Vector2(size.x / 2, panel.position.y + 15 * s), 12 * s, Color("#e9dcc0"))
+	_text(bf, "Sem cartas!", Vector2(_face_size.x / 2, panel.position.y + 15 * s), 12 * s, Color("#e9dcc0"))
 	var dmg := "Tome %d de dano." % fatigue
-	_text(bf, dmg, Vector2(size.x / 2, panel.position.y + 30 * s), _fit(bf, dmg, 12 * s, panel.size.x - 8 * s), Color("#ff8a80"))
-	_diamond(Vector2(size.x / 2, 2.5 * s), 3.5 * s, trim)
+	_text(bf, dmg, Vector2(_face_size.x / 2, panel.position.y + 30 * s), _fit(bf, dmg, 12 * s, panel.size.x - 8 * s), Color("#ff8a80"))
+	_diamond(Vector2(_face_size.x / 2, 2.5 * s), 3.5 * s, trim)
 	_finish(r, rad, s)
 
 ## Frame styles in essence order: one for mono cards, two for dual-essence cards.
@@ -1080,7 +1090,7 @@ func _shape(kind: String, c: Vector2, r: float) -> PackedVector2Array:
 func _rrect_pts(r: Rect2, rad: float) -> PackedVector2Array:
 	rad = min(rad, min(r.size.x, r.size.y) / 2)
 	var pts := PackedVector2Array()
-	if _chamfer_frame and rad >= FRAME_CORNER_MIN * size.x / BASE.x:
+	if _chamfer_frame and rad >= FRAME_CORNER_MIN * _face_size.x / BASE.x:
 		# never cut past the middle of a side, or the outline crosses itself
 		var cut := minf(rad * 2.0, min(r.size.x, r.size.y) / 2)
 		pts.append_array([Vector2(r.position.x + cut, r.position.y), Vector2(r.end.x - cut, r.position.y),
@@ -1208,21 +1218,30 @@ func _grow(pts: PackedVector2Array, c: Vector2, k: float) -> PackedVector2Array:
 		out.append(c + (p - c) * k)
 	return out
 
+## Largest whole font size (up to `fs`) at which `t` fits in `max_w`. Whole sizes only: a fractional size
+## is cut to an int when drawing, so the text would silently come out smaller than what was measured.
+## Each step is measured for real (not scaled linearly) so a text is never shrunk more than needed.
 func _fit(font: Font, t: String, fs: float, max_w: float) -> float:
-	var w := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x
-	return fs if w <= max_w else max(7.0, fs * max_w / w)
+	var fit_size := int(fs)
+	while fit_size > 7 and font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fit_size).x > max_w:
+		fit_size -= 1
+	return float(fit_size)
+
+## Text is placed on whole pixels: a glyph that lands between two pixels is smeared over both (blurry).
+func _snap(p: Vector2) -> Vector2:
+	return p.round()
 
 ## One panel line made of [text, color] segments joined by " · ", centered and shrunk to fit.
 func _text_segments(font: Font, segs: Array, center: Vector2, fs: float, max_w: float) -> void:
 	var sep := " · "
 	fs = _fit(font, sep.join(segs.map(func(g): return g[0])), fs, max_w)
-	var x := center.x - font.get_string_size(sep.join(segs.map(func(g): return g[0])), HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x / 2
+	var x := roundf(center.x - font.get_string_size(sep.join(segs.map(func(g): return g[0])), HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x / 2)
 	var ol: int = max(2, int(fs / 5))
 	for i in segs.size():
 		var parts := [[sep, Color(UITheme.TEXT, 0.5)]] if i > 0 else []
 		parts.append(segs[i])
 		for g in parts:
-			var p := Vector2(x, center.y)
+			var p := _snap(Vector2(x, center.y))
 			draw_string_outline(font, p, g[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), ol, Color(0, 0, 0, 0.85))
 			draw_string(font, p, g[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), g[1])
 			x += font.get_string_size(g[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x
@@ -1325,9 +1344,9 @@ func _text_with_keywords(font: Font, t: String, keyword_spans: Array, center: Ve
 	if cursor < t.length():
 		pieces.append([t.substr(cursor), col])
 	var total_width := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x
-	var x := center.x - total_width / 2
+	var x := roundf(center.x - total_width / 2)
 	for piece in pieces:
-		var pos := Vector2(x, center.y)
+		var pos := _snap(Vector2(x, center.y))
 		# thin outline: the rules panel is already dark, and a thick one smears small letters together
 		draw_string_outline(font, pos, piece[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), max(1, int(fs / 7)), Color(0, 0, 0, 0.7))
 		draw_string(font, pos, piece[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), piece[1])
@@ -1335,5 +1354,6 @@ func _text_with_keywords(font: Font, t: String, keyword_spans: Array, center: Ve
 
 func _text(font: Font, t: String, center: Vector2, fs: float, col: Color) -> void:
 	var w := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x
-	draw_string_outline(font, Vector2(center.x - w / 2, center.y), t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), max(2, int(fs / 5)), Color(0, 0, 0, 0.85))
-	draw_string(font, Vector2(center.x - w / 2, center.y), t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), col)
+	var pos := _snap(Vector2(center.x - w / 2, center.y))
+	draw_string_outline(font, pos, t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), max(2, int(fs / 5)), Color(0, 0, 0, 0.85))
+	draw_string(font, pos, t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), col)

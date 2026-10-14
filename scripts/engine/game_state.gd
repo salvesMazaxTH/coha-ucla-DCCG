@@ -295,14 +295,14 @@ func legendary_cost(p: int) -> int:
 	var l: Dictionary = players[p]["legendary"]
 	return cost_of(p, CardDB.card(l["card_id"])) + COMMANDER_TAX * int(l["casts"])
 
-## Congelada: ATK counts as 0 until the next turn starts.
+## Congelada: no attack, no untap, no guarding the Leader until the end of the next turn.
 func is_frozen(c: Card) -> bool:
 	return c.is_frozen()
 
-## The unit is ready to attack: not tapped, not summoning sick (unless Ímpeto or Rompante), ATK above 0
-## (a Congelada unit has ATK 0, so it can't attack while frozen).
+## The unit is ready to attack: not tapped, not Congelada, not summoning sick (unless Ímpeto or
+## Rompante), ATK above 0.
 func can_attack(c: Card) -> bool:
-	return not c.exhausted and (not c.sick or has_kw(c, "impeto") or has_kw(c, "rompante")) and atk_of(c) > 0
+	return not c.exhausted and not c.is_frozen() and (not c.sick or has_kw(c, "impeto") or has_kw(c, "rompante")) and atk_of(c) > 0
 
 ## Can `attacker` challenge `target` (an enemy unit that is tapped and reachable)? See CombatSystem.
 func can_challenge(attacker: Card, target: Card) -> bool:
@@ -1682,6 +1682,12 @@ func _finish_turn() -> void:
 				c.keywords.erase(kw)
 			c.temp_keywords.clear()
 			c.tide_mark = false
+	# Congelada ends at the END of the turn after the one it was applied in, so that turn really felt it
+	for q in players:
+		for c: Card in q["board"]:
+			if c.frozen > 0 and turn >= c.frozen:
+				c.frozen = 0
+				_emit({"type": "thaw", "uid": c.uid})
 	# Rei Gelado: the frozen empty slots thaw at the END of their owner's turn, so that turn really felt them
 	var ending: Dictionary = players[active]
 	if int(ending["frozen_slots"]) > 0 and turn >= int(ending["frozen_slots_until"]):
@@ -1697,12 +1703,6 @@ func _start_turn(p: int, draw: bool) -> void:
 	_summon_pending = false
 	turn += 1
 	phase = "main"
-	# Congelada only lasts through the turn it was applied in (a unit frozen while still sick lasts one turn more)
-	for q in players:
-		for c in q["board"]:
-			if c.frozen > 0 and turn >= c.frozen:
-				c.frozen = 0
-				_emit({"type": "thaw", "uid": c.uid})
 	var pl: Dictionary = players[p]
 	# Momentum that leaks past a full Reserva, after the opponent's turn too, is what really went
 	# unspent (Voltexz and Fulgurvoltz get cheaper by it)
@@ -1734,7 +1734,8 @@ func _start_turn(p: int, draw: bool) -> void:
 	pl["played_two"] = false
 	pl["glacial_discount_used"] = false
 	for c in pl["board"]:
-		c.exhausted = false
+		if not c.is_frozen(): # a Congelada unit stays tapped through this whole turn
+			c.exhausted = false
 		c.sick = false
 		c.temp_armor = 0
 	_emit({"type": "start_turn", "player": p, "turn": turn})

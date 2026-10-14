@@ -3,6 +3,8 @@ extends RefCounted
 ## Combat: one attack at a time. Each ready unit taps to hit the enemy Leader's face or to
 ## challenge an enemy unit that is already tapped (exhausted). The challenged unit strikes back.
 ## A tapped enemy unit guards its Leader: while the attacker can challenge any of them, the face is closed.
+## A Congelada unit guards nothing: it can still be challenged (and strikes back), but it doesn't close
+## the face and, with Provocação, doesn't force attacks into it.
 ##
 ## Flow of a combat:
 ##   1. "IR PARA O COMBATE" opens the "pre_combat" window: the attacker gets priority first, then the
@@ -43,13 +45,14 @@ func has_any_attacker() -> bool:
 ##   Voo: only an attacker with Voo or Longo Alcance can challenge it.
 ##   Furtividade: only an attacker with Furtividade or Vigilância can challenge it.
 ##   Intimidação: an attacker with ATK 3 or less cannot challenge it.
-##   Obsessão: the attacker may only hit the Leader.
+##   Obsessão: the attacker may only hit the Leader, except that a tapped Provocação still stops it
+##     (it can challenge only Provocação units, and then must).
 ##   Rompante (the turn it enters): it may only challenge a Provocação.
 ##   Etérea: nothing can ever challenge it (not even when it has Provocação).
 func can_challenge(attacker: Card, target: Card) -> bool:
 	if attacker == null or target == null or target.owner == attacker.owner or not target.exhausted:
 		return false
-	if game.has_kw(attacker, "obsessao"):
+	if game.has_kw(attacker, "obsessao") and not game.has_kw(target, "provocacao"):
 		return false
 	if is_rompante_rush(attacker) and not game.has_kw(target, "provocacao"):
 		return false
@@ -69,12 +72,21 @@ func can_challenge(attacker: Card, target: Card) -> bool:
 func is_rompante_rush(attacker: Card) -> bool:
 	return attacker.sick and game.has_kw(attacker, "rompante")
 
+## Voo and Furtividade let an attacker slip past tapped units that lack the same keyword: such a unit
+## doesn't close the face (the attacker may still challenge it, or go for the Leader). A unit with the
+## same keyword still guards, and a Provocação never can be slipped past (forced_taunts runs first).
+func slips_past(attacker: Card, guard: Card) -> bool:
+	if game.has_kw(attacker, "voo") and not game.has_kw(guard, "voo"):
+		return true
+	return game.has_kw(attacker, "furtividade") and not game.has_kw(guard, "furtividade")
+
 ## The tapped enemy Provocação units this attacker is able to challenge. When the list is not
 ## empty, the attacker must challenge one of them (it cannot hit the Leader or another unit).
+## A Congelada Provocação forces nothing.
 func forced_taunts(attacker: Card) -> Array:
 	var out: Array = []
 	for enemy_unit: Card in game.players[game.opponent(attacker.owner)]["board"]:
-		if game.has_kw(enemy_unit, "provocacao") and can_challenge(attacker, enemy_unit):
+		if game.has_kw(enemy_unit, "provocacao") and not enemy_unit.is_frozen() and can_challenge(attacker, enemy_unit):
 			out.append(enemy_unit.uid)
 	return out
 
@@ -89,10 +101,10 @@ func challengeable_units(attacker: Card) -> Array:
 ## Every target this attacker may legally hit right now: uids of units it can challenge and/or
 ## the enemy Leader's uid (negative). Empty when it cannot attack at all (or has nothing to hit).
 ## Order of the rules:
-##   1. a tapped Provocação it can challenge: only those;
-##   2. any other tapped unit it can challenge: only those (the face is closed while they stand),
-##      unless the attacker has Voo: then those units or the face;
-##   3. otherwise the enemy Leader's face.
+##   1. a tapped (not Congelada) Provocação it can challenge: only those;
+##   2. a tapped, not Congelada unit it can challenge guards the face: only the challengeable units,
+##      unless the attacker slips past it (see slips_past: Voo / Furtividade): then those units or the face;
+##   3. otherwise the challengeable units (Congelada ones) and the enemy Leader's face.
 func attack_targets(attacker: Card) -> Array:
 	if attacker == null or not game.can_attack(attacker):
 		return []
@@ -100,19 +112,23 @@ func attack_targets(attacker: Card) -> Array:
 	if not taunts.is_empty():
 		return taunts
 	var challengeable := challengeable_units(attacker)
-	# Voo flies over the tapped units: besides challenging them, it may go straight for the
-	# Leader's face (only a Provocação, handled above, holds it back).
-	if not challengeable.is_empty() and game.has_kw(attacker, "voo") and not attacker.sick:
-		return challengeable + [GameState.LEADER_UID[game.opponent(attacker.owner)]]
-	if not challengeable.is_empty():
+	var enemy_leader: int = GameState.LEADER_UID[game.opponent(attacker.owner)]
+	# a Congelada unit can be challenged, but it doesn't guard the face; neither does a unit this
+	# attacker slips past (Voo over a grounded unit, Furtividade past a visible one)
+	var face_guarded := false
+	for uid in challengeable:
+		var guard := game.find_unit(uid)
+		if not guard.is_frozen() and not slips_past(attacker, guard):
+			face_guarded = true
+	if face_guarded:
 		return challengeable
 	# Ímpeto lets a unit attack the turn it enters, but only to challenge: the Leader's face
 	# waits until its next turn (otherwise Ímpeto would be free damage now that nobody blocks).
 	# Rompante is the opposite: the Leader is its target on the turn it enters (only a Provocação,
 	# handled above, holds it back).
 	if not attacker.sick or is_rompante_rush(attacker):
-		return [GameState.LEADER_UID[game.opponent(attacker.owner)]]
-	return []
+		return challengeable + [enemy_leader]
+	return challengeable
 
 ## True while `player` may declare an attack (their own "attacks" window, nothing pending).
 func in_attacks_window(player: int) -> bool:

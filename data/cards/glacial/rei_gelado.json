@@ -6,9 +6,9 @@
     "espirito"
   ],
   "essence": "glacial",
-  "cost": 7,
+  "cost": 8,
   "atk": 6,
-  "hp": 7,
+  "hp": 9,
   "keywords": [
     "voo"
   ],
@@ -17,11 +17,11 @@
     {
       "trigger": "on_enter",
       "action": "freeze_slots",
-      "count": 4,
+      "count": 5,
       "target": "none"
     }
   ],
-  "text": "Ao Entrar: congele 4 espaços aleatórios do campo inimigo. Unidades neles são congeladas e exauridas; espaços vazios não aceitam permanentes até o fim do próximo turno do oponente.",
+  "text": "Ao Entrar: congele 5 espaços aleatórios do campo inimigo. Unidades neles são congeladas e exauridas; espaços vazios não aceitam permanentes até o fim do próximo turno do oponente.",
   "flavor": "Reina sobre tudo que já parou de se mexer.",
   "tags": []
 }

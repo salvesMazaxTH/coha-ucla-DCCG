@@ -1237,7 +1237,7 @@ func _render_board(p: int, y: float) -> void:
 		var v := CardView.new().setup(unit.card_id, unit_view_data, 1.15)
 		v.pivot_offset = v.size / 2.0
 		var cell := _board_cell(slots_taken, i)
-		v.position = Vector2(cell.x + (cell.y - v.size.x) / 2.0, y)
+		v.position = Vector2(roundf(cell.x + (cell.y - v.size.x) / 2.0), roundf(y)) # whole pixels keep the card text crisp
 		# exhausted (tapped) units lie sideways: they already attacked or used an ability, and the
 		# enemy can challenge them. Lying down, the card's height runs along the row, so it shrinks
 		# toward its cell width — but never below TAPPED_MIN_SCALE: on a full row it just overlaps
@@ -1421,13 +1421,13 @@ func _hand_hover(v: CardView, on: bool, rest: Dictionary) -> void:
 		v.hit_pad = 40.0
 		tw.tween_property(v, "position", rest["pos"] + Vector2(0, -rest["rise"]), 0.14)
 		tw.tween_property(v, "rotation", 0.0, 0.14)
-		tw.tween_property(v, "scale", Vector2.ONE * 1.28, 0.14)
+		tw.tween_property(v, "zoom", 1.28, 0.14)
 	else:
 		layer.move_child(v, min(layer.get_child_count() - 1, rest["idx"] + _hand_base))
 		v.hit_pad = 0.0
 		tw.tween_property(v, "position", rest["pos"], 0.14)
 		tw.tween_property(v, "rotation", rest["rot"], 0.14)
-		tw.tween_property(v, "scale", Vector2.ONE, 0.14)
+		tw.tween_property(v, "zoom", 1.0, 0.14)
 
 ## Drag & drop: a playable hand card follows the pointer and is played when released over
 ## the board (above PLAY_LINE); released over the hand it snaps back.
@@ -1443,7 +1443,7 @@ func _hand_drag_start(v: CardView) -> void:
 	v.set_meta("aim", _hand_spec(v) != "")
 	var tw := v.create_tween().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tw.tween_property(v, "rotation", 0.0, 0.12)
-	tw.tween_property(v, "scale", Vector2.ONE * 1.12, 0.12)
+	tw.tween_property(v, "zoom", 1.12, 0.12)
 	_hand_drag_move(v)
 
 ## Board position a unit dropped at local x would take: the number of our units whose centre is
@@ -1534,7 +1534,7 @@ func _hand_card_back_to_rest(v: CardView) -> void:
 	v.set_meta("tw", tw)
 	tw.tween_property(v, "position", rest["pos"], 0.18)
 	tw.tween_property(v, "rotation", rest["rot"], 0.18)
-	tw.tween_property(v, "scale", Vector2.ONE, 0.18)
+	tw.tween_property(v, "zoom", 1.0, 0.18)
 
 ## Plays a hand card that was dropped on the board during an animation (if it can still be played).
 func _play_hand_card_when_settled(uid: int, slot: int) -> void:
@@ -1888,7 +1888,8 @@ func _hint() -> String:
 			for taunt_uid in taunts:
 				taunt_names.append(_cname(g.find_unit(taunt_uid).card_id))
 			return "Provocação: este ataque precisa desafiar %s." % " ou ".join(taunt_names)
-		if attacker != null and not attacker.sick and not g.has_kw(attacker, "voo") and not g.combat_system().challengeable_units(attacker).is_empty():
+		# (a Congelada unit doesn't guard the face, so only say this when the face really is closed)
+		if attacker != null and not attacker.sick and not g.combat_system().challengeable_units(attacker).is_empty() 				and not g.combat_system().attack_targets(attacker).has(GameState.LEADER_UID[g.opponent(attacker.owner)]):
 			return "Há unidades inimigas exauridas: elimine-as antes de atacar o Líder."
 		if attacker != null and g.combat_system().is_rompante_rush(attacker):
 			return "Rompante: no turno em que entra, ela ignora as exauridas e vai no Líder (só uma Provocação a segura)."
@@ -2470,7 +2471,7 @@ func _show_overlay(v: CardView) -> void:
 	if cd.get("text", "") != "":
 		var body := CardView.fill_live_numbers(String(cd["text"]), v.snowball_level)
 		if v.inst.has("frozen"):
-			body = "[color=#9fe8ff][b]Congelada:[/b] ATK 0 até o fim do próximo turno do dono (não pode atacar e, se desafiada, não revida).[/color]
+			body = "[color=#9fe8ff][b]Congelada:[/b] não ataca, não desvira e não protege o Líder até o fim do próximo turno. Revida normalmente.[/color]
 " + body
 		txt += "[font_size=32]%s[/font_size]\n\n" % CardView.colorize_rules(body + v.text_suffix, 32)
 	# Glossary: the card's own keywords first, then any keyword its text mentions ("conceda Voo").
@@ -2822,7 +2823,8 @@ func _render_search_reveal() -> void:
 
 ## Pose of a Control as its visual center, rotation and on-screen width.
 func _pose(v: Control) -> Dictionary:
-	var s := v.scale.x
+	var zoom: float = v.zoom if v is CardView else 1.0 # a zoomed card is bigger without a node scale
+	var s: float = v.scale.x * zoom
 	return {"c": v.position + v.pivot_offset + (v.size / 2.0 - v.pivot_offset).rotated(v.rotation) * s,
 		"rot": v.rotation, "w": v.size.x * s}
 

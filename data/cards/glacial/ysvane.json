@@ -11,14 +11,14 @@
   "atk": 2,
   "hp": 6,
   "keywords": [
-    "armadura:1"
+    "escudo"
   ],
   "art": "glacial/ysvane.webp",
   "effects": [
     {
       "trigger": "on_enter",
       "action": "buff",
-      "target": "random_ally_unit",
+      "target": "random_other_ally_unit",
       "hp": 2,
       "keywords": [
         "escudo"
@@ -40,7 +40,7 @@
       "amount": 4
     }
   ],
-  "text": "Armadura 1.\nAo Entrar: uma unidade aliada aleatória ganha +2 de Vida e Escudo, e você recupera uma Bola de Neve do seu cemitério (ela é banida depois de lançada).\nAo Morrer: cure 4 de Vida do seu Líder.",
+  "text": "Escudo.\nAo Entrar: outra unidade aliada aleatória ganha +2 de Vida e Escudo, e você recupera uma Bola de Neve do seu cemitério (ela é banida depois de lançada).\nAo Morrer: cure 4 de Vida do seu Líder.",
   "flavor": "Velha o bastante para ser o cofre, e não a guardiã.",
   "tags": []
 }

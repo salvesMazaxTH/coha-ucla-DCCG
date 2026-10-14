@@ -33,7 +33,7 @@ var sick := true
 var bonus_atk := 0 ## from "constante" scale effects (see GameState._refresh_scaling)
 var bonus_hp := 0
 var has_bonus := false ## bonus_* were computed at least once (they only show up in to_dict then)
-var frozen := 0 ## the turn at whose start it thaws; 0 = not frozen
+var frozen := 0 ## Congelada: the turn at whose END it thaws; 0 = not frozen
 var tide_mark := false
 var used_turn: Dictionary = {} ## effect index -> turn it was last used (once_per_turn)
 var equipment: Card = null
@@ -100,21 +100,19 @@ func has_kw(kw: String) -> bool:
 func armor_total() -> int:
 	return armor + temp_armor
 
-## ATK right now. A Congelada unit has ATK 0 while the freeze lasts (buffs don't change that).
+## ATK right now (a Congelada unit keeps its full ATK: it still strikes back when challenged).
 func atk_total() -> int:
-	if is_frozen():
-		return 0
 	return maxi(0, atk + temp_atk + bonus_atk)
 
-## Rapidez right now (a Congelada unit keeps it; the freeze only takes its ATK).
+## Rapidez right now.
 func rapidez_total() -> int:
 	return clampi(rapidez, 1, 4)
 
 func hp_left() -> int:
 	return hp + bonus_hp + temp_hp - damage
 
-## Congelada: ATK counts as 0 until the next turn starts
-## (so it can't attack, and strikes back for 0 if challenged).
+## Congelada until the end of the next turn: it doesn't attack, doesn't untap and
+## doesn't guard its Leader (see CombatSystem.attack_targets). ATK and strike back stay whole.
 func is_frozen() -> bool:
 	return frozen > 0
 

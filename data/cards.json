@@ -160,7 +160,7 @@
     },
     "voo": {
       "name": "Voo",
-      "text": "Só pode ser desafiada por unidades com Voo ou Longo Alcance."
+      "text": "Só pode ser desafiada por unidades com Voo ou Longo Alcance. Ao atacar, ignora exauridas sem Voo: desafia ou vai no Líder."
     },
     "longo_alcance": {
       "name": "Longo Alcance",
@@ -168,7 +168,7 @@
     },
     "furtividade": {
       "name": "Furtividade",
-      "text": "Só pode ser desafiada por unidades com Furtividade ou Vigilância."
+      "text": "Só pode ser desafiada por unidades com Furtividade ou Vigilância. Ao atacar, ignora exauridas sem Furtividade: desafia ou vai no Líder."
     },
     "vigilancia": {
       "name": "Vigilância",
@@ -180,7 +180,7 @@
     },
     "obsessao": {
       "name": "Obsessão",
-      "text": "Esta unidade não pode desafiar: ao atacar, só pode atingir o Líder inimigo."
+      "text": "Esta unidade só ataca o Líder inimigo, mas uma Provocação exaurida ainda a obriga a desafiá-la."
     },
     "inalcancavel": {
       "name": "Inalcançável",
@@ -212,7 +212,7 @@
     },
     "congelar": {
       "name": "Congelar",
-      "text": "O ATK da unidade fica 0 até o fim do próximo turno do dono (então ela não pode atacar e, se desafiada, não revida)."
+      "text": "A unidade não ataca, não desvira e não protege o Líder até o fim do próximo turno. Revida normalmente."
     },
     "armadura": {
       "name": "Armadura",

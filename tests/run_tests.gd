@@ -690,47 +690,87 @@ func _test_adjacent_armor() -> void:
 	check(g._deal_damage(right.uid, 1, null) == 1, "dano 1 passa mesmo com a Armadura adjacente (mínimo 1)")
 
 func _test_freeze() -> void:
+	# Congelada: doesn't attack and doesn't untap until the end of its owner's next turn; ATK stays whole
+	_tcard("t_frz_hit", 1, 5, [])
+	_tcard("t_frz_vic", 3, 5, [])
 	var g := _new_game()
-	var atk := _put(g, 0, "kai")
-	var f := _put(g, 1, "tritao_lanceiro")
-	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, f.uid)
-	check(g.is_frozen(f), "congelar marca a unidade")
-	check(g.atk_of(f) == 0 and f.rapidez_total() == f.rapidez, "congelada: só o ATK fica 0, a Rapidez continua a mesma")
+	_quiet(g)
+	var hitter := _put(g, 0, "t_frz_hit")
+	var tapped := _put(g, 1, "t_frz_vic")
+	var standing := _put(g, 1, "t_frz_vic")
+	tapped.exhausted = true
+	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, tapped.uid)
+	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, standing.uid)
+	check(g.is_frozen(tapped) and g.is_frozen(standing), "congelar marca a unidade")
+	check(g.atk_of(tapped) == 3 and tapped.rapidez_total() == tapped.rapidez, "congelada: ATK e Rapidez continuam os mesmos")
+	check(not standing.exhausted, "congelar não exaure: a unidade em pé continua em pé")
 	_quiet(g)
 	g.end_turn(0)
-	check(g.active == 1 and not g.is_frozen(f), "congelamento dura só até o início do próximo turno (aplicado no meu turno, acaba quando o dono joga)")
-	# frozen during the opponent's own turn: lasts until the next turn starts too
-	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, atk.uid)
-	check(g.is_frozen(atk), "congelada no turno do oponente")
+	check(g.active == 1 and g.is_frozen(tapped) and g.is_frozen(standing), "congelada no meu turno: segue congelada no turno seguinte (do dono)")
+	check(tapped.exhausted, "congelada: não desvira no início do turno do dono")
+	check(not g.can_attack(standing), "congelada: não pode atacar no turno do dono")
 	_quiet(g)
 	g.end_turn(1)
-	check(g.active == 0 and not g.is_frozen(atk), "descongela quando o próximo turno começa")
-	# exception: a unit frozen while still summoning sick never got to act, so the freeze also covers its owner's next turn
-	var fresh := _put(g, 1, "tritao_lanceiro")
-	fresh.sick = true
+	check(g.active == 0 and not g.is_frozen(tapped) and not g.is_frozen(standing), "descongela no fim do turno seguinte")
+	check(tapped.exhausted, "a exausta só desvira no turno seguinte do dono, já descongelada")
+	_quiet(g)
+	g.end_turn(0)
+	check(g.active == 1 and not tapped.exhausted and g.can_attack(standing), "descongelada: desvira e ataca normalmente")
+	# frozen during its owner's own turn (an Instantâneo in their pre-combat): no attack now, and it
+	# doesn't guard its Leader through my next turn; it thaws at the end of my turn
+	standing.exhausted = true
+	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, standing.uid)
+	check(g.is_frozen(standing), "congelada no próprio turno do dono")
+	_quiet(g)
+	g.end_turn(1)
+	var my_attacker := _put(g, 0, "t_frz_hit")
+	check(g.active == 0 and g.is_frozen(standing) and g.combat_system().attack_targets(my_attacker).has(GameState.LEADER_UID[1]), "congelada no turno do dono: no meu turno segue congelada e não protege o Líder")
+	_quiet(g)
+	g.end_turn(0)
+	check(g.active == 1 and not g.is_frozen(standing) and not standing.exhausted, "congelada no turno do dono: descongela no fim do meu turno e desvira no turno dele")
+	_quiet(g)
+	g.end_turn(1)
+	# a unit frozen while still summoning sick is no exception: it can't attack in its owner's next turn
+	var fresh := _put(g, 1, "t_frz_vic", false)
 	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, fresh.uid)
 	_quiet(g)
 	g.end_turn(0)
-	check(g.active == 1 and g.is_frozen(fresh) and not fresh.sick, "congelada com enjoo: continua congelada no turno do dono")
+	check(g.active == 1 and g.is_frozen(fresh) and not fresh.sick and not g.can_attack(fresh), "congelada com enjoo: no turno do dono, sem enjoo mas sem atacar")
 	_quiet(g)
 	g.end_turn(1)
-	check(g.active == 0 and not g.is_frozen(fresh), "congelada com enjoo: descongela no turno seguinte")
-	g.end_turn(0)
+	check(not g.is_frozen(fresh), "congelada com enjoo: descongela no fim do turno do dono")
 	var s := _put(g, 1, "tritao_lanceiro")
 	s.spell_shield = true
 	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, s.uid)
 	check(not g.is_frozen(s) and not s.spell_shield, "Escudo de Feitiço anula congelar")
-	# a frozen unit can still be challenged, but strikes back for 0
-	_tcard("t_frz_hit", 1, 5, [])
-	_tcard("t_frz_vic", 3, 5, [])
+	# a frozen tapped unit can be challenged and strikes back with its full ATK, but doesn't guard the face
 	g = _new_game()
 	_quiet(g)
-	var hitter := _put(g, 0, "t_frz_hit")
+	hitter = _put(g, 0, "t_frz_hit")
 	var ice := _put(g, 1, "t_frz_vic")
-	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, ice.uid)
 	ice.exhausted = true
+	var enemy_leader: int = GameState.LEADER_UID[1]
+	check(g.combat_system().attack_targets(hitter) == [ice.uid], "exausta não congelada fecha a face do Líder")
+	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, ice.uid)
+	var targets: Array = g.combat_system().attack_targets(hitter)
+	check(targets.has(ice.uid) and targets.has(enemy_leader), "congelada exausta: pode ser desafiada, mas não fecha a face")
+	var guard := _put(g, 1, "t_frz_vic")
+	guard.exhausted = true
+	check(not g.combat_system().attack_targets(hitter).has(enemy_leader), "outra exausta não congelada ainda fecha a face")
 	_hit(g, hitter, ice.uid)
-	check(hitter.damage == 0 and ice.damage == 1, "congelada: desafiada, revida com 0 de dano")
+	check(hitter.damage == 3 and ice.damage == 1, "congelada: desafiada, revida com o ATK cheio")
+	# a frozen Provocação forces nothing
+	_tcard("t_frz_taunt", 2, 5, [])
+	CardDB.data()["cards"]["t_frz_taunt"]["keywords"] = ["provocacao"]
+	g = _new_game()
+	_quiet(g)
+	hitter = _put(g, 0, "t_frz_hit")
+	var taunt := _put(g, 1, "t_frz_taunt")
+	taunt.exhausted = true
+	check(g.combat_system().attack_targets(hitter) == [taunt.uid], "Provocação exausta obriga o ataque")
+	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, taunt.uid)
+	targets = g.combat_system().attack_targets(hitter)
+	check(g.combat_system().forced_taunts(hitter).is_empty() and targets.has(taunt.uid) and targets.has(GameState.LEADER_UID[1]), "Provocação congelada não obriga nem protege o Líder")
 	check(CardDB.has_essence(CardDB.card("sabrina"), "glacial") and CardDB.has_essence(CardDB.card("sabrina"), "aquatica"), "sabrina é aquática e glacial")
 
 func _test_setup() -> void:
@@ -883,8 +923,16 @@ func _test_combat() -> void:
 
 	# Obsessão: the Revivente only hits the Leader
 	var obsessed := _put(g, 0, "revivente_eterno")
-	_put(g, 1, "esqueleto_guerreiro").exhausted = true
+	_put(g, 1, "serpente_marinha").exhausted = true
 	check(g.attack_targets(obsessed) == [GameState.LEADER_UID[1]], "obsessão: só ataca o Líder")
+	# ...but a tapped Provocação still holds it back: it must challenge it (a frozen one forces nothing)
+	_tcard("t_obsession_taunt", 1, 6, [])
+	CardDB.data()["cards"]["t_obsession_taunt"]["keywords"] = ["provocacao"]
+	var obsession_taunt := _put(g, 1, "t_obsession_taunt")
+	obsession_taunt.exhausted = true
+	check(g.attack_targets(obsessed) == [obsession_taunt.uid], "obsessão: Provocação exaurida obriga a desafiar")
+	obsession_taunt.frozen = 1
+	check(g.attack_targets(obsessed) == [obsession_taunt.uid, GameState.LEADER_UID[1]], "obsessão: Provocação Congelada não obriga (desafia ou vai no Líder)")
 
 	# Etérea: never challenged, not even with Provocação (so it forces nobody)
 	_tcard("t_ghost", 1, 3, [])
@@ -975,6 +1023,36 @@ func _test_provocacao() -> void:
 	g = _new_game()
 	_put(g, 1, "fenix_menor").exhausted = true
 	check(g.attack_targets(_put(g, 0, "serpente_marinha")) == [GameState.LEADER_UID[1]], "exaurida inalcançável (Voo) não fecha o Líder")
+
+	# Voo / Furtividade slip past tapped units that lack the same keyword: challenge them or hit the face
+	_tcard("t_sneak", 1, 6, [])
+	CardDB.data()["cards"]["t_sneak"]["keywords"] = ["furtividade"]
+	_tcard("t_sneak_fly", 1, 6, [])
+	CardDB.data()["cards"]["t_sneak_fly"]["keywords"] = ["furtividade", "voo"]
+	var leader_uid: int = GameState.LEADER_UID[1]
+	g = _new_game()
+	var plain_guard := _put(g, 1, "t_other")
+	plain_guard.exhausted = true
+	var sneaker := _put(g, 0, "t_sneak")
+	check(g.attack_targets(sneaker) == [plain_guard.uid, leader_uid], "Furtividade: ignora a exaurida comum (desafia ou vai no Líder)")
+	var sneaky_guard := _put(g, 1, "t_sneak")
+	sneaky_guard.exhausted = true
+	check(g.attack_targets(sneaker) == [plain_guard.uid, sneaky_guard.uid], "Furtividade: exaurida com Furtividade ainda fecha o Líder")
+	var flyer_vs_flyer := _put(g, 0, "fenix_menor")
+	check(g.attack_targets(flyer_vs_flyer) == [plain_guard.uid, leader_uid], "Voo: a exaurida comum não fecha o Líder")
+	var flying_guard := _put(g, 1, "fenix_menor")
+	flying_guard.exhausted = true
+	check(g.attack_targets(flyer_vs_flyer) == [plain_guard.uid, flying_guard.uid], "Voo: exaurida com Voo ainda fecha o Líder")
+	check(g.attack_targets(sneaker) == [plain_guard.uid, sneaky_guard.uid], "Furtividade: sem Voo, não alcança a exaurida voadora; a com Furtividade ainda fecha o Líder")
+	# a Provocação is never slipped past
+	g = _new_game()
+	var tapped_taunt := _put(g, 1, "t_taunt")
+	tapped_taunt.exhausted = true
+	check(g.attack_targets(_put(g, 0, "t_sneak")) == [tapped_taunt.uid], "Furtividade: Provocação exaurida ainda obriga a desafiar")
+	g = _new_game()
+	var tapped_taunt_vs_flyer := _put(g, 1, "t_taunt")
+	tapped_taunt_vs_flyer.exhausted = true
+	check(g.attack_targets(_put(g, 0, "fenix_menor")) == [tapped_taunt_vs_flyer.uid], "Voo: Provocação exaurida ainda obriga a desafiar")
 
 	# two Provocações: the attacker chooses
 	g = _new_game()
@@ -1516,7 +1594,7 @@ func _test_strike_order() -> void:
 	check(_strike_result(1, 2) == "-B", "desafiado mais rápido mata antes")
 	check(_strike_result(4, 3) == "A-", "rapidez 4 bate antes da 3")
 	check(_strike_result(3, 3) == "--", "rapidez 3 contra 3: simultâneo")
-	check(_strike_result(1, 4, true) == "A-", "congelada: ATK 0, nem revida (mesmo sendo mais rápida)")
+	check(_strike_result(1, 4, true) == "-B", "congelada: revida normalmente (e mais rápida, bate primeiro)")
 
 ## Triggers that resolve before the strikes can change the fight.
 func _test_challenge_triggers() -> void:
@@ -2577,9 +2655,19 @@ func _test_glacial_combo() -> void:
 	check(espectro_victim.exhausted and espectro_victim.frozen > 0, "Espectro: Ao Entrar congela e exaure a unidade escolhida")
 	check(not espectro["enemies"][1].exhausted and espectro["enemies"][1].frozen == 0, "Espectro: a outra unidade inimiga não é afetada")
 
-	# Rei Gelado: 4 random slots of the enemy field. Units in them are frozen+exhausted, empty ones are blocked,
-	# so units hit + slots blocked is always 4 (whatever the draw)
-	check(int(CardDB.card("rei_gelado")["atk"]) == 6 and int(CardDB.card("rei_gelado")["hp"]) == 7, "Rei Gelado: 6/7")
+	# Princesa Wanessa: Ao Entrar also freezes AND exhausts the chosen enemy unit
+	var wanessa := _combo_game(8, 2, 10, 0)
+	var wanessa_game: GameState = wanessa["game"]
+	var wanessa_victim: Card = wanessa["enemies"][0]
+	_cast_and_resolve(wanessa_game, wanessa["me"], "princesa_wanessa")
+	wanessa_game.choose_enter_target(wanessa["me"], wanessa_victim.uid)
+	wanessa_game._flush()
+	check(wanessa_victim.exhausted and wanessa_victim.frozen > 0, "Princesa Wanessa: Ao Entrar congela e exaure a unidade escolhida")
+	check(not wanessa["enemies"][1].exhausted and wanessa["enemies"][1].frozen == 0, "Princesa Wanessa: a outra unidade inimiga não é afetada")
+
+	# Rei Gelado: 5 random slots of the enemy field. Units in them are frozen+exhausted, empty ones are blocked,
+	# so units hit + slots blocked is always 5 (whatever the draw)
+	check(int(CardDB.card("rei_gelado")["atk"]) == 6 and int(CardDB.card("rei_gelado")["hp"]) == 9, "Rei Gelado: 6/9")
 	for enemy_count in [0, 3, 6, 8]:
 		var rei := _combo_game(8, enemy_count, 10, 0)
 		var rei_game: GameState = rei["game"]
@@ -2587,24 +2675,24 @@ func _test_glacial_combo() -> void:
 		_cast_and_resolve(rei_game, rei["me"], "rei_gelado")
 		var frozen_units: Array = rei["enemies"].filter(func(c: Card): return c.frozen > 0)
 		var blocked_slots: int = int(rei_game.players[rei_foe]["frozen_slots"])
-		check(frozen_units.size() + blocked_slots == 4, "Rei Gelado (%d inimigas): unidades atingidas (%d) + espaços vazios bloqueados (%d) = 4" % [enemy_count, frozen_units.size(), blocked_slots])
+		check(frozen_units.size() + blocked_slots == 5, "Rei Gelado (%d inimigas): unidades atingidas (%d) + espaços vazios bloqueados (%d) = 5" % [enemy_count, frozen_units.size(), blocked_slots])
 		check(frozen_units.all(func(c: Card): return c.exhausted), "Rei Gelado (%d inimigas): toda unidade atingida também fica exausta" % enemy_count)
 		check(rei["enemies"].all(func(c: Card): return c.frozen > 0 or not c.exhausted), "Rei Gelado (%d inimigas): unidade fora dos espaços sorteados não é afetada" % enemy_count)
 		check(rei["princess"].frozen == 0 and int(rei_game.players[rei["me"]]["frozen_slots"]) == 0, "Rei Gelado (%d inimigas): o campo de quem lançou não é afetado" % enemy_count)
 
-	# empty frozen slots take room: with 8 empty slots 4 are blocked, so only 4 units fit
+	# empty frozen slots take room: with 8 empty slots 5 are blocked, so only 3 units fit
 	var block := _combo_game(8, 0, 10, 0)
 	var block_game: GameState = block["game"]
 	var block_foe: int = block["foe"]
 	_cast_and_resolve(block_game, block["me"], "rei_gelado")
-	check(int(block_game.players[block_foe]["frozen_slots"]) == 4, "Rei Gelado: campo inimigo vazio tem 4 espaços congelados")
-	for filler in 4:
-		check(block_game.has_free_slot(block_foe), "Rei Gelado: ainda cabe a unidade %d nos 4 espaços livres" % (filler + 1))
+	check(int(block_game.players[block_foe]["frozen_slots"]) == 5, "Rei Gelado: campo inimigo vazio tem 5 espaços congelados")
+	for filler in 3:
+		check(block_game.has_free_slot(block_foe), "Rei Gelado: ainda cabe a unidade %d nos 3 espaços livres" % (filler + 1))
 		_put(block_game, block_foe, "teste_alvo_gelo")
-	check(not block_game.has_free_slot(block_foe), "Rei Gelado: com 4 unidades e 4 espaços congelados o campo inimigo está cheio")
+	check(not block_game.has_free_slot(block_foe), "Rei Gelado: com 3 unidades e 5 espaços congelados o campo inimigo está cheio")
 	# they thaw at the END of the victim's own next turn, not before
 	block_game.end_turn(block["me"])
-	check(block_game.active == block_foe and int(block_game.players[block_foe]["frozen_slots"]) == 4, "Rei Gelado: os espaços seguem congelados durante o turno do oponente")
+	check(block_game.active == block_foe and int(block_game.players[block_foe]["frozen_slots"]) == 5, "Rei Gelado: os espaços seguem congelados durante o turno do oponente")
 	block_game.end_turn(block_foe)
 	check(int(block_game.players[block_foe]["frozen_slots"]) == 0 and block_game.has_free_slot(block_foe), "Rei Gelado: os espaços descongelam no fim do turno do oponente")
 
@@ -2796,12 +2884,10 @@ func _test_glacial() -> void:
 		var nythera_target := _put(g, o, "teste_frágil_gelo")
 		leader_before = g.players[o]["leader_hp"]
 		_cast_and_resolve(g, a, "nythera")
-		g.choose_enter_target(a, nythera_target.uid) # her Ao Entrar target is chosen after she enters
-		g._flush()
 		var top_card: Card = g.players[a]["deck"].back()
 		var expected_top := "grande_bola_de_neve" if level == 8 else "bola_de_neve"
 		check(top_card.card_id == expected_top and top_card.zone == "deck", "Nythera ao entrar (nível %d): põe %s no topo do deck" % [level, expected_top])
-		check(g.players[o]["leader_hp"] == leader_before and nythera_target.frozen > 0 and int(g.players[a]["snowball"]) == level, "Nythera ao entrar (nível %d): não lança a Bola (sem dano nem nível novo) e congela o alvo" % level)
+		check(g.players[o]["leader_hp"] == leader_before and nythera_target.frozen == 0 and int(g.players[a]["snowball"]) == level, "Nythera ao entrar (nível %d): não lança a Bola (sem dano nem nível novo) e não congela mais" % level)
 
 	# Zero Absoluto: rápido, custa 4 e congela todas as unidades inimigas (e só elas)
 	g = _glacial_game()
@@ -2814,7 +2900,7 @@ func _test_glacial() -> void:
 	var own_unit := _put(g, a, "teste_alvo_gelo")
 	check(g.cost_of(a, CardDB.card("zero_absoluto")) == 4 and CardDB.card("zero_absoluto")["speed"] == "rapido", "Zero Absoluto custa 4 e é rápido")
 	_cast_and_resolve(g, a, "zero_absoluto")
-	check(g.atk_of(frozen_one) == 0 and g.atk_of(frozen_two) == 0 and g.atk_of(own_unit) == 3, "Zero Absoluto congela todas as unidades inimigas e nenhuma aliada")
+	check(g.is_frozen(frozen_one) and g.is_frozen(frozen_two) and not g.is_frozen(own_unit), "Zero Absoluto congela todas as unidades inimigas e nenhuma aliada")
 
 	# Princesa Wanessa becomes Tempesfrost when her controller casts a Grande Bola de Neve
 	g = _glacial_game()
@@ -2953,7 +3039,7 @@ func _test_glacial() -> void:
 		var bola_in_hand: Array = g.players[a]["hand"].filter(func(c: Card): return c.card_id == "bola_de_neve")
 		check(bola_in_hand.size() == 1 and g.phase == "main", "Bruno: a Bola de Neve escolhida vai para a mão e o jogo volta à Fase Principal (fase %s)" % g.phase)
 
-	# Ysvane: Ao Entrar buffs a random ally and takes a Bola de Neve back from the graveyard (banished after its next cast);
+	# Ysvane: Ao Entrar buffs another random ally and takes a Bola de Neve back from the graveyard (banished after its next cast);
 	# each glacial spell shields a random ally; death heals the Leader
 	g = _glacial_game()
 	a = g.active
@@ -2974,8 +3060,9 @@ func _test_glacial() -> void:
 	var ysvane_card: Card = g.players[a]["board"].filter(func(c: Card): return c.card_id == "ysvane")[0]
 	check(g.players[a]["hand"].has(bola_in_graveyard) and not g.players[a]["graveyard"].has(bola_in_graveyard), "Ysvane: a Bola de Neve volta do cemitério para a mão")
 	check(bola_in_graveyard.banish_after_cast, "Ysvane: a Bola recuperada fica marcada para ser banida depois de lançada")
-	var shields_on_enter: int = g.players[a]["board"].filter(func(c: Card): return c.shield).size()
-	check(shields_on_enter == 1 and protege.hp_left() + ysvane_card.hp_left() == 28, "Ysvane: Ao Entrar dá +2 de Vida e Escudo a uma aliada aleatória (escudos %d, vida %d)" % [shields_on_enter, protege.hp_left() + ysvane_card.hp_left()])
+	# the buff always goes to ANOTHER ally (never Ysvane herself, who already has Escudo of her own)
+	check(protege.shield and ysvane_card.shield and ysvane_card.hp_left() == int(CardDB.card("ysvane")["hp"]), "Ysvane: Ao Entrar dá +2 de Vida e Escudo a outra aliada, nunca a si mesma (vida da Ysvane %d)" % ysvane_card.hp_left())
+	check(protege.hp_left() + ysvane_card.hp_left() == 28, "Ysvane: a outra aliada ganha +2 de Vida (vida somada %d)" % (protege.hp_left() + ysvane_card.hp_left()))
 	protege.shield = false
 	ysvane_card.shield = false
 	var enemy_target := _put(g, o, "teste_alvo_gelo")

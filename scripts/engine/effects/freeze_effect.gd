@@ -1,19 +1,14 @@
 class_name FreezeEffect
 extends Effect
-## "freeze": the target unit's ATK is 0 until the next turn starts (whoever's turn that is),
-## so the freeze only lasts for the turn in which it was applied.
-## Exception: a unit that was still summoning sick never had the chance to act (tap, challenge or hit
-## the Leader), so its freeze also covers its owner's next turn: the owner loses one opportunity.
+## "freeze": Congelada until the end of the next turn (whoever's turn that is): it doesn't attack,
+## doesn't untap and doesn't guard its Leader. Its ATK stays whole (it strikes back normally) and it
+## keeps the position it had (freezing doesn't tap it).
 
 func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
 	var unit := game.find_unit(target_uid)
 	if unit == null:
 		return
-	# `frozen` holds the turn at whose START the unit thaws
-	var thaw_turn: int = game.turn + 1
-	if unit.sick:
-		# skip over the owner's next turn too: it comes at turn+2 if the owner is playing now, else turn+1
-		thaw_turn = game.turn + (3 if unit.owner == game.active else 2)
-	unit.frozen = maxi(unit.frozen, thaw_turn)
+	# `frozen` holds the turn at whose END the unit thaws
+	unit.frozen = maxi(unit.frozen, game.turn + 1)
 	game._emit({"type": "freeze", "uid": target_uid})
