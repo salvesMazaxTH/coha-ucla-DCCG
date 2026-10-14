@@ -22,13 +22,15 @@ Cada ação é uma classe em `scripts/engine/effects/`, registrada em `effect_re
 | `draw` / `draw_discounted` | `amount`, `min_base_cost`, `discount` | compra cartas (a segunda dá desconto à cópia na mão) |
 | `tide_mark` | — | põe a Marca da Maré |
 | `search_deck` / `look_top` | `count`, `shuffle` e filtros | abre escolha com cartas do deck |
-| `snowball` | — | Bola de Neve: acerta o alvo com o nível atual do jogador, quica para um lado sorteado entre os que têm unidades (+1 de dano por quique) e o nível final vira o início da próxima. Nível 8 ou mais = Grande Bola (Sobrepujança nos quiques, custo +1 na carta). Num Líder é um golpe só e não aumenta o nível |
+| `snowball` | — | Bola de Neve: acerta o alvo com o nível atual do jogador, quica para um lado sorteado entre os que têm unidades (+1 de dano por quique) e o nível final vira o início da próxima. `overflow_to_leader: true` dá Sobrepujança nos quiques (a carta Grande Bola de Neve usa; ao chegar no nível 8 as Bolas viram essa carta). Uma Bola lançada por unidade (sem carta) também tem Sobrepujança quando quem a lança está no nível 8+. Num Líder é um golpe só e não aumenta o nível |
 | `discard_hand_pick` | — | depois de comprar, o jogador escolhe uma carta da mão (mesma tela do descarte do overdraw) e ela vai ao **cemitério** (só o overdraw de fim de turno bane) |
 | `transform_self` | `into` | a unidade vira a carta `into` (Ao Entrar da nova carta roda). Use com `target: "self"`, normalmente num `listen` |
-| `freeze` | — | ATK do alvo fica 0 até o fim do próximo turno do dono |
+| `freeze` | — | ATK do alvo fica 0 só até o próximo início de turno (vale só no turno em que foi aplicado; se o alvo ainda estava com enjoo, cobre também o próximo turno do dono) |
 | `fight` | `second_target` | o alvo (1ª escolha) e a unidade de `second_target` (2ª escolha) causam, ao mesmo tempo, dano igual ao Ataque de cada uma à outra. Não é combate; Armadura e Escudo valem, Escudo de Feitiço do inimigo cancela a luta |
 | `summon` | `card` (`"self"` ou id), `overrides` | invoca uma carta |
 | `mill` / `mill_pick` | `amount` | manda cartas do deck ao cemitério |
+| `grave_retrieve` | `card_id` ou `card_ids` (lista) | escolhe uma cópia no cemitério e leva à mão; ela é banida quando o próximo lançamento acabar |
+| `snowball_level` | `amount` (padrão 1) | sobe o nível da Bola de Neve do controlador sem lançá-la (alvo `none`) |
 | `revive` / `revive_self` | `max_cost`, `atk`, `hp` | volta do cemitério |
 | `destroy` / `banish` | — | mata / bane a unidade |
 | `sacrifice` | `then` (lista de efeitos) | sacrifica; o `then` roda depois |
@@ -83,6 +85,7 @@ Gatilhos que disparam durante uma ação entram numa fila e resolvem depois que 
 ## Campos de carta especiais
 
 - `spell_discount` (equipamento): `{"essence": "glacial", "amount": 1}`. O primeiro feitiço dessa essência lançado por turno pelo dono custa `amount` a menos.
+- `face_text` (feitiço, opcional): versão curta do texto, desenhada só no rosto da carta pequena quando o `text` completo não cabe. A visão ampliada continua mostrando o `text`. Aceita `{nivel}`.
 - `{nivel}` (dentro do `text` de qualquer carta): vira o nível atual da Bola de Neve do dono ao desenhar a carta (mão, Santuário, escolha de cartas e visão ampliada); sem dono, vira 1. É só visual: o motor não lê o texto.
 - `lethal_ward` (artefato, `true`): se o Líder do dono fosse morrer por uma instância de dano, o dano é anulado, o artefato é destruído e, até o fim do próximo turno do dono, todo dano ao Líder é dividido pela metade (arredondado pra baixo).
 

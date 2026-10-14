@@ -5,7 +5,6 @@
   "essence": "glacial",
   "cost": 2,
   "speed": "lento",
-  "max_copies": 1,
   "art": "glacial/bola_de_neve.webp",
   "effects": [
     {
@@ -14,7 +13,7 @@
       "target": "enemy_unit"
     }
   ],
-  "text": "Única.\nCause {nivel} de dano a uma unidade inimiga. Repita em cada unidade seguinte, em uma direção sorteada, com +1 de dano a cada uma. O dano final vira o inicial de toda Bola de Neve futura. Com dano inicial 8+, vira Grande Bola de Neve: custa (1) a mais e tem Sobrepujança.",
+  "text": "Cause {nivel} de dano a uma unidade inimiga. Repita em cada unidade seguinte, em uma direção sorteada, com +1 de dano a cada uma. O dano final vira o inicial de toda Bola de Neve futura. Quando esse nível chegar a 8, todas as suas Bolas de Neve evoluem para Grande Bola de Neve.",
   "flavor": "Começou pequena. Pergunte pra ela se ela liga.",
   "tags": [
     "bola_de_neve"

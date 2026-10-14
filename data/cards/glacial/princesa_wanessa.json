@@ -43,9 +43,19 @@
       "action": "transform_self",
       "target": "self",
       "into": "wanessa_tempesfrost"
+    },
+    {
+      "listen": "snowball_grande",
+      "scope": "ally",
+      "zones": [
+        "board"
+      ],
+      "action": "transform_self",
+      "target": "self",
+      "into": "wanessa_tempesfrost"
     }
   ],
-  "text": "Escudo de Feitiço.\nAo Entrar: congele uma unidade inimiga.\nSempre que você lançar um feitiço glacial, congele uma unidade inimiga aleatória.\nQuando você lançar uma Grande Bola de Neve, Wanessa se transforma em Wanessa Tempesfrost.",
+  "text": "Escudo de Feitiço.\nAo Entrar: congele uma unidade inimiga.\nSempre que você lançar um feitiço glacial, congele uma unidade inimiga aleatória.\nQuando você lançar uma Grande Bola de Neve, ou quando sua Bola de Neve virar Grande, Wanessa se transforma em Wanessa Tempesfrost.",
   "flavor": "A coroa é de gelo. A paciência também.",
   "tags": []
 }

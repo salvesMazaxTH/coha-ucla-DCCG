@@ -13,7 +13,9 @@ const RESERVE_CAP := 2 ## unspent Momentum banked at turn start; pays only spell
 const COMMANDER_TAX := 2
 const INTIMIDATE_ATK := 3 ## Intimidacao: attackers with this ATK or less cannot challenge it
 const SECOND_BONUS_TURNS := 2 ## the second player's first turns that start with +1 Momentum and +1 Reserve (refill)
-const SNOWBALL_GRANDE_AT := 8 ## Bola de Neve level from which every Bola de Neve becomes a Grande Bola de Neve
+const SNOWBALL_GRANDE_AT := 8 ## Bola de Neve level at which every Bola de Neve card of the player evolves into a Grande Bola de Neve
+const SNOWBALL_CARD_ID := "bola_de_neve"
+const GRANDE_SNOWBALL_CARD_ID := "grande_bola_de_neve" ## a card of its own (transform_only): it only exists through that evolution
 const REQUIEM_EXTRA_COST := 2 ## Réquiem: a spell cast from the graveyard costs this much more, then is banished
 
 ## Leaders are addressed with negative uids so targets are a single int.
@@ -213,6 +215,10 @@ func _move(c: Card, to_zone: String) -> void:
 	c.zone = to_zone
 	if to_zone != "hand":
 		c.discount = 0
+	# a Bola de Neve that reaches the hand, deck or graveyard of a player already at Grande level is born Grande
+	# (the copy that was being cast, one fetched from the graveyard, one created by an effect...)
+	if c.card_id == SNOWBALL_CARD_ID and to_zone in ["hand", "deck", "graveyard"] and snowball_is_grande(c.owner):
+		c.card_id = GRANDE_SNOWBALL_CARD_ID
 	var moved := GameEvent.new("card_moved", c.owner, c)
 	moved.data = {"from": from_zone, "to": to_zone}
 	bus().emit(moved)
@@ -287,7 +293,7 @@ func legendary_cost(p: int) -> int:
 	var l: Dictionary = players[p]["legendary"]
 	return cost_of(p, CardDB.card(l["card_id"])) + COMMANDER_TAX * int(l["casts"])
 
-## Congelada: ATK counts as 0 until the end of its owner's next turn.
+## Congelada: ATK counts as 0 until the next turn starts.
 func is_frozen(c: Card) -> bool:
 	return c.is_frozen()
 
@@ -378,22 +384,41 @@ func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 			"unspent_momentum": n = 1 if int(players[p]["unspent"]) >= int(e.get("threshold", 1)) else 0
 		c -= n * int(e.get("amount", 1))
 		floor_cost = maxi(floor_cost, int(e.get("min_cost", 0)))
-	c += grande_snowball_extra(p, cd)
 	c -= glacial_discount(p, cd)
 	var requiem_extra := REQUIEM_EXTRA_COST if card != null and card.zone == "graveyard" else 0
 	return maxi(c, floor_cost) + requiem_extra
 
-## True once the player's Bola de Neve level reached the Grande threshold: every Bola de Neve
-## from any source becomes a Grande Bola de Neve.
-func snowball_is_grande(p: int, threshold: int = SNOWBALL_GRANDE_AT) -> bool:
-	return int(players[p]["snowball"]) >= threshold
+## Sets the Bola de Neve level of player p. When the level crosses into Grande (from below
+## SNOWBALL_GRANDE_AT to at or above it) every Bola de Neve card of p evolves into a Grande Bola de Neve,
+## and listeners hear "snowball_grande" once (Princesa Wanessa becomes Tempesfrost even if the Grande
+## level came from a card and not from a cast).
+func set_snowball_level(p: int, new_level: int) -> void:
+	var old_level: int = int(players[p]["snowball"])
+	players[p]["snowball"] = new_level
+	if old_level < SNOWBALL_GRANDE_AT and new_level >= SNOWBALL_GRANDE_AT:
+		_evolve_snowball_cards(p)
+		var crossing := GameEvent.new("snowball_grande", p, null)
+		crossing.amount = new_level
+		bus().emit(crossing)
 
-## Extra Momentum a Grande Bola de Neve costs (0 for any other card).
-func grande_snowball_extra(p: int, cd: Dictionary) -> int:
-	for e in cd.get("effects", []):
-		if e.get("action", "") == "snowball" and snowball_is_grande(p, int(e.get("grande_at", SNOWBALL_GRANDE_AT))):
-			return int(e.get("grande_cost", 1))
-	return 0
+func snowball_is_grande(p: int) -> bool:
+	return int(players[p]["snowball"]) >= SNOWBALL_GRANDE_AT
+
+## Turns every Bola de Neve card of player p (hand, deck, graveyard and the stack) into a Grande Bola de
+## Neve. The card keeps its uid, its discount and its cost changes: only the card it is changes.
+func _evolve_snowball_cards(p: int) -> void:
+	var evolved := 0
+	for zone_name in ["hand", "deck", "graveyard"]:
+		for c: Card in players[p][zone_name]:
+			if c.card_id == SNOWBALL_CARD_ID:
+				c.card_id = GRANDE_SNOWBALL_CARD_ID
+				evolved += 1
+	for item in stack:
+		if int(item["player"]) == p and item["kind"] == "card" and item["card_id"] == SNOWBALL_CARD_ID:
+			item["card_id"] = GRANDE_SNOWBALL_CARD_ID
+			evolved += 1
+	if evolved > 0:
+		_emit({"type": "snowball_evolve", "player": p, "count": evolved})
 
 ## Momentum off the first spell of an essence each turn, from an equipped "spell_discount" artifact
 ## (Amuleto Glacial) on one of p's units. 0 when there is none, it is not that essence, or it was spent.
@@ -1015,6 +1040,8 @@ func choose_search(p: int, card_uid: int) -> Array:
 			return []
 		var taken: Card = grave[gi]
 		grave.remove_at(gi)
+		if pending_search.get("banish_after_cast", false):
+			taken.banish_after_cast = true # banished when this cast ends (see StackSystem)
 		players[p]["hand"].append(taken)
 		_move(taken, "hand")
 		pending_search.clear()
@@ -1244,6 +1271,15 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 					break
 			if not matches_tags:
 				continue
+		if e.has("tags_any"):
+			# at least ONE of these tags is enough (Chamado da Nevasca finds any piece of the combo)
+			var has_any_tag := false
+			for tag in e["tags_any"]:
+				if CardDB.card(c.card_id).get("tags", []).has(tag):
+					has_any_tag = true
+					break
+			if not has_any_tag:
+				continue
 		if seen.has(c.card_id):
 			continue
 		seen[c.card_id] = true
@@ -1271,6 +1307,23 @@ func _begin_hand_discard(p: int, source_uid: int) -> void:
 	_search_return = phase
 	phase = "search"
 	_emit({"type": "discard_pick", "player": p, "source_uid": source_uid})
+
+## Offers every copy of `card_id` in the graveyard (just one entry per copy); the pick goes to the
+## hand marked to be banished after its next cast.
+func _begin_grave_retrieve(p: int, wanted_ids: Array, source_uid: int) -> void:
+	if phase == "search":
+		return
+	var options: Array = []
+	for c in players[p]["graveyard"]:
+		if wanted_ids.has(c.card_id):
+			options.append({"uid": c.uid, "card_id": c.card_id})
+	if options.is_empty():
+		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
+		return
+	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "grave": true, "banish_after_cast": true}
+	_search_return = phase
+	phase = "search"
+	_emit({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options})
 
 ## Offers the cards just milled (public: they are in the graveyard); one goes to the hand.
 func _begin_grave_pick(p: int, milled: Array, source_uid: int) -> void:
@@ -1606,9 +1659,6 @@ func _finish_turn() -> void:
 				c.keywords.erase(kw)
 			c.temp_keywords.clear()
 			c.tide_mark = false
-			if c.frozen > 0 and turn >= c.frozen:
-				c.frozen = 0
-				_emit({"type": "thaw", "uid": c.uid})
 	_emit({"type": "end_turn", "player": active})
 	_start_turn(opponent(active), true)
 
@@ -1619,6 +1669,12 @@ func _start_turn(p: int, draw: bool) -> void:
 	_summon_pending = false
 	turn += 1
 	phase = "main"
+	# Congelada only lasts through the turn it was applied in (a unit frozen while still sick lasts one turn more)
+	for q in players:
+		for c in q["board"]:
+			if c.frozen > 0 and turn >= c.frozen:
+				c.frozen = 0
+				_emit({"type": "thaw", "uid": c.uid})
 	var pl: Dictionary = players[p]
 	# Momentum that leaks past a full Reserva, after the opponent's turn too, is what really went
 	# unspent (Voltexz and Fulgurvoltz get cheaper by it)

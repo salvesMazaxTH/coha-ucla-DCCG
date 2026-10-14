@@ -110,7 +110,7 @@ func resolve_stack() -> void:
 				attach(holder, played)
 			elif CardDB.is_relic(CardDB.card(item["card_id"])) and not gone:
 				game._place_relic(p, played)
-			elif item.get("requiem", false):
+			elif item.get("requiem", false) or played.banish_after_cast:
 				game._banish_requiem(played)
 			else:
 				game.players[p]["graveyard"].append(played)
@@ -167,7 +167,7 @@ func counter(p: int, sid: int) -> void:
 	game.stack.erase(it)
 	if it["kind"] in ["card", "subito"]:
 		var countered := take_stack_card(it)
-		if it.get("requiem", false):
+		if it.get("requiem", false) or countered.banish_after_cast:
 			game._banish_requiem(countered)
 		else:
 			game.players[it["player"]]["graveyard"].append(countered)

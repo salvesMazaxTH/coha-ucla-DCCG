@@ -469,10 +469,11 @@ func _draw() -> void:
 	# lower panel: keywords (units), card type (artifacts) or the rules text (spells)
 	if cd["type"] == "spell":
 		# no gems at the bottom corners of a spell, so its panel is wider and taller to fit the text
+		# (a long text can give a shorter "face_text" for this panel; the big view shows the full "text")
 		var tp := Rect2(Vector2(8, 124.5) * s, Vector2(BASE.x - 16, 36.5) * s)
 		_rrect_fill(tp, 4 * s, Color(0, 0, 0, 0.5))
 		_rrect_line(tp, 4 * s, Color(trim, 0.25), 1 * s)
-		_wrapped_text(UITheme.font("bold"), fill_live_numbers(str(cd.get("text", "")), snowball_level), tp.grow_individual(-3 * s, -1 * s, -3 * s, -1 * s), 11.0 * s, 6.0 * s, Color("#f1e8d4"))
+		_wrapped_text(UITheme.font("bold"), fill_live_numbers(str(cd.get("face_text", cd.get("text", ""))), snowball_level), tp.grow_individual(-3 * s, -1 * s, -3 * s, -1 * s), 11.0 * s, 6.0 * s, Color("#f1e8d4"))
 		_speed_badge(Vector2(size.x / 2, 17 * s), str(cd.get("speed", "lento")), s)
 	else:
 		var panel := Rect2(Vector2(10, 126) * s, Vector2(BASE.x - 20, 34) * s)

@@ -14,6 +14,7 @@ static var ACTIONS: Dictionary = {
 	"tide_mark": TideMarkEffect,
 	"search_deck": DeckEffect,
 	"look_top": DeckEffect,
+	"grave_retrieve": DeckEffect,
 	"freeze": FreezeEffect,
 	"snowball": SnowballEffect,
 	"snowball_level": SnowballLevelEffect,

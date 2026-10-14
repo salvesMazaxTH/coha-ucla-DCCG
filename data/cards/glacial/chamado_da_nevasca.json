@@ -12,13 +12,14 @@
       "trigger": "on_play",
       "action": "search_deck",
       "target": "none",
-      "tags": [
-        "bola_de_neve"
-      ],
-      "type": "spell"
+      "type": "spell",
+      "tags_any": [
+        "bola_de_neve",
+        "combo_degelo"
+      ]
     }
   ],
-  "text": "Procure a Bola de Neve no seu deck e coloque-a na sua mão.",
+  "text": "Procure no seu deck a Bola de Neve, um Ritual do Degelo ou uma Ladeira Abaixo e Sem Freio e coloque-a na sua mão.",
   "flavor": "Assobiou pro vento. O vento trouxe a bola.",
   "tags": []
 }

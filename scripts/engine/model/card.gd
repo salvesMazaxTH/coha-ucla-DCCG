@@ -11,6 +11,7 @@ var owner: int
 var zone := "" ## "deck" / "hand" / "board" / "relics" / "graveyard" / "banished" / "stack" / "equipped" / ""
 var discount := 0 ## costs this much less while it stays in hand (Tecnomante); cleared when it leaves the hand
 var cost_mod := 0 ## added to the cost in every zone and never reset (A Vagante Sombria: -1 per card of yours sent to the graveyard)
+var banish_after_cast := false ## taken back from the graveyard by "grave_retrieve": it is banished when its next cast ends
 var over: Dictionary = {} ## per-instance overrides of the card data (atk, hp, keywords, effects, text...)
 
 # board state
@@ -32,7 +33,7 @@ var sick := true
 var bonus_atk := 0 ## from "constante" scale effects (see GameState._refresh_scaling)
 var bonus_hp := 0
 var has_bonus := false ## bonus_* were computed at least once (they only show up in to_dict then)
-var frozen := 0 ## turn at whose end it thaws; 0 = not frozen
+var frozen := 0 ## the turn at whose start it thaws; 0 = not frozen
 var tide_mark := false
 var used_turn: Dictionary = {} ## effect index -> turn it was last used (once_per_turn)
 var equipment: Card = null
@@ -112,7 +113,7 @@ func rapidez_total() -> int:
 func hp_left() -> int:
 	return hp + bonus_hp + temp_hp - damage
 
-## Congelada: ATK counts as 0 until the end of its owner's next turn
+## Congelada: ATK counts as 0 until the next turn starts
 ## (so it can't attack, and strikes back for 0 if challenged).
 func is_frozen() -> bool:
 	return frozen > 0
@@ -124,6 +125,8 @@ func to_dict() -> Dictionary:
 		d["discount"] = discount
 	if cost_mod != 0:
 		d["cost_mod"] = cost_mod
+	if banish_after_cast:
+		d["banish_after_cast"] = true # so the client can warn that the next cast banishes it
 	if zone != "board":
 		return d
 	d.merge({

@@ -353,16 +353,16 @@
       "legendary": "nythera",
       "ability": {
         "name": "Sopro Gélido",
-        "cost": 2,
+        "cost": 3,
         "once_per_turn": true,
-        "speed": "instantaneo",
+        "speed": "rapido",
         "effects": [
           {
             "action": "freeze",
             "target": "enemy_unit"
           }
         ],
-        "text": "Instantânea. 2 Momentum, uma vez por turno: congele uma unidade inimiga."
+        "text": "Rápida. 3 Momentum, uma vez por turno: congele uma unidade inimiga."
       },
       "essences": ["glacial"]
     }

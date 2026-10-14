@@ -3149,6 +3149,8 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s: a maré retorna, compra 1" % _pname(e["player"]))
 		"snowball":
 			_log("%s: %s com %d de dano inicial" % [_pname(e["player"]), "Grande Bola de Neve" if e["grande"] else "Bola de Neve", int(e["amount"])])
+		"snowball_evolve":
+			_log("%s: a Bola de Neve chegou ao nível Grande, e %d carta(s) viraram Grande Bola de Neve" % [_pname(e["player"]), int(e["count"])])
 		"snowball_level":
 			_log("%s: o nível da Bola de Neve sobe para %d" % [_pname(e["player"]), int(e["level"])])
 		"lethal_ward":
