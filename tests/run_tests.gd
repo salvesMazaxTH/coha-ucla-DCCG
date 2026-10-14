@@ -287,7 +287,7 @@ func _test_obscura() -> void:
 	var fen := _put(g, 0, "fenix_da_chama_profana")
 	_kill(g, fen)
 	var fb: Array = g.players[0]["board"].filter(func(c: Card): return c.card_id == "fenix_da_chama_profana")
-	check(fb.size() == 1 and g.atk_of(fb[0]) == 2 and g.hp_left(fb[0]) == 1, "fênix volta com -2/-2")
+	check(fb.size() == 1 and g.atk_of(fb[0]) == 2 and g.hp_left(fb[0]) == 2, "fênix 4/4 volta com -2/-2 (2/2)")
 	_kill(g, fb[0])
 	check(_count(g, 0, "fenix_da_chama_profana") == 0, "fênix com 0 de ataque ou vida não volta")
 	check(g.players[0]["graveyard"].any(func(e): return e["card_id"] == "fenix_da_chama_profana"), "fênix acaba no cemitério")
@@ -1694,7 +1694,7 @@ func _test_triggers() -> void:
 	var h0: int = g.players[0]["hand"].size()
 	var h1: int = g.players[1]["hand"].size()
 	_put(g, 0, "engenheiro_louco")
-	check(g.players[0]["hand"].size() == h0 + 2 and g.players[1]["hand"].size() == h1 + 2, "engenheiro louco: both draw 2")
+	check(g.players[0]["hand"].size() == h0 + 2 and g.players[1]["hand"].size() == h1 + 1, "engenheiro louco: você compra 2, o oponente compra 1")
 
 	_tcard("t_wall", 1, 9, [])
 	# Estrondador Ígneo: hits the middle of the enemy board (1 unit if odd, the 2 middle ones if even)
@@ -1864,7 +1864,7 @@ func _test_eletrica() -> void:
 	# Voltexz / Fulgurvoltz: cost drops with Momentum left unspent, with a floor
 	var vx: Dictionary = CardDB.card("voltexz")
 	var fg: Dictionary = CardDB.card("fulgurvoltz")
-	check(g.cost_of(a, vx) == 15 and g.cost_of(a, fg) == 12, "eletrica: custos base 15 e 12")
+	check(g.cost_of(a, vx) == 15 and g.cost_of(a, fg) == 14, "eletrica: custos base 15 e 14")
 	# only what leaks past the Reserva (2) at the start of the owner's next turn counts
 	g.players[a]["momentum"] = 3
 	g.players[a]["reserve"] = 1
@@ -1873,7 +1873,7 @@ func _test_eletrica() -> void:
 	g.end_turn(o)
 	check(g.players[a]["saved_momentum"] == 2 and g.players[a]["idle_turns"] == 1, "eletrica: conta só o que vazou da Reserva (1+3-2)")
 	check(g.players[o]["saved_momentum"] == 0 and g.players[o]["idle_turns"] == 0, "eletrica: o que cabe na Reserva não conta")
-	check(g.cost_of(a, vx) == 13 and g.cost_of(a, fg) == 9, "eletrica: custo cai com o que vazou")
+	check(g.cost_of(a, vx) == 13 and g.cost_of(a, fg) == 11, "eletrica: custo cai com o que vazou")
 	# spending on the opponent's turn reduces the savings (counted at the owner's next start)
 	g = _eletrica_game()
 	a = g.active
@@ -2385,9 +2385,9 @@ func _test_self_response() -> void:
 	g.pass_priority(1)
 	check(g.stack.is_empty(), "sem jogada legal pra quem lançou: a pilha resolve direto quando o oponente passa")
 
-## Deck "Ladeira de Nythera": Ritual do Degelo (+1 nível, +3 Momentum), Ladeira Abaixo e Sem Freio (dobra o nível),
+## Deck "Ladeira de Nythera": Ritual do Degelo (+1 nível, +3 Momentum), Ladeira Abaixo e Sem Freio (sobe metade do nível, arredondada para cima),
 ## a Wanessa que vira Tempesfrost ao cruzar para Grande, e a Bola de Neve que a Tempesfrost lança no Líder.
-## Fixture: turn-7 resources (7 Momentum + 2 Reserva), Wanessa untransformed, Bola de Neve level 3-5.
+## Fixture: turn-8 resources (8 Momentum + 2 Reserva), Wanessa untransformed, Bola de Neve level 3-5.
 func _combo_game(level: int, enemy_units: int, momentum: int, reserve: int) -> Dictionary:
 	var g := _glacial_game()
 	var a := g.active
@@ -2402,13 +2402,17 @@ func _combo_game(level: int, enemy_units: int, momentum: int, reserve: int) -> D
 	var princess := _put(g, a, "princesa_wanessa")
 	return {"game": g, "me": a, "foe": o, "enemies": enemies, "princess": princess}
 
+## Level after one Ladeira: it grows by half of itself, rounded up.
+func _after_ladeira(level: int) -> int:
+	return level + (level + 1) / 2
+
 func _test_glacial_combo() -> void:
 	_tcard("teste_alvo_gelo", 0, 20, [])
-	# the full combo: Ritual, Ladeira, Ladeira, Grande Bola de Neve, then Tempesfrost attacks the Leader
-	for level in [3, 4, 5]:
+	# the full combo: Ladeira, Ritual, Ladeira, Grande Bola de Neve, then Tempesfrost attacks the Leader
+	for level in [3, 4]:
 		for enemy_count in [1, 2]:
 			var label := "nível %d, %d inimigas" % [level, enemy_count]
-			var setup := _combo_game(level, enemy_count, 7, 2)
+			var setup := _combo_game(level, enemy_count, 8, 2)
 			var g: GameState = setup["game"]
 			var a: int = setup["me"]
 			var o: int = setup["foe"]
@@ -2416,38 +2420,48 @@ func _test_glacial_combo() -> void:
 			var first_enemy: Card = setup["enemies"][0]
 			var waiting_bola := Card.new(g._uid(), "bola_de_neve", a, "hand")
 			g.players[a]["hand"].append(waiting_bola)
-			_cast_and_resolve(g, a, "ritual_do_degelo")
-			check(princess.card_id == "princesa_wanessa" and int(g.players[a]["snowball"]) == level + 1, "combo (%s): o Ritual sobe 1 nível e Wanessa ainda não transformou" % label)
-			check(waiting_bola.card_id == "bola_de_neve", "combo (%s): abaixo do nível 8 a Bola de Neve na mão continua comum" % label)
+			# Ladeira goes FIRST: the Ritual's +3 Momentum is capped at 10, so casting it with 8 Momentum wastes 1 and the Grande no longer fits
 			_cast_and_resolve(g, a, "ladeira_abaixo_e_sem_freio")
-			check(int(g.players[a]["snowball"]) == (level + 1) * 2 and g.snowball_is_grande(a), "combo (%s): a primeira Ladeira dobra o nível e cruza para Grande" % label)
+			check(int(g.players[a]["snowball"]) == _after_ladeira(level), "combo (%s): a primeira Ladeira sobe metade do nível" % label)
+			_cast_and_resolve(g, a, "ritual_do_degelo")
+			check(int(g.players[a]["snowball"]) == _after_ladeira(level) + 1, "combo (%s): o Ritual sobe 1 nível" % label)
+			_cast_and_resolve(g, a, "ladeira_abaixo_e_sem_freio")
+			check(int(g.players[a]["snowball"]) == _after_ladeira(_after_ladeira(level) + 1) and g.snowball_is_grande(a), "combo (%s): a segunda Ladeira leva o nível a Grande (%d)" % [label, int(g.players[a]["snowball"])])
 			check(princess.card_id == "wanessa_tempesfrost" and not princess.sick, "combo (%s): Wanessa vira Tempesfrost ao nível virar Grande e já pode atacar" % label)
 			check(g.players[o]["board"].all(func(c: Card): return c.frozen > 0), "combo (%s): ao transformar, todas as unidades inimigas ficam congeladas" % label)
-			_cast_and_resolve(g, a, "ladeira_abaixo_e_sem_freio")
-			check(int(g.players[a]["snowball"]) >= 16, "combo (%s): a segunda Ladeira leva o nível a 16 ou mais (%d)" % [label, int(g.players[a]["snowball"])])
 			check(waiting_bola.card_id == "grande_bola_de_neve", "combo (%s): a Bola de Neve que esperava na mão evoluiu ao cruzar o nível 8" % label)
 			var grande_cost := g.cost_of(a, CardDB.card(waiting_bola.card_id))
-			check(grande_cost == 3 and g.budget(a, true) == 3, "combo (%s): sobram exatamente 3 de Momentum para a Grande Bola de Neve (custo %d, sobra %d)" % [label, grande_cost, g.budget(a, true)])
+			check(grande_cost == 4 and g.budget(a, true) == 4, "combo (%s): sobram exatamente 4 de Momentum para a Grande Bola de Neve (custo %d, sobra %d)" % [label, grande_cost, g.budget(a, true)])
 			g.play_card(a, waiting_bola.uid, first_enemy.uid)
 			for guard in 8:
 				if g.stack.is_empty():
 					break
 				g.pass_priority(g.priority)
 			g._flush()
-			check(g.budget(a, true) == 0, "combo (%s): o combo gasta todo o Momentum do 7º turno" % label)
+			check(g.budget(a, true) == 0, "combo (%s): o combo gasta todo o Momentum do 8º turno" % label)
 			_hit(g, princess, GameState.LEADER_UID[o])
 			var leader_damage: int = 60 - int(g.players[o]["leader_hp"])
-			check(leader_damage >= 21, "combo (%s): dano ao Líder inimigo foi %d (esperado 21 ou mais)" % [label, leader_damage])
+			check(leader_damage >= 10, "combo (%s): dano ao Líder inimigo foi %d (esperado 10 ou mais)" % [label, leader_damage])
 
-	# one turn earlier (6 Momentum + 2 Reserva) the last Grande Bola de Neve no longer fits
-	var early := _combo_game(3, 1, 6, 2)
+	# one turn earlier (7 Momentum + 2 Reserva) the last Grande Bola de Neve no longer fits
+	var early := _combo_game(3, 1, 7, 2)
 	var early_game: GameState = early["game"]
 	var early_player: int = early["me"]
+	_cast_and_resolve(early_game, early_player, "ladeira_abaixo_e_sem_freio")
 	_cast_and_resolve(early_game, early_player, "ritual_do_degelo")
 	_cast_and_resolve(early_game, early_player, "ladeira_abaixo_e_sem_freio")
-	_cast_and_resolve(early_game, early_player, "ladeira_abaixo_e_sem_freio")
 	var early_bola := _give(early_game, early_player, "grande_bola_de_neve")
-	check(not early_game.can_play(early_player, early_bola), "combo: no 6º turno falta Momentum para a Grande Bola de Neve")
+	check(not early_game.can_play(early_player, early_bola), "combo: no 7º turno falta Momentum para a Grande Bola de Neve")
+
+	# the Ritual first wastes Momentum: the +3 hits the cap of 10, so even at turn 8 the Grande does not fit
+	var wasteful := _combo_game(3, 1, 8, 2)
+	var wasteful_game: GameState = wasteful["game"]
+	var wasteful_player: int = wasteful["me"]
+	_cast_and_resolve(wasteful_game, wasteful_player, "ritual_do_degelo")
+	_cast_and_resolve(wasteful_game, wasteful_player, "ladeira_abaixo_e_sem_freio")
+	_cast_and_resolve(wasteful_game, wasteful_player, "ladeira_abaixo_e_sem_freio")
+	var wasteful_bola := _give(wasteful_game, wasteful_player, "grande_bola_de_neve")
+	check(not wasteful_game.can_play(wasteful_player, wasteful_bola), "combo: com o Ritual primeiro o teto de 10 desperdiça Momentum e a Grande não cabe")
 
 	# Ritual alone: +1 level and the 3 Momentum come back (net +2)
 	var ritual := _combo_game(3, 1, 7, 0)
@@ -2459,7 +2473,7 @@ func _test_glacial_combo() -> void:
 	var crossing := _combo_game(5, 1, 10, 0)
 	var crossing_game: GameState = crossing["game"]
 	_cast_and_resolve(crossing_game, crossing["me"], "ladeira_abaixo_e_sem_freio")
-	check(crossing["princess"].card_id == "wanessa_tempesfrost", "Ladeira: nível 5 dobra para 10 e cruza para Grande")
+	check(crossing["princess"].card_id == "wanessa_tempesfrost", "Ladeira: nível 5 sobe para 8 e cruza para Grande")
 	var late_princess := _put(crossing_game, crossing["me"], "princesa_wanessa")
 	crossing_game.set_snowball_level(crossing["me"], 20)
 	check(late_princess.card_id == "princesa_wanessa", "snowball_grande só dispara na passagem: já Grande, subir mais não transforma")
@@ -2470,7 +2484,7 @@ func _test_glacial_combo() -> void:
 	var tempesfrost := _put(attack_game, attack["me"], "wanessa_tempesfrost")
 	_hit(attack_game, tempesfrost, GameState.LEADER_UID[attack["foe"]])
 	var attack_damage: int = 60 - int(attack_game.players[attack["foe"]]["leader_hp"])
-	check(attack_damage >= 12 and attack_damage == 8 + attack_game.atk_of(tempesfrost), "Tempesfrost: o ataque dá a Bola de Neve (8) + ATK no Líder (%d)" % attack_damage)
+	check(attack_damage >= 10 and attack_damage == 8 + attack_game.atk_of(tempesfrost), "Tempesfrost: o ataque dá a Bola de Neve (8) + ATK no Líder (%d)" % attack_damage)
 	check(int(attack_game.players[attack["me"]]["snowball"]) == 8, "Tempesfrost: a Bola lançada no Líder não faz o nível crescer")
 	check(attack["enemies"][0].damage == 0, "Tempesfrost: a Bola no Líder não bate na unidade inimiga")
 
@@ -2504,7 +2518,7 @@ func _test_glacial_combo() -> void:
 	check(fifi_victim.damage >= 8, "Fifi + Tempesfrost: a unidade exausta pode ser desafiada e leva a Bola (dano %d)" % fifi_victim.damage)
 
 	# Espectro do Gelo Aprisionante: like Fifi, Ao Entrar freezes AND exhausts the chosen enemy unit (cost 4 now)
-	check(int(CardDB.card("espectro_do_gelo_aprisionante")["cost"]) == 4, "Espectro: custo 4")
+	check(int(CardDB.card("espectro_do_gelo_aprisionante")["cost"]) == 5 and int(CardDB.card("espectro_do_gelo_aprisionante")["atk"]) == 2 and int(CardDB.card("espectro_do_gelo_aprisionante")["hp"]) == 4, "Espectro: custo 5, 2/4")
 	var espectro := _combo_game(8, 2, 10, 0)
 	var espectro_game: GameState = espectro["game"]
 	var espectro_victim: Card = espectro["enemies"][0]
@@ -2514,9 +2528,9 @@ func _test_glacial_combo() -> void:
 	check(espectro_victim.exhausted and espectro_victim.frozen > 0, "Espectro: Ao Entrar congela e exaure a unidade escolhida")
 	check(not espectro["enemies"][1].exhausted and espectro["enemies"][1].frozen == 0, "Espectro: a outra unidade inimiga não é afetada")
 
-	# Rei Gelado: 5 random slots of the enemy field. Units in them are frozen+exhausted, empty ones are blocked,
-	# so units hit + slots blocked is always 5 (whatever the draw)
-	check(int(CardDB.card("rei_gelado")["atk"]) == 5 and int(CardDB.card("rei_gelado")["hp"]) == 7, "Rei Gelado: 5/7")
+	# Rei Gelado: 4 random slots of the enemy field. Units in them are frozen+exhausted, empty ones are blocked,
+	# so units hit + slots blocked is always 4 (whatever the draw)
+	check(int(CardDB.card("rei_gelado")["atk"]) == 6 and int(CardDB.card("rei_gelado")["hp"]) == 7, "Rei Gelado: 6/7")
 	for enemy_count in [0, 3, 6, 8]:
 		var rei := _combo_game(8, enemy_count, 10, 0)
 		var rei_game: GameState = rei["game"]
@@ -2524,24 +2538,24 @@ func _test_glacial_combo() -> void:
 		_cast_and_resolve(rei_game, rei["me"], "rei_gelado")
 		var frozen_units: Array = rei["enemies"].filter(func(c: Card): return c.frozen > 0)
 		var blocked_slots: int = int(rei_game.players[rei_foe]["frozen_slots"])
-		check(frozen_units.size() + blocked_slots == 5, "Rei Gelado (%d inimigas): unidades atingidas (%d) + espaços vazios bloqueados (%d) = 5" % [enemy_count, frozen_units.size(), blocked_slots])
+		check(frozen_units.size() + blocked_slots == 4, "Rei Gelado (%d inimigas): unidades atingidas (%d) + espaços vazios bloqueados (%d) = 4" % [enemy_count, frozen_units.size(), blocked_slots])
 		check(frozen_units.all(func(c: Card): return c.exhausted), "Rei Gelado (%d inimigas): toda unidade atingida também fica exausta" % enemy_count)
 		check(rei["enemies"].all(func(c: Card): return c.frozen > 0 or not c.exhausted), "Rei Gelado (%d inimigas): unidade fora dos espaços sorteados não é afetada" % enemy_count)
 		check(rei["princess"].frozen == 0 and int(rei_game.players[rei["me"]]["frozen_slots"]) == 0, "Rei Gelado (%d inimigas): o campo de quem lançou não é afetado" % enemy_count)
 
-	# empty frozen slots take room: with 8 empty slots 5 are blocked, so only 3 units fit
+	# empty frozen slots take room: with 8 empty slots 4 are blocked, so only 4 units fit
 	var block := _combo_game(8, 0, 10, 0)
 	var block_game: GameState = block["game"]
 	var block_foe: int = block["foe"]
 	_cast_and_resolve(block_game, block["me"], "rei_gelado")
-	check(int(block_game.players[block_foe]["frozen_slots"]) == 5, "Rei Gelado: campo inimigo vazio tem 5 espaços congelados")
-	for filler in 3:
-		check(block_game.has_free_slot(block_foe), "Rei Gelado: ainda cabe a unidade %d nos 3 espaços livres" % (filler + 1))
+	check(int(block_game.players[block_foe]["frozen_slots"]) == 4, "Rei Gelado: campo inimigo vazio tem 4 espaços congelados")
+	for filler in 4:
+		check(block_game.has_free_slot(block_foe), "Rei Gelado: ainda cabe a unidade %d nos 4 espaços livres" % (filler + 1))
 		_put(block_game, block_foe, "teste_alvo_gelo")
-	check(not block_game.has_free_slot(block_foe), "Rei Gelado: com 3 unidades e 5 espaços congelados o campo inimigo está cheio")
+	check(not block_game.has_free_slot(block_foe), "Rei Gelado: com 4 unidades e 4 espaços congelados o campo inimigo está cheio")
 	# they thaw at the END of the victim's own next turn, not before
 	block_game.end_turn(block["me"])
-	check(block_game.active == block_foe and int(block_game.players[block_foe]["frozen_slots"]) == 5, "Rei Gelado: os espaços seguem congelados durante o turno do oponente")
+	check(block_game.active == block_foe and int(block_game.players[block_foe]["frozen_slots"]) == 4, "Rei Gelado: os espaços seguem congelados durante o turno do oponente")
 	block_game.end_turn(block_foe)
 	check(int(block_game.players[block_foe]["frozen_slots"]) == 0 and block_game.has_free_slot(block_foe), "Rei Gelado: os espaços descongelam no fim do turno do oponente")
 
@@ -2656,8 +2670,8 @@ func _test_glacial() -> void:
 	check(g.players[o]["leader_hp"] == leader_before - 5 and g.players[a]["snowball"] == 5, "bola no Líder: um golpe só, sem aumentar o nível")
 
 	# Grande Bola de Neve is its own card: own cost, and every hit has Sobrepujança
-	check(g.cost_of(a, CardDB.card("bola_de_neve")) == 2, "Bola de Neve comum custa 2")
-	check(g.cost_of(a, CardDB.card("grande_bola_de_neve")) == 3, "Grande Bola de Neve custa 3")
+	check(g.cost_of(a, CardDB.card("bola_de_neve")) == 3, "Bola de Neve comum custa 3")
+	check(g.cost_of(a, CardDB.card("grande_bola_de_neve")) == 4, "Grande Bola de Neve custa 4")
 	check(CardDB.card("grande_bola_de_neve").get("transform_only", false), "Grande Bola de Neve só existe por evolução (não entra em deck)")
 	_tcard("teste_frágil_gelo", 0, 3, [])
 	var fragile := _put(g, o, "teste_frágil_gelo")
@@ -2710,7 +2724,7 @@ func _test_glacial() -> void:
 	g._flush()
 	check(int(g.players[a]["snowball"]) >= 8 and crossing_bola.card_id == "grande_bola_de_neve" and crossing_bola.zone == "graveyard", "a Bola que cruza o nível 8 termina no cemitério já como Grande")
 
-	# a Bola cast by a unit (Nythera, Ao Entrar) has no card, but from level 8 on it is Grande too: Sobrepujança
+	# Nythera, Ao Entrar: puts a Bola de Neve on top of her owner's deck (born Grande from level 8 on) and freezes
 	for level in [7, 8]:
 		g = _glacial_game()
 		a = g.active
@@ -2723,8 +2737,10 @@ func _test_glacial() -> void:
 		_cast_and_resolve(g, a, "nythera")
 		g.choose_enter_target(a, nythera_target.uid) # her Ao Entrar target is chosen after she enters
 		g._flush()
-		var overflowed: bool = g.players[o]["leader_hp"] < leader_before
-		check(overflowed == (level == 8), "Nythera ao entrar (nível %d): Sobrepujança só com a Bola Grande (nível 8+)" % level)
+		var top_card: Card = g.players[a]["deck"].back()
+		var expected_top := "grande_bola_de_neve" if level == 8 else "bola_de_neve"
+		check(top_card.card_id == expected_top and top_card.zone == "deck", "Nythera ao entrar (nível %d): põe %s no topo do deck" % [level, expected_top])
+		check(g.players[o]["leader_hp"] == leader_before and nythera_target.frozen > 0 and int(g.players[a]["snowball"]) == level, "Nythera ao entrar (nível %d): não lança a Bola (sem dano nem nível novo) e congela o alvo" % level)
 
 	# Zero Absoluto: rápido, custa 4 e congela todas as unidades inimigas (e só elas)
 	g = _glacial_game()
@@ -2751,7 +2767,7 @@ func _test_glacial() -> void:
 	check(princess.card_id == "princesa_wanessa", "Wanessa não se transforma com uma Bola de Neve comum")
 	g.players[a]["snowball"] = 8
 	_cast_and_resolve(g, a, "grande_bola_de_neve", target_unit.uid)
-	check(princess.card_id == "wanessa_tempesfrost" and princess.keywords.has("voo"), "Wanessa vira Tempesfrost ao ver uma Grande Bola de Neve")
+	check(princess.card_id == "wanessa_tempesfrost" and princess.keywords.has("sobrepujanca") and not princess.keywords.has("voo"), "Wanessa vira Tempesfrost ao ver uma Grande Bola de Neve")
 
 	# Amuleto do Primeiro Floco: only the first glacial spell each turn is cheaper
 	g = _glacial_game()
@@ -2798,6 +2814,18 @@ func _test_glacial() -> void:
 	check(g.phase == "main" and discarded_in_graveyard, "folheio: a carta escolhida vai pro cemitério")
 	check(g.players[a]["hand"].size() == hand_before + 3 - 1, "folheio: comprou 3 e descartou 1 (a própria carta já saiu da mão)")
 	check(g.players[a]["graveyard"].size() == graveyard_before + 2, "folheio: cemitério ganhou o feitiço e a carta descartada")
+
+	# Weyne: her spell trigger works once per turn (buff and freeze), not once per spell
+	g = _glacial_game()
+	a = g.active
+	o = g.opponent(a)
+	g.players[a]["momentum"] = 30
+	var weyne := _put(g, a, "weyne")
+	var weyne_victim := _put(g, o, "teste_alvo_gelo")
+	var weyne_atk_before: int = g.atk_of(weyne)
+	_cast_and_resolve(g, a, "estilhaco_gelido", weyne_victim.uid)
+	_cast_and_resolve(g, a, "estilhaco_gelido", weyne_victim.uid)
+	check(g.atk_of(weyne) == weyne_atk_before + 1, "weyne: só ganha +1/+1 uma vez por turno, mesmo com 2 feitiços glaciais")
 
 	# Mestra do Gelo Frígido pings when a glacial spell is cast
 	g = _glacial_game()

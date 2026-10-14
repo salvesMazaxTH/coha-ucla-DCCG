@@ -5,7 +5,8 @@ extends RefCounted
 
 ## Performs one action for player p. Returns its events, or [] when the AI
 ## has nothing more to do (the caller should then stop asking).
-static func step(g: GameState, p: int) -> Array:
+## `held_card_ids`: cards the AI must not play on its own (a scripted pilot, see ComboPilot, plays them).
+static func step(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 	match g.phase:
 		"mulligan":
 			var cards_to_return: Array = []
@@ -36,13 +37,13 @@ static func step(g: GameState, p: int) -> Array:
 				return attack_events if not attack_events.is_empty() else g.end_combat(p)
 			# the pre-combat window (or an answer on the stack): play a Rápido/Instantâneo if there
 			# is a worthwhile one, otherwise pass
-			var events := _try_play(g, p)
+			var events := _try_play(g, p, held_card_ids)
 			return events if not events.is_empty() else g.pass_priority(p)
 		"main":
 			if not g.stack.is_empty() or p != g.active:
-				var response := _try_play(g, p)
+				var response := _try_play(g, p, held_card_ids)
 				return response if not response.is_empty() else g.pass_priority(p)
-			var events := _try_play(g, p)
+			var events := _try_play(g, p, held_card_ids)
 			if not events.is_empty():
 				return events
 			if g.can_go_to_combat(p):
@@ -77,7 +78,7 @@ static func _choose_search(g: GameState) -> int:
 			best_uid = int(option["uid"])
 	return best_uid
 
-static func _try_play(g: GameState, p: int) -> Array:
+static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 	if g.can_cast_legendary(p):
 		var events := g.cast_legendary(p)
 		if not events.is_empty():
@@ -85,7 +86,7 @@ static func _try_play(g: GameState, p: int) -> Array:
 	# hand first; Réquiem spells in the graveyard are the fallback (they cost 2 more)
 	var candidates: Array = _hand_most_expensive_first(g, p) + g.requiem_cards(p)
 	for card: Card in candidates:
-		if not g.can_play(p, card.uid):
+		if held_card_ids.has(card.card_id) or not g.can_play(p, card.uid):
 			continue
 		var card_data := CardDB.card(card.card_id)
 		var is_unit: bool = card_data["type"] == "unit"
