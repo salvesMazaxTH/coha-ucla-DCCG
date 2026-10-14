@@ -2880,6 +2880,16 @@ func _test_glacial() -> void:
 			ward_event = event
 	check(not ward_event.is_empty() and int(ward_event["src"]) == striker.uid and int(ward_event["uid"]) == ward_chamber.uid, "câmara: o evento traz a unidade que bateu e a própria câmara")
 
+	# Morwenna Raiz-Podre: +2/+2 per ally death, at most 3 times (1/3 grows to 7/9 and stops)
+	g = _obscura_game()
+	a = g.active
+	var morwenna := _put(g, a, "morwenna_raiz_podre")
+	for ally_number in 5:
+		_kill(g, _put(g, a, "teste_alvo_gelo"))
+		if ally_number == 0:
+			check(g.atk_of(morwenna) == 3 and g.hp_left(morwenna) == 5, "morwenna: a primeira morte de aliado dá +2/+2 (3/5)")
+	check(g.atk_of(morwenna) == 7 and g.hp_left(morwenna) == 9, "morwenna: depois de 5 mortes de aliados ela para em 7/9")
+
 	# Folheio Pé-na-Neve: draws 3, then the player picks a card from the hand and it goes to the graveyard
 	g = _glacial_game()
 	a = g.active
