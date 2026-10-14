@@ -9,7 +9,9 @@
   "cost": 2,
   "atk": 1,
   "hp": 3,
-  "keywords": [],
+  "keywords": [
+    "voo"
+  ],
   "art": "glacial/espirito_da_aurora.webp",
   "effects": [
     {
@@ -19,7 +21,7 @@
       "amount": 1
     }
   ],
-  "text": "Ao Entrar: compre 1 carta.",
+  "text": "Voo.\nAo Entrar: compre 1 carta.",
   "flavor": "Aparece junto com a luz. Traz uma ideia de brinde.",
   "tags": []
 }

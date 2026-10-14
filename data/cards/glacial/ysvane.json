@@ -9,7 +9,7 @@
   "essence": "glacial",
   "cost": 4,
   "atk": 2,
-  "hp": 5,
+  "hp": 6,
   "keywords": [
     "armadura:1"
   ],
@@ -34,28 +34,13 @@
       ]
     },
     {
-      "listen": "spell_cast",
-      "scope": "ally",
-      "zones": [
-        "board"
-      ],
-      "when": {
-        "essence_glacial": true
-      },
-      "action": "buff",
-      "target": "random_ally_unit",
-      "keywords": [
-        "escudo"
-      ]
-    },
-    {
       "trigger": "on_death",
       "action": "heal_leader",
       "target": "own_leader",
       "amount": 4
     }
   ],
-  "text": "Armadura 1.\nAo Entrar: uma unidade aliada aleatória ganha +2 de Vida e Escudo, e você recupera uma Bola de Neve do seu cemitério (ela é banida depois de lançada).\nSempre que você lançar um feitiço glacial, uma unidade aliada aleatória ganha Escudo.\nAo Morrer: cure 4 de Vida do seu Líder.",
+  "text": "Armadura 1.\nAo Entrar: uma unidade aliada aleatória ganha +2 de Vida e Escudo, e você recupera uma Bola de Neve do seu cemitério (ela é banida depois de lançada).\nAo Morrer: cure 4 de Vida do seu Líder.",
   "flavor": "Velha o bastante para ser o cofre, e não a guardiã.",
   "tags": []
 }
