@@ -12,6 +12,9 @@ extends Effect
 ## evolve, so when the caster is at Grande level the effect casts the Grande Bola de Neve card's effect
 ## instead of its own: every Bola is Grande from level 8 on, and that card stays the one definition.
 ## Aimed at a Leader (negative uid) it is one plain hit: no bounce, and the level doesn't grow.
+## A Bola cast by a unit is not thrown at once: it goes onto the stack as the Bola de Neve card (the
+## Grande one at Grande level), exactly like one played from the hand, so the opponent can respond
+## or counter it. It hits when that stack item resolves (see StackSystem.push_unit_snowball).
 
 var overflow_to_leader := false ## set by the Grande Bola de Neve card itself
 
@@ -28,6 +31,10 @@ func _grande_effect() -> Effect:
 func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
 	var caster: int = context.controller
+	if context.trigger != "on_play":
+		var card_id: String = GameState.GRANDE_SNOWBALL_CARD_ID if game.snowball_is_grande(caster) else GameState.SNOWBALL_CARD_ID
+		game.stack_system().push_unit_snowball(caster, context.self_uid, card_id, target_uid)
+		return
 	# a Bola without a card to evolve (cast by a unit) becomes the Grande one as soon as its caster is Grande
 	if not overflow_to_leader and game.snowball_is_grande(caster):
 		_grande_effect().apply(context, target_uid)

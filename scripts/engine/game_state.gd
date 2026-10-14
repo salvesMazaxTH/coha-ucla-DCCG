@@ -410,17 +410,19 @@ func snowball_is_grande(p: int) -> bool:
 ## Neve. The card keeps its uid, its discount and its cost changes: only the card it is changes.
 func _evolve_snowball_cards(p: int) -> void:
 	var evolved := 0
+	var evolved_uids: Array = [] # lets the UI play the transformation on the cards that are visible (the hand)
 	for zone_name in ["hand", "deck", "graveyard"]:
 		for c: Card in players[p][zone_name]:
 			if c.card_id == SNOWBALL_CARD_ID:
 				c.card_id = GRANDE_SNOWBALL_CARD_ID
 				evolved += 1
+				evolved_uids.append(c.uid)
 	for item in stack:
 		if int(item["player"]) == p and item["kind"] == "card" and item["card_id"] == SNOWBALL_CARD_ID:
 			item["card_id"] = GRANDE_SNOWBALL_CARD_ID
 			evolved += 1
 	if evolved > 0:
-		_emit({"type": "snowball_evolve", "player": p, "count": evolved})
+		_emit({"type": "snowball_evolve", "player": p, "count": evolved, "uids": evolved_uids})
 
 ## Momentum off the first spell of an essence each turn, from an equipped "spell_discount" artifact
 ## (Amuleto Glacial) on one of p's units. 0 when there is none, it is not that essence, or it was spent.

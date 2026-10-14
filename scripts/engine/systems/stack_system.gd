@@ -63,8 +63,9 @@ func counter_extra(cd: Dictionary, sid: int) -> int:
 		return -1
 	return 0
 
-func push(p: int, kind: String, uid: int, card_id: String, target: int, speed: String, target2: int = 0, requiem := false) -> void:
+func push(p: int, kind: String, uid: int, card_id: String, target: int, speed: String, target2: int = 0, requiem := false, extra_fields: Dictionary = {}) -> void:
 	var item := {"sid": game._uid(), "player": p, "kind": kind, "uid": uid, "card_id": card_id, "target": target, "target2": target2, "speed": speed}
+	item.merge(extra_fields)
 	if requiem:
 		item["requiem"] = true # cast from the graveyard: banished when the cast ends
 	game.stack.append(item)
@@ -73,6 +74,16 @@ func push(p: int, kind: String, uid: int, card_id: String, target: int, speed: S
 	game.stack_passed = false # every new item restarts the round of passes
 	game.priority = game.opponent(p)
 	game._emit({"type": "stack_push", "item": item.duplicate()})
+
+## A Bola de Neve cast by a unit (Wanessa Tempesfrost's Ao Atacar): a card item with no real card behind
+## it. "virtual" = it never goes to a hand or graveyard; "forced_target" = it keeps its target even when
+## a Bola from the hand couldn't aim there (the enemy Leader, an exhausted unit); "source_uid" = the unit
+## that cast it (where the UI draws the ghost from).
+func push_unit_snowball(p: int, source_uid: int, card_id: String, target: int) -> void:
+	var cast_uid := game._uid()
+	# the same "play" event a card from the hand sends: the UI shows the card (flying out of the casting unit)
+	game._emit({"type": "play", "player": p, "uid": cast_uid, "card_id": card_id, "source_uid": source_uid})
+	push(p, "card", cast_uid, card_id, target, "lento", 0, false, {"virtual": true, "forced_target": true, "source_uid": source_uid})
 
 func effects_of(item: Dictionary) -> Array:
 	if item["kind"] == "ability":
@@ -92,6 +103,8 @@ func resolve_stack() -> void:
 		var effects := effects_of(item)
 		var spec := game.target_spec(effects)
 		var gone := spec != "" and not game.valid_targets(p, spec).has(int(item["target"]))
+		if item.get("forced_target", false):
+			gone = int(item["target"]) > 0 and game.find_unit(int(item["target"])) == null # only a unit that left the board is lost
 		if gone and item["kind"] == "card" and CardDB.card(item["card_id"]).get("same_target_ok", false) and game.valid_targets(p, spec).has(int(item.get("target2", 0))):
 			gone = false # twin bolts: the other target is still there, only this bolt is lost
 		if gone:
@@ -100,10 +113,13 @@ func resolve_stack() -> void:
 			game._emit({"type": "resolve", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"]})
 			var resolve_context := EffectContext.new(game, p, "on_play" if item["kind"] == "card" else "")
 			resolve_context.chosen_target = int(item["target"])
+			resolve_context.forced_target = item.get("forced_target", false)
 			resolve_context.second_target = int(item.get("target2", 0))
 			resolve_context.self_uid = int(item["uid"]) if item["kind"] == "unit_ability" else 0
 			game._run_effects(resolve_context, effects)
-		if item["kind"] == "card":
+		if item.get("virtual", false):
+			pass # cast by a unit: there is no card to send anywhere
+		elif item["kind"] == "card":
 			var holder := game.find_unit(int(item["target"]))
 			var played := take_stack_card(item)
 			if CardDB.is_equipment(CardDB.card(item["card_id"])) and holder != null and spec != "" and game.valid_targets(p, spec).has(int(item["target"])):
@@ -118,6 +134,8 @@ func resolve_stack() -> void:
 		elif item["kind"] == "subito":
 			_resolve_subito(item)
 		game._check_state()
+	if game.stack.is_empty():
+		game.combat_system().finish_pending_attack() # the attack that cast it deals its combat damage now
 	if game.phase in ["main", "combat"] and game.stack.is_empty():
 		game.summon_window = false
 		game.priority = window_owner()
@@ -165,7 +183,9 @@ func counter(p: int, sid: int) -> void:
 	if it.is_empty() or is_uncounterable(it):
 		return
 	game.stack.erase(it)
-	if it["kind"] in ["card", "subito"]:
+	if it.get("virtual", false):
+		pass # a countered unit-cast Bola just disappears
+	elif it["kind"] in ["card", "subito"]:
 		var countered := take_stack_card(it)
 		if it.get("requiem", false) or countered.banish_after_cast:
 			game._banish_requiem(countered)
@@ -245,10 +265,11 @@ func settle() -> void:
 			return # a Provocação just entered: its controller chooses tapped or not first
 		if game.stack.is_empty():
 			game.stack_passed = false
+			game.combat_system().finish_pending_attack()
 		if game.stack.is_empty() and game.phase == "main" and not game.summon_window:
 			game.priority = game.active
 			return
-		if game.phase == "combat" and game.window == "attacks":
+		if game.phase == "combat" and game.window == "attacks" and game.stack.is_empty():
 			return # the attacker declares attacks (or ends combat) by hand; never auto-pass here
 		if not game.auto_pass[game.priority] or has_play(game.priority):
 			return

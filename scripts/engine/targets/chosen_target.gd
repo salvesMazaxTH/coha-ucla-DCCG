@@ -11,6 +11,9 @@ func needs_choice() -> bool:
 
 func resolve(context: EffectContext, effect: Effect) -> Array:
 	var pick := context.second_target if effect.uses_second_pick else context.chosen_target
+	# a forced target (Bola de Neve of a unit) may be a Leader or an exhausted unit that "enemy_unit" would refuse
+	if context.forced_target and pick != 0 and (pick < 0 or context.game.find_unit(pick) != null):
+		return [pick]
 	if context.game.valid_targets(context.controller, name, context.self_uid).has(pick):
 		return [pick]
 	return []

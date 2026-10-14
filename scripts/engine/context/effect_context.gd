@@ -10,6 +10,7 @@ var trigger := "" ## the trigger being resolved ("" = run every effect, e.g. spe
 var self_uid := 0 ## the unit whose effects these are (0 for spells and leader abilities)
 var other_uid := 0 ## the opposing unit in combat triggers (blocker, attacker, damage source)
 var chosen_target := 0 ## the target picked when the card was played
+var forced_target := false ## the chosen target needs no re-check (a Bola de Neve cast by a unit aims at what the unit attacked)
 var second_target := 0 ## the second pick ("pick"/"pick2", e.g. the damage target of a sacrifice spell)
 var dying_card: Card = null ## the unit whose Ao Morrer is resolving (for summon "self" and revive_self)
 var sacrificed_attack := 0 ## total attack of the unit a "sacrifice" just killed (read by its "then" effects)

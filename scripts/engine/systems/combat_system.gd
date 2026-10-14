@@ -10,6 +10,9 @@ extends RefCounted
 ##      until they press "ENCERRAR COMBATE" or no unit can attack anymore.
 
 var game: GameState
+## An attack whose Ao Atacar put something on the stack (a Bola de Neve): its combat damage waits
+## until the stack is empty. {"attacker": uid, "target": uid}, or empty when no attack is waiting.
+var pending_attack: Dictionary = {}
 
 func _init(game_state: GameState) -> void:
 	game = game_state
@@ -111,12 +114,23 @@ func attack(player: int, attacker_uid: int, target_uid: int) -> Array:
 		game._fire(attacker, "on_challenge", target_uid)
 		game._fire(defender_unit, "on_challenged", attacker_uid)
 	game._check_state()
-	if game.phase != "over":
-		_exchange_damage(attacker_uid, target_uid)
-	if game.phase != "over" and not has_any_attacker():
-		end_combat()
+	pending_attack = {"attacker": attacker_uid, "target": target_uid}
+	finish_pending_attack() # does nothing yet when the triggers left something on the stack
 	game.stack_system().settle()
 	return game._flush()
+
+## The attack's combat damage and the end of combat once no attacker is left. Waits while the stack
+## is not empty: whatever the attack's triggers cast resolves (or is countered) before the blows land.
+func finish_pending_attack() -> void:
+	if pending_attack.is_empty() or not game.stack.is_empty():
+		return
+	var attack_info := pending_attack
+	pending_attack = {}
+	if game.phase == "over":
+		return
+	_exchange_damage(int(attack_info["attacker"]), int(attack_info["target"]))
+	if game.phase != "over" and not has_any_attacker():
+		end_combat()
 
 ## The attacker and its target deal their combat damage in Rapidez order: the faster one strikes
 ## first, equal Rapidez strike at the same time. A unit that is already dead (a trigger above or the

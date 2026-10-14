@@ -893,6 +893,40 @@ func _skull(c: Vector2, r: float) -> void:
 		draw_circle(c + Vector2(sx * r * 0.27, -r * 0.14), r * 0.19, Color("#050506"))
 	draw_colored_polygon(PackedVector2Array([c + Vector2(0, r * 0.02), c + Vector2(-r * 0.08, r * 0.2), c + Vector2(r * 0.08, r * 0.2)]), Color("#050506"))
 
+## Snowflake outline with radius 1 around (0, 0): six arms, each with a pair of side branches. The branches
+## of neighbouring arms overlap, and Godot cannot fill a polygon that crosses itself (it draws nothing), so
+## every arm is its own simple polygon and they are merged into one clean outline. Built once, then reused.
+static var _snowflake_cache := PackedVector2Array()
+
+static func _snowflake_outline() -> PackedVector2Array:
+	if not _snowflake_cache.is_empty():
+		return _snowflake_cache
+	# one arm pointing up, as (across, along) offsets from the centre: the left side going out, then the
+	# mirrored right side coming back in. It starts at the centre so the six arms overlap there and merge.
+	var half_width := 0.1
+	var left_side := [
+		Vector2(-half_width, 0.0), Vector2(-half_width, 0.30), Vector2(-0.34, 0.58), Vector2(-0.26, 0.68),
+		Vector2(-half_width, 0.52), Vector2(-half_width, 0.84)]
+	var arm_outline: Array = left_side.duplicate()
+	arm_outline.append(Vector2(0, 1.0))
+	for side_index in range(left_side.size() - 1, -1, -1):
+		arm_outline.append(Vector2(-left_side[side_index].x, left_side[side_index].y))
+	var outline := PackedVector2Array()
+	for arm in 6:
+		var arm_polygon := PackedVector2Array()
+		for offset: Vector2 in arm_outline:
+			arm_polygon.append(Vector2(offset.x, -offset.y).rotated(arm * TAU / 6))
+		if outline.is_empty():
+			outline = arm_polygon
+			continue
+		# merging can also return holes (clockwise); the outer outline is the piece that is not a hole
+		for piece: PackedVector2Array in Geometry2D.merge_polygons(outline, arm_polygon):
+			if not Geometry2D.is_polygon_clockwise(piece):
+				outline = piece
+				break
+	_snowflake_cache = outline
+	return _snowflake_cache
+
 func _sigil(kind: String, c: Vector2, r: float) -> PackedVector2Array:
 	var n: Array
 	match kind:
@@ -904,21 +938,10 @@ func _sigil(kind: String, c: Vector2, r: float) -> PackedVector2Array:
 				var a := deg_to_rad(-30 + i * 20)
 				out.append(c + Vector2(0, r * 0.25) + Vector2(cos(a), sin(a)) * r * 0.62)
 			return out
-		"glacial": # snowflake: six thin arms, each with a pair of side branches near the middle
-			# one arm drawn pointing up as (across, along) offsets from the centre: left side going out,
-			# then the mirrored right side coming back in; the arm is then rotated six times
-			var half_width := 0.1
-			var left_side := [
-				Vector2(-half_width, 0.30), Vector2(-0.34, 0.58), Vector2(-0.26, 0.68),
-				Vector2(-half_width, 0.52), Vector2(-half_width, 0.84)]
-			var arm_outline: Array = left_side.duplicate()
-			arm_outline.append(Vector2(0, 1.0))
-			for side_index in range(left_side.size() - 1, -1, -1):
-				arm_outline.append(Vector2(-left_side[side_index].x, left_side[side_index].y))
+		"glacial": # snowflake: the unit outline (radius 1) scaled and moved to the requested spot
 			var out := PackedVector2Array()
-			for arm in 6:
-				for offset: Vector2 in arm_outline:
-					out.append(c + Vector2(offset.x, -offset.y).rotated(arm * TAU / 6) * r)
+			for unit_point in _snowflake_outline():
+				out.append(c + unit_point * r)
 			return out
 		"spell":
 			var out := PackedVector2Array()

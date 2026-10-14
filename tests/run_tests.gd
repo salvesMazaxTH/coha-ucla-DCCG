@@ -302,6 +302,8 @@ func _test_obscura() -> void:
 	gy = g.players[0]["graveyard"].size()
 	_put(g, 0, "o_espiritomante")
 	check(g.players[0]["graveyard"].size() == gy - 1, "necromante reviveu do cemitério")
+	# the revived skeleton has Provocação and would trigger an "enter tapped?" question that blocks later plays: tests tap by hand
+	g.pending_tap.clear()
 	# Colheita de Almas: sacrifice -> 4 damage to the enemy leader
 	var foe: int = g.players[1]["leader_hp"]
 	var fodder := _put(g, 0, "esqueleto_guerreiro")
@@ -2483,10 +2485,26 @@ func _test_glacial_combo() -> void:
 	var attack_game: GameState = attack["game"]
 	var tempesfrost := _put(attack_game, attack["me"], "wanessa_tempesfrost")
 	_hit(attack_game, tempesfrost, GameState.LEADER_UID[attack["foe"]])
+	_pass_windows(attack_game) # the Bola waits on the stack; combat damage lands once it resolves
 	var attack_damage: int = 60 - int(attack_game.players[attack["foe"]]["leader_hp"])
 	check(attack_damage >= 10 and attack_damage == 8 + attack_game.atk_of(tempesfrost), "Tempesfrost: o ataque dá a Bola de Neve (8) + ATK no Líder (%d)" % attack_damage)
 	check(int(attack_game.players[attack["me"]]["snowball"]) == 8, "Tempesfrost: a Bola lançada no Líder não faz o nível crescer")
 	check(attack["enemies"][0].damage == 0, "Tempesfrost: a Bola no Líder não bate na unidade inimiga")
+
+	# Tempesfrost: the Bola goes on the stack (reactable) before combat damage; countering it keeps the combat damage
+	var stacked := _combo_game(8, 1, 0, 0)
+	var stacked_game: GameState = stacked["game"]
+	var stacked_tempesfrost := _put(stacked_game, stacked["me"], "wanessa_tempesfrost")
+	stacked_game.auto_pass = [false, false] # nobody passes by themselves: the Bola stays on the stack
+	var stacked_graveyard_before: int = stacked_game.players[stacked["me"]]["graveyard"].size()
+	_hit(stacked_game, stacked_tempesfrost, GameState.LEADER_UID[stacked["foe"]])
+	check(stacked_game.stack.size() == 1 and stacked_game.stack[0]["card_id"] == "grande_bola_de_neve" and stacked_game.stack[0].get("virtual", false), "Tempesfrost: a Grande Bola de Neve (nível 8) vai para a pilha (reagível)")
+	check(int(stacked_game.players[stacked["foe"]]["leader_hp"]) == 60, "Tempesfrost: nada de dano enquanto a Bola espera na pilha")
+	stacked_game._counter(stacked["foe"], stacked_game.stack[0]["sid"])
+	_pass_windows(stacked_game)
+	var stacked_damage: int = 60 - int(stacked_game.players[stacked["foe"]]["leader_hp"])
+	check(stacked_damage == stacked_game.atk_of(stacked_tempesfrost), "Tempesfrost: Bola anulada, sobra só o dano de combate (%d)" % stacked_damage)
+	check(stacked_game.players[stacked["me"]]["graveyard"].size() == stacked_graveyard_before, "Tempesfrost: a Bola virtual não vai ao cemitério")
 
 	# Tempesfrost challenging a tapped enemy unit: the Bola is cast on THAT unit and bounces (the level grows)
 	var duel := _combo_game(8, 2, 0, 0)
@@ -2496,6 +2514,7 @@ func _test_glacial_combo() -> void:
 	duel_target.exhausted = true
 	var duel_leader_before: int = int(duel_game.players[duel["foe"]]["leader_hp"])
 	_hit(duel_game, duel_tempesfrost, duel_target.uid)
+	_pass_windows(duel_game)
 	var duel_total_damage: int = duel["enemies"][0].damage + duel["enemies"][1].damage
 	check(duel_target.damage >= 8, "Tempesfrost: desafiar uma unidade lança a Bola de Neve nela (dano %d)" % duel_target.damage)
 	check(duel["enemies"][1].damage == 9 or duel_total_damage >= 17, "Tempesfrost: a Bola lançada numa unidade quica para a vizinha (total %d)" % duel_total_damage)
@@ -2515,6 +2534,7 @@ func _test_glacial_combo() -> void:
 	var fifi_tempesfrost := _put(fifi_game, fifi["me"], "wanessa_tempesfrost")
 	fifi_tempesfrost.sick = false
 	_hit(fifi_game, fifi_tempesfrost, fifi_victim.uid)
+	_pass_windows(fifi_game)
 	check(fifi_victim.damage >= 8, "Fifi + Tempesfrost: a unidade exausta pode ser desafiada e leva a Bola (dano %d)" % fifi_victim.damage)
 
 	# Espectro do Gelo Aprisionante: like Fifi, Ao Entrar freezes AND exhausts the chosen enemy unit (cost 4 now)
@@ -2664,10 +2684,21 @@ func _test_glacial() -> void:
 	check(CardView.fill_live_numbers(bola_text, 1).contains("Cause 1 de dano"), "sem dono, o texto mostra o nível inicial (1)")
 
 	# a Bola aimed at a Leader is a plain hit and the level doesn't grow
+	var unit_cast_graveyard_before: int = g.players[a]["graveyard"].size()
 	var leader_before: int = g.players[o]["leader_hp"]
 	var plain_hit := EffectRegistry.parse({"trigger": "on_attack", "action": "snowball", "target": "random_enemy"})
-	plain_hit.apply(EffectContext.new(g, a, "on_attack"), GameState.LEADER_UID[o])
+	var unit_cast_context := EffectContext.new(g, a, "on_attack")
+	unit_cast_context.self_uid = first.uid
+	plain_hit.apply(unit_cast_context, GameState.LEADER_UID[o])
+	# cast by a unit: nothing hits yet, the Bola de Neve card waits on the stack (reactable, counterable)
+	check(g.stack.size() == 1 and g.stack[0]["kind"] == "card" and g.stack[0]["card_id"] == "bola_de_neve" and g.stack[0]["virtual"], "bola de unidade: entra na pilha como a carta Bola de Neve")
+	check(g.players[o]["leader_hp"] == leader_before, "bola de unidade: não bate antes de resolver")
+	for guard in 8:
+		if g.stack.is_empty():
+			break
+		g.pass_priority(g.priority)
 	check(g.players[o]["leader_hp"] == leader_before - 5 and g.players[a]["snowball"] == 5, "bola no Líder: um golpe só, sem aumentar o nível")
+	check(g.players[a]["graveyard"].size() == unit_cast_graveyard_before, "bola de unidade: não deixa carta no cemitério")
 
 	# Grande Bola de Neve is its own card: own cost, and every hit has Sobrepujança
 	check(g.cost_of(a, CardDB.card("bola_de_neve")) == 3, "Bola de Neve comum custa 3")

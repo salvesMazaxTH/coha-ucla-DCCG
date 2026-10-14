@@ -72,6 +72,21 @@ var ai_timer: Timer
 var _animation_busy_until_ms := 0
 var _waiting_event_batches: Array = [] ## each entry is one Array of events, in the order they happened
 var _waiting_events_timer: Timer
+## While the table is busy (see _table_busy) the engine may already be ahead of what the screen shows,
+## so redrawing would spoil the future (a unit that dies in the waiting batch would vanish before its
+## fight is shown). _render only takes note, and the redraw happens once the table settles.
+var _render_when_settled := false
+## Clicks given while the table is busy are not judged against a screen that is out of date: each one
+## waits here, in order, and runs once the last animation has ended (the player's "next move" buffer).
+var _queued_inputs: Array[Callable] = []
+var _replaying_queued_inputs := false ## true while _run_queued_inputs is running them
+## Fires when the animation that is playing now ends, to redraw and run the waiting clicks.
+var _settle_timer: Timer
+## A unit picked to attack while the table was busy (its click is still waiting in _queued_inputs):
+## an arrow already follows the pointer from it, so the player sees the pick counted. 0 = none.
+var _queued_attacker_uid := 0
+## The press that picked _queued_attacker_uid is still held: releasing it over a card picks the target.
+var _queued_attacker_dragging := false
 
 var _hand_base := 0 ## child index of the first hand card in layer
 
@@ -165,6 +180,10 @@ func _ready() -> void:
 	_waiting_events_timer.one_shot = true
 	_waiting_events_timer.timeout.connect(_play_waiting_events)
 	add_child(_waiting_events_timer)
+	_settle_timer = Timer.new()
+	_settle_timer.one_shot = true
+	_settle_timer.timeout.connect(_on_table_settled)
+	add_child(_settle_timer)
 	net = NetClient.new()
 	add_child(net)
 	net.message.connect(_on_net)
@@ -648,6 +667,7 @@ func _do(events: Array) -> void:
 		return ## the server answers with "events" (see _on_net)
 	if events.is_empty():
 		_toast("Ação inválida.")
+		_render() # brings back the action button that greyed out when it was pressed
 		return
 	_reset_input()
 	for e in events:
@@ -694,9 +714,10 @@ func _play_events(events: Array) -> void:
 	var old := _snapshot()
 	_leader_ko_t = -1.0
 	_over_from = -1
-	_render()
+	_render_now() # not _render: other batches may still be waiting, and this one must be drawn now
 	var end := _animate(events, old)
 	_animation_busy_until_ms = Time.get_ticks_msec() + int(end * 1000.0)
+	_settle_timer.start(maxf(end, 0.05))
 	# the Victory/Defeat screen waits for the killing blow to land instead of spoiling it
 	if g.phase == "over" and _over_from >= 0 and end > 0.0:
 		var delay := maxf(_leader_ko_t + 0.7, end) if _leader_ko_t >= 0.0 else end
@@ -731,11 +752,76 @@ func _clear_fx() -> void:
 	# a new screen or match: nothing from the previous one should still be waiting to play
 	_waiting_event_batches.clear()
 	_animation_busy_until_ms = 0
+	_render_when_settled = false
+	_queued_inputs.clear()
+	_queued_attacker_uid = 0
+	_queued_attacker_dragging = false
+	if _settle_timer:
+		_settle_timer.stop()
 	if fx:
 		for c in fx.get_children():
 			c.queue_free()
 
+## True while the screen has not caught up with the game: an animation is still playing, or batches of
+## events the engine already applied are still waiting to be shown.
+func _table_busy() -> bool:
+	return Time.get_ticks_msec() < _animation_busy_until_ms or not _waiting_event_batches.is_empty()
+
+## Redraws the table, unless an animation is playing: then the redraw waits until the table settles
+## (drawing now would cut the animation short and could show things that have not happened on screen yet).
 func _render() -> void:
+	if _table_busy():
+		_render_when_settled = true
+		return
+	_render_now()
+
+## The last animation ended: draw the table if something asked for it meanwhile, then run the clicks
+## the player gave during the animation, in the order they were given.
+func _on_table_settled() -> void:
+	if g == null or not _waiting_event_batches.is_empty():
+		return # the next batch plays first (_play_waiting_events), and it starts this timer again
+	var remaining_ms := _animation_busy_until_ms - Time.get_ticks_msec()
+	if remaining_ms > 0:
+		_settle_timer.start(remaining_ms / 1000.0) # the timer fired a hair early: wait the rest
+		return
+	_queued_attacker_uid = 0 # its waiting click picks it for real now
+	_queued_attacker_dragging = false
+	if _render_when_settled:
+		_render_now()
+	_run_queued_inputs()
+
+## Runs the waiting clicks one by one. If one of them starts a new animation (an attack, a play...),
+## the rest keep waiting for that one to end too: each click always sees the table it was aimed at.
+func _run_queued_inputs() -> void:
+	_replaying_queued_inputs = true
+	while not _queued_inputs.is_empty() and not _table_busy() and g != null:
+		var next_input: Callable = _queued_inputs.pop_front()
+		next_input.call()
+	_replaying_queued_inputs = false
+
+## True when a click must wait in _queued_inputs instead of running now: the table is still animating,
+## or older clicks are already waiting (they go first).
+func _input_must_wait() -> bool:
+	return _table_busy() or (not _replaying_queued_inputs and not _queued_inputs.is_empty())
+
+## Runs the input now, or stores it to run once the table settles (see _input_must_wait).
+func _run_or_queue_input(input: Callable) -> void:
+	if _input_must_wait():
+		_queued_inputs.append(input)
+	else:
+		input.call()
+
+## Same idea, for the top of a click handler: when the table is busy, stores `input` (usually the
+## handler itself, bound to a uid or player rather than to a view that the next redraw replaces)
+## and returns true so the handler stops. The stored input re-checks everything when it runs.
+func _wait_for_table(input: Callable) -> bool:
+	if not _input_must_wait():
+		return false
+	_queued_inputs.append(input)
+	return true
+
+func _render_now() -> void:
+	_render_when_settled = false
 	_clear()
 	drag_gap_slot = -1 # fresh board views have no gap
 	var me := viewer
@@ -806,6 +892,7 @@ func _render_pass() -> void:
 	var b := _button("ESTOU PRONTO", func():
 		pending_pass = false
 		_render(), true)
+	b.pressed.connect(func(): b.disabled = true) # answers at once even if the redraw waits for an animation
 	b.custom_minimum_size = Vector2(460, 56)
 	box.add_child(b)
 	_center.call_deferred(pc)
@@ -992,10 +1079,18 @@ func _render_frozen_slots(p: int, y: float, slots_taken: int) -> void:
 		_tag(tile, "CONGELADO", ICE)
 
 func _on_relic_click(v: CardView) -> void:
+	if _my_input() and not targeting.is_empty() and _wait_for_table(_pick_target_when_settled.bind(v.uid)):
+		return
 	if _my_input() and not targeting.is_empty() and _is_target(v.uid):
 		_fire_target(v.uid)
 	elif targeting.is_empty():
 		_show_overlay(v)
+
+## A relic (or a spell on the stack) picked as a target during an animation: fires once the table
+## settles, if it is still a valid target.
+func _pick_target_when_settled(uid: int) -> void:
+	if _my_input() and not targeting.is_empty() and _is_target(uid):
+		_fire_target(uid)
 
 func _decorate_unit(v: CardView, unit: Card, p: int) -> void:
 	# reminder for new players: the unit's "Ao Ativar" can be used now (even the turn it is summoned); Transformar works almost the same way, so it glows too
@@ -1078,6 +1173,7 @@ func _render_hand(p: int) -> void:
 		v.drag_moved.connect(_hand_drag_move)
 		v.drag_ended.connect(_hand_drag_end)
 		var rest := {"pos": pos, "rot": rot, "idx": i, "rise": rise}
+		v.set_meta("rest", rest) # where a dragged card flies back to when the table can't be redrawn yet
 		v.mouse_entered.connect(_hand_hover.bind(v, true, rest))
 		v.mouse_exited.connect(_hand_hover.bind(v, false, rest))
 		layer.add_child(v)
@@ -1168,11 +1264,14 @@ func _show_drop_gap(slot: int) -> void:
 func _hand_drag_move(v: CardView) -> void:
 	var m := layer.get_local_mouse_position()
 	var is_unit: bool = CardDB.card(v.card_id)["type"] == "unit"
-	if is_unit and m.y < PLAY_LINE and _my_input() and not v.get_meta("aim", false):
+	# during an animation the board is left alone (the gap would fight the moving units) and no aim
+	# starts: the card just follows the finger, and dropping it plays it once the animation ends
+	var table_busy := _input_must_wait()
+	if is_unit and m.y < PLAY_LINE and _my_input() and not v.get_meta("aim", false) and not table_busy:
 		_show_drop_gap(_drop_slot(m.x))
-	else:
+	elif not table_busy:
 		_show_drop_gap(-1)
-	if v.get_meta("aim", false) and m.y < PLAY_LINE and targeting.is_empty() and _my_input():
+	if v.get_meta("aim", false) and m.y < PLAY_LINE and targeting.is_empty() and _my_input() and not table_busy:
 		# a targeted card crossing into the board turns into an aim: it goes back to the hand
 		# (raised) and an arrow follows the finger; releasing on a target plays it there
 		# (a unit with a sacrifice cost also remembers the slot it was dragged to)
@@ -1186,11 +1285,37 @@ func _hand_drag_move(v: CardView) -> void:
 
 func _hand_drag_end(v: CardView) -> void:
 	var m := layer.get_local_mouse_position()
+	if _input_must_wait():
+		# an animation is playing: the card flies back to the hand and, if it was dropped on the board,
+		# is played from there as soon as the animation ends
+		_hand_card_back_to_rest(v)
+		if m.y < PLAY_LINE and _my_input():
+			_queued_inputs.append(_play_hand_card_when_settled.bind(v.uid, _drop_slot(m.x)))
+			v.highlight = SEL
+		return
 	drag_gap_slot = -1
 	if m.y < PLAY_LINE and _my_input():
 		_play_from_hand(v, _drop_slot(m.x))
 	else:
 		_render()
+
+## A dragged hand card glides back to its place in the fan (used when the table can't be redrawn yet).
+func _hand_card_back_to_rest(v: CardView) -> void:
+	if not v.has_meta("rest"):
+		return
+	var rest: Dictionary = v.get_meta("rest")
+	layer.move_child(v, min(layer.get_child_count() - 1, rest["idx"] + _hand_base))
+	var tw := v.create_tween().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	v.set_meta("tw", tw)
+	tw.tween_property(v, "position", rest["pos"], 0.18)
+	tw.tween_property(v, "rotation", rest["rot"], 0.18)
+	tw.tween_property(v, "scale", Vector2.ONE, 0.18)
+
+## Plays a hand card that was dropped on the board during an animation (if it can still be played).
+func _play_hand_card_when_settled(uid: int, slot: int) -> void:
+	var view = views.get(uid)
+	if _my_input() and is_instance_valid(view) and view is CardView and hand_uids.has(uid):
+		_play_from_hand(view, slot)
 
 func _render_side() -> void:
 	# chronicle (log)
@@ -1355,6 +1480,9 @@ func _render_stack() -> void:
 		else:
 			var v := CardView.new().setup(it["card_id"], {}, STACK_SCALE)
 			v.left_clicked.connect(func(view: CardView):
+				# a spell on the stack picked as a target during an animation waits for its turn
+				if _my_input() and not targeting.is_empty() and _wait_for_table(_pick_target_when_settled.bind(sid)):
+					return
 				if _is_target(sid):
 					_fire_target(sid)
 				else:
@@ -1587,28 +1715,28 @@ func _action_buttons() -> Array:
 	var out: Array = []
 	match g.phase:
 		"mulligan":
-			out.append(_button("CONFIRMAR (%d)" % picked.size(), func(): _do(g.mulligan(viewer, picked.duplicate())), true))
+			out.append(_action_button("CONFIRMAR (%d)" % picked.size(), func(): _do(g.mulligan(viewer, picked.duplicate())), true))
 		"combat":
 			if g.combat_system().in_attacks_window(viewer):
-				out.append(_button("ENCERRAR COMBATE", func(): _do(g.end_combat(viewer)), true))
+				out.append(_action_button("ENCERRAR COMBATE", func(): _do(g.end_combat(viewer)), true))
 			else:
-				out.append(_button(_pass_button_label(), func(): _do(g.pass_priority(viewer)), true))
+				out.append(_action_button(_pass_button_label(), func(): _do(g.pass_priority(viewer)), true))
 		"main":
 			if not g.stack.is_empty() or g.summon_window:
-				out.append(_button(_pass_button_label(), func(): _do(g.pass_priority(viewer)), true))
+				out.append(_action_button(_pass_button_label(), func(): _do(g.pass_priority(viewer)), true))
 			elif g.can_go_to_combat(viewer):
-				out.append(_button("IR PARA O COMBATE", func(): _do(g.go_to_combat(viewer)), true))
-				out.append(_button("Encerrar turno", func(): _do(g.end_turn(viewer))))
+				out.append(_action_button("IR PARA O COMBATE", func(): _do(g.go_to_combat(viewer)), true))
+				out.append(_action_button("Encerrar turno", func(): _do(g.end_turn(viewer))))
 			else:
-				out.append(_button("ENCERRAR TURNO", func(): _do(g.end_turn(viewer)), true))
+				out.append(_action_button("ENCERRAR TURNO", func(): _do(g.end_turn(viewer)), true))
 		"enter_tapped":
-			out.append(_button("ENTRAR EXAURIDA", func(): _do(g.choose_enter_tapped(viewer, true)), true))
-			out.append(_button("ENTRAR PRONTA", func(): _do(g.choose_enter_tapped(viewer, false)), true))
+			out.append(_action_button("ENTRAR EXAURIDA", func(): _do(g.choose_enter_tapped(viewer, true)), true))
+			out.append(_action_button("ENTRAR PRONTA", func(): _do(g.choose_enter_tapped(viewer, false)), true))
 		"enter_target":
-			out.append(_button("PULAR EFEITO", func(): _do(g.choose_enter_target(viewer, 0)), true))
+			out.append(_action_button("PULAR EFEITO", func(): _do(g.choose_enter_target(viewer, 0)), true))
 		"discard":
 			var need: int = g.players[viewer]["hand"].size() - GameState.HAND_LIMIT
-			var b := _button("BANIR (%d/%d)" % [picked.size(), need], func(): _do(g.discard(viewer, picked.duplicate())), true)
+			var b := _action_button("BANIR (%d/%d)" % [picked.size(), need], func(): _do(g.discard(viewer, picked.duplicate())), true)
 			b.disabled = picked.size() != need
 			out.append(b)
 	return out
@@ -1659,6 +1787,8 @@ func _input(e: InputEvent) -> void:
 		return
 	if aim_drag and e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and not e.pressed:
 		_aim_release()
+	elif _queued_attacker_dragging and e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and not e.pressed:
+		_release_queued_attacker_drag()
 	if e is InputEventMouseButton or e is InputEventScreenTouch or e is InputEventKey:
 		last_input_ms = Time.get_ticks_msec()
 	if e is InputEventScreenTouch or e is InputEventScreenDrag:
@@ -1673,8 +1803,15 @@ func _aim_release() -> void:
 	if targeting.is_empty() or not _my_input():
 		return
 	var gp := get_global_mouse_position()
-	var u := _target_at(gp)
 	get_viewport().set_input_as_handled()
+	if _input_must_wait():
+		# an animation is playing: what is a legal target is decided once it ends, so remember the
+		# card under the pointer (any card) and pick it then
+		var card_uid := _card_uid_at(gp)
+		if card_uid != 0 and card_uid != targeting.get("uid", 0):
+			_queued_inputs.append(_click_card_when_settled.bind(card_uid))
+		return
+	var u := _target_at(gp)
 	if u != 0:
 		_fire_target(u)
 		return
@@ -1694,7 +1831,21 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	var cancel: bool = (e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE) \
 		or (e is InputEventMouseButton and e.pressed and (e.button_index == MOUSE_BUTTON_RIGHT or CardView.touch_ui()))
+	if cancel and g and _queued_attacker_uid != 0:
+		# the attacker picked during the animation is dropped too (its waiting pick is undone right after it)
+		_queued_attacker_uid = 0
+		_queued_attacker_dragging = false
+		_queued_inputs.append(_cancel_targeting)
+		return
 	if cancel and g and not targeting.is_empty() and targeting["kind"] != "enter":
+		if _input_must_wait():
+			_queued_inputs.append(_cancel_targeting) # cancels in order, after the clicks already waiting
+		else:
+			_cancel_targeting()
+
+## Drops the current aim (attacker, targeted card...); an Ao Entrar target can only be skipped by its button.
+func _cancel_targeting() -> void:
+	if not targeting.is_empty() and targeting["kind"] != "enter":
 		targeting = {}
 		_render()
 
@@ -1779,6 +1930,21 @@ func _target_at(gp: Vector2) -> int:
 	return found_uid
 
 func _update_aim() -> void:
+	# an attacker picked during an animation: the arrow already follows the pointer from it (it never locks
+	# on, since what it can hit is only known once the animation ends)
+	var waiting_attacker_view = views.get(_queued_attacker_uid) if _queued_attacker_uid != 0 else null
+	if g != null and targeting.is_empty() and is_instance_valid(waiting_attacker_view):
+		if not is_instance_valid(aim_arrow):
+			aim_arrow = AimArrow.new()
+			fx.add_child(aim_arrow)
+		aim_arrow.visible = true
+		aim_arrow.move_to_front()
+		var waiting_rect := _visual_rect(waiting_attacker_view)
+		var arrow_space := fx.get_global_transform().affine_inverse()
+		aim_arrow.from = arrow_space * Vector2(waiting_rect.get_center().x, waiting_rect.position.y + waiting_rect.size.y * 0.3)
+		aim_arrow.to = arrow_space * get_global_mouse_position()
+		aim_arrow.locked = false
+		return
 	var on: bool = g != null and not targeting.is_empty() and targeting.get("spec") != "enemy_stack" 		and _my_input() and g.phase in ["main", "combat", "enter_target"]
 	if not on:
 		if is_instance_valid(aim_arrow):
@@ -1808,7 +1974,11 @@ func _toggle_pick(uid: int, cap: int) -> void:
 	_render()
 
 func _on_legendary(p: int) -> void:
-	if p != viewer or not _my_input() or not g.can_cast_legendary(p):
+	if p != viewer or not _my_input():
+		return
+	if _wait_for_table(_on_legendary.bind(p)):
+		return
+	if not g.can_cast_legendary(p):
 		return
 	_do(g.cast_legendary(p)) # its Ao Entrar target (if any) is picked once it is on the board
 
@@ -1828,7 +1998,11 @@ func _sync_enter_aim() -> void:
 		(views[uid] as CardView).highlight = SEL
 
 func _on_ability(p: int) -> void:
-	if not _my_input() or not g.can_use_ability(p):
+	if not _my_input():
+		return
+	if _wait_for_table(_on_ability.bind(p)):
+		return
+	if not g.can_use_ability(p):
 		return
 	var spec := g.target_spec(CardDB.leader(g.players[p]["leader_id"])["ability"]["effects"])
 	if spec != "":
@@ -1840,7 +2014,9 @@ func _on_ability(p: int) -> void:
 		_do(g.use_ability(p, 0))
 
 func _on_search_choice(card_uid: int) -> void:
-	if g.phase != "search" or not _my_input():
+	if not _my_input() or _wait_for_table(_on_search_choice.bind(card_uid)):
+		return
+	if g.phase != "search":
 		return
 	_do(g.choose_search(viewer, card_uid))
 
@@ -1883,14 +2059,92 @@ func _fire_target(uid: int) -> void:
 			_do(g.attack_unit(viewer, targeting["uid"], uid))
 
 func _on_leader_click(p: int) -> void:
+	if _my_input() and _input_must_wait() and _aiming_or_waiting():
+		_queue_card_click(GameState.LEADER_UID[p])
+		return
 	if _my_input() and _is_target(GameState.LEADER_UID[p]):
 		_fire_target(GameState.LEADER_UID[p])
 
 ## A click on a unit on the field does its job (fire a target, pick an attacker/blocker...);
 ## when it has nothing to do there it opens the card overlay instead, like a click in the hand.
+## During an animation the click waits and runs when it ends (see _queued_inputs).
 func _on_unit_click(v: CardView) -> void:
+	if _input_must_wait() and _click_should_wait(v.uid):
+		_queue_card_click(v.uid)
+		return
 	if not _unit_click_acted(v):
 		_show_overlay(v)
+
+## True while an aim is open or clicks are already waiting: the next click on a card is a target pick.
+func _aiming_or_waiting() -> bool:
+	return not targeting.is_empty() or _queued_attacker_uid != 0 or not _queued_inputs.is_empty()
+
+## Should a click on this unit, given during an animation, wait for it to end? Yes when it is meant to
+## act (pick a target, pick one of our attackers); a plain look at a card opens its overlay right away.
+func _click_should_wait(uid: int) -> bool:
+	if not _my_input():
+		return false
+	if _aiming_or_waiting():
+		return true
+	if not g.combat_system().in_attacks_window(viewer):
+		return false
+	var unit := g.find_unit(uid)
+	return unit == null or unit.owner == viewer
+
+## Stores a click on a card (unit or Leader) to run when the table settles. A click on one of our
+## units during our attacks also shows the aiming arrow from it at once, so the pick visibly counted.
+func _queue_card_click(uid: int) -> void:
+	var picks_an_attacker: bool = targeting.is_empty() and _queued_attacker_uid == 0 and uid > 0 \
+		and g.combat_system().in_attacks_window(viewer)
+	if picks_an_attacker:
+		var unit := g.find_unit(uid)
+		picks_an_attacker = unit != null and unit.owner == viewer
+	if picks_an_attacker:
+		_queued_attacker_uid = uid
+		_queued_attacker_dragging = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+	else:
+		_queued_attacker_uid = 0 # this click is the waiting attacker's target
+		_queued_attacker_dragging = false
+	_queued_inputs.append(_click_card_when_settled.bind(uid))
+
+## The press that picked a waiting attacker was released: over another card, that card is its target.
+## A plain click (released on the attacker itself or on nothing) keeps the arrow following the pointer.
+func _release_queued_attacker_drag() -> void:
+	_queued_attacker_dragging = false
+	var card_uid := _card_uid_at(get_global_mouse_position())
+	if card_uid != 0 and card_uid != _queued_attacker_uid:
+		_queue_card_click(card_uid)
+
+## Runs a click stored during an animation, now that the screen shows the real table. The card may be
+## gone or no longer a legal target (a Provocação that died in the fight that was playing): then the
+## aim is dropped and the attacker stays ready, instead of acting on something the player never saw.
+func _click_card_when_settled(uid: int) -> void:
+	if not _my_input():
+		return
+	var acted := false
+	if uid < 0:
+		if _is_target(uid):
+			_fire_target(uid)
+			acted = true
+	else:
+		var view = views.get(uid)
+		if is_instance_valid(view) and view is CardView:
+			acted = _unit_click_acted(view)
+	if not acted and not targeting.is_empty() and targeting["kind"] != "enter":
+		_toast("Esse alvo não está mais disponível.")
+		_cancel_targeting()
+
+## uid of the unit or Leader drawn under a global point, legal target or not (0 if none).
+func _card_uid_at(gp: Vector2) -> int:
+	var found_uid := 0
+	var found_draw_order := -1
+	for k in views:
+		if k is int and k != 0 and not hand_uids.has(k):
+			var c: Control = views[k]
+			if is_instance_valid(c) and _visual_rect(c).has_point(gp) and c.get_index() > found_draw_order:
+				found_uid = k
+				found_draw_order = c.get_index()
+	return found_uid
 
 ## Runs the click's action and returns true, or returns false when the click had no action.
 func _unit_click_acted(v: CardView) -> bool:
@@ -2021,14 +2275,18 @@ func _show_overlay(v: CardView) -> void:
 		var ab_uid := v.uid
 		var ab_btn := _button("Ativar (%d)" % int(ab["cost"]), func():
 			_close_overlay()
-			var spec := g.target_spec(ab["effects"])
-			if spec == "":
-				_do(g.activate(viewer, ab_uid, 0))
-			else:
-				targeting = {"kind": "unit_ability", "uid": ab_uid, "spec": spec}
-				if views.has(ab_uid) and is_instance_valid(views[ab_uid]):
-					_begin_aim(_visual_rect(views[ab_uid] as Control).get_center())
-				_render(), true)
+			# during an animation the activation waits for it to end (and checks again that it is still allowed)
+			_run_or_queue_input(func():
+				if not _my_input() or not g.can_activate(viewer, ab_uid):
+					return
+				var spec := g.target_spec(ab["effects"])
+				if spec == "":
+					_do(g.activate(viewer, ab_uid, 0))
+				else:
+					targeting = {"kind": "unit_ability", "uid": ab_uid, "spec": spec}
+					if views.has(ab_uid) and is_instance_valid(views[ab_uid]):
+						_begin_aim(_visual_rect(views[ab_uid] as Control).get_center())
+					_render()), true)
 		ab_btn.position = Vector2(rt_x, 820.0 + BOT)
 		ab_btn.custom_minimum_size = Vector2(520, 96)
 		overlay.add_child(ab_btn)
@@ -2427,6 +2685,34 @@ func _lunge(a: CardView, target: Control, t: float) -> void:
 		strike.tween_interval(LUNGE_HOLD_TIME)
 		strike.tween_property(a, "lunge", Vector2.ZERO, LUNGE_RETURN_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 		strike.tween_callback(func(): a.z_index = 0))
+
+## How long a transformation holds the animation queue.
+const TRANSFORM_TIME := 0.75
+
+## A card becomes another one (a unit with Transformar, a Bola de Neve in hand becoming Grande...).
+## _render already drew the new card, so a ghost of the old one is laid over it and, at moment t,
+## burns away in the new card's color: it reveals the new card beneath, which pops with a flash and a
+## ring of light. The ghost is created now, so the old card stays on screen until the moment arrives.
+func _transform_fx(uid: int, from_id: String, into_id: String, actors: Dictionary, old: Dictionary, t: float) -> void:
+	var new_view: CardView = actors[uid]
+	var old_instance: Dictionary = old[uid]["inst"] if old.has(uid) else {}
+	var old_pose: Dictionary = old[uid]["pose"] if old.has(uid) else _pose(new_view)
+	var old_card := _ghost(from_id, old_instance, old_pose)
+	old_card.z_index = 20
+	var color := _elem_color(into_id).lightened(0.35)
+	old_card.dissolve(t, color, 0.45)
+	var pop := new_view.create_tween()
+	pop.tween_interval(t + 0.1)
+	pop.tween_callback(func(): new_view.flash = 0.8)
+	pop.tween_property(new_view, "proc", 1.0, 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	pop.tween_property(new_view, "proc", 0.0, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	pop.parallel().tween_property(new_view, "flash", 0.0, 0.5)
+	var ring := new_view.create_tween()
+	ring.tween_interval(t + 0.14)
+	ring.tween_property(new_view, "proc_wave", 1.0, 0.55).from(0.001)
+	ring.tween_callback(func(): new_view.proc_wave = 0.0)
+	_embers(_center_of(new_view), t + 0.1, color, 24)
+	_impact(new_view, "Transformou!", color, t + 0.15, false)
 
 ## Shake + red flash on the target and a floating number over it.
 func _impact(target: Control, text: String, col: Color, t: float, hurt: bool) -> void:
@@ -2877,6 +3163,8 @@ func _animate(events: Array, old: Dictionary) -> float:
 				elif e.get("requiem", false) and views.get(GameState.LEADER_UID[e["player"]]) is LeaderView:
 					# a Réquiem spell rises from the graveyard icon of its caster
 					origin = {"c": (views[GameState.LEADER_UID[e["player"]]] as LeaderView).position + LeaderView.GRAVE_CENTER, "rot": 0.0, "w": 96.0}
+				elif e.has("source_uid") and old.has(e["source_uid"]):
+					origin = old[e["source_uid"]]["pose"] # cast by a unit (Bola de Neve of Tempesfrost): it leaves that unit
 				elif old.has(uid):
 					origin = old[uid]["pose"]
 				if cd["type"] == "unit" and views.has(uid):
@@ -2936,6 +3224,20 @@ func _animate(events: Array, old: Dictionary) -> float:
 						col = ICE
 					_impact(actors[e["uid"]], lbl, col, cursor, false)
 				cursor += 0.2
+			"transform":
+				# a unit becomes another card in place (Transformar, transform_self)
+				if actors.has(e["uid"]):
+					_transform_fx(e["uid"], e["from"], e["card_id"], actors, old, cursor)
+					cursor += TRANSFORM_TIME
+			"snowball_evolve":
+				# Bola de Neve cards turning into Grande Bola de Neve: the ones in hand are visible
+				var evolved_in_view := false
+				for evolved_uid in e.get("uids", []):
+					if actors.has(evolved_uid) and old.has(evolved_uid):
+						_transform_fx(evolved_uid, old[evolved_uid]["card_id"], actors[evolved_uid].card_id, actors, old, cursor)
+						evolved_in_view = true
+				if evolved_in_view:
+					cursor += TRANSFORM_TIME
 			"slots_frozen":
 				if int(e["blocked"]) > 0:
 					_toast("%s: %d espaço(s) vazio(s) congelado(s)!" % [_pname(e["player"]), e["blocked"]])
@@ -3072,6 +3374,9 @@ func _log_event(e: Dictionary) -> void:
 		"play":
 			if e.get("subito", false):
 				_log("%s invocou %s com Súbito" % [_pname(e["player"]), _cname(e["card_id"])])
+			elif e.has("source_uid"):
+				var caster_unit := g.find_unit(int(e["source_uid"]))
+				_log("%s lançou %s%s" % [_pname(e["player"]), _cname(e["card_id"]), "" if caster_unit == null else " com " + _cname(caster_unit.card_id)])
 			else:
 				_log("%s jogou %s%s" % [_pname(e["player"]), _cname(e["card_id"]), " (Réquiem)" if e.get("requiem", false) else ""])
 		"ability":
@@ -3221,6 +3526,21 @@ func _button(t: String, cb: Callable, primary := false) -> Button:
 		b.theme_type_variation = "PrimaryButton"
 	b.pressed.connect(cb)
 	return b
+
+## The "pass action" buttons (PASSAR, ENCERRAR TURNO, IR PARA O COMBATE...). Pressing one greys out
+## all of them at once, so the press clearly counted and can't be sent twice; if an animation is still
+## playing, the action waits for it and runs by itself as soon as the table settles.
+func _action_button(text: String, action: Callable, primary := false) -> Button:
+	var button := Button.new()
+	button.text = text
+	if primary:
+		button.theme_type_variation = "PrimaryButton"
+	button.add_to_group("action_buttons")
+	button.pressed.connect(func():
+		for action_button: Button in get_tree().get_nodes_in_group("action_buttons"):
+			action_button.disabled = true
+		_run_or_queue_input(action))
+	return button
 
 ## Crops a tall portrait to a wide window, anchored near the top so the face stays in frame
 ## (a centered crop shows the torso instead).
