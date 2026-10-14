@@ -1654,8 +1654,8 @@ func _hint() -> String:
 	if targeting.get("kind") == "enter":
 		return "Ao Entrar de %s: toque no alvo ou pule o efeito." % _cname(g.pending_enter.get("card_id", ""))
 	if targeting.get("kind") == "attack":
-		# say why some tapped units don't glow: a Provocação forces the challenge, and a unit
-		# that just came in with Ímpeto can only challenge
+		# say why some targets don't glow: a Provocação forces the challenge, any tapped enemy
+		# closes the face, and a unit that just came in with Ímpeto can only challenge
 		var attacker := g.find_unit(targeting["uid"])
 		var taunts: Array = g.combat_system().forced_taunts(attacker) if attacker != null else []
 		if not taunts.is_empty():
@@ -1663,8 +1663,10 @@ func _hint() -> String:
 			for taunt_uid in taunts:
 				taunt_names.append(_cname(g.find_unit(taunt_uid).card_id))
 			return "Provocação: este ataque precisa desafiar %s." % " ou ".join(taunt_names)
+		if attacker != null and not attacker.sick and not g.combat_system().challengeable_units(attacker).is_empty():
+			return "Há unidades inimigas exauridas: elimine-as antes de atacar o Líder."
 		if attacker != null and g.combat_system().is_rompante_rush(attacker):
-			return "Rompante: no turno em que entra, ela só pode atacar o Líder inimigo."
+			return "Rompante: no turno em que entra, ela ignora as exauridas e vai no Líder (só uma Provocação a segura)."
 		if attacker != null and attacker.sick:
 			return "Ímpeto: no turno em que entra, ela só pode desafiar (o Líder fica para o próximo turno)."
 		if CardView.touch_ui():

@@ -2,6 +2,7 @@ class_name CombatSystem
 extends RefCounted
 ## Combat: one attack at a time. Each ready unit taps to hit the enemy Leader's face or to
 ## challenge an enemy unit that is already tapped (exhausted). The challenged unit strikes back.
+## A tapped enemy unit guards its Leader: while the attacker can challenge any of them, the face is closed.
 ##
 ## Flow of a combat:
 ##   1. "IR PARA O COMBATE" opens the "pre_combat" window: the attacker gets priority first, then the
@@ -43,11 +44,14 @@ func has_any_attacker() -> bool:
 ##   Furtividade: only an attacker with Furtividade or Vigilância can challenge it.
 ##   Intimidação: an attacker with ATK 3 or less cannot challenge it.
 ##   Obsessão: the attacker may only hit the Leader.
+##   Rompante (the turn it enters): it may only challenge a Provocação.
 ##   Etérea: nothing can ever challenge it (not even when it has Provocação).
 func can_challenge(attacker: Card, target: Card) -> bool:
 	if attacker == null or target == null or target.owner == attacker.owner or not target.exhausted:
 		return false
-	if game.has_kw(attacker, "obsessao") or is_rompante_rush(attacker):
+	if game.has_kw(attacker, "obsessao"):
+		return false
+	if is_rompante_rush(attacker) and not game.has_kw(target, "provocacao"):
 		return false
 	if game.has_kw(target, "eterea"):
 		return false
@@ -59,8 +63,9 @@ func can_challenge(attacker: Card, target: Card) -> bool:
 		return false
 	return true
 
-## Rompante: on the turn it enters, the unit can only attack the enemy Leader (it cannot challenge
-## anyone, so a Provocação doesn't stop it). From the next turn on it is a normal unit.
+## Rompante: on the turn it enters, the unit goes for the enemy Leader and ignores ordinary tapped
+## units. A tapped Provocação still stops it (it must challenge that one), so a taunt is always an
+## answer to a Rompante finisher. From the next turn on it is a normal unit.
 func is_rompante_rush(attacker: Card) -> bool:
 	return attacker.sick and game.has_kw(attacker, "rompante")
 
@@ -73,24 +78,36 @@ func forced_taunts(attacker: Card) -> Array:
 			out.append(enemy_unit.uid)
 	return out
 
+## The tapped enemy units this attacker is able to challenge (any of them, Provocação or not).
+func challengeable_units(attacker: Card) -> Array:
+	var out: Array = []
+	for enemy_unit: Card in game.players[game.opponent(attacker.owner)]["board"]:
+		if can_challenge(attacker, enemy_unit):
+			out.append(enemy_unit.uid)
+	return out
+
 ## Every target this attacker may legally hit right now: uids of units it can challenge and/or
 ## the enemy Leader's uid (negative). Empty when it cannot attack at all (or has nothing to hit).
+## Order of the rules:
+##   1. a tapped Provocação it can challenge: only those;
+##   2. any other tapped unit it can challenge: only those (the face is closed while they stand);
+##   3. otherwise the enemy Leader's face.
 func attack_targets(attacker: Card) -> Array:
 	if attacker == null or not game.can_attack(attacker):
 		return []
 	var taunts := forced_taunts(attacker)
 	if not taunts.is_empty():
 		return taunts
-	var out: Array = []
+	var challengeable := challengeable_units(attacker)
+	if not challengeable.is_empty():
+		return challengeable
 	# Ímpeto lets a unit attack the turn it enters, but only to challenge: the Leader's face
 	# waits until its next turn (otherwise Ímpeto would be free damage now that nobody blocks).
-	# Rompante is the opposite: the Leader is the only target on the turn it enters.
+	# Rompante is the opposite: the Leader is its target on the turn it enters (only a Provocação,
+	# handled above, holds it back).
 	if not attacker.sick or is_rompante_rush(attacker):
-		out.append(GameState.LEADER_UID[game.opponent(attacker.owner)])
-	for enemy_unit: Card in game.players[game.opponent(attacker.owner)]["board"]:
-		if can_challenge(attacker, enemy_unit):
-			out.append(enemy_unit.uid)
-	return out
+		return [GameState.LEADER_UID[game.opponent(attacker.owner)]]
+	return []
 
 ## True while `player` may declare an attack (their own "attacks" window, nothing pending).
 func in_attacks_window(player: int) -> bool:

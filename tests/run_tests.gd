@@ -788,7 +788,7 @@ func _test_combat() -> void:
 	var b := _put(g, 1, "tritao_lanceiro") # 2/2, Rapidez 1, Ao Ser Desafiada: 1 de dano ao atacante
 	check(g.attack_targets(a) == [GameState.LEADER_UID[1]], "unidade pronta não pode ser desafiada: só o Líder é alvo")
 	b.exhausted = true
-	check(g.attack_targets(a).has(b.uid) and g.attack_targets(a).has(GameState.LEADER_UID[1]), "unidade exaurida pode ser desafiada")
+	check(g.attack_targets(a) == [b.uid], "unidade exaurida pode ser desafiada (e fecha o Líder)")
 	_hit(g, a, b.uid)
 	check(g.find_unit(b.uid) == null, "Rapidez 2 mata o desafiado antes dele revidar")
 	check(not g.find_unit(a.uid) == null and a.damage == 1 and a.exhausted, "o atacante exaure e só leva o 1 do Tritão")
@@ -805,7 +805,7 @@ func _test_combat() -> void:
 	g = _new_game()
 	_quiet(g)
 	var face := _put(g, 0, "t_c33")
-	_put(g, 1, "t_c33").exhausted = true
+	_put(g, 1, "t_c33") # standing (not tapped): it doesn't close the face
 	var leader_hp: int = g.players[1]["leader_hp"]
 	_hit(g, face)
 	check(g.players[1]["leader_hp"] == leader_hp - 3 and face.damage == 0, "atacar o Líder: dano na face, nada volta")
@@ -820,9 +820,11 @@ func _test_combat() -> void:
 	tapped_enemy.exhausted = true
 	check(g.attack_targets(rushing) == [tapped_enemy.uid], "Ímpeto recém-chegado: só desafia, o Líder fica para o próximo turno")
 	rushing.sick = false
-	check(g.attack_targets(rushing).has(GameState.LEADER_UID[1]), "Ímpeto no turno seguinte: o Líder volta a ser alvo")
+	check(g.attack_targets(rushing) == [tapped_enemy.uid], "Ímpeto no turno seguinte: unidade normal, a exaurida ainda fecha o Líder")
+	g.players[1]["board"].erase(tapped_enemy)
+	check(g.attack_targets(rushing) == [GameState.LEADER_UID[1]], "Ímpeto no turno seguinte: sem exauridas, o Líder volta a ser alvo")
 
-	# Rompante: the turn it enters, the unit may only hit the Leader (never challenges, ignores Provocação)
+	# Rompante: the turn it enters, the unit ignores ordinary tapped units and hits the Leader; only a tapped Provocação stops it
 	g = _new_game()
 	_quiet(g)
 	var charging := _put(g, 0, "faisca_errante", false) # Rompante, still summoning sick
@@ -833,13 +835,15 @@ func _test_combat() -> void:
 	check(not g.can_challenge(charging, tapped_foe), "Rompante recém-chegado não desafia")
 	var taunt_foe := _put(g, 1, "esqueleto_guerreiro") # Provocação
 	taunt_foe.exhausted = true
-	check(g.attack_targets(charging) == [GameState.LEADER_UID[1]], "Rompante recém-chegado ignora a Provocação")
+	check(g.attack_targets(charging) == [taunt_foe.uid], "Rompante recém-chegado: a Provocação exaurida a obriga a desafiar")
+	check(_hit(g, charging).is_empty(), "Rompante recém-chegado não passa por cima da Provocação")
+	g.players[1]["board"].erase(taunt_foe)
 	var leader_before: int = g.players[1]["leader_hp"]
 	_hit(g, charging, GameState.LEADER_UID[1])
 	check(g.players[1]["leader_hp"] == leader_before - 1 and charging.exhausted, "Rompante bate no Líder e fica exausta")
 	charging.sick = false
 	charging.exhausted = false
-	check(g.attack_targets(charging) == [taunt_foe.uid], "Rompante no turno seguinte: unidade normal, a Provocação obriga")
+	check(g.attack_targets(charging) == [tapped_foe.uid], "Rompante no turno seguinte: unidade normal, a exaurida fecha o Líder")
 
 	# Sobrepujança against Escudo: the shield soaks the hit, the excess goes to the Leader
 	g = _new_game()
@@ -934,7 +938,7 @@ func _test_provocacao() -> void:
 	var other := _put(g, 1, "t_other")
 	other.exhausted = true
 	var attacker := _put(g, 0, "serpente_marinha")
-	check(g.attack_targets(attacker).has(GameState.LEADER_UID[1]), "provocação pronta não obriga ninguém")
+	check(g.attack_targets(attacker) == [other.uid], "provocação pronta não obriga ninguém (só a outra exaurida fecha o Líder)")
 	taunt.exhausted = true
 	check(g.attack_targets(attacker) == [taunt.uid], "provocação exaurida: o único alvo é ela")
 	check(_hit(g, attacker).is_empty() and g.attack_unit(0, attacker.uid, other.uid).is_empty(), "não dá para ir no Líder nem em outra unidade")
@@ -948,6 +952,20 @@ func _test_provocacao() -> void:
 	var flyer := _put(g, 0, "fenix_menor")
 	check(g.attack_targets(walker) == [GameState.LEADER_UID[1]], "quem não pode desafiar a provocação fica livre")
 	check(g.attack_targets(flyer) == [flying_taunt.uid], "quem pode é obrigado")
+
+	# any tapped unit guards the Leader: while the attacker can challenge one, the face is closed
+	g = _new_game()
+	_quiet(g)
+	var guard := _put(g, 1, "t_other")
+	var bruiser := _put(g, 0, "serpente_marinha")
+	check(g.attack_targets(bruiser) == [GameState.LEADER_UID[1]], "sem exauridas: o Líder é o alvo")
+	guard.exhausted = true
+	check(g.attack_targets(bruiser) == [guard.uid], "exaurida sem Provocação também fecha o Líder")
+	check(_hit(g, bruiser).is_empty(), "não dá para ir no Líder com uma exaurida desafiável")
+	# one it can't reach (Voo) doesn't close the face
+	g = _new_game()
+	_put(g, 1, "fenix_menor").exhausted = true
+	check(g.attack_targets(_put(g, 0, "serpente_marinha")) == [GameState.LEADER_UID[1]], "exaurida inalcançável (Voo) não fecha o Líder")
 
 	# two Provocações: the attacker chooses
 	g = _new_game()

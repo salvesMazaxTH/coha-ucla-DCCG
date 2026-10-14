@@ -262,14 +262,14 @@ static func _try_attack(g: GameState, p: int) -> Array:
 		var targets := g.attack_targets(attacker)
 		if targets.has(enemy_leader_uid) and g.atk_of(attacker) >= g.players[enemy]["leader_hp"]:
 			return g.attack_unit(p, attacker.uid, enemy_leader_uid) # this hit wins the game
-		# a Provocação leaves no other choice (a fresh Ímpeto unit just can't reach the face yet)
-		var forced := not attacker.sick and not targets.has(enemy_leader_uid)
+		# a tapped enemy (Provocação or not) closes the face: it must challenge (a fresh Ímpeto unit just can't reach the face yet)
+		var forced := (not attacker.sick or g.combat_system().is_rompante_rush(attacker)) and not targets.has(enemy_leader_uid)
 		for target_uid in targets:
 			if target_uid < 0:
 				continue
 			var score := _challenge_score(g, attacker, g.find_unit(target_uid))
 			if forced:
-				score = maxi(score, 1) # it must attack a Provocação anyway: pick the best one
+				score = maxi(score, 1) # it must challenge someone anyway: pick the best one
 			if score > best_challenge_score:
 				best_challenge_score = score
 				best_challenge = [attacker.uid, target_uid]
