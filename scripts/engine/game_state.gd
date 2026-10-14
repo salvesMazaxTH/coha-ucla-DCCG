@@ -1445,7 +1445,7 @@ func _deal_damage(t: int, amount: int, source: Card) -> int:
 		# Câmara de Êxtase: a killing blow is cancelled completely and the Chamber is spent
 		var ward := _lethal_ward_of(tp)
 		if ward != null and amount >= hp_before:
-			_trigger_lethal_ward(tp, ward, amount)
+			_trigger_lethal_ward(tp, ward, amount, src_uid)
 			return 0
 		players[tp]["leader_hp"] -= amount
 		dealt = amount
@@ -1501,11 +1501,12 @@ func _lethal_ward_of(p: int) -> Card:
 	return null
 
 ## The Chamber cancels `prevented` damage, is destroyed, and halves the Leader's damage until the end of
-## its controller's next turn.
-func _trigger_lethal_ward(p: int, ward: Card, prevented: int) -> void:
+## its controller's next turn. `source_uid` is the unit whose blow was cancelled (0 = not a unit), so the
+## screen can show that blow landing on the Leader.
+func _trigger_lethal_ward(p: int, ward: Card, prevented: int, source_uid := 0) -> void:
 	var until := turn + (2 if p == active else 1)
 	players[p]["damage_halved_until"] = maxi(int(players[p]["damage_halved_until"]), until)
-	_emit({"type": "lethal_ward", "player": p, "uid": ward.uid, "card_id": ward.card_id, "amount": prevented})
+	_emit({"type": "lethal_ward", "player": p, "uid": ward.uid, "card_id": ward.card_id, "amount": prevented, "src": source_uid})
 	destroy_relic(ward)
 
 func _heal_leader(p: int, amount: int) -> void:

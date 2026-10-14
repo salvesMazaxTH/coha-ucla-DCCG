@@ -2943,6 +2943,53 @@ func _transform_fx(uid: int, from_id: String, into_id: String, actors: Dictionar
 	_embers(_center_of(new_view), t + 0.1, color, 24)
 	_impact(new_view, "Transformou!", color, t + 0.15, false)
 
+## Câmara de Êxtase cancelling a killing blow: at the moment of impact the Chamber pulses and sends a
+## ring of light to the Leader, "Anulado!" floats over the Leader (like a Spell Shield), the Leader
+## takes no damage and does not flinch, then the spent Chamber holds a beat and dissolves slowly.
+## `ward` is a ghost of the Chamber (it is already off the table), `leader` the Leader's view.
+const WARD_FADE_DELAY := 0.55
+const WARD_FADE_TIME := 1.1
+
+func _ward_fx(leader: Control, ward: CardView, t: float, col: Color) -> void:
+	if leader != null:
+		_impact(leader, "Anulado!", col, t, false)
+		_embers(_center_of(leader), t, col, 18)
+		var ring := Line2D.new()
+		var points := PackedVector2Array()
+		for i in 33:
+			points.append(Vector2.from_angle(TAU * i / 32.0) * 60.0)
+		ring.points = points
+		ring.width = 5.0
+		ring.default_color = Color(col, 0.85)
+		ring.position = _center_of(leader)
+		ring.z_index = 58
+		ring.scale = Vector2(0.3, 0.3)
+		ring.modulate.a = 0.0
+		fx.add_child(ring)
+		var ring_tween := ring.create_tween()
+		ring_tween.tween_interval(t)
+		ring_tween.tween_property(ring, "modulate:a", 1.0, 0.05)
+		ring_tween.tween_property(ring, "scale", Vector2.ONE * 2.2, 0.5).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		ring_tween.parallel().tween_property(ring, "modulate:a", 0.0, 0.5)
+		ring_tween.tween_callback(ring.queue_free)
+	if ward == null:
+		return
+	if leader != null:
+		# a thread of light from the Chamber to the Leader just before the impact
+		_streak(ward, leader, maxf(0.0, t - STREAK_T), col)
+	var pulse := ward.create_tween()
+	pulse.tween_interval(t)
+	pulse.tween_callback(func(): ward.flash = 0.9)
+	pulse.tween_property(ward, "proc", 1.0, 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	pulse.tween_property(ward, "proc", 0.0, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	pulse.parallel().tween_property(ward, "flash", 0.0, 0.5)
+	var wave := ward.create_tween()
+	wave.tween_interval(t + 0.04)
+	wave.tween_property(ward, "proc_wave", 1.0, 0.55).from(0.001)
+	wave.tween_callback(func(): ward.proc_wave = 0.0)
+	_embers(_center_of(ward), t + 0.05, col, 16)
+	ward.dissolve(t + WARD_FADE_DELAY, col, WARD_FADE_TIME)
+
 ## Combat damage at or above this makes the whole screen react (see _crushing_blow_fx).
 const CRUSHING_BLOW_DAMAGE := 7
 const CRUSHING_BLOW_SHAKE_TIME := 1.2
@@ -3527,6 +3574,27 @@ func _animate(events: Array, old: Dictionary) -> float:
 				in_combat = true
 			"start_turn", "end_turn", "combat_end":
 				in_combat = false
+			"lethal_ward":
+				# Câmara de Êxtase: the blow lands on the Leader, the Chamber answers and fades away
+				var ward_leader: Control = actors.get(GameState.LEADER_UID[e["player"]])
+				var ward_src: int = e.get("src", 0)
+				var ward_t := cursor + 0.12
+				if in_combat and ward_src > 0 and actors.has(ward_src) and ward_leader != null:
+					if ward_src == last_src:
+						ward_t = hit_t
+					else:
+						_lunge(actors[ward_src], ward_leader, cursor)
+						hit_t = cursor + LUNGE_IMPACT_TIME
+						ward_t = hit_t
+						last_src = ward_src
+						last_dst = GameState.LEADER_UID[e["player"]]
+						cursor += LUNGE_TOTAL_TIME
+				var ward_ghost: CardView = null
+				if old.has(e["uid"]): # the Chamber is already gone from the table: a ghost stands in for it
+					ward_ghost = _ghost(old[e["uid"]]["card_id"], old[e["uid"]]["inst"], old[e["uid"]]["pose"])
+					ward_ghost.z_index = 20
+				_ward_fx(ward_leader, ward_ghost, ward_t, _elem_color(e["card_id"]).lightened(0.3))
+				cursor = maxf(cursor, ward_t + WARD_FADE_DELAY + WARD_FADE_TIME)
 			"damage", "shield_break", "heal":
 				var dst: int = e["uid"]
 				var t := cursor

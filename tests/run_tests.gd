@@ -2865,6 +2865,21 @@ func _test_glacial() -> void:
 	g._deal_damage(GameState.LEADER_UID[a], 3, null)
 	check(g.players[a]["leader_hp"] == 4, "câmara: depois o dano cai pela metade, arredondado pra baixo (3 -> 1)")
 
+	# the Chamber's event names the unit whose blow was cancelled (the screen needs it to show the hit landing)
+	g = _glacial_game()
+	a = g.active
+	var ward_chamber := Card.new(g._uid(), "camara_de_extase", a)
+	g._place_relic(a, ward_chamber)
+	g.players[a]["leader_hp"] = 5
+	var striker := _put(g, g.opponent(a), "teste_alvo_gelo")
+	g._events.clear()
+	g._deal_damage(GameState.LEADER_UID[a], 9, striker)
+	var ward_event := {}
+	for event: Dictionary in g._events:
+		if event["type"] == "lethal_ward":
+			ward_event = event
+	check(not ward_event.is_empty() and int(ward_event["src"]) == striker.uid and int(ward_event["uid"]) == ward_chamber.uid, "câmara: o evento traz a unidade que bateu e a própria câmara")
+
 	# Folheio Pé-na-Neve: draws 3, then the player picks a card from the hand and it goes to the graveyard
 	g = _glacial_game()
 	a = g.active
