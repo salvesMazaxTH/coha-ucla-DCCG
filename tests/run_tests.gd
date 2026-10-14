@@ -845,6 +845,15 @@ func _test_combat() -> void:
 	charging.exhausted = false
 	check(g.attack_targets(charging) == [tapped_foe.uid], "Rompante no turno seguinte: unidade normal, a exaurida fecha o Líder")
 
+	# Voo: a flying attacker sails over ordinary tapped units, so it may challenge them or hit the Leader
+	g = _new_game()
+	_quiet(g)
+	var flyer := _put(g, 0, "gaivota_da_tempestade")
+	var grounded_foe := _put(g, 1, "t_c33")
+	grounded_foe.exhausted = true
+	check(g.has_kw(flyer, "voo"), "teste Voo: a Gaivota da Tempestade voa")
+	check(g.attack_targets(flyer) == [grounded_foe.uid, GameState.LEADER_UID[1]], "Voo: pode desafiar a exaurida ou ir direto no Líder")
+
 	# Sobrepujança against Escudo: the shield soaks the hit, the excess goes to the Leader
 	g = _new_game()
 	_quiet(g)

@@ -90,7 +90,8 @@ func challengeable_units(attacker: Card) -> Array:
 ## the enemy Leader's uid (negative). Empty when it cannot attack at all (or has nothing to hit).
 ## Order of the rules:
 ##   1. a tapped Provocação it can challenge: only those;
-##   2. any other tapped unit it can challenge: only those (the face is closed while they stand);
+##   2. any other tapped unit it can challenge: only those (the face is closed while they stand),
+##      unless the attacker has Voo: then those units or the face;
 ##   3. otherwise the enemy Leader's face.
 func attack_targets(attacker: Card) -> Array:
 	if attacker == null or not game.can_attack(attacker):
@@ -99,6 +100,10 @@ func attack_targets(attacker: Card) -> Array:
 	if not taunts.is_empty():
 		return taunts
 	var challengeable := challengeable_units(attacker)
+	# Voo flies over the tapped units: besides challenging them, it may go straight for the
+	# Leader's face (only a Provocação, handled above, holds it back).
+	if not challengeable.is_empty() and game.has_kw(attacker, "voo") and not attacker.sick:
+		return challengeable + [GameState.LEADER_UID[game.opponent(attacker.owner)]]
 	if not challengeable.is_empty():
 		return challengeable
 	# Ímpeto lets a unit attack the turn it enters, but only to challenge: the Leader's face

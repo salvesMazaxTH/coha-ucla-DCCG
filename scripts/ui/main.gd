@@ -1663,7 +1663,7 @@ func _hint() -> String:
 			for taunt_uid in taunts:
 				taunt_names.append(_cname(g.find_unit(taunt_uid).card_id))
 			return "Provocação: este ataque precisa desafiar %s." % " ou ".join(taunt_names)
-		if attacker != null and not attacker.sick and not g.combat_system().challengeable_units(attacker).is_empty():
+		if attacker != null and not attacker.sick and not g.has_kw(attacker, "voo") and not g.combat_system().challengeable_units(attacker).is_empty():
 			return "Há unidades inimigas exauridas: elimine-as antes de atacar o Líder."
 		if attacker != null and g.combat_system().is_rompante_rush(attacker):
 			return "Rompante: no turno em que entra, ela ignora as exauridas e vai no Líder (só uma Provocação a segura)."
