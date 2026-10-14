@@ -3,7 +3,7 @@
   "type": "spell",
   "rarity": "common",
   "essence": "eletrica",
-  "cost": 6,
+  "cost": 5,
   "speed": "lento",
   "art": "eletrica/tempestade_estatica.webp",
   "effects": [

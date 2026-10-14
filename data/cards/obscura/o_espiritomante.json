@@ -2,7 +2,10 @@
   "name": "O Espiritomante",
   "type": "unit",
   "rarity": "epic",
-  "species": ["humano", "revenante"],
+  "species": [
+    "humano",
+    "revenante"
+  ],
   "essence": "obscura",
   "cost": 4,
   "atk": 3,
@@ -16,10 +19,10 @@
       "trigger": "on_enter",
       "action": "revive",
       "target": "none",
-      "max_cost": 3
+      "max_cost": 4
     }
   ],
-  "text": "Ao Entrar: reviva uma unidade aleatória de custo 3 ou menos do seu cemitério.",
+  "text": "Ao Entrar: reviva uma unidade aleatória de custo 4 ou menos do seu cemitério.",
   "flavor": "Os mortos atendem a quem fala baixo.",
   "tags": []
 }
