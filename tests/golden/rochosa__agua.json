@@ -370,7 +370,7 @@
 		"[{\"attacker\":19,\"player\":0,\"target\":-2,\"type\":\"attack\"},{\"type\":\"combat_damage\"},{\"amount\":2,\"src\":19,\"type\":\"damage\",\"uid\":-2}]",
 		"[{\"attacker\":21,\"player\":0,\"target\":-2,\"type\":\"attack\"},{\"type\":\"combat_damage\"},{\"amount\":2,\"src\":21,\"type\":\"damage\",\"uid\":-2}]",
 		"[{\"player\":0,\"type\":\"combat_end\"}]",
-		"[{\"type\":\"thaw\",\"uid\":30},{\"player\":0,\"type\":\"end_turn\"},{\"player\":1,\"turn\":36,\"type\":\"start_turn\"},{\"player\":1,\"type\":\"draw\",\"uid\":85}]",
+		"[{\"player\":0,\"type\":\"end_turn\"},{\"type\":\"thaw\",\"uid\":30},{\"player\":1,\"turn\":36,\"type\":\"start_turn\"},{\"player\":1,\"type\":\"draw\",\"uid\":85}]",
 		"[{\"card_id\":\"serpente_marinha\",\"player\":1,\"type\":\"play\",\"uid\":85},{\"card_id\":\"serpente_marinha\",\"player\":1,\"type\":\"summon\",\"uid\":85},{\"card_id\":\"serpente_marinha\",\"player\":1,\"trigger\":\"on_enter\",\"type\":\"trigger\",\"uid\":85},{\"cards\":[{\"card_id\":\"negacao_de_neraqa\",\"uid\":73},{\"card_id\":\"lanca_das_mares\",\"uid\":63},{\"card_id\":\"neraqa\",\"uid\":81},{\"card_id\":\"alexa_neruvya\",\"uid\":88}],\"player\":1,\"source_uid\":85,\"type\":\"look_top\"}]",
 		"[{\"card_id\":\"alexa_neruvya\",\"player\":1,\"type\":\"search_take\",\"uid\":88},{\"player\":1,\"type\":\"look_bottom\"}]",
 		"[{\"player\":0,\"type\":\"ability\"},{\"item\":{\"card_id\":\"\",\"kind\":\"ability\",\"player\":0,\"sid\":132,\"speed\":\"instantaneo\",\"target\":30,\"target2\":0,\"uid\":0},\"type\":\"stack_push\"}]",

@@ -154,7 +154,7 @@
 		"[{\"card_id\":\"irina_lancachamas\",\"player\":0,\"type\":\"play\",\"uid\":43},{\"card_id\":\"irina_lancachamas\",\"player\":0,\"type\":\"summon\",\"uid\":43},{\"card_id\":\"irina_lancachamas\",\"player\":0,\"type\":\"enter_target\",\"uid\":43}]",
 		"[{\"card_id\":\"irina_lancachamas\",\"player\":0,\"trigger\":\"on_enter\",\"type\":\"trigger\",\"uid\":43},{\"amount\":3,\"src\":0,\"type\":\"damage\",\"uid\":54},{\"player\":1,\"type\":\"death\",\"uid\":54}]",
 		"[{\"card_id\":\"dragaozinho_flamejante\",\"player\":0,\"type\":\"play\",\"uid\":3},{\"card_id\":\"dragaozinho_flamejante\",\"player\":0,\"type\":\"summon\",\"uid\":3}]",
-		"[{\"type\":\"thaw\",\"uid\":99},{\"player\":0,\"type\":\"end_turn\"},{\"player\":1,\"turn\":10,\"type\":\"start_turn\"},{\"player\":1,\"type\":\"draw\",\"uid\":78}]",
+		"[{\"player\":0,\"type\":\"end_turn\"},{\"type\":\"thaw\",\"uid\":99},{\"player\":1,\"turn\":10,\"type\":\"start_turn\"},{\"player\":1,\"type\":\"draw\",\"uid\":78}]",
 		"[{\"card_id\":\"naelthos\",\"legendary\":true,\"player\":1,\"type\":\"play\",\"uid\":100},{\"card_id\":\"naelthos\",\"player\":1,\"type\":\"summon\",\"uid\":100},{\"card_id\":\"naelthos\",\"player\":1,\"trigger\":\"on_enter\",\"type\":\"trigger\",\"uid\":100},{\"amount\":2,\"type\":\"heal\",\"uid\":-2},{\"card_id\":\"naelthos\",\"player\":1,\"type\":\"enter_tapped_choice\",\"uid\":100}]",
 		"[{\"player\":1,\"tapped\":true,\"type\":\"enter_tapped\",\"uid\":100}]",
 		"[{\"player\":1,\"type\":\"combat_step\"},{\"player\":1,\"type\":\"window\",\"window\":\"pre_combat\"},{\"player\":1,\"type\":\"window\",\"window\":\"attacks\"}]",
