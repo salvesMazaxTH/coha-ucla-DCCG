@@ -2920,6 +2920,13 @@ func _test_glacial() -> void:
 	_hit(g, bruno, GameState.LEADER_UID[o])
 	g._flush()
 	check(g.players[a]["snowball"] == level_before + 1, "Bruno: bater no Líder sobe o nível da Bola de Neve em 1 (%d -> %d)" % [level_before, g.players[a]["snowball"]])
+	# the search must survive the end of combat (it used to be overwritten by the return to the Main Phase)
+	check(g.phase == "search", "Bruno: a busca pela Bola de Neve fica aberta depois do ataque (fase %s)" % g.phase)
+	if g.phase == "search":
+		g.choose_search(a, int(g.pending_search["cards"][0]["uid"]))
+		g._flush()
+		var bola_in_hand: Array = g.players[a]["hand"].filter(func(c: Card): return c.card_id == "bola_de_neve")
+		check(bola_in_hand.size() == 1 and g.phase == "main", "Bruno: a Bola de Neve escolhida vai para a mão e o jogo volta à Fase Principal (fase %s)" % g.phase)
 
 	# Ysvane: Ao Entrar buffs a random ally and takes a Bola de Neve back from the graveyard (banished after its next cast);
 	# each glacial spell shields a random ally; death heals the Leader
