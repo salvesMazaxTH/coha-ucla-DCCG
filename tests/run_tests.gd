@@ -725,7 +725,7 @@ func _test_freeze() -> void:
 	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, tapped.uid)
 	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, standing.uid)
 	check(g.is_frozen(tapped) and g.is_frozen(standing), "congelar marca a unidade")
-	check(g.atk_of(tapped) == 3 and tapped.rapidez_total() == tapped.rapidez, "congelada: ATK e Rapidez continuam os mesmos")
+	check(g.atk_of(tapped) == 3 and tapped.rapidez_total() == 1, "congelada: ATK segue o mesmo, Rapidez é suprimida")
 	check(not standing.exhausted, "congelar não exaure: a unidade em pé continua em pé")
 	_quiet(g)
 	g.end_turn(0)
@@ -1886,7 +1886,8 @@ func _test_strike_order() -> void:
 	check(_strike_result(1, 2) == "-B", "desafiado mais rápido mata antes")
 	check(_strike_result(4, 3) == "A-", "rapidez 4 bate antes da 3")
 	check(_strike_result(3, 3) == "--", "rapidez 3 contra 3: simultâneo")
-	check(_strike_result(1, 4, true) == "-B", "congelada: revida normalmente (e mais rápida, bate primeiro)")
+	check(_strike_result(1, 4, true) == "--", "congelada: sem Rapidez (suprimida), bate junto com um atacante sem Rapidez")
+	check(_strike_result(2, 4, true) == "A-", "congelada: com a Rapidez suprimida, o atacante com Rapidez bate primeiro")
 
 ## Triggers that resolve before the strikes can change the fight.
 func _test_challenge_triggers() -> void:

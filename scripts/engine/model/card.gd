@@ -22,7 +22,8 @@ var hp := 0
 var damage := 0
 var temp_atk := 0
 var temp_hp := 0 ## extra Vida that lasts until the end of the turn; it soaks damage first, so nothing dies from it expiring
-var rapidez := 1 ## Rapidez 1-4 (the card shows it as the keyword Rapidez 1-3: tier 1 is the default and goes unmentioned): in a challenge, the faster unit deals its damage first (equal = at the same time)
+const NO_RAPIDEZ_TIER := 1 ## the engine speed tier of a unit without the Rapidez keyword
+var rapidez := NO_RAPIDEZ_TIER ## Rapidez 1-4 (the card shows it as the keyword Rapidez 1-3: tier 1 is the default and goes unmentioned): in a challenge, the faster unit deals its damage first (equal = at the same time)
 var keywords: Array = []
 var temp_keywords: Array = []
 var shield := false
@@ -112,8 +113,11 @@ func armor_total() -> int:
 func atk_total() -> int:
 	return maxi(0, atk + temp_atk + bonus_atk)
 
-## Rapidez right now.
+## Rapidez right now, as an engine speed tier: 1 = no Rapidez keyword (the card shows "Rapidez 1-3" for tiers 2-4).
+## A Congelada unit has its Rapidez keyword suppressed, so it counts as having none until it thaws.
 func rapidez_total() -> int:
+	if is_frozen():
+		return NO_RAPIDEZ_TIER
 	return clampi(rapidez, 1, 4)
 
 ## Crítico level right now (0 = none, 4 = every blow is critical).

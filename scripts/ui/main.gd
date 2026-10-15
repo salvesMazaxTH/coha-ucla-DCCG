@@ -2517,12 +2517,12 @@ func _show_overlay(v: CardView) -> void:
 	if cd.get("text", "") != "":
 		var body := CardView.fill_live_numbers(String(cd["text"]), v.snowball_level)
 		if v.inst.has("frozen"):
-			body = "[color=#9fe8ff][b]Congelada:[/b] não ataca, não desvira e não protege o Líder até o fim do próximo turno. Revida normalmente.[/color]
+			body = "[color=#9fe8ff][b]Congelada:[/b] não ataca, não desvira e não protege o Líder e perde a Rapidez (suprimida) até o fim do próximo turno. Revida normalmente.[/color]
 " + body
 		txt += "[font_size=32]%s[/font_size]\n\n" % CardView.colorize_rules(body + v.text_suffix, 32)
 	# Glossary: the card's own keywords first, then any keyword its text mentions ("conceda Voo").
 	var glossary_keywords: Array = cd.get("keywords", []).duplicate()
-	if int(v.inst.get("rapidez", cd.get("rapidez", 1))) > 1:
+	if int(v.inst.get("rapidez", cd.get("rapidez", 1))) > 1 and not v.inst.has("frozen"):
 		glossary_keywords.append("rapidez") # shown as a tag on the card, so the glossary explains it
 	if CardView.critico_of_view(cd, v.inst) > 0 and not glossary_keywords.has("critico"):
 		glossary_keywords.append("critico") # also shown as a tag (it can grow during the match)

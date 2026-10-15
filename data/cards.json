@@ -218,7 +218,7 @@
     },
     "congelar": {
       "name": "Congelar",
-      "text": "A unidade não ataca, não desvira e não protege o Líder até o fim do próximo turno. Revida normalmente."
+      "text": "A unidade não ataca, não desvira e não protege o Líder e perde a Rapidez (suprimida) até o fim do próximo turno. Revida normalmente."
     },
     "armadura": {
       "name": "Armadura",
