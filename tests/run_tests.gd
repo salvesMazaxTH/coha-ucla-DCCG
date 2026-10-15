@@ -34,6 +34,9 @@ func _init() -> void:
 	_test_glacial()
 	_test_glacial_combo()
 	_test_gertrudes()
+	_test_myrra_activate()
+	_test_hoje_ninguem_erra()
+	_test_devaneio_permanent()
 	_test_deslizamento()
 	_test_self_response()
 	_test_custo_e_contagem()
@@ -500,7 +503,7 @@ func _test_enter_target() -> void:
 	lone.players[0]["momentum"] = 10
 	var myrra := _give(lone, 0, "myrra")
 	lone.play_card(0, myrra)
-	check(lone.phase != "enter_target" and lone.atk_of(lone.find_unit(myrra)) == 3, "Myrra sozinha no tabuleiro: não pede alvo e ganha o +1")
+	check(lone.phase != "enter_target" and lone.atk_of(lone.find_unit(myrra)) == 5, "Myrra sozinha no tabuleiro: não pede alvo e ganha o +1")
 	if lone.summon_window:
 		lone.pass_priority(1)
 	var myrra_ally := _give(lone, 0, "myrra")
@@ -2352,16 +2355,16 @@ func _test_eletrica() -> void:
 	var l: Dictionary = g.players[a]["legendary"]
 	l["casts"] = 1
 	g.players[a]["saved_momentum"] = 0
-	check(g.legendary_cost(a) == 17, "voltexz: sem redução, 2a conjuração custa 17")
+	check(g.legendary_cost(a) == 16, "voltexz: sem redução, 2a conjuração custa 16")
 	g.players[a]["saved_momentum"] = 8
-	check(g.legendary_cost(a) == 9, "voltexz: custo atual 7 + taxa 2 = 9")
+	check(g.legendary_cost(a) == 8, "voltexz: custo atual 7 + taxa 1 = 8")
 	l["in_zone"] = false
 	g._legendary_leaves(a)
-	check(l["in_zone"] and not l.get("retired", false), "voltexz: volta ao Santuário com custo atual 9")
-	g.players[a]["saved_momentum"] = 6
+	check(l["in_zone"] and not l.get("retired", false), "voltexz: volta ao Santuário com custo atual 8")
+	g.players[a]["saved_momentum"] = 5
 	l["in_zone"] = false
 	g._legendary_leaves(a)
-	check(l.get("retired", false), "voltexz: custo atual 9 + taxa 2 = 11 (Momentum vazado 6) aposenta")
+	check(l.get("retired", false), "voltexz: custo atual 10 + taxa 1 = 11 (Momentum vazado 5) aposenta")
 	# gain_momentum: now and at the next turn
 	g = _eletrica_game()
 	a = g.active
@@ -2963,6 +2966,62 @@ func _test_gertrudes() -> void:
 	var seen_by_opponent: Dictionary = StateView.snapshot(hidden, 1 - hidden_player)
 	check(String(seen_by_opponent["pending_search"]["cards"][0]["card_id"]) == "", "Gertrudes: o adversário não vê qual campeão está na mão")
 
+## Devaneio Gelado: draws 2 and raises the level the Bola de Neve goes back to every turn, for the rest of the game.
+## Myrra's Ao Ativar: Escudo + 1 level of Crítico on an ally; Vael also gets +1/+1 for good, anyone else does not.
+func _test_myrra_activate() -> void:
+	for target_card in ["vael", "guerreiro_igneo"]:
+		var g := _new_game()
+		_quiet(g)
+		g.players[0]["momentum"] = 5
+		g.players[0]["reserve"] = 0
+		var myrra := _put(g, 0, "myrra")
+		var ally := _put(g, 0, target_card)
+		var base_attack: int = ally.atk
+		var base_health: int = ally.hp
+		g.auto_pass[1] = true
+		check(g.can_activate(0, myrra.uid), "Myrra pode ativar")
+		g.activate(0, myrra.uid, ally.uid)
+		g._flush()
+		for guard in 8:
+			if g.stack.is_empty():
+				break
+			g.pass_priority(g.priority)
+		g._flush()
+		check(ally.shield and ally.temp_critico == 1, "Myrra (%s): Escudo e +1 de Crítico" % target_card)
+		var expected_bonus := 1 if target_card == "vael" else 0
+		check(ally.atk == base_attack + expected_bonus and ally.hp == base_health + expected_bonus, "Myrra (%s): +1/+1 permanente só para o Vael" % target_card)
+		check(int(g.players[0]["momentum"]) == 4 and not g.can_activate(0, myrra.uid), "Myrra: custa 1 e é 1x por turno")
+
+## Hoje Ninguém Erra: every ally that has Crítico goes to Crítico 4 this turn, whatever level it had; the others are untouched.
+func _test_hoje_ninguem_erra() -> void:
+	var g := _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var gatuno := _put(g, 0, "gatuno_do_beco_torto")
+	var myrra := _put(g, 0, "myrra")
+	var akane := _put(g, 0, "akane")
+	var plain := _put(g, 0, "lancheiro_sem_freio")
+	_cast_and_resolve(g, 0, "hoje_ninguem_erra")
+	check(gatuno.critico_total() == 4 and myrra.critico_total() == 4 and akane.critico_total() == 4, "Hoje Ninguém Erra: quem tem Crítico (1 ou 4) fica com 4")
+	check(plain.critico_total() == 0, "Hoje Ninguém Erra: quem não tem Crítico continua sem")
+	g.end_turn(0)
+	check(gatuno.critico_total() == 1 and myrra.critico_total() == 1 and akane.critico_total() == 4, "Hoje Ninguém Erra: no fim do turno cada um volta ao seu nível")
+
+func _test_devaneio_permanent() -> void:
+	var g := _glacial_game()
+	var a := g.active
+	g.players[a]["momentum"] = 20
+	check(g.players[a]["snowball_base"] == 2, "Devaneio: a base da Bola começa em 2")
+	_cast_and_resolve(g, a, "devaneio_gelado")
+	check(g.players[a]["snowball"] == 3 and g.players[a]["snowball_base"] == 3, "Devaneio: o nível atual e a base sobem 1")
+	_cast_and_resolve(g, a, "devaneio_gelado")
+	check(g.players[a]["snowball"] == 4 and g.players[a]["snowball_base"] == 4, "Devaneio: duas conjurações somam na base")
+	g.players[a]["snowball"] = 9
+	g.reset_snowball_level(a)
+	check(g.players[a]["snowball"] == 4, "Devaneio: no fim do turno a Bola volta à base elevada, não a 2")
+	var other: int = g.opponent(a)
+	check(g.players[other]["snowball_base"] == 2, "Devaneio: a base do adversário não muda")
+
 func _test_glacial_combo() -> void:
 	_tcard("teste_alvo_gelo", 0, 20, [])
 	# the full combo: Ladeira, Ritual, Ladeira, Grande Bola de Neve, then Tempesfrost attacks the Leader
@@ -3499,13 +3558,25 @@ func _test_glacial() -> void:
 	_put(g, a, "mestra_do_gelo_frigido")
 	# nobody is frozen yet: the spell goes off and the Mestra has nothing to ping
 	_cast_and_resolve(g, a, "estilhaco_gelido", thawed_bystander.uid)
-	check(frozen_victim.hp_left() == 20 and thawed_bystander.hp_left() == 20 - 3, "Mestra do Gelo Frígido: sem unidade Congelada, não causa dano extra")
+	check(frozen_victim.hp_left() == 20 and thawed_bystander.hp_left() == 20 - 2, "Mestra do Gelo Frígido: sem unidade Congelada, não causa dano extra")
 	frozen_victim.frozen = g.turn + 1
 	_cast_and_resolve(g, a, "estilhaco_gelido", thawed_bystander.uid)
-	check(frozen_victim.hp_left() == 20 - 1 and thawed_bystander.hp_left() == 20 - 3 - 3, "Mestra do Gelo Frígido: o feitiço glacial dá 1 de dano na unidade Congelada (e só nela)")
+	check(frozen_victim.hp_left() == 20 - 1 and thawed_bystander.hp_left() == 20 - 2 - 2, "Mestra do Gelo Frígido: o feitiço glacial dá 1 de dano na unidade Congelada (e só nela)")
 	_cast_and_resolve(g, a, "estilhaco_gelido", thawed_bystander.uid)
 	check(frozen_victim.hp_left() == 20 - 2, "Mestra do Gelo Frígido: age a cada feitiço glacial, não só uma vez por turno")
 	check(CardDB.card("mestra_do_gelo_frigido")["atk"] == 2 and CardDB.card("mestra_do_gelo_frigido")["hp"] == 6 and CardDB.card("mestra_do_gelo_frigido")["cost"] == 4, "Mestra do Gelo Frígido é 2/6 de custo 4")
+
+	# Estilhaço Gélido: 2 damage, 4 when the target is already Congelada
+	g = _glacial_game()
+	a = g.active
+	o = g.opponent(a)
+	g.players[a]["momentum"] = 30
+	var shard_cold := _put(g, o, "teste_alvo_gelo")
+	var shard_warm := _put(g, o, "teste_alvo_gelo")
+	shard_cold.frozen = g.turn + 1
+	_cast_and_resolve(g, a, "estilhaco_gelido", shard_warm.uid)
+	_cast_and_resolve(g, a, "estilhaco_gelido", shard_cold.uid)
+	check(shard_warm.hp_left() == 20 - 2 and shard_cold.hp_left() == 20 - 4, "Estilhaço Gélido: 2 de dano, 4 se o alvo estiver Congelado (%d/%d)" % [shard_warm.hp_left(), shard_cold.hp_left()])
 
 	# Bruno (Rompante): hitting the enemy Leader raises the Bola de Neve level by 1 (no cast) and opens the search
 	g = _glacial_game()

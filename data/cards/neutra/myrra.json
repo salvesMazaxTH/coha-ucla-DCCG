@@ -7,9 +7,11 @@
   ],
   "essence": "neutra",
   "cost": 3,
-  "atk": 2,
-  "hp": 3,
-  "keywords": [],
+  "atk": 4,
+  "hp": 2,
+  "keywords": [
+    "critico:1"
+  ],
   "art": "neutra/myrra.webp",
   "effects": [
     {
@@ -20,7 +22,21 @@
       "temp": true
     }
   ],
-  "text": "Ao Entrar: uma unidade aliada ganha +1 de Ataque neste turno.\nSe Myrra morrer, Vael não perdoa.",
+  "activated": {
+    "cost": 1,
+    "speed": "rapido",
+    "once_per_turn": true,
+    "effects": [
+      {
+        "action": "buff",
+        "target": "ally_unit",
+        "keywords": ["escudo"],
+        "critico_temp": 1,
+        "bonus_if_card": { "card": "vael", "atk": 1, "hp": 1 }
+      }
+    ]
+  },
+  "text": "Ao Entrar: uma unidade aliada ganha +1 de Ataque neste turno.\nAo Ativar (1) {rapido} (1x por turno): uma unidade aliada ganha Escudo e, só neste turno, +1 nível de Crítico. Se for o Vael, ele ganha também +1/+1 permanente.\nSe Myrra morrer, Vael não perdoa.",
   "flavor": [
     "Volte inteiro. Isso não é um pedido."
   ],

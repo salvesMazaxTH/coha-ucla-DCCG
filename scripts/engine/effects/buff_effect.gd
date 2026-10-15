@@ -6,6 +6,8 @@ extends Effect
 ## "per": "momentum_left" multiplies atk/hp by the Momentum the controller still has
 ## (at least `min`, at most `max`).
 ## "cap_atk": this effect can give one unit at most that much attack in total (e.g. Layla).
+## "critico_max": true  a unit that has any Crítico at all goes up to Crítico 4 until the end of the turn (units without Crítico are untouched).
+## "bonus_if_card": {"card": id, "atk": N, "hp": N}: when the target is that card, it also gains this permanently (Myrra -> Vael).
 
 var attack := 0
 var health := 0
@@ -19,6 +21,10 @@ var multiplier_max := 99
 var has_attack_cap := false
 var attack_cap := 0
 var minimum_rapidez := 0
+var critico_to_max := false
+var bonus_card := ""
+var bonus_attack := 0
+var bonus_health := 0
 var temporary_critico := 0 ## "critico_temp": N extra Crítico levels until the end of the turn (the total never passes 4)
 
 func _read_parameters(data: Dictionary) -> void:
@@ -34,12 +40,24 @@ func _read_parameters(data: Dictionary) -> void:
 	has_attack_cap = data.has("cap_atk")
 	attack_cap = int(data.get("cap_atk", 0))
 	minimum_rapidez = int(data.get("rapidez_min", 0))
+	critico_to_max = bool(data.get("critico_max", false))
+	var bonus: Dictionary = data.get("bonus_if_card", {})
+	bonus_card = String(bonus.get("card", ""))
+	bonus_attack = int(bonus.get("atk", 0))
+	bonus_health = int(bonus.get("hp", 0))
 	temporary_critico = int(data.get("critico_temp", 0))
 
 func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
 	var unit := game.find_unit(target_uid)
 	if unit == null:
+		return
+	if critico_to_max:
+		if unit.critico_total() < 1:
+			return
+		var missing_levels: int = 4 - unit.critico_total()
+		unit.temp_critico += missing_levels
+		game._emit({"type": "buff", "uid": target_uid, "atk": 0, "hp": 0, "keywords": [], "critico": missing_levels})
 		return
 	var multiplier := 1
 	if per == "momentum_left":
@@ -57,6 +75,11 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	else:
 		unit.atk += attack_gain
 		unit.hp += health_gain
+	if bonus_card != "" and unit.card_id == bonus_card:
+		unit.atk += bonus_attack
+		unit.hp += bonus_health
+		attack_gain += bonus_attack
+		health_gain += bonus_health
 	unit.temp_armor += temporary_armor # lasts until the unit's owner starts their next turn
 	unit.armor += armor # Armadura stacks: giving Armadura X to a unit that has Y leaves X + Y
 	for keyword in keywords:

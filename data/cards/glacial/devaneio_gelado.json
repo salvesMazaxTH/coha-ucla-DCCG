@@ -17,10 +17,11 @@
       "trigger": "on_play",
       "action": "snowball_level",
       "target": "none",
-      "amount": 1
+      "amount": 1,
+      "permanent": true
     }
   ],
-  "text": "Compre 2 cartas. Sua Bola de Neve sobe 1 nível neste turno.",
+  "text": "Compre 2 cartas. Sua Bola de Neve sobe 1 nível pelo o resto do jogo.",
   "flavor": "Ficou olhando o floco cair por tanto tempo que teve duas ideias.",
   "tags": []
 }

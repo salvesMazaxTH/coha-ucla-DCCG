@@ -11,10 +11,11 @@
       "trigger": "on_play",
       "action": "damage",
       "target": "enemy_unit",
-      "amount": 3
+      "amount": 2,
+      "amount_if_frozen": 4
     }
   ],
-  "text": "Cause 3 de dano a uma unidade inimiga.",
+  "text": "Cause 2 de dano a uma unidade inimiga. Se ela estiver Congelada, cause 4.",
   "flavor": "Dói mais do que parece. Parece bastante.",
   "tags": []
 }

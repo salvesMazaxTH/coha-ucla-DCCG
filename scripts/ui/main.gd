@@ -2535,7 +2535,7 @@ func _show_overlay(v: CardView) -> void:
 		var k := CardDB.keyword(kw)
 		txt += "[color=#ffe9a8][b]%s[/b][/color] — %s\n" % [k["name"], CardView.colorize_rules(_keyword_text(cd, kw, k, v.inst))]
 	if CardDB.is_leader_card(v.card_id):
-		txt += "\n[color=#e8c25a]Encarnação do Líder:[/color] fica no Santuário. Cada nova conjuração custa +%d. Ao morrer ou ser banida, volta para o Santuário; se a próxima conjuração passaria de %d, vai para o fundo do deck como carta comum, com o custo normal.\n" % [GameState.COMMANDER_TAX, GameState.MOMENTUM_CAP]
+		txt += "\n[color=#e8c25a]Encarnação do Líder:[/color] fica no Santuário. Cada nova conjuração custa mais que a anterior: +1, depois +2, +3, +4... Ao morrer ou ser banida, volta para o Santuário; se a próxima conjuração passaria de %d, vai para o fundo do deck como carta comum, com o custo normal.\n" % [GameState.MOMENTUM_CAP]
 	var flavor := CardDB.flavor_for(cd, true)
 	if flavor != "":
 		txt += "\n[i][color=#888888]%s[/color][/i]" % flavor

@@ -18,9 +18,9 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 ## Encarnação do Líder (Santuário)
 
 - A Encarnação começa no **Santuário**, fora do deck, e pode ser conjurada de lá a qualquer momento da sua fase principal.
-- Cada conjuração depois da primeira custa **+2 Momentum** a mais que a anterior.
+- A taxa cresce a cada conjuração: a 2ª custa **+1 Momentum**, a 3ª **+3** (1+2), a 4ª **+6** (1+2+3), a 5ª **+10**, e assim por diante.
 - Quando a Encarnação morre, ela volta para o Santuário. A morte dela não afeta o Líder.
-- **Aposentadoria:** se ela morre ou é **banida** e a próxima conjuração passaria de 10 (o máximo de Momentum, contando o **custo atual** com reduções, mais a taxa), ela **não** volta ao Santuário: vai para o **fundo do deck** com o custo resetado e vira **carta comum para sempre** (se morrer de novo, vai para o cemitério). Ex.: Ronan (4) se aposenta na 4ª morte (4→6→8→10, a próxima seria 12); Naelthos (5), na 3ª (5→7→9, a próxima seria 11); Jeff (6), também na 3ª (6→8→10, a próxima seria 12).
+- **Aposentadoria:** se ela morre ou é **banida** e a próxima conjuração passaria de 10 (o máximo de Momentum, contando o **custo atual** com reduções, mais a taxa), ela **não** volta ao Santuário: vai para o **fundo do deck** com o custo resetado e vira **carta comum para sempre** (se morrer de novo, vai para o cemitério). Ex.: Ronan (4) conjura por 4→5→7→10 e se aposenta na 4ª morte (a próxima seria 14); Naelthos (5): 5→6→8, e na 3ª morte a próxima seria 11, então se aposenta; Jeff (6): 6→7→9, e na 3ª morte a próxima seria 12, então se aposenta.
 - Ser devolvida para a mão não conta: ela mantém o custo que tinha no Santuário.
 
 ## Início da partida

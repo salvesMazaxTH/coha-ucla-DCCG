@@ -1,0 +1,22 @@
+{
+  "name": "Hoje Ninguém Erra",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "neutra",
+  "cost": 3,
+  "speed": "rapido",
+  "art": "neutra/hoje_ninguem_erra.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "all_ally_units",
+      "critico_max": true
+    }
+  ],
+  "text": "Suas unidades que têm Crítico ficam com Crítico 4 neste turno, não importa o nível que tinham.",
+  "flavor": [
+    "A sorte foi consultada. Discordou. Foi ignorada."
+  ],
+  "tags": []
+}

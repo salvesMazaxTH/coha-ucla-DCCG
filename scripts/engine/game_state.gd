@@ -10,11 +10,11 @@ const HAND_LIMIT := 10
 const BOARD_LIMIT := 8
 const MOMENTUM_CAP := 10
 const RESERVE_CAP := 2 ## unspent Momentum banked at turn start; pays only spells and abilities
-const COMMANDER_TAX := 2
+const COMMANDER_TAX_STEP := 1 ## the Encarnação's tax grows by this much per previous cast: +1, then +2, +3, +4... (totals 1, 3, 6, 10)
 const INTIMIDATE_ATK := 3 ## Intimidacao: attackers with this ATK or less cannot challenge it
 const SECOND_BONUS_TURNS := 2 ## the second player's first turns that start with +1 Momentum and +1 Reserve (refill)
 const SNOWBALL_GRANDE_AT := 8 ## Bola de Neve level at which every Bola de Neve card of the player evolves into a Grande Bola de Neve
-const SNOWBALL_BASE_LEVEL := 2 ## Bola de Neve level a player starts at, and goes back to at the end of their own turn (the level is temporary)
+const SNOWBALL_BASE_LEVEL := 2 ## Bola de Neve level a player starts at; each player's own base can grow permanently (Devaneio Gelado), see players[p]["snowball_base"]
 const SNOWBALL_CARD_ID := "bola_de_neve"
 const GRANDE_SNOWBALL_CARD_ID := "grande_bola_de_neve" ## a card of its own (transform_only): it only exists through that evolution
 const REQUIEM_EXTRA_COST := 2 ## Réquiem: a spell cast from the graveyard costs this much more, then is banished
@@ -130,7 +130,8 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"legendary": {"card_id": ld["legendary"], "in_zone": true, "casts": 0},
 		"ability_used": false, "passive_used": false, "attacked": false, "fatigue": 0, "mulligan_done": false,
 		"played_two": false,
-		"snowball": SNOWBALL_BASE_LEVEL, # damage the next Bola de Neve starts at (grows with every Bola de Neve cast, resets at the end of the owner's turn)
+		"snowball": SNOWBALL_BASE_LEVEL, # damage the next Bola de Neve starts at (grows with every Bola de Neve cast, goes back to snowball_base at the end of the owner's turn)
+		"snowball_base": SNOWBALL_BASE_LEVEL, # the level the Bola de Neve goes back to every turn; raised for the rest of the game by Devaneio Gelado
 		"critico_growth": {}, # card_id -> Crítico level reached by "critico_growth" cards (Vael), shared by every copy of it
 		"glacial_discount_used": false, # the Amuleto Glacial discount was already spent this turn
 		"damage_halved_until": 0, # Câmara de Êxtase aftermath: the Leader takes half damage while turn <= this
@@ -317,7 +318,11 @@ func _legendary_leaves(p: int) -> void:
 
 func legendary_cost(p: int) -> int:
 	var l: Dictionary = players[p]["legendary"]
-	return cost_of(p, CardDB.card(l["card_id"])) + COMMANDER_TAX * int(l["casts"])
+	return cost_of(p, CardDB.card(l["card_id"])) + commander_tax(int(l["casts"]))
+
+## Extra cost of the Encarnação after `casts` previous casts: 1 + 2 + ... + casts, times COMMANDER_TAX_STEP.
+static func commander_tax(casts: int) -> int:
+	return COMMANDER_TAX_STEP * casts * (casts + 1) / 2
 
 ## Congelada: no attack, no untap, no guarding the Leader until the end of the next turn.
 func is_frozen(c: Card) -> bool:
@@ -442,14 +447,15 @@ func set_snowball_level(p: int, new_level: int) -> void:
 		crossing.amount = new_level
 		bus().emit(crossing)
 
-## End of p's own turn: the Bola de Neve level goes back to SNOWBALL_BASE_LEVEL, so a combo has to happen inside a single turn.
+## End of p's own turn: the Bola de Neve level goes back to the player's base level, so a combo has to happen inside a single turn.
 ## If it was Grande, every Grande Bola de Neve card of p turns back into a normal Bola de Neve.
 func reset_snowball_level(p: int) -> void:
 	var was_grande := snowball_is_grande(p)
-	players[p]["snowball"] = SNOWBALL_BASE_LEVEL
+	var base_level: int = int(players[p]["snowball_base"])
+	players[p]["snowball"] = base_level
 	if was_grande:
 		_devolve_snowball_cards(p)
-	_emit({"type": "snowball_reset", "player": p, "level": SNOWBALL_BASE_LEVEL})
+	_emit({"type": "snowball_reset", "player": p, "level": base_level})
 
 func snowball_is_grande(p: int) -> bool:
 	return int(players[p]["snowball"]) >= SNOWBALL_GRANDE_AT

@@ -9,6 +9,7 @@
   "cost": 3,
   "atk": 2,
   "hp": 4,
+  "art": "neutra/dona_gertrudes_fura_fila.webp",
   "keywords": [],
   "effects": [
     {
