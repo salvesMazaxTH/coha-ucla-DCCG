@@ -2840,9 +2840,18 @@ func _render_search_reveal() -> void:
 	var discard_hand: bool = g.pending_search.get("discard_hand", false)
 	var hand_summon: bool = g.pending_search.get("hand_summon", false)
 	var hidden := (look or discard_hand or hand_summon) and not _my_input()
-	box.add_child(_label("CAMPEÃO DA MÃO" if hand_summon else "DESCARTAR DA MÃO" if discard_hand else "CEMITÉRIO" if g.pending_search.get("grave", false) else ("TOPO DO DECK" if look else "REVELAÇÃO DO DECK"), 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
+	# the options of a deck search are shown only to the searcher; the opponent just sees that a search is happening
+	var deck_search: bool = g.pending_search.get("deck_search", false)
+	var secret_search := deck_search and not _my_input()
+	box.add_child(_label("CAMPEÃO DA MÃO" if hand_summon else "DESCARTAR DA MÃO" if discard_hand else "CEMITÉRIO" if g.pending_search.get("grave", false) else ("TOPO DO DECK" if look else "BUSCA NO DECK"), 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
 	var grave: bool = g.pending_search.get("grave", false)
-	var sub := "%s revelou as opções da busca" % _pname(owner)
+	var sub := "%s está procurando uma carta no deck" % _pname(owner)
+	if deck_search and _my_input():
+		sub = "Você procurou no deck e encontrou estas cartas"
+		if g.pending_search.has("to_bottom"):
+			sub = "Você olhou as %d cartas do topo do deck e encontrou estas" % int(g.pending_search["looked"])
+	if secret_search and g.pending_search.has("to_bottom"):
+		sub = "%s está olhando as %d cartas do topo do deck" % [_pname(owner), int(g.pending_search["looked"])]
 	if hand_summon:
 		sub = "%s escolhe um campeão da mão para entrar em campo (será banido no fim do turno)" % _pname(owner)
 	elif discard_hand:
@@ -2851,11 +2860,12 @@ func _render_search_reveal() -> void:
 		sub = "%s está olhando as %d cartas do topo do deck" % [_pname(owner), g.pending_search["cards"].size()]
 	box.add_child(_label(sub, 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
 	var grid := GridContainer.new()
-	grid.columns = min(7, g.pending_search["cards"].size())
+	var shown_options: Array = [] if secret_search else g.pending_search["cards"]
+	grid.columns = maxi(1, mini(7, shown_options.size()))
 	grid.add_theme_constant_override("h_separation", 12)
 	grid.add_theme_constant_override("v_separation", 10)
 	box.add_child(grid)
-	for option in g.pending_search["cards"]:
+	for option in shown_options:
 		var card_uid: int = option["uid"]
 		var cv := CardView.new().setup(option["card_id"], {"uid": card_uid}, 1.05)
 		cv.face_down = hidden or String(option["card_id"]) == ""
@@ -2866,7 +2876,7 @@ func _render_search_reveal() -> void:
 		if _my_input():
 			cv.left_clicked.connect(func(_v): _on_search_choice(card_uid))
 		grid.add_child(cv)
-	var hint := "Clique em um campeão para colocá-lo em campo sem pagar o custo." if hand_summon else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else "Escolha 1 para a mão; as outras vão para o fundo do deck." if look else "Clique em uma carta para adicioná-la à sua mão e embaralhar o deck."
+	var hint := "Clique em um campeão para colocá-lo em campo sem pagar o custo." if hand_summon else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else "Escolha 1 para a mão; as outras vão para o fundo do deck." if look else "Clique em uma carta para adicioná-la à sua mão; as outras cartas olhadas vão para o fundo do deck." if g.pending_search.has("to_bottom") else "Clique em uma carta para adicioná-la à sua mão e embaralhar o deck."
 	var footer := _label(hint if _my_input() else "A escolha pertence ao oponente.", 16, SEL if _my_input() else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 	box.add_child(footer)
 	_center.call_deferred(search_overlay)
@@ -3833,10 +3843,17 @@ func _log_event(e: Dictionary) -> void:
 		"ban":
 			_log("%s baniu uma carta da mão" % _pname(e["player"]))
 		"search_reveal":
-			var names: Array = []
-			for c in e["cards"]:
-				names.append(_cname(c["card_id"]))
-			_log("%s revelou: %s" % [_pname(e["player"]), ", ".join(names)])
+			if e.get("private", false):
+				# the options of a deck search stay secret; only the card taken is announced (search_take)
+				if int(e.get("looked", 0)) > 0:
+					_log("%s olhou as %d cartas do topo do deck" % [_pname(e["player"]), int(e["looked"])])
+				else:
+					_log("%s procurou uma carta no deck" % _pname(e["player"]))
+			else:
+				var names: Array = []
+				for c in e["cards"]:
+					names.append(_cname(c["card_id"]))
+				_log("%s revelou: %s" % [_pname(e["player"]), ", ".join(names)])
 		"look_top":
 			_log("%s olhou as %d cartas do topo do deck" % [_pname(e["player"]), e["cards"].size()])
 		"look_bottom":

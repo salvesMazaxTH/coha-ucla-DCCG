@@ -3212,17 +3212,18 @@ func _test_glacial_combo() -> void:
 	block_game.end_turn(block_foe)
 	check(int(block_game.players[block_foe]["frozen_slots"]) == 0 and block_game.has_free_slot(block_foe), "Rei Gelado: os espaços descongelam no fim do turno do oponente")
 
-	# Chamado da Nevasca finds any Glacial spell that costs 4 or less, and nothing else
+	# Chamado da Nevasca looks at the top 5 cards and finds a Glacial spell that costs 4 or less there, and nothing else
 	var search := _combo_game(3, 0, 10, 0)
 	var search_game: GameState = search["game"]
 	var searcher: int = search["me"]
 	search_game.players[searcher]["deck"].clear()
 	var wanted: Array = []
-	# the first four qualify; Zero Absoluto costs 5, Nythera is a unit and Carga Acumulada is not Glacial
+	# the top of the deck is the END of the list: Bola de Neve and Ritual do Degelo qualify but are too deep (not in the top 5);
+	# Zero Absoluto costs 5, Nythera is a unit and Carga Acumulada is not Glacial
 	for card_id in ["bola_de_neve", "ritual_do_degelo", "ladeira_abaixo_e_sem_freio", "estilhaco_gelido", "zero_absoluto", "nythera", "carga_acumulada"]:
 		var deck_card := Card.new(search_game._uid(), card_id, searcher, "deck")
 		search_game.players[searcher]["deck"].append(deck_card)
-		if card_id in ["bola_de_neve", "ritual_do_degelo", "ladeira_abaixo_e_sem_freio", "estilhaco_gelido"]:
+		if card_id in ["ladeira_abaixo_e_sem_freio", "estilhaco_gelido"]:
 			wanted.append(deck_card.uid)
 	var chamado_uid := _give(search_game, searcher, "chamado_da_nevasca")
 	search_game.play_card(searcher, chamado_uid)
@@ -3234,7 +3235,18 @@ func _test_glacial_combo() -> void:
 	var offered: Array = search_game.pending_search["cards"].map(func(option: Dictionary): return int(option["uid"]))
 	offered.sort()
 	wanted.sort()
-	check(offered == wanted, "Chamado da Nevasca: oferece só feitiços Glaciais de custo 4 ou menos (%s)" % [offered])
+	check(offered == wanted, "Chamado da Nevasca: oferece só feitiços Glaciais de custo 4 ou menos entre as 5 do topo (%s)" % [offered])
+	# taking one sends the other four looked-at cards to the bottom (no shuffle); the 2 deeper cards stay on top of them
+	var taken_uid: int = int(search_game.pending_search["cards"][0]["uid"])
+	var looked_uids: Array = search_game.pending_search["to_bottom"].duplicate()
+	search_game.choose_search(searcher, taken_uid)
+	var deck_after: Array = search_game.players[searcher]["deck"]
+	check(deck_after.size() == 6, "Chamado da Nevasca: a carta escolhida sai do deck")
+	var bottom_uids: Array = deck_after.slice(0, 4).map(func(card: Card): return card.uid)
+	looked_uids.erase(taken_uid)
+	bottom_uids.sort()
+	looked_uids.sort()
+	check(bottom_uids == looked_uids, "Chamado da Nevasca: as outras cartas olhadas vão para o fundo do deck")
 
 	# the new deck: legal and holding the combo pieces
 	var combo_deck := DeckDB.get_deck("glacial_combo")

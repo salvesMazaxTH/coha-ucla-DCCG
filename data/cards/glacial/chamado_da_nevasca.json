@@ -13,10 +13,11 @@
       "target": "none",
       "type": "spell",
       "essence": "glacial",
-      "max_cost": 4
+      "max_cost": 4,
+      "top": 5
     }
   ],
-  "text": "Procure no seu deck um feitiço Glacial de custo 4 ou menos e coloque-o na sua mão.",
+  "text": "Olhe as 5 cartas do topo do seu deck e revele um feitiço Glacial de custo 4 ou menos entre elas: coloque-o na sua mão. As outras vão para o fundo do deck.",
   "flavor": "Assobiou pro vento. O vento trouxe a bola.",
   "tags": []
 }

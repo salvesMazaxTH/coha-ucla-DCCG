@@ -1182,14 +1182,21 @@ func choose_search(p: int, card_uid: int) -> Array:
 	players[p]["hand"].append(found)
 	_move(found, "hand")
 	var look: bool = pending_search.get("look", false)
+	var top_search: bool = pending_search.has("to_bottom") # a search limited to the top N cards
 	var reshuffle: bool = pending_search.get("shuffle", false)
-	if look and not reshuffle:
+	if (look or top_search) and not reshuffle:
 		# the cards not taken go to the bottom of the deck, unrevealed
-		for c in options:
-			if int(c["uid"]) == card_uid:
+		var not_taken: Array = []
+		if top_search:
+			not_taken = pending_search["to_bottom"]
+		else:
+			for c in options:
+				not_taken.append(int(c["uid"]))
+		for uid in not_taken:
+			if int(uid) == card_uid:
 				continue
 			for d: Card in deck:
-				if d.uid == int(c["uid"]):
+				if d.uid == int(uid):
 					deck.erase(d)
 					deck.push_front(d)
 					break
@@ -1198,7 +1205,7 @@ func choose_search(p: int, card_uid: int) -> Array:
 	pending_search.clear()
 	phase = _search_return
 	_emit({"type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"]})
-	_emit({"type": "look_bottom" if look and not reshuffle else "search_shuffle", "player": p})
+	_emit({"type": "look_bottom" if (look or top_search) and not reshuffle else "search_shuffle", "player": p})
 	_resolve_stack() # a search opened mid-resolution: finish the rest of the stack
 	_check_state() # resumes the triggers that waited for this choice
 	stack_system().after_search()
@@ -1401,7 +1408,14 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 		return
 	var matches: Array = []
 	var seen: Dictionary = {}
-	for c in players[p]["deck"]:
+	# "top": N looks only at the N cards on top of the deck (the top is the back of the array);
+	# without it the whole deck is searched, which is only for very narrow filters (a single named card)
+	var top_only := int(e.get("top", 0)) > 0
+	var searched: Array = players[p]["deck"]
+	if top_only:
+		var deck_size: int = searched.size()
+		searched = searched.slice(maxi(deck_size - int(e["top"]), 0), deck_size)
+	for c in searched:
 		var cd := CardDB.card(c.card_id)
 		if e.get("essence", "") != "" and not CardDB.has_essence(cd, e["essence"]):
 			continue
@@ -1436,10 +1450,18 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 	if matches.is_empty():
 		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
 		return
-	pending_search = {"player": p, "source_uid": source_uid, "cards": matches}
+	# "deck_search": the options are private to the searcher; the opponent only learns the card that was taken (search_take)
+	pending_search = {"player": p, "source_uid": source_uid, "cards": matches, "deck_search": true}
+	if top_only:
+		# the cards looked at but not taken go to the bottom of the deck instead of a shuffle
+		var looked_uids: Array = []
+		for c: Card in searched:
+			looked_uids.append(c.uid)
+		pending_search["to_bottom"] = looked_uids
+		pending_search["looked"] = searched.size()
 	_search_return = phase
 	phase = "search"
-	_emit({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": matches})
+	_emit({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": matches, "private": true, "looked": pending_search.get("looked", 0)})
 
 ## The player picks one card from their own hand to discard to the graveyard.
 ## Uses the same choice screen as the overdraw banish; the options are private to the owner.
