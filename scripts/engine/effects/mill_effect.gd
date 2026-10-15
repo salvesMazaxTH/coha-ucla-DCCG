@@ -1,16 +1,21 @@
 class_name MillEffect
 extends Effect
-## "mill": the top `amount` cards of the controller's deck go to the graveyard (no fatigue
-## when the deck runs out). "mill_pick" does the same, then offers one of those cards to the hand.
+## "mill": the top `amount` cards of a deck go to its owner's graveyard (no fatigue by itself:
+## the next draw from the empty deck is what hurts). "who": "enemy" mills the opponent's deck
+## instead of the controller's (Metálica). "mill_pick" does the same on the own deck, then
+## offers one of those cards to the hand.
 
 var amount := 1
+var mills_enemy := false
 
 func _read_parameters(data: Dictionary) -> void:
 	amount = int(data.get("amount", 1))
+	mills_enemy = String(data.get("who", "self")) == "enemy"
 
 func apply(context: EffectContext, _target_uid: int) -> void:
 	var game := context.game
-	var player: Dictionary = game.players[context.controller]
+	var deck_owner: int = game.opponent(context.controller) if mills_enemy else context.controller
+	var player: Dictionary = game.players[deck_owner]
 	var milled_ids: Array = []
 	context.milled_cards = []
 	for i in amount:
@@ -22,7 +27,7 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 		context.milled_cards.append(card)
 		milled_ids.append(card.card_id)
 	if not milled_ids.is_empty():
-		game._emit({"type": "mill", "player": context.controller, "cards": milled_ids})
+		game._emit({"type": "mill", "player": deck_owner, "cards": milled_ids})
 
 func opens_choice() -> bool:
 	return action == "mill_pick"

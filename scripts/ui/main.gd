@@ -3864,7 +3864,10 @@ func _log_event(e: Dictionary) -> void:
 			var milled: Array = []
 			for cid in e["cards"]:
 				milled.append(_cname(cid))
-			_log("%s mandou ao cemitério: %s" % [_pname(e["player"]), ", ".join(milled)])
+			_log("Do deck de %s ao cemitério: %s" % [_pname(e["player"]), ", ".join(milled)])
+		"reflect":
+			var mirror := g.find_unit(e["uid"])
+			_log("%s refletiu %d de dano" % ["Uma unidade" if mirror == null else _cname(mirror.card_id), int(e["amount"])])
 		"revive":
 			_log("%s reviveu %s" % [_pname(e["player"]), _cname(e["card_id"])])
 		"relic_enter":

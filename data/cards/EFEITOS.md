@@ -32,7 +32,7 @@ Cada ação é uma classe em `scripts/engine/effects/`, registrada em `effect_re
 | `add_card` | `card` (id da carta), `to` (`deck_top` padrão ou `hand`) | Nythera: cria uma carta nova para o dono do efeito (alvo `none`) e a põe no topo do deck (a próxima compra) ou na mão. Uma Bola de Neve criada já nasce Grande se o dono estiver no nível Grande (no fim do turno dele as Grandes voltam a ser Bola de Neve) |
 | `fight` | `second_target` | o alvo (1ª escolha) e a unidade de `second_target` (2ª escolha) causam, ao mesmo tempo, dano igual ao Ataque de cada uma à outra. Não é combate; Armadura e Escudo valem, Escudo de Feitiço do inimigo cancela a luta |
 | `summon` | `card` (`"self"` ou id), `overrides` | invoca uma carta |
-| `mill` / `mill_pick` | `amount` | manda cartas do deck ao cemitério |
+| `mill` / `mill_pick` | `amount`, `who` (`"enemy"` tritura o deck do oponente; padrão: o próprio) | manda cartas do deck ao cemitério do dono do deck |
 | `grave_retrieve` | `card_id` ou `card_ids` (lista) | escolhe uma cópia no cemitério e leva à mão; ela é banida quando o próximo lançamento acabar |
 | `snowball_level` | `amount` (padrão 1) | sobe o nível da Bola de Neve do controlador sem lançá-la (alvo `none`); `multiply` (ex.: 2) multiplica o nível em vez de somar; `permanent: true` (Devaneio Gelado) também sobe, pelo resto do jogo, o nível a que a Bola volta no fim de cada turno do dono (`snowball_base` do jogador, começa em 2) |
 | `revive` / `revive_self` | `max_cost`, `atk`, `hp` | volta do cemitério |
@@ -42,7 +42,7 @@ Cada ação é uma classe em `scripts/engine/effects/`, registrada em `effect_re
 | `buff` | `atk`, `hp`, `temp`, `keywords`, `armor`, `armor_temp`, `critico_temp`, `per`, `min`, `max`, `cap_atk`, `bonus_if_card` | bônus de ataque/vida/palavras-chave. `critico_temp: N` soma N níveis de Crítico até o fim do turno (total máximo 4). Com `temp: true`, Ataque, Vida e palavras-chave duram só até o fim do turno |
 | `counter` | `max_cost`, `kicker_cost`, `kicker_max_cost`, `only_if_targets_ally` | anula a carta escolhida na pilha. `only_if_targets_ally: true` só permite anular o que escolheu como alvo uma unidade ou o Líder de quem anula (efeitos em área não contam) |
 | `modify_cost` | `amount` | muda o custo da carta (persiste entre zonas) |
-| `cost_reduction` / `scale` | — | habilidades constantes (sem `target`, nunca disparam) |
+| `cost_reduction` / `scale` | `per` (`own_artifacts` conta os artefatos do controlador, em campo ou equipados) | habilidades constantes (sem `target`, nunca disparam) |
 
 ## Alvos
 

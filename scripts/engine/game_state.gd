@@ -295,7 +295,16 @@ func _scale_count(p: int, e: Dictionary) -> int:
 	match e.get("per", ""):
 		"own_graveyard_units": return graveyard_units(p)
 		"enemy_graveyard_units": return graveyard_units(opponent(p))
+		"own_artifacts": return artifact_count(p)
 	return 0
+
+## Artifacts a player has in play: free-standing ones plus the equipment worn by their units.
+func artifact_count(p: int) -> int:
+	var n: int = players[p]["relics"].size()
+	for c: Card in players[p]["board"]:
+		if c.equipment != null:
+			n += 1
+	return n
 
 ## What a "scale" card counts right now (shown in its text off the board), or -1 if it has none.
 func scale_count(p: int, cd: Dictionary) -> int:
@@ -1656,6 +1665,11 @@ func _deal_damage(t: int, amount: int, source: Card) -> int:
 			_emit({"type": "tide_draw", "uid": t, "player": c.owner})
 			_draw(c.owner, 1)
 		_fire(c, "on_damaged", src_uid)
+		# Reflexão: half of the damage taken (rounded up) goes back to the unit that dealt it. The
+		# returning damage has no source, so two mirrors facing each other can't bounce it forever.
+		if has_kw(c, "reflexao") and source != null and source != c and find_unit(src_uid) != null:
+			_emit({"type": "reflect", "uid": t, "target": src_uid, "amount": ceili(amount / 2.0)})
+			_deal_damage(src_uid, ceili(amount / 2.0), null)
 	if source != null and has_kw(source, "roubo_de_vida"):
 		_heal_leader(source.owner, dealt)
 	return dealt

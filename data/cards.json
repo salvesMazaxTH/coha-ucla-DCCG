@@ -121,6 +121,8 @@
     "revenante": { "name": "Revenante" },
     "gargoyle": { "name": "Gargoyle" },
     "golem": { "name": "Golem" },
+    "robo": { "name": "Robô" },
+    "construto": { "name": "Construto" },
     "anao": { "name": "Anão" },
     "gigante": { "name": "Gigante" },
     "goblin": { "name": "Goblin" },
@@ -145,6 +147,10 @@
     "regeneracao": {
       "name": "Regeneração",
       "text": "No fim de cada turno, todo o dano desta unidade é curado."
+    },
+    "reflexao": {
+      "name": "Reflexão",
+      "text": "Sempre que sofrer dano de uma unidade, devolve metade desse dano (arredondado para cima) a ela."
     },
     "roubo_de_vida": {
       "name": "Roubo de Vida",
