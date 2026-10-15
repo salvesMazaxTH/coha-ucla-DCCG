@@ -64,6 +64,7 @@ var grave_owner := 0
 var grave_filter := "all"
 var grave_drag_ms := -1000 ## last finger-drag in the viewer: taps right after it are not clicks
 var views := {} ## uid (or "cmd<p>") -> Control on screen, for animations
+var barricade_was_up := {} ## unit uid -> was it a tapped, unfrozen Provocação in the previous render? (to spot the moment it slams shut)
 var hand_uids := {} ## viewer's hand cards in the current render
 var hint_text := "" ## the tip pill fades out after a few seconds and returns when the player seems lost
 var hint_since := 0
@@ -375,6 +376,7 @@ func _start(ai: bool, deck_a: String, deck_b: String) -> void:
 		online = false
 	vs_ai = ai
 	g = GameState.new(deck_a, deck_b)
+	barricade_was_up.clear() # unit uids restart with every match
 	for i in 2:
 		g.auto_pass[i] = _auto_pass_on() or _is_ai(i)
 	CardDB.reroll_flavor()
@@ -1251,6 +1253,7 @@ func _render_board(p: int, y: float) -> void:
 		v.right_clicked.connect(_show_overlay)
 		layer.add_child(v)
 		views[unit.uid] = v
+		_slam_if_barricade_just_closed(v, unit)
 		if unit.is_frozen():
 			_tag(v, "CONGELADA", ICE)
 		if unit.equipment != null:
@@ -1261,6 +1264,24 @@ func _render_board(p: int, y: float) -> void:
 			layer.add_child(eq)
 			layer.move_child(eq, v.get_index())
 			views["eq%d" % unit.uid] = eq # kept so the drag gap can slide it along with its unit
+
+## Cards are rebuilt on every render, so a unit cannot notice by itself that it just became a
+## barricade. Here we remember last render's state per unit: a Provocação that was not barring
+## and now is (tapped, not Congelada) slams shut — shockwaves and a small thud.
+## A unit seen for the first time only slams when it just entered (Provocação enters tapped).
+func _slam_if_barricade_just_closed(v: CardView, unit: Card) -> void:
+	var barring_now: bool = unit.exhausted and g.has_kw(unit, "provocacao") and not unit.is_frozen()
+	var barring_before: bool = barricade_was_up.get(unit.uid, not unit.sick)
+	barricade_was_up[unit.uid] = barring_now
+	if not barring_now or barring_before:
+		return
+	var slam := v.create_tween()
+	slam.tween_property(v, "taunt_slam", 1.0, 0.7).from(0.001)
+	slam.tween_callback(func(): v.taunt_slam = 0.0)
+	var thud := v.create_tween()
+	thud.tween_property(v, "shake", Vector2(0, 5), 0.05).from(Vector2(0, -7))
+	thud.tween_property(v, "shake", Vector2(0, -2), 0.08)
+	thud.tween_property(v, "shake", Vector2.ZERO, 0.1)
 
 ## Free-standing artifacts (Ossuário Sem Fundo...) stand in the lane right after the units,
 ## each one taking a slot. Click: pick it as a target, or open the overlay (with its Ativar button).
@@ -2416,12 +2437,22 @@ func _scale_suffix(p: int, cd: Dictionary) -> String:
 
 ## Glossary line of a keyword for this card: Esquiva explains the card's own rule (the default one,
 ## or "esquiva": {"max_rapidez": N}), every other keyword uses the shared text.
-func _keyword_text(cd: Dictionary, kw: String, k: Dictionary) -> String:
+func _keyword_text(cd: Dictionary, kw: String, k: Dictionary, instance: Dictionary = {}) -> String:
 	var rule: Dictionary = cd.get("esquiva", {})
 	if kw == "esquiva" and rule.has("max_rapidez"):
 		var level := CardView.rapidez_keyword_level(int(rule["max_rapidez"]))
 		var speed_limit := "sem Rapidez" if level == 0 else "Rapidez %d ou menos" % level
 		return "A primeira vez em cada turno que receberia dano de combate de uma unidade %s, o dano é evitado." % speed_limit
+	if kw == "critico":
+		# shared rule plus this unit's own live chance (temporary levels included), so nobody has to do the X * 25% math
+		var critico_level := CardView.critico_of_view(cd, instance)
+		var temporary_note := ""
+		if int(instance.get("temp_critico", 0)) > 0:
+			temporary_note = " (+%d até o fim do turno)" % int(instance["temp_critico"])
+		return "%s Esta unidade: Crítico %d%s = %d%% de chance." % [k["text"], critico_level, temporary_note, CardView.critico_chance_percent(critico_level)]
+	if kw == "ataque_duplo" and instance.has("damage"):
+		# on the board: how many of the two attacks this turn are already spent
+		return "%s Ataques neste turno: %d de 2." % [k["text"], int(instance.get("attacks_made", 0))]
 	return k["text"]
 
 ## Keyword ids whose names appear in a rules text, in the order they appear (no repeats).
@@ -2478,12 +2509,16 @@ func _show_overlay(v: CardView) -> void:
 	var glossary_keywords: Array = cd.get("keywords", []).duplicate()
 	if int(v.inst.get("rapidez", cd.get("rapidez", 1))) > 1:
 		glossary_keywords.append("rapidez") # shown as a tag on the card, so the glossary explains it
+	if CardView.critico_of_view(cd, v.inst) > 0 and not glossary_keywords.has("critico"):
+		glossary_keywords.append("critico") # also shown as a tag (it can grow during the match)
+	if CardView.attacks_allowed_of_view(cd, v.inst) >= 2 and not glossary_keywords.has("ataque_duplo"):
+		glossary_keywords.append("ataque_duplo") # earned in play (Vael at Crítico 4), shown as a tag too
 	for kw in _mentioned_keywords(String(cd.get("text", "")) + v.text_suffix):
 		if not glossary_keywords.has(kw):
 			glossary_keywords.append(kw)
 	for kw in glossary_keywords:
 		var k := CardDB.keyword(kw)
-		txt += "[color=#ffe9a8][b]%s[/b][/color] — %s\n" % [k["name"], CardView.colorize_rules(_keyword_text(cd, kw, k))]
+		txt += "[color=#ffe9a8][b]%s[/b][/color] — %s\n" % [k["name"], CardView.colorize_rules(_keyword_text(cd, kw, k, v.inst))]
 	if CardDB.is_leader_card(v.card_id):
 		txt += "\n[color=#e8c25a]Encarnação do Líder:[/color] fica no Santuário. Cada nova conjuração custa +%d. Ao morrer ou ser banida, volta para o Santuário; se a próxima conjuração passaria de %d, vai para o fundo do deck como carta comum, com o custo normal.\n" % [GameState.COMMANDER_TAX, GameState.MOMENTUM_CAP]
 	var flavor := CardDB.flavor_for(cd, true)
@@ -3305,13 +3340,17 @@ func _streak(from: Control, to: Control, t: float, col: Color) -> float:
 
 ## How long a revealed spell/ability stays frozen mid-screen: long enough for the
 ## opponent to read it, short for your own plays (you already know what you cast).
+## Hot-seat shares one screen between both players, so it gets a middle value.
 const REVEAL_HOLD := 2.78
 const REVEAL_HOLD_OWN := 0.8
+const REVEAL_HOLD_HOTSEAT := 1.5
 const REVEAL_W := 280.0 ## on-screen width of a revealed spell
 const FATIGUE_W := 240.0
 
 func _reveal_hold(p: int) -> float:
-	return REVEAL_HOLD_OWN if (online or vs_ai) and p == viewer else REVEAL_HOLD
+	if not online and not vs_ai:
+		return REVEAL_HOLD_HOTSEAT
+	return REVEAL_HOLD_OWN if p == viewer else REVEAL_HOLD
 
 ## A Leader ability has no card to show: a banner with its name and text instead.
 func _ability_banner(p: int, t: float, hold: float, passive := false) -> void:
@@ -3536,14 +3575,16 @@ func _animate(events: Array, old: Dictionary) -> float:
 			"countered":
 				_toast("%s foi anulado!" % ("A habilidade do Líder" if e["kind"] == "ability" else _cname(e["card_id"])))
 				cursor += 0.4
-			"spell_shield_break", "tide_mark", "tide_draw", "freeze", "exhaust", "thaw", "dodge":
+			"spell_shield_break", "tide_mark", "tide_draw", "freeze", "exhaust", "thaw", "dodge", "crit", "crit_negated", "critico_up":
 				if actors.has(e["uid"]):
-					var lbl: String = {"spell_shield_break": "Anulado!", "tide_mark": "Maré", "tide_draw": "+1 carta", "freeze": "Congelada!", "exhaust": "Exausta!", "thaw": "Descongelou", "dodge": "Esquivou!"}[e["type"]]
+					var lbl: String = {"spell_shield_break": "Anulado!", "tide_mark": "Maré", "tide_draw": "+1 carta", "freeze": "Congelada!", "exhaust": "Exausta!", "thaw": "Descongelou", "dodge": "Esquivou!", "crit": "Crítico!", "crit_negated": "Desdém!", "critico_up": "Crítico %d!" % int(e.get("level", 0))}[e["type"]]
 					var col: Color = Color("#6fd0ff")
 					if e["type"] == "spell_shield_break":
 						col = Color("#c9a8ff")
 					elif e["type"] in ["freeze", "thaw"]:
 						col = ICE
+					elif e["type"] in ["crit", "crit_negated", "critico_up"]:
+						col = Color("#ff9d6e") # same warm tone as the Crítico tag
 					_impact(actors[e["uid"]], lbl, col, cursor, false)
 				cursor += 0.2
 			"transform":

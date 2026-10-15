@@ -8,7 +8,7 @@ Um efeito é um objeto:
 { "trigger": "on_enter", "if": "momentum_left", "action": "damage", "target": "enemy_unit", "amount": 2 }
 ```
 
-Campos comuns: `trigger` (ver Eventos), `if` (ver Condições), `action`, `target`, `pick2` (usa a segunda escolha da carta), `once_per_turn`, `not_in_combat`, `not_token` (Aliado Morre ignora a morte de ficha).
+Campos comuns: `trigger` (ver Eventos), `if` (ver Condições), `action`, `target`, `pick2` (usa a segunda escolha da carta), `once_per_turn`, `not_in_combat`, `not_token` (Aliado Morre ignora a morte de ficha), `dying_card` (Aliado Morre só dispara se quem morreu é a carta com esse id, ex.: o Luto de Vael com `"myrra"`).
 
 ## Ações
 
@@ -16,7 +16,7 @@ Cada ação é uma classe em `scripts/engine/effects/`, registrada em `effect_re
 
 | action | parâmetros | o que faz |
 |---|---|---|
-| `damage` | `amount`, `amount_from`, `ally_reduce` | dano ao alvo |
+| `damage` | `amount`, `amount_from`, `ally_reduce`, `amount_if_frozen` | dano ao alvo (`amount_if_frozen`: dano maior se o alvo já estiver Congelado) |
 | `heal_leader` / `leader_max_up` / `heal_full` | `amount` | cura, aumenta a vida máxima ou cura tudo |
 | `heal_unit` | `amount`, `per` (`"armor"`, `"half_armor"`) | cura a unidade em `amount` (se o alvo for um Líder, cura o seu Líder), ou no valor da Armadura dela (`"armor"`) ou metade arredondada pra cima (`"half_armor"`) |
 | `draw` / `draw_discounted` | `amount`, `min_base_cost`, `discount` | compra cartas (a segunda dá desconto à cópia na mão) |
@@ -37,8 +37,8 @@ Cada ação é uma classe em `scripts/engine/effects/`, registrada em `effect_re
 | `revive` / `revive_self` | `max_cost`, `atk`, `hp` | volta do cemitério |
 | `destroy` / `banish` | — | mata / bane a unidade |
 | `sacrifice` | `then` (lista de efeitos) | sacrifica; o `then` roda depois |
-| `gain_momentum` | `amount`, `per`, `divisor`, `max`, `next_turn` | ganha Momentum |
-| `buff` | `atk`, `hp`, `temp`, `keywords`, `armor`, `armor_temp`, `per`, `min`, `max`, `cap_atk` | bônus de ataque/vida/palavras-chave. Com `temp: true`, Ataque, Vida e palavras-chave duram só até o fim do turno |
+| `gain_momentum` | `amount`, `per`, `divisor`, `max`, `next_turn` | ganha Momentum (`next_turn` com `amount` negativo = dívida: o próximo turno começa com menos Momentum, sem mexer no máximo e sem passar de 0) |
+| `buff` | `atk`, `hp`, `temp`, `keywords`, `armor`, `armor_temp`, `critico_temp`, `per`, `min`, `max`, `cap_atk` | bônus de ataque/vida/palavras-chave. `critico_temp: N` soma N níveis de Crítico até o fim do turno (total máximo 4). Com `temp: true`, Ataque, Vida e palavras-chave duram só até o fim do turno |
 | `counter` | `max_cost`, `kicker_cost`, `kicker_max_cost`, `only_if_targets_ally` | anula a carta escolhida na pilha. `only_if_targets_ally: true` só permite anular o que escolheu como alvo uma unidade ou o Líder de quem anula (efeitos em área não contam) |
 | `modify_cost` | `amount` | muda o custo da carta (persiste entre zonas) |
 | `cost_reduction` / `scale` | — | habilidades constantes (sem `target`, nunca disparam) |
@@ -100,3 +100,10 @@ Gatilhos que disparam durante uma ação entram numa fila e resolvem depois que 
 4. Use `"action": "minha_acao"` no JSON da carta e rode os testes: se algo estiver errado, `CardDB.errors()` diz.
 
 Um alvo novo entra no `NAMES` de uma família (ou numa família nova listada em `TargetRegistry`); uma condição nova, em `ConditionRegistry`; um evento escutável, em `GameEvent.LISTENABLE`.
+
+## Campos de Crítico (na própria carta, fora de `effects`)
+
+- Palavra-chave `"critico:N"` em `keywords` (N de 1 a 4): nível impresso de Crítico.
+- `critico_growth: true`: cada crítico causado sobe o Crítico da carta em 1 nível permanente (até 4). Hoje só Vael. O nível alcançado vale para TODAS as cópias dele do jogador (campo, mão, deck, cemitério, banidas) e para as futuras.
+- `critico_maximo: {"bonus": 4, "ataque_duplo": true}`: ao chegar no Crítico 4 o crítico da carta dá `bonus` (em vez de +2) e `ataque_duplo` libera o segundo ataque. Hoje só Vael. O nível alcançado vale para TODAS as cópias dele do jogador (campo, mão, deck, cemitério, banidas) e para as futuras.
+- `imune_critico: true`: o dano de combate que a carta recebe nunca é crítico (Desdém de Rália).

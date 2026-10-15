@@ -126,6 +126,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"ability_used": false, "passive_used": false, "attacked": false, "fatigue": 0, "mulligan_done": false,
 		"played_two": false,
 		"snowball": 1, # damage the next Bola de Neve starts at (grows with every Bola de Neve cast)
+		"critico_growth": {}, # card_id -> Crítico level reached by "critico_growth" cards (Vael), shared by every copy of it
 		"glacial_discount_used": false, # the Amuleto Glacial discount was already spent this turn
 		"damage_halved_until": 0, # Câmara de Êxtase aftermath: the Leader takes half damage while turn <= this
 		"frozen_slots": 0, # Rei Gelado: empty field slots of this player that accept no permanent
@@ -221,9 +222,27 @@ func _move(c: Card, to_zone: String) -> void:
 	# (the copy that was being cast, one fetched from the graveyard, one created by an effect...)
 	if c.card_id == SNOWBALL_CARD_ID and to_zone in ["hand", "deck", "graveyard"] and snowball_is_grande(c.owner):
 		c.card_id = GRANDE_SNOWBALL_CARD_ID
+	# a "critico_growth" copy (Vael) always carries the level its owner's copies have reached, wherever it is going
+	if CardDB.card(c.card_id).get("critico_growth", false):
+		c.critico = maxi(c.critico, int(players[c.owner]["critico_growth"].get(c.card_id, 0)))
 	var moved := GameEvent.new("card_moved", c.owner, c)
 	moved.data = {"from": from_zone, "to": to_zone}
 	bus().emit(moved)
+
+## A "critico_growth" card (Vael) landed a critical: its Crítico goes up one level (max 4) for EVERY copy
+## its owner has, in the deck, hand, field, graveyard or banished, and for the copies that show up later.
+## Returns the new level.
+func grow_critico(striker: Card) -> int:
+	var owner: int = striker.owner
+	var reached: int = int(players[owner]["critico_growth"].get(striker.card_id, 0))
+	var new_level := mini(4, maxi(reached, striker.critico) + 1)
+	players[owner]["critico_growth"][striker.card_id] = new_level
+	for zone in ["deck", "hand", "board", "relics", "graveyard", "banished"]:
+		for copy: Card in players[owner][zone]:
+			if copy.card_id == striker.card_id:
+				copy.critico = new_level
+	striker.critico = new_level
+	return new_level
 
 func card_of(c: Card) -> Dictionary:
 	return c.data()
@@ -302,7 +321,18 @@ func is_frozen(c: Card) -> bool:
 ## The unit is ready to attack: not tapped, not Congelada, not summoning sick (unless Ímpeto or
 ## Rompante), ATK above 0.
 func can_attack(c: Card) -> bool:
-	return not c.exhausted and not c.is_frozen() and (not c.sick or has_kw(c, "impeto") or has_kw(c, "rompante")) and atk_of(c) > 0
+	# a tapped unit may attack again only while it still has attacks left (Ataque Duplo)
+	var has_attack_left := not c.exhausted or (c.attacks_made > 0 and c.attacks_made < attacks_allowed(c))
+	return has_attack_left and not c.is_frozen() and (not c.sick or has_kw(c, "impeto") or has_kw(c, "rompante")) and atk_of(c) > 0
+
+## Attacks per turn: 2 with Ataque Duplo, which a card can also earn by reaching Crítico 4
+## ("critico_maximo": {"ataque_duplo": true}, Vael); otherwise 1.
+func attacks_allowed(c: Card) -> int:
+	if has_kw(c, "ataque_duplo"):
+		return 2
+	if c.critico_total() >= 4 and c.data().get("critico_maximo", {}).get("ataque_duplo", false):
+		return 2
+	return 1
 
 ## Can `attacker` challenge `target` (an enemy unit that is tapped and reachable)? See CombatSystem.
 func can_challenge(attacker: Card, target: Card) -> bool:
@@ -1183,7 +1213,12 @@ func _summon(p: int, c: Card, legendary: bool, target: int, over: Dictionary = {
 	if has_kw(c, "provocacao"):
 		pending_tap.append(uid)
 	var spec := enter_spec(cd)
-	if ask and spec != "" and not valid_targets(p, spec, uid).is_empty():
+	var enter_options: Array = valid_targets(p, spec, uid) if spec != "" else []
+	# the unit itself as the only possible target is no real choice: it is picked without asking
+	var only_itself: bool = enter_options.size() == 1 and enter_options[0] == uid
+	if only_itself and target == 0:
+		target = uid
+	if ask and spec != "" and not enter_options.is_empty() and not only_itself:
 		pending_enter = {"player": p, "uid": uid, "card_id": card_id, "spec": spec}
 		phase = "enter_target"
 		_emit({"type": "enter_target", "player": p, "uid": uid, "card_id": card_id})
@@ -1608,6 +1643,7 @@ func _move_dead_units() -> void:
 				if hp_left(c) <= 0:
 					var dead_uid: int = c.uid # a revive_self below gives c a new uid
 					var dying_is_token: bool = c.data().get("token", false) # "not_token" effects ignore a token dying
+					var dying_card_id: String = c.card_id # "dying_card" effects only hear this card (Luto: Myrra)
 					var effects: Array = c.effect_list()
 					players[p]["board"].erase(c)
 					changed = true
@@ -1630,9 +1666,9 @@ func _move_dead_units() -> void:
 					# or a Legendary returns to its zone.
 					for ally in players[p]["board"].duplicate():
 						if players[p]["board"].has(ally):
-							_fire(ally, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token})
+							_fire(ally, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token, "dying_card_id": dying_card_id})
 					for relic in players[p]["relics"].duplicate(): # free-standing artifacts hear it too
-						_fire(relic, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token})
+						_fire(relic, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token, "dying_card_id": dying_card_id})
 					_fire_leader_passive(p, "on_ally_death")
 
 func _check_leaders() -> void:
@@ -1673,6 +1709,7 @@ func _finish_turn() -> void:
 			c.damage = maxi(0, c.damage - c.temp_hp)
 			c.temp_hp = 0
 			c.temp_atk = 0
+			c.temp_critico = 0
 			# Regeneração: at the end of every turn all of this unit's damage is healed
 			if has_kw(c, "regeneracao") and c.damage > 0:
 				var healed_amount: int = c.damage
@@ -1727,8 +1764,9 @@ func _start_turn(p: int, draw: bool) -> void:
 		if i == p or not CardDB.leader(q["leader_id"])["ability"].get("once_per_cycle", false):
 			q["ability_used"] = false
 		q["passive_used"] = false
-	if int(pl["next_momentum"]) > 0:
-		pl["momentum"] = mini(MOMENTUM_CAP, int(pl["momentum"]) + int(pl["next_momentum"]))
+	if int(pl["next_momentum"]) != 0:
+		# positive = Momentum promised for this turn; negative = a debt (Ritual do Degelo), never below 0
+		pl["momentum"] = clampi(int(pl["momentum"]) + int(pl["next_momentum"]), 0, MOMENTUM_CAP)
 		pl["next_momentum"] = 0
 	pl["attacked"] = false
 	pl["played_two"] = false
@@ -1738,6 +1776,7 @@ func _start_turn(p: int, draw: bool) -> void:
 			c.exhausted = false
 		c.sick = false
 		c.temp_armor = 0
+		c.attacks_made = 0
 	_emit({"type": "start_turn", "player": p, "turn": turn})
 	bus().emit(GameEvent.new("turn_started", p))
 	_fire_leader_passive(p, "on_turn_start")

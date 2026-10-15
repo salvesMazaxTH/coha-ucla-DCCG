@@ -144,7 +144,8 @@ func attack(player: int, attacker_uid: int, target_uid: int) -> Array:
 	if attacker == null or attacker.owner != player or not attack_targets(attacker).has(target_uid):
 		return []
 	var defender_unit: Card = game.find_unit(target_uid) if target_uid > 0 else null
-	attacker.exhausted = true
+	attacker.exhausted = true # it stays tapped between the two attacks of Ataque Duplo too
+	attacker.attacks_made += 1
 	game._emit({"type": "attack", "player": player, "attacker": attacker_uid, "target": target_uid})
 	# triggers: Ao Atacar always; Ao Desafiar / Ao Ser Desafiada only when a unit is challenged
 	game._fire(attacker, "on_attack", target_uid if defender_unit != null else 0)
@@ -183,26 +184,59 @@ func _exchange_damage(attacker_uid: int, target_uid: int) -> void:
 			break
 		if target_uid < 0:
 			if strike_step(attacker) == step:
-				game._deal_damage(target_uid, game.atk_of(attacker), attacker)
+				game._deal_damage(target_uid, _blow_damage(attacker, target_uid), attacker)
 			continue
 		var defender_unit := game.find_unit(target_uid)
 		if strike_step(attacker) == step:
 			if defender_unit != null:
-				var excess := game.atk_of(attacker) - game.hp_left(defender_unit)
-				game._deal_damage(defender_unit.uid, game.atk_of(attacker), attacker)
+				var blow := _blow_damage(attacker, defender_unit.uid)
+				var excess := blow - game.hp_left(defender_unit)
+				game._deal_damage(defender_unit.uid, blow, attacker)
 				if game.has_kw(attacker, "sobrepujanca") and excess > 0:
 					game._deal_damage(GameState.LEADER_UID[defending_player], excess, attacker)
 			elif game.has_kw(attacker, "sobrepujanca"):
-				game._deal_damage(GameState.LEADER_UID[defending_player], game.atk_of(attacker), attacker) # target already dead
+				var leader_uid: int = GameState.LEADER_UID[defending_player]
+				game._deal_damage(leader_uid, _blow_damage(attacker, leader_uid), attacker) # target already dead
 		defender_unit = game.find_unit(target_uid)
 		attacker = game.find_unit(attacker_uid)
 		if defender_unit != null and attacker != null and strike_step(defender_unit) == step:
-			game._deal_damage(attacker.uid, game.atk_of(defender_unit), defender_unit)
+			game._deal_damage(attacker.uid, _blow_damage(defender_unit, attacker.uid), defender_unit)
 		game._check_state()
 	# a Leader that drops to 0 still takes the remaining strikes (overkill); the result is decided once, here
 	game._combat_damage = false
 	game._check_state()
 	game._check_leaders()
+
+## Crítico: every level is this much chance (in percent) that a blow is critical; level 4 is certain.
+const CRITICO_CHANCE_PER_LEVEL := 25
+## A critical blow adds this much damage (a card can set its own with "critico_maximo" at level 4).
+const CRITICO_BONUS := 2
+
+## The damage of one blow: the striker's ATK, plus the Crítico bonus when the roll succeeds.
+## The bonus is added before Armadura and Escudo (they work on the final number). A defender with
+## "imune_critico" (Rália's Desdém) cancels the critical: no bonus, and nothing grows.
+func _blow_damage(striker: Card, target_uid: int) -> int:
+	var damage := game.atk_of(striker)
+	var level := striker.critico_total()
+	if level <= 0 or damage <= 0:
+		return damage
+	# level 4 is certain and never touches the random generator
+	if level < 4 and game.rng.randi_range(1, 100) > level * CRITICO_CHANCE_PER_LEVEL:
+		return damage
+	var target := game.find_unit(target_uid) if target_uid > 0 else null
+	if target != null and target.data().get("imune_critico", false):
+		game._emit({"type": "crit_negated", "uid": target.uid})
+		return damage
+	game._emit({"type": "crit", "uid": striker.uid})
+	var bonus := CRITICO_BONUS
+	if level >= 4:
+		bonus = int(striker.data().get("critico_maximo", {}).get("bonus", CRITICO_BONUS))
+	# "critico_growth" (Vael): every critical blow raises his Crítico one level, up to 4, for ALL his copies
+	# (hand, deck, field... and future ones, see GameState.grow_critico); the temporary levels don't count
+	if striker.data().get("critico_growth", false) and striker.critico < 4:
+		game.grow_critico(striker)
+		game._emit({"type": "critico_up", "uid": striker.uid, "level": striker.critico_total()})
+	return damage + bonus
 
 ## Leaves combat: back to the Main Phase, no more attacks this turn.
 func end_combat() -> void:

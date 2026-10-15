@@ -1,0 +1,22 @@
+{
+  "name": "Lancheiro Sem-Freio",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 2,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [
+    "rompante"
+  ],
+  "art": "neutra/lancheiro_sem_freio.webp",
+  "effects": [],
+  "text": "",
+  "flavor": [
+    "Freio? A gente deixou na última esquina."
+  ],
+  "tags": []
+}

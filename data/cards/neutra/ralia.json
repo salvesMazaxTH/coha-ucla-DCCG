@@ -1,0 +1,23 @@
+{
+  "name": "Rália",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 4,
+  "atk": 3,
+  "hp": 5,
+  "imune_critico": true,
+  "keywords": [
+    "roubo_de_vida"
+  ],
+  "art": "neutra/ralia.webp",
+  "effects": [],
+  "text": "Desdém: é imune a Crítico (o dano que ela recebe nunca ganha o bônus de crítico).",
+  "flavor": [
+    "Sorte? Eu chamo isso de preguiça de quem não sabe errar direito."
+  ],
+  "tags": []
+}

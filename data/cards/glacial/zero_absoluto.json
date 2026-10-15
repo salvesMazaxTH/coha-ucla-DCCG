@@ -3,8 +3,8 @@
   "type": "spell",
   "rarity": "epic",
   "essence": "glacial",
-  "cost": 4,
-  "speed": "rapido",
+  "cost": 5,
+  "speed": "lento",
   "effects": [
     {
       "trigger": "on_play",

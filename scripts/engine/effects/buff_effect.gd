@@ -19,6 +19,7 @@ var multiplier_max := 99
 var has_attack_cap := false
 var attack_cap := 0
 var minimum_rapidez := 0
+var temporary_critico := 0 ## "critico_temp": N extra Crítico levels until the end of the turn (the total never passes 4)
 
 func _read_parameters(data: Dictionary) -> void:
 	attack = int(data.get("atk", 0))
@@ -33,6 +34,7 @@ func _read_parameters(data: Dictionary) -> void:
 	has_attack_cap = data.has("cap_atk")
 	attack_cap = int(data.get("cap_atk", 0))
 	minimum_rapidez = int(data.get("rapidez_min", 0))
+	temporary_critico = int(data.get("critico_temp", 0))
 
 func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
@@ -72,4 +74,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		buff_event["rapidez"] = minimum_rapidez
 	if armor + temporary_armor > 0:
 		buff_event["armor"] = armor + temporary_armor
+	if temporary_critico > 0:
+		unit.temp_critico = mini(4, unit.temp_critico + temporary_critico)
+		buff_event["critico"] = temporary_critico
 	game._emit(buff_event)

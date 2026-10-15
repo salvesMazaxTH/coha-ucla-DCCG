@@ -36,6 +36,8 @@ func _fire_own_effects(event: GameEvent) -> void:
 		var e: Dictionary = all_effects[i]
 		if e.get("trigger", "") == event.trigger and e.get("not_token", false) and event.data.get("dying_is_token", false):
 			continue # the ally that died was a ficha
+		if e.get("trigger", "") == event.trigger and e.has("dying_card") and e["dying_card"] != event.data.get("dying_card_id", ""):
+			continue # an Aliado Morre effect that only listens to one card dying (Luto: Myrra)
 		if e.get("trigger", "") == event.trigger and game._combat_damage and e.get("not_in_combat", false):
 			continue
 		if e.get("trigger", "") == event.trigger and e.get("once_per_turn", false):

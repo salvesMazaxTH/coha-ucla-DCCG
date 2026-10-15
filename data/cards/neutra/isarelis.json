@@ -1,0 +1,23 @@
+{
+  "name": "Isarelis",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 3,
+  "atk": 3,
+  "hp": 2,
+  "keywords": [
+    "furtividade",
+    "rapidez:1"
+  ],
+  "art": "neutra/isarelis.webp",
+  "effects": [],
+  "text": "",
+  "flavor": [
+    "Você nem viu a lâmina. Ótimo, é o plano."
+  ],
+  "tags": []
+}

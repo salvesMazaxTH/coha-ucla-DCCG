@@ -1,0 +1,39 @@
+{
+  "name": "Vael",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 2,
+  "atk": 3,
+  "hp": 2,
+  "critico_growth": true,
+  "critico_maximo": {
+    "bonus": 4,
+    "ataque_duplo": true
+  },
+  "keywords": [
+    "impeto",
+    "rapidez:1",
+    "critico:1"
+  ],
+  "art": "neutra/vael.webp",
+  "effects": [
+    {
+      "trigger": "on_ally_death",
+      "dying_card": "myrra",
+      "action": "buff",
+      "target": "self",
+      "atk": 2,
+      "temp": true,
+      "critico_temp": 4
+    }
+  ],
+  "text": "Rapidez 1.\nCada Crítico que causa aumenta o Crítico de TODAS as suas cópias, onde estiverem e as futuras, em 1 nível, até o 4.\nNo Crítico 4: seus Críticos dão +4 de dano e ele tem Ataque Duplo.\nLuto: quando Myrra morre, Vael vai a Crítico 4 e ganha +2 de Ataque até o fim do turno.",
+  "flavor": [
+    "Ela era a única razão de eu ainda pegar a espada com cuidado."
+  ],
+  "tags": []
+}

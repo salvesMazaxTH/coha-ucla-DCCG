@@ -1,0 +1,28 @@
+{
+  "name": "Myrra",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 3,
+  "atk": 2,
+  "hp": 3,
+  "keywords": [],
+  "art": "neutra/myrra.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "ally_unit",
+      "atk": 1,
+      "temp": true
+    }
+  ],
+  "text": "Ao Entrar: uma unidade aliada ganha +1 de Ataque neste turno.\nSe Myrra morrer, Vael não perdoa.",
+  "flavor": [
+    "Volte inteiro. Isso não é um pedido."
+  ],
+  "tags": []
+}

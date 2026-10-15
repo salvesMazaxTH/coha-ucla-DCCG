@@ -56,6 +56,11 @@ func _init() -> void:
 	_test_reserve()
 	_test_challenge_triggers()
 	_test_strike_order()
+	_test_critico()
+	_test_critico_temp()
+	_test_double_attack()
+	_test_dying_card_filter()
+	_test_critico_data()
 	_test_overkill()
 	_test_dud()
 	_test_requiem()
@@ -84,8 +89,8 @@ func _test_flavor() -> void:
 	check(lines.has(first) and CardDB.flavor_for(ronan, true) == first, "ronan: frase fixa durante a partida")
 	check(CardDB.flavor_for({"flavor": "x"}, true) == "x" and CardDB.flavor_for({}, true) == "", "flavor em texto simples ou ausente")
 
-func _new_game() -> GameState:
-	var g := GameState.new("fogo", "agua", 42)
+func _new_game(seed_value := 42) -> GameState:
+	var g := GameState.new("fogo", "agua", seed_value)
 	g.mulligan(0, [])
 	g.mulligan(1, [])
 	# the old stack tests expect priority to go straight to the opponent; _test_self_response turns it back on
@@ -486,6 +491,18 @@ func _test_enter_target() -> void:
 	g.choose_enter_target(0, 0)
 	check(g.phase == "main" and not g.find_unit(ner).spell_shield, "ao entrar recusado: sem efeito")
 	check(g.find_unit(foe2.uid).damage == 0, "ao entrar recusado: nada acontece")
+	# the unit itself as the only possible target is no real choice: no prompt, it is the target
+	var lone := _new_game()
+	_quiet(lone)
+	lone.players[0]["momentum"] = 10
+	var myrra := _give(lone, 0, "myrra")
+	lone.play_card(0, myrra)
+	check(lone.phase != "enter_target" and lone.atk_of(lone.find_unit(myrra)) == 3, "Myrra sozinha no tabuleiro: não pede alvo e ganha o +1")
+	if lone.summon_window:
+		lone.pass_priority(1)
+	var myrra_ally := _give(lone, 0, "myrra")
+	lone.play_card(0, myrra_ally)
+	check(lone.phase == "enter_target", "Myrra com outra unidade aliada: pede alvo")
 
 func _test_leader_cycle() -> void:
 	var g := _new_game() # fogo: Ronan's Pavio Curto is once per cycle
@@ -772,6 +789,16 @@ func _test_freeze() -> void:
 	targets = g.combat_system().attack_targets(hitter)
 	check(g.combat_system().forced_taunts(hitter).is_empty() and targets.has(taunt.uid) and targets.has(GameState.LEADER_UID[1]), "Provocação congelada não obriga nem protege o Líder")
 	check(CardDB.has_essence(CardDB.card("sabrina"), "glacial") and CardDB.has_essence(CardDB.card("sabrina"), "aquatica"), "sabrina é aquática e glacial")
+	# Sabrina: 1 damage, or 3 if the target was already Congelada (a freeze by the same effect doesn't count)
+	g = _new_game()
+	_quiet(g)
+	var cold := _put(g, 1, "t_frz_taunt")
+	var warm := _put(g, 1, "t_frz_taunt")
+	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, cold.uid)
+	for victim in [cold, warm]:
+		g._apply_effect(0, {"action": "damage", "target": "enemy_unit", "amount": 1, "amount_if_frozen": 3}, victim.uid)
+	check(cold.damage == 3 and warm.damage == 1, "dano extra só em alvo já Congelado")
+	check(CardDB.card("sabrina")["effects"].size() == 1 and not CardDB.card("sabrina")["effects"][0].has("freeze"), "sabrina não congela mais")
 
 func _test_setup() -> void:
 	var g := GameState.new("fogo", "agua", 1)
@@ -1588,6 +1615,180 @@ func _strike_result(attacker_rapidez: int, defender_rapidez: int, defender_froze
 	_hit(g, attacker, defender.uid)
 	return ("A" if not g.find_unit(attacker.uid) == null else "-") + ("B" if not g.find_unit(defender.uid) == null else "-")
 
+## Registers a unit fixture with Crítico already parsed (level) and optional extra card fields.
+func _tcrit(id: String, atk: int, hp: int, level: int, extra := {}) -> void:
+	_tcard(id, atk, hp, [])
+	CardDB.data()["cards"][id]["critico"] = level
+	CardDB.data()["cards"][id].merge(extra, true)
+
+## Crítico: chance per level, +2 flat damage, Desdém (imune_critico), Vael's growth and +4 at level 4.
+func _test_critico() -> void:
+	# level 4 always crits: +2 damage on the Leader hit, no RNG involved
+	_tcrit("t_crit4", 3, 5, 4)
+	var g := _new_game()
+	_quiet(g)
+	var striker := _put(g, 0, "t_crit4")
+	var leader_before: int = g.players[1]["leader_hp"]
+	var events := _hit(g, striker)
+	check(_has_event(events, "crit"), "crítico 4: o golpe sempre é crítico")
+	check(g.players[1]["leader_hp"] == leader_before - 5, "crítico: +2 de dano no Líder (3 + 2)")
+
+	# a unit with no Crítico never crits
+	_tcard("t_nocrit", 3, 5, [])
+	var g_plain := _new_game()
+	_quiet(g_plain)
+	var plain := _put(g_plain, 0, "t_nocrit")
+	check(not _has_event(_hit(g_plain, plain), "crit"), "sem Crítico não há crítico")
+
+	# Desdém: the crit is negated and no bonus is added; the retaliation of a Crítico unit is also rolled
+	_tcrit("t_desdem", 1, 9, 0, {"imune_critico": true})
+	var g_immune := _new_game()
+	_quiet(g_immune)
+	var immune := _put(g_immune, 1, "t_desdem")
+	immune.exhausted = true
+	var crit_attacker := _put(g_immune, 0, "t_crit4")
+	var immune_events := _hit(g_immune, crit_attacker, immune.uid)
+	check(_has_event(immune_events, "crit_negated") and not _has_event(immune_events, "crit"), "Desdém anula o crítico")
+	check(immune.damage == 3, "Desdém: dano normal, sem o +2 (%d)" % immune.damage)
+
+	# Crítico also rolls on the retaliation
+	_tcard("t_sturdy", 1, 9, [])
+	var g_retal := _new_game()
+	_quiet(g_retal)
+	var retal_attacker := _put(g_retal, 0, "t_sturdy")
+	var retal_defender := _put(g_retal, 1, "t_crit4")
+	retal_defender.exhausted = true
+	var retal_events := _hit(g_retal, retal_attacker, retal_defender.uid)
+	check(_has_event(retal_events, "crit") and retal_attacker.damage == 5, "Crítico também vale no revide (3 + 2 = 5, foi %d)" % retal_attacker.damage)
+
+	# Vael: +1 permanent level per crit, up to 4; at level 4 the bonus is +4 and he attacks twice
+	_tcrit("t_vael", 3, 9, 1, {"critico_growth": true, "critico_maximo": {"bonus": 4, "ataque_duplo": true}})
+	# a level-1 Vael crits 25% of the time: try seeds until one lands (each attack ends the combat, so a fresh game per try)
+	var grew := false
+	var vael: Card = null
+	var g_vael: GameState = null
+	for seed_value in 80:
+		g_vael = _new_game(seed_value)
+		_quiet(g_vael)
+		g_vael.players[1]["leader_hp"] = 999
+		vael = _put(g_vael, 0, "t_vael")
+		var vael_events := _hit(g_vael, vael)
+		if _has_event(vael_events, "crit"):
+			check(vael.critico == 2 and _has_event(vael_events, "critico_up"), "Vael sobe 1 nível de Crítico a cada crítico")
+			grew = true
+			break
+		check(vael.critico == 1, "sem crítico o nível do Vael não muda")
+	check(grew, "Vael acabou acertando um crítico em 80 sementes de 25%")
+	check(g_vael.attacks_allowed(vael) == 1, "Vael abaixo do nível 4 ataca uma vez")
+	# the level is shared by every copy of Vael of that player: hand, deck, field and copies that show up later
+	var g_shared := _new_game()
+	_quiet(g_shared)
+	var vael_on_field := _put(g_shared, 0, "t_vael")
+	var vael_in_hand := Card.new(g_shared._uid(), "t_vael", 0, "hand")
+	g_shared.players[0]["hand"].append(vael_in_hand)
+	var vael_in_deck := Card.new(g_shared._uid(), "t_vael", 0, "deck")
+	g_shared.players[0]["deck"].append(vael_in_deck)
+	var vael_of_opponent := _put(g_shared, 1, "t_vael")
+	g_shared.grow_critico(vael_on_field)
+	check(vael_on_field.critico == 2 and vael_in_hand.critico == 2 and vael_in_deck.critico == 2, "o Crítico do Vael sobe em todas as cópias (campo, mão e deck)")
+	check(vael_of_opponent.critico == 1, "o Crítico do Vael do oponente não muda")
+	var vael_later := Card.new(g_shared._uid(), "t_vael", 0, "deck")
+	g_shared._move(vael_later, "hand")
+	check(vael_later.critico == 2, "cópia que aparece depois já vem com o Crítico alcançado")
+	var vael_summoned := Card.new(g_shared._uid(), "t_vael", 0, "hand")
+	g_shared._summon(0, vael_summoned, false, 0)
+	check(vael_summoned.critico == 2, "cópia que entra em campo depois começa no Crítico alcançado")
+	for step in 5:
+		g_shared.grow_critico(vael_on_field)
+	check(vael_in_hand.critico == 4 and vael_summoned.critico == 4, "o Crítico compartilhado para no nível 4")
+	# at level 4: +4 damage, and two attacks per turn
+	var g_max := _new_game()
+	_quiet(g_max)
+	g_max.players[1]["leader_hp"] = 999
+	var vael_max := _put(g_max, 0, "t_vael")
+	vael_max.critico = 4
+	check(g_max.attacks_allowed(vael_max) == 2, "Vael no Crítico 4 ganha Ataque Duplo")
+	_hit(g_max, vael_max)
+	check(g_max.players[1]["leader_hp"] == 999 - 7, "Vael no Crítico 4: +4 de dano (3 + 4)")
+	check(g_max.can_attack(vael_max), "Vael no Crítico 4 ainda pode atacar a segunda vez")
+	# what the client shows: the live level (temporary included) and the Ataque Duplo state
+	var vael_card := CardDB.card("t_vael")
+	check(CardView.critico_of_view(vael_card, {"critico": 3, "temp_critico": 2}) == 4, "a tela soma o Crítico temporário e trava em 4")
+	check(CardView.critico_of_view({}, {"temp_critico": 2}) == 2, "uma unidade sem Crítico impresso mostra o temporário")
+	check(CardView.critico_of_view(vael_card, {}) == int(vael_card.get("critico", 0)), "fora do campo a tela mostra o Crítico impresso")
+	check(CardView.attacks_allowed_of_view(vael_card, vael_max.to_dict()) == 2, "a tela mostra o Ataque Duplo do Vael no Crítico 4")
+	check(CardView.attacks_allowed_of_view(vael_card, {"critico": 3}) == 1, "a tela não mostra o Ataque Duplo abaixo do Crítico 4")
+	check(CardView.attacks_allowed_of_view(vael_card, {"critico": 3, "temp_critico": 1}) == 2, "o Crítico temporário até 4 também liga o Ataque Duplo (como no motor)")
+
+## "critico_temp" (Afiar a Lâmina) lasts until the end of the turn and never goes past level 4.
+func _test_critico_temp() -> void:
+	_tcrit("t_edge", 2, 5, 0)
+	var g := _new_game()
+	_quiet(g)
+	var unit := _put(g, 0, "t_edge")
+	var sharpen: Effect = EffectRegistry.parse_list([{"trigger": "on_play", "action": "buff", "target": "ally_unit", "critico_temp": 3}])[0]
+	sharpen.apply(EffectContext.new(g, 0, ""), unit.uid)
+	check(unit.critico_total() == 3, "critico_temp soma níveis (%d)" % unit.critico_total())
+	sharpen.apply(EffectContext.new(g, 0, ""), unit.uid)
+	check(unit.critico_total() == 4, "critico_temp nunca passa do nível 4 (%d)" % unit.critico_total())
+	g.end_turn(0)
+	check(unit.temp_critico == 0 and unit.critico_total() == 0, "o Crítico temporário some no fim do turno")
+
+## Ataque Duplo: the unit stays tapped between the two attacks and is spent after the second.
+func _test_double_attack() -> void:
+	_tcard("t_double", 2, 5, [])
+	CardDB.data()["cards"]["t_double"]["keywords"] = ["ataque_duplo"]
+	var g := _new_game()
+	_quiet(g)
+	g.players[1]["leader_hp"] = 999
+	var unit := _put(g, 0, "t_double")
+	check(g.can_attack(unit), "Ataque Duplo: pronta para o primeiro ataque")
+	_hit(g, unit)
+	check(unit.exhausted and g.can_attack(unit), "Ataque Duplo: fica virada mas ainda pode atacar a segunda vez")
+	var second := _hit(g, unit)
+	check(not second.is_empty() and g.players[1]["leader_hp"] == 999 - 4, "Ataque Duplo: o segundo ataque acerta o Líder")
+	check(not g.can_attack(unit), "Ataque Duplo: esgotada depois do segundo ataque")
+	g.end_turn(0)
+	check(unit.attacks_made == 0 or g.active == 1, "contador de ataques zera no início do turno do dono")
+
+	# a normal unit is spent after one attack
+	_tcard("t_single", 2, 5, [])
+	var g_single := _new_game()
+	_quiet(g_single)
+	var single := _put(g_single, 0, "t_single")
+	_hit(g_single, single)
+	check(not g_single.can_attack(single), "sem Ataque Duplo, um ataque esgota a unidade")
+
+## Luto: an Aliado Morre effect with "dying_card" only hears that one card dying.
+func _test_dying_card_filter() -> void:
+	_tcrit("t_mourner", 2, 9, 0)
+	CardDB.data()["cards"]["t_mourner"]["effects"] = [{"trigger": "on_ally_death", "dying_card": "t_beloved",
+		"action": "buff", "target": "self", "atk": 2, "temp": true, "critico_temp": 4}]
+	_tcard("t_beloved", 1, 1, [])
+	_tcard("t_stranger", 1, 1, [])
+	var g := _new_game()
+	_quiet(g)
+	var mourner := _put(g, 0, "t_mourner")
+	var stranger := _put(g, 0, "t_stranger")
+	_kill(g, stranger)
+	check(mourner.temp_atk == 0 and mourner.temp_critico == 0, "Luto: outra aliada morrendo não dispara")
+	var beloved := _put(g, 0, "t_beloved")
+	_kill(g, beloved)
+	check(mourner.temp_atk == 2 and mourner.temp_critico == 4, "Luto: a amada morrendo dá +2 ATK e Crítico 4 no turno (atk %d, crit %d)" % [mourner.temp_atk, mourner.temp_critico])
+
+## The new Crítico fields survive the network mirror, and "critico:N" is parsed from keywords.
+func _test_critico_data() -> void:
+	_tcard("t_mirror", 2, 2, [])
+	var g := _new_game()
+	var unit := _put(g, 0, "t_mirror")
+	unit.critico = 2
+	unit.temp_critico = 1
+	unit.attacks_made = 1
+	var copy := Card.from_dict(unit.to_dict(), "board", 0)
+	check(copy.critico == 2 and copy.temp_critico == 1 and copy.attacks_made == 1 and copy.critico_total() == 3, "Crítico e ataques sobrevivem ao to_dict/from_dict")
+	var parsed := CardDB.card_for("t_mirror", {})
+	check(not parsed.has("critico"), "carta sem Crítico não tem o campo")
+
 func _test_strike_order() -> void:
 	check(_strike_result(1, 1) == "--", "rapidez igual: os dois morrem")
 	check(_strike_result(2, 1) == "A-", "atacante mais rápido mata antes")
@@ -1824,7 +2025,7 @@ func _test_triggers() -> void:
 	# Fênix Menor: dies, revives as 1/1 with no effects
 	g = _new_game()
 	var f := _put(g, 0, "fenix_menor")
-	check(f.atk == 2 and f.hp == 1, "fenix is 2/1")
+	check(f.atk == 2 and f.hp == 2, "fenix is 2/2")
 	g._deal_damage(f.uid, 5, null)
 	g._check_state()
 	check(g.find_unit(f.uid) == null, "fenix original died")
@@ -2577,6 +2778,18 @@ func _test_glacial_combo() -> void:
 	var ritual_game: GameState = ritual["game"]
 	_cast_and_resolve(ritual_game, ritual["me"], "ritual_do_degelo")
 	check(int(ritual_game.players[ritual["me"]]["snowball"]) == 4 and int(ritual_game.players[ritual["me"]]["momentum"]) == 9, "Ritual do Degelo: nível 4 e Momentum 7 - 1 + 3 = 9")
+	check(int(ritual_game.players[ritual["me"]]["next_momentum"]) == -3, "Ritual do Degelo: deixa uma dívida de 3 Momentum para o próximo turno")
+	# the debt is charged when the next turn starts and never takes Momentum below 0
+	var debt_player: int = ritual["me"]
+	ritual_game.players[debt_player]["max_momentum"] = 5
+	ritual_game._start_turn(debt_player, false)
+	check(int(ritual_game.players[debt_player]["max_momentum"]) == 6 and int(ritual_game.players[debt_player]["momentum"]) == 3 and int(ritual_game.players[debt_player]["next_momentum"]) == 0, "Ritual do Degelo: a dívida tira 3 só do Momentum daquele turno, sem mexer no máximo")
+	ritual_game._start_turn(debt_player, false)
+	check(int(ritual_game.players[debt_player]["max_momentum"]) == 7 and int(ritual_game.players[debt_player]["momentum"]) == 7, "Ritual do Degelo: no turno seguinte o Momentum volta ao máximo, sem dívida")
+	ritual_game.players[debt_player]["max_momentum"] = 1
+	ritual_game.players[debt_player]["next_momentum"] = -3
+	ritual_game._start_turn(debt_player, false)
+	check(int(ritual_game.players[debt_player]["momentum"]) == 0, "Ritual do Degelo: a dívida nunca deixa o Momentum negativo")
 
 	# the crossing into Grande is heard once: a Wanessa that arrives later is not transformed by a level that was already Grande
 	var crossing := _combo_game(5, 1, 10, 0)
@@ -2898,7 +3111,7 @@ func _test_glacial() -> void:
 	var frozen_one := _put(g, o, "teste_alvo_gelo")
 	var frozen_two := _put(g, o, "teste_alvo_gelo")
 	var own_unit := _put(g, a, "teste_alvo_gelo")
-	check(g.cost_of(a, CardDB.card("zero_absoluto")) == 4 and CardDB.card("zero_absoluto")["speed"] == "rapido", "Zero Absoluto custa 4 e é rápido")
+	check(g.cost_of(a, CardDB.card("zero_absoluto")) == 5 and CardDB.card("zero_absoluto")["speed"] == "lento", "Zero Absoluto custa 5 e é lento")
 	_cast_and_resolve(g, a, "zero_absoluto")
 	check(g.is_frozen(frozen_one) and g.is_frozen(frozen_two) and not g.is_frozen(own_unit), "Zero Absoluto congela todas as unidades inimigas e nenhuma aliada")
 

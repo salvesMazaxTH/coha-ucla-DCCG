@@ -21,6 +21,7 @@ static func data() -> Dictionary:
 ## the card's internal stat (the keyword tag itself is drawn from it), so the entry leaves the list:
 ## - "armadura:N" -> "armor" N
 ## - "rapidez:N" (Rapidez 1-3, as printed on the card) -> "rapidez" tier N + 1 (tier 1 = no Rapidez)
+## - "critico:N" (Crítico 1-4) -> "critico" N
 static func _apply_valued_keywords(cd: Dictionary) -> void:
 	var plain_keywords: Array = []
 	for keyword in cd.get("keywords", []):
@@ -28,6 +29,8 @@ static func _apply_valued_keywords(cd: Dictionary) -> void:
 			cd["armor"] = int(String(keyword).trim_prefix("armadura:"))
 		elif String(keyword).begins_with("rapidez:"):
 			cd["rapidez"] = int(String(keyword).trim_prefix("rapidez:")) + 1
+		elif String(keyword).begins_with("critico:"):
+			cd["critico"] = int(String(keyword).trim_prefix("critico:"))
 		else:
 			plain_keywords.append(keyword)
 	cd["keywords"] = plain_keywords
@@ -104,6 +107,8 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 			err.call("espécie desconhecida \"%s\"" % s)
 	if cd.has("rapidez") and int(cd["rapidez"]) not in [2, 3, 4]:
 		err.call("rapidez precisa ser \"rapidez:1\" a \"rapidez:3\" em keywords")
+	if cd.has("critico") and int(cd["critico"]) not in [1, 2, 3, 4]:
+		err.call("crítico precisa ser \"critico:1\" a \"critico:4\" em keywords")
 	if cd.has("speed") and cd["speed"] not in SPEEDS:
 		err.call("speed desconhecida \"%s\"" % cd["speed"])
 	# Súbito: "subito" is the full cost of summoning it outside your own idle Main Phase

@@ -5,7 +5,6 @@
   "essence": "glacial",
   "cost": 1,
   "speed": "rapido",
-  "max_copies": 1,
   "effects": [
     {
       "trigger": "on_play",
@@ -15,12 +14,19 @@
     },
     {
       "trigger": "on_play",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": -3,
+      "next_turn": true
+    },
+    {
+      "trigger": "on_play",
       "action": "snowball_level",
       "target": "none",
       "amount": 1
     }
   ],
-  "text": "Única.\nGanhe 3 de Momentum. Sua Bola de Neve sobe 1 nível.",
+  "text": "Ganhe 3 de Momentum. No próximo turno, você terá 3 de Momentum a menos.\nSua Bola de Neve sobe 1 nível.",
   "flavor": "Acendeu uma vela de gelo. Funcionou de um jeito que não devia.",
   "art": "glacial/ritual_do_degelo.webp",
   "tags": [

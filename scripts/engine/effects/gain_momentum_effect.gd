@@ -1,7 +1,8 @@
 class_name GainMomentumEffect
 extends Effect
 ## "gain_momentum": +amount Momentum right now (never above the cap), or at the start of the
-## controller's next turn ("next_turn": true).
+## controller's next turn ("next_turn": true). A negative amount with "next_turn" is a debt: the
+## next turn starts with that much less Momentum (never below 0).
 ## "per": "leaked" refunds the Momentum that leaked past the Reserva this turn instead:
 ## floor(leaked / divisor), at most `max`.
 

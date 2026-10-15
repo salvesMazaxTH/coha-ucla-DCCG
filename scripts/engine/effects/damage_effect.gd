@@ -6,12 +6,14 @@ extends Effect
 ## "ally_reduce": {"essence", "amount"} = own units of that essence take only that much.
 ## "adjacent_amount": the units right beside each target also take this much (Deslizamento de Placas).
 ## "freeze": true also freezes each target that survives the damage (Mestra do Gelo Frígido).
+## "amount_if_frozen": a target that is already Congelada takes this much instead of `amount` (Sabrina).
 
 var amount := 0
 var amount_from := ""
 var ally_reduce: Dictionary = {}
 var adjacent_amount := 0
 var freezes_target := false
+var amount_if_frozen := 0
 
 func _read_parameters(data: Dictionary) -> void:
 	amount = int(data.get("amount", 0))
@@ -19,6 +21,7 @@ func _read_parameters(data: Dictionary) -> void:
 	ally_reduce = data.get("ally_reduce", {})
 	adjacent_amount = int(data.get("adjacent_amount", 0))
 	freezes_target = bool(data.get("freeze", false))
+	amount_if_frozen = int(data.get("amount_if_frozen", 0))
 
 func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
@@ -27,6 +30,9 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		var source_unit := game.find_unit(context.self_uid)
 		damage_amount = ceili(game.armor_of(source_unit) / 2.0) if source_unit != null else 0
 	var victim := game.find_unit(target_uid)
+	# checked before the damage, so a freeze applied by this same effect doesn't count
+	if amount_if_frozen > 0 and victim != null and game.is_frozen(victim):
+		damage_amount = amount_if_frozen
 	if not ally_reduce.is_empty() and victim != null and victim.owner == context.controller \
 			and CardDB.has_essence(victim.data(), ally_reduce["essence"]):
 		damage_amount = int(ally_reduce["amount"])

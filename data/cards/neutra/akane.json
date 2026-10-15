@@ -1,0 +1,24 @@
+{
+  "name": "Akane",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "humano",
+    "demonio"
+  ],
+  "essence": "neutra",
+  "cost": 3,
+  "atk": 4,
+  "hp": 2,
+  "keywords": [
+    "roubo_de_vida",
+    "critico:4"
+  ],
+  "art": "neutra/akane.webp",
+  "effects": [],
+  "text": "",
+  "flavor": [
+    "Dois golpes certeiros valem mais que dez bonitos."
+  ],
+  "tags": []
+}

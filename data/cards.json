@@ -231,6 +231,15 @@
     "esquiva": {
       "name": "Esquiva",
       "text": "A primeira vez em cada turno que receberia dano de combate de uma unidade com Rapidez menor que a dela, o dano é evitado."
+    },
+    "critico": {
+      "name": "Crítico",
+      "has_value": true,
+      "text": "Crítico X (1 a 4): cada dano de combate que esta unidade causa tem X × 25% de chance de ser crítico: +2 de dano. No Crítico 4 o crítico é certo."
+    },
+    "ataque_duplo": {
+      "name": "Ataque Duplo",
+      "text": "Pode atacar duas vezes por turno. Fica exausta depois do primeiro ataque, mas ainda pode fazer o segundo."
     }
   },
   "leaders": {
@@ -365,6 +374,28 @@
         "text": "Rápida. 3 Momentum, uma vez por turno: congele uma unidade inimiga."
       },
       "essences": ["glacial"]
+    },
+    "vael": {
+      "name": "Vael",
+      "hp": 25,
+      "art": "neutra/vael_lider.webp",
+      "legendary": "vael",
+      "ability": {
+        "name": "Fio da Lâmina",
+        "cost": 2,
+        "once_per_turn": true,
+        "speed": "rapido",
+        "effects": [
+          {
+            "action": "buff",
+            "target": "ally_unit",
+            "atk": 2,
+            "temp": true
+          }
+        ],
+        "text": "Rápida. 2 Momentum, uma vez por turno: uma unidade aliada ganha +2 de Ataque neste turno."
+      },
+      "essences": ["neutra"]
     }
   },
   "cards": {}

@@ -27,6 +27,9 @@ var temp_keywords: Array = []
 var shield := false
 var temp_armor := 0 ## extra Armadura that ends when its owner's next turn starts
 var armor := 0 ## Armadura: every damage instance is reduced by this much (stacks when given more)
+var critico := 0 ## Crítico level 0-4 (0 = none): each combat blow has level x 25% chance to be a critical hit
+var temp_critico := 0 ## extra Crítico levels that last until the end of the turn
+var attacks_made := 0 ## attacks declared this turn (Ataque Duplo lets a unit attack twice before it is spent)
 var spell_shield := false
 var exhausted := false
 var sick := true
@@ -71,6 +74,9 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	rapidez = int(cd.get("rapidez", 1))
 	armor = int(cd.get("armor", 0))
 	temp_armor = 0
+	critico = int(cd.get("critico", 0))
+	temp_critico = 0
+	attacks_made = 0
 	shield = kws.has("escudo")
 	spell_shield = kws.has("escudo_feitico")
 	kws.erase("escudo")
@@ -108,6 +114,10 @@ func atk_total() -> int:
 func rapidez_total() -> int:
 	return clampi(rapidez, 1, 4)
 
+## Crítico level right now (0 = none, 4 = every blow is critical).
+func critico_total() -> int:
+	return clampi(critico + temp_critico, 0, 4)
+
 func hp_left() -> int:
 	return hp + bonus_hp + temp_hp - damage
 
@@ -142,6 +152,12 @@ func to_dict() -> Dictionary:
 		d["temp_hp"] = temp_hp
 	if rapidez != 1:
 		d["rapidez"] = rapidez
+	if critico > 0:
+		d["critico"] = critico
+	if temp_critico > 0:
+		d["temp_critico"] = temp_critico
+	if attacks_made > 0:
+		d["attacks_made"] = attacks_made
 	if has_bonus:
 		d["bonus_atk"] = bonus_atk
 		d["bonus_hp"] = bonus_hp
@@ -180,6 +196,9 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.temp_armor = int(d.get("temp_armor", 0))
 	c.temp_hp = int(d.get("temp_hp", 0))
 	c.rapidez = int(d.get("rapidez", 1))
+	c.critico = int(d.get("critico", 0))
+	c.temp_critico = int(d.get("temp_critico", 0))
+	c.attacks_made = int(d.get("attacks_made", 0))
 	c.shield = bool(d["shield"])
 	c.spell_shield = bool(d["spell_shield"])
 	c.exhausted = bool(d["exhausted"])

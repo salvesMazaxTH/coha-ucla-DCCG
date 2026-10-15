@@ -10,6 +10,7 @@ data/decks/
     obscura.json   ("Ceifa de Jeff", mono-Obscura)
     eletrica.json  ("Slow Midrange", mono-Elétrica)
     glacial.json   ("Nevasca de Nythera", Glacial, combo da Bola de Neve)
+    vael.json      ("Lâmina de Vael", Líder neutro, aggro de Crítico com convidados de outras essências)
 ```
 
 ## Formato

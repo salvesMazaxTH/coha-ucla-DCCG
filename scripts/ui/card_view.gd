@@ -37,6 +37,7 @@ const COST_COL := UITheme.MOMENTUM
 const ATK_COL := Color("#c8402e")
 const HP_COL := Color("#2f9e58")
 const FROST := Color("#cfefff")
+const TAUNT_COL := Color("#ffb347") ## Provocação: warm amber "hold the line" light, the colour of caution tape
 
 var card_id := ""
 var inst: Dictionary = {} ## unit on board (live stats) or hand instance
@@ -88,6 +89,12 @@ var proc_wave := 0.0:
 	set(v):
 		proc_wave = v
 		queue_redraw()
+## Provocação slamming shut the moment it becomes tapped (0 = off, 1 = finished): two amber
+## shockwaves pushing out of the frame and a white-hot flash of the barricade.
+var taunt_slam := 0.0:
+	set(v):
+		taunt_slam = v
+		queue_redraw()
 var shadow := true
 var fatigue := 0 ## > 0: not a real card but the Fadiga pseudo-card, showing this much damage
 
@@ -116,6 +123,7 @@ static var _stealth_shader: Shader
 ## Keywords that change who can challenge or target whom get an icon medallion on the art (MTG Arena style),
 ## in this order down the left edge; glyph tint per keyword.
 const BADGES := {
+	"provocacao": Color("#ffc66b"),
 	"voo": Color("#bfe6ff"),
 	"longo_alcance": Color("#d6efaa"),
 	"furtividade": Color("#cdb6ff"),
@@ -124,6 +132,7 @@ const BADGES := {
 	"intimidacao": Color("#ffa24d"),
 	"inalcancavel": Color("#9ff0d0"),
 	"eterea": Color("#e6d9ff"),
+	"regeneracao": Color("#8df0a0"),
 }
 
 func setup(id: String, instance: Dictionary = {}, size_scale := 1.0) -> CardView:
@@ -202,7 +211,7 @@ func _gui_input(e: InputEvent) -> void:
 		accept_event()
 
 func _process(delta: float) -> void:
-	if highlight.a > 0 or hovered or _legendary():
+	if highlight.a > 0 or hovered or _legendary() or _taunt_state() == "barring":
 		_t += delta
 		_redraw_acc += delta
 		if _redraw_acc >= 0.033 or highlight.a > 0 or hovered: ## shimmer at ~30 fps is plenty
@@ -306,6 +315,21 @@ func banish(delay := 0.0, edge := Color(0.8, 0.7, 1.0), dur := 0.9) -> void:
 	st.tween_property(self, "scale", scale * 0.55, dur).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
 	st.parallel().tween_property(self, "rotation", rotation + 0.5, dur).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
 
+## What a Provocação unit on the board is doing right now, for its visuals:
+##   "barring" = tapped and not Congelada: it really closes the way, enemies must challenge it;
+##   "ready"   = untapped: it will bar the way once it taps (it guards nothing yet);
+##   "frozen"  = Congelada: the taunt is switched off;
+##   ""        = not a Provocação unit on the board (hand, overlays, other cards).
+func _taunt_state() -> String:
+	if face_down or card_id == "" or not inst.has("damage"):
+		return ""
+	var live_keywords: Array = inst.get("keywords", CardDB.card(card_id).get("keywords", []))
+	if not live_keywords.has("provocacao"):
+		return ""
+	if inst.has("frozen"):
+		return "frozen"
+	return "barring" if inst.get("exhausted", false) else "ready"
+
 func _legendary() -> bool:
 	return not face_down and card_id != "" and CardDB.card(card_id)["rarity"] in ["champion", "legendary"]
 
@@ -366,6 +390,21 @@ func _draw() -> void:
 		var first_ring := 4 if highlight.a > 0 else 0
 		for i in 4:
 			_rrect_line(r.grow((2 + (first_ring + i) * 2.2) * s), rad + (first_ring + i) * 2 * s, Color(ABILITY_GLOW, (0.9 - i * 0.22) * (0.65 + 0.35 * pulse)), 2.2 * s)
+	# Provocação barring the way: amber rings breathing around the frame, outside any other highlight
+	var taunt := _taunt_state()
+	if taunt == "barring":
+		var first_taunt_ring := (4 if highlight.a > 0 else 0) + (4 if ability_ready else 0)
+		for i in 3:
+			_rrect_line(r.grow((2 + (first_taunt_ring + i) * 2.2) * s), rad + (first_taunt_ring + i) * 2 * s, Color(TAUNT_COL, (0.8 - i * 0.22) * (0.6 + 0.4 * pulse)), 2.2 * s)
+	# slam: two shockwaves pushing out of the frame, the second one trailing the first
+	if taunt_slam > 0 and taunt_slam < 1:
+		for wave_index in 2:
+			var wave_progress := clampf((taunt_slam - wave_index * 0.18) / 0.82, 0.0, 1.0)
+			if wave_progress <= 0.0:
+				continue
+			var wave_reach := 1.0 - pow(1.0 - wave_progress, 3.0)
+			_rrect_line(r.grow((4 + 38 * wave_reach) * s), rad + 14 * wave_reach * s,
+				Color(TAUNT_COL.lightened(0.3), 0.9 * pow(1.0 - wave_progress, 1.4)), (5.0 - 3.6 * wave_reach) * s)
 	# trigger proc: hot rim light, plus a ring pulsing out of the frame
 	if proc > 0:
 		for i in 5:
@@ -390,6 +429,8 @@ func _draw() -> void:
 		# artifact: a second engraved line inside the trim, like a plate
 		_rrect_line(r.grow(-5.0 * s), rad - 4 * s, Color(trim, 0.4), 0.8 * s)
 	draw_line(Vector2(rad, 1.6 * s), Vector2(_face_size.x - rad, 1.6 * s), Color(1, 1, 1, 0.3), 1.0 * s)
+	if taunt == "barring" or taunt == "ready":
+		_draw_taunt_frame(r, rad, s, taunt == "barring", pulse)
 
 	if face_down:
 		_draw_back(r, s, trim)
@@ -452,6 +493,8 @@ func _draw() -> void:
 		_draw_frost(art, s)
 	if inst.get("tide_mark", false):
 		draw_arc(art.get_center() + Vector2(0, art.size.y * 0.32), art.size.x * 0.3, PI * 1.15, PI * 1.85, 24, Color("#6fd0ff", 0.85), 2 * s, true)
+	if taunt == "barring" or taunt == "ready":
+		_draw_taunt_art(art, s, taunt == "barring", pulse)
 	_kw_badges(art, cd, s)
 
 	# species strip on the bottom edge of the art, right above the name plate
@@ -549,6 +592,11 @@ func _finish(r: Rect2, rad: float, s: float) -> void:
 		var sweep := PackedVector2Array([Vector2(bx - _face_size.y * 0.4, _face_size.y), Vector2(bx - _face_size.y * 0.4 + bw, _face_size.y), Vector2(bx + _face_size.y * 0.6 + bw, 0), Vector2(bx + _face_size.y * 0.6, 0)])
 		for poly in Geometry2D.intersect_polygons(sweep, _rrect_pts(r, rad)):
 			draw_colored_polygon(poly, Color(1, 0.93, 0.8, 0.32 * (1.0 - proc_wave * 0.6)))
+	if taunt_slam > 0 and taunt_slam < 1:
+		# the impact: a white-hot flash that dies out fast, with an amber rim burning on the frame
+		var impact := pow(1.0 - taunt_slam, 2.0)
+		_rrect_fill(r, rad, Color(1.0, 0.9, 0.62, 0.5 * impact))
+		_rrect_line(r.grow(-1.5 * s), rad, Color(1.0, 0.97, 0.85, 0.95 * impact), 3.4 * s)
 	if proc > 0:
 		_rrect_fill(r, rad, Color(TRIGGER_COL.lightened(0.5), 0.22 * proc))
 	if flash > 0:
@@ -629,6 +677,72 @@ func _style_keys(cd: Dictionary) -> Array:
 			out.append(e)
 	return out.slice(0, 2) if not out.is_empty() else ["neutra"]
 
+## Provocação on the frame. A tapped one is a barricade: caution tape marching around the trim, steel
+## bulwark brackets riveted on the four corners. An untapped one only wears the quiet, still version.
+func _draw_taunt_frame(r: Rect2, rad: float, s: float, barring: bool, pulse: float) -> void:
+	var tape_alpha := (0.75 + 0.25 * pulse) if barring else 0.35
+	var march := _t * 22.0 * s if barring else 0.0
+	_dashed_rrect_line(r.grow(-2.6 * s), rad - 2 * s, Color(TAUNT_COL, tape_alpha), (1.9 if barring else 1.3) * s, 7.0 * s, 5.0 * s, march)
+	if not barring:
+		return
+	# corner brackets: an L hugging each corner, gold bevel over a dark base, one rivet at the elbow
+	var inset := 2.6 * s
+	var arm := 24.0 * s
+	var corners := [
+		[Vector2(inset, inset), Vector2(1, 1)],
+		[Vector2(r.size.x - inset, inset), Vector2(-1, 1)],
+		[Vector2(inset, r.size.y - inset), Vector2(1, -1)],
+		[Vector2(r.size.x - inset, r.size.y - inset), Vector2(-1, -1)]]
+	for corner in corners:
+		var tip: Vector2 = corner[0]
+		var way: Vector2 = corner[1]
+		var bracket := PackedVector2Array([tip + Vector2(way.x * arm, 0), tip, tip + Vector2(0, way.y * arm)])
+		draw_polyline(bracket, Color("#07060a", 0.85), 4.6 * s, true)
+		draw_polyline(bracket, TAUNT_COL.lightened(0.1), 3.0 * s, true)
+		draw_polyline(bracket, Color(1, 0.96, 0.82, 0.55), 1.0 * s, true)
+		draw_circle(tip + way * 4.2 * s, 1.7 * s, Color("#07060a"))
+		draw_circle(tip + way * 4.2 * s, 1.0 * s, UITheme.GOLD_LIGHT)
+
+## Provocação over the art window. Barring: a warm vignette closing in from the edges, a strip of
+## diagonal hazard stripes sliding along the top (the barrier arm). Untapped: only a faint warm edge.
+func _draw_taunt_art(art: Rect2, s: float, barring: bool, pulse: float) -> void:
+	var edge_alpha := (0.2 + 0.1 * pulse) if barring else 0.1
+	_window_vgrad(Rect2(art.position, Vector2(art.size.x, art.size.y * 0.3)), Color(TAUNT_COL, edge_alpha), Color(TAUNT_COL, 0))
+	_window_vgrad(Rect2(art.position + Vector2(0, art.size.y * 0.62), Vector2(art.size.x, art.size.y * 0.38)), Color(TAUNT_COL, 0), Color(TAUNT_COL, edge_alpha * 1.6))
+	if not barring:
+		return
+	# hazard stripes: amber slanted bands sliding along the barrier arm
+	var strip := Rect2(art.position + Vector2(0, 1.5 * s), Vector2(art.size.x, 6.5 * s))
+	var strip_poly := PackedVector2Array([strip.position, Vector2(strip.end.x, strip.position.y), strip.end, Vector2(strip.position.x, strip.end.y)])
+	draw_colored_polygon(strip_poly, Color("#14110a", 0.9))
+	var band := 9.0 * s
+	var slide := fmod(_t * 14.0 * s, band * 2.0)
+	var x := strip.position.x - strip.size.y - band * 2.0 + slide
+	while x < strip.end.x:
+		var stripe := PackedVector2Array([Vector2(x, strip.end.y), Vector2(x + band, strip.end.y),
+			Vector2(x + band + strip.size.y, strip.position.y), Vector2(x + strip.size.y, strip.position.y)])
+		for piece in Geometry2D.intersect_polygons(stripe, strip_poly):
+			draw_colored_polygon(piece, Color(TAUNT_COL, 0.92))
+		x += band * 2.0
+	draw_line(strip.position, Vector2(strip.end.x, strip.position.y), Color("#07060a", 0.9), 1.0 * s)
+	draw_line(Vector2(strip.position.x, strip.end.y), strip.end, Color("#07060a", 0.9), 1.0 * s)
+
+## A tower with a shut portcullis: Provocação's symbol on the keyword medallion.
+func _taunt_gate_glyph(c: Vector2, g: float, tint: Color, alpha: float, s: float) -> void:
+	draw_colored_polygon(_unit_pts(c, g, [[-0.55, 0.7], [-0.55, -0.7], [-0.33, -0.7], [-0.33, -0.45], [-0.11, -0.45],
+		[-0.11, -0.7], [0.11, -0.7], [0.11, -0.45], [0.33, -0.45], [0.33, -0.7], [0.55, -0.7], [0.55, 0.7]]), Color(tint, alpha))
+	var gate := PackedVector2Array()
+	for i in 9:
+		var a := PI + PI * i / 8.0
+		gate.append(c + Vector2(cos(a) * 0.22, 0.2 + sin(a) * 0.25) * g)
+	gate.append(c + Vector2(0.22, 0.7) * g)
+	gate.append(c + Vector2(-0.22, 0.7) * g)
+	draw_colored_polygon(gate, Color(0.03, 0.02, 0.04, minf(1.0, alpha * 6.0)))
+	var bar_color := Color(tint, minf(1.0, alpha * 5.0))
+	for bar_x in [-0.1, 0.1]:
+		draw_line(c + Vector2(bar_x, -0.02) * g, c + Vector2(bar_x, 0.7) * g, bar_color, 0.8 * s, true)
+	draw_line(c + Vector2(-0.22, 0.34) * g, c + Vector2(0.22, 0.34) * g, bar_color, 0.8 * s, true)
+
 ## Icy veil and frost crystals over the art of a frozen unit.
 func _draw_frost(art: Rect2, s: float) -> void:
 	draw_colored_polygon(_art_window, Color(FROST, 0.26))
@@ -657,6 +771,26 @@ static func armor_of_view(cd: Dictionary, instance: Dictionary) -> int:
 ## 4 "Rapidez 3". Tier 1 is the default and has no keyword, so this gives 0.
 static func rapidez_keyword_level(rapidez_tier: int) -> int:
 	return maxi(0, rapidez_tier - 1)
+
+## The number after the keyword "Crítico" (1-4): the live level on the board (it can grow in play, and
+## effects add temporary levels until end of turn), the printed one everywhere else. 0 = no Crítico, so no tag.
+static func critico_of_view(cd: Dictionary, instance: Dictionary) -> int:
+	var permanent_level := int(instance["critico"]) if instance.has("critico") else int(cd.get("critico", 0))
+	return clampi(permanent_level + int(instance.get("temp_critico", 0)), 0, 4)
+
+## Attacks per turn this card can make: 2 with Ataque Duplo, which a card can also earn by reaching
+## Crítico 4 ("critico_maximo": {"ataque_duplo": true}, Vael); otherwise 1. Mirrors GameState.attacks_allowed.
+static func attacks_allowed_of_view(cd: Dictionary, instance: Dictionary) -> int:
+	var keywords: Array = instance.get("keywords", cd.get("keywords", []))
+	if keywords.has("ataque_duplo"):
+		return 2
+	if critico_of_view(cd, instance) >= 4 and cd.get("critico_maximo", {}).get("ataque_duplo", false):
+		return 2
+	return 1
+
+## Crítico X rolls a crit with X * 25% chance (level 4 = always).
+static func critico_chance_percent(critico_level: int) -> int:
+	return mini(100, critico_level * 25)
 
 ## Live keywords on the board, printed ones elsewhere.
 func _keywords(cd: Dictionary) -> Array:
@@ -706,6 +840,9 @@ func _use_badge(c: Vector2, r: float, s: float, ready: bool) -> void:
 
 func _kw_badge(kw: String, c: Vector2, r: float, s: float) -> void:
 	var col: Color = BADGES[kw]
+	if kw == "provocacao" and _taunt_state() == "barring":
+		var halo := 0.5 + 0.5 * sin(_t * 4.0)
+		draw_arc(c, r * (1.38 + 0.12 * halo), 0, TAU, 28, Color(TAUNT_COL, 0.75 - 0.35 * halo), 1.6 * s, true)
 	# bezel and body, same metal as the gems
 	draw_circle(c + Vector2(0, 1.4 * s), r * 1.18, Color(0, 0, 0, 0.5))
 	draw_circle(c, r * 1.14, UITheme.GOLD_DARK.darkened(0.3))
@@ -716,6 +853,8 @@ func _kw_badge(kw: String, c: Vector2, r: float, s: float) -> void:
 	var g := r * 0.8 # glyph radius
 	var lit := col.lightened(0.15)
 	match kw:
+		"provocacao": # a tower with a shut portcullis: the way is barred
+			_taunt_gate_glyph(c + Vector2(0, 0.05 * g), g * 1.08, lit, 1.0, s)
 		"voo": # a wing, feathers trailing down-left
 			var wing := _unit_pts(c, g, [[-0.66, 0.52], [-0.62, 0.05], [-0.42, -0.32], [-0.06, -0.58], [0.38, -0.72],
 				[0.74, -0.7], [0.44, -0.42], [0.66, -0.36], [0.32, -0.1], [0.52, -0.02], [0.16, 0.18], [0.34, 0.28],
@@ -771,6 +910,10 @@ func _kw_badge(kw: String, c: Vector2, r: float, s: float) -> void:
 			draw_colored_polygon(ghost, Color(lit, 0.85))
 			for x in [-0.18, 0.18]:
 				draw_circle(c + Vector2(x, -0.12) * g, 0.09 * g + 0.3 * s, col.darkened(0.85))
+		"regeneracao": # a healing cross inside a ring: the damage closes up again
+			draw_arc(c, g * 0.86, 0, TAU, 28, col, 1.2 * s, true)
+			draw_colored_polygon(_unit_pts(c, g, [[-0.14, -0.58], [0.14, -0.58], [0.14, -0.14], [0.58, -0.14], [0.58, 0.14],
+				[0.14, 0.14], [0.14, 0.58], [-0.14, 0.58], [-0.14, 0.14], [-0.58, 0.14], [-0.58, -0.14], [-0.14, -0.14]]), lit)
 
 func _unit_pts(c: Vector2, r: float, pts: Array) -> PackedVector2Array:
 	var out := PackedVector2Array()
@@ -799,6 +942,8 @@ func _panel_lines(cd: Dictionary) -> Array:
 	if inst.get("spell_shield", false):
 		tags.append([CardDB.keyword("escudo_feitico")["name"], Color("#c9a8ff")])
 	for kw in kws:
+		if kw == "ataque_duplo":
+			continue # drawn below with its attack counter
 		tags.append([CardDB.keyword(kw)["name"], Color("#9fe3ff") if kw == "escudo" else Color("#ffe7a0")])
 	var armor_value := armor_of_view(cd, inst)
 	if armor_value > 0:
@@ -808,6 +953,17 @@ func _panel_lines(cd: Dictionary) -> Array:
 	var rapidez_level := rapidez_keyword_level(int(inst.get("rapidez", cd.get("rapidez", 1))))
 	if rapidez_level > 0:
 		tags.append(["%s %d" % [CardDB.keyword("rapidez")["name"], rapidez_level], Color("#ffd27a")])
+	# Crítico X: the level reads on the tag ("Crítico 2"); the glossary in the overlay gives the chance
+	var critico_level := critico_of_view(cd, inst)
+	if critico_level > 0:
+		tags.append(["%s %d" % [CardDB.keyword("critico")["name"], critico_level], Color("#ff9d6e")])
+	# Ataque Duplo: printed, or earned in play (Vael at Crítico 4). On the board it counts the attacks
+	# already made this turn ("Ataque Duplo 1/2"), so a tapped unit still showing it has one more swing
+	if attacks_allowed_of_view(cd, inst) >= 2:
+		var double_attack_name: String = CardDB.keyword("ataque_duplo")["name"]
+		if inst.has("damage"):
+			double_attack_name += " %d/2" % int(inst.get("attacks_made", 0))
+		tags.append([double_attack_name, Color("#ff9d6e")])
 	# Súbito (N): N is the full cost of summoning it at Rápido speed
 	if cd.has("subito"):
 		tags.append(["%s (%d)" % [CardDB.keyword("subito")["name"], int(cd["subito"])], Color("#ffd27a")])
@@ -815,6 +971,10 @@ func _panel_lines(cd: Dictionary) -> Array:
 	for e in cd.get("effects", []):
 		var trg: String = e.get("trigger", "")
 		if trg == "" or trg == "on_play" or seen.has(trg):
+			continue
+		# A trigger tied to one specific card (Luto de Vael: only Myrra dying) is too specific for
+		# the generic tag "Aliado Morre"; the card text explains it instead
+		if e.has("dying_card"):
 			continue
 		seen[trg] = true
 		tags.append([CardDB.data()["triggers"][trg]["name"], TRIGGER_COL])
@@ -1121,11 +1281,13 @@ func _rrect_line(r: Rect2, rad: float, col: Color, w: float) -> void:
 	draw_polyline(pts, col, w, true)
 
 ## Same outline as _rrect_line but broken into dashes (dash / gap lengths in px), walked along the perimeter.
-func _dashed_rrect_line(r: Rect2, rad: float, col: Color, w: float, dash: float, gap: float) -> void:
+## `march` slides the dashes along the outline (px), so they can crawl around the card.
+func _dashed_rrect_line(r: Rect2, rad: float, col: Color, w: float, dash: float, gap: float, march := 0.0) -> void:
 	var pts := _rrect_pts(r, rad)
 	pts.append(pts[0])
-	var pen_down := true
-	var left_in_phase := dash
+	var march_in_cycle := fposmod(march, dash + gap)
+	var pen_down := march_in_cycle < dash
+	var left_in_phase := dash - march_in_cycle if pen_down else dash + gap - march_in_cycle
 	for i in pts.size() - 1:
 		var from := pts[i]
 		var to := pts[i + 1]

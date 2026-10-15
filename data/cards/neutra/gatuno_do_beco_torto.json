@@ -1,0 +1,23 @@
+{
+  "name": "Gatuno do Beco Torto",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 1,
+  "atk": 1,
+  "hp": 1,
+  "keywords": [
+    "impeto",
+    "critico:1"
+  ],
+  "art": "neutra/gatuno_do_beco_torto.webp",
+  "effects": [],
+  "text": "",
+  "flavor": [
+    "Sua carteira? Ela já nem lembra de você."
+  ],
+  "tags": []
+}
