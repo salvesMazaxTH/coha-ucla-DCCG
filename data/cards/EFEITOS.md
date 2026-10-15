@@ -22,13 +22,14 @@ Cada ação é uma classe em `scripts/engine/effects/`, registrada em `effect_re
 | `draw` / `draw_discounted` | `amount`, `min_base_cost`, `discount` | compra cartas (a segunda dá desconto à cópia na mão) |
 | `tide_mark` | — | põe a Marca da Maré |
 | `search_deck` / `look_top` | `count`, `shuffle` e filtros | abre escolha com cartas do deck |
-| `snowball` | — | Bola de Neve: acerta o alvo com o nível atual do jogador, quica para um lado sorteado entre os que têm unidades (+1 de dano por quique) e o nível final vira o início da próxima. `overflow_to_leader: true` dá Sobrepujança nos quiques (a carta Grande Bola de Neve usa; ao chegar no nível 8 as Bolas viram essa carta). Uma Bola lançada por unidade (sem carta) também tem Sobrepujança quando quem a lança está no nível 8+. Num Líder é um golpe só e não aumenta o nível. Quando o efeito vem de um gatilho de unidade (Tempesfrost, Ao Atacar), ele não resolve na hora: empilha uma carta virtual Bola de Neve (`virtual`, alvo forçado no alvo do ataque), que resolve depois como um feitiço comum |
+| `snowball` | — | Bola de Neve: acerta o alvo com o nível atual do jogador (começa em 2 e **volta a 2 no fim do turno do dono**), quica para um lado sorteado entre os que têm unidades (+1 de dano por quique) e o nível final vira o início da próxima. `overflow_to_leader: true` dá Sobrepujança nos quiques (a carta Grande Bola de Neve usa; ao chegar no nível 8 as Bolas viram essa carta). Uma Bola lançada por unidade (sem carta) também tem Sobrepujança quando quem a lança está no nível 8+. Num Líder é um golpe só e não aumenta o nível. Quando o efeito vem de um gatilho de unidade (Tempesfrost, Ao Atacar), ele não resolve na hora: empilha uma carta virtual Bola de Neve (`virtual`, alvo forçado no alvo do ataque), que resolve depois como um feitiço comum |
 | `discard_hand_pick` | — | depois de comprar, o jogador escolhe uma carta da mão (mesma tela do descarte do overdraw) e ela vai ao **cemitério** (só o overdraw de fim de turno bane) |
+| `summon_hand_pick` | `rarity` | o jogador escolhe (em segredo) uma unidade da mão com essa raridade (`""` = qualquer) e ela entra em campo **sem pagar o custo**; no fim do turno é **banida** (não vai ao cemitério). Sem opção ou sem espaço no campo, nada acontece |
 | `transform_self` | `into` | a unidade vira a carta `into` (Ao Entrar da nova carta roda). Use com `target: "self"`, normalmente num `listen` |
 | `freeze` | — | alvo Congelado: não ataca, não desvira e não protege o Líder até o fim do próximo turno. Revida normalmente (não exaure) |
 | `exhaust` | — | a unidade alvo fica exausta (não ataca e pode ser desafiada); levanta no início do turno do dono. Combina com `freeze` na mesma escolha de alvo |
 | `freeze_slots` | `count` (padrão 5) | Rei Gelado: sorteia `count` dos 8 espaços do campo **inimigo** (alvo `none`). Unidade num espaço sorteado é congelada e exaurida (Escudo de Feitiço cancela e quebra); espaço vazio não aceita permanentes e descongela no **fim do próximo turno do oponente**. Espaços ocupados por unidades/relíquias não contam como vazios |
-| `add_card` | `card` (id da carta), `to` (`deck_top` padrão ou `hand`) | Nythera: cria uma carta nova para o dono do efeito (alvo `none`) e a põe no topo do deck (a próxima compra) ou na mão. Uma Bola de Neve criada já nasce Grande se o dono estiver no nível Grande |
+| `add_card` | `card` (id da carta), `to` (`deck_top` padrão ou `hand`) | Nythera: cria uma carta nova para o dono do efeito (alvo `none`) e a põe no topo do deck (a próxima compra) ou na mão. Uma Bola de Neve criada já nasce Grande se o dono estiver no nível Grande (no fim do turno dele as Grandes voltam a ser Bola de Neve) |
 | `fight` | `second_target` | o alvo (1ª escolha) e a unidade de `second_target` (2ª escolha) causam, ao mesmo tempo, dano igual ao Ataque de cada uma à outra. Não é combate; Armadura e Escudo valem, Escudo de Feitiço do inimigo cancela a luta |
 | `summon` | `card` (`"self"` ou id), `overrides` | invoca uma carta |
 | `mill` / `mill_pick` | `amount` | manda cartas do deck ao cemitério |
@@ -50,7 +51,7 @@ Cada família é uma classe em `scripts/engine/targets/`.
 - **Escolhidos pelo jogador:** `enemy_unit`, `ally_unit`, `other_ally_unit`, `ally_or_own_leader` (unidade aliada ou o seu Líder), `any_unit`, `any`, `enemy_stack`
 - **Grupos:** `all_enemy_units`, `all_units`, `all_ally_units`, `other_ally_units`, `center_enemy_units` (meio do campo inimigo: 1 unidade se a quantidade é ímpar, as 2 do meio se é par)
 - **Líderes:** `enemy_leader`, `own_leader`, `both_leaders`
-- **Aleatórios:** `random_enemy_unit`, `random_enemy_and_adjacent`, `random_ally_unit`, `random_other_ally_unit`
+- **Aleatórios:** `random_enemy_unit`, `random_frozen_enemy_unit` (só unidades já Congeladas), `random_enemy_and_adjacent`, `random_ally_unit`, `random_other_ally_unit`
 - **Da própria carta:** `self`, `self_card`, `opposed_unit`, `attack_target` (só em Ao Atacar: a unidade desafiada, ou o Líder inimigo se o ataque foi no Líder), `none`
 
 ## Condições (`if`)
@@ -89,7 +90,7 @@ Gatilhos que disparam durante uma ação entram numa fila e resolvem depois que 
 
 - `spell_discount` (equipamento): `{"essence": "glacial", "amount": 2, "min_cost": 1}`; vários equipamentos somam, e `min_cost` (opcional) é o piso do custo. O primeiro feitiço dessa essência lançado por turno pelo dono custa `amount` a menos.
 - `face_text` (feitiço, opcional): versão curta do texto, desenhada só no rosto da carta pequena quando o `text` completo não cabe. A visão ampliada continua mostrando o `text`. Aceita `{nivel}`.
-- `{nivel}` (dentro do `text` de qualquer carta): vira o nível atual da Bola de Neve do dono ao desenhar a carta (mão, Santuário, escolha de cartas e visão ampliada); sem dono, vira 1. É só visual: o motor não lê o texto.
+- `{nivel}` (dentro do `text` de qualquer carta): vira o nível atual da Bola de Neve do dono ao desenhar a carta (mão, Santuário, escolha de cartas e visão ampliada); sem dono, vira 2. É só visual: o motor não lê o texto.
 - `lethal_ward` (artefato, `true`): se o Líder do dono fosse morrer por uma instância de dano, o dano é anulado, o artefato é destruído e, até o fim do próximo turno do dono, todo dano ao Líder é dividido pela metade (arredondado pra baixo).
 
 ## Como criar uma ação nova
@@ -105,5 +106,5 @@ Um alvo novo entra no `NAMES` de uma família (ou numa família nova listada em 
 
 - Palavra-chave `"critico:N"` em `keywords` (N de 1 a 4): nível impresso de Crítico.
 - `critico_growth: true`: cada crítico causado sobe o Crítico da carta em 1 nível permanente (até 4). Hoje só Vael. O nível alcançado vale para TODAS as cópias dele do jogador (campo, mão, deck, cemitério, banidas) e para as futuras.
-- `critico_maximo: {"bonus": 4, "ataque_duplo": true}`: ao chegar no Crítico 4 o crítico da carta dá `bonus` (em vez de +2) e `ataque_duplo` libera o segundo ataque. Hoje só Vael. O nível alcançado vale para TODAS as cópias dele do jogador (campo, mão, deck, cemitério, banidas) e para as futuras.
+- `critico_maximo: {"bonus": 4, "ataque_duplo": true}`: ao chegar no Crítico 4 o crítico da carta dá `bonus` (em vez de +2) e `ataque_duplo` libera o segundo ataque. Hoje só Vael.
 - `imune_critico: true`: o dano de combate que a carta recebe nunca é crítico (Desdém de Rália).

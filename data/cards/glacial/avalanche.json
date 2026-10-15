@@ -3,7 +3,7 @@
   "type": "spell",
   "rarity": "epic",
   "essence": "glacial",
-  "cost": 5,
+  "cost": 4,
   "speed": "lento",
   "art": "glacial/avalanche.webp",
   "effects": [
@@ -11,10 +11,10 @@
       "trigger": "on_play",
       "action": "damage",
       "target": "all_enemy_units",
-      "amount": 3
+      "amount": 2
     }
   ],
-  "text": "Cause 3 de dano a todas as unidades inimigas.",
+  "text": "Cause 2 de dano a todas as unidades inimigas.",
   "flavor": "Ninguém escuta o primeiro estalo. Só o resto.",
   "tags": []
 }

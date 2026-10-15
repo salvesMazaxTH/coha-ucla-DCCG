@@ -339,7 +339,7 @@ func _show_menu() -> void:
 		box.add_child(b)
 		var sub := _label(opt[1], 14, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 		box.add_child(sub)
-	var lt := _button("Modo leve: %s" % ("LIGADO" if _light_on() else "desligado"), func():
+	var lt := _toggle_button("MODO LEVE", _light_on(), func():
 		_apply_light(not _light_on(), true)
 		_show_menu.call_deferred())
 	lt.position = Vector2(stage_w - 300, 790.0 + BOT)
@@ -1452,7 +1452,9 @@ func _hand_hover(v: CardView, on: bool, rest: Dictionary) -> void:
 
 ## Drag & drop: a playable hand card follows the pointer and is played when released over
 ## the board (above PLAY_LINE); released over the hand it snaps back.
-const PLAY_LINE := 600.0
+## The line sits at the lower 20% of our Leader plate: as soon as the pointer is over the Leader
+## (clearly out of the hand) the card counts as played, still short of where the hand begins.
+const PLAY_LINE := LEADER_Y_ME + LeaderView.SIZE.y * 0.8
 var drag_gap_slot := -1 ## slot the board is currently opened at while a unit is dragged (-1 = no gap)
 
 func _hand_drag_start(v: CardView) -> void:
@@ -1648,10 +1650,9 @@ func _render_side() -> void:
 		layer.add_child(wait)
 	_render_stack()
 	var ap_on := _auto_pass_on()
-	var ap := _button("Auto-passe: %s" % ("LIGADO" if ap_on else "desligado"), func(): _set_auto_pass(not _auto_pass_on()))
+	var ap := _toggle_button("AUTO-PASSE", ap_on, func(): _set_auto_pass(not _auto_pass_on()))
 	ap.position = Vector2(col_x, 772.0 + BOT)
 	ap.size = Vector2(COL_W, 48)
-	ap.add_theme_font_size_override("font_size", 18)
 	ap.tooltip_text = "Pula sozinho as janelas em que você não tem nenhuma jogada válida."
 	layer.add_child(ap)
 	var half := (COL_W - 8.0) / 2.0
@@ -1746,8 +1747,8 @@ func _render_stack() -> void:
 		tab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		tab.add_theme_stylebox_override("panel", UITheme.box(_leader_color(it["player"]), 3))
 		layer.add_child(tab)
-		if it["kind"] in ["unit_ability", "subito"]:
-			var rb := _stack_pill("AO ATIVAR" if it["kind"] == "unit_ability" else "SÚBITO", UITheme.GOLD_LIGHT)
+		if it["kind"] in ["unit_ability", "subito", "enter_trigger"]:
+			var rb := _stack_pill({"unit_ability": "AO ATIVAR", "subito": "SÚBITO", "enter_trigger": "AO ENTRAR"}[it["kind"]], UITheme.GOLD_LIGHT)
 			rb.position = Vector2(cx + 6.0, pos.y + 4.0)
 			layer.add_child(rb)
 		var price := _counter_price(sid)
@@ -1896,6 +1897,8 @@ func _process(_dt: float) -> void:
 
 func _hint() -> String:
 	if g.phase == "search":
+		if g.pending_search.get("hand_summon", false):
+			return "Escolha um campeão da sua mão para entrar em campo de graça."
 		return "Escolha uma carta da sua mão para descartar." if g.pending_search.get("discard_hand", false) else "Escolha uma das cartas reveladas."
 	if targeting.get("kind") == "enter":
 		return "Ao Entrar de %s: toque no alvo ou pule o efeito." % _cname(g.pending_enter.get("card_id", ""))
@@ -1960,6 +1963,16 @@ func _pass_button_label() -> String:
 	var passing_resolves: bool = not g.stack.is_empty() and (g.stack_passed or not g.self_response_enabled)
 	return "RESOLVER" if passing_resolves else "PASSAR"
 
+## "PASSAR TUDO": while answering the opponent's moves, a second button that passes this window and every
+## later one until their turn ends, so the player isn't asked again for each play. Empty on your own turn.
+func _pass_everything_buttons() -> Array:
+	if g.active == viewer:
+		return []
+	var button := _action_button("Passar tudo no turno", func(): _do(g.pass_rest_of_turn(viewer)))
+	button.add_theme_font_size_override("font_size", 18)
+	button.tooltip_text = "Não pergunta mais por respostas até o turno do oponente acabar."
+	return [button]
+
 func _action_buttons() -> Array:
 	var out: Array = []
 	match g.phase:
@@ -1970,9 +1983,11 @@ func _action_buttons() -> Array:
 				out.append(_action_button("ENCERRAR COMBATE", func(): _do(g.end_combat(viewer)), true))
 			else:
 				out.append(_action_button(_pass_button_label(), func(): _do(g.pass_priority(viewer)), true))
+				out.append_array(_pass_everything_buttons())
 		"main":
 			if not g.stack.is_empty() or g.summon_window:
 				out.append(_action_button(_pass_button_label(), func(): _do(g.pass_priority(viewer)), true))
+				out.append_array(_pass_everything_buttons())
 			elif g.can_go_to_combat(viewer):
 				out.append(_action_button("IR PARA O COMBATE", func(): _do(g.go_to_combat(viewer)), true))
 				out.append(_action_button("Encerrar turno", func(): _do(g.end_turn(viewer))))
@@ -2823,11 +2838,14 @@ func _render_search_reveal() -> void:
 	var look: bool = g.pending_search.get("look", false)
 	# a private look is face up only for its owner (online, the server already masks the cards)
 	var discard_hand: bool = g.pending_search.get("discard_hand", false)
-	var hidden := (look or discard_hand) and not _my_input()
-	box.add_child(_label("DESCARTAR DA MÃO" if discard_hand else "CEMITÉRIO" if g.pending_search.get("grave", false) else ("TOPO DO DECK" if look else "REVELAÇÃO DO DECK"), 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
+	var hand_summon: bool = g.pending_search.get("hand_summon", false)
+	var hidden := (look or discard_hand or hand_summon) and not _my_input()
+	box.add_child(_label("CAMPEÃO DA MÃO" if hand_summon else "DESCARTAR DA MÃO" if discard_hand else "CEMITÉRIO" if g.pending_search.get("grave", false) else ("TOPO DO DECK" if look else "REVELAÇÃO DO DECK"), 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
 	var grave: bool = g.pending_search.get("grave", false)
 	var sub := "%s revelou as opções da busca" % _pname(owner)
-	if discard_hand:
+	if hand_summon:
+		sub = "%s escolhe um campeão da mão para entrar em campo (será banido no fim do turno)" % _pname(owner)
+	elif discard_hand:
 		sub = "%s escolhe uma carta da mão para descartar" % _pname(owner)
 	elif look:
 		sub = "%s está olhando as %d cartas do topo do deck" % [_pname(owner), g.pending_search["cards"].size()]
@@ -2848,7 +2866,7 @@ func _render_search_reveal() -> void:
 		if _my_input():
 			cv.left_clicked.connect(func(_v): _on_search_choice(card_uid))
 		grid.add_child(cv)
-	var hint := "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else "Escolha 1 para a mão; as outras vão para o fundo do deck." if look else "Clique em uma carta para adicioná-la à sua mão e embaralhar o deck."
+	var hint := "Clique em um campeão para colocá-lo em campo sem pagar o custo." if hand_summon else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else "Escolha 1 para a mão; as outras vão para o fundo do deck." if look else "Clique em uma carta para adicioná-la à sua mão e embaralhar o deck."
 	var footer := _label(hint if _my_input() else "A escolha pertence ao oponente.", 16, SEL if _my_input() else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 	box.add_child(footer)
 	_center.call_deferred(search_overlay)
@@ -3601,6 +3619,15 @@ func _animate(events: Array, old: Dictionary) -> float:
 						evolved_in_view = true
 				if evolved_in_view:
 					cursor += TRANSFORM_TIME
+			"snowball_devolve":
+				# Grande Bola de Neve cards going back to Bola de Neve when the level resets
+				var devolved_in_view := false
+				for devolved_uid in e.get("uids", []):
+					if actors.has(devolved_uid) and old.has(devolved_uid):
+						_transform_fx(devolved_uid, old[devolved_uid]["card_id"], actors[devolved_uid].card_id, actors, old, cursor)
+						devolved_in_view = true
+				if devolved_in_view:
+					cursor += TRANSFORM_TIME
 			"slots_frozen":
 				if int(e["blocked"]) > 0:
 					_toast("%s: %d espaço(s) vazio(s) congelado(s)!" % [_pname(e["player"]), e["blocked"]])
@@ -3880,12 +3907,20 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s: %s com %d de dano inicial" % [_pname(e["player"]), "Grande Bola de Neve" if e["grande"] else "Bola de Neve", int(e["amount"])])
 		"snowball_evolve":
 			_log("%s: a Bola de Neve chegou ao nível Grande, e %d carta(s) viraram Grande Bola de Neve" % [_pname(e["player"]), int(e["count"])])
+		"snowball_devolve":
+			_log("%s: o nível da Bola de Neve acabou, e %d carta(s) voltaram a ser Bola de Neve" % [_pname(e["player"]), int(e["count"])])
+		"snowball_reset":
+			_log("%s: a Bola de Neve volta ao nível %d" % [_pname(e["player"]), int(e["level"])])
 		"snowball_level":
 			_log("%s: o nível da Bola de Neve sobe para %d" % [_pname(e["player"]), int(e["level"])])
 		"lethal_ward":
 			_log("%s anulou %d de dano que mataria o Líder de %s" % [_cname(e["card_id"]), int(e["amount"]), _pname(e["player"])])
 		"discard_pick":
 			_log("%s escolhe uma carta da mão para descartar" % _pname(e["player"]))
+		"hand_summon_pick":
+			_log("%s escolhe um campeão da mão para entrar em campo de graça" % _pname(e["player"]))
+		"hand_summon":
+			_log("%s colocou %s em campo direto da mão (será banido no fim do turno)" % [_pname(e["player"]), _cname(e["card_id"])])
 		"discard":
 			_log("%s descartou %s" % [_pname(e["player"]), _cname(e["card_id"])])
 
@@ -3913,6 +3948,43 @@ func _button(t: String, cb: Callable, primary := false) -> Button:
 		b.theme_type_variation = "PrimaryButton"
 	b.pressed.connect(cb)
 	return b
+
+## An on/off button shown as a sliding switch instead of the words "LIGADO"/"desligado":
+## gold track with the knob on the right when on, dark track with the knob on the left when off.
+func _toggle_button(title: String, is_on: bool, on_press: Callable) -> Button:
+	var button := Button.new()
+	button.pressed.connect(on_press)
+	var title_label := _label(title, 17, UITheme.TEXT if is_on else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT, "bold")
+	title_label.position = Vector2(16, 0)
+	title_label.size = Vector2(150, 48)
+	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	button.add_child(title_label)
+	var switch_size := Vector2(52, 26)
+	var switch_area := Control.new()
+	switch_area.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# anchored to the right edge and vertical middle of the button, so it stays put whatever size the button gets
+	switch_area.anchor_left = 1.0
+	switch_area.anchor_right = 1.0
+	switch_area.anchor_top = 0.5
+	switch_area.anchor_bottom = 0.5
+	switch_area.offset_left = -switch_size.x - 16.0
+	switch_area.offset_right = -16.0
+	switch_area.offset_top = -switch_size.y / 2.0
+	switch_area.offset_bottom = switch_size.y / 2.0
+	# the title fills the button's height so it is centred vertically
+	title_label.anchor_bottom = 1.0
+	title_label.offset_bottom = 0.0
+	switch_area.draw.connect(func():
+		var track := UITheme.box(
+			Color(UITheme.GOLD, 0.95) if is_on else Color(0.1, 0.09, 0.14, 0.95),
+			13, UITheme.GOLD_LIGHT if is_on else Color(UITheme.TEXT, 0.35), 2)
+		switch_area.draw_style_box(track, Rect2(Vector2.ZERO, switch_size))
+		var knob_radius := switch_size.y / 2.0 - 5.0
+		var knob_x := switch_size.x - switch_size.y / 2.0 if is_on else switch_size.y / 2.0
+		switch_area.draw_circle(Vector2(knob_x, switch_size.y / 2.0), knob_radius,
+			UITheme.INK if is_on else Color(UITheme.TEXT, 0.55)))
+	button.add_child(switch_area)
+	return button
 
 ## The "pass action" buttons (PASSAR, ENCERRAR TURNO, IR PARA O COMBATE...). Pressing one greys out
 ## all of them at once, so the press clearly counted and can't be sent twice; if an animation is still

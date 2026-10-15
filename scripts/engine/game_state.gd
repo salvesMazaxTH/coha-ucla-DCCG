@@ -14,6 +14,7 @@ const COMMANDER_TAX := 2
 const INTIMIDATE_ATK := 3 ## Intimidacao: attackers with this ATK or less cannot challenge it
 const SECOND_BONUS_TURNS := 2 ## the second player's first turns that start with +1 Momentum and +1 Reserve (refill)
 const SNOWBALL_GRANDE_AT := 8 ## Bola de Neve level at which every Bola de Neve card of the player evolves into a Grande Bola de Neve
+const SNOWBALL_BASE_LEVEL := 2 ## Bola de Neve level a player starts at, and goes back to at the end of their own turn (the level is temporary)
 const SNOWBALL_CARD_ID := "bola_de_neve"
 const GRANDE_SNOWBALL_CARD_ID := "grande_bola_de_neve" ## a card of its own (transform_only): it only exists through that evolution
 const REQUIEM_EXTRA_COST := 2 ## Réquiem: a spell cast from the graveyard costs this much more, then is banished
@@ -37,8 +38,9 @@ var pending_search: Dictionary = {}
 ## (phase "enter_target"): {player, uid, card_id, spec}. Optional: target 0 skips the effect.
 var pending_enter: Dictionary = {}
 ## Spells, equipment and leader abilities wait here (LIFO) until both players let them resolve.
-## Item: {sid, player, kind:"card"|"ability"|"unit_ability"|"subito", uid, card_id, target, speed}
+## Item: {sid, player, kind:"card"|"ability"|"unit_ability"|"subito"|"enter_trigger", uid, card_id, target, speed}
 ## ("unit_ability" = a unit's Ao Ativar; uid is the unit, card_id its card.
+## "enter_trigger" = the Ao Entrar of a unit just played: uid is the unit, target the ally picked; uncounterable.
 ## "subito" = a unit summoned with Súbito; uid is the card, plus "slot" where it enters.)
 var stack: Array = []
 ## Who may act during "main"/"combat". Casting hands priority to the opponent (response);
@@ -61,6 +63,9 @@ var _summon_pending := false # a summon's search delays its response window
 ## Per seat: skip priority windows where that player has no legal play (a player can turn
 ## this off to be asked every time). Also skips a block prompt with no possible blocker.
 var auto_pass: Array = [true, true]
+## Per seat: "PASSAR TUDO". Until the end of the opponent's turn, every response window that player
+## would be asked about is passed for them, even when they do have a legal play. Cleared when a turn begins.
+var skip_rest_of_turn: Array = [false, false]
 var _search_return := "main"
 ## True while combat damage is being dealt and the deaths it causes are resolved; effects
 ## marked "not_in_combat" stay silent then (Cientista da Morte).
@@ -125,7 +130,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"legendary": {"card_id": ld["legendary"], "in_zone": true, "casts": 0},
 		"ability_used": false, "passive_used": false, "attacked": false, "fatigue": 0, "mulligan_done": false,
 		"played_two": false,
-		"snowball": 1, # damage the next Bola de Neve starts at (grows with every Bola de Neve cast)
+		"snowball": SNOWBALL_BASE_LEVEL, # damage the next Bola de Neve starts at (grows with every Bola de Neve cast, resets at the end of the owner's turn)
 		"critico_growth": {}, # card_id -> Crítico level reached by "critico_growth" cards (Vael), shared by every copy of it
 		"glacial_discount_used": false, # the Amuleto Glacial discount was already spent this turn
 		"damage_halved_until": 0, # Câmara de Êxtase aftermath: the Leader takes half damage while turn <= this
@@ -437,6 +442,15 @@ func set_snowball_level(p: int, new_level: int) -> void:
 		crossing.amount = new_level
 		bus().emit(crossing)
 
+## End of p's own turn: the Bola de Neve level goes back to SNOWBALL_BASE_LEVEL, so a combo has to happen inside a single turn.
+## If it was Grande, every Grande Bola de Neve card of p turns back into a normal Bola de Neve.
+func reset_snowball_level(p: int) -> void:
+	var was_grande := snowball_is_grande(p)
+	players[p]["snowball"] = SNOWBALL_BASE_LEVEL
+	if was_grande:
+		_devolve_snowball_cards(p)
+	_emit({"type": "snowball_reset", "player": p, "level": SNOWBALL_BASE_LEVEL})
+
 func snowball_is_grande(p: int) -> bool:
 	return int(players[p]["snowball"]) >= SNOWBALL_GRANDE_AT
 
@@ -457,6 +471,23 @@ func _evolve_snowball_cards(p: int) -> void:
 			evolved += 1
 	if evolved > 0:
 		_emit({"type": "snowball_evolve", "player": p, "count": evolved, "uids": evolved_uids})
+
+## The reverse of _evolve_snowball_cards: every Grande Bola de Neve card of player p goes back to being a Bola de Neve.
+func _devolve_snowball_cards(p: int) -> void:
+	var reverted := 0
+	var reverted_uids: Array = []
+	for zone_name in ["hand", "deck", "graveyard"]:
+		for c: Card in players[p][zone_name]:
+			if c.card_id == GRANDE_SNOWBALL_CARD_ID:
+				c.card_id = SNOWBALL_CARD_ID
+				reverted += 1
+				reverted_uids.append(c.uid)
+	for item in stack:
+		if int(item["player"]) == p and item["kind"] == "card" and item["card_id"] == GRANDE_SNOWBALL_CARD_ID:
+			item["card_id"] = SNOWBALL_CARD_ID
+			reverted += 1
+	if reverted > 0:
+		_emit({"type": "snowball_devolve", "player": p, "count": reverted, "uids": reverted_uids})
 
 ## Momentum off the first spell of an essence each turn, from the equipped "spell_discount" artifacts
 ## (Amuleto do Primeiro Floco) on p's units. The discounts of several amulets add up.
@@ -821,7 +852,7 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 			stack_system().settle()
 			return _flush()
 	if cd["type"] == "unit":
-		_summon(p, inst, false, 0, {}, true, slot)
+		_summon(p, inst, false, 0, {}, true, slot, true)
 		_check_state()
 		stack_system().open_summon_window(p)
 	else:
@@ -858,7 +889,7 @@ func cast_legendary(p: int, _target: int = 0, slot: int = -1) -> Array:
 	pl["legendary"]["casts"] += 1
 	var c := Card.new(_uid(), pl["legendary"]["card_id"], p)
 	_emit({"type": "play", "player": p, "uid": c.uid, "card_id": c.card_id, "legendary": true})
-	_summon(p, c, true, 0, {}, true, slot)
+	_summon(p, c, true, 0, {}, true, slot, true)
 	_check_state()
 	stack_system().open_summon_window(p)
 	stack_system().settle()
@@ -933,6 +964,19 @@ func transform_into(c: Card, into_id: String) -> void:
 	var target := uid if target_spec(cd["effects"]) == "ally_unit" else 0
 	_run_effects(_enter_context(p, uid, target), cd["effects"])
 
+## Exiles a unit from the board: it never dies (no Ao Morrer) and never reaches the graveyard;
+## its equipment does. A banished ficha just vanishes.
+func banish_unit(exiled: Card) -> void:
+	var owner_player: int = exiled.owner
+	players[owner_player]["board"].erase(exiled)
+	_release_equipment(exiled)
+	if exiled.data().get("token", false):
+		_move(exiled, "")
+	else:
+		players[owner_player]["banished"].append(exiled)
+		_move(exiled, "banished")
+	_emit({"type": "banish", "uid": exiled.uid, "player": owner_player, "card_id": exiled.card_id})
+
 ## Gives up priority. With items on the stack, everything resolves (newest first);
 ## in an empty combat window the combat moves on to the next window.
 func pass_priority(p: int) -> Array:
@@ -991,6 +1035,7 @@ func choose_enter_target(p: int, target: int) -> Array:
 	var uid := int(pending_enter["uid"])
 	if target != 0 and not valid_targets(p, pending_enter["spec"], uid).has(target):
 		return []
+	var respond: bool = pending_enter.get("respond", false)
 	pending_enter.clear()
 	phase = "main"
 	var c := find_unit(uid)
@@ -1002,8 +1047,7 @@ func choose_enter_target(p: int, target: int) -> Array:
 			if target_spec([e]) == "":
 				rest.append(e)
 		effects = rest
-	_announce(c, effects, "on_enter")
-	_run_effects(_enter_context(p, uid, target), effects)
+	_trigger_enter(p, c, effects, target, respond)
 	_check_state()
 	stack_system().after_search()
 	stack_system().settle()
@@ -1059,6 +1103,22 @@ func choose_search(p: int, card_uid: int) -> Array:
 		_emit({"type": "revive", "player": p, "card_id": chosen["card_id"]})
 		if has_free_slot(p):
 			_summon(p, Card.new(_uid(), chosen["card_id"], p), false, 0)
+		_resolve_stack()
+		_check_state()
+		stack_system().after_search()
+		stack_system().settle()
+		return _flush()
+	if pending_search.get("hand_summon", false):
+		# Dona Gertrudes: the chosen card goes from the hand to the board without paying its cost
+		var summoned_card := _hand_card(p, card_uid)
+		if summoned_card == null or not has_free_slot(p):
+			return []
+		players[p]["hand"].erase(summoned_card)
+		pending_search.clear()
+		phase = _search_return
+		_emit({"type": "hand_summon", "player": p, "uid": card_uid, "card_id": summoned_card.card_id})
+		_summon(p, summoned_card, false, 0, {}, true)
+		summoned_card.banish_at_turn_end = true # set after entering, because enter_board resets it
 		_resolve_stack()
 		_check_state()
 		stack_system().after_search()
@@ -1183,6 +1243,17 @@ func _release_equipment(c: Card) -> void:
 func _has_play(p: int) -> bool:
 	return stack_system().has_play(p)
 
+## "PASSAR TUDO": p stops being asked for responses during the rest of the opponent's turn.
+## Only valid while p is the one responding (it is the opponent's turn and p holds priority).
+func pass_rest_of_turn(p: int) -> Array:
+	if phase not in ["main", "combat"] or p == active or p != priority:
+		return []
+	skip_rest_of_turn[p] = true
+	_emit({"type": "pass", "player": p})
+	stack_system().pass_once()
+	stack_system().settle()
+	return _flush()
+
 ## Turns p's auto-pass on or off. Turning it on while p holds an unusable window passes it.
 func set_auto_pass(p: int, on: bool) -> Array:
 	auto_pass[p] = on
@@ -1196,7 +1267,9 @@ func set_auto_pass(p: int, on: bool) -> Array:
 ## (phase "enter_target") instead of resolving right away.
 ## slot: board position to enter at (0 = leftmost); -1 or past the end = rightmost. Position
 ## matters for adjacency (Armadura from neighbours, "random_enemy_and_adjacent", ...).
-func _summon(p: int, c: Card, legendary: bool, target: int, over: Dictionary = {}, ask := false, slot := -1) -> void:
+## respond: the unit was played (hand or Legendary), so its Ao Entrar goes on the stack as an item the
+## opponent may answer with an Instantâneo (it cannot be countered) instead of resolving at once.
+func _summon(p: int, c: Card, legendary: bool, target: int, over: Dictionary = {}, ask := false, slot := -1, respond := false) -> void:
 	var uid := c.uid
 	var card_id := c.card_id
 	c.owner = p
@@ -1219,15 +1292,28 @@ func _summon(p: int, c: Card, legendary: bool, target: int, over: Dictionary = {
 	if only_itself and target == 0:
 		target = uid
 	if ask and spec != "" and not enter_options.is_empty() and not only_itself:
-		pending_enter = {"player": p, "uid": uid, "card_id": card_id, "spec": spec}
+		pending_enter = {"player": p, "uid": uid, "card_id": card_id, "spec": spec, "respond": respond}
 		phase = "enter_target"
 		_emit({"type": "enter_target", "player": p, "uid": uid, "card_id": card_id})
 		return
 	# "ally_unit" Ao Entrar with no chosen ally falls back to the unit itself
 	if target == 0 and target_spec(cd["effects"]) == "ally_unit":
 		target = uid
-	_announce(c, cd["effects"], "on_enter")
-	_run_effects(_enter_context(p, uid, target), cd["effects"])
+	_trigger_enter(p, c, cd["effects"], target, respond)
+
+## Runs the unit's Ao Entrar `effects`, or (respond) puts them on the stack so the opponent can answer first.
+func _trigger_enter(p: int, c: Card, effects: Array, target: int, respond: bool) -> void:
+	if respond and _has_enter_effects(effects):
+		stack_system().push(p, "enter_trigger", c.uid, c.card_id, target, "instantaneo")
+		return
+	_announce(c, effects, "on_enter")
+	_run_effects(_enter_context(p, c.uid, target), effects)
+
+func _has_enter_effects(effects: Array) -> bool:
+	for e in effects:
+		if (e.trigger if e is Effect else e.get("trigger", "")) == "on_enter":
+			return true
+	return false
 
 ## Tells the listening cards (Mestra do Gelo Frígido) that p cast a spell. The event's data says
 ## which essences the spell has, one "essence_<id>": true fact each, for the "when" filter.
@@ -1364,6 +1450,24 @@ func _begin_hand_discard(p: int, source_uid: int) -> void:
 	_search_return = phase
 	phase = "search"
 	_emit({"type": "discard_pick", "player": p, "source_uid": source_uid})
+
+## The player picks a unit card (of `rarity`; "" = any) from their own hand; it enters the board
+## for free and is banished at the end of the turn. The options are private to the owner.
+func _begin_hand_summon(p: int, rarity: String, source_uid: int) -> void:
+	if phase == "search":
+		return
+	var options: Array = []
+	for c: Card in players[p]["hand"]:
+		var card_data := CardDB.card(c.card_id)
+		if card_data["type"] == "unit" and (rarity == "" or card_data.get("rarity", "") == rarity):
+			options.append({"uid": c.uid, "card_id": c.card_id})
+	if options.is_empty() or not has_free_slot(p):
+		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
+		return
+	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "hand_summon": true}
+	_search_return = phase
+	phase = "search"
+	_emit({"type": "hand_summon_pick", "player": p, "source_uid": source_uid})
 
 ## Offers every copy of `card_id` in the graveyard (just one entry per copy); the pick goes to the
 ## hand marked to be banished after its next cast.
@@ -1702,6 +1806,12 @@ func _finish_turn() -> void:
 	_check_state()
 	if phase == "over":
 		return
+	reset_snowball_level(active)
+	# Dona Gertrudes: the champions she borrowed from the hand leave the game now
+	for p in players:
+		for c: Card in p["board"].duplicate():
+			if c.banish_at_turn_end:
+				banish_unit(c)
 	for p in players:
 		for c in p["board"]:
 			# Damage stays marked between turns. Temporary Vida soaked damage first, so when it
@@ -1738,6 +1848,7 @@ func _start_turn(p: int, draw: bool) -> void:
 	priority = p
 	summon_window = false
 	_summon_pending = false
+	skip_rest_of_turn = [false, false]
 	turn += 1
 	phase = "main"
 	var pl: Dictionary = players[p]

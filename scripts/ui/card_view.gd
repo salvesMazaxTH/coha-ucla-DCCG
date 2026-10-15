@@ -49,7 +49,7 @@ const ABILITY_GLOW := Color("#c07bff")
 var dim := false
 var cost_override := -1
 var text_suffix := "" ## live count appended to the rules text in the big view (e.g. "(agora: 3)")
-var snowball_level := 1 ## the owner's Bola de Neve level, shown where the card text says "{nivel}"
+var snowball_level := GameState.SNOWBALL_BASE_LEVEL ## the owner's Bola de Neve level, shown where the card text says "{nivel}"
 
 ## Fills the live numbers of a rules text: "Cause {nivel} de dano" reads "Cause 5 de dano" once the
 ## owner's Bola de Neve has grown to 5. Without an owner (collection, deck builder) the level stays

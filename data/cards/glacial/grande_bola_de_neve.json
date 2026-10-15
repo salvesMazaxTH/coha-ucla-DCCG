@@ -4,7 +4,7 @@
   "rarity": "legendary",
   "transform_only": true,
   "essence": "glacial",
-  "cost": 4,
+  "cost": 3,
   "speed": "lento",
   "art": "glacial/grande_bola_de_neve.webp",
   "effects": [
@@ -15,7 +15,7 @@
       "overflow_to_leader": true
     }
   ],
-  "text": "Sobrepujança.\nCause {nivel} de dano a uma unidade inimiga. Repita em cada unidade seguinte, em uma direção sorteada, com +1 de dano a cada uma. O dano final vira o inicial de toda Bola de Neve futura.",
+  "text": "Sobrepujança.\nCause {nivel} de dano a uma unidade inimiga. Repita em cada unidade seguinte, em uma direção sorteada, com +1 de dano a cada uma. O dano final vira o inicial de toda Bola de Neve futura, até o fim do seu turno. No fim do turno o nível volta a 2 e as Grandes Bolas de Neve voltam a ser Bolas de Neve.",
   "flavor": "Agora ela liga. E leva o vilarejo junto.",
   "tags": [
     "bola_de_neve"

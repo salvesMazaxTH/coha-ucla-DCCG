@@ -90,19 +90,33 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 			continue
 		var card_data := CardDB.card(card.card_id)
 		var is_unit: bool = card_data["type"] == "unit"
-		if not is_unit and g.is_dud(p, card_data):
+		if not is_unit and (g.is_dud(p, card_data) or not _spell_is_worth_it(g, p, card_data)):
 			continue
 		var spec := g.card_spec(card_data)
 		var target := _pick_sacrifice(g, p) if card_data.get("cost_sacrifice", false) else _pick_target(g, p, spec, card_data, 0, not is_unit)
 		var spec2 := g.second_spec(card_data)
 		var second_target := 0
-		if _has_fight(card_data):
+		if _has_sacrifice_effect(card_data):
+			# Mordida / Colheita / Tributo: what is given up and where the damage goes is one decision
+			var plan := _plan_sacrifice_spell(g, p, card_data)
+			if plan.is_empty():
+				continue
+			target = plan[0]
+			second_target = plan[1] if spec2 != "" else 0
+		elif _has_fight(card_data):
 			# a fight needs a matching pair, not the "biggest" unit of each side
 			var pair := _pick_fight(g, p)
 			if pair.is_empty():
 				continue
 			target = pair[0]
 			second_target = pair[1]
+		elif not is_unit and spec == "ally_unit" and not _temporary_buff_effect(card_data).is_empty():
+			# a this-turn buff goes to the strongest ally that will actually attack with it
+			var best_attack := -1
+			for unit: Card in _temporary_buff_beneficiaries(g, p, _temporary_buff_effect(card_data)):
+				if unit.atk_total() > best_attack:
+					best_attack = unit.atk_total()
+					target = unit.uid
 		elif spec != "" and target == 0 and not is_unit:
 			continue
 		elif spec2 != "":
@@ -116,12 +130,12 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 	for unit: Card in g.players[p]["board"]:
 		# untargeted Ao Ativar, before attacking (e.g. Yuki's temporary attack)
 		var activated_effects: Array = CardDB.card(unit.card_id).get("activated", {}).get("effects", [])
-		if g.can_activate(p, unit.uid) and g.target_spec(activated_effects) == "" and g.can_attack(unit):
+		if g.can_activate(p, unit.uid) and g.target_spec(activated_effects) == "" and g.can_attack(unit) and _revive_is_worth_it(g, p, activated_effects):
 			return g.activate(p, unit.uid)
 	for artifact: Card in g.players[p]["relics"]:
 		# free-standing artifacts' untargeted Ao Ativar (e.g. Ossuário Sem Fundo's revive)
 		var artifact_effects: Array = CardDB.card(artifact.card_id).get("activated", {}).get("effects", [])
-		if g.can_activate(p, artifact.uid) and g.target_spec(artifact_effects) == "":
+		if g.can_activate(p, artifact.uid) and g.target_spec(artifact_effects) == "" and _revive_is_worth_it(g, p, artifact_effects):
 			return g.activate(p, artifact.uid)
 	for unit: Card in g.players[p]["board"]:
 		if g.can_transform(p, unit.uid):
@@ -133,6 +147,164 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 		if ability_spec == "" or target != 0:
 			return g.use_ability(p, target)
 	return []
+
+## True when the card has a "sacrifice" effect (Mordida de Defunto, Colheita de Almas, Tributo ao Abismo).
+static func _has_sacrifice_effect(card_data: Dictionary) -> bool:
+	for effect in card_data.get("effects", []):
+		if effect.get("action") == "sacrifice":
+			return true
+	return false
+
+## Plan for a spell that sacrifices an ally: returns [ally to sacrifice, damage target] or [] when it
+## isn't worth casting now. Damage-after-sacrifice spells are finishers: they fire when the damage
+## kills the enemy Leader (giving up the smallest ally that is enough) or when they trade a cheap ally
+## for a clearly more valuable enemy unit. Without damage (Tributo ao Abismo) the weakest ally is given up.
+static func _plan_sacrifice_spell(g: GameState, p: int, card_data: Dictionary) -> Array:
+	var allies: Array = g.players[p]["board"]
+	if allies.is_empty():
+		return []
+	var damage_effect: Dictionary = {}
+	for effect in card_data["effects"]:
+		for follow_up in effect.get("then", []):
+			if follow_up.get("action") == "damage":
+				damage_effect = follow_up
+	if damage_effect.is_empty():
+		var weakest_uid := _pick_sacrifice(g, p)
+		return [weakest_uid, 0] if weakest_uid != 0 else []
+	var foe: int = g.opponent(p)
+	var foe_leader_uid: int = GameState.LEADER_UID[foe]
+	var leader_hp: int = g.players[foe]["leader_hp"]
+	var from_attack: bool = damage_effect.get("amount_from", "") == "sacrificed_atk"
+	var lethal_ally: Card = null
+	var lethal_damage := 999
+	for ally: Card in allies:
+		var damage: int = ally.atk_total() if from_attack else int(damage_effect.get("amount", 0))
+		if damage >= leader_hp and damage < lethal_damage:
+			lethal_damage = damage
+			lethal_ally = ally
+	if lethal_ally != null:
+		return [lethal_ally.uid, foe_leader_uid]
+	if not from_attack:
+		return [] # fixed damage that doesn't finish the Leader: not worth a unit
+	# no lethal: only trade a cheap ally for an enemy unit worth clearly more
+	var best_plan: Array = []
+	var best_gain := 2
+	for ally: Card in allies:
+		for enemy_unit: Card in g.players[foe]["board"]:
+			if enemy_unit.shield or enemy_unit.spell_shield or not g.valid_targets(p, "any").has(enemy_unit.uid):
+				continue
+			if g.damage_after_armor(enemy_unit, ally.atk_total()) < g.hp_left(enemy_unit):
+				continue
+			var gain := _unit_value(g, enemy_unit) - _unit_value(g, ally)
+			if gain > best_gain:
+				best_gain = gain
+				best_plan = [ally.uid, enemy_unit.uid]
+	return best_plan
+
+## Filters out plays that would waste Momentum: heals with little to heal, revives of trivial units
+## and area removal that isn't worth it (see _sweeper_is_worth_it).
+static func _spell_is_worth_it(g: GameState, p: int, card_data: Dictionary) -> bool:
+	var effects: Array = card_data.get("effects", [])
+	if not _revive_is_worth_it(g, p, effects):
+		return false
+	var temporary_buff := _temporary_buff_effect(card_data)
+	if not temporary_buff.is_empty() and _temporary_buff_beneficiaries(g, p, temporary_buff).is_empty():
+		return false
+	for effect in effects:
+		var action: String = effect.get("action", "")
+		if action in ["heal_unit", "heal_leader", "heal_full"] and not _heal_is_worth_it(g, p, effect):
+			return false
+		if action in ["damage", "destroy"] and effect.get("target", "") in ["all_enemy_units", "all_units"]:
+			if not _sweeper_is_worth_it(g, p, effect):
+				return false
+	return true
+
+## The buff effect of a spell whose gain only lasts this turn (+ATK, Ímpeto, Crítico...), or {} when the
+## card has none. Such a buff is wasted unless an ally actually attacks with it.
+static func _temporary_buff_effect(card_data: Dictionary) -> Dictionary:
+	for effect in card_data.get("effects", []):
+		if effect.get("action") == "buff" and effect.get("target", "") in ["ally_unit", "all_ally_units"] \
+				and (effect.get("temp", false) or int(effect.get("critico_temp", 0)) > 0):
+			return effect
+	return {}
+
+## Allies that would really use a this-turn buff: it must be our own turn and the unit must have something
+## to hit once it has the keywords the buff grants (Ímpeto lets a fresh unit challenge, never go face).
+static func _temporary_buff_beneficiaries(g: GameState, p: int, effect: Dictionary) -> Array:
+	var beneficiaries: Array = []
+	if g.active != p:
+		return beneficiaries
+	for unit: Card in g.players[p]["board"]:
+		var granted: Array = []
+		for keyword in effect.get("keywords", []):
+			if not unit.keywords.has(keyword):
+				granted.append(keyword)
+		unit.keywords.append_array(granted)
+		var has_target := not g.attack_targets(unit).is_empty()
+		for keyword in granted:
+			unit.keywords.erase(keyword)
+		if has_target:
+			beneficiaries.append(unit)
+	return beneficiaries
+
+## A heal needs enough missing life to be worth the card: all but 1 point of it must land, unless the
+## own Leader is in danger (then any real heal counts).
+static func _heal_is_worth_it(g: GameState, p: int, effect: Dictionary) -> bool:
+	var amount := int(effect.get("amount", 99))
+	var leader_missing: int = g.players[p]["leader_max"] - g.players[p]["leader_hp"]
+	var most_missing := 0
+	var total_unit_missing := 0
+	for unit: Card in g.players[p]["board"]:
+		most_missing = maxi(most_missing, unit.damage)
+		total_unit_missing += unit.damage
+	var target: String = effect.get("target", "")
+	if target == "own_leader":
+		most_missing = leader_missing
+	elif target == "all_ally_units":
+		most_missing = total_unit_missing
+	elif target == "ally_or_own_leader":
+		most_missing = maxi(most_missing, leader_missing)
+	var leader_in_danger: bool = g.players[p]["leader_hp"] <= 8 and leader_missing >= 2 and target != "all_ally_units"
+	return most_missing >= maxi(1, amount - 1) or leader_in_danger
+
+## Pressure = our Leader is low, or the enemy board outnumbers ours by 2+.
+static func _under_pressure(g: GameState, p: int) -> bool:
+	return g.players[p]["leader_hp"] <= 10 or g.players[g.opponent(p)]["board"].size() >= g.players[p]["board"].size() + 2
+
+## Area removal: worth it when it kills 2+ enemy units for more value than it costs us, or, under real
+## pressure, 1+ of them. Never to kill a lone unit while we are comfortable.
+static func _sweeper_is_worth_it(g: GameState, p: int, effect: Dictionary) -> bool:
+	var killed_enemies := 0
+	var net_value := 0
+	var hits_own: bool = effect.get("target", "") == "all_units"
+	for side in [g.opponent(p), p]:
+		if side == p and not hits_own:
+			continue
+		for unit: Card in g.players[side]["board"]:
+			var dies: bool = effect.get("action") == "destroy" or g.damage_after_armor(unit, int(effect.get("amount", 0))) >= g.hp_left(unit)
+			if not dies or unit.shield or unit.spell_shield:
+				continue
+			if side == p:
+				net_value -= _unit_value(g, unit)
+			else:
+				killed_enemies += 1
+				net_value += _unit_value(g, unit)
+	if net_value <= 0:
+		return false
+	return killed_enemies >= 2 or (killed_enemies >= 1 and _under_pressure(g, p))
+
+## Reviving only pays when the best unit that could come back is not a throwaway.
+static func _revive_is_worth_it(g: GameState, p: int, effects: Array) -> bool:
+	for effect in effects:
+		var action: String = effect.get("action", "")
+		if action != "revive" and action != "revive_pick":
+			continue
+		var best_cost := -1
+		for option in g.revive_options(p, int(effect.get("max_cost", 99))):
+			best_cost = maxi(best_cost, int(CardDB.card(option["card_id"]).get("cost", 0)))
+		if best_cost < 2 or not g.has_free_slot(p):
+			return false
+	return true
 
 static func _has_fight(card_data: Dictionary) -> bool:
 	for effect in card_data.get("effects", []):

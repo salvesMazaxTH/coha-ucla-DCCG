@@ -196,6 +196,7 @@ func _apply(g: GameState, p: int, m: Dictionary) -> Array:
 		"enter_tapped": return g.choose_enter_tapped(p, bool(m.get("tapped", false)))
 		"end_turn": return g.end_turn(p)
 		"pass": return g.pass_priority(p)
+		"pass_all": return g.pass_rest_of_turn(p)
 		"discard": return g.discard(p, _ints(m.get("uids")))
 		"search": return g.choose_search(p, int(m.get("uid", 0)))
 		"enter": return g.choose_enter_target(p, int(m.get("target", 0)))

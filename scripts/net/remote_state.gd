@@ -100,6 +100,9 @@ func set_auto_pass(p: int, on: bool) -> Array:
 func pass_priority(_p: int) -> Array:
 	return _act({"a": "pass"})
 
+func pass_rest_of_turn(_p: int) -> Array:
+	return _act({"a": "pass_all"})
+
 func concede(_p: int) -> Array:
 	return _act({"a": "concede"})
 

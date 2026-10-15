@@ -1,0 +1,24 @@
+{
+  "name": "Dona Gertrudes Fura-Fila",
+  "type": "unit",
+  "rarity": "legendary",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 3,
+  "atk": 2,
+  "hp": 4,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "summon_hand_pick",
+      "target": "none",
+      "rarity": "champion"
+    }
+  ],
+  "text": "Ao Entrar: coloque uma unidade campeã da sua mão em campo, sem pagar o custo. No fim do turno, ela é banida.",
+  "flavor": "Ela não é da fila. A fila é dela.",
+  "tags": []
+}

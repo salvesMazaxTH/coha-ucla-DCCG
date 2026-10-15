@@ -38,12 +38,4 @@ func _banish(context: EffectContext, target_uid: int) -> void:
 	var exiled := game.find_unit(target_uid)
 	if exiled == null:
 		return
-	var owner_player: int = exiled.owner
-	game.players[owner_player]["board"].erase(exiled)
-	game._release_equipment(exiled)
-	if exiled.data().get("token", false):
-		game._move(exiled, "") # a banished ficha just vanishes
-	else:
-		game.players[owner_player]["banished"].append(exiled)
-		game._move(exiled, "banished")
-	game._emit({"type": "banish", "uid": target_uid, "player": owner_player, "card_id": exiled.card_id})
+	game.banish_unit(exiled)

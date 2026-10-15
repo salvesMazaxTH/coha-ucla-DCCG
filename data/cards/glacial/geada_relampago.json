@@ -3,8 +3,8 @@
   "type": "spell",
   "rarity": "common",
   "essence": "glacial",
-  "cost": 1,
-  "speed": "rapido",
+  "cost": 2,
+  "speed": "instantaneo",
   "art": "glacial/geada_relampago.webp",
   "effects": [
     {

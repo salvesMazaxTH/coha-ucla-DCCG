@@ -1,10 +1,10 @@
 class_name RandomTarget
 extends TargetSelector
-## Random picks with the match RNG: random_enemy (any enemy unit or the enemy Leader), random_enemy_unit, random_enemy_and_adjacent,
-## random_ally_unit, random_other_ally_unit. The RNG is only rolled when there is something
+## Random picks with the match RNG: random_enemy (any enemy unit or the enemy Leader), random_enemy_unit, random_frozen_enemy_unit
+## (only enemy units that are already Congeladas), random_enemy_and_adjacent, random_ally_unit, random_other_ally_unit. The RNG is only rolled when there is something
 ## to pick, so replays stay identical.
 
-const NAMES := ["random_enemy", "random_enemy_unit", "random_enemy_and_adjacent", "random_ally_unit", "random_other_ally_unit"]
+const NAMES := ["random_enemy", "random_enemy_unit", "random_frozen_enemy_unit", "random_enemy_and_adjacent", "random_ally_unit", "random_other_ally_unit"]
 
 func resolve(context: EffectContext, _effect: Effect) -> Array:
 	var game := context.game
@@ -20,6 +20,14 @@ func resolve(context: EffectContext, _effect: Effect) -> Array:
 			if enemy_board.is_empty():
 				return []
 			return [enemy_board[game.rng.randi_range(0, enemy_board.size() - 1)].uid]
+		"random_frozen_enemy_unit":
+			var frozen_pool: Array = []
+			for unit: Card in enemy_board:
+				if game.is_frozen(unit):
+					frozen_pool.append(unit.uid)
+			if frozen_pool.is_empty():
+				return []
+			return [frozen_pool[game.rng.randi_range(0, frozen_pool.size() - 1)]]
 		"random_enemy_and_adjacent":
 			if enemy_board.is_empty():
 				return []

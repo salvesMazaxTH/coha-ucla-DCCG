@@ -12,6 +12,7 @@ var zone := "" ## "deck" / "hand" / "board" / "relics" / "graveyard" / "banished
 var discount := 0 ## costs this much less while it stays in hand (Tecnomante); cleared when it leaves the hand
 var cost_mod := 0 ## added to the cost in every zone and never reset (A Vagante Sombria: -1 per card of yours sent to the graveyard)
 var banish_after_cast := false ## taken back from the graveyard by "grave_retrieve": it is banished when its next cast ends
+var banish_at_turn_end := false ## put into play by "summon_hand_pick" (Dona Gertrudes): banished when the turn ends
 var over: Dictionary = {} ## per-instance overrides of the card data (atk, hp, keywords, effects, text...)
 
 # board state
@@ -66,6 +67,7 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	var cd := data()
 	var kws: Array = cd.get("keywords", []).duplicate()
 	legendary = is_legendary
+	banish_at_turn_end = false # a revived copy is a normal unit again
 	atk = int(cd["atk"])
 	hp = int(cd["hp"])
 	damage = 0

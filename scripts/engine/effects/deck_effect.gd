@@ -6,6 +6,8 @@ extends Effect
 ##   tags_any (at least one of them).
 ## "discard_hand_pick": the player picks one card from their own hand and discards it to
 ##   the graveyard (only the end-of-turn hand limit banishes; a normal discard goes to the graveyard).
+## "summon_hand_pick": the player picks a unit card of the given `rarity` (e.g. "champion"; "" = any) from
+##   their own hand and it enters the board for free. It is banished when the turn ends.
 ## "grave_retrieve": the player picks a copy of `card_id` (or of any card in the `card_ids` list) from their own
 ## graveyard and takes it to the hand;
 ##   that card is BANISHED once it has been cast (the price of getting a second use out of it).
@@ -25,6 +27,8 @@ func opens_choice() -> bool:
 func open_choice(context: EffectContext) -> void:
 	if action == "discard_hand_pick":
 		context.game._begin_hand_discard(context.controller, context.self_uid)
+	elif action == "summon_hand_pick":
+		context.game._begin_hand_summon(context.controller, String(raw.get("rarity", "")), context.self_uid)
 	elif action == "grave_retrieve":
 		var wanted_ids: Array = raw.get("card_ids", [str(raw.get("card_id", ""))])
 		context.game._begin_grave_retrieve(context.controller, wanted_ids, context.self_uid)

@@ -8,8 +8,10 @@ var game: GameState
 func _init(game_state: GameState) -> void:
 	game = game_state
 
-## Equipping and abilities flagged "uncounterable" can be responded to but never countered.
+## Equipping, an Ao Entrar and abilities flagged "uncounterable" can be responded to but never countered.
 func is_uncounterable(it: Dictionary) -> bool:
+	if it["kind"] == "enter_trigger":
+		return true
 	if it["kind"] == "ability":
 		return CardDB.leader(game.players[it["player"]]["leader_id"])["ability"].get("uncounterable", false)
 	return it["kind"] == "card" and CardDB.is_equipment(CardDB.card(it["card_id"]))
@@ -22,6 +24,8 @@ func stack_item(sid: int) -> Dictionary:
 
 ## Momentum cost of a spell/ability on the stack.
 func stack_cost(item: Dictionary) -> int:
+	if item["kind"] == "enter_trigger":
+		return 0 # the unit's cost was paid when it was played
 	if item["kind"] == "ability":
 		return int(CardDB.leader(game.players[item["player"]]["leader_id"])["ability"]["cost"])
 	if item["kind"] == "unit_ability":
@@ -101,7 +105,9 @@ func resolve_stack() -> void:
 		var item: Dictionary = game.stack.pop_back()
 		var p: int = item["player"]
 		var effects := effects_of(item)
-		var spec := game.target_spec(effects)
+		var is_enter: bool = item["kind"] == "enter_trigger"
+		# an Ao Entrar never fizzles: a target that left is simply skipped by the effect itself
+		var spec := "" if is_enter else game.target_spec(effects)
 		var gone := spec != "" and not game.valid_targets(p, spec).has(int(item["target"]))
 		if item.get("forced_target", false):
 			gone = int(item["target"]) > 0 and game.find_unit(int(item["target"])) == null # only a unit that left the board is lost
@@ -111,12 +117,18 @@ func resolve_stack() -> void:
 			game._emit({"type": "fizzle", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"]})
 		else:
 			game._emit({"type": "resolve", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"]})
-			var resolve_context := EffectContext.new(game, p, "on_play" if item["kind"] == "card" else "")
-			resolve_context.chosen_target = int(item["target"])
-			resolve_context.forced_target = item.get("forced_target", false)
-			resolve_context.second_target = int(item.get("target2", 0))
-			resolve_context.self_uid = int(item["uid"]) if item["kind"] == "unit_ability" else 0
-			game._run_effects(resolve_context, effects)
+			if is_enter:
+				var entering := game.find_unit(int(item["uid"]))
+				if entering != null:
+					game._announce(entering, effects, "on_enter")
+				game._run_effects(game._enter_context(p, int(item["uid"]), int(item["target"])), effects)
+			else:
+				var resolve_context := EffectContext.new(game, p, "on_play" if item["kind"] == "card" else "")
+				resolve_context.chosen_target = int(item["target"])
+				resolve_context.forced_target = item.get("forced_target", false)
+				resolve_context.second_target = int(item.get("target2", 0))
+				resolve_context.self_uid = int(item["uid"]) if item["kind"] == "unit_ability" else 0
+				game._run_effects(resolve_context, effects)
 		if item.get("virtual", false):
 			pass # cast by a unit: there is no card to send anywhere
 		elif item["kind"] == "card":
@@ -271,6 +283,9 @@ func settle() -> void:
 			return
 		if game.phase == "combat" and game.window == "attacks" and game.stack.is_empty():
 			return # the attacker declares attacks (or ends combat) by hand; never auto-pass here
-		if not game.auto_pass[game.priority] or has_play(game.priority):
+		var holder: int = game.priority
+		# "PASSAR TUDO" only covers answering the opponent's moves, never the player's own turn
+		var passing_everything: bool = game.skip_rest_of_turn[holder] and holder != game.active
+		if not passing_everything and (not game.auto_pass[holder] or has_play(holder)):
 			return
 		pass_once()

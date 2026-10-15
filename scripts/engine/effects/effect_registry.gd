@@ -23,6 +23,7 @@ static var ACTIONS: Dictionary = {
 	"snowball_level": SnowballLevelEffect,
 	"transform_self": TransformEffect,
 	"discard_hand_pick": DeckEffect,
+	"summon_hand_pick": DeckEffect,
 	"fight": FightEffect,
 	"summon": SummonEffect,
 	"mill": MillEffect,
