@@ -146,6 +146,9 @@ func _is_phone() -> bool:
 	return OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios") 			or (OS.has_feature("web") and DisplayServer.is_touchscreen_available())
 
 func _ready() -> void:
+	# Main covers the whole stage: with the default STOP filter it swallowed every press on empty
+	# table, so `_unhandled_input` (tap outside / right click cancels an aim) never saw it
+	mouse_filter = Control.MOUSE_FILTER_PASS
 	# the logical screen is as tall as the stage, so a 16:9 window shows all of it (not a cropped middle)
 	get_window().content_scale_size = Vector2i(1600, int(STAGE_H))
 	_apply_light(_light_on())
@@ -1251,6 +1254,10 @@ func _render_board(p: int, y: float) -> void:
 		_decorate_unit(v, unit, p)
 		v.left_clicked.connect(_on_unit_click)
 		v.right_clicked.connect(_show_overlay)
+		# on touch an attacker is also dragged to its target (on a mouse the press already starts the aim)
+		v.draggable = CardView.touch_ui() and p == viewer and _my_input() and targeting.is_empty() \
+			and g.combat_system().in_attacks_window(viewer)
+		v.drag_started.connect(_unit_drag_start)
 		layer.add_child(v)
 		views[unit.uid] = v
 		_slam_if_barricade_just_closed(v, unit)
@@ -2340,6 +2347,18 @@ func _on_unit_click(v: CardView) -> void:
 		return
 	if not _unit_click_acted(v):
 		_show_overlay(v)
+
+## Touch: a finger pressed on one of our units and moved past the drag threshold. That is the same
+## as picking it as an attacker, except the finger is still down: the arrow follows it and lifting
+## it over a target fires the attack (see _aim_release).
+func _unit_drag_start(v: CardView) -> void:
+	if _input_must_wait() and _click_should_wait(v.uid):
+		_queue_card_click(v.uid) # picked during an animation: the release is handled by _input
+		return
+	if not _my_input() or not targeting.is_empty():
+		return
+	if _unit_click_acted(v):
+		aim_drag = true # the press is still held, so the release decides
 
 ## True while an aim is open or clicks are already waiting: the next click on a card is a target pick.
 func _aiming_or_waiting() -> bool:
