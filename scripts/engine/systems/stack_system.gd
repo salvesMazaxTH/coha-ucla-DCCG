@@ -128,7 +128,9 @@ func resolve_stack() -> void:
 				resolve_context.forced_target = item.get("forced_target", false)
 				resolve_context.second_target = int(item.get("target2", 0))
 				resolve_context.self_uid = int(item["uid"]) if item["kind"] == "unit_ability" else 0
+				game._spell_resolving = item["kind"] == "card" and CardDB.card(item["card_id"]).get("type", "") == "spell"
 				game._run_effects(resolve_context, effects)
+				game._spell_resolving = false
 		if item.get("virtual", false):
 			pass # cast by a unit: there is no card to send anywhere
 		elif item["kind"] == "card":

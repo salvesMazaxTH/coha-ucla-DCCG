@@ -3,6 +3,9 @@ extends Effect
 ## "buff": +atk/+hp and keywords on the target unit ("temp": true = attack, hp and keywords
 ## only until end of turn). "armor": N adds Armadura permanently (stacks with what it already has);
 ## "armor_temp": N is the same until its owner's next turn starts. "atk_temp": N does that for Ataque.
+## "armor_min": N raises the unit's Armadura to N when it is lower (nothing happens when it already has N or more).
+## "spell_shield_temp": true gives Escudo de Feitiço only until its owner's next turn starts (a unit that already
+## has a permanent Escudo de Feitiço keeps it as it is).
 ## "per": "momentum_left" multiplies atk/hp by the Momentum the controller still has
 ## (at least `min`, at most `max`).
 ## "cap_atk": this effect can give one unit at most that much attack in total (e.g. Layla).
@@ -13,6 +16,8 @@ var attack := 0
 var health := 0
 var armor := 0
 var temporary_armor := 0
+var minimum_armor := 0
+var temporary_spell_shield := false
 var temporary_attack_until_next_turn := 0
 var temporary := false
 var keywords: Array = []
@@ -33,6 +38,8 @@ func _read_parameters(data: Dictionary) -> void:
 	health = int(data.get("hp", 0))
 	armor = int(data.get("armor", 0))
 	temporary_armor = int(data.get("armor_temp", 0))
+	minimum_armor = int(data.get("armor_min", 0))
+	temporary_spell_shield = bool(data.get("spell_shield_temp", false))
 	temporary_attack_until_next_turn = int(data.get("atk_temp", 0))
 	temporary = bool(data.get("temp", false))
 	keywords = data.get("keywords", [])
@@ -86,6 +93,13 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	attack_gain += temporary_attack_until_next_turn
 	unit.temp_armor += temporary_armor # lasts until the unit's owner starts their next turn
 	unit.armor += armor # Armadura stacks: giving Armadura X to a unit that has Y leaves X + Y
+	var armor_raised_to := 0
+	if minimum_armor > unit.armor:
+		unit.armor = minimum_armor
+		armor_raised_to = minimum_armor
+	if temporary_spell_shield and not unit.spell_shield:
+		unit.spell_shield = true
+		unit.spell_shield_until_next_turn = true
 	for keyword in keywords:
 		if keyword == "escudo":
 			unit.shield = true
@@ -101,6 +115,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		buff_event["rapidez"] = minimum_rapidez
 	if armor + temporary_armor > 0:
 		buff_event["armor"] = armor + temporary_armor
+	elif armor_raised_to > 0:
+		buff_event["armor"] = armor_raised_to
 	if temporary_critico > 0:
 		unit.temp_critico = mini(4, unit.temp_critico + temporary_critico)
 		buff_event["critico"] = temporary_critico

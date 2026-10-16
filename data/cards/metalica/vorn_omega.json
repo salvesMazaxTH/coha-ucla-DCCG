@@ -10,9 +10,9 @@
   "keywords": ["armadura:1"],
   "art": "metalica/vorn_omega.webp",
   "effects": [
-    { "trigger": "on_enter", "action": "mill", "who": "enemy", "target": "none", "amount": 4 }
+    { "trigger": "on_enter", "action": "mill", "who": "enemy", "target": "none", "amount": 3 }
   ],
-  "text": "Armadura 1.\nAo Entrar: Moa 4 cartas do deck do oponente.",
+  "text": "Ao Entrar: Moa 3 cartas do deck do oponente.",
   "flavor": "A fábrica que o fez calou-se há muito tempo. Ele continua trabalhando.",
   "tags": []
 }

@@ -27,6 +27,7 @@ static var ACTIONS: Dictionary = {
 	"fight": FightEffect,
 	"summon": SummonEffect,
 	"mill": MillEffect,
+	"fatigue_burn": FatigueBurnEffect,
 	"mill_pick": MillEffect,
 	"revive": ReviveEffect,
 	"revive_self": ReviveEffect,

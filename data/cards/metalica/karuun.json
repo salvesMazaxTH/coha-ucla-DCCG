@@ -9,10 +9,10 @@
   "hp": 12,
   "keywords": ["provocacao", "armadura:2"],
   "effects": [
-    { "trigger": "on_enter", "action": "mill", "who": "enemy", "target": "none", "amount": 5 },
+    { "trigger": "on_enter", "action": "mill", "who": "enemy", "target": "none", "amount": 4 },
     { "trigger": "on_enter", "action": "buff", "target": "all_ally_units", "armor": 1 }
   ],
-  "text": "Provocação, Armadura 2.\nAo Entrar: Moa 5 cartas do deck do oponente. Todas as suas unidades ganham Armadura 1 (permanente).",
+  "text": "Ao Entrar: Moa 4 cartas do deck do oponente. Todas as suas unidades ganham Armadura 1 (permanente).",
   "flavor": "Ele pegou um homem de carne e devolveu uma montanha de ferro-adamantino.",
   "art": "metalica/karuun.webp",
   "tags": []

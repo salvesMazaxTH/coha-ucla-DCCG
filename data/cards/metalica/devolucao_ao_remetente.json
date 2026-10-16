@@ -1,0 +1,27 @@
+{
+  "name": "Devolução ao Remetente",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "metalica",
+  "cost": 2,
+  "speed": "instantaneo",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "counter",
+      "target": "enemy_stack",
+      "only_if_targets_ally": true
+    },
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 3
+    }
+  ],
+  "text": "Anule um feitiço ou habilidade inimiga que tenha como alvo uma unidade aliada e/ou o seu Líder (efeitos em área não contam). Cause 3 de dano ao Líder inimigo.",
+  "flavor": "Produto recusado. Frete por conta do destinatário. Com juros.",
+  "tags": [
+    "anular"
+  ]
+}

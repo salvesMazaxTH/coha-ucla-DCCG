@@ -2,7 +2,7 @@ class_name DeckEffect
 extends Effect
 ## Effects that open a deck choice after their trigger resolves, told apart by `action`:
 ## "search_deck": the player picks a matching card from the deck.
-##   Filters (read by GameState._begin_search): essence, max_cost, type, species, tags (all of them),
+##   Filters (read by GameState._begin_search): essence, max_cost, type, types_any (one of several types), species, tags (all of them),
 ##   tags_any (at least one of them), top (only the N cards on top of the deck are searched; the matches
 ##   are revealed to everyone and the looked-at cards not taken go to the bottom of the deck instead of
 ##   a shuffle). Without "top" the whole deck is searched: keep that for very narrow filters (a single named

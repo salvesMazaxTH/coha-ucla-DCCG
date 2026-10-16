@@ -70,6 +70,9 @@ var _search_return := "main"
 ## True while combat damage is being dealt and the deaths it causes are resolved; effects
 ## marked "not_in_combat" stay silent then (Cientista da Morte).
 var _combat_damage := false
+## True while a spell's effects are being resolved; damage it deals (with no unit as the source) counts as
+## "from a spell" for effects marked "only_from_spell" (Tyren).
+var _spell_resolving := false
 ## Cards sent to the graveyard by the latest mill (offered by mill_pick).
 var rng := RandomNumberGenerator.new()
 var _next_uid := 1
@@ -462,10 +465,12 @@ func set_snowball_level(p: int, new_level: int) -> void:
 func reset_snowball_level(p: int) -> void:
 	var was_grande := snowball_is_grande(p)
 	var base_level: int = int(players[p]["snowball_base"])
+	var level_before: int = int(players[p]["snowball"])
 	players[p]["snowball"] = base_level
 	if was_grande:
 		_devolve_snowball_cards(p)
-	_emit({"type": "snowball_reset", "player": p, "level": base_level})
+	if level_before != base_level: # decks with no Bola de Neve never move the level, so there is nothing to announce
+		_emit({"type": "snowball_reset", "player": p, "level": base_level})
 
 func snowball_is_grande(p: int) -> bool:
 	return int(players[p]["snowball"]) >= SNOWBALL_GRANDE_AT
@@ -1433,6 +1438,8 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 			continue
 		if e.has("type") and cd.get("type", "") != e["type"]:
 			continue
+		if e.has("types_any") and not e["types_any"].has(cd.get("type", "")):
+			continue
 		if e.has("species") and not cd.get("species", []).has(e["species"]):
 			continue
 		if e.has("tags"):
@@ -1467,10 +1474,15 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 	if top_only:
 		# the cards looked at but not taken go to the bottom of the deck instead of a shuffle
 		var looked_uids: Array = []
+		# every card looked at, topmost first; "cards" holds only the eligible ones, so the UI can show the rest dimmed
+		var looked_cards: Array = []
 		for c: Card in searched:
 			looked_uids.append(c.uid)
+		for index in range(searched.size() - 1, -1, -1):
+			looked_cards.append({"uid": searched[index].uid, "card_id": searched[index].card_id})
 		pending_search["to_bottom"] = looked_uids
 		pending_search["looked"] = searched.size()
+		pending_search["looked_cards"] = looked_cards
 	_search_return = phase
 	phase = "search"
 	_emit({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": matches, "private": true, "looked": pending_search.get("looked", 0)})
@@ -1667,7 +1679,7 @@ func _deal_damage(t: int, amount: int, source: Card) -> int:
 			c.tide_mark = false
 			_emit({"type": "tide_draw", "uid": t, "player": c.owner})
 			_draw(c.owner, 1)
-		_fire(c, "on_damaged", src_uid)
+		_fire(c, "on_damaged", src_uid, {"from_spell": _spell_resolving and source == null})
 		# Reflexão: half of the damage taken (rounded up) goes back to the unit that dealt it. The
 		# returning damage has no source, so two mirrors facing each other can't bounce it forever.
 		if has_kw(c, "reflexao") and source != null and source != c and find_unit(src_uid) != null:
@@ -1722,14 +1734,19 @@ func _emit_leader_healed(p: int, amount: int, hp_before: int) -> void:
 func fatigue_next(p: int) -> int:
 	return 2 << int(players[p]["fatigue"])
 
+## Player `p` suffers one Fadiga: damage to their Leader, and the next one doubles. A draw from an empty deck,
+## milling an already-empty deck and Hora Extra Compulsória all end up here.
+func suffer_fatigue(p: int) -> void:
+	var damage_amount := fatigue_next(p)
+	players[p]["fatigue"] += 1
+	_emit({"type": "fatigue", "player": p, "amount": damage_amount})
+	_deal_damage(LEADER_UID[p], damage_amount, null)
+
 func _draw(p: int, n: int) -> void:
 	var pl: Dictionary = players[p]
 	for i in n:
 		if pl["deck"].is_empty():
-			var dmg := fatigue_next(p)
-			pl["fatigue"] += 1
-			_emit({"type": "fatigue", "player": p, "amount": dmg})
-			_deal_damage(LEADER_UID[p], dmg, null)
+			suffer_fatigue(p)
 			continue
 		var c: Card = pl["deck"].pop_back()
 		pl["hand"].append(c)
@@ -1933,6 +1950,9 @@ func _start_turn(p: int, draw: bool) -> void:
 		c.sick = false
 		c.temp_armor = 0
 		c.temp_atk_until_next_turn = 0
+		if c.spell_shield_until_next_turn:
+			c.spell_shield = false
+			c.spell_shield_until_next_turn = false
 		c.attacks_made = 0
 	_emit({"type": "start_turn", "player": p, "turn": turn})
 	bus().emit(GameEvent.new("turn_started", p))

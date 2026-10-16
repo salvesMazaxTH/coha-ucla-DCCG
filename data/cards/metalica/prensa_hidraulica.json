@@ -9,9 +9,9 @@
     "cost": 2,
     "speed": "lento",
     "once_per_turn": true,
-    "effects": [{ "action": "mill", "who": "enemy", "target": "none", "amount": 3 }]
+    "effects": [{ "action": "mill", "who": "enemy", "target": "none", "amount": 2 }]
   },
-  "text": "Ao Ativar (2) {lento} (1x por turno): Moa 3 cartas do deck do oponente.",
+  "text": "Ao Ativar (2) {lento} (1x por turno): Moa 2 cartas do deck do oponente.",
   "flavor": "Pressão suficiente para amassar um dia ruim.",
   "art": "metalica/prensa_hidraulica.webp",
   "tags": []

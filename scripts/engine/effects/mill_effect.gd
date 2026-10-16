@@ -1,9 +1,10 @@
 class_name MillEffect
 extends Effect
-## "mill": the top `amount` cards of a deck go to its owner's graveyard (no fatigue by itself:
-## the next draw from the empty deck is what hurts). "who": "enemy" mills the opponent's deck
-## instead of the controller's (Metálica). "mill_pick" does the same on the own deck, then
-## offers one of those cards to the hand.
+## "mill": the top `amount` cards of a deck go to its owner's graveyard. Milling your OWN deck never
+## causes fatigue (the next draw from the empty deck is what hurts). "who": "enemy" mills the
+## opponent's deck instead of the controller's (Metálica); if it has fewer cards than `amount`
+## (or none), the missing cards turn into ONE Fadiga for them, so mill keeps working after the deck runs out.
+## "mill_pick" does the same on the own deck, then offers one of those cards to the hand.
 
 var amount := 1
 var mills_enemy := false
@@ -28,6 +29,8 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 		milled_ids.append(card.card_id)
 	if not milled_ids.is_empty():
 		game._emit({"type": "mill", "player": deck_owner, "cards": milled_ids})
+	if mills_enemy and milled_ids.size() < amount:
+		game.suffer_fatigue(deck_owner)
 
 func opens_choice() -> bool:
 	return action == "mill_pick"

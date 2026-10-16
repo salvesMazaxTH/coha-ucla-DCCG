@@ -40,6 +40,8 @@ func _fire_own_effects(event: GameEvent) -> void:
 			continue # an Aliado Morre effect that only listens to one card dying (Luto: Myrra)
 		if e.get("trigger", "") == event.trigger and game._combat_damage and e.get("not_in_combat", false):
 			continue
+		if e.get("trigger", "") == event.trigger and e.get("only_from_spell", false) and not event.data.get("from_spell", false):
+			continue # an Ao Sofrer Dano effect that only reacts to damage dealt by a spell (Tyren)
 		if e.get("trigger", "") == event.trigger and e.get("own_turn_only", false) and game.active != card.owner:
 			continue # an "own turn only" effect during the opponent's turn
 		if e.get("trigger", "") == event.trigger and e.get("once_per_turn", false):

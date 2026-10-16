@@ -11,7 +11,7 @@ data/decks/
     eletrica.json  ("Slow Midrange", mono-Elétrica)
     glacial.json   ("Nevasca de Nythera", Glacial, combo da Bola de Neve)
     vael.json      ("Lâmina de Vael", Líder neutro, aggro de Crítico com convidados de outras essências)
-    metalica.json  ("Montanha de Ferro de Morakhan", Metálica, artefatos + trituração do deck do oponente)
+    metalica.json  ("Montanha de Ferro de Morakhan", Metálica, compra e filtro com artefatos e peças, trituração do deck do oponente que vira Fadiga)
 ```
 
 ## Formato

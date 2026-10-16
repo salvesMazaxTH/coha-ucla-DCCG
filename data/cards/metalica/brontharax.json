@@ -9,9 +9,9 @@
   "hp": 10,
   "keywords": ["voo", "armadura:1"],
   "effects": [
-    { "trigger": "on_turn_end", "action": "mill", "who": "enemy", "target": "none", "amount": 2 }
+    { "trigger": "on_turn_end", "action": "mill", "who": "enemy", "target": "none", "amount": 1 }
   ],
-  "text": "Voo, Armadura 1.\nNo Fim do Turno: Moa 2 cartas do deck do oponente.",
+  "text": "No Fim do Turno: Moa 1 carta do deck do oponente.",
   "flavor": "Cada batida de asa soa como um sino que ninguém quer ouvir tocar.",
   "art": "metalica/brontharax.webp",
   "tags": []

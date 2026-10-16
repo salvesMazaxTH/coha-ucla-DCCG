@@ -3027,16 +3027,63 @@ func _test_metalica() -> void:
 	var enemy_deck_before: int = g.players[b]["deck"].size()
 	var enemy_graveyard_before: int = g.players[b]["graveyard"].size()
 	var own_deck_before: int = g.players[a]["deck"].size()
+	var own_hand_before: int = g.players[a]["hand"].size()
 	_cast_and_resolve(g, a, "zeladorbot_3000")
-	check(g.players[b]["deck"].size() == enemy_deck_before - 2, "Zeladorbot: o deck do oponente perde 2 cartas")
-	check(g.players[b]["graveyard"].size() == enemy_graveyard_before + 2, "Zeladorbot: as cartas moídas vão para o cemitério do oponente")
-	check(g.players[a]["deck"].size() == own_deck_before, "Zeladorbot: o próprio deck não muda")
+	check(g.phase == "search" and g.pending_search.get("discard_hand", false), "Zeladorbot: depois de comprar, abre a escolha de descarte")
+	g.choose_search(a, int(g.pending_search["cards"][0]["uid"]))
+	check(g.players[b]["deck"].size() == enemy_deck_before - 1, "Zeladorbot: o deck do oponente perde 1 carta")
+	check(g.players[b]["graveyard"].size() == enemy_graveyard_before + 1, "Zeladorbot: a carta moída vai para o cemitério do oponente")
+	check(g.players[a]["deck"].size() == own_deck_before - 1, "Zeladorbot: comprou 1 carta do próprio deck")
+	check(g.players[a]["hand"].size() == own_hand_before, "Zeladorbot: comprou 1 e descartou 1 (o próprio Zeladorbot já saiu da mão)")
+
+	# Trituração em Massa: mills 2 and replaces itself (draws 1) for 2 Momentum
+	g = _metalica_game()
+	a = g.active
+	b = g.opponent(a)
+	g.players[a]["momentum"] = 20
+	enemy_deck_before = g.players[b]["deck"].size()
+	own_deck_before = g.players[a]["deck"].size()
+	var momentum_before: int = g.players[a]["momentum"]
+	_cast_and_resolve(g, a, "trituracao_em_massa")
+	check(g.players[b]["deck"].size() == enemy_deck_before - 2, "Trituração em Massa: o deck do oponente perde 2 cartas")
+	check(g.players[a]["deck"].size() == own_deck_before - 1, "Trituração em Massa: compra 1 carta")
+	check(g.players[a]["momentum"] == momentum_before - 2, "Trituração em Massa: custa 2")
+
+	# Tyren: no innate Armadura; a hit sets it to 1 (never lowers a higher one); only spell damage grants a temporary Escudo de Feitiço
+	g = _metalica_game()
+	a = g.active
+	b = g.opponent(a)
+	g.players[a]["momentum"] = 30
+	var tyren := _put(g, b, "tyren")
+	check(g.armor_of(tyren) == 0 and not tyren.spell_shield, "Tyren: sem Armadura nem Escudo de Feitiço ao entrar")
+	g._deal_damage(tyren.uid, 1, null)
+	g._check_state() # a direct hit only queues the Ao Sofrer Dano trigger; this resolves it
+	check(tyren.armor == 1, "Tyren: dano que não é de feitiço faz a Armadura passar a ser 1")
+	check(not tyren.spell_shield, "Tyren: dano que não é de feitiço não dá Escudo de Feitiço")
+	tyren.armor = 3
+	g._deal_damage(tyren.uid, 1, null)
+	g._check_state() # a direct hit only queues the Ao Sofrer Dano trigger; this resolves it
+	check(tyren.armor == 3, "Tyren: uma Armadura maior que 1 não é diminuída")
+	tyren.armor = 0
+	tyren.damage = 0 # the earlier hits would otherwise leave too little Vida for a 3-damage spell
+	var tyren_hp_before: int = g.hp_left(tyren)
+	_cast_and_resolve(g, a, "golpe_de_marreta", tyren.uid)
+	check(g.hp_left(tyren) == tyren_hp_before - 3, "Tyren: o feitiço que o atinge causa o dano inteiro (o escudo é para o próximo)")
+	check(tyren.armor == 1 and tyren.spell_shield and tyren.spell_shield_until_next_turn, "Tyren: dano de feitiço dá Armadura 1 e Escudo de Feitiço temporário")
+	tyren_hp_before = g.hp_left(tyren)
+	_cast_and_resolve(g, a, "golpe_de_marreta", tyren.uid)
+	check(g.hp_left(tyren) == tyren_hp_before and not tyren.spell_shield, "Tyren: o próximo feitiço inimigo é cancelado e quebra o escudo")
+	tyren.spell_shield = true
+	tyren.spell_shield_until_next_turn = true
+	g._start_turn(b, false)
+	check(not tyren.spell_shield and not tyren.spell_shield_until_next_turn, "Tyren: o Escudo de Feitiço acaba no início do próximo turno do controlador")
 
 	# Biblioteca de Peças: only the 5 cards on top are searched; an artifact buried deeper is not found
+	# (the filler is a spell, which is never eligible: Metálica units of cost 4 or less count as "peças" too)
 	g = _metalica_game()
 	a = g.active
 	g.players[a]["deck"].clear()
-	for card_id in ["engrenagem_solta", "zeladorbot_3000", "zeladorbot_3000", "zeladorbot_3000", "zeladorbot_3000", "zeladorbot_3000"]:
+	for card_id in ["engrenagem_solta", "golpe_de_marreta", "golpe_de_marreta", "golpe_de_marreta", "golpe_de_marreta", "golpe_de_marreta"]:
 		g.players[a]["deck"].append(Card.new(g._uid(), card_id, a, "deck"))
 	g.players[a]["momentum"] = 20
 	_cast_and_resolve(g, a, "biblioteca_de_pecas")
@@ -3052,7 +3099,65 @@ func _test_metalica() -> void:
 		var reveal_events: Array = StateView.filter_events([{"type": "search_reveal", "player": a, "private": true, "cards": g.pending_search["cards"]}], 1 - a)
 		check(reveal_events[0]["cards"].is_empty(), "Biblioteca de Peças: evento da busca escondido do oponente")
 		g.choose_search(a, int(g.pending_search["cards"][0]["uid"]))
-		check(g.players[a]["deck"].size() == 6 and g.players[a]["deck"][0].card_id == "zeladorbot_3000", "Biblioteca de Peças: as outras vão para o fundo")
+		check(g.players[a]["deck"].size() == 6 and g.players[a]["deck"][0].card_id == "golpe_de_marreta", "Biblioteca de Peças: as outras vão para o fundo")
+
+	# Biblioteca de Peças also finds Metálica units of cost 4 or less, but not a bigger unit nor another essence's unit
+	g = _metalica_game()
+	a = g.active
+	g.players[a]["momentum"] = 20
+	g.players[a]["deck"].clear()
+	for card_id in ["golpe_de_marreta", "brontharax", "kai", "tyren", "golpe_de_marreta"]:
+		g.players[a]["deck"].append(Card.new(g._uid(), card_id, a, "deck"))
+	_cast_and_resolve(g, a, "biblioteca_de_pecas")
+	var offered_ids: Array = []
+	if g.phase == "search":
+		for offered in g.pending_search["cards"]:
+			offered_ids.append(offered["card_id"])
+	check(offered_ids == ["tyren"], "Biblioteca de Peças: só a unidade Metálica de custo <= 4 é oferecida (%s)" % [offered_ids])
+
+	# Hora Extra Compulsória: the opponent suffers their next Fadiga now, with cards still in the deck, and the counter advances
+	g = _metalica_game()
+	a = g.active
+	b = g.opponent(a)
+	g.players[a]["momentum"] = 20
+	var enemy_hp_before_fatigue: int = g.players[b]["leader_hp"]
+	var enemy_deck_before_fatigue: int = g.players[b]["deck"].size()
+	_cast_and_resolve(g, a, "hora_extra_compulsoria")
+	check(enemy_hp_before_fatigue - g.players[b]["leader_hp"] == 2, "Hora Extra Compulsória: a primeira Fadiga causa 2")
+	check(g.players[b]["deck"].size() == enemy_deck_before_fatigue, "Hora Extra Compulsória: o deck do oponente não muda")
+	enemy_hp_before_fatigue = g.players[b]["leader_hp"]
+	_cast_and_resolve(g, a, "hora_extra_compulsoria")
+	check(enemy_hp_before_fatigue - g.players[b]["leader_hp"] == 4, "Hora Extra Compulsória: a segunda Fadiga já vem dobrada (4)")
+
+	# Moer um deck que acabou (ou que não tem cartas suficientes) faz o oponente sofrer 1 Fadiga; moer o próprio deck não
+	g = _metalica_game()
+	a = g.active
+	b = g.opponent(a)
+	g.players[a]["momentum"] = 20
+	while g.players[b]["deck"].size() > 1:
+		g.players[b]["deck"].pop_back()
+	var enemy_hp_before_overmill: int = g.players[b]["leader_hp"]
+	_cast_and_resolve(g, a, "trituracao_em_massa")
+	check(g.players[b]["deck"].is_empty(), "Trituração em Massa: moeu a carta que restava")
+	check(enemy_hp_before_overmill - g.players[b]["leader_hp"] == 2, "Trituração em Massa: faltou carta para moer, então 1 Fadiga (2 de dano)")
+	enemy_hp_before_overmill = g.players[b]["leader_hp"]
+	_cast_and_resolve(g, a, "trituracao_em_massa")
+	check(enemy_hp_before_overmill - g.players[b]["leader_hp"] == 4, "Trituração em Massa: com o deck vazio, cada uso é 1 Fadiga (a segunda é 4)")
+
+	# Devolução ao Remetente: cancels a spell aimed at an ally and hits the enemy Leader for 3
+	g = _metalica_game()
+	a = g.active
+	b = g.opponent(a)
+	g.players[a]["momentum"] = 20
+	g.players[b]["momentum"] = 20
+	var protected_unit := _put(g, b, "rakhana")
+	var caster_leader_hp: int = g.players[a]["leader_hp"]
+	var counter_uid := _give(g, b, "devolucao_ao_remetente") # in hand BEFORE the spell, or the stack resolves without waiting for a response
+	g.play_card(a, _give(g, a, "golpe_de_marreta"), protected_unit.uid)
+	g.play_card(b, counter_uid, g.stack[0]["sid"])
+	_resolve_stack(g)
+	check(protected_unit.damage == 0, "Devolução ao Remetente: o feitiço que mirava a unidade aliada foi anulado")
+	check(g.players[a]["leader_hp"] == caster_leader_hp - 3, "Devolução ao Remetente: 3 de dano no Líder de quem lançou")
 
 	# Reflexão: the attacker takes half (rounded up) of the damage; the reflected hit does not reflect again
 	g = _metalica_game()
