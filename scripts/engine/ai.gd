@@ -341,9 +341,31 @@ static func _pick_sacrifice(g: GameState, p: int) -> int:
 			weakest_uid = unit.uid
 	return weakest_uid
 
+## The effects of `source` that are played right when it is cast or enters (spells: on_play, units: on_enter,
+## abilities: no trigger). Its other triggers (Ao Sofrer Dano, Ao Morrer...) happen later, on the
+## card itself, so they must not decide who the chosen target should be: Ronan's own "Ao Sofrer Dano:
+## ganhe +1 de Ataque" is a buff, and reading it as part of his Ao Entrar made the AI skip his damage.
+static func _effects_that_use_the_pick(source) -> Array:
+	var effects: Array = []
+	if not (source is Dictionary):
+		return effects
+	for effect in source.get("effects", []):
+		if effect.get("trigger", "") in ["", "on_play", "on_enter"]:
+			effects.append(effect)
+	return effects
+
+## True when damage that leaves `unit` alive would make it better (an Ao Sofrer Dano buff, e.g. Ronan's +1 Ataque).
+## A harmless Ao Sofrer Dano (nothing good for the unit) does not count: damaging it is just as fine.
+static func _punishes_surviving_damage(unit: Card) -> bool:
+	for effect in unit.data().get("effects", []):
+		if effect.get("trigger", "") == "on_damaged" and effect.get("action", "") == "buff":
+			return true
+	return false
+
 ## Hostile effects pick the biggest enemy (or the Leader); friendly ones the biggest ally.
-## `strict` (spells and abilities): damage that doesn't kill is only worth its amount (it stays marked
-## on the unit), and nothing at all on a unit with Regeneração (it heals at the end of the turn).
+## Damage that doesn't kill is worth nothing on a unit with Regeneração (it heals at the end of the turn)
+## or one that gets stronger from it; on any other unit it stays marked, so it is never skipped.
+## `strict` (spells and abilities): that chip damage is only worth its amount (the face is usually better).
 ## `source` is the card data (or leader ability) whose effects need a target.
 static func _pick_target(g: GameState, p: int, spec: String, source, self_uid := 0, strict := false) -> int:
 	if spec == "":
@@ -360,7 +382,7 @@ static func _pick_target(g: GameState, p: int, spec: String, source, self_uid :=
 	var options := g.valid_targets(p, spec, self_uid)
 	if options.is_empty():
 		return 0
-	var effects: Array = source.get("effects", []) if source is Dictionary else []
+	var effects: Array = _effects_that_use_the_pick(source)
 	if spec == "ally_or_own_leader":
 		return _most_damaged(g, p, options)
 	var friendly := spec in ["ally_unit", "other_ally_unit", "ally_or_own_leader"]
@@ -400,10 +422,14 @@ static func _pick_target(g: GameState, p: int, spec: String, source, self_uid :=
 							kills = true
 				if kills:
 					score += 10
-				elif hits and strict:
+				elif hits:
+					# Damage that doesn't kill stays marked on the unit, so it is worth doing...
 					if unit.has_kw("regeneracao"):
-						continue # the damage would heal at the end of the turn
-					score = damage_amount + 1 # chip damage stays, but the face is usually better
+						continue # ...except on Regeneração: it heals at the end of the turn
+					if _punishes_surviving_damage(unit):
+						continue # ...and except on a unit that grows stronger from it (Ao Sofrer Dano)
+					if strict:
+						score = damage_amount + 1 # chip damage from a spell: the face is usually better
 				if unit.spell_shield:
 					score -= 20 # wasted on Escudo de Feitiço
 		if score > best_score:

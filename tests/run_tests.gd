@@ -53,6 +53,7 @@ func _init() -> void:
 	_test_combat_step()
 	_test_leader_cycle()
 	_test_enter_target()
+	_test_ai_enter_damage()
 	_test_legendary_retire()
 	_test_fatigue()
 	_test_counter()
@@ -539,6 +540,40 @@ func _test_enter_target() -> void:
 	var myrra_ally := _give(lone, 0, "myrra")
 	lone.play_card(0, myrra_ally)
 	check(lone.phase == "enter_target", "Myrra com outra unidade aliada: pede alvo")
+
+## The AI's Ao Entrar damage (Ronan): it is never skipped when the damage stays marked on a target,
+## even though Ronan also has an Ao Sofrer Dano buff. It is skipped only when it would be wasted.
+func _test_ai_enter_damage() -> void:
+	# 1. a plain enemy that survives the 2 damage: the damage is permanent, so the AI uses it
+	var g := _new_game()
+	_quiet(g)
+	var bastion := _put(g, 1, "bastionario_de_basalto")
+	g.players[0]["momentum"] = 10
+	g.play_card(0, _give(g, 0, "ronan"))
+	check(g.phase == "enter_target", "IA/Ronan: pede alvo do Ao Entrar")
+	SimpleAI.step(g, 0)
+	check(g.find_unit(bastion.uid).damage == 2, "IA/Ronan: causa o dano do Ao Entrar em unidade sem regeneração")
+
+	# 2. the only enemies would heal (Regeneração) or grow from the damage (Ao Sofrer Dano): nothing gained
+	var wasted := _new_game()
+	_quiet(wasted)
+	var coral := _put(wasted, 1, "sentinela_coral")
+	var enemy_ronan := _put(wasted, 1, "ronan")
+	wasted.players[0]["momentum"] = 10
+	wasted.play_card(0, _give(wasted, 0, "ronan"))
+	SimpleAI.step(wasted, 0)
+	check(wasted.find_unit(coral.uid).damage == 0 and wasted.find_unit(enemy_ronan.uid).damage == 0, "IA/Ronan: pula o Ao Entrar quando o dano se perderia ou fortaleceria o alvo")
+	check(wasted.phase != "enter_target", "IA/Ronan: recusar o Ao Entrar encerra a escolha")
+
+	# 3. one regenerating enemy next to one that keeps the damage: it picks the one that keeps it
+	var mixed := _new_game()
+	_quiet(mixed)
+	var healing := _put(mixed, 1, "sentinela_coral")
+	var lasting := _put(mixed, 1, "bastionario_de_basalto")
+	mixed.players[0]["momentum"] = 10
+	mixed.play_card(0, _give(mixed, 0, "ronan"))
+	SimpleAI.step(mixed, 0)
+	check(mixed.find_unit(healing.uid).damage == 0 and mixed.find_unit(lasting.uid).damage == 2, "IA/Ronan: ignora quem regenera e fere quem guarda o dano")
 
 func _test_leader_cycle() -> void:
 	var g := _new_game() # fogo: Ronan's Pavio Curto is once per cycle
