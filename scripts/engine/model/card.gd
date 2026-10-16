@@ -183,12 +183,12 @@ func to_dict() -> Dictionary:
 		d["used_turn"] = used_turn.duplicate()
 	if equipment != null:
 		d["equipment"] = {"uid": equipment.uid, "card_id": equipment.card_id}
+		if not equipment_grant.is_empty():
+			d["equipment_grant"] = equipment_grant.duplicate(true)
 	if cap_atk_gain > 0:
 		d["cap_atk_gain"] = cap_atk_gain
 	if dodge_turn >= 0:
 		d["dodge_turn"] = dodge_turn
-		if not equipment_grant.is_empty():
-			d["equipment_grant"] = equipment_grant.duplicate(true)
 	if activated_turn >= 0:
 		d["activated_turn"] = activated_turn
 	return d
@@ -229,8 +229,8 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.used_turn = d.get("used_turn", {})
 	if d.has("equipment"):
 		c.equipment = Card.new(int(d["equipment"]["uid"]), String(d["equipment"]["card_id"]), c.owner, "equipped")
+		c.equipment_grant = d.get("equipment_grant", {})
 	c.cap_atk_gain = int(d.get("cap_atk_gain", 0))
 	c.dodge_turn = int(d.get("dodge_turn", -1))
 	c.activated_turn = int(d.get("activated_turn", -1))
 	return c
-		c.equipment_grant = d.get("equipment_grant", {})
