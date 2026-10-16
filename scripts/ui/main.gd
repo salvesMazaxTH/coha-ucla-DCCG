@@ -3773,21 +3773,24 @@ func _animate(events: Array, old: Dictionary) -> float:
 				if leader_hp.has(dst) and e["type"] in ["damage", "heal"]:
 					leader_hp[dst] += -e["amount"] if e["type"] == "damage" else e["amount"]
 					var lv: LeaderView = views[dst]
-					var shown: int = leader_hp[dst]
+					var hp_change: int = -e["amount"] if e["type"] == "damage" else e["amount"]
 					var ltw := lv.create_tween()
 					ltw.tween_interval(t)
 					_leader_ko_t = maxf(_leader_ko_t, t)
 					ltw.tween_callback(func():
-						lv.hp = shown
+						lv.hp += hp_change
 						lv.queue_redraw())
 				if unit_damage.has(dst) and e["type"] in ["damage", "heal"]:
+					# each hit adds its own change instead of writing a total: the hits are not always
+					# shown in event order (a retaliation lands with the blow, a reflection after it),
+					# and a total written late would overwrite the hits shown before it
 					unit_damage[dst] += e["amount"] if e["type"] == "damage" else -e["amount"]
 					var card_view: CardView = views[dst]
-					var shown_damage: int = unit_damage[dst]
+					var damage_change: int = e["amount"] if e["type"] == "damage" else -e["amount"]
 					var card_tween := card_view.create_tween()
 					card_tween.tween_interval(t)
-					card_tween.tween_callback(func():
-						card_view.inst["damage"] = shown_damage
+					card_tween.tween_callback(func(): # adds its own change, same reason as the Leader above
+						card_view.inst["damage"] += damage_change
 						card_view.queue_redraw())
 				if actors.has(dst):
 					match e["type"]:
