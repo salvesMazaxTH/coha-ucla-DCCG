@@ -338,7 +338,8 @@ func is_frozen(c: Card) -> bool:
 	return c.is_frozen()
 
 ## The unit is ready to attack: not tapped, not Congelada, not summoning sick (unless Ímpeto or
-## Rompante), ATK above 0.
+## Rompante). A unit with 0 ATK may attack too: it deals no damage, but the attack animation plays
+## and the defender still strikes back (Morakhan can use it to hurt himself).
 func can_attack(c: Card) -> bool:
 	# a tapped unit may attack again only while it still has attacks left (Ataque Duplo)
 	var has_attack_left := not c.exhausted or (c.attacks_made > 0 and c.attacks_made < attacks_allowed(c))

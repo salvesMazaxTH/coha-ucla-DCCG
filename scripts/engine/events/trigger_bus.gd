@@ -40,6 +40,8 @@ func _fire_own_effects(event: GameEvent) -> void:
 			continue # an Aliado Morre effect that only listens to one card dying (Luto: Myrra)
 		if e.get("trigger", "") == event.trigger and game._combat_damage and e.get("not_in_combat", false):
 			continue
+		if e.get("trigger", "") == event.trigger and e.get("own_turn_only", false) and game.active != card.owner:
+			continue # an "own turn only" effect during the opponent's turn
 		if e.get("trigger", "") == event.trigger and e.get("once_per_turn", false):
 			if card.used_turn.get(i, -1) == game.turn:
 				continue # "once per turn" effect already used this turn
@@ -64,6 +66,8 @@ func _broadcast(event: GameEvent) -> void:
 func _offer(card: Card, effect: Effect, event: GameEvent) -> void:
 	if not _scope_matches(effect.scope, card, event) or not _when_matches(effect.when, event):
 		return
+	if effect.own_turn_only and game.active != card.owner:
+		return # only works during its owner's turn
 	if game._chain_stopped():
 		return
 	var context := EffectContext.new(game, card.owner, effect.trigger)

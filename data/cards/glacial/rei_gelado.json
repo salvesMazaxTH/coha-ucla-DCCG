@@ -19,9 +19,15 @@
       "action": "freeze_slots",
       "count": 5,
       "target": "none"
+    },
+    {
+      "trigger": "on_turn_start",
+      "action": "freeze_slots",
+      "count": 1,
+      "target": "none"
     }
   ],
-  "text": "Ao Entrar: congele 5 espaços aleatórios do campo inimigo. Unidades neles são congeladas e exauridas; espaços vazios não aceitam permanentes até o fim do próximo turno do oponente.",
+  "text": "Ao Entrar: congele 5 espaços aleatórios do campo inimigo. Unidades neles são congeladas e exauridas; espaços vazios não aceitam permanentes até o fim do próximo turno do oponente.\nNo Início do Turno: congele 1 espaço aleatório do campo inimigo da mesma forma.",
   "flavor": "Reina sobre tudo que já parou de se mexer.",
   "tags": []
 }

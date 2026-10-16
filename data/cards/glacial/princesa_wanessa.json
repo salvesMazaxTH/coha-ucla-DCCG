@@ -34,7 +34,9 @@
         "essence_glacial": true
       },
       "action": "freeze",
-      "target": "random_enemy_unit"
+      "target": "random_enemy_unit",
+      "once_per_turn": true,
+      "own_turn_only": true
     },
     {
       "listen": "snowball_cast",
@@ -60,7 +62,7 @@
       "into": "wanessa_tempesfrost"
     }
   ],
-  "text": "Escudo de Feitiço.\nAo Entrar: congele e exaure uma unidade inimiga.\nSempre que você lançar um feitiço glacial, congele uma unidade inimiga aleatória.\nQuando você lançar uma Grande Bola de Neve, ou quando sua Bola de Neve virar Grande, Wanessa se transforma em Wanessa Tempesfrost.",
+  "text": "Escudo de Feitiço.\nAo Entrar: congele e exaure uma unidade inimiga.\nUma vez por turno, no seu turno, ao lançar um feitiço glacial, congele uma unidade inimiga aleatória.\nQuando você lançar uma Grande Bola de Neve, ou quando sua Bola de Neve virar Grande, Wanessa se transforma em Wanessa Tempesfrost.",
   "flavor": "A coroa é de gelo. A paciência também.",
   "tags": []
 }

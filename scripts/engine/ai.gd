@@ -422,7 +422,8 @@ static func _try_attack(g: GameState, p: int) -> Array:
 	var enemy_board: Array = g.players[enemy]["board"]
 	var ready: Array = []
 	for unit: Card in g.players[p]["board"]:
-		if not g.attack_targets(unit).is_empty():
+		# a 0 ATK unit may attack, but it would only be hit back for nothing: the AI never does it
+		if g.atk_of(unit) > 0 and not g.attack_targets(unit).is_empty():
 			ready.append(unit)
 	if ready.is_empty():
 		return []

@@ -4,7 +4,9 @@ extends Effect
 ##   "count": N  how many of the BOARD_LIMIT slots are frozen (default 5), occupied or not.
 ## A unit standing in a frozen slot is frozen AND exhausted. An empty frozen slot accepts no permanent
 ## (GameState.has_free_slot counts it as taken) and thaws at the END of its owner's next turn, so the
-## owner really feels it. Slots are counted left to right: positions beyond the last unit are the empty ones.
+## owner really feels it.
+## Only slots that can still be frozen are rolled: units that are not Congelada yet and empty slots that are
+## not frozen yet (the free ones, not the ones taken by a relic). If there are fewer than `count`, all of them are hit.
 
 var count := 5
 
@@ -15,22 +17,28 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 	var game := context.game
 	var victim: int = game.opponent(context.controller)
 	var victim_state: Dictionary = game.players[victim]
-
-	# pick `count` distinct positions out of the whole field
-	var positions: Array = range(game.BOARD_LIMIT)
-	game._shuffle(positions)
-	var chosen_positions: Array = positions.slice(0, mini(count, positions.size()))
-
-	var hit_units: Array = []
-	var empty_hit_count := 0
 	var units_on_board: Array = victim_state["board"]
-	for position: int in chosen_positions:
-		if position < units_on_board.size():
-			hit_units.append(units_on_board[position])
-		else:
-			empty_hit_count += 1
 
-	for unit: Card in hit_units:
+	# the pool of slots that can still be frozen: a unit is its own entry, and so is each free empty slot
+	var pool: Array = []
+	for unit: Card in units_on_board:
+		if not unit.is_frozen():
+			pool.append(unit)
+	var free_slots: int = game.BOARD_LIMIT - game.slots_used(victim) - int(victim_state["frozen_slots"])
+	for empty_slot in maxi(0, free_slots):
+		pool.append(null) # null = an empty slot
+	game._shuffle(pool)
+	var chosen: Array = pool.slice(0, mini(count, pool.size()))
+
+	var chosen_positions: Array = []
+	var blocked_count := 0
+	for entry: Variant in chosen:
+		if entry == null:
+			chosen_positions.append(units_on_board.size() + blocked_count)
+			blocked_count += 1
+			continue
+		var unit: Card = entry
+		chosen_positions.append(units_on_board.find(unit))
 		# Escudo de Feitiço cancels the effect on that unit and breaks, like any effect from the enemy side
 		if unit.spell_shield:
 			unit.spell_shield = false
@@ -39,9 +47,6 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 		FreezeEffect.new().apply(context, unit.uid)
 		ExhaustEffect.new().apply(context, unit.uid)
 
-	# empty slots can only be blocked while they exist: relics and units already fill part of the field
-	var free_slots: int = game.BOARD_LIMIT - game.slots_used(victim) - int(victim_state["frozen_slots"])
-	var blocked_count := mini(empty_hit_count, maxi(0, free_slots))
 	if blocked_count > 0:
 		victim_state["frozen_slots"] += blocked_count
 		# thaws at the end of the victim's next turn: that is turn+1 when the caster is playing now, else turn+2

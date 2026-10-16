@@ -15,6 +15,7 @@ var target: TargetSelector ## decides which uids the effect hits
 var condition: Condition = null ## the optional "if"; null = always runs
 var uses_second_pick := false ## "pick2": hits the card's second pick instead of the first
 var once_per_turn := false ## "once_per_turn": the trigger works once per turn per unit
+var own_turn_only := false ## "own_turn_only": the trigger is ignored during the opponent's turn
 var not_in_combat := false ## "not_in_combat": the trigger is ignored during combat damage
 var not_token := false ## "not_token": an Aliado Morre trigger is ignored when the unit that died was a ficha (Cientista da Morte)
 ## "listen": the effect reacts to a game event from anywhere (see TriggerBus). Its `trigger` then
@@ -37,6 +38,7 @@ func setup(data: Dictionary) -> void:
 	condition = ConditionRegistry.parse(data.get("if", ""))
 	uses_second_pick = bool(data.get("pick2", false))
 	once_per_turn = bool(data.get("once_per_turn", false))
+	own_turn_only = bool(data.get("own_turn_only", false))
 	not_in_combat = bool(data.get("not_in_combat", false))
 	not_token = bool(data.get("not_token", false))
 	if data.has("listen"):
@@ -60,6 +62,12 @@ func listens_in(zone: String) -> bool:
 ## cost reductions by the cost code.
 func is_static() -> bool:
 	return trigger == "constante"
+
+## True when `unit` already has the status this effect applies (Congelada for "freeze", exausta for
+## "exhaust"...). A random pick never lands on such a unit, so a status effect is never wasted on a
+## unit that already has it. Effects that aren't a status (damage, buff...) leave this false.
+func is_already_applied_to(_unit: Card) -> bool:
+	return false
 
 ## True for effects that open a choice for the player after they resolve (search, look...).
 func opens_choice() -> bool:

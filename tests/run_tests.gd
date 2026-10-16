@@ -3117,6 +3117,33 @@ func _test_metalica() -> void:
 	g.end_turn(g.active)
 	check(g.atk_of(mountain) == 0, "Morakhan: o bônus some quando o próximo turno do controlador começa")
 
+	# A unit with 0 ATK may attack and challenge: it deals no damage but the attack happens normally
+	g = _metalica_game()
+	a = g.active
+	b = g.opponent(a)
+	mountain = _put(g, a, "morakhan")
+	check(g.atk_of(mountain) == 0 and g.can_attack(mountain), "0 de Ataque: a unidade pode atacar")
+	var enemy_leader_hp_before: int = g.players[b]["leader_hp"]
+	var face_events := _hit(g, mountain)
+	check(not face_events.is_empty() and mountain.exhausted, "0 de Ataque: o ataque ao Líder acontece e vira a unidade")
+	check(g.players[b]["leader_hp"] == enemy_leader_hp_before, "0 de Ataque: o ataque ao Líder não causa dano")
+	check(g.atk_of(mountain) == 0 and mountain.damage == 0, "0 de Ataque: bater no Líder não machuca quem ataca")
+
+	g = _metalica_game()
+	a = g.active
+	b = g.opponent(a)
+	mountain = _put(g, a, "morakhan")
+	var tapped_enemy := _put(g, b, "rakhana")
+	tapped_enemy.exhausted = true
+	check(g.attack_targets(mountain).has(tapped_enemy.uid), "0 de Ataque: pode desafiar uma unidade virada")
+	var challenge_events := _hit(g, mountain, tapped_enemy.uid)
+	g._check_state()
+	check(not challenge_events.is_empty(), "0 de Ataque: o desafio acontece")
+	# the only damage the target takes is Morakhan's Reflexão (half of what it struck back), never a blow of its own
+	check(tapped_enemy.damage == ceili(mountain.damage / 2.0), "0 de Ataque: o desafio não causa dano ao alvo (só a Reflexão volta)")
+	check(mountain.damage > 0, "0 de Ataque: o defensor revida e Morakhan se machuca")
+	check(g.atk_of(mountain) == 1, "0 de Ataque: Morakhan se autoinduz dano e ganha +1 de Ataque")
+
 func _test_devaneio_permanent() -> void:
 	var g := _glacial_game()
 	var a := g.active
@@ -3291,6 +3318,22 @@ func _test_glacial_combo() -> void:
 	check(wanessa_victim.exhausted and wanessa_victim.frozen > 0, "Princesa Wanessa: Ao Entrar congela e exaure a unidade escolhida")
 	check(not wanessa["enemies"][1].exhausted and wanessa["enemies"][1].frozen == 0, "Princesa Wanessa: a outra unidade inimiga não é afetada")
 
+	# Princesa Wanessa: o congelamento por feitiço glacial é 1x por turno e só no turno do dono
+	var spell_freeze := _combo_game(3, 5, 30, 0)
+	var spell_freeze_game: GameState = spell_freeze["game"]
+	_cast_and_resolve(spell_freeze_game, spell_freeze["me"], "devaneio_gelado")
+	var frozen_after_first: int = spell_freeze["enemies"].filter(func(c: Card): return c.frozen > 0).size()
+	check(frozen_after_first == 1, "Princesa Wanessa: o primeiro feitiço glacial do turno congela 1 unidade (%d)" % frozen_after_first)
+	_cast_and_resolve(spell_freeze_game, spell_freeze["me"], "devaneio_gelado")
+	var frozen_after_second: int = spell_freeze["enemies"].filter(func(c: Card): return c.frozen > 0).size()
+	check(frozen_after_second == 1, "Princesa Wanessa: o segundo feitiço glacial no mesmo turno não congela de novo (%d)" % frozen_after_second)
+	var off_turn := _combo_game(3, 5, 30, 0)
+	var off_turn_game: GameState = off_turn["game"]
+	off_turn_game.active = off_turn["foe"] # pretend it is the opponent's turn
+	_cast_and_resolve(off_turn_game, off_turn["me"], "devaneio_gelado")
+	var frozen_off_turn: int = off_turn["enemies"].filter(func(c: Card): return c.frozen > 0).size()
+	check(frozen_off_turn == 0, "Princesa Wanessa: no turno do oponente o feitiço glacial não congela (%d)" % frozen_off_turn)
+
 	# Rei Gelado: 5 random slots of the enemy field. Units in them are frozen+exhausted, empty ones are blocked,
 	# so units hit + slots blocked is always 5 (whatever the draw)
 	check(int(CardDB.card("rei_gelado")["atk"]) == 6 and int(CardDB.card("rei_gelado")["hp"]) == 9, "Rei Gelado: 6/9")
@@ -3321,6 +3364,52 @@ func _test_glacial_combo() -> void:
 	check(block_game.active == block_foe and int(block_game.players[block_foe]["frozen_slots"]) == 5, "Rei Gelado: os espaços seguem congelados durante o turno do oponente")
 	block_game.end_turn(block_foe)
 	check(int(block_game.players[block_foe]["frozen_slots"]) == 0 and block_game.has_free_slot(block_foe), "Rei Gelado: os espaços descongelam no fim do turno do oponente")
+
+	# Rei Gelado never rolls on what is already frozen: 6 of 8 enemy units are Congeladas, so only the 2 others are hit
+	var thin := _combo_game(8, 8, 10, 0)
+	var thin_game: GameState = thin["game"]
+	var already_frozen: Array = thin["enemies"].slice(0, 6)
+	for frozen_unit: Card in already_frozen:
+		frozen_unit.frozen = thin_game.turn + 1
+	_cast_and_resolve(thin_game, thin["me"], "rei_gelado")
+	var newly_hit: Array = thin["enemies"].slice(6).filter(func(c: Card): return c.frozen > 0 and c.exhausted)
+	check(newly_hit.size() == 2, "Rei Gelado: as 2 unidades ainda descongeladas são as atingidas (%d)" % newly_hit.size())
+	check(already_frozen.all(func(c: Card): return not c.exhausted), "Rei Gelado: unidade que já estava congelada não gasta um sorteio (nem é exaurida)")
+
+	# ...and neither on a slot that is already frozen: 5 blocked, then another 5 asked, only the 3 left get blocked
+	var overlap := _combo_game(8, 0, 10, 0)
+	var overlap_game: GameState = overlap["game"]
+	var overlap_freeze := EffectRegistry.parse({"action": "freeze_slots", "count": 5, "target": "none"})
+	overlap_freeze.apply(EffectContext.new(overlap_game, overlap["me"], "on_enter"), 0)
+	overlap_freeze.apply(EffectContext.new(overlap_game, overlap["me"], "on_enter"), 0)
+	check(int(overlap_game.players[overlap["foe"]]["frozen_slots"]) == 8, "Rei Gelado: o segundo sorteio só alcança os 3 espaços ainda livres (8 no total)")
+
+	# at the start of its owner's turn Rei Gelado freezes ONE more slot of the enemy field
+	var tick := _combo_game(8, 0, 10, 0)
+	var tick_game: GameState = tick["game"]
+	_put(tick_game, tick["me"], "rei_gelado")
+	var after_enter: int = int(tick_game.players[tick["foe"]]["frozen_slots"]) # his Ao Entrar already froze 5 empty slots
+	tick_game.end_turn(tick["me"])
+	check(int(tick_game.players[tick["foe"]]["frozen_slots"]) == after_enter, "Rei Gelado: no turno do oponente ele não congela nada")
+	tick_game.end_turn(tick["foe"])
+	check(int(tick_game.players[tick["foe"]]["frozen_slots"]) == 1, "Rei Gelado: os 5 do Ao Entrar descongelam e, no início do próprio turno, ele congela 1 espaço novo do campo inimigo")
+
+	# a random status pick (Wanessa / Weyne) never lands on a unit that already has the status
+	var picker := _new_game()
+	_quiet(picker)
+	var pick_units: Array = [_put(picker, 1, "geodo_vivo"), _put(picker, 1, "geodo_vivo"), _put(picker, 1, "geodo_vivo")]
+	pick_units[0].frozen = picker.turn + 1
+	pick_units[1].frozen = picker.turn + 1
+	var random_freeze := EffectRegistry.parse({"action": "freeze", "target": "random_enemy_unit"})
+	var random_context := EffectContext.new(picker, 0, "")
+	var only_free_unit_picked := true
+	for roll in 30:
+		only_free_unit_picked = only_free_unit_picked and random_freeze.target.resolve(random_context, random_freeze) == [pick_units[2].uid]
+	check(only_free_unit_picked, "alvo aleatório de congelar: só sorteia unidade que ainda não está congelada")
+	pick_units[2].frozen = picker.turn + 1
+	check(random_freeze.target.resolve(random_context, random_freeze).is_empty(), "alvo aleatório de congelar: tudo congelado = sem alvo (nada é desperdiçado)")
+	var random_damage := EffectRegistry.parse({"action": "damage", "target": "random_enemy_unit", "amount": 1})
+	check(not random_damage.target.resolve(random_context, random_damage).is_empty(), "alvo aleatório de dano: continua podendo acertar unidade congelada")
 
 	# Chamado da Nevasca looks at the top 5 cards and finds a Glacial spell that costs 4 or less there, and nothing else
 	var search := _combo_game(3, 0, 10, 0)

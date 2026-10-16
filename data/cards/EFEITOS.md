@@ -8,7 +8,7 @@ Um efeito é um objeto:
 { "trigger": "on_enter", "if": "momentum_left", "action": "damage", "target": "enemy_unit", "amount": 2 }
 ```
 
-Campos comuns: `trigger` (ver Eventos), `if` (ver Condições), `action`, `target`, `pick2` (usa a segunda escolha da carta), `once_per_turn`, `not_in_combat`, `not_token` (Aliado Morre ignora a morte de ficha), `dying_card` (Aliado Morre só dispara se quem morreu é a carta com esse id, ex.: o Luto de Vael com `"myrra"`).
+Campos comuns: `trigger` (ver Eventos), `if` (ver Condições), `action`, `target`, `pick2` (usa a segunda escolha da carta), `once_per_turn`, `own_turn_only` (só funciona no turno do dono da carta), `not_in_combat`, `not_token` (Aliado Morre ignora a morte de ficha), `dying_card` (Aliado Morre só dispara se quem morreu é a carta com esse id, ex.: o Luto de Vael com `"myrra"`).
 
 ## Ações
 
@@ -28,7 +28,9 @@ Cada ação é uma classe em `scripts/engine/effects/`, registrada em `effect_re
 | `transform_self` | `into` | a unidade vira a carta `into` (Ao Entrar da nova carta roda). Use com `target: "self"`, normalmente num `listen` |
 | `freeze` | — | alvo Congelado: não ataca, não desvira e não protege o Líder e perde a Rapidez (suprimida) até o fim do próximo turno. Revida normalmente (não exaure) |
 | `exhaust` | — | a unidade alvo fica exausta (não ataca e pode ser desafiada); levanta no início do turno do dono. Combina com `freeze` na mesma escolha de alvo |
-| `freeze_slots` | `count` (padrão 5) | Rei Gelado: sorteia `count` dos 8 espaços do campo **inimigo** (alvo `none`). Unidade num espaço sorteado é congelada e exaurida (Escudo de Feitiço cancela e quebra); espaço vazio não aceita permanentes e descongela no **fim do próximo turno do oponente**. Espaços ocupados por unidades/relíquias não contam como vazios |
+| `freeze_slots` | `count` (padrão 5) | Rei Gelado (Ao Entrar com `count` 5 e no início do próprio turno com `count` 1): sorteia `count` espaços do campo **inimigo** (alvo `none`), só entre os que **ainda não estão congelados**: unidades não congeladas + espaços vazios livres (sem relíquia e ainda não congelados). Se sobrarem menos que `count`, congela só os que sobraram. Unidade num espaço sorteado é congelada e exaurida (Escudo de Feitiço cancela e quebra); espaço vazio não aceita permanentes e descongela no **fim do próximo turno do oponente** |
+
+**Regra geral dos sorteios de status:** efeitos que aplicam um status (`freeze`, `exhaust`, ...) com alvo aleatório nunca caem em unidade que já tem esse status; se todas já têm, o efeito não tem alvo. Quem define isso é `Effect.is_already_applied_to()` — um status novo (envenenado, paralisado...) só precisa sobrescrever esse método.
 | `add_card` | `card` (id da carta), `to` (`deck_top` padrão ou `hand`) | Nythera: cria uma carta nova para o dono do efeito (alvo `none`) e a põe no topo do deck (a próxima compra) ou na mão. Uma Bola de Neve criada já nasce Grande se o dono estiver no nível Grande (no fim do turno dele as Grandes voltam a ser Bola de Neve) |
 | `fight` | `second_target` | o alvo (1ª escolha) e a unidade de `second_target` (2ª escolha) causam, ao mesmo tempo, dano igual ao Ataque de cada uma à outra. Não é combate; Armadura e Escudo valem, Escudo de Feitiço do inimigo cancela a luta |
 | `summon` | `card` (`"self"` ou id), `overrides` | invoca uma carta |
