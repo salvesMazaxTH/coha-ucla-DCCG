@@ -1393,24 +1393,26 @@ func _tag(v: Control, t: String, col: Color) -> void:
 	pc.reset_size()
 	pc.position = Vector2((v.size.x - pc.size.x) / 2.0, -22 - tag_count * 22)
 
-## Small numbered badges on targets already committed by a multi-target effect.
-## They sit on the card itself so the number remains visible even when several target
-## labels are present. Repeated targets get one badge per pick ("1" and "2").
+## Large numbered badges on targets already committed by a multi-target effect.
+## They sit over the centre of the card art, making the pick order readable at a glance.
+## Repeated targets get one badge per pick ("1" and "2").
 func _add_target_badges(v: Control, numbers: Array) -> void:
+	var badge_size := 60.0
 	for i in numbers.size():
 		var badge := PanelContainer.new()
-		badge.custom_minimum_size = Vector2(30, 30)
+		badge.custom_minimum_size = Vector2(badge_size, badge_size)
 		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		badge.z_index = 12
-		var sb := UITheme.box(Color("#171221", 0.96), 15, SEL, 2, 4)
+		var sb := UITheme.box(Color("#171221", 0.96), badge_size / 2.0, SEL, 3, 6)
 		badge.add_theme_stylebox_override("panel", sb)
-		badge.add_child(_label(str(numbers[i]), 17, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 4))
+		badge.add_child(_label(str(numbers[i]), 34, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 6))
 		v.add_child(badge)
 		badge.reset_size()
-		var x := v.size.x - 34.0 - i * 28.0
+		var art_center := Vector2(v.size.x * 0.5, v.size.y * 0.3353)
 		if v is LeaderView:
-			x = 164.0 - i * 28.0
-		badge.position = Vector2(x, 3.0)
+			art_center = LeaderView.ART.get_center()
+		var x := art_center.x + (i - (numbers.size() - 1) / 2.0) * 48.0 - badge_size / 2.0
+		badge.position = Vector2(x, art_center.y - badge_size / 2.0)
 
 ## The picks made so far by the current targeting flow, indexed from 1 for the UI.
 func _target_selection_numbers(uid: int) -> Array:
