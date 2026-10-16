@@ -42,6 +42,7 @@ var ability_ready := false
 var ability_cost := 0
 var passive := false # passive ability: fires on its own trigger, no cost, not clickable
 var targetable := false
+var target_selected := false ## already chosen as the first target of a multi-target effect
 var active := false ## whose turn it is
 var elem_color := Color.WHITE
 var _style: Dictionary
@@ -113,7 +114,7 @@ func _has_point(pt: Vector2) -> bool:
 	return PLATE.has_point(pt) or GRAVE_RECT.has_point(pt) or pt.distance_to(AC) <= AR + 4 or pt.distance_to(HP_C) <= 22
 
 func _process(delta: float) -> void:
-	if targetable or ability_ready or active or requiem > 0:
+	if targetable or target_selected or ability_ready or active or requiem > 0:
 		_t += delta
 		queue_redraw()
 
@@ -180,9 +181,12 @@ func _draw() -> void:
 	if active:
 		for i in 6:
 			_rrect_line(P.grow(3 + i * 3), RAD + i * 3, Color(UITheme.GOLD, 0.16 * (1.0 - i / 6.0) * (0.6 + 0.4 * pulse)), 3.2)
-	if targetable:
+	if targetable and not target_selected:
 		for i in 7:
 			_rrect_line(P.grow(3 + i * 3), RAD + i * 3, Color(1, 0.25, 0.2, 0.28 * (1.0 - i / 7.0) * (0.5 + 0.5 * pulse)), 3.2)
+	elif target_selected:
+		for i in 7:
+			_rrect_line(P.grow(3 + i * 3), RAD + i * 3, Color(UITheme.GOLD, 0.28 * (1.0 - i / 7.0) * (0.5 + 0.5 * pulse)), 3.2)
 
 	# frame: essence gradient body, dark outer edge, gold trim with a top highlight
 	_rrect_grad(P, RAD, Color(_style["top"]), Color(_style["bot"]))
@@ -205,8 +209,10 @@ func _draw() -> void:
 	draw_rect(ART.grow(0.5), Color(trim, 0.9), false, 1.2)
 	for c in [ART.position, Vector2(ART.end.x, ART.position.y)]:
 		_diamond(c, 5, trim, UITheme.GOLD_LIGHT)
-	if targetable:
+	if targetable and not target_selected:
 		_rrect_line(P.grow(1), RAD, Color(1, 0.35, 0.3, 0.6 + 0.4 * pulse), 3)
+	elif target_selected:
+		_rrect_line(P.grow(1), RAD, Color(UITheme.GOLD_LIGHT, 0.75 + 0.25 * pulse), 3)
 
 	# name banner, kept clear of the HP gem on its right
 	_rrect_fill(BANNER, 5, Color("#16131c"))

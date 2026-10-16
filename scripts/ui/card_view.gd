@@ -41,15 +41,15 @@ const COST_COL := UITheme.MOMENTUM
 const ATK_COL := Color("#c8402e")
 const HP_COL := Color("#2f9e58")
 const FROST := Color("#cfefff")
-const TAUNT_COL := Color("#ffb347") ## Provocação: warm amber "hold the line" light, the colour of caution tape
-
-var card_id := ""
-var inst: Dictionary = {} ## unit on board (live stats) or hand instance
 const FROST_DEEP := Color("#4fc3ff") ## saturated ice blue: what makes a Congelada card readable from across the table
 ## Ice spikes of a frozen card, as [x across the card 0..1, length in base px, half width in base px].
 const FROST_ICICLES := [[0.24, 11.0, 2.6], [0.34, 19.0, 3.2], [0.45, 9.0, 2.2], [0.56, 24.0, 3.6], [0.67, 13.0, 2.6], [0.77, 20.0, 3.2], [0.88, 10.0, 2.4]] ## hang from the top edge
 const FROST_CRYSTALS := [[0.08, 16.0, 4.0], [0.21, 28.0, 5.0], [0.34, 13.0, 3.6], [0.5, 34.0, 5.6], [0.64, 17.0, 4.0], [0.78, 26.0, 5.0], [0.92, 15.0, 3.8]] ## stand on the bottom edge of the art
 const FROST_GLINTS := [Vector2(0.3, 0.2), Vector2(0.74, 0.3), Vector2(0.52, 0.58), Vector2(0.18, 0.5), Vector2(0.84, 0.12), Vector2(0.62, 0.8)] ## twinkling stars
+const TAUNT_COL := Color("#ffb347") ## Provocação: warm amber "hold the line" light, the colour of caution tape
+
+var card_id := ""
+var inst: Dictionary = {} ## unit on board (live stats) or hand instance
 var uid := 0
 var face_down := false
 var highlight := Color.TRANSPARENT ## outline for selection/targets
@@ -104,10 +104,6 @@ var taunt_slam := 0.0:
 	set(v):
 		taunt_slam = v
 		queue_redraw()
-var shadow := true
-var fatigue := 0 ## > 0: not a real card but the Fadiga pseudo-card, showing this much damage
-
-## Frame silhouette of the card being drawn: artifacts get cut (chamfered) corners instead of round ones,
 ## Congelada: how far the ice has grown over the card (0 = none yet, 1 = fully frozen). It is 1 by
 ## default; Main sets it to 0 and tweens it up at the moment of the freeze, so the ice spreads over the card.
 var frost_grow := 1.0:
@@ -119,6 +115,10 @@ var frost_burst := 0.0:
 	set(v):
 		frost_burst = v
 		queue_redraw()
+var shadow := true
+var fatigue := 0## > 0: not a real card but the Fadiga pseudo-card, showing this much damage
+
+## Frame silhouette of the card being drawn: artifacts get cut (chamfered) corners instead of round ones,
 ## so a non-unit permanent reads differently from a unit at a glance. Only the big frame corners are cut.
 var _chamfer_frame := false
 const FRAME_CORNER_MIN := 5.0 ## corner radius (in base px) from which _chamfer_frame applies; small panels stay rounded
@@ -425,15 +425,15 @@ func _draw() -> void:
 			var wave_reach := 1.0 - pow(1.0 - wave_progress, 3.0)
 			_rrect_line(r.grow((4 + 38 * wave_reach) * s), rad + 14 * wave_reach * s,
 				Color(TAUNT_COL.lightened(0.3), 0.9 * pow(1.0 - wave_progress, 1.4)), (5.0 - 3.6 * wave_reach) * s)
-	# trigger proc: hot rim light, plus a ring pulsing out of the frame
-	if proc > 0:
-		for i in 5:
-			_rrect_line(r.grow((1.5 + i * 2.4) * s), rad + i * 2 * s, Color(TRIGGER_COL.lightened(0.25 - i * 0.05), (0.95 - i * 0.18) * proc), 2.6 * s)
 	# Congelada: a cold blue aura breathing around the whole frame
 	if inst.has("frozen"):
 		var breathing := 0.75 + 0.25 * sin(_t * 2.5)
 		for i in 5:
 			_rrect_line(r.grow((1.5 + i * 2.6) * s), rad + i * 2 * s, Color(FROST_DEEP, (0.95 - i * 0.17) * breathing * frost_grow), 2.8 * s)
+	# trigger proc: hot rim light, plus a ring pulsing out of the frame
+	if proc > 0:
+		for i in 5:
+			_rrect_line(r.grow((1.5 + i * 2.4) * s), rad + i * 2 * s, Color(TRIGGER_COL.lightened(0.25 - i * 0.05), (0.95 - i * 0.18) * proc), 2.6 * s)
 	if proc_wave > 0 and proc_wave < 1:
 		var k := 1.0 - pow(1.0 - proc_wave, 3.0)
 		_rrect_line(r.grow((3 + 30 * k) * s), rad + 12 * k * s, Color(TRIGGER_COL.lightened(0.35), 0.85 * pow(1.0 - proc_wave, 1.5)), (3.2 - 2.2 * k) * s)
@@ -610,12 +610,12 @@ func _finish(r: Rect2, rad: float, s: float) -> void:
 		var band := PackedVector2Array([Vector2(x, _face_size.y), Vector2(x + 26 * s, _face_size.y), Vector2(x + 26 * s + _face_size.y, 0), Vector2(x + _face_size.y, 0)])
 		for poly in Geometry2D.intersect_polygons(band, _rrect_pts(r, rad)):
 			draw_colored_polygon(poly, Color(1, 0.96, 0.8, 0.16))
+	if inst.has("frozen"):
+		_draw_frost_shell(r, rad, s)
 	if proc_wave > 0 and proc_wave < 1:
 		# a bright band of light sweeping across the card
 		var bx := lerpf(-_face_size.y * 0.6, _face_size.x + 10 * s, proc_wave)
 		var bw := 30 * s
-	if inst.has("frozen"):
-		_draw_frost_shell(r, rad, s)
 		var sweep := PackedVector2Array([Vector2(bx - _face_size.y * 0.4, _face_size.y), Vector2(bx - _face_size.y * 0.4 + bw, _face_size.y), Vector2(bx + _face_size.y * 0.6 + bw, 0), Vector2(bx + _face_size.y * 0.6, 0)])
 		for poly in Geometry2D.intersect_polygons(sweep, _rrect_pts(r, rad)):
 			draw_colored_polygon(poly, Color(1, 0.93, 0.8, 0.32 * (1.0 - proc_wave * 0.6)))

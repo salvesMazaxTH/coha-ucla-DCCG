@@ -1140,12 +1140,15 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	lv.requiem = g.requiem_cards(p).size() if p == viewer and not _is_ai(p) and g.phase in ["main", "combat"] else 0
 	lv.ability_ready = p == viewer and g.can_use_ability(p) and not _is_ai(p)
 	lv.targetable = _is_target(uid)
+	lv.target_selected = _is_first_target(uid)
 	lv.active = g.active == p and g.phase != "mulligan"
 	lv.ability_clicked.connect(func(): _on_ability(p))
 	lv.portrait_clicked.connect(func(): _on_leader_click(p))
 	lv.grave_clicked.connect(func(): _show_graveyard(p))
 	layer.add_child(lv)
 	views[uid] = lv
+	if lv.target_selected:
+		_add_target_badges(lv, _target_selection_numbers(uid))
 	var mb := MomentumBar.new()
 	mb.position = mom_pos
 	layer.add_child(mb)
@@ -1302,7 +1305,11 @@ func _render_relics(p: int, y: float, slots_taken: int) -> void:
 		var cell := _board_cell(slots_taken, first_relic_slot + j)
 		v.position = Vector2(cell.x + (cell.y - v.size.x) / 2.0, y)
 		v.ability_ready = p == viewer and targeting.is_empty() and _my_input() and g.can_activate(viewer, relic.uid)
-		if _is_target(relic.uid):
+		var selected_numbers := _target_selection_numbers(relic.uid)
+		if not selected_numbers.is_empty():
+			v.highlight = SEL
+			_add_target_badges(v, selected_numbers)
+		elif _is_target(relic.uid):
 			v.highlight = TARGET
 		v.left_clicked.connect(_on_relic_click)
 		v.right_clicked.connect(_show_overlay)
@@ -1348,6 +1355,11 @@ func _pick_target_when_settled(uid: int) -> void:
 func _decorate_unit(v: CardView, unit: Card, p: int) -> void:
 	# reminder for new players: the unit's "Ao Ativar" can be used now (even the turn it is summoned); Transformar works almost the same way, so it glows too
 	v.ability_ready = p == viewer and targeting.is_empty() and _my_input() and (g.can_activate(viewer, unit.uid) or g.can_transform(viewer, unit.uid))
+	var selected_numbers := _target_selection_numbers(unit.uid)
+	if not selected_numbers.is_empty():
+		v.highlight = SEL
+		_add_target_badges(v, selected_numbers)
+		return
 	if _is_target(unit.uid):
 		v.highlight = TARGET
 		return
@@ -1373,9 +1385,45 @@ func _tag(v: Control, t: String, col: Color) -> void:
 	pc.add_theme_stylebox_override("panel", sb)
 	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pc.add_child(_label(t, 11, col.lightened(0.4), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3))
+	var tag_count := 0
+	for child in v.get_children():
+		if child is PanelContainer:
+			tag_count += 1
 	v.add_child(pc)
 	pc.reset_size()
-	pc.position = Vector2((v.size.x - pc.size.x) / 2.0, -22)
+	pc.position = Vector2((v.size.x - pc.size.x) / 2.0, -22 - tag_count * 22)
+
+## Small numbered badges on targets already committed by a multi-target effect.
+## They sit on the card itself so the number remains visible even when several target
+## labels are present. Repeated targets get one badge per pick ("1" and "2").
+func _add_target_badges(v: Control, numbers: Array) -> void:
+	for i in numbers.size():
+		var badge := PanelContainer.new()
+		badge.custom_minimum_size = Vector2(30, 30)
+		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		badge.z_index = 12
+		var sb := UITheme.box(Color("#171221", 0.96), 15, SEL, 2, 4)
+		badge.add_theme_stylebox_override("panel", sb)
+		badge.add_child(_label(str(numbers[i]), 17, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 4))
+		v.add_child(badge)
+		badge.reset_size()
+		var x := v.size.x - 34.0 - i * 28.0
+		if v is LeaderView:
+			x = 164.0 - i * 28.0
+		badge.position = Vector2(x, 3.0)
+
+## The picks made so far by the current targeting flow, indexed from 1 for the UI.
+func _target_selection_numbers(uid: int) -> Array:
+	if targeting.is_empty():
+		return []
+	var picks: Array = targeting.get("picks", [])
+	if picks.is_empty() and targeting.has("first"):
+		picks = [targeting["first"]]
+	var out: Array = []
+	for i in picks.size():
+		if int(picks[i]) == uid:
+			out.append(i + 1)
+	return out
 
 ## Full size up to HAND_SHRINK_FROM cards, shrinking linearly to HAND_SCALE_MIN at HAND_SHRINK_TO.
 func _hand_scale(n: int) -> float:
@@ -1778,6 +1826,7 @@ func _render_stack() -> void:
 	cap.size = Vector2(pw, 34)
 	layer.add_child(cap)
 	_stack_arrow(top, centers, Vector2(px - 4.0, y0 + step * (items.size() - 1) + ch / 2.0))
+	_stack_target_badges(top)
 
 ## What the front item aims at (a unit, a Leader or another stack item).
 func _stack_arrow(it: Dictionary, centers: Dictionary, from: Vector2) -> void:
@@ -1796,6 +1845,20 @@ func _stack_arrow(it: Dictionary, centers: Dictionary, from: Vector2) -> void:
 	arrow.to = to
 	arrow.locked = true
 	layer.add_child(arrow)
+
+## Number the targets of the spell/ability currently in front of the stack.
+## This keeps the confirmation visible after the second click, including when both
+## picks point at the same unit.
+func _stack_target_badges(it: Dictionary) -> void:
+	var first := int(it.get("target", 0))
+	var second := int(it.get("target2", 0))
+	if first != 0 and views.has(first) and is_instance_valid(views[first]):
+		var numbers: Array = [1]
+		if second == first:
+			numbers.append(2)
+		_add_target_badges(views[first], numbers)
+	if second != 0 and second != first and views.has(second) and is_instance_valid(views[second]):
+		_add_target_badges(views[second], [2])
 
 func _stack_pill(t: String, col: Color) -> PanelContainer:
 	var pc := PanelContainer.new()
@@ -1930,6 +1993,9 @@ func _hint() -> String:
 			return "Toque no alvo que brilha (Líder ou unidade exaurida) · toque fora cancela."
 		return "Arraste até o alvo que brilha (Líder ou unidade exaurida) · botão direito/Esc cancela."
 	if not targeting.is_empty():
+		if targeting.has("first"):
+			var second_hint := "1º alvo escolhido. Escolha o 2º alvo (pode ser o mesmo)." if CardDB.card(targeting["card_id"]).get("same_target_ok", false) else "1º alvo escolhido. Escolha o 2º alvo."
+			return second_hint
 		var t := "Arraste até o alvo (ou toque nele) · toque fora cancela." if CardView.touch_ui() else "Arraste até o alvo (ou clique nele) · botão direito/Esc cancela."
 		if targeting["spec"] == "enemy_stack":
 			t = "Toque no feitiço/habilidade da pilha que quer anular."
@@ -2308,13 +2374,19 @@ func _is_target(uid: int) -> bool:
 		return false # the sacrificed unit is already gone
 	return g.valid_targets(viewer, targeting["spec"], targeting.get("uid", 0)).has(uid)
 
+## True when a multi-target effect has already committed this uid as its first pick.
+## It stays separate from `_is_target`: Relâmpagos Gêmeos may legally pick it again,
+## but it must remain visibly distinct from the still-available second targets.
+func _is_first_target(uid: int) -> bool:
+	return not targeting.is_empty() and targeting.has("first") and int(targeting["first"]) == uid
+
 func _fire_target(uid: int) -> void:
 	match targeting["kind"]:
 		"hand":
 			var spec2 := g.second_spec(CardDB.card(targeting["card_id"]))
 			if spec2 != "" and not targeting.has("first"):
 				# second step: pick the damage target after the sacrifice
-				targeting = {"kind": "hand", "uid": targeting["uid"], "card_id": targeting["card_id"], "spec": spec2, "first": uid}
+				targeting = {"kind": "hand", "uid": targeting["uid"], "card_id": targeting["card_id"], "spec": spec2, "first": uid, "picks": [uid]}
 				_render()
 			elif targeting.has("first"):
 				_do(g.play_card(viewer, targeting["uid"], targeting["first"], uid))
@@ -2469,41 +2541,6 @@ func _scale_suffix(p: int, cd: Dictionary) -> String:
 	var n := g.scale_count(p, cd)
 	return " (agora: %d)" % n if n >= 0 else ""
 
-## Glossary line of a keyword for this card: Esquiva explains the card's own rule (the default one,
-## or "esquiva": {"max_rapidez": N}), every other keyword uses the shared text.
-func _keyword_text(cd: Dictionary, kw: String, k: Dictionary, instance: Dictionary = {}) -> String:
-	var rule: Dictionary = cd.get("esquiva", {})
-	if kw == "esquiva" and rule.has("max_rapidez"):
-		var level := int(rule["max_rapidez"])
-		var speed_limit := "sem Rapidez" if level == 0 else "Rapidez %d ou menos" % level
-		return "A primeira vez em cada turno que receberia dano de combate de uma unidade %s, o dano é evitado." % speed_limit
-	if kw == "critico":
-		# shared rule plus this unit's own live chance (temporary levels included), so nobody has to do the X * 25% math
-		var critico_level := CardView.critico_of_view(cd, instance)
-		var temporary_note := ""
-		if int(instance.get("temp_critico", 0)) > 0:
-			temporary_note = " (+%d até o fim do turno)" % int(instance["temp_critico"])
-		return "%s Esta unidade: Crítico %d%s = %d%% de chance." % [k["text"], critico_level, temporary_note, CardView.critico_chance_percent(critico_level)]
-	if kw == "ataque_duplo" and instance.has("damage"):
-		# on the board: how many of the two attacks this turn are already spent
-		return "%s Ataques neste turno: %d de 2." % [k["text"], int(instance.get("attacks_made", 0))]
-	return k["text"]
-
-## Keyword ids whose names appear in a rules text, in the order they appear (no repeats).
-func _mentioned_keywords(text: String) -> Array:
-	var found: Array = []
-	var keywords: Dictionary = CardDB.data()["keywords"]
-	for span in CardView.keyword_ranges(text):
-		var mentioned := text.substr(span[0], span[1] - span[0])
-		for id in keywords:
-			var name := String(keywords[id]["name"])
-			# "Armadura 1" starts with "Armadura"; the others need an exact match
-			# (so "Escudo de Feitiço" doesn't also count as "Escudo").
-			var with_value: bool = keywords[id].get("has_value", false) and mentioned.begins_with(name + " ")
-			if (mentioned == name or with_value) and not found.has(id):
-				found.append(id)
-	return found
-
 func _show_overlay(v: CardView) -> void:
 	if v.face_down:
 		return
@@ -2516,59 +2553,8 @@ func _show_overlay(v: CardView) -> void:
 		if e is InputEventMouseButton and e.pressed:
 			_close_overlay())
 	add_child(overlay)
-	var big := CardView.new().setup(v.card_id, v.inst, 4.18)
-	big.cost_override = v.cost_override
-	big.text_suffix = v.text_suffix
-	big.snowball_level = v.snowball_level
-	big.position = Vector2(stage_w / 2.0 - 620, 150)
-	big.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	overlay.add_child(big)
-	var txt := "[font_size=48][color=#e8c25a]%s[/color][/font_size]\n" % cd["name"]
-	var rar := {"legendary": "Lendário", "champion": "Campeão", "epic": "Unidade Épica", "common": "Unidade Comum"}
-	var typ := {"unit": rar.get(cd["rarity"], "Unidade"), "spell": "Feitiço", "artifact": "Artefato"}
-	var kind: String = typ[cd["type"]]
-	if CardDB.is_equipment(cd):
-		kind += " · Equipamento"
-	if CardDB.species_names(cd) != "":
-		kind += " — " + CardDB.species_names(cd)
-	var shown_cost: int = v.cost_override if v.cost_override >= 0 else int(cd["cost"])
-	txt += "[color=#aaaaaa]%s · %s · custo %d[/color]\n\n" % [kind, CardDB.essence_names(cd), shown_cost]
-	if cd.get("text", "") != "":
-		var body := CardView.fill_live_numbers(String(cd["text"]), v.snowball_level)
-		if v.inst.has("frozen"):
-			body = "[color=#9fe8ff][b]Congelada:[/b] não ataca, não desvira e não protege o Líder e perde a Rapidez (suprimida) até o fim do próximo turno. Revida normalmente.[/color]
-" + body
-		txt += "[font_size=32]%s[/font_size]\n\n" % CardView.colorize_rules(body + v.text_suffix, 32)
-	# Glossary: the card's own keywords first, then any keyword its text mentions ("conceda Voo").
-	var glossary_keywords: Array = cd.get("keywords", []).duplicate()
-	if int(v.inst.get("rapidez", cd.get("rapidez", 0))) > 0 and not v.inst.has("frozen"):
-		glossary_keywords.append("rapidez") # shown as a tag on the card, so the glossary explains it
-	if CardView.critico_of_view(cd, v.inst) > 0 and not glossary_keywords.has("critico"):
-		glossary_keywords.append("critico") # also shown as a tag (it can grow during the match)
-	if CardView.attacks_allowed_of_view(cd, v.inst) >= 2 and not glossary_keywords.has("ataque_duplo"):
-		glossary_keywords.append("ataque_duplo") # earned in play (Vael at Crítico 4), shown as a tag too
-	for kw in _mentioned_keywords(String(cd.get("text", "")) + v.text_suffix):
-		if not glossary_keywords.has(kw):
-			glossary_keywords.append(kw)
-	for kw in glossary_keywords:
-		var k := CardDB.keyword(kw)
-		txt += "[color=#ffe9a8][b]%s[/b][/color] — %s\n" % [k["name"], CardView.colorize_rules(_keyword_text(cd, kw, k, v.inst))]
-	if CardDB.is_leader_card(v.card_id):
-		txt += "\n[color=#e8c25a]Encarnação do Líder:[/color] fica no Santuário. Cada nova conjuração custa mais que a anterior: +1, depois +2, +3, +4... Ao morrer ou ser banida, volta para o Santuário; se a próxima conjuração passaria de %d, vai para o fundo do deck como carta comum, com o custo normal.\n" % [GameState.MOMENTUM_CAP]
-	var flavor := CardDB.flavor_for(cd, true)
-	if flavor != "":
-		txt += "\n[i][color=#888888]%s[/color][/i]" % flavor
-	var rt := RichTextLabel.new()
-	rt.bbcode_enabled = true
-	rt.text = txt
-	var rt_x := stage_w / 2.0 - 90.0 # card (4.18 * 120 = ~502 px) ends at stage_w/2 - 118
-	rt.position = Vector2(rt_x, 160)
-	rt.size = Vector2(stage_w - 40.0 - rt_x, 640)
-	rt.add_theme_font_size_override("normal_font_size", 28)
-	rt.add_theme_font_size_override("bold_font_size", 28)
-	rt.add_theme_font_size_override("italics_font_size", 24)
-	rt.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	overlay.add_child(rt)
+	# the big card and the full text are built by CardOverlay (tools/view_card.gd shows the same thing)
+	var rt_x := CardOverlay.build(overlay, stage_w, v.card_id, v.inst, v.cost_override, v.text_suffix, v.snowball_level)
 	if cd.has("activated") and g != null and _my_input() and g.can_activate(viewer, v.uid):
 		var ab: Dictionary = cd["activated"]
 		var ab_uid := v.uid
@@ -3161,19 +3147,6 @@ func _impact(target: Control, text: String, col: Color, t: float, hurt: bool) ->
 	lt.tween_property(l, "modulate:a", 0.0, 0.25)
 	lt.tween_callback(l.queue_free)
 
-## Effects budget of the current _animate batch: 1.0 for a lone hit, shrinking as more
-## triggers/deaths pile up (a Diabrete chain would otherwise spawn dozens of emitters at once).
-var _fx_scale := 1.0
-
-## Draws the death shader, a particle burst and a gradient line once, invisibly, so the GPU
-## compiles them at startup instead of freezing the first time a unit dies.
-func _prewarm_fx() -> void:
-	var holder := Control.new()
-	holder.modulate.a = 0.01
-	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	fx.add_child(holder)
-	var r := ColorRect.new()
-	r.size = Vector2(8, 8)
 ## A unit gets frozen. _render already drew it covered in ice, so the ice is wiped off now and, at
 ## moment t, it slams back on: a white-blue flash with two shockwaves, the ice growing over the card
 ## from nothing, a shiver and a burst of flying shards.
@@ -3231,6 +3204,19 @@ func _frost_shards(c: Vector2, t: float, amount: int) -> void:
 		if is_instance_valid(p):
 			p.queue_free())
 
+## Effects budget of the current _animate batch: 1.0 for a lone hit, shrinking as more
+## triggers/deaths pile up (a Diabrete chain would otherwise spawn dozens of emitters at once).
+var _fx_scale := 1.0
+
+## Draws the death shader, a particle burst and a gradient line once, invisibly, so the GPU
+## compiles them at startup instead of freezing the first time a unit dies.
+func _prewarm_fx() -> void:
+	var holder := Control.new()
+	holder.modulate.a = 0.01
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fx.add_child(holder)
+	var r := ColorRect.new()
+	r.size = Vector2(8, 8)
 	var m := ShaderMaterial.new()
 	m.shader = load("res://scripts/ui/shaders/dissolve.gdshader")
 	m.set_shader_parameter("size", r.size)
@@ -3703,6 +3689,10 @@ func _animate(events: Array, old: Dictionary) -> float:
 					elif e["type"] in ["crit", "crit_negated", "critico_up"]:
 						col = Color("#ff9d6e") # same warm tone as the Crítico tag
 					_impact(actors[e["uid"]], lbl, col, cursor, false)
+					if e["type"] == "freeze":
+						_freeze_fx(actors[e["uid"]], cursor)
+					elif e["type"] == "thaw":
+						_frost_shards(_center_of(actors[e["uid"]]), cursor, 16)
 				cursor += 0.2
 			"transform":
 				# a unit becomes another card in place (Transformar, transform_self)
@@ -3716,10 +3706,6 @@ func _animate(events: Array, old: Dictionary) -> float:
 					if actors.has(evolved_uid) and old.has(evolved_uid):
 						_transform_fx(evolved_uid, old[evolved_uid]["card_id"], actors[evolved_uid].card_id, actors, old, cursor)
 						evolved_in_view = true
-					if e["type"] == "freeze":
-						_freeze_fx(actors[e["uid"]], cursor)
-					elif e["type"] == "thaw":
-						_frost_shards(_center_of(actors[e["uid"]]), cursor, 16)
 				if evolved_in_view:
 					cursor += TRANSFORM_TIME
 			"snowball_devolve":
