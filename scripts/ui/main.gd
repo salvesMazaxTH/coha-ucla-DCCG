@@ -3779,13 +3779,13 @@ func _animate(events: Array, old: Dictionary) -> float:
 					var ltw := lv.create_tween()
 					ltw.tween_interval(t)
 					_leader_ko_t = maxf(_leader_ko_t, t)
+					# each hit adds its own change instead of writing a total: the hits are not always
+					# shown in event order (a retaliation lands with the blow, a reflection after it),
+					# and a total written late would overwrite the hits shown before it
 					ltw.tween_callback(func():
 						lv.hp += hp_change
 						lv.queue_redraw())
 				if unit_damage.has(dst) and e["type"] in ["damage", "heal"]:
-					# each hit adds its own change instead of writing a total: the hits are not always
-					# shown in event order (a retaliation lands with the blow, a reflection after it),
-					# and a total written late would overwrite the hits shown before it
 					unit_damage[dst] += e["amount"] if e["type"] == "damage" else -e["amount"]
 					var card_view: CardView = views[dst]
 					var damage_change: int = e["amount"] if e["type"] == "damage" else -e["amount"]
@@ -3962,6 +3962,8 @@ func _log_event(e: Dictionary) -> void:
 			_log("%d fichas se fundiram em %s" % [int(e["count"]), _cname(e["card_id"])])
 		"attach":
 			_log("%s foi equipado em uma unidade" % _cname(e["card_id"]))
+		"equipment_returned":
+			_log("%s voltou para a mão (a unidade foi reequipada)" % _cname(e["card_id"]))
 		"equipment_break":
 			_log("%s foi ao cemitério com a unidade equipada" % _cname(e["card_id"]))
 		"destroy":
@@ -3969,8 +3971,6 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s foi destruída" % ("Uma unidade" if destroyed == null else _cname(destroyed.card_id)))
 		"banish":
 			_log("%s foi banida" % _cname(e["card_id"]))
-		"equipment_returned":
-			_log("%s voltou para a mão (a unidade foi reequipada)" % _cname(e["card_id"]))
 		"sacrifice":
 			var sacrificed := g.find_unit(e["uid"])
 			_log("%s sacrificou %s" % [_pname(e["player"]), "uma unidade" if sacrificed == null else _cname(sacrificed.card_id)])
