@@ -46,7 +46,6 @@ const FROST_DEEP := Color("#4fc3ff") ## saturated ice blue: what makes a Congela
 const FROST_ICICLES := [[0.24, 11.0, 2.6], [0.34, 19.0, 3.2], [0.45, 9.0, 2.2], [0.56, 24.0, 3.6], [0.67, 13.0, 2.6], [0.77, 20.0, 3.2], [0.88, 10.0, 2.4]] ## hang from the top edge
 const FROST_CRYSTALS := [[0.08, 16.0, 4.0], [0.21, 28.0, 5.0], [0.34, 13.0, 3.6], [0.5, 34.0, 5.6], [0.64, 17.0, 4.0], [0.78, 26.0, 5.0], [0.92, 15.0, 3.8]] ## stand on the bottom edge of the art
 const FROST_GLINTS := [Vector2(0.3, 0.2), Vector2(0.74, 0.3), Vector2(0.52, 0.58), Vector2(0.18, 0.5), Vector2(0.84, 0.12), Vector2(0.62, 0.8)] ## twinkling stars
-const TAUNT_COL := Color("#ffb347") ## Provocação: warm amber "hold the line" light, the colour of caution tape
 
 var card_id := ""
 var inst: Dictionary = {} ## unit on board (live stats) or hand instance
@@ -97,12 +96,6 @@ var proc := 0.0:
 var proc_wave := 0.0:
 	set(v):
 		proc_wave = v
-		queue_redraw()
-## Provocação slamming shut the moment it becomes tapped (0 = off, 1 = finished): two amber
-## shockwaves pushing out of the frame and a white-hot flash of the barricade.
-var taunt_slam := 0.0:
-	set(v):
-		taunt_slam = v
 		queue_redraw()
 ## Congelada: how far the ice has grown over the card (0 = none yet, 1 = fully frozen). It is 1 by
 ## default; Main sets it to 0 and tweens it up at the moment of the freeze, so the ice spreads over the card.
@@ -231,7 +224,7 @@ func _gui_input(e: InputEvent) -> void:
 		accept_event()
 
 func _process(delta: float) -> void:
-	if highlight.a > 0 or hovered or _legendary() or _taunt_state() == "barring" or inst.has("frozen"):
+	if highlight.a > 0 or hovered or _legendary() or inst.has("frozen"):
 		_t += delta
 		_redraw_acc += delta
 		if _redraw_acc >= 0.033 or highlight.a > 0 or hovered: ## shimmer at ~30 fps is plenty
@@ -335,21 +328,6 @@ func banish(delay := 0.0, edge := Color(0.8, 0.7, 1.0), dur := 0.9) -> void:
 	st.tween_property(self, "scale", scale * 0.55, dur).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
 	st.parallel().tween_property(self, "rotation", rotation + 0.5, dur).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
 
-## What a Provocação unit on the board is doing right now, for its visuals:
-##   "barring" = tapped and not Congelada: it really closes the way, enemies must challenge it;
-##   "ready"   = untapped: it will bar the way once it taps (it guards nothing yet);
-##   "frozen"  = Congelada: the taunt is switched off;
-##   ""        = not a Provocação unit on the board (hand, overlays, other cards).
-func _taunt_state() -> String:
-	if face_down or card_id == "" or not inst.has("damage"):
-		return ""
-	var live_keywords: Array = inst.get("keywords", CardDB.card(card_id).get("keywords", []))
-	if not live_keywords.has("provocacao"):
-		return ""
-	if inst.has("frozen"):
-		return "frozen"
-	return "barring" if inst.get("exhausted", false) else "ready"
-
 func _legendary() -> bool:
 	return not face_down and card_id != "" and CardDB.card(card_id)["rarity"] in ["champion", "legendary"]
 
@@ -410,21 +388,6 @@ func _draw() -> void:
 		var first_ring := 4 if highlight.a > 0 else 0
 		for i in 4:
 			_rrect_line(r.grow((2 + (first_ring + i) * 2.2) * s), rad + (first_ring + i) * 2 * s, Color(ABILITY_GLOW, (0.9 - i * 0.22) * (0.65 + 0.35 * pulse)), 2.2 * s)
-	# Provocação barring the way: amber rings breathing around the frame, outside any other highlight
-	var taunt := _taunt_state()
-	if taunt == "barring":
-		var first_taunt_ring := (4 if highlight.a > 0 else 0) + (4 if ability_ready else 0)
-		for i in 3:
-			_rrect_line(r.grow((2 + (first_taunt_ring + i) * 2.2) * s), rad + (first_taunt_ring + i) * 2 * s, Color(TAUNT_COL, (0.8 - i * 0.22) * (0.6 + 0.4 * pulse)), 2.2 * s)
-	# slam: two shockwaves pushing out of the frame, the second one trailing the first
-	if taunt_slam > 0 and taunt_slam < 1:
-		for wave_index in 2:
-			var wave_progress := clampf((taunt_slam - wave_index * 0.18) / 0.82, 0.0, 1.0)
-			if wave_progress <= 0.0:
-				continue
-			var wave_reach := 1.0 - pow(1.0 - wave_progress, 3.0)
-			_rrect_line(r.grow((4 + 38 * wave_reach) * s), rad + 14 * wave_reach * s,
-				Color(TAUNT_COL.lightened(0.3), 0.9 * pow(1.0 - wave_progress, 1.4)), (5.0 - 3.6 * wave_reach) * s)
 	# Congelada: a cold blue aura breathing around the whole frame
 	if inst.has("frozen"):
 		var breathing := 0.75 + 0.25 * sin(_t * 2.5)
@@ -454,8 +417,6 @@ func _draw() -> void:
 		# artifact: a second engraved line inside the trim, like a plate
 		_rrect_line(r.grow(-5.0 * s), rad - 4 * s, Color(trim, 0.4), 0.8 * s)
 	draw_line(Vector2(rad, 1.6 * s), Vector2(_face_size.x - rad, 1.6 * s), Color(1, 1, 1, 0.3), 1.0 * s)
-	if taunt == "barring" or taunt == "ready":
-		_draw_taunt_frame(r, rad, s, taunt == "barring", pulse)
 
 	if face_down:
 		_draw_back(r, s, trim)
@@ -518,8 +479,6 @@ func _draw() -> void:
 		_draw_frost(art, s)
 	if inst.get("tide_mark", false):
 		draw_arc(art.get_center() + Vector2(0, art.size.y * 0.32), art.size.x * 0.3, PI * 1.15, PI * 1.85, 24, Color("#6fd0ff", 0.85), 2 * s, true)
-	if taunt == "barring" or taunt == "ready":
-		_draw_taunt_art(art, s, taunt == "barring", pulse)
 	_kw_badges(art, cd, s)
 
 	# species strip on the bottom edge of the art, right above the name plate
@@ -619,11 +578,6 @@ func _finish(r: Rect2, rad: float, s: float) -> void:
 		var sweep := PackedVector2Array([Vector2(bx - _face_size.y * 0.4, _face_size.y), Vector2(bx - _face_size.y * 0.4 + bw, _face_size.y), Vector2(bx + _face_size.y * 0.6 + bw, 0), Vector2(bx + _face_size.y * 0.6, 0)])
 		for poly in Geometry2D.intersect_polygons(sweep, _rrect_pts(r, rad)):
 			draw_colored_polygon(poly, Color(1, 0.93, 0.8, 0.32 * (1.0 - proc_wave * 0.6)))
-	if taunt_slam > 0 and taunt_slam < 1:
-		# the impact: a white-hot flash that dies out fast, with an amber rim burning on the frame
-		var impact := pow(1.0 - taunt_slam, 2.0)
-		_rrect_fill(r, rad, Color(1.0, 0.9, 0.62, 0.5 * impact))
-		_rrect_line(r.grow(-1.5 * s), rad, Color(1.0, 0.97, 0.85, 0.95 * impact), 3.4 * s)
 	if proc > 0:
 		_rrect_fill(r, rad, Color(TRIGGER_COL.lightened(0.5), 0.22 * proc))
 	if flash > 0:
@@ -703,56 +657,6 @@ func _style_keys(cd: Dictionary) -> Array:
 		if STYLES.has(e) and not out.has(e):
 			out.append(e)
 	return out.slice(0, 2) if not out.is_empty() else ["neutra"]
-
-## Provocação on the frame. A tapped one is a barricade: caution tape marching around the trim, steel
-## bulwark brackets riveted on the four corners. An untapped one only wears the quiet, still version.
-func _draw_taunt_frame(r: Rect2, rad: float, s: float, barring: bool, pulse: float) -> void:
-	var tape_alpha := (0.75 + 0.25 * pulse) if barring else 0.35
-	var march := _t * 22.0 * s if barring else 0.0
-	_dashed_rrect_line(r.grow(-2.6 * s), rad - 2 * s, Color(TAUNT_COL, tape_alpha), (1.9 if barring else 1.3) * s, 7.0 * s, 5.0 * s, march)
-	if not barring:
-		return
-	# corner brackets: an L hugging each corner, gold bevel over a dark base, one rivet at the elbow
-	var inset := 2.6 * s
-	var arm := 24.0 * s
-	var corners := [
-		[Vector2(inset, inset), Vector2(1, 1)],
-		[Vector2(r.size.x - inset, inset), Vector2(-1, 1)],
-		[Vector2(inset, r.size.y - inset), Vector2(1, -1)],
-		[Vector2(r.size.x - inset, r.size.y - inset), Vector2(-1, -1)]]
-	for corner in corners:
-		var tip: Vector2 = corner[0]
-		var way: Vector2 = corner[1]
-		var bracket := PackedVector2Array([tip + Vector2(way.x * arm, 0), tip, tip + Vector2(0, way.y * arm)])
-		draw_polyline(bracket, Color("#07060a", 0.85), 4.6 * s, true)
-		draw_polyline(bracket, TAUNT_COL.lightened(0.1), 3.0 * s, true)
-		draw_polyline(bracket, Color(1, 0.96, 0.82, 0.55), 1.0 * s, true)
-		draw_circle(tip + way * 4.2 * s, 1.7 * s, Color("#07060a"))
-		draw_circle(tip + way * 4.2 * s, 1.0 * s, UITheme.GOLD_LIGHT)
-
-## Provocação over the art window. Barring: a warm vignette closing in from the edges, a strip of
-## diagonal hazard stripes sliding along the top (the barrier arm). Untapped: only a faint warm edge.
-func _draw_taunt_art(art: Rect2, s: float, barring: bool, pulse: float) -> void:
-	var edge_alpha := (0.2 + 0.1 * pulse) if barring else 0.1
-	_window_vgrad(Rect2(art.position, Vector2(art.size.x, art.size.y * 0.3)), Color(TAUNT_COL, edge_alpha), Color(TAUNT_COL, 0))
-	_window_vgrad(Rect2(art.position + Vector2(0, art.size.y * 0.62), Vector2(art.size.x, art.size.y * 0.38)), Color(TAUNT_COL, 0), Color(TAUNT_COL, edge_alpha * 1.6))
-	if not barring:
-		return
-	# hazard stripes: amber slanted bands sliding along the barrier arm
-	var strip := Rect2(art.position + Vector2(0, 1.5 * s), Vector2(art.size.x, 6.5 * s))
-	var strip_poly := PackedVector2Array([strip.position, Vector2(strip.end.x, strip.position.y), strip.end, Vector2(strip.position.x, strip.end.y)])
-	draw_colored_polygon(strip_poly, Color("#14110a", 0.9))
-	var band := 9.0 * s
-	var slide := fmod(_t * 14.0 * s, band * 2.0)
-	var x := strip.position.x - strip.size.y - band * 2.0 + slide
-	while x < strip.end.x:
-		var stripe := PackedVector2Array([Vector2(x, strip.end.y), Vector2(x + band, strip.end.y),
-			Vector2(x + band + strip.size.y, strip.position.y), Vector2(x + strip.size.y, strip.position.y)])
-		for piece in Geometry2D.intersect_polygons(stripe, strip_poly):
-			draw_colored_polygon(piece, Color(TAUNT_COL, 0.92))
-		x += band * 2.0
-	draw_line(strip.position, Vector2(strip.end.x, strip.position.y), Color("#07060a", 0.9), 1.0 * s)
-	draw_line(Vector2(strip.position.x, strip.end.y), strip.end, Color("#07060a", 0.9), 1.0 * s)
 
 ## A tower with a shut portcullis: Provocação's symbol on the keyword medallion.
 func _taunt_gate_glyph(c: Vector2, g: float, tint: Color, alpha: float, s: float) -> void:
@@ -913,9 +817,6 @@ func _use_badge(c: Vector2, r: float, s: float, ready: bool) -> void:
 
 func _kw_badge(kw: String, c: Vector2, r: float, s: float) -> void:
 	var col: Color = BADGES[kw]
-	if kw == "provocacao" and _taunt_state() == "barring":
-		var halo := 0.5 + 0.5 * sin(_t * 4.0)
-		draw_arc(c, r * (1.38 + 0.12 * halo), 0, TAU, 28, Color(TAUNT_COL, 0.75 - 0.35 * halo), 1.6 * s, true)
 	# bezel and body, same metal as the gems
 	draw_circle(c + Vector2(0, 1.4 * s), r * 1.18, Color(0, 0, 0, 0.5))
 	draw_circle(c, r * 1.14, UITheme.GOLD_DARK.darkened(0.3))

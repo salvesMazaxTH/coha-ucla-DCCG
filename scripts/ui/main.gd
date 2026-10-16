@@ -1238,6 +1238,7 @@ func _render_board(p: int, y: float) -> void:
 	var slots_taken: int = _laid_out_slots(p)
 	_render_relics(p, y, slots_taken)
 	_render_frozen_slots(p, y, slots_taken)
+	var barrier_gaps: Array = [] # where this side's Provocação barrier is open (see TableView.set_barrier)
 	for i in board.size():
 		var unit: Card = board[i]
 		var unit_view_data := unit.to_dict()
@@ -1263,7 +1264,11 @@ func _render_board(p: int, y: float) -> void:
 		v.drag_started.connect(_unit_drag_start)
 		layer.add_child(v)
 		views[unit.uid] = v
-		_slam_if_barricade_just_closed(v, unit)
+		var barrier_side: int = TableView.SIDE_MINE if p == viewer else TableView.SIDE_ENEMY
+		var is_barring: bool = _slam_if_barricade_just_closed(unit, barrier_side, v.position.x + v.size.x / 2.0)
+		if is_barring:
+			# the opening is as wide as the tapped card lying down; it is the only way through the barrier
+			barrier_gaps.append(Vector2(v.position.x + v.size.x / 2.0, v.size.y * v.scale.y + 6.0))
 		if unit.is_frozen():
 			_tag(v, "CONGELADA", ICE)
 		if unit.equipment != null:
@@ -1274,24 +1279,20 @@ func _render_board(p: int, y: float) -> void:
 			layer.add_child(eq)
 			layer.move_child(eq, v.get_index())
 			views["eq%d" % unit.uid] = eq # kept so the drag gap can slide it along with its unit
+	table.set_barrier(TableView.SIDE_MINE if p == viewer else TableView.SIDE_ENEMY, barrier_gaps)
 
-## Cards are rebuilt on every render, so a unit cannot notice by itself that it just became a
-## barricade. Here we remember last render's state per unit: a Provocação that was not barring
-## and now is (tapped, not Congelada) slams shut — shockwaves and a small thud.
-## A unit seen for the first time only slams when it just entered (Provocação enters tapped).
-func _slam_if_barricade_just_closed(v: CardView, unit: Card) -> void:
+## A tapped, not Congelada Provocação unit holds the barrier on the divider (drawn by TableView) shut
+## except in front of itself. Returns whether `unit` is holding it right now.
+## Cards are rebuilt on every render, so we remember last render's state per unit: one that was not
+## barring and now is makes the barrier slam shut at its x. A unit seen for the first time only
+## slams when it just entered (Provocação enters tapped).
+func _slam_if_barricade_just_closed(unit: Card, barrier_side: int, center_x: float) -> bool:
 	var barring_now: bool = unit.exhausted and g.has_kw(unit, "provocacao") and not unit.is_frozen()
 	var barring_before: bool = barricade_was_up.get(unit.uid, not unit.sick)
 	barricade_was_up[unit.uid] = barring_now
-	if not barring_now or barring_before:
-		return
-	var slam := v.create_tween()
-	slam.tween_property(v, "taunt_slam", 1.0, 0.7).from(0.001)
-	slam.tween_callback(func(): v.taunt_slam = 0.0)
-	var thud := v.create_tween()
-	thud.tween_property(v, "shake", Vector2(0, 5), 0.05).from(Vector2(0, -7))
-	thud.tween_property(v, "shake", Vector2(0, -2), 0.08)
-	thud.tween_property(v, "shake", Vector2.ZERO, 0.1)
+	if barring_now and not barring_before:
+		table.slam(barrier_side, center_x)
+	return barring_now
 
 ## Free-standing artifacts (Ossuário Sem Fundo...) stand in the lane right after the units,
 ## each one taking a slot. Click: pick it as a target, or open the overlay (with its Ativar button).
