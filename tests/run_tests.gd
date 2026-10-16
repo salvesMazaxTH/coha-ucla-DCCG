@@ -23,6 +23,7 @@ func _init() -> void:
 	_test_concede()
 	_test_search()
 	_test_freeze()
+	_test_burn()
 	_test_condemn()
 	_test_constant()
 	_test_obscura()
@@ -44,6 +45,9 @@ func _init() -> void:
 	_test_custo_e_contagem()
 	_test_ban()
 	_test_combat()
+	_test_toque_letal()
+	_test_toxico()
+	_test_leader_poison()
 	_test_provocacao()
 	_test_persistent_damage()
 	_test_triggers()
@@ -402,7 +406,6 @@ func _test_obscura() -> void:
 	g._flush()
 	check(CardDB.is_equipment(CardDB.card("manoplas_incandescentes")) and CardDB.is_artifact(CardDB.card("manoplas_incandescentes")), "equipamento é artefato")
 	check(holder.equipment.card_id == "manoplas_incandescentes" and holder.atk == atk0 + 3, "equipamento anexado e buff aplicado")
-	var gy0: int = g.players[0]["graveyard"].size()
 	# equipping an already equipped unit returns the old equipment to the hand (it does not go to the graveyard)
 	var second_equipment_uid := _give(g, 0, "manoplas_incandescentes")
 	var first_equipment: Card = holder.equipment
@@ -432,6 +435,7 @@ func _test_obscura() -> void:
 	check(g.find_unit(swap_unit.uid) != null, "perder a Vida do equipamento não mata a unidade")
 	check(swap_unit.hp_left() == 1, "a unidade fica com 1 de Vida quando perder o equipamento a mataria")
 	check(swap_unit.hp == swap_base_hp and swap_unit.keywords == swap_base_keywords, "trocar o equipamento remove a Vida e o Roubo de Vida dele")
+	var gy0: int = g.players[0]["graveyard"].size()
 	_kill(g, holder)
 	var gy_ids: Array = g.players[0]["graveyard"].map(func(e): return e["card_id"])
 	check(g.players[0]["graveyard"].size() == gy0 + 2 and gy_ids.has("manoplas_incandescentes"), "equipamento vai ao cemitério com a unidade")
@@ -872,6 +876,42 @@ func _test_freeze() -> void:
 	check(cold.damage == 3 and warm.damage == 1, "dano extra só em alvo já Congelado")
 	check(CardDB.card("sabrina")["effects"].size() == 1 and not CardDB.card("sabrina")["effects"][0].has("freeze"), "sabrina não congela mais")
 
+func _test_burn() -> void:
+	# Queimadura accumulates, uses its periodic-damage rule at the controller's turn start, then clears.
+	_tcard("t_burn", 1, 8, [])
+	_tcard("t_tank", 1, 13, [])
+	var g := _new_game()
+	_quiet(g)
+	var victim := _put(g, 1, "t_burn")
+	var tank := _put(g, 1, "t_tank")
+	g._apply_effect(0, {"action": "add_dot", "dot": "queimadura", "target": "enemy_unit", "amount": 2}, victim.uid)
+	g._apply_effect(0, {"action": "add_dot", "dot": "queimadura", "target": "enemy_unit", "amount": 1}, victim.uid)
+	check(int(victim.dot_markers.get("queimadura", 0)) == 3, "Queimadura acumula marcadores genéricos")
+	check(g.dot_damage("veneno", victim, 3) == 4 and g.dot_damage("sangramento", tank, 3) == 5, "Veneno e Sangramento usam a mesma fórmula por faixa de Vida")
+	victim.temp_hp = 2
+	check(g.dot_damage("veneno", victim, 3) == 5 and CardDB.keyword("veneno")["name"] == "Veneno" and CardDB.keyword("sangramento")["name"] == "Sangramento", "a fórmula considera Vida temporária e as keywords estão no dicionário")
+	victim.temp_hp = 0
+	var before := victim.to_dict()
+	var mirror := Card.from_dict(before, "board", 1)
+	check(int(mirror.dot_markers.get("queimadura", 0)) == 3, "marcadores de Queimadura sobrevivem ao espelho de rede genérico")
+	g._start_turn(1, false)
+	check(victim.damage == 3 and victim.dot_markers.is_empty(), "no início do turno, Queimadura causa o total e remove os marcadores")
+	# Queimadura bypasses Armadura and Escudo: the full marker count becomes damage, and the shield stays.
+	victim.armor = 1
+	victim.shield = true
+	victim.dot_markers["queimadura"] = 2
+	g._start_turn(1, false)
+	check(victim.damage == 5 and victim.dot_markers.is_empty() and victim.shield, "Queimadura ignora Armadura e Escudo, causando o total e limpando os marcadores")
+	# Indestrutível remains the stronger protection currently defined by the game.
+	victim.keywords.append("indestrutivel")
+	victim.dot_markers["queimadura"] = 2
+	g._start_turn(1, false)
+	check(victim.damage == 5 and victim.dot_markers.is_empty(), "Queimadura ainda respeita Indestrutível como proteção superior")
+	# Escudo de Feitiço cancels the marker application just like any other targeted effect.
+	victim.spell_shield = true
+	g._apply_effect(0, {"action": "add_dot", "dot": "queimadura", "target": "enemy_unit", "amount": 2}, victim.uid)
+	check(victim.dot_markers.is_empty() and not victim.spell_shield, "Escudo de Feitiço anula a aplicação de Queimadura")
+
 func _test_condemn() -> void:
 	# Condenada: the unit dies at the start of the marker-giver's next turn, even if the source is long gone
 	_tcard("t_cdm_vic", 3, 5, [])
@@ -918,6 +958,32 @@ func _test_condemn() -> void:
 	g._apply_effect(0, condemn_spec, leaver.uid)
 	leaver.enter_board(false)
 	check(not leaver.is_condemned(), "sair de campo desfaz a condenação")
+	# the Ceifador marks two different enemy units, and they still die when it is gone
+	g = _new_game()
+	_quiet(g)
+	var victim_a := _put(g, 1, "t_cdm_vic")
+	var victim_b := _put(g, 1, "t_cdm_vic")
+	var victim_c := _put(g, 1, "t_cdm_vic")
+	g.players[0]["momentum"] = 10
+	var reaper_uid := _give(g, 0, "ceifador_do_ultimo_toque")
+	g.play_card(0, reaper_uid)
+	if g.phase == "enter_target":
+		g.choose_enter_target(0, victim_a.uid)
+	if g.summon_window:
+		g.pass_priority(1)
+	var marked := 0
+	for victim in [victim_a, victim_b, victim_c]:
+		if victim.is_condemned():
+			marked += 1
+	check(victim_a.is_condemned() and marked == 2, "Ceifador: condena a escolhida e mais uma aleatória, duas distintas")
+	var reaper := g.find_unit(reaper_uid)
+	if reaper != null:
+		_kill(g, reaper)
+	check(g.find_unit(reaper_uid) == null, "Ceifador removido de campo")
+	_quiet(g)
+	g.end_turn(0)
+	g.end_turn(1)
+	check(_count(g, 1, "t_cdm_vic") == 1, "as duas condenadas morrem mesmo sem o Ceifador em campo")
 
 func _test_setup() -> void:
 	var g := GameState.new("fogo", "agua", 1)
@@ -1103,6 +1169,124 @@ func _test_combat() -> void:
 	g.players[0]["leader_hp"] = 10
 	_hit(g, thief)
 	check(g.players[0]["leader_hp"] == 14, "roubo de vida cura o Líder")
+
+func _test_toque_letal() -> void:
+	var legendary := CardDB.card("ceifador_do_ultimo_toque")
+	var early := CardDB.card("rastejante_do_fim")
+	check(CardDB.keyword("toque_letal")["name"] == "Toque Letal", "Toque Letal: keyword registrada")
+	check(int(legendary["cost"]) == 10 and int(legendary["atk"]) == 3 and String(legendary["text"]).contains("condene"), "Ceifador: custo 10, ATK 3 e texto de Contrato com a Morte")
+	check(int(early["cost"]) == 2 and early["rarity"] == "epic" and early["text"] == "", "Rastejante: épica de early game e texto vazio")
+
+	_tcard("t_lethal", 1, 4, [])
+	CardDB.data()["cards"]["t_lethal"]["keywords"] = ["toque_letal"]
+	_tcard("t_target", 2, 4, [])
+	_tcard("t_target_shield", 2, 4, [])
+	CardDB.data()["cards"]["t_target_shield"]["keywords"] = ["escudo"]
+	var g := _new_game()
+	_quiet(g)
+	var attacker := _put(g, 0, "t_lethal")
+	var target := _put(g, 1, "t_target")
+	target.exhausted = true
+	_hit(g, attacker, target.uid)
+	check(g.find_unit(target.uid) == null, "Toque Letal: dano de combate destrói a unidade")
+
+	g = _new_game()
+	_quiet(g)
+	attacker = _put(g, 0, "t_lethal")
+	var shielded := _put(g, 1, "t_target_shield")
+	shielded.exhausted = true
+	_hit(g, attacker, shielded.uid)
+	check(g.find_unit(shielded.uid) != null and shielded.damage == 0 and not shielded.shield, "Toque Letal: Escudo bloqueia dano e impede a morte")
+
+	_tcard("t_target_immune", 2, 4, [])
+	CardDB.data()["cards"]["t_target_immune"]["keywords"] = ["indestrutivel"]
+	g = _new_game()
+	_quiet(g)
+	attacker = _put(g, 0, "t_lethal")
+	var immune := _put(g, 1, "t_target_immune")
+	immune.exhausted = true
+	_hit(g, attacker, immune.uid)
+	check(g.find_unit(immune.uid) != null and immune.damage == 0, "Toque Letal: Indestrutível sobrevive")
+
+func _test_toxico() -> void:
+	check(CardDB.keyword("toxico")["name"] == "Tóxico", "Tóxico: keyword registrada")
+	_tcard("t_toxic", 1, 4, [])
+	CardDB.data()["cards"]["t_toxic"]["keywords"] = ["toxico"]
+	_tcard("t_plain", 1, 6, [])
+	_tcard("t_plain_shield", 1, 6, [])
+	CardDB.data()["cards"]["t_plain_shield"]["keywords"] = ["escudo"]
+	var g := _new_game()
+	_quiet(g)
+	var attacker := _put(g, 0, "t_toxic")
+	var target := _put(g, 1, "t_plain")
+	target.exhausted = true
+	_hit(g, attacker, target.uid)
+	check(int(target.dot_markers.get("veneno", 0)) == 1, "Tóxico: dano de combate coloca 1 marcador de Veneno")
+
+	g = _new_game()
+	_quiet(g)
+	attacker = _put(g, 0, "t_toxic")
+	var shielded := _put(g, 1, "t_plain_shield")
+	shielded.exhausted = true
+	_hit(g, attacker, shielded.uid)
+	check(shielded.dot_markers.is_empty(), "Tóxico: dano bloqueado pelo Escudo não coloca Veneno")
+
+	g = _new_game()
+	_quiet(g)
+	attacker = _put(g, 0, "t_toxic")
+	_hit(g, attacker)
+	check(attacker.dot_markers.is_empty() and g.players[1]["leader_hp"] < g.players[1]["leader_max"], "Tóxico: bater no Líder causa o dano e não coloca Veneno")
+
+	g = _new_game()
+	_quiet(g)
+	attacker = _put(g, 0, "t_plain")
+	var toxic_defender := _put(g, 1, "t_toxic")
+	toxic_defender.exhausted = true # only exhausted units can be challenged
+	_hit(g, attacker, toxic_defender.uid)
+	check(int(attacker.dot_markers.get("veneno", 0)) == 1, "Tóxico: quem revida também envenena")
+
+## Veneno on Leaders: Tóxico exception per card, permanent markers, the 12-marker kill and the X+ banish.
+func _test_leader_poison() -> void:
+	_tcard("t_toxic_leader", 1, 4, [])
+	CardDB.data()["cards"]["t_toxic_leader"]["keywords"] = ["toxico"]
+	CardDB.data()["cards"]["t_toxic_leader"]["toxico_hits_leader"] = true
+	var g := _new_game()
+	_quiet(g)
+	var attacker := _put(g, 0, "t_toxic_leader")
+	_hit(g, attacker)
+	check(g.leader_dot_markers(1, "veneno") == 1, "Veneno no Líder: Tóxico com exceção coloca 1 marcador ao bater no Líder")
+
+	# markers on a Leader stay across turns (they never tick away like the ones on units)
+	g.end_turn(g.active)
+	g._flush()
+	check(g.leader_dot_markers(1, "veneno") == 1, "Veneno no Líder: os marcadores não somem na virada do turno")
+
+	# add_dot reaches a Leader through its negative uid
+	g = _new_game()
+	_quiet(g)
+	var add_marker: Effect = EffectRegistry.parse_list([{"trigger": "on_play", "action": "add_dot", "target": "enemy_leader", "dot": "veneno", "amount": 3}])[0]
+	add_marker.apply(EffectContext.new(g, 0, ""), GameState.LEADER_UID[1])
+	check(g.leader_dot_markers(1, "veneno") == 3 and g.players[1]["leader_hp"] == g.players[1]["leader_max"], "Veneno no Líder: add_dot põe marcadores sem tirar Vida")
+	check(g.phase != "over", "Veneno no Líder: com menos de 12 marcadores o Líder vive")
+
+	# 12 markers: the Leader dies on the spot
+	add_marker = EffectRegistry.parse_list([{"trigger": "on_play", "action": "add_dot", "target": "enemy_leader", "dot": "veneno", "amount": GameState.LEADER_POISON_LETHAL - 3}])[0]
+	add_marker.apply(EffectContext.new(g, 0, ""), GameState.LEADER_UID[1])
+	g._check_leaders()
+	check(g.players[1]["leader_hp"] <= 0 and g.phase == "over" and g.winner == 0, "Veneno no Líder: 12 marcadores matam o Líder na hora")
+
+	# banish only if the unit holds enough markers
+	g = _new_game()
+	_quiet(g)
+	_tcard("t_plain", 1, 6, [])
+	var marked := _put(g, 1, "t_plain")
+	var banish: Effect = EffectRegistry.parse_list([{"trigger": "on_play", "action": "banish", "target": "enemy_unit", "requires_markers": {"dot": "veneno", "amount": 3}}])[0]
+	g.add_dot_markers(marked, "veneno", 2)
+	banish.apply(EffectContext.new(g, 0, ""), marked.uid)
+	check(g.find_unit(marked.uid) != null, "Banir por Veneno: com marcadores a menos nada acontece")
+	g.add_dot_markers(marked, "veneno", 1)
+	banish.apply(EffectContext.new(g, 0, ""), marked.uid)
+	check(g.find_unit(marked.uid) == null, "Banir por Veneno: com marcadores suficientes a unidade é banida")
 
 ## Goes to combat (if still in the Main Phase) and lets the pre-combat window pass, so attacks can be declared.
 func _open_attacks(g: GameState) -> void:
@@ -2159,7 +2343,7 @@ func _test_triggers() -> void:
 	var d := _put(g, 0, "dlorafya")
 	check(g.find_unit(ally.uid).damage == 1, "dlorafya: ally igneo takes 1")
 	g._check_state()
-	check(g.find_unit(foe.uid).damage == 3 and g.find_unit(foe2.uid) == null, "dlorafya: enemies take 3")
+	check(g.find_unit(foe.uid).damage == 3 and int(g.find_unit(foe.uid).dot_markers.get("queimadura", 0)) == 1 and g.find_unit(foe2.uid) == null, "dlorafya: enemies take 3 e recebem Queimadura")
 	check(g.find_unit(d.uid).damage == 1, "dlorafya: self takes 1")
 
 	g = _new_game()

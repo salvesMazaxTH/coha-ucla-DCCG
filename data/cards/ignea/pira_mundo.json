@@ -15,12 +15,19 @@
     },
     {
       "trigger": "on_play",
+      "action": "add_dot",
+      "dot": "queimadura",
+      "target": "all_enemy_units",
+      "amount": 1
+    },
+    {
+      "trigger": "on_play",
       "action": "damage",
       "target": "both_leaders",
       "amount": 2
     }
   ],
-  "text": "Cause 4 de dano a todas as unidades e 2 de dano a cada Líder.",
+  "text": "Cause 4 de dano a todas as unidades; as unidades inimigas recebem 1 marcador de Queimadura; cause 2 de dano a cada Líder.",
   "flavor": "",
   "tags": []
 }

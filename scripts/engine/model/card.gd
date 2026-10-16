@@ -41,11 +41,12 @@ var bonus_hp := 0
 var has_bonus := false ## bonus_* were computed at least once (they only show up in to_dict then)
 var frozen := 0 ## Congelada: the turn at whose END it thaws; 0 = not frozen
 var condemned_turn := 0 ## Condenada: the turn at whose START it dies; 0 = not condemned
+var dot_markers: Dictionary = {} ## accumulated periodic-status markers, keyed by dot id
 var tide_mark := false
 var used_turn: Dictionary = {} ## effect index -> turn it was last used (once_per_turn)
 var equipment: Card = null
-var cap_atk_gain := 0 ## attack given so far by "cap_atk" buffs
 var equipment_grant: Dictionary = {} ## what the equipment gave this unit ({atk, hp, armor, keywords}); taken back when the equipment leaves
+var cap_atk_gain := 0 ## attack given so far by "cap_atk" buffs
 var dodge_turn := -1 ## turn its Esquiva was last used
 var activated_turn := -1 ## turn its Ao Ativar was last used
 
@@ -98,12 +99,13 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	has_bonus = false
 	frozen = 0
 	condemned_turn = 0
+	dot_markers = {}
 	tide_mark = false
 	used_turn = {}
 	equipment = null
+	equipment_grant = {}
 	cap_atk_gain = 0
 	dodge_turn = -1
-	equipment_grant = {}
 	activated_turn = -1
 
 func has_kw(kw: String) -> bool:
@@ -184,6 +186,8 @@ func to_dict() -> Dictionary:
 		d["frozen"] = frozen
 	if condemned_turn > 0:
 		d["condemned_turn"] = condemned_turn
+	if not dot_markers.is_empty():
+		d["dot_markers"] = dot_markers.duplicate()
 	if tide_mark:
 		d["tide_mark"] = true
 	if not used_turn.is_empty():
@@ -233,6 +237,10 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.bonus_hp = int(d.get("bonus_hp", 0))
 	c.frozen = int(d.get("frozen", 0))
 	c.condemned_turn = int(d.get("condemned_turn", 0))
+	c.dot_markers = d.get("dot_markers", {}).duplicate()
+	# Compatibility with snapshots produced before periodic markers became generic.
+	if d.has("burn") and int(d["burn"]) > 0:
+		c.dot_markers["queimadura"] = int(d["burn"])
 	c.tide_mark = bool(d.get("tide_mark", false))
 	c.used_turn = d.get("used_turn", {})
 	if d.has("equipment"):

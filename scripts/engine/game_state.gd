@@ -19,8 +19,18 @@ const SNOWBALL_CARD_ID := "bola_de_neve"
 const GRANDE_SNOWBALL_CARD_ID := "grande_bola_de_neve" ## a card of its own (transform_only): it only exists through that evolution
 const REQUIEM_EXTRA_COST := 2 ## Réquiem: a spell cast from the graveyard costs this much more, then is banished
 
+## Periodic marker rules. New marker types reuse add_dot/resolve_dot; only their damage policy differs.
+const DOT_RULES := {
+	"queimadura": "flat",
+	"veneno": "life_bracket",
+	"sangramento": "life_bracket",
+}
+
 ## Leaders are addressed with negative uids so targets are a single int.
 const LEADER_UID := [-1, -2]
+
+## A Leader holding this many Veneno markers dies on the spot (Venenosa's near-unreachable win).
+const LEADER_POISON_LETHAL := 12
 
 var players: Array = []
 var active := 0
@@ -138,6 +148,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"critico_growth": {}, # card_id -> Crítico level reached by "critico_growth" cards (Vael), shared by every copy of it
 		"glacial_discount_used": false, # the Amuleto Glacial discount was already spent this turn
 		"damage_halved_until": 0, # Câmara de Êxtase aftermath: the Leader takes half damage while turn <= this
+		"leader_dots": {}, # dot_id -> markers on the Leader. They never tick or expire; only Veneno matters (LEADER_POISON_LETHAL)
 		"frozen_slots": 0, # Rei Gelado: empty field slots of this player that accept no permanent
 		"frozen_slots_until": 0, # they thaw at the end of this player's own turn, once the turn counter reaches this
 	}
@@ -1627,6 +1638,14 @@ func damage_after_armor(c: Card, amount: int) -> int:
 	return maxi(1, amount - armor_of(c))
 
 func _deal_damage(t: int, amount: int, source: Card) -> int:
+	return _deal_damage_internal(t, amount, source, false)
+
+## Periodic damage is already an applied status, so its damage bypasses Armadura, Escudo and
+## Escudo de Feitiço. Indestrutível remains the stronger protection and still prevents it.
+func _deal_dot_damage(t: int, amount: int, dot_id: String) -> int:
+	return _deal_damage_internal(t, amount, null, true, dot_id)
+
+func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protections: bool, damage_kind := "") -> int:
 	if amount <= 0:
 		return 0
 	var dealt := 0
@@ -1654,31 +1673,40 @@ func _deal_damage(t: int, amount: int, source: Card) -> int:
 		bus().emit(damaged)
 		if source != null:
 			_fire(source, "on_hit_leader")
+		# Tóxico normally skips Leaders; a card with "toxico_hits_leader" is the exception
+		if _combat_damage and source != null and has_kw(source, "toxico") and source.data().get("toxico_hits_leader", false):
+			add_leader_dot_markers(tp, "veneno", 1)
 	else:
 		var c := find_unit(t)
 		if c == null:
 			return 0
 		if has_kw(c, "indestrutivel"):
 			return 0 # damage is always 0 against it (Escudo isn't consumed)
-		# Esquiva: the first combat damage each turn from a qualifying attacker is avoided
-		if _combat_damage and has_kw(c, "esquiva") and source != null and combat_system().dodges(c, source) 				and c.dodge_turn != turn:
-			c.dodge_turn = turn
-			_emit({"type": "dodge", "uid": t, "src": src_uid})
-			return 0
-		# Armadura: reduces every damage instance, but a hit always deals at least 1
-		amount = damage_after_armor(c, amount)
-		if c.shield:
-			c.shield = false
-			_emit({"type": "shield_break", "uid": t, "src": src_uid})
-			return 0
+		if not bypass_unit_protections:
+			# Esquiva: the first combat damage each turn from a qualifying attacker is avoided
+			if _combat_damage and has_kw(c, "esquiva") and source != null and combat_system().dodges(c, source) 				and c.dodge_turn != turn:
+				c.dodge_turn = turn
+				_emit({"type": "dodge", "uid": t, "src": src_uid})
+				return 0
+			# Armadura: reduces every damage instance, but a hit always deals at least 1
+			amount = damage_after_armor(c, amount)
+			if c.shield:
+				c.shield = false
+				_emit({"type": "shield_break", "uid": t, "src": src_uid})
+				return 0
 		c.damage += amount
 		dealt = amount
-		_emit({"type": "damage", "uid": t, "amount": amount, "src": src_uid})
+		var damage_event := {"type": "damage", "uid": t, "amount": amount, "src": src_uid}
+		if damage_kind != "":
+			damage_event["dot"] = damage_kind
+		_emit(damage_event)
 		var unit_hurt := GameEvent.new("unit_damaged", c.owner, c)
 		unit_hurt.other_uid = src_uid
 		unit_hurt.amount = amount
 		unit_hurt.hp_before = c.hp_left() + amount
 		unit_hurt.hp_after = c.hp_left()
+		if damage_kind != "":
+			unit_hurt.data = {"dot": damage_kind}
 		bus().emit(unit_hurt)
 		# Mar que Retorna: the marked unit survived damage -> its owner draws once
 		if c.tide_mark and c.hp_left() > 0:
@@ -1691,9 +1719,46 @@ func _deal_damage(t: int, amount: int, source: Card) -> int:
 		if has_kw(c, "reflexao") and source != null and source != c and find_unit(src_uid) != null:
 			_emit({"type": "reflect", "uid": t, "target": src_uid, "amount": ceili(amount / 2.0)})
 			_deal_damage(src_uid, ceili(amount / 2.0), null)
+		# Toque Letal is a combat-damage rider, not a destroy effect: Escudo and Esquiva
+		# return before this point with dealt == 0, while Indestrutível is checked here as
+		# the first absolute protection. Keep the data flag/keyword hook for future protections
+		# such as Imunidade contra Obscura without making them damage effects.
+		if _combat_damage and source != null and has_kw(source, "toque_letal") and dealt > 0 \
+				and not _immune_to_lethal_touch(c):
+			c.damage = maxi(c.damage, c.hp + c.bonus_hp + c.temp_hp)
+		# Tóxico: combat damage that really got through leaves one Veneno marker (blocked damage returned above)
+		if _combat_damage and source != null and has_kw(source, "toxico") and dealt > 0 and c.hp_left() > 0:
+			add_dot_markers(c, "veneno", 1)
 	if source != null and has_kw(source, "roubo_de_vida"):
 		_heal_leader(source.owner, dealt)
 	return dealt
+
+## Puts `amount` accumulating markers of the `dot_id` kind on the unit (they resolve at its controller's turn start).
+func add_dot_markers(unit: Card, dot_id: String, amount: int) -> void:
+	unit.dot_markers[dot_id] = int(unit.dot_markers.get(dot_id, 0)) + amount
+	_emit({"type": "dot", "uid": unit.uid, "dot": dot_id, "amount": amount, "total": int(unit.dot_markers[dot_id])})
+
+## Puts markers on a Leader (player `p`). Unlike on units they stay for the whole game. At
+## LEADER_POISON_LETHAL Veneno markers the Leader dies instantly: no Câmara de Êxtase, no halving.
+func add_leader_dot_markers(p: int, dot_id: String, amount: int) -> void:
+	var leader_dots: Dictionary = players[p]["leader_dots"]
+	leader_dots[dot_id] = int(leader_dots.get(dot_id, 0)) + amount
+	_emit({"type": "dot", "uid": LEADER_UID[p], "dot": dot_id, "amount": amount, "total": int(leader_dots[dot_id])})
+	if dot_id == "veneno" and int(leader_dots[dot_id]) >= LEADER_POISON_LETHAL and int(players[p]["leader_hp"]) > 0:
+		var hp_before: int = players[p]["leader_hp"]
+		players[p]["leader_hp"] = 0
+		_emit({"type": "damage", "uid": LEADER_UID[p], "amount": hp_before, "src": 0, "dot": "veneno"})
+
+## How many markers of `dot_id` the Leader of player `p` holds.
+func leader_dot_markers(p: int, dot_id: String) -> int:
+	return int(players[p]["leader_dots"].get(dot_id, 0))
+
+func _immune_to_lethal_touch(c: Card) -> bool:
+	if c == null:
+		return true
+	return has_kw(c, "indestrutivel") \
+		or has_kw(c, "imunidade_obscura") \
+		or bool(c.data().get("lethal_touch_immune", false))
 
 ## The free-standing artifact of player p that cancels a lethal blow to their Leader (Câmara de Êxtase), if any.
 func _lethal_ward_of(p: int) -> Card:
@@ -1961,14 +2026,23 @@ func _start_turn(p: int, draw: bool) -> void:
 			c.spell_shield_until_next_turn = false
 		c.attacks_made = 0
 	_emit({"type": "start_turn", "player": p, "turn": turn})
+	_resolve_dot_markers(p)
 	_resolve_condemned()
 	bus().emit(GameEvent.new("turn_started", p))
 	_fire_leader_passive(p, "on_turn_start")
 	for c in pl["board"].duplicate():
-		_fire(c, "on_turn_start")
+		# A unit killed by its own periodic damage no longer gets a turn-start trigger.
+		if find_unit(c.uid) != null:
+			_fire(c, "on_turn_start")
 	if draw:
 		_draw(p, 1)
 	_check_state()
+
+## Resolves every periodic marker on every unit controlled by p at the start of that turn.
+func _resolve_dot_markers(p: int) -> void:
+	for unit: Card in players[p]["board"].duplicate():
+		for dot_id in unit.dot_markers.keys().duplicate():
+			resolve_dot(unit, String(dot_id))
 
 ## Carries out every sentence that is due: a Condenada unit (on either board) dies when the turn
 ## number stored on it arrives. Indestrutível survives, but the mark is spent either way.
@@ -1985,6 +2059,37 @@ func _resolve_condemned() -> void:
 			_emit({"type": "doom", "uid": unit.uid})
 	# Clear the dead right away, so a doomed unit gets no start-of-turn trigger.
 	_check_state()
+
+## Resolves one marker type. Only the markers present when this call starts are consumed;
+## a new marker added by an on_damaged trigger remains for the next turn.
+func resolve_dot(unit: Card, dot_id: String) -> void:
+	if unit == null:
+		return
+	var markers := int(unit.dot_markers.get(dot_id, 0))
+	if markers <= 0:
+		return
+	var damage := dot_damage(dot_id, unit, markers)
+	_emit({"type": "dot", "uid": unit.uid, "dot": dot_id, "amount": markers, "damage": damage, "total": 0, "cleared": true})
+	_deal_dot_damage(unit.uid, damage, dot_id)
+	var remaining := int(unit.dot_markers.get(dot_id, 0)) - markers
+	if remaining > 0:
+		unit.dot_markers[dot_id] = remaining
+	else:
+		unit.dot_markers.erase(dot_id)
+
+## Calculates the damage for one periodic marker type without applying it.
+func dot_damage(dot_id: String, unit: Card, markers: int) -> int:
+	if unit == null or markers <= 0:
+		return 0
+	if DOT_RULES.get(dot_id, "flat") != "life_bracket":
+		return markers
+	var max_hp := unit.hp + unit.bonus_hp + unit.temp_hp
+	var life_bonus := 0
+	if max_hp >= 6 and max_hp <= 9:
+		life_bonus = 1
+	elif max_hp >= 10:
+		life_bonus = 2 + floori((max_hp - 10) / 4)
+	return markers + life_bonus
 
 ## Test helpers: apply one raw effect dictionary / run raw effect dictionaries as a trigger would.
 func _apply_effect(player: int, effect_data: Dictionary, target_uid: int) -> void:

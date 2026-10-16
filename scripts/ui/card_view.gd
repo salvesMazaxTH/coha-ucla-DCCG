@@ -41,6 +41,7 @@ const ATK_COL := Color("#c8402e")
 const HP_COL := Color("#2f9e58")
 const FROST := Color("#cfefff")
 const FROST_DEEP := Color("#4fc3ff") ## saturated ice blue: what makes a Congelada card readable from across the table
+const BURN_COL := Color("#ff7043") ## Queimadura: hot orange-red, distinct from damage red and frost blue
 const DOOM_COL := Color("#b57bff") ## Condenada: sickly violet, always paired with a skull so it is not confused with the spell-shield lilac
 ## Ice spikes of a frozen card, as [x across the card 0..1, length in base px, half width in base px].
 const FROST_ICICLES := [[0.24, 11.0, 2.6], [0.34, 19.0, 3.2], [0.45, 9.0, 2.2], [0.56, 24.0, 3.6], [0.67, 13.0, 2.6], [0.77, 20.0, 3.2], [0.88, 10.0, 2.4]] ## hang from the top edge
@@ -484,6 +485,9 @@ func _draw() -> void:
 		_draw_frost(art, s)
 	if inst.get("tide_mark", false):
 		draw_arc(art.get_center() + Vector2(0, art.size.y * 0.32), art.size.x * 0.3, PI * 1.15, PI * 1.85, 24, Color("#6fd0ff", 0.85), 2 * s, true)
+	var burn_amount := dot_marker_count_of_view(inst, "queimadura")
+	if burn_amount > 0:
+		_burn_badge(Vector2(art.end.x - 11 * s, art.position.y + 33 * s), 10 * s, s, burn_amount)
 	if inst.has("condemned_turn"):
 		# a dark violet veil over the art, then the skull medallion on the upper-right corner
 		draw_colored_polygon(_art_window, Color("#2a0a4a", 0.28 + 0.08 * sin(_t * 3.2)))
@@ -782,6 +786,16 @@ static func critico_chance_percent(critico_level: int) -> int:
 func _keywords(cd: Dictionary) -> Array:
 	return inst.get("keywords", cd.get("keywords", []))
 
+## Live periodic marker count. The old `burn` field is accepted for cards from an older network
+## snapshot, while all new state uses the generic dot_markers dictionary.
+static func dot_marker_count_of_view(instance: Dictionary, dot_id: String) -> int:
+	var markers: Dictionary = instance.get("dot_markers", {})
+	if markers.has(dot_id):
+		return int(markers[dot_id])
+	if dot_id == "queimadura":
+		return int(instance.get("burn", 0))
+	return 0
+
 ## Round medallions down the left edge of the art, under the cost gem.
 func _kw_badges(art: Rect2, cd: Dictionary, s: float) -> void:
 	var kws := _keywords(cd)
@@ -810,6 +824,17 @@ func _armor_badge(c: Vector2, r: float, s: float, amount: int) -> void:
 	draw_colored_polygon(_shape("shield", c, r * 0.82), steel.darkened(0.15))
 	draw_colored_polygon(_shape("shield", c, r * 0.64), steel.darkened(0.55))
 	_text(UITheme.font("heavy"), str(amount), c + Vector2(0, r * 0.32), r * 1.05, Color.WHITE)
+
+## Live Queimadura marker: a hot ember medallion with a large count, placed on the upper-right
+## of the art so it stays visible without competing with the printed keyword badges on the left.
+func _burn_badge(c: Vector2, r: float, s: float, amount: int) -> void:
+	draw_circle(c + Vector2(0, 1.4 * s), r * 1.2, Color(0, 0, 0, 0.62))
+	draw_circle(c, r * 1.16, Color("#7d2114"))
+	draw_circle(c, r * 1.08, Color("#ffb04d"))
+	draw_circle(c, r, BURN_COL.darkened(0.55))
+	var flame := _unit_pts(c + Vector2(0, -1.7 * s), r * 0.72, [[0.0, -0.9], [0.38, -0.28], [0.16, 0.0], [0.52, 0.46], [0.0, 0.72], [-0.48, 0.46], [-0.16, 0.0], [-0.38, -0.28]])
+	draw_colored_polygon(flame, BURN_COL.lightened(0.18))
+	_text(UITheme.font("heavy"), str(amount), c + Vector2(0, r * 0.4), r * (0.88 if amount < 10 else 0.68), Color.WHITE)
 
 ## Live Condenada marker: a dark medallion with a violet skull (cranium, jaw, eye sockets, nose).
 func _doom_badge(c: Vector2, r: float, s: float) -> void:
@@ -920,6 +945,24 @@ func _unit_pts(c: Vector2, r: float, pts: Array) -> PackedVector2Array:
 		out.append(c + Vector2(p[0], p[1]) * r)
 	return out
 
+## True when the card has a static rule: a cost reduction, a "scale" effect or adjacent Armadura.
+static func _has_always_on_rule(cd: Dictionary) -> bool:
+	if cd.has("adjacent_armor"):
+		return true
+	for e in cd.get("effects", []):
+		if not e.has("trigger") and not e.has("listen") and ["cost_reduction", "scale"].has(e.get("action", "")):
+			return true
+	return false
+
+## True when the card has an automatic effect that waits for a condition (see the Condicional tag).
+static func _has_conditional_rule(cd: Dictionary) -> bool:
+	if cd.has("lethal_ward") or cd.has("spell_discount"):
+		return true
+	for e in cd.get("effects", []):
+		if e.has("listen"):
+			return true
+	return false
+
 func _panel_lines(cd: Dictionary) -> Array:
 	var kws: Array = _keywords(cd).duplicate()
 	if inst.has("shield"):
@@ -936,6 +979,9 @@ func _panel_lines(cd: Dictionary) -> Array:
 		out.append([[kind + spd, Color("#ffd27a") if spd != "" else Color(UITheme.TEXT, 0.6)]])
 	# tags: keywords first, then trigger names (full text lives in the overlay)
 	var tags: Array = []
+	var burn_amount := dot_marker_count_of_view(inst, "queimadura")
+	if burn_amount > 0:
+		tags.append(["%s %d" % [CardDB.keyword("queimadura")["name"], burn_amount], BURN_COL.lightened(0.18)])
 	if inst.has("condemned_turn"):
 		tags.append([CardDB.keyword("condenada")["name"], DOOM_COL.lightened(0.15)])
 	if inst.has("frozen"):
@@ -979,6 +1025,14 @@ func _panel_lines(cd: Dictionary) -> Array:
 			continue
 		seen[trg] = true
 		tags.append([CardDB.data()["triggers"][trg]["name"], TRIGGER_COL])
+	# Constante: a rule that is always on (cost reductions, scaling, adjacent Armadura) and has no trigger of its own
+	if not seen.has("constante") and _has_always_on_rule(cd):
+		tags.append([CardDB.data()["triggers"]["constante"]["name"], TRIGGER_COL])
+	# Condicional: the effect waits for a situation and fires by itself when it happens. Shown for any
+	# "listen" effect and for artifacts whose rule lives only in the text (Câmara de Êxtase), so the
+	# box on the card is not left empty
+	if _has_conditional_rule(cd):
+		tags.append([CardDB.data()["triggers"]["condicional"]["name"], TRIGGER_COL])
 	if cd.has("activated"):
 		tags.append([CardDB.data()["triggers"]["on_activate"]["name"], TRIGGER_COL])
 	if cd.has("transform"):
@@ -1130,6 +1184,8 @@ func _sigil(kind: String, c: Vector2, r: float) -> PackedVector2Array:
 			n = [[0, -1], [0.87, -0.5], [0.87, 0.5], [0, 1], [-0.87, 0.5], [-0.87, -0.5]]
 		"sagrada": # four-point radiant star
 			n = [[0, -1], [0.18, -0.38], [0.7, -0.7], [0.38, -0.18], [1, 0], [0.38, 0.18], [0.7, 0.7], [0.18, 0.38], [0, 1], [-0.18, 0.38], [-0.7, 0.7], [-0.38, 0.18], [-1, 0], [-0.38, -0.18], [-0.7, -0.7], [-0.18, -0.38]]
+		"venenosa": # poison drop
+			n = [[0, -1], [0.3, -0.45], [0.62, 0.05], [0.7, 0.4], [0.5, 0.8], [0.2, 0.98], [-0.2, 0.98], [-0.5, 0.8], [-0.7, 0.4], [-0.62, 0.05], [-0.3, -0.45]]
 		"equipment":
 			n = [[0, -1], [0.14, -0.82], [0.14, 0.3], [0.5, 0.3], [0.5, 0.44], [0.1, 0.44], [0.1, 0.9], [-0.1, 0.9], [-0.1, 0.44], [-0.5, 0.44], [-0.5, 0.3], [-0.14, 0.3], [-0.14, -0.82]]
 		_:
@@ -1158,8 +1214,6 @@ func _essence_badge(c: Vector2, r: float, cd: Dictionary, s: float) -> void:
 			PackedVector2Array([c + Vector2(0.7, -2) * r, c + Vector2(2, -2) * r, c + Vector2(2, 2) * r, c + Vector2(-0.7, 2) * r])]
 	for k in ess.size():
 		var kind: String = ess[k]
-		"venenosa": # poison drop
-			n = [[0, -1], [0.3, -0.45], [0.62, 0.05], [0.7, 0.4], [0.5, 0.8], [0.2, 0.98], [-0.2, 0.98], [-0.5, 0.8], [-0.7, 0.4], [-0.62, 0.05], [-0.3, -0.45]]
 		var col := Color("#232328") if kind == "obscura" else Color(CardDB.essence(kind)["color"])
 		_fill_clipped(disc, halves[k], col.darkened(0.35))
 		_fill_clipped(_grow(disc, c - Vector2(0, r * 0.1), 0.86), halves[k], col)

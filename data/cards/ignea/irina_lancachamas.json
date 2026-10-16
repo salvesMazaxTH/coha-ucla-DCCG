@@ -17,9 +17,16 @@
       "action": "damage",
       "target": "any",
       "amount": 3
+    },
+    {
+      "trigger": "on_enter",
+      "action": "add_dot",
+      "dot": "queimadura",
+      "target": "any_unit",
+      "amount": 1
     }
   ],
-  "text": "Ao Entrar: cause 3 de dano a qualquer alvo.",
+  "text": "Ao Entrar: cause 3 de dano a qualquer alvo; se for uma unidade, ela recebe 1 marcador de Queimadura.",
   "flavor": "\"Tá tudo bem.\" Não está.",
   "tags": []
 }

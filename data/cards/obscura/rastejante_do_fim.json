@@ -1,0 +1,16 @@
+{
+  "name": "Rastejante do Fim",
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["morto_vivo"],
+  "essence": "obscura",
+  "cost": 2,
+  "atk": 1,
+  "hp": 3,
+  "art": "obscura/rastejante_do_fim.webp",
+  "keywords": ["toque_letal"],
+  "effects": [],
+  "text": "",
+  "flavor": "Pequeno demais para ser notado. Tarde demais para ser detido.",
+  "tags": []
+}

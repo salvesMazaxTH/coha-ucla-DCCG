@@ -6,12 +6,20 @@ extends Effect
 ##   "shield_leader_damage": N = if the unit had Escudo, its owner's Leader takes N damage.
 ## "banish": exile, stronger than destroy. Ignores Indestrutível, the unit never dies (no Ao
 ##   Morrer, no Aliado Morre) and never reaches the graveyard; its equipment does.
+##   "requires_markers": {"dot": "veneno", "amount": X}: the banish only happens if the unit holds
+##   at least X markers of that kind, otherwise nothing happens.
 ## "destroy_artifact": the target free-standing artifact goes to the graveyard, freeing its slot.
 
 var shield_leader_damage := 0
+var required_dot := ""
+var required_dot_amount := 0
+
 
 func _read_parameters(data: Dictionary) -> void:
 	shield_leader_damage = int(data.get("shield_leader_damage", 0))
+	var requirement: Dictionary = data.get("requires_markers", {})
+	required_dot = String(requirement.get("dot", ""))
+	required_dot_amount = int(requirement.get("amount", 0))
 
 func apply(context: EffectContext, target_uid: int) -> void:
 	if action == "banish":
@@ -37,5 +45,7 @@ func _banish(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
 	var exiled := game.find_unit(target_uid)
 	if exiled == null:
+		return
+	if required_dot != "" and int(exiled.dot_markers.get(required_dot, 0)) < required_dot_amount:
 		return
 	game.banish_unit(exiled)

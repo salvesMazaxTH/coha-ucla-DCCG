@@ -3,6 +3,8 @@ extends RefCounted
 ## Maps each "action" of cards.json to its Effect class.
 ## A new action: write its class in this folder and add one line here.
 
+const AddDotEffectScript = preload("res://scripts/engine/effects/add_dot_effect.gd")
+
 static var ACTIONS: Dictionary = {
 	"damage": DamageEffect,
 	"heal_leader": HealEffect,
@@ -16,6 +18,8 @@ static var ACTIONS: Dictionary = {
 	"look_top": DeckEffect,
 	"grave_retrieve": DeckEffect,
 	"freeze": FreezeEffect,
+	"add_dot": AddDotEffectScript,
+	"burn": AddDotEffectScript, # compatibility alias for old card data
 	"exhaust": ExhaustEffect,
 	"condemn": CondemnEffect,
 	"freeze_slots": FreezeSlotsEffect,

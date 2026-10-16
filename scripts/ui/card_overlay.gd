@@ -63,6 +63,8 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 		glossary_keywords.append("critico") # also shown as a tag (it can grow during the match)
 	if CardView.attacks_allowed_of_view(cd, instance) >= 2 and not glossary_keywords.has("ataque_duplo"):
 		glossary_keywords.append("ataque_duplo") # earned in play (Vael at Crítico 4), shown as a tag too
+	if CardView.dot_marker_count_of_view(instance, "queimadura") > 0 and not glossary_keywords.has("queimadura"):
+		glossary_keywords.append("queimadura") # live marker: the enlarged view explains its timing and count
 	if instance.has("condemned_turn") and not glossary_keywords.has("condenada"):
 		glossary_keywords.append("condenada") # live marker: the enlarged view explains it
 	for keyword_id in mentioned_keywords(String(cd.get("text", "")) + text_suffix):

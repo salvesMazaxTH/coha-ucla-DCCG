@@ -101,6 +101,10 @@
     "constante": {
       "name": "Constante",
       "text": "O efeito é contínuo: vale enquanto a unidade está em campo e se atualiza sozinho."
+    },
+    "condicional": {
+      "name": "Condicional",
+      "text": "O efeito espera uma condição descrita no texto da carta. Quando ela acontece, o efeito dispara sozinho, sem ninguém precisar pagar ou escolher nada."
     }
   },
   "species": {
@@ -220,13 +224,33 @@
       "name": "Indestrutível",
       "text": "Não sofre dano (sempre 0) e não é destruída por efeitos de \"destruir\" (nem por dano). Sacrifício e remoção do jogo (banimento) ainda a afetam."
     },
+    "toque_letal": {
+      "name": "Toque Letal",
+      "text": "Quando esta unidade causar dano de combate a uma unidade, destrua aquela unidade imediatamente. Escudo, Indestrutível e outras proteções absolutas que impeçam o dano ou a destruição sobrevivem."
+    },
     "condenada": {
       "name": "Condenada",
       "text": "Uma unidade Condenada morre no início do próximo turno de quem a condenou, mesmo que a carta que a condenou já tenha saído de campo. Curar não ajuda; Indestrutível a salva, e sair de campo desfaz a condenação."
     },
+    "toxico": {
+      "name": "Tóxico",
+      "text": "Quando esta unidade causar dano de combate a uma unidade, coloca 1 marcador de Veneno nela. Se o dano for evitado (Escudo, Esquiva, Indestrutível), não coloca. Não afeta Líderes, a não ser que a carta diga o contrário."
+    },
     "congelar": {
       "name": "Congelar",
       "text": "A unidade não ataca, não desvira e não protege o Líder e perde a Rapidez (suprimida) até o fim do próximo turno. Revida normalmente."
+    },
+    "queimadura": {
+      "name": "Queimadura",
+      "text": "Marcadores de Queimadura: no início do turno do controlador, esta unidade sofre dano igual à quantidade de marcadores nela e depois remove esses marcadores. Esse dano ignora Armadura, Escudo e Escudo de Feitiço; Indestrutível ainda o impede."
+    },
+    "veneno": {
+      "name": "Veneno",
+      "text": "Marcadores de Veneno: no início do turno do controlador, esta unidade sofre dano igual à quantidade de marcadores mais um bônus pela Vida máxima: +0 com 1–5, +1 com 6–9, +2 com 10–13 e +1 adicional a cada 4 de Vida acima de 10. Depois remove todos os marcadores. Esse dano ignora Armadura, Escudo e Escudo de Feitiço; Indestrutível ainda o impede."
+    },
+    "sangramento": {
+      "name": "Sangramento",
+      "text": "Marcadores de Sangramento: no início do turno do controlador, esta unidade sofre dano igual à quantidade de marcadores mais um bônus pela Vida máxima: +0 com 1–5, +1 com 6–9, +2 com 10–13 e +1 adicional a cada 4 de Vida acima de 10. Depois remove todos os marcadores. Esse dano ignora Armadura, Escudo e Escudo de Feitiço; Indestrutível ainda o impede."
     },
     "armadura": {
       "name": "Armadura",

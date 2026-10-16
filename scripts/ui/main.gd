@@ -1137,6 +1137,7 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	lv.deck = pl["deck"].size()
 	lv.fatigue = g.fatigue_next(p)
 	lv.grave = pl["graveyard"].size()
+	lv.poison = g.leader_dot_markers(p, "veneno")
 	lv.requiem = g.requiem_cards(p).size() if p == viewer and not _is_ai(p) and g.phase in ["main", "combat"] else 0
 	lv.ability_ready = p == viewer and g.can_use_ability(p) and not _is_ai(p)
 	lv.targetable = _is_target(uid)
@@ -3694,7 +3695,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 				or (et in ["damage", "shield_break"] and e.get("src", 0) > 0):
 			trig_src = 0
 		# effects of a trigger fly out of their source as a bolt and land when it arrives
-		if trig_src != 0 and et in ["damage", "heal", "shield_break", "buff", "freeze", "exhaust", "condemn", "tide_mark", "spell_shield_break", "summon"] \
+		if trig_src != 0 and et in ["damage", "heal", "shield_break", "buff", "dot", "freeze", "exhaust", "condemn", "tide_mark", "spell_shield_break", "summon"] \
 				and e["uid"] != trig_src and actors.has(trig_src) and actors.has(e["uid"]):
 			cursor += _streak(actors[trig_src], actors[e["uid"]], cursor, CardView.TRIGGER_COL) - 0.04
 		match et:
@@ -3773,9 +3774,13 @@ func _animate(events: Array, old: Dictionary) -> float:
 			"countered":
 				_toast("%s foi anulado!" % ("A habilidade do Líder" if e["kind"] == "ability" else _cname(e["card_id"])))
 				cursor += 0.4
-			"spell_shield_break", "tide_mark", "tide_draw", "freeze", "exhaust", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up":
+			"spell_shield_break", "tide_mark", "tide_draw", "dot", "freeze", "exhaust", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up":
 				if actors.has(e["uid"]):
-					var lbl: String = {"spell_shield_break": "Anulado!", "tide_mark": "Maré", "tide_draw": "+1 carta", "freeze": "Congelada!", "exhaust": "Exausta!", "condemn": "Condenada!", "doom": "Ceifada!", "doom_resisted": "Resistiu!", "thaw": "Descongelou", "dodge": "Esquivou!", "crit": "Crítico!", "crit_negated": "Desdém!", "critico_up": "Crítico %d!" % int(e.get("level", 0))}[e["type"]]
+					var dot_name: String = {"queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento"}.get(String(e.get("dot", "")), "Marcador")
+					var dot_label := "%s %d" % [dot_name, int(e.get("amount", 0))]
+					if not e.get("cleared", false):
+						dot_label = "%s +%d" % [dot_name, int(e.get("amount", 0))]
+					var lbl: String = {"spell_shield_break": "Anulado!", "tide_mark": "Maré", "tide_draw": "+1 carta", "dot": dot_label, "freeze": "Congelada!", "exhaust": "Exausta!", "condemn": "Condenada!", "doom": "Ceifada!", "doom_resisted": "Resistiu!", "thaw": "Descongelou", "dodge": "Esquivou!", "crit": "Crítico!", "crit_negated": "Desdém!", "critico_up": "Crítico %d!" % int(e.get("level", 0))}[e["type"]]
 					var col: Color = Color("#6fd0ff")
 					if e["type"] == "spell_shield_break":
 						col = Color("#c9a8ff")
@@ -3783,6 +3788,8 @@ func _animate(events: Array, old: Dictionary) -> float:
 						col = ICE
 					elif e["type"] in ["condemn", "doom", "doom_resisted"]:
 						col = CardView.DOOM_COL
+					elif e["type"] == "dot":
+						col = CardView.BURN_COL if e.get("dot", "") == "queimadura" else Color("#b8e86b")
 					elif e["type"] in ["crit", "crit_negated", "critico_up"]:
 						col = Color("#ff9d6e") # same warm tone as the Crítico tag
 					_impact(actors[e["uid"]], lbl, col, cursor, false)
@@ -3828,14 +3835,14 @@ func _animate(events: Array, old: Dictionary) -> float:
 					cursor += 0.5
 			"search_reveal", "look_top":
 				cursor += 0.35
+			"mill":
+				cursor += _mill_fx(int(e["player"]), e["cards"], cursor)
 			"combat_damage":
 				in_combat = true
 			"start_turn", "end_turn", "combat_end":
 				in_combat = false
 			"lethal_ward":
 				# Câmara de Êxtase: the blow lands on the Leader, the Chamber answers and fades away
-			"mill":
-				cursor += _mill_fx(int(e["player"]), e["cards"], cursor)
 				var ward_leader: Control = actors.get(GameState.LEADER_UID[e["player"]])
 				var ward_src: int = e.get("src", 0)
 				var ward_t := cursor + 0.12
@@ -4076,6 +4083,14 @@ func _log_event(e: Dictionary) -> void:
 		"freeze":
 			var frozen := g.find_unit(e["uid"])
 			_log("%s foi congelada" % ("Uma unidade" if frozen == null else _cname(frozen.card_id)))
+		"dot":
+			var dotted := g.find_unit(e["uid"])
+			if not e.get("cleared", false):
+				var dot_names := {"queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento"}
+				var dotted_name := "Uma unidade" if dotted == null else _cname(dotted.card_id)
+				if int(e["uid"]) < 0: # a Leader holds the markers
+					dotted_name = "O Líder de %s" % _pname(GameState.LEADER_UID.find(int(e["uid"])))
+				_log("%s recebeu %d marcador(es) de %s" % [dotted_name, int(e.get("amount", 0)), dot_names.get(String(e.get("dot", "")), "status")])
 		"condemn":
 			var condemned := g.find_unit(e["uid"])
 			_log("%s foi condenada" % ("Uma unidade" if condemned == null else _cname(condemned.card_id)))
