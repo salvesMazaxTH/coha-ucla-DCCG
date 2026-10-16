@@ -1,0 +1,15 @@
+{
+  "name": "Engrenagem Solta",
+  "type": "artifact",
+  "subtypes": ["equipment"],
+  "rarity": "common",
+  "essence": "metalica",
+  "cost": 1,
+  "effects": [
+    { "trigger": "on_play", "action": "buff", "target": "ally_unit", "atk": 1, "hp": 2 }
+  ],
+  "text": "Equipar: a unidade ganha +1/+2.",
+  "flavor": "Sobrou do conserto. Sempre sobra.",
+  "art": "metalica/engrenagem_solta.webp",
+  "tags": []
+}

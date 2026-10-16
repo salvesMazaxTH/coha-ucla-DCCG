@@ -1,0 +1,18 @@
+{
+  "name": "Tyren",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["humano"],
+  "essence": "metalica",
+  "cost": 3,
+  "atk": 2,
+  "hp": 4,
+  "keywords": ["armadura:1"],
+  "art": "metalica/tyren.webp",
+  "effects": [
+    { "trigger": "on_enter", "action": "search_deck", "target": "none", "type": "artifact", "top": 4 }
+  ],
+  "text": "Armadura 1.\nAo Entrar: olhe as 4 cartas do topo do seu deck e revele um artefato entre elas: coloque-o na sua mão. As outras vão para o fundo do deck.",
+  "flavor": "O aço se adapta a quem o golpeia. Eu só tomei emprestado o hábito.",
+  "tags": []
+}

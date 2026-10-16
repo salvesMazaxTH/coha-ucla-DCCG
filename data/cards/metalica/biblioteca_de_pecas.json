@@ -1,0 +1,14 @@
+{
+  "name": "Biblioteca de Peças",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "metalica",
+  "cost": 2,
+  "speed": "lento",
+  "effects": [
+    { "trigger": "on_play", "action": "search_deck", "target": "none", "type": "artifact", "top": 5 }
+  ],
+  "text": "Olhe as 5 cartas do topo do seu deck e revele um artefato entre elas: coloque-o na sua mão. As outras vão para o fundo do deck.",
+  "flavor": "Letra G, prateleira de baixo: 'Geringonça, ver também Gambiarra'.",
+  "tags": []
+}

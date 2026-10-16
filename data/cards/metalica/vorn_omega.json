@@ -1,0 +1,18 @@
+{
+  "name": "VØRN Ω",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["robo", "construto"],
+  "essence": "metalica",
+  "cost": 7,
+  "atk": 5,
+  "hp": 9,
+  "keywords": ["armadura:1"],
+  "art": "metalica/vorn_omega.webp",
+  "effects": [
+    { "trigger": "on_enter", "action": "mill", "who": "enemy", "target": "none", "amount": 4 }
+  ],
+  "text": "Armadura 1.\nAo Entrar: Moa 4 cartas do deck do oponente.",
+  "flavor": "A fábrica que o fez calou-se há muito tempo. Ele continua trabalhando.",
+  "tags": []
+}

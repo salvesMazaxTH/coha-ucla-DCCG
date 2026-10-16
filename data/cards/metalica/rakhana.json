@@ -1,0 +1,18 @@
+{
+  "name": "Rakhana",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["forjado_divino", "transfigurado"],
+  "essence": "metalica",
+  "cost": 4,
+  "atk": 3,
+  "hp": 6,
+  "keywords": ["reflexao"],
+  "art": "metalica/rakhana.webp",
+  "effects": [
+    { "trigger": "on_hit_leader", "action": "mill", "who": "enemy", "target": "none", "amount": 2 }
+  ],
+  "text": "Reflexão.\nAo Atingir o Líder: Moa 2 cartas do deck do oponente.",
+  "flavor": "Meu pai segura a montanha. Eu devolvo o que ela recebe.",
+  "tags": []
+}

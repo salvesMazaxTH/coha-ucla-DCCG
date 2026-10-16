@@ -37,6 +37,7 @@ func _init() -> void:
 	_test_myrra_activate()
 	_test_hoje_ninguem_erra()
 	_test_devaneio_permanent()
+	_test_metalica()
 	_test_deslizamento()
 	_test_self_response()
 	_test_custo_e_contagem()
@@ -3007,6 +3008,109 @@ func _test_hoje_ninguem_erra() -> void:
 	check(plain.critico_total() == 0, "Hoje Ninguém Erra: quem não tem Crítico continua sem")
 	g.end_turn(0)
 	check(gatuno.critico_total() == 1 and myrra.critico_total() == 1 and akane.critico_total() == 4, "Hoje Ninguém Erra: no fim do turno cada um volta ao seu nível")
+
+func _metalica_game() -> GameState:
+	var g := GameState.new("metalica", "fogo", 42)
+	g.mulligan(0, [])
+	g.mulligan(1, [])
+	g.self_response_enabled = false
+	_quiet(g)
+	return g
+
+## Metálica: milling the opponent's deck, Reflexão, artifact-count scaling and Morakhan's leader power.
+func _test_metalica() -> void:
+	# Zeladorbot 3000: "who": "enemy" sends the opponent's top cards to THEIR graveyard, the own deck is untouched
+	var g := _metalica_game()
+	var a := g.active
+	var b: int = g.opponent(a)
+	g.players[a]["momentum"] = 20
+	var enemy_deck_before: int = g.players[b]["deck"].size()
+	var enemy_graveyard_before: int = g.players[b]["graveyard"].size()
+	var own_deck_before: int = g.players[a]["deck"].size()
+	_cast_and_resolve(g, a, "zeladorbot_3000")
+	check(g.players[b]["deck"].size() == enemy_deck_before - 2, "Zeladorbot: o deck do oponente perde 2 cartas")
+	check(g.players[b]["graveyard"].size() == enemy_graveyard_before + 2, "Zeladorbot: as cartas moídas vão para o cemitério do oponente")
+	check(g.players[a]["deck"].size() == own_deck_before, "Zeladorbot: o próprio deck não muda")
+
+	# Biblioteca de Peças: only the 5 cards on top are searched; an artifact buried deeper is not found
+	g = _metalica_game()
+	a = g.active
+	g.players[a]["deck"].clear()
+	for card_id in ["engrenagem_solta", "zeladorbot_3000", "zeladorbot_3000", "zeladorbot_3000", "zeladorbot_3000", "zeladorbot_3000"]:
+		g.players[a]["deck"].append(Card.new(g._uid(), card_id, a, "deck"))
+	g.players[a]["momentum"] = 20
+	_cast_and_resolve(g, a, "biblioteca_de_pecas")
+	check(g.phase != "search", "Biblioteca de Peças: o artefato fora das 5 do topo não é encontrado")
+	# with the artifact among the top 5 it is offered face up, and the rest of the top 5 goes to the bottom
+	g.players[a]["deck"].append(Card.new(g._uid(), "moedor_de_sucata", a, "deck"))
+	_cast_and_resolve(g, a, "biblioteca_de_pecas")
+	check(g.phase == "search" and g.pending_search["cards"].size() == 1 and g.pending_search["cards"][0]["card_id"] == "moedor_de_sucata", "Biblioteca de Peças: oferece o artefato do topo")
+	if g.phase == "search":
+		# the options of a deck search are private: the opponent's view has no cards at all, the searcher's has them
+		check(not StateView.snapshot(g, a)["pending_search"]["cards"].is_empty(), "Biblioteca de Peças: quem busca vê as opções")
+		check(StateView.snapshot(g, 1 - a)["pending_search"]["cards"].is_empty(), "Biblioteca de Peças: o oponente não vê as opções")
+		var reveal_events: Array = StateView.filter_events([{"type": "search_reveal", "player": a, "private": true, "cards": g.pending_search["cards"]}], 1 - a)
+		check(reveal_events[0]["cards"].is_empty(), "Biblioteca de Peças: evento da busca escondido do oponente")
+		g.choose_search(a, int(g.pending_search["cards"][0]["uid"]))
+		check(g.players[a]["deck"].size() == 6 and g.players[a]["deck"][0].card_id == "zeladorbot_3000", "Biblioteca de Peças: as outras vão para o fundo")
+
+	# Reflexão: the attacker takes half (rounded up) of the damage; the reflected hit does not reflect again
+	g = _metalica_game()
+	a = g.active
+	b = g.opponent(a)
+	var mirror_a := _put(g, a, "rakhana")
+	var mirror_b := _put(g, b, "rakhana")
+	g._deal_damage(mirror_a.uid, 5, mirror_b)
+	g._flush()
+	check(g.hp_left(mirror_a) == 1, "Reflexão: quem tem Reflexão sofre o dano normal (5)")
+	check(g.hp_left(mirror_b) == 3, "Reflexão: o atacante sofre metade do dano, arredondada para cima (3)")
+	check(g.hp_left(mirror_a) == 1, "Reflexão: o dano refletido não reflete de volta")
+
+	# Berengar Voss grows with every own artifact in play: relics and equipment both count
+	g = _metalica_game()
+	a = g.active
+	g.players[a]["momentum"] = 20
+	var uncle := _put(g, a, "berengar_voss")
+	var other := _put(g, a, "zeladorbot_3000")
+	check(g.atk_of(uncle) == 1 and g.hp_left(uncle) == 3, "Berengar Voss: sem artefatos é 1/3")
+	_cast_and_resolve(g, a, "moedor_de_sucata")
+	check(g.atk_of(uncle) == 2 and g.hp_left(uncle) == 4, "Berengar Voss: um artefato em campo dá +1/+1")
+	_cast_and_resolve(g, a, "engrenagem_solta", other.uid)
+	check(g.atk_of(uncle) == 3 and g.hp_left(uncle) == 5, "Berengar Voss: artefato equipado também conta")
+
+	# Morakhan's leader power: an ally gets Reflexão until the end of the turn
+	g = _metalica_game()
+	a = g.active
+	var ally := _put(g, a, "zeladorbot_3000")
+	g.players[a]["ability_used"] = false
+	g.players[a]["momentum"] = 5
+	check(g.can_use_ability(a), "Morakhan: Postura da Montanha disponível")
+	g.use_ability(a, ally.uid)
+	_resolve_stack(g)
+	check(g.has_kw(ally, "reflexao"), "Morakhan: a unidade ganha Reflexão")
+	check(int(g.players[a]["momentum"]) == 3, "Morakhan: Postura da Montanha custa 2")
+	g.end_turn(a)
+	check(not g.has_kw(ally, "reflexao"), "Morakhan: a Reflexão some no fim do turno")
+
+	# Morakhan the champion: 0/13 with no Escudo, +1 Ataque each time it is damaged, until its controller's next turn starts
+	g = _metalica_game()
+	a = g.active
+	b = g.opponent(a)
+	var mountain := _put(g, a, "morakhan")
+	var attacker := _put(g, b, "rakhana")
+	check(g.atk_of(mountain) == 0 and g.hp_left(mountain) == 13, "Morakhan: 0/13")
+	check(not mountain.shield and not g.has_kw(mountain, "escudo"), "Morakhan: sem Escudo")
+	check(g.has_kw(mountain, "reflexao"), "Morakhan: tem Reflexão")
+	g._deal_damage(mountain.uid, 3, attacker)
+	g._check_state() # a direct hit only queues the Ao Sofrer Dano trigger; this resolves it
+	check(g.atk_of(mountain) == 1, "Morakhan: ao sofrer dano ganha +1 de Ataque")
+	g._deal_damage(mountain.uid, 3, attacker)
+	g._check_state()
+	check(g.atk_of(mountain) == 2, "Morakhan: o bônus acumula a cada dano sofrido")
+	g.end_turn(g.active)
+	check(g.atk_of(mountain) == 2, "Morakhan: o bônus continua durante o turno do oponente")
+	g.end_turn(g.active)
+	check(g.atk_of(mountain) == 0, "Morakhan: o bônus some quando o próximo turno do controlador começa")
 
 func _test_devaneio_permanent() -> void:
 	var g := _glacial_game()

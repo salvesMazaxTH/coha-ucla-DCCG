@@ -1,0 +1,15 @@
+{
+  "name": "Placa Espelhada de Adamantina",
+  "type": "artifact",
+  "subtypes": ["equipment"],
+  "rarity": "common",
+  "essence": "metalica",
+  "cost": 3,
+  "effects": [
+    { "trigger": "on_play", "action": "buff", "target": "ally_unit", "atk": 1, "hp": 3, "keywords": ["reflexao"] }
+  ],
+  "text": "Equipar: a unidade ganha +1/+3 e Reflexão.",
+  "flavor": "",
+  "art": "metalica/placa_espelhada_de_adamantina.webp",
+  "tags": []
+}

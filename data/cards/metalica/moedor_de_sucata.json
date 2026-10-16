@@ -1,0 +1,14 @@
+{
+  "name": "Moedor de Sucata",
+  "type": "artifact",
+  "rarity": "common",
+  "essence": "metalica",
+  "cost": 3,
+  "effects": [
+    { "listen": "turn_started", "scope": "ally", "zones": ["relics"], "action": "mill", "who": "enemy", "target": "none", "amount": 1 }
+  ],
+  "text": "No início do seu turno: Moa 1 carta do deck do oponente.",
+  "flavor": "Ninguém sabe o que ele mói. Mas o barulho nunca para.",
+  "art": "metalica/moedor_de_sucata.webp",
+  "tags": []
+}

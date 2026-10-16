@@ -1,0 +1,18 @@
+{
+  "name": "Zeladorbot 3000",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["robo"],
+  "essence": "metalica",
+  "cost": 2,
+  "atk": 1,
+  "hp": 3,
+  "keywords": [],
+  "effects": [
+    { "trigger": "on_enter", "action": "mill", "who": "enemy", "target": "none", "amount": 2 }
+  ],
+  "text": "Ao Entrar: Moa 2 cartas do deck do oponente.",
+  "flavor": "Limpando o setor. Limpando o setor. Limpando o seu deck.",
+  "art": "metalica/zeladorbot_3000.webp",
+  "tags": []
+}

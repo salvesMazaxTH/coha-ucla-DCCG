@@ -1,0 +1,18 @@
+{
+  "name": "Fresadora Dona Cleide",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["robo"],
+  "essence": "metalica",
+  "cost": 4,
+  "atk": 3,
+  "hp": 5,
+  "keywords": ["armadura:1"],
+  "effects": [
+    { "trigger": "on_turn_end", "action": "mill", "who": "enemy", "target": "none", "amount": 1 }
+  ],
+  "text": "Armadura 1.\nNo fim do seu turno: Moa 1 carta do deck do oponente.",
+  "flavor": "Dona Cleide não para. Dona Cleide nunca para. Pergunte ao último técnico.",
+  "art": "metalica/fresadora_dona_cleide.webp",
+  "tags": []
+}

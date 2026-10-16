@@ -1,0 +1,14 @@
+{
+  "name": "Golpe de Marreta",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "metalica",
+  "cost": 2,
+  "speed": "lento",
+  "effects": [
+    { "trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 3 }
+  ],
+  "text": "Cause 3 de dano a uma unidade inimiga.",
+  "flavor": "",
+  "tags": []
+}

@@ -1,0 +1,18 @@
+{
+  "name": "Prensa Hidráulica",
+  "type": "artifact",
+  "rarity": "epic",
+  "essence": "metalica",
+  "cost": 4,
+  "effects": [],
+  "activated": {
+    "cost": 2,
+    "speed": "lento",
+    "once_per_turn": true,
+    "effects": [{ "action": "mill", "who": "enemy", "target": "none", "amount": 3 }]
+  },
+  "text": "No seu turno, pague 2 (1x por turno): Moa 3 cartas do deck do oponente.",
+  "flavor": "Pressão suficiente para amassar um dia ruim.",
+  "art": "metalica/prensa_hidraulica.webp",
+  "tags": []
+}

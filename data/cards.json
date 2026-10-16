@@ -402,6 +402,28 @@
         "text": "Rápida. 2 Momentum, uma vez por turno: uma unidade aliada ganha +2 de Ataque neste turno."
       },
       "essences": ["neutra"]
+    },
+    "morakhan": {
+      "name": "Morakhan",
+      "hp": 35,
+      "art": "metalica/morakhan_lider.webp",
+      "legendary": "morakhan",
+      "ability": {
+        "name": "Postura da Montanha",
+        "cost": 2,
+        "once_per_turn": true,
+        "speed": "instantaneo",
+        "effects": [
+          {
+            "action": "buff",
+            "target": "ally_unit",
+            "keywords": ["reflexao"],
+            "temp": true
+          }
+        ],
+        "text": "Instantânea. 2 Momentum, uma vez por turno: uma unidade aliada ganha Reflexão neste turno."
+      },
+      "essences": ["metalica"]
     }
   },
   "cards": {}

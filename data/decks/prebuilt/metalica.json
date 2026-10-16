@@ -1,0 +1,26 @@
+{
+  "name": "Montanha de Ferro de Morakhan",
+  "description": "Artefatos e trituração. Moa o deck do oponente até a Fadiga fazer o resto, enquanto Provocação, Armadura e Reflexão seguram a linha.",
+  "order": 12,
+  "leader": "morakhan",
+  "cards": {
+    "engrenagem_solta": 3,
+    "zeladorbot_3000": 3,
+    "biblioteca_de_pecas": 3,
+    "golpe_de_marreta": 3,
+    "drone_entregador_atrasado": 3,
+    "tyren": 3,
+    "trituracao_em_massa": 3,
+    "moedor_de_sucata": 3,
+    "placa_espelhada_de_adamantina": 3,
+    "berengar_voss": 2,
+    "fresadora_dona_cleide": 3,
+    "rakhana": 3,
+    "fundicao_de_emergencia": 3,
+    "prensa_hidraulica": 3,
+    "morakhan": 1,
+    "brontharax": 1,
+    "vorn_omega": 1,
+    "karuun": 1
+  }
+}

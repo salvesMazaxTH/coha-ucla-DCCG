@@ -1,0 +1,19 @@
+{
+  "name": "Morakhan",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["forjado_divino", "transfigurado"],
+  "essence": "metalica",
+  "cost": 6,
+  "atk": 0,
+  "hp": 13,
+  "keywords": ["provocacao", "reflexao", "armadura:1"],
+  "art": "metalica/morakhan.webp",
+  "effects": [
+    { "trigger": "on_damaged", "action": "buff", "target": "self", "atk_temp": 1 },
+    { "trigger": "on_damaged", "action": "mill", "who": "enemy", "target": "none", "amount": 1 }
+  ],
+  "text": "Provocação, Reflexão, Armadura 1.\nAo Sofrer Dano: ganha +1 de Ataque até o início do próximo turno do controlador e moa 1 carta do deck do oponente.",
+  "flavor": "Ele não revida. Ele espera você se cansar de bater.",
+  "tags": []
+}

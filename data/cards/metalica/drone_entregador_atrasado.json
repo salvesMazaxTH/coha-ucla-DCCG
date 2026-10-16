@@ -1,0 +1,18 @@
+{
+  "name": "Drone Entregador Atrasado",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["robo"],
+  "essence": "metalica",
+  "cost": 3,
+  "atk": 2,
+  "hp": 3,
+  "keywords": ["voo"],
+  "effects": [
+    { "trigger": "on_enter", "action": "draw", "target": "own_leader", "amount": 1 }
+  ],
+  "text": "Voo.\nAo Entrar: compre 1 carta.",
+  "flavor": "Sua encomenda chegou. Faz três semanas.",
+  "art": "metalica/drone_entregador_atrasado.webp",
+  "tags": []
+}
