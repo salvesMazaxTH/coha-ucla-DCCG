@@ -2868,7 +2868,7 @@ func _render_search_reveal() -> void:
 	if deck_search and _my_input():
 		sub = "Você procurou no deck e encontrou estas cartas"
 		if g.pending_search.has("to_bottom"):
-			sub = "Você olhou as %d cartas do topo do deck e encontrou estas" % int(g.pending_search["looked"])
+			sub = "Você olhou as %d cartas do topo do deck; as que brilham podem ser escolhidas" % int(g.pending_search["looked"])
 	if secret_search and g.pending_search.has("to_bottom"):
 		sub = "%s está olhando as %d cartas do topo do deck" % [_pname(owner), int(g.pending_search["looked"])]
 	if hand_summon:
@@ -2880,22 +2880,35 @@ func _render_search_reveal() -> void:
 	box.add_child(_label(sub, 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
 	var grid := GridContainer.new()
 	var shown_options: Array = [] if secret_search else g.pending_search["cards"]
+	# a top-N look shows every card looked at: the eligible ones glow and can be picked, the others are dimmed
+	var looked_cards: Array = g.pending_search.get("looked_cards", [])
+	var eligible_uids: Dictionary = {}
+	for option in shown_options:
+		eligible_uids[int(option["uid"])] = true
+	if not secret_search and not looked_cards.is_empty():
+		shown_options = looked_cards
 	grid.columns = maxi(1, mini(7, shown_options.size()))
 	grid.add_theme_constant_override("h_separation", 12)
 	grid.add_theme_constant_override("v_separation", 10)
 	box.add_child(grid)
 	for option in shown_options:
 		var card_uid: int = option["uid"]
+		var eligible: bool = eligible_uids.has(card_uid)
 		var cv := CardView.new().setup(option["card_id"], {"uid": card_uid}, 1.05)
 		cv.face_down = hidden or String(option["card_id"]) == ""
 		if not cv.face_down:
 			cv.text_suffix = _scale_suffix(owner, CardDB.card(option["card_id"]))
 			cv.snowball_level = int(g.players[owner]["snowball"])
-		cv.mouse_filter = Control.MOUSE_FILTER_STOP if _my_input() else Control.MOUSE_FILTER_IGNORE
-		if _my_input():
+		if eligible and not looked_cards.is_empty():
+			cv.highlight = OK
+		elif not eligible:
+			cv.modulate = Color(1, 1, 1, 0.4)
+		var can_pick: bool = eligible and _my_input()
+		cv.mouse_filter = Control.MOUSE_FILTER_STOP if can_pick else Control.MOUSE_FILTER_IGNORE
+		if can_pick:
 			cv.left_clicked.connect(func(_v): _on_search_choice(card_uid))
 		grid.add_child(cv)
-	var hint := "Clique em um campeão para colocá-lo em campo sem pagar o custo." if hand_summon else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else "Escolha 1 para a mão; as outras vão para o fundo do deck." if look else "Clique em uma carta para adicioná-la à sua mão; as outras cartas olhadas vão para o fundo do deck." if g.pending_search.has("to_bottom") else "Clique em uma carta para adicioná-la à sua mão e embaralhar o deck."
+	var hint := "Clique em um campeão para colocá-lo em campo sem pagar o custo." if hand_summon else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else "Escolha 1 para a mão; as outras vão para o fundo do deck." if look else "Clique em uma carta que brilha para adicioná-la à sua mão; as outras cartas olhadas vão para o fundo do deck." if g.pending_search.has("to_bottom") else "Clique em uma carta para adicioná-la à sua mão e embaralhar o deck."
 	var footer := _label(hint if _my_input() else "A escolha pertence ao oponente.", 16, SEL if _my_input() else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 	box.add_child(footer)
 	_center.call_deferred(search_overlay)

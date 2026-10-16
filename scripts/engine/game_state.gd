@@ -342,7 +342,7 @@ func is_frozen(c: Card) -> bool:
 func can_attack(c: Card) -> bool:
 	# a tapped unit may attack again only while it still has attacks left (Ataque Duplo)
 	var has_attack_left := not c.exhausted or (c.attacks_made > 0 and c.attacks_made < attacks_allowed(c))
-	return has_attack_left and not c.is_frozen() and (not c.sick or has_kw(c, "impeto") or has_kw(c, "rompante")) and atk_of(c) > 0
+	return has_attack_left and not c.is_frozen() and (not c.sick or has_kw(c, "impeto") or has_kw(c, "rompante"))
 
 ## Attacks per turn: 2 with Ataque Duplo, which a card can also earn by reaching Crítico 4
 ## ("critico_maximo": {"ataque_duplo": true}, Vael); otherwise 1.
@@ -1452,9 +1452,11 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 					break
 			if not has_any_tag:
 				continue
-		if seen.has(c.card_id):
-			continue
-		seen[c.card_id] = true
+		# a whole-deck search lists each card once; a top-N look shows every copy, because each one is really there
+		if not top_only:
+			if seen.has(c.card_id):
+				continue
+			seen[c.card_id] = true
 		matches.append({"uid": c.uid, "card_id": c.card_id})
 	if matches.is_empty():
 		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})

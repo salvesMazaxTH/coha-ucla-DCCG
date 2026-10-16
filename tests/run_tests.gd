@@ -3341,6 +3341,14 @@ func _test_glacial_combo() -> void:
 	offered.sort()
 	wanted.sort()
 	check(offered == wanted, "Chamado da Nevasca: oferece só feitiços Glaciais de custo 4 ou menos entre as 5 do topo (%s)" % [offered])
+	# the overlay must show every card looked at (topmost first), with the eligible ones a subset of them
+	var looked_cards: Array = search_game.pending_search["looked_cards"]
+	var looked_card_uids: Array = looked_cards.map(func(option: Dictionary): return int(option["uid"]))
+	check(looked_cards.size() == 5, "Chamado da Nevasca: mostra as 5 cartas olhadas, não só as elegíveis (%d)" % looked_cards.size())
+	check(offered.all(func(uid): return looked_card_uids.has(uid)), "Chamado da Nevasca: as elegíveis são um subconjunto das olhadas")
+	check(search_game.players[searcher]["deck"][search_game.players[searcher]["deck"].size() - 1].uid == looked_card_uids[0], "Chamado da Nevasca: a primeira olhada é a carta do topo do deck")
+	var opponent_view: Dictionary = StateView.snapshot(search_game, 1 - searcher)["pending_search"]
+	check(opponent_view["looked_cards"].is_empty(), "Chamado da Nevasca: o oponente não vê as cartas olhadas")
 	# taking one sends the other four looked-at cards to the bottom (no shuffle); the 2 deeper cards stay on top of them
 	var taken_uid: int = int(search_game.pending_search["cards"][0]["uid"])
 	var looked_uids: Array = search_game.pending_search["to_bottom"].duplicate()

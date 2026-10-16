@@ -44,6 +44,7 @@ static func snapshot(g: GameState, seat: int) -> Dictionary:
 		search["cards"] = _mask(search["cards"]) # a look at the deck top, or a pick from a hand, is private
 	elif search.get("deck_search", false) and int(search["player"]) != seat:
 		search["cards"] = [] # the options of a deck search are private: the opponent doesn't even learn how many there were
+		search["looked_cards"] = []
 	return {
 		"players": players,
 		"active": g.active,
