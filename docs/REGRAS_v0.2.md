@@ -10,7 +10,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 
 - O deck tem **44 cartas**, com até **3 cópias** de cada uma, mais a **Encarnação** (que fica no Santuário). O Líder fica fora dessa contagem.
 - **Única:** cartas com `"max_copies": 1` (ex.: Rusco) só podem ter 1 cópia no deck.
-- As **essências** do Líder (ígnea, aquática, glacial, vegetal, rochosa, metálica, elétrica, obscura, sagrada) definem as cartas permitidas no deck. Cartas **neutras** entram em qualquer deck.
+- As **essências** do Líder (ígnea, aquática, glacial, vegetal, rochosa, metálica, elétrica, obscura, sagrada, venenosa) definem as cartas permitidas no deck. Cartas **neutras** entram em qualquer deck.
 - Uma carta pode ter **mais de uma essência** (ex.: Sabrina é aquática e glacial, com moldura meio a meio). Ela é permitida se tiver **pelo menos uma** das essências do Líder.
 - **Fora da essência:** o deck pode ter até **12 cartas** (contando cópias) de essências que o Líder não tem, de qualquer raridade, com o limite normal de 3 cópias. Cartas neutras não entram nessa conta, e **Campeões** nunca podem ser de fora da essência.
 - O deck tem exatamente **1 Encarnação do Líder**, o Campeão que é a versão em carta do próprio Líder.

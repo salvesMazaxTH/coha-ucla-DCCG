@@ -36,6 +36,10 @@
       "name": "Sagrada",
       "color": "#f6e7b0"
     },
+    "venenosa": {
+      "name": "Venenosa",
+      "color": "#8a3fb8"
+    },
     "neutra": {
       "name": "Neutra",
       "color": "#8a8985"

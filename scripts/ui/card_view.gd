@@ -29,8 +29,7 @@ const STYLES := {
 	"neutra": {"top": "#7b7a78", "bot": "#1f1f20", "trim": "#b49b72", "glow": "#dcd8d0"}, ## colourless dark grey with a bronze trim
 	# Reserved for a future Vento essence (keep this hue free): periwinkle lilac, the only violet frame
 	# "vento": {"top": "#c4bdf2", "bot": "#37336a", "trim": "#f2f0ff", "glow": "#cfc8ff"},
-	# Reserved for a future Veneno essence: deep saturated purple with an acid-lime trim (Vento stays the pale lilac)
-	# "veneno": {"top": "#8a3fb8", "bot": "#240a38", "trim": "#c8e86a", "glow": "#b6ff4a"},
+	"venenosa": {"top": "#8a3fb8", "bot": "#240a38", "trim": "#c8e86a", "glow": "#b6ff4a"}, ## deep saturated purple with an acid-lime trim (a future Vento stays the pale lilac)
 	"legendary": {"top": "#f8c565", "bot": "#74400c", "trim": "#ffe8b0", "glow": "#ffb23a"}, ## amber gold leaning toward the orange rarity gem, but only slightly: it must not read as Ígnea to new players
 	"back": {"top": "#2e2658", "bot": "#100c22", "trim": "#c9a24e", "glow": "#9d86ff"},
 }
@@ -1159,6 +1158,8 @@ func _essence_badge(c: Vector2, r: float, cd: Dictionary, s: float) -> void:
 			PackedVector2Array([c + Vector2(0.7, -2) * r, c + Vector2(2, -2) * r, c + Vector2(2, 2) * r, c + Vector2(-0.7, 2) * r])]
 	for k in ess.size():
 		var kind: String = ess[k]
+		"venenosa": # poison drop
+			n = [[0, -1], [0.3, -0.45], [0.62, 0.05], [0.7, 0.4], [0.5, 0.8], [0.2, 0.98], [-0.2, 0.98], [-0.5, 0.8], [-0.7, 0.4], [-0.62, 0.05], [-0.3, -0.45]]
 		var col := Color("#232328") if kind == "obscura" else Color(CardDB.essence(kind)["color"])
 		_fill_clipped(disc, halves[k], col.darkened(0.35))
 		_fill_clipped(_grow(disc, c - Vector2(0, r * 0.1), 0.86), halves[k], col)

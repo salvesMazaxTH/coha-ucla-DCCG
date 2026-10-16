@@ -2964,6 +2964,56 @@ func _draw_from_deck(v: CardView, to: Dictionary, t0: float) -> void:
 		v.face_down = false
 		v.queue_redraw())
 
+## Timing of a milled card: it pops out of the deck face up, stays readable for a blink, then drops
+## into the graveyard icon. Short on purpose: both graveyards can be opened at any time.
+const MILL_RISE_TIME := 0.2
+const MILL_HOLD_TIME := 0.2
+const MILL_DROP_TIME := 0.24
+const MILL_CARD_W := 140.0 ## on-screen width while the card is shown
+const MILL_STAGGER := 0.1 ## delay between one milled card and the next (shrinks when many are milled)
+const MILL_MAX_STAGGER_TOTAL := 0.4 ## the whole row of starts never takes longer than this
+
+## The cards `card_ids` leave the top of `deck_owner`'s deck one after another and land in their
+## graveyard. Starts at moment t; returns how long the animation queue should wait (the cards keep
+## flying on their own after that, they overlap with whatever plays next).
+func _mill_fx(deck_owner: int, card_ids: Array, t: float) -> float:
+	var leader_view = views.get(GameState.LEADER_UID[deck_owner])
+	if not (leader_view is LeaderView) or card_ids.is_empty():
+		return 0.0
+	var deck_pose := {"c": leader_view.position + LeaderView.deck_top_center(leader_view.deck), "rot": 0.0, "w": LeaderView.deck_card_width()}
+	var grave_pose := {"c": leader_view.position + LeaderView.GRAVE_CENTER, "rot": 0.0, "w": LeaderView.deck_card_width() * 0.6}
+	# the card is shown a bit toward the middle of the table, so the Leader's own frame doesn't hide it
+	var middle_y := (_screen_top() + _screen_bottom()) / 2.0
+	var shown_pose := {"c": deck_pose["c"] + Vector2(0, 170.0 * signf(middle_y - deck_pose["c"].y)), "rot": 0.0, "w": MILL_CARD_W}
+	var stagger := minf(MILL_STAGGER, MILL_MAX_STAGGER_TOTAL / card_ids.size())
+	var total_time := MILL_RISE_TIME + MILL_HOLD_TIME + MILL_DROP_TIME
+	for i in card_ids.size():
+		var ghost := _ghost(card_ids[i], {}, deck_pose, MILL_CARD_W / CardView.BASE.x) # built at its biggest size: only shrinks, never blurs
+		ghost.z_index = 30
+		ghost.visible = false
+		var flight := ghost.create_tween()
+		flight.tween_interval(t + i * stagger)
+		flight.tween_callback(func(): ghost.visible = true)
+		flight.tween_method(func(seconds: float):
+			var pose: Dictionary
+			if seconds < MILL_RISE_TIME:
+				pose = _blend_pose(deck_pose, shown_pose, seconds / MILL_RISE_TIME)
+			elif seconds < MILL_RISE_TIME + MILL_HOLD_TIME:
+				pose = shown_pose
+			else:
+				var drop_progress := (seconds - MILL_RISE_TIME - MILL_HOLD_TIME) / MILL_DROP_TIME
+				pose = _blend_pose(shown_pose, grave_pose, drop_progress)
+				ghost.modulate.a = 1.0 - drop_progress * drop_progress
+			_apply_pose(ghost, pose),
+			0.0, total_time, total_time)
+		flight.tween_callback(ghost.queue_free)
+	return (card_ids.size() - 1) * stagger + 0.1
+
+## A pose between two poses, eased (0 = `from`, 1 = `to`).
+func _blend_pose(from: Dictionary, to: Dictionary, progress: float) -> Dictionary:
+	var eased := ease(clampf(progress, 0.0, 1.0), -2.0) if progress < 1.0 else 1.0
+	return {"c": from["c"].lerp(to["c"], eased), "rot": lerp_angle(from["rot"], to["rot"], eased), "w": lerpf(from["w"], to["w"], eased)}
+
 func _ghost(card_id: String, inst: Dictionary, pose: Dictionary, size_scale := 1.15) -> CardView:
 	var v := CardView.new().setup(card_id, inst, size_scale)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -3784,6 +3834,8 @@ func _animate(events: Array, old: Dictionary) -> float:
 				in_combat = false
 			"lethal_ward":
 				# Câmara de Êxtase: the blow lands on the Leader, the Chamber answers and fades away
+			"mill":
+				cursor += _mill_fx(int(e["player"]), e["cards"], cursor)
 				var ward_leader: Control = actors.get(GameState.LEADER_UID[e["player"]])
 				var ward_src: int = e.get("src", 0)
 				var ward_t := cursor + 0.12

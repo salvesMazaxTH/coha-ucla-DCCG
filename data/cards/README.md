@@ -1,7 +1,7 @@
 # Cartas
 
 Cada carta fica em um arquivo JSON próprio, usando o ID do jogo como nome do arquivo, dentro da pasta da sua **essência**:
-`ignea/`, `aquatica/`, `glacial/`, `vegetal/`, `rochosa/`, `metalica/`, `eletrica/`, `obscura/`, `sagrada/` e `neutra/`.
+`ignea/`, `aquatica/`, `glacial/`, `vegetal/`, `rochosa/`, `metalica/`, `eletrica/`, `obscura/`, `sagrada/`, `venenosa/` e `neutra/`.
 O campo `essence` da carta deve bater com a pasta. Pastas de essências sem cartas ainda não precisam existir.
 
 Exemplos:
