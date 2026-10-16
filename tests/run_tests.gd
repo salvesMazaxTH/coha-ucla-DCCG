@@ -725,7 +725,7 @@ func _test_freeze() -> void:
 	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, tapped.uid)
 	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, standing.uid)
 	check(g.is_frozen(tapped) and g.is_frozen(standing), "congelar marca a unidade")
-	check(g.atk_of(tapped) == 3 and tapped.rapidez_total() == 1, "congelada: ATK segue o mesmo, Rapidez é suprimida")
+	check(g.atk_of(tapped) == 3 and tapped.rapidez_total() == 0, "congelada: ATK segue o mesmo, Rapidez é suprimida (vira 0)")
 	check(not standing.exhausted, "congelar não exaure: a unidade em pé continua em pé")
 	_quiet(g)
 	g.end_turn(0)
@@ -857,13 +857,13 @@ func _test_combat() -> void:
 	# only a tapped (exhausted) enemy can be challenged; the faster unit strikes first
 	var g := _new_game()
 	_quiet(g)
-	var a := _put(g, 0, "kai") # 2/2, Rapidez 2
-	var b := _put(g, 1, "tritao_lanceiro") # 2/2, Rapidez 1, Ao Ser Desafiada: 1 de dano ao atacante
+	var a := _put(g, 0, "kai") # 2/2, Rapidez 1
+	var b := _put(g, 1, "tritao_lanceiro") # 2/2, sem Rapidez, Ao Ser Desafiada: 1 de dano ao atacante
 	check(g.attack_targets(a) == [GameState.LEADER_UID[1]], "unidade pronta não pode ser desafiada: só o Líder é alvo")
 	b.exhausted = true
 	check(g.attack_targets(a) == [b.uid], "unidade exaurida pode ser desafiada (e fecha o Líder)")
 	_hit(g, a, b.uid)
-	check(g.find_unit(b.uid) == null, "Rapidez 2 mata o desafiado antes dele revidar")
+	check(g.find_unit(b.uid) == null, "Rapidez 1 mata o desafiado (sem Rapidez) antes dele revidar")
 	check(not g.find_unit(a.uid) == null and a.damage == 1 and a.exhausted, "o atacante exaure e só leva o 1 do Tritão")
 
 	# equal Rapidez: both strike at the same time; hitting the Leader takes nothing back
@@ -1881,13 +1881,13 @@ func _test_critico_data() -> void:
 	check(not parsed.has("critico"), "carta sem Crítico não tem o campo")
 
 func _test_strike_order() -> void:
-	check(_strike_result(1, 1) == "--", "rapidez igual: os dois morrem")
-	check(_strike_result(2, 1) == "A-", "atacante mais rápido mata antes")
-	check(_strike_result(1, 2) == "-B", "desafiado mais rápido mata antes")
-	check(_strike_result(4, 3) == "A-", "rapidez 4 bate antes da 3")
-	check(_strike_result(3, 3) == "--", "rapidez 3 contra 3: simultâneo")
-	check(_strike_result(1, 4, true) == "--", "congelada: sem Rapidez (suprimida), bate junto com um atacante sem Rapidez")
-	check(_strike_result(2, 4, true) == "A-", "congelada: com a Rapidez suprimida, o atacante com Rapidez bate primeiro")
+	check(_strike_result(0, 0) == "--", "rapidez igual: os dois morrem")
+	check(_strike_result(1, 0) == "A-", "atacante mais rápido mata antes")
+	check(_strike_result(0, 1) == "-B", "desafiado mais rápido mata antes")
+	check(_strike_result(3, 2) == "A-", "Rapidez 3 bate antes da 2")
+	check(_strike_result(2, 2) == "--", "Rapidez 2 contra 2: simultâneo")
+	check(_strike_result(0, 3, true) == "--", "congelada: sem Rapidez (suprimida), bate junto com um atacante sem Rapidez")
+	check(_strike_result(1, 3, true) == "A-", "congelada: com a Rapidez suprimida, o atacante com Rapidez bate primeiro")
 
 ## Triggers that resolve before the strikes can change the fight.
 func _test_challenge_triggers() -> void:
@@ -2266,7 +2266,7 @@ func _test_eletrica() -> void:
 	# Voltexz / Fulgurvoltz: cost drops with Momentum left unspent, with a floor
 	var vx: Dictionary = CardDB.card("voltexz")
 	var fg: Dictionary = CardDB.card("fulgurvoltz")
-	check(g.cost_of(a, vx) == 15 and g.cost_of(a, fg) == 14, "eletrica: custos base 15 e 14")
+	check(g.cost_of(a, vx) == 14 and g.cost_of(a, fg) == 14, "eletrica: custos base 14 e 14")
 	# only what leaks past the Reserva (2) at the start of the owner's next turn counts
 	g.players[a]["momentum"] = 3
 	g.players[a]["reserve"] = 1
@@ -2275,7 +2275,7 @@ func _test_eletrica() -> void:
 	g.end_turn(o)
 	check(g.players[a]["saved_momentum"] == 2 and g.players[a]["idle_turns"] == 1, "eletrica: conta só o que vazou da Reserva (1+3-2)")
 	check(g.players[o]["saved_momentum"] == 0 and g.players[o]["idle_turns"] == 0, "eletrica: o que cabe na Reserva não conta")
-	check(g.cost_of(a, vx) == 13 and g.cost_of(a, fg) == 11, "eletrica: custo cai com o que vazou")
+	check(g.cost_of(a, vx) == 12 and g.cost_of(a, fg) == 11, "eletrica: custo cai com o que vazou")
 	# spending on the opponent's turn reduces the savings (counted at the owner's next start)
 	g = _eletrica_game()
 	a = g.active
@@ -2356,16 +2356,16 @@ func _test_eletrica() -> void:
 	var l: Dictionary = g.players[a]["legendary"]
 	l["casts"] = 1
 	g.players[a]["saved_momentum"] = 0
-	check(g.legendary_cost(a) == 16, "voltexz: sem redução, 2a conjuração custa 16")
+	check(g.legendary_cost(a) == 15, "voltexz: sem redução, 2a conjuração custa 15")
 	g.players[a]["saved_momentum"] = 8
-	check(g.legendary_cost(a) == 8, "voltexz: custo atual 7 + taxa 1 = 8")
+	check(g.legendary_cost(a) == 7, "voltexz: custo atual 6 + taxa 1 = 7")
 	l["in_zone"] = false
 	g._legendary_leaves(a)
-	check(l["in_zone"] and not l.get("retired", false), "voltexz: volta ao Santuário com custo atual 8")
-	g.players[a]["saved_momentum"] = 5
+	check(l["in_zone"] and not l.get("retired", false), "voltexz: volta ao Santuário com custo atual 7")
+	g.players[a]["saved_momentum"] = 4
 	l["in_zone"] = false
 	g._legendary_leaves(a)
-	check(l.get("retired", false), "voltexz: custo atual 10 + taxa 1 = 11 (Momentum vazado 5) aposenta")
+	check(l.get("retired", false), "voltexz: custo atual 10 + taxa 1 = 11 (Momentum vazado 4) aposenta")
 	# gain_momentum: now and at the next turn
 	g = _eletrica_game()
 	a = g.active
@@ -2394,8 +2394,8 @@ func _test_eletrica() -> void:
 	var ally := _put(g, a, "jack")
 	g.players[a]["momentum"] = 9
 	var vs := _put(g, a, "voltexz")
-	check(atk_ok(g, ally, 3 + 5, 5 + 5) and ally.rapidez_total() == 2, "voltexz: aliados +5/+5 e Rapidez 2")
-	check(g.atk_of(vs) == 8 and vs.rapidez_total() == 4, "voltexz: não bufa a si própria (ATK base 8, Rapidez 4 nativa)")
+	check(atk_ok(g, ally, 3 + 5, 5 + 5) and ally.rapidez_total() == 1, "voltexz: aliados +5/+5 e Rapidez 1")
+	check(g.atk_of(vs) == 8 and vs.rapidez_total() == 3, "voltexz: não bufa a si própria (ATK base 8, Rapidez 3 nativa)")
 	g = _eletrica_game()
 	a = g.active
 	ally = _put(g, a, "jack")
@@ -2446,7 +2446,7 @@ func _test_eletrica() -> void:
 	g._combat_damage = false
 	g.turn += 1
 	g._combat_damage = true
-	var strong := _put(g, a, "voltexz") # Rapidez 4, same as Thorwells
+	var strong := _put(g, a, "voltexz") # Rapidez 3, same as Thorwells
 	g._deal_damage(th.uid, 1, strong)
 	check(th.damage == 3, "esquiva: Rapidez igual ou maior não é evitada")
 	g.turn += 1
@@ -2456,16 +2456,16 @@ func _test_eletrica() -> void:
 	g.turn += 1
 	g._deal_damage(th.uid, 1, weak)
 	check(th.damage == 4, "esquiva: dano fora de combate não é evitado")
-	# Esquiva with an override: Espírito Carregado dodges anything with Rapidez 1 or less
+	# Esquiva with an override: Espírito Carregado dodges anything with Rapidez 0 (no Rapidez)
 	var sp := _put(g, o, "espirito_carregado")
 	var slow := _put(g, a, "jack")
-	var fast := _put(g, a, "layla") # Rapidez 2
+	var fast := _put(g, a, "layla") # Rapidez 1
 	g.turn += 1
 	g._combat_damage = true
 	g._deal_damage(sp.uid, 1, fast)
-	check(sp.damage == 1, "esquiva (override): Rapidez 2 acerta")
+	check(sp.damage == 1, "esquiva (override): Rapidez 1 acerta")
 	g._deal_damage(sp.uid, 1, slow)
-	check(sp.damage == 1, "esquiva (override): Rapidez 1 é evitada, mesmo com ATK maior")
+	check(sp.damage == 1, "esquiva (override): sem Rapidez é evitada, mesmo com ATK maior")
 	g._combat_damage = false
 	# Sobrecarga: Reserva cheia no início do turno dá +1 Momentum (só ao dono)
 	g = _eletrica_game()

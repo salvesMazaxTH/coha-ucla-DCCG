@@ -22,8 +22,7 @@ var hp := 0
 var damage := 0
 var temp_atk := 0
 var temp_hp := 0 ## extra Vida that lasts until the end of the turn; it soaks damage first, so nothing dies from it expiring
-const NO_RAPIDEZ_TIER := 1 ## the engine speed tier of a unit without the Rapidez keyword
-var rapidez := NO_RAPIDEZ_TIER ## Rapidez 1-4 (the card shows it as the keyword Rapidez 1-3: tier 1 is the default and goes unmentioned): in a challenge, the faster unit deals its damage first (equal = at the same time)
+var rapidez := 0 ## Rapidez 0-3, as written on the card (0 = no Rapidez keyword): in a challenge, the faster unit deals its damage first (equal = at the same time)
 var keywords: Array = []
 var temp_keywords: Array = []
 var shield := false
@@ -74,7 +73,7 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	damage = 0
 	temp_atk = 0
 	temp_hp = 0
-	rapidez = int(cd.get("rapidez", 1))
+	rapidez = int(cd.get("rapidez", 0))
 	armor = int(cd.get("armor", 0))
 	temp_armor = 0
 	critico = int(cd.get("critico", 0))
@@ -113,12 +112,11 @@ func armor_total() -> int:
 func atk_total() -> int:
 	return maxi(0, atk + temp_atk + bonus_atk)
 
-## Rapidez right now, as an engine speed tier: 1 = no Rapidez keyword (the card shows "Rapidez 1-3" for tiers 2-4).
-## A Congelada unit has its Rapidez keyword suppressed, so it counts as having none until it thaws.
+## Rapidez right now (0-3). A Congelada unit has its Rapidez suppressed, so it counts as Rapidez 0 until it thaws.
 func rapidez_total() -> int:
 	if is_frozen():
-		return NO_RAPIDEZ_TIER
-	return clampi(rapidez, 1, 4)
+		return 0
+	return clampi(rapidez, 0, 3)
 
 ## Crítico level right now (0 = none, 4 = every blow is critical).
 func critico_total() -> int:
@@ -156,7 +154,7 @@ func to_dict() -> Dictionary:
 		d["temp_armor"] = temp_armor
 	if temp_hp > 0:
 		d["temp_hp"] = temp_hp
-	if rapidez != 1:
+	if rapidez != 0:
 		d["rapidez"] = rapidez
 	if critico > 0:
 		d["critico"] = critico
@@ -201,7 +199,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.armor = int(d.get("armor", 0))
 	c.temp_armor = int(d.get("temp_armor", 0))
 	c.temp_hp = int(d.get("temp_hp", 0))
-	c.rapidez = int(d.get("rapidez", 1))
+	c.rapidez = int(d.get("rapidez", 0))
 	c.critico = int(d.get("critico", 0))
 	c.temp_critico = int(d.get("temp_critico", 0))
 	c.attacks_made = int(d.get("attacks_made", 0))

@@ -767,11 +767,6 @@ static func armor_of_view(cd: Dictionary, instance: Dictionary) -> int:
 		return int(instance.get("armor", 0)) + int(instance.get("temp_armor", 0))
 	return int(cd.get("armor", 0))
 
-## The number after the keyword "Rapidez": engine speed tier 2 reads "Rapidez 1", 3 "Rapidez 2",
-## 4 "Rapidez 3". Tier 1 is the default and has no keyword, so this gives 0.
-static func rapidez_keyword_level(rapidez_tier: int) -> int:
-	return maxi(0, rapidez_tier - 1)
-
 ## The number after the keyword "Crítico" (1-4): the live level on the board (it can grow in play, and
 ## effects add temporary levels until end of turn), the printed one everywhere else. 0 = no Crítico, so no tag.
 static func critico_of_view(cd: Dictionary, instance: Dictionary) -> int:
@@ -948,9 +943,9 @@ func _panel_lines(cd: Dictionary) -> Array:
 	var armor_value := armor_of_view(cd, inst)
 	if armor_value > 0:
 		tags.append(["%s %d" % [CardDB.keyword("armadura")["name"], armor_value], Color("#c9d6e6")])
-	# Rapidez keyword: the engine's speed tier 1 (the default) goes unmentioned and tiers 2-4 read as
-	# "Rapidez 1-3" (a frozen unit has its Rapidez suppressed, so the tag is hidden until it thaws)
-	var rapidez_level := rapidez_keyword_level(int(inst.get("rapidez", cd.get("rapidez", 1))))
+	# Rapidez keyword: Rapidez 0 goes unmentioned and 1-3 read as "Rapidez 1-3"
+	# (a frozen unit has its Rapidez suppressed, so the tag is hidden until it thaws)
+	var rapidez_level := int(inst.get("rapidez", cd.get("rapidez", 0)))
 	if rapidez_level > 0 and not inst.has("frozen"):
 		tags.append(["%s %d" % [CardDB.keyword("rapidez")["name"], rapidez_level], Color("#ffd27a")])
 	# Crítico X: the level reads on the tag ("Crítico 2"); the glossary in the overlay gives the chance

@@ -20,7 +20,7 @@ static func data() -> Dictionary:
 ## A keyword with a value is written "armadura:1" or "rapidez:2" in "keywords". The value becomes
 ## the card's internal stat (the keyword tag itself is drawn from it), so the entry leaves the list:
 ## - "armadura:N" -> "armor" N
-## - "rapidez:N" (Rapidez 1-3, as printed on the card) -> "rapidez" tier N + 1 (tier 1 = no Rapidez)
+## - "rapidez:N" (Rapidez 1-3) -> "rapidez" N (a card without the keyword has Rapidez 0)
 ## - "critico:N" (Crítico 1-4) -> "critico" N
 static func _apply_valued_keywords(cd: Dictionary) -> void:
 	var plain_keywords: Array = []
@@ -28,7 +28,7 @@ static func _apply_valued_keywords(cd: Dictionary) -> void:
 		if String(keyword).begins_with("armadura:"):
 			cd["armor"] = int(String(keyword).trim_prefix("armadura:"))
 		elif String(keyword).begins_with("rapidez:"):
-			cd["rapidez"] = int(String(keyword).trim_prefix("rapidez:")) + 1
+			cd["rapidez"] = int(String(keyword).trim_prefix("rapidez:"))
 		elif String(keyword).begins_with("critico:"):
 			cd["critico"] = int(String(keyword).trim_prefix("critico:"))
 		else:
@@ -105,7 +105,7 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 	for s in cd.get("species", []):
 		if not _data.get("species", {}).has(s):
 			err.call("espécie desconhecida \"%s\"" % s)
-	if cd.has("rapidez") and int(cd["rapidez"]) not in [2, 3, 4]:
+	if cd.has("rapidez") and int(cd["rapidez"]) not in [1, 2, 3]:
 		err.call("rapidez precisa ser \"rapidez:1\" a \"rapidez:3\" em keywords")
 	if cd.has("critico") and int(cd["critico"]) not in [1, 2, 3, 4]:
 		err.call("crítico precisa ser \"critico:1\" a \"critico:4\" em keywords")

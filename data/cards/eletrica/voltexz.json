@@ -7,7 +7,7 @@
     "elemental"
   ],
   "essence": "eletrica",
-  "cost": 15,
+  "cost": 14,
   "atk": 8,
   "hp": 6,
   "keywords": [
@@ -31,7 +31,7 @@
       "max": 5,
       "atk": 1,
       "hp": 1,
-      "rapidez_min": 2
+      "rapidez_min": 1
     }
   ],
   "text": "Custa 1 a menos por Momentum vazado (mín. 3).\nAo Entrar: suas outras unidades ganham +1/+1 por Momentum restante (de +1/+1 a +5/+5) e Rapidez 1 (se for menor).",

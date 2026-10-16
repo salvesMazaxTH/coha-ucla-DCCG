@@ -15,7 +15,7 @@
     "esquiva"
   ],
   "esquiva": {
-    "max_rapidez": 1
+    "max_rapidez": 0
   },
   "art": "eletrica/espirito_carregado.webp",
   "effects": [

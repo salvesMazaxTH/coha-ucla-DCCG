@@ -261,8 +261,8 @@ func dodges(c: Card, source: Card) -> bool:
 		return source.rapidez_total() <= int(rule["max_rapidez"])
 	return source.rapidez_total() < c.rapidez_total()
 
-## The strike steps of one combat, fastest first (Rapidez 4 down to 1).
-const STRIKE_STEPS := [4, 3, 2, 1]
+## The strike steps of one combat, fastest first (Rapidez 3 down to 0).
+const STRIKE_STEPS := [3, 2, 1, 0]
 
 ## The step at which a combatant deals its combat damage: its Rapidez.
 func strike_step(unit: Card) -> int:

@@ -2474,7 +2474,7 @@ func _scale_suffix(p: int, cd: Dictionary) -> String:
 func _keyword_text(cd: Dictionary, kw: String, k: Dictionary, instance: Dictionary = {}) -> String:
 	var rule: Dictionary = cd.get("esquiva", {})
 	if kw == "esquiva" and rule.has("max_rapidez"):
-		var level := CardView.rapidez_keyword_level(int(rule["max_rapidez"]))
+		var level := int(rule["max_rapidez"])
 		var speed_limit := "sem Rapidez" if level == 0 else "Rapidez %d ou menos" % level
 		return "A primeira vez em cada turno que receberia dano de combate de uma unidade %s, o dano é evitado." % speed_limit
 	if kw == "critico":
@@ -2541,7 +2541,7 @@ func _show_overlay(v: CardView) -> void:
 		txt += "[font_size=32]%s[/font_size]\n\n" % CardView.colorize_rules(body + v.text_suffix, 32)
 	# Glossary: the card's own keywords first, then any keyword its text mentions ("conceda Voo").
 	var glossary_keywords: Array = cd.get("keywords", []).duplicate()
-	if int(v.inst.get("rapidez", cd.get("rapidez", 1))) > 1 and not v.inst.has("frozen"):
+	if int(v.inst.get("rapidez", cd.get("rapidez", 0))) > 0 and not v.inst.has("frozen"):
 		glossary_keywords.append("rapidez") # shown as a tag on the card, so the glossary explains it
 	if CardView.critico_of_view(cd, v.inst) > 0 and not glossary_keywords.has("critico"):
 		glossary_keywords.append("critico") # also shown as a tag (it can grow during the match)
