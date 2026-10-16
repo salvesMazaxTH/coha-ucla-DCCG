@@ -40,6 +40,7 @@ var bonus_atk := 0 ## from "constante" scale effects (see GameState._refresh_sca
 var bonus_hp := 0
 var has_bonus := false ## bonus_* were computed at least once (they only show up in to_dict then)
 var frozen := 0 ## Congelada: the turn at whose END it thaws; 0 = not frozen
+var condemned_turn := 0 ## Condenada: the turn at whose START it dies; 0 = not condemned
 var tide_mark := false
 var used_turn: Dictionary = {} ## effect index -> turn it was last used (once_per_turn)
 var equipment: Card = null
@@ -96,6 +97,7 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	bonus_hp = 0
 	has_bonus = false
 	frozen = 0
+	condemned_turn = 0
 	tide_mark = false
 	used_turn = {}
 	equipment = null
@@ -135,6 +137,9 @@ func hp_left() -> int:
 ## doesn't guard its Leader (see CombatSystem.attack_targets). ATK and strike back stay whole.
 func is_frozen() -> bool:
 	return frozen > 0
+
+func is_condemned() -> bool:
+	return condemned_turn > 0
 
 ## JSON form: {uid, card_id} off the board (plus "discount" in hand); the full unit on the board.
 func to_dict() -> Dictionary:
@@ -177,6 +182,8 @@ func to_dict() -> Dictionary:
 		d["bonus_hp"] = bonus_hp
 	if frozen > 0:
 		d["frozen"] = frozen
+	if condemned_turn > 0:
+		d["condemned_turn"] = condemned_turn
 	if tide_mark:
 		d["tide_mark"] = true
 	if not used_turn.is_empty():
@@ -225,6 +232,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.bonus_atk = int(d.get("bonus_atk", 0))
 	c.bonus_hp = int(d.get("bonus_hp", 0))
 	c.frozen = int(d.get("frozen", 0))
+	c.condemned_turn = int(d.get("condemned_turn", 0))
 	c.tide_mark = bool(d.get("tide_mark", false))
 	c.used_turn = d.get("used_turn", {})
 	if d.has("equipment"):

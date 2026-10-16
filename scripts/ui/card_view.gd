@@ -42,6 +42,7 @@ const ATK_COL := Color("#c8402e")
 const HP_COL := Color("#2f9e58")
 const FROST := Color("#cfefff")
 const FROST_DEEP := Color("#4fc3ff") ## saturated ice blue: what makes a Congelada card readable from across the table
+const DOOM_COL := Color("#b57bff") ## Condenada: sickly violet, always paired with a skull so it is not confused with the spell-shield lilac
 ## Ice spikes of a frozen card, as [x across the card 0..1, length in base px, half width in base px].
 const FROST_ICICLES := [[0.24, 11.0, 2.6], [0.34, 19.0, 3.2], [0.45, 9.0, 2.2], [0.56, 24.0, 3.6], [0.67, 13.0, 2.6], [0.77, 20.0, 3.2], [0.88, 10.0, 2.4]] ## hang from the top edge
 const FROST_CRYSTALS := [[0.08, 16.0, 4.0], [0.21, 28.0, 5.0], [0.34, 13.0, 3.6], [0.5, 34.0, 5.6], [0.64, 17.0, 4.0], [0.78, 26.0, 5.0], [0.92, 15.0, 3.8]] ## stand on the bottom edge of the art
@@ -224,7 +225,7 @@ func _gui_input(e: InputEvent) -> void:
 		accept_event()
 
 func _process(delta: float) -> void:
-	if highlight.a > 0 or hovered or _legendary() or inst.has("frozen"):
+	if highlight.a > 0 or hovered or _legendary() or inst.has("frozen") or inst.has("condemned_turn"):
 		_t += delta
 		_redraw_acc += delta
 		if _redraw_acc >= 0.033 or highlight.a > 0 or hovered: ## shimmer at ~30 fps is plenty
@@ -393,6 +394,11 @@ func _draw() -> void:
 		var breathing := 0.75 + 0.25 * sin(_t * 2.5)
 		for i in 5:
 			_rrect_line(r.grow((1.5 + i * 2.6) * s), rad + i * 2 * s, Color(FROST_DEEP, (0.95 - i * 0.17) * breathing * frost_grow), 2.8 * s)
+	# Condenada: a violet aura pulsing slowly around the frame, like a heartbeat counting down
+	if inst.has("condemned_turn"):
+		var heartbeat := 0.6 + 0.4 * sin(_t * 3.2)
+		for i in 4:
+			_rrect_line(r.grow((1.5 + i * 2.4) * s), rad + i * 2 * s, Color(DOOM_COL, (0.9 - i * 0.2) * heartbeat), 2.6 * s)
 	# trigger proc: hot rim light, plus a ring pulsing out of the frame
 	if proc > 0:
 		for i in 5:
@@ -479,6 +485,10 @@ func _draw() -> void:
 		_draw_frost(art, s)
 	if inst.get("tide_mark", false):
 		draw_arc(art.get_center() + Vector2(0, art.size.y * 0.32), art.size.x * 0.3, PI * 1.15, PI * 1.85, 24, Color("#6fd0ff", 0.85), 2 * s, true)
+	if inst.has("condemned_turn"):
+		# a dark violet veil over the art, then the skull medallion on the upper-right corner
+		draw_colored_polygon(_art_window, Color("#2a0a4a", 0.28 + 0.08 * sin(_t * 3.2)))
+		_doom_badge(Vector2(art.end.x - 11 * s, art.position.y + 11 * s), 10 * s, s)
 	_kw_badges(art, cd, s)
 
 	# species strip on the bottom edge of the art, right above the name plate
@@ -802,6 +812,22 @@ func _armor_badge(c: Vector2, r: float, s: float, amount: int) -> void:
 	draw_colored_polygon(_shape("shield", c, r * 0.64), steel.darkened(0.55))
 	_text(UITheme.font("heavy"), str(amount), c + Vector2(0, r * 0.32), r * 1.05, Color.WHITE)
 
+## Live Condenada marker: a dark medallion with a violet skull (cranium, jaw, eye sockets, nose).
+func _doom_badge(c: Vector2, r: float, s: float) -> void:
+	draw_circle(c + Vector2(0, 1.4 * s), r * 1.2, Color(0, 0, 0, 0.62))
+	draw_circle(c, r * 1.16, Color("#2a0a4a"))
+	draw_circle(c, r * 1.08, DOOM_COL)
+	draw_circle(c, r, Color("#160726"))
+	var bone := Color("#eadcff")
+	draw_circle(c + Vector2(0, -r * 0.14), r * 0.52, bone) # cranium
+	draw_rect(Rect2(c + Vector2(-r * 0.27, r * 0.2), Vector2(r * 0.54, r * 0.4)), bone) # jaw
+	var socket := Color("#160726")
+	draw_circle(c + Vector2(-r * 0.2, -r * 0.1), r * 0.15, socket) # eye sockets
+	draw_circle(c + Vector2(r * 0.2, -r * 0.1), r * 0.15, socket)
+	draw_colored_polygon(_unit_pts(c, r, [[0.0, 0.04], [-0.08, 0.24], [0.08, 0.24]]), socket) # nose
+	for i in 2: # teeth gaps
+		draw_line(c + Vector2((-0.09 + i * 0.18) * r, 0.42 * r), c + Vector2((-0.09 + i * 0.18) * r, 0.6 * r), socket, 0.9 * s)
+
 func _use_badge(c: Vector2, r: float, s: float, ready: bool) -> void:
 	var col := TRIGGER_COL if ready else Color("#6f6a78")
 	draw_circle(c + Vector2(0, 1.4 * s), r * 1.18, Color(0, 0, 0, 0.5))
@@ -911,6 +937,8 @@ func _panel_lines(cd: Dictionary) -> Array:
 		out.append([[kind + spd, Color("#ffd27a") if spd != "" else Color(UITheme.TEXT, 0.6)]])
 	# tags: keywords first, then trigger names (full text lives in the overlay)
 	var tags: Array = []
+	if inst.has("condemned_turn"):
+		tags.append([CardDB.keyword("condenada")["name"], DOOM_COL.lightened(0.15)])
 	if inst.has("frozen"):
 		tags.append(["Congelada", FROST])
 	if inst.get("spell_shield", false):

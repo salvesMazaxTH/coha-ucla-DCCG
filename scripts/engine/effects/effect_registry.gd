@@ -17,6 +17,7 @@ static var ACTIONS: Dictionary = {
 	"grave_retrieve": DeckEffect,
 	"freeze": FreezeEffect,
 	"exhaust": ExhaustEffect,
+	"condemn": CondemnEffect,
 	"freeze_slots": FreezeSlotsEffect,
 	"add_card": AddCardEffect,
 	"snowball": SnowballEffect,

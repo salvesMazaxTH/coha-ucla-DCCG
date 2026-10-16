@@ -23,6 +23,7 @@ func _init() -> void:
 	_test_concede()
 	_test_search()
 	_test_freeze()
+	_test_condemn()
 	_test_constant()
 	_test_obscura()
 	_test_obscura_rules()
@@ -870,6 +871,53 @@ func _test_freeze() -> void:
 		g._apply_effect(0, {"action": "damage", "target": "enemy_unit", "amount": 1, "amount_if_frozen": 3}, victim.uid)
 	check(cold.damage == 3 and warm.damage == 1, "dano extra só em alvo já Congelado")
 	check(CardDB.card("sabrina")["effects"].size() == 1 and not CardDB.card("sabrina")["effects"][0].has("freeze"), "sabrina não congela mais")
+
+func _test_condemn() -> void:
+	# Condenada: the unit dies at the start of the marker-giver's next turn, even if the source is long gone
+	_tcard("t_cdm_vic", 3, 5, [])
+	var g := _new_game()
+	_quiet(g)
+	var first := _put(g, 1, "t_cdm_vic")
+	var second := _put(g, 1, "t_cdm_vic")
+	var condemn_spec := {"action": "condemn", "target": "enemy_unit"}
+	g._apply_effect(0, condemn_spec, first.uid)
+	check(first.is_condemned() and not second.is_condemned(), "condenar marca só a unidade alvo")
+	check(CondemnEffect.new().is_already_applied_to(first) and not CondemnEffect.new().is_already_applied_to(second), "condenada: já marcada conta como aplicada")
+	var round_trip := Card.from_dict(first.to_dict(), "board", 1)
+	check(round_trip.condemned_turn == first.condemned_turn, "condenada: a marca sobrevive a to_dict/from_dict")
+	_quiet(g)
+	g.end_turn(0)
+	check(g.active == 1 and g.find_unit(first.uid) != null, "condenada no meu turno: segue viva no turno do dono")
+	_quiet(g)
+	g.end_turn(1)
+	check(g.active == 0 and g.find_unit(first.uid) == null and g.find_unit(second.uid) != null, "condenada: morre no início do meu próximo turno")
+	# marked during the opponent's own turn: it dies already at the start of my very next turn
+	_quiet(g)
+	g.end_turn(0)
+	g._apply_effect(0, condemn_spec, second.uid)
+	_quiet(g)
+	g.end_turn(1)
+	check(g.active == 0 and g.find_unit(second.uid) == null, "condenada no turno do dono: morre no início do meu turno seguinte")
+	# Escudo de Feitiço cancels the mark
+	g = _new_game()
+	_quiet(g)
+	var shielded := _put(g, 1, "t_cdm_vic")
+	shielded.spell_shield = true
+	g._apply_effect(0, condemn_spec, shielded.uid)
+	check(not shielded.is_condemned() and not shielded.spell_shield, "Escudo de Feitiço anula condenar")
+	# Indestrutível survives, and the mark is spent
+	var tough := _put(g, 1, "t_cdm_vic")
+	tough.keywords.append("indestrutivel")
+	g._apply_effect(0, condemn_spec, tough.uid)
+	_quiet(g)
+	g.end_turn(0)
+	g.end_turn(1)
+	check(g.find_unit(tough.uid) != null and not tough.is_condemned(), "Indestrutível resiste à condenação e a marca é gasta")
+	# leaving the board undoes the mark
+	var leaver := _put(g, 1, "t_cdm_vic")
+	g._apply_effect(0, condemn_spec, leaver.uid)
+	leaver.enter_board(false)
+	check(not leaver.is_condemned(), "sair de campo desfaz a condenação")
 
 func _test_setup() -> void:
 	var g := GameState.new("fogo", "agua", 1)

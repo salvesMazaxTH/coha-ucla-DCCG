@@ -216,6 +216,10 @@
       "name": "Indestrutível",
       "text": "Não sofre dano (sempre 0) e não é destruída por efeitos de \"destruir\" (nem por dano). Sacrifício e remoção do jogo (banimento) ainda a afetam."
     },
+    "condenada": {
+      "name": "Condenada",
+      "text": "Uma unidade Condenada morre no início do próximo turno de quem a condenou, mesmo que a carta que a condenou já tenha saído de campo. Curar não ajuda; Indestrutível a salva, e sair de campo desfaz a condenação."
+    },
     "congelar": {
       "name": "Congelar",
       "text": "A unidade não ataca, não desvira e não protege o Líder e perde a Rapidez (suprimida) até o fim do próximo turno. Revida normalmente."

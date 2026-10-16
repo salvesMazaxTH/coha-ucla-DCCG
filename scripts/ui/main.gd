@@ -3207,6 +3207,48 @@ func _frost_shards(c: Vector2, t: float, amount: int) -> void:
 		if is_instance_valid(p):
 			p.queue_free())
 
+## Condenada / Ceifada: violet wisps of dark smoke rising off a unit at moment t, plus a short shiver.
+## `heavy` makes the sentence being carried out bigger and darker than the mark being placed.
+func _doom_fx(target: Control, t: float, heavy: bool) -> void:
+	if not target is CardView:
+		return
+	var cv: CardView = target
+	var shiver := cv.create_tween()
+	shiver.tween_interval(t)
+	shiver.tween_method(func(k: float): cv.shake = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * (6.0 if heavy else 3.0) * (1.0 - k), 0.0, 1.0, 0.45)
+	shiver.tween_callback(func(): cv.shake = Vector2.ZERO)
+	var wisps := CPUParticles2D.new()
+	wisps.emitting = false
+	wisps.one_shot = true
+	wisps.amount = maxi(8, int((46 if heavy else 24) * _fx_scale))
+	wisps.lifetime = 1.1
+	wisps.explosiveness = 0.8
+	wisps.position = _center_of(cv)
+	wisps.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	wisps.emission_rect_extents = Vector2(40, 60)
+	wisps.direction = Vector2(0, -1)
+	wisps.spread = 40.0
+	wisps.gravity = Vector2(0, -60)
+	wisps.initial_velocity_min = 40.0
+	wisps.initial_velocity_max = 150.0
+	wisps.scale_amount_min = 5.0
+	wisps.scale_amount_max = 11.0
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(CardView.DOOM_COL, 0.9))
+	ramp.set_color(ramp.get_point_count() - 1, Color("#160726", 0.0))
+	wisps.color_ramp = ramp
+	wisps.z_index = 30
+	fx.add_child(wisps)
+	var tw := fx.create_tween()
+	tw.tween_interval(t)
+	tw.tween_callback(func():
+		if is_instance_valid(wisps):
+			wisps.emitting = true)
+	tw.tween_interval(1.5)
+	tw.tween_callback(func():
+		if is_instance_valid(wisps):
+			wisps.queue_free())
+
 ## Effects budget of the current _animate batch: 1.0 for a lone hit, shrinking as more
 ## triggers/deaths pile up (a Diabrete chain would otherwise spawn dozens of emitters at once).
 var _fx_scale := 1.0
@@ -3602,7 +3644,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 				or (et in ["damage", "shield_break"] and e.get("src", 0) > 0):
 			trig_src = 0
 		# effects of a trigger fly out of their source as a bolt and land when it arrives
-		if trig_src != 0 and et in ["damage", "heal", "shield_break", "buff", "freeze", "exhaust", "tide_mark", "spell_shield_break", "summon"] \
+		if trig_src != 0 and et in ["damage", "heal", "shield_break", "buff", "freeze", "exhaust", "condemn", "tide_mark", "spell_shield_break", "summon"] \
 				and e["uid"] != trig_src and actors.has(trig_src) and actors.has(e["uid"]):
 			cursor += _streak(actors[trig_src], actors[e["uid"]], cursor, CardView.TRIGGER_COL) - 0.04
 		match et:
@@ -3681,14 +3723,16 @@ func _animate(events: Array, old: Dictionary) -> float:
 			"countered":
 				_toast("%s foi anulado!" % ("A habilidade do Líder" if e["kind"] == "ability" else _cname(e["card_id"])))
 				cursor += 0.4
-			"spell_shield_break", "tide_mark", "tide_draw", "freeze", "exhaust", "thaw", "dodge", "crit", "crit_negated", "critico_up":
+			"spell_shield_break", "tide_mark", "tide_draw", "freeze", "exhaust", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up":
 				if actors.has(e["uid"]):
-					var lbl: String = {"spell_shield_break": "Anulado!", "tide_mark": "Maré", "tide_draw": "+1 carta", "freeze": "Congelada!", "exhaust": "Exausta!", "thaw": "Descongelou", "dodge": "Esquivou!", "crit": "Crítico!", "crit_negated": "Desdém!", "critico_up": "Crítico %d!" % int(e.get("level", 0))}[e["type"]]
+					var lbl: String = {"spell_shield_break": "Anulado!", "tide_mark": "Maré", "tide_draw": "+1 carta", "freeze": "Congelada!", "exhaust": "Exausta!", "condemn": "Condenada!", "doom": "Ceifada!", "doom_resisted": "Resistiu!", "thaw": "Descongelou", "dodge": "Esquivou!", "crit": "Crítico!", "crit_negated": "Desdém!", "critico_up": "Crítico %d!" % int(e.get("level", 0))}[e["type"]]
 					var col: Color = Color("#6fd0ff")
 					if e["type"] == "spell_shield_break":
 						col = Color("#c9a8ff")
 					elif e["type"] in ["freeze", "thaw"]:
 						col = ICE
+					elif e["type"] in ["condemn", "doom", "doom_resisted"]:
+						col = CardView.DOOM_COL
 					elif e["type"] in ["crit", "crit_negated", "critico_up"]:
 						col = Color("#ff9d6e") # same warm tone as the Crítico tag
 					_impact(actors[e["uid"]], lbl, col, cursor, false)
@@ -3696,6 +3740,8 @@ func _animate(events: Array, old: Dictionary) -> float:
 						_freeze_fx(actors[e["uid"]], cursor)
 					elif e["type"] == "thaw":
 						_frost_shards(_center_of(actors[e["uid"]]), cursor, 16)
+					elif e["type"] in ["condemn", "doom"]:
+						_doom_fx(actors[e["uid"]], cursor, e["type"] == "doom")
 				cursor += 0.2
 			"transform":
 				# a unit becomes another card in place (Transformar, transform_self)
@@ -3978,6 +4024,15 @@ func _log_event(e: Dictionary) -> void:
 		"freeze":
 			var frozen := g.find_unit(e["uid"])
 			_log("%s foi congelada" % ("Uma unidade" if frozen == null else _cname(frozen.card_id)))
+		"condemn":
+			var condemned := g.find_unit(e["uid"])
+			_log("%s foi condenada" % ("Uma unidade" if condemned == null else _cname(condemned.card_id)))
+		"doom":
+			var doomed := g.find_unit(e["uid"])
+			_log("%s foi ceifada pela condenação" % ("Uma unidade" if doomed == null else _cname(doomed.card_id)))
+		"doom_resisted":
+			var resisted := g.find_unit(e["uid"])
+			_log("%s resistiu à condenação" % ("Uma unidade" if resisted == null else _cname(resisted.card_id)))
 		"exhaust":
 			var exhausted_unit := g.find_unit(e["uid"])
 			_log("%s ficou exausta" % ("Uma unidade" if exhausted_unit == null else _cname(exhausted_unit.card_id)))

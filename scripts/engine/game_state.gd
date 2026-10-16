@@ -1961,12 +1961,29 @@ func _start_turn(p: int, draw: bool) -> void:
 			c.spell_shield_until_next_turn = false
 		c.attacks_made = 0
 	_emit({"type": "start_turn", "player": p, "turn": turn})
+	_resolve_condemned()
 	bus().emit(GameEvent.new("turn_started", p))
 	_fire_leader_passive(p, "on_turn_start")
 	for c in pl["board"].duplicate():
 		_fire(c, "on_turn_start")
 	if draw:
 		_draw(p, 1)
+	_check_state()
+
+## Carries out every sentence that is due: a Condenada unit (on either board) dies when the turn
+## number stored on it arrives. Indestrutível survives, but the mark is spent either way.
+func _resolve_condemned() -> void:
+	for player_index in 2:
+		for unit: Card in players[player_index]["board"].duplicate():
+			if not unit.is_condemned() or unit.condemned_turn > turn:
+				continue
+			unit.condemned_turn = 0
+			if unit.has_kw("indestrutivel"):
+				_emit({"type": "doom_resisted", "uid": unit.uid})
+				continue
+			unit.damage = 1000000
+			_emit({"type": "doom", "uid": unit.uid})
+	# Clear the dead right away, so a doomed unit gets no start-of-turn trigger.
 	_check_state()
 
 ## Test helpers: apply one raw effect dictionary / run raw effect dictionaries as a trigger would.
