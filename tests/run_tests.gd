@@ -401,6 +401,35 @@ func _test_obscura() -> void:
 	check(CardDB.is_equipment(CardDB.card("manoplas_incandescentes")) and CardDB.is_artifact(CardDB.card("manoplas_incandescentes")), "equipamento é artefato")
 	check(holder.equipment.card_id == "manoplas_incandescentes" and holder.atk == atk0 + 3, "equipamento anexado e buff aplicado")
 	var gy0: int = g.players[0]["graveyard"].size()
+	# equipping an already equipped unit returns the old equipment to the hand (it does not go to the graveyard)
+	var second_equipment_uid := _give(g, 0, "manoplas_incandescentes")
+	var first_equipment: Card = holder.equipment
+	g.players[0]["momentum"] = 10
+	var graveyard_before_swap: int = g.players[0]["graveyard"].size()
+	g.play_card(0, second_equipment_uid, holder.uid)
+	g._resolve_stack()
+	g._flush()
+	check(holder.equipment != first_equipment and holder.equipment.uid == second_equipment_uid, "reequipar: a unidade passa a usar o novo equipamento")
+	check(g.players[0]["hand"].has(first_equipment) and first_equipment.zone == "hand", "reequipar: o equipamento anterior volta para a mão")
+	check(g.players[0]["graveyard"].size() == graveyard_before_swap, "reequipar: o equipamento anterior não vai ao cemitério")
+	check(holder.atk == atk0 + 3, "reequipar: o bônus do equipamento anterior sai da unidade (só o do novo vale)")
+	# Equipment buffs belong to the equipment: swapping takes back Vida and keywords, and never kills the unit
+	var swap_unit := _put(g, 0, "rato_do_ossuario")
+	var swap_base_hp: int = swap_unit.hp
+	var swap_base_keywords: Array = swap_unit.keywords.duplicate()
+	g.players[0]["momentum"] = 10
+	g.play_card(0, _give(g, 0, "pingente_das_ondas"), swap_unit.uid)
+	g._resolve_stack()
+	g._flush()
+	check(swap_unit.hp == swap_base_hp + 1 and swap_unit.keywords.has("roubo_de_vida"), "equipamento dá +1 Vida e Roubo de Vida")
+	swap_unit.damage = swap_unit.hp - 1 # one Vida left
+	g.players[0]["momentum"] = 10
+	g.play_card(0, _give(g, 0, "manoplas_incandescentes"), swap_unit.uid)
+	g._resolve_stack()
+	g._flush()
+	check(g.find_unit(swap_unit.uid) != null, "perder a Vida do equipamento não mata a unidade")
+	check(swap_unit.hp_left() == 1, "a unidade fica com 1 de Vida quando perder o equipamento a mataria")
+	check(swap_unit.hp == swap_base_hp and swap_unit.keywords == swap_base_keywords, "trocar o equipamento remove a Vida e o Roubo de Vida dele")
 	_kill(g, holder)
 	var gy_ids: Array = g.players[0]["graveyard"].map(func(e): return e["card_id"])
 	check(g.players[0]["graveyard"].size() == gy0 + 2 and gy_ids.has("manoplas_incandescentes"), "equipamento vai ao cemitério com a unidade")

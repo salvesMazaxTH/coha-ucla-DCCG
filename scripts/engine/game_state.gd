@@ -979,6 +979,12 @@ func transform_into(c: Card, into_id: String) -> void:
 	kws.erase("escudo")
 	kws.erase("escudo_feitico")
 	c.keywords = kws
+	if not c.equipment_grant.is_empty(): # the equipment stays on, so what it gave the unit stays too
+		c.atk += int(c.equipment_grant.get("atk", 0))
+		c.hp += int(c.equipment_grant.get("hp", 0))
+		for keyword in c.equipment_grant.get("keywords", []):
+			if not c.keywords.has(keyword):
+				c.keywords.append(keyword)
 	c.sick = false # a transformed unit is not summoning sick: it can act right away
 	_emit({"type": "transform", "player": p, "uid": uid, "from": from, "card_id": into_id})
 	_announce(c, cd["effects"], "on_enter")

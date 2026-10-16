@@ -105,6 +105,11 @@ func resolve_stack() -> void:
 		var item: Dictionary = game.stack.pop_back()
 		var p: int = item["player"]
 		var effects := effects_of(item)
+		# For equipment: the unit's stats before the buff, to work out what the equipment gave it
+		var stats_before_equip := {}
+		var equip_target := game.find_unit(int(item.get("target", 0)))
+		if item["kind"] == "card" and CardDB.is_equipment(CardDB.card(item["card_id"])) and equip_target != null:
+			stats_before_equip = unit_stats(equip_target)
 		var is_enter: bool = item["kind"] == "enter_trigger"
 		# an Ao Entrar never fizzles: a target that left is simply skipped by the effect itself
 		var spec := "" if is_enter else game.target_spec(effects)
@@ -137,7 +142,7 @@ func resolve_stack() -> void:
 			var holder := game.find_unit(int(item["target"]))
 			var played := take_stack_card(item)
 			if CardDB.is_equipment(CardDB.card(item["card_id"])) and holder != null and spec != "" and game.valid_targets(p, spec).has(int(item["target"])):
-				attach(holder, played)
+				attach(holder, played, stat_gain_since(holder, stats_before_equip))
 			elif CardDB.is_relic(CardDB.card(item["card_id"])) and not gone:
 				game._place_relic(p, played)
 			elif item.get("requiem", false) or played.banish_after_cast:
@@ -174,12 +179,56 @@ func take_stack_card(item: Dictionary) -> Card:
 		return c
 	return Card.new(uid, item["card_id"], int(item["player"]), "stack")
 
-## Equipment stays on the board under its unit; a previous one is discarded.
-func attach(holder: Card, eq: Card) -> void:
-	release_equipment(holder)
+## Equipment stays on the board under its unit. A unit holds only one: equipping an already
+## equipped unit sends the previous equipment back to its owner's hand (not to the graveyard),
+## and the unit loses what that equipment had given it. `granted` is what the new one gave.
+func attach(holder: Card, eq: Card, granted: Dictionary = {}) -> void:
+	return_equipment_to_hand(holder)
 	holder.equipment = eq
+	holder.equipment_grant = granted
 	game._move(eq, "equipped")
 	game._emit({"type": "attach", "uid": holder.uid, "equip_uid": eq.uid, "card_id": eq.card_id})
+
+## The stats an equipment's buff can change, as they are right now.
+func unit_stats(unit: Card) -> Dictionary:
+	return {"atk": unit.atk, "hp": unit.hp, "armor": unit.armor, "keywords": unit.keywords.duplicate()}
+
+## What the unit gained since `before` (a unit_stats snapshot). Keywords the unit already had are not
+## counted, so removing the equipment later never strips something the unit owns by itself.
+func stat_gain_since(unit: Card, before: Dictionary) -> Dictionary:
+	if before.is_empty():
+		return {}
+	var gained_keywords: Array = []
+	for keyword in unit.keywords:
+		if not before["keywords"].has(keyword):
+			gained_keywords.append(keyword)
+	return {"atk": unit.atk - before["atk"], "hp": unit.hp - before["hp"], "armor": unit.armor - before["armor"], "keywords": gained_keywords}
+
+## Takes back what the unit's equipment gave it. The unit never dies from this: if losing the
+## Vida would kill it, it stays with 1 Vida left.
+func remove_equipment_bonus(unit: Card) -> void:
+	var granted := unit.equipment_grant
+	unit.equipment_grant = {}
+	if granted.is_empty():
+		return
+	unit.atk = maxi(0, unit.atk - int(granted.get("atk", 0)))
+	unit.hp -= int(granted.get("hp", 0))
+	unit.armor = maxi(0, unit.armor - int(granted.get("armor", 0)))
+	for keyword in granted.get("keywords", []):
+		unit.keywords.erase(keyword)
+	if unit.hp_left() < 1:
+		unit.damage = unit.hp + unit.bonus_hp + unit.temp_hp - 1
+
+## Gives the unit's equipment (if any) back to its owner's hand, to be played again.
+func return_equipment_to_hand(c: Card) -> void:
+	if c.equipment == null:
+		return
+	var old_equipment := c.equipment
+	c.equipment = null
+	remove_equipment_bonus(c)
+	game.players[c.owner]["hand"].append(old_equipment)
+	game._move(old_equipment, "hand")
+	game._emit({"type": "equipment_returned", "uid": c.uid, "equip_uid": old_equipment.uid, "card_id": old_equipment.card_id})
 
 ## Sends the unit's equipment (if any) to its owner's graveyard.
 func release_equipment(c: Card) -> void:

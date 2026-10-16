@@ -3964,6 +3964,8 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s foi destruída" % ("Uma unidade" if destroyed == null else _cname(destroyed.card_id)))
 		"banish":
 			_log("%s foi banida" % _cname(e["card_id"]))
+		"equipment_returned":
+			_log("%s voltou para a mão (a unidade foi reequipada)" % _cname(e["card_id"]))
 		"sacrifice":
 			var sacrificed := g.find_unit(e["uid"])
 			_log("%s sacrificou %s" % [_pname(e["player"]), "uma unidade" if sacrificed == null else _cname(sacrificed.card_id)])

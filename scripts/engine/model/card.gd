@@ -44,6 +44,7 @@ var tide_mark := false
 var used_turn: Dictionary = {} ## effect index -> turn it was last used (once_per_turn)
 var equipment: Card = null
 var cap_atk_gain := 0 ## attack given so far by "cap_atk" buffs
+var equipment_grant: Dictionary = {} ## what the equipment gave this unit ({atk, hp, armor, keywords}); taken back when the equipment leaves
 var dodge_turn := -1 ## turn its Esquiva was last used
 var activated_turn := -1 ## turn its Ao Ativar was last used
 
@@ -100,6 +101,7 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	equipment = null
 	cap_atk_gain = 0
 	dodge_turn = -1
+	equipment_grant = {}
 	activated_turn = -1
 
 func has_kw(kw: String) -> bool:
@@ -185,6 +187,8 @@ func to_dict() -> Dictionary:
 		d["cap_atk_gain"] = cap_atk_gain
 	if dodge_turn >= 0:
 		d["dodge_turn"] = dodge_turn
+		if not equipment_grant.is_empty():
+			d["equipment_grant"] = equipment_grant.duplicate(true)
 	if activated_turn >= 0:
 		d["activated_turn"] = activated_turn
 	return d
@@ -229,3 +233,4 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.dodge_turn = int(d.get("dodge_turn", -1))
 	c.activated_turn = int(d.get("activated_turn", -1))
 	return c
+		c.equipment_grant = d.get("equipment_grant", {})
