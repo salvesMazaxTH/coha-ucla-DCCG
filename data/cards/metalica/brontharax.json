@@ -11,7 +11,7 @@
   "effects": [
     { "trigger": "on_turn_end", "action": "mill", "who": "enemy", "target": "none", "amount": 2 }
   ],
-  "text": "Voo, Armadura 1.\nNo fim do seu turno: Moa 2 cartas do deck do oponente.",
+  "text": "Voo, Armadura 1.\nNo Fim do Turno: Moa 2 cartas do deck do oponente.",
   "flavor": "Cada batida de asa soa como um sino que ninguém quer ouvir tocar.",
   "art": "metalica/brontharax.webp",
   "tags": []

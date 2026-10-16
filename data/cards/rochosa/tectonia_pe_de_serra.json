@@ -18,7 +18,7 @@
       "once_per_turn": true
     }
   ],
-  "text": "Ao Sofrer Dano, uma vez por turno: ganha Armadura 1 permanente (acumula).",
+  "text": "Ao Sofrer Dano (uma vez por turno): ganha Armadura 1 permanente (acumula).",
   "flavor": "",
   "tags": []
 }
