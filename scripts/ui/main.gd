@@ -3161,6 +3161,63 @@ func _prewarm_fx() -> void:
 	fx.add_child(holder)
 	var r := ColorRect.new()
 	r.size = Vector2(8, 8)
+## A unit gets frozen. _render already drew it covered in ice, so the ice is wiped off now and, at
+## moment t, it slams back on: a white-blue flash with two shockwaves, the ice growing over the card
+## from nothing, a shiver and a burst of flying shards.
+func _freeze_fx(target: Control, t: float) -> void:
+	if not target is CardView:
+		return
+	var cv: CardView = target
+	cv.frost_grow = 0.0
+	var spread := cv.create_tween()
+	spread.tween_interval(t)
+	spread.tween_property(cv, "frost_grow", 1.0, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	var burst := cv.create_tween()
+	burst.tween_interval(t)
+	burst.tween_property(cv, "frost_burst", 1.0, 0.65).from(0.001)
+	burst.tween_callback(func(): cv.frost_burst = 0.0)
+	var shiver := cv.create_tween()
+	shiver.tween_interval(t)
+	shiver.tween_method(func(k: float): cv.shake = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 4.0 * (1.0 - k), 0.0, 1.0, 0.4)
+	shiver.tween_callback(func(): cv.shake = Vector2.ZERO)
+	_frost_shards(_center_of(cv), t, 30)
+
+## Ice shards thrown outward from a point at moment t, falling a little as they fade.
+func _frost_shards(c: Vector2, t: float, amount: int) -> void:
+	var p := CPUParticles2D.new()
+	p.emitting = false
+	p.one_shot = true
+	p.amount = maxi(6, int(amount * _fx_scale))
+	p.lifetime = 0.9
+	p.explosiveness = 0.95
+	p.position = c
+	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	p.emission_rect_extents = Vector2(45, 65)
+	p.direction = Vector2(0, -1)
+	p.spread = 180.0
+	p.gravity = Vector2(0, 220)
+	p.initial_velocity_min = 90.0
+	p.initial_velocity_max = 230.0
+	p.angular_velocity_min = -360.0
+	p.angular_velocity_max = 360.0
+	p.scale_amount_min = 3.0
+	p.scale_amount_max = 7.0
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(1, 1, 1, 1.0))
+	ramp.set_color(ramp.get_point_count() - 1, Color(ICE, 0.0))
+	p.color_ramp = ramp
+	p.z_index = 30
+	fx.add_child(p)
+	var tw := fx.create_tween()
+	tw.tween_interval(t)
+	tw.tween_callback(func():
+		if is_instance_valid(p):
+			p.emitting = true)
+	tw.tween_interval(1.4)
+	tw.tween_callback(func():
+		if is_instance_valid(p):
+			p.queue_free())
+
 	var m := ShaderMaterial.new()
 	m.shader = load("res://scripts/ui/shaders/dissolve.gdshader")
 	m.set_shader_parameter("size", r.size)
@@ -3646,6 +3703,10 @@ func _animate(events: Array, old: Dictionary) -> float:
 					if actors.has(evolved_uid) and old.has(evolved_uid):
 						_transform_fx(evolved_uid, old[evolved_uid]["card_id"], actors[evolved_uid].card_id, actors, old, cursor)
 						evolved_in_view = true
+					if e["type"] == "freeze":
+						_freeze_fx(actors[e["uid"]], cursor)
+					elif e["type"] == "thaw":
+						_frost_shards(_center_of(actors[e["uid"]]), cursor, 16)
 				if evolved_in_view:
 					cursor += TRANSFORM_TIME
 			"snowball_devolve":

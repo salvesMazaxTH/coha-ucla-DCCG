@@ -41,6 +41,11 @@ const TAUNT_COL := Color("#ffb347") ## Provocação: warm amber "hold the line" 
 
 var card_id := ""
 var inst: Dictionary = {} ## unit on board (live stats) or hand instance
+const FROST_DEEP := Color("#4fc3ff") ## saturated ice blue: what makes a Congelada card readable from across the table
+## Ice spikes of a frozen card, as [x across the card 0..1, length in base px, half width in base px].
+const FROST_ICICLES := [[0.24, 11.0, 2.6], [0.34, 19.0, 3.2], [0.45, 9.0, 2.2], [0.56, 24.0, 3.6], [0.67, 13.0, 2.6], [0.77, 20.0, 3.2], [0.88, 10.0, 2.4]] ## hang from the top edge
+const FROST_CRYSTALS := [[0.08, 16.0, 4.0], [0.21, 28.0, 5.0], [0.34, 13.0, 3.6], [0.5, 34.0, 5.6], [0.64, 17.0, 4.0], [0.78, 26.0, 5.0], [0.92, 15.0, 3.8]] ## stand on the bottom edge of the art
+const FROST_GLINTS := [Vector2(0.3, 0.2), Vector2(0.74, 0.3), Vector2(0.52, 0.58), Vector2(0.18, 0.5), Vector2(0.84, 0.12), Vector2(0.62, 0.8)] ## twinkling stars
 var uid := 0
 var face_down := false
 var highlight := Color.TRANSPARENT ## outline for selection/targets
@@ -99,6 +104,17 @@ var shadow := true
 var fatigue := 0 ## > 0: not a real card but the Fadiga pseudo-card, showing this much damage
 
 ## Frame silhouette of the card being drawn: artifacts get cut (chamfered) corners instead of round ones,
+## Congelada: how far the ice has grown over the card (0 = none yet, 1 = fully frozen). It is 1 by
+## default; Main sets it to 0 and tweens it up at the moment of the freeze, so the ice spreads over the card.
+var frost_grow := 1.0:
+	set(v):
+		frost_grow = v
+		queue_redraw()
+## The instant of freezing (0 = off, 1 = finished): a white-blue flash and two shockwaves of ice.
+var frost_burst := 0.0:
+	set(v):
+		frost_burst = v
+		queue_redraw()
 ## so a non-unit permanent reads differently from a unit at a glance. Only the big frame corners are cut.
 var _chamfer_frame := false
 const FRAME_CORNER_MIN := 5.0 ## corner radius (in base px) from which _chamfer_frame applies; small panels stay rounded
@@ -211,7 +227,7 @@ func _gui_input(e: InputEvent) -> void:
 		accept_event()
 
 func _process(delta: float) -> void:
-	if highlight.a > 0 or hovered or _legendary() or _taunt_state() == "barring":
+	if highlight.a > 0 or hovered or _legendary() or _taunt_state() == "barring" or inst.has("frozen"):
 		_t += delta
 		_redraw_acc += delta
 		if _redraw_acc >= 0.033 or highlight.a > 0 or hovered: ## shimmer at ~30 fps is plenty
@@ -409,6 +425,11 @@ func _draw() -> void:
 	if proc > 0:
 		for i in 5:
 			_rrect_line(r.grow((1.5 + i * 2.4) * s), rad + i * 2 * s, Color(TRIGGER_COL.lightened(0.25 - i * 0.05), (0.95 - i * 0.18) * proc), 2.6 * s)
+	# Congelada: a cold blue aura breathing around the whole frame
+	if inst.has("frozen"):
+		var breathing := 0.75 + 0.25 * sin(_t * 2.5)
+		for i in 5:
+			_rrect_line(r.grow((1.5 + i * 2.6) * s), rad + i * 2 * s, Color(FROST_DEEP, (0.95 - i * 0.17) * breathing * frost_grow), 2.8 * s)
 	if proc_wave > 0 and proc_wave < 1:
 		var k := 1.0 - pow(1.0 - proc_wave, 3.0)
 		_rrect_line(r.grow((3 + 30 * k) * s), rad + 12 * k * s, Color(TRIGGER_COL.lightened(0.35), 0.85 * pow(1.0 - proc_wave, 1.5)), (3.2 - 2.2 * k) * s)
@@ -589,6 +610,8 @@ func _finish(r: Rect2, rad: float, s: float) -> void:
 		# a bright band of light sweeping across the card
 		var bx := lerpf(-_face_size.y * 0.6, _face_size.x + 10 * s, proc_wave)
 		var bw := 30 * s
+	if inst.has("frozen"):
+		_draw_frost_shell(r, rad, s)
 		var sweep := PackedVector2Array([Vector2(bx - _face_size.y * 0.4, _face_size.y), Vector2(bx - _face_size.y * 0.4 + bw, _face_size.y), Vector2(bx + _face_size.y * 0.6 + bw, 0), Vector2(bx + _face_size.y * 0.6, 0)])
 		for poly in Geometry2D.intersect_polygons(sweep, _rrect_pts(r, rad)):
 			draw_colored_polygon(poly, Color(1, 0.93, 0.8, 0.32 * (1.0 - proc_wave * 0.6)))
@@ -743,20 +766,71 @@ func _taunt_gate_glyph(c: Vector2, g: float, tint: Color, alpha: float, s: float
 		draw_line(c + Vector2(bar_x, -0.02) * g, c + Vector2(bar_x, 0.7) * g, bar_color, 0.8 * s, true)
 	draw_line(c + Vector2(-0.22, 0.34) * g, c + Vector2(0.22, 0.34) * g, bar_color, 0.8 * s, true)
 
-## Icy veil and frost crystals over the art of a frozen unit.
+## The art of a frozen unit sealed in ice: a deep blue veil, rime on top, ice piling up at the bottom
+## with crystals standing on it, and a big slowly turning snowflake in the middle.
 func _draw_frost(art: Rect2, s: float) -> void:
-	draw_colored_polygon(_art_window, Color(FROST, 0.26))
-	_window_vgrad(Rect2(art.position, Vector2(art.size.x, art.size.y * 0.35)), Color(1, 1, 1, 0.22), Color(1, 1, 1, 0))
-	var mid := art.get_center()
-	for c in [art.position + Vector2(10, 10) * s, Vector2(art.end.x - 12 * s, art.position.y + 16 * s),
-			Vector2(art.position.x + 16 * s, art.end.y - 14 * s), art.end - Vector2(10, 10) * s, mid]:
-		var rr: float = (9.0 if c == mid else 6.0) * s
-		for i in 3:
-			var a := i * PI / 3.0
-			var d := Vector2(cos(a), sin(a)) * rr
-			draw_line(c - d, c + d, Color(1, 1, 1, 0.75), 1.1 * s, true)
-		_diamond(c, rr * 0.3, Color(1, 1, 1, 0.85))
-	draw_polyline(_art_window + PackedVector2Array([_art_window[0]]), Color(FROST, 0.8), 1.4 * s, true)
+	var grow := frost_grow
+	draw_colored_polygon(_art_window, Color(FROST_DEEP, 0.42 * grow))
+	_window_vgrad(Rect2(art.position, Vector2(art.size.x, art.size.y * 0.4)), Color(1, 1, 1, 0.5 * grow), Color(1, 1, 1, 0))
+	var pile_top := art.end.y - art.size.y * 0.45
+	_window_vgrad(Rect2(Vector2(art.position.x, pile_top), Vector2(art.size.x, art.end.y - pile_top)), Color(0.85, 0.96, 1, 0), Color(0.85, 0.96, 1, 0.6 * grow))
+	# crystals growing up from the bottom edge of the art (clipped to the art window)
+	for crystal in FROST_CRYSTALS:
+		var base := Vector2(art.position.x + art.size.x * crystal[0], art.end.y + 1 * s)
+		var half_width: float = crystal[2] * s
+		var tip := base + Vector2(0, -crystal[1] * s * grow)
+		_window_polygon(PackedVector2Array([base + Vector2(-half_width, 0), tip, base + Vector2(half_width, 0)]), Color(0.7, 0.92, 1.0, 0.92 * grow))
+		_window_polygon(PackedVector2Array([base, tip, base + Vector2(half_width, 0)]), Color(1, 1, 1, 0.85 * grow)) ## the lit facet
+	_draw_snowflake(art.get_center(), art.size.x * 0.3 * (0.4 + 0.6 * grow), s, Color(1, 1, 1, 0.78 * grow))
+	draw_polyline(_art_window + PackedVector2Array([_art_window[0]]), Color(1, 1, 1, 0.95 * grow), 2.2 * s, true)
+
+## Ice over the whole card, drawn on top of everything: a cold tint, a white crust on the frame,
+## icicles hanging from the top edge, twinkling glints, and the flash and shockwaves of the freezing moment.
+func _draw_frost_shell(r: Rect2, rad: float, s: float) -> void:
+	var grow := frost_grow
+	_rrect_fill(r, rad, Color(0.45, 0.8, 1.0, 0.2 * grow))
+	_rrect_line(r.grow(-1.0 * s), rad, Color(1, 1, 1, 0.95 * grow), 2.6 * s)
+	_rrect_line(r.grow(-3.6 * s), maxf(rad - 2 * s, 0.0), Color(FROST_DEEP, 0.7 * grow), 1.6 * s)
+	for icicle in FROST_ICICLES:
+		var base := Vector2(_face_size.x * icicle[0], 1 * s)
+		var half_width: float = icicle[2] * s
+		var tip := base + Vector2(0, icicle[1] * s * grow)
+		draw_colored_polygon(PackedVector2Array([base + Vector2(-half_width, 0), tip, base + Vector2(half_width, 0)]), Color(0.72, 0.93, 1.0, 0.95 * grow))
+		draw_colored_polygon(PackedVector2Array([base, tip, base + Vector2(-half_width, 0)]), Color(1, 1, 1, 0.9 * grow))
+		draw_polyline(PackedVector2Array([base + Vector2(-half_width, 0), tip, base + Vector2(half_width, 0)]), Color(FROST_DEEP.darkened(0.2), 0.8 * grow), 0.8 * s, true)
+	for glint_index in FROST_GLINTS.size():
+		var twinkle := maxf(0.0, sin(_t * 2.2 + glint_index * 1.9))
+		if twinkle > 0.05:
+			_draw_glint(FROST_GLINTS[glint_index] * _face_size, (3.0 + 6.0 * twinkle) * s, Color(1, 1, 1, twinkle * grow))
+	if frost_burst > 0 and frost_burst < 1:
+		var reach := 1.0 - pow(1.0 - frost_burst, 3.0)
+		var fade := 1.0 - frost_burst
+		_rrect_fill(r, rad, Color(0.85, 0.97, 1.0, 0.75 * fade * fade))
+		_rrect_line(r.grow((4 + 44 * reach) * s), rad + 16 * reach * s, Color(1, 1, 1, 0.95 * pow(fade, 1.4)), (6.0 - 4.0 * reach) * s)
+		var late_reach := 1.0 - pow(1.0 - clampf(frost_burst * 1.3 - 0.15, 0.0, 1.0), 3.0)
+		_rrect_line(r.grow((4 + 30 * late_reach) * s), rad + 10 * late_reach * s, Color(FROST_DEEP, 0.8 * pow(fade, 1.4)), (5.0 - 3.0 * late_reach) * s)
+
+## A six-armed snowflake with side branches, slowly turning.
+func _draw_snowflake(c: Vector2, arm: float, s: float, col: Color) -> void:
+	for i in 6:
+		var direction := Vector2.from_angle(_t * 0.15 + i * TAU / 6.0)
+		draw_line(c, c + direction * arm, col, 2.0 * s, true)
+		for branch_at in [0.55, 0.8]:
+			var branch_base: Vector2 = c + direction * arm * branch_at
+			for side in [-1.0, 1.0]:
+				draw_line(branch_base, branch_base + direction.rotated(side * 0.9) * arm * 0.28, col, 1.5 * s, true)
+	_diamond(c, arm * 0.14, Color(1, 1, 1, col.a))
+
+## A four-pointed star of light.
+func _draw_glint(c: Vector2, radius: float, col: Color) -> void:
+	var inner := radius * 0.18
+	draw_colored_polygon(PackedVector2Array([c + Vector2(0, -radius), c + Vector2(inner, -inner), c + Vector2(radius, 0), c + Vector2(inner, inner),
+		c + Vector2(0, radius), c + Vector2(-inner, inner), c + Vector2(-radius, 0), c + Vector2(-inner, -inner)]), col)
+
+## Fills a polygon, keeping only the part that falls inside the art window.
+func _window_polygon(polygon: PackedVector2Array, col: Color) -> void:
+	for piece in Geometry2D.intersect_polygons(polygon, _art_window):
+		draw_colored_polygon(piece, col)
 
 ## Armadura shown for a unit: the live total on the board (own + temporary + from adjacent allies,
 ## put in the view data by Main as "armor_total"), the printed value everywhere else.
