@@ -40,6 +40,8 @@ static var ACTIONS: Dictionary = {
 	"destroy": RemoveEffect,
 	"destroy_artifact": RemoveEffect,
 	"banish": RemoveEffect,
+	"kill_leader": RemoveEffect,
+	"hold_veneno": HoldVenenoEffect,
 	"sacrifice": SacrificeEffect,
 	"fuse": FuseEffect,
 	"gain_momentum": GainMomentumEffect,

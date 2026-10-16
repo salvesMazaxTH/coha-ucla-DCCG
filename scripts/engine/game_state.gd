@@ -26,15 +26,16 @@ const DOT_RULES := {
 	"sangramento": "life_bracket",
 }
 
+## Veneno wears off slowly: every marker hurts at each tick, but only this many are removed.
+const VENENO_DECAY_PER_TICK := 1
+
 ## Leaders are addressed with negative uids so targets are a single int.
 const LEADER_UID := [-1, -2]
-
-## A Leader holding this many Veneno markers dies on the spot (Venenosa's near-unreachable win).
-const LEADER_POISON_LETHAL := 12
 
 var players: Array = []
 var active := 0
 var turn := 0
+var veneno_held_until := 0 ## while turn <= this, no Veneno marker is consumed anywhere (Greve Geral dos Antídotos)
 var first := 0 ## who takes turn 1 (skips that draw, mulligans first; the other gets the early Momentum bonus)
 var phase := "mulligan"
 var winner := -1 ## -1 none, 0/1 player, 2 draw
@@ -148,7 +149,8 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"critico_growth": {}, # card_id -> Crítico level reached by "critico_growth" cards (Vael), shared by every copy of it
 		"glacial_discount_used": false, # the Amuleto Glacial discount was already spent this turn
 		"damage_halved_until": 0, # Câmara de Êxtase aftermath: the Leader takes half damage while turn <= this
-		"leader_dots": {}, # dot_id -> markers on the Leader. They never tick or expire; only Veneno matters (LEADER_POISON_LETHAL)
+		"leader_dots": {}, # dot_id -> markers on the Leader. They tick at every turn start of its controller and are consumed like a unit's
+		"leader_veneno_held_until": 0, # while turn <= this, this Leader's Veneno markers hurt but are not consumed (Antídoto Fora de Estoque)
 		"frozen_slots": 0, # Rei Gelado: empty field slots of this player that accept no permanent
 		"frozen_slots_until": 0, # they thaw at the end of this player's own turn, once the turn counter reaches this
 	}
@@ -269,6 +271,14 @@ func card_of(c: Card) -> Dictionary:
 
 func has_kw(c: Card, kw: String) -> bool:
 	return c.has_kw(kw)
+
+## Veneno markers one Tóxico hit leaves. Plain Tóxico is 1; a card can print "toxico:N" (level N) or
+## "toxico:atk" (X is its current Ataque, buffs included). A unit that only gained Tóxico in play has 1.
+func toxico_markers(source: Card) -> int:
+	var card_data := source.data()
+	if card_data.get("toxico_equals_attack", false):
+		return maxi(1, source.atk_total())
+	return maxi(1, int(card_data.get("toxico_level", 1)))
 
 func atk_of(c: Card) -> int:
 	return c.atk_total()
@@ -1675,7 +1685,7 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 			_fire(source, "on_hit_leader")
 		# Tóxico normally skips Leaders; a card with "toxico_hits_leader" is the exception
 		if _combat_damage and source != null and has_kw(source, "toxico") and source.data().get("toxico_hits_leader", false):
-			add_leader_dot_markers(tp, "veneno", 1)
+			add_leader_dot_markers(tp, "veneno", toxico_markers(source))
 	else:
 		var c := find_unit(t)
 		if c == null:
@@ -1726,9 +1736,9 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		if _combat_damage and source != null and has_kw(source, "toque_letal") and dealt > 0 \
 				and not _immune_to_lethal_touch(c):
 			c.damage = maxi(c.damage, c.hp + c.bonus_hp + c.temp_hp)
-		# Tóxico: combat damage that really got through leaves one Veneno marker (blocked damage returned above)
+		# Tóxico X: combat damage that really got through leaves X Veneno markers (blocked damage returned above)
 		if _combat_damage and source != null and has_kw(source, "toxico") and dealt > 0 and c.hp_left() > 0:
-			add_dot_markers(c, "veneno", 1)
+			add_dot_markers(c, "veneno", toxico_markers(source))
 	if source != null and has_kw(source, "roubo_de_vida"):
 		_heal_leader(source.owner, dealt)
 	return dealt
@@ -1738,16 +1748,25 @@ func add_dot_markers(unit: Card, dot_id: String, amount: int) -> void:
 	unit.dot_markers[dot_id] = int(unit.dot_markers.get(dot_id, 0)) + amount
 	_emit({"type": "dot", "uid": unit.uid, "dot": dot_id, "amount": amount, "total": int(unit.dot_markers[dot_id])})
 
-## Puts markers on a Leader (player `p`). Unlike on units they stay for the whole game. At
-## LEADER_POISON_LETHAL Veneno markers the Leader dies instantly: no Câmara de Êxtase, no halving.
+## Puts markers on a Leader (player `p`). Like a unit's, they hurt it and are consumed at the start
+## of its controller's turn (see _resolve_leader_dot), unless a card holds the Veneno in place.
+## Any number of markers is harmless to the engine; killing a Leader by markers is a card effect.
 func add_leader_dot_markers(p: int, dot_id: String, amount: int) -> void:
 	var leader_dots: Dictionary = players[p]["leader_dots"]
 	leader_dots[dot_id] = int(leader_dots.get(dot_id, 0)) + amount
 	_emit({"type": "dot", "uid": LEADER_UID[p], "dot": dot_id, "amount": amount, "total": int(leader_dots[dot_id])})
-	if dot_id == "veneno" and int(leader_dots[dot_id]) >= LEADER_POISON_LETHAL and int(players[p]["leader_hp"]) > 0:
-		var hp_before: int = players[p]["leader_hp"]
-		players[p]["leader_hp"] = 0
-		_emit({"type": "damage", "uid": LEADER_UID[p], "amount": hp_before, "src": 0, "dot": "veneno"})
+
+## Kills the Leader of player `p` on the spot (a card effect, e.g. Viprax's execution). Câmara de
+## Êxtase and the damage halving do not apply.
+func kill_leader_outright(p: int, dot_id := "") -> void:
+	var hp_before: int = players[p]["leader_hp"]
+	if hp_before <= 0:
+		return
+	players[p]["leader_hp"] = 0
+	var damage_event := {"type": "damage", "uid": LEADER_UID[p], "amount": hp_before, "src": 0}
+	if dot_id != "":
+		damage_event["dot"] = dot_id
+	_emit(damage_event)
 
 ## How many markers of `dot_id` the Leader of player `p` holds.
 func leader_dot_markers(p: int, dot_id: String) -> int:
@@ -2038,11 +2057,63 @@ func _start_turn(p: int, draw: bool) -> void:
 		_draw(p, 1)
 	_check_state()
 
-## Resolves every periodic marker on every unit controlled by p at the start of that turn.
+## Resolves every periodic marker on every unit controlled by p, and on p's Leader, at the start of that turn.
 func _resolve_dot_markers(p: int) -> void:
 	for unit: Card in players[p]["board"].duplicate():
 		for dot_id in unit.dot_markers.keys().duplicate():
 			resolve_dot(unit, String(dot_id))
+	for dot_id in players[p]["leader_dots"].keys().duplicate():
+		_resolve_leader_dot(p, String(dot_id))
+
+## A Leader's markers hurt it for one damage per marker (no Vida-bracket bonus: a Leader's Vida is
+## far too big for it) and wear off like a unit's. It is normal damage, so Câmara de Êxtase still
+## applies. While its Veneno is held (see veneno_is_held) the markers hurt but none wear off.
+func _resolve_leader_dot(p: int, dot_id: String) -> void:
+	var markers := leader_dot_markers(p, dot_id)
+	if markers <= 0:
+		return
+	var held := veneno_is_held(dot_id, LEADER_UID[p])
+	var consumed := 0 if held else markers_consumed_per_tick(dot_id, markers)
+	_emit({"type": "dot", "uid": LEADER_UID[p], "dot": dot_id, "amount": markers, "damage": markers, "total": markers - consumed, "cleared": true, "held": held})
+	_deal_dot_damage(LEADER_UID[p], markers, dot_id)
+	if held:
+		return
+	# markers added by a trigger during the damage above wait for the next turn
+	var remaining := leader_dot_markers(p, dot_id) - consumed
+	if remaining > 0:
+		players[p]["leader_dots"][dot_id] = remaining
+	else:
+		players[p]["leader_dots"].erase(dot_id)
+
+## How many markers wear off at one tick: Veneno loses only VENENO_DECAY_PER_TICK, the other kinds
+## (Queimadura, Sangramento) lose all of them.
+func markers_consumed_per_tick(dot_id: String, markers: int) -> int:
+	if dot_id == "veneno":
+		return mini(markers, VENENO_DECAY_PER_TICK)
+	return markers
+
+## True when the Veneno markers of `target_uid` (a unit, or a Leader's negative uid) are not consumed
+## right now: either a Greve Geral dos Antídotos is running, or a Leader's own hold is.
+func veneno_is_held(dot_id: String, target_uid: int) -> bool:
+	if dot_id != "veneno":
+		return false
+	if turn <= veneno_held_until:
+		return true
+	var leader_player := LEADER_UID.find(target_uid)
+	return leader_player >= 0 and turn <= int(players[leader_player]["leader_veneno_held_until"])
+
+## Nobody's Veneno is consumed for the next `turn_starts` turn starts (of either player).
+func hold_veneno_for_everyone(turn_starts: int) -> void:
+	veneno_held_until = maxi(veneno_held_until, turn + turn_starts)
+	_emit({"type": "veneno_hold", "player": -1, "turn_starts": turn_starts})
+
+## The Veneno on the Leader of player `p` is not consumed for the next `turn_starts` turn starts of
+## that Leader's controller.
+func hold_veneno_on_leader(p: int, turn_starts: int) -> void:
+	var first_turn_start := turn + (2 if p == active else 1)
+	var until := first_turn_start + 2 * (turn_starts - 1)
+	players[p]["leader_veneno_held_until"] = maxi(int(players[p]["leader_veneno_held_until"]), until)
+	_emit({"type": "veneno_hold", "player": p, "turn_starts": turn_starts})
 
 ## Carries out every sentence that is due: a Condenada unit (on either board) dies when the turn
 ## number stored on it arrives. Indestrutível survives, but the mark is spent either way.
@@ -2061,7 +2132,8 @@ func _resolve_condemned() -> void:
 	_check_state()
 
 ## Resolves one marker type. Only the markers present when this call starts are consumed;
-## a new marker added by an on_damaged trigger remains for the next turn.
+## a new marker added by an on_damaged trigger remains for the next turn. Veneno only loses
+## VENENO_DECAY_PER_TICK markers, and none while it is held (see veneno_is_held): the markers hurt and stay.
 func resolve_dot(unit: Card, dot_id: String) -> void:
 	if unit == null:
 		return
@@ -2069,9 +2141,13 @@ func resolve_dot(unit: Card, dot_id: String) -> void:
 	if markers <= 0:
 		return
 	var damage := dot_damage(dot_id, unit, markers)
-	_emit({"type": "dot", "uid": unit.uid, "dot": dot_id, "amount": markers, "damage": damage, "total": 0, "cleared": true})
+	var held := veneno_is_held(dot_id, unit.uid)
+	var consumed := 0 if held else markers_consumed_per_tick(dot_id, markers)
+	_emit({"type": "dot", "uid": unit.uid, "dot": dot_id, "amount": markers, "damage": damage, "total": markers - consumed, "cleared": true, "held": held})
 	_deal_dot_damage(unit.uid, damage, dot_id)
-	var remaining := int(unit.dot_markers.get(dot_id, 0)) - markers
+	if held:
+		return
+	var remaining := int(unit.dot_markers.get(dot_id, 0)) - consumed
 	if remaining > 0:
 		unit.dot_markers[dot_id] = remaining
 	else:

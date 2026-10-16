@@ -48,6 +48,8 @@ func _init() -> void:
 	_test_toque_letal()
 	_test_toxico()
 	_test_leader_poison()
+	_test_veneno_hold()
+	_test_venenosa_deck()
 	_test_provocacao()
 	_test_persistent_damage()
 	_test_triggers()
@@ -1245,7 +1247,56 @@ func _test_toxico() -> void:
 	_hit(g, attacker, toxic_defender.uid)
 	check(int(attacker.dot_markers.get("veneno", 0)) == 1, "Tóxico: quem revida também envenena")
 
-## Veneno on Leaders: Tóxico exception per card, permanent markers, the 12-marker kill and the X+ banish.
+	# Tóxico X: the card's level is how many markers each hit leaves
+	_tcard("t_toxic_three", 1, 4, [])
+	CardDB.data()["cards"]["t_toxic_three"]["keywords"] = ["toxico"]
+	CardDB.data()["cards"]["t_toxic_three"]["toxico_level"] = 3
+	g = _new_game()
+	_quiet(g)
+	attacker = _put(g, 0, "t_toxic_three")
+	target = _put(g, 1, "t_plain")
+	target.exhausted = true
+	_hit(g, attacker, target.uid)
+	check(int(target.dot_markers.get("veneno", 0)) == 3, "Tóxico 3: dano de combate coloca 3 marcadores")
+
+	# Tóxico X where X is the Ataque: temporary and permanent buffs both count
+	_tcard("t_toxic_attack", 2, 9, [])
+	CardDB.data()["cards"]["t_toxic_attack"]["keywords"] = ["toxico"]
+	CardDB.data()["cards"]["t_toxic_attack"]["toxico_equals_attack"] = true
+	g = _new_game()
+	_quiet(g)
+	attacker = _put(g, 0, "t_toxic_attack")
+	attacker.atk += 2 # a permanent buff, like Zophiróx's
+	attacker.temp_atk = 1
+	target = _put(g, 1, "t_plain")
+	target.exhausted = true
+	_hit(g, attacker, target.uid)
+	check(int(target.dot_markers.get("veneno", 0)) == 5, "Tóxico X = Ataque: 2 base +2 permanente +1 temporário = 5 marcadores")
+
+	# the tag on the card face
+	var level_three_data: Dictionary = CardDB.card("t_toxic_three")
+	check(CardView.toxico_tag_of_view(level_three_data, {}) == "Tóxico 3", "Tag: Tóxico com nível mostra o número")
+	check(CardView.toxico_tag_of_view(CardDB.card("t_toxic"), {}) == "Tóxico", "Tag: Tóxico comum não mostra número")
+	var attack_data: Dictionary = CardDB.card("t_toxic_attack")
+	check(CardView.toxico_tag_of_view(attack_data, {}) == "Tóxico X", "Tag: fora do campo o Tóxico por Ataque mostra X")
+	check(CardView.toxico_tag_of_view(attack_data, attacker.to_dict()) == "Tóxico 5", "Tag: no campo mostra o Ataque atual")
+
+	# Veneno on a unit loses only 1 marker per tick, but every marker hurts; Queimadura is still consumed whole
+	g = _new_game()
+	_quiet(g)
+	_tcard("t_decay_tank", 1, 60, [])
+	var decaying := _put(g, 1, "t_decay_tank")
+	g.add_dot_markers(decaying, "veneno", 3)
+	g.add_dot_markers(decaying, "queimadura", 2)
+	g.resolve_dot(decaying, "veneno")
+	g.resolve_dot(decaying, "queimadura")
+	check(int(decaying.dot_markers.get("veneno", 0)) == 2, "Veneno em unidade: 3 marcadores caem para 2 depois do tick")
+	check(int(decaying.dot_markers.get("queimadura", 0)) == 0, "Queimadura em unidade: continua sendo consumida inteira")
+	g.resolve_dot(decaying, "veneno")
+	g.resolve_dot(decaying, "veneno")
+	check(int(decaying.dot_markers.get("veneno", 0)) == 0, "Veneno em unidade: some depois de 3 ticks")
+
+## Veneno on Leaders: Tóxico exception per card, markers that tick but stay, the card-made kill at 12+ and the X+ banish.
 func _test_leader_poison() -> void:
 	_tcard("t_toxic_leader", 1, 4, [])
 	CardDB.data()["cards"]["t_toxic_leader"]["keywords"] = ["toxico"]
@@ -1256,10 +1307,48 @@ func _test_leader_poison() -> void:
 	_hit(g, attacker)
 	check(g.leader_dot_markers(1, "veneno") == 1, "Veneno no Líder: Tóxico com exceção coloca 1 marcador ao bater no Líder")
 
-	# markers on a Leader stay across turns (they never tick away like the ones on units)
+	# the Leader's markers hurt it at the start of its controller's turn (1 per marker) and are consumed, like a unit's
+	var leader_hp_before: int = g.players[1]["leader_hp"]
 	g.end_turn(g.active)
 	g._flush()
-	check(g.leader_dot_markers(1, "veneno") == 1, "Veneno no Líder: os marcadores não somem na virada do turno")
+	check(g.players[1]["leader_hp"] == leader_hp_before - 1, "Veneno no Líder: no início do turno dele, 1 de dano por marcador")
+	check(g.leader_dot_markers(1, "veneno") == 0, "Veneno no Líder: os marcadores são consumidos depois de causar dano")
+	g.end_turn(g.active)
+	g.end_turn(g.active)
+	g._flush()
+	check(g.players[1]["leader_hp"] == leader_hp_before - 1, "Veneno no Líder: sem marcadores, o turno seguinte não causa dano")
+
+	# Veneno decays by 1 per tick: a pile of 3 hurts for 3, then 2, then 1
+	g = _new_game()
+	_quiet(g)
+	g.add_leader_dot_markers(1, "veneno", 3)
+	leader_hp_before = g.players[1]["leader_hp"]
+	g.end_turn(g.active)
+	g._flush()
+	check(g.players[1]["leader_hp"] == leader_hp_before - 3 and g.leader_dot_markers(1, "veneno") == 2, "Veneno no Líder: 3 marcadores ferem 3 e sobram 2")
+	g.end_turn(g.active)
+	g.end_turn(g.active)
+	g._flush()
+	check(g.players[1]["leader_hp"] == leader_hp_before - 5 and g.leader_dot_markers(1, "veneno") == 1, "Veneno no Líder: no turno seguinte ferem 2 e sobra 1")
+
+	# Queimadura on a Leader is untouched by the decay rule: it still goes away in full
+	g = _new_game()
+	_quiet(g)
+	g.add_leader_dot_markers(1, "queimadura", 3)
+	g.end_turn(g.active)
+	g._flush()
+	check(g.leader_dot_markers(1, "queimadura") == 0, "Queimadura no Líder: continua sendo consumida inteira")
+
+	# Tóxico X on a Leader: only a card with toxico_hits_leader leaves X markers, and X is its level
+	_tcard("t_toxic_three", 1, 4, [])
+	CardDB.data()["cards"]["t_toxic_three"]["keywords"] = ["toxico"]
+	CardDB.data()["cards"]["t_toxic_three"]["toxico_level"] = 3
+	CardDB.data()["cards"]["t_toxic_three"]["toxico_hits_leader"] = true
+	g = _new_game()
+	_quiet(g)
+	attacker = _put(g, 0, "t_toxic_three")
+	_hit(g, attacker)
+	check(g.leader_dot_markers(1, "veneno") == 3, "Tóxico 3 com exceção: bater no Líder coloca 3 marcadores")
 
 	# add_dot reaches a Leader through its negative uid
 	g = _new_game()
@@ -1267,13 +1356,23 @@ func _test_leader_poison() -> void:
 	var add_marker: Effect = EffectRegistry.parse_list([{"trigger": "on_play", "action": "add_dot", "target": "enemy_leader", "dot": "veneno", "amount": 3}])[0]
 	add_marker.apply(EffectContext.new(g, 0, ""), GameState.LEADER_UID[1])
 	check(g.leader_dot_markers(1, "veneno") == 3 and g.players[1]["leader_hp"] == g.players[1]["leader_max"], "Veneno no Líder: add_dot põe marcadores sem tirar Vida")
-	check(g.phase != "over", "Veneno no Líder: com menos de 12 marcadores o Líder vive")
 
-	# 12 markers: the Leader dies on the spot
-	add_marker = EffectRegistry.parse_list([{"trigger": "on_play", "action": "add_dot", "target": "enemy_leader", "dot": "veneno", "amount": GameState.LEADER_POISON_LETHAL - 3}])[0]
+	# the engine never kills by markers alone: 12+ markers are harmless until a card effect asks
+	add_marker = EffectRegistry.parse_list([{"trigger": "on_play", "action": "add_dot", "target": "enemy_leader", "dot": "veneno", "amount": 9}])[0]
 	add_marker.apply(EffectContext.new(g, 0, ""), GameState.LEADER_UID[1])
 	g._check_leaders()
-	check(g.players[1]["leader_hp"] <= 0 and g.phase == "over" and g.winner == 0, "Veneno no Líder: 12 marcadores matam o Líder na hora")
+	check(g.leader_dot_markers(1, "veneno") == 12 and g.phase != "over", "Veneno no Líder: 12 marcadores sozinhos não matam (não é regra do motor)")
+
+	var execution: Effect = EffectRegistry.parse_list([{"trigger": "on_play", "action": "kill_leader", "target": "enemy_leader", "requires_markers": {"dot": "veneno", "amount": 12}}])[0]
+	var short_game := _new_game()
+	_quiet(short_game)
+	short_game.add_leader_dot_markers(1, "veneno", 11)
+	execution.apply(EffectContext.new(short_game, 0, ""), GameState.LEADER_UID[1])
+	short_game._check_leaders()
+	check(short_game.phase != "over", "kill_leader: com 11 marcadores nada acontece")
+	execution.apply(EffectContext.new(g, 0, ""), GameState.LEADER_UID[1])
+	g._check_leaders()
+	check(g.players[1]["leader_hp"] <= 0 and g.phase == "over" and g.winner == 0, "kill_leader: com 12 marcadores o Líder morre na hora")
 
 	# banish only if the unit holds enough markers
 	g = _new_game()
@@ -1287,6 +1386,107 @@ func _test_leader_poison() -> void:
 	g.add_dot_markers(marked, "veneno", 1)
 	banish.apply(EffectContext.new(g, 0, ""), marked.uid)
 	check(g.find_unit(marked.uid) == null, "Banir por Veneno: com marcadores suficientes a unidade é banida")
+
+## Antídoto Fora de Estoque (the Leader's Veneno stays for its next 2 turns) and Greve Geral dos Antídotos
+## (nobody's Veneno is consumed for one turn start of each player). Both still hurt, and both expire.
+func _test_veneno_hold() -> void:
+	_tcard("t_hold_dummy", 1, 30, [])
+
+	# Antídoto Fora de Estoque: 1 marker now, and the Leader's markers survive its next two turn starts
+	var g := _new_game()
+	_quiet(g)
+	var caster: int = g.active
+	var victim := 1 - caster
+	var antidote_effects := EffectRegistry.parse_list(CardDB.card("antidoto_fora_de_estoque")["effects"])
+	for antidote_effect: Effect in antidote_effects:
+		antidote_effect.apply(EffectContext.new(g, caster, ""), GameState.LEADER_UID[victim])
+	g.add_leader_dot_markers(victim, "veneno", 2)
+	var poisoned_unit := _put(g, victim, "t_hold_dummy")
+	g.add_dot_markers(poisoned_unit, "veneno", 1)
+	var leader_hp_start: int = g.players[victim]["leader_hp"]
+	_next_turn(g) # the victim's first turn start
+	check(g.players[victim]["leader_hp"] == leader_hp_start - 3, "Antídoto: o Veneno do Líder ainda fere (3 marcadores = 3 de dano)")
+	check(g.leader_dot_markers(victim, "veneno") == 3, "Antídoto: os marcadores do Líder ficam no primeiro turno dele")
+	check(poisoned_unit.dot_markers.get("veneno", 0) == 0, "Antídoto: só vale pro Líder, o Veneno de unidade é consumido normal")
+	_next_turn(g)
+	_next_turn(g) # the victim's second turn start
+	check(g.leader_dot_markers(victim, "veneno") == 3 and g.players[victim]["leader_hp"] == leader_hp_start - 6, "Antídoto: ferem e ficam também no segundo turno dele")
+	_next_turn(g)
+	_next_turn(g) # the victim's third turn start: the hold is over
+	check(g.leader_dot_markers(victim, "veneno") == 2 and g.players[victim]["leader_hp"] == leader_hp_start - 9, "Antídoto: no terceiro turno o Veneno ainda fere e volta a cair 1 por turno")
+
+	# Greve Geral dos Antídotos: units and Leaders keep their Veneno for one turn start of each player
+	g = _new_game()
+	_quiet(g)
+	caster = g.active
+	victim = 1 - caster
+	var strike_effect: Effect = EffectRegistry.parse_list(CardDB.card("greve_geral_dos_antidotos")["effects"])[0]
+	strike_effect.apply(EffectContext.new(g, caster, ""), 0)
+	var enemy_unit := _put(g, victim, "t_hold_dummy")
+	var own_unit := _put(g, caster, "t_hold_dummy")
+	g.add_dot_markers(enemy_unit, "veneno", 2)
+	g.add_dot_markers(enemy_unit, "queimadura", 1)
+	g.add_dot_markers(own_unit, "veneno", 1)
+	g.add_leader_dot_markers(victim, "veneno", 2)
+	_next_turn(g) # the victim's turn start
+	check(enemy_unit.dot_markers.get("veneno", 0) == 2 and g.leader_dot_markers(victim, "veneno") == 2, "Greve: unidade e Líder inimigos mantêm o Veneno no turno do dono")
+	check(enemy_unit.dot_markers.get("queimadura", 0) == 0, "Greve: só segura Veneno, Queimadura continua sendo consumida")
+	_next_turn(g) # the caster's turn start
+	check(own_unit.dot_markers.get("veneno", 0) == 1, "Greve: o Veneno de quem jogou também fica no turno dele")
+	_next_turn(g) # the victim's next turn start: the hold is over
+	check(enemy_unit.dot_markers.get("veneno", 0) == 1 and g.leader_dot_markers(victim, "veneno") == 1, "Greve: depois da rodada, o Veneno volta a cair 1 por turno")
+	_next_turn(g)
+	check(own_unit.dot_markers.get("veneno", 0) == 0, "Greve: o Veneno de quem jogou também volta a cair 1 por turno")
+
+## Ends the active player's turn and settles everything that starts the next one.
+func _next_turn(g: GameState) -> void:
+	g.end_turn(g.active)
+	g._flush()
+
+## The Venenosa cards that need engine support: Hikari's damage per marker, Tox Vipranna healing from
+## Veneno ticks, Az'Kharon poisoning whoever challenges it.
+func _test_venenosa_deck() -> void:
+	check(DeckDB.validate("venenosa").is_empty(), "deck Jardim da Rainha Tox é legal: %s" % [DeckDB.validate("venenosa")])
+	_tcard("t_target_dummy", 1, 12, [])
+
+	# Hikari: 2 damage per Veneno marker on the target (no markers = no damage)
+	var g := _new_game()
+	_quiet(g)
+	var dummy := _put(g, 1, "t_target_dummy")
+	var hikari_damage: Effect = EffectRegistry.parse_list(CardDB.card("hikari")["effects"])[0]
+	hikari_damage.apply(EffectContext.new(g, 0, ""), dummy.uid)
+	check(dummy.damage == 0, "Hikari: sem marcadores de Veneno não causa dano")
+	g.add_dot_markers(dummy, "veneno", 3)
+	hikari_damage.apply(EffectContext.new(g, 0, ""), dummy.uid)
+	check(dummy.damage == 6, "Hikari: 3 marcadores de Veneno = 6 de dano")
+
+	# Tox Vipranna: an enemy unit taking Veneno damage heals her owner's Leader by 2
+	g = _new_game()
+	_quiet(g)
+	_put(g, 0, "tox_vipranna")
+	var poisoned := _put(g, 1, "t_target_dummy")
+	g.players[0]["leader_hp"] = 20
+	g.add_dot_markers(poisoned, "veneno", 2)
+	g.resolve_dot(poisoned, "veneno")
+	g._check_state()
+	check(g.players[0]["leader_hp"] == 22, "Tox Vipranna: dano de Veneno em unidade inimiga cura 2 do Líder dela")
+	g.players[0]["leader_hp"] = 20
+	var own_poisoned := _put(g, 0, "t_target_dummy")
+	g.add_dot_markers(own_poisoned, "veneno", 2)
+	g.resolve_dot(own_poisoned, "veneno")
+	g._check_state()
+	check(g.players[0]["leader_hp"] == 20, "Tox Vipranna: Veneno em unidade aliada não cura")
+
+	# Az'Kharon: the unit that challenges it leaves with 1 Veneno marker
+	g = _new_game()
+	_quiet(g)
+	var wall := _put(g, 1, "azkharon")
+	var challenger := _put(g, 0, "t_target_dummy")
+	g.stack_system().settle() # Az'Kharon's own Ao Entrar must be resolved before combat can open
+	wall.exhausted = true # a unit can only be challenged while tapped
+	_hit(g, challenger, wall.uid)
+	_pass_windows(g)
+	check(int(challenger.dot_markers.get("veneno", 0)) == 1, "Az'Kharon: quem a desafia recebe 1 marcador de Veneno")
 
 ## Goes to combat (if still in the Main Phase) and lets the pre-combat window pass, so attacks can be declared.
 func _open_attacks(g: GameState) -> void:

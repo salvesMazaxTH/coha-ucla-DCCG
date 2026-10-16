@@ -37,7 +37,7 @@ var hp_max := 0
 var deck := 0
 var fatigue := 0 ## damage of the next draw with the deck empty, shown in place of the 0
 var grave := 0
-var poison := 0 ## Veneno markers on this Leader (permanent; 12 kills it), drawn as a green badge on the art
+var poison := 0 ## Veneno markers on this Leader (they decay 1 per turn; Viprax needs 8 to execute), drawn by CardView's shared dot badge
 var requiem := 0 ## Réquiem spells castable from the graveyard right now (glow + badge on the counter)
 var ability_ready := false
 var ability_cost := 0
@@ -234,14 +234,10 @@ func _draw() -> void:
 	draw_polyline(sh + PackedVector2Array([sh[0]]), UITheme.GOLD if not low else Color(1, 0.5, 0.4, 0.6 + 0.4 * pulse), 2, true)
 	_text(f_num, str(hp), hc + Vector2(0, 9), 26, Color.WHITE)
 
-	# Veneno markers: green badge on the top-right corner of the art
+	# Veneno markers: the same shared medallion used by unit cards, with the larger Leader scale.
 	if poison > 0:
 		var badge_center := Vector2(ART.end.x - 14, ART.position.y + 14)
-		var danger := poison >= GameState.LEADER_POISON_LETHAL - 3
-		draw_circle(badge_center, 13, Color(0, 0, 0, 0.6))
-		draw_circle(badge_center, 11, Color("#3f6b1c"))
-		draw_arc(badge_center, 11, 0, TAU, 24, Color(1, 0.5, 0.4, 0.6 + 0.4 * pulse) if danger else Color("#b8e86b"), 2, true)
-		_text(f_num, str(poison), badge_center + Vector2(0, 6), 16, Color.WHITE)
+		CardView.draw_dot_badge(self, badge_center, 12, 1.0, "veneno", poison, pulse, 1.2)
 
 	# ability gem
 	var usable := ability_ready or passive

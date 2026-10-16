@@ -3789,7 +3789,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 					elif e["type"] in ["condemn", "doom", "doom_resisted"]:
 						col = CardView.DOOM_COL
 					elif e["type"] == "dot":
-						col = CardView.BURN_COL if e.get("dot", "") == "queimadura" else Color("#b8e86b")
+						col = CardView.dot_badge_color(String(e.get("dot", "")))
 					elif e["type"] in ["crit", "crit_negated", "critico_up"]:
 						col = Color("#ff9d6e") # same warm tone as the Crítico tag
 					_impact(actors[e["uid"]], lbl, col, cursor, false)

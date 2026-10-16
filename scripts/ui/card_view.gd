@@ -42,6 +42,8 @@ const HP_COL := Color("#2f9e58")
 const FROST := Color("#cfefff")
 const FROST_DEEP := Color("#4fc3ff") ## saturated ice blue: what makes a Congelada card readable from across the table
 const BURN_COL := Color("#ff7043") ## Queimadura: hot orange-red, distinct from damage red and frost blue
+const POISON_COL := Color("#b8e86b") ## Veneno: acid-lime drop over a deep violet medallion
+const BLEED_COL := Color("#e85d75") ## Sangramento: reserved by the same shared badge for the future keyword
 const DOOM_COL := Color("#b57bff") ## Condenada: sickly violet, always paired with a skull so it is not confused with the spell-shield lilac
 ## Ice spikes of a frozen card, as [x across the card 0..1, length in base px, half width in base px].
 const FROST_ICICLES := [[0.24, 11.0, 2.6], [0.34, 19.0, 3.2], [0.45, 9.0, 2.2], [0.56, 24.0, 3.6], [0.67, 13.0, 2.6], [0.77, 20.0, 3.2], [0.88, 10.0, 2.4]] ## hang from the top edge
@@ -485,9 +487,7 @@ func _draw() -> void:
 		_draw_frost(art, s)
 	if inst.get("tide_mark", false):
 		draw_arc(art.get_center() + Vector2(0, art.size.y * 0.32), art.size.x * 0.3, PI * 1.15, PI * 1.85, 24, Color("#6fd0ff", 0.85), 2 * s, true)
-	var burn_amount := dot_marker_count_of_view(inst, "queimadura")
-	if burn_amount > 0:
-		_burn_badge(Vector2(art.end.x - 11 * s, art.position.y + 33 * s), 10 * s, s, burn_amount)
+	_draw_dot_badges(art, s, pulse)
 	if inst.has("condemned_turn"):
 		# a dark violet veil over the art, then the skull medallion on the upper-right corner
 		draw_colored_polygon(_art_window, Color("#2a0a4a", 0.28 + 0.08 * sin(_t * 3.2)))
@@ -768,6 +768,18 @@ static func critico_of_view(cd: Dictionary, instance: Dictionary) -> int:
 	var permanent_level := int(instance["critico"]) if instance.has("critico") else int(cd.get("critico", 0))
 	return clampi(permanent_level + int(instance.get("temp_critico", 0)), 0, 4)
 
+## The tag text of a Tóxico card: "Tóxico" (level 1), "Tóxico 2", or for the Ataque-based kind
+## the live number on the board ("Tóxico 5") and "Tóxico X" everywhere else. Mirrors GameState.toxico_markers.
+static func toxico_tag_of_view(cd: Dictionary, instance: Dictionary) -> String:
+	var keyword_name: String = CardDB.keyword("toxico")["name"]
+	if cd.get("toxico_equals_attack", false):
+		if not instance.has("damage"):
+			return keyword_name + " X"
+		var live_attack: int = int(instance["atk"]) + int(instance["temp_atk"]) + int(instance.get("temp_atk_until_next_turn", 0)) + int(instance.get("bonus_atk", 0))
+		return "%s %d" % [keyword_name, maxi(1, live_attack)]
+	var level := int(cd.get("toxico_level", 1))
+	return keyword_name if level <= 1 else "%s %d" % [keyword_name, level]
+
 ## Attacks per turn this card can make: 2 with Ataque Duplo, which a card can also earn by reaching
 ## Crítico 4 ("critico_maximo": {"ataque_duplo": true}, Vael); otherwise 1. Mirrors GameState.attacks_allowed.
 static func attacks_allowed_of_view(cd: Dictionary, instance: Dictionary) -> int:
@@ -795,6 +807,66 @@ static func dot_marker_count_of_view(instance: Dictionary, dot_id: String) -> in
 	if dot_id == "queimadura":
 		return int(instance.get("burn", 0))
 	return 0
+
+## Shared live-marker palette. Keeping this here makes the exact same badge readable on cards and Leaders.
+static func dot_badge_color(dot_id: String) -> Color:
+	return {"queimadura": BURN_COL, "veneno": POISON_COL, "sangramento": BLEED_COL}.get(dot_id, Color("#d8d2c4"))
+
+## Shared live-marker badge used by unit cards and LeaderView. The icon and count deliberately sit in
+## the same medallion, so a marker never becomes invisible just because the target is a unit or Leader.
+static func draw_dot_badge(target: CanvasItem, center: Vector2, radius: float, scale: float, dot_id: String, amount: int, pulse := 0.5, text_scale := 1.0) -> void:
+	if target == null or amount <= 0:
+		return
+	var col := dot_badge_color(dot_id)
+	var deep := Color("#241332") if dot_id == "veneno" else (Color("#5d1723") if dot_id == "sangramento" else Color("#7d2114"))
+	var danger := dot_id == "veneno" and amount >= 6
+	var pulse_alpha := 0.6 + 0.4 * clampf(float(pulse), 0.0, 1.0)
+	target.draw_circle(center + Vector2(0, 1.4 * scale), radius * 1.2, Color(0, 0, 0, 0.62))
+	target.draw_circle(center, radius * 1.16, deep)
+	target.draw_circle(center, radius * 1.08, Color("#ffb04d") if dot_id == "queimadura" else col)
+	target.draw_circle(center, radius, col.darkened(0.58))
+	var rim := Color("#ff8f86", pulse_alpha) if danger else Color(col.lightened(0.32), 0.9)
+	target.draw_arc(center, radius * 1.07, 0, TAU, 28, rim, 1.4 * scale, true)
+
+	var icon := PackedVector2Array()
+	if dot_id == "veneno":
+		# acid drop: a pointed top with a rounded lower body
+		icon = PackedVector2Array([
+			center + Vector2(0, -0.78 * radius), center + Vector2(0.42 * radius, -0.2 * radius),
+			center + Vector2(0.44 * radius, 0.27 * radius), center + Vector2(0.24 * radius, 0.58 * radius),
+			center + Vector2(-0.24 * radius, 0.58 * radius), center + Vector2(-0.44 * radius, 0.27 * radius),
+			center + Vector2(-0.42 * radius, -0.2 * radius)])
+	elif dot_id == "sangramento":
+		# a compact blade/slash silhouette, ready for the future Sangramento badge
+		icon = PackedVector2Array([
+			center + Vector2(-0.48 * radius, 0.5 * radius), center + Vector2(0.28 * radius, -0.56 * radius),
+			center + Vector2(0.5 * radius, -0.56 * radius), center + Vector2(-0.25 * radius, 0.5 * radius)])
+	else:
+		icon = PackedVector2Array([
+			center + Vector2(0, -0.86 * radius), center + Vector2(0.38 * radius, -0.25 * radius),
+			center + Vector2(0.16 * radius, 0.0), center + Vector2(0.52 * radius, 0.46 * radius),
+			center + Vector2(0, 0.72 * radius), center + Vector2(-0.48 * radius, 0.46 * radius),
+			center + Vector2(-0.16 * radius, 0.0), center + Vector2(-0.38 * radius, -0.25 * radius)])
+	target.draw_colored_polygon(icon, col.lightened(0.2))
+	target.draw_polyline(icon + PackedVector2Array([icon[0]]), Color(1, 1, 1, 0.35), 0.65 * scale, true)
+	var font := UITheme.font("heavy")
+	var label := str(amount)
+	var font_size := maxi(1, int(radius * (0.88 if amount < 10 else 0.68) * text_scale))
+	var width := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	var pos := center + Vector2(-width / 2.0, radius * 0.4)
+	target.draw_string_outline(font, pos, label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, 3, Color(0, 0, 0, 0.9))
+	target.draw_string(font, pos, label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
+
+## Draw every live periodic marker on the card. They stack vertically instead of replacing one another,
+## so simultaneous Queimadura/Veneno/Sangramento remains unambiguous.
+func _draw_dot_badges(art: Rect2, s: float, pulse: float) -> void:
+	var center := Vector2(art.end.x - 11 * s, art.position.y + 33 * s)
+	for dot_id in ["queimadura", "veneno", "sangramento"]:
+		var amount := dot_marker_count_of_view(inst, dot_id)
+		if amount <= 0:
+			continue
+		CardView.draw_dot_badge(self, center, 10 * s, s, dot_id, amount, pulse)
+		center.y += 23 * s
 
 ## Round medallions down the left edge of the art, under the cost gem.
 func _kw_badges(art: Rect2, cd: Dictionary, s: float) -> void:
@@ -824,17 +896,6 @@ func _armor_badge(c: Vector2, r: float, s: float, amount: int) -> void:
 	draw_colored_polygon(_shape("shield", c, r * 0.82), steel.darkened(0.15))
 	draw_colored_polygon(_shape("shield", c, r * 0.64), steel.darkened(0.55))
 	_text(UITheme.font("heavy"), str(amount), c + Vector2(0, r * 0.32), r * 1.05, Color.WHITE)
-
-## Live Queimadura marker: a hot ember medallion with a large count, placed on the upper-right
-## of the art so it stays visible without competing with the printed keyword badges on the left.
-func _burn_badge(c: Vector2, r: float, s: float, amount: int) -> void:
-	draw_circle(c + Vector2(0, 1.4 * s), r * 1.2, Color(0, 0, 0, 0.62))
-	draw_circle(c, r * 1.16, Color("#7d2114"))
-	draw_circle(c, r * 1.08, Color("#ffb04d"))
-	draw_circle(c, r, BURN_COL.darkened(0.55))
-	var flame := _unit_pts(c + Vector2(0, -1.7 * s), r * 0.72, [[0.0, -0.9], [0.38, -0.28], [0.16, 0.0], [0.52, 0.46], [0.0, 0.72], [-0.48, 0.46], [-0.16, 0.0], [-0.38, -0.28]])
-	draw_colored_polygon(flame, BURN_COL.lightened(0.18))
-	_text(UITheme.font("heavy"), str(amount), c + Vector2(0, r * 0.4), r * (0.88 if amount < 10 else 0.68), Color.WHITE)
 
 ## Live Condenada marker: a dark medallion with a violet skull (cranium, jaw, eye sockets, nose).
 func _doom_badge(c: Vector2, r: float, s: float) -> void:
@@ -979,9 +1040,10 @@ func _panel_lines(cd: Dictionary) -> Array:
 		out.append([[kind + spd, Color("#ffd27a") if spd != "" else Color(UITheme.TEXT, 0.6)]])
 	# tags: keywords first, then trigger names (full text lives in the overlay)
 	var tags: Array = []
-	var burn_amount := dot_marker_count_of_view(inst, "queimadura")
-	if burn_amount > 0:
-		tags.append(["%s %d" % [CardDB.keyword("queimadura")["name"], burn_amount], BURN_COL.lightened(0.18)])
+	for dot_id in ["queimadura", "veneno", "sangramento"]:
+		var dot_amount := dot_marker_count_of_view(inst, dot_id)
+		if dot_amount > 0:
+			tags.append(["%s %d" % [CardDB.keyword(dot_id)["name"], dot_amount], dot_badge_color(dot_id).lightened(0.18)])
 	if inst.has("condemned_turn"):
 		tags.append([CardDB.keyword("condenada")["name"], DOOM_COL.lightened(0.15)])
 	if inst.has("frozen"):
@@ -991,7 +1053,8 @@ func _panel_lines(cd: Dictionary) -> Array:
 	for kw in kws:
 		if kw == "ataque_duplo":
 			continue # drawn below with its attack counter
-		tags.append([CardDB.keyword(kw)["name"], Color("#9fe3ff") if kw == "escudo" else Color("#ffe7a0")])
+		var tag_name: String = toxico_tag_of_view(cd, inst) if kw == "toxico" else CardDB.keyword(kw)["name"]
+		tags.append([tag_name, Color("#9fe3ff") if kw == "escudo" else Color("#ffe7a0")])
 	var armor_value := armor_of_view(cd, inst)
 	if armor_value > 0:
 		tags.append(["%s %d" % [CardDB.keyword("armadura")["name"], armor_value], Color("#c9d6e6")])

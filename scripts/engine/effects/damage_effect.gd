@@ -2,7 +2,8 @@ class_name DamageEffect
 extends Effect
 ## "damage": deals `amount` damage to each target.
 ## "amount_from": "sacrificed_atk" uses the attack of the unit a "sacrifice" just killed;
-## "self_half_armor" uses half of this unit's own Armadura, rounded up (Tharox).
+## "self_half_armor" uses half of this unit's own Armadura, rounded up (Tharox);
+## "target_veneno_markers" deals `amount` damage per Veneno marker on the target (Hikari).
 ## "ally_reduce": {"essence", "amount"} = own units of that essence take only that much.
 ## "adjacent_amount": the units right beside each target also take this much (Deslizamento de Placas).
 ## "freeze": true also freezes each target that survives the damage (Mestra do Gelo Frígido).
@@ -30,6 +31,9 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		var source_unit := game.find_unit(context.self_uid)
 		damage_amount = ceili(game.armor_of(source_unit) / 2.0) if source_unit != null else 0
 	var victim := game.find_unit(target_uid)
+	if amount_from == "target_veneno_markers":
+		var marker_count := int(victim.dot_markers.get("veneno", 0)) if victim != null else 0
+		damage_amount = amount * marker_count
 	# checked before the damage, so a freeze applied by this same effect doesn't count
 	if amount_if_frozen > 0 and victim != null and game.is_frozen(victim):
 		damage_amount = amount_if_frozen

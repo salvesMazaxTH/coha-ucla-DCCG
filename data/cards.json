@@ -234,7 +234,7 @@
     },
     "toxico": {
       "name": "Tóxico",
-      "text": "Quando esta unidade causar dano de combate a uma unidade, coloca 1 marcador de Veneno nela. Se o dano for evitado (Escudo, Esquiva, Indestrutível), não coloca. Não afeta Líderes, a não ser que a carta diga o contrário."
+      "text": "Quando esta unidade causar dano de combate a uma unidade, coloca marcadores de Veneno nela: 1 se não houver número, ou X em \"Tóxico X\" (a tag mostra o valor). Se o dano for evitado (Escudo, Esquiva, Indestrutível), não coloca. Não afeta Líderes, a não ser que a carta diga o contrário."
     },
     "congelar": {
       "name": "Congelar",
@@ -246,7 +246,7 @@
     },
     "veneno": {
       "name": "Veneno",
-      "text": "Marcadores de Veneno: no início do turno do controlador, esta unidade sofre dano igual à quantidade de marcadores mais um bônus pela Vida máxima: +0 com 1–5, +1 com 6–9, +2 com 10–13 e +1 adicional a cada 4 de Vida acima de 10. Depois remove todos os marcadores. Esse dano ignora Armadura, Escudo e Escudo de Feitiço; Indestrutível ainda o impede."
+      "text": "Marcadores de Veneno: no início do turno do controlador, esta unidade sofre dano igual à quantidade de marcadores mais um bônus pela Vida máxima: +0 com 1–5, +1 com 6–9, +2 com 10–13 e +1 adicional a cada 4 de Vida acima de 10. Depois remove só 1 marcador (Veneno decai devagar). Esse dano ignora Armadura, Escudo e Escudo de Feitiço; Indestrutível ainda o impede."
     },
     "sangramento": {
       "name": "Sangramento",
@@ -434,6 +434,28 @@
         "text": "Rápida. 2 Momentum, uma vez por turno: uma unidade aliada ganha +2 de Ataque neste turno."
       },
       "essences": ["neutra"]
+    },
+    "tox_vipranna": {
+      "name": "Tox Vipranna",
+      "hp": 30,
+      "art": "venenosa/tox_vipranna_lider.webp",
+      "legendary": "tox_vipranna",
+      "ability": {
+        "name": "Beijo de Jardim",
+        "cost": 2,
+        "once_per_turn": true,
+        "speed": "rapido",
+        "effects": [
+          {
+            "action": "add_dot",
+            "dot": "veneno",
+            "target": "enemy_unit",
+            "amount": 1
+          }
+        ],
+        "text": "Rápida. 2 Momentum, uma vez por turno: dê 1 marcador de Veneno a uma unidade inimiga."
+      },
+      "essences": ["venenosa"]
     },
     "morakhan": {
       "name": "Morakhan",

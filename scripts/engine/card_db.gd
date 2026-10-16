@@ -22,6 +22,8 @@ static func data() -> Dictionary:
 ## - "armadura:N" -> "armor" N
 ## - "rapidez:N" (Rapidez 1-3) -> "rapidez" N (a card without the keyword has Rapidez 0)
 ## - "critico:N" (Crítico 1-4) -> "critico" N
+## - "toxico:N" (Tóxico 2+) -> "toxico_level" N, and "toxico:atk" -> "toxico_equals_attack" (X = its Ataque).
+##   Unlike the others, "toxico" itself stays in the keyword list so grants, silences and has_kw keep working.
 static func _apply_valued_keywords(cd: Dictionary) -> void:
 	var plain_keywords: Array = []
 	for keyword in cd.get("keywords", []):
@@ -31,6 +33,13 @@ static func _apply_valued_keywords(cd: Dictionary) -> void:
 			cd["rapidez"] = int(String(keyword).trim_prefix("rapidez:"))
 		elif String(keyword).begins_with("critico:"):
 			cd["critico"] = int(String(keyword).trim_prefix("critico:"))
+		elif String(keyword).begins_with("toxico:"):
+			var toxico_value := String(keyword).trim_prefix("toxico:")
+			if toxico_value == "atk":
+				cd["toxico_equals_attack"] = true
+			else:
+				cd["toxico_level"] = int(toxico_value)
+			plain_keywords.append("toxico")
 		else:
 			plain_keywords.append(keyword)
 	cd["keywords"] = plain_keywords

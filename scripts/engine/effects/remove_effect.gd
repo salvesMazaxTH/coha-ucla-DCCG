@@ -9,6 +9,8 @@ extends Effect
 ##   "requires_markers": {"dot": "veneno", "amount": X}: the banish only happens if the unit holds
 ##   at least X markers of that kind, otherwise nothing happens.
 ## "destroy_artifact": the target free-standing artifact goes to the graveyard, freeing its slot.
+## "kill_leader": the targeted Leader dies on the spot, but only if it holds the "requires_markers"
+##   amount of that marker kind (Viprax's execution). Câmara de Êxtase does not save it.
 
 var shield_leader_damage := 0
 var required_dot := ""
@@ -24,6 +26,8 @@ func _read_parameters(data: Dictionary) -> void:
 func apply(context: EffectContext, target_uid: int) -> void:
 	if action == "banish":
 		_banish(context, target_uid)
+	elif action == "kill_leader":
+		_kill_leader(context, target_uid)
 	elif action == "destroy_artifact":
 		var artifact := context.game.find_relic(target_uid)
 		if artifact != null:
@@ -40,6 +44,14 @@ func _destroy(context: EffectContext, target_uid: int) -> void:
 	context.game._emit({"type": "destroy", "uid": target_uid})
 	if had_shield and shield_leader_damage > 0:
 		context.game._deal_damage(GameState.LEADER_UID[doomed.owner], shield_leader_damage, null)
+
+func _kill_leader(context: EffectContext, target_uid: int) -> void:
+	var leader_player := GameState.LEADER_UID.find(target_uid)
+	if leader_player < 0:
+		return
+	if context.game.leader_dot_markers(leader_player, required_dot) < required_dot_amount:
+		return
+	context.game.kill_leader_outright(leader_player, required_dot)
 
 func _banish(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
