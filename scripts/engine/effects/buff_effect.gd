@@ -2,7 +2,7 @@ class_name BuffEffect
 extends Effect
 ## "buff": +atk/+hp and keywords on the target unit ("temp": true = attack, hp and keywords
 ## only until end of turn). "armor": N adds Armadura permanently (stacks with what it already has);
-## "armor_temp": N is the same until its owner's next turn starts.
+## "armor_temp": N is the same until its owner's next turn starts. "atk_temp": N does that for Ataque.
 ## "per": "momentum_left" multiplies atk/hp by the Momentum the controller still has
 ## (at least `min`, at most `max`).
 ## "cap_atk": this effect can give one unit at most that much attack in total (e.g. Layla).
@@ -13,6 +13,7 @@ var attack := 0
 var health := 0
 var armor := 0
 var temporary_armor := 0
+var temporary_attack_until_next_turn := 0
 var temporary := false
 var keywords: Array = []
 var per := ""
@@ -32,6 +33,7 @@ func _read_parameters(data: Dictionary) -> void:
 	health = int(data.get("hp", 0))
 	armor = int(data.get("armor", 0))
 	temporary_armor = int(data.get("armor_temp", 0))
+	temporary_attack_until_next_turn = int(data.get("atk_temp", 0))
 	temporary = bool(data.get("temp", false))
 	keywords = data.get("keywords", [])
 	per = String(data.get("per", ""))
@@ -80,6 +82,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		unit.hp += bonus_health
 		attack_gain += bonus_attack
 		health_gain += bonus_health
+	unit.temp_atk_until_next_turn += temporary_attack_until_next_turn # ends when the unit's owner starts their next turn
+	attack_gain += temporary_attack_until_next_turn
 	unit.temp_armor += temporary_armor # lasts until the unit's owner starts their next turn
 	unit.armor += armor # Armadura stacks: giving Armadura X to a unit that has Y leaves X + Y
 	for keyword in keywords:

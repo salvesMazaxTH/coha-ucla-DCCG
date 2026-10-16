@@ -568,7 +568,7 @@ func _draw() -> void:
 		var atk_col := Color.WHITE
 		var hp_col := Color.WHITE
 		if inst.has("damage"):
-			var live_atk: int = max(0, inst["atk"] + inst["temp_atk"] + int(inst.get("bonus_atk", 0)))
+			var live_atk: int = max(0, inst["atk"] + inst["temp_atk"] + int(inst.get("temp_atk_until_next_turn", 0)) + int(inst.get("bonus_atk", 0)))
 			atk_col = Color("#a8ffa0") if live_atk > atk else Color.WHITE
 			atk = live_atk
 			var live_max_hp: int = inst["hp"] + int(inst.get("bonus_hp", 0)) + int(inst.get("temp_hp", 0))

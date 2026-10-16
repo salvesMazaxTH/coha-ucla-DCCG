@@ -1929,6 +1929,7 @@ func _start_turn(p: int, draw: bool) -> void:
 			c.exhausted = false
 		c.sick = false
 		c.temp_armor = 0
+		c.temp_atk_until_next_turn = 0
 		c.attacks_made = 0
 	_emit({"type": "start_turn", "player": p, "turn": turn})
 	bus().emit(GameEvent.new("turn_started", p))
