@@ -10,7 +10,9 @@
   "cost": 7,
   "atk": 5,
   "hp": 11,
-  "keywords": [],
+  "keywords": [
+    "inalcancavel"
+  ],
   "effects": [
     {
       "trigger": "on_turn_start",
