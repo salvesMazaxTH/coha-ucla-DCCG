@@ -22,11 +22,11 @@
     },
     "metalica": {
       "name": "Metálica",
-      "color": "#aab4c2"
+      "color": "#9db3d1"
     },
     "eletrica": {
       "name": "Elétrica",
-      "color": "#f2d03b"
+      "color": "#ffe21f"
     },
     "obscura": {
       "name": "Obscura",
@@ -34,11 +34,11 @@
     },
     "sagrada": {
       "name": "Sagrada",
-      "color": "#f4e2a0"
+      "color": "#f6e7b0"
     },
     "neutra": {
       "name": "Neutra",
-      "color": "#8a8f98"
+      "color": "#8a8985"
     }
   },
   "triggers": {

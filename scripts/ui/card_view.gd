@@ -22,12 +22,16 @@ const STYLES := {
 	"glacial": {"top": "#a9e4f5", "bot": "#1c4a63", "trim": "#f2fbff", "glow": "#c8f4ff"}, ## frost: pale ice over deep teal
 	"vegetal": {"top": "#4a9a3c", "bot": "#12301a", "trim": "#c9d89a", "glow": "#8cf06a"},
 	"rochosa": {"top": "#8a6b45", "bot": "#2e2216", "trim": "#d2bc94", "glow": "#d6a868"},
-	"metalica": {"top": "#8e9aab", "bot": "#262c36", "trim": "#dfe6ee", "glow": "#c8d8ee"},
-	"eletrica": {"top": "#d9b81f", "bot": "#4a3a0a", "trim": "#fff1a0", "glow": "#fff04a"},
+	"metalica": {"top": "#9db3d1", "bot": "#1a2840", "trim": "#eef4ff", "glow": "#bcd6ff"}, ## blue steel, bright chrome trim (Neutra is the warm dark grey)
+	"eletrica": {"top": "#ffe81a", "bot": "#5a3d00", "trim": "#e6f7ff", "glow": "#6fe8ff"}, ## lemon yellow with a cold white trim and cyan spark, so it never reads as the warm legendary gold
 	"obscura": {"top": "#34343a", "bot": "#030304", "trim": "#7c7c85", "glow": "#8a8a96"}, ## near-black gradient, dark-grey trim
-	"sagrada": {"top": "#e8d28a", "bot": "#6a5a2a", "trim": "#fff8d8", "glow": "#fff2b0"},
-	"neutra": {"top": "#868a92", "bot": "#2a2c32", "trim": "#b4ab9e", "glow": "#dfe4ec"},
-	"legendary": {"top": "#f6d887", "bot": "#6e4810", "trim": "#fff0b8", "glow": "#ffd35a"},
+	"sagrada": {"top": "#fffaee", "bot": "#b8a676", "trim": "#e6c25a", "glow": "#fff6c8"}, ## pearl white over champagne, gold trim: the only light frame (Elétrica and legendary are saturated gold)
+	"neutra": {"top": "#7b7a78", "bot": "#1f1f20", "trim": "#b49b72", "glow": "#dcd8d0"}, ## colourless dark grey with a bronze trim
+	# Reserved for a future Vento essence (keep this hue free): periwinkle lilac, the only violet frame
+	# "vento": {"top": "#c4bdf2", "bot": "#37336a", "trim": "#f2f0ff", "glow": "#cfc8ff"},
+	# Reserved for a future Veneno essence: deep saturated purple with an acid-lime trim (Vento stays the pale lilac)
+	# "veneno": {"top": "#8a3fb8", "bot": "#240a38", "trim": "#c8e86a", "glow": "#b6ff4a"},
+	"legendary": {"top": "#f8c565", "bot": "#74400c", "trim": "#ffe8b0", "glow": "#ffb23a"}, ## amber gold leaning toward the orange rarity gem, but only slightly: it must not read as Ígnea to new players
 	"back": {"top": "#2e2658", "bot": "#100c22", "trim": "#c9a24e", "glow": "#9d86ff"},
 }
 const TRIGGER_COL := Color("#ff9a4a") ## trigger tags: same weight as keywords, orange to read as another category
