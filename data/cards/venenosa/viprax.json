@@ -1,0 +1,44 @@
+{
+  "name": "Viprax",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "fera"
+  ],
+  "essence": "venenosa",
+  "cost": 5,
+  "atk": 4,
+  "hp": 4,
+  "keywords": [
+    "toxico:2"
+  ],
+  "toxico_hits_leader": true,
+  "art": "venenosa/viprax.webp",
+  "effects": [
+    {
+      "trigger": "on_hit_leader",
+      "action": "add_dot",
+      "dot": "veneno",
+      "target": "enemy_leader",
+      "amount": 1
+    }
+  ],
+  "activated": {
+    "cost": 3,
+    "speed": "rapido",
+    "once_per_turn": true,
+    "effects": [
+      {
+        "action": "kill_leader",
+        "target": "enemy_leader",
+        "requires_markers": {
+          "dot": "veneno",
+          "amount": 8
+        }
+      }
+    ]
+  },
+  "text": "Tóxico 2. O dano de combate dela ao Líder também coloca Veneno nele.\nAo atingir o Líder: coloque 1 marcador de Veneno a mais no Líder inimigo.\nAo Ativar (3) {rápido} (1x por turno): se o Líder inimigo tiver 8 ou mais marcadores de Veneno, ele morre.",
+  "flavor": "Ela morde uma vez. O resto é paciência.",
+  "tags": []
+}

@@ -1,0 +1,21 @@
+{
+  "name": "Brinde Envenenado",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "venenosa",
+  "cost": 4,
+  "speed": "lento",
+  "art": "venenosa/brinde_envenenado.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "add_dot",
+      "dot": "veneno",
+      "target": "enemy_leader",
+      "amount": 3
+    }
+  ],
+  "text": "Dê 3 marcadores de Veneno ao Líder inimigo.",
+  "flavor": "À saúde de todos. Menos a sua.",
+  "tags": []
+}

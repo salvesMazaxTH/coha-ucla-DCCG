@@ -1,0 +1,21 @@
+{
+  "name": "Vespa de Telhado",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "fera"
+  ],
+  "essence": "venenosa",
+  "cost": 2,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [
+    "voo",
+    "toxico"
+  ],
+  "art": "venenosa/vespa_de_telhado.webp",
+  "effects": [],
+  "text": "Voo. Tóxico.",
+  "flavor": "Mora na calha. Cobra aluguel na orelha.",
+  "tags": []
+}

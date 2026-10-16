@@ -1,0 +1,20 @@
+{
+  "name": "Ferrãozinho Contratado",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "fera"
+  ],
+  "essence": "venenosa",
+  "cost": 1,
+  "atk": 1,
+  "hp": 3,
+  "keywords": [
+    "toxico"
+  ],
+  "art": "venenosa/ferraozinho_contratado.webp",
+  "effects": [],
+  "text": "Tóxico.",
+  "flavor": "Pago por picada. Não aceita gorjeta.",
+  "tags": []
+}

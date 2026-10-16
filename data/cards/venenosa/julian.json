@@ -1,0 +1,46 @@
+{
+  "name": "Julian",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "humano"
+  ],
+  "essence": "venenosa",
+  "cost": 4,
+  "atk": 2,
+  "hp": 4,
+  "keywords": [],
+  "art": "venenosa/julian.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 2
+    },
+    {
+      "trigger": "on_enter",
+      "action": "add_dot",
+      "dot": "veneno",
+      "target": "enemy_unit",
+      "amount": 1,
+      "pick2": true
+    }
+  ],
+  "activated": {
+    "cost": 2,
+    "speed": "rapido",
+    "once_per_turn": true,
+    "effects": [
+      {
+        "action": "add_dot",
+        "dot": "veneno",
+        "target": "enemy_unit",
+        "amount": 1
+      }
+    ]
+  },
+  "text": "Ao Entrar: cause 2 de dano a uma unidade inimiga e dê 1 marcador de Veneno a uma unidade inimiga.\nAo Ativar (2) {rápido} (1x por turno): dê 1 marcador de Veneno a uma unidade inimiga.",
+  "flavor": "Sem pressa, sem rima, sem erro. A flecha só precisa de um arranhão.",
+  "tags": []
+}

@@ -1,0 +1,42 @@
+{
+  "name": "Tox Vipranna",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "fada",
+    "driade"
+  ],
+  "essence": "venenosa",
+  "cost": 6,
+  "atk": 4,
+  "hp": 7,
+  "keywords": [
+    "toxico:3"
+  ],
+  "art": "venenosa/tox_vipranna.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "add_dot",
+      "dot": "veneno",
+      "target": "enemy_unit",
+      "amount": 3
+    },
+    {
+      "listen": "unit_damaged",
+      "scope": "enemy",
+      "zones": [
+        "board"
+      ],
+      "when": {
+        "dot": "veneno"
+      },
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount": 2
+    }
+  ],
+  "text": "Tóxico 3.\nAo Entrar: dê 3 marcadores de Veneno a uma unidade inimiga.\nSempre que uma unidade inimiga sofrer dano de Veneno, cure 2 do seu Líder.",
+  "flavor": "A rainha não mata ninguém. Ela só deixa o jardim crescer devagar dentro de você.",
+  "tags": []
+}

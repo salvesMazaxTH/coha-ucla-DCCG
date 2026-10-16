@@ -1,0 +1,26 @@
+{
+  "name": "Sapo de Esquina",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "fera"
+  ],
+  "essence": "venenosa",
+  "cost": 2,
+  "atk": 2,
+  "hp": 3,
+  "keywords": [],
+  "art": "venenosa/sapo_de_esquina.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "add_dot",
+      "dot": "veneno",
+      "target": "enemy_unit",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Entrar: dê 1 marcador de Veneno a uma unidade inimiga.",
+  "flavor": "Vende bala. A bala é outra coisa.",
+  "tags": []
+}

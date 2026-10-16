@@ -1,0 +1,31 @@
+{
+  "name": "Zophiróx",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "demihumano"
+  ],
+  "essence": "venenosa",
+  "cost": 5,
+  "atk": 3,
+  "hp": 6,
+  "keywords": [
+    "toxico:atk"
+  ],
+  "art": "venenosa/zophirox.webp",
+  "effects": [
+    {
+      "listen": "unit_damaged",
+      "scope": "self",
+      "zones": [
+        "board"
+      ],
+      "action": "buff",
+      "target": "self",
+      "atk": 1
+    }
+  ],
+  "text": "Tóxico X, onde X é o Ataque dela (com todos os bônus).\nSempre que sofrer dano, ganha +1 de Ataque (permanente).",
+  "flavor": "A pele velha fica pra trás. A mordida, não.",
+  "tags": []
+}

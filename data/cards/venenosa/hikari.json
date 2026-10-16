@@ -1,0 +1,28 @@
+{
+  "name": "Hikari",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "humano"
+  ],
+  "essence": "venenosa",
+  "cost": 4,
+  "atk": 3,
+  "hp": 2,
+  "keywords": [
+    "esquiva"
+  ],
+  "art": "venenosa/hikari.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 2,
+      "amount_from": "target_veneno_markers"
+    }
+  ],
+  "text": "Esquiva.\nAo Entrar: cause 2 de dano a uma unidade inimiga por marcador de Veneno nela.",
+  "flavor": "A lâmina só faz o favor de abrir a porta.",
+  "tags": []
+}

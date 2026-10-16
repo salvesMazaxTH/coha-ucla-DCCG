@@ -1,0 +1,21 @@
+{
+  "name": "Picada Surpresa",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "venenosa",
+  "cost": 1,
+  "speed": "rapido",
+  "art": "venenosa/picada_surpresa.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "add_dot",
+      "dot": "veneno",
+      "target": "enemy_unit",
+      "amount": 2
+    }
+  ],
+  "text": "Rápida. Dê 2 marcadores de Veneno a uma unidade inimiga.",
+  "flavor": "Ai. Mas só um pouquinho.",
+  "tags": []
+}
