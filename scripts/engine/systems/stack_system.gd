@@ -48,6 +48,20 @@ func targets_countering_side(item: Dictionary) -> bool:
 			return true
 	return false
 
+## True when the stack item has an effect that destroys or banishes units ("only_if_destroys" counters, Intercessão).
+func item_destroys_units(item: Dictionary) -> bool:
+	var item_effects: Array = []
+	if item["kind"] == "card":
+		item_effects = CardDB.card(item["card_id"]).get("effects", [])
+	elif item["kind"] == "unit_ability":
+		item_effects = CardDB.card(item["card_id"])["activated"].get("effects", [])
+	elif item["kind"] == "ability":
+		item_effects = CardDB.leader(game.players[item["player"]]["leader_id"])["ability"].get("effects", [])
+	for item_effect in item_effects:
+		if ["destroy", "banish"].has(item_effect.get("action", "")):
+			return true
+	return false
+
 ## Extra Momentum a counter (action "counter") must pay to hit stack item `sid`:
 ## 0 up to max_cost, kicker_cost up to kicker_max_cost, -1 when out of reach.
 func counter_extra(cd: Dictionary, sid: int) -> int:
@@ -58,6 +72,8 @@ func counter_extra(cd: Dictionary, sid: int) -> int:
 		if e.get("action", "") != "counter":
 			continue
 		if e.get("only_if_targets_ally", false) and not targets_countering_side(it):
+			return -1
+		if e.get("only_if_destroys", false) and not item_destroys_units(it):
 			return -1
 		var c := stack_cost(it)
 		if c <= int(e.get("max_cost", 99)):
@@ -86,7 +102,7 @@ func push(p: int, kind: String, uid: int, card_id: String, target: int, speed: S
 func push_unit_snowball(p: int, source_uid: int, card_id: String, target: int) -> void:
 	var cast_uid := game._uid()
 	# the same "play" event a card from the hand sends: the UI shows the card (flying out of the casting unit)
-	game._emit({"type": "play", "player": p, "uid": cast_uid, "card_id": card_id, "source_uid": source_uid})
+	game._emit({"type": "play", "player": p, "uid": cast_uid, "card_id": card_id, "source_uid": source_uid, "target": target})
 	push(p, "card", cast_uid, card_id, target, "lento", 0, false, {"virtual": true, "forced_target": true, "source_uid": source_uid})
 
 func effects_of(item: Dictionary) -> Array:
@@ -119,9 +135,9 @@ func resolve_stack() -> void:
 		if gone and item["kind"] == "card" and CardDB.card(item["card_id"]).get("same_target_ok", false) and game.valid_targets(p, spec).has(int(item.get("target2", 0))):
 			gone = false # twin bolts: the other target is still there, only this bolt is lost
 		if gone:
-			game._emit({"type": "fizzle", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"]})
+			game._emit({"type": "fizzle", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"], "target": item.get("target", 0), "target2": item.get("target2", 0)})
 		else:
-			game._emit({"type": "resolve", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"]})
+			game._emit({"type": "resolve", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"], "target": item.get("target", 0), "target2": item.get("target2", 0)})
 			if is_enter:
 				var entering := game.find_unit(int(item["uid"]))
 				if entering != null:
@@ -129,6 +145,7 @@ func resolve_stack() -> void:
 				game._run_effects(game._enter_context(p, int(item["uid"]), int(item["target"]), int(item.get("target2", 0))), effects)
 			else:
 				var resolve_context := EffectContext.new(game, p, "on_play" if item["kind"] == "card" else "")
+				resolve_context.source_card_id = String(item.get("card_id", "")) if item["kind"] == "card" else ""
 				resolve_context.chosen_target = int(item["target"])
 				resolve_context.forced_target = item.get("forced_target", false)
 				resolve_context.second_target = int(item.get("target2", 0))
@@ -255,7 +272,7 @@ func counter(p: int, sid: int) -> void:
 		else:
 			game.players[it["player"]]["graveyard"].append(countered)
 			game._move(countered, "graveyard")
-	game._emit({"type": "countered", "sid": sid, "player": it["player"], "by": p, "card_id": it["card_id"], "kind": it["kind"]})
+	game._emit({"type": "countered", "sid": sid, "player": it["player"], "by": p, "card_id": it["card_id"], "kind": it["kind"], "target": it.get("target", 0), "target2": it.get("target2", 0)})
 
 ## Who holds priority when a window opens or the stack empties: always the active player
 ## (in the pre-combat window the attacker acts first, then the defender).

@@ -113,6 +113,7 @@
     "dragao": { "name": "Dragão" },
     "dragao_primordial": { "name": "Dragão Primordial" },
     "merfolk": { "name": "Merfolk" },
+    "anjo": { "name": "Anjo" },
     "divindade": { "name": "Divindade" },
     "celestial": { "name": "Celestial" },
     "transfigurado": { "name": "Transfigurado" },
@@ -199,6 +200,50 @@
     "inalcancavel": {
       "name": "Inalcançável",
       "text": "Não pode ser alvo de feitiços, habilidades ou efeitos do oponente (efeitos sem alvo, como os de área, ainda a afetam)."
+    },
+    "imunidade_ignea": {
+      "name": "Imunidade contra Ígnea",
+      "text": "O dano de combate de unidades de essência Ígnea do oponente é sempre 0, e os feitiços, habilidades e efeitos de essência Ígnea do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outras essências também."
+    },
+    "imunidade_aquatica": {
+      "name": "Imunidade contra Aquática",
+      "text": "O dano de combate de unidades de essência Aquática do oponente é sempre 0, e os feitiços, habilidades e efeitos de essência Aquática do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outras essências também."
+    },
+    "imunidade_glacial": {
+      "name": "Imunidade contra Glacial",
+      "text": "O dano de combate de unidades de essência Glacial do oponente é sempre 0, e os feitiços, habilidades e efeitos de essência Glacial do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outras essências também."
+    },
+    "imunidade_vegetal": {
+      "name": "Imunidade contra Vegetal",
+      "text": "O dano de combate de unidades de essência Vegetal do oponente é sempre 0, e os feitiços, habilidades e efeitos de essência Vegetal do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outras essências também."
+    },
+    "imunidade_rochosa": {
+      "name": "Imunidade contra Rochosa",
+      "text": "O dano de combate de unidades de essência Rochosa do oponente é sempre 0, e os feitiços, habilidades e efeitos de essência Rochosa do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outras essências também."
+    },
+    "imunidade_metalica": {
+      "name": "Imunidade contra Metálica",
+      "text": "O dano de combate de unidades de essência Metálica do oponente é sempre 0, e os feitiços, habilidades e efeitos de essência Metálica do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outras essências também."
+    },
+    "imunidade_eletrica": {
+      "name": "Imunidade contra Elétrica",
+      "text": "O dano de combate de unidades de essência Elétrica do oponente é sempre 0, e os feitiços, habilidades e efeitos de essência Elétrica do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outras essências também."
+    },
+    "imunidade_obscura": {
+      "name": "Imunidade contra Obscura",
+      "text": "O dano de combate de unidades de essência Obscura do oponente é sempre 0, e os feitiços, habilidades e efeitos de essência Obscura do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outras essências também."
+    },
+    "imunidade_sagrada": {
+      "name": "Imunidade contra Sagrada",
+      "text": "O dano de combate de unidades de essência Sagrada do oponente é sempre 0, e os feitiços, habilidades e efeitos de essência Sagrada do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outras essências também."
+    },
+    "imunidade_venenosa": {
+      "name": "Imunidade contra Venenosa",
+      "text": "O dano de combate de unidades de essência Venenosa do oponente é sempre 0, e os feitiços, habilidades e efeitos de essência Venenosa do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outras essências também."
+    },
+    "pacifista": {
+      "name": "Pacifista",
+      "text": "O dano de combate desta unidade é sempre 0, mesmo com bônus de Ataque. Ela ainda ataca, desafia, sofre o golpe de volta e se exaure."
     },
     "eterea": {
       "name": "Etérea",

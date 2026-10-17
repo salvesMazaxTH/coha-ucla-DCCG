@@ -229,6 +229,10 @@ static func is_artifact(cd: Dictionary) -> bool:
 static func is_equipment(cd: Dictionary) -> bool:
 	return is_artifact(cd) and cd.get("subtypes", []).has("equipment")
 
+## "Local": a free-standing artifact that is a place on the field (Baluarte Santo). Only a label, no rule of its own.
+static func is_local(cd: Dictionary) -> bool:
+	return is_artifact(cd) and cd.get("subtypes", []).has("local")
+
 ## A free-standing artifact (an artifact that is not Equipar): it stays on its owner's side of the
 ## field, taking one of the BOARD_LIMIT slots, until an effect destroys it. It never fights.
 static func is_relic(cd: Dictionary) -> bool:

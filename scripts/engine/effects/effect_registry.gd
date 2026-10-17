@@ -31,6 +31,7 @@ static var ACTIONS: Dictionary = {
 	"summon_hand_pick": DeckEffect,
 	"fight": FightEffect,
 	"summon": SummonEffect,
+	"put_artifact": PutArtifactEffect,
 	"decoy": DecoyEffect,
 	"mill": MillEffect,
 	"fatigue_burn": FatigueBurnEffect,
@@ -41,6 +42,7 @@ static var ACTIONS: Dictionary = {
 	"destroy": RemoveEffect,
 	"destroy_artifact": RemoveEffect,
 	"banish": RemoveEffect,
+	"return_to_hand": ReturnToHandEffect,
 	"kill_leader": RemoveEffect,
 	"hold_veneno": HoldVenenoEffect,
 	"sacrifice": SacrificeEffect,
@@ -51,10 +53,12 @@ static var ACTIONS: Dictionary = {
 	"modify_cost": ModifyCostEffect,
 	"cost_reduction": StaticEffect,
 	"scale": StaticEffect,
+	"species_aura": StaticEffect,
+	"graveyard_armor": StaticEffect,
 }
 
 ## Actions with no target: continuous abilities, never run by a trigger.
-const STATIC_ACTIONS := ["cost_reduction", "scale"]
+const STATIC_ACTIONS := ["cost_reduction", "scale", "species_aura", "graveyard_armor"]
 
 static func is_known(action: String) -> bool:
 	return ACTIONS.has(action)

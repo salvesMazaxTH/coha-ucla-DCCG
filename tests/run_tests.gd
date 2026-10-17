@@ -85,6 +85,7 @@ func _init() -> void:
 	_test_elite_limits()
 	_test_armor()
 	_test_adjacent_armor()
+	_test_sagrada_engine()
 	_test_sim()
 	for e in CardDB.errors():
 		check(false, e)
@@ -604,7 +605,6 @@ func _test_ai_enter_damage() -> void:
 	SimpleAI.step(mixed, 0)
 	check(mixed.find_unit(healing.uid).damage == 0 and mixed.find_unit(lasting.uid).damage == 2, "IA/Ronan: ignora quem regenera e fere quem guarda o dano")
 
-func _test_leader_cycle() -> void:
 ## Tharox's Massa Inamolgável (+1 Armadura until his next turn): the AI only spends the Momentum when an
 ## exhausted ally would die to an enemy challenge without it and survive with it.
 func _test_ai_armor_ability() -> void:
@@ -655,6 +655,7 @@ func _test_ai_armor_ability() -> void:
 	check(threatened.players[0]["ability_used"] == true, "IA/Tharox: usa a Massa Inamolgável quando ela salva uma unidade")
 	check(threatened.armor_of(threatened.find_unit(saved_ally.uid)) == 1 and threatened.armor_of(threatened.find_unit(safe_ally.uid)) == 0, "IA/Tharox: a Armadura vai para a unidade ameaçada")
 
+func _test_leader_cycle() -> void:
 	var g := _new_game() # fogo: Ronan's Pavio Curto is once per cycle
 	_quiet(g)
 	_put(g, 1, "esqueleto_guerreiro")
@@ -1239,13 +1240,13 @@ func _test_combat() -> void:
 	var far := _put(g, 1, "t_far")
 	far.exhausted = true
 	check(not g.valid_targets(0, "enemy_unit").has(far.uid) and g.can_challenge(chaser, far), "inalcançável: sem alvo de inimigos, mas desafiável")
-
 	# only Inalcançável enemies left: the screen keeps the aimed action enabled (to explain the refusal), the engine stays strict
 	g.players[1]["board"] = [far]
 	check(g.valid_targets(0, "enemy_unit").is_empty() and g.targets_blocked_by_reach(0, "enemy_unit"), "inalcançável: só ele no campo bloqueia o alvo por alcance")
 	check(g.valid_targets(0, "enemy_unit", 0, true) == [far.uid], "inalcançável: aparece na lista quando se pede o motivo")
 	g.players[1]["board"] = []
 	check(not g.targets_blocked_by_reach(0, "enemy_unit"), "inalcançável: campo vazio não é bloqueio por alcance")
+
 	# Roubo de Vida on the Leader's face
 	g = _new_game()
 	_quiet(g)
@@ -2484,12 +2485,12 @@ func _test_stack() -> void:
 	var ner := _put(g, 1, "neraqa")
 	check(not g.has_kw(ner, "escudo_feitico"), "neraqa never shields herself")
 	check(not g.card_targets(0, CardDB.card("labareda")).has(ner.uid), "neraqa is Inalcançável: enemy spells can't target her")
-	var shielded := _put(g, 1, "t_wall")
 	# the screen keeps the spell enabled (to explain the refusal) but the auto-pass still sees no play
 	g.players[0]["hand"] = []
 	var blocked_spell := _give(g, 0, "labareda")
 	check(not g.can_play(0, blocked_spell) and g.can_play(0, blocked_spell, true), "inalcançável: feitiço só habilitado para a tela")
 	check(g.stack_system().has_play(0) == g.can_use_ability(0), "inalcançável: o auto-passe não conta o feitiço bloqueado como jogada")
+	var shielded := _put(g, 1, "t_wall")
 	g._apply_effect(1, {"action": "buff", "keywords": ["escudo_feitico"]}, shielded.uid)
 	g.play_card(0, _give(g, 0, "labareda"), shielded.uid)
 	check(shielded.damage == 0 and not g.has_kw(shielded, "escudo_feitico"), "spell shield cancels the spell, then breaks")
@@ -4793,3 +4794,343 @@ func _test_glacial() -> void:
 	g.players[a]["leader_hp"] = 10
 	_kill(g, ysvane_card)
 	check(g.players[a]["leader_hp"] == 14, "Ysvane: Ao Morrer cura 4 do Líder (%d)" % g.players[a]["leader_hp"])
+
+## Engine pieces of the Sagrada essence: Pacifista, Baluarte (redirect + Ao Morrer + put_artifact),
+## opt-in overflow heal, "ao conjurar feitiço da essência" and the undraftable flag.
+func _test_sagrada_engine() -> void:
+	# Pacifista: the combat blow is always 0, even with a big Ataque, but it still takes the retaliation
+	_tcard("t_pacifist", 5, 6, [])
+	CardDB.data()["cards"]["t_pacifist"]["keywords"] = ["pacifista", "toxico"]
+	_tcard("t_pacifist_target", 2, 4, [])
+	var g := _new_game()
+	_quiet(g)
+	var pacifist := _put(g, 0, "t_pacifist")
+	var leader_before: int = g.players[1]["leader_hp"]
+	_hit(g, pacifist)
+	check(g.players[1]["leader_hp"] == leader_before, "Pacifista: o golpe no Líder causa 0 mesmo com Ataque 5")
+	g = _new_game()
+	_quiet(g)
+	pacifist = _put(g, 0, "t_pacifist")
+	var pacifist_target := _put(g, 1, "t_pacifist_target")
+	pacifist_target.exhausted = true
+	_hit(g, pacifist, pacifist_target.uid)
+	check(g.find_unit(pacifist_target.uid) != null and pacifist_target.damage == 0, "Pacifista: 0 de dano na unidade, e o Tóxico não dispara")
+	check(pacifist.damage == 2, "Pacifista: ainda sofre o golpe de volta (%d)" % pacifist.damage)
+	check(g.atk_of(pacifist) == 5, "Pacifista: o Ataque continua valendo para o resto (Intimidação, escala)")
+
+	# Baluarte: takes the destruction in place of an allied unit; its Ao Morrer heals the Leader by 3
+	_tcard("t_ward_unit", 1, 5, [])
+	_tcard("t_ward_immune", 1, 5, [])
+	CardDB.data()["cards"]["t_ward_immune"]["keywords"] = ["indestrutivel"]
+	CardDB.data()["cards"]["t_bulwark"] = {"name": "t_bulwark", "type": "artifact", "subtypes": ["local"], "rarity": "common",
+		"essence": "neutra", "cost": 0, "art": "", "text": "", "flavor": "", "tags": [], "redirects_destroy": true,
+		"effects": [{"trigger": "on_death", "action": "heal_leader", "target": "own_leader", "amount": 3}]}
+	_tspell("t_kill_ally", "lento", [{"trigger": "on_play", "action": "destroy", "target": "ally_unit"}])
+	check(CardDB.is_local(CardDB.card("t_bulwark")) and CardDB.is_relic(CardDB.card("t_bulwark")), "Baluarte: artefato do subtipo local")
+	g = _new_game()
+	_quiet(g)
+	var player: int = g.active
+	var protected_unit := _put(g, player, "t_ward_unit")
+	var bulwark := Card.new(g._uid(), "t_bulwark", player)
+	g._place_relic(player, bulwark)
+	g.players[player]["leader_hp"] = 20
+	_cast_and_resolve(g, player, "t_kill_ally", protected_unit.uid)
+	check(g.find_unit(protected_unit.uid) != null, "Baluarte: a unidade sobrevive ao efeito que a destruiria")
+	check(g.find_relic(bulwark.uid) == null, "Baluarte: é destruído no lugar da unidade")
+	check(g.players[player]["leader_hp"] == 23, "Baluarte: Ao Morrer cura 3 do Líder (%d)" % g.players[player]["leader_hp"])
+	_cast_and_resolve(g, player, "t_kill_ally", protected_unit.uid)
+	check(g.find_unit(protected_unit.uid) == null, "Baluarte: sem ele, a unidade morre normal")
+	# Indestrutível is checked first: the Baluarte is not spent for a unit that would survive anyway
+	g = _new_game()
+	_quiet(g)
+	player = g.active
+	var immune_unit := _put(g, player, "t_ward_immune")
+	bulwark = Card.new(g._uid(), "t_bulwark", player)
+	g._place_relic(player, bulwark)
+	_cast_and_resolve(g, player, "t_kill_ally", immune_unit.uid)
+	check(g.find_relic(bulwark.uid) != null and g.find_unit(immune_unit.uid) != null, "Baluarte: não gasta com unidade Indestrutível")
+
+	# put_artifact through a Lenta Leader ability: unique, needs a free slot, never charges for a no-op
+	CardDB.data()["leaders"]["t_leader"] = {"name": "t_leader", "hp": 30, "art": "", "legendary": "ronan", "essences": ["neutra"],
+		"ability": {"name": "Erguer", "cost": 4, "speed": "lento", "text": "",
+			"effects": [{"action": "put_artifact", "target": "none", "card": "t_bulwark", "unique": true}]}}
+	g = _new_game()
+	_quiet(g)
+	player = g.active
+	g.players[player]["leader_id"] = "t_leader"
+	g.players[player]["ability_used"] = false
+	g.players[player]["momentum"] = 8
+	check(g.can_use_ability(player), "Erguer o Baluarte: disponível com o campo livre")
+	g.use_ability(player)
+	_resolve_stack(g)
+	check(g.players[player]["relics"].size() == 1 and g.players[player]["relics"][0].card_id == "t_bulwark", "Erguer o Baluarte: o artefato entra no campo")
+	check(int(g.players[player]["momentum"]) == 4, "Erguer o Baluarte: custa 4")
+	g.players[player]["ability_used"] = false
+	check(not g.can_use_ability(player), "Erguer o Baluarte: bloqueado enquanto já existe um em campo (unique)")
+	g.destroy_relic(g.players[player]["relics"][0])
+	g._flush()
+	check(g.can_use_ability(player), "Erguer o Baluarte: pode erguer de novo quando não há nenhum")
+
+	# overflow heal is opt-in: without "overflow_max_hp" nothing grows, with it the surplus becomes maximum Vida
+	_tspell("t_heal_plain", "lento", [{"trigger": "on_play", "action": "heal_unit", "target": "ally_or_own_leader", "amount": 3}])
+	_tspell("t_heal_overflow", "lento", [{"trigger": "on_play", "action": "heal_unit", "target": "ally_or_own_leader", "amount": 3, "overflow_max_hp": 1}])
+	g = _new_game()
+	_quiet(g)
+	player = g.active
+	var healed_unit := _put(g, player, "t_ward_unit")
+	var max_before: int = g.players[player]["leader_max"]
+	g.players[player]["leader_hp"] = max_before
+	_cast_and_resolve(g, player, "t_heal_plain", GameState.LEADER_UID[player])
+	check(g.players[player]["leader_max"] == max_before, "cura sem overflow_max_hp: o Líder cheio não ganha Vida máxima")
+	_cast_and_resolve(g, player, "t_heal_plain", healed_unit.uid)
+	check(healed_unit.hp == 5, "cura sem overflow_max_hp: a unidade cheia não ganha Vida máxima")
+	_cast_and_resolve(g, player, "t_heal_overflow", GameState.LEADER_UID[player])
+	check(g.players[player]["leader_max"] == max_before + 1 and g.players[player]["leader_hp"] == max_before + 1, "overflow_max_hp: a cura que passa do máximo dá +1 Vida máxima ao Líder")
+	healed_unit.damage = 1
+	_cast_and_resolve(g, player, "t_heal_overflow", healed_unit.uid)
+	check(healed_unit.hp == 6 and healed_unit.damage == 0, "overflow_max_hp: a unidade curada além do que faltava ganha +1 Vida máxima")
+	healed_unit.damage = 3
+	_cast_and_resolve(g, player, "t_heal_overflow", healed_unit.uid)
+	check(healed_unit.hp == 6 and healed_unit.damage == 0, "overflow_max_hp: cura exata não passa do máximo, sem bônus")
+
+	# "ao conjurar feitiço da essência": spell_cast carries essence_<id>, so a listener can filter on it
+	_tcard("t_caster_fan", 1, 5, [{"listen": "spell_cast", "scope": "ally", "when": {"essence_glacial": true},
+		"action": "buff", "target": "self", "atk": 1}])
+	CardDB.data()["cards"]["t_glacial_spell"] = {"name": "t_glacial_spell", "type": "spell", "rarity": "common", "essence": "glacial",
+		"cost": 0, "speed": "lento", "art": "", "effects": [], "text": "", "flavor": "", "tags": []}
+	_tspell("t_neutral_spell", "lento", [])
+	g = _new_game()
+	_quiet(g)
+	player = g.active
+	var fan := _put(g, player, "t_caster_fan")
+	_cast_and_resolve(g, player, "t_neutral_spell")
+	check(g.atk_of(fan) == 1, "listen spell_cast: feitiço de outra essência não dispara")
+	_cast_and_resolve(g, player, "t_glacial_spell")
+	check(g.atk_of(fan) == 2, "listen spell_cast: feitiço da essência certa dá +1 Ataque (%d)" % g.atk_of(fan))
+
+	# undraftable: the deck check refuses a card flagged in the JSON
+	var base_deck: Dictionary = DeckDB.get_deck(DeckDB.ids()[0])
+	var undraftable_cards: Dictionary = base_deck["cards"].duplicate()
+	CardDB.data()["cards"]["t_undraftable"] = {"name": "t_undraftable", "type": "artifact", "rarity": "common", "essence": "neutra",
+		"cost": 0, "art": "", "text": "", "flavor": "", "tags": [], "effects": [], "undraftable": true}
+	undraftable_cards["t_undraftable"] = 1
+	var undraftable_errors := DeckDB.validate_cards(base_deck["leader"], undraftable_cards)
+	check(undraftable_errors.any(func(e: String): return e.begins_with("t_undraftable:")), "undraftable: o deck com a carta é recusado")
+
+	# species_aura: the OTHER allied units sharing a listed species get Ataque/Vida/Armadura while the source is in play
+	_tcard("t_aura_source", 1, 5, [{"trigger": "constante", "action": "species_aura", "species": ["divindade", "celestial", "anjo"],
+		"atk": 1, "hp": 1, "armor": 1}])
+	CardDB.data()["cards"]["t_aura_source"]["species"] = ["humano"]
+	_tcard("t_aura_angel", 2, 4, [])
+	CardDB.data()["cards"]["t_aura_angel"]["species"] = ["anjo"]
+	_tcard("t_aura_two_species", 2, 4, [])
+	CardDB.data()["cards"]["t_aura_two_species"]["species"] = ["divindade", "celestial"]
+	_tcard("t_aura_human", 2, 4, [])
+	CardDB.data()["cards"]["t_aura_human"]["species"] = ["humano"]
+	g = _new_game()
+	_quiet(g)
+	var angel := _put(g, 0, "t_aura_angel")
+	check(g.atk_of(angel) == 2, "species_aura: sem a fonte em campo não há bônus")
+	var aura_source := _put(g, 0, "t_aura_source")
+	var two_species := _put(g, 0, "t_aura_two_species")
+	var aura_human := _put(g, 0, "t_aura_human")
+	var enemy_angel := _put(g, 1, "t_aura_angel")
+	g._move_dead_units()
+	check(g.atk_of(angel) == 3 and g.hp_left(angel) == 5 and g.armor_of(angel) == 1, "species_aura: Anjo ganha +1/+1 e Armadura 1 (%d/%d, arm %d)" % [g.atk_of(angel), g.hp_left(angel), g.armor_of(angel)])
+	check(g.atk_of(two_species) == 3 and g.armor_of(two_species) == 1, "species_aura: duas espécies na lista dão o bônus uma vez só")
+	check(g.atk_of(aura_human) == 2 and g.armor_of(aura_human) == 0, "species_aura: espécie fora da lista não ganha")
+	check(g.atk_of(aura_source) == 1 and g.armor_of(aura_source) == 0, "species_aura: a própria fonte não se beneficia")
+	check(g.atk_of(enemy_angel) == 2 and g.armor_of(enemy_angel) == 0, "species_aura: unidades do oponente não ganham")
+	g.players[0]["board"].erase(aura_source)
+	g._move_dead_units()
+	check(g.atk_of(angel) == 2 and g.armor_of(angel) == 0, "species_aura: o bônus some quando a fonte sai de campo")
+
+	# graveyard_armor: +1 Armadura per spell of the essence in the owner's graveyard (damage never below 1)
+	_tcard("t_grave_armor", 1, 20, [{"trigger": "constante", "action": "graveyard_armor", "essence": "sagrada", "card_type": "spell"}])
+	_tspell("t_sagrada_spell", "lento", [])
+	CardDB.data()["cards"]["t_sagrada_spell"]["essence"] = "sagrada"
+	_tspell("t_neutral_spell", "lento", [])
+	g = _new_game()
+	_quiet(g)
+	var graveyard_unit := _put(g, 0, "t_grave_armor")
+	check(g.armor_of(graveyard_unit) == 0, "graveyard_armor: cemitério sem feitiços Sagrados, Armadura 0")
+	g.players[0]["graveyard"].append(Card.new(g._uid(), "t_neutral_spell", 0, "graveyard"))
+	check(g.armor_of(graveyard_unit) == 0, "graveyard_armor: feitiço de outra essência não conta")
+	for i in 3:
+		g.players[0]["graveyard"].append(Card.new(g._uid(), "t_sagrada_spell", 0, "graveyard"))
+	check(g.armor_of(graveyard_unit) == 3, "graveyard_armor: 3 feitiços Sagrados, Armadura 3 (%d)" % g.armor_of(graveyard_unit))
+	g._deal_damage(graveyard_unit.uid, 5, null)
+	check(graveyard_unit.damage == 2, "graveyard_armor: dano 5 vira 2 (%d)" % graveyard_unit.damage)
+	for i in 8:
+		g.players[0]["graveyard"].append(Card.new(g._uid(), "t_sagrada_spell", 0, "graveyard"))
+	graveyard_unit.damage = 0
+	g._deal_damage(graveyard_unit.uid, 5, null)
+	check(graveyard_unit.damage == 1, "graveyard_armor: nunca reduz o dano a menos de 1 (%d)" % graveyard_unit.damage)
+
+	# Imunidade contra Obscura: combat damage and AIMED effects of enemy Obscura cards do nothing; area effects still hit
+	_tcard("t_immune_obscura", 1, 10, [])
+	CardDB.data()["cards"]["t_immune_obscura"]["keywords"] = ["imunidade_obscura"]
+	_tcard("t_dark_attacker", 3, 6, [])
+	CardDB.data()["cards"]["t_dark_attacker"]["essence"] = "obscura"
+	_tcard("t_plain_attacker", 3, 6, [])
+	_tspell("t_plain_bolt", "lento", [{"trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 3}])
+	_tspell("t_dark_bolt", "lento", [{"trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 3}])
+	CardDB.data()["cards"]["t_dark_bolt"]["essence"] = "obscura"
+	_tspell("t_dark_blast", "lento", [{"trigger": "on_play", "action": "damage", "target": "all_enemy_units", "amount": 3}])
+	CardDB.data()["cards"]["t_dark_blast"]["essence"] = "obscura"
+	# combat: a fresh game per attacker (a unit that attacked leaves the main phase)
+	g = _new_game()
+	_quiet(g)
+	var attacker_side: int = g.active
+	var immune_unit_obscura := _put(g, g.opponent(attacker_side), "t_immune_obscura")
+	immune_unit_obscura.exhausted = true # only an exhausted unit can be challenged
+	_hit(g, _put(g, attacker_side, "t_dark_attacker"), immune_unit_obscura.uid)
+	_pass_windows(g)
+	check(immune_unit_obscura.damage == 0, "Imunidade contra Obscura: golpe de unidade Obscura causa 0 (%d)" % immune_unit_obscura.damage)
+	g = _new_game()
+	_quiet(g)
+	attacker_side = g.active
+	immune_unit_obscura = _put(g, g.opponent(attacker_side), "t_immune_obscura")
+	immune_unit_obscura.exhausted = true
+	_hit(g, _put(g, attacker_side, "t_plain_attacker"), immune_unit_obscura.uid)
+	_pass_windows(g)
+	check(immune_unit_obscura.damage == 3, "Imunidade contra Obscura: unidade de outra essência causa dano normal (%d)" % immune_unit_obscura.damage)
+	# spells: aimed ones are ignored, area ones still hit
+	g = _new_game()
+	_quiet(g)
+	attacker_side = g.active
+	immune_unit_obscura = _put(g, g.opponent(attacker_side), "t_immune_obscura")
+	_cast_and_resolve(g, attacker_side, "t_dark_bolt", immune_unit_obscura.uid)
+	check(immune_unit_obscura.damage == 0, "Imunidade contra Obscura: feitiço Obscuro mirado é ignorado (%d)" % immune_unit_obscura.damage)
+	_cast_and_resolve(g, attacker_side, "t_plain_bolt", immune_unit_obscura.uid)
+	check(immune_unit_obscura.damage == 3, "Imunidade contra Obscura: feitiço de outra essência mirado funciona (%d)" % immune_unit_obscura.damage)
+	immune_unit_obscura.damage = 0
+	_cast_and_resolve(g, attacker_side, "t_dark_blast")
+	check(immune_unit_obscura.damage == 3, "Imunidade contra Obscura: efeito em área Obscuro ainda atinge (%d)" % immune_unit_obscura.damage)
+	# The immunity is generic: each essence has its own keyword "imunidade_<essência>" and only blocks that essence
+	CardDB.data()["cards"]["t_immune_ignea"] = CardDB.data()["cards"]["t_immune_obscura"].duplicate(true)
+	CardDB.data()["cards"]["t_immune_ignea"]["keywords"] = ["imunidade_ignea"]
+	g = _new_game()
+	_quiet(g)
+	attacker_side = g.active
+	var immune_unit_ignea := _put(g, g.opponent(attacker_side), "t_immune_ignea")
+	_cast_and_resolve(g, attacker_side, "t_dark_bolt", immune_unit_ignea.uid)
+	check(immune_unit_ignea.damage == 3, "Imunidade contra Ígnea não protege de feitiço Obscuro (%d)" % immune_unit_ignea.damage)
+	CardDB.data()["cards"]["t_dark_bolt"]["essence"] = "ignea"
+	immune_unit_ignea.damage = 0
+	_cast_and_resolve(g, attacker_side, "t_dark_bolt", immune_unit_ignea.uid)
+	check(immune_unit_ignea.damage == 0, "Imunidade contra Ígnea ignora feitiço Ígneo mirado (%d)" % immune_unit_ignea.damage)
+
+	# return_to_hand: general bounce. Not a death (no Ao Morrer), tokens vanish, cost_increase is optional and accumulates
+	_tcard("t_bounce_unit", 1, 5, [{"trigger": "on_death", "action": "damage", "target": "enemy_leader", "amount": 5}])
+	_tspell("t_bounce_ally", "lento", [{"trigger": "on_play", "action": "return_to_hand", "target": "ally_unit"}])
+	_tspell("t_bounce_enemy", "lento", [{"trigger": "on_play", "action": "return_to_hand", "target": "enemy_unit", "cost_increase": 2}])
+	g = _new_game()
+	_quiet(g)
+	player = g.active
+	var enemy_side: int = g.opponent(player)
+	var enemy_leader_hp: int = g.players[enemy_side]["leader_hp"]
+	var bounced_unit := _put(g, player, "t_bounce_unit")
+	_cast_and_resolve(g, player, "t_bounce_ally", bounced_unit.uid)
+	check(g.find_unit(bounced_unit.uid) == null and g.players[player]["hand"].has(bounced_unit), "return_to_hand: a unidade sai do campo e vai para a mão")
+	check(bounced_unit.cost_mod == 0 and bounced_unit.zone == "hand", "return_to_hand: sem cost_increase o custo não muda")
+	check(g.players[enemy_side]["leader_hp"] == enemy_leader_hp, "return_to_hand: não é morte, o Ao Morrer não dispara")
+	check(not g.players[player]["graveyard"].has(bounced_unit), "return_to_hand: não passa pelo cemitério")
+	var enemy_bounced := _put(g, enemy_side, "t_bounce_unit")
+	_cast_and_resolve(g, player, "t_bounce_enemy", enemy_bounced.uid)
+	check(g.players[enemy_side]["hand"].has(enemy_bounced) and enemy_bounced.cost_mod == 2, "return_to_hand: a unidade inimiga volta para a mão do DONO, com cost_increase 2")
+	# a token has no card to put in the hand: it just vanishes
+	CardDB.data()["cards"]["t_bounce_token"] = CardDB.data()["cards"]["t_bounce_unit"].duplicate(true)
+	CardDB.data()["cards"]["t_bounce_token"]["token"] = true
+	var token_unit := _put(g, player, "t_bounce_token")
+	var hand_before: int = g.players[player]["hand"].size()
+	_cast_and_resolve(g, player, "t_bounce_ally", token_unit.uid)
+	check(g.find_unit(token_unit.uid) == null and g.players[player]["hand"].size() == hand_before, "return_to_hand: a ficha some, não vira carta na mão")
+
+	# Ao Morrer + self_card + cost_increase: comes back from the graveyard, one more expensive each time, with no cap
+	_tcard("t_resilient", 2, 4, [{"trigger": "on_death", "action": "return_to_hand", "target": "self_card", "cost_increase": 1}])
+	g = _new_game()
+	_quiet(g)
+	player = g.active
+	var resilient := _put(g, player, "t_resilient")
+	for round_number in range(1, 4):
+		g._deal_damage(resilient.uid, 99, null)
+		g._check_state() # moves the dead unit out and resolves its Ao Morrer
+		check(g.players[player]["hand"].has(resilient) and not g.players[player]["graveyard"].has(resilient), "return_to_hand (Ao Morrer): volta do cemitério para a mão (volta %d)" % round_number)
+		check(resilient.cost_mod == round_number, "return_to_hand: o custo sobe 1 por volta, sem teto (%d)" % resilient.cost_mod)
+		g.players[player]["hand"].erase(resilient)
+		g._summon(player, resilient, false, 0)
+		g._flush()
+		resilient.sick = false
+
+	# copy_atk "highest_ally": the Ataque rises to the strongest OTHER ally; never lowers; "temp" ends with the turn
+	_tcard("t_copycat", 1, 9, [])
+	_tcard("t_strong_ally", 4, 9, [])
+	_tcard("t_weak_ally", 2, 9, [])
+	_tspell("t_copy_spell", "lento", [{"trigger": "on_play", "action": "buff", "target": "ally_unit", "copy_atk": "highest_ally", "temp": true}])
+	g = _new_game()
+	_quiet(g)
+	player = g.active
+	var copycat := _put(g, player, "t_copycat")
+	var strong_ally := _put(g, player, "t_strong_ally")
+	_put(g, player, "t_weak_ally")
+	_cast_and_resolve(g, player, "t_copy_spell", copycat.uid)
+	check(g.atk_of(copycat) == 4, "copy_atk: copia o Ataque da aliada mais forte (%d)" % g.atk_of(copycat))
+	_cast_and_resolve(g, player, "t_copy_spell", strong_ally.uid)
+	check(g.atk_of(strong_ally) == 4, "copy_atk: quem já tem o maior Ataque não ganha nada (%d)" % g.atk_of(strong_ally))
+	g.end_turn(player)
+	check(g.atk_of(copycat) == 1, "copy_atk com temp: o Ataque copiado acaba no fim do turno (%d)" % g.atk_of(copycat))
+	# Ao Desafiar integration: the strike goes out with the copied Ataque
+	_tcard("t_challenger", 1, 9, [{"trigger": "on_challenge", "action": "buff", "target": "self", "copy_atk": "highest_ally", "temp": true}])
+	_tcard("t_challenged_target", 0, 20, [])
+	g = _new_game()
+	_quiet(g)
+	attacker_side = g.active
+	var challenger := _put(g, attacker_side, "t_challenger")
+	_put(g, attacker_side, "t_strong_ally")
+	var challenged := _put(g, g.opponent(attacker_side), "t_challenged_target")
+	challenged.exhausted = true
+	_hit(g, challenger, challenged.uid)
+	_pass_windows(g)
+	check(challenged.damage == 4, "copy_atk (Ao Desafiar): o golpe sai com o Ataque copiado (%d)" % challenged.damage)
+
+	# bonus_if_species: extra permanent Ataque/Vida only when the target has one of the listed species
+	_tcard("t_species_angel", 1, 3, [])
+	CardDB.data()["cards"]["t_species_angel"]["species"] = ["anjo"]
+	_tcard("t_species_human", 1, 3, [])
+	CardDB.data()["cards"]["t_species_human"]["species"] = ["humano"]
+	_tspell("t_species_buff", "lento", [{"trigger": "on_play", "action": "buff", "target": "ally_unit", "atk": 1, "hp": 1,
+		"bonus_if_species": {"species": ["divindade", "celestial", "anjo"], "atk": 1, "hp": 1}}])
+	g = _new_game()
+	_quiet(g)
+	player = g.active
+	var species_angel := _put(g, player, "t_species_angel")
+	var species_human := _put(g, player, "t_species_human")
+	_cast_and_resolve(g, player, "t_species_buff", species_angel.uid)
+	_cast_and_resolve(g, player, "t_species_buff", species_human.uid)
+	check(g.atk_of(species_angel) == 3 and g.hp_left(species_angel) == 5, "bonus_if_species: Anjo ganha +1/+1 e o extra +1/+1 (%d/%d)" % [g.atk_of(species_angel), g.hp_left(species_angel)])
+	check(g.atk_of(species_human) == 2 and g.hp_left(species_human) == 4, "bonus_if_species: Humano só ganha o bônus base (%d/%d)" % [g.atk_of(species_human), g.hp_left(species_human)])
+
+	# counter with only_if_destroys: Intercessão can only be aimed at an item that destroys or banishes units
+	_tspell("t_kill_spell", "lento", [{"trigger": "on_play", "action": "destroy", "target": "enemy_unit"}])
+	_tspell("t_bolt_spell", "lento", [{"trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 1}])
+	_tspell("t_counter_destroy", "instantaneo", [{"trigger": "on_play", "action": "counter", "target": "enemy_stack",
+		"only_if_targets_ally": true, "only_if_destroys": true}])
+	g = _new_game()
+	_quiet(g)
+	attacker_side = g.active
+	var defender_side: int = g.opponent(attacker_side)
+	var defended_unit := _put(g, defender_side, "t_species_human")
+	_give(g, defender_side, "t_counter_destroy") # holding a response keeps the spell waiting on the stack
+	g.play_card(attacker_side, _give(g, attacker_side, "t_bolt_spell"), defended_unit.uid)
+	check(g.stack.is_empty() and defended_unit.damage == 1, "only_if_destroys: sem alvo possível para o contra-feitiço, o dano resolve direto (%d)" % defended_unit.damage)
+	check(g.card_targets(defender_side, CardDB.card("t_counter_destroy")).is_empty(), "only_if_destroys: não dá para anular um feitiço de dano")
+	g = _new_game()
+	_quiet(g)
+	attacker_side = g.active
+	defender_side = g.opponent(attacker_side)
+	defended_unit = _put(g, defender_side, "t_species_human")
+	_give(g, defender_side, "t_counter_destroy")
+	g.play_card(attacker_side, _give(g, attacker_side, "t_kill_spell"), defended_unit.uid)
+	check(g.stack.size() == 1, "only_if_destroys: o feitiço de destruição espera na pilha")
+	check(g.card_targets(defender_side, CardDB.card("t_counter_destroy")).size() == 1, "only_if_destroys: um feitiço que destrói a unidade aliada pode ser anulado")

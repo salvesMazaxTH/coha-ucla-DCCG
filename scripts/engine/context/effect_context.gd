@@ -9,6 +9,7 @@ var controller := 0 ## the player whose effects are running
 var trigger := "" ## the trigger being resolved ("" = run every effect, e.g. spells on the stack)
 var self_uid := 0 ## the unit whose effects these are (0 for spells and leader abilities)
 var other_uid := 0 ## the opposing unit in combat triggers (blocker, attacker, damage source)
+var source_card_id := "" ## the card being resolved from the stack (spells...), "" when a unit's own effect runs
 var chosen_target := 0 ## the target picked when the card was played
 var forced_target := false ## the chosen target needs no re-check (a Bola de Neve cast by a unit aims at what the unit attacked)
 var second_target := 0 ## the second pick ("pick"/"pick2", e.g. the damage target of a sacrifice spell)
@@ -24,6 +25,16 @@ func _init(game_state: GameState, controller_player: int, trigger_name: String =
 
 func opponent() -> int:
 	return game.opponent(controller)
+
+## The card these effects come from: the spell/card on the stack, else the unit running its own
+## effect (alive on the board or the one whose Ao Morrer is resolving). "" for Leader abilities.
+func source_id() -> String:
+	if source_card_id != "":
+		return source_card_id
+	if dying_card != null:
+		return dying_card.card_id
+	var source_unit: Card = game.find_unit(self_uid) if self_uid > 0 else null
+	return source_unit.card_id if source_unit != null else ""
 
 ## The context for a sacrifice's "then" effects: no trigger filter, no source unit, and the
 ## second pick becomes the chosen target. The dying unit carries over.

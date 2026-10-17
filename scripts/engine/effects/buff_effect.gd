@@ -11,6 +11,9 @@ extends Effect
 ## "cap_atk": this effect can give one unit at most that much attack in total (e.g. Layla).
 ## "critico_max": true  a unit that has any Crítico at all goes up to Crítico 4 until the end of the turn (units without Crítico are untouched).
 ## "bonus_if_card": {"card": id, "atk": N, "hp": N}: when the target is that card, it also gains this permanently (Myrra -> Vael).
+## "bonus_if_species": {"species": [...], "atk": N, "hp": N}: when the target has any of these species, it also gains this permanently (Consagração).
+## "copy_atk": "highest_ally": the unit takes the Ataque of the OTHER allied unit with the highest Ataque (nothing happens when it
+## already has as much). With "temp": true it lasts until the end of the turn (Nerithia, Ao Desafiar). Ignores atk/hp.
 
 var attack := 0
 var health := 0
@@ -32,6 +35,10 @@ var bonus_card := ""
 var bonus_attack := 0
 var bonus_health := 0
 var temporary_critico := 0 ## "critico_temp": N extra Crítico levels until the end of the turn (the total never passes 4)
+var copy_attack_source := "" ## "copy_atk": "highest_ally" = copy the Ataque of the strongest other allied unit
+var bonus_species: Array = [] ## "bonus_if_species": species that earn the extra bonus below
+var species_bonus_attack := 0
+var species_bonus_health := 0
 
 func _read_parameters(data: Dictionary) -> void:
 	attack = int(data.get("atk", 0))
@@ -55,11 +62,19 @@ func _read_parameters(data: Dictionary) -> void:
 	bonus_attack = int(bonus.get("atk", 0))
 	bonus_health = int(bonus.get("hp", 0))
 	temporary_critico = int(data.get("critico_temp", 0))
+	copy_attack_source = String(data.get("copy_atk", ""))
+	var species_bonus: Dictionary = data.get("bonus_if_species", {})
+	bonus_species = species_bonus.get("species", [])
+	species_bonus_attack = int(species_bonus.get("atk", 0))
+	species_bonus_health = int(species_bonus.get("hp", 0))
 
 func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
 	var unit := game.find_unit(target_uid)
 	if unit == null:
+		return
+	if copy_attack_source == "highest_ally":
+		_copy_highest_ally_attack(game, unit)
 		return
 	if critico_to_max:
 		if unit.critico_total() < 1:
@@ -89,6 +104,11 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		unit.hp += bonus_health
 		attack_gain += bonus_attack
 		health_gain += bonus_health
+	if not bonus_species.is_empty() and _shares_species(unit):
+		unit.atk += species_bonus_attack
+		unit.hp += species_bonus_health
+		attack_gain += species_bonus_attack
+		health_gain += species_bonus_health
 	unit.temp_atk_until_next_turn += temporary_attack_until_next_turn # ends when the unit's owner starts their next turn
 	attack_gain += temporary_attack_until_next_turn
 	unit.temp_armor += temporary_armor # lasts until the unit's owner starts their next turn
@@ -121,3 +141,26 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		unit.temp_critico = mini(4, unit.temp_critico + temporary_critico)
 		buff_event["critico"] = temporary_critico
 	game._emit(buff_event)
+
+## True when the unit has at least one of the species that earn the "bonus_if_species" extra.
+func _shares_species(unit: Card) -> bool:
+	for species in CardDB.card(unit.card_id).get("species", []):
+		if bonus_species.has(species):
+			return true
+	return false
+
+## The unit's Ataque rises to match the strongest OTHER unit on its side. The difference is the gain, so the unit's own
+## bonuses stay and it never loses Ataque by copying a weaker ally.
+func _copy_highest_ally_attack(game: GameState, unit: Card) -> void:
+	var highest_ally_attack := 0
+	for ally: Card in game.players[unit.owner]["board"]:
+		if ally != unit:
+			highest_ally_attack = maxi(highest_ally_attack, game.atk_of(ally))
+	var attack_gain: int = highest_ally_attack - game.atk_of(unit)
+	if attack_gain <= 0:
+		return
+	if temporary:
+		unit.temp_atk += attack_gain
+	else:
+		unit.atk += attack_gain
+	game._emit({"type": "buff", "uid": unit.uid, "atk": attack_gain, "hp": 0, "keywords": []})

@@ -2,6 +2,8 @@ extends Control
 ## Table screen: menu, board rendering, input state machine, AI driver,
 ## hot-seat pass screen and the full-screen card summary overlay.
 
+const ChronicleRowScript = preload("res://scripts/ui/chronicle_row.gd")
+
 const SEL := Color("#ffd23f")
 const TARGET := Color("#ff5050")
 const OK := Color("#4dff88")
@@ -47,6 +49,8 @@ var picked: Array = [] ## mulligan/discard selection
 var targeting := {} ## {"kind": hand|legendary|ability|enter|attack, "uid": int, "spec": String}
 
 var log_lines: Array = []
+var chronicle_entries: Array = [] ## structured visual history; log_lines remains as a text fallback
+var _chronicle_visual_context: Dictionary = {}
 var bg: TextureRect ## table surface, baked once into bg_vp (the live shader was too heavy for weak phones)
 var bg_vp: SubViewport
 var bg_rect: ColorRect
@@ -217,6 +221,7 @@ func _load_scenario() -> void:
 		g.auto_pass[0] = _auto_pass_on()
 		pending_pass = false
 		log_lines = ["Cenário de teste carregado."]
+		chronicle_entries.clear()
 		_render()
 
 ## The stage is 900 tall and at least 1600 wide: on wider windows (phones in
@@ -385,6 +390,7 @@ func _start(ai: bool, deck_a: String, deck_b: String) -> void:
 		g.auto_pass[i] = _auto_pass_on() or _is_ai(i)
 	CardDB.reroll_flavor()
 	log_lines = ["Partida iniciada. Escolha até 3 cartas para trocar."]
+	chronicle_entries.clear()
 	conceded = -1
 	viewer = 0
 	pending_pass = not vs_ai
@@ -869,6 +875,7 @@ func _on_net(m: Dictionary) -> void:
 			opp_online = true
 			if log_lines.is_empty() or m.get("snap", {}).get("turn", 0) == 0:
 				log_lines = ["Partida online iniciada."]
+				chronicle_entries.clear()
 				conceded = -1
 			_reset_input()
 			_clear_fx()
@@ -1637,27 +1644,27 @@ func _render_side() -> void:
 	lh.size = Vector2(COL_W, 24)
 	lp.add_child(lh)
 	lp.add_child(_ornament(Vector2(COL_W / 2.0, 30), 80))
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(8, 36)
+	scroll.size = Vector2(COL_W - 16, 258)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.mouse_filter = Control.MOUSE_FILTER_PASS
+	lp.add_child(scroll)
 	var vb := VBoxContainer.new()
-	vb.position = Vector2(12, 36)
-	vb.size = Vector2(COL_W - 24, 258)
-	vb.alignment = BoxContainer.ALIGNMENT_END
-	vb.add_theme_constant_override("separation", 3)
-	vb.clip_contents = true
+	vb.custom_minimum_size = Vector2(COL_W - 20, 0)
+	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vb.add_theme_constant_override("separation", 4)
 	vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	lp.add_child(vb)
-	var shown := log_lines.slice(max(0, log_lines.size() - 7))
-	for i in shown.size():
-		var line: String = shown[i]
-		var fresh := float(i + 1) / shown.size()
-		var head := line.begins_with("—")
-		var l: Label
-		if head:
-			l = _label(line.trim_prefix("— ").trim_suffix(" —").to_upper(), 17, Color(UITheme.GOLD, 0.35 + 0.65 * fresh), HORIZONTAL_ALIGNMENT_CENTER, "title_bold")
-		else:
-			l = _label(line, 19, Color(UITheme.TEXT, 0.3 + 0.7 * fresh), HORIZONTAL_ALIGNMENT_LEFT, "body")
-		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		l.custom_minimum_size.x = COL_W - 24
-		vb.add_child(l)
+	scroll.add_child(vb)
+	var shown: Array = chronicle_entries
+	if shown.is_empty() and not log_lines.is_empty():
+		shown = [{"text": log_lines[-1], "kind": "info", "icon": "·", "accent": UITheme.GOLD}]
+	for raw in shown.slice(max(0, shown.size() - 80)):
+		var row := ChronicleRowScript.new().setup(raw)
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		vb.add_child(row)
+	scroll.call_deferred("set", "scroll_vertical", 999999)
 
 	# turn plaque
 	var phase_names := {"mulligan": "Mulligan", "main": "Fase Principal", "discard": "Banimento", "over": "Fim de jogo",
@@ -4093,6 +4100,17 @@ func _toast(t: String) -> void:
 
 func _log(t: String) -> void:
 	log_lines.append(t)
+	var entry := _chronicle_visual_context.duplicate(true)
+	entry["text"] = t
+	if not entry.has("kind"):
+		entry["kind"] = "info"
+	if not entry.has("icon"):
+		entry["icon"] = "·"
+	if not entry.has("accent"):
+		entry["accent"] = UITheme.GOLD
+	chronicle_entries.append(entry)
+	if chronicle_entries.size() > 120:
+		chronicle_entries.pop_front()
 
 func _pname(p: int) -> String:
 	if online:
@@ -4102,7 +4120,94 @@ func _pname(p: int) -> String:
 func _cname(id: String) -> String:
 	return CardDB.card(id)["name"]
 
+func _chronicle_card_id_for_uid(uid: int) -> String:
+	if g == null or uid == 0:
+		return ""
+	if uid < 0:
+		var player := GameState.LEADER_UID.find(uid)
+		if player >= 0 and player < g.players.size():
+			return String(CardDB.leader(g.players[player]["leader_id"]).get("legendary", ""))
+	var unit := g.find_unit(uid)
+	return "" if unit == null else unit.card_id
+
+func _chronicle_name_for_uid(uid: int) -> String:
+	if uid < 0:
+		return "O Líder de %s" % _pname(GameState.LEADER_UID.find(uid))
+	var unit := g.find_unit(uid)
+	return "uma unidade" if unit == null else _cname(unit.card_id)
+
+func _chronicle_add_target(out: Dictionary, uid: int) -> void:
+	if uid == 0:
+		return
+	var card_id := _chronicle_card_id_for_uid(uid)
+	if card_id != "":
+		out["target_card_ids"].append(card_id)
+
+func _chronicle_accent(kind: String, dot_id := "") -> Color:
+	if kind == "dot":
+		return CardView.dot_badge_color(dot_id)
+	return {
+		"play": Color("#f3c969"), "resolve": Color("#d9b7ff"), "ability": Color("#c07bff"),
+		"passive": Color("#c07bff"), "trigger": Color("#ff9a4a"), "attack": Color("#ffb45c"),
+		"damage": Color("#ff5d5d"), "heal": Color("#62e58d"), "death": Color("#b8aabf"),
+		"destroy": Color("#b8aabf"), "countered": Color("#c9a8ff"), "fizzle": Color("#c9a8ff"),
+		"start_turn": Color("#d9b86d"), "transform": Color("#74d7ff")
+	}.get(kind, Color("#8d849c"))
+
+func _chronicle_icon(kind: String) -> String:
+	return {
+		"play": "▶", "resolve": "✦", "ability": "✦", "passive": "✦", "trigger": "⚡",
+		"attack": "⚔", "damage": "−", "heal": "+", "death": "×", "destroy": "×",
+		"dot": "•", "start_turn": "◷", "transform": "↻", "countered": "⊘", "fizzle": "⊘"
+	}.get(kind, "·")
+
+## Converts a raw engine event into the visual relationship shown by ChronicleRow.
+## The event still supplies the prose through _log_event; this only supplies its art and direction.
+func _chronicle_visual_for_event(e: Dictionary) -> Dictionary:
+	var kind := String(e.get("type", "info"))
+	var out := {"kind": kind, "icon": _chronicle_icon(kind), "accent": _chronicle_accent(kind, String(e.get("dot", ""))), "source_card_id": "", "target_card_ids": []}
+	match kind:
+		"play", "resolve", "fizzle", "countered":
+			out["source_card_id"] = String(e.get("card_id", ""))
+			_chronicle_add_target(out, int(e.get("target", 0)))
+			_chronicle_add_target(out, int(e.get("target2", 0)))
+		"ability", "passive":
+			var player := int(e.get("player", 0))
+			if g != null and player >= 0 and player < g.players.size():
+				out["source_card_id"] = String(CardDB.leader(g.players[player]["leader_id"]).get("legendary", ""))
+			_chronicle_add_target(out, int(e.get("target", 0)))
+		"trigger":
+			out["source_card_id"] = String(e.get("card_id", ""))
+			_chronicle_add_target(out, int(e.get("target", 0)))
+		"attack":
+			out["source_card_id"] = String(e.get("attacker_card_id", ""))
+			if out["source_card_id"] == "":
+				out["source_card_id"] = _chronicle_card_id_for_uid(int(e.get("attacker", 0)))
+			if String(e.get("target_card_id", "")) != "":
+				out["target_card_ids"].append(String(e["target_card_id"]))
+			else:
+				_chronicle_add_target(out, int(e.get("target", 0)))
+		"damage", "heal", "shield_break", "spell_shield_break", "freeze", "exhaust", "dodge", "dot", "destroy", "death", "condemn", "doom", "doom_resisted", "thaw":
+			out["source_card_id"] = _chronicle_card_id_for_uid(int(e.get("src", 0)))
+			if kind in ["death", "destroy"] and String(e.get("card_id", "")) != "":
+				out["target_card_ids"].append(String(e["card_id"]))
+			else:
+				_chronicle_add_target(out, int(e.get("uid", 0)))
+		"reflect":
+			out["source_card_id"] = _chronicle_card_id_for_uid(int(e.get("uid", 0)))
+			_chronicle_add_target(out, int(e.get("target", 0)))
+		"transform":
+			out["source_card_id"] = String(e.get("from", ""))
+			if String(e.get("card_id", "")) != "":
+				out["target_card_ids"].append(String(e["card_id"]))
+		"leader_executed":
+			_chronicle_add_target(out, GameState.LEADER_UID[int(e.get("player", 0))])
+		"summon", "relic_enter", "deck_summon", "revive", "return_to_hand", "card_created", "search_take":
+			out["source_card_id"] = String(e.get("card_id", ""))
+	return out
+
 func _log_event(e: Dictionary) -> void:
+	_chronicle_visual_context = _chronicle_visual_for_event(e)
 	match e["type"]:
 		"play":
 			if e.get("subito", false):
@@ -4121,14 +4226,18 @@ func _log_event(e: Dictionary) -> void:
 		"trigger":
 			var trg: Dictionary = CardDB.data()["triggers"].get(e["trigger"], {})
 			_log("%s: %s" % [_cname(e["card_id"]), trg.get("name", e["trigger"])])
+		"resolve":
+			var resolved_name := _cname(String(e.get("card_id", ""))) if String(e.get("card_id", "")) != "" else "a habilidade do Líder"
+			_log("%s resolveu" % resolved_name)
 		"attack":
 			var attacker := g.find_unit(e["attacker"])
-			var attacker_name := "uma unidade" if attacker == null else _cname(attacker.card_id)
+			var attacker_name := _cname(String(e["attacker_card_id"])) if attacker == null and e.get("attacker_card_id", "") != "" else ("uma unidade" if attacker == null else _cname(attacker.card_id))
 			if int(e["target"]) < 0:
 				_log("%s atacou o Líder com %s" % [_pname(e["player"]), attacker_name])
 			else:
 				var challenged := g.find_unit(e["target"])
-				_log("%s desafiou %s com %s" % [_pname(e["player"]), "uma unidade" if challenged == null else _cname(challenged.card_id), attacker_name])
+				var target_name := _cname(String(e["target_card_id"])) if challenged == null and e.get("target_card_id", "") != "" else ("uma unidade" if challenged == null else _cname(challenged.card_id))
+				_log("%s desafiou %s com %s" % [_pname(e["player"]), target_name, attacker_name])
 		"enter_tapped":
 			if e["tapped"]:
 				var tapped_unit := g.find_unit(e["uid"])
@@ -4138,8 +4247,12 @@ func _log_event(e: Dictionary) -> void:
 				var regenerated := g.find_unit(e["uid"])
 				if regenerated != null:
 					_log("%s regenerou %d" % [_cname(regenerated.card_id), e["amount"]])
+			else:
+				_log("%s recuperou %d de Vida" % [_chronicle_name_for_uid(int(e["uid"])), int(e["amount"])])
+		"damage":
+			_log("%s sofreu %d de dano" % [_chronicle_name_for_uid(int(e["uid"])), int(e["amount"])])
 		"death":
-			pass
+			_log("%s morreu" % (_cname(String(e["card_id"])) if e.get("card_id", "") != "" else _chronicle_name_for_uid(int(e.get("uid", 0)))))
 		"leader_executed":
 			_log("O Líder de %s foi executado!" % _pname(e["player"]))
 		"concede":
@@ -4181,8 +4294,12 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s refletiu %d de dano" % ["Uma unidade" if mirror == null else _cname(mirror.card_id), int(e["amount"])])
 		"revive":
 			_log("%s reviveu %s" % [_pname(e["player"]), _cname(e["card_id"])])
+		"return_to_hand":
+			_log("%s voltou para a mão de %s" % [_cname(e["card_id"]), _pname(e["player"])])
 		"relic_enter":
 			_log("%s colocou %s em campo" % [_pname(e["player"]), _cname(e["card_id"])])
+		"summon":
+			_log("%s invocou %s" % [_pname(e["player"]), _cname(e["card_id"])])
 		"relic_destroyed":
 			_log("%s foi destruído" % _cname(e["card_id"]))
 		"fuse":
@@ -4204,13 +4321,19 @@ func _log_event(e: Dictionary) -> void:
 		"freeze":
 			var frozen := g.find_unit(e["uid"])
 			_log("%s foi congelada" % ("Uma unidade" if frozen == null else _cname(frozen.card_id)))
+		"shield_break":
+			_log("%s perdeu o Escudo" % _chronicle_name_for_uid(int(e["uid"])))
+		"dodge":
+			_log("%s esquivou do ataque" % _chronicle_name_for_uid(int(e["uid"])))
 		"dot":
 			var dotted := g.find_unit(e["uid"])
-			if not e.get("cleared", false):
-				var dot_names := {"queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento"}
-				var dotted_name := "Uma unidade" if dotted == null else _cname(dotted.card_id)
-				if int(e["uid"]) < 0: # a Leader holds the markers
-					dotted_name = "O Líder de %s" % _pname(GameState.LEADER_UID.find(int(e["uid"])))
+			var dot_names := {"queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento"}
+			var dotted_name := "Uma unidade" if dotted == null else _cname(dotted.card_id)
+			if int(e["uid"]) < 0: # a Leader holds the markers
+				dotted_name = "O Líder de %s" % _pname(GameState.LEADER_UID.find(int(e["uid"])))
+			if e.get("cleared", false):
+				_log("%s sofreu %d de %s%s" % [dotted_name, int(e.get("damage", e.get("amount", 0))), dot_names.get(String(e.get("dot", "")), "status"), " (marcadores mantidos)" if e.get("held", false) else ""])
+			else:
 				_log("%s recebeu %d marcador(es) de %s" % [dotted_name, int(e.get("amount", 0)), dot_names.get(String(e.get("dot", "")), "status")])
 		"dot_immune":
 			var immune_unit := g.find_unit(e["uid"])
@@ -4269,6 +4392,9 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s: a Bola de Neve volta ao nível %d" % [_pname(e["player"]), int(e["level"])])
 		"snowball_level":
 			_log("%s: o nível da Bola de Neve sobe para %d" % [_pname(e["player"]), int(e["level"])])
+		"relic_redirect":
+			var saved_unit := g.find_unit(e["saved"])
+			_log("%s foi destruído no lugar de %s" % [_cname(e["card_id"]), "uma unidade" if saved_unit == null else _cname(saved_unit.card_id)])
 		"lethal_ward":
 			_log("%s anulou %d de dano que mataria o Líder de %s" % [_cname(e["card_id"]), int(e["amount"]), _pname(e["player"])])
 		"discard_pick":
@@ -4279,6 +4405,7 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s colocou %s em campo direto da mão (será banido no fim do turno)" % [_pname(e["player"]), _cname(e["card_id"])])
 		"discard":
 			_log("%s descartou %s" % [_pname(e["player"]), _cname(e["card_id"])])
+	_chronicle_visual_context = {}
 
 
 # ---------------------------------------------------------------- widgets

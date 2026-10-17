@@ -293,6 +293,14 @@ func toxico_markers(source: Card) -> int:
 func atk_of(c: Card) -> int:
 	return c.atk_total()
 
+## The damage this unit deals when it strikes (combat blow or "fight" effect): its Ataque, except a
+## Pacifista, whose strike is always 0 no matter how much Ataque it has. Effects that only read the
+## Ataque (Intimidação, scaling...) keep using atk_of.
+func strike_power_of(c: Card) -> int:
+	if has_kw(c, "pacifista"):
+		return 0
+	return atk_of(c)
+
 func hp_left(c: Card) -> int:
 	return c.hp_left()
 
@@ -310,8 +318,9 @@ func _refresh_scaling() -> void:
 	for p in 2:
 		for c: Card in players[p]["board"]:
 			var b := scale_bonus(p, card_of(c))
-			c.bonus_atk = b.x
-			c.bonus_hp = b.y
+			var aura := species_aura_bonus(c)
+			c.bonus_atk = b.x + aura.x
+			c.bonus_hp = b.y + aura.y
 			c.has_bonus = true
 
 ## Atk/hp a card's "constante" scale effects would give it under player p right
@@ -324,6 +333,39 @@ func scale_bonus(p: int, cd: Dictionary) -> Vector2i:
 		var n := _scale_count(p, e)
 		out += Vector2i(n * int(e.get("atk", 0)), n * int(e.get("hp", 0)))
 	return out
+
+## What the "species_aura" effects of the OTHER allied units on the board give unit `c`:
+## x = Ataque, y = Vida, z = Armadura. An aura only reaches units sharing one of its species
+## (a card can list several, e.g. ["divindade", "celestial"]). Never reads `c`'s own effects.
+func species_aura_bonus(c: Card) -> Vector3i:
+	var bonus := Vector3i.ZERO
+	var unit_species: Array = card_of(c).get("species", [])
+	if unit_species.is_empty():
+		return bonus
+	for source: Card in players[c.owner]["board"]:
+		if source == c:
+			continue
+		for e in card_of(source).get("effects", []):
+			if e.get("trigger", "") != "constante" or e.get("action", "") != "species_aura":
+				continue
+			for aura_species in e.get("species", []):
+				if unit_species.has(aura_species):
+					bonus += Vector3i(int(e.get("atk", 0)), int(e.get("hp", 0)), int(e.get("armor", 0)))
+					break # one aura gives its bonus once, however many species match
+	return bonus
+
+## Armadura a unit gets from its own "graveyard_armor" effect: +1 per card of the given type and
+## essence in its owner's graveyard (e.g. Sagrada spells for Nerithia).
+func graveyard_armor_of(c: Card) -> int:
+	var total := 0
+	for e in card_of(c).get("effects", []):
+		if e.get("trigger", "") != "constante" or e.get("action", "") != "graveyard_armor":
+			continue
+		for entry: Card in players[c.owner]["graveyard"]:
+			var entry_data := CardDB.card(entry.card_id)
+			if entry_data.get("type", "") == String(e.get("card_type", "spell")) and entry_data.get("essence", "") == String(e.get("essence", "")):
+				total += 1
+	return total
 
 func _scale_count(p: int, e: Dictionary) -> int:
 	match e.get("per", ""):
@@ -629,6 +671,11 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 				if it["player"] != p and not stack_system().is_uncounterable(it): out.append(it["sid"])
 	return out
 
+## True when the only thing stopping an aimed effect is Inalcançável: there would be a target without it.
+## The screen keeps such an action enabled and explains the refusal when the player aims at the unit.
+func targets_blocked_by_reach(p: int, spec: String, self_uid: int = 0) -> bool:
+	return spec != "" and spec != "enemy_stack" and valid_targets(p, spec, self_uid).is_empty() 		and not valid_targets(p, spec, self_uid, true).is_empty()
+
 ## Targets a card from hand can be played on right now (counters filter by reach and Momentum).
 func card_targets(p: int, cd: Dictionary, inst: Card = null) -> Array:
 	var spec := card_spec(cd)
@@ -637,11 +684,6 @@ func card_targets(p: int, cd: Dictionary, inst: Card = null) -> Array:
 		return out
 	var ok: Array = []
 	for sid in out:
-## True when the only thing stopping an aimed effect is Inalcançável: there would be a target without it.
-## The screen keeps such an action enabled and explains the refusal when the player aims at the unit.
-func targets_blocked_by_reach(p: int, spec: String, self_uid: int = 0) -> bool:
-	return spec != "" and spec != "enemy_stack" and valid_targets(p, spec, self_uid).is_empty() 		and not valid_targets(p, spec, self_uid, true).is_empty()
-
 		var x := counter_extra(cd, sid)
 		if x >= 0 and cost_of(p, cd, inst) + x <= budget(p, _is_spell(cd)):
 			ok.append(sid)
@@ -765,6 +807,9 @@ func can_use_ability(p: int, allow_unreachable := false) -> bool:
 		return false
 	if (ab.get("once_per_turn", false) or ab.get("once_per_cycle", false)) and players[p]["ability_used"]:
 		return false
+	for effect in EffectRegistry.parse_list(ab["effects"]):
+		if effect is PutArtifactEffect and not effect.can_put(self, p):
+			return false # the artifact is already out (or there is no free slot): the ability would do nothing
 	var spec := target_spec(ab["effects"])
 	return spec == "" or not valid_targets(p, spec).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec))
 
@@ -902,6 +947,10 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 		pl["played_two"] = true # Rusco: a card with cost, ATK or HP exactly 2 this turn
 	_move(inst, "")
 	var play_event := {"type": "play", "player": p, "uid": hand_uid, "card_id": inst.card_id}
+	if target != 0:
+		play_event["target"] = target
+	if target2 != 0:
+		play_event["target2"] = target2
 	if from_graveyard:
 		play_event["requiem"] = true
 	_emit(play_event)
@@ -976,7 +1025,7 @@ func activate(p: int, uid: int, target: int = 0) -> Array:
 	c.activated_turn = turn
 	if ab.get("exhaust", false):
 		c.exhausted = true
-	_emit({"type": "trigger", "uid": uid, "player": p, "card_id": c.card_id, "trigger": "on_activate"})
+	_emit({"type": "trigger", "uid": uid, "player": p, "card_id": c.card_id, "trigger": "on_activate", "target": target})
 	stack_system().push(p, "unit_ability", uid, c.card_id, target, speed_of(ab))
 	stack_system().settle()
 	return _flush()
@@ -990,7 +1039,7 @@ func use_ability(p: int, target: int = 0) -> Array:
 		return []
 	_pay(p, int(ab["cost"]), true)
 	players[p]["ability_used"] = true
-	_emit({"type": "ability", "player": p})
+	_emit({"type": "ability", "player": p, "target": target})
 	stack_system().push(p, "ability", 0, "", target, speed_of(ab))
 	stack_system().settle()
 	return _flush()
@@ -1055,6 +1104,33 @@ func banish_unit(exiled: Card) -> void:
 		players[owner_player]["banished"].append(exiled)
 		_move(exiled, "banished")
 	_emit({"type": "banish", "uid": exiled.uid, "player": owner_player, "card_id": exiled.card_id})
+
+## Sends a card back to its owner's hand: a unit from the board (a bounce, not a death: no Ao Morrer, no Aliado Morre)
+## or a card from the graveyard. `cost_increase` makes this copy cost that much more from now on (it stacks on every return).
+## A token just vanishes; an Encarnação goes back to its own zone. Cards in any other zone are left alone.
+## The hand may go past HAND_LIMIT: the owner discards the excess at the end of their turn, as with any overdraw.
+func return_to_hand(c: Card, cost_increase := 0) -> void:
+	var owner_player: int = c.owner
+	if c.zone == "board":
+		players[owner_player]["board"].erase(c)
+		_release_equipment(c)
+		if c.legendary:
+			_move(c, "")
+			_legendary_leaves(owner_player)
+			_emit({"type": "return_to_hand", "uid": c.uid, "player": owner_player, "card_id": c.card_id})
+			return
+		if c.data().get("token", false):
+			_move(c, "")
+			_emit({"type": "return_to_hand", "uid": c.uid, "player": owner_player, "card_id": c.card_id})
+			return
+	elif c.zone == "graveyard":
+		players[owner_player]["graveyard"].erase(c)
+	else:
+		return
+	c.cost_mod += cost_increase
+	players[owner_player]["hand"].append(c)
+	_move(c, "hand")
+	_emit({"type": "return_to_hand", "uid": c.uid, "player": owner_player, "card_id": c.card_id})
 
 ## Gives up priority. With items on the stack, everything resolves (newest first);
 ## in an empty combat window the combat moves on to the next window.
@@ -1342,6 +1418,30 @@ func destroy_relic(c: Card) -> void:
 	players[p]["graveyard"].append(c)
 	_emit({"type": "relic_destroyed", "player": p, "uid": c.uid, "card_id": c.card_id})
 	_move(c, "graveyard")
+	# Ao Morrer of a free-standing artifact (Baluarte Santo heals its Leader), same pattern as a dying unit
+	var death_context := EffectContext.new(self, p, "on_death")
+	death_context.self_uid = c.uid
+	death_context.dying_card = c
+	if not _chain_stopped():
+		queue_trigger(PendingTrigger.new(c, c.effect_list(), death_context, "on_death"))
+
+## The free-standing artifact of player p that takes the hit in place of an allied unit that an effect
+## would destroy (Baluarte Santo), if any. A sibling of the lethal ward: both are artifacts flagged in the JSON.
+func _destroy_redirector_of(p: int) -> Card:
+	for relic: Card in players[p]["relics"]:
+		if relic.data().get("redirects_destroy", false):
+			return relic
+	return null
+
+## An effect would destroy the allied unit `victim`: if its owner has a redirecting artifact, that artifact
+## is destroyed instead and the unit survives. Returns true when the destruction was redirected.
+func redirect_destroy_to_relic(victim: Card) -> bool:
+	var redirector := _destroy_redirector_of(victim.owner)
+	if redirector == null:
+		return false
+	_emit({"type": "relic_redirect", "player": victim.owner, "uid": redirector.uid, "card_id": redirector.card_id, "saved": victim.uid})
+	destroy_relic(redirector)
+	return true
 
 func _release_equipment(c: Card) -> void:
 	stack_system().release_equipment(c)
@@ -1680,10 +1780,13 @@ func _begin_look(p: int, n: int, source_uid: int, reshuffle: bool = false) -> vo
 	_emit({"type": "look_top", "player": p, "source_uid": source_uid, "cards": top})
 
 ## Returns damage actually dealt. source is the dealing unit or null.
-## Armadura a unit really has: its own (printed + buffs) plus "adjacent_armor" from the allies
+## Armadura a unit really has: its own (printed + buffs), plus the "graveyard_armor" it counts
+## itself, the "species_aura" Armadura of its allies, and "adjacent_armor" from the allies
 ## standing right next to it on the board (the board order is the order the units were played).
 func armor_of(c: Card) -> int:
-	var total := c.armor_total()
+	var total := c.armor_total() + graveyard_armor_of(c)
+	if players[c.owner]["board"].has(c):
+		total += species_aura_bonus(c).z
 	var board: Array = players[c.owner]["board"]
 	var index := board.find(c)
 	if index < 0:
@@ -1747,6 +1850,11 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 			return 0
 		if has_kw(c, "indestrutivel"):
 			return 0 # damage is always 0 against it (Escudo isn't consumed)
+		# Imunidade contra Obscura: the combat damage of an enemy Obscura unit is always 0 (Escudo isn't
+		# consumed). Effect damage is covered in Effect.apply_to, and only when it aims at this unit.
+		if _combat_damage and source != null and source.owner != c.owner and is_immune_to_essence_of(c, source.card_id):
+			_emit({"type": "dot_immune", "uid": t, "dot": ""})
+			return 0
 		if not bypass_unit_protections:
 			# Esquiva: the first combat damage each turn from a qualifying attacker is avoided
 			if _combat_damage and has_kw(c, "esquiva") and source != null and combat_system().dodges(c, source) 				and c.dodge_turn != turn:
@@ -1840,6 +1948,14 @@ func kill_leader_outright(p: int, dot_id := "") -> void:
 ## How many markers of `dot_id` the Leader of player `p` holds.
 func leader_dot_markers(p: int, dot_id: String) -> int:
 	return int(players[p]["leader_dots"].get(dot_id, 0))
+
+## True when unit `c` has the Imunidade contra <essência> of the essence of the card `source_card_id` (keyword "imunidade_" + essence).
+## Only the opposing side's cards of that essence are blocked; the unit's own owner can still affect it.
+func is_immune_to_essence_of(c: Card, source_card_id: String) -> bool:
+	if source_card_id == "":
+		return false
+	var source_essence: String = str(CardDB.card(source_card_id).get("essence", ""))
+	return source_essence != "" and has_kw(c, "imunidade_" + source_essence)
 
 func _immune_to_lethal_touch(c: Card) -> bool:
 	if c == null:
@@ -1993,7 +2109,7 @@ func _move_dead_units() -> void:
 					var effects: Array = c.effect_list()
 					players[p]["board"].erase(c)
 					changed = true
-					_emit({"type": "death", "uid": dead_uid, "player": p})
+					_emit({"type": "death", "uid": dead_uid, "player": p, "card_id": dying_card_id})
 					_release_equipment(c)
 					if c.legendary:
 						_move(c, "")

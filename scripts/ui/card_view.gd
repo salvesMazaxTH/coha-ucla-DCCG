@@ -1028,7 +1028,7 @@ static func _has_always_on_rule(cd: Dictionary) -> bool:
 
 ## True when the card has an automatic effect that waits for a condition (see the Condicional tag).
 static func _has_conditional_rule(cd: Dictionary) -> bool:
-	if cd.has("lethal_ward") or cd.has("spell_discount"):
+	if cd.has("lethal_ward") or cd.has("spell_discount") or cd.has("redirects_destroy"):
 		return true
 	for e in cd.get("effects", []):
 		if e.has("listen"):
@@ -1047,6 +1047,8 @@ func _panel_lines(cd: Dictionary) -> Array:
 		var kind := "ARTEFATO"
 		if CardDB.is_equipment(cd):
 			kind += " · EQUIPAMENTO"
+		elif CardDB.is_local(cd):
+			kind += " · LOCAL"
 		var spd: String = {"rapido": " · RÁPIDO", "instantaneo": " · INSTANTÂNEO"}.get(cd.get("speed", "lento"), "")
 		out.append([[kind + spd, Color("#ffd27a") if spd != "" else Color(UITheme.TEXT, 0.6)]])
 	# tags: keywords first, then trigger names (full text lives in the overlay)

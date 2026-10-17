@@ -1,7 +1,9 @@
 class_name StaticEffect
 extends Effect
-## "cost_reduction" and "scale": continuous abilities that never run from a trigger.
-## GameState.cost_of reads cost_reduction and _refresh_scaling reads scale, straight from `raw`.
+## "cost_reduction", "scale", "species_aura" and "graveyard_armor": continuous abilities that never
+## run from a trigger. GameState.cost_of reads cost_reduction; _refresh_scaling reads scale and
+## species_aura (Ataque/Vida); armor_of reads species_aura (Armadura) and graveyard_armor.
+## All of them are read straight from `raw`.
 
 func is_static() -> bool:
 	return action == "cost_reduction" or super()

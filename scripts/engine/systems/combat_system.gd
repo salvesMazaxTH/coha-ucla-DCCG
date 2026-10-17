@@ -151,7 +151,8 @@ func attack(player: int, attacker_uid: int, target_uid: int) -> Array:
 	var defender_unit: Card = game.find_unit(target_uid) if target_uid > 0 else null
 	attacker.exhausted = true # it stays tapped between the two attacks of Ataque Duplo too
 	attacker.attacks_made += 1
-	game._emit({"type": "attack", "player": player, "attacker": attacker_uid, "target": target_uid})
+	var target_card_id := defender_unit.card_id if defender_unit != null else String(CardDB.leader(game.players[game.opponent(player)]["leader_id"]).get("legendary", ""))
+	game._emit({"type": "attack", "player": player, "attacker": attacker_uid, "target": target_uid, "attacker_card_id": attacker.card_id, "target_card_id": target_card_id})
 	redirect_hit_to = 0
 	redirect_counter_to = 0
 	# triggers: Ao Atacar always; Ao Desafiar / Ao Ser Desafiada only when a unit is challenged
@@ -233,7 +234,7 @@ const CRITICO_BONUS := 2
 ## The bonus is added before Armadura and Escudo (they work on the final number). A defender with
 ## "imune_critico" (Rália's Desdém) cancels the critical: no bonus, and nothing grows.
 func _blow_damage(striker: Card, target_uid: int) -> int:
-	var damage := game.atk_of(striker)
+	var damage := game.strike_power_of(striker) # a Pacifista deals 0 (and a critical never adds to a zero blow)
 	var level := striker.critico_total()
 	if level <= 0 or damage <= 0:
 		return damage
@@ -283,7 +284,7 @@ func dodges(c: Card, source: Card) -> bool:
 ## (Escudo, Esquiva, Indestrutível and Armadura are taken into account; a Crítico only adds damage, so it is
 ## ignored). Used by the Decoy of Hikari so it is only summoned when there is a counter-blow to dodge.
 func defender_will_counter(attacker: Card, defender: Card) -> bool:
-	if game.atk_of(defender) <= 0:
+	if game.strike_power_of(defender) <= 0:
 		return false
 	if strike_step(attacker) <= strike_step(defender):
 		return true
@@ -291,7 +292,7 @@ func defender_will_counter(attacker: Card, defender: Card) -> bool:
 		return true
 	if game.has_kw(defender, "esquiva") and defender.dodge_turn != game.turn and dodges(defender, attacker):
 		return true
-	var blow := game.damage_after_armor(defender, game.atk_of(attacker))
+	var blow := game.damage_after_armor(defender, game.strike_power_of(attacker))
 	return blow < game.hp_left(defender)
 
 ## The strike steps of one combat, fastest first (Rapidez 3 down to 0).

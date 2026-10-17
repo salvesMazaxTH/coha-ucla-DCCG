@@ -174,10 +174,10 @@ static func _pick_armor_save(g: GameState, p: int, bonus: int) -> int:
 		for enemy_unit: Card in g.players[g.opponent(p)]["board"]:
 			if not g.can_challenge(enemy_unit, ally):
 				continue
-			var attack := g.atk_of(enemy_unit)
+			var attack := g.strike_power_of(enemy_unit)
 			if g.damage_after_armor(ally, attack) >= g.hp_left(ally):
 				killed_today = true
-			if maxi(1, attack - g.armor_of(ally) - bonus) >= g.hp_left(ally):
+			if attack > 0 and maxi(1, attack - g.armor_of(ally) - bonus) >= g.hp_left(ally):
 				killed_with_bonus = true
 		if killed_today and not killed_with_bonus and _unit_value(g, ally) > best_value:
 			best_value = _unit_value(g, ally)
@@ -485,7 +485,7 @@ static func _try_attack(g: GameState, p: int) -> Array:
 	var ready: Array = []
 	for unit: Card in g.players[p]["board"]:
 		# a 0 ATK unit may attack, but it would only be hit back for nothing: the AI never does it
-		if g.atk_of(unit) > 0 and not g.attack_targets(unit).is_empty():
+		if g.strike_power_of(unit) > 0 and not g.attack_targets(unit).is_empty():
 			ready.append(unit)
 	if ready.is_empty():
 		return []
@@ -495,7 +495,7 @@ static func _try_attack(g: GameState, p: int) -> Array:
 	var face_attacker: Card = null
 	for attacker: Card in ready:
 		var targets := g.attack_targets(attacker)
-		if targets.has(enemy_leader_uid) and g.atk_of(attacker) >= g.players[enemy]["leader_hp"]:
+		if targets.has(enemy_leader_uid) and g.strike_power_of(attacker) >= g.players[enemy]["leader_hp"]:
 			return g.attack_unit(p, attacker.uid, enemy_leader_uid) # this hit wins the game
 		# a tapped enemy (Provocação or not) closes the face: it must challenge (a fresh Ímpeto unit just can't reach the face yet)
 		var forced := (not attacker.sick or g.combat_system().is_rompante_rush(attacker)) and not targets.has(enemy_leader_uid)
@@ -527,10 +527,10 @@ static func _try_attack(g: GameState, p: int) -> Array:
 ## Rapidez: a faster attacker that kills its target takes nothing back. Challenging also taps the
 ## attacker, so a survivor that the enemy can then kill on their turn counts as a delayed trade.
 static func _challenge_score(g: GameState, attacker: Card, target: Card) -> int:
-	var damage_to_target := 0 if target.shield else g.damage_after_armor(target, g.atk_of(attacker))
+	var damage_to_target := 0 if target.shield else g.damage_after_armor(target, g.strike_power_of(attacker))
 	var kills_target := damage_to_target >= g.hp_left(target)
 	var strikes_first := attacker.rapidez_total() > target.rapidez_total()
-	var damage_back := 0 if attacker.shield or (kills_target and strikes_first) else g.damage_after_armor(attacker, g.atk_of(target))
+	var damage_back := 0 if attacker.shield or (kills_target and strikes_first) else g.damage_after_armor(attacker, g.strike_power_of(target))
 	var attacker_dies := damage_back >= g.hp_left(attacker)
 	var target_value := _unit_value(g, target)
 	var attacker_value := _unit_value(g, attacker)
@@ -577,8 +577,8 @@ static func _punishable(g: GameState, unit: Card, extra_damage := 0, any_killer 
 	for enemy_unit: Card in g.players[g.opponent(unit.owner)]["board"]:
 		if not g.can_challenge(enemy_unit, unit):
 			continue
-		var kills := not unit.shield and g.damage_after_armor(unit, g.atk_of(enemy_unit)) >= g.hp_left(unit)
-		var survives := enemy_unit.shield or g.damage_after_armor(enemy_unit, g.atk_of(unit)) < g.hp_left(enemy_unit)
+		var kills := not unit.shield and g.damage_after_armor(unit, g.strike_power_of(enemy_unit)) >= g.hp_left(unit)
+		var survives := enemy_unit.shield or g.damage_after_armor(enemy_unit, g.strike_power_of(unit)) < g.hp_left(enemy_unit)
 		if kills and (survives or any_killer):
 			punished = true
 	unit.damage -= extra_damage
@@ -591,7 +591,7 @@ static func _lethal_push(g: GameState, p: int, ready: Array) -> bool:
 	var face_damage := 0
 	for attacker: Card in ready:
 		if g.attack_targets(attacker).has(enemy_leader_uid):
-			face_damage += g.atk_of(attacker)
+			face_damage += g.strike_power_of(attacker)
 	return face_damage >= g.players[g.opponent(p)]["leader_hp"]
 
 ## A Provocação entering: tapped makes it guard (enemy attackers must challenge it). Worth it
@@ -601,7 +601,7 @@ static func _wants_enter_tapped(g: GameState, p: int, unit: Card) -> bool:
 		return false
 	var strongest_enemy_atk := 0
 	for enemy_unit: Card in g.players[g.opponent(p)]["board"]:
-		strongest_enemy_atk = maxi(strongest_enemy_atk, g.atk_of(enemy_unit))
+		strongest_enemy_atk = maxi(strongest_enemy_atk, g.strike_power_of(enemy_unit))
 	var survives := unit.shield or g.damage_after_armor(unit, strongest_enemy_atk) < g.hp_left(unit)
 	return survives or g.players[p]["leader_hp"] <= 10
 

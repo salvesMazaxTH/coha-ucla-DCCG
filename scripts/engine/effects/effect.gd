@@ -86,6 +86,12 @@ func apply_to(context: EffectContext, target_uid: int) -> void:
 		hit_unit.spell_shield = false
 		game._emit({"type": "spell_shield_break", "uid": target_uid})
 		return
+	# Imunidade contra <essência>: a card of that essence from the enemy side has no effect on the unit it AIMS at
+	# (nothing is spent). Untargeted and area effects still reach it, as with Inalcançável.
+	if hit_unit != null and hit_unit.owner != context.controller and target.needs_choice() \
+			and game.is_immune_to_essence_of(hit_unit, context.source_id()):
+		game._emit({"type": "dot_immune", "uid": target_uid, "dot": ""})
+		return
 	apply(context, target_uid)
 
 ## What the effect does to one target (target_uid is a unit, a negative Leader uid, or 0).

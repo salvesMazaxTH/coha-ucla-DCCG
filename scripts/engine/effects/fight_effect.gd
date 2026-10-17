@@ -20,7 +20,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		return
 	game._emit({"type": "fight", "uid": first_unit.uid, "other": second_unit.uid})
 	# both strikes are measured before either lands, so a unit killed by the other still hits back
-	var first_strike := first_unit.atk_total()
-	var second_strike := second_unit.atk_total()
+	var first_strike := game.strike_power_of(first_unit)
+	var second_strike := game.strike_power_of(second_unit)
 	game._deal_damage(second_unit.uid, first_strike, first_unit)
 	game._deal_damage(first_unit.uid, second_strike, second_unit)
