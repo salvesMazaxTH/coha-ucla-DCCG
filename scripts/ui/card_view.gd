@@ -123,6 +123,7 @@ const TOKEN_CORNER_BOOST := 1.8 ## fichas: slightly rounder corners than regular
 const ARCH_HEIGHT := 0.42 ## artifacts: how far down the art window (fraction of its height) the arch reaches
 var _art_window := PackedVector2Array() ## outline of the art window of the card being drawn (see _art_window_pts)
 const TOKEN_VEIL :=Color(0.78, 0.9, 1.0, 0.11) ## fichas: cool spectral tint over the frame, "conjured" look
+const FULL_ART_BORDER := 3.0 ## champion units: width (in base px) of the essence-colored border left around the full-card art
 
 var _t := 0.0
 var _redraw_acc := 0.0
@@ -368,6 +369,12 @@ func _draw() -> void:
 	_chamfer_frame = is_artifact
 	if is_token:
 		rad *= TOKEN_CORNER_BOOST
+	# Champion units: the art fills the whole card and only a thin border in the essence color(s) is left.
+	# (A champion whose art file is missing keeps the classic layout, with its placeholder.)
+	var full_art: bool = not face_down and cd.get("rarity", "") == "champion" and cd["type"] == "unit" and not is_token \
+		and texture(cd.get("art", "")) != null
+	if full_art:
+		trim = Color(st["trim"]).lerp(Color(st2["trim"]), 0.5) ## no gold finish: the border shows the essence itself
 
 	# drop shadow, deeper when the card is lifted
 	if shadow:
@@ -411,16 +418,18 @@ func _draw() -> void:
 		_rrect_line(r.grow((3 + 30 * k) * s), rad + 12 * k * s, Color(TRIGGER_COL.lightened(0.35), 0.85 * pow(1.0 - proc_wave, 1.5)), (3.2 - 2.2 * k) * s)
 
 	# frame: gradient body, dark outer edge, metal trim with bevel
+	var frame_style := _bright_border_style(st) if full_art else st
+	var frame_style2 := _bright_border_style(st2) if full_art else st2
 	if keys.size() < 2:
-		_rrect_grad(r, rad, Color(st["top"]), Color(st["bot"]))
+		_rrect_grad(r, rad, Color(frame_style["top"]), Color(frame_style["bot"]))
 	else:
-		_rrect_grad_split(r, rad, st, st2, s)
+		_rrect_grad_split(r, rad, frame_style, frame_style2, s)
 	_rrect_line(r.grow(-0.5 * s), rad, Color("#07060a"), 1.6 * s)
 	if is_token:
 		# ficha: dashed trim and a cool veil instead of the solid metal line
 		_dashed_rrect_line(r.grow(-2.6 * s), rad - 2 * s, trim.lightened(0.65), 2.4 * s, 6.0 * s, 3.5 * s)
 		_rrect_fill(r, rad, TOKEN_VEIL)
-	else:
+	elif not full_art: # (a full-art card has no room for the inner metal line: the art starts right inside the border)
 		_rrect_line(r.grow(-2.6 * s), rad - 2 * s, Color(trim, 0.85), 1.1 * s)
 	if is_artifact:
 		# artifact: a second engraved line inside the trim, like a plate
@@ -435,12 +444,12 @@ func _draw() -> void:
 	var font := UITheme.font("heavy")
 	var col := Color(CardDB.essence(CardDB.essences_of(cd)[0])["color"])
 	# art window: its shape tells the card kinds apart (rectangle = unit/spell, arch = artifact, medallion = ficha)
-	var art := Rect2(Vector2(7, 8) * s, Vector2(BASE.x - 14, 98) * s)
-	var window_kind := "medallion" if is_token else ("arch" if is_artifact else "rect")
+	var art := r.grow(-FULL_ART_BORDER * s) if full_art else Rect2(Vector2(7, 8) * s, Vector2(BASE.x - 14, 98) * s)
+	var window_kind := "full" if full_art else ("medallion" if is_token else ("arch" if is_artifact else "rect"))
 	_art_window = _art_window_pts(art, window_kind)
 	if window_kind == "rect":
 		draw_rect(art.grow(1.5 * s), Color("#07060a"))
-	else:
+	elif window_kind != "full":
 		draw_colored_polygon(Geometry2D.offset_polygon(_art_window, 1.5 * s)[0], Color("#07060a"))
 	var tex := texture(cd.get("art", ""))
 	if tex:
@@ -459,8 +468,11 @@ func _draw() -> void:
 	else:
 		_placeholder(art, cd, col, s)
 	# inner shading at the top and bottom of the window
-	_window_vgrad(Rect2(art.position, Vector2(art.size.x, 14 * s)), Color(0, 0, 0, 0.45), Color(0, 0, 0, 0))
-	_window_vgrad(Rect2(art.position + Vector2(0, art.size.y - 22 * s), Vector2(art.size.x, 22 * s)), Color(0, 0, 0, 0), Color(0, 0, 0, 0.55))
+	if full_art:
+		_draw_full_art_shading(art, s)
+	else:
+		_window_vgrad(Rect2(art.position, Vector2(art.size.x, 14 * s)), Color(0, 0, 0, 0.45), Color(0, 0, 0, 0))
+		_window_vgrad(Rect2(art.position + Vector2(0, art.size.y - 22 * s), Vector2(art.size.x, 22 * s)), Color(0, 0, 0, 0), Color(0, 0, 0, 0.55))
 	if window_kind == "rect":
 		draw_rect(art.grow(0.5 * s), Color(trim, 0.9), false, 1.2 * s)
 		for c in [art.position, Vector2(art.end.x, art.position.y)]:
@@ -501,22 +513,26 @@ func _draw() -> void:
 		var spf := UITheme.font("bold")
 		var sp_fs := _fit(spf, sp_s, 8.0 * s, art.size.x - 16 * s)
 		var sp_w := spf.get_string_size(sp_s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(sp_fs)).x + 10 * s
-		var strip := Rect2(Vector2((_face_size.x - sp_w) / 2, 90.5 * s), Vector2(sp_w, 11 * s))
-		_rrect_fill(strip, 3 * s, Color(0, 0, 0, 0.62))
-		_rrect_line(strip, 3 * s, Color(trim, 0.45), 0.8 * s)
+		var strip := Rect2(Vector2((_face_size.x - sp_w) / 2, (92.5 if full_art else 90.5) * s), Vector2(sp_w, 11 * s))
+		if not full_art: # over a full-card art the species is just lettering on the shaded art, no pill
+			_rrect_fill(strip, 3 * s, Color(0, 0, 0, 0.62))
+			_rrect_line(strip, 3 * s, Color(trim, 0.45), 0.8 * s)
 		_text(spf, sp_s, Vector2(_face_size.x / 2, strip.get_center().y + sp_fs * 0.36), sp_fs, Color("#e9dcc0"))
 
-	# name plate (pointed banner overlapping the art)
-	var py := 102.0 * s
-	var ph := 20.0 * s
-	var plate := PackedVector2Array([Vector2(3 * s, py + ph / 2), Vector2(10 * s, py), Vector2(_face_size.x - 10 * s, py),
-		Vector2(_face_size.x - 3 * s, py + ph / 2), Vector2(_face_size.x - 10 * s, py + ph), Vector2(10 * s, py + ph)])
-	draw_colored_polygon(plate, Color("#15121b"))
-	draw_colored_polygon(PackedVector2Array([plate[1], plate[2], plate[3], plate[0]]), Color(1, 1, 1, 0.05))
-	draw_polyline(plate + PackedVector2Array([plate[0]]), trim, 1.2 * s, true)
-	var nf := UITheme.font("title_bold")
-	var name_s: String = cd["name"]
-	_text(nf, name_s, Vector2(_face_size.x / 2, py + ph / 2 + 4 * s), _fit(nf, name_s, 12 * s, _face_size.x - 18 * s), Color("#fff4dc"))
+	if full_art:
+		_draw_full_art_name(cd["name"], s, trim)
+	else:
+		# name plate (pointed banner overlapping the art)
+		var py := 102.0 * s
+		var ph := 20.0 * s
+		var plate := PackedVector2Array([Vector2(3 * s, py + ph / 2), Vector2(10 * s, py), Vector2(_face_size.x - 10 * s, py),
+			Vector2(_face_size.x - 3 * s, py + ph / 2), Vector2(_face_size.x - 10 * s, py + ph), Vector2(10 * s, py + ph)])
+		draw_colored_polygon(plate, Color("#15121b"))
+		draw_colored_polygon(PackedVector2Array([plate[1], plate[2], plate[3], plate[0]]), Color(1, 1, 1, 0.05))
+		draw_polyline(plate + PackedVector2Array([plate[0]]), trim, 1.2 * s, true)
+		var nf := UITheme.font("title_bold")
+		var name_s: String = cd["name"]
+		_text(nf, name_s, Vector2(_face_size.x / 2, py + ph / 2 + 4 * s), _fit(nf, name_s, 12 * s, _face_size.x - 18 * s), Color("#fff4dc"))
 
 	# lower panel: keywords (units), card type (artifacts) or the rules text (spells)
 	if cd["type"] == "spell":
@@ -529,8 +545,9 @@ func _draw() -> void:
 		_speed_badge(Vector2(_face_size.x / 2, 17 * s), str(cd.get("speed", "lento")), s)
 	else:
 		var panel := Rect2(Vector2(10, 126) * s, Vector2(BASE.x - 20, 34) * s)
-		_rrect_fill(panel, 4 * s, Color(0, 0, 0, 0.38))
-		_rrect_line(panel, 4 * s, Color(trim, 0.25), 1 * s)
+		if not full_art: # on a full-art card the keyword tags sit straight on the shaded art
+			_rrect_fill(panel, 4 * s, Color(0, 0, 0, 0.38))
+			_rrect_line(panel, 4 * s, Color(trim, 0.25), 1 * s)
 		var lines := _panel_lines(cd)
 		var bf := UITheme.font("bold")
 		# keyword / trigger tags: as big as the panel allows (a bigger size beats perfect proportions on a phone)
@@ -575,6 +592,40 @@ func _draw() -> void:
 		_gem("diamond", Vector2(14 * s, _face_size.y - 15 * s), 13.5 * s, ATK_COL, str(atk), atk_col, s)
 		_gem("shield", Vector2(_face_size.x - 14 * s, _face_size.y - 15 * s), 12.5 * s, HP_COL, str(hp), hp_col, s)
 	_finish(r, rad, s)
+
+## Border of a full-art champion: the essence gradient, kept bright all the way down (the normal frame fades to
+## near-black at the bottom, which would read as a black border instead of the essence color).
+func _bright_border_style(style: Dictionary) -> Dictionary:
+	var top := Color(style["top"])
+	return {"top": top, "bot": top.lerp(Color(style["bot"]), 0.4)}
+
+## Shading that keeps the lettering readable over a full-card art: a light veil at the top (cost and
+## essence gems), and a long smooth fade to dark from the middle of the card down, where the name,
+## species and keyword tags are written.
+func _draw_full_art_shading(art: Rect2, s: float) -> void:
+	var shade := Color(0.02, 0.015, 0.03)
+	_window_vgrad(Rect2(art.position, Vector2(art.size.x, 30 * s)), Color(shade, 0.5), Color(shade, 0))
+	_window_vgrad(Rect2(Vector2(art.position.x, 62 * s), Vector2(art.size.x, 50 * s)), Color(shade, 0), Color(shade, 0.6))
+	_window_vgrad(Rect2(Vector2(art.position.x, 112 * s), Vector2(art.size.x, art.end.y - 112 * s)), Color(shade, 0.6), Color(shade, 0.9))
+
+## The name of a full-art champion: big Cinzel lettering with a drop shadow and a thick dark outline over
+## the art, and a thin golden rule fading out on both sides underneath it.
+func _draw_full_art_name(card_name: String, s: float, trim: Color) -> void:
+	var name_font := UITheme.font("title_bold")
+	var font_size := _fit(name_font, card_name, 15.0 * s, _face_size.x - 14 * s)
+	var center_x := _face_size.x / 2
+	_text(name_font, card_name, Vector2(center_x, 117.0 * s + 1.8 * s), font_size, Color(0, 0, 0, 0.6)) # drop shadow
+	_text(name_font, card_name, Vector2(center_x, 117.0 * s), font_size, Color("#fff4dc"))
+	var rule_y := 122.0 * s
+	var half_length := 36.0 * s
+	var thickness := 0.5 * s
+	var rule_color := Color(trim.lightened(0.3), 0.9)
+	var faded := Color(rule_color, 0.0)
+	for direction in [-1.0, 1.0]:
+		var outer_x: float = center_x + direction * half_length
+		draw_polygon(PackedVector2Array([Vector2(outer_x, rule_y - thickness), Vector2(center_x, rule_y - thickness),
+			Vector2(center_x, rule_y + thickness), Vector2(outer_x, rule_y + thickness)]), PackedColorArray([faded, rule_color, rule_color, faded]))
+	_diamond(Vector2(center_x, rule_y), 2.2 * s, rule_color)
 
 ## Overlays shared by both faces: foil shimmer, hit flash, dim veil.
 func _finish(r: Rect2, rad: float, s: float) -> void:
@@ -1481,6 +1532,8 @@ func _art_window_pts(art: Rect2, kind: String) -> PackedVector2Array:
 				var angle := PI - PI * i / 24.0 # from the left side, over the top, down to the right side
 				pts.append(Vector2(center_x + cos(angle) * half_width, spring_y - sin(angle) * arch_height))
 			pts.append(art.end)
+		"full": # champion units: the art fills the card inside its border, with the corners rounded to match the frame
+			pts = _rrect_pts(art, (10.0 - FULL_ART_BORDER) * _face_size.x / BASE.x)
 		"medallion":
 			var radius := art.size.y / 2
 			var center := art.get_center()
