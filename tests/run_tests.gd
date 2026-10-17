@@ -1497,7 +1497,6 @@ func _test_dot_immunity() -> void:
 	check(plain_unit.dot_markers.get("veneno", 0) == 1 and plain_unit.dot_markers.get("queimadura", 0) == 1, "Imunidade: unidade neutra recebe tudo")
 
 	# the immune float: an event, and nothing is added
-	var events_before: int = g.events.size() if "events" in g else 0
 	g.add_dot_markers(poison_unit, "veneno", 3)
 	check(poison_unit.dot_markers.get("veneno", 0) == 0, "Imunidade: segunda tentativa também é barrada")
 
