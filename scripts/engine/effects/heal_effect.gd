@@ -1,7 +1,9 @@
 class_name HealEffect
 extends Effect
 ## Healing family, told apart by `action`:
-## "heal_leader": heals the controller's Leader by `amount` (never above its maximum).
+## "heal_leader": heals the controller's Leader by `amount` (never above its maximum). With "per":
+##                "half_event_damage" it heals half (rounded up) of the damage of the event that made
+##                the card react, but never less than `amount` (Tox Vipranna: half the Veneno tick, at least 2).
 ## "leader_max_up": raises the controller's Leader maximum HP (and current HP) by `amount`.
 ## "heal_full": removes all damage from the target unit.
 ## "heal_unit": heals the target unit by `amount`, or by its Armadura when "per" is "armor".
@@ -14,10 +16,16 @@ func _read_parameters(data: Dictionary) -> void:
 	amount = int(data.get("amount", 0))
 	per = String(data.get("per", ""))
 
+## What "heal_leader" heals right now: `amount`, or half the triggering event's damage when that is more.
+func _leader_heal_amount(context: EffectContext) -> int:
+	if per == "half_event_damage" and context.event != null:
+		return maxi(amount, ceili(context.event.amount / 2.0))
+	return amount
+
 func apply(context: EffectContext, target_uid: int) -> void:
 	match action:
 		"heal_leader":
-			context.game._heal_leader(context.controller, amount)
+			context.game._heal_leader(context.controller, _leader_heal_amount(context))
 		"leader_max_up":
 			context.game._raise_leader_max(context.controller, amount)
 		"heal_full":

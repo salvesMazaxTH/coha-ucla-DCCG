@@ -17,7 +17,7 @@ Cada ação é uma classe em `scripts/engine/effects/`, registrada em `effect_re
 | action | parâmetros | o que faz |
 |---|---|---|
 | `damage` | `amount`, `amount_from`, `ally_reduce`, `amount_if_frozen` | dano ao alvo (`amount_if_frozen`: dano maior se o alvo já estiver Congelado; `amount_from: "target_veneno_markers"`: `amount` de dano por marcador de Veneno no alvo) |
-| `heal_leader` / `leader_max_up` / `heal_full` | `amount` | cura, aumenta a vida máxima ou cura tudo |
+| `heal_leader` / `leader_max_up` / `heal_full` | `amount`, `per` | cura, aumenta a vida máxima ou cura tudo. `heal_leader` com `per: "half_event_damage"` cura metade (arredondada pra cima) do dano do evento que a fez reagir, nunca menos que `amount` (Tox Vipranna) |
 | `heal_unit` | `amount`, `per` (`"armor"`, `"half_armor"`) | cura a unidade em `amount` (se o alvo for um Líder, cura o seu Líder), ou no valor da Armadura dela (`"armor"`) ou metade arredondada pra cima (`"half_armor"`) |
 | `draw` / `draw_discounted` | `amount`, `min_base_cost`, `discount` | compra cartas (a segunda dá desconto à cópia na mão) |
 | `tide_mark` | — | põe a Marca da Maré |

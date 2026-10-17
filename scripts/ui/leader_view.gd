@@ -236,8 +236,10 @@ func _draw() -> void:
 
 	# Veneno markers: the same shared medallion used by unit cards, with the larger Leader scale.
 	if poison > 0:
-		var badge_center := Vector2(ART.end.x - 14, ART.position.y + 14)
-		CardView.draw_dot_badge(self, badge_center, 12, 1.0, "veneno", poison, pulse, 1.2)
+		var badge_radius := 12.0 * CardView.DOT_BADGE_ENLARGEMENT
+		var badge_margin := badge_radius * 1.2 + 1.0 # keep the medallion's shadow inside the art
+		var badge_center := Vector2(ART.end.x - badge_margin, ART.position.y + badge_margin)
+		CardView.draw_dot_badge(self, badge_center, badge_radius, 1.0, "veneno", poison, pulse, 1.2)
 
 	# ability gem
 	var usable := ability_ready or passive

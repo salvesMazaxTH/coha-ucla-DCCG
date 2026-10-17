@@ -1493,32 +1493,32 @@ func _test_venenosa_deck() -> void:
 	g.resolve_dot(poisoned, "veneno")
 	g._check_state()
 	check(g.players[0]["leader_hp"] == 22, "Tox Vipranna: dano de Veneno em unidade inimiga cura 2 do Líder dela")
+	# a big tick heals half its damage (rounded up); a tiny one still heals the minimum of 2
+	var big_target := _put(g, 1, "t_target_dummy") # Vida 12: 6 markers hurt for 6 + 2 = 8, half is 4
+	g.players[0]["leader_hp"] = 20
+	g.add_dot_markers(big_target, "veneno", 6)
+	g.resolve_dot(big_target, "veneno")
+	g._check_state()
+	check(g.players[0]["leader_hp"] == 24, "Tox Vipranna: tick de 8 de dano cura 4 (metade)")
+	var odd_target := _put(g, 1, "t_target_dummy") # 3 markers hurt for 3 + 2 = 5, half rounded up is 3
+	g.players[0]["leader_hp"] = 20
+	g.add_dot_markers(odd_target, "veneno", 3)
+	g.resolve_dot(odd_target, "veneno")
+	g._check_state()
+	check(g.players[0]["leader_hp"] == 23, "Tox Vipranna: tick de 5 de dano cura 3 (metade arredondada pra cima)")
+	_tcard("t_small_tank", 1, 5, [])
+	var small_target := _put(g, 1, "t_small_tank") # Vida 5: 1 marker hurts for 1, half is 1 but the minimum is 2
+	g.players[0]["leader_hp"] = 20
+	g.add_dot_markers(small_target, "veneno", 1)
+	g.resolve_dot(small_target, "veneno")
+	g._check_state()
+	check(g.players[0]["leader_hp"] == 22, "Tox Vipranna: tick de 1 de dano cura o mínimo de 2")
 	g.players[0]["leader_hp"] = 20
 	var own_poisoned := _put(g, 0, "t_target_dummy")
 	g.add_dot_markers(own_poisoned, "veneno", 2)
 	g.resolve_dot(own_poisoned, "veneno")
 	g._check_state()
 	check(g.players[0]["leader_hp"] == 20, "Tox Vipranna: Veneno em unidade aliada não cura")
-
-	# Az'Kharon: the unit that challenges it leaves with 1 Veneno marker
-	g = _new_game()
-	_quiet(g)
-	var wall := _put(g, 1, "azkharon")
-	var challenger := _put(g, 0, "t_target_dummy")
-	g.stack_system().settle() # Az'Kharon's own Ao Entrar must be resolved before combat can open
-	wall.exhausted = true # a unit can only be challenged while tapped
-	_hit(g, challenger, wall.uid)
-	_pass_windows(g)
-	check(int(challenger.dot_markers.get("veneno", 0)) == 1, "Az'Kharon: quem a desafia recebe 1 marcador de Veneno")
-
-## Goes to combat (if still in the Main Phase) and lets the pre-combat window pass, so attacks can be declared.
-func _open_attacks(g: GameState) -> void:
-	if g.phase == "main":
-		g.go_to_combat(g.active)
-	for i in 20:
-		if g.phase != "combat" or g.window != "pre_combat":
-			return
-		g.pass_priority(g.priority)
 	# the Leader ticks heal her owner too: 1 damage per marker, half rounded up, minimum 2
 	g.add_leader_dot_markers(1, "veneno", 5)
 	g._resolve_leader_dot(1, "veneno")
@@ -1580,6 +1580,26 @@ func _open_attacks(g: GameState) -> void:
 		var unit_data: Dictionary = CardDB.card(unit_id)
 		if unit_data["type"] == "unit":
 			check(g.second_spec(unit_data) == "", "%s: unidade não pede segundo alvo ao ser jogada (o Ao Entrar pergunta depois)" % unit_id)
+
+	# Az'Kharon: the unit that challenges it leaves with 1 Veneno marker
+	g = _new_game()
+	_quiet(g)
+	var wall := _put(g, 1, "azkharon")
+	var challenger := _put(g, 0, "t_target_dummy")
+	g.stack_system().settle() # Az'Kharon's own Ao Entrar must be resolved before combat can open
+	wall.exhausted = true # a unit can only be challenged while tapped
+	_hit(g, challenger, wall.uid)
+	_pass_windows(g)
+	check(int(challenger.dot_markers.get("veneno", 0)) == 1, "Az'Kharon: quem a desafia recebe 1 marcador de Veneno")
+
+## Goes to combat (if still in the Main Phase) and lets the pre-combat window pass, so attacks can be declared.
+func _open_attacks(g: GameState) -> void:
+	if g.phase == "main":
+		g.go_to_combat(g.active)
+	for i in 20:
+		if g.phase != "combat" or g.window != "pre_combat":
+			return
+		g.pass_priority(g.priority)
 
 ## One attack: `attacker` taps and hits `target_uid` (0 = the enemy Leader's face).
 func _hit(g: GameState, attacker: Card, target_uid := 0) -> Array:

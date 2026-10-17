@@ -1716,6 +1716,8 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		damaged.amount = amount
 		damaged.hp_before = hp_before
 		damaged.hp_after = players[tp]["leader_hp"]
+		if damage_kind != "":
+			damaged.data = {"dot": damage_kind}
 		bus().emit(damaged)
 		if source != null:
 			_fire(source, "on_hit_leader")

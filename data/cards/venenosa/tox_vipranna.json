@@ -7,9 +7,9 @@
     "driade"
   ],
   "essence": "venenosa",
-  "cost": 6,
-  "atk": 4,
-  "hp": 7,
+  "cost": 4,
+  "atk": 3,
+  "hp": 5,
   "keywords": [
     "toxico:3"
   ],
@@ -33,10 +33,25 @@
       },
       "action": "heal_leader",
       "target": "own_leader",
+      "per": "half_event_damage",
+      "amount": 2
+    },
+    {
+      "listen": "leader_damaged",
+      "scope": "enemy",
+      "zones": [
+        "board"
+      ],
+      "when": {
+        "dot": "veneno"
+      },
+      "action": "heal_leader",
+      "target": "own_leader",
+      "per": "half_event_damage",
       "amount": 2
     }
   ],
-  "text": "Tóxico 3.\nAo Entrar: dê 3 marcadores de Veneno a uma unidade inimiga.\nSempre que uma unidade inimiga sofrer dano de Veneno, cure 2 do seu Líder.",
+  "text": "Tóxico 3.\nAo Entrar: dê 3 marcadores de Veneno a uma unidade inimiga.\nSempre que uma unidade ou o Líder inimigo sofrer dano de Veneno, cure do seu Líder metade (arredondada pra cima) do dano, no mínimo 2.",
   "flavor": "A rainha não mata ninguém. Ela só deixa o jardim crescer devagar dentro de você.",
   "tags": []
 }

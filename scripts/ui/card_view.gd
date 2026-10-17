@@ -44,6 +44,7 @@ const FROST_DEEP := Color("#4fc3ff") ## saturated ice blue: what makes a Congela
 const BURN_COL := Color("#ff7043") ## Queimadura: hot orange-red, distinct from damage red and frost blue
 const POISON_COL := Color("#b8e86b") ## Veneno: acid-lime drop over a deep violet medallion
 const BLEED_COL := Color("#e85d75") ## Sangramento: reserved by the same shared badge for the future keyword
+const DOT_BADGE_ENLARGEMENT := 1.75 ## size of the marker medallion (Queimadura/Veneno) vs. the other card badges; big enough to read the count on Leaders, which have no overlay
 const DOOM_COL := Color("#b57bff") ## Condenada: sickly violet, always paired with a skull so it is not confused with the spell-shield lilac
 ## Ice spikes of a frozen card, as [x across the card 0..1, length in base px, half width in base px].
 const FROST_ICICLES := [[0.24, 11.0, 2.6], [0.34, 19.0, 3.2], [0.45, 9.0, 2.2], [0.56, 24.0, 3.6], [0.67, 13.0, 2.6], [0.77, 20.0, 3.2], [0.88, 10.0, 2.4]] ## hang from the top edge
@@ -851,22 +852,32 @@ static func draw_dot_badge(target: CanvasItem, center: Vector2, radius: float, s
 	target.draw_polyline(icon + PackedVector2Array([icon[0]]), Color(1, 1, 1, 0.35), 0.65 * scale, true)
 	var font := UITheme.font("heavy")
 	var label := str(amount)
-	var font_size := maxi(1, int(radius * (0.88 if amount < 10 else 0.68) * text_scale))
+	var font_size := maxi(1, int(radius * (1.12 if amount < 10 else 0.88) * text_scale))
 	var width := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-	var pos := center + Vector2(-width / 2.0, radius * 0.4)
-	target.draw_string_outline(font, pos, label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, 3, Color(0, 0, 0, 0.9))
-	target.draw_string(font, pos, label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
+	var pos := center + Vector2(-width / 2.0, radius * 0.46)
+	# Near-black digits with a pale halo: the icon behind them is light, so white text washed out.
+	target.draw_string_outline(font, pos, label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, maxi(2, int(radius * 0.28)), Color(col.lightened(0.7), 0.95))
+	target.draw_string(font, pos, label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color("#120a18"))
 
 ## Draw every live periodic marker on the card. They stack vertically instead of replacing one another,
 ## so simultaneous Queimadura/Veneno/Sangramento remains unambiguous.
 func _draw_dot_badges(art: Rect2, s: float, pulse: float) -> void:
-	var center := Vector2(art.end.x - 11 * s, art.position.y + 33 * s)
+	var active_dots: Array = []
 	for dot_id in ["queimadura", "veneno", "sangramento"]:
-		var amount := dot_marker_count_of_view(inst, dot_id)
-		if amount <= 0:
-			continue
-		CardView.draw_dot_badge(self, center, 10 * s, s, dot_id, amount, pulse)
-		center.y += 23 * s
+		if dot_marker_count_of_view(inst, dot_id) > 0:
+			active_dots.append(dot_id)
+	if active_dots.is_empty():
+		return
+	# One marker gets the big medallion so the count is readable at a glance; with more markers
+	# each one shrinks so the stack still fits inside the art window.
+	var enlargement: float = DOT_BADGE_ENLARGEMENT if active_dots.size() == 1 else (1.35 if active_dots.size() == 2 else 1.0)
+	var radius := 10 * s * enlargement
+	var shadow_radius := radius * 1.2 # the medallion's drop shadow is its widest part
+	# right edge of the art, just below the essence/doom corner (which ends ~22 px into the art)
+	var center := Vector2(art.end.x - shadow_radius - 1 * s, art.position.y + 22 * s + shadow_radius)
+	for dot_id in active_dots:
+		CardView.draw_dot_badge(self, center, radius, s, dot_id, dot_marker_count_of_view(inst, dot_id), pulse)
+		center.y += shadow_radius * 2.0 + 1 * s
 
 ## Round medallions down the left edge of the art, under the cost gem.
 func _kw_badges(art: Rect2, cd: Dictionary, s: float) -> void:
