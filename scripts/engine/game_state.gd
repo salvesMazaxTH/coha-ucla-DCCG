@@ -596,14 +596,15 @@ func _pay(p: int, amount: int, spell: bool) -> void:
 static func _is_spell(cd: Dictionary) -> bool:
 	return cd.get("type", "") == "spell"
 
-func valid_targets(p: int, spec: String, self_uid: int = 0) -> Array:
+## include_unreachable: also lists the enemy units with Inalcançável (only to explain why a target is refused).
+func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable := false) -> Array:
 	var out: Array = []
 	var mine: Array = players[p]["board"]
 	# Inalcançável: enemy units with it can't be picked as a target by this player
 	# (effects that don't aim, like area or random ones, still reach them)
 	var theirs: Array = []
 	for enemy_unit: Card in players[opponent(p)]["board"]:
-		if not has_kw(enemy_unit, "inalcancavel"):
+		if include_unreachable or not has_kw(enemy_unit, "inalcancavel"):
 			theirs.append(enemy_unit)
 	match spec:
 		"enemy_unit":
@@ -636,6 +637,11 @@ func card_targets(p: int, cd: Dictionary, inst: Card = null) -> Array:
 		return out
 	var ok: Array = []
 	for sid in out:
+## True when the only thing stopping an aimed effect is Inalcançável: there would be a target without it.
+## The screen keeps such an action enabled and explains the refusal when the player aims at the unit.
+func targets_blocked_by_reach(p: int, spec: String, self_uid: int = 0) -> bool:
+	return spec != "" and spec != "enemy_stack" and valid_targets(p, spec, self_uid).is_empty() 		and not valid_targets(p, spec, self_uid, true).is_empty()
+
 		var x := counter_extra(cd, sid)
 		if x >= 0 and cost_of(p, cd, inst) + x <= budget(p, _is_spell(cd)):
 			ok.append(sid)
@@ -722,7 +728,8 @@ func subito_cost(p: int, cd: Dictionary, card: Card = null) -> int:
 	var premium := int(cd["subito"]) - int(cd["cost"])
 	return cost_of(p, cd, card) + premium
 
-func can_play(p: int, hand_uid: int) -> bool:
+## allow_unreachable: true for the screen (see targets_blocked_by_reach); the AI and the actions stay strict.
+func can_play(p: int, hand_uid: int, allow_unreachable := false) -> bool:
 	var inst := _castable_card(p, hand_uid)
 	if inst == null:
 		return false
@@ -744,13 +751,13 @@ func can_play(p: int, hand_uid: int) -> bool:
 	if not can_cast_speed(p, speed_of(cd)):
 		return false
 	var spec := target_spec(cd["effects"])
-	return spec == "" or not card_targets(p, cd, inst).is_empty()
+	return spec == "" or not card_targets(p, cd, inst).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec))
 
 func can_cast_legendary(p: int) -> bool:
 	return _sorcery_time(p) and players[p]["legendary"]["in_zone"] \
 		and legendary_cost(p) <= players[p]["momentum"] and has_free_slot(p)
 
-func can_use_ability(p: int) -> bool:
+func can_use_ability(p: int, allow_unreachable := false) -> bool:
 	var ab: Dictionary = CardDB.leader(players[p]["leader_id"])["ability"]
 	if ab.get("passive", false):
 		return false # passives fire on their own trigger
@@ -759,13 +766,13 @@ func can_use_ability(p: int) -> bool:
 	if (ab.get("once_per_turn", false) or ab.get("once_per_cycle", false)) and players[p]["ability_used"]:
 		return false
 	var spec := target_spec(ab["effects"])
-	return spec == "" or not valid_targets(p, spec).is_empty()
+	return spec == "" or not valid_targets(p, spec).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec))
 
 ## Unit Ao Ativar (cards.json unit field "activated": {cost, speed, effects, once_per_turn, exhaust}):
 ## paid like an ability (Reserva counts) and put on the stack, so it can be answered and countered.
 ## "exhaust": the unit must be ready (not exhausted) and becomes exhausted, so it cannot attack
 ## that turn (and an attacker cannot activate). Being exhausted also means the opponent may challenge it.
-func can_activate(p: int, uid: int) -> bool:
+func can_activate(p: int, uid: int, allow_unreachable := false) -> bool:
 	var c := _activatable_card(uid)
 	if c == null or c.owner != p:
 		return false
@@ -782,7 +789,7 @@ func can_activate(p: int, uid: int) -> bool:
 		if fusion.get("action", "") == "fuse" and EffectRegistry.parse(fusion).available_parts(self, p) == 0:
 			return false # not enough units to fuse
 	var spec := target_spec(ab["effects"])
-	return spec == "" or not valid_targets(p, spec, uid).is_empty()
+	return spec == "" or not valid_targets(p, spec, uid).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec, uid))
 
 ## The card whose Ao Ativar can be used: a unit on the board or a free-standing artifact.
 func _activatable_card(uid: int) -> Card:

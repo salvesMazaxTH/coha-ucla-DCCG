@@ -145,9 +145,44 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 		var ability: Dictionary = CardDB.leader(g.players[p]["leader_id"])["ability"]
 		var ability_spec := g.target_spec(ability["effects"])
 		var target := _pick_target(g, p, ability_spec, ability, 0, true)
+		var temporary_armor := _temporary_armor_amount(ability["effects"])
+		if temporary_armor > 0:
+			# Massa Inamolgável: the bonus is temporary, so it is only worth Momentum to save an ally from a kill
+			target = _pick_armor_save(g, p, temporary_armor)
 		if ability_spec == "" or target != 0:
 			return g.use_ability(p, target)
 	return []
+
+## Temporary Armadura an ability gives to one ally (Massa Inamolgável), or 0 when it has none.
+static func _temporary_armor_amount(effects: Array) -> int:
+	for effect in effects:
+		if effect.get("action") == "buff" and effect.get("target", "") == "ally_unit":
+			return int(effect.get("armor_temp", 0))
+	return 0
+
+## The ally that `bonus` extra Armadura saves from dying: an enemy unit can challenge it and kill it as it
+## is, and with the bonus none of the enemy units that can challenge it still kills it. When several
+## qualify the most valuable one is picked. 0 when nobody is in that danger (the ability is not used).
+static func _pick_armor_save(g: GameState, p: int, bonus: int) -> int:
+	var best_uid := 0
+	var best_value := -999
+	for ally: Card in g.players[p]["board"]:
+		if ally.shield:
+			continue # the shield already absorbs the first hit
+		var killed_today := false
+		var killed_with_bonus := false
+		for enemy_unit: Card in g.players[g.opponent(p)]["board"]:
+			if not g.can_challenge(enemy_unit, ally):
+				continue
+			var attack := g.atk_of(enemy_unit)
+			if g.damage_after_armor(ally, attack) >= g.hp_left(ally):
+				killed_today = true
+			if maxi(1, attack - g.armor_of(ally) - bonus) >= g.hp_left(ally):
+				killed_with_bonus = true
+		if killed_today and not killed_with_bonus and _unit_value(g, ally) > best_value:
+			best_value = _unit_value(g, ally)
+			best_uid = ally.uid
+	return best_uid
 
 ## True when the card has a "sacrifice" effect (Mordida de Defunto, Colheita de Almas, Tributo ao Abismo).
 static func _has_sacrifice_effect(card_data: Dictionary) -> bool:

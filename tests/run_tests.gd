@@ -63,6 +63,7 @@ func _init() -> void:
 	_test_leader_cycle()
 	_test_enter_target()
 	_test_ai_enter_damage()
+	_test_ai_armor_ability()
 	_test_legendary_retire()
 	_test_fatigue()
 	_test_counter()
@@ -604,6 +605,56 @@ func _test_ai_enter_damage() -> void:
 	check(mixed.find_unit(healing.uid).damage == 0 and mixed.find_unit(lasting.uid).damage == 2, "IA/Ronan: ignora quem regenera e fere quem guarda o dano")
 
 func _test_leader_cycle() -> void:
+## Tharox's Massa Inamolgável (+1 Armadura until his next turn): the AI only spends the Momentum when an
+## exhausted ally would die to an enemy challenge without it and survive with it.
+func _test_ai_armor_ability() -> void:
+	_tcard("t_armor_ally", 2, 3, [])
+	_tcard("t_armor_hit3", 3, 4, [])
+	_tcard("t_armor_hit5", 5, 4, [])
+
+	# 1. no enemy unit on the table: the bonus would be wasted
+	var empty := GameState.new("rochosa", "agua", 42)
+	empty.mulligan(0, [])
+	empty.mulligan(1, [])
+	empty.players[0]["hand"].clear()
+	empty.players[0]["legendary"]["in_zone"] = false
+	empty.players[0]["momentum"] = 5
+	empty.players[0]["ability_used"] = false
+	var lone_ally := _put(empty, 0, "t_armor_ally")
+	lone_ally.exhausted = true
+	SimpleAI.step(empty, 0)
+	check(empty.players[0]["ability_used"] == false and empty.players[0]["momentum"] == 5, "IA/Tharox: sem unidade inimiga não gasta Momentum na Massa Inamolgável")
+
+	# 2. an enemy that kills the ally anyway (5 attack vs 3 life, armor 1 is not enough): wasted too
+	var hopeless := GameState.new("rochosa", "agua", 42)
+	hopeless.mulligan(0, [])
+	hopeless.mulligan(1, [])
+	hopeless.players[0]["hand"].clear()
+	hopeless.players[0]["legendary"]["in_zone"] = false
+	hopeless.players[0]["momentum"] = 5
+	hopeless.players[0]["ability_used"] = false
+	var doomed := _put(hopeless, 0, "t_armor_ally")
+	doomed.exhausted = true
+	_put(hopeless, 1, "t_armor_hit5")
+	SimpleAI.step(hopeless, 0)
+	check(hopeless.players[0]["ability_used"] == false, "IA/Tharox: não gasta Momentum quando 1 de Armadura não salva a unidade")
+
+	# 3. an enemy with 3 attack against a 3 life ally: the extra Armadura saves it, so the AI uses it on that ally
+	var threatened := GameState.new("rochosa", "agua", 42)
+	threatened.mulligan(0, [])
+	threatened.mulligan(1, [])
+	threatened.players[0]["hand"].clear()
+	threatened.players[0]["legendary"]["in_zone"] = false
+	threatened.players[0]["momentum"] = 5
+	threatened.players[0]["ability_used"] = false
+	var safe_ally := _put(threatened, 0, "t_armor_ally")
+	var saved_ally := _put(threatened, 0, "t_armor_ally")
+	saved_ally.exhausted = true
+	_put(threatened, 1, "t_armor_hit3")
+	SimpleAI.step(threatened, 0)
+	check(threatened.players[0]["ability_used"] == true, "IA/Tharox: usa a Massa Inamolgável quando ela salva uma unidade")
+	check(threatened.armor_of(threatened.find_unit(saved_ally.uid)) == 1 and threatened.armor_of(threatened.find_unit(safe_ally.uid)) == 0, "IA/Tharox: a Armadura vai para a unidade ameaçada")
+
 	var g := _new_game() # fogo: Ronan's Pavio Curto is once per cycle
 	_quiet(g)
 	_put(g, 1, "esqueleto_guerreiro")
@@ -1189,6 +1240,12 @@ func _test_combat() -> void:
 	far.exhausted = true
 	check(not g.valid_targets(0, "enemy_unit").has(far.uid) and g.can_challenge(chaser, far), "inalcançável: sem alvo de inimigos, mas desafiável")
 
+	# only Inalcançável enemies left: the screen keeps the aimed action enabled (to explain the refusal), the engine stays strict
+	g.players[1]["board"] = [far]
+	check(g.valid_targets(0, "enemy_unit").is_empty() and g.targets_blocked_by_reach(0, "enemy_unit"), "inalcançável: só ele no campo bloqueia o alvo por alcance")
+	check(g.valid_targets(0, "enemy_unit", 0, true) == [far.uid], "inalcançável: aparece na lista quando se pede o motivo")
+	g.players[1]["board"] = []
+	check(not g.targets_blocked_by_reach(0, "enemy_unit"), "inalcançável: campo vazio não é bloqueio por alcance")
 	# Roubo de Vida on the Leader's face
 	g = _new_game()
 	_quiet(g)
@@ -2428,6 +2485,11 @@ func _test_stack() -> void:
 	check(not g.has_kw(ner, "escudo_feitico"), "neraqa never shields herself")
 	check(not g.card_targets(0, CardDB.card("labareda")).has(ner.uid), "neraqa is Inalcançável: enemy spells can't target her")
 	var shielded := _put(g, 1, "t_wall")
+	# the screen keeps the spell enabled (to explain the refusal) but the auto-pass still sees no play
+	g.players[0]["hand"] = []
+	var blocked_spell := _give(g, 0, "labareda")
+	check(not g.can_play(0, blocked_spell) and g.can_play(0, blocked_spell, true), "inalcançável: feitiço só habilitado para a tela")
+	check(g.stack_system().has_play(0) == g.can_use_ability(0), "inalcançável: o auto-passe não conta o feitiço bloqueado como jogada")
 	g._apply_effect(1, {"action": "buff", "keywords": ["escudo_feitico"]}, shielded.uid)
 	g.play_card(0, _give(g, 0, "labareda"), shielded.uid)
 	check(shielded.damage == 0 and not g.has_kw(shielded, "escudo_feitico"), "spell shield cancels the spell, then breaks")

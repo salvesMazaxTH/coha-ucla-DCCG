@@ -1140,7 +1140,7 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	lv.grave = pl["graveyard"].size()
 	lv.poison = g.leader_dot_markers(p, "veneno")
 	lv.requiem = g.requiem_cards(p).size() if p == viewer and not _is_ai(p) and g.phase in ["main", "combat"] else 0
-	lv.ability_ready = p == viewer and g.can_use_ability(p) and not _is_ai(p)
+	lv.ability_ready = p == viewer and g.can_use_ability(p, true) and not _is_ai(p)
 	lv.targetable = _is_target(uid)
 	lv.target_selected = _is_first_target(uid)
 	lv.active = g.active == p and g.phase != "mulligan"
@@ -1307,7 +1307,7 @@ func _render_relics(p: int, y: float, slots_taken: int) -> void:
 		v.pivot_offset = v.size / 2.0
 		var cell := _board_cell(slots_taken, first_relic_slot + j)
 		v.position = Vector2(cell.x + (cell.y - v.size.x) / 2.0, y)
-		v.ability_ready = p == viewer and targeting.is_empty() and _my_input() and g.can_activate(viewer, relic.uid)
+		v.ability_ready = p == viewer and targeting.is_empty() and _my_input() and g.can_activate(viewer, relic.uid, true)
 		var selected_numbers := _target_selection_numbers(relic.uid)
 		if not selected_numbers.is_empty():
 			v.highlight = SEL
@@ -1357,7 +1357,7 @@ func _pick_target_when_settled(uid: int) -> void:
 
 func _decorate_unit(v: CardView, unit: Card, p: int) -> void:
 	# reminder for new players: the unit's "Ao Ativar" can be used now (even the turn it is summoned); Transformar works almost the same way, so it glows too
-	v.ability_ready = p == viewer and targeting.is_empty() and _my_input() and (g.can_activate(viewer, unit.uid) or g.can_transform(viewer, unit.uid))
+	v.ability_ready = p == viewer and targeting.is_empty() and _my_input() and (g.can_activate(viewer, unit.uid, true) or g.can_transform(viewer, unit.uid))
 	var selected_numbers := _target_selection_numbers(unit.uid)
 	if not selected_numbers.is_empty():
 		v.highlight = SEL
@@ -1468,13 +1468,13 @@ func _render_hand(p: int) -> void:
 		elif targeting.get("uid", 0) == hand_card.uid and targeting.get("kind") == "hand":
 			pos.y -= rise + 20.0
 			v.highlight = SEL
-		elif g.phase in ["main", "combat"] and g.can_play(p, hand_card.uid) and not _is_ai(p):
+		elif g.phase in ["main", "combat"] and g.can_play(p, hand_card.uid, true) and not _is_ai(p):
 			v.highlight = OK
 		v.position = pos
 		v.rotation = rot
 		v.left_clicked.connect(_on_hand_click)
 		v.right_clicked.connect(_show_overlay)
-		v.draggable = p == viewer and g.phase in ["main", "combat"] and targeting.is_empty() and _my_input() and g.can_play(p, hand_card.uid)
+		v.draggable = p == viewer and g.phase in ["main", "combat"] and targeting.is_empty() and _my_input() and g.can_play(p, hand_card.uid, true)
 		v.drag_started.connect(_hand_drag_start)
 		v.drag_moved.connect(_hand_drag_move)
 		v.drag_ended.connect(_hand_drag_end)
@@ -2160,6 +2160,8 @@ func _aim_release() -> void:
 	if u != 0:
 		_fire_target(u)
 		return
+	if _warn_unreachable(_card_uid_at(gp)):
+		return
 	if gp.distance_to(aim_start) < CardView.DRAG_PX * 2.0 or targeting.has("first") or targeting["spec"] == "enemy_stack" 			or targeting["kind"] == "enter":
 		return
 	targeting = {}
@@ -2214,7 +2216,7 @@ func _on_hand_click(v: CardView) -> void:
 
 ## slot: where a unit enters our board (-1 = rightmost); only drag & drop picks one.
 func _play_from_hand(v: CardView, slot := -1) -> void:
-	if not g.can_play(viewer, v.uid):
+	if not g.can_play(viewer, v.uid, true):
 		_toast("Não dá para jogar essa carta agora.")
 		_render()
 		return
@@ -2245,8 +2247,8 @@ func _play_dud(uid: int) -> void:
 func _hand_spec(v: CardView) -> String:
 	var cd := CardDB.card(v.card_id)
 	var spec := g.card_spec(cd)
-	if spec != "" and not g.card_targets(viewer, cd).is_empty():
-		return spec
+	if spec != "" and (not g.card_targets(viewer, cd).is_empty() or g.targets_blocked_by_reach(viewer, spec)):
+		return spec # blocked only by Inalcançável: aim anyway, aiming at that unit explains the refusal
 	return ""
 
 ## Starts aiming from `src` (global; ZERO = the pointer). If the press is still held, the
@@ -2351,7 +2353,7 @@ func _on_ability(p: int) -> void:
 		return
 	if _wait_for_table(_on_ability.bind(p)):
 		return
-	if not g.can_use_ability(p):
+	if not g.can_use_ability(p, true):
 		return
 	var spec := g.target_spec(CardDB.leader(g.players[p]["leader_id"])["ability"]["effects"])
 	if spec != "":
@@ -2524,7 +2526,7 @@ func _unit_click_acted(v: CardView) -> bool:
 		if _is_target(v.uid):
 			_fire_target(v.uid)
 			return true
-		return false
+		return _warn_unreachable(v.uid) # explained; the aim stays open
 	# our attacks: pick an attacker, then an arrow follows the finger to its target
 	if g.combat_system().in_attacks_window(viewer) and unit.owner == viewer:
 		if g.attack_targets(unit).is_empty():
@@ -2535,6 +2537,16 @@ func _unit_click_acted(v: CardView) -> bool:
 		_render()
 		return true
 	return false
+
+## Aiming an effect at an enemy unit with Inalcançável: says why it is refused (true), the aim stays open.
+func _warn_unreachable(uid: int) -> bool:
+	if targeting.is_empty() or targeting["kind"] == "attack" or _is_target(uid):
+		return false
+	var unit := g.find_unit(uid)
+	if unit == null or unit.owner == viewer or not g.has_kw(unit, "inalcancavel"):
+		return false
+	_toast("Inalcançável: essa unidade não pode ser alvo.")
+	return true
 
 ## card_id of the Provocação waiting for the "enter exhausted?" choice ("" if none).
 func _pending_tap_card_id() -> String:
@@ -2565,14 +2577,14 @@ func _show_overlay(v: CardView) -> void:
 	add_child(overlay)
 	# the big card and the full text are built by CardOverlay (tools/view_card.gd shows the same thing)
 	var rt_x := CardOverlay.build(overlay, stage_w, v.card_id, v.inst, v.cost_override, v.text_suffix, v.snowball_level)
-	if cd.has("activated") and g != null and _my_input() and g.can_activate(viewer, v.uid):
+	if cd.has("activated") and g != null and _my_input() and g.can_activate(viewer, v.uid, true):
 		var ab: Dictionary = cd["activated"]
 		var ab_uid := v.uid
 		var ab_btn := _button("Ativar (%d)" % int(ab["cost"]), func():
 			_close_overlay()
 			# during an animation the activation waits for it to end (and checks again that it is still allowed)
 			_run_or_queue_input(func():
-				if not _my_input() or not g.can_activate(viewer, ab_uid):
+				if not _my_input() or not g.can_activate(viewer, ab_uid, true):
 					return
 				var spec := g.target_spec(ab["effects"])
 				if spec == "":
