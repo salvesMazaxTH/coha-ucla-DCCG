@@ -4,20 +4,47 @@ extends Control
 ## source/target art thumbnails make the action legible at a glance.
 
 const ROW_H := 54.0
+const HOVER_H := 142.0
 const SOURCE_RECT := Rect2(6, 8, 32, 38)
 const TARGET_RECT := Rect2(0, 8, 32, 38)
+const HOVER_SOURCE_RECT := Rect2(8, 22, 72, 96)
+const HOVER_TARGET_RECT := Rect2(0, 22, 72, 96)
 
 var entry: Dictionary = {}
+var _hovered := false
 
 func setup(data: Dictionary) -> ChronicleRow:
 	entry = data.duplicate(true)
 	custom_minimum_size = Vector2(0, ROW_H)
 	size.y = ROW_H
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mouse_filter = Control.MOUSE_FILTER_PASS
+	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	queue_redraw()
 	return self
 
+func _ready() -> void:
+	mouse_entered.connect(_on_mouse_entered)
+	mouse_exited.connect(_on_mouse_exited)
+
+func _on_mouse_entered() -> void:
+	_hovered = true
+	custom_minimum_size.y = HOVER_H
+	size.y = HOVER_H
+	queue_redraw()
+
+func _on_mouse_exited() -> void:
+	_hovered = false
+	custom_minimum_size.y = ROW_H
+	size.y = ROW_H
+	queue_redraw()
+
 func _draw() -> void:
+	if _hovered:
+		_draw_hovered()
+	else:
+		_draw_compact()
+
+func _draw_compact() -> void:
 	var accent: Color = entry.get("accent", Color("#8d849c"))
 	var rect := Rect2(0, 1, maxf(1.0, size.x - 2), ROW_H - 3)
 	var bg := Color("#0d0b15")
@@ -59,6 +86,50 @@ func _draw() -> void:
 	draw_string_outline(font, Vector2(text_rect.position.x, ty), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 3, Color(0, 0, 0, 0.9))
 	draw_string(font, Vector2(text_rect.position.x, ty), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("#eee8dc"))
 
+func _draw_hovered() -> void:
+	var accent: Color = entry.get("accent", Color("#8d849c"))
+	var rect := Rect2(0, 1, maxf(1.0, size.x - 2), HOVER_H - 3)
+	var bg := Color("#171326")
+	draw_rect(rect, bg)
+	draw_rect(Rect2(rect.position, Vector2(4, rect.size.y)), accent)
+	draw_rect(rect, Color(accent, 0.82), false, 1.5)
+	draw_line(Vector2(4, 20), Vector2(rect.end.x, 20), Color(accent, 0.24), 1.0)
+
+	var source_id := String(entry.get("source_card_id", ""))
+	var target_ids: Array = entry.get("target_card_ids", [])
+	var label_font := UITheme.font("heavy")
+	draw_string(label_font, Vector2(10, 15), "CENA", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(accent, 0.9))
+
+	if source_id != "":
+		_draw_thumb(source_id, HOVER_SOURCE_RECT, accent)
+	else:
+		_draw_glyph(HOVER_SOURCE_RECT, String(entry.get("icon", "·")), accent, 32)
+
+	var target_x := size.x - 84
+	if not target_ids.is_empty():
+		if target_ids.size() == 1:
+			_draw_thumb(String(target_ids[0]), Rect2(target_x, HOVER_TARGET_RECT.position.y, HOVER_TARGET_RECT.size.x, HOVER_TARGET_RECT.size.y), accent)
+		else:
+			var shown := mini(2, target_ids.size())
+			for i in shown:
+				var large_small := Rect2(target_x + i * 18, 28 - i * 8, 58, 78)
+				_draw_thumb(String(target_ids[i]), large_small, accent)
+			if target_ids.size() > 2:
+				_draw_count_pill(Vector2(target_x + 60, 109), "+%d" % (target_ids.size() - 2), accent)
+		_draw_arrow(Vector2(88, 70), Vector2(target_x - 10, 70), accent)
+	else:
+		_draw_glyph(Rect2(target_x, HOVER_TARGET_RECT.position.y, HOVER_TARGET_RECT.size.x, HOVER_TARGET_RECT.size.y), String(entry.get("target_icon", "·")), Color(accent, 0.68), 32)
+
+	var text_x := 92.0
+	var text_width := maxf(80.0, target_x - text_x - 12.0)
+	var text_font := UITheme.font("body")
+	var text := _fit_text(String(entry.get("text", "")), text_font, 15, text_width)
+	var text_y := 76.0
+	draw_string_outline(text_font, Vector2(text_x, text_y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, 4, Color(0, 0, 0, 0.95))
+	draw_string(text_font, Vector2(text_x, text_y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("#fff7e9"))
+	var hint := "Passe o cursor para recolher"
+	draw_string(text_font, Vector2(text_x, 104), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(accent, 0.62))
+
 func _draw_thumb(card_id: String, rect: Rect2, accent: Color) -> void:
 	var tex: Texture2D = null
 	if card_id != "" and CardDB.data().get("cards", {}).has(card_id):
@@ -75,11 +146,11 @@ func _draw_thumb(card_id: String, rect: Rect2, accent: Color) -> void:
 		draw_rect(rect, Color(accent, 0.16))
 	draw_rect(rect, Color(accent, 0.82), false, 1.0)
 
-func _draw_glyph(rect: Rect2, glyph: String, accent: Color) -> void:
+func _draw_glyph(rect: Rect2, glyph: String, accent: Color, font_size := 18) -> void:
 	draw_rect(rect, Color(accent, 0.1))
 	draw_rect(rect, Color(accent, 0.55), false, 1.0)
 	var font := UITheme.font("heavy")
-	var fs := 18
+	var fs := font_size
 	var w := font.get_string_size(glyph, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 	draw_string(font, Vector2(rect.get_center().x - w / 2.0, rect.get_center().y + 6), glyph, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, accent)
 
