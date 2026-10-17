@@ -41,7 +41,7 @@
       }
     ]
   },
-  "text": "Ao Entrar: cause 2 de dano a uma unidade inimiga e dê 1 marcador de Veneno a uma unidade inimiga (pode ser a mesma).\nAo Ativar (2) {rápido} (1x por turno): dê 1 marcador de Veneno a uma unidade inimiga.",
+  "text": "Ao Entrar: cause 2 de dano a uma unidade inimiga e dê 1 marcador de Veneno a uma unidade inimiga (pode ser a mesma).\nAo Ativar (2) {rapido} (1x por turno): dê 1 marcador de Veneno a uma unidade inimiga.",
   "flavor": "Sem pressa, sem rima, sem erro. A flecha só precisa de um arranhão.",
   "tags": []
 }
