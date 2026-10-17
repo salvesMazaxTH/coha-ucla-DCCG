@@ -1,0 +1,20 @@
+{
+  "name": "Véu Sagrado",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "sagrada",
+  "cost": 1,
+  "speed": "rapido",
+  "art": "sagrada/veu_sagrado.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "keywords": ["escudo_feitico"]
+    }
+  ],
+  "text": "Rápida. Uma unidade aliada ganha Escudo de Feitiço.",
+  "flavor": "Fino como renda, firme como promessa.",
+  "tags": []
+}

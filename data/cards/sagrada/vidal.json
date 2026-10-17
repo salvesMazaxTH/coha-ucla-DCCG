@@ -1,0 +1,25 @@
+{
+  "name": "Vidal, La Vida",
+  "type": "unit",
+  "rarity": "legendary",
+  "max_copies": 1,
+  "species": ["divindade"],
+  "essence": "sagrada",
+  "cost": 7,
+  "atk": 0,
+  "hp": 7,
+  "keywords": ["pacifista"],
+  "art": "sagrada/vidal.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "other_ally_units",
+      "atk": 2,
+      "hp": 2
+    }
+  ],
+  "text": "Pacifista.\nAo Entrar: suas outras unidades ganham +2/+2 permanentes.",
+  "flavor": "Ele nunca levantou a mão. Todo mundo ao redor dele, sim.",
+  "tags": []
+}

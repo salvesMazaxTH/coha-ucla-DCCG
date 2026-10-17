@@ -53,6 +53,7 @@ var activated_turn := -1 ## turn its Ao Ativar was last used
 var vipranna_heal_turn := -1 ## turn in which this Tox Vipranna last accepted a healing trigger
 var vipranna_heal_total := 0 ## requested healing accepted by this Vipranna during that turn
 var vipranna_heal_locked := false ## later triggers stay off after this instance reaches the 15-point threshold
+var leader_damage_guard_turn := -1 ## turn in which this card reduced the first damage to its Leader
 
 func _init(card_uid: int, id: String, owner_player: int, in_zone: String = "") -> void:
 	uid = card_uid
@@ -115,6 +116,7 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	vipranna_heal_turn = -1
 	vipranna_heal_total = 0
 	vipranna_heal_locked = false
+	leader_damage_guard_turn = -1
 
 func has_kw(kw: String) -> bool:
 	if kw == "escudo":
@@ -217,6 +219,8 @@ func to_dict() -> Dictionary:
 		d["vipranna_heal_total"] = vipranna_heal_total
 		if vipranna_heal_locked:
 			d["vipranna_heal_locked"] = true
+	if leader_damage_guard_turn >= 0:
+		d["leader_damage_guard_turn"] = leader_damage_guard_turn
 	return d
 
 ## Rebuilds a card from to_dict() output (network mirror). Board cards need "owner".
@@ -268,4 +272,5 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.vipranna_heal_turn = int(d.get("vipranna_heal_turn", -1))
 	c.vipranna_heal_total = int(d.get("vipranna_heal_total", 0))
 	c.vipranna_heal_locked = bool(d.get("vipranna_heal_locked", false))
+	c.leader_damage_guard_turn = int(d.get("leader_damage_guard_turn", -1))
 	return c

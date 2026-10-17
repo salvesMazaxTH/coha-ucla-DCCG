@@ -1,0 +1,21 @@
+{
+  "name": "Luz Transbordante",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "sagrada",
+  "cost": 2,
+  "speed": "lento",
+  "art": "sagrada/luz_transbordante.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "heal_unit",
+      "target": "ally_or_own_leader",
+      "amount": 4,
+      "overflow_max_hp": 1
+    }
+  ],
+  "text": "Cure 4 de Vida de uma unidade aliada ou do seu Líder. Se a cura passar do que faltava, o alvo ganha +1 de Vida máxima.",
+  "flavor": "Quando o copo enche, a luz continua. Alguém precisa de copo maior.",
+  "tags": []
+}

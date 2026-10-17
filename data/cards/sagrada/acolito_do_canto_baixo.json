@@ -1,0 +1,23 @@
+{
+  "name": "Acólito do Canto Baixo",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["humano"],
+  "essence": "sagrada",
+  "cost": 1,
+  "atk": 0,
+  "hp": 2,
+  "keywords": ["provocacao", "pacifista"],
+  "art": "sagrada/acolito_do_canto_baixo.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "other_ally_unit",
+      "armor": 1
+    }
+  ],
+  "text": "Provocação. Pacifista.\nAo Entrar: outra unidade aliada ganha Armadura 1 permanente.",
+  "flavor": "Ele canta tão baixinho que o hino só chega a quem está do lado.",
+  "tags": []
+}

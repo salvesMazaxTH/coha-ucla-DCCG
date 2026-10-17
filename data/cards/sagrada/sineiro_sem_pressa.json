@@ -1,0 +1,23 @@
+{
+  "name": "Sineiro Sem Pressa",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["humano"],
+  "essence": "sagrada",
+  "cost": 2,
+  "atk": 0,
+  "hp": 3,
+  "keywords": ["provocacao", "pacifista"],
+  "art": "sagrada/sineiro_sem_pressa.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
+    }
+  ],
+  "text": "Provocação. Pacifista.\nAo Entrar: compre 1 carta.",
+  "flavor": "O sino toca quando ele termina o café, nunca antes.",
+  "tags": []
+}

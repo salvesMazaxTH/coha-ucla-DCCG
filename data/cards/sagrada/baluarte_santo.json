@@ -1,0 +1,22 @@
+{
+  "name": "Baluarte Santo",
+  "type": "artifact",
+  "subtypes": ["local"],
+  "rarity": "common",
+  "essence": "sagrada",
+  "cost": 0,
+  "undraftable": true,
+  "redirects_destroy": true,
+  "art": "sagrada/baluarte_santo.webp",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount": 3
+    }
+  ],
+  "text": "Se um efeito fosse destruir uma unidade sua, este Baluarte é destruído no lugar e a unidade sobrevive.\nAo Morrer: cure 3 de Vida do seu Líder.",
+  "flavor": "Uma muralha que aceita cair para que ninguém precise.",
+  "tags": []
+}

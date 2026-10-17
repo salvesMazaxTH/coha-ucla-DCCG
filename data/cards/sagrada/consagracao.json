@@ -1,0 +1,22 @@
+{
+  "name": "Consagração",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "sagrada",
+  "cost": 2,
+  "speed": "lento",
+  "art": "sagrada/consagracao.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "atk": 1,
+      "hp": 1,
+      "bonus_if_species": {"species": ["divindade", "celestial", "anjo"], "atk": 1, "hp": 1}
+    }
+  ],
+  "text": "Uma unidade aliada ganha +1/+1 permanente. Se for Divindade, Celestial ou Anjo, ganha +1/+1 a mais.",
+  "flavor": "O céu reconhece os seus e, aos outros, só dá um empurrãozinho.",
+  "tags": []
+}

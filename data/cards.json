@@ -503,6 +503,27 @@
       },
       "essences": ["venenosa"]
     },
+    "mefi_urdim": {
+      "name": "Mefi'Urdim",
+      "hp": 30,
+      "art": "sagrada/mefi_urdim_lider.webp",
+      "legendary": "mefi_urdim",
+      "ability": {
+        "name": "Erguer o Baluarte",
+        "cost": 4,
+        "speed": "lento",
+        "effects": [
+          {
+            "action": "put_artifact",
+            "target": "none",
+            "card": "baluarte_santo",
+            "unique": true
+          }
+        ],
+        "text": "Lenta. 4 Momentum: coloque o Baluarte Santo no seu campo (só um por vez)."
+      },
+      "essences": ["sagrada"]
+    },
     "morakhan": {
       "name": "Morakhan",
       "hp": 35,

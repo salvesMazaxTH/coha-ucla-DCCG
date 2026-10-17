@@ -1,0 +1,24 @@
+{
+  "name": "Lucien, o Portador",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["anjo"],
+  "essence": "sagrada",
+  "cost": 3,
+  "atk": 2,
+  "hp": 3,
+  "keywords": ["inalcancavel"],
+  "art": "sagrada/lucien.webp",
+  "effects": [
+    {
+      "trigger": "on_turn_end",
+      "action": "buff",
+      "target": "self",
+      "atk": 1,
+      "own_turn_only": true
+    }
+  ],
+  "text": "Inalcançável.\nNo fim do seu turno, esta unidade ganha +1 de Ataque permanente.",
+  "flavor": "Ninguém chega até ele. Ele, devagar, chega em todo mundo.",
+  "tags": []
+}

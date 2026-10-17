@@ -1,0 +1,36 @@
+{
+  "name": "Nerithia Aun'Sael",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["celestial"],
+  "essence": "sagrada",
+  "cost": 4,
+  "atk": 2,
+  "hp": 4,
+  "keywords": ["imunidade_obscura"],
+  "art": "sagrada/nerithia.webp",
+  "effects": [
+    {
+      "trigger": "constante",
+      "action": "graveyard_armor",
+      "essence": "sagrada",
+      "card_type": "spell"
+    },
+    {
+      "trigger": "on_challenge",
+      "action": "buff",
+      "target": "self",
+      "copy_atk": "highest_ally",
+      "temp": true
+    },
+    {
+      "trigger": "on_death",
+      "action": "return_to_hand",
+      "target": "self_card",
+      "cost_increase": 1
+    }
+  ],
+  "text": "Imunidade contra Obscura.\nGanha +1 de Armadura por feitiço Sagrado no seu cemitério.\nAo Desafiar: o Ataque dela fica igual ao da unidade aliada de maior Ataque neste turno.\nAo Morrer: volta para a sua mão e custa 1 a mais (sem limite).",
+  "flavor": "Cada oração rezada por alguém é um degrau a menos que a separa do chão.",
+  "tags": []
+}

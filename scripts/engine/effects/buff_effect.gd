@@ -12,6 +12,8 @@ extends Effect
 ## "critico_max": true  a unit that has any Crítico at all goes up to Crítico 4 until the end of the turn (units without Crítico are untouched).
 ## "bonus_if_card": {"card": id, "atk": N, "hp": N}: when the target is that card, it also gains this permanently (Myrra -> Vael).
 ## "bonus_if_species": {"species": [...], "atk": N, "hp": N}: when the target has any of these species, it also gains this permanently (Consagração).
+## "only_species": [...]: the buff only lands on targets that have at least one of these species; any other target is left
+## untouched (Mefi'Urdim gives Escudo de Feitiço only to his divindades, celestiais and anjos).
 ## "copy_atk": "highest_ally": the unit takes the Ataque of the OTHER allied unit with the highest Ataque (nothing happens when it
 ## already has as much). With "temp": true it lasts until the end of the turn (Nerithia, Ao Desafiar). Ignores atk/hp.
 
@@ -39,8 +41,10 @@ var copy_attack_source := "" ## "copy_atk": "highest_ally" = copy the Ataque of 
 var bonus_species: Array = [] ## "bonus_if_species": species that earn the extra bonus below
 var species_bonus_attack := 0
 var species_bonus_health := 0
+var only_species: Array = [] ## "only_species": the target must share one of these species or the buff does nothing
 
 func _read_parameters(data: Dictionary) -> void:
+	only_species = data.get("only_species", [])
 	attack = int(data.get("atk", 0))
 	health = int(data.get("hp", 0))
 	armor = int(data.get("armor", 0))
@@ -72,6 +76,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
 	var unit := game.find_unit(target_uid)
 	if unit == null:
+		return
+	if not only_species.is_empty() and not _has_any_species(unit, only_species):
 		return
 	if copy_attack_source == "highest_ally":
 		_copy_highest_ally_attack(game, unit)
@@ -144,8 +150,12 @@ func apply(context: EffectContext, target_uid: int) -> void:
 
 ## True when the unit has at least one of the species that earn the "bonus_if_species" extra.
 func _shares_species(unit: Card) -> bool:
+	return _has_any_species(unit, bonus_species)
+
+## True when the unit's card lists at least one of the given species.
+func _has_any_species(unit: Card, wanted_species: Array) -> bool:
 	for species in CardDB.card(unit.card_id).get("species", []):
-		if bonus_species.has(species):
+		if wanted_species.has(species):
 			return true
 	return false
 

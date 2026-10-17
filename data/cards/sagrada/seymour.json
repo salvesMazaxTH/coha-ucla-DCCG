@@ -1,0 +1,33 @@
+{
+  "name": "Seymour",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["celestial"],
+  "essence": "sagrada",
+  "cost": 4,
+  "atk": 2,
+  "hp": 4,
+  "keywords": ["escudo"],
+  "art": "sagrada/seymour.webp",
+  "effects": [
+    {
+      "trigger": "on_turn_start",
+      "action": "buff",
+      "target": "self",
+      "keywords": ["escudo"],
+      "own_turn_only": true
+    },
+    {
+      "listen": "spell_cast",
+      "scope": "ally",
+      "zones": ["board"],
+      "when": {"essence_sagrada": true},
+      "action": "buff",
+      "target": "self",
+      "atk": 1
+    }
+  ],
+  "text": "Escudo. No início do seu turno, ela recupera o Escudo.\nSempre que você lançar um feitiço Sagrado, esta unidade ganha +1 de Ataque permanente.",
+  "flavor": "O primeiro golpe de cada dia ela deixa passar sem notar.",
+  "tags": []
+}

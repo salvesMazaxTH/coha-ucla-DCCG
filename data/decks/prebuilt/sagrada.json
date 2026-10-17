@@ -1,0 +1,25 @@
+{
+  "name": "Cidadela Celestial",
+  "description": "Proteja os quatro campeões: o Arcanjo Uriel voa, cura o Líder a cada golpe e cresce com cada cura, Lucien cresce fora de alcance, Seymour recupera o Escudo e Nerithia Aun'Sael volta sempre mais cara. Feitiços permanentes, Armadura e o Baluarte Santo de Mefi'Urdim seguram o jogo até Vidal virar o tabuleiro.",
+  "order": 14,
+  "leader": "mefi_urdim",
+  "cards": {
+    "acolito_do_canto_baixo": 3,
+    "veu_sagrado": 3,
+    "sineiro_sem_pressa": 3,
+    "vigia_do_farol_do_norte": 3,
+    "bencao_de_ferro_batido": 3,
+    "consagracao": 3,
+    "intercessao": 3,
+    "luz_transbordante": 3,
+    "manto_da_ladainha": 3,
+    "engenheiro_louco": 3,
+    "lucien": 3,
+    "nerithia": 3,
+    "seymour": 3,
+    "maria_helena": 1,
+    "uriel": 3,
+    "vidal": 1,
+    "mefi_urdim": 1
+  }
+}

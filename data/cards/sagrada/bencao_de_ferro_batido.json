@@ -1,0 +1,20 @@
+{
+  "name": "Bênção de Ferro Batido",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "sagrada",
+  "cost": 2,
+  "speed": "lento",
+  "art": "sagrada/bencao_de_ferro_batido.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "armor": 2
+    }
+  ],
+  "text": "Uma unidade aliada ganha Armadura 2 permanente.",
+  "flavor": "Abençoada à marretada, porque o céu também tem pressa.",
+  "tags": []
+}

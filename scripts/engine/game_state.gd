@@ -336,17 +336,18 @@ func scale_bonus(p: int, cd: Dictionary) -> Vector2i:
 
 ## What the "species_aura" effects of the OTHER allied units on the board give unit `c`:
 ## x = Ataque, y = Vida, z = Armadura. An aura only reaches units sharing one of its species
-## (a card can list several, e.g. ["divindade", "celestial"]). Never reads `c`'s own effects.
+## (a card can list several, e.g. ["divindade", "celestial"]). The source's own aura does not reach itself
+## unless the effect says "include_self": true (Mefi'Urdim).
 func species_aura_bonus(c: Card) -> Vector3i:
 	var bonus := Vector3i.ZERO
 	var unit_species: Array = card_of(c).get("species", [])
 	if unit_species.is_empty():
 		return bonus
 	for source: Card in players[c.owner]["board"]:
-		if source == c:
-			continue
 		for e in card_of(source).get("effects", []):
 			if e.get("trigger", "") != "constante" or e.get("action", "") != "species_aura":
+				continue
+			if source == c and not bool(e.get("include_self", false)):
 				continue
 			for aura_species in e.get("species", []):
 				if unit_species.has(aura_species):
@@ -1811,6 +1812,21 @@ func _deal_damage(t: int, amount: int, source: Card) -> int:
 func _deal_dot_damage(t: int, amount: int, dot_id: String) -> int:
 	return _deal_damage_internal(t, amount, null, true, dot_id)
 
+## Santa Maria Helena: the first damage instance to her Leader each turn is reduced by 3,
+## but the hit itself can never be reduced below 1. This applies before other Leader modifiers.
+func _apply_leader_damage_guard(p: int, amount: int, src_uid: int) -> int:
+	for c: Card in players[p]["board"]:
+		var reduction := int(c.data().get("leader_damage_reduction", 0))
+		if reduction <= 0 or c.leader_damage_guard_turn == turn:
+			continue
+		c.leader_damage_guard_turn = turn
+		var reduced := maxi(1, amount - reduction)
+		var prevented := amount - reduced
+		if prevented > 0:
+			_emit({"type": "leader_guard", "uid": c.uid, "amount": prevented, "src": src_uid})
+		return reduced
+	return amount
+
 func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protections: bool, damage_kind := "") -> int:
 	if amount <= 0:
 		return 0
@@ -1819,6 +1835,7 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 	if t < 0:
 		var tp := LEADER_UID.find(t)
 		var hp_before: int = players[tp]["leader_hp"]
+		amount = _apply_leader_damage_guard(tp, amount, src_uid)
 		# Câmara de Êxtase aftermath: half the damage, rounded down
 		if turn <= int(players[tp]["damage_halved_until"]):
 			amount = floori(amount / 2.0)

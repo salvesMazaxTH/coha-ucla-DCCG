@@ -86,6 +86,7 @@ func _init() -> void:
 	_test_armor()
 	_test_adjacent_armor()
 	_test_sagrada_engine()
+	_test_maria_helena()
 	_test_sim()
 	for e in CardDB.errors():
 		check(false, e)
@@ -4945,6 +4946,50 @@ func _test_sagrada_engine() -> void:
 	g._move_dead_units()
 	check(g.atk_of(angel) == 2 and g.armor_of(angel) == 0, "species_aura: o bônus some quando a fonte sai de campo")
 
+	# species_aura with "include_self": the source benefits from its own aura too (Mefi'Urdim)
+	_tcard("t_aura_self_source", 1, 5, [{"trigger": "constante", "action": "species_aura", "species": ["celestial"],
+		"include_self": true, "atk": 1, "hp": 1}])
+	CardDB.data()["cards"]["t_aura_self_source"]["species"] = ["celestial"]
+	g = _new_game()
+	_quiet(g)
+	var self_source := _put(g, 0, "t_aura_self_source")
+	g._move_dead_units()
+	check(g.atk_of(self_source) == 2 and g.hp_left(self_source) == 6, "species_aura include_self: a fonte ganha +1/+1 (%d/%d)" % [g.atk_of(self_source), g.hp_left(self_source)])
+
+	# buff "only_species": units of other species are left untouched
+	_tcard("t_only_species_buff", 1, 5, [{"trigger": "on_enter", "action": "buff", "target": "all_ally_units",
+		"only_species": ["anjo"], "keywords": ["escudo_feitico"]}])
+	g = _new_game()
+	_quiet(g)
+	var only_angel := _put(g, 0, "t_aura_angel")
+	var only_human := _put(g, 0, "t_aura_human")
+	_put(g, 0, "t_only_species_buff")
+	check(only_angel.spell_shield and not only_human.spell_shield, "buff only_species: só a espécie listada ganha o Escudo de Feitiço")
+
+	# Mefi'Urdim: Ao Entrar heals 10, raises the Baluarte Santo, gives Escudo de Feitiço to his tribe; Constante +1/+1 to the tribe and himself
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["leader_hp"] = 15
+	var mefi_angel := _put(g, 0, "uriel")
+	var mefi_human := _put(g, 0, "t_aura_human")
+	var mefi := _put(g, 0, "mefi_urdim")
+	g._move_dead_units()
+	check(g.players[0]["leader_hp"] == 25, "Mefi'Urdim: Ao Entrar cura 10 do Líder (%d)" % g.players[0]["leader_hp"])
+	check(g.players[0]["relics"].any(func(relic: Card): return relic.card_id == "baluarte_santo"), "Mefi'Urdim: Ao Entrar invoca o Baluarte Santo")
+	check(mefi_angel.spell_shield and mefi.spell_shield and not mefi_human.spell_shield, "Mefi'Urdim: Escudo de Feitiço na tribo, incluindo ele, e em mais ninguém")
+	check(g.atk_of(mefi) == 5 and g.hp_left(mefi) == 11, "Mefi'Urdim: ele mesmo ganha +1/+1 da própria aura (%d/%d)" % [g.atk_of(mefi), g.hp_left(mefi)])
+	check(g.atk_of(mefi_angel) == 6 and g.atk_of(mefi_human) == 2, "Mefi'Urdim: o Anjo ganha +1 de Ataque e o humano nada (%d / %d)" % [g.atk_of(mefi_angel), g.atk_of(mefi_human)])
+
+	# Arcanjo Uriel: grows by 1 Ataque every time his Leader is healed
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["leader_hp"] = 10
+	var archangel := _put(g, 0, "uriel")
+	var attack_before := g.atk_of(archangel)
+	g._heal_leader(0, 3)
+	g._check_state()
+	check(g.atk_of(archangel) == attack_before + 1, "Uriel: cura do Líder dá +1 de Ataque (%d -> %d)" % [attack_before, g.atk_of(archangel)])
+
 	# graveyard_armor: +1 Armadura per spell of the essence in the owner's graveyard (damage never below 1)
 	_tcard("t_grave_armor", 1, 20, [{"trigger": "constante", "action": "graveyard_armor", "essence": "sagrada", "card_type": "spell"}])
 	_tspell("t_sagrada_spell", "lento", [])
@@ -5134,3 +5179,31 @@ func _test_sagrada_engine() -> void:
 	g.play_card(attacker_side, _give(g, attacker_side, "t_kill_spell"), defended_unit.uid)
 	check(g.stack.size() == 1, "only_if_destroys: o feitiço de destruição espera na pilha")
 	check(g.card_targets(defender_side, CardDB.card("t_counter_destroy")).size() == 1, "only_if_destroys: um feitiço que destrói a unidade aliada pode ser anulado")
+
+## Santa Maria Helena: 0/6 for five, periodic Leader healing, and one first-hit reduction per turn.
+func _test_maria_helena() -> void:
+	var cd := CardDB.card("maria_helena")
+	check(int(cd["cost"]) == 5 and int(cd["atk"]) == 0 and int(cd["hp"]) == 6, "Santa Maria Helena: continua custo 5 e vira 0/6")
+	check(int(cd["leader_damage_reduction"]) == 3, "Santa Maria Helena: redução do primeiro dano é 3")
+
+	var g := _new_game()
+	_quiet(g)
+	g.players[0]["leader_max"] = 100
+	g.players[0]["leader_hp"] = 20
+	var maria := _put(g, 0, "maria_helena")
+	check(maria.hp == 6, "Santa Maria Helena: Vida base 6")
+	g._fire(maria, "on_turn_start")
+	g._check_state()
+	check(g.players[0]["leader_hp"] == 22, "Santa Maria Helena: cura 2 no início do turno")
+
+	var before: int = g.players[0]["leader_hp"]
+	check(g._deal_damage(GameState.LEADER_UID[0], 5, null) == 2 and g.players[0]["leader_hp"] == before - 2,
+		"Santa Maria Helena: primeiro dano do turno é reduzido em 3")
+	before = g.players[0]["leader_hp"]
+	check(g._deal_damage(GameState.LEADER_UID[0], 5, null) == 5 and g.players[0]["leader_hp"] == before - 5,
+		"Santa Maria Helena: danos seguintes do mesmo turno não são reduzidos")
+
+	g._start_turn(0, false)
+	before = g.players[0]["leader_hp"]
+	check(g._deal_damage(GameState.LEADER_UID[0], 2, null) == 1 and g.players[0]["leader_hp"] == before - 1,
+		"Santa Maria Helena: a redução nunca transforma dano em menos de 1 e reinicia no turno seguinte")
