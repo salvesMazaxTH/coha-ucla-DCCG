@@ -513,6 +513,25 @@ func _test_legendary_retire() -> void:
 	g.players[0]["momentum"] = 10
 	check(g.can_play(0, bottom.uid), "encarnação aposentada: jogável da mão pelo custo normal")
 
+	# banishing the Encarnação behaves like its death: back to the Santuário while the next cast is payable
+	var banish_game := _new_game()
+	_quiet(banish_game)
+	var banish_legendary: Dictionary = banish_game.players[0]["legendary"]
+	banish_game.players[0]["momentum"] = 10
+	banish_game.cast_legendary(0)
+	if banish_game.phase == "enter_target":
+		banish_game.choose_enter_target(0, 0)
+	if banish_game.summon_window:
+		banish_game.pass_priority(1)
+	banish_game.banish_unit(banish_game.players[0]["board"].back())
+	check(banish_legendary["in_zone"] and not banish_legendary.get("retired", false) and banish_game.players[0]["banished"].is_empty(), "encarnação: banida volta ao Santuário")
+	# ...and retires when the next cast would pass the Momentum cap, just like a death
+	banish_legendary["casts"] = 10
+	banish_legendary["in_zone"] = false
+	banish_game._summon(0, Card.new(banish_game._uid(), banish_legendary["card_id"], 0), true, 0)
+	banish_game.banish_unit(banish_game.players[0]["board"].back())
+	check(banish_legendary["retired"] and not banish_legendary["in_zone"], "encarnação: banida com custo acima de 10 aposenta")
+
 func _test_enter_target() -> void:
 	var g := _new_game()
 	_quiet(g)

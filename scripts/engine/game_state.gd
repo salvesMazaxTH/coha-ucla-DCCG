@@ -1013,12 +1013,16 @@ func transform_into(c: Card, into_id: String) -> void:
 	_run_effects(_enter_context(p, uid, target), cd["effects"])
 
 ## Exiles a unit from the board: it never dies (no Ao Morrer) and never reaches the graveyard;
-## its equipment does. A banished ficha just vanishes.
+## its equipment does. A banished ficha just vanishes. A banished Encarnação goes back to the
+## Santuário (or retires) exactly as if it had died, so a single banish never costs a deck its Encarnação.
 func banish_unit(exiled: Card) -> void:
 	var owner_player: int = exiled.owner
 	players[owner_player]["board"].erase(exiled)
 	_release_equipment(exiled)
-	if exiled.data().get("token", false):
+	if exiled.legendary:
+		_move(exiled, "")
+		_legendary_leaves(owner_player)
+	elif exiled.data().get("token", false):
 		_move(exiled, "")
 	else:
 		players[owner_player]["banished"].append(exiled)
