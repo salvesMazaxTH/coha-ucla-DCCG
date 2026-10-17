@@ -21,8 +21,7 @@
       "action": "add_dot",
       "dot": "veneno",
       "target": "enemy_leader",
-      "amount": 1,
-      "ignores_immunity": true
+      "amount": 1
     }
   ],
   "activated": {

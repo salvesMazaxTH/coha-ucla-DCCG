@@ -26,8 +26,8 @@ const DOT_RULES := {
 	"sangramento": "life_bracket",
 }
 
-## Innate immunity to a marker kind, given by essence: a unit (or a Leader) with any of these
-## essences can never receive that kind of marker. A card effect skips it by saying so explicitly
+## Innate immunity of UNITS to a marker kind, given by essence: a unit with any of these
+## essences can never receive that kind of marker. Leaders have no immunity. A card effect skips it by saying so explicitly
 ## ("ignores_immunity" in the effect, "toxico_ignores_immunity" on the card for its Tóxico).
 ## Sangramento has no immune essence yet.
 const DOT_IMMUNE_ESSENCES := {
@@ -1733,7 +1733,7 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 			_fire(source, "on_hit_leader")
 		# Tóxico normally skips Leaders; a card with "toxico_hits_leader" is the exception
 		if _combat_damage and source != null and has_kw(source, "toxico") and source.data().get("toxico_hits_leader", false):
-			add_leader_dot_markers(tp, "veneno", toxico_markers(source), source.data().get("toxico_ignores_immunity", false))
+			add_leader_dot_markers(tp, "veneno", toxico_markers(source))
 	else:
 		var c := find_unit(t)
 		if c == null:
@@ -1802,10 +1802,7 @@ func add_dot_markers(unit: Card, dot_id: String, amount: int, ignores_immunity :
 ## Puts markers on a Leader (player `p`). Like a unit's, they hurt it and are consumed at the start
 ## of its controller's turn (see _resolve_leader_dot), unless a card holds the Veneno in place.
 ## Any number of markers is harmless to the engine; killing a Leader by markers is a card effect.
-func add_leader_dot_markers(p: int, dot_id: String, amount: int, ignores_immunity := false) -> void:
-	if not ignores_immunity and leader_is_immune_to_dot(p, dot_id):
-		_emit({"type": "dot_immune", "uid": LEADER_UID[p], "dot": dot_id})
-		return
+func add_leader_dot_markers(p: int, dot_id: String, amount: int) -> void:
 	var leader_dots: Dictionary = players[p]["leader_dots"]
 	leader_dots[dot_id] = int(leader_dots.get(dot_id, 0)) + amount
 	_emit({"type": "dot", "uid": LEADER_UID[p], "dot": dot_id, "amount": amount, "total": int(leader_dots[dot_id])})
@@ -1813,11 +1810,6 @@ func add_leader_dot_markers(p: int, dot_id: String, amount: int, ignores_immunit
 ## True when one of the unit's essences makes it immune to markers of `dot_id`.
 func unit_is_immune_to_dot(unit: Card, dot_id: String) -> bool:
 	return _essences_are_immune_to_dot(CardDB.essences_of(unit.data()), dot_id)
-
-## Same for a Leader, by the essences printed on the Leader (cards.json "leaders").
-func leader_is_immune_to_dot(p: int, dot_id: String) -> bool:
-	var leader_essences: Array = CardDB.leader(players[p]["leader_id"]).get("essences", [])
-	return _essences_are_immune_to_dot(leader_essences, dot_id)
 
 func _essences_are_immune_to_dot(essences: Array, dot_id: String) -> bool:
 	for immune_essence in DOT_IMMUNE_ESSENCES.get(dot_id, []):

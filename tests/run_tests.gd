@@ -1511,15 +1511,15 @@ func _test_dot_immunity() -> void:
 	blocked.apply(EffectContext.new(g, 0, ""), steel_unit.uid)
 	check(steel_unit.dot_markers.get("veneno", 0) == 1, "Imunidade: o mesmo efeito sem a marca é barrado")
 
-	# Leaders: by the essence printed on the Leader
-	g.players[1]["leader_id"] = "tox_vipranna"
-	g.add_leader_dot_markers(1, "veneno", 3)
-	check(g.leader_dot_markers(1, "veneno") == 0, "Imunidade: Líder Venenoso (Vipranna) não recebe Veneno")
-	g.add_leader_dot_markers(1, "veneno", 3, true)
-	check(g.leader_dot_markers(1, "veneno") == 3, "Imunidade: Líder Venenoso recebe Veneno de quem ignora imunidade")
-	g.players[1]["leader_id"] = "morakhan"
-	g.add_leader_dot_markers(1, "veneno", 2)
-	check(g.leader_dot_markers(1, "veneno") == 3, "Imunidade: Líder Metálico (Morakhan) também é imune")
+	# Leaders have no immunity: Venenosa and Metálica Leaders take Veneno, an Ígnea Leader takes Queimadura
+	for leader_id in ["tox_vipranna", "morakhan"]:
+		g.players[1]["leader_id"] = leader_id
+		var poison_before: int = g.leader_dot_markers(1, "veneno")
+		g.add_leader_dot_markers(1, "veneno", 2)
+		check(g.leader_dot_markers(1, "veneno") == poison_before + 2, "Líder %s aceita Veneno (Líderes não têm imunidade)" % leader_id)
+	g.players[1]["leader_id"] = "ronan"
+	g.add_leader_dot_markers(1, "queimadura", 2)
+	check(g.leader_dot_markers(1, "queimadura") == 2, "Líder Ígneo aceita Queimadura")
 
 	# Tóxico: Viprax's combat poison ignores it, a plain Tóxico unit does not
 	var g2 := _new_game()
