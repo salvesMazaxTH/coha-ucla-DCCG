@@ -11,10 +11,12 @@ extends Effect
 
 var amount := 0
 var per := ""
+var vipranna := false
 
 func _read_parameters(data: Dictionary) -> void:
 	amount = int(data.get("amount", 0))
 	per = String(data.get("per", ""))
+	vipranna = bool(data.get("vipranna", false))
 
 ## What "heal_leader" heals right now: `amount`, or half the triggering event's damage when that is more.
 func _leader_heal_amount(context: EffectContext) -> int:
@@ -25,7 +27,11 @@ func _leader_heal_amount(context: EffectContext) -> int:
 func apply(context: EffectContext, target_uid: int) -> void:
 	match action:
 		"heal_leader":
-			context.game._heal_leader(context.controller, _leader_heal_amount(context))
+			var heal_amount := _leader_heal_amount(context)
+			if vipranna:
+				context.game._apply_vipranna_heal(context, heal_amount)
+			else:
+				context.game._heal_leader(context.controller, heal_amount)
 		"leader_max_up":
 			context.game._raise_leader_max(context.controller, amount)
 		"heal_full":

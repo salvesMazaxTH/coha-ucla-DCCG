@@ -22,12 +22,22 @@ const REQUIEM_EXTRA_COST := 2 ## Réquiem: a spell cast from the graveyard costs
 ## Periodic marker rules. New marker types reuse add_dot/resolve_dot; only their damage policy differs.
 const DOT_RULES := {
 	"queimadura": "flat",
-	"veneno": "life_bracket",
+	"veneno": "poison",
 	"sangramento": "life_bracket",
 }
 
-## Veneno wears off slowly: every marker hurts at each tick, but only this many are removed.
-const VENENO_DECAY_PER_TICK := 1
+## Innate immunity to a marker kind, given by essence: a unit (or a Leader) with any of these
+## essences can never receive that kind of marker. A card effect skips it by saying so explicitly
+## ("ignores_immunity" in the effect, "toxico_ignores_immunity" on the card for its Tóxico).
+## Sangramento has no immune essence yet.
+const DOT_IMMUNE_ESSENCES := {
+	"veneno": ["venenosa", "metalica"],
+	"queimadura": ["ignea"],
+	"sangramento": [],
+}
+
+## Each Veneno marker deals 3 damage, then half the pile (rounded up) is removed.
+const VENENO_DAMAGE_PER_MARKER := 3
 
 ## Leaders are addressed with negative uids so targets are a single int.
 const LEADER_UID := [-1, -2]
@@ -1723,7 +1733,7 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 			_fire(source, "on_hit_leader")
 		# Tóxico normally skips Leaders; a card with "toxico_hits_leader" is the exception
 		if _combat_damage and source != null and has_kw(source, "toxico") and source.data().get("toxico_hits_leader", false):
-			add_leader_dot_markers(tp, "veneno", toxico_markers(source))
+			add_leader_dot_markers(tp, "veneno", toxico_markers(source), source.data().get("toxico_ignores_immunity", false))
 	else:
 		var c := find_unit(t)
 		if c == null:
@@ -1773,26 +1783,47 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		# such as Imunidade contra Obscura without making them damage effects.
 		if _combat_damage and source != null and has_kw(source, "toque_letal") and dealt > 0 \
 				and not _immune_to_lethal_touch(c):
-			c.damage = maxi(c.damage, c.hp + c.bonus_hp + c.temp_hp)
+			c.damage = maxi(c.damage, c.hp + c.bonus_hp + c.temp_hp + c.temp_hp_until_next_turn)
 		# Tóxico X: combat damage that really got through leaves X Veneno markers (blocked damage returned above)
 		if _combat_damage and source != null and has_kw(source, "toxico") and dealt > 0 and c.hp_left() > 0:
-			add_dot_markers(c, "veneno", toxico_markers(source))
+			add_dot_markers(c, "veneno", toxico_markers(source), source.data().get("toxico_ignores_immunity", false))
 	if source != null and has_kw(source, "roubo_de_vida"):
 		_heal_leader(source.owner, dealt)
 	return dealt
 
 ## Puts `amount` accumulating markers of the `dot_id` kind on the unit (they resolve at its controller's turn start).
-func add_dot_markers(unit: Card, dot_id: String, amount: int) -> void:
+func add_dot_markers(unit: Card, dot_id: String, amount: int, ignores_immunity := false) -> void:
+	if not ignores_immunity and unit_is_immune_to_dot(unit, dot_id):
+		_emit({"type": "dot_immune", "uid": unit.uid, "dot": dot_id})
+		return
 	unit.dot_markers[dot_id] = int(unit.dot_markers.get(dot_id, 0)) + amount
 	_emit({"type": "dot", "uid": unit.uid, "dot": dot_id, "amount": amount, "total": int(unit.dot_markers[dot_id])})
 
 ## Puts markers on a Leader (player `p`). Like a unit's, they hurt it and are consumed at the start
 ## of its controller's turn (see _resolve_leader_dot), unless a card holds the Veneno in place.
 ## Any number of markers is harmless to the engine; killing a Leader by markers is a card effect.
-func add_leader_dot_markers(p: int, dot_id: String, amount: int) -> void:
+func add_leader_dot_markers(p: int, dot_id: String, amount: int, ignores_immunity := false) -> void:
+	if not ignores_immunity and leader_is_immune_to_dot(p, dot_id):
+		_emit({"type": "dot_immune", "uid": LEADER_UID[p], "dot": dot_id})
+		return
 	var leader_dots: Dictionary = players[p]["leader_dots"]
 	leader_dots[dot_id] = int(leader_dots.get(dot_id, 0)) + amount
 	_emit({"type": "dot", "uid": LEADER_UID[p], "dot": dot_id, "amount": amount, "total": int(leader_dots[dot_id])})
+
+## True when one of the unit's essences makes it immune to markers of `dot_id`.
+func unit_is_immune_to_dot(unit: Card, dot_id: String) -> bool:
+	return _essences_are_immune_to_dot(CardDB.essences_of(unit.data()), dot_id)
+
+## Same for a Leader, by the essences printed on the Leader (cards.json "leaders").
+func leader_is_immune_to_dot(p: int, dot_id: String) -> bool:
+	var leader_essences: Array = CardDB.leader(players[p]["leader_id"]).get("essences", [])
+	return _essences_are_immune_to_dot(leader_essences, dot_id)
+
+func _essences_are_immune_to_dot(essences: Array, dot_id: String) -> bool:
+	for immune_essence in DOT_IMMUNE_ESSENCES.get(dot_id, []):
+		if essences.has(immune_essence):
+			return true
+	return false
 
 ## Kills the Leader of player `p` on the spot (a card effect, e.g. Viprax's execution). Câmara de
 ## Êxtase and the damage halving do not apply.
@@ -1841,6 +1872,27 @@ func _heal_leader(p: int, amount: int) -> void:
 		pl["leader_hp"] += healed
 		_emit({"type": "heal", "uid": LEADER_UID[p], "amount": healed})
 		_emit_leader_healed(p, healed, hp_before)
+
+## Tox Vipranna's poison-healing trigger: each instance has a soft 15-point budget per turn.
+## The trigger that reaches or crosses 15 resolves in full; later triggers from that instance are
+## ignored until its controller's next turn. Each accepted trigger gives Vipranna +1 temporary Vida
+## until the start of her owner's next turn.
+func _apply_vipranna_heal(context: EffectContext, amount: int) -> void:
+	var vipranna := find_unit(context.self_uid)
+	if vipranna == null or vipranna.card_id != "tox_vipranna" or amount <= 0:
+		return
+	if vipranna.vipranna_heal_turn != turn:
+		vipranna.vipranna_heal_turn = turn
+		vipranna.vipranna_heal_total = 0
+		vipranna.vipranna_heal_locked = false
+	if vipranna.vipranna_heal_locked:
+		return
+	_heal_leader(context.controller, amount)
+	vipranna.vipranna_heal_total += amount
+	vipranna.temp_hp_until_next_turn += 1
+	_emit({"type": "buff", "uid": vipranna.uid, "atk": 0, "hp": 1, "keywords": [], "until_next_turn": true})
+	if vipranna.vipranna_heal_total >= 15:
+		vipranna.vipranna_heal_locked = true
 
 ## Raises the Leader's maximum life and its current life by the same amount (can pass the starting life).
 func _raise_leader_max(p: int, amount: int) -> void:
@@ -2073,6 +2125,9 @@ func _start_turn(p: int, draw: bool) -> void:
 	pl["played_two"] = false
 	pl["glacial_discount_used"] = false
 	for c in pl["board"]:
+		if c.temp_hp_until_next_turn > 0:
+			c.damage = maxi(0, c.damage - c.temp_hp_until_next_turn)
+			c.temp_hp_until_next_turn = 0
 		if not c.is_frozen(): # a Congelada unit stays tapped through this whole turn
 			c.exhausted = false
 		c.sick = false
@@ -2103,17 +2158,18 @@ func _resolve_dot_markers(p: int) -> void:
 	for dot_id in players[p]["leader_dots"].keys().duplicate():
 		_resolve_leader_dot(p, String(dot_id))
 
-## A Leader's markers hurt it for one damage per marker (no Vida-bracket bonus: a Leader's Vida is
-## far too big for it) and wear off like a unit's. It is normal damage, so Câmara de Êxtase still
-## applies. While its Veneno is held (see veneno_is_held) the markers hurt but none wear off.
+## A Leader's markers hurt it for 3 damage per marker and then half the pile is removed. It is normal
+## damage, so Câmara de Êxtase still applies. While its Veneno is held (see veneno_is_held) the
+## markers hurt but none wear off.
 func _resolve_leader_dot(p: int, dot_id: String) -> void:
 	var markers := leader_dot_markers(p, dot_id)
 	if markers <= 0:
 		return
 	var held := veneno_is_held(dot_id, LEADER_UID[p])
 	var consumed := 0 if held else markers_consumed_per_tick(dot_id, markers)
-	_emit({"type": "dot", "uid": LEADER_UID[p], "dot": dot_id, "amount": markers, "damage": markers, "total": markers - consumed, "cleared": true, "held": held})
-	_deal_dot_damage(LEADER_UID[p], markers, dot_id)
+	var damage := markers * VENENO_DAMAGE_PER_MARKER if dot_id == "veneno" else markers
+	_emit({"type": "dot", "uid": LEADER_UID[p], "dot": dot_id, "amount": markers, "damage": damage, "total": markers - consumed, "cleared": true, "held": held})
+	_deal_dot_damage(LEADER_UID[p], damage, dot_id)
 	if held:
 		return
 	# markers added by a trigger during the damage above wait for the next turn
@@ -2123,11 +2179,11 @@ func _resolve_leader_dot(p: int, dot_id: String) -> void:
 	else:
 		players[p]["leader_dots"].erase(dot_id)
 
-## How many markers wear off at one tick: Veneno loses only VENENO_DECAY_PER_TICK, the other kinds
+## How many markers wear off at one tick: Veneno loses half its pile, rounded up; the other kinds
 ## (Queimadura, Sangramento) lose all of them.
 func markers_consumed_per_tick(dot_id: String, markers: int) -> int:
 	if dot_id == "veneno":
-		return mini(markers, VENENO_DECAY_PER_TICK)
+		return ceili(float(markers) / 2.0)
 	return markers
 
 ## True when the Veneno markers of `target_uid` (a unit, or a Leader's negative uid) are not consumed
@@ -2170,8 +2226,8 @@ func _resolve_condemned() -> void:
 	_check_state()
 
 ## Resolves one marker type. Only the markers present when this call starts are consumed;
-## a new marker added by an on_damaged trigger remains for the next turn. Veneno only loses
-## VENENO_DECAY_PER_TICK markers, and none while it is held (see veneno_is_held): the markers hurt and stay.
+## a new marker added by an on_damaged trigger remains for the next turn. Veneno loses half its
+## pile, rounded up, and none while it is held (see veneno_is_held): the markers hurt and stay.
 func resolve_dot(unit: Card, dot_id: String) -> void:
 	if unit == null:
 		return
@@ -2195,9 +2251,11 @@ func resolve_dot(unit: Card, dot_id: String) -> void:
 func dot_damage(dot_id: String, unit: Card, markers: int) -> int:
 	if unit == null or markers <= 0:
 		return 0
+	if dot_id == "veneno":
+		return markers * VENENO_DAMAGE_PER_MARKER
 	if DOT_RULES.get(dot_id, "flat") != "life_bracket":
 		return markers
-	var max_hp := unit.hp + unit.bonus_hp + unit.temp_hp
+	var max_hp := unit.hp + unit.bonus_hp + unit.temp_hp + unit.temp_hp_until_next_turn
 	var life_bonus := 0
 	if max_hp >= 6 and max_hp <= 9:
 		life_bonus = 1

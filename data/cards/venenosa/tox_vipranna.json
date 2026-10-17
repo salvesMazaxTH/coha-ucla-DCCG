@@ -13,6 +13,7 @@
   "keywords": [
     "toxico:3"
   ],
+  "toxico_ignores_immunity": true,
   "art": "venenosa/tox_vipranna.webp",
   "effects": [
     {
@@ -20,7 +21,8 @@
       "action": "add_dot",
       "dot": "veneno",
       "target": "enemy_unit",
-      "amount": 3
+      "amount": 3,
+      "ignores_immunity": true
     },
     {
       "listen": "unit_damaged",
@@ -34,7 +36,8 @@
       "action": "heal_leader",
       "target": "own_leader",
       "per": "half_event_damage",
-      "amount": 2
+      "amount": 2,
+      "vipranna": true
     },
     {
       "listen": "leader_damaged",
@@ -48,10 +51,11 @@
       "action": "heal_leader",
       "target": "own_leader",
       "per": "half_event_damage",
-      "amount": 2
+      "amount": 2,
+      "vipranna": true
     }
   ],
-  "text": "Tóxico 3.\nAo Entrar: dê 3 marcadores de Veneno a uma unidade inimiga.\nSempre que uma unidade ou o Líder inimigo sofrer dano de Veneno, cure do seu Líder metade (arredondada pra cima) do dano, no mínimo 2.",
+  "text": "Tóxico 3. O Veneno dela ignora imunidade.\nAo Entrar: dê 3 marcadores de Veneno a uma unidade inimiga.\nSempre que uma unidade ou o Líder inimigo sofrer dano de Veneno, cure do seu Líder metade (arredondada pra cima) do dano, no mínimo 2. A cada turno, o trigger que atingir ou ultrapassar 15 de cura é o último; triggers seguintes não curam. A cada trigger aceito, esta unidade ganha +1 de Vida temporária até o início do próximo turno dela.",
   "flavor": "A rainha não mata ninguém. Ela só deixa o jardim crescer devagar dentro de você.",
   "tags": []
 }

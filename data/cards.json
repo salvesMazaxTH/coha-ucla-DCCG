@@ -246,7 +246,7 @@
     },
     "veneno": {
       "name": "Veneno",
-      "text": "Marcadores de Veneno: no início do turno do controlador, esta unidade sofre dano igual à quantidade de marcadores mais um bônus pela Vida máxima: +0 com 1–5, +1 com 6–9, +2 com 10–13 e +1 adicional a cada 4 de Vida acima de 10. Depois remove só 1 marcador (Veneno decai devagar). Esse dano ignora Armadura, Escudo e Escudo de Feitiço; Indestrutível ainda o impede."
+      "text": "Marcadores de Veneno: no início do turno do controlador, cada marcador causa 3 de dano a esta unidade. Depois, remove metade dos marcadores, arredondada para cima. Esse dano ignora Armadura, Escudo e Escudo de Feitiço; Indestrutível ainda o impede."
     },
     "sangramento": {
       "name": "Sangramento",
@@ -450,10 +450,11 @@
             "action": "add_dot",
             "dot": "veneno",
             "target": "enemy_unit",
-            "amount": 1
+            "amount": 1,
+            "ignores_immunity": true
           }
         ],
-        "text": "Rápida. 2 Momentum, uma vez por turno: dê 1 marcador de Veneno a uma unidade inimiga."
+        "text": "Rápida. 2 Momentum, uma vez por turno: dê 1 marcador de Veneno a uma unidade inimiga, ignorando imunidade."
       },
       "essences": ["venenosa"]
     },

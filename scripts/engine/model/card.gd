@@ -22,6 +22,7 @@ var hp := 0
 var damage := 0
 var temp_atk := 0
 var temp_hp := 0 ## extra Vida that lasts until the end of the turn; it soaks damage first, so nothing dies from it expiring
+var temp_hp_until_next_turn := 0 ## extra Vida that lasts until this unit's owner's next turn starts
 var rapidez := 0 ## Rapidez 0-3, as written on the card (0 = no Rapidez keyword): in a challenge, the faster unit deals its damage first (equal = at the same time)
 var keywords: Array = []
 var temp_keywords: Array = []
@@ -49,6 +50,9 @@ var equipment_grant: Dictionary = {} ## what the equipment gave this unit ({atk,
 var cap_atk_gain := 0 ## attack given so far by "cap_atk" buffs
 var dodge_turn := -1 ## turn its Esquiva was last used
 var activated_turn := -1 ## turn its Ao Ativar was last used
+var vipranna_heal_turn := -1 ## turn in which this Tox Vipranna last accepted a healing trigger
+var vipranna_heal_total := 0 ## requested healing accepted by this Vipranna during that turn
+var vipranna_heal_locked := false ## later triggers stay off after this instance reaches the 15-point threshold
 
 func _init(card_uid: int, id: String, owner_player: int, in_zone: String = "") -> void:
 	uid = card_uid
@@ -78,6 +82,7 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	damage = 0
 	temp_atk = 0
 	temp_hp = 0
+	temp_hp_until_next_turn = 0
 	rapidez = int(cd.get("rapidez", 0))
 	armor = int(cd.get("armor", 0))
 	temp_armor = 0
@@ -107,6 +112,9 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	cap_atk_gain = 0
 	dodge_turn = -1
 	activated_turn = -1
+	vipranna_heal_turn = -1
+	vipranna_heal_total = 0
+	vipranna_heal_locked = false
 
 func has_kw(kw: String) -> bool:
 	if kw == "escudo":
@@ -133,7 +141,7 @@ func critico_total() -> int:
 	return clampi(critico + temp_critico, 0, 4)
 
 func hp_left() -> int:
-	return hp + bonus_hp + temp_hp - damage
+	return hp + bonus_hp + temp_hp + temp_hp_until_next_turn - damage
 
 ## Congelada until the end of the next turn: it doesn't attack, doesn't untap and
 ## doesn't guard its Leader (see CombatSystem.attack_targets). ATK and strike back stay whole.
@@ -171,6 +179,8 @@ func to_dict() -> Dictionary:
 		d["spell_shield_until_next_turn"] = true
 	if temp_hp > 0:
 		d["temp_hp"] = temp_hp
+	if temp_hp_until_next_turn > 0:
+		d["temp_hp_until_next_turn"] = temp_hp_until_next_turn
 	if rapidez != 0:
 		d["rapidez"] = rapidez
 	if critico > 0:
@@ -202,6 +212,11 @@ func to_dict() -> Dictionary:
 		d["dodge_turn"] = dodge_turn
 	if activated_turn >= 0:
 		d["activated_turn"] = activated_turn
+	if vipranna_heal_turn >= 0:
+		d["vipranna_heal_turn"] = vipranna_heal_turn
+		d["vipranna_heal_total"] = vipranna_heal_total
+		if vipranna_heal_locked:
+			d["vipranna_heal_locked"] = true
 	return d
 
 ## Rebuilds a card from to_dict() output (network mirror). Board cards need "owner".
@@ -224,6 +239,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.temp_atk_until_next_turn = int(d.get("temp_atk_until_next_turn", 0))
 	c.spell_shield_until_next_turn = bool(d.get("spell_shield_until_next_turn", false))
 	c.temp_hp = int(d.get("temp_hp", 0))
+	c.temp_hp_until_next_turn = int(d.get("temp_hp_until_next_turn", 0))
 	c.rapidez = int(d.get("rapidez", 0))
 	c.critico = int(d.get("critico", 0))
 	c.temp_critico = int(d.get("temp_critico", 0))
@@ -249,4 +265,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.cap_atk_gain = int(d.get("cap_atk_gain", 0))
 	c.dodge_turn = int(d.get("dodge_turn", -1))
 	c.activated_turn = int(d.get("activated_turn", -1))
+	c.vipranna_heal_turn = int(d.get("vipranna_heal_turn", -1))
+	c.vipranna_heal_total = int(d.get("vipranna_heal_total", 0))
+	c.vipranna_heal_locked = bool(d.get("vipranna_heal_locked", false))
 	return c

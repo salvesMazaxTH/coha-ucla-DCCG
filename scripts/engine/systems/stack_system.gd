@@ -217,7 +217,7 @@ func remove_equipment_bonus(unit: Card) -> void:
 	for keyword in granted.get("keywords", []):
 		unit.keywords.erase(keyword)
 	if unit.hp_left() < 1:
-		unit.damage = unit.hp + unit.bonus_hp + unit.temp_hp - 1
+		unit.damage = unit.hp + unit.bonus_hp + unit.temp_hp + unit.temp_hp_until_next_turn - 1
 
 ## Gives the unit's equipment (if any) back to its owner's hand, to be played again.
 func return_equipment_to_hand(c: Card) -> void:

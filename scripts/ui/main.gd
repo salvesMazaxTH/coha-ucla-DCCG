@@ -3779,13 +3779,13 @@ func _animate(events: Array, old: Dictionary) -> float:
 			"countered":
 				_toast("%s foi anulado!" % ("A habilidade do Líder" if e["kind"] == "ability" else _cname(e["card_id"])))
 				cursor += 0.4
-			"spell_shield_break", "tide_mark", "tide_draw", "dot", "freeze", "exhaust", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up":
+			"spell_shield_break", "tide_mark", "tide_draw", "dot", "dot_immune", "freeze", "exhaust", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up":
 				if actors.has(e["uid"]):
 					var dot_name: String = {"queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento"}.get(String(e.get("dot", "")), "Marcador")
 					var dot_label := "%s %d" % [dot_name, int(e.get("amount", 0))]
 					if not e.get("cleared", false):
 						dot_label = "%s +%d" % [dot_name, int(e.get("amount", 0))]
-					var lbl: String = {"spell_shield_break": "Anulado!", "tide_mark": "Maré", "tide_draw": "+1 carta", "dot": dot_label, "freeze": "Congelada!", "exhaust": "Exausta!", "condemn": "Condenada!", "doom": "Ceifada!", "doom_resisted": "Resistiu!", "thaw": "Descongelou", "dodge": "Esquivou!", "crit": "Crítico!", "crit_negated": "Desdém!", "critico_up": "Crítico %d!" % int(e.get("level", 0))}[e["type"]]
+					var lbl: String = {"spell_shield_break": "Anulado!", "tide_mark": "Maré", "tide_draw": "+1 carta", "dot": dot_label, "dot_immune": "Imune!", "freeze": "Congelada!", "exhaust": "Exausta!", "condemn": "Condenada!", "doom": "Ceifada!", "doom_resisted": "Resistiu!", "thaw": "Descongelou", "dodge": "Esquivou!", "crit": "Crítico!", "crit_negated": "Desdém!", "critico_up": "Crítico %d!" % int(e.get("level", 0))}[e["type"]]
 					var col: Color = Color("#6fd0ff")
 					if e["type"] == "spell_shield_break":
 						col = Color("#c9a8ff")
@@ -3793,7 +3793,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 						col = ICE
 					elif e["type"] in ["condemn", "doom", "doom_resisted"]:
 						col = CardView.DOOM_COL
-					elif e["type"] == "dot":
+					elif e["type"] in ["dot", "dot_immune"]:
 						col = CardView.dot_badge_color(String(e.get("dot", "")))
 					elif e["type"] in ["crit", "crit_negated", "critico_up"]:
 						col = Color("#ff9d6e") # same warm tone as the Crítico tag
@@ -4096,6 +4096,12 @@ func _log_event(e: Dictionary) -> void:
 				if int(e["uid"]) < 0: # a Leader holds the markers
 					dotted_name = "O Líder de %s" % _pname(GameState.LEADER_UID.find(int(e["uid"])))
 				_log("%s recebeu %d marcador(es) de %s" % [dotted_name, int(e.get("amount", 0)), dot_names.get(String(e.get("dot", "")), "status")])
+		"dot_immune":
+			var immune_unit := g.find_unit(e["uid"])
+			var immune_name := "Uma unidade" if immune_unit == null else _cname(immune_unit.card_id)
+			if int(e["uid"]) < 0:
+				immune_name = "O Líder de %s" % _pname(GameState.LEADER_UID.find(int(e["uid"])))
+			_log("%s é imune a %s" % [immune_name, {"queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento"}.get(String(e.get("dot", "")), "esse status")])
 		"condemn":
 			var condemned := g.find_unit(e["uid"])
 			_log("%s foi condenada" % ("Uma unidade" if condemned == null else _cname(condemned.card_id)))

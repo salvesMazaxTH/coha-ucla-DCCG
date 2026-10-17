@@ -51,6 +51,7 @@ func _init() -> void:
 	_test_veneno_hold()
 	_test_venenosa_deck()
 	_test_hikari_decoy()
+	_test_dot_immunity()
 	_test_provocacao()
 	_test_persistent_damage()
 	_test_triggers()
@@ -909,9 +910,9 @@ func _test_burn() -> void:
 	g._apply_effect(0, {"action": "add_dot", "dot": "queimadura", "target": "enemy_unit", "amount": 2}, victim.uid)
 	g._apply_effect(0, {"action": "add_dot", "dot": "queimadura", "target": "enemy_unit", "amount": 1}, victim.uid)
 	check(int(victim.dot_markers.get("queimadura", 0)) == 3, "Queimadura acumula marcadores genéricos")
-	check(g.dot_damage("veneno", victim, 3) == 4 and g.dot_damage("sangramento", tank, 3) == 5, "Veneno e Sangramento usam a mesma fórmula por faixa de Vida")
+	check(g.dot_damage("veneno", victim, 3) == 9 and g.dot_damage("sangramento", tank, 3) == 5, "Veneno causa 3 de dano por marcador e Sangramento usa a fórmula por faixa de Vida")
 	victim.temp_hp = 2
-	check(g.dot_damage("veneno", victim, 3) == 5 and CardDB.keyword("veneno")["name"] == "Veneno" and CardDB.keyword("sangramento")["name"] == "Sangramento", "a fórmula considera Vida temporária e as keywords estão no dicionário")
+	check(g.dot_damage("veneno", victim, 3) == 9 and CardDB.keyword("veneno")["name"] == "Veneno" and CardDB.keyword("sangramento")["name"] == "Sangramento", "Veneno ignora Vida máxima e as keywords estão no dicionário")
 	victim.temp_hp = 0
 	var before := victim.to_dict()
 	var mirror := Card.from_dict(before, "board", 1)
@@ -1305,7 +1306,7 @@ func _test_toxico() -> void:
 	check(CardView.toxico_tag_of_view(attack_data, {}) == "Tóxico X", "Tag: fora do campo o Tóxico por Ataque mostra X")
 	check(CardView.toxico_tag_of_view(attack_data, attacker.to_dict()) == "Tóxico 5", "Tag: no campo mostra o Ataque atual")
 
-	# Veneno on a unit loses only 1 marker per tick, but every marker hurts; Queimadura is still consumed whole
+	# Veneno on a unit deals 3 damage per marker, then removes half the pile rounded up; Queimadura is still consumed whole
 	g = _new_game()
 	_quiet(g)
 	_tcard("t_decay_tank", 1, 60, [])
@@ -1314,11 +1315,11 @@ func _test_toxico() -> void:
 	g.add_dot_markers(decaying, "queimadura", 2)
 	g.resolve_dot(decaying, "veneno")
 	g.resolve_dot(decaying, "queimadura")
-	check(int(decaying.dot_markers.get("veneno", 0)) == 2, "Veneno em unidade: 3 marcadores caem para 2 depois do tick")
+	check(decaying.damage == 11 and int(decaying.dot_markers.get("veneno", 0)) == 1, "Veneno em unidade: 3 marcadores causam 9 e caem para 1 depois do tick")
 	check(int(decaying.dot_markers.get("queimadura", 0)) == 0, "Queimadura em unidade: continua sendo consumida inteira")
 	g.resolve_dot(decaying, "veneno")
 	g.resolve_dot(decaying, "veneno")
-	check(int(decaying.dot_markers.get("veneno", 0)) == 0, "Veneno em unidade: some depois de 3 ticks")
+	check(int(decaying.dot_markers.get("veneno", 0)) == 0, "Veneno em unidade: a metade arredondada para cima some depois de 2 ticks")
 
 ## Veneno on Leaders: Tóxico exception per card, markers that tick but stay, the card-made kill at 12+ and the X+ banish.
 func _test_leader_poison() -> void:
@@ -1331,29 +1332,29 @@ func _test_leader_poison() -> void:
 	_hit(g, attacker)
 	check(g.leader_dot_markers(1, "veneno") == 1, "Veneno no Líder: Tóxico com exceção coloca 1 marcador ao bater no Líder")
 
-	# the Leader's markers hurt it at the start of its controller's turn (1 per marker) and are consumed, like a unit's
+	# the Leader's markers hurt it at the start of its controller's turn (3 per marker) and are consumed, like a unit's
 	var leader_hp_before: int = g.players[1]["leader_hp"]
 	g.end_turn(g.active)
 	g._flush()
-	check(g.players[1]["leader_hp"] == leader_hp_before - 1, "Veneno no Líder: no início do turno dele, 1 de dano por marcador")
+	check(g.players[1]["leader_hp"] == leader_hp_before - 3, "Veneno no Líder: no início do turno dele, 3 de dano por marcador")
 	check(g.leader_dot_markers(1, "veneno") == 0, "Veneno no Líder: os marcadores são consumidos depois de causar dano")
 	g.end_turn(g.active)
 	g.end_turn(g.active)
 	g._flush()
-	check(g.players[1]["leader_hp"] == leader_hp_before - 1, "Veneno no Líder: sem marcadores, o turno seguinte não causa dano")
+	check(g.players[1]["leader_hp"] == leader_hp_before - 3, "Veneno no Líder: sem marcadores, o turno seguinte não causa dano adicional")
 
-	# Veneno decays by 1 per tick: a pile of 3 hurts for 3, then 2, then 1
+	# Veneno loses half the pile rounded up: a pile of 3 hurts for 9, then 3
 	g = _new_game()
 	_quiet(g)
 	g.add_leader_dot_markers(1, "veneno", 3)
 	leader_hp_before = g.players[1]["leader_hp"]
 	g.end_turn(g.active)
 	g._flush()
-	check(g.players[1]["leader_hp"] == leader_hp_before - 3 and g.leader_dot_markers(1, "veneno") == 2, "Veneno no Líder: 3 marcadores ferem 3 e sobram 2")
+	check(g.players[1]["leader_hp"] == leader_hp_before - 9 and g.leader_dot_markers(1, "veneno") == 1, "Veneno no Líder: 3 marcadores ferem 9 e sobra 1")
 	g.end_turn(g.active)
 	g.end_turn(g.active)
 	g._flush()
-	check(g.players[1]["leader_hp"] == leader_hp_before - 5 and g.leader_dot_markers(1, "veneno") == 1, "Veneno no Líder: no turno seguinte ferem 2 e sobra 1")
+	check(g.players[1]["leader_hp"] == leader_hp_before - 12 and g.leader_dot_markers(1, "veneno") == 0, "Veneno no Líder: no turno seguinte o marcador restante fere 3 e some")
 
 	# Queimadura on a Leader is untouched by the decay rule: it still goes away in full
 	g = _new_game()
@@ -1429,15 +1430,15 @@ func _test_veneno_hold() -> void:
 	g.add_dot_markers(poisoned_unit, "veneno", 1)
 	var leader_hp_start: int = g.players[victim]["leader_hp"]
 	_next_turn(g) # the victim's first turn start
-	check(g.players[victim]["leader_hp"] == leader_hp_start - 3, "Antídoto: o Veneno do Líder ainda fere (3 marcadores = 3 de dano)")
+	check(g.players[victim]["leader_hp"] == leader_hp_start - 9, "Antídoto: o Veneno do Líder ainda fere (3 marcadores = 9 de dano)")
 	check(g.leader_dot_markers(victim, "veneno") == 3, "Antídoto: os marcadores do Líder ficam no primeiro turno dele")
 	check(poisoned_unit.dot_markers.get("veneno", 0) == 0, "Antídoto: só vale pro Líder, o Veneno de unidade é consumido normal")
 	_next_turn(g)
 	_next_turn(g) # the victim's second turn start
-	check(g.leader_dot_markers(victim, "veneno") == 3 and g.players[victim]["leader_hp"] == leader_hp_start - 6, "Antídoto: ferem e ficam também no segundo turno dele")
+	check(g.leader_dot_markers(victim, "veneno") == 3 and g.players[victim]["leader_hp"] == leader_hp_start - 18, "Antídoto: ferem e ficam também no segundo turno dele")
 	_next_turn(g)
 	_next_turn(g) # the victim's third turn start: the hold is over
-	check(g.leader_dot_markers(victim, "veneno") == 2 and g.players[victim]["leader_hp"] == leader_hp_start - 9, "Antídoto: no terceiro turno o Veneno ainda fere e volta a cair 1 por turno")
+	check(g.leader_dot_markers(victim, "veneno") == 1 and g.players[victim]["leader_hp"] == leader_hp_start - 27, "Antídoto: no terceiro turno o Veneno fere e remove metade arredondada para cima")
 
 	# Greve Geral dos Antídotos: units and Leaders keep their Veneno for one turn start of each player
 	g = _new_game()
@@ -1458,9 +1459,9 @@ func _test_veneno_hold() -> void:
 	_next_turn(g) # the caster's turn start
 	check(own_unit.dot_markers.get("veneno", 0) == 1, "Greve: o Veneno de quem jogou também fica no turno dele")
 	_next_turn(g) # the victim's next turn start: the hold is over
-	check(enemy_unit.dot_markers.get("veneno", 0) == 1 and g.leader_dot_markers(victim, "veneno") == 1, "Greve: depois da rodada, o Veneno volta a cair 1 por turno")
+	check(enemy_unit.dot_markers.get("veneno", 0) == 1 and g.leader_dot_markers(victim, "veneno") == 1, "Greve: depois da rodada, o Veneno volta a cair pela metade")
 	_next_turn(g)
-	check(own_unit.dot_markers.get("veneno", 0) == 0, "Greve: o Veneno de quem jogou também volta a cair 1 por turno")
+	check(own_unit.dot_markers.get("veneno", 0) == 0, "Greve: o Veneno de quem jogou também volta a cair pela metade")
 
 ## Ends the active player's turn and settles everything that starts the next one.
 func _next_turn(g: GameState) -> void:
@@ -1469,6 +1470,74 @@ func _next_turn(g: GameState) -> void:
 
 ## Hikari's Decoy: a 0/2 inert token that takes the blow in her place (when challenged) or the counter-blow
 ## (when she challenges, but only if she would have suffered it).
+## Innate immunity to markers by essence: Venenosa and Metálica ignore Veneno, Ígnea ignores
+## Queimadura (units and Leaders alike); effects that say "ignores_immunity" go through anyway.
+func _test_dot_immunity() -> void:
+	_tcard("t_neutral_target", 1, 9, [])
+	var g := _new_game()
+	_quiet(g)
+	var poison_unit := _put(g, 1, "cobra_de_sofa") # Venenosa
+	var steel_unit := _put(g, 1, "fresadora_dona_cleide") # Metálica
+	var fire_unit := _put(g, 1, "irina_lancachamas") # Ígnea
+	var plain_unit := _put(g, 1, "t_neutral_target")
+
+	g.add_dot_markers(poison_unit, "veneno", 2)
+	g.add_dot_markers(steel_unit, "veneno", 2)
+	check(poison_unit.dot_markers.get("veneno", 0) == 0, "Imunidade: unidade Venenosa não recebe Veneno")
+	check(steel_unit.dot_markers.get("veneno", 0) == 0, "Imunidade: unidade Metálica não recebe Veneno")
+	g.add_dot_markers(poison_unit, "queimadura", 1)
+	check(poison_unit.dot_markers.get("queimadura", 0) == 1, "Imunidade: Venenosa continua vulnerável à Queimadura")
+
+	g.add_dot_markers(fire_unit, "queimadura", 2)
+	check(fire_unit.dot_markers.get("queimadura", 0) == 0, "Imunidade: unidade Ígnea não recebe Queimadura")
+	g.add_dot_markers(fire_unit, "veneno", 1)
+	check(fire_unit.dot_markers.get("veneno", 0) == 1, "Imunidade: Ígnea continua vulnerável ao Veneno")
+	g.add_dot_markers(plain_unit, "veneno", 1)
+	g.add_dot_markers(plain_unit, "queimadura", 1)
+	check(plain_unit.dot_markers.get("veneno", 0) == 1 and plain_unit.dot_markers.get("queimadura", 0) == 1, "Imunidade: unidade neutra recebe tudo")
+
+	# the immune float: an event, and nothing is added
+	var events_before: int = g.events.size() if "events" in g else 0
+	g.add_dot_markers(poison_unit, "veneno", 3)
+	check(poison_unit.dot_markers.get("veneno", 0) == 0, "Imunidade: segunda tentativa também é barrada")
+
+	# an effect that ignores immunity goes through
+	g.add_dot_markers(poison_unit, "veneno", 2, true)
+	g.add_dot_markers(fire_unit, "queimadura", 2, true)
+	check(poison_unit.dot_markers.get("veneno", 0) == 2 and fire_unit.dot_markers.get("queimadura", 0) == 2, "Imunidade: ignores_immunity passa por cima")
+	var bypass: Effect = EffectRegistry.parse_list([{"trigger": "on_play", "action": "add_dot", "dot": "veneno", "target": "enemy_unit", "amount": 1, "ignores_immunity": true}])[0]
+	bypass.apply(EffectContext.new(g, 0, ""), steel_unit.uid)
+	check(steel_unit.dot_markers.get("veneno", 0) == 1, "Imunidade: o efeito add_dot com ignores_immunity coloca Veneno em Metálica")
+	var blocked: Effect = EffectRegistry.parse_list([{"trigger": "on_play", "action": "add_dot", "dot": "veneno", "target": "enemy_unit", "amount": 1}])[0]
+	blocked.apply(EffectContext.new(g, 0, ""), steel_unit.uid)
+	check(steel_unit.dot_markers.get("veneno", 0) == 1, "Imunidade: o mesmo efeito sem a marca é barrado")
+
+	# Leaders: by the essence printed on the Leader
+	g.players[1]["leader_id"] = "tox_vipranna"
+	g.add_leader_dot_markers(1, "veneno", 3)
+	check(g.leader_dot_markers(1, "veneno") == 0, "Imunidade: Líder Venenoso (Vipranna) não recebe Veneno")
+	g.add_leader_dot_markers(1, "veneno", 3, true)
+	check(g.leader_dot_markers(1, "veneno") == 3, "Imunidade: Líder Venenoso recebe Veneno de quem ignora imunidade")
+	g.players[1]["leader_id"] = "morakhan"
+	g.add_leader_dot_markers(1, "veneno", 2)
+	check(g.leader_dot_markers(1, "veneno") == 3, "Imunidade: Líder Metálico (Morakhan) também é imune")
+
+	# Tóxico: Viprax's combat poison ignores it, a plain Tóxico unit does not
+	var g2 := _new_game()
+	_quiet(g2)
+	var viprax := _put(g2, 0, "viprax")
+	var plain_toxic := _put(g2, 0, "naja_cobradora")
+	var steel_victim := _put(g2, 1, "fresadora_dona_cleide")
+	g2.add_dot_markers(steel_victim, "veneno", 1, viprax.data().get("toxico_ignores_immunity", false))
+	check(steel_victim.dot_markers.get("veneno", 0) == 1, "Imunidade: Viprax marca o Tóxico para ignorar imunidade")
+	check(not plain_toxic.data().get("toxico_ignores_immunity", false), "Imunidade: Tóxico comum não ignora imunidade")
+
+	# the printed cards: D'Lorafya's Queimadura and Tox Vipranna's Veneno carry the flag
+	var dlorafya_effects: Array = CardDB.card("dlorafya")["effects"]
+	check(dlorafya_effects.any(func(e): return e.get("action", "") == "add_dot" and e.get("ignores_immunity", false)), "Imunidade: D'Lorafya ignora imunidade")
+	check(CardDB.card("tox_vipranna")["effects"][0].get("ignores_immunity", false), "Imunidade: Tox Vipranna ignora imunidade ao entrar")
+	check(CardDB.leader("tox_vipranna")["ability"]["effects"][0].get("ignores_immunity", false), "Imunidade: Beijo de Jardim ignora imunidade")
+
 func _test_hikari_decoy() -> void:
 	_tcard("t_hitter", 3, 5, []) # strikes at Rapidez 0
 	_tcard("t_counter", 2, 5, [])
@@ -1556,46 +1625,52 @@ func _test_venenosa_deck() -> void:
 	# Tox Vipranna: an enemy unit taking Veneno damage heals her owner's Leader by 2
 	g = _new_game()
 	_quiet(g)
-	_put(g, 0, "tox_vipranna")
+	var vipranna := _put(g, 0, "tox_vipranna")
 	var poisoned := _put(g, 1, "t_target_dummy")
+	g.players[0]["leader_max"] = 100
 	g.players[0]["leader_hp"] = 20
 	g.add_dot_markers(poisoned, "veneno", 2)
 	g.resolve_dot(poisoned, "veneno")
 	g._check_state()
-	check(g.players[0]["leader_hp"] == 22, "Tox Vipranna: dano de Veneno em unidade inimiga cura 2 do Líder dela")
-	# a big tick heals half its damage (rounded up); a tiny one still heals the minimum of 2
-	var big_target := _put(g, 1, "t_target_dummy") # Vida 12: 6 markers hurt for 6 + 2 = 8, half is 4
+	check(g.players[0]["leader_hp"] == 23 and vipranna.temp_hp_until_next_turn == 1 and vipranna.vipranna_heal_total == 3, "Tox Vipranna: 2 marcadores causam 6, curam 3 e dão +1 Vida temporária")
+	# The cap is per turn and per Vipranna; the trigger that crosses 15 still resolves in full.
+	var big_target := _put(g, 1, "t_target_dummy") # 6 markers hurt for 18, half is 9
 	g.players[0]["leader_hp"] = 20
 	g.add_dot_markers(big_target, "veneno", 6)
 	g.resolve_dot(big_target, "veneno")
 	g._check_state()
-	check(g.players[0]["leader_hp"] == 24, "Tox Vipranna: tick de 8 de dano cura 4 (metade)")
-	var odd_target := _put(g, 1, "t_target_dummy") # 3 markers hurt for 3 + 2 = 5, half rounded up is 3
+	check(g.players[0]["leader_hp"] == 29 and vipranna.temp_hp_until_next_turn == 2 and vipranna.vipranna_heal_total == 12, "Tox Vipranna: tick de 18 de dano cura 9 e acumula 12 no turno")
+	var odd_target := _put(g, 1, "t_target_dummy") # 3 markers hurt for 9, half rounded up is 5
 	g.players[0]["leader_hp"] = 20
 	g.add_dot_markers(odd_target, "veneno", 3)
 	g.resolve_dot(odd_target, "veneno")
 	g._check_state()
-	check(g.players[0]["leader_hp"] == 23, "Tox Vipranna: tick de 5 de dano cura 3 (metade arredondada pra cima)")
+	check(g.players[0]["leader_hp"] == 25 and vipranna.vipranna_heal_locked and vipranna.vipranna_heal_total == 17, "Tox Vipranna: a cura que cruza 15 resolve inteira e bloqueia as seguintes")
 	_tcard("t_small_tank", 1, 5, [])
-	var small_target := _put(g, 1, "t_small_tank") # Vida 5: 1 marker hurts for 1, half is 1 but the minimum is 2
+	var small_target := _put(g, 1, "t_small_tank") # 1 marker hurts for 3, half is 2 (the minimum)
 	g.players[0]["leader_hp"] = 20
 	g.add_dot_markers(small_target, "veneno", 1)
 	g.resolve_dot(small_target, "veneno")
 	g._check_state()
-	check(g.players[0]["leader_hp"] == 22, "Tox Vipranna: tick de 1 de dano cura o mínimo de 2")
+	check(g.players[0]["leader_hp"] == 20 and vipranna.temp_hp_until_next_turn == 3, "Tox Vipranna: depois de cruzar 15 nenhum trigger futuro cura ou dá Vida temporária")
 	g.players[0]["leader_hp"] = 20
 	var own_poisoned := _put(g, 0, "t_target_dummy")
 	g.add_dot_markers(own_poisoned, "veneno", 2)
 	g.resolve_dot(own_poisoned, "veneno")
 	g._check_state()
 	check(g.players[0]["leader_hp"] == 20, "Tox Vipranna: Veneno em unidade aliada não cura")
-	# the Leader ticks heal her owner too: 1 damage per marker, half rounded up, minimum 2
+	# the Leader ticks heal her owner too: 3 damage per marker, half rounded up, minimum 2
+	g = _new_game()
+	_quiet(g)
+	vipranna = _put(g, 0, "tox_vipranna")
+	g.players[0]["leader_max"] = 100
+	g.players[0]["leader_hp"] = 20
 	g.add_leader_dot_markers(1, "veneno", 5)
 	g._resolve_leader_dot(1, "veneno")
 	g._check_state()
-	check(g.players[0]["leader_hp"] == 23, "Tox Vipranna: tick de 5 de Veneno no Líder inimigo cura 3")
+	check(g.players[0]["leader_hp"] == 28, "Tox Vipranna: tick de 15 de Veneno no Líder inimigo cura 8")
 	g.players[0]["leader_hp"] = 20
-	g.players[1]["leader_dots"].clear() # the first tick left 4 markers behind (Veneno decays 1 per tick)
+	g.players[1]["leader_dots"].clear() # isolate the next tick
 	g.add_leader_dot_markers(1, "veneno", 1)
 	g._resolve_leader_dot(1, "veneno")
 	g._check_state()
@@ -1603,7 +1678,18 @@ func _test_venenosa_deck() -> void:
 	g.players[0]["leader_hp"] = 20
 	g.add_leader_dot_markers(0, "veneno", 4)
 	g._resolve_leader_dot(0, "veneno")
-	check(g.players[0]["leader_hp"] == 16, "Tox Vipranna: Veneno no Líder dela só fere, não cura")
+	check(g.players[0]["leader_hp"] == 8, "Tox Vipranna: Veneno no Líder dela causa 3 por marcador e não cura")
+	check(vipranna.temp_hp_until_next_turn == 2, "Tox Vipranna: cada trigger aceito acumula Vida temporária")
+	g._deal_damage(vipranna.uid, 1, null)
+	check(vipranna.hp_left() == 6, "Tox Vipranna: a Vida temporária absorve dano antes de expirar")
+	g._start_turn(vipranna.owner, false)
+	check(vipranna.temp_hp_until_next_turn == 0 and vipranna.damage == 0, "Tox Vipranna: a Vida temporária dura até o início do próximo turno dela")
+	var reset_target := _put(g, 1, "t_target_dummy")
+	g.players[0]["leader_hp"] = 20
+	g.add_dot_markers(reset_target, "veneno", 1)
+	g.resolve_dot(reset_target, "veneno")
+	g._check_state()
+	check(g.players[0]["leader_hp"] == 22 and vipranna.vipranna_heal_total == 2 and not vipranna.vipranna_heal_locked, "Tox Vipranna: o limite de 15 reinicia no turno seguinte")
 
 	# Julian: played from the hand, his Ao Entrar asks for two picks after he enters: who takes the 2 damage, then who gets the Veneno
 	g = _new_game()
