@@ -3,6 +3,7 @@ extends Control
 ## hot-seat pass screen and the full-screen card summary overlay.
 
 const ChronicleRowScript = preload("res://scripts/ui/chronicle_row.gd")
+const ChronicleSceneScript = preload("res://scripts/ui/chronicle_scene.gd")
 
 const SEL := Color("#ffd23f")
 const TARGET := Color("#ff5050")
@@ -51,6 +52,11 @@ var targeting := {} ## {"kind": hand|legendary|ability|enter|attack, "uid": int,
 var log_lines: Array = []
 var chronicle_entries: Array = [] ## structured visual history; log_lines remains as a text fallback
 var _chronicle_visual_context: Dictionary = {}
+var _chronicle_next_seq := 1 ## every Chronicle entry gets a number, so a row can be found again after a redraw
+var _chronicle_seen_seq := 0 ## entries up to this number were already drawn once (newer ones glow as they appear)
+var _chronicle_list_rect := Rect2() ## where the Chronicle list is on the stage (empty when it is not drawn)
+var chronicle_scene: ChronicleScene ## the big panel that replays a hovered Chronicle row beside the list
+var _chronicle_rows_box: VBoxContainer ## holds the ChronicleRow nodes of the current screen
 var bg: TextureRect ## table surface, baked once into bg_vp (the live shader was too heavy for weak phones)
 var bg_vp: SubViewport
 var bg_rect: ColorRect
@@ -983,6 +989,11 @@ func _clear() -> void:
 	add_child(layer)
 	if fx:
 		fx.move_to_front()
+	_chronicle_list_rect = Rect2()
+	if chronicle_scene and chronicle_scene.visible:
+		chronicle_scene.move_to_front()
+		# if the next screen has no Chronicle (menu, game over...), the scene must not stay open
+		call_deferred("_hide_chronicle_scene_without_list")
 	views.clear()
 	hand_uids.clear()
 
@@ -1193,7 +1204,7 @@ func _render_command(p: int, pos: Vector2) -> void:
 		empty.size = Vector2(SANCTUARY_W, 20)
 		layer.add_child(empty)
 		return
-	var v := CardView.new().setup(l["card_id"], {}, SANCTUARY_SCALE)
+	var v := CardView.new().setup(l["card_id"], _display_instance_for_id(l["card_id"], p), SANCTUARY_SCALE)
 	v.pivot_offset = v.size / 2.0
 	v.position = pos
 	v.cost_override = g.legendary_cost(p)
@@ -1207,6 +1218,29 @@ func _render_command(p: int, pos: Vector2) -> void:
 	v.right_clicked.connect(_show_overlay)
 	layer.add_child(v)
 	views["cmd%d" % p] = v
+
+## Builds the instance data used by every card outside the board. Persistent upgrades are stored on
+## the player's shared state rather than on the printed card JSON, so this keeps Santuário, hand,
+## search, stack and graveyard views honest about what that player currently owns.
+func _display_instance_for_id(card_id: String, owner: int, uid := 0, base_instance: Dictionary = {}) -> Dictionary:
+	var instance := base_instance.duplicate(true)
+	if uid != 0:
+		instance["uid"] = uid
+	if g == null or owner < 0 or owner >= g.players.size() or card_id == "":
+		return instance
+	if not CardDB.data().get("cards", {}).has(card_id):
+		return instance
+	var cd := CardDB.card(card_id)
+	if cd.get("critico_growth", false):
+		var shared_critico := int(g.players[owner].get("critico_growth", {}).get(card_id, 0))
+		if shared_critico > int(instance.get("critico", 0)):
+			instance["critico"] = shared_critico
+	return instance
+
+func _display_instance_for_card(card: Card) -> Dictionary:
+	if card == null:
+		return {}
+	return _display_instance_for_id(card.card_id, card.owner, card.uid, card.to_dict())
 
 ## Stage y of the top / bottom edge of the screen. The window can show more than the stage (black
 ## bands on tall windows); hands hang off these real edges, so the cut is the edge of the screen.
@@ -1457,7 +1491,7 @@ func _render_hand(p: int) -> void:
 	var rest_y := _screen_bottom() - CardView.BASE.y * sc * HAND_VISIBLE
 	for i in n:
 		var hand_card: Card = hand[i]
-		var v := CardView.new().setup(hand_card.card_id, hand_card.to_dict(), sc)
+		var v := CardView.new().setup(hand_card.card_id, _display_instance_for_card(hand_card), sc)
 		var card_data := CardDB.card(hand_card.card_id)
 		if g.is_subito_play(p, card_data):
 			v.cost_override = g.subito_cost(p, card_data, hand_card) # Súbito: summoned now at its Súbito cost
@@ -1632,39 +1666,129 @@ func _play_hand_card_when_settled(uid: int, slot: int) -> void:
 	if _my_input() and is_instance_valid(view) and view is CardView and hand_uids.has(uid):
 		_play_from_hand(view, slot)
 
-func _render_side() -> void:
-	# chronicle (log)
-	var lp := Panel.new()
-	lp.position = Vector2(col_x, 14)
-	lp.size = Vector2(COL_W, 300)
-	lp.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layer.add_child(lp)
-	var lh := _label("CRÔNICA", 17, UITheme.GOLD, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
-	lh.position = Vector2(0, 4)
-	lh.size = Vector2(COL_W, 24)
-	lp.add_child(lh)
-	lp.add_child(_ornament(Vector2(COL_W / 2.0, 30), 80))
+const CHRONICLE_PANEL_HEIGHT := 300.0
+const CHRONICLE_LIST_TOP := 40.0 ## below the title, inside the panel
+const CHRONICLE_ROWS_KEPT := 80
+
+## The Chronicle: a scrolling list of event rows, newest at the bottom. Turns are separated by thin
+## dividers. Pointing at (or tapping) a row opens the big ChronicleScene beside the column.
+func _render_chronicle() -> void:
+	var chronicle_panel := Panel.new()
+	chronicle_panel.position = Vector2(col_x, 14)
+	chronicle_panel.size = Vector2(COL_W, CHRONICLE_PANEL_HEIGHT)
+	chronicle_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var panel_style := UITheme.box(Color(0.035, 0.03, 0.055, 0.92), 10, Color(UITheme.GOLD, 0.45), 1, 12)
+	chronicle_panel.add_theme_stylebox_override("panel", panel_style)
+	layer.add_child(chronicle_panel)
+	var title := _label("CRÔNICA", 15, UITheme.GOLD, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
+	title.position = Vector2(0, 7)
+	title.size = Vector2(COL_W, 20)
+	chronicle_panel.add_child(title)
+	chronicle_panel.add_child(_ornament(Vector2(COL_W / 2.0, 31), 92))
+
+	# the list sits in a darker well, so the rows read as one block
+	var list_size := Vector2(COL_W - 12, CHRONICLE_PANEL_HEIGHT - CHRONICLE_LIST_TOP - 6)
+	var well := Panel.new()
+	well.position = Vector2(6, CHRONICLE_LIST_TOP)
+	well.size = list_size
+	well.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	well.add_theme_stylebox_override("panel", UITheme.box(Color(0, 0, 0, 0.35), 6))
+	chronicle_panel.add_child(well)
 	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(8, 36)
-	scroll.size = Vector2(COL_W - 16, 258)
+	scroll.position = well.position
+	scroll.size = list_size
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	scroll.mouse_filter = Control.MOUSE_FILTER_PASS
-	lp.add_child(scroll)
-	var vb := VBoxContainer.new()
-	vb.custom_minimum_size = Vector2(COL_W - 20, 0)
-	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vb.add_theme_constant_override("separation", 4)
-	vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	scroll.add_child(vb)
+	_style_thin_scrollbar(scroll.get_v_scroll_bar())
+	chronicle_panel.add_child(scroll)
+	var rows_box := VBoxContainer.new()
+	rows_box.custom_minimum_size = Vector2(list_size.x - 6, 0)
+	rows_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rows_box.add_theme_constant_override("separation", 2)
+	rows_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	scroll.add_child(rows_box)
+	_chronicle_rows_box = rows_box
+	_chronicle_list_rect = Rect2(chronicle_panel.position + scroll.position, list_size)
+
 	var shown: Array = chronicle_entries
 	if shown.is_empty() and not log_lines.is_empty():
-		shown = [{"text": log_lines[-1], "kind": "info", "icon": "·", "accent": UITheme.GOLD}]
-	for raw in shown.slice(max(0, shown.size() - 80)):
-		var row := ChronicleRowScript.new().setup(raw)
+		shown = [{"text": log_lines[-1], "kind": "info", "icon": "·", "accent": UITheme.GOLD, "label": "EVENTO", "seq": 0}]
+	if shown.is_empty():
+		var empty_note := _label("Nada aconteceu ainda.", 14, Color(UITheme.TEXT, 0.4), HORIZONTAL_ALIGNMENT_CENTER, "body")
+		empty_note.position = well.position + Vector2(0, list_size.y / 2.0 - 10)
+		empty_note.size = Vector2(list_size.x, 20)
+		chronicle_panel.add_child(empty_note)
+	var open_seq: int = chronicle_scene.shown_seq() if chronicle_scene else -1
+	var newest_seq := _chronicle_seen_seq
+	for raw: Dictionary in shown.slice(maxi(0, shown.size() - CHRONICLE_ROWS_KEPT)):
+		var seq := int(raw.get("seq", 0))
+		var row := ChronicleRowScript.new().setup(raw, _chronicle_is_ally(raw), seq == open_seq, seq > _chronicle_seen_seq)
 		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		vb.add_child(row)
+		row.focused.connect(_show_chronicle_scene)
+		rows_box.add_child(row)
+		newest_seq = maxi(newest_seq, seq)
+	_chronicle_seen_seq = newest_seq
 	scroll.call_deferred("set", "scroll_vertical", 999999)
+
+	# the oldest rows fade out under the top edge of the list instead of being cut flat
+	var top_fade := Control.new()
+	top_fade.position = well.position
+	top_fade.size = Vector2(list_size.x, 16)
+	top_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top_fade.draw.connect(func():
+		for line in 16:
+			top_fade.draw_line(Vector2(0, line + 0.5), Vector2(list_size.x, line + 0.5), Color(0.035, 0.03, 0.055, 0.9 * (1.0 - line / 16.0)), 1.0))
+	chronicle_panel.add_child(top_fade)
+
+## A slim gold scrollbar, so the list doesn't lose width to a chunky default one.
+func _style_thin_scrollbar(bar: ScrollBar) -> void:
+	var track := UITheme.box(Color(1, 1, 1, 0.04), 3)
+	track.content_margin_left = 2
+	track.content_margin_right = 2
+	var grabber := UITheme.box(Color(UITheme.GOLD, 0.45), 3)
+	var grabber_hover := UITheme.box(Color(UITheme.GOLD, 0.8), 3)
+	bar.custom_minimum_size.x = 6
+	bar.add_theme_stylebox_override("scroll", track)
+	bar.add_theme_stylebox_override("grabber", grabber)
+	bar.add_theme_stylebox_override("grabber_highlight", grabber_hover)
+	bar.add_theme_stylebox_override("grabber_pressed", grabber_hover)
+
+## True when the entry was done by the player looking at the screen.
+func _chronicle_is_ally(chronicle_entry: Dictionary) -> bool:
+	return int(chronicle_entry.get("actor", -1)) == viewer
+
+## Opens (or moves) the big scene beside the Chronicle column for the row being pointed at.
+func _show_chronicle_scene(row: ChronicleRow) -> void:
+	if chronicle_scene == null:
+		chronicle_scene = ChronicleSceneScript.new()
+		add_child(chronicle_scene)
+	var previous_seq := chronicle_scene.shown_seq()
+	var top_left := Vector2(col_x - 18.0 - ChronicleScene.PANEL_SIZE.x, 14.0)
+	var row_center_y := (get_global_transform().affine_inverse() * row.get_global_rect().get_center()).y
+	chronicle_scene.show_entry(row.entry, row.is_ally, top_left, row_center_y)
+	# only one row looks "open" at a time
+	for sibling in row.get_parent().get_children():
+		if sibling is ChronicleRow:
+			sibling.set_active(sibling == row)
+	if previous_seq != chronicle_scene.shown_seq():
+		row.queue_redraw()
+
+func _hide_chronicle_scene() -> void:
+	if chronicle_scene == null or not chronicle_scene.visible:
+		return
+	chronicle_scene.hide_scene()
+	if is_instance_valid(_chronicle_rows_box):
+		for row in _chronicle_rows_box.get_children():
+			row.set_active(false)
+
+## Called after a redraw: the scene closes when the new screen has no Chronicle list.
+func _hide_chronicle_scene_without_list() -> void:
+	if _chronicle_list_rect.size == Vector2.ZERO:
+		_hide_chronicle_scene()
+
+func _render_side() -> void:
+	_render_chronicle()
 
 	# turn plaque
 	var phase_names := {"mulligan": "Mulligan", "main": "Fase Principal", "discard": "Banimento", "over": "Fim de jogo",
@@ -1792,7 +1916,11 @@ func _render_stack() -> void:
 		if it["kind"] == "ability":
 			node = _stack_ability_card(it, Vector2(cw, ch))
 		else:
-			var v := CardView.new().setup(it["card_id"], {}, STACK_SCALE)
+			var stack_owner := int(it.get("player", 0))
+			var stack_card_id := String(it["card_id"])
+			var v := CardView.new().setup(stack_card_id, _display_instance_for_id(stack_card_id, stack_owner, int(it.get("uid", 0))), STACK_SCALE)
+			v.snowball_level = int(g.players[stack_owner]["snowball"])
+			v.text_suffix = _scale_suffix(stack_owner, CardDB.card(stack_card_id))
 			v.left_clicked.connect(func(view: CardView):
 				# a spell on the stack picked as a target during an animation waits for its turn
 				if _my_input() and not targeting.is_empty() and _wait_for_table(_pick_target_when_settled.bind(sid)):
@@ -1986,8 +2114,8 @@ func _hint() -> String:
 		var which := "segundo alvo" if g.pending_enter.has("first") else "alvo"
 		return "Ao Entrar de %s: toque no %s ou pule o efeito." % [_cname(g.pending_enter.get("card_id", "")), which]
 	if targeting.get("kind") == "attack":
-		# say why some targets don't glow: a Provocação forces the challenge, any tapped enemy
-		# closes the face, and a unit that just came in with Ímpeto can only challenge
+		# say why some targets don't glow: a Provocação forces the challenge, and a unit that
+		# just came in with Ímpeto can only challenge
 		var attacker := g.find_unit(targeting["uid"])
 		var taunts: Array = g.combat_system().forced_taunts(attacker) if attacker != null else []
 		if not taunts.is_empty():
@@ -1995,11 +2123,8 @@ func _hint() -> String:
 			for taunt_uid in taunts:
 				taunt_names.append(_cname(g.find_unit(taunt_uid).card_id))
 			return "Provocação: este ataque precisa desafiar %s." % " ou ".join(taunt_names)
-		# (a Congelada unit doesn't guard the face, so only say this when the face really is closed)
-		if attacker != null and not attacker.sick and not g.combat_system().challengeable_units(attacker).is_empty() 				and not g.combat_system().attack_targets(attacker).has(GameState.LEADER_UID[g.opponent(attacker.owner)]):
-			return "Há unidades inimigas exauridas: elimine-as antes de atacar o Líder."
 		if attacker != null and g.combat_system().is_rompante_rush(attacker):
-			return "Rompante: no turno em que entra, ela ignora as exauridas e vai no Líder (só uma Provocação a segura)."
+			return "Rompante: no turno em que entra, ela pode atacar o Líder (só uma Provocação a segura)."
 		if attacker != null and attacker.sick:
 			return "Ímpeto: no turno em que entra, ela só pode desafiar (o Líder fica para o próximo turno)."
 		if CardView.touch_ui():
@@ -2143,6 +2268,10 @@ func _input(e: InputEvent) -> void:
 		last_input_ms = Time.get_ticks_msec()
 	if e is InputEventScreenTouch or e is InputEventScreenDrag:
 		CardView.touched = true
+	# the Chronicle scene stays open while the pointer is on the list; moving or tapping elsewhere closes it
+	if chronicle_scene and chronicle_scene.visible and (e is InputEventMouseMotion or (e is InputEventMouseButton and e.pressed)):
+		if not _chronicle_list_rect.has_point(get_local_mouse_position()):
+			_hide_chronicle_scene()
 	if grave_view and _grave_scroll_input(e):
 		get_viewport().set_input_as_handled()
 	elif is_instance_valid(hub_scroll) and _hub_scroll_input(e):
@@ -2820,7 +2949,9 @@ func _refresh_graveyard() -> void:
 		grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		sc.add_child(grid)
 		for grave_card: Card in shown:
-			var cv := CardView.new().setup(grave_card.card_id, {"uid": grave_card.uid}, 1.1)
+			var cv := CardView.new().setup(grave_card.card_id, _display_instance_for_card(grave_card), 1.1)
+			cv.snowball_level = int(g.players[grave_owner]["snowball"])
+			cv.text_suffix = _scale_suffix(grave_owner, CardDB.card(grave_card.card_id))
 			if grave_owner == viewer and g.is_requiem(grave_card):
 				# Réquiem shows what it costs from here (base + 2) and glows when it can be cast now
 				cv.cost_override = g.cost_of(viewer, CardDB.card(grave_card.card_id), grave_card)
@@ -2909,7 +3040,7 @@ func _render_search_reveal() -> void:
 	for option in shown_options:
 		var card_uid: int = option["uid"]
 		var eligible: bool = eligible_uids.has(card_uid)
-		var cv := CardView.new().setup(option["card_id"], {"uid": card_uid}, 1.05)
+		var cv := CardView.new().setup(option["card_id"], _display_instance_for_id(String(option["card_id"]), owner, card_uid), 1.05)
 		cv.face_down = hidden or String(option["card_id"]) == ""
 		if not cv.face_down:
 			cv.text_suffix = _scale_suffix(owner, CardDB.card(option["card_id"]))
@@ -3014,7 +3145,7 @@ func _mill_fx(deck_owner: int, card_ids: Array, t: float) -> float:
 	var stagger := minf(MILL_STAGGER, MILL_MAX_STAGGER_TOTAL / card_ids.size())
 	var total_time := MILL_RISE_TIME + MILL_HOLD_TIME + MILL_DROP_TIME
 	for i in card_ids.size():
-		var ghost := _ghost(card_ids[i], {}, deck_pose, MILL_CARD_W / CardView.BASE.x) # built at its biggest size: only shrinks, never blurs
+		var ghost := _ghost(card_ids[i], _display_instance_for_id(String(card_ids[i]), deck_owner), deck_pose, MILL_CARD_W / CardView.BASE.x) # built at its biggest size: only shrinks, never blurs
 		ghost.z_index = 30
 		ghost.visible = false
 		var flight := ghost.create_tween()
@@ -4108,6 +4239,12 @@ func _log(t: String) -> void:
 		entry["icon"] = "·"
 	if not entry.has("accent"):
 		entry["accent"] = UITheme.GOLD
+	if not entry.has("label"):
+		entry["label"] = "EVENTO"
+	if not entry.has("turn") and g != null:
+		entry["turn"] = g.turn
+	entry["seq"] = _chronicle_next_seq
+	_chronicle_next_seq += 1
 	chronicle_entries.append(entry)
 	if chronicle_entries.size() > 120:
 		chronicle_entries.pop_front()
@@ -4124,11 +4261,16 @@ func _chronicle_card_id_for_uid(uid: int) -> String:
 	if g == null or uid == 0:
 		return ""
 	if uid < 0:
-		var player := GameState.LEADER_UID.find(uid)
-		if player >= 0 and player < g.players.size():
-			return String(CardDB.leader(g.players[player]["leader_id"]).get("legendary", ""))
+		return _chronicle_leader_card_id(GameState.LEADER_UID.find(uid))
 	var unit := g.find_unit(uid)
 	return "" if unit == null else unit.card_id
+
+## The Leader is not a card of the database (and not its Incarnation either): the Chronicle names it
+## "leader:<id>", and the row and the scene draw the Leader's own art for it.
+func _chronicle_leader_card_id(player: int) -> String:
+	if g == null or player < 0 or player >= g.players.size():
+		return ""
+	return ChronicleRow.LEADER_ID_PREFIX + String(g.players[player]["leader_id"])
 
 func _chronicle_name_for_uid(uid: int) -> String:
 	if uid < 0:
@@ -4154,6 +4296,37 @@ func _chronicle_accent(kind: String, dot_id := "") -> Color:
 		"start_turn": Color("#d9b86d"), "transform": Color("#74d7ff")
 	}.get(kind, Color("#8d849c"))
 
+## The short title a Chronicle row shows above its sentence.
+func _chronicle_label(kind: String) -> String:
+	return {
+		"play": "JOGADA", "resolve": "RESOLUÇÃO", "ability": "HABILIDADE", "passive": "PASSIVA",
+		"trigger": "GATILHO", "attack": "ATAQUE", "damage": "DANO", "heal": "CURA", "death": "MORTE",
+		"destroy": "DESTRUIÇÃO", "dot": "STATUS", "countered": "ANULADA", "fizzle": "SEM EFEITO",
+		"start_turn": "TURNO", "transform": "TRANSFORMAÇÃO", "summon": "INVOCAÇÃO", "deck_summon": "INVOCAÇÃO",
+		"relic_enter": "RELÍQUIA", "revive": "RETORNO", "return_to_hand": "DE VOLTA À MÃO",
+		"card_created": "CRIAÇÃO", "search_take": "BUSCA", "leader_executed": "EXECUÇÃO",
+		"shield_break": "ESCUDO", "spell_shield_break": "ESCUDO", "freeze": "CONGELADA", "thaw": "DEGELO",
+		"exhaust": "EXAUSTÃO", "dodge": "ESQUIVA", "reflect": "REFLEXO", "condemn": "CONDENADA",
+		"doom": "SENTENÇA", "doom_resisted": "RESISTIU", "fatigue": "FADIGA", "ban": "BANIMENTO",
+		"concede": "DESISTÊNCIA", "enter_tapped": "PROVOCAÇÃO"
+	}.get(kind, "EVENTO")
+
+## Which player did the event (-1 when it can't be told): the event says it, or the card behind it belongs to someone.
+func _chronicle_actor(e: Dictionary) -> int:
+	if e.has("player"):
+		return int(e["player"])
+	# damage, healing, statuses: whoever caused it (the hit card's owner is not the one acting)
+	var uid_keys := ["src"] if e.has("src") else ["attacker", "uid"]
+	for uid_key in uid_keys:
+		var uid := int(e.get(uid_key, 0))
+		if uid < 0:
+			return GameState.LEADER_UID.find(uid)
+		if uid > 0 and g != null:
+			var unit := g.find_unit(uid)
+			if unit != null:
+				return unit.owner
+	return -1
+
 func _chronicle_icon(kind: String) -> String:
 	return {
 		"play": "▶", "resolve": "✦", "ability": "✦", "passive": "✦", "trigger": "⚡",
@@ -4165,16 +4338,25 @@ func _chronicle_icon(kind: String) -> String:
 ## The event still supplies the prose through _log_event; this only supplies its art and direction.
 func _chronicle_visual_for_event(e: Dictionary) -> Dictionary:
 	var kind := String(e.get("type", "info"))
-	var out := {"kind": kind, "icon": _chronicle_icon(kind), "accent": _chronicle_accent(kind, String(e.get("dot", ""))), "source_card_id": "", "target_card_ids": []}
+	var out := {"kind": kind, "icon": _chronicle_icon(kind), "accent": _chronicle_accent(kind, String(e.get("dot", ""))),
+		"label": _chronicle_label(kind), "source_card_id": "", "target_card_ids": [], "amount": 0,
+		"turn": int(e.get("turn", g.turn if g != null else 0))}
+	var actor := _chronicle_actor(e)
+	out["actor"] = actor
+	out["actor_name"] = _pname(actor) if actor >= 0 else ""
+	if kind == "damage" or kind == "fatigue":
+		out["amount"] = -int(e.get("amount", 0))
+	elif kind == "heal":
+		out["amount"] = int(e.get("amount", 0))
+	elif kind == "dot" and e.has("damage"):
+		out["amount"] = -int(e["damage"])
 	match kind:
 		"play", "resolve", "fizzle", "countered":
 			out["source_card_id"] = String(e.get("card_id", ""))
 			_chronicle_add_target(out, int(e.get("target", 0)))
 			_chronicle_add_target(out, int(e.get("target2", 0)))
 		"ability", "passive":
-			var player := int(e.get("player", 0))
-			if g != null and player >= 0 and player < g.players.size():
-				out["source_card_id"] = String(CardDB.leader(g.players[player]["leader_id"]).get("legendary", ""))
+			out["source_card_id"] = _chronicle_leader_card_id(int(e.get("player", 0)))
 			_chronicle_add_target(out, int(e.get("target", 0)))
 		"trigger":
 			out["source_card_id"] = String(e.get("card_id", ""))
@@ -4183,7 +4365,10 @@ func _chronicle_visual_for_event(e: Dictionary) -> Dictionary:
 			out["source_card_id"] = String(e.get("attacker_card_id", ""))
 			if out["source_card_id"] == "":
 				out["source_card_id"] = _chronicle_card_id_for_uid(int(e.get("attacker", 0)))
-			if String(e.get("target_card_id", "")) != "":
+			# an attack on the Leader: the event carries the Incarnation's id, but the target is the Leader
+			if int(e.get("target", 0)) < 0:
+				_chronicle_add_target(out, int(e["target"]))
+			elif String(e.get("target_card_id", "")) != "":
 				out["target_card_ids"].append(String(e["target_card_id"]))
 			else:
 				_chronicle_add_target(out, int(e.get("target", 0)))
