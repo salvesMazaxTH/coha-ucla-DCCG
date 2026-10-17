@@ -119,3 +119,17 @@ Um alvo novo entra no `NAMES` de uma família (ou numa família nova listada em 
 - `critico_growth: true`: cada crítico causado sobe o Crítico da carta em 1 nível permanente (até 4). Hoje só Vael. O nível alcançado vale para TODAS as cópias dele do jogador (campo, mão, deck, cemitério, banidas) e para as futuras.
 - `critico_maximo: {"bonus": 4, "ataque_duplo": true}`: ao chegar no Crítico 4 o crítico da carta dá `bonus` (em vez de +2) e `ataque_duplo` libera o segundo ataque. Hoje só Vael.
 - `imune_critico: true`: o dano de combate que a carta recebe nunca é crítico (Desdém de Rália).
+
+## Convenção de escrita do campo `text`
+
+Padrão para o texto das cartas (em português):
+
+1. **Autorreferência**: "esta unidade" (inclusive a Encarnação, que é uma unidade em campo). Use "esta carta" quando ela não estiver em campo (mão, deck, cemitério, ex.: "No deck" do Rusco) ou quando for feitiço/equipamento. Nome próprio só quando se trata de OUTRA carta ("Transformar: X Primordial", "invoque", "Se esta unidade morrer, Vael não perdoa").
+2. **Terceira pessoa, verbos no imperativo**: "cure", "compre", "cause".
+3. **Dono da carta**: "seu Líder", "suas unidades", "o Líder inimigo". "Você" só em condições ("se você jogou…", "se você terminou o turno anterior…").
+4. **Só português**: termos de regra que têm versão no jogo ficam como estão (Ao Entrar, Escudo, Momentum). Nada de "trigger" nem de "gatilho" no texto da carta: use "ativação" ("a ativação que atingir 15…").
+5. **Atributos**: "Ataque" e "Vida" sempre com maiúscula, como Escudo, Armadura e Momentum (nada de "ATK"/"VIDA"). Buff de um atributo: "+N de Ataque" / "+N de Vida". Buff dos dois: "+N/+N" (Ataque/Vida). "ataque" minúsculo só quando for a ação ("o alvo do ataque").
+6. **Cura** não leva "de vida": "cure 4 do seu Líder", "cure 2 de cada unidade aliada".
+7. **Permanente**: sempre depois do bônus, sem parênteses e sem advérbio: "+1 de Ataque permanente", "Armadura 1 permanente" (nada de "permanentemente" nem "(permanente)").
+
+8. **Condicional**: toda unidade que mostra a etiqueta Condicional na face (efeito `"listen"`) abre essa linha do texto com "Condicional:", em laranja e negrito como os outros gatilhos. Limites vão entre parênteses antes dos dois pontos: "Condicional (uma vez por turno): ao lançar…". O resto da frase começa em minúscula, como em "Ao Entrar: dê…".

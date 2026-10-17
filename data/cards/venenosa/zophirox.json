@@ -25,7 +25,7 @@
       "atk": 1
     }
   ],
-  "text": "Tóxico X, onde X é o Ataque dela (com todos os bônus).\nSempre que sofrer dano, ganha +1 de Ataque (permanente).",
+  "text": "Tóxico X, onde X é o Ataque dela (com todos os bônus).\nCondicional: sempre que sofrer dano, ganha +1 de Ataque permanente.",
   "flavor": "A pele velha fica pra trás. A mordida, não.",
   "tags": []
 }

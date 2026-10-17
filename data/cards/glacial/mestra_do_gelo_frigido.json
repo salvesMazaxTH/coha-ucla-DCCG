@@ -26,7 +26,7 @@
       "amount": 1
     }
   ],
-  "text": "Sempre que você lançar um feitiço glacial, cause 1 de dano a uma unidade inimiga Congelada aleatória.",
+  "text": "Condicional: sempre que você lançar um feitiço glacial, cause 1 de dano a uma unidade inimiga Congelada aleatória.",
   "flavor": "Cada feitiço dela deixa uma cicatriz de geada.",
   "tags": []
 }

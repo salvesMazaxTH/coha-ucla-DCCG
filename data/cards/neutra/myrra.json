@@ -36,7 +36,7 @@
       }
     ]
   },
-  "text": "Ao Entrar: uma unidade aliada ganha +1 de Ataque neste turno.\nAo Ativar (1) {rapido} (1x por turno): uma unidade aliada ganha Escudo e, só neste turno, +1 nível de Crítico. Se for o Vael, ele ganha também +1/+1 permanente.\nSe Myrra morrer, Vael não perdoa.",
+  "text": "Ao Entrar: uma unidade aliada ganha +1 de Ataque neste turno.\nAo Ativar (1) {rapido} (1x por turno): uma unidade aliada ganha Escudo e, só neste turno, +1 nível de Crítico. Se for o Vael, ele ganha também +1/+1 permanente.\nSe esta unidade morrer, Vael não perdoa.",
   "flavor": [
     "Volte inteiro. Isso não é um pedido."
   ],

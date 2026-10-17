@@ -55,7 +55,7 @@
       "vipranna": true
     }
   ],
-  "text": "Tóxico 3. O Veneno dela ignora imunidade.\nAo Entrar: dê 3 marcadores de Veneno a uma unidade inimiga.\nSempre que uma unidade ou o Líder inimigo sofrer dano de Veneno, cure do seu Líder metade (arredondada pra cima) do dano, no mínimo 2. A cada turno, o trigger que atingir ou ultrapassar 15 de cura é o último; triggers seguintes não curam. A cada trigger aceito, esta unidade ganha +1 de Vida temporária até o início do próximo turno dela.",
+  "text": "Tóxico 3. O Veneno dela ignora imunidade.\nAo Entrar: dê 3 marcadores de Veneno a uma unidade inimiga.\nCondicional: sempre que uma unidade ou o Líder inimigo sofrer dano de Veneno, cure do seu Líder metade do dano (arredondada para cima, mínimo 2) e esta unidade ganha +1 de Vida temporária até o início do próximo turno dela. A ativação que atingir 15 de cura no turno é a última.",
   "flavor": "A rainha não mata ninguém. Ela só deixa o jardim crescer devagar dentro de você.",
   "tags": []
 }

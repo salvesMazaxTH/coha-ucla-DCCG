@@ -31,7 +31,7 @@
       }
     ]
   },
-  "text": "Ao Sofrer Dano: ganha Armadura 1 permanente (acumula).\nAo Ativar (2) {instantaneo} (1x por turno): causa dano igual à metade da sua Armadura (arredondado pra cima) a um inimigo aleatório (pode ser o Líder).",
+  "text": "Ao Sofrer Dano: esta unidade ganha Armadura 1 permanente (acumula).\nAo Ativar (2) {instantaneo} (1x por turno): cause dano igual à metade da Armadura desta unidade (arredondado para cima) a um inimigo aleatório (pode ser o Líder).",
   "flavor": "",
   "tags": []
 }

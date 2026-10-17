@@ -150,7 +150,7 @@
     },
     "sobrepujanca": {
       "name": "Sobrepujança",
-      "text": "Ao desafiar, o dano de combate que excede a vida restante da unidade desafiada atinge o Líder inimigo."
+      "text": "Ao desafiar, o dano de combate que excede a Vida restante da unidade desafiada atinge o Líder inimigo."
     },
     "regeneracao": {
       "name": "Regeneração",
@@ -162,7 +162,7 @@
     },
     "roubo_de_vida": {
       "name": "Roubo de Vida",
-      "text": "O dano que esta unidade causa cura seu Líder (até a vida inicial ou máxima dele)."
+      "text": "O dano que esta unidade causa cura seu Líder (até a Vida inicial ou máxima dele)."
     },
     "impeto": {
       "name": "Ímpeto",
@@ -190,7 +190,7 @@
     },
     "intimidacao": {
       "name": "Intimidação",
-      "text": "Unidades com ATK 3 ou menor não podem desafiar esta unidade."
+      "text": "Unidades com Ataque 3 ou menor não podem desafiar esta unidade."
     },
     "obsessao": {
       "name": "Obsessão",
@@ -320,7 +320,7 @@
             "amount": 1
           }
         ],
-        "text": "Instantânea. 2 Momentum, uma vez por turno: seu Líder ganha +1 de vida, mesmo acima da vida inicial (aumenta a vida máxima). Pode ser respondida, mas não pode ser anulada."
+        "text": "Instantânea. 2 Momentum, uma vez por turno: seu Líder ganha +1 de Vida, mesmo acima da Vida inicial (aumenta a Vida máxima). Pode ser respondida, mas não pode ser anulada."
       },
       "essences": ["aquatica"]
     },
