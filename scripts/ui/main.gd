@@ -204,14 +204,15 @@ func _ready() -> void:
 	_show_menu()
 	_load_scenario()
 
-## Dev only: `-- --scenario=<name>` starts a match vs the AI (Maré vs Fogo) set up by
-## tests/scenarios/<name>.gd (static func setup(g)).
+## Dev only: `-- --scenario=<name>` starts a match vs the AI set up by tests/scenarios/<name>.gd
+## (static func setup(g)). The script may declare PLAYER_DECK / ENEMY_DECK; the default is Maré vs Fogo.
 func _load_scenario() -> void:
 	for a in OS.get_cmdline_user_args():
 		if not a.begins_with("--scenario="):
 			continue
 		var script: GDScript = load("res://tests/scenarios/%s.gd" % a.trim_prefix("--scenario="))
-		_start(true, "agua", "fogo")
+		var scenario_constants := script.get_script_constant_map()
+		_start(true, String(scenario_constants.get("PLAYER_DECK", "agua")), String(scenario_constants.get("ENEMY_DECK", "fogo")))
 		script.setup(g)
 		g.auto_pass[0] = _auto_pass_on()
 		pending_pass = false

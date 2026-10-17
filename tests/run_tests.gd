@@ -1531,6 +1531,20 @@ func _test_dot_immunity() -> void:
 	check(steel_victim.dot_markers.get("veneno", 0) == 1, "Imunidade: Viprax marca o Tóxico para ignorar imunidade")
 	check(not plain_toxic.data().get("toxico_ignores_immunity", false), "Imunidade: Tóxico comum não ignora imunidade")
 
+	# Viprax's Ao Ativar adds a marker first, so 7 markers are already enough; 6 are not
+	var execution_game := _new_game()
+	_quiet(execution_game)
+	var executioner := _put(execution_game, 0, "viprax")
+	execution_game.players[0]["momentum"] = 6
+	execution_game.add_leader_dot_markers(1, "veneno", 6)
+	execution_game.activate(0, executioner.uid)
+	execution_game._flush()
+	check(execution_game.leader_dot_markers(1, "veneno") == 7 and execution_game.phase != "over", "Viprax: Ao Ativar com 6 marcadores coloca o 7º e o Líder sobrevive")
+	executioner.activated_turn = -1
+	execution_game.activate(0, executioner.uid)
+	execution_game._flush()
+	check(execution_game.phase == "over" and execution_game.winner == 0, "Viprax: Ao Ativar com 7 marcadores coloca o 8º e executa o Líder")
+
 	# the printed cards: D'Lorafya's Queimadura and Tox Vipranna's Veneno carry the flag
 	var dlorafya_effects: Array = CardDB.card("dlorafya")["effects"]
 	check(dlorafya_effects.any(func(e): return e.get("action", "") == "add_dot" and e.get("ignores_immunity", false)), "Imunidade: D'Lorafya ignora imunidade")
