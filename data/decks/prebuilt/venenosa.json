@@ -1,6 +1,6 @@
 {
   "name": "Jardim da Rainha Tox",
-  "description": "Envenene tudo com Tóxico e marcadores, bana quem acumular 3 e deixe a Rainha Tox se curar a cada gota. Antídoto Fora de Estoque e Greve Geral dos Antídotos impedem o Veneno de decair, e Viprax executa o Líder com 8.",
+  "description": "Envenene tudo com Tóxico e marcadores, bana quem acumular 3 marcadores e deixe a Rainha Tox se curar a cada gota. Antídoto Fora de Estoque e Greve Geral dos Antídotos impedem o Veneno de decair, e Viprax executa o Líder com 8.",
   "order": 13,
   "leader": "tox_vipranna",
   "cards": {

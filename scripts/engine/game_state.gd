@@ -36,8 +36,8 @@ const DOT_IMMUNE_ESSENCES := {
 	"sangramento": [],
 }
 
-## Each Veneno marker deals 3 damage, then half the pile (rounded up) is removed.
-const VENENO_DAMAGE_PER_MARKER := 3
+## Each Veneno marker deals 2 damage, then half the pile (rounded up) is removed.
+const VENENO_DAMAGE_PER_MARKER := 2
 
 ## Leaders are addressed with negative uids so targets are a single int.
 const LEADER_UID := [-1, -2]

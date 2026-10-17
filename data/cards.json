@@ -246,7 +246,7 @@
     },
     "veneno": {
       "name": "Veneno",
-      "text": "Marcadores de Veneno: no início do turno do controlador, cada marcador causa 3 de dano a esta unidade. Depois, remove metade dos marcadores, arredondada para cima. Esse dano ignora Armadura, Escudo e Escudo de Feitiço; Indestrutível ainda o impede."
+      "text": "Marcadores de Veneno: no início do turno do controlador, cada marcador causa 2 de dano a esta unidade. Depois, remove metade dos marcadores, arredondada para cima. Esse dano ignora Armadura, Escudo e Escudo de Feitiço; Indestrutível ainda o impede."
     },
     "sangramento": {
       "name": "Sangramento",
