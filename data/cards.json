@@ -175,7 +175,7 @@
     },
     "voo": {
       "name": "Voo",
-      "text": "Só pode ser desafiada por unidades com Voo ou Longo Alcance. Ao atacar, ignora exauridas sem Voo: desafia ou vai no Líder."
+      "text": "Só pode ser desafiada por unidades com Voo ou Longo Alcance."
     },
     "longo_alcance": {
       "name": "Longo Alcance",
@@ -183,7 +183,7 @@
     },
     "furtividade": {
       "name": "Furtividade",
-      "text": "Só pode ser desafiada por unidades com Furtividade ou Vigilância. Ao atacar, ignora exauridas sem Furtividade: desafia ou vai no Líder."
+      "text": "Só pode ser desafiada por unidades com Furtividade ou Vigilância."
     },
     "vigilancia": {
       "name": "Vigilância",
@@ -283,7 +283,7 @@
     },
     "congelar": {
       "name": "Congelar",
-      "text": "A unidade não ataca, não desvira e não protege o Líder e perde a Rapidez (suprimida) até o fim do próximo turno. Revida normalmente."
+      "text": "A unidade não ataca, não desvira e perde a Rapidez (suprimida) até o fim do próximo turno. Revida normalmente."
     },
     "queimadura": {
       "name": "Queimadura",

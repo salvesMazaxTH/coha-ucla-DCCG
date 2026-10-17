@@ -1,5 +1,5 @@
 extends RefCounted
-## Scripted pilot for the Glacial combo deck ("Ladeira de Nythera"), used by tests/sim_matchup.gd to measure
+## Scripted pilot for the Glacial combo deck ("Ladeira Ascendente"), used by tests/sim_matchup.gd to measure
 ## the combo's real ceiling: SimpleAI never sequences Ritual -> Ladeira -> Grande Bola de Neve on purpose.
 ##
 ## The pilot plays like a person would: it HOLDS the combo pieces (Ritual, Ladeira, the Bola in hand, and the
@@ -8,8 +8,8 @@ extends RefCounted
 ##
 ## Two ways to kill, both planned as "lines" (a list of cards to play, then the damage they add up to):
 ##  - the Grande Bola de Neve: its Sobrepujança sends the excess damage of every hit to the enemy Leader;
-##  - Wanessa Tempesfrost: once the level reaches 8 the Princesa transforms (freezing every enemy unit, so nothing
-##    guards the face) and attacks the Leader for her ATK plus a Bola at the current level. With Dona Gertrudes the
+##  - Wanessa Tempesfrost: once the level reaches 8 the Princesa transforms (freezing every enemy unit)
+##    and attacks the Leader for her ATK plus a Bola at the current level. With Dona Gertrudes the
 ##    Princesa comes in for free in the same turn, so the whole combo needs no turn of waiting.
 
 const LADEIRA_ID := "ladeira_abaixo_e_sem_freio"

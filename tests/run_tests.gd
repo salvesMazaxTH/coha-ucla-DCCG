@@ -80,6 +80,8 @@ func _init() -> void:
 	_test_overkill()
 	_test_dud()
 	_test_ai_no_waste()
+	_test_ai_attack_clauses()
+	_test_ai_burn_plan()
 	_test_requiem()
 	_test_rusco()
 	_test_elite_limits()
@@ -912,20 +914,20 @@ func _test_freeze() -> void:
 	s.spell_shield = true
 	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, s.uid)
 	check(not g.is_frozen(s) and not s.spell_shield, "Escudo de Feitiço anula congelar")
-	# a frozen tapped unit can be challenged and strikes back with its full ATK, but doesn't guard the face
+	# a frozen tapped unit can be challenged and strikes back with its full ATK
 	g = _new_game()
 	_quiet(g)
 	hitter = _put(g, 0, "t_frz_hit")
 	var ice := _put(g, 1, "t_frz_vic")
 	ice.exhausted = true
 	var enemy_leader: int = GameState.LEADER_UID[1]
-	check(g.combat_system().attack_targets(hitter) == [ice.uid], "exausta não congelada fecha a face do Líder")
+	check(g.combat_system().attack_targets(hitter) == [ice.uid, enemy_leader], "exausta não congelada: pode ser desafiada ou ignorada (a face segue aberta)")
 	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, ice.uid)
 	var targets: Array = g.combat_system().attack_targets(hitter)
-	check(targets.has(ice.uid) and targets.has(enemy_leader), "congelada exausta: pode ser desafiada, mas não fecha a face")
+	check(targets.has(ice.uid) and targets.has(enemy_leader), "congelada exausta: pode ser desafiada e o Líder segue como alvo")
 	var guard := _put(g, 1, "t_frz_vic")
 	guard.exhausted = true
-	check(not g.combat_system().attack_targets(hitter).has(enemy_leader), "outra exausta não congelada ainda fecha a face")
+	check(g.combat_system().attack_targets(hitter).has(enemy_leader), "outra exausta não congelada também não fecha a face")
 	_hit(g, hitter, ice.uid)
 	check(hitter.damage == 3 and ice.damage == 1, "congelada: desafiada, revida com o ATK cheio")
 	# a frozen Provocação forces nothing
@@ -1120,7 +1122,7 @@ func _test_combat() -> void:
 	var b := _put(g, 1, "tritao_lanceiro") # 2/2, sem Rapidez, Ao Ser Desafiada: 1 de dano ao atacante
 	check(g.attack_targets(a) == [GameState.LEADER_UID[1]], "unidade pronta não pode ser desafiada: só o Líder é alvo")
 	b.exhausted = true
-	check(g.attack_targets(a) == [b.uid], "unidade exaurida pode ser desafiada (e fecha o Líder)")
+	check(g.attack_targets(a) == [b.uid, GameState.LEADER_UID[1]], "unidade exaurida pode ser desafiada (e não fecha o Líder)")
 	_hit(g, a, b.uid)
 	check(g.find_unit(b.uid) == null, "Rapidez 1 mata o desafiado (sem Rapidez) antes dele revidar")
 	check(not g.find_unit(a.uid) == null and a.damage == 1 and a.exhausted, "o atacante exaure e só leva o 1 do Tritão")
@@ -1152,7 +1154,7 @@ func _test_combat() -> void:
 	tapped_enemy.exhausted = true
 	check(g.attack_targets(rushing) == [tapped_enemy.uid], "Ímpeto recém-chegado: só desafia, o Líder fica para o próximo turno")
 	rushing.sick = false
-	check(g.attack_targets(rushing) == [tapped_enemy.uid], "Ímpeto no turno seguinte: unidade normal, a exaurida ainda fecha o Líder")
+	check(g.attack_targets(rushing) == [tapped_enemy.uid, GameState.LEADER_UID[1]], "Ímpeto no turno seguinte: unidade normal, desafia a exaurida ou vai no Líder")
 	g.players[1]["board"].erase(tapped_enemy)
 	check(g.attack_targets(rushing) == [GameState.LEADER_UID[1]], "Ímpeto no turno seguinte: sem exauridas, o Líder volta a ser alvo")
 
@@ -1175,7 +1177,7 @@ func _test_combat() -> void:
 	check(g.players[1]["leader_hp"] == leader_before - 1 and charging.exhausted, "Rompante bate no Líder e fica exausta")
 	charging.sick = false
 	charging.exhausted = false
-	check(g.attack_targets(charging) == [tapped_foe.uid], "Rompante no turno seguinte: unidade normal, a exaurida fecha o Líder")
+	check(g.attack_targets(charging) == [tapped_foe.uid, GameState.LEADER_UID[1]], "Rompante no turno seguinte: unidade normal, desafia a exaurida ou vai no Líder")
 
 	# Voo: a flying attacker sails over ordinary tapped units, so it may challenge them or hit the Leader
 	g = _new_game()
@@ -1860,7 +1862,7 @@ func _test_provocacao() -> void:
 	var other := _put(g, 1, "t_other")
 	other.exhausted = true
 	var attacker := _put(g, 0, "serpente_marinha")
-	check(g.attack_targets(attacker) == [other.uid], "provocação pronta não obriga ninguém (só a outra exaurida fecha o Líder)")
+	check(g.attack_targets(attacker) == [other.uid, GameState.LEADER_UID[1]], "provocação pronta não obriga ninguém (a outra exaurida só é um alvo possível)")
 	taunt.exhausted = true
 	check(g.attack_targets(attacker) == [taunt.uid], "provocação exaurida: o único alvo é ela")
 	check(_hit(g, attacker).is_empty() and g.attack_unit(0, attacker.uid, other.uid).is_empty(), "não dá para ir no Líder nem em outra unidade")
@@ -1875,41 +1877,40 @@ func _test_provocacao() -> void:
 	check(g.attack_targets(walker) == [GameState.LEADER_UID[1]], "quem não pode desafiar a provocação fica livre")
 	check(g.attack_targets(flyer) == [flying_taunt.uid], "quem pode é obrigado")
 
-	# any tapped unit guards the Leader: while the attacker can challenge one, the face is closed
+	# an ordinary tapped unit doesn't guard the Leader: only a Provocação closes the face
 	g = _new_game()
 	_quiet(g)
 	var guard := _put(g, 1, "t_other")
 	var bruiser := _put(g, 0, "serpente_marinha")
 	check(g.attack_targets(bruiser) == [GameState.LEADER_UID[1]], "sem exauridas: o Líder é o alvo")
 	guard.exhausted = true
-	check(g.attack_targets(bruiser) == [guard.uid], "exaurida sem Provocação também fecha o Líder")
-	check(_hit(g, bruiser).is_empty(), "não dá para ir no Líder com uma exaurida desafiável")
+	check(g.attack_targets(bruiser) == [guard.uid, GameState.LEADER_UID[1]], "exaurida sem Provocação não fecha o Líder")
+	var leader_hp_before: int = g.players[1]["leader_hp"]
+	check(not _hit(g, bruiser).is_empty() and g.players[1]["leader_hp"] < leader_hp_before, "dá para ir no Líder mesmo com uma exaurida desafiável")
 	# one it can't reach (Voo) doesn't close the face
 	g = _new_game()
 	_put(g, 1, "fenix_menor").exhausted = true
 	check(g.attack_targets(_put(g, 0, "serpente_marinha")) == [GameState.LEADER_UID[1]], "exaurida inalcançável (Voo) não fecha o Líder")
 
-	# Voo / Furtividade slip past tapped units that lack the same keyword: challenge them or hit the face
+	# Voo / Furtividade only limit who can CHALLENGE a unit; they no longer change whether the face is open
 	_tcard("t_sneak", 1, 6, [])
 	CardDB.data()["cards"]["t_sneak"]["keywords"] = ["furtividade"]
-	_tcard("t_sneak_fly", 1, 6, [])
-	CardDB.data()["cards"]["t_sneak_fly"]["keywords"] = ["furtividade", "voo"]
 	var leader_uid: int = GameState.LEADER_UID[1]
 	g = _new_game()
 	var plain_guard := _put(g, 1, "t_other")
 	plain_guard.exhausted = true
 	var sneaker := _put(g, 0, "t_sneak")
-	check(g.attack_targets(sneaker) == [plain_guard.uid, leader_uid], "Furtividade: ignora a exaurida comum (desafia ou vai no Líder)")
+	check(g.attack_targets(sneaker) == [plain_guard.uid, leader_uid], "Furtividade: desafia a exaurida comum ou vai no Líder")
 	var sneaky_guard := _put(g, 1, "t_sneak")
 	sneaky_guard.exhausted = true
-	check(g.attack_targets(sneaker) == [plain_guard.uid, sneaky_guard.uid], "Furtividade: exaurida com Furtividade ainda fecha o Líder")
+	check(g.attack_targets(sneaker) == [plain_guard.uid, sneaky_guard.uid, leader_uid], "Furtividade: pode desafiar a exaurida com Furtividade e o Líder segue aberto")
 	var flyer_vs_flyer := _put(g, 0, "fenix_menor")
-	check(g.attack_targets(flyer_vs_flyer) == [plain_guard.uid, leader_uid], "Voo: a exaurida comum não fecha o Líder")
+	check(g.attack_targets(flyer_vs_flyer) == [plain_guard.uid, leader_uid], "Voo: desafia a exaurida comum ou vai no Líder")
 	var flying_guard := _put(g, 1, "fenix_menor")
 	flying_guard.exhausted = true
-	check(g.attack_targets(flyer_vs_flyer) == [plain_guard.uid, flying_guard.uid], "Voo: exaurida com Voo ainda fecha o Líder")
-	check(g.attack_targets(sneaker) == [plain_guard.uid, sneaky_guard.uid], "Furtividade: sem Voo, não alcança a exaurida voadora; a com Furtividade ainda fecha o Líder")
-	# a Provocação is never slipped past
+	check(g.attack_targets(flyer_vs_flyer) == [plain_guard.uid, flying_guard.uid, leader_uid], "Voo: pode desafiar a exaurida voadora e o Líder segue aberto")
+	check(not g.attack_targets(sneaker).has(flying_guard.uid), "Furtividade sem Voo não alcança a exaurida voadora")
+	# a Provocação still holds back any attacker that can challenge it
 	g = _new_game()
 	var tapped_taunt := _put(g, 1, "t_taunt")
 	tapped_taunt.exhausted = true
@@ -3601,6 +3602,103 @@ func _test_ai_no_waste() -> void:
 	g2.active = 1
 	check(not SimpleAI._spell_is_worth_it(g2, 0, shock), "IA: buff de turno não é lançado no turno do inimigo")
 
+## The AI's attack clauses: face instead of chip challenges, no pointless trades, no feeding Roubo de Vida.
+func _test_ai_attack_clauses() -> void:
+	_tcard("t_ai_wall", 2, 6, [])
+	_tcard("t_ai_even", 3, 3, [])
+	_tcard("t_ai_bruiser", 4, 4, [])
+	_tcard("t_ai_big", 5, 5, [])
+	_tcard("t_ai_glass", 4, 2, [])
+	_tcard("t_ai_small", 2, 2, [])
+	_tcard("t_ai_engine", 2, 2, [{"trigger": "on_turn_end", "action": "heal_leader", "amount": 1}])
+	# 1. a chip challenge is not worth it: the unhurt wall can't punish a 2/5, so the AI goes face
+	_tcard("t_ai_chipper", 2, 5, [])
+	var g := _new_game()
+	_quiet(g)
+	var chipper := _put(g, 0, "t_ai_chipper")
+	var wall := _put(g, 1, "t_ai_wall")
+	wall.exhausted = true # only a tapped unit can be challenged
+	g.players[1]["leader_hp"] = 20
+	g.go_to_combat(0)
+	SimpleAI._try_attack(g, 0)
+	check(g.players[1]["leader_hp"] == 18 and wall.damage == 0, "IA: sem troca boa e sem risco, vai na face em vez de bater de leve (vida %d)" % g.players[1]["leader_hp"])
+	# 2. an even trade that leaves the Leader healthy is not taken: the unit stays home
+	g = _new_game()
+	_quiet(g)
+	_put(g, 0, "t_ai_even")
+	var rival := _put(g, 1, "t_ai_bruiser")
+	rival.exhausted = true
+	g.players[1]["leader_hp"] = 25
+	g.go_to_combat(0)
+	var events := SimpleAI._try_attack(g, 0)
+	check(events.is_empty() and rival.damage == 0 and g.players[1]["leader_hp"] == 25, "IA: troca igual com o inimigo saudável não acontece, nem exposição à toa")
+	# 3. a Roubo de Vida target is a worse trade: its strike-back heals the enemy Leader
+	_tcard("t_ai_leech", 3, 3, [])
+	CardDB.card("t_ai_leech")["keywords"] = ["roubo_de_vida"]
+	g = _new_game()
+	_quiet(g)
+	var attacker := _put(g, 0, "t_ai_even")
+	var plain_target := _put(g, 1, "t_ai_even")
+	var leech_target := _put(g, 1, "t_ai_leech")
+	var plain_score := SimpleAI._challenge_score(g, attacker, plain_target)
+	var leech_score := SimpleAI._challenge_score(g, attacker, leech_target)
+	check(leech_score < plain_score, "IA: desafiar Roubo de Vida vale menos (cura o Líder inimigo): %d vs %d" % [leech_score, plain_score])
+	# 4. a great trade (kills for free) is still taken even with the face open
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["hand"].clear() # a random burn card in hand would turn this into a rush
+	_put(g, 0, "t_ai_big")
+	var glass := _put(g, 1, "t_ai_glass")
+	glass.exhausted = true
+	g.players[1]["leader_hp"] = 20
+	g.go_to_combat(0)
+	var kill_events := SimpleAI._try_attack(g, 0)
+	check(g.find_unit(glass.uid) == null and g.players[1]["leader_hp"] == 20, "IA: matar de graça ainda é melhor que a face")
+	# 5. burn in hand makes the exposed engine hit acceptable (the Leader ends inside burn reach)
+	g = _new_game()
+	_quiet(g)
+	var engine := _put(g, 0, "t_ai_engine")
+	_put(g, 1, "t_ai_even")
+	g.players[1]["leader_hp"] = 15
+	check(not SimpleAI._face_hit_is_acceptable(g, 0, engine, 0), "IA: engine exposta não vai na face sem motivo")
+	check(SimpleAI._face_hit_is_acceptable(g, 0, engine, 13), "IA: engine exposta vai na face se o burn da mão termina o jogo")
+	# 6. rush: the enemy is about to die, so the exposed unit swings at the face instead of trading
+	g = _new_game()
+	_quiet(g)
+	var rusher := _put(g, 0, "t_ai_small")
+	_put(g, 0, "t_ai_small")
+	var guard := _put(g, 1, "t_ai_even")
+	g.players[1]["leader_hp"] = 8
+	g.go_to_combat(0)
+	SimpleAI._try_attack(g, 0)
+	check(g.players[1]["leader_hp"] == 6 and guard.damage == 0, "IA: com o Líder inimigo perto de morrer, ataca a face em vez de trocar (vida %d)" % g.players[1]["leader_hp"])
+
+## The AI holds Bola de Fogo for the face when its board is racing, and fires it for lethal.
+func _test_ai_burn_plan() -> void:
+	_tcard("t_ai_racer", 2, 2, [])
+	_tcard("t_ai_blocker", 1, 3, [])
+	var fireball := CardDB.card("bola_de_fogo")
+	var g := _new_game()
+	_quiet(g)
+	g.active = 0
+	g.players[0]["max_momentum"] = 5
+	g.players[0]["momentum"] = 5
+	g.players[0]["hand"].clear()
+	g.players[0]["legendary"]["in_zone"] = false # the Leader's legendary would be cast before anything else
+	_give(g, 0, "bola_de_fogo")
+	_put(g, 0, "t_ai_racer")
+	_put(g, 0, "t_ai_racer")
+	_put(g, 1, "t_ai_blocker")
+	g.players[1]["leader_hp"] = 8
+	check(SimpleAI._burn_plan(g, 0) == "hold", "IA: aggro perto do fim guarda a Bola de Fogo para a face (plano %s)" % SimpleAI._burn_plan(g, 0))
+	check(not SimpleAI._spell_is_worth_it(g, 0, fireball), "IA: Bola de Fogo guardada não é gasta em unidade")
+	g.players[1]["leader_hp"] = 40
+	check(SimpleAI._burn_plan(g, 0) == "free" and SimpleAI._spell_is_worth_it(g, 0, fireball), "IA: contra um inimigo longe de morrer, a Bola de Fogo é usada normalmente")
+	g.players[1]["leader_hp"] = 5
+	check(SimpleAI._burn_plan(g, 0) == "lethal", "IA: burn + ataques fecham o letal (plano %s)" % SimpleAI._burn_plan(g, 0))
+	var events := SimpleAI._try_play(g, 0)
+	check(not events.is_empty() and g.players[1]["leader_hp"] == 2, "IA: lança a Bola de Fogo na face antes de gastar o Momentum (vida %d)" % g.players[1]["leader_hp"])
+
 ## Units can enter the board at any position (Hearthstone style), not only on the right edge.
 func _test_play_slot() -> void:
 	_tcard("t_slot", 1, 1, [])
@@ -3677,7 +3775,7 @@ func _test_self_response() -> void:
 	g.pass_priority(1)
 	check(g.stack.is_empty(), "sem jogada legal pra quem lançou: a pilha resolve direto quando o oponente passa")
 
-## Deck "Ladeira de Nythera": Ritual do Degelo (+3 Momentum agora, -2 no próximo turno; não mexe no nível), Ladeira Abaixo e Sem Freio (sobe metade do nível, arredondada para cima),
+## Deck "Ladeira Ascendente": Ritual do Degelo (+3 Momentum agora, -2 no próximo turno; não mexe no nível), Ladeira Abaixo e Sem Freio (sobe metade do nível, arredondada para cima),
 ## a Wanessa que vira Tempesfrost ao cruzar para Grande, e a Bola de Neve que a Tempesfrost lança no Líder.
 ## Fixture: turn-8 resources (8 Momentum + 2 Reserva), Wanessa untransformed, Bola de Neve level 3-5.
 func _combo_game(level: int, enemy_units: int, momentum: int, reserve: int) -> Dictionary:
@@ -4398,7 +4496,7 @@ func _test_glacial_combo() -> void:
 
 	# the new deck: legal and holding the combo pieces
 	var combo_deck := DeckDB.get_deck("glacial_combo")
-	check(DeckDB.validate("glacial_combo").is_empty() and combo_deck["cards"].has("ritual_do_degelo") and combo_deck["cards"].has("ladeira_abaixo_e_sem_freio"), "deck Ladeira de Nythera é legal e tem as peças do combo")
+	check(DeckDB.validate("glacial_combo").is_empty() and combo_deck["cards"].has("ritual_do_degelo") and combo_deck["cards"].has("ladeira_abaixo_e_sem_freio"), "deck Ladeira Ascendente é legal e tem as peças do combo")
 
 func _test_deslizamento() -> void:
 	var g := _new_game()

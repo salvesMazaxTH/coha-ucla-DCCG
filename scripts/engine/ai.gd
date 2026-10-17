@@ -3,6 +3,16 @@ extends RefCounted
 ## Greedy AI: spends Momentum on the most expensive plays, then attacks one unit at a time:
 ## challenges that win or trade up, the enemy Leader's face when it is safe or worth the risk.
 
+## Aggression knobs (see _try_attack, _face_hit_is_acceptable and _burn_plan).
+const FREE_KILL_BONUS := 10 ## challenge score added for a kill that costs nothing; a score above it = take it at once
+const TRADE_MIN_GAIN := 3 ## a trade must be worth at least this much value to be taken (even trades are not)
+const RUSH_TURNS := 2 ## "rush" when the Leader (minus burn in hand) dies within this many swings of the ready board
+const HOLD_TURNS := 2 ## hold burn for the face when the Leader dies within this many swings of the whole board plus burn
+const FACE_POINT_VALUE := 2 ## value of 1 face damage when deciding whether an exposed unit may go face
+const FACE_POINT_VALUE_LATE := 3 ## same, with the enemy Leader low (NEAR_END_HP) or late in the game (LATE_GAME_TURN)
+const NEAR_END_HP := 12
+const LATE_GAME_TURN := 16
+
 ## Performs one action for player p. Returns its events, or [] when the AI
 ## has nothing more to do (the caller should then stop asking).
 ## `held_card_ids`: cards the AI must not play on its own (a scripted pilot, see ComboPilot, plays them).
@@ -84,6 +94,11 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 		var events := g.cast_legendary(p)
 		if not events.is_empty():
 			return events
+	# burn that finishes the game goes first, before the Momentum is spent on anything else
+	if g.active == p and g.stack.is_empty() and _burn_plan(g, p) == "lethal":
+		var finisher_events := _cast_face_burn(g, p, held_card_ids)
+		if not finisher_events.is_empty():
+			return finisher_events
 	# hand first; Réquiem spells in the graveyard are the fallback (they cost 2 more)
 	var candidates: Array = _hand_most_expensive_first(g, p) + g.requiem_cards(p)
 	for card: Card in candidates:
@@ -241,6 +256,8 @@ static func _plan_sacrifice_spell(g: GameState, p: int, card_data: Dictionary) -
 ## and area removal that isn't worth it (see _sweeper_is_worth_it).
 static func _spell_is_worth_it(g: GameState, p: int, card_data: Dictionary) -> bool:
 	var effects: Array = card_data.get("effects", [])
+	if _is_face_burn(card_data) and _burn_plan(g, p) == "hold":
+		return false # the burn is the finisher: it waits for the face
 	if not _revive_is_worth_it(g, p, effects):
 		return false
 	var temporary_buff := _temporary_buff_effect(card_data)
@@ -473,15 +490,23 @@ static func _pick_target(g: GameState, p: int, spec: String, source, self_uid :=
 			best_uid = uid
 	return best_uid
 
-## One attack (or [] when no attack is worth it). Priorities, best first:
-##   1. lethal on the enemy Leader;
-##   2. a challenge that kills the target without losing the attacker, or trades up;
-##   3. the enemy Leader's face, when going all-in, under pressure, or when the tapped attacker
-##      won't be punished by an enemy challenge on their turn.
+## One attack (or [] when no attack is worth it). The face is always open (only a Provocação closes it),
+## so the AI must decide between hitting the Leader and trading. It walks these clauses in order and the
+## first one that applies wins (the numbers are the knobs at the top of the file):
+##   1. LETHAL: some attacker (or the whole ready board) finishes the enemy Leader -> face.
+##   2. RUSH: the enemy Leader is within RUSH_TURNS swings of dying counting the burn in our hand (and we
+##      are not about to die first) -> the strongest face attacker hits, exposed or not. No trades.
+##   3. FREE KILL: a challenge that kills without a slow punishment -> challenge.
+##   4. SAFE FACE: an attacker whose face hit is acceptable (nobody can punish it, or it is worth the risk,
+##      see _face_hit_is_acceptable) -> face. A face hit beats an ordinary trade.
+##   5. GOOD TRADE: a trade that gains at least TRADE_MIN_GAIN -> challenge. Even trades, chip damage and
+##      anything that only heals the enemy (Roubo de Vida) are NOT taken: the unit stays home instead.
+##   6. FORCED: a Provocação closes the face, so the attacker's only choice is to challenge it or stay still;
+##      it challenges when the hit is not a pure loss (score 1+), otherwise it waits.
 static func _try_attack(g: GameState, p: int) -> Array:
 	var enemy := g.opponent(p)
 	var enemy_leader_uid: int = GameState.LEADER_UID[enemy]
-	var enemy_board: Array = g.players[enemy]["board"]
+	var enemy_hp: int = g.players[enemy]["leader_hp"]
 	var ready: Array = []
 	for unit: Card in g.players[p]["board"]:
 		# a 0 ATK unit may attack, but it would only be hit back for nothing: the AI never does it
@@ -489,39 +514,83 @@ static func _try_attack(g: GameState, p: int) -> Array:
 			ready.append(unit)
 	if ready.is_empty():
 		return []
+	var burn_reach := maxi(_burn_reach(g, p, g.budget(p, true)), _burn_reach(g, p, _next_turn_budget(g, p)))
 	var all_in := _lethal_push(g, p, ready)
+	var face_power := _face_strike_total(g, p)
+	# we only rush when the enemy cannot kill us first (otherwise the board has to stay home to trade)
+	var in_danger: bool = _board_strike_total(g, enemy) >= g.players[p]["leader_hp"]
+	var rush: bool = not in_danger and enemy_hp - burn_reach <= face_power * RUSH_TURNS
 	var best_challenge_score := 0
 	var best_challenge: Array = [] # [attacker uid, target uid]
-	var face_attacker: Card = null
+	var forced_challenge_score := 0
+	var forced_challenge: Array = [] # a challenge that is the attacker's only option (Provocação in the way)
+	var strongest_face_attacker: Card = null # for clauses 1 and 2
+	var safe_face_attacker: Card = null # for clause 4
 	for attacker: Card in ready:
 		var targets := g.attack_targets(attacker)
-		if targets.has(enemy_leader_uid) and g.strike_power_of(attacker) >= g.players[enemy]["leader_hp"]:
-			return g.attack_unit(p, attacker.uid, enemy_leader_uid) # this hit wins the game
-		# a tapped enemy (Provocação or not) closes the face: it must challenge (a fresh Ímpeto unit just can't reach the face yet)
-		var forced := (not attacker.sick or g.combat_system().is_rompante_rush(attacker)) and not targets.has(enemy_leader_uid)
+		var can_hit_face := targets.has(enemy_leader_uid)
+		if can_hit_face and g.strike_power_of(attacker) >= enemy_hp:
+			return g.attack_unit(p, attacker.uid, enemy_leader_uid) # clause 1: this hit wins the game
+		# a Provocação closes the face: it must challenge (a fresh Ímpeto unit just can't reach the face yet)
+		var forced := (not attacker.sick or g.combat_system().is_rompante_rush(attacker)) and not can_hit_face
 		for target_uid in targets:
 			if target_uid < 0:
 				continue
 			var score := _challenge_score(g, attacker, g.find_unit(target_uid))
-			if forced:
-				score = maxi(score, 1) # it must challenge someone anyway: pick the best one
 			if score > best_challenge_score:
 				best_challenge_score = score
 				best_challenge = [attacker.uid, target_uid]
-		if face_attacker == null and targets.has(enemy_leader_uid):
-			# aggression: push when the enemy is low or we have many more units. An engine unit
-			# never goes face if that leaves it exposed to any enemy that can kill it, pressure or not.
-			var pressure: bool = g.players[enemy]["leader_hp"] <= 10 or g.players[p]["board"].size() > enemy_board.size() + 1
-			var exposed := _punishable(g, attacker, 0, _is_engine(attacker))
-			if all_in or enemy_board.is_empty() or not exposed or (pressure and not _is_engine(attacker)):
-				face_attacker = attacker
-	if not best_challenge.is_empty() and not all_in:
-		return g.attack_unit(p, best_challenge[0], best_challenge[1])
-	if face_attacker != null:
-		return g.attack_unit(p, face_attacker.uid, enemy_leader_uid)
-	if not best_challenge.is_empty():
-		return g.attack_unit(p, best_challenge[0], best_challenge[1])
+			if forced and maxi(score, 1) > forced_challenge_score:
+				forced_challenge_score = maxi(score, 1)
+				forced_challenge = [attacker.uid, target_uid]
+		if can_hit_face:
+			if strongest_face_attacker == null or g.strike_power_of(attacker) > g.strike_power_of(strongest_face_attacker):
+				strongest_face_attacker = attacker
+			if _face_hit_is_acceptable(g, p, attacker, burn_reach):
+				if safe_face_attacker == null or g.strike_power_of(attacker) > g.strike_power_of(safe_face_attacker):
+					safe_face_attacker = attacker
+	if (all_in or rush) and strongest_face_attacker != null:
+		return g.attack_unit(p, strongest_face_attacker.uid, enemy_leader_uid) # clauses 1 and 2
+	if best_challenge_score > FREE_KILL_BONUS:
+		return g.attack_unit(p, best_challenge[0], best_challenge[1]) # clause 3
+	if safe_face_attacker != null:
+		return g.attack_unit(p, safe_face_attacker.uid, enemy_leader_uid) # clause 4
+	if best_challenge_score >= TRADE_MIN_GAIN:
+		return g.attack_unit(p, best_challenge[0], best_challenge[1]) # clause 5
+	if not forced_challenge.is_empty():
+		return g.attack_unit(p, forced_challenge[0], forced_challenge[1]) # clause 6
 	return []
+
+## Is the face hit worth it for `attacker`, even if an enemy unit can punish it afterwards? Walks these
+## cases in order:
+##   - an empty enemy board, or nobody who could challenge-and-kill it once it is tapped: yes;
+##   - the hit leaves the Leader inside our burn reach (the burn in hand finishes it): yes, even an engine;
+##   - an engine (a unit worth keeping alive) otherwise: no;
+##   - the enemy Leader is low (10 or less) or our board is 2+ units larger: yes (pressure);
+##   - otherwise only when the damage is worth more than the unit it may cost: FACE_POINT_VALUE per point
+##     of damage (more late in the game or with the enemy low, plus a bonus for Roubo de Vida) against
+##     the unit's value.
+static func _face_hit_is_acceptable(g: GameState, p: int, attacker: Card, burn_reach: int) -> bool:
+	var enemy := g.opponent(p)
+	var enemy_hp: int = g.players[enemy]["leader_hp"]
+	var enemy_board: Array = g.players[enemy]["board"]
+	var strike := g.strike_power_of(attacker)
+	var engine := _is_engine(attacker)
+	if enemy_board.is_empty() or not _punishable(g, attacker, 0, engine):
+		return true
+	if enemy_hp - strike <= burn_reach:
+		return true
+	if engine:
+		return false
+	if enemy_hp <= 10 or g.players[p]["board"].size() > enemy_board.size() + 1:
+		return true
+	var point_value := FACE_POINT_VALUE
+	if enemy_hp <= NEAR_END_HP or g.turn >= LATE_GAME_TURN:
+		point_value = FACE_POINT_VALUE_LATE
+	var worth := strike * point_value
+	if g.has_kw(attacker, "roubo_de_vida"):
+		worth += strike # the hit also heals our Leader
+	return worth >= _unit_value(g, attacker)
 
 ## How good it is for `attacker` to challenge `target` (0 or less = not worth it). Strikes follow
 ## Rapidez: a faster attacker that kills its target takes nothing back. Challenging also taps the
@@ -534,13 +603,15 @@ static func _challenge_score(g: GameState, attacker: Card, target: Card) -> int:
 	var attacker_dies := damage_back >= g.hp_left(attacker)
 	var target_value := _unit_value(g, target)
 	var attacker_value := _unit_value(g, attacker)
+	# a Roubo de Vida target heals its Leader with the blow it strikes back (it never lands if we kill it first)
+	var enemy_heal := mini(damage_back, g.hp_left(attacker)) if g.has_kw(target, "roubo_de_vida") else 0
 	if kills_target and not attacker_dies:
-		if _punishable(g, attacker, damage_back, _is_engine(attacker)):
-			return target_value - attacker_value + 1 # it will be challenged back and die: a slow trade
-		return target_value + 10
+		if _punishable(g, attacker, damage_back, _is_engine(attacker), target):
+			return target_value - attacker_value + 1 - enemy_heal # it will be challenged back and die: a slow trade
+		return target_value + FREE_KILL_BONUS - enemy_heal
 	if kills_target and attacker_dies:
-		return target_value - attacker_value + 1 # a trade: only worth it against something more valuable
-	if not attacker_dies and damage_to_target > 0 and not _is_engine(attacker):
+		return target_value - attacker_value + 1 - enemy_heal # a trade: only worth it against something more valuable
+	if not attacker_dies and damage_to_target > 0 and not _is_engine(attacker) and enemy_heal == 0:
 		return 1 # chip damage that stays marked; only used when nothing better exists
 	return 0
 
@@ -569,13 +640,14 @@ static func _is_engine(unit: Card) -> bool:
 ## True when, once tapped (and after taking `extra_damage`), this unit could be challenged and
 ## killed on the enemy's turn by an enemy unit that survives the exchange. With `any_killer`,
 ## even an enemy that dies doing it counts (an engine should not be traded off at all).
-static func _punishable(g: GameState, unit: Card, extra_damage := 0, any_killer := false) -> bool:
+## `slain_unit` is an enemy this very attack kills: it can't punish anyone afterwards.
+static func _punishable(g: GameState, unit: Card, extra_damage := 0, any_killer := false, slain_unit: Card = null) -> bool:
 	var was_exhausted := unit.exhausted
 	unit.exhausted = true # pretend it already attacked, to ask who could challenge it
 	unit.damage += extra_damage # the damage it would carry after this attack
 	var punished := false
 	for enemy_unit: Card in g.players[g.opponent(unit.owner)]["board"]:
-		if not g.can_challenge(enemy_unit, unit):
+		if enemy_unit == slain_unit or not g.can_challenge(enemy_unit, unit):
 			continue
 		var kills := not unit.shield and g.damage_after_armor(unit, g.strike_power_of(enemy_unit)) >= g.hp_left(unit)
 		var survives := enemy_unit.shield or g.damage_after_armor(enemy_unit, g.strike_power_of(unit)) < g.hp_left(enemy_unit)
@@ -593,6 +665,105 @@ static func _lethal_push(g: GameState, p: int, ready: Array) -> bool:
 		if g.attack_targets(attacker).has(enemy_leader_uid):
 			face_damage += g.strike_power_of(attacker)
 	return face_damage >= g.players[g.opponent(p)]["leader_hp"]
+
+## Face damage the ready units can deal this turn (those that can reach the enemy Leader).
+static func _face_strike_total(g: GameState, p: int) -> int:
+	var enemy_leader_uid: int = GameState.LEADER_UID[g.opponent(p)]
+	var total := 0
+	for unit: Card in g.players[p]["board"]:
+		if g.attack_targets(unit).has(enemy_leader_uid):
+			total += g.strike_power_of(unit)
+	return total
+
+## Everything a player's board would hit for in one swing (used as "how fast can they kill a Leader").
+static func _board_strike_total(g: GameState, player: int) -> int:
+	var total := 0
+	for unit: Card in g.players[player]["board"]:
+		total += g.strike_power_of(unit)
+	return total
+
+## Momentum the AI can spend on spells next turn (one more than now, plus what is banked in the Reserva).
+static func _next_turn_budget(g: GameState, p: int) -> int:
+	return mini(GameState.MOMENTUM_CAP, int(g.players[p]["max_momentum"]) + 1) + int(g.players[p]["reserve"])
+
+## True for a spell that can send damage to the enemy Leader (Bola de Fogo "any", Choque "enemy_leader").
+static func _is_face_burn(card_data: Dictionary) -> bool:
+	return _face_burn_damage(card_data) > 0
+
+## Damage a spell sends at the enemy Leader (0 for anything else).
+static func _face_burn_damage(card_data: Dictionary) -> int:
+	if card_data.get("type", "") != "spell":
+		return 0
+	var total := 0
+	for effect in card_data.get("effects", []):
+		if effect.get("trigger", "") == "on_play" and effect.get("action", "") == "damage" \
+				and effect.get("target", "") in ["any", "enemy_leader"]:
+			total += int(effect.get("amount", 0))
+	return total
+
+## The most face damage the burn spells in hand can deal paying at most `budget` Momentum (best subset).
+static func _burn_reach(g: GameState, p: int, budget: int) -> int:
+	var damages: Array = []
+	var costs: Array = []
+	for card: Card in g.players[p]["hand"]:
+		var card_data := CardDB.card(card.card_id)
+		var damage := _face_burn_damage(card_data)
+		if damage > 0 and not g.is_dud(p, card_data):
+			damages.append(damage)
+			costs.append(g.cost_of(p, card_data, card))
+	var best := 0
+	for subset in range(1, 1 << damages.size()): # burn is a handful of cards, so trying every subset is cheap
+		var damage_sum := 0
+		var cost_sum := 0
+		for i in damages.size():
+			if subset & (1 << i):
+				damage_sum += damages[i]
+				cost_sum += costs[i]
+		if cost_sum <= budget:
+			best = maxi(best, damage_sum)
+	return best
+
+## What to do with the burn in hand. Walks these cases in order:
+##   - "free": no burn in hand -> nothing to plan;
+##   - "lethal": on our own turn, burn + the attackers that can reach the face kill the enemy Leader -> cast
+##     it at the face now, before anything else is bought;
+##   - "free": we are about to die, or the hand is nearly full -> cast it the usual way (kill a unit, or
+##     whatever _pick_target prefers);
+##   - "hold": the enemy Leader is within HOLD_TURNS swings of our board plus the burn (an aggro deck against a
+##     slow one) -> keep the burn for the face, do not spend it on units;
+##   - otherwise "free" (a control deck uses burn as removal).
+static func _burn_plan(g: GameState, p: int) -> String:
+	var enemy := g.opponent(p)
+	var enemy_hp: int = g.players[enemy]["leader_hp"]
+	var burn_now := _burn_reach(g, p, g.budget(p, true))
+	if burn_now <= 0:
+		return "free"
+	if g.active == p and enemy_hp <= burn_now + _face_strike_total(g, p):
+		return "lethal"
+	var burn_next := maxi(burn_now, _burn_reach(g, p, _next_turn_budget(g, p)))
+	var in_danger: bool = _board_strike_total(g, enemy) >= g.players[p]["leader_hp"]
+	var hand_nearly_full: bool = g.players[p]["hand"].size() >= GameState.HAND_LIMIT - 1
+	if in_danger or hand_nearly_full:
+		return "free"
+	if enemy_hp - burn_next <= _board_strike_total(g, p) * HOLD_TURNS:
+		return "hold"
+	return "free"
+
+## Casts a burn spell at the enemy Leader (the "lethal" plan). [] when none can be cast.
+static func _cast_face_burn(g: GameState, p: int, held_card_ids: Array) -> Array:
+	var enemy_leader_uid: int = GameState.LEADER_UID[g.opponent(p)]
+	var hand: Array = g.players[p]["hand"].duplicate()
+	hand.sort_custom(func(a: Card, b: Card): return _face_burn_damage(CardDB.card(a.card_id)) > _face_burn_damage(CardDB.card(b.card_id)))
+	for card: Card in hand:
+		var card_data := CardDB.card(card.card_id)
+		if not _is_face_burn(card_data) or held_card_ids.has(card.card_id) or not g.can_play(p, card.uid) or g.is_dud(p, card_data):
+			continue
+		if not g.valid_targets(p, g.card_spec(card_data)).has(enemy_leader_uid):
+			continue
+		var events := g.play_card(p, card.uid, enemy_leader_uid, 0)
+		if not events.is_empty():
+			return events
+	return []
 
 ## A Provocação entering: tapped makes it guard (enemy attackers must challenge it). Worth it
 ## when it survives the strongest enemy hit, or when our Leader is low and needs the protection.

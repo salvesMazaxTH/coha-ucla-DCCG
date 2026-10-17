@@ -53,7 +53,7 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 	if cd.get("text", "") != "":
 		var body := CardView.fill_live_numbers(String(cd["text"]), snowball_level)
 		if instance.has("frozen"):
-			body = "[color=#9fe8ff][b]Congelada:[/b] não ataca, não desvira e não protege o Líder e perde a Rapidez (suprimida) até o fim do próximo turno. Revida normalmente.[/color]\n" + body
+			body = "[color=#9fe8ff][b]Congelada:[/b] não ataca, não desvira e perde a Rapidez (suprimida) até o fim do próximo turno. Revida normalmente.[/color]\n" + body
 		txt += "[font_size=32]%s[/font_size]\n\n" % CardView.colorize_rules(body + text_suffix, 32)
 	# Glossary: the card's own keywords first, then any keyword its text mentions ("conceda Voo").
 	var glossary_keywords: Array = cd.get("keywords", []).duplicate()
