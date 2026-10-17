@@ -1541,9 +1541,12 @@ func _test_dot_immunity() -> void:
 	execution_game._flush()
 	check(execution_game.leader_dot_markers(1, "veneno") == 7 and execution_game.phase != "over", "Viprax: Ao Ativar com 6 marcadores coloca o 7º e o Líder sobrevive")
 	executioner.activated_turn = -1
-	execution_game.activate(0, executioner.uid)
-	execution_game._flush()
+	var execution_events: Array = execution_game.activate(0, executioner.uid)
 	check(execution_game.phase == "over" and execution_game.winner == 0, "Viprax: Ao Ativar com 7 marcadores coloca o 8º e executa o Líder")
+	var executed_events := execution_events.filter(func(e): return e["type"] == "leader_executed")
+	var leader_damage_events := execution_events.filter(func(e): return e["type"] == "damage" and e["uid"] == GameState.LEADER_UID[1])
+	check(executed_events.size() == 1 and executed_events[0]["hp_before"] > 0, "Execução: emite um evento leader_executed com a Vida anterior do Líder")
+	check(leader_damage_events.is_empty(), "Execução: o Líder não recebe evento de dano (a UI toca a animação própria)")
 
 	# the printed cards: D'Lorafya's Queimadura and Tox Vipranna's Veneno carry the flag
 	var dlorafya_effects: Array = CardDB.card("dlorafya")["effects"]

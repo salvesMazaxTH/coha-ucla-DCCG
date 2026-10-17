@@ -1818,16 +1818,17 @@ func _essences_are_immune_to_dot(essences: Array, dot_id: String) -> bool:
 	return false
 
 ## Kills the Leader of player `p` on the spot (a card effect, e.g. Viprax's execution). Câmara de
-## Êxtase and the damage halving do not apply.
+## Êxtase and the damage halving do not apply. This is not damage: it emits its own "leader_executed"
+## event (never a "damage" one) so the UI can play a dedicated execution animation instead of a big hit.
 func kill_leader_outright(p: int, dot_id := "") -> void:
 	var hp_before: int = players[p]["leader_hp"]
 	if hp_before <= 0:
 		return
 	players[p]["leader_hp"] = 0
-	var damage_event := {"type": "damage", "uid": LEADER_UID[p], "amount": hp_before, "src": 0}
+	var execution_event := {"type": "leader_executed", "uid": LEADER_UID[p], "player": p, "hp_before": hp_before}
 	if dot_id != "":
-		damage_event["dot"] = dot_id
-	_emit(damage_event)
+		execution_event["dot"] = dot_id
+	_emit(execution_event)
 
 ## How many markers of `dot_id` the Leader of player `p` holds.
 func leader_dot_markers(p: int, dot_id: String) -> int:

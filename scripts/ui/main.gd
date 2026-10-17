@@ -3171,6 +3171,92 @@ func _crushing_blow_fx(target: Control, amount: int, t: float) -> void:
 	ring_tween.tween_callback(ring.queue_free)
 	_embers(center, t, Color(1.0, 0.6, 0.25), 14)
 
+## Execution (a card effect kills the Leader outright, e.g. Viprax): deliberately unlike a hit.
+## The Leader trembles while a ring closes in on it (wind-up), then two slashes cross it, the screen
+## takes the heaviest shake, "Execução" appears in the effect's color and the HP count drains to zero
+## instead of dropping in one step. Returns the time at which the animation is over.
+const EXECUTION_WINDUP_TIME := 0.55
+const EXECUTION_DRAIN_TIME := 0.9
+
+func _execution_fx(leader: LeaderView, hp_before: int, t: float, col: Color) -> float:
+	var center := _center_of(leader)
+	var strike_t := t + EXECUTION_WINDUP_TIME
+
+	# wind-up: the Leader trembles harder and harder, a ring closes in on it
+	var base := leader.position
+	var tremble := leader.create_tween()
+	tremble.tween_interval(t)
+	tremble.tween_method(func(k: float): leader.position = base + Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 7.0 * k, 0.0, 1.0, EXECUTION_WINDUP_TIME)
+	tremble.tween_callback(func(): leader.position = base)
+	var ring := Line2D.new()
+	var points := PackedVector2Array()
+	for i in 33:
+		points.append(Vector2.from_angle(TAU * i / 32.0) * 60.0)
+	ring.points = points
+	ring.width = 5.0
+	ring.default_color = Color(col, 0.9)
+	ring.position = center
+	ring.z_index = 58
+	ring.scale = Vector2.ONE * 3.2
+	ring.modulate.a = 0.0
+	fx.add_child(ring)
+	var ring_tween := ring.create_tween()
+	ring_tween.tween_interval(t)
+	ring_tween.tween_property(ring, "modulate:a", 1.0, 0.15)
+	ring_tween.parallel().tween_property(ring, "scale", Vector2.ONE * 0.9, EXECUTION_WINDUP_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	ring_tween.tween_callback(ring.queue_free)
+
+	# strike: two crossing slashes, the heaviest screen shake and sparks in the effect's color
+	_execution_slash(center, Vector2(-95, -75), Vector2(95, 75), col, strike_t)
+	_execution_slash(center, Vector2(95, -75), Vector2(-95, 75), col, strike_t + 0.09)
+	_crushing_blow_fx(leader, 15, strike_t)
+	_embers(center, strike_t, col, 30)
+
+	var title := _label("Execução", 52, col.lightened(0.35), HORIZONTAL_ALIGNMENT_CENTER, "heavy", 12)
+	title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+	title.size = Vector2(340, 66)
+	title.pivot_offset = title.size / 2.0
+	title.position = center - title.size / 2.0 + Vector2(0, -28)
+	title.scale = Vector2(1.8, 1.8)
+	title.modulate.a = 0.0
+	fx.add_child(title)
+	var title_tween := title.create_tween()
+	title_tween.tween_interval(strike_t)
+	title_tween.tween_property(title, "modulate:a", 1.0, 0.05)
+	title_tween.parallel().tween_property(title, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	title_tween.tween_interval(0.9)
+	title_tween.tween_property(title, "modulate:a", 0.0, 0.3)
+	title_tween.tween_callback(title.queue_free)
+
+	# the HP count runs down to zero instead of dropping in one step
+	var drain := leader.create_tween()
+	drain.tween_interval(strike_t)
+	drain.tween_method(func(shown_hp: float):
+		leader.hp = roundi(shown_hp)
+		leader.queue_redraw(), float(hp_before), 0.0, EXECUTION_DRAIN_TIME).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	drain.tween_callback(func():
+		leader.hp = 0
+		leader.queue_redraw())
+	return strike_t + EXECUTION_DRAIN_TIME + 0.6
+
+## One slash of the execution: a bright line drawn from `from_offset` to `to_offset` (relative to
+## `center`) in a few frames, then fading out.
+func _execution_slash(center: Vector2, from_offset: Vector2, to_offset: Vector2, col: Color, t: float) -> void:
+	var slash := Line2D.new()
+	slash.width = 10.0
+	slash.default_color = col.lightened(0.6)
+	slash.position = center
+	slash.z_index = 59
+	slash.points = PackedVector2Array([from_offset, from_offset])
+	slash.modulate.a = 0.0
+	fx.add_child(slash)
+	var slash_tween := slash.create_tween()
+	slash_tween.tween_interval(t)
+	slash_tween.tween_property(slash, "modulate:a", 1.0, 0.01)
+	slash_tween.tween_method(func(k: float): slash.points = PackedVector2Array([from_offset, from_offset.lerp(to_offset, k)]), 0.0, 1.0, 0.12)
+	slash_tween.tween_property(slash, "modulate:a", 0.0, 0.4)
+	slash_tween.tween_callback(slash.queue_free)
+
 ## One frame of the screen shake: trauma falls from 1 to 0 and the offset scales with trauma squared.
 func _apply_screen_trauma(progress: float, rest_position: Vector2, strength: float) -> void:
 	var trauma := 1.0 - progress
@@ -3678,7 +3764,12 @@ func _animate(events: Array, old: Dictionary) -> float:
 	# and step it down/up at each hit's moment instead of jumping straight to the end.
 	var leader_hp := {}
 	for e in events:
-		if e["type"] in ["damage", "heal"] and e["uid"] < 0 and views.get(e["uid"]) is LeaderView:
+		if e["type"] == "leader_executed" and views.get(e["uid"]) is LeaderView:
+			# the execution animation drains the HP itself, so only rewind it to the value before the kill
+			if not leader_hp.has(e["uid"]):
+				leader_hp[e["uid"]] = views[e["uid"]].hp
+			leader_hp[e["uid"]] += int(e["hp_before"])
+		elif e["type"] in ["damage", "heal"] and e["uid"] < 0 and views.get(e["uid"]) is LeaderView:
 			if not leader_hp.has(e["uid"]):
 				leader_hp[e["uid"]] = views[e["uid"]].hp
 			leader_hp[e["uid"]] += e["amount"] if e["type"] == "damage" else -e["amount"]
@@ -3868,6 +3959,16 @@ func _animate(events: Array, old: Dictionary) -> float:
 					ward_ghost.z_index = 20
 				_ward_fx(ward_leader, ward_ghost, ward_t, _elem_color(e["card_id"]).lightened(0.3))
 				cursor = maxf(cursor, ward_t + WARD_FADE_DELAY + WARD_FADE_TIME)
+			"leader_executed":
+				# a card effect killed the Leader outright: not a hit, so it gets its own animation
+				var doomed_leader = views.get(e["uid"])
+				if doomed_leader is LeaderView:
+					var execution_color := Color("#ff4040")
+					if e.has("dot"):
+						execution_color = CardView.dot_badge_color(String(e["dot"]))
+					var execution_end := _execution_fx(doomed_leader, int(e["hp_before"]), cursor, execution_color)
+					_leader_ko_t = maxf(_leader_ko_t, execution_end - 0.5)
+					cursor = execution_end
 			"damage", "shield_break", "heal":
 				var dst: int = e["uid"]
 				var t := cursor
@@ -4027,6 +4128,8 @@ func _log_event(e: Dictionary) -> void:
 					_log("%s regenerou %d" % [_cname(regenerated.card_id), e["amount"]])
 		"death":
 			pass
+		"leader_executed":
+			_log("O Líder de %s foi executado!" % _pname(e["player"]))
 		"concede":
 			conceded = e["player"]
 			_log("%s desistiu da partida" % _pname(e["player"]))
