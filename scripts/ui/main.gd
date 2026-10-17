@@ -3042,10 +3042,10 @@ func _ghost(card_id: String, inst: Dictionary, pose: Dictionary, size_scale := 1
 	return v
 
 ## Timing of an attack lunge: pull back, rush in, stay on the target a moment, walk back.
-const LUNGE_WINDUP_TIME := 0.16
-const LUNGE_STRIKE_TIME := 0.2
-const LUNGE_HOLD_TIME := 0.08
-const LUNGE_RETURN_TIME := 0.34
+const LUNGE_WINDUP_TIME := 0.1375
+const LUNGE_STRIKE_TIME := 0.1375
+const LUNGE_HOLD_TIME := 0.07
+const LUNGE_RETURN_TIME := 0.23
 ## When the attacker touches its target (where the hit lands), counted from the lunge start.
 const LUNGE_IMPACT_TIME := LUNGE_WINDUP_TIME + LUNGE_STRIKE_TIME
 const LUNGE_TOTAL_TIME := LUNGE_IMPACT_TIME + LUNGE_HOLD_TIME + LUNGE_RETURN_TIME
@@ -3064,8 +3064,8 @@ func _lunge(a: CardView, target: Control, t: float) -> void:
 		a.z_index = 20
 		var offset_to_target: Vector2 = ((_center_of(target) - _center_of(a)) * 0.72 / a.scale.x).rotated(-a.rotation)
 		var strike := a.create_tween()
-		strike.tween_property(a, "lunge", -offset_to_target * 0.12, LUNGE_WINDUP_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-		strike.tween_property(a, "lunge", offset_to_target, LUNGE_STRIKE_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		strike.tween_property(a, "lunge", -offset_to_target * 0.22, LUNGE_WINDUP_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		strike.tween_property(a, "lunge", offset_to_target, LUNGE_STRIKE_TIME).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
 		strike.tween_interval(LUNGE_HOLD_TIME)
 		strike.tween_property(a, "lunge", Vector2.ZERO, LUNGE_RETURN_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 		strike.tween_callback(func(): a.z_index = 0))
@@ -3282,7 +3282,7 @@ func _impact(target: Control, text: String, col: Color, t: float, hurt: bool) ->
 	if hurt and target is CardView:
 		var cv: CardView = target
 		tw.tween_callback(func(): cv.flash = 1.0)
-		tw.tween_method(func(k: float): cv.shake = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 7.0 * (1.0 - k), 0.0, 1.0, 0.32)
+		tw.tween_method(func(k: float): cv.shake = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 11.0 * (1.0 - k), 0.0, 1.0, 0.32)
 		tw.parallel().tween_property(cv, "flash", 0.0, 0.4)
 		tw.tween_callback(func(): cv.shake = Vector2.ZERO)
 	elif hurt and target is LeaderView:
