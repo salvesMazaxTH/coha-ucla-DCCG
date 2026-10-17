@@ -126,7 +126,7 @@ func resolve_stack() -> void:
 				var entering := game.find_unit(int(item["uid"]))
 				if entering != null:
 					game._announce(entering, effects, "on_enter")
-				game._run_effects(game._enter_context(p, int(item["uid"]), int(item["target"])), effects)
+				game._run_effects(game._enter_context(p, int(item["uid"]), int(item["target"]), int(item.get("target2", 0))), effects)
 			else:
 				var resolve_context := EffectContext.new(game, p, "on_play" if item["kind"] == "card" else "")
 				resolve_context.chosen_target = int(item["target"])

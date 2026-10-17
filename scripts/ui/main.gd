@@ -1975,7 +1975,8 @@ func _hint() -> String:
 			return "Escolha um campeão da sua mão para entrar em campo de graça."
 		return "Escolha uma carta da sua mão para descartar." if g.pending_search.get("discard_hand", false) else "Escolha uma das cartas reveladas."
 	if targeting.get("kind") == "enter":
-		return "Ao Entrar de %s: toque no alvo ou pule o efeito." % _cname(g.pending_enter.get("card_id", ""))
+		var which := "segundo alvo" if g.pending_enter.has("first") else "alvo"
+		return "Ao Entrar de %s: toque no %s ou pule o efeito." % [_cname(g.pending_enter.get("card_id", "")), which]
 	if targeting.get("kind") == "attack":
 		# say why some targets don't glow: a Provocação forces the challenge, any tapped enemy
 		# closes the face, and a unit that just came in with Ímpeto can only challenge
@@ -2333,8 +2334,12 @@ func _sync_enter_aim() -> void:
 			targeting = {}
 		return
 	var uid := int(g.pending_enter["uid"])
-	if targeting.get("kind") != "enter" or targeting["uid"] != uid:
-		targeting = {"kind": "enter", "uid": uid, "spec": g.pending_enter["spec"]}
+	var first_pick := int(g.pending_enter.get("first", 0)) # set once the first of two picks is made
+	if targeting.get("kind") != "enter" or targeting["uid"] != uid or int(targeting.get("first", 0)) != first_pick:
+		var asked_spec: String = g.pending_enter["spec2"] if first_pick != 0 else g.pending_enter["spec"]
+		targeting = {"kind": "enter", "uid": uid, "spec": asked_spec, "card_id": g.pending_enter["card_id"]}
+		if first_pick != 0:
+			targeting["first"] = first_pick
 		aim_drag = false
 		aim_start = Vector2.INF
 	if views.has(uid) and is_instance_valid(views[uid]):

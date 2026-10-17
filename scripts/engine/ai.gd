@@ -21,7 +21,8 @@ static func step(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 			return g.choose_search(p, _choose_search(g))
 		"enter_target":
 			var card_data := CardDB.card(g.pending_enter["card_id"])
-			var target := _pick_target(g, p, g.pending_enter["spec"], card_data, int(g.pending_enter["uid"]))
+			var asked_spec: String = g.pending_enter["spec2"] if g.pending_enter.has("first") else g.pending_enter["spec"]
+			var target := _pick_target(g, p, asked_spec, card_data, int(g.pending_enter["uid"]))
 			var events := g.choose_enter_target(p, target)
 			return events if not events.is_empty() else g.choose_enter_target(p, 0)
 		"discard":

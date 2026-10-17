@@ -990,13 +990,17 @@ func _test_condemn() -> void:
 	g.play_card(0, reaper_uid)
 	if g.phase == "enter_target":
 		g.choose_enter_target(0, victim_a.uid)
+	check(g.phase == "enter_target", "Ceifador: depois do primeiro alvo pede o segundo")
+	g.choose_enter_target(0, victim_a.uid)
+	check(victim_a.is_condemned() == false and g.phase == "enter_target", "Ceifador: não deixa repetir o mesmo alvo")
+	g.choose_enter_target(0, victim_c.uid)
 	if g.summon_window:
 		g.pass_priority(1)
 	var marked := 0
 	for victim in [victim_a, victim_b, victim_c]:
 		if victim.is_condemned():
 			marked += 1
-	check(victim_a.is_condemned() and marked == 2, "Ceifador: condena a escolhida e mais uma aleatória, duas distintas")
+	check(victim_a.is_condemned() and victim_c.is_condemned() and not victim_b.is_condemned() and marked == 2, "Ceifador: condena exatamente os dois alvos escolhidos")
 	var reaper := g.find_unit(reaper_uid)
 	if reaper != null:
 		_kill(g, reaper)
@@ -1515,6 +1519,67 @@ func _open_attacks(g: GameState) -> void:
 		if g.phase != "combat" or g.window != "pre_combat":
 			return
 		g.pass_priority(g.priority)
+	# the Leader ticks heal her owner too: 1 damage per marker, half rounded up, minimum 2
+	g.add_leader_dot_markers(1, "veneno", 5)
+	g._resolve_leader_dot(1, "veneno")
+	g._check_state()
+	check(g.players[0]["leader_hp"] == 23, "Tox Vipranna: tick de 5 de Veneno no Líder inimigo cura 3")
+	g.players[0]["leader_hp"] = 20
+	g.players[1]["leader_dots"].clear() # the first tick left 4 markers behind (Veneno decays 1 per tick)
+	g.add_leader_dot_markers(1, "veneno", 1)
+	g._resolve_leader_dot(1, "veneno")
+	g._check_state()
+	check(g.players[0]["leader_hp"] == 22, "Tox Vipranna: tick de 1 de Veneno no Líder inimigo cura o mínimo de 2")
+	g.players[0]["leader_hp"] = 20
+	g.add_leader_dot_markers(0, "veneno", 4)
+	g._resolve_leader_dot(0, "veneno")
+	check(g.players[0]["leader_hp"] == 16, "Tox Vipranna: Veneno no Líder dela só fere, não cura")
+
+	# Julian: played from the hand, his Ao Entrar asks for two picks after he enters: who takes the 2 damage, then who gets the Veneno
+	g = _new_game()
+	_quiet(g)
+	var julian_hurt := _put(g, 1, "t_target_dummy")
+	var julian_poisoned := _put(g, 1, "t_target_dummy")
+	var julian_uid := _give(g, 0, "julian")
+	g.players[0]["momentum"] = 10
+	check(not g.play_card(0, julian_uid).is_empty(), "Julian: dá pra jogar da mão sem alvo extra")
+	check(g.phase == "enter_target" and not g.pending_enter.has("first"), "Julian: primeiro pede o alvo do dano")
+	g.choose_enter_target(0, julian_hurt.uid)
+	check(g.phase == "enter_target" and int(g.pending_enter.get("first", 0)) == julian_hurt.uid, "Julian: depois do primeiro alvo pede o segundo (Veneno)")
+	g.choose_enter_target(0, julian_poisoned.uid)
+	g.stack_system().settle()
+	g._flush()
+	check(julian_hurt.damage == 2 and int(julian_hurt.dot_markers.get("veneno", 0)) == 0, "Julian: o primeiro alvo toma 2 de dano e nenhum Veneno")
+	check(julian_poisoned.damage == 0 and int(julian_poisoned.dot_markers.get("veneno", 0)) == 1, "Julian: o segundo alvo toma 1 Veneno e nenhum dano")
+	# the same unit may take both
+	g = _new_game()
+	_quiet(g)
+	var julian_both := _put(g, 1, "t_target_dummy")
+	julian_uid = _give(g, 0, "julian")
+	g.players[0]["momentum"] = 10
+	g.play_card(0, julian_uid)
+	g.choose_enter_target(0, julian_both.uid)
+	g.choose_enter_target(0, julian_both.uid)
+	g.stack_system().settle()
+	g._flush()
+	check(julian_both.damage == 2 and int(julian_both.dot_markers.get("veneno", 0)) == 1, "Julian: pode dar dano e Veneno na mesma unidade")
+	# declining the second pick keeps the damage and drops only the Veneno
+	g = _new_game()
+	_quiet(g)
+	var julian_half := _put(g, 1, "t_target_dummy")
+	julian_uid = _give(g, 0, "julian")
+	g.players[0]["momentum"] = 10
+	g.play_card(0, julian_uid)
+	g.choose_enter_target(0, julian_half.uid)
+	g.choose_enter_target(0, 0)
+	g.stack_system().settle()
+	g._flush()
+	check(g.phase == "main" and julian_half.damage == 2 and int(julian_half.dot_markers.get("veneno", 0)) == 0, "Julian: pular o segundo alvo mantém o dano e tira só o Veneno")
+	# no unit may ask for a second pick when played: its picks are asked after it enters
+	for unit_id in CardDB.data()["cards"]:
+		var unit_data: Dictionary = CardDB.card(unit_id)
+		if unit_data["type"] == "unit":
+			check(g.second_spec(unit_data) == "", "%s: unidade não pede segundo alvo ao ser jogada (o Ao Entrar pergunta depois)" % unit_id)
 
 ## One attack: `attacker` taps and hits `target_uid` (0 = the enemy Leader's face).
 func _hit(g: GameState, attacker: Card, target_uid := 0) -> Array:

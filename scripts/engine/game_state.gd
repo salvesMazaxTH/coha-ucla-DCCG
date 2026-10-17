@@ -398,6 +398,8 @@ func target_spec(effects: Array) -> String:
 ## (Relâmpagos Gêmeos; "same_target_ok" on the card lets both picks be the same target).
 ## A "fight" effect names its second unit with "second_target" instead.
 func second_spec(cd: Dictionary) -> String:
+	if cd["type"] == "unit":
+		return "" # a unit's Ao Entrar picks its targets after it enters (see enter_second_spec)
 	for e in cd.get("effects", []):
 		if e.get("pick2", false):
 			return e["target"]
@@ -438,6 +440,14 @@ func enter_spec(cd: Dictionary) -> String:
 		if e.get("trigger", "") == "on_enter":
 			on_enter.append(e)
 	return target_spec(on_enter)
+
+## Target spec of the second pick of a unit's Ao Entrar (an on_enter effect with "pick2": true), or "".
+## It is asked after the first pick; "same_target_ok" on the card lets both picks be the same target.
+func enter_second_spec(cd: Dictionary) -> String:
+	for e in cd.get("effects", []):
+		if e.get("trigger", "") == "on_enter" and e.get("pick2", false):
+			return e["target"]
+	return ""
 
 ## Momentum cost of a card for player p, after its cost_reduction effects (no trigger: they apply
 ## wherever the card is, not only on the board, so they are not "Constante")
@@ -1081,25 +1091,46 @@ func discard(p: int, hand_uids: Array) -> Array:
 
 ## Picks the target of the pending Ao Entrar (0 = decline: its targeted effects are skipped,
 ## the rest still happen), then the unit's summon response window opens.
+## An Ao Entrar with a second pick asks twice (pending_enter["first"] holds the first answer):
+## declining the first pick skips every targeted effect, declining the second skips only the "pick2" ones.
 func choose_enter_target(p: int, target: int) -> Array:
 	if phase != "enter_target" or p != decider():
 		return []
 	var uid := int(pending_enter["uid"])
-	if target != 0 and not valid_targets(p, pending_enter["spec"], uid).has(target):
+	var asking_second: bool = pending_enter.has("first")
+	var asked_spec: String = pending_enter["spec2"] if asking_second else pending_enter["spec"]
+	if target != 0 and not valid_targets(p, asked_spec, uid).has(target):
 		return []
+	var same_target_ok: bool = CardDB.card(pending_enter["card_id"]).get("same_target_ok", false)
+	if asking_second and target != 0 and target == int(pending_enter["first"]) and not same_target_ok:
+		return []
+	if not asking_second and target != 0 and pending_enter.get("spec2", "") != "":
+		# the second pick comes next, unless nothing is left to pick
+		var second_options := valid_targets(p, pending_enter["spec2"], uid)
+		if not same_target_ok:
+			second_options.erase(target)
+		if not second_options.is_empty():
+			pending_enter["first"] = target
+			_emit({"type": "enter_target", "player": p, "uid": uid, "card_id": pending_enter["card_id"]})
+			return _flush()
+	var first_target: int = int(pending_enter["first"]) if asking_second else target
+	var second_target: int = target if asking_second else 0
 	var respond: bool = pending_enter.get("respond", false)
 	pending_enter.clear()
 	phase = "main"
 	var c := find_unit(uid)
 	var effects: Array = card_of(c)["effects"]
-	if target == 0:
+	if first_target == 0 or (asking_second and second_target == 0):
 		_emit({"type": "enter_skip", "player": p, "uid": uid, "card_id": c.card_id})
-		var rest: Array = []
-		for e in effects:
-			if target_spec([e]) == "":
-				rest.append(e)
-		effects = rest
-	_trigger_enter(p, c, effects, target, respond)
+	# a declined (or impossible) pick drops the effects that needed it, the rest still happen
+	var rest: Array = []
+	for e in effects:
+		var needs_pick: bool = target_spec([e]) != ""
+		var dropped: bool = needs_pick and (first_target == 0 or (e.get("pick2", false) and second_target == 0))
+		if not dropped:
+			rest.append(e)
+	effects = rest
+	_trigger_enter(p, c, effects, first_target, respond, second_target)
 	_check_state()
 	stack_system().after_search()
 	stack_system().settle()
@@ -1351,7 +1382,7 @@ func _summon(p: int, c: Card, legendary: bool, target: int, over: Dictionary = {
 	if only_itself and target == 0:
 		target = uid
 	if ask and spec != "" and not enter_options.is_empty() and not only_itself:
-		pending_enter = {"player": p, "uid": uid, "card_id": card_id, "spec": spec, "respond": respond}
+		pending_enter = {"player": p, "uid": uid, "card_id": card_id, "spec": spec, "spec2": enter_second_spec(cd), "respond": respond}
 		phase = "enter_target"
 		_emit({"type": "enter_target", "player": p, "uid": uid, "card_id": card_id})
 		return
@@ -1361,12 +1392,12 @@ func _summon(p: int, c: Card, legendary: bool, target: int, over: Dictionary = {
 	_trigger_enter(p, c, cd["effects"], target, respond)
 
 ## Runs the unit's Ao Entrar `effects`, or (respond) puts them on the stack so the opponent can answer first.
-func _trigger_enter(p: int, c: Card, effects: Array, target: int, respond: bool) -> void:
+func _trigger_enter(p: int, c: Card, effects: Array, target: int, respond: bool, second_target := 0) -> void:
 	if respond and _has_enter_effects(effects):
-		stack_system().push(p, "enter_trigger", c.uid, c.card_id, target, "instantaneo")
+		stack_system().push(p, "enter_trigger", c.uid, c.card_id, target, "instantaneo", second_target)
 		return
 	_announce(c, effects, "on_enter")
-	_run_effects(_enter_context(p, c.uid, target), effects)
+	_run_effects(_enter_context(p, c.uid, target, second_target), effects)
 
 func _has_enter_effects(effects: Array) -> bool:
 	for e in effects:
@@ -1383,10 +1414,11 @@ func _announce_spell_cast(p: int, spell: Card, cd: Dictionary) -> void:
 	bus().emit(cast)
 
 ## Context for a unit's Ao Entrar effects; `target` is the ally the player chose (0 if none).
-func _enter_context(p: int, uid: int, target: int) -> EffectContext:
+func _enter_context(p: int, uid: int, target: int, second_target := 0) -> EffectContext:
 	var context := EffectContext.new(self, p, "on_enter")
 	context.self_uid = uid
 	context.chosen_target = target
+	context.second_target = second_target
 	return context
 
 ## Tells the UI that unit c's `trigger` went off, so it can show where the effects that

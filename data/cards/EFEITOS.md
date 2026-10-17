@@ -8,7 +8,7 @@ Um efeito é um objeto:
 { "trigger": "on_enter", "if": "momentum_left", "action": "damage", "target": "enemy_unit", "amount": 2 }
 ```
 
-Campos comuns: `trigger` (ver Eventos), `if` (ver Condições), `action`, `target`, `pick2` (usa a segunda escolha da carta), `once_per_turn`, `own_turn_only` (só funciona no turno do dono da carta), `not_in_combat`, `only_from_spell` (Ao Sofrer Dano só dispara se o dano veio de um feitiço sendo resolvido; Reflexão e combate não contam), `not_token` (Aliado Morre ignora a morte de ficha), `dying_card` (Aliado Morre só dispara se quem morreu é a carta com esse id, ex.: o Luto de Vael com `"myrra"`).
+Campos comuns: `trigger` (ver Eventos), `if` (ver Condições), `action`, `target`, `pick2` (usa a segunda escolha da carta; em feitiços as duas são feitas ao jogar, em unidades o Ao Entrar pergunta o segundo alvo logo depois do primeiro, e `same_target_ok` na carta deixa repetir o alvo), `once_per_turn`, `own_turn_only` (só funciona no turno do dono da carta), `not_in_combat`, `only_from_spell` (Ao Sofrer Dano só dispara se o dano veio de um feitiço sendo resolvido; Reflexão e combate não contam), `not_token` (Aliado Morre ignora a morte de ficha), `dying_card` (Aliado Morre só dispara se quem morreu é a carta com esse id, ex.: o Luto de Vael com `"myrra"`).
 
 ## Ações
 

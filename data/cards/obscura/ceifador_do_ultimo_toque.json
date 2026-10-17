@@ -18,10 +18,11 @@
     {
       "trigger": "on_enter",
       "action": "condemn",
-      "target": "random_enemy_unit"
+      "target": "enemy_unit",
+      "pick2": true
     }
   ],
-  "text": "Ao Entrar: condene uma unidade inimiga e mais uma aleatória. No início do seu próximo turno, elas morrem, mesmo que este Ceifador já tenha saído de campo.",
+  "text": "Ao Entrar: condene duas unidades inimigas à sua escolha. No início do seu próximo turno, elas morrem, mesmo que este Ceifador já tenha saído de campo.",
   "flavor": "Ele não precisa erguer a lâmina. Basta que a sombra encoste.",
   "tags": []
 }
