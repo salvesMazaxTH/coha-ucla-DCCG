@@ -16,6 +16,11 @@ var game: GameState
 ## An attack whose Ao Atacar put something on the stack (a Bola de Neve): its combat damage waits
 ## until the stack is empty. {"attacker": uid, "target": uid}, or empty when no attack is waiting.
 var pending_attack: Dictionary = {}
+## Set by a "decoy" effect while an attack's triggers resolve (Hikari's Fantoche de Trapos): the unit that takes the
+## attacker's blow instead of the challenged one, and the unit that takes the defender's counter-blow
+## instead of the attacker. 0 = nobody. Read once by attack() and then cleared.
+var redirect_hit_to := 0
+var redirect_counter_to := 0
 
 func _init(game_state: GameState) -> void:
 	game = game_state
@@ -147,13 +152,21 @@ func attack(player: int, attacker_uid: int, target_uid: int) -> Array:
 	attacker.exhausted = true # it stays tapped between the two attacks of Ataque Duplo too
 	attacker.attacks_made += 1
 	game._emit({"type": "attack", "player": player, "attacker": attacker_uid, "target": target_uid})
+	redirect_hit_to = 0
+	redirect_counter_to = 0
 	# triggers: Ao Atacar always; Ao Desafiar / Ao Ser Desafiada only when a unit is challenged
 	game._fire(attacker, "on_attack", target_uid if defender_unit != null else 0)
 	if defender_unit != null:
 		game._fire(attacker, "on_challenge", target_uid)
 		game._fire(defender_unit, "on_challenged", attacker_uid)
 	game._check_state()
-	pending_attack = {"attacker": attacker_uid, "target": target_uid}
+	# a decoy summoned by the triggers above takes the blow (and/or the counter-blow) instead
+	var struck_uid := target_uid
+	if redirect_hit_to != 0 and game.find_unit(redirect_hit_to) != null:
+		struck_uid = redirect_hit_to
+	pending_attack = {"attacker": attacker_uid, "target": struck_uid, "counter_to": redirect_counter_to}
+	redirect_hit_to = 0
+	redirect_counter_to = 0
 	finish_pending_attack() # does nothing yet when the triggers left something on the stack
 	game.stack_system().settle()
 	return game._flush()
@@ -167,14 +180,15 @@ func finish_pending_attack() -> void:
 	pending_attack = {}
 	if game.phase == "over":
 		return
-	_exchange_damage(int(attack_info["attacker"]), int(attack_info["target"]))
+	_exchange_damage(int(attack_info["attacker"]), int(attack_info["target"]), int(attack_info.get("counter_to", 0)))
 	if game.phase != "over" and not has_any_attacker():
 		end_combat()
 
 ## The attacker and its target deal their combat damage in Rapidez order: the faster one strikes
 ## first, equal Rapidez strike at the same time. A unit that is already dead (a trigger above or the
 ## faster strike may have killed it) deals nothing. Hitting the Leader takes nothing back.
-func _exchange_damage(attacker_uid: int, target_uid: int) -> void:
+## `counter_uid` (a decoy on the attacker's side) takes the defender's counter-blow instead of the attacker.
+func _exchange_damage(attacker_uid: int, target_uid: int, counter_uid := 0) -> void:
 	var defending_player := game.opponent(game.active)
 	game._emit({"type": "combat_damage"})
 	game._combat_damage = true
@@ -200,7 +214,10 @@ func _exchange_damage(attacker_uid: int, target_uid: int) -> void:
 		defender_unit = game.find_unit(target_uid)
 		attacker = game.find_unit(attacker_uid)
 		if defender_unit != null and attacker != null and strike_step(defender_unit) == step:
-			game._deal_damage(attacker.uid, _blow_damage(defender_unit, attacker.uid), defender_unit)
+			var counter_victim := game.find_unit(counter_uid) if counter_uid > 0 else null
+			if counter_victim == null:
+				counter_victim = attacker
+			game._deal_damage(counter_victim.uid, _blow_damage(defender_unit, counter_victim.uid), defender_unit)
 		game._check_state()
 	# a Leader that drops to 0 still takes the remaining strikes (overkill); the result is decided once, here
 	game._combat_damage = false
@@ -260,6 +277,22 @@ func dodges(c: Card, source: Card) -> bool:
 	if rule.has("max_rapidez"):
 		return source.rapidez_total() <= int(rule["max_rapidez"])
 	return source.rapidez_total() < c.rapidez_total()
+
+## Will `defender` get to hurt `attacker` with its counter-blow when `attacker` challenges it? No when it
+## deals 0 damage, or when the attacker strikes strictly first (more Rapidez) and the blow surely kills it
+## (Escudo, Esquiva, Indestrutível and Armadura are taken into account; a Crítico only adds damage, so it is
+## ignored). Used by the Decoy of Hikari so it is only summoned when there is a counter-blow to dodge.
+func defender_will_counter(attacker: Card, defender: Card) -> bool:
+	if game.atk_of(defender) <= 0:
+		return false
+	if strike_step(attacker) <= strike_step(defender):
+		return true
+	if game.has_kw(defender, "indestrutivel") or defender.shield:
+		return true
+	if game.has_kw(defender, "esquiva") and defender.dodge_turn != game.turn and dodges(defender, attacker):
+		return true
+	var blow := game.damage_after_armor(defender, game.atk_of(attacker))
+	return blow < game.hp_left(defender)
 
 ## The strike steps of one combat, fastest first (Rapidez 3 down to 0).
 const STRIKE_STEPS := [3, 2, 1, 0]

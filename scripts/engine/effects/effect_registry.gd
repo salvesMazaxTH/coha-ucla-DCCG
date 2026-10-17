@@ -31,6 +31,7 @@ static var ACTIONS: Dictionary = {
 	"summon_hand_pick": DeckEffect,
 	"fight": FightEffect,
 	"summon": SummonEffect,
+	"decoy": DecoyEffect,
 	"mill": MillEffect,
 	"fatigue_burn": FatigueBurnEffect,
 	"mill_pick": MillEffect,

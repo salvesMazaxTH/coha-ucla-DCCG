@@ -1,0 +1,20 @@
+{
+  "name": "Fantoche de Trapos",
+  "type": "unit",
+  "rarity": "common",
+  "token": true,
+  "inert": true,
+  "species": [
+    "construto"
+  ],
+  "essence": "venenosa",
+  "cost": 0,
+  "atk": 0,
+  "hp": 2,
+  "keywords": [],
+  "art": "venenosa/hikari_dummy.webp",
+  "effects": [],
+  "text": "Ficha: não vai para o cemitério ao morrer.\nInerte: não ataca, não vira e não faz nada.",
+  "flavor": "Um tronco lascado em roupas vazias.",
+  "tags": []
+}

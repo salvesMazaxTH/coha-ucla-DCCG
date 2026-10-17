@@ -367,7 +367,7 @@ func is_frozen(c: Card) -> bool:
 func can_attack(c: Card) -> bool:
 	# a tapped unit may attack again only while it still has attacks left (Ataque Duplo)
 	var has_attack_left := not c.exhausted or (c.attacks_made > 0 and c.attacks_made < attacks_allowed(c))
-	return has_attack_left and not c.is_frozen() and (not c.sick or has_kw(c, "impeto") or has_kw(c, "rompante"))
+	return has_attack_left and not c.data().get("inert", false) and not c.is_frozen() and (not c.sick or has_kw(c, "impeto") or has_kw(c, "rompante"))
 
 ## Attacks per turn: 2 with Ataque Duplo, which a card can also earn by reaching Crítico 4
 ## ("critico_maximo": {"ataque_duplo": true}, Vael); otherwise 1.

@@ -50,6 +50,7 @@ func _init() -> void:
 	_test_leader_poison()
 	_test_veneno_hold()
 	_test_venenosa_deck()
+	_test_hikari_decoy()
 	_test_provocacao()
 	_test_persistent_damage()
 	_test_triggers()
@@ -1465,6 +1466,75 @@ func _test_veneno_hold() -> void:
 func _next_turn(g: GameState) -> void:
 	g.end_turn(g.active)
 	g._flush()
+
+## Hikari's Decoy: a 0/2 inert token that takes the blow in her place (when challenged) or the counter-blow
+## (when she challenges, but only if she would have suffered it).
+func _test_hikari_decoy() -> void:
+	_tcard("t_hitter", 3, 5, []) # strikes at Rapidez 0
+	_tcard("t_counter", 2, 5, [])
+	_tcard("t_frail", 2, 3, [])
+	var decoy_count := func(g: GameState, p: int) -> int:
+		var total := 0
+		for unit: Card in g.players[p]["board"]:
+			if unit.card_id == "hikari_dummy":
+				total += 1
+		return total
+
+	# challenged: the Decoy takes the blow and Hikari is untouched; the token leaves no card behind
+	var g := _new_game()
+	_quiet(g)
+	var hikari := _put(g, 1, "hikari")
+	hikari.exhausted = true
+	var hitter := _put(g, 0, "t_hitter")
+	var second_hitter := _put(g, 0, "t_hitter") # ready before combat starts, so the same combat goes on
+	_hit(g, hitter, hikari.uid) # no _pass_windows here: passing in the attacks window would end the combat
+	check(hikari.damage == 0 and hitter.damage == 0, "Decoy: ao ser desafiada, a Hikari não recebe o golpe (e nada volta no atacante)")
+	check(decoy_count.call(g, 1) == 0 and g.players[1]["graveyard"].is_empty(), "Decoy: a ficha morre e não deixa carta no cemitério")
+	# once per turn: a second challenger in the same turn hits Hikari for real
+	_hit(g, second_hitter, hikari.uid)
+	check(g.find_unit(hikari.uid) == null and decoy_count.call(g, 1) == 0, "Decoy: só uma vez por turno ao ser desafiada")
+
+	# board full: no room for the Decoy, Hikari takes the blow
+	g = _new_game()
+	_quiet(g)
+	hikari = _put(g, 1, "hikari")
+	hikari.exhausted = true
+	while g.has_free_slot(1):
+		_put(g, 1, "t_frail")
+	hitter = _put(g, 0, "t_hitter")
+	_hit(g, hitter, hikari.uid)
+	_pass_windows(g)
+	check(g.find_unit(hikari.uid) == null, "Decoy: campo cheio, a Hikari recebe o golpe")
+
+	# challenging: the counter-blow lands on the Decoy
+	g = _new_game()
+	_quiet(g)
+	hikari = _put(g, 0, "hikari")
+	var counter := _put(g, 1, "t_counter")
+	counter.exhausted = true
+	_hit(g, hikari, counter.uid)
+	_pass_windows(g)
+	check(counter.damage == 3 and hikari.damage == 0, "Decoy: ao desafiar, o revide cai no Decoy (alvo %d, Hikari %d)" % [counter.damage, hikari.damage])
+	check(decoy_count.call(g, 0) == 0, "Decoy: o Decoy que tomou o revide morreu (0/2 contra 2 de dano)")
+
+	# challenging something she kills first (Rapidez 1 vs 0): no counter-blow, so no Decoy is summoned
+	g = _new_game()
+	_quiet(g)
+	hikari = _put(g, 0, "hikari")
+	var frail := _put(g, 1, "t_frail")
+	frail.exhausted = true
+	_hit(g, hikari, frail.uid)
+	_pass_windows(g)
+	check(g.find_unit(frail.uid) == null and hikari.damage == 0, "Decoy: Hikari mata antes e não sofre revide")
+	check(decoy_count.call(g, 0) == 0, "Decoy: sem revide para evitar, nada é invocado")
+
+	# the Decoy itself never attacks or taps
+	g = _new_game()
+	var token := _put(g, 0, "hikari_dummy")
+	check(not g.can_attack(token), "Decoy: inerte, não pode atacar")
+	var tapper: Effect = EffectRegistry.parse_list([{"action": "exhaust", "target": "enemy_unit"}])[0]
+	tapper.apply(EffectContext.new(g, 1, ""), token.uid)
+	check(not token.exhausted, "Decoy: inerte, nem efeito consegue virá-lo")
 
 ## The Venenosa cards that need engine support: Hikari's damage per marker, Tox Vipranna healing from
 ## Veneno ticks, Az'Kharon poisoning whoever challenges it.

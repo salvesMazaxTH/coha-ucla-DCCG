@@ -10,7 +10,7 @@
   "atk": 3,
   "hp": 2,
   "keywords": [
-    "esquiva"
+    "rapidez:1"
   ],
   "art": "venenosa/hikari.webp",
   "effects": [
@@ -20,9 +20,23 @@
       "target": "enemy_unit",
       "amount": 2,
       "amount_from": "target_veneno_markers"
+    },
+    {
+      "trigger": "on_challenged",
+      "action": "decoy",
+      "target": "self",
+      "card": "hikari_dummy",
+      "once_per_turn": true
+    },
+    {
+      "trigger": "on_challenge",
+      "action": "decoy",
+      "target": "self",
+      "card": "hikari_dummy",
+      "once_per_turn": true
     }
   ],
-  "text": "Esquiva.\nAo Entrar: cause 2 de dano a uma unidade inimiga por marcador de Veneno nela.",
+  "text": "Rapidez 1.\nAo Entrar: cause 2 de dano a uma unidade inimiga por marcador de Veneno nela.\nAo Ser Desafiada (uma vez por turno): invoque um Fantoche de Trapos (ficha 0/2 inerte) que recebe o golpe no lugar dela.\nAo Desafiar (uma vez por turno): se ela sofreria revide, invoque um Fantoche de Trapos (ficha 0/2 inerte) que recebe o revide no lugar dela.",
   "flavor": "A lâmina só faz o favor de abrir a porta.",
   "tags": []
 }
