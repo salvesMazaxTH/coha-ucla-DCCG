@@ -28,6 +28,7 @@ var keywords: Array = []
 var temp_keywords: Array = []
 var shield := false
 var temp_armor := 0 ## extra Armadura that ends when its owner's next turn starts
+var turn_armor := 0 ## extra Armadura that ends with the current turn ("temp": true on a buff)
 var temp_atk_until_next_turn := 0 ## extra Ataque that also ends when its owner's next turn starts ("atk_temp", e.g. Morakhan)
 var armor := 0 ## Armadura: every damage instance is reduced by this much (stacks when given more)
 var critico := 0 ## Crítico level 0-4 (0 = none): each combat blow has level x 25% chance to be a critical hit
@@ -88,6 +89,7 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	rapidez = int(cd.get("rapidez", 0))
 	armor = int(cd.get("armor", 0))
 	temp_armor = 0
+	turn_armor = 0
 	temp_atk_until_next_turn = 0
 	spell_shield_until_next_turn = false
 	critico = int(cd.get("critico", 0))
@@ -128,7 +130,7 @@ func has_kw(kw: String) -> bool:
 	return keywords.has(kw)
 
 func armor_total() -> int:
-	return armor + temp_armor
+	return armor + temp_armor + turn_armor
 
 ## ATK right now (a Congelada unit keeps its full ATK: it still strikes back when challenged).
 func atk_total() -> int:
@@ -179,6 +181,8 @@ func to_dict() -> Dictionary:
 		d["armor"] = armor
 	if temp_armor > 0:
 		d["temp_armor"] = temp_armor
+	if turn_armor > 0:
+		d["turn_armor"] = turn_armor
 	if temp_atk_until_next_turn > 0:
 		d["temp_atk_until_next_turn"] = temp_atk_until_next_turn
 	if spell_shield_until_next_turn:
@@ -245,6 +249,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.temp_keywords = d["temp_keywords"]
 	c.armor = int(d.get("armor", 0))
 	c.temp_armor = int(d.get("temp_armor", 0))
+	c.turn_armor = int(d.get("turn_armor", 0))
 	c.temp_atk_until_next_turn = int(d.get("temp_atk_until_next_turn", 0))
 	c.spell_shield_until_next_turn = bool(d.get("spell_shield_until_next_turn", false))
 	c.temp_hp = int(d.get("temp_hp", 0))

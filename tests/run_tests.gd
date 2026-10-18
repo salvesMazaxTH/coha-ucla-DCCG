@@ -5028,6 +5028,16 @@ func _test_sagrada_engine() -> void:
 	check(baluarte_data.get("death_ward", false) and not baluarte_data.has("redirects_destroy")
 		and int(baluarte_data["activated"]["cost"]) == 2 and baluarte_data["activated"]["speed"] == "rapido",
 		"Baluarte: proteção manual Ao Ativar custa 2 e é Rápida")
+	# Bênção de Ferro Batido: Armadura 2 and Roubo de Vida, both only until the end of this turn
+	_tcard("t_blessing_target", 2, 4, [])
+	var blessing_game := _new_game()
+	_quiet(blessing_game)
+	blessing_game.players[0]["momentum"] = 10
+	var blessed := _put(blessing_game, 0, "t_blessing_target")
+	_cast_and_resolve(blessing_game, 0, "bencao_de_ferro_batido", blessed.uid)
+	check(blessed.armor_total() == 2 and blessing_game.has_kw(blessed, "roubo_de_vida"), "Bênção: Armadura 2 e Roubo de Vida neste turno")
+	blessing_game._finish_turn()
+	check(blessed.armor_total() == 0 and blessed.armor == 0 and not blessing_game.has_kw(blessed, "roubo_de_vida"), "Bênção: Armadura e Roubo de Vida somem no fim do turno")
 	# Pacifista: the combat blow is always 0, even with a big Ataque, but it still takes the retaliation
 	_tcard("t_pacifist", 5, 6, [])
 	CardDB.data()["cards"]["t_pacifist"]["keywords"] = ["pacifista", "toxico"]

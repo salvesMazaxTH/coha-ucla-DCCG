@@ -2226,6 +2226,7 @@ func _finish_turn() -> void:
 			c.damage = maxi(0, c.damage - c.temp_hp)
 			c.temp_hp = 0
 			c.temp_atk = 0
+			c.turn_armor = 0
 			c.temp_critico = 0
 			# Regeneração: at the end of every turn all of this unit's damage is healed
 			if has_kw(c, "regeneracao") and c.damage > 0:

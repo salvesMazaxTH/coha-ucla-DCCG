@@ -2,7 +2,7 @@ class_name BuffEffect
 extends Effect
 ## "buff": +atk/+hp and keywords on the target unit ("temp": true = attack, hp and keywords
 ## only until end of turn). "armor": N adds Armadura permanently (stacks with what it already has);
-## "armor_temp": N is the same until its owner's next turn starts. "atk_temp": N does that for Ataque.
+## "armor_temp": N is the same until its owner's next turn starts. With "temp": true "armor" also lasts only until end of turn. "atk_temp": N does that for Ataque.
 ## "armor_min": N raises the unit's Armadura to N when it is lower (nothing happens when it already has N or more).
 ## "spell_shield_temp": true gives Escudo de Feitiço only until its owner's next turn starts (a unit that already
 ## has a permanent Escudo de Feitiço keeps it as it is).
@@ -127,7 +127,10 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	unit.temp_atk_until_next_turn += temporary_attack_until_next_turn # ends when the unit's owner starts their next turn
 	attack_gain += temporary_attack_until_next_turn
 	unit.temp_armor += temporary_armor # lasts until the unit's owner starts their next turn
-	unit.armor += armor # Armadura stacks: giving Armadura X to a unit that has Y leaves X + Y
+	if temporary: # "temp": true makes the plain Armadura last only until the end of this turn
+		unit.turn_armor += armor
+	else:
+		unit.armor += armor # Armadura stacks: giving Armadura X to a unit that has Y leaves X + Y
 	var armor_raised_to := 0
 	if minimum_armor > unit.armor:
 		unit.armor = minimum_armor

@@ -819,7 +819,7 @@ static func armor_of_view(cd: Dictionary, instance: Dictionary) -> int:
 	if instance.has("armor_total"):
 		return int(instance["armor_total"])
 	if instance.has("damage"):
-		return int(instance.get("armor", 0)) + int(instance.get("temp_armor", 0))
+		return int(instance.get("armor", 0)) + int(instance.get("temp_armor", 0)) + int(instance.get("turn_armor", 0))
 	return int(cd.get("armor", 0))
 
 ## The number after the keyword "Crítico" (1-4): the live level on the board (it can grow in play, and
