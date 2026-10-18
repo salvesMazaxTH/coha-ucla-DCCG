@@ -3,6 +3,7 @@
   "type": "spell",
   "rarity": "common",
   "essence": "sagrada",
+  "art": "sagrada/sentenca_do_badalo.webp",
   "cost": 2,
   "effects": [
     { "trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 3 }

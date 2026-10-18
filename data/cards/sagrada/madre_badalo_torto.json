@@ -4,6 +4,7 @@
   "rarity": "epic",
   "species": ["humano"],
   "essence": "sagrada",
+  "art": "sagrada/madre_badalo_torto.webp",
   "cost": 5,
   "atk": 2,
   "hp": 6,

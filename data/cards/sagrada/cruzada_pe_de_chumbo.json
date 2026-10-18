@@ -4,6 +4,7 @@
   "rarity": "common",
   "species": ["humano"],
   "essence": "sagrada",
+  "art": "sagrada/cruzada_pe_de_chumbo.webp",
   "cost": 3,
   "atk": 3,
   "hp": 3,

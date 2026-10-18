@@ -67,7 +67,7 @@ Cada família é uma classe em `scripts/engine/targets/`.
 - **Escolhidos pelo jogador:** `enemy_unit`, `ally_unit`, `other_ally_unit`, `ally_or_own_leader` (unidade aliada ou o seu Líder), `any_unit`, `any`, `enemy_stack`
 - **Grupos:** `all_enemy_units`, `all_units`, `all_ally_units`, `other_ally_units`, `center_enemy_units` (meio do campo inimigo: 1 unidade se a quantidade é ímpar, as 2 do meio se é par)
 - **Líderes:** `enemy_leader`, `own_leader`, `both_leaders`
-- **Aleatórios:** `random_enemy_unit`, `random_enemy_unit_twice` (dois sorteios independentes, pode cair na mesma unidade), `random_frozen_enemy_unit` (só unidades já Congeladas), `random_enemy_and_adjacent`, `random_ally_unit`, `random_other_ally_unit`
+- **Aleatórios:** `random_enemy_unit`, `random_enemy_unit_twice` (dois sorteios independentes, pode cair na mesma unidade), `random_enemy_unit_spread` (`hits` sorteios independentes entre as unidades inimigas, 1 ponto de `amount` por sorteio; Repique Desgovernado), `random_frozen_enemy_unit` (só unidades já Congeladas), `random_enemy_and_adjacent`, `random_ally_unit`, `random_other_ally_unit`
 - **Da própria carta:** `self`, `self_card`, `opposed_unit`, `attack_target` (só em Ao Atacar: a unidade desafiada, ou o Líder inimigo se o ataque foi no Líder), `none`
 
 ## Condições (`if`)

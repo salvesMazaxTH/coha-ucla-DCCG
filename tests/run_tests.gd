@@ -4612,6 +4612,33 @@ func _test_glacial_combo() -> void:
 	var random_damage := EffectRegistry.parse({"action": "damage", "target": "random_enemy_unit", "amount": 1})
 	check(not random_damage.target.resolve(random_context, random_damage).is_empty(), "alvo aleatório de dano: continua podendo acertar unidade congelada")
 
+	# Repique Desgovernado: "hits" picks over the enemy units (each hit is 1 damage), nothing to pick on an empty board
+	var spread := EffectRegistry.parse({"action": "damage", "target": "random_enemy_unit_spread", "hits": 9, "amount": 1})
+	var spread_picks: Array = spread.target.resolve(random_context, spread)
+	check(spread_picks.size() == 9, "dano dividido: sorteia uma unidade por ponto de dano (%d)" % spread_picks.size())
+	var spread_only_enemy_units := true
+	for picked_uid in spread_picks:
+		spread_only_enemy_units = spread_only_enemy_units and pick_units.any(func(unit: Card) -> bool: return unit.uid == picked_uid)
+	check(spread_only_enemy_units, "dano dividido: só cai em unidades inimigas")
+	var spread_game := _new_game()
+	_quiet(spread_game)
+	spread_game.players[0]["momentum"] = 10
+	_tcard("t_spread_target", 1, 10, [])
+	var spread_victims: Array = [_put(spread_game, 1, "t_spread_target"), _put(spread_game, 1, "t_spread_target")]
+	var health_before := 0
+	for victim: Card in spread_victims:
+		health_before += spread_game.hp_left(victim)
+	_cast_and_resolve(spread_game, 0, "repique_desgovernado")
+	var health_after := 0
+	for victim: Card in spread_victims:
+		health_after += spread_game.hp_left(victim)
+	check(health_before - health_after == 9, "Repique Desgovernado: tira exatamente 9 de Vida somados das unidades inimigas (sem sobra de Vida alta)")
+	var empty_spread_game := _new_game()
+	_quiet(empty_spread_game)
+	empty_spread_game.players[0]["momentum"] = 10
+	_cast_and_resolve(empty_spread_game, 0, "repique_desgovernado")
+	check(empty_spread_game.players[1]["leader_hp"] == empty_spread_game.players[1]["leader_max"], "Repique Desgovernado: sem unidades inimigas não atinge o Líder")
+
 	# Chamado da Nevasca looks at the top 5 cards and finds a Glacial spell that costs 4 or less there, and nothing else
 	var search := _combo_game(3, 0, 10, 0)
 	var search_game: GameState = search["game"]

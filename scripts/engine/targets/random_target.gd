@@ -1,12 +1,12 @@
 class_name RandomTarget
 extends TargetSelector
-## Random picks with the match RNG: random_enemy (any enemy unit or the enemy Leader), random_enemy_unit, random_enemy_unit_twice (two independent picks, the same unit can be picked twice: 2 damage handed out one by one), random_frozen_enemy_unit
+## Random picks with the match RNG: random_enemy (any enemy unit or the enemy Leader), random_enemy_unit, random_enemy_unit_twice (two independent picks, the same unit can be picked twice: 2 damage handed out one by one), random_enemy_unit_spread (the effect's "hits" independent picks, same idea: "hits" points of damage handed out one by one), random_frozen_enemy_unit
 ## (only enemy units that are already Congeladas), random_enemy_and_adjacent, random_ally_unit, random_other_ally_unit. The RNG is only rolled when there is something
 ## to pick, so replays stay identical.
 ## A status effect (freeze, exhaust...) never rolls on a unit that already has that status: the pool only holds
 ## units that can still receive it (Effect.is_already_applied_to), and an empty pool means no target.
 
-const NAMES := ["random_enemy", "random_enemy_unit", "random_enemy_unit_twice", "random_frozen_enemy_unit", "random_enemy_and_adjacent", "random_ally_unit", "random_other_ally_unit"]
+const NAMES := ["random_enemy", "random_enemy_unit", "random_enemy_unit_twice", "random_enemy_unit_spread", "random_frozen_enemy_unit", "random_enemy_and_adjacent", "random_ally_unit", "random_other_ally_unit"]
 
 func resolve(context: EffectContext, effect: Effect) -> Array:
 	var game := context.game
@@ -35,6 +35,16 @@ func resolve(context: EffectContext, effect: Effect) -> Array:
 			if twice_pool.is_empty():
 				return []
 			return [twice_pool[game.rng.randi_range(0, twice_pool.size() - 1)], twice_pool[game.rng.randi_range(0, twice_pool.size() - 1)]]
+		"random_enemy_unit_spread":
+			var spread_pool: Array = []
+			for unit: Card in enemy_board:
+				spread_pool.append(unit.uid)
+			if spread_pool.is_empty():
+				return []
+			var spread_picks: Array = []
+			for hit in int(effect.raw.get("hits", 1)):
+				spread_picks.append(spread_pool[game.rng.randi_range(0, spread_pool.size() - 1)])
+			return spread_picks
 		"random_frozen_enemy_unit":
 			var frozen_pool: Array = []
 			for unit: Card in enemy_board:
