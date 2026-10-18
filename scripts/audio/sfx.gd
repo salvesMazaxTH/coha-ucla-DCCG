@@ -21,6 +21,8 @@ const SAME_SOUND_MIN_GAP_MS := 45
 ## Taken off every sound on top of its own level: the whole set a little quieter. The player's volume
 ## slider (0 to 100%) goes on top of this.
 const MASTER_TRIM_DB := -3.0
+## Slider position when the player has never touched it (the music starts at the same 50%).
+const DEFAULT_VOLUME := 0.5
 
 ## name -> files (".ogg" is added unless the name already has an extension, like "damage.wav"), volume in dB, random pitch spread (0.06 = from -6% to +6%),
 ## and optionally "speed" (1.0 = as recorded, 2.25 = more than twice as fast).
@@ -76,7 +78,7 @@ var _players: Array[AudioStreamPlayer] = []
 var _next_player := 0
 var _last_played_ms := {} ## name -> Time.get_ticks_msec() of its last play
 var _enabled := true
-var _volume := 1.0 ## 0.0 to 1.0, on top of each sound's own level
+var _volume := DEFAULT_VOLUME ## 0.0 to 1.0, on top of each sound's own level
 
 
 func _ready() -> void:
@@ -95,7 +97,7 @@ func _ready() -> void:
 	var settings := ConfigFile.new()
 	if settings.load(SETTINGS_PATH) == OK:
 		_enabled = bool(settings.get_value("audio", "sfx_on", true))
-		_volume = clampf(float(settings.get_value("audio", "sfx_volume", 1.0)), 0.0, 1.0)
+		_volume = clampf(float(settings.get_value("audio", "sfx_volume", DEFAULT_VOLUME)), 0.0, 1.0)
 
 
 static func sound_path(file_name: String) -> String:

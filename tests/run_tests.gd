@@ -135,6 +135,7 @@ func _test_sfx() -> void:
 		total_plays += int(step["plays"])
 	check(MusicScript.ROTEIRO.size() == 3 and total_plays == 6, "música: roteiro de 3 faixas, tocando 3x, 2x e 1x")
 	check(MusicScript.SETTINGS_PATH == SfxScript.SETTINGS_PATH, "música: salva no mesmo arquivo de configurações dos efeitos")
+	check(SfxScript.DEFAULT_VOLUME == 0.5 and MusicScript.DEFAULT_VOLUME == 0.5, "áudio: efeitos e música começam em 50%")
 	check(MusicScript.DEFAULT_VOLUME > 0.0 and MusicScript.DEFAULT_VOLUME < 1.0, "música: volume padrão fica no meio do slider")
 
 func _test_flavor() -> void:
