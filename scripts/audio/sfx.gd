@@ -42,7 +42,7 @@ const SOUNDS := {
 	"hit_heavy":      {"files": ["damage.wav"], "db": -10.0, "pitch": 0.04},
 	"direct_damage":  {"files": ["zap1", "zap2"], "db": -7.0, "pitch": 0.06},
 	"shield_break":   {"files": ["impactMetal_light_000", "impactMetal_light_001"], "db": -2.0, "pitch": 0.05},
-	"heal":           {"files": ["powerUp4", "powerUp7"], "db": -7.0, "pitch": 0.03},
+	"heal":           {"files": ["heal.wav"], "db": -6.0, "pitch": 0.03}, # from the old CSA (peak -5.5 dBFS)
 	"buff":           {"files": ["pepSound1", "pepSound2"], "db": -8.0, "pitch": 0.04},
 	"poison_tick":    {"files": ["drop_002", "drop_003"], "db": -5.0, "pitch": 0.08},
 	"crit":           {"files": ["impactMetal_heavy_000"], "db": -3.0, "pitch": 0.0},
