@@ -299,6 +299,7 @@ func _show_menu() -> void:
 		net.disconnect_server() ## the saved session stays: RETOMAR PARTIDA in the lobby
 		online = false
 	g = null
+	Music.stop()
 	_close_concede()
 	_clear_fx()
 	_clear()
@@ -369,6 +370,16 @@ func _show_menu() -> void:
 	var volume_control := _volume_slider(Vector2(280, 52))
 	volume_control.position = Vector2(stage_w - 300, 598.0 + BOT)
 	layer.add_child(volume_control)
+	# the music has its own switch and volume, stacked above the sound effects ones
+	var music_toggle := _toggle_button("MÚSICA", Music.is_enabled(), func():
+		Music.set_enabled(not Music.is_enabled())
+		_show_menu.call_deferred())
+	music_toggle.position = Vector2(stage_w - 300, 534.0 + BOT)
+	music_toggle.size = Vector2(280, 52)
+	layer.add_child(music_toggle)
+	var music_volume_control := _volume_slider(Vector2(280, 52), true)
+	music_volume_control.position = Vector2(stage_w - 300, 470.0 + BOT)
+	layer.add_child(music_volume_control)
 	var fs := _button("Tela cheia (F11)", _toggle_fullscreen)
 	fs.position = Vector2(stage_w - 300, 790.0 + BOT - 64.0)
 	fs.size = Vector2(280, 52)
@@ -405,6 +416,7 @@ func _start(ai: bool, deck_a: String, deck_b: String) -> void:
 		g.auto_pass[i] = _auto_pass_on() or _is_ai(i)
 	CardDB.reroll_flavor()
 	Sfx.play("card_shuffle")
+	Music.play_match()
 	log_lines = ["Partida iniciada. Escolha até 3 cartas para trocar."]
 	chronicle_entries.clear()
 	conceded = -1
@@ -886,6 +898,7 @@ func _on_net(m: Dictionary) -> void:
 			rs.set_auto_pass(rs.seat, _auto_pass_on())
 			vs_ai = false
 			online = true
+			Music.play_match() # a reconnect in the middle of a match keeps the music going
 			viewer = m["seat"]
 			pending_pass = false
 			opp_online = true
@@ -977,7 +990,10 @@ func _play_events(events: Array) -> void:
 	# the Victory/Defeat screen waits for the killing blow to land instead of spoiling it
 	if g.phase == "over" and _waiting_event_batches.is_empty():
 		# same moment as the Victory/Defeat screen (the last batch only, so a queue of batches does not announce it early)
-		Sfx.play_in(_match_end_sound(), maxf(_leader_ko_t + 0.7, end) if _leader_ko_t >= 0.0 else end)
+		var jingle_delay := maxf(_leader_ko_t + 0.7, end) if _leader_ko_t >= 0.0 else end
+		Sfx.play_in(_match_end_sound(), jingle_delay)
+		# the music dies away just as the jingle starts, so the jingle is heard on its own
+		get_tree().create_timer(jingle_delay).timeout.connect(Music.fade_out.bind(1.5))
 	if g.phase == "over" and _over_from >= 0 and end > 0.0:
 		var delay := maxf(_leader_ko_t + 0.7, end) if _leader_ko_t >= 0.0 else end
 		for n in layer.get_children().slice(_over_from):
@@ -2870,6 +2886,14 @@ func _open_pause_menu() -> void:
 		reopen.call())
 	sound_toggle.custom_minimum_size = Vector2(460, 52)
 	box.add_child(sound_toggle)
+	# the music has its own volume and switch, apart from the sound effects
+	var music_volume_control := _volume_slider(Vector2(460, 52), true)
+	box.add_child(music_volume_control)
+	var music_toggle := _toggle_button("MÚSICA", Music.is_enabled(), func():
+		Music.set_enabled(not Music.is_enabled())
+		reopen.call())
+	music_toggle.custom_minimum_size = Vector2(460, 52)
+	box.add_child(music_toggle)
 	var fullscreen_button := _button("Tela cheia (F11)", _toggle_fullscreen)
 	fullscreen_button.custom_minimum_size = Vector2(460, 48)
 	box.add_child(fullscreen_button)
@@ -4829,9 +4853,10 @@ func _sound_icon_button(button_size: float) -> Button:
 		icon.queue_redraw())
 	return button
 
-## The sound effects volume as a slider with a "VOLUME 70%" title (menu). Moving it changes the volume
-## live and saves it; letting go plays a click so the new level can be heard right away.
-func _volume_slider(control_size: Vector2) -> Control:
+## A volume slider with a "VOLUME DOS EFEITOS 70%" title (menu): the sound effects, or the music when
+## `for_music` is true (each has its own volume). Moving it changes the volume live and saves it;
+## letting go plays a click so the new level can be heard right away.
+func _volume_slider(control_size: Vector2, for_music := false) -> Control:
 	var holder := Control.new()
 	holder.custom_minimum_size = control_size
 	holder.size = control_size
@@ -4843,15 +4868,19 @@ func _volume_slider(control_size: Vector2) -> Control:
 	slider.min_value = 0.0
 	slider.max_value = 100.0
 	slider.step = 5.0
-	slider.value = roundf(Sfx.get_volume() * 100.0)
+	slider.value = roundf((Music.get_volume() if for_music else Sfx.get_volume()) * 100.0)
 	slider.position = Vector2(0, 24)
 	slider.size = Vector2(control_size.x, control_size.y - 24.0)
 	holder.add_child(slider)
+	var title_text := "VOLUME DA MÚSICA  %d%%" if for_music else "VOLUME DOS EFEITOS  %d%%"
 	var refresh_title := func(percent: float):
-		title_label.text = "VOLUME DOS EFEITOS  %d%%" % int(percent)
+		title_label.text = title_text % int(percent)
 	refresh_title.call(slider.value)
 	slider.value_changed.connect(func(percent: float):
-		Sfx.set_volume(percent / 100.0)
+		if for_music:
+			Music.set_volume(percent / 100.0)
+		else:
+			Sfx.set_volume(percent / 100.0)
 		refresh_title.call(percent))
 	slider.drag_ended.connect(func(_value_changed: bool): Sfx.play("ui_click"))
 	return holder

@@ -104,6 +104,7 @@ func _init() -> void:
 
 ## (The Sfx autoload does not exist in -s mode, so the script is loaded directly; its table and mapping are static.)
 const SfxScript := preload("res://scripts/audio/sfx.gd")
+const MusicScript := preload("res://scripts/audio/music.gd")
 
 ## Sound effects: every file in the SOUNDS table exists, and engine events map to the sound that fits.
 func _test_sfx() -> void:
@@ -127,6 +128,11 @@ func _test_sfx() -> void:
 	check(SfxScript.sound_for_event({"type": "ability", "player": 0}, false) == "", "sfx: poder de Líder é silencioso")
 	check(not SfxScript.SOUNDS.has("ability"), "sfx: o som do poder foi removido da tabela")
 	check(float(SfxScript.SOUNDS["card_shuffle"].get("speed", 1.0)) == 2.25, "sfx: embaralhar do início da partida toca 2,25x mais rápido")
+	# the match music is a separate autoload with its own settings, apart from the effects
+	var track := load(MusicScript.TRACK_PATH) as AudioStreamOggVorbis
+	check(track != null, "música: a faixa da partida existe e é um OGG")
+	check(MusicScript.SETTINGS_PATH == SfxScript.SETTINGS_PATH, "música: salva no mesmo arquivo de configurações dos efeitos")
+	check(MusicScript.DEFAULT_VOLUME > 0.0 and MusicScript.DEFAULT_VOLUME < 1.0, "música: volume padrão fica no meio do slider")
 
 func _test_flavor() -> void:
 	for id in CardDB.data()["cards"]:

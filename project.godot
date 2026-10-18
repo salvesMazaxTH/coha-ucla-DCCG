@@ -12,6 +12,7 @@ config/features=PackedStringArray("4.7")
 [autoload]
 
 Sfx="*res://scripts/audio/sfx.gd"
+Music="*res://scripts/audio/music.gd"
 
 [display]
 
