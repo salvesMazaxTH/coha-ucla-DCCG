@@ -47,6 +47,7 @@ var players: Array = []
 var active := 0
 var turn := 0
 var veneno_held_until := 0 ## while turn <= this, no Veneno marker is consumed anywhere (Greve Geral dos Antídotos)
+var veneno_lethal_until := 0 ## while turn <= this, a unit's Veneno tick deals damage equal to its current Vida (Neráxia)
 var first := 0 ## who takes turn 1 (skips that draw, mulligans first; the other gets the early Momentum bonus)
 var phase := "mulligan"
 var winner := -1 ## -1 none, 0/1 player, 2 draw
@@ -2452,6 +2453,14 @@ func hold_veneno_on_leader(p: int, turn_starts: int) -> void:
 	players[p]["leader_veneno_held_until"] = maxi(int(players[p]["leader_veneno_held_until"]), until)
 	_emit({"type": "veneno_hold", "player": p, "turn_starts": turn_starts})
 
+## Until the start of player `p`'s next turn, the Veneno tick of every poisoned unit deals damage equal to
+## that unit's current Vida. The window closes right before the tick of `p`'s own next turn start, so
+## when `p` casts it on their own turn it only reaches the opponent's turn start.
+func make_veneno_lethal_until_next_turn_of(p: int) -> void:
+	var next_turn_start := turn + (2 if p == active else 1)
+	veneno_lethal_until = maxi(veneno_lethal_until, next_turn_start - 1)
+	_emit({"type": "veneno_lethal", "player": p})
+
 ## Carries out every sentence that is due: a Condenada unit (on either board) dies when the turn
 ## number stored on it arrives. Indestrutível survives, but the mark is spent either way.
 func _resolve_condemned() -> void:
@@ -2495,7 +2504,11 @@ func dot_damage(dot_id: String, unit: Card, markers: int) -> int:
 	if unit == null or markers <= 0:
 		return 0
 	if dot_id == "veneno":
-		return markers * VENENO_DAMAGE_PER_MARKER
+		var normal_damage := markers * VENENO_DAMAGE_PER_MARKER
+		if turn <= veneno_lethal_until:
+			# Neráxia's window: the tick takes all the Vida the unit has left (never less than the normal tick)
+			return maxi(normal_damage, unit.hp_left())
+		return normal_damage
 	if DOT_RULES.get(dot_id, "flat") != "life_bracket":
 		return markers
 	var max_hp := unit.hp + unit.bonus_hp + unit.temp_hp + unit.temp_hp_until_next_turn

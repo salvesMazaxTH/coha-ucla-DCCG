@@ -55,6 +55,7 @@ func _init() -> void:
 	_test_toxico()
 	_test_leader_poison()
 	_test_veneno_hold()
+	_test_veneno_lethal()
 	_test_venenosa_deck()
 	_test_hikari_decoy()
 	_test_dot_immunity()
@@ -1783,6 +1784,43 @@ func _test_veneno_hold() -> void:
 	check(enemy_unit.dot_markers.get("veneno", 0) == 1 and g.leader_dot_markers(victim, "veneno") == 1, "Greve: depois da rodada, o Veneno volta a cair pela metade")
 	_next_turn(g)
 	check(own_unit.dot_markers.get("veneno", 0) == 0, "Greve: o Veneno de quem jogou também volta a cair pela metade")
+
+## Neráxia: until the start of the caster's next turn, the Veneno tick takes all the Vida a poisoned unit has left.
+## The window closes right before the caster's own tick, so only the opponent's units are reached, and only once.
+func _test_veneno_lethal() -> void:
+	_tcard("t_lethal_dummy", 1, 10, [])
+	var g := _new_game()
+	_quiet(g)
+	var caster: int = g.active
+	var victim := 1 - caster
+	var lethal_effect: Effect = EffectRegistry.parse_list(CardDB.card("neraxia_flor_do_ultimo_suspiro")["effects"])[0]
+	lethal_effect.apply(EffectContext.new(g, caster, ""), 0)
+	var enemy_unit := _put(g, victim, "t_lethal_dummy")
+	var enemy_unit_without_poison := _put(g, victim, "t_lethal_dummy")
+	var own_unit := _put(g, caster, "t_lethal_dummy")
+	g.add_dot_markers(enemy_unit, "veneno", 1)
+	g.add_dot_markers(own_unit, "veneno", 1)
+	var enemy_leader_hp_before: int = g.players[victim]["leader_hp"]
+	g.add_leader_dot_markers(victim, "veneno", 1)
+	_next_turn(g) # the victim's turn start: inside the window
+	check(not g.players[victim]["board"].has(enemy_unit), "Neráxia: o tique de Veneno mata a unidade inimiga envenenada (10 de Vida, 1 marcador)")
+	check(g.players[victim]["board"].has(enemy_unit_without_poison), "Neráxia: unidade sem Veneno não é afetada")
+	check(g.players[victim]["leader_hp"] == enemy_leader_hp_before - 2, "Neráxia: o Líder não é unidade e leva o tique normal")
+	_next_turn(g) # the caster's turn start: the window is already closed
+	check(own_unit.hp_left() == 8, "Neráxia: a unidade envenenada de quem jogou leva só o tique normal (2)")
+
+	# a second, later tick on an enemy unit is back to normal
+	g = _new_game()
+	_quiet(g)
+	caster = g.active
+	victim = 1 - caster
+	lethal_effect.apply(EffectContext.new(g, caster, ""), 0)
+	_next_turn(g) # the victim's first turn start (inside the window)
+	_next_turn(g) # the caster's turn start
+	var late_unit := _put(g, victim, "t_lethal_dummy")
+	g.add_dot_markers(late_unit, "veneno", 1)
+	_next_turn(g) # the victim's second turn start after the cast: the window is over
+	check(late_unit.hp_left() == 8, "Neráxia: depois da janela o Veneno volta ao tique normal (2)")
 
 ## Ends the active player's turn and settles everything that starts the next one.
 func _next_turn(g: GameState) -> void:

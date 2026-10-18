@@ -49,6 +49,7 @@ static var ACTIONS: Dictionary = {
 	"return_to_hand": ReturnToHandEffect,
 	"kill_leader": RemoveEffect,
 	"hold_veneno": HoldVenenoEffect,
+	"veneno_lethal": VenenoLethalEffect,
 	"sacrifice": SacrificeEffect,
 	"fuse": FuseEffect,
 	"gain_momentum": GainMomentumEffect,
