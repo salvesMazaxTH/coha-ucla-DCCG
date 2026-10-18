@@ -109,7 +109,7 @@ const SfxScript := preload("res://scripts/audio/sfx.gd")
 func _test_sfx() -> void:
 	for sound_name in SfxScript.SOUNDS:
 		for file_name in SfxScript.SOUNDS[sound_name]["files"]:
-			check(ResourceLoader.exists(SfxScript.SFX_FOLDER + file_name + ".ogg"), "sfx %s: arquivo %s.ogg não existe" % [sound_name, file_name])
+			check(ResourceLoader.exists(SfxScript.sound_path(file_name)), "sfx %s: arquivo %s não existe" % [sound_name, file_name])
 	check(SfxScript.sound_for_event({"type": "damage", "amount": 3, "src": 5}, true) == "hit_light", "sfx: golpe de combate leve")
 	check(SfxScript.sound_for_event({"type": "damage", "amount": 7, "src": 5}, true) == "hit_heavy", "sfx: golpe de combate pesado")
 	check(SfxScript.sound_for_event({"type": "damage", "amount": 3, "src": 5}, false) == "direct_damage", "sfx: dano de efeito fora do combate")

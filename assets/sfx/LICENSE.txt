@@ -9,3 +9,4 @@ Packs used (files keep their original names):
   Digital Audio         zap*, powerUp*, pepSound*, phaser*, lowThreeTone, lowDown
   RPG Audio             metalLatch, cloth*, knifeSlice
   Music Jingles         jingles_STEEL00
+  Old CSA (own project)  damage.wav

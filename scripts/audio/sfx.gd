@@ -22,7 +22,7 @@ const SAME_SOUND_MIN_GAP_MS := 45
 ## slider (0 to 100%) goes on top of this.
 const MASTER_TRIM_DB := -3.0
 
-## name -> files (without ".ogg"), volume in dB, random pitch spread (0.06 = from -6% to +6%),
+## name -> files (".ogg" is added unless the name already has an extension, like "damage.wav"), volume in dB, random pitch spread (0.06 = from -6% to +6%),
 ## and optionally "speed" (1.0 = as recorded, 2.25 = more than twice as fast).
 const SOUNDS := {
 	# --- cards moving around
@@ -37,8 +37,9 @@ const SOUNDS := {
 	"trigger":        {"files": ["pluck_001"], "db": -8.0, "pitch": 0.08},
 	"relic":          {"files": ["metalLatch"], "db": -3.0, "pitch": 0.0},
 	# --- damage and healing
-	"hit_light":      {"files": ["impactPunch_medium_000", "impactPunch_medium_001", "impactPunch_medium_002"], "db": -2.0, "pitch": 0.07},
-	"hit_heavy":      {"files": ["impactPunch_heavy_000", "impactPunch_heavy_001", "impactPunch_heavy_002"], "db": 0.0, "pitch": 0.05},
+	# combat blows use damage.wav from the old CSA; its peak sits right under 0 dBFS, so it is turned well down
+	"hit_light":      {"files": ["damage.wav"], "db": -13.0, "pitch": 0.05},
+	"hit_heavy":      {"files": ["damage.wav"], "db": -10.0, "pitch": 0.04},
 	"direct_damage":  {"files": ["zap1", "zap2"], "db": -7.0, "pitch": 0.06},
 	"shield_break":   {"files": ["impactMetal_light_000", "impactMetal_light_001"], "db": -2.0, "pitch": 0.05},
 	"heal":           {"files": ["powerUp4", "powerUp7"], "db": -7.0, "pitch": 0.03},
@@ -82,7 +83,7 @@ func _ready() -> void:
 	for sound_name in SOUNDS:
 		var loaded: Array[AudioStream] = []
 		for file_name in SOUNDS[sound_name]["files"]:
-			var stream := load(SFX_FOLDER + file_name + ".ogg") as AudioStream
+			var stream := load(sound_path(file_name)) as AudioStream
 			if stream != null:
 				loaded.append(stream)
 		_streams[sound_name] = loaded
@@ -94,6 +95,10 @@ func _ready() -> void:
 	if settings.load(SETTINGS_PATH) == OK:
 		_enabled = bool(settings.get_value("audio", "sfx_on", true))
 		_volume = clampf(float(settings.get_value("audio", "sfx_volume", 1.0)), 0.0, 1.0)
+
+
+static func sound_path(file_name: String) -> String:
+	return SFX_FOLDER + (file_name if file_name.get_extension() != "" else file_name + ".ogg")
 
 
 func is_enabled() -> bool:
