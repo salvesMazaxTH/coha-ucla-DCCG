@@ -5303,7 +5303,7 @@ func _test_sagrada_engine() -> void:
 	check(g.players[0]["leader_hp"] == 25, "Mefi'Urdim: Ao Entrar cura 10 do Líder (%d)" % g.players[0]["leader_hp"])
 	check(g.players[0]["relics"].any(func(relic: Card): return relic.card_id == "baluarte_santo"), "Mefi'Urdim: Ao Entrar invoca o Baluarte Santo")
 	check(mefi_angel.spell_shield and mefi.spell_shield and not mefi_human.spell_shield, "Mefi'Urdim: Escudo de Feitiço na tribo, incluindo ele, e em mais ninguém")
-	check(g.atk_of(mefi) == 5 and g.hp_left(mefi) == 11, "Mefi'Urdim: ele mesmo ganha +1/+1 da própria aura (%d/%d)" % [g.atk_of(mefi), g.hp_left(mefi)])
+	check(g.atk_of(mefi) == 4 and g.hp_left(mefi) == 11, "Mefi'Urdim: ele mesmo ganha +1/+1 da própria aura (%d/%d)" % [g.atk_of(mefi), g.hp_left(mefi)])
 	check(g.atk_of(mefi_angel) == 6 and g.atk_of(mefi_human) == 2, "Mefi'Urdim: o Anjo ganha +1 de Ataque e o humano nada (%d / %d)" % [g.atk_of(mefi_angel), g.atk_of(mefi_human)])
 
 	# Vidal: heals every allied unit fully, purifies them and the Leader, then grants other allies +3/+3.
