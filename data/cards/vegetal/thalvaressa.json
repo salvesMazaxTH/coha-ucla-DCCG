@@ -1,0 +1,36 @@
+{
+  "name": "Thalvaressa",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["driade", "elemental", "divindade"],
+  "essence": "vegetal",
+  "cost": 6,
+  "atk": 5,
+  "hp": 8,
+  "keywords": ["provocacao", "regeneracao", "intimidacao"],
+  "art": "vegetal/thalvaressa.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "summon",
+      "target": "none",
+      "card": "mudinha_do_dossel"
+    },
+    {
+      "trigger": "on_enter",
+      "action": "summon",
+      "target": "none",
+      "card": "mudinha_do_dossel"
+    },
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "other_ally_units",
+      "atk": 1,
+      "hp": 1
+    }
+  ],
+  "text": "Ao Entrar: invoque duas Mudinhas do Dossel 1/1. Suas outras unidades ganham +1/+1 permanente.",
+  "flavor": "Onde ela repousa, até a madeira morta volta a sonhar.",
+  "tags": []
+}

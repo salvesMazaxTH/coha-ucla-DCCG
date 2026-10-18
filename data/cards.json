@@ -90,6 +90,10 @@
       "name": "Aliado Morre",
       "text": "O efeito acontece quando outra unidade que você controla morre, mesmo que ela volte logo em seguida (Revivente Eterno, Fênix, Lendário voltando ao Santuário). A que morreu não ativa o próprio efeito (para isso existe Ao Morrer)."
     },
+    "on_ally_token_summon": {
+      "name": "Ficha Aliada Entra",
+      "text": "O efeito acontece quando uma ficha sua entra em campo."
+    },
     "on_activate": {
       "name": "Ao Ativar",
       "text": "Habilidade ativável da unidade: o dono escolhe quando usar, pagando o custo em Momentum indicado (a Reserva ajuda). Vai para a pilha como um feitiço da velocidade indicada, então pode ser respondida e anulada."
@@ -126,6 +130,8 @@
     "espirito": { "name": "Espírito" },
     "fera": { "name": "Fera" },
     "elemental": { "name": "Elemental" },
+    "planta": { "name": "Planta" },
+    "druida": { "name": "Druida" },
     "gnomo": { "name": "Gnomo" },
     "demihumano": { "name": "Demihumano" },
     "morto_vivo": { "name": "Morto-Vivo" },
@@ -157,7 +163,7 @@
     },
     "regeneracao": {
       "name": "Regeneração",
-      "text": "No fim de cada turno, todo o dano desta unidade é curado."
+      "text": "No início de cada turno, todo o dano desta unidade é curado."
     },
     "reflexao": {
       "name": "Reflexão",
@@ -547,6 +553,31 @@
         "text": "Instantânea. 2 Momentum, uma vez por turno: uma unidade aliada ganha Reflexão neste turno."
       },
       "essences": ["metalica"]
+    },
+    "thalvaressa": {
+      "name": "Thalvaressa",
+      "hp": 30,
+      "art": "vegetal/thalvaressa_lider.webp",
+      "legendary": "thalvaressa",
+      "ability": {
+        "name": "Crescimento do Dossel",
+        "passive": true,
+        "trigger": "on_ally_token_summon",
+        "cost": 0,
+        "own_turn_only": true,
+        "max_per_turn": 2,
+        "effects": [
+          {
+            "action": "buff",
+            "target": "random_other_ally_unit",
+            "only_species": ["planta"],
+            "atk": 0,
+            "hp": 1
+          }
+        ],
+        "text": "No seu turno, até 2 vezes por turno, quando você invocar uma ficha, outra planta aliada aleatória (nunca a própria ficha) ganha +1 de Vida permanente."
+      },
+      "essences": ["vegetal"]
     }
   },
   "cards": {}

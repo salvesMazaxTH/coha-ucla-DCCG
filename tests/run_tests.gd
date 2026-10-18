@@ -29,6 +29,7 @@ func _init() -> void:
 	_test_condemn()
 	_test_constant()
 	_test_obscura()
+	_test_vegetal()
 	_test_obscura_rules()
 	_test_cleanse()
 	_test_sagrada_board_control()
@@ -2140,14 +2141,15 @@ func _test_persistent_damage() -> void:
 	check(soaker.damage == 0, "vida temporária absorveu o dano todo")
 	check(not g.find_unit(bigger.uid) == null and bigger.damage == 4, "o buff acaba e só sobra o dano além dele (%d)" % bigger.damage)
 
-	# Regeneração: all damage healed at the end of every turn
+	# Regeneração: all damage healed at the start of every turn
 	g = _new_game()
 	_quiet(g)
 	var coral := _put(g, 1, "sentinela_coral")
 	check(g.has_kw(coral, "regeneracao"), "sentinela de coral tem regeneração")
 	g._deal_damage(coral.uid, 2, null)
+	check(coral.damage == 2, "regeneração não cura no meio do turno")
 	g.end_turn(0)
-	check(coral.damage == 0, "regeneração cura no fim do turno (até no turno do oponente)")
+	check(coral.damage == 0, "regeneração cura no início do próximo turno (até o do oponente)")
 
 func _give(g: GameState, p: int, card_id: String) -> int:
 	var uid := g._uid()
@@ -3145,6 +3147,50 @@ func _test_elite_limits() -> void:
 	check(not DeckDB.validate_cards(leader, lenda_deck).filter(func(e): return "mais de 2 cópias" in e).is_empty(), "lendária: 3 cópias é ilegal")
 	lenda_deck["t_lenda"] = 2
 	check(DeckDB.validate_cards(leader, lenda_deck).filter(func(e): return "t_lenda" in e).is_empty(), "lendária: 2 cópias é legal")
+
+func _test_vegetal() -> void:
+	var g := GameState.new("vegetal", "fogo", 4242)
+	g.mulligan(0, [])
+	g.mulligan(1, [])
+	_quiet(g)
+	# Thalvaressa: on her owner's turn, each of the first 2 tokens gives +1 Vida to ANOTHER random plant
+	# (never the token that just entered, never a non-plant)
+	var human_ally := _put(g, 0, "guardia_dos_ninhos") # put first: her own Ao Entrar would buff a plant already on the board
+	var plant_ally := _put(g, 0, "semente_teimosa")
+	var plant_base_hp: int = int(CardDB.card("semente_teimosa")["hp"])
+	var human_base_hp: int = int(CardDB.card("guardia_dos_ninhos")["hp"])
+	var first_token := _put(g, 0, "mudinha_do_dossel")
+	g._check_state()
+	check(first_token.hp == 1 and first_token.atk == 1, "Thalvaressa: a ficha invocada não recebe o próprio Crescimento do Dossel")
+	check(plant_ally.hp == plant_base_hp + 1 and plant_ally.atk == int(CardDB.card("semente_teimosa")["atk"]), "Thalvaressa: a outra planta aliada ganha só +1 de Vida")
+	check(human_ally.hp == human_base_hp, "Thalvaressa: aliado que não é planta não recebe o buff")
+	var second_token := _put(g, 0, "mudinha_do_dossel")
+	g._check_state()
+	var tokens_hp_gained: int = (first_token.hp - 1) + (second_token.hp - 1)
+	check((plant_ally.hp - plant_base_hp) + tokens_hp_gained == 2, "Thalvaressa: o segundo trigger do turno também dispara")
+	var third_token := _put(g, 0, "mudinha_do_dossel")
+	g._check_state()
+	var all_hp_gained: int = (plant_ally.hp - plant_base_hp) + (first_token.hp - 1) + (second_token.hp - 1) + (third_token.hp - 1)
+	check(all_hp_gained == 2, "Thalvaressa: o terceiro trigger do turno não dispara (máximo 2)")
+	# on the opponent's turn the passive stays silent
+	g.active = 1
+	g._start_turn(1, false)
+	var hp_before_enemy_turn: int = all_hp_gained
+	var token_on_enemy_turn := _put(g, 0, "mudinha_do_dossel")
+	g._check_state()
+	var hp_after_enemy_turn: int = (plant_ally.hp - plant_base_hp) + (first_token.hp - 1) + (second_token.hp - 1) + (third_token.hp - 1) + (token_on_enemy_turn.hp - 1)
+	check(hp_after_enemy_turn == hp_before_enemy_turn, "Thalvaressa: fora do turno do dono o passivo não dispara")
+	# Flor Voraz uses two independent 1-damage rolls that include the Leader in their pool.
+	var spread := EffectRegistry.parse({"action": "damage", "target": "random_enemy_spread", "hits": 2, "amount": 1})
+	var spread_picks: Array = spread.target.resolve(EffectContext.new(g, 0, ""), spread)
+	check(spread_picks.size() == 2, "Flor Voraz: produz dois sorteios de dano")
+	var only_face := spread_picks.all(func(uid: int) -> bool: return uid == GameState.LEADER_UID[1])
+	check(only_face, "Flor Voraz: sem unidades inimigas, os dois sorteios atingem o Líder")
+	var flower := _put(g, 0, "flor_voraz")
+	var hp_before: int = int(g.players[1]["leader_hp"])
+	g._fire(flower, "on_turn_end")
+	g._check_state()
+	check(int(g.players[1]["leader_hp"]) == hp_before - 2, "Flor Voraz: causa dois danos separados ao Líder quando o campo inimigo está vazio")
 
 func _test_rusco() -> void:
 	var r := CardDB.card("rusco")

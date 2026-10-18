@@ -1,0 +1,33 @@
+{
+  "name": "Jardim da Caçada",
+  "type": "spell",
+  "rarity": "legendary",
+  "essence": "vegetal",
+  "cost": 4,
+  "speed": "rapido",
+  "art": "vegetal/jardim_da_cacada.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "summon",
+      "target": "none",
+      "card": "flor_voraz"
+    },
+    {
+      "trigger": "on_play",
+      "action": "summon",
+      "target": "none",
+      "card": "flor_voraz"
+    },
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "all_ally_units",
+      "atk": 1,
+      "temp": true
+    }
+  ],
+  "text": "Rápida. Invoque duas Flores Vorazes 0/2. Suas unidades ganham +1 de Ataque neste turno.",
+  "flavor": "A clareira parece quieta até o chão abrir a boca.",
+  "tags": []
+}

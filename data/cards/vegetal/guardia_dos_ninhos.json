@@ -1,0 +1,25 @@
+{
+  "name": "Guardiã dos Ninhos",
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["humano", "druida"],
+  "essence": "vegetal",
+  "cost": 4,
+  "atk": 4,
+  "hp": 6,
+  "keywords": ["longo_alcance", "vigilancia"],
+  "art": "vegetal/guardia_dos_ninhos.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "other_ally_units",
+      "only_species": ["planta"],
+      "atk": 1,
+      "hp": 1
+    }
+  ],
+  "text": "Ao Entrar: suas plantas ganham +1/+1 permanente.",
+  "flavor": "Nenhum predador aprende duas vezes a tocar um ninho dela.",
+  "tags": []
+}

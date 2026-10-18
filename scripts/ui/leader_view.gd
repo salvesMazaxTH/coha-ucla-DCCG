@@ -420,7 +420,9 @@ static func ability_panel(ab: Dictionary, col: Color) -> Control:
 		chips.add_child(_chip("◆ %d MOMENTUM" % int(ab["cost"]), UITheme.MOMENTUM))
 	if SPEED_NAMES.has(ab.get("speed", "")):
 		chips.add_child(_chip(SPEED_NAMES[ab["speed"]].to_upper(), Color("#9fd8ff")))
-	if ab.get("once_per_turn", false):
+	if ab.has("max_per_turn"):
+		chips.add_child(_chip("%d× POR TURNO" % int(ab["max_per_turn"]), UITheme.TEXT))
+	elif ab.get("once_per_turn", false):
 		chips.add_child(_chip("1× POR TURNO", UITheme.TEXT))
 	elif ab.get("once_per_cycle", false):
 		chips.add_child(_chip("1× ATÉ SEU PRÓXIMO TURNO", UITheme.TEXT))

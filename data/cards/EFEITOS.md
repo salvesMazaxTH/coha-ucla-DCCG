@@ -8,7 +8,7 @@ Um efeito é um objeto:
 { "trigger": "on_enter", "if": "momentum_left", "action": "damage", "target": "enemy_unit", "amount": 2 }
 ```
 
-Campos comuns: `trigger` (ver Eventos), `if` (ver Condições), `action`, `target`, `pick2` (usa a segunda escolha da carta; em feitiços as duas são feitas ao jogar, em unidades o Ao Entrar pergunta o segundo alvo logo depois do primeiro, e `same_target_ok` na carta deixa repetir o alvo), `once_per_turn`, `own_turn_only` (só funciona no turno do dono da carta), `not_in_combat`, `only_from_spell` (Ao Sofrer Dano nunca dispara se o dano mata a unidade; com esse campo só dispara se o dano veio de um feitiço sendo resolvido; Reflexão e combate não contam), `not_token` (Aliado Morre ignora a morte de ficha), `dying_card` (Aliado Morre só dispara se quem morreu é a carta com esse id, ex.: o Luto de Vael com `"myrra"`).
+Campos comuns: `trigger` (ver Eventos), `if` (ver Condições), `action`, `target`, `pick2` (usa a segunda escolha da carta; em feitiços as duas são feitas ao jogar, em unidades o Ao Entrar pergunta o segundo alvo logo depois do primeiro, e `same_target_ok` na carta deixa repetir o alvo), `once_per_turn`, `max_per_turn` (só em habilidade passiva de Líder: no máximo N disparos por turno, Thalvaressa), `own_turn_only` (só funciona no turno do dono da carta), `not_in_combat`, `only_from_spell` (Ao Sofrer Dano nunca dispara se o dano mata a unidade; com esse campo só dispara se o dano veio de um feitiço sendo resolvido; Reflexão e combate não contam), `not_token` (Aliado Morre ignora a morte de ficha), `dying_card` (Aliado Morre só dispara se quem morreu é a carta com esse id, ex.: o Luto de Vael com `"myrra"`).
 
 ## Ações
 
@@ -65,10 +65,10 @@ Cada ação é uma classe em `scripts/engine/effects/`, registrada em `effect_re
 
 Cada família é uma classe em `scripts/engine/targets/`.
 
-- **Escolhidos pelo jogador:** `enemy_unit`, `ally_unit`, `other_ally_unit`, `ally_or_own_leader` (unidade aliada ou o seu Líder), `any_unit`, `any`, `enemy_stack`
+- **Escolhidos pelo jogador:** `enemy_unit`, `weak_enemy_unit` (unidade inimiga com Vida atual de `GameState.WEAK_UNIT_MAX_HP` = 3 ou menos; Isarelis), `ally_unit`, `other_ally_unit`, `ally_or_own_leader` (unidade aliada ou o seu Líder), `any_unit`, `any`, `enemy_stack`
 - **Grupos:** `all_enemy_units`, `all_units`, `all_ally_units`, `other_ally_units`, `center_enemy_units` (meio do campo inimigo: 1 unidade se a quantidade é ímpar, as 2 do meio se é par)
 - **Líderes:** `enemy_leader`, `own_leader`, `both_leaders`
-- **Aleatórios:** `random_enemy_unit`, `random_enemy_unit_twice` (dois sorteios independentes, pode cair na mesma unidade), `random_enemy_unit_spread` (`hits` sorteios independentes entre as unidades inimigas, 1 ponto de `amount` por sorteio; Repique Desgovernado), `random_frozen_enemy_unit` (só unidades já Congeladas), `random_enemy_and_adjacent`, `random_ally_unit`, `random_other_ally_unit`
+- **Aleatórios:** `random_enemy_unit`, `random_enemy_unit_twice` (dois sorteios independentes, pode cair na mesma unidade), `random_enemy_unit_spread` (`hits` sorteios independentes entre as unidades inimigas, 1 ponto de `amount` por sorteio; Repique Desgovernado), `random_enemy_spread` (igual, mas cada sorteio também pode cair no Líder inimigo; Flor Voraz), `random_frozen_enemy_unit` (só unidades já Congeladas), `random_enemy_and_adjacent`, `random_ally_unit`, `random_other_ally_unit` (os dois aceitam `only_species: [...]` no efeito: o sorteio só considera aliadas dessas espécies; em passivo de Líder, "outra" exclui a unidade que causou o gatilho, ex.: a ficha recém-invocada de Thalvaressa)
 - **Da própria carta:** `self`, `self_card`, `opposed_unit`, `attack_target` (só em Ao Atacar: a unidade desafiada, ou o Líder inimigo se o ataque foi no Líder), `none`
 
 ## Condições (`if`)

@@ -1,0 +1,26 @@
+{
+  "name": "Raízes Entrelaçadas",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "vegetal",
+  "cost": 4,
+  "speed": "rapido",
+  "art": "vegetal/raizes_entrelacadas.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "summon",
+      "target": "none",
+      "card": "mudinha_do_dossel"
+    },
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "all_ally_units",
+      "atk": 1
+    }
+  ],
+  "text": "Rápida. Invoque uma Mudinha do Dossel 1/1. Suas unidades ganham +1 de Ataque permanente.",
+  "flavor": "Uma árvore sozinha faz sombra. Juntas, elas fazem um mundo.",
+  "tags": []
+}

@@ -1,0 +1,30 @@
+{
+  "name": "Alderion, Arauto da Primavera",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["elfo", "druida"],
+  "essence": "vegetal",
+  "cost": 3,
+  "atk": 4,
+  "hp": 4,
+  "keywords": ["impeto", "vigilancia"],
+  "art": "vegetal/alderion_arauto_da_primavera.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "other_ally_unit",
+      "atk": 2,
+      "hp": 2
+    },
+    {
+      "trigger": "on_attack",
+      "action": "summon",
+      "target": "none",
+      "card": "mudinha_do_dossel"
+    }
+  ],
+  "text": "Ao Entrar: outra unidade aliada ganha +2/+2 permanente.\nAo Atacar: invoque uma Mudinha do Dossel 1/1.",
+  "flavor": "A primavera não pede passagem. Ela a toma de volta.",
+  "tags": []
+}

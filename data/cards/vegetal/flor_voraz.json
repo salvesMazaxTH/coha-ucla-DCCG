@@ -1,0 +1,25 @@
+{
+  "name": "Flor Voraz",
+  "type": "unit",
+  "rarity": "common",
+  "token": true,
+  "species": ["planta"],
+  "essence": "vegetal",
+  "cost": 0,
+  "atk": 0,
+  "hp": 2,
+  "keywords": [],
+  "art": "vegetal/flor_voraz.webp",
+  "effects": [
+    {
+      "trigger": "on_turn_end",
+      "action": "damage",
+      "target": "random_enemy_spread",
+      "hits": 2,
+      "amount": 1
+    }
+  ],
+  "text": "No Fim do Turno: cause 1 de dano duas vezes, cada uma a um inimigo aleatório. Elas podem atingir o Líder e o mesmo inimigo.",
+  "flavor": "Ela não sabe distinguir fome de curiosidade.",
+  "tags": []
+}

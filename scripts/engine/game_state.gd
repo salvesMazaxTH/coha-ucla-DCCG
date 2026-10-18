@@ -1478,6 +1478,10 @@ func _summon(p: int, c: Card, legendary: bool, target: int, over: Dictionary = {
 	else:
 		board.insert(slot, c)
 	_emit({"type": "summon", "player": p, "uid": uid, "card_id": card_id})
+	# Leaders may react to their first token entering each turn. The card is already on the
+	# board, so a passive buff can include the newly summoned token among its legal targets.
+	if cd.get("token", false):
+		_fire_leader_passive(p, "on_ally_token_summon", uid)
 	# Provocação: on any entry its controller chooses whether it enters tapped (asked once things settle)
 	if has_kw(c, "provocacao"):
 		pending_tap.append(uid)
@@ -2213,8 +2217,10 @@ func _check_leaders() -> void:
 		_emit({"type": "game_over", "winner": winner})
 
 ## Leader passive ("passive": true in the leader's ability): runs its effects when `trigger` happens,
-## once per turn if "once_per_turn". Depth-capped like unit triggers.
-func _fire_leader_passive(p: int, trigger: String) -> void:
+## once per turn if "once_per_turn", or at most "max_per_turn" times a turn. `trigger_unit_uid` is the unit that
+## caused the trigger (the token that just entered): the passive's "random_other_ally_unit" never picks it.
+## Depth-capped like unit triggers.
+func _fire_leader_passive(p: int, trigger: String, trigger_unit_uid := 0) -> void:
 	var ab: Dictionary = CardDB.leader(players[p]["leader_id"])["ability"]
 	if not ab.get("passive", false) or ab.get("trigger", "") != trigger or _chain_stopped():
 		return
@@ -2222,11 +2228,18 @@ func _fire_leader_passive(p: int, trigger: String) -> void:
 		return
 	if ab.get("once_per_turn", false) and players[p]["passive_used"]:
 		return
+	# "passive_uses" only exists for passives with a limit above 1 (it is wiped every turn start)
+	if ab.has("max_per_turn") and int(players[p].get("passive_uses", 0)) >= int(ab["max_per_turn"]):
+		return
 	if _passive_refunds_nothing(p, ab):
 		return # nothing leaked: do not announce a passive that does nothing (e.g. on the first turn)
 	players[p]["passive_used"] = true
+	if ab.has("max_per_turn"):
+		players[p]["passive_uses"] = int(players[p].get("passive_uses", 0)) + 1
 	_emit({"type": "passive", "player": p})
-	queue_trigger(PendingTrigger.new(null, EffectRegistry.parse_list(ab["effects"]), EffectContext.new(self, p, "")))
+	var passive_context := EffectContext.new(self, p, "")
+	passive_context.self_uid = trigger_unit_uid
+	queue_trigger(PendingTrigger.new(null, EffectRegistry.parse_list(ab["effects"]), passive_context))
 
 ## True when every effect of the passive is a "leaked" Momentum refund (Sobrecarga) and the refund
 ## comes to 0, so firing it would only show a pointless "ativou Sobrecarga".
@@ -2266,11 +2279,6 @@ func _finish_turn() -> void:
 			c.temp_atk = 0
 			c.turn_armor = 0
 			c.temp_critico = 0
-			# Regeneração: at the end of every turn all of this unit's damage is healed
-			if has_kw(c, "regeneracao") and c.damage > 0:
-				var healed_amount: int = c.damage
-				c.damage = 0
-				_emit({"type": "heal", "uid": c.uid, "amount": healed_amount, "regeneration": true, "hp_after": c.hp_left()})
 			for kw in c.temp_keywords:
 				c.keywords.erase(kw)
 			c.temp_keywords.clear()
@@ -2321,6 +2329,7 @@ func _start_turn(p: int, draw: bool) -> void:
 		if i == p or not CardDB.leader(q["leader_id"])["ability"].get("once_per_cycle", false):
 			q["ability_used"] = false
 		q["passive_used"] = false
+		q.erase("passive_uses")
 	if int(pl["next_momentum"]) != 0:
 		# positive = Momentum promised for this turn; negative = a debt (Ritual do Degelo), never below 0
 		pl["momentum"] = clampi(int(pl["momentum"]) + int(pl["next_momentum"]), 0, MOMENTUM_CAP)
@@ -2342,6 +2351,7 @@ func _start_turn(p: int, draw: bool) -> void:
 			c.spell_shield_until_next_turn = false
 		c.attacks_made = 0
 	_emit({"type": "start_turn", "player": p, "turn": turn})
+	_regenerate_all_units()
 	_resolve_dot_markers(p)
 	_resolve_condemned()
 	bus().emit(GameEvent.new("turn_started", p))
@@ -2353,6 +2363,18 @@ func _start_turn(p: int, draw: bool) -> void:
 	if draw:
 		_draw(p, 1)
 	_check_state()
+
+## Regeneração: at the start of every turn (either player's) all the damage of each unit that has it is
+## healed. It happens before the periodic markers and the turn-start triggers, so damage dealt at the end of
+## the previous turn (Flor Voraz) is still on the unit while end-of-turn effects resolve, and damage that
+## the new turn itself deals (markers, turn-start triggers) stays on the unit.
+func _regenerate_all_units() -> void:
+	for pl in players:
+		for unit: Card in pl["board"]:
+			if has_kw(unit, "regeneracao") and unit.damage > 0:
+				var healed_amount: int = unit.damage
+				unit.damage = 0
+				_emit({"type": "heal", "uid": unit.uid, "amount": healed_amount, "regeneration": true, "hp_after": unit.hp_left()})
 
 ## Resolves every periodic marker on every unit controlled by p, and on p's Leader, at the start of that turn.
 func _resolve_dot_markers(p: int) -> void:

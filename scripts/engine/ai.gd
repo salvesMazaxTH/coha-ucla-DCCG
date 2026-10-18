@@ -436,7 +436,7 @@ static func _punishes_surviving_damage(unit: Card) -> bool:
 	return false
 
 ## Hostile effects pick the biggest enemy (or the Leader); friendly ones the biggest ally.
-## Damage that doesn't kill is worth nothing on a unit with Regeneração (it heals at the end of the turn)
+## Damage that doesn't kill is worth nothing on a unit with Regeneração (it heals at the start of the next turn, before its owner acts)
 ## or one that gets stronger from it; on any other unit it stays marked, so it is never skipped.
 ## `strict` (spells and abilities): that chip damage is only worth its amount (the face is usually better).
 ## `source` is the card data (or leader ability) whose effects need a target.
@@ -500,7 +500,7 @@ static func _pick_target(g: GameState, p: int, spec: String, source, self_uid :=
 				elif hits:
 					# Damage that doesn't kill stays marked on the unit, so it is worth doing...
 					if unit.has_kw("regeneracao"):
-						continue # ...except on Regeneração: it heals at the end of the turn
+						continue # ...except on Regeneração: it heals at the start of the next turn, before its owner acts
 					if _punishes_surviving_damage(unit):
 						continue # ...and except on a unit that grows stronger from it (Ao Sofrer Dano)
 					if strict:

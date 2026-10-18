@@ -1,12 +1,12 @@
 class_name RandomTarget
 extends TargetSelector
-## Random picks with the match RNG: random_enemy (any enemy unit or the enemy Leader), random_enemy_unit, random_enemy_unit_twice (two independent picks, the same unit can be picked twice: 2 damage handed out one by one), random_enemy_unit_spread (the effect's "hits" independent picks, same idea: "hits" points of damage handed out one by one), random_frozen_enemy_unit
-## (only enemy units that are already Congeladas), random_enemy_and_adjacent, random_ally_unit, random_other_ally_unit. The RNG is only rolled when there is something
+## Random picks with the match RNG: random_enemy (any enemy unit or the enemy Leader), random_enemy_unit, random_enemy_unit_twice (two independent picks, the same unit can be picked twice: 2 damage handed out one by one), random_enemy_unit_spread (the effect's "hits" independent picks over units), random_enemy_spread (the same, including the Leader), random_frozen_enemy_unit
+## (only enemy units that are already Congeladas), random_enemy_and_adjacent, random_ally_unit, random_other_ally_unit (both accept the effect's "only_species": the pool only holds allies of those species). The RNG is only rolled when there is something
 ## to pick, so replays stay identical.
 ## A status effect (freeze, exhaust...) never rolls on a unit that already has that status: the pool only holds
 ## units that can still receive it (Effect.is_already_applied_to), and an empty pool means no target.
 
-const NAMES := ["random_enemy", "random_enemy_unit", "random_enemy_unit_twice", "random_enemy_unit_spread", "random_frozen_enemy_unit", "random_enemy_and_adjacent", "random_ally_unit", "random_other_ally_unit"]
+const NAMES := ["random_enemy", "random_enemy_unit", "random_enemy_unit_twice", "random_enemy_unit_spread", "random_enemy_spread", "random_frozen_enemy_unit", "random_enemy_and_adjacent", "random_ally_unit", "random_other_ally_unit"]
 
 func resolve(context: EffectContext, effect: Effect) -> Array:
 	var game := context.game
@@ -45,6 +45,15 @@ func resolve(context: EffectContext, effect: Effect) -> Array:
 			for hit in int(effect.raw.get("hits", 1)):
 				spread_picks.append(spread_pool[game.rng.randi_range(0, spread_pool.size() - 1)])
 			return spread_picks
+		"random_enemy_spread":
+			# Unlike the unit-only Repique selector, every hit may also land on the enemy Leader.
+			var all_enemy_pool: Array = [GameState.LEADER_UID[context.opponent()]]
+			for unit: Card in enemy_board:
+				all_enemy_pool.append(unit.uid)
+			var all_enemy_picks: Array = []
+			for hit in int(effect.raw.get("hits", 1)):
+				all_enemy_picks.append(all_enemy_pool[game.rng.randi_range(0, all_enemy_pool.size() - 1)])
+			return all_enemy_picks
 		"random_frozen_enemy_unit":
 			var frozen_pool: Array = []
 			for unit: Card in enemy_board:
@@ -65,9 +74,19 @@ func resolve(context: EffectContext, effect: Effect) -> Array:
 		"random_ally_unit", "random_other_ally_unit":
 			var pool: Array = []
 			for unit: Card in game.players[context.controller]["board"]:
-				if (name == "random_ally_unit" or unit.uid != context.self_uid) and not effect.is_already_applied_to(unit):
+				if (name == "random_ally_unit" or unit.uid != context.self_uid) and not effect.is_already_applied_to(unit) and _has_wanted_species(unit, effect):
 					pool.append(unit.uid)
 			if pool.is_empty():
 				return []
 			return [pool[game.rng.randi_range(0, pool.size() - 1)]]
 	return []
+
+## True when the effect asks for no species ("only_species" missing) or the unit's card has one of them.
+func _has_wanted_species(unit: Card, effect: Effect) -> bool:
+	var wanted_species: Array = effect.raw.get("only_species", [])
+	if wanted_species.is_empty():
+		return true
+	for species in CardDB.card(unit.card_id).get("species", []):
+		if wanted_species.has(species):
+			return true
+	return false

@@ -1,0 +1,22 @@
+{
+  "name": "Investida da Manada",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "vegetal",
+  "cost": 5,
+  "speed": "rapido",
+  "art": "vegetal/investida_da_manada.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "all_ally_units",
+      "atk": 3,
+      "temp": true,
+      "rapidez_min": 1
+    }
+  ],
+  "text": "Rápida. Suas unidades ganham +3 de Ataque neste turno e Rapidez 1.",
+  "flavor": "Não há caça quando o bosque inteiro escolhe correr.",
+  "tags": []
+}
