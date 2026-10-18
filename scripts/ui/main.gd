@@ -980,6 +980,10 @@ func _is_ai(p: int) -> bool:
 # ---------------------------------------------------------------- render
 
 func _clear() -> void:
+	# A state update can arrive while the full-screen card overlay is open (AI, online opponent,
+	# animation batch...). Remove it before rebuilding the table, otherwise the old overlay survives
+	# over the new layer for a frame and leaves duplicated/offset UI behind.
+	_close_overlay()
 	if layer:
 		layer.queue_free()
 	layer = Control.new()
@@ -2753,9 +2757,15 @@ func _show_overlay(v: CardView) -> void:
 		overlay.add_child(tb)
 
 func _close_overlay() -> void:
-	if overlay:
-		overlay.queue_free()
-		overlay = null
+	if overlay == null:
+		return
+	var old_overlay := overlay
+	overlay = null
+	# Detach immediately; queue_free alone keeps the modal in the scene tree until the end of the
+	# frame, which is exactly the visual glitch seen when a render happens during the overlay.
+	if is_instance_valid(old_overlay) and old_overlay.get_parent() != null:
+		old_overlay.get_parent().remove_child(old_overlay)
+	old_overlay.queue_free()
 
 # ---------------------------------------------------------------- concede
 
@@ -3189,6 +3199,8 @@ const LUNGE_IMPACT_TIME := LUNGE_WINDUP_TIME + LUNGE_STRIKE_TIME
 const LUNGE_TOTAL_TIME := LUNGE_IMPACT_TIME + LUNGE_HOLD_TIME + LUNGE_RETURN_TIME
 ## A unit lying down (tap) or standing up (untap): a short pause after the action, then a slow turn.
 const TAP_DELAY := 0.12
+## How long a stand-in summoned just to take a blow (Fantoche de Trapos) stays readable before the blow lands.
+const SHORT_LIVED_ARRIVAL_TIME := 0.6
 const TAP_TIME := 0.45
 
 func _lunge(a: CardView, target: Control, t: float) -> void:
@@ -3902,6 +3914,33 @@ func _animate(events: Array, old: Dictionary) -> float:
 			actors[k] = gh
 			ghosts.append(gh)
 			ghost_exiled.append(exiled.has(k))
+	# A unit summoned and killed inside the same batch (the Fantoche de Trapos taking a blow in Hikari's
+	# place) is neither in `old` nor on the re-rendered table, so nothing would show it. Give it a ghost
+	# standing in the next free cell of its owner's lane: it pops in at its "summon" event, takes the
+	# hit like any unit, and dissolves at its "death" event.
+	var died_uids := {}
+	for e in events:
+		if e["type"] == "death":
+			died_uids[e["uid"]] = true
+	var short_lived := {} ## uid -> ghost of a unit that lives and dies inside this batch
+	var short_lived_per_player := {}
+	var dissolved_early := {} ## ghosts already dissolved at their death (the settle loop skips them)
+	for e in events:
+		if e["type"] != "summon" or not died_uids.has(e["uid"]) or views.has(e["uid"]) or old.has(e["uid"]) or short_lived.has(e["uid"]):
+			continue
+		var owner_player: int = e["player"]
+		var lane_index: int = _laid_out_slots(owner_player) + int(short_lived_per_player.get(owner_player, 0))
+		short_lived_per_player[owner_player] = int(short_lived_per_player.get(owner_player, 0)) + 1
+		var lane_cell := _board_cell(lane_index + 1, lane_index)
+		var lane_y := 460.0 if owner_player == viewer else 172.0
+		var short_ghost := _ghost(e["card_id"], {}, {"c": Vector2.ZERO, "rot": 0.0, "w": 1.0})
+		_apply_pose(short_ghost, {"c": Vector2(roundf(lane_cell.x + lane_cell.y / 2.0), roundf(lane_y) + short_ghost.size.y / 2.0), "rot": 0.0, "w": short_ghost.size.x})
+		short_ghost.scale = Vector2.ZERO # hidden until its summon event pops it in
+		short_ghost.z_index = 20
+		actors[e["uid"]] = short_ghost
+		short_lived[e["uid"]] = short_ghost
+		ghosts.append(short_ghost)
+		ghost_exiled.append(false)
 	var cursor := 0.0
 	var handled := {}
 	var appear := {}
@@ -4077,6 +4116,14 @@ func _animate(events: Array, old: Dictionary) -> float:
 			"summon", "draw", "search_take":
 				appear[e["uid"]] = cursor
 				cursor += 0.1
+				if short_lived.has(e["uid"]):
+					# pops in with a flash and stays a moment, so the player sees it arrive before the blow lands
+					var arriving: CardView = short_lived[e["uid"]]
+					var pop := arriving.create_tween()
+					pop.tween_interval(cursor)
+					pop.tween_property(arriving, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+					_embers(_center_of(arriving), cursor, _elem_color(arriving.card_id).lightened(0.3), 20)
+					cursor += SHORT_LIVED_ARRIVAL_TIME
 				if e["type"] == "search_take" and int(e["player"]) != viewer:
 					_toast("%s pegou %s do deck" % [_pname(e["player"]), _cname(e["card_id"])])
 					cursor += 0.5
@@ -4084,6 +4131,16 @@ func _animate(events: Array, old: Dictionary) -> float:
 				cursor += 0.35
 			"mill":
 				cursor += _mill_fx(int(e["player"]), e["cards"], cursor)
+			"death":
+				if short_lived.has(e["uid"]):
+					# the stand-in falls right after taking the blow, not at the end of the whole batch
+					var fallen: CardView = short_lived[e["uid"]]
+					var fall_t := maxf(cursor, hit_t) + 0.1
+					var fall_col := _elem_color(fallen.card_id)
+					fallen.dissolve(fall_t, fall_col.lightened(0.2), 0.6)
+					_embers(_center_of(fallen), fall_t + 0.1, fall_col)
+					dissolved_early[fallen] = true
+					cursor = maxf(cursor, fall_t + 0.3)
 			"combat_damage":
 				in_combat = true
 			"start_turn", "end_turn", "combat_end":
@@ -4172,6 +4229,8 @@ func _animate(events: Array, old: Dictionary) -> float:
 	var board_t := settle + (0.4 if not ghosts.is_empty() else 0.0)
 	for i in ghosts.size():
 		var gh: CardView = ghosts[i]
+		if dissolved_early.has(gh):
+			continue
 		if ghost_exiled[i]:
 			gh.banish(settle + i * 0.06, BANISH_COL, 0.9)
 			_banish_fx(_center_of(gh), _pose(gh)["w"], settle + i * 0.06)
