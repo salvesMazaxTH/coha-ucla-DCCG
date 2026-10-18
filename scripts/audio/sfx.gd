@@ -61,8 +61,9 @@ const SOUNDS := {
 	"fizzle":         {"files": ["back_002"], "db": -5.0, "pitch": 0.0},
 	# --- turns and the end of the match
 	"turn_start":     {"files": ["confirmation_001"], "db": -4.0, "pitch": 0.0},
-	"victory":        {"files": ["jingles_STEEL00"], "db": -2.0, "pitch": 0.0},
-	"defeat":         {"files": ["lowThreeTone"], "db": -2.0, "pitch": 0.0},
+	# victory and defeat come from the old CSA (peaks near 0 dBFS, about as loud as heal.wav overall)
+	"victory":        {"files": ["victorySound.wav"], "db": -6.0, "pitch": 0.0},
+	"defeat":         {"files": ["defeatSound.wav"], "db": -6.0, "pitch": 0.0},
 	# --- interface
 	"ui_click":       {"files": ["click_003"], "db": -5.0, "pitch": 0.03},
 	"ui_select":      {"files": ["select_006"], "db": -6.0, "pitch": 0.0},

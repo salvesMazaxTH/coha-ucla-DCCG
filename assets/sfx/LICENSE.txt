@@ -6,7 +6,6 @@ Packs used (files keep their original names):
   Casino Audio 1.1      card-*.ogg
   Interface Sounds      click_*, select_*, error_*, back_*, toggle_*, bong_*, pluck_*, drop_*, glass_*, glitch_*, confirmation_*
   Impact Sounds         impact*.ogg
-  Digital Audio         zap*, powerUp*, pepSound*, phaser*, lowThreeTone, lowDown
+  Digital Audio         zap*, powerUp*, pepSound*, phaser*, lowDown
   RPG Audio             metalLatch, cloth*, knifeSlice
-  Music Jingles         jingles_STEEL00
-  Old CSA (own project)  damage.wav, heal.wav
+  Old CSA (own project)  damage.wav, heal.wav, victorySound.wav, defeatSound.wav

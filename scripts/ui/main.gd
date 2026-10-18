@@ -988,8 +988,9 @@ func _play_events(events: Array) -> void:
 	if not ai_timer.is_stopped():
 		ai_timer.start(max(0.55, end + 0.2))
 
-## The jingle for the end of the match: a fanfare when the player won (or in hot-seat, where somebody
-## always did), the low sting when they lost, and a plain turn chime for a draw.
+## The jingle for the end of the match: the fanfare for whoever won on this screen, the defeat sting for
+## whoever lost (online each client gets its own), and a plain turn chime for a draw. Hot-seat is one
+## device shared by both players, so it can only play one of them: the fanfare.
 func _match_end_sound() -> String:
 	if g.winner >= 2:
 		return "turn_start"
