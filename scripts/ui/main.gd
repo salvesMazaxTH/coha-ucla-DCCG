@@ -360,6 +360,12 @@ func _show_menu() -> void:
 	lt.position = Vector2(stage_w - 300, 790.0 + BOT)
 	lt.size = Vector2(280, 52)
 	layer.add_child(lt)
+	var sound_toggle := _toggle_button("SOM", Sfx.is_enabled(), func():
+		Sfx.set_enabled(not Sfx.is_enabled())
+		_show_menu.call_deferred())
+	sound_toggle.position = Vector2(stage_w - 300, 662.0 + BOT)
+	sound_toggle.size = Vector2(280, 52)
+	layer.add_child(sound_toggle)
 	var fs := _button("Tela cheia (F11)", _toggle_fullscreen)
 	fs.position = Vector2(stage_w - 300, 790.0 + BOT - 64.0)
 	fs.size = Vector2(280, 52)
@@ -395,6 +401,7 @@ func _start(ai: bool, deck_a: String, deck_b: String) -> void:
 	for i in 2:
 		g.auto_pass[i] = _auto_pass_on() or _is_ai(i)
 	CardDB.reroll_flavor()
+	Sfx.play("card_shuffle")
 	log_lines = ["Partida iniciada. Escolha até 3 cartas para trocar."]
 	chronicle_entries.clear()
 	conceded = -1
@@ -896,6 +903,7 @@ func _on_net(m: Dictionary) -> void:
 			_show_events(m["events"])
 		"reject":
 			_toast("Ação inválida.")
+			Sfx.play("ui_error")
 		"opponent":
 			opp_online = m["connected"]
 			_toast("Oponente reconectou." if opp_online else "Oponente desconectou.")
@@ -911,6 +919,7 @@ func _do(events: Array) -> void:
 		return ## the server answers with "events" (see _on_net)
 	if events.is_empty():
 		_toast("Ação inválida.")
+		Sfx.play("ui_error")
 		_render() # brings back the action button that greyed out when it was pressed
 		return
 	_reset_input()
@@ -963,6 +972,9 @@ func _play_events(events: Array) -> void:
 	_animation_busy_until_ms = Time.get_ticks_msec() + int(end * 1000.0)
 	_settle_timer.start(maxf(end, 0.05))
 	# the Victory/Defeat screen waits for the killing blow to land instead of spoiling it
+	if g.phase == "over" and _waiting_event_batches.is_empty():
+		# same moment as the Victory/Defeat screen (the last batch only, so a queue of batches does not announce it early)
+		Sfx.play_in(_match_end_sound(), maxf(_leader_ko_t + 0.7, end) if _leader_ko_t >= 0.0 else end)
 	if g.phase == "over" and _over_from >= 0 and end > 0.0:
 		var delay := maxf(_leader_ko_t + 0.7, end) if _leader_ko_t >= 0.0 else end
 		for n in layer.get_children().slice(_over_from):
@@ -972,6 +984,17 @@ func _play_events(events: Array) -> void:
 			otw.tween_property(n, "modulate:a", 1.0, 0.35)
 	if not ai_timer.is_stopped():
 		ai_timer.start(max(0.55, end + 0.2))
+
+## The jingle for the end of the match: a fanfare when the player won (or in hot-seat, where somebody
+## always did), the low sting when they lost, and a plain turn chime for a draw.
+func _match_end_sound() -> String:
+	if g.winner >= 2:
+		return "turn_start"
+	if online:
+		return "victory" if g.winner == viewer else "defeat"
+	if vs_ai:
+		return "victory" if g.winner == 0 else "defeat"
+	return "victory"
 
 func _is_ai(p: int) -> bool:
 	return vs_ai and p == 1
@@ -1828,6 +1851,9 @@ func _render_side() -> void:
 	wl.position = Vector2(0, 57)
 	wl.size = Vector2(COL_W, 22)
 	tp.add_child(wl)
+	var sound_button := _sound_icon_button(36.0)
+	sound_button.position = Vector2(COL_W - 40.0, 4.0)
+	tp.add_child(sound_button)
 
 	# actions
 	var y := 424.0
@@ -3944,6 +3970,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 	var cursor := 0.0
 	var handled := {}
 	var appear := {}
+	var placed_uids := {} ## units whose "card placed" sound already played with their "play" event
 	var in_combat := false
 	var last_src := 0
 	var last_dst := 0
@@ -3984,6 +4011,12 @@ func _animate(events: Array, old: Dictionary) -> float:
 		if trig_src != 0 and et in ["damage", "heal", "shield_break", "buff", "dot", "freeze", "exhaust", "condemn", "tide_mark", "spell_shield_break", "summon"] \
 				and e["uid"] != trig_src and actors.has(trig_src) and actors.has(e["uid"]):
 			cursor += _streak(actors[trig_src], actors[e["uid"]], cursor, CardView.TRIGGER_COL) - 0.04
+		# Sound: most events play theirs right here, at the moment their animation starts. The ones
+		# below time their own: hits and heals land at `t` (after the lunge), deaths and banishes play
+		# with the dissolve at the end, and a played card makes its sound when it lands.
+		if not et in ["play", "damage", "shield_break", "heal", "death", "banish"] \
+				and not (et == "summon" and placed_uids.has(e["uid"])):
+			Sfx.play_event(e, cursor, in_combat)
 		match et:
 			"trigger":
 				if actors.has(e["uid"]):
@@ -4017,6 +4050,11 @@ func _animate(events: Array, old: Dictionary) -> float:
 					var v: CardView = views[uid]
 					var to := _pose(v)
 					handled[uid] = true
+					# the card is heard when it lands on the board (a legendary also gets its bell as it leaves the hand)
+					placed_uids[uid] = true
+					if e.get("legendary", false):
+						Sfx.play_in("legendary", cursor)
+					Sfx.play_in("card_place", cursor + 0.38)
 					v.z_index = 20
 					var tw := _fly(v, origin, to, cursor, 0.42, 70.0, true)
 					tw.tween_callback(func(): v.z_index = 0)
@@ -4025,6 +4063,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 					tw.tween_property(v, "scale", fs, 0.1)
 					cursor += 0.45
 				else:
+					Sfx.play_event(e, cursor, false)
 					var gh := _ghost(e["card_id"], {}, origin, REVEAL_W / CardView.BASE.x) # built at its final size: scaling up would blur the text
 					gh.z_index = 30
 					var tw := _fly(gh, origin, {"c": Vector2(lane_cx, 420), "rot": 0.0, "w": REVEAL_W}, cursor, 0.35, 40.0, true)
@@ -4140,6 +4179,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 					fallen.dissolve(fall_t, fall_col.lightened(0.2), 0.6)
 					_embers(_center_of(fallen), fall_t + 0.1, fall_col)
 					dissolved_early[fallen] = true
+					Sfx.play_in("death", fall_t)
 					cursor = maxf(cursor, fall_t + 0.3)
 			"combat_damage":
 				in_combat = true
@@ -4192,6 +4232,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 						cursor += LUNGE_TOTAL_TIME
 				else:
 					cursor += 0.12
+				Sfx.play_event(e, t, in_combat)
 				if leader_hp.has(dst) and e["type"] in ["damage", "heal"]:
 					leader_hp[dst] += -e["amount"] if e["type"] == "damage" else e["amount"]
 					var lv: LeaderView = views[dst]
@@ -4234,10 +4275,12 @@ func _animate(events: Array, old: Dictionary) -> float:
 		if ghost_exiled[i]:
 			gh.banish(settle + i * 0.06, BANISH_COL, 0.9)
 			_banish_fx(_center_of(gh), _pose(gh)["w"], settle + i * 0.06)
+			Sfx.play_in("banish", settle + i * 0.06)
 			continue
 		var col := _elem_color(gh.card_id)
 		gh.dissolve(settle + i * 0.06, col.lightened(0.2), 0.75)
 		_embers(_center_of(gh), settle + i * 0.06 + 0.1, col)
+		Sfx.play_in("death", settle + i * 0.06)
 	var deck_n := 0
 	var board_end := board_t + 0.3 ## when the last card has finished moving into place
 	for k in views:
@@ -4690,15 +4733,45 @@ func _button(t: String, cb: Callable, primary := false) -> Button:
 	b.text = t
 	if primary:
 		b.theme_type_variation = "PrimaryButton"
+	b.pressed.connect(Sfx.play.bind("ui_click"))
 	b.pressed.connect(cb)
 	return b
+
+## A small round-corner button with a speaker drawn on it (no font needed): sound waves when the sound
+## effects are on, a cross when they are off. Pressing it flips the setting (saved by Sfx).
+func _sound_icon_button(button_size: float) -> Button:
+	var button := Button.new()
+	button.custom_minimum_size = Vector2(button_size, button_size)
+	button.size = Vector2(button_size, button_size)
+	button.tooltip_text = "Liga/desliga os efeitos sonoros."
+	var icon := Control.new()
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.position = Vector2(button_size / 2.0, button_size / 2.0)
+	var draw_speaker := func():
+		var sound_on := Sfx.is_enabled()
+		var color: Color = UITheme.GOLD_LIGHT if sound_on else Color(UITheme.TEXT, 0.5)
+		icon.draw_colored_polygon(PackedVector2Array([Vector2(-10, -4), Vector2(-5, -4), Vector2(1, -9), Vector2(1, 9), Vector2(-5, 4), Vector2(-10, 4)]), color)
+		if sound_on:
+			icon.draw_arc(Vector2(1, 0), 6.0, -0.8, 0.8, 8, color, 2.0)
+			icon.draw_arc(Vector2(1, 0), 11.0, -0.8, 0.8, 10, color, 2.0)
+		else:
+			icon.draw_line(Vector2(6, -5), Vector2(14, 5), UITheme.HP, 2.0)
+			icon.draw_line(Vector2(6, 5), Vector2(14, -5), UITheme.HP, 2.0)
+	icon.draw.connect(draw_speaker)
+	button.add_child(icon)
+	button.pressed.connect(func():
+		Sfx.set_enabled(not Sfx.is_enabled())
+		Sfx.play("ui_toggle") # heard only when it was just turned on
+		icon.queue_redraw())
+	return button
 
 ## An on/off button shown as a sliding switch instead of the words "LIGADO"/"desligado":
 ## gold track with the knob on the right when on, dark track with the knob on the left when off.
 func _toggle_button(title: String, is_on: bool, on_press: Callable) -> Button:
 	var button := Button.new()
+	button.pressed.connect(Sfx.play.bind("ui_toggle"))
 	button.pressed.connect(on_press)
-	var title_label := _label(title, 17, UITheme.TEXT if is_on else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT, "bold")
+	var title_label :=_label(title, 17, UITheme.TEXT if is_on else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT, "bold")
 	title_label.position = Vector2(16, 0)
 	title_label.size = Vector2(150, 48)
 	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -4739,6 +4812,7 @@ func _action_button(text: String, action: Callable, primary := false) -> Button:
 	if primary:
 		button.theme_type_variation = "PrimaryButton"
 	button.add_to_group("action_buttons")
+	button.pressed.connect(Sfx.play.bind("ui_click"))
 	button.pressed.connect(func():
 		for action_button: Button in get_tree().get_nodes_in_group("action_buttons"):
 			action_button.disabled = true

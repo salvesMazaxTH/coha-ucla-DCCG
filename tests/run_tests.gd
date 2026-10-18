@@ -14,6 +14,7 @@ func _init() -> void:
 		check(errs.is_empty(), "deck %s: %s" % [d, errs])
 		check(DeckDB.get_deck(d)["cards"].keys() == DeckDB.sorted_cards(DeckDB.get_deck(d)["cards"]).keys(), "deck %s: cartas fora de ordem de custo (rode tools/sort_decks.gd)" % d)
 	_test_flavor()
+	_test_sfx()
 	_test_off_essence()
 	_test_secondary_essences()
 	_test_death_order()
@@ -100,6 +101,28 @@ func _init() -> void:
 	# Run tests/golden_check.gd by hand before committing an engine/rules change.
 	print("tests done, failures: ", failures)
 	quit(1 if failures > 0 else 0)
+
+## (The Sfx autoload does not exist in -s mode, so the script is loaded directly; its table and mapping are static.)
+const SfxScript := preload("res://scripts/audio/sfx.gd")
+
+## Sound effects: every file in the SOUNDS table exists, and engine events map to the sound that fits.
+func _test_sfx() -> void:
+	for sound_name in SfxScript.SOUNDS:
+		for file_name in SfxScript.SOUNDS[sound_name]["files"]:
+			check(ResourceLoader.exists(SfxScript.SFX_FOLDER + file_name + ".ogg"), "sfx %s: arquivo %s.ogg não existe" % [sound_name, file_name])
+	check(SfxScript.sound_for_event({"type": "damage", "amount": 3, "src": 5}, true) == "hit_light", "sfx: golpe de combate leve")
+	check(SfxScript.sound_for_event({"type": "damage", "amount": 7, "src": 5}, true) == "hit_heavy", "sfx: golpe de combate pesado")
+	check(SfxScript.sound_for_event({"type": "damage", "amount": 3, "src": 5}, false) == "direct_damage", "sfx: dano de efeito fora do combate")
+	check(SfxScript.sound_for_event({"type": "damage", "amount": 0, "src": 5}, true) == "", "sfx: dano zero é silencioso")
+	check(SfxScript.sound_for_event({"type": "heal", "amount": 2}, false) == "heal", "sfx: cura")
+	check(SfxScript.sound_for_event({"type": "draw"}, false) == "card_draw", "sfx: compra de carta")
+	check(SfxScript.sound_for_event({"type": "banish"}, false) == "banish", "sfx: banimento")
+	check(SfxScript.sound_for_event({"type": "mulligan"}, false) == "card_fan", "sfx: mulligan")
+	check(SfxScript.sound_for_event({"type": "play", "card_id": "alexa_neruvya"}, false) == "card_place", "sfx: jogar unidade")
+	check(SfxScript.sound_for_event({"type": "play", "card_id": "afogar"}, false) == "spell_cast", "sfx: jogar feitiço")
+	check(SfxScript.sound_for_event({"type": "play", "card_id": "pingente_das_ondas"}, false) == "relic", "sfx: jogar artefato")
+	check(SfxScript.sound_for_event({"type": "buff", "atk": 0, "hp": 0}, false) == "", "sfx: buff vazio é silencioso")
+	check(SfxScript.sound_for_event({"type": "tipo_que_nao_existe"}, false) == "", "sfx: evento desconhecido é silencioso")
 
 func _test_flavor() -> void:
 	for id in CardDB.data()["cards"]:
