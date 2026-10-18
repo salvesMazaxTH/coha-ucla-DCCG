@@ -11,11 +11,11 @@
       "trigger": "on_play",
       "action": "damage",
       "target": "random_enemy_unit_spread",
-      "hits": 6,
+      "hits": 9,
       "amount": 1
     }
   ],
-  "text": "Distribui 6 de dano entre as unidades inimigas, 1 de cada vez, sorteando a unidade a cada ponto.",
+  "text": "Distribui 9 de dano entre as unidades inimigas, 1 de cada vez, sorteando a unidade a cada ponto.",
   "flavor": "O sineiro jura que foi o vento. O vento jura que foi o sineiro.",
   "tags": []
 }

@@ -17,10 +17,11 @@
       "if": "momentum_left",
       "action": "buff",
       "target": "self",
-      "atk": 1
+      "atk": 1,
+      "per": "momentum_left"
     }
   ],
-  "text": "No Fim do Turno: se sobrou Momentum, ganhe +1 de Ataque permanente.",
+  "text": "No Fim do Turno: ganhe +1 de Ataque permanente por Momentum que sobrou.",
   "flavor": "",
   "tags": []
 }

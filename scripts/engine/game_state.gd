@@ -11,6 +11,7 @@ const BOARD_LIMIT := 8
 const MOMENTUM_CAP := 10
 const RESERVE_CAP := 2 ## unspent Momentum banked at turn start; pays only spells and abilities
 const COMMANDER_TAX_STEP := 1 ## the Encarnação's tax grows by this much per previous cast: +1, then +2, +3, +4... (totals 1, 3, 6, 10)
+const WEAK_UNIT_MAX_HP := 3 ## "weak_enemy_unit" targets: enemy units with this much current Vida or less (Isarelis)
 const INTIMIDATE_ATK := 3 ## Intimidacao: attackers with this ATK or less cannot challenge it
 const SECOND_BONUS_TURNS := 2 ## the second player's first turns that start with +1 Momentum and +1 Reserve (refill)
 const SNOWBALL_GRANDE_AT := 8 ## Bola de Neve level at which every Bola de Neve card of the player evolves into a Grande Bola de Neve
@@ -442,7 +443,7 @@ func attack_targets(attacker: Card) -> Array:
 ## Effect spec of a card/ability that needs a chosen target, or "" if none.
 func target_spec(effects: Array) -> String:
 	for e in effects:
-		if e.get("target", "") in ["enemy_unit", "ally_unit", "other_ally_unit", "ally_or_own_leader", "any_unit", "any", "enemy_stack", "enemy_artifact"]:
+		if e.get("target", "") in ["enemy_unit", "weak_enemy_unit", "ally_unit", "other_ally_unit", "ally_or_own_leader", "any_unit", "any", "enemy_stack", "enemy_artifact"]:
 			return e["target"]
 	return ""
 
@@ -652,6 +653,9 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 	match spec:
 		"enemy_unit":
 			for c: Card in theirs: out.append(c.uid)
+		"weak_enemy_unit": # an enemy unit whose current Vida is WEAK_UNIT_MAX_HP or less (Isarelis' execution)
+			for c: Card in theirs:
+				if c.hp_left() <= WEAK_UNIT_MAX_HP: out.append(c.uid)
 		"ally_unit":
 			for c: Card in mine: out.append(c.uid)
 		"other_ally_unit":
@@ -1888,7 +1892,9 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 			c.tide_mark = false
 			_emit({"type": "tide_draw", "uid": t, "player": c.owner})
 			_draw(c.owner, 1)
-		_fire(c, "on_damaged", src_uid, {"from_spell": _spell_resolving and source == null})
+		# Ao Sofrer Dano only fires if the unit survived the damage; a lethal hit just kills it
+		if c.hp_left() > 0:
+			_fire(c, "on_damaged", src_uid, {"from_spell": _spell_resolving and source == null})
 		# Reflexão: half of the damage taken (rounded up) goes back to the unit that dealt it. The
 		# returning damage has no source, so two mirrors facing each other can't bounce it forever.
 		if has_kw(c, "reflexao") and source != null and source != c and find_unit(src_uid) != null:
@@ -1904,9 +1910,24 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		# Tóxico X: combat damage that really got through leaves X Veneno markers (blocked damage returned above)
 		if _combat_damage and source != null and has_kw(source, "toxico") and dealt > 0 and c.hp_left() > 0:
 			add_dot_markers(c, "veneno", toxico_markers(source), source.data().get("toxico_ignores_immunity", false))
+	if source != null and dealt > 0:
+		burn_target_of_damage_dealer(source, t)
 	if source != null and has_kw(source, "roubo_de_vida"):
 		_heal_leader(source.owner, dealt)
 	return dealt
+
+## A unit with the card field "burns_on_damage": N leaves N Queimadura markers on whatever it just damaged
+## (a unit or a Leader), in combat or through its own effects (Kai). Called with the damage that really got through.
+func burn_target_of_damage_dealer(dealer: Card, target_uid: int) -> void:
+	var burn_markers := int(dealer.data().get("burns_on_damage", 0))
+	if burn_markers <= 0:
+		return
+	if target_uid < 0:
+		add_leader_dot_markers(LEADER_UID.find(target_uid), "queimadura", burn_markers)
+		return
+	var burned_unit := find_unit(target_uid)
+	if burned_unit != null and burned_unit.hp_left() > 0:
+		add_dot_markers(burned_unit, "queimadura", burn_markers)
 
 ## Puts `amount` accumulating markers of the `dot_id` kind on the unit (they resolve at its controller's turn start).
 func add_dot_markers(unit: Card, dot_id: String, amount: int, ignores_immunity := false) -> void:
@@ -2201,9 +2222,26 @@ func _fire_leader_passive(p: int, trigger: String) -> void:
 		return
 	if ab.get("once_per_turn", false) and players[p]["passive_used"]:
 		return
+	if _passive_refunds_nothing(p, ab):
+		return # nothing leaked: do not announce a passive that does nothing (e.g. on the first turn)
 	players[p]["passive_used"] = true
 	_emit({"type": "passive", "player": p})
 	queue_trigger(PendingTrigger.new(null, EffectRegistry.parse_list(ab["effects"]), EffectContext.new(self, p, "")))
+
+## True when every effect of the passive is a "leaked" Momentum refund (Sobrecarga) and the refund
+## comes to 0, so firing it would only show a pointless "ativou Sobrecarga".
+func _passive_refunds_nothing(p: int, ability: Dictionary) -> bool:
+	var effects: Array = ability["effects"]
+	if effects.is_empty():
+		return false
+	for effect_data: Dictionary in effects:
+		if effect_data.get("action", "") != "gain_momentum" or effect_data.get("per", "") != "leaked":
+			return false
+		var divisor := maxi(1, int(effect_data.get("divisor", 1)))
+		var refund := mini(int(effect_data.get("max", MOMENTUM_CAP)), int(players[p]["leaked"]) / divisor)
+		if refund > 0:
+			return false
+	return true
 
 func _finish_turn() -> void:
 	bus().emit(GameEvent.new("turn_ended", active))

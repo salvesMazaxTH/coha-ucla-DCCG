@@ -14,8 +14,8 @@
     "rapidez:1"
   ],
   "art": "neutra/isarelis.webp",
-  "effects": [],
-  "text": "",
+  "effects": [{"trigger": "on_enter", "action": "destroy", "target": "weak_enemy_unit"}],
+  "text": "Ao Entrar: destrua uma unidade inimiga com 3 de Vida ou menos.",
   "flavor": [
     "Você nem viu a lâmina. Ótimo, é o plano."
   ],

@@ -18,11 +18,11 @@
     {
       "trigger": "on_attack",
       "action": "damage",
-      "target": "random_enemy_unit",
+      "target": "random_enemy_unit_twice",
       "amount": 2
     }
   ],
-  "text": "Ao Atacar: cause 2 de dano a uma unidade inimiga aleatória.",
+  "text": "Ao Atacar: cause 2 de dano a uma unidade inimiga aleatória, duas vezes.",
   "flavor": "",
   "tags": []
 }

@@ -93,6 +93,7 @@ func _init() -> void:
 	_test_adjacent_armor()
 	_test_sagrada_engine()
 	_test_maria_helena()
+	_test_champion_rework()
 	_test_sim()
 	for e in CardDB.errors():
 		check(false, e)
@@ -3406,7 +3407,7 @@ func _test_eletrica() -> void:
 	g.players[a]["momentum"] = 0
 	g._run_effect_dicts(a, CardDB.card("voltexz")["effects"], "on_enter", 0, 0)
 	check(g.atk_of(ally) == 6 and g.players[a]["board"][0].hp == 8, "voltexz: sem Momentum sobrando, ainda dá +1/+1")
-	# Jack: +1 attack at end of turn only with Momentum left
+	# Jack: +1 attack per Momentum left at end of turn
 	g = _eletrica_game()
 	a = g.active
 	o = g.opponent(a)
@@ -3416,7 +3417,7 @@ func _test_eletrica() -> void:
 	g.end_turn(o)
 	g.players[a]["momentum"] = 2
 	g.end_turn(a)
-	check(g.atk_of(jk) == 4, "jack: Momentum sobrando dá +1 permanente")
+	check(g.atk_of(jk) == 5, "jack: Momentum sobrando dá +1 de Ataque por ponto")
 	# Layla: +1 attack per damage taken, up to +3
 	# Layla: +1 attack per damage taken, no cap
 	var ly := _put(g, g.active, "layla")
@@ -3489,6 +3490,16 @@ func _test_eletrica() -> void:
 	g._fire_leader_passive(a, "on_turn_start")
 	g._check_state()
 	check(g.players[a]["momentum"] == 2, "sobrecarga: devolve no máximo 2")
+	# nothing to refund (first turn, or leaked 0/1): the passive does not even show up in the Crônica
+	g = _eletrica_game()
+	a = g.active
+	g.players[a]["leaked"] = 1
+	g._flush()
+	g._fire_leader_passive(a, "on_turn_start")
+	check(not _has_event(g._flush(), "passive"), "sobrecarga: sem nada a devolver, não anuncia a passiva")
+	g.players[a]["leaked"] = 2
+	g._fire_leader_passive(a, "on_turn_start")
+	check(_has_event(g._flush(), "passive"), "sobrecarga: com Momentum a devolver, anuncia a passiva")
 
 func _test_intimidacao() -> void:
 	_tcard("t_int", 4, 4, [])
@@ -4628,11 +4639,12 @@ func _test_glacial_combo() -> void:
 	var health_before := 0
 	for victim: Card in spread_victims:
 		health_before += spread_game.hp_left(victim)
+	check(int(CardDB.card("repique_desgovernado")["effects"][0]["hits"]) == 9, "Repique Desgovernado: o JSON da carta distribui 9 de dano (X = 9)")
 	_cast_and_resolve(spread_game, 0, "repique_desgovernado")
 	var health_after := 0
 	for victim: Card in spread_victims:
 		health_after += spread_game.hp_left(victim)
-	check(health_before - health_after == 9, "Repique Desgovernado: tira exatamente 9 de Vida somados das unidades inimigas (sem sobra de Vida alta)")
+	check(health_before - health_after == 9, "Repique Desgovernado: tira exatamente os pontos de dano da carta de Vida somados das unidades inimigas (sem sobra de Vida alta)")
 	var empty_spread_game := _new_game()
 	_quiet(empty_spread_game)
 	empty_spread_game.players[0]["momentum"] = 10
@@ -5523,6 +5535,82 @@ func _test_sagrada_engine() -> void:
 	check(g.card_targets(defender_side, CardDB.card("t_counter_destroy")).size() == 1, "only_if_destroys: um feitiço que destrói a unidade aliada pode ser anulado")
 
 ## Santa Maria Helena: 0/6 for five, periodic Leader healing, and one first-hit reduction per turn.
+## Jack (Attack per leftover Momentum), Kai (Queimadura on any damage he deals) and Isarelis (executes a weak enemy).
+func _test_champion_rework() -> void:
+	# Jack: at the end of the turn he gains +1 Attack for each Momentum left, and no Vida
+	var jack_game := _new_game()
+	_quiet(jack_game)
+	var jack := _put(jack_game, 0, "jack")
+	var jack_attack_before := jack_game.atk_of(jack)
+	var jack_health_before := jack.hp
+	jack_game.players[0]["momentum"] = 3
+	jack_game._fire(jack, "on_turn_end")
+	jack_game._check_state()
+	check(jack_game.atk_of(jack) == jack_attack_before + 3, "Jack: ganha +3 de Ataque com 3 de Momentum sobrando (%d)" % jack_game.atk_of(jack))
+	check(jack.hp == jack_health_before, "Jack: não ganha Vida")
+	jack_game.players[0]["momentum"] = 0
+	jack_game._fire(jack, "on_turn_end")
+	jack_game._check_state()
+	check(jack_game.atk_of(jack) == jack_attack_before + 3, "Jack: sem Momentum sobrando não ganha nada")
+
+	# Kai: 1 Queimadura on whatever he damages, in combat or with his Ao Atacar, Leader included
+	var kai_game := _new_game()
+	_quiet(kai_game)
+	var kai := _put(kai_game, 0, "kai")
+	_hit(kai_game, kai)
+	check(kai_game.leader_dot_markers(1, "queimadura") == 2, "Kai: ao atacar o Líder, o Ao Atacar e o dano de combate queimam (2 marcadores: %d)" % kai_game.leader_dot_markers(1, "queimadura"))
+	var kai_victim := _put(kai_game, 1, "geodo_vivo")
+	kai_victim.dot_markers.clear()
+	var kai_second := _put(kai_game, 0, "kai")
+	kai_game.players[0]["attacked"] = false
+	var markers_before := int(kai_victim.dot_markers.get("queimadura", 0))
+	kai_game._deal_damage(kai_victim.uid, 1, kai_second)
+	check(int(kai_victim.dot_markers.get("queimadura", 0)) == markers_before + 1 or kai_game.unit_is_immune_to_dot(kai_victim, "queimadura"),
+		"Kai: dano causado por ele a uma unidade deixa 1 Queimadura")
+	var other_burn := kai_game.leader_dot_markers(1, "queimadura")
+	kai_game._deal_damage(GameState.LEADER_UID[1], 1, null)
+	check(kai_game.leader_dot_markers(1, "queimadura") == other_burn, "Kai: dano que não é dele não queima")
+
+	# Ao Sofrer Dano fires when the unit survives the hit, but not when the hit kills it
+	_tcard("t_avenger", 1, 3, [{"trigger": "on_damaged", "action": "damage", "target": "enemy_leader", "amount": 2}])
+	var avenger_game := _new_game()
+	_quiet(avenger_game)
+	var surviving_avenger := _put(avenger_game, 0, "t_avenger")
+	var enemy_life_before: int = avenger_game.players[1]["leader_hp"]
+	avenger_game._deal_damage(surviving_avenger.uid, 1, null)
+	avenger_game._check_state()
+	check(avenger_game.players[1]["leader_hp"] == enemy_life_before - 2, "Ao Sofrer Dano: dispara quando a unidade sobrevive")
+	avenger_game._deal_damage(surviving_avenger.uid, 5, null)
+	avenger_game._check_state()
+	check(avenger_game.players[1]["leader_hp"] == enemy_life_before - 2, "Ao Sofrer Dano: não dispara com dano letal")
+
+	# Isarelis: Ao Entrar can only pick an enemy unit with Vida <= 3 and destroys it (Escudo does not save it)
+	_tcard("t_weak_foe", 1, 3, [])
+	_tcard("t_strong_foe", 1, 4, [])
+	var isa_game := _new_game()
+	_quiet(isa_game)
+	isa_game.players[0]["momentum"] = 10
+	var weak_foe := _put(isa_game, 1, "t_weak_foe")
+	var strong_foe := _put(isa_game, 1, "t_strong_foe")
+	strong_foe.damage = 0
+	var isarelis := _give(isa_game, 0, "isarelis")
+	isa_game.play_card(0, isarelis)
+	check(isa_game.phase == "enter_target", "Isarelis: pede o alvo ao entrar")
+	var execution_targets := isa_game.valid_targets(0, isa_game.pending_enter["spec"], isarelis)
+	check(execution_targets.has(weak_foe.uid) and not execution_targets.has(strong_foe.uid), "Isarelis: só dá para escolher inimigo com 3 de Vida ou menos")
+	check(isa_game.choose_enter_target(0, strong_foe.uid).is_empty(), "Isarelis: alvo com Vida acima de 3 é recusado")
+	weak_foe.shield = true
+	isa_game.choose_enter_target(0, weak_foe.uid)
+	_resolve_stack(isa_game)
+	check(isa_game.find_unit(weak_foe.uid) == null, "Isarelis: destrói o alvo mesmo com Escudo")
+	check(isa_game.find_unit(strong_foe.uid) != null, "Isarelis: o inimigo forte fica")
+	# a wounded big unit counts by its current Vida
+	var wounded_game := _new_game()
+	_quiet(wounded_game)
+	var wounded := _put(wounded_game, 1, "t_strong_foe")
+	wounded.damage = 1
+	check(wounded_game.valid_targets(0, "weak_enemy_unit").has(wounded.uid), "Isarelis: unidade ferida entra pela Vida atual")
+
 func _test_maria_helena() -> void:
 	var cd := CardDB.card("maria_helena")
 	check(int(cd["cost"]) == 5 and int(cd["atk"]) == 0 and int(cd["hp"]) == 6, "Santa Maria Helena: continua custo 5 e vira 0/6")
