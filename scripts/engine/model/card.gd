@@ -54,6 +54,7 @@ var vipranna_heal_turn := -1 ## turn in which this Tox Vipranna last accepted a 
 var vipranna_heal_total := 0 ## requested healing accepted by this Vipranna during that turn
 var vipranna_heal_locked := false ## later triggers stay off after this instance reaches the 15-point threshold
 var leader_damage_guard_turn := -1 ## turn in which this card reduced the first damage to its Leader
+var death_ward_armed := false ## a free-standing artifact is ready to prevent one allied unit death
 
 func _init(card_uid: int, id: String, owner_player: int, in_zone: String = "") -> void:
 	uid = card_uid
@@ -117,6 +118,7 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	vipranna_heal_total = 0
 	vipranna_heal_locked = false
 	leader_damage_guard_turn = -1
+	death_ward_armed = false
 
 func has_kw(kw: String) -> bool:
 	if kw == "escudo":
@@ -162,6 +164,8 @@ func to_dict() -> Dictionary:
 		d["cost_mod"] = cost_mod
 	if banish_after_cast:
 		d["banish_after_cast"] = true # so the client can warn that the next cast banishes it
+	if death_ward_armed:
+		d["death_ward_armed"] = true
 	if zone != "board":
 		return d
 	d.merge({
@@ -228,6 +232,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	var c := Card.new(int(d["uid"]), String(d["card_id"]), int(d.get("owner", owner_player)), in_zone)
 	c.discount = int(d.get("discount", 0))
 	c.cost_mod = int(d.get("cost_mod", 0))
+	c.death_ward_armed = bool(d.get("death_ward_armed", false))
 	c.over = d.get("over", {})
 	if in_zone != "board":
 		return c

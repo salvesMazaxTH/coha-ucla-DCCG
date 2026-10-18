@@ -46,6 +46,7 @@ const POISON_COL := Color("#b8e86b") ## Veneno: acid-lime drop over a deep viole
 const BLEED_COL := Color("#e85d75") ## Sangramento: reserved by the same shared badge for the future keyword
 const DOT_BADGE_ENLARGEMENT := 1.75 ## size of the marker medallion (Queimadura/Veneno) vs. the other card badges; big enough to read the count on Leaders, which have no overlay
 const DOOM_COL := Color("#b57bff") ## Condenada: sickly violet, always paired with a skull so it is not confused with the spell-shield lilac
+const DEATH_WARD_COL := Color("#72e7ff") ## Baluarte armado: bright cyan so it reads as a persistent ready state
 ## Ice spikes of a frozen card, as [x across the card 0..1, length in base px, half width in base px].
 const FROST_ICICLES := [[0.24, 11.0, 2.6], [0.34, 19.0, 3.2], [0.45, 9.0, 2.2], [0.56, 24.0, 3.6], [0.67, 13.0, 2.6], [0.77, 20.0, 3.2], [0.88, 10.0, 2.4]] ## hang from the top edge
 const FROST_CRYSTALS := [[0.08, 16.0, 4.0], [0.21, 28.0, 5.0], [0.34, 13.0, 3.6], [0.5, 34.0, 5.6], [0.64, 17.0, 4.0], [0.78, 26.0, 5.0], [0.92, 15.0, 3.8]] ## stand on the bottom edge of the art
@@ -366,6 +367,7 @@ func _draw() -> void:
 	var glow := Color(st["glow"]).lerp(Color(st2["glow"]), 0.5)
 	var is_token: bool = not face_down and cd.get("token", false)
 	var is_artifact: bool = not face_down and cd["type"] != "unit" and cd["type"] != "spell"
+	var death_ward_armed: bool = not face_down and cd.get("death_ward", false) and inst.get("death_ward_armed", false)
 	_chamfer_frame = is_artifact
 	if is_token:
 		rad *= TOKEN_CORNER_BOOST
@@ -399,6 +401,12 @@ func _draw() -> void:
 		var first_ring := 4 if highlight.a > 0 else 0
 		for i in 4:
 			_rrect_line(r.grow((2 + (first_ring + i) * 2.2) * s), rad + (first_ring + i) * 2 * s, Color(ABILITY_GLOW, (0.9 - i * 0.22) * (0.65 + 0.35 * pulse)), 2.2 * s)
+	# Baluarte armed: a cyan breathing rim remains visible even though its Ao Ativar is disabled.
+	if death_ward_armed:
+		var ward_pulse := 0.7 + 0.3 * pulse
+		for i in 3:
+			_rrect_line(r.grow((2.5 + i * 2.6) * s), rad + i * 2 * s,
+				Color(DEATH_WARD_COL, (0.9 - i * 0.22) * ward_pulse), 2.4 * s)
 	# Congelada: a cold blue aura breathing around the whole frame
 	if inst.has("frozen"):
 		var breathing := 0.75 + 0.25 * sin(_t * 2.5)
@@ -1079,7 +1087,7 @@ static func _has_always_on_rule(cd: Dictionary) -> bool:
 
 ## True when the card has an automatic effect that waits for a condition (see the Condicional tag).
 static func _has_conditional_rule(cd: Dictionary) -> bool:
-	if cd.has("lethal_ward") or cd.has("spell_discount") or cd.has("redirects_destroy"):
+	if cd.has("lethal_ward") or cd.has("spell_discount"):
 		return true
 	for e in cd.get("effects", []):
 		if e.has("listen"):
@@ -1162,6 +1170,8 @@ func _panel_lines(cd: Dictionary) -> Array:
 		tags.append([CardDB.data()["triggers"]["condicional"]["name"], TRIGGER_COL])
 	if cd.has("activated"):
 		tags.append([CardDB.data()["triggers"]["on_activate"]["name"], TRIGGER_COL])
+	if cd.get("death_ward", false) and inst.get("death_ward_armed", false):
+		tags.append(["ARMADO", DEATH_WARD_COL])
 	if cd.has("transform"):
 		tags.append([CardDB.data()["triggers"]["transform"]["name"], TRIGGER_COL])
 	if tags.size() <= 2 and out.is_empty():

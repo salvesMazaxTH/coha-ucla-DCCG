@@ -39,9 +39,6 @@ func _destroy(context: EffectContext, target_uid: int) -> void:
 	var doomed := context.game.find_unit(target_uid)
 	if doomed == null or doomed.has_kw("indestrutivel"):
 		return
-	# Baluarte Santo: it is destroyed in place of the unit (Indestrutível was checked first, so it is not spent for those)
-	if context.game.redirect_destroy_to_relic(doomed):
-		return
 	var had_shield: bool = doomed.shield
 	doomed.damage = 1000000
 	context.game._emit({"type": "destroy", "uid": target_uid, "card_id": doomed.card_id})

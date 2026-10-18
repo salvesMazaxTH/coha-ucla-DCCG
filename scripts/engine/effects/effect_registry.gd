@@ -4,6 +4,7 @@ extends RefCounted
 ## A new action: write its class in this folder and add one line here.
 
 const AddDotEffectScript = preload("res://scripts/engine/effects/add_dot_effect.gd")
+const DeathWardEffectScript = preload("res://scripts/engine/effects/death_ward_effect.gd")
 
 static var ACTIONS: Dictionary = {
 	"damage": DamageEffect,
@@ -32,6 +33,7 @@ static var ACTIONS: Dictionary = {
 	"fight": FightEffect,
 	"summon": SummonEffect,
 	"put_artifact": PutArtifactEffect,
+	"arm_death_ward": DeathWardEffectScript,
 	"decoy": DecoyEffect,
 	"mill": MillEffect,
 	"fatigue_burn": FatigueBurnEffect,

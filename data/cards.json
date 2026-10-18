@@ -512,7 +512,7 @@
       "legendary": "mefi_urdim",
       "ability": {
         "name": "Erguer o Baluarte",
-        "cost": 4,
+        "cost": 3,
         "speed": "lento",
         "effects": [
           {
@@ -522,7 +522,7 @@
             "unique": true
           }
         ],
-        "text": "Lenta. 4 Momentum: coloque o Baluarte Santo no seu campo (só um por vez)."
+        "text": "Lenta. 3 Momentum: coloque o Baluarte Santo no seu campo (só um por vez)."
       },
       "essences": ["sagrada"]
     },

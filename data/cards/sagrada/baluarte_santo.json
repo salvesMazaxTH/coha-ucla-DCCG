@@ -6,7 +6,7 @@
   "essence": "sagrada",
   "cost": 0,
   "undraftable": true,
-  "redirects_destroy": true,
+  "death_ward": true,
   "art": "sagrada/baluarte_santo.webp",
   "effects": [
     {
@@ -16,7 +16,14 @@
       "amount": 3
     }
   ],
-  "text": "Se um efeito fosse destruir uma unidade sua, este Baluarte é destruído no lugar e a unidade sobrevive.\nAo Morrer: cure 3 de Vida do seu Líder.",
+  "activated": {
+    "cost": 2,
+    "speed": "rapido",
+    "effects": [
+      { "action": "arm_death_ward", "target": "none" }
+    ]
+  },
+  "text": "Ao Ativar (2) {rapido}: arme este Baluarte. A próxima vez que uma unidade sua fosse morrer, exceto por banimento, negue essa morte e destrua este Baluarte.\nAo Morrer: cure 3 de Vida do seu Líder.",
   "flavor": "Uma muralha que aceita cair para que ninguém precise.",
   "tags": []
 }

@@ -15,6 +15,7 @@ func _init() -> void:
 		check(DeckDB.get_deck(d)["cards"].keys() == DeckDB.sorted_cards(DeckDB.get_deck(d)["cards"]).keys(), "deck %s: cartas fora de ordem de custo (rode tools/sort_decks.gd)" % d)
 	_test_flavor()
 	_test_off_essence()
+	_test_secondary_essences()
 	_test_death_order()
 	_test_sacrifice_damage()
 	_test_twin_bolts()
@@ -363,6 +364,31 @@ func _test_off_essence() -> void:
 	var champ: Dictionary = base.duplicate()
 	champ["alexa_neruvya"] = 1 # a champion of another essence
 	check(not DeckDB.validate_cards(leader, champ).filter(func(e): return "Campeão" in e).is_empty(), "Campeão de fora da essência é ilegal")
+
+## Fogo deck with every off-essence card removed, plus the given off-essence cards; only the secondary-essence errors are returned.
+func _secondary_essence_errors(off_essence_cards: Dictionary) -> Array:
+	var leader: String = DeckDB.get_deck("fogo")["leader"]
+	var cards: Dictionary = {}
+	for k in DeckDB.get_deck("fogo")["cards"]:
+		var essences := CardDB.essences_of(CardDB.card(k))
+		if essences.has("neutra") or essences.has("ignea"):
+			cards[k] = DeckDB.get_deck("fogo")["cards"][k]
+	for k in off_essence_cards:
+		cards[k] = off_essence_cards[k]
+	return DeckDB.validate_cards(leader, cards).filter(func(e): return "secundárias" in e)
+
+func _test_secondary_essences() -> void:
+	check(_secondary_essence_errors({"afogar": 3, "tsunami": 3}).is_empty(), "uma essência secundária é legal")
+	check(_secondary_essence_errors({"afogar": 3, "arena_tectonica": 3}).is_empty(), "duas essências secundárias são legais")
+	check(not _secondary_essence_errors({"afogar": 3, "arena_tectonica": 3, "carga_acumulada": 1}).is_empty(), "três essências secundárias são ilegais")
+	# Morwenna is obscura + vegetal: she fits under the obscura secondary essence
+	check(_secondary_essence_errors({"afogar": 3, "morwenna_raiz_podre": 2, "necrofago_espectral": 3}).is_empty(), "carta dupla serve a uma essência secundária pela outra metade")
+	check(not _secondary_essence_errors({"afogar": 3, "morwenna_raiz_podre": 2, "necrofago_espectral": 3, "arena_tectonica": 1}).is_empty(), "carta dupla não abre uma terceira essência secundária")
+	# a neutral Leader picks its secondary essences like any other Leader (Vael: elétrica + ígnea)
+	var vael_cards: Dictionary = DeckDB.get_deck("vael")["cards"].duplicate()
+	check(DeckDB.validate_cards("vael", vael_cards).filter(func(e): return "secundárias" in e).is_empty(), "Líder neutro com duas essências secundárias é legal")
+	vael_cards["afogar"] = 1
+	check(not DeckDB.validate_cards("vael", vael_cards).filter(func(e): return "secundárias" in e).is_empty(), "Líder neutro com três essências secundárias é ilegal")
 
 func _kill(g: GameState, c: Card) -> void:
 	c.damage = 1000
@@ -4993,9 +5019,15 @@ func _test_glacial() -> void:
 	_kill(g, ysvane_card)
 	check(g.players[a]["leader_hp"] == 14, "Ysvane: Ao Morrer cura 4 do Líder (%d)" % g.players[a]["leader_hp"])
 
-## Engine pieces of the Sagrada essence: Pacifista, Baluarte (redirect + Ao Morrer + put_artifact),
+## Engine pieces of the Sagrada essence: Pacifista, Baluarte (activated death ward + Ao Morrer + put_artifact),
 ## opt-in overflow heal, "ao conjurar feitiço da essência" and the undraftable flag.
 func _test_sagrada_engine() -> void:
+	var mefi_ability: Dictionary = CardDB.leader("mefi_urdim")["ability"]
+	var baluarte_data: Dictionary = CardDB.card("baluarte_santo")
+	check(int(mefi_ability["cost"]) == 3, "Mefi'Urdim: Erguer o Baluarte custa 3 Momentum")
+	check(baluarte_data.get("death_ward", false) and not baluarte_data.has("redirects_destroy")
+		and int(baluarte_data["activated"]["cost"]) == 2 and baluarte_data["activated"]["speed"] == "rapido",
+		"Baluarte: proteção manual Ao Ativar custa 2 e é Rápida")
 	# Pacifista: the combat blow is always 0, even with a big Ataque, but it still takes the retaliation
 	_tcard("t_pacifist", 5, 6, [])
 	CardDB.data()["cards"]["t_pacifist"]["keywords"] = ["pacifista", "toxico"]
@@ -5016,12 +5048,13 @@ func _test_sagrada_engine() -> void:
 	check(pacifist.damage == 2, "Pacifista: ainda sofre o golpe de volta (%d)" % pacifist.damage)
 	check(g.atk_of(pacifist) == 5, "Pacifista: o Ataque continua valendo para o resto (Intimidação, escala)")
 
-	# Baluarte: takes the destruction in place of an allied unit; its Ao Morrer heals the Leader by 3
+	# Baluarte: its activated ward prevents any real unit death; its Ao Morrer heals the Leader by 3
 	_tcard("t_ward_unit", 1, 5, [])
 	_tcard("t_ward_immune", 1, 5, [])
 	CardDB.data()["cards"]["t_ward_immune"]["keywords"] = ["indestrutivel"]
 	CardDB.data()["cards"]["t_bulwark"] = {"name": "t_bulwark", "type": "artifact", "subtypes": ["local"], "rarity": "common",
-		"essence": "neutra", "cost": 0, "art": "", "text": "", "flavor": "", "tags": [], "redirects_destroy": true,
+		"essence": "neutra", "cost": 0, "art": "", "text": "", "flavor": "", "tags": [], "death_ward": true,
+		"activated": {"cost": 2, "speed": "rapido", "effects": [{"action": "arm_death_ward", "target": "none"}]},
 		"effects": [{"trigger": "on_death", "action": "heal_leader", "target": "own_leader", "amount": 3}]}
 	_tspell("t_kill_ally", "lento", [{"trigger": "on_play", "action": "destroy", "target": "ally_unit"}])
 	check(CardDB.is_local(CardDB.card("t_bulwark")) and CardDB.is_relic(CardDB.card("t_bulwark")), "Baluarte: artefato do subtipo local")
@@ -5032,25 +5065,47 @@ func _test_sagrada_engine() -> void:
 	var bulwark := Card.new(g._uid(), "t_bulwark", player)
 	g._place_relic(player, bulwark)
 	g.players[player]["leader_hp"] = 20
-	_cast_and_resolve(g, player, "t_kill_ally", protected_unit.uid)
-	check(g.find_unit(protected_unit.uid) != null, "Baluarte: a unidade sobrevive ao efeito que a destruiria")
-	check(g.find_relic(bulwark.uid) == null, "Baluarte: é destruído no lugar da unidade")
+	g.players[player]["momentum"] = 2
+	check(g.can_activate(player, bulwark.uid), "Baluarte: Ao Ativar custa 2 e está disponível")
+	g.activate(player, bulwark.uid)
+	_resolve_stack(g)
+	check(bulwark.death_ward_armed and g.players[player]["momentum"] == 0, "Baluarte: a ativação arma a proteção e paga 2")
+	protected_unit.damage = protected_unit.hp
+	g._check_state()
+	check(g.find_unit(protected_unit.uid) != null and protected_unit.hp_left() == 1, "Baluarte: a próxima morte por dano é negada")
+	check(g.find_relic(bulwark.uid) == null, "Baluarte: é destruído depois de negar a morte")
 	check(g.players[player]["leader_hp"] == 23, "Baluarte: Ao Morrer cura 3 do Líder (%d)" % g.players[player]["leader_hp"])
 	_cast_and_resolve(g, player, "t_kill_ally", protected_unit.uid)
-	check(g.find_unit(protected_unit.uid) == null, "Baluarte: sem ele, a unidade morre normal")
-	# Indestrutível is checked first: the Baluarte is not spent for a unit that would survive anyway
+	check(g.find_unit(protected_unit.uid) == null, "Baluarte: depois de consumido, a unidade morre normalmente")
+	# Sem ativação, uma destruição normal não é redirecionada.
+	g = _new_game()
+	_quiet(g)
+	player = g.active
+	protected_unit = _put(g, player, "t_ward_unit")
+	bulwark = Card.new(g._uid(), "t_bulwark", player)
+	g._place_relic(player, bulwark)
+	_cast_and_resolve(g, player, "t_kill_ally", protected_unit.uid)
+	check(g.find_relic(bulwark.uid) != null and g.find_unit(protected_unit.uid) == null, "Baluarte: sem ativação, não protege automaticamente")
+	# Indestrutível survives destruction without spending an armed Baluarte.
 	g = _new_game()
 	_quiet(g)
 	player = g.active
 	var immune_unit := _put(g, player, "t_ward_immune")
 	bulwark = Card.new(g._uid(), "t_bulwark", player)
 	g._place_relic(player, bulwark)
+	g.players[player]["momentum"] = 2
+	g.activate(player, bulwark.uid)
+	_resolve_stack(g)
 	_cast_and_resolve(g, player, "t_kill_ally", immune_unit.uid)
-	check(g.find_relic(bulwark.uid) != null and g.find_unit(immune_unit.uid) != null, "Baluarte: não gasta com unidade Indestrutível")
+	check(g.find_relic(bulwark.uid) != null and bulwark.death_ward_armed and g.find_unit(immune_unit.uid) != null, "Baluarte: não gasta com unidade Indestrutível")
+	# Banimento também bypasses the death ward and leaves it armed for a later death.
+	var banished_unit := _put(g, player, "t_ward_unit")
+	g.banish_unit(banished_unit)
+	check(g.find_relic(bulwark.uid) != null and bulwark.death_ward_armed, "Baluarte: banimento não consome a proteção")
 
 	# put_artifact through a Lenta Leader ability: unique, needs a free slot, never charges for a no-op
 	CardDB.data()["leaders"]["t_leader"] = {"name": "t_leader", "hp": 30, "art": "", "legendary": "ronan", "essences": ["neutra"],
-		"ability": {"name": "Erguer", "cost": 4, "speed": "lento", "text": "",
+		"ability": {"name": "Erguer", "cost": 3, "speed": "lento", "text": "",
 			"effects": [{"action": "put_artifact", "target": "none", "card": "t_bulwark", "unique": true}]}}
 	g = _new_game()
 	_quiet(g)
@@ -5062,7 +5117,7 @@ func _test_sagrada_engine() -> void:
 	g.use_ability(player)
 	_resolve_stack(g)
 	check(g.players[player]["relics"].size() == 1 and g.players[player]["relics"][0].card_id == "t_bulwark", "Erguer o Baluarte: o artefato entra no campo")
-	check(int(g.players[player]["momentum"]) == 4, "Erguer o Baluarte: custa 4")
+	check(int(g.players[player]["momentum"]) == 5, "Erguer o Baluarte: custo 3")
 	g.players[player]["ability_used"] = false
 	check(not g.can_use_ability(player), "Erguer o Baluarte: bloqueado enquanto já existe um em campo (unique)")
 	g.destroy_relic(g.players[player]["relics"][0])
@@ -5176,6 +5231,22 @@ func _test_sagrada_engine() -> void:
 	check(mefi_angel.spell_shield and mefi.spell_shield and not mefi_human.spell_shield, "Mefi'Urdim: Escudo de Feitiço na tribo, incluindo ele, e em mais ninguém")
 	check(g.atk_of(mefi) == 5 and g.hp_left(mefi) == 11, "Mefi'Urdim: ele mesmo ganha +1/+1 da própria aura (%d/%d)" % [g.atk_of(mefi), g.hp_left(mefi)])
 	check(g.atk_of(mefi_angel) == 6 and g.atk_of(mefi_human) == 2, "Mefi'Urdim: o Anjo ganha +1 de Ataque e o humano nada (%d / %d)" % [g.atk_of(mefi_angel), g.atk_of(mefi_human)])
+
+	# Vidal: heals every allied unit fully, purifies them and the Leader, then grants other allies +3/+3.
+	_tcard("t_vidal_ally", 2, 5, [])
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["leader_hp"] = 10
+	g.players[0]["leader_dots"] = {"veneno": 2, "queimadura": 1}
+	var vidal_ally := _put(g, 0, "t_vidal_ally")
+	vidal_ally.damage = 3
+	vidal_ally.dot_markers = {"veneno": 2, "sangramento": 1}
+	var vidal := _put(g, 0, "vidal")
+	g._move_dead_units()
+	check(int(CardDB.card("vidal")["cost"]) == 8, "Vidal: custo 8")
+	check(vidal_ally.damage == 0 and vidal_ally.dot_markers.is_empty(), "Vidal: cura e purifica totalmente as unidades aliadas")
+	check(g.players[0]["leader_hp"] == 10 and g.leader_dot_markers(0, "veneno") == 0 and g.leader_dot_markers(0, "queimadura") == 0, "Vidal: purifica o Líder sem alterar sua Vida")
+	check(g.atk_of(vidal_ally) == 5 and g.hp_left(vidal_ally) == 8 and g.atk_of(vidal) == 0, "Vidal: outras unidades ganham +3/+3 permanentes, ele não")
 
 	# Arcanjo Uriel: grows by 1 Ataque every time his Leader is healed
 	g = _new_game()

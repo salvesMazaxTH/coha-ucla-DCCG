@@ -4351,7 +4351,8 @@ func _chronicle_accent(kind: String, dot_id := "") -> Color:
 		"play": Color("#f3c969"), "resolve": Color("#d9b7ff"), "ability": Color("#c07bff"),
 		"passive": Color("#c07bff"), "trigger": Color("#ff9a4a"), "attack": Color("#ffb45c"),
 		"damage": Color("#ff5d5d"), "heal": Color("#62e58d"), "death": Color("#b8aabf"),
-		"destroy": Color("#b8aabf"), "countered": Color("#c9a8ff"), "fizzle": Color("#c9a8ff"),
+		"destroy": Color("#b8aabf"), "death_ward_armed": Color("#72e7ff"), "death_prevented": Color("#72e7ff"),
+		"countered": Color("#c9a8ff"), "fizzle": Color("#c9a8ff"),
 		"start_turn": Color("#d9b86d"), "transform": Color("#74d7ff")
 	}.get(kind, Color("#8d849c"))
 
@@ -4367,7 +4368,8 @@ func _chronicle_label(kind: String) -> String:
 		"shield_break": "ESCUDO", "spell_shield_break": "ESCUDO", "freeze": "CONGELADA", "thaw": "DEGELO",
 		"exhaust": "EXAUSTÃO", "dodge": "ESQUIVA", "reflect": "REFLEXO", "condemn": "CONDENADA",
 		"doom": "SENTENÇA", "doom_resisted": "RESISTIU", "fatigue": "FADIGA", "ban": "BANIMENTO",
-		"concede": "DESISTÊNCIA", "enter_tapped": "PROVOCAÇÃO"
+		"concede": "DESISTÊNCIA", "enter_tapped": "PROVOCAÇÃO", "death_ward_armed": "BALUARTE",
+		"death_prevented": "BALUARTE"
 	}.get(kind, "EVENTO")
 
 ## Which player did the event (-1 when it can't be told): the event says it, or the card behind it belongs to someone.
@@ -4390,7 +4392,8 @@ func _chronicle_icon(kind: String) -> String:
 	return {
 		"play": "▶", "resolve": "✦", "ability": "✦", "passive": "✦", "trigger": "⚡",
 		"attack": "⚔", "damage": "−", "heal": "+", "death": "×", "destroy": "×",
-		"dot": "•", "start_turn": "◷", "transform": "↻", "countered": "⊘", "fizzle": "⊘"
+		"dot": "•", "start_turn": "◷", "transform": "↻", "countered": "⊘", "fizzle": "⊘",
+		"death_ward_armed": "◇", "death_prevented": "◇"
 	}.get(kind, "·")
 
 ## Converts a raw engine event into the visual relationship shown by ChronicleRow.
@@ -4449,6 +4452,13 @@ func _chronicle_visual_for_event(e: Dictionary) -> Dictionary:
 				out["target_card_ids"].append(String(e["card_id"]))
 		"leader_executed":
 			_chronicle_add_target(out, GameState.LEADER_UID[int(e.get("player", 0))])
+		"death_ward_armed":
+			out["source_card_id"] = String(e.get("card_id", ""))
+			_chronicle_add_target(out, int(e.get("uid", 0)))
+		"death_prevented":
+			out["source_card_id"] = String(e.get("ward_card_id", ""))
+			if String(e.get("card_id", "")) != "":
+				out["target_card_ids"].append(String(e["card_id"]))
 		"summon", "relic_enter", "deck_summon", "revive", "return_to_hand", "card_created", "search_take":
 			out["source_card_id"] = String(e.get("card_id", ""))
 	return out
@@ -4549,6 +4559,10 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s invocou %s" % [_pname(e["player"]), _cname(e["card_id"])])
 		"relic_destroyed":
 			_log("%s foi destruído" % _cname(e["card_id"]))
+		"death_ward_armed":
+			_log("%s foi armado: a próxima morte de uma unidade será negada" % _cname(e["card_id"]))
+		"death_prevented":
+			_log("%s foi destruído para impedir a morte de %s" % [_cname(e["ward_card_id"]), _cname(e["card_id"])])
 		"fuse":
 			_log("%d fichas se fundiram em %s" % [int(e["count"]), _cname(e["card_id"])])
 		"attach":

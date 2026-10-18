@@ -827,6 +827,8 @@ func can_activate(p: int, uid: int, allow_unreachable := false) -> bool:
 		return false
 	if ab.get("once_per_turn", false) and c.activated_turn == turn:
 		return false
+	if _has_action(ab["effects"], "arm_death_ward") and c.death_ward_armed:
+		return false # rearming an already active death shield would only waste Momentum
 	if ab.get("exhaust", false) and c.exhausted:
 		return false
 	if _has_action(ab["effects"], "revive_pick") and (not has_free_slot(p) or revive_options(p).is_empty()):
@@ -1425,24 +1427,6 @@ func destroy_relic(c: Card) -> void:
 	death_context.dying_card = c
 	if not _chain_stopped():
 		queue_trigger(PendingTrigger.new(c, c.effect_list(), death_context, "on_death"))
-
-## The free-standing artifact of player p that takes the hit in place of an allied unit that an effect
-## would destroy (Baluarte Santo), if any. A sibling of the lethal ward: both are artifacts flagged in the JSON.
-func _destroy_redirector_of(p: int) -> Card:
-	for relic: Card in players[p]["relics"]:
-		if relic.data().get("redirects_destroy", false):
-			return relic
-	return null
-
-## An effect would destroy the allied unit `victim`: if its owner has a redirecting artifact, that artifact
-## is destroyed instead and the unit survives. Returns true when the destruction was redirected.
-func redirect_destroy_to_relic(victim: Card) -> bool:
-	var redirector := _destroy_redirector_of(victim.owner)
-	if redirector == null:
-		return false
-	_emit({"type": "relic_redirect", "player": victim.owner, "uid": redirector.uid, "card_id": redirector.card_id, "saved": victim.uid})
-	destroy_relic(redirector)
-	return true
 
 func _release_equipment(c: Card) -> void:
 	stack_system().release_equipment(c)
@@ -2143,6 +2127,9 @@ func _move_dead_units() -> void:
 		for p in [active, opponent(active)]:
 			for c in players[p]["board"].duplicate():
 				if hp_left(c) <= 0:
+					if _prevent_unit_death(c):
+						changed = true
+						continue
 					var dead_uid: int = c.uid # a revive_self below gives c a new uid
 					var dying_is_token: bool = c.data().get("token", false) # "not_token" effects ignore a token dying
 					var dying_card_id: String = c.card_id # "dying_card" effects only hear this card (Luto: Myrra)
@@ -2172,6 +2159,28 @@ func _move_dead_units() -> void:
 					for relic in players[p]["relics"].duplicate(): # free-standing artifacts hear it too
 						_fire(relic, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token, "dying_card_id": dying_card_id})
 					_fire_leader_passive(p, "on_ally_death")
+
+## Returns the armed Baluarte-like artifact of p, if any.
+func _death_ward_of(p: int) -> Card:
+	for relic: Card in players[p]["relics"]:
+		if relic.data().get("death_ward", false) and relic.death_ward_armed:
+			return relic
+	return null
+
+## Prevents the next real unit death. All deaths converge through _move_dead_units; banishment does
+## not, so it deliberately bypasses this protection.
+func _prevent_unit_death(victim: Card) -> bool:
+	var ward := _death_ward_of(victim.owner)
+	if ward == null:
+		return false
+	ward.death_ward_armed = false
+	var total_hp := victim.hp + victim.bonus_hp + victim.temp_hp + victim.temp_hp_until_next_turn
+	victim.damage = maxi(0, total_hp - 1)
+	victim.condemned_turn = 0
+	_emit({"type": "death_prevented", "player": victim.owner, "uid": victim.uid, "card_id": victim.card_id,
+		"ward_uid": ward.uid, "ward_card_id": ward.card_id})
+	destroy_relic(ward)
+	return true
 
 func _check_leaders() -> void:
 	if phase == "over":
