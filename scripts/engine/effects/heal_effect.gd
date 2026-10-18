@@ -10,14 +10,18 @@ extends Effect
 ##              A Leader target (negative uid, e.g. from "ally_or_own_leader") heals that Leader instead.
 ##              "overflow_max_hp": N (opt-in, never a default) = when the heal is bigger than the Vida the
 ##              target was missing, it also gains +N maximum Vida for good (unit or Leader).
+## "cleanse": true (any heal above except leader_max_up) also purifies the healed unit or Leader: all its
+## Veneno/Queimadura/Sangramento markers are removed.
 
 var amount := 0
 var per := ""
 var vipranna := false
 var overflow_max_hp := 0
+var cleanse := false
 
 func _read_parameters(data: Dictionary) -> void:
 	overflow_max_hp = int(data.get("overflow_max_hp", 0))
+	cleanse = bool(data.get("cleanse", false))
 	amount = int(data.get("amount", 0))
 	per = String(data.get("per", ""))
 	vipranna = bool(data.get("vipranna", false))
@@ -36,24 +40,34 @@ func apply(context: EffectContext, target_uid: int) -> void:
 				context.game._apply_vipranna_heal(context, heal_amount)
 			else:
 				context.game._heal_leader(context.controller, heal_amount)
+			if cleanse:
+				context.game.cleanse_leader_markers(context.controller)
 		"leader_max_up":
 			context.game._raise_leader_max(context.controller, amount)
 		"heal_full":
 			var unit := context.game.find_unit(target_uid)
+			if unit != null and cleanse:
+				context.game.cleanse_unit_markers(unit)
 			if unit != null and unit.damage > 0:
-				context.game._emit({"type": "heal", "uid": target_uid, "amount": unit.damage})
+				var healed_amount := unit.damage
+				context.game._emit({"type": "heal", "uid": target_uid, "amount": healed_amount})
 				unit.damage = 0
+				context.game.emit_unit_healed(unit, healed_amount)
 		"heal_unit":
 			if target_uid < 0: # a Leader was picked: heal the controller's Leader
 				var leader_player := context.controller
 				var leader_missing: int = context.game.players[leader_player]["leader_max"] - context.game.players[leader_player]["leader_hp"]
 				context.game._heal_leader(leader_player, amount)
+				if cleanse:
+					context.game.cleanse_leader_markers(leader_player)
 				if overflow_max_hp > 0 and amount > leader_missing:
 					context.game._raise_leader_max(leader_player, overflow_max_hp)
 				return
 			var unit := context.game.find_unit(target_uid)
 			if unit == null:
 				return
+			if cleanse:
+				context.game.cleanse_unit_markers(unit)
 			var heal_amount := amount
 			if per == "armor":
 				heal_amount = context.game.armor_of(unit)
@@ -63,6 +77,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 			if healed > 0:
 				context.game._emit({"type": "heal", "uid": target_uid, "amount": healed})
 				unit.damage -= healed
+				context.game.emit_unit_healed(unit, healed)
 			# opt-in overflow: a heal that goes past what the unit was missing grows its maximum Vida for good
 			if overflow_max_hp > 0 and heal_amount > healed:
 				unit.hp += overflow_max_hp

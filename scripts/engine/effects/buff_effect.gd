@@ -16,6 +16,9 @@ extends Effect
 ## untouched (Mefi'Urdim gives Escudo de Feitiço only to his divindades, celestiais and anjos).
 ## "copy_atk": "highest_ally": the unit takes the Ataque of the OTHER allied unit with the highest Ataque (nothing happens when it
 ## already has as much). With "temp": true it lasts until the end of the turn (Nerithia, Ao Desafiar). Ignores atk/hp.
+## "copy_atk_min_gain": N (with copy_atk) is a pity: the copy always gives at least +N Ataque, even when no ally has more
+## (Nerithia: at least +2 when she challenges).
+## "cleanse": true also purifies every target the buff lands on (all its Veneno/Queimadura/Sangramento markers go away).
 
 var attack := 0
 var health := 0
@@ -42,9 +45,13 @@ var bonus_species: Array = [] ## "bonus_if_species": species that earn the extra
 var species_bonus_attack := 0
 var species_bonus_health := 0
 var only_species: Array = [] ## "only_species": the target must share one of these species or the buff does nothing
+var cleanse := false
+var copy_minimum_gain := 0 ## "copy_atk_min_gain": the copy never gives less than this much Ataque
 
 func _read_parameters(data: Dictionary) -> void:
 	only_species = data.get("only_species", [])
+	cleanse = bool(data.get("cleanse", false))
+	copy_minimum_gain = int(data.get("copy_atk_min_gain", 0))
 	attack = int(data.get("atk", 0))
 	health = int(data.get("hp", 0))
 	armor = int(data.get("armor", 0))
@@ -79,6 +86,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		return
 	if not only_species.is_empty() and not _has_any_species(unit, only_species):
 		return
+	if cleanse:
+		game.cleanse_unit_markers(unit)
 	if copy_attack_source == "highest_ally":
 		_copy_highest_ally_attack(game, unit)
 		return
@@ -166,7 +175,7 @@ func _copy_highest_ally_attack(game: GameState, unit: Card) -> void:
 	for ally: Card in game.players[unit.owner]["board"]:
 		if ally != unit:
 			highest_ally_attack = maxi(highest_ally_attack, game.atk_of(ally))
-	var attack_gain: int = highest_ally_attack - game.atk_of(unit)
+	var attack_gain: int = maxi(highest_ally_attack - game.atk_of(unit), copy_minimum_gain)
 	if attack_gain <= 0:
 		return
 	if temporary:

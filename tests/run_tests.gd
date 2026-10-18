@@ -28,6 +28,8 @@ func _init() -> void:
 	_test_constant()
 	_test_obscura()
 	_test_obscura_rules()
+	_test_cleanse()
+	_test_sagrada_board_control()
 	_test_eletrica()
 	_test_intimidacao()
 	_test_play_slot()
@@ -204,6 +206,92 @@ func _obscura_game() -> GameState:
 	return g
 
 ## Kills a unit by damage and resolves the deaths (revives and triggers included).
+## Purificar: Luz Transbordante tira os marcadores do Líder e de uma unidade; o Ao Entrar do Mefi'Urdim tira os do Líder e dos aliados que ele buffa.
+func _test_cleanse() -> void:
+	var g := _new_game()
+	g.players[0]["leader_dots"] = {"veneno": 3}
+	g.players[0]["leader_hp"] -= 5
+	var light := Card.new(g._uid(), "luz_transbordante", 0, "hand")
+	g.players[0]["hand"].append(light)
+	g.players[0]["momentum"] = 10
+	g.play_card(0, light.uid, GameState.LEADER_UID[0])
+	g._flush()
+	check(g.leader_dot_markers(0, "veneno") == 0, "Luz Transbordante purifica o Líder")
+	var ally := _put(g, 0, "esqueleto_guerreiro")
+	ally.dot_markers = {"veneno": 2, "queimadura": 1}
+	var light2 := Card.new(g._uid(), "luz_transbordante", 0, "hand")
+	g.players[0]["hand"].append(light2)
+	g.play_card(0, light2.uid, ally.uid)
+	g._flush()
+	check(ally.dot_markers.is_empty(), "Luz Transbordante purifica a unidade alvo")
+	g.players[0]["leader_dots"] = {"veneno": 4}
+	var angel := _put(g, 0, "uriel")
+	angel.dot_markers = {"veneno": 2}
+	_put(g, 0, "mefi_urdim")
+	check(g.leader_dot_markers(0, "veneno") == 0, "Mefi'Urdim purifica o Líder ao entrar")
+	check(angel.dot_markers.is_empty(), "Mefi'Urdim purifica as unidades que ele buffa")
+
+func _test_sagrada_board_control() -> void:
+	# Seymour, o limpador: Líder curado, unidade aliada curada, feitiço Sagrado e início do turno
+	# causam 1 de dano duas vezes, cada uma a uma unidade inimiga aleatória
+	var g := _new_game()
+	var foe := _put(g, 1, "estrondador_igneo")
+	_put(g, 0, "seymour")
+	g.players[0]["leader_hp"] -= 6
+	g._heal_leader(0, 2)
+	g._check_state()
+	check(g.find_unit(foe.uid).damage == 2, "Seymour reage à cura do Líder: 2 pontos de dano distribuídos (sobrou %d)" % g.find_unit(foe.uid).damage)
+	var ally := _put(g, 0, "esqueleto_guerreiro")
+	ally.damage = 1
+	var light := Card.new(g._uid(), "luz_transbordante", 0, "hand")
+	g.players[0]["hand"].append(light)
+	g.players[0]["momentum"] = 10
+	g.play_card(0, light.uid, ally.uid)
+	g._check_state()
+	# Luz Transbordante é feitiço Sagrado (+1) e cura uma aliada (+1)
+	check(g.find_unit(foe.uid) == null, "Seymour reage a cura de aliado e a feitiço Sagrado (mais 4 pontos de dano matam a inimiga)")
+	var g_start := _new_game()
+	var start_foe := _put(g_start, 1, "estrondador_igneo")
+	var seymour_start := _put(g_start, 0, "seymour")
+	g_start.active = 0
+	g_start.bus().emit(_turn_start_event(g_start, seymour_start))
+	g_start._check_state()
+	check(g_start.find_unit(start_foe.uid).damage == 2, "Seymour causa 2 pontos de dano no início do turno")
+	# sem unidade inimiga, não acontece nada
+	var g_empty := _new_game()
+	_put(g_empty, 0, "seymour")
+	g_empty._heal_leader(0, 1)
+	g_empty._check_state()
+	var g_small := _new_game()
+	var small_foe := _put(g_small, 1, "salamandra")
+	var small_foe_two := _put(g_small, 1, "salamandra")
+	_put(g_small, 0, "seymour")
+	g_small.players[0]["leader_hp"] -= 3
+	g_small._heal_leader(0, 1)
+	g_small._check_state()
+	check(g_small.find_unit(small_foe.uid) == null or g_small.find_unit(small_foe_two.uid) == null, "Seymour: a cura mata ao menos uma salamandra de 1 de Vida")
+	# Lucien: 1 de dano a todas as unidades inimigas ao entrar
+	var g2 := _new_game()
+	var foe_small := _put(g2, 1, "salamandra")
+	var foe_big := _put(g2, 1, "estrondador_igneo")
+	_put(g2, 0, "lucien")
+	g2._check_state()
+	check(g2.find_unit(foe_small.uid) == null and g2.find_unit(foe_big.uid).damage == 1, "Lucien causa 1 de dano a todas as unidades inimigas")
+	_put(g2, 0, "uriel")
+	g2._check_state()
+	check(g2.find_unit(foe_big.uid).damage == 1, "Uriel não causa dano ao entrar (só o Lucien tem a varredura)")
+	# Nerithia: Ímpeto, e o Ao Desafiar dá sempre ao menos +2 de Ataque
+	var g3 := _new_game()
+	var nerithia := _put(g3, 0, "nerithia")
+	check(g3.has_kw(nerithia, "impeto") and not g3.has_kw(nerithia, "provocacao"), "Nerithia tem Ímpeto e não tem Provocação")
+	var challenge_buff := BuffEffect.new()
+	challenge_buff.setup({"action": "buff", "target": "self", "copy_atk": "highest_ally", "copy_atk_min_gain": 2, "temp": true})
+	challenge_buff.apply(EffectContext.new(g3, 0), nerithia.uid)
+	check(g3.atk_of(nerithia) == 4, "Nerithia ganha ao menos +2 de Ataque ao Desafiar, mesmo sem aliada mais forte (Ataque %d)" % g3.atk_of(nerithia))
+
+func _turn_start_event(g: GameState, unit: Card) -> GameEvent:
+	return GameEvent.new("on_turn_start", unit.owner, unit)
+
 func _test_sacrifice_damage() -> void:
 	var g := _new_game()
 	var jeff := _put(g, 0, "jeff")
@@ -1472,6 +1560,7 @@ func _test_leader_poison() -> void:
 	g.add_dot_markers(marked, "veneno", 1)
 	banish.apply(EffectContext.new(g, 0, ""), marked.uid)
 	check(g.find_unit(marked.uid) == null, "Banir por Veneno: com marcadores suficientes a unidade é banida")
+
 	# the AI must not aim Ponto Final Sem Vírgula at units that do not hold 3+ Veneno markers
 	var ai_game := _new_game()
 	_quiet(ai_game)

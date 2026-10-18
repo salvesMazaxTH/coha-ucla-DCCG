@@ -1940,6 +1940,20 @@ func add_leader_dot_markers(p: int, dot_id: String, amount: int) -> void:
 	leader_dots[dot_id] = int(leader_dots.get(dot_id, 0)) + amount
 	_emit({"type": "dot", "uid": LEADER_UID[p], "dot": dot_id, "amount": amount, "total": int(leader_dots[dot_id])})
 
+## Purify: removes every periodic-status marker (Veneno, Queimadura, Sangramento) from the unit.
+func cleanse_unit_markers(unit: Card) -> void:
+	if unit.dot_markers.is_empty():
+		return
+	unit.dot_markers = {}
+	_emit({"type": "cleanse", "uid": unit.uid})
+
+## Purify: removes every periodic-status marker from the Leader of player `p`.
+func cleanse_leader_markers(p: int) -> void:
+	if players[p]["leader_dots"].is_empty():
+		return
+	players[p]["leader_dots"] = {}
+	_emit({"type": "cleanse", "uid": LEADER_UID[p]})
+
 ## True when one of the unit's essences makes it immune to markers of `dot_id`.
 func unit_is_immune_to_dot(unit: Card, dot_id: String) -> bool:
 	return _essences_are_immune_to_dot(CardDB.essences_of(unit.data()), dot_id)
@@ -2036,6 +2050,14 @@ func _raise_leader_max(p: int, amount: int) -> void:
 	pl["leader_hp"] += amount
 	_emit({"type": "heal", "uid": LEADER_UID[p], "amount": amount, "hp_after": pl["leader_hp"]})
 	_emit_leader_healed(p, amount, hp_before)
+
+## Tells the listeners (Seymour) that a unit just got `amount` Vida back. Call it after the damage was removed.
+func emit_unit_healed(unit: Card, amount: int) -> void:
+	var healed := GameEvent.new("unit_healed", unit.owner, unit)
+	healed.amount = amount
+	healed.hp_after = unit.hp_left()
+	healed.hp_before = healed.hp_after - amount
+	bus().emit(healed)
 
 func _emit_leader_healed(p: int, amount: int, hp_before: int) -> void:
 	var healed := GameEvent.new("leader_healed", p)
