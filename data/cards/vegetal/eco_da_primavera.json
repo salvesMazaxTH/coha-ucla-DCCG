@@ -3,8 +3,8 @@
   "type": "spell",
   "rarity": "common",
   "essence": "vegetal",
-  "cost": 4,
-  "speed": "lento",
+  "cost": 5,
+  "speed": "rapido",
   "art": "vegetal/eco_da_primavera.webp",
   "effects": [
     {
@@ -20,7 +20,7 @@
       "hp": 1
     }
   ],
-  "text": "Lenta. Compre 2 cartas. Suas unidades ganham +1 de Vida permanente.",
+  "text": "Rápida. Compre 2 cartas. Suas unidades ganham +1 de Vida permanente.",
   "flavor": "Toda flor responde a uma flor que ninguém mais lembra.",
   "tags": []
 }

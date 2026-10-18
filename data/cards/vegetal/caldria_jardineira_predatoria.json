@@ -5,7 +5,7 @@
   "species": ["humano", "druida"],
   "essence": "vegetal",
   "cost": 2,
-  "atk": 3,
+  "atk": 2,
   "hp": 3,
   "keywords": ["longo_alcance"],
   "art": "vegetal/caldria_jardineira_predatoria.webp",
@@ -17,13 +17,20 @@
       "card": "flor_voraz"
     },
     {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "other_ally_unit",
+      "atk": 1,
+      "hp": 1
+    },
+    {
       "trigger": "on_death",
       "action": "summon",
       "target": "none",
       "card": "mudinha_do_dossel"
     }
   ],
-  "text": "Ao Entrar: invoque uma Flor Voraz 0/2.\nAo Morrer: invoque uma Mudinha do Dossel 1/1.",
+  "text": "Ao Entrar: invoque uma Flor Voraz 0/2 e dê +1/+1 a outra unidade aliada à sua escolha.\nAo Morrer: invoque uma Mudinha do Dossel 1/1.",
   "flavor": "Cada poda é uma negociação. Cada fome, uma assinatura.",
   "tags": []
 }

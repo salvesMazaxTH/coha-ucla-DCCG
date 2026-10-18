@@ -2,7 +2,7 @@
   "name": "Ancião do Primeiro Bosque",
   "type": "unit",
   "rarity": "legendary",
-  "species": ["elemental", "gigante"],
+  "species": ["druida"],
   "essence": "vegetal",
   "cost": 10,
   "atk": 9,

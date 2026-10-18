@@ -5,7 +5,7 @@
   "species": ["fera"],
   "essence": "vegetal",
   "cost": 2,
-  "atk": 3,
+  "atk": 2,
   "hp": 3,
   "keywords": ["impeto"],
   "art": "vegetal/cervo_musgoso.webp",
