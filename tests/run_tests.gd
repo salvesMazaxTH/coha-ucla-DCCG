@@ -25,6 +25,7 @@ func _init() -> void:
 	_test_concede()
 	_test_search()
 	_test_freeze()
+	_test_stun_and_cap()
 	_test_burn()
 	_test_condemn()
 	_test_constant()
@@ -1012,6 +1013,101 @@ func _test_adjacent_armor() -> void:
 	check(g.armor_of(left) == 1 and g.armor_of(guard) == 1 and g.armor_of(right) == 1, "Armadura adjacente vem dos vizinhos, não da própria unidade")
 	check(g.armor_of(far) == 0, "unidade longe do Bastionário não recebe")
 	check(g._deal_damage(right.uid, 1, null) == 1, "dano 1 passa mesmo com a Armadura adjacente (mínimo 1)")
+
+## Atordoamento (stacking, auto-exhausting freeze-like status) and the cap_stats effect behind Última Badalada.
+func _test_stun_and_cap() -> void:
+	_tcard("t_stn_hit", 1, 5, [])
+	_tcard("t_stn_vic", 3, 5, [])
+	var g := _new_game()
+	_quiet(g)
+	var hitter := _put(g, 0, "t_stn_hit")
+	var victim := _put(g, 1, "t_stn_vic")
+	check(not victim.exhausted and not victim.is_stunned(), "atordoamento: unidade começa em pé e sem marcador")
+	g._apply_effect(0, {"action": "stun", "target": "enemy_unit"}, victim.uid)
+	check(victim.is_stunned() and victim.stun_markers == 1 and victim.exhausted, "atordoar: 1 marcador e a unidade fica exausta na hora")
+	check(not g.can_attack(victim) and victim.rapidez_total() == 0, "atordoada: não ataca e a Rapidez é suprimida")
+	check(g.combat_system().attack_targets(hitter).has(victim.uid), "atordoada: está exausta, então pode ser desafiada")
+	_hit(g, hitter, victim.uid)
+	check(hitter.damage == 3 and victim.damage == 1, "atordoada: desafiada, revida com o ATK cheio")
+	# stacking: two markers cost two untaps
+	g._apply_effect(0, {"action": "stun", "target": "enemy_unit"}, victim.uid)
+	check(victim.stun_markers == 2, "atordoar de novo acumula marcadores")
+	_quiet(g)
+	g.end_turn(0)
+	check(g.active == 1 and victim.stun_markers == 1 and victim.exhausted, "início do turno do dono: tira 1 marcador e NÃO desvira")
+	_quiet(g)
+	g.end_turn(1)
+	g.end_turn(0)
+	check(g.active == 1 and victim.stun_markers == 0 and victim.exhausted, "segundo marcador: ainda exausta, só desvira no turno seguinte")
+	_quiet(g)
+	g.end_turn(1)
+	g.end_turn(0)
+	check(not victim.exhausted and g.can_attack(victim), "sem marcadores: desvira e ataca normalmente")
+	# a stunned Provocação forces nothing
+	_tcard("t_stn_taunt", 2, 5, [])
+	CardDB.data()["cards"]["t_stn_taunt"]["keywords"] = ["provocacao"]
+	g = _new_game()
+	_quiet(g)
+	hitter = _put(g, 0, "t_stn_hit")
+	var taunt := _put(g, 1, "t_stn_taunt")
+	taunt.exhausted = true
+	check(g.combat_system().attack_targets(hitter) == [taunt.uid], "Provocação exausta obriga o ataque")
+	g._apply_effect(0, {"action": "stun", "target": "enemy_unit"}, taunt.uid)
+	check(g.combat_system().forced_taunts(hitter).is_empty(), "Provocação atordoada não obriga ataques")
+	# Escudo de Feitiço cancels the stun, like it cancels a freeze
+	var shielded := _put(g, 1, "t_stn_vic")
+	shielded.spell_shield = true
+	g._apply_effect(0, {"action": "stun", "target": "enemy_unit"}, shielded.uid)
+	check(not shielded.is_stunned() and not shielded.spell_shield, "Escudo de Feitiço anula o atordoamento")
+	# save/load keeps the markers
+	var restored := Card.from_dict(taunt.to_dict(), "board", 1)
+	check(restored.stun_markers == 1, "atordoamento sobrevive a salvar e carregar")
+
+	# cap_stats: big units shrink, small ones stay, damage never kills, temporary bonuses go first
+	_tcard("t_cap_big", 5, 5, [])
+	_tcard("t_cap_small", 1, 1, [])
+	g = _new_game()
+	_quiet(g)
+	var big := _put(g, 0, "t_cap_big")
+	var small := _put(g, 1, "t_cap_small")
+	var wounded := _put(g, 1, "t_cap_big")
+	wounded.damage = 4
+	var buffed := _put(g, 0, "t_cap_big")
+	buffed.temp_atk = 2
+	buffed.temp_hp = 2
+	g._apply_effect(0, {"action": "cap_stats", "target": "all_units", "atk": 2, "hp": 2}, big.uid)
+	g._apply_effect(0, {"action": "cap_stats", "target": "all_units", "atk": 2, "hp": 2}, small.uid)
+	g._apply_effect(0, {"action": "cap_stats", "target": "all_units", "atk": 2, "hp": 2}, wounded.uid)
+	g._apply_effect(0, {"action": "cap_stats", "target": "all_units", "atk": 2, "hp": 2}, buffed.uid)
+	check(g.atk_of(big) == 2 and big.hp_left() == 2, "cap_stats: 5/5 vira 2/2 (inclusive a unidade de quem joga)")
+	check(g.atk_of(small) == 1 and small.hp_left() == 1, "cap_stats: unidade menor não cresce")
+	check(wounded.hp_left() == 1 and g.find_unit(wounded.uid) != null, "cap_stats: unidade ferida (1 de Vida) fica com 1 e não morre")
+	check(buffed.temp_atk == 0 and buffed.temp_hp == 0 and g.atk_of(buffed) == 2 and buffed.hp_left() == 2, "cap_stats: bônus temporário sai primeiro e o resultado é 2/2")
+	g._apply_effect(0, {"action": "buff", "target": "ally_unit", "atk": 3, "hp": 3}, big.uid)
+	check(g.atk_of(big) == 5 and big.hp_left() == 5, "cap_stats não é trava: buffs depois ainda crescem a unidade")
+
+	# the real spell: Última Badalada in a Sagrada vs Fogo game
+	var sg := GameState.new("sagrada", "fogo", 7)
+	sg.mulligan(0, [])
+	sg.mulligan(1, [])
+	sg.self_response_enabled = false
+	_quiet(sg)
+	var cd := CardDB.card("ultima_badalada")
+	check(cd["type"] == "spell" and int(cd["cost"]) == 5 and cd["rarity"] == "epic", "Última Badalada: feitiço épico de custo 5")
+	check(int(DeckDB.get_deck("sagrada")["cards"].get("ultima_badalada", 0)) == 2, "Última Badalada: 2 cópias no deck Sagrada")
+	var wall := _put(sg, 0, "uriel")
+	var foe_a := _put(sg, 1, "t_cap_big")
+	var foe_b := _put(sg, 1, "t_cap_big")
+	sg.players[0]["momentum"] = 30
+	_cast_and_resolve(sg, 0, "ultima_badalada")
+	check(sg.atk_of(wall) == 2 and wall.hp_left() == 2, "Última Badalada: encolhe a própria unidade (Uriel 5/5 -> 2/2)")
+	var survivors: Array = [foe_a, foe_b].filter(func(c: Card): return sg.find_unit(c.uid) != null)
+	check(survivors.all(func(c: Card): return c.is_stunned() and c.exhausted), "Última Badalada: todo inimigo que sobrou está atordoado e exausto")
+	check(not wall.is_stunned(), "Última Badalada: não atordoa as próprias unidades")
+	var total_damage := 0
+	for foe in [foe_a, foe_b]:
+		total_damage += 2 if sg.find_unit(foe.uid) == null else (2 - foe.hp_left())
+	check(total_damage >= 2, "Última Badalada: os 5 golpes de 1 caem nos inimigos (2/2 cada: pode matar)")
 
 func _test_freeze() -> void:
 	# Congelada: doesn't attack and doesn't untap until the end of its owner's next turn; ATK stays whole
@@ -3180,6 +3276,42 @@ func _test_vegetal() -> void:
 	g._check_state()
 	var hp_after_enemy_turn: int = (plant_ally.hp - plant_base_hp) + (first_token.hp - 1) + (second_token.hp - 1) + (third_token.hp - 1) + (token_on_enemy_turn.hp - 1)
 	check(hp_after_enemy_turn == hp_before_enemy_turn, "Thalvaressa: fora do turno do dono o passivo não dispara")
+	# Cultivador da Clareira: the +1/+1 goes to ANOTHER unit that was already there (not himself, not the token he summons).
+	# Fresh game so the board from the Thalvaressa checks above does not get in the way.
+	var garden := _new_game()
+	var lone_gardener := _put(garden, 0, "cultivador_da_clareira")
+	check(lone_gardener.atk == 2 and lone_gardener.hp == 4, "Cultivador: sozinho, ele não buffa a si mesmo")
+	var gardener_ally := _put(garden, 0, "guardia_dos_ninhos")
+	var stats_before_second: int = 0
+	for unit: Card in garden.players[0]["board"]:
+		stats_before_second += unit.atk + unit.hp
+	var second_gardener := _put(garden, 0, "cultivador_da_clareira")
+	check(second_gardener.atk == 2 and second_gardener.hp == 4, "Cultivador: não buffa a si mesmo com aliados em campo")
+	var stats_after_second: int = 0
+	var gardener_tokens: Array = []
+	for unit: Card in garden.players[0]["board"]:
+		stats_after_second += unit.atk + unit.hp
+		if unit.card_id == "mudinha_do_dossel":
+			gardener_tokens.append(unit)
+	check(gardener_tokens.size() == 2, "Cultivador: cada entrada invoca uma Mudinha")
+	var newest_token: Card = gardener_tokens[gardener_tokens.size() - 1]
+	check(newest_token.atk == 1 and newest_token.hp == 1, "Cultivador: a ficha que ele acabou de invocar não recebe o buff")
+	# second Cultivador (2/4) + his token (1/1) + exactly one +1/+1 on a unit that was already there
+	check(stats_after_second - stats_before_second == (2 + 4) + (1 + 1) + 2, "Cultivador: o buff +1/+1 caiu numa unidade que já estava em campo")
+	check(gardener_ally.hp >= 6, "Cultivador: Guardiã continua intacta ou buffada, nunca reduzida")
+	# Thalvaressa with nobody to buff (only a non-plant and the token itself): the passive stays silent and keeps its uses
+	var quiet_garden := GameState.new("vegetal", "fogo", 4243)
+	quiet_garden.mulligan(0, [])
+	quiet_garden.mulligan(1, [])
+	_quiet(quiet_garden)
+	_put(quiet_garden, 0, "guardia_dos_ninhos")
+	_put(quiet_garden, 0, "mudinha_do_dossel")
+	quiet_garden._check_state()
+	check(int(quiet_garden.players[0].get("passive_uses", 0)) == 0 and not quiet_garden.players[0]["passive_used"], "Thalvaressa: sem alvo válido o passivo não é anunciado nem gasta um uso")
+	_put(quiet_garden, 0, "semente_teimosa")
+	_put(quiet_garden, 0, "mudinha_do_dossel")
+	quiet_garden._check_state()
+	check(int(quiet_garden.players[0].get("passive_uses", 0)) == 1, "Thalvaressa: com uma planta aliada em campo o passivo volta a disparar")
 	# Flor Voraz uses two independent 1-damage rolls that include the Leader in their pool.
 	var spread := EffectRegistry.parse({"action": "damage", "target": "random_enemy_spread", "hits": 2, "amount": 1})
 	var spread_picks: Array = spread.target.resolve(EffectContext.new(g, 0, ""), spread)

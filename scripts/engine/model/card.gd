@@ -42,6 +42,7 @@ var bonus_atk := 0 ## from "constante" scale effects (see GameState._refresh_sca
 var bonus_hp := 0
 var has_bonus := false ## bonus_* were computed at least once (they only show up in to_dict then)
 var frozen := 0 ## Congelada: the turn at whose END it thaws; 0 = not frozen
+var stun_markers := 0 ## Atordoamento: each marker costs the unit one untap (one start of its owner's turn); 0 = not stunned
 var condemned_turn := 0 ## Condenada: the turn at whose START it dies; 0 = not condemned
 var dot_markers: Dictionary = {} ## accumulated periodic-status markers, keyed by dot id
 var tide_mark := false
@@ -138,7 +139,7 @@ func atk_total() -> int:
 
 ## Rapidez right now (0-3). A Congelada unit has its Rapidez suppressed, so it counts as Rapidez 0 until it thaws.
 func rapidez_total() -> int:
-	if is_frozen():
+	if is_frozen() or is_stunned():
 		return 0
 	return clampi(rapidez, 0, 3)
 
@@ -153,6 +154,11 @@ func hp_left() -> int:
 ## doesn't guard its Leader (see CombatSystem.attack_targets). ATK and strike back stay whole.
 func is_frozen() -> bool:
 	return frozen > 0
+
+## Atordoada: it was tapped by the stun and stays tapped for as many of its owner's turn starts as it has markers.
+## Like a Congelada unit it doesn't attack and has no Rapidez, but it is tapped, so it can be challenged.
+func is_stunned() -> bool:
+	return stun_markers > 0
 
 func is_condemned() -> bool:
 	return condemned_turn > 0
@@ -204,6 +210,8 @@ func to_dict() -> Dictionary:
 		d["bonus_hp"] = bonus_hp
 	if frozen > 0:
 		d["frozen"] = frozen
+	if stun_markers > 0:
+		d["stun_markers"] = stun_markers
 	if condemned_turn > 0:
 		d["condemned_turn"] = condemned_turn
 	if not dot_markers.is_empty():
@@ -266,6 +274,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.bonus_atk = int(d.get("bonus_atk", 0))
 	c.bonus_hp = int(d.get("bonus_hp", 0))
 	c.frozen = int(d.get("frozen", 0))
+	c.stun_markers = int(d.get("stun_markers", 0))
 	c.condemned_turn = int(d.get("condemned_turn", 0))
 	c.dot_markers = d.get("dot_markers", {}).duplicate()
 	# Compatibility with snapshots produced before periodic markers became generic.

@@ -57,6 +57,7 @@ const SOUNDS := {
 	"revive":         {"files": ["powerUp12"], "db": -6.0, "pitch": 0.0},
 	"freeze":         {"files": ["impactGlass_medium_000", "impactGlass_medium_001"], "db": -4.0, "pitch": 0.04},
 	"thaw":           {"files": ["glass_003"], "db": -5.0, "pitch": 0.0},
+	"stun":           {"files": ["impactBell_heavy_000", "impactBell_heavy_001"], "db": -5.0, "pitch": 0.06}, # a dull bell, like a ringing head
 	"execute":        {"files": ["impactBell_heavy_001"], "db": 0.0, "pitch": -0.2},
 	"fatigue":        {"files": ["lowDown"], "db": -6.0, "pitch": 0.0},
 	"countered":      {"files": ["glitch_001"], "db": -5.0, "pitch": 0.0},
@@ -224,6 +225,8 @@ static func sound_for_event(event: Dictionary, in_combat: bool) -> String:
 			return "freeze"
 		"thaw":
 			return "thaw"
+		"stun":
+			return "stun"
 		"crit":
 			return "crit"
 		"reflect":

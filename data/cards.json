@@ -281,6 +281,10 @@
       "name": "Toque Letal",
       "text": "Quando esta unidade causar dano de combate a uma unidade, destrua aquela unidade imediatamente. Escudo, Indestrutível e outras proteções absolutas que impeçam o dano ou a destruição sobrevivem."
     },
+    "atordoada": {
+      "name": "Atordoada",
+      "text": "Uma unidade Atordoada fica exausta, não ataca e perde a Rapidez. Cada marcador custa um desvirar: no início do turno de quem a controla, um marcador é removido em vez de desvirar a unidade. Como está exausta, pode ser desafiada. Revida normalmente, e sua Provocação não obriga ataques. Atordoamentos se acumulam."
+    },
     "condenada": {
       "name": "Condenada",
       "text": "Uma unidade Condenada morre no início do próximo turno de quem a condenou, mesmo que a carta que a condenou já tenha saído de campo. Curar não ajuda; Indestrutível a salva, e sair de campo desfaz a condenação."

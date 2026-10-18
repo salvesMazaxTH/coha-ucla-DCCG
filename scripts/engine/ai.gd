@@ -265,6 +265,8 @@ static func _spell_is_worth_it(g: GameState, p: int, card_data: Dictionary) -> b
 		return false
 	for effect in effects:
 		var action: String = effect.get("action", "")
+		if action == "cap_stats" and not _board_reset_is_worth_it(g, p, effect):
+			return false
 		if action in ["heal_unit", "heal_leader", "heal_full"] and not _heal_is_worth_it(g, p, effect):
 			return false
 		if action in ["damage", "destroy"] and effect.get("target", "") in ["all_enemy_units", "all_units"]:
@@ -345,6 +347,21 @@ static func _sweeper_is_worth_it(g: GameState, p: int, effect: Dictionary) -> bo
 	if net_value <= 0:
 		return false
 	return killed_enemies >= 2 or (killed_enemies >= 1 and _under_pressure(g, p))
+
+## Board reset (Última Badalada): worth it when the stats it takes from the enemy board (plus the enemy
+## units it keeps from attacking) clearly outweigh the stats it takes from our own board.
+static func _board_reset_is_worth_it(g: GameState, p: int, effect: Dictionary) -> bool:
+	var enemy_loss := 0
+	var own_loss := 0
+	var enemy_units: Array = g.players[g.opponent(p)]["board"]
+	for side in [g.opponent(p), p]:
+		for unit: Card in g.players[side]["board"]:
+			var lost := maxi(0, unit.atk_total() - int(effect.get("atk", 99))) + maxi(0, g.hp_left(unit) - int(effect.get("hp", 99)))
+			if side == p:
+				own_loss += lost
+			else:
+				enemy_loss += lost
+	return enemy_units.size() >= 2 and enemy_loss - own_loss >= 6
 
 ## Reviving only pays when the best unit that could come back is not a throwaway.
 static func _revive_is_worth_it(g: GameState, p: int, effects: Array) -> bool:

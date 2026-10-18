@@ -1362,6 +1362,8 @@ func _render_board(p: int, y: float) -> void:
 			barrier_gaps.append(Vector2(v.position.x + v.size.x / 2.0, v.size.y * v.scale.y + 6.0))
 		if unit.is_frozen():
 			_tag(v, "CONGELADA", ICE)
+		if unit.is_stunned():
+			_tag(v, "ATORDOADA", CardView.STUN_COL)
 		if unit.equipment != null:
 			# the equipment card sits under its unit, peeking out toward the middle of the table
 			var eq := CardView.new().setup(unit.equipment.card_id, {"uid": unit.equipment.uid}, 1.15)
@@ -1378,7 +1380,7 @@ func _render_board(p: int, y: float) -> void:
 ## barring and now is makes the barrier slam shut at its x. A unit seen for the first time only
 ## slams when it just entered (Provocação enters tapped).
 func _slam_if_barricade_just_closed(unit: Card, barrier_side: int, center_x: float) -> bool:
-	var barring_now: bool = unit.exhausted and g.has_kw(unit, "provocacao") and not unit.is_frozen()
+	var barring_now: bool = unit.exhausted and g.has_kw(unit, "provocacao") and not unit.is_frozen() and not unit.is_stunned()
 	var barring_before: bool = barricade_was_up.get(unit.uid, not unit.sick)
 	barricade_was_up[unit.uid] = barring_now
 	if barring_now and not barring_before:
@@ -4095,7 +4097,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 				or (et in ["damage", "shield_break"] and e.get("src", 0) > 0):
 			trig_src = 0
 		# effects of a trigger fly out of their source as a bolt and land when it arrives
-		if trig_src != 0 and et in ["damage", "heal", "shield_break", "buff", "dot", "freeze", "exhaust", "condemn", "tide_mark", "spell_shield_break", "summon"] \
+		if trig_src != 0 and et in ["damage", "heal", "shield_break", "buff", "dot", "freeze", "exhaust", "stun", "condemn", "tide_mark", "spell_shield_break", "summon"] \
 				and e["uid"] != trig_src and actors.has(trig_src) and actors.has(e["uid"]):
 			cursor += _streak(actors[trig_src], actors[e["uid"]], cursor, CardView.TRIGGER_COL) - 0.04
 		# Sound: most events play theirs right here, at the moment their animation starts. The ones
@@ -4188,18 +4190,22 @@ func _animate(events: Array, old: Dictionary) -> float:
 			"countered":
 				_toast("%s foi anulado!" % ("A habilidade do Líder" if e["kind"] == "ability" else _cname(e["card_id"])))
 				cursor += 0.4
-			"spell_shield_break", "tide_mark", "tide_draw", "dot", "dot_immune", "freeze", "exhaust", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up":
+			"spell_shield_break", "tide_mark", "tide_draw", "dot", "dot_immune", "freeze", "exhaust", "stun", "stun_tick", "shrink", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up":
 				if actors.has(e["uid"]):
 					var dot_name: String = {"queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento"}.get(String(e.get("dot", "")), "Marcador")
 					var dot_label := "%s %d" % [dot_name, int(e.get("amount", 0))]
 					if not e.get("cleared", false):
 						dot_label = "%s +%d" % [dot_name, int(e.get("amount", 0))]
-					var lbl: String = {"spell_shield_break": "Anulado!", "tide_mark": "Maré", "tide_draw": "+1 carta", "dot": dot_label, "dot_immune": "Imune!", "freeze": "Congelada!", "exhaust": "Exausta!", "condemn": "Condenada!", "doom": "Ceifada!", "doom_resisted": "Resistiu!", "thaw": "Descongelou", "dodge": "Esquivou!", "crit": "Crítico!", "crit_negated": "Desdém!", "critico_up": "Crítico %d!" % int(e.get("level", 0))}[e["type"]]
+					var lbl: String = {"spell_shield_break": "Anulado!", "tide_mark": "Maré", "tide_draw": "+1 carta", "dot": dot_label, "dot_immune": "Imune!", "freeze": "Congelada!", "exhaust": "Exausta!", "stun": "Atordoada!", "stun_tick": "Recuperando…", "shrink": "Encolhida!", "condemn": "Condenada!", "doom": "Ceifada!", "doom_resisted": "Resistiu!", "thaw": "Descongelou", "dodge": "Esquivou!", "crit": "Crítico!", "crit_negated": "Desdém!", "critico_up": "Crítico %d!" % int(e.get("level", 0))}[e["type"]]
 					var col: Color = Color("#6fd0ff")
 					if e["type"] == "spell_shield_break":
 						col = Color("#c9a8ff")
 					elif e["type"] in ["freeze", "thaw"]:
 						col = ICE
+					elif e["type"] in ["stun", "stun_tick"]:
+						col = CardView.STUN_COL
+					elif e["type"] == "shrink":
+						col = Color("#ffb347")
 					elif e["type"] in ["condemn", "doom", "doom_resisted"]:
 						col = CardView.DOOM_COL
 					elif e["type"] in ["dot", "dot_immune"]:
@@ -4498,7 +4504,7 @@ func _chronicle_label(kind: String) -> String:
 		"relic_enter": "RELÍQUIA", "revive": "RETORNO", "return_to_hand": "DE VOLTA À MÃO",
 		"card_created": "CRIAÇÃO", "search_take": "BUSCA", "leader_executed": "EXECUÇÃO",
 		"shield_break": "ESCUDO", "spell_shield_break": "ESCUDO", "freeze": "CONGELADA", "thaw": "DEGELO",
-		"exhaust": "EXAUSTÃO", "dodge": "ESQUIVA", "reflect": "REFLEXO", "condemn": "CONDENADA",
+		"exhaust": "EXAUSTÃO", "stun": "ATORDOADA", "stun_tick": "ATORDOADA", "shrink": "ENCOLHIMENTO", "dodge": "ESQUIVA", "reflect": "REFLEXO", "condemn": "CONDENADA",
 		"doom": "SENTENÇA", "doom_resisted": "RESISTIU", "fatigue": "FADIGA", "ban": "BANIMENTO",
 		"concede": "DESISTÊNCIA", "enter_tapped": "PROVOCAÇÃO", "death_ward_armed": "BALUARTE",
 		"death_prevented": "BALUARTE"
@@ -4714,6 +4720,12 @@ func _log_event(e: Dictionary) -> void:
 		"freeze":
 			var frozen := g.find_unit(e["uid"])
 			_log("%s foi congelada" % ("Uma unidade" if frozen == null else _cname(frozen.card_id)))
+		"stun":
+			_log("%s foi atordoada" % _chronicle_name_for_uid(int(e["uid"])))
+		"stun_tick":
+			_log("%s se recupera do atordoamento (%d marcador(es) restante(s))" % [_chronicle_name_for_uid(int(e["uid"])), int(e["markers"])])
+		"shrink":
+			_log("%s foi encolhida (-%d Ataque, -%d Vida)" % [_chronicle_name_for_uid(int(e["uid"])), int(e["atk"]), int(e["hp"])])
 		"shield_break":
 			_log("%s perdeu o Escudo" % _chronicle_name_for_uid(int(e["uid"])))
 		"dodge":

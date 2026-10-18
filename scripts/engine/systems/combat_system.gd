@@ -78,11 +78,11 @@ func is_rompante_rush(attacker: Card) -> bool:
 
 ## The tapped enemy Provocação units this attacker is able to challenge. When the list is not
 ## empty, the attacker must challenge one of them (it cannot hit the Leader or another unit).
-## A Congelada Provocação forces nothing.
+## A Congelada or Atordoada Provocação forces nothing.
 func forced_taunts(attacker: Card) -> Array:
 	var out: Array = []
 	for enemy_unit: Card in game.players[game.opponent(attacker.owner)]["board"]:
-		if game.has_kw(enemy_unit, "provocacao") and not enemy_unit.is_frozen() and can_challenge(attacker, enemy_unit):
+		if game.has_kw(enemy_unit, "provocacao") and not enemy_unit.is_frozen() and not enemy_unit.is_stunned() and can_challenge(attacker, enemy_unit):
 			out.append(enemy_unit.uid)
 	return out
 

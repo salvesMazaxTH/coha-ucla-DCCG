@@ -421,7 +421,7 @@ func is_frozen(c: Card) -> bool:
 func can_attack(c: Card) -> bool:
 	# a tapped unit may attack again only while it still has attacks left (Ataque Duplo)
 	var has_attack_left := not c.exhausted or (c.attacks_made > 0 and c.attacks_made < attacks_allowed(c))
-	return has_attack_left and not c.data().get("inert", false) and not c.is_frozen() and (not c.sick or has_kw(c, "impeto") or has_kw(c, "rompante"))
+	return has_attack_left and not c.data().get("inert", false) and not c.is_frozen() and not c.is_stunned() and (not c.sick or has_kw(c, "impeto") or has_kw(c, "rompante"))
 
 ## Attacks per turn: 2 with Ataque Duplo, which a card can also earn by reaching Crítico 4
 ## ("critico_maximo": {"ataque_duplo": true}, Vael); otherwise 1.
@@ -2233,13 +2233,27 @@ func _fire_leader_passive(p: int, trigger: String, trigger_unit_uid := 0) -> voi
 		return
 	if _passive_refunds_nothing(p, ab):
 		return # nothing leaked: do not announce a passive that does nothing (e.g. on the first turn)
+	var passive_context := EffectContext.new(self, p, "")
+	passive_context.self_uid = trigger_unit_uid
+	var passive_effects := EffectRegistry.parse_list(ab["effects"])
+	if _passive_has_nobody_to_target(passive_effects, passive_context):
+		return # e.g. Crescimento do Dossel when the only plant is the token that just entered
 	players[p]["passive_used"] = true
 	if ab.has("max_per_turn"):
 		players[p]["passive_uses"] = int(players[p].get("passive_uses", 0)) + 1
 	_emit({"type": "passive", "player": p})
-	var passive_context := EffectContext.new(self, p, "")
-	passive_context.self_uid = trigger_unit_uid
-	queue_trigger(PendingTrigger.new(null, EffectRegistry.parse_list(ab["effects"]), passive_context))
+	queue_trigger(PendingTrigger.new(null, passive_effects, passive_context))
+
+## True when every effect of the passive is a random ally pick with no candidate, so firing it would
+## only announce "ativou ..." and burn one of its uses for nothing.
+func _passive_has_nobody_to_target(effects: Array, context: EffectContext) -> bool:
+	if effects.is_empty():
+		return false
+	for effect: Effect in effects:
+		var selector := effect.target as RandomTarget
+		if selector == null or not selector.has_no_ally_candidates(context, effect):
+			return false
+	return true
 
 ## True when every effect of the passive is a "leaked" Momentum refund (Sobrecarga) and the refund
 ## comes to 0, so firing it would only show a pointless "ativou Sobrecarga".
@@ -2341,7 +2355,10 @@ func _start_turn(p: int, draw: bool) -> void:
 		if c.temp_hp_until_next_turn > 0:
 			c.damage = maxi(0, c.damage - c.temp_hp_until_next_turn)
 			c.temp_hp_until_next_turn = 0
-		if not c.is_frozen(): # a Congelada unit stays tapped through this whole turn
+		if c.is_stunned(): # an Atordoada unit loses one marker instead of untapping
+			c.stun_markers -= 1
+			_emit({"type": "stun_tick", "uid": c.uid, "markers": c.stun_markers})
+		elif not c.is_frozen(): # a Congelada unit stays tapped through this whole turn
 			c.exhausted = false
 		c.sick = false
 		c.temp_armor = 0

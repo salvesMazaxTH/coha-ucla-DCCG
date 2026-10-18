@@ -19,6 +19,8 @@ static var ACTIONS: Dictionary = {
 	"look_top": DeckEffect,
 	"grave_retrieve": DeckEffect,
 	"freeze": FreezeEffect,
+	"stun": StunEffect,
+	"cap_stats": CapStatsEffect,
 	"add_dot": AddDotEffectScript,
 	"burn": AddDotEffectScript, # compatibility alias for old card data
 	"exhaust": ExhaustEffect,

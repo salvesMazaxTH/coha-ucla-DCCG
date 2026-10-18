@@ -41,6 +41,7 @@ const ATK_COL := Color("#c8402e")
 const HP_COL := Color("#2f9e58")
 const FROST := Color("#cfefff")
 const FROST_DEEP := Color("#4fc3ff") ## saturated ice blue: what makes a Congelada card readable from across the table
+const STUN_COL := Color("#ffc233") ## Atordoamento: dizzy amber-gold, distinct from frost blue and doom violet
 const BURN_COL := Color("#ff7043") ## Queimadura: hot orange-red, distinct from damage red and frost blue
 const POISON_COL := Color("#b8e86b") ## Veneno: acid-lime drop over a deep violet medallion
 const BLEED_COL := Color("#e85d75") ## Sangramento: reserved by the same shared badge for the future keyword
@@ -230,7 +231,7 @@ func _gui_input(e: InputEvent) -> void:
 		accept_event()
 
 func _process(delta: float) -> void:
-	if highlight.a > 0 or hovered or _legendary() or inst.has("frozen") or inst.has("condemned_turn"):
+	if highlight.a > 0 or hovered or _legendary() or inst.has("frozen") or inst.has("stun_markers") or inst.has("condemned_turn"):
 		_t += delta
 		_redraw_acc += delta
 		if _redraw_acc >= 0.033 or highlight.a > 0 or hovered: ## shimmer at ~30 fps is plenty
@@ -412,6 +413,11 @@ func _draw() -> void:
 		var breathing := 0.75 + 0.25 * sin(_t * 2.5)
 		for i in 5:
 			_rrect_line(r.grow((1.5 + i * 2.6) * s), rad + i * 2 * s, Color(FROST_DEEP, (0.95 - i * 0.17) * breathing * frost_grow), 2.8 * s)
+	# Atordoada: an amber aura flickering unevenly, like a head still ringing
+	if inst.has("stun_markers"):
+		var ringing := 0.7 + 0.3 * sin(_t * 5.0) * sin(_t * 1.7)
+		for i in 4:
+			_rrect_line(r.grow((1.5 + i * 2.4) * s), rad + i * 2 * s, Color(STUN_COL, (0.95 - i * 0.2) * ringing), 2.6 * s)
 	# Condenada: a violet aura pulsing slowly around the frame, like a heartbeat counting down
 	if inst.has("condemned_turn"):
 		var heartbeat := 0.6 + 0.4 * sin(_t * 3.2)
@@ -506,6 +512,8 @@ func _draw() -> void:
 			_diamond(sc + Vector2(cos(a), sin(a)) * rr, 2.6 * s, Color("#e3d2ff"))
 	if inst.has("frozen"):
 		_draw_frost(art, s)
+	if inst.has("stun_markers"):
+		_draw_stun(art, s)
 	if inst.get("tide_mark", false):
 		draw_arc(art.get_center() + Vector2(0, art.size.y * 0.32), art.size.x * 0.3, PI * 1.15, PI * 1.85, 24, Color("#6fd0ff", 0.85), 2 * s, true)
 	_draw_dot_badges(art, s, pulse)
@@ -764,6 +772,24 @@ func _draw_frost(art: Rect2, s: float) -> void:
 		_window_polygon(PackedVector2Array([base, tip, base + Vector2(half_width, 0)]), Color(1, 1, 1, 0.85 * grow)) ## the lit facet
 	_draw_snowflake(art.get_center(), art.size.x * 0.3 * (0.4 + 0.6 * grow), s, Color(1, 1, 1, 0.78 * grow))
 	draw_polyline(_art_window + PackedVector2Array([_art_window[0]]), Color(1, 1, 1, 0.95 * grow), 2.2 * s, true)
+
+## The art of a stunned unit: a dull amber veil, stars circling over its head and a medallion with the
+## number of stun markers it still has (each one costs the unit an untap).
+func _draw_stun(art: Rect2, s: float) -> void:
+	draw_colored_polygon(_art_window, Color("#3a2a00", 0.34))
+	var orbit_center := Vector2(art.get_center().x, art.position.y + art.size.y * 0.22)
+	for star_index in 5:
+		var angle := _t * 2.4 + star_index * TAU / 5.0
+		var star_position := orbit_center + Vector2(cos(angle) * art.size.x * 0.32, sin(angle) * art.size.y * 0.07)
+		var in_front := 0.6 + 0.4 * sin(angle) # stars on the near side of the orbit read bigger and brighter
+		_draw_glint(star_position, (4.0 + 4.0 * in_front) * s, Color(1.0, 0.9, 0.45, 0.55 + 0.45 * in_front))
+	var badge_radius := 11 * s
+	var badge_center := Vector2(art.end.x - badge_radius - 2 * s, art.end.y - badge_radius - 2 * s)
+	draw_circle(badge_center + Vector2(0, 1.4 * s), badge_radius * 1.2, Color(0, 0, 0, 0.6))
+	draw_circle(badge_center, badge_radius * 1.14, Color("#4a3200"))
+	draw_circle(badge_center, badge_radius * 1.06, STUN_COL)
+	draw_circle(badge_center, badge_radius, Color("#241800"))
+	_text(UITheme.font("heavy"), str(int(inst.get("stun_markers", 1))), badge_center + Vector2(0, badge_radius * 0.36), badge_radius * 1.15, STUN_COL.lightened(0.3))
 
 ## Ice over the whole card, drawn on top of everything: a cold tint, a white crust on the frame,
 ## icicles hanging from the top edge, twinkling glints, and the flash and shockwaves of the freezing moment.
@@ -1120,6 +1146,8 @@ func _panel_lines(cd: Dictionary) -> Array:
 		tags.append([CardDB.keyword("condenada")["name"], DOOM_COL.lightened(0.15)])
 	if inst.has("frozen"):
 		tags.append(["Congelada", FROST])
+	if inst.has("stun_markers"):
+		tags.append(["%s %d" % ["Atordoada", int(inst["stun_markers"])], STUN_COL.lightened(0.2)])
 	if inst.get("spell_shield", false):
 		tags.append([CardDB.keyword("escudo_feitico")["name"], Color("#c9a8ff")])
 	for kw in kws:
@@ -1133,7 +1161,7 @@ func _panel_lines(cd: Dictionary) -> Array:
 	# Rapidez keyword: Rapidez 0 goes unmentioned and 1-3 read as "Rapidez 1-3"
 	# (a frozen unit has its Rapidez suppressed, so the tag is hidden until it thaws)
 	var rapidez_level := int(inst.get("rapidez", cd.get("rapidez", 0)))
-	if rapidez_level > 0 and not inst.has("frozen"):
+	if rapidez_level > 0 and not inst.has("frozen") and not inst.has("stun_markers"):
 		tags.append(["%s %d" % [CardDB.keyword("rapidez")["name"], rapidez_level], Color("#ffd27a")])
 	# Crítico X: the level reads on the tag ("Crítico 2"); the glossary in the overlay gives the chance
 	var critico_level := critico_of_view(cd, inst)

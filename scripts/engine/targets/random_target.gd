@@ -72,14 +72,24 @@ func resolve(context: EffectContext, effect: Effect) -> Array:
 					uids.append(enemy_board[index].uid)
 			return uids
 		"random_ally_unit", "random_other_ally_unit":
-			var pool: Array = []
-			for unit: Card in game.players[context.controller]["board"]:
-				if (name == "random_ally_unit" or unit.uid != context.self_uid) and not effect.is_already_applied_to(unit) and _has_wanted_species(unit, effect):
-					pool.append(unit.uid)
+			var pool: Array = _ally_pool(context, effect)
 			if pool.is_empty():
 				return []
 			return [pool[game.rng.randi_range(0, pool.size() - 1)]]
 	return []
+
+## The allies this selector may pick from (no dice rolled, so it is safe to ask "is there anyone?" first).
+func _ally_pool(context: EffectContext, effect: Effect) -> Array:
+	var pool: Array = []
+	for unit: Card in context.game.players[context.controller]["board"]:
+		if (name == "random_ally_unit" or unit.uid != context.self_uid) and not effect.is_already_applied_to(unit) and _has_wanted_species(unit, effect):
+			pool.append(unit.uid)
+	return pool
+
+## True when this selector is a random ally pick that has nobody to pick right now. Other selectors
+## return false: they are never asked, so a caller only skips what it knows is empty.
+func has_no_ally_candidates(context: EffectContext, effect: Effect) -> bool:
+	return name in ["random_ally_unit", "random_other_ally_unit"] and _ally_pool(context, effect).is_empty()
 
 ## True when the effect asks for no species ("only_species" missing) or the unit's card has one of them.
 func _has_wanted_species(unit: Card, effect: Effect) -> bool:
