@@ -40,7 +40,7 @@ const SOUNDS := {
 	# combat blows use damage.wav from the old CSA; its peak sits right under 0 dBFS, so it is turned well down
 	"hit_light":      {"files": ["damage.wav"], "db": -11.0, "pitch": 0.05},
 	"hit_heavy":      {"files": ["damage.wav"], "db": -8.0, "pitch": 0.04},
-	"direct_damage":  {"files": ["zap1", "zap2"], "db": -7.0, "pitch": 0.06},
+	"direct_damage":  {"files": ["laser3.mp3"], "db": -7.0, "pitch": 0.06}, # stand-in until a better one is picked
 	"shield_break":   {"files": ["impactMetal_light_000", "impactMetal_light_001"], "db": -2.0, "pitch": 0.05},
 	"heal":           {"files": ["heal.wav"], "db": -6.0, "pitch": 0.03}, # from the old CSA (peak -5.5 dBFS)
 	"buff":           {"files": ["pepSound1", "pepSound2"], "db": -8.0, "pitch": 0.04},
