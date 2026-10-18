@@ -1880,7 +1880,8 @@ func _render_side() -> void:
 	ap.tooltip_text = "Pula sozinho as janelas em que você não tem nenhuma jogada válida."
 	layer.add_child(ap)
 	var half := (COL_W - 8.0) / 2.0
-	var menu := _button("Menu", _show_menu)
+	# during the match "Menu" opens the pause menu (settings, concede, leave); once it is over there is nothing left to pause
+	var menu := _button("Menu", _show_menu if g.phase == "over" else _open_pause_menu)
 	menu.position = Vector2(col_x, 832.0 + BOT)
 	menu.size = Vector2(COL_W if g.phase == "over" else half, 52)
 	menu.add_theme_font_size_override("font_size", 20)
@@ -2345,6 +2346,9 @@ func _unhandled_input(e: InputEvent) -> void:
 	if grave_view and e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE:
 		_close_graveyard()
 		return
+	if concede_view and e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE:
+		_close_concede() # Esc backs out of the pause menu and of the confirmations
+		return
 	var cancel: bool = (e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE) \
 		or (e is InputEventMouseButton and e.pressed and (e.button_index == MOUSE_BUTTON_RIGHT or CardView.touch_ui()))
 	if cancel and g and _queued_attacker_uid != 0:
@@ -2806,6 +2810,19 @@ func _ask_concede() -> void:
 func _ask_confirm(title: String, text: String, yes_label: String, no_label: String, on_yes: Callable) -> void:
 	if g == null or g.phase == "over" or concede_view:
 		return
+	var box := _open_modal_box(title)
+	box.add_child(_label(text, 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+	var yes := _button(yes_label, on_yes, true)
+	yes.custom_minimum_size = Vector2(460, 54)
+	box.add_child(yes)
+	var no := _button(no_label, _close_concede)
+	no.custom_minimum_size = Vector2(460, 48)
+	box.add_child(no)
+	_center_modal(box)
+
+## Opens the dimmed full-screen modal in the persistent `concede_view` slot and returns the empty
+## column (already holding the gold title) for the caller to fill; call `_center_modal(box)` when done.
+func _open_modal_box(title: String) -> VBoxContainer:
 	concede_view = Control.new()
 	concede_view.set_anchors_preset(Control.PRESET_FULL_RECT)
 	concede_view.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -2825,18 +2842,59 @@ func _ask_confirm(title: String, text: String, yes_label: String, no_label: Stri
 	box.add_theme_constant_override("separation", 14)
 	pc.add_child(box)
 	box.add_child(_label(title, 34, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
-	box.add_child(_label(text, 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
-	var yes := _button(yes_label, on_yes, true)
-	yes.custom_minimum_size = Vector2(460, 54)
-	box.add_child(yes)
-	var no := _button(no_label, _close_concede)
-	no.custom_minimum_size = Vector2(460, 48)
-	box.add_child(no)
 	concede_view.add_child(pc)
+	return box
+
+func _center_modal(box: VBoxContainer) -> void:
+	var pc: Control = box.get_parent()
 	add_child(concede_view)
 	pc.reset_size()
 	pc.position = (Vector2(stage_w, STAGE_H) - pc.size) / 2.0
 	_center.call_deferred(pc)
+
+## The in-game menu: settings and the ways out, without leaving the match. Same persistent slot as the
+## confirmations, so opponent moves and re-renders don't close it.
+func _open_pause_menu() -> void:
+	if g == null or concede_view:
+		return
+	var box := _open_modal_box("MENU")
+	# the controls are rebuilt after a toggle so the switch is redrawn in its new position
+	var reopen := func():
+		_close_concede()
+		_open_pause_menu.call_deferred()
+	var volume_control := _volume_slider(Vector2(460, 52))
+	box.add_child(volume_control)
+	var sound_toggle := _toggle_button("SOM", Sfx.is_enabled(), func():
+		Sfx.set_enabled(not Sfx.is_enabled())
+		reopen.call())
+	sound_toggle.custom_minimum_size = Vector2(460, 52)
+	box.add_child(sound_toggle)
+	var fullscreen_button := _button("Tela cheia (F11)", _toggle_fullscreen)
+	fullscreen_button.custom_minimum_size = Vector2(460, 48)
+	box.add_child(fullscreen_button)
+	var continue_button := _button("CONTINUAR JOGANDO", _close_concede, true)
+	continue_button.custom_minimum_size = Vector2(460, 54)
+	box.add_child(continue_button)
+	var concede_button := _button("Conceder", func():
+		_close_concede()
+		_ask_concede())
+	concede_button.custom_minimum_size = Vector2(460, 48)
+	box.add_child(concede_button)
+	var leave_button := _button("Sair para o menu principal", func():
+		_close_concede()
+		_ask_leave_match())
+	leave_button.custom_minimum_size = Vector2(460, 48)
+	box.add_child(leave_button)
+	_center_modal(box)
+
+## Confirmation before leaving the table for the main menu (the only way out that isn't a concede).
+func _ask_leave_match() -> void:
+	if g == null or g.phase == "over": # the match ended while the menu was open: nothing left to lose
+		_show_menu()
+		return
+	var consequence := "A partida online continua salva: você pode retomá-la pelo lobby online." if online \
+		else "Esta partida será perdida."
+	_ask_confirm("SAIR PARA O MENU?", consequence, "SAIR PARA O MENU", "VOLTAR AO JOGO", _show_menu)
 
 func _close_concede() -> void:
 	if concede_view:
@@ -4017,8 +4075,10 @@ func _animate(events: Array, old: Dictionary) -> float:
 		# Sound: most events play theirs right here, at the moment their animation starts. The ones
 		# below time their own: hits and heals land at `t` (after the lunge), deaths and banishes play
 		# with the dissolve at the end, and a played card makes its sound when it lands.
+		# both players mulligan at the start; the card-fan sound plays once, for the player who goes first
 		if not et in ["play", "damage", "shield_break", "heal", "death", "banish"] \
-				and not (et == "summon" and placed_uids.has(e["uid"])):
+				and not (et == "summon" and placed_uids.has(e["uid"])) \
+				and not (et == "mulligan" and int(e["player"]) != g.first):
 			Sfx.play_event(e, cursor, in_combat)
 		match et:
 			"trigger":

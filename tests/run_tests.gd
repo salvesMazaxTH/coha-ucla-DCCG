@@ -124,6 +124,9 @@ func _test_sfx() -> void:
 	check(SfxScript.sound_for_event({"type": "buff", "atk": 0, "hp": 0}, false) == "", "sfx: buff vazio é silencioso")
 	check(SfxScript.sound_for_event({"type": "tipo_que_nao_existe"}, false) == "", "sfx: evento desconhecido é silencioso")
 	check(SfxScript.sound_for_event({"type": "passive", "player": 0}, false) == "", "sfx: passiva de Líder (início de turno) é silenciosa")
+	check(SfxScript.sound_for_event({"type": "ability", "player": 0}, false) == "", "sfx: poder de Líder é silencioso")
+	check(not SfxScript.SOUNDS.has("ability"), "sfx: o som do poder foi removido da tabela")
+	check(float(SfxScript.SOUNDS["card_shuffle"].get("speed", 1.0)) == 2.25, "sfx: embaralhar do início da partida toca 2,25x mais rápido")
 
 func _test_flavor() -> void:
 	for id in CardDB.data()["cards"]:

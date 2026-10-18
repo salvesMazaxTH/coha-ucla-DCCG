@@ -22,18 +22,18 @@ const SAME_SOUND_MIN_GAP_MS := 45
 ## slider (0 to 100%) goes on top of this.
 const MASTER_TRIM_DB := -3.0
 
-## name -> files (without ".ogg"), volume in dB, random pitch spread (0.06 = from -6% to +6%).
+## name -> files (without ".ogg"), volume in dB, random pitch spread (0.06 = from -6% to +6%),
+## and optionally "speed" (1.0 = as recorded, 2.25 = more than twice as fast).
 const SOUNDS := {
 	# --- cards moving around
 	"card_draw":      {"files": ["card-slide-1", "card-slide-2", "card-slide-3", "card-slide-4"], "db": -4.0, "pitch": 0.05},
 	"card_place":     {"files": ["card-place-1", "card-place-2", "card-place-3", "card-place-4"], "db": -1.0, "pitch": 0.05},
-	"card_shuffle":   {"files": ["card-shuffle"], "db": -3.0, "pitch": 0.0},
+	"card_shuffle":   {"files": ["card-shuffle"], "db": -3.0, "pitch": 0.0, "speed": 2.25},
 	"card_fan":       {"files": ["card-fan-1"], "db": -3.0, "pitch": 0.0},
 	"card_discard":   {"files": ["card-shove-1", "card-shove-2"], "db": -3.0, "pitch": 0.05},
 	# --- casting
 	"spell_cast":     {"files": ["phaserUp1", "phaserUp2", "phaserUp3"], "db": -7.0, "pitch": 0.04},
 	"legendary":      {"files": ["impactBell_heavy_000", "impactBell_heavy_001"], "db": -3.0, "pitch": 0.0},
-	"ability":        {"files": ["zapThreeToneUp"], "db": -6.0, "pitch": 0.0},
 	"trigger":        {"files": ["pluck_001"], "db": -8.0, "pitch": 0.08},
 	"relic":          {"files": ["metalLatch"], "db": -3.0, "pitch": 0.0},
 	# --- damage and healing
@@ -141,6 +141,8 @@ func play(sound_name: String) -> void:
 	player.volume_db = float(settings["db"]) + MASTER_TRIM_DB + linear_to_db(_volume)
 	var spread := float(settings["pitch"])
 	player.pitch_scale = 1.0 + randf_range(-spread, spread) if spread > 0.0 else 1.0 + spread
+	# "speed" plays the file faster (or slower) than recorded; the pitch rises with it, which suits noisy sounds
+	player.pitch_scale *= float(settings.get("speed", 1.0))
 	player.play()
 
 
@@ -184,11 +186,9 @@ static func sound_for_event(event: Dictionary, in_combat: bool) -> String:
 			return "card_fan"
 		"discard", "mill":
 			return "card_discard"
-		"ability":
-			return "ability"
-		# Leader passives (like Voltexz's Sobrecarga) fire by themselves at the start of every turn, so a
-		# sound for each one was just noise on top of the turn-start sound: they stay silent.
-		"passive":
+		# Leader powers have no sound: the one tried was grating. Passives (like Voltexz's Sobrecarga) fire
+		# by themselves at the start of every turn, so they would only add noise on top of the turn-start sound.
+		"ability", "passive":
 			return ""
 		"trigger":
 			return "trigger"
