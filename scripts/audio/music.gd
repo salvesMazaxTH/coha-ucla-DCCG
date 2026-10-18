@@ -1,14 +1,22 @@
 extends Node
 ## Background music for matches (autoload "Music").
 ##
-## One track plays, looping, from the start of a match until the player goes back to the main menu.
+## The music follows a fixed "roteiro" (script): each track plays a set number of times, then the next one
+## starts, and after the last one the roteiro begins again. It runs from the start of a match until the
+## player goes back to the main menu. Every match starts at the top of the roteiro.
 ## It has its own on/off switch and volume (saved next to the sound effects settings) so the music can
 ## be turned down or off without touching the effects. The main screen only calls play_match(),
 ## fade_out() and stop(); nothing else needs to know about audio players.
 ##
 ## Web note: like Sfx, the first tap unlocks browser audio; a match always starts from a tap.
 
-const TRACK_PATH := "res://assets/music/winter_dust.ogg"
+## The roteiro, in order: which file, and how many times it plays before the next one. The files are
+## already at the same loudness (-18.4 LUFS), so changing tracks does not jump in volume.
+const ROTEIRO := [
+	{"path": "res://assets/music/a_brand_new_wisdom.ogg", "plays": 3},
+	{"path": "res://assets/music/winter_dust.ogg", "plays": 2},
+	{"path": "res://assets/music/epic_boss_battle.ogg", "plays": 1},
+]
 const SETTINGS_PATH := "user://settings.cfg"
 ## Level of the track when the volume slider is at 100%. The default slider position (50%) is about
 ## 6 dB under this, so the music sits behind the sound effects.
@@ -27,10 +35,7 @@ var _fade_tween: Tween
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_player = AudioStreamPlayer.new()
-	var track := load(TRACK_PATH) as AudioStreamOggVorbis
-	if track != null:
-		track.loop = true # the file is a seamless loop
-		_player.stream = track
+	_player.stream = _build_roteiro()
 	add_child(_player)
 	var settings := ConfigFile.new()
 	if settings.load(SETTINGS_PATH) == OK:
@@ -93,6 +98,27 @@ func fade_out(seconds: float) -> void:
 	_fade_tween = create_tween()
 	_fade_tween.tween_property(_player, "volume_db", -60.0, seconds)
 	_fade_tween.tween_callback(_player.stop)
+
+
+## Lays the roteiro out as one playlist stream: a track that plays 3 times is listed 3 times. The playlist
+## joins the tracks with no gap between them (a seamless loop stays seamless) and starts over at the end.
+func _build_roteiro() -> AudioStreamPlaylist:
+	var tracks: Array[AudioStream] = []
+	for step in ROTEIRO:
+		var track := load(step["path"]) as AudioStreamOggVorbis
+		if track == null:
+			continue
+		track.loop = false # the playlist does the repeating
+		for _play in int(step["plays"]):
+			tracks.append(track)
+	if tracks.is_empty():
+		return null
+	var playlist := AudioStreamPlaylist.new()
+	playlist.stream_count = tracks.size()
+	for index in tracks.size():
+		playlist.set_list_stream(index, tracks[index])
+	playlist.loop = true
+	return playlist
 
 
 func _apply() -> void:

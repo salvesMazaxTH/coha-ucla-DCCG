@@ -1,7 +1,14 @@
-Background music for matches.
+Background music for matches (played in the order set in scripts/audio/music.gd).
+All three are Creative Commons Zero (CC0 1.0): http://creativecommons.org/publicdomain/zero/1.0/
+Free for personal and commercial use, credit not required (but appreciated).
+The files were adjusted to the same loudness (-18.4 LUFS); "Epic Boss Battle" was converted from WAV to OGG.
 
-  winter_dust.ogg           "Winter Dust" by hernandack
+  a_brand_new_wisdom.ogg   "A Brand New Wisdom" by hernandack
                            Pack: "Short Loops Background Music Pack" on OpenGameArt
                            https://opengameart.org/content/short-loops-background-music-pack
-                           Creative Commons Zero (CC0 1.0): http://creativecommons.org/publicdomain/zero/1.0/
-                           Free for personal and commercial use, credit not required (but appreciated).
+
+  winter_dust.ogg          "Winter Dust" by hernandack
+                           Same pack as above.
+
+  epic_boss_battle.ogg     "Epic Boss Battle [Seamlessly Looping]" by Juhani Junkala (SubspaceAudio)
+                           https://opengameart.org/content/boss-battle-music

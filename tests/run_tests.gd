@@ -129,8 +129,11 @@ func _test_sfx() -> void:
 	check(not SfxScript.SOUNDS.has("ability"), "sfx: o som do poder foi removido da tabela")
 	check(float(SfxScript.SOUNDS["card_shuffle"].get("speed", 1.0)) == 2.25, "sfx: embaralhar do início da partida toca 2,25x mais rápido")
 	# the match music is a separate autoload with its own settings, apart from the effects
-	var track := load(MusicScript.TRACK_PATH) as AudioStreamOggVorbis
-	check(track != null, "música: a faixa da partida existe e é um OGG")
+	var total_plays := 0
+	for step in MusicScript.ROTEIRO:
+		check(load(step["path"]) is AudioStreamOggVorbis, "música: %s existe e é um OGG" % step["path"])
+		total_plays += int(step["plays"])
+	check(MusicScript.ROTEIRO.size() == 3 and total_plays == 6, "música: roteiro de 3 faixas, tocando 3x, 2x e 1x")
 	check(MusicScript.SETTINGS_PATH == SfxScript.SETTINGS_PATH, "música: salva no mesmo arquivo de configurações dos efeitos")
 	check(MusicScript.DEFAULT_VOLUME > 0.0 and MusicScript.DEFAULT_VOLUME < 1.0, "música: volume padrão fica no meio do slider")
 
