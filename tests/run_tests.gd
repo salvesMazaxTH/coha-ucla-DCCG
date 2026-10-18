@@ -1472,6 +1472,16 @@ func _test_leader_poison() -> void:
 	g.add_dot_markers(marked, "veneno", 1)
 	banish.apply(EffectContext.new(g, 0, ""), marked.uid)
 	check(g.find_unit(marked.uid) == null, "Banir por Veneno: com marcadores suficientes a unidade é banida")
+	# the AI must not aim Ponto Final Sem Vírgula at units that do not hold 3+ Veneno markers
+	var ai_game := _new_game()
+	_quiet(ai_game)
+	var unpoisoned := _put(ai_game, 1, "t_plain")
+	var barely_poisoned := _put(ai_game, 1, "t_plain")
+	ai_game.add_dot_markers(barely_poisoned, "veneno", 2)
+	var final_period := CardDB.card("ponto_final_sem_virgula")
+	check(SimpleAI._pick_target(ai_game, 0, "enemy_unit", final_period, 0, true) == 0, "IA: sem alvo com 3+ marcadores de Veneno, Ponto Final Sem Vírgula não escolhe ninguém")
+	ai_game.add_dot_markers(barely_poisoned, "veneno", 1)
+	check(SimpleAI._pick_target(ai_game, 0, "enemy_unit", final_period, 0, true) == barely_poisoned.uid, "IA: Ponto Final Sem Vírgula mira a unidade com 3+ marcadores de Veneno, e só ela")
 
 ## Antídoto Fora de Estoque (the Leader's Veneno stays for its next 2 turns) and Greve Geral dos Antídotos
 ## (nobody's Veneno is consumed for one turn start of each player). Both still hurt, and both expire.
