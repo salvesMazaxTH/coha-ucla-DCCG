@@ -19,12 +19,13 @@
     {
       "trigger": "on_enter",
       "action": "buff",
+      "temp": true,
       "target": "other_ally_units",
       "atk": 1,
       "hp": 1
     }
   ],
-  "text": "Ao Entrar: compre 2 cartas. Suas outras unidades ganham +1/+1 permanente.",
+  "text": "Ao Entrar: compre 2 cartas. Suas outras unidades ganham +1/+1 neste turno.",
   "flavor": "Antes dos nomes, antes das cidades, antes mesmo do medo, ele já criava sombra.",
   "tags": []
 }

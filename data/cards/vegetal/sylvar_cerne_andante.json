@@ -25,12 +25,13 @@
     {
       "trigger": "on_enter",
       "action": "buff",
+      "temp": true,
       "target": "other_ally_units",
       "atk": 2,
       "hp": 2
     }
   ],
-  "text": "Ao Entrar: invoque duas Mudinhas do Dossel 1/1. Suas outras unidades ganham +2/+2 permanente.",
+  "text": "Ao Entrar: invoque duas Mudinhas do Dossel 1/1. Suas outras unidades ganham +2/+2 neste turno.",
   "flavor": "Ele não acordou. A floresta inteira apenas decidiu andar.",
   "tags": []
 }

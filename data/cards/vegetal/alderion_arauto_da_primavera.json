@@ -15,7 +15,8 @@
       "action": "buff",
       "target": "other_ally_unit",
       "atk": 2,
-      "hp": 2
+      "hp": 2,
+      "temp": true
     },
     {
       "trigger": "on_attack",
@@ -24,7 +25,7 @@
       "card": "mudinha_do_dossel"
     }
   ],
-  "text": "Ao Entrar: outra unidade aliada ganha +2/+2 permanente.\nAo Atacar: invoque uma Mudinha do Dossel 1/1.",
+  "text": "Ao Entrar: outra unidade aliada ganha +2/+2 neste turno.\nAo Atacar: invoque uma Mudinha do Dossel 1/1.",
   "flavor": "A primavera não pede passagem. Ela a toma de volta.",
   "tags": []
 }

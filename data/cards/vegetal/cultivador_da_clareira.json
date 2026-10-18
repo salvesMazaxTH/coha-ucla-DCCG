@@ -15,7 +15,8 @@
       "action": "buff",
       "target": "random_other_ally_unit",
       "atk": 1,
-      "hp": 1
+      "hp": 1,
+      "temp": true
     },
     {
       "trigger": "on_enter",
@@ -24,7 +25,7 @@
       "card": "mudinha_do_dossel"
     }
   ],
-  "text": "Ao Entrar: outra unidade aliada aleatória ganha +1/+1 permanente. Invoque uma Mudinha do Dossel 1/1.",
+  "text": "Ao Entrar: outra unidade aliada aleatória ganha +1/+1 neste turno. Invoque uma Mudinha do Dossel 1/1.",
   "flavor": "Ele mede a estação pela altura das folhas, não pelo sol.",
   "tags": []
 }

@@ -13,6 +13,7 @@
     {
       "trigger": "on_enter",
       "action": "buff",
+      "temp": true,
       "target": "all_ally_units",
       "only_species": ["planta"],
       "atk": 2,
@@ -26,7 +27,7 @@
       "amount": 1
     }
   ],
-  "text": "Ao Entrar: suas plantas ganham +2/+2 permanente. Distribua 2 de dano aleatoriamente entre os inimigos, incluindo o Líder, 1 por vez.",
+  "text": "Ao Entrar: suas plantas ganham +2/+2 neste turno. Distribua 2 de dano aleatoriamente entre os inimigos, incluindo o Líder, 1 por vez.",
   "flavor": "A flor mais bela é a que aprendeu a mastigar.",
   "tags": []
 }
