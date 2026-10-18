@@ -18,6 +18,9 @@ const PLAYER_COUNT := 12
 ## Same sound asked for twice inside this many milliseconds plays once (an area attack hitting five
 ## units would otherwise stack five identical sounds into one loud blast).
 const SAME_SOUND_MIN_GAP_MS := 45
+## Taken off every sound on top of its own level: the whole set a little quieter. The player's volume
+## slider (0 to 100%) goes on top of this.
+const MASTER_TRIM_DB := -3.0
 
 ## name -> files (without ".ogg"), volume in dB, random pitch spread (0.06 = from -6% to +6%).
 const SOUNDS := {
@@ -97,6 +100,19 @@ func is_enabled() -> bool:
 	return _enabled
 
 
+func get_volume() -> float:
+	return _volume
+
+
+## Master volume from 0.0 (silent) to 1.0 (as tuned in SOUNDS minus MASTER_TRIM_DB), saved in settings.
+func set_volume(volume: float) -> void:
+	_volume = clampf(volume, 0.0, 1.0)
+	var settings := ConfigFile.new()
+	settings.load(SETTINGS_PATH)
+	settings.set_value("audio", "sfx_volume", _volume)
+	settings.save(SETTINGS_PATH)
+
+
 func set_enabled(on: bool) -> void:
 	_enabled = on
 	var settings := ConfigFile.new()
@@ -122,7 +138,7 @@ func play(sound_name: String) -> void:
 	var settings: Dictionary = SOUNDS[sound_name]
 	var player := _free_player()
 	player.stream = options[randi() % options.size()]
-	player.volume_db = float(settings["db"]) + linear_to_db(_volume)
+	player.volume_db = float(settings["db"]) + MASTER_TRIM_DB + linear_to_db(_volume)
 	var spread := float(settings["pitch"])
 	player.pitch_scale = 1.0 + randf_range(-spread, spread) if spread > 0.0 else 1.0 + spread
 	player.play()
@@ -168,8 +184,12 @@ static func sound_for_event(event: Dictionary, in_combat: bool) -> String:
 			return "card_fan"
 		"discard", "mill":
 			return "card_discard"
-		"ability", "passive":
+		"ability":
 			return "ability"
+		# Leader passives (like Voltexz's Sobrecarga) fire by themselves at the start of every turn, so a
+		# sound for each one was just noise on top of the turn-start sound: they stay silent.
+		"passive":
+			return ""
 		"trigger":
 			return "trigger"
 		"damage":

@@ -123,6 +123,7 @@ func _test_sfx() -> void:
 	check(SfxScript.sound_for_event({"type": "play", "card_id": "pingente_das_ondas"}, false) == "relic", "sfx: jogar artefato")
 	check(SfxScript.sound_for_event({"type": "buff", "atk": 0, "hp": 0}, false) == "", "sfx: buff vazio é silencioso")
 	check(SfxScript.sound_for_event({"type": "tipo_que_nao_existe"}, false) == "", "sfx: evento desconhecido é silencioso")
+	check(SfxScript.sound_for_event({"type": "passive", "player": 0}, false) == "", "sfx: passiva de Líder (início de turno) é silenciosa")
 
 func _test_flavor() -> void:
 	for id in CardDB.data()["cards"]:

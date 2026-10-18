@@ -366,6 +366,9 @@ func _show_menu() -> void:
 	sound_toggle.position = Vector2(stage_w - 300, 662.0 + BOT)
 	sound_toggle.size = Vector2(280, 52)
 	layer.add_child(sound_toggle)
+	var volume_control := _volume_slider(Vector2(280, 52))
+	volume_control.position = Vector2(stage_w - 300, 598.0 + BOT)
+	layer.add_child(volume_control)
 	var fs := _button("Tela cheia (F11)", _toggle_fullscreen)
 	fs.position = Vector2(stage_w - 300, 790.0 + BOT - 64.0)
 	fs.size = Vector2(280, 52)
@@ -4764,6 +4767,33 @@ func _sound_icon_button(button_size: float) -> Button:
 		Sfx.play("ui_toggle") # heard only when it was just turned on
 		icon.queue_redraw())
 	return button
+
+## The sound effects volume as a slider with a "VOLUME 70%" title (menu). Moving it changes the volume
+## live and saves it; letting go plays a click so the new level can be heard right away.
+func _volume_slider(control_size: Vector2) -> Control:
+	var holder := Control.new()
+	holder.custom_minimum_size = control_size
+	holder.size = control_size
+	var title_label := _label("", 15, UITheme.TEXT, HORIZONTAL_ALIGNMENT_LEFT, "bold")
+	title_label.position = Vector2(4, 0)
+	title_label.size = Vector2(control_size.x, 22)
+	holder.add_child(title_label)
+	var slider := HSlider.new()
+	slider.min_value = 0.0
+	slider.max_value = 100.0
+	slider.step = 5.0
+	slider.value = roundf(Sfx.get_volume() * 100.0)
+	slider.position = Vector2(0, 24)
+	slider.size = Vector2(control_size.x, control_size.y - 24.0)
+	holder.add_child(slider)
+	var refresh_title := func(percent: float):
+		title_label.text = "VOLUME DOS EFEITOS  %d%%" % int(percent)
+	refresh_title.call(slider.value)
+	slider.value_changed.connect(func(percent: float):
+		Sfx.set_volume(percent / 100.0)
+		refresh_title.call(percent))
+	slider.drag_ended.connect(func(_value_changed: bool): Sfx.play("ui_click"))
+	return holder
 
 ## An on/off button shown as a sliding switch instead of the words "LIGADO"/"desligado":
 ## gold track with the knob on the right when on, dark track with the knob on the left when off.
