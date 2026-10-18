@@ -13,9 +13,11 @@ extends Node
 ## The roteiro, in order: which file, and how many times it plays before the next one. The files are
 ## already at the same loudness (-18.4 LUFS), so changing tracks does not jump in volume.
 const ROTEIRO := [
-	{"path": "res://assets/music/a_brand_new_wisdom.ogg", "plays": 3},
-	{"path": "res://assets/music/winter_dust.ogg", "plays": 2},
+	# Pairs of "impactful, then calm" (the same cadence the CSA legado soundtrack had).
 	{"path": "res://assets/music/epic_boss_battle.ogg", "plays": 1},
+	{"path": "res://assets/music/winter_dust.ogg", "plays": 2},
+	{"path": "res://assets/music/legacy_main_soundtrack.ogg", "plays": 1},
+	{"path": "res://assets/music/legacy_main_st_2.ogg", "plays": 1},
 ]
 const SETTINGS_PATH := "user://settings.cfg"
 ## Level of the track when the volume slider is at 100%. The default slider position (50%) is about

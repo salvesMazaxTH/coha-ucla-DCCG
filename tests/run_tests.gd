@@ -133,7 +133,7 @@ func _test_sfx() -> void:
 	for step in MusicScript.ROTEIRO:
 		check(load(step["path"]) is AudioStreamOggVorbis, "música: %s existe e é um OGG" % step["path"])
 		total_plays += int(step["plays"])
-	check(MusicScript.ROTEIRO.size() == 3 and total_plays == 6, "música: roteiro de 3 faixas, tocando 3x, 2x e 1x")
+	check(MusicScript.ROTEIRO.size() == 4 and total_plays == 5, "música: roteiro de 4 faixas (chefe 1x, Winter Dust 2x, duas do CSA legado 1x cada)")
 	check(MusicScript.SETTINGS_PATH == SfxScript.SETTINGS_PATH, "música: salva no mesmo arquivo de configurações dos efeitos")
 	check(SfxScript.DEFAULT_VOLUME == 0.5 and MusicScript.DEFAULT_VOLUME == 0.5, "áudio: efeitos e música começam em 50%")
 	check(MusicScript.DEFAULT_VOLUME > 0.0 and MusicScript.DEFAULT_VOLUME < 1.0, "música: volume padrão fica no meio do slider")
