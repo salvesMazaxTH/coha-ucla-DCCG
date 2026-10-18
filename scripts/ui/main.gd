@@ -116,6 +116,7 @@ func _apply_light(on: bool, save := false) -> void:
 	get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_VIEWPORT if on else Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 	if save:
 		var cf := ConfigFile.new()
+		cf.load("user://settings.cfg") # keep the other settings (sound, music, auto-pass) in the file
 		cf.set_value("ui", "light", on)
 		cf.save("user://settings.cfg")
 
