@@ -5,7 +5,7 @@
   "max_copies": 1,
   "species": ["divindade"],
   "essence": "sagrada",
-  "cost": 7,
+  "cost": 8,
   "atk": 0,
   "hp": 7,
   "keywords": ["pacifista"],
@@ -13,13 +13,26 @@
   "effects": [
     {
       "trigger": "on_enter",
+      "action": "heal_full",
+      "target": "all_ally_units",
+      "cleanse": true
+    },
+    {
+      "trigger": "on_enter",
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount": 0,
+      "cleanse": true
+    },
+    {
+      "trigger": "on_enter",
       "action": "buff",
       "target": "other_ally_units",
-      "atk": 2,
-      "hp": 2
+      "atk": 3,
+      "hp": 3
     }
   ],
-  "text": "Pacifista.\nAo Entrar: suas outras unidades ganham +2/+2 permanentes.",
+  "text": "Pacifista.\nAo Entrar: cure totalmente e purifique todas as suas unidades. Purifique seu Líder. Suas outras unidades ganham +3/+3 permanentes.",
   "flavor": "Ele nunca levantou a mão. Todo mundo ao redor dele, sim.",
   "tags": []
 }
