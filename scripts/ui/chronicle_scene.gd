@@ -12,6 +12,8 @@ const SOURCE_CARD_SCALE := 1.5 ## 180 x 255 px
 const MANY_TARGETS_CARD_SCALE := 1.2
 const MAX_TARGETS_SHOWN := 3
 const MEDALLION_RADIUS := 34.0
+## Size of the shield with the life left after a hit or a heal (under the medallion).
+const LIFE_GEM_RADIUS := 17.0
 ## Pixels the panel slides in from, and how long it takes.
 const SLIDE_DISTANCE := 14.0
 const SHOW_SECONDS := 0.14
@@ -225,6 +227,19 @@ func _draw_medallion() -> void:
 	var amount_color := ChronicleRow.HEAL_COLOR if int(entry["amount"]) > 0 else ChronicleRow.DAMAGE_COLOR
 	var amount_width := glyph_font.get_string_size(amount, HORIZONTAL_ALIGNMENT_LEFT, -1, 36).x
 	var amount_position := _medallion_center + Vector2(-amount_width / 2.0, MEDALLION_RADIUS + 42)
+	if entry.has("hp_after"):
+		# the amount slides left to make room for an arrow and the life shield
+		amount_position.x -= LIFE_GEM_RADIUS + 22
+		var arrow_left := amount_position.x + amount_width + 10
+		var arrow_y := amount_position.y - 12
+		draw_line(Vector2(arrow_left, arrow_y), Vector2(arrow_left + 20, arrow_y), Color(UITheme.TEXT, 0.7), 3.0, true)
+		draw_colored_polygon(PackedVector2Array([Vector2(arrow_left + 27, arrow_y), Vector2(arrow_left + 18, arrow_y - 6), Vector2(arrow_left + 18, arrow_y + 6)]), Color(UITheme.TEXT, 0.7))
+		var gem_center := Vector2(arrow_left + 34 + LIFE_GEM_RADIUS, arrow_y + 1)
+		ChronicleRow.draw_life_gem(self, gem_center, LIFE_GEM_RADIUS, int(entry["hp_after"]))
+		var caption_font := UITheme.font("title_bold")
+		var caption := "VIDA" if int(entry["hp_after"]) > 0 else "CAIU"
+		var caption_width := caption_font.get_string_size(caption, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+		draw_string(caption_font, gem_center + Vector2(-caption_width / 2.0, LIFE_GEM_RADIUS + 20), caption, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(UITheme.TEXT, 0.75))
 	draw_string_outline(glyph_font, amount_position, amount, HORIZONTAL_ALIGNMENT_LEFT, -1, 36, 8, Color(0, 0, 0, 0.95))
 	draw_string(glyph_font, amount_position, amount, HORIZONTAL_ALIGNMENT_LEFT, -1, 36, amount_color)
 

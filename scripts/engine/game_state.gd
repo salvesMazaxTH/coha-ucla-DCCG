@@ -1848,7 +1848,8 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 			return 0
 		players[tp]["leader_hp"] -= amount
 		dealt = amount
-		_emit({"type": "damage", "uid": t, "amount": amount, "src": src_uid})
+		# "hp_after": the life left once this hit landed (the Chronicle shows it next to the damage)
+		_emit({"type": "damage", "uid": t, "amount": amount, "src": src_uid, "hp_after": players[tp]["leader_hp"]})
 		var damaged := GameEvent.new("leader_damaged", tp, source)
 		damaged.amount = amount
 		damaged.hp_before = hp_before
@@ -1886,7 +1887,7 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 				return 0
 		c.damage += amount
 		dealt = amount
-		var damage_event := {"type": "damage", "uid": t, "amount": amount, "src": src_uid}
+		var damage_event := {"type": "damage", "uid": t, "amount": amount, "src": src_uid, "hp_after": c.hp_left()}
 		if damage_kind != "":
 			damage_event["dot"] = damage_kind
 		_emit(damage_event)
@@ -2003,7 +2004,7 @@ func _heal_leader(p: int, amount: int) -> void:
 	if healed > 0:
 		var hp_before: int = pl["leader_hp"]
 		pl["leader_hp"] += healed
-		_emit({"type": "heal", "uid": LEADER_UID[p], "amount": healed})
+		_emit({"type": "heal", "uid": LEADER_UID[p], "amount": healed, "hp_after": pl["leader_hp"]})
 		_emit_leader_healed(p, healed, hp_before)
 
 ## Tox Vipranna's poison-healing trigger: each instance has a soft 15-point budget per turn.
@@ -2033,7 +2034,7 @@ func _raise_leader_max(p: int, amount: int) -> void:
 	pl["leader_max"] += amount
 	var hp_before: int = pl["leader_hp"]
 	pl["leader_hp"] += amount
-	_emit({"type": "heal", "uid": LEADER_UID[p], "amount": amount})
+	_emit({"type": "heal", "uid": LEADER_UID[p], "amount": amount, "hp_after": pl["leader_hp"]})
 	_emit_leader_healed(p, amount, hp_before)
 
 func _emit_leader_healed(p: int, amount: int, hp_before: int) -> void:
@@ -2199,7 +2200,7 @@ func _finish_turn() -> void:
 			if has_kw(c, "regeneracao") and c.damage > 0:
 				var healed_amount: int = c.damage
 				c.damage = 0
-				_emit({"type": "heal", "uid": c.uid, "amount": healed_amount, "regeneration": true})
+				_emit({"type": "heal", "uid": c.uid, "amount": healed_amount, "regeneration": true, "hp_after": c.hp_left()})
 			for kw in c.temp_keywords:
 				c.keywords.erase(kw)
 			c.temp_keywords.clear()

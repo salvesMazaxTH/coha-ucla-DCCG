@@ -137,13 +137,21 @@ func _draw_event_tile() -> void:
 	var text_right := size.x - 8.0
 	if not target_ids.is_empty():
 		var target_rect := Rect2(Vector2(size.x - TARGET_CHIP_SIZE.x - 7, (size.y - TARGET_CHIP_SIZE.y) / 2.0), TARGET_CHIP_SIZE)
+		if entry.has("hp_after"):
+			target_rect.position.x -= 5 # room for the life shield sticking out of the right edge
 		if target_ids.size() > 1:
 			# a second card peeks out behind the first one
 			draw_card_art(self, String(target_ids[1]), Rect2(target_rect.position + Vector2(-7, -2), target_rect.size), accent, 0.55)
 		draw_card_art(self, String(target_ids[0]), target_rect, accent)
 		if target_ids.size() > 2:
 			_draw_count_pill(target_rect.position + Vector2(2, 4), "+%d" % (target_ids.size() - 1), accent)
-		_draw_amount_stamp(target_rect.get_center() + Vector2(0, 8))
+		if entry.has("hp_after"):
+			# the damage stamp on the upper-left corner, the life that was left on the lower-right
+			# corner: both stick out of the picture so the art stays visible in the middle
+			_draw_amount_stamp(target_rect.position + Vector2(3, 9))
+			draw_life_gem(self, target_rect.end + Vector2(0, -7), 9.0, int(entry["hp_after"]))
+		else:
+			_draw_amount_stamp(target_rect.get_center() + Vector2(0, 8))
 		text_right = target_rect.position.x - (14.0 if target_ids.size() > 1 else 7.0)
 
 	# title of the action and one line of prose (the whole sentence is in the big scene)
@@ -196,6 +204,29 @@ func _draw_diamond(center: Vector2, half: float, color: Color) -> void:
 	draw_colored_polygon(PackedVector2Array([center + Vector2(0, -half), center + Vector2(half, 0), center + Vector2(0, half), center + Vector2(-half, 0)]), color)
 
 # ------------------------------------------------------------ shared with ChronicleScene
+
+## The life a card or Leader was left with, drawn like the HP shield on the cards (green, gold rim).
+## At 0 the shield turns red: that hit was lethal.
+static func draw_life_gem(canvas: CanvasItem, center: Vector2, radius: float, life: int) -> void:
+	var fill_color := CardView.HP_COL if life > 0 else DAMAGE_COLOR
+	var outline := PackedVector2Array()
+	for corner in [[-0.9, -0.88], [0.9, -0.88], [0.92, 0.08], [0, 1.02], [-0.92, 0.08]]:
+		outline.append(center + Vector2(corner[0], corner[1]) * radius)
+	var rim := PackedVector2Array()
+	var shadow := PackedVector2Array()
+	for point in outline:
+		rim.append(center + (point - center) * 1.18)
+		shadow.append(center + (point - center) * 1.22 + Vector2(0, 1.5))
+	canvas.draw_colored_polygon(shadow, Color(0, 0, 0, 0.6))
+	canvas.draw_colored_polygon(rim, UITheme.GOLD)
+	canvas.draw_colored_polygon(outline, fill_color.darkened(0.15))
+	var font := UITheme.font("heavy")
+	var font_size := int(radius * 1.35)
+	var text := str(life)
+	var text_width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	var text_position := Vector2(center.x - text_width / 2.0, center.y + font_size * 0.3)
+	canvas.draw_string_outline(font, text_position, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, maxi(3, font_size / 4), Color(0, 0, 0, 0.9))
+	canvas.draw_string(font, text_position, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
 
 ## "−3" for damage, "+2" for healing, "" when the event has no amount.
 static func amount_text(data: Dictionary) -> String:

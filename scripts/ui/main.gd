@@ -4350,6 +4350,9 @@ func _chronicle_visual_for_event(e: Dictionary) -> Dictionary:
 		out["amount"] = int(e.get("amount", 0))
 	elif kind == "dot" and e.has("damage"):
 		out["amount"] = -int(e["damage"])
+	# how much life the target was left with after this damage / healing (shown beside the amount)
+	if (kind == "damage" or kind == "heal") and e.has("hp_after"):
+		out["hp_after"] = maxi(0, int(e["hp_after"]))
 	match kind:
 		"play", "resolve", "fizzle", "countered":
 			out["source_card_id"] = String(e.get("card_id", ""))
