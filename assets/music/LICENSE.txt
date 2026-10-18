@@ -1,6 +1,6 @@
 Background music for matches.
 
-  a_brand_new_wisdom.ogg   "A Brand New Wisdom" by hernandack
+  winter_dust.ogg           "Winter Dust" by hernandack
                            Pack: "Short Loops Background Music Pack" on OpenGameArt
                            https://opengameart.org/content/short-loops-background-music-pack
                            Creative Commons Zero (CC0 1.0): http://creativecommons.org/publicdomain/zero/1.0/

@@ -8,7 +8,7 @@ extends Node
 ##
 ## Web note: like Sfx, the first tap unlocks browser audio; a match always starts from a tap.
 
-const TRACK_PATH := "res://assets/music/a_brand_new_wisdom.ogg"
+const TRACK_PATH := "res://assets/music/winter_dust.ogg"
 const SETTINGS_PATH := "user://settings.cfg"
 ## Level of the track when the volume slider is at 100%. The default slider position (50%) is about
 ## 6 dB under this, so the music sits behind the sound effects.
