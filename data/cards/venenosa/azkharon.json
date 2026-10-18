@@ -6,7 +6,10 @@
     "demonio",
     "revenante"
   ],
-  "essence": "venenosa",
+  "essence": [
+    "venenosa",
+    "glacial"
+  ],
   "cost": 6,
   "atk": 4,
   "hp": 7,
@@ -31,7 +34,7 @@
       "amount": 1
     }
   ],
-  "text": "Provocação. Armadura 2.\nAo Entrar: dê 1 marcador de Veneno a todas as unidades inimigas.\nAo Ser Desafiada: dê 1 marcador de Veneno ao atacante.",
+  "text": "Ao Entrar: dê 1 marcador de Veneno a todas as unidades inimigas.\nAo Ser Desafiada: dê 1 marcador de Veneno ao atacante.",
   "flavor": "O estandarte do Longo Inverno não cai. Quem encosta nele, apodrece.",
   "tags": []
 }
