@@ -49,7 +49,7 @@ const SOUNDS := {
 	"reflect":        {"files": ["impactPlate_light_000", "impactPlate_light_001"], "db": -3.0, "pitch": 0.04},
 	"dodge":          {"files": ["cloth1", "cloth2"], "db": -3.0, "pitch": 0.06},
 	# --- units leaving, coming back, statuses
-	"death":          {"files": ["impactSoft_heavy_000", "impactSoft_heavy_001", "impactSoft_heavy_002"], "db": -1.0, "pitch": 0.05},
+	"death":          {"files": ["impactSoft_heavy_000", "impactSoft_heavy_001", "impactSoft_heavy_002"], "db": -13.0, "pitch": 0.05},
 	"banish":         {"files": ["phaserDown1", "phaserDown2"], "db": -5.0, "pitch": 0.0},
 	"sacrifice":      {"files": ["knifeSlice"], "db": -4.0, "pitch": 0.04},
 	"revive":         {"files": ["powerUp12"], "db": -6.0, "pitch": 0.0},
