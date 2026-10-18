@@ -13,6 +13,8 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - As **essências** do Líder (ígnea, aquática, glacial, vegetal, rochosa, metálica, elétrica, obscura, sagrada, venenosa) definem as cartas permitidas no deck. Cartas **neutras** entram em qualquer deck.
 - Uma carta pode ter **mais de uma essência** (ex.: Sabrina é aquática e glacial, com moldura meio a meio). Ela é permitida se tiver **pelo menos uma** das essências do Líder.
 - **Fora da essência:** o deck pode ter até **12 cartas** (contando cópias) de essências que o Líder não tem, de qualquer raridade, com o limite normal de 3 cópias. Cartas neutras não entram nessa conta, e **Campeões** nunca podem ser de fora da essência.
+- **Essências secundárias:** a primeira carta fora das essências do Líder (não neutra, com Líder não neutro) permite definir uma **essência secundária**. A primeira carta não neutra que não tenha nem as essências do Líder nem a secundária já definida permite definir uma **segunda essência secundária**. Depois disso, todas as cartas de fora das essências do Líder precisam ter **pelo menos uma** das duas secundárias (uma carta de duas essências serve com qualquer uma das metades). Não existe terceira secundária.
+- **Líder neutro** (ex.: Vael): toda carta não neutra é "de fora da essência", então ele escolhe suas duas secundárias como qualquer outro Líder (mais as cartas neutras à vontade).
 - O deck tem exatamente **1 Encarnação do Líder**, o Campeão que é a versão em carta do próprio Líder.
 
 ## Encarnação do Líder (Santuário)

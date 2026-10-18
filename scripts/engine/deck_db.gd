@@ -12,6 +12,9 @@ const MAX_LEGENDARY_COPIES := 2
 const MAX_ELITE_CARDS := 20
 ## Cards outside the Leader's essences (neutral ones don't count); champions can never be off-essence.
 const MAX_OFF_ESSENCE := 12
+## Off-essence cards must all share one of at most this many "secondary essences" the player picks.
+## A neutral Leader picks them like any other: every non-neutral card is off-essence for it.
+const MAX_SECONDARY_ESSENCES := 2
 const PREBUILT_DIR := "res://data/decks/prebuilt"
 
 static var _decks: Dictionary = {}
@@ -93,6 +96,7 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 	var ld := CardDB.leader(leader_id)
 	var total := 0 # cards that are drawn, so the Encarnação is not counted
 	var off_essence := 0
+	var off_essence_sets: Array = [] # the essences of each distinct off-essence card
 	var elite_cards := 0
 	for id in cards:
 		var n: int = cards[id]
@@ -113,6 +117,7 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 			legal = legal or ld["essences"].has(e)
 		if not legal:
 			off_essence += n
+			off_essence_sets.append(ess)
 			if c.get("rarity", "") == "champion":
 				errors.append("%s: Campeão não pode ser de fora da essência do Líder" % id)
 		if c.get("transform_only", false):
@@ -123,6 +128,7 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 			errors.append("%s: Encarnação de outro Líder" % id)
 	if off_essence > MAX_OFF_ESSENCE:
 		errors.append("%d cartas de fora da essência do Líder (máximo %d)" % [off_essence, MAX_OFF_ESSENCE])
+	_check_secondary_essences(off_essence_sets, errors)
 	if elite_cards > MAX_ELITE_CARDS:
 		errors.append("%d Campeões + Lendárias (máximo %d)" % [elite_cards, MAX_ELITE_CARDS])
 	if total != DECK_SIZE:
@@ -130,3 +136,31 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 	if int(cards.get(ld["legendary"], 0)) != 1:
 		errors.append("o deck precisa de exatamente 1 Encarnação do Líder (%s)" % ld["legendary"])
 	return errors
+
+## Off-essence cards must be covered by at most MAX_SECONDARY_ESSENCES essences: every one of them has
+## to carry at least one of the chosen secondary essences (a dual card may satisfy it with either half).
+## The choice is not stored, so it is enough that some valid choice exists.
+static func _check_secondary_essences(off_essence_sets: Array, errors: Array[String]) -> void:
+	if off_essence_sets.is_empty():
+		return
+	var candidates: Array[String] = []
+	for ess in off_essence_sets:
+		for e in ess:
+			if not candidates.has(e):
+				candidates.append(e)
+	for first_index in candidates.size():
+		if _covers_all(off_essence_sets, [candidates[first_index]]):
+			return
+		for second_index in range(first_index + 1, candidates.size()):
+			if _covers_all(off_essence_sets, [candidates[first_index], candidates[second_index]]):
+				return
+	errors.append("cartas de fora da essência do Líder precisam compartilhar uma de até %d essências secundárias" % MAX_SECONDARY_ESSENCES)
+
+static func _covers_all(off_essence_sets: Array, chosen: Array) -> bool:
+	for ess in off_essence_sets:
+		var covered := false
+		for e in chosen:
+			covered = covered or ess.has(e)
+		if not covered:
+			return false
+	return true
