@@ -1,0 +1,13 @@
+{
+  "name": "Sentença do Badalo",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "sagrada",
+  "cost": 2,
+  "effects": [
+    { "trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 3 }
+  ],
+  "text": "Cause 3 de dano a uma unidade inimiga.",
+  "flavor": "Julgamento rápido: o sino bate, o réu cala.",
+  "tags": []
+}

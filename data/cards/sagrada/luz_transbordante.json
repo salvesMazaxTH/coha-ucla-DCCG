@@ -12,10 +12,11 @@
       "action": "heal_unit",
       "target": "ally_or_own_leader",
       "amount": 4,
-      "overflow_max_hp": 1
+      "overflow_max_hp": 1,
+      "cleanse": true
     }
   ],
-  "text": "Cure 4 de Vida de uma unidade aliada ou do seu Líder. Se a cura passar do que faltava, o alvo ganha +1 de Vida máxima.",
+  "text": "Cure 4 de Vida de uma unidade aliada ou do seu Líder e purifique-o (remove todos os marcadores de Veneno, Queimadura e Sangramento). Se a cura passar do que faltava, o alvo ganha +1 de Vida máxima.",
   "flavor": "Quando o copo enche, a luz continua. Alguém precisa de copo maior.",
   "tags": []
 }

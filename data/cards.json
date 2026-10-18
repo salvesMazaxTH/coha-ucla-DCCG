@@ -116,6 +116,8 @@
     "anjo": { "name": "Anjo" },
     "divindade": { "name": "Divindade" },
     "celestial": { "name": "Celestial" },
+    "precursor": { "name": "Precursor" },
+    "santa": { "name": "Santa" },
     "transfigurado": { "name": "Transfigurado" },
     "forjado_divino": { "name": "Forjado-Divino" },
     "semideus": { "name": "Semideus" },

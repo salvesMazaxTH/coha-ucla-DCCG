@@ -1,0 +1,15 @@
+{
+  "name": "Cruzada Pé-de-Chumbo",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["humano"],
+  "essence": "sagrada",
+  "cost": 3,
+  "atk": 3,
+  "hp": 3,
+  "keywords": ["impeto", "provocacao"],
+  "effects": [],
+  "text": "Ímpeto. Provocação.",
+  "flavor": "Não corre, não recua e nunca perdeu o endereço do inimigo.",
+  "tags": []
+}

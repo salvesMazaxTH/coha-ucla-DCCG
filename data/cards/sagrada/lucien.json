@@ -10,6 +10,7 @@
   "keywords": ["inalcancavel"],
   "art": "sagrada/lucien.webp",
   "effects": [
+    { "trigger": "on_enter", "action": "damage", "target": "all_enemy_units", "amount": 1 },
     {
       "trigger": "on_turn_end",
       "action": "buff",
@@ -18,7 +19,7 @@
       "own_turn_only": true
     }
   ],
-  "text": "Inalcançável.\nNo fim do seu turno, esta unidade ganha +1 de Ataque permanente.",
+  "text": "Inalcançável.\nAo Entrar: causa 1 de dano a todas as unidades inimigas.\nNo fim do seu turno, esta unidade ganha +1 de Ataque permanente.",
   "flavor": "Ninguém chega até ele. Ele, devagar, chega em todo mundo.",
   "tags": []
 }

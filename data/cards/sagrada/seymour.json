@@ -2,32 +2,20 @@
   "name": "Seymour",
   "type": "unit",
   "rarity": "champion",
-  "species": ["celestial"],
+  "species": ["humano"],
   "essence": "sagrada",
   "cost": 4,
   "atk": 2,
   "hp": 4,
-  "keywords": ["escudo"],
+  "keywords": [],
   "art": "sagrada/seymour.webp",
   "effects": [
-    {
-      "trigger": "on_turn_start",
-      "action": "buff",
-      "target": "self",
-      "keywords": ["escudo"],
-      "own_turn_only": true
-    },
-    {
-      "listen": "spell_cast",
-      "scope": "ally",
-      "zones": ["board"],
-      "when": {"essence_sagrada": true},
-      "action": "buff",
-      "target": "self",
-      "atk": 1
-    }
+    { "trigger": "on_turn_start", "action": "damage", "target": "random_enemy_unit_twice", "amount": 1, "own_turn_only": true },
+    { "listen": "leader_healed", "scope": "ally", "zones": ["board"], "action": "damage", "target": "random_enemy_unit_twice", "amount": 1 },
+    { "listen": "unit_healed", "scope": "ally", "zones": ["board"], "action": "damage", "target": "random_enemy_unit_twice", "amount": 1 },
+    { "listen": "spell_cast", "scope": "ally", "zones": ["board"], "when": { "essence_sagrada": true }, "action": "damage", "target": "random_enemy_unit_twice", "amount": 1 }
   ],
-  "text": "Escudo. No início do seu turno, ela recupera o Escudo.\nSempre que você lançar um feitiço Sagrado, esta unidade ganha +1 de Ataque permanente.",
-  "flavor": "O primeiro golpe de cada dia ela deixa passar sem notar.",
+  "text": "No início do seu turno, e sempre que seu Líder ou uma unidade aliada for curada, ou que você lançar um feitiço Sagrado: causa 1 de dano duas vezes, cada uma a uma unidade inimiga aleatória (podem ser a mesma).",
+  "flavor": "O primeiro golpe de cada dia ele deixa passar sem notar.",
   "tags": []
 }

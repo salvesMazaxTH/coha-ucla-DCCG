@@ -7,7 +7,7 @@
   "cost": 5,
   "atk": 5,
   "hp": 5,
-  "keywords": ["voo", "roubo_de_vida"],
+  "keywords": ["voo", "roubo_de_vida", "regeneracao"],
   "art": "sagrada/uriel.webp",
   "effects": [
     {
@@ -19,7 +19,7 @@
       "atk": 1
     }
   ],
-  "text": "Voo.\nRoubo de Vida.\nCondicional: sempre que seu Líder for curado, esta unidade ganha +1 de Ataque permanente.",
-  "flavor": "Cada golpe dela devolve ao Líder o fôlego que o mundo tirou.",
+  "text": "Voo.\nRoubo de Vida.\nRegeneração.\nAo Entrar: causa 1 de dano a todas as unidades inimigas.\nCondicional: sempre que seu Líder for curado, esta unidade ganha +1 de Ataque permanente.",
+  "flavor": "Cada golpe dele devolve ao Líder o fôlego que o mundo tirou.",
   "tags": []
 }
