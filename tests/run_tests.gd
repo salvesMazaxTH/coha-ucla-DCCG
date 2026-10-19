@@ -57,6 +57,7 @@ func _init() -> void:
 	_test_leader_poison()
 	_test_veneno_hold()
 	_test_veneno_lethal()
+	_test_hulglack_death_freeze()
 	_test_venenosa_deck()
 	_test_hikari_decoy()
 	_test_dot_immunity()
@@ -95,6 +96,7 @@ func _init() -> void:
 	_test_rusco()
 	_test_elite_limits()
 	_test_armor()
+	_test_tharox_armor_growth()
 	_test_adjacent_armor()
 	_test_sagrada_engine()
 	_test_maria_helena()
@@ -1069,6 +1071,17 @@ func _test_armor() -> void:
 	g._start_turn(0, false)
 	check(wall.armor_total() == 2, "a parte temporária some no início do próximo turno do dono (%d)" % wall.armor_total())
 
+## Tharox only gains Armadura from a hit whose damage (before Armadura) is equal to or bigger than the Armadura he already has.
+func _test_tharox_armor_growth() -> void:
+	var g := _new_game()
+	var tharox := _put(g, 0, "tharox")
+	check(g.armor_of(tharox) == 0, "Tharox começa sem Armadura")
+	# each row: [damage of the hit, expected Armadura afterwards]
+	for step in [[1, 1], [1, 2], [1, 2], [2, 3], [2, 3], [3, 4]]:
+		g._deal_damage(tharox.uid, step[0], null)
+		g._check_state()
+		check(g.armor_of(tharox) == step[1], "Tharox: golpe de %d deixa a Armadura em %d (%d)" % [step[0], step[1], g.armor_of(tharox)])
+
 ## Bastionário gives Armadura only to the allies standing right next to it on the board.
 func _test_adjacent_armor() -> void:
 	var g := _new_game()
@@ -1543,6 +1556,17 @@ func _test_combat() -> void:
 	obsession_taunt.frozen = 1
 	check(g.attack_targets(obsessed) == [obsession_taunt.uid, GameState.LEADER_UID[1]], "obsessão: Provocação Congelada não obriga (desafia ou vai no Líder)")
 
+	# Prudência (the opposite of Obsessão): it only challenges, the Leader's face is never a target
+	g = _new_game()
+	var wary := _put(g, 0, "tharox")
+	check(g.has_kw(wary, "prudencia") and g.has_kw(_put(g, 0, "cryo_hulglack"), "prudencia") \
+		and g.has_kw(_put(g, 0, "anciao_do_primeiro_bosque"), "prudencia"), "prudência: Tharox, Hulglack e Ancião têm")
+	check(g.attack_targets(wary).is_empty(), "prudência: sem unidade exaurida para desafiar, não ataca (nem o Líder)")
+	var wary_prey := _put(g, 1, "serpente_marinha")
+	wary_prey.exhausted = true
+	check(g.attack_targets(wary) == [wary_prey.uid], "prudência: desafia a unidade exaurida e nunca vai no Líder")
+	check(g.attack_unit(0, wary.uid, GameState.LEADER_UID[1]).is_empty(), "prudência: o ataque direto ao Líder é recusado")
+
 	# Etérea: never challenged, not even with Provocação (so it forces nobody)
 	_tcard("t_ghost", 1, 3, [])
 	CardDB.data()["cards"]["t_ghost"]["keywords"] = ["eterea", "provocacao"]
@@ -1852,6 +1876,22 @@ func _test_veneno_hold() -> void:
 
 ## Neráxia: until the start of the caster's next turn, the Veneno tick takes all the Vida a poisoned unit has left.
 ## The window closes right before the caster's own tick, so only the opponent's units are reached, and only once.
+func _test_hulglack_death_freeze() -> void:
+	# Cryo Hulglack: Ao Morrer congela 3 unidades inimigas aleatórias, sempre 3 diferentes
+	var g := _new_game()
+	_quiet(g)
+	var hulglack := _put(g, 0, "cryo_hulglack")
+	var foes: Array = [_put(g, 1, "geodo_vivo"), _put(g, 1, "geodo_vivo"), _put(g, 1, "geodo_vivo"), _put(g, 1, "geodo_vivo")]
+	_kill(g, hulglack)
+	var frozen_count := foes.filter(func(foe: Card): return foe.frozen > 0).size()
+	check(frozen_count == 3, "Cryo Hulglack: ao morrer congela exatamente 3 unidades inimigas diferentes (%d)" % frozen_count)
+	var few := _new_game()
+	_quiet(few)
+	var lone_hulglack := _put(few, 0, "cryo_hulglack")
+	var only_foes: Array = [_put(few, 1, "geodo_vivo"), _put(few, 1, "geodo_vivo")]
+	_kill(few, lone_hulglack)
+	check(only_foes.all(func(foe: Card): return foe.frozen > 0), "Cryo Hulglack: com menos de 3 inimigas, congela todas as que existem")
+
 func _test_veneno_lethal() -> void:
 	_tcard("t_lethal_dummy", 1, 10, [])
 	var g := _new_game()

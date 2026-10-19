@@ -7,12 +7,12 @@
   ],
   "essence": "glacial",
   "cost": 6,
-  "atk": 4,
-  "hp": 7,
+  "atk": 5,
+  "hp": 8,
   "keywords": [
     "provocacao",
-    "armadura:1",
-    "regeneracao"
+    "regeneracao",
+    "prudencia"
   ],
   "art": "glacial/cryo_hulglack.webp",
   "effects": [
@@ -21,9 +21,24 @@
       "action": "damage",
       "target": "all_enemy_units",
       "amount": 1
+    },
+    {
+      "trigger": "on_death",
+      "action": "freeze",
+      "target": "random_enemy_unit"
+    },
+    {
+      "trigger": "on_death",
+      "action": "freeze",
+      "target": "random_enemy_unit"
+    },
+    {
+      "trigger": "on_death",
+      "action": "freeze",
+      "target": "random_enemy_unit"
     }
   ],
-  "text": "Ao Entrar: cause 1 de dano a todas as unidades inimigas.",
+  "text": "Ao Entrar: cause 1 de dano a todas as unidades inimigas.\nAo Morrer: congele 3 unidades inimigas aleatórias.",
   "flavor": "Caminha devagar. Não precisa de pressa.",
   "tags": []
 }

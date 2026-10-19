@@ -4,10 +4,10 @@
   "rarity": "legendary",
   "species": ["druida"],
   "essence": "vegetal",
-  "cost": 10,
+  "cost": 9,
   "atk": 9,
-  "hp": 10,
-  "keywords": ["provocacao", "sobrepujanca", "inalcancavel"],
+  "hp": 11,
+  "keywords": ["provocacao", "sobrepujanca", "inalcancavel", "prudencia"],
   "art": "vegetal/anciao_do_primeiro_bosque.webp",
   "effects": [
     {
@@ -19,13 +19,12 @@
     {
       "trigger": "on_enter",
       "action": "buff",
-      "temp": true,
       "target": "other_ally_units",
       "atk": 1,
       "hp": 1
     }
   ],
-  "text": "Ao Entrar: compre 2 cartas. Suas outras unidades ganham +1/+1 neste turno.",
+  "text": "Ao Entrar: compre 2 cartas. Suas outras unidades ganham +1/+1 permanente.",
   "flavor": "Antes dos nomes, antes das cidades, antes mesmo do medo, ele já criava sombra.",
   "tags": []
 }

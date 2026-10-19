@@ -98,7 +98,8 @@ func challengeable_units(attacker: Card) -> Array:
 ## the enemy Leader's uid (negative). Empty when it cannot attack at all (or has nothing to hit).
 ## Order of the rules:
 ##   1. a tapped (not Congelada) Provocação it can challenge: only those;
-##   2. otherwise the challengeable units (any tapped enemy unit) and the enemy Leader's face.
+##   2. Prudência: only the challengeable units, never the Leader's face;
+##   3. otherwise the challengeable units (any tapped enemy unit) and the enemy Leader's face.
 func attack_targets(attacker: Card) -> Array:
 	if attacker == null or not game.can_attack(attacker):
 		return []
@@ -106,6 +107,9 @@ func attack_targets(attacker: Card) -> Array:
 	if not taunts.is_empty():
 		return taunts
 	var challengeable := challengeable_units(attacker)
+	# Prudência (the opposite of Obsessão): it only ever challenges, the Leader's face is never an option
+	if game.has_kw(attacker, "prudencia"):
+		return challengeable
 	var enemy_leader: int = GameState.LEADER_UID[game.opponent(attacker.owner)]
 	# Ímpeto lets a unit attack the turn it enters, but only to challenge: the Leader's face
 	# waits until its next turn (otherwise Ímpeto would be free damage now that nobody blocks).

@@ -42,6 +42,8 @@ func _fire_own_effects(event: GameEvent) -> void:
 			continue
 		if e.get("trigger", "") == event.trigger and e.get("only_from_spell", false) and not event.data.get("from_spell", false):
 			continue # an Ao Sofrer Dano effect that only reacts to damage dealt by a spell (Tyren)
+		if e.get("trigger", "") == event.trigger and e.get("hit_at_least_armor", false) and not event.data.get("hit_reached_armor", true):
+			continue # an Ao Sofrer Dano effect that a hit weaker than the unit's Armadura can't trigger (Tharox)
 		if e.get("trigger", "") == event.trigger and e.get("own_turn_only", false) and game.active != card.owner:
 			continue # an "own turn only" effect during the opponent's turn
 		if e.get("trigger", "") == event.trigger and e.get("once_per_turn", false):

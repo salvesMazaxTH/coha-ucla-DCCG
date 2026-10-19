@@ -5,10 +5,11 @@
   "species": ["tita"],
   "essence": "rochosa",
   "cost": 6,
-  "atk": 3,
-  "hp": 9,
+  "atk": 4,
+  "hp": 10,
   "keywords": [
-    "provocacao"
+    "provocacao",
+    "prudencia"
   ],
   "art": "rochosa/tharox.webp",
   "effects": [
@@ -16,7 +17,8 @@
       "trigger": "on_damaged",
       "action": "buff",
       "target": "self",
-      "armor": 1
+      "armor": 1,
+      "hit_at_least_armor": true
     }
   ],
   "activated": {
@@ -31,7 +33,7 @@
       }
     ]
   },
-  "text": "Ao Sofrer Dano: esta unidade ganha Armadura 1 permanente (acumula).\nAo Ativar (2) {instantaneo} (1x por turno): cause dano igual à metade da Armadura desta unidade (arredondado para cima) a um inimigo aleatório (pode ser o Líder).",
+  "text": "Ao Sofrer Dano (golpe igual ou maior que a sua Armadura): ganha Armadura 1 permanente (acumula).\nAo Ativar (2) {instantaneo} (1x por turno): cause dano igual à metade da Armadura desta unidade (arredondado para cima) a um inimigo aleatório (pode ser o Líder).",
   "flavor": "",
   "tags": []
 }

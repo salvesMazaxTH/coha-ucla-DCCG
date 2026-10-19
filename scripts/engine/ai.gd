@@ -604,7 +604,9 @@ static func _try_attack(g: GameState, p: int) -> Array:
 		if can_hit_face and g.strike_power_of(attacker) >= enemy_hp:
 			return g.attack_unit(p, attacker.uid, enemy_leader_uid) # clause 1: this hit wins the game
 		# a Provocação closes the face: it must challenge (a fresh Ímpeto unit just can't reach the face yet)
-		var forced := (not attacker.sick or g.combat_system().is_rompante_rush(attacker)) and not can_hit_face
+		# (Prudência closes the face by itself, not because of a Provocação: its challenge is a choice)
+		var forced := (not attacker.sick or g.combat_system().is_rompante_rush(attacker)) and not can_hit_face \
+			and not g.has_kw(attacker, "prudencia")
 		for target_uid in targets:
 			if target_uid < 0:
 				continue

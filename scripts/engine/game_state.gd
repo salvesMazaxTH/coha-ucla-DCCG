@@ -1963,6 +1963,9 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		if _combat_damage and source != null and source.owner != c.owner and is_immune_to_essence_of(c, source.card_id):
 			_emit({"type": "dot_immune", "uid": t, "dot": ""})
 			return 0
+		# What the hit was worth before Armadura, and the Armadura it met (Tharox only grows from hard hits)
+		var raw_amount := amount
+		var armor_before := armor_of(c)
 		if not bypass_unit_protections:
 			# Esquiva: the first combat damage each turn from a qualifying attacker is avoided
 			if _combat_damage and has_kw(c, "esquiva") and source != null and combat_system().dodges(c, source) 				and c.dodge_turn != turn:
@@ -1996,7 +1999,8 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 			_draw(c.owner, 1)
 		# Ao Sofrer Dano only fires if the unit survived the damage; a lethal hit just kills it
 		if c.hp_left() > 0:
-			_fire(c, "on_damaged", src_uid, {"from_spell": _spell_resolving and source == null})
+			_fire(c, "on_damaged", src_uid, {"from_spell": _spell_resolving and source == null,
+				"hit_reached_armor": raw_amount >= armor_before})
 		# Reflexão: half of the damage taken (rounded up) goes back to the unit that dealt it. The
 		# returning damage has no source, so two mirrors facing each other can't bounce it forever.
 		if has_kw(c, "reflexao") and source != null and source != c and find_unit(src_uid) != null:

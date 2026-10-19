@@ -205,6 +205,10 @@
       "name": "Obsessão",
       "text": "Esta unidade só ataca o Líder inimigo, mas uma Provocação exaurida ainda a obriga a desafiá-la."
     },
+    "prudencia": {
+      "name": "Prudência",
+      "text": "Esta unidade só ataca desafiando unidades inimigas exauridas: nunca ataca o Líder inimigo."
+    },
     "inalcancavel": {
       "name": "Inalcançável",
       "text": "Não pode ser alvo de feitiços, habilidades ou efeitos do oponente (efeitos sem alvo, como os de área, ainda a afetam)."
