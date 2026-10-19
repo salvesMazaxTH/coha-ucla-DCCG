@@ -3,7 +3,7 @@
   "type": "unit",
   "rarity": "legendary",
   "max_copies": 1,
-  "species": ["humano", "santa"],
+  "species": ["humano", "santo"],
   "essence": "sagrada",
   "cost": 5,
   "atk": 0,

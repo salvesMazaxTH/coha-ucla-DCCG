@@ -9,6 +9,7 @@ const MULLIGAN_MAX := 3
 const HAND_LIMIT := 10
 const BOARD_LIMIT := 8
 const MOMENTUM_CAP := 10
+const LETHAL_WARD_NEGATED_HITS := 3 # Câmara de Êxtase: how many hits it negates after saving the Leader
 const RESERVE_CAP := 2 ## unspent Momentum banked at turn start; pays only spells and abilities
 const COMMANDER_TAX_STEP := 1 ## the Encarnação's tax grows by this much per previous cast: +1, then +2, +3, +4... (totals 1, 3, 6, 10)
 const WEAK_UNIT_MAX_HP := 3 ## "weak_enemy_unit" targets: enemy units with this much current Vida or less (Isarelis)
@@ -165,7 +166,8 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"snowball_base": SNOWBALL_BASE_LEVEL, # the level the Bola de Neve goes back to every turn; raised for the rest of the game by Devaneio Gelado
 		"critico_growth": {}, # card_id -> Crítico level reached by "critico_growth" cards (Vael), shared by every copy of it
 		"glacial_discount_used": false, # the Amuleto Glacial discount was already spent this turn
-		"damage_halved_until": 0, # Câmara de Êxtase aftermath: the Leader takes half damage while turn <= this
+		"damage_negated_until": 0, # Câmara de Êxtase aftermath: the Leader's next hits are negated while turn <= this
+		"damage_negated_left": 0, # ...and this is how many hits are still left to negate
 		"leader_dots": {}, # dot_id -> markers on the Leader. They tick at every turn start of its controller and are consumed like a unit's
 		"leader_veneno_held_until": 0, # while turn <= this, this Leader's Veneno markers hurt but are not consumed (Antídoto Fora de Estoque)
 		"frozen_slots": 0, # Rei Gelado: empty field slots of this player that accept no permanent
@@ -1926,11 +1928,11 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		var tp := LEADER_UID.find(t)
 		var hp_before: int = players[tp]["leader_hp"]
 		amount = _apply_leader_damage_guard(tp, amount, src_uid)
-		# Câmara de Êxtase aftermath: half the damage, rounded down
-		if turn <= int(players[tp]["damage_halved_until"]):
-			amount = floori(amount / 2.0)
-			if amount <= 0:
-				return 0
+		# Câmara de Êxtase aftermath: the next 3 damage instances are reduced to 0, until the end of the
+		# controller's next turn (whichever comes first)
+		if amount > 0 and turn <= int(players[tp]["damage_negated_until"]) and int(players[tp]["damage_negated_left"]) > 0:
+			players[tp]["damage_negated_left"] -= 1
+			return 0
 		# Câmara de Êxtase: a killing blow is cancelled completely and the Chamber is spent
 		var ward := _lethal_ward_of(tp)
 		if ward != null and amount >= hp_before:
@@ -1978,6 +1980,13 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 				c.shield = false
 				_emit({"type": "shield_break", "uid": t, "src": src_uid})
 				return 0
+		# Baluarte Santo: cancel the complete damage instance if it would kill this unit.
+		# For combat Toque Letal, any connected hit is lethal unless the target is immune.
+		var total_hp := c.hp + c.bonus_hp + c.temp_hp + c.temp_hp_until_next_turn
+		var lethal_touch := _combat_damage and source != null and has_kw(source, "toque_letal") \
+			and not _immune_to_lethal_touch(c)
+		if (c.damage + amount >= total_hp or lethal_touch) and _consume_death_ward(c, src_uid):
+			return 0
 		c.damage += amount
 		dealt = amount
 		var damage_event := {"type": "damage", "uid": t, "amount": amount, "src": src_uid, "hp_after": c.hp_left()}
@@ -2114,12 +2123,13 @@ func _lethal_ward_of(p: int) -> Card:
 			return relic
 	return null
 
-## The Chamber cancels `prevented` damage, is destroyed, and halves the Leader's damage until the end of
-## its controller's next turn. `source_uid` is the unit whose blow was cancelled (0 = not a unit), so the
+## The Chamber cancels `prevented` damage, is destroyed, and then negates the Leader's next 3 damage
+## instances (even in this same turn) until the end of its controller's next turn. `source_uid` is the unit whose blow was cancelled (0 = not a unit), so the
 ## screen can show that blow landing on the Leader.
 func _trigger_lethal_ward(p: int, ward: Card, prevented: int, source_uid := 0) -> void:
 	var until := turn + (2 if p == active else 1)
-	players[p]["damage_halved_until"] = maxi(int(players[p]["damage_halved_until"]), until)
+	players[p]["damage_negated_until"] = maxi(int(players[p]["damage_negated_until"]), until)
+	players[p]["damage_negated_left"] = LETHAL_WARD_NEGATED_HITS
 	_emit({"type": "lethal_ward", "player": p, "uid": ward.uid, "card_id": ward.card_id, "amount": prevented, "src": source_uid})
 	destroy_relic(ward)
 
@@ -2287,26 +2297,31 @@ func _move_dead_units() -> void:
 						_fire(relic, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token, "dying_card_id": dying_card_id})
 					_fire_leader_passive(p, "on_ally_death")
 
-## Returns the armed Baluarte-like artifact of p, if any.
+## Returns the Baluarte-like artifact of p, if any.
 func _death_ward_of(p: int) -> Card:
 	for relic: Card in players[p]["relics"]:
-		if relic.data().get("death_ward", false) and relic.death_ward_armed:
+		if relic.data().get("death_ward", false):
 			return relic
 	return null
 
-## Prevents the next real unit death. All deaths converge through _move_dead_units; banishment does
-## not, so it deliberately bypasses this protection.
-func _prevent_unit_death(victim: Card) -> bool:
+## Consumes the automatic ward when a unit would die. Banishment bypasses this death path.
+## `source_uid` is the unit whose blow was cancelled (0 = not a unit), so the screen can show that blow landing.
+func _consume_death_ward(victim: Card, source_uid := 0) -> bool:
 	var ward := _death_ward_of(victim.owner)
 	if ward == null:
 		return false
-	ward.death_ward_armed = false
+	_emit({"type": "death_prevented", "player": victim.owner, "uid": victim.uid, "card_id": victim.card_id,
+		"ward_uid": ward.uid, "ward_card_id": ward.card_id, "src": source_uid})
+	destroy_relic(ward)
+	return true
+
+## Fallback for deaths from effects not intercepted at their damage/removal point.
+func _prevent_unit_death(victim: Card) -> bool:
+	if not _consume_death_ward(victim):
+		return false
 	var total_hp := victim.hp + victim.bonus_hp + victim.temp_hp + victim.temp_hp_until_next_turn
 	victim.damage = maxi(0, total_hp - 1)
 	victim.condemned_turn = 0
-	_emit({"type": "death_prevented", "player": victim.owner, "uid": victim.uid, "card_id": victim.card_id,
-		"ward_uid": ward.uid, "ward_card_id": ward.card_id})
-	destroy_relic(ward)
 	return true
 
 func _check_leaders() -> void:

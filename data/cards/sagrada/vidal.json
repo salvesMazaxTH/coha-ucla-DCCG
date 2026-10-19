@@ -27,12 +27,20 @@
     {
       "trigger": "on_enter",
       "action": "buff",
-      "target": "other_ally_units",
+      "target": "other_ally_unit",
+      "atk": 3,
+      "hp": 3
+    },
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "other_ally_unit",
+      "pick2": true,
       "atk": 3,
       "hp": 3
     }
   ],
-  "text": "Ao Entrar: cure totalmente e purifique todas as suas unidades. Purifique seu Líder. Suas outras unidades ganham +3/+3 permanentes.",
+  "text": "Ao Entrar: cure totalmente e purifique todas as suas unidades. Purifique seu Líder. Duas outras unidades suas à sua escolha ganham +3/+3 permanentes.",
   "flavor": "Ele nunca levantou a mão. Todo mundo ao redor dele, sim.",
   "tags": []
 }

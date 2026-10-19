@@ -234,7 +234,7 @@ func _gui_input(e: InputEvent) -> void:
 		accept_event()
 
 func _process(delta: float) -> void:
-	if highlight.a > 0 or hovered or _legendary() or inst.has("frozen") or inst.has("stun_markers") or inst.has("condemned_turn"):
+	if highlight.a > 0 or hovered or _legendary() or inst.has("frozen") or inst.has("stun_markers") or inst.has("condemned_turn") or inst.get("summoning_sick", false):
 		_t += delta
 		_redraw_acc += delta
 		if _redraw_acc >= 0.033 or highlight.a > 0 or hovered: ## shimmer at ~30 fps is plenty
@@ -371,7 +371,7 @@ func _draw() -> void:
 	var glow := Color(st["glow"]).lerp(Color(st2["glow"]), 0.5)
 	var is_token: bool = not face_down and cd.get("token", false)
 	var is_artifact: bool = not face_down and cd["type"] != "unit" and cd["type"] != "spell"
-	var death_ward_armed: bool = not face_down and cd.get("death_ward", false) and inst.get("death_ward_armed", false)
+	var death_ward_active: bool = not face_down and cd.get("death_ward", false)
 	_chamfer_frame = is_artifact
 	if is_token:
 		rad *= TOKEN_CORNER_BOOST
@@ -405,8 +405,8 @@ func _draw() -> void:
 		var first_ring := 4 if highlight.a > 0 else 0
 		for i in 4:
 			_rrect_line(r.grow((2 + (first_ring + i) * 2.2) * s), rad + (first_ring + i) * 2 * s, Color(ABILITY_GLOW, (0.9 - i * 0.22) * (0.65 + 0.35 * pulse)), 2.2 * s)
-	# Baluarte armed: a cyan breathing rim remains visible even though its Ao Ativar is disabled.
-	if death_ward_armed:
+	# The Baluarte's automatic protection is always active while it remains on the field.
+	if death_ward_active:
 		var ward_pulse := 0.7 + 0.3 * pulse
 		for i in 3:
 			_rrect_line(r.grow((2.5 + i * 2.6) * s), rad + i * 2 * s,
@@ -517,6 +517,8 @@ func _draw() -> void:
 		_draw_frost(art, s)
 	if inst.has("stun_markers"):
 		_draw_stun(art, s)
+	if inst.get("summoning_sick", false):
+		_draw_summoning_sickness(art, s)
 	if inst.get("tide_mark", false):
 		draw_arc(art.get_center() + Vector2(0, art.size.y * 0.32), art.size.x * 0.3, PI * 1.15, PI * 1.85, 24, Color("#6fd0ff", 0.85), 2 * s, true)
 	_draw_dot_badges(art, s, pulse)
@@ -793,6 +795,21 @@ func _draw_stun(art: Rect2, s: float) -> void:
 	draw_circle(badge_center, badge_radius * 1.06, STUN_COL)
 	draw_circle(badge_center, badge_radius, Color("#241800"))
 	_text(UITheme.font("heavy"), str(int(inst.get("stun_markers", 1))), badge_center + Vector2(0, badge_radius * 0.36), badge_radius * 1.15, STUN_COL.lightened(0.3))
+
+## A unit that just arrived and cannot attack yet (Enjoo de Invocação): the art dims to a calm
+## slate-blue, and three small "z" rise from its upper-right corner, one after the other, each
+## growing a little and fading out. Deliberately quiet: no ring, no badge, no bright color.
+func _draw_summoning_sickness(art: Rect2, s: float) -> void:
+	draw_colored_polygon(_art_window, Color("#141b2e", 0.3 + 0.06 * sin(_t * 1.6)))
+	var drowsy_col := Color("#c3cdee")
+	var rise_seconds := 3.0 # one "z" takes this long to drift up and vanish
+	var z_font := UITheme.font("heavy")
+	for z_index in 3:
+		var progress := fposmod(_t / rise_seconds + z_index / 3.0, 1.0) # 0 = just appeared, 1 = gone
+		var fade := sin(progress * PI) # in and out, brightest halfway up
+		var start := Vector2(art.end.x - 18 * s, art.position.y + art.size.y * 0.5)
+		var z_position := start + Vector2(sin(progress * TAU) * 3 * s, -progress * art.size.y * 0.3)
+		_text(z_font, "z", z_position, (14.0 + 10.0 * progress) * s, Color(drowsy_col, 0.95 * fade))
 
 ## Ice over the whole card, drawn on top of everything: a cold tint, a white crust on the frame,
 ## icicles hanging from the top edge, twinkling glints, and the flash and shockwaves of the freezing moment.
@@ -1148,7 +1165,7 @@ static func _has_always_on_rule(cd: Dictionary) -> bool:
 
 ## True when the card has an automatic effect that waits for a condition (see the Condicional tag).
 static func _has_conditional_rule(cd: Dictionary) -> bool:
-	if cd.has("lethal_ward") or cd.has("spell_discount"):
+	if cd.has("lethal_ward") or cd.has("death_ward") or cd.has("spell_discount"):
 		return true
 	for e in cd.get("effects", []):
 		if e.has("listen"):
@@ -1230,11 +1247,13 @@ func _panel_lines(cd: Dictionary) -> Array:
 	# "listen" effect and for artifacts whose rule lives only in the text (Câmara de Êxtase), so the
 	# box on the card is not left empty
 	if _has_conditional_rule(cd):
-		tags.append([CardDB.data()["triggers"]["condicional"]["name"], TRIGGER_COL])
+		var conditional_name: String = CardDB.data()["triggers"]["condicional"]["name"]
+		# cards that limit their Condicional per turn (Seymour) show "(usados/limite)", live on the board
+		if inst.has("conditional_uses_now"):
+			conditional_name += " (%d/%d)" % [int(inst["conditional_uses_now"]), int(cd["conditional_uses_per_turn"])]
+		tags.append([conditional_name, TRIGGER_COL])
 	if cd.has("activated"):
 		tags.append([CardDB.data()["triggers"]["on_activate"]["name"], TRIGGER_COL])
-	if cd.get("death_ward", false) and inst.get("death_ward_armed", false):
-		tags.append(["ARMADO", DEATH_WARD_COL])
 	if cd.has("transform"):
 		tags.append([CardDB.data()["triggers"]["transform"]["name"], TRIGGER_COL])
 	if tags.size() <= 2 and out.is_empty():

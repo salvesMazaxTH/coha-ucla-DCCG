@@ -7,7 +7,7 @@
   "cost": 4,
   "atk": 3,
   "hp": 6,
-  "keywords": ["reflexao", "vigilancia"],
+  "keywords": ["reflexao", "vigilancia", "armadura:1"],
   "art": "metalica/rakhana.webp",
   "effects": [
     { "trigger": "on_hit_leader", "action": "mill", "who": "enemy", "target": "none", "amount": 1 }

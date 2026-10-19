@@ -8,7 +8,7 @@
   "cost": 8,
   "atk": 9,
   "hp": 9,
-  "keywords": ["intimidacao", "impeto"],
+  "keywords": ["intimidacao", "impeto", "voo"],
   "art": "eletrica/tony_raiturus_primordial.webp",
   "effects": [
     {

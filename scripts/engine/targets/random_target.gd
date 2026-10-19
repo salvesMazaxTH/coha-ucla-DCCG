@@ -1,12 +1,14 @@
 class_name RandomTarget
 extends TargetSelector
 ## Random picks with the match RNG: random_enemy (any enemy unit or the enemy Leader), random_enemy_unit, random_enemy_unit_twice (two independent picks, the same unit can be picked twice: 2 damage handed out one by one), random_enemy_unit_spread (the effect's "hits" independent picks over units), random_enemy_spread (the same, including the Leader), random_frozen_enemy_unit
-## (only enemy units that are already Congeladas), random_enemy_and_adjacent, random_ally_unit, random_other_ally_unit (both accept the effect's "only_species": the pool only holds allies of those species). The RNG is only rolled when there is something
+## (only enemy units that are already Congeladas), most_wounded_enemy_unit (the enemy unit that took the most damage and still has Vida 3 or more; a tie is rolled; Isarelis), random_enemy_and_adjacent, random_ally_unit, random_other_ally_unit (both accept the effect's "only_species": the pool only holds allies of those species). The RNG is only rolled when there is something
 ## to pick, so replays stay identical.
 ## A status effect (freeze, exhaust...) never rolls on a unit that already has that status: the pool only holds
 ## units that can still receive it (Effect.is_already_applied_to), and an empty pool means no target.
 
-const NAMES := ["random_enemy", "random_enemy_unit", "random_enemy_unit_twice", "random_enemy_unit_spread", "random_enemy_spread", "random_frozen_enemy_unit", "random_enemy_and_adjacent", "random_ally_unit", "random_other_ally_unit"]
+const NAMES := ["random_enemy", "random_enemy_unit", "random_enemy_unit_twice", "random_enemy_unit_spread", "random_enemy_spread", "random_frozen_enemy_unit", "most_wounded_enemy_unit", "random_enemy_and_adjacent", "random_ally_unit", "random_other_ally_unit"]
+
+const WOUNDED_TARGET_MIN_HP := 3 ## "most_wounded_enemy_unit" ignores units with less current Vida than this
 
 func resolve(context: EffectContext, effect: Effect) -> Array:
 	var game := context.game
@@ -62,6 +64,21 @@ func resolve(context: EffectContext, effect: Effect) -> Array:
 			if frozen_pool.is_empty():
 				return []
 			return [frozen_pool[game.rng.randi_range(0, frozen_pool.size() - 1)]]
+		"most_wounded_enemy_unit":
+			# only wounded units with Vida atual >= WOUNDED_TARGET_MIN_HP; among them the one with the most damage taken
+			var most_damage := 0
+			var wounded_pool: Array = []
+			for unit: Card in enemy_board:
+				if unit.damage <= 0 or game.hp_left(unit) < WOUNDED_TARGET_MIN_HP:
+					continue
+				if unit.damage > most_damage:
+					most_damage = unit.damage
+					wounded_pool = []
+				if unit.damage == most_damage:
+					wounded_pool.append(unit.uid)
+			if wounded_pool.is_empty():
+				return []
+			return [wounded_pool[game.rng.randi_range(0, wounded_pool.size() - 1)]]
 		"random_enemy_and_adjacent":
 			if enemy_board.is_empty():
 				return []

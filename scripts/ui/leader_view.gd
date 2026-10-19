@@ -40,6 +40,12 @@ var grave := 0
 var poison := 0 ## Veneno markers on this Leader (they lose half their pile per tick; Viprax needs 8 to execute), drawn by CardView's shared dot badge
 var requiem := 0 ## Réquiem spells castable from the graveyard right now (glow + badge on the counter)
 var ability_ready := false
+var ability_uses := -1: ## uses of the per-turn-limited ability spent this turn; -1 = the ability has no limit to count
+	set(value):
+		ability_uses = value
+		if _gem != null:
+			_gem.uses_spent = value # the hover tooltip reads it live
+var _gem: AbilityGem
 var ability_cost := 0
 var passive := false # passive ability: fires on its own trigger, no cost, not clickable
 var targetable := false
@@ -75,6 +81,7 @@ func setup(id: String) -> LeaderView:
 	var gem := AbilityGem.new() # hover area so the tooltip only covers the ability gem
 	gem.ability = ld["ability"]
 	gem.elem_color = elem_color
+	_gem = gem
 	gem.position = AC - Vector2(AR, AR)
 	gem.size = Vector2(AR, AR) * 2
 	gem.mouse_filter = Control.MOUSE_FILTER_PASS
@@ -261,7 +268,10 @@ func _draw() -> void:
 		var cc := AC + Vector2(AR * 0.75, -AR * 0.75)
 		_diamond(cc, 11, UITheme.MOMENTUM.darkened(0.2) if usable else Color(0.3, 0.3, 0.35), Color(1, 1, 1, 0.8))
 		_text(f_num, str(ability_cost), cc + Vector2(0, 5), 14, Color.WHITE)
-	_text(UITheme.font("bold"), "PASSIVA" if passive else "HABILIDADE", AC + Vector2(0, AR + 16), 12, Color(UITheme.TEXT, 0.7))
+	var gem_label := "PASSIVA" if passive else "HABILIDADE"
+	if ability_uses >= 0:
+		gem_label += " (%d/%d)" % [ability_uses, int(CardDB.leader(leader_id)["ability"]["max_per_turn"])]
+	_text(UITheme.font("bold"), gem_label, AC + Vector2(0, AR + 16), 12, Color(UITheme.TEXT, 0.7))
 
 	# deck pile (its own child node, rebuilt here) and graveyard counter
 	_deck_pile.show_count(deck, fatigue)
@@ -382,7 +392,7 @@ func _show_ability_popup() -> void:
 	var p := PanelContainer.new()
 	p.add_theme_stylebox_override("panel", UITheme.tooltip_box())
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	p.add_child(ability_panel(CardDB.leader(leader_id)["ability"], elem_color))
+	p.add_child(ability_panel(CardDB.leader(leader_id)["ability"], elem_color, ability_uses))
 	layer.add_child(p)
 	get_tree().root.add_child(layer)
 	await get_tree().process_frame # let the wrapped text settle its height
@@ -397,7 +407,7 @@ const SPEED_NAMES := {"rapido": "Rápida", "instantaneo": "Instantânea"}
 ## Ability card body: gold title, cost/speed chips, rules text that wraps.
 ## The chips already say speed, cost and "1× por turno", so the matching
 ## lead-in of the text is dropped.
-static func ability_panel(ab: Dictionary, col: Color) -> Control:
+static func ability_panel(ab: Dictionary, col: Color, uses_spent := -1) -> Control:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 10)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -421,7 +431,10 @@ static func ability_panel(ab: Dictionary, col: Color) -> Control:
 	if SPEED_NAMES.has(ab.get("speed", "")):
 		chips.add_child(_chip(SPEED_NAMES[ab["speed"]].to_upper(), Color("#9fd8ff")))
 	if ab.has("max_per_turn"):
-		chips.add_child(_chip("%d× POR TURNO" % int(ab["max_per_turn"]), UITheme.TEXT))
+		var limit_text := "%d× POR TURNO" % int(ab["max_per_turn"])
+		if uses_spent >= 0:
+			limit_text += " (%d/%d)" % [uses_spent, int(ab["max_per_turn"])]
+		chips.add_child(_chip(limit_text, UITheme.TEXT))
 	elif ab.get("once_per_turn", false):
 		chips.add_child(_chip("1× POR TURNO", UITheme.TEXT))
 	elif ab.get("once_per_cycle", false):
@@ -472,9 +485,10 @@ static func _chip(t: String, col: Color) -> Control:
 class AbilityGem extends Control:
 	var ability: Dictionary
 	var elem_color := Color.WHITE
+	var uses_spent := -1
 
 	func _make_custom_tooltip(_for_text: String) -> Object:
-		return LeaderView.ability_panel(ability, elem_color)
+		return LeaderView.ability_panel(ability, elem_color, uses_spent)
 
 ## The deck as a physical pile seen slightly from the front: a soft shadow on the
 ## table, the side of the stack with every card edge visible (it gets thinner at

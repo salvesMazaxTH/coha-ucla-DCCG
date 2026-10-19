@@ -32,8 +32,11 @@ func _fire_own_effects(event: GameEvent) -> void:
 	var card := event.source
 	var effects: Array = []
 	var all_effects: Array = card.data()["effects"]
+	var times_fired := _count_staged_trigger(card, all_effects, event.trigger)
 	for i in all_effects.size():
 		var e: Dictionary = all_effects[i]
+		if e.get("trigger", "") == event.trigger and e.has("nth") and int(e["nth"]) != times_fired:
+			continue # a staged effect (Vørn Ω): this is not the occurrence it belongs to
 		if e.get("trigger", "") == event.trigger and e.get("not_token", false) and event.data.get("dying_is_token", false):
 			continue # the ally that died was a ficha
 		if e.get("trigger", "") == event.trigger and e.has("dying_card") and e["dying_card"] != event.data.get("dying_card_id", ""):
@@ -56,6 +59,16 @@ func _fire_own_effects(event: GameEvent) -> void:
 	context.other_uid = event.other_uid
 	context.event = event
 	game.queue_trigger(PendingTrigger.new(card, effects, context, event.trigger))
+
+## Staged effects ("nth": 2 = only on the 2nd time this instance fires that trigger, counted across turns).
+## Counts this occurrence when the card has any "nth" effect for the trigger and returns the new total
+## (0 when the card has none, so ordinary cards keep no counter).
+func _count_staged_trigger(card: Card, all_effects: Array, trigger: String) -> int:
+	for e: Dictionary in all_effects:
+		if e.get("trigger", "") == trigger and e.has("nth"):
+			card.trigger_counts[trigger] = int(card.trigger_counts.get(trigger, 0)) + 1
+			return int(card.trigger_counts[trigger])
+	return 0
 
 ## Offers the event to every card that listens to it: active player first, then the other.
 func _broadcast(event: GameEvent) -> void:
@@ -86,7 +99,24 @@ func _offer(card: Card, effect: Effect, event: GameEvent) -> void:
 		if card.used_turn.get(index, -1) == game.turn:
 			return
 		card.used_turn[index] = game.turn
+	if not _spend_conditional_use(card):
+		return # the card already used all of its "conditional_uses_per_turn" this turn
 	game.queue_trigger(PendingTrigger.new(card, [effect], context))
+
+## Cards with "conditional_uses_per_turn": N may trigger their Condicional (listen) effects, all of them
+## together, at most N times a turn (Seymour). Own effects like On Turn Start are not counted. Takes one
+## use and says whether there was one left; cards without the field always may.
+func _spend_conditional_use(card: Card) -> bool:
+	var limit: int = int(card.data().get("conditional_uses_per_turn", 0))
+	if limit <= 0:
+		return true
+	if card.conditional_uses_turn != game.turn:
+		card.conditional_uses_turn = game.turn
+		card.conditional_uses = 0
+	if card.conditional_uses >= limit:
+		return false
+	card.conditional_uses += 1
+	return true
 
 func _scope_matches(scope: String, card: Card, event: GameEvent) -> bool:
 	match scope:

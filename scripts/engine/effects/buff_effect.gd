@@ -19,6 +19,7 @@ extends Effect
 ## already has as much). With "temp": true it lasts until the end of the turn (Nerithia, Ao Desafiar). Ignores atk/hp.
 ## "copy_atk_min_gain": N (with copy_atk) is a pity: the copy always gives at least +N Ataque, even when no ally has more
 ## (Nerithia: at least +2 when she challenges).
+## "atk_multiply": N multiplies the unit's current Ataque (base + permanent gains) by N on top of the plain "atk" gain (Vørn Ω doubles with 2).
 ## "cleanse": true also purifies every target the buff lands on (all its Veneno/Queimadura/Sangramento markers go away).
 
 var attack := 0
@@ -48,11 +49,13 @@ var species_bonus_attack := 0
 var species_bonus_health := 0
 var only_species: Array = [] ## "only_species": the target must share one of these species or the buff does nothing
 var cleanse := false
+var attack_multiplier := 1
 var copy_minimum_gain := 0 ## "copy_atk_min_gain": the copy never gives less than this much Ataque
 
 func _read_parameters(data: Dictionary) -> void:
 	only_species = data.get("only_species", [])
 	cleanse = bool(data.get("cleanse", false))
+	attack_multiplier = int(data.get("atk_multiply", 1))
 	copy_minimum_gain = int(data.get("copy_atk_min_gain", 0))
 	attack = int(data.get("atk", 0))
 	health = int(data.get("hp", 0))
@@ -106,6 +109,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		multiplier = clampi(int(game.players[context.controller]["momentum"]), multiplier_min, multiplier_max)
 	var attack_gain: int = attack * multiplier
 	var health_gain: int = health * multiplier
+	if attack_multiplier > 1:
+		attack_gain += unit.atk * (attack_multiplier - 1)
 	if has_attack_cap:
 		attack_gain = mini(attack_gain, attack_cap - unit.cap_atk_gain)
 		if attack_gain <= 0:

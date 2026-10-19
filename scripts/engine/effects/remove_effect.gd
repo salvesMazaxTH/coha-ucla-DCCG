@@ -39,6 +39,8 @@ func _destroy(context: EffectContext, target_uid: int) -> void:
 	var doomed := context.game.find_unit(target_uid)
 	if doomed == null or doomed.has_kw("indestrutivel"):
 		return
+	if context.game._consume_death_ward(doomed):
+		return # cancel this destruction entirely; the ward was sacrificed instead
 	var had_shield: bool = doomed.shield
 	doomed.damage = 1000000
 	context.game._emit({"type": "destroy", "uid": target_uid, "card_id": doomed.card_id})

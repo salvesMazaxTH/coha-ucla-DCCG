@@ -5,14 +5,18 @@
   "species": ["robo", "construto"],
   "essence": "metalica",
   "cost": 7,
-  "atk": 5,
-  "hp": 9,
-  "keywords": ["armadura:1"],
+  "atk": 3,
+  "hp": 10,
+  "keywords": [],
   "art": "metalica/vorn_omega.webp",
   "effects": [
-    { "trigger": "on_enter", "action": "mill", "who": "enemy", "target": "none", "amount": 3 }
+    { "trigger": "on_enter", "action": "mill", "who": "enemy", "target": "none", "amount": 3 },
+    { "trigger": "on_damaged", "nth": 1, "action": "buff", "target": "self", "atk": 2 },
+    { "trigger": "on_damaged", "nth": 2, "action": "buff", "target": "self", "atk_multiply": 2 },
+    { "trigger": "on_damaged", "nth": 3, "action": "buff", "target": "self", "armor": 3 }
   ],
-  "text": "Ao Entrar: Moa 3 cartas do deck do oponente.",
+  "text": "Ao Entrar: Moa 3 cartas do deck do oponente.
+Ao Sofrer Dano (1ª vez): ganha +2 de Ataque. (2ª vez): dobra o seu Ataque. (3ª vez): ganha Armadura 3. As seguintes não fazem nada. A contagem é desta unidade e acumula entre os turnos.",
   "flavor": "A fábrica que o fez calou-se há muito tempo. Ele continua trabalhando.",
   "tags": []
 }

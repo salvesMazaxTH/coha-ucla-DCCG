@@ -2,7 +2,7 @@
   "name": "Lucien, o Portador",
   "type": "unit",
   "rarity": "champion",
-  "species": ["anjo"],
+  "species": ["humano", "ascendido"],
   "essence": "sagrada",
   "cost": 3,
   "atk": 2,

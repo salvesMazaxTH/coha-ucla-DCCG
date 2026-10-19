@@ -48,6 +48,9 @@ var condemned_turn := 0 ## Condenada: the turn at whose START it dies; 0 = not c
 var dot_markers: Dictionary = {} ## accumulated periodic-status markers, keyed by dot id
 var tide_mark := false
 var used_turn: Dictionary = {} ## effect index -> turn it was last used (once_per_turn)
+var conditional_uses_turn := -1 ## the turn "conditional_uses_per_turn" is counting (Seymour)
+var conditional_uses := 0 ## how many Condicional effects of this card were triggered in that turn
+var trigger_counts: Dictionary = {} ## trigger -> how many times this instance fired it, only counted for triggers that have "nth" effects (Vørn Ω)
 var equipment: Card = null
 var equipment_grant: Dictionary = {} ## what the equipment gave this unit ({atk, hp, armor, keywords}); taken back when the equipment leaves
 var cap_atk_gain := 0 ## attack given so far by "cap_atk" buffs
@@ -114,6 +117,9 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	dot_markers = {}
 	tide_mark = false
 	used_turn = {}
+	conditional_uses_turn = -1
+	conditional_uses = 0
+	trigger_counts = {}
 	equipment = null
 	equipment_grant = {}
 	cap_atk_gain = 0
@@ -224,6 +230,10 @@ func to_dict() -> Dictionary:
 		d["tide_mark"] = true
 	if not used_turn.is_empty():
 		d["used_turn"] = used_turn.duplicate()
+	if conditional_uses > 0:
+		d["conditional_uses"] = [conditional_uses_turn, conditional_uses]
+	if not trigger_counts.is_empty():
+		d["trigger_counts"] = trigger_counts.duplicate()
 	if equipment != null:
 		d["equipment"] = {"uid": equipment.uid, "card_id": equipment.card_id}
 		if not equipment_grant.is_empty():
@@ -287,6 +297,10 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 		c.dot_markers["queimadura"] = int(d["burn"])
 	c.tide_mark = bool(d.get("tide_mark", false))
 	c.used_turn = d.get("used_turn", {})
+	c.trigger_counts = d.get("trigger_counts", {}).duplicate()
+	if d.has("conditional_uses"):
+		c.conditional_uses_turn = int(d["conditional_uses"][0])
+		c.conditional_uses = int(d["conditional_uses"][1])
 	if d.has("equipment"):
 		c.equipment = Card.new(int(d["equipment"]["uid"]), String(d["equipment"]["card_id"]), c.owner, "equipped")
 		c.equipment_grant = d.get("equipment_grant", {})

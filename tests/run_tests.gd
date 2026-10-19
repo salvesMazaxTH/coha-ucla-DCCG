@@ -97,6 +97,8 @@ func _init() -> void:
 	_test_elite_limits()
 	_test_armor()
 	_test_tharox_armor_growth()
+	_test_isarelis_hit_leader()
+	_test_vorn_staged_damage()
 	_test_adjacent_armor()
 	_test_sagrada_engine()
 	_test_maria_helena()
@@ -295,7 +297,7 @@ func _test_sagrada_board_control() -> void:
 	g.play_card(0, light.uid, ally.uid)
 	g._check_state()
 	# Luz Transbordante é feitiço Sagrado (+1) e cura uma aliada (+1)
-	check(g.find_unit(foe.uid) == null, "Seymour reage a cura de aliado e a feitiço Sagrado (mais 4 pontos de dano matam a inimiga)")
+	check(g.find_unit(foe.uid) == null, "Seymour reage a cura de aliado e a feitiço Sagrado (a 2ª condicional do turno, mais 2 pontos de dano, mata a inimiga)")
 	var g_start := _new_game()
 	var start_foe := _put(g_start, 1, "estrondador_igneo")
 	var seymour_start := _put(g_start, 0, "seymour")
@@ -303,6 +305,34 @@ func _test_sagrada_board_control() -> void:
 	g_start.bus().emit(_turn_start_event(g_start, seymour_start))
 	g_start._check_state()
 	check(g_start.find_unit(start_foe.uid).damage == 2, "Seymour causa 2 pontos de dano no início do turno")
+	# as condicionais ativam no máximo 2x por turno (o início do turno não entra na conta): a 3ª não faz nada
+	var g_cap := _new_game()
+	var cap_foe := _put(g_cap, 1, "anciao_do_primeiro_bosque")
+	var seymour_cap := _put(g_cap, 0, "seymour")
+	g_cap.active = 0
+	g_cap.players[0]["leader_hp"] -= 6
+	g_cap.bus().emit(_turn_start_event(g_cap, seymour_cap))
+	g_cap._heal_leader(0, 1)
+	g_cap._heal_leader(0, 1)
+	g_cap._check_state()
+	check(g_cap.find_unit(cap_foe.uid).damage == 6, "Seymour: início do turno + 2 curas condicionais = 3 ativações = 6 de dano (deu %d)" % g_cap.find_unit(cap_foe.uid).damage)
+	g_cap._heal_leader(0, 1)
+	g_cap._check_state()
+	check(g_cap.find_unit(cap_foe.uid).damage == 6, "Seymour: a 3ª condicional no mesmo turno não causa dano")
+	# no turno seguinte do dono o contador volta a zero
+	g_cap.turn += 2
+	g_cap._heal_leader(0, 1)
+	g_cap._check_state()
+	check(g_cap.find_unit(cap_foe.uid).damage == 8, "Seymour: em outro turno ele volta a ativar")
+	# só age no turno do dono: cura durante o turno do oponente não faz nada
+	var g_theirs := _new_game()
+	var theirs_foe := _put(g_theirs, 1, "estrondador_igneo")
+	_put(g_theirs, 0, "seymour")
+	g_theirs.active = 1
+	g_theirs.players[0]["leader_hp"] -= 3
+	g_theirs._heal_leader(0, 1)
+	g_theirs._check_state()
+	check(g_theirs.find_unit(theirs_foe.uid).damage == 0, "Seymour não reage a cura no turno do oponente")
 	# sem unidade inimiga, não acontece nada
 	var g_empty := _new_game()
 	_put(g_empty, 0, "seymour")
@@ -1081,6 +1111,20 @@ func _test_tharox_armor_growth() -> void:
 		g._deal_damage(tharox.uid, step[0], null)
 		g._check_state()
 		check(g.armor_of(tharox) == step[1], "Tharox: golpe de %d deixa a Armadura em %d (%d)" % [step[0], step[1], g.armor_of(tharox)])
+
+## Vørn Ω grows in three steps, one per Ao Sofrer Dano of that instance (across turns); later hits do nothing.
+func _test_vorn_staged_damage() -> void:
+	var g := _new_game()
+	var vorn := _put(g, 0, "vorn_omega")
+	check(vorn.atk == 3 and g.armor_of(vorn) == 0, "Vørn Ω começa com 3 de Ataque e nenhuma Armadura (%d/%d)" % [vorn.atk, g.armor_of(vorn)])
+	var other_vorn := _put(g, 0, "vorn_omega")
+	# each row: [expected Ataque, expected Armadura] after one more hit; a turn passes between hits
+	for step in [[5, 0], [10, 0], [10, 3], [10, 3], [10, 3]]:
+		g._deal_damage(vorn.uid, 1, null)
+		g._check_state()
+		check(vorn.atk == step[0] and g.armor_of(vorn) == step[1], "Vørn Ω: Ataque %d e Armadura %d após o golpe (%d/%d)" % [step[0], step[1], vorn.atk, g.armor_of(vorn)])
+		g.turn += 1
+	check(other_vorn.atk == 3, "a contagem é por instância: o outro Vørn Ω continua no 1º degrau")
 
 ## Bastionário gives Armadura only to the allies standing right next to it on the board.
 func _test_adjacent_armor() -> void:
@@ -3544,7 +3588,8 @@ func _test_card_validation() -> void:
 			continue # synthetic fixtures use intentionally terse text
 		var cd: Dictionary = CardDB.card(card_id)
 		if cd.get("effects", []).any(func(e: Dictionary): return e.has("listen")):
-			check(String(cd.get("text", "")).contains("Condicional:"), "%s: listener precisa escrever 'Condicional:' no texto" % card_id)
+			var listener_text := String(cd.get("text", ""))
+			check(listener_text.contains("Condicional:") or listener_text.contains("Condicional ("), "%s: listener precisa escrever 'Condicional:' (ou 'Condicional (limite):') no texto" % card_id)
 
 func _test_sim() -> void:
 	var wins := [0, 0, 0]
@@ -3633,7 +3678,7 @@ func _test_eletrica() -> void:
 	g = _eletrica_game()
 	a = g.active
 	o = g.opponent(a)
-	check(g.cost_of(a, gg) == 9 and int(gg["atk"]) == 7 and int(gg["hp"]) == 7, "gigante: 7/7 custando 9")
+	check(g.cost_of(a, gg) == 9 and int(gg["atk"]) == 8 and int(gg["hp"]) == 7, "gigante: 8/7 custando 9")
 	check(gg["keywords"] == ["sobrepujanca"], "gigante: só Sobrepujança")
 	g.players[a]["momentum"] = 3
 	g.end_turn(a)
@@ -3887,7 +3932,7 @@ func _test_intimidacao() -> void:
 	check(g.can_transform(g.active, rt.uid), "raiturus pode transformar com 8")
 	g.transform(g.active, rt.uid)
 	g._flush()
-	check(rt.card_id == "tony_raiturus_primordial" and g.atk_of(rt) == 9 and rt.hp == 9 and g.has_kw(rt, "intimidacao") and g.has_kw(rt, "impeto") and g.stack.is_empty(), "raiturus vira o Primordial 9/9 Intimidacao + Ímpeto")
+	check(rt.card_id == "tony_raiturus_primordial" and g.atk_of(rt) == 9 and rt.hp == 9 and g.has_kw(rt, "intimidacao") and g.has_kw(rt, "impeto") and g.has_kw(rt, "voo") and g.stack.is_empty(), "raiturus vira o Primordial 9/9 Intimidacao + Ímpeto + Voo")
 	check(not g.can_transform(g.active, rt.uid), "o Primordial não transforma de novo")
 	# a unit transformed the turn it entered is not summoning sick
 	g = _eletrica_game()
@@ -5297,7 +5342,7 @@ func _test_glacial() -> void:
 	var cheap_spell: Dictionary = CardDB.card("bola_de_neve")
 	check(g.cost_of(a, cheap_spell) >= 1, "dois amuletos: nunca deixam o feitiço abaixo de 1")
 
-	# Câmara de Êxtase: cancels a lethal damage once, then halves the damage until the end of the next turn
+	# Câmara de Êxtase: cancels a lethal damage once, then negates the next 3 hits until the end of the next turn
 	g = _glacial_game()
 	a = g.active
 	var chamber := Card.new(g._uid(), "camara_de_extase", a)
@@ -5306,8 +5351,21 @@ func _test_glacial() -> void:
 	g._deal_damage(GameState.LEADER_UID[a], 9, null)
 	check(g.players[a]["leader_hp"] == 5, "câmara: o dano que mataria é anulado")
 	check(g.find_relic(chamber.uid) == null, "câmara: é destruída ao proteger")
+	# the next 3 hits do nothing, in this same turn; the 4th one lands in full
+	for hit_number in 3:
+		g._deal_damage(GameState.LEADER_UID[a], 3, null)
+		check(g.players[a]["leader_hp"] == 5, "câmara: o golpe %d depois de proteger é reduzido a 0" % (hit_number + 1))
 	g._deal_damage(GameState.LEADER_UID[a], 3, null)
-	check(g.players[a]["leader_hp"] == 4, "câmara: depois o dano cai pela metade, arredondado pra baixo (3 -> 1)")
+	check(g.players[a]["leader_hp"] == 2, "câmara: o 4º golpe causa o dano inteiro")
+	# the protection ends with the controller's next turn, even if hits are left
+	g = _glacial_game()
+	a = g.active
+	g._place_relic(a, Card.new(g._uid(), "camara_de_extase", a))
+	g.players[a]["leader_hp"] = 5
+	g._deal_damage(GameState.LEADER_UID[a], 9, null)
+	g.turn += 3
+	g._deal_damage(GameState.LEADER_UID[a], 3, null)
+	check(g.players[a]["leader_hp"] == 2, "câmara: depois do fim do próximo turno do dono o dano volta ao normal")
 
 	# the Chamber's event names the unit whose blow was cancelled (the screen needs it to show the hit landing)
 	g = _glacial_game()
@@ -5674,7 +5732,7 @@ func _test_sagrada_engine() -> void:
 	check(g.players[0]["leader_hp"] == 25, "Mefi'Urdim: Ao Entrar cura 10 do Líder (%d)" % g.players[0]["leader_hp"])
 	check(g.players[0]["relics"].any(func(relic: Card): return relic.card_id == "baluarte_santo"), "Mefi'Urdim: Ao Entrar invoca o Baluarte Santo")
 	check(mefi_angel.spell_shield and mefi.spell_shield and not mefi_human.spell_shield, "Mefi'Urdim: Escudo de Feitiço na tribo, incluindo ele, e em mais ninguém")
-	check(g.atk_of(mefi) == 4 and g.hp_left(mefi) == 11, "Mefi'Urdim: ele mesmo ganha +1/+1 da própria aura (%d/%d)" % [g.atk_of(mefi), g.hp_left(mefi)])
+	check(g.atk_of(mefi) == 6 and g.hp_left(mefi) == 11, "Mefi'Urdim: ele mesmo ganha +1/+1 da própria aura (%d/%d)" % [g.atk_of(mefi), g.hp_left(mefi)])
 	check(g.atk_of(mefi_angel) == 6 and g.atk_of(mefi_human) == 2, "Mefi'Urdim: o Anjo ganha +1 de Ataque e o humano nada (%d / %d)" % [g.atk_of(mefi_angel), g.atk_of(mefi_human)])
 
 	# Vidal: heals every allied unit fully, purifies them and the Leader, then grants other allies +3/+3.
@@ -5686,12 +5744,26 @@ func _test_sagrada_engine() -> void:
 	var vidal_ally := _put(g, 0, "t_vidal_ally")
 	vidal_ally.damage = 3
 	vidal_ally.dot_markers = {"veneno": 2, "sangramento": 1}
-	var vidal := _put(g, 0, "vidal")
+	var vidal_ally_two := _put(g, 0, "t_vidal_ally")
+	var vidal_ally_three := _put(g, 0, "t_vidal_ally")
+	g.players[0]["momentum"] = 10
+	var vidal_uid := _give(g, 0, "vidal")
+	g.play_card(0, vidal_uid)
+	var vidal := g.find_unit(vidal_uid)
+	check(g.phase == "enter_target", "Vidal: Ao Entrar pede o primeiro alvo")
+	check(not g.valid_targets(0, "other_ally_unit", vidal.uid).has(vidal.uid), "Vidal: ele mesmo não é alvo válido")
+	g.choose_enter_target(0, vidal_ally.uid)
+	check(g.phase == "enter_target", "Vidal: depois do primeiro alvo pede o segundo")
+	g.choose_enter_target(0, vidal_ally.uid)
+	check(g.phase == "enter_target", "Vidal: não deixa repetir o mesmo alvo")
+	g.choose_enter_target(0, vidal_ally_three.uid)
+	g._flush()
 	g._move_dead_units()
 	check(int(CardDB.card("vidal")["cost"]) == 8, "Vidal: custo 8")
 	check(vidal_ally.damage == 0 and vidal_ally.dot_markers.is_empty(), "Vidal: cura e purifica totalmente as unidades aliadas")
 	check(g.players[0]["leader_hp"] == 10 and g.leader_dot_markers(0, "veneno") == 0 and g.leader_dot_markers(0, "queimadura") == 0, "Vidal: purifica o Líder sem alterar sua Vida")
-	check(g.atk_of(vidal_ally) == 5 and g.hp_left(vidal_ally) == 8 and g.atk_of(vidal) == 0, "Vidal: outras unidades ganham +3/+3 permanentes, ele não")
+	check(g.atk_of(vidal_ally) == 5 and g.hp_left(vidal_ally) == 8 and g.atk_of(vidal_ally_three) == 5 and g.hp_left(vidal_ally_three) == 8, "Vidal: os dois alvos escolhidos ganham +3/+3 permanentes")
+	check(g.atk_of(vidal_ally_two) == 2 and g.hp_left(vidal_ally_two) == 5 and g.atk_of(vidal) == 0 and g.hp_left(vidal) == 7, "Vidal: a terceira unidade e ele mesmo não ganham nada")
 
 	# Arcanjo Uriel: grows by 1 Ataque every time his Leader is healed
 	g = _new_game()
@@ -5969,6 +6041,30 @@ func _test_champion_rework() -> void:
 	var wounded := _put(wounded_game, 1, "t_strong_foe")
 	wounded.damage = 1
 	check(wounded_game.valid_targets(0, "weak_enemy_unit").has(wounded.uid), "Isarelis: unidade ferida entra pela Vida atual")
+
+## Isarelis' Ao Atingir o Líder destroys the most wounded enemy unit that still has Vida >= 3.
+func _test_isarelis_hit_leader() -> void:
+	_tcard("t_big_foe", 1, 8, [])
+	var g := _new_game()
+	_quiet(g)
+	var isarelis := _put(g, 0, "isarelis") # first, so her Ao Entrar has nobody to execute
+	var unhurt := _put(g, 1, "t_big_foe")
+	var hurt_a := _put(g, 1, "t_big_foe")
+	hurt_a.damage = 2
+	var hurt_b := _put(g, 1, "t_big_foe")
+	hurt_b.damage = 5
+	var nearly_dead := _put(g, 1, "t_big_foe")
+	nearly_dead.damage = 6 # Vida 2: too low, even though it is the most wounded of all
+	g._fire(isarelis, "on_hit_leader")
+	g._check_state()
+	check(g.find_unit(hurt_b.uid) == null, "Isarelis: Ao Atingir o Líder destrói a mais ferida com Vida >= 3")
+	check(g.find_unit(unhurt.uid) != null and g.find_unit(hurt_a.uid) != null and g.find_unit(nearly_dead.uid) != null, "Isarelis: não destrói as outras (sem ferida, menos ferida, Vida < 3)")
+	g._fire(isarelis, "on_hit_leader")
+	g._check_state()
+	check(g.find_unit(hurt_a.uid) == null, "Isarelis: no golpe seguinte vai para a próxima mais ferida")
+	g._fire(isarelis, "on_hit_leader")
+	g._check_state()
+	check(g.find_unit(unhurt.uid) != null and g.find_unit(nearly_dead.uid) != null, "Isarelis: sem ferida elegível, não destrói ninguém")
 
 func _test_maria_helena() -> void:
 	var cd := CardDB.card("maria_helena")

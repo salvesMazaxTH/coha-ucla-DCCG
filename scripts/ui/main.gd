@@ -1207,6 +1207,9 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	lv.poison = g.leader_dot_markers(p, "veneno")
 	lv.requiem = g.requiem_cards(p).size() if p == viewer and not _is_ai(p) and g.phase in ["main", "combat"] else 0
 	lv.ability_ready = p == viewer and g.can_use_ability(p, true) and not _is_ai(p)
+	# passives with a per-turn limit (Thálvaressa) show how many uses are spent; the engine wipes the count every turn start
+	if CardDB.leader(pl["leader_id"])["ability"].has("max_per_turn"):
+		lv.ability_uses = int(pl.get("passive_uses", 0))
 	lv.targetable = _is_target(uid)
 	lv.target_selected = _is_first_target(uid)
 	lv.active = g.active == p and g.phase != "mulligan"
@@ -1334,6 +1337,11 @@ func _render_board(p: int, y: float) -> void:
 		var unit: Card = board[i]
 		var unit_view_data := unit.to_dict()
 		unit_view_data["armor_total"] = g.armor_of(unit) # includes Armadura given by adjacent allies
+		# summoning sickness is only worth showing while it really keeps the unit from attacking
+		unit_view_data["summoning_sick"] = unit.sick and not g.has_kw(unit, "impeto") and not g.has_kw(unit, "rompante")
+		# Condicional uses already spent THIS turn (Seymour's "(0/2)"): the stored count belongs to the turn it was spent in
+		if int(unit.data().get("conditional_uses_per_turn", 0)) > 0:
+			unit_view_data["conditional_uses_now"] = unit.conditional_uses if unit.conditional_uses_turn == g.turn else 0
 		var v := CardView.new().setup(unit.card_id, unit_view_data, 1.15)
 		v.pivot_offset = v.size / 2.0
 		var cell := _board_cell(slots_taken, i)
@@ -4310,6 +4318,27 @@ func _animate(events: Array, old: Dictionary) -> float:
 					ward_ghost.z_index = 20
 				_ward_fx(ward_leader, ward_ghost, ward_t, _elem_color(e["card_id"]).lightened(0.3))
 				cursor = maxf(cursor, ward_t + WARD_FADE_DELAY + WARD_FADE_TIME)
+			"death_prevented":
+				# Baluarte Santo: same beat as the Câmara — the blow lands on the unit, the Baluarte answers and fades away
+				var saved_unit_view: Control = actors.get(e["uid"])
+				var saved_src: int = e.get("src", 0)
+				var saved_t := cursor + 0.12
+				if in_combat and saved_src > 0 and actors.has(saved_src) and saved_unit_view != null:
+					if saved_src == last_src:
+						saved_t = hit_t
+					else:
+						_lunge(actors[saved_src], saved_unit_view, cursor)
+						hit_t = cursor + LUNGE_IMPACT_TIME
+						saved_t = hit_t
+						last_src = saved_src
+						last_dst = e["uid"]
+						cursor += LUNGE_TOTAL_TIME
+				var baluarte_ghost: CardView = null
+				if old.has(e["ward_uid"]): # the Baluarte is already gone from the table: a ghost stands in for it
+					baluarte_ghost = _ghost(old[e["ward_uid"]]["card_id"], old[e["ward_uid"]]["inst"], old[e["ward_uid"]]["pose"])
+					baluarte_ghost.z_index = 20
+				_ward_fx(saved_unit_view, baluarte_ghost, saved_t, _elem_color(e["ward_card_id"]).lightened(0.3))
+				cursor = maxf(cursor, saved_t + WARD_FADE_DELAY + WARD_FADE_TIME)
 			"leader_executed":
 				# a card effect killed the Leader outright: not a hit, so it gets its own animation
 				var doomed_leader = views.get(e["uid"])
