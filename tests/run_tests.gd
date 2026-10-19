@@ -3698,6 +3698,29 @@ func _test_eletrica() -> void:
 		g._check_state()
 		ly.damage = 0
 	check(g.atk_of(ly) == 9, "layla: +1 por dano, sem limite (%d)" % g.atk_of(ly))
+	_tcard("t_layla_wall", 0, 20, []) # survives the fight, so the damage can be read
+	# Layla: Ao Atacar, 1 de dano à unidade atacada (2 se Atordoada), e nada se o ataque for no Líder
+	g = _new_game()
+	_quiet(g)
+	var layla_attacker := _put(g, g.active, "layla")
+	var healthy_victim := _put(g, g.opponent(g.active), "t_layla_wall")
+	healthy_victim.exhausted = true # only a tapped unit can be challenged
+	_hit(g, layla_attacker, healthy_victim.uid)
+	var combat_damage := layla_attacker.atk_total() # the challenge itself also hurts the victim
+	check(healthy_victim.damage == combat_damage + 1, "layla: Ao Atacar causa 1 de dano à unidade atacada (%d)" % healthy_victim.damage)
+	g = _new_game()
+	_quiet(g)
+	layla_attacker = _put(g, g.active, "layla")
+	var stunned_victim := _put(g, g.opponent(g.active), "t_layla_wall")
+	g._apply_effect(g.active, {"action": "stun", "target": "enemy_unit"}, stunned_victim.uid)
+	_hit(g, layla_attacker, stunned_victim.uid)
+	check(stunned_victim.damage == layla_attacker.atk_total() + 2, "layla: Ao Atacar causa 2 de dano a uma unidade Atordoada (%d)" % stunned_victim.damage)
+	g = _new_game()
+	_quiet(g)
+	layla_attacker = _put(g, g.active, "layla")
+	var leader_hp_before: int = g.players[g.opponent(g.active)]["leader_hp"]
+	_hit(g, layla_attacker)
+	check(g.players[g.opponent(g.active)]["leader_hp"] == leader_hp_before - layla_attacker.atk_total(), "layla: Ao Atacar não causa dano extra quando o alvo é o Líder")
 	# Victoria: Ao Atacar, +1 de Ataque permanente
 	g = _new_game()
 	_quiet(g)

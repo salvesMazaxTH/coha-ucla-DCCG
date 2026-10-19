@@ -9,6 +9,7 @@ extends Effect
 ## "freeze": true also freezes each target that survives the damage (Mestra do Gelo Frígido).
 ## "stun": true also gives each target that survives the damage one Atordoamento marker.
 ## "amount_if_frozen": a target that is already Congelada takes this much instead of `amount` (Sabrina).
+## "amount_if_stunned": same for a target that is already Atordoada (Layla's Ao Atacar).
 
 var amount := 0
 var amount_from := ""
@@ -17,6 +18,7 @@ var adjacent_amount := 0
 var freezes_target := false
 var stuns_target := false
 var amount_if_frozen := 0
+var amount_if_stunned := 0
 
 func _read_parameters(data: Dictionary) -> void:
 	amount = int(data.get("amount", 0))
@@ -26,6 +28,7 @@ func _read_parameters(data: Dictionary) -> void:
 	freezes_target = bool(data.get("freeze", false))
 	stuns_target = bool(data.get("stun", false))
 	amount_if_frozen = int(data.get("amount_if_frozen", 0))
+	amount_if_stunned = int(data.get("amount_if_stunned", 0))
 
 func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
@@ -40,6 +43,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	# checked before the damage, so a freeze applied by this same effect doesn't count
 	if amount_if_frozen > 0 and victim != null and game.is_frozen(victim):
 		damage_amount = amount_if_frozen
+	if amount_if_stunned > 0 and victim != null and victim.is_stunned():
+		damage_amount = amount_if_stunned
 	if not ally_reduce.is_empty() and victim != null and victim.owner == context.controller \
 			and CardDB.has_essence(victim.data(), ally_reduce["essence"]):
 		damage_amount = int(ally_reduce["amount"])

@@ -23,13 +23,20 @@
       "stun": true
     },
     {
+      "trigger": "on_attack",
+      "action": "damage",
+      "target": "opposed_unit",
+      "amount": 1,
+      "amount_if_stunned": 2
+    },
+    {
       "trigger": "on_damaged",
       "action": "buff",
       "target": "self",
       "atk": 1
     }
   ],
-  "text": "Ao Entrar: cause 2 de dano a uma unidade inimiga à sua escolha e 1 de dano às unidades adjacentes a ela. A unidade escolhida recebe 1 marcador de Atordoamento.\nAo Sofrer Dano: ganhe +1 de Ataque permanente.",
+  "text": "Ao Entrar: cause 2 de dano a uma unidade inimiga à sua escolha e 1 de dano às unidades adjacentes a ela. A unidade escolhida recebe 1 marcador de Atordoamento.\nAo Atacar: cause 1 de dano à unidade atacada, ou 2 se ela estiver Atordoada.\nAo Sofrer Dano: ganhe +1 de Ataque permanente.",
   "flavor": "",
   "tags": []
 }
