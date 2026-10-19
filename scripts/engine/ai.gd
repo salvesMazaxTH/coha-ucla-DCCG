@@ -149,7 +149,7 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 			return legendary_events
 	for unit: Card in g.players[p]["board"]:
 		# untargeted Ao Ativar, before attacking (e.g. Yuki's temporary attack)
-		var activated_effects: Array = CardDB.card(unit.card_id).get("activated", {}).get("effects", [])
+		var activated_effects: Array = unit.data().get("activated", {}).get("effects", [])
 		if g.can_activate(p, unit.uid) and g.target_spec(activated_effects) == "" and g.can_attack(unit) and _revive_is_worth_it(g, p, activated_effects):
 			return g.activate(p, unit.uid)
 	for artifact: Card in g.players[p]["relics"]:

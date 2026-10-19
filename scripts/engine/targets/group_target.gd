@@ -1,9 +1,9 @@
 class_name GroupTarget
 extends TargetSelector
 ## Every unit of a group: all_enemy_units, all_units (own side first), all_ally_units, other_ally_units,
-## center_enemy_units (the middle of the enemy board as it stands: 1 unit if the count is odd, the 2 middle ones if even).
+## all_enemy_tokens (only the enemy fichas), center_enemy_units (the middle of the enemy board as it stands: 1 unit if the count is odd, the 2 middle ones if even).
 
-const NAMES := ["all_enemy_units", "all_units", "all_ally_units", "other_ally_units", "center_enemy_units"]
+const NAMES := ["all_enemy_units", "all_units", "all_ally_units", "other_ally_units", "center_enemy_units", "all_enemy_tokens"]
 
 func resolve(context: EffectContext, _effect: Effect) -> Array:
 	var players: Array = context.game.players
@@ -20,6 +20,9 @@ func resolve(context: EffectContext, _effect: Effect) -> Array:
 		"other_ally_units":
 			for unit: Card in own_board:
 				if unit.uid != context.self_uid: uids.append(unit.uid)
+		"all_enemy_tokens":
+			for unit: Card in enemy_board:
+				if unit.data().get("token", false): uids.append(unit.uid)
 		"center_enemy_units":
 			var count := enemy_board.size()
 			if count % 2 == 1:

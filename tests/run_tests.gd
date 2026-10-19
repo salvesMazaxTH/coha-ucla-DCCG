@@ -98,6 +98,8 @@ func _init() -> void:
 	_test_armor()
 	_test_tharox_armor_growth()
 	_test_isarelis_hit_leader()
+	_test_silence_and_david()
+	_test_tech_cards()
 	_test_vorn_staged_damage()
 	_test_adjacent_armor()
 	_test_sagrada_engine()
@@ -3516,7 +3518,11 @@ func _test_vegetal() -> void:
 	var hp_before: int = int(g.players[1]["leader_hp"])
 	g._fire(flower, "on_turn_end")
 	g._check_state()
-	check(int(g.players[1]["leader_hp"]) == hp_before - 2, "Flor Voraz: causa dois danos separados ao Líder quando o campo inimigo está vazio")
+	check(int(g.players[1]["leader_hp"]) == hp_before, "Flor Voraz: com 0 de Ataque não causa nenhum golpe")
+	flower.atk = 2 # the number of 1-damage hits is the flower's current Ataque
+	g._fire(flower, "on_turn_end")
+	g._check_state()
+	check(int(g.players[1]["leader_hp"]) == hp_before - 2, "Flor Voraz: com 2 de Ataque causa dois danos separados ao Líder quando o campo inimigo está vazio")
 
 func _test_rusco() -> void:
 	var r := CardDB.card("rusco")
@@ -5381,6 +5387,16 @@ func _test_glacial() -> void:
 		if event["type"] == "lethal_ward":
 			ward_event = event
 	check(not ward_event.is_empty() and int(ward_event["src"]) == striker.uid and int(ward_event["uid"]) == ward_chamber.uid, "câmara: o evento traz a unidade que bateu e a própria câmara")
+	check(int(ward_event.get("hits", 0)) == 3 and g.leader_negations_left(a) == 3, "câmara: começa com 3 camadas (evento e contador)")
+	# each negated hit emits an event with the layers still standing, so the screen can break the outer shell
+	for expected_left in [2, 1, 0]:
+		g._events.clear()
+		g._deal_damage(GameState.LEADER_UID[a], 3, striker)
+		var negated_events: Array = g._events.filter(func(e): return e["type"] == "leader_hit_negated")
+		check(negated_events.size() == 1 and int(negated_events[0]["left"]) == expected_left and int(negated_events[0]["src"]) == striker.uid, "câmara: o golpe anulado informa %d camada(s) restante(s)" % expected_left)
+		check(g.leader_negations_left(a) == expected_left, "câmara: contador de camadas em %d" % expected_left)
+	g.turn += 3
+	check(g.leader_negations_left(a) == 0, "câmara: sem camadas depois que a janela termina")
 
 	# Morwenna Raiz-Podre: +2/+2 per ally death, at most 3 times (1/3 grows to 7/9 and stops)
 	g = _obscura_game()
@@ -5797,6 +5813,18 @@ func _test_sagrada_engine() -> void:
 	g._deal_damage(graveyard_unit.uid, 5, null)
 	check(graveyard_unit.damage == 1, "graveyard_armor: nunca reduz o dano a menos de 1 (%d)" % graveyard_unit.damage)
 
+	# Nerithia: a partir de 2 feitiços Sagrados, reduz dano para floor(dano / 2) - 2, sem piso de 1
+	g = _new_game()
+	_quiet(g)
+	var nerithia := _put(g, 0, "nerithia")
+	check(g.damage_after_armor(nerithia, 5) == 5, "Nerithia: sem feitiços Sagrados, dano normal")
+	g.players[0]["graveyard"].append(Card.new(g._uid(), "t_sagrada_spell", 0, "graveyard"))
+	check(g.damage_after_armor(nerithia, 5) == 5, "Nerithia: 1 feitiço Sagrado ainda não ativa a redução")
+	g.players[0]["graveyard"].append(Card.new(g._uid(), "t_sagrada_spell", 0, "graveyard"))
+	check(g._deal_damage(nerithia.uid, 1, null) == 0 and nerithia.damage == 0, "Nerithia: dano leve pode virar 0")
+	g._deal_damage(nerithia.uid, 10, null)
+	check(nerithia.damage == 3, "Nerithia: dano alto usa floor(10 / 2) - 2 (%d)" % nerithia.damage)
+
 	# Imunidade contra Obscura: combat damage and AIMED effects of enemy Obscura cards do nothing; area effects still hit
 	_tcard("t_immune_obscura", 1, 10, [])
 	CardDB.data()["cards"]["t_immune_obscura"]["keywords"] = ["imunidade_obscura"]
@@ -6041,6 +6069,265 @@ func _test_champion_rework() -> void:
 	var wounded := _put(wounded_game, 1, "t_strong_foe")
 	wounded.damage = 1
 	check(wounded_game.valid_targets(0, "weak_enemy_unit").has(wounded.uid), "Isarelis: unidade ferida entra pela Vida atual")
+
+## Silêncio: the unit loses keywords and every ability, keeps stats/buffs; David destroys the 4 strongest enemy units (Ataque 8+).
+func _test_silence_and_david() -> void:
+	CardDB.data()["cards"]["t_loud"] = {"name": "t_loud", "type": "unit", "rarity": "common", "essence": "neutra", "cost": 1,
+		"atk": 3, "hp": 5, "keywords": ["provocacao", "escudo"], "art": "", "text": "", "flavor": "", "tags": [],
+		"effects": [{"trigger": "on_turn_start", "action": "damage", "target": "enemy_leader", "amount": 2},
+			{"listen": "leader_damaged", "scope": "enemy", "action": "damage", "target": "own_leader", "amount": 1}]}
+	_tcard("t_silencer", 1, 1, [{"trigger": "on_enter", "action": "silence", "target": "enemy_unit"}])
+
+	# the silence itself, applied by a card (a chosen target)
+	var g := _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var loud := _put(g, 1, "t_loud")
+	check(loud.has_kw("provocacao") and loud.shield, "Silêncio: a unidade começa com Provocação e Escudo")
+	loud.atk += 2 # a buff received before the silence must stay
+	var silencer := _give(g, 0, "t_silencer")
+	g.play_card(0, silencer)
+	check(g.phase == "enter_target", "Silêncio: pede o alvo ao entrar")
+	g.choose_enter_target(0, loud.uid)
+	_resolve_stack(g)
+	loud = g.find_unit(loud.uid)
+	check(loud.is_silenced(), "Silêncio: a unidade fica Silenciada")
+	check(not loud.has_kw("provocacao") and not loud.shield, "Silêncio: perde Provocação e Escudo")
+	check(loud.data()["effects"].is_empty(), "Silêncio: os efeitos somem dos dados da unidade")
+	check(g.atk_of(loud) == 5 and loud.hp == 5, "Silêncio: mantém atributos e bônus já recebidos")
+	var leader_before: int = g.players[0]["leader_hp"]
+	var own_leader_before: int = g.players[1]["leader_hp"]
+	g._fire(loud, "on_turn_start")
+	g._check_state()
+	check(g.players[0]["leader_hp"] == leader_before, "Silêncio: o efeito Ao Iniciar o Turno não dispara mais")
+	g._deal_damage(GameState.LEADER_UID[0], 1, null)
+	g._check_state()
+	check(g.players[1]["leader_hp"] == own_leader_before, "Silêncio: o Condicional (listen) não reage mais")
+	leader_before = g.players[0]["leader_hp"]
+	var copy := Card.from_dict(loud.to_dict(), "board", 1)
+	check(copy.is_silenced() and not copy.has_kw("provocacao"), "Silêncio: sobrevive ao espelho de rede (to_dict/from_dict)")
+
+	# an unsilenced twin still works (the silence is per unit, not per card)
+	var twin := _put(g, 1, "t_loud")
+	check(not twin.is_silenced() and twin.has_kw("provocacao"), "Silêncio: outra cópia da mesma carta não é afetada")
+	leader_before = g.players[0]["leader_hp"]
+	own_leader_before = g.players[1]["leader_hp"]
+	g._fire(twin, "on_turn_start")
+	g._check_state()
+	check(g.players[0]["leader_hp"] == leader_before - 2, "Silêncio: a cópia sem Silêncio continua disparando")
+	check(g.players[1]["leader_hp"] == own_leader_before - 1, "Silêncio: e o Condicional da cópia também reage")
+
+	# David: the 4 strongest enemy units with Ataque 8 or more
+	for attack in [7, 8, 9]:
+		_tcard("t_atk_%d" % attack, attack, 3, [])
+	var david_game := _new_game()
+	_quiet(david_game)
+	david_game.players[0]["momentum"] = 10
+	var big_one := _put(david_game, 1, "t_atk_9")
+	var big_two := _put(david_game, 1, "t_atk_9")
+	var tied: Array = []
+	for i in 3:
+		tied.append(_put(david_game, 1, "t_atk_8"))
+	var weak := _put(david_game, 1, "t_atk_7")
+	var david := _give(david_game, 0, "david_ruina_dos_titas")
+	david_game.play_card(0, david)
+	_resolve_stack(david_game)
+	check(david_game.find_unit(big_one.uid) == null and david_game.find_unit(big_two.uid) == null, "David: destrói as duas de Ataque 9")
+	var tied_survivors := tied.filter(func(unit: Card) -> bool: return david_game.find_unit(unit.uid) != null)
+	check(tied_survivors.size() == 1, "David: no empate pela última vaga, 2 das 3 de Ataque 8 caem e 1 fica")
+	check(david_game.find_unit(weak.uid) != null, "David: unidade de Ataque 7 nunca é alvo")
+	check(david_game.find_unit(david) != null, "David: ele mesmo (6/4) fica em campo")
+
+	# fewer than 4 qualify: all of them go, and no dice are rolled
+	var few_game := _new_game()
+	_quiet(few_game)
+	few_game.players[0]["momentum"] = 10
+	var only_big := _put(few_game, 1, "t_atk_9")
+	var only_weak := _put(few_game, 1, "t_atk_7")
+	var rng_state_before := few_game.rng.state
+	few_game.play_card(0, _give(few_game, 0, "david_ruina_dos_titas"))
+	_resolve_stack(few_game)
+	check(few_game.find_unit(only_big.uid) == null and few_game.find_unit(only_weak.uid) != null, "David: com menos de 4 qualificadas, destrói só as de Ataque 8+")
+	check(few_game.rng.state == rng_state_before, "David: sem empate cruzando o corte, não rola dado")
+
+## Plays `card_id` from player p's hand, aims it at `target_uid` (a unit's Ao Entrar asks for it, a spell/artifact takes it
+## with the play) and resolves the stack. Returns the uid the card had in the hand.
+func _play_aimed(g: GameState, p: int, card_id: String, target_uid: int) -> int:
+	var hand_uid := _give(g, p, card_id)
+	if CardDB.card(card_id)["type"] == "unit":
+		g.play_card(p, hand_uid)
+		if g.phase == "enter_target":
+			g.choose_enter_target(p, target_uid)
+	else:
+		g.play_card(p, hand_uid, target_uid)
+	_resolve_stack(g)
+	return hand_uid
+
+## True when player p has a card of this kind in the given zone ("hand", "graveyard"...).
+func _zone_has(g: GameState, p: int, zone: String, card_id: String) -> bool:
+	return g.players[p][zone].any(func(card: Card) -> bool: return card.card_id == card_id)
+
+## The neutral "tech" pack: targeted answers, Mala Sem Alça and the three doublers.
+func _test_tech_cards() -> void:
+	_tcard("t_plain", 1, 4, [])
+	CardDB.data()["cards"]["t_flyer"] = {"name": "t_flyer", "type": "unit", "rarity": "common", "essence": "neutra", "cost": 1,
+		"atk": 1, "hp": 4, "keywords": ["voo"], "art": "", "effects": [], "text": "", "flavor": "", "tags": []}
+	CardDB.data()["cards"]["t_wall"] = {"name": "t_wall", "type": "unit", "rarity": "common", "essence": "neutra", "cost": 1,
+		"atk": 1, "hp": 6, "armor": 2, "keywords": ["provocacao", "escudo"], "art": "", "effects": [], "text": "", "flavor": "", "tags": []}
+	_tcard("t_token", 1, 1, [])
+	CardDB.data()["cards"]["t_token"]["token"] = true
+
+	# Remendeira de Esquina: heals the own Leader
+	var g := _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	g.players[0]["leader_max"] = 100
+	g.players[0]["leader_hp"] = 20
+	_play_aimed(g, 0, "remendeira_de_esquina", GameState.LEADER_UID[0])
+	check(g.players[0]["leader_hp"] == 23, "Remendeira: cura 3 do Líder")
+
+	# Estilingueiro Teimoso: 2 damage, only to an enemy with Voo
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var flyer := _put(g, 1, "t_flyer")
+	var grounded := _put(g, 1, "t_plain")
+	var flying_targets := g.valid_targets(0, "enemy_flying_unit")
+	check(flying_targets.has(flyer.uid) and not flying_targets.has(grounded.uid), "Estilingueiro: só mira unidade com Voo")
+	_play_aimed(g, 0, "estilingueiro_teimoso", flyer.uid)
+	check(flyer.damage == 2 and grounded.damage == 0, "Estilingueiro: 2 de dano na unidade com Voo")
+
+	# Saltador de Cerca: the Provocação is gone until the end of the turn
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var wall := _put(g, 1, "t_wall")
+	_play_aimed(g, 0, "saltador_de_cerca", wall.uid)
+	check(not wall.has_kw("provocacao"), "Saltador: o alvo perde Provocação")
+	g.end_turn(0)
+	check(wall.has_kw("provocacao"), "Saltador: a Provocação volta no fim do turno")
+
+	# Furador de Casca: no Escudo, no Armadura
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	wall = _put(g, 1, "t_wall")
+	check(wall.shield and g.armor_of(wall) == 2, "Furador: o alvo começa com Escudo e Armadura 2")
+	_play_aimed(g, 0, "furador_de_casca", wall.uid)
+	check(not wall.shield and g.armor_of(wall) == 0, "Furador: Escudo e Armadura somem")
+
+	# Tia Odete: destroys every enemy ficha and nothing else
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var token_one := _put(g, 1, "t_token")
+	var token_two := _put(g, 1, "t_token")
+	var real_unit := _put(g, 1, "t_plain")
+	var own_token := _put(g, 0, "t_token")
+	_play_aimed(g, 0, "tia_odete_faz_tudo", 0)
+	check(g.find_unit(token_one.uid) == null and g.find_unit(token_two.uid) == null, "Tia Odete: destrói as fichas inimigas")
+	check(g.find_unit(real_unit.uid) != null and g.find_unit(own_token.uid) != null, "Tia Odete: poupa unidades normais e fichas aliadas")
+
+	# Desmontador de Quinquilharia: destroys a free-standing enemy artifact
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var relic := Card.new(g._uid(), "t_relic", 1, "relics")
+	CardDB.data()["cards"]["t_relic"] = {"name": "t_relic", "type": "artifact", "rarity": "common", "essence": "neutra", "cost": 1,
+		"effects": [], "text": "", "flavor": "", "art": "", "tags": []}
+	g.players[1]["relics"].append(relic)
+	_play_aimed(g, 0, "desmontador_de_quinquilharia", relic.uid)
+	check(g.players[1]["relics"].is_empty(), "Desmontador: destrói o artefato inimigo")
+
+	# Zeladora Shhh: silences
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	wall = _put(g, 1, "t_wall")
+	_play_aimed(g, 0, "zeladora_shhh", wall.uid)
+	check(wall.is_silenced() and not wall.has_kw("provocacao"), "Zeladora Shhh: silencia a unidade")
+
+	# Capa de Última Hora: Escudo for an ally
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var plain := _put(g, 0, "t_plain")
+	_play_aimed(g, 0, "capa_de_ultima_hora", plain.uid)
+	check(plain.shield, "Capa de Última Hora: a unidade ganha Escudo")
+
+	# Mala Sem Alça: +1/+1, returns to the hand only when the unit DIES
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	plain = _put(g, 0, "t_plain")
+	_play_aimed(g, 0, "mala_sem_alca", plain.uid)
+	check(g.atk_of(plain) == 2 and g.hp_left(plain) == 5, "Mala: a unidade ganha +1/+1")
+	plain.damage = 99
+	g._check_state()
+	check(_zone_has(g, 0, "hand", "mala_sem_alca"), "Mala: volta para a mão quando a unidade morre")
+	check(not _zone_has(g, 0, "graveyard", "mala_sem_alca"), "Mala: não fica no cemitério")
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var second := _put(g, 0, "t_plain")
+	_play_aimed(g, 0, "mala_sem_alca", second.uid)
+	check(not _zone_has(g, 0, "hand", "mala_sem_alca"), "Mala: depois de jogada, sai da mão")
+	g._release_equipment(second) # the unit leaves without dying (a bounce or a banish)
+	g._check_state()
+	check(_zone_has(g, 0, "graveyard", "mala_sem_alca") and not _zone_has(g, 0, "hand", "mala_sem_alca"), "Mala: se a unidade só sai (sem morrer), a Mala fica no cemitério")
+
+	# Arauto Repeteco: other units' Ao Entrar happen twice, two Arautos still only twice
+	_tcard("t_enter_hit", 1, 3, [{"trigger": "on_enter", "action": "damage", "target": "enemy_leader", "amount": 2}])
+	g = _new_game()
+	_quiet(g)
+	var leader_before: int = g.players[1]["leader_hp"]
+	_put(g, 0, "t_enter_hit")
+	check(g.players[1]["leader_hp"] == leader_before - 2, "Arauto: sem o Arauto o Ao Entrar acontece uma vez")
+	var herald := _put(g, 0, "arauto_repeteco")
+	check(g.players[1]["leader_hp"] == leader_before - 2, "Arauto: o Ao Entrar do próprio Arauto não é dobrado (ele não tem nenhum)")
+	_put(g, 0, "arauto_repeteco")
+	leader_before = g.players[1]["leader_hp"]
+	_put(g, 0, "t_enter_hit")
+	check(g.players[1]["leader_hp"] == leader_before - 4, "Arauto: com Arautos o Ao Entrar acontece duas vezes (e dois Arautos não dão quatro)")
+	check(herald != null, "Arauto: continua em campo")
+
+	# Coveiro Bis: Ao Morrer twice, including when the Coveiro dies along with the unit
+	_tcard("t_death_hit", 1, 3, [{"trigger": "on_death", "action": "damage", "target": "enemy_leader", "amount": 2}])
+	g = _new_game()
+	_quiet(g)
+	var death_unit := _put(g, 0, "t_death_hit")
+	leader_before = g.players[1]["leader_hp"]
+	death_unit.damage = 99
+	g._check_state()
+	check(g.players[1]["leader_hp"] == leader_before - 2, "Coveiro: sem o Coveiro o Ao Morrer acontece uma vez")
+	var gravedigger := _put(g, 0, "coveiro_bis")
+	death_unit = _put(g, 0, "t_death_hit")
+	leader_before = g.players[1]["leader_hp"]
+	death_unit.damage = 99
+	g._check_state()
+	check(g.players[1]["leader_hp"] == leader_before - 4, "Coveiro: com o Coveiro o Ao Morrer acontece duas vezes")
+	death_unit = _put(g, 0, "t_death_hit")
+	leader_before = g.players[1]["leader_hp"]
+	death_unit.damage = 99
+	gravedigger.damage = 99
+	g._check_state()
+	check(g.players[1]["leader_hp"] == leader_before - 4, "Coveiro: morrendo junto com a unidade ainda dobra o Ao Morrer dela")
+
+	# Contador Exagerado: text Constantes count double (and never stack)
+	_tcard("t_scaler", 1, 1, [{"trigger": "constante", "action": "scale", "per": "own_graveyard_units", "atk": 1, "hp": 1}])
+	g = _new_game()
+	_quiet(g)
+	var scaler := _put(g, 0, "t_scaler")
+	for i in 3:
+		g.players[0]["graveyard"].append(Card.new(g._uid(), "t_plain", 0, "graveyard"))
+	g._refresh_scaling()
+	check(g.atk_of(scaler) == 4, "Contador: sem ele, +1 por unidade do cemitério (1+3)")
+	_put(g, 0, "contador_exagerado")
+	g._refresh_scaling()
+	check(g.atk_of(scaler) == 7, "Contador: com ele conta em dobro (1+6)")
+	_put(g, 0, "contador_exagerado")
+	g._refresh_scaling()
+	check(g.atk_of(scaler) == 7, "Contador: dois Contadores não dão x4")
 
 ## Isarelis' Ao Atingir o Líder destroys the most wounded enemy unit that still has Vida >= 3.
 func _test_isarelis_hit_leader() -> void:

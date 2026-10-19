@@ -144,7 +144,7 @@ func resolve_stack() -> void:
 				var entering := game.find_unit(int(item["uid"]))
 				if entering != null:
 					game._announce(entering, effects, "on_enter")
-				game._run_effects(game._enter_context(p, int(item["uid"]), int(item["target"]), int(item.get("target2", 0))), effects)
+				game.run_enter_effects(game._enter_context(p, int(item["uid"]), int(item["target"]), int(item.get("target2", 0))), effects)
 			else:
 				var resolve_context := EffectContext.new(game, p, "on_play" if item["kind"] == "card" else "")
 				resolve_context.source_card_id = String(item.get("card_id", "")) if item["kind"] == "card" else ""
@@ -249,14 +249,15 @@ func return_equipment_to_hand(c: Card) -> void:
 	game._move(old_equipment, "hand")
 	game._emit({"type": "equipment_returned", "uid": c.uid, "equip_uid": old_equipment.uid, "card_id": old_equipment.card_id})
 
-## Sends the unit's equipment (if any) to its owner's graveyard.
-func release_equipment(c: Card) -> void:
+## Sends the unit's equipment (if any) to its owner's graveyard. `unit_died` is true only when the unit died
+## (not on a bounce or a banish): the equipment's card_moved event carries it so Mala Sem Alça can tell.
+func release_equipment(c: Card, unit_died := false) -> void:
 	if c.equipment == null:
 		return
 	var eq := c.equipment
 	c.equipment = null
 	game.players[c.owner]["graveyard"].append(eq)
-	game._move(eq, "graveyard")
+	game._move(eq, "graveyard", {"unit_died": unit_died})
 	game._emit({"type": "equipment_break", "uid": c.uid, "equip_uid": eq.uid, "card_id": eq.card_id})
 
 ## Removes stack item `sid` without resolving it; a countered card goes to the graveyard.

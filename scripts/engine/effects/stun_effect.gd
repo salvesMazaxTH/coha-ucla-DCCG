@@ -16,5 +16,6 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	if unit == null:
 		return
 	unit.stun_markers += markers
-	unit.exhausted = true
+	if not unit.has_kw("inerte"):
+		unit.exhausted = true
 	game._emit({"type": "stun", "uid": target_uid, "markers": unit.stun_markers})

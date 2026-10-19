@@ -216,6 +216,9 @@ static func card_for(id: String, inst: Dictionary = {}) -> Dictionary:
 		return cd
 	var m := cd.duplicate()
 	m.merge(over, true)
+	for field in over:
+		if over[field] == null:
+			m.erase(field) # a null override removes the field (a silenced unit loses its abilities)
 	return m
 
 static func leader(id: String) -> Dictionary:

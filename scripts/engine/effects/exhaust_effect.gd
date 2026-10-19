@@ -10,7 +10,7 @@ func is_already_applied_to(unit: Card) -> bool:
 func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
 	var unit := game.find_unit(target_uid)
-	if unit == null or unit.exhausted or unit.data().get("inert", false): # an inert unit never taps
+	if unit == null or unit.exhausted or unit.has_kw("inerte"): # an inert unit never taps
 		return
 	unit.exhausted = true
 	game._emit({"type": "exhaust", "uid": target_uid})

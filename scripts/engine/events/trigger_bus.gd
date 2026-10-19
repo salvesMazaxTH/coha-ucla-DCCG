@@ -76,6 +76,8 @@ func _broadcast(event: GameEvent) -> void:
 	for player_index in [game.active, game.opponent(game.active)]:
 		for zone in ZONES:
 			for card: Card in game.players[player_index][zone].duplicate():
+				if card.is_silenced():
+					continue # a Silenciada unit hears nothing (the listeners come from the catalog, not from data())
 				for effect: Effect in CardDB.def(card.card_id).listeners():
 					if effect.trigger == key and effect.listens_in(zone):
 						_offer(card, effect, event)

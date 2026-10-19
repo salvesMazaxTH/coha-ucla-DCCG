@@ -1,7 +1,7 @@
 class_name CombatSystem
 extends RefCounted
 ## Combat: one attack at a time. Each ready unit taps to hit the enemy Leader's face or to
-## challenge an enemy unit that is already tapped (exhausted). The challenged unit strikes back.
+## challenge an exhausted or Vulnerable enemy unit. The challenged unit strikes back.
 ## Tapped enemy units do not guard the Leader: the face is always open, except to a Provocação, which
 ## is the only thing that forces a challenge. A Congelada Provocação doesn't force attacks into it.
 ##
@@ -44,7 +44,7 @@ func has_any_attacker() -> bool:
 			return true
 	return false
 
-## Can `attacker` challenge `target`? The target must be an enemy unit that is tapped, and the
+## Can `attacker` challenge `target`? The target must be an enemy unit that is tapped or Vulnerável, and the
 ## attacker must be able to reach it:
 ##   Voo: only an attacker with Voo or Longo Alcance can challenge it.
 ##   Furtividade: only an attacker with Furtividade or Vigilância can challenge it.
@@ -54,7 +54,8 @@ func has_any_attacker() -> bool:
 ##   Rompante (the turn it enters): it goes for the Leader and may only challenge a Provocação.
 ##   Etérea: nothing can ever challenge it (not even when it has Provocação).
 func can_challenge(attacker: Card, target: Card) -> bool:
-	if attacker == null or target == null or target.owner == attacker.owner or not target.exhausted:
+	if attacker == null or target == null or target.owner == attacker.owner \
+			or (not target.exhausted and not game.has_kw(target, "vulneravel")):
 		return false
 	if game.has_kw(attacker, "obsessao") and not game.has_kw(target, "provocacao"):
 		return false
@@ -82,11 +83,11 @@ func is_rompante_rush(attacker: Card) -> bool:
 func forced_taunts(attacker: Card) -> Array:
 	var out: Array = []
 	for enemy_unit: Card in game.players[game.opponent(attacker.owner)]["board"]:
-		if game.has_kw(enemy_unit, "provocacao") and not enemy_unit.is_frozen() and not enemy_unit.is_stunned() and can_challenge(attacker, enemy_unit):
+		if enemy_unit.exhausted and game.has_kw(enemy_unit, "provocacao") and not enemy_unit.is_frozen() and not enemy_unit.is_stunned() and can_challenge(attacker, enemy_unit):
 			out.append(enemy_unit.uid)
 	return out
 
-## The tapped enemy units this attacker is able to challenge (any of them, Provocação or not).
+## The tapped or Vulnerável enemy units this attacker is able to challenge (any of them, Provocação or not).
 func challengeable_units(attacker: Card) -> Array:
 	var out: Array = []
 	for enemy_unit: Card in game.players[game.opponent(attacker.owner)]["board"]:
@@ -99,7 +100,7 @@ func challengeable_units(attacker: Card) -> Array:
 ## Order of the rules:
 ##   1. a tapped (not Congelada) Provocação it can challenge: only those;
 ##   2. Prudência: only the challengeable units, never the Leader's face;
-##   3. otherwise the challengeable units (any tapped enemy unit) and the enemy Leader's face.
+##   3. otherwise the challengeable units (any tapped or Vulnerable enemy unit) and the enemy Leader's face.
 func attack_targets(attacker: Card) -> Array:
 	if attacker == null or not game.can_attack(attacker):
 		return []

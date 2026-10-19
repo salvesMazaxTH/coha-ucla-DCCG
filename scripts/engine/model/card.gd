@@ -26,6 +26,7 @@ var temp_hp_until_next_turn := 0 ## extra Vida that lasts until this unit's owne
 var rapidez := 0 ## Rapidez 0-3, as written on the card (0 = no Rapidez keyword): in a challenge, the faster unit deals its damage first (equal = at the same time)
 var keywords: Array = []
 var temp_keywords: Array = []
+var lost_keywords: Array = [] ## keywords taken away only until the end of this turn (Saltador de Cerca); they come back then
 var shield := false
 var temp_armor := 0 ## extra Armadura that ends when its owner's next turn starts
 var turn_armor := 0 ## extra Armadura that ends with the current turn ("temp": true on a buff)
@@ -61,6 +62,12 @@ var vipranna_heal_total := 0 ## requested healing accepted by this Vipranna duri
 var vipranna_heal_locked := false ## later triggers stay off after this instance reaches the 15-point threshold
 var leader_damage_guard_turn := -1 ## turn in which this card reduced the first damage to its Leader
 var death_ward_armed := false ## a free-standing artifact is ready to prevent one allied unit death
+
+## Card-data fields that are an ability or a keyword's number: silence() deletes them from the unit.
+const SILENCED_FIELDS := ["activated", "transform", "rapidez", "critico", "armor", "esquiva", "inert", "imune_critico",
+		"critico_growth", "critico_maximo", "toxico_level", "toxico_equals_attack", "toxico_ignores_immunity",
+		"toxico_hits_leader", "burns_on_damage", "leader_damage_reduction", "conditional_uses_per_turn",
+		"lethal_touch_immune", "lethal_ward", "death_ward", "spell_discount"]
 
 func _init(card_uid: int, id: String, owner_player: int, in_zone: String = "") -> void:
 	uid = card_uid
@@ -107,6 +114,7 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	kws.erase("escudo_feitico")
 	keywords = kws
 	temp_keywords = []
+	lost_keywords = []
 	exhausted = false
 	sick = true
 	bonus_atk = 0
@@ -131,11 +139,46 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	leader_damage_guard_turn = -1
 	death_ward_armed = false
 
+## Silenciada: the unit lost every keyword and effect (see silence()).
+func is_silenced() -> bool:
+	return bool(over.get("silenced", false))
+
+## Silence (permanent while the unit stays on the board): strips the card's keywords and every ability, and keeps what it
+## already is or was given: base stats, Ataque/Vida buffs, equipment stats and status effects (Veneno, Congelada...).
+## It is written as per-instance overrides ("over"), so everything that reads the card through data() sees a card without
+## abilities, and the network mirror carries it for free. A null override deletes that field from the merged data.
+## Entering the board again starts clean (enter_board replaces "over").
+func silence() -> void:
+	var cd := data()
+	# keywords the card had: the printed ones plus whatever it gained since (an equipment's, a buff's)
+	keywords = []
+	temp_keywords = []
+	lost_keywords = [] # nothing left to give back
+	shield = false
+	spell_shield = false
+	spell_shield_until_next_turn = false
+	spell_shield_until_end_turn = false
+	# keyword numbers: Rapidez and Crítico are keyword-only; of the Armadura only the printed part goes
+	rapidez = 0
+	critico = 0
+	temp_critico = 0
+	armor = maxi(0, armor - int(cd.get("armor", 0)))
+	var silenced_over := over.duplicate(true)
+	silenced_over["silenced"] = true
+	silenced_over["keywords"] = []
+	silenced_over["effects"] = []
+	silenced_over["text"] = "Silenciada: perdeu as palavras-chave e os efeitos."
+	for lost_field in SILENCED_FIELDS:
+		silenced_over[lost_field] = null
+	over = silenced_over
+
 func has_kw(kw: String) -> bool:
 	if kw == "escudo":
 		return shield
 	if kw == "escudo_feitico":
 		return spell_shield
+	if kw == "inerte":
+		return keywords.has(kw) or bool(data().get("inert", false))
 	return keywords.has(kw)
 
 func armor_total() -> int:
@@ -203,6 +246,8 @@ func to_dict() -> Dictionary:
 		d["spell_shield_until_next_turn"] = true
 	if spell_shield_until_end_turn:
 		d["spell_shield_until_end_turn"] = true
+	if not lost_keywords.is_empty():
+		d["lost_keywords"] = lost_keywords.duplicate()
 	if temp_hp > 0:
 		d["temp_hp"] = temp_hp
 	if temp_hp_until_next_turn > 0:
@@ -275,6 +320,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.temp_atk_until_next_turn = int(d.get("temp_atk_until_next_turn", 0))
 	c.spell_shield_until_next_turn = bool(d.get("spell_shield_until_next_turn", false))
 	c.spell_shield_until_end_turn = bool(d.get("spell_shield_until_end_turn", false))
+	c.lost_keywords = d.get("lost_keywords", [])
 	c.temp_hp = int(d.get("temp_hp", 0))
 	c.temp_hp_until_next_turn = int(d.get("temp_hp_until_next_turn", 0))
 	c.rapidez = int(d.get("rapidez", 0))

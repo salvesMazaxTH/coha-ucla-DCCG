@@ -342,7 +342,8 @@ func has_free_slot(p: int) -> bool:
 
 ## Moves a card to another zone (the caller takes it out of its old array and puts it in the new one).
 ## The single place a card changes zone, so later "goes to the graveyard" hooks live here.
-func _move(c: Card, to_zone: String) -> void:
+## `extra_data` is added to the card_moved event ("unit_died": true tells that an equipment fell because its unit died).
+func _move(c: Card, to_zone: String, extra_data := {}) -> void:
 	var from_zone := c.zone
 	c.zone = to_zone
 	if to_zone != "hand":
@@ -356,6 +357,7 @@ func _move(c: Card, to_zone: String) -> void:
 		c.critico = maxi(c.critico, int(players[c.owner]["critico_growth"].get(c.card_id, 0)))
 	var moved := GameEvent.new("card_moved", c.owner, c)
 	moved.data = {"from": from_zone, "to": to_zone}
+	moved.data.merge(extra_data)
 	bus().emit(moved)
 
 ## A "critico_growth" card (Vael) landed a critical: its Crítico goes up one level (max 4) for EVERY copy
@@ -429,7 +431,23 @@ func scale_bonus(p: int, cd: Dictionary) -> Vector2i:
 			continue
 		var n := _scale_count(p, e)
 		out += Vector2i(n * int(e.get("atk", 0)), n * int(e.get("hp", 0)))
-	return out
+	return out * constants_multiplier(p)
+
+## Which of a player's units on the board carry a "doubler" Constante (action "double_constants",
+## "double_enter" or "double_death"). `ignoring_uid` skips one unit (a doubler never doubles its own Ao Entrar).
+func has_doubler(p: int, doubler_action: String, ignoring_uid := 0) -> bool:
+	for source: Card in players[p]["board"]:
+		if source.uid == ignoring_uid:
+			continue
+		for e in card_of(source).get("effects", []):
+			if e.get("trigger", "") == "constante" and e.get("action", "") == doubler_action:
+				return true
+	return false
+
+## 2 while the player has a "double_constants" unit (Contador Exagerado), else 1. It never stacks: two of them still give 2.
+## Only the text Constantes (scale, species_aura, graveyard_armor) are multiplied; keywords like Armadura or Rapidez are not.
+func constants_multiplier(p: int) -> int:
+	return 2 if has_doubler(p, "double_constants") else 1
 
 ## What the "species_aura" effects of the OTHER allied units on the board give unit `c`:
 ## x = Ataque, y = Vida, z = Armadura. An aura only reaches units sharing one of its species
@@ -450,7 +468,7 @@ func species_aura_bonus(c: Card) -> Vector3i:
 				if unit_species.has(aura_species):
 					bonus += Vector3i(int(e.get("atk", 0)), int(e.get("hp", 0)), int(e.get("armor", 0)))
 					break # one aura gives its bonus once, however many species match
-	return bonus
+	return bonus * constants_multiplier(c.owner)
 
 ## Armadura a unit gets from its own "graveyard_armor" effect: +1 per card of the given type and
 ## essence in its owner's graveyard (e.g. Sagrada spells for Nerithia).
@@ -463,7 +481,24 @@ func graveyard_armor_of(c: Card) -> int:
 			var entry_data := CardDB.card(entry.card_id)
 			if entry_data.get("type", "") == String(e.get("card_type", "spell")) and entry_data.get("essence", "") == String(e.get("essence", "")):
 				total += 1
-	return total
+	return total * constants_multiplier(c.owner)
+
+## Damage reduction from a graveyard threshold, or -1 when the card has no active one.
+## This replaces Armadura for that hit, so it may reduce damage all the way to 0.
+func graveyard_damage_reduction_of(c: Card, amount: int) -> int:
+	for e in card_of(c).get("effects", []):
+		if e.get("trigger", "") != "constante" or e.get("action", "") != "graveyard_damage_reduction":
+			continue
+		var count := 0
+		for entry: Card in players[c.owner]["graveyard"]:
+			var entry_data := CardDB.card(entry.card_id)
+			if entry_data.get("type", "") == String(e.get("card_type", "spell")) and entry_data.get("essence", "") == String(e.get("essence", "")):
+				count += 1
+		if count < int(e.get("minimum_count", 2)):
+			continue
+		var divisor := maxi(1, int(e.get("divisor", 2)))
+		return maxi(0, floori(float(amount) / divisor) - int(e.get("flat_reduction", 0)))
+	return -1
 
 func _scale_count(p: int, e: Dictionary) -> int:
 	match e.get("per", ""):
@@ -517,7 +552,7 @@ func is_frozen(c: Card) -> bool:
 func can_attack(c: Card) -> bool:
 	# a tapped unit may attack again only while it still has attacks left (Ataque Duplo)
 	var has_attack_left := not c.exhausted or (c.attacks_made > 0 and c.attacks_made < attacks_allowed(c))
-	return has_attack_left and not c.data().get("inert", false) and not c.is_frozen() and not c.is_stunned() and (not c.sick or has_kw(c, "impeto") or has_kw(c, "rompante"))
+	return has_attack_left and not has_kw(c, "inerte") and not c.is_frozen() and not c.is_stunned() and (not c.sick or has_kw(c, "impeto") or has_kw(c, "rompante"))
 
 ## Attacks per turn: 2 with Ataque Duplo, which a card can also earn by reaching Crítico 4
 ## ("critico_maximo": {"ataque_duplo": true}, Vael); otherwise 1.
@@ -528,7 +563,7 @@ func attacks_allowed(c: Card) -> int:
 		return 2
 	return 1
 
-## Can `attacker` challenge `target` (an enemy unit that is tapped and reachable)? See CombatSystem.
+## Can `attacker` challenge `target` (an exhausted or Vulnerable enemy unit within reach)? See CombatSystem.
 func can_challenge(attacker: Card, target: Card) -> bool:
 	return combat_system().can_challenge(attacker, target)
 
@@ -539,7 +574,7 @@ func attack_targets(attacker: Card) -> Array:
 ## Effect spec of a card/ability that needs a chosen target, or "" if none.
 func target_spec(effects: Array) -> String:
 	for e in effects:
-		if e.get("target", "") in ["enemy_unit", "weak_enemy_unit", "ally_unit", "other_ally_unit", "ally_or_own_leader", "any_unit", "any", "enemy_stack", "enemy_artifact"]:
+		if e.get("target", "") in ["enemy_unit", "enemy_flying_unit", "enemy_taunt_unit", "weak_enemy_unit", "ally_unit", "other_ally_unit", "ally_or_own_leader", "any_unit", "any", "enemy_stack", "enemy_artifact"]:
 			return e["target"]
 	return ""
 
@@ -749,6 +784,12 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 	match spec:
 		"enemy_unit":
 			for c: Card in theirs: out.append(c.uid)
+		"enemy_flying_unit": # an enemy unit with Voo (Estilingueiro Teimoso)
+			for c: Card in theirs:
+				if c.has_kw("voo"): out.append(c.uid)
+		"enemy_taunt_unit": # an enemy unit with Provocação (Saltador de Cerca)
+			for c: Card in theirs:
+				if c.has_kw("provocacao"): out.append(c.uid)
 		"weak_enemy_unit": # an enemy unit whose current Vida is WEAK_UNIT_MAX_HP or less (Isarelis' execution)
 			for c: Card in theirs:
 				if c.hp_left() <= WEAK_UNIT_MAX_HP: out.append(c.uid)
@@ -925,6 +966,8 @@ func can_activate(p: int, uid: int, allow_unreachable := false) -> bool:
 	var ab: Dictionary = card_of(c).get("activated", {})
 	if ab.is_empty() or not can_cast_speed(p, speed_of(ab)) or int(ab["cost"]) > budget(p, true):
 		return false
+	if ab.get("exhaust", false) and c.has_kw("inerte"):
+		return false # an inert unit cannot turn to activate an ability
 	if ab.get("once_per_turn", false) and c.activated_turn == turn:
 		return false
 	if _has_action(ab["effects"], "arm_death_ward") and c.death_ward_armed:
@@ -1126,7 +1169,7 @@ func activate(p: int, uid: int, target: int = 0) -> Array:
 		return []
 	_pay(p, int(ab["cost"]), true)
 	c.activated_turn = turn
-	if ab.get("exhaust", false):
+	if ab.get("exhaust", false) and not c.has_kw("inerte"):
 		c.exhausted = true
 	_emit({"type": "trigger", "uid": uid, "player": p, "card_id": c.card_id, "trigger": "on_activate", "target": target})
 	stack_system().push(p, "unit_ability", uid, c.card_id, target, speed_of(ab))
@@ -1189,7 +1232,7 @@ func transform_into(c: Card, into_id: String) -> void:
 	_emit({"type": "transform", "player": p, "uid": uid, "from": from, "card_id": into_id})
 	_announce(c, cd["effects"], "on_enter")
 	var target := uid if target_spec(cd["effects"]) == "ally_unit" else 0
-	_run_effects(_enter_context(p, uid, target), cd["effects"])
+	run_enter_effects(_enter_context(p, uid, target), cd["effects"])
 
 ## Exiles a unit from the board: it never dies (no Ao Morrer) and never reaches the graveyard;
 ## its equipment does. A banished ficha just vanishes. A banished Encarnação goes back to the
@@ -1353,7 +1396,7 @@ func choose_enter_tapped(p: int, tapped: bool) -> Array:
 		return []
 	var unit := find_unit(int(pending_tap.pop_front()))
 	if unit != null:
-		if tapped:
+		if tapped and not unit.has_kw("inerte"):
 			unit.exhausted = true
 		_emit({"type": "enter_tapped", "player": p, "uid": unit.uid, "tapped": tapped})
 	# the next waiting Provocação is asked by settle(); otherwise the game goes back to where it was
@@ -1528,8 +1571,8 @@ func destroy_relic(c: Card) -> void:
 	if not _chain_stopped():
 		queue_trigger(PendingTrigger.new(c, c.effect_list(), death_context, "on_death"))
 
-func _release_equipment(c: Card) -> void:
-	stack_system().release_equipment(c)
+func _release_equipment(c: Card, unit_died := false) -> void:
+	stack_system().release_equipment(c, unit_died)
 
 ## Can p do anything right now besides passing?
 func _has_play(p: int) -> bool:
@@ -1583,7 +1626,7 @@ func _summon(p: int, c: Card, legendary: bool, target: int, over: Dictionary = {
 	if cd.get("token", false):
 		_fire_leader_passive(p, "on_ally_token_summon", uid)
 	# Provocação: on any entry its controller chooses whether it enters tapped (asked once things settle)
-	if has_kw(c, "provocacao"):
+	if has_kw(c, "provocacao") and not has_kw(c, "inerte"):
 		pending_tap.append(uid)
 	var spec := enter_spec(cd)
 	var enter_options: Array = valid_targets(p, spec, uid) if spec != "" else []
@@ -1607,7 +1650,15 @@ func _trigger_enter(p: int, c: Card, effects: Array, target: int, respond: bool,
 		stack_system().push(p, "enter_trigger", c.uid, c.card_id, target, "instantaneo", second_target)
 		return
 	_announce(c, effects, "on_enter")
-	_run_effects(_enter_context(p, c.uid, target, second_target), effects)
+	run_enter_effects(_enter_context(p, c.uid, target, second_target), effects)
+
+## Runs a unit's Ao Entrar effects; a second time when its controller has a "double_enter" unit (Arauto Repeteco)
+## on the board that is not the entering unit itself. The same chosen target is used, no new input is asked.
+func run_enter_effects(context: EffectContext, effects: Array) -> void:
+	var doubled := has_doubler(context.controller, "double_enter", context.self_uid)
+	_run_effects(context, effects)
+	if doubled:
+		_run_effects(context, effects)
 
 func _has_enter_effects(effects: Array) -> bool:
 	for e in effects:
@@ -1894,6 +1945,9 @@ func armor_of(c: Card) -> int:
 func damage_after_armor(c: Card, amount: int) -> int:
 	if amount <= 0:
 		return 0
+	var graveyard_reduction := graveyard_damage_reduction_of(c, amount)
+	if graveyard_reduction >= 0:
+		return graveyard_reduction
 	return maxi(1, amount - armor_of(c))
 
 func _deal_damage(t: int, amount: int, source: Card) -> int:
@@ -1932,6 +1986,7 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		# controller's next turn (whichever comes first)
 		if amount > 0 and turn <= int(players[tp]["damage_negated_until"]) and int(players[tp]["damage_negated_left"]) > 0:
 			players[tp]["damage_negated_left"] -= 1
+			_emit({"type": "leader_hit_negated", "uid": t, "player": tp, "amount": amount, "src": src_uid, "left": int(players[tp]["damage_negated_left"])})
 			return 0
 		# Câmara de Êxtase: a killing blow is cancelled completely and the Chamber is spent
 		var ward := _lethal_ward_of(tp)
@@ -2130,8 +2185,14 @@ func _trigger_lethal_ward(p: int, ward: Card, prevented: int, source_uid := 0) -
 	var until := turn + (2 if p == active else 1)
 	players[p]["damage_negated_until"] = maxi(int(players[p]["damage_negated_until"]), until)
 	players[p]["damage_negated_left"] = LETHAL_WARD_NEGATED_HITS
-	_emit({"type": "lethal_ward", "player": p, "uid": ward.uid, "card_id": ward.card_id, "amount": prevented, "src": source_uid})
+	_emit({"type": "lethal_ward", "player": p, "uid": ward.uid, "card_id": ward.card_id, "amount": prevented, "src": source_uid, "hits": LETHAL_WARD_NEGATED_HITS})
 	destroy_relic(ward)
+
+## How many of the Leader's next hits are still reduced to 0 by the Câmara de Êxtase aftermath (0 once its window closed).
+func leader_negations_left(p: int) -> int:
+	if turn > int(players[p]["damage_negated_until"]):
+		return 0
+	return int(players[p]["damage_negated_left"])
 
 func _heal_leader(p: int, amount: int) -> void:
 	var pl: Dictionary = players[p]
@@ -2261,6 +2322,8 @@ func _move_dead_units() -> void:
 	while changed:
 		changed = false
 		_refresh_scaling()
+		# decided before anyone leaves, so a "double_death" unit that dies together with its allies still doubles them
+		var death_doubled := [has_doubler(0, "double_death"), has_doubler(1, "double_death")]
 		for p in [active, opponent(active)]:
 			for c in players[p]["board"].duplicate():
 				if hp_left(c) <= 0:
@@ -2274,7 +2337,7 @@ func _move_dead_units() -> void:
 					players[p]["board"].erase(c)
 					changed = true
 					_emit({"type": "death", "uid": dead_uid, "player": p, "card_id": dying_card_id})
-					_release_equipment(c)
+					_release_equipment(c, true)
 					if c.legendary:
 						_move(c, "")
 						_legendary_leaves(p)
@@ -2288,6 +2351,8 @@ func _move_dead_units() -> void:
 					death_context.dying_card = c
 					if not _chain_stopped():
 						queue_trigger(PendingTrigger.new(c, effects, death_context, "on_death"))
+						if death_doubled[p]:
+							queue_trigger(PendingTrigger.new(c, effects, death_context, "on_death"))
 					# Aliado Morre fires on every death, even if the unit comes right back (Revivente, Fênix)
 					# or a Legendary returns to its zone.
 					for ally in players[p]["board"].duplicate():
@@ -2413,6 +2478,10 @@ func _finish_turn() -> void:
 			for kw in c.temp_keywords:
 				c.keywords.erase(kw)
 			c.temp_keywords.clear()
+			for kw in c.lost_keywords: # a keyword taken away "this turn" comes back
+				if not c.keywords.has(kw):
+					c.keywords.append(kw)
+			c.lost_keywords.clear()
 			if c.spell_shield_until_end_turn:
 				c.spell_shield = false
 				c.spell_shield_until_end_turn = false

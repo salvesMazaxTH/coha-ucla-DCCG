@@ -1,12 +1,12 @@
 class_name RandomTarget
 extends TargetSelector
 ## Random picks with the match RNG: random_enemy (any enemy unit or the enemy Leader), random_enemy_unit, random_enemy_unit_twice (two independent picks, the same unit can be picked twice: 2 damage handed out one by one), random_enemy_unit_spread (the effect's "hits" independent picks over units), random_enemy_spread (the same, including the Leader), random_frozen_enemy_unit
-## (only enemy units that are already Congeladas), most_wounded_enemy_unit (the enemy unit that took the most damage and still has Vida 3 or more; a tie is rolled; Isarelis), random_enemy_and_adjacent, random_ally_unit, random_other_ally_unit (both accept the effect's "only_species": the pool only holds allies of those species). The RNG is only rolled when there is something
+## (only enemy units that are already Congeladas), most_wounded_enemy_unit (the enemy unit that took the most damage and still has Vida 3 or more; a tie is rolled; Isarelis), strongest_enemy_units (the "count" enemy units with the highest Ataque, only those with Ataque "min_atk" or more; a tie at the cut-off is rolled; David), random_enemy_and_adjacent, random_ally_unit, random_other_ally_unit (both accept the effect's "only_species": the pool only holds allies of those species). The RNG is only rolled when there is something
 ## to pick, so replays stay identical.
 ## A status effect (freeze, exhaust...) never rolls on a unit that already has that status: the pool only holds
 ## units that can still receive it (Effect.is_already_applied_to), and an empty pool means no target.
 
-const NAMES := ["random_enemy", "random_enemy_unit", "random_enemy_unit_twice", "random_enemy_unit_spread", "random_enemy_spread", "random_frozen_enemy_unit", "most_wounded_enemy_unit", "random_enemy_and_adjacent", "random_ally_unit", "random_other_ally_unit"]
+const NAMES := ["random_enemy", "random_enemy_unit", "random_enemy_unit_twice", "random_enemy_unit_spread", "random_enemy_spread", "random_frozen_enemy_unit", "most_wounded_enemy_unit", "strongest_enemy_units", "random_enemy_and_adjacent", "random_ally_unit", "random_other_ally_unit"]
 
 const WOUNDED_TARGET_MIN_HP := 3 ## "most_wounded_enemy_unit" ignores units with less current Vida than this
 
@@ -53,7 +53,11 @@ func resolve(context: EffectContext, effect: Effect) -> Array:
 			for unit: Card in enemy_board:
 				all_enemy_pool.append(unit.uid)
 			var all_enemy_picks: Array = []
-			for hit in int(effect.raw.get("hits", 1)):
+			var hits := int(effect.raw.get("hits", 1))
+			if effect.raw.get("hits_from", "") == "self_atk":
+				var source := game.find_unit(context.self_uid)
+				hits = game.atk_of(source) if source != null else 0
+			for hit in maxi(0, hits):
 				all_enemy_picks.append(all_enemy_pool[game.rng.randi_range(0, all_enemy_pool.size() - 1)])
 			return all_enemy_picks
 		"random_frozen_enemy_unit":
@@ -79,6 +83,8 @@ func resolve(context: EffectContext, effect: Effect) -> Array:
 			if wounded_pool.is_empty():
 				return []
 			return [wounded_pool[game.rng.randi_range(0, wounded_pool.size() - 1)]]
+		"strongest_enemy_units":
+			return _strongest_enemy_units(context, effect)
 		"random_enemy_and_adjacent":
 			if enemy_board.is_empty():
 				return []
@@ -94,6 +100,38 @@ func resolve(context: EffectContext, effect: Effect) -> Array:
 				return []
 			return [pool[game.rng.randi_range(0, pool.size() - 1)]]
 	return []
+
+## The enemy units with the highest Ataque: at most the effect's "count", and only units with at least "min_atk".
+## The dice are only rolled when a tie really crosses the cut-off (units share the last place that still fits).
+func _strongest_enemy_units(context: EffectContext, effect: Effect) -> Array:
+	var game := context.game
+	var how_many := int(effect.raw.get("count", 1))
+	var minimum_attack := int(effect.raw.get("min_atk", 0))
+	var candidates: Array = []
+	for unit: Card in game.players[context.opponent()]["board"]:
+		if game.atk_of(unit) >= minimum_attack:
+			candidates.append(unit)
+	if candidates.size() <= how_many:
+		return candidates.map(func(unit: Card) -> int: return unit.uid)
+	candidates.sort_custom(func(first: Card, second: Card) -> bool: return game.atk_of(first) > game.atk_of(second))
+	# everyone stronger than the last place is in for sure; the units tied with the last place compete for the rest
+	var cut_off_attack: int = game.atk_of(candidates[how_many - 1])
+	var picked: Array = []
+	var tied: Array = []
+	for unit: Card in candidates:
+		if game.atk_of(unit) > cut_off_attack:
+			picked.append(unit.uid)
+		elif game.atk_of(unit) == cut_off_attack:
+			tied.append(unit.uid)
+	var places_left := how_many - picked.size()
+	if tied.size() <= places_left:
+		picked.append_array(tied)
+		return picked
+	for place in places_left:
+		var roll := game.rng.randi_range(0, tied.size() - 1)
+		picked.append(tied[roll])
+		tied.remove_at(roll)
+	return picked
 
 ## The allies this selector may pick from (no dice rolled, so it is safe to ask "is there anyone?" first).
 func _ally_pool(context: EffectContext, effect: Effect) -> Array:
