@@ -6,7 +6,7 @@
   "essence": "vegetal",
   "cost": 2,
   "atk": 2,
-  "hp": 4,
+  "hp": 3,
   "keywords": ["vigilancia"],
   "art": "vegetal/cultivador_da_clareira.webp",
   "effects": [

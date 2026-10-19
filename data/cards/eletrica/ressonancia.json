@@ -4,7 +4,7 @@
   "rarity": "common",
   "essence": "eletrica",
   "cost": 1,
-  "speed": "instantaneo",
+  "speed": "rapido",
   "art": "eletrica/ressonancia.webp",
   "effects": [
     {
@@ -16,7 +16,7 @@
       ]
     }
   ],
-  "text": "Uma unidade aliada ganha Escudo de Feitiço.",
+  "text": "Rápida. Uma unidade aliada ganha Escudo de Feitiço.",
   "flavor": "",
   "tags": []
 }

@@ -1,7 +1,7 @@
 {
   "name": "Caldria, Jardineira Predatória",
   "type": "unit",
-  "rarity": "champion",
+  "rarity": "epic",
   "species": ["humano", "druida"],
   "essence": "vegetal",
   "cost": 2,

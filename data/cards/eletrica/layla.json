@@ -15,13 +15,21 @@
   "art": "eletrica/layla.webp",
   "effects": [
     {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 2,
+      "adjacent_amount": 1,
+      "stun": true
+    },
+    {
       "trigger": "on_damaged",
       "action": "buff",
       "target": "self",
       "atk": 1
     }
   ],
-  "text": "Ao Sofrer Dano: ganhe +1 de Ataque permanente.",
+  "text": "Ao Entrar: cause 2 de dano a uma unidade inimiga à sua escolha e 1 de dano às unidades adjacentes a ela. A unidade escolhida recebe 1 marcador de Atordoamento.\nAo Sofrer Dano: ganhe +1 de Ataque permanente.",
   "flavor": "",
   "tags": []
 }

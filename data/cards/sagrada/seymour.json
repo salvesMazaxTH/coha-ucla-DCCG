@@ -15,7 +15,7 @@
     { "listen": "unit_healed", "scope": "ally", "zones": ["board"], "action": "damage", "target": "random_enemy_unit_twice", "amount": 1 },
     { "listen": "spell_cast", "scope": "ally", "zones": ["board"], "when": { "essence_sagrada": true }, "action": "damage", "target": "random_enemy_unit_twice", "amount": 1 }
   ],
-  "text": "No início do seu turno e sempre que seu Líder ou uma unidade aliada for curada, ou você lançar um feitiço Sagrado: distribua 2 de dano aleatoriamente entre as unidades inimigas, 1 por vez.",
+  "text": "No Início do Turno: distribua 2 de dano aleatoriamente entre as unidades inimigas, 1 por vez.\nCondicional: sempre que seu Líder ou uma unidade aliada for curada, ou você lançar um feitiço Sagrado, distribua 2 de dano aleatoriamente entre as unidades inimigas, 1 por vez.",
   "flavor": "O primeiro golpe de cada dia ele deixa passar sem notar.",
   "tags": []
 }

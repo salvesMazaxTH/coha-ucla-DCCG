@@ -31,6 +31,7 @@ func _init() -> void:
 	_test_constant()
 	_test_obscura()
 	_test_vegetal()
+	_test_ai_spell_preview()
 	_test_obscura_rules()
 	_test_cleanse()
 	_test_sagrada_board_control()
@@ -728,6 +729,46 @@ func _test_enter_target() -> void:
 	var myrra_ally := _give(lone, 0, "myrra")
 	lone.play_card(0, myrra_ally)
 	check(lone.phase == "enter_target", "Myrra com outra unidade aliada: pede alvo")
+
+## The AI's spell preview: before casting a spell it tries it on a copy of the game and skips it when
+## nothing would change (here: Repique Desgovernado, which only hits enemy units, against an empty board).
+func _sagrada_preview_game() -> GameState:
+	var g := GameState.new("sagrada", "fogo", 42)
+	g.mulligan(0, [])
+	g.mulligan(1, [])
+	_quiet(g)
+	g.players[0]["hand"].clear()
+	g.players[0]["legendary"]["in_zone"] = false
+	g.players[0]["momentum"] = 5
+	return g
+
+func _hand_has(g: GameState, p: int, uid: int) -> bool:
+	for card: Card in g.players[p]["hand"]:
+		if card.uid == uid:
+			return true
+	return false
+
+func _test_ai_spell_preview() -> void:
+	# a copy looks exactly like the game it came from, and playing on it leaves the real game alone
+	var original := _sagrada_preview_game()
+	var copy := original.preview_copy()
+	check(copy != null and copy.preview_snapshot() == original.preview_snapshot(), "IA/prévia: a cópia é idêntica ao jogo original")
+	var bell_uid := _give(copy, 0, "repique_desgovernado")
+	copy.play_card(0, bell_uid)
+	check(original.players[0]["momentum"] == 5 and original.players[0]["hand"].is_empty(), "IA/prévia: jogar na cópia não mexe no jogo real")
+
+	# 1. empty enemy board: the spell would do nothing, so the AI keeps the card and the Momentum
+	var empty := _sagrada_preview_game()
+	var wasted_bell := _give(empty, 0, "repique_desgovernado")
+	SimpleAI.step(empty, 0)
+	check(_hand_has(empty, 0, wasted_bell), "IA/prévia: não lança Repique Desgovernado com o campo inimigo vazio") # it may spend Momentum on other plays, just not on the Repique
+
+	# 2. an enemy unit to hit: now the spell changes something, so the AI casts it
+	var target_game := _sagrada_preview_game()
+	_put(target_game, 1, "bastionario_de_basalto")
+	var useful_bell := _give(target_game, 0, "repique_desgovernado")
+	SimpleAI.step(target_game, 0)
+	check(not _hand_has(target_game, 0, useful_bell), "IA/prévia: lança Repique Desgovernado quando há unidade inimiga")
 
 ## The AI's Ao Entrar damage (Ronan): it is never skipped when the damage stays marked on a target,
 ## even though Ronan also has an Ao Sofrer Dano buff. It is skipped only when it would be wasted.
@@ -3137,6 +3178,19 @@ func _test_listeners() -> void:
 	g.end_turn(0)
 	check(g.find_unit(clock.uid).atk == 3, "listen: turn_ended fires at the end of its owner's turn")
 
+	# A Plant entering supplies the event source itself, and the custom temporary Vida lasts
+	# until that unit's controller starts their next turn.
+	_tcard("t_growth", 1, 3, [{"listen": "unit_entered", "scope": "ally", "zones": ["board"],
+		"when": {"plant": true}, "action": "buff", "target": "event_source", "hp_temp_until_next_turn": 1}])
+	g = _new_game()
+	_put(g, 0, "t_growth")
+	var entering_plant := _put(g, 0, "mudinha_do_dossel")
+	var entering_human := _put(g, 0, "guardia_dos_ninhos")
+	g._check_state()
+	check(entering_plant.temp_hp_until_next_turn == 1,
+		"listen unit_entered: Planta recebe Vida temporária até o próximo turno")
+	check(entering_human.temp_hp_until_next_turn == 0, "listen unit_entered: não dispara para unidade que não é Planta")
+
 func _test_triggers() -> void:
 	_tcard("t_atk", 1, 5, [{"trigger": "on_attack", "action": "damage", "target": "enemy_leader", "amount": 2}])
 	_tcard("t_chd", 1, 5, [{"trigger": "on_challenged", "action": "buff", "target": "self", "atk": 3, "temp": true}])
@@ -3419,6 +3473,14 @@ func _test_card_validation() -> void:
 		{"trigger": "on_enter", "action": "damage", "target": "inimigo", "if": "sempre"}]})
 	check(errs.size() - before == 5, "validação: keyword, trigger, action, target e if errados (%d)" % (errs.size() - before))
 	errs.resize(before)
+	# A listener is presented as a Condicional on the physical card, so its full-screen rules text
+	# must carry the same explicit label for CardView.colorize_rules to render it in orange and bold.
+	for card_id in CardDB.data()["cards"]:
+		if String(card_id).begins_with("t_"):
+			continue # synthetic fixtures use intentionally terse text
+		var cd: Dictionary = CardDB.card(card_id)
+		if cd.get("effects", []).any(func(e: Dictionary): return e.has("listen")):
+			check(String(cd.get("text", "")).contains("Condicional:"), "%s: listener precisa escrever 'Condicional:' no texto" % card_id)
 
 func _test_sim() -> void:
 	var wins := [0, 0, 0]

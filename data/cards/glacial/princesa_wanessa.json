@@ -62,7 +62,7 @@
       "into": "wanessa_tempesfrost"
     }
   ],
-  "text": "Ao Entrar: congele e exaure uma unidade inimiga.\nCondicional (uma vez por turno, no seu turno): ao lançar um feitiço glacial, congele uma unidade inimiga aleatória.\nQuando você lançar uma Grande Bola de Neve, ou quando sua Bola de Neve virar Grande, esta unidade se transforma em Wanessa Tempesfrost.",
+  "text": "Ao Entrar: congele e exaure uma unidade inimiga.\nCondicional: uma vez por turno, no seu turno, ao lançar um feitiço glacial, congele uma unidade inimiga aleatória.\nQuando você lançar uma Grande Bola de Neve, ou quando sua Bola de Neve virar Grande, esta unidade se transforma em Wanessa Tempesfrost.",
   "flavor": "A coroa é de gelo. A paciência também.",
   "tags": []
 }

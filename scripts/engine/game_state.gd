@@ -109,8 +109,13 @@ const EVENT_CAP := 300 ## events one action may produce before triggers/effects 
 const MAX_TRIGGERS_PER_ACTION := 60 ## queued triggers resolved in one go, so trigger loops always end
 ## Cards played from hand while they wait on the stack (uid -> Card); stack items themselves stay plain dicts.
 var _stack_cards: Dictionary = {}
+## Only set on a preview copy (see preview_copy): the card with this uid resolves with no effects at all,
+## so the AI can compare "cast it for real" against "cast it and nothing happens".
+var preview_blank_uid := 0
 
-func _init(deck_a: String, deck_b: String, seed_value: int = 0, first_player: int = 0) -> void:
+func _init(deck_a: String = "", deck_b: String = "", seed_value: int = 0, first_player: int = 0) -> void:
+	if deck_a == "":
+		return # an empty game, filled in by preview_copy()
 	rng.seed = seed_value if seed_value != 0 else randi()
 	first = first_player
 	for i in 2:
@@ -190,6 +195,94 @@ func _flush() -> Array:
 	var out := _events
 	_events = []
 	return out
+
+# ---------------------------------------------------------------- previews (used by the AI)
+
+## Variables a preview never copies or compares: the helper systems are rebuilt on first use, the event list
+## starts empty, and the random generator / uid counter move on even when a spell changes nothing.
+const PREVIEW_SKIPPED_VARIABLES := ["_bus", "_stack_system", "_combat_system", "_events", "rng", "_next_uid"]
+
+## A full, independent copy of this game for the AI to try a move on ("what would happen if I cast this?").
+## Every Card is copied too, so nothing done on the copy touches this game. The random generator is copied
+## with its current state, so random effects pick the same way they would right now.
+## Returns null when a safe copy can't be made (triggers still waiting to resolve, or a network game).
+func preview_copy() -> GameState:
+	if not _pending.is_empty() or get_script() != GameState:
+		return null
+	var copy := GameState.new()
+	var copied_cards := {} # original Card -> its copy, so a card referenced from two places stays one card
+	for property in get_property_list():
+		if not (property["usage"] & PROPERTY_USAGE_SCRIPT_VARIABLE):
+			continue
+		var variable_name: String = property["name"]
+		if variable_name in PREVIEW_SKIPPED_VARIABLES:
+			continue
+		copy.set(variable_name, _preview_copy_value(get(variable_name), copied_cards))
+	copy.rng.seed = rng.seed
+	copy.rng.state = rng.state
+	copy._next_uid = _next_uid
+	return copy
+
+static func _preview_copy_value(value: Variant, copied_cards: Dictionary) -> Variant:
+	if value is Card:
+		return _preview_copy_card(value, copied_cards)
+	if value is Array:
+		var array_copy: Array = value.duplicate(false)
+		for index in array_copy.size():
+			array_copy[index] = _preview_copy_value(array_copy[index], copied_cards)
+		return array_copy
+	if value is Dictionary:
+		var dictionary_copy: Dictionary = value.duplicate(false)
+		for key in dictionary_copy.keys():
+			dictionary_copy[key] = _preview_copy_value(dictionary_copy[key], copied_cards)
+		return dictionary_copy
+	return value # numbers, strings, flags (other objects are shared: they are read-only data)
+
+static func _preview_copy_card(card: Card, copied_cards: Dictionary) -> Card:
+	if copied_cards.has(card):
+		return copied_cards[card]
+	var card_copy := Card.new(card.uid, card.card_id, card.owner, card.zone)
+	copied_cards[card] = card_copy
+	for property in card.get_property_list():
+		if property["usage"] & PROPERTY_USAGE_SCRIPT_VARIABLE:
+			card_copy.set(property["name"], _preview_copy_value(card.get(property["name"]), copied_cards))
+	return card_copy
+
+## Text describing everything that matters in this game right now (Leaders, every card in every zone, the stack,
+## markers, counters...). Two games with the same snapshot are the same game, give or take random luck.
+func preview_snapshot() -> String:
+	var snapshot := {}
+	for property in get_property_list():
+		if not (property["usage"] & PROPERTY_USAGE_SCRIPT_VARIABLE):
+			continue
+		var variable_name: String = property["name"]
+		if variable_name in PREVIEW_SKIPPED_VARIABLES or variable_name == "preview_blank_uid":
+			continue
+		snapshot[variable_name] = _snapshot_value(get(variable_name))
+	return var_to_str(snapshot)
+
+static func _snapshot_value(value: Variant) -> Variant:
+	if value is Card:
+		var card_fields := {}
+		for property in value.get_property_list():
+			if property["usage"] & PROPERTY_USAGE_SCRIPT_VARIABLE:
+				var field: Variant = value.get(property["name"])
+				# a card inside a card (its equipment) is written as its uid, so the snapshot never loops
+				card_fields[property["name"]] = field.uid if field is Card else _snapshot_value(field)
+		return card_fields
+	if value is Array:
+		var array_snapshot: Array = []
+		for element in value:
+			array_snapshot.append(_snapshot_value(element))
+		return array_snapshot
+	if value is Dictionary:
+		var dictionary_snapshot := {}
+		for key in value:
+			dictionary_snapshot[key] = _snapshot_value(value[key])
+		return dictionary_snapshot
+	if value is Object:
+		return null # helper objects (pending triggers) are not part of what the board looks like
+	return value
 
 # ---------------------------------------------------------------- queries
 
@@ -1479,6 +1572,10 @@ func _summon(p: int, c: Card, legendary: bool, target: int, over: Dictionary = {
 	else:
 		board.insert(slot, c)
 	_emit({"type": "summon", "player": p, "uid": uid, "card_id": card_id})
+	# Listeners such as Alderion react to the exact unit that just entered, including summoned Plants.
+	var entered := GameEvent.new("unit_entered", p, c)
+	entered.data["plant"] = CardDB.card(c.card_id).get("species", []).has("planta")
+	bus().emit(entered)
 	# Leaders may react to their first token entering each turn. The card is already on the
 	# board, so a passive buff can include the newly summoned token among its legal targets.
 	if cd.get("token", false):
@@ -2297,6 +2394,9 @@ func _finish_turn() -> void:
 			for kw in c.temp_keywords:
 				c.keywords.erase(kw)
 			c.temp_keywords.clear()
+			if c.spell_shield_until_end_turn:
+				c.spell_shield = false
+				c.spell_shield_until_end_turn = false
 			c.tide_mark = false
 	# Congelada ends at the END of the turn after the one it was applied in, so that turn really felt it
 	for q in players:

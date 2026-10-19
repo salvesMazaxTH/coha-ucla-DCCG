@@ -10,6 +10,7 @@ extends Effect
 ## (at least `min`, at most `max`).
 ## "cap_atk": this effect can give one unit at most that much attack in total (e.g. Layla).
 ## "critico_max": true  a unit that has any Crítico at all goes up to Crítico 4 until the end of the turn (units without Crítico are untouched).
+## "hp_temp_until_next_turn": N gives temporary Vida until the unit's owner's next turn starts.
 ## "bonus_if_card": {"card": id, "atk": N, "hp": N}: when the target is that card, it also gains this permanently (Myrra -> Vael).
 ## "bonus_if_species": {"species": [...], "atk": N, "hp": N}: when the target has any of these species, it also gains this permanently (Consagração).
 ## "only_species": [...]: the buff only lands on targets that have at least one of these species; any other target is left
@@ -27,6 +28,7 @@ var temporary_armor := 0
 var minimum_armor := 0
 var temporary_spell_shield := false
 var temporary_attack_until_next_turn := 0
+var temporary_health_until_next_turn := 0
 var temporary := false
 var keywords: Array = []
 var per := ""
@@ -59,6 +61,7 @@ func _read_parameters(data: Dictionary) -> void:
 	minimum_armor = int(data.get("armor_min", 0))
 	temporary_spell_shield = bool(data.get("spell_shield_temp", false))
 	temporary_attack_until_next_turn = int(data.get("atk_temp", 0))
+	temporary_health_until_next_turn = int(data.get("hp_temp_until_next_turn", 0))
 	temporary = bool(data.get("temp", false))
 	keywords = data.get("keywords", [])
 	per = String(data.get("per", ""))
@@ -126,6 +129,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		health_gain += species_bonus_health
 	unit.temp_atk_until_next_turn += temporary_attack_until_next_turn # ends when the unit's owner starts their next turn
 	attack_gain += temporary_attack_until_next_turn
+	unit.temp_hp_until_next_turn += temporary_health_until_next_turn # ends when the unit's owner starts their next turn
+	health_gain += temporary_health_until_next_turn
 	unit.temp_armor += temporary_armor # lasts until the unit's owner starts their next turn
 	if temporary: # "temp": true makes the plain Armadura last only until the end of this turn
 		unit.turn_armor += armor
@@ -142,7 +147,15 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		if keyword == "escudo":
 			unit.shield = true
 		elif keyword == "escudo_feitico":
-			unit.spell_shield = true
+			if not unit.spell_shield:
+				unit.spell_shield = true
+				if temporary:
+					unit.spell_shield_until_end_turn = true
+			else:
+				# A new permanent grant makes the protection survive any temporary grant already present.
+				unit.spell_shield = true
+				unit.spell_shield_until_end_turn = false
+				unit.spell_shield_until_next_turn = false
 		elif not unit.keywords.has(keyword):
 			unit.keywords.append(keyword)
 			if temporary:

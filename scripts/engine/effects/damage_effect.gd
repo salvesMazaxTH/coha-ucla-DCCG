@@ -7,6 +7,7 @@ extends Effect
 ## "ally_reduce": {"essence", "amount"} = own units of that essence take only that much.
 ## "adjacent_amount": the units right beside each target also take this much (Deslizamento de Placas).
 ## "freeze": true also freezes each target that survives the damage (Mestra do Gelo Frígido).
+## "stun": true also gives each target that survives the damage one Atordoamento marker.
 ## "amount_if_frozen": a target that is already Congelada takes this much instead of `amount` (Sabrina).
 
 var amount := 0
@@ -14,6 +15,7 @@ var amount_from := ""
 var ally_reduce: Dictionary = {}
 var adjacent_amount := 0
 var freezes_target := false
+var stuns_target := false
 var amount_if_frozen := 0
 
 func _read_parameters(data: Dictionary) -> void:
@@ -22,6 +24,7 @@ func _read_parameters(data: Dictionary) -> void:
 	ally_reduce = data.get("ally_reduce", {})
 	adjacent_amount = int(data.get("adjacent_amount", 0))
 	freezes_target = bool(data.get("freeze", false))
+	stuns_target = bool(data.get("stun", false))
 	amount_if_frozen = int(data.get("amount_if_frozen", 0))
 
 func apply(context: EffectContext, target_uid: int) -> void:
@@ -52,6 +55,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	# a unit the damage already killed is gone from the board, so find_unit finds nothing to freeze
 	if freezes_target:
 		FreezeEffect.new().apply(context, target_uid)
+	if stuns_target:
+		StunEffect.new().apply(context, target_uid)
 
 ## The units right to the left and right of `unit` on its owner's board.
 func _neighbours_of(game: GameState, unit: Card) -> Array:

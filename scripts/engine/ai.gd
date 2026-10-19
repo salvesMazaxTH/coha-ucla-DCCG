@@ -140,6 +140,8 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 			second_target = foe_leader if g.valid_targets(p, spec2).has(foe_leader) else _pick_target(g, p, spec2, card_data, 0, true)
 			if second_target == 0:
 				continue
+		if card_data["type"] == "spell" and not _spell_changes_the_game(g, p, card.uid, target, second_target):
+			continue # it would resolve and change nothing: keep the Momentum (and the card)
 		var events := g.play_card(p, card.uid, target, second_target)
 		if not events.is_empty():
 			return events
@@ -251,6 +253,35 @@ static func _plan_sacrifice_spell(g: GameState, p: int, card_data: Dictionary) -
 				best_gain = gain
 				best_plan = [ally.uid, enemy_unit.uid]
 	return best_plan
+
+## Most passes of priority a preview makes while waiting for its spell to resolve.
+const PREVIEW_PASS_LIMIT := 20
+
+## True when casting this spell right now (with these targets) would actually change something.
+## Works for ANY spell, present or future, without knowing what it does: the game is copied twice, the spell
+## is cast in both copies, but in one of them it resolves with no effects. If both copies end up the same,
+## the spell only spends Momentum and the card. (Anything the spell leaves behind counts: damage, markers,
+## cards drawn, a countered spell, a delayed effect, a deck search waiting for a choice...)
+## When a copy can't be made safely, it answers true and the older checks decide, as before.
+static func _spell_changes_the_game(g: GameState, p: int, card_uid: int, target: int, second_target: int) -> bool:
+	var real_cast := g.preview_copy()
+	var blank_cast := g.preview_copy()
+	if real_cast == null or blank_cast == null:
+		return true
+	blank_cast.preview_blank_uid = card_uid
+	for preview: GameState in [real_cast, blank_cast]:
+		if preview.play_card(p, card_uid, target, second_target).is_empty():
+			return true # the copy refused the play: let the real game decide
+		_resolve_preview_stack(preview)
+	return real_cast.preview_snapshot() != blank_cast.preview_snapshot()
+
+## Lets the stack of a preview copy resolve: whoever holds priority passes, nobody answers.
+static func _resolve_preview_stack(preview: GameState) -> void:
+	for pass_number in PREVIEW_PASS_LIMIT:
+		if preview.stack.is_empty() or preview.phase not in ["main", "combat"]:
+			return
+		if preview.pass_priority(preview.decider()).is_empty():
+			return
 
 ## Filters out plays that would waste Momentum: heals with little to heal, revives of trivial units
 ## and area removal that isn't worth it (see _sweeper_is_worth_it).

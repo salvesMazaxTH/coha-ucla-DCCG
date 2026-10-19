@@ -112,6 +112,8 @@ func effects_of(item: Dictionary) -> Array:
 		return CardDB.card(item["card_id"])["activated"]["effects"]
 	if item["kind"] == "subito":
 		return [] # a Súbito summon has no effect of its own: the unit just enters when it resolves
+	if game.preview_blank_uid != 0 and item["kind"] == "card" and int(item["uid"]) == game.preview_blank_uid:
+		return [] # AI preview: this cast is the "nothing happens" version (see GameState.preview_copy)
 	return CardDB.card(item["card_id"])["effects"]
 
 ## Resolves the stack newest-first. Stops early if the game ends or a search needs a choice.

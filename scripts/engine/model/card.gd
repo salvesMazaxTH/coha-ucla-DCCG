@@ -36,6 +36,7 @@ var temp_critico := 0 ## extra Crítico levels that last until the end of the tu
 var attacks_made := 0 ## attacks declared this turn (Ataque Duplo lets a unit attack twice before it is spent)
 var spell_shield := false
 var spell_shield_until_next_turn := false ## the Escudo de Feitiço was granted only until its owner's next turn starts (Tyren)
+var spell_shield_until_end_turn := false ## the Escudo de Feitiço was granted with temp:true and expires at the current turn's end
 var exhausted := false
 var sick := true
 var bonus_atk := 0 ## from "constante" scale effects (see GameState._refresh_scaling)
@@ -93,6 +94,7 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	turn_armor = 0
 	temp_atk_until_next_turn = 0
 	spell_shield_until_next_turn = false
+	spell_shield_until_end_turn = false
 	critico = int(cd.get("critico", 0))
 	temp_critico = 0
 	attacks_made = 0
@@ -193,6 +195,8 @@ func to_dict() -> Dictionary:
 		d["temp_atk_until_next_turn"] = temp_atk_until_next_turn
 	if spell_shield_until_next_turn:
 		d["spell_shield_until_next_turn"] = true
+	if spell_shield_until_end_turn:
+		d["spell_shield_until_end_turn"] = true
 	if temp_hp > 0:
 		d["temp_hp"] = temp_hp
 	if temp_hp_until_next_turn > 0:
@@ -260,6 +264,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.turn_armor = int(d.get("turn_armor", 0))
 	c.temp_atk_until_next_turn = int(d.get("temp_atk_until_next_turn", 0))
 	c.spell_shield_until_next_turn = bool(d.get("spell_shield_until_next_turn", false))
+	c.spell_shield_until_end_turn = bool(d.get("spell_shield_until_end_turn", false))
 	c.temp_hp = int(d.get("temp_hp", 0))
 	c.temp_hp_until_next_turn = int(d.get("temp_hp_until_next_turn", 0))
 	c.rapidez = int(d.get("rapidez", 0))
