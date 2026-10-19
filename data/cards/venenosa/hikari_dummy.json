@@ -11,10 +11,10 @@
   "cost": 0,
   "atk": 0,
   "hp": 2,
-  "keywords": [],
+  "keywords": ["inerte"],
   "art": "venenosa/hikari_dummy.webp",
   "effects": [],
-  "text": "Ficha: não vai para o cemitério ao morrer.\nInerte: não ataca, não vira e não faz nada.",
+  "text": "Ficha: não vai para o cemitério ao morrer.\nInerte: não ataca, não desafia e não pode ser virada por efeitos.",
   "flavor": "Um tronco lascado em roupas vazias.",
   "tags": []
 }

@@ -1,0 +1,23 @@
+{
+  "name": "Coveiro Bis",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 4,
+  "atk": 2,
+  "hp": 6,
+  "keywords": [],
+  "art": "neutra/coveiro_bis.webp",
+  "effects": [
+    {
+      "trigger": "constante",
+      "action": "double_death"
+    }
+  ],
+  "text": "Constante: os Ao Morrer das suas unidades ativam duas vezes.",
+  "flavor": "Cava a mesma cova duas vezes, por garantia.",
+  "tags": []
+}

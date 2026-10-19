@@ -262,6 +262,14 @@
       "name": "Etérea",
       "text": "Não pode ser desafiada por nada (nem obriga desafios com Provocação)."
     },
+    "vulneravel": {
+      "name": "Vulnerável",
+      "text": "Pode ser desafiada mesmo quando está pronta (não exaurida)."
+    },
+    "inerte": {
+      "name": "Inerte",
+      "text": "Não ataca, não desafia e não pode ser virada por efeitos."
+    },
     "provocacao": {
       "name": "Provocação",
       "text": "Ao entrar, você escolhe se ela entra exaurida. Enquanto estiver exaurida, todo atacante inimigo que puder desafiá-la é obrigado a desafiar ela (ou outra Provocação)."

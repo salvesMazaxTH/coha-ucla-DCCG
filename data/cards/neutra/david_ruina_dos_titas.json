@@ -1,0 +1,24 @@
+{
+  "name": "David, Ruína dos Titãs",
+  "type": "unit",
+  "rarity": "legendary",
+  "species": ["humano"],
+  "essence": "neutra",
+  "cost": 5,
+  "atk": 6,
+  "hp": 4,
+  "keywords": [],
+  "art": "neutra/david_ruina_dos_titas.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "destroy",
+      "target": "strongest_enemy_units",
+      "count": 4,
+      "min_atk": 8
+    }
+  ],
+  "text": "Ao Entrar: destrua até 4 unidades inimigas com 8 de Ataque ou mais (as de maior Ataque primeiro).",
+  "flavor": "Pedra pequena, pontaria grande. O resto foi consequência.",
+  "tags": []
+}

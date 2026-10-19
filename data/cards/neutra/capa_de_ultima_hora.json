@@ -1,0 +1,24 @@
+{
+  "name": "Capa de Última Hora",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "neutra",
+  "cost": 1,
+  "speed": "rapido",
+  "art": "neutra/capa_de_ultima_hora.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "keywords": [
+        "escudo"
+      ]
+    }
+  ],
+  "text": "Uma unidade aliada ganha Escudo.",
+  "flavor": [
+    "Costurada às pressas. Segura mesmo assim."
+  ],
+  "tags": []
+}

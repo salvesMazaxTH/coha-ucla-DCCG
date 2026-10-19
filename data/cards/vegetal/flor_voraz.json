@@ -8,18 +8,18 @@
   "cost": 0,
   "atk": 0,
   "hp": 2,
-  "keywords": [],
+  "keywords": ["vulneravel", "inerte"],
   "art": "vegetal/flor_voraz.webp",
   "effects": [
     {
       "trigger": "on_turn_end",
       "action": "damage",
       "target": "random_enemy_spread",
-      "hits": 2,
+      "hits_from": "self_atk",
       "amount": 1
     }
   ],
-  "text": "No Fim do Turno: distribua 2 de dano aleatoriamente entre os inimigos, incluindo o Líder, 1 por vez.",
+  "text": "Ficha: não vai para o cemitério ao morrer.\nNo Fim do Turno: distribua X de dano aleatoriamente entre os inimigos, incluindo o Líder, 1 por vez. X é o Ataque dela (com todos os bônus).",
   "flavor": "Ela não sabe distinguir fome de curiosidade.",
   "tags": []
 }

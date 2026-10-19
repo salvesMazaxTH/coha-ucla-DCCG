@@ -1,0 +1,20 @@
+{
+  "name": "Sentinela Dorminhoca",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 3,
+  "atk": 1,
+  "hp": 6,
+  "keywords": [
+    "provocacao"
+  ],
+  "art": "neutra/sentinela_dorminhoca.webp",
+  "effects": [],
+  "text": "Provocação.",
+  "flavor": "Ronca em pé. Ninguém passou ainda, então ninguém reclamou.",
+  "tags": []
+}

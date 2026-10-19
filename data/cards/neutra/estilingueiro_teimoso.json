@@ -1,0 +1,27 @@
+{
+  "name": "Estilingueiro Teimoso",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "goblin"
+  ],
+  "essence": "neutra",
+  "cost": 3,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [
+    "longo_alcance"
+  ],
+  "art": "neutra/estilingueiro_teimoso.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_flying_unit",
+      "amount": 2
+    }
+  ],
+  "text": "Longo Alcance. Ao Entrar: cause 2 de dano a uma unidade inimiga com Voo.",
+  "flavor": "Errou quarenta vezes. A quadragésima primeira era pássaro mesmo.",
+  "tags": []
+}

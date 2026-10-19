@@ -1,0 +1,24 @@
+{
+  "name": "Zeladora Shhh",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 4,
+  "atk": 4,
+  "hp": 3,
+  "keywords": [],
+  "art": "neutra/zeladora_shhh.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "silence",
+      "target": "enemy_unit"
+    }
+  ],
+  "text": "Ao Entrar: silencie uma unidade inimiga.",
+  "flavor": "Ela nunca fala alto. Ela nunca precisou.",
+  "tags": []
+}

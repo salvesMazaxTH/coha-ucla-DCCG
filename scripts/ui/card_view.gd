@@ -153,6 +153,8 @@ const BADGES := {
 	"intimidacao": Color("#ffa24d"),
 	"inalcancavel": Color("#9ff0d0"),
 	"eterea": Color("#e6d9ff"),
+	"vulneravel": Color("#ff9f91"),
+	"inerte": Color("#b5c0c8"),
 	"regeneracao": Color("#8df0a0"),
 	"roubo_de_vida": Color("#ff6f8f"),
 	"toque_letal": Color("#d4e866"),
@@ -987,7 +989,9 @@ func _draw_dot_badges(art: Rect2, s: float, pulse: float) -> void:
 ## Round medallions down the left edge of the art, under the cost gem.
 func _kw_badges(art: Rect2, cd: Dictionary, s: float) -> void:
 	var kws := _keywords(cd)
-	var c := Vector2(art.position.x + 11 * s, art.position.y + 33 * s)
+	# Leave a little more clearance below the cost orb. Full-art Champion cards start their art
+	# closer to the top edge, so their first medallion otherwise tucks under the orb drawn later.
+	var c := Vector2(art.position.x + 11 * s, art.position.y + 40 * s)
 	for kw in BADGES:
 		if kws.has(kw):
 			_kw_badge(kw, c, 10 * s, s)
@@ -1115,6 +1119,15 @@ func _kw_badge(kw: String, c: Vector2, r: float, s: float) -> void:
 			draw_colored_polygon(ghost, Color(lit, 0.85))
 			for x in [-0.18, 0.18]:
 				draw_circle(c + Vector2(x, -0.12) * g, 0.09 * g + 0.3 * s, col.darkened(0.85))
+		"vulneravel": # an open shield with a split down its center
+			draw_colored_polygon(_unit_pts(c, g, [[-0.62, -0.62], [0.62, -0.62], [0.52, 0.18], [0, 0.78], [-0.52, 0.18]]), lit)
+			draw_line(c + Vector2(0.12, -0.45) * g, c + Vector2(-0.08, -0.02) * g, col.darkened(0.82), 1.4 * s, true)
+			draw_line(c + Vector2(-0.08, -0.02) * g, c + Vector2(0.12, 0.05) * g, col.darkened(0.82), 1.4 * s, true)
+			for sx in [-0.8, 0.8]:
+				draw_line(c + Vector2(sx * 0.4, -0.15) * g, c + Vector2(sx * 0.9, -0.45) * g, lit, 1.2 * s, true)
+		"inerte": # a crossed-out spark: this unit cannot act or turn
+			draw_arc(c, g * 0.62, 0, TAU, 24, lit, 1.2 * s, true)
+			draw_line(c + Vector2(-0.65, 0.65) * g, c + Vector2(0.65, -0.65) * g, lit, 1.6 * s, true)
 		"roubo_de_vida": # a heart with a dark highlight: the damage dealt flows back into the Leader's life
 			for sx in [-1.0, 1.0]:
 				draw_circle(c + Vector2(sx * 0.28, -0.2) * g, 0.34 * g, lit)

@@ -1,0 +1,24 @@
+{
+  "name": "Desmontador de Quinquilharia",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "gnomo"
+  ],
+  "essence": "neutra",
+  "cost": 3,
+  "atk": 3,
+  "hp": 4,
+  "keywords": [],
+  "art": "neutra/desmontador_de_quinquilharia.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "destroy_artifact",
+      "target": "enemy_artifact"
+    }
+  ],
+  "text": "Ao Entrar: destrua um artefato inimigo.",
+  "flavor": "Dizia que só ia olhar por dentro.",
+  "tags": []
+}

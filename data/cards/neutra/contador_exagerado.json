@@ -1,0 +1,23 @@
+{
+  "name": "Contador Exagerado",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 5,
+  "atk": 1,
+  "hp": 5,
+  "keywords": [],
+  "art": "neutra/contador_exagerado.webp",
+  "effects": [
+    {
+      "trigger": "constante",
+      "action": "double_constants"
+    }
+  ],
+  "text": "Constante: seus efeitos Constantes de texto contam em dobro. Não acumula.",
+  "flavor": "Arredonda sempre pra cima. E depois arredonda de novo.",
+  "tags": []
+}

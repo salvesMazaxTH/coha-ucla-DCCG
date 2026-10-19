@@ -13,6 +13,7 @@
   "keywords": [
     "rapidez:2"
   ],
+  "conditional_uses_per_turn": 1,
   "art": "ignea/lady_vultrixana.webp",
   "effects": [
     {
@@ -26,9 +27,29 @@
       "action": "gain_momentum",
       "target": "none",
       "amount": 1
+    },
+    {
+      "listen": "spell_cast",
+      "scope": "ally",
+      "zones": ["board"],
+      "when": {"essence_ignea": true},
+      "own_turn_only": true,
+      "action": "damage",
+      "target": "random_enemy",
+      "amount": 1
+    },
+    {
+      "listen": "spell_cast",
+      "scope": "ally",
+      "zones": ["board"],
+      "when": {"essence_eletrica": true},
+      "own_turn_only": true,
+      "action": "damage",
+      "target": "random_enemy",
+      "amount": 1
     }
   ],
-  "text": "Ao Entrar: cause 2 de dano a uma unidade inimiga e ganhe +1 Momentum neste turno.",
+  "text": "Ao Entrar: cause 2 de dano a uma unidade inimiga e ganhe +1 Momentum neste turno.\nCondicional: uma vez por turno, ao lançar seu primeiro feitiço Ígneo ou Elétrico no seu turno, cause 1 de dano a um inimigo aleatório, incluindo o Líder.",
   "flavor": "",
   "tags": []
 }

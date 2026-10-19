@@ -1,0 +1,20 @@
+{
+  "name": "Mensageiro de Voo Baixo",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 2,
+  "atk": 3,
+  "hp": 1,
+  "keywords": [
+    "voo"
+  ],
+  "art": "neutra/mensageiro_de_voo_baixo.webp",
+  "effects": [],
+  "text": "Voo.",
+  "flavor": "Entrega no prazo. Só não garante que o destinatário ainda esteja lá.",
+  "tags": []
+}

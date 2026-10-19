@@ -1,0 +1,23 @@
+{
+  "name": "Arauto Repeteco",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 6,
+  "atk": 5,
+  "hp": 3,
+  "keywords": [],
+  "art": "neutra/arauto_repeteco.webp",
+  "effects": [
+    {
+      "trigger": "constante",
+      "action": "double_enter"
+    }
+  ],
+  "text": "Constante: os Ao Entrar das suas outras unidades ativam duas vezes.",
+  "flavor": "Anuncia tudo duas vezes. Ninguém sabe se é eco ou teimosia.",
+  "tags": []
+}

@@ -1,0 +1,24 @@
+{
+  "name": "Tia Odete Faz-Tudo",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 6,
+  "atk": 4,
+  "hp": 6,
+  "keywords": [],
+  "art": "neutra/tia_odete_faz_tudo.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "destroy",
+      "target": "all_enemy_tokens"
+    }
+  ],
+  "text": "Ao Entrar: destrua todas as fichas inimigas.",
+  "flavor": "Aqui em casa tem hora pra tudo, e a hora de sair é agora.",
+  "tags": []
+}

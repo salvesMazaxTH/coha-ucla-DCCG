@@ -1,0 +1,25 @@
+{
+  "name": "Remendeira de Esquina",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 2,
+  "atk": 0,
+  "hp": 4,
+  "keywords": [],
+  "art": "neutra/remendeira_de_esquina.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "heal_unit",
+      "target": "ally_or_own_leader",
+      "amount": 3
+    }
+  ],
+  "text": "Ao Entrar: cure 3 de Vida de uma unidade aliada ou do seu Líder.",
+  "flavor": "Cobra em pontos. Aceita pagamento em pão.",
+  "tags": []
+}
