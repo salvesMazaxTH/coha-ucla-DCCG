@@ -90,10 +90,6 @@ static func _choose_search(g: GameState) -> int:
 	return best_uid
 
 static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
-	if g.can_cast_legendary(p):
-		var events := g.cast_legendary(p)
-		if not events.is_empty():
-			return events
 	# burn that finishes the game goes first, before the Momentum is spent on anything else
 	if g.active == p and g.stack.is_empty() and _burn_plan(g, p) == "lethal":
 		var finisher_events := _cast_face_burn(g, p, held_card_ids)
@@ -145,6 +141,12 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 		var events := g.play_card(p, card.uid, target, second_target)
 		if not events.is_empty():
 			return events
+	# The Encarnação is a powerful fallback, not an automatic first play: spend Momentum on
+	# worthwhile cards from hand first, then cast it if no other legal play is available.
+	if g.can_cast_legendary(p):
+		var legendary_events := g.cast_legendary(p)
+		if not legendary_events.is_empty():
+			return legendary_events
 	for unit: Card in g.players[p]["board"]:
 		# untargeted Ao Ativar, before attacking (e.g. Yuki's temporary attack)
 		var activated_effects: Array = CardDB.card(unit.card_id).get("activated", {}).get("effects", [])

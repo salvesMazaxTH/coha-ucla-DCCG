@@ -72,6 +72,7 @@ func _init() -> void:
 	_test_enter_target()
 	_test_ai_enter_damage()
 	_test_ai_armor_ability()
+	_test_ai_legendary_priority()
 	_test_legendary_retire()
 	_test_fatigue()
 	_test_counter()
@@ -853,6 +854,29 @@ func _test_ai_armor_ability() -> void:
 	SimpleAI.step(threatened, 0)
 	check(threatened.players[0]["ability_used"] == true, "IA/Tharox: usa a Massa Inamolgável quando ela salva uma unidade")
 	check(threatened.armor_of(threatened.find_unit(saved_ally.uid)) == 1 and threatened.armor_of(threatened.find_unit(safe_ally.uid)) == 0, "IA/Tharox: a Armadura vai para a unidade ameaçada")
+
+## The Encarnação is a fallback after worthwhile hand plays, not an automatic first action.
+func _test_ai_legendary_priority() -> void:
+	_tcard("t_ai_legendary_alternative", 2, 2, [])
+	var hand_play := GameState.new("vegetal", "agua", 42)
+	hand_play.mulligan(0, [])
+	hand_play.mulligan(1, [])
+	hand_play.players[0]["hand"].clear()
+	hand_play.players[0]["momentum"] = 6
+	var alternative_uid := _give(hand_play, 0, "t_ai_legendary_alternative")
+	SimpleAI.step(hand_play, 0)
+	check(not _hand_has(hand_play, 0, alternative_uid), "IA/Encarnação: joga uma carta viável da mão antes de conjurar a Encarnação")
+	check(hand_play.players[0]["legendary"]["in_zone"] and hand_play.players[0]["momentum"] == 5,
+		"IA/Encarnação: preserva o Momentum restante e deixa a Encarnação no Santuário após a jogada da mão")
+
+	var fallback := GameState.new("vegetal", "agua", 43)
+	fallback.mulligan(0, [])
+	fallback.mulligan(1, [])
+	fallback.players[0]["hand"].clear()
+	fallback.players[0]["momentum"] = 6
+	SimpleAI.step(fallback, 0)
+	check(not fallback.players[0]["legendary"]["in_zone"] and fallback.players[0]["momentum"] == 0,
+		"IA/Encarnação: conjura como fallback quando não há jogadas viáveis na mão")
 
 func _test_leader_cycle() -> void:
 	var g := _new_game() # fogo: Ronan's Pavio Curto is once per cycle
