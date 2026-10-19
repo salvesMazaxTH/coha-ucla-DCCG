@@ -15,15 +15,9 @@
       "action": "summon",
       "target": "none",
       "card": "mudinha_do_dossel"
-    },
-    {
-      "trigger": "on_enter",
-      "action": "summon",
-      "target": "none",
-      "card": "mudinha_do_dossel"
     }
   ],
-  "text": "Ao Entrar: invoque duas Mudinhas do Dossel 1/1.",
+  "text": "Ao Entrar: invoque uma Mudinha do Dossel 0/1.",
   "flavor": "Onde ela repousa, até a madeira morta volta a sonhar.",
   "tags": []
 }

@@ -3295,7 +3295,7 @@ func _test_vegetal() -> void:
 	var human_base_hp: int = int(CardDB.card("guardia_dos_ninhos")["hp"])
 	var first_token := _put(g, 0, "mudinha_do_dossel")
 	g._check_state()
-	check(first_token.hp == 1 and first_token.atk == 1, "Thalvaressa: a ficha invocada não recebe o próprio Crescimento do Dossel")
+	check(first_token.hp == 1 and first_token.atk == 0, "Thalvaressa: a ficha invocada não recebe o próprio Crescimento do Dossel")
 	check(plant_ally.hp == plant_base_hp + 1 and plant_ally.atk == int(CardDB.card("semente_teimosa")["atk"]), "Thalvaressa: a outra planta aliada ganha só +1 de Vida")
 	check(human_ally.hp == human_base_hp, "Thalvaressa: aliado que não é planta não recebe o buff")
 	var second_token := _put(g, 0, "mudinha_do_dossel")
@@ -3322,21 +3322,15 @@ func _test_vegetal() -> void:
 	var gardener_ally := _put(garden, 0, "guardia_dos_ninhos")
 	var stats_before_second: int = 0
 	for unit: Card in garden.players[0]["board"]:
-		stats_before_second += unit.atk + unit.hp
+		stats_before_second += unit.atk + unit.hp + unit.temp_atk + unit.temp_hp
 	var second_gardener := _put(garden, 0, "cultivador_da_clareira")
 	check(second_gardener.atk == 2 and second_gardener.hp == 4, "Cultivador: não buffa a si mesmo com aliados em campo")
 	var stats_after_second: int = 0
-	var gardener_tokens: Array = []
 	for unit: Card in garden.players[0]["board"]:
-		stats_after_second += unit.atk + unit.hp
-		if unit.card_id == "mudinha_do_dossel":
-			gardener_tokens.append(unit)
-	check(gardener_tokens.size() == 2, "Cultivador: cada entrada invoca uma Mudinha")
-	var newest_token: Card = gardener_tokens[gardener_tokens.size() - 1]
-	check(newest_token.atk == 1 and newest_token.hp == 1, "Cultivador: a ficha que ele acabou de invocar não recebe o buff")
-	# second Cultivador (2/4) + his token (1/1) + exactly one +1/+1 on a unit that was already there
-	check(stats_after_second - stats_before_second == (2 + 4) + (1 + 1) + 2, "Cultivador: o buff +1/+1 caiu numa unidade que já estava em campo")
-	check(gardener_ally.hp >= 6, "Cultivador: Guardiã continua intacta ou buffada, nunca reduzida")
+		stats_after_second += unit.atk + unit.hp + unit.temp_atk + unit.temp_hp # the buff is temporary now, so it lives in temp_atk/temp_hp
+	# second Cultivador (2/4) + exactly one +1/+1 on a unit that was already there (he no longer summons a token)
+	check(stats_after_second - stats_before_second == (2 + 4) + 2, "Cultivador: o buff +1/+1 caiu numa unidade que já estava em campo")
+	check(gardener_ally.hp >= 5, "Cultivador: Guardiã continua intacta ou buffada, nunca reduzida")
 	# Thalvaressa with nobody to buff (only a non-plant and the token itself): the passive stays silent and keeps its uses
 	var quiet_garden := GameState.new("vegetal", "fogo", 4243)
 	quiet_garden.mulligan(0, [])

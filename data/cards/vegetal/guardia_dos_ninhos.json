@@ -5,7 +5,7 @@
   "species": ["humano", "druida"],
   "essence": "vegetal",
   "cost": 4,
-  "atk": 4,
+  "atk": 3,
   "hp": 5,
   "keywords": ["longo_alcance", "vigilancia"],
   "art": "vegetal/guardia_dos_ninhos.webp",

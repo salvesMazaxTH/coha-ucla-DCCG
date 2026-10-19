@@ -6,7 +6,7 @@
   "essence": "vegetal",
   "cost": 5,
   "atk": 5,
-  "hp": 6,
+  "hp": 8,
   "keywords": ["provocacao", "regeneracao"],
   "art": "vegetal/raiz_mae_do_dossel.webp",
   "effects": [
@@ -32,7 +32,7 @@
       "hp": 1
     }
   ],
-  "text": "Ao Entrar: invoque duas Mudinhas do Dossel 1/1. Suas plantas ganham +1/+1 neste turno.",
+  "text": "Ao Entrar: invoque duas Mudinhas do Dossel 0/1. Suas plantas ganham +1/+1 neste turno.",
   "flavor": "Toda raiz é uma lembrança procurando água.",
   "tags": []
 }
