@@ -2284,8 +2284,15 @@ func _render_game_over() -> void:
 	elif vs_ai and g.winner < 2:
 		won = g.winner == 0
 		txt = "VITÓRIA" if won else "DERROTA"
-	var big := _label(txt, 64 if txt.length() < 10 else 44, UITheme.GOLD_LIGHT if won else Color("#e0a8a0"), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 10)
-	big.add_theme_color_override("font_shadow_color", Color(UITheme.GOLD if won else UITheme.HP, 0.35))
+	# A draw is neither gold (victory) nor red (defeat): a calm silver, with the same size and glow
+	var is_draw := g.winner == 2
+	var title_color := UITheme.GOLD_LIGHT if won else Color("#e0a8a0")
+	var glow_color := UITheme.GOLD if won else UITheme.HP
+	if is_draw:
+		title_color = Color("#dfe3ec")
+		glow_color = Color("#9aa3b8")
+	var big := _label(txt, 64 if txt.length() < 10 else 44, title_color, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 10)
+	big.add_theme_color_override("font_shadow_color", Color(glow_color, 0.35))
 	big.add_theme_constant_override("shadow_outline_size", 24)
 	big.add_theme_constant_override("shadow_offset_x", 0)
 	big.add_theme_constant_override("shadow_offset_y", 0)
@@ -2295,6 +2302,8 @@ func _render_game_over() -> void:
 		if conceded >= 0:
 			sub = "%s desistiu da partida" % ("Você" if (vs_ai and conceded == 0) else _pname(conceded))
 		box.add_child(_label(sub, 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+	else:
+		box.add_child(_label("Os dois Líderes caíram juntos", 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
 	box.add_child(_label("Turno %d" % g.turn, 14, Color(UITheme.TEXT, 0.4), HORIZONTAL_ALIGNMENT_CENTER, "title"))
 	var b := _button("VOLTAR AO MENU", _show_menu, true)
 	b.custom_minimum_size = Vector2(520, 54)
