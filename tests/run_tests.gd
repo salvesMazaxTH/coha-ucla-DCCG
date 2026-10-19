@@ -3396,18 +3396,18 @@ func _test_vegetal() -> void:
 	# Fresh game so the board from the Thalvaressa checks above does not get in the way.
 	var garden := _new_game()
 	var lone_gardener := _put(garden, 0, "cultivador_da_clareira")
-	check(lone_gardener.atk == 2 and lone_gardener.hp == 4, "Cultivador: sozinho, ele não buffa a si mesmo")
+	check(lone_gardener.atk == 2 and lone_gardener.hp == 3, "Cultivador: sozinho, ele não buffa a si mesmo")
 	var gardener_ally := _put(garden, 0, "guardia_dos_ninhos")
 	var stats_before_second: int = 0
 	for unit: Card in garden.players[0]["board"]:
 		stats_before_second += unit.atk + unit.hp + unit.temp_atk + unit.temp_hp
 	var second_gardener := _put(garden, 0, "cultivador_da_clareira")
-	check(second_gardener.atk == 2 and second_gardener.hp == 4, "Cultivador: não buffa a si mesmo com aliados em campo")
+	check(second_gardener.atk == 2 and second_gardener.hp == 3, "Cultivador: não buffa a si mesmo com aliados em campo")
 	var stats_after_second: int = 0
 	for unit: Card in garden.players[0]["board"]:
 		stats_after_second += unit.atk + unit.hp + unit.temp_atk + unit.temp_hp # the buff is temporary now, so it lives in temp_atk/temp_hp
-	# second Cultivador (2/4) + exactly one +1/+1 on a unit that was already there (he no longer summons a token)
-	check(stats_after_second - stats_before_second == (2 + 4) + 2, "Cultivador: o buff +1/+1 caiu numa unidade que já estava em campo")
+	# second Cultivador (2/3) + exactly one temporary +2/+1 on a unit already in play
+	check(stats_after_second - stats_before_second == (2 + 3) + 3, "Cultivador: o buff temporário +2/+1 caiu numa unidade que já estava em campo")
 	check(gardener_ally.hp >= 5, "Cultivador: Guardiã continua intacta ou buffada, nunca reduzida")
 	# Thalvaressa with nobody to buff (only a non-plant and the token itself): the passive stays silent and keeps its uses
 	var quiet_garden := GameState.new("vegetal", "fogo", 4243)

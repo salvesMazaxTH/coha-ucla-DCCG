@@ -17,7 +17,23 @@
       "card": "mudinha_do_dossel"
     }
   ],
-  "text": "Ao Entrar: invoque uma Mudinha do Dossel 0/1.",
+  "activated": {
+    "cost": 2,
+    "speed": "rapido",
+    "once_per_turn": true,
+    "effects": [
+      {
+        "action": "summon",
+        "target": "none",
+        "card": "mudinha_do_dossel",
+        "overrides": {
+          "atk": 1,
+          "hp": 2
+        }
+      }
+    ]
+  },
+  "text": "Ao Entrar: invoque uma Mudinha do Dossel 0/1.\nAo Ativar (2) {rapido} (1x por turno): invoque uma Mudinha do Dossel 0/1 e dê +1/+1 permanente a ela.",
   "flavor": "Onde ela repousa, até a madeira morta volta a sonhar.",
   "tags": []
 }
