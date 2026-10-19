@@ -61,6 +61,49 @@ var _holding := false
 var _long := false
 var _press_id := 0
 var _deck_pile: DeckPile
+var ward_hits := 0: ## Câmara de Êxtase aftermath: how many of the next hits are still reduced to 0 (one shell per hit)
+	set(value):
+		ward_hits = value
+		queue_redraw()
+var ward_flash := 0.0: ## brief white-hot flare across the shells (forging and breaking)
+	set(value):
+		ward_flash = value
+		queue_redraw()
+var ward_forge := 1.0: ## 0 → 1: the shells condense onto the Leader one after another, inner first
+	set(value):
+		ward_forge = value
+		queue_redraw()
+var _ward_breaks := {} ## slot → 0..1 progress of a shell that is shattering right now
+
+const WARD_COL := Color("#9fe8ff")
+const WARD_SLOTS := 3
+const WARD_GAPS := [3.5, 8.5, 13.5] ## distance of each shell from the plate, inner → outer
+
+## The Chamber's last shell cracks: the outermost remaining shell shatters outward. `left` = shells still standing.
+func play_ward_break(delay: float, left: int) -> void:
+	var tw := create_tween()
+	tw.tween_interval(delay)
+	tw.tween_callback(func():
+		ward_hits = left
+		ward_flash = 0.85)
+	tw.tween_method(func(v: float):
+		_ward_breaks[left] = v
+		queue_redraw(), 0.001, 1.0, 0.6).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(self, "ward_flash", 0.0, 0.45)
+	tw.tween_callback(func():
+		_ward_breaks.erase(left)
+		queue_redraw())
+
+## The Chamber answers: three shells condense around the Leader, one after another.
+func play_ward_forge(delay: float, hits: int) -> void:
+	var tw := create_tween()
+	tw.tween_interval(delay)
+	tw.tween_callback(func():
+		ward_forge = 0.0
+		ward_hits = hits
+		ward_flash = 0.9)
+	tw.tween_property(self, "ward_forge", 1.0, 0.85).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(self, "ward_flash", 0.0, 0.9)
 
 func setup(id: String) -> LeaderView:
 	leader_id = id
@@ -122,7 +165,7 @@ func _has_point(pt: Vector2) -> bool:
 	return PLATE.has_point(pt) or GRAVE_RECT.has_point(pt) or pt.distance_to(AC) <= AR + 4 or pt.distance_to(HP_C) <= 22
 
 func _process(delta: float) -> void:
-	if targetable or target_selected or ability_ready or active or requiem > 0:
+	if targetable or target_selected or ability_ready or active or requiem > 0 or ward_hits > 0:
 		_t += delta
 		queue_redraw()
 
@@ -196,10 +239,15 @@ func _draw() -> void:
 		for i in 7:
 			_rrect_line(P.grow(3 + i * 3), RAD + i * 3, Color(UITheme.GOLD, 0.28 * (1.0 - i / 7.0) * (0.5 + 0.5 * pulse)), 3.2)
 
+	_draw_ward_shells()
+
 	# frame: essence gradient body, dark outer edge, gold trim with a top highlight
 	_rrect_grad(P, RAD, Color(_style["top"]), Color(_style["bot"]))
 	_rrect_line(P.grow(-0.5), RAD, Color("#07060a"), 1.6)
 	_rrect_line(P.grow(-2.6), RAD - 2, Color(trim, 0.85), 1.1)
+	if ward_hits > 0:
+		# a thin frost film on the plate's inner edge: the Leader itself reads as sealed
+		_rrect_line(P.grow(-1.2), RAD - 1, Color(WARD_COL, (0.28 + 0.12 * pulse) * ward_forge), 1.4)
 	draw_line(Vector2(P.position.x + RAD, 1.6), Vector2(P.end.x - RAD, 1.6), Color(1, 1, 1, 0.3), 1.0)
 
 	# art window
@@ -334,6 +382,78 @@ func _diamond(c: Vector2, r: float, col: Color, rim: Color) -> void:
 	draw_colored_polygon(pts, col)
 	draw_colored_polygon(PackedVector2Array([pts[0], pts[1], c, pts[3]]), Color(1, 1, 1, 0.18))
 	draw_polyline(pts + PackedVector2Array([pts[0]]), rim, 1.2, true)
+
+## Câmara de Êxtase aftermath: three concentric ice shells around the plate, one per hit still to be
+## negated. The outer shell is the next to break. Each one keeps its own rhythm: the light running along
+## it turns the other way on the middle shell, and a node on the top edge marks it.
+func _draw_ward_shells() -> void:
+	if ward_hits <= 0 and _ward_breaks.is_empty():
+		return
+	var center := PLATE.get_center()
+	var hot := Color(1, 1, 1).lerp(WARD_COL, 0.3)
+	for slot in WARD_SLOTS:
+		var breaking: float = _ward_breaks.get(slot, -1.0)
+		var live := slot < ward_hits
+		if not live and breaking < 0.0:
+			continue
+		var rise := clampf(ward_forge * 3.0 - slot, 0.0, 1.0) if live else 1.0
+		var gap: float = WARD_GAPS[slot] + (1.0 - rise) * 7.0
+		var alpha := rise
+		if breaking >= 0.0:
+			gap += breaking * 9.0
+			alpha = pow(1.0 - breaking, 1.6)
+		var col := WARD_COL.lerp(hot, clampf(ward_flash * 0.8, 0.0, 1.0))
+		var rect := PLATE.grow(gap)
+		var pts := _rrect_pts(rect, RAD + gap)
+		pts.append(pts[0])
+		if breaking >= 0.0:
+			_draw_ward_shards(pts, center, breaking, col, alpha)
+			continue
+		draw_polyline(pts, Color(col, 0.10 * alpha), 5.0, true)
+		draw_polyline(pts, Color(col, 0.78 * alpha), 1.5, true)
+		_draw_ward_glint(pts, slot, col, alpha)
+		_diamond(Vector2(center.x, rect.position.y), 3.4, Color(col, alpha), Color(1, 1, 1, 0.9 * alpha))
+
+## A short comet of light travelling along a shell (the middle shell runs the opposite way).
+func _draw_ward_glint(pts: PackedVector2Array, slot: int, _col: Color, alpha: float) -> void:
+	var total := 0.0
+	for i in pts.size() - 1:
+		total += pts[i].distance_to(pts[i + 1])
+	var sgn := -1.0 if slot == 1 else 1.0
+	var head := fposmod(_t * (0.12 + 0.04 * slot) * sgn + slot / 3.0, 1.0) * total
+	var steps := 9
+	var step_len := total * 0.022
+	var prev := _ward_point_at(pts, total, head)
+	for k in steps:
+		var next := _ward_point_at(pts, total, head - sgn * step_len * (k + 1))
+		draw_line(prev, next, Color(1, 1, 1, (1.0 - float(k) / steps) * 0.85 * alpha), 2.4 - 1.2 * k / steps, true)
+		prev = next
+
+func _ward_point_at(pts: PackedVector2Array, total: float, dist: float) -> Vector2:
+	var d := fposmod(dist, total)
+	for i in pts.size() - 1:
+		var seg := pts[i].distance_to(pts[i + 1])
+		if d <= seg:
+			return pts[i].lerp(pts[i + 1], d / maxf(seg, 0.001))
+		d -= seg
+	return pts[0]
+
+## A shattering shell: the outline splits into shards that drift outward and fade.
+func _draw_ward_shards(pts: PackedVector2Array, center: Vector2, progress: float, col: Color, alpha: float) -> void:
+	var chunk := 4
+	var index := 0
+	var i := 0
+	while i < pts.size() - 1:
+		var last := mini(i + chunk, pts.size() - 1)
+		var piece := pts.slice(i, last + 1)
+		var mid: Vector2 = piece[piece.size() >> 1]
+		var drift := (mid - center).normalized() * progress * (10.0 + 8.0 * absf(sin(index * 2.3)))
+		var moved := PackedVector2Array()
+		for p in piece:
+			moved.append(p + drift)
+		draw_polyline(moved, Color(col, 0.9 * alpha), maxf(0.6, 2.2 * (1.0 - progress)), true)
+		i += chunk
+		index += 1
 
 func _grow(pts: PackedVector2Array, c: Vector2, k: float) -> PackedVector2Array:
 	var out := PackedVector2Array()

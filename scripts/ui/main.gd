@@ -1205,6 +1205,7 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	lv.fatigue = g.fatigue_next(p)
 	lv.grave = pl["graveyard"].size()
 	lv.poison = g.leader_dot_markers(p, "veneno")
+	lv.ward_hits = g.leader_negations_left(p)
 	lv.requiem = g.requiem_cards(p).size() if p == viewer and not _is_ai(p) and g.phase in ["main", "combat"] else 0
 	lv.ability_ready = p == viewer and g.can_use_ability(p, true) and not _is_ai(p)
 	# passives with a per-turn limit (Thálvaressa) show how many uses are spent; the engine wipes the count every turn start
@@ -4121,7 +4122,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 		# below time their own: hits and heals land at `t` (after the lunge), deaths and banishes play
 		# with the dissolve at the end, and a played card makes its sound when it lands.
 		# both players mulligan at the start; the card-fan sound plays once, for the player who goes first
-		if not et in ["play", "damage", "shield_break", "heal", "death", "banish"] \
+		if not et in ["play", "damage", "shield_break", "heal", "death", "banish", "leader_hit_negated"] \
 				and not (et == "summon" and placed_uids.has(e["uid"])) \
 				and not (et == "mulligan" and int(e["player"]) != g.first):
 			Sfx.play_event(e, cursor, in_combat)
@@ -4317,7 +4318,32 @@ func _animate(events: Array, old: Dictionary) -> float:
 					ward_ghost = _ghost(old[e["uid"]]["card_id"], old[e["uid"]]["inst"], old[e["uid"]]["pose"])
 					ward_ghost.z_index = 20
 				_ward_fx(ward_leader, ward_ghost, ward_t, _elem_color(e["card_id"]).lightened(0.3))
+				if ward_leader is LeaderView:
+					ward_leader.play_ward_forge(ward_t + 0.3, int(e.get("hits", 3)))
 				cursor = maxf(cursor, ward_t + WARD_FADE_DELAY + WARD_FADE_TIME)
+			"leader_hit_negated":
+				# Câmara de Êxtase aftermath: the hit lands, the outermost shell shatters and the Leader takes nothing
+				var negated_leader: Control = actors.get(e["uid"])
+				var negated_src: int = e.get("src", 0)
+				var negated_t := cursor + 0.12
+				if in_combat and negated_src > 0 and actors.has(negated_src) and negated_leader != null:
+					if negated_src == last_src:
+						negated_t = hit_t
+					else:
+						_lunge(actors[negated_src], negated_leader, cursor)
+						hit_t = cursor + LUNGE_IMPACT_TIME
+						negated_t = hit_t
+						last_src = negated_src
+						last_dst = e["uid"]
+						cursor += LUNGE_TOTAL_TIME
+				else:
+					cursor += 0.12
+				Sfx.play_event(e, negated_t, in_combat)
+				if negated_leader is LeaderView:
+					negated_leader.play_ward_break(negated_t, int(e["left"]))
+					_impact(negated_leader, "Anulado!", LeaderView.WARD_COL, negated_t, false)
+					_embers(_center_of(negated_leader), negated_t, LeaderView.WARD_COL, 10)
+				cursor = maxf(cursor, negated_t + 0.3)
 			"death_prevented":
 				# Baluarte Santo: same beat as the Câmara — the blow lands on the unit, the Baluarte answers and fades away
 				var saved_unit_view: Control = actors.get(e["uid"])
@@ -4840,6 +4866,8 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s foi destruído no lugar de %s" % [_cname(e["card_id"]), "uma unidade" if saved_unit == null else _cname(saved_unit.card_id)])
 		"lethal_ward":
 			_log("%s anulou %d de dano que mataria o Líder de %s" % [_cname(e["card_id"]), int(e["amount"]), _pname(e["player"])])
+		"leader_hit_negated":
+			_log("O Líder de %s anulou um golpe de %d (restam %d)" % [_pname(e["player"]), int(e["amount"]), int(e["left"])])
 		"discard_pick":
 			_log("%s escolhe uma carta da mão para descartar" % _pname(e["player"]))
 		"hand_summon_pick":
