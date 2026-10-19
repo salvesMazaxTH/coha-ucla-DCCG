@@ -10,7 +10,8 @@
   "atk": 1,
   "hp": 3,
   "keywords": [
-    "toxico"
+    "toxico",
+    "toque_letal"
   ],
   "art": "venenosa/ferraozinho_contratado.webp",
   "effects": [],

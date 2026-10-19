@@ -149,10 +149,13 @@ const BADGES := {
 	"furtividade": Color("#cdb6ff"),
 	"vigilancia": Color("#ffe39a"),
 	"obsessao": Color("#ff7f6e"),
+	"prudencia": Color("#9fd0ff"),
 	"intimidacao": Color("#ffa24d"),
 	"inalcancavel": Color("#9ff0d0"),
 	"eterea": Color("#e6d9ff"),
 	"regeneracao": Color("#8df0a0"),
+	"roubo_de_vida": Color("#ff6f8f"),
+	"toque_letal": Color("#d4e866"),
 }
 
 func setup(id: String, instance: Dictionary = {}, size_scale := 1.0) -> CardView:
@@ -1077,6 +1080,10 @@ func _kw_badge(kw: String, c: Vector2, r: float, s: float) -> void:
 			draw_arc(c, g * 0.86, 0, TAU, 28, col, 1.3 * s, true)
 			draw_colored_polygon(_unit_pts(c, g, [[-0.5, 0.36], [-0.56, -0.3], [-0.26, -0.02], [0, -0.46],
 				[0.26, -0.02], [0.56, -0.3], [0.5, 0.36]]), lit)
+		"prudencia": # a raised shield inside a ring: it only answers challenges, never walks up to the Leader
+			draw_arc(c, g * 0.86, 0, TAU, 28, col, 1.3 * s, true)
+			draw_colored_polygon(_unit_pts(c, g, [[-0.48, -0.42], [0.48, -0.42], [0.48, 0.0], [0, 0.5], [-0.48, 0.0]]), lit)
+			draw_line(c + Vector2(0, -0.3) * g, c + Vector2(0, 0.3) * g, col.darkened(0.85), 1.3 * s, true)
 		"inalcancavel": # a crosshair crossed out: it can't be aimed at
 			draw_arc(c, g * 0.55, 0, TAU, 24, lit, 1.2 * s, true)
 			for dir in [Vector2.UP, Vector2.DOWN, Vector2.LEFT, Vector2.RIGHT]:
@@ -1091,6 +1098,34 @@ func _kw_badge(kw: String, c: Vector2, r: float, s: float) -> void:
 			draw_colored_polygon(ghost, Color(lit, 0.85))
 			for x in [-0.18, 0.18]:
 				draw_circle(c + Vector2(x, -0.12) * g, 0.09 * g + 0.3 * s, col.darkened(0.85))
+		"roubo_de_vida": # a heart with a dark highlight: the damage dealt flows back into the Leader's life
+			for sx in [-1.0, 1.0]:
+				draw_circle(c + Vector2(sx * 0.28, -0.2) * g, 0.34 * g, lit)
+			draw_colored_polygon(_unit_pts(c, g, [[-0.6, -0.06], [0.6, -0.06], [0, 0.7]]), lit)
+			draw_arc(c + Vector2(-0.28, -0.2) * g, 0.2 * g, PI * 0.9, PI * 1.5, 8, col.darkened(0.8), 1.1 * s, true)
+		"toque_letal": # an open hand with a skull floating above the palm: whatever it touches dies
+			var bone := Color("#f4eedb")
+			var socket := col.darkened(0.88)
+			draw_circle(c + Vector2(0, -0.38) * g, 0.62 * g, Color(col, 0.16)) # the glow around the skull
+			draw_circle(c + Vector2(0, -0.42) * g, 0.4 * g, bone) # cranium
+			draw_colored_polygon(_unit_pts(c, g, [[-0.22, -0.2], [0.22, -0.2], [0.18, 0.1], [-0.18, 0.1]]), bone) # jaw
+			for sx in [-1.0, 1.0]: # eye sockets
+				draw_circle(c + Vector2(sx * 0.15, -0.44) * g, 0.1 * g + 0.2 * s, socket)
+			draw_colored_polygon(_unit_pts(c, g, [[0, -0.3], [-0.05, -0.18], [0.05, -0.18]]), socket) # nose
+			for sx in [-0.07, 0.07]: # teeth gaps
+				draw_line(c + Vector2(sx, -0.02) * g, c + Vector2(sx, 0.09) * g, socket, 0.7 * s)
+			for sx in [-0.34, 0.0, 0.34]: # sparks of power between the skull and the hand
+				draw_circle(c + Vector2(sx, 0.2 + absf(sx) * 0.15) * g, 0.045 * g + 0.2 * s, Color(lit, 0.85))
+			# the hand, palm up: four fingers rising and a thumb on the side
+			var finger_tops := [[-0.46, 0.42], [-0.16, 0.34], [0.14, 0.34], [0.44, 0.42]]
+			for finger in finger_tops:
+				var base := c + Vector2(finger[0], 0.62) * g
+				var tip := c + Vector2(finger[0], finger[1]) * g
+				draw_line(base, tip, lit, 0.24 * g, true)
+				draw_circle(tip, 0.12 * g, lit)
+			draw_line(c + Vector2(0.48, 0.74) * g, c + Vector2(0.78, 0.5) * g, lit, 0.24 * g, true) # thumb
+			draw_circle(c + Vector2(0.78, 0.5) * g, 0.12 * g, lit)
+			draw_colored_polygon(_unit_pts(c, g, [[-0.58, 0.58], [0.58, 0.58], [0.5, 0.86], [-0.5, 0.86]]), lit) # palm
 		"regeneracao": # a healing cross inside a ring: the damage closes up again
 			draw_arc(c, g * 0.86, 0, TAU, 28, col, 1.2 * s, true)
 			draw_colored_polygon(_unit_pts(c, g, [[-0.14, -0.58], [0.14, -0.58], [0.14, -0.14], [0.58, -0.14], [0.58, 0.14],
@@ -1403,13 +1438,16 @@ func _fill_clipped(poly: PackedVector2Array, clip: PackedVector2Array, col: Colo
 	for piece in Geometry2D.intersect_polygons(poly, clip):
 		draw_colored_polygon(piece, col)
 
-## Rarity gem on the bottom edge: white (common), amethyst (epic), orange
-## (champion / legendary).
+## Rarity gem on the bottom edge: white (common), amethyst (epic), orange (legendary),
+## and the animated prismatic gem for champions (the rarest, see _champion_gem).
 func _rarity_gem(c: Vector2, r: float, rarity: String, trim: Color) -> void:
+	if rarity == "champion":
+		_champion_gem(c, r, trim)
+		return
 	var col := Color("#f2f2f2")
 	if rarity == "epic":
 		col = Color("#9b4fd6")
-	elif rarity == "champion" or rarity == "legendary":
+	elif rarity == "legendary":
 		col = Color("#ff8a1c")
 	var pts := PackedVector2Array()
 	for p in [[0, -1.0], [0.85, -0.3], [0.85, 0.3], [0, 1.0], [-0.85, 0.3], [-0.85, -0.3]]:
@@ -1422,6 +1460,49 @@ func _rarity_gem(c: Vector2, r: float, rarity: String, trim: Color) -> void:
 	draw_colored_polygon(PackedVector2Array([pts[5], c, pts[3], pts[4]]), col.darkened(0.2))
 	draw_polyline(pts + PackedVector2Array([pts[0]]), trim, 1.0, true)
 	draw_circle(c + Vector2(-r * 0.3, -r * 0.4), r * 0.16, Color(1, 1, 1, 0.8))
+
+## Champion gem, rarer than the legendary one: only slightly bigger (it must not cover the card text), eight-sided (the other gems are hexagons),
+## every facet cycles through the rainbow, a white glint sweeps across it every few seconds and
+## little stars twinkle around it. Moves with `_t`, which keeps running on champion cards.
+func _champion_gem(c: Vector2, r: float, trim: Color) -> void:
+	c.y += r * 0.35 # sits lower on the frame so it stays clear of the card text
+	r *= 1.2
+	var outline := PackedVector2Array()
+	for p in [[0, -1.15], [0.6, -0.7], [1.0, 0], [0.6, 0.7], [0, 1.15], [-0.6, 0.7], [-1.0, 0], [-0.6, -0.7]]:
+		outline.append(c + Vector2(p[0], p[1]) * r)
+	# soft pulsing aura behind the gem
+	var pulse := 0.5 + 0.5 * sin(_t * 3.0)
+	draw_circle(c, r * (1.9 + 0.2 * pulse), Color(1, 1, 1, 0.10 + 0.08 * pulse))
+	draw_colored_polygon(_grow(outline, c, 1.25), Color("#07060a"))
+	# one triangle per side, each with its own hue that slowly rotates around the colour wheel;
+	# the facets facing up-left are lighter, the ones facing down-right darker
+	for i in outline.size():
+		var hue := fposmod(_t * 0.2 + i / float(outline.size()) * 0.6, 1.0)
+		var facing_light := 0.5 + 0.5 * cos((float(i) - 6.5) / outline.size() * TAU)
+		var facet_color := Color.from_hsv(hue, 0.8, 0.6 + 0.4 * facing_light)
+		draw_colored_polygon(PackedVector2Array([outline[i], outline[(i + 1) % outline.size()], c]), facet_color)
+	draw_polyline(outline + PackedVector2Array([outline[0]]), trim, 1.0, true)
+	# white glint sweeping left to right once every 2.8 s (the rest of the cycle it rests)
+	var sweep := fposmod(_t, 2.8) / 0.9
+	if sweep < 1.0:
+		var band_x := lerpf(-1.4, 1.4, sweep) * r
+		var band := PackedVector2Array([c + Vector2(band_x - 0.35 * r, -1.3 * r), c + Vector2(band_x + 0.1 * r, -1.3 * r),
+			c + Vector2(band_x - 0.1 * r, 1.3 * r), c + Vector2(band_x - 0.55 * r, 1.3 * r)])
+		_fill_clipped(band, outline, Color(1, 1, 1, 0.75))
+	draw_circle(c + Vector2(-r * 0.3, -r * 0.45), r * 0.14, Color(1, 1, 1, 0.9))
+	# twinkling four-point stars, each on its own rhythm
+	for star in [[Vector2(-1.5, -0.8), 0.0], [Vector2(1.5, -1.1), 2.1], [Vector2(0.9, -1.9), 4.2]]:
+		var twinkle := maxf(0.0, sin(_t * 4.0 + float(star[1])))
+		if twinkle > 0.05:
+			_sparkle(c + Vector2(star[0]) * r, r * 0.55 * twinkle, Color(1, 1, 1, 0.5 + 0.5 * twinkle))
+
+## Four-pointed star (a "glint"), `radius` from the center to each tip.
+func _sparkle(c: Vector2, radius: float, col: Color) -> void:
+	var pts := PackedVector2Array()
+	for i in 8:
+		var angle := i * TAU / 8.0 - PI / 2.0
+		pts.append(c + Vector2(cos(angle), sin(angle)) * (radius if i % 2 == 0 else radius * 0.25))
+	draw_colored_polygon(pts, col)
 
 ## Stand-in for the rarity gem on a ficha: a hollow, translucent diamond outline (nothing solid, nothing colored).
 func _token_seal(c: Vector2, r: float, trim: Color) -> void:

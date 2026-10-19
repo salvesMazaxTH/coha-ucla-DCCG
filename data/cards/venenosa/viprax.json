@@ -10,7 +10,8 @@
   "atk": 4,
   "hp": 4,
   "keywords": [
-    "toxico:2"
+    "toxico:2",
+    "toque_letal"
   ],
   "toxico_hits_leader": true,
   "toxico_ignores_immunity": true,
