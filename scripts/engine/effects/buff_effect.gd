@@ -11,6 +11,8 @@ extends Effect
 ## "cap_atk": this effect can give one unit at most that much attack in total (e.g. Layla).
 ## "critico_max": true  a unit that has any Crítico at all goes up to Crítico 4 until the end of the turn (units without Crítico are untouched).
 ## "hp_temp_until_next_turn": N gives temporary Vida until the unit's owner's next turn starts.
+## "keywords_until_next_turn": [...] gives these keywords until the unit's owner's next turn starts (a keyword the unit already
+## has stays as it is) - Cortina de Fumaça Barata gives Furtividade this way.
 ## "bonus_if_card": {"card": id, "atk": N, "hp": N}: when the target is that card, it also gains this permanently (Myrra -> Vael).
 ## "bonus_if_species": {"species": [...], "atk": N, "hp": N}: when the target has any of these species, it also gains this permanently (Consagração).
 ## "only_species": [...]: the buff only lands on targets that have at least one of these species; any other target is left
@@ -32,6 +34,7 @@ var temporary_attack_until_next_turn := 0
 var temporary_health_until_next_turn := 0
 var temporary := false
 var keywords: Array = []
+var keywords_until_next_turn: Array = []
 var per := ""
 var multiplier_min := 0
 var multiplier_max := 99
@@ -67,6 +70,7 @@ func _read_parameters(data: Dictionary) -> void:
 	temporary_health_until_next_turn = int(data.get("hp_temp_until_next_turn", 0))
 	temporary = bool(data.get("temp", false))
 	keywords = data.get("keywords", [])
+	keywords_until_next_turn = data.get("keywords_until_next_turn", [])
 	per = String(data.get("per", ""))
 	multiplier_min = int(data.get("min", 0))
 	multiplier_max = int(data.get("max", 99))
@@ -165,7 +169,13 @@ func apply(context: EffectContext, target_uid: int) -> void:
 			unit.keywords.append(keyword)
 			if temporary:
 				unit.temp_keywords.append(keyword)
-	var buff_event := {"type": "buff", "uid": target_uid, "atk": attack_gain, "hp": health_gain, "keywords": raw.get("keywords", [])}
+	var granted_keywords: Array = raw.get("keywords", []).duplicate()
+	for keyword in keywords_until_next_turn:
+		if not unit.keywords.has(keyword):
+			unit.keywords.append(keyword)
+			unit.keywords_until_next_turn.append(keyword)
+			granted_keywords.append(keyword)
+	var buff_event := {"type": "buff", "uid": target_uid, "atk": attack_gain, "hp": health_gain, "keywords": granted_keywords}
 	if minimum_rapidez > unit.rapidez:
 		unit.rapidez = minimum_rapidez
 		buff_event["rapidez"] = minimum_rapidez

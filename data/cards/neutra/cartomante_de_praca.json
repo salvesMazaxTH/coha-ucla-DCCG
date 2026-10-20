@@ -1,0 +1,27 @@
+{
+  "name": "Cartomante de Praça",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 2,
+  "atk": 1,
+  "hp": 2,
+  "keywords": [],
+  "art": "neutra/cartomante_de_praca.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Entrar: compre 1 carta.",
+  "flavor": [
+    "Previu que você ia pagar. Acertou."
+  ],
+  "tags": []
+}

@@ -5,6 +5,7 @@ extends RefCounted
 
 const AddDotEffectScript = preload("res://scripts/engine/effects/add_dot_effect.gd")
 const DeathWardEffectScript = preload("res://scripts/engine/effects/death_ward_effect.gd")
+const AutoAttackEffectScript = preload("res://scripts/engine/effects/auto_attack_effect.gd")
 
 static var ACTIONS: Dictionary = {
 	"damage": DamageEffect,
@@ -67,10 +68,12 @@ static var ACTIONS: Dictionary = {
 	"double_constants": StaticEffect,
 	"double_enter": StaticEffect,
 	"double_death": StaticEffect,
+	"momentum_surge": StaticEffect,
+	"auto_attack": AutoAttackEffectScript,
 }
 
 ## Actions with no target: continuous abilities, never run by a trigger.
-const STATIC_ACTIONS := ["cost_reduction", "scale", "species_aura", "graveyard_armor", "graveyard_damage_reduction", "double_constants", "double_enter", "double_death"]
+const STATIC_ACTIONS := ["cost_reduction", "scale", "species_aura", "graveyard_armor", "graveyard_damage_reduction", "double_constants", "double_enter", "double_death", "momentum_surge"]
 
 static func is_known(action: String) -> bool:
 	return ACTIONS.has(action)

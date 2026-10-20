@@ -1,0 +1,23 @@
+{
+  "name": "Recado Urgente ao Barão",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "neutra",
+  "cost": 2,
+  "speed": "lento",
+  "art": "neutra/recado_urgente_ao_barao.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "search_deck",
+      "target": "none",
+      "card_ids": ["barao_estrondoso"],
+      "fallback_draw": 1
+    }
+  ],
+  "text": "Procure o Barão Estrondoso no seu deck e coloque-o na sua mão. Embaralhe o deck. Se ele não estiver no deck, compre 1 carta.",
+  "flavor": [
+    "\"Venha já. Traga o trovão. Assinado: o outro trovão.\""
+  ],
+  "tags": []
+}

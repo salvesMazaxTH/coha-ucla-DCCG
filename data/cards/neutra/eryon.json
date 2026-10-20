@@ -1,0 +1,47 @@
+{
+  "name": "Eryon",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 3,
+  "atk": 3,
+  "hp": 5,
+  "keywords": [],
+  "art": "neutra/eryon.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
+    }
+  ],
+  "activated": {
+    "cost": 0,
+    "speed": "lento",
+    "once_per_turn": true,
+    "effects": [
+      {
+        "action": "sacrifice",
+        "target": "other_ally_unit",
+        "then": [
+          {
+            "action": "gain_momentum",
+            "target": "none",
+            "amount_from": "sacrificed_cost",
+            "max": 3,
+            "overflow": true
+          }
+        ]
+      }
+    ]
+  },
+  "text": "Ao Entrar: compre 1 carta.\nAo Ativar (0) (1x por turno): sacrifique outra unidade aliada. Ganhe Momentum igual ao custo dela, no máximo 3. Pode passar de 10, só neste turno.",
+  "flavor": [
+    "O fôlego não some. Só muda de dono."
+  ],
+  "tags": []
+}

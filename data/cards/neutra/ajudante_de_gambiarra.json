@@ -1,0 +1,28 @@
+{
+  "name": "Ajudante de Gambiarra",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 2,
+  "atk": 1,
+  "hp": 1,
+  "keywords": [],
+  "art": "neutra/ajudante_de_gambiarra.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": 1,
+      "next_turn": true
+    }
+  ],
+  "text": "Ao Entrar: no seu próximo turno, ganhe +1 Momentum.",
+  "flavor": [
+    "Segurou a escada. A escada segurou o teto. O teto segurou."
+  ],
+  "tags": []
+}

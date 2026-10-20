@@ -26,6 +26,7 @@ var temp_hp_until_next_turn := 0 ## extra Vida that lasts until this unit's owne
 var rapidez := 0 ## Rapidez 0-3, as written on the card (0 = no Rapidez keyword): in a challenge, the faster unit deals its damage first (equal = at the same time)
 var keywords: Array = []
 var temp_keywords: Array = []
+var keywords_until_next_turn: Array = [] ## keywords granted only until this unit's owner's next turn starts (Cortina de Fumaça Barata); they leave then
 var lost_keywords: Array = [] ## keywords taken away only until the end of this turn (Saltador de Cerca); they come back then
 var shield := false
 var temp_armor := 0 ## extra Armadura that ends when its owner's next turn starts
@@ -43,6 +44,8 @@ var sick := true
 var bonus_atk := 0 ## from "constante" scale effects (see GameState._refresh_scaling)
 var bonus_hp := 0
 var has_bonus := false ## bonus_* were computed at least once (they only show up in to_dict then)
+var surge_keywords: Array = [] ## keywords given while the owner has 11+ Momentum ("momentum_surge"); recomputed by _refresh_scaling
+var surge_critico := 0 ## Crítico level given by the same surge (the higher of it and the unit's own wins)
 var frozen := 0 ## Congelada: the turn at whose END it thaws; 0 = not frozen
 var stun_markers := 0 ## Atordoamento: each marker costs the unit one untap (one start of its owner's turn); 0 = not stunned
 var condemned_turn := 0 ## Condenada: the turn at whose START it dies; 0 = not condemned
@@ -114,6 +117,7 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	kws.erase("escudo_feitico")
 	keywords = kws
 	temp_keywords = []
+	keywords_until_next_turn = []
 	lost_keywords = []
 	exhausted = false
 	sick = true
@@ -153,6 +157,7 @@ func silence() -> void:
 	# keywords the card had: the printed ones plus whatever it gained since (an equipment's, a buff's)
 	keywords = []
 	temp_keywords = []
+	keywords_until_next_turn = []
 	lost_keywords = [] # nothing left to give back
 	shield = false
 	spell_shield = false
@@ -179,7 +184,7 @@ func has_kw(kw: String) -> bool:
 		return spell_shield
 	if kw == "inerte":
 		return keywords.has(kw) or bool(data().get("inert", false))
-	return keywords.has(kw)
+	return keywords.has(kw) or surge_keywords.has(kw)
 
 func armor_total() -> int:
 	return armor + temp_armor + turn_armor
@@ -196,7 +201,7 @@ func rapidez_total() -> int:
 
 ## Crítico level right now (0 = none, 4 = every blow is critical).
 func critico_total() -> int:
-	return clampi(critico + temp_critico, 0, 4)
+	return clampi(maxi(critico + temp_critico, surge_critico), 0, 4)
 
 func hp_left() -> int:
 	return hp + bonus_hp + temp_hp + temp_hp_until_next_turn - damage
@@ -246,6 +251,8 @@ func to_dict() -> Dictionary:
 		d["spell_shield_until_next_turn"] = true
 	if spell_shield_until_end_turn:
 		d["spell_shield_until_end_turn"] = true
+	if not keywords_until_next_turn.is_empty():
+		d["keywords_until_next_turn"] = keywords_until_next_turn.duplicate()
 	if not lost_keywords.is_empty():
 		d["lost_keywords"] = lost_keywords.duplicate()
 	if temp_hp > 0:
@@ -263,6 +270,10 @@ func to_dict() -> Dictionary:
 	if has_bonus:
 		d["bonus_atk"] = bonus_atk
 		d["bonus_hp"] = bonus_hp
+	if not surge_keywords.is_empty():
+		d["surge_keywords"] = surge_keywords.duplicate()
+	if surge_critico > 0:
+		d["surge_critico"] = surge_critico
 	if frozen > 0:
 		d["frozen"] = frozen
 	if stun_markers > 0:
@@ -320,6 +331,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.temp_atk_until_next_turn = int(d.get("temp_atk_until_next_turn", 0))
 	c.spell_shield_until_next_turn = bool(d.get("spell_shield_until_next_turn", false))
 	c.spell_shield_until_end_turn = bool(d.get("spell_shield_until_end_turn", false))
+	c.keywords_until_next_turn = d.get("keywords_until_next_turn", [])
 	c.lost_keywords = d.get("lost_keywords", [])
 	c.temp_hp = int(d.get("temp_hp", 0))
 	c.temp_hp_until_next_turn = int(d.get("temp_hp_until_next_turn", 0))
@@ -334,6 +346,8 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.has_bonus = d.has("bonus_atk")
 	c.bonus_atk = int(d.get("bonus_atk", 0))
 	c.bonus_hp = int(d.get("bonus_hp", 0))
+	c.surge_keywords = d.get("surge_keywords", []).duplicate()
+	c.surge_critico = int(d.get("surge_critico", 0))
 	c.frozen = int(d.get("frozen", 0))
 	c.stun_markers = int(d.get("stun_markers", 0))
 	c.condemned_turn = int(d.get("condemned_turn", 0))

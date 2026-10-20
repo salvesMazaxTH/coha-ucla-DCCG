@@ -505,6 +505,34 @@
       },
       "essences": ["neutra"]
     },
+    "eryon": {
+      "name": "Eryon",
+      "hp": 30,
+      "art": "neutra/eryon_lider.webp",
+      "legendary": "eryon",
+      "ability": {
+        "name": "Redistribuir o Fôlego",
+        "cost": 0,
+        "once_per_turn": true,
+        "speed": "lento",
+        "effects": [
+          {
+            "action": "gain_momentum",
+            "target": "none",
+            "amount": 2,
+            "overflow": true
+          },
+          {
+            "action": "gain_momentum",
+            "target": "none",
+            "amount": -2,
+            "next_turn": true
+          }
+        ],
+        "text": "Lenta. 0 Momentum, uma vez por turno: ganhe +2 Momentum neste turno (pode passar de 10). No seu próximo turno, comece com 2 Momentum a menos."
+      },
+      "essences": ["neutra"]
+    },
     "tox_vipranna": {
       "name": "Tox Vipranna",
       "hp": 30,

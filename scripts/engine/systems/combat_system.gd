@@ -20,6 +20,10 @@ var pending_attack: Dictionary = {}
 ## instead of the attacker. 0 = nobody. Read once by attack() and then cleared.
 var redirect_hit_to := 0
 var redirect_counter_to := 0
+## Units whose "auto_attack" (Barão Estrondoso) asked for one more attack at a random enemy. Each one
+## runs after the attack that queued it has dealt its damage; that extra attack does not fire Ao Atacar
+## again, so it never chains forever.
+var auto_attack_queue: Array = []
 
 func _init(game_state: GameState) -> void:
 	game = game_state
@@ -104,6 +108,11 @@ func challengeable_units(attacker: Card) -> Array:
 func attack_targets(attacker: Card) -> Array:
 	if attacker == null or not game.can_attack(attacker):
 		return []
+	return reachable_targets(attacker)
+
+## The targets of attack_targets() without asking whether the attacker is still ready to attack.
+## An automatic extra attack (auto_attack) uses it: the attacker is already tapped by then.
+func reachable_targets(attacker: Card) -> Array:
 	var taunts := forced_taunts(attacker)
 	if not taunts.is_empty():
 		return taunts
@@ -167,8 +176,46 @@ func finish_pending_attack() -> void:
 	if game.phase == "over":
 		return
 	_exchange_damage(int(attack_info["attacker"]), int(attack_info["target"]), int(attack_info.get("counter_to", 0)))
-	if game.phase != "over" and not has_any_attacker():
+	if game.phase == "over":
+		return
+	# an unit with "auto_attack" hits again right away; the next attack finishes (and ends combat) the same way
+	if _begin_next_auto_attack():
+		finish_pending_attack()
+		return
+	if not has_any_attacker():
 		end_combat()
+
+## Takes the next queued automatic attack: picks a random legal target for the attacker, fires Ao Desafiar /
+## Ao Ser Desafiada (not Ao Atacar) and leaves the attack waiting as the pending attack.
+## Returns false when the queue holds nobody who can still hit anything.
+func _begin_next_auto_attack() -> bool:
+	while not auto_attack_queue.is_empty():
+		var attacker := game.find_unit(int(auto_attack_queue.pop_front()))
+		if attacker == null or attacker.owner != game.active or game.has_kw(attacker, "inerte") \
+				or attacker.is_frozen() or attacker.is_stunned():
+			continue
+		var targets := reachable_targets(attacker)
+		if targets.is_empty():
+			continue
+		var target_uid: int = targets[game.rng.randi_range(0, targets.size() - 1)]
+		var defender_unit: Card = game.find_unit(target_uid) if target_uid > 0 else null
+		attacker.attacks_made += 1
+		var target_card_id := defender_unit.card_id if defender_unit != null else String(CardDB.leader(game.players[game.opponent(attacker.owner)]["leader_id"]).get("legendary", ""))
+		game._emit({"type": "attack", "player": attacker.owner, "attacker": attacker.uid, "target": target_uid, "attacker_card_id": attacker.card_id, "target_card_id": target_card_id})
+		redirect_hit_to = 0
+		redirect_counter_to = 0
+		if defender_unit != null:
+			game._fire(attacker, "on_challenge", target_uid)
+			game._fire(defender_unit, "on_challenged", attacker.uid)
+		game._check_state()
+		var struck_uid := target_uid
+		if redirect_hit_to != 0 and game.find_unit(redirect_hit_to) != null:
+			struck_uid = redirect_hit_to
+		pending_attack = {"attacker": attacker.uid, "target": struck_uid, "counter_to": redirect_counter_to}
+		redirect_hit_to = 0
+		redirect_counter_to = 0
+		return true
+	return false
 
 ## The attacker and its target deal their combat damage in Rapidez order: the faster one strikes
 ## first, equal Rapidez strike at the same time. A unit that is already dead (a trigger above or the

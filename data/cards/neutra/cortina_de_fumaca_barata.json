@@ -1,0 +1,22 @@
+{
+  "name": "Cortina de Fumaça Barata",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "neutra",
+  "cost": 2,
+  "speed": "rapido",
+  "art": "neutra/cortina_de_fumaca_barata.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "all_ally_units",
+      "keywords_until_next_turn": ["furtividade"]
+    }
+  ],
+  "text": "Suas unidades ganham Furtividade até o início do seu próximo turno.",
+  "flavor": [
+    "Cheira a meia queimada. Funciona."
+  ],
+  "tags": []
+}

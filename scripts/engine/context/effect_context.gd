@@ -15,6 +15,7 @@ var forced_target := false ## the chosen target needs no re-check (a Bola de Nev
 var second_target := 0 ## the second pick ("pick"/"pick2", e.g. the damage target of a sacrifice spell)
 var dying_card: Card = null ## the unit whose Ao Morrer is resolving (for summon "self" and revive_self)
 var sacrificed_attack := 0 ## total attack of the unit a "sacrifice" just killed (read by its "then" effects)
+var sacrificed_cost := 0 ## printed Momentum cost of the unit a "sacrifice" just killed (read by its "then" effects)
 var event: GameEvent = null ## the event that made a listening card react (null for plain triggers)
 var milled_cards: Array = [] ## cards the latest mill of this run sent to the graveyard (offered by mill_pick)
 

@@ -1,0 +1,28 @@
+{
+  "name": "Foguista Exagerado",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 4,
+  "atk": 3,
+  "hp": 3,
+  "keywords": [],
+  "art": "neutra/foguista_exagerado.webp",
+  "effects": [
+    {
+      "trigger": "constante",
+      "action": "momentum_surge",
+      "min_momentum": 11,
+      "atk": 6,
+      "keywords": ["impeto"]
+    }
+  ],
+  "text": "Constante: enquanto você tiver 11 ou mais de Momentum, esta unidade ganha +6 de Ataque e Ímpeto.",
+  "flavor": [
+    "Mais carvão. Mais. Mais um pouquinho. Isso."
+  ],
+  "tags": []
+}

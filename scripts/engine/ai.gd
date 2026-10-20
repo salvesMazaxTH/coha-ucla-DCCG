@@ -160,7 +160,7 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 	for unit: Card in g.players[p]["board"]:
 		if g.can_transform(p, unit.uid):
 			return g.transform(p, unit.uid)
-	if g.can_use_ability(p):
+	if g.can_use_ability(p) and not _ability_borrows_momentum(CardDB.leader(g.players[p]["leader_id"])["ability"]["effects"]):
 		var ability: Dictionary = CardDB.leader(g.players[p]["leader_id"])["ability"]
 		var ability_spec := g.target_spec(ability["effects"])
 		var target := _pick_target(g, p, ability_spec, ability, 0, true)
@@ -171,6 +171,14 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 		if ability_spec == "" or target != 0:
 			return g.use_ability(p, target)
 	return []
+
+## True when an ability lends Momentum now and takes it back next turn (Eryon's Leader). The AI uses
+## this ability only after all its plays, when the loan can no longer buy anything, so it just skips it.
+static func _ability_borrows_momentum(effects: Array) -> bool:
+	for effect in effects:
+		if effect.get("action") == "gain_momentum" and effect.get("next_turn", false) and int(effect.get("amount", 0)) < 0:
+			return true
+	return false
 
 ## Temporary Armadura an ability gives to one ally (Massa Inamolgável), or 0 when it has none.
 static func _temporary_armor_amount(effects: Array) -> int:

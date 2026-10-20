@@ -44,7 +44,9 @@ func _draw() -> void:
 	var t := "%d/%d" % [current, maximum]
 	var x := 9 + cap * step - 4
 	draw_string_outline(font, Vector2(x, 23), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 21, 4, Color(0, 0, 0, 0.85))
-	draw_string(font, Vector2(x, 23), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 21, Color("#ffe680"))
+	# Momentum above the normal cap (temporary overflow): every crystal is lit and the readout turns hot orange
+	var readout_color := Color("#ff9d3c") if current > cap else Color("#ffe680")
+	draw_string(font, Vector2(x, 23), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 21, readout_color)
 	var rx := 9.0
 	var ry := 42.0 # Reserva on its own row
 	for i in GameState.RESERVE_CAP:

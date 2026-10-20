@@ -1,0 +1,28 @@
+{
+  "name": "Cobrador de Pedágio Torto",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 3,
+  "atk": 1,
+  "hp": 4,
+  "keywords": [],
+  "art": "neutra/cobrador_de_pedagio_torto.webp",
+  "effects": [
+    {
+      "trigger": "on_turn_start",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": 1,
+      "overflow": true
+    }
+  ],
+  "text": "No Início do Turno: ganhe +1 Momentum neste turno. Pode passar de 10.",
+  "flavor": [
+    "A ponte caiu faz anos. O pedágio continua."
+  ],
+  "tags": []
+}

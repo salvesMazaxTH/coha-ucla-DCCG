@@ -1,0 +1,22 @@
+{
+  "name": "Faxina de Emergência",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "neutra",
+  "cost": 4,
+  "speed": "lento",
+  "art": "neutra/faxina_de_emergencia.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "all_enemy_units",
+      "amount": 2
+    }
+  ],
+  "text": "Cause 2 de dano a todas as unidades inimigas.",
+  "flavor": [
+    "Varreu o salão inteiro e a plateia junto."
+  ],
+  "tags": []
+}

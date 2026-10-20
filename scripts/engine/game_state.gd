@@ -9,6 +9,7 @@ const MULLIGAN_MAX := 3
 const HAND_LIMIT := 10
 const BOARD_LIMIT := 8
 const MOMENTUM_CAP := 10
+const MOMENTUM_OVERFLOW_CAP := 20 ## the most Momentum a turn can hold when an effect says "overflow" (Eryon's deck); the part above MOMENTUM_CAP vanishes at the end of the turn
 const LETHAL_WARD_NEGATED_HITS := 3 # Câmara de Êxtase: how many hits it negates after saving the Leader
 const RESERVE_CAP := 2 ## unspent Momentum banked at turn start; pays only spells and abilities
 const COMMANDER_TAX_STEP := 1 ## the Encarnação's tax grows by this much per previous cast: +1, then +2, +3, +4... (totals 1, 3, 6, 10)
@@ -419,9 +420,24 @@ func _refresh_scaling() -> void:
 		for c: Card in players[p]["board"]:
 			var b := scale_bonus(p, card_of(c))
 			var aura := species_aura_bonus(c)
-			c.bonus_atk = b.x + aura.x
+			var surge := momentum_surge_of(p, c)
+			c.bonus_atk = b.x + aura.x + int(surge.get("atk", 0))
 			c.bonus_hp = b.y + aura.y
 			c.has_bonus = true
+			c.surge_keywords = surge.get("keywords", [])
+			c.surge_critico = int(surge.get("critico", 0))
+
+## What a unit's "momentum_surge" Constante gives it right now: {atk, keywords, critico}, or {} while its
+## controller has less than the effect's "min_momentum" (default: one above MOMENTUM_CAP, i.e. 11+).
+## Barão Estrondoso: +20 Ataque, Sobrepujança, Ímpeto and Crítico 4 only while the surge is on.
+func momentum_surge_of(p: int, c: Card) -> Dictionary:
+	for e in card_of(c).get("effects", []):
+		if e.get("trigger", "") != "constante" or e.get("action", "") != "momentum_surge":
+			continue
+		if int(players[p]["momentum"]) < int(e.get("min_momentum", MOMENTUM_CAP + 1)):
+			continue
+		return {"atk": int(e.get("atk", 0)), "keywords": e.get("keywords", []).duplicate(), "critico": int(e.get("critico", 0))}
+	return {}
 
 ## Atk/hp a card's "constante" scale effects would give it under player p right
 ## now.
@@ -756,8 +772,23 @@ func _applicable_discount_rules(p: int, cd: Dictionary) -> Array:
 	return rules
 
 ## Momentum p can spend on a play: the Reserva only counts for spells and leader abilities.
-func budget(p: int, spell: bool) -> int:
-	return int(players[p]["momentum"]) + (int(players[p]["reserve"]) if spell else 0)
+## Momentum above MOMENTUM_CAP (a temporary overflow) only pays neutral cards and leader abilities:
+## pass the card's data as `cd` so any other essence sees at most MOMENTUM_CAP.
+func budget(p: int, spell: bool, cd := {}) -> int:
+	var plain_momentum := int(players[p]["momentum"])
+	if not cd.is_empty() and not CardDB.has_essence(cd, "neutra"):
+		plain_momentum = mini(plain_momentum, MOMENTUM_CAP)
+	return plain_momentum + (int(players[p]["reserve"]) if spell else 0)
+
+## Gives player p Momentum right now. Normally it stops at MOMENTUM_CAP; with `overflow` it may go up
+## to MOMENTUM_OVERFLOW_CAP. It never lowers Momentum the player already has above the cap.
+func gain_momentum(p: int, gain: int, overflow := false) -> void:
+	var pl: Dictionary = players[p]
+	var current := int(pl["momentum"])
+	var ceiling := MOMENTUM_OVERFLOW_CAP if overflow else MOMENTUM_CAP
+	pl["momentum"] = maxi(current, mini(ceiling, current + gain))
+	_refresh_scaling() # a surge (11+ Momentum) may have just turned on
+	_emit({"type": "momentum", "player": p})
 
 ## Pays `amount`; spells and abilities drain the Reserva first so more plain Momentum is
 ## left over to bank next turn.
@@ -768,6 +799,7 @@ func _pay(p: int, amount: int, spell: bool) -> void:
 		pl["reserve"] -= r
 		amount -= r
 	pl["momentum"] -= amount
+	_refresh_scaling() # a surge (11+ Momentum) may have just turned off
 
 static func _is_spell(cd: Dictionary) -> bool:
 	return cd.get("type", "") == "spell"
@@ -828,7 +860,7 @@ func card_targets(p: int, cd: Dictionary, inst: Card = null) -> Array:
 	var ok: Array = []
 	for sid in out:
 		var x := counter_extra(cd, sid)
-		if x >= 0 and cost_of(p, cd, inst) + x <= budget(p, _is_spell(cd)):
+		if x >= 0 and cost_of(p, cd, inst) + x <= budget(p, _is_spell(cd), cd):
 			ok.append(sid)
 	return ok
 
@@ -922,8 +954,8 @@ func can_play(p: int, hand_uid: int, allow_unreachable := false) -> bool:
 	if is_subito_play(p, cd):
 		# paid like an ability, so the Reserva counts
 		return inst.zone == "hand" and has_free_slot(p) and not cd.get("cost_sacrifice", false) \
-			and subito_cost(p, cd, inst) <= budget(p, true)
-	if cost_of(p, cd, inst) > budget(p, _is_spell(cd)):
+			and subito_cost(p, cd, inst) <= budget(p, true, cd)
+	if cost_of(p, cd, inst) > budget(p, _is_spell(cd), cd):
 		return false
 	if cd["type"] == "unit":
 		if not _sorcery_time(p):
@@ -1775,6 +1807,9 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 			continue
 		if e.has("types_any") and not e["types_any"].has(cd.get("type", "")):
 			continue
+		# "card_ids": only these named cards (Recado Urgente ao Barão finds only the Barão)
+		if e.has("card_ids") and not e["card_ids"].has(c.card_id):
+			continue
 		if e.has("species") and not cd.get("species", []).has(e["species"]):
 			continue
 		if e.has("tags"):
@@ -1803,6 +1838,9 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 		matches.append({"uid": c.uid, "card_id": c.card_id})
 	if matches.is_empty():
 		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
+		# "fallback_draw": the consolation prize when nothing matched, so the spell is never a dead card (Recado Urgente)
+		if int(e.get("fallback_draw", 0)) > 0:
+			_draw(p, int(e["fallback_draw"]))
 		return
 	# "deck_search": the options are private to the searcher; the opponent only learns the card that was taken (search_take)
 	pending_search = {"player": p, "source_uid": source_uid, "cards": matches, "deck_search": true}
@@ -2472,6 +2510,11 @@ func _finish_turn() -> void:
 	if phase == "over":
 		return
 	reset_snowball_level(active)
+	# Momentum above the normal cap was only a temporary overflow: it vanishes now, before it can bank
+	if int(players[active]["momentum"]) > MOMENTUM_CAP:
+		players[active]["momentum"] = MOMENTUM_CAP
+		_refresh_scaling()
+		_emit({"type": "momentum", "player": active})
 	# Dona Gertrudes: the champions she borrowed from the hand leave the game now
 	for p in players:
 		for c: Card in p["board"].duplicate():
@@ -2566,6 +2609,9 @@ func _start_turn(p: int, draw: bool) -> void:
 		if c.spell_shield_until_next_turn:
 			c.spell_shield = false
 			c.spell_shield_until_next_turn = false
+		for expiring_keyword in c.keywords_until_next_turn:
+			c.keywords.erase(expiring_keyword)
+		c.keywords_until_next_turn = []
 		c.attacks_made = 0
 	_emit({"type": "start_turn", "player": p, "turn": turn})
 	_regenerate_all_units()

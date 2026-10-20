@@ -1,0 +1,23 @@
+{
+  "name": "Pavio Curto",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "neutra",
+  "cost": 1,
+  "speed": "rapido",
+  "art": "neutra/pavio_curto.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "keywords": ["impeto"],
+      "temp": true
+    }
+  ],
+  "text": "Uma unidade aliada ganha Ímpeto neste turno.",
+  "flavor": [
+    "Acendeu antes de terminar a frase."
+  ],
+  "tags": []
+}

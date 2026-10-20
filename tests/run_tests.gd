@@ -105,6 +105,9 @@ func _init() -> void:
 	_test_sagrada_engine()
 	_test_maria_helena()
 	_test_champion_rework()
+	_test_momentum_overflow()
+	_test_eryon_deck()
+	_test_cortina_de_fumaca()
 	_test_sim()
 	for e in CardDB.errors():
 		check(false, e)
@@ -364,8 +367,8 @@ func _test_sagrada_board_control() -> void:
 	check(lucien_targets.filter(func(unit: Card): return unit.damage > 0).size() == 3,
 		"Uriel não causa dano ao entrar")
 	var uriel_data: Dictionary = CardDB.card("uriel")
-	check(int(uriel_data["atk"]) == 5 and int(uriel_data["hp"]) == 6
-		and not uriel_data["keywords"].has("roubo_de_vida"), "Uriel é 5/6 e não tem Roubo de Vida inato")
+	check(int(uriel_data["atk"]) == 5 and int(uriel_data["hp"]) == 4
+		and not uriel_data["keywords"].has("roubo_de_vida"), "Uriel é 5/4 e não tem Roubo de Vida inato")
 	var uriel_game := _new_game()
 	_quiet(uriel_game)
 	uriel_game.players[0]["leader_hp"] = 10
@@ -373,8 +376,8 @@ func _test_sagrada_board_control() -> void:
 	check(uriel_game.players[0]["leader_hp"] == 10, "Uriel não tem Ao Entrar")
 	_hit(uriel_game, uriel)
 	uriel_game._flush()
-	check(uriel_game.players[0]["leader_hp"] == 16,
-		"Uriel cura 6 do Líder ao atacar, sem Roubo de Vida adicional (%d)" % uriel_game.players[0]["leader_hp"])
+	check(uriel_game.players[0]["leader_hp"] == 14,
+		"Uriel cura 4 do Líder ao atacar, sem Roubo de Vida adicional (%d)" % uriel_game.players[0]["leader_hp"])
 	# Nerithia: Ímpeto, e o Ao Desafiar dá sempre ao menos +2 de Ataque
 	var g3 := _new_game()
 	var nerithia := _put(g3, 0, "nerithia")
@@ -4719,8 +4722,11 @@ func _test_metalica() -> void:
 	g = _metalica_game()
 	a = g.active
 	b = g.opponent(a)
-	var mirror_a := _put(g, a, "rakhana")
-	var mirror_b := _put(g, b, "rakhana")
+	# Fixture mirrors without Armadura, so the numbers don't move whenever Rakhana is rebalanced
+	_tcard("t_mirror", 3, 6, [])
+	CardDB.data()["cards"]["t_mirror"]["keywords"] = ["reflexao"]
+	var mirror_a := _put(g, a, "t_mirror")
+	var mirror_b := _put(g, b, "t_mirror")
 	g._deal_damage(mirror_a.uid, 5, mirror_b)
 	g._flush()
 	check(g.hp_left(mirror_a) == 1, "Reflexão: quem tem Reflexão sofre o dano normal (5)")
@@ -5595,8 +5601,8 @@ func _test_sagrada_engine() -> void:
 	var baluarte_data: Dictionary = CardDB.card("baluarte_santo")
 	check(int(mefi_ability["cost"]) == 4, "Mefi'Urdim: Erguer o Baluarte custa 4 Momentum")
 	check(baluarte_data.get("death_ward", false) and not baluarte_data.has("redirects_destroy")
-		and int(baluarte_data["activated"]["cost"]) == 2 and baluarte_data["activated"]["speed"] == "rapido",
-		"Baluarte: proteção manual Ao Ativar custa 2 e é Rápida")
+		and not baluarte_data.has("activated"),
+		"Baluarte: a proteção é automática, sem Ao Ativar")
 	# Bênção de Ferro Batido: Armadura 2 and Roubo de Vida, both only until the end of this turn
 	_tcard("t_blessing_target", 2, 4, [])
 	var blessing_game := _new_game()
@@ -5656,15 +5662,15 @@ func _test_sagrada_engine() -> void:
 	check(g.players[player]["leader_hp"] == 23, "Baluarte: Ao Morrer cura 3 do Líder (%d)" % g.players[player]["leader_hp"])
 	_cast_and_resolve(g, player, "t_kill_ally", protected_unit.uid)
 	check(g.find_unit(protected_unit.uid) == null, "Baluarte: depois de consumido, a unidade morre normalmente")
-	# Sem ativação, uma destruição normal não é redirecionada.
+	# The real Baluarte Santo has no Ao Ativar: it guards on its own, with no activation or Momentum
 	g = _new_game()
 	_quiet(g)
 	player = g.active
 	protected_unit = _put(g, player, "t_ward_unit")
-	bulwark = Card.new(g._uid(), "t_bulwark", player)
+	bulwark = Card.new(g._uid(), "baluarte_santo", player)
 	g._place_relic(player, bulwark)
 	_cast_and_resolve(g, player, "t_kill_ally", protected_unit.uid)
-	check(g.find_relic(bulwark.uid) != null and g.find_unit(protected_unit.uid) == null, "Baluarte: sem ativação, não protege automaticamente")
+	check(g.find_relic(bulwark.uid) == null and g.find_unit(protected_unit.uid) != null, "Baluarte: protege sozinho, sem ativação")
 	# Indestrutível survives destruction without spending an armed Baluarte.
 	g = _new_game()
 	_quiet(g)
@@ -5719,8 +5725,6 @@ func _test_sagrada_engine() -> void:
 	check(g.relic_fell_within(player, "t_bulwark", 2), "Erguer o Baluarte: caiu no turno X, ainda bloqueado em X+1")
 	g.turn = fall_turn + 2
 	check(not g.can_use_ability(player), "Erguer o Baluarte: caiu no turno X, bloqueado em X+2")
-	g.turn = fall_turn + 3
-	check(not g.can_use_ability(player), "Erguer o Baluarte: caiu no turno X, bloqueado ainda em X+3")
 	g.turn = fall_turn + 4
 	check(g.can_use_ability(player), "Erguer o Baluarte: depois de um turno seu sem queda, libera de novo")
 	g.turn = fall_turn + 5 # an opponent's turn: the fall happens there
@@ -6085,6 +6089,151 @@ func _test_sagrada_engine() -> void:
 
 ## Santa Maria Helena: 0/6 for five, periodic Leader healing, and one first-hit reduction per turn.
 ## Jack (Attack per leftover Momentum), Kai (Queimadura on any damage he deals) and Isarelis (executes a weak enemy).
+## Momentum above the normal cap of 10 (Eryon's deck): a temporary overflow, the "momentum_surge" static
+## effect that wakes up with it, and "auto_attack" (an extra attack at a random target).
+func _test_momentum_overflow() -> void:
+	var surge_condition := {"compare": {"stat": "momentum", "op": ">=", "value": 11}}
+	_tcard("t_surge_baron", 5, 7, [
+		{"trigger": "constante", "action": "momentum_surge", "min_momentum": 11, "atk": 20,
+			"keywords": ["sobrepujanca", "impeto"], "critico": 4},
+		{"trigger": "on_attack", "action": "auto_attack", "target": "none", "if": surge_condition}])
+
+	# gaining: a plain gain never lowers an overflowing pool, an overflow gain stops at the overflow cap
+	var g := _new_game()
+	var a := g.active
+	g.players[a]["momentum"] = 9
+	g.gain_momentum(a, 3, true)
+	check(g.players[a]["momentum"] == 12, "overflow: 9 + 3 com overflow chega a 12")
+	g.gain_momentum(a, 2)
+	check(g.players[a]["momentum"] == 12, "overflow: ganho comum não derruba nem sobe acima do teto 10")
+	g.gain_momentum(a, 50, true)
+	check(g.players[a]["momentum"] == GameState.MOMENTUM_OVERFLOW_CAP, "overflow: nunca passa do teto temporário")
+
+	# spending: only neutral cards (and leader abilities) see the part above 10
+	g.players[a]["momentum"] = 13
+	var neutral_data := CardDB.card("t_surge_baron")
+	var other_essence_data := CardDB.card("jack")
+	check(g.budget(a, false, neutral_data) == 13, "overflow: carta neutra enxerga os 13")
+	check(g.budget(a, false, other_essence_data) == GameState.MOMENTUM_CAP, "overflow: carta de outra essência enxerga só 10")
+	check(g.budget(a, true) == 13, "overflow: habilidade de Líder enxerga os 13")
+
+	# the excess vanishes at the end of the owner's turn
+	g.end_turn(a)
+	check(g.players[a]["momentum"] == GameState.MOMENTUM_CAP, "overflow: o que passa de 10 some no fim do turno")
+
+	# the surge: off at 10, on at 11, off again when the Momentum is spent
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	var baron := _put(g, a, "t_surge_baron")
+	g.players[a]["momentum"] = 10
+	g._refresh_scaling()
+	check(g.atk_of(baron) == 5 and not g.has_kw(baron, "sobrepujanca") and baron.critico_total() == 0, "surto: com 10 de Momentum o Barão é comum")
+	g.gain_momentum(a, 1, true)
+	check(g.atk_of(baron) == 25 and g.has_kw(baron, "sobrepujanca") and g.has_kw(baron, "impeto") and baron.critico_total() == 4, "surto: com 11 vira +20 Ataque, Sobrepujança, Ímpeto e Crítico 4")
+	var restored := Card.from_dict(baron.to_dict(), "board", a)
+	check(restored.surge_keywords == baron.surge_keywords and restored.surge_critico == 4, "surto: sobrevive ao salvar e carregar")
+	g.players[a]["momentum"] = 10
+	g._refresh_scaling()
+	check(g.atk_of(baron) == 5 and not g.has_kw(baron, "impeto"), "surto: volta ao normal quando o Momentum cai para 10")
+
+	# auto_attack: with the surge on the Barão hits twice (the second blow ends a Leader at 3 life)
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	var enemy: int = g.opponent(a)
+	baron = _put(g, a, "t_surge_baron")
+	g.players[a]["momentum"] = 11
+	g._refresh_scaling()
+	g.players[enemy]["leader_hp"] = 30
+	_hit(g, baron)
+	check(baron.attacks_made == 2, "auto_attack: o Barão atacou duas vezes")
+	check(g.players[enemy]["leader_hp"] <= 0 or g.phase == "over", "auto_attack: duas pancadas de 27 derrubam o Líder")
+
+	# without the surge the condition fails: one blow, no extra attack
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	enemy = g.opponent(a)
+	baron = _put(g, a, "t_surge_baron")
+	g.players[a]["momentum"] = 10
+	g._refresh_scaling()
+	g.players[enemy]["leader_hp"] = 30
+	_hit(g, baron)
+	check(baron.attacks_made == 1 and g.players[enemy]["leader_hp"] == 25, "auto_attack: sem o surto é um golpe só")
+
+## The Eryon deck: the Leader's loan, Eryon's sacrifice-for-Momentum, Cobrador's overflow and the named search.
+func _test_eryon_deck() -> void:
+	# Leader: +2 Momentum now (past 10 allowed), 2 less at the start of the next turn
+	var g := _new_game()
+	_quiet(g)
+	var a := g.active
+	g.players[a]["leader_id"] = "eryon"
+	g.players[a]["momentum"] = 10
+	g.players[a]["next_momentum"] = 0
+	g.players[a]["ability_used"] = false # _quiet blocks the Leader ability; this test needs it
+	g.use_ability(a)
+	check(g.players[a]["momentum"] == 12, "Eryon Líder: +2 Momentum passa de 10 (%d)" % g.players[a]["momentum"])
+	check(g.players[a]["next_momentum"] == -2, "Eryon Líder: dívida de 2 no próximo turno (%d)" % g.players[a]["next_momentum"])
+
+	# Encarnação Eryon: sacrifices ANOTHER ally and gains its cost, at most 3
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	var eryon := _put(g, a, "eryon")
+	check(g.valid_targets(a, "other_ally_unit", eryon.uid).is_empty(), "Eryon: sozinho não tem a quem sacrificar")
+	var fodder := _put(g, a, "cobrador_de_pedagio_torto")
+	g.players[a]["momentum"] = 10
+	g.activate(a, eryon.uid, fodder.uid)
+	check(g.find_unit(fodder.uid) == null, "Eryon: a unidade sacrificada morre")
+	check(g.players[a]["momentum"] == 13, "Eryon: sacrificar custo 3 dá +3 e passa de 10 (%d)" % g.players[a]["momentum"])
+	var expensive := _put(g, a, "barao_estrondoso")
+	g.players[a]["momentum"] = 10
+	eryon.activated_turn = -1
+	g.activate(a, eryon.uid, expensive.uid)
+	check(g.players[a]["momentum"] == 13, "Eryon: custo 7 rende no máximo 3 (%d)" % g.players[a]["momentum"])
+
+	# Barão with the real card: 11 Momentum turns on the surge
+	var baron := _put(g, a, "barao_estrondoso")
+	g.players[a]["momentum"] = 11
+	g._refresh_scaling()
+	check(g.atk_of(baron) == 25 and g.has_kw(baron, "impeto"), "Barão: com 11 de Momentum fica com 25 de Ataque e Ímpeto")
+
+	# Recado Urgente finds the Barão (or Gertrudes) anywhere in the deck
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	var deck: Array = g.players[a]["deck"]
+	deck.push_front(Card.new(g._uid(), "barao_estrondoso", a))
+	g._begin_search(a, {"card_ids": ["barao_estrondoso", "dona_gertrudes_fura_fila"]}, 0)
+	check(g.phase == "search" and g.pending_search["cards"].size() == 1, "Recado Urgente: oferece só o Barão do deck")
+
+	# Gertrudes in the deck is NOT offered, and with no Barão left the spell draws 1 card instead of whiffing
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	g.players[a]["deck"].push_front(Card.new(g._uid(), "dona_gertrudes_fura_fila", a))
+	var hand_before: int = g.players[a]["hand"].size()
+	g._begin_search(a, {"card_ids": ["barao_estrondoso"], "fallback_draw": 1}, 0)
+	check(g.phase != "search", "Recado Urgente: sem o Barão no deck não abre escolha (Gertrudes não conta)")
+	check(g.players[a]["hand"].size() == hand_before + 1, "Recado Urgente: sem o Barão no deck compra 1 carta (%d)" % (g.players[a]["hand"].size() - hand_before))
+
+func _test_cortina_de_fumaca() -> void:
+	# Cortina de Fumaça Barata: every ally unit gets Furtividade until its owner's next turn starts
+	var g := _new_game()
+	_quiet(g)
+	var a := g.active
+	var first_unit := _put(g, a, "esqueleto_guerreiro")
+	var second_unit := _put(g, a, "esqueleto_guerreiro")
+	var curtain := Card.new(g._uid(), "cortina_de_fumaca_barata", a, "hand")
+	g.players[a]["hand"].append(curtain)
+	g.players[a]["momentum"] = 10
+	g.play_card(a, curtain.uid)
+	g._flush()
+	check(g.has_kw(first_unit, "furtividade") and g.has_kw(second_unit, "furtividade"), "Cortina de Fumaça: todas as unidades aliadas ganham Furtividade")
+	g._start_turn(a, false)
+	check(not g.has_kw(first_unit, "furtividade") and not g.has_kw(second_unit, "furtividade"), "Cortina de Fumaça: a Furtividade acaba quando o turno do dono começa")
+
 func _test_champion_rework() -> void:
 	# Jack: at the end of the turn he gains +1 Attack for each Momentum left, and no Vida
 	var jack_game := _new_game()

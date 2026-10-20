@@ -1,0 +1,36 @@
+{
+  "name": "Barão Estrondoso",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 7,
+  "atk": 5,
+  "hp": 7,
+  "max_copies": 1,
+  "keywords": [],
+  "art": "neutra/barao_estrondoso.webp",
+  "effects": [
+    {
+      "trigger": "constante",
+      "action": "momentum_surge",
+      "min_momentum": 11,
+      "atk": 20,
+      "keywords": ["sobrepujanca", "impeto"],
+      "critico": 4
+    },
+    {
+      "trigger": "on_attack",
+      "action": "auto_attack",
+      "target": "none",
+      "if": { "compare": { "stat": "momentum", "who": "self", "op": ">=", "value": 11 } }
+    }
+  ],
+  "text": "Única.\nConstante: enquanto você tiver 11 ou mais de Momentum, esta unidade ganha +20 de Ataque, Sobrepujança, Ímpeto e Crítico 4.\nAo Atacar: se você tiver 11 ou mais de Momentum, depois deste ataque ela ataca de novo, sozinha, um alvo inimigo aleatório.",
+  "flavor": [
+    "O trovão não bate à porta. O Barão também não."
+  ],
+  "tags": ["barao"]
+}
