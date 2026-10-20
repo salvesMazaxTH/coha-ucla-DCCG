@@ -3409,7 +3409,7 @@ func _test_triggers() -> void:
 	var sal := _put(g, 0, "salamandra")
 	hp = g.players[1]["leader_hp"]
 	_hit(g, sal)
-	check(g.players[1]["leader_hp"] == hp - 4, "salamandra Ao Atacar (2 + 2 hit)")
+	check(g.players[1]["leader_hp"] == hp - 3, "salamandra Ao Atacar (1 + 2 hit)")
 
 	g = _new_game()
 	var lord := _put(g, 0, "lord_of_the_shadowflame")

@@ -1,5 +1,5 @@
 {
-  "name": "Manto da Ladainha",
+  "name": "Manto Consagrado",
   "type": "artifact",
   "subtypes": ["equipment"],
   "rarity": "common",
@@ -16,6 +16,6 @@
     }
   ],
   "text": "Equipar: a unidade ganha Armadura 1 permanente e Roubo de Vida.",
-  "flavor": "Dizem que ele é bordado com todas as vezes que alguém disse amém.",
+  "flavor": "Quem o veste carrega a bênção de todos que o usaram antes, e a devolve em vida.",
   "tags": []
 }
