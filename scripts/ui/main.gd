@@ -42,6 +42,13 @@ const HUB_MARGIN := 40.0 ## space between the hub's panels and the stage sides
 const HUB_TILE := Vector2(210, 236) ## every deck tile in the gallery has this size, however many decks exist
 const HUB_TILE_GAP := 20.0
 const HUB_TILE_PAD := 10.0 ## room around the gallery's tiles for the hover zoom
+## The gallery's titled dividers, in order; a deck's "section" field picks one (default "essencia").
+const HUB_SECTIONS := [
+	{"id": DeckDB.SECTION_ESSENCE, "title": "DECKS DE ESSÊNCIA"},
+	{"id": DeckDB.SECTION_SPECIAL, "title": "DECKS ESPECIAIS"},
+]
+const HUB_SECTION_TITLE_H := 52.0 ## height of a divider's title row
+const HUB_SECTION_GAP := 28.0 ## empty space between the end of one section and the next title
 const HUB_DRAG_SLOP := 12.0 ## pixels a press may move and still count as a tap on a deck
 var ai_deck := "" ## deck the AI plays, picked in the second step of the AI hub ("" = a random other deck)
 
@@ -476,12 +483,23 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 
 	var gallery_x := HUB_MARGIN + showcase_w + 32.0
 	var gallery_w := stage_w - gallery_x - HUB_MARGIN
-	var gallery_ids: Array = ids.duplicate()
-	if choosing_ai_deck:
-		gallery_ids.push_front("") # the "random deck" tile comes first
+	# The gallery is split into titled sections (see DeckDB.section_of); a section with no deck is left out.
+	var gallery_sections: Array = []
+	for section in HUB_SECTIONS:
+		var section_ids: Array = ids.filter(func(deck_id: String) -> bool: return DeckDB.section_of(deck_id) == section["id"])
+		if gallery_sections.is_empty() and choosing_ai_deck:
+			section_ids.push_front("") # the "random deck" tile comes first
+		if not section_ids.is_empty():
+			gallery_sections.append({"title": section["title"], "ids": section_ids})
+	var show_section_titles := gallery_sections.size() > 1
 	var columns := maxi(1, int((gallery_w + HUB_TILE_GAP) / (HUB_TILE.x + HUB_TILE_GAP)))
-	var rows := ceili(float(gallery_ids.size()) / float(columns))
-	var content_h := rows * HUB_TILE.y + (rows - 1) * HUB_TILE_GAP
+	var content_h := 0.0
+	for section in gallery_sections:
+		if show_section_titles:
+			content_h += HUB_SECTION_TITLE_H
+		var rows := ceili(float(section["ids"].size()) / float(columns))
+		content_h += rows * HUB_TILE.y + (rows - 1) * HUB_TILE_GAP + HUB_SECTION_GAP
+	content_h -= HUB_SECTION_GAP
 	var scroll := ScrollContainer.new()
 	scroll.position = Vector2(gallery_x, body_top)
 	scroll.size = Vector2(gallery_w, body_h)
@@ -498,27 +516,35 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 	var grid_w := columns * HUB_TILE.x + (columns - 1) * HUB_TILE_GAP
 	var grid_x := (gallery_w - grid_w) / 2.0
 	var selected_tile: Control = null
-	for i in gallery_ids.size():
-		var id: String = gallery_ids[i]
-		var is_selected := id == selected_id
-		var t := _deck_tile(id, HUB_TILE, is_selected)
-		t.position = Vector2(grid_x + (i % columns) * (HUB_TILE.x + HUB_TILE_GAP), HUB_TILE_PAD + (i / columns) * (HUB_TILE.y + HUB_TILE_GAP))
-		if is_selected:
-			selected_tile = t
-		t.gui_input.connect(func(ev: InputEvent) -> void:
-			# picks on release, and not at the end of a scroll drag
-			var mb := ev as InputEventMouseButton
-			if mb == null or mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT or hub_drag_distance > HUB_DRAG_SLOP:
-				return
-			if choosing_ai_deck:
-				ai_deck = id
-			elif sel_deck != id:
-				sel_deck = id
-			else:
-				return
-			hub_scroll_y = scroll.scroll_vertical
-			_show_hub.call_deferred(ai, msg, choosing_ai_deck))
-		content.add_child(t)
+	var section_top := HUB_TILE_PAD
+	for section in gallery_sections:
+		if show_section_titles:
+			_add_hub_section_title(content, String(section["title"]), Vector2(grid_x, section_top), grid_w)
+			section_top += HUB_SECTION_TITLE_H
+		var section_ids: Array = section["ids"]
+		for i in section_ids.size():
+			var id: String = section_ids[i]
+			var is_selected := id == selected_id
+			var t := _deck_tile(id, HUB_TILE, is_selected)
+			t.position = Vector2(grid_x + (i % columns) * (HUB_TILE.x + HUB_TILE_GAP), section_top + (i / columns) * (HUB_TILE.y + HUB_TILE_GAP))
+			if is_selected:
+				selected_tile = t
+			t.gui_input.connect(func(ev: InputEvent) -> void:
+				# picks on release, and not at the end of a scroll drag
+				var mb := ev as InputEventMouseButton
+				if mb == null or mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT or hub_drag_distance > HUB_DRAG_SLOP:
+					return
+				if choosing_ai_deck:
+					ai_deck = id
+				elif sel_deck != id:
+					sel_deck = id
+				else:
+					return
+				hub_scroll_y = scroll.scroll_vertical
+				_show_hub.call_deferred(ai, msg, choosing_ai_deck))
+			content.add_child(t)
+		var section_rows := ceili(float(section_ids.size()) / float(columns))
+		section_top += section_rows * HUB_TILE.y + (section_rows - 1) * HUB_TILE_GAP + HUB_SECTION_GAP
 	# edge fades: a hint that there are more decks above or below
 	if content_h + 2.0 * HUB_TILE_PAD > body_h:
 		for at_top in [true, false]:
@@ -797,6 +823,20 @@ func _deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 	p.mouse_exited.connect(func() -> void:
 		p.create_tween().tween_property(p, "scale", Vector2.ONE, 0.12))
 	return p
+
+## A section divider in the hub gallery: the title on the left and a thin gold line under it.
+func _add_hub_section_title(content: Control, title_text: String, pos: Vector2, width: float) -> void:
+	var title := _label(title_text, 22, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_LEFT, "title_bold", 4)
+	title.position = pos + Vector2(4, 4)
+	title.size = Vector2(width - 8, 30)
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(title)
+	var line := ColorRect.new()
+	line.color = Color(UITheme.GOLD, 0.55)
+	line.position = pos + Vector2(0, 38)
+	line.size = Vector2(width, 2)
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(line)
 
 ## Join screen: 4-letter room code keypad, entering with the deck picked in the hub.
 func _show_join(msg := "") -> void:

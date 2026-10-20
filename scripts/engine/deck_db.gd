@@ -16,6 +16,8 @@ const MAX_OFF_ESSENCE := 12
 ## A neutral Leader picks them like any other: every non-neutral card is off-essence for it.
 const MAX_SECONDARY_ESSENCES := 2
 const PREBUILT_DIR := "res://data/decks/prebuilt"
+const SECTION_ESSENCE := "essencia"
+const SECTION_SPECIAL := "especial"
 
 static var _decks: Dictionary = {}
 static var _ids: Array[String] = []
@@ -45,6 +47,12 @@ static func _load() -> void:
 static func ids() -> Array[String]:
 	_load()
 	return _ids
+
+## Which hub section a deck belongs to: "essencia" (the default: mono-essence decks that show off one
+## essence) or "especial" (decks built around a combo or a neutral Leader, with a splash of other essences).
+static func section_of(id: String) -> String:
+	_load()
+	return String(_decks[id].get("section", SECTION_ESSENCE))
 
 static func has(id: String) -> bool:
 	_load()

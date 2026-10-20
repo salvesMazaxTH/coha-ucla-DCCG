@@ -148,7 +148,7 @@ Um alvo novo entra no `NAMES` de uma família (ou numa família nova listada em 
 
 - Palavra-chave `"critico:N"` em `keywords` (N de 1 a 4): nível impresso de Crítico.
 - `critico_growth: true`: cada crítico causado sobe o Crítico da carta em 1 nível permanente (até 4). Hoje só Vael. O nível alcançado vale para TODAS as cópias dele do jogador (campo, mão, deck, cemitério, banidas) e para as futuras.
-- `critico_maximo: {"bonus": 4, "ataque_duplo": true}`: ao chegar no Crítico 4 o crítico da carta dá `bonus` (em vez de +2) e `ataque_duplo` libera o segundo ataque. Hoje só Vael.
+- `critico_maximo: {"bonus": 3, "ataque_duplo": true}`: ao chegar no Crítico 4 o crítico da carta dá `bonus` (em vez de +2) e `ataque_duplo` libera o segundo ataque. Hoje só Vael.
 - `imune_critico: true`: o dano de combate que a carta recebe nunca é crítico (Desdém de Rália).
 
 ## Convenção de escrita do campo `text`

@@ -3075,8 +3075,8 @@ func _test_critico() -> void:
 	var retal_events := _hit(g_retal, retal_attacker, retal_defender.uid)
 	check(_has_event(retal_events, "crit") and retal_attacker.damage == 5, "Crítico também vale no revide (3 + 2 = 5, foi %d)" % retal_attacker.damage)
 
-	# Vael: +1 permanent level per crit, up to 4; at level 4 the bonus is +4 and he attacks twice
-	_tcrit("t_vael", 3, 9, 1, {"critico_growth": true, "critico_maximo": {"bonus": 4, "ataque_duplo": true}})
+	# Vael: +1 permanent level per crit, up to 4; at level 4 the bonus is +3 and he attacks twice
+	_tcrit("t_vael", 3, 9, 1, {"critico_growth": true, "critico_maximo": {"bonus": 3, "ataque_duplo": true}})
 	# a level-1 Vael crits 25% of the time: try seeds until one lands (each attack ends the combat, so a fresh game per try)
 	var grew := false
 	var vael: Card = null
@@ -3115,7 +3115,7 @@ func _test_critico() -> void:
 	for step in 5:
 		g_shared.grow_critico(vael_on_field)
 	check(vael_in_hand.critico == 4 and vael_summoned.critico == 4, "o Crítico compartilhado para no nível 4")
-	# at level 4: +4 damage, and two attacks per turn
+	# at level 4: +3 damage, and two attacks per turn
 	var g_max := _new_game()
 	_quiet(g_max)
 	g_max.players[1]["leader_hp"] = 999
@@ -3123,7 +3123,7 @@ func _test_critico() -> void:
 	vael_max.critico = 4
 	check(g_max.attacks_allowed(vael_max) == 2, "Vael no Crítico 4 ganha Ataque Duplo")
 	_hit(g_max, vael_max)
-	check(g_max.players[1]["leader_hp"] == 999 - 7, "Vael no Crítico 4: +4 de dano (3 + 4)")
+	check(g_max.players[1]["leader_hp"] == 999 - 6, "Vael no Crítico 4: +3 de dano (3 + 3)")
 	check(g_max.can_attack(vael_max), "Vael no Crítico 4 ainda pode atacar a segunda vez")
 	# what the client shows: the live level (temporary included) and the Ataque Duplo state
 	var vael_card := CardDB.card("t_vael")

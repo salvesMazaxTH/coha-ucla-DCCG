@@ -11,7 +11,7 @@
   "hp": 2,
   "critico_growth": true,
   "critico_maximo": {
-    "bonus": 4,
+    "bonus": 3,
     "ataque_duplo": true
   },
   "keywords": [
@@ -31,7 +31,7 @@
       "critico_temp": 4
     }
   ],
-  "text": "Cada Crítico que causa aumenta o Crítico de TODAS as suas cópias, onde estiverem e as futuras, em 1 nível, até o 4.\nNo Crítico 4: seus Críticos dão +4 de dano e ele tem Ataque Duplo.\nLuto: quando Myrra morre, esta unidade vai a Crítico 4 e ganha +2 de Ataque até o fim do turno.",
+  "text": "Cada Crítico que causa aumenta o Crítico de TODAS as suas cópias, onde estiverem e as futuras, em 1 nível, até o 4.\nNo Crítico 4: seus Críticos dão +3 de dano e ele tem Ataque Duplo.\nLuto: quando Myrra morre, esta unidade vai a Crítico 4 e ganha +2 de Ataque até o fim do turno.",
   "flavor": [
     "Ela era a única razão de eu ainda pegar a espada com cuidado."
   ],
