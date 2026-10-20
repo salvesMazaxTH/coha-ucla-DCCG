@@ -6295,19 +6295,18 @@ func _test_eryon_deck() -> void:
 	check(g.players[a]["momentum"] == 12, "Eryon Líder: +2 Momentum passa de 10 (%d)" % g.players[a]["momentum"])
 	check(g.players[a]["next_momentum"] == -2, "Eryon Líder: dívida de 2 no próximo turno (%d)" % g.players[a]["next_momentum"])
 
-	# the loan locks the turn to neutral cards only: hand, Réquiem and the Encarnação are all barred
-	var locked_card_uid := _give(g, a, "esqueleto_guerreiro")
+	# the loan is paid by the debt alone: it does NOT restrict the cards the turn can play
+	var other_essence_card_uid := _give(g, a, "esqueleto_guerreiro")
 	var neutral_card_uid := _give(g, a, "ajudante_de_gambiarra")
-	check(not g.can_play(a, locked_card_uid), "Eryon Líder: depois do empréstimo não joga carta não neutra")
+	check(g.can_play(a, other_essence_card_uid), "Eryon Líder: depois do empréstimo ainda joga carta não neutra")
 	check(g.can_play(a, neutral_card_uid), "Eryon Líder: depois do empréstimo ainda joga carta neutra")
-	check(g.is_play_restricted(a, CardDB.card("esqueleto_guerreiro")) and not g.is_play_restricted(1 - a, CardDB.card("esqueleto_guerreiro")), "trava de neutras vale só pra quem pegou o empréstimo")
+	check(not g.is_play_restricted(a, CardDB.card("esqueleto_guerreiro")), "Eryon Líder: o empréstimo não cria restrição de jogo")
 
 	# the turn the debt is paid, the loan is blocked; the turn after that it works again
 	g._start_turn(a, false)
 	check(g.players[a]["paid_debt_this_turn"], "Eryon Líder: pagar a dívida marca o turno como 'com dívida paga'")
 	check(not g.can_use_ability(a), "Eryon Líder: no turno em que paga a dívida não pode emprestar de novo")
 	g.players[a]["momentum"] = 10
-	check(g.can_play(a, locked_card_uid), "Eryon Líder: no turno seguinte a trava acabou e a carta não neutra volta a ser jogável")
 	g._start_turn(a, false)
 	check(not g.players[a]["paid_debt_this_turn"], "Eryon Líder: sem dívida no turno seguinte, a marca some")
 	check(g.can_use_ability(a), "Eryon Líder: no turno seguinte ao pagamento pode emprestar de novo")
@@ -6323,6 +6322,7 @@ func _test_eryon_deck() -> void:
 	g.activate(a, eryon.uid, fodder.uid)
 	check(g.find_unit(fodder.uid) == null, "Eryon: a unidade sacrificada morre")
 	check(g.players[a]["momentum"] == 13, "Eryon: sacrificar custo 3 dá +3 e passa de 10 (%d)" % g.players[a]["momentum"])
+	check(g.is_play_restricted(a, CardDB.card("esqueleto_guerreiro")), "Eryon: sacrificar para ganhar Momentum trava o turno só para cartas neutras")
 	var expensive := _put(g, a, "barao_estrondoso")
 	g.players[a]["momentum"] = 10
 	eryon.activated_turn = -1
