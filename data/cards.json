@@ -524,17 +524,17 @@
           {
             "action": "gain_momentum",
             "target": "none",
-            "amount": 2,
+            "amount": 1,
             "overflow": true
           },
           {
             "action": "gain_momentum",
             "target": "none",
-            "amount": -2,
+            "amount": -1,
             "next_turn": true
           }
         ],
-        "text": "Lenta. 0 Momentum, uma vez por turno: ganhe +2 Momentum neste turno (pode passar de 10). No seu próximo turno, comece com 2 Momentum a menos. Não pode ser usado no turno em que você paga essa dívida."
+        "text": "Lenta. 0 Momentum, uma vez por turno: ganhe +1 Momentum neste turno (pode passar de 10). No seu próximo turno, comece com 1 Momentum a menos. Não pode ser usado no turno em que você paga essa dívida."
       },
       "essences": ["neutra"]
     },

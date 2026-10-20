@@ -6283,7 +6283,7 @@ func _test_momentum_overflow() -> void:
 
 ## The Eryon deck: the Leader's loan, Eryon's sacrifice-for-Momentum, Cobrador's overflow and the named search.
 func _test_eryon_deck() -> void:
-	# Leader: +2 Momentum now (past 10 allowed), 2 less at the start of the next turn
+	# Leader: +1 Momentum now (past 10 allowed), 1 less at the start of the next turn
 	var g := _new_game()
 	_quiet(g)
 	var a := g.active
@@ -6292,8 +6292,8 @@ func _test_eryon_deck() -> void:
 	g.players[a]["next_momentum"] = 0
 	g.players[a]["ability_used"] = false # _quiet blocks the Leader ability; this test needs it
 	g.use_ability(a)
-	check(g.players[a]["momentum"] == 12, "Eryon Líder: +2 Momentum passa de 10 (%d)" % g.players[a]["momentum"])
-	check(g.players[a]["next_momentum"] == -2, "Eryon Líder: dívida de 2 no próximo turno (%d)" % g.players[a]["next_momentum"])
+	check(g.players[a]["momentum"] == 11, "Eryon Líder: +1 Momentum passa de 10 (%d)" % g.players[a]["momentum"])
+	check(g.players[a]["next_momentum"] == -1, "Eryon Líder: dívida de 1 no próximo turno (%d)" % g.players[a]["next_momentum"])
 
 	# the loan is paid by the debt alone: it does NOT restrict the cards the turn can play
 	var other_essence_card_uid := _give(g, a, "esqueleto_guerreiro")
@@ -6329,11 +6329,19 @@ func _test_eryon_deck() -> void:
 	g.activate(a, eryon.uid, expensive.uid)
 	check(g.players[a]["momentum"] == 13, "Eryon: custo 7 rende no máximo 3 (%d)" % g.players[a]["momentum"])
 
-	# Barão with the real card: 11 Momentum turns on the surge
+	# Barão with the real card: Ímpeto and Escudo are innate; the surge turns on at 11 Momentum
 	var baron := _put(g, a, "barao_estrondoso")
+	g.players[a]["momentum"] = 10
+	g._refresh_scaling()
+	check(g.atk_of(baron) == 5 and g.has_kw(baron, "impeto") and baron.shield
+		and not g.has_kw(baron, "sobrepujanca") and baron.critico_total() == 0,
+		"Barão: com 10 de Momentum já tem Ímpeto e Escudo, sem o bônus")
+	baron.shield = false
 	g.players[a]["momentum"] = 11
 	g._refresh_scaling()
-	check(g.atk_of(baron) == 20 and g.has_kw(baron, "impeto") and baron.shield, "Barão: com 11 de Momentum fica com 20 de Ataque, Ímpeto e Escudo")
+	check(g.atk_of(baron) == 20 and g.has_kw(baron, "impeto") and not baron.shield
+		and g.has_kw(baron, "sobrepujanca") and baron.critico_total() == 4,
+		"Barão: com 11 de Momentum ganha +15, Sobrepujança e Crítico 4 sem renovar Escudo")
 
 	# Cobrador de Pedágio Torto: only the oldest copy in play gives +1 Momentum, and never above 10
 	var baseline_momentum := 0
