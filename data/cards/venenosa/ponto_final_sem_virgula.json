@@ -4,7 +4,7 @@
   "rarity": "epic",
   "essence": "venenosa",
   "cost": 2,
-  "speed": "rapido",
+  "speed": "instantaneo",
   "art": "venenosa/ponto_final_sem_virgula.webp",
   "effects": [
     {

@@ -4,7 +4,7 @@
   "rarity": "common",
   "essence": "obscura",
   "cost": 2,
-  "speed": "rapido",
+  "speed": "instantaneo",
   "art": "obscura/colheita_de_almas.webp",
   "effects": [
     {

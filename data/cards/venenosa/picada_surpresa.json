@@ -4,7 +4,7 @@
   "rarity": "common",
   "essence": "venenosa",
   "cost": 1,
-  "speed": "rapido",
+  "speed": "instantaneo",
   "art": "venenosa/picada_surpresa.webp",
   "effects": [
     {

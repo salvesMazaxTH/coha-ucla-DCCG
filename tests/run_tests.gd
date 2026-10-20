@@ -2938,7 +2938,7 @@ func _test_stack() -> void:
 	g.play_card(0, lab, foe.uid)
 	check(g.stack.size() == 1 and g.priority == 1, "spell goes on the stack, opponent gets priority")
 	check(g.find_unit(foe.uid).damage == 0, "spell waits on the stack")
-	check(not g.can_play(1, _give(g, 1, "lanca_das_mares")), "lento cannot respond")
+	check(not g.can_play(1, _give(g, 1, "bola_de_fogo")), "lento cannot respond")
 	g.play_card(1, inst, foe.uid)
 	check(g.stack.size() == 2 and g.priority == 0, "instant response stacks and passes priority back")
 	g.pass_priority(0)
@@ -2984,7 +2984,7 @@ func _test_stack() -> void:
 	check(g.find_unit(kai.uid).damage == 1 and g.window == "pre_combat", "resolveu; a preparação continua")
 	_open_attacks(g)
 	check(g.window == "attacks", "os dois passaram: ataques")
-	check(not g.can_play(0, _give(g, 0, "lanca_das_mares")), "sem lento fora da fase principal")
+	check(not g.can_play(0, _give(g, 0, "bola_de_fogo")), "sem lento fora da fase principal")
 
 	# Escudo de Feitiço (Neraqa only shields another ally; she is Inalcançável herself)
 	g = _new_game()

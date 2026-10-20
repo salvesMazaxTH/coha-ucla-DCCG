@@ -4,7 +4,7 @@
   "rarity": "common",
   "essence": "aquatica",
   "cost": 2,
-  "speed": "rapido",
+  "speed": "instantaneo",
   "art": "aquatica/lanca_das_mares.webp",
   "effects": [
     {

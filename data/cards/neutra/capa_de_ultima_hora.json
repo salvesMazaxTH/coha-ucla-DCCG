@@ -3,8 +3,8 @@
   "type": "spell",
   "rarity": "common",
   "essence": "neutra",
-  "cost": 1,
-  "speed": "rapido",
+  "cost": 2,
+  "speed": "instantaneo",
   "art": "neutra/capa_de_ultima_hora.webp",
   "effects": [
     {

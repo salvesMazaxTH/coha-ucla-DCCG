@@ -4,7 +4,7 @@
   "rarity": "common",
   "essence": "rochosa",
   "cost": 1,
-  "speed": "rapido",
+  "speed": "instantaneo",
   "effects": [
     {
       "trigger": "on_play",
