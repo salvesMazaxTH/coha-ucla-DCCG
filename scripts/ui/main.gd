@@ -72,6 +72,9 @@ var table: TableView
 var layer: Control
 var overlay: Control
 var search_overlay: Control
+## Hash of the pending search the player folded away to look at the table (-1 = none). Comparing the
+## hash instead of a flag means the next search always opens expanded.
+var search_minimized_signature := -1
 var grave_view: Control ## graveyard viewer (child of Main, outlives _render)
 var concede_view: Control ## "concede?" confirmation (child of Main, outlives _render)
 var conceded := -1 ## player who gave up this match (-1 = nobody); only used for the game-over text
@@ -3190,15 +3193,15 @@ func _grave_scroll_input(e: InputEvent) -> bool:
 		return true
 	return false
 
+const SEARCH_MAX_COLUMNS := 7 ## cards per row in the search window
+const SEARCH_MAX_CARD_SCALE := 1.835 ## few cards: they are shown at most this big (1.0 = a card on the table)
+const SEARCH_SIDE_ROOM := 160.0 ## stage width kept free around the cards (panel margins and borders)
+const SEARCH_VERTICAL_ROOM := 330.0 ## stage height kept free for title, texts and the minimize button
+
 func _render_search_reveal() -> void:
 	if g.pending_search.is_empty():
 		return
 	var owner: int = g.decider()
-	search_overlay = _veil(0.84)
-	var box := VBoxContainer.new()
-	box.custom_minimum_size = Vector2(1120, 0)
-	box.add_theme_constant_override("separation", 12)
-	search_overlay.add_child(box)
 	var look: bool = g.pending_search.get("look", false)
 	# a private look is face up only for its owner (online, the server already masks the cards)
 	var discard_hand: bool = g.pending_search.get("discard_hand", false)
@@ -3207,7 +3210,16 @@ func _render_search_reveal() -> void:
 	# the options of a deck search are shown only to the searcher; the opponent just sees that a search is happening
 	var deck_search: bool = g.pending_search.get("deck_search", false)
 	var secret_search := deck_search and not _my_input()
-	box.add_child(_label("CAMPEÃO DA MÃO" if hand_summon else "DESCARTAR DA MÃO" if discard_hand else "CEMITÉRIO" if g.pending_search.get("grave", false) else ("TOPO DO DECK" if look else "BUSCA NO DECK"), 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
+	var title := "CAMPEÃO DA MÃO" if hand_summon else "DESCARTAR DA MÃO" if discard_hand else "CEMITÉRIO" if g.pending_search.get("grave", false) else ("TOPO DO DECK" if look else "BUSCA NO DECK")
+	var search_signature: int = g.pending_search.hash()
+	if search_minimized_signature == search_signature:
+		_render_search_minimized(title)
+		return
+	search_overlay = _veil(0.84)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	search_overlay.add_child(box)
+	box.add_child(_label(title, 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
 	var grave: bool = g.pending_search.get("grave", false)
 	var sub := "%s está procurando uma carta no deck" % _pname(owner)
 	if deck_search and _my_input():
@@ -3222,7 +3234,7 @@ func _render_search_reveal() -> void:
 		sub = "%s escolhe uma carta da mão para descartar" % _pname(owner)
 	elif look:
 		sub = "%s está olhando as %d cartas do topo do deck" % [_pname(owner), g.pending_search["cards"].size()]
-	box.add_child(_label(sub, 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+	box.add_child(_label(sub, 20, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
 	var grid := GridContainer.new()
 	var shown_options: Array = [] if secret_search else g.pending_search["cards"]
 	# a top-N look shows every card looked at: the eligible ones glow and can be picked, the others are dimmed
@@ -3232,14 +3244,25 @@ func _render_search_reveal() -> void:
 		eligible_uids[int(option["uid"])] = true
 	if not secret_search and not looked_cards.is_empty():
 		shown_options = looked_cards
-	grid.columns = maxi(1, mini(7, shown_options.size()))
-	grid.add_theme_constant_override("h_separation", 12)
-	grid.add_theme_constant_override("v_separation", 10)
+	# big enough to read the card text: as wide as the stage allows in one row of up to 7 cards, and
+	# short enough that every row still fits on the screen
+	const GRID_GAP := 12
+	var grid_columns := maxi(1, mini(SEARCH_MAX_COLUMNS, shown_options.size()))
+	var grid_rows := maxi(1, ceili(float(shown_options.size()) / grid_columns))
+	var scale_that_fits_width := (stage_w - SEARCH_SIDE_ROOM - GRID_GAP * (grid_columns - 1)) / grid_columns / CardView.BASE.x
+	var scale_that_fits_height := (STAGE_H + BOT - SEARCH_VERTICAL_ROOM - GRID_GAP * (grid_rows - 1)) / grid_rows / CardView.BASE.y
+	var card_scale := minf(SEARCH_MAX_CARD_SCALE, minf(scale_that_fits_width, scale_that_fits_height))
+	var grid_width := grid_columns * CardView.BASE.x * card_scale + GRID_GAP * (grid_columns - 1)
+	box.custom_minimum_size = Vector2(maxf(1115.0, grid_width), 0)
+	grid.columns = grid_columns
+	grid.add_theme_constant_override("h_separation", GRID_GAP)
+	grid.add_theme_constant_override("v_separation", GRID_GAP)
+	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	box.add_child(grid)
 	for option in shown_options:
 		var card_uid: int = option["uid"]
 		var eligible: bool = eligible_uids.has(card_uid)
-		var cv := CardView.new().setup(option["card_id"], _display_instance_for_id(String(option["card_id"]), owner, card_uid), 1.05)
+		var cv := CardView.new().setup(option["card_id"], _display_instance_for_id(String(option["card_id"]), owner, card_uid), card_scale)
 		cv.face_down = hidden or String(option["card_id"]) == ""
 		if not cv.face_down:
 			cv.text_suffix = _scale_suffix(owner, CardDB.card(option["card_id"]))
@@ -3248,15 +3271,47 @@ func _render_search_reveal() -> void:
 			cv.highlight = OK
 		elif not eligible:
 			cv.modulate = Color(1, 1, 1, 0.4)
+		# every card can be inspected (right click / long press), picked or not: some rules texts
+		# only make sense in the full-screen view. Only the eligible ones can be chosen.
 		var can_pick: bool = eligible and _my_input()
-		cv.mouse_filter = Control.MOUSE_FILTER_STOP if can_pick else Control.MOUSE_FILTER_IGNORE
+		cv.right_clicked.connect(_show_overlay)
 		if can_pick:
 			cv.left_clicked.connect(func(_v): _on_search_choice(card_uid))
 		grid.add_child(cv)
 	var hint := "Clique em um campeão para colocá-lo em campo sem pagar o custo." if hand_summon else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else "Escolha 1 para a mão; as outras vão para o fundo do deck." if look else "Clique em uma carta que brilha para adicioná-la à sua mão; as outras cartas olhadas vão para o fundo do deck." if g.pending_search.has("to_bottom") else "Clique em uma carta para adicioná-la à sua mão e embaralhar o deck."
-	var footer := _label(hint if _my_input() else "A escolha pertence ao oponente.", 16, SEL if _my_input() else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
+	var footer := _label(hint if _my_input() else "A escolha pertence ao oponente.", 18, SEL if _my_input() else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 	box.add_child(footer)
+	if not secret_search:
+		box.add_child(_label("Botão direito (ou segurar o dedo) em uma carta abre ela em tela cheia.", 15, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+	var minimize_button := _button("▼  VER A MESA", func():
+		search_minimized_signature = search_signature
+		_render())
+	minimize_button.custom_minimum_size = Vector2(360, 52)
+	minimize_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.add_child(minimize_button)
 	_center.call_deferred(search_overlay)
+
+## The search folded into a small bar at the top of the screen, so the table can be seen (and cards on
+## it inspected). The bar brings the full choice back.
+func _render_search_minimized(title: String) -> void:
+	var bar := PanelContainer.new()
+	var style := UITheme.panel(14)
+	style.set_content_margin_all(10)
+	style.border_color = Color(UITheme.GOLD, 0.6)
+	style.shadow_size = 24
+	bar.add_theme_stylebox_override("panel", style)
+	layer.add_child(bar)
+	var restore_button := _button("▲  VOLTAR À ESCOLHA · %s" % title, func():
+		search_minimized_signature = -1
+		_render(), true)
+	restore_button.custom_minimum_size = Vector2(520, 60)
+	bar.add_child(restore_button)
+	search_overlay = bar
+	_place_at_top_center.call_deferred(bar)
+
+func _place_at_top_center(control: Control) -> void:
+	control.reset_size()
+	control.position = Vector2((size.x - control.size.x) / 2.0, 8.0)
 
 
 # ---------------------------------------------------------------- feedback
