@@ -6,10 +6,16 @@
   "essence": "sagrada",
   "cost": 5,
   "atk": 5,
-  "hp": 5,
-  "keywords": ["voo", "roubo_de_vida", "regeneracao"],
+  "hp": 4,
+  "keywords": ["voo", "regeneracao"],
   "art": "sagrada/uriel.webp",
   "effects": [
+    {
+      "trigger": "on_attack",
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount": 4
+    },
     {
       "listen": "leader_healed",
       "scope": "ally",
@@ -19,7 +25,7 @@
       "atk": 1
     }
   ],
-  "text": "Ao Entrar: causa 1 de dano a todas as unidades inimigas.\nCondicional: sempre que seu Líder for curado, esta unidade ganha +1 de Ataque permanente.",
-  "flavor": "Cada golpe dele devolve ao Líder o fôlego que o mundo tirou.",
+  "text": "Ao Atacar: cure 4 do seu Líder.\nCondicional: sempre que seu Líder for curado, esta unidade ganha +1 de Ataque permanente.",
+  "flavor": "Cada ataque devolve ao Líder o fôlego que o mundo tirou.",
   "tags": []
 }

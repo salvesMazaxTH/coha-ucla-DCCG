@@ -18,6 +18,9 @@ var sacrificed_attack := 0 ## total attack of the unit a "sacrifice" just killed
 var event: GameEvent = null ## the event that made a listening card react (null for plain triggers)
 var milled_cards: Array = [] ## cards the latest mill of this run sent to the graveyard (offered by mill_pick)
 
+var shielded_uids: Array[int] = [] ## units whose Escudo de Feitiço cancelled an earlier effect of this run: the card's later effects skip them
+var shielded_this_effect: Array[int] = [] ## shields broken by the effect running now; repeated hits of one effect (Repique) are independent, so they only count once that effect is over
+
 func _init(game_state: GameState, controller_player: int, trigger_name: String = "") -> void:
 	game = game_state
 	controller = controller_player

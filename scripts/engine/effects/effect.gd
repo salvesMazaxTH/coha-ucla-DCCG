@@ -78,14 +78,20 @@ func open_choice(_context: EffectContext) -> void:
 	pass
 
 ## Applies the effect to one target. Escudo de Feitiço comes first: the first effect from the
-## enemy side that hits a shielded unit is cancelled and breaks the shield.
+## enemy side that hits a shielded unit is cancelled and breaks the shield, and the card's later
+## effects in the same run skip that unit too (the shield cancels the whole card on it). Separate
+## hits of the same effect (Repique Desgovernado) are separate spells: only the first is cancelled.
 func apply_to(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
 	var hit_unit: Card = game.find_unit(target_uid) if target_uid > 0 else null
-	if hit_unit != null and hit_unit.owner != context.controller and hit_unit.spell_shield:
-		hit_unit.spell_shield = false
-		game._emit({"type": "spell_shield_break", "uid": target_uid})
-		return
+	if hit_unit != null and hit_unit.owner != context.controller:
+		if context.shielded_uids.has(target_uid):
+			return
+		if hit_unit.spell_shield:
+			hit_unit.spell_shield = false
+			context.shielded_this_effect.append(target_uid)
+			game._emit({"type": "spell_shield_break", "uid": target_uid})
+			return
 	# Imunidade contra <essência>: a card of that essence from the enemy side has no effect on the unit it AIMS at
 	# (nothing is spent). Untargeted and area effects still reach it, as with Inalcançável.
 	if hit_unit != null and hit_unit.owner != context.controller and target.needs_choice() \

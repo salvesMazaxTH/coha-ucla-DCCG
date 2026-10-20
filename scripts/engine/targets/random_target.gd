@@ -1,14 +1,14 @@
 class_name RandomTarget
 extends TargetSelector
-## Random picks with the match RNG: random_enemy (any enemy unit or the enemy Leader), random_enemy_unit, random_enemy_unit_twice (two independent picks, the same unit can be picked twice: 2 damage handed out one by one), random_enemy_unit_spread (the effect's "hits" independent picks over units), random_enemy_spread (the same, including the Leader), random_frozen_enemy_unit
-## (only enemy units that are already Congeladas), most_wounded_enemy_unit (the enemy unit that took the most damage and still has Vida 3 or more; a tie is rolled; Isarelis), strongest_enemy_units (the "count" enemy units with the highest Ataque, only those with Ataque "min_atk" or more; a tie at the cut-off is rolled; David), random_enemy_and_adjacent, random_ally_unit, random_other_ally_unit (both accept the effect's "only_species": the pool only holds allies of those species). The RNG is only rolled when there is something
+## Random picks with the match RNG: random_enemy (any enemy unit or the enemy Leader), random_enemy_unit, random_enemy_units (up to "count" different enemy units), random_enemy_unit_twice (two independent picks, the same unit can be picked twice: 2 damage handed out one by one), random_enemy_unit_spread (the effect's "hits" independent picks over units), random_enemy_spread (the same, including the Leader), random_frozen_enemy_unit
+## (only enemy units that are already Congeladas), most_wounded_enemy_unit (the enemy unit that took the most damage and still has Vida 3 or less, an execution; a tie is rolled; Isarelis), strongest_enemy_units (the "count" enemy units with the highest Ataque, only those with Ataque "min_atk" or more; a tie at the cut-off is rolled; David), random_enemy_and_adjacent, random_ally_unit, random_other_ally_unit (both accept the effect's "only_species": the pool only holds allies of those species). The RNG is only rolled when there is something
 ## to pick, so replays stay identical.
 ## A status effect (freeze, exhaust...) never rolls on a unit that already has that status: the pool only holds
 ## units that can still receive it (Effect.is_already_applied_to), and an empty pool means no target.
 
-const NAMES := ["random_enemy", "random_enemy_unit", "random_enemy_unit_twice", "random_enemy_unit_spread", "random_enemy_spread", "random_frozen_enemy_unit", "most_wounded_enemy_unit", "strongest_enemy_units", "random_enemy_and_adjacent", "random_ally_unit", "random_other_ally_unit"]
+const NAMES := ["random_enemy", "random_enemy_unit", "random_enemy_units", "random_enemy_unit_twice", "random_enemy_unit_spread", "random_enemy_spread", "random_frozen_enemy_unit", "most_wounded_enemy_unit", "strongest_enemy_units", "random_enemy_and_adjacent", "random_ally_unit", "random_other_ally_unit"]
 
-const WOUNDED_TARGET_MIN_HP := 3 ## "most_wounded_enemy_unit" ignores units with less current Vida than this
+const WOUNDED_TARGET_MAX_HP := 3 ## "most_wounded_enemy_unit" only picks units with this much current Vida or less
 
 func resolve(context: EffectContext, effect: Effect) -> Array:
 	var game := context.game
@@ -29,6 +29,18 @@ func resolve(context: EffectContext, effect: Effect) -> Array:
 			if enemy_pool.is_empty():
 				return []
 			return [enemy_pool[game.rng.randi_range(0, enemy_pool.size() - 1)]]
+		"random_enemy_units":
+			var distinct_pool: Array = []
+			for unit: Card in enemy_board:
+				if not effect.is_already_applied_to(unit):
+					distinct_pool.append(unit.uid)
+			var distinct_picks: Array = []
+			var pick_count := mini(maxi(0, int(effect.raw.get("count", 1))), distinct_pool.size())
+			for pick in pick_count:
+				var index := game.rng.randi_range(0, distinct_pool.size() - 1)
+				distinct_picks.append(distinct_pool[index])
+				distinct_pool.remove_at(index)
+			return distinct_picks
 		"random_enemy_unit_twice":
 			var twice_pool: Array = []
 			for unit: Card in enemy_board:
@@ -56,7 +68,7 @@ func resolve(context: EffectContext, effect: Effect) -> Array:
 			var hits := int(effect.raw.get("hits", 1))
 			if effect.raw.get("hits_from", "") == "self_atk":
 				var source := game.find_unit(context.self_uid)
-				hits = game.atk_of(source) if source != null else 0
+				hits = maxi(0, (game.atk_of(source) if source != null else 0) + int(effect.raw.get("hits_from_add", 0)))
 			for hit in maxi(0, hits):
 				all_enemy_picks.append(all_enemy_pool[game.rng.randi_range(0, all_enemy_pool.size() - 1)])
 			return all_enemy_picks
@@ -69,11 +81,11 @@ func resolve(context: EffectContext, effect: Effect) -> Array:
 				return []
 			return [frozen_pool[game.rng.randi_range(0, frozen_pool.size() - 1)]]
 		"most_wounded_enemy_unit":
-			# only wounded units with Vida atual >= WOUNDED_TARGET_MIN_HP; among them the one with the most damage taken
+			# only wounded units with Vida atual <= WOUNDED_TARGET_MAX_HP; among them the one with the most damage taken
 			var most_damage := 0
 			var wounded_pool: Array = []
 			for unit: Card in enemy_board:
-				if unit.damage <= 0 or game.hp_left(unit) < WOUNDED_TARGET_MIN_HP:
+				if unit.damage <= 0 or game.hp_left(unit) > WOUNDED_TARGET_MAX_HP:
 					continue
 				if unit.damage > most_damage:
 					most_damage = unit.damage

@@ -17,7 +17,7 @@
       "card_type": "spell",
       "minimum_count": 2,
       "divisor": 2,
-      "flat_reduction": 2
+      "flat_reduction": 1
     },
     {
       "trigger": "on_challenge",
@@ -34,7 +34,7 @@
       "cost_increase": 1
     }
   ],
-  "text": "Constante: com 2 ou mais feitiços Sagrados no seu cemitério, o dano que ela sofre é reduzido à metade, depois em 2 (arredondado para baixo; mín. 0).\nAo Desafiar: ganha +2 de Ataque e, então, o Ataque dela fica igual ao da unidade aliada de maior Ataque neste turno.\nAo Morrer: volta para a sua mão e custa 1 a mais (sem limite).",
+  "text": "Constante: com 2 ou mais feitiços Sagrados no seu cemitério, o dano que ela sofre é reduzido à metade (arredondada para cima) e depois reduzido em 1 (mín. 0).\nAo Desafiar: ganha +2 de Ataque e, então, o Ataque dela fica igual ao da unidade aliada de maior Ataque neste turno.\nAo Morrer: volta para a sua mão e custa 1 a mais (sem limite).",
   "flavor": "Cada oração rezada por alguém é um degrau a menos que a separa do chão.",
   "tags": []
 }

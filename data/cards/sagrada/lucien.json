@@ -5,21 +5,20 @@
   "species": ["humano", "ascendido"],
   "essence": "sagrada",
   "cost": 3,
-  "atk": 2,
+  "atk": 3,
   "hp": 3,
   "keywords": ["inalcancavel"],
   "art": "sagrada/lucien.webp",
   "effects": [
-    { "trigger": "on_enter", "action": "damage", "target": "all_enemy_units", "amount": 1 },
+    { "trigger": "on_enter", "action": "damage", "target": "random_enemy_units", "count": 3, "amount": 2 },
     {
       "trigger": "on_turn_end",
       "action": "buff",
       "target": "self",
-      "atk": 1,
-      "own_turn_only": true
+      "atk": 1
     }
   ],
-  "text": "Ao Entrar: causa 1 de dano a todas as unidades inimigas.\nNo fim do seu turno, esta unidade ganha +1 de Ataque permanente.",
+  "text": "Ao Entrar: causa 2 de dano a até 3 unidades inimigas aleatórias diferentes.\nNo Fim do Turno: esta unidade ganha +1 de Ataque permanente.",
   "flavor": "Ninguém chega até ele. Ele, devagar, chega em todo mundo.",
   "tags": []
 }

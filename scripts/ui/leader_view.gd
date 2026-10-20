@@ -77,7 +77,11 @@ var _ward_breaks := {} ## slot → 0..1 progress of a shell that is shattering r
 
 const WARD_COL := Color("#9fe8ff")
 const WARD_SLOTS := 3
-const WARD_GAPS := [3.5, 8.5, 13.5] ## distance of each shell from the plate, inner → outer
+const WARD_GAPS := [4.0, 10.5, 17.0] ## distance of each shell from the plate, inner → outer
+## One color per shell (inner → outer) so the count reads at a glance: the last shell is amber, the middle one violet,
+## the outer one ice blue. The color of the outermost standing shell is also the color of the plate film and the badge.
+const WARD_COLS := [Color("#ffb347"), Color("#b79bff"), Color("#5fd8ff")]
+const WARD_BADGE_C := Vector2(66, 136) ## center of the shell counter, hanging off the plate's bottom-left corner
 
 ## The Chamber's last shell cracks: the outermost remaining shell shatters outward. `left` = shells still standing.
 func play_ward_break(delay: float, left: int) -> void:
@@ -247,7 +251,7 @@ func _draw() -> void:
 	_rrect_line(P.grow(-2.6), RAD - 2, Color(trim, 0.85), 1.1)
 	if ward_hits > 0:
 		# a thin frost film on the plate's inner edge: the Leader itself reads as sealed
-		_rrect_line(P.grow(-1.2), RAD - 1, Color(WARD_COL, (0.28 + 0.12 * pulse) * ward_forge), 1.4)
+		_rrect_line(P.grow(-1.2), RAD - 1, Color(WARD_COLS[mini(ward_hits, WARD_SLOTS) - 1], (0.4 + 0.15 * pulse) * ward_forge), 1.8)
 	draw_line(Vector2(P.position.x + RAD, 1.6), Vector2(P.end.x - RAD, 1.6), Color(1, 1, 1, 0.3), 1.0)
 
 	# art window
@@ -295,6 +299,8 @@ func _draw() -> void:
 		var badge_margin := badge_radius * 1.2 + 1.0 # keep the medallion's shadow inside the art
 		var badge_center := Vector2(ART.end.x - badge_margin, ART.position.y + badge_margin)
 		CardView.draw_dot_badge(self, badge_center, badge_radius, 1.0, "veneno", poison, pulse, 1.2)
+
+	_draw_ward_badge(f_num)
 
 	# ability gem
 	var usable := ability_ready or passive
@@ -390,7 +396,7 @@ func _draw_ward_shells() -> void:
 	if ward_hits <= 0 and _ward_breaks.is_empty():
 		return
 	var center := PLATE.get_center()
-	var hot := Color(1, 1, 1).lerp(WARD_COL, 0.3)
+	var urgent := 0.5 + 0.5 * sin(_t * 9.0) if ward_hits == 1 else 1.0 ## the last shell throbs: one more hit and it is gone
 	for slot in WARD_SLOTS:
 		var breaking: float = _ward_breaks.get(slot, -1.0)
 		var live := slot < ward_hits
@@ -402,17 +408,47 @@ func _draw_ward_shells() -> void:
 		if breaking >= 0.0:
 			gap += breaking * 9.0
 			alpha = pow(1.0 - breaking, 1.6)
-		var col := WARD_COL.lerp(hot, clampf(ward_flash * 0.8, 0.0, 1.0))
+		elif slot == 0 and ward_hits == 1:
+			alpha *= 0.65 + 0.35 * urgent
+		var base: Color = WARD_COLS[slot]
+		var col := base.lerp(Color.WHITE, clampf(ward_flash * 0.8, 0.0, 1.0))
 		var rect := PLATE.grow(gap)
 		var pts := _rrect_pts(rect, RAD + gap)
 		pts.append(pts[0])
 		if breaking >= 0.0:
 			_draw_ward_shards(pts, center, breaking, col, alpha)
 			continue
-		draw_polyline(pts, Color(col, 0.10 * alpha), 5.0, true)
-		draw_polyline(pts, Color(col, 0.78 * alpha), 1.5, true)
+		draw_polyline(pts, Color(col, 0.20 * alpha), 8.0, true)
+		draw_polyline(pts, Color(col, 0.95 * alpha), 3.0, true)
+		draw_polyline(pts, Color(Color.WHITE, 0.35 * alpha), 1.0, true)
 		_draw_ward_glint(pts, slot, col, alpha)
-		_diamond(Vector2(center.x, rect.position.y), 3.4, Color(col, alpha), Color(1, 1, 1, 0.9 * alpha))
+		_diamond(Vector2(center.x, rect.position.y), 4.6, Color(col, alpha), Color(1, 1, 1, 0.9 * alpha))
+
+## Shell counter on the plate's bottom-left corner: a big number inside a ring of three arcs, one per shell, in
+## the shell's own color (dark when already spent). Counting never depends on squinting at the outlines.
+func _draw_ward_badge(f_num: Font) -> void:
+	if ward_hits <= 0:
+		return
+	var c := WARD_BADGE_C
+	var radius := 14.0
+	var left := mini(ward_hits, WARD_SLOTS)
+	var top: Color = WARD_COLS[left - 1]
+	var shown := clampf(ward_forge * 1.5, 0.0, 1.0)
+	var flare := clampf(ward_flash, 0.0, 1.0)
+	draw_circle(c + Vector2(0, 2), radius + 4, Color(0, 0, 0, 0.55 * shown))
+	draw_circle(c, radius + 3, Color(0.04, 0.05, 0.1, 0.95 * shown))
+	draw_circle(c, radius - 3, Color(top.darkened(0.7), shown))
+	for slot in WARD_SLOTS:
+		var start := -PI / 2 + TAU * slot / WARD_SLOTS + 0.2
+		var stop := start + TAU / WARD_SLOTS - 0.4
+		var live := slot < left
+		var seg: Color = WARD_COLS[slot]
+		if live:
+			draw_arc(c, radius, start, stop, 12, Color(seg.lerp(Color.WHITE, flare * 0.6), shown), 3.6, true)
+		else:
+			draw_arc(c, radius, start, stop, 12, Color(0.3, 0.32, 0.4, 0.55 * shown), 3.6, true)
+	var glow := 0.75 + 0.25 * sin(_t * 6.0)
+	_text(f_num, str(left), c + Vector2(0, 7), 20, Color(top.lerp(Color.WHITE, 0.55 + 0.3 * flare), shown * glow))
 
 ## A short comet of light travelling along a shell (the middle shell runs the opposite way).
 func _draw_ward_glint(pts: PackedVector2Array, slot: int, _col: Color, alpha: float) -> void:

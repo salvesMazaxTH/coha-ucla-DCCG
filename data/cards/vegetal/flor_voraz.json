@@ -16,10 +16,11 @@
       "action": "damage",
       "target": "random_enemy_spread",
       "hits_from": "self_atk",
+      "hits_from_add": 1,
       "amount": 1
     }
   ],
-  "text": "Ficha: não vai para o cemitério ao morrer.\nNo Fim do Turno: distribua X de dano aleatoriamente entre os inimigos, incluindo o Líder, 1 por vez. X é o Ataque dela (com todos os bônus).",
+  "text": "Ficha: não vai para o cemitério ao morrer.\nNo Fim do Turno: distribua X + 1 de dano aleatoriamente entre os inimigos, incluindo o Líder, 1 por vez. X é o Ataque dela (com todos os bônus).",
   "flavor": "Ela não sabe distinguir fome de curiosidade.",
   "tags": []
 }

@@ -535,17 +535,18 @@
       "legendary": "mefi_urdim",
       "ability": {
         "name": "Erguer o Baluarte",
-        "cost": 3,
+        "cost": 4,
         "speed": "lento",
         "effects": [
           {
             "action": "put_artifact",
             "target": "none",
             "card": "baluarte_santo",
-            "unique": true
+            "unique": true,
+            "lockout_turns": 2
           }
         ],
-        "text": "Lenta. 3 Momentum: coloque o Baluarte Santo no seu campo (só um por vez)."
+        "text": "Lenta. 4 Momentum: coloque o Baluarte Santo no seu campo (só um por vez). Não pode ser usada se um Baluarte seu caiu desde o seu último turno (inclusive nele)."
       },
       "essences": ["sagrada"]
     },

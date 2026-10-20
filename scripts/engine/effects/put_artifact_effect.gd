@@ -5,13 +5,18 @@ extends Effect
 ## Baluarte" uses it, since "summon" only creates units).
 ## "unique": the effect does nothing while the controller already has a copy of that artifact on the field.
 ## Nothing happens either when the field has no free slot.
+## "lockout_turns": N: nothing happens (and the Leader ability is unavailable) while a copy of that artifact left the
+## controller's field N or fewer turns ago. The turn counter ticks on every player's turn, so N = 2 means a fall
+## in the controller's own turn X, in the opponent's X+1 or in X+2 blocks the controller's turn X+2, and a fall in X+2 also blocks X+4.
 
 var card_id := ""
 var unique := false
+var lockout_turns := 0
 
 func _read_parameters(data: Dictionary) -> void:
 	card_id = String(data.get("card", ""))
 	unique = bool(data.get("unique", false))
+	lockout_turns = int(data.get("lockout_turns", 0))
 
 func apply(context: EffectContext, _target_uid: int) -> void:
 	var game := context.game
@@ -23,6 +28,8 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 ## so its cost is never paid for an effect that would do nothing.
 func can_put(game: GameState, p: int) -> bool:
 	if not game.has_free_slot(p):
+		return false
+	if lockout_turns > 0 and game.relic_fell_within(p, card_id, lockout_turns):
 		return false
 	if unique:
 		for relic: Card in game.players[p]["relics"]:

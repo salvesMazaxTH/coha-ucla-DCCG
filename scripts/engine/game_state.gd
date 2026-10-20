@@ -172,6 +172,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"leader_veneno_held_until": 0, # while turn <= this, this Leader's Veneno markers hurt but are not consumed (Antídoto Fora de Estoque)
 		"frozen_slots": 0, # Rei Gelado: empty field slots of this player that accept no permanent
 		"frozen_slots_until": 0, # they thaw at the end of this player's own turn, once the turn counter reaches this
+		"relic_fall_turns": {}, # card_id -> turn in which the last copy of that free-standing artifact left this player's field (Erguer o Baluarte lockout)
 	}
 
 func _uid() -> int:
@@ -497,7 +498,7 @@ func graveyard_damage_reduction_of(c: Card, amount: int) -> int:
 		if count < int(e.get("minimum_count", 2)):
 			continue
 		var divisor := maxi(1, int(e.get("divisor", 2)))
-		return maxi(0, floori(float(amount) / divisor) - int(e.get("flat_reduction", 0)))
+		return maxi(0, ceili(float(amount) / divisor) - int(e.get("flat_reduction", 0)))
 	return -1
 
 func _scale_count(p: int, e: Dictionary) -> int:
@@ -1555,12 +1556,18 @@ func _place_relic(p: int, c: Card) -> void:
 	_move(c, "relics")
 	_emit({"type": "relic_enter", "player": p, "uid": c.uid, "card_id": c.card_id})
 
+## True when a copy of `card_id` left p's field `turns` or fewer turns ago (the current turn counts as 0).
+func relic_fell_within(p: int, card_id: String, turns: int) -> bool:
+	var fall_turns: Dictionary = players[p].get("relic_fall_turns", {})
+	return fall_turns.has(card_id) and turn - int(fall_turns[card_id]) <= turns
+
 ## Destroys a free-standing artifact: it leaves the field (freeing its slot) for the graveyard.
 func destroy_relic(c: Card) -> void:
 	var p := c.owner
 	if not players[p]["relics"].has(c):
 		return
 	players[p]["relics"].erase(c)
+	players[p]["relic_fall_turns"][c.card_id] = turn
 	players[p]["graveyard"].append(c)
 	_emit({"type": "relic_destroyed", "player": p, "uid": c.uid, "card_id": c.card_id})
 	_move(c, "graveyard")
@@ -1705,6 +1712,8 @@ func _fire(c: Card, trigger: String, other_uid: int = 0, event_data: Dictionary 
 ## here: it is continuous and handled by _refresh_scaling.
 ## other_uid is the opposing unit in combat triggers (challenged unit, attacker, damage source).
 func _run_effects(context: EffectContext, effects: Array) -> void:
+	context.shielded_uids.clear() # a repeated run (Arauto Repeteco) is a new application
+	context.shielded_this_effect.clear()
 	for entry in effects:
 		# entries are Effect objects (raw card dictionaries are parsed on the fly)
 		var effect: Effect = entry if entry is Effect else EffectRegistry.parse(entry)
@@ -1720,6 +1729,8 @@ func _run_effects(context: EffectContext, effects: Array) -> void:
 			continue
 		for target_uid in effect.target.resolve(context, effect):
 			effect.apply_to(context, target_uid)
+		context.shielded_uids.append_array(context.shielded_this_effect)
+		context.shielded_this_effect.clear()
 		if effect.opens_choice() and effect.trigger == context.trigger:
 			effect.open_choice(context)
 

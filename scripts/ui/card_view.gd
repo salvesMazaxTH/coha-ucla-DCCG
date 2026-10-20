@@ -141,7 +141,7 @@ static var _banish: Shader
 static var _stealth_shader: Shader
 
 ## Keywords that change who can challenge or target whom get an icon medallion on the art (MTG Arena style),
-## in this order down the left edge; glyph tint per keyword.
+## in this order down the left edge, then the right; glyph tint per keyword.
 const BADGES := {
 	"provocacao": Color("#ffc66b"),
 	"voo": Color("#bfe6ff"),
@@ -607,7 +607,7 @@ func _draw() -> void:
 		var hp_col := Color.WHITE
 		if inst.has("damage"):
 			var live_atk: int = max(0, inst["atk"] + inst["temp_atk"] + int(inst.get("temp_atk_until_next_turn", 0)) + int(inst.get("bonus_atk", 0)))
-			atk_col = Color("#a8ffa0") if live_atk > atk else Color.WHITE
+			atk_col = Color("#a8ffa0") if live_atk > atk else (Color("#ff8a80") if live_atk < atk else Color.WHITE)
 			atk = live_atk
 			var live_max_hp: int = inst["hp"] + int(inst.get("bonus_hp", 0)) + int(inst.get("temp_hp", 0)) + int(inst.get("temp_hp_until_next_turn", 0))
 			hp_col = Color("#ff8a80") if inst["damage"] > 0 else (Color("#a8ffa0") if live_max_hp > hp else Color.WHITE)
@@ -986,24 +986,34 @@ func _draw_dot_badges(art: Rect2, s: float, pulse: float) -> void:
 		CardView.draw_dot_badge(self, center, radius, s, dot_id, dot_marker_count_of_view(inst, dot_id), pulse)
 		center.y += shadow_radius * 2.0 + 1 * s
 
-## Round medallions down the left edge of the art, under the cost gem.
+## Round medallions down the left edge of the art, then the opposite edge when the left fills.
 func _kw_badges(art: Rect2, cd: Dictionary, s: float) -> void:
 	var kws := _keywords(cd)
 	# Leave a little more clearance below the cost orb. Full-art Champion cards start their art
 	# closer to the top edge, so their first medallion otherwise tucks under the orb drawn later.
-	var c := Vector2(art.position.x + 11 * s, art.position.y + 40 * s)
+	var badge_index := 0
+	var c := Vector2.ZERO
 	for kw in BADGES:
 		if kws.has(kw):
+			c = _side_badge_position(art, badge_index, s)
 			_kw_badge(kw, c, 10 * s, s)
-			c.y += 23 * s
+			badge_index += 1
 	var armor_value := armor_of_view(cd, inst)
 	if armor_value > 0:
+		c = _side_badge_position(art, badge_index, s)
 		_armor_badge(c, 10 * s, s, armor_value)
-		c.y += 23 * s
+		badge_index += 1
 	# an Ao Ativar that exhausts the unit: lit while it can still be used, dark once spent.
 	# Shown on both turns, since the dim veil only means "can't attack" on the owner's turn.
 	if inst.has("damage") and cd.get("activated", {}).get("exhaust", false):
+		c = _side_badge_position(art, badge_index, s)
 		_use_badge(c, 10 * s, s, not inst.get("exhausted", false))
+
+func _side_badge_position(art: Rect2, index: int, s: float) -> Vector2:
+	var on_right := index >= 3
+	var row := index - 3 if on_right else index
+	var x := art.end.x - 11 * s if on_right else art.position.x + 11 * s
+	return Vector2(x, art.position.y + (40 + 23 * row) * s)
 
 ## Armadura medallion: a steel shield with the amount written on it.
 func _armor_badge(c: Vector2, r: float, s: float, amount: int) -> void:

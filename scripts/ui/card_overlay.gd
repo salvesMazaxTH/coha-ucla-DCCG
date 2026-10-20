@@ -52,6 +52,11 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 	txt += "[color=#aaaaaa]%s · %s · custo %d[/color]\n\n" % [kind, CardDB.essence_names(cd), shown_cost]
 	if cd.get("text", "") != "":
 		var body := CardView.fill_live_numbers(String(cd["text"]), snowball_level)
+		# a Condicional with a per-turn limit (Seymour) shows how many uses are already spent, like the Leader power does
+		if instance.has("conditional_uses_now"):
+			var per_turn_limit := int(cd.get("conditional_uses_per_turn", 0))
+			body = body.replace("(%dx por turno)" % per_turn_limit,
+					"(%dx por turno — usadas %d/%d)" % [per_turn_limit, int(instance["conditional_uses_now"]), per_turn_limit])
 		if instance.has("stun_markers"):
 			body = "[color=#ffd36b][b]Atordoada (%d):[/b] fica exausta, não ataca e perde a Rapidez; cada marcador custa um desvirar (é removido no início do turno de quem a controla). Sua Provocação não obriga ataques. Revida normalmente.[/color]
 " % int(instance["stun_markers"]) + body

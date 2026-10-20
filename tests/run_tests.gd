@@ -282,8 +282,8 @@ func _test_cleanse() -> void:
 	check(angel.dot_markers.is_empty(), "Mefi'Urdim purifica as unidades que ele buffa")
 
 func _test_sagrada_board_control() -> void:
-	# Seymour, o limpador: Líder curado, unidade aliada curada, feitiço Sagrado e início do turno
-	# causam 1 de dano duas vezes, cada uma a uma unidade inimiga aleatória
+	# Seymour, o limpador: curas e feitiços Sagrados causam 1 de dano duas vezes,
+	# cada uma a uma unidade inimiga aleatória
 	var g := _new_game()
 	var foe := _put(g, 1, "estrondador_igneo")
 	_put(g, 0, "seymour")
@@ -306,8 +306,8 @@ func _test_sagrada_board_control() -> void:
 	g_start.active = 0
 	g_start.bus().emit(_turn_start_event(g_start, seymour_start))
 	g_start._check_state()
-	check(g_start.find_unit(start_foe.uid).damage == 2, "Seymour causa 2 pontos de dano no início do turno")
-	# as condicionais ativam no máximo 2x por turno (o início do turno não entra na conta): a 3ª não faz nada
+	check(g_start.find_unit(start_foe.uid).damage == 0, "Seymour não causa dano no início do turno")
+	# as condicionais ativam no máximo 2x por turno: a 3ª não faz nada
 	var g_cap := _new_game()
 	var cap_foe := _put(g_cap, 1, "anciao_do_primeiro_bosque")
 	var seymour_cap := _put(g_cap, 0, "seymour")
@@ -317,15 +317,15 @@ func _test_sagrada_board_control() -> void:
 	g_cap._heal_leader(0, 1)
 	g_cap._heal_leader(0, 1)
 	g_cap._check_state()
-	check(g_cap.find_unit(cap_foe.uid).damage == 6, "Seymour: início do turno + 2 curas condicionais = 3 ativações = 6 de dano (deu %d)" % g_cap.find_unit(cap_foe.uid).damage)
+	check(g_cap.find_unit(cap_foe.uid).damage == 4, "Seymour: 2 curas condicionais causam 4 de dano (deu %d)" % g_cap.find_unit(cap_foe.uid).damage)
 	g_cap._heal_leader(0, 1)
 	g_cap._check_state()
-	check(g_cap.find_unit(cap_foe.uid).damage == 6, "Seymour: a 3ª condicional no mesmo turno não causa dano")
+	check(g_cap.find_unit(cap_foe.uid).damage == 4, "Seymour: a 3ª condicional no mesmo turno não causa dano")
 	# no turno seguinte do dono o contador volta a zero
 	g_cap.turn += 2
 	g_cap._heal_leader(0, 1)
 	g_cap._check_state()
-	check(g_cap.find_unit(cap_foe.uid).damage == 8, "Seymour: em outro turno ele volta a ativar")
+	check(g_cap.find_unit(cap_foe.uid).damage == 6, "Seymour: em outro turno ele volta a ativar")
 	# só age no turno do dono: cura durante o turno do oponente não faz nada
 	var g_theirs := _new_game()
 	var theirs_foe := _put(g_theirs, 1, "estrondador_igneo")
@@ -348,16 +348,33 @@ func _test_sagrada_board_control() -> void:
 	g_small._heal_leader(0, 1)
 	g_small._check_state()
 	check(g_small.find_unit(small_foe.uid) == null or g_small.find_unit(small_foe_two.uid) == null, "Seymour: a cura mata ao menos uma salamandra de 1 de Vida")
-	# Lucien: 1 de dano a todas as unidades inimigas ao entrar
+	# Lucien: 2 de dano a até 3 unidades inimigas diferentes ao entrar
+	_tcard("t_lucien_target", 0, 10, [])
 	var g2 := _new_game()
-	var foe_small := _put(g2, 1, "salamandra")
-	var foe_big := _put(g2, 1, "estrondador_igneo")
+	var lucien_targets: Array = []
+	for i in 5:
+		lucien_targets.append(_put(g2, 1, "t_lucien_target"))
 	_put(g2, 0, "lucien")
 	g2._check_state()
-	check(g2.find_unit(foe_small.uid) == null and g2.find_unit(foe_big.uid).damage == 1, "Lucien causa 1 de dano a todas as unidades inimigas")
+	var damaged_by_lucien: Array = lucien_targets.filter(func(unit: Card): return unit.damage > 0)
+	check(damaged_by_lucien.size() == 3 and damaged_by_lucien.all(func(unit: Card): return unit.damage == 2),
+		"Lucien causa 2 de dano a 3 unidades diferentes, sem distribuir os pontos (%d alvos)" % damaged_by_lucien.size())
 	_put(g2, 0, "uriel")
 	g2._check_state()
-	check(g2.find_unit(foe_big.uid).damage == 1, "Uriel não causa dano ao entrar (só o Lucien tem a varredura)")
+	check(lucien_targets.filter(func(unit: Card): return unit.damage > 0).size() == 3,
+		"Uriel não causa dano ao entrar")
+	var uriel_data: Dictionary = CardDB.card("uriel")
+	check(int(uriel_data["atk"]) == 5 and int(uriel_data["hp"]) == 6
+		and not uriel_data["keywords"].has("roubo_de_vida"), "Uriel é 5/6 e não tem Roubo de Vida inato")
+	var uriel_game := _new_game()
+	_quiet(uriel_game)
+	uriel_game.players[0]["leader_hp"] = 10
+	var uriel := _put(uriel_game, 0, "uriel")
+	check(uriel_game.players[0]["leader_hp"] == 10, "Uriel não tem Ao Entrar")
+	_hit(uriel_game, uriel)
+	uriel_game._flush()
+	check(uriel_game.players[0]["leader_hp"] == 16,
+		"Uriel cura 6 do Líder ao atacar, sem Roubo de Vida adicional (%d)" % uriel_game.players[0]["leader_hp"])
 	# Nerithia: Ímpeto, e o Ao Desafiar dá sempre ao menos +2 de Ataque
 	var g3 := _new_game()
 	var nerithia := _put(g3, 0, "nerithia")
@@ -1184,6 +1201,24 @@ func _test_stun_and_cap() -> void:
 	shielded.spell_shield = true
 	g._apply_effect(0, {"action": "stun", "target": "enemy_unit"}, shielded.uid)
 	check(not shielded.is_stunned() and not shielded.spell_shield, "Escudo de Feitiço anula o atordoamento")
+	# the shield cancels the whole card on that unit: Lianas Capturantes' -3 Ataque must not land after the exhaust is cancelled
+	g = _new_game()
+	_quiet(g)
+	var vines_target := _put(g, 1, "t_stn_vic")
+	vines_target.spell_shield = true
+	var vines_atk_before := g.atk_of(vines_target)
+	g._run_effect_dicts(0, CardDB.card("lianas_capturantes")["effects"], "on_play", vines_target.uid, 0)
+	check(not vines_target.spell_shield and not vines_target.exhausted and g.atk_of(vines_target) == vines_atk_before, "Escudo de Feitiço cancela todos os efeitos da carta na unidade (exaurir e -3 Ataque)")
+	g._run_effect_dicts(0, CardDB.card("lianas_capturantes")["effects"], "on_play", vines_target.uid, 0)
+	check(vines_target.exhausted and g.atk_of(vines_target) == maxi(0, vines_atk_before - 3), "sem escudo, Lianas Capturantes exaure e dá -3 Ataque")
+	# separate hits of one effect are separate spells: Repique's first hit only breaks the shield, the other two land
+	g = _new_game()
+	_quiet(g)
+	_tcard("t_rep_vic", 1, 20, [])
+	var repique_target := _put(g, 1, "t_rep_vic")
+	repique_target.spell_shield = true
+	g._run_effect_dicts(0, CardDB.card("repique_desgovernado")["effects"], "on_play", 0, 0)
+	check(not repique_target.spell_shield and repique_target.damage == 8, "Repique Desgovernado: o Escudo de Feitiço anula só o primeiro hit (8 dos 9 acertam)")
 	# save/load keeps the markers
 	var restored := Card.from_dict(taunt.to_dict(), "board", 1)
 	check(restored.stun_markers == 1, "atordoamento sobrevive a salvar e carregar")
@@ -3518,11 +3553,15 @@ func _test_vegetal() -> void:
 	var hp_before: int = int(g.players[1]["leader_hp"])
 	g._fire(flower, "on_turn_end")
 	g._check_state()
-	check(int(g.players[1]["leader_hp"]) == hp_before, "Flor Voraz: com 0 de Ataque não causa nenhum golpe")
-	flower.atk = 2 # the number of 1-damage hits is the flower's current Ataque
+	check(int(g.players[1]["leader_hp"]) == hp_before - 1, "Flor Voraz: com 0 de Ataque causa um golpe")
+	flower.atk = 1
 	g._fire(flower, "on_turn_end")
 	g._check_state()
-	check(int(g.players[1]["leader_hp"]) == hp_before - 2, "Flor Voraz: com 2 de Ataque causa dois danos separados ao Líder quando o campo inimigo está vazio")
+	check(int(g.players[1]["leader_hp"]) == hp_before - 3, "Flor Voraz: com 1 de Ataque causa dois golpes")
+	flower.atk = 3
+	g._fire(flower, "on_turn_end")
+	g._check_state()
+	check(int(g.players[1]["leader_hp"]) == hp_before - 7, "Flor Voraz: com 3 de Ataque causa quatro golpes")
 
 func _test_rusco() -> void:
 	var r := CardDB.card("rusco")
@@ -5033,6 +5072,27 @@ func _test_glacial_combo() -> void:
 	var random_damage := EffectRegistry.parse({"action": "damage", "target": "random_enemy_unit", "amount": 1})
 	check(not random_damage.target.resolve(random_context, random_damage).is_empty(), "alvo aleatório de dano: continua podendo acertar unidade congelada")
 
+	var distinct_damage := EffectRegistry.parse({"action": "damage", "target": "random_enemy_units", "count": 3, "amount": 2})
+	var distinct_picks_work := true
+	for roll in 30:
+		var distinct_picks: Array = distinct_damage.target.resolve(random_context, distinct_damage)
+		var seen: Dictionary = {}
+		for picked_uid in distinct_picks:
+			seen[picked_uid] = true
+		distinct_picks_work = distinct_picks_work and distinct_picks.size() == 3 and seen.size() == 3
+	check(distinct_picks_work, "unidades inimigas aleatórias: escolhe até 3 alvos distintos")
+	var short_board := _new_game()
+	_quiet(short_board)
+	_put(short_board, 1, "geodo_vivo")
+	_put(short_board, 1, "geodo_vivo")
+	var short_context := EffectContext.new(short_board, 0, "")
+	check(distinct_damage.target.resolve(short_context, distinct_damage).size() == 2,
+		"unidades inimigas aleatórias: nunca escolhe mais alvos do que há no campo")
+	var empty_board := _new_game()
+	_quiet(empty_board)
+	check(distinct_damage.target.resolve(EffectContext.new(empty_board, 0, ""), distinct_damage).is_empty(),
+		"unidades inimigas aleatórias: sem unidades não há alvos")
+
 	# Repique Desgovernado: "hits" picks over the enemy units (each hit is 1 damage), nothing to pick on an empty board
 	var spread := EffectRegistry.parse({"action": "damage", "target": "random_enemy_unit_spread", "hits": 9, "amount": 1})
 	var spread_picks: Array = spread.target.resolve(random_context, spread)
@@ -5533,7 +5593,7 @@ func _test_glacial() -> void:
 func _test_sagrada_engine() -> void:
 	var mefi_ability: Dictionary = CardDB.leader("mefi_urdim")["ability"]
 	var baluarte_data: Dictionary = CardDB.card("baluarte_santo")
-	check(int(mefi_ability["cost"]) == 3, "Mefi'Urdim: Erguer o Baluarte custa 3 Momentum")
+	check(int(mefi_ability["cost"]) == 4, "Mefi'Urdim: Erguer o Baluarte custa 4 Momentum")
 	check(baluarte_data.get("death_ward", false) and not baluarte_data.has("redirects_destroy")
 		and int(baluarte_data["activated"]["cost"]) == 2 and baluarte_data["activated"]["speed"] == "rapido",
 		"Baluarte: proteção manual Ao Ativar custa 2 e é Rápida")
@@ -5643,6 +5703,35 @@ func _test_sagrada_engine() -> void:
 	g._flush()
 	check(g.can_use_ability(player), "Erguer o Baluarte: pode erguer de novo quando não há nenhum")
 
+	# lockout_turns: after a Baluarte falls (own turn X, opponent's X+1 or the next own turn X+2) no new one until a clean own turn
+	CardDB.data()["leaders"]["t_leader"]["ability"]["effects"][0]["lockout_turns"] = 2
+	g = _new_game()
+	_quiet(g)
+	player = g.active
+	g.players[player]["leader_id"] = "t_leader"
+	g.players[player]["momentum"] = 8
+	var fall_turn: int = g.turn
+	g._place_relic(player, Card.new(g._uid(), "t_bulwark", player))
+	g.destroy_relic(g.players[player]["relics"][0])
+	g._flush()
+	check(not g.can_use_ability(player), "Erguer o Baluarte: caiu neste turno, bloqueado")
+	g.turn = fall_turn + 1
+	check(g.relic_fell_within(player, "t_bulwark", 2), "Erguer o Baluarte: caiu no turno X, ainda bloqueado em X+1")
+	g.turn = fall_turn + 2
+	check(not g.can_use_ability(player), "Erguer o Baluarte: caiu no turno X, bloqueado em X+2")
+	g.turn = fall_turn + 3
+	check(not g.can_use_ability(player), "Erguer o Baluarte: caiu no turno X, bloqueado ainda em X+3")
+	g.turn = fall_turn + 4
+	check(g.can_use_ability(player), "Erguer o Baluarte: depois de um turno seu sem queda, libera de novo")
+	g.turn = fall_turn + 5 # an opponent's turn: the fall happens there
+	g._place_relic(player, Card.new(g._uid(), "t_bulwark", player))
+	g.destroy_relic(g.players[player]["relics"][0])
+	g._flush()
+	g.turn += 1
+	check(not g.can_use_ability(player), "Erguer o Baluarte: caiu no turno do oponente, bloqueado no turno seguinte do dono")
+	g.turn += 2
+	check(g.can_use_ability(player), "Erguer o Baluarte: a queda no turno do oponente não bloqueia o turno seguinte limpo")
+	check(not g.relic_fell_within(1 - player, "t_bulwark", 2), "Erguer o Baluarte: a trava é de quem perdeu o Baluarte, não do oponente")
 	# overflow heal is opt-in: without "overflow_max_hp" nothing grows, with it the surplus becomes maximum Vida
 	_tspell("t_heal_plain", "lento", [{"trigger": "on_play", "action": "heal_unit", "target": "ally_or_own_leader", "amount": 3}])
 	_tspell("t_heal_overflow", "lento", [{"trigger": "on_play", "action": "heal_unit", "target": "ally_or_own_leader", "amount": 3, "overflow_max_hp": 1}])
@@ -5813,7 +5902,7 @@ func _test_sagrada_engine() -> void:
 	g._deal_damage(graveyard_unit.uid, 5, null)
 	check(graveyard_unit.damage == 1, "graveyard_armor: nunca reduz o dano a menos de 1 (%d)" % graveyard_unit.damage)
 
-	# Nerithia: a partir de 2 feitiços Sagrados, reduz dano para floor(dano / 2) - 2, sem piso de 1
+	# Nerithia: a partir de 2 feitiços Sagrados, reduz dano para ceil(dano / 2) - 1, sem piso de 1
 	g = _new_game()
 	_quiet(g)
 	var nerithia := _put(g, 0, "nerithia")
@@ -5822,8 +5911,9 @@ func _test_sagrada_engine() -> void:
 	check(g.damage_after_armor(nerithia, 5) == 5, "Nerithia: 1 feitiço Sagrado ainda não ativa a redução")
 	g.players[0]["graveyard"].append(Card.new(g._uid(), "t_sagrada_spell", 0, "graveyard"))
 	check(g._deal_damage(nerithia.uid, 1, null) == 0 and nerithia.damage == 0, "Nerithia: dano leve pode virar 0")
+	check(g.damage_after_armor(nerithia, 5) == 2, "Nerithia: metade de dano ímpar arredonda para cima e reduz 1")
 	g._deal_damage(nerithia.uid, 10, null)
-	check(nerithia.damage == 3, "Nerithia: dano alto usa floor(10 / 2) - 2 (%d)" % nerithia.damage)
+	check(nerithia.damage == 4, "Nerithia: dano alto usa ceil(10 / 2) - 1 (%d)" % nerithia.damage)
 
 	# Imunidade contra Obscura: combat damage and AIMED effects of enemy Obscura cards do nothing; area effects still hit
 	_tcard("t_immune_obscura", 1, 10, [])
@@ -6329,29 +6419,29 @@ func _test_tech_cards() -> void:
 	g._refresh_scaling()
 	check(g.atk_of(scaler) == 7, "Contador: dois Contadores não dão x4")
 
-## Isarelis' Ao Atingir o Líder destroys the most wounded enemy unit that still has Vida >= 3.
+## Isarelis' Ao Atingir o Líder destroys the most wounded enemy unit that has Vida <= 3 (an execution).
 func _test_isarelis_hit_leader() -> void:
 	_tcard("t_big_foe", 1, 8, [])
 	var g := _new_game()
 	_quiet(g)
 	var isarelis := _put(g, 0, "isarelis") # first, so her Ao Entrar has nobody to execute
 	var unhurt := _put(g, 1, "t_big_foe")
-	var hurt_a := _put(g, 1, "t_big_foe")
-	hurt_a.damage = 2
-	var hurt_b := _put(g, 1, "t_big_foe")
-	hurt_b.damage = 5
-	var nearly_dead := _put(g, 1, "t_big_foe")
-	nearly_dead.damage = 6 # Vida 2: too low, even though it is the most wounded of all
+	var healthy_wounded := _put(g, 1, "t_big_foe")
+	healthy_wounded.damage = 2 # Vida 6: wounded, but too healthy to be executed
+	var low_a := _put(g, 1, "t_big_foe")
+	low_a.damage = 5 # Vida 3
+	var low_b := _put(g, 1, "t_big_foe")
+	low_b.damage = 6 # Vida 2: the most wounded of the executable ones
 	g._fire(isarelis, "on_hit_leader")
 	g._check_state()
-	check(g.find_unit(hurt_b.uid) == null, "Isarelis: Ao Atingir o Líder destrói a mais ferida com Vida >= 3")
-	check(g.find_unit(unhurt.uid) != null and g.find_unit(hurt_a.uid) != null and g.find_unit(nearly_dead.uid) != null, "Isarelis: não destrói as outras (sem ferida, menos ferida, Vida < 3)")
+	check(g.find_unit(low_b.uid) == null, "Isarelis: Ao Atingir o Líder destrói a mais ferida com 3 de Vida ou menos")
+	check(g.find_unit(unhurt.uid) != null and g.find_unit(healthy_wounded.uid) != null and g.find_unit(low_a.uid) != null, "Isarelis: não destrói as outras (sem ferida, Vida acima de 3, menos ferida)")
 	g._fire(isarelis, "on_hit_leader")
 	g._check_state()
-	check(g.find_unit(hurt_a.uid) == null, "Isarelis: no golpe seguinte vai para a próxima mais ferida")
+	check(g.find_unit(low_a.uid) == null, "Isarelis: no golpe seguinte vai para a próxima mais ferida")
 	g._fire(isarelis, "on_hit_leader")
 	g._check_state()
-	check(g.find_unit(unhurt.uid) != null and g.find_unit(nearly_dead.uid) != null, "Isarelis: sem ferida elegível, não destrói ninguém")
+	check(g.find_unit(unhurt.uid) != null and g.find_unit(healthy_wounded.uid) != null, "Isarelis: sem ferida elegível, não destrói ninguém")
 
 func _test_maria_helena() -> void:
 	var cd := CardDB.card("maria_helena")
