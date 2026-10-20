@@ -4424,7 +4424,7 @@ func _after_ladeira(level: int) -> int:
 ## Dona Gertrudes Fura-Fila: Ao Entrar, a champion from the hand enters for free and is banished at the end of the turn.
 func _test_gertrudes() -> void:
 	_tcard("teste_alvo_gelo", 0, 20, [])
-	# the same-turn Wanessa line: Gertrudes (3) + Ladeira (4) out of 10 Momentum, Wanessa never paid for
+	# the same-turn Wanessa line: Gertrudes (4) + Ladeira (4) out of 10 Momentum, Wanessa never paid for
 	var g := _glacial_game()
 	g.players[0]["hand"].clear() # the opening hand is random: start from an empty one
 	g.players[1]["hand"].clear()
@@ -4437,7 +4437,7 @@ func _test_gertrudes() -> void:
 	var wanessa_uid := _give(g, a, "princesa_wanessa")
 	_give(g, a, "teste_alvo_gelo") # a non-champion in hand is not offered
 	var gertrudes_uid := _give(g, a, "dona_gertrudes_fura_fila")
-	check(g.cost_of(a, CardDB.card("dona_gertrudes_fura_fila")) == 3, "Gertrudes custa 3")
+	check(g.cost_of(a, CardDB.card("dona_gertrudes_fura_fila")) == 4, "Gertrudes custa 4")
 	g.play_card(a, gertrudes_uid, 0)
 	for guard in 8:
 		if g.stack.is_empty():
@@ -4451,7 +4451,7 @@ func _test_gertrudes() -> void:
 	check(not g.choose_search(a, wanessa_uid).is_empty(), "Gertrudes: a escolha é aceita")
 	var wanessa := g.find_unit(wanessa_uid)
 	check(wanessa != null and wanessa.zone == "board" and wanessa.banish_at_turn_end, "Gertrudes: a Princesa Wanessa entra em campo, marcada para ser banida")
-	check(int(g.players[a]["momentum"]) == 7, "Gertrudes: só o custo dela foi pago (10 - 3), a Wanessa entrou de graça")
+	check(int(g.players[a]["momentum"]) == 6, "Gertrudes: só o custo dela foi pago (10 - 4), a Wanessa entrou de graça")
 	_cast_and_resolve(g, a, "ladeira_abaixo_e_sem_freio")
 	check(wanessa.card_id == "wanessa_tempesfrost" and not wanessa.sick, "Gertrudes: a Ladeira cruza para Grande e a Wanessa já ataca no mesmo turno")
 	check(wanessa.banish_at_turn_end, "Gertrudes: transformar não tira a marca de banimento")
@@ -6094,9 +6094,9 @@ func _test_sagrada_engine() -> void:
 func _test_momentum_overflow() -> void:
 	var surge_condition := {"compare": {"stat": "momentum", "op": ">=", "value": 11}}
 	_tcard("t_surge_baron", 5, 7, [
-		{"trigger": "constante", "action": "momentum_surge", "min_momentum": 11, "atk": 20,
-			"keywords": ["sobrepujanca", "impeto"], "critico": 4},
-		{"trigger": "on_attack", "action": "auto_attack", "target": "none", "if": surge_condition}])
+		{"trigger": "constante", "action": "momentum_surge", "min_momentum": 11, "atk": 15,
+			"keywords": ["escudo", "sobrepujanca", "impeto"], "critico": 4},
+		{"trigger": "before_attack", "action": "auto_attack", "target": "none", "if": surge_condition}])
 
 	# gaining: a plain gain never lowers an overflowing pool, an overflow gain stops at the overflow cap
 	var g := _new_game()
@@ -6130,9 +6130,25 @@ func _test_momentum_overflow() -> void:
 	g._refresh_scaling()
 	check(g.atk_of(baron) == 5 and not g.has_kw(baron, "sobrepujanca") and baron.critico_total() == 0, "surto: com 10 de Momentum o Barão é comum")
 	g.gain_momentum(a, 1, true)
-	check(g.atk_of(baron) == 25 and g.has_kw(baron, "sobrepujanca") and g.has_kw(baron, "impeto") and baron.critico_total() == 4, "surto: com 11 vira +20 Ataque, Sobrepujança, Ímpeto e Crítico 4")
+	check(g.atk_of(baron) == 20 and g.has_kw(baron, "sobrepujanca") and g.has_kw(baron, "impeto") and baron.critico_total() == 4, "surto: com 11 vira +15 Ataque, Sobrepujança, Ímpeto e Crítico 4")
+	check(baron.shield and g.has_kw(baron, "escudo"), "surto: ao ligar, o Barão ganha Escudo")
 	var restored := Card.from_dict(baron.to_dict(), "board", a)
 	check(restored.surge_keywords == baron.surge_keywords and restored.surge_critico == 4, "surto: sobrevive ao salvar e carregar")
+	check(restored.surge_active and restored.shield, "surto: o estado ligado e o Escudo sobrevivem ao salvar e carregar")
+	check(not baron.surge_keywords.has("escudo"), "surto: Escudo não vira palavra-chave fixa, é concedido uma vez")
+	# the Escudo is spent by the first damage and is NOT granted again while the surge stays on
+	baron.shield = false
+	g._refresh_scaling()
+	check(not baron.shield, "surto: Escudo gasto não volta a cada atualização enquanto o surto continua")
+	# only after the surge goes off and on again is the Escudo granted again
+	g.players[a]["momentum"] = 10
+	g._refresh_scaling()
+	check(not baron.surge_active and not baron.shield, "surto: desligado, sem Escudo")
+	g.gain_momentum(a, 1, true)
+	check(baron.shield, "surto: ligar de novo concede um novo Escudo")
+	g.players[a]["momentum"] = 10
+	g._refresh_scaling()
+	baron.shield = false
 	g.players[a]["momentum"] = 10
 	g._refresh_scaling()
 	check(g.atk_of(baron) == 5 and not g.has_kw(baron, "impeto"), "surto: volta ao normal quando o Momentum cai para 10")
@@ -6148,7 +6164,7 @@ func _test_momentum_overflow() -> void:
 	g.players[enemy]["leader_hp"] = 30
 	_hit(g, baron)
 	check(baron.attacks_made == 2, "auto_attack: o Barão atacou duas vezes")
-	check(g.players[enemy]["leader_hp"] <= 0 or g.phase == "over", "auto_attack: duas pancadas de 27 derrubam o Líder")
+	check(g.players[enemy]["leader_hp"] <= 0 or g.phase == "over", "auto_attack: duas pancadas de 20 derrubam o Líder")
 
 	# without the surge the condition fails: one blow, no extra attack
 	g = _new_game()
@@ -6161,6 +6177,92 @@ func _test_momentum_overflow() -> void:
 	g.players[enemy]["leader_hp"] = 30
 	_hit(g, baron)
 	check(baron.attacks_made == 1 and g.players[enemy]["leader_hp"] == 25, "auto_attack: sem o surto é um golpe só")
+
+	# order: the extra attack happens (and animates) BEFORE the declared one, and never at the unit being challenged
+	_tcard("t_surge_wall", 1, 40, [])
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	enemy = g.opponent(a)
+	baron = _put(g, a, "t_surge_baron")
+	var challenged := _put(g, enemy, "t_surge_wall")
+	var other_wall := _put(g, enemy, "t_surge_wall")
+	challenged.exhausted = true
+	other_wall.exhausted = true
+	g.players[a]["momentum"] = 11
+	g._refresh_scaling()
+	var events := _hit(g, baron, challenged.uid)
+	var attack_targets: Array = []
+	var damage_steps := 0
+	for e in events:
+		if e["type"] == "attack":
+			attack_targets.append(int(e["target"]))
+		elif e["type"] == "combat_damage":
+			damage_steps += 1
+	check(attack_targets.size() == 2 and attack_targets[1] == challenged.uid, "auto_attack: o ataque declarado vem por último")
+	check(attack_targets.size() == 2 and attack_targets[0] != challenged.uid, "auto_attack: o ataque extra nunca escolhe a unidade desafiada")
+	check(damage_steps == 2 and baron.attacks_made == 2, "auto_attack: dois combates completos, o extra primeiro")
+
+	# the random pick has NO restriction: even a Barão with Ímpeto (sick) can hit the Leader, and an untapped
+	# Etérea / Furtiva / Voo / Provocação unit is a valid pick too. Over many seeds, both ends get picked.
+	_tcard("t_surge_ghost", 1, 40, [])
+	CardDB.data()["cards"]["t_surge_ghost"]["keywords"] = ["eterea", "furtividade", "voo", "provocacao"]
+	var ghost_picked := false
+	var leader_picked := false
+	for seed_value in range(1, 41):
+		g = _new_game()
+		_quiet(g)
+		g.rng.seed = seed_value
+		a = g.active
+		enemy = g.opponent(a)
+		baron = _put(g, a, "t_surge_baron", false)
+		challenged = _put(g, enemy, "t_surge_wall")
+		var ghost := _put(g, enemy, "t_surge_ghost") # untapped on purpose
+		challenged.exhausted = true
+		g.players[a]["momentum"] = 11
+		g._refresh_scaling()
+		events = _hit(g, baron, challenged.uid)
+		attack_targets = []
+		for e in events:
+			if e["type"] == "attack":
+				attack_targets.append(int(e["target"]))
+		check(attack_targets.size() == 2 and attack_targets[1] == challenged.uid and attack_targets[0] != challenged.uid, "auto_attack: sempre um golpe extra antes do declarado (seed %d)" % seed_value)
+		if attack_targets.size() == 2:
+			ghost_picked = ghost_picked or attack_targets[0] == ghost.uid
+			leader_picked = leader_picked or attack_targets[0] == GameState.LEADER_UID[enemy]
+	check(ghost_picked, "auto_attack: uma unidade desvirada, Etérea e com Furtividade pode ser sorteada")
+	check(leader_picked, "auto_attack: o Líder pode ser sorteado mesmo com Ímpeto")
+
+	# the Barão dies to the counter-blow of the extra attack: the declared attack fizzles and combat still closes
+	_tcard("t_surge_brute", 50, 60, [])
+	var died_once := false
+	for seed_value in range(1, 41):
+		g = _new_game()
+		_quiet(g)
+		g.rng.seed = seed_value
+		a = g.active
+		enemy = g.opponent(a)
+		baron = _put(g, a, "t_surge_baron")
+		challenged = _put(g, enemy, "t_surge_brute")
+		var other_brute := _put(g, enemy, "t_surge_brute")
+		challenged.exhausted = true
+		other_brute.exhausted = true
+		g.players[a]["momentum"] = 11
+		g._refresh_scaling()
+		baron.shield = false # the surge Escudo would absorb the first counter-blow; this test wants the Barão to die
+		events = _hit(g, baron, challenged.uid)
+		var attack_count := 0
+		for e in events:
+			if e["type"] == "attack":
+				attack_count += 1
+		# the Barão may also die to the counter-blow of the DECLARED attack (then both attacks happened)
+		if attack_count == 1:
+			died_once = true
+			check(g.find_unit(baron.uid) == null and g.hp_left(challenged) == 60, "auto_attack: o ataque declarado se desfez junto com o atacante (seed %d)" % seed_value)
+			check(g.phase != "over" and g.combat_system().pending_attack.is_empty(), "auto_attack: nada fica pendente depois do golpe extra (seed %d)" % seed_value)
+		else:
+			check(attack_count == 2, "auto_attack: sem morte no golpe extra, os dois ataques acontecem (seed %d)" % seed_value)
+	check(died_once, "auto_attack: em alguma seed o Barão morreu no contra-ataque do golpe extra")
 
 ## The Eryon deck: the Leader's loan, Eryon's sacrifice-for-Momentum, Cobrador's overflow and the named search.
 func _test_eryon_deck() -> void:
@@ -6175,6 +6277,23 @@ func _test_eryon_deck() -> void:
 	g.use_ability(a)
 	check(g.players[a]["momentum"] == 12, "Eryon Líder: +2 Momentum passa de 10 (%d)" % g.players[a]["momentum"])
 	check(g.players[a]["next_momentum"] == -2, "Eryon Líder: dívida de 2 no próximo turno (%d)" % g.players[a]["next_momentum"])
+
+	# the loan locks the turn to neutral cards only: hand, Réquiem and the Encarnação are all barred
+	var locked_card_uid := _give(g, a, "esqueleto_guerreiro")
+	var neutral_card_uid := _give(g, a, "ajudante_de_gambiarra")
+	check(not g.can_play(a, locked_card_uid), "Eryon Líder: depois do empréstimo não joga carta não neutra")
+	check(g.can_play(a, neutral_card_uid), "Eryon Líder: depois do empréstimo ainda joga carta neutra")
+	check(g.is_locked_to_neutral(a, CardDB.card("esqueleto_guerreiro")) and not g.is_locked_to_neutral(1 - a, CardDB.card("esqueleto_guerreiro")), "trava de neutras vale só pra quem pegou o empréstimo")
+
+	# the turn the debt is paid, the loan is blocked; the turn after that it works again
+	g._start_turn(a, false)
+	check(g.players[a]["paid_debt_this_turn"], "Eryon Líder: pagar a dívida marca o turno como 'com dívida paga'")
+	check(not g.can_use_ability(a), "Eryon Líder: no turno em que paga a dívida não pode emprestar de novo")
+	g.players[a]["momentum"] = 10
+	check(g.can_play(a, locked_card_uid), "Eryon Líder: no turno seguinte a trava acabou e a carta não neutra volta a ser jogável")
+	g._start_turn(a, false)
+	check(not g.players[a]["paid_debt_this_turn"], "Eryon Líder: sem dívida no turno seguinte, a marca some")
+	check(g.can_use_ability(a), "Eryon Líder: no turno seguinte ao pagamento pode emprestar de novo")
 
 	# Encarnação Eryon: sacrifices ANOTHER ally and gains its cost, at most 3
 	g = _new_game()
@@ -6197,7 +6316,45 @@ func _test_eryon_deck() -> void:
 	var baron := _put(g, a, "barao_estrondoso")
 	g.players[a]["momentum"] = 11
 	g._refresh_scaling()
-	check(g.atk_of(baron) == 25 and g.has_kw(baron, "impeto"), "Barão: com 11 de Momentum fica com 25 de Ataque e Ímpeto")
+	check(g.atk_of(baron) == 20 and g.has_kw(baron, "impeto") and baron.shield, "Barão: com 11 de Momentum fica com 20 de Ataque, Ímpeto e Escudo")
+
+	# Cobrador de Pedágio Torto: only the oldest copy in play gives +1 Momentum, and never above 10
+	var baseline_momentum := 0
+	for copies in [0, 1, 3]:
+		g = _new_game()
+		_quiet(g)
+		a = g.active
+		for copy_number in copies:
+			_put(g, a, "cobrador_de_pedagio_torto")
+		g._start_turn(a, false)
+		if copies == 0:
+			baseline_momentum = int(g.players[a]["momentum"])
+		else:
+			check(int(g.players[a]["momentum"]) == baseline_momentum + 1, "Cobrador: %d cópia(s) em campo rendem só +1 Momentum (%d)" % [copies, g.players[a]["momentum"]])
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	for copy_number in 2:
+		_put(g, a, "cobrador_de_pedagio_torto")
+	g.players[a]["max_momentum"] = GameState.MOMENTUM_CAP
+	g._start_turn(a, false)
+	check(int(g.players[a]["momentum"]) <= GameState.MOMENTUM_CAP, "Cobrador: o Momentum dele nunca passa de 10 (%d)" % g.players[a]["momentum"])
+	# the Cobrador's gain locks the turn to neutral cards too, but not when it gained nothing (already at 10)
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	_put(g, a, "cobrador_de_pedagio_torto")
+	g.players[a]["max_momentum"] = 4
+	g._start_turn(a, false)
+	check(g.is_locked_to_neutral(a, CardDB.card("esqueleto_guerreiro")), "Cobrador: ganhar Momentum trava o turno só para cartas neutras")
+	check(not g.is_locked_to_neutral(a, CardDB.card("ajudante_de_gambiarra")), "Cobrador: carta neutra continua jogável")
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	_put(g, a, "cobrador_de_pedagio_torto")
+	g.players[a]["max_momentum"] = GameState.MOMENTUM_CAP
+	g._start_turn(a, false)
+	check(not g.is_locked_to_neutral(a, CardDB.card("esqueleto_guerreiro")), "Cobrador: sem ganho real de Momentum (já em 10) não há trava")
 
 	# Recado Urgente finds the Barão (or Gertrudes) anywhere in the deck
 	g = _new_game()

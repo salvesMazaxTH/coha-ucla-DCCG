@@ -20,10 +20,13 @@ var pending_attack: Dictionary = {}
 ## instead of the attacker. 0 = nobody. Read once by attack() and then cleared.
 var redirect_hit_to := 0
 var redirect_counter_to := 0
-## Units whose "auto_attack" (Barão Estrondoso) asked for one more attack at a random enemy. Each one
-## runs after the attack that queued it has dealt its damage; that extra attack does not fire Ao Atacar
-## again, so it never chains forever.
+## Units whose "auto_attack" (Barão Estrondoso) asked for one more attack at a random enemy. It is queued by
+## the internal trigger "before_attack" (the player just sees it as Ao Atacar), so each extra attack resolves
+## completely BEFORE the declared one. The extra attack fires no Ao Atacar, so it never chains forever.
 var auto_attack_queue: Array = []
+## The attack the player declared, waiting while the extra attacks before it resolve.
+## {"attacker": uid, "target": uid}, or empty when no declared attack is waiting.
+var deferred_attack: Dictionary = {}
 
 func _init(game_state: GameState) -> void:
 	game = game_state
@@ -111,7 +114,7 @@ func attack_targets(attacker: Card) -> Array:
 	return reachable_targets(attacker)
 
 ## The targets of attack_targets() without asking whether the attacker is still ready to attack.
-## An automatic extra attack (auto_attack) uses it: the attacker is already tapped by then.
+## The player's declared attack uses it again after the extra attacks: the attacker is already tapped by then.
 func reachable_targets(attacker: Card) -> Array:
 	var taunts := forced_taunts(attacker)
 	if not taunts.is_empty():
@@ -142,59 +145,110 @@ func attack(player: int, attacker_uid: int, target_uid: int) -> Array:
 	var attacker := game.find_unit(attacker_uid)
 	if attacker == null or attacker.owner != player or not attack_targets(attacker).has(target_uid):
 		return []
-	var defender_unit: Card = game.find_unit(target_uid) if target_uid > 0 else null
 	attacker.exhausted = true # it stays tapped between the two attacks of Ataque Duplo too
 	attacker.attacks_made += 1
-	var target_card_id := defender_unit.card_id if defender_unit != null else String(CardDB.leader(game.players[game.opponent(player)]["leader_id"]).get("legendary", ""))
-	game._emit({"type": "attack", "player": player, "attacker": attacker_uid, "target": target_uid, "attacker_card_id": attacker.card_id, "target_card_id": target_card_id})
+	# "before_attack" (shown to the player as Ao Atacar, Barão Estrondoso): the extra attacks it queues resolve
+	# first, one after the other; the attack declared here waits in deferred_attack until they are done
+	auto_attack_queue.clear()
+	game._fire(attacker, "before_attack", target_uid)
+	game._check_state()
+	deferred_attack = {"attacker": attacker_uid, "target": target_uid}
+	finish_pending_attack() # does nothing yet when the triggers left something on the stack
+	game.stack_system().settle()
+	return game._flush()
+
+## Declares the attack the player chose (the "attack" event, Ao Atacar, Ao Desafiar / Ao Ser Desafiada) and
+## leaves it as the pending attack. Its combat damage comes from finish_pending_attack().
+func _declare_attack(attacker: Card, target_uid: int) -> void:
+	var defender_unit: Card = game.find_unit(target_uid) if target_uid > 0 else null
+	var target_card_id := defender_unit.card_id if defender_unit != null else String(CardDB.leader(game.players[game.opponent(attacker.owner)]["leader_id"]).get("legendary", ""))
+	game._emit({"type": "attack", "player": attacker.owner, "attacker": attacker.uid, "target": target_uid, "attacker_card_id": attacker.card_id, "target_card_id": target_card_id})
 	redirect_hit_to = 0
 	redirect_counter_to = 0
 	# triggers: Ao Atacar always; Ao Desafiar / Ao Ser Desafiada only when a unit is challenged
 	game._fire(attacker, "on_attack", target_uid if defender_unit != null else 0)
 	if defender_unit != null:
 		game._fire(attacker, "on_challenge", target_uid)
-		game._fire(defender_unit, "on_challenged", attacker_uid)
+		game._fire(defender_unit, "on_challenged", attacker.uid)
 	game._check_state()
 	# a decoy summoned by the triggers above takes the blow (and/or the counter-blow) instead
 	var struck_uid := target_uid
 	if redirect_hit_to != 0 and game.find_unit(redirect_hit_to) != null:
 		struck_uid = redirect_hit_to
-	pending_attack = {"attacker": attacker_uid, "target": struck_uid, "counter_to": redirect_counter_to}
+	pending_attack = {"attacker": attacker.uid, "target": struck_uid, "counter_to": redirect_counter_to}
 	redirect_hit_to = 0
 	redirect_counter_to = 0
-	finish_pending_attack() # does nothing yet when the triggers left something on the stack
-	game.stack_system().settle()
-	return game._flush()
+
+## Declares the attack that waited for the extra attacks. It fizzles (the unit stays tapped) when its attacker
+## died meanwhile, or its target died or can no longer be hit. Returns true when the attack was declared.
+func _resume_deferred_attack() -> bool:
+	if deferred_attack.is_empty():
+		return false
+	var waiting := deferred_attack
+	deferred_attack = {}
+	var attacker := game.find_unit(int(waiting["attacker"]))
+	var target_uid := int(waiting["target"])
+	if attacker == null or game.phase == "over" or not reachable_targets(attacker).has(target_uid):
+		return false
+	_declare_attack(attacker, target_uid)
+	return true
 
 ## The attack's combat damage and the end of combat once no attacker is left. Waits while the stack
 ## is not empty: whatever the attack's triggers cast resolves (or is countered) before the blows land.
 func finish_pending_attack() -> void:
-	if pending_attack.is_empty() or not game.stack.is_empty():
+	if not game.stack.is_empty():
+		return
+	if pending_attack.is_empty():
+		# "before_attack" has resolved and nothing is being fought yet: start the extra attacks, then the declared one
+		if deferred_attack.is_empty():
+			return
+		if game.phase == "over":
+			deferred_attack = {}
+		elif _begin_next_auto_attack() or _resume_deferred_attack():
+			finish_pending_attack()
+		elif not has_any_attacker():
+			end_combat() # the declared attack fizzled (its attacker died) and nobody is left to attack
 		return
 	var attack_info := pending_attack
 	pending_attack = {}
 	if game.phase == "over":
+		deferred_attack = {}
 		return
 	_exchange_damage(int(attack_info["attacker"]), int(attack_info["target"]), int(attack_info.get("counter_to", 0)))
 	if game.phase == "over":
+		deferred_attack = {}
 		return
-	# an unit with "auto_attack" hits again right away; the next attack finishes (and ends combat) the same way
-	if _begin_next_auto_attack():
+	# the extra attacks (auto_attack) come first; once they are done the attack the player declared goes
+	if _begin_next_auto_attack() or _resume_deferred_attack():
 		finish_pending_attack()
 		return
 	if not has_any_attacker():
 		end_combat()
 
-## Takes the next queued automatic attack: picks a random legal target for the attacker, fires Ao Desafiar /
-## Ao Ser Desafiada (not Ao Atacar) and leaves the attack waiting as the pending attack.
-## Returns false when the queue holds nobody who can still hit anything.
+## Every possible target of an automatic extra attack: ALL enemy units plus the enemy Leader, with no restriction
+## at all (tapped or not, Provocação, Voo, Furtividade, Etérea, Ímpeto... none of it matters for the random pick).
+func auto_attack_targets(attacker: Card) -> Array:
+	var out: Array = []
+	for enemy_unit: Card in game.players[game.opponent(attacker.owner)]["board"]:
+		out.append(enemy_unit.uid)
+	out.append(GameState.LEADER_UID[game.opponent(attacker.owner)])
+	return out
+
+## Takes the next queued automatic attack: picks a random target for the attacker (auto_attack_targets), fires
+## Ao Desafiar / Ao Ser Desafiada (not Ao Atacar) and leaves the attack waiting as the pending attack.
+## A unit the player is about to challenge (deferred_attack) is never the pick, so the extra blow can't kill it
+## first and waste the declared attack; the enemy Leader is always in the pool, so the pick only fails if the attacker can't act.
+## Returns false when the queue holds nobody who can still attack.
 func _begin_next_auto_attack() -> bool:
 	while not auto_attack_queue.is_empty():
 		var attacker := game.find_unit(int(auto_attack_queue.pop_front()))
 		if attacker == null or attacker.owner != game.active or game.has_kw(attacker, "inerte") \
 				or attacker.is_frozen() or attacker.is_stunned():
 			continue
-		var targets := reachable_targets(attacker)
+		var targets := auto_attack_targets(attacker)
+		var declared_target := int(deferred_attack.get("target", 0))
+		if declared_target > 0:
+			targets.erase(declared_target) # the Leader stays a valid pick: hitting it twice is the point of the combo
 		if targets.is_empty():
 			continue
 		var target_uid: int = targets[game.rng.randi_range(0, targets.size() - 1)]

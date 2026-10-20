@@ -58,6 +58,10 @@
       "name": "Ao Morrer",
       "text": "O efeito acontece quando a unidade morre."
     },
+    "before_attack": {
+      "name": "Ao Atacar",
+      "text": "O efeito acontece quando a unidade ataca, antes de o ataque em si acontecer. Pode fazer outra coisa acontecer primeiro (o Barão Estrondoso ataca antes)."
+    },
     "on_attack": {
       "name": "Ao Atacar",
       "text": "O efeito acontece quando a unidade ataca, seja o Líder inimigo ou desafiando uma unidade."
@@ -514,13 +518,15 @@
         "name": "Redistribuir o Fôlego",
         "cost": 0,
         "once_per_turn": true,
+        "blocked_after_debt": true,
         "speed": "lento",
         "effects": [
           {
             "action": "gain_momentum",
             "target": "none",
             "amount": 2,
-            "overflow": true
+            "overflow": true,
+            "neutral_lock": true
           },
           {
             "action": "gain_momentum",
@@ -529,7 +535,7 @@
             "next_turn": true
           }
         ],
-        "text": "Lenta. 0 Momentum, uma vez por turno: ganhe +2 Momentum neste turno (pode passar de 10). No seu próximo turno, comece com 2 Momentum a menos."
+        "text": "Lenta. 0 Momentum, uma vez por turno: ganhe +2 Momentum neste turno (pode passar de 10), mas até o fim do turno só pode jogar cartas neutras. No seu próximo turno, comece com 2 Momentum a menos. Não pode ser usado no turno em que você paga essa dívida."
       },
       "essences": ["neutra"]
     },

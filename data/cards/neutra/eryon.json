@@ -33,13 +33,14 @@
             "target": "none",
             "amount_from": "sacrificed_cost",
             "max": 3,
-            "overflow": true
+            "overflow": true,
+            "neutral_lock": true
           }
         ]
       }
     ]
   },
-  "text": "Ao Entrar: compre 1 carta.\nAo Ativar (0) (1x por turno): sacrifique outra unidade aliada. Ganhe Momentum igual ao custo dela, no máximo 3. Pode passar de 10, só neste turno.",
+  "text": "Ao Entrar: compre 1 carta.\nAo Ativar (0) (1x por turno): sacrifique outra unidade aliada. Ganhe Momentum igual ao custo dela, no máximo 3. Pode passar de 10, só neste turno. Até o fim do turno, você só pode jogar cartas neutras.",
   "flavor": [
     "O fôlego não some. Só muda de dono."
   ],

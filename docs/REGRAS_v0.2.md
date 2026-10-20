@@ -183,6 +183,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 
 - Algumas habilidades têm `once_per_turn`: 1 uso por turno, em qualquer turno (o seu ou o do adversário), reiniciando a cada turno.
 - Outras têm `once_per_cycle` (Pavio Curto, do Ronan): **1 uso entre o início de um turno seu e o início do seu próximo turno**. Só o início do _seu_ turno recarrega. Se usou no seu turno, não usa no do adversário; se não usou, pode usar no do adversário (e no seu turno seguinte recarrega de qualquer forma). O jogador vê isso como "1× até seu próximo turno".
+- Outras têm `blocked_after_debt` (Redistribuir o Fôlego, do Eryon): não podem ser usadas no turno em que o dono paga uma dívida de Momentum (`next_momentum` negativo). Assim o empréstimo não se renova para sempre: usa-se em um turno, paga-se no seguinte (sem poder emprestar de novo) e só então volta a funcionar.
 
 ## Passivas de Líder
 

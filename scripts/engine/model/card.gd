@@ -46,6 +46,7 @@ var bonus_hp := 0
 var has_bonus := false ## bonus_* were computed at least once (they only show up in to_dict then)
 var surge_keywords: Array = [] ## keywords given while the owner has 11+ Momentum ("momentum_surge"); recomputed by _refresh_scaling
 var surge_critico := 0 ## Crítico level given by the same surge (the higher of it and the unit's own wins)
+var surge_active := false ## the surge was on at the last refresh: Escudo is granted only when it turns on, not on every refresh
 var frozen := 0 ## Congelada: the turn at whose END it thaws; 0 = not frozen
 var stun_markers := 0 ## Atordoamento: each marker costs the unit one untap (one start of its owner's turn); 0 = not stunned
 var condemned_turn := 0 ## Condenada: the turn at whose START it dies; 0 = not condemned
@@ -274,6 +275,8 @@ func to_dict() -> Dictionary:
 		d["surge_keywords"] = surge_keywords.duplicate()
 	if surge_critico > 0:
 		d["surge_critico"] = surge_critico
+	if surge_active:
+		d["surge_active"] = true
 	if frozen > 0:
 		d["frozen"] = frozen
 	if stun_markers > 0:
@@ -348,6 +351,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.bonus_hp = int(d.get("bonus_hp", 0))
 	c.surge_keywords = d.get("surge_keywords", []).duplicate()
 	c.surge_critico = int(d.get("surge_critico", 0))
+	c.surge_active = bool(d.get("surge_active", false))
 	c.frozen = int(d.get("frozen", 0))
 	c.stun_markers = int(d.get("stun_markers", 0))
 	c.condemned_turn = int(d.get("condemned_turn", 0))

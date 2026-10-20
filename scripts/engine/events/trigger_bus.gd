@@ -22,7 +22,7 @@ func _init(game_state: GameState) -> void:
 func emit(event: GameEvent) -> void:
 	if game._chain_stopped():
 		return
-	if event.source != null and event.trigger.begins_with("on_"):
+	if event.source != null and (event.trigger.begins_with("on_") or event.trigger == "before_attack"):
 		_fire_own_effects(event)
 	if event.trigger in GameEvent.LISTENABLE:
 		_broadcast(event)

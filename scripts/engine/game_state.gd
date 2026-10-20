@@ -424,12 +424,20 @@ func _refresh_scaling() -> void:
 			c.bonus_atk = b.x + aura.x + int(surge.get("atk", 0))
 			c.bonus_hp = b.y + aura.y
 			c.has_bonus = true
-			c.surge_keywords = surge.get("keywords", [])
+			var surge_keywords: Array = surge.get("keywords", [])
+			# Escudo is a one-use flag, not a keyword that stays on: it is granted once, at the moment the surge turns on
+			if surge_keywords.has("escudo"):
+				surge_keywords.erase("escudo")
+				if not c.surge_active:
+					c.shield = true
+			c.surge_keywords = surge_keywords
 			c.surge_critico = int(surge.get("critico", 0))
+			c.surge_active = not surge.is_empty()
 
 ## What a unit's "momentum_surge" Constante gives it right now: {atk, keywords, critico}, or {} while its
 ## controller has less than the effect's "min_momentum" (default: one above MOMENTUM_CAP, i.e. 11+).
-## Barão Estrondoso: +20 Ataque, Sobrepujança, Ímpeto and Crítico 4 only while the surge is on.
+## Barão Estrondoso: +15 Ataque, Escudo (once, when the surge turns on), Sobrepujança, Ímpeto and Crítico 4
+## only while the surge is on.
 func momentum_surge_of(p: int, c: Card) -> Dictionary:
 	for e in card_of(c).get("effects", []):
 		if e.get("trigger", "") != "constante" or e.get("action", "") != "momentum_surge":
@@ -951,6 +959,8 @@ func can_play(p: int, hand_uid: int, allow_unreachable := false) -> bool:
 	if inst == null:
 		return false
 	var cd := CardDB.card(inst.card_id)
+	if is_locked_to_neutral(p, cd):
+		return false
 	if is_subito_play(p, cd):
 		# paid like an ability, so the Reserva counts
 		return inst.zone == "hand" and has_free_slot(p) and not cd.get("cost_sacrifice", false) \
@@ -970,7 +980,15 @@ func can_play(p: int, hand_uid: int, allow_unreachable := false) -> bool:
 	var spec := target_spec(cd["effects"])
 	return spec == "" or not card_targets(p, cd, inst).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec))
 
+## True while p is under the "neutral only" lock (set by a gain_momentum with "neutral_lock") and
+## this card is not neutral. The lock lasts for the rest of the turn it was set in, whoever's turn
+## that is, and covers every way of playing a card: hand, Réquiem from the graveyard, Súbito, Encarnação.
+func is_locked_to_neutral(p: int, cd: Dictionary) -> bool:
+	return int(players[p].get("neutral_only_turn", -1)) == turn and not CardDB.has_essence(cd, "neutra")
+
 func can_cast_legendary(p: int) -> bool:
+	if is_locked_to_neutral(p, CardDB.card(players[p]["legendary"]["card_id"])):
+		return false
 	return _sorcery_time(p) and players[p]["legendary"]["in_zone"] \
 		and legendary_cost(p) <= players[p]["momentum"] and has_free_slot(p)
 
@@ -982,6 +1000,8 @@ func can_use_ability(p: int, allow_unreachable := false) -> bool:
 		return false
 	if (ab.get("once_per_turn", false) or ab.get("once_per_cycle", false)) and players[p]["ability_used"]:
 		return false
+	if ab.get("blocked_after_debt", false) and players[p].get("paid_debt_this_turn", false):
+		return false # the loan was just repaid this turn: no borrowing again right away
 	for effect in EffectRegistry.parse_list(ab["effects"]):
 		if effect is PutArtifactEffect and not effect.can_put(self, p):
 			return false # the artifact is already out (or there is no free slot): the ability would do nothing
@@ -1739,7 +1759,7 @@ func _fire(c: Card, trigger: String, other_uid: int = 0, event_data: Dictionary 
 	event.data = event_data
 	bus().emit(event)
 
-## Gatilhos (cards.json "triggers"): on_play, on_enter, on_death, on_attack, on_challenge,
+## Gatilhos (cards.json "triggers"): on_play, on_enter, on_death, before_attack, on_attack, on_challenge,
 ## on_challenged, on_damaged, on_hit_leader, on_turn_start, on_turn_end. "constante" never fires
 ## here: it is continuous and handled by _refresh_scaling.
 ## other_uid is the opposing unit in combat triggers (challenged unit, attacker, damage source).
@@ -2587,6 +2607,9 @@ func _start_turn(p: int, draw: bool) -> void:
 			q["ability_used"] = false
 		q["passive_used"] = false
 		q.erase("passive_uses")
+	# remembered for the whole turn: a Leader ability with "blocked_after_debt" (Eryon's loan) cannot be
+	# used on the turn its owner pays a Momentum debt, so the loan can't be rolled over forever
+	pl["paid_debt_this_turn"] = int(pl["next_momentum"]) < 0
 	if int(pl["next_momentum"]) != 0:
 		# positive = Momentum promised for this turn; negative = a debt (Ritual do Degelo), never below 0
 		pl["momentum"] = clampi(int(pl["momentum"]) + int(pl["next_momentum"]), 0, MOMENTUM_CAP)
