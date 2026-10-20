@@ -1,7 +1,7 @@
 {
   "name": "Ceifa Veloz",
   "description": "A Ceifa de Jeff sem a Vagante: curva mais baixa, Rusco no deck e mais compra com o Vigia.",
-  "order": 4,
+  "order": 3,
   "leader": "jeff",
   "cards": {
     "necrofago_espectral": 3,

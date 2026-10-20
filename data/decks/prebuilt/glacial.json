@@ -1,7 +1,7 @@
 {
   "name": "Nevasca Eterna",
   "description": "Feitiços glaciais, congelamento e a Bola de Neve que cresce a cada quique até virar Grande.",
-  "order": 3,
+  "order": 7,
   "leader": "nythera",
   "cards": {
     "amuleto_do_primeiro_floco": 2,

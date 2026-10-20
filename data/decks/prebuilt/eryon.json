@@ -1,7 +1,8 @@
 {
   "name": "Trovão Emprestado",
   "description": "Combo de Momentum: junte fôlego emprestado (Eryon, Cobradores, Ajudantes), sacrifique uma unidade para passar de 10 e chame o Barão Estrondoso, que com 11 ou mais de Momentum ganha +20 de Ataque, Sobrepujança, Ímpeto e Crítico 4 e ataca duas vezes. Compre e afunile o deck para achar o Barão, e guarde a Dona Gertrudes para o turno do estouro. Véu Sagrado e Intercessão (splash Sagrada) protegem o Eryon da remoção.",
-  "order": 15,
+  "order": 16,
+  "section": "especial",
   "leader": "eryon",
   "cards": {
     "capa_de_ultima_hora": 3,

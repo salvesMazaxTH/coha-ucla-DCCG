@@ -1,7 +1,7 @@
 {
   "name": "Montanha de Ferro",
   "description": "Segure a linha com Provocação, Armadura e Reflexão enquanto os moedores compram e filtram a mão. Moa o deck do oponente até o fim: com o deck vazio, cada moagem vira Fadiga.",
-  "order": 12,
+  "order": 11,
   "leader": "morakhan",
   "cards": {
     "engrenagem_solta": 2,

@@ -1,7 +1,7 @@
 {
   "name": "Dossel Ancestral",
   "description": "Midrange de fichas, crescimento permanente e explosões de dano das Flores Vorazes.",
-  "order": 6,
+  "order": 13,
   "leader": "thalvaressa",
   "cards": {
     "semente_teimosa": 3,

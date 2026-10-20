@@ -1,7 +1,7 @@
 {
   "name": "Relâmpago Veloz",
   "description": "Midrange veloz: impõe certa presença de mesa cedo, com unidades baratas e médias, controlando o jogo dessa forma, agredindo decks mais lentos e segurando os aggros mais rápidos. Sem Fulgurvoltz e com menos Gigantes, a Voltexz tende a entrar mais tarde.",
-  "order": 7,
+  "order": 5,
   "leader": "voltexz",
   "cards": {
     "diabrete_eletrico": 3,

@@ -1,7 +1,7 @@
 {
   "name": "Tormenta Voraz",
   "description": "Tudo no Fulgurvoltz: 3 cópias, Momentum guardado, compra de cartas e limpeza de campo até ele cair.",
-  "order": 8,
+  "order": 6,
   "leader": "voltexz",
   "cards": {
     "faisca_viva": 3,

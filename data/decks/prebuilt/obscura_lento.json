@@ -1,7 +1,7 @@
 {
   "name": "Cemitério Vivo",
   "description": "Moa o deck, encha o cemitério e solte a Vagante Sombria quase de graça, com reanimação e sacrifícios.",
-  "order": 5,
+  "order": 4,
   "leader": "jeff",
   "cards": {
     "diabrete_sombrio": 3,

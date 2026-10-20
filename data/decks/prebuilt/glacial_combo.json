@@ -1,7 +1,7 @@
 {
   "name": "Ladeira Ascendente",
   "description": "Combo clássico: sem pressa, vira a Bola de Neve em Grande, transforma a Princesa e mira direto no Líder. Perde pra quem corre.",
-  "order": 10,
+  "order": 8,
   "leader": "nythera",
   "cards": {
     "ritual_do_degelo": 2,
