@@ -8,8 +8,10 @@ extends RefCounted
 ## Flow of a combat:
 ##   1. "IR PARA O COMBATE" opens the "pre_combat" window: the attacker gets priority first, then the
 ##      defender; both may cast Rápido/Instantâneo. It ends when both pass in a row with an empty stack.
-##   2. The "attacks" window: the attacker declares attacks one by one (nobody can respond),
-##      until they press "ENCERRAR COMBATE" or no unit can attack anymore.
+##   2. The "attacks" window: the attacker declares attacks one by one (an attack itself can't be answered),
+##      until they press "ENCERRAR COMBATE" or no unit can attack anymore. Between two attacks the attacker
+##      may also cast an Instantâneo (spell or ability); the defender answers it through the stack.
+##      Nobody is ever asked: whoever has nothing to cast just keeps attacking.
 
 var game: GameState
 ## An attack whose Ao Atacar put something on the stack (a Bola de Neve): its combat damage waits

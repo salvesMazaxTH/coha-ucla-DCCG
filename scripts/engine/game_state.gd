@@ -72,7 +72,8 @@ var stack: Array = []
 ## a pass with items on the stack resolves the whole stack.
 var priority := 0
 ## Combat window while phase == "combat": "pre_combat" (attacker first, then defender; both may
-## cast Rápido/Instantâneo; ends when both pass in a row), then "attacks" (attacks one by one, no responses).
+## cast Rápido/Instantâneo; ends when both pass in a row), then "attacks" (attacks one by one; between two
+## attacks only the attacker may cast an Instantâneo, and the defender answers it through the stack).
 var window := ""
 ## Main-phase response window right after the active player summoned a unit from hand or
 ## the Santuário (stack empty): the opponent holds priority and may cast Rápido/Instantâneo.
@@ -905,8 +906,8 @@ func speed_of(src: Dictionary) -> String:
 	return "lento"
 
 ## Lento: own Main Phase with an empty stack. Rápido: also the pre-combat window (both players)
-## and the summon response window. Instantâneo: also as a response to anything on the stack.
-## Nothing can be cast during the attacks themselves.
+## and the summon response window. Instantâneo: also as a response to anything on the stack, and for the
+## attacker between two attacks (the attacks window with an empty stack: only the attacker holds priority).
 func can_cast_speed(p: int, speed: String) -> bool:
 	if phase not in ["main", "combat"] or p != priority:
 		return false
@@ -914,6 +915,8 @@ func can_cast_speed(p: int, speed: String) -> bool:
 		return speed == "instantaneo"
 	if phase == "main":
 		return p == active or (summon_window and speed != "lento")
+	if window == "attacks":
+		return speed == "instantaneo" and p == active
 	return window == "pre_combat" and speed != "lento"
 
 ## Units, the Legendary and ending the turn: own Main Phase, empty stack.
