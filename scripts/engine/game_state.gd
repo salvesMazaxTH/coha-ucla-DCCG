@@ -2186,16 +2186,15 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		# Tóxico X: combat damage that really got through leaves X Veneno markers (blocked damage returned above)
 		if _combat_damage and source != null and has_kw(source, "toxico") and dealt > 0 and c.hp_left() > 0:
 			add_dot_markers(c, "veneno", toxico_markers(source), source.data().get("toxico_ignores_immunity", false))
-	if source != null and dealt > 0:
-		burn_target_of_damage_dealer(source, t)
+	if _combat_damage and source != null and dealt > 0:
+		burn_target_of_combat_damage_dealer(source, t)
 	if source != null and has_kw(source, "roubo_de_vida"):
 		_heal_leader(source.owner, dealt)
 	return dealt
 
-## A unit with the card field "burns_on_damage": N leaves N Queimadura markers on whatever it just damaged
-## (a unit or a Leader), in combat or through its own effects (Kai). Called with the damage that really got through.
-func burn_target_of_damage_dealer(dealer: Card, target_uid: int) -> void:
-	var burn_markers := int(dealer.data().get("burns_on_damage", 0))
+## A unit with "burns_on_combat_damage": N leaves N Queimadura markers on what its combat damage hit.
+func burn_target_of_combat_damage_dealer(dealer: Card, target_uid: int) -> void:
+	var burn_markers := int(dealer.data().get("burns_on_combat_damage", 0))
 	if burn_markers <= 0:
 		return
 	if target_uid < 0:

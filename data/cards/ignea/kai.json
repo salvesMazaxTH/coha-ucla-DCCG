@@ -12,9 +12,9 @@
     "rompante"
   ],
   "art": "ignea/kai.webp",
-  "burns_on_damage": 1,
+  "burns_on_combat_damage": 1,
   "effects": [{"trigger":"on_attack","action":"damage","target":"enemy_leader","amount":1}],
-  "text": "Ao Atacar: cause 1 de dano ao Líder inimigo. Sempre que Kai causar dano, o alvo (inclusive um Líder) recebe 1 marcador de Queimadura.",
+  "text": "Ao Atacar: cause 1 de dano ao Líder inimigo. Sempre que Kai causar dano de combate, o alvo (inclusive um Líder) recebe 1 marcador de Queimadura.",
   "flavor": "Punhos acesos, guarda baixa.",
   "tags": []
 }

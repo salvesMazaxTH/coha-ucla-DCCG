@@ -50,11 +50,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		damage_amount = int(ally_reduce["amount"])
 	# the neighbours are found before any damage, so they stay the same if the target dies
 	var neighbour_uids := _neighbours_of(game, victim) if adjacent_amount > 0 else []
-	var dealt := game._deal_damage(target_uid, damage_amount, null)
-	# effect damage has no source card, so a "burns_on_damage" unit dealing it through its own effect burns here
-	var dealer := game.find_unit(context.self_uid)
-	if dealer != null and dealt > 0:
-		game.burn_target_of_damage_dealer(dealer, target_uid)
+	game._deal_damage(target_uid, damage_amount, null)
 	for neighbour_uid in neighbour_uids:
 		game._deal_damage(neighbour_uid, adjacent_amount, null)
 	# a unit the damage already killed is gone from the board, so find_unit finds nothing to freeze

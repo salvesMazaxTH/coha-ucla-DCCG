@@ -6504,20 +6504,22 @@ func _test_champion_rework() -> void:
 	jack_game._check_state()
 	check(jack_game.atk_of(jack) == jack_attack_before + 3, "Jack: sem Momentum sobrando não ganha nada")
 
-	# Kai: 1 Queimadura on whatever he damages, in combat or with his Ao Atacar, Leader included
+	# Kai's Ao Atacar damages the Leader without burning; only his combat damage burns.
 	var kai_game := _new_game()
 	_quiet(kai_game)
 	var kai := _put(kai_game, 0, "kai")
+	var kai_leader_hp := int(kai_game.players[1]["leader_hp"])
 	_hit(kai_game, kai)
-	check(kai_game.leader_dot_markers(1, "queimadura") == 2, "Kai: ao atacar o Líder, o Ao Atacar e o dano de combate queimam (2 marcadores: %d)" % kai_game.leader_dot_markers(1, "queimadura"))
+	check(int(kai_game.players[1]["leader_hp"]) == kai_leader_hp - 3 and kai_game.leader_dot_markers(1, "queimadura") == 1,
+		"Kai: Ao Atacar (1) e dano de combate (2) machucam o Líder, mas só o dano de combate queima 1")
 	var kai_victim := _put(kai_game, 1, "geodo_vivo")
 	kai_victim.dot_markers.clear()
 	var kai_second := _put(kai_game, 0, "kai")
 	kai_game.players[0]["attacked"] = false
 	var markers_before := int(kai_victim.dot_markers.get("queimadura", 0))
 	kai_game._deal_damage(kai_victim.uid, 1, kai_second)
-	check(int(kai_victim.dot_markers.get("queimadura", 0)) == markers_before + 1 or kai_game.unit_is_immune_to_dot(kai_victim, "queimadura"),
-		"Kai: dano causado por ele a uma unidade deixa 1 Queimadura")
+	check(int(kai_victim.dot_markers.get("queimadura", 0)) == markers_before,
+		"Kai: dano fora de combate causado por ele não deixa Queimadura")
 	var other_burn := kai_game.leader_dot_markers(1, "queimadura")
 	kai_game._deal_damage(GameState.LEADER_UID[1], 1, null)
 	check(kai_game.leader_dot_markers(1, "queimadura") == other_burn, "Kai: dano que não é dele não queima")

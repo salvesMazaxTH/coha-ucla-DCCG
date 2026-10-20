@@ -70,7 +70,7 @@ var death_ward_armed := false ## a free-standing artifact is ready to prevent on
 ## Card-data fields that are an ability or a keyword's number: silence() deletes them from the unit.
 const SILENCED_FIELDS := ["activated", "transform", "rapidez", "critico", "armor", "esquiva", "inert", "imune_critico",
 		"critico_growth", "critico_maximo", "toxico_level", "toxico_equals_attack", "toxico_ignores_immunity",
-		"toxico_hits_leader", "burns_on_damage", "leader_damage_reduction", "conditional_uses_per_turn",
+		"toxico_hits_leader", "burns_on_combat_damage", "leader_damage_reduction", "conditional_uses_per_turn",
 		"lethal_touch_immune", "lethal_ward", "death_ward", "spell_discount"]
 
 func _init(card_uid: int, id: String, owner_player: int, in_zone: String = "") -> void:
