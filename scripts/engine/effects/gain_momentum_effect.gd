@@ -5,8 +5,8 @@ extends Effect
 ## next turn starts with that much less Momentum (never below 0).
 ## "overflow": true lets the gain go past the normal cap (up to GameState.MOMENTUM_OVERFLOW_CAP) for this
 ## turn only; the part above the cap pays neutral cards and leader abilities, and vanishes at end of turn.
-## "neutral_lock": true (only when the Momentum really went up) bars the controller from playing
-## non-neutral cards for the rest of this turn, so ramp packages can't cheat out other essences' champions.
+## "restriction": {...} (only when the Momentum really went up) starts a PlayRestriction on the controller,
+## e.g. "only neutral cards this turn", so ramp packages can't cheat out other essences' champions.
 ## "amount_from": "sacrificed_cost" (inside a sacrifice's "then") gains the printed cost of the sacrificed unit, at most `max`.
 ## "per": "leaked" refunds the Momentum that leaked past the Reserva this turn instead:
 ## floor(leaked / divisor), at most `max`.
@@ -17,13 +17,13 @@ var divisor := 1
 var maximum := GameState.MOMENTUM_CAP
 var next_turn := false
 var overflow := false
-var neutral_lock := false
+var restriction: Dictionary = {}
 var amount_from := ""
 
 func _read_parameters(data: Dictionary) -> void:
 	amount_from = String(data.get("amount_from", ""))
 	overflow = bool(data.get("overflow", false))
-	neutral_lock = bool(data.get("neutral_lock", false))
+	restriction = data.get("restriction", {})
 	amount = int(data.get("amount", 0))
 	per = String(data.get("per", ""))
 	divisor = maxi(1, int(data.get("divisor", 1)))
@@ -47,5 +47,5 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 	else:
 		var momentum_before := int(player["momentum"])
 		context.game.gain_momentum(context.controller, gain, overflow)
-		if neutral_lock and int(player["momentum"]) > momentum_before:
-			player["neutral_only_turn"] = context.game.turn
+		if not restriction.is_empty() and int(player["momentum"]) > momentum_before:
+			context.game.add_play_restriction(context.controller, restriction)

@@ -3,7 +3,7 @@
   "type": "unit",
   "rarity": "common",
   "token": true,
-  "species": ["morto_vivo", "driade"],
+  "species": ["morto_vivo", "planta"],
   "essence": ["obscura", "vegetal"],
   "cost": 0,
   "atk": 1,

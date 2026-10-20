@@ -526,7 +526,7 @@
             "target": "none",
             "amount": 2,
             "overflow": true,
-            "neutral_lock": true
+            "restriction": { "mode": "only", "match": { "essence": ["neutra"] } }
           },
           {
             "action": "gain_momentum",

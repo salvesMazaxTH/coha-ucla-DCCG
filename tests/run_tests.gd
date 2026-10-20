@@ -107,6 +107,7 @@ func _init() -> void:
 	_test_champion_rework()
 	_test_momentum_overflow()
 	_test_eryon_deck()
+	_test_play_restrictions()
 	_test_cortina_de_fumaca()
 	_test_sim()
 	for e in CardDB.errors():
@@ -1906,6 +1907,22 @@ func _test_leader_poison() -> void:
 	check(SimpleAI._pick_target(ai_game, 0, "enemy_unit", final_period, 0, true) == 0, "IA: sem alvo com 3+ marcadores de Veneno, Ponto Final Sem Vírgula não escolhe ninguém")
 	ai_game.add_dot_markers(barely_poisoned, "veneno", 1)
 	check(SimpleAI._pick_target(ai_game, 0, "enemy_unit", final_period, 0, true) == barely_poisoned.uid, "IA: Ponto Final Sem Vírgula mira a unidade com 3+ marcadores de Veneno, e só ela")
+
+	# the human player gets the same rule: units without 3+ Veneno are not valid targets, and playing on one is refused
+	var human_game := _new_game()
+	_quiet(human_game)
+	var caster: int = human_game.active
+	var foe := 1 - caster
+	var weak_victim := _put(human_game, foe, "t_plain")
+	var poisoned_victim := _put(human_game, foe, "t_plain")
+	human_game.add_dot_markers(weak_victim, "veneno", 2)
+	var final_period_uid := _give(human_game, caster, "ponto_final_sem_virgula")
+	human_game.players[caster]["momentum"] = 10
+	check(human_game.card_targets(caster, final_period).is_empty() and not human_game.can_play(caster, final_period_uid), "Ponto Final Sem Vírgula: ninguém com 3+ Veneno, a carta não pode ser jogada")
+	check(human_game.play_card(caster, final_period_uid, weak_victim.uid).is_empty() and human_game.find_unit(weak_victim.uid) != null, "Ponto Final Sem Vírgula: jogar em unidade com 2 Veneno é recusado")
+	human_game.add_dot_markers(poisoned_victim, "veneno", 3)
+	check(human_game.card_targets(caster, final_period) == [poisoned_victim.uid], "Ponto Final Sem Vírgula: só a unidade com 3+ Veneno é alvo")
+	check(human_game.valid_targets(caster, "enemy_unit", 0, false, final_period["effects"]) == [poisoned_victim.uid], "valid_targets filtra por requires_markers")
 
 ## Antídoto Fora de Estoque (the Leader's Veneno stays for its next 2 turns) and Greve Geral dos Antídotos
 ## (nobody's Veneno is consumed for one turn start of each player). Both still hurt, and both expire.
@@ -6283,7 +6300,7 @@ func _test_eryon_deck() -> void:
 	var neutral_card_uid := _give(g, a, "ajudante_de_gambiarra")
 	check(not g.can_play(a, locked_card_uid), "Eryon Líder: depois do empréstimo não joga carta não neutra")
 	check(g.can_play(a, neutral_card_uid), "Eryon Líder: depois do empréstimo ainda joga carta neutra")
-	check(g.is_locked_to_neutral(a, CardDB.card("esqueleto_guerreiro")) and not g.is_locked_to_neutral(1 - a, CardDB.card("esqueleto_guerreiro")), "trava de neutras vale só pra quem pegou o empréstimo")
+	check(g.is_play_restricted(a, CardDB.card("esqueleto_guerreiro")) and not g.is_play_restricted(1 - a, CardDB.card("esqueleto_guerreiro")), "trava de neutras vale só pra quem pegou o empréstimo")
 
 	# the turn the debt is paid, the loan is blocked; the turn after that it works again
 	g._start_turn(a, false)
@@ -6346,15 +6363,15 @@ func _test_eryon_deck() -> void:
 	_put(g, a, "cobrador_de_pedagio_torto")
 	g.players[a]["max_momentum"] = 4
 	g._start_turn(a, false)
-	check(g.is_locked_to_neutral(a, CardDB.card("esqueleto_guerreiro")), "Cobrador: ganhar Momentum trava o turno só para cartas neutras")
-	check(not g.is_locked_to_neutral(a, CardDB.card("ajudante_de_gambiarra")), "Cobrador: carta neutra continua jogável")
+	check(g.is_play_restricted(a, CardDB.card("esqueleto_guerreiro")), "Cobrador: ganhar Momentum trava o turno só para cartas neutras")
+	check(not g.is_play_restricted(a, CardDB.card("ajudante_de_gambiarra")), "Cobrador: carta neutra continua jogável")
 	g = _new_game()
 	_quiet(g)
 	a = g.active
 	_put(g, a, "cobrador_de_pedagio_torto")
 	g.players[a]["max_momentum"] = GameState.MOMENTUM_CAP
 	g._start_turn(a, false)
-	check(not g.is_locked_to_neutral(a, CardDB.card("esqueleto_guerreiro")), "Cobrador: sem ganho real de Momentum (já em 10) não há trava")
+	check(not g.is_play_restricted(a, CardDB.card("esqueleto_guerreiro")), "Cobrador: sem ganho real de Momentum (já em 10) não há trava")
 
 	# Recado Urgente finds the Barão (or Gertrudes) anywhere in the deck
 	g = _new_game()
@@ -6374,6 +6391,77 @@ func _test_eryon_deck() -> void:
 	g._begin_search(a, {"card_ids": ["barao_estrondoso"], "fallback_draw": 1}, 0)
 	check(g.phase != "search", "Recado Urgente: sem o Barão no deck não abre escolha (Gertrudes não conta)")
 	check(g.players[a]["hand"].size() == hand_before + 1, "Recado Urgente: sem o Barão no deck compra 1 carta (%d)" % (g.players[a]["hand"].size() - hand_before))
+
+## The generic play restriction (PlayRestriction + restrict_play + add_play_restriction): filters by
+## essence, rarity, card type and cost, "only" vs "forbid", durations in turns, and catalog validation.
+func _test_play_restrictions() -> void:
+	var fire_spell := CardDB.card("bola_de_fogo") # ígnea, comum, magia, custo 2
+	var fire_champion := CardDB.card("ronan") # ígnea, campeão, unidade, custo 4
+	var fire_artifact := CardDB.card("manoplas_incandescentes") # ígnea, artefato
+	var dark_unit := CardDB.card("esqueleto_guerreiro") # obscura, comum, unidade, custo 1
+	var neutral_unit := CardDB.card("ajudante_de_gambiarra")
+
+	var only_fire := {"mode": "only", "match": {"essence": ["ignea"]}}
+	check(not PlayRestriction.blocks(only_fire, fire_spell) and PlayRestriction.blocks(only_fire, dark_unit), "restrição: só ígneas barra a não ígnea")
+	check(PlayRestriction.blocks(only_fire, neutral_unit), "restrição: só ígneas barra também a neutra")
+	var no_champions := {"mode": "forbid", "match": {"rarity": ["champion"]}}
+	check(PlayRestriction.blocks(no_champions, fire_champion) and not PlayRestriction.blocks(no_champions, fire_spell), "restrição: proibir campeões")
+	var only_spells := {"mode": "only", "match": {"card_type": ["spell"]}}
+	check(not PlayRestriction.blocks(only_spells, fire_spell) and PlayRestriction.blocks(only_spells, fire_champion) and PlayRestriction.blocks(only_spells, fire_artifact), "restrição: só magias barra unidade e artefato")
+	var cheap_only := {"mode": "only", "match": {"cost": {"op": "<=", "value": 2}}}
+	check(not PlayRestriction.blocks(cheap_only, dark_unit) and not PlayRestriction.blocks(cheap_only, fire_spell) and PlayRestriction.blocks(cheap_only, fire_champion), "restrição: só custo <= 2")
+	var expensive_forbidden := {"mode": "forbid", "match": {"cost": {"op": ">=", "value": 4}}}
+	check(PlayRestriction.blocks(expensive_forbidden, fire_champion) and not PlayRestriction.blocks(expensive_forbidden, fire_spell), "restrição: proibir custo >= 4")
+	var combined := {"mode": "forbid", "match": {"essence": ["ignea"], "card_type": ["unit"]}}
+	check(PlayRestriction.blocks(combined, fire_champion) and not PlayRestriction.blocks(combined, fire_spell) and not PlayRestriction.blocks(combined, dark_unit), "restrição: filtros combinados exigem todos")
+
+	# duration: turns 1 = rest of this turn only; turns 2 also covers the next turn (whoever's it is)
+	var g := _new_game()
+	_quiet(g)
+	var a: int = g.active
+	g.add_play_restriction(a, {"mode": "only", "match": {"essence": ["ignea"]}})
+	check(g.is_play_restricted(a, dark_unit) and not g.is_play_restricted(1 - a, dark_unit), "restrição: vale só para quem a recebeu")
+	g._start_turn(1 - a, false)
+	check(not g.is_play_restricted(a, dark_unit), "restrição de 1 turno acaba quando o próximo turno começa")
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	g.add_play_restriction(a, {"mode": "forbid", "match": {"rarity": ["champion"]}, "turns": 2})
+	g._start_turn(1 - a, false)
+	check(g.is_play_restricted(a, fire_champion), "restrição de 2 turnos ainda vale no turno seguinte")
+	g._start_turn(a, false)
+	check(not g.is_play_restricted(a, fire_champion), "restrição de 2 turnos acaba no terceiro turno")
+
+	# it blocks the real play paths: hand and the Encarnação
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	g.players[a]["momentum"] = 10
+	var fire_spell_uid := _give(g, a, "bola_de_fogo")
+	check(g.can_play(a, fire_spell_uid), "restrição: sem restrição a magia ígnea é jogável")
+	g.add_play_restriction(a, {"mode": "forbid", "match": {"card_type": ["spell"]}})
+	check(not g.can_play(a, fire_spell_uid), "restrição: proibir magias bloqueia can_play")
+
+	# the restrict_play effect, on the controller and on the opponent
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	var restrict_rival := EffectRegistry.parse({"action": "restrict_play", "target": "none", "who": "opponent",
+		"restriction": {"mode": "only", "match": {"essence": ["neutra"]}}})
+	restrict_rival.apply(EffectContext.new(g, a), 0)
+	check(g.is_play_restricted(1 - a, dark_unit) and not g.is_play_restricted(a, dark_unit), "restrict_play com who=opponent restringe o rival")
+
+	# catalog validation
+	var essences: Dictionary = CardDB.data()["essences"]
+	check(PlayRestriction.error_of(only_fire, essences) == "", "validação: regra válida passa")
+	check(PlayRestriction.error_of({"mode": "xx", "match": {"rarity": ["common"]}}, essences) != "", "validação: mode inválido")
+	check(PlayRestriction.error_of({"match": {}}, essences) != "", "validação: match vazio")
+	check(PlayRestriction.error_of({"match": {"essence": ["nao_existe"]}}, essences) != "", "validação: essência inexistente")
+	check(PlayRestriction.error_of({"match": {"rarity": ["raro_demais"]}}, essences) != "", "validação: raridade inexistente")
+	check(PlayRestriction.error_of({"match": {"card_type": ["terreno"]}}, essences) != "", "validação: tipo de carta inexistente")
+	check(PlayRestriction.error_of({"match": {"cost": {"op": "~", "value": 2}}}, essences) != "", "validação: operador de custo inválido")
+	check(PlayRestriction.error_of({"match": {"mana": [1]}}, essences) != "", "validação: filtro desconhecido")
+	check(PlayRestriction.error_of({"match": {"rarity": ["common"]}, "turns": 0}, essences) != "", "validação: turns precisa ser >= 1")
 
 func _test_cortina_de_fumaca() -> void:
 	# Cortina de Fumaça Barata: every ally unit gets Furtividade until its owner's next turn starts

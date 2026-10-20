@@ -34,7 +34,7 @@
             "amount_from": "sacrificed_cost",
             "max": 3,
             "overflow": true,
-            "neutral_lock": true
+            "restriction": { "mode": "only", "match": { "essence": ["neutra"] } }
           }
         ]
       }

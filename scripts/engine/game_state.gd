@@ -158,7 +158,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"index": i, "deck_id": deck_id, "leader_id": d["leader"],
 		"leader_hp": int(ld["hp"]), "leader_max": int(ld["hp"]),
 		"momentum": 0, "max_momentum": 0, "reserve": 0,
-			"saved_momentum": 0, "idle_turns": 0, "next_momentum": 0, "leaked": 0, "unspent": 0,
+			"saved_momentum": 0, "idle_turns": 0, "next_momentum": 0, "play_restrictions": [], "leaked": 0, "unspent": 0,
 		"deck": deck, "hand": [], "board": [], "relics": [], "graveyard": [], "banished": [],
 		"legendary": {"card_id": ld["legendary"], "in_zone": true, "casts": 0},
 		"ability_used": false, "passive_used": false, "attacked": false, "fatigue": 0, "mulligan_done": false,
@@ -813,7 +813,9 @@ static func _is_spell(cd: Dictionary) -> bool:
 	return cd.get("type", "") == "spell"
 
 ## include_unreachable: also lists the enemy units with Inalcançável (only to explain why a target is refused).
-func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable := false) -> Array:
+## effects: the effect dictionaries about to be aimed at the pick. A target that cannot satisfy one of their
+## "requires_markers" (Ponto Final Sem Vírgula needs 3+ Veneno) is not offered: the effect would do nothing.
+func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable := false, effects: Array = []) -> Array:
 	var out: Array = []
 	var mine: Array = players[p]["board"]
 	# Inalcançável: enemy units with it can't be picked as a target by this player
@@ -852,7 +854,29 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 		"enemy_stack":
 			for it in stack:
 				if it["player"] != p and not stack_system().is_uncounterable(it): out.append(it["sid"])
+	if not effects.is_empty():
+		out = out.filter(func(target_uid: int) -> bool: return meets_marker_requirement(target_uid, spec, effects))
 	return out
+
+## False when an effect aimed with `spec` only works on a target holding enough markers ("requires_markers":
+## the banish of Ponto Final Sem Vírgula, the execution of Viprax) and this target does not have them.
+## A Leader target uid is negative. Effects aimed at another spec are not about this pick and are ignored.
+func meets_marker_requirement(target_uid: int, spec: String, effects: Array) -> bool:
+	for effect in effects:
+		var requirement: Dictionary = effect.get("requires_markers", {})
+		if requirement.is_empty() or effect.get("target", "") != spec:
+			continue
+		var dot_id := String(requirement.get("dot", ""))
+		var needed := int(requirement.get("amount", 0))
+		var held := 0
+		if target_uid < 0:
+			held = leader_dot_markers(LEADER_UID.find(target_uid), dot_id)
+		else:
+			var unit := find_unit(target_uid)
+			held = int(unit.dot_markers.get(dot_id, 0)) if unit != null else 0
+		if held < needed:
+			return false
+	return true
 
 ## True when the only thing stopping an aimed effect is Inalcançável: there would be a target without it.
 ## The screen keeps such an action enabled and explains the refusal when the player aims at the unit.
@@ -862,7 +886,7 @@ func targets_blocked_by_reach(p: int, spec: String, self_uid: int = 0) -> bool:
 ## Targets a card from hand can be played on right now (counters filter by reach and Momentum).
 func card_targets(p: int, cd: Dictionary, inst: Card = null) -> Array:
 	var spec := card_spec(cd)
-	var out := valid_targets(p, spec)
+	var out := valid_targets(p, spec, 0, false, cd.get("effects", []))
 	if spec != "enemy_stack":
 		return out
 	var ok: Array = []
@@ -959,7 +983,7 @@ func can_play(p: int, hand_uid: int, allow_unreachable := false) -> bool:
 	if inst == null:
 		return false
 	var cd := CardDB.card(inst.card_id)
-	if is_locked_to_neutral(p, cd):
+	if is_play_restricted(p, cd):
 		return false
 	if is_subito_play(p, cd):
 		# paid like an ability, so the Reserva counts
@@ -980,14 +1004,26 @@ func can_play(p: int, hand_uid: int, allow_unreachable := false) -> bool:
 	var spec := target_spec(cd["effects"])
 	return spec == "" or not card_targets(p, cd, inst).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec))
 
-## True while p is under the "neutral only" lock (set by a gain_momentum with "neutral_lock") and
-## this card is not neutral. The lock lasts for the rest of the turn it was set in, whoever's turn
-## that is, and covers every way of playing a card: hand, Réquiem from the graveyard, Súbito, Encarnação.
-func is_locked_to_neutral(p: int, cd: Dictionary) -> bool:
-	return int(players[p].get("neutral_only_turn", -1)) == turn and not CardDB.has_essence(cd, "neutra")
+## Starts a play restriction on p (see PlayRestriction for the rule format). It lasts `turns` turns
+## counting the current one (`turn` goes up at every player's turn start, so no cleanup is needed).
+func add_play_restriction(p: int, rule: Dictionary) -> void:
+	var still_active: Array = []
+	for existing in players[p]["play_restrictions"]:
+		if int(existing["until_turn"]) >= turn:
+			still_active.append(existing) # drop the ones that already ended
+	still_active.append({"rule": rule, "until_turn": turn + int(rule.get("turns", 1)) - 1})
+	players[p]["play_restrictions"] = still_active
+
+## True when an active restriction of p bars this card (its data `cd`). It covers every way of
+## playing a card: hand, Réquiem from the graveyard, Súbito and the Encarnação.
+func is_play_restricted(p: int, cd: Dictionary) -> bool:
+	for restriction in players[p]["play_restrictions"]:
+		if int(restriction["until_turn"]) >= turn and PlayRestriction.blocks(restriction["rule"], cd):
+			return true
+	return false
 
 func can_cast_legendary(p: int) -> bool:
-	if is_locked_to_neutral(p, CardDB.card(players[p]["legendary"]["card_id"])):
+	if is_play_restricted(p, CardDB.card(players[p]["legendary"]["card_id"])):
 		return false
 	return _sorcery_time(p) and players[p]["legendary"]["in_zone"] \
 		and legendary_cost(p) <= players[p]["momentum"] and has_free_slot(p)
@@ -1006,7 +1042,7 @@ func can_use_ability(p: int, allow_unreachable := false) -> bool:
 		if effect is PutArtifactEffect and not effect.can_put(self, p):
 			return false # the artifact is already out (or there is no free slot): the ability would do nothing
 	var spec := target_spec(ab["effects"])
-	return spec == "" or not valid_targets(p, spec).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec))
+	return spec == "" or not valid_targets(p, spec, 0, false, ab["effects"]).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec))
 
 ## Unit Ao Ativar (cards.json unit field "activated": {cost, speed, effects, once_per_turn, exhaust}):
 ## paid like an ability (Reserva counts) and put on the stack, so it can be answered and countered.
@@ -1033,7 +1069,7 @@ func can_activate(p: int, uid: int, allow_unreachable := false) -> bool:
 		if fusion.get("action", "") == "fuse" and EffectRegistry.parse(fusion).available_parts(self, p) == 0:
 			return false # not enough units to fuse
 	var spec := target_spec(ab["effects"])
-	return spec == "" or not valid_targets(p, spec, uid).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec, uid))
+	return spec == "" or not valid_targets(p, spec, uid, false, ab["effects"]).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec, uid))
 
 ## The card whose Ao Ativar can be used: a unit on the board or a free-standing artifact.
 func _activatable_card(uid: int) -> Card:
@@ -1218,7 +1254,7 @@ func activate(p: int, uid: int, target: int = 0) -> Array:
 	var c := _activatable_card(uid)
 	var ab: Dictionary = card_of(c)["activated"]
 	var spec := target_spec(ab["effects"])
-	if spec != "" and not valid_targets(p, spec, uid).has(target):
+	if spec != "" and not valid_targets(p, spec, uid, false, ab["effects"]).has(target):
 		return []
 	_pay(p, int(ab["cost"]), true)
 	c.activated_turn = turn
@@ -1234,7 +1270,7 @@ func use_ability(p: int, target: int = 0) -> Array:
 		return []
 	var ab: Dictionary = CardDB.leader(players[p]["leader_id"])["ability"]
 	var spec := target_spec(ab["effects"])
-	if spec != "" and not valid_targets(p, spec).has(target):
+	if spec != "" and not valid_targets(p, spec, 0, false, ab["effects"]).has(target):
 		return []
 	_pay(p, int(ab["cost"]), true)
 	players[p]["ability_used"] = true
@@ -1391,14 +1427,15 @@ func choose_enter_target(p: int, target: int) -> Array:
 	var uid := int(pending_enter["uid"])
 	var asking_second: bool = pending_enter.has("first")
 	var asked_spec: String = pending_enter["spec2"] if asking_second else pending_enter["spec"]
-	if target != 0 and not valid_targets(p, asked_spec, uid).has(target):
+	var entering_effects: Array = CardDB.card(pending_enter["card_id"]).get("effects", [])
+	if target != 0 and not valid_targets(p, asked_spec, uid, false, entering_effects).has(target):
 		return []
 	var same_target_ok: bool = CardDB.card(pending_enter["card_id"]).get("same_target_ok", false)
 	if asking_second and target != 0 and target == int(pending_enter["first"]) and not same_target_ok:
 		return []
 	if not asking_second and target != 0 and pending_enter.get("spec2", "") != "":
 		# the second pick comes next, unless nothing is left to pick
-		var second_options := valid_targets(p, pending_enter["spec2"], uid)
+		var second_options := valid_targets(p, pending_enter["spec2"], uid, false, entering_effects)
 		if not same_target_ok:
 			second_options.erase(target)
 		if not second_options.is_empty():
@@ -1688,7 +1725,7 @@ func _summon(p: int, c: Card, legendary: bool, target: int, over: Dictionary = {
 	if has_kw(c, "provocacao") and not has_kw(c, "inerte"):
 		pending_tap.append(uid)
 	var spec := enter_spec(cd)
-	var enter_options: Array = valid_targets(p, spec, uid) if spec != "" else []
+	var enter_options: Array = valid_targets(p, spec, uid, false, cd.get("effects", [])) if spec != "" else []
 	# the unit itself as the only possible target is no real choice: it is picked without asking
 	var only_itself: bool = enter_options.size() == 1 and enter_options[0] == uid
 	if only_itself and target == 0:

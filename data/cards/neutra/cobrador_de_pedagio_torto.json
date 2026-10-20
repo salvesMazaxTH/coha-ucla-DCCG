@@ -17,7 +17,7 @@
       "action": "gain_momentum",
       "target": "none",
       "amount": 1,
-      "neutral_lock": true,
+      "restriction": { "mode": "only", "match": { "essence": ["neutra"] } },
       "if": "oldest_of_its_name"
     }
   ],

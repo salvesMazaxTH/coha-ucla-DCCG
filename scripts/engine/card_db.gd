@@ -172,6 +172,10 @@ static func _validate_effects(err: Callable, effects: Array) -> void:
 		for kw in e.get("keywords", []):
 			if not _data["keywords"].has(kw):
 				err.call("keyword desconhecida \"%s\" em efeito" % kw)
+		if action == "restrict_play" or e.has("restriction"):
+			var restriction_problem := PlayRestriction.error_of(e.get("restriction", null), _data["essences"])
+			if restriction_problem != "":
+				err.call(restriction_problem)
 		if action == "summon" and e.get("card", "self") != "self" and not _data["cards"].has(e["card"]):
 			err.call("summon de carta inexistente \"%s\"" % e["card"])
 		_validate_effects(err, e.get("then", []))

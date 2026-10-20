@@ -2635,7 +2635,23 @@ func _is_target(uid: int) -> bool:
 		return attacker != null and g.attack_targets(attacker).has(uid)
 	if targeting.has("first") and uid == targeting["first"] and not CardDB.card(targeting["card_id"]).get("same_target_ok", false):
 		return false # the sacrificed unit is already gone
-	return g.valid_targets(viewer, targeting["spec"], targeting.get("uid", 0)).has(uid)
+	return g.valid_targets(viewer, targeting["spec"], targeting.get("uid", 0), false, _aimed_effects()).has(uid)
+
+## The effects the current aim is choosing a target for, so targets that cannot satisfy their
+## "requires_markers" (Ponto Final Sem Vírgula) are not highlighted nor accepted.
+func _aimed_effects() -> Array:
+	match targeting["kind"]:
+		"hand", "enter":
+			return CardDB.card(targeting["card_id"]).get("effects", [])
+		"ability":
+			return CardDB.leader(g.players[viewer]["leader_id"])["ability"]["effects"]
+		"unit_ability":
+			var activator := g.find_unit(targeting["uid"])
+			if activator == null:
+				activator = g.find_relic(targeting["uid"])
+			if activator != null:
+				return g.card_of(activator).get("activated", {}).get("effects", [])
+	return []
 
 ## True when a multi-target effect has already committed this uid as its first pick.
 ## It stays separate from `_is_target`: Relâmpagos Gêmeos may legally pick it again,

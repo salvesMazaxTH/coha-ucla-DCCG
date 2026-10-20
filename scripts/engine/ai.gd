@@ -465,26 +465,6 @@ static func _effects_that_use_the_pick(source) -> Array:
 			effects.append(effect)
 	return effects
 
-## False when one of the effects only works on a target holding enough markers ("requires_markers": banish
-## of Ponto Final Sem Vírgula, the execution of Viprax) and this target does not have them: nothing would
-## happen, so it is not a real option. A Leader target uid is negative.
-static func _meets_marker_requirement(g: GameState, target_uid: int, effects: Array) -> bool:
-	for effect in effects:
-		var requirement: Dictionary = effect.get("requires_markers", {})
-		if requirement.is_empty():
-			continue
-		var dot_id := String(requirement.get("dot", ""))
-		var needed := int(requirement.get("amount", 0))
-		var held := 0
-		if target_uid < 0:
-			held = g.leader_dot_markers(GameState.LEADER_UID.find(target_uid), dot_id)
-		else:
-			var unit := g.find_unit(target_uid)
-			held = int(unit.dot_markers.get(dot_id, 0)) if unit != null else 0
-		if held < needed:
-			return false
-	return true
-
 ## True when damage that leaves `unit` alive would make it better (an Ao Sofrer Dano buff, e.g. Ronan's +1 Ataque).
 ## A harmless Ao Sofrer Dano (nothing good for the unit) does not count: damaging it is just as fine.
 static func _punishes_surviving_damage(unit: Card) -> bool:
@@ -510,10 +490,10 @@ static func _pick_target(g: GameState, p: int, spec: String, source, self_uid :=
 					best_cost = g.stack_cost(item)
 					best_stack_id = stack_id
 		return best_stack_id
-	var options := g.valid_targets(p, spec, self_uid)
+	var effects: Array = _effects_that_use_the_pick(source)
+	var options := g.valid_targets(p, spec, self_uid, false, effects) # Ponto Final Sem Vírgula never aims at a unit without enough Veneno
 	if options.is_empty():
 		return 0
-	var effects: Array = _effects_that_use_the_pick(source)
 	if spec == "ally_or_own_leader":
 		return _most_damaged(g, p, options)
 	var friendly := spec in ["ally_unit", "other_ally_unit", "ally_or_own_leader"]
@@ -524,8 +504,6 @@ static func _pick_target(g: GameState, p: int, spec: String, source, self_uid :=
 	var best_uid := 0
 	var best_score := -999
 	for uid in options:
-		if not _meets_marker_requirement(g, uid, effects):
-			continue # Ponto Final Sem Vírgula on a unit without enough Veneno would only waste the mana
 		var score := 0
 		if uid < 0: # a Leader
 			if friendly or uid != GameState.LEADER_UID[g.opponent(p)]:
