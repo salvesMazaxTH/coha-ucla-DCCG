@@ -23,7 +23,7 @@
     }
   ],
   "activated": {
-    "cost": 4,
+    "cost": 3,
     "speed": "lento",
     "once_per_turn": true,
     "effects": [
@@ -44,7 +44,7 @@
       }
     ]
   },
-  "text": "Ao Entrar: cure 4 do seu Líder.\nAo Ativar (4) {lento} (1x por turno): cure 4 do seu Líder e de cada unidade aliada; esta unidade ganha +1 de Vida permanente.",
+  "text": "Ao Entrar: cure 4 do seu Líder.\nAo Ativar (3) {lento} (1x por turno): cure 4 do seu Líder e de cada unidade aliada; esta unidade ganha +1 de Vida permanente.",
   "flavor": "O mar sempre retorna.",
   "tags": []
 }

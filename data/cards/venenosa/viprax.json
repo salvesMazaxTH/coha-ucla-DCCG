@@ -7,8 +7,8 @@
   ],
   "essence": "venenosa",
   "cost": 5,
-  "atk": 4,
-  "hp": 4,
+  "atk": 3,
+  "hp": 7,
   "keywords": [
     "toxico:2",
     "toque_letal"
@@ -26,7 +26,7 @@
     }
   ],
   "activated": {
-    "cost": 3,
+    "cost": 2,
     "speed": "rapido",
     "once_per_turn": true,
     "effects": [
@@ -46,7 +46,7 @@
       }
     ]
   },
-  "text": "Tóxico 2. O dano de combate dela ao Líder também coloca Veneno nele. O Veneno dela ignora imunidade.\nAo Atingir o Líder: coloque 1 marcador de Veneno a mais no Líder inimigo.\nAo Ativar (3) {rapido} (1x por turno): coloque 1 marcador de Veneno no Líder inimigo. Depois, se ele tiver 8 ou mais marcadores de Veneno, ele morre.",
+  "text": "Tóxico 2. O dano de combate dela ao Líder também coloca Veneno nele. O Veneno dela ignora imunidade.\nAo Atingir o Líder: coloque 1 marcador de Veneno a mais no Líder inimigo.\nAo Ativar (2) {rapido} (1x por turno): coloque 1 marcador de Veneno no Líder inimigo. Depois, se ele tiver 8 ou mais marcadores de Veneno, ele morre.",
   "flavor": "Ela morde uma vez. O resto é paciência.",
   "tags": []
 }
