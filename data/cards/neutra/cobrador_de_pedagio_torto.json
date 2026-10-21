@@ -17,11 +17,10 @@
       "action": "gain_momentum",
       "target": "none",
       "amount": 1,
-      "restriction": { "mode": "only", "match": { "essence": ["neutra"] } },
       "if": "oldest_of_its_name"
     }
   ],
-  "text": "No Início do Turno: se esta é a primeira cópia de Cobrador de Pedágio Torto em campo, ganhe +1 Momentum neste turno. Até o fim do turno, você só pode jogar cartas neutras.",
+  "text": "No Início do Turno: se esta é a primeira cópia de Cobrador de Pedágio Torto em campo, ganhe +1 Momentum neste turno.",
   "flavor": [
     "A ponte caiu faz anos. O pedágio continua."
   ],

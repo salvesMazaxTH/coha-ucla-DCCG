@@ -47,6 +47,8 @@ func _fire_own_effects(event: GameEvent) -> void:
 			continue # an Ao Sofrer Dano effect that only reacts to damage dealt by a spell (Tyren)
 		if e.get("trigger", "") == event.trigger and e.get("hit_at_least_armor", false) and not event.data.get("hit_reached_armor", true):
 			continue # an Ao Sofrer Dano effect that a hit weaker than the unit's Armadura can't trigger (Tharox)
+		if e.get("trigger", "") == event.trigger and e.has("min_hit_damage") and int(event.data.get("hit_damage", 0)) < int(e["min_hit_damage"]):
+			continue # an Ao Atingir o Líder effect that a lighter hit can't trigger (Barão Estrondoso)
 		if e.get("trigger", "") == event.trigger and e.get("own_turn_only", false) and game.active != card.owner:
 			continue # an "own turn only" effect during the opponent's turn
 		if e.get("trigger", "") == event.trigger and e.get("once_per_turn", false):

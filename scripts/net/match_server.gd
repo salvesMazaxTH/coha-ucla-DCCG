@@ -165,6 +165,11 @@ func _handle_room(r: Dictionary, seat: int, m: Dictionary) -> void:
 		for s in 2:
 			_send(r["peers"][s], {"t": "events", "events": StateView.filter_events(ev, s), "snap": StateView.snapshot(g, s)})
 		return
+	if m.get("a", "") == "pass_all" and not bool(m.get("on", true)): # taking PASSAR TUDO back is a setting too
+		var cancel_events := g.cancel_pass_rest_of_turn(seat)
+		for s in 2:
+			_send(r["peers"][s], {"t": "events", "events": StateView.filter_events(cancel_events, s), "snap": StateView.snapshot(g, s)})
+		return
 	var events := g.concede(seat) if m.get("a", "") == "concede" else _apply(g, seat, m) # conceding is allowed off-turn
 	if events.is_empty():
 		_send(r["peers"][seat], {"t": "reject", "a": m.get("a", "")})

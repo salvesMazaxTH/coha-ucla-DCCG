@@ -16,3 +16,17 @@ func needs_choice() -> bool:
 ## The uids (units, or negative Leader uids) the effect is applied to, in order.
 func resolve(_context: EffectContext, _effect: Effect) -> Array:
 	return []
+
+## True for a target that is rolled again before every hit (Repique Desgovernado): the effect then asks
+## hit_count() and calls resolve_hit() once per hit, so a hit never lands on a unit that the earlier hits of
+## the same effect already left with no Vida. Every other target is resolved once, up front.
+func hits_one_at_a_time() -> bool:
+	return false
+
+## How many hits a one-at-a-time target hands out (only asked when hits_one_at_a_time() is true).
+func hit_count(_context: EffectContext, _effect: Effect) -> int:
+	return 0
+
+## The uid of the next hit, rolled now (empty when nobody is left to hit).
+func resolve_hit(_context: EffectContext, _effect: Effect) -> Array:
+	return []

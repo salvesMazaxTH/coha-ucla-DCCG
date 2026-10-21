@@ -12,10 +12,11 @@ extends RefCounted
 ##      no unit can attack anymore. Between two attacks the attacker may also cast an Instantâneo (spell or
 ##      ability); the defender answers it through the stack.
 ##   3. A declared attack can be answered, but only when it matters: the defender is asked ("Reagir?") only if
-##      they hold an Instantâneo they can cast right now AND the attack hits the Leader or could kill a unit
-##      (see attack_is_worth_a_reply). Otherwise nobody is asked and the blows land at once.
+##      they hold an Instantâneo they can cast right now AND the attack would leave the Leader at 15 HP or less,
+##      or could kill a unit (see attack_is_worth_a_reply). Otherwise nobody is asked and the blows land at once.
 
 var game: GameState
+const LEADER_REACTION_HP_THRESHOLD := 15
 ## An attack whose Ao Atacar put something on the stack (a Bola de Neve): its combat damage waits
 ## until the stack is empty. {"attacker": uid, "target": uid}, or empty when no attack is waiting.
 var pending_attack: Dictionary = {}
@@ -264,8 +265,8 @@ func pass_reaction() -> void:
 	game.priority = game.active
 	finish_pending_attack()
 
-## Is the declared attack serious enough to stop the game for? Yes when it hits the Leader for more than 0,
-## or when a unit could die in the exchange: the struck unit by the blow, or the attacker by the counter-blow.
+## Is the declared attack serious enough to stop the game for? Yes when its damage would leave the Leader at
+## 15 HP or less, or when a unit could die in the exchange: the struck unit by the blow, or the attacker by the counter-blow.
 ## Deliberately generous (Armadura, Escudo and the order of strikes are ignored; a Crítico is counted): asking
 ## once too often costs a click, missing a real chance would cost the unit.
 func attack_is_worth_a_reply(attack_info: Dictionary) -> bool:
@@ -274,7 +275,9 @@ func attack_is_worth_a_reply(attack_info: Dictionary) -> bool:
 		return false
 	var target_uid := int(attack_info["target"])
 	if target_uid < 0:
-		return game.strike_power_of(attacker) > 0
+		var damage := game.strike_power_of(attacker)
+		var defender := game.opponent(attacker.owner)
+		return damage > 0 and int(game.players[defender]["leader_hp"]) - damage <= LEADER_REACTION_HP_THRESHOLD
 	var target := game.find_unit(target_uid)
 	if target == null:
 		return false

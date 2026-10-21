@@ -61,6 +61,7 @@ static func snapshot(g: GameState, seat: int) -> Dictionary:
 		"window": g.window,
 		"summon_window": g.summon_window,
 		"stack_passed": g.stack_passed,
+		"skip_rest_of_turn": g.skip_rest_of_turn.duplicate(),
 	}
 
 ## Events are public information (a draw carries only a uid, plays show the card being

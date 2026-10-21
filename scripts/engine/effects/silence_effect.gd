@@ -1,8 +1,8 @@
 class_name SilenceEffect
 extends Effect
 ## "silence": Silêncio. The target unit loses every keyword and every ability (Constante, Ao Atacar, Ao Morrer,
-## Condicional, Ativar...) for as long as it stays on the board. It keeps its stats, what it was already given
-## (buffs, equipment) and its status effects. See Card.silence(). Leaders can't be silenced (units only).
+## Condicional, Ativar...) for as long as it stays on the board, and goes back to its printed Ataque and Vida (buffs and
+## equipment stats are lost). It keeps its damage and status effects. See Card.silence(). Leaders can't be silenced (units only).
 
 func is_already_applied_to(unit: Card) -> bool:
 	return unit.is_silenced()

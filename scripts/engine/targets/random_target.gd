@@ -113,6 +113,38 @@ func resolve(context: EffectContext, effect: Effect) -> Array:
 			return [pool[game.rng.randi_range(0, pool.size() - 1)]]
 	return []
 
+## The three multi-hit selectors are rolled again before every hit (see TargetSelector.hits_one_at_a_time).
+func hits_one_at_a_time() -> bool:
+	return name in ["random_enemy_unit_twice", "random_enemy_unit_spread", "random_enemy_spread"]
+
+func hit_count(context: EffectContext, effect: Effect) -> int:
+	match name:
+		"random_enemy_unit_twice":
+			return 2
+		"random_enemy_unit_spread":
+			return maxi(0, int(effect.raw.get("hits", 1)))
+		"random_enemy_spread":
+			if effect.raw.get("hits_from", "") == "self_atk":
+				var source := context.game.find_unit(context.self_uid)
+				return maxi(0, (context.game.atk_of(source) if source != null else 0) + int(effect.raw.get("hits_from_add", 0)))
+			return maxi(0, int(effect.raw.get("hits", 1)))
+	return 0
+
+## One roll over the enemies that can still take a hit: a unit whose Vida is already used up stays on the board
+## until the whole effect has resolved (its Ao Morrer waits for that), but it is no longer a candidate, so no hit is
+## wasted on it. The Leader is always a candidate for "random_enemy_spread".
+func resolve_hit(context: EffectContext, effect: Effect) -> Array:
+	var game := context.game
+	var pool: Array = []
+	if name == "random_enemy_spread":
+		pool.append(GameState.LEADER_UID[context.opponent()])
+	for unit: Card in game.players[context.opponent()]["board"]:
+		if game.hp_left(unit) > 0 and not effect.is_already_applied_to(unit):
+			pool.append(unit.uid)
+	if pool.is_empty():
+		return []
+	return [pool[game.rng.randi_range(0, pool.size() - 1)]]
+
 ## The enemy units with the highest Ataque: at most the effect's "count", and only units with at least "min_atk".
 ## The dice are only rolled when a tie really crosses the cut-off (units share the last place that still fits).
 func _strongest_enemy_units(context: EffectContext, effect: Effect) -> Array:

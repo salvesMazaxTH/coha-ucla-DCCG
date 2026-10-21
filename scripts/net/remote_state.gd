@@ -54,6 +54,7 @@ func apply_snapshot(snap: Dictionary) -> void:
 	window = String(s.get("window", ""))
 	summon_window = bool(s.get("summon_window", false))
 	stack_passed = bool(s.get("stack_passed", false))
+	skip_rest_of_turn = s.get("skip_rest_of_turn", [false, false])
 
 func _act(m: Dictionary) -> Array:
 	m["t"] = "act"
@@ -101,7 +102,11 @@ func pass_priority(_p: int) -> Array:
 	return _act({"a": "pass"})
 
 func pass_rest_of_turn(_p: int) -> Array:
-	return _act({"a": "pass_all"})
+	return _act({"a": "pass_all", "on": true})
+
+## Takes PASSAR TUDO back. The flag only changes when the server's snapshot says so.
+func cancel_pass_rest_of_turn(_p: int) -> Array:
+	return _act({"a": "pass_all", "on": false})
 
 func concede(_p: int) -> Array:
 	return _act({"a": "concede"})
