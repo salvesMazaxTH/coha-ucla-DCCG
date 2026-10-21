@@ -165,10 +165,10 @@ func _handle_room(r: Dictionary, seat: int, m: Dictionary) -> void:
 		for s in 2:
 			_send(r["peers"][s], {"t": "events", "events": StateView.filter_events(ev, s), "snap": StateView.snapshot(g, s)})
 		return
-	if m.get("a", "") == "pass_all" and not bool(m.get("on", true)): # taking PASSAR TUDO back is a setting too
-		var cancel_events := g.cancel_pass_rest_of_turn(seat)
+	if m.get("a", "") == "pass_all": # PASSAR TUDO is a setting too: it is switched during the opponent's turn, when the seat usually has no priority, so it must not go through the decider check of _apply
+		var pass_all_events := g.pass_rest_of_turn(seat) if bool(m.get("on", true)) else g.cancel_pass_rest_of_turn(seat)
 		for s in 2:
-			_send(r["peers"][s], {"t": "events", "events": StateView.filter_events(cancel_events, s), "snap": StateView.snapshot(g, s)})
+			_send(r["peers"][s], {"t": "events", "events": StateView.filter_events(pass_all_events, s), "snap": StateView.snapshot(g, s)})
 		return
 	var events := g.concede(seat) if m.get("a", "") == "concede" else _apply(g, seat, m) # conceding is allowed off-turn
 	if events.is_empty():
@@ -201,7 +201,6 @@ func _apply(g: GameState, p: int, m: Dictionary) -> Array:
 		"enter_tapped": return g.choose_enter_tapped(p, bool(m.get("tapped", false)))
 		"end_turn": return g.end_turn(p)
 		"pass": return g.pass_priority(p)
-		"pass_all": return g.pass_rest_of_turn(p)
 		"discard": return g.discard(p, _ints(m.get("uids")))
 		"search": return g.choose_search(p, int(m.get("uid", 0)))
 		"enter": return g.choose_enter_target(p, int(m.get("target", 0)))

@@ -1490,19 +1490,15 @@ func _render_relics(p: int, y: float, slots_taken: int) -> void:
 func _laid_out_slots(p: int) -> int:
 	return g.slots_used(p) + int(g.players[p]["frozen_slots"])
 
-## Slots frozen by Rei Gelado: ice tiles at the end of the lane. Nothing can be played into them.
+## Slots frozen by Rei Gelado: tiles at the end of the lane covered in the same ice as a frozen unit
+## (FrozenSlotView). Nothing can be played into them.
 func _render_frozen_slots(p: int, y: float, slots_taken: int) -> void:
 	var frozen_count: int = int(g.players[p]["frozen_slots"])
 	var first_frozen_slot: int = g.slots_used(p)
 	for j in frozen_count:
-		var tile := PanelContainer.new()
-		tile.custom_minimum_size = CardView.BASE * 1.15
-		tile.size = tile.custom_minimum_size
-		tile.add_theme_stylebox_override("panel", UITheme.box(Color(ICE.darkened(0.75), 0.55), 8, ICE, 2))
-		tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var snowflake := _label("❄", 44, ICE, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
-		snowflake.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		tile.add_child(snowflake)
+		var tile := FrozenSlotView.new()
+		tile.owner_player = p
+		tile.size = CardView.BASE * 1.15
 		var cell := _board_cell(slots_taken, first_frozen_slot + j)
 		tile.position = Vector2(cell.x + (cell.y - tile.size.x) / 2.0, y)
 		layer.add_child(tile)
@@ -3830,6 +3826,23 @@ func _freeze_fx(target: Control, t: float) -> void:
 	shiver.tween_callback(func(): cv.shake = Vector2.ZERO)
 	_frost_shards(_center_of(cv), t, 30)
 
+## Empty slots get frozen (Rei Gelado). _render already drew them covered in ice, so the ice is wiped
+## off, and at moment t it slams back on like it does on a unit: flash, shockwaves, growing ice, shards.
+func _freeze_slots_fx(frozen_player: int, t: float) -> void:
+	for node in layer.get_children():
+		if not node is FrozenSlotView or node.owner_player != frozen_player:
+			continue
+		var tile: FrozenSlotView = node
+		tile.frost_grow = 0.0
+		var spread := tile.create_tween()
+		spread.tween_interval(t)
+		spread.tween_property(tile, "frost_grow", 1.0, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		var burst := tile.create_tween()
+		burst.tween_interval(t)
+		burst.tween_property(tile, "frost_burst", 1.0, 0.65).from(0.001)
+		burst.tween_callback(func(): tile.frost_burst = 0.0)
+		_frost_shards(tile.position + tile.size / 2.0, t, 24)
+
 ## Ice shards thrown outward from a point at moment t, falling a little as they fade.
 func _frost_shards(c: Vector2, t: float, amount: int) -> void:
 	var p := CPUParticles2D.new()
@@ -4487,7 +4500,8 @@ func _animate(events: Array, old: Dictionary) -> float:
 			"slots_frozen":
 				if int(e["blocked"]) > 0:
 					_toast("%s: %d espaço(s) vazio(s) congelado(s)!" % [_pname(e["player"]), e["blocked"]])
-				cursor += 0.3
+				_freeze_slots_fx(int(e["player"]), cursor)
+				cursor += 0.5
 			"summon", "draw", "search_take":
 				appear[e["uid"]] = cursor
 				cursor += 0.1

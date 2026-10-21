@@ -221,7 +221,7 @@ static func sound_for_event(event: Dictionary, in_combat: bool) -> String:
 			return "banish"
 		"sacrifice":
 			return "sacrifice"
-		"freeze", "exhaust":
+		"freeze", "exhaust", "slots_frozen":
 			return "freeze"
 		"thaw":
 			return "thaw"
