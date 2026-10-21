@@ -127,6 +127,9 @@ func hit_count(context: EffectContext, effect: Effect) -> int:
 			if effect.raw.get("hits_from", "") == "self_atk":
 				var source := context.game.find_unit(context.self_uid)
 				return maxi(0, (context.game.atk_of(source) if source != null else 0) + int(effect.raw.get("hits_from_add", 0)))
+			if effect.raw.get("hits_from", "") == "momentum":
+				# the controller's plain Momentum right now (Eryon: read after the Momentum he just gained)
+				return maxi(0, int(context.game.players[context.controller]["momentum"]) + int(effect.raw.get("hits_from_add", 0)))
 			return maxi(0, int(effect.raw.get("hits", 1)))
 	return 0
 

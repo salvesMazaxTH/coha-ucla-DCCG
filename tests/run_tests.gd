@@ -528,7 +528,6 @@ func _test_supreme_shield() -> void:
 	g._flush()
 	check(g.find_relic(bulwark.uid) == null, "sem o Escudo Supremo, o segundo Desmontador destrói o Baluarte")
 
-func _test_death_order() -> void:
 func _test_limited_charges() -> void:
 	# Ampola Curativa: 2 usos; cura o Líder ao sofrer dano e a unidade aliada que sofrer dano e sobreviver
 	var g := _new_game()
@@ -602,6 +601,7 @@ func _test_artifact_subtypes() -> void:
 	check(PlayRestriction.error_of(forbid_local, CardDB.data()["essences"]) == "", "restriction subtype local é válida")
 	check(PlayRestriction.error_of({"mode": "forbid", "match": {"subtype": ["nada"]}}, CardDB.data()["essences"]) != "", "restriction subtype desconhecido é recusado")
 
+func _test_death_order() -> void:
 	# simultaneous deaths on both sides resolve active player first (APNAP)
 	for first in 2:
 		var g := _new_game()
@@ -6876,15 +6876,54 @@ func _test_eryon_deck() -> void:
 	check(g.valid_targets(a, "other_ally_unit", eryon.uid).is_empty(), "Eryon: sozinho não tem a quem sacrificar")
 	var fodder := _put(g, a, "cobrador_de_pedagio_torto")
 	g.players[a]["momentum"] = 10
+	g.players[g.opponent(a)]["leader_hp"] = 99 # the 10 blows of 2 must not end the game and cut the rest of the effect
 	g.activate(a, eryon.uid, fodder.uid)
 	check(g.find_unit(fodder.uid) == null, "Eryon: a unidade sacrificada morre")
-	check(g.players[a]["momentum"] == 13, "Eryon: sacrificar custo 3 dá +3 e passa de 10 (%d)" % g.players[a]["momentum"])
+	check(g.players[g.opponent(a)]["leader_hp"] == 79, "Eryon: 10 + 3 = 13 de Momentum = 10 golpes de 2 (%d)" % g.players[g.opponent(a)]["leader_hp"])
+	check(g.players[a]["momentum"] == 0, "Eryon: acima de 10 o efeito gasta todo o Momentum (%d)" % g.players[a]["momentum"])
 	check(g.is_play_restricted(a, CardDB.card("esqueleto_guerreiro")), "Eryon: sacrificar para ganhar Momentum trava o turno só para cartas neutras")
 	var expensive := _put(g, a, "barao_estrondoso")
 	g.players[a]["momentum"] = 10
 	eryon.activated_turn = -1
 	g.activate(a, eryon.uid, expensive.uid)
-	check(g.players[a]["momentum"] == 13, "Eryon: custo 7 rende no máximo 3 (%d)" % g.players[a]["momentum"])
+	check(g.players[g.opponent(a)]["leader_hp"] == 79 - 22, "Eryon: custo 7 rende no máximo 4: 14 de Momentum = 11 golpes (%d)" % g.players[g.opponent(a)]["leader_hp"])
+
+	# Eryon, 11+ Momentum after the gain: 3 blows of 2 spread over the enemies (Leader included); below 11 nothing happens
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	var eryon_enemy: int = g.opponent(a)
+	eryon = _put(g, a, "eryon")
+	fodder = _put(g, a, "barao_estrondoso")
+	g.players[a]["momentum"] = 7
+	g.players[eryon_enemy]["leader_hp"] = 60
+	g.activate(a, eryon.uid, fodder.uid)
+	check(g.players[a]["momentum"] == 0, "Eryon: com 11 de Momentum o efeito gasta todo o Momentum (%d)" % g.players[a]["momentum"])
+	check(g.players[eryon_enemy]["leader_hp"] == 44, "Eryon: 11 de Momentum = 8 golpes de 2 só no Líder (%d)" % g.players[eryon_enemy]["leader_hp"])
+	# with overflow the blows grow: 10 + 4 = 14 Momentum = 11 blows = 22 damage
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	eryon_enemy = g.opponent(a)
+	eryon = _put(g, a, "eryon")
+	fodder = _put(g, a, "barao_estrondoso")
+	g.players[a]["momentum"] = 10
+	g.players[a]["reserve"] = 2
+	g.players[eryon_enemy]["leader_hp"] = 60
+	g.activate(a, eryon.uid, fodder.uid)
+	check(g.players[eryon_enemy]["leader_hp"] == 38, "Eryon: 14 de Momentum = 11 golpes de 2 (%d)" % g.players[eryon_enemy]["leader_hp"])
+	check(g.players[a]["momentum"] == 0 and g.players[a]["reserve"] == 2, "Eryon: gasta o Momentum e preserva a Reserva (%d/%d)" % [g.players[a]["momentum"], g.players[a]["reserve"]])
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	eryon_enemy = g.opponent(a)
+	eryon = _put(g, a, "eryon")
+	fodder = _put(g, a, "cobrador_de_pedagio_torto")
+	g.players[a]["momentum"] = 5
+	g.players[eryon_enemy]["leader_hp"] = 60
+	g.activate(a, eryon.uid, fodder.uid)
+	check(g.players[a]["momentum"] == 8 and g.players[eryon_enemy]["leader_hp"] == 60,
+		"Eryon: terminando com menos de 11 de Momentum não causa dano (%d / %d)" % [g.players[a]["momentum"], g.players[eryon_enemy]["leader_hp"]])
 
 	# Barão with the real card: Ímpeto and Escudo are innate; the surge turns on at 11 Momentum
 	var baron := _put(g, a, "barao_estrondoso")

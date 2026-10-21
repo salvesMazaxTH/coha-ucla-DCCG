@@ -32,15 +32,28 @@
             "action": "gain_momentum",
             "target": "none",
             "amount_from": "sacrificed_cost",
-            "max": 3,
+            "max": 4,
             "overflow": true,
             "restriction": { "mode": "only", "match": { "essence": ["neutra"] } }
+          },
+          {
+            "action": "damage",
+            "target": "random_enemy_spread",
+            "hits_from": "momentum",
+            "hits_from_add": -3,
+            "amount": 2,
+            "if": { "compare": { "stat": "momentum", "who": "self", "op": ">=", "value": 11 } }
+          },
+          {
+            "action": "spend_all_momentum",
+            "target": "none",
+            "if": { "compare": { "stat": "momentum", "who": "self", "op": ">=", "value": 11 } }
           }
         ]
       }
     ]
   },
-  "text": "Ao Entrar: compre 1 carta.\nAo Ativar (0) (1x por turno): sacrifique outra unidade aliada. Ganhe Momentum igual ao custo dela, no máximo 3. Pode passar de 10, só neste turno. Até o fim do turno, você só pode jogar cartas neutras.",
+  "text": "Ao Entrar: compre 1 carta.\nAo Ativar (0) (1x por turno): sacrifique outra unidade aliada e ganhe Momentum igual ao custo dela (no máximo 4; pode passar de 10 neste turno). Até o fim do turno, você só pode jogar cartas neutras.\nEntão, se tiver 11 ou mais de Momentum, gaste todo ele e dê X golpes de 2 de dano em inimigos aleatórios, incluindo o Líder. X é o Momentum gasto menos 3.",
   "flavor": [
     "O fôlego não some. Só muda de dono."
   ],
