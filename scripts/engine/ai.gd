@@ -254,7 +254,7 @@ static func _plan_sacrifice_spell(g: GameState, p: int, card_data: Dictionary) -
 	var best_gain := 2
 	for ally: Card in allies:
 		for enemy_unit: Card in g.players[foe]["board"]:
-			if enemy_unit.shield or enemy_unit.spell_shield or not g.valid_targets(p, "any").has(enemy_unit.uid):
+			if enemy_unit.shield or enemy_unit.spell_shield or enemy_unit.supreme_shield or not g.valid_targets(p, "any").has(enemy_unit.uid):
 				continue
 			if g.damage_after_armor(enemy_unit, ally.atk_total()) < g.hp_left(enemy_unit):
 				continue
@@ -378,7 +378,7 @@ static func _sweeper_is_worth_it(g: GameState, p: int, effect: Dictionary) -> bo
 			continue
 		for unit: Card in g.players[side]["board"]:
 			var dies: bool = effect.get("action") == "destroy" or g.damage_after_armor(unit, int(effect.get("amount", 0))) >= g.hp_left(unit)
-			if not dies or unit.shield or unit.spell_shield:
+			if not dies or unit.shield or unit.spell_shield or unit.supreme_shield:
 				continue
 			if side == p:
 				net_value -= _unit_value(g, unit)
@@ -432,8 +432,8 @@ static func _pick_fight(g: GameState, p: int) -> Array:
 		for enemy: Card in g.players[g.opponent(p)]["board"]:
 			var damage_to_enemy := g.damage_after_armor(enemy, ally.atk_total())
 			var damage_to_ally := g.damage_after_armor(ally, enemy.atk_total())
-			var kills_enemy := damage_to_enemy >= enemy.hp_left() and not enemy.shield and not enemy.spell_shield
-			var ally_survives := damage_to_ally < ally.hp_left() or ally.shield
+			var kills_enemy := damage_to_enemy >= enemy.hp_left() and not enemy.shield and not enemy.spell_shield and not enemy.supreme_shield
+			var ally_survives := damage_to_ally < ally.hp_left() or ally.shield or ally.supreme_shield
 			if kills_enemy and ally_survives:
 				var score := enemy.atk_total() + enemy.hp_left()
 				if score > best_score:
@@ -501,6 +501,8 @@ static func _pick_target(g: GameState, p: int, spec: String, source, self_uid :=
 		for effect in effects:
 			if effect.get("action") == "buff":
 				friendly = true
+	# only a spell or a Leader's ability is cancelled by Escudo de Feitiço (a Leader ability's data has no "type")
+	var is_spell_or_leader_ability: bool = self_uid == 0 and source is Dictionary and source.get("type", "spell") == "spell"
 	var best_uid := 0
 	var best_score := -999
 	for uid in options:
@@ -529,7 +531,7 @@ static func _pick_target(g: GameState, p: int, spec: String, source, self_uid :=
 					if effect.get("action") == "damage":
 						hits = true
 						damage_amount += int(effect["amount"])
-						if int(effect["amount"]) >= unit.hp_left() and not unit.shield:
+						if int(effect["amount"]) >= unit.hp_left() and not unit.shield and not unit.supreme_shield:
 							kills = true
 				if kills:
 					score += 10
@@ -541,8 +543,10 @@ static func _pick_target(g: GameState, p: int, spec: String, source, self_uid :=
 						continue # ...and except on a unit that grows stronger from it (Ao Sofrer Dano)
 					if strict:
 						score = damage_amount + 1 # chip damage from a spell: the face is usually better
-				if unit.spell_shield:
-					score -= 20 # wasted on Escudo de Feitiço
+				if unit.spell_shield and is_spell_or_leader_ability:
+					score -= 20 # wasted on Escudo de Feitiço (a unit's own effect or an artifact goes through it)
+				if unit.supreme_shield:
+					score -= 20 # wasted on Escudo Supremo: it absorbs anything, from any source
 		if score > best_score:
 			best_score = score
 			best_uid = uid

@@ -14,10 +14,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	if not game.valid_targets(context.controller, String(raw.get("second_target", "enemy_unit"))).has(second_unit.uid):
 		return
 	# Escudo de Feitiço on the opponent of the fight cancels it, like it cancels any other spell effect
-	if second_unit.owner != context.controller and second_unit.spell_shield:
-		second_unit.spell_shield = false
-		context.shielded_this_effect.append(second_unit.uid)
-		game._emit({"type": "spell_shield_break", "uid": second_unit.uid})
+	if cancelled_by_any_shield(context, second_unit):
 		return
 	game._emit({"type": "fight", "uid": first_unit.uid, "other": second_unit.uid})
 	# both strikes are measured before either lands, so a unit killed by the other still hits back

@@ -75,6 +75,7 @@ var search_overlay: Control
 ## Hash of the pending search the player folded away to look at the table (-1 = none). Comparing the
 ## hash instead of a flag means the next search always opens expanded.
 var search_minimized_signature := -1
+var search_opened_signature := -1 ## the opponent's choice the player asked to see (those start folded)
 var grave_view: Control ## graveyard viewer (child of Main, outlives _render)
 var concede_view: Control ## "concede?" confirmation (child of Main, outlives _render)
 var conceded := -1 ## player who gave up this match (-1 = nobody); only used for the game-over text
@@ -92,6 +93,8 @@ var hint_until := 0
 var last_input_ms := 0
 var hint_pill: Control
 var aim_arrow: AimArrow ## targeting arrow from the source to the pointer
+var reaction_arrow: AimArrow ## locked dashed arrow showing the pending attack during a reaction
+var reaction_attack: Dictionary = {} ## {"attacker": uid, "target": uid} from the latest reaction event
 var aim_drag := false ## the press that started aiming is still held: releasing on a target fires
 var aim_start := Vector2.ZERO
 var aim_src := Vector2.ZERO ## global source point (leader gem, command card)
@@ -109,6 +112,15 @@ var _render_when_settled := false
 ## Clicks given while the table is busy are not judged against a screen that is out of date: each one
 ## waits here, in order, and runs once the last animation has ended (the player's "next move" buffer).
 var _queued_inputs: Array[Callable] = []
+
+## "PASSAR TUDO" is a switch. Turning it on waits PASS_ALL_UNDO_SECONDS on this screen first (a misclick is
+## undone with no network and no race); turning it off, and the real turning on, are confirmed by the server.
+const PASS_ALL_UNDO_SECONDS := 1.5
+const PASS_ALL_SERVER_TIMEOUT_SECONDS := 4.0
+var _pass_all_arming := false ## inside the undo window: nothing was sent yet
+var _pass_all_arming_id := 0 ## tells an old undo timer from the current one
+var _pass_all_waiting_for_server := false ## sent, but the snapshot has not shown the new state yet
+var _pass_all_expected_state := false ## what the snapshot should show when the server has answered
 var _replaying_queued_inputs := false ## true while _run_queued_inputs is running them
 ## Fires when the animation that is playing now ends, to redraw and run the waiting clicks.
 var _settle_timer: Timer
@@ -957,6 +969,8 @@ func _on_net(m: Dictionary) -> void:
 			if not (g is RemoteState):
 				return
 			(g as RemoteState).apply_snapshot(m["snap"])
+			if _pass_all_waiting_for_server and bool(g.skip_rest_of_turn[viewer]) == _pass_all_expected_state:
+				_pass_all_waiting_for_server = false # the server confirmed the PASSAR TUDO switch
 			_reset_input()
 			for e in m["events"]:
 				_log_event(e)
@@ -964,6 +978,7 @@ func _on_net(m: Dictionary) -> void:
 		"reject":
 			_toast("Ação inválida.")
 			Sfx.play("ui_error")
+			_stop_waiting_for_pass_all()
 		"opponent":
 			opp_online = m["connected"]
 			_toast("Oponente reconectou." if opp_online else "Oponente desconectou.")
@@ -1024,6 +1039,11 @@ func _play_waiting_events() -> void:
 		_waiting_events_timer.start(maxf((_animation_busy_until_ms - Time.get_ticks_msec()) / 1000.0, 0.05))
 
 func _play_events(events: Array) -> void:
+	for e in events:
+		if e["type"] == "reaction":
+			reaction_attack = {"attacker": int(e["attacker"]), "target": int(e["target"])}
+		elif e["type"] in ["combat_damage", "combat_end"]:
+			reaction_attack.clear()
 	var old := _snapshot()
 	_leader_ko_t = -1.0
 	_over_from = -1
@@ -1094,6 +1114,10 @@ func _clear_fx() -> void:
 	_animation_busy_until_ms = 0
 	_render_when_settled = false
 	_queued_inputs.clear()
+	reaction_attack.clear()
+	reaction_arrow = null
+	_pass_all_arming = false
+	_pass_all_waiting_for_server = false
 	_queued_attacker_uid = 0
 	_queued_attacker_dragging = false
 	if _settle_timer:
@@ -1198,8 +1222,8 @@ func _render_now() -> void:
 	if g.phase == "over":
 		_over_from = layer.get_child_count()
 		_render_game_over()
-	elif _is_ai(g.decider()):
-		ai_timer.start()
+	elif _is_ai(g.decider()) and ai_timer.is_stopped():
+		ai_timer.start() # not while it is already counting: every redraw would push the AI's move back
 
 ## Full-screen veil over the table with a centered panel.
 func _veil(alpha := 0.72) -> PanelContainer:
@@ -1944,6 +1968,12 @@ func _render_side() -> void:
 		wait.position = Vector2(col_x, y)
 		wait.size = Vector2(COL_W, 56)
 		layer.add_child(wait)
+		y += 66.0
+	if _pass_all_switch_available():
+		var pass_all := _pass_all_switch()
+		pass_all.position = Vector2(col_x, y)
+		pass_all.size = Vector2(COL_W, 48)
+		layer.add_child(pass_all)
 	_render_stack()
 	var ap_on := _auto_pass_on()
 	var ap := _toggle_button("AUTO-PASSE", ap_on, func(): _set_auto_pass(not _auto_pass_on()))
@@ -2207,6 +2237,7 @@ func _hint_nudge() -> void:
 
 func _process(_dt: float) -> void:
 	_update_aim()
+	_sync_reaction_arrow()
 	if g and Time.get_ticks_msec() - last_input_ms > 15000:
 		last_input_ms = Time.get_ticks_msec()
 		_hint_nudge()
@@ -2246,6 +2277,8 @@ func _hint() -> String:
 		return t
 	if g.decider() != viewer or _is_ai(viewer):
 		return ""
+	if g.phase in ["main", "combat"] and g.skip_rest_of_turn[viewer] and g.active != viewer and not g.stack.is_empty():
+		return "PASSAR TUDO está ligado, mas esta jogada mataria o seu Líder: responda com um Instantâneo ou passe."
 	if g.phase in ["main", "combat"] and g.stack_passed and not g.stack.is_empty():
 		return "O oponente passou: empilhe outro Instantâneo ou passe para resolver a pilha."
 	if g.phase in ["main", "combat"] and not g.stack.is_empty():
@@ -2260,6 +2293,8 @@ func _hint() -> String:
 						return "Antes dos ataques: efeitos Rápidos/Instantâneos ou passe."
 					return "O oponente vai atacar: responda com Rápidos/Instantâneos ou passe."
 				"attacks":
+					if viewer == g.active and g.combat_system().is_reacting(g.opponent(viewer)):
+						return "Ataque declarado: o oponente pode reagir antes do dano..."
 					if viewer == g.active:
 						return "Arraste uma unidade até o alvo para atacar (ou jogue um Instantâneo) · ENCERRAR COMBATE quando acabar."
 					if g.combat_system().is_reacting(viewer):
@@ -2282,17 +2317,61 @@ func _pass_button_label() -> String:
 	var passing_resolves: bool = not g.stack.is_empty() and (g.stack_passed or not g.self_response_enabled)
 	return "RESOLVER" if passing_resolves else "PASSAR"
 
-## "PASSAR TUDO": while answering the opponent's moves, a second button that passes this window and every
-## later one until their turn ends, so the player isn't asked again for each play. Empty on your own turn.
-func _pass_everything_buttons() -> Array:
-					if viewer == g.active and g.combat_system().is_reacting(g.opponent(viewer)):
-						return "Ataque declarado: o oponente pode reagir antes do dano..."
-	if g.active == viewer:
-		return []
-	var button := _action_button("Passar tudo no turno", func(): _do(g.pass_rest_of_turn(viewer)))
-	button.add_theme_font_size_override("font_size", 18)
-	button.tooltip_text = "Não pergunta mais por respostas até o turno do oponente acabar."
-	return [button]
+## The "PASSAR TUDO" switch only exists during the opponent's turn: on your own turn there is nothing to pass.
+func _pass_all_switch_available() -> bool:
+	return g.phase in ["main", "combat"] and g.active != viewer and not _is_ai(viewer)
+
+## "PASSAR TUDO": from the opponent's next play on, you are not asked for responses until their turn ends.
+## It shows what the server confirmed, "DESFAZER" during the local undo window and "…" while waiting for the server.
+func _pass_all_switch() -> Button:
+	var is_on: bool = g.skip_rest_of_turn[viewer]
+	var title := "PASSAR TUDO"
+	if _pass_all_arming:
+		title = "DESFAZER"
+		is_on = true
+	elif _pass_all_waiting_for_server and is_on != _pass_all_expected_state:
+		title = "…"
+	var button := _toggle_button(title, is_on, _on_pass_all_pressed)
+	button.tooltip_text = "Não pergunta mais por respostas até o turno do oponente acabar. Vale a partir da próxima jogada dele; só avisa se ela for matar o seu Líder."
+	return button
+
+func _on_pass_all_pressed() -> void:
+	if _pass_all_arming: # still inside the undo window: take it back here, nothing was sent
+		_pass_all_arming = false
+		_render()
+		return
+	if _pass_all_waiting_for_server:
+		return # the server has not answered the last press yet
+	if g.skip_rest_of_turn[viewer]:
+		_send_pass_all(false)
+		return
+	_pass_all_arming = true
+	_pass_all_arming_id += 1
+	var arming_id := _pass_all_arming_id
+	get_tree().create_timer(PASS_ALL_UNDO_SECONDS).timeout.connect(func():
+		if _pass_all_arming and arming_id == _pass_all_arming_id:
+			_pass_all_arming = false
+			_send_pass_all(true))
+	_render()
+
+## Sends the switch to the engine (or the server). Online, the switch keeps showing "…" until the snapshot echoes it.
+func _send_pass_all(on: bool) -> void:
+	if g == null or g.phase not in ["main", "combat"] or (on and g.active == viewer):
+		_render() # the turn changed while the press was waiting: nothing to switch any more
+		return
+	if g is RemoteState:
+		_pass_all_waiting_for_server = true
+		_pass_all_expected_state = on
+		get_tree().create_timer(PASS_ALL_SERVER_TIMEOUT_SECONDS).timeout.connect(_stop_waiting_for_pass_all)
+	_run_or_queue_input(func(): _do(g.pass_rest_of_turn(viewer) if on else g.cancel_pass_rest_of_turn(viewer)))
+	_render()
+
+## The server never answered (or refused): the switch goes back to showing the real state.
+func _stop_waiting_for_pass_all() -> void:
+	if _pass_all_waiting_for_server:
+		_pass_all_waiting_for_server = false
+		if g != null:
+			_render()
 
 func _action_buttons() -> Array:
 	var out: Array = []
@@ -2304,11 +2383,9 @@ func _action_buttons() -> Array:
 				out.append(_action_button("ENCERRAR COMBATE", func(): _do(g.end_combat(viewer)), true))
 			else:
 				out.append(_action_button(_pass_button_label(), func(): _do(g.pass_priority(viewer)), true))
-				out.append_array(_pass_everything_buttons())
 		"main":
 			if not g.stack.is_empty() or g.summon_window:
 				out.append(_action_button(_pass_button_label(), func(): _do(g.pass_priority(viewer)), true))
-				out.append_array(_pass_everything_buttons())
 			elif g.can_go_to_combat(viewer):
 				out.append(_action_button("IR PARA O COMBATE", func(): _do(g.go_to_combat(viewer)), true))
 				out.append(_action_button("Encerrar turno", func(): _do(g.end_turn(viewer))))
@@ -2570,6 +2647,30 @@ func _update_aim() -> void:
 	aim_arrow.from = inv * src
 	aim_arrow.to = inv * gp
 	aim_arrow.locked = _target_at(gp) != 0
+
+## Keep the existing dashed targeting-arrow style on the declared target while its reaction is pending.
+func _sync_reaction_arrow() -> void:
+	if reaction_attack.is_empty() or fx == null:
+		if is_instance_valid(reaction_arrow):
+			reaction_arrow.visible = false
+		return
+	var source: Variant = views.get(int(reaction_attack["attacker"]))
+	var target: Variant = views.get(int(reaction_attack["target"]))
+	if not is_instance_valid(source) or not source is Control or not is_instance_valid(target) or not target is Control:
+		if is_instance_valid(reaction_arrow):
+			reaction_arrow.visible = false
+		return
+	if not is_instance_valid(reaction_arrow):
+		reaction_arrow = AimArrow.new()
+		fx.add_child(reaction_arrow)
+	reaction_arrow.visible = true
+	reaction_arrow.move_to_front()
+	var source_rect := _visual_rect(source)
+	var target_rect := _visual_rect(target)
+	var inv := fx.get_global_transform().affine_inverse()
+	reaction_arrow.from = inv * Vector2(source_rect.get_center().x, source_rect.position.y + source_rect.size.y * 0.3)
+	reaction_arrow.to = inv * target_rect.get_center()
+	reaction_arrow.locked = true
 
 func _toggle_pick(uid: int, cap: int) -> void:
 	if picked.has(uid):
@@ -3216,8 +3317,10 @@ func _render_search_reveal() -> void:
 	var secret_search := deck_search and not _my_input()
 	var title := "CAMPEÃO DA MÃO" if hand_summon else "DESCARTAR DA MÃO" if discard_hand else "CEMITÉRIO" if g.pending_search.get("grave", false) else ("TOPO DO DECK" if look else "BUSCA NO DECK")
 	var search_signature: int = g.pending_search.hash()
-	if search_minimized_signature == search_signature:
-		_render_search_minimized(title)
+	# the opponent's choice starts folded: there is nothing to do in it, and the table is what matters
+	var opponent_choice_is_folded := not _my_input() and search_opened_signature != search_signature
+	if search_minimized_signature == search_signature or opponent_choice_is_folded:
+		_render_search_minimized(title, not _my_input())
 		return
 	search_overlay = _veil(0.84)
 	var box := VBoxContainer.new()
@@ -3289,6 +3392,7 @@ func _render_search_reveal() -> void:
 		box.add_child(_label("Botão direito (ou segurar o dedo) em uma carta abre ela em tela cheia.", 15, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
 	var minimize_button := _button("▼  VER A MESA", func():
 		search_minimized_signature = search_signature
+		search_opened_signature = -1
 		_render())
 	minimize_button.custom_minimum_size = Vector2(360, 52)
 	minimize_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -3297,7 +3401,7 @@ func _render_search_reveal() -> void:
 
 ## The search folded into a small bar at the top of the screen, so the table can be seen (and cards on
 ## it inspected). The bar brings the full choice back.
-func _render_search_minimized(title: String) -> void:
+func _render_search_minimized(title: String, opponents_choice := false) -> void:
 	var bar := PanelContainer.new()
 	var style := UITheme.panel(14)
 	style.set_content_margin_all(10)
@@ -3305,8 +3409,10 @@ func _render_search_minimized(title: String) -> void:
 	style.shadow_size = 24
 	bar.add_theme_stylebox_override("panel", style)
 	layer.add_child(bar)
-	var restore_button := _button("▲  VOLTAR À ESCOLHA · %s" % title, func():
+	var restore_text := "▲  VER A ESCOLHA DO OPONENTE · %s" if opponents_choice else "▲  VOLTAR À ESCOLHA · %s"
+	var restore_button := _button(restore_text % title, func():
 		search_minimized_signature = -1
+		search_opened_signature = g.pending_search.hash()
 		_render(), true)
 	restore_button.custom_minimum_size = Vector2(520, 60)
 	bar.add_child(restore_button)
@@ -4230,7 +4336,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 				or (et in ["damage", "shield_break"] and e.get("src", 0) > 0):
 			trig_src = 0
 		# effects of a trigger fly out of their source as a bolt and land when it arrives
-		if trig_src != 0 and et in ["damage", "heal", "shield_break", "buff", "dot", "freeze", "exhaust", "stun", "condemn", "tide_mark", "spell_shield_break", "summon"] \
+		if trig_src != 0 and et in ["damage", "heal", "shield_break", "buff", "dot", "freeze", "exhaust", "stun", "condemn", "tide_mark", "spell_shield_break", "supreme_shield_break", "summon"] \
 				and e["uid"] != trig_src and actors.has(trig_src) and actors.has(e["uid"]):
 			cursor += _streak(actors[trig_src], actors[e["uid"]], cursor, CardView.TRIGGER_COL) - 0.04
 		# Sound: most events play theirs right here, at the moment their animation starts. The ones
@@ -4323,16 +4429,18 @@ func _animate(events: Array, old: Dictionary) -> float:
 			"countered":
 				_toast("%s foi anulado!" % ("A habilidade do Líder" if e["kind"] == "ability" else _cname(e["card_id"])))
 				cursor += 0.4
-			"spell_shield_break", "tide_mark", "tide_draw", "dot", "dot_immune", "freeze", "exhaust", "stun", "stun_tick", "shrink", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up":
+			"spell_shield_break", "supreme_shield_break", "tide_mark", "tide_draw", "dot", "dot_immune", "freeze", "exhaust", "stun", "stun_tick", "shrink", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up":
 				if actors.has(e["uid"]):
 					var dot_name: String = {"queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento"}.get(String(e.get("dot", "")), "Marcador")
 					var dot_label := "%s %d" % [dot_name, int(e.get("amount", 0))]
 					if not e.get("cleared", false):
 						dot_label = "%s +%d" % [dot_name, int(e.get("amount", 0))]
-					var lbl: String = {"spell_shield_break": "Anulado!", "tide_mark": "Maré", "tide_draw": "+1 carta", "dot": dot_label, "dot_immune": "Imune!", "freeze": "Congelada!", "exhaust": "Exausta!", "stun": "Atordoada!", "stun_tick": "Recuperando…", "shrink": "Encolhida!", "condemn": "Condenada!", "doom": "Ceifada!", "doom_resisted": "Resistiu!", "thaw": "Descongelou", "dodge": "Esquivou!", "crit": "Crítico!", "crit_negated": "Desdém!", "critico_up": "Crítico %d!" % int(e.get("level", 0))}[e["type"]]
+					var lbl: String = {"spell_shield_break": "Anulado!", "supreme_shield_break": "Absorvido!", "tide_mark": "Maré", "tide_draw": "+1 carta", "dot": dot_label, "dot_immune": "Imune!", "freeze": "Congelada!", "exhaust": "Exausta!", "stun": "Atordoada!", "stun_tick": "Recuperando…", "shrink": "Encolhida!", "condemn": "Condenada!", "doom": "Ceifada!", "doom_resisted": "Resistiu!", "thaw": "Descongelou", "dodge": "Esquivou!", "crit": "Crítico!", "crit_negated": "Desdém!", "critico_up": "Crítico %d!" % int(e.get("level", 0))}[e["type"]]
 					var col: Color = Color("#6fd0ff")
 					if e["type"] == "spell_shield_break":
 						col = Color("#c9a8ff")
+					elif e["type"] == "supreme_shield_break":
+						col = Color("#ffd86b")
 					elif e["type"] in ["freeze", "thaw"]:
 						col = ICE
 					elif e["type"] in ["stun", "stun_tick"]:
@@ -4682,7 +4790,7 @@ func _chronicle_label(kind: String) -> String:
 		"start_turn": "TURNO", "transform": "TRANSFORMAÇÃO", "summon": "INVOCAÇÃO", "deck_summon": "INVOCAÇÃO",
 		"relic_enter": "RELÍQUIA", "revive": "RETORNO", "return_to_hand": "DE VOLTA À MÃO",
 		"card_created": "CRIAÇÃO", "search_take": "BUSCA", "leader_executed": "EXECUÇÃO",
-		"shield_break": "ESCUDO", "spell_shield_break": "ESCUDO", "freeze": "CONGELADA", "thaw": "DEGELO",
+		"shield_break": "ESCUDO", "spell_shield_break": "ESCUDO", "supreme_shield_break": "ESCUDO", "freeze": "CONGELADA", "thaw": "DEGELO",
 		"exhaust": "EXAUSTÃO", "stun": "ATORDOADA", "stun_tick": "ATORDOADA", "shrink": "ENCOLHIMENTO", "dodge": "ESQUIVA", "reflect": "REFLEXO", "condemn": "CONDENADA",
 		"doom": "SENTENÇA", "doom_resisted": "RESISTIU", "fatigue": "FADIGA", "ban": "BANIMENTO",
 		"concede": "DESISTÊNCIA", "enter_tapped": "PROVOCAÇÃO", "death_ward_armed": "BALUARTE",
@@ -4754,7 +4862,7 @@ func _chronicle_visual_for_event(e: Dictionary) -> Dictionary:
 				out["target_card_ids"].append(String(e["target_card_id"]))
 			else:
 				_chronicle_add_target(out, int(e.get("target", 0)))
-		"damage", "heal", "shield_break", "spell_shield_break", "freeze", "exhaust", "dodge", "dot", "destroy", "death", "condemn", "doom", "doom_resisted", "thaw":
+		"damage", "heal", "shield_break", "spell_shield_break", "supreme_shield_break", "freeze", "exhaust", "dodge", "dot", "destroy", "death", "condemn", "doom", "doom_resisted", "thaw":
 			out["source_card_id"] = _chronicle_card_id_for_uid(int(e.get("src", 0)))
 			if kind in ["death", "destroy"] and String(e.get("card_id", "")) != "":
 				out["target_card_ids"].append(String(e["card_id"]))
@@ -4964,6 +5072,11 @@ func _log_event(e: Dictionary) -> void:
 		"spell_shield_break":
 			var shielded := g.find_unit(e["uid"])
 			_log("Escudo de Feitiço anulou o efeito" + ("" if shielded == null else " em " + _cname(shielded.card_id)))
+		"supreme_shield_break":
+			var supreme_holder: Card = g.find_unit(e["uid"])
+			if supreme_holder == null:
+				supreme_holder = g.find_relic(e["uid"]) # a free-standing artifact (Baluarte Santo) can hold it too
+			_log("Escudo Supremo absorveu" + ("" if supreme_holder == null else " em " + _cname(supreme_holder.card_id)))
 		"tide_draw":
 			_log("%s: a maré retorna, compra 1" % _pname(e["player"]))
 		"snowball":

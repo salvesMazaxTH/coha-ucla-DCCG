@@ -39,10 +39,8 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 			continue
 		var unit: Card = entry
 		chosen_positions.append(units_on_board.find(unit))
-		# Escudo de Feitiço cancels the effect on that unit and breaks, like any effect from the enemy side
-		if unit.spell_shield:
-			unit.spell_shield = false
-			game._emit({"type": "spell_shield_break", "uid": unit.uid})
+		# Escudo de Feitiço cancels the effect on that unit and breaks, like any spell effect from the enemy side
+		if cancelled_by_any_shield(context, unit):
 			continue
 		FreezeEffect.new().apply(context, unit.uid)
 		ExhaustEffect.new().apply(context, unit.uid)

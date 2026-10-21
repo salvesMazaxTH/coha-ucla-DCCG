@@ -207,7 +207,7 @@ static func sound_for_event(event: Dictionary, in_combat: bool) -> String:
 			if in_combat and int(event.get("src", 0)) > 0:
 				return "hit_heavy" if int(event["amount"]) >= 6 else "hit_light"
 			return "direct_damage"
-		"shield_break", "spell_shield_break", "leader_hit_negated":
+		"shield_break", "spell_shield_break", "supreme_shield_break", "leader_hit_negated":
 			return "shield_break"
 		"heal":
 			return "heal"

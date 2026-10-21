@@ -284,7 +284,11 @@
     },
     "escudo_feitico": {
       "name": "Escudo de Feitiço",
-      "text": "Anula, uma vez, o próximo efeito inimigo que não seja dano de combate (feitiço, habilidade, efeito em área). Depois se dissipa."
+      "text": "Anula, uma vez, o próximo feitiço ou Habilidade de Líder inimigo que a atinja (a carta inteira, nessa unidade). Efeitos de unidades e artefatos não o gastam. Depois se dissipa."
+    },
+    "escudo_supremo": {
+      "name": "Escudo Supremo",
+      "text": "Uma única carga que absorve qualquer coisa que a atinja: dano, ou qualquer efeito de feitiço, habilidade, unidade ou artefato (inclusive destruir, banir e sacrificar). Depois se dissipa."
     },
     "saque_rapido": {
       "name": "Saque Rápido",

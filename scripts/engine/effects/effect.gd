@@ -77,21 +77,55 @@ func opens_choice() -> bool:
 func open_choice(_context: EffectContext) -> void:
 	pass
 
-## Applies the effect to one target. Escudo de Feitiço comes first: the first effect from the
-## enemy side that hits a shielded unit is cancelled and breaks the shield, and the card's later
-## effects in the same run skip that unit too (the shield cancels the whole card on it). Separate
-## hits of the same effect (Repique Desgovernado) are separate spells: only the first is cancelled.
+## Escudo de Feitiço, the one place that decides it. True when `unit`'s shield cancels this effect.
+## Only effects from the enemy side that come from a spell or a Leader's ability are cancelled; a
+## unit's own effects pass through and the shield stays. The first such effect that hits a shielded
+## unit is cancelled and breaks the shield, and the card's later effects in the same run skip that
+## unit too (the shield cancels the whole card on it). Separate hits of the same effect (Repique
+## Desgovernado) are separate spells: only the first is cancelled.
+func cancelled_by_spell_shield(context: EffectContext, unit: Card) -> bool:
+	if unit.owner == context.controller or not context.comes_from_spell_or_leader_ability():
+		return false
+	if context.shielded_uids.has(unit.uid):
+		return true
+	if not unit.spell_shield:
+		return false
+	unit.spell_shield = false
+	context.shielded_this_effect.append(unit.uid)
+	context.game._emit({"type": "spell_shield_break", "uid": unit.uid})
+	return true
+
+## True for effects that hurt the card they land on even when they come from its own side (destroy, banish,
+## sacrifice): Escudo Supremo absorbs those too. Every other own-side effect passes through it.
+func harms_own_target() -> bool:
+	return false
+
+## Escudo Supremo, the one place that decides it. True when `holder` (a unit or a free-standing artifact) has the
+## charge and this effect is aimed at it: any effect from the enemy side, whatever its origin (spell, unit, artifact,
+## Leader ability), or an own-side effect that harms it. The charge is spent, and the card's later effects in the same
+## run skip that holder too. Escudo de Feitiço is tried first, so the stronger shield is kept when the weaker one is enough.
+func absorbed_by_supreme_shield(context: EffectContext, holder: Card) -> bool:
+	if not holder.supreme_shield and not context.shielded_uids.has(holder.uid):
+		return false
+	if holder.owner == context.controller and not harms_own_target():
+		return false
+	if context.shielded_uids.has(holder.uid):
+		return true
+	context.game.spend_supreme_shield(holder, context.self_uid)
+	context.shielded_this_effect.append(holder.uid)
+	return true
+
+## Every shield that can stop this effect on `holder`, weakest first.
+func cancelled_by_any_shield(context: EffectContext, holder: Card) -> bool:
+	return cancelled_by_spell_shield(context, holder) or absorbed_by_supreme_shield(context, holder)
+
+## Applies the effect to one target. Shields come first (see cancelled_by_any_shield).
 func apply_to(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
 	var hit_unit: Card = game.find_unit(target_uid) if target_uid > 0 else null
-	if hit_unit != null and hit_unit.owner != context.controller:
-		if context.shielded_uids.has(target_uid):
-			return
-		if hit_unit.spell_shield:
-			hit_unit.spell_shield = false
-			context.shielded_this_effect.append(target_uid)
-			game._emit({"type": "spell_shield_break", "uid": target_uid})
-			return
+	var held_card: Card = hit_unit if hit_unit != null else (game.find_relic(target_uid) if target_uid > 0 else null)
+	if held_card != null and cancelled_by_any_shield(context, held_card):
+		return
 	# Imunidade contra <essência>: a card of that essence from the enemy side has no effect on the unit it AIMS at
 	# (nothing is spent). Untargeted and area effects still reach it, as with Inalcançável.
 	if hit_unit != null and hit_unit.owner != context.controller and target.needs_choice() \

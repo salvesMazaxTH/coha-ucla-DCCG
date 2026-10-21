@@ -1312,8 +1312,11 @@ func transform_into(c: Card, into_id: String) -> void:
 	c.hp = int(cd["hp"])
 	c.shield = c.shield or kws.has("escudo")
 	c.spell_shield = c.spell_shield or kws.has("escudo_feitico")
+	if kws.has("escudo_supremo"):
+		c.grant_supreme_shield()
 	kws.erase("escudo")
 	kws.erase("escudo_feitico")
+	kws.erase("escudo_supremo")
 	c.keywords = kws
 	if not c.equipment_grant.is_empty(): # the equipment stays on, so what it gave the unit stays too
 		c.atk += int(c.equipment_grant.get("atk", 0))
@@ -1647,12 +1650,23 @@ func _place_relic(p: int, c: Card) -> void:
 		return
 	players[p]["relics"].append(c)
 	_move(c, "relics")
+	c.supreme_shield = CardDB.card(c.card_id).get("keywords", []).has("escudo_supremo") # an artifact can be born protected (Baluarte Santo)
+	c.supreme_shield_expires = ""
 	_emit({"type": "relic_enter", "player": p, "uid": c.uid, "card_id": c.card_id})
 
 ## True when a copy of `card_id` left p's field `turns` or fewer turns ago (the current turn counts as 0).
 func relic_fell_within(p: int, card_id: String, turns: int) -> bool:
 	var fall_turns: Dictionary = players[p].get("relic_fall_turns", {})
 	return fall_turns.has(card_id) and turn - int(fall_turns[card_id]) <= turns
+
+## Escudo Supremo: spends the holder's one charge. True when there was a charge to spend.
+func spend_supreme_shield(holder: Card, source_uid := 0) -> bool:
+	if not holder.supreme_shield:
+		return false
+	holder.supreme_shield = false
+	holder.supreme_shield_expires = ""
+	_emit({"type": "supreme_shield_break", "uid": holder.uid, "src": source_uid})
+	return true
 
 ## Destroys a free-standing artifact: it leaves the field (freeing its slot) for the graveyard.
 func destroy_relic(c: Card) -> void:
@@ -1679,14 +1693,28 @@ func _has_play(p: int) -> bool:
 	return stack_system().has_play(p)
 
 ## "PASSAR TUDO": p stops being asked for responses during the rest of the opponent's turn.
-## Only valid while p is the one responding (it is the opponent's turn and p holds priority).
+## Valid at any moment of the opponent's turn. If p is being asked right now, that window is passed too;
+## otherwise the flag just waits for the opponent's next play. A stack that would kill p's Leader is never
+## passed for them: the window stays open so p can still answer it.
 func pass_rest_of_turn(p: int) -> Array:
-	if phase not in ["main", "combat"] or p == active or p != priority:
+	if phase not in ["main", "combat"] or p == active or skip_rest_of_turn[p]:
 		return []
 	skip_rest_of_turn[p] = true
+	if p != priority or stack_system().stack_would_kill_leader(p):
+		_emit({"type": "pass_all_on", "player": p})
+		return _flush()
 	_emit({"type": "pass", "player": p})
 	stack_system().pass_once()
 	stack_system().settle()
+	return _flush()
+
+## Takes "PASSAR TUDO" back: from now on p is asked for responses again. Windows already passed stay passed.
+## A setting like set_auto_pass, so it is allowed at any moment.
+func cancel_pass_rest_of_turn(p: int) -> Array:
+	if not skip_rest_of_turn[p]:
+		return []
+	skip_rest_of_turn[p] = false
+	_emit({"type": "pass_all_off", "player": p})
 	return _flush()
 
 ## Turns p's auto-pass on or off. Turning it on while p holds an unusable window passes it.
@@ -1820,8 +1848,14 @@ func _run_effects(context: EffectContext, effects: Array) -> void:
 			continue
 		if effect.condition != null and not effect.condition.check(context):
 			continue
-		for target_uid in effect.target.resolve(context, effect):
-			effect.apply_to(context, target_uid)
+		if effect.target.hits_one_at_a_time():
+			# one hit at a time: nothing else resolves in between (deaths and their Ao Morrer wait for _check_state)
+			for hit in effect.target.hit_count(context, effect):
+				for target_uid in effect.target.resolve_hit(context, effect):
+					effect.apply_to(context, target_uid)
+		else:
+			for target_uid in effect.target.resolve(context, effect):
+				effect.apply_to(context, target_uid)
 		context.shielded_uids.append_array(context.shielded_this_effect)
 		context.shielded_this_effect.clear()
 		if effect.opens_choice() and effect.trigger == context.trigger:
@@ -2115,7 +2149,7 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 			damaged.data = {"dot": damage_kind}
 		bus().emit(damaged)
 		if source != null:
-			_fire(source, "on_hit_leader")
+			_fire(source, "on_hit_leader", 0, {"hit_damage": amount})
 		# Tóxico normally skips Leaders; a card with "toxico_hits_leader" is the exception
 		if _combat_damage and source != null and has_kw(source, "toxico") and source.data().get("toxico_hits_leader", false):
 			add_leader_dot_markers(tp, "veneno", toxico_markers(source))
@@ -2129,6 +2163,9 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		# consumed). Effect damage is covered in Effect.apply_to, and only when it aims at this unit.
 		if _combat_damage and source != null and source.owner != c.owner and is_immune_to_essence_of(c, source.card_id):
 			_emit({"type": "dot_immune", "uid": t, "dot": ""})
+			return 0
+		# Escudo Supremo absorbs any damage at all (even a periodic tick) and is spent by it
+		if spend_supreme_shield(c, src_uid):
 			return 0
 		# What the hit was worth before Armadura, and the Armadura it met (Tharox only grows from hard hits)
 		var raw_amount := amount
@@ -2599,7 +2636,16 @@ func _finish_turn() -> void:
 			if c.spell_shield_until_end_turn:
 				c.spell_shield = false
 				c.spell_shield_until_end_turn = false
+			if c.supreme_shield_expires == "end_turn":
+				c.supreme_shield = false
+				c.supreme_shield_expires = ""
 			c.tide_mark = false
+	# a free-standing artifact can hold a temporary Escudo Supremo too
+	for relic_owner in players:
+		for relic: Card in relic_owner["relics"]:
+			if relic.supreme_shield_expires == "end_turn":
+				relic.supreme_shield = false
+				relic.supreme_shield_expires = ""
 	# Congelada ends at the END of the turn after the one it was applied in, so that turn really felt it
 	for q in players:
 		for c: Card in q["board"]:
@@ -2672,6 +2718,9 @@ func _start_turn(p: int, draw: bool) -> void:
 		if c.spell_shield_until_next_turn:
 			c.spell_shield = false
 			c.spell_shield_until_next_turn = false
+		if c.supreme_shield_expires == "next_turn":
+			c.supreme_shield = false
+			c.supreme_shield_expires = ""
 		for expiring_keyword in c.keywords_until_next_turn:
 			c.keywords.erase(expiring_keyword)
 		c.keywords_until_next_turn = []
@@ -2828,11 +2877,14 @@ func dot_damage(dot_id: String, unit: Card, markers: int) -> int:
 	return markers + life_bonus
 
 ## Test helpers: apply one raw effect dictionary / run raw effect dictionaries as a trigger would.
-func _apply_effect(player: int, effect_data: Dictionary, target_uid: int) -> void:
-	EffectRegistry.parse(effect_data).apply_to(EffectContext.new(self, player, ""), target_uid)
+func _apply_effect(player: int, effect_data: Dictionary, target_uid: int, source_card_id := "") -> void:
+	var context := EffectContext.new(self, player, "")
+	context.source_card_id = source_card_id
+	EffectRegistry.parse(effect_data).apply_to(context, target_uid)
 
-func _run_effect_dicts(player: int, effects: Array, trigger: String, chosen: int, self_uid: int) -> void:
+func _run_effect_dicts(player: int, effects: Array, trigger: String, chosen: int, self_uid: int, source_card_id := "") -> void:
 	var context := EffectContext.new(self, player, trigger)
 	context.chosen_target = chosen
 	context.self_uid = self_uid
+	context.source_card_id = source_card_id
 	_run_effects(context, effects)

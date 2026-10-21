@@ -7,6 +7,7 @@
   "cost": 0,
   "undraftable": true,
   "death_ward": true,
+  "keywords": ["escudo_supremo"],
   "art": "sagrada/baluarte_santo.webp",
   "effects": [
     {
@@ -16,7 +17,7 @@
       "amount": 3
     }
   ],
-  "text": "Condicional: quando outra unidade aliada fosse morrer, exceto por banimento, destrua este Baluarte e anule o efeito que a mataria.\nAo Morrer: cure 3 de Vida do seu Líder.",
+  "text": "Escudo Supremo.\nCondicional: quando outra unidade aliada fosse morrer, exceto por banimento, destrua este Baluarte e anule o efeito que a mataria.\nAo Morrer: cure 3 de Vida do seu Líder.",
   "flavor": "Uma muralha que aceita cair para que ninguém precise.",
   "tags": []
 }

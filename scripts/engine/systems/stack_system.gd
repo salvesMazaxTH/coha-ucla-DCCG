@@ -148,6 +148,7 @@ func resolve_stack() -> void:
 			else:
 				var resolve_context := EffectContext.new(game, p, "on_play" if item["kind"] == "card" else "")
 				resolve_context.source_card_id = String(item.get("card_id", "")) if item["kind"] == "card" else ""
+				resolve_context.is_leader_ability = item["kind"] == "ability"
 				resolve_context.chosen_target = int(item["target"])
 				resolve_context.forced_target = item.get("forced_target", false)
 				resolve_context.second_target = int(item.get("target2", 0))
@@ -301,10 +302,10 @@ func pass_once() -> void:
 		game.summon_window = false
 		game.priority = game.active
 		return
-	match game.window:
 	if game.combat_system().is_reacting(game.priority):
 		game.combat_system().pass_reaction() # the defender lets the declared attack land
 		return
+	match game.window:
 		"pre_combat":
 			if game.priority == game.active:
 				game.priority = game.opponent(game.active) # attacker passed: the defender may still act
@@ -342,6 +343,28 @@ func has_play(p: int) -> bool:
 			return true
 	return game.can_use_ability(p)
 
+## Most passes of priority the lethal-threat check makes while waiting for the stack to resolve.
+const LETHAL_CHECK_PASS_LIMIT := 20
+
+## True when letting the whole stack resolve, with nobody answering, would kill p's Leader.
+## Played on a throwaway copy of the game; when no safe copy exists (a network client's mirror, triggers
+## still waiting) it answers false. Declared attacks are not looked at: only what is on the stack.
+func stack_would_kill_leader(p: int) -> bool:
+	if game.stack.is_empty():
+		return false
+	var preview := game.preview_copy()
+	if preview == null:
+		return false
+	# nobody answers inside the copy, and its own settle() must not run this check again
+	preview.skip_rest_of_turn = [false, false]
+	preview.auto_pass = [false, false]
+	for pass_number in LETHAL_CHECK_PASS_LIMIT:
+		if preview.stack.is_empty() or preview.phase not in ["main", "combat"]:
+			break
+		if preview.pass_priority(preview.decider()).is_empty():
+			break
+	return preview.players[p]["leader_hp"] <= 0
+
 ## Auto-passes for whoever holds priority with no legal play, so windows nobody can use
 ## cost no clicks. Stops at a real decision.
 func settle() -> void:
@@ -359,8 +382,9 @@ func settle() -> void:
 		if game.phase == "combat" and game.window == "attacks" and game.stack.is_empty() and not game.combat_system().is_reacting(game.priority):
 			return # the attacker declares attacks (or ends combat) by hand; never auto-pass here
 		var holder: int = game.priority
-		# "PASSAR TUDO" only covers answering the opponent's moves, never the player's own turn
-		var passing_everything: bool = game.skip_rest_of_turn[holder] and holder != game.active
+		# "PASSAR TUDO" only covers answering the opponent's moves, never the player's own turn,
+		# and it still stops to ask when the opponent's move on the stack would kill the holder's Leader
+		var passing_everything: bool = game.skip_rest_of_turn[holder] and holder != game.active and not stack_would_kill_leader(holder)
 		if not passing_everything and (not game.auto_pass[holder] or has_play(holder)):
 			return
 		pass_once()

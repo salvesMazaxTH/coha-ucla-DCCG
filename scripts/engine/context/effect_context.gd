@@ -10,6 +10,7 @@ var trigger := "" ## the trigger being resolved ("" = run every effect, e.g. spe
 var self_uid := 0 ## the unit whose effects these are (0 for spells and leader abilities)
 var other_uid := 0 ## the opposing unit in combat triggers (blocker, attacker, damage source)
 var source_card_id := "" ## the card being resolved from the stack (spells...), "" when a unit's own effect runs
+var is_leader_ability := false ## these effects are a Leader's ability (it reads as a spell: Escudo de Feitiço cancels it)
 var chosen_target := 0 ## the target picked when the card was played
 var forced_target := false ## the chosen target needs no re-check (a Bola de Neve cast by a unit aims at what the unit attacked)
 var second_target := 0 ## the second pick ("pick"/"pick2", e.g. the damage target of a sacrifice spell)
@@ -40,10 +41,20 @@ func source_id() -> String:
 	var source_unit: Card = game.find_unit(self_uid) if self_uid > 0 else null
 	return source_unit.card_id if source_unit != null else ""
 
+## True when Escudo de Feitiço cancels these effects: they come from a spell or from a Leader's
+## ability. A unit's own effects (Ao Entrar, triggers...) and artifacts are never cancelled by it.
+func comes_from_spell_or_leader_ability() -> bool:
+	if is_leader_ability:
+		return true
+	return source_card_id != "" and CardDB.card(source_card_id).get("type", "") == "spell"
+
 ## The context for a sacrifice's "then" effects: no trigger filter, no source unit, and the
-## second pick becomes the chosen target. The dying unit carries over.
+## second pick becomes the chosen target. The dying unit and where the effects come from
+## (the spell or ability that sacrificed) carry over, so the "then" effects stay under the shield.
 func for_then_effects() -> EffectContext:
 	var child := EffectContext.new(game, controller, "")
+	child.source_card_id = source_card_id
+	child.is_leader_ability = is_leader_ability
 	child.chosen_target = second_target
 	child.second_target = second_target
 	child.dying_card = dying_card

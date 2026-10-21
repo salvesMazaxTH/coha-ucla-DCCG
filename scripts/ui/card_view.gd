@@ -515,6 +515,16 @@ func _draw() -> void:
 		for i in 6:
 			var a := _t * 0.6 + i * TAU / 6.0
 			_diamond(sc + Vector2(cos(a), sin(a)) * rr, 2.6 * s, Color("#e3d2ff"))
+	# Escudo Supremo: a golden ring with sparks, so it never reads as a plain Escudo or Escudo de Feitiço
+	if inst.get("supreme_shield", false):
+		var supreme_center := art.get_center()
+		var supreme_radius := art.size.x * 0.43
+		for i in 3:
+			draw_arc(supreme_center, supreme_radius - i * 3 * s, 0, TAU, 48, Color("#ffd86b", (0.55 - i * 0.15) * 1.25), 2.5 * s, true)
+		draw_colored_polygon(_art_window, Color("#ffd86b", 0.15))
+		for i in 8:
+			var spark_angle := -_t * 0.5 + i * TAU / 8.0
+			_diamond(supreme_center + Vector2(cos(spark_angle), sin(spark_angle)) * supreme_radius, 2.6 * s, Color("#fff1c2"))
 	if inst.has("frozen"):
 		_draw_frost(art, s)
 	if inst.has("stun_markers"):
@@ -1225,6 +1235,8 @@ func _panel_lines(cd: Dictionary) -> Array:
 		tags.append(["%s %d" % ["Atordoada", int(inst["stun_markers"])], STUN_COL.lightened(0.2)])
 	if inst.get("spell_shield", false):
 		tags.append([CardDB.keyword("escudo_feitico")["name"], Color("#c9a8ff")])
+	if inst.get("supreme_shield", false):
+		tags.append([CardDB.keyword("escudo_supremo")["name"], Color("#ffd86b")])
 	for kw in kws:
 		if kw == "ataque_duplo":
 			continue # drawn below with its attack counter

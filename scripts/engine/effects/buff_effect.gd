@@ -6,6 +6,8 @@ extends Effect
 ## "armor_min": N raises the unit's Armadura to N when it is lower (nothing happens when it already has N or more).
 ## "spell_shield_temp": true gives Escudo de Feitiço only until its owner's next turn starts (a unit that already
 ## has a permanent Escudo de Feitiço keeps it as it is).
+## "supreme_shield_until": "next_turn" gives Escudo Supremo until its owner's next turn starts (Tyren). The "escudo_supremo" keyword
+## gives it for good, or only until the end of the turn with "temp": true. A Supremo that is already there is never made shorter.
 ## "per": "momentum_left" multiplies atk/hp by the Momentum the controller still has
 ## (at least `min`, at most `max`).
 ## "cap_atk": this effect can give one unit at most that much attack in total (e.g. Layla).
@@ -30,6 +32,7 @@ var armor := 0
 var temporary_armor := 0
 var minimum_armor := 0
 var temporary_spell_shield := false
+var supreme_shield_until := "" ## "next_turn" or "end_turn": a timed Escudo Supremo ("" = none asked for)
 var temporary_attack_until_next_turn := 0
 var temporary_health_until_next_turn := 0
 var temporary := false
@@ -66,6 +69,7 @@ func _read_parameters(data: Dictionary) -> void:
 	temporary_armor = int(data.get("armor_temp", 0))
 	minimum_armor = int(data.get("armor_min", 0))
 	temporary_spell_shield = bool(data.get("spell_shield_temp", false))
+	supreme_shield_until = String(data.get("supreme_shield_until", ""))
 	temporary_attack_until_next_turn = int(data.get("atk_temp", 0))
 	temporary_health_until_next_turn = int(data.get("hp_temp_until_next_turn", 0))
 	temporary = bool(data.get("temp", false))
@@ -152,9 +156,13 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	if temporary_spell_shield and not unit.spell_shield:
 		unit.spell_shield = true
 		unit.spell_shield_until_next_turn = true
+	if supreme_shield_until != "":
+		unit.grant_supreme_shield(supreme_shield_until)
 	for keyword in keywords:
 		if keyword == "escudo":
 			unit.shield = true
+		elif keyword == "escudo_supremo":
+			unit.grant_supreme_shield("end_turn" if temporary else "")
 		elif keyword == "escudo_feitico":
 			if not unit.spell_shield:
 				unit.spell_shield = true

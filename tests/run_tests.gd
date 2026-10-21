@@ -19,6 +19,8 @@ func _init() -> void:
 	_test_secondary_essences()
 	_test_death_order()
 	_test_sacrifice_damage()
+	_test_spell_shield_scope()
+	_test_supreme_shield()
 	_test_twin_bolts()
 	_test_setup()
 	_test_first_player()
@@ -66,8 +68,8 @@ func _init() -> void:
 	_test_triggers()
 	_test_listeners()
 	_test_stack()
-	_test_summon_window()
 	_test_reaction()
+	_test_summon_window()
 	_test_subito()
 	_test_combat_step()
 	_test_leader_cycle()
@@ -120,6 +122,8 @@ func _init() -> void:
 	quit(1 if failures > 0 else 0)
 
 ## (The Sfx autoload does not exist in -s mode, so the script is loaded directly; its table and mapping are static.)
+## Any spell card: effects run with it as their source count as coming from a spell (Escudo de Feitiço cancels them)
+const SPELL_SOURCE := "lianas_capturantes"
 const SfxScript := preload("res://scripts/audio/sfx.gd")
 const MusicScript := preload("res://scripts/audio/music.gd")
 
@@ -369,8 +373,8 @@ func _test_sagrada_board_control() -> void:
 	check(lucien_targets.filter(func(unit: Card): return unit.damage > 0).size() == 3,
 		"Uriel não causa dano ao entrar")
 	var uriel_data: Dictionary = CardDB.card("uriel")
-	check(int(uriel_data["atk"]) == 5 and int(uriel_data["hp"]) == 4
-		and not uriel_data["keywords"].has("roubo_de_vida"), "Uriel é 5/4 e não tem Roubo de Vida inato")
+	check(int(uriel_data["atk"]) == 5 and int(uriel_data["hp"]) == 6
+		and not uriel_data["keywords"].has("roubo_de_vida"), "Uriel é 5/6 e não tem Roubo de Vida inato")
 	var uriel_game := _new_game()
 	_quiet(uriel_game)
 	uriel_game.players[0]["leader_hp"] = 10
@@ -420,6 +424,105 @@ func _test_sacrifice_damage() -> void:
 	g.pass_priority(1)
 	g._flush()
 	check(g.find_unit(ally.uid) == null and g.find_unit(foe.uid).damage == 1, "dano também acerta unidade (ataque 1 do esqueleto)")
+
+## Escudo de Feitiço only cancels what comes from a spell or from a Leader's ability.
+func _test_spell_shield_scope() -> void:
+	_tcard("t_ss_enter", 1, 1, [{"trigger": "on_enter", "action": "damage", "target": "enemy_unit", "amount": 2}])
+	_tcard("t_ss_foe", 1, 9, [])
+	# a unit's own effect (Ao Entrar) goes through and the shield stays
+	var g := _new_game()
+	_quiet(g)
+	var foe := _put(g, 1, "t_ss_foe")
+	foe.spell_shield = true
+	g._run_effect_dicts(0, CardDB.card("t_ss_enter")["effects"], "on_enter", foe.uid, 999)
+	check(foe.damage == 2 and foe.spell_shield, "Escudo de Feitiço não anula o Ao Entrar de uma unidade (e não se gasta)")
+	# the same effect coming from a spell is cancelled
+	g._run_effect_dicts(0, CardDB.card("t_ss_enter")["effects"], "on_enter", foe.uid, 0, SPELL_SOURCE)
+	check(foe.damage == 2 and not foe.spell_shield, "o mesmo efeito vindo de um feitiço é anulado")
+	# an artifact is not a spell
+	var artifact_context := EffectContext.new(g, 0, "")
+	artifact_context.source_card_id = "baluarte_santo"
+	check(not artifact_context.comes_from_spell_or_leader_ability(), "artefato não conta como feitiço para o Escudo de Feitiço")
+	# the Leader's ability reads as a spell
+	g = _new_game() # fogo: Ronan's Pavio Curto
+	_quiet(g)
+	var ability_victim := _put(g, 1, "t_ss_foe")
+	ability_victim.spell_shield = true
+	g.players[0]["ability_used"] = false
+	g.players[0]["momentum"] = 5
+	g.use_ability(0, ability_victim.uid)
+	g.pass_priority(1)
+	g._flush()
+	check(not ability_victim.spell_shield and ability_victim.damage == 0, "Escudo de Feitiço anula a Habilidade de Líder")
+	# the "then" effects of a spell keep the spell origin: Mordida de Defunto's damage is cancelled too
+	g = _new_game()
+	_quiet(g)
+	var sacrificed := _put(g, 0, "esqueleto_guerreiro")
+	var shielded_foe := _put(g, 1, "t_ss_foe")
+	shielded_foe.spell_shield = true
+	var bite := Card.new(g._uid(), "mordida_de_defunto", 0, "hand")
+	g.players[0]["hand"].append(bite)
+	g.players[0]["momentum"] = 10
+	g.play_card(0, bite.uid, sacrificed.uid, shielded_foe.uid)
+	g.pass_priority(1)
+	g._flush()
+	check(g.find_unit(sacrificed.uid) == null and shielded_foe.damage == 0 and not shielded_foe.spell_shield, "o dano do 'então' de um feitiço de sacrifício também é anulado pelo Escudo de Feitiço")
+
+## Escudo Supremo: one charge that absorbs damage and any effect, from any source, including sacrifice.
+func _test_supreme_shield() -> void:
+	_tcard("t_sup_unit", 1, 9, [])
+	_tcard("t_sup_hit", 1, 1, [{"trigger": "on_enter", "action": "damage", "target": "enemy_unit", "amount": 2}])
+	var g := _new_game()
+	_quiet(g)
+	# a unit's own effect (which Escudo de Feitiço lets through) is absorbed, and the charge is spent
+	var holder := _put(g, 1, "t_sup_unit")
+	holder.grant_supreme_shield()
+	g._run_effect_dicts(0, CardDB.card("t_sup_hit")["effects"], "on_enter", holder.uid, 999)
+	check(holder.damage == 0 and not holder.supreme_shield, "Escudo Supremo absorve o efeito de uma unidade e se gasta")
+	# plain damage (a direct hit, not an effect) is absorbed as well
+	holder.grant_supreme_shield()
+	check(g._deal_damage(holder.uid, 3, null) == 0 and holder.damage == 0 and not holder.supreme_shield, "Escudo Supremo absorve dano comum")
+	# a destroy effect from a spell is absorbed
+	holder.grant_supreme_shield()
+	g._apply_effect(0, {"action": "destroy", "target": "enemy_unit"}, holder.uid, SPELL_SOURCE)
+	check(g.find_unit(holder.uid) != null and not holder.supreme_shield, "Escudo Supremo absorve destruir")
+	# it even absorbs the owner's own sacrifice: nobody dies and the charge is spent
+	holder.grant_supreme_shield()
+	g._apply_effect(1, {"action": "sacrifice", "target": "ally_unit"}, holder.uid, SPELL_SOURCE)
+	check(g.find_unit(holder.uid) != null and not holder.supreme_shield, "Escudo Supremo absorve até o sacrifício do próprio dono")
+	# the charge is gone: the next hit lands
+	g._deal_damage(holder.uid, 3, null)
+	check(holder.damage == 3, "sem a carga, o dano passa")
+	# expiry: end_turn goes at the end of the turn, next_turn at the start of the controller's next turn
+	holder.grant_supreme_shield("end_turn")
+	g._finish_turn()
+	check(not holder.supreme_shield, "Escudo Supremo 'neste turno' acaba no fim do turno")
+	holder.grant_supreme_shield("next_turn")
+	holder.grant_supreme_shield("end_turn") # a shorter grant never shortens a longer charge
+	check(holder.supreme_shield_expires == "next_turn", "conceder um Supremo mais curto não encurta o que já existe")
+	holder.grant_supreme_shield()
+	holder.grant_supreme_shield("end_turn")
+	check(holder.supreme_shield_expires == "", "um Supremo temporário não encurta o permanente")
+	# Silenciar removes it
+	holder.silence()
+	check(not holder.supreme_shield, "silenciar remove o Escudo Supremo")
+	# save and restore keep the charge and its length
+	holder.grant_supreme_shield("next_turn")
+	var restored := Card.from_dict(holder.to_dict(), "board", 1)
+	check(restored.supreme_shield and restored.supreme_shield_expires == "next_turn", "Escudo Supremo sobrevive ao to_dict/from_dict")
+	# a free-standing artifact (Baluarte Santo) is born with it and survives Desmontador de Quinquilharia
+	g = _new_game()
+	_quiet(g)
+	var bulwark := Card.new(g._uid(), "baluarte_santo", 0)
+	g._place_relic(0, bulwark)
+	g._flush()
+	check(bulwark.supreme_shield, "Baluarte Santo nasce com Escudo Supremo")
+	g._run_effect_dicts(1, CardDB.card("desmontador_de_quinquilharia")["effects"], "on_enter", bulwark.uid, 999)
+	g._flush()
+	check(g.find_relic(bulwark.uid) != null and not bulwark.supreme_shield, "Desmontador de Quinquilharia não destrói o Baluarte Santo: só gasta o Escudo Supremo")
+	g._run_effect_dicts(1, CardDB.card("desmontador_de_quinquilharia")["effects"], "on_enter", bulwark.uid, 999)
+	g._flush()
+	check(g.find_relic(bulwark.uid) == null, "sem o Escudo Supremo, o segundo Desmontador destrói o Baluarte")
 
 func _test_death_order() -> void:
 	# simultaneous deaths on both sides resolve active player first (APNAP)
@@ -1204,7 +1307,7 @@ func _test_stun_and_cap() -> void:
 	# Escudo de Feitiço cancels the stun, like it cancels a freeze
 	var shielded := _put(g, 1, "t_stn_vic")
 	shielded.spell_shield = true
-	g._apply_effect(0, {"action": "stun", "target": "enemy_unit"}, shielded.uid)
+	g._apply_effect(0, {"action": "stun", "target": "enemy_unit"}, shielded.uid, SPELL_SOURCE)
 	check(not shielded.is_stunned() and not shielded.spell_shield, "Escudo de Feitiço anula o atordoamento")
 	# the shield cancels the whole card on that unit: Lianas Capturantes' -3 Ataque must not land after the exhaust is cancelled
 	g = _new_game()
@@ -1212,7 +1315,7 @@ func _test_stun_and_cap() -> void:
 	var vines_target := _put(g, 1, "t_stn_vic")
 	vines_target.spell_shield = true
 	var vines_atk_before := g.atk_of(vines_target)
-	g._run_effect_dicts(0, CardDB.card("lianas_capturantes")["effects"], "on_play", vines_target.uid, 0)
+	g._run_effect_dicts(0, CardDB.card("lianas_capturantes")["effects"], "on_play", vines_target.uid, 0, "lianas_capturantes")
 	check(not vines_target.spell_shield and not vines_target.exhausted and g.atk_of(vines_target) == vines_atk_before, "Escudo de Feitiço cancela todos os efeitos da carta na unidade (exaurir e -3 Ataque)")
 	g._run_effect_dicts(0, CardDB.card("lianas_capturantes")["effects"], "on_play", vines_target.uid, 0)
 	check(vines_target.exhausted and g.atk_of(vines_target) == maxi(0, vines_atk_before - 3), "sem escudo, Lianas Capturantes exaure e dá -3 Ataque")
@@ -1222,7 +1325,7 @@ func _test_stun_and_cap() -> void:
 	_tcard("t_rep_vic", 1, 20, [])
 	var repique_target := _put(g, 1, "t_rep_vic")
 	repique_target.spell_shield = true
-	g._run_effect_dicts(0, CardDB.card("repique_desgovernado")["effects"], "on_play", 0, 0)
+	g._run_effect_dicts(0, CardDB.card("repique_desgovernado")["effects"], "on_play", 0, 0, "repique_desgovernado")
 	check(not repique_target.spell_shield and repique_target.damage == 8, "Repique Desgovernado: o Escudo de Feitiço anula só o primeiro hit (8 dos 9 acertam)")
 	# save/load keeps the markers
 	var restored := Card.from_dict(taunt.to_dict(), "board", 1)
@@ -1326,7 +1429,7 @@ func _test_freeze() -> void:
 	check(not g.is_frozen(fresh), "congelada com enjoo: descongela no fim do turno do dono")
 	var s := _put(g, 1, "tritao_lanceiro")
 	s.spell_shield = true
-	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, s.uid)
+	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, s.uid, SPELL_SOURCE)
 	check(not g.is_frozen(s) and not s.spell_shield, "Escudo de Feitiço anula congelar")
 	# a frozen tapped unit can be challenged and strikes back with its full ATK
 	g = _new_game()
@@ -1401,7 +1504,7 @@ func _test_burn() -> void:
 	check(victim.damage == 5 and victim.dot_markers.is_empty(), "Queimadura ainda respeita Indestrutível como proteção superior")
 	# Escudo de Feitiço cancels the marker application just like any other targeted effect.
 	victim.spell_shield = true
-	g._apply_effect(0, {"action": "add_dot", "dot": "queimadura", "target": "enemy_unit", "amount": 2}, victim.uid)
+	g._apply_effect(0, {"action": "add_dot", "dot": "queimadura", "target": "enemy_unit", "amount": 2}, victim.uid, SPELL_SOURCE)
 	check(victim.dot_markers.is_empty() and not victim.spell_shield, "Escudo de Feitiço anula a aplicação de Queimadura")
 
 func _test_condemn() -> void:
@@ -1435,7 +1538,7 @@ func _test_condemn() -> void:
 	_quiet(g)
 	var shielded := _put(g, 1, "t_cdm_vic")
 	shielded.spell_shield = true
-	g._apply_effect(0, condemn_spec, shielded.uid)
+	g._apply_effect(0, condemn_spec, shielded.uid, SPELL_SOURCE)
 	check(not shielded.is_condemned() and not shielded.spell_shield, "Escudo de Feitiço anula condenar")
 	# Indestrutível survives, and the mark is spent
 	var tough := _put(g, 1, "t_cdm_vic")
@@ -2353,6 +2456,145 @@ func _pass_windows(g: GameState) -> void:
 			return
 		g.pass_priority(g.priority)
 
+## Janela B: a declared attack is only answered when it matters and the defender really can answer.
+## A fresh game where player 1 (the defender) holds only the given cards and has the given Momentum.
+func _reaction_game(defender_cards: Array, defender_momentum: int) -> GameState:
+	var g := _new_game()
+	_quiet(g)
+	g.players[1]["hand"] = []
+	g.players[1]["momentum"] = defender_momentum
+	for card_id in defender_cards:
+		_give(g, 1, card_id)
+	return g
+
+func _test_reaction() -> void:
+	_tcard("t_hitter", 2, 3, [])
+	_tcard("t_sponge", 1, 9, [])
+	_tcard("t_glass", 1, 2, [])
+	# Instantâneos with a real cost, so "enough Momentum" matters
+	_tspell("t_react_heal", "instantaneo", [{"trigger": "on_play", "action": "buff", "target": "any_unit", "hp": 3}])
+	_tspell("t_react_kill", "instantaneo", [{"trigger": "on_play", "action": "damage", "target": "any_unit", "amount": 9}])
+	CardDB.data()["cards"]["t_react_heal"]["cost"] = 2
+	CardDB.data()["cards"]["t_react_kill"]["cost"] = 2
+	var leader_max: int = GameState.new("fogo", "agua", 1).players[1]["leader_hp"]
+
+	# no Instantâneo in hand: the attack lands without anybody being asked
+	var g := _reaction_game([], 5)
+	var hitter := _put(g, 0, "t_hitter")
+	_hit(g, hitter)
+	check(not g.combat_system().is_reacting(1) and g.priority == 0, "reagir: sem Instantânea na mão ninguém é perguntado")
+	check(g.players[1]["leader_hp"] == leader_max - 2, "reagir: sem Instantânea o dano ao Líder cai na hora")
+
+	# an Instantâneo and Momentum for it, attack on the Leader: the defender is asked and the blows wait
+	g = _reaction_game(["t_react_heal"], 5)
+	hitter = _put(g, 0, "t_hitter")
+	g.players[1]["leader_hp"] = 18
+	_hit(g, hitter)
+	check(not g.combat_system().is_reacting(1) and g.players[1]["leader_hp"] == 16, "reagir: ataque à face que deixa o Líder acima de 15 não abre janela")
+
+	# an attack that would leave the Leader at 15 HP opens the reaction window
+	g = _reaction_game(["t_react_heal"], 5)
+	hitter = _put(g, 0, "t_hitter")
+	var second_hitter := _put(g, 0, "t_hitter")
+	g.players[1]["leader_hp"] = 17
+	var events := _hit(g, hitter)
+	check(_has_event(events, "reaction"), "reagir: o ataque ao Líder emite o evento de reação")
+	check(g.combat_system().is_reacting(1) and g.priority == 1 and g.decider() == 1, "reagir: o defensor recebe a prioridade")
+	check(g.players[1]["leader_hp"] == 17, "reagir: enquanto o defensor decide, o dano não caiu")
+	check(not g.combat_system().in_attacks_window(0) and g.attack_unit(0, second_hitter.uid, GameState.LEADER_UID[1]).is_empty(), "reagir: o atacante espera, não declara outro ataque")
+	check(g.pass_priority(0).is_empty() and g.end_combat(0).is_empty(), "reagir: o atacante também não encerra o combate")
+
+	# passing the prompt lets the attack land and gives the turn owner the next attack back
+	g.pass_priority(1)
+	check(g.players[1]["leader_hp"] == 15 and not g.combat_system().is_reacting(1), "reagir: passar deixa o ataque acontecer")
+	check(g.priority == 0 and g.combat_system().in_attacks_window(0) and g.combat_system().pending_attack.is_empty(), "reagir: depois de passar o dono do turno volta a atacar")
+	_hit(g, second_hitter)
+	check(g.combat_system().is_reacting(1), "reagir: o segundo ataque pergunta de novo")
+
+	# not enough Momentum for the Instantâneo (cost 2): not asked
+	g = _reaction_game(["t_react_heal"], 1)
+	g.players[1]["leader_hp"] = 17
+	_hit(g, _put(g, 0, "t_hitter"))
+	check(not g.combat_system().is_reacting(1) and g.players[1]["leader_hp"] == 15, "reagir: sem Momentum para a Instantânea ninguém é perguntado")
+
+	# a challenge that cannot kill anybody (2 dmg vs 9 HP, 1 counter vs 3 HP): not asked
+	g = _reaction_game(["t_react_heal"], 5)
+	hitter = _put(g, 0, "t_hitter")
+	var sponge := _put(g, 1, "t_sponge")
+	sponge.exhausted = true # only a tapped unit can be challenged
+	_hit(g, hitter, sponge.uid)
+	check(not g.combat_system().is_reacting(1) and g.find_unit(sponge.uid).damage == 2, "reagir: desafio sem risco de morte não pergunta")
+
+	# the blow could kill the defender's unit: asked
+	g = _reaction_game(["t_react_heal"], 5)
+	hitter = _put(g, 0, "t_hitter")
+	var glass := _put(g, 1, "t_glass")
+	glass.exhausted = true
+	_hit(g, hitter, glass.uid)
+	check(g.combat_system().is_reacting(1) and g.find_unit(glass.uid) != null, "reagir: o golpe pode matar a unidade do defensor, então pergunta")
+
+	# the counter-blow could kill the attacker: asked too
+	g = _reaction_game(["t_react_heal"], 5)
+	var fragile_attacker := _put(g, 0, "t_glass")
+	var counter_hitter := _put(g, 1, "t_hitter")
+	counter_hitter.exhausted = true
+	_hit(g, fragile_attacker, counter_hitter.uid)
+	check(g.combat_system().is_reacting(1), "reagir: o contragolpe pode matar o atacante, então pergunta")
+
+	# the defender answers by killing the attacker: the attack fizzles and the Leader is untouched
+	g = _reaction_game(["t_react_kill"], 5)
+	hitter = _put(g, 0, "t_hitter")
+	_put(g, 0, "t_sponge") # a second attacker, so combat goes on
+	g.players[1]["leader_hp"] = 17
+	_hit(g, hitter)
+	var kill_uid: int = g.players[1]["hand"][0].uid
+	g.play_card(1, kill_uid, hitter.uid)
+	_pass_windows_until_attacks(g)
+	check(g.find_unit(hitter.uid) == null and g.players[1]["leader_hp"] == 17, "reagir: a resposta mata o atacante e o ataque não acontece")
+	check(g.stack.is_empty() and not g.combat_system().is_reacting(1) and g.combat_system().pending_attack.is_empty(), "reagir: nada fica pendente depois do ataque cancelado")
+
+	# a cast that resolves without stopping the attack: the defender is asked again, and can still pass
+	g = _reaction_game(["t_react_heal", "t_react_heal"], 4)
+	hitter = _put(g, 0, "t_hitter")
+	sponge = _put(g, 1, "t_sponge")
+	g.players[1]["leader_hp"] = 17
+	_hit(g, hitter)
+	g.play_card(1, g.players[1]["hand"][0].uid, sponge.uid)
+	_pass_windows_until_attacks(g)
+	check(g.combat_system().is_reacting(1) and g.players[1]["leader_hp"] == 17, "reagir: resolvida a primeira resposta, o defensor é perguntado de novo")
+	g.pass_priority(1)
+	check(g.players[1]["leader_hp"] == 15 and not g.combat_system().is_reacting(1), "reagir: passando na segunda vez o ataque cai")
+
+	# the switches: PASSAR TUDO lets it land; auto-pass off or on still asks (the defender has a real play)
+	g = _reaction_game(["t_react_heal"], 5)
+	g.players[1]["leader_hp"] = 17
+	g.pass_rest_of_turn(1)
+	_hit(g, _put(g, 0, "t_hitter"))
+	check(not g.combat_system().is_reacting(1) and g.players[1]["leader_hp"] == 15, "reagir: passar tudo deixa o ataque cair sem perguntar")
+	for auto in [true, false]:
+		g = _reaction_game(["t_react_heal"], 5)
+		g.players[1]["leader_hp"] = 17
+		g.auto_pass[1] = auto
+		_hit(g, _put(g, 0, "t_hitter"))
+		check(g.combat_system().is_reacting(1), "reagir: com passe automático %s o defensor com jogada ainda é perguntado" % auto)
+
+	# an AI defender never gets stuck: it either answers or passes, and the attack resolves
+	g = _reaction_game(["t_react_heal"], 5)
+	_put(g, 1, "t_sponge")
+	_hit(g, _put(g, 0, "t_hitter"))
+	for step in 6:
+		if g.combat_system().is_reacting(1) or g.stack.size() > 0:
+			SimpleAI.step(g, g.decider())
+	check(not g.combat_system().is_reacting(1) and g.stack.is_empty(), "reagir: a IA defensora responde ou passa, sem travar")
+	check(g.players[1]["leader_hp"] == leader_max - 2, "reagir: depois da IA decidir o ataque ao Líder acontece")
+
+## Lets the pass/response priorities settle until the attacker declares again (or combat is over).
+func _pass_windows_until_attacks(g: GameState) -> void:
+	for i in 10:
+		if g.phase != "combat" or g.combat_system().in_attacks_window(g.active) or g.combat_system().is_reacting(g.opponent(g.active)):
+			return
+		g.pass_priority(g.priority)
+
 func _test_provocacao() -> void:
 	_tcard("t_taunt", 1, 6, [])
 	CardDB.data()["cards"]["t_taunt"]["keywords"] = ["provocacao"]
@@ -2399,132 +2641,6 @@ func _test_provocacao() -> void:
 
 	# Voo / Furtividade only limit who can CHALLENGE a unit; they no longer change whether the face is open
 	_tcard("t_sneak", 1, 6, [])
-## Janela B: a declared attack is only answered when it matters and the defender really can answer.
-## A fresh game where player 1 (the defender) holds only the given cards and has the given Momentum.
-func _reaction_game(defender_cards: Array, defender_momentum: int) -> GameState:
-	var g := _new_game()
-	_quiet(g)
-	g.players[1]["hand"] = []
-	g.players[1]["momentum"] = defender_momentum
-	for card_id in defender_cards:
-		_give(g, 1, card_id)
-	return g
-
-func _test_reaction() -> void:
-	_tcard("t_hitter", 2, 3, [])
-	_tcard("t_sponge", 1, 9, [])
-	_tcard("t_glass", 1, 2, [])
-	# Instantâneos with a real cost, so "enough Momentum" matters
-	_tspell("t_react_heal", "instantaneo", [{"trigger": "on_play", "action": "buff", "target": "any_unit", "hp": 3}])
-	_tspell("t_react_kill", "instantaneo", [{"trigger": "on_play", "action": "damage", "target": "any_unit", "amount": 9}])
-	CardDB.data()["cards"]["t_react_heal"]["cost"] = 2
-	CardDB.data()["cards"]["t_react_kill"]["cost"] = 2
-	var leader_max: int = GameState.new("fogo", "agua", 1).players[1]["leader_hp"]
-
-	# no Instantâneo in hand: the attack lands without anybody being asked
-	var g := _reaction_game([], 5)
-	var hitter := _put(g, 0, "t_hitter")
-	_hit(g, hitter)
-	check(not g.combat_system().is_reacting(1) and g.priority == 0, "reagir: sem Instantânea na mão ninguém é perguntado")
-	check(g.players[1]["leader_hp"] == leader_max - 2, "reagir: sem Instantânea o dano ao Líder cai na hora")
-
-	# an Instantâneo and Momentum for it, attack on the Leader: the defender is asked and the blows wait
-	g = _reaction_game(["t_react_heal"], 5)
-	hitter = _put(g, 0, "t_hitter")
-	var second_hitter := _put(g, 0, "t_hitter")
-	var events := _hit(g, hitter)
-	check(_has_event(events, "reaction"), "reagir: o ataque ao Líder emite o evento de reação")
-	check(g.combat_system().is_reacting(1) and g.priority == 1 and g.decider() == 1, "reagir: o defensor recebe a prioridade")
-	check(g.players[1]["leader_hp"] == leader_max, "reagir: enquanto o defensor decide, o dano não caiu")
-	check(not g.combat_system().in_attacks_window(0) and g.attack_unit(0, second_hitter.uid, GameState.LEADER_UID[1]).is_empty(), "reagir: o atacante espera, não declara outro ataque")
-	check(g.pass_priority(0).is_empty() and g.end_combat(0).is_empty(), "reagir: o atacante também não encerra o combate")
-
-	# passing the prompt lets the attack land and gives the turn owner the next attack back
-	g.pass_priority(1)
-	check(g.players[1]["leader_hp"] == leader_max - 2 and not g.combat_system().is_reacting(1), "reagir: passar deixa o ataque acontecer")
-	check(g.priority == 0 and g.combat_system().in_attacks_window(0) and g.combat_system().pending_attack.is_empty(), "reagir: depois de passar o dono do turno volta a atacar")
-	_hit(g, second_hitter)
-	check(g.combat_system().is_reacting(1), "reagir: o segundo ataque pergunta de novo")
-
-	# not enough Momentum for the Instantâneo (cost 2): not asked
-	g = _reaction_game(["t_react_heal"], 1)
-	_hit(g, _put(g, 0, "t_hitter"))
-	check(not g.combat_system().is_reacting(1) and g.players[1]["leader_hp"] == leader_max - 2, "reagir: sem Momentum para a Instantânea ninguém é perguntado")
-
-	# a challenge that cannot kill anybody (2 dmg vs 9 HP, 1 counter vs 3 HP): not asked
-	g = _reaction_game(["t_react_heal"], 5)
-	hitter = _put(g, 0, "t_hitter")
-	var sponge := _put(g, 1, "t_sponge")
-	sponge.exhausted = true # only a tapped unit can be challenged
-	_hit(g, hitter, sponge.uid)
-	check(not g.combat_system().is_reacting(1) and g.find_unit(sponge.uid).damage == 2, "reagir: desafio sem risco de morte não pergunta")
-
-	# the blow could kill the defender's unit: asked
-	g = _reaction_game(["t_react_heal"], 5)
-	hitter = _put(g, 0, "t_hitter")
-	var glass := _put(g, 1, "t_glass")
-	glass.exhausted = true
-	_hit(g, hitter, glass.uid)
-	check(g.combat_system().is_reacting(1) and g.find_unit(glass.uid) != null, "reagir: o golpe pode matar a unidade do defensor, então pergunta")
-
-	# the counter-blow could kill the attacker: asked too
-	g = _reaction_game(["t_react_heal"], 5)
-	var fragile_attacker := _put(g, 0, "t_glass")
-	var counter_hitter := _put(g, 1, "t_hitter")
-	counter_hitter.exhausted = true
-	_hit(g, fragile_attacker, counter_hitter.uid)
-	check(g.combat_system().is_reacting(1), "reagir: o contragolpe pode matar o atacante, então pergunta")
-
-	# the defender answers by killing the attacker: the attack fizzles and the Leader is untouched
-	g = _reaction_game(["t_react_kill"], 5)
-	hitter = _put(g, 0, "t_hitter")
-	_put(g, 0, "t_sponge") # a second attacker, so combat goes on
-	_hit(g, hitter)
-	var kill_uid: int = g.players[1]["hand"][0].uid
-	g.play_card(1, kill_uid, hitter.uid)
-	_pass_windows_until_attacks(g)
-	check(g.find_unit(hitter.uid) == null and g.players[1]["leader_hp"] == leader_max, "reagir: a resposta mata o atacante e o ataque não acontece")
-	check(g.stack.is_empty() and not g.combat_system().is_reacting(1) and g.combat_system().pending_attack.is_empty(), "reagir: nada fica pendente depois do ataque cancelado")
-
-	# a cast that resolves without stopping the attack: the defender is asked again, and can still pass
-	g = _reaction_game(["t_react_heal", "t_react_heal"], 4)
-	hitter = _put(g, 0, "t_hitter")
-	sponge = _put(g, 1, "t_sponge")
-	_hit(g, hitter)
-	g.play_card(1, g.players[1]["hand"][0].uid, sponge.uid)
-	_pass_windows_until_attacks(g)
-	check(g.combat_system().is_reacting(1) and g.players[1]["leader_hp"] == leader_max, "reagir: resolvida a primeira resposta, o defensor é perguntado de novo")
-	g.pass_priority(1)
-	check(g.players[1]["leader_hp"] == leader_max - 2 and not g.combat_system().is_reacting(1), "reagir: passando na segunda vez o ataque cai")
-
-	# the switches: PASSAR TUDO lets it land; auto-pass off or on still asks (the defender has a real play)
-	g = _reaction_game(["t_react_heal"], 5)
-	g.pass_rest_of_turn(1)
-	_hit(g, _put(g, 0, "t_hitter"))
-	check(not g.combat_system().is_reacting(1) and g.players[1]["leader_hp"] == leader_max - 2, "reagir: passar tudo deixa o ataque cair sem perguntar")
-	for auto in [true, false]:
-		g = _reaction_game(["t_react_heal"], 5)
-		g.auto_pass[1] = auto
-		_hit(g, _put(g, 0, "t_hitter"))
-		check(g.combat_system().is_reacting(1), "reagir: com passe automático %s o defensor com jogada ainda é perguntado" % auto)
-
-	# an AI defender never gets stuck: it either answers or passes, and the attack resolves
-	g = _reaction_game(["t_react_heal"], 5)
-	_put(g, 1, "t_sponge")
-	_hit(g, _put(g, 0, "t_hitter"))
-	for step in 6:
-		if g.combat_system().is_reacting(1) or g.stack.size() > 0:
-			SimpleAI.step(g, g.decider())
-	check(not g.combat_system().is_reacting(1) and g.stack.is_empty(), "reagir: a IA defensora responde ou passa, sem travar")
-	check(g.players[1]["leader_hp"] == leader_max - 2, "reagir: depois da IA decidir o ataque ao Líder acontece")
-
-## Lets the pass/response priorities settle until the attacker declares again (or combat is over).
-func _pass_windows_until_attacks(g: GameState) -> void:
-	for i in 10:
-		if g.phase != "combat" or g.combat_system().in_attacks_window(g.active) or g.combat_system().is_reacting(g.opponent(g.active)):
-			return
-		g.pass_priority(g.priority)
-
 	CardDB.data()["cards"]["t_sneak"]["keywords"] = ["furtividade"]
 	var leader_uid: int = GameState.LEADER_UID[1]
 	g = _new_game()
@@ -2947,6 +3063,58 @@ func _test_summon_window() -> void:
 	g.end_turn(0)
 	check(not g.skip_rest_of_turn[1] and not g.skip_rest_of_turn[0], "passar tudo vale só até o fim do turno")
 
+	# the switch can be armed with no priority at all, and only affects windows opened afterwards
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 6
+	g.players[1]["momentum"] = 3
+	_give(g, 1, "t_sw_fast")
+	check(g.priority == 0 and not g.pass_rest_of_turn(1).is_empty() and g.skip_rest_of_turn[1], "passar tudo pode ser armado sem prioridade")
+	check(g.pass_rest_of_turn(1).is_empty(), "armar de novo não faz nada")
+	g.play_card(0, _give(g, 0, "t_sw"), 0)
+	check(not g.summon_window and g.priority == 0 and g.players[0]["board"].size() == 1, "armado antes: a jogada seguinte do oponente é passada")
+
+	# turning it off only clears the flag: the next window is asked again
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 6
+	g.players[1]["momentum"] = 3
+	_give(g, 1, "t_sw_fast")
+	check(g.cancel_pass_rest_of_turn(1).is_empty(), "desligar sem estar ligado não faz nada")
+	g.pass_rest_of_turn(1)
+	var off_events := g.cancel_pass_rest_of_turn(1)
+	check(not g.skip_rest_of_turn[1] and off_events.any(func(e): return e["type"] == "pass_all_off"), "desligar limpa a flag")
+	g.play_card(0, _give(g, 0, "t_sw"), 0)
+	check(g.summon_window and g.priority == 1, "desligado: a janela volta a ser perguntada")
+
+	# safety exception: a stack item that would kill the Leader is still asked, a harmless one is passed
+	for lethal in [true, false]:
+		g = _new_game()
+		_quiet(g)
+		_tspell("t_pa_finisher", "lento", [{"trigger": "on_play", "action": "damage", "target": "enemy_leader", "amount": 5}])
+		_tspell("t_pa_answer", "instantaneo", [{"trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 1}])
+		g.players[0]["momentum"] = 6
+		g.players[1]["momentum"] = 3
+		g.players[1]["leader_hp"] = 5 if lethal else 6
+		_give(g, 1, "t_pa_answer") # only an Instantâneo can answer a spell on the stack
+		_put(g, 0, "t_sw") # a target, so the answer is playable and the window would stay open
+		g.pass_rest_of_turn(1)
+		g.play_card(0, _give(g, 0, "t_pa_finisher"), 0)
+		if lethal:
+			check(g.priority == 1 and not g.stack.is_empty() and g.players[1]["leader_hp"] == 5, "passar tudo: jogada letal ainda pergunta ao dono do Líder")
+			g.pass_priority(1)
+			check(g.players[1]["leader_hp"] <= 0, "passar manualmente deixa a jogada letal resolver")
+		else:
+			check(g.stack.is_empty() and g.players[1]["leader_hp"] == 1, "passar tudo: jogada não letal é passada sozinha")
+
+	# the flag travels in the snapshot and RemoteState mirrors it
+	g = _new_game()
+	_quiet(g)
+	g.pass_rest_of_turn(1)
+	var mirror := RemoteState.new()
+	mirror.apply_snapshot(StateView.snapshot(g, 1))
+	check(mirror.skip_rest_of_turn == [false, true], "RemoteState espelha o passar tudo do servidor")
+
 	# the pre-combat window: with nothing to play it auto-passes; auto-pass off keeps it open
 	for auto in [true, false]:
 		g = _new_game()
@@ -3129,7 +3297,12 @@ func _test_stack() -> void:
 	check(g.can_play(0, window_instant), "janela A: entre ataques o dono do turno joga Instantânea")
 	check(not g.can_play(0, window_fast) and not g.can_play(0, window_slow), "janela A: entre ataques nem Rápido nem Lento")
 	check(not g.can_play(1, defender_instant), "janela A: o defensor não começa nada, só responde")
+	# the defender's hand is set aside for this first attack: holding an Instantâneo would make the game ask them to react (Janela B)
+	var defender_hand: Array = g.players[1]["hand"]
+	g.players[1]["hand"] = []
+	g.players[1]["ability_used"] = true # the Leader's ability is a play too, and would be offered the same way
 	g.attack_unit(0, first_attacker.uid, GameState.LEADER_UID[1])
+	g.players[1]["hand"] = defender_hand
 	check(g.combat_system().in_attacks_window(0), "janela A: depois de um ataque a janela continua aberta")
 	g.play_card(0, window_instant, first_attacker.uid)
 	check(g.stack.size() == 1 and g.priority == 1, "janela A: a Instantânea vai para a pilha e o defensor recebe a prioridade")
@@ -3227,12 +3400,7 @@ func _test_critico() -> void:
 	var events := _hit(g, striker)
 	check(_has_event(events, "crit"), "crítico 4: o golpe sempre é crítico")
 	check(g.players[1]["leader_hp"] == leader_before - 5, "crítico: +2 de dano no Líder (3 + 2)")
-	# the defender's hand is set aside for this first attack: holding an Instantâneo would make the game ask them to react (Janela B)
-	var defender_hand: Array = g.players[1]["hand"]
-	g.players[1]["hand"] = []
-	g.players[1]["ability_used"] = true # the Leader's ability is a play too, and would be offered the same way
 
-	g.players[1]["hand"] = defender_hand
 	# a unit with no Crítico never crits
 	_tcard("t_nocrit", 3, 5, [])
 	var g_plain := _new_game()
@@ -3654,9 +3822,9 @@ func _test_triggers() -> void:
 func _test_elite_limits() -> void:
 	var leader: String = DeckDB.get_deck("fogo")["leader"]
 	var base: Dictionary = DeckDB.get_deck("fogo")["cards"].duplicate()
-	check(DeckDB.validate_cards(leader, base).is_empty(), "fogo: legal com 20 campeões")
-	# one more champion (swapping a common out) goes over the Campeões + Lendárias cap
-	base["lord_of_the_shadowflame"] = 2
+	check(DeckDB.validate_cards(leader, base).is_empty(), "fogo: legal")
+	# three more champions go over the Campeões + Lendárias cap (the deck has 18 of 20)
+	base["kael_drath_vulcano"] = 3
 	base["salamandra"] = 2
 	check(not DeckDB.validate_cards(leader, base).filter(func(e): return "Campeões + Lendárias" in e).is_empty(), "21 campeões é ilegal")
 	# legendary default is 2 copies
@@ -4791,7 +4959,7 @@ func _test_metalica() -> void:
 	check(g.players[a]["deck"].size() == own_deck_before - 1, "Trituração em Massa: compra 1 carta")
 	check(g.players[a]["momentum"] == momentum_before - 2, "Trituração em Massa: custa 2")
 
-	# Tyren: no innate Armadura; a hit sets it to 1 (never lowers a higher one); only spell damage grants a temporary Escudo de Feitiço
+	# Tyren: no innate Armadura; a hit sets it to 1 (never lowers a higher one); only spell damage grants a temporary Escudo Supremo
 	g = _metalica_game()
 	a = g.active
 	b = g.opponent(a)
@@ -4811,14 +4979,14 @@ func _test_metalica() -> void:
 	var tyren_hp_before: int = g.hp_left(tyren)
 	_cast_and_resolve(g, a, "golpe_de_marreta", tyren.uid)
 	check(g.hp_left(tyren) == tyren_hp_before - 3, "Tyren: o feitiço que o atinge causa o dano inteiro (o escudo é para o próximo)")
-	check(tyren.armor == 1 and tyren.spell_shield and tyren.spell_shield_until_next_turn, "Tyren: dano de feitiço dá Armadura 1 e Escudo de Feitiço temporário")
+	check(tyren.armor == 1 and tyren.supreme_shield and tyren.supreme_shield_expires == "next_turn", "Tyren: dano de feitiço dá Armadura 1 e Escudo Supremo temporário")
 	tyren_hp_before = g.hp_left(tyren)
 	_cast_and_resolve(g, a, "golpe_de_marreta", tyren.uid)
-	check(g.hp_left(tyren) == tyren_hp_before and not tyren.spell_shield, "Tyren: o próximo feitiço inimigo é cancelado e quebra o escudo")
-	tyren.spell_shield = true
-	tyren.spell_shield_until_next_turn = true
+	check(g.hp_left(tyren) == tyren_hp_before and not tyren.supreme_shield, "Tyren: o próximo feitiço inimigo é absorvido e gasta o Escudo Supremo")
+	check(not tyren.spell_shield, "Tyren: não ganha Escudo de Feitiço")
+	tyren.grant_supreme_shield("next_turn")
 	g._start_turn(b, false)
-	check(not tyren.spell_shield and not tyren.spell_shield_until_next_turn, "Tyren: o Escudo de Feitiço acaba no início do próximo turno do controlador")
+	check(not tyren.supreme_shield and tyren.supreme_shield_expires == "", "Tyren: o Escudo Supremo acaba no início do próximo turno do controlador")
 
 	# Biblioteca de Peças: only the 5 cards on top are searched; an artifact buried deeper is not found
 	# (the filler is a spell, which is never eligible: Metálica units of cost 4 or less count as "peças" too)
@@ -5304,6 +5472,24 @@ func _test_glacial_combo() -> void:
 	for victim: Card in spread_victims:
 		health_after += spread_game.hp_left(victim)
 	check(health_before - health_after == 9, "Repique Desgovernado: tira exatamente os pontos de dano da carta de Vida somados das unidades inimigas (sem sobra de Vida alta)")
+	# Total Vida below the 9 hits: every hit must find a unit that still has Vida (no hit wasted on an overkilled one),
+	# and the Ao Morrer of the first casualties waits for the end of the spell, so its token is never hit.
+	_tcard("t_spread_low", 1, 3, [])
+	var spread_always_clears := true
+	var spread_token_untouched := true
+	for roll_seed in 25:
+		var spread_wipe := _new_game()
+		_quiet(spread_wipe)
+		spread_wipe.rng.seed = roll_seed + 1
+		spread_wipe.players[0]["momentum"] = 10
+		var wipe_victims: Array = [_put(spread_wipe, 1, "semente_teimosa"), _put(spread_wipe, 1, "t_spread_low"), _put(spread_wipe, 1, "t_spread_low")]
+		_cast_and_resolve(spread_wipe, 0, "repique_desgovernado")
+		var survivors: Array = spread_wipe.players[1]["board"].filter(func(unit: Card) -> bool: return wipe_victims.has(unit))
+		spread_always_clears = spread_always_clears and survivors.is_empty()
+		var seedlings: Array = spread_wipe.players[1]["board"].filter(func(unit: Card) -> bool: return unit.card_id == "mudinha_do_dossel")
+		spread_token_untouched = spread_token_untouched and seedlings.size() == 1 and seedlings[0].damage == 0
+	check(spread_always_clears, "Repique Desgovernado: com Vida total abaixo de 9, nenhuma unidade sobrevive (nenhum ponto some em excesso)")
+	check(spread_token_untouched, "Repique Desgovernado: a ficha do Ao Morrer só nasce depois do feitiço e não leva dano")
 	var empty_spread_game := _new_game()
 	_quiet(empty_spread_game)
 	empty_spread_game.players[0]["momentum"] = 10
@@ -6509,6 +6695,32 @@ func _test_eryon_deck() -> void:
 		and g.has_kw(baron, "sobrepujanca") and baron.critico_total() == 4,
 		"Barão: com 11 de Momentum ganha +15, Sobrepujança e Crítico 4 sem renovar Escudo")
 
+	# Barão, Ao Atingir o Líder: a hit of 10+ with more than 8 Momentum spends all plain Momentum (never the Reserva)
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	var baron_enemy: int = g.opponent(a)
+	baron = _put(g, a, "barao_estrondoso")
+	g.players[a]["momentum"] = 11
+	g.players[a]["reserve"] = 2
+	g._refresh_scaling()
+	g.players[baron_enemy]["leader_hp"] = 60
+	_hit(g, baron)
+	g._flush()
+	check(g.players[a]["momentum"] == 0 and g.players[a]["reserve"] == 2,
+		"Barão: golpe de 10+ no Líder gasta todo o Momentum e preserva a Reserva (%d/%d)" % [g.players[a]["momentum"], g.players[a]["reserve"]])
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	baron_enemy = g.opponent(a)
+	baron = _put(g, a, "barao_estrondoso")
+	g.players[a]["momentum"] = 10
+	g._refresh_scaling()
+	g.players[baron_enemy]["leader_hp"] = 60
+	_hit(g, baron)
+	g._flush()
+	check(g.players[a]["momentum"] == 10, "Barão: golpe de 5 no Líder (abaixo de 10) não gasta Momentum (%d)" % g.players[a]["momentum"])
+
 	# Cobrador de Pedágio Torto: only the oldest copy in play gives +1 Momentum, and never above 10
 	var baseline_momentum := 0
 	for copies in [0, 1, 3]:
@@ -6530,15 +6742,15 @@ func _test_eryon_deck() -> void:
 	g.players[a]["max_momentum"] = GameState.MOMENTUM_CAP
 	g._start_turn(a, false)
 	check(int(g.players[a]["momentum"]) <= GameState.MOMENTUM_CAP, "Cobrador: o Momentum dele nunca passa de 10 (%d)" % g.players[a]["momentum"])
-	# the Cobrador's gain locks the turn to neutral cards too, but not when it gained nothing (already at 10)
+	# The Cobrador no longer restricts playable cards when it grants Momentum.
 	g = _new_game()
 	_quiet(g)
 	a = g.active
 	_put(g, a, "cobrador_de_pedagio_torto")
 	g.players[a]["max_momentum"] = 4
 	g._start_turn(a, false)
-	check(g.is_play_restricted(a, CardDB.card("esqueleto_guerreiro")), "Cobrador: ganhar Momentum trava o turno só para cartas neutras")
-	check(not g.is_play_restricted(a, CardDB.card("ajudante_de_gambiarra")), "Cobrador: carta neutra continua jogável")
+	check(not g.is_play_restricted(a, CardDB.card("esqueleto_guerreiro")), "Cobrador: ganhar Momentum não restringe cartas de outras essências")
+	check(not g.is_play_restricted(a, CardDB.card("ajudante_de_gambiarra")), "Cobrador: ganhar Momentum mantém cartas neutras jogáveis")
 	g = _new_game()
 	_quiet(g)
 	a = g.active
@@ -6730,7 +6942,7 @@ func _test_champion_rework() -> void:
 	wounded.damage = 1
 	check(wounded_game.valid_targets(0, "weak_enemy_unit").has(wounded.uid), "Isarelis: unidade ferida entra pela Vida atual")
 
-## Silêncio: the unit loses keywords and every ability, keeps stats/buffs; David destroys the 4 strongest enemy units (Ataque 8+).
+## Silêncio: the unit loses keywords, every ability and its buffs (back to the printed stats); David destroys the 4 strongest enemy units (Ataque 8+).
 func _test_silence_and_david() -> void:
 	CardDB.data()["cards"]["t_loud"] = {"name": "t_loud", "type": "unit", "rarity": "common", "essence": "neutra", "cost": 1,
 		"atk": 3, "hp": 5, "keywords": ["provocacao", "escudo"], "art": "", "text": "", "flavor": "", "tags": [],
@@ -6744,7 +6956,7 @@ func _test_silence_and_david() -> void:
 	g.players[0]["momentum"] = 10
 	var loud := _put(g, 1, "t_loud")
 	check(loud.has_kw("provocacao") and loud.shield, "Silêncio: a unidade começa com Provocação e Escudo")
-	loud.atk += 2 # a buff received before the silence must stay
+	loud.atk += 2 # a buff received before the silence is lost with it
 	var silencer := _give(g, 0, "t_silencer")
 	g.play_card(0, silencer)
 	check(g.phase == "enter_target", "Silêncio: pede o alvo ao entrar")
@@ -6754,7 +6966,16 @@ func _test_silence_and_david() -> void:
 	check(loud.is_silenced(), "Silêncio: a unidade fica Silenciada")
 	check(not loud.has_kw("provocacao") and not loud.shield, "Silêncio: perde Provocação e Escudo")
 	check(loud.data()["effects"].is_empty(), "Silêncio: os efeitos somem dos dados da unidade")
-	check(g.atk_of(loud) == 5 and loud.hp == 5, "Silêncio: mantém atributos e bônus já recebidos")
+	check(g.atk_of(loud) == 3 and loud.hp == 5, "Silêncio: volta ao Ataque e à Vida impressos (perde o buff)")
+	# temporary buffs, damage already taken and a Vida buff that would not cover it
+	var buffed := _put(g, 1, "t_loud")
+	buffed.atk += 4
+	buffed.hp += 3
+	buffed.temp_atk = 2
+	buffed.damage = 6 # 5 + 3 Vida: alive with 2 left; after the silence only 5 Vida remain
+	buffed.silence()
+	check(g.atk_of(buffed) == 3 and buffed.hp == 5, "Silêncio: buffs permanentes e temporários somem")
+	check(buffed.hp_left() == 1, "Silêncio: o dano fica, mas a unidade nunca morre por perder Vida (sobra 1)")
 	var leader_before: int = g.players[0]["leader_hp"]
 	var own_leader_before: int = g.players[1]["leader_hp"]
 	g._fire(loud, "on_turn_start")

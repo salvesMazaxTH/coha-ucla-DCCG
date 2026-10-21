@@ -39,6 +39,10 @@ var attacks_made := 0 ## attacks declared this turn (Ataque Duplo lets a unit at
 var spell_shield := false
 var spell_shield_until_next_turn := false ## the Escudo de Feitiço was granted only until its owner's next turn starts (Tyren)
 var spell_shield_until_end_turn := false ## the Escudo de Feitiço was granted with temp:true and expires at the current turn's end
+const SUPREME_SHIELD_LENGTH := {"end_turn": 1, "next_turn": 2, "": 3} ## how long each expiry lasts, to keep the longest
+
+var supreme_shield := false ## Escudo Supremo: one charge that absorbs absolutely anything aimed at this card (a free-standing artifact can hold it too)
+var supreme_shield_expires := "" ## "" = until used; "next_turn" = until its owner's next turn starts; "end_turn" = until the current turn ends
 var exhausted := false
 var sick := true
 var bonus_atk := 0 ## from "constante" scale effects (see GameState._refresh_scaling)
@@ -109,6 +113,8 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	temp_atk_until_next_turn = 0
 	spell_shield_until_next_turn = false
 	spell_shield_until_end_turn = false
+	supreme_shield = kws.has("escudo_supremo")
+	supreme_shield_expires = ""
 	critico = int(cd.get("critico", 0))
 	temp_critico = 0
 	attacks_made = 0
@@ -116,6 +122,7 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 	spell_shield = kws.has("escudo_feitico")
 	kws.erase("escudo")
 	kws.erase("escudo_feitico")
+	kws.erase("escudo_supremo")
 	keywords = kws
 	temp_keywords = []
 	keywords_until_next_turn = []
@@ -148,13 +155,27 @@ func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
 func is_silenced() -> bool:
 	return bool(over.get("silenced", false))
 
-## Silence (permanent while the unit stays on the board): strips the card's keywords and every ability, and keeps what it
-## already is or was given: base stats, Ataque/Vida buffs, equipment stats and status effects (Veneno, Congelada...).
+## Silence (permanent while the unit stays on the board): strips the card's keywords and every ability, and puts the
+## unit back to its printed Ataque and Vida (buffs and equipment stats are gone). It keeps the damage it already took
+## and its status effects (Veneno, Congelada...).
 ## It is written as per-instance overrides ("over"), so everything that reads the card through data() sees a card without
 ## abilities, and the network mirror carries it for free. A null override deletes that field from the merged data.
 ## Entering the board again starts clean (enter_board replaces "over").
 func silence() -> void:
 	var cd := data()
+	# back to the printed stats: permanent buffs, temporary buffs, scaling bonuses and what the equipment gave
+	atk = int(cd["atk"])
+	hp = int(cd["hp"])
+	temp_atk = 0
+	temp_hp = 0
+	temp_hp_until_next_turn = 0
+	temp_atk_until_next_turn = 0
+	bonus_atk = 0
+	bonus_hp = 0
+	cap_atk_gain = 0
+	equipment_grant = {} # the equipment stays attached but gives nothing now, so there is nothing to take back later
+	if hp_left() < 1: # like losing an equipment: the silence never kills the unit, it stays with 1 Vida
+		damage = hp - 1
 	# keywords the card had: the printed ones plus whatever it gained since (an equipment's, a buff's)
 	keywords = []
 	temp_keywords = []
@@ -164,6 +185,8 @@ func silence() -> void:
 	spell_shield = false
 	spell_shield_until_next_turn = false
 	spell_shield_until_end_turn = false
+	supreme_shield = false
+	supreme_shield_expires = ""
 	# keyword numbers: Rapidez and Crítico are keyword-only; of the Armadura only the printed part goes
 	rapidez = 0
 	critico = 0
@@ -178,11 +201,21 @@ func silence() -> void:
 		silenced_over[lost_field] = null
 	over = silenced_over
 
+## Escudo Supremo granted by an effect. `expires` is "" (until used), "next_turn" or "end_turn". A longer protection
+## is never shortened by a later, shorter grant.
+func grant_supreme_shield(expires := "") -> void:
+	if supreme_shield and SUPREME_SHIELD_LENGTH[supreme_shield_expires] >= SUPREME_SHIELD_LENGTH[expires]:
+		return
+	supreme_shield = true
+	supreme_shield_expires = expires
+
 func has_kw(kw: String) -> bool:
 	if kw == "escudo":
 		return shield
 	if kw == "escudo_feitico":
 		return spell_shield
+	if kw == "escudo_supremo":
+		return supreme_shield
 	if kw == "inerte":
 		return keywords.has(kw) or bool(data().get("inert", false))
 	return keywords.has(kw) or surge_keywords.has(kw)
@@ -231,6 +264,10 @@ func to_dict() -> Dictionary:
 		d["banish_after_cast"] = true # so the client can warn that the next cast banishes it
 	if death_ward_armed:
 		d["death_ward_armed"] = true
+	if supreme_shield: # written before the board-only part: a free-standing artifact can hold it too
+		d["supreme_shield"] = true
+		if supreme_shield_expires != "":
+			d["supreme_shield_expires"] = supreme_shield_expires
 	if zone != "board":
 		return d
 	d.merge({
@@ -318,6 +355,8 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.discount = int(d.get("discount", 0))
 	c.cost_mod = int(d.get("cost_mod", 0))
 	c.death_ward_armed = bool(d.get("death_ward_armed", false))
+	c.supreme_shield = bool(d.get("supreme_shield", false))
+	c.supreme_shield_expires = String(d.get("supreme_shield_expires", ""))
 	c.over = d.get("over", {})
 	if in_zone != "board":
 		return c

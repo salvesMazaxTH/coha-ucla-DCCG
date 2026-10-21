@@ -9,6 +9,10 @@ var then_effects: Array = [] ## Effect objects
 func _read_parameters(data: Dictionary) -> void:
 	then_effects = EffectRegistry.parse_list(data.get("then", []))
 
+## Escudo Supremo absorbs even a sacrifice: the charge is spent, nobody dies and the "then" effects don't run.
+func harms_own_target() -> bool:
+	return true
+
 func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
 	var victim := game.find_unit(target_uid)

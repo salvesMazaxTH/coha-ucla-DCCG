@@ -23,6 +23,9 @@ func _read_parameters(data: Dictionary) -> void:
 	required_dot = String(requirement.get("dot", ""))
 	required_dot_amount = int(requirement.get("amount", 0))
 
+func harms_own_target() -> bool:
+	return true
+
 func apply(context: EffectContext, target_uid: int) -> void:
 	if action == "banish":
 		_banish(context, target_uid)
