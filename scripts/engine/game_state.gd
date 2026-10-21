@@ -868,6 +868,10 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 			out.append(LEADER_UID[opponent(p)])
 		"enemy_artifact": # a free-standing artifact on the opponent's side
 			for c: Card in players[opponent(p)]["relics"]: out.append(c.uid)
+		"ally_artifact": # a free-standing artifact on the player's own side
+			for c: Card in players[p]["relics"]: out.append(c.uid)
+		"any_artifact": # a free-standing artifact on either side
+			for c: Card in players[p]["relics"] + players[opponent(p)]["relics"]: out.append(c.uid)
 		"enemy_stack":
 			for it in stack:
 				if it["player"] != p and not stack_system().is_uncounterable(it): out.append(it["sid"])
@@ -875,26 +879,6 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 		out = out.filter(func(target_uid: int) -> bool: return meets_marker_requirement(target_uid, spec, effects) and meets_subtype_requirement(target_uid, spec, effects))
 	return out
 
-## False when an effect aimed with `spec` only works on a target holding enough markers ("requires_markers":
-## the banish of Ponto Final Sem Vírgula, the execution of Viprax) and this target does not have them.
-## A Leader target uid is negative. Effects aimed at another spec are not about this pick and are ignored.
-func meets_marker_requirement(target_uid: int, spec: String, effects: Array) -> bool:
-	for effect in effects:
-		var requirement: Dictionary = effect.get("requires_markers", {})
-		if requirement.is_empty() or effect.get("target", "") != spec:
-			continue
-		var dot_id := String(requirement.get("dot", ""))
-		"ally_artifact": # a free-standing artifact on the player's own side
-			for c: Card in players[p]["relics"]: out.append(c.uid)
-		"any_artifact": # a free-standing artifact on either side
-			for c: Card in players[p]["relics"] + players[opponent(p)]["relics"]: out.append(c.uid)
-		var needed := int(requirement.get("amount", 0))
-		var held := 0
-		if target_uid < 0:
-			held = leader_dot_markers(LEADER_UID.find(target_uid), dot_id)
-		else:
-			var unit := find_unit(target_uid)
-			held = int(unit.dot_markers.get(dot_id, 0)) if unit != null else 0
 ## False when an effect aimed with `spec` only works on artifacts of one subtype ("subtype": "local" on
 ## "destroy_artifact" = "destroy a Local") and this target is an artifact of another subtype.
 ## Effects aimed at another spec, or without "subtype", ignore this check.
@@ -908,6 +892,22 @@ func meets_subtype_requirement(target_uid: int, spec: String, effects: Array) ->
 			return false
 	return true
 
+## False when an effect aimed with `spec` only works on a target holding enough markers ("requires_markers":
+## the banish of Ponto Final Sem Vírgula, the execution of Viprax) and this target does not have them.
+## A Leader target uid is negative. Effects aimed at another spec are not about this pick and are ignored.
+func meets_marker_requirement(target_uid: int, spec: String, effects: Array) -> bool:
+	for effect in effects:
+		var requirement: Dictionary = effect.get("requires_markers", {})
+		if requirement.is_empty() or effect.get("target", "") != spec:
+			continue
+		var dot_id := String(requirement.get("dot", ""))
+		var needed := int(requirement.get("amount", 0))
+		var held := 0
+		if target_uid < 0:
+			held = leader_dot_markers(LEADER_UID.find(target_uid), dot_id)
+		else:
+			var unit := find_unit(target_uid)
+			held = int(unit.dot_markers.get(dot_id, 0)) if unit != null else 0
 		if held < needed:
 			return false
 	return true
@@ -2257,8 +2257,9 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		unit_hurt.amount = amount
 		unit_hurt.hp_before = c.hp_left() + amount
 		unit_hurt.hp_after = c.hp_left()
+		unit_hurt.data = {"survived": c.hp_left() > 0} # a "when": {"survived": true} listener ignores lethal hits (Ampola Curativa)
 		if damage_kind != "":
-			unit_hurt.data = {"dot": damage_kind}
+			unit_hurt.data["dot"] = damage_kind
 		bus().emit(unit_hurt)
 		# Mar que Retorna: the marked unit survived damage -> its owner draws once
 		if c.tide_mark and c.hp_left() > 0:
@@ -2295,7 +2296,6 @@ func burn_target_of_combat_damage_dealer(dealer: Card, target_uid: int) -> void:
 	var burn_markers := int(dealer.data().get("burns_on_combat_damage", 0))
 	if burn_markers <= 0:
 		return
-		unit_hurt.data = {"survived": c.hp_left() > 0} # a "when": {"survived": true} listener ignores lethal hits (Ampola Curativa)
 	if target_uid < 0:
 		add_leader_dot_markers(LEADER_UID.find(target_uid), "queimadura", burn_markers)
 		return

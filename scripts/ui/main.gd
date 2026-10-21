@@ -5020,13 +5020,13 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s invocou %s" % [_pname(e["player"]), _cname(e["card_id"])])
 		"relic_destroyed":
 			_log("%s foi destruído" % _cname(e["card_id"]))
+		"charge_spent":
+			_log("%s gastou um uso (restam %d)" % [_cname(e["card_id"]), int(e["left"])])
 		"death_ward_armed":
 			_log("%s foi armado: a próxima morte de uma unidade será negada" % _cname(e["card_id"]))
 		"death_prevented":
 			_log("%s foi destruído para impedir a morte de %s" % [_cname(e["ward_card_id"]), _cname(e["card_id"])])
 		"fuse":
-		"charge_spent":
-			_log("%s gastou um uso (restam %d)" % [_cname(e["card_id"]), int(e["left"])])
 			_log("%d fichas se fundiram em %s" % [int(e["count"]), _cname(e["card_id"])])
 		"attach":
 			_log("%s foi equipado em uma unidade" % _cname(e["card_id"]))

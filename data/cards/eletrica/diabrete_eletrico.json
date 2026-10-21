@@ -11,6 +11,7 @@
     "impeto"
   ],
   "art": "eletrica/diabrete_eletrico.webp",
+  "art_crop": {"x": 0.46, "y": 0.52, "zoom": 1.0},
   "effects": [
     {
       "trigger": "on_death",
