@@ -906,8 +906,9 @@ func speed_of(src: Dictionary) -> String:
 	return "lento"
 
 ## Lento: own Main Phase with an empty stack. Rápido: also the pre-combat window (both players)
-## and the summon response window. Instantâneo: also as a response to anything on the stack, and for the
-## attacker between two attacks (the attacks window with an empty stack: only the attacker holds priority).
+## and the summon response window. Instantâneo: also as a response to anything on the stack, and in the attacks
+## window with an empty stack: for the attacker between two attacks, and for the defender while they hold
+## priority to react to a declared attack. Only the priority holder passes the first check above.
 func can_cast_speed(p: int, speed: String) -> bool:
 	if phase not in ["main", "combat"] or p != priority:
 		return false
@@ -916,7 +917,7 @@ func can_cast_speed(p: int, speed: String) -> bool:
 	if phase == "main":
 		return p == active or (summon_window and speed != "lento")
 	if window == "attacks":
-		return speed == "instantaneo" and p == active
+		return speed == "instantaneo"
 	return window == "pre_combat" and speed != "lento"
 
 ## Units, the Legendary and ending the turn: own Main Phase, empty stack.

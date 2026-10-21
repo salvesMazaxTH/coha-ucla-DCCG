@@ -173,10 +173,11 @@ func resolve_stack() -> void:
 			_resolve_subito(item)
 		game._check_state()
 	if game.stack.is_empty():
-		game.combat_system().finish_pending_attack() # the attack that cast it deals its combat damage now
+		game.combat_system().finish_pending_attack() # the attack that cast it deals its combat damage now (or the defender may react again)
 	if game.phase in ["main", "combat"] and game.stack.is_empty():
 		game.summon_window = false
-		game.priority = window_owner()
+		if not game.combat_system().is_reacting(game.priority):
+			game.priority = window_owner()
 
 ## A Súbito summon resolves: the unit enters at the chosen slot (its Ao Entrar fires as usual).
 ## If the board filled up while it waited on the stack, the card goes to the graveyard instead.
@@ -301,6 +302,9 @@ func pass_once() -> void:
 		game.priority = game.active
 		return
 	match game.window:
+	if game.combat_system().is_reacting(game.priority):
+		game.combat_system().pass_reaction() # the defender lets the declared attack land
+		return
 		"pre_combat":
 			if game.priority == game.active:
 				game.priority = game.opponent(game.active) # attacker passed: the defender may still act
@@ -352,7 +356,7 @@ func settle() -> void:
 		if game.stack.is_empty() and game.phase == "main" and not game.summon_window:
 			game.priority = game.active
 			return
-		if game.phase == "combat" and game.window == "attacks" and game.stack.is_empty():
+		if game.phase == "combat" and game.window == "attacks" and game.stack.is_empty() and not game.combat_system().is_reacting(game.priority):
 			return # the attacker declares attacks (or ends combat) by hand; never auto-pass here
 		var holder: int = game.priority
 		# "PASSAR TUDO" only covers answering the opponent's moves, never the player's own turn

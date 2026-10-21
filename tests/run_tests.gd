@@ -67,6 +67,7 @@ func _init() -> void:
 	_test_listeners()
 	_test_stack()
 	_test_summon_window()
+	_test_reaction()
 	_test_subito()
 	_test_combat_step()
 	_test_leader_cycle()
@@ -2398,6 +2399,132 @@ func _test_provocacao() -> void:
 
 	# Voo / Furtividade only limit who can CHALLENGE a unit; they no longer change whether the face is open
 	_tcard("t_sneak", 1, 6, [])
+## Janela B: a declared attack is only answered when it matters and the defender really can answer.
+## A fresh game where player 1 (the defender) holds only the given cards and has the given Momentum.
+func _reaction_game(defender_cards: Array, defender_momentum: int) -> GameState:
+	var g := _new_game()
+	_quiet(g)
+	g.players[1]["hand"] = []
+	g.players[1]["momentum"] = defender_momentum
+	for card_id in defender_cards:
+		_give(g, 1, card_id)
+	return g
+
+func _test_reaction() -> void:
+	_tcard("t_hitter", 2, 3, [])
+	_tcard("t_sponge", 1, 9, [])
+	_tcard("t_glass", 1, 2, [])
+	# Instantâneos with a real cost, so "enough Momentum" matters
+	_tspell("t_react_heal", "instantaneo", [{"trigger": "on_play", "action": "buff", "target": "any_unit", "hp": 3}])
+	_tspell("t_react_kill", "instantaneo", [{"trigger": "on_play", "action": "damage", "target": "any_unit", "amount": 9}])
+	CardDB.data()["cards"]["t_react_heal"]["cost"] = 2
+	CardDB.data()["cards"]["t_react_kill"]["cost"] = 2
+	var leader_max: int = GameState.new("fogo", "agua", 1).players[1]["leader_hp"]
+
+	# no Instantâneo in hand: the attack lands without anybody being asked
+	var g := _reaction_game([], 5)
+	var hitter := _put(g, 0, "t_hitter")
+	_hit(g, hitter)
+	check(not g.combat_system().is_reacting(1) and g.priority == 0, "reagir: sem Instantânea na mão ninguém é perguntado")
+	check(g.players[1]["leader_hp"] == leader_max - 2, "reagir: sem Instantânea o dano ao Líder cai na hora")
+
+	# an Instantâneo and Momentum for it, attack on the Leader: the defender is asked and the blows wait
+	g = _reaction_game(["t_react_heal"], 5)
+	hitter = _put(g, 0, "t_hitter")
+	var second_hitter := _put(g, 0, "t_hitter")
+	var events := _hit(g, hitter)
+	check(_has_event(events, "reaction"), "reagir: o ataque ao Líder emite o evento de reação")
+	check(g.combat_system().is_reacting(1) and g.priority == 1 and g.decider() == 1, "reagir: o defensor recebe a prioridade")
+	check(g.players[1]["leader_hp"] == leader_max, "reagir: enquanto o defensor decide, o dano não caiu")
+	check(not g.combat_system().in_attacks_window(0) and g.attack_unit(0, second_hitter.uid, GameState.LEADER_UID[1]).is_empty(), "reagir: o atacante espera, não declara outro ataque")
+	check(g.pass_priority(0).is_empty() and g.end_combat(0).is_empty(), "reagir: o atacante também não encerra o combate")
+
+	# passing the prompt lets the attack land and gives the turn owner the next attack back
+	g.pass_priority(1)
+	check(g.players[1]["leader_hp"] == leader_max - 2 and not g.combat_system().is_reacting(1), "reagir: passar deixa o ataque acontecer")
+	check(g.priority == 0 and g.combat_system().in_attacks_window(0) and g.combat_system().pending_attack.is_empty(), "reagir: depois de passar o dono do turno volta a atacar")
+	_hit(g, second_hitter)
+	check(g.combat_system().is_reacting(1), "reagir: o segundo ataque pergunta de novo")
+
+	# not enough Momentum for the Instantâneo (cost 2): not asked
+	g = _reaction_game(["t_react_heal"], 1)
+	_hit(g, _put(g, 0, "t_hitter"))
+	check(not g.combat_system().is_reacting(1) and g.players[1]["leader_hp"] == leader_max - 2, "reagir: sem Momentum para a Instantânea ninguém é perguntado")
+
+	# a challenge that cannot kill anybody (2 dmg vs 9 HP, 1 counter vs 3 HP): not asked
+	g = _reaction_game(["t_react_heal"], 5)
+	hitter = _put(g, 0, "t_hitter")
+	var sponge := _put(g, 1, "t_sponge")
+	sponge.exhausted = true # only a tapped unit can be challenged
+	_hit(g, hitter, sponge.uid)
+	check(not g.combat_system().is_reacting(1) and g.find_unit(sponge.uid).damage == 2, "reagir: desafio sem risco de morte não pergunta")
+
+	# the blow could kill the defender's unit: asked
+	g = _reaction_game(["t_react_heal"], 5)
+	hitter = _put(g, 0, "t_hitter")
+	var glass := _put(g, 1, "t_glass")
+	glass.exhausted = true
+	_hit(g, hitter, glass.uid)
+	check(g.combat_system().is_reacting(1) and g.find_unit(glass.uid) != null, "reagir: o golpe pode matar a unidade do defensor, então pergunta")
+
+	# the counter-blow could kill the attacker: asked too
+	g = _reaction_game(["t_react_heal"], 5)
+	var fragile_attacker := _put(g, 0, "t_glass")
+	var counter_hitter := _put(g, 1, "t_hitter")
+	counter_hitter.exhausted = true
+	_hit(g, fragile_attacker, counter_hitter.uid)
+	check(g.combat_system().is_reacting(1), "reagir: o contragolpe pode matar o atacante, então pergunta")
+
+	# the defender answers by killing the attacker: the attack fizzles and the Leader is untouched
+	g = _reaction_game(["t_react_kill"], 5)
+	hitter = _put(g, 0, "t_hitter")
+	_put(g, 0, "t_sponge") # a second attacker, so combat goes on
+	_hit(g, hitter)
+	var kill_uid: int = g.players[1]["hand"][0].uid
+	g.play_card(1, kill_uid, hitter.uid)
+	_pass_windows_until_attacks(g)
+	check(g.find_unit(hitter.uid) == null and g.players[1]["leader_hp"] == leader_max, "reagir: a resposta mata o atacante e o ataque não acontece")
+	check(g.stack.is_empty() and not g.combat_system().is_reacting(1) and g.combat_system().pending_attack.is_empty(), "reagir: nada fica pendente depois do ataque cancelado")
+
+	# a cast that resolves without stopping the attack: the defender is asked again, and can still pass
+	g = _reaction_game(["t_react_heal", "t_react_heal"], 4)
+	hitter = _put(g, 0, "t_hitter")
+	sponge = _put(g, 1, "t_sponge")
+	_hit(g, hitter)
+	g.play_card(1, g.players[1]["hand"][0].uid, sponge.uid)
+	_pass_windows_until_attacks(g)
+	check(g.combat_system().is_reacting(1) and g.players[1]["leader_hp"] == leader_max, "reagir: resolvida a primeira resposta, o defensor é perguntado de novo")
+	g.pass_priority(1)
+	check(g.players[1]["leader_hp"] == leader_max - 2 and not g.combat_system().is_reacting(1), "reagir: passando na segunda vez o ataque cai")
+
+	# the switches: PASSAR TUDO lets it land; auto-pass off or on still asks (the defender has a real play)
+	g = _reaction_game(["t_react_heal"], 5)
+	g.pass_rest_of_turn(1)
+	_hit(g, _put(g, 0, "t_hitter"))
+	check(not g.combat_system().is_reacting(1) and g.players[1]["leader_hp"] == leader_max - 2, "reagir: passar tudo deixa o ataque cair sem perguntar")
+	for auto in [true, false]:
+		g = _reaction_game(["t_react_heal"], 5)
+		g.auto_pass[1] = auto
+		_hit(g, _put(g, 0, "t_hitter"))
+		check(g.combat_system().is_reacting(1), "reagir: com passe automático %s o defensor com jogada ainda é perguntado" % auto)
+
+	# an AI defender never gets stuck: it either answers or passes, and the attack resolves
+	g = _reaction_game(["t_react_heal"], 5)
+	_put(g, 1, "t_sponge")
+	_hit(g, _put(g, 0, "t_hitter"))
+	for step in 6:
+		if g.combat_system().is_reacting(1) or g.stack.size() > 0:
+			SimpleAI.step(g, g.decider())
+	check(not g.combat_system().is_reacting(1) and g.stack.is_empty(), "reagir: a IA defensora responde ou passa, sem travar")
+	check(g.players[1]["leader_hp"] == leader_max - 2, "reagir: depois da IA decidir o ataque ao Líder acontece")
+
+## Lets the pass/response priorities settle until the attacker declares again (or combat is over).
+func _pass_windows_until_attacks(g: GameState) -> void:
+	for i in 10:
+		if g.phase != "combat" or g.combat_system().in_attacks_window(g.active) or g.combat_system().is_reacting(g.opponent(g.active)):
+			return
+		g.pass_priority(g.priority)
+
 	CardDB.data()["cards"]["t_sneak"]["keywords"] = ["furtividade"]
 	var leader_uid: int = GameState.LEADER_UID[1]
 	g = _new_game()
@@ -3100,7 +3227,12 @@ func _test_critico() -> void:
 	var events := _hit(g, striker)
 	check(_has_event(events, "crit"), "crítico 4: o golpe sempre é crítico")
 	check(g.players[1]["leader_hp"] == leader_before - 5, "crítico: +2 de dano no Líder (3 + 2)")
+	# the defender's hand is set aside for this first attack: holding an Instantâneo would make the game ask them to react (Janela B)
+	var defender_hand: Array = g.players[1]["hand"]
+	g.players[1]["hand"] = []
+	g.players[1]["ability_used"] = true # the Leader's ability is a play too, and would be offered the same way
 
+	g.players[1]["hand"] = defender_hand
 	# a unit with no Crítico never crits
 	_tcard("t_nocrit", 3, 5, [])
 	var g_plain := _new_game()

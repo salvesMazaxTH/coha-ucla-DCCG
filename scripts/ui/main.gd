@@ -2261,7 +2261,9 @@ func _hint() -> String:
 					return "O oponente vai atacar: responda com Rápidos/Instantâneos ou passe."
 				"attacks":
 					if viewer == g.active:
-						return "Arraste uma unidade até o alvo para atacar · ENCERRAR COMBATE quando acabar."
+						return "Arraste uma unidade até o alvo para atacar (ou jogue um Instantâneo) · ENCERRAR COMBATE quando acabar."
+					if g.combat_system().is_reacting(viewer):
+						return "Reagir? Jogue uma Instantânea antes do dano ou passe."
 		"enter_tapped":
 			return "%s tem Provocação: entrar exaurida obriga os inimigos a desafiá-la." % _cname(_pending_tap_card_id())
 		"mulligan":
@@ -2283,6 +2285,8 @@ func _pass_button_label() -> String:
 ## "PASSAR TUDO": while answering the opponent's moves, a second button that passes this window and every
 ## later one until their turn ends, so the player isn't asked again for each play. Empty on your own turn.
 func _pass_everything_buttons() -> Array:
+					if viewer == g.active and g.combat_system().is_reacting(g.opponent(viewer)):
+						return "Ataque declarado: o oponente pode reagir antes do dano..."
 	if g.active == viewer:
 		return []
 	var button := _action_button("Passar tudo no turno", func(): _do(g.pass_rest_of_turn(viewer)))

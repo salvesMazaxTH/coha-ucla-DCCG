@@ -8,15 +8,19 @@ extends RefCounted
 ## Flow of a combat:
 ##   1. "IR PARA O COMBATE" opens the "pre_combat" window: the attacker gets priority first, then the
 ##      defender; both may cast Rápido/Instantâneo. It ends when both pass in a row with an empty stack.
-##   2. The "attacks" window: the attacker declares attacks one by one (an attack itself can't be answered),
-##      until they press "ENCERRAR COMBATE" or no unit can attack anymore. Between two attacks the attacker
-##      may also cast an Instantâneo (spell or ability); the defender answers it through the stack.
-##      Nobody is ever asked: whoever has nothing to cast just keeps attacking.
+##   2. The "attacks" window: the attacker declares attacks one by one, until they press "ENCERRAR COMBATE" or
+##      no unit can attack anymore. Between two attacks the attacker may also cast an Instantâneo (spell or
+##      ability); the defender answers it through the stack.
+##   3. A declared attack can be answered, but only when it matters: the defender is asked ("Reagir?") only if
+##      they hold an Instantâneo they can cast right now AND the attack hits the Leader or could kill a unit
+##      (see attack_is_worth_a_reply). Otherwise nobody is asked and the blows land at once.
 
 var game: GameState
 ## An attack whose Ao Atacar put something on the stack (a Bola de Neve): its combat damage waits
 ## until the stack is empty. {"attacker": uid, "target": uid}, or empty when no attack is waiting.
 var pending_attack: Dictionary = {}
+## The defender already passed the "Reagir?" prompt for the pending attack, so its blows land now instead of asking again.
+var reaction_declined := false
 ## Set by a "decoy" effect while an attack's triggers resolve (Hikari's Fantoche de Trapos): the unit that takes the
 ## attacker's blow instead of the challenged one, and the unit that takes the defender's counter-blow
 ## instead of the attacker. 0 = nobody. Read once by attack() and then cleared.
@@ -140,7 +144,8 @@ func in_attacks_window(player: int) -> bool:
 		and game.priority == player and game.stack.is_empty()
 
 ## One attack: `attacker_uid` taps and hits `target_uid` (a negative uid = the enemy Leader's face,
-## otherwise a challenged enemy unit). Everything resolves at once; nobody can respond.
+## otherwise a challenged enemy unit). The blows land at once unless the defender gets to react first
+## (see _offer_reaction): then they wait for the defender's pass, or for what the defender casts to resolve.
 func attack(player: int, attacker_uid: int, target_uid: int) -> Array:
 	if not in_attacks_window(player):
 		return []
@@ -198,7 +203,7 @@ func _resume_deferred_attack() -> bool:
 ## The attack's combat damage and the end of combat once no attacker is left. Waits while the stack
 ## is not empty: whatever the attack's triggers cast resolves (or is countered) before the blows land.
 func finish_pending_attack() -> void:
-	if not game.stack.is_empty():
+	if not game.stack.is_empty() or is_reacting(game.opponent(game.active)):
 		return
 	if pending_attack.is_empty():
 		# "before_attack" has resolved and nothing is being fought yet: start the extra attacks, then the declared one
@@ -211,8 +216,11 @@ func finish_pending_attack() -> void:
 		elif not has_any_attacker():
 			end_combat() # the declared attack fizzled (its attacker died) and nobody is left to attack
 		return
+	if not reaction_declined and _offer_reaction():
+		return # the defender holds priority; their pass (or what they cast, once it resolves) comes back here
 	var attack_info := pending_attack
 	pending_attack = {}
+	reaction_declined = false
 	if game.phase == "over":
 		deferred_attack = {}
 		return
@@ -226,6 +234,60 @@ func finish_pending_attack() -> void:
 		return
 	if not has_any_attacker():
 		end_combat()
+
+## True while `player` is being asked whether to react to the attack that was just declared: the defender holds
+## priority in the attacks window with an empty stack. The attacker never holds it there (they declare the next
+## attack or end combat), so it can be read from the public state alone (the online client has no pending_attack).
+func is_reacting(player: int) -> bool:
+	return game.phase == "combat" and game.window == "attacks" and player != game.active \
+		and game.priority == player and game.stack.is_empty()
+
+## The defender's chance to answer a declared attack before its blows land (Window B). The defender is only asked
+## when they have an Instantâneo they can really cast right now AND the attack matters (see attack_is_worth_a_reply);
+## otherwise nothing is asked and the attack just resolves. Returns true when the defender now holds priority.
+func _offer_reaction() -> bool:
+	if game.phase != "combat" or not attack_is_worth_a_reply(pending_attack):
+		return false
+	var defender := game.opponent(game.active)
+	var previous_priority := game.priority
+	game.priority = defender
+	# with priority on the defender, has_play() only sees what is castable now: an Instantâneo within their Momentum
+	if game.stack_system().has_play(defender):
+		game._emit({"type": "reaction", "player": defender, "attacker": int(pending_attack["attacker"]), "target": int(pending_attack["target"])})
+		return true
+	game.priority = previous_priority
+	return false
+
+## The defender passed the reaction prompt: the attack lands.
+func pass_reaction() -> void:
+	reaction_declined = true
+	game.priority = game.active
+	finish_pending_attack()
+
+## Is the declared attack serious enough to stop the game for? Yes when it hits the Leader for more than 0,
+## or when a unit could die in the exchange: the struck unit by the blow, or the attacker by the counter-blow.
+## Deliberately generous (Armadura, Escudo and the order of strikes are ignored; a Crítico is counted): asking
+## once too often costs a click, missing a real chance would cost the unit.
+func attack_is_worth_a_reply(attack_info: Dictionary) -> bool:
+	var attacker := game.find_unit(int(attack_info["attacker"]))
+	if attacker == null:
+		return false
+	var target_uid := int(attack_info["target"])
+	if target_uid < 0:
+		return game.strike_power_of(attacker) > 0
+	var target := game.find_unit(target_uid)
+	if target == null:
+		return false
+	return _blow_could_kill(attacker, target) or _blow_could_kill(target, attacker)
+
+## Could `striker`'s blow kill `victim`? Tóxico always can; otherwise the Ataque (plus a possible Crítico) against Vida left.
+func _blow_could_kill(striker: Card, victim: Card) -> bool:
+	if game.has_kw(striker, "toxico"):
+		return game.strike_power_of(striker) > 0
+	var most_damage := game.strike_power_of(striker)
+	if most_damage > 0 and striker.critico_total() > 0:
+		most_damage += CRITICO_BONUS
+	return most_damage >= game.hp_left(victim)
 
 ## Every possible target of an automatic extra attack: ALL enemy units plus the enemy Leader, with no restriction
 ## at all (tapped or not, Provocação, Voo, Furtividade, Etérea, Ímpeto... none of it matters for the random pick).
