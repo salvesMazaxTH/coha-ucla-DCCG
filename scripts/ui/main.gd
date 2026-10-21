@@ -4152,6 +4152,23 @@ func _prewarm_fx() -> void:
 	ln.points = PackedVector2Array([Vector2.ZERO, Vector2(8, 8)])
 	ln.gradient = Gradient.new()
 	holder.add_child(ln)
+	# effect bolts: additive glow sprites, lines and world-space sparks
+	holder.add_child(_glow_sprite(8.0, Color.WHITE))
+	var glow_line := _ring_line(8.0, 2.0, Color.WHITE)
+	holder.add_child(glow_line)
+	var trail := CPUParticles2D.new()
+	trail.amount = 4
+	trail.one_shot = true
+	trail.local_coords = false
+	trail.material = _additive()
+	trail.color_ramp = Gradient.new()
+	trail.emitting = true
+	holder.add_child(trail)
+	# thorn hit style: a polygon with per-vertex colors
+	var thorn_spike := Polygon2D.new()
+	thorn_spike.polygon = PackedVector2Array([Vector2.ZERO, Vector2(8, 0), Vector2(0, 8)])
+	thorn_spike.vertex_colors = PackedColorArray([Color.WHITE, Color.RED, Color.GREEN])
+	holder.add_child(thorn_spike)
 	# floating numbers / trigger tags: big outlined glyphs are rasterized on first use
 	var num := _label("-0123456789+/!", 46, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 10)
 	num.size = Vector2(400, 58)
@@ -4354,6 +4371,652 @@ func _streak(from: Control, to: Control, t: float, col: Color) -> float:
 				ln.queue_free())
 	return STREAK_T
 
+## How long each part of an effect bolt takes (see _effect_bolt). The first shot of a trigger
+## charges longer so the eye finds the source; the shots after it fire in quick succession.
+const BOLT_CHARGE_FIRST := 0.16
+const BOLT_CHARGE_NEXT := 0.07
+const BOLT_FLIGHT := 0.32
+
+## Shared by every glow sprite: additive blending, so overlapping light adds up and burns white.
+var _additive_material: CanvasItemMaterial
+## Soft round dot (white center fading to transparent), tinted by each sprite's modulate.
+var _soft_dot_texture: GradientTexture2D
+
+func _additive() -> CanvasItemMaterial:
+	if _additive_material == null:
+		_additive_material = CanvasItemMaterial.new()
+		_additive_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	return _additive_material
+
+## A glowing dot of light of the given radius and color (additive, so it glows over anything).
+func _glow_sprite(radius: float, col: Color) -> Sprite2D:
+	if _soft_dot_texture == null:
+		var gr := Gradient.new()
+		gr.set_color(0, Color.WHITE)
+		gr.set_color(1, Color(1, 1, 1, 0))
+		gr.add_point(0.3, Color(1, 1, 1, 0.6))
+		_soft_dot_texture = GradientTexture2D.new()
+		_soft_dot_texture.gradient = gr
+		_soft_dot_texture.fill = GradientTexture2D.FILL_RADIAL
+		_soft_dot_texture.fill_from = Vector2(0.5, 0.5)
+		_soft_dot_texture.fill_to = Vector2(1.0, 0.5)
+		_soft_dot_texture.width = 64
+		_soft_dot_texture.height = 64
+	var s := Sprite2D.new()
+	s.texture = _soft_dot_texture
+	s.material = _additive()
+	s.modulate = col
+	s.scale = Vector2.ONE * radius / 32.0
+	return s
+
+## A thin circle outline of the given radius, centered on its own position.
+func _ring_line(radius: float, width: float, col: Color) -> Line2D:
+	var ring := Line2D.new()
+	var pts := PackedVector2Array()
+	for i in 33:
+		pts.append(Vector2.from_angle(TAU * i / 32.0) * radius)
+	ring.points = pts
+	ring.width = width
+	ring.default_color = col
+	ring.material = _additive()
+	return ring
+
+## Color of the bolt that carries an effect, by what the effect does: red-orange for damage,
+## green for healing, ice for freezing, the marker's own color for poison/bleed and so on.
+func _bolt_color(e: Dictionary) -> Color:
+	match String(e["type"]):
+		"damage", "shield_break", "spell_shield_break", "supreme_shield_break":
+			return Color("#ff5a2e")
+		"heal":
+			return Color("#5dff8a")
+		"buff", "summon":
+			return Color("#b6ff7a")
+		"freeze":
+			return ICE
+		"dot":
+			return CardView.dot_badge_color(String(e["dot"]))
+		"condemn":
+			return CardView.DOOM_COL
+		"stun":
+			return CardView.STUN_COL
+		"exhaust", "tide_mark":
+			return Color("#6fd0ff")
+	return CardView.TRIGGER_COL
+
+## The path a shot travels from `from` to `to`, shared by every hit style. It is a curve that bows
+## sideways (to a random side) by `arc` times the distance between the ends, at most `arc_cap` pixels.
+## Returns:
+##   "ends": {"a": source center, "b": target center}, the last known positions of both ends;
+##   "refresh": a Callable that updates "ends" while the two controls still exist (call it every
+##     frame: if one is freed mid-flight, by a re-render or the source dying, its last position is
+##     kept, so the shot still finishes its path);
+##   "point_at": a Callable(u) -> Vector2, the point at fraction u of the path (0 = source, 1 = target).
+func _shot_path(from: Control, to: Control, arc: float, arc_cap: float) -> Dictionary:
+	var bend := 1.0 if randf() < 0.5 else -1.0
+	var ends := {"a": _center_of(from), "b": _center_of(to)}
+	var source_ref: WeakRef = weakref(from)
+	var target_ref: WeakRef = weakref(to)
+	var refresh_ends := func():
+		var source_view: Control = source_ref.get_ref()
+		var target_view: Control = target_ref.get_ref()
+		if source_view != null:
+			ends["a"] = _center_of(source_view)
+		if target_view != null:
+			ends["b"] = _center_of(target_view)
+	var point_at := func(u: float) -> Vector2:
+		var a: Vector2 = ends["a"]
+		var b: Vector2 = ends["b"]
+		var ctrl := (a + b) / 2.0 + (b - a).orthogonal().normalized() * minf(a.distance_to(b) * arc, arc_cap) * bend
+		return a.lerp(ctrl, u).lerp(ctrl.lerp(b, u), u)
+	return {"ends": ends, "refresh": refresh_ends, "point_at": point_at}
+
+## The hit style a card's effects fly with: its JSON's optional "hit_fx" field (for example
+## "espinho" on the Flor Voraz). Leaders and cards without the field use the default bolt ("").
+func _hit_style_of(source: Control) -> String:
+	if source is CardView:
+		return String(CardDB.card((source as CardView).card_id).get("hit_fx", ""))
+	return ""
+
+## Plays the shot of one effect, from the card whose trigger caused it to what it hits, in the
+## source card's own hit style (see _hit_style_of). Returns the time from t until the shot lands,
+## which is when the effect's number pops.
+## To add a new style: write a function with the same parameters that returns the same time,
+## add a line for it here, and put "hit_fx": "<style name>" in the cards that should use it.
+func _effect_hit(style: String, from: Control, to: Control, t: float, col: Color, first_shot: bool) -> float:
+	match style:
+		"espinho":
+			return _thorn_shot(from, to, t, first_shot)
+	return _effect_bolt(from, to, t, col, first_shot)
+
+## An effect flies from the card whose trigger caused it to what it hits, as a magic missile the
+## eye can follow one at a time (a lobbed ball of energy, not a beam):
+## 1. charge: light gathers on the source (a ring closing in on it, a growing orb);
+## 2. launch: a muzzle flash, the source card kicks back, and a soft glow marks the target;
+## 3. flight: the orb arcs to the target, stretched along its path, with a short comet tail and embers;
+## 4. impact: a flash, a shockwave ring and sparks thrown on in the travel direction.
+## Follows both ends if they move. Returns the time from t until the orb lands.
+func _effect_bolt(from: Control, to: Control, t: float, col: Color, first_shot: bool) -> float:
+	var pace := 0.55 + 0.45 * _fx_scale # big chains fire faster so a long chain does not drag
+	var charge := (BOLT_CHARGE_FIRST if first_shot else BOLT_CHARGE_NEXT) * pace
+	var flight := BOLT_FLIGHT * pace
+	var rich := _fx_scale >= 0.7 # big chains skip the costliest layers (wide glow, reticle)
+	var hot := col.lightened(0.6)
+	# a wide arc, like something lobbed (a straight line reads as a laser)
+	var path := _shot_path(from, to, 0.32, 150.0)
+	var ends: Dictionary = path["ends"]
+	var refresh_ends: Callable = path["refresh"]
+	var point_at: Callable = path["point_at"]
+	var target_radius: float = _pose(to)["w"] * 0.6 if to is CardView else 70.0
+	# the lambdas below reach the bolt's nodes through this dictionary instead of capturing them:
+	# Godot reports an error when a lambda runs after a node it captured was freed (the orb is
+	# freed on landing, and a table reset frees everything mid-flight)
+	var parts := {}
+	var alive := func(key: String) -> Node:
+		var node = parts.get(key)
+		return node if is_instance_valid(node) else null
+
+	# --- the orb: wide glow, colored body, white-hot core
+	var orb := Node2D.new()
+	orb.z_index = 26
+	orb.visible = false
+	if rich:
+		orb.add_child(_glow_sprite(46.0, Color(col, 0.55)))
+	orb.add_child(_glow_sprite(22.0, col))
+	orb.add_child(_glow_sprite(10.0, Color(hot, 1.0)))
+	fx.add_child(orb)
+	parts["orb"] = orb
+
+	# --- 1. charge: a ring closes in on the source while the orb swells there
+	var charge_ring := _ring_line(_pose(from)["w"] * 0.55 if from is CardView else 70.0, 4.0, Color(hot, 0.9))
+	charge_ring.z_index = 25
+	charge_ring.visible = false
+	fx.add_child(charge_ring)
+	parts["charge_ring"] = charge_ring
+	var ct := fx.create_tween()
+	ct.tween_interval(t)
+	ct.tween_callback(func():
+		var orb_node: Node2D = alive.call("orb")
+		var ring_node: Line2D = alive.call("charge_ring")
+		if orb_node == null or ring_node == null:
+			return # the table was reset mid-animation
+		refresh_ends.call()
+		ring_node.position = ends["a"]
+		ring_node.visible = true
+		orb_node.position = ends["a"]
+		orb_node.scale = Vector2.ZERO
+		orb_node.visible = true)
+	ct.tween_property(charge_ring, "scale", Vector2(0.15, 0.15), charge).from(Vector2.ONE).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	ct.parallel().tween_property(charge_ring, "modulate:a", 1.0, charge * 0.6).from(0.0)
+	ct.parallel().tween_property(orb, "scale", Vector2.ONE, charge).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	ct.tween_callback(charge_ring.queue_free)
+
+	# --- 2. launch: muzzle flash on the source and a kick back, away from the target
+	var launch_t := t + charge
+	var muzzle := _glow_sprite(60.0, Color(hot, 0.9))
+	muzzle.z_index = 25
+	muzzle.visible = false
+	fx.add_child(muzzle)
+	parts["muzzle"] = muzzle
+	var mt := fx.create_tween()
+	mt.tween_interval(launch_t)
+	mt.tween_callback(func():
+		var muzzle_node: Sprite2D = alive.call("muzzle")
+		if muzzle_node == null:
+			return
+		muzzle_node.position = ends["a"]
+		muzzle_node.visible = true)
+	mt.tween_property(muzzle, "scale", muzzle.scale * 1.6, 0.16).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	mt.parallel().tween_property(muzzle, "modulate:a", 0.0, 0.16)
+	mt.tween_callback(muzzle.queue_free)
+	if from is CardView:
+		var cv: CardView = from
+		var kick := cv.create_tween()
+		kick.tween_interval(launch_t)
+		kick.tween_method(func(k: float):
+			var away: Vector2 = (ends["a"] - ends["b"]).normalized()
+			cv.shake = away * 10.0 * (1.0 - k), 0.0, 1.0, 0.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		kick.tween_callback(func(): cv.shake = Vector2.ZERO)
+
+	# lock-on reticle: four brackets that close in on the target and spin while the orb is on its way
+	# target mark: a soft glow with a thin ring that settles on the target while the orb is on its way
+	var reticle: Node2D = null
+	if rich:
+		reticle = Node2D.new()
+		reticle.z_index = 25
+		reticle.visible = false
+		reticle.modulate.a = 0.0
+		reticle.add_child(_glow_sprite(target_radius, Color(col, 0.35)))
+		reticle.add_child(_ring_line(target_radius * 0.85, 3.0, Color(hot, 0.7)))
+		fx.add_child(reticle)
+		parts["reticle"] = reticle
+		var rt := fx.create_tween()
+		rt.tween_interval(launch_t)
+		rt.tween_callback(func():
+			var reticle_node: Node2D = alive.call("reticle")
+			if reticle_node == null:
+				return
+			reticle_node.position = ends["b"]
+			reticle_node.visible = true)
+		rt.tween_property(reticle, "modulate:a", 1.0, flight * 0.5)
+		rt.parallel().tween_property(reticle, "scale", Vector2.ONE, flight).from(Vector2(1.4, 1.4)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		# on impact the mark swells outward and vanishes
+		rt.tween_property(reticle, "scale", Vector2(1.35, 1.35), 0.16).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		rt.parallel().tween_property(reticle, "modulate:a", 0.0, 0.16)
+		rt.tween_callback(reticle.queue_free)
+
+	# --- 3. flight: a short comet tail right behind the orb, plus embers it sheds along the way
+	var tails: Array[Line2D] = []
+	var tail := Line2D.new()
+	tail.width = 18.0
+	tail.joint_mode = Line2D.LINE_JOINT_ROUND
+	tail.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	tail.end_cap_mode = Line2D.LINE_CAP_ROUND
+	var tail_gradient := Gradient.new()
+	tail_gradient.set_color(0, Color(col, 0.0))
+	tail_gradient.set_color(1, Color(hot, 0.9))
+	tail.gradient = tail_gradient
+	var tail_width := Curve.new() # pointed at the back, as wide as the orb at the front
+	tail_width.add_point(Vector2(0, 0.0))
+	tail_width.add_point(Vector2(1, 1))
+	tail.width_curve = tail_width
+	tail.material = _additive()
+	tail.z_index = 25
+	tail.visible = false
+	fx.add_child(tail)
+	tails.append(tail)
+	var sparks := CPUParticles2D.new()
+	sparks.emitting = false
+	sparks.local_coords = false # embers stay where they were dropped, drifting and fading
+	sparks.amount = maxi(10, int(40 * _fx_scale))
+	sparks.lifetime = 0.5
+	sparks.spread = 180.0
+	sparks.gravity = Vector2(0, 40)
+	sparks.initial_velocity_min = 15.0
+	sparks.initial_velocity_max = 70.0
+	sparks.scale_amount_min = 3.0
+	sparks.scale_amount_max = 7.0
+	var ember_shrink := Curve.new() # embers shrink away instead of popping out
+	ember_shrink.add_point(Vector2(0, 1))
+	ember_shrink.add_point(Vector2(1, 0))
+	sparks.scale_amount_curve = ember_shrink
+	var spark_ramp := Gradient.new()
+	spark_ramp.set_color(0, Color(hot, 1.0))
+	spark_ramp.set_color(1, Color(col, 0.0))
+	sparks.color_ramp = spark_ramp
+	sparks.material = _additive()
+	sparks.z_index = 25
+	fx.add_child(sparks)
+	parts["sparks"] = sparks
+	# `head` runs from 0 to 1, speeding up; the tail trails just 0.12 behind it (a long tail reads
+	# as a beam), and after the impact (`collapse` going from 0 to 1) it is pulled into the target
+	var paint := func(head: float, collapse: float):
+		refresh_ends.call()
+		var tail_start := clampf(head - 0.12, 0.0, 1.0)
+		tail_start = lerpf(tail_start, head, collapse)
+		var pts := PackedVector2Array()
+		for j in 13:
+			pts.append(point_at.call(lerpf(tail_start, head, j / 12.0)))
+		for ln in tails:
+			if is_instance_valid(ln):
+				ln.visible = true
+				ln.points = pts
+		var tip: Vector2 = point_at.call(head)
+		var orb_node: Node2D = alive.call("orb")
+		if orb_node != null:
+			orb_node.position = tip
+			# turn the orb along its path, so its stretch points where it is going
+			var heading: Vector2 = tip - point_at.call(maxf(head - 0.03, 0.0))
+			if heading.length() > 0.5:
+				orb_node.rotation = heading.angle()
+		var sparks_node: CPUParticles2D = alive.call("sparks")
+		if sparks_node != null:
+			sparks_node.position = tip
+		var reticle_node: Node2D = alive.call("reticle")
+		if reticle_node != null:
+			reticle_node.position = ends["b"]
+	var ft := fx.create_tween()
+	ft.tween_interval(launch_t)
+	ft.tween_callback(func():
+		var sparks_node: CPUParticles2D = alive.call("sparks")
+		if sparks_node != null:
+			sparks_node.emitting = true)
+	ft.tween_method(func(k: float):
+		paint.call(ease(k, 1.4), 0.0)
+		var orb_node: Node2D = alive.call("orb")
+		if orb_node != null:
+			# stretched along the path (squash and stretch) with a quick flicker, like a living flame
+			var flicker := 1.0 + 0.1 * sin(k * TAU * 5.0)
+			orb_node.scale = Vector2(1.35, 0.8) * flicker, 0.0, 1.0, flight)
+	ft.tween_callback(func():
+		var sparks_node: CPUParticles2D = alive.call("sparks")
+		if sparks_node != null:
+			sparks_node.emitting = false
+		var orb_node: Node2D = alive.call("orb")
+		if orb_node != null:
+			orb_node.queue_free())
+	ft.tween_method(func(c: float): paint.call(1.0, c), 0.0, 1.0, 0.12)
+	ft.tween_callback(func():
+		for ln in tails:
+			if is_instance_valid(ln):
+				ln.queue_free())
+	ft.tween_interval(sparks.lifetime)
+	ft.tween_callback(sparks.queue_free)
+
+	# --- 4. impact: a round flash, shockwave ring, sparks thrown on along the travel direction
+	var impact_t := launch_t + flight
+	var flare := Node2D.new()
+	flare.z_index = 27
+	flare.visible = false
+	flare.add_child(_glow_sprite(70.0, Color(col, 0.9)))
+	flare.add_child(_glow_sprite(30.0, Color(hot, 1.0)))
+	fx.add_child(flare)
+	var shock := _ring_line(64.0, 6.0, Color(hot, 0.95))
+	shock.z_index = 27
+	shock.visible = false
+	fx.add_child(shock)
+	var burst := CPUParticles2D.new()
+	burst.emitting = false
+	burst.one_shot = true
+	burst.explosiveness = 1.0
+	burst.amount = maxi(8, int(22 * _fx_scale))
+	burst.lifetime = 0.5
+	burst.spread = 55.0
+	burst.gravity = Vector2(0, 520)
+	burst.damping_min = 120.0
+	burst.damping_max = 220.0
+	burst.initial_velocity_min = 220.0
+	burst.initial_velocity_max = 480.0
+	burst.scale_amount_min = 2.5
+	burst.scale_amount_max = 5.0
+	var burst_ramp := Gradient.new()
+	burst_ramp.set_color(0, Color.WHITE)
+	burst_ramp.set_color(1, Color(col, 0.0))
+	burst_ramp.add_point(0.35, Color(hot, 1.0))
+	burst.color_ramp = burst_ramp
+	burst.material = _additive()
+	burst.z_index = 27
+	fx.add_child(burst)
+	parts["flare"] = flare
+	parts["shock"] = shock
+	parts["burst"] = burst
+	var it := fx.create_tween()
+	it.tween_interval(impact_t)
+	it.tween_callback(func():
+		var flare_node: Node2D = alive.call("flare")
+		var shock_node: Line2D = alive.call("shock")
+		var burst_node: CPUParticles2D = alive.call("burst")
+		if flare_node == null or shock_node == null or burst_node == null:
+			return
+		refresh_ends.call()
+		var b: Vector2 = ends["b"]
+		var travel: Vector2 = (b - point_at.call(0.85)).normalized()
+		flare_node.position = b
+		flare_node.rotation = travel.angle()
+		flare_node.scale = Vector2(0.35, 0.35)
+		flare_node.visible = true
+		shock_node.position = b
+		shock_node.scale = Vector2(0.25, 0.25)
+		shock_node.visible = true
+		burst_node.position = b
+		burst_node.direction = travel
+		burst_node.emitting = true)
+	it.tween_property(flare, "scale", Vector2(1.25, 1.25), 0.1).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	it.parallel().tween_property(shock, "scale", Vector2(1.4, 1.4), 0.36).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	it.parallel().tween_property(shock, "modulate:a", 0.0, 0.36).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	it.parallel().tween_property(flare, "modulate:a", 0.0, 0.26).set_delay(0.06)
+	it.tween_interval(0.5)
+	it.tween_callback(func():
+		for key in ["flare", "shock", "burst"]:
+			var node: Node = alive.call(key)
+			if node != null:
+				node.queue_free())
+	return charge + flight
+
+## Timing of the "espinho" hit style (see _thorn_shot): the plant rears back a little longer on
+## its first spit so the eye finds it, then fires the rest quickly; thorns fly faster than bolts.
+const THORN_CHARGE_FIRST := 0.16
+const THORN_CHARGE_NEXT := 0.06
+const THORN_FLIGHT := 0.22
+## How long a thorn stays stuck in its target (quivering, then still) before it drops off.
+const THORN_STUCK_TIME := 0.55
+## Colors of the Flor Voraz's thorns (taken from its art): crimson at the base, cream at the tip.
+const THORN_BASE_COLOR := Color("#8e1b1f")
+const THORN_TIP_COLOR := Color("#f4e6b0")
+const THORN_OUTLINE_COLOR := Color("#2a0607")
+const POLLEN_COLOR := Color("#e8f07a")
+const SAP_COLOR := Color("#7fd04a")
+
+## The "espinho" hit style: the source plant spits a thorn that sticks in its target.
+## 1. rear back: the source card leans away from the target (anticipation);
+## 2. spit: it snaps forward, throwing a puff of pollen toward the target;
+## 3. flight: a crimson-and-cream thorn flies fast on a slight arc, pointing where it goes;
+## 4. impact: the thorn sinks its tip in (a bit off-center, so a volley of thorns spreads over the
+##    target instead of piling on one spot), quivers, splashes sap and drops off a moment later.
+## Follows both ends if they move. Returns the time from t until the thorn lands.
+func _thorn_shot(from: Control, to: Control, t: float, first_shot: bool) -> float:
+	var pace := 0.55 + 0.45 * _fx_scale # big chains fire faster so a long chain does not drag
+	var charge := (THORN_CHARGE_FIRST if first_shot else THORN_CHARGE_NEXT) * pace
+	var flight := THORN_FLIGHT * pace
+	var launch_t := t + charge
+	var impact_t := launch_t + flight
+	# a thorn is thrown hard, so its arc is much flatter than a bolt's
+	var path := _shot_path(from, to, 0.12, 60.0)
+	var ends: Dictionary = path["ends"]
+	var refresh_ends: Callable = path["refresh"]
+	var point_at: Callable = path["point_at"]
+	# where on the target this thorn sticks, relative to the target's center
+	var stick_offset := Vector2(randf_range(-18.0, 18.0), randf_range(-18.0, 18.0))
+	# the lambdas below reach the shot's nodes through this dictionary instead of capturing them
+	# (same reason as in _effect_bolt: the nodes may be freed while a lambda is still scheduled)
+	var parts := {}
+	var alive := func(key: String) -> Node:
+		var node = parts.get(key)
+		return node if is_instance_valid(node) else null
+
+	# --- the thorn: a narrow spike pointing along +x, crimson base fading to a cream tip, with a
+	# dark outline and a faint red glow behind it so it reads on a small phone screen
+	var thorn := Node2D.new()
+	thorn.z_index = 26
+	thorn.visible = false
+	thorn.scale = Vector2(1.25, 1.25)
+	thorn.add_child(_glow_sprite(20.0, Color(THORN_BASE_COLOR.lightened(0.3), 0.45)))
+	var spike_points := PackedVector2Array([Vector2(22, 0), Vector2(-12, -5.5), Vector2(-17, 0), Vector2(-12, 5.5)])
+	var spike := Polygon2D.new()
+	spike.polygon = spike_points
+	spike.vertex_colors = PackedColorArray([THORN_TIP_COLOR, THORN_BASE_COLOR, THORN_BASE_COLOR.darkened(0.3), THORN_BASE_COLOR])
+	thorn.add_child(spike)
+	var outline := Line2D.new()
+	outline.points = spike_points
+	outline.closed = true
+	outline.width = 1.6
+	outline.default_color = THORN_OUTLINE_COLOR
+	outline.joint_mode = Line2D.LINE_JOINT_ROUND
+	thorn.add_child(outline)
+	fx.add_child(thorn)
+	parts["thorn"] = thorn
+	# how far the thorn's center sits back from its tip (so the tip, not the middle, goes in)
+	var tip_length := 22.0 * thorn.scale.x * 0.55
+
+	# --- 1 and 2. rear back, then snap forward toward the target as the thorn leaves
+	if from is CardView:
+		var cv: CardView = from
+		var lunge := cv.create_tween()
+		lunge.tween_interval(t)
+		lunge.tween_method(func(k: float):
+			var away: Vector2 = (ends["a"] - ends["b"]).normalized()
+			cv.shake = away * 9.0 * k, 0.0, 1.0, charge).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		lunge.tween_method(func(k: float):
+			var toward: Vector2 = (ends["b"] - ends["a"]).normalized()
+			cv.shake = toward * 12.0 * (1.0 - k), 0.0, 1.0, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		lunge.tween_callback(func(): cv.shake = Vector2.ZERO)
+	var pollen := CPUParticles2D.new()
+	pollen.emitting = false
+	pollen.one_shot = true
+	pollen.explosiveness = 0.9
+	pollen.local_coords = false
+	pollen.amount = maxi(6, int(16 * _fx_scale))
+	pollen.lifetime = 0.55
+	pollen.spread = 35.0
+	pollen.gravity = Vector2(0, 30)
+	pollen.damping_min = 180.0
+	pollen.damping_max = 260.0
+	pollen.initial_velocity_min = 80.0
+	pollen.initial_velocity_max = 230.0
+	pollen.scale_amount_min = 3.0
+	pollen.scale_amount_max = 6.5
+	var pollen_ramp := Gradient.new()
+	pollen_ramp.set_color(0, Color(POLLEN_COLOR, 0.95))
+	pollen_ramp.set_color(1, Color(SAP_COLOR, 0.0))
+	pollen.color_ramp = pollen_ramp
+	pollen.z_index = 25
+	fx.add_child(pollen)
+	parts["pollen"] = pollen
+	var pt := fx.create_tween()
+	pt.tween_interval(launch_t)
+	pt.tween_callback(func():
+		var pollen_node: CPUParticles2D = alive.call("pollen")
+		if pollen_node == null:
+			return # the table was reset mid-animation
+		refresh_ends.call()
+		pollen_node.position = ends["a"]
+		pollen_node.direction = (ends["b"] - ends["a"]).normalized()
+		pollen_node.emitting = true)
+	pt.tween_interval(pollen.lifetime + 0.1)
+	pt.tween_callback(func():
+		var pollen_node: Node = alive.call("pollen")
+		if pollen_node != null:
+			pollen_node.queue_free())
+
+	# --- 3. flight: the thorn flies along the path, turned the way it is going, with a short streak
+	var streak := Line2D.new()
+	streak.width = 5.0
+	var streak_gradient := Gradient.new()
+	streak_gradient.set_color(0, Color(THORN_BASE_COLOR, 0.0))
+	streak_gradient.set_color(1, Color(THORN_TIP_COLOR, 0.55))
+	streak.gradient = streak_gradient
+	var streak_width := Curve.new() # pointed at the back
+	streak_width.add_point(Vector2(0, 0.0))
+	streak_width.add_point(Vector2(1, 1))
+	streak.width_curve = streak_width
+	streak.z_index = 25
+	streak.visible = false
+	fx.add_child(streak)
+	parts["streak"] = streak
+	var ft := fx.create_tween()
+	ft.tween_interval(launch_t)
+	ft.tween_method(func(k: float):
+		refresh_ends.call()
+		var head := ease(k, 1.2) # speeds up a little, like a dart
+		var thorn_node: Node2D = alive.call("thorn")
+		if thorn_node == null:
+			return
+		var tip: Vector2 = point_at.call(head)
+		var heading: Vector2 = tip - point_at.call(maxf(head - 0.03, 0.0))
+		if heading.length() > 0.5:
+			thorn_node.rotation = heading.angle()
+		thorn_node.position = tip
+		thorn_node.visible = true
+		var streak_node: Line2D = alive.call("streak")
+		if streak_node != null:
+			var streak_points := PackedVector2Array()
+			var streak_start := maxf(head - 0.08, 0.0)
+			for j in 7:
+				streak_points.append(point_at.call(lerpf(streak_start, head, j / 6.0)))
+			streak_node.points = streak_points
+			streak_node.visible = true, 0.0, 1.0, flight)
+	ft.tween_callback(func():
+		var streak_node: Node = alive.call("streak")
+		if streak_node != null:
+			streak_node.queue_free())
+
+	# --- 4. impact: a small flash, sap splashing back out, and the thorn stuck in and quivering
+	var flash := _glow_sprite(34.0, Color(THORN_TIP_COLOR, 0.85))
+	flash.z_index = 27
+	flash.visible = false
+	fx.add_child(flash)
+	parts["flash"] = flash
+	var sap := CPUParticles2D.new()
+	sap.emitting = false
+	sap.one_shot = true
+	sap.explosiveness = 1.0
+	sap.local_coords = false
+	sap.amount = maxi(6, int(14 * _fx_scale))
+	sap.lifetime = 0.5
+	sap.spread = 60.0
+	sap.gravity = Vector2(0, 620)
+	sap.damping_min = 60.0
+	sap.damping_max = 120.0
+	sap.initial_velocity_min = 120.0
+	sap.initial_velocity_max = 300.0
+	sap.scale_amount_min = 2.5
+	sap.scale_amount_max = 5.5
+	# each droplet is either green sap or (less often) a red bit of the thorn, never a mix of both
+	var droplet_colors := Gradient.new()
+	droplet_colors.interpolation_mode = Gradient.GRADIENT_INTERPOLATE_CONSTANT
+	droplet_colors.set_color(0, SAP_COLOR)
+	droplet_colors.set_color(1, THORN_BASE_COLOR.lightened(0.15))
+	droplet_colors.set_offset(1, 0.7)
+	sap.color_initial_ramp = droplet_colors
+	var sap_fade := Gradient.new()
+	sap_fade.set_color(0, Color.WHITE)
+	sap_fade.set_color(1, Color(1, 1, 1, 0))
+	sap.color_ramp = sap_fade
+	sap.z_index = 27
+	fx.add_child(sap)
+	parts["sap"] = sap
+	# where the thorn is stuck right now (it follows the target if the target moves)
+	var stuck_spot := func() -> Vector2:
+		return ends["b"] + stick_offset
+	# the angle the thorn went in at, set on impact (a dictionary so the lambdas can change it)
+	var stuck_angle := {"value": 0.0}
+	var it := fx.create_tween()
+	it.tween_interval(impact_t)
+	it.tween_callback(func():
+		var flash_node: Sprite2D = alive.call("flash")
+		var sap_node: CPUParticles2D = alive.call("sap")
+		if flash_node == null or sap_node == null:
+			return
+		refresh_ends.call()
+		var hit_point: Vector2 = stuck_spot.call()
+		var travel: Vector2 = (ends["b"] - point_at.call(0.85)).normalized()
+		flash_node.position = hit_point
+		flash_node.scale *= 0.4
+		flash_node.visible = true
+		sap_node.position = hit_point
+		sap_node.direction = -travel # sap squirts back out the way the thorn came in
+		sap_node.emitting = true
+		stuck_angle["value"] = travel.angle()
+		var thorn_node: Node2D = alive.call("thorn")
+		if thorn_node != null:
+			thorn_node.rotation = travel.angle()
+			thorn_node.position = hit_point - travel * tip_length)
+	it.tween_property(flash, "scale", flash.scale * 1.1, 0.08).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	it.parallel().tween_property(flash, "modulate:a", 0.0, 0.18).set_delay(0.04)
+	# stuck: the thorn quivers (fast at first, dying down) and stays on the target if it moves
+	it.parallel().tween_method(func(k: float):
+		refresh_ends.call()
+		var thorn_node: Node2D = alive.call("thorn")
+		if thorn_node == null:
+			return
+		var quiver := deg_to_rad(9.0) * sin(k * TAU * 4.0) * pow(1.0 - k, 2.0)
+		thorn_node.rotation = stuck_angle["value"] + quiver
+		thorn_node.position = stuck_spot.call() - Vector2.from_angle(stuck_angle["value"]) * tip_length, 0.0, 1.0, THORN_STUCK_TIME)
+	# then it drops off: falls, tips over and fades
+	it.tween_method(func(k: float):
+		var thorn_node: Node2D = alive.call("thorn")
+		if thorn_node == null:
+			return
+		var resting: Vector2 = stuck_spot.call() - Vector2.from_angle(stuck_angle["value"]) * tip_length
+		thorn_node.position = resting + Vector2(0, 46.0 * k * k)
+		thorn_node.rotation = stuck_angle["value"] + 0.9 * k
+		thorn_node.modulate.a = 1.0 - k, 0.0, 1.0, 0.35)
+	it.tween_callback(func():
+		for key in ["thorn", "flash", "sap"]:
+			var node: Node = alive.call(key)
+			if node != null:
+				node.queue_free())
+	return charge + flight
+
 ## How long a revealed spell/ability stays frozen mid-screen: long enough for the
 ## opponent to read it, short for your own plays (you already know what you cast).
 ## Hot-seat shares one screen between both players, so it gets a middle value.
@@ -4513,6 +5176,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 	var last_dst := 0
 	var hit_t := 0.0
 	var trig_src := 0 ## unit whose trigger caused the events that follow (0 = none)
+	var trig_shots := 0 ## bolts that trigger already fired (only the first one charges up slowly)
 	# Leader HP: _render drew the final value, so rewind it to what it was before these events
 	# and step it down/up at each hit's moment instead of jumping straight to the end.
 	var leader_hp := {}
@@ -4541,13 +5205,17 @@ func _animate(events: Array, old: Dictionary) -> float:
 		views[uid].queue_redraw()
 	for e in events:
 		var et: String = e["type"]
+		# a new action or a blow from some other unit ends the trigger's chain of effects
+		# (damage the trigger's own unit deals outside combat still belongs to the trigger)
 		if et in ["play", "ability", "passive", "resolve", "attack", "combat_damage", "start_turn", "end_turn"] \
-				or (et in ["damage", "shield_break"] and e.get("src", 0) > 0):
+				or (et in ["damage", "shield_break"] and e.get("src", 0) > 0 and (in_combat or e["src"] != trig_src)):
 			trig_src = 0
 		# effects of a trigger fly out of their source as a bolt and land when it arrives
 		if trig_src != 0 and et in ["damage", "heal", "shield_break", "buff", "dot", "freeze", "exhaust", "stun", "condemn", "tide_mark", "spell_shield_break", "supreme_shield_break", "summon"] \
 				and e["uid"] != trig_src and actors.has(trig_src) and actors.has(e["uid"]):
-			cursor += _streak(actors[trig_src], actors[e["uid"]], cursor, CardView.TRIGGER_COL) - 0.04
+			var hit_style := _hit_style_of(actors[trig_src])
+			cursor += _effect_hit(hit_style, actors[trig_src], actors[e["uid"]], cursor, _bolt_color(e), trig_shots == 0) - 0.02
+			trig_shots += 1
 		# Sound: most events play theirs right here, at the moment their animation starts. The ones
 		# below time their own: hits and heals land at `t` (after the lunge), deaths and banishes play
 		# with the dissolve at the end, and a played card makes its sound when it lands.
@@ -4561,6 +5229,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 				if actors.has(e["uid"]):
 					_trigger_fx(actors[e["uid"]], e["trigger"], cursor)
 					trig_src = e["uid"]
+					trig_shots = 0
 					cursor += 0.3
 			"shout":
 				if actors.has(e["uid"]):

@@ -10,6 +10,7 @@
   "hp": 2,
   "keywords": ["vulneravel", "inerte"],
   "art": "vegetal/flor_voraz.webp",
+  "hit_fx": "espinho",
   "effects": [
     {
       "trigger": "on_turn_end",
