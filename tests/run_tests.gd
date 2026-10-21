@@ -6707,6 +6707,8 @@ func _test_eryon_deck() -> void:
 	g.players[baron_enemy]["leader_hp"] = 60
 	_hit(g, baron)
 	g._flush()
+	# two blows of 22 (20 ATK + 2 of Crítico 4): the Momentum is spent only after BOTH, so the declared blow keeps the surge
+	check(g.players[baron_enemy]["leader_hp"] == 16, "Barão: o gasto de Momentum espera os dois golpes, ambos com o surto (Líder com %d)" % g.players[baron_enemy]["leader_hp"])
 	check(g.players[a]["momentum"] == 0 and g.players[a]["reserve"] == 2,
 		"Barão: golpe de 10+ no Líder gasta todo o Momentum e preserva a Reserva (%d/%d)" % [g.players[a]["momentum"], g.players[a]["reserve"]])
 	g = _new_game()

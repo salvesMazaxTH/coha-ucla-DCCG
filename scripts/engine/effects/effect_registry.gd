@@ -6,6 +6,7 @@ extends RefCounted
 const AddDotEffectScript = preload("res://scripts/engine/effects/add_dot_effect.gd")
 const DeathWardEffectScript = preload("res://scripts/engine/effects/death_ward_effect.gd")
 const AutoAttackEffectScript = preload("res://scripts/engine/effects/auto_attack_effect.gd")
+const SpendAllMomentumEffectScript = preload("res://scripts/engine/effects/spend_all_momentum_effect.gd")
 
 static var ACTIONS: Dictionary = {
 	"damage": DamageEffect,
@@ -54,7 +55,7 @@ static var ACTIONS: Dictionary = {
 	"sacrifice": SacrificeEffect,
 	"fuse": FuseEffect,
 	"gain_momentum": GainMomentumEffect,
-	"spend_all_momentum": SpendAllMomentumEffect,
+	"spend_all_momentum": SpendAllMomentumEffectScript,
 	"restrict_play": RestrictPlayEffect,
 	"buff": BuffEffect,
 	"counter": CounterEffect,

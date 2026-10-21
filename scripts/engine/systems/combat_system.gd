@@ -34,6 +34,9 @@ var auto_attack_queue: Array = []
 ## The attack the player declared, waiting while the extra attacks before it resolve.
 ## {"attacker": uid, "target": uid}, or empty when no declared attack is waiting.
 var deferred_attack: Dictionary = {}
+## Players whose "spend_all_momentum" (Barão Estrondoso) fired while the declared attack was still waiting behind
+## the extra attacks: the Momentum is spent only once the whole sequence is over, so the declared blow still has the surge.
+var players_to_spend_momentum: Array = []
 
 func _init(game_state: GameState) -> void:
 	game = game_state
@@ -214,8 +217,10 @@ func finish_pending_attack() -> void:
 			deferred_attack = {}
 		elif _begin_next_auto_attack() or _resume_deferred_attack():
 			finish_pending_attack()
-		elif not has_any_attacker():
-			end_combat() # the declared attack fizzled (its attacker died) and nobody is left to attack
+		else:
+			spend_postponed_momentum() # the declared attack fizzled, so the sequence ends here
+			if not has_any_attacker():
+				end_combat() # the declared attack fizzled (its attacker died) and nobody is left to attack
 		return
 	if not reaction_declined and _offer_reaction():
 		return # the defender holds priority; their pass (or what they cast, once it resolves) comes back here
@@ -233,8 +238,31 @@ func finish_pending_attack() -> void:
 	if _begin_next_auto_attack() or _resume_deferred_attack():
 		finish_pending_attack()
 		return
+	spend_postponed_momentum()
 	if not has_any_attacker():
 		end_combat()
+
+## Asks to spend all of `player`'s Momentum: right now, unless the attack they declared is still waiting behind
+## the extra attacks (then it is spent when the sequence ends, see spend_postponed_momentum).
+func spend_all_momentum_after_attacks(player: int) -> void:
+	if deferred_attack.is_empty():
+		_spend_all_momentum(player)
+	elif not players_to_spend_momentum.has(player):
+		players_to_spend_momentum.append(player)
+
+## The extra attacks and the declared one are all over: spends the Momentum that was waiting for this moment.
+func spend_postponed_momentum() -> void:
+	var waiting := players_to_spend_momentum.duplicate()
+	players_to_spend_momentum.clear()
+	for player: int in waiting:
+		_spend_all_momentum(player)
+
+func _spend_all_momentum(player: int) -> void:
+	if int(game.players[player]["momentum"]) <= 0:
+		return
+	game.players[player]["momentum"] = 0
+	game._refresh_scaling() # a surge (11+ Momentum) may have just turned off
+	game._emit({"type": "momentum", "player": player})
 
 ## True while `player` is being asked whether to react to the attack that was just declared: the defender holds
 ## priority in the attacks window with an empty stack. The attacker never holds it there (they declare the next
