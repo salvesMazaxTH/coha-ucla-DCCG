@@ -1871,12 +1871,16 @@ func _enter_context(p: int, uid: int, target: int, second_target := 0) -> Effect
 
 ## Tells the UI that unit c's `trigger` went off, so it can show where the effects that
 ## follow come from. Only when at least one of `effects` actually runs for that trigger.
-func _announce(c: Card, effects: Array, trigger: String) -> void:
+## A card that heard an event (a "listen" effect) is the source of what it does, not the card that
+## caused the event, so it is announced too, under the name "condicional". Says whether it announced.
+func _announce(c: Card, effects: Array, trigger: String) -> bool:
 	for e in effects:
 		var entry_trigger: String = e.trigger if e is Effect else e.get("trigger", "")
 		if entry_trigger == trigger:
-			_emit({"type": "trigger", "uid": c.uid, "player": c.owner, "card_id": c.card_id, "trigger": trigger})
-			return
+			var shown_trigger := "condicional" if trigger.begins_with(Effect.LISTEN_PREFIX) else trigger
+			_emit({"type": "trigger", "uid": c.uid, "player": c.owner, "card_id": c.card_id, "trigger": shown_trigger})
+			return true
+	return false
 
 ## Tells the UI that the card running `context` yells `text` (an effect's "shout"). Cosmetic only.
 func _announce_shout(context: EffectContext, text: String) -> void:

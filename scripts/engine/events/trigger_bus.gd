@@ -105,7 +105,7 @@ func _offer(card: Card, effect: Effect, event: GameEvent) -> void:
 		card.used_turn[index] = game.turn
 	if not _spend_conditional_use(card):
 		return # the card already used all of its "conditional_uses_per_turn" this turn
-	game.queue_trigger(PendingTrigger.new(card, [effect], context))
+	game.queue_trigger(PendingTrigger.new(card, [effect], context, effect.trigger))
 	_spend_charge(card)
 
 ## Cards with "charges": N lose one use every time a Condicional (listen) effect of theirs fires, and a

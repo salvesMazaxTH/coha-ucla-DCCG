@@ -7,7 +7,7 @@ extends RefCounted
 var source: Card ## the card the triggered effects belong to (null for a Leader passive)
 var effects: Array ## Effect objects to run
 var context: EffectContext
-## Name shown to the UI through the "trigger" event ("on_death"...); "" = no announcement.
+## Name shown to the UI through the "trigger" event ("on_death", or a listen effect's own trigger...); "" = no announcement.
 var announce_as := ""
 
 func _init(source_card: Card, effect_list: Array, effect_context: EffectContext, announcement := "") -> void:
@@ -20,6 +20,8 @@ func controller() -> int:
 	return context.controller
 
 func resolve(game: GameState) -> void:
-	if source != null and announce_as != "":
-		game._announce(source, effects, announce_as)
+	var announced := source != null and announce_as != "" and game._announce(source, effects, announce_as)
+	if not announced:
+		# nobody to show as the source (a Leader passive): the UI must not keep crediting the previous trigger's card
+		game._emit({"type": "trigger_end"})
 	game._run_effects(context, effects)

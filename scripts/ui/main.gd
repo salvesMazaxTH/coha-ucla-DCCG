@@ -3741,8 +3741,7 @@ func _execution_fx(leader: LeaderView, hp_before: int, t: float, col: Color) -> 
 	ring_tween.tween_callback(ring.queue_free)
 
 	# strike: two crossing slashes, the heaviest screen shake and sparks in the effect's color
-	_execution_slash(center, Vector2(-95, -75), Vector2(95, 75), col, strike_t)
-	_execution_slash(center, Vector2(95, -75), Vector2(-95, 75), col, strike_t + 0.09)
+	_cross_slash_fx(center, Vector2(95, 75), col, strike_t)
 	_crushing_blow_fx(leader, 15, strike_t)
 	_embers(center, strike_t, col, 30)
 
@@ -3943,6 +3942,14 @@ func _shout_label(text: String, font_size: int, color: Color, max_width: float) 
 	label.reset_size()
 	label.pivot_offset = label.size / 2.0
 	return label
+
+## The "X" of every destruction: two slashes that cross over `center`, the second 0.09s after the first.
+## `half_extent` is how far each slash reaches from the center (half the width and height of the X).
+const CROSS_SLASH_SECOND_DELAY := 0.09
+const CROSS_SLASH_FORM_TIME := 0.12 ## how long one slash takes to be drawn
+func _cross_slash_fx(center: Vector2, half_extent: Vector2, col: Color, t: float) -> void:
+	_execution_slash(center, Vector2(-half_extent.x, -half_extent.y), half_extent, col, t)
+	_execution_slash(center, Vector2(half_extent.x, -half_extent.y), Vector2(-half_extent.x, half_extent.y), col, t + CROSS_SLASH_SECOND_DELAY)
 
 ## One slash of the execution: a bright line drawn from `from_offset` to `to_offset` (relative to
 ## `center`) in a few frames, then fading out.
@@ -4423,14 +4430,17 @@ func _ring_line(radius: float, width: float, col: Color) -> Line2D:
 
 ## Color of the bolt that carries an effect, by what the effect does: red-orange for damage,
 ## green for healing, ice for freezing, the marker's own color for poison/bleed and so on.
+## A summon has its own fuchsia, so a card appearing never reads as a stat bonus (lime).
 func _bolt_color(e: Dictionary) -> Color:
 	match String(e["type"]):
 		"damage", "shield_break", "spell_shield_break", "supreme_shield_break":
 			return Color("#ff5a2e")
 		"heal":
 			return Color("#5dff8a")
-		"buff", "summon":
+		"buff":
 			return Color("#b6ff7a")
+		"summon":
+			return Color("#ff6fe0")
 		"freeze":
 			return ICE
 		"dot":
@@ -5177,6 +5187,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 	var hit_t := 0.0
 	var trig_src := 0 ## unit whose trigger caused the events that follow (0 = none)
 	var trig_shots := 0 ## bolts that trigger already fired (only the first one charges up slowly)
+	var fatigue_pending := false ## a Fadiga was just announced: the Leader hit that follows is the game's rule, not a card's effect
 	# Leader HP: _render drew the final value, so rewind it to what it was before these events
 	# and step it down/up at each hit's moment instead of jumping straight to the end.
 	var leader_hp := {}
@@ -5210,8 +5221,15 @@ func _animate(events: Array, old: Dictionary) -> float:
 		if et in ["play", "ability", "passive", "resolve", "attack", "combat_damage", "start_turn", "end_turn"] \
 				or (et in ["damage", "shield_break"] and e.get("src", 0) > 0 and (in_combat or e["src"] != trig_src)):
 			trig_src = 0
+		# Fadiga damage has no source card even when a trigger's draw caused it, so no bolt flies for it.
+		# Only the hit right after the "fatigue" event counts (a Leader guard may come between them).
+		var is_fatigue_hit := fatigue_pending and et == "damage"
+		if et == "fatigue":
+			fatigue_pending = true
+		elif et != "leader_guard":
+			fatigue_pending = false
 		# effects of a trigger fly out of their source as a bolt and land when it arrives
-		if trig_src != 0 and et in ["damage", "heal", "shield_break", "buff", "dot", "freeze", "exhaust", "stun", "condemn", "tide_mark", "spell_shield_break", "supreme_shield_break", "summon"] \
+		if trig_src != 0 and not is_fatigue_hit and et in ["damage", "heal", "shield_break", "buff", "dot", "freeze", "exhaust", "stun", "condemn", "tide_mark", "spell_shield_break", "supreme_shield_break", "summon"] \
 				and e["uid"] != trig_src and actors.has(trig_src) and actors.has(e["uid"]):
 			var hit_style := _hit_style_of(actors[trig_src])
 			cursor += _effect_hit(hit_style, actors[trig_src], actors[e["uid"]], cursor, _bolt_color(e), trig_shots == 0) - 0.02
@@ -5231,6 +5249,8 @@ func _animate(events: Array, old: Dictionary) -> float:
 					trig_src = e["uid"]
 					trig_shots = 0
 					cursor += 0.3
+			"trigger_end":
+				trig_src = 0 # the effects that follow have no card to fly out of
 			"shout":
 				if actors.has(e["uid"]):
 					cursor = _shout_fx(actors[e["uid"]], String(e["text"]), cursor)
@@ -5388,6 +5408,23 @@ func _animate(events: Array, old: Dictionary) -> float:
 				cursor += 0.35
 			"mill":
 				cursor += _mill_fx(int(e["player"]), e["cards"], cursor)
+			"destroy":
+				# a "destroy" effect (from any card): the same X as the Leader's execution forms and crosses
+				# over the unit, and only then does it die the usual way (the dissolve)
+				var destroyed_view = actors.get(e["uid"])
+				if destroyed_view is CardView:
+					var cross_half_extent: Vector2 = destroyed_view.size * destroyed_view.scale * 0.55
+					_cross_slash_fx(_center_of(destroyed_view), cross_half_extent, Color("#ff4040"), cursor)
+					cursor += CROSS_SLASH_SECOND_DELAY + CROSS_SLASH_FORM_TIME + 0.12
+					# a table ghost does not wait for the end of the batch: it dissolves right after the X.
+					# (a stand-in summoned and killed in this batch dissolves at its own "death" event)
+					if ghosts.has(destroyed_view) and not short_lived.has(e["uid"]) and not dissolved_early.has(destroyed_view):
+						var destroyed_color := _elem_color(destroyed_view.card_id)
+						destroyed_view.dissolve(cursor, destroyed_color.lightened(0.2), 0.75)
+						_embers(_center_of(destroyed_view), cursor + 0.1, destroyed_color)
+						Sfx.play_in("death", cursor)
+						dissolved_early[destroyed_view] = true
+						cursor += 0.2
 			"death":
 				if short_lived.has(e["uid"]):
 					# the stand-in falls right after taking the blow, not at the end of the whole batch
