@@ -4,7 +4,7 @@
   "subtypes": ["equipment"],
   "rarity": "common",
   "essence": "sagrada",
-  "cost": 2,
+  "cost": 3,
   "art": "sagrada/manto_da_ladainha.webp",
   "effects": [
     {

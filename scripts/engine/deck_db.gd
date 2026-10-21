@@ -10,7 +10,7 @@ const MAX_COPIES := 3
 const MAX_LEGENDARY_COPIES := 2
 ## Champions + legendaries together (counting copies) in one deck.
 const MAX_ELITE_CARDS := 20
-## Cards outside the Leader's essences (neutral ones don't count); champions can never be off-essence.
+## Cards outside the Leader's essences (neutral ones don't count), of any rarity.
 const MAX_OFF_ESSENCE := 12
 ## Off-essence cards must all share one of at most this many "secondary essences" the player picks.
 ## A neutral Leader picks them like any other: every non-neutral card is off-essence for it.
@@ -126,8 +126,6 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 		if not legal:
 			off_essence += n
 			off_essence_sets.append(ess)
-			if c.get("rarity", "") == "champion":
-				errors.append("%s: Campeão não pode ser de fora da essência do Líder" % id)
 		if c.get("transform_only", false):
 			errors.append("%s: só entra em jogo por transformação" % id)
 		if c.get("undraftable", false):

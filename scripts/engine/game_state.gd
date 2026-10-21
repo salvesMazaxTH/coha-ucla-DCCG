@@ -1822,7 +1822,7 @@ func _enter_pick_is_moot(p: int, effects: Array) -> bool:
 		return false
 	var needs_the_draw := false
 	for effect in effects:
-		if effect.get("trigger", "") == "on_enter" and int(effect.get("discount_returned_this_turn", 0)) > 0:
+		if effect.get("trigger", "") == "on_enter" and effect.get("needs_drawn_card", false):
 			needs_the_draw = true
 	if not needs_the_draw:
 		return false

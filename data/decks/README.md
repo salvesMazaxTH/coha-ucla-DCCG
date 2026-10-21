@@ -12,6 +12,7 @@ data/decks/
     glacial.json   ("Nevasca Eterna", Glacial, combo da Bola de Neve)
     vael.json      ("Lâmina Voraz", Líder neutro, aggro de Crítico com convidados de outras essências)
     metalica.json  ("Montanha de Ferro", Metálica, compra e filtro com artefatos e peças, trituração do deck do oponente que vira Fadiga)
+    mare_consagrada.json  ("Maré Consagrada", Líder Naelys, Aquática com pacote de cura da Sagrada; seção "especial")
 ```
 
 ## Formato

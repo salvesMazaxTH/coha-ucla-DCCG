@@ -517,6 +517,8 @@ static func _pick_target(g: GameState, p: int, spec: String, source, self_uid :=
 		return 0
 	if spec == "ally_or_own_leader":
 		return _most_damaged(g, p, options)
+	if spec in ["enemy_artifact", "ally_artifact", "any_artifact"]:
+		return _priciest_artifact(g, options)
 	for effect in effects:
 		if effect.get("action") == "return_to_hand" and spec in ["ally_unit", "other_ally_unit"]:
 			return _pick_bounce_ally(g, options)
@@ -863,6 +865,17 @@ static func _wants_enter_tapped(g: GameState, p: int, unit: Card) -> bool:
 		strongest_enemy_atk = maxi(strongest_enemy_atk, g.strike_power_of(enemy_unit))
 	var survives := unit.shield or g.damage_after_armor(unit, strongest_enemy_atk) < g.hp_left(unit)
 	return survives or g.players[p]["leader_hp"] <= 10
+
+## The artifact pick: free-standing artifacts are not units, so they have no stats to score; the priciest one wins.
+static func _priciest_artifact(g: GameState, options: Array) -> int:
+	var best_uid := 0
+	var best_cost := -1
+	for uid in options:
+		var relic := g.find_relic(uid)
+		if relic != null and int(relic.data().get("cost", 0)) > best_cost:
+			best_cost = int(relic.data().get("cost", 0))
+			best_uid = uid
+	return best_uid
 
 ## The healing pick: whichever option (own Leader or ally unit) has the most damage to heal.
 ## Ties go to the Leader, which is listed last.

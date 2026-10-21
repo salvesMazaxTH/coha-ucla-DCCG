@@ -406,6 +406,33 @@
       },
       "essences": ["aquatica"]
     },
+    "naelys": {
+      "name": "Naelys",
+      "hp": 30,
+      "art": "aquatica/naelys_lider.webp",
+      "incarnation": "naelys",
+      "ability": {
+        "name": "Maré de Retorno",
+        "cost": 3,
+        "once_per_turn": true,
+        "speed": "lento",
+        "effects": [
+          {
+            "action": "return_to_hand",
+            "target": "ally_unit",
+            "discount_returned_this_turn": 1
+          },
+          {
+            "action": "draw",
+            "target": "none",
+            "amount": 1,
+            "if": {"compare": {"stat": "hand", "who": "self", "op": "<=", "value": 4}}
+          }
+        ],
+        "text": "Lenta. 3 Momentum, uma vez por turno: devolva uma unidade aliada à sua mão; ela custa 1 a menos neste turno. Se você tiver 4 ou menos cartas na mão depois disso, compre 1 carta."
+      },
+      "essences": ["aquatica"]
+    },
     "jeff": {
       "name": "Jeff The Death",
       "hp": 25,

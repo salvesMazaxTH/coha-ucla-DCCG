@@ -17,6 +17,7 @@ func _init() -> void:
 	_test_art_crop()
 	_test_sfx()
 	_test_off_essence()
+	_test_naelys_leader()
 	_test_secondary_essences()
 	_test_death_order()
 	_test_sacrifice_damage()
@@ -644,7 +645,7 @@ func _test_off_essence() -> void:
 	check(not DeckDB.validate_cards(leader, over).filter(func(e): return "máximo 12" in e).is_empty(), "13 cartas de fora da essência são ilegais")
 	var champ: Dictionary = base.duplicate()
 	champ["alexa_neruvya"] = 1 # a champion of another essence
-	check(not DeckDB.validate_cards(leader, champ).filter(func(e): return "Campeão" in e).is_empty(), "Campeão de fora da essência é ilegal")
+	check(DeckDB.validate_cards(leader, champ).filter(func(e): return "Campeão" in e).is_empty(), "Campeão de fora da essência é permitido (conta nas 12 de fora)")
 
 ## Fogo deck with every off-essence card removed, plus the given off-essence cards; only the secondary-essence errors are returned.
 func _secondary_essence_errors(off_essence_cards: Dictionary) -> Array:
@@ -1108,6 +1109,54 @@ func _hand_has(g: GameState, p: int, uid: int) -> bool:
 		if card.uid == uid:
 			return true
 	return false
+
+## Líder Naelys, "Maré de Retorno": Lenta, 3 Momentum, uma vez por turno. Devolve uma unidade aliada (ela custa 1 a menos
+## neste turno) e compra 1 carta só se a mão tiver 4 ou menos cartas depois da devolução (a compra não tem desconto).
+func _test_naelys_leader() -> void:
+	var ability: Dictionary = CardDB.leader("naelys")["ability"]
+	check(int(ability["cost"]) == 3 and ability["speed"] == "lento" and ability.get("once_per_turn", false), "Maré de Retorno: Lenta, custo 3, uma vez por turno")
+	check(CardDB.leader("naelys")["incarnation"] == "naelys" and DeckDB.validate("mare_consagrada").is_empty(), "Líder Naelys: o deck Maré Consagrada é legal")
+	_tcard("t_tide_ally", 2, 2, [])
+	CardDB.data()["cards"]["t_tide_ally"]["cost"] = 4
+
+	# hand of 3 before: 4 after the bounce, so the extra card is drawn
+	var g := _new_game()
+	_quiet(g)
+	var p: int = g.active
+	g.players[p]["leader_id"] = "naelys"
+	g.players[p]["ability_used"] = false
+	g.players[p]["momentum"] = 8
+	var ally := _put(g, p, "t_tide_ally")
+	g.players[p]["hand"].clear()
+	for filler in 3:
+		g.players[p]["hand"].append(Card.new(g._uid(), "t_tide_ally", p, "hand"))
+	var deck_before: int = g.players[p]["deck"].size()
+	check(g.can_use_ability(p), "Maré de Retorno: disponível com uma unidade aliada em campo")
+	g.use_ability(p, ally.uid)
+	_resolve_stack(g)
+	check(g.find_unit(ally.uid) == null and _hand_has(g, p, ally.uid), "Maré de Retorno: devolve a unidade aliada à mão")
+	check(ally.turn_discount == 1 and g.cost_of(p, CardDB.card(ally.card_id), ally) == 3, "Maré de Retorno: a unidade devolvida custa 1 a menos neste turno")
+	check(g.players[p]["hand"].size() == 5 and g.players[p]["deck"].size() == deck_before - 1, "Maré de Retorno: mão com 4 ou menos depois da devolução compra 1 carta")
+	check(int(g.players[p]["momentum"]) == 5, "Maré de Retorno: custa 3 de Momentum")
+	var drawn: Card = g.players[p]["hand"][g.players[p]["hand"].size() - 1]
+	check(drawn.discount == 0 and drawn.turn_discount == 0, "Maré de Retorno: a carta comprada não ganha desconto")
+	check(not g.can_use_ability(p), "Maré de Retorno: só uma vez por turno")
+
+	# hand of 4 before: 5 after the bounce, so nothing is drawn
+	var full := _new_game()
+	_quiet(full)
+	p = full.active
+	full.players[p]["leader_id"] = "naelys"
+	full.players[p]["ability_used"] = false
+	full.players[p]["momentum"] = 8
+	var full_ally := _put(full, p, "t_tide_ally")
+	full.players[p]["hand"].clear()
+	for filler in 4:
+		full.players[p]["hand"].append(Card.new(full._uid(), "t_tide_ally", p, "hand"))
+	var full_deck_before: int = full.players[p]["deck"].size()
+	full.use_ability(p, full_ally.uid)
+	_resolve_stack(full)
+	check(_hand_has(full, p, full_ally.uid) and full.players[p]["hand"].size() == 5 and full.players[p]["deck"].size() == full_deck_before, "Maré de Retorno: com mais de 4 cartas na mão depois da devolução não compra")
 
 func _test_ai_spell_preview() -> void:
 	# a copy looks exactly like the game it came from, and playing on it leaves the real game alone
