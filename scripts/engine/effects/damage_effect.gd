@@ -3,13 +3,16 @@ extends Effect
 ## "damage": deals `amount` damage to each target.
 ## "amount_from": "sacrificed_atk" uses the attack of the unit a "sacrifice" just killed;
 ## "self_half_armor" uses half of this unit's own Armadura, rounded up (Tharox);
-## "target_veneno_markers" deals `amount` damage per Veneno marker on the target (Hikari).
+## "target_veneno_markers" deals `amount` damage per Veneno marker on the target (Hikari);
+## "self_atk" uses this unit's current Ataque (its Ataque at the hit that fired the effect if it already died; Rália).
 ## "ally_reduce": {"essence", "amount"} = own units of that essence take only that much.
 ## "adjacent_amount": the units right beside each target also take this much (Deslizamento de Placas).
 ## "freeze": true also freezes each target that survives the damage (Mestra do Gelo Frígido).
 ## "stun": true also gives each target that survives the damage one Atordoamento marker.
 ## "amount_if_frozen": a target that is already Congelada takes this much instead of `amount` (Sabrina).
 ## "amount_if_stunned": same for a target that is already Atordoada (Layla's Ao Atacar).
+## "lifesteal": true heals the controller's Leader by the damage this effect really dealt (Rália).
+## "lifesteal_self": true (with lifesteal) also heals this unit by that same damage, if it is still on the board.
 
 var amount := 0
 var amount_from := ""
@@ -19,6 +22,8 @@ var freezes_target := false
 var stuns_target := false
 var amount_if_frozen := 0
 var amount_if_stunned := 0
+var heals_by_damage_dealt := false
+var heals_source_too := false
 
 func _read_parameters(data: Dictionary) -> void:
 	amount = int(data.get("amount", 0))
@@ -29,6 +34,8 @@ func _read_parameters(data: Dictionary) -> void:
 	stuns_target = bool(data.get("stun", false))
 	amount_if_frozen = int(data.get("amount_if_frozen", 0))
 	amount_if_stunned = int(data.get("amount_if_stunned", 0))
+	heals_by_damage_dealt = bool(data.get("lifesteal", false))
+	heals_source_too = bool(data.get("lifesteal_self", false))
 
 func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
@@ -36,6 +43,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	if amount_from == "self_half_armor":
 		var source_unit := game.find_unit(context.self_uid)
 		damage_amount = ceili(game.armor_of(source_unit) / 2.0) if source_unit != null else 0
+	if amount_from == "self_atk":
+		damage_amount = _current_attack_of_source(context)
 	var victim := game.find_unit(target_uid)
 	if amount_from == "target_veneno_markers":
 		var marker_count := int(victim.dot_markers.get("veneno", 0)) if victim != null else 0
@@ -50,14 +59,39 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		damage_amount = int(ally_reduce["amount"])
 	# the neighbours are found before any damage, so they stay the same if the target dies
 	var neighbour_uids := _neighbours_of(game, victim) if adjacent_amount > 0 else []
-	game._deal_damage(target_uid, damage_amount, null)
+	var damage_dealt := game._deal_damage(target_uid, damage_amount, null)
 	for neighbour_uid in neighbour_uids:
-		game._deal_damage(neighbour_uid, adjacent_amount, null)
+		damage_dealt += game._deal_damage(neighbour_uid, adjacent_amount, null)
+	if heals_by_damage_dealt:
+		game._heal_leader(context.controller, damage_dealt)
+		if heals_source_too:
+			_heal_source_unit(context, damage_dealt)
 	# a unit the damage already killed is gone from the board, so find_unit finds nothing to freeze
 	if freezes_target:
 		FreezeEffect.new().apply(context, target_uid)
 	if stuns_target:
 		StunEffect.new().apply(context, target_uid)
+
+## Heals the unit that owns this effect (never above its Vida); a unit that already left the board is not healed.
+func _heal_source_unit(context: EffectContext, heal_amount: int) -> void:
+	var source_unit := context.game.find_unit(context.self_uid)
+	if source_unit == null:
+		return
+	var healed := mini(heal_amount, source_unit.damage)
+	if healed > 0:
+		context.game._emit({"type": "heal", "uid": source_unit.uid, "amount": healed})
+		source_unit.damage -= healed
+		context.game.emit_unit_healed(source_unit, healed)
+
+## The Ataque of the unit that owns this effect: live while it is on the board, otherwise the
+## Ataque it had when it dealt the damage that fired an Ao Causar Dano (0 if neither is known).
+func _current_attack_of_source(context: EffectContext) -> int:
+	var source_unit := context.game.find_unit(context.self_uid)
+	if source_unit != null:
+		return context.game.atk_of(source_unit)
+	if context.event != null:
+		return int(context.event.data.get("dealer_atk", 0))
+	return 0
 
 ## The units right to the left and right of `unit` on its owner's board.
 func _neighbours_of(game: GameState, unit: Card) -> Array:

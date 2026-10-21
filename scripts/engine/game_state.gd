@@ -1888,7 +1888,7 @@ func _fire(c: Card, trigger: String, other_uid: int = 0, event_data: Dictionary 
 	bus().emit(event)
 
 ## Gatilhos (cards.json "triggers"): on_play, on_enter, on_death, before_attack, on_attack, on_challenge,
-## on_challenged, on_damaged, on_hit_leader, on_turn_start, on_turn_end. "constante" never fires
+## on_challenged, on_damaged, on_hit_leader, on_deal_combat_damage, on_turn_start, on_turn_end. "constante" never fires
 ## here: it is continuous and handled by _refresh_scaling.
 ## other_uid is the opposing unit in combat triggers (challenged unit, attacker, damage source).
 func _run_effects(context: EffectContext, effects: Array) -> void:
@@ -2290,23 +2290,15 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		# Tóxico X: combat damage that really got through leaves X Veneno markers (blocked damage returned above)
 		if _combat_damage and source != null and has_kw(source, "toxico") and dealt > 0 and c.hp_left() > 0:
 			add_dot_markers(c, "veneno", toxico_markers(source), source.data().get("toxico_ignores_immunity", false))
-	if _combat_damage and source != null and dealt > 0:
-		burn_target_of_combat_damage_dealer(source, t)
 	if source != null and has_kw(source, "roubo_de_vida"):
 		_heal_leader(source.owner, dealt)
+	# Ao Causar Dano de Combate: the unit that really dealt combat (or fight) damage fires once per damage instance.
+	# Effect damage never fires it, so a damage effect on this trigger can't fire itself again.
+	# "dealer_atk" keeps its Ataque at the moment of the hit, in case it died before the effect resolves.
+	if _combat_damage and source != null and dealt > 0:
+		_fire(source, "on_deal_combat_damage", t, {"hit_damage": dealt, "target_is_leader": t < 0,
+			"dealer_atk": atk_of(source)})
 	return dealt
-
-## A unit with "burns_on_combat_damage": N leaves N Queimadura markers on what its combat damage hit.
-func burn_target_of_combat_damage_dealer(dealer: Card, target_uid: int) -> void:
-	var burn_markers := int(dealer.data().get("burns_on_combat_damage", 0))
-	if burn_markers <= 0:
-		return
-	if target_uid < 0:
-		add_leader_dot_markers(LEADER_UID.find(target_uid), "queimadura", burn_markers)
-		return
-	var burned_unit := find_unit(target_uid)
-	if burned_unit != null and burned_unit.hp_left() > 0:
-		add_dot_markers(burned_unit, "queimadura", burn_markers)
 
 ## Puts `amount` accumulating markers of the `dot_id` kind on the unit (they resolve at its controller's turn start).
 func add_dot_markers(unit: Card, dot_id: String, amount: int, ignores_immunity := false) -> void:

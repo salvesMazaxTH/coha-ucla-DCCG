@@ -3,9 +3,10 @@ extends TargetSelector
 ## Targets taken from the trigger itself: self (the unit whose effect it is, on the board), self_card
 ## (the same card wherever it is), event_source (the card that caused a listening event), opposed_unit
 ## (the other unit in a combat trigger), attack_target (what an Ao Atacar attack is aimed at: the challenged
-## unit, or the enemy Leader when no unit was challenged) and none (the effect runs once with target 0).
+## unit, or the enemy Leader when no unit was challenged), damaged_target (what an Ao Causar Dano de Combate
+## hit: a unit that is still on the board, or a Leader) and none (the effect runs once with target 0).
 
-const NAMES := ["self", "self_card", "event_source", "opposed_unit", "attack_target", "none"]
+const NAMES := ["self", "self_card", "event_source", "opposed_unit", "attack_target", "damaged_target", "none"]
 
 func resolve(context: EffectContext, _effect: Effect) -> Array:
 	match name:
@@ -25,6 +26,9 @@ func resolve(context: EffectContext, _effect: Effect) -> Array:
 			if context.other_uid == 0:
 				return [GameState.LEADER_UID[context.opponent()]]
 			if context.game.find_unit(context.other_uid) != null:
+				return [context.other_uid]
+		"damaged_target": # an on_deal_combat_damage trigger carries the uid of what was hit (negative = a Leader)
+			if context.other_uid < 0 or context.game.find_unit(context.other_uid) != null:
 				return [context.other_uid]
 		"none":
 			return [0]

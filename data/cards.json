@@ -82,6 +82,10 @@
       "name": "Ao Atingir o Líder",
       "text": "O efeito acontece quando a unidade causa dano a um Líder."
     },
+    "on_deal_combat_damage": {
+      "name": "Ao Causar Dano de Combate",
+      "text": "O efeito acontece cada vez que a unidade causa dano de combate a uma unidade ou a um Líder (o golpe de um ataque ou de uma luta). Dano de efeitos não conta."
+    },
     "on_turn_start": {
       "name": "No Início do Turno",
       "text": "O efeito acontece no início do turno do dono da unidade."

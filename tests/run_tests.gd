@@ -115,6 +115,7 @@ func _init() -> void:
 	_test_champion_rework()
 	_test_momentum_overflow()
 	_test_eryon_deck()
+	_test_ralia_deal_damage()
 	_test_play_restrictions()
 	_test_cortina_de_fumaca()
 	_test_sim()
@@ -6714,7 +6715,7 @@ func _test_sagrada_engine() -> void:
 	check(g.card_targets(defender_side, CardDB.card("t_counter_destroy")).size() == 1, "only_if_destroys: um feitiço que destrói a unidade aliada pode ser anulado")
 
 ## Santa Maria Helena: 0/6 for five, periodic Leader healing, and one first-hit reduction per turn.
-## Jack (Attack per leftover Momentum), Kai (Queimadura on any damage he deals) and Isarelis (executes a weak enemy).
+## Jack (Attack per leftover Momentum), Kai (Queimadura on any combat damage he deals) and Isarelis (executes a weak enemy).
 ## Momentum above the normal cap of 10 (Eryon's deck): a temporary overflow, the "momentum_surge" static
 ## effect that wakes up with it, and "auto_attack" (an extra attack at a random target).
 func _test_momentum_overflow() -> void:
@@ -7075,6 +7076,80 @@ func _test_eryon_deck() -> void:
 	g._begin_search(a, {"card_ids": ["barao_estrondoso"], "fallback_draw": 1}, 0)
 	check(g.phase != "search", "Recado Urgente: sem o Barão no deck não abre escolha (Gertrudes não conta)")
 	check(g.players[a]["hand"].size() == hand_before + 1, "Recado Urgente: sem o Barão no deck compra 1 carta (%d)" % (g.players[a]["hand"].size() - hand_before))
+
+## Ao Causar Dano de Combate (on_deal_combat_damage) and Rália: every damage instance she really deals throws X damage
+## (her Ataque) at up to 4 different random enemies, the Leader included, and that damage heals her Leader.
+func _test_ralia_deal_damage() -> void:
+	var ralia_data: Dictionary = CardDB.card("ralia")
+	check(ralia_data["atk"] == 3 and ralia_data["hp"] == 7 and ralia_data["keywords"] == ["intimidacao", "roubo_de_vida"] \
+		and ralia_data.get("imune_critico", false), "Rália é 3/7 com Intimidação, Roubo de Vida e Desdém")
+
+	# hitting the face: the only enemy is the Leader, so the effect hits it once more (3 + 3)
+	var g := _new_game()
+	_quiet(g)
+	var a := g.active
+	var enemy := g.opponent(a)
+	var ralia := _put(g, a, "ralia")
+	g.players[enemy]["leader_hp"] = 99
+	g.players[a]["leader_hp"] = g.players[a]["leader_max"] - 10
+	ralia.damage = 5
+	_hit(g, ralia)
+	check(g.players[enemy]["leader_hp"] == 93, "Rália: bate 3 no Líder e o Ao Causar Dano de Combate bate mais 3 (%d)" % g.players[enemy]["leader_hp"])
+	check(g.players[a]["leader_hp"] == g.players[a]["leader_max"] - 4, "Rália: o Líder cura 3 do golpe (Roubo de Vida inato) e 3 do efeito (%d)" % g.players[a]["leader_hp"])
+	check(ralia.damage == 2, "Rália: o efeito também cura a própria Rália em 3, o golpe não (%d)" % ralia.damage)
+
+	# challenging with 4 enemy units + the Leader in the pool: exactly 4 different picks of 3 each,
+	# and the effect's own damage (no source) never fires it again
+	_tcard("t_ralia_dummy", 0, 30, [])
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	enemy = g.opponent(a)
+	ralia = _put(g, a, "ralia")
+	var dummies: Array = []
+	for i in 4:
+		dummies.append(_put(g, enemy, "t_ralia_dummy"))
+	for dummy: Card in dummies:
+		dummy.exhausted = true
+	g.players[enemy]["leader_hp"] = 99
+	g.players[a]["leader_hp"] = g.players[a]["leader_max"] - 20
+	_hit(g, ralia, dummies[0].uid)
+	var effect_hits := 0
+	var hit_twice := false
+	for dummy: Card in dummies:
+		var effect_damage := dummy.damage - (3 if dummy == dummies[0] else 0)
+		effect_hits += effect_damage / 3
+		hit_twice = hit_twice or effect_damage > 3
+	var leader_effect_damage := 99 - int(g.players[enemy]["leader_hp"])
+	effect_hits += leader_effect_damage / 3
+	hit_twice = hit_twice or leader_effect_damage > 3
+	check(effect_hits == 4 and not hit_twice, "Rália: 4 inimigos diferentes levam 3 cada (%d golpes, repetido: %s)" % [effect_hits, hit_twice])
+	check(g.players[a]["leader_hp"] == g.players[a]["leader_max"] - 5, "Rália: o golpe cura 3 e o efeito cura 12 (4 x 3) (%d)" % g.players[a]["leader_hp"])
+
+	# she dies to the counter-attack: the effect still resolves with the Ataque she had when she hit
+	_tcard("t_ralia_brute", 9, 30, [])
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	enemy = g.opponent(a)
+	ralia = _put(g, a, "ralia")
+	var brute := _put(g, enemy, "t_ralia_brute")
+	brute.exhausted = true
+	g.players[enemy]["leader_hp"] = 99
+	_hit(g, ralia, brute.uid)
+	check(g.find_unit(ralia.uid) == null, "Rália: morre no revide de 9")
+	check(brute.damage == 6 and g.players[enemy]["leader_hp"] == 96, "Rália morta: o efeito ainda usa o Ataque 3 dela (bruto %d, Líder %d)" % [brute.damage, g.players[enemy]["leader_hp"]])
+
+	# a Silenciada Rália deals her combat damage with no Ao Causar Dano
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	enemy = g.opponent(a)
+	ralia = _put(g, a, "ralia")
+	g._apply_effect(enemy, {"action": "silence", "target": "enemy_unit"}, ralia.uid)
+	g.players[enemy]["leader_hp"] = 99
+	_hit(g, ralia)
+	check(g.players[enemy]["leader_hp"] == 96, "Rália Silenciada: só o golpe de 3, sem o efeito (%d)" % g.players[enemy]["leader_hp"])
 
 ## The generic play restriction (PlayRestriction + restrict_play + add_play_restriction): filters by
 ## essence, rarity, card type and cost, "only" vs "forbid", durations in turns, and catalog validation.

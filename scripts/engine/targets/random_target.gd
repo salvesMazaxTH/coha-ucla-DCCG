@@ -1,6 +1,6 @@
 class_name RandomTarget
 extends TargetSelector
-## Random picks with the match RNG: random_enemy (any enemy unit or the enemy Leader), random_enemy_unit, random_enemy_units (up to "count" different enemy units), random_enemy_unit_twice (two independent picks, the same unit can be picked twice: 2 damage handed out one by one), random_enemy_unit_spread (the effect's "hits" independent picks over units), random_enemy_spread (the same, including the Leader). These three roll one hit at a time, only among units that still have Vida (see hits_one_at_a_time), random_frozen_enemy_unit
+## Random picks with the match RNG: random_enemy (any enemy unit or the enemy Leader), random_enemy_unit, random_enemy_units (up to "count" different enemy units; "include_leader": true lets the enemy Leader be one of them), random_enemy_unit_twice (two independent picks, the same unit can be picked twice: 2 damage handed out one by one), random_enemy_unit_spread (the effect's "hits" independent picks over units), random_enemy_spread (the same, including the Leader). These three roll one hit at a time, only among units that still have Vida (see hits_one_at_a_time), random_frozen_enemy_unit
 ## (only enemy units that are already Congeladas), most_wounded_enemy_unit (the enemy unit that took the most damage and still has Vida 3 or less, an execution; a tie is rolled; Isarelis), strongest_enemy_units (the "count" enemy units with the highest Ataque, only those with Ataque "min_atk" or more; a tie at the cut-off is rolled; David), random_enemy_and_adjacent, random_ally_unit, random_other_ally_unit (both accept the effect's "only_species": the pool only holds allies of those species). The RNG is only rolled when there is something
 ## to pick, so replays stay identical.
 ## A status effect (freeze, exhaust...) never rolls on a unit that already has that status: the pool only holds
@@ -31,6 +31,9 @@ func resolve(context: EffectContext, effect: Effect) -> Array:
 			return [enemy_pool[game.rng.randi_range(0, enemy_pool.size() - 1)]]
 		"random_enemy_units":
 			var distinct_pool: Array = []
+			# "include_leader": true puts the enemy Leader in the pool too, as one more possible pick (Rália)
+			if effect.raw.get("include_leader", false):
+				distinct_pool.append(GameState.LEADER_UID[context.opponent()])
 			for unit: Card in enemy_board:
 				if not effect.is_already_applied_to(unit):
 					distinct_pool.append(unit.uid)

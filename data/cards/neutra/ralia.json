@@ -8,14 +8,26 @@
   "essence": "neutra",
   "cost": 4,
   "atk": 3,
-  "hp": 6,
+  "hp": 7,
   "imune_critico": true,
   "keywords": [
+    "intimidacao",
     "roubo_de_vida"
   ],
   "art": "neutra/ralia.webp",
-  "effects": [],
-  "text": "Desdém: é imune a Crítico (o dano que ela recebe nunca ganha o bônus de crítico).",
+  "effects": [
+    {
+      "trigger": "on_deal_combat_damage",
+      "action": "damage",
+      "target": "random_enemy_units",
+      "count": 4,
+      "include_leader": true,
+      "amount_from": "self_atk",
+      "lifesteal": true,
+      "lifesteal_self": true
+    }
+  ],
+  "text": "Desdém: é imune a Crítico.\nAo Causar Dano de Combate: cause X de dano a até 4 inimigos aleatórios diferentes (pode incluir o Líder). X é o Ataque dela. Este efeito tem Roubo de Vida e também cura a Rália.",
   "flavor": [
     "Sorte? Eu chamo isso de preguiça de quem não sabe errar direito."
   ],
