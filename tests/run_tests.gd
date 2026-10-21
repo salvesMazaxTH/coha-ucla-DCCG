@@ -1263,6 +1263,12 @@ func _test_adjacent_armor() -> void:
 	check(g.armor_of(left) == 1 and g.armor_of(guard) == 1 and g.armor_of(right) == 1, "Armadura adjacente vem dos vizinhos, não da própria unidade")
 	check(g.armor_of(far) == 0, "unidade longe do Bastionário não recebe")
 	check(g._deal_damage(right.uid, 1, null) == 1, "dano 1 passa mesmo com a Armadura adjacente (mínimo 1)")
+	# Contador Exagerado doubles the adjacent Armadura (a text Constante), and never stacks
+	_put(g, 0, "contador_exagerado")
+	check(g.armor_of(right) == 2 and g.armor_of(left) == 2, "Contador: a Armadura adjacente conta em dobro")
+	check(g.armor_of(far) == 0, "Contador: quem não está ao lado de um Bastionário continua sem Armadura")
+	_put(g, 0, "contador_exagerado")
+	check(g.armor_of(right) == 2, "Contador: dois Contadores não dão x4 na Armadura adjacente")
 
 ## Atordoamento (stacking, auto-exhausting freeze-like status) and the cap_stats effect behind Última Badalada.
 func _test_stun_and_cap() -> void:

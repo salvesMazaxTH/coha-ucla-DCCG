@@ -7,7 +7,7 @@
   "art": "glacial/camara_de_extase.webp",
   "effects": [],
   "lethal_ward": true,
-  "text": "Se o seu Líder fosse morrer por uma instância de dano, anule totalmente esse dano e destrua esta carta. Depois, até o fim do seu próximo turno, os próximos 3 danos que o seu Líder sofrer (inclusive neste turno) são reduzidos a 0.",
+  "text": "Condicional: se o seu Líder fosse morrer por uma instância de dano, anule totalmente esse dano e destrua esta carta. Depois, até o fim do seu próximo turno, os próximos 3 danos que o seu Líder sofrer (inclusive neste turno) são reduzidos a 0.",
   "flavor": "Ficou tão feliz que esqueceu de morrer.",
   "tags": []
 }

@@ -471,7 +471,7 @@ func has_doubler(p: int, doubler_action: String, ignoring_uid := 0) -> bool:
 	return false
 
 ## 2 while the player has a "double_constants" unit (Contador Exagerado), else 1. It never stacks: two of them still give 2.
-## Only the text Constantes (scale, species_aura, graveyard_armor) are multiplied; keywords like Armadura or Rapidez are not.
+## Only the text Constantes (scale, species_aura, graveyard_armor, adjacent_armor) are multiplied; keywords like Armadura or Rapidez are not.
 func constants_multiplier(p: int) -> int:
 	return 2 if has_doubler(p, "double_constants") else 1
 
@@ -2071,6 +2071,7 @@ func _begin_look(p: int, n: int, source_uid: int, reshuffle: bool = false) -> vo
 ## Armadura a unit really has: its own (printed + buffs), plus the "graveyard_armor" it counts
 ## itself, the "species_aura" Armadura of its allies, and "adjacent_armor" from the allies
 ## standing right next to it on the board (the board order is the order the units were played).
+## The adjacent Armadura is a text Constante, so a Contador Exagerado doubles it.
 func armor_of(c: Card) -> int:
 	var total := c.armor_total() + graveyard_armor_of(c)
 	if players[c.owner]["board"].has(c):
@@ -2079,10 +2080,11 @@ func armor_of(c: Card) -> int:
 	var index := board.find(c)
 	if index < 0:
 		return total
+	var adjacent_total := 0
 	for neighbour_index in [index - 1, index + 1]:
 		if neighbour_index >= 0 and neighbour_index < board.size():
-			total += int(card_of(board[neighbour_index]).get("adjacent_armor", 0))
-	return total
+			adjacent_total += int(card_of(board[neighbour_index]).get("adjacent_armor", 0))
+	return total + adjacent_total * constants_multiplier(c.owner)
 
 ## Damage a unit takes from one hit of `amount` after its Armadura: reduced, but never below 1
 ## (a hit of 0 stays 0).

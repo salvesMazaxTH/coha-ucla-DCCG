@@ -11,7 +11,7 @@
   "keywords": [],
   "adjacent_armor": 1,
   "effects": [],
-  "text": "Unidades aliadas adjacentes a ela têm Armadura 1.",
+  "text": "Constante: unidades aliadas adjacentes a ela têm Armadura 1.",
   "flavor": "",
   "tags": []
 }

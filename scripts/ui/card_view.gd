@@ -1187,9 +1187,9 @@ func _unit_pts(c: Vector2, r: float, pts: Array) -> PackedVector2Array:
 		out.append(c + Vector2(p[0], p[1]) * r)
 	return out
 
-## True when the card has a static rule: a cost reduction, a "scale" effect or adjacent Armadura.
+## True when the card has a static rule: a cost reduction, a "scale" effect, adjacent Armadura or a spell discount.
 static func _has_always_on_rule(cd: Dictionary) -> bool:
-	if cd.has("adjacent_armor"):
+	if cd.has("adjacent_armor") or cd.has("spell_discount"):
 		return true
 	for e in cd.get("effects", []):
 		if not e.has("trigger") and not e.has("listen") and ["cost_reduction", "scale"].has(e.get("action", "")):
@@ -1198,7 +1198,7 @@ static func _has_always_on_rule(cd: Dictionary) -> bool:
 
 ## True when the card has an automatic effect that waits for a condition (see the Condicional tag).
 static func _has_conditional_rule(cd: Dictionary) -> bool:
-	if cd.has("lethal_ward") or cd.has("death_ward") or cd.has("spell_discount"):
+	if cd.has("lethal_ward") or cd.has("death_ward"):
 		return true
 	for e in cd.get("effects", []):
 		if e.has("listen"):
