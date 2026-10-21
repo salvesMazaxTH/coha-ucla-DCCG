@@ -14,6 +14,9 @@ const TAPPED_TILT_DEGREES := 90.0
 ## A tapped card shrinks only a little: lying down it is wider than its cell, so on a crowded row
 ## it overlaps its neighbours a bit instead of turning tiny.
 const TAPPED_MIN_SCALE := 0.85
+## A tapped unit steps forward: its front edge sits this many pixels closer to the middle of the table
+## than the front edge of the standing units, so "the cards in the front line" are the ones that can be attacked.
+const TAPPED_FRONT_ADVANCE := 26.0
 const COL_W := 232.0 ## right HUD column width
 const STAGE_H := 1034.0
 const BOT := 134.0 ## extra stage height under the boards: room for the Leader plate between the board and the hand
@@ -1427,6 +1430,16 @@ func _render_board(p: int, y: float) -> void:
 			v.rotation = deg_to_rad(TAPPED_TILT_DEGREES)
 			var fit_cell_scale := (cell.y - 6.0) / v.size.y
 			v.scale = Vector2.ONE * clampf(fit_cell_scale, TAPPED_MIN_SCALE, 1.0)
+			# Lying down, the card's width runs across the lane, so keeping its center would pull its front
+			# edge BACK from the standing units. Instead we place that edge ahead of theirs, toward the divider.
+			var lying_half_depth := v.size.x * v.scale.x / 2.0
+			var standing_front_edge_y := y if p == viewer else y + v.size.y # the edge facing the divider
+			var tapped_center_y: float
+			if p == viewer:
+				tapped_center_y = standing_front_edge_y - TAPPED_FRONT_ADVANCE + lying_half_depth
+			else:
+				tapped_center_y = standing_front_edge_y + TAPPED_FRONT_ADVANCE - lying_half_depth
+			v.position.y = roundf(tapped_center_y - v.size.y / 2.0)
 		_decorate_unit(v, unit, p)
 		v.left_clicked.connect(_on_unit_click)
 		v.right_clicked.connect(_show_overlay)
@@ -1448,7 +1461,8 @@ func _render_board(p: int, y: float) -> void:
 		if unit.equipment != null:
 			# the equipment card sits under its unit, peeking out toward the middle of the table
 			var eq := CardView.new().setup(unit.equipment.card_id, {"uid": unit.equipment.uid}, 1.15)
-			eq.position = v.position + Vector2(8, 22 if p == viewer else -22)
+			# anchored to the unit's resting slot, so a tapped unit stepping forward does not drag it along
+			eq.position = Vector2(v.position.x, roundf(y)) + Vector2(8, 22 if p == viewer else -22)
 			eq.right_clicked.connect(_show_overlay)
 			layer.add_child(eq)
 			layer.move_child(eq, v.get_index())
