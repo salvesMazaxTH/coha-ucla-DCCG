@@ -7,32 +7,13 @@
   "cost": 1,
   "charges": 2,
   "art": "aquatica/ampola_curativa.webp",
-  "effects": [
-    {
-      "listen": "leader_damaged",
-      "scope": "ally",
-      "zones": [
-        "relics"
-      ],
-      "action": "heal_leader",
-      "target": "own_leader",
-      "amount": 2
-    },
-    {
-      "listen": "unit_damaged",
-      "scope": "ally",
-      "zones": [
-        "relics"
-      ],
-      "when": {
-        "survived": true
-      },
-      "action": "heal_unit",
-      "target": "event_source",
-      "amount": 2
-    }
-  ],
-  "text": "2 usos.\nCondicional: quando seu Líder sofrer dano, cure 2 dele; quando uma unidade aliada sofrer dano e sobreviver, cure 2 dela. Cada cura gasta 1 uso; sem usos, é destruída.",
+  "effects": [],
+  "activated": {
+    "cost": 1,
+    "speed": "instantaneo",
+    "effects": [{ "action": "heal_unit", "target": "ally_or_own_leader", "amount": 2 }]
+  },
+  "text": "2 usos.\nAo Ativar (1) {instantaneo}: cure 2 de uma unidade aliada ou do seu Líder. Cada ativação gasta 1 uso; sem usos, é destruída.",
   "flavor": "Um gole só, e a pressa passa.",
   "tags": []
 }

@@ -1,0 +1,27 @@
+{
+  "name": "Ignisar Controle",
+  "description": "Controle Ígneo com duas formas de vencer. Labareda, Fagulhame, Reduzir a Cinzas, Pira-Mundo e D'Lorafya limpam a mesa enquanto Bola de Fogo e Erupção vão direto ao Líder. No fim, Ivan Ignisar e os Gigantes Vulcânicos, que custam 5 a menos depois de um turno de muito dano, fecham o jogo.",
+  "order": 18,
+  "section": "especial",
+  "leader": "ivan_ignisar",
+  "cards": {
+    "dragaozinho_flamejante": 2,
+    "fada_do_fogo": 3,
+    "labareda": 3,
+    "estrondador_igneo": 3,
+    "bola_de_fogo": 3,
+    "fagulhame": 2,
+    "gorvakharr": 3,
+    "vulnara": 3,
+    "irina_lancachamas": 3,
+    "erupcao": 3,
+    "reduzir_a_cinzas": 3,
+    "kael_drath_vulcano": 2,
+    "lady_vultrixana": 2,
+    "lord_of_the_shadowflame": 2,
+    "dlorafya": 2,
+    "ivan_ignisar": 1,
+    "pira_mundo": 2,
+    "gigante_vulcanico": 3
+  }
+}

@@ -99,6 +99,7 @@ var _combat_damage := false
 ## True while a spell's effects are being resolved; damage it deals (with no unit as the source) counts as
 ## "from a spell" for effects marked "only_from_spell" (Tyren).
 var _spell_resolving := false
+var _suffering_fatigue := false # true while a Fadiga hits a Leader (it is nobody's damage dealt)
 ## Cards sent to the graveyard by the latest mill (offered by mill_pick).
 var rng := RandomNumberGenerator.new()
 var _next_uid := 1
@@ -160,7 +161,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"leader_hp": int(ld["hp"]), "leader_max": int(ld["hp"]),
 		"momentum": 0, "max_momentum": 0, "reserve": 0,
 			"saved_momentum": 0, "idle_turns": 0, "next_momentum": 0, "play_restrictions": [], "leaked": 0, "unspent": 0,
-		"healing_this_turn": 0, "healing_last_turn": 0,
+		"healing_this_round": 0, "healing_last_round": 0, "damage_this_round": 0, "damage_last_round": 0,
 		"deck": deck, "hand": [], "board": [], "relics": [], "graveyard": [], "banished": [],
 		"incarnation": {"card_id": ld["incarnation"], "in_zone": true, "casts": 0},
 		"ability_used": false, "passive_used": false, "attacked": false, "fatigue": 0, "mulligan_done": false,
@@ -562,6 +563,19 @@ func scale_count(p: int, cd: Dictionary) -> int:
 			return _scale_count(p, e)
 	return -1
 
+## How far player p is from a "since your previous turn" cost reduction (Gigante Marinho / Vulcânico): {"have": N, "need": M}
+## with what they did so far and what the card asks for. Empty when the card has no such reduction. The card text shows it live.
+func window_progress(p: int, cd: Dictionary) -> Dictionary:
+	for e in cd.get("effects", []):
+		if e.get("action", "") != "cost_reduction":
+			continue
+		match e.get("per", ""):
+			"healing_since_last_turn":
+				return {"have": _since_last_turn(p, "healing"), "need": int(e.get("threshold", 1))}
+			"damage_since_last_turn":
+				return {"have": _since_last_turn(p, "damage"), "need": int(e.get("threshold", 1))}
+	return {}
+
 ## The Encarnação would go to the graveyard or be banished (from the board, the hand or anywhere else;
 ## a return to hand does NOT count: it stays a card in hand and keeps being the Encarnação).
 ## If its next cast would cost more than the Momentum cap, it retires: it goes to the bottom of
@@ -682,13 +696,19 @@ func enter_second_spec(cd: Dictionary) -> String:
 			return e["target"]
 	return ""
 
+## How much "healing" or "damage" player p did since their previous turn started: last round plus the round in progress.
+func _since_last_turn(p: int, kind: String) -> int:
+	return int(players[p][kind + "_last_round"]) + int(players[p][kind + "_this_round"])
+
 ## Momentum cost of a card for player p, after its cost_reduction effects (no trigger: they apply
 ## wherever the card is, not only on the board, so they are not "Constante")
 ## (e.g. per: "saved_momentum" =
 ## per Momentum that leaked past the Reserva by the start of the owner's turns, over the whole game; "idle_turns" =
 ## per owner turn that started with Momentum leaking past the Reserva; "unspent_momentum" = a flat "amount" off when
-## at least "threshold" plain Momentum was left over from the previous turn; "healing_last_turn" = a flat "amount" off
-## when at least "threshold" actual Vida was recovered during the owner's previous turn, including healing effects, Roubo de Vida and Regeneração). Never below 0, or below the effect's "min_cost".
+## at least "threshold" plain Momentum was left over from the previous turn; "healing_since_last_turn" = a flat "amount" off
+## when at least "threshold" actual Vida was recovered since the owner's previous turn started (that turn, the opponent's turn
+## after it and the current turn so far), including healing effects, Roubo de Vida and Regeneração;
+## "damage_since_last_turn" = the same for damage the owner dealt to the opponent's Leader). Never below 0, or below the effect's "min_cost".
 func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 	var c := int(cd["cost"]) - (card.discount + card.turn_discount if card != null else 0) # per-copy discounts; stacks with cost_reduction, same "min_cost" floor
 	if card != null:
@@ -702,7 +722,8 @@ func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 			"saved_momentum": n = int(players[p]["saved_momentum"])
 			"idle_turns": n = int(players[p]["idle_turns"])
 			"unspent_momentum": n = 1 if int(players[p]["unspent"]) >= int(e.get("threshold", 1)) else 0
-			"healing_last_turn": n = 1 if int(players[p]["healing_last_turn"]) >= int(e.get("threshold", 1)) else 0
+			"healing_since_last_turn": n = 1 if _since_last_turn(p, "healing") >= int(e.get("threshold", 1)) else 0
+			"damage_since_last_turn": n = 1 if _since_last_turn(p, "damage") >= int(e.get("threshold", 1)) else 0
 		c -= n * int(e.get("amount", 1))
 		floor_cost = maxi(floor_cost, int(e.get("min_cost", 0)))
 	var amulet_discount := glacial_discount(p, cd)
@@ -1306,9 +1327,21 @@ func activate(p: int, uid: int, target: int = 0) -> Array:
 	if ab.get("exhaust", false) and not c.has_kw("inerte"):
 		c.exhausted = true
 	_emit({"type": "trigger", "uid": uid, "player": p, "card_id": c.card_id, "trigger": "on_activate", "target": target})
+	# a card with "charges" spends one per activation; the last use destroys it, but the ability on the stack still resolves
+	var spent_last_charge := spend_charge(c)
 	stack_system().push(p, "unit_ability", uid, c.card_id, target, speed_of(ab))
+	if spent_last_charge:
+		destroy_relic(c)
 	stack_system().settle()
 	return _flush()
+
+## Spends one use of a card with "charges": N. True when it was the last one (the caller destroys the artifact).
+func spend_charge(c: Card) -> bool:
+	if c.charges_left() < 0:
+		return false
+	c.charges_used += 1
+	_emit({"type": "charge_spent", "player": c.owner, "uid": c.uid, "card_id": c.card_id, "left": c.charges_left()})
+	return c.charges_left() == 0
 
 func use_ability(p: int, target: int = 0) -> Array:
 	if not can_use_ability(p):
@@ -2199,9 +2232,11 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 	if amount <= 0:
 		return 0
 	var dealt := 0
+	var victim_owner := -1
 	var src_uid := source.uid if source != null else 0
 	if t < 0:
 		var tp := LEADER_UID.find(t)
+		victim_owner = tp
 		var hp_before: int = players[tp]["leader_hp"]
 		amount = _apply_leader_damage_guard(tp, amount, src_uid)
 		# Câmara de Êxtase aftermath: the next 3 damage instances are reduced to 0, until the end of the
@@ -2306,6 +2341,13 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		# Tóxico X: combat damage that really got through leaves X Veneno markers (blocked damage returned above)
 		if _combat_damage and source != null and has_kw(source, "toxico") and dealt > 0 and c.hp_left() > 0:
 			add_dot_markers(c, "veneno", toxico_markers(source), source.data().get("toxico_ignores_immunity", false))
+	# damage dealt to a Leader counts for the dealer, on either player's turn (Gigante Vulcânico). A source
+	# card says who the dealer is; damage with no source (spells, Marcadores) comes from the victim's opponent.
+	# Fadiga is the Leader's own deck hurting them, so it counts for nobody.
+	if dealt > 0 and victim_owner >= 0 and not _suffering_fatigue:
+		var dealer := source.owner if source != null else opponent(victim_owner)
+		if dealer != victim_owner:
+			players[dealer]["damage_this_round"] = int(players[dealer]["damage_this_round"]) + dealt
 	if source != null and has_kw(source, "roubo_de_vida"):
 		_heal_leader(source.owner, dealt)
 	# Ao Causar Dano de Combate: the unit that really dealt combat (or fight) damage fires once per damage instance.
@@ -2417,8 +2459,7 @@ func _heal_leader(p: int, amount: int) -> void:
 	if healed > 0:
 		var hp_before: int = pl["leader_hp"]
 		pl["leader_hp"] += healed
-		if active == p:
-			pl["healing_this_turn"] = int(pl["healing_this_turn"]) + healed
+		pl["healing_this_round"] = int(pl["healing_this_round"]) + healed
 		_emit({"type": "heal", "uid": LEADER_UID[p], "amount": healed, "hp_after": pl["leader_hp"]})
 		_emit_leader_healed(p, healed, hp_before)
 
@@ -2449,15 +2490,13 @@ func _raise_leader_max(p: int, amount: int) -> void:
 	pl["leader_max"] += amount
 	var hp_before: int = pl["leader_hp"]
 	pl["leader_hp"] += amount
-	if active == p:
-		pl["healing_this_turn"] = int(pl["healing_this_turn"]) + amount
+	pl["healing_this_round"] = int(pl["healing_this_round"]) + amount
 	_emit({"type": "heal", "uid": LEADER_UID[p], "amount": amount, "hp_after": pl["leader_hp"]})
 	_emit_leader_healed(p, amount, hp_before)
 
 ## Tells the listeners (Seymour) that a unit just got `amount` Vida back. Call it after the damage was removed.
 func emit_unit_healed(unit: Card, amount: int) -> void:
-	if active == unit.owner:
-		players[unit.owner]["healing_this_turn"] = int(players[unit.owner]["healing_this_turn"]) + amount
+	players[unit.owner]["healing_this_round"] = int(players[unit.owner]["healing_this_round"]) + amount
 	var healed := GameEvent.new("unit_healed", unit.owner, unit)
 	healed.amount = amount
 	healed.hp_after = unit.hp_left()
@@ -2481,7 +2520,9 @@ func suffer_fatigue(p: int) -> void:
 	var damage_amount := fatigue_next(p)
 	players[p]["fatigue"] += 1
 	_emit({"type": "fatigue", "player": p, "amount": damage_amount})
+	_suffering_fatigue = true
 	_deal_damage(LEADER_UID[p], damage_amount, null)
+	_suffering_fatigue = false
 
 func _draw(p: int, n: int) -> void:
 	var pl: Dictionary = players[p]
@@ -2738,8 +2779,6 @@ func _finish_turn() -> void:
 	for player_state: Dictionary in players:
 		for card: Card in player_state["hand"]:
 			card.turn_discount = 0
-	ending["healing_last_turn"] = int(ending["healing_this_turn"])
-	ending["healing_this_turn"] = 0
 	_emit({"type": "end_turn", "player": active})
 	_start_turn(opponent(active), true)
 
@@ -2752,6 +2791,11 @@ func _start_turn(p: int, draw: bool) -> void:
 	turn += 1
 	phase = "main"
 	var pl: Dictionary = players[p]
+	# a new round begins for p: what was healed/dealt since their previous turn started becomes "last round"
+	pl["healing_last_round"] = int(pl["healing_this_round"])
+	pl["healing_this_round"] = 0
+	pl["damage_last_round"] = int(pl["damage_this_round"])
+	pl["damage_this_round"] = 0
 	# Momentum that leaks past a full Reserva, after the opponent's turn too, is what really went
 	# unspent (Voltexz and Fulgurvoltz get cheaper by it)
 	var leaked: int = int(pl["reserve"]) + int(pl["momentum"]) - RESERVE_CAP
@@ -2832,8 +2876,7 @@ func _regenerate_all_units() -> void:
 			if has_kw(unit, "regeneracao") and unit.damage > 0:
 				var healed_amount: int = unit.damage
 				unit.damage = 0
-				if active == unit.owner:
-					players[unit.owner]["healing_this_turn"] = int(players[unit.owner]["healing_this_turn"]) + healed_amount
+				players[unit.owner]["healing_this_round"] = int(players[unit.owner]["healing_this_round"]) + healed_amount
 				_emit({"type": "heal", "uid": unit.uid, "amount": healed_amount, "regeneration": true, "hp_after": unit.hp_left()})
 
 ## Resolves every periodic marker on every unit controlled by p, and on p's Leader, at the start of that turn.

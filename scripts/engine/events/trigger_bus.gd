@@ -110,12 +110,9 @@ func _offer(card: Card, effect: Effect, event: GameEvent) -> void:
 
 ## Cards with "charges": N lose one use every time a Condicional (listen) effect of theirs fires, and a
 ## free-standing artifact is destroyed when the last one is spent (the effect already queued still resolves).
+## (Cards whose uses go on their Ao Ativar spend them in GameState.activate instead.)
 func _spend_charge(card: Card) -> void:
-	if card.charges_left() < 0:
-		return
-	card.charges_used += 1
-	game._emit({"type": "charge_spent", "player": card.owner, "uid": card.uid, "card_id": card.card_id, "left": card.charges_left()})
-	if card.charges_left() == 0:
+	if game.spend_charge(card):
 		game.destroy_relic(card)
 
 ## Cards with "conditional_uses_per_turn": N may trigger their Condicional (listen) effects, all of them

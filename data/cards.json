@@ -384,6 +384,28 @@
       },
       "essences": ["ignea"]
     },
+    "ivan_ignisar": {
+      "name": "Ivan Ignisar",
+      "hp": 30,
+      "art": "ignea/ivan_ignisar_lider.webp",
+      "incarnation": "ivan_ignisar",
+      "ability": {
+        "name": "Rescaldo",
+        "cost": 3,
+        "once_per_turn": true,
+        "speed": "lento",
+        "effects": [
+          {
+            "action": "add_dot",
+            "dot": "queimadura",
+            "target": "all_enemy_units",
+            "amount": 1
+          }
+        ],
+        "text": "Lenta. 3 Momentum, uma vez por turno: as unidades inimigas recebem 1 marcador de Queimadura."
+      },
+      "essences": ["ignea"]
+    },
     "naelthos": {
       "name": "Naelthos",
       "hp": 30,

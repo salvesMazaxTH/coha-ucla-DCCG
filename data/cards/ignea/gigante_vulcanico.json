@@ -1,0 +1,26 @@
+{
+  "name": "Gigante Vulcânico",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [],
+  "essence": "ignea",
+  "cost": 9,
+  "atk": 8,
+  "hp": 7,
+  "keywords": [
+    "sobrepujanca"
+  ],
+  "art": "ignea/gigante_vulcanico.webp",
+  "art_crop": {"x": 0.18, "y": 0.0, "zoom": 1.0},
+  "effects": [
+    {
+      "action": "cost_reduction",
+      "per": "damage_since_last_turn",
+      "threshold": 10,
+      "amount": 5
+    }
+  ],
+  "text": "Custa 5 a menos se você causou 10 ou mais de dano ao Líder inimigo desde o início do seu turno anterior.",
+  "flavor": "",
+  "tags": []
+}

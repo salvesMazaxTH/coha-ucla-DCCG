@@ -157,6 +157,14 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 		var artifact_effects: Array = CardDB.card(artifact.card_id).get("activated", {}).get("effects", [])
 		if g.can_activate(p, artifact.uid) and g.target_spec(artifact_effects) == "" and _revive_is_worth_it(g, p, artifact_effects):
 			return g.activate(p, artifact.uid)
+	for artifact: Card in g.players[p]["relics"]:
+		# Ampola / Garrafão Curativos: aimed heal, only when enough Vida is missing
+		var heal_ability: Dictionary = CardDB.card(artifact.card_id).get("activated", {})
+		var heal_effects: Array = heal_ability.get("effects", [])
+		if heal_effects.size() == 1 and heal_effects[0].get("action", "") == "heal_unit" and g.can_activate(p, artifact.uid) and _heal_is_worth_it(g, p, heal_effects[0]):
+			var heal_target := _pick_target(g, p, g.target_spec(heal_effects), heal_ability, artifact.uid, true)
+			if heal_target != 0:
+				return g.activate(p, artifact.uid, heal_target)
 	for unit: Card in g.players[p]["board"]:
 		if g.can_transform(p, unit.uid):
 			return g.transform(p, unit.uid)

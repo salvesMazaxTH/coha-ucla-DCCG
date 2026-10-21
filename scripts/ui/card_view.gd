@@ -1199,12 +1199,13 @@ func _unit_pts(c: Vector2, r: float, pts: Array) -> PackedVector2Array:
 		out.append(c + Vector2(p[0], p[1]) * r)
 	return out
 
-## True when the card has a static rule: a cost reduction, a "scale" effect, adjacent Armadura or a spell discount.
+## True when the card has a static rule: a "scale" effect, adjacent Armadura or a spell discount. Cost reductions are not
+## here: they work from the hand too, so they are a Condicional, never a Constante (which only works on the board).
 static func _has_always_on_rule(cd: Dictionary) -> bool:
 	if cd.has("adjacent_armor") or cd.has("spell_discount"):
 		return true
 	for e in cd.get("effects", []):
-		if not e.has("trigger") and not e.has("listen") and ["cost_reduction", "scale"].has(e.get("action", "")):
+		if not e.has("trigger") and not e.has("listen") and e.get("action", "") == "scale":
 			return true
 	return false
 
@@ -1213,7 +1214,7 @@ static func _has_conditional_rule(cd: Dictionary) -> bool:
 	if cd.has("lethal_ward") or cd.has("death_ward"):
 		return true
 	for e in cd.get("effects", []):
-		if e.has("listen"):
+		if e.has("listen") or (not e.has("trigger") and e.get("action", "") == "cost_reduction"):
 			return true
 	return false
 
@@ -1303,7 +1304,11 @@ func _panel_lines(cd: Dictionary) -> Array:
 			conditional_name += " (%d/%d)" % [int(inst["charges_left"]), int(cd["charges"])]
 		tags.append([conditional_name, TRIGGER_COL])
 	if cd.has("activated"):
-		tags.append([CardDB.data()["triggers"]["on_activate"]["name"], TRIGGER_COL])
+		var activate_name: String = CardDB.data()["triggers"]["on_activate"]["name"]
+		# a card whose limited "charges" are spent on the Ao Ativar (no Condicional) shows the counter here
+		if inst.has("charges_left") and not _has_conditional_rule(cd):
+			activate_name += " (%d/%d)" % [int(inst["charges_left"]), int(cd["charges"])]
+		tags.append([activate_name, TRIGGER_COL])
 	if cd.has("transform"):
 		tags.append([CardDB.data()["triggers"]["transform"]["name"], TRIGGER_COL])
 	if tags.size() <= 2 and out.is_empty():

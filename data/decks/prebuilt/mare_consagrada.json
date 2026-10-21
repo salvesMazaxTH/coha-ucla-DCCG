@@ -7,7 +7,7 @@
   "cards": {
     "mare_curativa": 1,
     "ampola_curativa": 2,
-    "espirito_da_mare": 3,
+    "espirito_da_mare": 2,
     "novica_passo_miudo": 3,
     "tritao_lanceiro": 2,
     "vigia_do_farol_do_norte": 2,
@@ -18,14 +18,14 @@
     "negacao_de_neraqa": 2,
     "garrafao_curativo": 2,
     "oraculo_das_mares": 2,
-    "sabrina": 2,
     "seymour": 3,
     "madre_badalo_torto": 2,
     "maria_helena": 1,
-    "neraqa": 2,
     "uriel": 3,
     "afogar": 2,
     "alexa_neruvya": 2,
+    "tsunami": 3,
+    "julgamento_da_era_afogada": 2,
     "gigante_marinho": 2
   }
 }

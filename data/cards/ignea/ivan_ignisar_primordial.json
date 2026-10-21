@@ -1,0 +1,36 @@
+{
+  "name": "Ivan Ignisar Primordial",
+  "type": "unit",
+  "rarity": "champion",
+  "transform_only": true,
+  "species": [
+    "dragao_primordial",
+    "dragao"
+  ],
+  "essence": "ignea",
+  "cost": 8,
+  "atk": 8,
+  "hp": 9,
+  "keywords": [
+    "voo",
+    "sobrepujanca"
+  ],
+  "art": "ignea/ivan_ignisar_transformed.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "all_enemy_units",
+      "amount": 3
+    },
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 3
+    }
+  ],
+  "text": "Ao Entrar: cause 3 de dano a todas as unidades inimigas e 3 de dano ao Líder inimigo.",
+  "flavor": "",
+  "tags": []
+}

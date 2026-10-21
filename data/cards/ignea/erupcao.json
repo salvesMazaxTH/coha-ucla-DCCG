@@ -1,0 +1,20 @@
+{
+  "name": "Erupção",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "ignea",
+  "cost": 4,
+  "speed": "lento",
+  "art": "ignea/erupcao.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "any",
+      "amount": 5
+    }
+  ],
+  "text": "Cause 5 de dano a qualquer alvo.",
+  "flavor": "",
+  "tags": []
+}

@@ -2953,8 +2953,12 @@ func _pending_tap_card_id() -> String:
 # ---------------------------------------------------------------- overlay
 
 ## " (agora: N)" for cards whose text counts something (Jeff: unit cards in the own graveyard), so the
-## player can add it to the base stats. Empty for the rest.
+## player can add it to the base stats; " (N/M)" for the Gigantes. Empty for the rest.
 func _scale_suffix(p: int, cd: Dictionary) -> String:
+	var progress := g.window_progress(p, cd)
+	if not progress.is_empty():
+		# cost reductions that ask for an amount over a window (Gigantes): how far along, e.g. "(3/8)"
+		return " (%d/%d)" % [progress["have"], progress["need"]]
 	var n := g.scale_count(p, cd)
 	return " (agora: %d)" % n if n >= 0 else ""
 
@@ -5187,9 +5191,14 @@ func _animate(events: Array, old: Dictionary) -> float:
 	var actors := views.duplicate()
 	var ghosts: Array = []
 	var exiled := {} ## uids banished by these events: they get the banish effect, not the death dissolve
+	var special_relic_exit_uids := {} ## relics whose dedicated event already animates their exit
 	for e in events:
 		if e["type"] == "banish":
 			exiled[e["uid"]] = true
+		elif e["type"] == "lethal_ward":
+			special_relic_exit_uids[int(e["uid"])] = true
+		elif e["type"] == "death_prevented":
+			special_relic_exit_uids[int(e["ward_uid"])] = true
 	var ghost_exiled: Array = [] ## parallel to ghosts
 	for k in old:
 		if k is int and k > 0 and not views.has(k) and not old[k]["hand"] and old[k]["inst"].has("damage"):
@@ -5474,6 +5483,17 @@ func _animate(events: Array, old: Dictionary) -> float:
 						Sfx.play_in("death", cursor)
 						dissolved_early[destroyed_view] = true
 						cursor += 0.2
+			"relic_destroyed":
+				# Relics do not use the unit ghost path (they have no damage field), so give every
+				# ordinary artifact removal a readable dissolve. Dedicated wards keep their own _ward_fx.
+				var relic_uid: int = int(e["uid"])
+				if not special_relic_exit_uids.has(relic_uid) and old.has(relic_uid):
+					var relic_color := _elem_color(String(e["card_id"]))
+					var relic_ghost := _ghost(String(e["card_id"]), old[relic_uid]["inst"], old[relic_uid]["pose"])
+					relic_ghost.z_index = 20
+					relic_ghost.dissolve(cursor, relic_color.lightened(0.2), 0.75)
+					_embers(_center_of(relic_ghost), cursor + 0.1, relic_color)
+					Sfx.play_in("death", cursor)
 			"death":
 				if short_lived.has(e["uid"]):
 					# the stand-in falls right after taking the blow, not at the end of the whole batch

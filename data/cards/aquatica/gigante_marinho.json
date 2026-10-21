@@ -14,12 +14,12 @@
   "effects": [
     {
       "action": "cost_reduction",
-      "per": "healing_last_turn",
-      "threshold": 5,
+      "per": "healing_since_last_turn",
+      "threshold": 8,
       "amount": 5
     }
   ],
-  "text": "Custa 5 a menos se você recuperou 5 ou mais de Vida no seu turno anterior.",
+  "text": "Custa 5 a menos se você recuperou 8 ou mais de Vida desde o início do seu turno anterior.",
   "flavor": "",
   "tags": []
 }

@@ -42,7 +42,7 @@ func _init() -> void:
 	_test_cleanse()
 	_test_sagrada_board_control()
 	_test_eletrica()
-	_test_intimidacao()
+	_test_ignisar()
 	_test_play_slot()
 	_test_ossuario()
 	_test_yresa_fusion()
@@ -532,41 +532,49 @@ func _test_supreme_shield() -> void:
 	check(g.find_relic(bulwark.uid) == null, "sem o Escudo Supremo, o segundo Desmontador destrói o Baluarte")
 
 func _test_limited_charges() -> void:
-	# Ampola Curativa: 2 usos; cura o Líder ao sofrer dano e a unidade aliada que sofrer dano e sobreviver
+	# Ampola Curativa: 2 usos; Ao Ativar (1) Instantâneo cura 2 da unidade aliada ou do Líder escolhido
 	var g := _new_game()
 	_quiet(g)
-	var vial := Card.new(g._uid(), "ampola_curativa", 0)
-	g._place_relic(0, vial)
+	var p: int = g.active
+	var vial := Card.new(g._uid(), "ampola_curativa", p)
+	g._place_relic(p, vial)
 	g._flush()
 	check(vial.charges_left() == 2, "Ampola Curativa começa com 2 usos")
-	check(Card.from_dict(vial.to_dict(), "relics", 0).charges_left() == 2, "usos intactos no to_dict/from_dict")
-	var leader_uid: int = GameState.LEADER_UID[0]
-	g.players[0]["leader_hp"] -= 6
-	var leader_before: int = g.players[0]["leader_hp"]
-	g._deal_damage(leader_uid, 3, null)
-	g._check_state()
-	g._flush()
-	check(g.players[0]["leader_hp"] == leader_before - 3 + 2, "Ampola cura 2 do Líder que sofreu dano")
-	check(vial.charges_left() == 1, "a cura do Líder gastou 1 uso")
-	check(Card.from_dict(vial.to_dict(), "relics", 0).charges_left() == 1, "usos gastos sobrevivem ao to_dict/from_dict")
-	# a lethal hit on an ally unit does not trigger it; a surviving hit does
-	var tough := _put(g, 0, "vigia_do_farol_do_norte")
-	g._deal_damage(tough.uid, 1000, null)
-	g._check_state()
-	g._flush()
-	check(vial.charges_left() == 1 and g.find_relic(vial.uid) != null, "golpe letal em unidade aliada não gasta uso")
-	var survivor := _put(g, 0, "sentinela_coral")
-	var survivor_hp := survivor.hp_left()
-	g._deal_damage(survivor.uid, 1, null)
-	g._check_state()
-	g._flush()
-	check(survivor.hp_left() == survivor_hp, "Ampola cura a unidade aliada que sofreu dano e sobreviveu")
-	check(g.find_relic(vial.uid) == null and g.players[0]["graveyard"].has(vial), "no último uso a Ampola é destruída")
-	# Garrafão Curativo is strictly better: more uses, more healing, higher cost
+	check(Card.from_dict(vial.to_dict(), "relics", p).charges_left() == 2, "usos intactos no to_dict/from_dict")
+	g.players[p]["momentum"] = 5
+	var leader_uid: int = GameState.LEADER_UID[p]
+	g.players[p]["leader_hp"] -= 6
+	var leader_before: int = g.players[p]["leader_hp"]
+	check(g.can_activate(p, vial.uid), "Ampola: pode ativar na fase principal")
+	g.activate(p, vial.uid, leader_uid)
+	check(g.players[p]["momentum"] == 4, "Ampola: a ativação custa 1")
+	check(g.speed_of(CardDB.card("ampola_curativa")["activated"]) == "instantaneo", "Ampola: a ativação é Instantânea")
+	_resolve_stack(g)
+	check(g.players[p]["leader_hp"] == leader_before + 2, "Ampola cura 2 do Líder escolhido")
+	check(vial.charges_left() == 1 and g.find_relic(vial.uid) != null, "a ativação gastou 1 uso")
+	check(Card.from_dict(vial.to_dict(), "relics", p).charges_left() == 1, "usos gastos sobrevivem ao to_dict/from_dict")
+	# the other target: an ally unit chosen by the player; the last use destroys the Ampola but the heal still lands
+	var wounded := _put(g, p, "vigia_do_farol_do_norte")
+	wounded.damage = 3
+	var wounded_hp := wounded.hp_left()
+	g.activate(p, vial.uid, wounded.uid)
+	check(g.find_relic(vial.uid) == null and g.players[p]["graveyard"].has(vial), "no último uso a Ampola é destruída")
+	_resolve_stack(g)
+	check(wounded.hp_left() == wounded_hp + 2, "Ampola cura 2 da unidade aliada escolhida, mesmo destruída")
+	# the enemy Leader and enemy units are not valid targets
+	var g2 := _new_game()
+	_quiet(g2)
+	var p2: int = g2.active
+	var jug := Card.new(g2._uid(), "garrafao_curativo", p2)
+	g2._place_relic(p2, jug)
+	g2.players[p2]["momentum"] = 5
+	check(not g2.valid_targets(p2, "ally_or_own_leader").has(GameState.LEADER_UID[g2.opponent(p2)]), "Garrafão: Líder inimigo não é alvo")
+	# Garrafão Curativo is strictly better: more uses, more healing, higher cost to play; same activation cost
 	var small: Dictionary = CardDB.card("ampola_curativa")
 	var big: Dictionary = CardDB.card("garrafao_curativo")
 	check(int(big["charges"]) > int(small["charges"]) and int(big["cost"]) > int(small["cost"])
-		and int(big["effects"][0]["amount"]) > int(small["effects"][0]["amount"]), "Garrafão: mais usos, custo e cura que a Ampola")
+		and int(big["activated"]["effects"][0]["amount"]) > int(small["activated"]["effects"][0]["amount"])
+		and int(big["activated"]["cost"]) == 1 and int(small["activated"]["cost"]) == 1, "Garrafão: mais usos, custo e cura que a Ampola; ativação custa 1")
 
 func _test_artifact_subtypes() -> void:
 	# Subtipos de artefato são comparáveis: filtro "subtype" nos alvos de artefato e no match do PlayRestriction
@@ -4338,6 +4346,85 @@ func _test_ban() -> void:
 	var snap: Dictionary = StateView.snapshot(g, 1)
 	check(snap["players"][0]["banished"].all(func(c): return c["card_id"] == ""), "oponente não vê as cartas banidas da mão")
 	check(StateView.snapshot(g, 0)["players"][0]["banished"].all(func(c): return c["card_id"] != ""), "o dono vê as próprias banidas")
+
+func _test_ignisar() -> void:
+	var ability: Dictionary = CardDB.leader("ivan_ignisar")["ability"]
+	check(CardDB.leader("ivan_ignisar")["incarnation"] == "ivan_ignisar" and DeckDB.validate("ignisar_controle").is_empty(), "Ivan Ignisar: o deck Ignisar Controle é legal")
+	check(int(ability["cost"]) == 3 and ability["speed"] == "lento" and ability.get("once_per_turn", false), "Rescaldo: Lenta, custo 3, uma vez por turno")
+	var ivan: Dictionary = CardDB.card("ivan_ignisar")
+	check(int(ivan["cost"]) == 7 and ivan["species"] == ["dragao_primordial", "dragao"], "Ivan Ignisar: custo 7, Dragão Primordial e Dragão")
+	# Gigante Vulcânico: 9 base, 5 less when the owner dealt 10+ damage to the opponent's Leader in their previous turn
+	var gv: Dictionary = CardDB.card("gigante_vulcanico")
+	var g := _new_game()
+	_quiet(g)
+	var a := g.active
+	var o := g.opponent(a)
+	var foe := _put(g, o, "kael_drath_vulcano")
+	var own := _put(g, a, "kael_drath_vulcano")
+	check(g.cost_of(a, gv) == 9 and int(gv["atk"]) == 8 and int(gv["hp"]) == 7, "gigante vulcânico: 8/7 custando 9")
+	g._deal_damage(foe.uid, 4, null) # damage to units (enemy or own) does not count
+	g._deal_damage(GameState.LEADER_UID[o], 5, null)
+	g._deal_damage(own.uid, 4, null)
+	g.end_turn(a)
+	check(g.cost_of(a, gv) == 9, "gigante vulcânico: 5 de dano ao Líder -> custo base")
+	# the opponent's turn counts too: 5 more damage to their Leader while it is their turn makes 10 in total
+	check(g.window_progress(a, gv) == {"have": 5, "need": 10}, "gigante vulcânico: o texto mostra 5 de 10 (faltam 5)")
+	g._deal_damage(GameState.LEADER_UID[o], 5, null)
+	check(g.window_progress(a, gv) == {"have": 10, "need": 10}, "gigante vulcânico: o texto mostra 10 de 10")
+	check(g.cost_of(a, gv) == 4, "gigante vulcânico: dano causado no turno do oponente também conta")
+	g.end_turn(o)
+	check(g.cost_of(a, gv) == 4, "gigante vulcânico: a janela ainda cobre o turno anterior no turno seguinte")
+	# damage to the dealer's own Leader and Fadiga count for the opponent / nobody, never for the dealer
+	g._deal_damage(GameState.LEADER_UID[a], 9, null)
+	g.suffer_fatigue(o)
+	check(g.players[a]["damage_this_round"] == 0 and g.players[o]["damage_this_round"] == 9, "gigante vulcânico: dano ao próprio Líder conta para o oponente; Fadiga não conta para ninguém")
+	g.end_turn(a)
+	g.end_turn(o)
+	g._deal_damage(foe.uid, 9, null)
+	check(g.cost_of(a, gv) == 9, "gigante vulcânico: só dano a unidades, e a janela anterior já passou -> custo base")
+	# Gigante Marinho: the same window for Vida recovered (the healing of the opponent's turn counts too)
+	var gm: Dictionary = CardDB.card("gigante_marinho")
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	o = g.opponent(a)
+	g.players[a]["leader_hp"] = 10
+	check(g.cost_of(a, gm) == int(gm["cost"]), "gigante marinho: sem cura -> custo base")
+	g._heal_leader(a, 3)
+	g.end_turn(a)
+	check(g.cost_of(a, gm) == int(gm["cost"]), "gigante marinho: 3 de cura -> custo base")
+	check(g.window_progress(a, gm) == {"have": 3, "need": 8}, "gigante marinho: o texto mostra 3 de 8 (faltam 5)")
+	g._heal_leader(a, 5) # healed during the opponent's turn
+	check(g.cost_of(a, gm) == int(gm["cost"]) - 5, "gigante marinho: cura no turno do oponente conta (3 + 5 = 8)")
+	g.end_turn(o)
+	check(g.cost_of(a, gm) == int(gm["cost"]) - 5, "gigante marinho: a janela ainda cobre o turno anterior no turno seguinte")
+	g.end_turn(a)
+	g.end_turn(o)
+	check(g.cost_of(a, gm) == int(gm["cost"]), "gigante marinho: a cura antiga saiu da janela -> custo base")
+	# the cost reduction is a Condicional on the card (it works from the hand), never a Constante
+	for giant_id in ["gigante_vulcanico", "gigante_marinho", "gigante_eletrico"]:
+		var giant_data: Dictionary = CardDB.card(giant_id)
+		check(CardView._has_conditional_rule(giant_data) and not CardView._has_always_on_rule(giant_data), "%s: redução de custo é Condicional, não Constante" % giant_id)
+	# Transformar (8): Ivan Ignisar becomes the Primordial in place, still the Encarnação, and its Ao Entrar counts as damage dealt
+	var primordial: Dictionary = CardDB.card("ivan_ignisar_primordial")
+	check(ivan["transform"]["into"] == "ivan_ignisar_primordial" and int(ivan["transform"]["cost"]) == 8 and primordial.get("transform_only", false), "Ivan Ignisar: Transformar (8) em Ivan Ignisar Primordial")
+	_tcard("t_ivan_foe", 1, 5, [])
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	o = g.opponent(a)
+	var dragon := _put(g, a, "ivan_ignisar")
+	dragon.incarnation = true
+	var victim := _put(g, o, "t_ivan_foe")
+	var leader_before: int = g.players[o]["leader_hp"]
+	g.players[a]["momentum"] = 8
+	g.players[a]["reserve"] = 0
+	g.players[a]["damage_this_round"] = 0 # the base form's Ao Entrar already hit the Leader
+	g.transform(a, dragon.uid)
+	_resolve_stack(g)
+	check(dragon.card_id == "ivan_ignisar_primordial" and dragon.incarnation and g.atk_of(dragon) == 8 and g.has_kw(dragon, "voo") and g.has_kw(dragon, "sobrepujanca"), "Ivan Ignisar Primordial: 8/9 Voo Sobrepujança, ainda a Encarnação")
+	check(victim.damage == 3 and g.players[o]["leader_hp"] == leader_before - 3 and g.players[a]["damage_this_round"] == 3, "Ivan Ignisar Primordial: Ao Entrar causa 3 às unidades inimigas e 3 ao Líder")
+	check(not g.can_transform(a, dragon.uid), "Ivan Ignisar Primordial: não transforma de novo")
 
 func _eletrica_game() -> GameState:
 	var g := GameState.new("eletrica_greedy", "fogo", 42)
