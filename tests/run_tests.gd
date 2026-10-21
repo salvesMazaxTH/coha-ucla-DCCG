@@ -1476,7 +1476,22 @@ func _test_silence_keeps_ally_auras() -> void:
 	g._apply_effect(0, {"action": "silence", "target": "enemy_unit"}, source.uid)
 	g._check_state()
 	check(g.atk_of(angel) == 2 and g.armor_of(angel) == 0, "aura: silenciar quem carrega a Constante desliga o bônus (%d, arm %d)" % [g.atk_of(angel), g.armor_of(angel)])
-	check(g.find_unit(angel.uid) == null, "aura: sem a aura a Vida cai e o Anjo ferido morre, como se a fonte tivesse saído de campo")
+	check(g.find_unit(angel.uid) != null and g.hp_left(angel) == 1, "aura: perder a aura (fonte silenciada) nunca mata o aliado ferido, sobra 1 Vida (%d)" % g.hp_left(angel))
+
+	# the aura source dying (not just silenced) does not kill the wounded ally either
+	g = _new_game()
+	_quiet(g)
+	source = _put(g, 0, "t_sil_aura_source")
+	angel = _put(g, 0, "t_sil_aura_angel")
+	g._refresh_scaling()
+	angel.damage = 4
+	source.damage = source.hp
+	g._check_state()
+	check(g.find_unit(source.uid) == null, "aura: a fonte morreu")
+	check(g.find_unit(angel.uid) != null and g.hp_left(angel) == 1, "aura: a fonte morrer também não mata o aliado ferido (sobra %d)" % g.hp_left(angel))
+	angel.damage = angel.hp
+	g._check_state()
+	check(g.find_unit(angel.uid) == null, "aura: dano de verdade ainda mata")
 
 	# adjacent_armor: the Armadura comes from the neighbour's Constante
 	g = _new_game()

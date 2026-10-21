@@ -424,14 +424,19 @@ func graveyard_units(p: int) -> int:
 
 ## Recomputes the "constante" effects of board units. Action "scale" gives
 ## atk/hp per counted thing (e.g. +2/+2 per unit card in the own graveyard).
+## A living unit never dies from LOSING a bonus (an aura source silenced, banished or killed, a smaller
+## graveyard...): it stays with 1 Vida left, like losing an equipment. Only damage kills.
 func _refresh_scaling() -> void:
 	for p in 2:
 		for c: Card in players[p]["board"]:
+			var was_alive := c.hp_left() >= 1
 			var b := scale_bonus(p, card_of(c))
 			var aura := species_aura_bonus(c)
 			var surge := momentum_surge_of(p, c)
 			c.bonus_atk = b.x + aura.x + int(surge.get("atk", 0))
 			c.bonus_hp = b.y + aura.y
+			if was_alive:
+				c.keep_alive_with_one_hp()
 			c.has_bonus = true
 			var surge_keywords: Array = surge.get("keywords", [])
 			# Escudo is a one-use flag, not a keyword that stays on: it is granted once, at the moment the surge turns on
