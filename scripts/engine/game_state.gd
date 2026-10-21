@@ -600,7 +600,7 @@ func attack_targets(attacker: Card) -> Array:
 ## Effect spec of a card/ability that needs a chosen target, or "" if none.
 func target_spec(effects: Array) -> String:
 	for e in effects:
-		if e.get("target", "") in ["enemy_unit", "enemy_flying_unit", "enemy_taunt_unit", "weak_enemy_unit", "ally_unit", "other_ally_unit", "ally_or_own_leader", "any_unit", "any", "enemy_stack", "enemy_artifact"]:
+		if e.get("target", "") in ["enemy_unit", "enemy_flying_unit", "enemy_taunt_unit", "weak_enemy_unit", "ally_unit", "other_ally_unit", "ally_or_own_leader", "any_unit", "any", "enemy_stack", "enemy_artifact", "ally_artifact", "any_artifact"]:
 			return e["target"]
 	return ""
 
@@ -856,7 +856,7 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 			for it in stack:
 				if it["player"] != p and not stack_system().is_uncounterable(it): out.append(it["sid"])
 	if not effects.is_empty():
-		out = out.filter(func(target_uid: int) -> bool: return meets_marker_requirement(target_uid, spec, effects))
+		out = out.filter(func(target_uid: int) -> bool: return meets_marker_requirement(target_uid, spec, effects) and meets_subtype_requirement(target_uid, spec, effects))
 	return out
 
 ## False when an effect aimed with `spec` only works on a target holding enough markers ("requires_markers":
@@ -868,6 +868,10 @@ func meets_marker_requirement(target_uid: int, spec: String, effects: Array) -> 
 		if requirement.is_empty() or effect.get("target", "") != spec:
 			continue
 		var dot_id := String(requirement.get("dot", ""))
+		"ally_artifact": # a free-standing artifact on the player's own side
+			for c: Card in players[p]["relics"]: out.append(c.uid)
+		"any_artifact": # a free-standing artifact on either side
+			for c: Card in players[p]["relics"] + players[opponent(p)]["relics"]: out.append(c.uid)
 		var needed := int(requirement.get("amount", 0))
 		var held := 0
 		if target_uid < 0:
@@ -875,6 +879,19 @@ func meets_marker_requirement(target_uid: int, spec: String, effects: Array) -> 
 		else:
 			var unit := find_unit(target_uid)
 			held = int(unit.dot_markers.get(dot_id, 0)) if unit != null else 0
+## False when an effect aimed with `spec` only works on artifacts of one subtype ("subtype": "local" on
+## "destroy_artifact" = "destroy a Local") and this target is an artifact of another subtype.
+## Effects aimed at another spec, or without "subtype", ignore this check.
+func meets_subtype_requirement(target_uid: int, spec: String, effects: Array) -> bool:
+	for effect in effects:
+		var wanted_subtype := String(effect.get("subtype", ""))
+		if wanted_subtype == "" or effect.get("target", "") != spec:
+			continue
+		var artifact := find_relic(target_uid)
+		if artifact == null or not artifact.data().get("subtypes", []).has(wanted_subtype):
+			return false
+	return true
+
 		if held < needed:
 			return false
 	return true
@@ -2240,6 +2257,7 @@ func burn_target_of_combat_damage_dealer(dealer: Card, target_uid: int) -> void:
 	var burn_markers := int(dealer.data().get("burns_on_combat_damage", 0))
 	if burn_markers <= 0:
 		return
+		unit_hurt.data = {"survived": c.hp_left() > 0} # a "when": {"survived": true} listener ignores lethal hits (Ampola Curativa)
 	if target_uid < 0:
 		add_leader_dot_markers(LEADER_UID.find(target_uid), "queimadura", burn_markers)
 		return

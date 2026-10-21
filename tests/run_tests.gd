@@ -21,6 +21,8 @@ func _init() -> void:
 	_test_sacrifice_damage()
 	_test_spell_shield_scope()
 	_test_supreme_shield()
+	_test_limited_charges()
+	_test_artifact_subtypes()
 	_test_twin_bolts()
 	_test_setup()
 	_test_first_player()
@@ -525,6 +527,79 @@ func _test_supreme_shield() -> void:
 	check(g.find_relic(bulwark.uid) == null, "sem o Escudo Supremo, o segundo Desmontador destrói o Baluarte")
 
 func _test_death_order() -> void:
+func _test_limited_charges() -> void:
+	# Ampola Curativa: 2 usos; cura o Líder ao sofrer dano e a unidade aliada que sofrer dano e sobreviver
+	var g := _new_game()
+	_quiet(g)
+	var vial := Card.new(g._uid(), "ampola_curativa", 0)
+	g._place_relic(0, vial)
+	g._flush()
+	check(vial.charges_left() == 2, "Ampola Curativa começa com 2 usos")
+	check(Card.from_dict(vial.to_dict(), "relics", 0).charges_left() == 2, "usos intactos no to_dict/from_dict")
+	var leader_uid: int = GameState.LEADER_UID[0]
+	g.players[0]["leader_hp"] -= 6
+	var leader_before: int = g.players[0]["leader_hp"]
+	g._deal_damage(leader_uid, 3, null)
+	g._check_state()
+	g._flush()
+	check(g.players[0]["leader_hp"] == leader_before - 3 + 2, "Ampola cura 2 do Líder que sofreu dano")
+	check(vial.charges_left() == 1, "a cura do Líder gastou 1 uso")
+	check(Card.from_dict(vial.to_dict(), "relics", 0).charges_left() == 1, "usos gastos sobrevivem ao to_dict/from_dict")
+	# a lethal hit on an ally unit does not trigger it; a surviving hit does
+	var tough := _put(g, 0, "vigia_do_farol_do_norte")
+	g._deal_damage(tough.uid, 1000, null)
+	g._check_state()
+	g._flush()
+	check(vial.charges_left() == 1 and g.find_relic(vial.uid) != null, "golpe letal em unidade aliada não gasta uso")
+	var survivor := _put(g, 0, "sentinela_coral")
+	var survivor_hp := survivor.hp_left()
+	g._deal_damage(survivor.uid, 1, null)
+	g._check_state()
+	g._flush()
+	check(survivor.hp_left() == survivor_hp, "Ampola cura a unidade aliada que sofreu dano e sobreviveu")
+	check(g.find_relic(vial.uid) == null and g.players[0]["graveyard"].has(vial), "no último uso a Ampola é destruída")
+	# Garrafão Curativo is strictly better: more uses, more healing, higher cost
+	var small: Dictionary = CardDB.card("ampola_curativa")
+	var big: Dictionary = CardDB.card("garrafao_curativo")
+	check(int(big["charges"]) > int(small["charges"]) and int(big["cost"]) > int(small["cost"])
+		and int(big["effects"][0]["amount"]) > int(small["effects"][0]["amount"]), "Garrafão: mais usos, custo e cura que a Ampola")
+
+func _test_artifact_subtypes() -> void:
+	# Subtipos de artefato são comparáveis: filtro "subtype" nos alvos de artefato e no match do PlayRestriction
+	var plain_card := {"name": "t_plain_artifact", "type": "artifact", "subtypes": [], "rarity": "common", "essence": "neutra",
+		"cost": 1, "effects": [], "text": "", "flavor": "", "art": "", "tags": []}
+	var local_card := plain_card.duplicate(true)
+	local_card["name"] = "t_local_artifact"
+	local_card["subtypes"] = ["local"]
+	CardDB.data()["cards"]["t_plain_artifact"] = plain_card
+	CardDB.data()["cards"]["t_local_artifact"] = local_card
+	var g := _new_game()
+	_quiet(g)
+	var enemy_plain := Card.new(g._uid(), "t_plain_artifact", 1)
+	var enemy_local := Card.new(g._uid(), "t_local_artifact", 1)
+	var own_local := Card.new(g._uid(), "t_local_artifact", 0)
+	g._place_relic(1, enemy_plain)
+	g._place_relic(1, enemy_local)
+	g._place_relic(0, own_local)
+	g._flush()
+	var destroy_any := [{"action": "destroy_artifact", "target": "enemy_artifact"}]
+	var destroy_local := [{"trigger": "on_play", "action": "destroy_artifact", "target": "enemy_artifact", "subtype": "local"}]
+	check(g.valid_targets(0, "enemy_artifact", 0, false, destroy_any).size() == 2, "enemy_artifact sem subtype: qualquer artefato inimigo")
+	check(g.valid_targets(0, "enemy_artifact", 0, false, destroy_local) == [enemy_local.uid], "enemy_artifact com subtype local: só o Local inimigo")
+	check(g.valid_targets(0, "ally_artifact") == [own_local.uid], "ally_artifact: só os artefatos do próprio lado")
+	check(g.valid_targets(0, "any_artifact").size() == 3, "any_artifact: artefatos dos dois lados")
+	check(g.valid_targets(0, "any_artifact", 0, false, [{"target": "any_artifact", "subtype": "equipment"}]).is_empty(), "subtype equipment não pega artefato solto")
+	# a pick that stops being valid fizzles on resolution (the effect rechecks the subtype)
+	g._run_effect_dicts(0, destroy_local, "on_play", enemy_plain.uid, 0)
+	check(g.find_relic(enemy_plain.uid) != null, "destroy_artifact com subtype não destrói artefato de outro subtipo")
+	g._run_effect_dicts(0, destroy_local, "on_play", enemy_local.uid, 0)
+	check(g.find_relic(enemy_local.uid) == null, "destroy_artifact com subtype destrói o artefato daquele subtipo")
+	# PlayRestriction: "não pode jogar Locais"
+	var forbid_local := {"mode": "forbid", "match": {"subtype": ["local"]}}
+	check(PlayRestriction.blocks(forbid_local, local_card) and not PlayRestriction.blocks(forbid_local, plain_card), "restriction subtype: barra só os Locais")
+	check(PlayRestriction.error_of(forbid_local, CardDB.data()["essences"]) == "", "restriction subtype local é válida")
+	check(PlayRestriction.error_of({"mode": "forbid", "match": {"subtype": ["nada"]}}, CardDB.data()["essences"]) != "", "restriction subtype desconhecido é recusado")
+
 	# simultaneous deaths on both sides resolve active player first (APNAP)
 	for first in 2:
 		var g := _new_game()

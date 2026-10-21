@@ -106,6 +106,17 @@ func _offer(card: Card, effect: Effect, event: GameEvent) -> void:
 	if not _spend_conditional_use(card):
 		return # the card already used all of its "conditional_uses_per_turn" this turn
 	game.queue_trigger(PendingTrigger.new(card, [effect], context))
+	_spend_charge(card)
+
+## Cards with "charges": N lose one use every time a Condicional (listen) effect of theirs fires, and a
+## free-standing artifact is destroyed when the last one is spent (the effect already queued still resolves).
+func _spend_charge(card: Card) -> void:
+	if card.charges_left() < 0:
+		return
+	card.charges_used += 1
+	game._emit({"type": "charge_spent", "player": card.owner, "uid": card.uid, "card_id": card.card_id, "left": card.charges_left()})
+	if card.charges_left() == 0:
+		game.destroy_relic(card)
 
 ## Cards with "conditional_uses_per_turn": N may trigger their Condicional (listen) effects, all of them
 ## together, at most N times a turn (Seymour). Own effects like On Turn Start are not counted. Takes one

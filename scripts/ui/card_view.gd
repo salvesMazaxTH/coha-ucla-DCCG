@@ -1298,6 +1298,9 @@ func _panel_lines(cd: Dictionary) -> Array:
 		var half := (tags.size() + 1) / 2
 		out.append(tags.slice(0, half))
 		if tags.size() > half:
+		# cards with limited "charges" show "(restantes/total)" while on the field
+		if inst.has("charges_left"):
+			conditional_name += " (%d/%d)" % [int(inst["charges_left"]), int(cd["charges"])]
 			out.append(tags.slice(half))
 	if out.is_empty() and cd.get("token", false):
 		out.append([["FICHA", Color(UITheme.TEXT, 0.6)]])

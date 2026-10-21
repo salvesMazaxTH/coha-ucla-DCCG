@@ -1470,7 +1470,10 @@ func _render_relics(p: int, y: float, slots_taken: int) -> void:
 	var first_relic_slot: int = g.players[p]["board"].size()
 	for j in relics.size():
 		var relic: Card = relics[j]
-		var v := CardView.new().setup(relic.card_id, {"uid": relic.uid}, 1.15)
+		var relic_view_data := {"uid": relic.uid}
+		if relic.charges_left() >= 0:
+			relic_view_data["charges_left"] = relic.charges_left() # a limited-use artifact shows its remaining uses
+		var v := CardView.new().setup(relic.card_id, relic_view_data, 1.15)
 		v.pivot_offset = v.size / 2.0
 		var cell := _board_cell(slots_taken, first_relic_slot + j)
 		v.position = Vector2(cell.x + (cell.y - v.size.x) / 2.0, y)
@@ -5003,6 +5006,8 @@ func _log_event(e: Dictionary) -> void:
 		"death_prevented":
 			_log("%s foi destruído para impedir a morte de %s" % [_cname(e["ward_card_id"]), _cname(e["card_id"])])
 		"fuse":
+		"charge_spent":
+			_log("%s gastou um uso (restam %d)" % [_cname(e["card_id"]), int(e["left"])])
 			_log("%d fichas se fundiram em %s" % [int(e["count"]), _cname(e["card_id"])])
 		"attach":
 			_log("%s foi equipado em uma unidade" % _cname(e["card_id"]))

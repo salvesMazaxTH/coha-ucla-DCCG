@@ -109,6 +109,8 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
   - **Equipamento:** é um artefato ("Artefato · Equipamento"). Anexa-se a uma unidade aliada, fica visível sob ela e dá o bônus. Quando a unidade morre, o equipamento vai junto para o cemitério. Cada unidade tem no máximo um; equipar outro descarta o antigo.
   - **Local:** artefato solto no campo ("Artefato · Local"). Ocupa um espaço e nunca luta. Alguns não vão no deck: só entram em jogo por um efeito (o Baluarte Santo, erguido pela habilidade do Líder Mefi'Urdim). Quando outra unidade aliada fosse morrer por qualquer efeito, inclusive dano de combate, o Baluarte é destruído e aquele efeito é anulado; banimento ignora essa proteção. Ao morrer, cura 3 do Líder do dono.
 
+  - **Artefato puro:** sem subtipo ("subtypes": []), só "Artefato". Também fica solto no campo, ocupando um espaço, e nunca luta, mas não é um lugar como o Local (Ampola e Garrafão Curativos).
+  - **Usos limitados (`charges`):** um artefato solto no campo (sem ser Equipar) pode ter um número de usos (Ampola e Garrafão Curativos). Cada vez que um efeito Condicional dele dispara, gasta 1 uso; com 0 restantes ele é destruído. Os usos que restam aparecem na carta.
 ## Espécies
 
 - Uma unidade pode ter uma ou mais **espécies** (ex.: Ronan é Dragonoide, Humano e Dragão), no campo `"species"` do JSON. Os nomes ficam em `species` no `cards.json`. Algumas cartas não têm espécie.

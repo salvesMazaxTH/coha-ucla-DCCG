@@ -71,6 +71,7 @@ var vipranna_heal_locked := false ## later triggers stay off after this instance
 var leader_damage_guard_turn := -1 ## turn in which this card reduced the first damage to its Leader
 var death_ward_armed := false ## a free-standing artifact is ready to prevent one allied unit death
 
+var charges_used := 0 ## Condicional firings spent so far by a card with "charges": N (Ampola Curativa)
 ## Card-data fields that are an ability or a keyword's number: silence() deletes them from the unit.
 const SILENCED_FIELDS := ["activated", "transform", "rapidez", "critico", "armor", "esquiva", "inert", "imune_critico",
 		"critico_growth", "critico_maximo", "toxico_level", "toxico_equals_attack", "toxico_ignores_immunity",
@@ -84,6 +85,13 @@ func _init(card_uid: int, id: String, owner_player: int, in_zone: String = "") -
 	zone = in_zone
 
 ## Card data with this instance's overrides applied.
+## Uses a card with "charges" has left (-1 when the card has no limited uses).
+func charges_left() -> int:
+	var total: int = int(data().get("charges", 0))
+	if total <= 0:
+		return -1
+	return maxi(total - charges_used, 0)
+
 func data() -> Dictionary:
 	return CardDB.card_for(card_id, {"over": over})
 
@@ -267,6 +275,8 @@ func to_dict() -> Dictionary:
 	if supreme_shield: # written before the board-only part: a free-standing artifact can hold it too
 		d["supreme_shield"] = true
 		if supreme_shield_expires != "":
+	if charges_used > 0:
+		d["charges_used"] = charges_used
 			d["supreme_shield_expires"] = supreme_shield_expires
 	if zone != "board":
 		return d
@@ -359,6 +369,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.supreme_shield_expires = String(d.get("supreme_shield_expires", ""))
 	c.over = d.get("over", {})
 	if in_zone != "board":
+	c.charges_used = int(d.get("charges_used", 0))
 		return c
 	c.legendary = bool(d["legendary"])
 	c.atk = int(d["atk"])

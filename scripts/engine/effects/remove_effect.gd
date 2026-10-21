@@ -9,12 +9,14 @@ extends Effect
 ##   "requires_markers": {"dot": "veneno", "amount": X}: the banish only happens if the unit holds
 ##   at least X markers of that kind, otherwise nothing happens.
 ## "destroy_artifact": the target free-standing artifact goes to the graveyard, freeing its slot.
+##   "subtype": "local": only an artifact of that subtype can be picked and destroyed (default: any artifact).
 ## "kill_leader": the targeted Leader dies on the spot, but only if it holds the "requires_markers"
 ##   amount of that marker kind (Viprax's execution). Câmara de Êxtase does not save it.
 
 var shield_leader_damage := 0
 var required_dot := ""
 var required_dot_amount := 0
+var required_subtype := ""
 
 
 func _read_parameters(data: Dictionary) -> void:
@@ -22,6 +24,7 @@ func _read_parameters(data: Dictionary) -> void:
 	var requirement: Dictionary = data.get("requires_markers", {})
 	required_dot = String(requirement.get("dot", ""))
 	required_dot_amount = int(requirement.get("amount", 0))
+	required_subtype = String(data.get("subtype", ""))
 
 func harms_own_target() -> bool:
 	return true
@@ -33,7 +36,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		_kill_leader(context, target_uid)
 	elif action == "destroy_artifact":
 		var artifact := context.game.find_relic(target_uid)
-		if artifact != null:
+		if artifact != null and (required_subtype == "" or artifact.data().get("subtypes", []).has(required_subtype)):
 			context.game.destroy_relic(artifact)
 	else:
 		_destroy(context, target_uid)

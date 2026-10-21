@@ -8,6 +8,7 @@ extends RefCounted
 ##     "essence": ["neutra"],     # the card has one of these essences
 ##     "rarity":  ["champion"],   # common | epic | champion | legendary
 ##     "card_type": ["unit"],     # unit | spell | artifact
+##     "subtype": ["local"],      # the card is an artifact of one of these subtypes (equipment | local)
 ##     "cost": {"op": "<=", "value": 3}   # printed cost, compared with == != < <= > >=
 ##   },
 ##   "turns": 1                   # how long it lasts, counted in turns (every player's turn counts):
@@ -16,13 +17,15 @@ extends RefCounted
 ##
 ## Examples: "only neutral cards this turn" = {"mode": "only", "match": {"essence": ["neutra"]}};
 ## "can't play non-ígnea cards" = {"mode": "only", "match": {"essence": ["ignea"]}};
-## "can't play champions" = {"mode": "forbid", "match": {"rarity": ["champion"]}}.
+## "can't play champions" = {"mode": "forbid", "match": {"rarity": ["champion"]}};
+## "can't play Locais" = {"mode": "forbid", "match": {"subtype": ["local"]}}.
 ## A new kind of filter: add its name to MATCH_FIELDS, a check in _matches() and one in error_of().
 
 const MODES := ["only", "forbid"]
-const MATCH_FIELDS := ["essence", "rarity", "card_type", "cost"]
+const MATCH_FIELDS := ["essence", "rarity", "card_type", "subtype", "cost"]
 const RARITIES := ["common", "epic", "champion", "legendary"]
 const CARD_TYPES := ["unit", "spell", "artifact"]
+const SUBTYPES := ["equipment", "local"]
 const COST_OPERATORS := ["==", "!=", "<", "<=", ">", ">="]
 
 ## True when this rule bars the card `cd` (the card's data) from being played.
@@ -42,6 +45,12 @@ static func _matches(match_fields: Dictionary, cd: Dictionary) -> bool:
 		return false
 	if match_fields.has("card_type") and String(cd.get("type", "")) not in match_fields["card_type"]:
 		return false
+	if match_fields.has("subtype"):
+		var has_wanted_subtype := false
+		for subtype_id in match_fields["subtype"]:
+			has_wanted_subtype = has_wanted_subtype or cd.get("subtypes", []).has(String(subtype_id))
+		if not has_wanted_subtype:
+			return false
 	if match_fields.has("cost"):
 		var comparison: Dictionary = match_fields["cost"]
 		if not _compare(int(cd.get("cost", 0)), String(comparison["op"]), int(comparison["value"])):
@@ -87,4 +96,6 @@ static func error_of(rule: Variant, known_essences: Dictionary) -> String:
 				return "restriction.match.rarity desconhecida \"%s\"" % entry
 			if field == "card_type" and entry not in CARD_TYPES:
 				return "restriction.match.card_type desconhecido \"%s\"" % entry
+			if field == "subtype" and entry not in SUBTYPES:
+				return "restriction.match.subtype desconhecido \"%s\"" % entry
 	return ""
