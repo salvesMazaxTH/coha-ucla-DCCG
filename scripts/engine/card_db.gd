@@ -153,11 +153,11 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 
 static func _validate_leader(lid: String, ld: Dictionary) -> void:
 	var err := func(msg: String): _errors.append("líder %s: %s" % [lid, msg])
-	for field in ["name", "hp", "legendary", "ability"]:
+	for field in ["name", "hp", "incarnation", "ability"]:
 		if not ld.has(field):
 			err.call("falta \"%s\"" % field)
-	if not _data["cards"].has(ld.get("legendary", "")):
-		err.call("legendary inexistente \"%s\"" % ld.get("legendary", ""))
+	if not _data["cards"].has(ld.get("incarnation", "")):
+		err.call("incarnation inexistente \"%s\"" % ld.get("incarnation", ""))
 	for e in ld.get("essences", []):
 		if not _data["essences"].has(e):
 			err.call("essência desconhecida \"%s\"" % e)
@@ -260,7 +260,7 @@ static func is_relic(cd: Dictionary) -> bool:
 
 static func is_leader_card(id: String) -> bool:
 	for lid in data()["leaders"]:
-		if data()["leaders"][lid]["legendary"] == id:
+		if data()["leaders"][lid]["incarnation"] == id:
 			return true
 	return false
 

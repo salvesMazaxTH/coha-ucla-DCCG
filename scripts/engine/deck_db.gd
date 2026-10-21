@@ -108,7 +108,7 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 	var elite_cards := 0
 	for id in cards:
 		var n: int = cards[id]
-		if id != ld["legendary"]:
+		if id != ld["incarnation"]:
 			total += n
 		var c := CardDB.card(id)
 		var rarity: String = c.get("rarity", "")
@@ -132,7 +132,7 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 			errors.append("%s: só entra em jogo por transformação" % id)
 		if c.get("undraftable", false):
 			errors.append("%s: não pode entrar no deck (só é colocada em jogo por um efeito)" % id)
-		if CardDB.is_leader_card(id) and id != ld["legendary"]:
+		if CardDB.is_leader_card(id) and id != ld["incarnation"]:
 			errors.append("%s: Encarnação de outro Líder" % id)
 	if off_essence > MAX_OFF_ESSENCE:
 		errors.append("%d cartas de fora da essência do Líder (máximo %d)" % [off_essence, MAX_OFF_ESSENCE])
@@ -141,8 +141,8 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 		errors.append("%d Campeões + Lendárias (máximo %d)" % [elite_cards, MAX_ELITE_CARDS])
 	if total != DECK_SIZE:
 		errors.append("deck tem %d cartas fora a Encarnação (precisa de %d)" % [total, DECK_SIZE])
-	if int(cards.get(ld["legendary"], 0)) != 1:
-		errors.append("o deck precisa de exatamente 1 Encarnação do Líder (%s)" % ld["legendary"])
+	if int(cards.get(ld["incarnation"], 0)) != 1:
+		errors.append("o deck precisa de exatamente 1 Encarnação do Líder (%s)" % ld["incarnation"])
 	return errors
 
 ## Off-essence cards must be covered by at most MAX_SECONDARY_ESSENCES essences: every one of them has

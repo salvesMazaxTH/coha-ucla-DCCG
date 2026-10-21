@@ -79,9 +79,10 @@ func _init() -> void:
 	_test_enter_target()
 	_test_ai_enter_damage()
 	_test_ai_armor_ability()
-	_test_ai_legendary_priority()
-	_test_legendary_retire()
+	_test_ai_incarnation_priority()
+	_test_incarnation_retire()
 	_test_fatigue()
+	_test_naelys_bounce_discount()
 	_test_counter()
 	_test_fight()
 	_test_conditional_counter()
@@ -883,12 +884,12 @@ func _test_fatigue() -> void:
 		hp = g.players[0]["leader_hp"]
 	check(hits == [2, 4, 8] and g.fatigue_next(0) == 16, "fadiga dobra: 2, 4, 8, depois 16")
 
-func _test_legendary_retire() -> void:
+func _test_incarnation_retire() -> void:
 	var g := _new_game()
 	_quiet(g)
-	var l: Dictionary = g.players[0]["legendary"]
+	var l: Dictionary = g.players[0]["incarnation"]
 	g.players[0]["momentum"] = 10
-	g.cast_legendary(0)
+	g.cast_incarnation(0)
 	if g.phase == "enter_target":
 		g.choose_enter_target(0, 0)
 	if g.summon_window:
@@ -905,7 +906,7 @@ func _test_legendary_retire() -> void:
 	var deck_n: int = g.players[0]["deck"].size()
 	g._check_state()
 	var bottom: Card = g.players[0]["deck"][0]
-	check(l["retired"] and not l["in_zone"] and not g.can_cast_legendary(0), "encarnação: custo acima de 10 aposenta")
+	check(l["retired"] and not l["in_zone"] and not g.can_cast_incarnation(0), "encarnação: custo acima de 10 aposenta")
 	check(g.players[0]["deck"].size() == deck_n + 1 and bottom.card_id == l["card_id"], "encarnação: vai para o fundo do deck")
 	g.players[0]["deck"].erase(bottom)
 	g.players[0]["hand"].append(bottom)
@@ -915,21 +916,72 @@ func _test_legendary_retire() -> void:
 	# banishing the Encarnação behaves like its death: back to the Santuário while the next cast is payable
 	var banish_game := _new_game()
 	_quiet(banish_game)
-	var banish_legendary: Dictionary = banish_game.players[0]["legendary"]
+	var banish_incarnation_state: Dictionary = banish_game.players[0]["incarnation"]
 	banish_game.players[0]["momentum"] = 10
-	banish_game.cast_legendary(0)
+	banish_game.cast_incarnation(0)
 	if banish_game.phase == "enter_target":
 		banish_game.choose_enter_target(0, 0)
 	if banish_game.summon_window:
 		banish_game.pass_priority(1)
 	banish_game.banish_unit(banish_game.players[0]["board"].back())
-	check(banish_legendary["in_zone"] and not banish_legendary.get("retired", false) and banish_game.players[0]["banished"].is_empty(), "encarnação: banida volta ao Santuário")
+	check(banish_incarnation_state["in_zone"] and not banish_incarnation_state.get("retired", false) and banish_game.players[0]["banished"].is_empty(), "encarnação: banida volta ao Santuário")
 	# ...and retires when the next cast would pass the Momentum cap, just like a death
-	banish_legendary["casts"] = 10
-	banish_legendary["in_zone"] = false
-	banish_game._summon(0, Card.new(banish_game._uid(), banish_legendary["card_id"], 0), true, 0)
+	banish_incarnation_state["casts"] = 10
+	banish_incarnation_state["in_zone"] = false
+	banish_game._summon(0, Card.new(banish_game._uid(), banish_incarnation_state["card_id"], 0), true, 0)
 	banish_game.banish_unit(banish_game.players[0]["board"].back())
-	check(banish_legendary["retired"] and not banish_legendary["in_zone"], "encarnação: banida com custo acima de 10 aposenta")
+	check(banish_incarnation_state["retired"] and not banish_incarnation_state["in_zone"], "encarnação: banida com custo acima de 10 aposenta")
+
+	# the Encarnação CAN return to hand (any return-to-hand effect); it only goes back to the Santuário
+	# when it would go to the graveyard or be banished. Legendary RARITY has nothing to do with it.
+	var bounce_game := _new_game()
+	_quiet(bounce_game)
+	var bounce_state: Dictionary = bounce_game.players[0]["incarnation"]
+	bounce_game.players[0]["momentum"] = 10
+	bounce_game.cast_incarnation(0)
+	if bounce_game.phase == "enter_target":
+		bounce_game.choose_enter_target(0, 0)
+	if bounce_game.summon_window:
+		bounce_game.pass_priority(1)
+	var incarnation_unit: Card = bounce_game.players[0]["board"].back()
+	var cost_with_tax: int = bounce_game.incarnation_cost(0)
+	check(bounce_game.return_to_hand(incarnation_unit) and bounce_game.players[0]["hand"].has(incarnation_unit), "encarnação: pode voltar para a mão por um efeito de devolver")
+	check(incarnation_unit.incarnation and not bounce_state["in_zone"] and bounce_game.incarnation_in_hand(0), "encarnação: na mão continua sendo a Encarnação e não está no Santuário")
+	bounce_game.players[0]["momentum"] = 10
+	check(bounce_game.can_play(0, incarnation_unit.uid), "encarnação na mão: pode ser jogada de lá")
+	bounce_game.play_card(0, incarnation_unit.uid)
+	if bounce_game.phase == "enter_target":
+		bounce_game.choose_enter_target(0, 0)
+	if bounce_game.summon_window:
+		bounce_game.pass_priority(1)
+	check(incarnation_unit.zone == "board" and incarnation_unit.incarnation and int(bounce_state["casts"]) == 1, "encarnação jogada da mão: custo normal, sem contar como nova conjuração")
+	check(bounce_game.incarnation_cost(0) == cost_with_tax, "encarnação jogada da mão: a taxa do Santuário não muda")
+	incarnation_unit.damage = 999
+	bounce_game._check_state()
+	check(bounce_state["in_zone"] and bounce_game.players[0]["graveyard"].is_empty(), "encarnação: morrer depois de voltar da mão leva ao Santuário")
+	# discarded or banished from the hand, it also goes to the Santuário instead of the graveyard / banished zone
+	for destination in ["graveyard", "banished"]:
+		var hand_game := _new_game()
+		_quiet(hand_game)
+		var hand_state: Dictionary = hand_game.players[0]["incarnation"]
+		var hand_copy := Card.new(hand_game._uid(), hand_state["card_id"], 0, "hand")
+		hand_copy.incarnation = true
+		hand_state["in_zone"] = false
+		hand_game.players[0]["hand"].append(hand_copy)
+		hand_game.players[0]["hand"].erase(hand_copy)
+		hand_game.players[0][destination].append(hand_copy)
+		hand_game._move(hand_copy, destination)
+		check(hand_state["in_zone"] and hand_game.players[0]["graveyard"].is_empty() and hand_game.players[0]["banished"].is_empty(),
+			"encarnação na mão (%s): volta ao Santuário, não ao cemitério nem aos banidos" % destination)
+	# a token that would return to hand is deleted from the game
+	_tcard("t_incarnation_token", 1, 1, [])
+	CardDB.data()["cards"]["t_incarnation_token"]["token"] = true
+	var token_game := _new_game()
+	_quiet(token_game)
+	var token_card := _put(token_game, 0, "t_incarnation_token")
+	var token_hand_before: int = token_game.players[0]["hand"].size()
+	check(not token_game.return_to_hand(token_card) and token_game.find_unit(token_card.uid) == null and token_game.players[0]["hand"].size() == token_hand_before,
+		"ficha: se fosse voltar para a mão, é apagada do jogo")
 
 func _test_enter_target() -> void:
 	var g := _new_game()
@@ -966,6 +1018,77 @@ func _test_enter_target() -> void:
 	lone.play_card(0, myrra_ally)
 	check(lone.phase == "enter_target", "Myrra com outra unidade aliada: pede alvo")
 
+func _test_naelys_bounce_discount() -> void:
+	_tcard("t_naelys_bounce_ally", 1, 3, [])
+	_tcard("t_naelys_bounce_draw", 1, 3, [])
+	CardDB.data()["cards"]["t_naelys_bounce_draw"]["cost"] = 4
+	CardDB.data()["cards"]["t_naelys_bounce_ally"]["cost"] = 3
+
+	var g := _new_game()
+	_quiet(g)
+	var p: int = g.active
+	var ally := _put(g, p, "t_naelys_bounce_ally")
+	g.players[p]["deck"].clear()
+	var drawn := Card.new(g._uid(), "t_naelys_bounce_draw", p, "deck")
+	g.players[p]["deck"].append(drawn)
+	var naelys := Card.new(g._uid(), "naelys", p, "hand")
+	g.players[p]["hand"].append(naelys)
+	g.players[p]["hand"].erase(naelys)
+	g._summon(p, naelys, false, 0, {}, true)
+	var targets := g.valid_targets(p, "other_ally_unit", naelys.uid)
+	check(g.phase == "enter_target" and targets.has(ally.uid) and not targets.has(naelys.uid), "Naelys só oferece outra unidade aliada como alvo")
+	g.choose_enter_target(p, ally.uid)
+	check(g.find_unit(ally.uid) == null and _hand_has(g, p, ally.uid), "Naelys devolve a aliada escolhida à mão")
+	check(drawn.discount == 1 and drawn.turn_discount == 0 and g.cost_of(p, CardDB.card(drawn.card_id), drawn) == 3, "Naelys: a carta comprada leva só o desconto de 1, sem o adicional")
+	check(ally.turn_discount == 1 and g.cost_of(p, CardDB.card(ally.card_id), ally) == 2, "Naelys: a carta devolvida custa 1 a menos neste turno")
+	var mirrored := Card.from_dict(ally.to_dict(), "hand", p)
+	check(mirrored.turn_discount == 1, "o desconto temporário da Naelys é sincronizado")
+	g.end_turn(p)
+	check(ally.turn_discount == 0 and g.cost_of(p, CardDB.card(ally.card_id), ally) == 3, "o desconto da carta devolvida expira no fim do turno")
+	ally.turn_discount = 1
+	g.end_turn(g.active)
+	check(ally.turn_discount == 0, "desconto temporário expira mesmo se o dono da carta não for o jogador ativo")
+
+	var skipped := _new_game()
+	_quiet(skipped)
+	p = skipped.active
+	var skipped_ally := _put(skipped, p, "t_naelys_bounce_ally")
+	skipped.players[p]["deck"].clear()
+	var skipped_draw := Card.new(skipped._uid(), "t_naelys_bounce_draw", p, "deck")
+	skipped.players[p]["deck"].append(skipped_draw)
+	var skipped_naelys := Card.new(skipped._uid(), "naelys", p, "hand")
+	skipped.players[p]["hand"].append(skipped_naelys)
+	skipped.players[p]["hand"].erase(skipped_naelys)
+	skipped._summon(p, skipped_naelys, false, 0, {}, true)
+	skipped.choose_enter_target(p, 0)
+	check(skipped.find_unit(skipped_ally.uid) != null and skipped_draw.discount == 1 and skipped_ally.turn_discount == 0, "pular o alvo mantém a compra e não devolve unidade")
+
+	var no_draw := _new_game()
+	_quiet(no_draw)
+	p = no_draw.active
+	var retained_ally := _put(no_draw, p, "t_naelys_bounce_ally")
+	no_draw.players[p]["deck"].clear()
+	var no_draw_naelys := Card.new(no_draw._uid(), "naelys", p, "hand")
+	no_draw.players[p]["hand"].append(no_draw_naelys)
+	no_draw.players[p]["hand"].erase(no_draw_naelys)
+	no_draw._summon(p, no_draw_naelys, false, 0, {}, true)
+	check(no_draw.phase != "enter_target" and no_draw.find_unit(retained_ally.uid) != null, "Naelys não pede alvo nem devolve aliada se o deck não tem carta para descontar")
+
+	# the AI only bounces a unit that comes back with an Ao Entrar to repeat: the weakest such unit, never a plain strong one
+	_tcard("t_naelys_ai_strong", 5, 5, [])
+	_tcard("t_naelys_ai_enter_weak", 1, 1, [{"trigger": "on_enter", "action": "draw", "target": "none", "amount": 1}])
+	_tcard("t_naelys_ai_enter_strong", 3, 3, [{"trigger": "on_enter", "action": "draw", "target": "none", "amount": 1}])
+	var ai_game := _new_game()
+	_quiet(ai_game)
+	p = ai_game.active
+	var strong_plain := _put(ai_game, p, "t_naelys_ai_strong")
+	var naelys_source := Card.new(ai_game._uid(), "naelys", p, "hand")
+	check(SimpleAI._pick_target(ai_game, p, "other_ally_unit", CardDB.card("naelys"), naelys_source.uid) == 0, "IA: Naelys não devolve aliada sem Ao Entrar para repetir")
+	var enter_strong := _put(ai_game, p, "t_naelys_ai_enter_strong")
+	var enter_weak := _put(ai_game, p, "t_naelys_ai_enter_weak")
+	var ai_choice := SimpleAI._pick_target(ai_game, p, "other_ally_unit", CardDB.card("naelys"), naelys_source.uid)
+	check(ai_choice == enter_weak.uid and ai_choice != strong_plain.uid and ai_choice != enter_strong.uid, "IA: Naelys devolve a aliada mais fraca que tem Ao Entrar")
+
 ## The AI's spell preview: before casting a spell it tries it on a copy of the game and skips it when
 ## nothing would change (here: Repique Desgovernado, which only hits enemy units, against an empty board).
 func _sagrada_preview_game() -> GameState:
@@ -974,7 +1097,7 @@ func _sagrada_preview_game() -> GameState:
 	g.mulligan(1, [])
 	_quiet(g)
 	g.players[0]["hand"].clear()
-	g.players[0]["legendary"]["in_zone"] = false
+	g.players[0]["incarnation"]["in_zone"] = false
 	g.players[0]["momentum"] = 5
 	return g
 
@@ -1052,7 +1175,7 @@ func _test_ai_armor_ability() -> void:
 	empty.mulligan(0, [])
 	empty.mulligan(1, [])
 	empty.players[0]["hand"].clear()
-	empty.players[0]["legendary"]["in_zone"] = false
+	empty.players[0]["incarnation"]["in_zone"] = false
 	empty.players[0]["momentum"] = 5
 	empty.players[0]["ability_used"] = false
 	var lone_ally := _put(empty, 0, "t_armor_ally")
@@ -1065,7 +1188,7 @@ func _test_ai_armor_ability() -> void:
 	hopeless.mulligan(0, [])
 	hopeless.mulligan(1, [])
 	hopeless.players[0]["hand"].clear()
-	hopeless.players[0]["legendary"]["in_zone"] = false
+	hopeless.players[0]["incarnation"]["in_zone"] = false
 	hopeless.players[0]["momentum"] = 5
 	hopeless.players[0]["ability_used"] = false
 	var doomed := _put(hopeless, 0, "t_armor_ally")
@@ -1079,7 +1202,7 @@ func _test_ai_armor_ability() -> void:
 	threatened.mulligan(0, [])
 	threatened.mulligan(1, [])
 	threatened.players[0]["hand"].clear()
-	threatened.players[0]["legendary"]["in_zone"] = false
+	threatened.players[0]["incarnation"]["in_zone"] = false
 	threatened.players[0]["momentum"] = 5
 	threatened.players[0]["ability_used"] = false
 	var safe_ally := _put(threatened, 0, "t_armor_ally")
@@ -1091,17 +1214,17 @@ func _test_ai_armor_ability() -> void:
 	check(threatened.armor_of(threatened.find_unit(saved_ally.uid)) == 1 and threatened.armor_of(threatened.find_unit(safe_ally.uid)) == 0, "IA/Tharox: a Armadura vai para a unidade ameaçada")
 
 ## The Encarnação is a fallback after worthwhile hand plays, not an automatic first action.
-func _test_ai_legendary_priority() -> void:
-	_tcard("t_ai_legendary_alternative", 2, 2, [])
+func _test_ai_incarnation_priority() -> void:
+	_tcard("t_ai_incarnation_alternative", 2, 2, [])
 	var hand_play := GameState.new("vegetal", "agua", 42)
 	hand_play.mulligan(0, [])
 	hand_play.mulligan(1, [])
 	hand_play.players[0]["hand"].clear()
 	hand_play.players[0]["momentum"] = 6
-	var alternative_uid := _give(hand_play, 0, "t_ai_legendary_alternative")
+	var alternative_uid := _give(hand_play, 0, "t_ai_incarnation_alternative")
 	SimpleAI.step(hand_play, 0)
 	check(not _hand_has(hand_play, 0, alternative_uid), "IA/Encarnação: joga uma carta viável da mão antes de conjurar a Encarnação")
-	check(hand_play.players[0]["legendary"]["in_zone"] and hand_play.players[0]["momentum"] == 5,
+	check(hand_play.players[0]["incarnation"]["in_zone"] and hand_play.players[0]["momentum"] == 5,
 		"IA/Encarnação: preserva o Momentum restante e deixa a Encarnação no Santuário após a jogada da mão")
 
 	var fallback := GameState.new("vegetal", "agua", 43)
@@ -1110,7 +1233,7 @@ func _test_ai_legendary_priority() -> void:
 	fallback.players[0]["hand"].clear()
 	fallback.players[0]["momentum"] = 6
 	SimpleAI.step(fallback, 0)
-	check(not fallback.players[0]["legendary"]["in_zone"] and fallback.players[0]["momentum"] == 0,
+	check(not fallback.players[0]["incarnation"]["in_zone"] and fallback.players[0]["momentum"] == 0,
 		"IA/Encarnação: conjura como fallback quando não há jogadas viáveis na mão")
 
 func _test_leader_cycle() -> void:
@@ -1669,7 +1792,7 @@ func _test_condemn() -> void:
 func _test_setup() -> void:
 	var g := GameState.new("fogo", "agua", 1)
 	check(g.players[0]["hand"].size() == GameState.START_HAND and g.players[1]["hand"].size() == GameState.START_HAND, "starting hands")
-	check(g.players[0]["deck"].size() == DeckDB.DECK_SIZE - GameState.START_HAND, "legendary not in deck")
+	check(g.players[0]["deck"].size() == DeckDB.DECK_SIZE - GameState.START_HAND, "incarnation not in deck")
 	g.mulligan(0, [g.players[0]["hand"][0].uid])
 	g.mulligan(1, [])
 	check(g.phase == "main" and g.active == 0 and g.players[0]["momentum"] == 1, "turn 1 momentum")
@@ -4216,18 +4339,18 @@ func _test_eletrica() -> void:
 	g._flush()
 	check(g.stack.is_empty() and not g.find_unit(foe1.uid) == null, "fulgurvoltz: habilidade anulada, inimigas ficam")
 	# Encarnação retirement uses the current cost (with reductions) plus the tax
-	var l: Dictionary = g.players[a]["legendary"]
+	var l: Dictionary = g.players[a]["incarnation"]
 	l["casts"] = 1
 	g.players[a]["saved_momentum"] = 0
-	check(g.legendary_cost(a) == 15, "voltexz: sem redução, 2a conjuração custa 15")
+	check(g.incarnation_cost(a) == 15, "voltexz: sem redução, 2a conjuração custa 15")
 	g.players[a]["saved_momentum"] = 8
-	check(g.legendary_cost(a) == 7, "voltexz: custo atual 6 + taxa 1 = 7")
+	check(g.incarnation_cost(a) == 7, "voltexz: custo atual 6 + taxa 1 = 7")
 	l["in_zone"] = false
-	g._legendary_leaves(a)
+	g._incarnation_leaves(a)
 	check(l["in_zone"] and not l.get("retired", false), "voltexz: volta ao Santuário com custo atual 7")
 	g.players[a]["saved_momentum"] = 4
 	l["in_zone"] = false
-	g._legendary_leaves(a)
+	g._incarnation_leaves(a)
 	check(l.get("retired", false), "voltexz: custo atual 10 + taxa 1 = 11 (Momentum vazado 4) aposenta")
 	# gain_momentum: now and at the next turn
 	g = _eletrica_game()
@@ -4592,7 +4715,7 @@ func _test_requiem() -> void:
 	var g5 := _new_game()
 	var p5 := g5.active
 	g5.players[p5]["hand"].clear()
-	g5.players[p5]["legendary"]["in_zone"] = false # the AI would cast its Leader first
+	g5.players[p5]["incarnation"]["in_zone"] = false # the AI would cast its Leader first
 	var cova5 := Card.new(g5._uid(), "cova_rasa", p5, "graveyard")
 	g5.players[p5]["graveyard"].append(cova5)
 	g5.players[p5]["momentum"] = 4
@@ -4742,7 +4865,7 @@ func _test_ai_burn_plan() -> void:
 	g.players[0]["max_momentum"] = 5
 	g.players[0]["momentum"] = 5
 	g.players[0]["hand"].clear()
-	g.players[0]["legendary"]["in_zone"] = false # the Leader's legendary would be cast before anything else
+	g.players[0]["incarnation"]["in_zone"] = false # the Leader's Encarnação would be cast before anything else
 	_give(g, 0, "bola_de_fogo")
 	_put(g, 0, "t_ai_racer")
 	_put(g, 0, "t_ai_racer")
@@ -6140,7 +6263,7 @@ func _test_sagrada_engine() -> void:
 	check(g.find_relic(bulwark.uid) != null and bulwark.death_ward_armed, "Baluarte: banimento não consome a proteção")
 
 	# put_artifact through a Lenta Leader ability: unique, needs a free slot, never charges for a no-op
-	CardDB.data()["leaders"]["t_leader"] = {"name": "t_leader", "hp": 30, "art": "", "legendary": "ronan", "essences": ["neutra"],
+	CardDB.data()["leaders"]["t_leader"] = {"name": "t_leader", "hp": 30, "art": "", "incarnation": "ronan", "essences": ["neutra"],
 		"ability": {"name": "Erguer", "cost": 3, "speed": "lento", "text": "",
 			"effects": [{"action": "put_artifact", "target": "none", "card": "t_bulwark", "unique": true}]}}
 	g = _new_game()

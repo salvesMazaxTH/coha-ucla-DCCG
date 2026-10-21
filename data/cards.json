@@ -363,7 +363,7 @@
       "name": "Ronan",
       "hp": 25,
       "art": "ignea/ronan.webp",
-      "legendary": "ronan",
+      "incarnation": "ronan",
       "ability": {
         "name": "Pavio Curto",
         "cost": 2,
@@ -384,7 +384,7 @@
       "name": "Naelthos",
       "hp": 30,
       "art": "aquatica/naelthos_lider.webp",
-      "legendary": "naelthos",
+      "incarnation": "naelthos",
       "ability": {
         "name": "Mar que Retorna",
         "cost": 2,
@@ -406,7 +406,7 @@
       "name": "Jeff The Death",
       "hp": 25,
       "art": "obscura/jeff_lider.webp",
-      "legendary": "jeff",
+      "incarnation": "jeff",
       "ability": {
         "name": "Ceifa",
         "passive": true,
@@ -430,7 +430,7 @@
       "hp": 30,
       "art": "eletrica/voltexz_lider.webp",
       "art_focus": 0.2,
-      "legendary": "voltexz",
+      "incarnation": "voltexz",
       "ability": {
         "name": "Sobrecarga",
         "passive": true,
@@ -454,7 +454,7 @@
       "name": "Tharox",
       "hp": 35,
       "art": "rochosa/tharox_lider.webp",
-      "legendary": "tharox",
+      "incarnation": "tharox",
       "ability": {
         "name": "Massa Inamolgável",
         "cost": 1,
@@ -475,7 +475,7 @@
       "name": "Nythera",
       "hp": 30,
       "art": "glacial/nythera_lider.webp",
-      "legendary": "nythera",
+      "incarnation": "nythera",
       "ability": {
         "name": "Sopro Gélido",
         "cost": 3,
@@ -495,7 +495,7 @@
       "name": "Vael",
       "hp": 25,
       "art": "neutra/vael_lider.webp",
-      "legendary": "vael",
+      "incarnation": "vael",
       "ability": {
         "name": "Fio da Lâmina",
         "cost": 2,
@@ -517,7 +517,7 @@
       "name": "Eryon",
       "hp": 30,
       "art": "neutra/eryon_lider.webp",
-      "legendary": "eryon",
+      "incarnation": "eryon",
       "ability": {
         "name": "Redistribuir o Fôlego",
         "cost": 0,
@@ -546,7 +546,7 @@
       "name": "Tox Vipranna",
       "hp": 30,
       "art": "venenosa/tox_vipranna_lider.webp",
-      "legendary": "tox_vipranna",
+      "incarnation": "tox_vipranna",
       "ability": {
         "name": "Beijo de Jardim",
         "cost": 2,
@@ -569,7 +569,7 @@
       "name": "Mefi'Urdim",
       "hp": 30,
       "art": "sagrada/mefi_urdim_lider.webp",
-      "legendary": "mefi_urdim",
+      "incarnation": "mefi_urdim",
       "ability": {
         "name": "Erguer o Baluarte",
         "cost": 4,
@@ -591,7 +591,7 @@
       "name": "Morakhan",
       "hp": 35,
       "art": "metalica/morakhan_lider.webp",
-      "legendary": "morakhan",
+      "incarnation": "morakhan",
       "ability": {
         "name": "Postura da Montanha",
         "cost": 2,
@@ -613,7 +613,7 @@
       "name": "Thalvaressa",
       "hp": 30,
       "art": "vegetal/thalvaressa_lider.webp",
-      "legendary": "thalvaressa",
+      "incarnation": "thalvaressa",
       "ability": {
         "name": "Crescimento do Dossel",
         "passive": true,

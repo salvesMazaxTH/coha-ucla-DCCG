@@ -10,13 +10,14 @@ var card_id: String
 var owner: int
 var zone := "" ## "deck" / "hand" / "board" / "relics" / "graveyard" / "banished" / "stack" / "equipped" / ""
 var discount := 0 ## costs this much less while it stays in hand (Tecnomante); cleared when it leaves the hand
+var turn_discount := 0 ## costs this much less until the end of the current turn while it stays in hand
 var cost_mod := 0 ## added to the cost in every zone and never reset (A Vagante Sombria: -1 per card of yours sent to the graveyard)
 var banish_after_cast := false ## taken back from the graveyard by "grave_retrieve": it is banished when its next cast ends
 var banish_at_turn_end := false ## put into play by "summon_hand_pick" (Dona Gertrudes): banished when the turn ends
 var over: Dictionary = {} ## per-instance overrides of the card data (atk, hp, keywords, effects, text...)
 
 # board state
-var legendary := false
+var incarnation := false ## the Leader's Encarnação (from the Santuário), NOT the "legendary" rarity; it keeps the flag while it sits in a hand
 var atk := 0
 var hp := 0
 var damage := 0
@@ -70,8 +71,8 @@ var vipranna_heal_total := 0 ## requested healing accepted by this Vipranna duri
 var vipranna_heal_locked := false ## later triggers stay off after this instance reaches the 15-point threshold
 var leader_damage_guard_turn := -1 ## turn in which this card reduced the first damage to its Leader
 var death_ward_armed := false ## a free-standing artifact is ready to prevent one allied unit death
-
 var charges_used := 0 ## Condicional firings spent so far by a card with "charges": N (Ampola Curativa)
+
 ## Card-data fields that are an ability or a keyword's number: silence() deletes them from the unit.
 const SILENCED_FIELDS := ["activated", "transform", "rapidez", "critico", "armor", "esquiva", "inert", "imune_critico",
 		"critico_growth", "critico_maximo", "toxico_level", "toxico_equals_attack", "toxico_ignores_immunity",
@@ -84,7 +85,6 @@ func _init(card_uid: int, id: String, owner_player: int, in_zone: String = "") -
 	owner = owner_player
 	zone = in_zone
 
-## Card data with this instance's overrides applied.
 ## Uses a card with "charges" has left (-1 when the card has no limited uses).
 func charges_left() -> int:
 	var total: int = int(data().get("charges", 0))
@@ -92,6 +92,7 @@ func charges_left() -> int:
 		return -1
 	return maxi(total - charges_used, 0)
 
+## Card data with this instance's overrides applied.
 func data() -> Dictionary:
 	return CardDB.card_for(card_id, {"over": over})
 
@@ -102,11 +103,11 @@ func effect_list() -> Array:
 	return CardDB.def(card_id).effects()
 
 ## Puts fresh board state on the card as it enters the board.
-func enter_board(is_legendary: bool, overrides: Dictionary = {}) -> void:
+func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:
 	over = overrides
 	var cd := data()
 	var kws: Array = cd.get("keywords", []).duplicate()
-	legendary = is_legendary
+	incarnation = is_incarnation
 	banish_at_turn_end = false # a revived copy is a normal unit again
 	atk = int(cd["atk"])
 	hp = int(cd["hp"])
@@ -266,22 +267,24 @@ func to_dict() -> Dictionary:
 	var d := {"uid": uid, "card_id": card_id}
 	if zone == "hand" and discount > 0:
 		d["discount"] = discount
+	if zone == "hand" and turn_discount > 0:
+		d["turn_discount"] = turn_discount
 	if cost_mod != 0:
 		d["cost_mod"] = cost_mod
 	if banish_after_cast:
 		d["banish_after_cast"] = true # so the client can warn that the next cast banishes it
 	if death_ward_armed:
 		d["death_ward_armed"] = true
+	if charges_used > 0:
+		d["charges_used"] = charges_used
 	if supreme_shield: # written before the board-only part: a free-standing artifact can hold it too
 		d["supreme_shield"] = true
 		if supreme_shield_expires != "":
-	if charges_used > 0:
-		d["charges_used"] = charges_used
 			d["supreme_shield_expires"] = supreme_shield_expires
 	if zone != "board":
 		return d
 	d.merge({
-		"owner": owner, "legendary": legendary, "atk": atk, "hp": hp, "damage": damage,
+		"owner": owner, "incarnation": incarnation, "atk": atk, "hp": hp, "damage": damage,
 		"temp_atk": temp_atk, "keywords": keywords.duplicate(), "temp_keywords": temp_keywords.duplicate(),
 		"shield": shield, "spell_shield": spell_shield, "exhausted": exhausted, "sick": sick,
 	})
@@ -363,15 +366,16 @@ func to_dict() -> Dictionary:
 static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card:
 	var c := Card.new(int(d["uid"]), String(d["card_id"]), int(d.get("owner", owner_player)), in_zone)
 	c.discount = int(d.get("discount", 0))
+	c.turn_discount = int(d.get("turn_discount", 0))
 	c.cost_mod = int(d.get("cost_mod", 0))
 	c.death_ward_armed = bool(d.get("death_ward_armed", false))
+	c.charges_used = int(d.get("charges_used", 0))
 	c.supreme_shield = bool(d.get("supreme_shield", false))
 	c.supreme_shield_expires = String(d.get("supreme_shield_expires", ""))
 	c.over = d.get("over", {})
 	if in_zone != "board":
-	c.charges_used = int(d.get("charges_used", 0))
 		return c
-	c.legendary = bool(d["legendary"])
+	c.incarnation = bool(d["incarnation"])
 	c.atk = int(d["atk"])
 	c.hp = int(d["hp"])
 	c.damage = int(d["damage"])

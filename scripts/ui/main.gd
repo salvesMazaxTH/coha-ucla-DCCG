@@ -54,7 +54,7 @@ var ai_deck := "" ## deck the AI plays, picked in the second step of the AI hub 
 
 # input state
 var picked: Array = [] ## mulligan/discard selection
-var targeting := {} ## {"kind": hand|legendary|ability|enter|attack, "uid": int, "spec": String}
+var targeting := {} ## {"kind": hand|incarnation|ability|enter|attack, "uid": int, "spec": String}
 
 var log_lines: Array = []
 var chronicle_entries: Array = [] ## structured visual history; log_lines remains as a text fallback
@@ -710,7 +710,7 @@ func _deck_showcase(id: String, size: Vector2, choosing_ai_deck: bool) -> Contro
 	for essence_id in ld["essences"]:
 		essence_names.append(CardDB.essence(essence_id).get("name", essence_id))
 	var leader_line := "%s · %d de vida · %s" % [ld["name"], int(ld["hp"]), " / ".join(essence_names)]
-	var footer := "%d cartas · Encarnação: %s" % [DeckDB.card_count(id), CardDB.card(ld["legendary"])["name"]]
+	var footer := "%d cartas · Encarnação: %s" % [DeckDB.card_count(id), CardDB.card(ld["incarnation"])["name"]]
 	_showcase_text(p, size, who, String(d["name"]), leader_line, col, String(d.get("description", "")), footer, art_h - 30.0)
 	return p
 
@@ -1311,14 +1311,19 @@ const LEADER_Y_ME := 656.0
 const EHAND_DX := 190.0 ## the opponent hand fans out beside their Leader
 
 func _render_command(p: int, pos: Vector2) -> void:
-	var l: Dictionary = g.players[p]["legendary"]
+	var l: Dictionary = g.players[p]["incarnation"]
 	if p == viewer:
 		var cap := _label("SANTUÁRIO", 13, Color(UITheme.GOLD, 0.7), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
 		cap.position = pos + Vector2(-1, -20)
 		cap.size = Vector2(SANCTUARY_W, 16)
 		layer.add_child(cap)
 	if not l["in_zone"]:
-		var empty := _label("NO DECK" if l.get("retired", false) else "EM CAMPO", 12, Color(UITheme.TEXT, 0.35), HORIZONTAL_ALIGNMENT_CENTER, "title", 2)
+		var where := "EM CAMPO"
+		if l.get("retired", false):
+			where = "NO DECK"
+		elif g.incarnation_in_hand(p):
+			where = "NA MÃO"
+		var empty := _label(where, 12, Color(UITheme.TEXT, 0.35), HORIZONTAL_ALIGNMENT_CENTER, "title", 2)
 		empty.position = pos + Vector2(-1, 115)
 		empty.size = Vector2(SANCTUARY_W, 20)
 		layer.add_child(empty)
@@ -1326,14 +1331,14 @@ func _render_command(p: int, pos: Vector2) -> void:
 	var v := CardView.new().setup(l["card_id"], _display_instance_for_id(l["card_id"], p), SANCTUARY_SCALE)
 	v.pivot_offset = v.size / 2.0
 	v.position = pos
-	v.cost_override = g.legendary_cost(p)
+	v.cost_override = g.incarnation_cost(p)
 	v.text_suffix = _scale_suffix(p, CardDB.card(l["card_id"]))
 	v.snowball_level = int(g.players[p]["snowball"])
-	if p == viewer and g.can_cast_legendary(p) and not _is_ai(p):
+	if p == viewer and g.can_cast_incarnation(p) and not _is_ai(p):
 		v.highlight = OK
-	if targeting.get("kind") == "legendary" and p == viewer:
+	if targeting.get("kind") == "incarnation" and p == viewer:
 		v.highlight = SEL
-	v.left_clicked.connect(func(_v): _on_legendary(p))
+	v.left_clicked.connect(func(_v): _on_incarnation(p))
 	v.right_clicked.connect(_show_overlay)
 	layer.add_child(v)
 	views["cmd%d" % p] = v
@@ -2678,14 +2683,14 @@ func _toggle_pick(uid: int, cap: int) -> void:
 		picked.append(uid)
 	_render()
 
-func _on_legendary(p: int) -> void:
+func _on_incarnation(p: int) -> void:
 	if p != viewer or not _my_input():
 		return
-	if _wait_for_table(_on_legendary.bind(p)):
+	if _wait_for_table(_on_incarnation.bind(p)):
 		return
-	if not g.can_cast_legendary(p):
+	if not g.can_cast_incarnation(p):
 		return
-	_do(g.cast_legendary(p)) # its Ao Entrar target (if any) is picked once it is on the board
+	_do(g.cast_incarnation(p)) # its Ao Entrar target (if any) is picked once it is on the board
 
 ## While our Ao Entrar waits for a target, aim from the unit on the board; the choice is
 ## optional (the side button skips it), so it cannot be cancelled away.
@@ -2778,8 +2783,8 @@ func _fire_target(uid: int) -> void:
 				_do(g.play_card(viewer, targeting["uid"], targeting["first"], uid))
 			else:
 				_do(g.play_card(viewer, targeting["uid"], uid, 0, targeting.get("slot", -1)))
-		"legendary":
-			_do(g.cast_legendary(viewer, uid))
+		"incarnation":
+			_do(g.cast_incarnation(viewer, uid))
 		"ability":
 			_do(g.use_ability(viewer, uid))
 		"unit_ability":
@@ -4383,7 +4388,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 				var uid: int = e["uid"]
 				var cd := CardDB.card(e["card_id"])
 				var origin: Dictionary = {"c": Vector2(lane_cx + EHAND_DX, 30), "rot": 0.0, "w": 96.0}
-				if e.get("legendary", false) and old.has("cmd%d" % e["player"]):
+				if e.get("incarnation", false) and old.has("cmd%d" % e["player"]):
 					origin = old["cmd%d" % e["player"]]["pose"]
 				elif e.get("requiem", false) and views.get(GameState.LEADER_UID[e["player"]]) is LeaderView:
 					# a Réquiem spell rises from the graveyard icon of its caster
@@ -4396,10 +4401,10 @@ func _animate(events: Array, old: Dictionary) -> float:
 					var v: CardView = views[uid]
 					var to := _pose(v)
 					handled[uid] = true
-					# the card is heard when it lands on the board (a legendary also gets its bell as it leaves the hand)
+					# the card is heard when it lands on the board (the Encarnação also gets its bell as it leaves the Santuário)
 					placed_uids[uid] = true
-					if e.get("legendary", false):
-						Sfx.play_in("legendary", cursor)
+					if e.get("incarnation", false):
+						Sfx.play_in("incarnation", cursor)
 					Sfx.play_in("card_place", cursor + 0.38)
 					v.z_index = 20
 					var tw := _fly(v, origin, to, cursor, 0.42, 70.0, true)
@@ -5074,7 +5079,7 @@ func _log_event(e: Dictionary) -> void:
 			var thawed := g.find_unit(e["uid"])
 			if thawed != null:
 				_log("%s descongelou" % _cname(thawed.card_id))
-		"legendary_retired":
+		"incarnation_retired":
 			_log("%s foi para o fundo do deck como carta comum" % _cname(e["card_id"]))
 		"enter_skip":
 			_log("%s: Ao Entrar recusado" % _cname(e["card_id"]))

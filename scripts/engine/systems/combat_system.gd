@@ -172,7 +172,7 @@ func attack(player: int, attacker_uid: int, target_uid: int) -> Array:
 ## leaves it as the pending attack. Its combat damage comes from finish_pending_attack().
 func _declare_attack(attacker: Card, target_uid: int) -> void:
 	var defender_unit: Card = game.find_unit(target_uid) if target_uid > 0 else null
-	var target_card_id := defender_unit.card_id if defender_unit != null else String(CardDB.leader(game.players[game.opponent(attacker.owner)]["leader_id"]).get("legendary", ""))
+	var target_card_id := defender_unit.card_id if defender_unit != null else String(CardDB.leader(game.players[game.opponent(attacker.owner)]["leader_id"]).get("incarnation", ""))
 	game._emit({"type": "attack", "player": attacker.owner, "attacker": attacker.uid, "target": target_uid, "attacker_card_id": attacker.card_id, "target_card_id": target_card_id})
 	redirect_hit_to = 0
 	redirect_counter_to = 0
@@ -349,7 +349,7 @@ func _begin_next_auto_attack() -> bool:
 		var target_uid: int = targets[game.rng.randi_range(0, targets.size() - 1)]
 		var defender_unit: Card = game.find_unit(target_uid) if target_uid > 0 else null
 		attacker.attacks_made += 1
-		var target_card_id := defender_unit.card_id if defender_unit != null else String(CardDB.leader(game.players[game.opponent(attacker.owner)]["leader_id"]).get("legendary", ""))
+		var target_card_id := defender_unit.card_id if defender_unit != null else String(CardDB.leader(game.players[game.opponent(attacker.owner)]["leader_id"]).get("incarnation", ""))
 		game._emit({"type": "attack", "player": attacker.owner, "attacker": attacker.uid, "target": target_uid, "attacker_card_id": attacker.card_id, "target_card_id": target_card_id})
 		redirect_hit_to = 0
 		redirect_counter_to = 0

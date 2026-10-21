@@ -23,7 +23,8 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - A taxa cresce a cada conjuração: a 2ª custa **+1 Momentum**, a 3ª **+3** (1+2), a 4ª **+6** (1+2+3), a 5ª **+10**, e assim por diante.
 - Quando a Encarnação morre, ela volta para o Santuário. A morte dela não afeta o Líder.
 - **Aposentadoria:** se ela morre ou é **banida** e a próxima conjuração passaria de 10 (o máximo de Momentum, contando o **custo atual** com reduções, mais a taxa), ela **não** volta ao Santuário: vai para o **fundo do deck** com o custo resetado e vira **carta comum para sempre** (se morrer de novo, vai para o cemitério). Ex.: Ronan (4) conjura por 4→5→7→10 e se aposenta na 4ª morte (a próxima seria 14); Naelthos (5): 5→6→8, e na 3ª morte a próxima seria 11, então se aposenta; Jeff (6): 6→7→9, e na 3ª morte a próxima seria 12, então se aposenta.
-- Ser devolvida para a mão não conta: ela mantém o custo que tinha no Santuário.
+- **Voltar para a mão:** a Encarnação **pode** ser devolvida à mão por qualquer efeito de devolver (como qualquer unidade). Na mão ela continua sendo a Encarnação, e o Santuário fica vazio ("NA MÃO"). Jogada da mão, ela custa o **custo normal da carta**, sem a taxa e sem contar como uma nova conjuração. Ela só volta ao Santuário quando **iria para o cemitério ou seria banida**, de onde estiver (campo, mão, descarte).
+- Não confundir com a raridade **Lendária**: esta é uma unidade comum como qualquer outra e não tem relação com o Santuário.
 
 ## Início da partida
 
@@ -108,9 +109,9 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - **Artefato:** tipo de carta próprio (categoria ainda em expansão). Fica em jogo até algo o remover.
   - **Equipamento:** é um artefato ("Artefato · Equipamento"). Anexa-se a uma unidade aliada, fica visível sob ela e dá o bônus. Quando a unidade morre, o equipamento vai junto para o cemitério. Cada unidade tem no máximo um; equipar outro descarta o antigo.
   - **Local:** artefato solto no campo ("Artefato · Local"). Ocupa um espaço e nunca luta. Alguns não vão no deck: só entram em jogo por um efeito (o Baluarte Santo, erguido pela habilidade do Líder Mefi'Urdim). Quando outra unidade aliada fosse morrer por qualquer efeito, inclusive dano de combate, o Baluarte é destruído e aquele efeito é anulado; banimento ignora essa proteção. Ao morrer, cura 3 do Líder do dono.
-
   - **Artefato puro:** sem subtipo ("subtypes": []), só "Artefato". Também fica solto no campo, ocupando um espaço, e nunca luta, mas não é um lugar como o Local (Ampola e Garrafão Curativos).
   - **Usos limitados (`charges`):** um artefato solto no campo (sem ser Equipar) pode ter um número de usos (Ampola e Garrafão Curativos). Cada vez que um efeito Condicional dele dispara, gasta 1 uso; com 0 restantes ele é destruído. Os usos que restam aparecem na carta.
+
 ## Espécies
 
 - Uma unidade pode ter uma ou mais **espécies** (ex.: Ronan é Dragonoide, Humano e Dragão), no campo `"species"` do JSON. Os nomes ficam em `species` no `cards.json`. Algumas cartas não têm espécie.
@@ -230,7 +231,7 @@ Não são gatilhos automáticos: o dono decide quando usar. O custo em Momentum 
 
 - **Ao Ativar (n) [selo de velocidade] (limites):** a habilidade **vai para a pilha** como um feitiço da velocidade indicada (Lento, Rápido ou Instantâneo). Pode ser respondida e anulada. Exemplo: Yuki, _Ao Ativar (2) [RÁPIDO] (1x por turno): ganhe +2 de Ataque neste turno._
 - **Transformar (n):** é um tipo específico de ativável. Só pode ser usado na sua Fase Principal com a pilha vazia. A unidade vira a carta indicada no mesmo lugar (mantém dano e equipamento) e o Ao Entrar da nova forma dispara. A unidade transformada **não fica com enjoo de invocação**: pode atacar e ativar na hora. **Não usa a pilha**, então não pode ser anulado. Exemplo: Alexa Neruvya, _Transformar (8): Alexa Neruvya Primordial._
-  | Aliado Morre | Outra unidade que você controla **morre**, mesmo que volte na hora (Revivente, Fênix) ou seja um Lendário voltando ao Santuário. A que morreu não ativa o próprio efeito (para isso existe Ao Morrer). Sacrifício conta. Um efeito pode ser "exceto dano de combate" (`not_in_combat`) ou "exceto fichas" (`not_token`): não dispara se a morte vem do dano de combate / se quem morreu era uma ficha (ex.: Cientista da Morte). |
+  | Aliado Morre | Outra unidade que você controla **morre**, mesmo que volte na hora (Revivente, Fênix) ou seja a Encarnação voltando ao Santuário. A que morreu não ativa o próprio efeito (para isso existe Ao Morrer). Sacrifício conta. Um efeito pode ser "exceto dano de combate" (`not_in_combat`) ou "exceto fichas" (`not_token`): não dispara se a morte vem do dano de combate / se quem morreu era uma ficha (ex.: Cientista da Morte). |
   | (qualquer gatilho) | Um efeito pode ter "uma vez por turno" (`once_per_turn`): o limite é por unidade e reinicia a cada turno, de qualquer jogador (ex.: Diabrete Sombrio). |
   | Constante | Sempre, enquanto a unidade está em campo (só em campo; reduções de custo não são Constante). Também são Constante: o bônus de espécie de outra unidade aliada (`species_aura`) e a Armadura por feitiços no cemitério (`graveyard_armor`). Não dispara: é recalculado a cada mudança de estado (ex.: Jeff The Death recebe +1/+1 por unidade no cemitério do dono; o dano sofrido continua valendo se o bônus encolher). |
 

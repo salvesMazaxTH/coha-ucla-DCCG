@@ -143,10 +143,10 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 			return events
 	# The Encarnação is a powerful fallback, not an automatic first play: spend Momentum on
 	# worthwhile cards from hand first, then cast it if no other legal play is available.
-	if g.can_cast_legendary(p):
-		var legendary_events := g.cast_legendary(p)
-		if not legendary_events.is_empty():
-			return legendary_events
+	if g.can_cast_incarnation(p):
+		var incarnation_events := g.cast_incarnation(p)
+		if not incarnation_events.is_empty():
+			return incarnation_events
 	for unit: Card in g.players[p]["board"]:
 		# untargeted Ao Ativar, before attacking (e.g. Yuki's temporary attack)
 		var activated_effects: Array = unit.data().get("activated", {}).get("effects", [])
@@ -473,6 +473,27 @@ static func _punishes_surviving_damage(unit: Card) -> bool:
 			return true
 	return false
 
+## Returning one of its own units to the hand (Naelys) only pays off when the unit comes back with an Ao Entrar to repeat,
+## so the AI picks the weakest such unit and otherwise declines (0). A token never comes back: it just leaves the game.
+static func _pick_bounce_ally(g: GameState, options: Array) -> int:
+	var best_uid := 0
+	var best_score := 9999
+	for uid in options:
+		var unit := g.find_unit(uid)
+		if unit == null or unit.data().get("token", false):
+			continue
+		var has_enter_effect := false
+		for effect in unit.data().get("effects", []):
+			if effect.get("trigger", "") == "on_enter":
+				has_enter_effect = true
+		if not has_enter_effect:
+			continue
+		var score := unit.atk_total() + unit.hp_left()
+		if score < best_score:
+			best_score = score
+			best_uid = uid
+	return best_uid
+
 ## Hostile effects pick the biggest enemy (or the Leader); friendly ones the biggest ally.
 ## Damage that doesn't kill is worth nothing on a unit with Regeneração (it heals at the start of the next turn, before its owner acts)
 ## or one that gets stronger from it; on any other unit it stays marked, so it is never skipped.
@@ -496,6 +517,9 @@ static func _pick_target(g: GameState, p: int, spec: String, source, self_uid :=
 		return 0
 	if spec == "ally_or_own_leader":
 		return _most_damaged(g, p, options)
+	for effect in effects:
+		if effect.get("action") == "return_to_hand" and spec in ["ally_unit", "other_ally_unit"]:
+			return _pick_bounce_ally(g, options)
 	var friendly := spec in ["ally_unit", "other_ally_unit", "ally_or_own_leader"]
 	if not friendly:
 		for effect in effects:
@@ -691,10 +715,10 @@ static func _unit_value(g: GameState, unit: Card) -> int:
 const ENGINE_TRIGGERS := ["on_ally_death", "on_turn_start", "on_turn_end", "constante"]
 
 ## True for a synergy engine (e.g. Diabrete Sombrio: "Aliado Morre"): a unit with a repeating
-## trigger, an Ao Ativar ability, or a Lendário. The AI avoids leaving these exposed to a trade.
+## trigger, an Ao Ativar ability, or the Encarnação. The AI avoids leaving these exposed to a trade.
 static func _is_engine(unit: Card) -> bool:
 	var card_data := unit.data()
-	if unit.legendary or card_data.has("activated"):
+	if unit.incarnation or card_data.has("activated"):
 		return true
 	for effect in card_data.get("effects", []):
 		if ENGINE_TRIGGERS.has(effect.get("trigger", "")):

@@ -16,7 +16,7 @@ func _read_parameters(data: Dictionary) -> void:
 
 func apply(context: EffectContext, target_uid: int) -> void:
 	if action == "draw_discounted":
-		context.game._draw_discounted(context.controller, min_base_cost, discount)
+		context.last_drawn_card = context.game._draw_discounted(context.controller, min_base_cost, discount)
 		return
 	var enemy := context.opponent()
 	var drawer := enemy if target_uid == GameState.LEADER_UID[enemy] else context.controller

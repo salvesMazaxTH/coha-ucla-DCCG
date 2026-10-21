@@ -89,7 +89,9 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 		var keyword := CardDB.keyword(keyword_id)
 		txt += "[color=#ffe9a8][b]%s[/b][/color] — %s\n" % [keyword["name"], CardView.colorize_rules(keyword_text(cd, keyword_id, keyword, instance))]
 	if CardDB.is_leader_card(card_id):
-		txt += "\n[color=#e8c25a]Encarnação do Líder:[/color] fica no Santuário. Cada nova conjuração custa mais que a anterior: +1, depois +2, +3, +4... Ao morrer ou ser banida, volta para o Santuário; se a próxima conjuração passaria de %d, vai para o fundo do deck como carta comum, com o custo normal.\n" % [GameState.MOMENTUM_CAP]
+		txt += "\n[color=#e8c25a]Encarnação do Líder:[/color] fica no Santuário. Cada nova conjuração custa mais que a anterior: +1, depois +2, +3, +4... Pode voltar para a mão (jogada de lá, custa o custo normal). Ao ir para o cemitério ou ser banida, volta para o Santuário; se a próxima conjuração passaria de %d, vai para o fundo do deck como carta comum, com o custo normal.\n" % [GameState.MOMENTUM_CAP]
+	if cd.get("token", false):
+		txt += "\n[color=#9ad0c0]Ficha:[/color] não vai para o cemitério e nunca vai para a mão: se fosse, é apagada do jogo.\n"
 	var flavor := CardDB.flavor_for(cd, true)
 	if flavor != "":
 		txt += "\n[i][color=#888888]%s[/color][/i]" % flavor

@@ -150,7 +150,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 	var ld := CardDB.leader(d["leader"])
 	var deck: Array = []
 	for id in d["cards"]:
-		if id == ld["legendary"]:
+		if id == ld["incarnation"]:
 			continue
 		for n in int(d["cards"][id]):
 			deck.append(Card.new(_uid(), id, i, "deck"))
@@ -161,7 +161,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"momentum": 0, "max_momentum": 0, "reserve": 0,
 			"saved_momentum": 0, "idle_turns": 0, "next_momentum": 0, "play_restrictions": [], "leaked": 0, "unspent": 0,
 		"deck": deck, "hand": [], "board": [], "relics": [], "graveyard": [], "banished": [],
-		"legendary": {"card_id": ld["legendary"], "in_zone": true, "casts": 0},
+		"incarnation": {"card_id": ld["incarnation"], "in_zone": true, "casts": 0},
 		"ability_used": false, "passive_used": false, "attacked": false, "fatigue": 0, "mulligan_done": false,
 		"played_two": false,
 		"snowball": SNOWBALL_BASE_LEVEL, # damage the next Bola de Neve starts at (grows with every Bola de Neve cast, goes back to snowball_base at the end of the owner's turn)
@@ -348,9 +348,17 @@ func has_free_slot(p: int) -> bool:
 ## `extra_data` is added to the card_moved event ("unit_died": true tells that an equipment fell because its unit died).
 func _move(c: Card, to_zone: String, extra_data := {}) -> void:
 	var from_zone := c.zone
+	if c.incarnation and to_zone in ["graveyard", "banished"]:
+		# The Encarnação never rests in the graveyard or among the banished, wherever it was headed
+		# (discard, overdraw, a fizzled cast...): it goes back to the Santuário instead.
+		players[c.owner][to_zone].erase(c)
+		to_zone = ""
+		c.incarnation = false # this copy is gone; the Santuário makes a fresh one on the next cast
+		_incarnation_leaves(c.owner)
 	c.zone = to_zone
 	if to_zone != "hand":
 		c.discount = 0
+		c.turn_discount = 0
 	# a Bola de Neve that reaches the hand, deck or graveyard of a player already at Grande level is born Grande
 	# (the copy that was being cast, one fetched from the graveyard, one created by an effect...)
 	if c.card_id == SNOWBALL_CARD_ID and to_zone in ["hand", "deck", "graveyard"] and snowball_is_grande(c.owner):
@@ -548,20 +556,28 @@ func scale_count(p: int, cd: Dictionary) -> int:
 			return _scale_count(p, e)
 	return -1
 
-## The Encarnação left the board by dying or being banished (a return to hand doesn't count).
+## The Encarnação would go to the graveyard or be banished (from the board, the hand or anywhere else;
+## a return to hand does NOT count: it stays a card in hand and keeps being the Encarnação).
 ## If its next cast would cost more than the Momentum cap, it retires: it goes to the bottom of
 ## the deck as a normal card at its base cost, for good. Otherwise it goes back to the Santuário.
-func _legendary_leaves(p: int) -> void:
-	var l: Dictionary = players[p]["legendary"]
-	if legendary_cost(p) <= MOMENTUM_CAP:
+func _incarnation_leaves(p: int) -> void:
+	var l: Dictionary = players[p]["incarnation"]
+	if incarnation_cost(p) <= MOMENTUM_CAP:
 		l["in_zone"] = true
 		return
 	l["retired"] = true
 	players[p]["deck"].insert(0, Card.new(_uid(), l["card_id"], p, "deck")) # draws pop the back
-	_emit({"type": "legendary_retired", "player": p, "card_id": l["card_id"]})
+	_emit({"type": "incarnation_retired", "player": p, "card_id": l["card_id"]})
 
-func legendary_cost(p: int) -> int:
-	var l: Dictionary = players[p]["legendary"]
+## True while the Encarnação sits in this player's hand (it came back through a return-to-hand effect).
+func incarnation_in_hand(p: int) -> bool:
+	for c in players[p]["hand"]:
+		if c.incarnation:
+			return true
+	return false
+
+func incarnation_cost(p: int) -> int:
+	var l: Dictionary = players[p]["incarnation"]
 	return cost_of(p, CardDB.card(l["card_id"])) + commander_tax(int(l["casts"]))
 
 ## Extra cost of the Encarnação after `casts` previous casts: 1 + 2 + ... + casts, times COMMANDER_TAX_STEP.
@@ -667,7 +683,7 @@ func enter_second_spec(cd: Dictionary) -> String:
 ## per owner turn that started with Momentum leaking past the Reserva; "unspent_momentum" = a flat "amount" off when
 ## at least "threshold" plain Momentum was left over from the previous turn). Never below 0, or below the effect's "min_cost".
 func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
-	var c := int(cd["cost"]) - (card.discount if card != null else 0) # per-copy discount (Tecnomante); stacks with cost_reduction, same "min_cost" floor
+	var c := int(cd["cost"]) - (card.discount + card.turn_discount if card != null else 0) # per-copy discounts; stacks with cost_reduction, same "min_cost" floor
 	if card != null:
 		c += card.cost_mod # permanent per-copy change (modify_cost), kept in every zone
 	var floor_cost := 0
@@ -937,7 +953,7 @@ func can_cast_speed(p: int, speed: String) -> bool:
 		return speed == "instantaneo"
 	return window == "pre_combat" and speed != "lento"
 
-## Units, the Legendary and ending the turn: own Main Phase, empty stack.
+## Units, the Encarnação and ending the turn: own Main Phase, empty stack.
 func _sorcery_time(p: int) -> bool:
 	return _main_phase_idle(p)
 
@@ -1043,11 +1059,11 @@ func is_play_restricted(p: int, cd: Dictionary) -> bool:
 			return true
 	return false
 
-func can_cast_legendary(p: int) -> bool:
-	if is_play_restricted(p, CardDB.card(players[p]["legendary"]["card_id"])):
+func can_cast_incarnation(p: int) -> bool:
+	if is_play_restricted(p, CardDB.card(players[p]["incarnation"]["card_id"])):
 		return false
-	return _sorcery_time(p) and players[p]["legendary"]["in_zone"] \
-		and legendary_cost(p) <= players[p]["momentum"] and has_free_slot(p)
+	return _sorcery_time(p) and players[p]["incarnation"]["in_zone"] \
+		and incarnation_cost(p) <= players[p]["momentum"] and has_free_slot(p)
 
 func can_use_ability(p: int, allow_unreachable := false) -> bool:
 	var ab: Dictionary = CardDB.leader(players[p]["leader_id"])["ability"]
@@ -1254,15 +1270,15 @@ func _play_subito(p: int, inst: Card, cd: Dictionary, slot: int) -> Array:
 	stack_system().settle()
 	return _flush()
 
-func cast_legendary(p: int, _target: int = 0, slot: int = -1) -> Array:
-	if not can_cast_legendary(p):
+func cast_incarnation(p: int, _target: int = 0, slot: int = -1) -> Array:
+	if not can_cast_incarnation(p):
 		return []
 	var pl: Dictionary = players[p]
-	pl["momentum"] -= legendary_cost(p)
-	pl["legendary"]["in_zone"] = false
-	pl["legendary"]["casts"] += 1
-	var c := Card.new(_uid(), pl["legendary"]["card_id"], p)
-	_emit({"type": "play", "player": p, "uid": c.uid, "card_id": c.card_id, "legendary": true})
+	pl["momentum"] -= incarnation_cost(p)
+	pl["incarnation"]["in_zone"] = false
+	pl["incarnation"]["casts"] += 1
+	var c := Card.new(_uid(), pl["incarnation"]["card_id"], p)
+	_emit({"type": "play", "player": p, "uid": c.uid, "card_id": c.card_id, "incarnation": true})
 	_summon(p, c, true, 0, {}, true, slot, true)
 	_check_state()
 	stack_system().open_summon_window(p)
@@ -1354,9 +1370,9 @@ func banish_unit(exiled: Card) -> void:
 	var owner_player: int = exiled.owner
 	players[owner_player]["board"].erase(exiled)
 	_release_equipment(exiled)
-	if exiled.legendary:
+	if exiled.incarnation:
 		_move(exiled, "")
-		_legendary_leaves(owner_player)
+		_incarnation_leaves(owner_player)
 	elif exiled.data().get("token", false):
 		_move(exiled, "")
 	else:
@@ -1366,30 +1382,29 @@ func banish_unit(exiled: Card) -> void:
 
 ## Sends a card back to its owner's hand: a unit from the board (a bounce, not a death: no Ao Morrer, no Aliado Morre)
 ## or a card from the graveyard. `cost_increase` makes this copy cost that much more from now on (it stacks on every return).
-## A token just vanishes; an Encarnação goes back to its own zone. Cards in any other zone are left alone.
+## A token just vanishes (it is deleted from the game). The Encarnação CAN come back to the hand like any
+## unit (it keeps its Encarnação status; played from the hand it costs its normal cost, with no commander
+## tax and without counting as a new cast) and only goes back to the Santuário if it would go to the graveyard
+## or be banished. Cards in any other zone are left alone.
 ## The hand may go past HAND_LIMIT: the owner discards the excess at the end of their turn, as with any overdraw.
-func return_to_hand(c: Card, cost_increase := 0) -> void:
+func return_to_hand(c: Card, cost_increase := 0) -> bool:
 	var owner_player: int = c.owner
 	if c.zone == "board":
 		players[owner_player]["board"].erase(c)
 		_release_equipment(c)
-		if c.legendary:
-			_move(c, "")
-			_legendary_leaves(owner_player)
-			_emit({"type": "return_to_hand", "uid": c.uid, "player": owner_player, "card_id": c.card_id})
-			return
 		if c.data().get("token", false):
 			_move(c, "")
 			_emit({"type": "return_to_hand", "uid": c.uid, "player": owner_player, "card_id": c.card_id})
-			return
+			return false
 	elif c.zone == "graveyard":
 		players[owner_player]["graveyard"].erase(c)
 	else:
-		return
+		return false
 	c.cost_mod += cost_increase
 	players[owner_player]["hand"].append(c)
 	_move(c, "hand")
 	_emit({"type": "return_to_hand", "uid": c.uid, "player": owner_player, "card_id": c.card_id})
+	return true
 
 ## Gives up priority. With items on the stack, everything resolves (newest first);
 ## in an empty combat window the combat moves on to the next window.
@@ -1747,13 +1762,13 @@ func set_auto_pass(p: int, on: bool) -> Array:
 ## (phase "enter_target") instead of resolving right away.
 ## slot: board position to enter at (0 = leftmost); -1 or past the end = rightmost. Position
 ## matters for adjacency (Armadura from neighbours, "random_enemy_and_adjacent", ...).
-## respond: the unit was played (hand or Legendary), so its Ao Entrar goes on the stack as an item the
+## respond: the unit was played (hand or Santuário), so its Ao Entrar goes on the stack as an item the
 ## opponent may answer with an Instantâneo (it cannot be countered) instead of resolving at once.
-func _summon(p: int, c: Card, legendary: bool, target: int, over: Dictionary = {}, ask := false, slot := -1, respond := false) -> void:
+func _summon(p: int, c: Card, incarnation: bool, target: int, over: Dictionary = {}, ask := false, slot := -1, respond := false) -> void:
 	var uid := c.uid
 	var card_id := c.card_id
 	c.owner = p
-	c.enter_board(legendary, over)
+	c.enter_board(incarnation or c.incarnation, over) # an Encarnação played back from the hand is still the Encarnação
 	var cd := c.data()
 	_move(c, "board")
 	var board: Array = players[p]["board"]
@@ -1775,6 +1790,8 @@ func _summon(p: int, c: Card, legendary: bool, target: int, over: Dictionary = {
 		pending_tap.append(uid)
 	var spec := enter_spec(cd)
 	var enter_options: Array = valid_targets(p, spec, uid, false, cd.get("effects", [])) if spec != "" else []
+	if _enter_pick_is_moot(p, cd.get("effects", [])):
+		enter_options = [] # nothing would come of the pick, so it is not even asked
 	# the unit itself as the only possible target is no real choice: it is picked without asking
 	var only_itself: bool = enter_options.size() == 1 and enter_options[0] == uid
 	if only_itself and target == 0:
@@ -1788,6 +1805,26 @@ func _summon(p: int, c: Card, legendary: bool, target: int, over: Dictionary = {
 	if target == 0 and target_spec(cd["effects"]) == "ally_unit":
 		target = uid
 	_trigger_enter(p, c, cd["effects"], target, respond)
+
+## True when an Ao Entrar pick can have no effect: a return that is only paid for by an earlier discounted draw
+## (Naelys), while the deck has no card that draw could take. The pick is asked before the draw happens, so this checks the deck now.
+func _enter_pick_is_moot(p: int, effects: Array) -> bool:
+	var draw_min_base_cost := -1
+	for effect in effects:
+		if effect.get("trigger", "") == "on_enter" and effect.get("action", "") == "draw_discounted":
+			draw_min_base_cost = int(effect.get("min_base_cost", 0))
+	if draw_min_base_cost < 0:
+		return false
+	var needs_the_draw := false
+	for effect in effects:
+		if effect.get("trigger", "") == "on_enter" and int(effect.get("discount_returned_this_turn", 0)) > 0:
+			needs_the_draw = true
+	if not needs_the_draw:
+		return false
+	for deck_card in players[p]["deck"]:
+		if int(CardDB.card(deck_card.card_id)["cost"]) >= draw_min_base_cost:
+			return false
+	return true
 
 ## Runs the unit's Ao Entrar `effects`, or (respond) puts them on the stack so the opponent can answer first.
 func _trigger_enter(p: int, c: Card, effects: Array, target: int, respond: bool, second_target := 0) -> void:
@@ -1852,6 +1889,7 @@ func _fire(c: Card, trigger: String, other_uid: int = 0, event_data: Dictionary 
 func _run_effects(context: EffectContext, effects: Array) -> void:
 	context.shielded_uids.clear() # a repeated run (Arauto Repeteco) is a new application
 	context.shielded_this_effect.clear()
+	context.last_drawn_card = null
 	for entry in effects:
 		# entries are Effect objects (raw card dictionaries are parsed on the fly)
 		var effect: Effect = entry if entry is Effect else EffectRegistry.parse(entry)
@@ -2440,7 +2478,7 @@ func _draw(p: int, n: int) -> void:
 
 ## Draws the first card (from the top) whose base cost is at least `min_base_cost`; that copy costs
 ## `discount` less while it stays in hand (Tecnomante). Nothing happens, and no Fadiga, if none qualifies.
-func _draw_discounted(p: int, min_base_cost: int, discount: int) -> void:
+func _draw_discounted(p: int, min_base_cost: int, discount: int) -> Card:
 	var deck: Array = players[p]["deck"]
 	for i in range(deck.size() - 1, -1, -1):
 		if int(CardDB.card(deck[i].card_id)["cost"]) >= min_base_cost:
@@ -2451,7 +2489,8 @@ func _draw_discounted(p: int, min_base_cost: int, discount: int) -> void:
 			c.discount += discount
 			_emit({"type": "draw", "player": p, "uid": c.uid})
 			bus().emit(GameEvent.new("card_drawn", p, c))
-			return
+			return c
+	return null
 
 ## Stabilizes the game after an action: moves dead units out, then resolves the queued triggers one
 ## at a time (active player's first), looping until nothing is left to do. A trigger that opens a
@@ -2504,9 +2543,9 @@ func _move_dead_units() -> void:
 					changed = true
 					_emit({"type": "death", "uid": dead_uid, "player": p, "card_id": dying_card_id})
 					_release_equipment(c, true)
-					if c.legendary:
+					if c.incarnation:
 						_move(c, "")
-						_legendary_leaves(p)
+						_incarnation_leaves(p)
 					elif c.data().get("token", false):
 						_move(c, "") # a ficha dies without ever reaching the graveyard (Vagante, Jeff don't count it)
 					else:
@@ -2520,7 +2559,7 @@ func _move_dead_units() -> void:
 						if death_doubled[p]:
 							queue_trigger(PendingTrigger.new(c, effects, death_context, "on_death"))
 					# Aliado Morre fires on every death, even if the unit comes right back (Revivente, Fênix)
-					# or a Legendary returns to its zone.
+					# or the Encarnação returns to the Santuário.
 					for ally in players[p]["board"].duplicate():
 						if players[p]["board"].has(ally):
 							_fire(ally, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token, "dying_card_id": dying_card_id})
@@ -2677,6 +2716,9 @@ func _finish_turn() -> void:
 	if int(ending["frozen_slots"]) > 0 and turn >= int(ending["frozen_slots_until"]):
 		ending["frozen_slots"] = 0
 		_emit({"type": "slots_thaw", "player": active})
+	for player_state: Dictionary in players:
+		for card: Card in player_state["hand"]:
+			card.turn_discount = 0
 	_emit({"type": "end_turn", "player": active})
 	_start_turn(opponent(active), true)
 

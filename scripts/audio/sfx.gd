@@ -35,7 +35,7 @@ const SOUNDS := {
 	"card_discard":   {"files": ["card-shove-1", "card-shove-2"], "db": -3.0, "pitch": 0.05},
 	# --- casting
 	"spell_cast":     {"files": ["phaserUp1", "phaserUp2", "phaserUp3"], "db": -7.0, "pitch": 0.04},
-	"legendary":      {"files": ["impactBell_heavy_000", "impactBell_heavy_001"], "db": -3.0, "pitch": 0.0},
+	"incarnation":     {"files": ["impactBell_heavy_000", "impactBell_heavy_001"], "db": -3.0, "pitch": 0.0},
 	"trigger":        {"files": ["pluck_001"], "db": -8.0, "pitch": 0.08},
 	"relic":          {"files": ["metalLatch"], "db": -3.0, "pitch": 0.0},
 	# --- damage and healing
@@ -175,8 +175,8 @@ func play_event(event: Dictionary, seconds: float, in_combat: bool) -> void:
 static func sound_for_event(event: Dictionary, in_combat: bool) -> String:
 	match String(event.get("type", "")):
 		"play":
-			if event.get("legendary", false):
-				return "legendary"
+			if event.get("incarnation", false):
+				return "incarnation"
 			var card_type := String(CardDB.card(String(event.get("card_id", ""))).get("type", ""))
 			if card_type == "unit":
 				return "card_place"

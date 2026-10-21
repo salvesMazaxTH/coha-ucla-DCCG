@@ -46,7 +46,7 @@ func _revive_random(context: EffectContext) -> void:
 func _revive_self(context: EffectContext) -> void:
 	var game := context.game
 	var dying := context.dying_card
-	if dying == null or dying.legendary:
+	if dying == null or dying.incarnation:
 		return
 	var new_attack: int = dying.atk + attack_change
 	var new_health: int = dying.hp + health_change
