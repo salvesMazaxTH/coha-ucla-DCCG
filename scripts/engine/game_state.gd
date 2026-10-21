@@ -1878,6 +1878,13 @@ func _announce(c: Card, effects: Array, trigger: String) -> void:
 			_emit({"type": "trigger", "uid": c.uid, "player": c.owner, "card_id": c.card_id, "trigger": trigger})
 			return
 
+## Tells the UI that the card running `context` yells `text` (an effect's "shout"). Cosmetic only.
+func _announce_shout(context: EffectContext, text: String) -> void:
+	var shouting_card := find_card(context.self_uid)
+	if shouting_card == null:
+		return
+	_emit({"type": "shout", "uid": shouting_card.uid, "player": shouting_card.owner, "card_id": shouting_card.card_id, "text": text})
+
 ## Fires a unit's own trigger. Depth-capped so on_damaged chains cannot loop forever.
 func _fire(c: Card, trigger: String, other_uid: int = 0, event_data: Dictionary = {}) -> void:
 	if c == null:
@@ -1908,6 +1915,8 @@ func _run_effects(context: EffectContext, effects: Array) -> void:
 			continue
 		if effect.condition != null and not effect.condition.check(context):
 			continue
+		if effect.shout != "":
+			_announce_shout(context, effect.shout)
 		if effect.target.hits_one_at_a_time():
 			# one hit at a time: nothing else resolves in between (deaths and their Ao Morrer wait for _check_state)
 			for hit in effect.target.hit_count(context, effect):

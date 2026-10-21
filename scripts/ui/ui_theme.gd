@@ -14,7 +14,8 @@ const MOMENTUM := Color("#f5c518")
 
 static var _fonts := {}
 
-## kind: "title" (Cinzel, engraved caps), "body", "bold", "heavy" (Alegreya Sans)
+## kind: "title" (Cinzel, engraved caps), "body", "bold", "heavy" (Alegreya Sans), "shout" (Faster One,
+## speed-striped racing caps: only for a card's yelled line, see _shout_fx in main.gd)
 static func font(kind := "body") -> Font:
 	if _fonts.has(kind):
 		return _fonts[kind]
@@ -30,6 +31,8 @@ static func font(kind := "body") -> Font:
 			f = load("res://assets/fonts/AlegreyaSans-Bold.ttf")
 		"heavy":
 			f = load("res://assets/fonts/AlegreyaSans-ExtraBold.ttf")
+		"shout":
+			f = load("res://assets/fonts/FasterOne-Regular.ttf")
 		_:
 			f = load("res://assets/fonts/AlegreyaSans-Regular.ttf")
 	_fonts[kind] = f

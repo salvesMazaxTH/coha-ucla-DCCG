@@ -48,6 +48,8 @@ const SOUNDS := {
 	"buff":           {"files": ["pepSound1", "pepSound2"], "db": -8.0, "pitch": 0.04},
 	"poison_tick":    {"files": ["drop_002", "drop_003"], "db": -5.0, "pitch": 0.08},
 	"crit":           {"files": ["impactMetal_heavy_000"], "db": -3.0, "pitch": 0.0},
+	# a card's yelled line exploding (Barão Estrondoso's ATÔMICA!): a deep boom and a crunch mixed into one file
+	"atomic_boom":    {"files": ["atomic_boom"], "db": -5.0, "pitch": 0.0},
 	"reflect":        {"files": ["impactPlate_light_000", "impactPlate_light_001"], "db": -3.0, "pitch": 0.04},
 	"dodge":          {"files": ["cloth1", "cloth2"], "db": -3.0, "pitch": 0.06},
 	# --- units leaving, coming back, statuses

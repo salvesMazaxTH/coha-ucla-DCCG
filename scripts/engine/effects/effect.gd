@@ -18,6 +18,9 @@ var once_per_turn := false ## "once_per_turn": the trigger works once per turn p
 var own_turn_only := false ## "own_turn_only": the trigger is ignored during the opponent's turn
 var not_in_combat := false ## "not_in_combat": the trigger is ignored during combat damage
 var not_token := false ## "not_token": an Aliado Morre trigger is ignored when the unit that died was a ficha (Cientista da Morte)
+## "shout": a line the card yells when this effect actually runs (its "if" passed). Purely cosmetic: the
+## engine only emits a "shout" event and the UI draws it big over the card (Barão Estrondoso).
+var shout := ""
 ## "listen": the effect reacts to a game event from anywhere (see TriggerBus). Its `trigger` then
 ## becomes LISTEN_PREFIX + the event name, so no ordinary trigger ever matches it.
 var listen := ""
@@ -41,6 +44,7 @@ func setup(data: Dictionary) -> void:
 	own_turn_only = bool(data.get("own_turn_only", false))
 	not_in_combat = bool(data.get("not_in_combat", false))
 	not_token = bool(data.get("not_token", false))
+	shout = String(data.get("shout", ""))
 	if data.has("listen"):
 		listen = String(data["listen"])
 		trigger = LISTEN_PREFIX + listen

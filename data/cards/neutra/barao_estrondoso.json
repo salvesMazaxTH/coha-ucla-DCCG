@@ -25,6 +25,7 @@
       "trigger": "before_attack",
       "action": "auto_attack",
       "target": "none",
+      "shout": "Super Hiper Ultra Mega… ATÔMICA!",
       "if": { "compare": { "stat": "momentum", "who": "self", "op": ">=", "value": 11 } }
     },
     {

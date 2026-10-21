@@ -3773,6 +3773,177 @@ func _execution_fx(leader: LeaderView, hp_before: int, t: float, col: Color) -> 
 		leader.queue_redraw())
 	return strike_t + EXECUTION_DRAIN_TIME + 0.6
 
+## A card yells its line (an effect's "shout", Barão Estrondoso). Unlike every other float it uses the
+## racing font (UITheme "shout") and builds up: the screen dims, each word but the last slams in over
+## the card, bigger and hotter than the one before, and gets knocked away by the next; after a beat
+## the last word EXPLODES: white flash, a dark slanted band, red and cyan ghost copies that jitter
+## and snap together, a color-cycling title, shockwave, shake and sparks.
+## Returns the time at which the next animation may start (the finale is still fading out then).
+const SHOUT_WORD_GAP := 0.17 ## seconds between two build-up words
+const SHOUT_DRAMATIC_PAUSE := 0.3 ## extra beat before the last word explodes
+const SHOUT_FINALE_HOLD := 1.0 ## how long the exploded word stays on screen
+const SHOUT_BUILDUP_COLORS: Array[Color] = [Color("#ffe14a"), Color("#ffab2e"), Color("#ff6a1f"), Color("#ff2f4f")]
+const SHOUT_FINALE_COLORS: Array[Color] = [Color("#fff6c8"), Color("#ffd23a"), Color("#ff7a1a"), Color("#ffffff")]
+
+func _shout_fx(speaker: Control, text: String, t: float) -> float:
+	var screen := get_viewport_rect().size
+	var words := text.split(" ", false)
+	if words.is_empty():
+		return t
+	var finale_word := words[words.size() - 1]
+	var buildup_words := words.slice(0, words.size() - 1)
+	# everything happens over the speaker, pushed inside the screen near its borders
+	var anchor := _center_of(speaker)
+	anchor.x = clampf(anchor.x, screen.x * 0.3, screen.x * 0.7)
+	anchor.y = clampf(anchor.y, screen.y * 0.25, screen.y * 0.75)
+	var boom_t := t + buildup_words.size() * SHOUT_WORD_GAP + SHOUT_DRAMATIC_PAUSE
+	var end_t := boom_t + SHOUT_FINALE_HOLD
+
+	# the whole screen dims while the card talks
+	var dim := ColorRect.new()
+	dim.color = Color(0.02, 0.0, 0.04)
+	dim.size = screen
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dim.z_index = 60
+	dim.modulate.a = 0.0
+	fx.add_child(dim)
+	var dim_tween := dim.create_tween()
+	dim_tween.tween_interval(t)
+	dim_tween.tween_property(dim, "modulate:a", 0.45, 0.15)
+	dim_tween.tween_interval(end_t - t - 0.15)
+	dim_tween.tween_property(dim, "modulate:a", 0.0, 0.3)
+	dim_tween.tween_callback(dim.queue_free)
+
+	# build-up: one word at a time, each bigger, hotter and tilted the other way
+	for i in buildup_words.size():
+		var appear_t := t + i * SHOUT_WORD_GAP
+		var is_last_buildup_word := i == buildup_words.size() - 1
+		var leave_t := boom_t if is_last_buildup_word else appear_t + SHOUT_WORD_GAP
+		var tilt_side := -1.0 if i % 2 == 0 else 1.0
+		var word_color: Color = SHOUT_BUILDUP_COLORS[mini(i, SHOUT_BUILDUP_COLORS.size() - 1)]
+		var word := _shout_label(String(buildup_words[i]).to_upper(), 30 + 7 * i, word_color, screen.x * 0.9)
+		word.position = anchor - word.size / 2.0 + Vector2(tilt_side * 18.0, -40.0 + 12.0 * i)
+		word.rotation = deg_to_rad(7.0 * tilt_side)
+		word.scale = Vector2.ONE * 2.4
+		var word_tween := word.create_tween()
+		word_tween.tween_interval(appear_t)
+		word_tween.tween_property(word, "modulate:a", 1.0, 0.03)
+		word_tween.parallel().tween_property(word, "scale", Vector2.ONE, 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		var resting_position := word.position
+		if is_last_buildup_word:
+			# the dramatic beat: the last word shivers, as if holding its breath
+			word_tween.tween_method(func(k: float): word.position = resting_position + Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 4.0 * k, 0.0, 1.0, leave_t - appear_t - 0.12)
+		else:
+			word_tween.tween_interval(leave_t - appear_t - 0.12)
+		# knocked away by the next word
+		word_tween.tween_property(word, "position", resting_position + Vector2(tilt_side * -160.0, -110.0), 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		word_tween.parallel().tween_property(word, "rotation", word.rotation - tilt_side * 0.6, 0.25)
+		word_tween.parallel().tween_property(word, "modulate:a", 0.0, 0.25)
+		word_tween.tween_callback(word.queue_free)
+
+	# finale: a white flash...
+	var flash := ColorRect.new()
+	flash.color = Color.WHITE
+	flash.size = screen
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	flash.z_index = 64
+	flash.modulate.a = 0.0
+	fx.add_child(flash)
+	var flash_tween := flash.create_tween()
+	flash_tween.tween_interval(boom_t)
+	flash_tween.tween_property(flash, "modulate:a", 0.7, 0.03)
+	flash_tween.tween_property(flash, "modulate:a", 0.0, 0.3)
+	flash_tween.tween_callback(flash.queue_free)
+
+	# ...a dark slanted band with gold edges sweeps across, under the word...
+	var band := Control.new()
+	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	band.z_index = 61
+	band.position = anchor
+	band.rotation = deg_to_rad(-6.0)
+	band.scale = Vector2(0.0, 1.0)
+	fx.add_child(band)
+	var band_width := screen.x * 1.6
+	var band_height := 110.0
+	## each stripe: [color, top edge, height]; the dark body and its two gold edges
+	var stripes := [[Color(0.08, 0.0, 0.02, 0.88), -band_height / 2.0, band_height],
+		[UITheme.GOLD, -band_height / 2.0 - 5.0, 4.0],
+		[UITheme.GOLD, band_height / 2.0 + 1.0, 4.0]]
+	for stripe in stripes:
+		var stripe_rect := ColorRect.new()
+		stripe_rect.color = stripe[0]
+		stripe_rect.position = Vector2(-band_width / 2.0, stripe[1])
+		stripe_rect.size = Vector2(band_width, stripe[2])
+		stripe_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		band.add_child(stripe_rect)
+	var band_tween := band.create_tween()
+	band_tween.tween_interval(boom_t)
+	band_tween.tween_property(band, "scale:x", 1.0, 0.18).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	band_tween.tween_interval(SHOUT_FINALE_HOLD - 0.18)
+	band_tween.tween_property(band, "scale:y", 0.0, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	band_tween.tween_callback(band.queue_free)
+
+	# ...red and cyan ghosts that jitter apart and snap together under the real word...
+	var finale_text := finale_word.to_upper()
+	for ghost_side in [-1.0, 1.0]:
+		var ghost_color := Color(1.0, 0.1, 0.35, 0.8) if ghost_side < 0 else Color(0.1, 0.95, 1.0, 0.8)
+		var ghost := _shout_label(finale_text, 76, ghost_color, screen.x - 32.0)
+		ghost.position = anchor - ghost.size / 2.0
+		ghost.rotation = deg_to_rad(-4.0)
+		var ghost_rest := ghost.position
+		var ghost_tween := ghost.create_tween()
+		ghost_tween.tween_interval(boom_t)
+		ghost_tween.tween_property(ghost, "modulate:a", 1.0, 0.02)
+		ghost_tween.tween_method(func(k: float):
+			var spread := (1.0 - k) * 16.0 + 3.0
+			ghost.position = ghost_rest + Vector2(ghost_side * spread + randf_range(-3, 3), randf_range(-3, 3)), 0.0, 1.0, 0.6)
+		ghost_tween.tween_interval(SHOUT_FINALE_HOLD - 0.62)
+		ghost_tween.tween_property(ghost, "modulate:a", 0.0, 0.25)
+		ghost_tween.tween_callback(ghost.queue_free)
+
+	# ...and the word itself, slammed in from huge, its color cycling white-hot / gold / orange
+	var title := _shout_label(finale_text, 76, SHOUT_FINALE_COLORS[0], screen.x - 32.0)
+	title.z_index = 63
+	title.add_theme_color_override("font_outline_color", Color(0.12, 0.0, 0.02))
+	title.position = anchor - title.size / 2.0
+	title.rotation = deg_to_rad(-4.0)
+	title.scale = Vector2.ONE * 3.2
+	var title_tween := title.create_tween()
+	title_tween.tween_interval(boom_t)
+	title_tween.tween_property(title, "modulate:a", 1.0, 0.02)
+	title_tween.parallel().tween_property(title, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	title_tween.parallel().tween_method(func(k: float):
+		var cycle := fmod(k * 6.0, float(SHOUT_FINALE_COLORS.size()))
+		var from_index := int(cycle)
+		var to_index := (from_index + 1) % SHOUT_FINALE_COLORS.size()
+		title.add_theme_color_override("font_color", SHOUT_FINALE_COLORS[from_index].lerp(SHOUT_FINALE_COLORS[to_index], cycle - from_index)), 0.0, 1.0, SHOUT_FINALE_HOLD)
+	title_tween.tween_property(title, "modulate:a", 0.0, 0.25)
+	title_tween.parallel().tween_property(title, "scale", Vector2(1.6, 0.2), 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	title_tween.tween_callback(title.queue_free)
+
+	# BOOM, shockwave, screen shake and sparks
+	Sfx.play_in("atomic_boom", boom_t)
+	_crushing_blow_fx(speaker, 15, boom_t)
+	_embers(anchor, boom_t, Color("#ff9a2a"), 40)
+	_embers(anchor, boom_t + 0.08, Color("#7af4ff"), 18)
+	return boom_t + 0.35
+
+## A label in the shout font, hidden, already added to the fx layer, sized to its text and pivoting on
+## its center. The font shrinks if needed so the text never gets wider than `max_width` (phones).
+func _shout_label(text: String, font_size: int, color: Color, max_width: float) -> Label:
+	var shout_font := UITheme.font("shout")
+	var text_width := shout_font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	if text_width > max_width:
+		font_size = int(font_size * max_width / text_width)
+	var label := _label(text, font_size, color, HORIZONTAL_ALIGNMENT_CENTER, "shout", maxi(6, font_size / 7))
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+	label.z_index = 62
+	label.modulate.a = 0.0
+	fx.add_child(label)
+	label.reset_size()
+	label.pivot_offset = label.size / 2.0
+	return label
+
 ## One slash of the execution: a bright line drawn from `from_offset` to `to_offset` (relative to
 ## `center`) in a few frames, then fading out.
 func _execution_slash(center: Vector2, from_offset: Vector2, to_offset: Vector2, col: Color, t: float) -> void:
@@ -3988,6 +4159,9 @@ func _prewarm_fx() -> void:
 	var tg := _label("Ao Morrer Aliado Morre Ao Entrar Escudo Maré Congelada", 17, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 4)
 	tg.position = Vector2(0, 60)
 	holder.add_child(tg)
+	var shout_glyphs := _label("SUPER HIPER ULTRA MEGA… ATÔMICA!", 40, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, "shout", 10)
+	shout_glyphs.position = Vector2(0, 90)
+	holder.add_child(shout_glyphs)
 	get_tree().create_timer(0.5).timeout.connect(holder.queue_free)
 
 func _embers(c: Vector2, t: float, col: Color, amount := 36) -> void:
@@ -4388,6 +4562,9 @@ func _animate(events: Array, old: Dictionary) -> float:
 					_trigger_fx(actors[e["uid"]], e["trigger"], cursor)
 					trig_src = e["uid"]
 					cursor += 0.3
+			"shout":
+				if actors.has(e["uid"]):
+					cursor = _shout_fx(actors[e["uid"]], String(e["text"]), cursor)
 			"buff":
 				if actors.has(e["uid"]):
 					var parts: Array = []
@@ -4941,6 +5118,8 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s transformou %s em %s" % [_pname(e["player"]), _cname(e["from"]), _cname(e["card_id"])])
 		"passive":
 			_log("%s ativou %s" % [_pname(e["player"]), CardDB.leader(g.players[e["player"]]["leader_id"])["ability"]["name"]])
+		"shout":
+			_log("%s: “%s”" % [_cname(e["card_id"]), e["text"]])
 		"trigger":
 			var trg: Dictionary = CardDB.data()["triggers"].get(e["trigger"], {})
 			_log("%s: %s" % [_cname(e["card_id"]), trg.get("name", e["trigger"])])
