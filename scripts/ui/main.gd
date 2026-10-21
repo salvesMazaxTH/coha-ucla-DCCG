@@ -4081,6 +4081,51 @@ func _frost_shards(c: Vector2, t: float, amount: int) -> void:
 		if is_instance_valid(p):
 			p.queue_free())
 
+## Escudo Supremo: a gold-and-ivory burst, with layered rings and star-like rays.
+func _supreme_shield_fx(target: Control, t: float) -> void:
+	var burst := Node2D.new()
+	burst.position = _center_of(target)
+	burst.z_index = 55
+	fx.add_child(burst)
+	var outer := _ring_line(34.0, 4.0, Color("#ffd86b"))
+	outer.modulate.a = 0.0
+	burst.add_child(outer)
+	var inner := _ring_line(22.0, 2.5, Color("#fff5cf"))
+	inner.modulate.a = 0.0
+	burst.add_child(inner)
+	var flare := _glow_sprite(42.0, Color("#ffe9a3", 0.9))
+	flare.modulate.a = 0.0
+	burst.add_child(flare)
+	var rays: Array[Line2D] = []
+	for i in 8:
+		var ray := Line2D.new()
+		ray.points = PackedVector2Array([Vector2(0, -27), Vector2(0, -43 if i % 2 == 0 else -37)])
+		ray.width = 2.5 if i % 2 == 0 else 1.5
+		ray.default_color = Color("#fff5cf") if i % 2 == 0 else Color("#ffd86b")
+		ray.rotation = TAU * float(i) / 8.0
+		ray.scale = Vector2(0.35, 0.35)
+		ray.modulate.a = 0.0
+		burst.add_child(ray)
+		rays.append(ray)
+	var tw := burst.create_tween()
+	tw.tween_interval(t)
+	tw.tween_property(outer, "modulate:a", 1.0, 0.04)
+	tw.parallel().tween_property(inner, "modulate:a", 1.0, 0.04)
+	tw.parallel().tween_property(flare, "modulate:a", 1.0, 0.04)
+	for ray in rays:
+		tw.parallel().tween_property(ray, "modulate:a", 1.0, 0.04)
+	tw.tween_property(outer, "scale", Vector2(2.0, 2.0), 0.42).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(outer, "modulate:a", 0.0, 0.42)
+	tw.parallel().tween_property(inner, "scale", Vector2(1.45, 1.45), 0.34).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(inner, "modulate:a", 0.0, 0.34)
+	tw.parallel().tween_property(flare, "scale", Vector2(2.0, 2.0), 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(flare, "modulate:a", 0.0, 0.3)
+	for ray in rays:
+		tw.parallel().tween_property(ray, "scale", Vector2(1.4, 1.4), 0.3).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.parallel().tween_property(ray, "modulate:a", 0.0, 0.3)
+	tw.tween_callback(burst.queue_free)
+
+
 ## Condenada / Ceifada: violet wisps of dark smoke rising off a unit at moment t, plus a short shiver.
 ## `heavy` makes the sentence being carried out bigger and darker than the mark being placed.
 func _doom_fx(target: Control, t: float, heavy: bool) -> void:
@@ -5361,6 +5406,8 @@ func _animate(events: Array, old: Dictionary) -> float:
 						_freeze_fx(actors[e["uid"]], cursor)
 					elif e["type"] == "thaw":
 						_frost_shards(_center_of(actors[e["uid"]]), cursor, 16)
+					elif e["type"] == "supreme_shield_break":
+						_supreme_shield_fx(actors[e["uid"]], cursor)
 					elif e["type"] in ["condemn", "doom"]:
 						_doom_fx(actors[e["uid"]], cursor, e["type"] == "doom")
 				cursor += 0.2

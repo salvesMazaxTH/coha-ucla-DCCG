@@ -160,6 +160,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"leader_hp": int(ld["hp"]), "leader_max": int(ld["hp"]),
 		"momentum": 0, "max_momentum": 0, "reserve": 0,
 			"saved_momentum": 0, "idle_turns": 0, "next_momentum": 0, "play_restrictions": [], "leaked": 0, "unspent": 0,
+		"healing_this_turn": 0, "healing_last_turn": 0,
 		"deck": deck, "hand": [], "board": [], "relics": [], "graveyard": [], "banished": [],
 		"incarnation": {"card_id": ld["incarnation"], "in_zone": true, "casts": 0},
 		"ability_used": false, "passive_used": false, "attacked": false, "fatigue": 0, "mulligan_done": false,
@@ -686,7 +687,8 @@ func enter_second_spec(cd: Dictionary) -> String:
 ## (e.g. per: "saved_momentum" =
 ## per Momentum that leaked past the Reserva by the start of the owner's turns, over the whole game; "idle_turns" =
 ## per owner turn that started with Momentum leaking past the Reserva; "unspent_momentum" = a flat "amount" off when
-## at least "threshold" plain Momentum was left over from the previous turn). Never below 0, or below the effect's "min_cost".
+## at least "threshold" plain Momentum was left over from the previous turn; "healing_last_turn" = a flat "amount" off
+## when at least "threshold" actual Vida was recovered during the owner's previous turn, including healing effects, Roubo de Vida and Regeneração). Never below 0, or below the effect's "min_cost".
 func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 	var c := int(cd["cost"]) - (card.discount + card.turn_discount if card != null else 0) # per-copy discounts; stacks with cost_reduction, same "min_cost" floor
 	if card != null:
@@ -700,6 +702,7 @@ func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 			"saved_momentum": n = int(players[p]["saved_momentum"])
 			"idle_turns": n = int(players[p]["idle_turns"])
 			"unspent_momentum": n = 1 if int(players[p]["unspent"]) >= int(e.get("threshold", 1)) else 0
+			"healing_last_turn": n = 1 if int(players[p]["healing_last_turn"]) >= int(e.get("threshold", 1)) else 0
 		c -= n * int(e.get("amount", 1))
 		floor_cost = maxi(floor_cost, int(e.get("min_cost", 0)))
 	var amulet_discount := glacial_discount(p, cd)
@@ -2414,6 +2417,8 @@ func _heal_leader(p: int, amount: int) -> void:
 	if healed > 0:
 		var hp_before: int = pl["leader_hp"]
 		pl["leader_hp"] += healed
+		if active == p:
+			pl["healing_this_turn"] = int(pl["healing_this_turn"]) + healed
 		_emit({"type": "heal", "uid": LEADER_UID[p], "amount": healed, "hp_after": pl["leader_hp"]})
 		_emit_leader_healed(p, healed, hp_before)
 
@@ -2444,11 +2449,15 @@ func _raise_leader_max(p: int, amount: int) -> void:
 	pl["leader_max"] += amount
 	var hp_before: int = pl["leader_hp"]
 	pl["leader_hp"] += amount
+	if active == p:
+		pl["healing_this_turn"] = int(pl["healing_this_turn"]) + amount
 	_emit({"type": "heal", "uid": LEADER_UID[p], "amount": amount, "hp_after": pl["leader_hp"]})
 	_emit_leader_healed(p, amount, hp_before)
 
 ## Tells the listeners (Seymour) that a unit just got `amount` Vida back. Call it after the damage was removed.
 func emit_unit_healed(unit: Card, amount: int) -> void:
+	if active == unit.owner:
+		players[unit.owner]["healing_this_turn"] = int(players[unit.owner]["healing_this_turn"]) + amount
 	var healed := GameEvent.new("unit_healed", unit.owner, unit)
 	healed.amount = amount
 	healed.hp_after = unit.hp_left()
@@ -2729,6 +2738,8 @@ func _finish_turn() -> void:
 	for player_state: Dictionary in players:
 		for card: Card in player_state["hand"]:
 			card.turn_discount = 0
+	ending["healing_last_turn"] = int(ending["healing_this_turn"])
+	ending["healing_this_turn"] = 0
 	_emit({"type": "end_turn", "player": active})
 	_start_turn(opponent(active), true)
 
@@ -2821,6 +2832,8 @@ func _regenerate_all_units() -> void:
 			if has_kw(unit, "regeneracao") and unit.damage > 0:
 				var healed_amount: int = unit.damage
 				unit.damage = 0
+				if active == unit.owner:
+					players[unit.owner]["healing_this_turn"] = int(players[unit.owner]["healing_this_turn"]) + healed_amount
 				_emit({"type": "heal", "uid": unit.uid, "amount": healed_amount, "regeneration": true, "hp_after": unit.hp_left()})
 
 ## Resolves every periodic marker on every unit controlled by p, and on p's Leader, at the start of that turn.

@@ -1,0 +1,25 @@
+{
+  "name": "Gigante Marinho",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [],
+  "essence": "aquatica",
+  "cost": 9,
+  "atk": 8,
+  "hp": 7,
+  "keywords": [
+    "sobrepujanca"
+  ],
+  "art": "aquatica/gigante_marinho.webp",
+  "effects": [
+    {
+      "action": "cost_reduction",
+      "per": "healing_last_turn",
+      "threshold": 5,
+      "amount": 5
+    }
+  ],
+  "text": "Custa 5 a menos se você recuperou 5 ou mais de Vida no seu turno anterior.",
+  "flavor": "",
+  "tags": []
+}
