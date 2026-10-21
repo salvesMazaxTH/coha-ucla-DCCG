@@ -106,6 +106,7 @@ func _init() -> void:
 	_test_tharox_armor_growth()
 	_test_isarelis_hit_leader()
 	_test_silence_and_david()
+	_test_silence_keeps_ally_auras()
 	_test_tech_cards()
 	_test_vorn_staged_damage()
 	_test_adjacent_armor()
@@ -1453,6 +1454,42 @@ func _test_vorn_staged_damage() -> void:
 	check(other_vorn.atk == 3, "a contagem é por instância: o outro Vørn Ω continua no 1º degrau")
 
 ## Bastionário gives Armadura only to the allies standing right next to it on the board.
+## A Constante of an ally is the ALLY's effect: silencing the unit it buffs does not turn it off; silencing the carrier does.
+func _test_silence_keeps_ally_auras() -> void:
+	_tcard("t_sil_aura_source", 1, 5, [{"trigger": "constante", "action": "species_aura", "species": ["anjo"],
+		"atk": 1, "hp": 1, "armor": 1}])
+	CardDB.data()["cards"]["t_sil_aura_source"]["species"] = ["humano"]
+	_tcard("t_sil_aura_angel", 2, 4, [])
+	CardDB.data()["cards"]["t_sil_aura_angel"]["species"] = ["anjo"]
+	var g := _new_game()
+	_quiet(g)
+	var source := _put(g, 0, "t_sil_aura_source")
+	var angel := _put(g, 0, "t_sil_aura_angel")
+	g._refresh_scaling()
+	check(g.atk_of(angel) == 3 and g.hp_left(angel) == 5 and g.armor_of(angel) == 1, "aura: o Anjo começa com +1/+1 e Armadura 1")
+	angel.damage = 4 # 1 Vida left, counting the aura
+	g._apply_effect(0, {"action": "silence", "target": "enemy_unit"}, angel.uid)
+	g._check_state()
+	check(angel.is_silenced(), "aura: o Anjo foi silenciado")
+	check(g.atk_of(angel) == 3 and g.armor_of(angel) == 1, "aura: silenciar o buffado NÃO tira o bônus da Constante aliada (%d, arm %d)" % [g.atk_of(angel), g.armor_of(angel)])
+	check(g.hp_left(angel) == 1, "aura: o Silêncio não cura nem mata o buffado (sobra %d)" % g.hp_left(angel))
+	g._apply_effect(0, {"action": "silence", "target": "enemy_unit"}, source.uid)
+	g._check_state()
+	check(g.atk_of(angel) == 2 and g.armor_of(angel) == 0, "aura: silenciar quem carrega a Constante desliga o bônus (%d, arm %d)" % [g.atk_of(angel), g.armor_of(angel)])
+	check(g.find_unit(angel.uid) == null, "aura: sem a aura a Vida cai e o Anjo ferido morre, como se a fonte tivesse saído de campo")
+
+	# adjacent_armor: the Armadura comes from the neighbour's Constante
+	g = _new_game()
+	_quiet(g)
+	var left := _put(g, 0, "bastionario_de_basalto")
+	var guard := _put(g, 0, "bastionario_de_basalto")
+	var right := _put(g, 0, "escudeiro_de_cascalho")
+	g._apply_effect(0, {"action": "silence", "target": "enemy_unit"}, right.uid)
+	check(g.armor_of(right) == 1, "Armadura adjacente: silenciar quem recebe não tira o que o vizinho dá")
+	g._apply_effect(0, {"action": "silence", "target": "enemy_unit"}, guard.uid)
+	check(g.armor_of(right) == 0, "Armadura adjacente: silenciar o Bastionário desliga a Constante dele")
+	check(g.armor_of(left) == 0, "Armadura adjacente: o Bastionário silenciado também não dá ao outro lado")
+
 func _test_adjacent_armor() -> void:
 	var g := _new_game()
 	var left := _put(g, 0, "bastionario_de_basalto")

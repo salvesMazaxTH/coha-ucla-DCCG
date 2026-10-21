@@ -74,7 +74,7 @@ var death_ward_armed := false ## a free-standing artifact is ready to prevent on
 var charges_used := 0 ## Condicional firings spent so far by a card with "charges": N (Ampola Curativa)
 
 ## Card-data fields that are an ability or a keyword's number: silence() deletes them from the unit.
-const SILENCED_FIELDS := ["activated", "transform", "rapidez", "critico", "armor", "esquiva", "inert", "imune_critico",
+const SILENCED_FIELDS := ["activated", "transform", "rapidez", "critico", "armor", "adjacent_armor", "esquiva", "inert", "imune_critico",
 		"critico_growth", "critico_maximo", "toxico_level", "toxico_equals_attack", "toxico_ignores_immunity",
 		"toxico_hits_leader", "burns_on_combat_damage", "leader_damage_reduction", "conditional_uses_per_turn",
 		"lethal_touch_immune", "lethal_ward", "death_ward", "spell_discount"]
@@ -167,6 +167,10 @@ func is_silenced() -> bool:
 ## Silence (permanent while the unit stays on the board): strips the card's keywords and every ability, and puts the
 ## unit back to its printed Ataque and Vida (buffs and equipment stats are gone). It keeps the damage it already took
 ## and its status effects (Veneno, Congelada...).
+## It only removes what belongs to THIS unit. A Constante of an ally (species_aura, adjacent_armor...) is the ally's
+## effect, not this unit's, so its bonus stays until that ally is silenced or leaves: bonus_atk / bonus_hp are
+## therefore left alone here (GameState._refresh_scaling rebuilds them from the allies' auras and drops the unit's own
+## scaling, which went away with its effects). SilenceEffect refreshes and then calls keep_alive_with_one_hp().
 ## It is written as per-instance overrides ("over"), so everything that reads the card through data() sees a card without
 ## abilities, and the network mirror carries it for free. A null override deletes that field from the merged data.
 ## Entering the board again starts clean (enter_board replaces "over").
@@ -179,12 +183,9 @@ func silence() -> void:
 	temp_hp = 0
 	temp_hp_until_next_turn = 0
 	temp_atk_until_next_turn = 0
-	bonus_atk = 0
-	bonus_hp = 0
 	cap_atk_gain = 0
 	equipment_grant = {} # the equipment stays attached but gives nothing now, so there is nothing to take back later
-	if hp_left() < 1: # like losing an equipment: the silence never kills the unit, it stays with 1 Vida
-		damage = hp - 1
+	keep_alive_with_one_hp()
 	# keywords the card had: the printed ones plus whatever it gained since (an equipment's, a buff's)
 	keywords = []
 	temp_keywords = []
@@ -209,6 +210,11 @@ func silence() -> void:
 	for lost_field in SILENCED_FIELDS:
 		silenced_over[lost_field] = null
 	over = silenced_over
+
+## Like losing an equipment: a silence never kills the unit, it stays with 1 Vida.
+func keep_alive_with_one_hp() -> void:
+	if hp_left() < 1:
+		damage = hp + bonus_hp + temp_hp + temp_hp_until_next_turn - 1
 
 ## Escudo Supremo granted by an effect. `expires` is "" (until used), "next_turn" or "end_turn". A longer protection
 ## is never shortened by a later, shorter grant.
