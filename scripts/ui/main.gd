@@ -1689,7 +1689,9 @@ func _hand_hover(v: CardView, on: bool, rest: Dictionary) -> void:
 		tw.tween_property(v, "rotation", 0.0, 0.14)
 		tw.tween_property(v, "zoom", 1.28, 0.14)
 	else:
-		layer.move_child(v, min(layer.get_child_count() - 1, rest["idx"] + _hand_base))
+		# the table may have been redrawn while the cursor was on the card: an old card is no longer in the layer
+		if v.get_parent() == layer:
+			layer.move_child(v, min(layer.get_child_count() - 1, rest["idx"] + _hand_base))
 		v.hit_pad = 0.0
 		tw.tween_property(v, "position", rest["pos"], 0.14)
 		tw.tween_property(v, "rotation", rest["rot"], 0.14)
