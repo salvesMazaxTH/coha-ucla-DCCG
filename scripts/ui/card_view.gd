@@ -303,6 +303,19 @@ static func texture(file: String) -> Texture2D:
 		_tex_cache[file] = load(path) if ResourceLoader.exists(path) else null
 	return _tex_cache[file]
 
+## The part of an art texture that shows in a window of `window_size` (the art always fills the window).
+## `crop` is the card's optional "art_crop": {"x", "y", "zoom"} (any key may be left out).
+##   zoom: 1 = the art just fills the window, 2 = twice as close.
+##   x / y: where the window sits in the room the art has left over, 0 = left / top edge, 1 = right / bottom edge.
+## Without a crop the art is centered horizontally and sits at the top, unless `default_x` / `default_y` say otherwise.
+static func art_source_rect(texture_size: Vector2, window_size: Vector2, crop: Dictionary, default_x := 0.5, default_y := 0.0) -> Rect2:
+	var fill_scale := maxf(window_size.x / texture_size.x, window_size.y / texture_size.y)
+	var zoom := maxf(float(crop.get("zoom", 1.0)), 1.0)
+	var region_size := window_size / (fill_scale * zoom)
+	var spare_room := (texture_size - region_size).max(Vector2.ZERO)
+	var focus := Vector2(clampf(float(crop.get("x", default_x)), 0.0, 1.0), clampf(float(crop.get("y", default_y)), 0.0, 1.0))
+	return Rect2(spare_room * focus, region_size)
+
 ## Burns the card away (death / spent spell). The node frees itself.
 func dissolve(delay := 0.0, edge := Color(1.0, 0.55, 0.15), dur := 0.75) -> void:
 	if _dissolve == null:
@@ -473,16 +486,15 @@ func _draw() -> void:
 	var tex := texture(cd.get("art", ""))
 	if tex:
 		var ts := tex.get_size()
-		var k: float = max(art.size.x / ts.x, art.size.y / ts.y)
-		var src_size := art.size / k
-		var src_origin := Vector2((ts.x - src_size.x) / 2, 0)
+		var source := art_source_rect(ts, art.size, cd.get("art_crop", {}))
+		var k := art.size.x / source.size.x ## texture pixels -> screen pixels
 		if window_kind == "rect":
-			draw_texture_rect_region(tex, art, Rect2(src_origin, src_size))
+			draw_texture_rect_region(tex, art, source)
 		else:
 			# the art is cut to the window shape: every corner of the polygon picks its spot in the texture
 			var uvs := PackedVector2Array()
 			for p in _art_window:
-				uvs.append((src_origin + (p - art.position) / k) / ts)
+				uvs.append((source.position + (p - art.position) / k) / ts)
 			draw_polygon(_art_window, PackedColorArray([Color.WHITE]), uvs, tex)
 	else:
 		_placeholder(art, cd, col, s)

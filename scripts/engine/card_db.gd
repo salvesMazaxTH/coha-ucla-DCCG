@@ -125,6 +125,19 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 		err.call("subito precisa ser uma unidade com custo Súbito maior que o custo normal")
 	if cd.has("transform") and not _data["cards"].has(cd["transform"].get("into", "")):
 		err.call("transform.into inexistente \"%s\"" % cd["transform"].get("into", ""))
+	if cd.has("art_crop"):
+		var crop = cd["art_crop"]
+		if not crop is Dictionary:
+			err.call("art_crop precisa ser um objeto {x, y, zoom}")
+		else:
+			for crop_key in crop:
+				if crop_key not in ["x", "y", "zoom"]:
+					err.call("art_crop: campo desconhecido \"%s\"" % crop_key)
+			for focus_key in ["x", "y"]:
+				if crop.has(focus_key) and not (float(crop[focus_key]) >= 0.0 and float(crop[focus_key]) <= 1.0):
+					err.call("art_crop.%s precisa ficar entre 0 e 1" % focus_key)
+			if crop.has("zoom") and float(crop["zoom"]) < 1.0:
+				err.call("art_crop.zoom precisa ser pelo menos 1")
 	_validate_effects(err, cd.get("effects", []))
 	if cd.has("activated"):
 		var act: Dictionary = cd["activated"]

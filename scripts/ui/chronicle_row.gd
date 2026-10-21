@@ -262,9 +262,12 @@ static func draw_card_art(canvas: CanvasItem, card_id: String, rect: Rect2, acce
 		var scale_to_fill := maxf(rect.size.x / texture_size.x, rect.size.y / texture_size.y)
 		var region_size := rect.size / scale_to_fill
 		# Leader portraits are tall with the face near the top, so their crop leans higher
-		var crop_height := 0.08 if leader_id_of(card_id) != "" else 0.3
-		var region_origin := Vector2((texture_size.x - region_size.x) / 2.0, (texture_size.y - region_size.y) * crop_height)
-		canvas.draw_texture_rect_region(art_texture, rect, Rect2(region_origin, region_size), Color(1, 1, 1, opacity))
+		var is_leader := leader_id_of(card_id) != ""
+		var crop_height := 0.08 if is_leader else 0.3
+		# a card's own "art_crop" (set for its card window) keeps the face in frame here too
+		var card_crop: Dictionary = {} if is_leader else CardDB.card(card_id).get("art_crop", {})
+		var region := CardView.art_source_rect(art_texture.get_size(), rect.size, card_crop, 0.5, crop_height)
+		canvas.draw_texture_rect_region(art_texture, rect, region, Color(1, 1, 1, opacity))
 	else:
 		canvas.draw_rect(rect, Color(accent, 0.16 * opacity))
 	canvas.draw_rect(rect, Color(0, 0, 0, 0.8 * opacity), false, 2.0)

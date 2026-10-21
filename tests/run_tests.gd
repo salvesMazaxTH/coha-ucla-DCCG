@@ -14,6 +14,7 @@ func _init() -> void:
 		check(errs.is_empty(), "deck %s: %s" % [d, errs])
 		check(DeckDB.get_deck(d)["cards"].keys() == DeckDB.sorted_cards(DeckDB.get_deck(d)["cards"]).keys(), "deck %s: cartas fora de ordem de custo (rode tools/sort_decks.gd)" % d)
 	_test_flavor()
+	_test_art_crop()
 	_test_sfx()
 	_test_off_essence()
 	_test_secondary_essences()
@@ -7343,3 +7344,17 @@ func _test_maria_helena() -> void:
 	before = g.players[0]["leader_hp"]
 	check(g._deal_damage(GameState.LEADER_UID[0], 2, null) == 1 and g.players[0]["leader_hp"] == before - 1,
 		"Santa Maria Helena: a redução nunca transforma dano em menos de 1 e reinicia no turno seguinte")
+
+func _test_art_crop() -> void:
+	var tall_art := Vector2(1000, 2000)
+	var window := Vector2(106, 98)
+	var plain := CardView.art_source_rect(tall_art, window, {})
+	check(is_equal_approx(plain.size.x, 1000.0) and is_equal_approx(plain.position.y, 0.0), "art_crop: sem recorte a arte preenche a largura e fica no topo")
+	var moved := CardView.art_source_rect(tall_art, window, {"y": 1.0})
+	check(is_equal_approx(moved.end.y, 2000.0), "art_crop: y=1 encosta a janela no fim da arte")
+	var zoomed := CardView.art_source_rect(tall_art, window, {"zoom": 2.0, "x": 0.0, "y": 0.0})
+	check(is_equal_approx(zoomed.size.x, 500.0) and is_equal_approx(zoomed.position.x, 0.0), "art_crop: zoom 2 mostra metade da arte")
+	var past_edges := CardView.art_source_rect(tall_art, window, {"zoom": 9.0, "x": 5.0, "y": -3.0})
+	check(Rect2(Vector2.ZERO, tall_art).encloses(past_edges), "art_crop: x, y e zoom absurdos continuam dentro da arte")
+	for card_id in CardDB.data()["cards"]:
+		check(not CardDB.errors().any(func(error: String): return error.contains("art_crop") and error.contains(card_id)), "art_crop inválido em %s" % card_id)
