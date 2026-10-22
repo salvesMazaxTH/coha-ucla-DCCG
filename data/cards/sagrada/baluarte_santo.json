@@ -17,7 +17,7 @@
       "amount": 3
     }
   ],
-  "text": "Escudo Supremo.\nCondicional: quando outra unidade aliada fosse morrer, exceto por banimento, destrua este Baluarte e anule o efeito que a mataria.\nAo Morrer: cure 3 de Vida do seu Líder.",
+  "text": "Condicional: quando outra unidade aliada fosse morrer, exceto por banimento, este Baluarte se destrói e anula o efeito que a mataria.\nAo Morrer: seu Líder recupera 3 de Vida.",
   "flavor": "Uma muralha que aceita cair para que ninguém precise.",
   "tags": []
 }

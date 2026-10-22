@@ -26,7 +26,7 @@
       "own_turn_only": true
     }
   ],
-  "text": "Ao Entrar: cure 6 de Vida de uma unidade aliada ou do seu Líder.\nNo início do seu turno: cure 2 de Vida do seu Líder.\nA primeira vez que seu Líder sofrer dano a cada turno, reduza esse dano em 3 (mín. 1).",
+  "text": "Ao Entrar: você pode escolher uma unidade aliada ou o seu Líder; o alvo recupera 6 de Vida.\nNo Início do Turno: seu Líder recupera 2 de Vida.\nCondicional: na primeira vez a cada turno que seu Líder sofrer dano, esse dano é reduzido em 3 (mín. 1).",
   "flavor": "Ela costura o que a guerra rasga e não pergunta de que lado você veio.",
   "tags": []
 }

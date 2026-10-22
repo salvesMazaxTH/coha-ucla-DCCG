@@ -16,7 +16,7 @@
       "bonus_if_species": {"species": ["divindade", "celestial", "anjo"], "atk": 1, "hp": 1}
     }
   ],
-  "text": "Uma unidade aliada ganha +1/+1 permanente. Se for Divindade, Celestial ou Anjo, ganha +1/+1 a mais.",
+  "text": "Uma unidade aliada à sua escolha ganha +1/+1 permanente. Se for Divindade, Celestial ou Anjo, ganha +1/+1 a mais.",
   "flavor": "O céu reconhece os seus e, aos outros, só dá um empurrãozinho.",
   "tags": []
 }

@@ -14,7 +14,7 @@
       "second_target": "enemy_unit"
     }
   ],
-  "text": "Uma unidade aliada e uma unidade inimiga lutam: cada uma causa dano igual ao seu Ataque à outra, ao mesmo tempo. Não é combate.",
+  "text": "Uma unidade aliada e uma unidade inimiga, à sua escolha, lutam: cada uma causa dano igual ao seu Ataque à outra, ao mesmo tempo. Não é combate.",
   "flavor": "",
   "tags": []
 }

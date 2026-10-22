@@ -11,7 +11,7 @@
     { "trigger": "on_play", "action": "stun", "target": "all_enemy_units" },
     { "trigger": "on_play", "action": "damage", "target": "random_enemy_unit_spread", "hits": 5, "amount": 1 }
   ],
-  "text": "Todas as unidades em campo, as suas inclusive, ficam com no máximo 2 de Ataque e 2 de Vida (unidades menores não crescem). Unidades inimigas ficam Atordoadas. Distribua 5 de dano aleatoriamente entre as unidades inimigas, em 5 golpes de 1.",
+  "text": "Todas as unidades em campo, as suas inclusive, ficam com no máximo 2 de Ataque e 2 de Vida (unidades menores não crescem). Unidades inimigas ficam Atordoadas. Distribui 5 de dano aleatoriamente entre as unidades inimigas, em 5 golpes de 1.",
   "face_text": "Todas as unidades, as suas inclusive, ficam com no máximo 2/2 de atributos. As inimigas ficam Atordoadas e levam 5 golpes de 1 de dano, aleatórios.",
   "flavor": "Quando o sino toca pela última vez, até os santos sentam no chão.",
   "tags": []

@@ -14,7 +14,7 @@
       "only_if_targets_ally": true
     }
   ],
-  "text": "Anule um feitiço ou habilidade inimiga que tenha como alvo uma unidade aliada e/ou o seu Líder (efeitos em área não contam).",
+  "text": "Anula um feitiço ou habilidade inimiga que tenha como alvo uma unidade aliada e/ou o seu Líder (efeitos em área não contam).",
   "flavor": "",
   "tags": ["anular"]
 }

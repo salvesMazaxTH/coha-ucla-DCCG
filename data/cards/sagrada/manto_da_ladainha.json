@@ -15,7 +15,7 @@
       "keywords": ["roubo_de_vida"]
     }
   ],
-  "text": "Equipar: a unidade ganha Armadura 1 permanente e Roubo de Vida.",
+  "text": "Equipar: concede Armadura 1 permanente e Roubo de Vida à unidade equipada.",
   "flavor": "Quem o veste carrega a bênção de todos que o usaram antes, e a devolve em vida.",
   "tags": []
 }
