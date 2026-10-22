@@ -87,6 +87,7 @@ var search_overlay: Control
 var search_minimized_signature := -1
 var search_opened_signature := -1 ## the opponent's choice the player asked to see (those start folded)
 var grave_view: Control ## graveyard viewer (child of Main, outlives _render)
+var decklist_view: DecklistView ## a deck's card list, opened from the deck selection hub (child of Main)
 var concede_view: Control ## "concede?" confirmation (child of Main, outlives _render)
 var conceded := -1 ## player who gave up this match (-1 = nobody); only used for the game-over text
 var grave_panel: PanelContainer
@@ -747,7 +748,60 @@ func _deck_showcase(id: String, size: Vector2, choosing_ai_deck: bool) -> Contro
 	var leader_line := "%s · %d de vida · %s" % [ld["name"], int(ld["hp"]), " / ".join(essence_names)]
 	var footer := "%d cartas · Encarnação: %s" % [DeckDB.card_count(id), CardDB.card(ld["incarnation"])["name"]]
 	_showcase_text(p, size, who, String(d["name"]), leader_line, col, String(d.get("description", "")), footer, art_h - 30.0)
+	p.add_child(_decklist_button(id, size))
 	return p
+
+## A small "list" pill in the showcase's top right corner: opens the deck's card list (DecklistView).
+func _decklist_button(id: String, showcase_size: Vector2) -> Button:
+	var button_size := Vector2(176.0, 64.0)
+	var button := Button.new()
+	button.custom_minimum_size = button_size
+	button.size = button_size
+	button.position = Vector2(showcase_size.x - button_size.x - 18.0, 18.0)
+	button.focus_mode = Control.FOCUS_NONE
+	button.tooltip_text = "Ver a lista de cartas do deck."
+	var icon := Control.new()
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.position = Vector2(40.0, button_size.y / 2.0)
+	icon.draw.connect(func():
+		# the universal "list" icon: three lines, each with a bullet in front
+		for line_y in [-14.0, 0.0, 14.0]:
+			icon.draw_circle(Vector2(-18.0, line_y), 3.5, UITheme.GOLD_LIGHT)
+			icon.draw_line(Vector2(-8.0, line_y), Vector2(20.0, line_y), UITheme.GOLD_LIGHT, 3.5))
+	button.add_child(icon)
+	var caption := _label("LISTA", 26, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_LEFT, "bold")
+	caption.position = Vector2(80.0, 0.0)
+	caption.size = Vector2(button_size.x - 88.0, button_size.y)
+	caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	button.add_child(caption)
+	button.pressed.connect(Sfx.play.bind("ui_click"))
+	button.pressed.connect(func(): _open_decklist(id))
+	return button
+
+# ---------------------------------------------------------------- deck list
+
+## Opens the deck list window. A tap on one of its cards shows the match's own card overlay on top of it.
+func _open_decklist(deck_id: String) -> void:
+	_close_decklist()
+	decklist_view = DecklistView.new().open(deck_id, Vector2(stage_w, STAGE_H))
+	decklist_view.closed.connect(_close_decklist)
+	decklist_view.card_chosen.connect(_show_decklist_card)
+	add_child(decklist_view)
+
+func _close_decklist() -> void:
+	if decklist_view == null:
+		return
+	var old_view := decklist_view
+	decklist_view = null
+	if old_view.get_parent() != null:
+		old_view.get_parent().remove_child(old_view)
+	old_view.queue_free()
+
+## The overlay needs a CardView to read from; a plain printed card (no match state) is enough here.
+func _show_decklist_card(card_id: String) -> void:
+	var printed_card := CardView.new().setup(card_id, {}, 1.0)
+	_show_overlay(printed_card)
+	printed_card.free()
 
 ## The showcase's text block, from `top` down: a small "SEU DECK" tag, the deck name, the Leader line,
 ## the full description (wrapped, and smaller only if it would not fit) and a footer.
@@ -1167,6 +1221,7 @@ func _clear() -> void:
 	# animation batch...). Remove it before rebuilding the table, otherwise the old overlay survives
 	# over the new layer for a frame and leaves duplicated/offset UI behind.
 	_close_overlay()
+	_close_decklist()
 	join_slots = null
 	_finish_unit_view_reuse()
 	for unit_uid in _unit_board_views:
@@ -2714,7 +2769,7 @@ func _input(e: InputEvent) -> void:
 			_hide_chronicle_scene()
 	if grave_view and _grave_scroll_input(e):
 		get_viewport().set_input_as_handled()
-	elif is_instance_valid(hub_scroll) and _hub_scroll_input(e):
+	elif decklist_view == null and is_instance_valid(hub_scroll) and _hub_scroll_input(e): # the deck list scrolls itself
 		get_viewport().set_input_as_handled()
 
 ## Drag-aim released: on a target fires; barely moved (a plain click on the source) keeps
@@ -2748,6 +2803,12 @@ func _unhandled_input(e: InputEvent) -> void:
 		_hint_nudge() # a click that hit nothing: the player may be lost
 	if overlay and e is InputEventMouseButton and e.pressed:
 		_close_overlay()
+		return
+	if decklist_view and e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE:
+		if overlay:
+			_close_overlay() # Esc peels off the topmost window first: the card, then the list
+		else:
+			_close_decklist()
 		return
 	if grave_view and e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE:
 		_close_graveyard()
