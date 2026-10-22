@@ -4505,11 +4505,23 @@ func _streak(from: Control, to: Control, t: float, col: Color) -> float:
 				ln.queue_free())
 	return STREAK_T
 
-## How long each part of an effect bolt takes (see _effect_bolt). The first shot of a trigger
-## charges longer so the eye finds the source; the shots after it fire in quick succession.
-const BOLT_CHARGE_FIRST := 0.16
-const BOLT_CHARGE_NEXT := 0.07
-const BOLT_FLIGHT := 0.32
+## How long each part of the default shot takes (see _effect_bolt). Only the first shot of a trigger
+## winds up, so the eye finds the source; the ones after it leave at once, like a gun already firing.
+## The flight is short: the shot is spat out hard, not lobbed.
+const BOLT_CHARGE_FIRST := 0.12
+const BOLT_CHARGE_NEXT := 0.0
+const BOLT_FLIGHT := 0.15
+## How long the comet's flame tail is, as a fraction of the whole path.
+const BOLT_TAIL_LENGTH := 0.3
+## Time between two shots of the same trigger landing (Eryon's blows, damage spread over enemies):
+## short enough to feel like a burst of gunfire, long enough to still count each hit.
+const VOLLEY_GAP := 0.11
+## How long each part of the good-effect orb takes (see _boon_shot). It is slower than a shot on
+## purpose: a heal or a buff is delivered, not fired. The first one of a trigger charges longer
+## so the eye finds the source.
+const BOON_CHARGE_FIRST := 0.16
+const BOON_CHARGE_NEXT := 0.07
+const BOON_FLIGHT := 0.32
 
 ## Shared by every glow sprite: additive blending, so overlapping light adds up and burns white.
 var _additive_material: CanvasItemMaterial
@@ -4614,6 +4626,27 @@ func _hit_style_of(source: Control) -> String:
 		return String(CardDB.card((source as CardView).card_id).get("hit_fx", ""))
 	return ""
 
+## Whether an event is good for the card it lands on: healing, a summon, or a buff that only adds
+## (a buff with a negative number is a debuff, and that one is fired like any hit).
+func _is_boon_event(e: Dictionary) -> bool:
+	match String(e["type"]):
+		"heal", "summon":
+			return true
+		"buff":
+			return int(e.get("atk", 0)) >= 0 and int(e.get("hp", 0)) >= 0
+	return false
+
+## Timing of one shot in a hit style: {"charge": the wind-up on the source before it leaves,
+## "flight": its time in the air}. Big chains fire faster, so a long chain does not drag.
+func _shot_timing(style: String, first_shot: bool) -> Dictionary:
+	var pace := 0.55 + 0.45 * _fx_chain_scale
+	match style:
+		"espinho":
+			return {"charge": (THORN_CHARGE_FIRST if first_shot else THORN_CHARGE_NEXT) * pace, "flight": THORN_FLIGHT * pace}
+		"boon":
+			return {"charge": (BOON_CHARGE_FIRST if first_shot else BOON_CHARGE_NEXT) * pace, "flight": BOON_FLIGHT * pace}
+	return {"charge": (BOLT_CHARGE_FIRST if first_shot else BOLT_CHARGE_NEXT) * pace, "flight": BOLT_FLIGHT * pace}
+
 ## Plays the shot of one effect, from the card whose trigger caused it to what it hits, in the
 ## source card's own hit style (see _hit_style_of). Returns the time from t until the shot lands,
 ## which is when the effect's number pops.
@@ -4623,19 +4656,341 @@ func _effect_hit(style: String, from: Control, to: Control, t: float, col: Color
 	match style:
 		"espinho":
 			return _thorn_shot(from, to, t, first_shot)
+		"boon":
+			return _boon_shot(from, to, t, col, first_shot)
 	return _effect_bolt(from, to, t, col, first_shot)
 
-## An effect flies from the card whose trigger caused it to what it hits, as a magic missile the
-## eye can follow one at a time (a lobbed ball of energy, not a beam):
-## 1. charge: light gathers on the source (a ring closing in on it, a growing orb);
-## 2. launch: a muzzle flash, the source card kicks back, and a soft glow marks the target;
-## 3. flight: the orb arcs to the target, stretched along its path, with a short comet tail and embers;
-## 4. impact: a flash, a shockwave ring and sparks thrown on in the travel direction.
-## Follows both ends if they move. Returns the time from t until the orb lands.
+## The default hit style: the effect is spat out of its source as a flaming comet that slams into
+## its target (a hard, fast shot, not a floating orb):
+## 1. wind-up (first shot of a trigger only): the source card pulls back while a hot spark swells on it;
+## 2. launch: a muzzle flash and the source card kicks back, away from the target (every shot, like recoil);
+## 3. flight: a blunt white-hot head on a nearly straight line, dragging a long flickering tail of
+##    flame that sheds embers behind it;
+## 4. impact: a sharp flash, spikes of light bursting out where it hits, a quick shockwave and
+##    sparks thrown on in the travel direction.
+## Follows both ends if they move. Returns the time from t until the comet lands.
 func _effect_bolt(from: Control, to: Control, t: float, col: Color, first_shot: bool) -> float:
-	var pace := 0.55 + 0.45 * _fx_scale # big chains fire faster so a long chain does not drag
-	var charge := (BOLT_CHARGE_FIRST if first_shot else BOLT_CHARGE_NEXT) * pace
-	var flight := BOLT_FLIGHT * pace
+	var timing := _shot_timing("", first_shot)
+	var charge: float = timing["charge"]
+	var flight: float = timing["flight"]
+	var launch_t := t + charge
+	var impact_t := launch_t + flight
+	var rich := _fx_scale >= 0.7 # big chains skip the costliest layers (wide glow, flame flicker)
+	var hot := col.lightened(0.6)
+	# almost straight, because it is shot hard; a slight random bend keeps a volley from being one line
+	var path := _shot_path(from, to, 0.06, 28.0)
+	var ends: Dictionary = path["ends"]
+	var refresh_ends: Callable = path["refresh"]
+	var point_at: Callable = path["point_at"]
+	# the lambdas below reach the comet's nodes through this dictionary instead of capturing them:
+	# Godot reports an error when a lambda runs after a node it captured was freed (the head is
+	# freed on landing, and a table reset frees everything mid-flight)
+	var parts := {}
+	var alive := func(key: String) -> Node:
+		var node = parts.get(key)
+		return node if is_instance_valid(node) else null
+
+	# --- the head: a fireball pointing along +x, round and white-hot at the front, tapering into the
+	# tail at the back, inside a stretched glow
+	var head := Node2D.new()
+	head.z_index = 26
+	head.visible = false
+	if rich:
+		var head_glow := _glow_sprite(30.0, Color(col, 0.6))
+		head_glow.scale.x *= 1.6
+		head.add_child(head_glow)
+	var head_points := PackedVector2Array()
+	var head_colors := PackedColorArray()
+	for i in 9: # the round front: a half circle from the top to the bottom
+		var angle := lerpf(-PI / 2.0, PI / 2.0, i / 8.0)
+		head_points.append(Vector2.from_angle(angle) * 9.0 + Vector2(4, 0))
+		head_colors.append(Color.WHITE if absf(angle) < 0.6 else hot)
+	head_points.append(Vector2(-18, 0)) # the back narrows into the tail
+	head_colors.append(Color(col, 0.0))
+	var head_shape := Polygon2D.new()
+	head_shape.polygon = head_points
+	head_shape.vertex_colors = head_colors
+	head_shape.material = _additive()
+	head.add_child(head_shape)
+	var head_core := _glow_sprite(10.0, Color.WHITE)
+	head_core.position = Vector2(6, 0)
+	head.add_child(head_core)
+	fx.add_child(head)
+	parts["head"] = head
+
+	# --- 1. wind-up (first shot only): the source card pulls back while a spark swells on it
+	if first_shot:
+		var spark := _glow_sprite(26.0, Color(hot, 0.95))
+		spark.z_index = 25
+		spark.visible = false
+		fx.add_child(spark)
+		parts["spark"] = spark
+		var st := fx.create_tween()
+		st.tween_interval(t)
+		st.tween_callback(func():
+			var spark_node: Sprite2D = alive.call("spark")
+			if spark_node == null:
+				return # the table was reset mid-animation
+			refresh_ends.call()
+			spark_node.position = ends["a"]
+			spark_node.visible = true)
+		st.tween_property(spark, "scale", spark.scale, charge).from(Vector2.ZERO).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		st.tween_callback(spark.queue_free)
+		if from is CardView:
+			var windup_card: CardView = from
+			var windup := windup_card.create_tween()
+			windup.tween_interval(t)
+			windup.tween_method(func(k: float):
+				var away: Vector2 = (ends["a"] - ends["b"]).normalized()
+				windup_card.shake = away * 7.0 * k, 0.0, 1.0, charge).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+	# --- 2. launch: a quick muzzle flash a little in front of the source, and the card kicks back
+	var muzzle := _glow_sprite(40.0, Color(hot, 0.95))
+	muzzle.z_index = 25
+	muzzle.visible = false
+	fx.add_child(muzzle)
+	parts["muzzle"] = muzzle
+	var mt := fx.create_tween()
+	mt.tween_interval(launch_t)
+	mt.tween_callback(func():
+		var muzzle_node: Sprite2D = alive.call("muzzle")
+		if muzzle_node == null:
+			return
+		refresh_ends.call()
+		muzzle_node.position = point_at.call(0.04)
+		muzzle_node.visible = true)
+	mt.tween_property(muzzle, "scale", muzzle.scale * 1.5, 0.09).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	mt.parallel().tween_property(muzzle, "modulate:a", 0.0, 0.09)
+	mt.tween_callback(muzzle.queue_free)
+	if from is CardView:
+		var source_card: CardView = from
+		var kick := source_card.create_tween()
+		kick.tween_interval(launch_t)
+		kick.tween_method(func(k: float):
+			var away: Vector2 = (ends["a"] - ends["b"]).normalized()
+			source_card.shake = away * 9.0 * (1.0 - k), 0.0, 1.0, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		kick.tween_callback(func(): source_card.shake = Vector2.ZERO)
+
+	# --- 3. flight: two layers of tail behind the head, a wide flickering flame and a thin hot core
+	var flame := Line2D.new()
+	flame.width = 30.0
+	var flame_gradient := Gradient.new()
+	flame_gradient.set_color(0, Color(col, 0.0))
+	flame_gradient.set_color(1, Color(hot, 0.95))
+	flame_gradient.add_point(0.55, Color(col, 0.6))
+	flame.gradient = flame_gradient
+	var core := Line2D.new()
+	core.width = 9.0
+	var core_gradient := Gradient.new()
+	core_gradient.set_color(0, Color(hot, 0.0))
+	core_gradient.set_color(1, Color.WHITE)
+	core.gradient = core_gradient
+	var tail_width := Curve.new() # a point at the back, as wide as the head at the front
+	tail_width.add_point(Vector2(0, 0.0))
+	tail_width.add_point(Vector2(0.7, 0.55))
+	tail_width.add_point(Vector2(1, 1))
+	var tails: Array[Line2D] = [flame, core]
+	for tail in tails:
+		tail.width_curve = tail_width
+		tail.joint_mode = Line2D.LINE_JOINT_ROUND
+		tail.end_cap_mode = Line2D.LINE_CAP_ROUND
+		tail.material = _additive()
+		tail.z_index = 25
+		tail.visible = false
+		fx.add_child(tail)
+	var embers := CPUParticles2D.new()
+	embers.emitting = false
+	embers.local_coords = false # embers stay where they were dropped, drifting and fading
+	embers.amount = maxi(8, int(26 * _fx_scale))
+	embers.lifetime = 0.35
+	embers.spread = 25.0
+	embers.gravity = Vector2(0, 60)
+	embers.initial_velocity_min = 40.0
+	embers.initial_velocity_max = 150.0
+	embers.scale_amount_min = 2.5
+	embers.scale_amount_max = 5.5
+	var ember_shrink := Curve.new() # embers shrink away instead of popping out
+	ember_shrink.add_point(Vector2(0, 1))
+	ember_shrink.add_point(Vector2(1, 0))
+	embers.scale_amount_curve = ember_shrink
+	var ember_ramp := Gradient.new()
+	ember_ramp.set_color(0, Color(hot, 1.0))
+	ember_ramp.set_color(1, Color(col, 0.0))
+	embers.color_ramp = ember_ramp
+	embers.material = _additive()
+	embers.z_index = 25
+	fx.add_child(embers)
+	parts["embers"] = embers
+	# `head_at` runs from 0 to 1 (fast out of the source, then holding its speed); the tail trails
+	# BOLT_TAIL_LENGTH behind it, and after the impact (`collapse` going from 0 to 1) it is pulled in
+	var paint := func(head_at: float, collapse: float):
+		refresh_ends.call()
+		var tail_start := lerpf(clampf(head_at - BOLT_TAIL_LENGTH, 0.0, 1.0), head_at, collapse)
+		var tip: Vector2 = point_at.call(head_at)
+		var heading: Vector2 = tip - point_at.call(maxf(head_at - 0.03, 0.0))
+		var side := heading.orthogonal().normalized()
+		var now := Time.get_ticks_msec() / 1000.0
+		var core_points := PackedVector2Array()
+		var flame_points := PackedVector2Array()
+		for j in 16:
+			var along := j / 15.0
+			var point: Vector2 = point_at.call(lerpf(tail_start, head_at, along))
+			core_points.append(point)
+			# the flame licks from side to side, more at the back than near the head
+			var lick := sin(j * 1.7 - now * 38.0) * 5.0 * (1.0 - along) if rich else 0.0
+			flame_points.append(point + side * lick)
+		for tail in tails:
+			if is_instance_valid(tail):
+				tail.visible = true
+		if is_instance_valid(flame):
+			flame.points = flame_points
+		if is_instance_valid(core):
+			core.points = core_points
+		var head_node: Node2D = alive.call("head")
+		if head_node != null:
+			head_node.position = tip
+			if heading.length() > 0.5:
+				head_node.rotation = heading.angle()
+		var embers_node: CPUParticles2D = alive.call("embers")
+		if embers_node != null:
+			embers_node.position = tip
+			if heading.length() > 0.5:
+				embers_node.direction = -heading.normalized() # thrown off backwards, like sparks off a flare
+	var ft := fx.create_tween()
+	ft.tween_interval(launch_t)
+	ft.tween_callback(func():
+		var head_node: Node2D = alive.call("head")
+		if head_node != null:
+			head_node.visible = true
+		var embers_node: CPUParticles2D = alive.call("embers")
+		if embers_node != null:
+			embers_node.emitting = true)
+	ft.tween_method(func(k: float):
+		paint.call(ease(k, 0.7), 0.0)
+		var head_node: Node2D = alive.call("head")
+		if head_node != null:
+			# stretched along its path, with a fast flicker like a living flame
+			var flicker := 1.0 + 0.12 * sin(k * TAU * 6.0)
+			head_node.scale = Vector2(1.5, 0.85) * flicker, 0.0, 1.0, flight)
+	ft.tween_callback(func():
+		var embers_node: CPUParticles2D = alive.call("embers")
+		if embers_node != null:
+			embers_node.emitting = false
+		var head_node: Node2D = alive.call("head")
+		if head_node != null:
+			head_node.queue_free())
+	ft.tween_method(func(c: float): paint.call(1.0, c), 0.0, 1.0, 0.08)
+	ft.tween_callback(func():
+		for tail in tails:
+			if is_instance_valid(tail):
+				tail.queue_free())
+	ft.tween_interval(embers.lifetime)
+	ft.tween_callback(embers.queue_free)
+
+	# --- 4. impact: a sharp flash, spikes of light, a quick shockwave and sparks thrown on ahead
+	var flare := Node2D.new()
+	flare.z_index = 27
+	flare.visible = false
+	flare.add_child(_glow_sprite(58.0, Color(col, 0.9)))
+	flare.add_child(_glow_sprite(24.0, Color.WHITE))
+	fx.add_child(flare)
+	# the spikes point along +x (the travel direction): most burst forward, a few go sideways and back
+	var spikes := Node2D.new()
+	spikes.z_index = 27
+	spikes.visible = false
+	for i in 9:
+		var angle := randf_range(-1.2, 1.2) if i < 6 else randf_range(1.6, TAU - 1.6)
+		var spike := Line2D.new()
+		spike.points = PackedVector2Array([Vector2.from_angle(angle) * 10.0, Vector2.from_angle(angle) * randf_range(42.0, 78.0)])
+		spike.width = randf_range(3.0, 6.0)
+		var spike_width := Curve.new() # thick at the center, sharp at the end
+		spike_width.add_point(Vector2(0, 1))
+		spike_width.add_point(Vector2(1, 0))
+		spike.width_curve = spike_width
+		spike.default_color = Color(hot, 1.0)
+		spike.material = _additive()
+		spikes.add_child(spike)
+	fx.add_child(spikes)
+	var shock := _ring_line(46.0, 5.0, Color(hot, 0.95))
+	shock.z_index = 27
+	shock.visible = false
+	fx.add_child(shock)
+	var burst := CPUParticles2D.new()
+	burst.emitting = false
+	burst.one_shot = true
+	burst.explosiveness = 1.0
+	burst.amount = maxi(6, int(18 * _fx_scale))
+	burst.lifetime = 0.4
+	burst.spread = 50.0
+	burst.gravity = Vector2(0, 520)
+	burst.damping_min = 140.0
+	burst.damping_max = 240.0
+	burst.initial_velocity_min = 260.0
+	burst.initial_velocity_max = 540.0
+	burst.scale_amount_min = 2.5
+	burst.scale_amount_max = 5.0
+	var burst_ramp := Gradient.new()
+	burst_ramp.set_color(0, Color.WHITE)
+	burst_ramp.set_color(1, Color(col, 0.0))
+	burst_ramp.add_point(0.35, Color(hot, 1.0))
+	burst.color_ramp = burst_ramp
+	burst.material = _additive()
+	burst.z_index = 27
+	fx.add_child(burst)
+	parts["flare"] = flare
+	parts["spikes"] = spikes
+	parts["shock"] = shock
+	parts["burst"] = burst
+	var it := fx.create_tween()
+	it.tween_interval(impact_t)
+	it.tween_callback(func():
+		var flare_node: Node2D = alive.call("flare")
+		var spikes_node: Node2D = alive.call("spikes")
+		var shock_node: Line2D = alive.call("shock")
+		var burst_node: CPUParticles2D = alive.call("burst")
+		if flare_node == null or spikes_node == null or shock_node == null or burst_node == null:
+			return
+		refresh_ends.call()
+		var b: Vector2 = ends["b"]
+		var travel: Vector2 = (b - point_at.call(0.85)).normalized()
+		flare_node.position = b
+		flare_node.scale = Vector2(0.3, 0.3)
+		flare_node.visible = true
+		spikes_node.position = b
+		spikes_node.rotation = travel.angle()
+		spikes_node.scale = Vector2(0.3, 0.3)
+		spikes_node.visible = true
+		shock_node.position = b
+		shock_node.scale = Vector2(0.3, 0.3)
+		shock_node.visible = true
+		burst_node.position = b
+		burst_node.direction = travel
+		burst_node.emitting = true)
+	it.tween_property(flare, "scale", Vector2(1.1, 1.1), 0.07).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	it.parallel().tween_property(spikes, "scale", Vector2(1.2, 1.2), 0.12).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	it.parallel().tween_property(spikes, "modulate:a", 0.0, 0.16).set_delay(0.04)
+	it.parallel().tween_property(shock, "scale", Vector2(1.3, 1.3), 0.24).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	it.parallel().tween_property(shock, "modulate:a", 0.0, 0.24).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	it.parallel().tween_property(flare, "modulate:a", 0.0, 0.18).set_delay(0.04)
+	it.tween_interval(0.45)
+	it.tween_callback(func():
+		for key in ["flare", "spikes", "shock", "burst"]:
+			var node: Node = alive.call(key)
+			if node != null:
+				node.queue_free())
+	return charge + flight
+
+## The hit style of good effects (heal, buff, summon): instead of being shot at its target, the
+## effect is carried to it as a ball of light the eye can follow (a lobbed orb, not a projectile):
+## 1. charge: light gathers on the source (a ring closing in on it, a growing orb);
+## 2. launch: a soft flash, the source card kicks back, and a soft glow marks the target;
+## 3. flight: the orb arcs to the target, stretched along its path, with a short comet tail and embers;
+## 4. arrival: a flash, a ring and sparks thrown on in the travel direction.
+## Follows both ends if they move. Returns the time from t until the orb lands.
+func _boon_shot(from: Control, to: Control, t: float, col: Color, first_shot: bool) -> float:
+	var timing := _shot_timing("boon", first_shot)
+	var charge: float = timing["charge"]
+	var flight: float = timing["flight"]
 	var rich := _fx_scale >= 0.7 # big chains skip the costliest layers (wide glow, reticle)
 	var hot := col.lightened(0.6)
 	# a wide arc, like something lobbed (a straight line reads as a laser)
@@ -4909,6 +5264,7 @@ func _effect_bolt(from: Control, to: Control, t: float, col: Color, first_shot: 
 				node.queue_free())
 	return charge + flight
 
+
 ## Timing of the "espinho" hit style (see _thorn_shot): the plant rears back a little longer on
 ## its first spit so the eye finds it, then fires the rest quickly; thorns fly faster than bolts.
 const THORN_CHARGE_FIRST := 0.16
@@ -4931,9 +5287,9 @@ const SAP_COLOR := Color("#7fd04a")
 ##    target instead of piling on one spot), quivers, splashes sap and drops off a moment later.
 ## Follows both ends if they move. Returns the time from t until the thorn lands.
 func _thorn_shot(from: Control, to: Control, t: float, first_shot: bool) -> float:
-	var pace := 0.55 + 0.45 * _fx_scale # big chains fire faster so a long chain does not drag
-	var charge := (THORN_CHARGE_FIRST if first_shot else THORN_CHARGE_NEXT) * pace
-	var flight := THORN_FLIGHT * pace
+	var timing := _shot_timing("espinho", first_shot)
+	var charge: float = timing["charge"]
+	var flight: float = timing["flight"]
 	var launch_t := t + charge
 	var impact_t := launch_t + flight
 	# a thorn is thrown hard, so its arc is much flatter than a bolt's
@@ -5320,6 +5676,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 	var hit_t := 0.0
 	var trig_src := 0 ## unit whose trigger caused the events that follow (0 = none)
 	var trig_shots := 0 ## bolts that trigger already fired (only the first one charges up slowly)
+	var volley_land_t := 0.0 ## when the trigger's last shot lands (the next one follows VOLLEY_GAP later)
 	var fatigue_pending := false ## a Fadiga was just announced: the Leader hit that follows is the game's rule, not a card's effect
 	# Leader HP: _render drew the final value, so rewind it to what it was before these events
 	# and step it down/up at each hit's moment instead of jumping straight to the end.
@@ -5364,8 +5721,22 @@ func _animate(events: Array, old: Dictionary) -> float:
 		# effects of a trigger fly out of their source as a bolt and land when it arrives
 		if trig_src != 0 and not is_fatigue_hit and et in ["damage", "heal", "shield_break", "buff", "dot", "freeze", "exhaust", "stun", "condemn", "tide_mark", "spell_shield_break", "supreme_shield_break", "summon"] \
 				and e["uid"] != trig_src and actors.has(trig_src) and actors.has(e["uid"]):
-			var hit_style := _hit_style_of(actors[trig_src])
-			cursor += _effect_hit(hit_style, actors[trig_src], actors[e["uid"]], cursor, _bolt_color(e), trig_shots == 0) - 0.02
+			# good effects are carried over as an orb; everything else is fired in the source's own style
+			var hit_style := "boon" if _is_boon_event(e) else _hit_style_of(actors[trig_src])
+			var first_shot := trig_shots == 0
+			var timing := _shot_timing(hit_style, first_shot)
+			var shot_time: float = timing["charge"] + timing["flight"]
+			var land_t := cursor + shot_time
+			if hit_style == "boon":
+				land_t -= 0.02 # orbs go one after the other, never in a burst like the shots
+			elif not first_shot:
+				# rapid fire: this shot lands VOLLEY_GAP after the previous one, so it is already in the
+				# air while that one hits. Only something slower than a plain hit in between (each hit
+				# moves the cursor 0.12 on) holds it back.
+				land_t = maxf(volley_land_t + VOLLEY_GAP, cursor - 0.12)
+			_effect_hit(hit_style, actors[trig_src], actors[e["uid"]], land_t - shot_time, _bolt_color(e), first_shot)
+			volley_land_t = land_t
+			cursor = land_t
 			trig_shots += 1
 		# Sound: most events play theirs right here, at the moment their animation starts. The ones
 		# below time their own: hits and heals land at `t` (after the lunge), deaths and banishes play

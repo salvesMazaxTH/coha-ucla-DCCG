@@ -104,6 +104,7 @@ func _init() -> void:
 	_test_rusco()
 	_test_elite_limits()
 	_test_armor()
+const MusicScript := preload("res://scripts/audio/music.gd")
 	_test_tharox_armor_growth()
 	_test_isarelis_hit_leader()
 	_test_silence_and_david()
@@ -127,6 +128,11 @@ func _init() -> void:
 	# Run tests/golden_check.gd by hand before committing an engine/rules change.
 	print("tests done, failures: ", failures)
 	quit(1 if failures > 0 else 0)
+	# the match music is a separate autoload with its own settings, apart from the effects
+	var track := load(MusicScript.TRACK_PATH) as AudioStreamOggVorbis
+	check(track != null, "música: a faixa da partida existe e é um OGG")
+	check(MusicScript.SETTINGS_PATH == SfxScript.SETTINGS_PATH, "música: salva no mesmo arquivo de configurações dos efeitos")
+	check(MusicScript.DEFAULT_VOLUME > 0.0 and MusicScript.DEFAULT_VOLUME < 1.0, "música: volume padrão fica no meio do slider")
 
 ## (The Sfx autoload does not exist in -s mode, so the script is loaded directly; its table and mapping are static.)
 ## Any spell card: effects run with it as their source count as coming from a spell (Escudo de Feitiço cancels them)
