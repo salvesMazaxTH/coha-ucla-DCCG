@@ -7,7 +7,7 @@
     "elemental"
   ],
   "essence": "eletrica",
-  "cost": 14,
+  "cost": 15,
   "atk": 8,
   "hp": 6,
   "keywords": [
@@ -17,9 +17,14 @@
   "art": "eletrica/voltexz.webp",
   "effects": [
     {
-      "action": "cost_reduction",
-      "per": "saved_momentum",
-      "amount": 1,
+      "listen": "turn_started",
+      "scope": "ally",
+      "zones": ["sanctuary", "hand", "board"],
+      "if": "unspent_momentum",
+      "action": "modify_cost",
+      "target": "self_card",
+      "per": "unspent_momentum",
+      "amount": -1,
       "min_cost": 3
     },
     {
@@ -34,7 +39,7 @@
       "rapidez_min": 1
     }
   ],
-  "text": "Custa 1 a menos por Momentum vazado (mín. 3).\nAo Entrar: suas outras unidades ganham +1/+1 por Momentum restante (de +1/+1 a +5/+5) e Rapidez 1 (se for menor).",
+  "text": "Condicional: no início do seu turno, reduza o custo desta carta em (1) por Momentum comum que sobrou, onde quer que ela esteja (mín. 3) (A Reserva é ignorada: o que foi para ela conta; o que já estava lá, não.)\nAo Entrar: suas outras unidades ganham +1/+1 por Momentum restante (de +1/+1 a +5/+5) e Rapidez 1 (se for menor).",
   "flavor": "",
   "tags": []
 }

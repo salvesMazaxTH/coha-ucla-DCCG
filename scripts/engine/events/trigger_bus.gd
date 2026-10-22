@@ -10,9 +10,12 @@ extends RefCounted
 ##
 ## "scope" is relative to the listening card: self (the event is about this card), ally (about
 ## its owner), enemy (about the opponent) or any (default). "zones" is a list among board, relics, hand,
-## deck, graveyard, banished, or "any" (default: ["board"]).
+## deck, graveyard, banished, or "any" (default: ["board"]). The extra zone "sanctuary" (never part of "any")
+## is where the Encarnação waits before being cast: it has no card there, so its listening effects run
+## at once instead of being queued, and can only do things that need no target (modify_cost).
 
 const ZONES := ["board", "relics", "hand", "deck", "graveyard", "banished"]
+const SANCTUARY := "sanctuary"
 
 var game: GameState
 
@@ -83,6 +86,25 @@ func _broadcast(event: GameEvent) -> void:
 				for effect: Effect in CardDB.def(card.card_id).listeners():
 					if effect.trigger == key and effect.listens_in(zone):
 						_offer(card, effect, event)
+		_offer_in_sanctuary(player_index, key, event)
+
+## The Encarnação still waiting in the Santuário hears the event too (see SANCTUARY).
+func _offer_in_sanctuary(p: int, key: String, event: GameEvent) -> void:
+	var incarnation: Dictionary = game.players[p]["incarnation"]
+	if not incarnation["in_zone"]:
+		return
+	for effect: Effect in CardDB.def(incarnation["card_id"]).listeners():
+		if effect.trigger != key or not effect.listens_in(SANCTUARY):
+			continue
+		if effect.scope == "self" or (effect.scope == "ally" and event.player != p) \
+				or (effect.scope == "enemy" and event.player == p) or not _when_matches(effect.when, event):
+			continue
+		if effect.own_turn_only and game.active != p:
+			continue
+		var context := EffectContext.new(game, p, effect.trigger)
+		if effect.condition != null and not effect.condition.check(context):
+			continue
+		effect.apply(context, 0)
 
 func _offer(card: Card, effect: Effect, event: GameEvent) -> void:
 	if not _scope_matches(effect.scope, card, event) or not _when_matches(effect.when, event):

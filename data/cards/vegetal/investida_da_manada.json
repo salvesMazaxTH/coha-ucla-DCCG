@@ -13,10 +13,12 @@
       "target": "all_ally_units",
       "atk": 2,
       "temp": true,
-      "rapidez_min": 1
+      "keywords": [
+        "impeto"
+      ]
     }
   ],
-  "text": "Suas unidades ganham +2 de Ataque neste turno e Rapidez 1.",
+  "text": "Suas unidades ganham +2 de Ataque neste turno e Ímpeto.",
   "flavor": "Não há caça quando o bosque inteiro escolhe correr.",
   "tags": []
 }

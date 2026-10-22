@@ -14,9 +14,9 @@
       "trigger": "on_ally_death",
       "action": "buff",
       "target": "self",
-      "atk": 2,
-      "hp": 2,
-      "cap_atk": 6
+      "atk": 1,
+      "hp": 1,
+      "cap_atk": 4
     },
     {
       "trigger": "on_death",
@@ -25,7 +25,7 @@
       "card": "broto_zumbi"
     }
   ],
-  "text": "Aliado Morre: ganhe +2/+2 (até 3 vezes).\nAo Morrer: invoque uma ficha Broto Zumbi 1/1.",
+  "text": "Aliado Morre: ganhe +1/+1 (até 4 vezes).\nAo Morrer: invoque uma ficha Broto Zumbi 1/1.",
   "flavor": "Uma druida enterrada viva, de volta da cova com as raízes por dentro do corpo.",
   "tags": []
 }

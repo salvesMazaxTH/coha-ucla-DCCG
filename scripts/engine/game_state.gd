@@ -160,10 +160,10 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"index": i, "deck_id": deck_id, "leader_id": d["leader"],
 		"leader_hp": int(ld["hp"]), "leader_max": int(ld["hp"]),
 		"momentum": 0, "max_momentum": 0, "reserve": 0,
-			"saved_momentum": 0, "idle_turns": 0, "next_momentum": 0, "play_restrictions": [], "leaked": 0, "unspent": 0,
+			"idle_turns": 0, "next_momentum": 0, "play_restrictions": [], "leaked": 0, "unspent": 0,
 		"healing_this_round": 0, "healing_last_round": 0, "damage_this_round": 0, "damage_last_round": 0,
 		"deck": deck, "hand": [], "board": [], "relics": [], "graveyard": [], "banished": [],
-		"incarnation": {"card_id": ld["incarnation"], "in_zone": true, "casts": 0},
+		"incarnation": {"card_id": ld["incarnation"], "in_zone": true, "casts": 0, "cost_mod": 0}, # cost_mod: the Encarnação's own modify_cost total, shared by the Santuário and every copy of it in play
 		"ability_used": false, "passive_used": false, "attacked": false, "fatigue": 0, "mulligan_done": false,
 		"played_two": false,
 		"snowball": SNOWBALL_BASE_LEVEL, # damage the next Bola de Neve starts at (grows with every Bola de Neve cast, goes back to snowball_base at the end of the owner's turn)
@@ -598,7 +598,26 @@ func incarnation_in_hand(p: int) -> bool:
 
 func incarnation_cost(p: int) -> int:
 	var l: Dictionary = players[p]["incarnation"]
-	return cost_of(p, CardDB.card(l["card_id"])) + commander_tax(int(l["casts"]))
+	return cost_of(p, CardDB.card(l["card_id"])) + incarnation_cost_mod(p) + commander_tax(int(l["casts"]))
+
+## Total modify_cost of p's Encarnação. The Santuário has no card to hold it, and a copy in hand or on the
+## field would lose it when it goes back, so it lives on the player and every copy reads it from here.
+func incarnation_cost_mod(p: int) -> int:
+	return int(players[p]["incarnation"].get("cost_mod", 0))
+
+## Applies a modify_cost `change` to `card`, or to p's Encarnação when the card is it (or when there is no
+## card: the Santuário). `min_cost` (0 = none) stops a reduction at that cost: it only takes what fits.
+func add_cost_mod(p: int, card: Card, change: int, min_cost := 0) -> void:
+	var l: Dictionary = players[p]["incarnation"]
+	var on_incarnation := card == null or card.incarnation
+	if change < 0 and min_cost > 0:
+		var current := cost_of(p, CardDB.card(l["card_id"] if on_incarnation else card.card_id), card) \
+				+ (incarnation_cost_mod(p) if card == null else 0)
+		change = mini(0, maxi(change, min_cost - current))
+	if on_incarnation:
+		l["cost_mod"] = incarnation_cost_mod(p) + change
+	else:
+		card.cost_mod += change
 
 ## Extra cost of the Encarnação after `casts` previous casts: 1 + 2 + ... + casts, times COMMANDER_TAX_STEP.
 static func commander_tax(casts: int) -> int:
@@ -702,8 +721,7 @@ func _since_last_turn(p: int, kind: String) -> int:
 
 ## Momentum cost of a card for player p, after its cost_reduction effects (no trigger: they apply
 ## wherever the card is, not only on the board, so they are not "Constante")
-## (e.g. per: "saved_momentum" =
-## per Momentum that leaked past the Reserva by the start of the owner's turns, over the whole game; "idle_turns" =
+## (e.g. per: "idle_turns" =
 ## per owner turn that started with Momentum leaking past the Reserva; "unspent_momentum" = a flat "amount" off when
 ## at least "threshold" plain Momentum was left over from the previous turn; "healing_since_last_turn" = a flat "amount" off
 ## when at least "threshold" actual Vida was recovered since the owner's previous turn started (that turn, the opponent's turn
@@ -713,13 +731,14 @@ func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 	var c := int(cd["cost"]) - (card.discount + card.turn_discount if card != null else 0) # per-copy discounts; stacks with cost_reduction, same "min_cost" floor
 	if card != null:
 		c += card.cost_mod # permanent per-copy change (modify_cost), kept in every zone
+		if card.incarnation:
+			c += incarnation_cost_mod(p)
 	var floor_cost := 0
 	for e in cd.get("effects", []):
 		if e.get("action", "") != "cost_reduction":
 			continue
 		var n := 0
 		match e.get("per", ""):
-			"saved_momentum": n = int(players[p]["saved_momentum"])
 			"idle_turns": n = int(players[p]["idle_turns"])
 			"unspent_momentum": n = 1 if int(players[p]["unspent"]) >= int(e.get("threshold", 1)) else 0
 			"healing_since_last_turn": n = 1 if _since_last_turn(p, "healing") >= int(e.get("threshold", 1)) else 0
@@ -2797,12 +2816,12 @@ func _start_turn(p: int, draw: bool) -> void:
 	pl["damage_last_round"] = int(pl["damage_this_round"])
 	pl["damage_this_round"] = 0
 	# Momentum that leaks past a full Reserva, after the opponent's turn too, is what really went
-	# unspent (Voltexz and Fulgurvoltz get cheaper by it)
+	# unspent (Fulgurvoltz gets cheaper by the turns it happens, Voltexz ignores the Reserva)
 	var leaked: int = int(pl["reserve"]) + int(pl["momentum"]) - RESERVE_CAP
 	pl["leaked"] = maxi(0, leaked) # Sobrecarga refunds part of it this turn
-	pl["unspent"] = int(pl["momentum"]) # plain Momentum left from the last turn (Gigante Elétrico)
+	# plain Momentum left from the last turn, the Reserva never counted (Gigante Elétrico, Voltexz)
+	pl["unspent"] = int(pl["momentum"])
 	if leaked > 0:
-		pl["saved_momentum"] += leaked
 		pl["idle_turns"] += 1
 	pl["reserve"] = mini(RESERVE_CAP, int(pl["reserve"]) + int(pl["momentum"])) # bank what went unspent
 	pl["max_momentum"] = min(MOMENTUM_CAP, pl["max_momentum"] + 1)

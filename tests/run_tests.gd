@@ -4441,16 +4441,28 @@ func _test_eletrica() -> void:
 	# Voltexz / Fulgurvoltz: cost drops with Momentum left unspent, with a floor
 	var vx: Dictionary = CardDB.card("voltexz")
 	var fg: Dictionary = CardDB.card("fulgurvoltz")
-	check(g.cost_of(a, vx) == 14 and g.cost_of(a, fg) == 14, "eletrica: custos base 14 e 14")
-	# only what leaks past the Reserva (2) at the start of the owner's next turn counts
+	check(g.incarnation_cost(a) == 15 and g.cost_of(a, fg) == 14, "eletrica: custos base 15 e 14")
+	# Voltexz ignores the Reserva: all plain Momentum left counts (even the part that gets banked);
+	# Fulgurvoltz still counts only the turns where Momentum leaked past the Reserva (2)
+	var copy := g.find_card(_give(g, a, "voltexz")) # a loose copy in the hand cheapens by itself too
 	g.players[a]["momentum"] = 3
 	g.players[a]["reserve"] = 1
 	g.end_turn(a)
 	g.players[o]["momentum"] = 0
 	g.end_turn(o)
-	check(g.players[a]["saved_momentum"] == 2 and g.players[a]["idle_turns"] == 1, "eletrica: conta só o que vazou da Reserva (1+3-2)")
-	check(g.players[o]["saved_momentum"] == 0 and g.players[o]["idle_turns"] == 0, "eletrica: o que cabe na Reserva não conta")
-	check(g.cost_of(a, vx) == 12 and g.cost_of(a, fg) == 11, "eletrica: custo cai com o que vazou")
+	check(g.incarnation_cost_mod(a) == -3 and g.players[a]["idle_turns"] == 1, "eletrica: Voltexz conta os 3 sobrados, mesmo os que vão para a Reserva")
+	check(g.incarnation_cost_mod(o) == 0 and g.players[o]["idle_turns"] == 0, "eletrica: sem Momentum sobrando não conta")
+	check(g.incarnation_cost(a) == 12 and g.cost_of(a, fg) == 11, "eletrica: custo cai com o Momentum sobrado")
+	check(copy.cost_mod == -3 and g.cost_of(a, vx, copy) == 12, "eletrica: a cópia na mão também fica mais barata")
+	# what already sat in the Reserva at the start of the turn is not counted again
+	g = _eletrica_game()
+	a = g.active
+	o = g.opponent(a)
+	g.players[a]["momentum"] = 0
+	g.players[a]["reserve"] = 2
+	g.end_turn(a)
+	g.end_turn(o)
+	check(g.incarnation_cost_mod(a) == 0 and g.players[a]["idle_turns"] == 0, "eletrica: a Reserva que já estava cheia não conta de novo")
 	# spending on the opponent's turn reduces the savings (counted at the owner's next start)
 	g = _eletrica_game()
 	a = g.active
@@ -4460,12 +4472,13 @@ func _test_eletrica() -> void:
 	g.end_turn(a)
 	g.players[a]["momentum"] = 1 # spent 2 during the opponent's turn
 	g.end_turn(o)
-	check(g.players[a]["saved_momentum"] == 1, "eletrica: gasto no turno do oponente reduz o que vaza")
+	check(g.incarnation_cost_mod(a) == -1, "eletrica: gasto no turno do oponente reduz o que sobra")
+	# the floor stops the reduction exactly at 3 (and at 5 for the Fulgurvoltz)
 	g = _eletrica_game()
 	a = g.active
-	g.players[a]["saved_momentum"] = 40
+	g.add_cost_mod(a, null, -40, 3)
 	g.players[a]["idle_turns"] = 40
-	check(g.cost_of(a, vx) == 3 and g.cost_of(a, fg) == 5, "eletrica: pisos 3 e 5")
+	check(g.incarnation_cost(a) == 3 and g.cost_of(a, fg) == 5, "eletrica: pisos 3 e 5")
 	# Gigante Elétrico: 9 base, 5 less when 3+ Momentum was left over from the previous turn
 	var gg: Dictionary = CardDB.card("gigante_eletrico")
 	g = _eletrica_game()
@@ -4530,17 +4543,17 @@ func _test_eletrica() -> void:
 	# Encarnação retirement uses the current cost (with reductions) plus the tax
 	var l: Dictionary = g.players[a]["incarnation"]
 	l["casts"] = 1
-	g.players[a]["saved_momentum"] = 0
-	check(g.incarnation_cost(a) == 15, "voltexz: sem redução, 2a conjuração custa 15")
-	g.players[a]["saved_momentum"] = 8
+	g.players[a]["incarnation"]["cost_mod"] = 0
+	check(g.incarnation_cost(a) == 16, "voltexz: sem redução, 2a conjuração custa 16")
+	g.players[a]["incarnation"]["cost_mod"] = -9
 	check(g.incarnation_cost(a) == 7, "voltexz: custo atual 6 + taxa 1 = 7")
 	l["in_zone"] = false
 	g._incarnation_leaves(a)
 	check(l["in_zone"] and not l.get("retired", false), "voltexz: volta ao Santuário com custo atual 7")
-	g.players[a]["saved_momentum"] = 4
+	g.players[a]["incarnation"]["cost_mod"] = -4
 	l["in_zone"] = false
 	g._incarnation_leaves(a)
-	check(l.get("retired", false), "voltexz: custo atual 10 + taxa 1 = 11 (Momentum vazado 4) aposenta")
+	check(l.get("retired", false), "voltexz: custo atual 11 + taxa 1 = 12 (Momentum sobrado 4) aposenta")
 	# gain_momentum: now and at the next turn
 	g = _eletrica_game()
 	a = g.active
@@ -6227,15 +6240,15 @@ func _test_glacial() -> void:
 	g.turn += 3
 	check(g.leader_negations_left(a) == 0, "câmara: sem camadas depois que a janela termina")
 
-	# Morwenna Raiz-Podre: +2/+2 per ally death, at most 3 times (1/3 grows to 7/9 and stops)
+	# Morwenna Raiz-Podre: +1/+1 per ally death, at most 4 times (1/3 grows to 5/7 and stops)
 	g = _obscura_game()
 	a = g.active
 	var morwenna := _put(g, a, "morwenna_raiz_podre")
-	for ally_number in 5:
+	for ally_number in 6:
 		_kill(g, _put(g, a, "teste_alvo_gelo"))
 		if ally_number == 0:
-			check(g.atk_of(morwenna) == 3 and g.hp_left(morwenna) == 5, "morwenna: a primeira morte de aliado dá +2/+2 (3/5)")
-	check(g.atk_of(morwenna) == 7 and g.hp_left(morwenna) == 9, "morwenna: depois de 5 mortes de aliados ela para em 7/9")
+			check(g.atk_of(morwenna) == 2 and g.hp_left(morwenna) == 4, "morwenna: a primeira morte de aliado dá +1/+1 (2/4)")
+	check(g.atk_of(morwenna) == 5 and g.hp_left(morwenna) == 7, "morwenna: depois de 6 mortes de aliados ela para em 5/7")
 
 	# Folheio Pé-na-Neve: draws 3, then the player picks a card from the hand and it goes to the graveyard
 	g = _glacial_game()
