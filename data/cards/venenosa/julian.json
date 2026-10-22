@@ -9,7 +9,7 @@
   "cost": 4,
   "atk": 2,
   "hp": 4,
-  "keywords": [],
+  "keywords": ["longo_alcance"],
   "art": "venenosa/julian.webp",
   "effects": [
     {

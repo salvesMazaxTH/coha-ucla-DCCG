@@ -159,7 +159,8 @@
     "ciclope": { "name": "Ciclope" },
     "driade": { "name": "Dríade" },
     "kobold": { "name": "Kobold" },
-    "glacinata": { "name": "Glacinata" }
+    "glacinata": { "name": "Glacinata" },
+    "yeti": { "name": "Yeti" }
   },
   "keywords": {
     "requiem": {

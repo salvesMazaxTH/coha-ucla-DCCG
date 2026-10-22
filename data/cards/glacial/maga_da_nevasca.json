@@ -1,0 +1,54 @@
+{
+  "name": "Maga da Nevasca",
+  "type": "unit",
+  "rarity": "legendary",
+  "species": [
+    "humano"
+  ],
+  "essence": "glacial",
+  "cost": 6,
+  "atk": 3,
+  "hp": 6,
+  "keywords": [
+    "escudo_feitico"
+  ],
+  "art": "glacial/maga_da_nevasca.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "freeze_slots",
+      "count": 3,
+      "ignores_immunity": true,
+      "target": "none"
+    },
+    {
+      "listen": "spell_cast",
+      "scope": "ally",
+      "zones": [
+        "board"
+      ],
+      "when": {
+        "essence_glacial": true
+      },
+      "action": "freeze",
+      "target": "random_enemy_unit",
+      "once_per_turn": true
+    },
+    {
+      "listen": "spell_cast",
+      "scope": "ally",
+      "zones": [
+        "board"
+      ],
+      "when": {
+        "essence_glacial": true
+      },
+      "action": "exhaust",
+      "target": "random_enemy_unit",
+      "once_per_turn": true
+    }
+  ],
+  "text": "Ao Entrar: congele 3 espaços aleatórios do campo inimigo. O congelamento ignora imunidade; unidades neles são congeladas e exauridas; espaços vazios não aceitam permanentes até o fim do próximo turno do oponente.\nCondicional: uma vez por turno, quando você lançar um feitiço glacial, congele e exaura uma unidade inimiga aleatória.",
+  "flavor": "Quando ela ergue as mãos, até a nevasca prende a respiração.",
+  "tags": []
+}

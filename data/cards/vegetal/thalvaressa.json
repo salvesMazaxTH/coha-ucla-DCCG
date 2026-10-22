@@ -33,7 +33,7 @@
       }
     ]
   },
-  "text": "Ao Entrar: invoque uma Mudinha do Dossel 0/1.\nAo Ativar (2) {rapido} (1x por turno): invoque uma Mudinha do Dossel 0/1 e dê +1/+1 permanente a ela.",
+  "text": "Ao Entrar: invoque uma Mudinha do Dossel (ficha 0/1).\nAo Ativar (2) {rapido} (1x por turno): invoque uma Mudinha do Dossel (ficha 0/1) e dê +1/+1 permanente a ela.",
   "flavor": "Onde ela repousa, até a madeira morta volta a sonhar.",
   "tags": []
 }

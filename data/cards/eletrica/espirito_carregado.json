@@ -18,6 +18,7 @@
     "max_rapidez": 0
   },
   "art": "eletrica/espirito_carregado.webp",
+  "art_crop": {"x": 0.58, "y": 0.46, "zoom": 1.0},
   "effects": [
     {
       "trigger": "on_enter",
