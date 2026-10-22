@@ -1492,6 +1492,8 @@ func _render_relics(p: int, y: float, slots_taken: int) -> void:
 		var relic_view_data := {"uid": relic.uid}
 		if relic.charges_left() >= 0:
 			relic_view_data["charges_left"] = relic.charges_left() # a limited-use artifact shows its remaining uses
+		# Baluarte Santo is born protected: it needs the golden ring too (and loses ring and tag once it breaks)
+		relic_view_data["supreme_shield"] = relic.supreme_shield
 		var v := CardView.new().setup(relic.card_id, relic_view_data, 1.15)
 		v.pivot_offset = v.size / 2.0
 		var cell := _board_cell(slots_taken, first_relic_slot + j)

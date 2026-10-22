@@ -101,6 +101,8 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 		glossary_keywords.append("escudo") # live protection: it is visible as a tag, so explain it in the overlay
 	if instance.get("spell_shield", false) and not glossary_keywords.has("escudo_feitico"):
 		glossary_keywords.append("escudo_feitico") # live protection: it is visible as a tag, so explain it in the overlay
+	if instance.get("supreme_shield", false) and not glossary_keywords.has("escudo_supremo"):
+		glossary_keywords.append("escudo_supremo") # live protection (can be granted for a while): explain it in the overlay
 	for keyword_id in mentioned_keywords(String(cd.get("text", "")) + text_suffix):
 		if not glossary_keywords.has(keyword_id):
 			glossary_keywords.append(keyword_id)

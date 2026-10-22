@@ -139,6 +139,8 @@ static var _tex_cache := {}
 static var _dissolve: Shader
 static var _banish: Shader
 static var _stealth_shader: Shader
+static var _shield_sparks_shader: Shader
+var _shield_sparks: ColorRect = null ## animated sparks of Escudo de Feitiço / Supremo (see _place_shield_sparks)
 
 ## Keywords that change who can challenge or target whom get an icon medallion on the art (MTG Arena style),
 ## in this order down the left edge, then the right; glyph tint per keyword.
@@ -236,12 +238,45 @@ func _gui_input(e: InputEvent) -> void:
 		accept_event()
 
 func _process(delta: float) -> void:
+	# (the shield sparks are not here on purpose: they animate in their own shader, see _place_shield_sparks)
 	if highlight.a > 0 or hovered or _legendary() or inst.has("frozen") or inst.has("stun_markers") or inst.has("condemned_turn") or inst.get("summoning_sick", false):
 		_t += delta
 		_redraw_acc += delta
 		if _redraw_acc >= 0.033 or highlight.a > 0 or hovered: ## shimmer at ~30 fps is plenty
 			_redraw_acc = 0.0
 			queue_redraw()
+
+## Escudo de Feitiço / Escudo Supremo sparks: a small square over the art window, painted by
+## shield_sparks.gdshader. Called from _draw with where the face is drawn, so it follows zoom, shake and pop.
+## Created the first time a card has one of these shields; hidden (not freed) when the shield is gone.
+func _place_shield_sparks(art: Rect2, face_origin: Vector2, pop: float, s: float, spell_shield: bool, supreme_shield: bool) -> void:
+	if not spell_shield and not supreme_shield:
+		if _shield_sparks != null and _shield_sparks.visible:
+			_shield_sparks.visible = false
+		return
+	if _shield_sparks == null:
+		if _shield_sparks_shader == null:
+			_shield_sparks_shader = load("res://scripts/ui/shaders/shield_sparks.gdshader")
+		_shield_sparks = ColorRect.new()
+		_shield_sparks.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var sparks_material := ShaderMaterial.new()
+		sparks_material.shader = _shield_sparks_shader
+		sparks_material.set_shader_parameter("phase", randf() * 10.0)
+		_shield_sparks.material = sparks_material
+		add_child(_shield_sparks)
+	# a square as wide as the art window, centered on it, in the same place the face was drawn
+	var side := art.size.x * pop
+	var sparks_rect := Rect2(face_origin + art.get_center() * pop - Vector2(side, side) / 2.0, Vector2(side, side))
+	if _shield_sparks.position != sparks_rect.position:
+		_shield_sparks.position = sparks_rect.position
+	if _shield_sparks.size != sparks_rect.size:
+		_shield_sparks.size = sparks_rect.size
+	var sparks_material := _shield_sparks.material as ShaderMaterial
+	sparks_material.set_shader_parameter("base_pixel", s / art.size.x)
+	sparks_material.set_shader_parameter("spell_on", 1.0 if spell_shield else 0.0)
+	sparks_material.set_shader_parameter("supreme_on", 1.0 if supreme_shield else 0.0)
+	if not _shield_sparks.visible:
+		_shield_sparks.visible = true
 
 ## Rules text as BBCode: trigger names in bold orange, and every keyword name in the text (Voo,
 ## Escudo de Feitiço, "Armadura 1"...) in bold yellow, so a card that grants or mentions a keyword
@@ -329,6 +364,8 @@ func dissolve(delay := 0.0, edge := Color(1.0, 0.55, 0.15), dur := 0.75) -> void
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var tw := create_tween()
 	tw.tween_interval(delay)
+	if _shield_sparks != null: # the sparks have their own shader, so they would not burn with the card
+		tw.tween_callback(_shield_sparks.hide)
 	tw.tween_property(m, "shader_parameter/progress", 1.0, dur).set_ease(Tween.EASE_IN)
 	tw.tween_callback(queue_free)
 
@@ -346,6 +383,8 @@ func banish(delay := 0.0, edge := Color(0.8, 0.7, 1.0), dur := 0.9) -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var tw := create_tween()
 	tw.tween_interval(delay)
+	if _shield_sparks != null: # the sparks have their own shader, so they would not fade with the card
+		tw.tween_callback(_shield_sparks.hide)
 	tw.tween_property(m, "shader_parameter/progress", 1.0, dur).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_SINE)
 	tw.tween_callback(queue_free)
 	var st := create_tween()
@@ -368,7 +407,10 @@ func _draw() -> void:
 	_face_size = (size * zoom).round()
 	var zoom_shift := (pivot_offset * (1.0 - zoom)).round()
 	var pop := 1.0 + 0.08 * proc ## scales around the center
-	draw_set_transform(zoom_shift + shake + lunge + _face_size / 2.0 * (1.0 - pop), 0.0, Vector2(pop, pop))
+	var face_origin := zoom_shift + shake + lunge + _face_size / 2.0 * (1.0 - pop) ## where the face is drawn (the shield sparks follow it)
+	draw_set_transform(face_origin, 0.0, Vector2(pop, pop))
+	if (face_down or fatigue > 0) and _shield_sparks != null:
+		_shield_sparks.visible = false
 	var s := _face_size.x / BASE.x
 	var r := Rect2(Vector2.ZERO, _face_size)
 	var rad := 10.0 * s
@@ -524,9 +566,6 @@ func _draw() -> void:
 		for i in 3: ## same weight as the divine shield bubble, only the color differs
 			draw_arc(sc, rr - i * 3 * s, 0, TAU, 48, Color("#c9a8ff", (0.55 - i * 0.15) * 1.25), 2.5 * s, true)
 		draw_colored_polygon(_art_window, Color("#c9a8ff", 0.15))
-		for i in 6:
-			var a := _t * 0.6 + i * TAU / 6.0
-			_diamond(sc + Vector2(cos(a), sin(a)) * rr, 2.6 * s, Color("#e3d2ff"))
 	# Escudo Supremo: a golden ring with sparks, so it never reads as a plain Escudo or Escudo de Feitiço
 	if inst.get("supreme_shield", false):
 		var supreme_center := art.get_center()
@@ -534,9 +573,8 @@ func _draw() -> void:
 		for i in 3:
 			draw_arc(supreme_center, supreme_radius - i * 3 * s, 0, TAU, 48, Color("#ffd86b", (0.55 - i * 0.15) * 1.25), 2.5 * s, true)
 		draw_colored_polygon(_art_window, Color("#ffd86b", 0.15))
-		for i in 8:
-			var spark_angle := -_t * 0.5 + i * TAU / 8.0
-			_diamond(supreme_center + Vector2(cos(spark_angle), sin(spark_angle)) * supreme_radius, 2.6 * s, Color("#fff1c2"))
+	# the moving sparks of both rings (shield_sparks.gdshader): the GPU animates them, the card stays still
+	_place_shield_sparks(art, face_origin, pop, s, inst.get("spell_shield", false), inst.get("supreme_shield", false))
 	if inst.has("frozen"):
 		_draw_frost(art, s)
 	if inst.has("stun_markers"):
@@ -1224,6 +1262,11 @@ func _panel_lines(cd: Dictionary) -> Array:
 		kws.erase("escudo")
 		if inst["shield"]:
 			kws.push_front("escudo")
+	# the live Escudo de Feitiço / Supremo get their own colored tag below, so the printed keyword would repeat it
+	if inst.has("spell_shield"):
+		kws.erase("escudo_feitico")
+	if inst.has("supreme_shield"):
+		kws.erase("escudo_supremo")
 	var out := []
 	if cd["type"] != "unit":
 		# spells never get here: they print their rules text and carry the speed badge instead
