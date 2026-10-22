@@ -5,6 +5,7 @@
   "essence": "sagrada",
   "cost": 5,
   "speed": "lento",
+  "art": "sagrada/ultima_badalada.webp",
   "effects": [
     { "trigger": "on_play", "action": "cap_stats", "target": "all_units", "atk": 2, "hp": 2 },
     { "trigger": "on_play", "action": "stun", "target": "all_enemy_units" },

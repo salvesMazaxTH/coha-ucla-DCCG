@@ -11,6 +11,7 @@
     "sobrepujanca"
   ],
   "art": "aquatica/gigante_marinho.webp",
+  "art_crop": {"x": 0.5, "y": 0.28, "zoom": 1.0},
   "effects": [
     {
       "action": "cost_reduction",
