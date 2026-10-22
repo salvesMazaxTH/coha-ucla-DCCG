@@ -2124,7 +2124,7 @@ func _test_toque_letal() -> void:
 	var legendary := CardDB.card("ceifador_do_ultimo_toque")
 	var early := CardDB.card("rastejante_do_fim")
 	check(CardDB.keyword("toque_letal")["name"] == "Toque Letal", "Toque Letal: keyword registrada")
-	check(int(legendary["cost"]) == 10 and int(legendary["atk"]) == 3 and String(legendary["text"]).contains("condene"), "Ceifador: custo 10, ATK 3 e texto de Contrato com a Morte")
+	check(int(legendary["cost"]) == 10 and int(legendary["atk"]) == 3 and String(legendary["text"]).contains("condenar"), "Ceifador: custo 10, ATK 3 e texto de Contrato com a Morte")
 	check(int(early["cost"]) == 2 and early["rarity"] == "epic" and early["text"] == "", "Rastejante: épica de early game e texto vazio")
 
 	_tcard("t_lethal", 1, 4, [])
@@ -6082,8 +6082,8 @@ func _test_glacial() -> void:
 	var bola_text := String(CardDB.card("bola_de_neve")["text"])
 	check(bola_text.contains("{nivel}"), "texto da bola de neve tem o marcador {nivel}")
 	var shown_text := CardView.fill_live_numbers(bola_text, int(g.players[a]["snowball"]))
-	check(not shown_text.contains("{nivel}") and shown_text.contains("Cause 6 de dano"), "texto da bola de neve mostra o nível atual (6)")
-	check(CardView.fill_live_numbers(bola_text, GameState.SNOWBALL_BASE_LEVEL).contains("Cause 2 de dano"), "sem dono, o texto mostra o nível inicial (2)")
+	check(not shown_text.contains("{nivel}") and shown_text.contains("Causa 6 de dano"), "texto da bola de neve mostra o nível atual (6)")
+	check(CardView.fill_live_numbers(bola_text, GameState.SNOWBALL_BASE_LEVEL).contains("Causa 2 de dano"), "sem dono, o texto mostra o nível inicial (2)")
 
 	# a Bola aimed at a Leader is a plain hit and the level doesn't grow
 	var unit_cast_graveyard_before: int = g.players[a]["graveyard"].size()

@@ -24,7 +24,7 @@
       "amount": -1
     }
   ],
-  "text": "Condicional: sempre que uma carta sua for para o cemitério, reduza o custo desta carta em (1), onde quer que ela esteja.",
+  "text": "Condicional: sempre que uma carta sua for para o cemitério, o custo desta carta diminui em (1), onde quer que ela esteja.",
   "flavor": "Ninguém a convocou. Ela só veio buscar o que já é dela.",
   "tags": []
 }

@@ -49,7 +49,7 @@
       "amount": 1
     }
   ],
-  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela sofre 2 de dano. Você ganha +1 de Momentum neste turno.\nCondicional: uma vez por turno, ao lançar seu primeiro feitiço Ígneo ou Elétrico no seu turno, causa 1 de dano a um inimigo aleatório, incluindo o Líder.",
+  "text": "Ao Entrar: você ganha +1 de Momentum neste turno. Além disso, você pode escolher uma unidade inimiga; ela sofre 2 de dano.\nCondicional: uma vez por turno, ao lançar seu primeiro feitiço Ígneo ou Elétrico no seu turno, causa 1 de dano a um inimigo aleatório, incluindo o Líder.",
   "flavor": "",
   "tags": []
 }

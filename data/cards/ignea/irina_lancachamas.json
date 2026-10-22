@@ -26,7 +26,7 @@
       "amount": 1
     }
   ],
-  "text": "Ao Entrar: cause 3 de dano a qualquer alvo; se for uma unidade, ela recebe 1 marcador de Queimadura.",
+  "text": "Ao Entrar: você pode escolher qualquer alvo; ele sofre 3 de dano e, se for uma unidade, recebe 1 marcador de Queimadura.",
   "flavor": "\"Tá tudo bem.\" Não está.",
   "tags": []
 }

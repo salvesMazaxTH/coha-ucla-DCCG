@@ -16,7 +16,7 @@
     {"trigger":"on_attack","action":"damage","target":"enemy_leader","amount":1},
     {"trigger":"on_deal_combat_damage","action":"add_dot","dot":"queimadura","target":"damaged_target","amount":1}
   ],
-  "text": "Ao Atacar: cause 1 de dano ao Líder inimigo. Ao Causar Dano de Combate: o alvo (inclusive um Líder) recebe 1 marcador de Queimadura.",
+  "text": "Ao Atacar: causa 1 de dano ao Líder inimigo. Ao Causar Dano de Combate: o alvo (inclusive um Líder) recebe 1 marcador de Queimadura.",
   "flavor": "Punhos acesos, guarda baixa.",
   "tags": []
 }

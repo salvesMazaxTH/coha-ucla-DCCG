@@ -10,7 +10,7 @@
   "keywords": [],
   "art": "ignea/salamandra.webp",
   "effects": [{"trigger":"on_attack","action":"damage","target":"enemy_leader","amount":1}],
-  "text": "Ao Atacar: cause 1 de dano ao Líder inimigo.",
+  "text": "Ao Atacar: causa 1 de dano ao Líder inimigo.",
   "flavor": "",
   "tags": []
 }

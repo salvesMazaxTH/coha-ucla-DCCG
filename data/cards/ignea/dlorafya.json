@@ -13,7 +13,7 @@
     {"trigger":"on_enter","action":"damage","target":"all_units","amount":3,"ally_reduce":{"essence":"ignea","amount":1}},
     {"trigger":"on_enter","action":"add_dot","dot":"queimadura","target":"all_enemy_units","amount":1,"ignores_immunity":true}
   ],
-  "text": "Ao Entrar: cause 3 de dano a todas as unidades; unidades Ígneas aliadas sofrem apenas 1. As unidades inimigas recebem 1 marcador de Queimadura (ignora imunidade).",
+  "text": "Ao Entrar: causa 3 de dano a todas as unidades; unidades Ígneas aliadas sofrem apenas 1. As unidades inimigas recebem 1 marcador de Queimadura (ignora imunidade).",
   "flavor": "O veredito da pira é final.",
   "tags": []
 }

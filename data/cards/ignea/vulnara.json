@@ -19,7 +19,7 @@
       "amount": 2
     }
   ],
-  "text": "Ao Entrar: cause 2 de dano a uma unidade inimiga.",
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela sofre 2 de dano.",
   "flavor": "Chuva de flechas ardentes.",
   "tags": []
 }
