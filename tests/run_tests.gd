@@ -4310,6 +4310,20 @@ func _test_rusco() -> void:
 	g2.play_card(b, ru2.uid)
 	g2.end_turn(b)
 	check(g2.players[b]["hand"].filter(func(c: Card): return c.card_id == "rusco").is_empty(), "rusco: jogado da mão não volta sozinho")
+	# casting the Encarnação from the Santuário is playing a card too (Vael costs 2)
+	var g3 := GameState.new("vael", "agua", 42)
+	g3.mulligan(0, [])
+	g3.mulligan(1, [])
+	var v := g3.active
+	g3.players[v]["deck"] = g3.players[v]["deck"].filter(func(c: Card): return c.card_id != "rusco")
+	var ru3 := Card.new(g3._uid(), "rusco", v, "deck")
+	g3.players[v]["deck"].push_front(ru3)
+	g3.players[v]["momentum"] = 10
+	check(g3.can_cast_incarnation(v), "rusco: dá pra conjurar o Vael do Santuário")
+	g3.cast_incarnation(v)
+	check(bool(g3.players[v]["played_two"]), "rusco: conjurar do Santuário conta como jogar uma carta 2")
+	g3.end_turn(v)
+	check(g3.players[v]["board"].any(func(u: Card): return u.uid == ru3.uid), "rusco: entra depois de conjurar o Vael do Santuário")
 
 ## A typo in a card's JSON is reported on load instead of silently doing nothing.
 func _test_card_validation() -> void:

@@ -61,6 +61,8 @@ var _holding := false
 var _long := false
 var _press_id := 0
 var _deck_pile: DeckPile
+var shows_deck_pile := true ## false: the deck pile is drawn elsewhere (the viewer's sits in the right HUD column)
+var shows_graveyard := true ## false: the graveyard is drawn elsewhere (the viewer's is a pile beside their deck)
 var ward_hits := 0: ## Câmara de Êxtase aftermath: how many of the next hits are still reduced to 0 (one shell per hit)
 	set(value):
 		ward_hits = value
@@ -166,7 +168,7 @@ static func deck_thickness(count: int) -> int:
 
 ## Only the plate, the HP gem, the ability gem and the graveyard counter take input.
 func _has_point(pt: Vector2) -> bool:
-	return PLATE.has_point(pt) or GRAVE_RECT.has_point(pt) or pt.distance_to(AC) <= AR + 4 or pt.distance_to(HP_C) <= 22
+	return PLATE.has_point(pt) or (shows_graveyard and GRAVE_RECT.has_point(pt)) or pt.distance_to(AC) <= AR + 4 or pt.distance_to(HP_C) <= 22
 
 func _process(delta: float) -> void:
 	if targetable or target_selected or ability_ready or active or requiem > 0 or ward_hits > 0:
@@ -180,13 +182,13 @@ func _gui_input(e: InputEvent) -> void:
 		ability_clicked.emit()
 		return
 	if e is InputEventMouseMotion:
-		var over := GRAVE_RECT.has_point(e.position)
+		var over := shows_graveyard and GRAVE_RECT.has_point(e.position)
 		if over != _hover_grave:
 			_hover_grave = over
 			mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if over else Control.CURSOR_ARROW
 			queue_redraw()
 		return
-	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and GRAVE_RECT.has_point(e.position):
+	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and shows_graveyard and GRAVE_RECT.has_point(e.position):
 		if e.pressed:
 			grave_clicked.emit()
 		accept_event()
@@ -328,8 +330,11 @@ func _draw() -> void:
 	_text(UITheme.font("bold"), gem_label, AC + Vector2(0, AR + 16), 12, Color(UITheme.TEXT, 0.7))
 
 	# deck pile (its own child node, rebuilt here) and graveyard counter
-	_deck_pile.show_count(deck, fatigue)
-	_counter(Vector2(230, 98), true, grave, true)
+	_deck_pile.visible = shows_deck_pile
+	if shows_deck_pile:
+		_deck_pile.show_count(deck, fatigue)
+	if shows_graveyard:
+		_counter(Vector2(230, 98), true, grave, true)
 
 ## Small plate with a drawn icon (tombstone) and a count.
 func _counter(pos: Vector2, tomb: bool, n: int, clickable := false) -> void:
@@ -346,7 +351,7 @@ func _counter(pos: Vector2, tomb: bool, n: int, clickable := false) -> void:
 	var ic := r.position + Vector2(10, 15)
 	var ink := Color(UITheme.GOLD_LIGHT, 0.95) if hot else Color(UITheme.TEXT, 0.75)
 	if tomb:
-		_draw_tombstone_icon(ic, ink)
+		draw_tombstone_icon(self, ic, ink)
 	var f := UITheme.font("heavy")
 	var t := str(n)
 	draw_string_outline(f, r.position + Vector2(20, 22), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, 4, Color(0, 0, 0, 0.8))
@@ -361,7 +366,7 @@ func _counter(pos: Vector2, tomb: bool, n: int, clickable := false) -> void:
 
 # Graveyard icon: a rounded-top headstone with an engraved cross, sitting on a little mound of dirt.
 # (Not a skull on purpose: the skull is already the Obscura element symbol.)
-func _draw_tombstone_icon(center: Vector2, ink: Color) -> void:
+static func draw_tombstone_icon(canvas: CanvasItem, center: Vector2, ink: Color) -> void:
 	var stone_half_width := 5.5
 	var arch_center := center + Vector2(0, -3)
 	var stone_bottom := center.y + 6.0
@@ -371,17 +376,17 @@ func _draw_tombstone_icon(center: Vector2, ink: Color) -> void:
 		stone_outline.append(arch_center + Vector2(cos(angle), sin(angle)) * stone_half_width)
 	stone_outline.append(Vector2(center.x + stone_half_width, stone_bottom))
 	stone_outline.append(Vector2(center.x - stone_half_width, stone_bottom))
-	draw_colored_polygon(stone_outline, ink)
+	canvas.draw_colored_polygon(stone_outline, ink)
 	# engraved cross, cut into the stone with a dark color
 	var engraving := Color(0, 0, 0, 0.7)
-	draw_rect(Rect2(center + Vector2(-0.8, -5.5), Vector2(1.6, 7.5)), engraving)
-	draw_rect(Rect2(center + Vector2(-2.8, -3.5), Vector2(5.6, 1.6)), engraving)
+	canvas.draw_rect(Rect2(center + Vector2(-0.8, -5.5), Vector2(1.6, 7.5)), engraving)
+	canvas.draw_rect(Rect2(center + Vector2(-2.8, -3.5), Vector2(5.6, 1.6)), engraving)
 	# mound of dirt at the base, a bit wider than the stone
 	var mound := PackedVector2Array()
 	for step in 9:
 		var angle := PI + PI * step / 8.0
 		mound.append(Vector2(center.x, stone_bottom + 1.5) + Vector2(cos(angle) * 8.5, sin(angle) * 2.5))
-	draw_colored_polygon(mound, ink.darkened(0.45))
+	canvas.draw_colored_polygon(mound, ink.darkened(0.45))
 
 func _diamond(c: Vector2, r: float, col: Color, rim: Color) -> void:
 	var pts := PackedVector2Array([c + Vector2(0, -r), c + Vector2(r * 0.8, 0), c + Vector2(0, r), c + Vector2(-r * 0.8, 0)])
@@ -657,6 +662,16 @@ class DeckPile extends Control:
 	const CORNER := 4
 	var _shown_count := -1
 	var _shown_fatigue := -1
+	var base_top_left := LeaderView.DECK_BASE_TOP_LEFT ## bottom card of the pile, in this node's coordinates
+	var card_scale := LeaderView.DECK_CARD_SCALE ## size of each card of the pile (the viewer's pile in the HUD column is bigger)
+
+	## Center of the top card, in this node's coordinates: drawn cards fly out from here.
+	func top_center(count: int) -> Vector2:
+		return base_top_left - Vector2(0, LeaderView.deck_thickness(count)) + CardView.BASE * card_scale / 2.0
+
+	## Width of one card of the pile (a drawn card starts its flight at this size).
+	func card_width() -> float:
+		return CardView.BASE.x * card_scale
 
 	func show_count(count: int, fatigue: int) -> void:
 		if count == _shown_count and fatigue == _shown_fatigue:
@@ -665,7 +680,7 @@ class DeckPile extends Control:
 		_shown_fatigue = fatigue
 		for child in get_children():
 			child.queue_free()
-		var top_left := LeaderView.deck_top_left(count)
+		var top_left := base_top_left - Vector2(0, LeaderView.deck_thickness(count))
 		if count >= 2:
 			# a card a bit out of line under the top one, so the pile looks handled, not printed
 			var crooked := _card_back(top_left + Vector2(2, 1), deg_to_rad(5.0))
@@ -676,13 +691,13 @@ class DeckPile extends Control:
 		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		badge.count = count
 		badge.fatigue = fatigue
-		var card_size := CardView.BASE * LeaderView.DECK_CARD_SCALE
-		badge.center = LeaderView.DECK_BASE_TOP_LEFT + Vector2(card_size.x / 2.0, card_size.y - 2)
+		var card_size := CardView.BASE * card_scale
+		badge.center = base_top_left + Vector2(card_size.x / 2.0, card_size.y - 2)
 		add_child(badge)
 		queue_redraw()
 
 	func _card_back(top_left: Vector2, tilt: float) -> CardView:
-		var back := CardView.new().setup("", {}, LeaderView.DECK_CARD_SCALE)
+		var back := CardView.new().setup("", {}, card_scale)
 		back.face_down = true
 		back.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		back.pivot_offset = back.size / 2.0
@@ -692,8 +707,8 @@ class DeckPile extends Control:
 		return back
 
 	func _draw() -> void:
-		var card_size := CardView.BASE * LeaderView.DECK_CARD_SCALE
-		var base := Rect2(LeaderView.DECK_BASE_TOP_LEFT, card_size)
+		var card_size := CardView.BASE * card_scale
+		var base := Rect2(base_top_left, card_size)
 		if _shown_count <= 0:
 			draw_style_box(UITheme.box(Color(0, 0, 0, 0.35), CORNER, Color(UITheme.TEXT, 0.22), 1), base)
 			return

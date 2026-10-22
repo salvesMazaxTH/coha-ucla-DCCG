@@ -1263,8 +1263,7 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 	if spent_glacial_discount:
 		pl["glacial_discount_used"] = true
 	pl["graveyard" if from_graveyard else "hand"].erase(inst)
-	if int(cd.get("cost", 0)) == 2 or int(cd.get("atk", 0)) == 2 or int(cd.get("hp", 0)) == 2:
-		pl["played_two"] = true # Rusco: a card with cost, ATK or HP exactly 2 this turn
+	_note_card_played_for_rusco(p, cd)
 	_move(inst, "")
 	var play_event := {"type": "play", "player": p, "uid": hand_uid, "card_id": inst.card_id}
 	if target != 0:
@@ -1307,8 +1306,7 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 func _play_subito(p: int, inst: Card, cd: Dictionary, slot: int) -> Array:
 	_pay(p, subito_cost(p, cd, inst), true)
 	players[p]["hand"].erase(inst)
-	if int(cd.get("cost", 0)) == 2 or int(cd.get("atk", 0)) == 2 or int(cd.get("hp", 0)) == 2:
-		players[p]["played_two"] = true # Rusco counts it too
+	_note_card_played_for_rusco(p, cd)
 	_move(inst, "")
 	_emit({"type": "play", "player": p, "uid": inst.uid, "card_id": inst.card_id, "subito": true})
 	_stack_cards[inst.uid] = inst
@@ -1318,6 +1316,12 @@ func _play_subito(p: int, inst: Card, cd: Dictionary, slot: int) -> Array:
 	stack_system().settle()
 	return _flush()
 
+## Rusco: remembers that p played a card with cost, ATK or HP exactly 2 this turn
+## (from the hand, with Súbito or from the Santuário).
+func _note_card_played_for_rusco(p: int, card_data: Dictionary) -> void:
+	if int(card_data.get("cost", 0)) == 2 or int(card_data.get("atk", 0)) == 2 or int(card_data.get("hp", 0)) == 2:
+		players[p]["played_two"] = true
+
 func cast_incarnation(p: int, _target: int = 0, slot: int = -1) -> Array:
 	if not can_cast_incarnation(p):
 		return []
@@ -1326,6 +1330,7 @@ func cast_incarnation(p: int, _target: int = 0, slot: int = -1) -> Array:
 	pl["incarnation"]["in_zone"] = false
 	pl["incarnation"]["casts"] += 1
 	var c := Card.new(_uid(), pl["incarnation"]["card_id"], p)
+	_note_card_played_for_rusco(p, CardDB.card(c.card_id)) # casting from the Santuário is playing a card too
 	_emit({"type": "play", "player": p, "uid": c.uid, "card_id": c.card_id, "incarnation": true})
 	_summon(p, c, true, 0, {}, true, slot, true)
 	_check_state()
@@ -2005,7 +2010,7 @@ func _fire_deck_effects(p: int, trigger: String) -> void:
 			if e.get("action", "") == "summon_self" and players[p]["deck"].has(c) and has_free_slot(p) and budget(p, true) >= fee:
 				_pay(p, fee, true)
 				players[p]["deck"].erase(c)
-				_emit({"type": "deck_summon", "player": p, "uid": c.uid, "card_id": c.card_id})
+				_emit({"type": "enter_from_deck", "player": p, "uid": c.uid, "card_id": c.card_id})
 				_summon(p, c, false, 0)
 
 func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:

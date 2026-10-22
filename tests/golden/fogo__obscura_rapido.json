@@ -22,7 +22,7 @@
 		"[{\"attacker\":28,\"player\":0,\"target\":-2,\"type\":\"attack\"},{\"type\":\"combat_damage\"},{\"amount\":4,\"src\":28,\"type\":\"damage\",\"uid\":-2},{\"amount\":1,\"type\":\"heal\",\"uid\":-1},{\"player\":0,\"type\":\"combat_end\"}]",
 		"[{\"player\":0,\"type\":\"end_turn\"},{\"player\":1,\"turn\":7,\"type\":\"start_turn\"},{\"player\":1,\"type\":\"draw\",\"uid\":89}]",
 		"[{\"card_id\":\"replicador_maldito\",\"player\":1,\"type\":\"play\",\"uid\":69},{\"card_id\":\"replicador_maldito\",\"player\":1,\"type\":\"summon\",\"uid\":69}]",
-		"[{\"card_id\":\"rusco\",\"player\":1,\"type\":\"deck_summon\",\"uid\":55},{\"card_id\":\"rusco\",\"player\":1,\"type\":\"summon\",\"uid\":55},{\"player\":1,\"type\":\"end_turn\"},{\"player\":0,\"turn\":8,\"type\":\"start_turn\"},{\"player\":0,\"type\":\"draw\",\"uid\":33}]",
+		"[{\"card_id\":\"rusco\",\"player\":1,\"type\":\"enter_from_deck\",\"uid\":55},{\"card_id\":\"rusco\",\"player\":1,\"type\":\"summon\",\"uid\":55},{\"player\":1,\"type\":\"end_turn\"},{\"player\":0,\"turn\":8,\"type\":\"start_turn\"},{\"player\":0,\"type\":\"draw\",\"uid\":33}]",
 		"[{\"card_id\":\"ronan\",\"legendary\":true,\"player\":0,\"type\":\"play\",\"uid\":94},{\"card_id\":\"ronan\",\"player\":0,\"type\":\"summon\",\"uid\":94},{\"card_id\":\"ronan\",\"player\":0,\"type\":\"enter_target\",\"uid\":94}]",
 		"[{\"card_id\":\"ronan\",\"player\":0,\"type\":\"enter_skip\",\"uid\":94}]",
 		"[{\"player\":0,\"type\":\"combat_step\"},{\"player\":0,\"type\":\"window\",\"window\":\"pre_combat\"},{\"player\":0,\"type\":\"window\",\"window\":\"attacks\"}]",

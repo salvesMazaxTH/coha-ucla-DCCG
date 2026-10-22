@@ -23,7 +23,7 @@
 		"[{\"attacker\":93,\"player\":1,\"target\":21,\"type\":\"attack\"},{\"type\":\"combat_damage\"},{\"amount\":1,\"src\":93,\"type\":\"damage\",\"uid\":21},{\"amount\":2,\"src\":21,\"type\":\"damage\",\"uid\":93},{\"player\":1,\"type\":\"death\",\"uid\":93},{\"player\":1,\"type\":\"passive\"},{\"amount\":1,\"src\":0,\"type\":\"damage\",\"uid\":-1}]",
 		"[{\"attacker\":46,\"player\":1,\"target\":21,\"type\":\"attack\"},{\"type\":\"combat_damage\"},{\"amount\":3,\"src\":46,\"type\":\"damage\",\"uid\":21},{\"amount\":2,\"src\":21,\"type\":\"damage\",\"uid\":46},{\"player\":1,\"type\":\"death\",\"uid\":46},{\"player\":0,\"type\":\"death\",\"uid\":21}]",
 		"[{\"player\":1,\"type\":\"combat_end\"}]",
-		"[{\"card_id\":\"rusco\",\"player\":1,\"type\":\"deck_summon\",\"uid\":55},{\"card_id\":\"rusco\",\"player\":1,\"type\":\"summon\",\"uid\":55},{\"player\":1,\"type\":\"end_turn\"},{\"player\":0,\"turn\":8,\"type\":\"start_turn\"},{\"player\":0,\"type\":\"draw\",\"uid\":31}]",
+		"[{\"card_id\":\"rusco\",\"player\":1,\"type\":\"enter_from_deck\",\"uid\":55},{\"card_id\":\"rusco\",\"player\":1,\"type\":\"summon\",\"uid\":55},{\"player\":1,\"type\":\"end_turn\"},{\"player\":0,\"turn\":8,\"type\":\"start_turn\"},{\"player\":0,\"type\":\"draw\",\"uid\":31}]",
 		"[{\"card_id\":\"avarik\",\"player\":0,\"type\":\"play\",\"uid\":28},{\"card_id\":\"avarik\",\"player\":0,\"type\":\"summon\",\"uid\":28}]",
 		"[{\"player\":0,\"type\":\"combat_step\"},{\"player\":0,\"type\":\"window\",\"window\":\"pre_combat\"},{\"player\":0,\"type\":\"window\",\"window\":\"attacks\"}]",
 		"[{\"attacker\":15,\"player\":0,\"target\":-2,\"type\":\"attack\"},{\"type\":\"combat_damage\"},{\"amount\":2,\"src\":15,\"type\":\"damage\",\"uid\":-2},{\"player\":0,\"type\":\"combat_end\"}]",

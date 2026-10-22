@@ -24,6 +24,8 @@ const STAGE_MAX_W := 2100.0
 var stage_w := 1600.0 ## logical width: 1600 or wider, follows the window aspect
 var col_x := 1352.0
 var lane_cx := 882.0
+var deck_piles := {} ## player -> LeaderView.DeckPile: each deck, drawn by the right edge of the table (see _render_piles)
+var graveyard_piles := {} ## player -> GraveyardPile: each graveyard, a face-up pile right beside its deck
 var motes: CPUParticles2D
 
 var g: GameState
@@ -1297,6 +1299,8 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	lv.hp_max = pl["leader_max"]
 	lv.deck = pl["deck"].size()
 	lv.fatigue = g.fatigue_next(p)
+	lv.shows_deck_pile = false # both decks and graveyards sit by the right edge of the table (see _render_piles)
+	lv.shows_graveyard = false
 	lv.grave = pl["graveyard"].size()
 	lv.poison = g.leader_dot_markers(p, "veneno")
 	lv.ward_hits = g.leader_negations_left(p)
@@ -2020,6 +2024,8 @@ func _render_side() -> void:
 		pass_all.position = Vector2(col_x, y)
 		pass_all.size = Vector2(COL_W, 48)
 		layer.add_child(pass_all)
+	_render_piles(viewer)
+	_render_piles(1 - viewer)
 	_render_stack()
 	var ap_on := _auto_pass_on()
 	var ap := _toggle_button("AUTO-PASSE", ap_on, func(): _set_auto_pass(not _auto_pass_on()))
@@ -2041,6 +2047,74 @@ func _render_side() -> void:
 		cc.add_theme_font_size_override("font_size", 18)
 		cc.tooltip_text = "Desiste da partida: o oponente vence."
 		layer.add_child(cc)
+
+## Each player's deck and graveyard sit side by side, like the two piles of a real TCG table, far
+## enough from the hand that a drawn card is seen leaving the deck and travelling to it.
+## The viewer's piles are in the HUD column, just above AUTO-PASSE. The opponent's mirror them at the
+## top, right beside the Chronicle (the column itself is taken there): graveyard first, then the deck
+## nearest the column, so both decks are on the same side of the screen.
+const PILE_CARD_SCALE := 0.7
+const PILE_GAP := 24.0 ## space between a deck and its graveyard
+const VIEWER_PILE_GAP_ABOVE_AUTO_PASS := 22.0 ## room for the count badges under the viewer's piles
+const OPPONENT_PILE_TOP := 16.0 ## the opponent's piles fit between the top of the screen and their board
+const OPPONENT_PILE_GAP_BEFORE_COLUMN := 18.0
+
+func _render_piles(player: int) -> void:
+	var card_size := CardView.BASE * PILE_CARD_SCALE
+	var deck_position: Vector2
+	var graveyard_position: Vector2
+	if player == viewer:
+		var piles_left := col_x + (COL_W - card_size.x * 2.0 - PILE_GAP) / 2.0
+		var piles_top := 772.0 + BOT - VIEWER_PILE_GAP_ABOVE_AUTO_PASS - card_size.y
+		deck_position = Vector2(piles_left, piles_top)
+		graveyard_position = Vector2(piles_left + card_size.x + PILE_GAP, piles_top)
+	else:
+		deck_position = Vector2(col_x - OPPONENT_PILE_GAP_BEFORE_COLUMN - card_size.x, OPPONENT_PILE_TOP)
+		graveyard_position = deck_position - Vector2(card_size.x + PILE_GAP, 0)
+	var deck_pile := LeaderView.DeckPile.new()
+	deck_pile.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	deck_pile.card_scale = PILE_CARD_SCALE
+	deck_pile.base_top_left = Vector2.ZERO
+	deck_pile.position = deck_position
+	layer.add_child(deck_pile)
+	deck_pile.show_count(g.players[player]["deck"].size(), g.fatigue_next(player))
+	deck_piles[player] = deck_pile
+	var graveyard: Array = g.players[player]["graveyard"]
+	var top_card_id := ""
+	var top_instance := {}
+	if not graveyard.is_empty():
+		var top_card: Card = graveyard.back()
+		top_card_id = top_card.card_id
+		top_instance = _display_instance_for_id(top_card_id, player, top_card.uid)
+	# only the viewer can cast Réquiem spells from their own graveyard: no green glow on the opponent's
+	var castable_requiem: int = _requiem_uids(viewer).size() if player == viewer else 0
+	var graveyard_pile := GraveyardPile.new().setup(graveyard.size(), top_card_id, top_instance, castable_requiem, PILE_CARD_SCALE)
+	graveyard_pile.position = graveyard_position
+	graveyard_pile.clicked.connect(func(): _show_graveyard(player))
+	layer.add_child(graveyard_pile)
+	graveyard_piles[player] = graveyard_pile
+
+## Where `player`'s graveyard is on the stage: milled cards land there, Réquiem spells rise from it.
+func _graveyard_pose(player: int) -> Dictionary:
+	var graveyard_pile = graveyard_piles.get(player)
+	if is_instance_valid(graveyard_pile):
+		return {"c": graveyard_pile.position + graveyard_pile.top_center(), "rot": 0.0, "w": graveyard_pile.card_size_on_screen().x}
+	var leader_view = views.get(GameState.LEADER_UID[player])
+	if leader_view is LeaderView:
+		return {"c": leader_view.position + LeaderView.GRAVE_CENTER, "rot": 0.0, "w": LeaderView.deck_card_width() * 0.6}
+	return {"c": Vector2(lane_cx, LEADER_Y_ME if player == viewer else 30.0), "rot": 0.0, "w": LeaderView.deck_card_width() * 0.6}
+
+## Where the top card of `player`'s deck is on the stage, and how wide it is there:
+## cards drawn, milled or summoned from the deck start their flight from this pose.
+func _deck_top_pose(player: int) -> Dictionary:
+	var deck_size: int = g.players[player]["deck"].size()
+	var deck_pile = deck_piles.get(player)
+	if is_instance_valid(deck_pile):
+		return {"c": deck_pile.position + deck_pile.top_center(deck_size), "rot": 0.0, "w": deck_pile.card_width()}
+	var leader_view = views.get(GameState.LEADER_UID[player])
+	if leader_view is LeaderView:
+		return {"c": leader_view.position + LeaderView.deck_top_center(deck_size), "rot": 0.0, "w": LeaderView.deck_card_width()}
+	return {"c": Vector2(lane_cx, LEADER_Y_ME if player == viewer else 30.0), "rot": 0.0, "w": LeaderView.deck_card_width()}
 
 ## The stack as a pile of full cards at the right edge of the table, oldest on top and the
 ## next one to resolve in front (Arena style). Tap/right-click/hold a card to read it; the
@@ -3565,16 +3639,20 @@ func _fly(v: Control, from: Dictionary, to: Dictionary, t0: float, dur: float, a
 		0.0, 1.0, dur).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	return tw
 
-## A drawn card leaves the top of the viewer's deck pile face down, flips
-## face up halfway through the flight and lands in its hand slot.
-func _draw_from_deck(v: CardView, to: Dictionary, t0: float) -> void:
+## A unit that enters the board straight from the deck: it leaves the top of its owner's pile face
+## down, flips face up halfway (like a drawn card) and lands in its slot with the same small bounce
+## and sound as a unit played from the hand. Returns how long it takes.
+func _enter_from_deck(v: CardView, owner_player: int, t0: float) -> float:
 	const FLIGHT_TIME := 0.5
-	var leader_view = views.get(GameState.LEADER_UID[viewer])
-	var deck_pose := {"c": Vector2(lane_cx, LEADER_Y_ME), "rot": 0.0, "w": LeaderView.deck_card_width()}
-	if leader_view is LeaderView:
-		deck_pose["c"] = leader_view.position + LeaderView.deck_top_center(leader_view.deck)
-	_fly(v, deck_pose, to, t0, FLIGHT_TIME, 60.0, true)
+	var deck_pose := _deck_top_pose(owner_player)
+	var to := _pose(v)
+	v.z_index = 20
 	v.face_down = true
+	var tw := _fly(v, deck_pose, to, t0, FLIGHT_TIME, 60.0, true)
+	tw.tween_callback(func(): v.z_index = 0)
+	var landing_scale: Vector2 = Vector2.ONE * (to["w"] / v.size.x)
+	tw.tween_property(v, "scale", landing_scale * 1.1, 0.06)
+	tw.tween_property(v, "scale", landing_scale, 0.1)
 	var flip := v.create_tween()
 	flip.tween_interval(t0 + FLIGHT_TIME * 0.45)
 	flip.tween_callback(func():
@@ -3631,11 +3709,13 @@ func _mill_fx(deck_owner: int, card_ids: Array, t: float) -> float:
 	var leader_view = views.get(GameState.LEADER_UID[deck_owner])
 	if not (leader_view is LeaderView) or card_ids.is_empty():
 		return 0.0
-	var deck_pose := {"c": leader_view.position + LeaderView.deck_top_center(leader_view.deck), "rot": 0.0, "w": LeaderView.deck_card_width()}
-	var grave_pose := {"c": leader_view.position + LeaderView.GRAVE_CENTER, "rot": 0.0, "w": LeaderView.deck_card_width() * 0.6}
+	var deck_pose := _deck_top_pose(deck_owner)
+	var grave_pose := _graveyard_pose(deck_owner)
 	# the card is shown a bit toward the middle of the table, so the Leader's own frame doesn't hide it
 	var middle_y := (_screen_top() + _screen_bottom()) / 2.0
 	var shown_pose := {"c": deck_pose["c"] + Vector2(0, 170.0 * signf(middle_y - deck_pose["c"].y)), "rot": 0.0, "w": MILL_CARD_W}
+	# a pile in the HUD column shows the card over the table instead, not over the buttons
+	shown_pose["c"].x = minf(shown_pose["c"].x, col_x - 26.0 - MILL_CARD_W / 2.0)
 	var stagger := minf(MILL_STAGGER, MILL_MAX_STAGGER_TOTAL / card_ids.size())
 	var total_time := MILL_RISE_TIME + MILL_HOLD_TIME + MILL_DROP_TIME
 	for i in card_ids.size():
@@ -5778,6 +5858,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 		# both players mulligan at the start; the card-fan sound plays once, for the player who goes first
 		if not et in ["play", "damage", "shield_break", "heal", "death", "banish", "leader_hit_negated"] \
 				and not (et == "summon" and placed_uids.has(e["uid"])) \
+				and not (et == "enter_from_deck" and views.get(e["uid"]) is CardView) \
 				and not (et == "mulligan" and int(e["player"]) != g.first):
 			Sfx.play_event(e, cursor, in_combat)
 		match et:
@@ -5808,9 +5889,9 @@ func _animate(events: Array, old: Dictionary) -> float:
 				var origin: Dictionary = {"c": Vector2(lane_cx + EHAND_DX, 30), "rot": 0.0, "w": 96.0}
 				if e.get("incarnation", false) and old.has("cmd%d" % e["player"]):
 					origin = old["cmd%d" % e["player"]]["pose"]
-				elif e.get("requiem", false) and views.get(GameState.LEADER_UID[e["player"]]) is LeaderView:
-					# a Réquiem spell rises from the graveyard icon of its caster
-					origin = {"c": (views[GameState.LEADER_UID[e["player"]]] as LeaderView).position + LeaderView.GRAVE_CENTER, "rot": 0.0, "w": 96.0}
+				elif e.get("requiem", false):
+					# a Réquiem spell rises from its caster's graveyard
+					origin = {"c": _graveyard_pose(int(e["player"]))["c"], "rot": 0.0, "w": 96.0}
 				elif e.has("source_uid") and old.has(e["source_uid"]):
 					origin = old[e["source_uid"]]["pose"] # cast by a unit (Bola de Neve of Tempesfrost): it leaves that unit
 				elif old.has(uid):
@@ -5840,6 +5921,13 @@ func _animate(events: Array, old: Dictionary) -> float:
 					var hold := _reveal_hold(e["player"])
 					gh.dissolve(cursor + 0.35 + hold, _elem_color(e["card_id"]).lightened(0.15), 0.6)
 					cursor += 0.35 + hold - 0.15
+			"enter_from_deck":
+				# any card that enters straight from the deck (a deck_effects "summon_self") flies out of its owner's pile instead of popping in from nowhere
+				var uid: int = e["uid"]
+				if views.get(uid) is CardView:
+					handled[uid] = true
+					placed_uids[uid] = true
+					cursor += _enter_from_deck(views[uid], int(e["player"]), cursor)
 			"fatigue":
 				# shown like a played card, so the hit on the Leader that follows makes sense
 				var fv := CardView.new().setup("", {}, FATIGUE_W / CardView.BASE.x)
@@ -6150,7 +6238,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 			elif from["c"].distance_to(to["c"]) > 1.0 or abs(from["w"] - to["w"]) > 1.0:
 				_fly(v, from, to, 0.0 if hand_uids.has(k) else board_t, 0.28)
 		elif hand_uids.has(k):
-			_draw_from_deck(v, to, appear.get(k, 0.0) + 0.12 * deck_n)
+			_draw_from_deck(v, to, appear.get(k, 0.0) + 0.18 * deck_n)
 			deck_n += 1
 		else:
 			var resting_scale: Vector2 = v.scale # a tapped unit rests smaller (see _render_board)
@@ -6257,7 +6345,7 @@ func _chronicle_label(kind: String) -> String:
 		"play": "JOGADA", "resolve": "RESOLUÇÃO", "ability": "HABILIDADE", "passive": "PASSIVA",
 		"trigger": "GATILHO", "attack": "ATAQUE", "damage": "DANO", "heal": "CURA", "death": "MORTE",
 		"destroy": "DESTRUIÇÃO", "dot": "STATUS", "countered": "ANULADA", "fizzle": "SEM EFEITO",
-		"start_turn": "TURNO", "transform": "TRANSFORMAÇÃO", "summon": "INVOCAÇÃO", "deck_summon": "INVOCAÇÃO",
+		"start_turn": "TURNO", "transform": "TRANSFORMAÇÃO", "summon": "INVOCAÇÃO", "enter_from_deck": "INVOCAÇÃO",
 		"relic_enter": "RELÍQUIA", "revive": "RETORNO", "return_to_hand": "DE VOLTA À MÃO",
 		"card_created": "CRIAÇÃO", "search_take": "BUSCA", "leader_executed": "EXECUÇÃO",
 		"shield_break": "ESCUDO", "spell_shield_break": "ESCUDO", "supreme_shield_break": "ESCUDO", "freeze": "CONGELADA", "thaw": "DEGELO",
@@ -6354,7 +6442,7 @@ func _chronicle_visual_for_event(e: Dictionary) -> Dictionary:
 			out["source_card_id"] = String(e.get("ward_card_id", ""))
 			if String(e.get("card_id", "")) != "":
 				out["target_card_ids"].append(String(e["card_id"]))
-		"summon", "relic_enter", "deck_summon", "revive", "return_to_hand", "card_created", "search_take":
+		"summon", "relic_enter", "enter_from_deck", "revive", "return_to_hand", "card_created", "search_take":
 			out["source_card_id"] = String(e.get("card_id", ""))
 	return out
 
@@ -6506,7 +6594,7 @@ func _log_event(e: Dictionary) -> void:
 			var immune_name := "Uma unidade" if immune_unit == null else _cname(immune_unit.card_id)
 			if int(e["uid"]) < 0:
 				immune_name = "O Líder de %s" % _pname(GameState.LEADER_UID.find(int(e["uid"])))
-			_log("%s é imune a %s" % [immune_name, {"queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento"}.get(String(e.get("dot", "")), "esse status")])
+			_log("%s é imune a %s" % [immune_name, {"queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento", "congelar": "Congelamento"}.get(String(e.get("dot", "")), "esse status")])
 		"condemn":
 			var condemned := g.find_unit(e["uid"])
 			_log("%s foi condenada" % ("Uma unidade" if condemned == null else _cname(condemned.card_id)))
@@ -6535,7 +6623,7 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s: Ao Entrar recusado" % _cname(e["card_id"]))
 		"search_empty":
 			_log("%s não encontrou uma carta que atendesse à busca" % _pname(e["player"]))
-		"deck_summon":
+		"enter_from_deck":
 			_log("%s saiu do deck e entrou em campo para %s" % [_cname(e["card_id"]), _pname(e["player"])])
 		"search_take":
 			_log("%s escolheu %s na busca" % [_pname(e["player"]), _cname(e["card_id"])])

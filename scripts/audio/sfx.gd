@@ -185,7 +185,7 @@ static func sound_for_event(event: Dictionary, in_combat: bool) -> String:
 			if card_type == "artifact":
 				return "relic"
 			return "spell_cast"
-		"summon", "deck_summon", "hand_summon":
+		"summon", "enter_from_deck", "hand_summon":
 			return "card_place"
 		"relic_enter":
 			return "relic"
