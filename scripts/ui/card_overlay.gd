@@ -140,7 +140,7 @@ static func keyword_text(cd: Dictionary, kw: String, k: Dictionary, instance: Di
 
 ## Keyword ids whose names appear in a rules text, in the order they appear (no repeats).
 static func mentioned_keywords(text: String) -> Array:
-	var found: Array = []
+	var mentions: Array[Dictionary] = []
 	var keywords: Dictionary = CardDB.data()["keywords"]
 	for span in CardView.keyword_ranges(text):
 		var mentioned := text.substr(span[0], span[1] - span[0])
@@ -149,6 +149,17 @@ static func mentioned_keywords(text: String) -> Array:
 			# "Armadura 1" starts with "Armadura"; the others need an exact match
 			# (so "Escudo de Feitiço" doesn't also count as "Escudo").
 			var with_value: bool = keywords[id].get("has_value", false) and mentioned.begins_with(name + " ")
-			if (mentioned == name or with_value) and not found.has(id):
-				found.append(id)
+			if mentioned == name or with_value:
+				mentions.append({"id": id, "start": span[0]})
+				break
+	var freeze_aliases := RegEx.new()
+	freeze_aliases.compile(r"(?i)(?<!\p{L})congel(?:ar|a|am|e|em|ado|ada|ados|adas|amento|amentos)(?!\p{L})")
+	for match in freeze_aliases.search_all(text):
+		mentions.append({"id": "congelar", "start": match.get_start()})
+	mentions.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["start"]) < int(b["start"]))
+	var found: Array = []
+	for mention in mentions:
+		var id := String(mention["id"])
+		if not found.has(id):
+			found.append(id)
 	return found

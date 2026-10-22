@@ -1004,7 +1004,7 @@ static func dot_marker_count_of_view(instance: Dictionary, dot_id: String) -> in
 
 ## Shared live-marker palette. Keeping this here makes the exact same badge readable on cards and Leaders.
 static func dot_badge_color(dot_id: String) -> Color:
-	return {"queimadura": BURN_COL, "veneno": POISON_COL, "sangramento": BLEED_COL}.get(dot_id, Color("#d8d2c4"))
+	return {"queimadura": BURN_COL, "veneno": POISON_COL, "sangramento": BLEED_COL, "congelar": FROST_DEEP}.get(dot_id, Color("#d8d2c4"))
 
 ## Shared live-marker badge used by unit cards and LeaderView. The icon and count deliberately sit in
 ## the same medallion, so a marker never becomes invisible just because the target is a unit or Leader.

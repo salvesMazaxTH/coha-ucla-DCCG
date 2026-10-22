@@ -4,6 +4,11 @@ extends Effect
 ## doesn't untap and doesn't guard its Leader. Its ATK stays whole (it strikes back normally) and it
 ## keeps the position it had (freezing doesn't tap it).
 
+var ignores_immunity := false
+
+func _read_parameters(data: Dictionary) -> void:
+	ignores_immunity = bool(data.get("ignores_immunity", false))
+
 func is_already_applied_to(unit: Card) -> bool:
 	return unit.is_frozen()
 
@@ -11,6 +16,10 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
 	var unit := game.find_unit(target_uid)
 	if unit == null:
+		return
+	# Glacial units are innately immune, including when the freeze comes from an area effect.
+	if CardDB.has_essence(unit.data(), "glacial") and not ignores_immunity:
+		game._emit({"type": "dot_immune", "uid": target_uid, "dot": "congelar"})
 		return
 	# `frozen` holds the turn at whose END the unit thaws
 	unit.frozen = maxi(unit.frozen, game.turn + 1)

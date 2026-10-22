@@ -3580,6 +3580,40 @@ func _draw_from_deck(v: CardView, to: Dictionary, t0: float) -> void:
 	flip.tween_callback(func():
 		v.face_down = false
 		v.queue_redraw())
+	Sfx.play_in("card_place", t0 + FLIGHT_TIME - 0.04)
+	return FLIGHT_TIME + 0.1
+
+## A drawn card is a physical card: it slides off the top of the viewer's deck pile face down,
+## lifts in a soft arc toward the hand while turning over (it narrows to its edge, the face
+## shows, it widens again) and settles into its hand slot, slowing down as it arrives.
+const DRAW_FLIGHT_TIME := 0.62
+const DRAW_ARC_HEIGHT := 90.0 ## how high the card lifts above the straight line from deck to hand
+const DRAW_TILT_DEGREES := -10.0 ## the card leans a little while it travels, like one tossed by hand
+
+func _draw_from_deck(v: CardView, to: Dictionary, t0: float) -> void:
+	var from := _deck_top_pose(viewer)
+	_apply_pose(v, from)
+	v.face_down = true
+	v.visible = false
+	v.z_index = 25
+	var flight := v.create_tween()
+	if t0 > 0.0:
+		flight.tween_interval(t0)
+	flight.tween_callback(func(): v.visible = true)
+	flight.tween_method(func(progress: float):
+		var eased := 1.0 - pow(1.0 - progress, 3.0) # quick start, gentle landing
+		var center: Vector2 = from["c"].lerp(to["c"], eased)
+		center.y -= DRAW_ARC_HEIGHT * 4.0 * eased * (1.0 - eased)
+		var tilt := deg_to_rad(DRAW_TILT_DEGREES) * sin(PI * eased)
+		_apply_pose(v, {"c": center, "rot": lerp_angle(from["rot"], to["rot"], eased) + tilt, "w": lerpf(from["w"], to["w"], eased)})
+		# turning over: the card narrows to its edge around the middle of the flight, then shows its face
+		var turn := clampf((eased - 0.25) / 0.5, 0.0, 1.0)
+		if v.face_down and turn >= 0.5:
+			v.face_down = false
+			v.queue_redraw()
+		v.scale.x *= maxf(0.04, absf(cos(PI * turn))),
+		0.0, 1.0, DRAW_FLIGHT_TIME)
+	flight.tween_callback(func(): v.z_index = 0)
 
 ## Timing of a milled card: it pops out of the deck face up, stays readable for a blink, then drops
 ## into the graveyard icon. Short on purpose: both graveyards can be opened at any time.

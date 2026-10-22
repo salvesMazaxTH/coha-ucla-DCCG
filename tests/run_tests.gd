@@ -31,6 +31,7 @@ func _init() -> void:
 	_test_concede()
 	_test_search()
 	_test_freeze()
+	_test_overlay_keyword_immunities()
 	_test_stun_and_cap()
 	_test_burn()
 	_test_condemn()
@@ -1702,15 +1703,20 @@ func _test_freeze() -> void:
 	# Congelada: doesn't attack and doesn't untap until the end of its owner's next turn; ATK stays whole
 	_tcard("t_frz_hit", 1, 5, [])
 	_tcard("t_frz_vic", 3, 5, [])
+	_tcard("t_glacial_freeze_immune", 3, 5, [])
+	CardDB.data()["cards"]["t_glacial_freeze_immune"]["essence"] = "glacial"
 	var g := _new_game()
 	_quiet(g)
 	var hitter := _put(g, 0, "t_frz_hit")
 	var tapped := _put(g, 1, "t_frz_vic")
 	var standing := _put(g, 1, "t_frz_vic")
+	var glacial := _put(g, 1, "t_glacial_freeze_immune")
 	tapped.exhausted = true
 	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, tapped.uid)
 	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, standing.uid)
+	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, glacial.uid)
 	check(g.is_frozen(tapped) and g.is_frozen(standing), "congelar marca a unidade")
+	check(not g.is_frozen(glacial), "imunidade inata: unidades Glaciais não podem ser congeladas")
 	check(g.atk_of(tapped) == 3 and tapped.rapidez_total() == 0, "congelada: ATK segue o mesmo, Rapidez é suprimida (vira 0)")
 	check(not standing.exhausted, "congelar não exaure: a unidade em pé continua em pé")
 	_quiet(g)
@@ -1791,6 +1797,19 @@ func _test_freeze() -> void:
 		g._apply_effect(0, {"action": "damage", "target": "enemy_unit", "amount": 1, "amount_if_frozen": 3}, victim.uid)
 	check(cold.damage == 3 and warm.damage == 1, "dano extra só em alvo já Congelado")
 	check(CardDB.card("sabrina")["effects"].size() == 1 and not CardDB.card("sabrina")["effects"][0].has("freeze"), "sabrina não congela mais")
+
+func _test_overlay_keyword_immunities() -> void:
+	var freeze_overlay := CardOverlay.describe("geada_relampago", {}, -1, "", GameState.SNOWBALL_BASE_LEVEL)
+	var frozen_overlay := CardOverlay.describe("estilhaco_gelido", {}, -1, "", GameState.SNOWBALL_BASE_LEVEL)
+	var burn_overlay := CardOverlay.describe("irina_lancachamas", {}, -1, "", GameState.SNOWBALL_BASE_LEVEL)
+	var poison_overlay := CardOverlay.describe("cicuta_no_cha", {}, -1, "", GameState.SNOWBALL_BASE_LEVEL)
+	check(freeze_overlay.contains("Congelar[/b]") and freeze_overlay.contains("Unidades Glaciais têm imunidade inata ao "),
+			"overlay: a menção a Congele explica Congelar e a imunidade Glacial")
+	check(frozen_overlay.contains("Congelar[/b]"), "overlay: a menção a Congelada também explica Congelar")
+	check(burn_overlay.contains("Queimadura[/b]") and burn_overlay.contains("essência Ígnea"),
+			"overlay: a menção a Queimadura explica sua imunidade inata")
+	check(poison_overlay.contains("Veneno[/b]") and poison_overlay.contains("essência Venenosa ou Metálica"),
+			"overlay: a menção a Veneno explica suas imunidades inatas")
 
 func _test_burn() -> void:
 	# Queimadura accumulates, uses its periodic-damage rule at the controller's turn start, then clears.
@@ -5768,6 +5787,20 @@ func _test_glacial_combo() -> void:
 	# Rei Gelado: 5 random slots of the enemy field. Units in them are frozen+exhausted, empty ones are blocked,
 	# so units hit + slots blocked is always 5 (whatever the draw)
 	check(int(CardDB.card("rei_gelado")["atk"]) == 6 and int(CardDB.card("rei_gelado")["hp"]) == 9, "Rei Gelado: 6/9")
+	_tcard("t_rei_glacial_immunity", 1, 20, [])
+	CardDB.data()["cards"]["t_rei_glacial_immunity"]["essence"] = "glacial"
+	var immune_game := _new_game()
+	_quiet(immune_game)
+	var glacial_targets: Array = []
+	for i in GameState.BOARD_LIMIT:
+		glacial_targets.append(_put(immune_game, 1, "t_rei_glacial_immunity"))
+	var rei_freeze_entries: Array = CardDB.card("rei_gelado")["effects"]
+	check(rei_freeze_entries.all(func(e: Dictionary): return bool(e.get("ignores_immunity", false))),
+			"Rei Gelado: os dois congelamentos ignoram imunidade")
+	EffectRegistry.parse(rei_freeze_entries[0]).apply(EffectContext.new(immune_game, 0, "rei_gelado"), 0)
+	var frozen_glacial_targets: Array = glacial_targets.filter(func(c: Card): return c.frozen > 0)
+	check(frozen_glacial_targets.size() == 5 and frozen_glacial_targets.all(func(c: Card): return c.exhausted),
+			"Rei Gelado: congela e exaure 5 unidades Glaciais apesar da imunidade inata")
 	for enemy_count in [0, 3, 6, 8]:
 		var rei := _combo_game(8, enemy_count, 10, 0)
 		var rei_game: GameState = rei["game"]

@@ -9,9 +9,11 @@ extends Effect
 ## not frozen yet (the free ones, not the ones taken by a relic). If there are fewer than `count`, all of them are hit.
 
 var count := 5
+var ignores_immunity := false
 
 func _read_parameters(data: Dictionary) -> void:
 	count = int(data.get("count", 5))
+	ignores_immunity = bool(data.get("ignores_immunity", false))
 
 func apply(context: EffectContext, _target_uid: int) -> void:
 	var game := context.game
@@ -42,7 +44,9 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 		# Escudo de Feitiço cancels the effect on that unit and breaks, like any spell effect from the enemy side
 		if cancelled_by_any_shield(context, unit):
 			continue
-		FreezeEffect.new().apply(context, unit.uid)
+		var freeze := FreezeEffect.new()
+		freeze.ignores_immunity = ignores_immunity
+		freeze.apply(context, unit.uid)
 		ExhaustEffect.new().apply(context, unit.uid)
 
 	if blocked_count > 0:

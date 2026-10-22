@@ -320,15 +320,15 @@
     },
     "congelar": {
       "name": "Congelar",
-      "text": "A unidade não ataca, não desvira e perde a Rapidez (suprimida) até o fim do próximo turno. Revida normalmente."
+      "text": "A unidade não ataca, não desvira e perde a Rapidez (suprimida) até o fim do próximo turno. Revida normalmente. Unidades Glaciais têm imunidade inata ao Congelamento, mas efeitos que ignoram imunidade podem congelá-las."
     },
     "queimadura": {
       "name": "Queimadura",
-      "text": "Marcadores de Queimadura: no início do turno do controlador, esta unidade sofre dano igual à quantidade de marcadores nela e depois remove esses marcadores. Esse dano ignora Armadura, Escudo e Escudo de Feitiço; Indestrutível ainda o impede."
+      "text": "Marcadores de Queimadura: no início do turno do controlador, esta unidade sofre dano igual à quantidade de marcadores nela e depois remove esses marcadores. Esse dano ignora Armadura, Escudo e Escudo de Feitiço; Indestrutível ainda o impede. Unidades com essência Ígnea não recebem Queimadura, a menos que um efeito diga que ignora imunidade; Líderes não têm essa imunidade."
     },
     "veneno": {
       "name": "Veneno",
-      "text": "Marcadores de Veneno: no início do turno do controlador, cada marcador causa 2 de dano a esta unidade. Depois, remove metade dos marcadores, arredondada para cima. Esse dano ignora Armadura, Escudo e Escudo de Feitiço; Indestrutível ainda o impede."
+      "text": "Marcadores de Veneno: no início do turno do controlador, cada marcador causa 2 de dano a esta unidade. Depois, remove metade dos marcadores, arredondada para cima. Esse dano ignora Armadura, Escudo e Escudo de Feitiço; Indestrutível ainda o impede. Unidades com essência Venenosa ou Metálica não recebem Veneno, a menos que um efeito diga que ignora imunidade; Líderes não têm essa imunidade."
     },
     "sangramento": {
       "name": "Sangramento",
