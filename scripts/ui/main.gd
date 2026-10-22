@@ -3201,6 +3201,7 @@ func _show_overlay(v: CardView) -> void:
 	# the big card and the full text are built by CardOverlay (tools/view_card.gd shows the same thing)
 	var rt_x := CardOverlay.build(overlay, stage_w, v.card_id, v.inst, v.cost_override, v.text_suffix, v.snowball_level)
 	_add_base_card_button(v.card_id)
+	_add_full_art_button(String(cd.get("art", "")))
 	if cd.has("activated") and g != null and _my_input() and g.can_activate(viewer, v.uid, true):
 		var ab: Dictionary = cd["activated"]
 		var ab_uid := v.uid
@@ -3283,6 +3284,57 @@ func _add_base_card_button(card_id: String) -> void:
 		base_card.visible = false
 		text_panel.text = live_text)
 	overlay.add_child(button)
+
+## A picture-icon button next to the "ver carta base" one: opens the card's art alone, full screen.
+func _add_full_art_button(art_file: String) -> void:
+	if art_file == "":
+		return
+	var button_size := Vector2(84.0, 84.0)
+	var button := Button.new()
+	button.custom_minimum_size = button_size
+	button.size = button_size
+	button.position = Vector2(CardOverlay.big_card_position(stage_w).x + CardView.BASE.x * CardOverlay.BIG_CARD_SCALE + 28.0,
+			CardOverlay.BIG_CARD_Y - button_size.y - 16.0)
+	button.focus_mode = Control.FOCUS_NONE
+	button.tooltip_text = "Ver a arte em tela cheia."
+	var icon := Control.new()
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.position = button_size / 2.0
+	icon.draw.connect(func():
+		# the universal "image" icon: a frame holding a sun and two mountains
+		icon.draw_rect(Rect2(-28.0, -22.0, 56.0, 44.0), UITheme.GOLD_LIGHT, false, 3.0)
+		icon.draw_circle(Vector2(-12.0, -8.0), 5.0, UITheme.GOLD_LIGHT)
+		icon.draw_colored_polygon(PackedVector2Array([Vector2(-26.0, 20.0), Vector2(-6.0, -2.0), Vector2(6.0, 10.0),
+				Vector2(14.0, 2.0), Vector2(26.0, 20.0)]), UITheme.GOLD_LIGHT))
+	button.add_child(icon)
+	button.pressed.connect(func(): _show_full_art(art_file))
+	overlay.add_child(button)
+
+## The raw art on a black screen covering the whole window (not just the stage), fitted whole with no crop,
+## frame, badges or seals. A click, a tap or Esc closes it and goes back to the card overlay.
+func _show_full_art(art_file: String) -> void:
+	var viewer := ColorRect.new()
+	viewer.color = Color.BLACK
+	var window_size := get_viewport().get_visible_rect().size
+	viewer.position = -position # Main sits centered inside the window; this puts the viewer at the window's corner
+	viewer.size = window_size
+	viewer.focus_mode = Control.FOCUS_ALL
+	viewer.gui_input.connect(func(e):
+		var clicked: bool = e is InputEventMouseButton and e.pressed
+		var escaped: bool = e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE
+		if clicked or escaped:
+			viewer.accept_event()
+			viewer.queue_free())
+	var art := TextureRect.new()
+	art.texture = CardView.raw_art_texture(art_file)
+	art.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	art.set_anchors_preset(Control.PRESET_FULL_RECT)
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	viewer.add_child(art)
+	overlay.add_child(viewer)
+	viewer.grab_focus()
 
 func _close_overlay() -> void:
 	if overlay == null:

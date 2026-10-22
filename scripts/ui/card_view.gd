@@ -430,6 +430,21 @@ static func texture(file: String) -> Texture2D:
 		_tex_cache[file] = load(path) if ResourceLoader.exists(path) else null
 	return _tex_cache[file]
 
+## The art exactly as the source file on disk, at its full resolution. The imported texture above is
+## capped at 768 px (see the .import files) and compressed, so the full-screen art viewer reads the
+## original file instead. If the original is not shipped (a build that only packs imported resources),
+## it falls back to the imported texture. Returns null when the card has no art.
+static func raw_art_texture(file: String) -> Texture2D:
+	if file == "":
+		return null
+	var path := "res://assets/portraits/" + file
+	if FileAccess.file_exists(path):
+		var image := Image.load_from_file(path)
+		if image != null and not image.is_empty():
+			image.generate_mipmaps() # smooth when the art is shown smaller than its pixels
+			return ImageTexture.create_from_image(image)
+	return texture(file)
+
 ## Loading one art takes tens of milliseconds (much more on a phone). If a whole hand of new arts loads
 ## at the moment the cards first show, the game stutters. So when a match starts, the arts of both
 ## decks are queued here and loaded in the background, one at a time, within a small time budget per frame.
