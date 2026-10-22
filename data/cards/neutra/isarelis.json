@@ -18,7 +18,7 @@
     {"trigger": "on_enter", "action": "destroy", "target": "weak_enemy_unit"},
     {"trigger": "on_hit_leader", "action": "destroy", "target": "most_wounded_enemy_unit"}
   ],
-  "text": "Ao Entrar: destrua uma unidade inimiga com 3 de Vida ou menos.\nAo Atingir o Líder: destrua a unidade inimiga mais ferida com 3 de Vida ou menos (só vale unidade ferida; empate: aleatória).",
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga com 3 de Vida ou menos; ela é destruída.\nAo Atingir o Líder: destrói a unidade inimiga mais ferida com 3 de Vida ou menos (só vale unidade ferida; empate: aleatória).",
   "flavor": [
     "Você nem viu a lâmina. Ótimo, é o plano."
   ],

@@ -27,7 +27,7 @@
       "lifesteal_self": true
     }
   ],
-  "text": "Desdém: é imune a Crítico.\nAo Causar Dano de Combate: cause X de dano a até 4 inimigos aleatórios diferentes (pode incluir o Líder). X é o Ataque dela. Este efeito tem Roubo de Vida e também cura a Rália.",
+  "text": "Desdém: é imune a Crítico.\nAo Causar Dano de Combate: causa X de dano a até 4 inimigos aleatórios diferentes (pode incluir o Líder). X é o Ataque dela. Este efeito tem Roubo de Vida e esta unidade também recupera Vida.",
   "flavor": [
     "Sorte? Eu chamo isso de preguiça de quem não sabe errar direito."
   ],

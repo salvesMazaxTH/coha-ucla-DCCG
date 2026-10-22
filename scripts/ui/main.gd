@@ -3623,7 +3623,7 @@ func _render_search_reveal() -> void:
 	var grave: bool = g.pending_search.get("grave", false)
 	var sub := "%s está procurando uma carta no deck" % _pname(owner)
 	if deck_search and _my_input():
-		sub = "Você procurou no deck e encontrou estas cartas"
+		sub = "Você procurou no deck e encontrou estas cartas; as que brilham podem ser escolhidas"
 		if g.pending_search.has("to_bottom"):
 			sub = "Você olhou as %d cartas do topo do deck; as que brilham podem ser escolhidas" % int(g.pending_search["looked"])
 	if secret_search and g.pending_search.has("to_bottom"):
@@ -3667,22 +3667,28 @@ func _render_search_reveal() -> void:
 		if not cv.face_down:
 			cv.text_suffix = _scale_suffix(owner, CardDB.card(option["card_id"]))
 			cv.snowball_level = int(g.players[owner]["snowball"])
-		if eligible and not looked_cards.is_empty():
-			cv.highlight = OK
-		elif not eligible:
-			cv.modulate = Color(1, 1, 1, 0.4)
 		# every card can be inspected (right click / long press), picked or not: some rules texts
 		# only make sense in the full-screen view. Only the eligible ones can be chosen.
 		var can_pick: bool = eligible and _my_input()
+		if can_pick:
+			cv.highlight = OK # a glow marks what can be clicked, for every kind of choice
+		elif not eligible:
+			cv.modulate = Color(1, 1, 1, 0.4)
 		cv.right_clicked.connect(_show_overlay)
 		if can_pick:
 			cv.left_clicked.connect(func(_v): _on_search_choice(card_uid))
 		grid.add_child(cv)
-	var hint := "Clique em um campeão para colocá-lo em campo sem pagar o custo." if hand_summon else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else "Escolha 1 para a mão; as outras vão para o fundo do deck." if look else "Clique em uma carta que brilha para adicioná-la à sua mão; as outras cartas olhadas vão para o fundo do deck." if g.pending_search.has("to_bottom") else "Clique em uma carta para adicioná-la à sua mão e embaralhar o deck."
+	var hint := "Clique em um campeão para colocá-lo em campo sem pagar o custo, ou escolha não colocar nenhum." if hand_summon else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else "Escolha 1 para a mão; as outras vão para o fundo do deck." if look else "Clique em uma carta que brilha para adicioná-la à sua mão, ou escolha não pegar nenhuma; as outras cartas olhadas vão para o fundo do deck." if g.pending_search.has("to_bottom") else "Clique em uma carta que brilha para adicioná-la à sua mão e embaralhar o deck, ou escolha não pegar nenhuma."
 	var footer := _label(hint if _my_input() else "A escolha pertence ao oponente.", 18, SEL if _my_input() else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 	box.add_child(footer)
 	if not secret_search:
 		box.add_child(_label("Botão direito (ou segurar o dedo) em uma carta abre ela em tela cheia.", 15, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+	if (hand_summon or deck_search) and _my_input():
+		# both picks are optional: uid 0 means "take no card" (Dona Gertrudes puts no champion in play)
+		var skip_button := _button("NÃO COLOCAR NENHUM" if hand_summon else "NÃO PEGAR NENHUMA", func(): _on_search_choice(0))
+		skip_button.custom_minimum_size = Vector2(360, 52)
+		skip_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		box.add_child(skip_button)
 	var minimize_button := _button("▼  VER A MESA", func():
 		search_minimized_signature = search_signature
 		search_opened_signature = -1
@@ -6787,6 +6793,10 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s escolhe um campeão da mão para entrar em campo de graça" % _pname(e["player"]))
 		"hand_summon":
 			_log("%s colocou %s em campo direto da mão (será banido no fim do turno)" % [_pname(e["player"]), _cname(e["card_id"])])
+		"search_decline":
+			_log("%s preferiu não pegar nenhuma das cartas encontradas" % _pname(e["player"]))
+		"hand_summon_skip":
+			_log("%s preferiu não colocar nenhum campeão em campo" % _pname(e["player"]))
 		"discard":
 			_log("%s descartou %s" % [_pname(e["player"]), _cname(e["card_id"])])
 	_chronicle_visual_context = {}

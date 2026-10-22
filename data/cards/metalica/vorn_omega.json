@@ -15,8 +15,7 @@
     { "trigger": "on_damaged", "nth": 2, "action": "buff", "target": "self", "atk_multiply": 2 },
     { "trigger": "on_damaged", "nth": 3, "action": "buff", "target": "self", "armor": 3 }
   ],
-  "text": "Ao Entrar: Moa 3 cartas do deck do oponente.
-Ao Sofrer Dano (1ª vez): ganha +2 de Ataque. (2ª vez): dobra o seu Ataque. (3ª vez): ganha Armadura 3. As seguintes não fazem nada. A contagem é desta unidade e acumula entre os turnos.",
+  "text": "Ao Entrar: mói 3 cartas do deck do oponente.\nAo Sofrer Dano (1ª vez): esta unidade ganha +2 de Ataque. (2ª vez): dobra o seu Ataque. (3ª vez): ganha Armadura 3. As seguintes não fazem nada. A contagem é desta unidade e acumula entre os turnos.",
   "flavor": "A fábrica que o fez calou-se há muito tempo. Ele continua trabalhando.",
   "tags": []
 }

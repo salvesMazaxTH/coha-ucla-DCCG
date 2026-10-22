@@ -18,7 +18,7 @@
       "target": "enemy_unit"
     }
   ],
-  "text": "Ao Entrar: silencie uma unidade inimiga.",
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela é silenciada.",
   "flavor": "Ela nunca fala alto. Ela nunca precisou.",
   "tags": []
 }

@@ -8,7 +8,7 @@
   "effects": [
     { "trigger": "on_play", "action": "buff", "target": "ally_unit", "atk": 1, "hp": 2 }
   ],
-  "text": "Equipar: a unidade ganha +1/+2.",
+  "text": "Equipar: concede +1/+2 à unidade equipada.",
   "flavor": "Sobrou do conserto. Sempre sobra.",
   "art": "metalica/engrenagem_solta.webp",
   "tags": []

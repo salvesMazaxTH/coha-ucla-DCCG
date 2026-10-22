@@ -5303,6 +5303,26 @@ func _test_gertrudes() -> void:
 	crowded._flush()
 	check(crowded.phase != "search", "Gertrudes: com o campo cheio não há onde colocar o campeão")
 
+	# the pick is optional: declining keeps the champion in hand and nothing enters the board
+	var declined := _glacial_game()
+	declined.players[0]["hand"].clear() # the opening hand is random: start from an empty one
+	declined.players[1]["hand"].clear()
+	var declined_player := declined.active
+	declined.players[declined_player]["momentum"] = 10
+	var declined_wanessa := _give(declined, declined_player, "princesa_wanessa")
+	declined.play_card(declined_player, _give(declined, declined_player, "dona_gertrudes_fura_fila"), 0)
+	for guard in 8:
+		if declined.stack.is_empty():
+			break
+		declined.pass_priority(declined.priority)
+	declined._flush()
+	check(declined.phase == "search", "Gertrudes: a escolha abre antes de recusar")
+	check(declined.choose_search(1 - declined_player, 0).is_empty(), "Gertrudes: o oponente não recusa por você")
+	check(not declined.choose_search(declined_player, 0).is_empty(), "Gertrudes: recusar (uid 0) é aceito")
+	check(declined.phase == "main" and declined.pending_search.is_empty(), "Gertrudes: recusar fecha a escolha e volta à fase principal")
+	var kept_champion := declined.find_unit(declined_wanessa)
+	check(kept_champion == null and declined.players[declined_player]["hand"].any(func(card: Card): return card.uid == declined_wanessa), "Gertrudes: recusada, a Wanessa continua na mão")
+
 	# the pick is private: the other seat sees it face down
 	var hidden := _glacial_game()
 	hidden.players[0]["hand"].clear() # the opening hand is random: start from an empty one
@@ -5400,7 +5420,7 @@ func _test_metalica() -> void:
 	check(g.players[a]["deck"].size() == own_deck_before - 1, "Trituração em Massa: compra 1 carta")
 	check(g.players[a]["momentum"] == momentum_before - 2, "Trituração em Massa: custa 2")
 
-	# Tyren: no innate Armadura; a hit sets it to 1 (never lowers a higher one); only spell damage grants a temporary Escudo Supremo
+	# Tyren: no innate Armadura; a hit sets it to 1 (never lowers a higher one); only spell damage grants a temporary Escudo de Feitiço
 	g = _metalica_game()
 	a = g.active
 	b = g.opponent(a)
@@ -5420,14 +5440,15 @@ func _test_metalica() -> void:
 	var tyren_hp_before: int = g.hp_left(tyren)
 	_cast_and_resolve(g, a, "golpe_de_marreta", tyren.uid)
 	check(g.hp_left(tyren) == tyren_hp_before - 3, "Tyren: o feitiço que o atinge causa o dano inteiro (o escudo é para o próximo)")
-	check(tyren.armor == 1 and tyren.supreme_shield and tyren.supreme_shield_expires == "next_turn", "Tyren: dano de feitiço dá Armadura 1 e Escudo Supremo temporário")
+	check(tyren.armor == 1 and tyren.spell_shield and tyren.spell_shield_until_next_turn and not tyren.supreme_shield, "Tyren: dano de feitiço dá Armadura 1 e Escudo de Feitiço temporário")
 	tyren_hp_before = g.hp_left(tyren)
 	_cast_and_resolve(g, a, "golpe_de_marreta", tyren.uid)
-	check(g.hp_left(tyren) == tyren_hp_before and not tyren.supreme_shield, "Tyren: o próximo feitiço inimigo é absorvido e gasta o Escudo Supremo")
-	check(not tyren.spell_shield, "Tyren: não ganha Escudo de Feitiço")
-	tyren.grant_supreme_shield("next_turn")
+	check(g.hp_left(tyren) == tyren_hp_before and not tyren.spell_shield, "Tyren: o próximo feitiço inimigo é cancelado e gasta o Escudo de Feitiço")
+	check(not tyren.supreme_shield, "Tyren: não ganha Escudo Supremo")
+	tyren.spell_shield = true
+	tyren.spell_shield_until_next_turn = true
 	g._start_turn(b, false)
-	check(not tyren.supreme_shield and tyren.supreme_shield_expires == "", "Tyren: o Escudo Supremo acaba no início do próximo turno do controlador")
+	check(not tyren.spell_shield and not tyren.spell_shield_until_next_turn, "Tyren: o Escudo de Feitiço acaba no início do próximo turno do controlador")
 
 	# Biblioteca de Peças: only the 5 cards on top are searched; an artifact buried deeper is not found
 	# (the filler is a spell, which is never eligible: Metálica units of cost 4 or less count as "peças" too)
@@ -5641,7 +5662,7 @@ func _test_glacial_combo() -> void:
 			check(int(g.players[a]["snowball"]) == _after_ladeira(_after_ladeira(level)) and g.snowball_is_grande(a), "combo (%s): a segunda Ladeira leva o nível a Grande (%d)" % [label, int(g.players[a]["snowball"])])
 			check(princess.card_id == "wanessa_tempesfrost" and not princess.sick, "combo (%s): Wanessa vira Tempesfrost ao nível virar Grande e já pode atacar" % label)
 			check(g.players[o]["board"].all(func(c: Card): return c.frozen > 0), "combo (%s): ao transformar, todas as unidades inimigas ficam congeladas" % label)
-			check(waiting_bola.card_id == "grande_bola_de_neve", "combo (%s): a Bola de Neve que esperava na mão evoluiu ao cruzar o nível 8" % label)
+			check(waiting_bola.card_id == "grande_bola_de_neve", "combo (%s): a Bola de Neve que esperava na mão evoluiu ao cruzar o nível 7" % label)
 			var grande_cost := g.cost_of(a, CardDB.card(waiting_bola.card_id))
 			check(grande_cost == 3 and g.budget(a, true) == 4, "combo (%s): sobram 4 de Momentum para a Grande Bola de Neve (custo %d, sobra %d)" % [label, grande_cost, g.budget(a, true)])
 			g.play_card(a, waiting_bola.uid, first_enemy.uid)
@@ -6117,8 +6138,12 @@ func _test_glacial() -> void:
 	check(g.players[o]["snowball"] == 2, "o nível do outro jogador volta a 2 no fim do turno DELE")
 
 	# Grande Bola de Neve is its own card: own cost, and every hit has Sobrepujança
-	check(g.cost_of(a, CardDB.card("bola_de_neve")) == 3, "Bola de Neve comum custa 3")
-	check(g.cost_of(a, CardDB.card("grande_bola_de_neve")) == 3, "Grande Bola de Neve custa o mesmo que a Bola de Neve comum (3)")
+	check(g.cost_of(a, CardDB.card("bola_de_neve")) == 4, "Bola de Neve comum custa 4")
+	check(g.cost_of(a, CardDB.card("grande_bola_de_neve")) == 3, "Grande Bola de Neve continua custando 3")
+	var duplicate_bola_deck: Dictionary = DeckDB.get_deck("glacial")["cards"].duplicate()
+	duplicate_bola_deck["bola_de_neve"] = 2
+	duplicate_bola_deck["chamado_da_nevasca"] = 2
+	check(not DeckDB.validate_cards(DeckDB.get_deck("glacial")["leader"], duplicate_bola_deck).filter(func(error): return "bola_de_neve: mais de 1 cópia" in error).is_empty(), "Bola de Neve é Única no deck")
 	check(CardDB.card("grande_bola_de_neve").get("transform_only", false), "Grande Bola de Neve só existe por evolução (não entra em deck)")
 	_tcard("teste_frágil_gelo", 0, 3, [])
 	var fragile := _put(g, o, "teste_frágil_gelo")
@@ -6127,7 +6152,7 @@ func _test_glacial() -> void:
 	_cast_and_resolve(g, a, "grande_bola_de_neve", fragile.uid)
 	check(g.find_unit(fragile.uid) == null and g.players[o]["leader_hp"] <= leader_before - 5, "Grande Bola: o excesso de dano vai pro Líder")
 
-	# crossing level 8 evolves every Bola de Neve of the player: hand, deck and graveyard
+	# crossing level 7 evolves every Bola de Neve of the player: hand, deck and graveyard
 	g = _glacial_game()
 	a = g.active
 	o = g.opponent(a)
@@ -6140,27 +6165,27 @@ func _test_glacial() -> void:
 	g.players[a]["deck"].append(deck_bola)
 	g.players[a]["graveyard"].append(grave_bola)
 	g.players[o]["hand"].append(foe_bola)
+	g.set_snowball_level(a, 6)
+	check(hand_bola.card_id == "bola_de_neve" and deck_bola.card_id == "bola_de_neve", "nível 6: nenhuma Bola evolui ainda")
 	g.set_snowball_level(a, 7)
-	check(hand_bola.card_id == "bola_de_neve" and deck_bola.card_id == "bola_de_neve", "nível 7: nenhuma Bola evolui ainda")
-	g.set_snowball_level(a, 8)
-	check(hand_bola.card_id == "grande_bola_de_neve" and deck_bola.card_id == "grande_bola_de_neve" and grave_bola.card_id == "grande_bola_de_neve", "nível 8: Bolas da mão, do baralho e do cemitério evoluem")
+	check(hand_bola.card_id == "grande_bola_de_neve" and deck_bola.card_id == "grande_bola_de_neve" and grave_bola.card_id == "grande_bola_de_neve", "nível 7: Bolas da mão, do baralho e do cemitério evoluem")
 	check(foe_bola.card_id == "bola_de_neve", "a Bola do oponente não evolui com o nível de quem joga")
 	check(g.snowball_is_grande(a) and not g.snowball_is_grande(o), "snowball_is_grande depende do nível de cada jogador")
 
-	# a plain Bola entering the hand after level 8 is converted on arrival
+	# a plain Bola entering the hand after level 7 is converted on arrival
 	var late_bola := Card.new(g._uid(), "bola_de_neve", a, "deck")
 	g.players[a]["deck"].append(late_bola)
 	g._move(late_bola, "hand")
-	check(late_bola.card_id == "grande_bola_de_neve", "uma Bola que chega à mão com nível 8+ já vem Grande")
+	check(late_bola.card_id == "grande_bola_de_neve", "uma Bola que chega à mão com nível 7+ já vem Grande")
 
 	# the Bola that raises the level to 8 is on the stack: it lands in the graveyard already as a Grande card
 	g = _glacial_game()
 	a = g.active
 	o = g.opponent(a)
 	g.players[a]["momentum"] = 30
-	g.players[a]["snowball"] = 7
+	g.players[a]["snowball"] = 6
 	var crossing_target := _put(g, o, "teste_alvo_gelo")
-	_put(g, o, "teste_alvo_gelo") # the second hit (8 damage) is what raises the level from 7 to 8
+	_put(g, o, "teste_alvo_gelo") # the second hit (7 damage) is what raises the level from 6 to 7
 	var crossing_bola := Card.new(g._uid(), "bola_de_neve", a, "hand")
 	g.players[a]["hand"].append(crossing_bola)
 	g.play_card(a, crossing_bola.uid, crossing_target.uid)
@@ -6169,13 +6194,15 @@ func _test_glacial() -> void:
 			break
 		g.pass_priority(g.priority)
 	g._flush()
-	check(int(g.players[a]["snowball"]) >= 8 and crossing_bola.card_id == "grande_bola_de_neve" and crossing_bola.zone == "graveyard", "a Bola que cruza o nível 8 termina no cemitério já como Grande")
+	check(int(g.players[a]["snowball"]) >= 7 and crossing_bola.card_id == "grande_bola_de_neve" and crossing_bola.zone == "graveyard", "a Bola que cruza o nível 7 termina no cemitério já como Grande")
 
-	# Nythera, Ao Entrar: puts a Bola de Neve on top of her owner's deck (born Grande from level 8 on) and freezes
-	for level in [7, 8]:
+	# Nythera, Ao Entrar: puts a Bola on top only when none is already in hand or deck
+	for level in [6, 7]:
 		g = _glacial_game()
 		a = g.active
 		o = g.opponent(a)
+		g.players[a]["deck"] = g.players[a]["deck"].filter(func(card: Card): return card.card_id not in ["bola_de_neve", "grande_bola_de_neve"])
+		g.players[a]["hand"] = g.players[a]["hand"].filter(func(card: Card): return card.card_id not in ["bola_de_neve", "grande_bola_de_neve"])
 		g.players[a]["momentum"] = 30
 		g.players[a]["snowball"] = level
 		_tcard("teste_frágil_gelo", 0, 3, [])
@@ -6183,9 +6210,22 @@ func _test_glacial() -> void:
 		leader_before = g.players[o]["leader_hp"]
 		_cast_and_resolve(g, a, "nythera")
 		var top_card: Card = g.players[a]["deck"].back()
-		var expected_top := "grande_bola_de_neve" if level == 8 else "bola_de_neve"
+		var expected_top := "grande_bola_de_neve" if level == 7 else "bola_de_neve"
 		check(top_card.card_id == expected_top and top_card.zone == "deck", "Nythera ao entrar (nível %d): põe %s no topo do deck" % [level, expected_top])
 		check(g.players[o]["leader_hp"] == leader_before and nythera_target.frozen == 0 and int(g.players[a]["snowball"]) == level, "Nythera ao entrar (nível %d): não lança a Bola (sem dano nem nível novo) e não congela mais" % level)
+
+	for existing_zone in ["hand", "deck"]:
+		for existing_id in ["bola_de_neve", "grande_bola_de_neve"]:
+			g = _glacial_game()
+			a = g.active
+			g.players[a]["deck"] = g.players[a]["deck"].filter(func(card: Card): return card.card_id not in ["bola_de_neve", "grande_bola_de_neve"])
+			g.players[a]["hand"] = g.players[a]["hand"].filter(func(card: Card): return card.card_id not in ["bola_de_neve", "grande_bola_de_neve"])
+			var existing_bola := Card.new(g._uid(), existing_id, a, existing_zone)
+			g.players[a][existing_zone].append(existing_bola)
+			_cast_and_resolve(g, a, "nythera")
+			var owned_bolas: int = g.players[a]["hand"].filter(func(card: Card): return card.card_id in ["bola_de_neve", "grande_bola_de_neve"]).size()
+			owned_bolas += g.players[a]["deck"].filter(func(card: Card): return card.card_id in ["bola_de_neve", "grande_bola_de_neve"]).size()
+			check(owned_bolas == 1, "Nythera: não cria outra Bola quando já há uma na %s (%s)" % [existing_zone, existing_id])
 
 	# Zero Absoluto: rápido, custa 4 e congela todas as unidades inimigas (e só elas)
 	g = _glacial_game()
@@ -6364,6 +6404,9 @@ func _test_glacial() -> void:
 	g = _glacial_game()
 	a = g.active
 	o = g.opponent(a)
+	g.players[a]["hand"] = g.players[a]["hand"].filter(func(card: Card): return card.card_id not in ["bola_de_neve", "grande_bola_de_neve"])
+	g.players[a]["deck"] = g.players[a]["deck"].filter(func(card: Card): return card.card_id not in ["bola_de_neve", "grande_bola_de_neve"])
+	g.players[a]["deck"].append(Card.new(g._uid(), "bola_de_neve", a, "deck"))
 	var bruno := _put(g, a, "bruno", false)
 	check(g.attack_targets(bruno) == [GameState.LEADER_UID[o]], "Bruno: Rompante, só o Líder é alvo")
 	var level_before: int = g.players[a]["snowball"]
@@ -6377,6 +6420,23 @@ func _test_glacial() -> void:
 		g._flush()
 		var bola_in_hand: Array = g.players[a]["hand"].filter(func(c: Card): return c.card_id == "bola_de_neve")
 		check(bola_in_hand.size() == 1 and g.phase == "main", "Bruno: a Bola de Neve escolhida vai para a mão e o jogo volta à Fase Principal (fase %s)" % g.phase)
+
+	# Bruno: the search is optional (uid 0 takes no card), only the searcher can decline, and the deck keeps the Bola
+	g = _glacial_game()
+	a = g.active
+	o = g.opponent(a)
+	g.players[a]["hand"] = g.players[a]["hand"].filter(func(card: Card): return card.card_id not in ["bola_de_neve", "grande_bola_de_neve"])
+	g.players[a]["deck"] = g.players[a]["deck"].filter(func(card: Card): return card.card_id not in ["bola_de_neve", "grande_bola_de_neve"])
+	g.players[a]["deck"].append(Card.new(g._uid(), "bola_de_neve", a, "deck"))
+	var bruno_decliner := _put(g, a, "bruno", false)
+	_hit(g, bruno_decliner, GameState.LEADER_UID[o])
+	g._flush()
+	check(g.phase == "search", "Bruno: a busca abre antes de recusar")
+	check(g.choose_search(o, 0).is_empty(), "Bruno: o oponente não recusa a busca por você")
+	check(not g.choose_search(a, 0).is_empty(), "Bruno: recusar (uid 0) é aceito")
+	check(g.phase == "main" and g.pending_search.is_empty(), "Bruno: recusar fecha a busca e volta à Fase Principal (fase %s)" % g.phase)
+	check(g.players[a]["hand"].filter(func(c: Card): return c.card_id == "bola_de_neve").is_empty(), "Bruno: recusada, nenhuma Bola de Neve vai para a mão")
+	check(g.players[a]["deck"].any(func(c: Card): return c.card_id == "bola_de_neve"), "Bruno: recusada, a Bola de Neve continua no deck")
 
 	# Ysvane: Ao Entrar buffs another random ally and takes a Bola de Neve back from the graveyard (banished after its next cast);
 	# each glacial spell shields a random ally; death heals the Leader

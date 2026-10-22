@@ -16,7 +16,7 @@ const COMMANDER_TAX_STEP := 1 ## the Encarnação's tax grows by this much per p
 const WEAK_UNIT_MAX_HP := 3 ## "weak_enemy_unit" targets: enemy units with this much current Vida or less (Isarelis)
 const INTIMIDATE_ATK := 3 ## Intimidacao: attackers with this ATK or less cannot challenge it
 const SECOND_BONUS_TURNS := 2 ## the second player's first turns that start with +1 Momentum and +1 Reserve (refill)
-const SNOWBALL_GRANDE_AT := 8 ## Bola de Neve level at which every Bola de Neve card of the player evolves into a Grande Bola de Neve
+const SNOWBALL_GRANDE_AT := 7 ## Bola de Neve level at which every Bola de Neve card of the player evolves into a Grande Bola de Neve
 const SNOWBALL_BASE_LEVEL := 2 ## Bola de Neve level a player starts at; each player's own base can grow permanently (Devaneio Gelado), see players[p]["snowball_base"]
 const SNOWBALL_CARD_ID := "bola_de_neve"
 const GRANDE_SNOWBALL_CARD_ID := "grande_bola_de_neve" ## a card of its own (transform_only): it only exists through that evolution
@@ -1604,13 +1604,25 @@ func choose_enter_tapped(p: int, tapped: bool) -> Array:
 func choose_search(p: int, card_uid: int) -> Array:
 	if phase != "search" or p != decider():
 		return []
+	if card_uid == 0 and pending_search.get("hand_summon", false):
+		# Dona Gertrudes: the pick is optional, so choosing no card puts nothing on the board
+		pending_search.clear()
+		phase = _search_return
+		_emit({"type": "hand_summon_skip", "player": p})
+		_resolve_stack()
+		_check_state()
+		stack_system().after_search()
+		stack_system().settle()
+		return _flush()
 	var options: Array = pending_search.get("cards", [])
 	var chosen: Dictionary = {}
 	for c in options:
 		if int(c["uid"]) == card_uid:
 			chosen = c
 			break
-	if chosen.is_empty():
+	# a deck search is optional too (Bruno's Bola de Neve): uid 0 takes no card
+	var declined: bool = card_uid == 0 and pending_search.get("deck_search", false)
+	if chosen.is_empty() and not declined:
 		return []
 	if pending_search.get("revive", false):
 		# a new copy of the chosen card enters the board; the card itself stays in the graveyard
@@ -1681,16 +1693,17 @@ func choose_search(p: int, card_uid: int) -> Array:
 		stack_system().settle()
 		return _flush()
 	var deck: Array = players[p]["deck"]
-	var found: Card = null
-	for c: Card in deck:
-		if c.uid == card_uid:
-			found = c
-			break
-	if found == null:
-		return []
-	deck.erase(found)
-	players[p]["hand"].append(found)
-	_move(found, "hand")
+	if not declined:
+		var found: Card = null
+		for c: Card in deck:
+			if c.uid == card_uid:
+				found = c
+				break
+		if found == null:
+			return []
+		deck.erase(found)
+		players[p]["hand"].append(found)
+		_move(found, "hand")
 	var look: bool = pending_search.get("look", false)
 	var top_search: bool = pending_search.has("to_bottom") # a search limited to the top N cards
 	var reshuffle: bool = pending_search.get("shuffle", false)
@@ -1714,7 +1727,10 @@ func choose_search(p: int, card_uid: int) -> Array:
 		_shuffle(deck)
 	pending_search.clear()
 	phase = _search_return
-	_emit({"type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"]})
+	if declined:
+		_emit({"type": "search_decline", "player": p})
+	else:
+		_emit({"type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"]})
 	_emit({"type": "look_bottom" if (look or top_search) and not reshuffle else "search_shuffle", "player": p})
 	_resolve_stack() # a search opened mid-resolution: finish the rest of the stack
 	_check_state() # resumes the triggers that waited for this choice
@@ -2106,6 +2122,7 @@ func _begin_hand_discard(p: int, source_uid: int) -> void:
 
 ## The player picks a unit card (of `rarity`; "" = any) from their own hand; it enters the board
 ## for free and is banished at the end of the turn. The options are private to the owner.
+## The pick is optional: choose_search with uid 0 declines it.
 func _begin_hand_summon(p: int, rarity: String, source_uid: int) -> void:
 	if phase == "search":
 		return

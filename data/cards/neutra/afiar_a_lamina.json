@@ -14,7 +14,7 @@
       "critico_temp": 1
     }
   ],
-  "text": "Uma unidade aliada ganha +1 nível de Crítico neste turno (máx. 4).",
+  "text": "Concede +1 nível de Crítico neste turno (máx. 4) a uma unidade aliada à sua escolha, mesmo que ela não tenha Crítico.",
   "flavor": [
     "Pedra, óleo e um pouco de rancor."
   ],

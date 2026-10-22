@@ -8,7 +8,7 @@
   "effects": [
     { "trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 3 }
   ],
-  "text": "Cause 3 de dano a uma unidade inimiga.",
+  "text": "Causa 3 de dano a uma unidade inimiga à sua escolha.",
   "flavor": "",
   "art": "metalica/golpe_de_marreta.webp",
   "tags": []

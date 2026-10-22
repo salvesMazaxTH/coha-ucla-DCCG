@@ -237,7 +237,7 @@ static func _simulate_line(g: GameState, p: int, options: Dictionary) -> Diction
 		# the level ends where the last bounce stopped: one more per unit after the first
 		level += foe_board.size() - 1
 
-	# level 8 transforms the Princesa: she freezes every enemy unit and attacks the Leader (her ATK plus a Bola)
+	# level 7 transforms the Princesa: she freezes every enemy unit and attacks the Leader (her ATK plus a Bola)
 	if princesa_ready and level >= GameState.SNOWBALL_GRANDE_AT:
 		leader_damage += int(CardDB.card(TEMPESFROST_ID)["atk"]) + level
 	return {"order": order, "target": finisher_target, "finisher_uid": finisher_uid, "predicted": leader_damage, "pieces": order.size()}

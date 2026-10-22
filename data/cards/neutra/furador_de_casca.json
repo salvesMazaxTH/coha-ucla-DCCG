@@ -18,7 +18,7 @@
       "target": "enemy_unit"
     }
   ],
-  "text": "Ao Entrar: uma unidade inimiga perde o Escudo e a Armadura.",
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela perde o Escudo e a Armadura.",
   "flavor": "Todo mundo tem um miolo. Ele só quer chegar nele.",
   "tags": []
 }

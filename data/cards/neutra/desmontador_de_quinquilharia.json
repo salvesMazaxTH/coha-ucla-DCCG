@@ -18,7 +18,7 @@
       "target": "enemy_artifact"
     }
   ],
-  "text": "Ao Entrar: destrua um artefato inimigo.",
+  "text": "Ao Entrar: você pode escolher um artefato inimigo; ele é destruído.",
   "flavor": "Dizia que só ia olhar por dentro.",
   "tags": []
 }

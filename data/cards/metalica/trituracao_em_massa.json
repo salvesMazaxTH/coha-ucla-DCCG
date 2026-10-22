@@ -9,7 +9,7 @@
     { "trigger": "on_play", "action": "mill", "who": "enemy", "target": "none", "amount": 2 },
     { "trigger": "on_play", "action": "draw", "target": "own_leader", "amount": 1 }
   ],
-  "text": "Moa 2 cartas do deck do oponente (elas vão para o cemitério dele). Compre 1 carta.",
+  "text": "Mói 2 cartas do deck do oponente (elas vão para o cemitério dele). Você compra 1 carta.",
   "flavor": "",
   "art": "metalica/trituracao_em_massa.webp",
   "tags": []

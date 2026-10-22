@@ -10,7 +10,7 @@ extends Effect
 ## sets "overflow_to_leader": every hit has Sobrepujança (the excess damage goes to the Leader of the
 ## player who owns the hit unit). A Bola de Neve cast by a unit (Nythera, Tempesfrost) has no card to
 ## evolve, so when the caster is at Grande level the effect casts the Grande Bola de Neve card's effect
-## instead of its own: every Bola is Grande from level 8 on, and that card stays the one definition.
+## instead of its own: every Bola is Grande from level 7 on, and that card stays the one definition.
 ## Aimed at a Leader (negative uid) it is one plain hit: no bounce, and the level doesn't grow.
 ## A Bola cast by a unit is not thrown at once: it goes onto the stack as the Bola de Neve card (the
 ## Grande one at Grande level), exactly like one played from the hand, so the opponent can respond

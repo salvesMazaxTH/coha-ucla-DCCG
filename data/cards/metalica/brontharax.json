@@ -11,7 +11,7 @@
   "effects": [
     { "trigger": "on_turn_end", "action": "mill", "who": "enemy", "target": "none", "amount": 1 }
   ],
-  "text": "No Fim do Turno: Moa 1 carta do deck do oponente.",
+  "text": "No Fim do Turno: mói 1 carta do deck do oponente.",
   "flavor": "Cada batida de asa soa como um sino que ninguém quer ouvir tocar.",
   "art": "metalica/brontharax.webp",
   "tags": []

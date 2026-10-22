@@ -19,7 +19,7 @@
       "target": "enemy_taunt_unit"
     }
   ],
-  "text": "Ao Entrar: uma unidade inimiga perde Provocação até o fim do turno.",
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga com Provocação; ela perde Provocação até o fim do turno.",
   "flavor": "Cerca é só uma sugestão.",
   "tags": []
 }

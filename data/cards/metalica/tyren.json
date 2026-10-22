@@ -12,9 +12,9 @@
   "effects": [
     { "trigger": "on_enter", "action": "search_deck", "target": "none", "type": "artifact", "top": 4 },
     { "trigger": "on_damaged", "action": "buff", "target": "self", "armor_min": 1 },
-    { "trigger": "on_damaged", "action": "buff", "target": "self", "supreme_shield_until": "next_turn", "only_from_spell": true }
+    { "trigger": "on_damaged", "action": "buff", "target": "self", "spell_shield_temp": true, "only_from_spell": true }
   ],
-  "text": "Ao Entrar: olhe as 4 cartas do topo do seu deck e revele um artefato entre elas: coloque-o na sua mão. As outras vão para o fundo do deck.\nAo Sofrer Dano: sua Armadura passa a ser 1 (se for menor). Se o dano veio de um Feitiço, ele também ganha Escudo Supremo até o início do próximo turno do controlador.",
+  "text": "Ao Entrar: você olha as 4 cartas do topo do seu deck e revela um artefato entre elas. Você coloca esse artefato na sua mão; as outras vão para o fundo do deck.\nAo Sofrer Dano: sua Armadura passa a ser 1 (se for menor). Se o dano veio de um Feitiço, esta unidade também ganha Escudo de Feitiço até o início do próximo turno do controlador.",
   "flavor": "O aço se adapta a quem o golpeia. Eu só tomei emprestado o hábito.",
   "tags": []
 }

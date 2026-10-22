@@ -4,9 +4,9 @@ extends Effect
 ## only until end of turn). "armor": N adds Armadura permanently (stacks with what it already has);
 ## "armor_temp": N is the same until its owner's next turn starts. With "temp": true "armor" also lasts only until end of turn. "atk_temp": N does that for Ataque.
 ## "armor_min": N raises the unit's Armadura to N when it is lower (nothing happens when it already has N or more).
-## "spell_shield_temp": true gives Escudo de Feitiço only until its owner's next turn starts (a unit that already
+## "spell_shield_temp": true gives Escudo de Feitiço only until its owner's next turn starts (Tyren; a unit that already
 ## has a permanent Escudo de Feitiço keeps it as it is).
-## "supreme_shield_until": "next_turn" gives Escudo Supremo until its owner's next turn starts (Tyren). The "escudo_supremo" keyword
+## "supreme_shield_until": "next_turn" gives Escudo Supremo until its owner's next turn starts. The "escudo_supremo" keyword
 ## gives it for good, or only until the end of the turn with "temp": true. A Supremo that is already there is never made shorter.
 ## "per": "momentum_left" multiplies atk/hp by the Momentum the controller still has
 ## (at least `min`, at most `max`).
