@@ -71,7 +71,7 @@ func resolve(context: EffectContext, effect: Effect) -> Array:
 			var hits := int(effect.raw.get("hits", 1))
 			if effect.raw.get("hits_from", "") == "self_atk":
 				var source := game.find_unit(context.self_uid)
-				hits = maxi(0, (game.atk_of(source) if source != null else 0) + int(effect.raw.get("hits_from_add", 0)))
+				hits = maxi(maxi(0, int(effect.raw.get("hits_from_min", 0))), (game.atk_of(source) if source != null else 0) + int(effect.raw.get("hits_from_add", 0)))
 			for hit in maxi(0, hits):
 				all_enemy_picks.append(all_enemy_pool[game.rng.randi_range(0, all_enemy_pool.size() - 1)])
 			return all_enemy_picks
@@ -129,10 +129,10 @@ func hit_count(context: EffectContext, effect: Effect) -> int:
 		"random_enemy_spread":
 			if effect.raw.get("hits_from", "") == "self_atk":
 				var source := context.game.find_unit(context.self_uid)
-				return maxi(0, (context.game.atk_of(source) if source != null else 0) + int(effect.raw.get("hits_from_add", 0)))
+				return maxi(maxi(0, int(effect.raw.get("hits_from_min", 0))), (context.game.atk_of(source) if source != null else 0) + int(effect.raw.get("hits_from_add", 0)))
 			if effect.raw.get("hits_from", "") == "momentum":
 				# the controller's plain Momentum right now (Eryon: read after the Momentum he just gained)
-				return maxi(0, int(context.game.players[context.controller]["momentum"]) + int(effect.raw.get("hits_from_add", 0)))
+				return maxi(maxi(0, int(effect.raw.get("hits_from_min", 0))), int(context.game.players[context.controller]["momentum"]) + int(effect.raw.get("hits_from_add", 0)))
 			return maxi(0, int(effect.raw.get("hits", 1)))
 	return 0
 

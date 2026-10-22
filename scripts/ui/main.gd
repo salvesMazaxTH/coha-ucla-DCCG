@@ -57,6 +57,10 @@ const HUB_SECTION_TITLE_H := 52.0 ## height of a divider's title row
 const HUB_SECTION_GAP := 28.0 ## empty space between the end of one section and the next title
 const HUB_DRAG_SLOP := 12.0 ## pixels a press may move and still count as a tap on a deck
 var ai_deck := "" ## deck the AI plays, picked in the second step of the AI hub ("" = a random other deck)
+var _fps_counter: Label
+var _fps_counter_visible := false
+var _fps_sample_seconds := 0.0
+var _fps_sample_frames := 0
 
 # input state
 var picked: Array = [] ## mulligan/discard selection
@@ -91,6 +95,8 @@ var grave_owner := 0
 var grave_filter := "all"
 var grave_drag_ms := -1000 ## last finger-drag in the viewer: taps right after it are not clicks
 var views := {} ## uid (or "cmd<p>") -> Control on screen, for animations
+var _unit_board_views := {} ## uid -> unit CardView from the last board render, kept for same-slot updates
+var _unit_views_for_reuse := {} ## detached unit views being matched against the next board layout
 var barricade_was_up := {} ## unit uid -> was it a tapped, unfrozen Provocação in the previous render? (to spot the moment it slams shut)
 var hand_uids := {} ## viewer's hand cards in the current render
 var hint_text := "" ## the tip pill fades out after a few seconds and returns when the player seems lost
@@ -1162,6 +1168,17 @@ func _clear() -> void:
 	# over the new layer for a frame and leaves duplicated/offset UI behind.
 	_close_overlay()
 	join_slots = null
+	_finish_unit_view_reuse()
+	for unit_uid in _unit_board_views:
+		var unit_view: CardView = _unit_board_views[unit_uid]
+		if is_instance_valid(unit_view) and not unit_view.is_queued_for_deletion() \
+			and is_instance_valid(layer) and unit_view.get_parent() == layer:
+			# Preserve the node briefly; _render_board will keep it only if this unit stays in the same slot.
+			layer.remove_child(unit_view)
+			_unit_views_for_reuse[unit_uid] = unit_view
+		elif is_instance_valid(unit_view) and not unit_view.is_queued_for_deletion():
+			unit_view.queue_free()
+	_unit_board_views.clear()
 	if layer:
 		layer.queue_free()
 	layer = Control.new()
@@ -1171,6 +1188,8 @@ func _clear() -> void:
 	add_child(layer)
 	if fx:
 		fx.move_to_front()
+	if is_instance_valid(_fps_counter):
+		_fps_counter.move_to_front()
 	_chronicle_list_rect = Rect2()
 	if chronicle_scene and chronicle_scene.visible:
 		chronicle_scene.move_to_front()
@@ -1178,6 +1197,14 @@ func _clear() -> void:
 		call_deferred("_hide_chronicle_scene_without_list")
 	views.clear()
 	hand_uids.clear()
+
+func _finish_unit_view_reuse() -> void:
+	# Any old unit not found in the same board slot has moved or left the board; let its view go.
+	for unit_uid in _unit_views_for_reuse:
+		var unit_view: CardView = _unit_views_for_reuse[unit_uid]
+		if is_instance_valid(unit_view):
+			unit_view.queue_free()
+	_unit_views_for_reuse.clear()
 
 func _clear_fx() -> void:
 	# a new screen or match: nothing from the previous one should still be waiting to play
@@ -1275,6 +1302,7 @@ func _render_now() -> void:
 		_refresh_graveyard()
 	if pending_pass:
 		_render_pass()
+		_finish_unit_view_reuse()
 		return
 	# draw order = depth: the hands sit at the back, the Leaders in front of them, the units on top
 	_render_command(op, Vector2(SANCTUARY_X + 1, SANCTUARY_Y_OP + 6.0))
@@ -1295,6 +1323,7 @@ func _render_now() -> void:
 		_render_game_over()
 	elif _is_ai(g.decider()) and ai_timer.is_stopped():
 		ai_timer.start() # not while it is already counting: every redraw would push the AI's move back
+	_finish_unit_view_reuse()
 
 ## Full-screen veil over the table with a centered panel.
 func _veil(alpha := 0.72) -> PanelContainer:
@@ -1488,37 +1517,55 @@ func _render_board(p: int, y: float) -> void:
 		# Condicional uses already spent THIS turn (Seymour's "(0/2)"): the stored count belongs to the turn it was spent in
 		if int(unit.data().get("conditional_uses_per_turn", 0)) > 0:
 			unit_view_data["conditional_uses_now"] = unit.conditional_uses if unit.conditional_uses_turn == g.turn else 0
-		var v := CardView.new().setup(unit.card_id, unit_view_data, 1.15)
-		v.pivot_offset = v.size / 2.0
+		var card_size := (CardView.BASE * 1.15).round()
 		var cell := _board_cell(slots_taken, i)
-		v.position = Vector2(roundf(cell.x + (cell.y - v.size.x) / 2.0), roundf(y)) # whole pixels keep the card text crisp
+		var card_position := Vector2(roundf(cell.x + (cell.y - card_size.x) / 2.0), roundf(y)) # whole pixels keep the card text crisp
+		var card_rotation := 0.0
+		var card_scale := Vector2.ONE
 		# exhausted (tapped) units lie sideways: they already attacked or used an ability, and the
 		# enemy can challenge them. Lying down, the card's height runs along the row, so it shrinks
 		# toward its cell width — but never below TAPPED_MIN_SCALE: on a full row it just overlaps
 		# the neighbours slightly, which looks more natural than a tiny card.
 		if unit.exhausted:
-			v.rotation = deg_to_rad(TAPPED_TILT_DEGREES)
-			var fit_cell_scale := (cell.y - 6.0) / v.size.y
-			v.scale = Vector2.ONE * clampf(fit_cell_scale, TAPPED_MIN_SCALE, 1.0)
+			card_rotation = deg_to_rad(TAPPED_TILT_DEGREES)
+			var fit_cell_scale := (cell.y - 6.0) / card_size.y
+			card_scale = Vector2.ONE * clampf(fit_cell_scale, TAPPED_MIN_SCALE, 1.0)
 			# Lying down, the card's width runs across the lane, so keeping its center would pull its front
 			# edge BACK from the standing units. Instead we place that edge ahead of theirs, toward the divider.
-			var lying_half_depth := v.size.x * v.scale.x / 2.0
-			var standing_front_edge_y := y if p == viewer else y + v.size.y # the edge facing the divider
+			var lying_half_depth := card_size.x * card_scale.x / 2.0
+			var standing_front_edge_y := y if p == viewer else y + card_size.y # the edge facing the divider
 			var tapped_center_y: float
 			if p == viewer:
 				tapped_center_y = standing_front_edge_y - TAPPED_FRONT_ADVANCE + lying_half_depth
 			else:
 				tapped_center_y = standing_front_edge_y + TAPPED_FRONT_ADVANCE - lying_half_depth
-			v.position.y = roundf(tapped_center_y - v.size.y / 2.0)
+			card_position.y = roundf(tapped_center_y - card_size.y / 2.0)
+		var v: CardView = _unit_views_for_reuse.get(unit.uid)
+		var reuse_view := is_instance_valid(v) and v.card_id == unit.card_id and v.size == card_size \
+			and v.position.is_equal_approx(card_position) and is_equal_approx(v.rotation, card_rotation) \
+			and v.scale.is_equal_approx(card_scale)
+		if reuse_view:
+			_unit_views_for_reuse.erase(unit.uid)
+			v.update_card(unit.card_id, unit_view_data, 1.15)
+		else:
+			if is_instance_valid(v):
+				v.queue_free()
+			_unit_views_for_reuse.erase(unit.uid)
+			v = CardView.new().setup(unit.card_id, unit_view_data, 1.15)
+			v.left_clicked.connect(_on_unit_click)
+			v.right_clicked.connect(_show_overlay)
+			v.drag_started.connect(_unit_drag_start)
+		v.pivot_offset = v.size / 2.0
+		v.position = card_position
+		v.rotation = card_rotation
+		v.scale = card_scale
 		_decorate_unit(v, unit, p)
-		v.left_clicked.connect(_on_unit_click)
-		v.right_clicked.connect(_show_overlay)
 		# on touch an attacker is also dragged to its target (on a mouse the press already starts the aim)
 		v.draggable = CardView.touch_ui() and p == viewer and _my_input() and targeting.is_empty() \
 			and g.combat_system().in_attacks_window(viewer)
-		v.drag_started.connect(_unit_drag_start)
 		layer.add_child(v)
 		views[unit.uid] = v
+		_unit_board_views[unit.uid] = v
 		var barrier_side: int = TableView.SIDE_MINE if p == viewer else TableView.SIDE_ENEMY
 		var is_barring: bool = _slam_if_barricade_just_closed(unit, barrier_side, v.position.x + v.size.x / 2.0)
 		if is_barring:
@@ -2397,10 +2444,17 @@ func _hint_nudge() -> void:
 	hint_until = Time.get_ticks_msec() + 5000
 	_hint_fade(hint_pill, 5.0)
 
-func _process(_dt: float) -> void:
+func _process(dt: float) -> void:
 	CardView.load_queued_arts()
 	_update_aim()
 	_sync_reaction_arrow()
+	if _fps_counter_visible and is_instance_valid(_fps_counter):
+		_fps_sample_seconds += dt
+		_fps_sample_frames += 1
+		if _fps_sample_seconds >= 0.5:
+			_fps_counter.text = "FPS %d" % roundi(_fps_sample_frames / _fps_sample_seconds)
+			_fps_sample_seconds = 0.0
+			_fps_sample_frames = 0
 	if g and Time.get_ticks_msec() - last_input_ms > 15000:
 		last_input_ms = Time.get_ticks_msec()
 		_hint_nudge()
@@ -2614,7 +2668,24 @@ func _toggle_fullscreen() -> void:
 	var is_full := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if is_full else DisplayServer.WINDOW_MODE_FULLSCREEN)
 
+func _toggle_fps_counter() -> void:
+	_fps_counter_visible = not _fps_counter_visible
+	if not is_instance_valid(_fps_counter):
+		_fps_counter = _label("FPS 0", 20, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, "bold", 4)
+		_fps_counter.position = Vector2(14, 12)
+		_fps_counter.size = Vector2(150, 32)
+		_fps_counter.z_index = 1000
+		add_child(_fps_counter)
+	_fps_sample_seconds = 0.0
+	_fps_sample_frames = 0
+	_fps_counter.visible = _fps_counter_visible
+	_fps_counter.move_to_front()
+
 func _input(e: InputEvent) -> void:
+	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_F3:
+		_toggle_fps_counter()
+		get_viewport().set_input_as_handled()
+		return
 	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_F11:
 		_toggle_fullscreen()
 		get_viewport().set_input_as_handled()

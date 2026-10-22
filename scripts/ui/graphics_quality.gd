@@ -23,12 +23,18 @@ static var smooth_card_pulse := true
 ## Frame rate cap (0 = no cap: follows the screen). Phones with 90/120 Hz screens would otherwise draw
 ## up to twice as many frames, heating up and draining the battery for no visible gain.
 static var max_fps := 0
+## Each card keeps a "photo" of the parts of its face that never move (frame, art, name, text, gems) and
+## draws that one picture instead of hundreds of shapes and letters; only the animated layers are drawn
+## live on top (see CardPhotoStudio). On for every device; turn it off to compare the two looks.
+static var bake_card_faces := true
 
 static func use_phone_settings() -> void:
 	show_motes = false
 	effect_detail = 0.5
-	fog_layers = 2
-	fog_swirl = false
+	# Furtividade is rare enough that its shape is worth keeping legible on a phone.
+	# Three layers with a warp still cost less than the four-layer desktop fog.
+	fog_layers = 3
+	fog_swirl = true
 	card_animation_interval = 0.05
 	smooth_card_pulse = false
 	max_fps = 60

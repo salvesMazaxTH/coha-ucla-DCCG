@@ -79,6 +79,12 @@ var zoom := 1.0:
 		zoom = value
 		queue_redraw()
 var _face_size := Vector2.ZERO ## the size the card face is drawn at: size * zoom, in whole pixels
+var _painting_photo := false ## this CardView is the hidden painter inside CardPhotoStudio
+var _photo_padding := 0.0 ## clear pixels around a photo slot, measured in card drawing units
+var _photo_slot_height := 0.0 ## height of one stacked photo slot, measured in card drawing units
+var _photo_in_use: CardPhotoStudio.Photo
+var _photo_transform_seen := Transform2D.IDENTITY
+static var _is_headless := DisplayServer.get_name() == "headless"
 ## Animation hooks, driven by tweens: draw offsets (hit tremor, attack
 ## lunge) and a red hit flash 0..1.
 var shake := Vector2.ZERO:
@@ -180,6 +186,66 @@ func setup(id: String, instance: Dictionary = {}, size_scale := 1.0) -> CardView
 		_stealth()
 	return self
 
+## Updates an existing card view after Main confirms this unit kept the same board slot.
+func update_card(id: String, instance: Dictionary = {}, size_scale := 1.0) -> void:
+	CardPhotoStudio.withdraw(self)
+	card_id = id
+	inst = instance
+	uid = instance.get("uid", 0)
+	face_down = false
+	highlight = Color.TRANSPARENT
+	ability_ready = false
+	dim = false
+	cost_override = -1
+	text_suffix = ""
+	snowball_level = GameState.SNOWBALL_BASE_LEVEL
+	hovered = false
+	hit_pad = 0.0
+	zoom = 1.0
+	shake = Vector2.ZERO
+	lunge = Vector2.ZERO
+	flash = 0.0
+	proc = 0.0
+	proc_wave = 0.0
+	frost_grow = 1.0
+	frost_burst = 0.0
+	shadow = true
+	fatigue = 0
+	_chamfer_frame = false
+	_art_window.clear()
+	_face_size = Vector2.ZERO
+	_photo_in_use = null
+	_photo_transform_seen = Transform2D.IDENTITY
+	_redraw_acc = 0.0
+	_holding = false
+	_long = false
+	_press_id = 0
+	_press_pos = Vector2.ZERO
+	draggable = false
+	dragging = false
+	_t = randf() * 10.0
+	custom_minimum_size = (BASE * size_scale).round()
+	size = custom_minimum_size
+	rotation = 0.0
+	scale = Vector2.ONE
+	z_index = 0
+	modulate = Color.WHITE
+	self_modulate = Color.WHITE
+	visible = true
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	material = null
+	set_process(true)
+	# Tags and target badges belong to the previous state; the shield shader child can safely be reused.
+	for child in get_children():
+		if child != _shield_sparks:
+			remove_child(child)
+			child.queue_free()
+	if is_instance_valid(_shield_sparks):
+		_shield_sparks.hide()
+	if inst.has("damage") and _keywords(CardDB.card_for(id, inst)).has("furtividade"):
+		_stealth()
+	queue_redraw()
+
 ## Furtividade on the board: half see-through card under a drifting fog (shader, no redraws).
 func _stealth() -> void:
 	if _stealth_shader == null:
@@ -241,6 +307,12 @@ func _gui_input(e: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	# (the shield sparks are not here on purpose: they animate in their own shader, see _place_shield_sparks)
+	# A cached picture must be snapped again whenever its card moves to a different screen pixel.
+	if _photo_in_use != null and not _painting_photo:
+		var render_transform := get_viewport().get_final_transform() * get_global_transform_with_canvas()
+		if not render_transform.is_equal_approx(_photo_transform_seen):
+			_photo_transform_seen = render_transform
+			queue_redraw()
 	if highlight.a > 0 or hovered or _legendary() or inst.has("frozen") or inst.has("stun_markers") or inst.has("condemned_turn") or inst.get("summoning_sick", false):
 		_t += delta
 		_redraw_acc += delta
@@ -250,6 +322,21 @@ func _process(delta: float) -> void:
 		if _redraw_acc >= GraphicsQuality.card_animation_interval or smooth_pulse:
 			_redraw_acc = 0.0
 			queue_redraw()
+
+## Copies the face data into an off-screen CardView that paints the two still photo slots.
+func prepare_photo_painter(signature: Dictionary, padding: float, slot_height: float) -> void:
+	card_id = signature["card_id"]
+	inst = signature["inst"]
+	face_down = signature["face_down"]
+	_face_size = signature["face_size"]
+	size = _face_size
+	cost_override = signature["cost_override"]
+	snowball_level = signature["snowball_level"]
+	_painting_photo = true
+	_photo_padding = padding
+	_photo_slot_height = slot_height
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	set_process(false)
 
 ## Escudo de Feitiço / Escudo Supremo sparks: a small square over the art window, painted by
 ## shield_sparks.gdshader. Called from _draw with where the face is drawn, so it follows zoom, shake and pop.
@@ -425,25 +512,129 @@ func _legendary() -> bool:
 
 var badge_only := "" ## tools/render_speed_badges.gd: draw just this speed seal, centered
 
+## Returns a finished picture only when the card can be shown without stretching or rotating it.
+func _find_ready_photo(pop: float) -> CardPhotoStudio.Photo:
+	if not GraphicsQuality.bake_card_faces or proc > 0.0 or _is_headless or badge_only != "" or fatigue > 0 or _painting_photo or not is_inside_tree():
+		_photo_in_use = null
+		texture_filter = CanvasItem.TEXTURE_FILTER_PARENT_NODE
+		CardPhotoStudio.withdraw(self)
+		return null
+	var render_transform := get_viewport().get_final_transform() * get_global_transform_with_canvas()
+	var horizontal_scale := render_transform.x.x
+	var vertical_scale := render_transform.y.y
+	if absf(render_transform.x.y) > 0.001 or absf(render_transform.y.x) > 0.001 \
+		or horizontal_scale <= 0.0 or vertical_scale <= 0.0 or absf(horizontal_scale - vertical_scale) > 0.001:
+		_photo_in_use = null
+		texture_filter = CanvasItem.TEXTURE_FILTER_PARENT_NODE
+		CardPhotoStudio.withdraw(self)
+		return null
+	var pixel_scale := snappedf(horizontal_scale, 0.001)
+	if not CardPhotoStudio.can_photograph(_face_size, pixel_scale):
+		_photo_in_use = null
+		texture_filter = CanvasItem.TEXTURE_FILTER_PARENT_NODE
+		CardPhotoStudio.withdraw(self)
+		return null
+	var signature := {
+		"card_id": card_id,
+		"face_down": face_down,
+		"face_size": _face_size,
+		"pixel_scale": pixel_scale,
+		"cost_override": cost_override,
+		"snowball_level": snowball_level,
+		"inst": inst,
+	}
+	var photo := CardPhotoStudio.lookup(signature)
+	if photo == null or not photo.is_ready():
+		CardPhotoStudio.request(self, signature)
+		_photo_in_use = null
+		texture_filter = CanvasItem.TEXTURE_FILTER_PARENT_NODE
+		return null
+	CardPhotoStudio.withdraw(self)
+	_photo_in_use = photo
+	# Cached faces are rendered at their final pixel size. Avoid the project's nearest-mipmap
+	# default selecting a smaller level for thin lettering.
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_photo_transform_seen = render_transform
+	return photo
+
+## Draws one of the two still parts captured by CardPhotoStudio.
+func _draw_photo_slot(photo: CardPhotoStudio.Photo, slot: int) -> void:
+	var pixel_scale: float = photo.signature["pixel_scale"]
+	var padding := photo.padding_pixels / pixel_scale
+	var source := Rect2(Vector2(0, slot * photo.slot_pixels.y), Vector2(photo.slot_pixels))
+	var destination := Rect2(Vector2(-padding, -padding), Vector2(photo.slot_pixels) / pixel_scale)
+	draw_texture_rect_region(photo.viewport.get_texture(), destination, source)
+
+## The card is drawn in layers (the order is the stacking order):
+##   1. live auras and the drop shadow       (_draw_live_auras)
+##   2. frame, art window, art and the still rings of the shields  (_draw_frame_and_art)
+##   3. live overlays on the art: frost, stun, sickness, marks, veil  (_draw_live_art_overlays)
+##   4. keywords, name, rules panel and gems (_draw_lettering_and_gems), then the live champion gem
+##   5. shimmer, flash and dim               (_finish)
+## Layers 2 and 4 never change while the card keeps the same data, so they are the parts that can be
+## drawn from a cached picture instead of shape by shape.
 func _draw() -> void:
 	if badge_only != "":
 		_speed_badge(size / 2.0, badge_only, size.y / SPEED_PILL_HEIGHT)
+		return
+	if _painting_photo:
+		_paint_photo_slots()
 		return
 	# a zoomed card is drawn at its final size (never stretched), growing around its pivot
 	_face_size = (size * zoom).round()
 	var zoom_shift := (pivot_offset * (1.0 - zoom)).round()
 	var pop := 1.0 + 0.08 * proc ## scales around the center
 	var face_origin := zoom_shift + shake + lunge + _face_size / 2.0 * (1.0 - pop) ## where the face is drawn (the shield sparks follow it)
+	if fatigue > 0:
+		_photo_in_use = null
+		CardPhotoStudio.withdraw(self)
+	var photo := _find_ready_photo(pop) if fatigue <= 0 else null
+	if photo != null:
+		var render_transform := get_viewport().get_final_transform() * get_global_transform_with_canvas()
+		face_origin = render_transform.affine_inverse() * (render_transform * face_origin).round()
 	draw_set_transform(face_origin, 0.0, Vector2(pop, pop))
 	if (face_down or fatigue > 0) and _shield_sparks != null:
 		_shield_sparks.visible = false
 	var s := _face_size.x / BASE.x
 	var r := Rect2(Vector2.ZERO, _face_size)
-	var rad := 10.0 * s
 	if fatigue > 0:
-		_draw_fatigue(r, s, rad)
+		_draw_fatigue(r, s, 10.0 * s)
 		return
 	var pulse := 0.5 + 0.5 * sin(_t * 4.0)
+	var look := _face_look(s, 10.0 * s)
+	var rad: float = look["rad"]
+	_draw_live_auras(look, pulse)
+	if photo != null:
+		_draw_photo_slot(photo, 0)
+	else:
+		_draw_frame_and_art(look)
+	if face_down:
+		_finish(r, rad, s)
+		return
+	_draw_live_art_overlays(look, pulse, face_origin, pop)
+	if photo != null:
+		_draw_photo_slot(photo, 1)
+	else:
+		_draw_lettering_and_gems(look)
+	# the champion gem is animated (it moves with _t), so it is always drawn live, after the still lettering
+	if look["cd"].get("rarity", "") == "champion" and not look["is_token"]:
+		_champion_gem(Vector2(_face_size.x / 2, _face_size.y - 3 * s), 5.5 * s, look["trim"])
+	_finish(r, rad, s)
+
+## Paints the static frame/art and lettering/gems into separate vertically stacked photo slots.
+func _paint_photo_slots() -> void:
+	var scale_factor := _face_size.x / BASE.x
+	var look := _face_look(scale_factor, 10.0 * scale_factor)
+	draw_set_transform(Vector2(_photo_padding, _photo_padding), 0.0, Vector2.ONE)
+	_draw_frame_and_art(look)
+	if not face_down:
+		draw_set_transform(Vector2(_photo_padding, _photo_padding + _photo_slot_height), 0.0, Vector2.ONE)
+		_draw_lettering_and_gems(look)
+
+## Everything the layers need to know about how this card looks, worked out from its data only
+## (never from time, hover or highlights). Also sets `_chamfer_frame` and `_art_window`.
+func _face_look(s: float, rad: float) -> Dictionary:
+	var r := Rect2(Vector2.ZERO, _face_size)
 	var cd: Dictionary = {} if face_down else CardDB.card_for(card_id, inst)
 	var keys: Array = ["back"] if face_down else _style_keys(cd)
 	var st: Dictionary = STYLES[keys[0]]
@@ -464,6 +655,25 @@ func _draw() -> void:
 		and texture(cd.get("art", "")) != null
 	if full_art:
 		trim = Color(st["trim"]).lerp(Color(st2["trim"]), 0.5) ## no gold finish: the border shows the essence itself
+	var art := Rect2()
+	var window_kind := ""
+	if not face_down:
+		# art window: its shape tells the card kinds apart (rectangle = unit/spell, arch = artifact, medallion = ficha)
+		art = r.grow(-FULL_ART_BORDER * s) if full_art else Rect2(Vector2(7, 8) * s, Vector2(BASE.x - 14, 98) * s)
+		window_kind = "full" if full_art else ("medallion" if is_token else ("arch" if is_artifact else "rect"))
+		_art_window = _art_window_pts(art, window_kind)
+	return {"s": s, "r": r, "rad": rad, "cd": cd, "keys": keys, "st": st, "st2": st2, "trim": trim, "glow": glow,
+		"is_token": is_token, "is_artifact": is_artifact, "death_ward": death_ward_active, "full_art": full_art,
+		"art": art, "window_kind": window_kind}
+
+## Layer 1: drop shadow, halos and every animated aura around the frame.
+func _draw_live_auras(look: Dictionary, pulse: float) -> void:
+	var s: float = look["s"]
+	var r: Rect2 = look["r"]
+	var rad: float = look["rad"]
+	var cd: Dictionary = look["cd"]
+	var glow: Color = look["glow"]
+	var death_ward_active: bool = look["death_ward"]
 
 	# drop shadow, deeper when the card is lifted
 	if shadow:
@@ -517,6 +727,22 @@ func _draw() -> void:
 		var k := 1.0 - pow(1.0 - proc_wave, 3.0)
 		_rrect_line(r.grow((3 + 30 * k) * s), rad + 12 * k * s, Color(TRIGGER_COL.lightened(0.35), 0.85 * pow(1.0 - proc_wave, 1.5)), (3.2 - 2.2 * k) * s)
 
+## Layer 2 (still): frame, art window, art, shading, outline and the still rings of the shields.
+func _draw_frame_and_art(look: Dictionary) -> void:
+	var s: float = look["s"]
+	var r: Rect2 = look["r"]
+	var rad: float = look["rad"]
+	var cd: Dictionary = look["cd"]
+	var keys: Array = look["keys"]
+	var st: Dictionary = look["st"]
+	var st2: Dictionary = look["st2"]
+	var trim: Color = look["trim"]
+	var is_token: bool = look["is_token"]
+	var is_artifact: bool = look["is_artifact"]
+	var full_art: bool = look["full_art"]
+	var art: Rect2 = look["art"]
+	var window_kind: String = look["window_kind"]
+
 	# frame: gradient body, dark outer edge, metal trim with bevel
 	var frame_style := _bright_border_style(st) if full_art else st
 	var frame_style2 := _bright_border_style(st2) if full_art else st2
@@ -538,15 +764,10 @@ func _draw() -> void:
 
 	if face_down:
 		_draw_back(r, s, trim)
-		_finish(r, rad, s)
 		return
 
 	var font := UITheme.font("heavy")
 	var col := Color(CardDB.essence(CardDB.essences_of(cd)[0])["color"])
-	# art window: its shape tells the card kinds apart (rectangle = unit/spell, arch = artifact, medallion = ficha)
-	var art := r.grow(-FULL_ART_BORDER * s) if full_art else Rect2(Vector2(7, 8) * s, Vector2(BASE.x - 14, 98) * s)
-	var window_kind := "full" if full_art else ("medallion" if is_token else ("arch" if is_artifact else "rect"))
-	_art_window = _art_window_pts(art, window_kind)
 	if window_kind == "rect":
 		draw_rect(art.grow(1.5 * s), Color("#07060a"))
 	elif window_kind != "full":
@@ -599,6 +820,12 @@ func _draw() -> void:
 		for i in 3:
 			draw_arc(supreme_center, supreme_radius - i * 3 * s, 0, TAU, 48, Color("#ffd86b", (0.55 - i * 0.15) * 1.25), 2.5 * s, true)
 		draw_colored_polygon(_art_window, Color("#ffd86b", 0.15))
+
+## Layer 3 (live): effects that sit on the art and change with time or with the card's state.
+func _draw_live_art_overlays(look: Dictionary, pulse: float, face_origin: Vector2, pop: float) -> void:
+	var s: float = look["s"]
+	var art: Rect2 = look["art"]
+
 	# the moving sparks of both rings (shield_sparks.gdshader): the GPU animates them, the card stays still
 	_place_shield_sparks(art, face_origin, pop, s, inst.get("spell_shield", false), inst.get("supreme_shield", false))
 	if inst.has("frozen"):
@@ -614,9 +841,19 @@ func _draw() -> void:
 		# a dark violet veil over the art, then the skull medallion on the upper-right corner
 		draw_colored_polygon(_art_window, Color("#2a0a4a", 0.28 + 0.08 * sin(_t * 3.2)))
 		_doom_badge(Vector2(art.end.x - 11 * s, art.position.y + 11 * s), 10 * s, s)
+
+## Layer 4 (still): keywords, species, name, rules panel, seals and the stat gems.
+func _draw_lettering_and_gems(look: Dictionary) -> void:
+	var s: float = look["s"]
+	var cd: Dictionary = look["cd"]
+	var trim: Color = look["trim"]
+	var is_token: bool = look["is_token"]
+	var full_art: bool = look["full_art"]
+	var art: Rect2 = look["art"]
 	_kw_badges(art, cd, s)
 
 	# species strip on the bottom edge of the art, right above the name plate
+	var custom_species_display := not String(cd.get("species_display", "")).strip_edges().is_empty()
 	var sp_s := CardDB.species_names(cd).to_upper()
 	if sp_s != "":
 		var spf := UITheme.font("bold")
@@ -624,9 +861,19 @@ func _draw() -> void:
 		var sp_w := spf.get_string_size(sp_s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(sp_fs)).x + 10 * s
 		var strip := Rect2(Vector2((_face_size.x - sp_w) / 2, (92.5 if full_art else 90.5) * s), Vector2(sp_w, 11 * s))
 		if not full_art: # over a full-card art the species is just lettering on the shaded art, no pill
-			_rrect_fill(strip, 3 * s, Color(0, 0, 0, 0.62))
-			_rrect_line(strip, 3 * s, Color(trim, 0.45), 0.8 * s)
-		_text(spf, sp_s, Vector2(_face_size.x / 2, strip.get_center().y + sp_fs * 0.36), sp_fs, Color("#e9dcc0"))
+			var strip_fill := Color(0, 0, 0, 0.62)
+			var strip_outline := Color(trim, 0.45)
+			var strip_width := 0.8 * s
+			if custom_species_display:
+				strip_fill = Color("#153b4a", 0.94)
+				strip_outline = Color("#9ceaff", 0.95)
+				strip_width = 1.3 * s
+			_rrect_fill(strip, 3 * s, strip_fill)
+			_rrect_line(strip, 3 * s, strip_outline, strip_width)
+		var species_text_color := Color("#e9dcc0")
+		if custom_species_display:
+			species_text_color = Color("#d3f5ff")
+		_text(spf, sp_s, Vector2(_face_size.x / 2, strip.get_center().y + sp_fs * 0.36), sp_fs, species_text_color)
 
 	if full_art:
 		_draw_full_art_name(cd["name"], s, trim)
@@ -673,7 +920,7 @@ func _draw() -> void:
 	# essence seal on the bottom edge, crest on the top edge
 	if is_token:
 		_token_seal(Vector2(_face_size.x / 2, _face_size.y - 3 * s), 5.5 * s, trim) # fichas have no rarity
-	else:
+	elif cd["rarity"] != "champion": # (the champion gem is animated: _draw adds it live)
 		_rarity_gem(Vector2(_face_size.x / 2, _face_size.y - 3 * s), 5.5 * s, cd["rarity"], trim)
 	_diamond(Vector2(_face_size.x / 2, 2.5 * s), 3.5 * s, trim)
 
@@ -700,7 +947,6 @@ func _draw() -> void:
 			hp = max(0, live_max_hp - inst["damage"])
 		_gem("diamond", Vector2(14 * s, _face_size.y - 15 * s), 13.5 * s, ATK_COL, str(atk), atk_col, s)
 		_gem("shield", Vector2(_face_size.x - 14 * s, _face_size.y - 15 * s), 12.5 * s, HP_COL, str(hp), hp_col, s)
-	_finish(r, rad, s)
 
 ## Border of a full-art champion: the essence gradient, kept bright all the way down (the normal frame fades to
 ## near-black at the bottom, which would read as a black border instead of the essence color).

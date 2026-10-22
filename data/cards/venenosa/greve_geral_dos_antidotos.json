@@ -6,6 +6,7 @@
   "cost": 3,
   "speed": "lento",
   "art": "venenosa/greve_geral_dos_antidotos.webp",
+  "art_crop": {"x": 0.5, "y": 0.56, "zoom": 1.0},
   "effects": [
     {
       "trigger": "on_play",

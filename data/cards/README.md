@@ -27,6 +27,7 @@ O arquivo `../cards.json` continua guardando elementos, palavras-chave, espécie
 - `adjacent_armor`: enquanto a unidade estiver no campo, as unidades aliadas ao lado dela (posição anterior e seguinte no campo, que segue a ordem em que foram jogadas) ganham N de Armadura. É um Constante (o texto da carta começa com "Constante:") e o Contador Exagerado dobra o valor.
 - `token`: `true` = ficha (só existe invocada por `summon`, nunca em deck). Ao morrer ou ser banida some do jogo: não vai ao cemitério nem aos banidos, mas ainda dispara Aliado Morre. Se fosse voltar para a mão, também é apagada do jogo. Não conta nas cartas únicas da essência.
 - `inert`: `true` = compatibilidade para unidades Inertes antigas: nunca atacam, não podem desafiar e não podem ser viradas (nem por efeito). Prefira incluir a keyword `inerte` em `keywords` para que ela também apareça como badge e possa ser concedida por efeitos.
+- `species_display`: rótulo alternativo na tarja de espécie. É apenas visual: não altera as espécies mecânicas em `species`. Cartas que usam esse campo recebem um estilo próprio na tarja.
 - `deck_effects`: efeitos que valem enquanto a carta está no deck (`trigger`, `if`, `action`). Hoje só existe `summon_self` (a cópia sai do deck e entra em campo; `cost` opcional = Momentum pago na entrada, como uma habilidade: a Reserva vale e é gasta primeiro) (ver `_fire_deck_effects` em `game_state.gd`).
 
 ## Tags

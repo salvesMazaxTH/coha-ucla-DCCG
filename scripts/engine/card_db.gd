@@ -308,8 +308,11 @@ static func flavor_for(cd: Dictionary, in_match := false) -> String:
 		return lines[0]
 	return lines[hash("%s|%d" % [cd.get("name", ""), _flavor_salt]) % lines.size()]
 
-## Display name of a card's species ("Humano / Dragão"); empty when it has none.
+## Display name of a card's species ("Humano / Dragão"), or its visual-only override.
 static func species_names(cd: Dictionary) -> String:
+	var display_label := String(cd.get("species_display", "")).strip_edges()
+	if not display_label.is_empty():
+		return display_label
 	var names: Array = []
 	for id in cd.get("species", []):
 		names.append(data().get("species", {}).get(id, {}).get("name", id))

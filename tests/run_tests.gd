@@ -105,7 +105,6 @@ func _init() -> void:
 	_test_rusco()
 	_test_elite_limits()
 	_test_armor()
-const MusicScript := preload("res://scripts/audio/music.gd")
 	_test_tharox_armor_growth()
 	_test_isarelis_hit_leader()
 	_test_silence_and_david()
@@ -129,11 +128,6 @@ const MusicScript := preload("res://scripts/audio/music.gd")
 	# Run tests/golden_check.gd by hand before committing an engine/rules change.
 	print("tests done, failures: ", failures)
 	quit(1 if failures > 0 else 0)
-	# the match music is a separate autoload with its own settings, apart from the effects
-	var track := load(MusicScript.TRACK_PATH) as AudioStreamOggVorbis
-	check(track != null, "música: a faixa da partida existe e é um OGG")
-	check(MusicScript.SETTINGS_PATH == SfxScript.SETTINGS_PATH, "música: salva no mesmo arquivo de configurações dos efeitos")
-	check(MusicScript.DEFAULT_VOLUME > 0.0 and MusicScript.DEFAULT_VOLUME < 1.0, "música: volume padrão fica no meio do slider")
 
 ## (The Sfx autoload does not exist in -s mode, so the script is loaded directly; its table and mapping are static.)
 ## Any spell card: effects run with it as their source count as coming from a spell (Escudo de Feitiço cancels them)
@@ -4237,13 +4231,14 @@ func _test_vegetal() -> void:
 	_put(quiet_garden, 0, "mudinha_do_dossel")
 	quiet_garden._check_state()
 	check(int(quiet_garden.players[0].get("passive_uses", 0)) == 1, "Thalvaressa: com uma planta aliada em campo o passivo volta a disparar")
-	# Flor Voraz uses two independent 1-damage rolls that include the Leader in their pool.
-	var spread := EffectRegistry.parse({"action": "damage", "target": "random_enemy_spread", "hits": 2, "amount": 1})
+	# Flor Voraz uses one 1-damage roll per Attack, with a minimum of one, including the Leader in its pool.
+	var spread := EffectRegistry.parse({"action": "damage", "target": "random_enemy_spread", "hits_from": "self_atk", "hits_from_min": 1, "amount": 1})
 	var spread_picks: Array = spread.target.resolve(EffectContext.new(g, 0, ""), spread)
-	check(spread_picks.size() == 2, "Flor Voraz: produz dois sorteios de dano")
+	check(spread_picks.size() == 1, "Flor Voraz: o piso de dano produz um sorteio")
 	var only_face := spread_picks.all(func(uid: int) -> bool: return uid == GameState.LEADER_UID[1])
-	check(only_face, "Flor Voraz: sem unidades inimigas, os dois sorteios atingem o Líder")
+	check(only_face, "Flor Voraz: sem unidades inimigas, o sorteio atinge o Líder")
 	var flower := _put(g, 0, "flor_voraz")
+	check(flower.atk == 0 and flower.hp == 1, "Flor Voraz: ficha 0/1")
 	var hp_before: int = int(g.players[1]["leader_hp"])
 	g._fire(flower, "on_turn_end")
 	g._check_state()
@@ -4251,11 +4246,11 @@ func _test_vegetal() -> void:
 	flower.atk = 1
 	g._fire(flower, "on_turn_end")
 	g._check_state()
-	check(int(g.players[1]["leader_hp"]) == hp_before - 3, "Flor Voraz: com 1 de Ataque causa dois golpes")
+	check(int(g.players[1]["leader_hp"]) == hp_before - 2, "Flor Voraz: com 1 de Ataque causa um golpe")
 	flower.atk = 3
 	g._fire(flower, "on_turn_end")
 	g._check_state()
-	check(int(g.players[1]["leader_hp"]) == hp_before - 7, "Flor Voraz: com 3 de Ataque causa quatro golpes")
+	check(int(g.players[1]["leader_hp"]) == hp_before - 5, "Flor Voraz: com 3 de Ataque causa três golpes")
 
 func _test_rusco() -> void:
 	var r := CardDB.card("rusco")
@@ -6843,6 +6838,27 @@ func _test_sagrada_engine() -> void:
 		g._summon(player, resilient, false, 0)
 		g._flush()
 		resilient.sick = false
+
+	# Nerithia's death tax doubles per copy: +2, +4, +8, +16 to her base cost.
+	g = _new_game()
+	_quiet(g)
+	player = g.active
+	var escalating_nerithia := _put(g, player, "nerithia")
+	var other_nerithia := _put(g, player, "nerithia")
+	var nerithia_costs := [6, 10, 18, 34]
+	var nerithia_mods := [2, 6, 14, 30]
+	for i in nerithia_costs.size():
+		g._deal_damage(escalating_nerithia.uid, 99, null)
+		g._check_state()
+		check(g.players[player]["hand"].has(escalating_nerithia), "Nerithia: volta à mão após morrer (%d)" % (i + 1))
+		check(escalating_nerithia.cost_mod == nerithia_mods[i], "Nerithia: aumento acumulado da própria cópia (%d)" % nerithia_mods[i])
+		check(g.cost_of(player, CardDB.card("nerithia"), escalating_nerithia) == nerithia_costs[i], "Nerithia: custo base + aumentos dobrados (%d)" % nerithia_costs[i])
+		check(other_nerithia.cost_mod == 0, "Nerithia: outra cópia não recebe o aumento")
+		if i < nerithia_costs.size() - 1:
+			g.players[player]["hand"].erase(escalating_nerithia)
+			g._summon(player, escalating_nerithia, false, 0)
+			g._flush()
+			escalating_nerithia.sick = false
 
 	# copy_atk "highest_ally": the Ataque rises to the strongest OTHER ally; never lowers; "temp" ends with the turn
 	_tcard("t_copycat", 1, 9, [])

@@ -126,6 +126,8 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 			# a this-turn buff goes to the strongest ally that will actually attack with it
 			var best_attack := -1
 			for unit: Card in _temporary_buff_beneficiaries(g, p, _temporary_buff_effect(card_data)):
+				if not _buff_target_is_worth_it(g, unit, _temporary_buff_effect(card_data)):
+					continue
 				if unit.atk_total() > best_attack:
 					best_attack = unit.atk_total()
 					target = unit.uid
@@ -555,6 +557,14 @@ static func _pick_target(g: GameState, p: int, spec: String, source, self_uid :=
 			var is_mine: bool = unit.owner == p
 			if is_mine != friendly:
 				continue
+			if friendly:
+				var buff_effect: Dictionary = {}
+				for effect in effects:
+					if effect.get("action") == "buff":
+						buff_effect = effect
+						break
+				if not buff_effect.is_empty() and not _buff_target_is_worth_it(g, unit, buff_effect):
+					continue
 			score = unit.atk_total() + unit.hp_left()
 			# prefer damage that actually kills
 			if not friendly:
@@ -720,6 +730,40 @@ static func _unit_value(g: GameState, unit: Card) -> int:
 	if _is_engine(unit):
 		value += 4
 	return value
+
+## Don't spend a single-target buff on a throwaway body unless it changes a high-value combat or saves
+## the Leader from a lethal attack. Broad all-unit buffs are handled separately and aren't filtered here.
+static func _buff_target_is_worth_it(g: GameState, unit: Card, effect: Dictionary) -> bool:
+	var atk_gain := int(effect.get("atk", 0)) + int(effect.get("atk_temp", 0))
+	var hp_gain := int(effect.get("hp", 0)) + int(effect.get("hp_temp", 0))
+	var enemy: int = g.opponent(unit.owner)
+	var leader_hp: int = int(g.players[unit.owner]["leader_hp"])
+	var enemy_strike := _board_strike_total(g, enemy)
+	var lethal_risk := enemy_strike >= leader_hp
+	var gains_taunt: bool = (effect.get("keywords", []) as Array).has("provocacao")
+	if lethal_risk and (gains_taunt or (g.has_kw(unit, "provocacao") and hp_gain > 0)):
+		return true
+	# Pacifistas always strike for zero, even with Ataque buffs; only defensive stats can matter in a lethal block.
+	if g.has_kw(unit, "pacifista"):
+		return false
+	# Cheap, low-impact bodies such as Vigia do Farol aren't worth a single-target buff by default.
+	if _unit_value(g, unit) <= 6:
+		# Exception: the buff must turn a losing combat into a trade for an equally or more valuable enemy.
+		pass
+	else:
+		return true
+	for foe: Card in g.players[enemy]["board"]:
+		var foe_value := _unit_value(g, foe)
+		var buffed_strike := maxi(0, unit.atk_total() + atk_gain)
+		var damage_to_foe := 0 if foe.shield or foe.supreme_shield else g.damage_after_armor(foe, buffed_strike)
+		var kills_foe := damage_to_foe >= foe.hp_left() and foe.hp_left() > 0
+		var base_damage := 0 if foe.shield or foe.supreme_shield else g.damage_after_armor(foe, g.strike_power_of(unit))
+		var buff_enables_kill := kills_foe and base_damage < foe.hp_left()
+		if buff_enables_kill and foe_value >= _unit_value(g, unit):
+			var damage_back := 0 if foe.shield or foe.supreme_shield else g.damage_after_armor(unit, foe.atk_total())
+			if damage_back < unit.hp_left() + hp_gain or unit.shield or unit.supreme_shield:
+				return true
+	return false
 
 ## Triggers that keep paying off turn after turn while the unit stays on the board.
 const ENGINE_TRIGGERS := ["on_ally_death", "on_turn_start", "on_turn_end", "constante"]
