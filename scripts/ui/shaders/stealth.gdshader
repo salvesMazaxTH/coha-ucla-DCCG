@@ -4,6 +4,9 @@ shader_type canvas_item;
 
 uniform vec2 size = vec2(120.0, 170.0);
 uniform vec4 mist_color : source_color = vec4(0.80, 0.77, 0.93, 1.0);
+// how much work the fog costs (set from GraphicsQuality; phones use fewer layers and no swirl)
+uniform int fog_layers = 4;     // noise layers per fog lookup (1 to 4)
+uniform bool fog_swirl = true;  // warp the fog with a second fog lookup (doubles the cost)
 varying vec2 local;
 
 void vertex() {
@@ -25,12 +28,18 @@ float noise(vec2 p) {
 float fbm(vec2 p) {
 	float v = 0.0;
 	float a = 0.5;
+	float total = 0.0;
 	for (int i = 0; i < 4; i++) {
+		if (i >= fog_layers) {
+			break;
+		}
 		v += a * noise(p);
+		total += a;
 		p = p * 2.03 + vec2(1.7, 9.2);
 		a *= 0.5;
 	}
-	return v;
+	// rescale to the 4-layer range, so fewer layers keep the same amount of fog (only less fine detail)
+	return v * 0.9375 / total;
 }
 
 void fragment() {
@@ -40,7 +49,7 @@ void fragment() {
 	float art = smoothstep(0.03, 0.07, uv.y) * (1.0 - smoothstep(0.58, 0.63, uv.y));
 	float t = TIME * 0.11;
 	vec2 p = uv * vec2(2.6, 3.6);
-	float warp = fbm(p + vec2(t, t * 0.4));
+	float warp = fog_swirl ? fbm(p + vec2(t, t * 0.4)) : 0.47; // 0.47 = the swirl's average
 	float n = fbm(p + vec2(warp * 1.5 - t * 0.7, -t * 0.3));
 	float mist = smoothstep(0.42, 0.78, n) * inside;
 	float breathe = 0.5 + 0.5 * sin(TIME * 1.2);

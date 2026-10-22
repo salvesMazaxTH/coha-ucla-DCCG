@@ -187,6 +187,8 @@ func _stealth() -> void:
 	var m := ShaderMaterial.new()
 	m.shader = _stealth_shader
 	m.set_shader_parameter("size", size)
+	m.set_shader_parameter("fog_layers", GraphicsQuality.fog_layers)
+	m.set_shader_parameter("fog_swirl", GraphicsQuality.fog_swirl)
 	material = m
 
 func _has_point(p: Vector2) -> bool:
@@ -242,7 +244,10 @@ func _process(delta: float) -> void:
 	if highlight.a > 0 or hovered or _legendary() or inst.has("frozen") or inst.has("stun_markers") or inst.has("condemned_turn") or inst.get("summoning_sick", false):
 		_t += delta
 		_redraw_acc += delta
-		if _redraw_acc >= 0.033 or highlight.a > 0 or hovered: ## shimmer at ~30 fps is plenty
+		# shimmer at ~30 fps is plenty (GraphicsQuality.card_animation_interval); a glowing or hovered card
+		# redraws every frame for a smooth pulse, except on phones, where every redraw is costly
+		var smooth_pulse := (highlight.a > 0 or hovered) and GraphicsQuality.smooth_card_pulse
+		if _redraw_acc >= GraphicsQuality.card_animation_interval or smooth_pulse:
 			_redraw_acc = 0.0
 			queue_redraw()
 
@@ -337,6 +342,27 @@ static func texture(file: String) -> Texture2D:
 		var path := "res://assets/portraits/" + file
 		_tex_cache[file] = load(path) if ResourceLoader.exists(path) else null
 	return _tex_cache[file]
+
+## Loading one art takes tens of milliseconds (much more on a phone). If a whole hand of new arts loads
+## at the moment the cards first show, the game stutters. So when a match starts, the arts of both
+## decks are queued here and loaded in the background, one at a time, within a small time budget per frame.
+static var _art_preload_queue: Array[String] = []
+const ART_PRELOAD_BUDGET_MS := 6 ## time per frame spent loading queued arts (at least one art loads per frame)
+
+## Queues art files (as written in the card data, e.g. "ignea/ivan.webp") to be loaded ahead of time.
+static func queue_art_preload(files: Array) -> void:
+	for file in files:
+		var art_file := String(file)
+		if art_file != "" and not _tex_cache.has(art_file) and not _art_preload_queue.has(art_file):
+			_art_preload_queue.append(art_file)
+
+## Called every frame: loads queued arts until the frame budget is spent.
+static func load_queued_arts() -> void:
+	var start_ms := Time.get_ticks_msec()
+	while not _art_preload_queue.is_empty():
+		texture(_art_preload_queue.pop_front())
+		if Time.get_ticks_msec() - start_ms >= ART_PRELOAD_BUDGET_MS:
+			return
 
 ## The part of an art texture that shows in a window of `window_size` (the art always fills the window).
 ## `crop` is the card's optional "art_crop": {"x", "y", "zoom"} (any key may be left out).

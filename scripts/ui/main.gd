@@ -188,6 +188,10 @@ func _ready() -> void:
 	# the logical screen is as tall as the stage, so a 16:9 window shows all of it (not a cropped middle)
 	get_window().content_scale_size = Vector2i(1600, int(STAGE_H))
 	_apply_light(_light_on())
+	# phones: trim the purely decorative work (see GraphicsQuality)
+	if _is_phone():
+		GraphicsQuality.use_phone_settings()
+	Engine.max_fps = GraphicsQuality.max_fps
 	theme = UITheme.make()
 	bg_vp = SubViewport.new()
 	bg_vp.size = Vector2i(640, 360)
@@ -212,8 +216,9 @@ func _ready() -> void:
 	_fit_viewport()
 	table = TableView.new()
 	add_child(table)
-	motes = _motes()
-	add_child(motes)
+	if GraphicsQuality.show_motes:
+		motes = _motes()
+		add_child(motes)
 	_fit_viewport()
 	fx = Control.new()
 	fx.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -437,6 +442,7 @@ func _start(ai: bool, deck_a: String, deck_b: String) -> void:
 		online = false
 	vs_ai = ai
 	g = GameState.new(deck_a, deck_b)
+	_queue_deck_arts([deck_a, deck_b])
 	barricade_was_up.clear() # unit uids restart with every match
 	for i in 2:
 		g.auto_pass[i] = _auto_pass_on() or _is_ai(i)
@@ -455,6 +461,23 @@ func _start(ai: bool, deck_a: String, deck_b: String) -> void:
 func _reset_input() -> void:
 	picked.clear()
 	targeting = {}
+
+## Queues every art the two decks can show (cards, Leaders, Encarnações) to load in the background
+## during the mulligan, so no card stalls the game the first time it is drawn.
+func _queue_deck_arts(deck_ids: Array) -> void:
+	var art_files: Array = []
+	for deck_id in deck_ids:
+		if not DeckDB.has(String(deck_id)):
+			continue
+		var deck := DeckDB.get_deck(String(deck_id))
+		var leader_data := CardDB.leader(deck["leader"])
+		art_files.append(leader_data.get("art", ""))
+		var card_ids: Array = deck["cards"].keys()
+		card_ids.append(leader_data.get("incarnation", ""))
+		for card_id in card_ids:
+			if CardDB.data()["cards"].has(card_id):
+				art_files.append(CardDB.card(card_id).get("art", ""))
+	CardView.queue_art_preload(art_files)
 
 # ---------------------------------------------------------------- online
 
@@ -947,6 +970,7 @@ func _on_net(m: Dictionary) -> void:
 		"start":
 			var d: Array = m["decks"]
 			var rs := RemoteState.new(d[0], d[1])
+			_queue_deck_arts(d)
 			rs.seat = m["seat"]
 			rs.send = net.send
 			rs.apply_snapshot(m["snap"])
@@ -2258,6 +2282,7 @@ func _hint_nudge() -> void:
 	_hint_fade(hint_pill, 5.0)
 
 func _process(_dt: float) -> void:
+	CardView.load_queued_arts()
 	_update_aim()
 	_sync_reaction_arrow()
 	if g and Time.get_ticks_msec() - last_input_ms > 15000:
@@ -4221,7 +4246,11 @@ func _doom_fx(target: Control, t: float, heavy: bool) -> void:
 
 ## Effects budget of the current _animate batch: 1.0 for a lone hit, shrinking as more
 ## triggers/deaths pile up (a Diabrete chain would otherwise spawn dozens of emitters at once).
+## Also scaled by GraphicsQuality.effect_detail, so phones always get lighter effects.
 var _fx_scale := 1.0
+## The chain part of _fx_scale alone (without the phone economy): sets how fast shots fly, so the
+## game paces the same on every device.
+var _fx_chain_scale := 1.0
 
 ## Draws the death shader, a particle burst and a gradient line once, invisibly, so the GPU
 ## compiles them at startup instead of freezing the first time a unit dies.
@@ -5234,7 +5263,8 @@ func _animate(events: Array, old: Dictionary) -> float:
 	for e in events:
 		if e["type"] == "trigger":
 			bursts += 1
-	_fx_scale = 1.0 / maxf(1.0, (bursts + _count_ghosts(old)) / 3.0)
+	_fx_chain_scale = 1.0 / maxf(1.0, (bursts + _count_ghosts(old)) / 3.0)
+	_fx_scale = _fx_chain_scale * GraphicsQuality.effect_detail
 	var actors := views.duplicate()
 	var ghosts: Array = []
 	var exiled := {} ## uids banished by these events: they get the banish effect, not the death dissolve
