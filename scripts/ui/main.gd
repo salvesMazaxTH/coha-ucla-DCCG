@@ -2976,6 +2976,7 @@ func _show_overlay(v: CardView) -> void:
 	add_child(overlay)
 	# the big card and the full text are built by CardOverlay (tools/view_card.gd shows the same thing)
 	var rt_x := CardOverlay.build(overlay, stage_w, v.card_id, v.inst, v.cost_override, v.text_suffix, v.snowball_level)
+	_add_base_card_button(v.card_id)
 	if cd.has("activated") and g != null and _my_input() and g.can_activate(viewer, v.uid, true):
 		var ab: Dictionary = cd["activated"]
 		var ab_uid := v.uid
@@ -3014,6 +3015,50 @@ func _show_overlay(v: CardView) -> void:
 		tb.position = Vector2(rt_x, 820.0 + BOT)
 		tb.custom_minimum_size = Vector2(520, 96)
 		overlay.add_child(tb)
+
+## An eye button above the big card in the overlay: while it is held, the card and its text are shown as
+## printed (no buffs, debuffs, markers or resets); letting go brings the live card back.
+func _add_base_card_button(card_id: String) -> void:
+	# call right after CardOverlay.build: the text panel is the overlay's last child at this point
+	var text_panel := overlay.get_child(overlay.get_child_count() - 1) as RichTextLabel
+	var live_text := text_panel.text
+	var printed_text := CardOverlay.describe(card_id, {}, -1, "", GameState.SNOWBALL_BASE_LEVEL)
+	var base_card := CardOverlay.build_base_card(overlay, stage_w, card_id)
+	var button_size := Vector2(CardView.BASE.x * CardOverlay.BIG_CARD_SCALE, 84.0)
+	var button := Button.new()
+	button.custom_minimum_size = button_size
+	button.size = button_size
+	button.position = Vector2(CardOverlay.big_card_position(stage_w).x, CardOverlay.BIG_CARD_Y - button_size.y - 16.0)
+	button.focus_mode = Control.FOCUS_NONE
+	button.tooltip_text = "Segure para ver a carta como foi impressa."
+	var icon := Control.new()
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.position = Vector2(56.0, button_size.y / 2.0)
+	icon.draw.connect(func():
+		# an eye: two lens-shaped lids around a round pupil
+		var upper_lid := PackedVector2Array()
+		var lower_lid := PackedVector2Array()
+		for step in range(-10, 11):
+			var across := step / 10.0
+			var lid_height := 15.0 * (1.0 - across * across)
+			upper_lid.append(Vector2(across * 26.0, -lid_height))
+			lower_lid.append(Vector2(across * 26.0, lid_height))
+		icon.draw_polyline(upper_lid, UITheme.GOLD_LIGHT, 3.0)
+		icon.draw_polyline(lower_lid, UITheme.GOLD_LIGHT, 3.0)
+		icon.draw_circle(Vector2.ZERO, 8.0, UITheme.GOLD_LIGHT))
+	button.add_child(icon)
+	var caption := _label("Segure: ver carta base", 26, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_LEFT, "bold")
+	caption.position = Vector2(104.0, 0.0)
+	caption.size = Vector2(button_size.x - 120.0, button_size.y)
+	caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	button.add_child(caption)
+	button.button_down.connect(func():
+		base_card.visible = true
+		text_panel.text = printed_text)
+	button.button_up.connect(func():
+		base_card.visible = false
+		text_panel.text = live_text)
+	overlay.add_child(button)
 
 func _close_overlay() -> void:
 	if overlay == null:

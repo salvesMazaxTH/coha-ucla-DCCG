@@ -18,7 +18,7 @@ static func build(parent: Control, stage_width: float, card_id: String, instance
 	big.cost_override = cost_override
 	big.text_suffix = text_suffix
 	big.snowball_level = snowball_level
-	big.position = Vector2(stage_width / 2.0 - 620, BIG_CARD_Y)
+	big.position = big_card_position(stage_width)
 	big.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(big)
 	var panel := RichTextLabel.new()
@@ -33,6 +33,21 @@ static func build(parent: Control, stage_width: float, card_id: String, instance
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(panel)
 	return panel_x
+
+## Where the big card sits (its top-left corner) on a stage `stage_width` wide.
+static func big_card_position(stage_width: float) -> Vector2:
+	return Vector2(stage_width / 2.0 - 620, BIG_CARD_Y)
+
+## The card exactly as it was printed: no live instance, so no buffs, debuffs, markers, overrides or
+## resets, and no cost, text or Bola de Neve adjustments. Sits right on top of the big card, hidden;
+## the caller shows it while the "ver carta base" button is held. Returns it so the caller can toggle it.
+static func build_base_card(parent: Control, stage_width: float, card_id: String) -> CardView:
+	var base_card := CardView.new().setup(card_id, {}, BIG_CARD_SCALE)
+	base_card.position = big_card_position(stage_width)
+	base_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	base_card.visible = false
+	parent.add_child(base_card)
+	return base_card
 
 ## The BBCode of the text panel: name, kind line, rules text, keyword glossary, Leader note, flavor.
 static func describe(card_id: String, instance: Dictionary, cost_override: int, text_suffix: String,
