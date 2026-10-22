@@ -38,6 +38,7 @@ var net: NetClient ## online match link (null offline)
 var online := false
 var opp_online := true
 var code_entry := ""
+var join_slots: Label ## the room-code display of the join screen; null on every other screen (the keyboard types into it)
 var sel_deck := "" ## prebuilt deck picked in the online hub
 var hub_hotseat := false ## the deck hub's two-step flow is picking decks for hot-seat (player 1, then player 2) instead of AI
 var hub_scroll: ScrollContainer ## the deck hub's scrolling gallery (null/freed outside the hub)
@@ -895,31 +896,23 @@ func _show_join(msg := "") -> void:
 	box.add_child(_label("ENTRAR NA SALA", 48, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8))
 	box.add_child(_label(msg if msg != "" else "Deck: %s" % DeckDB.get_deck(sel_deck)["name"], 22, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
 	var slots := _label(_code_text(), 64, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6)
+	join_slots = slots
 	box.add_child(slots)
 	var grid := GridContainer.new()
 	grid.columns = 8
 	grid.add_theme_constant_override("h_separation", 8)
 	grid.add_theme_constant_override("v_separation", 8)
 	box.add_child(grid)
-	for ch in "ABCDEFGHJKMNPQRSTUVWXYZ":
-		var kb := _button(ch, func():
-			if code_entry.length() < 4:
-				code_entry += ch
-				slots.text = _code_text())
+	for ch in ROOM_CODE_LETTERS:
+		var kb := _button(ch, _type_room_code_letter.bind(ch))
 		kb.custom_minimum_size = Vector2(68, 60)
 		kb.add_theme_font_size_override("font_size", 26)
 		grid.add_child(kb)
-	var back := _button("⌫", func():
-		code_entry = code_entry.substr(0, code_entry.length() - 1)
-		slots.text = _code_text())
+	var back := _button("⌫", _erase_room_code_letter)
 	back.custom_minimum_size = Vector2(68, 60)
 	back.add_theme_font_size_override("font_size", 26)
 	grid.add_child(back)
-	var go := _button("ENTRAR NA SALA", func():
-		if code_entry.length() == 4:
-			online = true
-			net.join(code_entry, sel_deck)
-			_show_wait("Entrando na sala…"), true)
+	var go := _button("ENTRAR NA SALA", _join_typed_room, true)
 	go.custom_minimum_size = Vector2(600, 64)
 	box.add_child(go)
 	var bk := _button("Voltar", func() -> void: _show_online())
@@ -928,6 +921,54 @@ func _show_join(msg := "") -> void:
 
 func _code_text() -> String:
 	return code_entry + "_".repeat(4 - code_entry.length())
+
+## Letters a room code can use (no I, L or O: they look like 1 and 0).
+const ROOM_CODE_LETTERS := "ABCDEFGHJKMNPQRSTUVWXYZ"
+
+func _type_room_code_letter(letter: String) -> void:
+	if code_entry.length() < 4:
+		code_entry += letter
+		join_slots.text = _code_text()
+
+func _erase_room_code_letter() -> void:
+	code_entry = code_entry.substr(0, code_entry.length() - 1)
+	join_slots.text = _code_text()
+
+func _join_typed_room() -> void:
+	if code_entry.length() == 4:
+		online = true
+		net.join(code_entry, sel_deck)
+		_show_wait("Entrando na sala…")
+
+## The physical keyboard types into the join screen like its on-screen keypad does.
+## Returns true when the key was used.
+func _join_screen_key(key: InputEventKey) -> bool:
+	if join_slots == null:
+		return false
+	if key.keycode == KEY_BACKSPACE:
+		_erase_room_code_letter()
+		return true
+	if key.keycode in [KEY_ENTER, KEY_KP_ENTER]:
+		_join_typed_room()
+		return true
+	var letter := char(key.unicode).to_upper()
+	if key.unicode != 0 and ROOM_CODE_LETTERS.contains(letter):
+		_type_room_code_letter(letter)
+		return true
+	return false
+
+## Space / Enter during a game press the main action button on screen (PASSAR, RESOLVER, ENCERRAR
+## TURNO, IR PARA O COMBATE...), the same as clicking it. Choices that need a deliberate answer
+## (mulligan, enter tapped, discard...) are left to the mouse.
+func _press_main_action_with_keyboard() -> bool:
+	if g == null or g.phase not in ["main", "combat"] or overlay or grave_view or concede_view:
+		return false
+	for action_button: Button in get_tree().get_nodes_in_group("action_buttons"):
+		if action_button.theme_type_variation == "PrimaryButton" and not action_button.disabled \
+				and action_button.is_visible_in_tree() and not action_button.is_queued_for_deletion():
+			action_button.pressed.emit()
+			return true
+	return false
 
 func _show_wait(text: String, show_code := "") -> void:
 	_clear_fx()
@@ -1120,6 +1161,7 @@ func _clear() -> void:
 	# animation batch...). Remove it before rebuilding the table, otherwise the old overlay survives
 	# over the new layer for a frame and leaves duplicated/offset UI behind.
 	_close_overlay()
+	join_slots = null
 	if layer:
 		layer.queue_free()
 	layer = Control.new()
@@ -2577,6 +2619,16 @@ func _input(e: InputEvent) -> void:
 		_toggle_fullscreen()
 		get_viewport().set_input_as_handled()
 		return
+	# here (not in _unhandled_input) so a button that kept the focus from a click does not swallow Space / Enter
+	if e is InputEventKey and e.pressed and not e.echo:
+		var key_used := false
+		if join_slots != null:
+			key_used = _join_screen_key(e)
+		elif e.keycode in [KEY_SPACE, KEY_ENTER, KEY_KP_ENTER]:
+			key_used = _press_main_action_with_keyboard()
+		if key_used:
+			get_viewport().set_input_as_handled()
+			return
 	if aim_drag and e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and not e.pressed:
 		_aim_release()
 	elif _queued_attacker_dragging and e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and not e.pressed:
