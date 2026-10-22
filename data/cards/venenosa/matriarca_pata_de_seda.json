@@ -22,7 +22,7 @@
       "amount": 2
     }
   ],
-  "text": "Tóxico 2.\nAo Entrar: dê 2 marcadores de Veneno a uma unidade inimiga.",
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela recebe 2 marcadores de Veneno.",
   "flavor": "A teia é só o convite. O jantar já foi servido.",
   "tags": []
 }

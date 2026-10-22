@@ -15,7 +15,7 @@
   "toxico_hits_leader": true,
   "art": "venenosa/naja_cobradora.webp",
   "effects": [],
-  "text": "Tóxico 2. O dano de combate dela ao Líder também coloca 2 marcadores de Veneno nele.",
+  "text": "O dano de combate desta unidade ao Líder também coloca 2 marcadores de Veneno nele.",
   "flavor": "Todo mundo paga. Só varia a moeda.",
   "tags": []
 }

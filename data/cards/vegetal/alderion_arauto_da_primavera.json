@@ -38,7 +38,7 @@
       "hp_temp_until_next_turn": 1
     }
   ],
-  "text": "Ao Entrar: invoque uma Mudinha do Dossel (ficha 0/1) e dê +2/+2 neste turno a outra unidade aliada.\nCondicional: sempre que uma Planta aliada entrar em campo, ela ganha +1 de Vida até o início do seu próximo turno.",
+  "text": "Ao Entrar: invoca uma Mudinha do Dossel (ficha 0/1); você pode escolher outra unidade aliada para ganhar +2/+2 neste turno.\nCondicional: sempre que uma Planta aliada entrar em campo, ela ganha +1 de Vida até o início do seu próximo turno.",
   "flavor": "A primavera não pede passagem. Ela a toma de volta.",
   "tags": []
 }

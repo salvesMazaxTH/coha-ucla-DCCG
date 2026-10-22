@@ -18,21 +18,21 @@
     },
     {
       "trigger": "on_enter",
-      "action": "summon",
-      "target": "none",
-      "card": "mudinha_do_dossel"
-    },
-    {
-      "trigger": "on_enter",
       "action": "buff",
       "temp": true,
       "target": "other_ally_units",
       "only_species": ["planta"],
       "atk": 1,
       "hp": 1
+    },
+    {
+      "trigger": "on_death",
+      "action": "summon",
+      "target": "none",
+      "card": "mudinha_do_dossel"
     }
   ],
-  "text": "Ao Entrar: invoque duas Mudinhas do Dossel (ficha 0/1). Suas plantas ganham +1/+1 neste turno.",
+  "text": "Ao Entrar: invoca uma Mudinha do Dossel (ficha 0/1). Suas plantas ganham +1/+1 neste turno.\nAo Morrer: invoca uma Mudinha do Dossel (ficha 0/1).",
   "flavor": "Toda raiz é uma lembrança procurando água.",
   "tags": []
 }

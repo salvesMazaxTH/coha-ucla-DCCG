@@ -20,7 +20,7 @@
       "amount": 1
     }
   ],
-  "text": "Ao Entrar: dê 1 marcador de Veneno a uma unidade inimiga.",
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela recebe 1 marcador de Veneno.",
   "flavor": "Vende bala. A bala é outra coisa.",
   "tags": []
 }

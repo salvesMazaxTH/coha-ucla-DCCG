@@ -36,7 +36,7 @@
       "hp": 1
     }
   ],
-  "text": "Tóxico X, onde X é o Ataque dela (com todos os bônus).\nAo Entrar: dê 1 marcador de Veneno a uma unidade inimiga.\nCondicional: sempre que uma unidade inimiga sofrer dano de Veneno, Zophiróx ganha +1/+1 permanente.",
+  "text": "Tóxico X, onde X é o Ataque desta unidade (com todos os bônus).\nAo Entrar: você pode escolher uma unidade inimiga; ela recebe 1 marcador de Veneno.\nCondicional: sempre que uma unidade inimiga sofrer dano de Veneno, esta unidade ganha +1/+1 permanente.",
   "flavor": "A pele velha fica pra trás. A mordida, não.",
   "tags": []
 }
