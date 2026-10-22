@@ -13,7 +13,7 @@
     "speed": "instantaneo",
     "effects": [{ "action": "heal_unit", "target": "ally_or_own_leader", "amount": 3 }]
   },
-  "text": "4 usos.\nAo Ativar (1) {instantaneo}: cure 3 de uma unidade aliada ou do seu Líder. Cada ativação gasta 1 uso; sem usos, é destruído.",
+  "text": "4 usos.\nAo Ativar (1) {instantaneo}: uma unidade aliada ou seu Líder, à sua escolha, recupera 3 de Vida. Cada ativação gasta 1 uso; sem usos, é destruído.",
   "flavor": "Ninguém sabe quem encheu. Todo mundo sabe quem vai beber.",
   "tags": []
 }

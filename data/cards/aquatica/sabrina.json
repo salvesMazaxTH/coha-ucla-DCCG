@@ -23,7 +23,7 @@
       "amount_if_frozen": 3
     }
   ],
-  "text": "Ao Entrar: cause 1 de dano a uma unidade inimiga. Se ela estiver Congelada, cause 3.",
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela sofre 1 de dano, ou 3 se estiver Congelada.",
   "flavor": "Dilúvio de inverno.",
   "tags": []
 }

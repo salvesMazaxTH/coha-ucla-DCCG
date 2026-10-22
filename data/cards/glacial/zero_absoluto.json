@@ -12,7 +12,7 @@
       "target": "all_enemy_units"
     }
   ],
-  "text": "Congele todas as unidades inimigas.",
+  "text": "Congela todas as unidades inimigas.",
   "flavor": "Nem o movimento ousa continuar.",
   "art": "glacial/zero_absoluto.webp",
   "tags": []

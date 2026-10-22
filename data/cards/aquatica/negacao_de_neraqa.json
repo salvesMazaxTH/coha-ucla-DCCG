@@ -16,7 +16,7 @@
       "kicker_max_cost": 99
     }
   ],
-  "text": "Anule um feitiço ou habilidade inimiga de custo 4 ou menos. Pagando +2, anula de qualquer custo.",
+  "text": "Anula um feitiço ou habilidade inimiga de custo (4) ou menos. Você pode pagar (+2) para anular um feitiço ou habilidade inimiga de qualquer custo.",
   "flavor": "Nem a onda mais alta passa por quem Neraqa já decidiu.",
   "tags": ["anular"]
 }

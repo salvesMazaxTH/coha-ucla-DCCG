@@ -36,7 +36,7 @@
       "atk": 1
     }
   ],
-  "text": "Ao Entrar: cause 2 de dano a uma unidade inimiga à sua escolha e 1 de dano às unidades adjacentes a ela. A unidade escolhida recebe 1 marcador de Atordoamento.\nAo Atacar: cause 1 de dano à unidade atacada, ou 2 se ela estiver Atordoada.\nAo Sofrer Dano: ganhe +1 de Ataque permanente.",
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela sofre 2 de dano e recebe 1 marcador de Atordoamento, e as unidades adjacentes a ela sofrem 1 de dano.\nAo Atacar: causa 1 de dano à unidade atacada, ou 2 se ela estiver Atordoada.\nAo Sofrer Dano: esta unidade ganha +1 de Ataque permanente.",
   "flavor": "",
   "tags": []
 }

@@ -15,8 +15,8 @@
       "overflow_to_leader": true
     }
   ],
-  "text": "Sobrepujança.\nCause {nivel} de dano a uma unidade inimiga. Repita em cada unidade seguinte, em uma direção sorteada, com +1 de dano a cada uma. O dano final vira o inicial de toda Bola de Neve futura, até o fim do seu turno. No fim do turno o nível volta a 2 e as Grandes Bolas de Neve voltam a ser Bolas de Neve.",
-  "face_text": "Sobrepujança. {nivel} de dano; repete adiante, +1 a cada. Dano final vira o inicial neste turno. Fim: nível 2; Grande volta a Bola de Neve.",
+  "text": "Sobrepujança.\nCausa {nivel} de dano a uma unidade inimiga à sua escolha. Repete o efeito em cada unidade seguinte, numa direção sorteada, com +1 de dano a cada uma. O dano final vira o dano inicial de toda Bola de Neve futura até o fim do seu turno. No fim do turno, o nível volta a 2 e as Grandes Bolas de Neve voltam a ser Bolas de Neve.",
+  "face_text": "Sobrepujança. Causa {nivel} de dano; repete adiante, +1 a cada alvo. O dano final vira o inicial neste turno. Fim: nível 2; Grande volta a Bola de Neve.",
   "flavor": "Agora ela liga. E leva o vilarejo junto.",
   "tags": [
     "bola_de_neve"

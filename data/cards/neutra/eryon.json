@@ -55,7 +55,7 @@
       }
     ]
   },
-  "text": "Ao Entrar: compre 1 carta.\nAo Ativar (0) (1x por turno): sacrifique outra unidade aliada e ganhe Momentum igual ao custo dela (no máximo 4; pode passar de 10 neste turno). Até o fim do turno, você só pode jogar cartas neutras.\nNo Fim do Turno: se tiver 11 ou mais de Momentum, gaste todo ele e dê X golpes de 2 de dano em inimigos aleatórios, incluindo o Líder. X é o Momentum gasto menos 3.",
+  "text": "Ao Entrar: compre 1 carta.\nAo Ativar (0) (1x por turno): você sacrifica outra unidade aliada e ganha uma quantidade de Momentum igual ao custo dela (no máximo 4; pode passar de 10 neste turno). Até o fim do turno, você só pode jogar cartas neutras.\nNo Fim do Turno: se tiver 11 ou mais de Momentum, gaste todo ele e dê X golpes de 2 de dano em inimigos aleatórios, incluindo o Líder. X é o Momentum gasto menos 3.",
   "flavor": [
     "O fôlego não some. Só muda de dono."
   ],

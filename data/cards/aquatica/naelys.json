@@ -25,7 +25,7 @@
       "needs_drawn_card": true
     }
   ],
-  "text": "Ao Entrar: compre 1 carta; ela custa 1 a menos. Se comprou, você pode devolver outra unidade aliada à mão; se fizer isso, a carta devolvida custa 1 a menos até o fim do turno.",
+  "text": "Ao Entrar: você compra 1 carta; ela custa (1) a menos. Se comprar, você pode devolver outra unidade aliada à mão; se fizer isso, a unidade devolvida custa (1) a menos até o fim do turno.",
   "flavor": "O coração das marés pulsa calmo.",
   "tags": []
 }

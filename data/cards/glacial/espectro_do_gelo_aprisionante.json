@@ -24,7 +24,7 @@
       "target": "enemy_unit"
     }
   ],
-  "text": "Ao Entrar: congele e exaure uma unidade inimiga.",
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela é congelada e exaurida.",
   "flavor": "Preso no gelo há séculos. Resolveu prender os outros também.",
   "art": "glacial/espectro_do_gelo_aprisionante.webp",
   "tags": []

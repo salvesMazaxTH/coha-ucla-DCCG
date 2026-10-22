@@ -48,7 +48,7 @@
       "once_per_turn": true
     }
   ],
-  "text": "Ao Entrar: congele 3 espaços aleatórios do campo inimigo. O congelamento ignora imunidade; unidades neles são congeladas e exauridas; espaços vazios não aceitam permanentes até o fim do próximo turno do oponente.\nCondicional: uma vez por turno, quando você lançar um feitiço glacial, congele e exaura uma unidade inimiga aleatória.",
+  "text": "Ao Entrar: congela 3 espaços aleatórios do campo inimigo. O congelamento ignora imunidade; unidades neles são congeladas e exauridas; espaços vazios não aceitam permanentes até o fim do próximo turno do oponente.\nCondicional: uma vez por turno, quando você lançar um feitiço glacial, congela e exaure uma unidade inimiga aleatória.",
   "flavor": "Quando ela ergue as mãos, até a nevasca prende a respiração.",
   "tags": []
 }

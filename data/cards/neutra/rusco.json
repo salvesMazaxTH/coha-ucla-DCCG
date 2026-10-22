@@ -23,7 +23,7 @@
       "cost": 2
     }
   ],
-  "text": "Única.\nNo deck: no fim do seu turno, se você jogou uma carta com custo, Ataque ou Vida exatamente 2 neste turno e pode pagar 2 de Momentum, paga 2 e esta carta sai do deck e entra em campo.",
+  "text": "Única.\nNo deck: no fim do seu turno, se você jogou neste turno uma carta de custo (2) ou com Ataque ou Vida exatamente 2 e pode pagar (2) de Momentum, você paga (2) de Momentum e esta carta sai do deck e entra em campo.",
   "flavor": "",
   "tags": []
 }
