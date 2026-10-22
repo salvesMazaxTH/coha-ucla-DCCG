@@ -11,10 +11,11 @@
       "trigger": "on_play",
       "action": "damage",
       "target": "any",
-      "amount": 5
+      "amount": 6,
+      "amount_if_leader": 4
     }
   ],
-  "text": "Cause 5 de dano a qualquer alvo.",
+  "text": "Cause 6 de dano a uma unidade ou 4 de dano a um Líder.",
   "flavor": "",
   "tags": []
 }

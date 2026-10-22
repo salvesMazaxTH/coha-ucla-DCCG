@@ -11,13 +11,13 @@
   "art": "vegetal/semente_teimosa.webp",
   "effects": [
     {
-      "trigger": "on_death",
+      "trigger": "on_enter",
       "action": "summon",
       "target": "none",
       "card": "mudinha_do_dossel"
     }
   ],
-  "text": "Ao Morrer: invoque uma Mudinha do Dossel 0/1.",
+  "text": "Ao Entrar: invoque uma Mudinha do Dossel 0/1.",
   "flavor": "Ela não sabe que o inverno é uma ameaça.",
   "tags": []
 }

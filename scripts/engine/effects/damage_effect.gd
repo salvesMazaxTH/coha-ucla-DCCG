@@ -22,6 +22,7 @@ var freezes_target := false
 var stuns_target := false
 var amount_if_frozen := 0
 var amount_if_stunned := 0
+var amount_if_leader := 0
 var heals_by_damage_dealt := false
 var heals_source_too := false
 
@@ -34,6 +35,7 @@ func _read_parameters(data: Dictionary) -> void:
 	stuns_target = bool(data.get("stun", false))
 	amount_if_frozen = int(data.get("amount_if_frozen", 0))
 	amount_if_stunned = int(data.get("amount_if_stunned", 0))
+	amount_if_leader = int(data.get("amount_if_leader", 0))
 	heals_by_damage_dealt = bool(data.get("lifesteal", false))
 	heals_source_too = bool(data.get("lifesteal_self", false))
 
@@ -54,6 +56,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		damage_amount = amount_if_frozen
 	if amount_if_stunned > 0 and victim != null and victim.is_stunned():
 		damage_amount = amount_if_stunned
+	if amount_if_leader > 0 and GameState.LEADER_UID.has(target_uid):
+		damage_amount = amount_if_leader
 	if not ally_reduce.is_empty() and victim != null and victim.owner == context.controller \
 			and CardDB.has_essence(victim.data(), ally_reduce["essence"]):
 		damage_amount = int(ally_reduce["amount"])
