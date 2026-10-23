@@ -4999,6 +4999,8 @@ func _shot_timing(style: String, first_shot: bool) -> Dictionary:
 	match style:
 		"espinho":
 			return {"charge": (THORN_CHARGE_FIRST if first_shot else THORN_CHARGE_NEXT) * pace, "flight": THORN_FLIGHT * pace}
+		"corte":
+			return {"charge": (SLASH_CHARGE_FIRST if first_shot else SLASH_CHARGE_NEXT) * pace, "flight": SLASH_DASH * pace}
 		"boon":
 			return {"charge": (BOON_CHARGE_FIRST if first_shot else BOON_CHARGE_NEXT) * pace, "flight": BOON_FLIGHT * pace}
 	return {"charge": (BOLT_CHARGE_FIRST if first_shot else BOLT_CHARGE_NEXT) * pace, "flight": BOLT_FLIGHT * pace}
@@ -5012,6 +5014,8 @@ func _effect_hit(style: String, from: Control, to: Control, t: float, col: Color
 	match style:
 		"espinho":
 			return _thorn_shot(from, to, t, first_shot)
+		"corte":
+			return _slash_shot(from, to, t, first_shot)
 		"boon":
 			return _boon_shot(from, to, t, col, first_shot)
 	return _effect_bolt(from, to, t, col, first_shot)
@@ -5865,6 +5869,210 @@ func _thorn_shot(from: Control, to: Control, t: float, first_shot: bool) -> floa
 			if node != null:
 				node.queue_free())
 	return charge + flight
+
+## Timing of the "corte" hit style (see _slash_shot): the blade-wielder gathers herself a little before
+## her first strike, then cuts one target after another without pausing; the dash to the target is
+## almost instant, because a blow with a sword has no projectile to follow.
+const SLASH_CHARGE_FIRST := 0.14
+const SLASH_CHARGE_NEXT := 0.0
+const SLASH_DASH := 0.05
+## How long one cut takes to be drawn across its target, and how long it takes to fade afterwards.
+const SLASH_SWEEP_TIME := 0.07
+const SLASH_FADE_TIME := 0.3
+## Colors of the cuts: a white-hot core, steel-blue edges and warm sparks flying off the blade.
+const SLASH_CORE_COLOR := Color("#ffffff")
+const SLASH_EDGE_COLOR := Color("#8fc4ff")
+const SLASH_SPARK_COLOR := Color("#ffe8b0")
+
+## The "corte" hit style, for sword fighters (no magic, so nothing flies out of them):
+## 1. gather (first strike of a trigger only): the source card pulls back while a steel glint swells on it;
+## 2. dash: the card snaps toward its target and a thin, fast trail of air links the two;
+## 3. impact: two crossing cuts are drawn across the target (an X, a different angle every time, so a
+##    volley over several targets never repeats itself), with a flash and sparks thrown along the blade.
+## Follows both ends if they move. Returns the time from t until the cut lands.
+func _slash_shot(from: Control, to: Control, t: float, first_shot: bool) -> float:
+	var timing := _shot_timing("corte", first_shot)
+	var charge: float = timing["charge"]
+	var dash: float = timing["flight"]
+	var launch_t := t + charge
+	var impact_t := launch_t + dash
+	var rich := _fx_scale >= 0.7 # big chains skip the costliest layers (wide glow, second cut)
+	var path := _shot_path(from, to, 0.0, 0.0) # a straight line: the dash does not bow
+	var ends: Dictionary = path["ends"]
+	var refresh_ends: Callable = path["refresh"]
+	# a cut is about as long as the target is big, and lands a little off-center so cuts do not pile up
+	var target_extent := to.size * to.scale
+	var cut_length := clampf(maxf(target_extent.x, target_extent.y) * 0.9, 120.0, 240.0)
+	var cut_offset := Vector2(randf_range(-10.0, 10.0), randf_range(-10.0, 10.0))
+	# the lambdas below reach the shot's nodes through this dictionary instead of capturing them
+	# (same reason as in _effect_bolt: the nodes may be freed while a lambda is still scheduled)
+	var parts := {}
+	var alive := func(key: String) -> Node:
+		var node = parts.get(key)
+		return node if is_instance_valid(node) else null
+
+	# --- 1. gather: the source leans away from the target while a steel glint swells on it
+	if first_shot:
+		var glint := _glow_sprite(24.0, Color(SLASH_EDGE_COLOR.lightened(0.5), 0.95))
+		glint.z_index = 25
+		glint.visible = false
+		fx.add_child(glint)
+		parts["glint"] = glint
+		var gt := fx.create_tween()
+		gt.tween_interval(t)
+		gt.tween_callback(func():
+			var glint_node: Sprite2D = alive.call("glint")
+			if glint_node == null:
+				return # the table was reset mid-animation
+			refresh_ends.call()
+			glint_node.position = ends["a"]
+			glint_node.visible = true)
+		gt.tween_property(glint, "scale", glint.scale, charge).from(Vector2.ZERO).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		gt.tween_callback(glint.queue_free)
+
+	# --- 2. dash: the source card snaps toward the target
+	if from is CardView:
+		var source_card: CardView = from
+		var lunge := source_card.create_tween()
+		lunge.tween_interval(t)
+		if first_shot:
+			lunge.tween_method(func(k: float):
+				var away: Vector2 = (ends["a"] - ends["b"]).normalized()
+				source_card.shake = away * 8.0 * k, 0.0, 1.0, charge).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		lunge.tween_method(func(k: float):
+			var toward: Vector2 = (ends["b"] - ends["a"]).normalized()
+			source_card.shake = toward * 16.0 * (1.0 - k), 0.0, 1.0, 0.14).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		lunge.tween_callback(func(): source_card.shake = Vector2.ZERO)
+	var trail := Line2D.new()
+	trail.width = 3.0
+	trail.material = _additive()
+	var trail_gradient := Gradient.new()
+	trail_gradient.set_color(0, Color(SLASH_EDGE_COLOR, 0.0))
+	trail_gradient.set_color(1, Color(SLASH_CORE_COLOR, 0.7))
+	trail.gradient = trail_gradient
+	trail.z_index = 25
+	trail.visible = false
+	fx.add_child(trail)
+	parts["trail"] = trail
+	var trail_tween := fx.create_tween()
+	trail_tween.tween_interval(launch_t)
+	trail_tween.tween_callback(func():
+		var trail_node: Line2D = alive.call("trail")
+		if trail_node == null:
+			return
+		refresh_ends.call()
+		trail_node.points = PackedVector2Array([ends["a"], ends["b"]])
+		trail_node.visible = true)
+	trail_tween.tween_property(trail, "modulate:a", 0.0, dash + 0.12).from(1.0)
+	trail_tween.tween_callback(func():
+		var trail_node: Node = alive.call("trail")
+		if trail_node != null:
+			trail_node.queue_free())
+
+	# --- 3. impact: the cuts, the flash and the sparks all live in one holder, freed together
+	var cuts_holder := Node2D.new()
+	cuts_holder.z_index = 27
+	fx.add_child(cuts_holder)
+	parts["cuts"] = cuts_holder
+	var it := fx.create_tween()
+	it.tween_interval(impact_t)
+	it.tween_callback(func():
+		var holder: Node2D = alive.call("cuts")
+		if holder == null:
+			return
+		refresh_ends.call()
+		var center: Vector2 = ends["b"] + cut_offset
+		# a diagonal stroke, tilted a different amount (and leaning either way) on every blow
+		var first_direction := Vector2.from_angle(deg_to_rad(randf_range(25.0, 60.0)))
+		if randf() < 0.5:
+			first_direction.x = -first_direction.x
+		_add_slash_cut(holder, center, first_direction, cut_length, 0.0, rich)
+		if rich:
+			# the second cut crosses the first one, a little shorter and a moment later
+			var second_direction := Vector2(-first_direction.x, first_direction.y).rotated(deg_to_rad(randf_range(-12.0, 12.0)))
+			_add_slash_cut(holder, center, second_direction, cut_length * 0.8, 0.05, rich)
+		var flash := _glow_sprite(46.0, Color(SLASH_CORE_COLOR, 0.8))
+		flash.position = center
+		holder.add_child(flash)
+		var flash_tween := flash.create_tween()
+		flash_tween.tween_property(flash, "scale", flash.scale * 1.1, 0.09).from(flash.scale * 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		flash_tween.parallel().tween_property(flash, "modulate:a", 0.0, 0.2).set_delay(0.04)
+		var sparks := CPUParticles2D.new()
+		sparks.emitting = false
+		sparks.one_shot = true
+		sparks.explosiveness = 1.0
+		sparks.local_coords = false
+		sparks.amount = maxi(5, int(12 * _fx_scale))
+		sparks.lifetime = 0.4
+		sparks.direction = first_direction
+		sparks.spread = 70.0
+		sparks.gravity = Vector2(0, 400)
+		sparks.damping_min = 80.0
+		sparks.damping_max = 160.0
+		sparks.initial_velocity_min = 140.0
+		sparks.initial_velocity_max = 380.0
+		sparks.scale_amount_min = 2.0
+		sparks.scale_amount_max = 4.0
+		var spark_ramp := Gradient.new()
+		spark_ramp.set_color(0, Color(SLASH_SPARK_COLOR, 0.95))
+		spark_ramp.set_color(1, Color(SLASH_EDGE_COLOR, 0.0))
+		sparks.color_ramp = spark_ramp
+		sparks.position = center
+		holder.add_child(sparks)
+		sparks.emitting = true
+		# everything of this blow is gone once the last cut has faded and the sparks have fallen
+		var cleanup := holder.create_tween()
+		cleanup.tween_interval(0.05 + SLASH_SWEEP_TIME + SLASH_FADE_TIME + 0.3)
+		cleanup.tween_callback(holder.queue_free))
+	return charge + dash
+
+## One cut of the "corte" hit style, drawn across a target after `delay` seconds: a stroke that is
+## swept from one end to the other in a blink, pointed at both ends, then thins out and fades.
+## `direction` is the way the blade travels, `center` the middle of the stroke.
+func _add_slash_cut(holder: Node2D, center: Vector2, direction: Vector2, length: float, delay: float, rich: bool) -> void:
+	var start := center - direction * length / 2.0
+	var finish := center + direction * length / 2.0
+	# the blade swings in a slight arc, bowed to a random side
+	var bowed_middle := center + direction.orthogonal() * length * 0.12 * (1.0 if randf() < 0.5 else -1.0)
+	var point_on_cut := func(u: float) -> Vector2:
+		return start.lerp(bowed_middle, u).lerp(bowed_middle.lerp(finish, u), u)
+	var pointed_ends := Curve.new()
+	pointed_ends.add_point(Vector2(0.0, 0.05))
+	pointed_ends.add_point(Vector2(0.5, 1.0))
+	pointed_ends.add_point(Vector2(1.0, 0.05))
+	var cut := Node2D.new()
+	cut.visible = false
+	holder.add_child(cut)
+	var edge: Line2D = null
+	if rich:
+		edge = Line2D.new()
+		edge.width = 16.0
+		edge.default_color = Color(SLASH_EDGE_COLOR, 0.55)
+		edge.width_curve = pointed_ends
+		edge.material = _additive()
+		cut.add_child(edge)
+	var core := Line2D.new()
+	core.width = 6.0
+	core.default_color = SLASH_CORE_COLOR
+	core.width_curve = pointed_ends
+	core.material = _additive()
+	cut.add_child(core)
+	# these lambdas only touch nodes that are children of `cut`, which also owns the tween: both end together
+	var cut_tween := cut.create_tween()
+	cut_tween.tween_interval(delay)
+	cut_tween.tween_callback(func(): cut.visible = true)
+	cut_tween.tween_method(func(k: float):
+		var head := ease(k, 0.4) # the stroke starts fast and slows into the end of the swing
+		var points := PackedVector2Array()
+		for step in 9:
+			points.append(point_on_cut.call(head * step / 8.0))
+		core.points = points
+		if edge != null:
+			edge.points = points, 0.0, 1.0, SLASH_SWEEP_TIME)
+	cut_tween.tween_property(cut, "modulate:a", 0.0, SLASH_FADE_TIME).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	cut_tween.parallel().tween_property(core, "width", 1.0, SLASH_FADE_TIME)
+	if edge != null:
+		cut_tween.parallel().tween_property(edge, "width", 3.0, SLASH_FADE_TIME)
 
 ## How long a revealed spell/ability stays frozen mid-screen: long enough for the
 ## opponent to read it, short for your own plays (you already know what you cast).

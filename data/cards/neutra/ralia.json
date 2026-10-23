@@ -15,6 +15,7 @@
     "roubo_de_vida"
   ],
   "art": "neutra/ralia.webp",
+  "hit_fx": "corte",
   "effects": [
     {
       "trigger": "on_deal_combat_damage",
