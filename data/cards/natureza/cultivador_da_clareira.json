@@ -1,0 +1,26 @@
+{
+  "name": "Cultivador da Clareira",
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["humano", "druida"],
+  "essence": "natureza",
+  "element": "planta",
+  "cost": 2,
+  "atk": 2,
+  "hp": 3,
+  "keywords": ["vigilancia"],
+  "art": "natureza/cultivador_da_clareira.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "random_other_ally_unit",
+      "atk": 2,
+      "hp": 1,
+      "temp": true
+    }
+  ],
+  "text": "Ao Entrar: outra unidade aliada aleatória ganha +2/+1 neste turno.",
+  "flavor": "Ele mede a estação pela altura das folhas, não pelo sol.",
+  "tags": []
+}

@@ -1,0 +1,22 @@
+{
+  "name": "Névoa de Esporos Teimosos",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "natureza",
+  "element": "veneno",
+  "cost": 5,
+  "speed": "lento",
+  "art": "natureza/nevoa_de_esporos_teimosos.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "add_dot",
+      "dot": "veneno",
+      "target": "all_enemy_units",
+      "amount": 2
+    }
+  ],
+  "text": "Dá 2 marcadores de Veneno a todas as unidades inimigas.",
+  "flavor": "Não vai embora. Nem com vento.",
+  "tags": []
+}

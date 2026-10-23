@@ -1,0 +1,19 @@
+{
+  "name": "Faísca Viva",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "elemental"
+  ],
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 1,
+  "atk": 1,
+  "hp": 3,
+  "keywords": [],
+  "art": "tormenta/faisca_viva.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "",
+  "tags": []
+}

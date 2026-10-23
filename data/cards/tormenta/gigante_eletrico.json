@@ -1,0 +1,26 @@
+{
+  "name": "Gigante Elétrico",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [],
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 9,
+  "atk": 8,
+  "hp": 7,
+  "keywords": [
+    "sobrepujanca"
+  ],
+  "art": "tormenta/gigante_eletrico.webp",
+  "effects": [
+    {
+      "action": "cost_reduction",
+      "per": "unspent_momentum",
+      "threshold": 3,
+      "amount": 5
+    }
+  ],
+  "text": "Custa (5) a menos se você terminou o turno anterior com 3 ou mais de Momentum sobrando.",
+  "flavor": "",
+  "tags": []
+}

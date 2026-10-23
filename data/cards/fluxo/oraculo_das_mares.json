@@ -1,0 +1,25 @@
+{
+  "name": "Oráculo das Marés",
+  "type": "unit",
+  "rarity": "common",
+  "species": [],
+  "essence": "fluxo",
+  "element": "agua",
+  "cost": 4,
+  "atk": 2,
+  "hp": 4,
+  "keywords": [],
+  "art": "fluxo/oraculo_das_mares.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "look_top",
+      "target": "own_leader",
+      "count": 4,
+      "shuffle": true
+    }
+  ],
+  "text": "Ao Entrar: você olha as 4 cartas do topo do seu deck, escolhe 1 para colocar na mão e a revela ao oponente; depois, embaralha o deck.",
+  "flavor": "",
+  "tags": []
+}

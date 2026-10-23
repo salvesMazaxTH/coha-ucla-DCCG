@@ -1,0 +1,25 @@
+{
+  "name": "Oráculo de Quartzo",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["gnomo"],
+  "essence": "montanha",
+  "element": "pedra",
+  "art": "montanha/oraculo_de_quartzo.webp",
+  "cost": 3,
+  "atk": 2,
+  "hp": 4,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "look_top",
+      "target": "own_leader",
+      "count": 3,
+      "shuffle": false
+    }
+  ],
+  "text": "Ao Entrar: você olha as 3 cartas do topo do seu deck e escolhe 1 para colocar na mão; as outras vão para o fundo do deck.",
+  "flavor": "",
+  "tags": []
+}

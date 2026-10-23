@@ -1,0 +1,21 @@
+{
+  "name": "Farkoveth",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "gargoyle"
+  ],
+  "essence": "montanha",
+  "element": "pedra",
+  "art": "montanha/farkoveth.webp",
+  "cost": 4,
+  "atk": 4,
+  "hp": 5,
+  "keywords": [
+    "intimidacao"
+  ],
+  "effects": [],
+  "text": "",
+  "flavor": "",
+  "tags": []
+}

@@ -1,0 +1,42 @@
+{
+  "name": "Nerithia Aun'Sael",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["celestial", "divindade"],
+  "essence": "devocao",
+  "element": "luz",
+  "cost": 4,
+  "atk": 2,
+  "hp": 5,
+  "keywords": ["impeto", "imunidade_trevas"],
+  "art": "devocao/nerithia.webp",
+  "effects": [
+    {
+      "trigger": "constante",
+      "action": "graveyard_damage_reduction",
+      "essence": "devocao",
+      "card_type": "spell",
+      "minimum_count": 2,
+      "divisor": 2,
+      "flat_reduction": 1
+    },
+    {
+      "trigger": "on_challenge",
+      "action": "buff",
+      "target": "self",
+      "copy_atk": "highest_ally",
+      "copy_atk_min_gain": 2,
+      "temp": true
+    },
+    {
+      "trigger": "on_death",
+      "action": "return_to_hand",
+      "target": "self_card",
+      "cost_increase": 2,
+      "cost_increase_doubles": true
+    }
+  ],
+  "text": "Constante: com 2 ou mais feitiços de Devoção no seu cemitério, o dano que ela sofre é reduzido à metade (arredondada para cima) e depois reduzido em 1 (mín. 0).\nAo Desafiar: ganha +2 de Ataque e, então, o Ataque dela fica igual ao da unidade aliada de maior Ataque neste turno.\nAo Morrer: volta para a sua mão e custa (+2), depois (+4), (+8), (+16)... a cada morte.",
+  "flavor": "Cada oração rezada por alguém é um degrau a menos que a separa do chão.",
+  "tags": []
+}

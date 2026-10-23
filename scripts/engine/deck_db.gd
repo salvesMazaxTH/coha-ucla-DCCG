@@ -104,7 +104,7 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 	var ld := CardDB.leader(leader_id)
 	var total := 0 # cards that are drawn, so the Encarnação is not counted
 	var off_essence := 0
-	var off_essence_sets: Array = [] # the essences of each distinct off-essence card
+	var off_essence_sets: Array = [] # the domains of each distinct off-domain card
 	var elite_cards := 0
 	for id in cards:
 		var n: int = cards[id]
@@ -118,11 +118,13 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 			elite_cards += n
 		if n > limit:
 			errors.append("%s: mais de %d cópia%s" % [id, limit, "" if limit == 1 else "s"])
-		# dual cards count as on-essence when the Leader shares any of their essences
+		# a card of several domains is on-domain only when the Leader's Incarnation has ALL of them
 		var ess := CardDB.essences_of(c)
 		var legal := ess.has("neutra")
-		for e in ess:
-			legal = legal or ld["essences"].has(e)
+		if not legal:
+			legal = true
+			for e in ess:
+				legal = legal and ld["essences"].has(e)
 		if not legal:
 			off_essence += n
 			off_essence_sets.append(ess)
@@ -133,7 +135,7 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 		if CardDB.is_leader_card(id) and id != ld["incarnation"]:
 			errors.append("%s: Encarnação de outro Líder" % id)
 	if off_essence > MAX_OFF_ESSENCE:
-		errors.append("%d cartas de fora da essência do Líder (máximo %d)" % [off_essence, MAX_OFF_ESSENCE])
+		errors.append("%d cartas de fora do domínio do Líder (máximo %d)" % [off_essence, MAX_OFF_ESSENCE])
 	_check_secondary_essences(off_essence_sets, errors)
 	if elite_cards > MAX_ELITE_CARDS:
 		errors.append("%d Campeões + Lendárias (máximo %d)" % [elite_cards, MAX_ELITE_CARDS])
@@ -143,8 +145,8 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 		errors.append("o deck precisa de exatamente 1 Encarnação do Líder (%s)" % ld["incarnation"])
 	return errors
 
-## Off-essence cards must be covered by at most MAX_SECONDARY_ESSENCES essences: every one of them has
-## to carry at least one of the chosen secondary essences (a dual card may satisfy it with either half).
+## Off-domain cards must be covered by at most MAX_SECONDARY_ESSENCES domains: every one of them has
+## to carry at least one of the chosen secondary domains (a dual card may satisfy it with either half).
 ## The choice is not stored, so it is enough that some valid choice exists.
 static func _check_secondary_essences(off_essence_sets: Array, errors: Array[String]) -> void:
 	if off_essence_sets.is_empty():
@@ -160,7 +162,7 @@ static func _check_secondary_essences(off_essence_sets: Array, errors: Array[Str
 		for second_index in range(first_index + 1, candidates.size()):
 			if _covers_all(off_essence_sets, [candidates[first_index], candidates[second_index]]):
 				return
-	errors.append("cartas de fora da essência do Líder precisam compartilhar uma de até %d essências secundárias" % MAX_SECONDARY_ESSENCES)
+	errors.append("cartas de fora do domínio do Líder precisam compartilhar um de até %d domínios secundários" % MAX_SECONDARY_ESSENCES)
 
 static func _covers_all(off_essence_sets: Array, chosen: Array) -> bool:
 	for ess in off_essence_sets:

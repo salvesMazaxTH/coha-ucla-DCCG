@@ -1,0 +1,69 @@
+{
+  "name": "Princesa Wanessa",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "humano"
+  ],
+  "essence": "fluxo",
+  "element": "gelo",
+  "cost": 5,
+  "atk": 2,
+  "hp": 6,
+  "keywords": [
+    "escudo_feitico"
+  ],
+  "art": "fluxo/princesa_wanessa.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "freeze",
+      "target": "enemy_unit"
+    },
+    {
+      "trigger": "on_enter",
+      "action": "exhaust",
+      "target": "enemy_unit"
+    },
+    {
+      "listen": "spell_cast",
+      "scope": "ally",
+      "zones": [
+        "board"
+      ],
+      "when": {
+        "element_gelo": true
+      },
+      "action": "freeze",
+      "target": "random_enemy_unit",
+      "once_per_turn": true,
+      "own_turn_only": true
+    },
+    {
+      "listen": "snowball_cast",
+      "scope": "ally",
+      "zones": [
+        "board"
+      ],
+      "when": {
+        "grande": true
+      },
+      "action": "transform_self",
+      "target": "self",
+      "into": "wanessa_tempesfrost"
+    },
+    {
+      "listen": "snowball_grande",
+      "scope": "ally",
+      "zones": [
+        "board"
+      ],
+      "action": "transform_self",
+      "target": "self",
+      "into": "wanessa_tempesfrost"
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela é congelada e exaurida.\nCondicional: uma vez por turno, no seu turno, ao lançar um feitiço de Gelo, congela uma unidade inimiga aleatória.\nQuando você lançar uma Grande Bola de Neve, ou quando sua Bola de Neve virar Grande, esta unidade se transforma em Wanessa Tempesfrost.",
+  "flavor": "A coroa é de gelo. A paciência também.",
+  "tags": []
+}

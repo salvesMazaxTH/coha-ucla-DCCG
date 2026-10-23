@@ -1,0 +1,22 @@
+{
+  "name": "Chamado do Além",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "trevas",
+  "element": "sombra",
+  "cost": 3,
+  "speed": "lento",
+  "art": "trevas/chamado_do_alem.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "revive",
+      "target": "none",
+      "max_cost": 4
+    }
+  ],
+  "text": "Revive uma unidade aleatória de custo (4) ou menos do seu cemitério.\nRéquiem (2 a mais)",
+  "flavor": "",
+  "keywords": ["requiem"],
+  "tags": []
+}

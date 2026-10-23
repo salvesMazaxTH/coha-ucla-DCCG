@@ -1,8 +1,8 @@
 class_name FlagCondition
 extends Condition
-## The simple string conditions: "if": "momentum_left" | "unspent_momentum" | "reserve_full" | "played_two" | "oldest_of_its_name" | "no_snowball_in_hand_or_deck".
+## The simple string conditions: "if": "momentum_left" | "unspent_momentum" | "momentum_leaked" | "reserve_full" | "played_two" | "oldest_of_its_name" | "no_snowball_in_hand_or_deck".
 
-const NAMES := ["momentum_left", "unspent_momentum", "reserve_full", "played_two", "oldest_of_its_name", "no_snowball_in_hand_or_deck"]
+const NAMES := ["momentum_left", "unspent_momentum", "momentum_leaked", "reserve_full", "played_two", "oldest_of_its_name", "no_snowball_in_hand_or_deck"]
 
 var name := ""
 
@@ -14,6 +14,7 @@ func check(context: EffectContext) -> bool:
 	match name:
 		"momentum_left": return player["momentum"] > 0
 		"unspent_momentum": return player["unspent"] > 0 # plain Momentum left over at the start of this turn
+		"momentum_leaked": return player["leaked"] > 0 # Momentum that spilled past the Reserve last turn
 		"reserve_full": return player["reserve"] >= GameState.RESERVE_CAP
 		"played_two": return player["played_two"]
 		"oldest_of_its_name": return _is_oldest_copy_on_board(context, player)

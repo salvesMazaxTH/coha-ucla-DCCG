@@ -1,0 +1,22 @@
+{
+  "name": "Naja Cobradora de Impostos",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "fera"
+  ],
+  "essence": "natureza",
+  "element": "veneno",
+  "cost": 3,
+  "atk": 2,
+  "hp": 4,
+  "keywords": [
+    "toxico:2"
+  ],
+  "toxico_hits_leader": true,
+  "art": "natureza/naja_cobradora.webp",
+  "effects": [],
+  "text": "O dano de combate desta unidade ao Líder também coloca 2 marcadores de Veneno nele.",
+  "flavor": "Todo mundo paga. Só varia a moeda.",
+  "tags": []
+}

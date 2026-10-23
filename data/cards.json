@@ -1,49 +1,50 @@
 {
   "essences": {
-    "ignea": {
-      "name": "Ígnea",
+    "furia": {
+      "name": "Fúria",
       "color": "#e0572b"
     },
-    "aquatica": {
-      "name": "Aquática",
+    "fluxo": {
+      "name": "Fluxo",
       "color": "#2f8fd6"
     },
-    "glacial": {
-      "name": "Glacial",
-      "color": "#7fd6f0"
-    },
-    "vegetal": {
-      "name": "Vegetal",
+    "natureza": {
+      "name": "Natureza",
       "color": "#58b34a"
     },
-    "rochosa": {
-      "name": "Rochosa",
-      "color": "#9a7b4f"
+    "montanha": {
+      "name": "Montanha",
+      "color": "#9a8f7f"
     },
-    "metalica": {
-      "name": "Metálica",
-      "color": "#9db3d1"
+    "tormenta": {
+      "name": "Tormenta",
+      "color": "#3d55f2"
     },
-    "eletrica": {
-      "name": "Elétrica",
-      "color": "#ffe21f"
-    },
-    "obscura": {
-      "name": "Obscura",
+    "trevas": {
+      "name": "Trevas",
       "color": "#44444c"
     },
-    "sagrada": {
-      "name": "Sagrada",
+    "devocao": {
+      "name": "Devoção",
       "color": "#f6e7b0"
-    },
-    "venenosa": {
-      "name": "Venenosa",
-      "color": "#8a3fb8"
     },
     "neutra": {
       "name": "Neutra",
       "color": "#8a8985"
     }
+  },
+  "elements": {
+    "fogo": {"name": "Fogo", "color": "#e0572b"},
+    "agua": {"name": "Água", "color": "#2f8fd6"},
+    "gelo": {"name": "Gelo", "color": "#7fd6f0"},
+    "raio": {"name": "Raio", "color": "#ffe21f"},
+    "pedra": {"name": "Pedra", "color": "#9a7b4f"},
+    "metal": {"name": "Metal", "color": "#9db3d1"},
+    "planta": {"name": "Planta", "color": "#58b34a"},
+    "vento": {"name": "Vento", "color": "#b9e3d4"},
+    "sombra": {"name": "Sombra", "color": "#44444c"},
+    "luz": {"name": "Luz", "color": "#f6e7b0"},
+    "veneno": {"name": "Veneno", "color": "#8a3fb8"}
   },
   "triggers": {
     "on_play": {
@@ -223,45 +224,33 @@
       "name": "Inalcançável",
       "text": "Não pode ser alvo de feitiços, habilidades ou efeitos do oponente (efeitos sem alvo, como os de área, ainda a afetam)."
     },
-    "imunidade_ignea": {
-      "name": "Imunidade contra Ígnea",
-      "text": "O dano de combate de unidades de essência Ígnea do oponente é sempre 0, e os feitiços, habilidades e efeitos de essência Ígnea do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outras essências também."
+    "imunidade_furia": {
+      "name": "Imunidade contra Fúria",
+      "text": "O dano de combate de unidades de Fúria do oponente é sempre 0, e os feitiços, habilidades e efeitos de Fúria do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
     },
-    "imunidade_aquatica": {
-      "name": "Imunidade contra Aquática",
-      "text": "O dano de combate de unidades de essência Aquática do oponente é sempre 0, e os feitiços, habilidades e efeitos de essência Aquática do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outras essências também."
+    "imunidade_fluxo": {
+      "name": "Imunidade contra Fluxo",
+      "text": "O dano de combate de unidades de Fluxo do oponente é sempre 0, e os feitiços, habilidades e efeitos de Fluxo do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
     },
-    "imunidade_glacial": {
-      "name": "Imunidade contra Glacial",
-      "text": "O dano de combate de unidades de essência Glacial do oponente é sempre 0, e os feitiços, habilidades e efeitos de essência Glacial do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outras essências também."
+    "imunidade_natureza": {
+      "name": "Imunidade contra Natureza",
+      "text": "O dano de combate de unidades de Natureza do oponente é sempre 0, e os feitiços, habilidades e efeitos de Natureza do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
     },
-    "imunidade_vegetal": {
-      "name": "Imunidade contra Vegetal",
-      "text": "O dano de combate de unidades de essência Vegetal do oponente é sempre 0, e os feitiços, habilidades e efeitos de essência Vegetal do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outras essências também."
+    "imunidade_montanha": {
+      "name": "Imunidade contra Montanha",
+      "text": "O dano de combate de unidades de Montanha do oponente é sempre 0, e os feitiços, habilidades e efeitos de Montanha do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
     },
-    "imunidade_rochosa": {
-      "name": "Imunidade contra Rochosa",
-      "text": "O dano de combate de unidades de essência Rochosa do oponente é sempre 0, e os feitiços, habilidades e efeitos de essência Rochosa do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outras essências também."
+    "imunidade_tormenta": {
+      "name": "Imunidade contra Tormenta",
+      "text": "O dano de combate de unidades de Tormenta do oponente é sempre 0, e os feitiços, habilidades e efeitos de Tormenta do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
     },
-    "imunidade_metalica": {
-      "name": "Imunidade contra Metálica",
-      "text": "O dano de combate de unidades de essência Metálica do oponente é sempre 0, e os feitiços, habilidades e efeitos de essência Metálica do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outras essências também."
+    "imunidade_trevas": {
+      "name": "Imunidade contra Trevas",
+      "text": "O dano de combate de unidades de Trevas do oponente é sempre 0, e os feitiços, habilidades e efeitos de Trevas do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
     },
-    "imunidade_eletrica": {
-      "name": "Imunidade contra Elétrica",
-      "text": "O dano de combate de unidades de essência Elétrica do oponente é sempre 0, e os feitiços, habilidades e efeitos de essência Elétrica do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outras essências também."
-    },
-    "imunidade_obscura": {
-      "name": "Imunidade contra Obscura",
-      "text": "O dano de combate de unidades de essência Obscura do oponente é sempre 0, e os feitiços, habilidades e efeitos de essência Obscura do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outras essências também."
-    },
-    "imunidade_sagrada": {
-      "name": "Imunidade contra Sagrada",
-      "text": "O dano de combate de unidades de essência Sagrada do oponente é sempre 0, e os feitiços, habilidades e efeitos de essência Sagrada do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outras essências também."
-    },
-    "imunidade_venenosa": {
-      "name": "Imunidade contra Venenosa",
-      "text": "O dano de combate de unidades de essência Venenosa do oponente é sempre 0, e os feitiços, habilidades e efeitos de essência Venenosa do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outras essências também."
+    "imunidade_devocao": {
+      "name": "Imunidade contra Devoção",
+      "text": "O dano de combate de unidades de Devoção do oponente é sempre 0, e os feitiços, habilidades e efeitos de Devoção do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
     },
     "pacifista": {
       "name": "Pacifista",
@@ -321,15 +310,15 @@
     },
     "congelar": {
       "name": "Congelar",
-      "text": "A unidade não ataca, não desvira e perde a Rapidez (suprimida) até o fim do próximo turno. Revida normalmente. Unidades Glaciais têm imunidade inata ao Congelamento, mas efeitos que ignoram imunidade podem congelá-las."
+      "text": "A unidade não ataca, não desvira e perde a Rapidez (suprimida) até o fim do próximo turno. Revida normalmente. Unidades de Gelo têm imunidade inata ao Congelamento, mas efeitos que ignoram imunidade podem congelá-las."
     },
     "queimadura": {
       "name": "Queimadura",
-      "text": "Marcadores de Queimadura: no início do turno do controlador, esta unidade sofre dano igual à quantidade de marcadores nela e depois remove esses marcadores. Esse dano ignora Armadura, Escudo e Escudo de Feitiço; Indestrutível ainda o impede. Unidades com essência Ígnea não recebem Queimadura, a menos que um efeito diga que ignora imunidade; Líderes não têm essa imunidade."
+      "text": "Marcadores de Queimadura: no início do turno do controlador, esta unidade sofre dano igual à quantidade de marcadores nela e depois remove esses marcadores. Esse dano ignora Armadura, Escudo e Escudo de Feitiço; Indestrutível ainda o impede. Unidades de Fogo não recebem Queimadura, a menos que um efeito diga que ignora imunidade; Líderes não têm essa imunidade."
     },
     "veneno": {
       "name": "Veneno",
-      "text": "Marcadores de Veneno: no início do turno do controlador, cada marcador causa 2 de dano a esta unidade. Depois, remove metade dos marcadores, arredondada para cima. Esse dano ignora Armadura, Escudo e Escudo de Feitiço; Indestrutível ainda o impede. Unidades com essência Venenosa ou Metálica não recebem Veneno, a menos que um efeito diga que ignora imunidade; Líderes não têm essa imunidade."
+      "text": "Marcadores de Veneno: no início do turno do controlador, cada marcador causa 2 de dano a esta unidade. Depois, remove metade dos marcadores, arredondada para cima. Esse dano ignora Armadura, Escudo e Escudo de Feitiço; Indestrutível ainda o impede. Unidades de Veneno ou de Metal não recebem Veneno, a menos que um efeito diga que ignora imunidade; Líderes não têm essa imunidade."
     },
     "sangramento": {
       "name": "Sangramento",
@@ -367,7 +356,7 @@
     "ronan": {
       "name": "Ronan",
       "hp": 25,
-      "art": "ignea/ronan.webp",
+      "art": "furia/ronan.webp",
       "incarnation": "ronan",
       "ability": {
         "name": "Pavio Curto",
@@ -383,12 +372,12 @@
         ],
         "text": "Instantânea. 2 Momentum: cause 1 de dano a qualquer alvo. Recarrega no início do seu turno (se usada no turno do oponente, só volta no seu)."
       },
-      "essences": ["ignea"]
+      "essences": ["furia"]
     },
     "ivan_ignisar": {
       "name": "Ivan Ignisar",
       "hp": 30,
-      "art": "ignea/ivan_ignisar_lider.webp",
+      "art": "furia/ivan_ignisar_lider.webp",
       "incarnation": "ivan_ignisar",
       "ability": {
         "name": "Rescaldo",
@@ -405,12 +394,12 @@
         ],
         "text": "Lenta. 3 Momentum, uma vez por turno: as unidades inimigas recebem 1 marcador de Queimadura."
       },
-      "essences": ["ignea"]
+      "essences": ["furia"]
     },
     "naelthos": {
       "name": "Naelthos",
       "hp": 30,
-      "art": "aquatica/naelthos_lider.webp",
+      "art": "fluxo/naelthos_lider.webp",
       "incarnation": "naelthos",
       "ability": {
         "name": "Mar que Retorna",
@@ -427,12 +416,12 @@
         ],
         "text": "Instantânea. 2 Momentum, uma vez por turno: seu Líder ganha +1 de Vida, mesmo acima da Vida inicial (aumenta a Vida máxima). Pode ser respondida, mas não pode ser anulada."
       },
-      "essences": ["aquatica"]
+      "essences": ["fluxo"]
     },
     "naelys": {
       "name": "Naelys",
       "hp": 30,
-      "art": "aquatica/naelys_lider.webp",
+      "art": "fluxo/naelys_lider.webp",
       "incarnation": "naelys",
       "ability": {
         "name": "Maré de Retorno",
@@ -454,12 +443,12 @@
         ],
         "text": "Lenta. 3 Momentum, uma vez por turno: devolva uma unidade aliada à sua mão; ela custa 1 a menos neste turno. Se você tiver 4 ou menos cartas na mão depois disso, compre 1 carta."
       },
-      "essences": ["aquatica"]
+      "essences": ["fluxo"]
     },
     "jeff": {
       "name": "Jeff The Death",
       "hp": 25,
-      "art": "obscura/jeff_lider.webp",
+      "art": "trevas/jeff_lider.webp",
       "incarnation": "jeff",
       "ability": {
         "name": "Ceifa",
@@ -477,12 +466,12 @@
         ],
         "text": "Passiva. Aliado Morre, só no seu turno e uma vez por turno: cause 1 de dano ao Líder inimigo."
       },
-      "essences": ["obscura"]
+      "essences": ["trevas"]
     },
     "voltexz": {
       "name": "Voltexz",
       "hp": 30,
-      "art": "eletrica/voltexz_lider.webp",
+      "art": "tormenta/voltexz_lider.webp",
       "art_focus": 0.2,
       "incarnation": "voltexz",
       "ability": {
@@ -502,12 +491,12 @@
         ],
         "text": "Passiva. No início do seu turno, recupere metade do Momentum que vazou da Reserva, arredondada para baixo (máx. 2)."
       },
-      "essences": ["eletrica"]
+      "essences": ["tormenta"]
     },
     "tharox": {
       "name": "Tharox",
       "hp": 35,
-      "art": "rochosa/tharox_lider.webp",
+      "art": "montanha/tharox_lider.webp",
       "incarnation": "tharox",
       "ability": {
         "name": "Massa Inamolgável",
@@ -523,12 +512,12 @@
         ],
         "text": "Instantânea. 1 Momentum, uma vez por turno: uma unidade aliada ganha Armadura 1 até o início do seu próximo turno."
       },
-      "essences": ["rochosa"]
+      "essences": ["montanha"]
     },
     "nythera": {
       "name": "Nythera",
       "hp": 30,
-      "art": "glacial/nythera_lider.webp",
+      "art": "fluxo/nythera_lider.webp",
       "incarnation": "nythera",
       "ability": {
         "name": "Sopro Gélido",
@@ -543,7 +532,7 @@
         ],
         "text": "Rápida. 3 Momentum, uma vez por turno: congele uma unidade inimiga."
       },
-      "essences": ["glacial"]
+      "essences": ["fluxo"]
     },
     "vael": {
       "name": "Vael",
@@ -599,7 +588,7 @@
     "tox_vipranna": {
       "name": "Tox Vipranna",
       "hp": 30,
-      "art": "venenosa/tox_vipranna_lider.webp",
+      "art": "natureza/tox_vipranna_lider.webp",
       "incarnation": "tox_vipranna",
       "ability": {
         "name": "Beijo de Jardim",
@@ -617,12 +606,12 @@
         ],
         "text": "Rápida. 2 Momentum, uma vez por turno: dê 1 marcador de Veneno a uma unidade inimiga, ignorando imunidade."
       },
-      "essences": ["venenosa"]
+      "essences": ["natureza"]
     },
     "mefi_urdim": {
       "name": "Mefi'Urdim",
       "hp": 30,
-      "art": "sagrada/mefi_urdim_lider.webp",
+      "art": "devocao/mefi_urdim_lider.webp",
       "incarnation": "mefi_urdim",
       "ability": {
         "name": "Erguer o Baluarte",
@@ -639,12 +628,12 @@
         ],
         "text": "Lenta. 4 Momentum: coloque o Baluarte Santo no seu campo (só um por vez). Não pode ser usada se um Baluarte seu caiu desde o seu último turno (inclusive nele)."
       },
-      "essences": ["sagrada"]
+      "essences": ["devocao"]
     },
     "morakhan": {
       "name": "Morakhan",
       "hp": 35,
-      "art": "metalica/morakhan_lider.webp",
+      "art": "montanha/morakhan_lider.webp",
       "incarnation": "morakhan",
       "ability": {
         "name": "Postura da Montanha",
@@ -661,12 +650,12 @@
         ],
         "text": "Instantânea. 2 Momentum, uma vez por turno: uma unidade aliada ganha Reflexão neste turno."
       },
-      "essences": ["metalica"]
+      "essences": ["montanha"]
     },
     "thalvaressa": {
       "name": "Thalvaressa",
       "hp": 30,
-      "art": "vegetal/thalvaressa_lider.webp",
+      "art": "natureza/thalvaressa_lider.webp",
       "incarnation": "thalvaressa",
       "ability": {
         "name": "Crescimento do Dossel",
@@ -686,7 +675,7 @@
         ],
         "text": "No seu turno, até 2 vezes por turno, quando você invocar uma ficha, outra planta aliada aleatória (nunca a própria ficha) ganha +1 de Vida permanente."
       },
-      "essences": ["vegetal"]
+      "essences": ["natureza"]
     }
   },
   "cards": {}

@@ -1,0 +1,25 @@
+{
+  "name": "Escudeiro de Cascalho",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["kobold"],
+  "essence": "montanha",
+  "element": "pedra",
+  "cost": 2,
+  "art": "montanha/escudeiro_de_cascalho.webp",
+  "atk": 2,
+  "hp": 3,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_damaged",
+      "action": "buff",
+      "target": "self",
+      "armor": 1,
+      "once_per_turn": true
+    }
+  ],
+  "text": "Ao Sofrer Dano (uma vez por turno): ganha Armadura 1 permanente (acumula).",
+  "flavor": "",
+  "tags": []
+}

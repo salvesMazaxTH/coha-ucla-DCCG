@@ -1,0 +1,21 @@
+{
+  "name": "Dragãozinho Flamejante",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "dragao"
+  ],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 1,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [
+    "voo"
+  ],
+  "art": "furia/dragaozinho_flamejante.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "",
+  "tags": []
+}

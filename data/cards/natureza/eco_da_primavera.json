@@ -1,0 +1,27 @@
+{
+  "name": "Eco da Primavera",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "natureza",
+  "element": "planta",
+  "cost": 5,
+  "speed": "rapido",
+  "art": "natureza/eco_da_primavera.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 2
+    },
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "all_ally_units",
+      "hp": 1
+    }
+  ],
+  "text": "Você compra 2 cartas. Suas unidades ganham +1 de Vida permanente.",
+  "flavor": "Toda flor responde a uma flor que ninguém mais lembra.",
+  "tags": []
+}

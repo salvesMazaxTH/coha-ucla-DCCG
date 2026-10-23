@@ -1,0 +1,18 @@
+{
+  "name": "Broto Zumbi",
+  "type": "unit",
+  "rarity": "common",
+  "token": true,
+  "species": ["morto_vivo", "planta"],
+  "essence": ["trevas", "natureza"],
+  "element": ["sombra", "planta"],
+  "cost": 0,
+  "atk": 1,
+  "hp": 1,
+  "keywords": [],
+  "art": "trevas/broto_zumbi.webp",
+  "effects": [],
+  "text": "Ficha: não vai para o cemitério ao morrer.",
+  "flavor": "",
+  "tags": []
+}

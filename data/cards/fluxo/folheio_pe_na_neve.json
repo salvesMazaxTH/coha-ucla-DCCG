@@ -1,0 +1,26 @@
+{
+  "name": "Folheio Pé-na-Neve",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "fluxo",
+  "element": "gelo",
+  "cost": 2,
+  "speed": "rapido",
+  "art": "fluxo/folheio_pe_na_neve.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 3
+    },
+    {
+      "trigger": "on_play",
+      "action": "discard_hand_pick",
+      "target": "none"
+    }
+  ],
+  "text": "Você compra 3 cartas. Depois, escolhe 1 carta da sua mão e a descarta.",
+  "flavor": "Leu o livro inteiro correndo. Perdeu uma página no caminho.",
+  "tags": []
+}

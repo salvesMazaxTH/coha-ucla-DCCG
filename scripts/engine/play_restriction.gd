@@ -16,7 +16,7 @@ extends RefCounted
 ## }
 ##
 ## Examples: "only neutral cards this turn" = {"mode": "only", "match": {"essence": ["neutra"]}};
-## "can't play non-ígnea cards" = {"mode": "only", "match": {"essence": ["ignea"]}};
+## "can't play non-Fúria cards" = {"mode": "only", "match": {"essence": ["furia"]}};
 ## "can't play champions" = {"mode": "forbid", "match": {"rarity": ["champion"]}};
 ## "can't play Locais" = {"mode": "forbid", "match": {"subtype": ["local"]}}.
 ## A new kind of filter: add its name to MATCH_FIELDS, a check in _matches() and one in error_of().

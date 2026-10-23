@@ -1,0 +1,23 @@
+{
+  "name": "Colossus",
+  "type": "unit",
+  "rarity": "epic",
+  "token": true,
+  "species": [
+    "golem"
+  ],
+  "essence": "montanha",
+  "element": "pedra",
+  "art": "montanha/yresa_colossus.webp",
+  "cost": 0,
+  "atk": 0,
+  "hp": 0,
+  "keywords": [
+    "provocacao"
+  ],
+  "adjacent_armor": 1,
+  "effects": [],
+  "text": "Ficha. Esta unidade ganha +1/+2 e Armadura 1 para cada Stoneward fundido nela.\nConstante: unidades aliadas adjacentes a ela têm Armadura 1.",
+  "flavor": "",
+  "tags": []
+}

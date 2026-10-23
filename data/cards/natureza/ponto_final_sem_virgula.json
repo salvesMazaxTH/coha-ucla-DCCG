@@ -1,0 +1,24 @@
+{
+  "name": "Ponto Final Sem Vírgula",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "natureza",
+  "element": "veneno",
+  "cost": 2,
+  "speed": "instantaneo",
+  "art": "natureza/ponto_final_sem_virgula.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "banish",
+      "target": "enemy_unit",
+      "requires_markers": {
+        "dot": "veneno",
+        "amount": 3
+      }
+    }
+  ],
+  "text": "Bane uma unidade inimiga à sua escolha com 3 ou mais marcadores de Veneno.",
+  "flavor": "Sem pausa, sem apelação.",
+  "tags": []
+}

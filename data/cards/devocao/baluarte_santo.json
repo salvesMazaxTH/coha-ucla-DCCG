@@ -1,0 +1,24 @@
+{
+  "name": "Baluarte Santo",
+  "type": "artifact",
+  "subtypes": ["local"],
+  "rarity": "common",
+  "essence": "devocao",
+  "element": "luz",
+  "cost": 0,
+  "undraftable": true,
+  "death_ward": true,
+  "keywords": ["escudo_supremo"],
+  "art": "devocao/baluarte_santo.webp",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount": 3
+    }
+  ],
+  "text": "Condicional: quando outra unidade aliada fosse morrer, exceto por banimento, este Baluarte se destrói e anula o efeito que a mataria.\nAo Morrer: seu Líder recupera 3 de Vida.",
+  "flavor": "Uma muralha que aceita cair para que ninguém precise.",
+  "tags": []
+}

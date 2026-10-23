@@ -1,0 +1,37 @@
+{
+  "name": "Caldria, Jardineira Predatória",
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["humano", "druida"],
+  "essence": "natureza",
+  "element": "planta",
+  "cost": 2,
+  "atk": 2,
+  "hp": 3,
+  "keywords": ["longo_alcance"],
+  "art": "natureza/caldria_jardineira_predatoria.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "summon",
+      "target": "none",
+      "card": "flor_voraz"
+    },
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "other_ally_unit",
+      "atk": 1,
+      "hp": 1
+    },
+    {
+      "trigger": "on_death",
+      "action": "summon",
+      "target": "none",
+      "card": "mudinha_do_dossel"
+    }
+  ],
+  "text": "Ao Entrar: invoca uma Flor Voraz (ficha 0/1); você pode escolher outra unidade aliada para ganhar +1/+1.\nAo Morrer: invoca uma Mudinha do Dossel (ficha 0/1).",
+  "flavor": "Cada poda é uma negociação. Cada fome, uma assinatura.",
+  "tags": []
+}

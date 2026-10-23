@@ -1,0 +1,20 @@
+{
+  "name": "Madre Badalo-Torto",
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["humano"],
+  "essence": "devocao",
+  "element": "luz",
+  "art": "devocao/madre_badalo_torto.webp",
+  "cost": 5,
+  "atk": 2,
+  "hp": 6,
+  "keywords": [],
+  "effects": [
+    { "trigger": "on_enter", "action": "damage", "target": "all_enemy_units", "amount": 2 },
+    { "trigger": "on_enter", "action": "heal_leader", "target": "own_leader", "amount": 2 }
+  ],
+  "text": "Ao Entrar: causa 2 de dano a todas as unidades inimigas e o seu Líder recupera 2 de Vida.",
+  "flavor": "Toca o sino uma vez só; as paredes terminam o recado.",
+  "tags": []
+}

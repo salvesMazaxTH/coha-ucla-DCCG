@@ -1,0 +1,24 @@
+{
+  "name": "Arquiteto do Leito",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["demihumano"],
+  "essence": "montanha",
+  "element": "pedra",
+  "art": "montanha/arquiteto_do_leito.webp",
+  "cost": 4,
+  "atk": 3,
+  "hp": 6,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "other_ally_unit",
+      "hp": 1
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher outra unidade aliada; ela ganha +1 de Vida.",
+  "flavor": "",
+  "tags": []
+}

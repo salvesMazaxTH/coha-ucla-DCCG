@@ -1,0 +1,31 @@
+{
+  "name": "Jeff The Death",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "divindade"
+  ],
+  "essence": "trevas",
+  "element": "sombra",
+  "cost": 6,
+  "atk": 3,
+  "hp": 3,
+  "keywords": ["roubo_de_vida"],
+  "art": "trevas/jeff_the_death.webp",
+  "effects": [
+    {
+      "trigger": "constante",
+      "action": "scale",
+      "per": "own_graveyard_units",
+      "atk": 1,
+      "hp": 1
+    }
+  ],
+  "text": "Constante: esta unidade recebe +1/+1 para cada carta de unidade no seu cemitério.",
+  "flavor": [
+    "Todo mundo me deve uma. Eu só cobro no fim.",
+    "Chegou cedo? Sem pressa. A fila anda sozinha.",
+    "Ninguém sai da minha festa. Mas olha, a lista de convidados tá cheia."
+  ],
+  "tags": []
+}

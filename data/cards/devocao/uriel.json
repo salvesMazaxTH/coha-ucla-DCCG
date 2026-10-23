@@ -1,0 +1,32 @@
+{
+  "name": "Arcanjo Uriel",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["anjo"],
+  "essence": "devocao",
+  "element": "luz",
+  "cost": 5,
+  "atk": 5,
+  "hp": 6,
+  "keywords": ["voo", "regeneracao"],
+  "art": "devocao/uriel.webp",
+  "effects": [
+    {
+      "trigger": "on_attack",
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount": 4
+    },
+    {
+      "listen": "leader_healed",
+      "scope": "ally",
+      "zones": ["board"],
+      "action": "buff",
+      "target": "self",
+      "atk": 1
+    }
+  ],
+  "text": "Ao Atacar: seu Líder recupera 4 de Vida.\nCondicional: sempre que seu Líder recuperar Vida, esta unidade ganha +1 de Ataque permanente.",
+  "flavor": "Cada ataque devolve ao Líder o fôlego que o mundo tirou.",
+  "tags": []
+}

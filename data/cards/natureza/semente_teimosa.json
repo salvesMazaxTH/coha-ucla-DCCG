@@ -1,0 +1,24 @@
+{
+  "name": "Semente Teimosa",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["planta"],
+  "essence": "natureza",
+  "element": "planta",
+  "cost": 1,
+  "atk": 1,
+  "hp": 2,
+  "keywords": ["regeneracao"],
+  "art": "natureza/semente_teimosa.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "summon",
+      "target": "none",
+      "card": "mudinha_do_dossel"
+    }
+  ],
+  "text": "Ao Entrar: invoca uma Mudinha do Dossel (ficha 0/1).",
+  "flavor": "Ela não sabe que o inverno é uma ameaça.",
+  "tags": []
+}

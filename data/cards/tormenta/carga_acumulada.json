@@ -1,0 +1,21 @@
+{
+  "name": "Carga Acumulada",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 1,
+  "speed": "rapido",
+  "art": "tormenta/carga_acumulada.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": 2
+    }
+  ],
+  "text": "Você ganha +2 de Momentum neste turno.",
+  "flavor": "",
+  "tags": []
+}

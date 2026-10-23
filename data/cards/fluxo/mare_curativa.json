@@ -1,0 +1,21 @@
+{
+  "name": "Maré Curativa",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "fluxo",
+  "element": "agua",
+  "cost": 1,
+  "speed": "instantaneo",
+  "art": "fluxo/mare_curativa.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "heal_unit",
+      "target": "ally_or_own_leader",
+      "amount": 4
+    }
+  ],
+  "text": "Recupera 4 de Vida do seu Líder ou de uma unidade aliada à sua escolha.",
+  "flavor": "O que a maré leva, às vezes ela devolve.",
+  "tags": []
+}

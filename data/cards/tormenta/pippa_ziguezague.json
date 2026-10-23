@@ -1,0 +1,28 @@
+{
+  "name": "Pippa Ziguezague",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "fada"
+  ],
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 2,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [
+    "furtividade"
+  ],
+  "art": "tormenta/pippa_ziguezague.webp",
+  "effects": [
+    {
+      "trigger": "on_hit_leader",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Atingir o Líder: você ganha +1 de Momentum neste turno.",
+  "flavor": "Ninguém bloqueia o que não viu chegar.",
+  "tags": []
+}

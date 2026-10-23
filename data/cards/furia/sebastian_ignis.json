@@ -1,0 +1,24 @@
+{
+  "name": "Sebastian Ignis",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["semideus"],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 2,
+  "atk": 1,
+  "hp": 5,
+  "keywords": [],
+  "art": "furia/sebastian_ignis.webp",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 3
+    }
+  ],
+  "text": "Ao Morrer: causa 3 de dano ao Líder inimigo.",
+  "flavor": "Ele não luta. Só não se dá ao trabalho de cair.",
+  "tags": []
+}

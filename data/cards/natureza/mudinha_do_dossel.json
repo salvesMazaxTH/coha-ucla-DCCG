@@ -1,0 +1,18 @@
+{
+  "name": "Mudinha do Dossel",
+  "type": "unit",
+  "rarity": "common",
+  "token": true,
+  "species": ["planta"],
+  "essence": "natureza",
+  "element": "planta",
+  "cost": 0,
+  "atk": 0,
+  "hp": 1,
+  "keywords": [],
+  "art": "natureza/mudinha_do_dossel.webp",
+  "effects": [],
+  "text": "Ficha: não vai para o cemitério ao morrer.",
+  "flavor": "Uma promessa pequena demais para caber no chão.",
+  "tags": []
+}

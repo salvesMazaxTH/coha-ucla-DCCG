@@ -17,8 +17,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	var unit := game.find_unit(target_uid)
 	if unit == null:
 		return
-	# Glacial units are innately immune, including when the freeze comes from an area effect.
-	if CardDB.has_essence(unit.data(), "glacial") and not ignores_immunity:
+	# Gelo units are innately immune, including when the freeze comes from an area effect.
+	if CardDB.has_element(unit.data(), "gelo") and not ignores_immunity:
 		game._emit({"type": "dot_immune", "uid": target_uid, "dot": "congelar"})
 		return
 	# `frozen` holds the turn at whose END the unit thaws

@@ -1,0 +1,19 @@
+{
+  "name": "Guerreiro Ígneo",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["humano"],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 2,
+  "atk": 2,
+  "hp": 1,
+  "keywords": [
+    "impeto"
+  ],
+  "art": "furia/guerreiro_igneo.webp",
+  "effects": [{"trigger":"on_attack","action":"buff","target":"self","atk":1,"temp":true}],
+  "text": "Ao Atacar: esta unidade ganha +1 de Ataque neste turno.",
+  "flavor": "",
+  "tags": []
+}

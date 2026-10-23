@@ -1,0 +1,20 @@
+{
+  "name": "Gorvakharr",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["demonio"],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 3,
+  "atk": 4,
+  "hp": 3,
+  "keywords": [
+    "furtividade",
+    "roubo_de_vida"
+  ],
+  "art": "furia/gorvakharr.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "O banquete de cinzas nunca termina.",
+  "tags": []
+}

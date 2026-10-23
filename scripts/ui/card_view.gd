@@ -15,25 +15,23 @@ const DRAG_PX := 14.0
 
 const BASE := Vector2(120, 170)
 
-## Frame palette per essence: gradient top/bottom, metal trim, glow.
+## Frame palette per domain: gradient top/bottom, metal trim, glow.
 const STYLES := {
-	"ignea": {"top": "#cf4a20", "bot": "#4a120a", "trim": "#e0a862", "glow": "#ff8a3c"},
-	"aquatica": {"top": "#2d7cc4", "bot": "#0b2448", "trim": "#c4dcec", "glow": "#5cc8ff"},
-	"glacial": {"top": "#a9e4f5", "bot": "#1c4a63", "trim": "#f2fbff", "glow": "#c8f4ff"}, ## frost: pale ice over deep teal
-	"vegetal": {"top": "#4a9a3c", "bot": "#12301a", "trim": "#c9d89a", "glow": "#8cf06a"},
-	"rochosa": {"top": "#8a6b45", "bot": "#2e2216", "trim": "#d2bc94", "glow": "#d6a868"},
-	"metalica": {"top": "#9db3d1", "bot": "#1a2840", "trim": "#eef4ff", "glow": "#bcd6ff"}, ## blue steel, bright chrome trim (Neutra is the warm dark grey)
-	"eletrica": {"top": "#ffe81a", "bot": "#5a3d00", "trim": "#e6f7ff", "glow": "#6fe8ff"}, ## lemon yellow with a cold white trim and cyan spark, so it never reads as the warm legendary gold
-	"obscura": {"top": "#34343a", "bot": "#030304", "trim": "#7c7c85", "glow": "#8a8a96"}, ## near-black gradient, dark-grey trim
-	"sagrada": {"top": "#fffaee", "bot": "#b8a676", "trim": "#e6c25a", "glow": "#fff6c8"}, ## pearl white over champagne, gold trim: the only light frame (Elétrica and legendary are saturated gold)
+	"furia": {"top": "#cf4a20", "bot": "#4a120a", "trim": "#e0a862", "glow": "#ff8a3c"},
+	"fluxo": {"top": "#2d7cc4", "bot": "#0b2448", "trim": "#c4dcec", "glow": "#5cc8ff"},
+	"natureza": {"top": "#4a9a3c", "bot": "#12301a", "trim": "#c9d89a", "glow": "#8cf06a"},
+	"montanha": {"top": "#8a6b45", "bot": "#2e2216", "trim": "#d2bc94", "glow": "#d6a868"},
+	"tormenta": {"top": "#e6f4ff", "bot": "#2a3df0", "trim": "#bdf2ff", "glow": "#6fe8ff"}, ## ice-white top fading into electric blue (a smooth gradient, so it never reads as a two-domain split); bluer and brighter than Fluxo, and never the warm legendary gold
+	"trevas": {"top": "#34343a", "bot": "#030304", "trim": "#7c7c85", "glow": "#8a8a96"}, ## near-black gradient, dark-grey trim
+	"devocao": {"top": "#fffaee", "bot": "#b8a676", "trim": "#e6c25a", "glow": "#fff6c8"}, ## pearl white over champagne, gold trim: the only frame that stays light all the way down (Tormenta is ice-white only at the top; legendary is saturated gold)
 	"neutra": {"top": "#7b7a78", "bot": "#1f1f20", "trim": "#b49b72", "glow": "#dcd8d0"}, ## colourless dark grey with a bronze trim
-	# Reserved for a future Vento essence (keep this hue free): periwinkle lilac, the only violet frame
+	# Free hue for a future domain: periwinkle lilac, the only violet frame
 	# "vento": {"top": "#c4bdf2", "bot": "#37336a", "trim": "#f2f0ff", "glow": "#cfc8ff"},
-	"venenosa": {"top": "#8a3fb8", "bot": "#240a38", "trim": "#c8e86a", "glow": "#b6ff4a"}, ## deep saturated purple with an acid-lime trim (a future Vento stays the pale lilac)
-	"legendary": {"top": "#f8c565", "bot": "#74400c", "trim": "#ffe8b0", "glow": "#ffb23a"}, ## amber gold leaning toward the orange rarity gem, but only slightly: it must not read as Ígnea to new players
+	"legendary": {"top": "#f8c565", "bot": "#74400c", "trim": "#ffe8b0", "glow": "#ffb23a"}, ## amber gold leaning toward the orange rarity gem, but only slightly: it must not read as Fúria to new players
 	"back": {"top": "#2e2658", "bot": "#100c22", "trim": "#c9a24e", "glow": "#9d86ff"},
 }
-const TRIGGER_COL := Color("#ff9a4a") ## trigger tags: same weight as keywords, orange to read as another category
+const MAX_SHOWN_DOMAINS := 4 ## a card with more domains than this only shows the first ones in its frame and badge
+const TRIGGER_COL :=Color("#ff9a4a") ## trigger tags: same weight as keywords, orange to read as another category
 const KEYWORD_COL := Color("#ffe9a8") ## keyword names wherever they appear inside rules text
 const GOLD_TRIM := Color("#f3d27a")
 const COST_COL := UITheme.MOMENTUM
@@ -451,7 +449,7 @@ static func raw_art_texture(file: String) -> Texture2D:
 static var _art_preload_queue: Array[String] = []
 const ART_PRELOAD_BUDGET_MS := 6 ## time per frame spent loading queued arts (at least one art loads per frame)
 
-## Queues art files (as written in the card data, e.g. "ignea/ivan.webp") to be loaded ahead of time.
+## Queues art files (as written in the card data, e.g. "furia/ivan.webp") to be loaded ahead of time.
 static func queue_art_preload(files: Array) -> void:
 	for file in files:
 		var art_file := String(file)
@@ -652,12 +650,13 @@ func _face_look(s: float, rad: float) -> Dictionary:
 	var r := Rect2(Vector2.ZERO, _face_size)
 	var cd: Dictionary = {} if face_down else CardDB.card_for(card_id, inst)
 	var keys: Array = ["back"] if face_down else _style_keys(cd)
-	var st: Dictionary = STYLES[keys[0]]
-	var st2: Dictionary = STYLES[keys[1]] if keys.size() > 1 else st ## dual essence: half/half frame
-	var trim := Color(st["trim"]).lerp(Color(st2["trim"]), 0.5)
+	var styles: Array = []
+	for key in keys:
+		styles.append(STYLES[key]) ## several domains: the frame is cut into one band per domain
+	var trim := _average_style_color(styles, "trim")
 	if cd.get("rarity", "") == "champion":
 		trim = GOLD_TRIM ## champions keep their essence frame, finished in gold
-	var glow := Color(st["glow"]).lerp(Color(st2["glow"]), 0.5)
+	var glow := _average_style_color(styles, "glow")
 	var is_token: bool = not face_down and cd.get("token", false)
 	var is_artifact: bool = not face_down and cd["type"] != "unit" and cd["type"] != "spell"
 	var death_ward_active: bool = not face_down and cd.get("death_ward", false)
@@ -669,7 +668,7 @@ func _face_look(s: float, rad: float) -> Dictionary:
 	var full_art: bool = not face_down and cd.get("rarity", "") == "champion" and cd["type"] == "unit" and not is_token \
 		and texture(cd.get("art", "")) != null
 	if full_art:
-		trim = Color(st["trim"]).lerp(Color(st2["trim"]), 0.5) ## no gold finish: the border shows the essence itself
+		trim = _average_style_color(styles, "trim") ## no gold finish: the border shows the essence itself
 	var art := Rect2()
 	var window_kind := ""
 	if not face_down:
@@ -677,7 +676,7 @@ func _face_look(s: float, rad: float) -> Dictionary:
 		art = r.grow(-FULL_ART_BORDER * s) if full_art else Rect2(Vector2(7, 8) * s, Vector2(BASE.x - 14, 98) * s)
 		window_kind = "full" if full_art else ("medallion" if is_token else ("arch" if is_artifact else "rect"))
 		_art_window = _art_window_pts(art, window_kind)
-	return {"s": s, "r": r, "rad": rad, "cd": cd, "keys": keys, "st": st, "st2": st2, "trim": trim, "glow": glow,
+	return {"s": s, "r": r, "rad": rad, "cd": cd, "styles": styles, "trim": trim, "glow": glow,
 		"is_token": is_token, "is_artifact": is_artifact, "death_ward": death_ward_active, "full_art": full_art,
 		"art": art, "window_kind": window_kind}
 
@@ -748,9 +747,7 @@ func _draw_frame_and_art(look: Dictionary) -> void:
 	var r: Rect2 = look["r"]
 	var rad: float = look["rad"]
 	var cd: Dictionary = look["cd"]
-	var keys: Array = look["keys"]
-	var st: Dictionary = look["st"]
-	var st2: Dictionary = look["st2"]
+	var styles: Array = look["styles"]
 	var trim: Color = look["trim"]
 	var is_token: bool = look["is_token"]
 	var is_artifact: bool = look["is_artifact"]
@@ -759,12 +756,13 @@ func _draw_frame_and_art(look: Dictionary) -> void:
 	var window_kind: String = look["window_kind"]
 
 	# frame: gradient body, dark outer edge, metal trim with bevel
-	var frame_style := _bright_border_style(st) if full_art else st
-	var frame_style2 := _bright_border_style(st2) if full_art else st2
-	if keys.size() < 2:
-		_rrect_grad(r, rad, Color(frame_style["top"]), Color(frame_style["bot"]))
+	var frame_styles: Array = []
+	for style in styles:
+		frame_styles.append(_bright_border_style(style) if full_art else style)
+	if frame_styles.size() < 2:
+		_rrect_grad(r, rad, Color(frame_styles[0]["top"]), Color(frame_styles[0]["bot"]))
 	else:
-		_rrect_grad_split(r, rad, frame_style, frame_style2, s)
+		_rrect_grad_split(r, rad, frame_styles, s)
 	_rrect_line(r.grow(-0.5 * s), rad, Color("#07060a"), 1.6 * s)
 	if is_token:
 		# ficha: dashed trim and a cool veil instead of the solid metal line
@@ -1023,7 +1021,7 @@ func _finish(r: Rect2, rad: float, s: float) -> void:
 ## Fadiga (drawing from an empty deck) shown as if a card had been played: Obscura frame,
 ## a hooded skull with ember eyes and the damage spelled out.
 func _draw_fatigue(r: Rect2, s: float, rad: float) -> void:
-	var st: Dictionary = STYLES["obscura"]
+	var st: Dictionary = STYLES["trevas"]
 	var trim := Color(st["trim"])
 	if shadow:
 		for i in 5:
@@ -1083,7 +1081,7 @@ func _draw_fatigue(r: Rect2, s: float, rad: float) -> void:
 	_diamond(Vector2(_face_size.x / 2, 2.5 * s), 3.5 * s, trim)
 	_finish(r, rad, s)
 
-## Frame styles in essence order: one for mono cards, two for dual-essence cards.
+## Frame styles in domain order: one per domain of the card (up to MAX_SHOWN_DOMAINS).
 func _style_keys(cd: Dictionary) -> Array:
 	if cd["rarity"] == "legendary":
 		return ["legendary"]
@@ -1091,7 +1089,14 @@ func _style_keys(cd: Dictionary) -> Array:
 	for e in CardDB.essences_of(cd):
 		if STYLES.has(e) and not out.has(e):
 			out.append(e)
-	return out.slice(0, 2) if not out.is_empty() else ["neutra"]
+	return out.slice(0, MAX_SHOWN_DOMAINS) if not out.is_empty() else ["neutra"]
+
+## The mean of one colour field ("trim", "glow") over the given frame styles.
+func _average_style_color(styles: Array, field: String) -> Color:
+	var mean := Color(styles[0][field])
+	for index in range(1, styles.size()):
+		mean = mean.lerp(Color(styles[index][field]), 1.0 / (index + 1))
+	return mean
 
 ## A tower with a shut portcullis: Provocação's symbol on the keyword medallion.
 func _taunt_gate_glyph(c: Vector2, g: float, tint: Color, alpha: float, s: float) -> void:
@@ -1694,7 +1699,7 @@ func _placeholder(art: Rect2, cd: Dictionary, col: Color, s: float) -> void:
 	for i in 8:
 		draw_circle(c, (46 - i * 5) * s, Color(col.lightened(0.4), 0.05))
 	var kind: String = String(CardDB.essences_of(cd)[0]) if cd["type"] == "unit" else ("equipment" if CardDB.is_equipment(cd) else cd["type"])
-	if kind == "obscura":
+	if kind == "trevas":
 		_skull(c, 26 * s)
 		var fo := UITheme.font("title_bold")
 		_text(fo, String(cd["name"]).substr(0, 1), Vector2(art.end.x - 12 * s, art.end.y - 6 * s), 13 * s, Color(1, 1, 1, 0.35))
@@ -1707,7 +1712,7 @@ func _placeholder(art: Rect2, cd: Dictionary, col: Color, s: float) -> void:
 	var initial := String(cd["name"]).substr(0, 1)
 	_text(f, initial, Vector2(art.end.x - 12 * s, art.end.y - 6 * s), 13 * s, Color(1, 1, 1, 0.35))
 
-## Obscura sigil: a dark-grey skull (cranium, jaw, black sockets and nose).
+## Trevas sigil: a dark-grey skull (cranium, jaw, black sockets and nose).
 func _skull(c: Vector2, r: float) -> void:
 	var bone := Color("#55555e")
 	var shade := Color("#3a3a42")
@@ -1722,55 +1727,16 @@ func _skull(c: Vector2, r: float) -> void:
 		draw_circle(c + Vector2(sx * r * 0.27, -r * 0.14), r * 0.19, Color("#050506"))
 	draw_colored_polygon(PackedVector2Array([c + Vector2(0, r * 0.02), c + Vector2(-r * 0.08, r * 0.2), c + Vector2(r * 0.08, r * 0.2)]), Color("#050506"))
 
-## Snowflake outline with radius 1 around (0, 0): six arms, each with a pair of side branches. The branches
-## of neighbouring arms overlap, and Godot cannot fill a polygon that crosses itself (it draws nothing), so
-## every arm is its own simple polygon and they are merged into one clean outline. Built once, then reused.
-static var _snowflake_cache := PackedVector2Array()
-
-static func _snowflake_outline() -> PackedVector2Array:
-	if not _snowflake_cache.is_empty():
-		return _snowflake_cache
-	# one arm pointing up, as (across, along) offsets from the centre: the left side going out, then the
-	# mirrored right side coming back in. It starts at the centre so the six arms overlap there and merge.
-	var half_width := 0.1
-	var left_side := [
-		Vector2(-half_width, 0.0), Vector2(-half_width, 0.30), Vector2(-0.34, 0.58), Vector2(-0.26, 0.68),
-		Vector2(-half_width, 0.52), Vector2(-half_width, 0.84)]
-	var arm_outline: Array = left_side.duplicate()
-	arm_outline.append(Vector2(0, 1.0))
-	for side_index in range(left_side.size() - 1, -1, -1):
-		arm_outline.append(Vector2(-left_side[side_index].x, left_side[side_index].y))
-	var outline := PackedVector2Array()
-	for arm in 6:
-		var arm_polygon := PackedVector2Array()
-		for offset: Vector2 in arm_outline:
-			arm_polygon.append(Vector2(offset.x, -offset.y).rotated(arm * TAU / 6))
-		if outline.is_empty():
-			outline = arm_polygon
-			continue
-		# merging can also return holes (clockwise); the outer outline is the piece that is not a hole
-		for piece: PackedVector2Array in Geometry2D.merge_polygons(outline, arm_polygon):
-			if not Geometry2D.is_polygon_clockwise(piece):
-				outline = piece
-				break
-	_snowflake_cache = outline
-	return _snowflake_cache
-
 func _sigil(kind: String, c: Vector2, r: float) -> PackedVector2Array:
 	var n: Array
 	match kind:
-		"ignea":
+		"furia":
 			n = [[0, -1], [0.22, -0.5], [0.48, -0.72], [0.62, -0.05], [0.52, 0.5], [0, 0.82], [-0.52, 0.5], [-0.62, 0.02], [-0.42, -0.4], [-0.24, -0.15]]
-		"aquatica":
+		"fluxo": # water drop
 			var out := PackedVector2Array([c + Vector2(0, -r)])
 			for i in 13:
 				var a := deg_to_rad(-30 + i * 20)
 				out.append(c + Vector2(0, r * 0.25) + Vector2(cos(a), sin(a)) * r * 0.62)
-			return out
-		"glacial": # snowflake: the unit outline (radius 1) scaled and moved to the requested spot
-			var out := PackedVector2Array()
-			for unit_point in _snowflake_outline():
-				out.append(c + unit_point * r)
 			return out
 		"spell":
 			var out := PackedVector2Array()
@@ -1778,18 +1744,14 @@ func _sigil(kind: String, c: Vector2, r: float) -> PackedVector2Array:
 				var a := i * TAU / 16 - PI / 2
 				out.append(c + Vector2(cos(a), sin(a)) * r * (1.0 if i % 2 == 0 else 0.38))
 			return out
-		"eletrica": # lightning bolt
+		"tormenta": # lightning bolt
 			n = [[0.2, -1], [-0.55, 0.12], [-0.05, 0.12], [-0.25, 1], [0.6, -0.2], [0.08, -0.2], [0.5, -1]]
-		"vegetal": # leaf
+		"natureza": # leaf
 			n = [[0, -1], [0.55, -0.45], [0.7, 0.15], [0.3, 0.7], [0.04, 0.58], [0.04, 1], [-0.04, 1], [-0.04, 0.58], [-0.3, 0.7], [-0.7, 0.15], [-0.55, -0.45]]
-		"rochosa": # faceted boulder
+		"montanha": # faceted boulder
 			n = [[-0.3, -0.85], [0.35, -0.9], [0.9, -0.2], [0.75, 0.6], [0.1, 0.9], [-0.7, 0.65], [-0.95, -0.15]]
-		"metalica": # hex nut
-			n = [[0, -1], [0.87, -0.5], [0.87, 0.5], [0, 1], [-0.87, 0.5], [-0.87, -0.5]]
-		"sagrada": # four-point radiant star
+		"devocao": # four-point radiant star
 			n = [[0, -1], [0.18, -0.38], [0.7, -0.7], [0.38, -0.18], [1, 0], [0.38, 0.18], [0.7, 0.7], [0.18, 0.38], [0, 1], [-0.18, 0.38], [-0.7, 0.7], [-0.38, 0.18], [-1, 0], [-0.38, -0.18], [-0.7, -0.7], [-0.18, -0.38]]
-		"venenosa": # poison drop
-			n = [[0, -1], [0.3, -0.45], [0.62, 0.05], [0.7, 0.4], [0.5, 0.8], [0.2, 0.98], [-0.2, 0.98], [-0.5, 0.8], [-0.7, 0.4], [-0.62, 0.05], [-0.3, -0.45]]
 		"equipment":
 			n = [[0, -1], [0.14, -0.82], [0.14, 0.3], [0.5, 0.3], [0.5, 0.44], [0.1, 0.44], [0.1, 0.9], [-0.1, 0.9], [-0.1, 0.44], [-0.5, 0.44], [-0.5, 0.3], [-0.14, 0.3], [-0.14, -0.82]]
 		_:
@@ -1800,10 +1762,11 @@ func _sigil(kind: String, c: Vector2, r: float) -> PackedVector2Array:
 	return pts
 
 ## Essence badge in the top-right corner, mirroring the cost orb: metal bezel,
-## body in the essence colour (split on a diagonal for dual essences) and the
-## essence sigil. It names the essence even on cards that have a portrait.
+## body in the domain colour (two domains: split on a diagonal; three or more: one
+## pie slice each) and the domain sigil. It names the domains even on cards that
+## have a portrait, and on legendaries, whose gold frame shows none.
 func _essence_badge(c: Vector2, r: float, cd: Dictionary, s: float) -> void:
-	var ess: Array = CardDB.essences_of(cd).slice(0, 2)
+	var ess: Array = CardDB.essences_of(cd).slice(0, MAX_SHOWN_DOMAINS)
 	var disc := _shape("circle", c, r)
 	var shadow := _grow(disc, c, 1.18)
 	for i in shadow.size():
@@ -1811,27 +1774,48 @@ func _essence_badge(c: Vector2, r: float, cd: Dictionary, s: float) -> void:
 	draw_colored_polygon(shadow, Color(0, 0, 0, 0.55))
 	draw_colored_polygon(_grow(disc, c, 1.16), UITheme.GOLD_DARK.darkened(0.3))
 	draw_colored_polygon(_grow(disc, c, 1.1), UITheme.GOLD)
-	var halves: Array = [PackedVector2Array()]
-	if ess.size() > 1:
-		halves = [
+	var slices: Array = [PackedVector2Array()] ## one clip area per domain; an empty one means the whole disc
+	var slice_centers: Array = [c]
+	var slice_sigil_radius := r * 0.62
+	if ess.size() == 2:
+		slices = [
 			PackedVector2Array([c + Vector2(-2, -2) * r, c + Vector2(0.7, -2) * r, c + Vector2(-0.7, 2) * r, c + Vector2(-2, 2) * r]),
 			PackedVector2Array([c + Vector2(0.7, -2) * r, c + Vector2(2, -2) * r, c + Vector2(2, 2) * r, c + Vector2(-0.7, 2) * r])]
+		slice_centers = [c + Vector2(-0.38, 0) * r, c + Vector2(0.38, 0) * r]
+		slice_sigil_radius = r * 0.4
+	elif ess.size() > 2:
+		# pie slices, the first one starting at the top and going clockwise
+		slices = []
+		slice_centers = []
+		slice_sigil_radius = r * (0.3 if ess.size() == 3 else 0.26)
+		var slice_angle := TAU / ess.size()
+		for k in ess.size():
+			var start_angle := -PI / 2.0 + slice_angle * k
+			var middle_angle := start_angle + slice_angle / 2.0
+			slices.append(PackedVector2Array([c, c + Vector2.from_angle(start_angle) * 2.5 * r,
+				c + Vector2.from_angle(middle_angle) * 2.5 * r, c + Vector2.from_angle(start_angle + slice_angle) * 2.5 * r]))
+			slice_centers.append(c + Vector2.from_angle(middle_angle) * r * (0.5 if ess.size() == 3 else 0.52))
 	for k in ess.size():
 		var kind: String = ess[k]
-		var col := Color("#232328") if kind == "obscura" else Color(CardDB.essence(kind)["color"])
-		_fill_clipped(disc, halves[k], col.darkened(0.35))
-		_fill_clipped(_grow(disc, c - Vector2(0, r * 0.1), 0.86), halves[k], col)
-		_fill_clipped(_grow(disc, c - Vector2(0, r * 0.5), 0.5), halves[k], Color(col.lightened(0.5), 0.35))
-		var sc := c if ess.size() == 1 else c + Vector2(-0.38 if k == 0 else 0.38, 0) * r
-		var sr := r * (0.62 if ess.size() == 1 else 0.4)
-		if kind == "obscura":
+		var col := Color("#232328") if kind == "trevas" else Color(CardDB.essence(kind)["color"])
+		_fill_clipped(disc, slices[k], col.darkened(0.35))
+		_fill_clipped(_grow(disc, c - Vector2(0, r * 0.1), 0.86), slices[k], col)
+		_fill_clipped(_grow(disc, c - Vector2(0, r * 0.5), 0.5), slices[k], Color(col.lightened(0.5), 0.35))
+		var sc: Vector2 = slice_centers[k]
+		var sr := slice_sigil_radius
+		if kind == "trevas":
 			_skull(sc, sr * 1.15)
 		else:
 			var pts := _sigil(kind, sc, sr)
 			draw_colored_polygon(_grow(pts, sc, 1.15), Color(0, 0, 0, 0.4))
 			draw_colored_polygon(pts, col.lightened(0.6))
-	if ess.size() > 1:
-		draw_line(c + Vector2(0.35, -1) * r, c + Vector2(-0.35, 1) * r, Color(UITheme.GOLD_LIGHT, 0.8), 1.0 * s, true)
+	var seam_color := Color(UITheme.GOLD_LIGHT, 0.8)
+	if ess.size() == 2:
+		draw_line(c + Vector2(0.35, -1) * r, c + Vector2(-0.35, 1) * r, seam_color, 1.0 * s, true)
+	elif ess.size() > 2:
+		for k in ess.size():
+			var seam_angle := -PI / 2.0 + TAU / ess.size() * k
+			draw_line(c, c + Vector2.from_angle(seam_angle) * r, seam_color, 1.0 * s, true)
 	var rim := _grow(disc, c, 1.1)
 	draw_polyline(rim + PackedVector2Array([rim[0]]), Color(UITheme.GOLD_LIGHT, 0.7), 0.9 * s, true)
 
@@ -2018,26 +2002,33 @@ func _rrect_grad(r: Rect2, rad: float, top: Color, bot: Color) -> void:
 		cols.append(top.lerp(bot, clamp((p.y - r.position.y) / r.size.y, 0.0, 1.0)))
 	draw_polygon(pts, cols)
 
-## Dual-essence frame: the body is cut on a diagonal, each half with its own
-## essence gradient, joined by a thin light seam.
-func _rrect_grad_split(r: Rect2, rad: float, a: Dictionary, b: Dictionary, s: float) -> void:
+## Multi-domain frame: the body is cut by parallel diagonals into one band per domain, each band with its
+## own gradient, joined by thin light seams. (Two domains = the classic half/half frame.)
+func _rrect_grad_split(r: Rect2, rad: float, band_styles: Array, s: float) -> void:
 	var pts := _rrect_pts(r, rad)
-	var x0 := r.position.x + r.size.x * 0.62
-	var x1 := r.position.x + r.size.x * 0.38
+	var band_count := band_styles.size()
+	var slant := r.size.x * 0.24 ## horizontal distance between the top end and the bottom end of a cut
 	var big := 10.0 * r.size.x
-	var left := PackedVector2Array([Vector2(r.position.x - big, r.position.y - 2), Vector2(x0, r.position.y - 2),
-		Vector2(x1, r.end.y + 2), Vector2(r.position.x - big, r.end.y + 2)])
-	var right := PackedVector2Array([Vector2(x0, r.position.y - 2), Vector2(r.end.x + big, r.position.y - 2),
-		Vector2(r.end.x + big, r.end.y + 2), Vector2(x1, r.end.y + 2)])
-	for half in [[left, a], [right, b]]:
-		var top := Color(half[1]["top"])
-		var bot := Color(half[1]["bot"])
-		for poly in Geometry2D.intersect_polygons(pts, half[0]):
+	# cut i (between band i and band i + 1) runs from cut_top_x[i] at the top edge to cut_top_x[i] - slant at the bottom
+	var cut_top_x: Array = []
+	for cut_index in range(1, band_count):
+		cut_top_x.append(r.position.x + r.size.x * cut_index / band_count + slant / 2.0)
+	for band_index in band_count:
+		var left_top := r.position.x - big if band_index == 0 else float(cut_top_x[band_index - 1])
+		var right_top := r.end.x + big if band_index == band_count - 1 else float(cut_top_x[band_index])
+		var left_bottom := left_top if band_index == 0 else left_top - slant
+		var right_bottom := right_top if band_index == band_count - 1 else right_top - slant
+		var band := PackedVector2Array([Vector2(left_top, r.position.y - 2), Vector2(right_top, r.position.y - 2),
+			Vector2(right_bottom, r.end.y + 2), Vector2(left_bottom, r.end.y + 2)])
+		var top := Color(band_styles[band_index]["top"])
+		var bot := Color(band_styles[band_index]["bot"])
+		for poly in Geometry2D.intersect_polygons(pts, band):
 			var cols := PackedColorArray()
 			for p in poly:
 				cols.append(top.lerp(bot, clamp((p.y - r.position.y) / r.size.y, 0.0, 1.0)))
 			draw_polygon(poly, cols)
-	draw_line(Vector2(x0, r.position.y + 1.5 * s), Vector2(x1, r.end.y - 1.5 * s), Color(1, 1, 1, 0.35), 1.2 * s, true)
+	for top_x in cut_top_x:
+		draw_line(Vector2(top_x, r.position.y + 1.5 * s), Vector2(top_x - slant, r.end.y - 1.5 * s), Color(1, 1, 1, 0.35), 1.2 * s, true)
 
 ## Shape of the art window: a plain rectangle for units and spells, an arch (relic / stained-glass window)
 ## for artifacts, a round medallion (like a coin) for fichas. All of them fit inside the same rectangle,

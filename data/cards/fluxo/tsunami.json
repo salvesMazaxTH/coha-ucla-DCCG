@@ -1,0 +1,21 @@
+{
+  "name": "Tsunami",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "fluxo",
+  "element": "agua",
+  "cost": 7,
+  "speed": "lento",
+  "art": "fluxo/tsunami.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "all_enemy_units",
+      "amount": 4
+    }
+  ],
+  "text": "Causa 4 de dano a todas as unidades inimigas.",
+  "flavor": "Primeiro o mar recua. Depois você corre.",
+  "tags": []
+}

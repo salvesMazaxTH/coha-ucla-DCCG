@@ -1,0 +1,21 @@
+{
+  "name": "Manoplas Incandescentes",
+  "type": "artifact",
+  "subtypes": ["equipment"],
+  "rarity": "common",
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 2,
+  "art": "furia/manoplas_incandescentes.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "atk": 3
+    }
+  ],
+  "text": "Equipar: concede +3 de Ataque à unidade equipada.",
+  "flavor": "",
+  "tags": []
+}

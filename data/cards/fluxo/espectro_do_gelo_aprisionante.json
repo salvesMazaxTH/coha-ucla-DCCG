@@ -1,0 +1,32 @@
+{
+  "name": "Espectro do Gelo Aprisionante",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "espirito"
+  ],
+  "essence": "fluxo",
+  "element": "gelo",
+  "cost": 5,
+  "atk": 2,
+  "hp": 4,
+  "keywords": [
+    "voo"
+  ],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "freeze",
+      "target": "enemy_unit"
+    },
+    {
+      "trigger": "on_enter",
+      "action": "exhaust",
+      "target": "enemy_unit"
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela é congelada e exaurida.",
+  "flavor": "Preso no gelo há séculos. Resolveu prender os outros também.",
+  "art": "fluxo/espectro_do_gelo_aprisionante.webp",
+  "tags": []
+}

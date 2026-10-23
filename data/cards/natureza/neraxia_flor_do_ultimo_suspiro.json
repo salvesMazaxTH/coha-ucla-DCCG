@@ -1,0 +1,23 @@
+{
+  "name": "Neráxia, Flor do Último Suspiro",
+  "type": "unit",
+  "rarity": "legendary",
+  "species": [
+    "fera"
+  ],
+  "essence": "natureza",
+  "element": "veneno",
+  "cost": 5,
+  "atk": 4,
+  "hp": 6,
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "veneno_lethal",
+      "target": "none"
+    }
+  ],
+  "art": "natureza/neraxia_flor_do_ultimo_suspiro.webp",
+  "text": "Ao Entrar: até o início do seu próximo turno, o Veneno causa dano igual à Vida atual das unidades envenenadas.",
+  "tags": []
+}

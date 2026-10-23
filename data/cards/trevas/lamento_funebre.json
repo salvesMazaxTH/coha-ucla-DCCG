@@ -1,0 +1,21 @@
+{
+  "name": "Lamento Fúnebre",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "trevas",
+  "element": "sombra",
+  "cost": 2,
+  "speed": "rapido",
+  "art": "trevas/lamento_funebre.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 2
+    }
+  ],
+  "text": "Causa 2 de dano ao Líder inimigo.",
+  "flavor": "",
+  "tags": []
+}

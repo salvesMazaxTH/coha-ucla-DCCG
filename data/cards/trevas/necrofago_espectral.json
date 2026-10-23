@@ -1,0 +1,21 @@
+{
+  "name": "Necrófago Espectral",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "morto_vivo",
+    "fera"
+  ],
+  "essence": "trevas",
+  "element": "sombra",
+  "cost": 0,
+  "atk": 3,
+  "hp": 2,
+  "keywords": [],
+  "art": "trevas/necrofago_espectral.webp",
+  "effects": [],
+  "text": "Como custo adicional para jogar, você sacrifica uma unidade aliada.",
+  "flavor": "Come o que os vivos esquecem.",
+  "tags": [],
+  "cost_sacrifice": true
+}

@@ -1,0 +1,24 @@
+{
+  "name": "Sineiro Sem Pressa",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["humano"],
+  "essence": "devocao",
+  "element": "luz",
+  "cost": 2,
+  "atk": 0,
+  "hp": 7,
+  "keywords": ["provocacao", "pacifista"],
+  "art": "devocao/sineiro_sem_pressa.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Entrar: você compra 1 carta.",
+  "flavor": "O sino toca quando ele termina o café, nunca antes.",
+  "tags": []
+}

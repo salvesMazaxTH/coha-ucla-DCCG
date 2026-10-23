@@ -1,0 +1,30 @@
+{
+  "name": "Sabrina",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["humano"],
+  "essence": "fluxo",
+  "element": [
+    "agua",
+    "gelo"
+  ],
+  "cost": 4,
+  "atk": 4,
+  "hp": 4,
+  "keywords": [
+    "longo_alcance"
+  ],
+  "art": "fluxo/sabrina.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 1,
+      "amount_if_frozen": 3
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela sofre 1 de dano, ou 3 se estiver Congelada.",
+  "flavor": "Dilúvio de inverno.",
+  "tags": []
+}

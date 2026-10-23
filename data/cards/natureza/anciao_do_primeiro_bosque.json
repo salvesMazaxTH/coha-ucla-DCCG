@@ -1,0 +1,31 @@
+{
+  "name": "Ancião do Primeiro Bosque",
+  "type": "unit",
+  "rarity": "legendary",
+  "species": ["druida"],
+  "essence": "natureza",
+  "element": "planta",
+  "cost": 9,
+  "atk": 9,
+  "hp": 11,
+  "keywords": ["provocacao", "sobrepujanca", "inalcancavel", "prudencia"],
+  "art": "natureza/anciao_do_primeiro_bosque.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 2
+    },
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "other_ally_units",
+      "atk": 1,
+      "hp": 1
+    }
+  ],
+  "text": "Ao Entrar: você compra 2 cartas; suas outras unidades ganham +1/+1 permanente.",
+  "flavor": "Antes dos nomes, antes das cidades, antes mesmo do medo, ele já criava sombra.",
+  "tags": []
+}

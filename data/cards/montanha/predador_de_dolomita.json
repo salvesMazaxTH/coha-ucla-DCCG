@@ -1,0 +1,26 @@
+{
+  "name": "Predador de Dolomita",
+  "type": "unit",
+  "rarity": "common",
+  "species": [],
+  "essence": "montanha",
+  "element": "pedra",
+  "cost": 3,
+  "atk": 4,
+  "hp": 3,
+  "keywords": [],
+  "effects": [
+    {
+      "listen": "unit_damaged",
+      "scope": "ally",
+      "action": "buff",
+      "target": "self",
+      "atk": 1,
+      "temp": true
+    }
+  ],
+  "text": "Condicional: sempre que uma unidade sua sofrer dano, esta unidade ganha +1 de Ataque até o fim do turno.",
+  "flavor": "",
+  "art": "montanha/predador_de_dolomita.webp",
+  "tags": []
+}

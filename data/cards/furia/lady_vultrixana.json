@@ -1,0 +1,59 @@
+{
+  "name": "Lady Vultrixana",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [],
+  "essence": [
+    "furia",
+    "tormenta"
+  ],
+  "element": [
+    "fogo",
+    "raio"
+  ],
+  "cost": 6,
+  "atk": 5,
+  "hp": 4,
+  "keywords": [
+    "rapidez:2"
+  ],
+  "conditional_uses_per_turn": 1,
+  "art": "furia/lady_vultrixana.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 2
+    },
+    {
+      "trigger": "on_enter",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": 1
+    },
+    {
+      "listen": "spell_cast",
+      "scope": "ally",
+      "zones": ["board"],
+      "when": {"element_fogo": true},
+      "own_turn_only": true,
+      "action": "damage",
+      "target": "random_enemy",
+      "amount": 1
+    },
+    {
+      "listen": "spell_cast",
+      "scope": "ally",
+      "zones": ["board"],
+      "when": {"element_raio": true},
+      "own_turn_only": true,
+      "action": "damage",
+      "target": "random_enemy",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Entrar: você ganha +1 de Momentum neste turno. Além disso, você pode escolher uma unidade inimiga; ela sofre 2 de dano.\nCondicional: uma vez por turno, ao lançar seu primeiro feitiço de Fogo ou de Raio no seu turno, causa 1 de dano a um inimigo aleatório, incluindo o Líder.",
+  "flavor": "",
+  "tags": []
+}

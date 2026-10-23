@@ -49,7 +49,7 @@ static func _load() -> void:
 	_defs.clear()
 	_data = _read_json("res://data/cards.json")
 	if _data.is_empty():
-		_data = {"essences": {}, "triggers": {}, "species": {}, "keywords": {}, "leaders": {}}
+		_data = {"essences": {}, "elements": {}, "triggers": {}, "species": {}, "keywords": {}, "leaders": {}}
 	_data["cards"] = {}
 	for essence_id in _data["essences"]:
 		var dir_path: String = "res://data/cards/" + str(essence_id)
@@ -108,6 +108,9 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 	for e in essences_of(cd):
 		if not _data["essences"].has(e):
 			err.call("essência desconhecida \"%s\"" % e)
+	for element_id in elements_of(cd):
+		if not _data.get("elements", {}).has(element_id):
+			err.call("elemento desconhecido \"%s\"" % element_id)
 	for kw in cd.get("keywords", []):
 		if not _data["keywords"].has(kw):
 			err.call("keyword desconhecida \"%s\"" % kw)
@@ -270,7 +273,7 @@ static func keyword(id: String) -> Dictionary:
 static func essence(id: String) -> Dictionary:
 	return data()["essences"][id]
 
-## A card's essences: "essence" is one id or an Array of ids (dual cards, e.g. aquática + glacial).
+## A card's essences: "essence" is one id or an Array of ids (dual cards, e.g. natureza + trevas).
 static func essences_of(cd: Dictionary) -> Array:
 	var e: Variant = cd.get("essence", "neutra")
 	return (e as Array).duplicate() if e is Array else [String(e)]
@@ -278,11 +281,30 @@ static func essences_of(cd: Dictionary) -> Array:
 static func has_essence(cd: Dictionary, id: String) -> bool:
 	return essences_of(cd).has(id)
 
-## Display name of a card's essences ("Aquática / Glacial").
+## Display name of a card's domains ("Natureza / Trevas").
 static func essence_names(cd: Dictionary) -> String:
 	var names: Array = []
 	for id in essences_of(cd):
 		names.append(essence(id).get("name", id))
+	return " / ".join(names)
+
+static func element(id: String) -> Dictionary:
+	return data()["elements"][id]
+
+## A card's elements: "element" is one id, an Array of ids, or missing (many cards have none).
+## The element carries tribal synergies and innate immunities; it does not affect deckbuilding.
+static func elements_of(cd: Dictionary) -> Array:
+	var e: Variant = cd.get("element", [])
+	return (e as Array).duplicate() if e is Array else ([String(e)] if String(e) != "" else [])
+
+static func has_element(cd: Dictionary, id: String) -> bool:
+	return elements_of(cd).has(id)
+
+## Display name of a card's elements ("Água / Gelo"); empty when it has none.
+static func element_names(cd: Dictionary) -> String:
+	var names: Array = []
+	for id in elements_of(cd):
+		names.append(element(id).get("name", id))
 	return " / ".join(names)
 
 ## Flavor text is cosmetic only, so its roll uses its own RNG and never touches the match RNG.

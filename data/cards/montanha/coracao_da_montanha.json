@@ -1,0 +1,24 @@
+{
+  "name": "Coração da Montanha",
+  "type": "artifact",
+  "subtypes": [
+    "equipment"
+  ],
+  "rarity": "common",
+  "essence": "montanha",
+  "element": "pedra",
+  "art": "montanha/coracao_da_montanha.webp",
+  "cost": 4,
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "atk": 2,
+      "hp": 4
+    }
+  ],
+  "text": "Equipar: concede +2/+4 à unidade equipada.",
+  "flavor": "",
+  "tags": []
+}

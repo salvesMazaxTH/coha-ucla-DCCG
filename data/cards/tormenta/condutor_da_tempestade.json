@@ -1,0 +1,21 @@
+{
+  "name": "Condutor da Tempestade",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "humano"
+  ],
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 2,
+  "atk": 1,
+  "hp": 3,
+  "keywords": [
+    "provocacao"
+  ],
+  "art": "tormenta/condutor_da_tempestade.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "",
+  "tags": []
+}

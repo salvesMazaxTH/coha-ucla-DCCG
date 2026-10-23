@@ -1,0 +1,24 @@
+{
+  "name": "Bola de Neve",
+  "type": "spell",
+  "rarity": "legendary",
+  "max_copies": 1,
+  "essence": "fluxo",
+  "element": "gelo",
+  "cost": 4,
+  "speed": "lento",
+  "art": "fluxo/bola_de_neve.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "snowball",
+      "target": "enemy_unit"
+    }
+  ],
+  "text": "Causa {nivel} de dano a uma unidade inimiga à sua escolha. Repete o efeito em cada unidade seguinte, numa direção sorteada, com +1 de dano a cada uma. O dano final vira o dano inicial de toda Bola de Neve futura até o fim do seu turno (depois, o nível volta a 2). Quando esse nível chega a 7, todas as suas Bolas de Neve evoluem para Grande Bola de Neve.",
+  "face_text": "Causa {nivel} de dano; repete adiante, +1 a cada alvo. O dano final vira o inicial neste turno. Ao chegar a 7, evolui para Grande (Sobrepujança).",
+  "flavor": "Começou pequena. Pergunte pra ela se ela liga.",
+  "tags": [
+    "bola_de_neve"
+  ]
+}

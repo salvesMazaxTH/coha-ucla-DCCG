@@ -1,0 +1,20 @@
+{
+  "name": "Zero Absoluto",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "fluxo",
+  "element": "gelo",
+  "cost": 5,
+  "speed": "lento",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "freeze",
+      "target": "all_enemy_units"
+    }
+  ],
+  "text": "Congela todas as unidades inimigas.",
+  "flavor": "Nem o movimento ousa continuar.",
+  "art": "fluxo/zero_absoluto.webp",
+  "tags": []
+}

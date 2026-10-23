@@ -1,0 +1,24 @@
+{
+  "name": "Serpente Marinha",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["fera"],
+  "essence": "fluxo",
+  "element": "agua",
+  "cost": 5,
+  "atk": 4,
+  "hp": 5,
+  "keywords": [],
+  "art": "fluxo/serpente_marinha.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "look_top",
+      "target": "own_leader",
+      "count": 4
+    }
+  ],
+  "text": "Ao Entrar: você olha as 4 cartas do topo do seu deck e escolhe 1 para colocar na mão; as outras vão para o fundo do deck.",
+  "flavor": "",
+  "tags": []
+}

@@ -1,0 +1,32 @@
+{
+  "name": "Morwenna Raiz-Podre",
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["morto_vivo", "driade"],
+  "essence": ["trevas", "natureza"],
+  "element": ["sombra", "planta"],
+  "cost": 3,
+  "atk": 1,
+  "hp": 4,
+  "keywords": [],
+  "art": "trevas/morwenna_raiz_podre.webp",
+  "effects": [
+    {
+      "trigger": "on_ally_death",
+      "action": "buff",
+      "target": "self",
+      "atk": 1,
+      "hp": 1,
+      "cap_atk": 4
+    },
+    {
+      "trigger": "on_death",
+      "action": "summon",
+      "target": "none",
+      "card": "broto_zumbi"
+    }
+  ],
+  "text": "Aliado Morre: esta unidade ganha +1/+1 (até 4 vezes).\nAo Morrer: invoca uma ficha Broto Zumbi 1/1.",
+  "flavor": "Uma druida enterrada viva, de volta da cova com as raízes por dentro do corpo.",
+  "tags": []
+}

@@ -1,0 +1,23 @@
+{
+  "name": "Grito de Carga Desafinado",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "furia",
+  "cost": 2,
+  "speed": "rapido",
+  "art": "furia/grito_de_carga_desafinado.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "all_ally_units",
+      "atk": 1,
+      "temp": true
+    }
+  ],
+  "text": "Suas unidades ganham +1 de Ataque neste turno.",
+  "flavor": [
+    "Ninguém acertou a nota. Todo mundo acertou o inimigo."
+  ],
+  "tags": []
+}

@@ -1,0 +1,17 @@
+{
+  "name": "Trituração em Massa",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "montanha",
+  "element": "metal",
+  "cost": 2,
+  "speed": "lento",
+  "effects": [
+    { "trigger": "on_play", "action": "mill", "who": "enemy", "target": "none", "amount": 2 },
+    { "trigger": "on_play", "action": "draw", "target": "own_leader", "amount": 1 }
+  ],
+  "text": "Mói 2 cartas do deck do oponente (elas vão para o cemitério dele). Você compra 1 carta.",
+  "flavor": "",
+  "art": "montanha/trituracao_em_massa.webp",
+  "tags": []
+}

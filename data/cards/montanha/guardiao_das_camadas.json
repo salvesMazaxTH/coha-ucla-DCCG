@@ -1,0 +1,24 @@
+{
+  "name": "Guardião das Camadas",
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["gigante"],
+  "essence": "montanha",
+  "element": "pedra",
+  "art": "montanha/guardiao_das_camadas.webp",
+  "cost": 3,
+  "atk": 2,
+  "hp": 5,
+  "keywords": ["armadura:1", "longo_alcance"],
+  "effects": [
+    {
+      "trigger": "on_turn_start",
+      "action": "buff",
+      "target": "random_other_ally_unit",
+      "armor": 1
+    }
+  ],
+  "text": "No Início do Turno: outra unidade aliada aleatória ganha Armadura 1 permanente.",
+  "flavor": "",
+  "tags": []
+}

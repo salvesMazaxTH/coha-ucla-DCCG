@@ -168,7 +168,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 				unit.spell_shield = true
 				if temporary:
 					unit.spell_shield_until_end_turn = true
-			else:
+			elif not temporary:
 				# A new permanent grant makes the protection survive any temporary grant already present.
 				unit.spell_shield = true
 				unit.spell_shield_until_end_turn = false

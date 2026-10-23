@@ -1,0 +1,27 @@
+{
+  "name": "Revivente Eterno",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "morto_vivo"
+  ],
+  "essence": "trevas",
+  "element": "sombra",
+  "cost": 3,
+  "atk": 3,
+  "hp": 2,
+  "keywords": [
+    "obsessao"
+  ],
+  "art": "trevas/revivente_eterno.webp",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "revive_self",
+      "target": "none"
+    }
+  ],
+  "text": "Ao Morrer: esta unidade volta ao campo.",
+  "flavor": "A morte lhe pediu desculpas e o devolveu.",
+  "tags": []
+}

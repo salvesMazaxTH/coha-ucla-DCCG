@@ -1,0 +1,35 @@
+{
+  "name": "Espírito Carregado",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "espirito"
+  ],
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 2,
+  "atk": 1,
+  "hp": 1,
+  "keywords": [
+    "rapidez:2",
+    "voo",
+    "esquiva"
+  ],
+  "esquiva": {
+    "max_rapidez": 0
+  },
+  "art": "tormenta/espirito_carregado.webp",
+  "art_crop": {"x": 0.58, "y": 0.46, "zoom": 1.0},
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": 1,
+      "next_turn": true
+    }
+  ],
+  "text": "Ao Entrar: você ganha +1 de Momentum no início do seu próximo turno.",
+  "flavor": "",
+  "tags": []
+}

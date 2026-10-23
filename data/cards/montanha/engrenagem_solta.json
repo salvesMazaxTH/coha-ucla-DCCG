@@ -1,0 +1,16 @@
+{
+  "name": "Engrenagem Solta",
+  "type": "artifact",
+  "subtypes": ["equipment"],
+  "rarity": "common",
+  "essence": "montanha",
+  "element": "metal",
+  "cost": 1,
+  "effects": [
+    { "trigger": "on_play", "action": "buff", "target": "ally_unit", "atk": 1, "hp": 2 }
+  ],
+  "text": "Equipar: concede +1/+2 à unidade equipada.",
+  "flavor": "Sobrou do conserto. Sempre sobra.",
+  "art": "montanha/engrenagem_solta.webp",
+  "tags": []
+}

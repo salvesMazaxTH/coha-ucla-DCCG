@@ -1,0 +1,26 @@
+{
+  "name": "Luvas de Jardineiro Rancoroso",
+  "type": "artifact",
+  "subtypes": [
+    "equipment"
+  ],
+  "rarity": "common",
+  "essence": "natureza",
+  "element": "veneno",
+  "cost": 2,
+  "art": "natureza/luvas_de_jardineiro_rancoroso.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "atk": 1,
+      "keywords": [
+        "toxico"
+      ]
+    }
+  ],
+  "text": "Equipar: concede +1 de Ataque e Tóxico à unidade equipada.",
+  "flavor": "Ele jura que as plantas começaram.",
+  "tags": []
+}

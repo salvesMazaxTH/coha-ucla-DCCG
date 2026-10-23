@@ -1,0 +1,21 @@
+{
+  "name": "Lança das Marés",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "fluxo",
+  "element": "agua",
+  "cost": 2,
+  "speed": "instantaneo",
+  "art": "fluxo/lanca_das_mares.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "any_unit",
+      "amount": 3
+    }
+  ],
+  "text": "Causa 3 de dano a uma unidade à sua escolha.",
+  "flavor": "O mar também sabe furar.",
+  "tags": []
+}

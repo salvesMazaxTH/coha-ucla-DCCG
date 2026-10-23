@@ -1,0 +1,22 @@
+{
+  "name": "Manto Consagrado",
+  "type": "artifact",
+  "subtypes": ["equipment"],
+  "rarity": "common",
+  "essence": "devocao",
+  "element": "luz",
+  "cost": 3,
+  "art": "devocao/manto_da_ladainha.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "armor": 1,
+      "keywords": ["roubo_de_vida"]
+    }
+  ],
+  "text": "Equipar: concede Armadura 1 permanente e Roubo de Vida à unidade equipada.",
+  "flavor": "Quem o veste carrega a bênção de todos que o usaram antes, e a devolve em vida.",
+  "tags": []
+}

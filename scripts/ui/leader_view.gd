@@ -365,7 +365,7 @@ func _counter(pos: Vector2, tomb: bool, n: int, clickable := false) -> void:
 		draw_string(f, badge + Vector2(-5, 6), str(requiem), HORIZONTAL_ALIGNMENT_LEFT, 10, 15, Color.WHITE)
 
 # Graveyard icon: a rounded-top headstone with an engraved cross, sitting on a little mound of dirt.
-# (Not a skull on purpose: the skull is already the Obscura element symbol.)
+# (Not a skull on purpose: the skull is already the Trevas domain symbol.)
 static func draw_tombstone_icon(canvas: CanvasItem, center: Vector2, ink: Color) -> void:
 	var stone_half_width := 5.5
 	var arch_center := center + Vector2(0, -3)

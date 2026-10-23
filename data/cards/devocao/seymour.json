@@ -1,0 +1,22 @@
+{
+  "name": "Seymour",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["humano"],
+  "essence": "devocao",
+  "element": "luz",
+  "cost": 4,
+  "atk": 2,
+  "hp": 5,
+  "keywords": [],
+  "conditional_uses_per_turn": 2,
+  "art": "devocao/seymour.webp",
+  "effects": [
+    { "listen": "leader_healed", "scope": "ally", "zones": ["board"], "own_turn_only": true, "action": "damage", "target": "random_enemy_unit_twice", "amount": 1 },
+    { "listen": "unit_healed", "scope": "ally", "zones": ["board"], "own_turn_only": true, "action": "damage", "target": "random_enemy_unit_twice", "amount": 1 },
+    { "listen": "spell_cast", "scope": "ally", "zones": ["board"], "own_turn_only": true, "when": { "essence_devocao": true }, "action": "damage", "target": "random_enemy_unit_twice", "amount": 1 }
+  ],
+  "text": "Condicional (2x por turno): no seu turno, sempre que seu Líder ou uma unidade aliada recuperar Vida, ou você lançar um feitiço de Devoção, distribui 2 de dano aleatoriamente entre as unidades inimigas, 1 por vez.",
+  "flavor": "O primeiro golpe de cada dia ele deixa passar sem notar.",
+  "tags": []
+}

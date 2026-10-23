@@ -1,0 +1,28 @@
+{
+  "name": "Devaneio Gelado",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "fluxo",
+  "element": "gelo",
+  "cost": 3,
+  "speed": "lento",
+  "art": "fluxo/devaneio_gelado.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 2
+    },
+    {
+      "trigger": "on_play",
+      "action": "snowball_level",
+      "target": "none",
+      "amount": 1,
+      "permanent": true
+    }
+  ],
+  "text": "Você compra 2 cartas. O nível da sua Bola de Neve é aumentado em 1 pelo resto do jogo.",
+  "flavor": "Ficou olhando o floco cair por tanto tempo que teve duas ideias.",
+  "tags": []
+}

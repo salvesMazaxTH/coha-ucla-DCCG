@@ -1,0 +1,24 @@
+{
+  "name": "Núcleo de Geodo",
+  "type": "artifact",
+  "subtypes": [
+    "equipment"
+  ],
+  "rarity": "common",
+  "essence": "montanha",
+  "element": "pedra",
+  "art": "montanha/nucleo_de_geodo.webp",
+  "cost": 2,
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "hp": 1,
+      "armor": 1
+    }
+  ],
+  "text": "Equipar: concede +1 de Vida e Armadura 1 à unidade equipada.",
+  "flavor": "",
+  "tags": []
+}

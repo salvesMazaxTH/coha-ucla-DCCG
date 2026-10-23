@@ -1,0 +1,56 @@
+{
+  "name": "Weyne",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "humano"
+  ],
+  "essence": "fluxo",
+  "element": "gelo",
+  "cost": 3,
+  "atk": 2,
+  "hp": 3,
+  "keywords": [
+    "rapidez:1"
+  ],
+  "art": "fluxo/weyne.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
+    },
+    {
+      "listen": "spell_cast",
+      "scope": "ally",
+      "zones": [
+        "board"
+      ],
+      "when": {
+        "element_gelo": true
+      },
+      "action": "buff",
+      "target": "self",
+      "atk": 1,
+      "hp": 1,
+      "once_per_turn": true
+    },
+    {
+      "listen": "spell_cast",
+      "scope": "ally",
+      "zones": [
+        "board"
+      ],
+      "when": {
+        "element_gelo": true
+      },
+      "action": "freeze",
+      "target": "random_enemy_unit",
+      "once_per_turn": true
+    }
+  ],
+  "text": "Ao Entrar: você compra 1 carta.\nCondicional: uma vez por turno, ao lançar um feitiço de Gelo, esta unidade ganha +1/+1 permanente e congela uma unidade inimiga aleatória.",
+  "flavor": "Cada feitiço é um motivo pra bater mais forte.",
+  "tags": []
+}

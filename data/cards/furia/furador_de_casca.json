@@ -1,0 +1,24 @@
+{
+  "name": "Furador de Casca",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "goblin"
+  ],
+  "essence": "furia",
+  "cost": 2,
+  "atk": 4,
+  "hp": 1,
+  "keywords": [],
+  "art": "furia/furador_de_casca.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "strip_defenses",
+      "target": "enemy_unit"
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela perde o Escudo e a Armadura.",
+  "flavor": "Todo mundo tem um miolo. Ele só quer chegar nele.",
+  "tags": []
+}

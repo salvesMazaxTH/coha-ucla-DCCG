@@ -1,0 +1,25 @@
+{
+  "name": "Investida da Manada",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "natureza",
+  "element": "planta",
+  "cost": 5,
+  "speed": "rapido",
+  "art": "natureza/investida_da_manada.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "all_ally_units",
+      "atk": 2,
+      "temp": true,
+      "keywords": [
+        "impeto"
+      ]
+    }
+  ],
+  "text": "Suas unidades ganham +2 de Ataque neste turno e Ímpeto.",
+  "flavor": "Não há caça quando o bosque inteiro escolhe correr.",
+  "tags": []
+}

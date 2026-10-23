@@ -1,0 +1,26 @@
+{
+  "name": "Sentinela de Xisto",
+  "type": "unit",
+  "rarity": "common",
+  "species": [],
+  "essence": "montanha",
+  "element": "pedra",
+  "art": "montanha/sentinela_de_xisto.webp",
+  "cost": 1,
+  "atk": 1,
+  "hp": 3,
+  "keywords": [
+    "vigilancia"
+  ],
+  "effects": [
+    {
+      "trigger": "on_challenged",
+      "action": "buff",
+      "target": "self",
+      "armor": 1
+    }
+  ],
+  "text": "Ao Ser Desafiada: ganha Armadura 1 permanente.",
+  "flavor": "",
+  "tags": []
+}

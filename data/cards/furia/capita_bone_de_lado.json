@@ -1,0 +1,30 @@
+{
+  "name": "Capitã Boné-de-Lado",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "humano"
+  ],
+  "essence": "furia",
+  "cost": 3,
+  "atk": 3,
+  "hp": 2,
+  "keywords": [
+    "impeto"
+  ],
+  "art": "furia/capita_bone_de_lado.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "other_ally_units",
+      "atk": 1,
+      "temp": true
+    }
+  ],
+  "text": "Ao Entrar: suas outras unidades ganham +1 de Ataque neste turno.",
+  "flavor": [
+    "Boné torto, plano reto: pra frente!"
+  ],
+  "tags": []
+}

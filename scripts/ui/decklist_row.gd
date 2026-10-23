@@ -35,6 +35,11 @@ var _hovered := false
 var _gem_layer: Control ## champions only: a transparent layer on top that redraws the animated gem every frame
 var _gem_time := 0.0
 
+## The lettering color of an essence on the dark list: its color, lightened so it reads on the art.
+## Rows and the list header share it, so an essence looks the same everywhere in the list.
+static func essence_text_color(essence_color: Color) -> Color:
+	return essence_color.lightened(0.45)
+
 func setup(id: String, copy_count: int, incarnation: bool) -> DecklistRow:
 	card_id = id
 	copies = copy_count
@@ -140,7 +145,7 @@ func _draw_names(rect: Rect2) -> void:
 	var detail_text := ChronicleRow.fit_text(_subtitle, detail_font, 18, available)
 	var detail_position := Vector2(TEXT_LEFT, 66.0)
 	draw_string_outline(detail_font, detail_position, detail_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, 4, Color(0, 0, 0, 0.85))
-	draw_string(detail_font, detail_position, detail_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, accent.lightened(0.45))
+	draw_string(detail_font, detail_position, detail_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, essence_text_color(accent))
 	if is_incarnation:
 		draw_string(detail_font, Vector2(TEXT_LEFT, 20.0), ENCARNATION_TAG, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, UITheme.GOLD_LIGHT)
 

@@ -1,0 +1,47 @@
+{
+  "name": "Ysvane",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "revenante",
+    "espirito"
+  ],
+  "essence": "fluxo",
+  "element": "gelo",
+  "cost": 4,
+  "atk": 2,
+  "hp": 6,
+  "keywords": [
+    "escudo"
+  ],
+  "art": "fluxo/ysvane.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "random_other_ally_unit",
+      "hp": 2,
+      "keywords": [
+        "escudo"
+      ]
+    },
+    {
+      "trigger": "on_enter",
+      "action": "grave_retrieve",
+      "target": "none",
+      "card_ids": [
+        "bola_de_neve",
+        "grande_bola_de_neve"
+      ]
+    },
+    {
+      "trigger": "on_death",
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount": 4
+    }
+  ],
+  "text": "Ao Entrar: outra unidade aliada aleatória ganha +2 de Vida e Escudo; você recupera uma Bola de Neve do seu cemitério (ela é banida depois de lançada).\nAo Morrer: seu Líder recupera 4 de Vida.",
+  "flavor": "Velha o bastante para ser o cofre, e não a guardiã.",
+  "tags": []
+}

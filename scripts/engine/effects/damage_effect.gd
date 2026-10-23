@@ -5,7 +5,7 @@ extends Effect
 ## "self_half_armor" uses half of this unit's own Armadura, rounded up (Tharox);
 ## "target_veneno_markers" deals `amount` damage per Veneno marker on the target (Hikari);
 ## "self_atk" uses this unit's current Ataque (its Ataque at the hit that fired the effect if it already died; Rália).
-## "ally_reduce": {"essence", "amount"} = own units of that essence take only that much.
+## "ally_reduce": {"element", "amount"} = own units of that element take only that much.
 ## "adjacent_amount": the units right beside each target also take this much (Deslizamento de Placas).
 ## "freeze": true also freezes each target that survives the damage (Mestra do Gelo Frígido).
 ## "stun": true also gives each target that survives the damage one Atordoamento marker.
@@ -59,7 +59,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	if amount_if_leader > 0 and GameState.LEADER_UID.has(target_uid):
 		damage_amount = amount_if_leader
 	if not ally_reduce.is_empty() and victim != null and victim.owner == context.controller \
-			and CardDB.has_essence(victim.data(), ally_reduce["essence"]):
+			and CardDB.has_element(victim.data(), ally_reduce["element"]):
 		damage_amount = int(ally_reduce["amount"])
 	# the neighbours are found before any damage, so they stay the same if the target dies
 	var neighbour_uids := _neighbours_of(game, victim) if adjacent_amount > 0 else []

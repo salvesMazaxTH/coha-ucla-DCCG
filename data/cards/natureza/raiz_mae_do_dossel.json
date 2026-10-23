@@ -1,0 +1,39 @@
+{
+  "name": "Raiz-Mãe do Dossel",
+  "type": "unit",
+  "rarity": "legendary",
+  "species": ["driade", "elemental"],
+  "essence": "natureza",
+  "element": "planta",
+  "cost": 5,
+  "atk": 5,
+  "hp": 8,
+  "keywords": ["provocacao", "regeneracao"],
+  "art": "natureza/raiz_mae_do_dossel.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "summon",
+      "target": "none",
+      "card": "mudinha_do_dossel"
+    },
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "temp": true,
+      "target": "other_ally_units",
+      "only_species": ["planta"],
+      "atk": 1,
+      "hp": 1
+    },
+    {
+      "trigger": "on_death",
+      "action": "summon",
+      "target": "none",
+      "card": "mudinha_do_dossel"
+    }
+  ],
+  "text": "Ao Entrar: invoca uma Mudinha do Dossel (ficha 0/1). Suas plantas ganham +1/+1 neste turno.\nAo Morrer: invoca uma Mudinha do Dossel (ficha 0/1).",
+  "flavor": "Toda raiz é uma lembrança procurando água.",
+  "tags": []
+}

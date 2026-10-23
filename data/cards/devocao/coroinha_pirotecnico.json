@@ -1,0 +1,28 @@
+{
+  "name": "Coroinha Pirotécnico",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "humano"
+  ],
+  "essence": "devocao",
+  "element": "luz",
+  "art": "devocao/coroinha_pirotecnico.webp",
+  "cost": 3,
+  "atk": 2,
+  "hp": 4,
+  "keywords": [
+    "provocacao"
+  ],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "all_enemy_units",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Entrar: causa 1 de dano a todas as unidades inimigas.",
+  "flavor": "Jurou que o incensário só estava um pouco quente demais.",
+  "tags": []
+}

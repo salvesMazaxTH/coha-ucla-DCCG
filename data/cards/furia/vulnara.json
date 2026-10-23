@@ -1,0 +1,26 @@
+{
+  "name": "Vulnara",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["humano"],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 3,
+  "atk": 4,
+  "hp": 2,
+  "keywords": [
+    "longo_alcance"
+  ],
+  "art": "furia/vulnara.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 2
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela sofre 2 de dano.",
+  "flavor": "Chuva de flechas ardentes.",
+  "tags": []
+}

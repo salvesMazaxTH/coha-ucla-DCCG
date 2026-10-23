@@ -1,0 +1,19 @@
+{
+  "name": "Pára-Raios",
+  "type": "unit",
+  "rarity": "common",
+  "species": [],
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 4,
+  "atk": 2,
+  "hp": 5,
+  "keywords": [
+    "escudo_feitico"
+  ],
+  "art": "tormenta/para_raios.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "",
+  "tags": []
+}

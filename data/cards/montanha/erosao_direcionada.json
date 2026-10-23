@@ -1,0 +1,22 @@
+{
+  "name": "Erosão Direcionada",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "montanha",
+  "element": "pedra",
+  "art": "montanha/erosao_direcionada.webp",
+  "cost": 2,
+  "speed": "rapido",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "enemy_unit",
+      "atk": -2,
+      "temp": true
+    }
+  ],
+  "text": "Uma unidade inimiga à sua escolha perde 2 de Ataque até o fim do turno.",
+  "flavor": "",
+  "tags": []
+}

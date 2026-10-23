@@ -1,0 +1,58 @@
+{
+  "name": "Voltexz",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "divindade",
+    "elemental"
+  ],
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 15,
+  "atk": 8,
+  "hp": 6,
+  "keywords": [
+    "rapidez:3",
+    "voo"
+  ],
+  "art": "tormenta/voltexz.webp",
+  "effects": [
+    {
+      "listen": "turn_started",
+      "scope": "ally",
+      "zones": ["sanctuary", "hand", "board"],
+      "if": "unspent_momentum",
+      "action": "modify_cost",
+      "target": "self_card",
+      "per": "unspent_momentum",
+      "amount": -1,
+      "min_cost": 3
+    },
+    {
+      "listen": "turn_started",
+      "scope": "ally",
+      "zones": ["board"],
+      "if": "momentum_leaked",
+      "action": "buff",
+      "target": "self",
+      "atk": 2,
+      "hp": 1,
+      "keywords": ["escudo_feitico"],
+      "temp": true
+    },
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "other_ally_units",
+      "per": "momentum_left",
+      "min": 1,
+      "max": 5,
+      "atk": 1,
+      "hp": 1,
+      "rapidez_min": 1
+    }
+  ],
+  "text": "Condicional: no início do seu turno, o custo desta carta diminui em (1) por Momentum comum que sobrou, onde quer que ela esteja, até o mínimo de (3); o que foi para a Reserva conta, o que já estava lá, não.\nNo início do seu turno: se Momentum vazou no turno anterior, esta unidade ganha +2/+1 e Escudo de Feitiço até o fim do turno.\nAo Entrar: concede +1/+1 por Momentum restante (de +1/+1 a +5/+5) e Rapidez 1 (se for menor) às suas outras unidades.",
+  "flavor": "",
+  "tags": []
+}

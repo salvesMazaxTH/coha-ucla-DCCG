@@ -1,0 +1,25 @@
+{
+  "name": "Brann, Guardião dos Cervos",
+  "type": "unit",
+  "rarity": "legendary",
+  "species": ["fera"],
+  "essence": "natureza",
+  "element": "planta",
+  "cost": 4,
+  "atk": 5,
+  "hp": 6,
+  "keywords": ["provocacao", "vigilancia", "intimidacao"],
+  "art": "natureza/brann_guardiao_dos_cervos.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "other_ally_units",
+      "hp": 1,
+      "keywords": ["escudo"]
+    }
+  ],
+  "text": "Ao Entrar: suas outras unidades ganham +1 de Vida permanente e Escudo.",
+  "flavor": "Quando os galhos baixam a cabeça, é porque ele passou.",
+  "tags": []
+}

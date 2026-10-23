@@ -1,0 +1,25 @@
+{
+  "name": "Fúria Ardente",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 2,
+  "speed": "rapido",
+  "art": "furia/furia_ardente.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "atk": 2,
+      "temp": true,
+      "keywords": [
+        "sobrepujanca"
+      ]
+    }
+  ],
+  "text": "Concede +2 de Ataque neste turno e Sobrepujança a uma unidade aliada à sua escolha.",
+  "flavor": "",
+  "tags": []
+}

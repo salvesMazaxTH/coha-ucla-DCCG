@@ -1,0 +1,34 @@
+{
+  "name": "Jardim da Caçada",
+  "type": "spell",
+  "rarity": "legendary",
+  "essence": "natureza",
+  "element": "planta",
+  "cost": 4,
+  "speed": "rapido",
+  "art": "natureza/jardim_da_cacada.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "summon",
+      "target": "none",
+      "card": "flor_voraz"
+    },
+    {
+      "trigger": "on_play",
+      "action": "summon",
+      "target": "none",
+      "card": "flor_voraz"
+    },
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "all_ally_units",
+      "atk": 1,
+      "temp": true
+    }
+  ],
+  "text": "Invoca duas cópias de Flor Voraz (ficha 0/1). Suas unidades ganham +1 de Ataque neste turno.",
+  "flavor": "A clareira parece quieta até o chão abrir a boca.",
+  "tags": []
+}

@@ -1,0 +1,41 @@
+{
+  "name": "Ronan",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "dragonoide",
+    "humano",
+    "dragao"
+  ],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 4,
+  "atk": 4,
+  "hp": 3,
+  "keywords": [
+    "impeto",
+    "regeneracao"
+  ],
+  "art": "furia/ronan.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 2
+    },
+    {
+      "trigger": "on_damaged",
+      "action": "buff",
+      "target": "self",
+      "atk": 1
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela sofre 2 de dano.\nAo Sofrer Dano: esta unidade ganha +1 de Ataque.",
+  "flavor": [
+    "Dragões, seitas, magos... será que dá pra eu só ter uma terça-feira normal?",
+    "Eu tinha um plano: diploma, emprego, boleto pago. Aí veio o dragão.",
+    "Respirei fundo. Contei até dez. Passei do nove."
+  ],
+  "tags": []
+}

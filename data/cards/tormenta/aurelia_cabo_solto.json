@@ -1,0 +1,23 @@
+{
+  "name": "Aurelia Cabo-Solto",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "elfo"
+  ],
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 3,
+  "atk": 2,
+  "hp": 2,
+  "subito": 5,
+  "keywords": [
+    "rapidez:1",
+    "provocacao"
+  ],
+  "art": "tormenta/aurelia_cabo_solto.webp",
+  "effects": [],
+  "text": "Súbito (5). (Este efeito é uma habilidade, não uma jogada.)",
+  "flavor": "Ela jura que o cabo soltou sozinho. O cabo discorda.",
+  "tags": []
+}

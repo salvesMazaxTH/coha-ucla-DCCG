@@ -1,14 +1,14 @@
 # Cartas
 
-Cada carta fica em um arquivo JSON próprio, usando o ID do jogo como nome do arquivo, dentro da pasta da sua **essência**:
-`ignea/`, `aquatica/`, `glacial/`, `vegetal/`, `rochosa/`, `metalica/`, `eletrica/`, `obscura/`, `sagrada/`, `venenosa/` e `neutra/`.
-O campo `essence` da carta deve bater com a pasta. Pastas de essências sem cartas ainda não precisam existir.
+Cada carta fica em um arquivo JSON próprio, usando o ID do jogo como nome do arquivo, dentro da pasta do seu **domínio**:
+`furia/`, `fluxo/`, `natureza/`, `montanha/`, `tormenta/`, `trevas/`, `devocao/` e `neutra/`.
+O campo `essence` da carta deve bater com a pasta. Pastas de domínios sem cartas ainda não precisam existir.
 
 Exemplos:
 
-- `ignea/kai.json` — carta do Kai
-- `ignea/ronan.json` — carta de campeão do Ronan
-- `ignea/labareda.json` — carta de feitiço Labareda
+- `furia/kai.json` — carta do Kai
+- `furia/ronan.json` — carta de campeão do Ronan
+- `furia/labareda.json` — carta de feitiço Labareda
 
 Para alterar habilidades, edite o campo `keywords` usando os IDs definidos em `../cards.json`, na seção `keywords`.
 
@@ -51,4 +51,4 @@ Exemplo:
 
 ## Retratos
 
-Os retratos ficam em `assets/portraits/<essência>/<id>.webp`, na mesma pasta de essência da carta (`ignea/`, `aquatica/`, `neutra/`…). O campo `art` da carta guarda o caminho relativo a `assets/portraits/`, por exemplo `"art": "ignea/kai.webp"`. Retratos de Líderes ficam na pasta da essência do Líder.
+Os retratos ficam em `assets/portraits/<domínio>/<id>.webp`, na mesma pasta de domínio da carta (`furia/`, `fluxo/`, `neutra/`…). O campo `art` da carta guarda o caminho relativo a `assets/portraits/`, por exemplo `"art": "furia/kai.webp"`. Retratos de Líderes ficam na pasta do domínio do Líder.

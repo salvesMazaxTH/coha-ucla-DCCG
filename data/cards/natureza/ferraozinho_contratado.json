@@ -1,0 +1,22 @@
+{
+  "name": "Ferrãozinho Contratado",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "fera"
+  ],
+  "essence": "natureza",
+  "element": "veneno",
+  "cost": 1,
+  "atk": 1,
+  "hp": 3,
+  "keywords": [
+    "toxico",
+    "toque_letal"
+  ],
+  "art": "natureza/ferraozinho_contratado.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "Pago por picada. Não aceita gorjeta.",
+  "tags": []
+}

@@ -1,0 +1,23 @@
+{
+  "name": "Vigia do Farol do Norte",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["humano"],
+  "essence": "fluxo",
+  "cost": 2,
+  "atk": 1,
+  "hp": 2,
+  "keywords": [],
+  "art": "fluxo/vigia_do_farol_do_norte.webp",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Morrer: você compra 1 carta.",
+  "flavor": "A luz nunca se apaga; só passa de mão.",
+  "tags": []
+}

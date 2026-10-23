@@ -1,0 +1,21 @@
+{
+  "name": "Muralha Cara-de-Pedra",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "montanha",
+  "element": "pedra",
+  "art": "montanha/muralha_cara_de_pedra.webp",
+  "cost": 2,
+  "speed": "instantaneo",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "counter",
+      "target": "enemy_stack",
+      "only_if_targets_ally": true
+    }
+  ],
+  "text": "Anula um feitiço ou habilidade inimiga que tenha como alvo uma unidade aliada e/ou o seu Líder (efeitos em área não contam).",
+  "flavor": "",
+  "tags": ["anular"]
+}

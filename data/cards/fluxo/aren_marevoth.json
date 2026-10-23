@@ -1,0 +1,20 @@
+{
+  "name": "Aren Marevóth",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["transfigurado", "forjado_divino"],
+  "essence": "fluxo",
+  "element": "agua",
+  "cost": 5,
+  "atk": 5,
+  "hp": 6,
+  "keywords": [
+    "escudo",
+    "sobrepujanca"
+  ],
+  "art": "fluxo/aren_marevoth.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "Transfigurado pelas profundezas abissais.",
+  "tags": []
+}

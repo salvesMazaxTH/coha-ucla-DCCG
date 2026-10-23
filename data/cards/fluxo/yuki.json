@@ -1,0 +1,26 @@
+{
+  "name": "Yuki",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["humano"],
+  "essence": "fluxo",
+  "element": "agua",
+  "cost": 2,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [
+    "rapidez:1",
+    "furtividade"
+  ],
+  "art": "fluxo/yuki.webp",
+  "effects": [],
+  "activated": {
+    "cost": 3,
+    "speed": "rapido",
+    "once_per_turn": true,
+    "effects": [{ "action": "buff", "target": "self", "atk": 2, "hp": 2, "temp": true }]
+  },
+  "text": "Ao Ativar (3) {rapido} (1x por turno): esta unidade ganha +2/+2 neste turno.",
+  "flavor": "Água parada, lâmina sob a lua.",
+  "tags": []
+}

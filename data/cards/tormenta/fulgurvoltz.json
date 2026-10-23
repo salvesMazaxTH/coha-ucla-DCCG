@@ -1,0 +1,33 @@
+{
+  "name": "Fulgurvoltz",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "elemental",
+    "tita"
+  ],
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 14,
+  "atk": 9,
+  "hp": 9,
+  "keywords": ["intimidacao"],
+  "art": "tormenta/fulgurvoltz.webp",
+  "effects": [
+    {
+      "action": "cost_reduction",
+      "per": "idle_turns",
+      "amount": 3,
+      "min_cost": 5
+    }
+  ],
+  "activated": {
+    "cost": 5,
+    "speed": "lento",
+    "exhaust": true,
+    "effects": [{ "action": "banish", "target": "all_enemy_units" }]
+  },
+  "text": "Custa (3) a menos por turno seu com Momentum vazado; o custo mínimo é (5).\nAo Ativar (5) {lento} (exaure esta unidade): bane todas as unidades inimigas.",
+  "flavor": "",
+  "tags": []
+}

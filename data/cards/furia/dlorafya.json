@@ -1,0 +1,20 @@
+{
+  "name": "D'Lorafya",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["divindade", "celestial"],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 7,
+  "atk": 7,
+  "hp": 5,
+  "keywords": [],
+  "art": "furia/dlorafya.webp",
+  "effects": [
+    {"trigger":"on_enter","action":"damage","target":"all_units","amount":3,"ally_reduce":{"element":"fogo","amount":1}},
+    {"trigger":"on_enter","action":"add_dot","dot":"queimadura","target":"all_enemy_units","amount":1,"ignores_immunity":true}
+  ],
+  "text": "Ao Entrar: causa 3 de dano a todas as unidades; unidades de Fogo aliadas sofrem apenas 1. As unidades inimigas recebem 1 marcador de Queimadura (ignora imunidade).",
+  "flavor": "O veredito da pira é final.",
+  "tags": []
+}

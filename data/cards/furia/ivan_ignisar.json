@@ -1,0 +1,33 @@
+{
+  "name": "Ivan Ignisar",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "dragao_primordial",
+    "dragao"
+  ],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 7,
+  "atk": 7,
+  "hp": 8,
+  "keywords": [
+    "voo"
+  ],
+  "art": "furia/ivan_ignisar.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 3
+    }
+  ],
+  "transform": {
+    "into": "ivan_ignisar_primordial",
+    "cost": 8
+  },
+  "text": "Ao Entrar: causa 3 de dano ao Líder inimigo.\nTransformar (8): Ivan Ignisar Primordial.",
+  "flavor": "",
+  "tags": []
+}

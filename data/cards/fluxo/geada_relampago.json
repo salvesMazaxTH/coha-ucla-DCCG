@@ -1,0 +1,26 @@
+{
+  "name": "Geada Relâmpago",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "fluxo",
+  "element": "gelo",
+  "cost": 2,
+  "speed": "instantaneo",
+  "art": "fluxo/geada_relampago.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "freeze",
+      "target": "enemy_unit"
+    },
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 1
+    }
+  ],
+  "text": "Congela uma unidade inimiga à sua escolha e causa 1 de dano a ela.",
+  "flavor": "Pisque e você perde.",
+  "tags": []
+}

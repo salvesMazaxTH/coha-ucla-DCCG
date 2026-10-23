@@ -1,0 +1,24 @@
+{
+  "name": "Estrondador Ígneo",
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["demihumano"],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 2,
+  "atk": 2,
+  "hp": 3,
+  "keywords": ["sobrepujanca"],
+  "art": "furia/estrondador_igneo.webp",
+  "effects": [
+    {
+      "trigger": "on_hit_leader",
+      "action": "damage",
+      "target": "center_enemy_units",
+      "amount": 2
+    }
+  ],
+  "text": "Ao Atingir o Líder: causa 2 de dano às unidades inimigas no centro do campo.",
+  "flavor": "O estrondo vem antes do fogo.",
+  "tags": []
+}

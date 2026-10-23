@@ -1,0 +1,21 @@
+{
+  "name": "Cobra de Sofá",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "fera"
+  ],
+  "essence": "natureza",
+  "element": "veneno",
+  "cost": 2,
+  "atk": 2,
+  "hp": 4,
+  "keywords": [
+    "toxico"
+  ],
+  "art": "natureza/cobra_de_sofa.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "Parece almofada até alguém sentar.",
+  "tags": []
+}

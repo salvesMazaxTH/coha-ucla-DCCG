@@ -1,0 +1,19 @@
+{
+  "name": "Gaivota da Tempestade",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["fera"],
+  "essence": "fluxo",
+  "element": "agua",
+  "cost": 2,
+  "atk": 2,
+  "hp": 1,
+  "keywords": [
+    "voo"
+  ],
+  "art": "fluxo/gaivota_da_tempestade.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "",
+  "tags": []
+}

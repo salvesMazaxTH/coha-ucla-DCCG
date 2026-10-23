@@ -1,0 +1,30 @@
+{
+  "name": "Ritual do Degelo",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "fluxo",
+  "element": "gelo",
+  "cost": 1,
+  "speed": "rapido",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": 3
+    },
+    {
+      "trigger": "on_play",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": -2,
+      "next_turn": true
+    }
+  ],
+  "text": "Você ganha 3 de Momentum. No próximo turno, você terá 2 de Momentum a menos.",
+  "flavor": "Acendeu uma vela de gelo. Funcionou de um jeito que não devia.",
+  "art": "fluxo/ritual_do_degelo.webp",
+  "tags": [
+    "combo_degelo"
+  ]
+}

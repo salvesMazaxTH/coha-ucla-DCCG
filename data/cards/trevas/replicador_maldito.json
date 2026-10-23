@@ -1,0 +1,28 @@
+{
+  "name": "Replicador Maldito",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["demonio"],
+  "essence": "trevas",
+  "element": "sombra",
+  "cost": 3,
+  "atk": 2,
+  "hp": 3,
+  "keywords": [],
+  "art": "trevas/replicador_maldito.webp",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "summon",
+      "target": "none",
+      "card": "replicador_maldito",
+      "overrides": {
+        "effects": [],
+        "text": "Cópia: sem efeito."
+      }
+    }
+  ],
+  "text": "Ao Morrer: invoca uma cópia desta unidade, sem este efeito.",
+  "flavor": "Cada cópia lembra um pouco menos do original.",
+  "tags": []
+}

@@ -1,0 +1,25 @@
+{
+  "name": "Tectônia Pé-de-Serra",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["troll"],
+  "essence": "montanha",
+  "element": "pedra",
+  "art": "montanha/tectonia_pe_de_serra.webp",
+  "cost": 6,
+  "atk": 4,
+  "hp": 8,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_damaged",
+      "action": "buff",
+      "target": "self",
+      "armor": 1,
+      "once_per_turn": true
+    }
+  ],
+  "text": "Ao Sofrer Dano (uma vez por turno): ganha Armadura 1 permanente (acumula).",
+  "flavor": "",
+  "tags": []
+}

@@ -633,6 +633,11 @@ func _test_off_essence() -> void:
 	# fire deck: swap in off-essence (aquática) cards; neutral and own-essence cards don't count
 	var base: Dictionary = DeckDB.get_deck("fogo")["cards"].duplicate()
 	var leader: String = DeckDB.get_deck("fogo")["leader"]
+	# the deck may already hold a guest card of its own (e.g. a Montanha artifact answer): clear those first so the 12 guest slots start empty
+	for card_id in base.keys():
+		var domains := CardDB.essences_of(CardDB.card(card_id))
+		if not (domains.has("neutra") or domains.has("furia")):
+			base.erase(card_id)
 	var victims: Array = base.keys().filter(func(k): return k != DeckDB.get_deck("fogo")["leader"] and CardDB.card(k).get("rarity", "") != "champion")
 	var swapped := 0
 	for k in victims:
@@ -647,7 +652,7 @@ func _test_off_essence() -> void:
 	base["tsunami"] = 3
 	base["bencao_das_profundezas"] = 3
 	base["espirito_da_mare"] = 3
-	check(DeckDB.validate_cards(leader, base).filter(func(e): return "fora da essência" in e).is_empty(), "12 cartas de fora da essência são permitidas")
+	check(DeckDB.validate_cards(leader, base).filter(func(e): return "fora do domínio" in e).is_empty(), "12 cartas de fora da essência são permitidas")
 	var over: Dictionary = base.duplicate()
 	over["tritao_lanceiro"] = 1
 	over[over.keys().filter(func(k): return k != "afogar" and k != "tsunami" and k != "bencao_das_profundezas" and k != "espirito_da_mare" and k != leader)[0]] -= 1
@@ -662,24 +667,24 @@ func _secondary_essence_errors(off_essence_cards: Dictionary) -> Array:
 	var cards: Dictionary = {}
 	for k in DeckDB.get_deck("fogo")["cards"]:
 		var essences := CardDB.essences_of(CardDB.card(k))
-		if essences.has("neutra") or essences.has("ignea"):
+		if essences.has("neutra") or essences.has("furia"):
 			cards[k] = DeckDB.get_deck("fogo")["cards"][k]
 	for k in off_essence_cards:
 		cards[k] = off_essence_cards[k]
-	return DeckDB.validate_cards(leader, cards).filter(func(e): return "secundárias" in e)
+	return DeckDB.validate_cards(leader, cards).filter(func(e): return "secundários" in e)
 
 func _test_secondary_essences() -> void:
 	check(_secondary_essence_errors({"afogar": 3, "tsunami": 3}).is_empty(), "uma essência secundária é legal")
 	check(_secondary_essence_errors({"afogar": 3, "arena_tectonica": 3}).is_empty(), "duas essências secundárias são legais")
 	check(not _secondary_essence_errors({"afogar": 3, "arena_tectonica": 3, "carga_acumulada": 1}).is_empty(), "três essências secundárias são ilegais")
-	# Morwenna is obscura + vegetal: she fits under the obscura secondary essence
+	# Morwenna is trevas + natureza: she fits under the trevas secondary domain
 	check(_secondary_essence_errors({"afogar": 3, "morwenna_raiz_podre": 2, "necrofago_espectral": 3}).is_empty(), "carta dupla serve a uma essência secundária pela outra metade")
 	check(not _secondary_essence_errors({"afogar": 3, "morwenna_raiz_podre": 2, "necrofago_espectral": 3, "arena_tectonica": 1}).is_empty(), "carta dupla não abre uma terceira essência secundária")
 	# a neutral Leader picks its secondary essences like any other Leader (Vael: elétrica + ígnea)
 	var vael_cards: Dictionary = DeckDB.get_deck("vael")["cards"].duplicate()
-	check(DeckDB.validate_cards("vael", vael_cards).filter(func(e): return "secundárias" in e).is_empty(), "Líder neutro com duas essências secundárias é legal")
+	check(DeckDB.validate_cards("vael", vael_cards).filter(func(e): return "secundários" in e).is_empty(), "Líder neutro com duas essências secundárias é legal")
 	vael_cards["afogar"] = 1
-	check(not DeckDB.validate_cards("vael", vael_cards).filter(func(e): return "secundárias" in e).is_empty(), "Líder neutro com três essências secundárias é ilegal")
+	check(not DeckDB.validate_cards("vael", vael_cards).filter(func(e): return "secundários" in e).is_empty(), "Líder neutro com três essências secundárias é ilegal")
 
 func _kill(g: GameState, c: Card) -> void:
 	c.damage = 1000
@@ -1698,7 +1703,7 @@ func _test_freeze() -> void:
 	_tcard("t_frz_hit", 1, 5, [])
 	_tcard("t_frz_vic", 3, 5, [])
 	_tcard("t_glacial_freeze_immune", 3, 5, [])
-	CardDB.data()["cards"]["t_glacial_freeze_immune"]["essence"] = "glacial"
+	CardDB.data()["cards"]["t_glacial_freeze_immune"]["element"] = "gelo"
 	var g := _new_game()
 	_quiet(g)
 	var hitter := _put(g, 0, "t_frz_hit")
@@ -1710,7 +1715,7 @@ func _test_freeze() -> void:
 	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, standing.uid)
 	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, glacial.uid)
 	check(g.is_frozen(tapped) and g.is_frozen(standing), "congelar marca a unidade")
-	check(not g.is_frozen(glacial), "imunidade inata: unidades Glaciais não podem ser congeladas")
+	check(not g.is_frozen(glacial), "imunidade inata: unidades de Gelo não podem ser congeladas")
 	check(g.atk_of(tapped) == 3 and tapped.rapidez_total() == 0, "congelada: ATK segue o mesmo, Rapidez é suprimida (vira 0)")
 	check(not standing.exhausted, "congelar não exaure: a unidade em pé continua em pé")
 	_quiet(g)
@@ -1780,7 +1785,7 @@ func _test_freeze() -> void:
 	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, taunt.uid)
 	targets = g.combat_system().attack_targets(hitter)
 	check(g.combat_system().forced_taunts(hitter).is_empty() and targets.has(taunt.uid) and targets.has(GameState.LEADER_UID[1]), "Provocação congelada não obriga nem protege o Líder")
-	check(CardDB.has_essence(CardDB.card("sabrina"), "glacial") and CardDB.has_essence(CardDB.card("sabrina"), "aquatica"), "sabrina é aquática e glacial")
+	check(CardDB.has_essence(CardDB.card("sabrina"), "fluxo") and CardDB.has_element(CardDB.card("sabrina"), "gelo") and CardDB.has_element(CardDB.card("sabrina"), "agua"), "sabrina é de Fluxo, elemento Gelo e Água")
 	# Sabrina: 1 damage, or 3 if the target was already Congelada (a freeze by the same effect doesn't count)
 	g = _new_game()
 	_quiet(g)
@@ -1797,12 +1802,12 @@ func _test_overlay_keyword_immunities() -> void:
 	var frozen_overlay := CardOverlay.describe("estilhaco_gelido", {}, -1, "", GameState.SNOWBALL_BASE_LEVEL)
 	var burn_overlay := CardOverlay.describe("irina_lancachamas", {}, -1, "", GameState.SNOWBALL_BASE_LEVEL)
 	var poison_overlay := CardOverlay.describe("cicuta_no_cha", {}, -1, "", GameState.SNOWBALL_BASE_LEVEL)
-	check(freeze_overlay.contains("Congelar[/b]") and freeze_overlay.contains("Unidades Glaciais têm imunidade inata ao "),
-			"overlay: a menção a Congele explica Congelar e a imunidade Glacial")
+	check(freeze_overlay.contains("Congelar[/b]") and freeze_overlay.contains("Unidades de Gelo têm imunidade inata ao "),
+			"overlay: a menção a Congele explica Congelar e a imunidade de Gelo")
 	check(frozen_overlay.contains("Congelar[/b]"), "overlay: a menção a Congelada também explica Congelar")
-	check(burn_overlay.contains("Queimadura[/b]") and burn_overlay.contains("essência Ígnea"),
+	check(burn_overlay.contains("Queimadura[/b]") and burn_overlay.contains("Unidades de Fogo não recebem"),
 			"overlay: a menção a Queimadura explica sua imunidade inata")
-	check(poison_overlay.contains("Veneno[/b]") and poison_overlay.contains("essência Venenosa ou Metálica"),
+	check(poison_overlay.contains("Veneno[/b]") and poison_overlay.contains("ou de Metal não recebem"),
 			"overlay: a menção a Veneno explica suas imunidades inatas")
 
 func _test_burn() -> void:
@@ -4628,6 +4633,32 @@ func _test_eletrica() -> void:
 	g.players[a]["momentum"] = 0
 	g._run_effect_dicts(a, CardDB.card("voltexz")["effects"], "on_enter", 0, 0)
 	check(g.atk_of(ally) == 6 and g.players[a]["board"][0].hp == 8, "voltexz: sem Momentum sobrando, ainda dá +1/+1")
+	# Voltexz converts leaked Momentum into a temporary self-buff at the start of her owner's turn.
+	g = _eletrica_game()
+	a = g.active
+	var start_voltexz := _put(g, a, "voltexz")
+	g.players[a]["leaked"] = 0
+	g.bus().emit(GameEvent.new("turn_started", a))
+	g._check_state()
+	check(atk_ok(g, start_voltexz, 8, 6) and not start_voltexz.spell_shield, "voltexz: sem Momentum vazado, não ganha o bônus de turno")
+	g = _eletrica_game()
+	a = g.active
+	start_voltexz = _put(g, a, "voltexz")
+	g.players[a]["leaked"] = 1
+	g.bus().emit(GameEvent.new("turn_started", a))
+	g._check_state()
+	check(g.atk_of(start_voltexz) == 10 and start_voltexz.hp + start_voltexz.temp_hp == 7 and start_voltexz.spell_shield and start_voltexz.spell_shield_until_end_turn, "voltexz: Momentum vazado dá +2/+1 e Escudo de Feitiço temporários (ATQ %d, Vida %d+%d, escudo %s, fim %s, vazou %d)" % [g.atk_of(start_voltexz), start_voltexz.hp, start_voltexz.temp_hp, start_voltexz.spell_shield, start_voltexz.spell_shield_until_end_turn, g.players[a]["leaked"]])
+	g.end_turn(a)
+	check(atk_ok(g, start_voltexz, 8, 6) and not start_voltexz.spell_shield, "voltexz: bônus de vazamento expira no fim do turno")
+	g = _eletrica_game()
+	a = g.active
+	start_voltexz = _put(g, a, "voltexz")
+	start_voltexz.spell_shield = true
+	start_voltexz.spell_shield_until_end_turn = true
+	g.players[a]["leaked"] = 1
+	g.bus().emit(GameEvent.new("turn_started", a))
+	g._check_state()
+	check(start_voltexz.spell_shield_until_end_turn and not start_voltexz.spell_shield_until_next_turn, "voltexz: o bônus temporário não torna permanente um Escudo de Feitiço já temporário")
 	# Jack: +1 attack per Momentum left at end of turn
 	g = _eletrica_game()
 	a = g.active
@@ -5818,7 +5849,7 @@ func _test_glacial_combo() -> void:
 	# so units hit + slots blocked is always 5 (whatever the draw)
 	check(int(CardDB.card("rei_gelado")["atk"]) == 6 and int(CardDB.card("rei_gelado")["hp"]) == 9, "Rei Gelado: 6/9")
 	_tcard("t_rei_glacial_immunity", 1, 20, [])
-	CardDB.data()["cards"]["t_rei_glacial_immunity"]["essence"] = "glacial"
+	CardDB.data()["cards"]["t_rei_glacial_immunity"]["element"] = "gelo"
 	var immune_game := _new_game()
 	_quiet(immune_game)
 	var glacial_targets: Array = []
@@ -5830,7 +5861,7 @@ func _test_glacial_combo() -> void:
 	EffectRegistry.parse(rei_freeze_entries[0]).apply(EffectContext.new(immune_game, 0, "rei_gelado"), 0)
 	var frozen_glacial_targets: Array = glacial_targets.filter(func(c: Card): return c.frozen > 0)
 	check(frozen_glacial_targets.size() == 5 and frozen_glacial_targets.all(func(c: Card): return c.exhausted),
-			"Rei Gelado: congela e exaure 5 unidades Glaciais apesar da imunidade inata")
+			"Rei Gelado: congela e exaure 5 unidades de Gelo apesar da imunidade inata")
 	for enemy_count in [0, 3, 6, 8]:
 		var rei := _combo_game(8, enemy_count, 10, 0)
 		var rei_game: GameState = rei["game"]
@@ -6643,9 +6674,9 @@ func _test_sagrada_engine() -> void:
 	check(healed_unit.hp == 6 and healed_unit.damage == 0, "overflow_max_hp: cura exata não passa do máximo, sem bônus")
 
 	# "ao conjurar feitiço da essência": spell_cast carries essence_<id>, so a listener can filter on it
-	_tcard("t_caster_fan", 1, 5, [{"listen": "spell_cast", "scope": "ally", "when": {"essence_glacial": true},
+	_tcard("t_caster_fan", 1, 5, [{"listen": "spell_cast", "scope": "ally", "when": {"essence_fluxo": true},
 		"action": "buff", "target": "self", "atk": 1}])
-	CardDB.data()["cards"]["t_glacial_spell"] = {"name": "t_glacial_spell", "type": "spell", "rarity": "common", "essence": "glacial",
+	CardDB.data()["cards"]["t_glacial_spell"] = {"name": "t_glacial_spell", "type": "spell", "rarity": "common", "essence": "fluxo",
 		"cost": 0, "speed": "lento", "art": "", "effects": [], "text": "", "flavor": "", "tags": []}
 	_tspell("t_neutral_spell", "lento", [])
 	g = _new_game()
@@ -6769,9 +6800,9 @@ func _test_sagrada_engine() -> void:
 	check(g.atk_of(archangel) == attack_before + 1, "Uriel: cura do Líder dá +1 de Ataque (%d -> %d)" % [attack_before, g.atk_of(archangel)])
 
 	# graveyard_armor: +1 Armadura per spell of the essence in the owner's graveyard (damage never below 1)
-	_tcard("t_grave_armor", 1, 20, [{"trigger": "constante", "action": "graveyard_armor", "essence": "sagrada", "card_type": "spell"}])
+	_tcard("t_grave_armor", 1, 20, [{"trigger": "constante", "action": "graveyard_armor", "essence": "devocao", "card_type": "spell"}])
 	_tspell("t_sagrada_spell", "lento", [])
-	CardDB.data()["cards"]["t_sagrada_spell"]["essence"] = "sagrada"
+	CardDB.data()["cards"]["t_sagrada_spell"]["essence"] = "devocao"
 	_tspell("t_neutral_spell", "lento", [])
 	g = _new_game()
 	_quiet(g)
@@ -6805,15 +6836,15 @@ func _test_sagrada_engine() -> void:
 
 	# Imunidade contra Obscura: combat damage and AIMED effects of enemy Obscura cards do nothing; area effects still hit
 	_tcard("t_immune_obscura", 1, 10, [])
-	CardDB.data()["cards"]["t_immune_obscura"]["keywords"] = ["imunidade_obscura"]
+	CardDB.data()["cards"]["t_immune_obscura"]["keywords"] = ["imunidade_trevas"]
 	_tcard("t_dark_attacker", 3, 6, [])
-	CardDB.data()["cards"]["t_dark_attacker"]["essence"] = "obscura"
+	CardDB.data()["cards"]["t_dark_attacker"]["essence"] = "trevas"
 	_tcard("t_plain_attacker", 3, 6, [])
 	_tspell("t_plain_bolt", "lento", [{"trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 3}])
 	_tspell("t_dark_bolt", "lento", [{"trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 3}])
-	CardDB.data()["cards"]["t_dark_bolt"]["essence"] = "obscura"
+	CardDB.data()["cards"]["t_dark_bolt"]["essence"] = "trevas"
 	_tspell("t_dark_blast", "lento", [{"trigger": "on_play", "action": "damage", "target": "all_enemy_units", "amount": 3}])
-	CardDB.data()["cards"]["t_dark_blast"]["essence"] = "obscura"
+	CardDB.data()["cards"]["t_dark_blast"]["essence"] = "trevas"
 	# combat: a fresh game per attacker (a unit that attacked leaves the main phase)
 	g = _new_game()
 	_quiet(g)
@@ -6822,7 +6853,7 @@ func _test_sagrada_engine() -> void:
 	immune_unit_obscura.exhausted = true # only an exhausted unit can be challenged
 	_hit(g, _put(g, attacker_side, "t_dark_attacker"), immune_unit_obscura.uid)
 	_pass_windows(g)
-	check(immune_unit_obscura.damage == 0, "Imunidade contra Obscura: golpe de unidade Obscura causa 0 (%d)" % immune_unit_obscura.damage)
+	check(immune_unit_obscura.damage == 0, "Imunidade contra Trevas: golpe de unidade de Trevas causa 0 (%d)" % immune_unit_obscura.damage)
 	g = _new_game()
 	_quiet(g)
 	attacker_side = g.active
@@ -6830,32 +6861,32 @@ func _test_sagrada_engine() -> void:
 	immune_unit_obscura.exhausted = true
 	_hit(g, _put(g, attacker_side, "t_plain_attacker"), immune_unit_obscura.uid)
 	_pass_windows(g)
-	check(immune_unit_obscura.damage == 3, "Imunidade contra Obscura: unidade de outra essência causa dano normal (%d)" % immune_unit_obscura.damage)
+	check(immune_unit_obscura.damage == 3, "Imunidade contra Trevas: unidade de outro domínio causa dano normal (%d)" % immune_unit_obscura.damage)
 	# spells: aimed ones are ignored, area ones still hit
 	g = _new_game()
 	_quiet(g)
 	attacker_side = g.active
 	immune_unit_obscura = _put(g, g.opponent(attacker_side), "t_immune_obscura")
 	_cast_and_resolve(g, attacker_side, "t_dark_bolt", immune_unit_obscura.uid)
-	check(immune_unit_obscura.damage == 0, "Imunidade contra Obscura: feitiço Obscuro mirado é ignorado (%d)" % immune_unit_obscura.damage)
+	check(immune_unit_obscura.damage == 0, "Imunidade contra Trevas: feitiço de Trevas mirado é ignorado (%d)" % immune_unit_obscura.damage)
 	_cast_and_resolve(g, attacker_side, "t_plain_bolt", immune_unit_obscura.uid)
-	check(immune_unit_obscura.damage == 3, "Imunidade contra Obscura: feitiço de outra essência mirado funciona (%d)" % immune_unit_obscura.damage)
+	check(immune_unit_obscura.damage == 3, "Imunidade contra Trevas: feitiço de outro domínio mirado funciona (%d)" % immune_unit_obscura.damage)
 	immune_unit_obscura.damage = 0
 	_cast_and_resolve(g, attacker_side, "t_dark_blast")
-	check(immune_unit_obscura.damage == 3, "Imunidade contra Obscura: efeito em área Obscuro ainda atinge (%d)" % immune_unit_obscura.damage)
+	check(immune_unit_obscura.damage == 3, "Imunidade contra Trevas: efeito em área de Trevas ainda atinge (%d)" % immune_unit_obscura.damage)
 	# The immunity is generic: each essence has its own keyword "imunidade_<essência>" and only blocks that essence
-	CardDB.data()["cards"]["t_immune_ignea"] = CardDB.data()["cards"]["t_immune_obscura"].duplicate(true)
-	CardDB.data()["cards"]["t_immune_ignea"]["keywords"] = ["imunidade_ignea"]
+	CardDB.data()["cards"]["t_immune_furia"] = CardDB.data()["cards"]["t_immune_obscura"].duplicate(true)
+	CardDB.data()["cards"]["t_immune_furia"]["keywords"] = ["imunidade_furia"]
 	g = _new_game()
 	_quiet(g)
 	attacker_side = g.active
-	var immune_unit_ignea := _put(g, g.opponent(attacker_side), "t_immune_ignea")
-	_cast_and_resolve(g, attacker_side, "t_dark_bolt", immune_unit_ignea.uid)
-	check(immune_unit_ignea.damage == 3, "Imunidade contra Ígnea não protege de feitiço Obscuro (%d)" % immune_unit_ignea.damage)
-	CardDB.data()["cards"]["t_dark_bolt"]["essence"] = "ignea"
-	immune_unit_ignea.damage = 0
-	_cast_and_resolve(g, attacker_side, "t_dark_bolt", immune_unit_ignea.uid)
-	check(immune_unit_ignea.damage == 0, "Imunidade contra Ígnea ignora feitiço Ígneo mirado (%d)" % immune_unit_ignea.damage)
+	var immune_unit_furia := _put(g, g.opponent(attacker_side), "t_immune_furia")
+	_cast_and_resolve(g, attacker_side, "t_dark_bolt", immune_unit_furia.uid)
+	check(immune_unit_furia.damage == 3, "Imunidade contra Fúria não protege de feitiço de Trevas (%d)" % immune_unit_furia.damage)
+	CardDB.data()["cards"]["t_dark_bolt"]["essence"] = "furia"
+	immune_unit_furia.damage = 0
+	_cast_and_resolve(g, attacker_side, "t_dark_bolt", immune_unit_furia.uid)
+	check(immune_unit_furia.damage == 0, "Imunidade contra Fúria ignora feitiço de Fúria mirado (%d)" % immune_unit_furia.damage)
 
 	# return_to_hand: general bounce. Not a death (no Ao Morrer), tokens vanish, cost_increase is optional and accumulates
 	_tcard("t_bounce_unit", 1, 5, [{"trigger": "on_death", "action": "damage", "target": "enemy_leader", "amount": 5}])
@@ -7221,10 +7252,10 @@ func _test_eryon_deck() -> void:
 	check(g.players[a]["momentum"] == 14, "Eryon: custo 7 rende no máximo 4 (%d)" % g.players[a]["momentum"])
 	g._finish_turn()
 	g._flush()
-	check(g.players[g.opponent(a)]["leader_hp"] == 99 - 22, "Eryon: no fim do turno, 14 de Momentum = 11 golpes de 2 (%d)" % g.players[g.opponent(a)]["leader_hp"])
+	check(g.players[g.opponent(a)]["leader_hp"] == 99 - 18, "Eryon: no fim do turno, 14 de Momentum = 9 golpes de 2 (%d)" % g.players[g.opponent(a)]["leader_hp"])
 	check(g.players[a]["momentum"] == 0, "Eryon: no fim do turno, acima de 10, gasta todo o Momentum (%d)" % g.players[a]["momentum"])
 
-	# Eryon, 11+ Momentum after the gain: 3 blows of 2 spread over the enemies (Leader included); below 11 nothing happens
+	# Eryon, 11+ Momentum after the gain: blows of 2 spread over the enemies (Leader included); below 11 nothing happens
 	g = _new_game()
 	_quiet(g)
 	a = g.active
@@ -7237,8 +7268,8 @@ func _test_eryon_deck() -> void:
 	g._finish_turn()
 	g._flush()
 	check(g.players[a]["momentum"] == 0, "Eryon: com 11 de Momentum no fim do turno gasta todo o Momentum (%d)" % g.players[a]["momentum"])
-	check(g.players[eryon_enemy]["leader_hp"] == 44, "Eryon: 11 de Momentum = 8 golpes de 2 só no Líder (%d)" % g.players[eryon_enemy]["leader_hp"])
-	# with overflow the blows grow: 10 + 4 = 14 Momentum = 11 blows = 22 damage
+	check(g.players[eryon_enemy]["leader_hp"] == 48, "Eryon: 11 de Momentum = 6 golpes de 2 só no Líder (%d)" % g.players[eryon_enemy]["leader_hp"])
+	# with overflow the blows grow: 10 + 4 = 14 Momentum = 9 blows = 18 damage
 	g = _new_game()
 	_quiet(g)
 	a = g.active
@@ -7251,7 +7282,7 @@ func _test_eryon_deck() -> void:
 	g.activate(a, eryon.uid, fodder.uid)
 	g._finish_turn()
 	g._flush()
-	check(g.players[eryon_enemy]["leader_hp"] == 38, "Eryon: 14 de Momentum = 11 golpes de 2 (%d)" % g.players[eryon_enemy]["leader_hp"])
+	check(g.players[eryon_enemy]["leader_hp"] == 42, "Eryon: 14 de Momentum = 9 golpes de 2 (%d)" % g.players[eryon_enemy]["leader_hp"])
 	check(g.players[a]["momentum"] == 0 and g.players[a]["reserve"] == 2, "Eryon: gasta o Momentum e preserva a Reserva (%d/%d)" % [g.players[a]["momentum"], g.players[a]["reserve"]])
 	g = _new_game()
 	_quiet(g)
@@ -7296,8 +7327,8 @@ func _test_eryon_deck() -> void:
 	g.players[eryon_enemy]["leader_hp"] = 60
 	g._finish_turn()
 	g._flush()
-	check(g.players[eryon_enemy]["leader_hp"] == 42 and g.players[a]["momentum"] == 0,
-		"Eryon: sem ativar, terminar com 12 de Momentum dá 9 golpes de 2 (%d / %d)" % [g.players[eryon_enemy]["leader_hp"], g.players[a]["momentum"]])
+	check(g.players[eryon_enemy]["leader_hp"] == 46 and g.players[a]["momentum"] == 0,
+		"Eryon: sem ativar, terminar com 12 de Momentum dá 7 golpes de 2 (%d / %d)" % [g.players[eryon_enemy]["leader_hp"], g.players[a]["momentum"]])
 
 	# Barão with the real card: Ímpeto and Escudo are innate; the surge turns on at 11 Momentum
 	var baron := _put(g, a, "barao_estrondoso")
@@ -7478,10 +7509,10 @@ func _test_play_restrictions() -> void:
 	var fire_spell := CardDB.card("bola_de_fogo") # ígnea, comum, magia, custo 2
 	var fire_champion := CardDB.card("ronan") # ígnea, campeão, unidade, custo 4
 	var fire_artifact := CardDB.card("manoplas_incandescentes") # ígnea, artefato
-	var dark_unit := CardDB.card("esqueleto_guerreiro") # obscura, comum, unidade, custo 1
+	var dark_unit := CardDB.card("esqueleto_guerreiro") # trevas, comum, unidade, custo 1
 	var neutral_unit := CardDB.card("ajudante_de_gambiarra")
 
-	var only_fire := {"mode": "only", "match": {"essence": ["ignea"]}}
+	var only_fire := {"mode": "only", "match": {"essence": ["furia"]}}
 	check(not PlayRestriction.blocks(only_fire, fire_spell) and PlayRestriction.blocks(only_fire, dark_unit), "restrição: só ígneas barra a não ígnea")
 	check(PlayRestriction.blocks(only_fire, neutral_unit), "restrição: só ígneas barra também a neutra")
 	var no_champions := {"mode": "forbid", "match": {"rarity": ["champion"]}}
@@ -7492,14 +7523,14 @@ func _test_play_restrictions() -> void:
 	check(not PlayRestriction.blocks(cheap_only, dark_unit) and not PlayRestriction.blocks(cheap_only, fire_spell) and PlayRestriction.blocks(cheap_only, fire_champion), "restrição: só custo <= 2")
 	var expensive_forbidden := {"mode": "forbid", "match": {"cost": {"op": ">=", "value": 4}}}
 	check(PlayRestriction.blocks(expensive_forbidden, fire_champion) and not PlayRestriction.blocks(expensive_forbidden, fire_spell), "restrição: proibir custo >= 4")
-	var combined := {"mode": "forbid", "match": {"essence": ["ignea"], "card_type": ["unit"]}}
+	var combined := {"mode": "forbid", "match": {"essence": ["furia"], "card_type": ["unit"]}}
 	check(PlayRestriction.blocks(combined, fire_champion) and not PlayRestriction.blocks(combined, fire_spell) and not PlayRestriction.blocks(combined, dark_unit), "restrição: filtros combinados exigem todos")
 
 	# duration: turns 1 = rest of this turn only; turns 2 also covers the next turn (whoever's it is)
 	var g := _new_game()
 	_quiet(g)
 	var a: int = g.active
-	g.add_play_restriction(a, {"mode": "only", "match": {"essence": ["ignea"]}})
+	g.add_play_restriction(a, {"mode": "only", "match": {"essence": ["furia"]}})
 	check(g.is_play_restricted(a, dark_unit) and not g.is_play_restricted(1 - a, dark_unit), "restrição: vale só para quem a recebeu")
 	g._start_turn(1 - a, false)
 	check(not g.is_play_restricted(a, dark_unit), "restrição de 1 turno acaba quando o próximo turno começa")

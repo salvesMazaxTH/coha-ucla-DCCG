@@ -1,0 +1,16 @@
+{
+  "name": "Golpe de Marreta",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "montanha",
+  "element": "metal",
+  "cost": 2,
+  "speed": "lento",
+  "effects": [
+    { "trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 3 }
+  ],
+  "text": "Causa 3 de dano a uma unidade inimiga à sua escolha.",
+  "flavor": "",
+  "art": "montanha/golpe_de_marreta.webp",
+  "tags": []
+}

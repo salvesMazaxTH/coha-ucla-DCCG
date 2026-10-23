@@ -29,13 +29,13 @@ const DOT_RULES := {
 	"sangramento": "life_bracket",
 }
 
-## Innate immunity of UNITS to a marker kind, given by essence: a unit with any of these
-## essences can never receive that kind of marker. Leaders have no immunity. A card effect skips it by saying so explicitly
+## Innate immunity of UNITS to a marker kind, given by element: a unit with any of these
+## elements can never receive that kind of marker. Leaders have no immunity. A card effect skips it by saying so explicitly
 ## ("ignores_immunity" in the effect, "toxico_ignores_immunity" on the card for its Tóxico).
-## Sangramento has no immune essence yet.
-const DOT_IMMUNE_ESSENCES := {
-	"veneno": ["venenosa", "metalica"],
-	"queimadura": ["ignea"],
+## Sangramento has no immune element yet.
+const DOT_IMMUNE_ELEMENTS := {
+	"veneno": ["veneno", "metal"],
+	"queimadura": ["fogo"],
 	"sangramento": [],
 }
 
@@ -169,7 +169,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"snowball": SNOWBALL_BASE_LEVEL, # damage the next Bola de Neve starts at (grows with every Bola de Neve cast, goes back to snowball_base at the end of the owner's turn)
 		"snowball_base": SNOWBALL_BASE_LEVEL, # the level the Bola de Neve goes back to every turn; raised for the rest of the game by Devaneio Gelado
 		"critico_growth": {}, # card_id -> Crítico level reached by "critico_growth" cards (Vael), shared by every copy of it
-		"glacial_discount_used": false, # the Amuleto Glacial discount was already spent this turn
+		"ice_spell_discount_used": false, # the Amuleto Glacial (ice spell) discount was already spent this turn
 		"damage_negated_until": 0, # Câmara de Êxtase aftermath: the Leader's next hits are negated while turn <= this
 		"damage_negated_left": 0, # ...and this is how many hits are still left to negate
 		"leader_dots": {}, # dot_id -> markers on the Leader. They tick at every turn start of its controller and are consumed like a unit's
@@ -520,7 +520,7 @@ func graveyard_armor_of(c: Card) -> int:
 			continue
 		for entry: Card in players[c.owner]["graveyard"]:
 			var entry_data := CardDB.card(entry.card_id)
-			if entry_data.get("type", "") == String(e.get("card_type", "spell")) and entry_data.get("essence", "") == String(e.get("essence", "")):
+			if entry_data.get("type", "") == String(e.get("card_type", "spell")) and CardDB.has_essence(entry_data, String(e.get("essence", ""))):
 				total += 1
 	return total * constants_multiplier(c.owner)
 
@@ -533,7 +533,7 @@ func graveyard_damage_reduction_of(c: Card, amount: int) -> int:
 		var count := 0
 		for entry: Card in players[c.owner]["graveyard"]:
 			var entry_data := CardDB.card(entry.card_id)
-			if entry_data.get("type", "") == String(e.get("card_type", "spell")) and entry_data.get("essence", "") == String(e.get("essence", "")):
+			if entry_data.get("type", "") == String(e.get("card_type", "spell")) and CardDB.has_essence(entry_data, String(e.get("essence", ""))):
 				count += 1
 		if count < int(e.get("minimum_count", 2)):
 			continue
@@ -745,10 +745,10 @@ func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 			"damage_since_last_turn": n = 1 if _since_last_turn(p, "damage") >= int(e.get("threshold", 1)) else 0
 		c -= n * int(e.get("amount", 1))
 		floor_cost = maxi(floor_cost, int(e.get("min_cost", 0)))
-	var amulet_discount := glacial_discount(p, cd)
+	var amulet_discount := ice_spell_discount(p, cd)
 	if amulet_discount > 0:
 		# the amulets' own "min_cost" floor never raises a spell that was already cheaper than it
-		floor_cost = maxi(floor_cost, mini(glacial_discount_floor(p, cd), c))
+		floor_cost = maxi(floor_cost, mini(ice_spell_discount_floor(p, cd), c))
 	c -= amulet_discount
 	var requiem_extra := REQUIEM_EXTRA_COST if card != null and card.zone == "graveyard" else 0
 	return maxi(c, floor_cost) + requiem_extra
@@ -816,17 +816,17 @@ func _devolve_snowball_cards(p: int) -> void:
 	if reverted > 0:
 		_emit({"type": "snowball_devolve", "player": p, "count": reverted, "uids": reverted_uids})
 
-## Momentum off the first spell of an essence each turn, from the equipped "spell_discount" artifacts
+## Momentum off the first spell of an element each turn, from the equipped "spell_discount" artifacts
 ## (Amuleto do Primeiro Floco) on p's units. The discounts of several amulets add up.
-## 0 when there is none, it is not that essence, or it was spent.
-func glacial_discount(p: int, cd: Dictionary) -> int:
+## 0 when there is none, it is not that element, or it was spent.
+func ice_spell_discount(p: int, cd: Dictionary) -> int:
 	var total := 0
 	for rule in _applicable_discount_rules(p, cd):
 		total += int(rule["amount"])
 	return total
 
 ## The cost the amulets' discount cannot push the spell under: the highest "min_cost" among the amulets that apply.
-func glacial_discount_floor(p: int, cd: Dictionary) -> int:
+func ice_spell_discount_floor(p: int, cd: Dictionary) -> int:
 	var floor_cost := 0
 	for rule in _applicable_discount_rules(p, cd):
 		floor_cost = maxi(floor_cost, int(rule.get("min_cost", 0)))
@@ -834,13 +834,13 @@ func glacial_discount_floor(p: int, cd: Dictionary) -> int:
 
 func _applicable_discount_rules(p: int, cd: Dictionary) -> Array:
 	var rules: Array = []
-	if cd.get("type", "") != "spell" or players[p]["glacial_discount_used"]:
+	if cd.get("type", "") != "spell" or players[p]["ice_spell_discount_used"]:
 		return rules
 	for unit: Card in players[p]["board"]:
 		if unit.equipment == null:
 			continue
 		var rule: Dictionary = unit.equipment.data().get("spell_discount", {})
-		if not rule.is_empty() and CardDB.has_essence(cd, String(rule["essence"])):
+		if not rule.is_empty() and CardDB.has_element(cd, String(rule["element"])):
 			rules.append(rule)
 	return rules
 
@@ -1258,10 +1258,10 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 	if spec2 != "" and ((target2 == target and not cd.get("same_target_ok", false)) or not valid_targets(p, spec2).has(target2)):
 		return []
 	var pl: Dictionary = players[p]
-	var spent_glacial_discount := glacial_discount(p, cd) > 0 # read before paying: the discount is for the first spell only
+	var spent_ice_spell_discount := ice_spell_discount(p, cd) > 0 # read before paying: the discount is for the first spell only
 	_pay(p, cost_of(p, cd, inst) + (counter_extra(cd, target) if spec == "enemy_stack" else 0), _is_spell(cd))
-	if spent_glacial_discount:
-		pl["glacial_discount_used"] = true
+	if spent_ice_spell_discount:
+		pl["ice_spell_discount_used"] = true
 	pl["graveyard" if from_graveyard else "hand"].erase(inst)
 	_note_card_played_for_rusco(p, cd)
 	_move(inst, "")
@@ -1930,11 +1930,13 @@ func _has_enter_effects(effects: Array) -> bool:
 	return false
 
 ## Tells the listening cards (Mestra do Gelo Frígido) that p cast a spell. The event's data says
-## which essences the spell has, one "essence_<id>": true fact each, for the "when" filter.
+## which essences and elements the spell has, one "essence_<id>" / "element_<id>": true fact each, for the "when" filter.
 func _announce_spell_cast(p: int, spell: Card, cd: Dictionary) -> void:
 	var cast := GameEvent.new("spell_cast", p, spell)
 	for essence_id in CardDB.essences_of(cd):
 		cast.data["essence_" + String(essence_id)] = true
+	for element_id in CardDB.elements_of(cd):
+		cast.data["element_" + String(element_id)] = true
 	bus().emit(cast)
 
 ## Context for a unit's Ao Entrar effects; `target` is the ally the player chose (0 if none).
@@ -2044,6 +2046,8 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 	for c in searched:
 		var cd := CardDB.card(c.card_id)
 		if e.get("essence", "") != "" and not CardDB.has_essence(cd, e["essence"]):
+			continue
+		if e.get("element", "") != "" and not CardDB.has_element(cd, e["element"]):
 			continue
 		if e.has("max_cost") and int(cd.get("cost", 999)) > int(e["max_cost"]):
 			continue
@@ -2313,7 +2317,7 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 			return 0
 		if has_kw(c, "indestrutivel"):
 			return 0 # damage is always 0 against it (Escudo isn't consumed)
-		# Imunidade contra Obscura: the combat damage of an enemy Obscura unit is always 0 (Escudo isn't
+		# Imunidade contra Trevas: the combat damage of an enemy Trevas unit is always 0 (Escudo isn't
 		# consumed). Effect damage is covered in Effect.apply_to, and only when it aims at this unit.
 		if _combat_damage and source != null and source.owner != c.owner and is_immune_to_essence_of(c, source.card_id):
 			_emit({"type": "dot_immune", "uid": t, "dot": ""})
@@ -2375,7 +2379,7 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		# Toque Letal is a combat-damage rider, not a destroy effect: Escudo and Esquiva
 		# return before this point with dealt == 0, while Indestrutível is checked here as
 		# the first absolute protection. Keep the data flag/keyword hook for future protections
-		# such as Imunidade contra Obscura without making them damage effects.
+		# such as Imunidade contra Trevas without making them damage effects.
 		if _combat_damage and source != null and has_kw(source, "toque_letal") and dealt > 0 \
 				and not _immune_to_lethal_touch(c):
 			c.damage = maxi(c.damage, c.hp + c.bonus_hp + c.temp_hp + c.temp_hp_until_next_turn)
@@ -2429,13 +2433,11 @@ func cleanse_leader_markers(p: int) -> void:
 	players[p]["leader_dots"] = {}
 	_emit({"type": "cleanse", "uid": LEADER_UID[p]})
 
-## True when one of the unit's essences makes it immune to markers of `dot_id`.
+## True when one of the unit's elements makes it immune to markers of `dot_id`.
 func unit_is_immune_to_dot(unit: Card, dot_id: String) -> bool:
-	return _essences_are_immune_to_dot(CardDB.essences_of(unit.data()), dot_id)
-
-func _essences_are_immune_to_dot(essences: Array, dot_id: String) -> bool:
-	for immune_essence in DOT_IMMUNE_ESSENCES.get(dot_id, []):
-		if essences.has(immune_essence):
+	var unit_elements := CardDB.elements_of(unit.data())
+	for immune_element in DOT_IMMUNE_ELEMENTS.get(dot_id, []):
+		if unit_elements.has(immune_element):
 			return true
 	return false
 
@@ -2456,19 +2458,22 @@ func kill_leader_outright(p: int, dot_id := "") -> void:
 func leader_dot_markers(p: int, dot_id: String) -> int:
 	return int(players[p]["leader_dots"].get(dot_id, 0))
 
-## True when unit `c` has the Imunidade contra <essência> of the essence of the card `source_card_id` (keyword "imunidade_" + essence).
+## True when unit `c` has the Imunidade contra <domínio> of the domain of the card `source_card_id` (keyword "imunidade_" + domain id).
 ## Only the opposing side's cards of that essence are blocked; the unit's own owner can still affect it.
 func is_immune_to_essence_of(c: Card, source_card_id: String) -> bool:
 	if source_card_id == "":
 		return false
-	var source_essence: String = str(CardDB.card(source_card_id).get("essence", ""))
-	return source_essence != "" and has_kw(c, "imunidade_" + source_essence)
+	# a dual card counts as every one of its essences, so one matching immunity is enough
+	for source_essence in CardDB.essences_of(CardDB.card(source_card_id)):
+		if has_kw(c, "imunidade_" + String(source_essence)):
+			return true
+	return false
 
 func _immune_to_lethal_touch(c: Card) -> bool:
 	if c == null:
 		return true
 	return has_kw(c, "indestrutivel") \
-		or has_kw(c, "imunidade_obscura") \
+		or has_kw(c, "imunidade_trevas") \
 		or bool(c.data().get("lethal_touch_immune", false))
 
 ## The free-standing artifact of player p that cancels a lethal blow to their Leader (Câmara de Êxtase), if any.
@@ -2870,7 +2875,7 @@ func _start_turn(p: int, draw: bool) -> void:
 		pl["next_momentum"] = 0
 	pl["attacked"] = false
 	pl["played_two"] = false
-	pl["glacial_discount_used"] = false
+	pl["ice_spell_discount_used"] = false
 	for c in pl["board"]:
 		if c.temp_hp_until_next_turn > 0:
 			c.damage = maxi(0, c.damage - c.temp_hp_until_next_turn)

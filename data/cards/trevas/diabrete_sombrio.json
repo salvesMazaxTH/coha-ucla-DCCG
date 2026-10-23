@@ -1,0 +1,32 @@
+{
+  "name": "Diabrete Sombrio",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["demonio"],
+  "essence": "trevas",
+  "element": "sombra",
+  "cost": 2,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [
+    "impeto"
+  ],
+  "art": "trevas/diabrete_sombrio.webp",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 1
+    },
+    {
+      "trigger": "on_ally_death",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Morrer: causa 1 de dano ao Líder inimigo. Aliado Morre: causa 1 de dano ao Líder inimigo.",
+  "flavor": "Ri até o último fôlego.",
+  "tags": []
+}

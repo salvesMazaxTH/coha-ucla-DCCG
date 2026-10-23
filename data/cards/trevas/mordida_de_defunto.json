@@ -1,0 +1,28 @@
+{
+  "name": "Mordida de Defunto",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "trevas",
+  "element": "sombra",
+  "cost": 4,
+  "speed": "rapido",
+  "art": "trevas/mordida_de_defunto.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "sacrifice",
+      "target": "ally_unit",
+      "then": [
+        {
+          "action": "damage",
+          "target": "any",
+          "pick": true,
+          "amount_from": "sacrificed_atk"
+        }
+      ]
+    }
+  ],
+  "text": "Você sacrifica uma unidade aliada; depois, um alvo à sua escolha sofre dano igual ao Ataque total dela.",
+  "flavor": "",
+  "tags": []
+}

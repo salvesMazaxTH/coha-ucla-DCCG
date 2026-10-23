@@ -1,0 +1,26 @@
+{
+  "name": "Geodo Vivo",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["golem"],
+  "essence": "montanha",
+  "element": "pedra",
+  "art": "montanha/geodo_vivo.webp",
+  "cost": 3,
+  "atk": 2,
+  "hp": 5,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_damaged",
+      "action": "buff",
+      "target": "self",
+      "atk": 1,
+      "hp": 1,
+      "cap_atk": 2
+    }
+  ],
+  "text": "Ao Sofrer Dano: ganha +1/+1 (o Ataque ganho por este efeito vai até +2 no total).",
+  "flavor": "",
+  "tags": []
+}

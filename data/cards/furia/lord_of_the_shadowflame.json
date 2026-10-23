@@ -1,0 +1,29 @@
+{
+  "name": "Lorde da Chama Sombria",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "humano",
+    "demonio"
+  ],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 6,
+  "atk": 5,
+  "hp": 5,
+  "keywords": [
+    "impeto"
+  ],
+  "art": "furia/clay_lord_of_the_shadowflame.webp",
+  "effects": [
+    {
+      "trigger": "on_challenge",
+      "action": "damage",
+      "target": "opposed_unit",
+      "amount": 2
+    }
+  ],
+  "text": "Ao Desafiar: causa 2 de dano à unidade desafiada.",
+  "flavor": "A chama sempre cobra o que lhe é devido.",
+  "tags": []
+}

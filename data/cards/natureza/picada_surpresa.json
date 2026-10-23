@@ -1,0 +1,22 @@
+{
+  "name": "Picada Surpresa",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "natureza",
+  "element": "veneno",
+  "cost": 1,
+  "speed": "instantaneo",
+  "art": "natureza/picada_surpresa.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "add_dot",
+      "dot": "veneno",
+      "target": "enemy_unit",
+      "amount": 2
+    }
+  ],
+  "text": "Dá 2 marcadores de Veneno a uma unidade inimiga à sua escolha.",
+  "flavor": "Ai. Mas só um pouquinho.",
+  "tags": []
+}

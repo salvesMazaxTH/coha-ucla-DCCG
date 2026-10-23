@@ -347,7 +347,7 @@ func _show_menu() -> void:
 	table.visible = false
 	_set_tints(Color("#3f7bd9"), Color("#e0572b"), 1.6)
 	# the two Leaders of the slice, facing each other from the edges
-	for side in [["ignea/ronan.webp", 0.0, 1.0], ["aquatica/naelthos.webp", stage_w - 640.0, 0.0]]:
+	for side in [["furia/ronan.webp", 0.0, 1.0], ["fluxo/naelthos.webp", stage_w - 640.0, 0.0]]:
 		var tex := CardView.texture(side[0])
 		if tex == null:
 			continue

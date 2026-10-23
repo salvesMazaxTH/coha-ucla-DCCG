@@ -1,0 +1,31 @@
+{
+  "name": "Yrêsa Petronika",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "dragao_primordial",
+    "dragao"
+  ],
+  "essence": "montanha",
+  "element": "pedra",
+  "art": "montanha/yresa_petronika.webp",
+  "cost": 8,
+  "atk": 6,
+  "hp": 11,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_damaged",
+      "action": "buff",
+      "target": "random_other_ally_unit",
+      "hp": 1
+    }
+  ],
+  "text": "Ao Sofrer Dano: outra unidade aliada aleatória ganha +1 de Vida.\nTransformar (8): Yrêsa Petronika Primordial.",
+  "flavor": "",
+  "tags": [],
+  "transform": {
+    "into": "yresa_petronika_primordial",
+    "cost": 8
+  }
+}

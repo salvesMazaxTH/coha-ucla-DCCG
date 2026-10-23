@@ -1,0 +1,17 @@
+{
+  "name": "Cruzada Pé-de-Chumbo",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["humano"],
+  "essence": "devocao",
+  "element": "luz",
+  "art": "devocao/cruzada_pe_de_chumbo.webp",
+  "cost": 3,
+  "atk": 3,
+  "hp": 3,
+  "keywords": ["impeto", "provocacao"],
+  "effects": [],
+  "text": "",
+  "flavor": "Não corre, não recua e nunca perdeu o endereço do inimigo.",
+  "tags": []
+}

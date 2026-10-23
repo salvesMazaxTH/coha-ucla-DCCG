@@ -1,0 +1,20 @@
+{
+  "name": "Morakhan",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["forjado_divino", "transfigurado"],
+  "essence": "montanha",
+  "element": "metal",
+  "cost": 6,
+  "atk": 0,
+  "hp": 13,
+  "keywords": ["provocacao", "reflexao", "armadura:2"],
+  "art": "montanha/morakhan.webp",
+  "effects": [
+    { "trigger": "on_damaged", "action": "buff", "target": "self", "atk_temp": 1, "once_per_turn": true },
+    { "trigger": "on_damaged", "action": "mill", "who": "enemy", "target": "none", "amount": 1, "once_per_turn": true }
+  ],
+  "text": "Ao Sofrer Dano (uma vez por turno): esta unidade ganha +1 de Ataque até o início do próximo turno do controlador e mói 1 carta do deck do oponente.",
+  "flavor": "Ele não revida. Ele espera você se cansar de bater.",
+  "tags": []
+}

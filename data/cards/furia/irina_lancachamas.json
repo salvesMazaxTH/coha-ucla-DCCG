@@ -1,0 +1,33 @@
+{
+  "name": "Irina Lançachamas",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["humano"],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 4,
+  "atk": 5,
+  "hp": 3,
+  "keywords": [
+    "longo_alcance"
+  ],
+  "art": "furia/irina_lancachamas.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "any",
+      "amount": 3
+    },
+    {
+      "trigger": "on_enter",
+      "action": "add_dot",
+      "dot": "queimadura",
+      "target": "any_unit",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher qualquer alvo; ele sofre 3 de dano e, se for uma unidade, recebe 1 marcador de Queimadura.",
+  "flavor": "\"Tá tudo bem.\" Não está.",
+  "tags": []
+}

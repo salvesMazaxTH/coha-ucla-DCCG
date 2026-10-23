@@ -1,0 +1,25 @@
+{
+  "name": "Tony Raiturus Primordial",
+  "type": "unit",
+  "rarity": "champion",
+  "transform_only": true,
+  "species": ["dragao_primordial", "dragao"],
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 8,
+  "atk": 9,
+  "hp": 9,
+  "keywords": ["intimidacao", "impeto", "voo"],
+  "art": "tormenta/tony_raiturus_primordial.webp",
+  "effects": [
+    {
+      "trigger": "on_hit_leader",
+      "action": "damage",
+      "target": "random_enemy_unit",
+      "amount": 3
+    }
+  ],
+  "text": "Ao Atingir o Líder: causa 3 de dano a uma unidade inimiga aleatória.",
+  "flavor": "",
+  "tags": []
+}

@@ -1,0 +1,27 @@
+{
+  "name": "Lianas Capturantes",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "natureza",
+  "element": "planta",
+  "cost": 3,
+  "speed": "rapido",
+  "art": "natureza/lianas_capturantes.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "exhaust",
+      "target": "enemy_unit"
+    },
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "enemy_unit",
+      "atk": -3,
+      "temp": true
+    }
+  ],
+  "text": "Exaure uma unidade inimiga à sua escolha; ela perde 3 de Ataque neste turno.",
+  "flavor": "A floresta não prende. Ela convence você a não sair.",
+  "tags": []
+}

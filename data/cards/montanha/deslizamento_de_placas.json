@@ -1,0 +1,22 @@
+{
+  "name": "Deslizamento de Placas",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "montanha",
+  "element": "pedra",
+  "art": "montanha/deslizamento_de_placas.webp",
+  "cost": 4,
+  "speed": "lento",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 3,
+      "adjacent_amount": 2
+    }
+  ],
+  "text": "Causa 3 de dano a uma unidade inimiga à sua escolha e 2 às unidades adjacentes a ela.",
+  "flavor": "",
+  "tags": []
+}

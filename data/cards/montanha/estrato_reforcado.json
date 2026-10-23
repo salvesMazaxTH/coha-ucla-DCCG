@@ -1,0 +1,21 @@
+{
+  "name": "Estrato Reforçado",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "montanha",
+  "element": "pedra",
+  "cost": 1,
+  "speed": "instantaneo",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "armor_temp": 2
+    }
+  ],
+  "text": "Uma unidade aliada à sua escolha ganha Armadura 2 até o início do seu próximo turno.",
+  "flavor": "",
+  "art": "montanha/estrato_reforcado.webp",
+  "tags": []
+}

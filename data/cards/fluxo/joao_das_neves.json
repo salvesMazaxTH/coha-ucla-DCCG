@@ -1,0 +1,35 @@
+{
+  "name": "João das Neves",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "humano",
+    "yeti"
+  ],
+  "species_display": "Humano? / Yeti?",
+  "essence": "fluxo",
+  "element": "gelo",
+  "cost": 5,
+  "atk": 4,
+  "hp": 7,
+  "keywords": [
+    "provocacao"
+  ],
+  "art": "fluxo/joao_das_neves.webp",
+  "art_crop": {"x": 0.52, "y": 0.12, "zoom": 1.0},
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "freeze",
+      "target": "random_enemy_unit"
+    },
+    {
+      "trigger": "on_death",
+      "action": "freeze",
+      "target": "random_enemy_unit"
+    }
+  ],
+  "text": "Ao Morrer: congela duas unidades inimigas aleatórias.",
+  "flavor": "Um abraço caloroso. A temperatura é que não ajuda.",
+  "tags": []
+}

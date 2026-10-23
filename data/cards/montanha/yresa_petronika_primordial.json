@@ -1,0 +1,51 @@
+{
+  "name": "Yrêsa Petronika Primordial",
+  "type": "unit",
+  "rarity": "champion",
+  "transform_only": true,
+  "species": [
+    "dragao_primordial",
+    "dragao"
+  ],
+  "essence": "montanha",
+  "element": "pedra",
+  "art": "montanha/yresa_petronika_transformed.webp",
+  "cost": 8,
+  "atk": 7,
+  "hp": 13,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "summon",
+      "target": "none",
+      "card": "yresa_sentinel"
+    },
+    {
+      "trigger": "on_enter",
+      "action": "summon",
+      "target": "none",
+      "card": "yresa_sentinel"
+    }
+  ],
+  "activated": {
+    "cost": 5,
+    "speed": "rapido",
+    "exhaust": true,
+    "effects": [
+      {
+        "action": "fuse",
+        "target": "none",
+        "card": "yresa_sentinel",
+        "into": "yresa_colossus",
+        "min": 2,
+        "atk_per": 1,
+        "hp_per": 2,
+        "armor_per": 1
+      }
+    ]
+  },
+  "text": "Ao Entrar: invoca 2 Stonewards.\nAo Ativar (5) {rapido} (exaure esta unidade): você funde 2 ou mais Stonewards aliados em um Colossus.",
+  "flavor": "",
+  "tags": []
+}

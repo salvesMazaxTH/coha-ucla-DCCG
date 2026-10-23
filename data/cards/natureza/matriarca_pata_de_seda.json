@@ -1,0 +1,29 @@
+{
+  "name": "Matriarca Pata-de-Seda",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "fera"
+  ],
+  "essence": "natureza",
+  "element": "veneno",
+  "cost": 5,
+  "atk": 3,
+  "hp": 5,
+  "keywords": [
+    "toxico:2"
+  ],
+  "art": "natureza/matriarca_pata_de_seda.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "add_dot",
+      "dot": "veneno",
+      "target": "enemy_unit",
+      "amount": 2
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela recebe 2 marcadores de Veneno.",
+  "flavor": "A teia é só o convite. O jantar já foi servido.",
+  "tags": []
+}

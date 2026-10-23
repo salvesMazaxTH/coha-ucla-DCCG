@@ -1,0 +1,22 @@
+{
+  "name": "Intercessão",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "devocao",
+  "element": "luz",
+  "cost": 2,
+  "speed": "instantaneo",
+  "art": "devocao/intercessao.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "counter",
+      "target": "enemy_stack",
+      "only_if_targets_ally": true,
+      "only_if_destroys": true
+    }
+  ],
+  "text": "Anula um feitiço, habilidade ou efeito do oponente que mire uma unidade sua para destruí-la ou bani-la.",
+  "flavor": "Alguém lá em cima pediu, com muito jeito, que não.",
+  "tags": []
+}

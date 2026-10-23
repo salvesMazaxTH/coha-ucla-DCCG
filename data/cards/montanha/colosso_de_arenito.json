@@ -1,0 +1,19 @@
+{
+  "name": "Colosso de Arenito",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["elemental"],
+  "essence": "montanha",
+  "element": "pedra",
+  "art": "montanha/colosso_de_arenito.webp",
+  "cost": 5,
+  "atk": 4,
+  "hp": 6,
+  "keywords": [
+    "provocacao"
+  ],
+  "effects": [],
+  "text": "",
+  "flavor": "",
+  "tags": []
+}

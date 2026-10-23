@@ -1,0 +1,19 @@
+{
+  "name": "Drone Entregador Atrasado",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["robo"],
+  "essence": "montanha",
+  "element": "metal",
+  "cost": 3,
+  "atk": 2,
+  "hp": 3,
+  "keywords": ["voo"],
+  "effects": [
+    { "trigger": "on_enter", "action": "draw", "target": "own_leader", "amount": 1 }
+  ],
+  "text": "Ao Entrar: você compra 1 carta.",
+  "flavor": "Sua encomenda chegou. Faz três semanas.",
+  "art": "montanha/drone_entregador_atrasado.webp",
+  "tags": []
+}

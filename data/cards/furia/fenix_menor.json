@@ -1,0 +1,33 @@
+{
+  "name": "Fênix Menor",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["fera"],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 3,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [
+    "voo",
+    "impeto"
+  ],
+  "art": "furia/fenix_menor.webp",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "summon",
+      "target": "none",
+      "card": "self",
+      "overrides": {
+        "atk": 1,
+        "hp": 1,
+        "effects": [],
+        "text": ""
+      }
+    }
+  ],
+  "text": "Ao Morrer: revive como 1/1, sem este texto.",
+  "flavor": "",
+  "tags": []
+}

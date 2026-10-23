@@ -1,0 +1,22 @@
+{
+  "name": "Cicuta no Chá",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "natureza",
+  "element": "veneno",
+  "cost": 3,
+  "speed": "lento",
+  "art": "natureza/cicuta_no_cha.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "add_dot",
+      "dot": "veneno",
+      "target": "all_enemy_units",
+      "amount": 1
+    }
+  ],
+  "text": "Dá 1 marcador de Veneno a todas as unidades inimigas.",
+  "flavor": "Aceita um biscoitinho?",
+  "tags": []
+}

@@ -95,6 +95,8 @@ func _header() -> Control:
 	texts.add_child(_text("%s · %d de vida · %s" % [leader["name"], int(leader["hp"]), " / ".join(essence_names)],
 			19, accent.lightened(0.35), "bold"))
 	texts.add_child(_text(_counts_line(), 18, UITheme.TEXT_DIM, "bold"))
+	texts.add_child(_text(_elites_line(), 18, UITheme.TEXT_DIM, "bold"))
+	texts.add_child(_essences_line())
 
 	var curve := Control.new()
 	curve.custom_minimum_size = Vector2(CURVE_BAR_WIDTH * (CURVE_MAX_COST + 1) + 30.0, CURVE_HEIGHT + 44.0)
@@ -120,6 +122,47 @@ func _counts_line() -> String:
 		if counts_by_type.has(type):
 			parts.append("%d %s" % [counts_by_type[type], TYPE_NAMES[type]])
 	return " · ".join(parts)
+
+## "20 Elites (8 Lendárias · 12 Campeãs)": champions + legendaries, counting copies (DeckDB.MAX_ELITE_CARDS is the limit).
+func _elites_line() -> String:
+	var legendary_copies := 0
+	var champion_copies := 0
+	var cards: Dictionary = DeckDB.get_deck(deck_id)["cards"]
+	for card_id in cards:
+		var rarity := String(CardDB.card(card_id).get("rarity", ""))
+		if rarity == "legendary":
+			legendary_copies += int(cards[card_id])
+		elif rarity == "champion":
+			champion_copies += int(cards[card_id])
+	var elite_copies := legendary_copies + champion_copies
+	return "%d %s (%d %s · %d %s)" % [elite_copies, "Elite" if elite_copies == 1 else "Elites",
+			legendary_copies, "Lendária" if legendary_copies == 1 else "Lendárias",
+			champion_copies, "Campeã" if champion_copies == 1 else "Campeãs"]
+
+## "Aquática ×20 · Sagrada ×12 · Neutra ×6": how many copies of the deck carry each essence, most
+## numerous first, each in its own color. Neutral counts as an essence here; a dual card counts for both of its.
+func _essences_line() -> Control:
+	var cards: Dictionary = DeckDB.get_deck(deck_id)["cards"]
+	var copies_by_essence := {}
+	for card_id in cards:
+		for essence_id in CardDB.essences_of(CardDB.card(card_id)):
+			copies_by_essence[essence_id] = int(copies_by_essence.get(essence_id, 0)) + int(cards[card_id])
+	var essence_ids: Array = copies_by_essence.keys()
+	essence_ids.sort_custom(func(first_id: String, second_id: String) -> bool:
+		if copies_by_essence[first_id] != copies_by_essence[second_id]:
+			return copies_by_essence[first_id] > copies_by_essence[second_id]
+		return first_id < second_id)
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 8)
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for index in essence_ids.size():
+		var essence_id: String = essence_ids[index]
+		if index > 0:
+			line.add_child(_untrimmed_text("·", 18, UITheme.TEXT_DIM, "bold"))
+		var essence_color := Color(String(CardDB.essence(essence_id).get("color", "#8a8f98")))
+		line.add_child(_untrimmed_text("%s ×%d" % [CardDB.essence(essence_id).get("name", essence_id), copies_by_essence[essence_id]],
+				18, DecklistRow.essence_text_color(essence_color), "bold"))
+	return line
 
 ## How many copies of the deck cost 0, 1, 2 ... CURVE_MAX_COST (the last slot also holds anything dearer).
 func _cost_counts() -> Array:
@@ -174,6 +217,13 @@ func _close_button() -> Button:
 	button.add_child(icon)
 	button.pressed.connect(func(): closed.emit())
 	return button
+
+## A label that keeps its full width. Labels that trim with "..." have no minimum width, so side by side
+## in an HBoxContainer they would shrink to nothing.
+func _untrimmed_text(text: String, font_size: int, color: Color, font_kind: String) -> Label:
+	var label := _text(text, font_size, color, font_kind)
+	label.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
+	return label
 
 func _text(text: String, font_size: int, color: Color, font_kind: String) -> Label:
 	var label := Label.new()

@@ -1,0 +1,21 @@
+{
+  "name": "Stoneward",
+  "type": "unit",
+  "rarity": "common",
+  "token": true,
+  "species": [
+    "golem"
+  ],
+  "essence": "montanha",
+  "element": "pedra",
+  "art": "montanha/yresa_sentinel.webp",
+  "cost": 0,
+  "atk": 0,
+  "hp": 2,
+  "keywords": [],
+  "adjacent_armor": 1,
+  "effects": [],
+  "text": "Ficha. Constante: unidades aliadas adjacentes a ela têm Armadura 1.",
+  "flavor": "",
+  "tags": []
+}

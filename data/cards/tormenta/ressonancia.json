@@ -1,0 +1,23 @@
+{
+  "name": "Ressonância",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 2,
+  "speed": "instantaneo",
+  "art": "tormenta/ressonancia.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "keywords": [
+        "escudo_feitico"
+      ]
+    }
+  ],
+  "text": "Concede Escudo de Feitiço a uma unidade aliada à sua escolha.",
+  "flavor": "",
+  "tags": []
+}

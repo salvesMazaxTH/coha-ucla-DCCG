@@ -1,0 +1,24 @@
+{
+  "name": "Acólito do Canto Baixo",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["humano"],
+  "essence": "devocao",
+  "element": "luz",
+  "cost": 1,
+  "atk": 0,
+  "hp": 5,
+  "keywords": ["provocacao", "pacifista"],
+  "art": "devocao/acolito_do_canto_baixo.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "other_ally_unit",
+      "armor": 1
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher outra unidade aliada; ela ganha Armadura 1 permanente.",
+  "flavor": "Ele canta tão baixinho que o hino só chega a quem está do lado.",
+  "tags": []
+}

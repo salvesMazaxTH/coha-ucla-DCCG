@@ -1,0 +1,23 @@
+{
+  "name": "Pavio Curto",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "tormenta",
+  "cost": 1,
+  "speed": "rapido",
+  "art": "tormenta/pavio_curto.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "keywords": ["impeto"],
+      "temp": true
+    }
+  ],
+  "text": "Concede Ímpeto neste turno a uma unidade aliada à sua escolha.",
+  "flavor": [
+    "Acendeu antes de terminar a frase."
+  ],
+  "tags": []
+}

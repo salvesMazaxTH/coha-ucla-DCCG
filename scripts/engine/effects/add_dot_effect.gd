@@ -4,7 +4,7 @@ extends Effect
 ## targeted Leader (negative uid; Leader markers stay all game, see GameState.add_leader_dot_markers).
 ## `dot` identifies the marker type (queimadura, veneno; sangramento can reuse this action too).
 
-## Units of some essences are innately immune to some markers (GameState.DOT_IMMUNE_ESSENCES); Leaders never are.
+## Units of some elements are innately immune to some markers (GameState.DOT_IMMUNE_ELEMENTS); Leaders never are.
 ## "ignores_immunity": true makes this effect put the markers on anyway; the card text must say so.
 
 var dot := "queimadura"

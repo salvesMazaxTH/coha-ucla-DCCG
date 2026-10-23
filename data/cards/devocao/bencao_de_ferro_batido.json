@@ -1,0 +1,23 @@
+{
+  "name": "Bênção de Ferro Batido",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "devocao",
+  "element": "luz",
+  "cost": 2,
+  "speed": "rapido",
+  "art": "devocao/bencao_de_ferro_batido.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "armor": 2,
+      "temp": true,
+      "keywords": ["roubo_de_vida"]
+    }
+  ],
+  "text": "Uma unidade aliada à sua escolha ganha Armadura 2 e Roubo de Vida neste turno.",
+  "flavor": "Abençoada à marretada, porque o céu também tem pressa.",
+  "tags": []
+}
