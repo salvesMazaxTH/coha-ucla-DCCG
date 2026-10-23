@@ -31,6 +31,7 @@ const STYLES := {
 	"back": {"top": "#2e2658", "bot": "#100c22", "trim": "#c9a24e", "glow": "#9d86ff"},
 }
 const MAX_SHOWN_DOMAINS := 4 ## a card with more domains than this only shows the first ones in its frame and badge
+const SIGIL_COLOR := Color("#f4efe6") ## domain sigils are one flat off-white shape (like the Magic colour symbols), never tinted or shaded
 const TRIGGER_COL :=Color("#ff9a4a") ## trigger tags: same weight as keywords, orange to read as another category
 const KEYWORD_COL := Color("#ffe9a8") ## keyword names wherever they appear inside rules text
 const GOLD_TRIM := Color("#f3d27a")
@@ -1699,39 +1700,40 @@ func _placeholder(art: Rect2, cd: Dictionary, col: Color, s: float) -> void:
 	for i in 8:
 		draw_circle(c, (46 - i * 5) * s, Color(col.lightened(0.4), 0.05))
 	var kind: String = String(CardDB.essences_of(cd)[0]) if cd["type"] == "unit" else ("equipment" if CardDB.is_equipment(cd) else cd["type"])
-	if kind == "trevas":
-		_skull(c, 26 * s)
-		var fo := UITheme.font("title_bold")
-		_text(fo, String(cd["name"]).substr(0, 1), Vector2(art.end.x - 12 * s, art.end.y - 6 * s), 13 * s, Color(1, 1, 1, 0.35))
-		return
-	var pts := _sigil(kind, c, 26 * s)
-	draw_colored_polygon(_grow(pts, c, 1.12), Color(0, 0, 0, 0.35))
-	draw_colored_polygon(pts, col.lightened(0.55))
-	draw_colored_polygon(_grow(pts, c + Vector2(0, 6 * s), 0.55), Color(1, 1, 1, 0.45))
+	_draw_flat_sigil(kind, c, 26 * s)
 	var f := UITheme.font("title_bold")
 	var initial := String(cd["name"]).substr(0, 1)
 	_text(f, initial, Vector2(art.end.x - 12 * s, art.end.y - 6 * s), 13 * s, Color(1, 1, 1, 0.35))
 
-## Trevas sigil: a dark-grey skull (cranium, jaw, black sockets and nose).
+## A domain's symbol as one flat SIGIL_COLOR shape, in the spirit of the Magic colour symbols: it only
+## says "this domain" and is not literal (Fúria is claw marks, not fire, since it is not only fire).
+func _draw_flat_sigil(kind: String, c: Vector2, r: float) -> void:
+	if kind == "trevas":
+		_skull(c, r * 1.15)
+	elif kind == "furia":
+		# three claw slashes, each a triangle that tapers to a point at the bottom-left
+		for i in 3:
+			var shift := (i - 1) * 0.42 - 0.11
+			draw_colored_polygon(PackedVector2Array([c + Vector2(shift + 0.3, -1) * r, c + Vector2(shift + 0.62, -1) * r,
+					c + Vector2(shift - 0.4, 0.95) * r]), SIGIL_COLOR)
+	else:
+		draw_colored_polygon(_sigil(kind, c, r), SIGIL_COLOR)
+
+## Trevas sigil: a flat skull (cranium, jaw, dark sockets, nose and teeth gaps).
 func _skull(c: Vector2, r: float) -> void:
-	var bone := Color("#55555e")
-	var shade := Color("#3a3a42")
-	draw_circle(c + Vector2(0, -r * 0.2), r * 0.66, Color(0, 0, 0, 0.4))
-	draw_circle(c + Vector2(0, -r * 0.22), r * 0.62, bone)
-	draw_rect(Rect2(c + Vector2(-r * 0.34, r * 0.18), Vector2(r * 0.68, r * 0.52)), bone)
-	draw_rect(Rect2(c + Vector2(-r * 0.34, r * 0.18), Vector2(r * 0.12, r * 0.52)), shade)
+	var hollow := Color("#050506")
+	draw_circle(c + Vector2(0, -r * 0.22), r * 0.62, SIGIL_COLOR)
+	draw_rect(Rect2(c + Vector2(-r * 0.34, r * 0.18), Vector2(r * 0.68, r * 0.52)), SIGIL_COLOR)
 	for i in 3: # teeth gaps
 		var tx := c.x - r * 0.12 + i * r * 0.12
-		draw_line(Vector2(tx, c.y + r * 0.46), Vector2(tx, c.y + r * 0.7), shade, maxf(r * 0.05, 1.0))
+		draw_line(Vector2(tx, c.y + r * 0.46), Vector2(tx, c.y + r * 0.7), hollow, maxf(r * 0.05, 1.0))
 	for sx in [-1.0, 1.0]:
-		draw_circle(c + Vector2(sx * r * 0.27, -r * 0.14), r * 0.19, Color("#050506"))
-	draw_colored_polygon(PackedVector2Array([c + Vector2(0, r * 0.02), c + Vector2(-r * 0.08, r * 0.2), c + Vector2(r * 0.08, r * 0.2)]), Color("#050506"))
+		draw_circle(c + Vector2(sx * r * 0.27, -r * 0.14), r * 0.19, hollow)
+	draw_colored_polygon(PackedVector2Array([c + Vector2(0, r * 0.02), c + Vector2(-r * 0.08, r * 0.2), c + Vector2(r * 0.08, r * 0.2)]), hollow)
 
 func _sigil(kind: String, c: Vector2, r: float) -> PackedVector2Array:
 	var n: Array
 	match kind:
-		"furia":
-			n = [[0, -1], [0.22, -0.5], [0.48, -0.72], [0.62, -0.05], [0.52, 0.5], [0, 0.82], [-0.52, 0.5], [-0.62, 0.02], [-0.42, -0.4], [-0.24, -0.15]]
 		"fluxo": # water drop
 			var out := PackedVector2Array([c + Vector2(0, -r)])
 			for i in 13:
@@ -1798,17 +1800,9 @@ func _essence_badge(c: Vector2, r: float, cd: Dictionary, s: float) -> void:
 	for k in ess.size():
 		var kind: String = ess[k]
 		var col := Color("#232328") if kind == "trevas" else Color(CardDB.essence(kind)["color"])
-		_fill_clipped(disc, slices[k], col.darkened(0.35))
-		_fill_clipped(_grow(disc, c - Vector2(0, r * 0.1), 0.86), slices[k], col)
-		_fill_clipped(_grow(disc, c - Vector2(0, r * 0.5), 0.5), slices[k], Color(col.lightened(0.5), 0.35))
-		var sc: Vector2 = slice_centers[k]
-		var sr := slice_sigil_radius
-		if kind == "trevas":
-			_skull(sc, sr * 1.15)
-		else:
-			var pts := _sigil(kind, sc, sr)
-			draw_colored_polygon(_grow(pts, sc, 1.15), Color(0, 0, 0, 0.4))
-			draw_colored_polygon(pts, col.lightened(0.6))
+		var disc_color := col.darkened(0.5) if col.get_luminance() > 0.35 else col # pale domains (Devoção, Montanha) need a darker disc for the off-white sigil to read
+		_fill_clipped(disc, slices[k], disc_color) # flat colour: no gradient, no highlight
+		_draw_flat_sigil(kind, slice_centers[k], slice_sigil_radius)
 	var seam_color := Color(UITheme.GOLD_LIGHT, 0.8)
 	if ess.size() == 2:
 		draw_line(c + Vector2(0.35, -1) * r, c + Vector2(-0.35, 1) * r, seam_color, 1.0 * s, true)

@@ -6439,17 +6439,32 @@ func _test_glacial() -> void:
 	_cast_and_resolve(g, a, "estilhaco_gelido", shard_cold.uid)
 	check(shard_warm.hp_left() == 20 - 2 and shard_cold.hp_left() == 20 - 4, "Estilhaço Gélido: 2 de dano, 4 se o alvo estiver Congelado (%d/%d)" % [shard_warm.hp_left(), shard_cold.hp_left()])
 
-	# Bruno (Rompante): each hit on the enemy Leader gives him +1 Attack permanently
+	# Bruno (Fluxo, não agressivo): Ao Entrar sobe o nível da Bola de Neve em 1 neste turno e oferece uma Bola de Neve do deck
 	g = _glacial_game()
 	a = g.active
 	o = g.opponent(a)
-	var bruno := _put(g, a, "bruno", false)
-	check(g.attack_targets(bruno) == [GameState.LEADER_UID[o]], "Bruno: Rompante, só o Líder é alvo")
-	var bruno_attack_before: int = g.atk_of(bruno)
-	_hit(g, bruno, GameState.LEADER_UID[o])
+	var snowball_before: int = int(g.players[a]["snowball"])
+	var base_before: int = int(g.players[a]["snowball_base"])
+	var bola_in_deck := Card.new(g._uid(), "bola_de_neve", a, "deck")
+	g.players[a]["deck"].append(bola_in_deck)
+	var bruno_uid := _give(g, a, "bruno")
+	g.players[a]["momentum"] = 30
+	g.play_card(a, bruno_uid)
+	for guard in 8:
+		if g.stack.is_empty() or g.phase == "search":
+			break
+		g.pass_priority(g.priority)
+	check(int(g.players[a]["snowball"]) == snowball_before + 1 and int(g.players[a]["snowball_base"]) == base_before, "Bruno: Ao Entrar sobe o nível da Bola de Neve em 1 só neste turno (%d -> %d)" % [snowball_before, int(g.players[a]["snowball"])])
+	check(g.phase == "search", "Bruno: Ao Entrar oferece uma Bola de Neve do deck (fase %s)" % g.phase)
+	var search_options: Array = g.pending_search["cards"]
+	check(not search_options.is_empty() and search_options.all(func(option: Dictionary) -> bool: return option["card_id"] == "bola_de_neve"), "Bruno: só Bola de Neve é oferecida na busca")
+	var bruno_hand_size_before_search: int = g.players[a]["hand"].size()
+	g.choose_search(a, int(search_options[0]["uid"]))
 	g._flush()
-	check(g.atk_of(bruno) == bruno_attack_before + 1, "Bruno: bater no Líder dá +1 de Ataque permanente (%d -> %d)" % [bruno_attack_before, g.atk_of(bruno)])
-	check(g.phase == "main", "Bruno: nenhuma busca abre depois do ataque (fase %s)" % g.phase)
+	check(g.players[a]["hand"].size() == bruno_hand_size_before_search + 1 and g.players[a]["hand"].any(func(c: Card) -> bool: return c.card_id == "bola_de_neve"), "Bruno: a Bola de Neve escolhida vai do deck para a mão")
+	var bruno := g.find_unit(bruno_uid)
+	check(bruno != null and not CardDB.card("bruno")["keywords"].has("rompante"), "Bruno: sem Rompante, não é mais uma unidade agressiva")
+	check(CardDB.card("bruno")["atk"] == 2 and CardDB.card("bruno")["hp"] == 4 and CardDB.card("bruno")["cost"] == 3, "Bruno é 2/4 de custo 3")
 
 	# Ysvane: Ao Entrar buffs another random ally and takes a Bola de Neve back from the graveyard (banished after its next cast);
 	# each glacial spell shields a random ally; death heals the Leader

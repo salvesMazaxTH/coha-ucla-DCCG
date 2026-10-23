@@ -2,31 +2,38 @@
   "essences": {
     "furia": {
       "name": "Fúria",
-      "color": "#e0572b"
+      "color": "#e0572b",
+      "elements": ["fogo"]
     },
     "fluxo": {
       "name": "Fluxo",
-      "color": "#2f8fd6"
+      "color": "#2f8fd6",
+      "elements": ["agua", "gelo"]
     },
     "natureza": {
       "name": "Natureza",
-      "color": "#58b34a"
+      "color": "#58b34a",
+      "elements": ["planta", "veneno"]
     },
     "montanha": {
       "name": "Montanha",
-      "color": "#9a8f7f"
+      "color": "#9a8f7f",
+      "elements": ["pedra", "metal"]
     },
     "tormenta": {
       "name": "Tormenta",
-      "color": "#9446f2"
+      "color": "#9446f2",
+      "elements": ["raio", "vento"]
     },
     "trevas": {
       "name": "Trevas",
-      "color": "#44444c"
+      "color": "#44444c",
+      "elements": ["sombra"]
     },
     "devocao": {
       "name": "Devoção",
-      "color": "#f6e7b0"
+      "color": "#f6e7b0",
+      "elements": ["luz"]
     },
     "neutra": {
       "name": "Neutra",

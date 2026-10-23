@@ -442,7 +442,7 @@ func end_combat() -> void:
 	game.window = ""
 	game.stack_passed = false
 	if game.phase != "over":
-		# a deck search opened by this attack (Bruno hitting the Leader) must stay open: the player
+		# a deck search opened by this attack (an on_attack/on_hit search effect) must stay open: the player
 		# answers it first and the game then returns to the Main Phase
 		if game.phase == "search":
 			game._search_return = "main"

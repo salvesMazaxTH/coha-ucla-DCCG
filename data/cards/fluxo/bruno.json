@@ -1,0 +1,37 @@
+{
+  "name": "Bruno",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "humano"
+  ],
+  "essence": "fluxo",
+  "element": "gelo",
+  "cost": 3,
+  "atk": 2,
+  "hp": 4,
+  "keywords": [],
+  "art": "fluxo/bruno.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "snowball_level",
+      "target": "none",
+      "amount": 1
+    },
+    {
+      "trigger": "on_enter",
+      "action": "search_deck",
+      "target": "none",
+      "tags": [
+        "bola_de_neve"
+      ],
+      "type": "spell"
+    }
+  ],
+  "text": "Ao Entrar: o nível da Bola de Neve sobe em 1 neste turno (sem lançá-la); você procura uma Bola de Neve no seu deck e pode colocá-la na mão.",
+  "flavor": "Tinha uma bolinha. Agora tem um problema.",
+  "tags": [
+    "bola_de_neve"
+  ]
+}

@@ -108,9 +108,18 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 	for e in essences_of(cd):
 		if not _data["essences"].has(e):
 			err.call("essência desconhecida \"%s\"" % e)
+	var allowed_elements: Array = []
+	var any_element_allowed := false # a domain without an "elements" list (Neutra) accepts any element
+	for e in essences_of(cd):
+		if _data["essences"].has(e) and _data["essences"][e].has("elements"):
+			allowed_elements.append_array(_data["essences"][e]["elements"])
+		else:
+			any_element_allowed = true
 	for element_id in elements_of(cd):
 		if not _data.get("elements", {}).has(element_id):
 			err.call("elemento desconhecido \"%s\"" % element_id)
+		elif not any_element_allowed and not allowed_elements.has(element_id):
+			err.call("elemento \"%s\" não combina com o domínio da carta (cada domínio lista seus elementos em \"elements\")" % element_id)
 	for kw in cd.get("keywords", []):
 		if not _data["keywords"].has(kw):
 			err.call("keyword desconhecida \"%s\"" % kw)
