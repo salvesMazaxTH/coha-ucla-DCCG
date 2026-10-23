@@ -3,7 +3,6 @@
   "type": "spell",
   "rarity": "common",
   "essence": "devocao",
-  "element": "luz",
   "cost": 2,
   "speed": "rapido",
   "art": "devocao/bencao_de_ferro_batido.webp",

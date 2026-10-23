@@ -5,7 +5,6 @@
   "max_copies": 1,
   "species": ["divindade"],
   "essence": "devocao",
-  "element": "luz",
   "cost": 8,
   "atk": 0,
   "hp": 7,

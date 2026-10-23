@@ -4,7 +4,6 @@
   "subtypes": ["equipment"],
   "rarity": "common",
   "essence": "devocao",
-  "element": "luz",
   "cost": 3,
   "art": "devocao/manto_da_ladainha.webp",
   "effects": [

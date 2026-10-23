@@ -430,7 +430,7 @@ static func texture(file: String) -> Texture2D:
 	return _tex_cache[file]
 
 ## The art exactly as the source file on disk, at its full resolution. The imported texture above is
-## capped at 768 px (see the .import files) and compressed, so the full-screen art viewer reads the
+## capped at 1024 px (see the .import files) and compressed, so the full-screen art viewer reads the
 ## original file instead. If the original is not shipped (a build that only packs imported resources),
 ## it falls back to the imported texture. Returns null when the card has no art.
 static func raw_art_texture(file: String) -> Texture2D:

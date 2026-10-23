@@ -5,7 +5,6 @@
   "max_copies": 1,
   "species": ["humano", "santo"],
   "essence": "devocao",
-  "element": "luz",
   "cost": 5,
   "atk": 0,
   "hp": 12,

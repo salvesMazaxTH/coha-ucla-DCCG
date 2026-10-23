@@ -4,7 +4,6 @@
   "subtypes": ["local"],
   "rarity": "common",
   "essence": "devocao",
-  "element": "luz",
   "cost": 0,
   "undraftable": true,
   "death_ward": true,

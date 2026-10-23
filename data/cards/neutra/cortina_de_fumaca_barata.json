@@ -6,6 +6,7 @@
   "cost": 2,
   "speed": "rapido",
   "art": "neutra/cortina_de_fumaca_barata.webp",
+  "art_crop": {"x": 0.5, "y": 0.22, "zoom": 1.0},
   "effects": [
     {
       "trigger": "on_play",

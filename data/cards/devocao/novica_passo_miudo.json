@@ -4,7 +4,6 @@
   "rarity": "common",
   "species": ["humano"],
   "essence": "devocao",
-  "element": "luz",
   "cost": 2,
   "atk": 2,
   "hp": 3,

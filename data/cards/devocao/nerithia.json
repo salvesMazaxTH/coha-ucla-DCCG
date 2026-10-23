@@ -4,7 +4,6 @@
   "rarity": "champion",
   "species": ["celestial", "divindade"],
   "essence": "devocao",
-  "element": "luz",
   "cost": 4,
   "atk": 2,
   "hp": 5,
