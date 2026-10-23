@@ -867,7 +867,7 @@ func _draw_lettering_and_gems(look: Dictionary) -> void:
 
 	# species strip on the bottom edge of the art, right above the name plate
 	var custom_species_display := not String(cd.get("species_display", "")).strip_edges().is_empty()
-	var sp_s := CardDB.species_names(cd).to_upper()
+	var sp_s := CardDB.species_and_element_label(cd).to_upper() # species + element, as lettering (no badge)
 	if sp_s != "":
 		var spf := UITheme.font("bold")
 		var sp_fs := _fit(spf, sp_s, 8.0 * s, art.size.x - 16 * s)

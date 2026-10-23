@@ -64,7 +64,10 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 	if CardDB.species_names(cd) != "":
 		kind += " — " + CardDB.species_names(cd)
 	var shown_cost: int = cost_override if cost_override >= 0 else int(cd["cost"])
-	txt += "[color=#aaaaaa]%s · %s · custo %d[/color]\n\n" % [kind, CardDB.essence_names(cd), shown_cost]
+	var element_label := ""
+	if CardDB.element_names(cd) != "":
+		element_label = " · Elemento: " + CardDB.element_names(cd) # the tag that card texts refer to ("feitiço de Gelo")
+	txt += "[color=#aaaaaa]%s · %s%s · custo %d[/color]\n\n" % [kind, CardDB.essence_names(cd), element_label, shown_cost]
 	if cd.get("text", "") != "":
 		var body := CardView.fill_live_numbers(String(cd["text"]), snowball_level)
 		# a Condicional with a per-turn limit (Seymour) shows how many uses are already spent, like the Leader power does

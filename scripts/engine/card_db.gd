@@ -307,6 +307,17 @@ static func element_names(cd: Dictionary) -> String:
 		names.append(element(id).get("name", id))
 	return " / ".join(names)
 
+## The one-line label written on the card face (species strip): species and element side by side
+## ("HUMANO · GELO"). A spell or artifact has no species, so it shows just the element ("Gelo").
+## The element is plain lettering on purpose: it must not be confused with the domain badge.
+static func species_and_element_label(cd: Dictionary) -> String:
+	var parts: Array = []
+	if species_names(cd) != "":
+		parts.append(species_names(cd))
+	if element_names(cd) != "":
+		parts.append(element_names(cd))
+	return " · ".join(parts)
+
 ## Flavor text is cosmetic only, so its roll uses its own RNG and never touches the match RNG.
 static var _flavor_rng := RandomNumberGenerator.new()
 static var _flavor_salt := 0
