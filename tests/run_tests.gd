@@ -3357,6 +3357,7 @@ func _test_summon_window() -> void:
 	_quiet(g)
 	g.players[0]["momentum"] = 3
 	g.players[1]["momentum"] = 3
+	g.players[1]["hand"].clear() # the opening hand of the Água deck must not hold a castable Rápido
 	var slow := _give(g, 1, "t_sw_slow")
 	_put(g, 0, "t_sw")
 	g.play_card(0, _give(g, 0, "t_sw"), 0)
@@ -3470,6 +3471,7 @@ func _test_summon_window() -> void:
 	_quiet(g)
 	g.players[0]["momentum"] = 9
 	g.players[1]["momentum"] = 3
+	g.players[1]["hand"].clear() # the opening hand of the Água deck must not hold a castable Rápido
 	var fast3 := _give(g, 1, "t_sw_fast")
 	_put(g, 1, "t_sw") # no target for the Rápido otherwise
 	g.play_card(0, _give(g, 0, "serpente_marinha"), 0)
@@ -3807,6 +3809,23 @@ func _test_critico() -> void:
 	_hit(g_max, vael_max)
 	check(g_max.players[1]["leader_hp"] == 999 - 6, "Vael no Crítico 4: +3 de dano (3 + 3)")
 	check(g_max.can_attack(vael_max), "Vael no Crítico 4 ainda pode atacar a segunda vez")
+	# the crit that lifts Vael from level 3 to 4 still pays the OLD bonus (+2); the +3 only counts from the next blow
+	var crossed_to_level_four := false
+	for seed_value in range(1, 81):
+		var g_cross := _new_game(seed_value)
+		_quiet(g_cross)
+		g_cross.players[1]["leader_hp"] = 999
+		var vael_cross := _put(g_cross, 0, "t_vael")
+		g_cross.grow_critico(vael_cross)
+		g_cross.grow_critico(vael_cross)
+		var cross_events := _hit(g_cross, vael_cross)
+		if _has_event(cross_events, "crit"):
+			crossed_to_level_four = true
+			check(vael_cross.critico == 4, "Vael: o crítico do nível 3 o leva ao nível 4")
+			check(g_cross.players[1]["leader_hp"] == 999 - 5, "Vael: o crítico que sobe do 3 ao 4 ainda dá +2 (3 + 2), não +3 (foi %d)" % (999 - g_cross.players[1]["leader_hp"]))
+			check(g_cross.can_attack(vael_cross), "Vael: depois de subir ao nível 4 ele já pode atacar de novo (Ataque Duplo)")
+			break
+	check(crossed_to_level_four, "Vael acabou acertando o crítico do nível 3 em 80 sementes de 75%")
 	# what the client shows: the live level (temporary included) and the Ataque Duplo state
 	var vael_card := CardDB.card("t_vael")
 	check(CardView.critico_of_view(vael_card, {"critico": 3, "temp_critico": 2}) == 4, "a tela soma o Crítico temporário e trava em 4")
@@ -6420,43 +6439,17 @@ func _test_glacial() -> void:
 	_cast_and_resolve(g, a, "estilhaco_gelido", shard_cold.uid)
 	check(shard_warm.hp_left() == 20 - 2 and shard_cold.hp_left() == 20 - 4, "Estilhaço Gélido: 2 de dano, 4 se o alvo estiver Congelado (%d/%d)" % [shard_warm.hp_left(), shard_cold.hp_left()])
 
-	# Bruno (Rompante): hitting the enemy Leader raises the Bola de Neve level by 1 (no cast) and opens the search
+	# Bruno (Rompante): each hit on the enemy Leader gives him +1 Attack permanently
 	g = _glacial_game()
 	a = g.active
 	o = g.opponent(a)
-	g.players[a]["hand"] = g.players[a]["hand"].filter(func(card: Card): return card.card_id not in ["bola_de_neve", "grande_bola_de_neve"])
-	g.players[a]["deck"] = g.players[a]["deck"].filter(func(card: Card): return card.card_id not in ["bola_de_neve", "grande_bola_de_neve"])
-	g.players[a]["deck"].append(Card.new(g._uid(), "bola_de_neve", a, "deck"))
 	var bruno := _put(g, a, "bruno", false)
 	check(g.attack_targets(bruno) == [GameState.LEADER_UID[o]], "Bruno: Rompante, só o Líder é alvo")
-	var level_before: int = g.players[a]["snowball"]
+	var bruno_attack_before: int = g.atk_of(bruno)
 	_hit(g, bruno, GameState.LEADER_UID[o])
 	g._flush()
-	check(g.players[a]["snowball"] == level_before + 1, "Bruno: bater no Líder sobe o nível da Bola de Neve em 1 (%d -> %d)" % [level_before, g.players[a]["snowball"]])
-	# the search must survive the end of combat (it used to be overwritten by the return to the Main Phase)
-	check(g.phase == "search", "Bruno: a busca pela Bola de Neve fica aberta depois do ataque (fase %s)" % g.phase)
-	if g.phase == "search":
-		g.choose_search(a, int(g.pending_search["cards"][0]["uid"]))
-		g._flush()
-		var bola_in_hand: Array = g.players[a]["hand"].filter(func(c: Card): return c.card_id == "bola_de_neve")
-		check(bola_in_hand.size() == 1 and g.phase == "main", "Bruno: a Bola de Neve escolhida vai para a mão e o jogo volta à Fase Principal (fase %s)" % g.phase)
-
-	# Bruno: the search is optional (uid 0 takes no card), only the searcher can decline, and the deck keeps the Bola
-	g = _glacial_game()
-	a = g.active
-	o = g.opponent(a)
-	g.players[a]["hand"] = g.players[a]["hand"].filter(func(card: Card): return card.card_id not in ["bola_de_neve", "grande_bola_de_neve"])
-	g.players[a]["deck"] = g.players[a]["deck"].filter(func(card: Card): return card.card_id not in ["bola_de_neve", "grande_bola_de_neve"])
-	g.players[a]["deck"].append(Card.new(g._uid(), "bola_de_neve", a, "deck"))
-	var bruno_decliner := _put(g, a, "bruno", false)
-	_hit(g, bruno_decliner, GameState.LEADER_UID[o])
-	g._flush()
-	check(g.phase == "search", "Bruno: a busca abre antes de recusar")
-	check(g.choose_search(o, 0).is_empty(), "Bruno: o oponente não recusa a busca por você")
-	check(not g.choose_search(a, 0).is_empty(), "Bruno: recusar (uid 0) é aceito")
-	check(g.phase == "main" and g.pending_search.is_empty(), "Bruno: recusar fecha a busca e volta à Fase Principal (fase %s)" % g.phase)
-	check(g.players[a]["hand"].filter(func(c: Card): return c.card_id == "bola_de_neve").is_empty(), "Bruno: recusada, nenhuma Bola de Neve vai para a mão")
-	check(g.players[a]["deck"].any(func(c: Card): return c.card_id == "bola_de_neve"), "Bruno: recusada, a Bola de Neve continua no deck")
+	check(g.atk_of(bruno) == bruno_attack_before + 1, "Bruno: bater no Líder dá +1 de Ataque permanente (%d -> %d)" % [bruno_attack_before, g.atk_of(bruno)])
+	check(g.phase == "main", "Bruno: nenhuma busca abre depois do ataque (fase %s)" % g.phase)
 
 	# Ysvane: Ao Entrar buffs another random ally and takes a Bola de Neve back from the graveyard (banished after its next cast);
 	# each glacial spell shields a random ally; death heals the Leader
@@ -7950,7 +7943,7 @@ func _test_isarelis_hit_leader() -> void:
 
 func _test_maria_helena() -> void:
 	var cd := CardDB.card("maria_helena")
-	check(int(cd["cost"]) == 5 and int(cd["atk"]) == 0 and int(cd["hp"]) == 6, "Santa Maria Helena: continua custo 5 e vira 0/6")
+	check(int(cd["cost"]) == 5 and int(cd["atk"]) == 0 and int(cd["hp"]) == 12, "Santa Maria Helena: continua custo 5 e vira 0/12")
 	check(int(cd["leader_damage_reduction"]) == 3, "Santa Maria Helena: redução do primeiro dano é 3")
 
 	var g := _new_game()
@@ -7958,7 +7951,7 @@ func _test_maria_helena() -> void:
 	g.players[0]["leader_max"] = 100
 	g.players[0]["leader_hp"] = 20
 	var maria := _put(g, 0, "maria_helena")
-	check(maria.hp == 6, "Santa Maria Helena: Vida base 6")
+	check(maria.hp == 12, "Santa Maria Helena: Vida base 12")
 	g._fire(maria, "on_turn_start")
 	g._check_state()
 	check(g.players[0]["leader_hp"] == 22, "Santa Maria Helena: cura 2 no início do turno")
