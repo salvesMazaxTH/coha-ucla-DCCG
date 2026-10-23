@@ -21,9 +21,9 @@ const STYLES := {
 	"fluxo": {"top": "#2d7cc4", "bot": "#0b2448", "trim": "#c4dcec", "glow": "#5cc8ff"},
 	"natureza": {"top": "#4a9a3c", "bot": "#12301a", "trim": "#c9d89a", "glow": "#8cf06a"},
 	"montanha": {"top": "#8a6b45", "bot": "#2e2216", "trim": "#d2bc94", "glow": "#d6a868"},
-	"tormenta": {"top": "#e6f4ff", "bot": "#2a3df0", "trim": "#bdf2ff", "glow": "#6fe8ff"}, ## ice-white top fading into electric blue (a smooth gradient, so it never reads as a two-domain split); bluer and brighter than Fluxo, and never the warm legendary gold
+	"tormenta": {"top": "#9446f2", "bot": "#1a0a4d", "trim": "#fff2a0", "glow": "#c58cff"}, ## saturated storm violet fading into deep indigo, with a pale lightning-yellow trim: the only vivid violet, so it never reads as the blue of Fluxo (periwinkle "vento" and the indigo card back are both paler / duller)
 	"trevas": {"top": "#34343a", "bot": "#030304", "trim": "#7c7c85", "glow": "#8a8a96"}, ## near-black gradient, dark-grey trim
-	"devocao": {"top": "#fffaee", "bot": "#b8a676", "trim": "#e6c25a", "glow": "#fff6c8"}, ## pearl white over champagne, gold trim: the only frame that stays light all the way down (Tormenta is ice-white only at the top; legendary is saturated gold)
+	"devocao": {"top": "#fffaee", "bot": "#b8a676", "trim": "#e6c25a", "glow": "#fff6c8"}, ## pearl white over champagne, gold trim: the only frame that stays light all the way down (legendary is saturated gold)
 	"neutra": {"top": "#7b7a78", "bot": "#1f1f20", "trim": "#b49b72", "glow": "#dcd8d0"}, ## colourless dark grey with a bronze trim
 	# Free hue for a future domain: periwinkle lilac, the only violet frame
 	# "vento": {"top": "#c4bdf2", "bot": "#37336a", "trim": "#f2f0ff", "glow": "#cfc8ff"},

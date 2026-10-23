@@ -12,9 +12,8 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - **Única:** cartas com `"max_copies": 1` (ex.: Rusco) só podem ter 1 cópia no deck.
 - Os **domínios** do Líder (Fúria, Fluxo, Natureza, Montanha, Tormenta, Trevas, Devoção) definem as cartas permitidas no deck: as cartas dos domínios da Encarnação do Líder entram à vontade. Cartas **neutras** entram em qualquer deck.
 - Uma carta pode ter **mais de um domínio** (ex.: Morwenna é de Trevas e de Natureza, com moldura meio a meio). Ela só conta como **do domínio do Líder** (sem custo no limite de convidadas) se a Encarnação do Líder tiver **todos** os domínios dela; senão conta como carta de fora.
-- **Fora do domínio:** o deck pode ter até **12 cartas** (contando cópias) de domínios que o Líder não tem, de qualquer raridade, com o limite normal de 3 cópias. Cartas neutras não entram nessa conta. Campeões também podem ser de fora do domínio, dentro desse mesmo limite.
-- **Domínios secundários:** a primeira carta de fora do domínio do Líder (não neutra, com Líder não neutro) permite definir um **domínio secundário**. A primeira carta de fora que não tenha nem um domínio do Líder nem o secundário já definido permite definir um **segundo domínio secundário**. Depois disso, todas as cartas de fora do domínio do Líder precisam ter **pelo menos um** dos dois secundários (uma carta de dois domínios serve com qualquer uma das metades). Não existe terceiro secundário.
-- **Líder neutro** (ex.: Vael): toda carta não neutra é "de fora do domínio", então ele escolhe seus dois secundários como qualquer outro Líder (mais as cartas neutras à vontade).
+- **Fora do domínio (convidadas):** o deck pode ter até **10 cartas** (contando cópias) de domínios que o Líder não tem, de qualquer raridade, com o limite normal de 3 cópias. Podem vir de **quaisquer domínios, em qualquer mistura**: o único limite é o número de cartas. Cartas neutras não entram nessa conta. Campeões também podem ser de fora do domínio, dentro desse mesmo limite.
+- **Líder neutro** (ex.: Vael): toda carta não neutra é "de fora do domínio", então todas contam entre as 10 convidadas (mais as cartas neutras à vontade).
 - O deck tem exatamente **1 Encarnação do Líder**, o Campeão que é a versão em carta do próprio Líder.
 
 ## Encarnação do Líder (Santuário)

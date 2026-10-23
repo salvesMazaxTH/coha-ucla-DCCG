@@ -18,7 +18,7 @@ func _init() -> void:
 	_test_sfx()
 	_test_off_essence()
 	_test_naelys_leader()
-	_test_secondary_essences()
+	_test_many_secondary_domains()
 	_test_death_order()
 	_test_sacrifice_damage()
 	_test_spell_shield_scope()
@@ -633,7 +633,7 @@ func _test_off_essence() -> void:
 	# fire deck: swap in off-essence (aquática) cards; neutral and own-essence cards don't count
 	var base: Dictionary = DeckDB.get_deck("fogo")["cards"].duplicate()
 	var leader: String = DeckDB.get_deck("fogo")["leader"]
-	# the deck may already hold a guest card of its own (e.g. a Montanha artifact answer): clear those first so the 12 guest slots start empty
+	# the deck may already hold a guest card of its own (e.g. a Montanha artifact answer): clear those first so the 10 guest slots start empty
 	for card_id in base.keys():
 		var domains := CardDB.essences_of(CardDB.card(card_id))
 		if not (domains.has("neutra") or domains.has("furia")):
@@ -641,9 +641,9 @@ func _test_off_essence() -> void:
 	var victims: Array = base.keys().filter(func(k): return k != DeckDB.get_deck("fogo")["leader"] and CardDB.card(k).get("rarity", "") != "champion")
 	var swapped := 0
 	for k in victims:
-		if swapped >= 12:
+		if swapped >= 10:
 			break
-		var take: int = mini(int(base[k]), 12 - swapped)
+		var take: int = mini(int(base[k]), 10 - swapped)
 		base[k] -= take
 		if base[k] == 0:
 			base.erase(k)
@@ -651,40 +651,29 @@ func _test_off_essence() -> void:
 	base["afogar"] = 3
 	base["tsunami"] = 3
 	base["bencao_das_profundezas"] = 3
-	base["espirito_da_mare"] = 3
-	check(DeckDB.validate_cards(leader, base).filter(func(e): return "fora do domínio" in e).is_empty(), "12 cartas de fora da essência são permitidas")
+	base["espirito_da_mare"] = 1
+	check(DeckDB.validate_cards(leader, base).filter(func(e): return "fora do domínio" in e).is_empty(), "10 cartas de fora da essência são permitidas")
 	var over: Dictionary = base.duplicate()
 	over["tritao_lanceiro"] = 1
 	over[over.keys().filter(func(k): return k != "afogar" and k != "tsunami" and k != "bencao_das_profundezas" and k != "espirito_da_mare" and k != leader)[0]] -= 1
-	check(not DeckDB.validate_cards(leader, over).filter(func(e): return "máximo 12" in e).is_empty(), "13 cartas de fora da essência são ilegais")
+	check(not DeckDB.validate_cards(leader, over).filter(func(e): return "máximo 10" in e).is_empty(), "11 cartas de fora da essência são ilegais")
 	var champ: Dictionary = base.duplicate()
 	champ["alexa_neruvya"] = 1 # a champion of another essence
-	check(DeckDB.validate_cards(leader, champ).filter(func(e): return "Campeão" in e).is_empty(), "Campeão de fora da essência é permitido (conta nas 12 de fora)")
+	check(DeckDB.validate_cards(leader, champ).filter(func(e): return "Campeão" in e).is_empty(), "Campeão de fora da essência é permitido (conta nas 10 de fora)")
 
-## Fogo deck with every off-essence card removed, plus the given off-essence cards; only the secondary-essence errors are returned.
-func _secondary_essence_errors(off_essence_cards: Dictionary) -> Array:
+## Guests may come from any mix of domains: only their count is limited.
+func _test_many_secondary_domains() -> void:
 	var leader: String = DeckDB.get_deck("fogo")["leader"]
 	var cards: Dictionary = {}
 	for k in DeckDB.get_deck("fogo")["cards"]:
 		var essences := CardDB.essences_of(CardDB.card(k))
 		if essences.has("neutra") or essences.has("furia"):
 			cards[k] = DeckDB.get_deck("fogo")["cards"][k]
-	for k in off_essence_cards:
-		cards[k] = off_essence_cards[k]
-	return DeckDB.validate_cards(leader, cards).filter(func(e): return "secundários" in e)
-
-func _test_secondary_essences() -> void:
-	check(_secondary_essence_errors({"afogar": 3, "tsunami": 3}).is_empty(), "uma essência secundária é legal")
-	check(_secondary_essence_errors({"afogar": 3, "arena_tectonica": 3}).is_empty(), "duas essências secundárias são legais")
-	check(not _secondary_essence_errors({"afogar": 3, "arena_tectonica": 3, "carga_acumulada": 1}).is_empty(), "três essências secundárias são ilegais")
-	# Morwenna is trevas + natureza: she fits under the trevas secondary domain
-	check(_secondary_essence_errors({"afogar": 3, "morwenna_raiz_podre": 2, "necrofago_espectral": 3}).is_empty(), "carta dupla serve a uma essência secundária pela outra metade")
-	check(not _secondary_essence_errors({"afogar": 3, "morwenna_raiz_podre": 2, "necrofago_espectral": 3, "arena_tectonica": 1}).is_empty(), "carta dupla não abre uma terceira essência secundária")
-	# a neutral Leader picks its secondary essences like any other Leader (Vael: elétrica + ígnea)
-	var vael_cards: Dictionary = DeckDB.get_deck("vael")["cards"].duplicate()
-	check(DeckDB.validate_cards("vael", vael_cards).filter(func(e): return "secundários" in e).is_empty(), "Líder neutro com duas essências secundárias é legal")
-	vael_cards["afogar"] = 1
-	check(not DeckDB.validate_cards("vael", vael_cards).filter(func(e): return "secundários" in e).is_empty(), "Líder neutro com três essências secundárias é ilegal")
+	# three different guest domains (Fluxo, Montanha, Tormenta), 9 cards in total
+	cards["afogar"] = 3
+	cards["arena_tectonica"] = 3
+	cards["carga_acumulada"] = 3
+	check(DeckDB.validate_cards(leader, cards).filter(func(e): return "fora do domínio" in e).is_empty(), "convidadas de três domínios diferentes são legais dentro do limite")
 
 func _kill(g: GameState, c: Card) -> void:
 	c.damage = 1000
