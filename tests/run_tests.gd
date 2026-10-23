@@ -21,6 +21,7 @@ func _init() -> void:
 	_test_many_secondary_domains()
 	_test_death_order()
 	_test_sacrifice_damage()
+	_test_domain_removals()
 	_test_spell_shield_scope()
 	_test_supreme_shield()
 	_test_limited_charges()
@@ -432,6 +433,65 @@ func _test_sacrifice_damage() -> void:
 	g.pass_priority(1)
 	g._flush()
 	check(g.find_unit(ally.uid) == null and g.find_unit(foe.uid).damage == 1, "dano também acerta unidade (ataque 1 do esqueleto)")
+
+## The four epic unrestricted removals added so every domain has an answer: Expurgo Sagrado (Devoção), Desabamento Oportuno
+## (Montanha), Capina Seletiva (Natureza) and Pacto de Mortalha (Trevas).
+func _test_domain_removals() -> void:
+	# Expurgo Sagrado: destroys every unit, but Trevas units are banished on the spot (they never die: no Ao Morrer)
+	var g := _new_game()
+	_quiet(g)
+	var rat := _put(g, 1, "rato_do_ossuario")
+	var serpent := _put(g, 1, "serpente_marinha")
+	var own := _put(g, 0, "serpente_marinha")
+	var leader_hp: int = g.players[0]["leader_hp"]
+	g.players[0]["momentum"] = 10
+	var spell_uid := _give(g, 0, "expurgo_sagrado")
+	g.play_card(0, spell_uid)
+	_resolve_stack(g)
+	check(g.find_unit(rat.uid) == null and g.find_unit(serpent.uid) == null and g.find_unit(own.uid) == null, "Expurgo Sagrado: destrói todas as unidades, as suas inclusive")
+	check(_zone_has(g, 1, "banished", "rato_do_ossuario") and not _zone_has(g, 1, "graveyard", "rato_do_ossuario"), "Expurgo Sagrado: unidade de Trevas é banida, não vai ao cemitério")
+	check(_zone_has(g, 1, "graveyard", "serpente_marinha") and _zone_has(g, 0, "graveyard", "serpente_marinha"), "Expurgo Sagrado: as outras vão ao cemitério")
+	check(g.players[0]["leader_hp"] == leader_hp, "Expurgo Sagrado: a unidade de Trevas banida não morre, então o Ao Morrer não dispara")
+
+	# Desabamento Oportuno: destroys the target, but the caster's units lose Escudo and every point of Armadura
+	g = _new_game()
+	_quiet(g)
+	var foe := _put(g, 1, "serpente_marinha")
+	var guard := _put(g, 0, "escudeiro_de_cascalho")
+	guard.armor = 2
+	guard.shield = true
+	g.players[0]["momentum"] = 10
+	_play_aimed(g, 0, "desabamento_oportuno", foe.uid)
+	check(g.find_unit(foe.uid) == null, "Desabamento Oportuno: destrói a unidade escolhida")
+	check(guard.armor == 0 and not guard.shield, "Desabamento Oportuno: as unidades aliadas perdem Escudo e Armadura")
+
+	# Capina Seletiva: costs 1 less per allied Planta or ficha (floor 2) and banishes an enemy unit
+	g = _new_game()
+	_quiet(g)
+	var capina_uid := _give(g, 0, "capina_seletiva")
+	var capina: Card = g.players[0]["hand"].back()
+	check(g.cost_of(0, capina.data(), capina) == 7, "Capina Seletiva: sem plantas custa 7")
+	_put(g, 0, "flor_voraz")
+	check(g.cost_of(0, capina.data(), capina) == 6, "Capina Seletiva: cada Planta aliada reduz 1")
+	for i in 8:
+		_put(g, 0, "flor_voraz")
+	check(g.cost_of(0, capina.data(), capina) == 2, "Capina Seletiva: o custo mínimo é 2")
+	var victim := _put(g, 1, "serpente_marinha")
+	g.players[0]["momentum"] = 10
+	g.play_card(0, capina_uid, victim.uid)
+	_resolve_stack(g)
+	check(g.find_unit(victim.uid) == null and _zone_has(g, 1, "banished", "serpente_marinha"), "Capina Seletiva: bane a unidade inimiga")
+
+	# Pacto de Mortalha: sacrifices an ally and destroys the chosen enemy unit
+	g = _new_game()
+	_quiet(g)
+	var victim2 := _put(g, 1, "serpente_marinha")
+	var fodder := _put(g, 0, "esqueleto_guerreiro")
+	g.players[0]["momentum"] = 10
+	var pact_uid := _give(g, 0, "pacto_de_mortalha")
+	g.play_card(0, pact_uid, fodder.uid, victim2.uid)
+	_resolve_stack(g)
+	check(g.find_unit(fodder.uid) == null and g.find_unit(victim2.uid) == null, "Pacto de Mortalha: sacrifica o aliado e destrói o inimigo")
 
 ## Escudo de Feitiço only cancels what comes from a spell or from a Leader's ability.
 func _test_spell_shield_scope() -> void:

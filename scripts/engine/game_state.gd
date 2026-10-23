@@ -548,6 +548,15 @@ func _scale_count(p: int, e: Dictionary) -> int:
 		"own_artifacts": return artifact_count(p)
 	return 0
 
+## Allied units in play that are a Planta or a ficha (Capina Seletiva counts them).
+func allied_plants_or_tokens(p: int) -> int:
+	var n := 0
+	for c: Card in players[p]["board"]:
+		var cd := c.data()
+		if cd.get("token", false) or (cd.get("species", []) as Array).has("planta"):
+			n += 1
+	return n
+
 ## Artifacts a player has in play: free-standing ones plus the equipment worn by their units.
 func artifact_count(p: int) -> int:
 	var n: int = players[p]["relics"].size()
@@ -740,6 +749,7 @@ func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 		var n := 0
 		match e.get("per", ""):
 			"idle_turns": n = int(players[p]["idle_turns"])
+			"allied_plants_or_tokens": n = allied_plants_or_tokens(p)
 			"unspent_momentum": n = 1 if int(players[p]["unspent"]) >= int(e.get("threshold", 1)) else 0
 			"healing_since_last_turn": n = 1 if _since_last_turn(p, "healing") >= int(e.get("threshold", 1)) else 0
 			"damage_since_last_turn": n = 1 if _since_last_turn(p, "damage") >= int(e.get("threshold", 1)) else 0

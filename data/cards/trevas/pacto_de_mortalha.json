@@ -1,0 +1,27 @@
+{
+  "name": "Pacto de Mortalha",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "trevas",
+  "element": "sombra",
+  "cost": 3,
+  "speed": "instantaneo",
+  "art": "trevas/pacto_de_mortalha.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "sacrifice",
+      "target": "ally_unit",
+      "then": [
+        {
+          "action": "destroy",
+          "target": "enemy_unit",
+          "pick": true
+        }
+      ]
+    }
+  ],
+  "text": "Você sacrifica uma unidade aliada; destrói uma unidade inimiga à sua escolha.",
+  "flavor": "",
+  "tags": []
+}

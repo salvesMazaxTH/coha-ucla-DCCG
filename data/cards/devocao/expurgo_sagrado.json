@@ -1,0 +1,21 @@
+{
+  "name": "Expurgo Sagrado",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "devocao",
+  "element": "luz",
+  "cost": 8,
+  "speed": "lento",
+  "art": "devocao/expurgo_sagrado.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "destroy",
+      "target": "all_units",
+      "banish_instead_domain": "trevas"
+    }
+  ],
+  "text": "Destrói todas as unidades em campo, as suas inclusive. As unidades de Trevas são banidas em vez disso.",
+  "flavor": "",
+  "tags": []
+}

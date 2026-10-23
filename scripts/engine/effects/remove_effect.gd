@@ -4,6 +4,8 @@ extends Effect
 ## "destroy": the target unit dies. Not damage: ignores size and Escudo, but Indestrutível stops
 ##   it (only removal from the game, e.g. banish, bypasses it).
 ##   "shield_leader_damage": N = if the unit had Escudo, its owner's Leader takes N damage.
+##   "banish_instead_domain": a unit of that domain is banished by this effect instead of being destroyed: it never dies
+##   (no Ao Morrer, no Aliado Morre), Indestrutível and death wards don't matter (Expurgo Sagrado).
 ## "banish": exile, stronger than destroy. Ignores Indestrutível, the unit never dies (no Ao
 ##   Morrer, no Aliado Morre) and never reaches the graveyard; its equipment does.
 ##   "requires_markers": {"dot": "veneno", "amount": X}: the banish only happens if the unit holds
@@ -14,6 +16,7 @@ extends Effect
 ##   amount of that marker kind (Viprax's execution). Câmara de Êxtase does not save it.
 
 var shield_leader_damage := 0
+var banish_instead_domain := ""
 var required_dot := ""
 var required_dot_amount := 0
 var required_subtype := ""
@@ -21,6 +24,7 @@ var required_subtype := ""
 
 func _read_parameters(data: Dictionary) -> void:
 	shield_leader_damage = int(data.get("shield_leader_damage", 0))
+	banish_instead_domain = String(data.get("banish_instead_domain", ""))
 	var requirement: Dictionary = data.get("requires_markers", {})
 	required_dot = String(requirement.get("dot", ""))
 	required_dot_amount = int(requirement.get("amount", 0))
@@ -43,7 +47,12 @@ func apply(context: EffectContext, target_uid: int) -> void:
 
 func _destroy(context: EffectContext, target_uid: int) -> void:
 	var doomed := context.game.find_unit(target_uid)
-	if doomed == null or doomed.has_kw("indestrutivel"):
+	if doomed == null:
+		return
+	if banish_instead_domain != "" and CardDB.has_essence(doomed.data(), banish_instead_domain):
+		context.game.banish_unit(doomed) # exiled on the spot: it never dies
+		return
+	if doomed.has_kw("indestrutivel"):
 		return
 	if context.game._consume_death_ward(doomed):
 		return # cancel this destruction entirely; the ward was sacrificed instead

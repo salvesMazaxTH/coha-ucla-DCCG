@@ -1,0 +1,26 @@
+{
+  "name": "Capina Seletiva",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "natureza",
+  "element": "planta",
+  "cost": 7,
+  "speed": "lento",
+  "art": "natureza/capina_seletiva.webp",
+  "effects": [
+    {
+      "action": "cost_reduction",
+      "per": "allied_plants_or_tokens",
+      "amount": 1,
+      "min_cost": 2
+    },
+    {
+      "trigger": "on_play",
+      "action": "banish",
+      "target": "enemy_unit"
+    }
+  ],
+  "text": "Custa (1) a menos para cada Planta ou ficha aliada em campo; o custo mínimo é (2).\nBane uma unidade inimiga à sua escolha.",
+  "flavor": "",
+  "tags": []
+}

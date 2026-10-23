@@ -11,11 +11,16 @@
     {
       "trigger": "on_play",
       "action": "destroy",
-      "target": "any_unit",
-      "shield_leader_damage": 2
+      "target": "any_unit"
+    },
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "both_leaders",
+      "amount": 2
     }
   ],
-  "text": "Destrói uma unidade à sua escolha. Se ela tinha Escudo, causa 2 de dano ao Líder do dono dela.",
+  "text": "Destrói uma unidade à sua escolha; causa 2 de dano a cada Líder.",
   "flavor": "",
   "tags": []
 }

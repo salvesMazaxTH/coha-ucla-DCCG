@@ -1,0 +1,25 @@
+{
+  "name": "Desabamento Oportuno",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "montanha",
+  "element": "pedra",
+  "cost": 4,
+  "speed": "lento",
+  "art": "montanha/desabamento_oportuno.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "destroy",
+      "target": "any_unit"
+    },
+    {
+      "trigger": "on_play",
+      "action": "strip_defenses",
+      "target": "all_ally_units"
+    }
+  ],
+  "text": "Destrói uma unidade à sua escolha; todas as suas unidades perdem o Escudo e toda a Armadura.",
+  "flavor": "",
+  "tags": []
+}
