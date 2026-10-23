@@ -8,8 +8,8 @@
   "element": "luz",
   "cost": 5,
   "atk": 0,
-  "hp": 6,
-  "keywords": ["pacifista"],
+  "hp": 12,
+  "keywords": ["pacifista", "provocacao"],
   "art": "devocao/maria_helena.webp",
   "leader_damage_reduction": 3,
   "effects": [
