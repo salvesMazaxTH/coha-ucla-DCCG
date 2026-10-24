@@ -1,0 +1,28 @@
+{
+  "name": "Ciclo da Carpideira",
+  "description": "Urna + Carpideira + Espírito: sacrifique sem parar, cada choro causa 2 de dano. A Fagulha Bocejante gera Momentum ao se exaurir, a Cutucada no Defunto a desvira para gerar de novo, a Tesoureira devolve o Momentum de cada volta, e o controle de Fluxo e Devoção, o Pacto de Mortalha e a cura da Remendeira seguram a mesa para o combo fechar.",
+  "order": 21,
+  "section": "especial",
+  "leader": "jeff",
+  "cards": {
+    "cutucada_no_defunto": 3,
+    "cantora_de_velorio": 3,
+    "carpideira_soluco_curto": 3,
+    "fagulha_bocejante": 3,
+    "remendeira_de_esquina": 3,
+    "colheita_de_almas": 2,
+    "sentenca_do_badalo": 2,
+    "urna_cochichante": 3,
+    "cientista_da_morte": 2,
+    "replicador_maldito": 2,
+    "revivente_eterno": 2,
+    "tesoureira_troco_certo": 3,
+    "pacto_de_mortalha": 3,
+    "coveiro_bis": 2,
+    "o_espiritomante": 3,
+    "ultima_badalada": 2,
+    "zero_absoluto": 1,
+    "jeff": 1,
+    "tsunami": 2
+  }
+}

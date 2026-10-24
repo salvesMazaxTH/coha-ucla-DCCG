@@ -1,0 +1,26 @@
+{
+  "name": "Carpideira Soluço-Curto",
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["humano"],
+  "essence": "trevas",
+  "element": "sombra",
+  "cost": 2,
+  "atk": 1,
+  "hp": 2,
+  "keywords": [],
+  "art": "trevas/carpideira_soluco_curto.webp",
+  "effects": [
+    {
+      "trigger": "on_ally_death",
+      "action": "damage",
+      "target": "random_enemy_units",
+      "count": 1,
+      "include_leader": true,
+      "amount": 2
+    }
+  ],
+  "text": "Aliado Morre: causa 2 de dano a um inimigo aleatório, incluindo o Líder.",
+  "flavor": "Chora por encomenda. Cobra por soluço.",
+  "tags": []
+}

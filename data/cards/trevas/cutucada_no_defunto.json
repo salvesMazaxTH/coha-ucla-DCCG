@@ -1,0 +1,21 @@
+{
+  "name": "Cutucada no Defunto",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "trevas",
+  "element": "sombra",
+  "cost": 0,
+  "speed": "rapido",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "ready",
+      "target": "ally_unit",
+      "requires_exhausted": true,
+      "not_rarity": ["champion"]
+    }
+  ],
+  "text": "Você desvira uma unidade aliada exausta que não seja Campeã.",
+  "flavor": "Ninguém dorme em paz com um coveiro por perto.",
+  "tags": []
+}

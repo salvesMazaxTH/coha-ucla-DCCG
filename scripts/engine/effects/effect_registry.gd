@@ -26,6 +26,7 @@ static var ACTIONS: Dictionary = {
 	"add_dot": AddDotEffectScript,
 	"burn": AddDotEffectScript, # compatibility alias for old card data
 	"exhaust": ExhaustEffect,
+	"ready": ReadyEffect,
 	"condemn": CondemnEffect,
 	"freeze_slots": FreezeSlotsEffect,
 	"add_card": AddCardEffect,

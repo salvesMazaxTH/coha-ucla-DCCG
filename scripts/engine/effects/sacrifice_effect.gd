@@ -23,4 +23,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	then_context.sacrificed_cost = int(CardDB.card(victim.card_id).get("cost", 0))
 	victim.damage = victim.hp + victim.bonus_hp + victim.temp_hp + victim.temp_hp_until_next_turn
 	game._emit({"type": "sacrifice", "player": context.controller, "uid": target_uid})
+	if not then_effects.is_empty():
+		# The victim leaves the board before the "then" effects, so a summon has its slot back even on a full board.
+		# Its Ao Morrer / Aliado Morre triggers are only queued here and resolve afterwards.
+		game._move_dead_units()
 	game._run_effects(then_context, then_effects)

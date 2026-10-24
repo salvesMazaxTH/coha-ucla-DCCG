@@ -4944,7 +4944,7 @@ func _bolt_color(e: Dictionary) -> Color:
 			return CardView.DOOM_COL
 		"stun":
 			return CardView.STUN_COL
-		"exhaust", "tide_mark":
+		"exhaust", "ready", "tide_mark":
 			return Color("#6fd0ff")
 	return CardView.TRIGGER_COL
 
@@ -6406,13 +6406,13 @@ func _animate(events: Array, old: Dictionary) -> float:
 			"countered":
 				_toast("%s foi anulado!" % ("A habilidade do Líder" if e["kind"] == "ability" else _cname(e["card_id"])))
 				cursor += 0.4
-			"spell_shield_break", "supreme_shield_break", "tide_mark", "tide_draw", "dot", "dot_immune", "freeze", "exhaust", "stun", "stun_tick", "shrink", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up":
+			"spell_shield_break", "supreme_shield_break", "tide_mark", "tide_draw", "dot", "dot_immune", "freeze", "exhaust", "ready", "stun", "stun_tick", "shrink", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up":
 				if actors.has(e["uid"]):
 					var dot_name: String = {"queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento"}.get(String(e.get("dot", "")), "Marcador")
 					var dot_label := "%s %d" % [dot_name, int(e.get("amount", 0))]
 					if not e.get("cleared", false):
 						dot_label = "%s +%d" % [dot_name, int(e.get("amount", 0))]
-					var lbl: String = {"spell_shield_break": "Anulado!", "supreme_shield_break": "Absorvido!", "tide_mark": "Maré", "tide_draw": "+1 carta", "dot": dot_label, "dot_immune": "Imune!", "freeze": "Congelada!", "exhaust": "Exausta!", "stun": "Atordoada!", "stun_tick": "Recuperando…", "shrink": "Encolhida!", "condemn": "Condenada!", "doom": "Ceifada!", "doom_resisted": "Resistiu!", "thaw": "Descongelou", "dodge": "Esquivou!", "crit": "Crítico!", "crit_negated": "Desdém!", "critico_up": "Crítico %d!" % int(e.get("level", 0))}[e["type"]]
+					var lbl: String = {"spell_shield_break": "Anulado!", "supreme_shield_break": "Absorvido!", "tide_mark": "Maré", "tide_draw": "+1 carta", "dot": dot_label, "dot_immune": "Imune!", "freeze": "Congelada!", "exhaust": "Exausta!", "ready": "Desvirou!", "stun": "Atordoada!", "stun_tick": "Recuperando…", "shrink": "Encolhida!", "condemn": "Condenada!", "doom": "Ceifada!", "doom_resisted": "Resistiu!", "thaw": "Descongelou", "dodge": "Esquivou!", "crit": "Crítico!", "crit_negated": "Desdém!", "critico_up": "Crítico %d!" % int(e.get("level", 0))}[e["type"]]
 					var col: Color = Color("#6fd0ff")
 					if e["type"] == "spell_shield_break":
 						col = Color("#c9a8ff")
@@ -7057,6 +7057,9 @@ func _log_event(e: Dictionary) -> void:
 		"exhaust":
 			var exhausted_unit := g.find_unit(e["uid"])
 			_log("%s ficou exausta" % ("Uma unidade" if exhausted_unit == null else _cname(exhausted_unit.card_id)))
+		"ready":
+			var readied_unit := g.find_unit(e["uid"])
+			_log("%s desvirou" % ("Uma unidade" if readied_unit == null else _cname(readied_unit.card_id)))
 		"card_created":
 			_log("%s criou %s no %s" % [_pname(e["player"]), _cname(e["card_id"]), "topo do deck" if e["to"] == "deck_top" else "mão"])
 		"slots_frozen":

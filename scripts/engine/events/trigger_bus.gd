@@ -58,12 +58,26 @@ func _fire_own_effects(event: GameEvent) -> void:
 			if card.used_turn.get(i, -1) == game.turn:
 				continue # "once per turn" effect already used this turn
 			card.used_turn[i] = game.turn
+		if e.get("trigger", "") == event.trigger and e.has("max_per_turn") and not _spend_capped_use(card, i, int(e["max_per_turn"])):
+			continue # a capped effect that already fired its N times this turn (Tesoureira Troco-Certo)
 		effects.append(e)
 	var context := EffectContext.new(game, card.owner, event.trigger)
 	context.self_uid = card.uid
 	context.other_uid = event.other_uid
 	context.event = event
 	game.queue_trigger(PendingTrigger.new(card, effects, context, event.trigger))
+
+## Own-trigger effects with "max_per_turn": N fire at most N times a turn. Takes one use of effect `index` and
+## says whether there was one left.
+func _spend_capped_use(card: Card, index: int, limit: int) -> bool:
+	var uses: Array = card.capped_uses.get(index, [-1, 0])
+	if int(uses[0]) != game.turn:
+		uses = [game.turn, 0]
+	if int(uses[1]) >= limit:
+		return false
+	uses[1] = int(uses[1]) + 1
+	card.capped_uses[index] = uses
+	return true
 
 ## Staged effects ("nth": 2 = only on the 2nd time this instance fires that trigger, counted across turns).
 ## Counts this occurrence when the card has any "nth" effect for the trigger and returns the new total

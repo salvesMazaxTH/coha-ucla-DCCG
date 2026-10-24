@@ -47,6 +47,9 @@ func _init() -> void:
 	_test_ignisar()
 	_test_play_slot()
 	_test_ossuario()
+	_test_ciclo_da_carpideira()
+	_test_reembolso_do_ciclo()
+	_test_fagulha_e_cutucada()
 	_test_yresa_fusion()
 	_test_glacial()
 	_test_glacial_combo()
@@ -5266,6 +5269,86 @@ func _test_ossuario() -> void:
 	g._flush()
 	check(g.find_relic(relic.uid) == null and g.slots_used(0) == 1, "ossuário: destruído libera o espaço")
 
+func _test_ciclo_da_carpideira() -> void:
+	# Urna (Ao Ativar 1) + Carpideira + Espírito: cada volta sacrifica o Espírito, a Carpideira causa 2 de dano
+	# e a Urna invoca outro Espírito, mesmo com o campo cheio (1 artefato + 7 unidades = 8 espaços).
+	_tcard("t_filler", 1, 5, [])
+	var g := _new_game()
+	_quiet(g)
+	var urn := Card.new(g._uid(), "urna_cochichante", 0)
+	g._place_relic(0, urn)
+	g._flush()
+	_put(g, 0, "carpideira_soluco_curto")
+	var spirit := _put(g, 0, "espirito_choroso")
+	for filler_number in 5:
+		_put(g, 0, "t_filler")
+	check(g.slots_used(0) == 8, "ciclo: campo cheio com 8 espaços")
+	g.players[0]["momentum"] = 3
+	var enemy_hp_before: int = g.players[1]["leader_hp"]
+	var current_spirit_uid := spirit.uid
+	for lap in 3:
+		check(g.can_activate(0, urn.uid), "ciclo: volta %d pode ativar a Urna com Momentum sobrando" % lap)
+		g.activate(0, urn.uid, current_spirit_uid)
+		g._flush()
+		check(_count(g, 0, "espirito_choroso") == 1, "ciclo: volta %d deixa exatamente 1 Espírito (campo cheio)" % lap)
+		check(g.slots_used(0) == 8, "ciclo: volta %d continua com 8 espaços" % lap)
+		for unit in g.players[0]["board"]:
+			if unit.card_id == "espirito_choroso":
+				current_spirit_uid = unit.uid
+	check(g.players[1]["leader_hp"] == enemy_hp_before - 6, "ciclo: 3 voltas = 6 de dano no Líder sem unidades inimigas")
+	check(g.players[0]["momentum"] == 0, "ciclo: cada volta gasta 1 de Momentum")
+	check(not g.can_activate(0, urn.uid), "ciclo: sem Momentum a Urna não ativa")
+
+func _test_reembolso_do_ciclo() -> void:
+	# Tesoureira Troco-Certo devolve 1 de Momentum por morte aliada, sem limite: cada volta da Urna (custo 1)
+	# sai de graça, então o ciclo não para enquanto as peças estiverem em campo.
+	var g := _new_game()
+	_quiet(g)
+	var urn := Card.new(g._uid(), "urna_cochichante", 0)
+	g._place_relic(0, urn)
+	g._flush()
+	_put(g, 0, "carpideira_soluco_curto")
+	_put(g, 0, "tesoureira_troco_certo")
+	var spirit := _put(g, 0, "espirito_choroso")
+	g.players[0]["momentum"] = 1
+	g.players[1]["leader_hp"] = 99
+	var current_spirit_uid := spirit.uid
+	var momentum_after_each_lap: Array = []
+	for lap in 6:
+		g.activate(0, urn.uid, current_spirit_uid)
+		g._flush()
+		momentum_after_each_lap.append(int(g.players[0]["momentum"]))
+		for unit in g.players[0]["board"]:
+			if unit.card_id == "espirito_choroso":
+				current_spirit_uid = unit.uid
+	check(momentum_after_each_lap == [1, 1, 1, 1, 1, 1], "reembolso: toda volta sai de graça (veio %s)" % str(momentum_after_each_lap))
+
+func _test_fagulha_e_cutucada() -> void:
+	# Fagulha Bocejante (Tormenta) exaure para gerar 1 de Momentum; Cutucada no Defunto desvira uma unidade não-Campeã
+	# exausta, então os dois juntos geram Momentum de novo na mesma vez.
+	var g := _new_game()
+	_quiet(g)
+	var spark := _put(g, 0, "fagulha_bocejante")
+	g.players[0]["momentum"] = 0
+	check(g.can_activate(0, spark.uid), "fagulha: pronta, pode ativar")
+	g.activate(0, spark.uid)
+	g._flush()
+	check(int(g.players[0]["momentum"]) == 1 and spark.exhausted, "fagulha: ganha 1 de Momentum e fica exausta")
+	check(not g.can_activate(0, spark.uid), "fagulha: exausta não ativa de novo")
+	var poke := _give(g, 0, "cutucada_no_defunto")
+	var champion := _put(g, 0, "jeff")
+	champion.exhausted = true
+	var ready_unit := _put(g, 0, "espirito_choroso")
+	check(g.valid_targets(0, "ally_unit", poke, false, CardDB.card("cutucada_no_defunto")["effects"]).has(spark.uid), "cutucada: a Fagulha exausta é alvo válido")
+	check(not g.valid_targets(0, "ally_unit", poke, false, CardDB.card("cutucada_no_defunto")["effects"]).has(ready_unit.uid), "cutucada: unidade que não está exausta não é alvo")
+	check(not g.valid_targets(0, "ally_unit", poke, false, CardDB.card("cutucada_no_defunto")["effects"]).has(champion.uid), "cutucada: Campeão exausto não é alvo")
+	g.play_card(0, poke, spark.uid)
+	g._flush()
+	check(not spark.exhausted, "cutucada: a Fagulha desvira")
+	g.activate(0, spark.uid)
+	g._flush()
+	check(int(g.players[0]["momentum"]) == 2, "fagulha + cutucada: segunda ativação gera mais 1 de Momentum")
+
 func _test_self_response() -> void:
 	var g := _new_game()
 	g.self_response_enabled = true
@@ -7486,14 +7569,14 @@ func _test_eryon_deck() -> void:
 	check(g.phase != "search", "Recado Urgente: sem o Barão no deck não abre escolha (Gertrudes não conta)")
 	check(g.players[a]["hand"].size() == hand_before + 1, "Recado Urgente: sem o Barão no deck compra 1 carta (%d)" % (g.players[a]["hand"].size() - hand_before))
 
-## Ao Causar Dano de Combate (on_deal_combat_damage) and Rália: every damage instance she really deals throws X damage
-## (her Ataque) at up to 4 different random enemies, the Leader included, and that damage heals her Leader.
+## Ao Desafiar (on_challenge) and Rália: when she challenges a unit she throws X damage (her Ataque) at up to 4
+## different random enemies, the Leader included, and that damage heals her Leader and herself.
 func _test_ralia_deal_damage() -> void:
 	var ralia_data: Dictionary = CardDB.card("ralia")
 	check(ralia_data["atk"] == 3 and ralia_data["hp"] == 7 and ralia_data["keywords"] == ["intimidacao", "roubo_de_vida"] \
 		and ralia_data.get("imune_critico", false), "Rália é 3/7 com Intimidação, Roubo de Vida e Desdém")
 
-	# hitting the face: the only enemy is the Leader, so the effect hits it once more (3 + 3)
+	# hitting the face is not a challenge: only the 3 of the blow, no effect
 	var g := _new_game()
 	_quiet(g)
 	var a := g.active
@@ -7503,9 +7586,9 @@ func _test_ralia_deal_damage() -> void:
 	g.players[a]["leader_hp"] = g.players[a]["leader_max"] - 10
 	ralia.damage = 5
 	_hit(g, ralia)
-	check(g.players[enemy]["leader_hp"] == 93, "Rália: bate 3 no Líder e o Ao Causar Dano de Combate bate mais 3 (%d)" % g.players[enemy]["leader_hp"])
-	check(g.players[a]["leader_hp"] == g.players[a]["leader_max"] - 4, "Rália: o Líder cura 3 do golpe (Roubo de Vida inato) e 3 do efeito (%d)" % g.players[a]["leader_hp"])
-	check(ralia.damage == 2, "Rália: o efeito também cura a própria Rália em 3, o golpe não (%d)" % ralia.damage)
+	check(g.players[enemy]["leader_hp"] == 96, "Rália: atacar o Líder não é Desafiar, só o golpe de 3 (%d)" % g.players[enemy]["leader_hp"])
+	check(g.players[a]["leader_hp"] == g.players[a]["leader_max"] - 7, "Rália: atacar o Líder só cura 3 do golpe (%d)" % g.players[a]["leader_hp"])
+	check(ralia.damage == 5, "Rália: atacar o Líder não cura a própria Rália (%d)" % ralia.damage)
 
 	# challenging with 4 enemy units + the Leader in the pool: exactly 4 different picks of 3 each,
 	# and the effect's own damage (no source) never fires it again
@@ -7535,7 +7618,7 @@ func _test_ralia_deal_damage() -> void:
 	check(effect_hits == 4 and not hit_twice, "Rália: 4 inimigos diferentes levam 3 cada (%d golpes, repetido: %s)" % [effect_hits, hit_twice])
 	check(g.players[a]["leader_hp"] == g.players[a]["leader_max"] - 5, "Rália: o golpe cura 3 e o efeito cura 12 (4 x 3) (%d)" % g.players[a]["leader_hp"])
 
-	# she dies to the counter-attack: the effect still resolves with the Ataque she had when she hit
+	# she dies to the counter-attack: the effect already resolved when she declared the challenge
 	_tcard("t_ralia_brute", 9, 30, [])
 	g = _new_game()
 	_quiet(g)
@@ -7547,18 +7630,20 @@ func _test_ralia_deal_damage() -> void:
 	g.players[enemy]["leader_hp"] = 99
 	_hit(g, ralia, brute.uid)
 	check(g.find_unit(ralia.uid) == null, "Rália: morre no revide de 9")
-	check(brute.damage == 6 and g.players[enemy]["leader_hp"] == 96, "Rália morta: o efeito ainda usa o Ataque 3 dela (bruto %d, Líder %d)" % [brute.damage, g.players[enemy]["leader_hp"]])
+	check(brute.damage == 6 and g.players[enemy]["leader_hp"] == 96, "Rália morta no revide: o efeito já tinha batido 3 no bruto e no Líder (bruto %d, Líder %d)" % [brute.damage, g.players[enemy]["leader_hp"]])
 
-	# a Silenciada Rália deals her combat damage with no Ao Causar Dano
+	# a Silenciada Rália challenges with no Ao Desafiar
 	g = _new_game()
 	_quiet(g)
 	a = g.active
 	enemy = g.opponent(a)
 	ralia = _put(g, a, "ralia")
+	var silenced_target := _put(g, enemy, "t_ralia_dummy")
+	silenced_target.exhausted = true
 	g._apply_effect(enemy, {"action": "silence", "target": "enemy_unit"}, ralia.uid)
 	g.players[enemy]["leader_hp"] = 99
-	_hit(g, ralia)
-	check(g.players[enemy]["leader_hp"] == 96, "Rália Silenciada: só o golpe de 3, sem o efeito (%d)" % g.players[enemy]["leader_hp"])
+	_hit(g, ralia, silenced_target.uid)
+	check(g.players[enemy]["leader_hp"] == 99 and silenced_target.damage == 3, "Rália Silenciada: só o golpe de 3 na unidade, sem o efeito (Líder %d, alvo %d)" % [g.players[enemy]["leader_hp"], silenced_target.damage])
 
 ## The generic play restriction (PlayRestriction + restrict_play + add_play_restriction): filters by
 ## essence, rarity, card type and cost, "only" vs "forbid", durations in turns, and catalog validation.

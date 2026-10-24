@@ -934,8 +934,22 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 			for it in stack:
 				if it["player"] != p and not stack_system().is_uncounterable(it): out.append(it["sid"])
 	if not effects.is_empty():
-		out = out.filter(func(target_uid: int) -> bool: return meets_marker_requirement(target_uid, spec, effects) and meets_subtype_requirement(target_uid, spec, effects))
+		out = out.filter(func(target_uid: int) -> bool: return meets_marker_requirement(target_uid, spec, effects) and meets_subtype_requirement(target_uid, spec, effects) and meets_unit_requirement(target_uid, spec, effects))
 	return out
+
+## False when an effect aimed with `spec` only works on units of some kind and this target is not one:
+## "requires_exhausted" (only a tapped unit, like "ready") or "not_rarity" (never these rarities, like champions).
+## Effects aimed at another spec, or without these parameters, ignore this check.
+func meets_unit_requirement(target_uid: int, spec: String, effects: Array) -> bool:
+	var unit := find_unit(target_uid)
+	for effect in effects:
+		if effect.get("target", "") != spec:
+			continue
+		if effect.get("requires_exhausted", false) and (unit == null or not unit.exhausted):
+			return false
+		if unit != null and (effect.get("not_rarity", []) as Array).has(CardDB.card(unit.card_id).get("rarity", "")):
+			return false
+	return true
 
 ## False when an effect aimed with `spec` only works on artifacts of one subtype ("subtype": "local" on
 ## "destroy_artifact" = "destroy a Local") and this target is an artifact of another subtype.

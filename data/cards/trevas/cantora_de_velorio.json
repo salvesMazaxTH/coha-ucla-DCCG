@@ -1,0 +1,24 @@
+{
+  "name": "Cantora de Velório",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["humano"],
+  "essence": "trevas",
+  "element": "sombra",
+  "cost": 2,
+  "art": "trevas/cantora_de_velorio.webp",
+  "atk": 2,
+  "hp": 1,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "summon",
+      "target": "none",
+      "card": "espirito_choroso"
+    }
+  ],
+  "text": "Ao Entrar: invoca um Espírito Choroso (ficha 1/1).",
+  "flavor": "Canta no velório alheio e já ensaia o próprio.",
+  "tags": []
+}
