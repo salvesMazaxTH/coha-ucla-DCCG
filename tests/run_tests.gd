@@ -2464,12 +2464,12 @@ func _test_leader_poison() -> void:
 	check(human_game.card_targets(caster, final_period) == [poisoned_victim.uid], "Ponto Final Sem Vírgula: só a unidade com 3+ Veneno é alvo")
 	check(human_game.valid_targets(caster, "enemy_unit", 0, false, final_period["effects"]) == [poisoned_victim.uid], "valid_targets filtra por requires_markers")
 
-## Antídoto Fora de Estoque (the Leader's Veneno stays for its next 2 turns) and Greve Geral dos Antídotos
+## Antídoto Fora de Estoque (the Leader's Veneno stays for its next turn) and Greve Geral dos Antídotos
 ## (nobody's Veneno is consumed for one turn start of each player). Both still hurt, and both expire.
 func _test_veneno_hold() -> void:
 	_tcard("t_hold_dummy", 1, 30, [])
 
-	# Antídoto Fora de Estoque: 1 marker now, and the Leader's markers survive its next two turn starts
+	# Antídoto Fora de Estoque: 1 marker now, and the Leader's markers survive its next turn start
 	var g := _new_game()
 	_quiet(g)
 	var caster: int = g.active
@@ -2486,11 +2486,8 @@ func _test_veneno_hold() -> void:
 	check(g.leader_dot_markers(victim, "veneno") == 3, "Antídoto: os marcadores do Líder ficam no primeiro turno dele")
 	check(poisoned_unit.dot_markers.get("veneno", 0) == 0, "Antídoto: só vale pro Líder, o Veneno de unidade é consumido normal")
 	_next_turn(g)
-	_next_turn(g) # the victim's second turn start
-	check(g.leader_dot_markers(victim, "veneno") == 3 and g.players[victim]["leader_hp"] == leader_hp_start - 12, "Antídoto: ferem e ficam também no segundo turno dele")
-	_next_turn(g)
-	_next_turn(g) # the victim's third turn start: the hold is over
-	check(g.leader_dot_markers(victim, "veneno") == 1 and g.players[victim]["leader_hp"] == leader_hp_start - 18, "Antídoto: no terceiro turno o Veneno fere e remove metade arredondada para cima")
+	_next_turn(g) # the victim's second turn start: the hold is over
+	check(g.leader_dot_markers(victim, "veneno") == 1 and g.players[victim]["leader_hp"] == leader_hp_start - 12, "Antídoto: no segundo turno dele o Veneno fere e remove metade arredondada para cima")
 
 	# Greve Geral dos Antídotos: units and Leaders keep their Veneno for one turn start of each player
 	g = _new_game()
@@ -4730,7 +4727,7 @@ func _test_eletrica() -> void:
 	g.play_card(a, cu, 0)
 	g._resolve_stack()
 	g._flush()
-	check(g.players[a]["momentum"] == 6, "carga acumulada: custa 1, dá +2")
+	check(g.players[a]["momentum"] == 6, "carga acumulada: custa 0, dá +1")
 	# Voltexz Ao Entrar: scaled buff capped at +5/+5, Ataque Rápido for her other units (not herself)
 	g = _eletrica_game()
 	a = g.active
