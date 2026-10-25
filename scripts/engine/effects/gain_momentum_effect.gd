@@ -7,9 +7,13 @@ extends Effect
 ## turn only; the part above the cap pays neutral cards and leader abilities, and vanishes at end of turn.
 ## "restriction": {...} (only when the Momentum really went up) starts a PlayRestriction on the controller,
 ## e.g. "only neutral cards this turn", so ramp packages can't cheat out other essences' champions.
+## "refresh": true only wins back Momentum already spent this turn: it stops at the Momentum the turn
+## started with, so unlike a plain gain it can never push the total above that (Tormenta's gains can).
 ## "amount_from": "sacrificed_cost" (inside a sacrifice's "then") gains the printed cost of the sacrificed unit, at most `max`.
 ## "per": "leaked" refunds the Momentum that leaked past the Reserva this turn instead:
 ## floor(leaked / divisor), at most `max`.
+## "per": "returned_allies" gains `amount` Momentum for each allied unit that a "return_to_hand" earlier in the same
+## effect run sent back to the hand (Kazeminus), at most `max`.
 
 var amount := 0
 var per := ""
@@ -17,12 +21,14 @@ var divisor := 1
 var maximum := GameState.MOMENTUM_CAP
 var next_turn := false
 var overflow := false
+var refresh := false
 var restriction: Dictionary = {}
 var amount_from := ""
 
 func _read_parameters(data: Dictionary) -> void:
 	amount_from = String(data.get("amount_from", ""))
 	overflow = bool(data.get("overflow", false))
+	refresh = bool(data.get("refresh", false))
 	restriction = data.get("restriction", {})
 	amount = int(data.get("amount", 0))
 	per = String(data.get("per", ""))
@@ -42,10 +48,14 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 		gain = mini(maximum, int(player["leaked"]) / divisor)
 		if gain <= 0:
 			return
+	elif per == "returned_allies":
+		gain = mini(maximum, amount * context.returned_ally_count)
+		if gain <= 0:
+			return
 	if next_turn:
 		player["next_momentum"] += gain
 	else:
 		var momentum_before := int(player["momentum"])
-		context.game.gain_momentum(context.controller, gain, overflow)
+		context.game.gain_momentum(context.controller, gain, overflow, refresh)
 		if not restriction.is_empty() and int(player["momentum"]) > momentum_before:
 			context.game.add_play_restriction(context.controller, restriction)

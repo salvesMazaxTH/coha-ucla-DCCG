@@ -64,11 +64,11 @@ func _act(m: Dictionary) -> Array:
 func mulligan(_p: int, hand_uids: Array) -> Array:
 	return _act({"a": "mulligan", "uids": hand_uids})
 
-func play_card(_p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: int = -1) -> Array:
-	return _act({"a": "play", "uid": hand_uid, "target": target, "target2": target2, "slot": slot})
+func play_card(_p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: int = -1, banish_uid: int = 0) -> Array:
+	return _act({"a": "play", "uid": hand_uid, "target": target, "target2": target2, "slot": slot, "banish": banish_uid})
 
-func cast_incarnation(_p: int, target: int = 0, slot: int = -1) -> Array:
-	return _act({"a": "incarnation", "target": target, "slot": slot})
+func cast_incarnation(_p: int, target: int = 0, slot: int = -1, banish_uid: int = 0) -> Array:
+	return _act({"a": "incarnation", "target": target, "slot": slot, "banish": banish_uid})
 
 func use_ability(_p: int, target: int = 0) -> Array:
 	return _act({"a": "ability", "target": target})

@@ -22,10 +22,12 @@ func _init() -> void:
 	_test_death_order()
 	_test_sacrifice_damage()
 	_test_domain_removals()
+	_test_kazeminus()
 	_test_magic_shield_scope()
 	_test_supreme_shield()
 	_test_limited_charges()
 	_test_artifact_subtypes()
+	_test_room_banish()
 	_test_twin_bolts()
 	_test_setup()
 	_test_first_player()
@@ -127,6 +129,7 @@ func _init() -> void:
 	_test_maria_helena()
 	_test_champion_rework()
 	_test_momentum_overflow()
+	_test_momentum_refresh()
 	_test_eryon_deck()
 	_test_ralia_deal_damage()
 	_test_play_restrictions()
@@ -491,15 +494,20 @@ func _test_devocao_support() -> void:
 	# um Anjo sem o elemento Luz também serve (species_any), e um Divindade
 	check(CardFilter.matches("uriel", {"any_of": [{"element": "luz"}, {"species_any": ["anjo", "celestial", "divindade"]}]}), "any_of: aceita quem passa em qualquer das alternativas")
 	check(not CardFilter.matches("esqueleto_guerreiro", {"any_of": [{"element": "luz"}, {"species_any": ["anjo"]}]}), "any_of: recusa quem não passa em nenhuma")
-	# Relicário de Cabeceira: cura 2 o Líder no fim do turno do dono, não no do oponente
+	# Relicário de Cabeceira: cura 2 o Líder e 2 cada unidade aliada no fim do turno do dono, não no do oponente
 	var g_relic := _new_game()
 	g_relic.active = 0
 	g_relic.players[0]["relics"].append(Card.new(g_relic._uid(), "relicario_de_cabeceira", 0, "relics"))
 	g_relic.players[0]["leader_hp"] -= 8
+	_tcard("t_relic_body", 1, 5, [])
+	var relic_ally := _put(g_relic, 0, "t_relic_body")
+	relic_ally.damage = 3 # fica com 2 de 5: sobra espaço para ver a cura de 2
+	var relic_ally_hp: int = relic_ally.hp_left()
 	var leader_before: int = g_relic.players[0]["leader_hp"]
 	g_relic.end_turn(0)
 	g_relic._flush()
 	check(g_relic.players[0]["leader_hp"] == leader_before + 2, "Relicário de Cabeceira: cura 2 o Líder no fim do turno do dono (%d -> %d)" % [leader_before, g_relic.players[0]["leader_hp"]])
+	check(relic_ally.hp_left() == relic_ally_hp + 2, "Relicário de Cabeceira: cada unidade aliada ferida recupera 2 de Vida (%d -> %d)" % [relic_ally_hp, relic_ally.hp_left()])
 	var leader_mid: int = g_relic.players[0]["leader_hp"]
 	g_relic.end_turn(1)
 	g_relic._flush()
@@ -613,13 +621,17 @@ func _test_devocao_new_batch() -> void:
 	var g_vicar := _new_game()
 	g_vicar.active = 0
 	g_vicar.players[0]["leader_hp"] = 10
-	var vicar := _put(g_vicar, 0, "gabluro_dragao_vigario")
+	_tcard("t_vicar_victim", 1, 9, [])
+	var vicar_victim := _put(g_vicar, 1, "t_vicar_victim")
+	var vicar_victim_hp: int = vicar_victim.hp_left()
 	var vicar_hand_before: int = g_vicar.players[0]["hand"].size()
-	g_vicar._run_effect_dicts(0, CardDB.card("gabluro_dragao_vigario")["effects"], "on_enter", vicar.uid, 0, SPELL_SOURCE)
-	check(g_vicar.players[0]["hand"].size() == vicar_hand_before + 2, "Gablúrio: Ao Entrar compra 2 cartas")
-	g_vicar._heal_leader(0, 1)
+	# o Ao Entrar roda aqui dentro; Gablúrio já está em campo, então a cura que ele causa aciona o próprio Condicional
+	var vicar := _put(g_vicar, 0, "gabluro_dragao_vigario")
 	g_vicar._check_state()
-	check(g_vicar.players[0]["hand"].size() == vicar_hand_before + 3, "Gablúrio: a cura do Líder compra 1 carta")
+	check(g_vicar.players[0]["leader_hp"] == 14,"Gablúrio: Ao Entrar cura 4 o Líder (10 -> %d)" % g_vicar.players[0]["leader_hp"])
+	# 2 cartas do Ao Entrar + 1 da cura do Líder que o próprio Ao Entrar provocou
+	check(g_vicar.players[0]["hand"].size() == vicar_hand_before + 3, "Gablúrio: Ao Entrar compra 2 e a cura que ele mesmo causa compra mais 1")
+	check(vicar_victim.hp_left() == vicar_victim_hp - 3 or g_vicar.find_unit(vicar_victim.uid) == null, "Gablúrio: a cura do Líder também causa 3 de dano a uma unidade inimiga")
 	g_vicar._heal_leader(0, 1)
 	g_vicar._check_state()
 	check(g_vicar.players[0]["hand"].size() == vicar_hand_before + 3, "Gablúrio: a compra da cura é 1x por turno")
@@ -846,6 +858,42 @@ func _test_sacrifice_damage() -> void:
 
 ## The four epic unrestricted removals added so every domain has an answer: Expurgo Sagrado (Devoção), Desabamento Oportuno
 ## (Montanha), Capina Seletiva (Natureza) and Pacto de Mortalha (Trevas).
+## Kazeminus: Ao Entrar sends every OTHER unit that costs 4 or less (both sides) back to the hand and gives 1 Momentum
+## per allied unit returned; his Ao Ativar (exhaust) bounces an enemy unit.
+func _test_kazeminus() -> void:
+	_tcard("t_k_cheap", 2, 2, [])
+	_tcard("t_k_big", 2, 2, [])
+	CardDB.data()["cards"]["t_k_big"]["cost"] = 6
+	var g := _new_game()
+	_quiet(g)
+	# the turn started with 7 Momentum and Kazeminus' cost already spent them: the refresh can win back up to 7
+	g.players[0]["turn_start_momentum"] = 7
+	var ally_cheap := _put(g, 0, "t_k_cheap")
+	var ally_big := _put(g, 0, "t_k_big")
+	var enemy_cheap := _put(g, 1, "t_k_cheap")
+	var enemy_big := _put(g, 1, "t_k_big")
+	var kazeminus := _put(g, 0, "kazeminus")
+	check(g.find_unit(ally_cheap.uid) == null and _zone_has(g, 0, "hand", "t_k_cheap"), "Kazeminus: devolve a unidade aliada de custo 4 ou menos")
+	check(g.find_unit(enemy_cheap.uid) == null and _zone_has(g, 1, "hand", "t_k_cheap"), "Kazeminus: devolve a unidade inimiga de custo 4 ou menos")
+	check(g.find_unit(ally_big.uid) != null and g.find_unit(enemy_big.uid) != null, "Kazeminus: unidades de custo 5 ou mais ficam em campo")
+	check(g.find_unit(kazeminus.uid) != null, "Kazeminus: não devolve a si mesmo")
+	check(g.players[0]["momentum"] == 1, "Kazeminus: recupera 1 de Momentum por unidade aliada devolvida (só a aliada conta)")
+
+	# the refresh never goes past the Momentum the turn started with (here 0), unlike a plain gain
+	var capped_game := _new_game()
+	_quiet(capped_game)
+	capped_game.players[0]["turn_start_momentum"] = 0
+	_put(capped_game, 0, "t_k_cheap")
+	_put(capped_game, 0, "kazeminus")
+	check(capped_game.players[0]["momentum"] == 0, "Kazeminus: o Momentum recuperado não passa do que o turno começou")
+	# Ao Ativar (2) rápido, exhausts him: bounces an enemy unit
+	g.players[0]["momentum"] = 2
+	g.activate(0, kazeminus.uid, enemy_big.uid)
+	_resolve_stack(g)
+	check(g.find_unit(enemy_big.uid) == null and _zone_has(g, 1, "hand", "t_k_big"), "Kazeminus: Ao Ativar devolve a unidade inimiga escolhida")
+	check(kazeminus.exhausted and g.players[0]["momentum"] == 0, "Kazeminus: Ao Ativar custa 2 e exaure a unidade")
+	check(not g.can_activate(0, kazeminus.uid), "Kazeminus: exausto não ativa de novo")
+
 func _test_domain_removals() -> void:
 	# Expurgo Sagrado: destroys every unit, but Trevas units are banished on the spot (they never die: no Ao Morrer)
 	var g := _new_game()
@@ -1091,6 +1139,118 @@ func _test_artifact_subtypes() -> void:
 	check(PlayRestriction.blocks(forbid_local, local_card) and not PlayRestriction.blocks(forbid_local, plain_card), "restriction subtype: barra só os Locais")
 	check(PlayRestriction.error_of(forbid_local, CardDB.data()["essences"]) == "", "restriction subtype local é válida")
 	check(PlayRestriction.error_of({"mode": "forbid", "match": {"subtype": ["nada"]}}, CardDB.data()["essences"]) != "", "restriction subtype desconhecido é recusado")
+
+## Campo cheio: uma permanente nova entra banindo uma permanente própria (unidade ou artefato solto).
+func _test_room_banish() -> void:
+	_tcard("t_room_body", 1, 1, [])
+	_tcard("t_room_newcomer", 2, 2, [])
+	CardDB.data()["cards"]["t_room_artifact"] = {"name": "t_room_artifact", "type": "artifact", "subtypes": [], "rarity": "common",
+		"essence": "neutra", "cost": 1, "effects": [], "text": "", "flavor": "", "art": "", "tags": []}
+	CardDB.data()["cards"]["t_room_subito"] = CardDB.data()["cards"]["t_room_newcomer"].duplicate(true)
+	CardDB.data()["cards"]["t_room_subito"]["subito"] = 1
+	_tcard("t_room_trigger", 1, 1, [])
+
+	# unit on a full field: refused without a banish pick, accepted with a valid one
+	var g := _new_game()
+	_quiet(g)
+	g.active = 0
+	g.players[0]["momentum"] = 10
+	var bodies: Array = []
+	for i in GameState.BOARD_LIMIT:
+		bodies.append(_put(g, 0, "t_room_body"))
+	var newcomer_uid := _give(g, 0, "t_room_newcomer")
+	check(not g.has_free_slot(0) and g.can_play(0, newcomer_uid), "campo cheio: a unidade continua jogável se algo pode ser banido")
+	check(g.room_banish_options(0).size() == GameState.BOARD_LIMIT, "campo cheio: todas as permanentes próprias são opções de banimento")
+	check(g.play_card(0, newcomer_uid).is_empty(), "campo cheio: jogar sem escolher o que banir é recusado")
+	check(g.play_card(0, newcomer_uid, 0, 0, -1, 999999).is_empty(), "campo cheio: banir um uid que não é opção é recusado")
+	var enemy_unit := _put(g, 1, "t_room_body")
+	check(g.play_card(0, newcomer_uid, 0, 0, -1, enemy_unit.uid).is_empty(), "campo cheio: não dá para banir uma unidade do oponente")
+	check(g.players[0]["hand"].size() > 0 and g.find_unit(newcomer_uid) == null and g.players[0]["momentum"] == 10, "campo cheio: a jogada recusada não gasta nada")
+	var victim: Card = bodies[2]
+	check(not g.play_card(0, newcomer_uid, 0, 0, -1, victim.uid).is_empty(), "campo cheio: banir uma unidade própria abre espaço")
+	_resolve_stack(g)
+	check(g.find_unit(newcomer_uid) != null and g.players[0]["board"].size() == GameState.BOARD_LIMIT, "campo cheio: a nova unidade entra e o campo continua no limite")
+	check(g.players[0]["banished"].has(victim) and not g.players[0]["graveyard"].has(victim), "campo cheio: a unidade vai para os banidos, não para o cemitério")
+
+	# the chosen slot shifts left when the banished unit stood before it
+	var shifted := _new_game()
+	_quiet(shifted)
+	shifted.active = 0
+	shifted.players[0]["momentum"] = 10
+	var shifted_bodies: Array = []
+	for i in GameState.BOARD_LIMIT:
+		shifted_bodies.append(_put(shifted, 0, "t_room_body"))
+	var shifted_uid := _give(shifted, 0, "t_room_newcomer")
+	shifted.play_card(0, shifted_uid, 0, 0, GameState.BOARD_LIMIT, shifted_bodies[0].uid)
+	_resolve_stack(shifted)
+	var shifted_board: Array = shifted.players[0]["board"]
+	check(shifted_board.size() == GameState.BOARD_LIMIT and shifted_board.back().uid == shifted_uid, "campo cheio: banir à esquerda do espaço escolhido desloca o espaço (entra na ponta)")
+
+	# free-standing artifact on a full field, banishing another artifact (no Ao Morrer, no fall timer)
+	var artifact_game := _new_game()
+	_quiet(artifact_game)
+	artifact_game.active = 0
+	artifact_game.players[0]["momentum"] = 10
+	for i in GameState.BOARD_LIMIT - 1:
+		_put(artifact_game, 0, "t_room_body")
+	var old_artifact := Card.new(artifact_game._uid(), "t_room_artifact", 0)
+	artifact_game._place_relic(0, old_artifact)
+	artifact_game._flush()
+	check(not artifact_game.has_free_slot(0), "artefato solto ocupa espaço do campo")
+	var artifact_uid := _give(artifact_game, 0, "t_room_artifact")
+	check(artifact_game.play_card(0, artifact_uid).is_empty(), "campo cheio: artefato solto sem banimento é recusado")
+	check(not artifact_game.play_card(0, artifact_uid, 0, 0, -1, old_artifact.uid).is_empty(), "campo cheio: artefato solto entra banindo outro artefato")
+	_resolve_stack(artifact_game)
+	check(artifact_game.players[0]["banished"].has(old_artifact) and artifact_game.find_relic(old_artifact.uid) == null, "artefato banido sai do campo e vai para os banidos")
+	check(not artifact_game.players[0]["graveyard"].has(old_artifact) and not artifact_game.players[0]["relic_fall_turns"].has("t_room_artifact"), "artefato banido não passa pelo cemitério nem pelo contador de queda")
+	check(artifact_game.find_relic(artifact_uid) != null, "o novo artefato solto entra no campo")
+
+	# a spell never needs to banish, even on a full field
+	var spell_game := _new_game()
+	_quiet(spell_game)
+	spell_game.active = 0
+	spell_game.players[0]["momentum"] = 10
+	for i in GameState.BOARD_LIMIT:
+		_put(spell_game, 0, "t_room_body")
+	check(not spell_game.takes_field_slot(CardDB.card(SPELL_SOURCE)), "feitiço comum não ocupa espaço de campo")
+
+	# Súbito: the summon takes a slot, so it needs the pick as well
+	var subito_game := _new_game()
+	_quiet(subito_game)
+	subito_game.players[0]["momentum"] = 1
+	subito_game.players[1]["momentum"] = 3
+	for i in GameState.BOARD_LIMIT:
+		_put(subito_game, 1, "t_room_body")
+	var subito_uid := _give(subito_game, 1, "t_room_subito")
+	subito_game.play_card(0, _give(subito_game, 0, "t_room_trigger"), 0)
+	subito_game.set_auto_pass(0, false)
+	check(subito_game.can_play(1, subito_uid), "Súbito com campo cheio continua jogável se algo pode ser banido")
+	check(subito_game.play_card(1, subito_uid).is_empty(), "Súbito com campo cheio sem banimento é recusado")
+	var subito_victim: Card = subito_game.players[1]["board"][0]
+	check(not subito_game.play_card(1, subito_uid, 0, 0, -1, subito_victim.uid).is_empty() and subito_game.players[1]["banished"].has(subito_victim), "Súbito com campo cheio: paga banindo uma permanente")
+
+	# the Encarnação needs the pick too
+	var incarnation_game := _new_game()
+	_quiet(incarnation_game)
+	incarnation_game.active = 0
+	incarnation_game.players[0]["momentum"] = 10
+	for i in GameState.BOARD_LIMIT:
+		_put(incarnation_game, 0, "t_room_body")
+	check(incarnation_game.can_cast_incarnation(0), "campo cheio: a Encarnação continua conjurável se algo pode ser banido")
+	check(incarnation_game.cast_incarnation(0).is_empty(), "campo cheio: Encarnação sem banimento é recusada")
+	var incarnation_victim: Card = incarnation_game.players[0]["board"][0]
+	check(not incarnation_game.cast_incarnation(0, 0, -1, incarnation_victim.uid).is_empty() and incarnation_game.players[0]["banished"].has(incarnation_victim), "campo cheio: Encarnação conjurada banindo uma permanente")
+
+	# the AI never banishes its own permanents to make room
+	var ai_game := _new_game()
+	ai_game.active = 0
+	ai_game.players[0]["hand"].clear()
+	ai_game.players[0]["momentum"] = 10
+	for i in GameState.BOARD_LIMIT:
+		_put(ai_game, 0, "t_room_body")
+	var ai_uid := _give(ai_game, 0, "t_room_newcomer")
+	SimpleAI.step(ai_game, 0)
+	check(_hand_has(ai_game, 0, ai_uid) and ai_game.players[0]["banished"].is_empty(), "IA: com o campo cheio não bane as próprias permanentes para jogar")
 
 func _test_death_order() -> void:
 	# simultaneous deaths on both sides resolve active player first (APNAP)
@@ -4824,9 +4984,16 @@ func _test_card_validation() -> void:
 		if String(card_id).begins_with("t_"):
 			continue # synthetic fixtures use intentionally terse text
 		var cd: Dictionary = CardDB.card(card_id)
-		if cd.get("effects", []).any(func(e: Dictionary): return e.has("listen")):
+		var listeners: Array = cd.get("effects", []).filter(func(e: Dictionary): return e.has("listen"))
+		if not listeners.is_empty():
 			var listener_text := String(cd.get("text", ""))
-			check(listener_text.contains("Condicional:") or listener_text.contains("Condicional ("), "%s: listener precisa escrever 'Condicional:' (ou 'Condicional (limite):') no texto" % card_id)
+			# "No Fim do Turno" is a generic trigger of its own (it just lives in an artifact, which has no
+			# on_turn_end), so a card whose listeners all wait for turn_ended uses that label, not Condicional
+			var only_turn_ended: bool = listeners.all(func(e: Dictionary): return e["listen"] == "turn_ended")
+			if only_turn_ended:
+				check(listener_text.contains("No Fim do Turno:"), "%s: listener de turn_ended precisa escrever 'No Fim do Turno:' no texto" % card_id)
+			else:
+				check(listener_text.contains("Condicional:") or listener_text.contains("Condicional ("), "%s: listener precisa escrever 'Condicional:' (ou 'Condicional (limite):') no texto" % card_id)
 
 func _test_sim() -> void:
 	var wins := [0, 0, 0]
@@ -5742,6 +5909,7 @@ func _test_fagulha_e_cutucada() -> void:
 	var g := _new_game()
 	_quiet(g)
 	var spark := _put(g, 0, "fagulha_bocejante")
+	g.players[0]["turn_start_momentum"] = 2 # gastou tudo: a Fagulha só devolve até o que o turno começou
 	g.players[0]["momentum"] = 0
 	check(g.can_activate(0, spark.uid), "fagulha: pronta, pode ativar")
 	g.activate(0, spark.uid)
@@ -5772,6 +5940,7 @@ func _test_degelo_na_moenda() -> void:
 	g._flush()
 	var thawer := _put(g, 0, "zuleica_degela_tudo")
 	var spark := _put(g, 0, "fagulha_bocejante")
+	g.players[0]["turn_start_momentum"] = 2 # a Fagulha só devolve o que foi gasto: começou o turno com 2
 	g.players[0]["momentum"] = 1
 	g.activate(0, spark.uid)
 	g._flush()
@@ -7624,6 +7793,59 @@ func _test_sagrada_engine() -> void:
 ## Jack (Attack per leftover Momentum), Kai (Queimadura on any combat damage he deals) and Isarelis (executes a weak enemy).
 ## Momentum above the normal cap of 10 (Eryon's deck): a temporary overflow, the "momentum_surge" static
 ## effect that wakes up with it, and "auto_attack" (an extra attack at a random target).
+func _test_momentum_refresh() -> void:
+	# a refresh gain only wins back spent Momentum: it stops at what the turn started with
+	var g := _new_game()
+	_quiet(g)
+	var a := g.active
+	g.players[a]["momentum"] = 6
+	g.players[a]["turn_start_momentum"] = 6
+	g.players[a]["momentum"] = 2 # spent 4 this turn
+	g.gain_momentum(a, 3, false, true)
+	check(g.players[a]["momentum"] == 5, "refresh: recupera os 3 gastos (veio %d)" % g.players[a]["momentum"])
+	g.gain_momentum(a, 3, false, true)
+	check(g.players[a]["momentum"] == 6, "refresh: para no Momentum do início do turno (veio %d)" % g.players[a]["momentum"])
+	g.gain_momentum(a, 2, false, true)
+	check(g.players[a]["momentum"] == 6, "refresh: sem nada gasto não rende nada")
+	# a plain gain still pushes past the start, and a refresh never lowers what is already above it
+	g.gain_momentum(a, 2)
+	check(g.players[a]["momentum"] == 8, "ganho comum passa do Momentum do início do turno")
+	g.gain_momentum(a, 2, false, true)
+	check(g.players[a]["momentum"] == 8, "refresh: nunca derruba o Momentum que já passa do início")
+
+	# Druida das Falhas refreshes its 2 on entering (the card text says "recupera até")
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	g.players[a]["turn_start_momentum"] = 5
+	g.players[a]["momentum"] = 3
+	_put(g, a, "druida_das_falhas")
+	check(g.players[a]["momentum"] == 5, "Druida: recupera 2 de Momentum gasto (veio %d)" % g.players[a]["momentum"])
+	var second_druid := _put(g, a, "druida_das_falhas")
+	check(second_druid != null and g.players[a]["momentum"] == 5, "Druida: já no Momentum do início, a entrada não rende nada")
+
+	# Condutor da Tempestade is real ramp: the maximum goes up for good, the Momentum in hand stays
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	g.players[a]["max_momentum"] = 4
+	g.players[a]["momentum"] = 4
+	_put(g, a, "condutor_da_tempestade")
+	check(g.players[a]["max_momentum"] == 5, "Condutor: o Momentum máximo sobe 1 (veio %d)" % g.players[a]["max_momentum"])
+	check(g.players[a]["momentum"] == 4, "Condutor: não dá Momentum no turno em que entra")
+	g.players[a]["max_momentum"] = 9
+	_put(g, a, "condutor_da_tempestade")
+	check(g.players[a]["max_momentum"] == GameState.MOMENTUM_CAP, "Condutor: o máximo nunca passa do teto")
+
+	# Pippa refreshes: hitting the Leader only returns Momentum spent this turn
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	g.players[a]["turn_start_momentum"] = 4
+	g.players[a]["momentum"] = 4
+	g.gain_momentum(a, 1, false, true)
+	check(g.players[a]["momentum"] == 4, "refresh sem gasto não rende (base da Pippa)")
+
 func _test_momentum_overflow() -> void:
 	var surge_condition := {"compare": {"stat": "momentum", "op": ">=", "value": 11}}
 	_tcard("t_surge_baron", 5, 7, [

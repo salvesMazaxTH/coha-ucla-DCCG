@@ -27,5 +27,9 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	if card == null or (needs_drawn_card and context.last_drawn_card == null):
 		return
 	var increase := cost_increase + card.cost_mod if cost_increase_doubles else cost_increase
-	if context.game.return_to_hand(card, increase) and discount_returned_this_turn > 0:
-		card.turn_discount += discount_returned_this_turn
+	var owner_player := card.owner
+	if context.game.return_to_hand(card, increase):
+		if owner_player == context.controller:
+			context.returned_ally_count += 1
+		if discount_returned_this_turn > 0:
+			card.turn_discount += discount_returned_this_turn

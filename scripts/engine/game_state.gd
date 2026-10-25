@@ -159,7 +159,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 	return {
 		"index": i, "deck_id": deck_id, "leader_id": d["leader"],
 		"leader_hp": int(ld["hp"]), "leader_max": int(ld["hp"]),
-		"momentum": 0, "max_momentum": 0, "reserve": 0,
+		"momentum": 0, "max_momentum": 0, "turn_start_momentum": 0, "reserve": 0,
 			"idle_turns": 0, "next_momentum": 0, "play_restrictions": [], "leaked": 0, "unspent": 0,
 		"healing_this_round": 0, "healing_last_round": 0, "damage_this_round": 0, "damage_last_round": 0,
 		"deck": deck, "hand": [], "board": [], "relics": [], "graveyard": [], "banished": [],
@@ -348,6 +348,23 @@ func slots_used(p: int) -> int:
 ## True while p still has a free field slot for a unit or an artifact. Slots frozen by Rei Gelado don't count.
 func has_free_slot(p: int) -> bool:
 	return slots_used(p) + int(players[p]["frozen_slots"]) < BOARD_LIMIT
+
+## True when p can put one more permanent on the field: either a slot is free, or the field is full
+## but something on it can be banished to make room (see room_banish_options).
+func has_slot_or_banish(p: int) -> bool:
+	return has_free_slot(p) or slots_used(p) > 0
+
+## The uids p may banish from their own field to make room for a new permanent when the field is
+## full: every unit and every free-standing artifact they control. Empty while a slot is still free.
+func room_banish_options(p: int) -> Array:
+	var options: Array = []
+	if has_free_slot(p):
+		return options
+	for unit: Card in players[p]["board"]:
+		options.append(unit.uid)
+	for artifact: Card in players[p]["relics"]:
+		options.append(artifact.uid)
+	return options
 
 ## Moves a card to another zone (the caller takes it out of its old array and puts it in the new one).
 ## The single place a card changes zone, so later "goes to the graveyard" hooks live here.
@@ -868,11 +885,14 @@ func budget(p: int, spell: bool, cd := {}) -> int:
 	return plain_momentum + (int(players[p]["reserve"]) if spell else 0)
 
 ## Gives player p Momentum right now. Normally it stops at MOMENTUM_CAP; with `overflow` it may go up
-## to MOMENTUM_OVERFLOW_CAP. It never lowers Momentum the player already has above the cap.
-func gain_momentum(p: int, gain: int, overflow := false) -> void:
+## to MOMENTUM_OVERFLOW_CAP. With `refresh` it only wins back spent Momentum: it stops at what the turn
+## started with (turn_start_momentum). It never lowers Momentum the player already has above the ceiling.
+func gain_momentum(p: int, gain: int, overflow := false, refresh := false) -> void:
 	var pl: Dictionary = players[p]
 	var current := int(pl["momentum"])
 	var ceiling := MOMENTUM_OVERFLOW_CAP if overflow else MOMENTUM_CAP
+	if refresh:
+		ceiling = mini(ceiling, int(pl["turn_start_momentum"]))
 	pl["momentum"] = maxi(current, mini(ceiling, current + gain))
 	_refresh_scaling() # a surge (11+ Momentum) may have just turned on
 	_emit({"type": "momentum", "player": p})
@@ -1100,7 +1120,7 @@ func can_play(p: int, hand_uid: int, allow_unreachable := false) -> bool:
 		return false
 	if is_subito_play(p, cd):
 		# paid like an ability, so the Reserva counts
-		return inst.zone == "hand" and has_free_slot(p) and not cd.get("cost_sacrifice", false) \
+		return inst.zone == "hand" and has_slot_or_banish(p) and not cd.get("cost_sacrifice", false) \
 			and subito_cost(p, cd, inst) <= budget(p, true, cd)
 	if cost_of(p, cd, inst) > budget(p, _is_spell(cd), cd):
 		return false
@@ -1109,9 +1129,9 @@ func can_play(p: int, hand_uid: int, allow_unreachable := false) -> bool:
 			return false
 		if cd.get("cost_sacrifice", false):
 			return not players[p]["board"].is_empty() # the sacrifice also frees the slot
-		return has_free_slot(p)
+		return has_slot_or_banish(p) # on a full field the player banishes one of their permanents
 	if CardDB.is_relic(cd):
-		return _sorcery_time(p) and has_free_slot(p) # put on the field like a unit, but through the stack
+		return _sorcery_time(p) and has_slot_or_banish(p) # put on the field like a unit, but through the stack
 	if not can_cast_speed(p, speed_of(cd)):
 		return false
 	var spec := target_spec(cd["effects"])
@@ -1139,7 +1159,29 @@ func can_cast_incarnation(p: int) -> bool:
 	if is_play_restricted(p, CardDB.card(players[p]["incarnation"]["card_id"])):
 		return false
 	return _sorcery_time(p) and players[p]["incarnation"]["in_zone"] \
-		and incarnation_cost(p) <= players[p]["momentum"] and has_free_slot(p)
+		and incarnation_cost(p) <= players[p]["momentum"] and has_slot_or_banish(p)
+
+## True when playing this card takes a field slot, so a full field makes the player banish a permanent
+## first. A unit paid by sacrifice frees its own slot, and a plain spell never takes one.
+func takes_field_slot(cd: Dictionary, as_subito := false) -> bool:
+	if as_subito:
+		return true
+	if cd["type"] == "unit":
+		return not cd.get("cost_sacrifice", false)
+	return CardDB.is_relic(cd)
+
+## The extra cost of putting a permanent on a full field: banishes `banish_uid` from p's field.
+## Returns the board slot to use, moved one to the left when the banished unit stood before it.
+func _banish_for_room(p: int, banish_uid: int, slot: int) -> int:
+	var banished_unit := find_unit(banish_uid)
+	if banished_unit != null:
+		var banished_index: int = players[p]["board"].find(banished_unit)
+		if banished_index < slot:
+			slot -= 1 # the slot was picked with the banished unit still on the board
+		banish_unit(banished_unit)
+	else:
+		banish_relic(find_relic(banish_uid))
+	return slot
 
 func can_use_ability(p: int, allow_unreachable := false) -> bool:
 	var ab: Dictionary = CardDB.leader(players[p]["leader_id"])["ability"]
@@ -1267,14 +1309,19 @@ func mulligan(p: int, hand_uids: Array) -> Array:
 	return _flush()
 
 ## slot: where a unit enters the board (0 = leftmost, -1 = rightmost); ignored for spells.
-func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: int = -1) -> Array:
+## banish_uid: with a full field, the permanent of p's own field banished to make room (part of the cost).
+func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: int = -1, banish_uid: int = 0) -> Array:
 	if not can_play(p, hand_uid):
 		return []
 	var inst := _castable_card(p, hand_uid)
 	var from_graveyard := inst.zone == "graveyard" # Réquiem
 	var cd := CardDB.card(inst.card_id)
-	if is_subito_play(p, cd):
-		return _play_subito(p, inst, cd, slot)
+	var as_subito := is_subito_play(p, cd)
+	var must_banish := takes_field_slot(cd, as_subito) and not has_free_slot(p)
+	if must_banish and not room_banish_options(p).has(banish_uid):
+		return [] # a full field needs a valid permanent to banish
+	if as_subito:
+		return _play_subito(p, inst, cd, slot, banish_uid if must_banish else 0)
 	var sacrifice: bool = cd["type"] == "unit" and cd.get("cost_sacrifice", false)
 	var spec := target_spec(cd["effects"])
 	if sacrifice:
@@ -1301,6 +1348,8 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 	if from_graveyard:
 		play_event["requiem"] = true
 	_emit(play_event)
+	if must_banish:
+		slot = _banish_for_room(p, banish_uid, slot)
 	if sacrifice:
 		# additional cost: the chosen ally dies first (its Ao Morrer / Aliado Morre resolve before the card enters)
 		var sacrificed_index: int = pl["board"].find(find_unit(target))
@@ -1331,12 +1380,15 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 
 ## Súbito: pays the Súbito cost and puts the summon on the stack as a Rápido ability. The unit
 ## enters (at `slot`) only when that item resolves; if it is countered, the card goes to the graveyard.
-func _play_subito(p: int, inst: Card, cd: Dictionary, slot: int) -> Array:
+## `banish_uid` (0 = none) is the permanent banished from a full field to make room, paid right away.
+func _play_subito(p: int, inst: Card, cd: Dictionary, slot: int, banish_uid := 0) -> Array:
 	_pay(p, subito_cost(p, cd, inst), true)
 	players[p]["hand"].erase(inst)
 	_note_card_played_for_rusco(p, cd)
 	_move(inst, "")
 	_emit({"type": "play", "player": p, "uid": inst.uid, "card_id": inst.card_id, "subito": true})
+	if banish_uid != 0:
+		slot = _banish_for_room(p, banish_uid, slot)
 	_stack_cards[inst.uid] = inst
 	_move(inst, "stack")
 	stack_system().push(p, "subito", inst.uid, inst.card_id, 0, "rapido")
@@ -1350,8 +1402,12 @@ func _note_card_played_for_rusco(p: int, card_data: Dictionary) -> void:
 	if int(card_data.get("cost", 0)) == 2 or int(card_data.get("atk", 0)) == 2 or int(card_data.get("hp", 0)) == 2:
 		players[p]["played_two"] = true
 
-func cast_incarnation(p: int, _target: int = 0, slot: int = -1) -> Array:
+## banish_uid: with a full field, the permanent of p's own field banished to make room.
+func cast_incarnation(p: int, _target: int = 0, slot: int = -1, banish_uid: int = 0) -> Array:
 	if not can_cast_incarnation(p):
+		return []
+	var must_banish := not has_free_slot(p)
+	if must_banish and not room_banish_options(p).has(banish_uid):
 		return []
 	var pl: Dictionary = players[p]
 	pl["momentum"] -= incarnation_cost(p)
@@ -1360,6 +1416,8 @@ func cast_incarnation(p: int, _target: int = 0, slot: int = -1) -> Array:
 	var c := Card.new(_uid(), pl["incarnation"]["card_id"], p)
 	_note_card_played_for_rusco(p, CardDB.card(c.card_id)) # casting from the Santuário is playing a card too
 	_emit({"type": "play", "player": p, "uid": c.uid, "card_id": c.card_id, "incarnation": true})
+	if must_banish:
+		slot = _banish_for_room(p, banish_uid, slot)
 	_summon(p, c, true, 0, {}, true, slot, true)
 	_check_state()
 	stack_system().open_summon_window(p)
@@ -1842,6 +1900,17 @@ func destroy_relic(c: Card) -> void:
 	death_context.dying_card = c
 	if not _chain_stopped():
 		queue_trigger(PendingTrigger.new(c, c.effect_list(), death_context, "on_death"))
+
+## Exiles a free-standing artifact from the field: it never goes to the graveyard, so no Ao Morrer
+## and no "fell recently" memory (unlike destroy_relic). Its slot is free again.
+func banish_relic(c: Card) -> void:
+	var p := c.owner
+	if not players[p]["relics"].has(c):
+		return
+	players[p]["relics"].erase(c)
+	players[p]["banished"].append(c)
+	_move(c, "banished")
+	_emit({"type": "banish", "uid": c.uid, "player": p, "card_id": c.card_id, "relic": true})
 
 func _release_equipment(c: Card, unit_died := false) -> void:
 	stack_system().release_equipment(c, unit_died)
@@ -3123,6 +3192,9 @@ func _start_turn(p: int, draw: bool) -> void:
 		# positive = Momentum promised for this turn; negative = a debt (Ritual do Degelo), never below 0
 		pl["momentum"] = clampi(int(pl["momentum"]) + int(pl["next_momentum"]), 0, MOMENTUM_CAP)
 		pl["next_momentum"] = 0
+	# what this turn began with, after the second-player bonus and any promise or debt: a "refresh" gain
+	# (gain_momentum with "refresh": true) can win back spent Momentum only up to this
+	pl["turn_start_momentum"] = int(pl["momentum"])
 	pl["attacked"] = false
 	pl["played_two"] = false
 	pl["ice_spell_discount_used"] = false

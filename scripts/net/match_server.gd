@@ -189,8 +189,8 @@ func _apply(g: GameState, p: int, m: Dictionary) -> Array:
 		return []
 	match m.get("a", ""):
 		"mulligan": return g.mulligan(p, _ints(m.get("uids")))
-		"play": return g.play_card(p, int(m.get("uid", 0)), int(m.get("target", 0)), int(m.get("target2", 0)), int(m.get("slot", -1)))
-		"incarnation": return g.cast_incarnation(p, int(m.get("target", 0)), int(m.get("slot", -1)))
+		"play": return g.play_card(p, int(m.get("uid", 0)), int(m.get("target", 0)), int(m.get("target2", 0)), int(m.get("slot", -1)), int(m.get("banish", 0)))
+		"incarnation": return g.cast_incarnation(p, int(m.get("target", 0)), int(m.get("slot", -1)), int(m.get("banish", 0)))
 		"ability": return g.use_ability(p, int(m.get("target", 0)))
 		"activate": return g.activate(p, int(m.get("uid", 0)), int(m.get("target", 0)))
 		"transform": return g.transform(p, int(m.get("uid", 0)))

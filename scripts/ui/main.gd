@@ -1493,7 +1493,7 @@ func _render_command(p: int, pos: Vector2) -> void:
 	v.snowball_level = int(g.players[p]["snowball"])
 	if p == viewer and g.can_cast_incarnation(p) and not _is_ai(p):
 		v.highlight = OK
-	if targeting.get("kind") == "incarnation" and p == viewer:
+	if p == viewer and (targeting.get("kind") == "incarnation" or (targeting.get("kind") == "room_banish" and targeting["uid"] == 0)):
 		v.highlight = SEL
 	v.left_clicked.connect(func(_v): _on_incarnation(p))
 	v.right_clicked.connect(_show_overlay)
@@ -1824,7 +1824,7 @@ func _render_hand(p: int) -> void:
 		if picked.has(hand_card.uid):
 			pos.y -= rise + 20.0 # selected / targeted cards are raised and show whole
 			v.highlight = TARGET if g.phase == "discard" else SEL
-		elif targeting.get("uid", 0) == hand_card.uid and targeting.get("kind") == "hand":
+		elif targeting.get("uid", 0) == hand_card.uid and targeting.get("kind") in ["hand", "room_banish"]:
 			pos.y -= rise + 20.0
 			v.highlight = SEL
 		elif g.phase in ["main", "combat"] and g.can_play(p, hand_card.uid, true) and not _is_ai(p):
@@ -2526,6 +2526,10 @@ func _hint() -> String:
 	if targeting.get("kind") == "enter":
 		var which := "segundo alvo" if g.pending_enter.has("first") else "alvo"
 		return "Ao Entrar de %s: toque no %s ou pule o efeito." % [_cname(g.pending_enter.get("card_id", "")), which]
+	if targeting.get("kind") == "room_banish":
+		var banish_prompt := "Campo cheio: toque na unidade ou artefato seu que será banido para abrir espaço" if CardView.touch_ui() \
+			else "Campo cheio: clique na unidade ou artefato seu que será banido para abrir espaço"
+		return banish_prompt + " · toque fora cancela." if CardView.touch_ui() else banish_prompt + " · botão direito/Esc cancela."
 	if targeting.get("kind") == "attack":
 		# say why some targets don't glow: a Provocação forces the challenge, and a unit that
 		# just came in with Ímpeto can only challenge
@@ -2846,7 +2850,7 @@ func _my_input() -> bool:
 func _on_hand_click(v: CardView) -> void:
 	if not _my_input():
 		return
-	if targeting.get("kind") == "hand" and targeting["uid"] == v.uid:
+	if targeting.get("kind") in ["hand", "room_banish"] and targeting["uid"] == v.uid:
 		targeting = {}
 		_render()
 		return
@@ -2873,8 +2877,27 @@ func _play_from_hand(v: CardView, slot := -1) -> void:
 		# allowed (it can bait a counter), but never by accident
 		_render()
 		_ask_confirm("SEM EFEITO AGORA", "Não há nada para reviver no seu cemitério. Jogar mesmo assim?", "JOGAR MESMO ASSIM", "CANCELAR", _play_dud.bind(v.uid))
+	elif _needs_room_banish(v.card_id):
+		_begin_room_banish(v.uid, v.card_id, slot)
 	else:
 		_do(g.play_card(viewer, v.uid, 0, 0, slot))
+
+## True when playing this card takes a field slot and the field is full: the player must banish one of
+## their own permanents to make room.
+func _needs_room_banish(card_id: String) -> bool:
+	if g.has_free_slot(viewer):
+		return false
+	var card_data := CardDB.card(card_id)
+	return g.takes_field_slot(card_data, g.is_subito_play(viewer, card_data))
+
+## Opens the "which permanent do you banish to make room?" pick. hand_uid is 0 for the Encarnação.
+## target / target2 are the picks already made for the card's own effect (0 if it has none).
+func _begin_room_banish(hand_uid: int, card_id: String, slot := -1, target := 0, target2 := 0) -> void:
+	targeting = {"kind": "room_banish", "uid": hand_uid, "card_id": card_id, "spec": "room_banish",
+		"slot": slot, "target": target, "target2": target2}
+	var source_view = views.get(hand_uid) if hand_uid != 0 else views.get("cmd%d" % viewer)
+	_begin_aim(_visual_rect(source_view).get_center() if is_instance_valid(source_view) else Vector2.ZERO)
+	_render()
 
 ## Casts a Réquiem spell from the graveyard through the same flow as a hand card (target aiming, dud confirm).
 func _cast_requiem(uid: int, card_id: String) -> void:
@@ -2948,7 +2971,7 @@ func _update_aim() -> void:
 	aim_arrow.visible = true
 	aim_arrow.move_to_front()
 	var src := aim_src
-	if targeting["kind"] in ["hand", "enter", "attack"] and views.has(targeting["uid"]) and is_instance_valid(views[targeting["uid"]]):
+	if targeting["kind"] in ["hand", "enter", "attack", "room_banish"] and views.has(targeting["uid"]) and is_instance_valid(views[targeting["uid"]]):
 		var r: Rect2 = _visual_rect(views[targeting["uid"]] as Control)
 		src = Vector2(r.get_center().x, r.position.y + r.size.y * 0.3)
 	var inv := fx.get_global_transform().affine_inverse()
@@ -2994,6 +3017,9 @@ func _on_incarnation(p: int) -> void:
 	if _wait_for_table(_on_incarnation.bind(p)):
 		return
 	if not g.can_cast_incarnation(p):
+		return
+	if not g.has_free_slot(p):
+		_begin_room_banish(0, g.players[p]["incarnation"]["card_id"])
 		return
 	_do(g.cast_incarnation(p)) # its Ao Entrar target (if any) is picked once it is on the board
 
@@ -3047,6 +3073,8 @@ func _is_target(uid: int) -> bool:
 			if hand_card.uid == targeting["uid"]:
 				return g.card_targets(viewer, CardDB.card(hand_card.card_id)).has(uid)
 		return false
+	if targeting["kind"] == "room_banish":
+		return g.room_banish_options(viewer).has(uid)
 	if targeting["kind"] == "attack":
 		var attacker := g.find_unit(targeting["uid"])
 		return attacker != null and g.attack_targets(attacker).has(uid)
@@ -3084,10 +3112,22 @@ func _fire_target(uid: int) -> void:
 				# second step: pick the damage target after the sacrifice
 				targeting = {"kind": "hand", "uid": targeting["uid"], "card_id": targeting["card_id"], "spec": spec2, "first": uid, "picks": [uid]}
 				_render()
+			elif _needs_room_banish(targeting["card_id"]):
+				# the card's own target is chosen; the permanent to banish is the last pick
+				var first_pick: int = targeting["first"] if targeting.has("first") else uid
+				var second_pick: int = uid if targeting.has("first") else 0
+				_begin_room_banish(targeting["uid"], targeting["card_id"], targeting.get("slot", -1), first_pick, second_pick)
 			elif targeting.has("first"):
 				_do(g.play_card(viewer, targeting["uid"], targeting["first"], uid))
 			else:
 				_do(g.play_card(viewer, targeting["uid"], uid, 0, targeting.get("slot", -1)))
+		"room_banish":
+			var hand_uid: int = targeting["uid"]
+			var slot: int = targeting.get("slot", -1)
+			if hand_uid == 0:
+				_do(g.cast_incarnation(viewer, 0, slot, uid))
+			else:
+				_do(g.play_card(viewer, hand_uid, targeting["target"], targeting["target2"], slot, uid))
 		"incarnation":
 			_do(g.cast_incarnation(viewer, uid))
 		"ability":
@@ -6520,6 +6560,15 @@ func _animate(events: Array, old: Dictionary) -> float:
 						Sfx.play_in("death", cursor)
 						dissolved_early[destroyed_view] = true
 						cursor += 0.2
+			"banish":
+				# a free-standing artifact banished to make room; banished units go through the ghost path
+				var banished_relic_uid: int = int(e["uid"])
+				if e.get("relic", false) and old.has(banished_relic_uid):
+					var banished_relic_ghost := _ghost(String(e["card_id"]), old[banished_relic_uid]["inst"], old[banished_relic_uid]["pose"])
+					banished_relic_ghost.z_index = 20
+					banished_relic_ghost.banish(cursor, BANISH_COL, 0.9)
+					_banish_fx(_center_of(banished_relic_ghost), _pose(banished_relic_ghost)["w"], cursor)
+					Sfx.play_in("banish", cursor)
 			"relic_destroyed":
 				# Relics do not use the unit ghost path (they have no damage field), so give every
 				# ordinary artifact removal a readable dissolve. Dedicated wards keep their own _ward_fx.
@@ -7049,6 +7098,7 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s foi destruída" % ("Uma unidade" if destroyed == null else _cname(destroyed.card_id)))
 		"banish":
 			_log("%s foi banida" % _cname(e["card_id"]))
+
 		"sacrifice":
 			var sacrificed := g.find_unit(e["uid"])
 			_log("%s sacrificou %s" % [_pname(e["player"]), "uma unidade" if sacrificed == null else _cname(sacrificed.card_id)])

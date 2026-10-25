@@ -17,6 +17,7 @@ var second_target := 0 ## the second pick ("pick"/"pick2", e.g. the damage targe
 var dying_card: Card = null ## the unit whose Ao Morrer is resolving (for summon "self" and revive_self)
 var sacrificed_attack := 0 ## total attack of the unit a "sacrifice" just killed (read by its "then" effects)
 var sacrificed_cost := 0 ## printed Momentum cost of the unit a "sacrifice" just killed (read by its "then" effects)
+var returned_ally_count := 0 ## allied units a "return_to_hand" of this run sent back to the hand (read by "gain_momentum" per "returned_allies")
 var last_drawn_card: Card = null ## the latest card drawn by this effect run, for follow-up effects
 var event: GameEvent = null ## the event that made a listening card react (null for plain triggers)
 var milled_cards: Array = [] ## cards the latest mill of this run sent to the graveyard (offered by mill_pick)

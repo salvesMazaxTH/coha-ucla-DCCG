@@ -101,6 +101,8 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 		if held_card_ids.has(card.card_id) or not g.can_play(p, card.uid):
 			continue
 		var card_data := CardDB.card(card.card_id)
+		if g.takes_field_slot(card_data, g.is_subito_play(p, card_data)) and not g.has_free_slot(p):
+			continue # the AI never banishes its own permanents to make room
 		var is_unit: bool = card_data["type"] == "unit"
 		if not is_unit and (g.is_dud(p, card_data) or not _spell_is_worth_it(g, p, card_data)):
 			continue
@@ -145,7 +147,7 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 			return events
 	# The Encarnação is a powerful fallback, not an automatic first play: spend Momentum on
 	# worthwhile cards from hand first, then cast it if no other legal play is available.
-	if g.can_cast_incarnation(p):
+	if g.can_cast_incarnation(p) and g.has_free_slot(p): # never banishes its own permanent to make room
 		var incarnation_events := g.cast_incarnation(p)
 		if not incarnation_events.is_empty():
 			return incarnation_events

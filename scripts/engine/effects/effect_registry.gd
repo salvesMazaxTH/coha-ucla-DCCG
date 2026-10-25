@@ -59,6 +59,7 @@ static var ACTIONS: Dictionary = {
 	"sacrifice": SacrificeEffect,
 	"fuse": FuseEffect,
 	"gain_momentum": GainMomentumEffect,
+	"raise_max_momentum": RaiseMaxMomentumEffect,
 	"extra_turn": ExtraTurnEffect,
 	"spend_all_momentum": SpendAllMomentumEffectScript,
 	"restrict_play": RestrictPlayEffect,

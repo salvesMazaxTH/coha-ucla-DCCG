@@ -126,11 +126,16 @@ func _save_all_pngs() -> void:
 
 func _open_viewer() -> void:
 	if not card_only:
-		# Same trick as the game: a fixed logical stage that scales to fit whatever the window size is.
+		# The window's own stretch (not a scaled Control) fits the fixed stage to the window, so the
+		# text is drawn at its final size and stays sharp.
+		# Never open bigger than the screen: on a small monitor the window would hang off the edge
+		# and the text panel on the right would be cut off.
+		var usable_screen := DisplayServer.screen_get_usable_rect()
+		root.size = Vector2i(mini(1280, int(usable_screen.size.x * 0.95)), mini(826, int(usable_screen.size.y * 0.9)))
+		root.position = usable_screen.position + (usable_screen.size - root.size) / 2
 		root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 		root.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
 		root.content_scale_size = Vector2i(STAGE_SIZE)
-		root.size = Vector2i(1280, 826)
 	viewer_background = ColorRect.new()
 	viewer_background.color = Color("#14161c")
 	viewer_background.set_anchors_preset(Control.PRESET_FULL_RECT)
