@@ -6,6 +6,7 @@
   "element": "sombra",
   "cost": 0,
   "speed": "rapido",
+  "art": "trevas/cutucada_no_defunto.webp",
   "effects": [
     {
       "trigger": "on_play",
