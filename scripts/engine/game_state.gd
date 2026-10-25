@@ -484,6 +484,17 @@ func momentum_surge_of(p: int, c: Card) -> Dictionary:
 		return {"atk": int(e.get("atk", 0)), "keywords": e.get("keywords", []).duplicate(), "critico": int(e.get("critico", 0))}
 	return {}
 
+## The most Momentum player p can hold as real, spendable Momentum: MOMENTUM_CAP, unless one of their units
+## on the board has a "momentum_cap" Constante (Agiota das Nuvens: {"cap": 12}). The highest one counts; two
+## of them do not stack. Losing that unit takes the extra Momentum away: it vanishes at the end of the turn.
+func momentum_cap(p: int) -> int:
+	var cap := MOMENTUM_CAP
+	for unit: Card in players[p]["board"]:
+		for e in card_of(unit).get("effects", []):
+			if e.get("trigger", "") == "constante" and e.get("action", "") == "momentum_cap":
+				cap = maxi(cap, int(e.get("cap", MOMENTUM_CAP)))
+	return cap
+
 ## Atk/hp a card's "constante" scale effects would give it under player p right
 ## now.
 func scale_bonus(p: int, cd: Dictionary) -> Vector2i:
@@ -876,21 +887,22 @@ func _applicable_discount_rules(p: int, cd: Dictionary) -> Array:
 	return rules
 
 ## Momentum p can spend on a play: the Reserva only counts for spells and leader abilities.
-## Momentum above MOMENTUM_CAP (a temporary overflow) only pays neutral cards and leader abilities:
-## pass the card's data as `cd` so any other essence sees at most MOMENTUM_CAP.
+## Momentum above the player's cap (a temporary overflow) only pays neutral cards and leader abilities:
+## pass the card's data as `cd` so any other essence sees at most momentum_cap(p).
 func budget(p: int, spell: bool, cd := {}) -> int:
 	var plain_momentum := int(players[p]["momentum"])
 	if not cd.is_empty() and not CardDB.has_essence(cd, "neutra"):
-		plain_momentum = mini(plain_momentum, MOMENTUM_CAP)
+		plain_momentum = mini(plain_momentum, momentum_cap(p))
 	return plain_momentum + (int(players[p]["reserve"]) if spell else 0)
 
-## Gives player p Momentum right now. Normally it stops at MOMENTUM_CAP; with `overflow` it may go up
-## to MOMENTUM_OVERFLOW_CAP. With `refresh` it only wins back spent Momentum: it stops at what the turn
-## started with (turn_start_momentum). It never lowers Momentum the player already has above the ceiling.
+## Gives player p Momentum right now. Normally it stops at their cap (MOMENTUM_CAP, or higher with Agiota das
+## Nuvens); with `overflow` it may go up to MOMENTUM_OVERFLOW_CAP. With `refresh` it only wins back spent
+## Momentum: it stops at what the turn started with (turn_start_momentum). It never lowers Momentum the
+## player already has above the ceiling.
 func gain_momentum(p: int, gain: int, overflow := false, refresh := false) -> void:
 	var pl: Dictionary = players[p]
 	var current := int(pl["momentum"])
-	var ceiling := MOMENTUM_OVERFLOW_CAP if overflow else MOMENTUM_CAP
+	var ceiling := maxi(MOMENTUM_OVERFLOW_CAP, momentum_cap(p)) if overflow else momentum_cap(p)
 	if refresh:
 		ceiling = mini(ceiling, int(pl["turn_start_momentum"]))
 	pl["momentum"] = maxi(current, mini(ceiling, current + gain))
@@ -3084,8 +3096,8 @@ func _finish_turn() -> void:
 		return
 	reset_snowball_level(active)
 	# Momentum above the normal cap was only a temporary overflow: it vanishes now, before it can bank
-	if int(players[active]["momentum"]) > MOMENTUM_CAP:
-		players[active]["momentum"] = MOMENTUM_CAP
+	if int(players[active]["momentum"]) > momentum_cap(active):
+		players[active]["momentum"] = momentum_cap(active)
 		_refresh_scaling()
 		_emit({"type": "momentum", "player": active})
 	# Dona Gertrudes: the champions she borrowed from the hand leave the game now
@@ -3170,7 +3182,9 @@ func _start_turn(p: int, draw: bool) -> void:
 	if leaked > 0:
 		pl["idle_turns"] += 1
 	pl["reserve"] = mini(RESERVE_CAP, int(pl["reserve"]) + int(pl["momentum"])) # bank what went unspent
-	pl["max_momentum"] = min(MOMENTUM_CAP, pl["max_momentum"] + 1)
+	# the ceiling is MOMENTUM_CAP, or higher while a "momentum_cap" unit is on the board; without it the
+	# maximum falls back to the normal ceiling, so the extra Momentum is not kept
+	pl["max_momentum"] = mini(momentum_cap(p), int(pl["max_momentum"]) + 1)
 	pl["momentum"] = pl["max_momentum"]
 	if p != first and turn <= SECOND_BONUS_TURNS * 2:
 		# going second: on each of the first SECOND_BONUS_TURNS turns, +1 Momentum (this turn only)
@@ -3190,7 +3204,7 @@ func _start_turn(p: int, draw: bool) -> void:
 	pl["paid_debt_this_turn"] = int(pl["next_momentum"]) < 0
 	if int(pl["next_momentum"]) != 0:
 		# positive = Momentum promised for this turn; negative = a debt (Ritual do Degelo), never below 0
-		pl["momentum"] = clampi(int(pl["momentum"]) + int(pl["next_momentum"]), 0, MOMENTUM_CAP)
+		pl["momentum"] = clampi(int(pl["momentum"]) + int(pl["next_momentum"]), 0, momentum_cap(p))
 		pl["next_momentum"] = 0
 	# what this turn began with, after the second-player bonus and any promise or debt: a "refresh" gain
 	# (gain_momentum with "refresh": true) can win back spent Momentum only up to this

@@ -826,7 +826,7 @@ static func _board_strike_total(g: GameState, player: int) -> int:
 
 ## Momentum the AI can spend on spells next turn (one more than now, plus what is banked in the Reserva).
 static func _next_turn_budget(g: GameState, p: int) -> int:
-	return mini(GameState.MOMENTUM_CAP, int(g.players[p]["max_momentum"]) + 1) + int(g.players[p]["reserve"])
+	return mini(g.momentum_cap(p), int(g.players[p]["max_momentum"]) + 1) + int(g.players[p]["reserve"])
 
 ## True for a spell that can send damage to the enemy Leader (Bola de Fogo "any", Choque "enemy_leader").
 static func _is_face_burn(card_data: Dictionary) -> bool:
