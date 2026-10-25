@@ -1,0 +1,37 @@
+{
+  "name": "Giripoca",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["fera"],
+  "essence": [
+    "fluxo",
+    "furia",
+    "tormenta"
+  ],
+  "element": [
+    "agua",
+    "fogo",
+    "vento"
+  ],
+  "cost": 3,
+  "atk": 2,
+  "hp": 3,
+  "keywords": ["voo"],
+  "art": "fluxo/giripoca.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 1
+    },
+    {
+      "trigger": "on_enter",
+      "action": "exhaust",
+      "target": "enemy_unit"
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela sofre 1 de dano e é exaurida.",
+  "flavor": "No cais ninguém sabe se ela é peixe ou gaivota. Ela grita alto demais para alguém perguntar.",
+  "tags": []
+}

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dtd2g2nyeir1x"
-path="res://.godot/imported/giripoca.png-3382d523007e3a2d4024babdf3b770cf.ctex"
+uid="uid://cdxjjj6uqm8oj"
+path="res://.godot/imported/giripoca.webp-5c598f57facd17415d7942e2fe89589a.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/portraits/neutra/giripoca.png"
-dest_files=["res://.godot/imported/giripoca.png-3382d523007e3a2d4024babdf3b770cf.ctex"]
+source_file="res://assets/portraits/fluxo/giripoca.webp"
+dest_files=["res://.godot/imported/giripoca.webp-5c598f57facd17415d7942e2fe89589a.ctex"]
 
 [params]
 
