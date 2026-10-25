@@ -22,7 +22,7 @@ func _init() -> void:
 	_test_death_order()
 	_test_sacrifice_damage()
 	_test_domain_removals()
-	_test_spell_shield_scope()
+	_test_magic_shield_scope()
 	_test_supreme_shield()
 	_test_limited_charges()
 	_test_artifact_subtypes()
@@ -43,6 +43,7 @@ func _init() -> void:
 	_test_obscura_rules()
 	_test_cleanse()
 	_test_sagrada_board_control()
+	_test_devocao_epic_trio()
 	_test_eletrica()
 	_test_ignisar()
 	_test_play_slot()
@@ -136,7 +137,7 @@ func _init() -> void:
 	quit(1 if failures > 0 else 0)
 
 ## (The Sfx autoload does not exist in -s mode, so the script is loaded directly; its table and mapping are static.)
-## Any spell card: effects run with it as their source count as coming from a spell (Escudo de Feitiço cancels them)
+## Any spell card: effects run with it as their source count as coming from a spell
 const SPELL_SOURCE := "lianas_capturantes"
 const SfxScript := preload("res://scripts/audio/sfx.gd")
 const MusicScript := preload("res://scripts/audio/music.gd")
@@ -303,6 +304,39 @@ func _test_cleanse() -> void:
 	_put(g, 0, "mefi_urdim")
 	check(g.leader_dot_markers(0, "veneno") == 0, "Mefi'Urdim purifica o Líder ao entrar")
 	check(angel.dot_markers.is_empty(), "Mefi'Urdim purifica as unidades que ele buffa")
+
+func _test_devocao_epic_trio() -> void:
+	# Dona Eufrásia: a cura do próprio Ao Entrar acorda a condicional dela (1 carta), e só 1x por turno
+	var g := _new_game()
+	g.active = 0
+	g.players[0]["leader_hp"] -= 8
+	var hand_before: int = g.players[0]["hand"].size()
+	var nurse := _put(g, 0, "eufrasia_ponto_firme")
+	check(g.players[0]["hand"].size() == hand_before + 1, "Eufrásia: o Ao Entrar cura o Líder e ela mesma compra 1 carta (mão %d -> %d)" % [hand_before, g.players[0]["hand"].size()])
+	g._heal_leader(0, 1)
+	g._heal_leader(0, 1)
+	check(g.players[0]["hand"].size() == hand_before + 1, "Eufrásia: a segunda cura no mesmo turno não compra de novo")
+	check(nurse.atk == 1 and nurse.hp == 4, "Eufrásia: 1/4")
+	# Zadquiel: Ao Entrar cura Líder e aliadas, Ao Atacar cura 2, Ao Morrer cura 5
+	var g_angel := _new_game()
+	g_angel.active = 0
+	g_angel.players[0]["leader_hp"] -= 10
+	var wounded := _put(g_angel, 0, "esqueleto_guerreiro")
+	wounded.damage = 2
+	var leader_before: int = g_angel.players[0]["leader_hp"]
+	var angel := _put(g_angel, 0, "zadquiel_anjo_da_misericordia")
+	check(wounded.damage == 0 and g_angel.players[0]["leader_hp"] == leader_before + 3, "Zadquiel: Ao Entrar cura 3 o Líder e as unidades aliadas")
+	# Iruvael: varre 3 de dano ao entrar e cresce no fim do turno
+	var g_clarion := _new_game()
+	g_clarion.active = 0
+	var foe := _put(g_clarion, 1, "estrondador_igneo")
+	var foe_damage_before: int = foe.damage
+	var clarion := _put(g_clarion, 0, "iruvael_o_setimo_clarim")
+	check(g_clarion.find_unit(foe.uid) == null or g_clarion.find_unit(foe.uid).damage == foe_damage_before + 3, "Iruvael: Ao Entrar causa 3 de dano às unidades inimigas")
+	var atk_before: int = clarion.atk
+	g_clarion.end_turn(0)
+	g_clarion._flush()
+	check(g_clarion.find_unit(clarion.uid).atk == atk_before + 1, "Iruvael: ganha +1 de Ataque no Fim do Turno (%d -> %d)" % [atk_before, g_clarion.find_unit(clarion.uid).atk])
 
 func _test_sagrada_board_control() -> void:
 	# Seymour, o limpador: curas e feitiços Sagrados causam 1 de dano duas vezes,
@@ -498,48 +532,57 @@ func _test_domain_removals() -> void:
 	_resolve_stack(g)
 	check(g.find_unit(fodder.uid) == null and g.find_unit(victim2.uid) == null, "Pacto de Mortalha: sacrifica o aliado e destrói o inimigo")
 
-## Escudo de Feitiço only cancels what comes from a spell or from a Leader's ability.
-func _test_spell_shield_scope() -> void:
+## Escudo Mágico is a temporary Inalcançável: an enemy effect that picks the unit as its target (from any
+## source) only breaks it; area, random and untargeted effects pass through it whole and it stays.
+func _test_magic_shield_scope() -> void:
 	_tcard("t_ss_enter", 1, 1, [{"trigger": "on_enter", "action": "damage", "target": "enemy_unit", "amount": 2}])
+	_tcard("t_ss_area", 1, 1, [{"trigger": "on_enter", "action": "damage", "target": "all_enemy_units", "amount": 2}])
+	_tcard("t_ss_random", 1, 1, [{"trigger": "on_enter", "action": "damage", "target": "random_enemy_unit", "amount": 2}])
 	_tcard("t_ss_foe", 1, 9, [])
-	# a unit's own effect (Ao Entrar) goes through and the shield stays
+	# an area effect passes through and the shield stays
 	var g := _new_game()
 	_quiet(g)
 	var foe := _put(g, 1, "t_ss_foe")
-	foe.spell_shield = true
+	foe.magic_shield = true
+	g._run_effect_dicts(0, CardDB.card("t_ss_area")["effects"], "on_enter", 0, 0, SPELL_SOURCE)
+	check(foe.damage == 2 and foe.magic_shield, "Escudo Mágico: efeito em área passa inteiro e o escudo fica")
+	# a random effect passes through too
+	g._run_effect_dicts(0, CardDB.card("t_ss_random")["effects"], "on_enter", 0, 0, SPELL_SOURCE)
+	check(foe.damage == 4 and foe.magic_shield, "Escudo Mágico: efeito aleatório passa inteiro e o escudo fica")
+	# a unit's own Ao Entrar that picks it is cancelled, like a spell: only the shield breaks
 	g._run_effect_dicts(0, CardDB.card("t_ss_enter")["effects"], "on_enter", foe.uid, 999)
-	check(foe.damage == 2 and foe.spell_shield, "Escudo de Feitiço não anula o Ao Entrar de uma unidade (e não se gasta)")
-	# the same effect coming from a spell is cancelled
+	check(foe.damage == 4 and not foe.magic_shield, "Escudo Mágico anula o Ao Entrar de uma unidade que a escolhe como alvo")
+	# with the shield gone, the same pick lands
 	g._run_effect_dicts(0, CardDB.card("t_ss_enter")["effects"], "on_enter", foe.uid, 0, SPELL_SOURCE)
-	check(foe.damage == 2 and not foe.spell_shield, "o mesmo efeito vindo de um feitiço é anulado")
-	# an artifact is not a spell
-	var artifact_context := EffectContext.new(g, 0, "")
-	artifact_context.source_card_id = "baluarte_santo"
-	check(not artifact_context.comes_from_spell_or_leader_ability(), "artefato não conta como feitiço para o Escudo de Feitiço")
-	# the Leader's ability reads as a spell
+	check(foe.damage == 6, "sem o escudo, o efeito com alvo acerta normalmente")
+	# an effect of the unit's own side that picks it goes through and the shield stays
+	foe.magic_shield = true
+	g._run_effect_dicts(1, [{"trigger": "on_enter", "action": "damage", "target": "ally_unit", "amount": 1}], "on_enter", foe.uid, 0, SPELL_SOURCE)
+	check(foe.damage == 7 and foe.magic_shield, "Escudo Mágico não para os efeitos do próprio dono")
+	# the Leader's ability is cancelled too when it picks the unit
 	g = _new_game() # fogo: Ronan's Pavio Curto
 	_quiet(g)
 	var ability_victim := _put(g, 1, "t_ss_foe")
-	ability_victim.spell_shield = true
+	ability_victim.magic_shield = true
 	g.players[0]["ability_used"] = false
 	g.players[0]["momentum"] = 5
 	g.use_ability(0, ability_victim.uid)
 	g.pass_priority(1)
 	g._flush()
-	check(not ability_victim.spell_shield and ability_victim.damage == 0, "Escudo de Feitiço anula a Habilidade de Líder")
+	check(not ability_victim.magic_shield and ability_victim.damage == 0, "Escudo Mágico anula a Habilidade de Líder")
 	# the "then" effects of a spell keep the spell origin: Mordida de Defunto's damage is cancelled too
 	g = _new_game()
 	_quiet(g)
 	var sacrificed := _put(g, 0, "esqueleto_guerreiro")
 	var shielded_foe := _put(g, 1, "t_ss_foe")
-	shielded_foe.spell_shield = true
+	shielded_foe.magic_shield = true
 	var bite := Card.new(g._uid(), "mordida_de_defunto", 0, "hand")
 	g.players[0]["hand"].append(bite)
 	g.players[0]["momentum"] = 10
 	g.play_card(0, bite.uid, sacrificed.uid, shielded_foe.uid)
 	g.pass_priority(1)
 	g._flush()
-	check(g.find_unit(sacrificed.uid) == null and shielded_foe.damage == 0 and not shielded_foe.spell_shield, "o dano do 'então' de um feitiço de sacrifício também é anulado pelo Escudo de Feitiço")
+	check(g.find_unit(sacrificed.uid) == null and shielded_foe.damage == 0 and not shielded_foe.magic_shield, "o dano do 'então' de um feitiço de sacrifício também é anulado pelo Escudo Mágico")
 
 ## Escudo Supremo: one charge that absorbs damage and any effect, from any source, including sacrifice.
 func _test_supreme_shield() -> void:
@@ -547,7 +590,7 @@ func _test_supreme_shield() -> void:
 	_tcard("t_sup_hit", 1, 1, [{"trigger": "on_enter", "action": "damage", "target": "enemy_unit", "amount": 2}])
 	var g := _new_game()
 	_quiet(g)
-	# a unit's own effect (which Escudo de Feitiço lets through) is absorbed, and the charge is spent
+	# a unit's own effect is absorbed too, and the charge is spent
 	var holder := _put(g, 1, "t_sup_unit")
 	holder.grant_supreme_shield()
 	g._run_effect_dicts(0, CardDB.card("t_sup_hit")["effects"], "on_enter", holder.uid, 999)
@@ -1074,7 +1117,7 @@ func _test_enter_target() -> void:
 	var neraqa_targets := g.valid_targets(0, g.pending_enter["spec"], ner)
 	check(not neraqa_targets.has(ner) and neraqa_targets.has(vul), "neraqa: só outra unidade aliada, nunca ela mesma")
 	g.choose_enter_target(0, 0)
-	check(g.phase == "main" and not g.find_unit(ner).spell_shield, "ao entrar recusado: sem efeito")
+	check(g.phase == "main" and not g.find_unit(ner).magic_shield, "ao entrar recusado: sem efeito")
 	check(g.find_unit(foe2.uid).damage == 0, "ao entrar recusado: nada acontece")
 	# the unit itself as the only possible target is no real choice: no prompt, it is the target
 	var lone := _new_game()
@@ -1679,29 +1722,29 @@ func _test_stun_and_cap() -> void:
 	check(g.combat_system().attack_targets(hitter) == [taunt.uid], "Provocação exausta obriga o ataque")
 	g._apply_effect(0, {"action": "stun", "target": "enemy_unit"}, taunt.uid)
 	check(g.combat_system().forced_taunts(hitter).is_empty(), "Provocação atordoada não obriga ataques")
-	# Escudo de Feitiço cancels the stun, like it cancels a freeze
+	# Escudo Mágico cancels the stun aimed at it, like it cancels a freeze
 	var shielded := _put(g, 1, "t_stn_vic")
-	shielded.spell_shield = true
+	shielded.magic_shield = true
 	g._apply_effect(0, {"action": "stun", "target": "enemy_unit"}, shielded.uid, SPELL_SOURCE)
-	check(not shielded.is_stunned() and not shielded.spell_shield, "Escudo de Feitiço anula o atordoamento")
+	check(not shielded.is_stunned() and not shielded.magic_shield, "Escudo Mágico anula o atordoamento")
 	# the shield cancels the whole card on that unit: Lianas Capturantes' -3 Ataque must not land after the exhaust is cancelled
 	g = _new_game()
 	_quiet(g)
 	var vines_target := _put(g, 1, "t_stn_vic")
-	vines_target.spell_shield = true
+	vines_target.magic_shield = true
 	var vines_atk_before := g.atk_of(vines_target)
 	g._run_effect_dicts(0, CardDB.card("lianas_capturantes")["effects"], "on_play", vines_target.uid, 0, "lianas_capturantes")
-	check(not vines_target.spell_shield and not vines_target.exhausted and g.atk_of(vines_target) == vines_atk_before, "Escudo de Feitiço cancela todos os efeitos da carta na unidade (exaurir e -3 Ataque)")
+	check(not vines_target.magic_shield and not vines_target.exhausted and g.atk_of(vines_target) == vines_atk_before, "Escudo Mágico cancela todos os efeitos da carta na unidade (exaurir e -3 Ataque)")
 	g._run_effect_dicts(0, CardDB.card("lianas_capturantes")["effects"], "on_play", vines_target.uid, 0)
 	check(vines_target.exhausted and g.atk_of(vines_target) == maxi(0, vines_atk_before - 3), "sem escudo, Lianas Capturantes exaure e dá -3 Ataque")
-	# separate hits of one effect are separate spells: Repique's first hit only breaks the shield, the other two land
+	# Repique's hits are rolled at random: all of them pass through Escudo Mágico and it stays
 	g = _new_game()
 	_quiet(g)
 	_tcard("t_rep_vic", 1, 20, [])
 	var repique_target := _put(g, 1, "t_rep_vic")
-	repique_target.spell_shield = true
+	repique_target.magic_shield = true
 	g._run_effect_dicts(0, CardDB.card("repique_desgovernado")["effects"], "on_play", 0, 0, "repique_desgovernado")
-	check(not repique_target.spell_shield and repique_target.damage == 8, "Repique Desgovernado: o Escudo de Feitiço anula só o primeiro hit (8 dos 9 acertam)")
+	check(repique_target.magic_shield and repique_target.damage == 9, "Repique Desgovernado: hits aleatórios passam pelo Escudo Mágico (os 9 acertam e ele fica)")
 	# save/load keeps the markers
 	var restored := Card.from_dict(taunt.to_dict(), "board", 1)
 	check(restored.stun_markers == 1, "atordoamento sobrevive a salvar e carregar")
@@ -1808,9 +1851,9 @@ func _test_freeze() -> void:
 	g.end_turn(1)
 	check(not g.is_frozen(fresh), "congelada com enjoo: descongela no fim do turno do dono")
 	var s := _put(g, 1, "tritao_lanceiro")
-	s.spell_shield = true
+	s.magic_shield = true
 	g._apply_effect(0, {"action": "freeze", "target": "enemy_unit"}, s.uid, SPELL_SOURCE)
-	check(not g.is_frozen(s) and not s.spell_shield, "Escudo de Feitiço anula congelar")
+	check(not g.is_frozen(s) and not s.magic_shield, "Escudo Mágico anula congelar")
 	# a frozen tapped unit can be challenged and strikes back with its full ATK
 	g = _new_game()
 	_quiet(g)
@@ -1895,10 +1938,10 @@ func _test_burn() -> void:
 	victim.dot_markers["queimadura"] = 2
 	g._start_turn(1, false)
 	check(victim.damage == 5 and victim.dot_markers.is_empty(), "Queimadura ainda respeita Indestrutível como proteção superior")
-	# Escudo de Feitiço cancels the marker application just like any other targeted effect.
-	victim.spell_shield = true
+	# Escudo Mágico cancels the marker application just like any other targeted effect.
+	victim.magic_shield = true
 	g._apply_effect(0, {"action": "add_dot", "dot": "queimadura", "target": "enemy_unit", "amount": 2}, victim.uid, SPELL_SOURCE)
-	check(victim.dot_markers.is_empty() and not victim.spell_shield, "Escudo de Feitiço anula a aplicação de Queimadura")
+	check(victim.dot_markers.is_empty() and not victim.magic_shield, "Escudo Mágico anula a aplicação de Queimadura")
 
 func _test_condemn() -> void:
 	# Condenada: the unit dies at the start of the marker-giver's next turn, even if the source is long gone
@@ -1926,13 +1969,13 @@ func _test_condemn() -> void:
 	_quiet(g)
 	g.end_turn(1)
 	check(g.active == 0 and g.find_unit(second.uid) == null, "condenada no turno do dono: morre no início do meu turno seguinte")
-	# Escudo de Feitiço cancels the mark
+	# Escudo Mágico cancels the mark
 	g = _new_game()
 	_quiet(g)
 	var shielded := _put(g, 1, "t_cdm_vic")
-	shielded.spell_shield = true
+	shielded.magic_shield = true
 	g._apply_effect(0, condemn_spec, shielded.uid, SPELL_SOURCE)
-	check(not shielded.is_condemned() and not shielded.spell_shield, "Escudo de Feitiço anula condenar")
+	check(not shielded.is_condemned() and not shielded.magic_shield, "Escudo Mágico anula condenar")
 	# Indestrutível survives, and the mark is spent
 	var tough := _put(g, 1, "t_cdm_vic")
 	tough.keywords.append("indestrutivel")
@@ -3196,15 +3239,15 @@ func _test_fight() -> void:
 	g.pass_priority(1)
 	check(wall.damage == 1 and big.damage == 1, "luta: Armadura reduz o dano (parede %d, inimigo %d)" % [wall.damage, big.damage])
 
-	# Escudo de Feitiço on the enemy cancels the whole fight
+	# Escudo Mágico on the enemy cancels the whole fight
 	g = _new_game()
 	g.players[0]["momentum"] = 9
 	ally = _put(g, 0, "t_fighter")
 	foe = _put(g, 1, "t_target")
-	foe.spell_shield = true
+	foe.magic_shield = true
 	g.play_card(0, _give(g, 0, "arena_tectonica"), ally.uid, foe.uid)
 	g.pass_priority(1)
-	check(not foe.spell_shield and foe.damage == 0 and ally.damage == 0, "luta: Escudo de Feitiço cancela a luta inteira")
+	check(not foe.magic_shield and foe.damage == 0 and ally.damage == 0, "luta: Escudo Mágico cancela a luta inteira")
 
 	# The AI only picks a fight its unit wins and survives
 	g = _new_game()
@@ -3715,11 +3758,11 @@ func _test_stack() -> void:
 	g.pass_priority(0)
 	check(g.phase != "combat" or g.window != "attacks", "janela A: passar com a pilha vazia ainda encerra o combate")
 
-	# Escudo de Feitiço (Neraqa only shields another ally; she is Inalcançável herself)
+	# Escudo Mágico (Neraqa only shields another ally; she is Inalcançável herself)
 	g = _new_game()
 	g.players[0]["momentum"] = 5
 	var ner := _put(g, 1, "neraqa")
-	check(not g.has_kw(ner, "escudo_feitico"), "neraqa never shields herself")
+	check(not g.has_kw(ner, "escudo_magico"), "neraqa never shields herself")
 	check(not g.card_targets(0, CardDB.card("labareda")).has(ner.uid), "neraqa is Inalcançável: enemy spells can't target her")
 	# the screen keeps the spell enabled (to explain the refusal) but the auto-pass still sees no play
 	g.players[0]["hand"] = []
@@ -3727,15 +3770,15 @@ func _test_stack() -> void:
 	check(not g.can_play(0, blocked_spell) and g.can_play(0, blocked_spell, true), "inalcançável: feitiço só habilitado para a tela")
 	check(g.stack_system().has_play(0) == g.can_use_ability(0), "inalcançável: o auto-passe não conta o feitiço bloqueado como jogada")
 	var shielded := _put(g, 1, "t_wall")
-	g._apply_effect(1, {"action": "buff", "keywords": ["escudo_feitico"]}, shielded.uid)
+	g._apply_effect(1, {"action": "buff", "keywords": ["escudo_magico"]}, shielded.uid)
 	g.play_card(0, _give(g, 0, "labareda"), shielded.uid)
-	check(shielded.damage == 0 and not g.has_kw(shielded, "escudo_feitico"), "spell shield cancels the spell, then breaks")
+	check(shielded.damage == 0 and not g.has_kw(shielded, "escudo_magico"), "magic shield cancels the spell, then breaks")
 	g.play_card(0, _give(g, 0, "labareda"), shielded.uid)
 	check(shielded.damage == 2, "second spell hits")
 	var ally := _put(g, 1, "t_wall")
-	g._apply_effect(1, {"action": "buff", "keywords": ["escudo_feitico"]}, ally.uid)
+	g._apply_effect(1, {"action": "buff", "keywords": ["escudo_magico"]}, ally.uid)
 	g._apply_effect(1, {"action": "buff", "atk": 1}, ally.uid)
-	check(g.has_kw(ally, "escudo_feitico") and ally.atk == 2, "own effects don't pop the spell shield")
+	check(g.has_kw(ally, "escudo_magico") and ally.atk == 2, "own effects don't pop the magic shield")
 
 	# Mar que Retorna (Naelthos): +1 vida máxima e atual, instantânea, respondível mas não anulável
 	g = _new_game()
@@ -4713,25 +4756,25 @@ func _test_eletrica() -> void:
 	g.players[a]["leaked"] = 0
 	g.bus().emit(GameEvent.new("turn_started", a))
 	g._check_state()
-	check(atk_ok(g, start_voltexz, 8, 6) and not start_voltexz.spell_shield, "voltexz: sem Momentum vazado, não ganha o bônus de turno")
+	check(atk_ok(g, start_voltexz, 8, 6) and not start_voltexz.magic_shield, "voltexz: sem Momentum vazado, não ganha o bônus de turno")
 	g = _eletrica_game()
 	a = g.active
 	start_voltexz = _put(g, a, "voltexz")
 	g.players[a]["leaked"] = 1
 	g.bus().emit(GameEvent.new("turn_started", a))
 	g._check_state()
-	check(g.atk_of(start_voltexz) == 10 and start_voltexz.hp + start_voltexz.temp_hp == 7 and start_voltexz.spell_shield and start_voltexz.spell_shield_until_end_turn, "voltexz: Momentum vazado dá +2/+1 e Escudo de Feitiço temporários (ATQ %d, Vida %d+%d, escudo %s, fim %s, vazou %d)" % [g.atk_of(start_voltexz), start_voltexz.hp, start_voltexz.temp_hp, start_voltexz.spell_shield, start_voltexz.spell_shield_until_end_turn, g.players[a]["leaked"]])
+	check(g.atk_of(start_voltexz) == 10 and start_voltexz.hp + start_voltexz.temp_hp == 7 and start_voltexz.magic_shield and start_voltexz.magic_shield_until_end_turn, "voltexz: Momentum vazado dá +2/+1 e Escudo Mágico temporários (ATQ %d, Vida %d+%d, escudo %s, fim %s, vazou %d)" % [g.atk_of(start_voltexz), start_voltexz.hp, start_voltexz.temp_hp, start_voltexz.magic_shield, start_voltexz.magic_shield_until_end_turn, g.players[a]["leaked"]])
 	g.end_turn(a)
-	check(atk_ok(g, start_voltexz, 8, 6) and not start_voltexz.spell_shield, "voltexz: bônus de vazamento expira no fim do turno")
+	check(atk_ok(g, start_voltexz, 8, 6) and not start_voltexz.magic_shield, "voltexz: bônus de vazamento expira no fim do turno")
 	g = _eletrica_game()
 	a = g.active
 	start_voltexz = _put(g, a, "voltexz")
-	start_voltexz.spell_shield = true
-	start_voltexz.spell_shield_until_end_turn = true
+	start_voltexz.magic_shield = true
+	start_voltexz.magic_shield_until_end_turn = true
 	g.players[a]["leaked"] = 1
 	g.bus().emit(GameEvent.new("turn_started", a))
 	g._check_state()
-	check(start_voltexz.spell_shield_until_end_turn and not start_voltexz.spell_shield_until_next_turn, "voltexz: o bônus temporário não torna permanente um Escudo de Feitiço já temporário")
+	check(start_voltexz.magic_shield_until_end_turn and not start_voltexz.magic_shield_until_next_turn, "voltexz: o bônus temporário não torna permanente um Escudo Mágico já temporário")
 	# Jack: +1 attack per Momentum left at end of turn
 	g = _eletrica_game()
 	a = g.active
@@ -5648,17 +5691,17 @@ func _test_metalica() -> void:
 	check(g.players[a]["deck"].size() == own_deck_before - 1, "Trituração em Massa: compra 1 carta")
 	check(g.players[a]["momentum"] == momentum_before - 2, "Trituração em Massa: custa 2")
 
-	# Tyren: no innate Armadura; a hit sets it to 1 (never lowers a higher one); only spell damage grants a temporary Escudo de Feitiço
+	# Tyren: no innate Armadura; a hit sets it to 1 (never lowers a higher one); only spell damage grants a temporary Escudo Mágico
 	g = _metalica_game()
 	a = g.active
 	b = g.opponent(a)
 	g.players[a]["momentum"] = 30
 	var tyren := _put(g, b, "tyren")
-	check(g.armor_of(tyren) == 0 and not tyren.spell_shield, "Tyren: sem Armadura nem Escudo de Feitiço ao entrar")
+	check(g.armor_of(tyren) == 0 and not tyren.magic_shield, "Tyren: sem Armadura nem Escudo Mágico ao entrar")
 	g._deal_damage(tyren.uid, 1, null)
 	g._check_state() # a direct hit only queues the Ao Sofrer Dano trigger; this resolves it
 	check(tyren.armor == 1, "Tyren: dano que não é de feitiço faz a Armadura passar a ser 1")
-	check(not tyren.spell_shield, "Tyren: dano que não é de feitiço não dá Escudo de Feitiço")
+	check(not tyren.magic_shield, "Tyren: dano que não é de feitiço não dá Escudo Mágico")
 	tyren.armor = 3
 	g._deal_damage(tyren.uid, 1, null)
 	g._check_state() # a direct hit only queues the Ao Sofrer Dano trigger; this resolves it
@@ -5668,15 +5711,15 @@ func _test_metalica() -> void:
 	var tyren_hp_before: int = g.hp_left(tyren)
 	_cast_and_resolve(g, a, "golpe_de_marreta", tyren.uid)
 	check(g.hp_left(tyren) == tyren_hp_before - 3, "Tyren: o feitiço que o atinge causa o dano inteiro (o escudo é para o próximo)")
-	check(tyren.armor == 1 and tyren.spell_shield and tyren.spell_shield_until_next_turn and not tyren.supreme_shield, "Tyren: dano de feitiço dá Armadura 1 e Escudo de Feitiço temporário")
+	check(tyren.armor == 1 and tyren.magic_shield and tyren.magic_shield_until_next_turn and not tyren.supreme_shield, "Tyren: dano de feitiço dá Armadura 1 e Escudo Mágico temporário")
 	tyren_hp_before = g.hp_left(tyren)
 	_cast_and_resolve(g, a, "golpe_de_marreta", tyren.uid)
-	check(g.hp_left(tyren) == tyren_hp_before and not tyren.spell_shield, "Tyren: o próximo feitiço inimigo é cancelado e gasta o Escudo de Feitiço")
+	check(g.hp_left(tyren) == tyren_hp_before and not tyren.magic_shield, "Tyren: o próximo efeito inimigo que o escolhe é cancelado e gasta o Escudo Mágico")
 	check(not tyren.supreme_shield, "Tyren: não ganha Escudo Supremo")
-	tyren.spell_shield = true
-	tyren.spell_shield_until_next_turn = true
+	tyren.magic_shield = true
+	tyren.magic_shield_until_next_turn = true
 	g._start_turn(b, false)
-	check(not tyren.spell_shield and not tyren.spell_shield_until_next_turn, "Tyren: o Escudo de Feitiço acaba no início do próximo turno do controlador")
+	check(not tyren.magic_shield and not tyren.magic_shield_until_next_turn, "Tyren: o Escudo Mágico acaba no início do próximo turno do controlador")
 
 	# Biblioteca de Peças: only the 5 cards on top are searched; an artifact buried deeper is not found
 	# (the filler is a spell, which is never eligible: Metálica units of cost 4 or less count as "peças" too)
@@ -6656,7 +6699,7 @@ func _test_glacial() -> void:
 	check(CardDB.card("bruno")["atk"] == 2 and CardDB.card("bruno")["hp"] == 4 and CardDB.card("bruno")["cost"] == 3, "Bruno é 2/4 de custo 3")
 
 	# Ysvane: Ao Entrar buffs another random ally and takes a Bola de Neve back from the graveyard (banished after its next cast);
-	# each glacial spell shields a random ally; death heals the Leader
+	# each glacial magic shields a random ally; death heals the Leader
 	g = _glacial_game()
 	a = g.active
 	o = g.opponent(a)
@@ -6923,15 +6966,15 @@ func _test_sagrada_engine() -> void:
 
 	# buff "only_species": units of other species are left untouched
 	_tcard("t_only_species_buff", 1, 5, [{"trigger": "on_enter", "action": "buff", "target": "all_ally_units",
-		"only_species": ["anjo"], "keywords": ["escudo_feitico"]}])
+		"only_species": ["anjo"], "keywords": ["escudo_magico"]}])
 	g = _new_game()
 	_quiet(g)
 	var only_angel := _put(g, 0, "t_aura_angel")
 	var only_human := _put(g, 0, "t_aura_human")
 	_put(g, 0, "t_only_species_buff")
-	check(only_angel.spell_shield and not only_human.spell_shield, "buff only_species: só a espécie listada ganha o Escudo de Feitiço")
+	check(only_angel.magic_shield and not only_human.magic_shield, "buff only_species: só a espécie listada ganha o Escudo Mágico")
 
-	# Mefi'Urdim: Ao Entrar heals 10, raises the Baluarte Santo, gives Escudo de Feitiço to his tribe; Constante +1/+1 to the tribe and himself
+	# Mefi'Urdim: Ao Entrar heals 10, raises the Baluarte Santo, gives Escudo Mágico to his tribe; Constante +1/+1 to the tribe and himself
 	g = _new_game()
 	_quiet(g)
 	g.players[0]["leader_hp"] = 15
@@ -6941,7 +6984,7 @@ func _test_sagrada_engine() -> void:
 	g._move_dead_units()
 	check(g.players[0]["leader_hp"] == 25, "Mefi'Urdim: Ao Entrar cura 10 do Líder (%d)" % g.players[0]["leader_hp"])
 	check(g.players[0]["relics"].any(func(relic: Card): return relic.card_id == "baluarte_santo"), "Mefi'Urdim: Ao Entrar invoca o Baluarte Santo")
-	check(mefi_angel.spell_shield and mefi.spell_shield and not mefi_human.spell_shield, "Mefi'Urdim: Escudo de Feitiço na tribo, incluindo ele, e em mais ninguém")
+	check(mefi_angel.magic_shield and mefi.magic_shield and not mefi_human.magic_shield, "Mefi'Urdim: Escudo Mágico na tribo, incluindo ele, e em mais ninguém")
 	check(g.atk_of(mefi) == 6 and g.hp_left(mefi) == 11, "Mefi'Urdim: ele mesmo ganha +1/+1 da própria aura (%d/%d)" % [g.atk_of(mefi), g.hp_left(mefi)])
 	check(g.atk_of(mefi_angel) == 6 and g.atk_of(mefi_human) == 2, "Mefi'Urdim: o Anjo ganha +1 de Ataque e o humano nada (%d / %d)" % [g.atk_of(mefi_angel), g.atk_of(mefi_human)])
 

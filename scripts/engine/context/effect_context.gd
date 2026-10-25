@@ -10,7 +10,7 @@ var trigger := "" ## the trigger being resolved ("" = run every effect, e.g. spe
 var self_uid := 0 ## the unit whose effects these are (0 for spells and leader abilities)
 var other_uid := 0 ## the opposing unit in combat triggers (blocker, attacker, damage source)
 var source_card_id := "" ## the card being resolved from the stack (spells...), "" when a unit's own effect runs
-var is_leader_ability := false ## these effects are a Leader's ability (it reads as a spell: Escudo de Feitiço cancels it)
+var is_leader_ability := false ## these effects are a Leader's ability
 var chosen_target := 0 ## the target picked when the card was played
 var forced_target := false ## the chosen target needs no re-check (a Bola de Neve cast by a unit aims at what the unit attacked)
 var second_target := 0 ## the second pick ("pick"/"pick2", e.g. the damage target of a sacrifice spell)
@@ -21,7 +21,7 @@ var last_drawn_card: Card = null ## the latest card drawn by this effect run, fo
 var event: GameEvent = null ## the event that made a listening card react (null for plain triggers)
 var milled_cards: Array = [] ## cards the latest mill of this run sent to the graveyard (offered by mill_pick)
 
-var shielded_uids: Array[int] = [] ## units whose Escudo de Feitiço cancelled an earlier effect of this run: the card's later effects skip them
+var shielded_uids: Array[int] = [] ## units whose shield cancelled an earlier effect of this run: the card's later aimed effects skip them
 var shielded_this_effect: Array[int] = [] ## shields broken by the effect running now; repeated hits of one effect (Repique) are independent, so they only count once that effect is over
 
 func _init(game_state: GameState, controller_player: int, trigger_name: String = "") -> void:
@@ -42,16 +42,9 @@ func source_id() -> String:
 	var source_unit: Card = game.find_unit(self_uid) if self_uid > 0 else null
 	return source_unit.card_id if source_unit != null else ""
 
-## True when Escudo de Feitiço cancels these effects: they come from a spell or from a Leader's
-## ability. A unit's own effects (Ao Entrar, triggers...) and artifacts are never cancelled by it.
-func comes_from_spell_or_leader_ability() -> bool:
-	if is_leader_ability:
-		return true
-	return source_card_id != "" and CardDB.card(source_card_id).get("type", "") == "spell"
-
 ## The context for a sacrifice's "then" effects: no trigger filter, no source unit, and the
 ## second pick becomes the chosen target. The dying unit and where the effects come from
-## (the spell or ability that sacrificed) carry over, so the "then" effects stay under the shield.
+## (the spell or ability that sacrificed) carry over.
 func for_then_effects() -> EffectContext:
 	var child := EffectContext.new(game, controller, "")
 	child.source_card_id = source_card_id

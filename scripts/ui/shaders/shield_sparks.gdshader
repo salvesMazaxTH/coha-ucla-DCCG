@@ -1,5 +1,5 @@
 shader_type canvas_item;
-// The moving part of the Escudo de Feitiço and Escudo Supremo rings: orbiting diamonds, the
+// The moving part of the Escudo Mágico and Escudo Supremo rings: orbiting diamonds, the
 // Supremo's sweeping glint, inner sparks, twinkling stars and breathing halo. The still rings are
 // drawn once by CardView; this runs on the GPU every frame, so the card itself never has to redraw
 // just to keep the sparks turning (that was choppy on PC and heavy on phones).
@@ -7,7 +7,7 @@ shader_type canvas_item;
 // Coordinates: p = 0 at the center, the square goes from -0.5 to 0.5 (1 = the art window width).
 
 uniform float base_pixel = 0.0094; // one card base pixel (the "s" in CardView), measured in art widths
-uniform float spell_on = 0.0; // 1 = the card has Escudo de Feitiço
+uniform float spell_on = 0.0; // 1 = the card has Escudo Mágico
 uniform float supreme_on = 0.0; // 1 = the card has Escudo Supremo
 uniform float phase = 0.0; // per-card time offset, so two shielded cards don't spin in lockstep
 

@@ -12,11 +12,11 @@
       "trigger": "on_play",
       "action": "buff",
       "target": "ally_unit",
-      "keywords": ["escudo_feitico"],
+      "keywords": ["escudo_magico"],
       "temp": true
     }
   ],
-  "text": "Uma unidade aliada à sua escolha ganha Escudo de Feitiço até o fim do turno.",
+  "text": "Uma unidade aliada à sua escolha ganha Escudo Mágico até o fim do turno.",
   "flavor": "Fino como renda, firme como promessa.",
   "tags": []
 }

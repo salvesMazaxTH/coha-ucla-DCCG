@@ -1433,11 +1433,11 @@ func transform_into(c: Card, into_id: String) -> void:
 	c.atk = int(cd["atk"])
 	c.hp = int(cd["hp"])
 	c.shield = c.shield or kws.has("escudo")
-	c.spell_shield = c.spell_shield or kws.has("escudo_feitico")
+	c.magic_shield = c.magic_shield or kws.has("escudo_magico")
 	if kws.has("escudo_supremo"):
 		c.grant_supreme_shield()
 	kws.erase("escudo")
-	kws.erase("escudo_feitico")
+	kws.erase("escudo_magico")
 	kws.erase("escudo_supremo")
 	c.keywords = kws
 	if not c.equipment_grant.is_empty(): # the equipment stays on, so what it gave the unit stays too
@@ -2278,7 +2278,7 @@ func _deal_damage(t: int, amount: int, source: Card) -> int:
 	return _deal_damage_internal(t, amount, source, false)
 
 ## Periodic damage is already an applied status, so its damage bypasses Armadura, Escudo and
-## Escudo de Feitiço. Indestrutível remains the stronger protection and still prevents it.
+## Escudo Mágico. Indestrutível remains the stronger protection and still prevents it.
 func _deal_dot_damage(t: int, amount: int, dot_id: String) -> int:
 	return _deal_damage_internal(t, amount, null, true, dot_id)
 
@@ -2822,9 +2822,9 @@ func _finish_turn() -> void:
 				if not c.keywords.has(kw):
 					c.keywords.append(kw)
 			c.lost_keywords.clear()
-			if c.spell_shield_until_end_turn:
-				c.spell_shield = false
-				c.spell_shield_until_end_turn = false
+			if c.magic_shield_until_end_turn:
+				c.magic_shield = false
+				c.magic_shield_until_end_turn = false
 			if c.supreme_shield_expires == "end_turn":
 				c.supreme_shield = false
 				c.supreme_shield_expires = ""
@@ -2912,9 +2912,9 @@ func _start_turn(p: int, draw: bool) -> void:
 		c.sick = false
 		c.temp_armor = 0
 		c.temp_atk_until_next_turn = 0
-		if c.spell_shield_until_next_turn:
-			c.spell_shield = false
-			c.spell_shield_until_next_turn = false
+		if c.magic_shield_until_next_turn:
+			c.magic_shield = false
+			c.magic_shield_until_next_turn = false
 		if c.supreme_shield_expires == "next_turn":
 			c.supreme_shield = false
 			c.supreme_shield_expires = ""

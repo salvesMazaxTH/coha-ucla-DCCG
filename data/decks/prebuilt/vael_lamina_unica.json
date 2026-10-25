@@ -1,6 +1,6 @@
 {
   "name": "Lâmina Única",
-  "description": "All-in em Akane, Vael e Myrra: unidades de 2 de Vida que stickam e vencem cedo com Crítico 4 (Afiar a Lâmina e Hoje Ninguém Erra). Tudo o que não é campeã protege elas: Escudo de Feitiço (Véu Sagrado) e Intercessão contra remoção, Capa de Última Hora, Bênção de Ferro Batido e Acólito do Canto Baixo contra dano e combate, Cortina de Fumaça Barata contra desafios, e Negação de Neraqa para anular qualquer feitiço ou habilidade que mire elas.",
+  "description": "All-in em Akane, Vael e Myrra: unidades de 2 de Vida que stickam e vencem cedo com Crítico 4 (Afiar a Lâmina e Hoje Ninguém Erra). Tudo o que não é campeã protege elas: Escudo Mágico (Véu Sagrado) e Intercessão contra remoção, Capa de Última Hora, Bênção de Ferro Batido e Acólito do Canto Baixo contra dano e combate, Cortina de Fumaça Barata contra desafios, e Negação de Neraqa para anular qualquer feitiço ou habilidade que mire elas.",
   "order": 15,
   "section": "especial",
   "leader": "vael",

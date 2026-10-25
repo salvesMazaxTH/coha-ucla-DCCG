@@ -3,7 +3,7 @@ extends Effect
 ## "fight": the target (first pick) and the card's second pick fight each other.
 ## Each one deals damage equal to its own ATK to the other, at the same time. Armadura, Escudo and
 ## the other damage rules apply as for any damage. The second pick is declared on the effect with
-## "second_target" (e.g. "enemy_unit"); if it is gone or protected by Escudo de Feitiço, nobody fights.
+## "second_target" (e.g. "enemy_unit"); if it is gone or protected by Escudo Mágico, nobody fights.
 
 func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
@@ -13,8 +13,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		return
 	if not game.valid_targets(context.controller, String(raw.get("second_target", "enemy_unit"))).has(second_unit.uid):
 		return
-	# Escudo de Feitiço on the opponent of the fight cancels it, like it cancels any other spell effect
-	if cancelled_by_any_shield(context, second_unit):
+	# Escudo Mágico on the opponent of the fight cancels it: that unit was picked as a target
+	if cancelled_by_any_shield(context, second_unit, true):
 		return
 	game._emit({"type": "fight", "uid": first_unit.uid, "other": second_unit.uid})
 	# both strikes are measured before either lands, so a unit killed by the other still hits back

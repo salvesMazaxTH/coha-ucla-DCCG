@@ -45,7 +45,7 @@ const BURN_COL := Color("#ff7043") ## Queimadura: hot orange-red, distinct from 
 const POISON_COL := Color("#b8e86b") ## Veneno: acid-lime drop over a deep violet medallion
 const BLEED_COL := Color("#e85d75") ## Sangramento: reserved by the same shared badge for the future keyword
 const DOT_BADGE_ENLARGEMENT := 1.75 ## size of the marker medallion (Queimadura/Veneno) vs. the other card badges; big enough to read the count on Leaders, which have no overlay
-const DOOM_COL := Color("#b57bff") ## Condenada: sickly violet, always paired with a skull so it is not confused with the spell-shield lilac
+const DOOM_COL := Color("#b57bff") ## Condenada: sickly violet, always paired with a skull so it is not confused with the magic-shield lilac
 const DEATH_WARD_COL := Color("#72e7ff") ## Baluarte armado: bright cyan so it reads as a persistent ready state
 ## Ice spikes of a frozen card, as [x across the card 0..1, length in base px, half width in base px].
 const FROST_ICICLES := [[0.24, 11.0, 2.6], [0.34, 19.0, 3.2], [0.45, 9.0, 2.2], [0.56, 24.0, 3.6], [0.67, 13.0, 2.6], [0.77, 20.0, 3.2], [0.88, 10.0, 2.4]] ## hang from the top edge
@@ -145,7 +145,7 @@ static var _dissolve: Shader
 static var _banish: Shader
 static var _stealth_shader: Shader
 static var _shield_sparks_shader: Shader
-var _shield_sparks: ColorRect = null ## animated sparks of Escudo de Feitiço / Supremo (see _place_shield_sparks)
+var _shield_sparks: ColorRect = null ## animated sparks of Escudo Mágico / Supremo (see _place_shield_sparks)
 
 ## Keywords that change who can challenge or target whom get an icon medallion on the art (MTG Arena style),
 ## in this order down the left edge, then the right; glyph tint per keyword.
@@ -337,11 +337,11 @@ func prepare_photo_painter(signature: Dictionary, padding: float, slot_height: f
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_process(false)
 
-## Escudo de Feitiço / Escudo Supremo sparks: a small square over the art window, painted by
+## Escudo Mágico / Escudo Supremo sparks: a small square over the art window, painted by
 ## shield_sparks.gdshader. Called from _draw with where the face is drawn, so it follows zoom, shake and pop.
 ## Created the first time a card has one of these shields; hidden (not freed) when the shield is gone.
-func _place_shield_sparks(art: Rect2, face_origin: Vector2, pop: float, s: float, spell_shield: bool, supreme_shield: bool) -> void:
-	if not spell_shield and not supreme_shield:
+func _place_shield_sparks(art: Rect2, face_origin: Vector2, pop: float, s: float, magic_shield: bool, supreme_shield: bool) -> void:
+	if not magic_shield and not supreme_shield:
 		if _shield_sparks != null and _shield_sparks.visible:
 			_shield_sparks.visible = false
 		return
@@ -364,13 +364,13 @@ func _place_shield_sparks(art: Rect2, face_origin: Vector2, pop: float, s: float
 		_shield_sparks.size = sparks_rect.size
 	var sparks_material := _shield_sparks.material as ShaderMaterial
 	sparks_material.set_shader_parameter("base_pixel", s / art.size.x)
-	sparks_material.set_shader_parameter("spell_on", 1.0 if spell_shield else 0.0)
+	sparks_material.set_shader_parameter("spell_on", 1.0 if magic_shield else 0.0)
 	sparks_material.set_shader_parameter("supreme_on", 1.0 if supreme_shield else 0.0)
 	if not _shield_sparks.visible:
 		_shield_sparks.visible = true
 
 ## Rules text as BBCode: trigger names in bold orange, and every keyword name in the text (Voo,
-## Escudo de Feitiço, "Armadura 1"...) in bold yellow, so a card that grants or mentions a keyword
+## Escudo Mágico, "Armadura 1"...) in bold yellow, so a card that grants or mentions a keyword
 ## shows it exactly like the keyword tags do. Use this for any rules text shown in a RichTextLabel.
 static func colorize_rules(body: String, line_px := 28) -> String:
 	body = _colorize_triggers(body, line_px)
@@ -384,7 +384,7 @@ static func colorize_rules(body: String, line_px := 28) -> String:
 static var _keyword_regex: RegEx
 static var _keyword_names_with_value := {}
 
-## [start, end) character ranges of keyword names in `text`. Longest names win ("Escudo de Feitiço"
+## [start, end) character ranges of keyword names in `text`. Longest names win ("Escudo Mágico"
 ## before "Escudo"), and a keyword with a value ("has_value" in cards.json, e.g. Armadura) swallows
 ## the number that follows it ("Armadura 1", "Armadura X").
 static func keyword_ranges(text: String) -> Array:
@@ -820,14 +820,14 @@ func _draw_frame_and_art(look: Dictionary) -> void:
 		for i in 3:
 			draw_arc(sc, art.size.x * 0.46 - i * 3 * s, 0, TAU, 48, Color("#9fe3ff", (0.55 - i * 0.15) * 1.25), 2.5 * s, true) ## ~25% more visible
 		draw_colored_polygon(_art_window, Color("#9fe3ff", 0.15))
-	# spell shield: violet runic ring
-	if inst.get("spell_shield", false):
+	# magic shield: violet runic ring
+	if inst.get("magic_shield", false):
 		var sc := art.get_center()
 		var rr := art.size.x * 0.4
 		for i in 3: ## same weight as the divine shield bubble, only the color differs
 			draw_arc(sc, rr - i * 3 * s, 0, TAU, 48, Color("#c9a8ff", (0.55 - i * 0.15) * 1.25), 2.5 * s, true)
 		draw_colored_polygon(_art_window, Color("#c9a8ff", 0.15))
-	# Escudo Supremo: a golden ring with sparks, so it never reads as a plain Escudo or Escudo de Feitiço
+	# Escudo Supremo: a golden ring with sparks, so it never reads as a plain Escudo or Escudo Mágico
 	if inst.get("supreme_shield", false):
 		var supreme_center := art.get_center()
 		var supreme_radius := art.size.x * 0.43
@@ -841,7 +841,7 @@ func _draw_live_art_overlays(look: Dictionary, pulse: float, face_origin: Vector
 	var art: Rect2 = look["art"]
 
 	# the moving sparks of both rings (shield_sparks.gdshader): the GPU animates them, the card stays still
-	_place_shield_sparks(art, face_origin, pop, s, inst.get("spell_shield", false), inst.get("supreme_shield", false))
+	_place_shield_sparks(art, face_origin, pop, s, inst.get("magic_shield", false), inst.get("supreme_shield", false))
 	if inst.has("frozen"):
 		_draw_frost(art, s)
 	if inst.has("stun_markers"):
@@ -1555,9 +1555,9 @@ func _panel_lines(cd: Dictionary) -> Array:
 		kws.erase("escudo")
 		if inst["shield"]:
 			kws.push_front("escudo")
-	# the live Escudo de Feitiço / Supremo get their own colored tag below, so the printed keyword would repeat it
-	if inst.has("spell_shield"):
-		kws.erase("escudo_feitico")
+	# the live Escudo Mágico / Supremo get their own colored tag below, so the printed keyword would repeat it
+	if inst.has("magic_shield"):
+		kws.erase("escudo_magico")
 	if inst.has("supreme_shield"):
 		kws.erase("escudo_supremo")
 	var out := []
@@ -1582,8 +1582,8 @@ func _panel_lines(cd: Dictionary) -> Array:
 		tags.append(["Congelada", FROST])
 	if inst.has("stun_markers"):
 		tags.append(["%s %d" % ["Atordoada", int(inst["stun_markers"])], STUN_COL.lightened(0.2)])
-	if inst.get("spell_shield", false):
-		tags.append([CardDB.keyword("escudo_feitico")["name"], Color("#c9a8ff")])
+	if inst.get("magic_shield", false):
+		tags.append([CardDB.keyword("escudo_magico")["name"], Color("#c9a8ff")])
 	if inst.get("supreme_shield", false):
 		tags.append([CardDB.keyword("escudo_supremo")["name"], Color("#ffd86b")])
 	for kw in kws:
@@ -2133,7 +2133,7 @@ func _wrapped_text(font: Font, t: String, box: Rect2, max_fs: float, min_fs: flo
 		lines = _wrap_words(font, t, fs, box.size.x)
 	var lh := fs * 1.08
 	var y := box.get_center().y - (lines.size() - 1) * lh / 2.0 + fs * 0.34
-	# keyword names are found in the whole text (so "Escudo de Feitiço" split across two lines is
+	# keyword names are found in the whole text (so "Escudo Mágico" split across two lines is
 	# still found), then cut per line; if the wrap changed the spacing, search each line on its own
 	var whole_ranges := keyword_ranges(t)
 	var wrap_kept_text := " ".join(lines) == t

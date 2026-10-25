@@ -262,7 +262,7 @@ static func _overflow_to_leader(g: GameState, level: int, path: Array, is_grande
 	var total := 0
 	var damage_now := level
 	for unit: Card in path:
-		if not unit.spell_shield and not unit.shield:
+		if (unit != path[0] or not unit.magic_shield) and not unit.shield: # only the aimed hit is stopped by Escudo Mágico
 			total += maxi(0, damage_now - g.hp_left(unit))
 		damage_now += 1
 	return total

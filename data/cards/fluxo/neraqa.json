@@ -19,13 +19,13 @@
       "action": "buff",
       "target": "other_ally_unit",
       "keywords": [
-        "escudo_feitico"
+        "escudo_magico"
       ],
       "atk": 1,
       "hp": 1
     }
   ],
-  "text": "Ao Entrar: você pode escolher outra unidade aliada; ela recebe Escudo de Feitiço e +1/+1 permanente.",
+  "text": "Ao Entrar: você pode escolher outra unidade aliada; ela recebe Escudo Mágico e +1/+1 permanente.",
   "flavor": "Quebra sobre eles, e volta à calma.",
   "tags": []
 }

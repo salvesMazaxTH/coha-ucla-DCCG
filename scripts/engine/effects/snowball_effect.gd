@@ -57,12 +57,12 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	# the whole path is decided before any damage, so units dying along the way don't change it
 	var bounce_path := _bounce_path(game, first_unit)
 	var damage_now := start_damage
-	_hit(context, first_unit, damage_now)
+	_hit(context, first_unit, damage_now, true)
 	for next_unit: Card in bounce_path:
 		damage_now += 1
 		# a unit that left the board mid-cast (e.g. died to a death trigger) is skipped but still counts
 		if game.find_unit(next_unit.uid) != null:
-			_hit(context, next_unit, damage_now)
+			_hit(context, next_unit, damage_now, false)
 
 	# the future Bolas de Neve start where this one stopped
 	game.set_snowball_level(caster, maxi(int(game.players[caster]["snowball"]), damage_now))
@@ -85,10 +85,11 @@ func _bounce_path(game: GameState, first_unit: Card) -> Array:
 	return left_side if game.rng.randi_range(0, 1) == 0 else right_side
 
 ## One hit. With "overflow_to_leader" it also sends the excess over the unit's remaining life to its owner's Leader.
-func _hit(context: EffectContext, unit: Card, damage_amount: int) -> void:
+## aimed_by_choice: true for the unit the Bola was thrown at, false for the bounces (they aren't aimed).
+func _hit(context: EffectContext, unit: Card, damage_amount: int, aimed_by_choice: bool) -> void:
 	var game := context.game
-	# Escudo de Feitiço of an enemy unit cancels the hit (and breaks)
-	if cancelled_by_any_shield(context, unit):
+	# Escudo Mágico cancels only the hit on the unit the Bola was aimed at (and breaks); the bounces pass through it
+	if cancelled_by_any_shield(context, unit, aimed_by_choice):
 		return
 	var life_before := unit.hp_left()
 	var dealt := game._deal_damage(unit.uid, damage_amount, null)

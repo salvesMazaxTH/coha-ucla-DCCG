@@ -2,7 +2,7 @@ class_name StripEffect
 extends Effect
 ## Takes protections away from the target unit, told apart by `action`:
 ## "strip_defenses": the unit loses its Escudo and all of its Armadura (printed, gained, temporary) for good (Furador de Casca).
-##   The Escudo de Feitiço is a different protection and stays.
+##   The Escudo Mágico is a different protection and stays.
 ## "suppress_keyword": the unit loses the keyword named in "keyword" until the end of this turn, then gets it back
 ##   (Saltador de Cerca takes Provocação away so it can be walked past this turn).
 

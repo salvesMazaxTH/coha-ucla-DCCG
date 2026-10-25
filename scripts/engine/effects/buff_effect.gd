@@ -4,8 +4,8 @@ extends Effect
 ## only until end of turn). "armor": N adds Armadura permanently (stacks with what it already has);
 ## "armor_temp": N is the same until its owner's next turn starts. With "temp": true "armor" also lasts only until end of turn. "atk_temp": N does that for Ataque.
 ## "armor_min": N raises the unit's Armadura to N when it is lower (nothing happens when it already has N or more).
-## "spell_shield_temp": true gives Escudo de Feitiço only until its owner's next turn starts (Tyren; a unit that already
-## has a permanent Escudo de Feitiço keeps it as it is).
+## "magic_shield_temp": true gives Escudo Mágico only until its owner's next turn starts (Tyren; a unit that already
+## has a permanent Escudo Mágico keeps it as it is).
 ## "supreme_shield_until": "next_turn" gives Escudo Supremo until its owner's next turn starts. The "escudo_supremo" keyword
 ## gives it for good, or only until the end of the turn with "temp": true. A Supremo that is already there is never made shorter.
 ## "per": "momentum_left" multiplies atk/hp by the Momentum the controller still has
@@ -18,7 +18,7 @@ extends Effect
 ## "bonus_if_card": {"card": id, "atk": N, "hp": N}: when the target is that card, it also gains this permanently (Myrra -> Vael).
 ## "bonus_if_species": {"species": [...], "atk": N, "hp": N}: when the target has any of these species, it also gains this permanently (Consagração).
 ## "only_species": [...]: the buff only lands on targets that have at least one of these species; any other target is left
-## untouched (Mefi'Urdim gives Escudo de Feitiço only to his divindades, celestiais and anjos).
+## untouched (Mefi'Urdim gives Escudo Mágico only to his divindades, celestiais and anjos).
 ## "copy_atk": "highest_ally": the unit takes the Ataque of the OTHER allied unit with the highest Ataque (nothing happens when it
 ## already has as much). With "temp": true it lasts until the end of the turn (Nerithia, Ao Desafiar). Ignores atk/hp.
 ## "copy_atk_min_gain": N (with copy_atk) is a pity: the copy always gives at least +N Ataque, even when no ally has more
@@ -31,7 +31,7 @@ var health := 0
 var armor := 0
 var temporary_armor := 0
 var minimum_armor := 0
-var temporary_spell_shield := false
+var temporary_magic_shield := false
 var supreme_shield_until := "" ## "next_turn" or "end_turn": a timed Escudo Supremo ("" = none asked for)
 var temporary_attack_until_next_turn := 0
 var temporary_health_until_next_turn := 0
@@ -68,7 +68,7 @@ func _read_parameters(data: Dictionary) -> void:
 	armor = int(data.get("armor", 0))
 	temporary_armor = int(data.get("armor_temp", 0))
 	minimum_armor = int(data.get("armor_min", 0))
-	temporary_spell_shield = bool(data.get("spell_shield_temp", false))
+	temporary_magic_shield = bool(data.get("magic_shield_temp", false))
 	supreme_shield_until = String(data.get("supreme_shield_until", ""))
 	temporary_attack_until_next_turn = int(data.get("atk_temp", 0))
 	temporary_health_until_next_turn = int(data.get("hp_temp_until_next_turn", 0))
@@ -153,9 +153,9 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	if minimum_armor > unit.armor:
 		unit.armor = minimum_armor
 		armor_raised_to = minimum_armor
-	if temporary_spell_shield and not unit.spell_shield:
-		unit.spell_shield = true
-		unit.spell_shield_until_next_turn = true
+	if temporary_magic_shield and not unit.magic_shield:
+		unit.magic_shield = true
+		unit.magic_shield_until_next_turn = true
 	if supreme_shield_until != "":
 		unit.grant_supreme_shield(supreme_shield_until)
 	for keyword in keywords:
@@ -163,16 +163,16 @@ func apply(context: EffectContext, target_uid: int) -> void:
 			unit.shield = true
 		elif keyword == "escudo_supremo":
 			unit.grant_supreme_shield("end_turn" if temporary else "")
-		elif keyword == "escudo_feitico":
-			if not unit.spell_shield:
-				unit.spell_shield = true
+		elif keyword == "escudo_magico":
+			if not unit.magic_shield:
+				unit.magic_shield = true
 				if temporary:
-					unit.spell_shield_until_end_turn = true
+					unit.magic_shield_until_end_turn = true
 			elif not temporary:
 				# A new permanent grant makes the protection survive any temporary grant already present.
-				unit.spell_shield = true
-				unit.spell_shield_until_end_turn = false
-				unit.spell_shield_until_next_turn = false
+				unit.magic_shield = true
+				unit.magic_shield_until_end_turn = false
+				unit.magic_shield_until_next_turn = false
 		elif not unit.keywords.has(keyword):
 			unit.keywords.append(keyword)
 			if temporary:

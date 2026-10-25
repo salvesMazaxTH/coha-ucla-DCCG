@@ -233,31 +233,31 @@
     },
     "imunidade_furia": {
       "name": "Imunidade contra Fúria",
-      "text": "O dano de combate de unidades de Fúria do oponente é sempre 0, e os feitiços, habilidades e efeitos de Fúria do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
+      "text": "O dano de combate de unidades de Fúria do oponente é sempre 0, e os feitiços, habilidades e efeitos de Fúria do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo Mágico continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
     },
     "imunidade_fluxo": {
       "name": "Imunidade contra Fluxo",
-      "text": "O dano de combate de unidades de Fluxo do oponente é sempre 0, e os feitiços, habilidades e efeitos de Fluxo do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
+      "text": "O dano de combate de unidades de Fluxo do oponente é sempre 0, e os feitiços, habilidades e efeitos de Fluxo do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo Mágico continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
     },
     "imunidade_natureza": {
       "name": "Imunidade contra Natureza",
-      "text": "O dano de combate de unidades de Natureza do oponente é sempre 0, e os feitiços, habilidades e efeitos de Natureza do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
+      "text": "O dano de combate de unidades de Natureza do oponente é sempre 0, e os feitiços, habilidades e efeitos de Natureza do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo Mágico continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
     },
     "imunidade_montanha": {
       "name": "Imunidade contra Montanha",
-      "text": "O dano de combate de unidades de Montanha do oponente é sempre 0, e os feitiços, habilidades e efeitos de Montanha do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
+      "text": "O dano de combate de unidades de Montanha do oponente é sempre 0, e os feitiços, habilidades e efeitos de Montanha do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo Mágico continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
     },
     "imunidade_tormenta": {
       "name": "Imunidade contra Tormenta",
-      "text": "O dano de combate de unidades de Tormenta do oponente é sempre 0, e os feitiços, habilidades e efeitos de Tormenta do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
+      "text": "O dano de combate de unidades de Tormenta do oponente é sempre 0, e os feitiços, habilidades e efeitos de Tormenta do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo Mágico continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
     },
     "imunidade_trevas": {
       "name": "Imunidade contra Trevas",
-      "text": "O dano de combate de unidades de Trevas do oponente é sempre 0, e os feitiços, habilidades e efeitos de Trevas do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
+      "text": "O dano de combate de unidades de Trevas do oponente é sempre 0, e os feitiços, habilidades e efeitos de Trevas do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo Mágico continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
     },
     "imunidade_devocao": {
       "name": "Imunidade contra Devoção",
-      "text": "O dano de combate de unidades de Devoção do oponente é sempre 0, e os feitiços, habilidades e efeitos de Devoção do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo de Feitiço continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
+      "text": "O dano de combate de unidades de Devoção do oponente é sempre 0, e os feitiços, habilidades e efeitos de Devoção do oponente que a escolhem como alvo são ignorados. Nada é gasto (Escudo e Escudo Mágico continuam). Efeitos sem alvo ou em área ainda a afetam, e cartas do próprio dono ou de outros domínios também."
     },
     "pacifista": {
       "name": "Pacifista",
@@ -283,9 +283,9 @@
       "name": "Escudo",
       "text": "Anula completamente a próxima instância de dano que receberia."
     },
-    "escudo_feitico": {
-      "name": "Escudo de Feitiço",
-      "text": "Anula, uma vez, o próximo feitiço ou Habilidade de Líder inimigo que a atinja (a carta inteira, nessa unidade). Efeitos de unidades e artefatos não o gastam. Depois se dissipa."
+    "escudo_magico": {
+      "name": "Escudo Mágico",
+      "text": "Um Inalcançável temporário: o primeiro efeito do oponente que escolhe esta unidade como alvo não faz nada a ela e só quebra o escudo. Efeitos em área, aleatórios ou sem alvo passam através dele sem quebrá-lo."
     },
     "escudo_supremo": {
       "name": "Escudo Supremo",
@@ -321,15 +321,15 @@
     },
     "queimadura": {
       "name": "Queimadura",
-      "text": "Marcadores de Queimadura: no início do turno do controlador, esta unidade sofre dano igual à quantidade de marcadores nela e depois remove esses marcadores. Esse dano ignora Armadura, Escudo e Escudo de Feitiço; Indestrutível ainda o impede. Unidades de Fogo não recebem Queimadura, a menos que um efeito diga que ignora imunidade; Líderes não têm essa imunidade."
+      "text": "Marcadores de Queimadura: no início do turno do controlador, esta unidade sofre dano igual à quantidade de marcadores nela e depois remove esses marcadores. Esse dano ignora Armadura, Escudo e Escudo Mágico; Indestrutível ainda o impede. Unidades de Fogo não recebem Queimadura, a menos que um efeito diga que ignora imunidade; Líderes não têm essa imunidade."
     },
     "veneno": {
       "name": "Veneno",
-      "text": "Marcadores de Veneno: no início do turno do controlador, cada marcador causa 2 de dano a esta unidade. Depois, remove metade dos marcadores, arredondada para cima. Esse dano ignora Armadura, Escudo e Escudo de Feitiço; Indestrutível ainda o impede. Unidades de Veneno ou de Metal não recebem Veneno, a menos que um efeito diga que ignora imunidade; Líderes não têm essa imunidade."
+      "text": "Marcadores de Veneno: no início do turno do controlador, cada marcador causa 2 de dano a esta unidade. Depois, remove metade dos marcadores, arredondada para cima. Esse dano ignora Armadura, Escudo e Escudo Mágico; Indestrutível ainda o impede. Unidades de Veneno ou de Metal não recebem Veneno, a menos que um efeito diga que ignora imunidade; Líderes não têm essa imunidade."
     },
     "sangramento": {
       "name": "Sangramento",
-      "text": "Marcadores de Sangramento: no início do turno do controlador, esta unidade sofre dano igual à quantidade de marcadores mais um bônus pela Vida máxima: +0 com 1–5, +1 com 6–9, +2 com 10–13 e +1 adicional a cada 4 de Vida acima de 10. Depois remove todos os marcadores. Esse dano ignora Armadura, Escudo e Escudo de Feitiço; Indestrutível ainda o impede."
+      "text": "Marcadores de Sangramento: no início do turno do controlador, esta unidade sofre dano igual à quantidade de marcadores mais um bônus pela Vida máxima: +0 com 1–5, +1 com 6–9, +2 com 10–13 e +1 adicional a cada 4 de Vida acima de 10. Depois remove todos os marcadores. Esse dano ignora Armadura, Escudo e Escudo Mágico; Indestrutível ainda o impede."
     },
     "armadura": {
       "name": "Armadura",

@@ -37,9 +37,9 @@ var armor := 0 ## Armadura: every damage instance is reduced by this much (stack
 var critico := 0 ## Crítico level 0-4 (0 = none): each combat blow has level x 25% chance to be a critical hit
 var temp_critico := 0 ## extra Crítico levels that last until the end of the turn
 var attacks_made := 0 ## attacks declared this turn (Ataque Duplo lets a unit attack twice before it is spent)
-var spell_shield := false
-var spell_shield_until_next_turn := false ## the Escudo de Feitiço was granted only until its owner's next turn starts (Tyren)
-var spell_shield_until_end_turn := false ## the Escudo de Feitiço was granted with temp:true and expires at the current turn's end
+var magic_shield := false
+var magic_shield_until_next_turn := false ## the Escudo Mágico was granted only until its owner's next turn starts (Tyren)
+var magic_shield_until_end_turn := false ## the Escudo Mágico was granted with temp:true and expires at the current turn's end
 const SUPREME_SHIELD_LENGTH := {"end_turn": 1, "next_turn": 2, "": 3} ## how long each expiry lasts, to keep the longest
 
 var supreme_shield := false ## Escudo Supremo: one charge that absorbs absolutely anything aimed at this card (a free-standing artifact can hold it too)
@@ -121,17 +121,17 @@ func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:
 	temp_armor = 0
 	turn_armor = 0
 	temp_atk_until_next_turn = 0
-	spell_shield_until_next_turn = false
-	spell_shield_until_end_turn = false
+	magic_shield_until_next_turn = false
+	magic_shield_until_end_turn = false
 	supreme_shield = kws.has("escudo_supremo")
 	supreme_shield_expires = ""
 	critico = int(cd.get("critico", 0))
 	temp_critico = 0
 	attacks_made = 0
 	shield = kws.has("escudo")
-	spell_shield = kws.has("escudo_feitico")
+	magic_shield = kws.has("escudo_magico")
 	kws.erase("escudo")
-	kws.erase("escudo_feitico")
+	kws.erase("escudo_magico")
 	kws.erase("escudo_supremo")
 	keywords = kws
 	temp_keywords = []
@@ -194,9 +194,9 @@ func silence() -> void:
 	keywords_until_next_turn = []
 	lost_keywords = [] # nothing left to give back
 	shield = false
-	spell_shield = false
-	spell_shield_until_next_turn = false
-	spell_shield_until_end_turn = false
+	magic_shield = false
+	magic_shield_until_next_turn = false
+	magic_shield_until_end_turn = false
 	supreme_shield = false
 	supreme_shield_expires = ""
 	# keyword numbers: Rapidez and Crítico are keyword-only; of the Armadura only the printed part goes
@@ -229,8 +229,8 @@ func grant_supreme_shield(expires := "") -> void:
 func has_kw(kw: String) -> bool:
 	if kw == "escudo":
 		return shield
-	if kw == "escudo_feitico":
-		return spell_shield
+	if kw == "escudo_magico":
+		return magic_shield
 	if kw == "escudo_supremo":
 		return supreme_shield
 	if kw == "inerte":
@@ -294,7 +294,7 @@ func to_dict() -> Dictionary:
 	d.merge({
 		"owner": owner, "incarnation": incarnation, "atk": atk, "hp": hp, "damage": damage,
 		"temp_atk": temp_atk, "keywords": keywords.duplicate(), "temp_keywords": temp_keywords.duplicate(),
-		"shield": shield, "spell_shield": spell_shield, "exhausted": exhausted, "sick": sick,
+		"shield": shield, "magic_shield": magic_shield, "exhausted": exhausted, "sick": sick,
 	})
 	if not over.is_empty():
 		d["over"] = over.duplicate(true)
@@ -306,10 +306,10 @@ func to_dict() -> Dictionary:
 		d["turn_armor"] = turn_armor
 	if temp_atk_until_next_turn > 0:
 		d["temp_atk_until_next_turn"] = temp_atk_until_next_turn
-	if spell_shield_until_next_turn:
-		d["spell_shield_until_next_turn"] = true
-	if spell_shield_until_end_turn:
-		d["spell_shield_until_end_turn"] = true
+	if magic_shield_until_next_turn:
+		d["magic_shield_until_next_turn"] = true
+	if magic_shield_until_end_turn:
+		d["magic_shield_until_end_turn"] = true
 	if not keywords_until_next_turn.is_empty():
 		d["keywords_until_next_turn"] = keywords_until_next_turn.duplicate()
 	if not lost_keywords.is_empty():
@@ -396,8 +396,8 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.temp_armor = int(d.get("temp_armor", 0))
 	c.turn_armor = int(d.get("turn_armor", 0))
 	c.temp_atk_until_next_turn = int(d.get("temp_atk_until_next_turn", 0))
-	c.spell_shield_until_next_turn = bool(d.get("spell_shield_until_next_turn", false))
-	c.spell_shield_until_end_turn = bool(d.get("spell_shield_until_end_turn", false))
+	c.magic_shield_until_next_turn = bool(d.get("magic_shield_until_next_turn", false))
+	c.magic_shield_until_end_turn = bool(d.get("magic_shield_until_end_turn", false))
 	c.keywords_until_next_turn = d.get("keywords_until_next_turn", [])
 	c.lost_keywords = d.get("lost_keywords", [])
 	c.temp_hp = int(d.get("temp_hp", 0))
@@ -407,7 +407,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.temp_critico = int(d.get("temp_critico", 0))
 	c.attacks_made = int(d.get("attacks_made", 0))
 	c.shield = bool(d["shield"])
-	c.spell_shield = bool(d["spell_shield"])
+	c.magic_shield = bool(d["magic_shield"])
 	c.exhausted = bool(d["exhausted"])
 	c.sick = bool(d["sick"])
 	c.has_bonus = d.has("bonus_atk")

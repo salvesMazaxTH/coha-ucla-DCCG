@@ -13,11 +13,11 @@
       "action": "buff",
       "target": "ally_unit",
       "keywords": [
-        "escudo_feitico"
+        "escudo_magico"
       ]
     }
   ],
-  "text": "Concede Escudo de Feitiço a uma unidade aliada à sua escolha.",
+  "text": "Concede Escudo Mágico a uma unidade aliada à sua escolha.",
   "flavor": "",
   "tags": []
 }

@@ -102,8 +102,8 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 		glossary_keywords.append("condenada") # live marker: the enlarged view explains it
 	if instance.get("shield", false) and not glossary_keywords.has("escudo"):
 		glossary_keywords.append("escudo") # live protection: it is visible as a tag, so explain it in the overlay
-	if instance.get("spell_shield", false) and not glossary_keywords.has("escudo_feitico"):
-		glossary_keywords.append("escudo_feitico") # live protection: it is visible as a tag, so explain it in the overlay
+	if instance.get("magic_shield", false) and not glossary_keywords.has("escudo_magico"):
+		glossary_keywords.append("escudo_magico") # live protection: it is visible as a tag, so explain it in the overlay
 	if instance.get("supreme_shield", false) and not glossary_keywords.has("escudo_supremo"):
 		glossary_keywords.append("escudo_supremo") # live protection (can be granted for a while): explain it in the overlay
 	for keyword_id in mentioned_keywords(String(cd.get("text", "")) + text_suffix):
@@ -150,7 +150,7 @@ static func mentioned_keywords(text: String) -> Array:
 		for id in keywords:
 			var name := String(keywords[id]["name"])
 			# "Armadura 1" starts with "Armadura"; the others need an exact match
-			# (so "Escudo de Feitiço" doesn't also count as "Escudo").
+			# (so "Escudo Mágico" doesn't also count as "Escudo").
 			var with_value: bool = keywords[id].get("has_value", false) and mentioned.begins_with(name + " ")
 			if mentioned == name or with_value:
 				mentions.append({"id": id, "start": span[0]})

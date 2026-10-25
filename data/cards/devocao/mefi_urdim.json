@@ -38,7 +38,7 @@
         "anjo"
       ],
       "keywords": [
-        "escudo_feitico"
+        "escudo_magico"
       ],
       "cleanse": true
     },
@@ -55,7 +55,7 @@
       "hp": 1
     }
   ],
-  "text": "Ao Entrar: seu Líder recupera 10 de Vida, você invoca o Baluarte Santo e todas as suas unidades Divindade, Celestial ou Anjo ganham Escudo de Feitiço. Seu Líder e essas unidades são purificados (perdem todos os marcadores de Veneno, Queimadura e Sangramento).\nConstante: todas as suas unidades Divindade, Celestial ou Anjo ganham +1/+1.",
+  "text": "Ao Entrar: seu Líder recupera 10 de Vida, você invoca o Baluarte Santo e todas as suas unidades Divindade, Celestial ou Anjo ganham Escudo Mágico. Seu Líder e essas unidades são purificados (perdem todos os marcadores de Veneno, Queimadura e Sangramento).\nConstante: todas as suas unidades Divindade, Celestial ou Anjo ganham +1/+1.",
   "flavor": "O Precursor não luta. Ele é o motivo de ninguém precisar.",
   "tags": []
 }

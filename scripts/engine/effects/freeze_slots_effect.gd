@@ -41,8 +41,8 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 			continue
 		var unit: Card = entry
 		chosen_positions.append(units_on_board.find(unit))
-		# Escudo de Feitiço cancels the effect on that unit and breaks, like any spell effect from the enemy side
-		if cancelled_by_any_shield(context, unit):
+		# the slots are rolled at random, so Escudo Mágico lets it through (only Escudo Supremo stops it)
+		if cancelled_by_any_shield(context, unit, false):
 			continue
 		var freeze := FreezeEffect.new()
 		freeze.ignores_immunity = ignores_immunity

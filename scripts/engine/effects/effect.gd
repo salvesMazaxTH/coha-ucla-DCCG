@@ -81,22 +81,22 @@ func opens_choice() -> bool:
 func open_choice(_context: EffectContext) -> void:
 	pass
 
-## Escudo de Feitiço, the one place that decides it. True when `unit`'s shield cancels this effect.
-## Only effects from the enemy side that come from a spell or a Leader's ability are cancelled; a
-## unit's own effects pass through and the shield stays. The first such effect that hits a shielded
-## unit is cancelled and breaks the shield, and the card's later effects in the same run skip that
-## unit too (the shield cancels the whole card on it). Separate hits of the same effect (Repique
-## Desgovernado) are separate spells: only the first is cancelled.
-func cancelled_by_spell_shield(context: EffectContext, unit: Card) -> bool:
-	if unit.owner == context.controller or not context.comes_from_spell_or_leader_ability():
+## Escudo Mágico, the one place that decides it. True when `unit`'s shield cancels this effect.
+## It works like a temporary Inalcançável: the unit can still be picked as a target, but an effect from the
+## enemy side that AIMS at it (a chosen target, from any source: spell, unit, artifact, Leader ability) does
+## nothing to it and only breaks the shield. Area, random and untargeted effects (aimed_by_choice false) pass
+## through it whole and the shield stays, as do the effects of the unit's own side. Once broken, the card's
+## later aimed effects in the same run skip that unit too (the shield cancels the whole card on it).
+func cancelled_by_magic_shield(context: EffectContext, unit: Card, aimed_by_choice: bool) -> bool:
+	if unit.owner == context.controller or not aimed_by_choice:
 		return false
 	if context.shielded_uids.has(unit.uid):
 		return true
-	if not unit.spell_shield:
+	if not unit.magic_shield:
 		return false
-	unit.spell_shield = false
+	unit.magic_shield = false
 	context.shielded_this_effect.append(unit.uid)
-	context.game._emit({"type": "spell_shield_break", "uid": unit.uid})
+	context.game._emit({"type": "magic_shield_break", "uid": unit.uid})
 	return true
 
 ## True for effects that hurt the card they land on even when they come from its own side (destroy, banish,
@@ -107,7 +107,7 @@ func harms_own_target() -> bool:
 ## Escudo Supremo, the one place that decides it. True when `holder` (a unit or a free-standing artifact) has the
 ## charge and this effect is aimed at it: any effect from the enemy side, whatever its origin (spell, unit, artifact,
 ## Leader ability), or an own-side effect that harms it. The charge is spent, and the card's later effects in the same
-## run skip that holder too. Escudo de Feitiço is tried first, so the stronger shield is kept when the weaker one is enough.
+## run skip that holder too. Escudo Mágico is tried first, so the stronger shield is kept when the weaker one is enough.
 func absorbed_by_supreme_shield(context: EffectContext, holder: Card) -> bool:
 	if not holder.supreme_shield and not context.shielded_uids.has(holder.uid):
 		return false
@@ -119,16 +119,17 @@ func absorbed_by_supreme_shield(context: EffectContext, holder: Card) -> bool:
 	context.shielded_this_effect.append(holder.uid)
 	return true
 
-## Every shield that can stop this effect on `holder`, weakest first.
-func cancelled_by_any_shield(context: EffectContext, holder: Card) -> bool:
-	return cancelled_by_spell_shield(context, holder) or absorbed_by_supreme_shield(context, holder)
+## Every shield that can stop this effect on `holder`, weakest first. aimed_by_choice: the effect lands on
+## `holder` because it was picked as the target (Escudo Mágico only stops those).
+func cancelled_by_any_shield(context: EffectContext, holder: Card, aimed_by_choice: bool) -> bool:
+	return cancelled_by_magic_shield(context, holder, aimed_by_choice) or absorbed_by_supreme_shield(context, holder)
 
 ## Applies the effect to one target. Shields come first (see cancelled_by_any_shield).
 func apply_to(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
 	var hit_unit: Card = game.find_unit(target_uid) if target_uid > 0 else null
 	var held_card: Card = hit_unit if hit_unit != null else (game.find_relic(target_uid) if target_uid > 0 else null)
-	if held_card != null and cancelled_by_any_shield(context, held_card):
+	if held_card != null and cancelled_by_any_shield(context, held_card, target.needs_choice()):
 		return
 	# Imunidade contra <essência>: a card of that essence from the enemy side has no effect on the unit it AIMS at
 	# (nothing is spent). Untargeted and area effects still reach it, as with Inalcançável.

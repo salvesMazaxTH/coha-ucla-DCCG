@@ -1,6 +1,6 @@
 {
   "name": "Lâmina Voraz",
-  "description": "Aggro de Crítico: Vael barato e com Rapidez, buffs rápidos e Escudo de Feitiço para ele sobreviver e a fúria quando Myrra cai.",
+  "description": "Aggro de Crítico: Vael barato e com Rapidez, buffs rápidos e Escudo Mágico para ele sobreviver e a fúria quando Myrra cai.",
   "order": 10,
   "leader": "vael",
   "cards": {

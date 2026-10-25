@@ -4055,7 +4055,7 @@ func _transform_fx(uid: int, from_id: String, into_id: String, actors: Dictionar
 	_impact(new_view, "Transformou!", color, t + 0.15, false)
 
 ## Câmara de Êxtase cancelling a killing blow: at the moment of impact the Chamber pulses and sends a
-## ring of light to the Leader, "Anulado!" floats over the Leader (like a Spell Shield), the Leader
+## ring of light to the Leader, "Anulado!" floats over the Leader (like a Magic Shield), the Leader
 ## takes no damage and does not flinch, then the spent Chamber holds a beat and dissolves slowly.
 ## `ward` is a ghost of the Chamber (it is already off the table), `leader` the Leader's view.
 const WARD_FADE_DELAY := 0.55
@@ -4928,7 +4928,7 @@ func _ring_line(radius: float, width: float, col: Color) -> Line2D:
 ## A summon has its own fuchsia, so a card appearing never reads as a stat bonus (lime).
 func _bolt_color(e: Dictionary) -> Color:
 	match String(e["type"]):
-		"damage", "shield_break", "spell_shield_break", "supreme_shield_break":
+		"damage", "shield_break", "magic_shield_break", "supreme_shield_break":
 			return Color("#ff5a2e")
 		"heal":
 			return Color("#5dff8a")
@@ -6283,7 +6283,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 		elif et != "leader_guard":
 			fatigue_pending = false
 		# effects of a trigger fly out of their source as a bolt and land when it arrives
-		if trig_src != 0 and not is_fatigue_hit and et in ["damage", "heal", "shield_break", "buff", "dot", "freeze", "exhaust", "stun", "condemn", "tide_mark", "spell_shield_break", "supreme_shield_break", "summon"] \
+		if trig_src != 0 and not is_fatigue_hit and et in ["damage", "heal", "shield_break", "buff", "dot", "freeze", "exhaust", "stun", "condemn", "tide_mark", "magic_shield_break", "supreme_shield_break", "summon"] \
 				and e["uid"] != trig_src and actors.has(trig_src) and actors.has(e["uid"]):
 			# good effects are carried over as an orb; everything else is fired in the source's own style
 			var hit_style := "boon" if _is_boon_event(e) else _hit_style_of(actors[trig_src])
@@ -6406,15 +6406,15 @@ func _animate(events: Array, old: Dictionary) -> float:
 			"countered":
 				_toast("%s foi anulado!" % ("A habilidade do Líder" if e["kind"] == "ability" else _cname(e["card_id"])))
 				cursor += 0.4
-			"spell_shield_break", "supreme_shield_break", "tide_mark", "tide_draw", "dot", "dot_immune", "freeze", "exhaust", "ready", "stun", "stun_tick", "shrink", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up":
+			"magic_shield_break", "supreme_shield_break", "tide_mark", "tide_draw", "dot", "dot_immune", "freeze", "exhaust", "ready", "stun", "stun_tick", "shrink", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up":
 				if actors.has(e["uid"]):
 					var dot_name: String = {"queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento"}.get(String(e.get("dot", "")), "Marcador")
 					var dot_label := "%s %d" % [dot_name, int(e.get("amount", 0))]
 					if not e.get("cleared", false):
 						dot_label = "%s +%d" % [dot_name, int(e.get("amount", 0))]
-					var lbl: String = {"spell_shield_break": "Anulado!", "supreme_shield_break": "Absorvido!", "tide_mark": "Maré", "tide_draw": "+1 carta", "dot": dot_label, "dot_immune": "Imune!", "freeze": "Congelada!", "exhaust": "Exausta!", "ready": "Desvirou!", "stun": "Atordoada!", "stun_tick": "Recuperando…", "shrink": "Encolhida!", "condemn": "Condenada!", "doom": "Ceifada!", "doom_resisted": "Resistiu!", "thaw": "Descongelou", "dodge": "Esquivou!", "crit": "Crítico!", "crit_negated": "Desdém!", "critico_up": "Crítico %d!" % int(e.get("level", 0))}[e["type"]]
+					var lbl: String = {"magic_shield_break": "Anulado!", "supreme_shield_break": "Absorvido!", "tide_mark": "Maré", "tide_draw": "+1 carta", "dot": dot_label, "dot_immune": "Imune!", "freeze": "Congelada!", "exhaust": "Exausta!", "ready": "Desvirou!", "stun": "Atordoada!", "stun_tick": "Recuperando…", "shrink": "Encolhida!", "condemn": "Condenada!", "doom": "Ceifada!", "doom_resisted": "Resistiu!", "thaw": "Descongelou", "dodge": "Esquivou!", "crit": "Crítico!", "crit_negated": "Desdém!", "critico_up": "Crítico %d!" % int(e.get("level", 0))}[e["type"]]
 					var col: Color = Color("#6fd0ff")
-					if e["type"] == "spell_shield_break":
+					if e["type"] == "magic_shield_break":
 						col = Color("#c9a8ff")
 					elif e["type"] == "supreme_shield_break":
 						col = Color("#ffd86b")
@@ -6798,7 +6798,7 @@ func _chronicle_label(kind: String) -> String:
 		"start_turn": "TURNO", "transform": "TRANSFORMAÇÃO", "summon": "INVOCAÇÃO", "enter_from_deck": "INVOCAÇÃO",
 		"relic_enter": "RELÍQUIA", "revive": "RETORNO", "return_to_hand": "DE VOLTA À MÃO",
 		"card_created": "CRIAÇÃO", "search_take": "BUSCA", "leader_executed": "EXECUÇÃO",
-		"shield_break": "ESCUDO", "spell_shield_break": "ESCUDO", "supreme_shield_break": "ESCUDO", "freeze": "CONGELADA", "thaw": "DEGELO",
+		"shield_break": "ESCUDO", "magic_shield_break": "ESCUDO", "supreme_shield_break": "ESCUDO", "freeze": "CONGELADA", "thaw": "DEGELO",
 		"exhaust": "EXAUSTÃO", "stun": "ATORDOADA", "stun_tick": "ATORDOADA", "shrink": "ENCOLHIMENTO", "dodge": "ESQUIVA", "reflect": "REFLEXO", "condemn": "CONDENADA",
 		"doom": "SENTENÇA", "doom_resisted": "RESISTIU", "fatigue": "FADIGA", "ban": "BANIMENTO",
 		"concede": "DESISTÊNCIA", "enter_tapped": "PROVOCAÇÃO", "death_ward_armed": "BALUARTE",
@@ -6870,7 +6870,7 @@ func _chronicle_visual_for_event(e: Dictionary) -> Dictionary:
 				out["target_card_ids"].append(String(e["target_card_id"]))
 			else:
 				_chronicle_add_target(out, int(e.get("target", 0)))
-		"damage", "heal", "shield_break", "spell_shield_break", "supreme_shield_break", "freeze", "exhaust", "dodge", "dot", "destroy", "death", "condemn", "doom", "doom_resisted", "thaw":
+		"damage", "heal", "shield_break", "magic_shield_break", "supreme_shield_break", "freeze", "exhaust", "dodge", "dot", "destroy", "death", "condemn", "doom", "doom_resisted", "thaw":
 			out["source_card_id"] = _chronicle_card_id_for_uid(int(e.get("src", 0)))
 			if kind in ["death", "destroy"] and String(e.get("card_id", "")) != "":
 				out["target_card_ids"].append(String(e["card_id"]))
@@ -7084,9 +7084,9 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s foi anulado (alvo inválido)" % (_cname(e["card_id"]) if e["kind"] in ["card", "subito"] else "Habilidade"))
 		"countered":
 			_log("%s anulou %s" % [_pname(e["by"]), _cname(e["card_id"]) if e["kind"] in ["card", "subito"] else "a habilidade de " + _pname(e["player"])])
-		"spell_shield_break":
+		"magic_shield_break":
 			var shielded := g.find_unit(e["uid"])
-			_log("Escudo de Feitiço anulou o efeito" + ("" if shielded == null else " em " + _cname(shielded.card_id)))
+			_log("Escudo Mágico anulou o efeito" + ("" if shielded == null else " em " + _cname(shielded.card_id)))
 		"supreme_shield_break":
 			var supreme_holder: Card = g.find_unit(e["uid"])
 			if supreme_holder == null:
