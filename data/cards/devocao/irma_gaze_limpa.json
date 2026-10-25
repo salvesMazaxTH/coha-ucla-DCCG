@@ -1,0 +1,25 @@
+{
+  "name": "Irmã Gaze-Limpa",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["humano"],
+  "essence": "devocao",
+  "element": "luz",
+  "art": "devocao/irma_gaze_limpa.webp",
+  "cost": 4,
+  "atk": 2,
+  "hp": 5,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "heal_unit",
+      "target": "all_ally_units",
+      "amount": 2,
+      "cleanse": true
+    }
+  ],
+  "text": "Ao Entrar: todas as suas unidades recuperam 2 de Vida e são purificadas (perdem Veneno, Queimadura e Sangramento).",
+  "flavor": "Cheira a álcool e a sermão, e funciona com os dois.",
+  "tags": []
+}

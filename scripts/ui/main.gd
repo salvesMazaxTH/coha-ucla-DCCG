@@ -2516,6 +2516,8 @@ func _process(dt: float) -> void:
 
 func _hint() -> String:
 	if g.phase == "search":
+		if g.pending_search.get("summon_from", false):
+			return "Escolha uma carta para invocar de graça, ou não invoque nenhuma."
 		if g.pending_search.get("hand_summon", false):
 			return "Escolha um campeão da sua mão para entrar em campo de graça."
 		return "Escolha uma carta da sua mão para descartar." if g.pending_search.get("discard_hand", false) else "Escolha uma das cartas reveladas."
@@ -3721,7 +3723,8 @@ func _render_search_reveal() -> void:
 	# the options of a deck search are shown only to the searcher; the opponent just sees that a search is happening
 	var deck_search: bool = g.pending_search.get("deck_search", false)
 	var secret_search := deck_search and not _my_input()
-	var title := "CAMPEÃO DA MÃO" if hand_summon else "DESCARTAR DA MÃO" if discard_hand else "CEMITÉRIO" if g.pending_search.get("grave", false) else ("TOPO DO DECK" if look else "BUSCA NO DECK")
+	var summoning: bool = g.pending_search.get("summon_from", false) # "summon_from": a free summon from the deck, hand or graveyard
+	var title := "INVOCAÇÃO GRATUITA" if summoning else "CAMPEÃO DA MÃO" if hand_summon else "DESCARTAR DA MÃO" if discard_hand else "CEMITÉRIO" if g.pending_search.get("grave", false) else ("TOPO DO DECK" if look else "BUSCA NO DECK")
 	var search_signature: int = g.pending_search.hash()
 	# the opponent's choice starts folded: there is nothing to do in it, and the table is what matters
 	var opponent_choice_is_folded := not _my_input() and search_opened_signature != search_signature
@@ -3747,6 +3750,12 @@ func _render_search_reveal() -> void:
 		sub = "%s escolhe uma carta da mão para descartar" % _pname(owner)
 	elif look:
 		sub = "%s está olhando as %d cartas do topo do deck" % [_pname(owner), g.pending_search["cards"].size()]
+	if summoning:
+		sub = "Você pode invocar uma destas cartas de graça" if _my_input() else "%s está escolhendo uma carta para invocar de graça" % _pname(owner)
+		if g.pending_search.has("looked_cards") and _my_input():
+			sub = "Você revelou estas cartas do topo do deck, na ordem; a que brilha pode ser invocada de graça"
+		elif g.pending_search.has("looked_cards"):
+			sub = "%s está revelando as cartas do topo do deck" % _pname(owner)
 	box.add_child(_label(sub, 20, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
 	var grid := GridContainer.new()
 	var shown_options: Array = [] if secret_search else g.pending_search["cards"]
@@ -3791,14 +3800,17 @@ func _render_search_reveal() -> void:
 		if can_pick:
 			cv.left_clicked.connect(func(_v): _on_search_choice(card_uid))
 		grid.add_child(cv)
-	var hint := "Clique em um campeão para colocá-lo em campo sem pagar o custo, ou escolha não colocar nenhum." if hand_summon else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else "Escolha 1 para a mão; as outras vão para o fundo do deck." if look else "Clique em uma carta que brilha para adicioná-la à sua mão, ou escolha não pegar nenhuma; as outras cartas olhadas vão para o fundo do deck." if g.pending_search.has("to_bottom") else "Clique em uma carta que brilha para adicioná-la à sua mão e embaralhar o deck, ou escolha não pegar nenhuma."
+	var summon_hint := "Clique na carta que brilha para invocá-la de graça, ou escolha não invocar nenhuma."
+	if g.pending_search.has("looked_cards") and g.pending_search.get("leftover", "bottom") == "bottom":
+		summon_hint += " As outras cartas reveladas vão para o fundo do deck."
+	var hint := summon_hint if summoning else "Clique em um campeão para colocá-lo em campo sem pagar o custo, ou escolha não colocar nenhum." if hand_summon else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else "Escolha 1 para a mão; as outras vão para o fundo do deck." if look else "Clique em uma carta que brilha para adicioná-la à sua mão, ou escolha não pegar nenhuma; as outras cartas olhadas vão para o fundo do deck." if g.pending_search.has("to_bottom") else "Clique em uma carta que brilha para adicioná-la à sua mão e embaralhar o deck, ou escolha não pegar nenhuma."
 	var footer := _label(hint if _my_input() else "A escolha pertence ao oponente.", 18, SEL if _my_input() else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 	box.add_child(footer)
 	if not secret_search:
 		box.add_child(_label("Botão direito (ou segurar o dedo) em uma carta abre ela em tela cheia.", 15, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
-	if (hand_summon or deck_search) and _my_input():
+	if (hand_summon or deck_search or summoning) and _my_input():
 		# both picks are optional: uid 0 means "take no card" (Dona Gertrudes puts no champion in play)
-		var skip_button := _button("NÃO COLOCAR NENHUM" if hand_summon else "NÃO PEGAR NENHUMA", func(): _on_search_choice(0))
+		var skip_button := _button("NÃO INVOCAR NENHUMA" if summoning else "NÃO COLOCAR NENHUM" if hand_summon else "NÃO PEGAR NENHUMA", func(): _on_search_choice(0))
 		skip_button.custom_minimum_size = Vector2(360, 52)
 		skip_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		box.add_child(skip_button)

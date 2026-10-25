@@ -7,6 +7,7 @@
   "element": "sombra",
   "cost": 3,
   "art": "trevas/tesoureira_troco_certo.webp",
+  "art_crop": {"x": 0.5, "y": 0.24, "zoom": 1.0},
   "atk": 1,
   "hp": 3,
   "keywords": [],

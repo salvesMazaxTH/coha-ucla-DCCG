@@ -1,0 +1,46 @@
+{
+  "name": "Zadquiel, Anjo da Misericórdia",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "anjo"
+  ],
+  "essence": "devocao",
+  "element": "luz",
+  "art": "devocao/zadquiel_anjo_da_misericordia.webp",
+  "cost": 6,
+  "atk": 3,
+  "hp": 7,
+  "keywords": [
+    "voo"
+  ],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "heal_unit",
+      "target": "all_ally_units",
+      "amount": 3
+    },
+    {
+      "trigger": "on_enter",
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount": 3
+    },
+    {
+      "trigger": "on_attack",
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount": 2
+    },
+    {
+      "trigger": "on_death",
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount": 5
+    }
+  ],
+  "text": "Ao Entrar: seu Líder e todas as suas unidades recuperam 3 de Vida. Ao Atacar: seu Líder recupera 2 de Vida. Ao Morrer: seu Líder recupera 5 de Vida.",
+  "flavor": "Onde ele pousa, as feridas lembram como se fecha.",
+  "tags": []
+}

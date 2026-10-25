@@ -1,0 +1,37 @@
+{
+  "name": "Dona Eufrásia Ponto-Firme",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "humano"
+  ],
+  "essence": "devocao",
+  "element": "luz",
+  "art": "devocao/eufrasia_ponto_firme.webp",
+  "cost": 3,
+  "atk": 1,
+  "hp": 4,
+  "keywords": [],
+  "conditional_uses_per_turn": 1,
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount": 2
+    },
+    {
+      "listen": "leader_healed",
+      "scope": "ally",
+      "zones": [
+        "board"
+      ],
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Entrar: seu Líder recupera 2 de Vida. Condicional (1x por turno): quando seu Líder recuperar Vida, você compra 1 carta.",
+  "flavor": "Já costurou um joelho, um sermão e, uma vez, o fim de uma guerra.",
+  "tags": []
+}

@@ -1,0 +1,27 @@
+{
+  "name": "Água Benta de Garrafinha",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "devocao",
+  "element": "luz",
+  "cost": 1,
+  "speed": "lento",
+  "art": "devocao/agua_benta_de_garrafinha.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
+    },
+    {
+      "trigger": "on_play",
+      "action": "heal_unit",
+      "target": "ally_or_own_leader",
+      "amount": 1
+    }
+  ],
+  "text": "Você compra 1 carta. Uma unidade aliada ou o seu Líder, à sua escolha, recupera 1 de Vida.",
+  "flavor": "Meio gole para o corpo, meio gole para a esperança.",
+  "tags": []
+}

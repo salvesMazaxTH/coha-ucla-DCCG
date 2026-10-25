@@ -113,6 +113,8 @@ func _offer_in_sanctuary(p: int, key: String, event: GameEvent) -> void:
 		if effect.scope == "self" or (effect.scope == "ally" and event.player != p) \
 				or (effect.scope == "enemy" and event.player == p) or not _when_matches(effect.when, event):
 			continue
+		if event.amount < effect.min_amount:
+			continue
 		if effect.own_turn_only and game.active != p:
 			continue
 		var context := EffectContext.new(game, p, effect.trigger)
@@ -123,6 +125,8 @@ func _offer_in_sanctuary(p: int, key: String, event: GameEvent) -> void:
 func _offer(card: Card, effect: Effect, event: GameEvent) -> void:
 	if not _scope_matches(effect.scope, card, event) or not _when_matches(effect.when, event):
 		return
+	if event.amount < effect.min_amount:
+		return # e.g. "heals the Leader by at least 2"
 	if effect.own_turn_only and game.active != card.owner:
 		return # only works during its owner's turn
 	if game._chain_stopped():

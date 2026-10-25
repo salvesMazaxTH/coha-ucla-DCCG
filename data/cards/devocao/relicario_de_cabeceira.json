@@ -1,0 +1,22 @@
+{
+  "name": "Relicário de Cabeceira",
+  "type": "artifact",
+  "rarity": "epic",
+  "essence": "devocao",
+  "element": "luz",
+  "cost": 4,
+  "art": "devocao/relicario_de_cabeceira.webp",
+  "effects": [
+    {
+      "listen": "turn_ended",
+      "scope": "ally",
+      "zones": ["relics"],
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount": 2
+    }
+  ],
+  "text": "Condicional: no fim do seu turno, seu Líder recupera 2 de Vida.",
+  "flavor": "Um santo pequeno, de plantão, que nunca tira folga.",
+  "tags": []
+}

@@ -1628,6 +1628,8 @@ func choose_enter_tapped(p: int, tapped: bool) -> Array:
 func choose_search(p: int, card_uid: int) -> Array:
 	if phase != "search" or p != decider():
 		return []
+	if pending_search.get("summon_from", false):
+		return _finish_summon_from(p, card_uid)
 	if card_uid == 0 and pending_search.get("hand_summon", false):
 		# Dona Gertrudes: the pick is optional, so choosing no card puts nothing on the board
 		pending_search.clear()
@@ -2068,40 +2070,9 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 		var deck_size: int = searched.size()
 		searched = searched.slice(maxi(deck_size - int(e["top"]), 0), deck_size)
 	for c in searched:
-		var cd := CardDB.card(c.card_id)
-		if e.get("essence", "") != "" and not CardDB.has_essence(cd, e["essence"]):
+		# the filter keys (essence, element, max_cost, type, card_ids, species, tags, tags_any...) are shared with "summon_from"
+		if not CardFilter.matches(c.card_id, e):
 			continue
-		if e.get("element", "") != "" and not CardDB.has_element(cd, e["element"]):
-			continue
-		if e.has("max_cost") and int(cd.get("cost", 999)) > int(e["max_cost"]):
-			continue
-		if e.has("type") and cd.get("type", "") != e["type"]:
-			continue
-		if e.has("types_any") and not e["types_any"].has(cd.get("type", "")):
-			continue
-		# "card_ids": only these named cards (Recado Urgente ao Barão finds only the Barão)
-		if e.has("card_ids") and not e["card_ids"].has(c.card_id):
-			continue
-		if e.has("species") and not cd.get("species", []).has(e["species"]):
-			continue
-		if e.has("tags"):
-			var card_tags: Array = cd.get("tags", [])
-			var matches_tags := true
-			for tag in e["tags"]:
-				if not card_tags.has(tag):
-					matches_tags = false
-					break
-			if not matches_tags:
-				continue
-		if e.has("tags_any"):
-			# at least ONE of these tags is enough (Chamado da Nevasca finds any piece of the combo)
-			var has_any_tag := false
-			for tag in e["tags_any"]:
-				if CardDB.card(c.card_id).get("tags", []).has(tag):
-					has_any_tag = true
-					break
-			if not has_any_tag:
-				continue
 		# a whole-deck search lists each card once; a top-N look shows every copy, because each one is really there
 		if not top_only:
 			if seen.has(c.card_id):
@@ -2201,6 +2172,194 @@ func _begin_grave_pick(p: int, milled: Array, source_uid: int) -> void:
 	_search_return = phase
 	phase = "search"
 	_emit({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options})
+
+# ---------------------------------------------------------------- "summon_from" (see SummonFromEffect)
+
+## True when the card is a unit that passes the effect's card filter (only units can be summoned).
+func _summon_from_accepts(card_id: String, e: Dictionary) -> bool:
+	return CardDB.card(card_id)["type"] == "unit" and CardFilter.matches(card_id, e)
+
+## True when the effect looks through the WHOLE deck (neither "top" nor "reveal_until"): the deck is shuffled afterwards.
+func _summon_from_scans_whole_deck(e: Dictionary) -> bool:
+	return String(e.get("source", "deck")) == "deck" and int(e.get("top", 0)) <= 0 and not bool(e.get("reveal_until", false))
+
+## The cards a "summon_from" can bring in, and (deck only) every card looked at on the way, topmost first.
+## Returns {"matches": Array[Card], "looked": Array[Card]}.
+func _summon_from_candidates(p: int, e: Dictionary) -> Dictionary:
+	var source := String(e.get("source", "deck"))
+	var matches: Array = []
+	var looked: Array = []
+	if source != "deck":
+		for c: Card in players[p][source]:
+			if _summon_from_accepts(c.card_id, e):
+				matches.append(c)
+		return {"matches": matches, "looked": looked}
+	var window := int(e.get("top", 0))
+	var reveal_until := bool(e.get("reveal_until", false))
+	var whole_deck := _summon_from_scans_whole_deck(e)
+	var seen: Dictionary = {}
+	var deck: Array = players[p]["deck"]
+	# the top of the deck is the back of the array
+	for index in range(deck.size() - 1, -1, -1):
+		if window > 0 and looked.size() >= window:
+			break
+		var c: Card = deck[index]
+		looked.append(c)
+		if not _summon_from_accepts(c.card_id, e):
+			continue
+		# a whole-deck look lists each different card once
+		if whole_deck:
+			if seen.has(c.card_id):
+				continue
+			seen[c.card_id] = true
+		matches.append(c)
+		if reveal_until:
+			break
+	return {"matches": matches, "looked": looked}
+
+## A card the "summon_from" picked leaves its zone and enters the board for free.
+## `ask`: lets the player choose the targets of its Ao Entrar (off for a random pick, which resolves in the middle of an effect).
+func _summon_from_zone(p: int, card: Card, source: String, banish_at_turn_end: bool, ask: bool) -> void:
+	players[p][source].erase(card)
+	if source == "hand":
+		_emit({"type": "hand_summon", "player": p, "uid": card.uid, "card_id": card.card_id})
+	elif source == "graveyard":
+		card.uid = _uid() # back on the board as a new instance
+		_emit({"type": "revive", "player": p, "card_id": card.card_id})
+	else:
+		_emit({"type": "enter_from_deck", "player": p, "uid": card.uid, "card_id": card.card_id})
+	_summon(p, card, false, 0, {}, ask)
+	if banish_at_turn_end:
+		card.banish_at_turn_end = true # set after entering, because enter_board resets it
+
+## The deck cards looked at but not summoned: a shuffled trip to the bottom of the deck (the order of the
+## top is never learned) or to the graveyard. A whole-deck look just reshuffles the deck.
+func _dispose_summon_leftover(p: int, mode: String, looked: Array, summoned: Card, shuffle_after: bool) -> void:
+	var deck: Array = players[p]["deck"]
+	if shuffle_after:
+		_shuffle(deck)
+		_emit({"type": "search_shuffle", "player": p})
+		return
+	var leftover: Array = []
+	for c: Card in looked:
+		if c != summoned:
+			leftover.append(c)
+	if leftover.is_empty():
+		return
+	_shuffle(leftover)
+	if mode == "graveyard":
+		var milled_ids: Array = []
+		for c: Card in leftover:
+			deck.erase(c)
+			players[p]["graveyard"].append(c)
+			_move(c, "graveyard")
+			milled_ids.append(c.card_id)
+		_emit({"type": "mill", "player": p, "cards": milled_ids})
+	else:
+		for c: Card in leftover:
+			deck.erase(c)
+			deck.push_front(c)
+		_emit({"type": "look_bottom", "player": p})
+
+## "summon_from" with "pick": "random": a random matching card enters at once, no choice.
+func summon_from_random(p: int, e: Dictionary, source_uid: int) -> void:
+	if not has_free_slot(p):
+		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
+		return
+	var found := _summon_from_candidates(p, e)
+	var matches: Array = found["matches"]
+	var summoned: Card = null
+	if not matches.is_empty():
+		summoned = matches[rng.randi_range(0, matches.size() - 1)]
+		_summon_from_zone(p, summoned, String(e.get("source", "deck")), bool(e.get("banish_at_turn_end", false)), false)
+	else:
+		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
+	_dispose_summon_leftover(p, String(e.get("leftover", "bottom")), found["looked"], summoned, _summon_from_scans_whole_deck(e))
+
+## "summon_from" with "pick": "choose": offers the matching cards; the controller picks one (or none) and it enters the board.
+## Uses the same choice screen as the searches; the options are private unless they come from the graveyard.
+func _begin_summon_from(p: int, e: Dictionary, source_uid: int) -> void:
+	if phase == "search":
+		return
+	if not has_free_slot(p):
+		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
+		return
+	var source := String(e.get("source", "deck"))
+	var found := _summon_from_candidates(p, e)
+	var matches: Array = found["matches"]
+	var looked: Array = found["looked"]
+	var shuffle_after := _summon_from_scans_whole_deck(e)
+	var leftover_mode := String(e.get("leftover", "bottom"))
+	if matches.is_empty():
+		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
+		# nothing was offered, so nothing was shown: the deck keeps its order (only a public mill or a whole-deck shuffle still happens)
+		if leftover_mode != "bottom" or shuffle_after:
+			_dispose_summon_leftover(p, leftover_mode, looked, null, shuffle_after)
+		return
+	var options: Array = []
+	for c: Card in matches:
+		options.append({"uid": c.uid, "card_id": c.card_id})
+	var looked_uids: Array = []
+	for c: Card in looked:
+		looked_uids.append(c.uid)
+	pending_search = {
+		"player": p, "source_uid": source_uid, "cards": options, "summon_from": true, "source": source,
+		"banish_at_turn_end": bool(e.get("banish_at_turn_end", false)),
+		"leftover": leftover_mode, "leftover_uids": looked_uids, "shuffle_after": shuffle_after,
+	}
+	# the same flags the other pickers use, so the choice screen and the network masking treat the zone's privacy right
+	if source == "hand":
+		pending_search["hand_summon"] = true
+	elif source == "graveyard":
+		pending_search["grave"] = true
+	else:
+		pending_search["deck_search"] = true
+		# a top-N window and a "reveal_until" both show everything that was looked at, topmost first (the unfit cards
+		# dimmed): a card is only sent to the bottom of the deck after the controller has seen it
+		if int(e.get("top", 0)) > 0 or bool(e.get("reveal_until", false)):
+			var looked_cards: Array = []
+			for c: Card in looked:
+				looked_cards.append({"uid": c.uid, "card_id": c.card_id})
+			pending_search["looked"] = looked.size()
+			pending_search["looked_cards"] = looked_cards
+	_search_return = phase
+	phase = "search"
+	_emit({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options, "private": source != "graveyard", "looked": pending_search.get("looked", 0)})
+
+## The controller answered a "summon_from" choice: card_uid 0 summons nothing.
+func _finish_summon_from(p: int, card_uid: int) -> Array:
+	var pending: Dictionary = pending_search.duplicate()
+	var source: String = pending["source"]
+	var summoned: Card = null
+	if card_uid != 0:
+		var offered := false
+		for option in pending["cards"]:
+			if int(option["uid"]) == card_uid:
+				offered = true
+				break
+		if offered:
+			for c: Card in players[p][source]:
+				if c.uid == card_uid:
+					summoned = c
+					break
+		if summoned == null or not has_free_slot(p):
+			return []
+	pending_search.clear()
+	phase = _search_return
+	if summoned != null:
+		_summon_from_zone(p, summoned, source, bool(pending["banish_at_turn_end"]), true)
+	else:
+		_emit({"type": "search_decline", "player": p})
+	var looked: Array = []
+	for c: Card in players[p]["deck"]:
+		if pending["leftover_uids"].has(c.uid):
+			looked.append(c)
+	_dispose_summon_leftover(p, String(pending["leftover"]), looked, summoned, bool(pending["shuffle_after"]))
+	_resolve_stack()
+	_check_state() # resumes the triggers that waited for this choice
+	stack_system().after_search()
+	stack_system().settle()
+	return _flush()
 
 ## Unit cards in p's graveyard a "revive_pick" could bring back (one entry per different card).
 func revive_options(p: int, max_cost := 99) -> Array:

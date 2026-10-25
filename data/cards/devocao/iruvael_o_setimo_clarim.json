@@ -1,0 +1,40 @@
+{
+  "name": "Iruvael, o Sétimo Clarim",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "celestial"
+  ],
+  "essence": "devocao",
+  "element": "luz",
+  "art": "devocao/iruvael_o_setimo_clarim.webp",
+  "cost": 7,
+  "atk": 5,
+  "hp": 8,
+  "keywords": [
+    "voo"
+  ],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "all_enemy_units",
+      "amount": 3
+    },
+    {
+      "trigger": "on_turn_end",
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount": 2
+    },
+    {
+      "trigger": "on_turn_end",
+      "action": "buff",
+      "target": "self",
+      "atk": 1
+    }
+  ],
+  "text": "Ao Entrar: causa 3 de dano a todas as unidades inimigas. No Fim do Turno: seu Líder recupera 2 de Vida e esta unidade ganha +1 de Ataque permanente.",
+  "flavor": "Seis clarins avisaram. O sétimo não avisa.",
+  "tags": []
+}

@@ -27,6 +27,7 @@ var listen := ""
 var scope := "any" ## listen only: self | ally | enemy | any, relative to the card that listens
 var zones: Array = ["board"] ## listen only: where the card must be ("any" = every zone)
 var when: Dictionary = {} ## listen only: facts the event must have, e.g. {"to": "graveyard"}
+var min_amount := 0 ## listen only: the event's amount (healing, damage...) must be at least this much
 
 const LISTEN_PREFIX := "listen_"
 const SCOPES := ["self", "ally", "enemy", "any"]
@@ -52,6 +53,7 @@ func setup(data: Dictionary) -> void:
 		var zone_list: Variant = data.get("zones", ["board"])
 		zones = TriggerBus.ZONES.duplicate() if zone_list is String else zone_list
 		when = data.get("when", {})
+		min_amount = int(data.get("min_amount", 0))
 	_read_parameters(data)
 
 ## Subclasses copy their JSON parameters (amount, atk, keywords...) into fields here.
@@ -129,6 +131,11 @@ func apply_to(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
 	var hit_unit: Card = game.find_unit(target_uid) if target_uid > 0 else null
 	var held_card: Card = hit_unit if hit_unit != null else (game.find_relic(target_uid) if target_uid > 0 else null)
+	# an enemy effect AIMS at this unit (a chosen target): tell the listeners (Sino), even if a shield then stops the effect
+	if hit_unit != null and hit_unit.owner != context.controller and target.needs_choice():
+		var targeted := GameEvent.new("unit_targeted", hit_unit.owner, hit_unit)
+		targeted.other_uid = context.self_uid
+		game.bus().emit(targeted)
 	if held_card != null and cancelled_by_any_shield(context, held_card, target.needs_choice()):
 		return
 	# Imunidade contra <essência>: a card of that essence from the enemy side has no effect on the unit it AIMS at

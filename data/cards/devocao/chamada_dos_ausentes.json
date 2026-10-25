@@ -1,0 +1,25 @@
+{
+  "name": "Chamada dos Ausentes",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "devocao",
+  "element": "luz",
+  "cost": 4,
+  "speed": "lento",
+  "art": "devocao/chamada_dos_ausentes.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "summon_from",
+      "target": "none",
+      "source": "graveyard",
+      "any_of": [
+        { "element": "luz" },
+        { "species_any": ["anjo", "celestial", "divindade"] }
+      ]
+    }
+  ],
+  "text": "Você pode escolher uma unidade de Luz, Anjo, Celestial ou Divindade do seu cemitério; ela entra em campo sem pagar custo.",
+  "flavor": "Quem faltou à missa foi marcado ausente. Quem faltou à vida, também. Só que esta lista tem emenda.",
+  "tags": []
+}

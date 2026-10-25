@@ -1,0 +1,30 @@
+{
+  "name": "Querubina Guarda-Chuva",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["celestial"],
+  "essence": "devocao",
+  "element": "luz",
+  "art": "devocao/querubina_guarda_chuva.webp",
+  "cost": 3,
+  "atk": 2,
+  "hp": 3,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount": 1
+    },
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "other_ally_unit",
+      "keywords": ["escudo_magico"]
+    }
+  ],
+  "text": "Ao Entrar: seu Líder recupera 1 de Vida e você pode escolher outra unidade aliada; ela ganha Escudo Mágico.",
+  "flavor": "Não impede a chuva. Impede todo o resto.",
+  "tags": []
+}

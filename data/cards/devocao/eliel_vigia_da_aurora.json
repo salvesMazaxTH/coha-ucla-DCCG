@@ -1,0 +1,21 @@
+{
+  "name": "Eliel, Vigia da Aurora",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "anjo"
+  ],
+  "essence": "devocao",
+  "element": "luz",
+  "art": "devocao/eliel_vigia_da_aurora.webp",
+  "cost": 2,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [
+    "voo"
+  ],
+  "effects": [],
+  "text": "",
+  "flavor": "Ele vigia a noite inteira para que a aurora nunca chegue sozinha.",
+  "tags": []
+}

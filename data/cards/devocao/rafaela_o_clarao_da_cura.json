@@ -1,0 +1,41 @@
+{
+  "name": "Rafaela, o Clarão da Cura",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "anjo"
+  ],
+  "essence": "devocao",
+  "element": "luz",
+  "art": "devocao/rafaela_o_clarao_da_cura.webp",
+  "cost": 5,
+  "atk": 3,
+  "hp": 5,
+  "keywords": [
+    "voo"
+  ],
+  "effects": [
+    {
+      "listen": "leader_healed",
+      "scope": "ally",
+      "zones": [
+        "board"
+      ],
+      "min_amount": 2,
+      "once_per_turn": true,
+      "action": "summon_from",
+      "target": "none",
+      "source": "deck",
+      "reveal_until": true,
+      "species_any": [
+        "anjo",
+        "celestial"
+      ],
+      "max_cost": 5,
+      "leftover": "bottom"
+    }
+  ],
+  "text": "Condicional (1x por turno): quando seu Líder recupera 2 ou mais de Vida, o deck é revelado até um Anjo ou Celestial de custo 5 ou menos; você pode invocá-lo de graça, e as demais cartas vão para o fundo.",
+  "flavor": "Cada ferida fechada abre uma janela no céu, e quem mora lá desce para ver.",
+  "tags": []
+}

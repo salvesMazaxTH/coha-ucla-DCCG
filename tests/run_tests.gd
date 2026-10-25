@@ -44,6 +44,9 @@ func _init() -> void:
 	_test_cleanse()
 	_test_sagrada_board_control()
 	_test_devocao_epic_trio()
+	_test_summon_from()
+	_test_devocao_healers()
+	_test_devocao_support()
 	_test_eletrica()
 	_test_ignisar()
 	_test_play_slot()
@@ -312,9 +315,12 @@ func _test_devocao_epic_trio() -> void:
 	g.players[0]["leader_hp"] -= 8
 	var hand_before: int = g.players[0]["hand"].size()
 	var nurse := _put(g, 0, "eufrasia_ponto_firme")
+	g._check_state()
 	check(g.players[0]["hand"].size() == hand_before + 1, "Eufrásia: o Ao Entrar cura o Líder e ela mesma compra 1 carta (mão %d -> %d)" % [hand_before, g.players[0]["hand"].size()])
 	g._heal_leader(0, 1)
+	g._check_state()
 	g._heal_leader(0, 1)
+	g._check_state()
 	check(g.players[0]["hand"].size() == hand_before + 1, "Eufrásia: a segunda cura no mesmo turno não compra de novo")
 	check(nurse.atk == 1 and nurse.hp == 4, "Eufrásia: 1/4")
 	# Zadquiel: Ao Entrar cura Líder e aliadas, Ao Atacar cura 2, Ao Morrer cura 5
@@ -337,6 +343,193 @@ func _test_devocao_epic_trio() -> void:
 	g_clarion.end_turn(0)
 	g_clarion._flush()
 	check(g_clarion.find_unit(clarion.uid).atk == atk_before + 1, "Iruvael: ganha +1 de Ataque no Fim do Turno (%d -> %d)" % [atk_before, g_clarion.find_unit(clarion.uid).atk])
+
+## Puts a fresh card on the TOP of p's deck (the top is the end of the array).
+func _stack_on_deck(g: GameState, p: int, card_id: String) -> Card:
+	var card := Card.new(g._uid(), card_id, p, "deck")
+	g.players[p]["deck"].append(card)
+	return card
+
+func _test_summon_from() -> void:
+	# Rafaela: cura do Líder de 2+ revela o deck até o primeiro Anjo/Celestial de custo <= 5
+	var g := _new_game()
+	g.active = 0
+	g.players[0]["deck"].clear()
+	_stack_on_deck(g, 0, "esqueleto_guerreiro")
+	var angel := _stack_on_deck(g, 0, "eliel_vigia_da_aurora")
+	_stack_on_deck(g, 0, "iruvael_o_setimo_clarim") # Anjo, mas custo 7: é pulado
+	_stack_on_deck(g, 0, "esqueleto_guerreiro")
+	_put(g, 0, "rafaela_o_clarao_da_cura")
+	g.players[0]["leader_hp"] -= 8
+	g._heal_leader(0, 1)
+	g._check_state()
+	check(g.phase != "search", "Rafaela: cura de só 1 não dispara (min_amount)")
+	g._heal_leader(0, 2)
+	g._check_state()
+	check(g.phase == "search" and g.pending_search.get("summon_from", false), "Rafaela: cura de 2 abre a escolha de invocação")
+	var offered: Array = g.pending_search["cards"]
+	check(offered.size() == 1 and int(offered[0]["uid"]) == angel.uid, "Rafaela: só o Anjo de custo <= 5 é oferecido (o de custo 7 é pulado)")
+	var shown: Array = g.pending_search["looked_cards"].map(func(option: Dictionary): return String(option["card_id"]))
+	check(shown == ["esqueleto_guerreiro", "iruvael_o_setimo_clarim", "eliel_vigia_da_aurora"], "Rafaela: o dono vê todas as cartas reveladas, na ordem do topo (%s)" % str(shown))
+	check(StateView.snapshot(g, 1)["pending_search"]["looked_cards"].is_empty(), "Rafaela: o oponente não vê as cartas reveladas")
+	g.choose_search(0, angel.uid)
+	g._flush()
+	check(g.phase != "search" and g.find_unit(angel.uid) != null, "Rafaela: o Anjo escolhido entra em campo de graça")
+	var deck: Array = g.players[0]["deck"]
+	check(deck.size() == 3 and deck.back().card_id == "esqueleto_guerreiro", "Rafaela: o que foi revelado e não invocado vai ao fundo; o resto do deck fica por cima")
+	var seen_at_bottom: Array = [deck[0].card_id, deck[1].card_id]
+	seen_at_bottom.sort()
+	check(seen_at_bottom == ["esqueleto_guerreiro", "iruvael_o_setimo_clarim"], "Rafaela: o fundo do deck recebeu as 2 cartas puladas")
+	g._heal_leader(0, 2)
+	g._check_state()
+	check(g.phase != "search", "Rafaela: só 1x por turno")
+	# recusar: nada é invocado e as reveladas também vão ao fundo
+	var g_decline := _new_game()
+	g_decline.active = 0
+	g_decline.players[0]["deck"].clear()
+	var spare := _stack_on_deck(g_decline, 0, "eliel_vigia_da_aurora")
+	_put(g_decline, 0, "rafaela_o_clarao_da_cura")
+	g_decline.players[0]["leader_hp"] -= 8
+	g_decline._heal_leader(0, 3)
+	g_decline._check_state()
+	g_decline.choose_search(0, 0)
+	g_decline._flush()
+	check(g_decline.phase != "search" and g_decline.find_unit(spare.uid) == null, "summon_from: recusar (uid 0) não invoca nada")
+	check(g_decline.players[0]["deck"].size() == 1, "summon_from: a carta recusada continua no deck (fundo)")
+	# sem nenhuma elegível nada é mostrado, então o deck não muda de ordem
+	var g_none := _new_game()
+	g_none.active = 0
+	g_none.players[0]["deck"].clear()
+	var first_card := _stack_on_deck(g_none, 0, "esqueleto_guerreiro")
+	var second_card := _stack_on_deck(g_none, 0, "iruvael_o_setimo_clarim")
+	g_none._begin_summon_from(0, {"source": "deck", "reveal_until": true, "species_any": ["anjo"], "max_cost": 5, "leftover": "bottom"}, 0)
+	check(g_none.phase != "search" and g_none.players[0]["deck"] == [first_card, second_card], "summon_from: sem elegível, nada é mostrado e o deck mantém a ordem")
+	# cemitério e mão, com filtro de custo; e o banimento no fim do turno
+	var g_zones := _new_game()
+	g_zones.active = 0
+	var dead := Card.new(g_zones._uid(), "eliel_vigia_da_aurora", 0, "graveyard")
+	g_zones.players[0]["graveyard"].append(dead)
+	var too_big := Card.new(g_zones._uid(), "iruvael_o_setimo_clarim", 0, "graveyard")
+	g_zones.players[0]["graveyard"].append(too_big)
+	g_zones._begin_summon_from(0, {"source": "graveyard", "max_cost": 3, "banish_at_turn_end": true}, 0)
+	check(g_zones.phase == "search" and g_zones.pending_search["cards"].size() == 1, "summon_from: do cemitério, o filtro de custo deixa 1 opção")
+	g_zones.choose_search(0, dead.uid)
+	g_zones._flush()
+	var revived: Card = null
+	for unit: Card in g_zones.players[0]["board"]:
+		if unit.card_id == "eliel_vigia_da_aurora":
+			revived = unit
+	check(revived != null and g_zones.players[0]["graveyard"].size() == 1, "summon_from: a unidade sai do cemitério e entra em campo")
+	check(revived != null and revived.banish_at_turn_end, "summon_from: banish_at_turn_end marca a unidade")
+	# top: N olha só as N cartas do topo
+	var g_top := _new_game()
+	g_top.active = 0
+	g_top.players[0]["deck"].clear()
+	_stack_on_deck(g_top, 0, "eliel_vigia_da_aurora") # fundo: fora da janela
+	_stack_on_deck(g_top, 0, "esqueleto_guerreiro")
+	_stack_on_deck(g_top, 0, "esqueleto_guerreiro")
+	g_top._begin_summon_from(0, {"source": "deck", "top": 2, "species_any": ["anjo"]}, 0)
+	check(g_top.phase != "search", "summon_from: top 2 não enxerga o Anjo que está a 3 cartas do topo")
+	# pick random: entra sozinha, sem escolha
+	var g_random := _new_game()
+	g_random.active = 0
+	g_random.players[0]["deck"].clear()
+	var lucky := _stack_on_deck(g_random, 0, "eliel_vigia_da_aurora")
+	g_random.summon_from_random(0, {"source": "deck", "reveal_until": true, "species_any": ["anjo"]}, 0)
+	g_random._flush()
+	check(g_random.phase != "search" and g_random.find_unit(lucky.uid) != null, "summon_from: pick random invoca sem abrir escolha")
+
+func _test_devocao_healers() -> void:
+	# Querubina: cura 1 o Líder e protege outra aliada com Escudo Mágico
+	var g := _new_game()
+	g.active = 0
+	var friend := _put(g, 0, "esqueleto_guerreiro")
+	g.players[0]["leader_hp"] -= 4
+	var hp_before: int = g.players[0]["leader_hp"]
+	_put(g, 0, "querubina_guarda_chuva")
+	g._flush()
+	check(g.players[0]["leader_hp"] == hp_before + 1, "Querubina: o Ao Entrar cura 1 o Líder")
+	# Irmã Gaze-Limpa: cura 2 e purifica todas as unidades aliadas
+	var g_nun := _new_game()
+	g_nun.active = 0
+	var poisoned := _put(g_nun, 0, "esqueleto_guerreiro")
+	poisoned.damage = 2
+	_put(g_nun, 0, "irma_gaze_limpa")
+	check(g_nun.find_unit(poisoned.uid).damage == 0, "Irmã Gaze-Limpa: cura 2 de Vida das aliadas")
+	# Água Benta: compra 1 e cura o Líder
+	var g_water := _new_game()
+	g_water.active = 0
+	g_water.players[0]["leader_hp"] -= 4
+	var water := Card.new(g_water._uid(), "agua_benta_de_garrafinha", 0, "hand")
+	g_water.players[0]["hand"].append(water)
+	g_water.players[0]["momentum"] = 10
+	var hand_before: int = g_water.players[0]["hand"].size()
+	g_water.play_card(0, water.uid, 0)
+	g_water._flush()
+	check(g_water.players[0]["hand"].size() == hand_before, "Água Benta: sai da mão (-1) e compra 1 (+1)")
+
+func _test_devocao_support() -> void:
+	# Chamada dos Ausentes: só ressuscita Luz ou Anjo/Celestial/Divindade (a ressurreição fica presa ao arquétipo)
+	var g := _new_game()
+	g.active = 0
+	var celestial := Card.new(g._uid(), "querubina_guarda_chuva", 0, "graveyard") # Luz + Celestial
+	var plain_unit := Card.new(g._uid(), "esqueleto_guerreiro", 0, "graveyard") # nem Luz nem celestial
+	g.players[0]["graveyard"].append(celestial)
+	g.players[0]["graveyard"].append(plain_unit)
+	var call := Card.new(g._uid(), "chamada_dos_ausentes", 0, "hand")
+	g.players[0]["hand"].append(call)
+	g.players[0]["momentum"] = 10
+	g.play_card(0, call.uid, 0)
+	g._flush()
+	g.pass_priority(1)
+	g._flush()
+	check(g.phase == "search" and g.pending_search["cards"].size() == 1 and int(g.pending_search["cards"][0]["uid"]) == celestial.uid, "Chamada dos Ausentes: só a unidade de Luz/celestial é oferecida, a comum não")
+	g.choose_search(0, celestial.uid)
+	g._flush()
+	check(g.find_unit(celestial.uid) != null or g.players[0]["board"].any(func(unit: Card): return unit.card_id == "querubina_guarda_chuva"), "Chamada dos Ausentes: a unidade escolhida volta ao campo")
+	# um Anjo sem o elemento Luz também serve (species_any), e um Divindade
+	check(CardFilter.matches("uriel", {"any_of": [{"element": "luz"}, {"species_any": ["anjo", "celestial", "divindade"]}]}), "any_of: aceita quem passa em qualquer das alternativas")
+	check(not CardFilter.matches("esqueleto_guerreiro", {"any_of": [{"element": "luz"}, {"species_any": ["anjo"]}]}), "any_of: recusa quem não passa em nenhuma")
+	# Relicário de Cabeceira: cura 2 o Líder no fim do turno do dono, não no do oponente
+	var g_relic := _new_game()
+	g_relic.active = 0
+	g_relic.players[0]["relics"].append(Card.new(g_relic._uid(), "relicario_de_cabeceira", 0, "relics"))
+	g_relic.players[0]["leader_hp"] -= 8
+	var leader_before: int = g_relic.players[0]["leader_hp"]
+	g_relic.end_turn(0)
+	g_relic._flush()
+	check(g_relic.players[0]["leader_hp"] == leader_before + 2, "Relicário de Cabeceira: cura 2 o Líder no fim do turno do dono (%d -> %d)" % [leader_before, g_relic.players[0]["leader_hp"]])
+	var leader_mid: int = g_relic.players[0]["leader_hp"]
+	g_relic.end_turn(1)
+	g_relic._flush()
+	check(g_relic.players[0]["leader_hp"] == leader_mid, "Relicário de Cabeceira: não cura no fim do turno do oponente")
+	# Sino de Aviso Prévio: um efeito inimigo que mira a unidade dá Escudo Mágico a ela, 1x por turno
+	_tcard("t_bell_hit", 1, 1, [{"trigger": "on_enter", "action": "damage", "target": "enemy_unit", "amount": 1}])
+	_tcard("t_bell_body", 1, 5, [])
+	_tcard("t_bell_area", 1, 1, [{"trigger": "on_enter", "action": "damage", "target": "all_enemy_units", "amount": 1}])
+	var g_bell := _new_game()
+	_quiet(g_bell)
+	g_bell.active = 1
+	g_bell.players[0]["relics"].append(Card.new(g_bell._uid(), "sino_de_aviso_previo", 0, "relics"))
+	var guarded := _put(g_bell, 0, "t_bell_body")
+	var second_guarded := _put(g_bell, 0, "t_bell_body")
+	g_bell._run_effect_dicts(1, CardDB.card("t_bell_area")["effects"], "on_enter", 0, 0, SPELL_SOURCE)
+	g_bell._check_state()
+	check(not guarded.magic_shield, "Sino: efeito em área não mira ninguém e não dá escudo")
+	g_bell._run_effect_dicts(1, CardDB.card("t_bell_hit")["effects"], "on_enter", guarded.uid, 0, SPELL_SOURCE)
+	g_bell._check_state()
+	check(guarded.magic_shield, "Sino: o efeito inimigo que mira a unidade dá Escudo Mágico a ela")
+	g_bell._run_effect_dicts(1, CardDB.card("t_bell_hit")["effects"], "on_enter", second_guarded.uid, 0, SPELL_SOURCE)
+	g_bell._check_state()
+	check(not second_guarded.magic_shield, "Sino: só 1x por turno")
+	var g_own := _new_game()
+	_quiet(g_own)
+	g_own.active = 0
+	g_own.players[0]["relics"].append(Card.new(g_own._uid(), "sino_de_aviso_previo", 0, "relics"))
+	var own_target := _put(g_own, 0, "t_bell_body")
+	g_own._run_effect_dicts(0, [{"trigger": "on_enter", "action": "buff", "target": "ally_unit", "atk": 1}], "on_enter", own_target.uid, 0, SPELL_SOURCE)
+	g_own._check_state()
+	check(not own_target.magic_shield, "Sino: efeito do próprio dono não conta como ser mirado")
 
 func _test_sagrada_board_control() -> void:
 	# Seymour, o limpador: curas e feitiços Sagrados causam 1 de dano duas vezes,
