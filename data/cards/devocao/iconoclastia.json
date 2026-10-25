@@ -1,0 +1,26 @@
+{
+  "name": "Iconoclastia",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "devocao",
+  "element": "luz",
+  "cost": 4,
+  "speed": "instantaneo",
+  "art": "devocao/iconoclastia.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "destroy_artifact",
+      "target": "enemy_artifact"
+    },
+    {
+      "trigger": "on_play",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
+    }
+  ],
+  "text": "Você pode escolher um artefato inimigo; ele é destruído e você compra 1 carta.",
+  "flavor": "Nenhum ídolo resiste a quem sabe exatamente onde ele racha.",
+  "tags": []
+}

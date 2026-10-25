@@ -1,0 +1,33 @@
+{
+  "name": "Gablúrio, Dragão-Vigário",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["dragao"],
+  "essence": "devocao",
+  "element": "luz",
+  "cost": 6,
+  "atk": 5,
+  "hp": 7,
+  "keywords": ["voo"],
+  "art": "devocao/gabluro_dragao_vigario.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 2
+    },
+    {
+      "listen": "leader_healed",
+      "scope": "ally",
+      "zones": ["board"],
+      "once_per_turn": true,
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Entrar: você compra 2 cartas.\nCondicional (1x por turno): quando seu Líder recupera Vida, você compra 1 carta.",
+  "flavor": "Ele jura que o fogo é só para acender as velas. Ninguém na paróquia tem coragem de conferir.",
+  "tags": []
+}

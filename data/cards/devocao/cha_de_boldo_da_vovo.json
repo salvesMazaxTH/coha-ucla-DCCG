@@ -1,0 +1,23 @@
+{
+  "name": "Chá de Boldo da Vovó",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "devocao",
+  "element": "luz",
+  "cost": 2,
+  "speed": "lento",
+  "art": "devocao/cha_de_boldo_da_vovo.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "atk": 0,
+      "hp": 2,
+      "cleanse": true
+    }
+  ],
+  "text": "Uma unidade aliada à sua escolha é purificada (perde Veneno, Queimadura e Sangramento) e ganha +0/+2 permanente.",
+  "flavor": "Amargo que dói, mas a vovó jura que é bênção.",
+  "tags": []
+}

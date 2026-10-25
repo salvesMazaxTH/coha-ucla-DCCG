@@ -1,0 +1,21 @@
+{
+  "name": "Tia Zefa Não-Passa",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "humano"
+  ],
+  "essence": "devocao",
+  "element": "luz",
+  "cost": 4,
+  "atk": 3,
+  "hp": 5,
+  "keywords": [
+    "provocacao"
+  ],
+  "art": "devocao/tia_zefa_nao_passa.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "Cruzou os braços na porta da igreja e o exército deu meia-volta.",
+  "tags": []
+}

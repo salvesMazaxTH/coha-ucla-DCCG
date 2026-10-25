@@ -1,0 +1,27 @@
+{
+  "name": "Joio e Trigo",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "devocao",
+  "element": "luz",
+  "cost": 6,
+  "speed": "lento",
+  "art": "devocao/joio_e_trigo.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "heal_unit",
+      "target": "all_ally_units",
+      "amount": 3
+    },
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "all_enemy_units",
+      "amount": 3
+    }
+  ],
+  "text": "Causa 3 de dano a todas as unidades inimigas e todas as suas unidades recuperam 3 de Vida.",
+  "flavor": "No fim, o campo se separa sozinho.",
+  "tags": []
+}
