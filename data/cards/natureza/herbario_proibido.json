@@ -3,7 +3,7 @@
   "type": "spell",
   "rarity": "common",
   "essence": "natureza",
-  "element": "veneno",
+  "element": "vegetal",
   "cost": 3,
   "speed": "lento",
   "art": "natureza/herbario_proibido.webp",

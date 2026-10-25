@@ -14,9 +14,17 @@
       "action": "heal_leader",
       "target": "own_leader",
       "amount": 2
+    },
+    {
+      "listen": "turn_ended",
+      "scope": "ally",
+      "zones": ["relics"],
+      "action": "heal_unit",
+      "target": "all_ally_units",
+      "amount": 2
     }
   ],
-  "text": "Condicional: no fim do seu turno, seu Líder recupera 2 de Vida.",
+  "text": "No Fim do Turno: seu Líder recupera 2 de Vida e cada uma das suas unidades em campo recupera 2 de Vida.",
   "flavor": "Um santo pequeno, de plantão, que nunca tira folga.",
   "tags": []
 }

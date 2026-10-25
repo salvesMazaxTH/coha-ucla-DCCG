@@ -4,7 +4,6 @@
   "rarity": "epic",
   "species": ["humano", "druida"],
   "essence": "natureza",
-  "element": "planta",
   "cost": 2,
   "atk": 2,
   "hp": 3,

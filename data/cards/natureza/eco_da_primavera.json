@@ -3,7 +3,7 @@
   "type": "spell",
   "rarity": "common",
   "essence": "natureza",
-  "element": "planta",
+  "element": "vegetal",
   "cost": 5,
   "speed": "rapido",
   "art": "natureza/eco_da_primavera.webp",

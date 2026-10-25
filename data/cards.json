@@ -13,7 +13,7 @@
     "natureza": {
       "name": "Natureza",
       "color": "#58b34a",
-      "elements": ["planta", "veneno"]
+      "elements": ["vegetal", "veneno"]
     },
     "montanha": {
       "name": "Montanha",
@@ -47,7 +47,7 @@
     "raio": {"name": "Raio", "color": "#ffe21f"},
     "pedra": {"name": "Pedra", "color": "#9a7b4f"},
     "metal": {"name": "Metal", "color": "#9db3d1"},
-    "planta": {"name": "Planta", "color": "#58b34a"},
+    "vegetal": {"name": "Vegetal", "color": "#58b34a"},
     "vento": {"name": "Vento", "color": "#b9e3d4"},
     "sombra": {"name": "Sombra", "color": "#44444c"},
     "luz": {"name": "Luz", "color": "#f6e7b0"},

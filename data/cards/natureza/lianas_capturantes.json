@@ -3,7 +3,7 @@
   "type": "spell",
   "rarity": "common",
   "essence": "natureza",
-  "element": "planta",
+  "element": "vegetal",
   "cost": 3,
   "speed": "rapido",
   "art": "natureza/lianas_capturantes.webp",

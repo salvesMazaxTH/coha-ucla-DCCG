@@ -15,10 +15,11 @@
       "trigger": "on_enter",
       "action": "gain_momentum",
       "target": "none",
-      "amount": 2
+      "amount": 2,
+      "refresh": true
     }
   ],
-  "text": "Ao Entrar: você ganha 2 de Momentum neste turno.",
+  "text": "Ao Entrar: você recupera até 2 de Momentum gasto neste turno.",
   "flavor": "",
   "tags": []
 }

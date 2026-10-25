@@ -3,7 +3,7 @@
   "type": "spell",
   "rarity": "legendary",
   "essence": "natureza",
-  "element": "planta",
+  "element": "vegetal",
   "cost": 4,
   "speed": "rapido",
   "art": "natureza/jardim_da_cacada.webp",

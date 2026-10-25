@@ -1,0 +1,45 @@
+{
+  "name": "Kazeminus",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "divindade",
+    "celestial"
+  ],
+  "essence": "tormenta",
+  "element": "vento",
+  "cost": 7,
+  "atk": 7,
+  "hp": 5,
+  "keywords": [
+    "voo",
+    "esquiva",
+    "rapidez:2"
+  ],
+  "art": "tormenta/kazeminus.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "return_to_hand",
+      "target": "other_units",
+      "unit_filter": { "max_cost": 4 }
+    },
+    {
+      "trigger": "on_enter",
+      "action": "gain_momentum",
+      "target": "none",
+      "per": "returned_allies",
+      "amount": 1,
+      "refresh": true
+    }
+  ],
+  "activated": {
+    "cost": 2,
+    "speed": "rapido",
+    "exhaust": true,
+    "effects": [{ "action": "return_to_hand", "target": "enemy_unit" }]
+  },
+  "text": "Ao Entrar: devolve às mãos de seus donos todas as outras unidades de custo 4 ou menos, aliadas e inimigas; você recupera até 1 de Momentum gasto neste turno por unidade aliada devolvida.\nAo Ativar (2) {rapido} (exaure esta unidade): devolve uma unidade inimiga à mão.",
+  "flavor": "",
+  "tags": []
+}

@@ -6,7 +6,7 @@
   "essence": "devocao",
   "element": "luz",
   "cost": 6,
-  "atk": 5,
+  "atk": 6,
   "hp": 7,
   "keywords": ["voo"],
   "art": "devocao/gabluro_dragao_vigario.webp",
@@ -18,6 +18,12 @@
       "amount": 2
     },
     {
+      "trigger": "on_enter",
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount": 4
+    },
+    {
       "listen": "leader_healed",
       "scope": "ally",
       "zones": ["board"],
@@ -25,9 +31,18 @@
       "action": "draw",
       "target": "own_leader",
       "amount": 1
+    },
+    {
+      "listen": "leader_healed",
+      "scope": "ally",
+      "zones": ["board"],
+      "once_per_turn": true,
+      "action": "damage",
+      "target": "random_enemy_unit",
+      "amount": 3
     }
   ],
-  "text": "Ao Entrar: você compra 2 cartas.\nCondicional (1x por turno): quando seu Líder recupera Vida, você compra 1 carta.",
+  "text": "Ao Entrar: você compra 2 cartas e seu Líder recupera 4 de Vida.\nCondicional (1x por turno): quando seu Líder recupera Vida, você compra 1 carta e esta unidade causa 3 de dano a uma unidade inimiga aleatória.",
   "flavor": "Ele jura que o fogo é só para acender as velas. Ninguém na paróquia tem coragem de conferir.",
   "tags": []
 }

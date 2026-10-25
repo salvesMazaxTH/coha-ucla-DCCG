@@ -4,7 +4,7 @@
   "rarity": "epic",
   "species": ["morto_vivo", "driade"],
   "essence": ["trevas", "natureza"],
-  "element": ["sombra", "planta"],
+  "element": ["sombra", "vegetal"],
   "cost": 3,
   "atk": 1,
   "hp": 4,

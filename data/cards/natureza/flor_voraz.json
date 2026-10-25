@@ -5,7 +5,7 @@
   "token": true,
   "species": ["planta"],
   "essence": "natureza",
-  "element": "planta",
+  "element": "vegetal",
   "cost": 0,
   "atk": 0,
   "hp": 1,

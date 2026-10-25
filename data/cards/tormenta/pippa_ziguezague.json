@@ -19,10 +19,11 @@
       "trigger": "on_hit_leader",
       "action": "gain_momentum",
       "target": "none",
-      "amount": 1
+      "amount": 1,
+      "refresh": true
     }
   ],
-  "text": "Ao Atingir o Líder: você ganha +1 de Momentum neste turno.",
+  "text": "Ao Atingir o Líder: você recupera até 1 de Momentum gasto neste turno.",
   "flavor": "Ninguém bloqueia o que não viu chegar.",
   "tags": []
 }

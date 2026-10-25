@@ -14,8 +14,15 @@
     "provocacao"
   ],
   "art": "tormenta/condutor_da_tempestade.webp",
-  "effects": [],
-  "text": "",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "raise_max_momentum",
+      "target": "none",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Entrar: seu Momentum máximo aumenta em 1 permanentemente.",
   "flavor": "",
   "tags": []
 }
