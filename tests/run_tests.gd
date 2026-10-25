@@ -50,6 +50,8 @@ func _init() -> void:
 	_test_ciclo_da_carpideira()
 	_test_reembolso_do_ciclo()
 	_test_fagulha_e_cutucada()
+	_test_degelo_na_moenda()
+	_test_zaza_fuzue()
 	_test_yresa_fusion()
 	_test_glacial()
 	_test_glacial_combo()
@@ -5348,6 +5350,50 @@ func _test_fagulha_e_cutucada() -> void:
 	g.activate(0, spark.uid)
 	g._flush()
 	check(int(g.players[0]["momentum"]) == 2, "fagulha + cutucada: segunda ativação gera mais 1 de Momentum")
+
+func _test_degelo_na_moenda() -> void:
+	# Zuleica Degela-Tudo desvira a Fagulha por 1 de Momentum e 1 de Vida do Líder; a Fagulha devolve o Momentum
+	# ao exaurir de novo, e a Moenda do Seu Belmiro mói 2 cartas do oponente a cada desvirada.
+	var g := _new_game()
+	_quiet(g)
+	var mill_artifact := Card.new(g._uid(), "moenda_do_seu_belmiro", 0)
+	g._place_relic(0, mill_artifact)
+	g._flush()
+	var thawer := _put(g, 0, "zuleica_degela_tudo")
+	var spark := _put(g, 0, "fagulha_bocejante")
+	g.players[0]["momentum"] = 1
+	g.activate(0, spark.uid)
+	g._flush()
+	var hp_before := int(g.players[0]["leader_hp"])
+	var enemy_deck_before: int = g.players[1]["deck"].size()
+	for lap in 3:
+		g.activate(0, thawer.uid, spark.uid)
+		g._flush()
+		g.activate(0, spark.uid)
+		g._flush()
+	check(int(g.players[0]["momentum"]) == 2, "moenda: cada volta Zuleica + Fagulha sai de graça (veio %d)" % int(g.players[0]["momentum"]))
+	check(int(g.players[0]["leader_hp"]) == hp_before - 3, "moenda: cada volta custa 1 de Vida do Líder")
+	check(g.players[1]["deck"].size() == enemy_deck_before - 6, "moenda: cada desvirada mói 2 cartas do oponente")
+	check(not g.valid_targets(0, "other_ally_unit", thawer.uid, false, CardDB.card("zuleica_degela_tudo")["activated"]["effects"]).has(thawer.uid), "zuleica: não desvira a si mesma")
+
+func _test_zaza_fuzue() -> void:
+	# Zazá Fuzuê: no fim do turno, cada unidade e artefato na mão custa (1) a menos, acumulando; feitiços não
+	var g := _new_game()
+	_quiet(g)
+	var party_mage := _put(g, 0, "zaza_fuzue")
+	g.players[0]["hand"].clear()
+	var unit_in_hand := g.find_card(_give(g, 0, "geodo_vivo"))
+	var artifact_in_hand := g.find_card(_give(g, 0, "moenda_do_seu_belmiro"))
+	var spell_in_hand := g.find_card(_give(g, 0, "labareda"))
+	var unit_cost := g.cost_of(0, CardDB.card("geodo_vivo"), unit_in_hand)
+	var artifact_cost := g.cost_of(0, CardDB.card("moenda_do_seu_belmiro"), artifact_in_hand)
+	var spell_cost := g.cost_of(0, CardDB.card("labareda"), spell_in_hand)
+	for turn_end in 2:
+		g._fire(party_mage, "on_turn_end")
+		g._check_state()
+	check(g.cost_of(0, CardDB.card("geodo_vivo"), unit_in_hand) == maxi(0, unit_cost - 2), "zazá: unidade na mão fica (1) mais barata a cada fim de turno")
+	check(g.cost_of(0, CardDB.card("moenda_do_seu_belmiro"), artifact_in_hand) == artifact_cost - 2, "zazá: artefato na mão também barateia")
+	check(g.cost_of(0, CardDB.card("labareda"), spell_in_hand) == spell_cost, "zazá: feitiço não barateia")
 
 func _test_self_response() -> void:
 	var g := _new_game()

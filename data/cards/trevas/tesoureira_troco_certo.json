@@ -6,6 +6,7 @@
   "essence": "trevas",
   "element": "sombra",
   "cost": 3,
+  "art": "trevas/tesoureira_troco_certo.webp",
   "atk": 1,
   "hp": 3,
   "keywords": [],

@@ -1,0 +1,32 @@
+{
+  "name": "Zuleica Degela-Tudo",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "humano"
+  ],
+  "essence": "fluxo",
+  "element": "gelo",
+  "cost": 2,
+  "art": "fluxo/zuleica_degela_tudo.webp",
+  "atk": 1,
+  "hp": 3,
+  "keywords": [],
+  "effects": [],
+  "activated": {
+    "cost": 1,
+    "speed": "lento",
+    "effects": [
+      { "action": "damage", "target": "own_leader", "amount": 1 },
+      {
+        "action": "ready",
+        "target": "other_ally_unit",
+        "requires_exhausted": true,
+        "not_rarity": ["champion"]
+      }
+    ]
+  },
+  "text": "Ao Ativar (1) {lento}: seu Líder sofre 1 de dano e esta unidade desvira outra unidade aliada exausta que não seja Campeã.",
+  "flavor": "Sopra as mãos, esfrega as costas e manda todo mundo de volta pro trabalho.",
+  "tags": []
+}

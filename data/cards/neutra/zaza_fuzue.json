@@ -1,0 +1,29 @@
+{
+  "name": "Zazá Fuzuê",
+  "type": "unit",
+  "rarity": "legendary",
+  "species": [
+    "elfo"
+  ],
+  "essence": "neutra",
+  "cost": 4,
+  "atk": 2,
+  "hp": 5,
+  "keywords": [],
+  "art": "neutra/zaza_fuzue.webp",
+  "effects": [
+    {
+      "trigger": "on_turn_end",
+      "action": "discount_hand",
+      "target": "none",
+      "card_types": [
+        "unit",
+        "artifact"
+      ],
+      "amount": 1
+    }
+  ],
+  "text": "No Fim do Seu Turno: cada unidade e artefato na sua mão passa a custar (1) a menos enquanto estiver lá.",
+  "flavor": "A festa acabou faz três dias. Ninguém teve coragem de avisar o Zazá.",
+  "tags": []
+}

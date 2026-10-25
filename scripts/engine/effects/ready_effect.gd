@@ -16,3 +16,6 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		return
 	unit.exhausted = false
 	game._emit({"type": "ready", "uid": target_uid})
+	# cards listening to "unit_readied" react to it (Moenda do Seu Belmiro mills the opponent's deck);
+	# the untap at the start of a turn never comes through here, so it does not count
+	game.bus().emit(GameEvent.new("unit_readied", unit.owner, unit))

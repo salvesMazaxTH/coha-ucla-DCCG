@@ -61,6 +61,7 @@ static var ACTIONS: Dictionary = {
 	"buff": BuffEffect,
 	"counter": CounterEffect,
 	"modify_cost": ModifyCostEffect,
+	"discount_hand": DiscountHandEffect,
 	"cost_reduction": StaticEffect,
 	"silence": SilenceEffect,
 	"strip_defenses": StripEffect,
