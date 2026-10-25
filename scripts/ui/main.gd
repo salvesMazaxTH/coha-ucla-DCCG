@@ -2520,6 +2520,8 @@ func _hint() -> String:
 			return "Escolha uma carta para invocar de graça, ou não invoque nenhuma."
 		if g.pending_search.get("hand_summon", false):
 			return "Escolha um campeão da sua mão para entrar em campo de graça."
+		if g.pending_search.get("grave_optional", false):
+			return "Rebobinar: escolha uma carta do cemitério para levar à mão, ou não pegue nenhuma."
 		return "Escolha uma carta da sua mão para descartar." if g.pending_search.get("discard_hand", false) else "Escolha uma das cartas reveladas."
 	if targeting.get("kind") == "enter":
 		var which := "segundo alvo" if g.pending_enter.has("first") else "alvo"
@@ -3724,7 +3726,7 @@ func _render_search_reveal() -> void:
 	var deck_search: bool = g.pending_search.get("deck_search", false)
 	var secret_search := deck_search and not _my_input()
 	var summoning: bool = g.pending_search.get("summon_from", false) # "summon_from": a free summon from the deck, hand or graveyard
-	var title := "INVOCAÇÃO GRATUITA" if summoning else "CAMPEÃO DA MÃO" if hand_summon else "DESCARTAR DA MÃO" if discard_hand else "CEMITÉRIO" if g.pending_search.get("grave", false) else ("TOPO DO DECK" if look else "BUSCA NO DECK")
+	var title := "INVOCAÇÃO GRATUITA" if summoning else "CAMPEÃO DA MÃO" if hand_summon else "DESCARTAR DA MÃO" if discard_hand else "CEMITÉRIO" if g.pending_search.get("grave", false) else (("FUNDO DO DECK" if g.pending_search.get("from_bottom", false) else "TOPO DO DECK") if look else "BUSCA NO DECK")
 	var search_signature: int = g.pending_search.hash()
 	# the opponent's choice starts folded: there is nothing to do in it, and the table is what matters
 	var opponent_choice_is_folded := not _my_input() and search_opened_signature != search_signature
@@ -3748,6 +3750,8 @@ func _render_search_reveal() -> void:
 		sub = "%s escolhe um campeão da mão para entrar em campo (será banido no fim do turno)" % _pname(owner)
 	elif discard_hand:
 		sub = "%s escolhe uma carta da mão para descartar" % _pname(owner)
+	elif look and g.pending_search.get("from_bottom", false):
+		sub = "Você pode escolher uma destas cartas do fundo do deck; ela vai para a sua mão" if _my_input() else "%s está olhando cartas do fundo do deck" % _pname(owner)
 	elif look:
 		sub = "%s está olhando as %d cartas do topo do deck" % [_pname(owner), g.pending_search["cards"].size()]
 	if summoning:
@@ -3803,12 +3807,13 @@ func _render_search_reveal() -> void:
 	var summon_hint := "Clique na carta que brilha para invocá-la de graça, ou escolha não invocar nenhuma."
 	if g.pending_search.has("looked_cards") and g.pending_search.get("leftover", "bottom") == "bottom":
 		summon_hint += " As outras cartas reveladas vão para o fundo do deck."
-	var hint := summon_hint if summoning else "Clique em um campeão para colocá-lo em campo sem pagar o custo, ou escolha não colocar nenhum." if hand_summon else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else "Escolha 1 para a mão; as outras vão para o fundo do deck." if look else "Clique em uma carta que brilha para adicioná-la à sua mão, ou escolha não pegar nenhuma; as outras cartas olhadas vão para o fundo do deck." if g.pending_search.has("to_bottom") else "Clique em uma carta que brilha para adicioná-la à sua mão e embaralhar o deck, ou escolha não pegar nenhuma."
+	var grave_optional: bool = g.pending_search.get("grave_optional", false) # "grave_to_hand" (Rebobinar): the pick may be skipped
+	var hint := summon_hint if summoning else "Clique em uma carta para levá-la à sua mão, ou escolha não pegar nenhuma; as outras ficam no cemitério." if grave_optional else "Clique em um campeão para colocá-lo em campo sem pagar o custo, ou escolha não colocar nenhum." if hand_summon else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else ("Escolha 1 para a mão; as outras continuam onde estavam no fundo do deck." if g.pending_search.get("from_bottom", false) else "Escolha 1 para a mão; as outras vão para o fundo do deck.") if look else "Clique em uma carta que brilha para adicioná-la à sua mão, ou escolha não pegar nenhuma; as outras cartas olhadas vão para o fundo do deck." if g.pending_search.has("to_bottom") else "Clique em uma carta que brilha para adicioná-la à sua mão e embaralhar o deck, ou escolha não pegar nenhuma."
 	var footer := _label(hint if _my_input() else "A escolha pertence ao oponente.", 18, SEL if _my_input() else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 	box.add_child(footer)
 	if not secret_search:
 		box.add_child(_label("Botão direito (ou segurar o dedo) em uma carta abre ela em tela cheia.", 15, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
-	if (hand_summon or deck_search or summoning) and _my_input():
+	if (hand_summon or deck_search or summoning or grave_optional) and _my_input():
 		# both picks are optional: uid 0 means "take no card" (Dona Gertrudes puts no champion in play)
 		var skip_button := _button("NÃO INVOCAR NENHUMA" if summoning else "NÃO COLOCAR NENHUM" if hand_summon else "NÃO PEGAR NENHUMA", func(): _on_search_choice(0))
 		skip_button.custom_minimum_size = Vector2(360, 52)
@@ -6685,6 +6690,18 @@ func _animate(events: Array, old: Dictionary) -> float:
 		Sfx.play_in("death", settle + i * 0.06)
 	var deck_n := 0
 	var board_end := board_t + 0.3 ## when the last card has finished moving into place
+	# A lane that gains a unit in this batch (and loses none) slides its cards apart right away, so the
+	# newcomer never lands on top of a card still standing in its slot. A lane that lost a unit waits
+	# for the dissolve before closing the gap, as before.
+	var lanes_with_newcomer := {}
+	var lanes_with_ghost := {}
+	for k in views:
+		var lane_view = views[k]
+		if lane_view is CardView and not hand_uids.has(k) and lane_view.inst.has("owner") and (not old.has(k) or old[k]["hand"]):
+			lanes_with_newcomer[int(lane_view.inst["owner"])] = true
+	for gh: CardView in ghosts:
+		if gh.inst.has("owner"):
+			lanes_with_ghost[int(gh.inst["owner"])] = true
 	for k in views:
 		var v = views[k]
 		if handled.has(k) or not (v is CardView):
@@ -6698,7 +6715,9 @@ func _animate(events: Array, old: Dictionary) -> float:
 				_fly(v, from, to, board_t + TAP_DELAY, TAP_TIME)
 				board_end = maxf(board_end, board_t + TAP_DELAY + TAP_TIME)
 			elif from["c"].distance_to(to["c"]) > 1.0 or abs(from["w"] - to["w"]) > 1.0:
-				_fly(v, from, to, 0.0 if hand_uids.has(k) else board_t, 0.28)
+				var lane_owner := int(v.inst.get("owner", -1))
+				var makes_room := lanes_with_newcomer.has(lane_owner) and not lanes_with_ghost.has(lane_owner)
+				_fly(v, from, to, 0.0 if hand_uids.has(k) or makes_room else board_t, 0.28)
 		elif hand_uids.has(k):
 			_draw_from_deck(v, to, appear.get(k, 0.0) + 0.18 * deck_n)
 			deck_n += 1
@@ -6968,6 +6987,8 @@ func _log_event(e: Dictionary) -> void:
 			_log("— Turno %d: %s —" % [e["turn"], _pname(e["player"])])
 			if int(e["turn"]) == 1:
 				_first_banner(e["player"])
+		"extra_turn_promised":
+			_log("%s vai jogar um turno extra!" % _pname(e["player"]))
 		"ban":
 			_log("%s baniu uma carta da mão" % _pname(e["player"]))
 		"search_reveal":
@@ -6983,7 +7004,10 @@ func _log_event(e: Dictionary) -> void:
 					names.append(_cname(c["card_id"]))
 				_log("%s revelou: %s" % [_pname(e["player"]), ", ".join(names)])
 		"look_top":
-			_log("%s olhou as %d cartas do topo do deck" % [_pname(e["player"]), e["cards"].size()])
+			if e.get("from_bottom", false):
+				_log("%s olhou %d cartas do fundo do deck" % [_pname(e["player"]), e["cards"].size()])
+			else:
+				_log("%s olhou as %d cartas do topo do deck" % [_pname(e["player"]), e["cards"].size()])
 		"look_bottom":
 			_log("%s colocou as outras no fundo do deck" % _pname(e["player"]))
 		"search_shuffle":

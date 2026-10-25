@@ -47,6 +47,7 @@ func _init() -> void:
 	_test_summon_from()
 	_test_devocao_healers()
 	_test_devocao_support()
+	_test_devocao_new_batch()
 	_test_eletrica()
 	_test_ignisar()
 	_test_play_slot()
@@ -530,6 +531,183 @@ func _test_devocao_support() -> void:
 	g_own._run_effect_dicts(0, [{"trigger": "on_enter", "action": "buff", "target": "ally_unit", "atk": 1}], "on_enter", own_target.uid, 0, SPELL_SOURCE)
 	g_own._check_state()
 	check(not own_target.magic_shield, "Sino: efeito do próprio dono não conta como ser mirado")
+
+## Arquivista da Cripta Baixa (look_bottom), Chá de Boldo, Iconoclastia, Joio e Trigo e Leva-Frascos Apressado (charges_left).
+func _test_devocao_new_batch() -> void:
+	# Arquivista: olha 2 cartas aleatórias entre as 5 do fundo; a escolhida vai à mão, as outras ficam onde estavam
+	var g := _new_game()
+	g.active = 0
+	g.players[0]["deck"].clear()
+	for i in 7:
+		_stack_on_deck(g, 0, "esqueleto_guerreiro")
+	var bottom_uids: Array = g.players[0]["deck"].slice(0, 5).map(func(card: Card): return card.uid)
+	var deck_before: Array = g.players[0]["deck"].map(func(card: Card): return card.uid)
+	g._run_effect_dicts(0, CardDB.card("arquivista_da_cripta_baixa")["effects"], "on_enter", 0, 0, SPELL_SOURCE)
+	check(g.phase == "search" and g.pending_search.get("from_bottom", false), "Arquivista: abre a escolha do fundo do deck")
+	var offered: Array = g.pending_search["cards"]
+	check(offered.size() == 2 and offered.all(func(option: Dictionary): return bottom_uids.has(int(option["uid"]))), "Arquivista: mostra 2 cartas, só das 5 do fundo")
+	check(StateView.snapshot(g, 1)["pending_search"]["cards"].all(func(option: Dictionary): return option["card_id"] == ""), "Arquivista: o oponente não vê as cartas olhadas")
+	var hand_size: int = g.players[0]["hand"].size()
+	var taken_uid := int(offered[0]["uid"])
+	var picked: Array = g.choose_search(0, taken_uid)
+	check(g.phase != "search" and g.players[0]["hand"].size() == hand_size + 1 and g.players[0]["hand"][-1].uid == taken_uid, "Arquivista: a escolhida vai para a mão")
+	check(_has_event(picked, "search_take") and not _has_event(picked, "search_shuffle"), "Arquivista: a escolhida é revelada e o deck não é embaralhado")
+	var deck_after: Array = g.players[0]["deck"].map(func(card: Card): return card.uid)
+	deck_before.erase(taken_uid)
+	check(deck_after == deck_before, "Arquivista: as demais cartas ficam nas mesmas posições do deck")
+	# com 3 cartas no deck mostra só 2, e a escolha é obrigatória
+	var g_decline := _new_game()
+	g_decline.active = 0
+	g_decline.players[0]["deck"].clear()
+	for i in 3:
+		_stack_on_deck(g_decline, 0, "esqueleto_guerreiro")
+	var untouched: Array = g_decline.players[0]["deck"].map(func(card: Card): return card.uid)
+	g_decline._run_effect_dicts(0, CardDB.card("arquivista_da_cripta_baixa")["effects"], "on_enter", 0, 0, SPELL_SOURCE)
+	check(g_decline.pending_search["cards"].size() == 2, "Arquivista: com 3 cartas no deck, mostra 2")
+	g_decline.choose_search(0, 0)
+	check(g_decline.choose_search(0, 0).is_empty() and g_decline.phase == "search", "Arquivista: a escolha é obrigatória (como o Serpente), recusar não é aceito")
+	check(g_decline.players[0]["deck"].map(func(card: Card): return card.uid) == untouched, "Arquivista: o deck não muda enquanto não há escolha")
+	# deck vazio: nada a olhar
+	var g_empty := _new_game()
+	g_empty.active = 0
+	g_empty.players[0]["deck"].clear()
+	g_empty._run_effect_dicts(0, CardDB.card("arquivista_da_cripta_baixa")["effects"], "on_enter", 0, 0, SPELL_SOURCE)
+	check(g_empty.phase != "search", "Arquivista: deck vazio não abre escolha")
+
+	# Ur'Khenaathem (Rebobinar): escolhe uma unidade ou feitiço do cemitério e leva à mão; só essas opções; pode recusar
+	var g_rewind := _new_game()
+	g_rewind.active = 0
+	var rewind_unit := Card.new(g_rewind._uid(), "esqueleto_guerreiro", 0, "graveyard")
+	var rewind_spell := Card.new(g_rewind._uid(), "joio_e_trigo", 0, "graveyard")
+	var rewind_artifact := Card.new(g_rewind._uid(), "sino_de_aviso_previo", 0, "graveyard")
+	g_rewind.players[0]["graveyard"].append_array([rewind_unit, rewind_spell, rewind_artifact])
+	g_rewind._run_effect_dicts(0, CardDB.card("ur_khenaathem")["effects"], "on_enter", 0, 0, SPELL_SOURCE)
+	check(g_rewind.phase == "search" and g_rewind.pending_search["cards"].size() == 2, "Rebobinar: só unidade e feitiço do cemitério são opções (artefato não)")
+	g_rewind.choose_search(0, rewind_spell.uid)
+	check(g_rewind.phase != "search" and g_rewind.players[0]["hand"].has(rewind_spell) and not g_rewind.players[0]["graveyard"].has(rewind_spell), "Rebobinar: a carta escolhida sai do cemitério e vai para a mão")
+	check(g_rewind.players[0]["graveyard"].size() == 2, "Rebobinar: as outras continuam no cemitério")
+	# recusar (uid 0) não pega nada
+	var g_rewind_skip := _new_game()
+	g_rewind_skip.active = 0
+	var skipped := Card.new(g_rewind_skip._uid(), "esqueleto_guerreiro", 0, "graveyard")
+	g_rewind_skip.players[0]["graveyard"].append(skipped)
+	var hand_before: int = g_rewind_skip.players[0]["hand"].size()
+	g_rewind_skip._run_effect_dicts(0, CardDB.card("ur_khenaathem")["effects"], "on_enter", 0, 0, SPELL_SOURCE)
+	g_rewind_skip.choose_search(0, 0)
+	check(g_rewind_skip.phase != "search" and g_rewind_skip.players[0]["hand"].size() == hand_before and g_rewind_skip.players[0]["graveyard"].has(skipped), "Rebobinar: recusar (uid 0) não leva nada à mão")
+	# cemitério sem unidade nem feitiço: nada abre
+	var g_rewind_empty := _new_game()
+	g_rewind_empty.active = 0
+	g_rewind_empty._run_effect_dicts(0, CardDB.card("ur_khenaathem")["effects"], "on_enter", 0, 0, SPELL_SOURCE)
+	check(g_rewind_empty.phase != "search", "Rebobinar: cemitério vazio não abre escolha")
+	# cost_increase: a cópia que volta custa mais
+	var g_rewind_cost := _new_game()
+	g_rewind_cost.active = 0
+	var pricey := Card.new(g_rewind_cost._uid(), "esqueleto_guerreiro", 0, "graveyard")
+	g_rewind_cost.players[0]["graveyard"].append(pricey)
+	g_rewind_cost._begin_grave_to_hand(0, {"cost_increase": 2}, 0)
+	g_rewind_cost.choose_search(0, pricey.uid)
+	check(pricey.cost_mod == 2, "Rebobinar: cost_increase soma ao custo da carta que volta")
+
+	# Gablúrio: Ao Entrar compra 2; quando o Líder recupera Vida compra 1, mas só 1x por turno
+	var g_vicar := _new_game()
+	g_vicar.active = 0
+	g_vicar.players[0]["leader_hp"] = 10
+	var vicar := _put(g_vicar, 0, "gabluro_dragao_vigario")
+	var vicar_hand_before: int = g_vicar.players[0]["hand"].size()
+	g_vicar._run_effect_dicts(0, CardDB.card("gabluro_dragao_vigario")["effects"], "on_enter", vicar.uid, 0, SPELL_SOURCE)
+	check(g_vicar.players[0]["hand"].size() == vicar_hand_before + 2, "Gablúrio: Ao Entrar compra 2 cartas")
+	g_vicar._heal_leader(0, 1)
+	g_vicar._check_state()
+	check(g_vicar.players[0]["hand"].size() == vicar_hand_before + 3, "Gablúrio: a cura do Líder compra 1 carta")
+	g_vicar._heal_leader(0, 1)
+	g_vicar._check_state()
+	check(g_vicar.players[0]["hand"].size() == vicar_hand_before + 3, "Gablúrio: a compra da cura é 1x por turno")
+
+	# Ur'Khenaathem: the extra turn needs him to have lived through a full round; it repeats every round but never twice in a row
+	var g_time := _new_game(); g_time.active = 0
+	var time_lord := _put(g_time, 0, "ur_khenaathem")
+	g_time.end_turn(0)
+	check(g_time.active == 1, "Ur'Khenaathem: no turno em que entra não há turno extra")
+	g_time.end_turn(1) # player 0 starts a turn with him alive: the extra turn is promised
+	check(g_time.active == 0 and g_time.players[0]["extra_turn_pending"], "Ur'Khenaathem: sobreviveu a uma volta, promete o turno extra")
+	var hand_before_extra: int = g_time.players[0]["hand"].size()
+	var turn_before_extra: int = g_time.turn
+	g_time.end_turn(0)
+	check(g_time.active == 0 and g_time.turn == turn_before_extra + 1, "Ur'Khenaathem: o dono joga de novo em vez do oponente")
+	check(g_time.players[0]["hand"].size() == hand_before_extra + 1, "Ur'Khenaathem: o turno extra compra carta como um turno normal")
+	check(g_time.players[0]["momentum"] == g_time.players[0]["max_momentum"], "Ur'Khenaathem: o Momentum renova no turno extra")
+	check(not g_time.players[0]["extra_turn_pending"], "Ur'Khenaathem: o turno extra não promete outro em seguida")
+	g_time.end_turn(0)
+	check(g_time.active == 1, "Ur'Khenaathem: depois do turno extra o oponente joga")
+	g_time.end_turn(1)
+	check(g_time.active == 0 and g_time.players[0]["extra_turn_pending"], "Ur'Khenaathem: sem limite por partida, o turno normal seguinte promete outro")
+	g_time.end_turn(0)
+	check(g_time.active == 0, "Ur'Khenaathem: segundo turno extra da partida")
+	check(time_lord.magic_shield, "Ur'Khenaathem: entra com Escudo Mágico")
+	var g_dead := _new_game(); g_dead.active = 0
+	var dying_lord := _put(g_dead, 0, "ur_khenaathem")
+	g_dead.end_turn(0)
+	g_dead.banish_unit(dying_lord)
+	g_dead.end_turn(1)
+	g_dead.end_turn(0)
+	check(g_dead.active == 1, "Ur'Khenaathem: se morrer antes de voltar o turno, não há turno extra")
+
+	# Chá de Boldo da Vovó: purifica e dá +0/+2
+	var g_tea := _new_game()
+	g_tea.active = 0
+	g_tea.players[0]["momentum"] = 10
+	var sick := _put(g_tea, 0, "esqueleto_guerreiro")
+	sick.dot_markers = {"veneno": 2, "queimadura": 1}
+	var health_before := sick.hp
+	_cast_and_resolve(g_tea, 0, "cha_de_boldo_da_vovo", sick.uid)
+	var healthy: Card = g_tea.find_unit(sick.uid)
+	check(healthy != null and healthy.hp == health_before + 2, "Chá de Boldo: +2 de Vida permanente")
+	check(healthy != null and healthy.dot_markers.is_empty(), "Chá de Boldo: remove Veneno e Queimadura")
+
+	# Iconoclastia: destrói um artefato inimigo e compra 1
+	var g_icon := _new_game()
+	g_icon.active = 0
+	g_icon.players[0]["momentum"] = 10
+	g_icon.players[1]["relics"].append(Card.new(g_icon._uid(), "sino_de_aviso_previo", 1, "relics"))
+	var icon_hand: int = g_icon.players[0]["hand"].size()
+	var target_relic: Card = g_icon.players[1]["relics"][0]
+	_cast_and_resolve(g_icon, 0, "iconoclastia", target_relic.uid)
+	check(g_icon.players[1]["relics"].is_empty(), "Iconoclastia: o artefato inimigo é destruído")
+	check(g_icon.players[0]["hand"].size() == icon_hand + 1, "Iconoclastia: compra 1 carta (a própria foi jogada, então +1 líquido)")
+
+	# Joio e Trigo: 3 de dano nas inimigas, 3 de cura nas aliadas
+	var g_toll := _new_game()
+	g_toll.active = 0
+	g_toll.players[0]["momentum"] = 10
+	_tcard("t_toll_body", 1, 6, [])
+	var ally_hurt := _put(g_toll, 0, "t_toll_body")
+	ally_hurt.damage = 4
+	var foe_body := _put(g_toll, 1, "t_toll_body")
+	_cast_and_resolve(g_toll, 0, "joio_e_trigo")
+	check(g_toll.find_unit(ally_hurt.uid).damage == 1, "Joio e Trigo: unidade aliada recupera 3 de Vida")
+	check(g_toll.find_unit(foe_body.uid).damage == 3, "Joio e Trigo: unidade inimiga leva 3 de dano")
+
+	# put_artifact com charges_left + Leva-Frascos: duas Ampolas com 1 uso cada
+	var g_vials := _new_game()
+	g_vials.active = 0
+	var runner := _put(g_vials, 0, "leva_frascos_apressado")
+	g_vials._deal_damage(runner.uid, 99, null)
+	g_vials._check_state()
+	var vials: Array = g_vials.players[0]["relics"].filter(func(relic: Card): return relic.card_id == "ampola_curativa")
+	check(vials.size() == 2, "Leva-Frascos: ao morrer, duas Ampolas Curativas entram no campo (%d)" % vials.size())
+	check(vials.all(func(vial: Card): return vial.charges_left() == 1), "Leva-Frascos: cada Ampola entra com apenas 1 uso")
+	# sem espaço livre só a primeira cabe
+	var g_full := _new_game()
+	g_full.active = 0
+	_tcard("t_full_body", 1, 1, [])
+	for i in GameState.BOARD_LIMIT - 1:
+		_put(g_full, 0, "t_full_body")
+	var runner_full := _put(g_full, 0, "leva_frascos_apressado")
+	g_full._deal_damage(runner_full.uid, 99, null)
+	g_full._check_state()
+	var vials_full: Array = g_full.players[0]["relics"].filter(func(relic: Card): return relic.card_id == "ampola_curativa")
+	check(vials_full.size() == 1, "Leva-Frascos: com só 1 espaço livre entra 1 Ampola e a outra simplesmente não entra (%d)" % vials_full.size())
 
 func _test_sagrada_board_control() -> void:
 	# Seymour, o limpador: curas e feitiços Sagrados causam 1 de dano duas vezes,

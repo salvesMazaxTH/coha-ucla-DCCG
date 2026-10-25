@@ -1,0 +1,27 @@
+{
+  "name": "Arquivista da Cripta Baixa",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "humano"
+  ],
+  "essence": "devocao",
+  "element": "luz",
+  "cost": 2,
+  "atk": 0,
+  "hp": 3,
+  "keywords": [],
+  "art": "devocao/arquivista_da_cripta_baixa.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "look_bottom",
+      "target": "own_leader",
+      "count": 2,
+      "window": 5
+    }
+  ],
+  "text": "Ao Entrar: você olha 2 cartas aleatórias entre as 5 do fundo do seu deck, escolhe 1 para colocar na mão e a revela ao oponente.",
+  "flavor": "Nos porões da fé, o que ninguém lê é justamente o que salva.",
+  "tags": []
+}

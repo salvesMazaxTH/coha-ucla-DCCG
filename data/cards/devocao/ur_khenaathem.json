@@ -1,0 +1,37 @@
+{
+  "name": "Ur'Khenaathem",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "celestial"
+  ],
+  "essence": "devocao",
+  "element": "luz",
+  "cost": 10,
+  "atk": 7,
+  "hp": 11,
+  "keywords": [
+    "rapidez:1",
+    "escudo_magico"
+  ],
+  "art": "devocao/ur_khenaathem.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "grave_to_hand",
+      "target": "none",
+      "types_any": [
+        "unit",
+        "spell"
+      ]
+    },
+    {
+      "trigger": "on_turn_start",
+      "action": "extra_turn",
+      "target": "none"
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade ou um feitiço do seu cemitério e levá-la à sua mão.\nNo Início do Turno: você joga dois turnos consecutivos no total (este e mais um), sem acumular com outros turnos extras.",
+  "flavor": "Preside a mesa dos Dirigentes desde antes de haver cadeiras. A pauta de hoje já foi votada ontem.",
+  "tags": []
+}

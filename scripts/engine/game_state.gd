@@ -176,6 +176,10 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"leader_veneno_held_until": 0, # while turn <= this, this Leader's Veneno markers hurt but are not consumed (Antídoto Fora de Estoque)
 		"frozen_slots": 0, # Rei Gelado: empty field slots of this player that accept no permanent
 		"frozen_slots_until": 0, # they thaw at the end of this player's own turn, once the turn counter reaches this
+		"extra_turns_taken": 0, # how many extra turns this player has already been given in the whole game
+		"extra_turn_pending": false, # an extra turn was promised: it starts as soon as the current turn finishes
+		"in_extra_turn": false, # the turn being played right now IS an extra turn: it can never promise another one in a row
+		"extra_turn_draws": true, # whether that extra turn begins with the normal card draw
 		"relic_fall_turns": {}, # card_id -> turn in which the last copy of that free-standing artifact left this player's field (Erguer o Baluarte lockout)
 	}
 
@@ -1646,8 +1650,8 @@ func choose_search(p: int, card_uid: int) -> Array:
 		if int(c["uid"]) == card_uid:
 			chosen = c
 			break
-	# a deck search is optional too (Bruno's Bola de Neve): uid 0 takes no card
-	var declined: bool = card_uid == 0 and pending_search.get("deck_search", false)
+	# a deck search is optional too (Bruno's Bola de Neve), and so is a Rebobinar: uid 0 takes no card
+	var declined: bool = card_uid == 0 and (pending_search.get("deck_search", false) or pending_search.get("grave_optional", false))
 	if chosen.is_empty() and not declined:
 		return []
 	if pending_search.get("revive", false):
@@ -1695,6 +1699,16 @@ func choose_search(p: int, card_uid: int) -> Array:
 		stack_system().settle()
 		return _flush()
 	if pending_search.get("grave", false):
+		if declined:
+			# Rebobinar: the player took no card, everything stays in the graveyard
+			pending_search.clear()
+			phase = _search_return
+			_emit({"type": "search_decline", "player": p})
+			_resolve_stack()
+			_check_state()
+			stack_system().after_search()
+			stack_system().settle()
+			return _flush()
 		# Moer + escolher: the card comes out of the graveyard; the others stay there
 		var grave: Array = players[p]["graveyard"]
 		var gi := -1
@@ -1708,6 +1722,7 @@ func choose_search(p: int, card_uid: int) -> Array:
 		grave.remove_at(gi)
 		if pending_search.get("banish_after_cast", false):
 			taken.banish_after_cast = true # banished when this cast ends (see StackSystem)
+		taken.cost_mod += int(pending_search.get("cost_increase", 0)) # Rebobinar: the copy that comes back may cost more
 		players[p]["hand"].append(taken)
 		_move(taken, "hand")
 		pending_search.clear()
@@ -1733,7 +1748,10 @@ func choose_search(p: int, card_uid: int) -> Array:
 	var look: bool = pending_search.get("look", false)
 	var top_search: bool = pending_search.has("to_bottom") # a search limited to the top N cards
 	var reshuffle: bool = pending_search.get("shuffle", false)
-	if (look or top_search) and not reshuffle:
+	var stays_in_deck: bool = pending_search.get("stay_in_deck", false)
+	if stays_in_deck:
+		pass # Dragar: the cards looked at were never taken out of the deck, so the ones not taken stay in place
+	elif (look or top_search) and not reshuffle:
 		# the cards not taken go to the bottom of the deck, unrevealed
 		var not_taken: Array = []
 		if top_search:
@@ -1757,7 +1775,8 @@ func choose_search(p: int, card_uid: int) -> Array:
 		_emit({"type": "search_decline", "player": p})
 	else:
 		_emit({"type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"]})
-	_emit({"type": "look_bottom" if (look or top_search) and not reshuffle else "search_shuffle", "player": p})
+	if not stays_in_deck:
+		_emit({"type": "look_bottom" if (look or top_search) and not reshuffle else "search_shuffle", "player": p})
 	_resolve_stack() # a search opened mid-resolution: finish the rest of the stack
 	_check_state() # resumes the triggers that waited for this choice
 	stack_system().after_search()
@@ -2155,6 +2174,24 @@ func _begin_grave_retrieve(p: int, wanted_ids: Array, source_uid: int) -> void:
 	phase = "search"
 	_emit({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options})
 
+## Rebobinar ("grave_to_hand"): offers the cards of the graveyard that pass the effect's card filter; the player takes ONE
+## to the hand (it may cost `cost_increase` more from now on) or none. The graveyard is public, so the options are too.
+func _begin_grave_to_hand(p: int, e: Dictionary, source_uid: int) -> void:
+	if phase == "search":
+		return
+	var options: Array = []
+	for c: Card in players[p]["graveyard"]:
+		if CardFilter.matches(c.card_id, e):
+			options.append({"uid": c.uid, "card_id": c.card_id})
+	if options.is_empty():
+		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
+		return
+	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "grave": true, "grave_optional": true,
+		"cost_increase": int(e.get("cost_increase", 0))}
+	_search_return = phase
+	phase = "search"
+	_emit({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options})
+
 ## Offers the cards just milled (public: they are in the graveyard); one goes to the hand.
 func _begin_grave_pick(p: int, milled: Array, source_uid: int) -> void:
 	if phase == "search":
@@ -2403,6 +2440,28 @@ func _begin_look(p: int, n: int, source_uid: int, reshuffle: bool = false) -> vo
 	_search_return = phase
 	phase = "search"
 	_emit({"type": "look_top", "player": p, "source_uid": source_uid, "cards": top})
+
+## "look_bottom" (Dragar): `shown` cards drawn at random from the bottom `window` cards of the deck are looked at
+## privately, like a top look; the one taken goes to the hand (revealed to everyone by search_take) and the others
+## stay exactly where they were in the deck ("stay_in_deck").
+func _begin_look_bottom(p: int, shown: int, window: int, source_uid: int) -> void:
+	if phase == "search":
+		return
+	var deck: Array = players[p]["deck"]
+	var bottom_cards: Array = [] # the bottom of the deck is the front of the array
+	for i in mini(window, deck.size()):
+		bottom_cards.append(deck[i])
+	_shuffle(bottom_cards)
+	var options: Array = []
+	for i in mini(shown, bottom_cards.size()):
+		options.append({"uid": bottom_cards[i].uid, "card_id": bottom_cards[i].card_id})
+	if options.is_empty():
+		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
+		return
+	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "look": true, "from_bottom": true, "stay_in_deck": true}
+	_search_return = phase
+	phase = "search"
+	_emit({"type": "look_top", "player": p, "source_uid": source_uid, "cards": options, "from_bottom": true})
 
 ## Returns damage actually dealt. source is the dealing unit or null.
 ## Armadura a unit really has: its own (printed + buffs), plus the "graveyard_armor" it counts
@@ -3009,6 +3068,14 @@ func _finish_turn() -> void:
 		for card: Card in player_state["hand"]:
 			card.turn_discount = 0
 	_emit({"type": "end_turn", "player": active})
+	if players[active]["extra_turn_pending"]:
+		# an extra turn: the same player plays again instead of handing the turn over
+		players[active]["extra_turn_pending"] = false
+		players[active]["in_extra_turn"] = true # set before the turn starts, so its own Início do Turno cannot chain another
+		_emit({"type": "extra_turn", "player": active})
+		_start_turn(active, bool(players[active]["extra_turn_draws"]))
+		return
+	players[active]["in_extra_turn"] = false
 	_start_turn(opponent(active), true)
 
 func _start_turn(p: int, draw: bool) -> void:
