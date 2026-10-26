@@ -1,7 +1,7 @@
 class_name ReviveEffect
 extends Effect
 ## Returning from the graveyard, told apart by `action`:
-## "revive": a random unit card (cost <= max_cost) from the controller's graveyard returns to the board.
+## "revive": random unit cards (cost <= max_cost) from the controller's graveyard return to the board, `count` of them (default 1; Procissão de Finados).
 ## "revive_self" (Ao Morrer): the dying unit comes back as a new instance (so it no longer takes
 ##   part in the combat it died in), with base atk/hp changed by `atk`/`hp` (usually negative)
 ##   relative to what it had when it died. It does not return if atk or hp would reach 0.
@@ -9,11 +9,13 @@ extends Effect
 ##   copy of it enters the board; the original stays in the graveyard (Ossuário Sem Fundo).
 
 var max_cost := 99
+var revive_count := 1
 var attack_change := 0
 var health_change := 0
 
 func _read_parameters(data: Dictionary) -> void:
 	max_cost = int(data.get("max_cost", 99))
+	revive_count = maxi(1, int(data.get("count", 1)))
 	attack_change = int(data.get("atk", 0))
 	health_change = int(data.get("hp", 0))
 
@@ -23,7 +25,9 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 	elif action == "revive_pick":
 		pass # the choice opens in open_choice, once the effect has resolved
 	else:
-		_revive_random(context)
+		# each pass stops quietly when the board is full or no candidate is left
+		for _revived in revive_count:
+			_revive_random(context)
 
 func _revive_random(context: EffectContext) -> void:
 	var game := context.game

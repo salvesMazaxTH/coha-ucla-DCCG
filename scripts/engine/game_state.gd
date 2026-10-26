@@ -535,8 +535,10 @@ func constants_multiplier(p: int) -> int:
 ## unless the effect says "include_self": true (Mefi'Urdim).
 func species_aura_bonus(c: Card) -> Vector3i:
 	var bonus := Vector3i.ZERO
-	var unit_species: Array = card_of(c).get("species", [])
-	if unit_species.is_empty():
+	var unit_data := card_of(c)
+	var unit_species: Array = unit_data.get("species", [])
+	var unit_is_token := bool(unit_data.get("token", false))
+	if unit_species.is_empty() and not unit_is_token:
 		return bonus
 	for source: Card in players[c.owner]["board"]:
 		for e in card_of(source).get("effects", []):
@@ -544,6 +546,9 @@ func species_aura_bonus(c: Card) -> Vector3i:
 				continue
 			if source == c and not bool(e.get("include_self", false)):
 				continue
+			if unit_is_token and bool(e.get("tokens", false)):
+				bonus += Vector3i(int(e.get("atk", 0)), int(e.get("hp", 0)), int(e.get("armor", 0)))
+				continue # an aura for tokens gives its bonus once as well
 			for aura_species in e.get("species", []):
 				if unit_species.has(aura_species):
 					bonus += Vector3i(int(e.get("atk", 0)), int(e.get("hp", 0)), int(e.get("armor", 0)))
@@ -585,6 +590,7 @@ func _scale_count(p: int, e: Dictionary) -> int:
 		"own_graveyard_units": return graveyard_units(p)
 		"enemy_graveyard_units": return graveyard_units(opponent(p))
 		"own_artifacts": return artifact_count(p)
+		"own_graveyard_cards": return players[p]["graveyard"].size() / maxi(1, int(e.get("divisor", 1)))
 	return 0
 
 ## Allied units in play that are a Planta or a ficha (Capina Seletiva counts them).
@@ -789,6 +795,7 @@ func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 		match e.get("per", ""):
 			"idle_turns": n = int(players[p]["idle_turns"])
 			"allied_plants_or_tokens": n = allied_plants_or_tokens(p)
+			"own_graveyard_cards": n = players[p]["graveyard"].size() / maxi(1, int(e.get("divisor", 1)))
 			"unspent_momentum": n = 1 if int(players[p]["unspent"]) >= int(e.get("threshold", 1)) else 0
 			"healing_since_last_turn": n = 1 if _since_last_turn(p, "healing") >= int(e.get("threshold", 1)) else 0
 			"damage_since_last_turn": n = 1 if _since_last_turn(p, "damage") >= int(e.get("threshold", 1)) else 0

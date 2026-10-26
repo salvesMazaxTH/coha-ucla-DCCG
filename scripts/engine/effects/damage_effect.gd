@@ -12,6 +12,7 @@ extends Effect
 ## "amount_if_frozen": a target that is already Congelada takes this much instead of `amount` (Sabrina).
 ## "amount_if_stunned": same for a target that is already Atordoada (Layla's Ao Atacar).
 ## "amount_from": "momentum_left" deals `amount` damage per `divisor` Momentum the controller still has (Antena de Varal, Curto-Circuito).
+## "amount_from": "own_graveyard_cards" deals `amount` damage per `divisor` cards in the controller's graveyard (Ossada Rancorosa).
 ## "spend_momentum": true (with momentum_left) also spends all that Momentum (Curto-Circuito).
 ## "lifesteal": true heals the controller's Leader by the damage this effect really dealt (Rália).
 ## "lifesteal_self": true (with lifesteal) also heals this unit by that same damage, if it is still on the board.
@@ -27,11 +28,11 @@ var amount_if_stunned := 0
 var amount_if_leader := 0
 var heals_by_damage_dealt := false
 var heals_source_too := false
-var momentum_divisor := 1
+var divisor := 1
 var spends_momentum := false
 
 func _read_parameters(data: Dictionary) -> void:
-	momentum_divisor = maxi(1, int(data.get("divisor", 1)))
+	divisor = maxi(1, int(data.get("divisor", 1)))
 	spends_momentum = bool(data.get("spend_momentum", false))
 	amount = int(data.get("amount", 0))
 	amount_from = String(data.get("amount_from", ""))
@@ -55,9 +56,14 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		damage_amount = _current_attack_of_source(context)
 	if amount_from == "momentum_left":
 		var momentum_left := int(game.players[context.controller]["momentum"])
-		damage_amount = amount * (momentum_left / momentum_divisor)
+		damage_amount = amount * (momentum_left / divisor)
 		if spends_momentum:
 			game.drain_momentum(context.controller)
+		if damage_amount <= 0:
+			return
+	if amount_from == "own_graveyard_cards":
+		var graveyard_size: int = game.players[context.controller]["graveyard"].size()
+		damage_amount = amount * (graveyard_size / divisor)
 		if damage_amount <= 0:
 			return
 	var victim := game.find_unit(target_uid)
