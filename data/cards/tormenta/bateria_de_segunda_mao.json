@@ -18,7 +18,7 @@
       { "action": "gain_momentum", "target": "none", "per": "stored", "max": 1, "retain_stored": true }
     ]
   },
-  "text": "Guarda até 3 de Momentum que vazariam da Reserva.\nAo Ativar (0) {instantaneo} (1x por turno): ganhe 1 de Reserva (até o máximo de 2), mesmo com a Bateria vazia. Além disso, se houver espaço, libere até 1 do Momentum guardado; o restante continua na Bateria.",
+  "text": "Guarda até 3 de Momentum que vazariam da Reserva.\nAo Ativar (0) {instantaneo} (1x por turno): você ganha 1 de Reserva, mesmo com a Bateria vazia. Além disso, libera até 1 do Momentum guardado; o restante continua na Bateria.",
   "flavor": "",
   "tags": []
 }
