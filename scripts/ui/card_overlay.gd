@@ -115,7 +115,8 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 			glossary_keywords.append(keyword_id)
 	for keyword_id in glossary_keywords:
 		var keyword := CardDB.keyword(keyword_id)
-		txt += "[color=#ffe9a8][b]%s[/b][/color] — %s\n" % [keyword["name"], CardView.colorize_rules(keyword_text(cd, keyword_id, keyword, instance))]
+		var keyword_color := CardView.keyword_color(keyword_id).to_html(false)
+		txt += "[color=#%s][b]%s[/b][/color] — %s\n" % [keyword_color, keyword["name"], CardView.colorize_rules(keyword_text(cd, keyword_id, keyword, instance))]
 	if CardDB.is_leader_card(card_id):
 		txt += "\n[color=#e8c25a]Encarnação do Líder:[/color] fica no Santuário. Cada nova conjuração custa mais que a anterior: +1, depois +2, +3, +4... Pode voltar para a mão (jogada de lá, custa o custo normal). Ao ir para o cemitério ou ser banida, volta para o Santuário; se a próxima conjuração passaria de %d, vai para o fundo do deck como carta comum, com o custo normal.\n" % [GameState.MOMENTUM_CAP]
 	if cd.get("token", false):
@@ -152,11 +153,16 @@ static func mentioned_keywords(text: String) -> Array:
 	for span in CardView.keyword_ranges(text):
 		var mentioned := text.substr(span[0], span[1] - span[0])
 		for id in keywords:
-			var name := String(keywords[id]["name"])
+			var keyword: Dictionary = keywords[id]
+			var name := String(keyword["name"])
 			# "Armadura 1" starts with "Armadura"; the others need an exact match
 			# (so "Escudo Mágico" doesn't also count as "Escudo").
-			var with_value: bool = keywords[id].get("has_value", false) and mentioned.begins_with(name + " ")
-			if mentioned == name or with_value:
+			var name_matches := mentioned.to_lower() == name.to_lower()
+			var with_value: bool = keyword.get("has_value", false) and mentioned.to_lower().begins_with((name + " ").to_lower())
+			for alias in keyword.get("aliases", []):
+				name_matches = name_matches or mentioned.to_lower() == String(alias).to_lower()
+				with_value = with_value or (keyword.get("has_value", false) and mentioned.to_lower().begins_with((String(alias) + " ").to_lower()))
+			if name_matches or with_value:
 				mentions.append({"id": id, "start": span[0]})
 				break
 	var freeze_aliases := RegEx.new()

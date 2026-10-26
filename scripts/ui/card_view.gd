@@ -34,6 +34,7 @@ const MAX_SHOWN_DOMAINS := 4 ## a card with more domains than this only shows th
 const SIGIL_COLOR := Color("#f4efe6") ## domain sigils are one flat off-white shape (like the Magic colour symbols), never tinted or shaded
 const TRIGGER_COL :=Color("#ff9a4a") ## trigger tags: same weight as keywords, orange to read as another category
 const KEYWORD_COL := Color("#ffe9a8") ## keyword names wherever they appear inside rules text
+const ACTION_KEYWORD_COL := Color("#8bd8f2") ## verbal mechanics (Moer, Dragar), distinct from state keywords
 const GOLD_TRIM := Color("#f3d27a")
 const COST_COL := UITheme.MOMENTUM
 const ATK_COL := Color("#c8402e")
@@ -378,8 +379,22 @@ static func colorize_rules(body: String, line_px := 28) -> String:
 	for i in range(ranges.size() - 1, -1, -1):
 		var span: Array = ranges[i]
 		var word := body.substr(span[0], span[1] - span[0])
-		body = body.substr(0, span[0]) + "[b][color=#%s]%s[/color][/b]" % [KEYWORD_COL.to_html(false), word] + body.substr(span[1])
+		body = body.substr(0, span[0]) + "[b][color=#%s]%s[/color][/b]" % [keyword_color_for_name(word).to_html(false), word] + body.substr(span[1])
 	return body
+
+## A separate hue marks action keywords in rules text and glossary headings.
+static func keyword_color(keyword_id: String) -> Color:
+	return ACTION_KEYWORD_COL if CardDB.keyword(keyword_id).get("category", "state") == "action" else KEYWORD_COL
+
+static func keyword_color_for_name(keyword_name: String) -> Color:
+	for keyword_id in CardDB.data()["keywords"]:
+		var keyword: Dictionary = CardDB.keyword(String(keyword_id))
+		if String(keyword["name"]).to_lower() == keyword_name.to_lower():
+			return keyword_color(String(keyword_id))
+		for alias in keyword.get("aliases", []):
+			if String(alias).to_lower() == keyword_name.to_lower():
+				return keyword_color(String(keyword_id))
+	return KEYWORD_COL
 
 static var _keyword_regex: RegEx
 static var _keyword_names_with_value := {}
@@ -392,10 +407,14 @@ static func keyword_ranges(text: String) -> Array:
 		var names: Array = []
 		for kw in CardDB.data()["keywords"].values():
 			names.append(String(kw["name"]))
+			for alias in kw.get("aliases", []):
+				names.append(String(alias))
 			if kw.get("has_value", false):
 				_keyword_names_with_value[String(kw["name"])] = true
+				for alias in kw.get("aliases", []):
+					_keyword_names_with_value[String(alias)] = true
 		names.sort_custom(func(a, b): return a.length() > b.length())
-		_keyword_regex = RegEx.create_from_string(r"(?<!\p{L})(" + "|".join(names) + r")((?: \d+| X(?!\p{L}))?)(?!\p{L})")
+		_keyword_regex = RegEx.create_from_string(r"(?i)(?<!\p{L})(" + "|".join(names) + r")((?: \d+| X(?!\p{L}))?)(?!\p{L})")
 	var out := []
 	for m in _keyword_regex.search_all(text):
 		var end := m.get_end(1)
@@ -2198,7 +2217,8 @@ func _text_with_keywords(font: Font, t: String, keyword_spans: Array, center: Ve
 	for span in keyword_spans:
 		if span[0] > cursor:
 			pieces.append([t.substr(cursor, span[0] - cursor), col])
-		pieces.append([t.substr(span[0], span[1] - span[0]), KEYWORD_COL])
+		var word := t.substr(span[0], span[1] - span[0])
+		pieces.append([word, keyword_color_for_name(word)])
 		cursor = span[1]
 	if cursor < t.length():
 		pieces.append([t.substr(cursor), col])

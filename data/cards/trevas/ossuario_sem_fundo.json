@@ -22,7 +22,7 @@
       }
     ]
   },
-  "text": "Sempre que uma unidade sua morrer, mói 1 carta.\nAo Ativar (4) {lento}: revive uma cópia de uma unidade à sua escolha do seu cemitério.",
+  "text": "Aliado Morre: Mói 1 carta do seu deck.\nAo Ativar (4) {lento}: revive uma cópia de uma unidade à sua escolha do seu cemitério.",
   "flavor": "",
   "tags": []
 }

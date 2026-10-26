@@ -196,6 +196,17 @@
       "name": "Ímpeto",
       "text": "Pode desafiar unidades no turno em que entra."
     },
+    "dragar": {
+      "name": "Dragar",
+      "text": "Olhe 2 cartas aleatórias entre as 5 cartas do fundo do seu deck. Escolha 1 para colocar na mão e revele-a ao oponente; as demais permanecem no deck.",
+      "category": "action"
+    },
+    "moer": {
+      "name": "Moer",
+      "aliases": ["Mói"],
+      "text": "A quantidade indicada de cartas do topo do deck da pessoa mencionada vai para o cemitério do dono desse deck.",
+      "category": "action"
+    },
     "rompante": {
       "name": "Rompante",
       "text": "No turno em que entra, só pode atacar o Líder inimigo."

@@ -28,6 +28,7 @@ const WARN := Color("#e8a23a")
 const BAD := Color("#e8484a")
 const INFO := Color("#6aa7e8")
 const CURVE_SLOTS := 8 ## costs 0..6 and "7+"
+const DECK_CODE_PREFIX := "CSA1."
 
 var store: DeckStore
 var catalog: CardCatalog
@@ -412,6 +413,7 @@ func _show_list() -> void:
 	header.add_child(titles)
 	var decks := store.list()
 	header.add_child(_lbl("%d / %d decks" % [decks.size(), DeckStore.MAX_DECKS], 20, UITheme.GOLD, "bold"))
+	header.add_child(_btn("IMPORTAR CÓDIGO", _open_import_code, false, 16))
 	page.add_child(header)
 	page.add_child(_build_banner())
 
@@ -910,6 +912,15 @@ func _build_deck_panel() -> Control:
 	_status_label = _lbl("", 15, UITheme.TEXT_DIM, "body")
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	box.add_child(_status_label)
+	var code_row := HBoxContainer.new()
+	code_row.add_theme_constant_override("separation", 8)
+	var import_button := _btn("IMPORTAR DECKCODE", _open_import_code, false, 15)
+	import_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	code_row.add_child(import_button)
+	var export_button := _btn("EXPORTAR DECKCODE", _export_code, false, 15)
+	export_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	code_row.add_child(export_button)
+	box.add_child(code_row)
 	var footer := HBoxContainer.new()
 	footer.add_theme_constant_override("separation", 8)
 	footer.add_child(_btn("‹ VOLTAR", _back, false, 17))
@@ -920,6 +931,114 @@ func _build_deck_panel() -> Control:
 	footer.add_child(_save_button)
 	box.add_child(footer)
 	return panel
+
+## Shareable, versioned deck code. JSON is UTF-8 encoded as base64url to keep it copy/paste friendly.
+func _make_deck_code() -> String:
+	var payload := {
+		"name": _deck_name.strip_edges(),
+		"description": _description,
+		"leader": _leader,
+		"cards": DeckDB.sorted_cards(_cards),
+	}
+	var encoded := Marshalls.raw_to_base64(JSON.stringify(payload).to_utf8_buffer())
+	encoded = encoded.replace("+", "-").replace("/", "_").trim_suffix("=").trim_suffix("=")
+	return DECK_CODE_PREFIX + encoded
+
+func _decode_deck_code(code: String) -> Dictionary:
+	var cleaned := code.strip_edges()
+	if not cleaned.begins_with(DECK_CODE_PREFIX):
+		return {"error": "Código inválido. Esperava um código iniciado por %s." % DECK_CODE_PREFIX}
+	var encoded := cleaned.substr(DECK_CODE_PREFIX.length()).replace("-", "+").replace("_", "/")
+	while encoded.length() % 4 != 0:
+		encoded += "="
+	var bytes := Marshalls.base64_to_raw(encoded)
+	if bytes.is_empty():
+		return {"error": "Não foi possível decodificar este deckCode."}
+	var parsed: Variant = JSON.parse_string(bytes.get_string_from_utf8())
+	if not parsed is Dictionary:
+		return {"error": "Conteúdo do deckCode inválido."}
+	var leader := String(parsed.get("leader", ""))
+	if not CardDB.data()["leaders"].has(leader):
+		return {"error": "O deckCode contém um Líder desconhecido."}
+	var raw_cards: Variant = parsed.get("cards", {})
+	if not raw_cards is Dictionary:
+		return {"error": "A lista de cartas do deckCode está inválida."}
+	var cards: Dictionary = {}
+	var incarnation := String(CardDB.leader(leader)["incarnation"])
+	for raw_id in raw_cards:
+		var card_id := String(raw_id)
+		var value: Variant = raw_cards[raw_id]
+		if not (value is int or value is float) or float(value) != float(int(value)) or int(value) < 1 or int(value) > DeckStore.MAX_CARD_COPIES:
+			return {"error": "Quantidade inválida para a carta %s." % card_id}
+		if not CardDB.data()["cards"].has(card_id):
+			return {"error": "O deckCode contém uma carta desconhecida: %s." % card_id}
+		if card_id != incarnation and not DeckDB.is_deckable(card_id):
+			return {"error": "A carta %s não pode entrar em um deck." % card_id}
+		cards[card_id] = int(value)
+	return {
+		"deck": {
+			"id": "",
+			"name": DeckStore.clean_name(String(parsed.get("name", "Deck importado"))),
+			"description": String(parsed.get("description", "")),
+			"leader": leader,
+			"cards": cards,
+			"problems": [],
+		}
+	}
+
+func _open_import_code() -> void:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(minf(size.x - 100.0, 680.0), 0)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	panel.add_child(box)
+	box.add_child(_lbl("IMPORTAR DECKCODE", 26, UITheme.GOLD_LIGHT, "title_bold"))
+	var help := _lbl("Cole aqui o código do deck. O deck será aberto no builder como um rascunho; salve para guardar.", 16, UITheme.TEXT_DIM, "body")
+	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(help)
+	var input := TextEdit.new()
+	input.custom_minimum_size = Vector2(620, 110)
+	input.placeholder_text = "CSA1.…"
+	box.add_child(input)
+	var actions := HBoxContainer.new()
+	actions.alignment = BoxContainer.ALIGNMENT_END
+	actions.add_child(_btn("CANCELAR", _close_modal))
+	actions.add_child(_btn("IMPORTAR DECK", func():
+		var result := _decode_deck_code(input.text)
+		if result.has("error"):
+			_toast(String(result["error"]), BAD)
+			return
+		_close_modal()
+		if _view == "edit":
+			_confirm("Importar deckCode?", "O deckCode vai substituir o conteúdo que está aberto. O deck importado será um novo deck.", "SUBSTITUIR", func(): _open_editor(result["deck"], true))
+		else:
+			_open_editor(result["deck"], true), true))
+	box.add_child(actions)
+	_open_modal(panel, false)
+	input.grab_focus()
+
+func _export_code() -> void:
+	var code := _make_deck_code()
+	DisplayServer.clipboard_set(code)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(minf(size.x - 100.0, 680.0), 0)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	panel.add_child(box)
+	box.add_child(_lbl("DECKCODE COPIADO", 26, UITheme.GOLD_LIGHT, "title_bold"))
+	var help := _lbl("O código já está na área de transferência. Você também pode selecioná-lo e copiar daqui:", 16, UITheme.TEXT_DIM, "body")
+	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(help)
+	var output := TextEdit.new()
+	output.text = code
+	output.custom_minimum_size = Vector2(620, 110)
+	output.editable = false
+	box.add_child(output)
+	var actions := HBoxContainer.new()
+	actions.alignment = BoxContainer.ALIGNMENT_END
+	actions.add_child(_btn("FECHAR", _close_modal, true))
+	box.add_child(actions)
+	_open_modal(panel, false)
 
 func _build_leader_header() -> Control:
 	var bg := Color(0.06, 0.055, 0.085, 1.0)
