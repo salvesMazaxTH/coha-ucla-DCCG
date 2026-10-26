@@ -355,7 +355,7 @@ func _leader_tile(leader_id: String, on_click: Callable) -> Control:
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	tile.add_child(name_label)
-	var domains := _lbl(CardDB.essence_names(ld), 15, color.lightened(0.35))
+	var domains := _lbl(CardDB.leader_essence_names(ld), 15, color.lightened(0.35))
 	domains.position = Vector2(6, LEADER_TILE.y - 32)
 	domains.size = Vector2(LEADER_TILE.x - 12, 22)
 	domains.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -728,7 +728,7 @@ func _build_catalog() -> Control:
 	top.add_child(_count_label)
 	_domain_toggle = CheckButton.new()
 	_domain_toggle.text = "Só o domínio do Líder"
-	_domain_toggle.tooltip_text = "Esconde as cartas convidadas (de domínios que o Líder não tem). Cartas neutras sempre aparecem."
+	_domain_toggle.tooltip_text = "Mostra só as cartas dos domínios do Líder: esconde as convidadas e também as neutras."
 	_domain_toggle.toggled.connect(func(_on: bool): _restart_pages())
 	top.add_child(_domain_toggle)
 	_prev_button = _btn("‹", func(): _change_page(-1))
@@ -765,7 +765,7 @@ func _change_page(delta: int) -> void:
 func _visible_ids() -> Array[String]:
 	var pool: Array = _pool
 	if _domain_toggle != null and _domain_toggle.button_pressed:
-		pool = _pool.filter(func(card_id: String) -> bool: return not DeckDB.is_guest(_leader, card_id))
+		pool = _pool.filter(func(card_id: String) -> bool: return DeckDB.is_in_leader_domain(_leader, card_id))
 	return catalog.filtered_ids(pool)
 
 func _render_cards() -> void:
@@ -940,7 +940,7 @@ func _build_leader_header() -> Control:
 	title.add_theme_color_override("font_outline_color", Color.BLACK)
 	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	info.add_child(title)
-	var domains := _lbl("Domínio: %s · Vida %d" % [CardDB.essence_names(ld), int(ld["hp"])], 16, _leader_color(_leader).lightened(0.4))
+	var domains := _lbl("Domínio: %s · Vida %d" % [CardDB.leader_essence_names(ld), int(ld["hp"])], 16, _leader_color(_leader).lightened(0.4))
 	domains.add_theme_constant_override("outline_size", 4)
 	domains.add_theme_color_override("font_outline_color", Color.BLACK)
 	info.add_child(domains)

@@ -211,6 +211,13 @@ static func missing_domains(leader_id: String, card_id: String) -> Array:
 static func is_guest(leader_id: String, card_id: String) -> bool:
 	return not missing_domains(leader_id, card_id).is_empty()
 
+## Strictly the Leader's own domain: every domain of the card is one the Leader has. Unlike a non-guest,
+## a neutral card does not pass (unless the Leader itself is neutral), because neutral fits any deck.
+static func is_in_leader_domain(leader_id: String, card_id: String) -> bool:
+	var leader_domains: Array = CardDB.leader(leader_id)["essences"]
+	var card_domains := CardDB.essences_of(CardDB.card(card_id))
+	return card_domains.all(func(domain): return leader_domains.has(domain))
+
 ## Cards a player may put in a deck by hand: not a Leader's own card (the Encarnação is added by the
 ## Leader), not a token and not one that only enters play through an effect or a transformation.
 static func is_deckable(card_id: String) -> bool:

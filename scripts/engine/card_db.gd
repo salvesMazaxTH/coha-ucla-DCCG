@@ -297,6 +297,14 @@ static func essence_names(cd: Dictionary) -> String:
 		names.append(essence(id).get("name", id))
 	return " / ".join(names)
 
+## Display name of a Leader's domains. A Leader keeps them under "essences" (a card uses "essence"),
+## so essence_names() would read a Leader as neutral.
+static func leader_essence_names(leader_data: Dictionary) -> String:
+	var names: Array = []
+	for id in leader_data.get("essences", ["neutra"]):
+		names.append(essence(id).get("name", id))
+	return " / ".join(names)
+
 static func element(id: String) -> Dictionary:
 	return data()["elements"][id]
 

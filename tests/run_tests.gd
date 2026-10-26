@@ -1659,6 +1659,23 @@ func _test_death_order() -> void:
 		check(order == [first, 1 - first], "mortes simultâneas: jogador da vez (%d) primeiro" % first)
 
 func _test_off_essence() -> void:
+	# a Leader's domain label must come from its own "essences", not default to neutral
+	check(CardDB.leader_essence_names(CardDB.leader(DeckDB.get_deck("fogo")["leader"])) == String(CardDB.essence("furia")["name"]), "nome do domínio do Líder de fogo")
+	# "só o domínio do Líder" filter: own domain passes; neutral and guest cards do not (neutral is not a guest, though)
+	var fire_leader: String = DeckDB.get_deck("fogo")["leader"]
+	check(DeckDB.is_in_leader_domain(fire_leader, "afogar") == false, "filtro de domínio: convidada fora")
+	check(DeckDB.is_guest(fire_leader, "afogar"), "filtro de domínio: afogar é convidada no deck de fogo")
+	var neutral_id := ""
+	var own_domain_id := ""
+	for card_id in CardDB.data()["cards"].keys():
+		var card_domains := CardDB.essences_of(CardDB.card(card_id))
+		if neutral_id == "" and card_domains == ["neutra"] and DeckDB.is_deckable(card_id):
+			neutral_id = card_id
+		if own_domain_id == "" and card_domains == ["furia"] and DeckDB.is_deckable(card_id):
+			own_domain_id = card_id
+	check(neutral_id != "" and not DeckDB.is_in_leader_domain(fire_leader, neutral_id), "filtro de domínio: neutra não passa")
+	check(neutral_id != "" and not DeckDB.is_guest(fire_leader, neutral_id), "filtro de domínio: neutra continua não sendo convidada")
+	check(own_domain_id != "" and DeckDB.is_in_leader_domain(fire_leader, own_domain_id), "filtro de domínio: carta do domínio passa")
 	# fire deck: swap in off-essence (aquática) cards; neutral and own-essence cards don't count
 	var base: Dictionary = DeckDB.get_deck("fogo")["cards"].duplicate()
 	var leader: String = DeckDB.get_deck("fogo")["leader"]

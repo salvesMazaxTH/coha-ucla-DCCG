@@ -58,6 +58,7 @@ var hub_scroll_y := 0 ## how far the gallery was scrolled, kept across the hub's
 var hub_drag_distance := 0.0 ## how far the current press has dragged the gallery (a long drag isn't a tap)
 const MENU_SUBTITLE_FONT_SIZE := 18 ## the small hint under each title-menu button
 const MENU_SUBTITLE_COLOR := Color(0.93, 0.9, 0.84, 0.85) ## near-opaque cream so the hint reads on the busy art
+const DECK_TILE_NAME_FONT_SIZES := [21, 19, 17, 15, 13] ## tried in order until the deck name fits its zone on the tile
 const HUB_MARGIN := 40.0 ## space between the hub's panels and the stage sides
 const HUB_TILE := Vector2(210, 236) ## every deck tile in the gallery has this size, however many decks exist
 const HUB_TILE_GAP := 20.0
@@ -1120,16 +1121,21 @@ func _deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 		p.add_child(art)
 		p.add_child(_art_fade(bg, Vector2(4, 4 + art_h * 0.5), Vector2(size.x - 8, art_h * 0.5 + 1)))
 	p.add_theme_stylebox_override("panel", UITheme.box(bg, 12, UITheme.GOLD if selected else Color(col, 0.55), 4 if selected else 2, 12 if selected else 6))
-	# the name may take two lines; long ones shrink a step instead of being cut
-	var nm := _label(deck_name, 21, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 5)
+	# the name gets the zone between the art and the Leader's line, and never grows past it: it shrinks
+	# step by step until it fits in two lines, and only a name too long even for the smallest step is cut with "…"
+	var nm := _label(deck_name, DECK_TILE_NAME_FONT_SIZES[0], UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 5)
 	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	nm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	nm.position = Vector2(8, art_h - 14.0)
-	nm.size = Vector2(size.x - 16, 54)
-	for font_size in [21, 19, 17]:
+	nm.size = Vector2(size.x - 16, size.y - 34.0 - nm.position.y)
+	for font_size in DECK_TILE_NAME_FONT_SIZES:
 		nm.add_theme_font_size_override("font_size", font_size)
-		if nm.get_line_count() <= 2:
+		if nm.get_line_count() <= 2 and nm.get_line_count() * nm.get_line_height() <= nm.size.y:
 			break
+	nm.max_lines_visible = 2
+	nm.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	nm.clip_text = true
+	p.tooltip_text = deck_name
 	p.add_child(nm)
 	var lead := _label(leader_name, 15, col.lightened(0.3), HORIZONTAL_ALIGNMENT_CENTER, "bold", 3)
 	lead.position = Vector2(8, size.y - 30.0)
