@@ -48,7 +48,7 @@ func _build_facets() -> void:
 			for value in values_for(cd, facet["id"]):
 				facet_values[facet["id"]][value] = true
 	# display-only labels that are not literal values in a card
-	facet_values["property"] = {"com habilidade ativada": true, "com Súbito": true, "ficha": true, "Encarnação de Líder": true, "com arte": true, "com artefato": true, "com equipamento": true, "com Local": true, "com efeitos condicionais": true, "com efeito ao morrer": true, "com efeito contínuo": true}
+	facet_values["property"] = {"com habilidade ativada": true, "com Súbito": true, "ficha": true, "Encarnação de Líder": true, "com artefato": true, "com equipamento": true, "com Local": true, "com efeitos condicionais": true, "com efeito ao entrar": true, "com efeito ao morrer": true, "com efeito contínuo": true}
 
 ## The ids that pass every filter, in the chosen order. `pool` is the cards to look through.
 func filtered_ids(pool: Array) -> Array[String]:
@@ -128,12 +128,12 @@ static func _properties_of(cd: Dictionary, card_id: String) -> Array:
 	if cd.has("subito"): props.append("com Súbito")
 	if cd.get("token", false): props.append("ficha")
 	if card_id != "" and CardDB.is_leader_card(card_id): props.append("Encarnação de Líder")
-	if cd.get("art", "") != "": props.append("com arte")
 	if CardDB.is_artifact(cd): props.append("com artefato")
 	if CardDB.is_equipment(cd): props.append("com equipamento")
 	if CardDB.is_local(cd): props.append("com Local")
 	if not cd.get("deck_effects", []).is_empty() or not cd.get("activated", {}).get("effects", []).is_empty(): props.append("com efeitos condicionais")
 	for effect in cd.get("effects", []):
+		if effect.get("trigger", "") == "on_enter": props.append("com efeito ao entrar")
 		if effect.get("trigger", "") == "on_death": props.append("com efeito ao morrer")
 		if effect.get("trigger", "") == "constante": props.append("com efeito contínuo")
 	return props
