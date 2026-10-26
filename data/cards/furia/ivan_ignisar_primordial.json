@@ -17,6 +17,7 @@
     "sobrepujanca"
   ],
   "art": "furia/ivan_ignisar_transformed.webp",
+  "art_crop": {"x": 0.04, "y": 0.0, "zoom": 1.0},
   "effects": [
     {
       "trigger": "on_enter",
