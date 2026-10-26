@@ -142,10 +142,103 @@ func _init() -> void:
 	for e in CardDB.errors():
 		check(false, e)
 	_test_card_validation()
+	_test_deck_builder_rules()
 	# the golden replays are NOT run here: every card/deck balance change would break them.
 	# Run tests/golden_check.gd by hand before committing an engine/rules change.
 	print("tests done, failures: ", failures)
 	quit(1 if failures > 0 else 0)
+
+## Same cards with the same copies, ignoring order and int-vs-float (deck JSON files load numbers as floats).
+func _same_copies(first: Dictionary, second: Dictionary) -> bool:
+	if first.size() != second.size():
+		return false
+	for card_id in first:
+		if not second.has(card_id) or int(first[card_id]) != int(second[card_id]):
+			return false
+	return true
+
+## Deck builder: the DeckDB helpers it is built on, and the DeckStore (guest mode, a throwaway file).
+func _test_deck_builder_rules() -> void:
+	var fogo: Dictionary = DeckDB.get_deck("fogo")
+	var leader: String = fogo["leader"]
+	var totals := DeckDB.stats(leader, fogo["cards"])
+	check(totals["total"] == DeckDB.DECK_SIZE and totals["incarnation"] == 1, "stats: deck pronto tem 44 cartas e 1 Encarnação (%s)" % [totals])
+	check(totals["off_essence"] <= totals["guest_limit"] and totals["elite"] <= DeckDB.MAX_ELITE_CARDS, "stats: deck pronto respeita convidadas e elites")
+	check(DeckDB.copy_limit("rusco") == 1, "copy_limit: carta Única")
+	check(not DeckDB.is_deckable(CardDB.leader(leader)["incarnation"]), "is_deckable: a Encarnação não entra à mão")
+	var token_id := ""
+	var plain_id := ""
+	for card_id in CardDB.data()["cards"]:
+		var card: Dictionary = CardDB.card(card_id)
+		if token_id == "" and card.get("token", false):
+			token_id = card_id
+		if plain_id == "" and card.get("rarity", "") == "common" and not card.get("token", false) and not card.get("undraftable", false) and not card.get("transform_only", false) and not CardDB.is_leader_card(card_id):
+			plain_id = card_id
+	check(token_id != "" and not DeckDB.is_deckable(token_id), "is_deckable: ficha fora")
+	check(plain_id != "" and DeckDB.is_deckable(plain_id) and DeckDB.copy_limit(plain_id) >= 1, "is_deckable: carta comum entra")
+
+	var store := DeckStore.new()
+	store.use_web_storage = false
+	store.allow_cloud = false
+	store.local_path = "user://test_decks.json"
+	if FileAccess.file_exists(store.local_path):
+		DirAccess.remove_absolute(store.local_path)
+	check(store.list().is_empty() and not store.is_cloud(), "DeckStore: começa vazio e como convidado")
+	store.save_deck("", "  Meu teste  ", leader, fogo["cards"], "desc")
+	var decks := store.list()
+	check(decks.size() == 1 and decks[0]["name"] == "Meu teste" and decks[0]["leader"] == leader and _same_copies(decks[0]["cards"], fogo["cards"]) and String(decks[0]["id"]).begins_with(DeckStore.LOCAL_PREFIX), "DeckStore: salva e lê um deck local")
+	check(DeckDB.validate_cards(decks[0]["leader"], decks[0]["cards"]).is_empty(), "DeckStore: o deck salvo continua legal")
+	store.save_deck(decks[0]["id"], "Renomeado", leader, fogo["cards"])
+	decks = store.list()
+	check(decks.size() == 1 and decks[0]["name"] == "Renomeado", "DeckStore: salvar com id atualiza em vez de duplicar")
+	store.delete_deck(decks[0]["id"])
+	check(store.list().is_empty(), "DeckStore: exclui o deck")
+	if FileAccess.file_exists(store.local_path):
+		DirAccess.remove_absolute(store.local_path)
+	store.free()
+
+	var broken := DeckStore.normalize({"id": "x", "name": "n", "content": {"leader": "lider_que_nao_existe", "cards": {"carta_fantasma": 2, plain_id: 1, "zero": 0}}}, false)
+	check(broken["leader"] == "" and broken["cards"] == {plain_id: 1} and broken["problems"].size() == 2, "DeckStore.normalize: remove cartas e Líder desconhecidos e avisa (%s)" % [broken])
+	check(DeckStore.clean_name("   ") == "Deck sem nome" and DeckStore.clean_name("x".repeat(90)).length() == DeckStore.MAX_NAME, "DeckStore.clean_name: vazio e longo")
+
+	# the limit of 24 decks per account (the database trigger enforces the same number)
+	check(DeckStore.MAX_DECKS == 24, "DeckStore: limite de 24 decks por conta")
+	var full_store := DeckStore.new()
+	full_store.use_web_storage = false
+	full_store.allow_cloud = false
+	full_store.local_path = "user://test_decks_full.json"
+	if FileAccess.file_exists(full_store.local_path):
+		DirAccess.remove_absolute(full_store.local_path)
+	for i in DeckStore.MAX_DECKS + 3:
+		full_store.save_deck("", "Deck %d" % i, leader, fogo["cards"])
+	check(full_store.list().size() == DeckStore.MAX_DECKS and full_store.is_full(), "DeckStore: o 25º deck novo é recusado (%d salvos)" % full_store.list().size())
+	var first_deck_id: String = full_store.list()[0]["id"]
+	full_store.save_deck(first_deck_id, "Renomeado cheio", leader, fogo["cards"])
+	check(full_store.list().size() == DeckStore.MAX_DECKS and full_store.list()[0]["name"] == "Renomeado cheio", "DeckStore: com 24 decks ainda dá para editar um existente")
+	full_store.delete_deck(first_deck_id)
+	check(not full_store.is_full(), "DeckStore: excluir um deck libera uma vaga")
+	if FileAccess.file_exists(full_store.local_path):
+		DirAccess.remove_absolute(full_store.local_path)
+	full_store.free()
+
+	# decks registered at run time (the player's own and the ones received for an online room)
+	DeckDB.register_custom("mine:teste", "Meu deck", "descrição", leader, fogo["cards"])
+	check(DeckDB.has("mine:teste") and DeckDB.section_of("mine:teste") == DeckDB.SECTION_MINE and DeckDB.get_deck("mine:teste")["leader"] == leader, "DeckDB.register_custom: o deck existe e fica em MEUS DECKS")
+	check(DeckDB.custom_ids(DeckDB.PLAYER_PREFIX).has("mine:teste") and not DeckDB.ids().has("mine:teste"), "DeckDB.custom_ids: separado dos decks prontos")
+	check(DeckDB.section_of("fogo") != DeckDB.SECTION_MINE, "DeckDB.section_of: deck pronto não é MEUS DECKS")
+	check(NetClient.deck_payload("fogo") is String and NetClient.deck_payload("mine:teste") is Dictionary and NetClient.deck_payload("mine:teste")["leader"] == leader, "NetClient.deck_payload: pronto vai como id, o seu como conteúdo")
+	DeckDB.clear_custom(DeckDB.PLAYER_PREFIX)
+	check(not DeckDB.has("mine:teste") and DeckDB.has("fogo"), "DeckDB.clear_custom: remove só os do prefixo")
+
+	# what a client sends to the server is never trusted
+	var accepted := DeckDB.check_incoming({"name": "  Online  ", "description": "x", "leader": leader, "cards": fogo["cards"]})
+	check(accepted["errors"].is_empty() and accepted["deck"]["name"] == "Online", "check_incoming: aceita um deck legal e limpa o nome (%s)" % [accepted["errors"]])
+	check(not DeckDB.check_incoming("fogo")["errors"].is_empty() and not DeckDB.check_incoming(null)["errors"].is_empty(), "check_incoming: recusa o que não é deck")
+	check(not DeckDB.check_incoming({"leader": "lider_que_nao_existe", "cards": {}})["errors"].is_empty(), "check_incoming: recusa Líder desconhecido")
+	check(not DeckDB.check_incoming({"leader": leader, "cards": {"carta_fantasma": 1}})["errors"].is_empty(), "check_incoming: recusa carta desconhecida")
+	check(not DeckDB.check_incoming({"leader": leader, "cards": {plain_id: 99}})["errors"].is_empty(), "check_incoming: recusa cópias demais")
+	check(not DeckDB.check_incoming({"leader": leader, "cards": {token_id: 1}})["errors"].is_empty(), "check_incoming: recusa ficha")
+	check(not DeckDB.check_incoming({"leader": leader, "cards": {plain_id: 1}})["errors"].is_empty(), "check_incoming: recusa deck incompleto (regras do deck)")
 
 ## (The Sfx autoload does not exist in -s mode, so the script is loaded directly; its table and mapping are static.)
 ## Any spell card: effects run with it as their source count as coming from a spell

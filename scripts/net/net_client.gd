@@ -44,11 +44,20 @@ func send(m: Dictionary) -> void:
 		if ws == null:
 			connect_server()
 
+## What goes over the wire for a deck: prebuilt decks travel as their id (the server has them),
+## the player's own decks travel as their full contents (the server validates them before use).
+static func deck_payload(deck_id: String) -> Variant:
+	if not deck_id.begins_with(DeckDB.PLAYER_PREFIX):
+		return deck_id
+	var deck: Dictionary = DeckDB.get_deck(deck_id)
+	return {"name": deck.get("name", ""), "description": deck.get("description", ""),
+		"leader": deck.get("leader", ""), "cards": deck.get("cards", {})}
+
 func create(deck: String) -> void:
-	send({"t": "create", "deck": deck})
+	send({"t": "create", "deck": deck_payload(deck)})
 
 func join(room_code: String, deck: String) -> void:
-	send({"t": "join", "code": room_code, "deck": deck})
+	send({"t": "join", "code": room_code, "deck": deck_payload(deck)})
 
 func resume() -> void:
 	want_resume = true

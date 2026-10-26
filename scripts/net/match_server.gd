@@ -5,13 +5,15 @@ extends SceneTree
 ## Plain ws:// on localhost; tools/serve_web.js proxies wss://<host>:8060/ws to it.
 ##
 ## client -> server (JSON):
-##   {t:"create", deck:<prebuilt id>}        -> {t:"room", code, seat, token}   (ids: DeckDB.ids())
-##   {t:"join", code, deck:<prebuilt id>}    -> {t:"room", code, seat, token}   (mirror matches allowed)
+##   {t:"create", deck:<deck>}               -> {t:"room", code, seat, token}
+##   {t:"join", code, deck:<deck>}           -> {t:"room", code, seat, token}   (mirror matches allowed)
+##     <deck> is a prebuilt id (DeckDB.ids()) or the player's own deck {name, description, leader, cards},
+##     which is validated with DeckDB.check_incoming and kept per room as "room:<code>:<seat>"
 ##   {t:"resume", code, token}               -> {t:"start", ...} again (reconnect)
 ##   {t:"act", a:<action>, ...args}          -> broadcast {t:"events"} or {t:"reject"} to the sender
 ## actions: mulligan{uids} play{uid,target} incarnation{target} ability{target} attack{attacker,target}
 ##          end_combat enter_tapped{tapped} end_turn pass discard{uids} search{uid}
-## server -> client: room, start{seat,snap}, events{events,snap}, reject{a}, opponent{connected}, error{msg}
+## server -> client: room, start{seat,decks,deck_data,snap} (deck_data holds the contents of the "room:" decks), events{events,snap}, reject{a}, opponent{connected}, error{msg}
 
 const ROOM_TTL := 1800.0 ## seconds an empty room is kept
 
@@ -64,6 +66,7 @@ func _process(_delta: float) -> bool:
 					_handle_room(r, seat, msg)
 		if r["peers"][0] == null and r["peers"][1] == null and Time.get_ticks_msec() - r["idle"] > ROOM_TTL * 1000.0:
 			rooms.erase(code)
+			DeckDB.clear_custom("%s%s:" % [DeckDB.ROOM_PREFIX, code])
 	return false
 
 func _drain_lobby(ws: WebSocketPeer) -> void:
@@ -90,11 +93,12 @@ func _code() -> String:
 func _handle_lobby(ws: WebSocketPeer, m: Dictionary) -> void:
 	match m.get("t", ""):
 		"create":
-			var deck: String = m.get("deck", "")
-			if not DeckDB.has(deck):
-				_send(ws, {"t": "error", "msg": "Deck inválido."})
-				return
 			var code := _code()
+			var accepted := _accept_deck(code, 0, m.get("deck"))
+			if accepted["error"] != "":
+				_send(ws, {"t": "error", "msg": accepted["error"]})
+				return
+			var deck: String = accepted["id"]
 			var token := _token()
 			rooms[code] = {"g": null, "decks": [deck, ""], "peers": [ws, null],
 				"tokens": [token, ""], "idle": Time.get_ticks_msec()}
@@ -109,10 +113,11 @@ func _handle_lobby(ws: WebSocketPeer, m: Dictionary) -> void:
 			if r["tokens"][1] != "":
 				_send(ws, {"t": "error", "msg": "Sala cheia."})
 				return
-			var join_deck: String = m.get("deck", "")
-			if not DeckDB.has(join_deck):
-				_send(ws, {"t": "error", "msg": "Deck inválido."})
+			var accepted := _accept_deck(code, 1, m.get("deck"))
+			if accepted["error"] != "":
+				_send(ws, {"t": "error", "msg": accepted["error"]})
 				return
+			var join_deck: String = accepted["id"]
 			var token := _token()
 			r["decks"][1] = join_deck
 			r["tokens"][1] = token
@@ -142,6 +147,31 @@ func _handle_lobby(ws: WebSocketPeer, m: Dictionary) -> void:
 				_send_start(r, seat)
 				_send(r["peers"][1 - seat], {"t": "opponent", "connected": true})
 
+## A client names its deck either by prebuilt id or by sending the full contents of one of the player's
+## own decks. Contents are never trusted: DeckDB.check_incoming applies every deck rule, and only then is
+## the deck registered under a room-specific id ("room:<code>:<seat>"). Returns {id, error}.
+func _accept_deck(code: String, seat: int, raw: Variant) -> Dictionary:
+	if raw is String:
+		if DeckDB.ids().has(raw):
+			return {"id": raw, "error": ""}
+		return {"id": "", "error": "Deck inválido."}
+	var checked := DeckDB.check_incoming(raw)
+	var errors: Array = checked["errors"]
+	if not errors.is_empty():
+		return {"id": "", "error": "Deck inválido: %s." % errors[0]}
+	var room_deck_id := "%s%s:%d" % [DeckDB.ROOM_PREFIX, code, seat]
+	var deck: Dictionary = checked["deck"]
+	DeckDB.register_custom(room_deck_id, deck["name"], deck["description"], deck["leader"], deck["cards"])
+	return {"id": room_deck_id, "error": ""}
+
+## The contents of the room's decks that are not prebuilt, so each client can register them before the match.
+func _custom_deck_contents(r: Dictionary) -> Dictionary:
+	var contents: Dictionary = {}
+	for deck_id in r["decks"]:
+		if String(deck_id).begins_with(DeckDB.ROOM_PREFIX):
+			contents[deck_id] = DeckDB.get_deck(deck_id)
+	return contents
+
 func _unpend(ws: WebSocketPeer) -> void:
 	for p in pending.duplicate():
 		if p["ws"] == ws:
@@ -153,7 +183,7 @@ func _token() -> String:
 # ---------------------------------------------------------------- match
 
 func _send_start(r: Dictionary, seat: int) -> void:
-	_send(r["peers"][seat], {"t": "start", "seat": seat, "decks": r["decks"], "snap": StateView.snapshot(r["g"], seat)})
+	_send(r["peers"][seat], {"t": "start", "seat": seat, "decks": r["decks"], "deck_data": _custom_deck_contents(r), "snap": StateView.snapshot(r["g"], seat)})
 
 func _handle_room(r: Dictionary, seat: int, m: Dictionary) -> void:
 	r["idle"] = Time.get_ticks_msec()

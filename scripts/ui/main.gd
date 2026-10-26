@@ -36,12 +36,22 @@ var _over_from := -1 ## index in layer of the first game-over node (-1 = none th
 var _leader_ko_t := -1.0 ## time of the last Leader HP change in the current animation
 var net: NetClient ## online match link (null offline)
 var account_button: Button
+var deck_builder: DeckBuilder ## the "MEUS DECKS" screen while it is open
 var _account_was_signed_in := false
+var _session_was_checked := false
+## The entry screen (Google / guest) comes before the mode buttons; this turns true once the player
+## signed in or chose to play as a guest, and back to false when they sign out.
+var _entered_menu := false
+var _menu_screen_showing := false ## the title screen (entry or full menu) is what is on screen now
+var _google_logo_texture: Texture2D
 var online := false
 var opp_online := true
 var code_entry := ""
 var join_slots: Label ## the room-code display of the join screen; null on every other screen (the keyboard types into it)
-var sel_deck := "" ## prebuilt deck picked in the online hub
+var sel_deck := "" ## deck picked in the hub (a prebuilt id, or a DeckDB.PLAYER_PREFIX id for one of the player's own)
+var deck_store: DeckStore ## the player's saved decks (MEUS DECKS), listed in the hub; created on first use
+var incomplete_player_decks := 0 ## saved decks that are not ready to play, so the hub leaves them out
+var _hub_args: Array = [] ## the arguments of the last _show_hub call, to redraw it when the player's decks arrive
 var hub_hotseat := false ## the deck hub's two-step flow is picking decks for hot-seat (player 1, then player 2) instead of AI
 var hub_scroll: ScrollContainer ## the deck hub's scrolling gallery (null/freed outside the hub)
 var hub_scroll_y := 0 ## how far the gallery was scrolled, kept across the hub's redraws
@@ -51,10 +61,13 @@ const HUB_TILE := Vector2(210, 236) ## every deck tile in the gallery has this s
 const HUB_TILE_GAP := 20.0
 const HUB_TILE_PAD := 10.0 ## room around the gallery's tiles for the hover zoom
 ## The gallery's titled dividers, in order; a deck's "section" field picks one (default "essencia").
+## "hint" is shown instead of tiles when the section has no deck (the others are left out when empty).
 const HUB_SECTIONS := [
 	{"id": DeckDB.SECTION_ESSENCE, "title": "DECKS DE ESSÊNCIA"},
 	{"id": DeckDB.SECTION_SPECIAL, "title": "DECKS ESPECIAIS"},
+	{"id": DeckDB.SECTION_MINE, "title": "MEUS DECKS", "hint": "Você ainda não tem nenhum deck pronto. Monte um em MEUS DECKS, no menu inicial: 44 cartas, a Encarnação do Líder e as regras do deck cumpridas."},
 ]
+const HUB_EMPTY_HINT_H := 72.0 ## height of the hint that stands in for the tiles of an empty section
 const HUB_SECTION_TITLE_H := 52.0 ## height of a divider's title row
 const HUB_SECTION_GAP := 28.0 ## empty space between the end of one section and the next title
 const HUB_DRAG_SLOP := 12.0 ## pixels a press may move and still count as a tap on a deck
@@ -301,8 +314,8 @@ func _fit_viewport() -> void:
 	if changed and layer:
 		if table.visible and g:
 			_render.call_deferred()
-		elif not table.visible:
-			_show_menu.call_deferred()
+		elif not table.visible and not is_instance_valid(deck_builder):
+			_show_menu.call_deferred() # the deck builder stretches with the stage by itself
 
 ## Slow drifting embers over the whole screen, for depth.
 func _motes() -> CPUParticles2D:
@@ -342,6 +355,7 @@ func _show_menu() -> void:
 	if online:
 		net.disconnect_server() ## the saved session stays: RETOMAR PARTIDA in the lobby
 		online = false
+	DeckDB.clear_custom(DeckDB.ROOM_PREFIX) # decks of a finished online match; "resume" sends them again
 	g = null
 	Music.stop()
 	_close_concede()
@@ -381,31 +395,14 @@ func _show_menu() -> void:
 	title.size = Vector2(stage_w, 100)
 	layer.add_child(title)
 	layer.add_child(_ornament(Vector2(stage_w / 2.0, 340), 260))
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 14)
-	box.position = Vector2(stage_w / 2.0 - 210, 390)
-	box.custom_minimum_size = Vector2(420, 0)
-	layer.add_child(box)
-	for opt in [["JOGAR CONTRA A IA", "Escolha o seu deck e o da IA", func() -> void:
-				hub_hotseat = false
-				_show_hub(true), true],
-			["HOT-SEAT", "Dois jogadores no mesmo aparelho, cada um com o deck que quiser", func() -> void:
-				hub_hotseat = true
-				_show_hub(true), false],
-			["ONLINE", "Jogar contra outra pessoa por código de sala", func() -> void: _show_hub(false), false]]:
-		var b := _button(opt[0], opt[2], opt[3])
-		b.custom_minimum_size = Vector2(420, 58)
-		b.tooltip_text = opt[1]
-		box.add_child(b)
-		var sub := _label(opt[1], 14, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
-		box.add_child(sub)
-	if OS.has_feature("web"):
-		account_button = _button("ENTRAR COM GOOGLE", _on_account_button_pressed)
-		account_button.position = Vector2(24, 24)
-		account_button.size = Vector2(300, 52)
-		account_button.tooltip_text = "Vincule sua conta para salvar perfil e decks."
-		layer.add_child(account_button)
-		_update_account_button()
+	_menu_screen_showing = true
+	# a session restored from an earlier visit skips the entry screen
+	if SupabaseAuth.is_signed_in():
+		_entered_menu = true
+	if _entered_menu:
+		_add_menu_mode_buttons()
+	else:
+		_add_entry_buttons()
 	var lt := _toggle_button("MODO LEVE", _light_on(), func():
 		_apply_light(not _light_on(), true)
 		_show_menu.call_deferred())
@@ -440,14 +437,151 @@ func _show_menu() -> void:
 	ver.size = Vector2(280, 20)
 	layer.add_child(ver)
 
+## Entry screen: before the mode buttons, the player either signs in with Google or goes on as a guest.
+func _add_entry_buttons() -> void:
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 14)
+	column.position = Vector2(stage_w / 2.0 - 210, 410)
+	column.custom_minimum_size = Vector2(420, 0)
+	layer.add_child(column)
+	if not SupabaseAuth.is_session_checked():
+		# still looking for a saved session: no buttons yet, so they don't flash and vanish
+		column.add_child(_label("Verificando sua conta…", 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+		return
+	column.add_child(_google_sign_in_button())
+	column.add_child(_label("Salva seu perfil e seus decks na nuvem", 14, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+	var guest_button := _button("ENTRAR COMO CONVIDADO", func() -> void:
+		_entered_menu = true
+		_show_menu())
+	guest_button.custom_minimum_size = Vector2(420, 58)
+	column.add_child(guest_button)
+	column.add_child(_label("Joga sem conta; nada fica salvo na nuvem", 14, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+
+## The standard "Sign in with Google" button, following Google's branding rules: white background,
+## thin grey border, the four-colour G on the left and dark grey text (Roboto Medium when the system
+## has it). It is drawn bigger than Google's 40 px because the whole stage is scaled down on phones.
+func _google_sign_in_button() -> Button:
+	var button := Button.new()
+	button.custom_minimum_size = Vector2(420, 58)
+	button.tooltip_text = "Entrar com a sua conta Google."
+	var normal_style := UITheme.box(Color("#ffffff"), 6, Color("#747775"), 1)
+	var hover_style := UITheme.box(Color("#f2f2f2"), 6, Color("#747775"), 1)
+	var pressed_style := UITheme.box(Color("#e3e3e3"), 6, Color("#747775"), 1)
+	button.add_theme_stylebox_override("normal", normal_style)
+	button.add_theme_stylebox_override("hover", hover_style)
+	button.add_theme_stylebox_override("pressed", pressed_style)
+	button.add_theme_stylebox_override("hover_pressed", pressed_style)
+	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	button.pressed.connect(Sfx.play.bind("ui_click"))
+	button.pressed.connect(_start_google_sign_in)
+	# logo and text side by side, centred inside the button
+	var content_row := HBoxContainer.new()
+	content_row.set_anchors_preset(Control.PRESET_FULL_RECT)
+	content_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	content_row.add_theme_constant_override("separation", 14)
+	content_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(content_row)
+	var logo := TextureRect.new()
+	logo.texture = _google_logo()
+	logo.custom_minimum_size = Vector2(26, 26)
+	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	logo.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content_row.add_child(logo)
+	var google_font := SystemFont.new()
+	google_font.font_names = PackedStringArray(["Roboto", "Segoe UI", "Helvetica Neue", "Arial"])
+	google_font.font_weight = 500
+	google_font.fallbacks = [UITheme.font("bold")]
+	var text_label := _label("Entrar com o Google", 20, Color("#1f1f1f"), HORIZONTAL_ALIGNMENT_LEFT)
+	text_label.add_theme_font_override("font", google_font)
+	text_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	content_row.add_child(text_label)
+	return button
+
+## Google's official four-colour "G", built from its SVG once and reused.
+func _google_logo() -> Texture2D:
+	if _google_logo_texture:
+		return _google_logo_texture
+	var svg_source := """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+<path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+<path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+<path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+<path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+</svg>"""
+	var logo_image := Image.new()
+	# drawn at 2x so it stays sharp when the stage is scaled up on big screens
+	logo_image.load_svg_from_string(svg_source, 2.0)
+	_google_logo_texture = ImageTexture.create_from_image(logo_image)
+	return _google_logo_texture
+
+## The deck builder takes over the whole stage; its way back is the title menu.
+func _open_deck_builder() -> void:
+	_clear()
+	deck_builder = DeckBuilder.new()
+	deck_builder.closed.connect(func() -> void:
+		deck_builder = null
+		_show_menu())
+	layer.add_child(deck_builder)
+
+## The full title menu, once the player is in: the three ways to play, the deck builder and the account button.
+func _add_menu_mode_buttons() -> void:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 14)
+	box.position = Vector2(stage_w / 2.0 - 210, 390)
+	box.custom_minimum_size = Vector2(420, 0)
+	layer.add_child(box)
+	for opt in [["JOGAR CONTRA A IA", "Escolha o seu deck e o da IA", func() -> void:
+				hub_hotseat = false
+				_show_hub(true), true],
+			["HOT-SEAT", "Dois jogadores no mesmo aparelho, cada um com o deck que quiser", func() -> void:
+				hub_hotseat = true
+				_show_hub(true), false],
+			["ONLINE", "Jogar contra outra pessoa por código de sala", func() -> void: _show_hub(false), false],
+			["MEUS DECKS", "Crie, edite e guarde seus próprios decks", _open_deck_builder, false]]:
+		var b := _button(opt[0], opt[2], opt[3])
+		b.custom_minimum_size = Vector2(420, 58)
+		b.tooltip_text = opt[1]
+		box.add_child(b)
+		var sub := _label(opt[1], 14, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
+		box.add_child(sub)
+	# a guest can still link a Google account later from here
+	account_button = _button("ENTRAR COM GOOGLE", _on_account_button_pressed)
+	account_button.position = Vector2(24, 24)
+	account_button.size = Vector2(300, 52)
+	account_button.tooltip_text = "Vincule sua conta para salvar perfil e decks."
+	layer.add_child(account_button)
+	_update_account_button()
+
 func _on_account_button_pressed() -> void:
 	if SupabaseAuth.is_signed_in():
 		SupabaseAuth.sign_out()
 	else:
-		SupabaseAuth.sign_in_with_google()
+		_start_google_sign_in()
+
+func _start_google_sign_in() -> void:
+	SupabaseAuth.sign_in_with_google()
+	# on the web the page itself goes to Google; the executable opens a separate browser window
+	if not OS.has_feature("web"):
+		_toast("Abrimos o navegador: entre com o Google lá e depois volte ao jogo.")
 
 func _on_supabase_auth_state_changed(auth_state: Dictionary) -> void:
 	_update_account_button()
+	var signed_in_now := bool(auth_state.get("signed_in", false))
+	var session_checked_now := bool(auth_state.get("session_checked", false))
+	if _menu_screen_showing:
+		if signed_in_now and not _entered_menu:
+			# came back from Google (or a saved session was found): go into the full menu
+			_entered_menu = true
+			_show_menu.call_deferred()
+		elif not signed_in_now and _account_was_signed_in:
+			# signed out: back to the entry screen
+			_entered_menu = false
+			_show_menu.call_deferred()
+		elif session_checked_now and not _session_was_checked and not _entered_menu:
+			# the saved-session check finished with no session: show the entry buttons
+			_show_menu.call_deferred()
+	_session_was_checked = session_checked_now
 	var error_message := String(auth_state.get("error", ""))
 	if not error_message.is_empty():
 		_toast(error_message)
@@ -540,7 +674,11 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 	_clear()
 	table.visible = false
 	_set_tints(Color("#3f7bd9"), Color("#e0572b"), 1.6)
-	var ids := DeckDB.ids()
+	_hub_args = [ai, msg, choosing_ai_deck]
+	_refresh_player_decks()
+	# prebuilt decks first, then the player's own (the third section), so the default pick is always a prebuilt deck
+	var ids: Array[String] = DeckDB.ids()
+	ids.append_array(DeckDB.custom_ids(DeckDB.PLAYER_PREFIX))
 	if not ids.has(sel_deck):
 		sel_deck = ids[0]
 	if ai_deck != "" and not ids.has(ai_deck):
@@ -574,20 +712,25 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 	var gallery_w := stage_w - gallery_x - HUB_MARGIN
 	# The gallery is split into titled sections (see DeckDB.section_of); a section with no deck is left out.
 	var gallery_sections: Array = []
+	var random_tile_placed := false
 	for section in HUB_SECTIONS:
 		var section_ids: Array = ids.filter(func(deck_id: String) -> bool: return DeckDB.section_of(deck_id) == section["id"])
-		if gallery_sections.is_empty() and choosing_ai_deck:
-			section_ids.push_front("") # the "random deck" tile comes first
-		if not section_ids.is_empty():
-			gallery_sections.append({"title": section["title"], "ids": section_ids})
+		# the "random deck" tile comes first, in the first section
+		if choosing_ai_deck and not random_tile_placed:
+			section_ids.push_front("")
+			random_tile_placed = true
+		var section_title := String(section["title"])
+		if section["id"] == DeckDB.SECTION_MINE and incomplete_player_decks > 0:
+			section_title += "  ·  %d incompleto%s em MEUS DECKS" % [incomplete_player_decks, "" if incomplete_player_decks == 1 else "s"]
+		if not section_ids.is_empty() or section.has("hint"):
+			gallery_sections.append({"title": section_title, "ids": section_ids, "hint": section.get("hint", "")})
 	var show_section_titles := gallery_sections.size() > 1
 	var columns := maxi(1, int((gallery_w + HUB_TILE_GAP) / (HUB_TILE.x + HUB_TILE_GAP)))
 	var content_h := 0.0
 	for section in gallery_sections:
 		if show_section_titles:
 			content_h += HUB_SECTION_TITLE_H
-		var rows := ceili(float(section["ids"].size()) / float(columns))
-		content_h += rows * HUB_TILE.y + (rows - 1) * HUB_TILE_GAP + HUB_SECTION_GAP
+		content_h += _hub_section_body_height(section, columns) + HUB_SECTION_GAP
 	content_h -= HUB_SECTION_GAP
 	var scroll := ScrollContainer.new()
 	scroll.position = Vector2(gallery_x, body_top)
@@ -611,6 +754,12 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 			_add_hub_section_title(content, String(section["title"]), Vector2(grid_x, section_top), grid_w)
 			section_top += HUB_SECTION_TITLE_H
 		var section_ids: Array = section["ids"]
+		if section_ids.is_empty():
+			var hint := _label(String(section["hint"]), 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT, "body")
+			hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			hint.position = Vector2(grid_x, section_top)
+			hint.size = Vector2(grid_w, HUB_EMPTY_HINT_H)
+			content.add_child(hint)
 		for i in section_ids.size():
 			var id: String = section_ids[i]
 			var is_selected := id == selected_id
@@ -632,8 +781,7 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 				hub_scroll_y = scroll.scroll_vertical
 				_show_hub.call_deferred(ai, msg, choosing_ai_deck))
 			content.add_child(t)
-		var section_rows := ceili(float(section_ids.size()) / float(columns))
-		section_top += section_rows * HUB_TILE.y + (section_rows - 1) * HUB_TILE_GAP + HUB_SECTION_GAP
+		section_top += _hub_section_body_height(section, columns) + HUB_SECTION_GAP
 	# edge fades: a hint that there are more decks above or below
 	if content_h + 2.0 * HUB_TILE_PAD > body_h:
 		for at_top in [true, false]:
@@ -688,6 +836,40 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 		b.position = Vector2(bx + back_w + 24.0 + i * (bw + 24.0), y)
 		b.size = Vector2(bw, 72)
 		layer.add_child(b)
+
+## Height of a gallery section below its title: its rows of tiles, or the hint of an empty one.
+func _hub_section_body_height(section: Dictionary, columns: int) -> float:
+	var tile_count: int = section["ids"].size()
+	if tile_count == 0:
+		return HUB_EMPTY_HINT_H
+	var rows := ceili(float(tile_count) / float(columns))
+	return rows * HUB_TILE.y + (rows - 1) * HUB_TILE_GAP
+
+## Registers the player's saved decks (MEUS DECKS) in DeckDB so the hub, the match and the deck list treat
+## them like prebuilt ones. Only decks that already pass every rule can be played; the rest are counted.
+func _refresh_player_decks() -> void:
+	if deck_store == null:
+		_use_deck_store(DeckStore.new())
+	DeckDB.clear_custom(DeckDB.PLAYER_PREFIX)
+	incomplete_player_decks = 0
+	for saved_deck in deck_store.list():
+		var leader_id := String(saved_deck["leader"])
+		if leader_id == "" or not DeckDB.validate_cards(leader_id, saved_deck["cards"]).is_empty():
+			incomplete_player_decks += 1
+			continue
+		DeckDB.register_custom(DeckDB.PLAYER_PREFIX + String(saved_deck["id"]), String(saved_deck["name"]),
+				String(saved_deck["description"]), leader_id, saved_deck["cards"])
+
+func _use_deck_store(store: DeckStore) -> void:
+	deck_store = store
+	add_child(deck_store)
+	deck_store.changed.connect(_on_player_decks_changed)
+
+## The account's decks arrive (or change) after the hub was drawn: draw it again with them.
+func _on_player_decks_changed() -> void:
+	if is_instance_valid(hub_scroll) and hub_scroll.is_visible_in_tree() and _hub_args.size() == 3:
+		hub_scroll_y = hub_scroll.scroll_vertical
+		_show_hub.call_deferred(_hub_args[0], _hub_args[1], _hub_args[2])
 
 ## Puts the deck gallery back where it was scrolled before the redraw, then makes sure the chosen
 ## deck's tile is in view (e.g. when coming back to the hub with a deck far down the list).
@@ -1098,6 +1280,16 @@ func _on_link(up: bool) -> void:
 	else:
 		_toast("Conexão perdida… reconectando.")
 
+## An online match can use the players' own decks. The server sends their contents (already validated
+## there) under "room:" ids, and both clients register them like any other deck.
+func _register_room_decks(deck_data: Variant) -> void:
+	if not deck_data is Dictionary:
+		return
+	for deck_id in deck_data:
+		var deck: Variant = deck_data[deck_id]
+		if String(deck_id).begins_with(DeckDB.ROOM_PREFIX) and deck is Dictionary:
+			DeckDB.register_custom(String(deck_id), String(deck.get("name", "")), String(deck.get("description", "")), String(deck.get("leader", "")), deck.get("cards", {}))
+
 func _on_net(m: Dictionary) -> void:
 	match m.get("t", ""):
 		"room":
@@ -1110,6 +1302,7 @@ func _on_net(m: Dictionary) -> void:
 				_show_wait("Aguardando o oponente entrar…", m["code"])
 		"start":
 			var d: Array = m["decks"]
+			_register_room_decks(m.get("deck_data", {})) # the players' own decks, before anything looks them up
 			var rs := RemoteState.new(d[0], d[1])
 			_queue_deck_arts(d)
 			rs.seat = m["seat"]
@@ -1274,6 +1467,7 @@ func _clear() -> void:
 	_unit_board_views.clear()
 	if layer:
 		layer.queue_free()
+	_menu_screen_showing = false
 	layer = Control.new()
 	search_overlay = null
 	layer.set_anchors_preset(Control.PRESET_FULL_RECT)
