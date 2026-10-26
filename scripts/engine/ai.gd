@@ -159,9 +159,17 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 	for artifact: Card in g.players[p]["relics"]:
 		# free-standing artifacts' untargeted Ao Ativar (e.g. Ossuário Sem Fundo's revive)
 		var artifact_effects: Array = CardDB.card(artifact.card_id).get("activated", {}).get("effects", [])
-		# a Momentum store (Bateria) is only released while it holds something and no other Momentum came this turn
-		if artifact.data().has("momentum_store") and (artifact.stored_momentum <= 0 or g.players[p]["momentum_gain_turn"] == g.turn):
-			continue
+		# Bateria gives Reserve even when empty, and releases stored Momentum whenever there is room.
+		if artifact.data().has("momentum_store"):
+			var player: Dictionary = g.players[p]
+			var can_gain_reserve := int(player["reserve"]) < GameState.RESERVE_CAP
+			var can_release_stored := (
+				artifact.stored_momentum > 0
+				and int(player["momentum"]) < g.momentum_cap(p)
+				and int(player["momentum_lock_turn"]) != g.turn
+			)
+			if not can_gain_reserve and not can_release_stored:
+				continue
 		if g.can_activate(p, artifact.uid) and g.target_spec(artifact_effects) == "" and _revive_is_worth_it(g, p, artifact_effects):
 			return g.activate(p, artifact.uid)
 	for artifact: Card in g.players[p]["relics"]:

@@ -14,12 +14,11 @@
     "speed": "instantaneo",
     "exhaust": true,
     "effects": [
-      { "action": "gain_reserve", "target": "none", "amount": 1, "if": "gained_momentum_this_turn" },
-      { "action": "empty_momentum_store", "target": "none", "if": "gained_momentum_this_turn" },
-      { "action": "gain_momentum", "target": "none", "per": "stored", "lock": true, "if": { "not": "gained_momentum_this_turn" } }
+      { "action": "gain_reserve", "target": "none", "amount": 1 },
+      { "action": "gain_momentum", "target": "none", "per": "stored", "max": 1, "retain_stored": true }
     ]
   },
-  "text": "Guarda até 3 de Momentum que vazariam da Reserva.\nAo Ativar (0) {instantaneo} (exaure este artefato): se não ganhou Momentum neste turno, libera o guardado e não ganha mais até o fim do turno; senão, ganha 1 na Reserva e esvazia a Bateria.",
+  "text": "Guarda até 3 de Momentum que vazariam da Reserva.\nAo Ativar (0) {instantaneo} (exaure este artefato): ganhe 1 de Reserva (até o máximo de 2), mesmo com a Bateria vazia. Além disso, se houver espaço, libere até 1 do Momentum guardado; o restante continua na Bateria.",
   "flavor": "",
   "tags": []
 }

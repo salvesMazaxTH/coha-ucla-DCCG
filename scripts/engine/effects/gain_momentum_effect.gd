@@ -14,7 +14,8 @@ extends Effect
 ## floor(leaked / divisor), at most `max`.
 ## "per": "returned_allies" gains `amount` Momentum for each allied unit that a "return_to_hand" earlier in the same
 ## effect run sent back to the hand (Kazeminus), at most `max`.
-## "per": "stored" releases all the Momentum this artifact has stored (Bateria de Segunda Mão) and empties it.
+## "per": "stored" releases up to "max" Momentum this artifact has stored (the default maximum is 10). By default, all stored Momentum is emptied;
+## "retain_stored": true removes only the amount actually gained, keeping overflow or blocked gains stored.
 ## "lock": true (only when the Momentum really went up) stops the controller from gaining plain Momentum
 ## until the end of this turn; a refresh still works, and so do the next turn's gains.
 
@@ -28,9 +29,11 @@ var refresh := false
 var restriction: Dictionary = {}
 var amount_from := ""
 var lock := false
+var retain_stored := false
 
 func _read_parameters(data: Dictionary) -> void:
 	lock = bool(data.get("lock", false))
+	retain_stored = bool(data.get("retain_stored", false))
 	amount_from = String(data.get("amount_from", ""))
 	overflow = bool(data.get("overflow", false))
 	refresh = bool(data.get("refresh", false))
@@ -44,6 +47,7 @@ func _read_parameters(data: Dictionary) -> void:
 func apply(context: EffectContext, _target_uid: int) -> void:
 	var player: Dictionary = context.game.players[context.controller]
 	var gain := amount
+	var stored_artifact: Card = null
 	if amount_from == "sacrificed_cost":
 		# Momentum equal to the cost of the unit a sacrifice just killed, capped by "max"
 		gain = mini(maximum, context.sacrificed_cost)
@@ -58,18 +62,23 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 		if gain <= 0:
 			return
 	elif per == "stored":
-		var artifact: Card = context.game.find_relic(context.self_uid)
-		if artifact == null or artifact.stored_momentum <= 0:
+		stored_artifact = context.game.find_relic(context.self_uid)
+		if stored_artifact == null or stored_artifact.stored_momentum <= 0:
 			return
-		gain = artifact.stored_momentum
-		artifact.stored_momentum = 0 # released: whatever the cap refuses is lost too
-		context.game._emit({"type": "momentum_stored", "player": artifact.owner, "uid": artifact.uid, "stored": 0})
+		gain = mini(maximum, stored_artifact.stored_momentum)
+		if not retain_stored:
+			stored_artifact.stored_momentum = 0 # preserve the legacy behavior: refused Momentum is lost
+			context.game._emit({"type": "momentum_stored", "player": stored_artifact.owner, "uid": stored_artifact.uid, "stored": 0})
 	if next_turn:
 		player["next_momentum"] += gain
 	else:
 		var momentum_before := int(player["momentum"])
 		context.game.gain_momentum(context.controller, gain, overflow, refresh)
-		var really_gained: bool = int(player["momentum"]) > momentum_before
+		var gained_amount := maxi(0, int(player["momentum"]) - momentum_before)
+		var really_gained := gained_amount > 0
+		if retain_stored and stored_artifact != null:
+			stored_artifact.stored_momentum = maxi(0, stored_artifact.stored_momentum - gained_amount)
+			context.game._emit({"type": "momentum_stored", "player": stored_artifact.owner, "uid": stored_artifact.uid, "stored": stored_artifact.stored_momentum})
 		if not restriction.is_empty() and really_gained:
 			context.game.add_play_restriction(context.controller, restriction)
 		if lock and really_gained:
