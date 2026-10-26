@@ -25,7 +25,7 @@ const ACTION_CATEGORIES := {
 	"Compra de cartas": ["draw", "draw_discounted"],
 	"Busca ou recupera cartas": ["search_deck", "look_top", "look_bottom", "grave_retrieve", "grave_to_hand"],
 	"Invocação": ["summon", "summon_from", "summon_hand_pick", "revive", "revive_self", "revive_pick"],
-	"Remoção": ["destroy", "destroy_artifact", "banish", "condemn", "kill_leader"],
+	"Remoção": ["destroy", "destroy_artifact", "banish", "condemn"],
 	"Congela": ["freeze", "freeze_slots"],
 	"Atordoa": ["stun"],
 	"Exaure": ["exhaust"],
