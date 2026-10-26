@@ -1596,7 +1596,7 @@ func _panel_lines(cd: Dictionary) -> Array:
 		tags.append(["%s %d" % [CardDB.keyword("armadura")["name"], armor_value], Color("#c9d6e6")])
 	# Rapidez keyword: Rapidez 0 goes unmentioned and 1-3 read as "Rapidez 1-3"
 	# (a frozen unit has its Rapidez suppressed, so the tag is hidden until it thaws)
-	var rapidez_level := int(inst.get("rapidez", cd.get("rapidez", 0)))
+	var rapidez_level := maxi(int(inst.get("rapidez", cd.get("rapidez", 0))), int(inst.get("rapidez_until_next_turn", 0)))
 	if rapidez_level > 0 and not inst.has("frozen") and not inst.has("stun_markers"):
 		tags.append(["%s %d" % [CardDB.keyword("rapidez")["name"], rapidez_level], Color("#ffd27a")])
 	# Crítico X: the level reads on the tag ("Crítico 2"); the glossary in the overlay gives the chance
@@ -1644,6 +1644,9 @@ func _panel_lines(cd: Dictionary) -> Array:
 		# a card whose limited "charges" are spent on the Ao Ativar (no Condicional) shows the counter here
 		if inst.has("charges_left") and not _has_conditional_rule(cd):
 			activate_name += " (%d/%d)" % [int(inst["charges_left"]), int(cd["charges"])]
+		# an artifact that stores Momentum shows "(guardado/limite)"
+		if inst.has("stored_momentum"):
+			activate_name += " (%d/%d)" % [int(inst["stored_momentum"]), int(cd["momentum_store"])]
 		tags.append([activate_name, TRIGGER_COL])
 	if cd.has("transform"):
 		tags.append([CardDB.data()["triggers"]["transform"]["name"], TRIGGER_COL])

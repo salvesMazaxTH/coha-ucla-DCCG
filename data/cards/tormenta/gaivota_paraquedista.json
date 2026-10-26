@@ -1,0 +1,31 @@
+{
+  "name": "Gaivota Paraquedista",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["fera"],
+  "essence": "tormenta",
+  "element": "vento",
+  "cost": 2,
+  "atk": 2,
+  "hp": 2,
+  "keywords": ["voo"],
+  "art": "tormenta/gaivota_paraquedista.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "return_to_hand",
+      "target": "other_ally_unit"
+    },
+    {
+      "trigger": "on_enter",
+      "action": "gain_momentum",
+      "target": "none",
+      "per": "returned_allies",
+      "amount": 1,
+      "refresh": true
+    }
+  ],
+  "text": "Ao Entrar: você pode devolver outra unidade aliada à sua mão e recupera até 1 de Momentum gasto neste turno.",
+  "flavor": "",
+  "tags": []
+}

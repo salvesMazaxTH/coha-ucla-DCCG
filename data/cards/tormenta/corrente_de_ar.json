@@ -1,0 +1,22 @@
+{
+  "name": "Corrente de Ar",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "tormenta",
+  "element": "vento",
+  "cost": 2,
+  "speed": "instantaneo",
+  "art": "tormenta/corrente_de_ar.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "all_ally_units",
+      "rapidez_until_next_turn": 1,
+      "keywords_until_next_turn": ["esquiva"]
+    }
+  ],
+  "text": "Todas as suas unidades ganham Rapidez 1 e Esquiva até o início do seu próximo turno (quem já tem mais Rapidez a mantém).",
+  "flavor": "",
+  "tags": []
+}

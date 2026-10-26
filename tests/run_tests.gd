@@ -23,6 +23,10 @@ func _init() -> void:
 	_test_sacrifice_damage()
 	_test_domain_removals()
 	_test_kazeminus()
+	_test_agiota_das_nuvens()
+	_test_tormenta_wave_one()
+	_test_bateria_de_segunda_mao()
+	_test_tormenta_wave_two()
 	_test_magic_shield_scope()
 	_test_supreme_shield()
 	_test_limited_charges()
@@ -894,6 +898,299 @@ func _test_kazeminus() -> void:
 	check(kazeminus.exhausted and g.players[0]["momentum"] == 0, "Kazeminus: Ao Ativar custa 2 e exaure a unidade")
 	check(not g.can_activate(0, kazeminus.uid), "Kazeminus: exausto não ativa de novo")
 
+## Agiota das Nuvens: while on the board, his owner's Momentum cap is 12 instead of 10 (a Constante, "momentum_cap"),
+## and at the start of every turn his owner gains 2 Momentum. Without him the ceiling goes back to 10.
+func _test_agiota_das_nuvens() -> void:
+	var g := _new_game()
+	_quiet(g)
+	check(g.momentum_cap(0) == GameState.MOMENTUM_CAP, "Agiota: sem ele o teto de Momentum é o normal")
+	g.players[0]["momentum"] = 8
+	g.gain_momentum(0, 5)
+	check(g.players[0]["momentum"] == GameState.MOMENTUM_CAP, "Agiota: sem ele o ganho para no teto normal")
+
+	var agiota := _put(g, 0, "agiota_das_nuvens")
+	check(g.momentum_cap(0) == 12, "Agiota: com ele em campo o teto do dono é 12")
+	check(g.momentum_cap(1) == GameState.MOMENTUM_CAP, "Agiota: o teto do adversário não muda")
+	g.gain_momentum(0, 5)
+	check(g.players[0]["momentum"] == 12, "Agiota: o ganho de Momentum sobe até 12")
+
+	# turn start: the maximum grows by 1 from 10 (to 11) and the Constante's 2 Momentum fill the rest, up to 12
+	g.players[0]["max_momentum"] = 10
+	g.players[0]["momentum"] = 0
+	g._start_turn(0, false)
+	check(g.players[0]["max_momentum"] == 11, "Agiota: o máximo de Momentum passa de 10 (11 no turno seguinte)")
+	check(g.players[0]["momentum"] == 12, "Agiota: início do turno dá 11 de máximo + 2 de Momentum, limitado a 12")
+
+	# losing him sends the ceiling back to 10
+	g.players[0]["board"].erase(agiota)
+	check(g.momentum_cap(0) == GameState.MOMENTUM_CAP, "Agiota: sem ele em campo o teto volta a 10")
+	g._start_turn(0, false)
+	check(g.players[0]["max_momentum"] == GameState.MOMENTUM_CAP, "Agiota: sem ele o máximo volta a 10")
+
+## Rajada de Quintal (bounce limited by cost, +1 cost), Corrente de Ar (timed Rapidez + Esquiva),
+## Meteorologista Pessimista (takes a spell from the top of the deck) and Trovão Arrependido (Ao Morrer).
+func _test_tormenta_wave_one() -> void:
+	# Rajada de Quintal: only enemy units of cost 4 or less are valid targets; the bounced card costs 1 more
+	var g := _new_game()
+	_quiet(g)
+	var cheap := _put(g, 1, "serpente_marinha") # cost 5: too expensive
+	var small := _put(g, 1, "meteorologista_pessimista") # cost 2
+	var targets: Array = g.valid_targets(0, "enemy_unit", 0, false, [{"target": "enemy_unit", "unit_filter": {"max_cost": 4}}])
+	check(not targets.has(cheap.uid) and targets.has(small.uid), "Rajada de Quintal: unidade de custo 5 não é alvo válido, a de custo 2 é")
+	g.players[0]["momentum"] = 10
+	_play_aimed(g, 0, "rajada_de_quintal", small.uid)
+	check(g.find_unit(small.uid) == null and _zone_has(g, 1, "hand", "meteorologista_pessimista"), "Rajada de Quintal: devolve a unidade à mão do dono")
+	var returned: Card = g.players[1]["hand"].filter(func(c: Card) -> bool: return c.card_id == "meteorologista_pessimista")[0]
+	check(g.cost_of(1, returned.data(), returned) == int(returned.data()["cost"]) + 1, "Rajada de Quintal: a carta devolvida passa a custar 1 a mais")
+
+	# Corrente de Ar: Rapidez 1 + Esquiva until the owner's next turn; never lowers a higher Rapidez
+	g = _new_game()
+	_quiet(g)
+	var quick := _put(g, 0, "kazeminus") # Rapidez 2 innate (put first: her Ao Entrar bounces cheap units)
+	var plain := _put(g, 0, "meteorologista_pessimista")
+	var foe := _put(g, 1, "trovao_arrependido")
+	check(plain.rapidez_total() == 0 and not g.has_kw(plain, "esquiva"), "Corrente de Ar: unidade comum começa sem Rapidez nem Esquiva")
+	g.players[0]["momentum"] = 10
+	g.play_card(0, _give(g, 0, "corrente_de_ar"))
+	_resolve_stack(g)
+	check(plain.rapidez_total() == 1 and g.has_kw(plain, "esquiva"), "Corrente de Ar: concede Rapidez 1 e Esquiva")
+	check(quick.rapidez_total() == 2, "Corrente de Ar: não reduz uma Rapidez maior")
+	check(g.combat_system().dodges(plain, foe) == (foe.rapidez_total() < 1), "Corrente de Ar: a Esquiva concedida usa a Rapidez 1 concedida")
+	check(int(plain.to_dict().get("rapidez_until_next_turn", 0)) == 1, "Corrente de Ar: a Rapidez temporária sobrevive ao salvar e carregar")
+	g._start_turn(0, false)
+	check(plain.rapidez_total() == 0 and not g.has_kw(plain, "esquiva"), "Corrente de Ar: tudo expira no início do próximo turno do dono")
+
+	# Meteorologista Pessimista: picks a spell among the top 5 cards; declining takes nothing
+	g = _new_game()
+	_quiet(g)
+	var spell := Card.new(g._uid(), "choque_de_largada", 0, "deck")
+	g.players[0]["deck"].append(spell)
+	var hand_before: int = g.players[0]["hand"].size()
+	g.players[0]["momentum"] = 10
+	g.play_card(0, _give(g, 0, "meteorologista_pessimista"))
+	_resolve_stack(g)
+	check(g.phase == "search", "Meteorologista: abre a escolha de um feitiço do topo")
+	check(g.pending_search["cards"].all(func(option: Dictionary) -> bool: return CardDB.card(option["card_id"])["type"] == "spell"), "Meteorologista: só feitiços são oferecidos")
+	g.choose_search(0, int(spell.uid))
+	check(g.players[0]["hand"].any(func(c: Card) -> bool: return c.uid == spell.uid) and g.players[0]["hand"].size() == hand_before + 1, "Meteorologista: o feitiço escolhido vai para a mão")
+
+	# Trovão Arrependido: Ímpeto, and on death 5 damage to the enemy Leader plus 2 Momentum
+	g = _new_game()
+	_quiet(g)
+	var thunder := _put(g, 0, "trovao_arrependido")
+	check(g.has_kw(thunder, "impeto"), "Trovão Arrependido: tem Ímpeto")
+	var leader_hp: int = g.players[1]["leader_hp"]
+	g.players[0]["momentum"] = 0
+	thunder.damage = 99
+	g._check_state()
+	check(g.players[1]["leader_hp"] == leader_hp - 5, "Trovão Arrependido: ao morrer causa 5 de dano ao Líder inimigo")
+	check(g.players[0]["momentum"] == 2, "Trovão Arrependido: ao morrer dá 2 de Momentum")
+
+## Kazeminus' Vento de Cauda, the "momentum_left" damage (Curto-Circuito, Antena de Varal) and the other
+## second-wave Tormenta cards: Fio Desencapado, Gaivota Paraquedista, Caça-Raios Sem Mira, Capitã Redemoinho,
+## Tufão de Gaveta, Cata-Vento Ambulante and Nuvem de Estimação.
+func _test_tormenta_wave_two() -> void:
+	# Vento de Cauda: 3 Momentum, once per turn; the chosen ally gets Ímpeto this turn and Rapidez 1 until our next turn
+	var g := _new_game()
+	_quiet(g)
+	var p: int = g.active
+	g.players[p]["leader_id"] = "kazeminus"
+	g.players[p]["ability_used"] = false
+	g.players[p]["momentum"] = 5
+	var runner := _put(g, p, "meteorologista_pessimista", false)
+	check(not g.has_kw(runner, "impeto") and runner.rapidez_total() == 0, "Vento de Cauda: a unidade começa sem Ímpeto nem Rapidez")
+	g.use_ability(p, runner.uid)
+	_resolve_stack(g)
+	check(g.players[p]["momentum"] == 2, "Vento de Cauda: custa 3 de Momentum")
+	check(g.has_kw(runner, "impeto") and runner.rapidez_total() == 1, "Vento de Cauda: concede Ímpeto e Rapidez 1")
+	check(not g.can_use_ability(p), "Vento de Cauda: só uma vez por turno")
+
+	# Fio Desencapado: 2 damage to any unit and +1 Momentum (so the 1-cost spell pays for itself)
+	g = _new_game()
+	_quiet(g)
+	var target := _put(g, 1, "serpente_marinha")
+	g.players[0]["momentum"] = 5
+	g.players[0]["turn_start_momentum"] = 5
+	_play_aimed(g, 0, "fio_desencapado", target.uid)
+	check(target.damage == 2, "Fio Desencapado: causa 2 de dano")
+	check(g.players[0]["momentum"] == 5, "Fio Desencapado: o Momentum ganho cobre o custo de 1")
+
+	# Curto-Circuito: 1 damage to the enemy Leader per Momentum left after paying, and all of it is spent
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 8
+	var leader_hp: int = g.players[1]["leader_hp"]
+	_cast_and_resolve(g, 0, "curto_circuito")
+	check(g.players[1]["leader_hp"] == leader_hp - 5, "Curto-Circuito: 8 de Momentum - 3 de custo = 5 de dano ao Líder")
+	check(g.players[0]["momentum"] == 0, "Curto-Circuito: gasta todo o Momentum que sobrou")
+	g.players[0]["momentum"] = 3
+	leader_hp = g.players[1]["leader_hp"]
+	_cast_and_resolve(g, 0, "curto_circuito")
+	check(g.players[1]["leader_hp"] == leader_hp, "Curto-Circuito: sem Momentum sobrando não causa dano")
+
+	# Antena de Varal: at the end of the turn, 1 damage per 2 Momentum left (rounded down); the Momentum stays
+	g = _new_game()
+	_quiet(g)
+	var p_antenna: int = g.active
+	g._place_relic(p_antenna, Card.new(g._uid(), "antena_de_varal", p_antenna))
+	g._flush()
+	g.players[p_antenna]["momentum"] = 7
+	leader_hp = g.players[1 - p_antenna]["leader_hp"]
+	g.end_turn(p_antenna)
+	check(g.players[1 - p_antenna]["leader_hp"] == leader_hp - 3, "Antena de Varal: 7 de Momentum sobrando = 3 de dano no fim do turno")
+
+	# Gaivota Paraquedista: bounces another ally and gets back 1 spent Momentum
+	g = _new_game()
+	_quiet(g)
+	var ally := _put(g, 0, "meteorologista_pessimista")
+	g.players[0]["momentum"] = 10
+	g.players[0]["turn_start_momentum"] = 10
+	_play_aimed(g, 0, "gaivota_paraquedista", ally.uid)
+	check(g.find_unit(ally.uid) == null and _zone_has(g, 0, "hand", "meteorologista_pessimista"), "Gaivota: devolve a outra aliada à mão")
+	check(g.players[0]["momentum"] == 9, "Gaivota: custa 2 e recupera 1 de Momentum gasto")
+
+	# Caça-Raios Sem Mira: hitting the Leader gives 1 Momentum (Ímpeto alone never reaches the face on the turn it enters)
+	g = _new_game()
+	_quiet(g)
+	var hunter := _put(g, 0, "caca_raios_sem_mira")
+	g.players[0]["momentum"] = 0
+	leader_hp = g.players[1]["leader_hp"]
+	g.players[1]["hand"] = [] # an Instantâneo in the defender's hand would make the game ask them to react first
+	g.players[1]["ability_used"] = true
+	_open_attacks(g)
+	g.attack_unit(0, hunter.uid, GameState.LEADER_UID[1])
+	_resolve_stack(g)
+	check(g.players[1]["leader_hp"] == leader_hp - 4, "Caça-Raios: o ataque ao Líder causa 4 de dano")
+	check(g.players[0]["momentum"] == 1, "Caça-Raios: acertar o Líder dá 1 de Momentum")
+
+	# Capitã Redemoinho: when she attacks she bounces a random enemy unit, which then costs 1 more
+	g = _new_game()
+	_quiet(g)
+	var captain := _put(g, 0, "capita_redemoinho")
+	var victim := _put(g, 1, "meteorologista_pessimista")
+	_open_attacks(g)
+	g.attack_unit(0, captain.uid, GameState.LEADER_UID[1])
+	_resolve_stack(g)
+	check(g.find_unit(victim.uid) == null and _zone_has(g, 1, "hand", "meteorologista_pessimista"), "Capitã Redemoinho: ao atacar devolve uma unidade inimiga")
+	check(g.find_unit(captain.uid) != null, "Capitã Redemoinho: continua em campo depois do ataque")
+
+	# Tufão de Gaveta: sends home every unit of cost 3 or less (both sides) and refunds Momentum per ally sent
+	g = _new_game()
+	_quiet(g)
+	var cheap_ally := _put(g, 0, "meteorologista_pessimista") # cost 2
+	var big_ally := _put(g, 0, "trovao_arrependido") # cost 6
+	var cheap_foe := _put(g, 1, "meteorologista_pessimista")
+	g.players[0]["momentum"] = 10
+	g.players[0]["turn_start_momentum"] = 10
+	_cast_and_resolve(g, 0, "tufao_de_gaveta")
+	check(g.find_unit(cheap_ally.uid) == null and g.find_unit(cheap_foe.uid) == null, "Tufão de Gaveta: devolve as unidades baratas dos dois lados")
+	check(g.find_unit(big_ally.uid) != null, "Tufão de Gaveta: unidades de custo maior ficam")
+	check(g.players[0]["momentum"] == 5, "Tufão de Gaveta: custa 6 e recupera 1 por unidade aliada devolvida")
+
+	# Cata-Vento Ambulante: grows only when Momentum was left over at the end of the turn
+	g = _new_game()
+	_quiet(g)
+	var p_vane: int = g.active
+	var vane := _put(g, p_vane, "cata_vento_ambulante")
+	g.players[p_vane]["momentum"] = 0
+	g.end_turn(p_vane)
+	check(g.atk_of(vane) == 2, "Cata-Vento Ambulante: sem Momentum sobrando não cresce")
+	g = _new_game()
+	_quiet(g)
+	p_vane = g.active
+	vane = _put(g, p_vane, "cata_vento_ambulante")
+	g.players[p_vane]["momentum"] = 3
+	g.end_turn(p_vane)
+	check(g.atk_of(vane) == 3, "Cata-Vento Ambulante: com Momentum sobrando ganha +1 de Ataque")
+
+	# Nuvem de Estimação: +1 Ataque for each spell its controller casts (not the opponent's)
+	g = _new_game()
+	_quiet(g)
+	var cloud := _put(g, 0, "nuvem_de_estimacao")
+	g.players[0]["momentum"] = 10
+	_cast_and_resolve(g, 0, "curto_circuito")
+	check(g.atk_of(cloud) == 3, "Nuvem de Estimação: lançar um feitiço dá +1 de Ataque")
+	g.players[1]["momentum"] = 10
+	_cast_and_resolve(g, 1, "curto_circuito")
+	check(g.atk_of(cloud) == 3, "Nuvem de Estimação: feitiço do oponente não conta")
+
+func _test_bateria_de_segunda_mao() -> void:
+	var g := _new_game()
+	_quiet(g)
+	var p: int = g.active
+	var battery := Card.new(g._uid(), "bateria_de_segunda_mao", p)
+	g._place_relic(p, battery)
+	g._flush()
+	var pl: Dictionary = g.players[p]
+
+	# only the Momentum that leaks past a full Reserva is stored: what the Reserva banks never counts
+	pl["reserve"] = 2
+	pl["momentum"] = 2 # 2 Reserva + 2 unspent - cap 2 = 2 leaked
+	g._start_turn(p, false)
+	check(battery.stored_momentum == 2, "Bateria: guarda só o que vazou da Reserva (2)")
+	pl["reserve"] = 0
+	pl["momentum"] = 3 # 0 Reserva + 3 unspent - cap 2 = 1 leaked
+	g._start_turn(p, false)
+	check(battery.stored_momentum == 3, "Bateria: acumula entre turnos, até o limite de 3")
+	pl["reserve"] = 2
+	pl["momentum"] = 5
+	g._start_turn(p, false)
+	check(battery.stored_momentum == 3, "Bateria: cheia, não guarda mais")
+	check(Card.from_dict(battery.to_dict(), "relics", p).stored_momentum == 3, "Bateria: o Momentum guardado sobrevive ao salvar e carregar")
+
+	# a turn that leaks nothing stores nothing
+	pl["reserve"] = 0
+	pl["momentum"] = 1
+	battery.stored_momentum = 0
+	g._start_turn(p, false)
+	check(battery.stored_momentum == 0, "Bateria: sem vazamento, nada é guardado")
+
+	# release: no Momentum gained yet this turn -> all stored Momentum at once, then a lock on plain gains
+	battery.stored_momentum = 3
+	pl["momentum"] = 0
+	g._start_turn(p, false)
+	pl["momentum"] = 0 # spent everything this turn
+	pl["turn_start_momentum"] = 6
+	g.activate(p, battery.uid)
+	_resolve_stack(g)
+	check(pl["momentum"] == 3 and battery.stored_momentum == 0, "Bateria: libera todo o Momentum guardado")
+	check(battery.exhausted, "Bateria: a ativação exaure o artefato")
+	g.gain_momentum(p, 2)
+	check(pl["momentum"] == 3, "Bateria: depois de liberar, ganho comum de Momentum não funciona até o fim do turno")
+	g.gain_momentum(p, 2, false, true)
+	check(pl["momentum"] == 5, "Bateria: o refresh continua funcionando durante o bloqueio")
+	g._start_turn(p, false)
+	check(not battery.exhausted, "Bateria: desvira no início do turno")
+	g.gain_momentum(p, 1)
+	check(pl["momentum"] == int(pl["max_momentum"]) + 1, "Bateria: o bloqueio acaba no turno seguinte")
+
+	# already gained Momentum this turn -> +1 Reserva (never past 2) and the Bateria empties, with no lock
+	battery.stored_momentum = 3
+	pl["reserve"] = 0
+	pl["momentum"] = 0
+	g._start_turn(p, false)
+	pl["reserve"] = 0
+	pl["momentum"] = 0
+	g.gain_momentum(p, 1)
+	g.activate(p, battery.uid)
+	_resolve_stack(g)
+	check(pl["reserve"] == 1 and battery.stored_momentum == 0, "Bateria: se já ganhou Momentum no turno, dá 1 de Reserva e esvazia")
+	g.gain_momentum(p, 1)
+	check(pl["momentum"] == 2, "Bateria: o ramo da Reserva não bloqueia ganhos")
+	battery.stored_momentum = 2
+	battery.exhausted = false
+	pl["reserve"] = 2
+	g.activate(p, battery.uid)
+	_resolve_stack(g)
+	check(pl["reserve"] == 2 and battery.stored_momentum == 0, "Bateria: Reserva cheia não ganha nada, mas a Bateria esvazia")
+
+	# leaving play loses the store
+	var stored_card := Card.new(g._uid(), "bateria_de_segunda_mao", p)
+	g._place_relic(p, stored_card)
+	stored_card.stored_momentum = 3
+	g.destroy_relic(stored_card)
+	check(g.find_relic(stored_card.uid) == null and stored_card.stored_momentum == 0, "Bateria: destruída, o Momentum guardado se perde")
+
 func _test_domain_removals() -> void:
 	# Expurgo Sagrado: destroys every unit, but Trevas units are banished on the spot (they never die: no Ao Morrer)
 	var g := _new_game()
@@ -1292,10 +1589,39 @@ func _test_off_essence() -> void:
 	base["bencao_das_profundezas"] = 3
 	base["espirito_da_mare"] = 1
 	check(DeckDB.validate_cards(leader, base).filter(func(e): return "fora do domínio" in e).is_empty(), "10 cartas de fora da essência são permitidas")
-	var over: Dictionary = base.duplicate()
-	over["tritao_lanceiro"] = 1
-	over[over.keys().filter(func(k): return k != "afogar" and k != "tsunami" and k != "bencao_das_profundezas" and k != "espirito_da_mare" and k != leader)[0]] -= 1
-	check(not DeckDB.validate_cards(leader, over).filter(func(e): return "máximo 10" in e).is_empty(), "11 cartas de fora da essência são ilegais")
+	var removable_card: String = base.keys().filter(func(k): return k != "afogar" and k != "tsunami" and k != "bencao_das_profundezas" and k != "espirito_da_mare" and k != leader)[0]
+	# an 11th guest card from the SAME domain (Fluxo) is fine: a shared guest domain raises the cap to 15
+	var same_domain: Dictionary = base.duplicate()
+	same_domain["tritao_lanceiro"] = 1
+	same_domain[removable_card] -= 1
+	check(DeckDB.validate_cards(leader, same_domain).filter(func(e): return "fora do domínio" in e).is_empty(), "11 convidadas do mesmo domínio são legais (até 15)")
+	# an 11th guest card from ANOTHER domain (Tormenta) breaks the shared domain, so the cap falls back to 10
+	var mixed: Dictionary = base.duplicate()
+	mixed["carga_acumulada"] = 1
+	mixed[removable_card] -= 1
+	check(not DeckDB.validate_cards(leader, mixed).filter(func(e): return "máximo 10" in e).is_empty(), "11 convidadas de domínios misturados são ilegais")
+	# only the card count is checked below, so the lists are built from the Leader's own cards plus Fluxo guests
+	var own_domain_cards: Dictionary = {}
+	for card_id in DeckDB.get_deck("fogo")["cards"]:
+		var domains := CardDB.essences_of(CardDB.card(card_id))
+		if domains.has("neutra") or domains.has("furia"):
+			own_domain_cards[card_id] = DeckDB.get_deck("fogo")["cards"][card_id]
+	var fifteen_fluxo: Dictionary = own_domain_cards.duplicate()
+	for card_id in ["afogar", "tsunami", "bencao_das_profundezas", "tritao_lanceiro", "serpente_marinha"]:
+		fifteen_fluxo[card_id] = 3
+	check(DeckDB.validate_cards(leader, fifteen_fluxo).filter(func(e): return "fora do domínio" in e).is_empty(), "15 convidadas do mesmo domínio são legais")
+	# a multi-domain guest (Morwenna: Trevas + Natureza) keeps the bonus when it shares a domain with the others...
+	var with_multi_domain: Dictionary = own_domain_cards.duplicate()
+	for card_id in ["cova_rasa", "colheita_de_almas", "chamado_do_alem", "morwenna_raiz_podre"]:
+		with_multi_domain[card_id] = 3
+	check(DeckDB.validate_cards(leader, with_multi_domain).filter(func(e): return "fora do domínio" in e).is_empty(), "convidada multi-domínio que compartilha o domínio das outras mantém o limite de 15")
+	# ...but not when another guest shares nothing with it (a Fluxo card has neither Trevas nor Natureza)
+	var multi_domain_broken: Dictionary = with_multi_domain.duplicate()
+	multi_domain_broken["afogar"] = 1
+	check(not DeckDB.validate_cards(leader, multi_domain_broken).filter(func(e): return "máximo 10" in e).is_empty(), "sem domínio em comum, o limite volta a 10")
+	var sixteen_fluxo: Dictionary = fifteen_fluxo.duplicate()
+	sixteen_fluxo["sentinela_coral"] = 1
+	check(not DeckDB.validate_cards(leader, sixteen_fluxo).filter(func(e): return "máximo 15" in e).is_empty(), "16 convidadas do mesmo domínio são ilegais")
 	var champ: Dictionary = base.duplicate()
 	champ["alexa_neruvya"] = 1 # a champion of another essence
 	check(DeckDB.validate_cards(leader, champ).filter(func(e): return "Campeão" in e).is_empty(), "Campeão de fora da essência é permitido (conta nas 10 de fora)")
@@ -4827,7 +5153,15 @@ func _test_vegetal() -> void:
 	# (never the token that just entered, never a non-plant)
 	var human_ally := _put(g, 0, "guardia_dos_ninhos") # put first: her own Ao Entrar would buff a plant already on the board
 	var plant_ally := _put(g, 0, "semente_teimosa")
-	var plant_base_hp: int = int(CardDB.card("semente_teimosa")["hp"])
+	g._check_state()
+	# Semente Teimosa summons a Mudinha of its own on entering, and that token already fires the passive once: reset the turn's uses
+	# so the checks below start from a clean slate, and measure the plant's Vida only after that first buff
+	g.players[0]["passive_uses"] = 0
+	g.players[0]["passive_used"] = false
+	var plant_base_hp: int = plant_ally.hp
+	for seedling: Card in g.players[0]["board"].duplicate(): # and take that Mudinha off the board, or it would be a second plant for the passive to pick
+		if seedling.card_id == "mudinha_do_dossel":
+			g.players[0]["board"].erase(seedling)
 	var human_base_hp: int = int(CardDB.card("guardia_dos_ninhos")["hp"])
 	var first_token := _put(g, 0, "mudinha_do_dossel")
 	g._check_state()
@@ -4877,6 +5211,9 @@ func _test_vegetal() -> void:
 	quiet_garden._check_state()
 	check(int(quiet_garden.players[0].get("passive_uses", 0)) == 0 and not quiet_garden.players[0]["passive_used"], "Thalvaressa: sem alvo válido o passivo não é anunciado nem gasta um uso")
 	_put(quiet_garden, 0, "semente_teimosa")
+	quiet_garden._check_state() # Semente's own Mudinha fires the passive once on entering; start counting from here
+	quiet_garden.players[0]["passive_uses"] = 0
+	quiet_garden.players[0]["passive_used"] = false
 	_put(quiet_garden, 0, "mudinha_do_dossel")
 	quiet_garden._check_state()
 	check(int(quiet_garden.players[0].get("passive_uses", 0)) == 1, "Thalvaressa: com uma planta aliada em campo o passivo volta a disparar")
@@ -6759,6 +7096,7 @@ func _test_glacial_combo() -> void:
 	# Total Vida below the 9 hits: every hit must find a unit that still has Vida (no hit wasted on an overkilled one),
 	# and the Ao Morrer of the first casualties waits for the end of the spell, so its token is never hit.
 	_tcard("t_spread_low", 1, 3, [])
+	_tcard("t_spread_dies", 1, 1, [{"trigger": "on_death", "action": "summon", "target": "none", "card": "mudinha_do_dossel"}]) # Semente Teimosa now summons on entering, so a fixture owns the Ao Morrer token
 	var spread_always_clears := true
 	var spread_token_untouched := true
 	for roll_seed in 25:
@@ -6766,7 +7104,7 @@ func _test_glacial_combo() -> void:
 		_quiet(spread_wipe)
 		spread_wipe.rng.seed = roll_seed + 1
 		spread_wipe.players[0]["momentum"] = 10
-		var wipe_victims: Array = [_put(spread_wipe, 1, "semente_teimosa"), _put(spread_wipe, 1, "t_spread_low"), _put(spread_wipe, 1, "t_spread_low")]
+		var wipe_victims: Array = [_put(spread_wipe, 1, "t_spread_dies"), _put(spread_wipe, 1, "t_spread_low"), _put(spread_wipe, 1, "t_spread_low")]
 		_cast_and_resolve(spread_wipe, 0, "repique_desgovernado")
 		var survivors: Array = spread_wipe.players[1]["board"].filter(func(unit: Card) -> bool: return wipe_victims.has(unit))
 		spread_always_clears = spread_always_clears and survivors.is_empty()
@@ -7136,15 +7474,15 @@ func _test_glacial() -> void:
 	g.turn += 3
 	check(g.leader_negations_left(a) == 0, "câmara: sem camadas depois que a janela termina")
 
-	# Morwenna Raiz-Podre: +1/+1 per ally death, at most 4 times (1/3 grows to 5/7 and stops)
+	# Morwenna Raiz-Podre: +1/+1 per ally death, at most 4 times (1/4 grows to 5/8 and stops)
 	g = _obscura_game()
 	a = g.active
 	var morwenna := _put(g, a, "morwenna_raiz_podre")
 	for ally_number in 6:
 		_kill(g, _put(g, a, "teste_alvo_gelo"))
 		if ally_number == 0:
-			check(g.atk_of(morwenna) == 2 and g.hp_left(morwenna) == 4, "morwenna: a primeira morte de aliado dá +1/+1 (2/4)")
-	check(g.atk_of(morwenna) == 5 and g.hp_left(morwenna) == 7, "morwenna: depois de 6 mortes de aliados ela para em 5/7")
+			check(g.atk_of(morwenna) == 2 and g.hp_left(morwenna) == 5, "morwenna: a primeira morte de aliado dá +1/+1 (2/5)")
+	check(g.atk_of(morwenna) == 5 and g.hp_left(morwenna) == 8, "morwenna: depois de 6 mortes de aliados ela para em 5/8")
 
 	# Folheio Pé-na-Neve: draws 3, then the player picks a card from the hand and it goes to the graveyard
 	g = _glacial_game()

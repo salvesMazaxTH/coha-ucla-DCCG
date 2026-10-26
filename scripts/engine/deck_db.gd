@@ -11,9 +11,12 @@ const MAX_LEGENDARY_COPIES := 2
 ## Champions + legendaries together (counting copies) in one deck.
 const MAX_ELITE_CARDS := 20
 ## Guest cards: cards outside the Leader's domains (neutral ones don't count), of any rarity.
-## They can come from any domains, in any mix: the cap is the only limit.
+## They can come from any domains, in any mix, up to MAX_OFF_ESSENCE. If one domain appears in EVERY
+## guest card (a multi-domain guest counts for each domain the Leader lacks), the cap rises to
+## MAX_OFF_ESSENCE_SINGLE_DOMAIN: that shared domain works like a secondary domain.
 ## A neutral Leader has no domain, so every non-neutral card is a guest for it.
 const MAX_OFF_ESSENCE := 10
+const MAX_OFF_ESSENCE_SINGLE_DOMAIN := 15
 const PREBUILT_DIR := "res://data/decks/prebuilt"
 const SECTION_ESSENCE := "essencia"
 const SECTION_SPECIAL := "especial"
@@ -103,6 +106,8 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 	var ld := CardDB.leader(leader_id)
 	var total := 0 # cards that are drawn, so the Encarnação is not counted
 	var off_essence := 0
+	# domains that appear in every guest card so far; null until the first guest card is seen
+	var shared_guest_domains: Variant = null
 	var elite_cards := 0
 	for id in cards:
 		var n: int = cards[id]
@@ -125,14 +130,24 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 				legal = legal and ld["essences"].has(e)
 		if not legal:
 			off_essence += n
+			var missing_domains: Array = ess.filter(func(domain): return not ld["essences"].has(domain))
+			if shared_guest_domains == null:
+				shared_guest_domains = missing_domains
+			else:
+				shared_guest_domains = shared_guest_domains.filter(func(domain): return missing_domains.has(domain))
 		if c.get("transform_only", false):
 			errors.append("%s: só entra em jogo por transformação" % id)
 		if c.get("undraftable", false):
 			errors.append("%s: não pode entrar no deck (só é colocada em jogo por um efeito)" % id)
 		if CardDB.is_leader_card(id) and id != ld["incarnation"]:
 			errors.append("%s: Encarnação de outro Líder" % id)
-	if off_essence > MAX_OFF_ESSENCE:
-		errors.append("%d cartas de fora do domínio do Líder (máximo %d)" % [off_essence, MAX_OFF_ESSENCE])
+	var has_shared_domain: bool = shared_guest_domains != null and not shared_guest_domains.is_empty()
+	var guest_limit := MAX_OFF_ESSENCE_SINGLE_DOMAIN if has_shared_domain else MAX_OFF_ESSENCE
+	if off_essence > guest_limit:
+		if has_shared_domain:
+			errors.append("%d cartas de fora do domínio do Líder (máximo %d)" % [off_essence, MAX_OFF_ESSENCE_SINGLE_DOMAIN])
+		else:
+			errors.append("%d cartas de fora do domínio do Líder (máximo %d; até %d se todas forem de um mesmo domínio)" % [off_essence, MAX_OFF_ESSENCE, MAX_OFF_ESSENCE_SINGLE_DOMAIN])
 	if elite_cards > MAX_ELITE_CARDS:
 		errors.append("%d Campeões + Lendárias (máximo %d)" % [elite_cards, MAX_ELITE_CARDS])
 	if total != DECK_SIZE:

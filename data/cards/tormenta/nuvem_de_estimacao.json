@@ -1,0 +1,26 @@
+{
+  "name": "Nuvem de Estimação",
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["elemental"],
+  "essence": "tormenta",
+  "element": "vento",
+  "cost": 4,
+  "atk": 2,
+  "hp": 6,
+  "keywords": ["voo", "escudo_magico"],
+  "art": "tormenta/nuvem_de_estimacao.webp",
+  "effects": [
+    {
+      "listen": "spell_cast",
+      "scope": "ally",
+      "zones": ["board"],
+      "action": "buff",
+      "target": "self",
+      "atk": 1
+    }
+  ],
+  "text": "Condicional: sempre que você lançar um feitiço, esta unidade ganha +1 de Ataque permanente.",
+  "flavor": "",
+  "tags": []
+}

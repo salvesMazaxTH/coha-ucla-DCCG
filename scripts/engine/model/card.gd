@@ -27,6 +27,7 @@ var temp_hp_until_next_turn := 0 ## extra Vida that lasts until this unit's owne
 var rapidez := 0 ## Rapidez 0-3, as written on the card (0 = no Rapidez keyword): in a challenge, the faster unit deals its damage first (equal = at the same time)
 var keywords: Array = []
 var temp_keywords: Array = []
+var rapidez_until_next_turn := 0 ## Rapidez lent only until this unit's owner's next turn starts (Corrente de Ar); the higher of this and `rapidez` counts
 var keywords_until_next_turn: Array = [] ## keywords granted only until this unit's owner's next turn starts (Cortina de Fumaça Barata); they leave then
 var lost_keywords: Array = [] ## keywords taken away only until the end of this turn (Saltador de Cerca); they come back then
 var shield := false
@@ -73,6 +74,7 @@ var vipranna_heal_locked := false ## later triggers stay off after this instance
 var leader_damage_guard_turn := -1 ## turn in which this card reduced the first damage to its Leader
 var death_ward_armed := false ## a free-standing artifact is ready to prevent one allied unit death
 var charges_used := 0 ## Condicional firings spent so far by a card with "charges": N (Ampola Curativa)
+var stored_momentum := 0 ## Momentum held by an artifact with "momentum_store": N (Bateria de Segunda Mão); lost when it leaves the field
 
 ## Card-data fields that are an ability or a keyword's number: silence() deletes them from the unit.
 const SILENCED_FIELDS := ["activated", "transform", "rapidez", "critico", "armor", "adjacent_armor", "esquiva", "inert", "imune_critico",
@@ -136,6 +138,7 @@ func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:
 	keywords = kws
 	temp_keywords = []
 	keywords_until_next_turn = []
+	rapidez_until_next_turn = 0
 	lost_keywords = []
 	exhausted = false
 	sick = true
@@ -192,6 +195,7 @@ func silence() -> void:
 	keywords = []
 	temp_keywords = []
 	keywords_until_next_turn = []
+	rapidez_until_next_turn = 0
 	lost_keywords = [] # nothing left to give back
 	shield = false
 	magic_shield = false
@@ -248,7 +252,7 @@ func atk_total() -> int:
 func rapidez_total() -> int:
 	if is_frozen() or is_stunned():
 		return 0
-	return clampi(rapidez, 0, 3)
+	return clampi(maxi(rapidez, rapidez_until_next_turn), 0, 3)
 
 ## Crítico level right now (0 = none, 4 = every blow is critical).
 func critico_total() -> int:
@@ -285,6 +289,8 @@ func to_dict() -> Dictionary:
 		d["death_ward_armed"] = true
 	if charges_used > 0:
 		d["charges_used"] = charges_used
+	if stored_momentum > 0:
+		d["stored_momentum"] = stored_momentum
 	if supreme_shield: # written before the board-only part: a free-standing artifact can hold it too
 		d["supreme_shield"] = true
 		if supreme_shield_expires != "":
@@ -312,6 +318,8 @@ func to_dict() -> Dictionary:
 		d["magic_shield_until_end_turn"] = true
 	if not keywords_until_next_turn.is_empty():
 		d["keywords_until_next_turn"] = keywords_until_next_turn.duplicate()
+	if rapidez_until_next_turn > 0:
+		d["rapidez_until_next_turn"] = rapidez_until_next_turn
 	if not lost_keywords.is_empty():
 		d["lost_keywords"] = lost_keywords.duplicate()
 	if temp_hp > 0:
@@ -380,6 +388,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.cost_mod = int(d.get("cost_mod", 0))
 	c.death_ward_armed = bool(d.get("death_ward_armed", false))
 	c.charges_used = int(d.get("charges_used", 0))
+	c.stored_momentum = int(d.get("stored_momentum", 0))
 	c.supreme_shield = bool(d.get("supreme_shield", false))
 	c.supreme_shield_expires = String(d.get("supreme_shield_expires", ""))
 	c.over = d.get("over", {})
@@ -399,6 +408,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.magic_shield_until_next_turn = bool(d.get("magic_shield_until_next_turn", false))
 	c.magic_shield_until_end_turn = bool(d.get("magic_shield_until_end_turn", false))
 	c.keywords_until_next_turn = d.get("keywords_until_next_turn", [])
+	c.rapidez_until_next_turn = int(d.get("rapidez_until_next_turn", 0))
 	c.lost_keywords = d.get("lost_keywords", [])
 	c.temp_hp = int(d.get("temp_hp", 0))
 	c.temp_hp_until_next_turn = int(d.get("temp_hp_until_next_turn", 0))

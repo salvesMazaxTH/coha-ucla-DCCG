@@ -1,0 +1,32 @@
+{
+  "name": "Vento de Cauda",
+  "description": "Agressão média com bounce: unidades baratas com Rapidez e Ímpeto, devolver as unidades inimigas à mão para atrasar a mesa deles e refazer o Ao Entrar das suas, e feitiços baratos que se pagam sozinhos em Momentum. O Vento de Cauda do Kazeminus dá Ímpeto e Rapidez a quem precisar entrar na briga. Convidadas de Fúria reforçam o Ímpeto.",
+  "order": 23,
+  "section": "especial",
+  "leader": "kazeminus",
+  "cards": {
+    "diabrete_eletrico": 3,
+    "choque_de_largada": 2,
+    "fio_desencapado": 3,
+    "rajada_de_quintal": 3,
+    "espirito_carregado": 3,
+    "gaivota_paraquedista": 3,
+    "meteorologista_pessimista": 2,
+    "pippa_ziguezague": 2,
+    "corrente_de_ar": 2,
+    "raio_encadeado": 2,
+    "capita_bone_de_lado": 2,
+    "curto_circuito": 2,
+    "caca_raios_sem_mira": 3,
+    "layla": 1,
+    "nuvem_de_estimacao": 2,
+    "erupcao": 1,
+    "capita_redemoinho": 3,
+    "elias_cross": 1,
+    "trovao_arrependido": 1,
+    "tufao_de_gaveta": 1,
+    "kazeminus": 1,
+    "thorwells": 1,
+    "agiota_das_nuvens": 1
+  }
+}

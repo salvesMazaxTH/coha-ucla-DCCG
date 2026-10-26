@@ -1,0 +1,23 @@
+{
+  "name": "Curto-Circuito",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 3,
+  "speed": "instantaneo",
+  "art": "tormenta/curto_circuito.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 1,
+      "amount_from": "momentum_left",
+      "spend_momentum": true
+    }
+  ],
+  "text": "Causa ao Líder inimigo 1 de dano por Momentum que você ainda tem neste turno; todo esse Momentum é gasto.",
+  "flavor": "",
+  "tags": []
+}

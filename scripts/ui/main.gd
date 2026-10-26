@@ -35,6 +35,8 @@ var pending_pass := false
 var _over_from := -1 ## index in layer of the first game-over node (-1 = none this frame)
 var _leader_ko_t := -1.0 ## time of the last Leader HP change in the current animation
 var net: NetClient ## online match link (null offline)
+var account_button: Button
+var _account_was_signed_in := false
 var online := false
 var opp_online := true
 var code_entry := ""
@@ -252,6 +254,7 @@ func _ready() -> void:
 	add_child(net)
 	net.message.connect(_on_net)
 	net.link_changed.connect(_on_link)
+	SupabaseAuth.state_changed.connect(_on_supabase_auth_state_changed)
 	_show_menu()
 	_load_scenario()
 
@@ -396,6 +399,13 @@ func _show_menu() -> void:
 		box.add_child(b)
 		var sub := _label(opt[1], 14, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 		box.add_child(sub)
+	if OS.has_feature("web"):
+		account_button = _button("ENTRAR COM GOOGLE", _on_account_button_pressed)
+		account_button.position = Vector2(24, 24)
+		account_button.size = Vector2(300, 52)
+		account_button.tooltip_text = "Vincule sua conta para salvar perfil e decks."
+		layer.add_child(account_button)
+		_update_account_button()
 	var lt := _toggle_button("MODO LEVE", _light_on(), func():
 		_apply_light(not _light_on(), true)
 		_show_menu.call_deferred())
@@ -429,6 +439,34 @@ func _show_menu() -> void:
 	ver.position = Vector2(stage_w - 300, 864.0 + BOT)
 	ver.size = Vector2(280, 20)
 	layer.add_child(ver)
+
+func _on_account_button_pressed() -> void:
+	if SupabaseAuth.is_signed_in():
+		SupabaseAuth.sign_out()
+	else:
+		SupabaseAuth.sign_in_with_google()
+
+func _on_supabase_auth_state_changed(auth_state: Dictionary) -> void:
+	_update_account_button()
+	var error_message := String(auth_state.get("error", ""))
+	if not error_message.is_empty():
+		_toast(error_message)
+	elif bool(auth_state.get("signed_in", false)) and not _account_was_signed_in:
+		var profile: Dictionary = auth_state.get("profile", {})
+		_toast("Conta Google conectada%s" % (": %s" % String(profile.get("username", "")) if not profile.is_empty() else "."))
+	_account_was_signed_in = bool(auth_state.get("signed_in", false))
+
+func _update_account_button() -> void:
+	if not is_instance_valid(account_button):
+		return
+	if SupabaseAuth.is_signed_in():
+		var profile: Dictionary = SupabaseAuth.state.get("profile", {})
+		var username := String(profile.get("username", "CONTA CONECTADA"))
+		account_button.text = "SAIR DA CONTA · %s" % username.to_upper()
+		account_button.tooltip_text = "Sessão Google ativa. Toque para sair."
+	else:
+		account_button.text = "ENTRAR COM GOOGLE"
+		account_button.tooltip_text = "Vincule sua conta para salvar perfil e decks."
 
 ## A thin gold rule with a diamond in the middle, for headings.
 func _ornament(center: Vector2, half: float) -> Control:
@@ -1448,7 +1486,7 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	var mb := MomentumBar.new()
 	mb.position = mom_pos
 	layer.add_child(mb)
-	mb.setup(pl["momentum"], pl["max_momentum"], int(pl.get("reserve", 0)))
+	mb.setup(pl["momentum"], pl["max_momentum"], int(pl.get("reserve", 0)), g.momentum_cap(p))
 
 const HAND_SCALE := 1.4875 ## hand cards are cut at the bottom, so they can be bigger than the room they take
 const HAND_SCALE_MIN := 1.3
@@ -1664,6 +1702,8 @@ func _render_relics(p: int, y: float, slots_taken: int) -> void:
 		var relic_view_data := {"uid": relic.uid}
 		if relic.charges_left() >= 0:
 			relic_view_data["charges_left"] = relic.charges_left() # a limited-use artifact shows its remaining uses
+		if relic.data().has("momentum_store"):
+			relic_view_data["stored_momentum"] = relic.stored_momentum # Bateria de Segunda Mão shows how much it holds
 		# Baluarte Santo is born protected: it needs the golden ring too (and loses ring and tag once it breaks)
 		relic_view_data["supreme_shield"] = relic.supreme_shield
 		var v := CardView.new().setup(relic.card_id, relic_view_data, 1.15)
@@ -3991,6 +4031,42 @@ func _draw_from_deck(v: CardView, to: Dictionary, t0: float) -> void:
 		v.scale.x *= maxf(0.04, absf(cos(PI * turn))),
 		0.0, 1.0, DRAW_FLIGHT_TIME)
 	flight.tween_callback(func(): v.z_index = 0)
+
+## A unit sent back to the opponent's hand (a bounce) is not a death: the card lifts off its slot, turns
+## face down while it travels (the viewer must not read the opponent's hand) and slides into the fan along
+## the top edge, shrinking to the size of the cards there. `ghost` stands where the unit was on the table.
+## Starts at moment t; returns how long the flight takes.
+const BOUNCE_FLIGHT_TIME := 0.55
+const BOUNCE_LIFT_HEIGHT := 30.0 ## how far the card rises before it heads for the hand
+func _bounce_to_enemy_hand_fx(ghost: CardView, owner_player: int, t: float) -> float:
+	var from := _pose(ghost)
+	var hand_size: int = g.players[owner_player]["hand"].size()
+	var card_size := CardView.BASE * ENEMY_HAND_SCALE
+	# the last card of the fan: the bounced card is always added at the end of the hand
+	var to := {
+		"c": Vector2(lane_cx + EHAND_DX + (hand_size - 1) / 2.0 * 30.0, _screen_top() - card_size.y * (0.5 - ENEMY_HAND_SHOWN)),
+		"rot": PI,
+		"w": card_size.x,
+	}
+	ghost.z_index = 25
+	var flight := ghost.create_tween()
+	if t > 0.0:
+		flight.tween_interval(t)
+	flight.tween_method(func(progress: float):
+		var eased := ease(progress, -1.6) # slow lift-off, quicker towards the hand
+		var center: Vector2 = from["c"].lerp(to["c"], eased)
+		center.y -= BOUNCE_LIFT_HEIGHT * 4.0 * eased * (1.0 - eased) * (1.0 - eased) # a small hop at the start
+		_apply_pose(ghost, {"c": center, "rot": lerp_angle(from["rot"], to["rot"], eased), "w": lerpf(from["w"], to["w"], eased)})
+		# turning over: it narrows to its edge around the middle of the flight, then shows its back
+		var turn := clampf((progress - 0.2) / 0.5, 0.0, 1.0)
+		if not ghost.face_down and turn >= 0.5:
+			ghost.face_down = true
+			ghost.queue_redraw()
+		ghost.scale.x *= maxf(0.04, absf(cos(PI * turn)))
+		ghost.modulate.a = 1.0 - clampf((progress - 0.85) / 0.15, 0.0, 1.0), # melts into the real card already in the fan
+		0.0, 1.0, BOUNCE_FLIGHT_TIME)
+	flight.tween_callback(ghost.queue_free)
+	return BOUNCE_FLIGHT_TIME
 
 ## Timing of a milled card: it pops out of the deck face up, stays readable for a blink, then drops
 ## into the graveyard icon. Short on purpose: both graveyards can be opened at any time.
@@ -6580,6 +6656,16 @@ func _animate(events: Array, old: Dictionary) -> float:
 					relic_ghost.dissolve(cursor, relic_color.lightened(0.2), 0.75)
 					_embers(_center_of(relic_ghost), cursor + 0.1, relic_color)
 					Sfx.play_in("death", cursor)
+			"return_to_hand":
+				# an opponent's unit going back to their hand has no card on the table to fly (its hand is
+				# face down), so its ghost makes the trip instead of dissolving as if it had died.
+				# A token is deleted rather than returned: it keeps the plain dissolve.
+				var bounced_ghost = actors.get(e["uid"])
+				if bounced_ghost is CardView and ghosts.has(bounced_ghost) and not dissolved_early.has(bounced_ghost) \
+						and int(e["player"]) != viewer and not CardDB.card(e["card_id"]).get("token", false):
+					_bounce_to_enemy_hand_fx(bounced_ghost, int(e["player"]), cursor)
+					dissolved_early[bounced_ghost] = true # the settle loop must not dissolve it too
+					cursor += 0.25
 			"death":
 				if short_lived.has(e["uid"]):
 					# the stand-in falls right after taking the blow, not at the end of the whole batch

@@ -161,6 +161,8 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"leader_hp": int(ld["hp"]), "leader_max": int(ld["hp"]),
 		"momentum": 0, "max_momentum": 0, "turn_start_momentum": 0, "reserve": 0,
 			"idle_turns": 0, "next_momentum": 0, "play_restrictions": [], "leaked": 0, "unspent": 0,
+			"momentum_gain_turn": -1, # the last turn in which an effect really raised this player's Momentum ("already gained Momentum this turn")
+			"momentum_lock_turn": -1, # while it equals the current turn, plain (non-refresh) Momentum gains do nothing (Bateria de Segunda Mão)
 		"healing_this_round": 0, "healing_last_round": 0, "damage_this_round": 0, "damage_last_round": 0,
 		"deck": deck, "hand": [], "board": [], "relics": [], "graveyard": [], "banished": [],
 		"incarnation": {"card_id": ld["incarnation"], "in_zone": true, "casts": 0, "cost_mod": 0}, # cost_mod: the Encarnação's own modify_cost total, shared by the Santuário and every copy of it in play
@@ -382,6 +384,8 @@ func _move(c: Card, to_zone: String, extra_data := {}) -> void:
 	if to_zone != "hand":
 		c.discount = 0
 		c.turn_discount = 0
+	if to_zone != "relics":
+		c.stored_momentum = 0 # a Bateria that leaves the field loses what it stored
 	# a Bola de Neve that reaches the hand, deck or graveyard of a player already at Grande level is born Grande
 	# (the copy that was being cast, one fetched from the graveyard, one created by an effect...)
 	if c.card_id == SNOWBALL_CARD_ID and to_zone in ["hand", "deck", "graveyard"] and snowball_is_grande(c.owner):
@@ -901,11 +905,15 @@ func budget(p: int, spell: bool, cd := {}) -> int:
 ## player already has above the ceiling.
 func gain_momentum(p: int, gain: int, overflow := false, refresh := false) -> void:
 	var pl: Dictionary = players[p]
+	if not refresh and int(pl["momentum_lock_turn"]) == turn:
+		return # locked until the end of this turn: only a refresh can still win Momentum back
 	var current := int(pl["momentum"])
 	var ceiling := maxi(MOMENTUM_OVERFLOW_CAP, momentum_cap(p)) if overflow else momentum_cap(p)
 	if refresh:
 		ceiling = mini(ceiling, int(pl["turn_start_momentum"]))
 	pl["momentum"] = maxi(current, mini(ceiling, current + gain))
+	if int(pl["momentum"]) > current:
+		pl["momentum_gain_turn"] = turn # a refresh counts too
 	_refresh_scaling() # a surge (11+ Momentum) may have just turned on
 	_emit({"type": "momentum", "player": p})
 
@@ -919,6 +927,16 @@ func _pay(p: int, amount: int, spell: bool) -> void:
 		amount -= r
 	pl["momentum"] -= amount
 	_refresh_scaling() # a surge (11+ Momentum) may have just turned off
+
+## Spends all the plain Momentum player p still has (the Reserva is untouched) and returns how much that was.
+func drain_momentum(p: int) -> int:
+	var drained := int(players[p]["momentum"])
+	if drained <= 0:
+		return 0
+	players[p]["momentum"] = 0
+	_refresh_scaling() # a surge (11+ Momentum) may have just turned off
+	_emit({"type": "momentum", "player": p})
+	return drained
 
 static func _is_spell(cd: Dictionary) -> bool:
 	return cd.get("type", "") == "spell"
@@ -974,7 +992,8 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 	return out
 
 ## False when an effect aimed with `spec` only works on units of some kind and this target is not one:
-## "requires_exhausted" (only a tapped unit, like "ready") or "not_rarity" (never these rarities, like champions).
+## "requires_exhausted" (only a tapped unit, like "ready"), "not_rarity" (never these rarities, like champions) or
+## "unit_filter" (a CardFilter on the printed card, e.g. {"max_cost": 3}: Rajada de Quintal only aims at cheap units).
 ## Effects aimed at another spec, or without these parameters, ignore this check.
 func meets_unit_requirement(target_uid: int, spec: String, effects: Array) -> bool:
 	var unit := find_unit(target_uid)
@@ -984,6 +1003,9 @@ func meets_unit_requirement(target_uid: int, spec: String, effects: Array) -> bo
 		if effect.get("requires_exhausted", false) and (unit == null or not unit.exhausted):
 			return false
 		if unit != null and (effect.get("not_rarity", []) as Array).has(CardDB.card(unit.card_id).get("rarity", "")):
+			return false
+		var unit_filter: Dictionary = effect.get("unit_filter", {})
+		if unit != null and not unit_filter.is_empty() and not CardFilter.matches(unit.card_id, unit_filter):
 			return false
 	return true
 
@@ -3159,6 +3181,18 @@ func _finish_turn() -> void:
 	players[active]["in_extra_turn"] = false
 	_start_turn(opponent(active), true)
 
+## Artifacts with "momentum_store": N (Bateria de Segunda Mão) catch the Momentum that leaked past the Reserva
+## at this turn start, each up to its own limit. What goes to the Reserva never counts: only what would be lost.
+func _store_leaked_momentum(pl: Dictionary, leaked: int) -> void:
+	var left_to_store := leaked
+	for relic: Card in pl["relics"]:
+		var room := int(relic.data().get("momentum_store", 0)) - relic.stored_momentum
+		var taken := mini(left_to_store, maxi(room, 0))
+		if taken > 0:
+			relic.stored_momentum += taken
+			left_to_store -= taken
+			_emit({"type": "momentum_stored", "player": relic.owner, "uid": relic.uid, "stored": relic.stored_momentum})
+
 func _start_turn(p: int, draw: bool) -> void:
 	active = p
 	priority = p
@@ -3181,6 +3215,7 @@ func _start_turn(p: int, draw: bool) -> void:
 	pl["unspent"] = int(pl["momentum"])
 	if leaked > 0:
 		pl["idle_turns"] += 1
+		_store_leaked_momentum(pl, leaked)
 	pl["reserve"] = mini(RESERVE_CAP, int(pl["reserve"]) + int(pl["momentum"])) # bank what went unspent
 	# the ceiling is MOMENTUM_CAP, or higher while a "momentum_cap" unit is on the board; without it the
 	# maximum falls back to the normal ceiling, so the extra Momentum is not kept
@@ -3233,7 +3268,10 @@ func _start_turn(p: int, draw: bool) -> void:
 		for expiring_keyword in c.keywords_until_next_turn:
 			c.keywords.erase(expiring_keyword)
 		c.keywords_until_next_turn = []
+		c.rapidez_until_next_turn = 0
 		c.attacks_made = 0
+	for relic: Card in pl["relics"]:
+		relic.exhausted = false # an artifact that turned to activate (Bateria) is ready again
 	_emit({"type": "start_turn", "player": p, "turn": turn})
 	_regenerate_all_units()
 	_resolve_dot_markers(p)

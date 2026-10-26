@@ -1,0 +1,24 @@
+{
+  "name": "Antena de Varal",
+  "type": "artifact",
+  "rarity": "common",
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 2,
+  "art": "tormenta/antena_de_varal.webp",
+  "effects": [
+    {
+      "listen": "turn_ended",
+      "scope": "ally",
+      "zones": ["relics"],
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 1,
+      "amount_from": "momentum_left",
+      "divisor": 2
+    }
+  ],
+  "text": "No Fim do Turno: causa ao Líder inimigo 1 de dano a cada 2 de Momentum que sobraram.",
+  "flavor": "",
+  "tags": []
+}

@@ -683,6 +683,29 @@
         "text": "No seu turno, até 2 vezes por turno, quando você invocar uma ficha, outra planta aliada aleatória (nunca a própria ficha) ganha +1 de Vida permanente."
       },
       "essences": ["natureza"]
+    },
+    "kazeminus": {
+      "name": "Kazeminus",
+      "hp": 30,
+      "art": "tormenta/kazeminus_lider.webp",
+      "incarnation": "kazeminus",
+      "ability": {
+        "name": "Vento de Cauda",
+        "cost": 3,
+        "once_per_turn": true,
+        "speed": "rapido",
+        "effects": [
+          {
+            "action": "buff",
+            "target": "ally_unit",
+            "keywords": ["impeto"],
+            "temp": true,
+            "rapidez_until_next_turn": 1
+          }
+        ],
+        "text": "Rápida. 3 Momentum, uma vez por turno: uma unidade aliada ganha Ímpeto neste turno e Rapidez 1 (se for menor) até o início do seu próximo turno."
+      },
+      "essences": ["tormenta"]
     }
   },
   "cards": {}

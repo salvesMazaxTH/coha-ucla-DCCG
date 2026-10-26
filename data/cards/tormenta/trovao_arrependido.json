@@ -1,0 +1,30 @@
+{
+  "name": "Trovão Arrependido",
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["elemental"],
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 6,
+  "atk": 5,
+  "hp": 4,
+  "keywords": ["impeto"],
+  "art": "tormenta/trovao_arrependido.webp",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 5
+    },
+    {
+      "trigger": "on_death",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": 2
+    }
+  ],
+  "text": "Ao Morrer: causa 5 de dano ao Líder inimigo e você ganha 2 de Momentum.",
+  "flavor": "",
+  "tags": []
+}

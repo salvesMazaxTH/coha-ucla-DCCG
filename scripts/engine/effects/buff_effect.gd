@@ -15,6 +15,8 @@ extends Effect
 ## "hp_temp_until_next_turn": N gives temporary Vida until the unit's owner's next turn starts.
 ## "keywords_until_next_turn": [...] gives these keywords until the unit's owner's next turn starts (a keyword the unit already
 ## has stays as it is) - Cortina de Fumaça Barata gives Furtividade this way.
+## "rapidez_until_next_turn": N lends the unit Rapidez N until its owner's next turn starts (it never lowers a Rapidez the unit already has);
+## Corrente de Ar pairs it with Esquiva, which does nothing on a unit without Rapidez.
 ## "bonus_if_card": {"card": id, "atk": N, "hp": N}: when the target is that card, it also gains this permanently (Myrra -> Vael).
 ## "bonus_if_species": {"species": [...], "atk": N, "hp": N}: when the target has any of these species, it also gains this permanently (Consagração).
 ## "only_species": [...]: the buff only lands on targets that have at least one of these species; any other target is left
@@ -44,6 +46,7 @@ var multiplier_max := 99
 var has_attack_cap := false
 var attack_cap := 0
 var minimum_rapidez := 0
+var temporary_rapidez := 0 ## "rapidez_until_next_turn"
 var critico_to_max := false
 var bonus_card := ""
 var bonus_attack := 0
@@ -81,6 +84,7 @@ func _read_parameters(data: Dictionary) -> void:
 	has_attack_cap = data.has("cap_atk")
 	attack_cap = int(data.get("cap_atk", 0))
 	minimum_rapidez = int(data.get("rapidez_min", 0))
+	temporary_rapidez = int(data.get("rapidez_until_next_turn", 0))
 	critico_to_max = bool(data.get("critico_max", false))
 	var bonus: Dictionary = data.get("bonus_if_card", {})
 	bonus_card = String(bonus.get("card", ""))
@@ -187,6 +191,9 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	if minimum_rapidez > unit.rapidez:
 		unit.rapidez = minimum_rapidez
 		buff_event["rapidez"] = minimum_rapidez
+	if temporary_rapidez > unit.rapidez_total():
+		unit.rapidez_until_next_turn = temporary_rapidez
+		buff_event["rapidez"] = temporary_rapidez
 	if armor + temporary_armor > 0:
 		buff_event["armor"] = armor + temporary_armor
 	elif armor_raised_to > 0:

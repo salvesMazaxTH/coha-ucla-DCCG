@@ -1,0 +1,29 @@
+{
+  "name": "Tufão de Gaveta",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "tormenta",
+  "element": "vento",
+  "cost": 6,
+  "speed": "instantaneo",
+  "art": "tormenta/tufao_de_gaveta.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "return_to_hand",
+      "target": "all_units",
+      "unit_filter": { "max_cost": 3 }
+    },
+    {
+      "trigger": "on_play",
+      "action": "gain_momentum",
+      "target": "none",
+      "per": "returned_allies",
+      "amount": 1,
+      "refresh": true
+    }
+  ],
+  "text": "Devolve às mãos de seus donos todas as unidades de custo 3 ou menos, aliadas e inimigas; você recupera até 1 de Momentum gasto neste turno por unidade aliada devolvida.",
+  "flavor": "",
+  "tags": []
+}

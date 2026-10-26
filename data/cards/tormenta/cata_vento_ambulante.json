@@ -1,0 +1,26 @@
+{
+  "name": "Cata-Vento Ambulante",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["elemental"],
+  "essence": "tormenta",
+  "element": "vento",
+  "cost": 3,
+  "atk": 2,
+  "hp": 3,
+  "keywords": ["voo"],
+  "art": "tormenta/cata_vento_ambulante.webp",
+  "effects": [
+    {
+      "trigger": "on_turn_end",
+      "if": "momentum_left",
+      "action": "buff",
+      "target": "self",
+      "atk": 1,
+      "hp": 1
+    }
+  ],
+  "text": "No Fim do Turno: se sobrou Momentum, esta unidade ganha +1 de Ataque e +1 de Vida permanentes.",
+  "flavor": "",
+  "tags": []
+}

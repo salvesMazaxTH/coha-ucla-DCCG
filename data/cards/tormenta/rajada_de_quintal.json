@@ -1,0 +1,22 @@
+{
+  "name": "Rajada de Quintal",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "tormenta",
+  "element": "vento",
+  "cost": 1,
+  "speed": "instantaneo",
+  "art": "tormenta/rajada_de_quintal.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "return_to_hand",
+      "target": "enemy_unit",
+      "unit_filter": { "max_cost": 4 },
+      "cost_increase": 1
+    }
+  ],
+  "text": "Devolve uma unidade inimiga de custo 4 ou menos à mão de seu dono; ela passa a custar 1 a mais.",
+  "flavor": "",
+  "tags": []
+}

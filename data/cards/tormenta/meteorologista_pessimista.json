@@ -1,0 +1,25 @@
+{
+  "name": "Meteorologista Pessimista",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["kobold"],
+  "essence": "tormenta",
+  "element": "vento",
+  "cost": 2,
+  "atk": 2,
+  "hp": 3,
+  "keywords": [],
+  "art": "tormenta/meteorologista_pessimista.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "search_deck",
+      "target": "none",
+      "type": "spell",
+      "top": 5
+    }
+  ],
+  "text": "Ao Entrar: você olha as 5 cartas do topo do seu deck e pega 1 feitiço entre elas; as outras vão para o fundo.",
+  "flavor": "",
+  "tags": []
+}

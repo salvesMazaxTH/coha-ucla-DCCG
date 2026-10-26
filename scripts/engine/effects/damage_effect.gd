@@ -11,6 +11,8 @@ extends Effect
 ## "stun": true also gives each target that survives the damage one Atordoamento marker.
 ## "amount_if_frozen": a target that is already Congelada takes this much instead of `amount` (Sabrina).
 ## "amount_if_stunned": same for a target that is already Atordoada (Layla's Ao Atacar).
+## "amount_from": "momentum_left" deals `amount` damage per `divisor` Momentum the controller still has (Antena de Varal, Curto-Circuito).
+## "spend_momentum": true (with momentum_left) also spends all that Momentum (Curto-Circuito).
 ## "lifesteal": true heals the controller's Leader by the damage this effect really dealt (Rália).
 ## "lifesteal_self": true (with lifesteal) also heals this unit by that same damage, if it is still on the board.
 
@@ -25,8 +27,12 @@ var amount_if_stunned := 0
 var amount_if_leader := 0
 var heals_by_damage_dealt := false
 var heals_source_too := false
+var momentum_divisor := 1
+var spends_momentum := false
 
 func _read_parameters(data: Dictionary) -> void:
+	momentum_divisor = maxi(1, int(data.get("divisor", 1)))
+	spends_momentum = bool(data.get("spend_momentum", false))
 	amount = int(data.get("amount", 0))
 	amount_from = String(data.get("amount_from", ""))
 	ally_reduce = data.get("ally_reduce", {})
@@ -47,6 +53,13 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		damage_amount = ceili(game.armor_of(source_unit) / 2.0) if source_unit != null else 0
 	if amount_from == "self_atk":
 		damage_amount = _current_attack_of_source(context)
+	if amount_from == "momentum_left":
+		var momentum_left := int(game.players[context.controller]["momentum"])
+		damage_amount = amount * (momentum_left / momentum_divisor)
+		if spends_momentum:
+			game.drain_momentum(context.controller)
+		if damage_amount <= 0:
+			return
 	var victim := game.find_unit(target_uid)
 	if amount_from == "target_veneno_markers":
 		var marker_count := int(victim.dot_markers.get("veneno", 0)) if victim != null else 0

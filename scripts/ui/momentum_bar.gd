@@ -9,11 +9,14 @@ const RESERVE_COL := Color("#7fd0ff")
 var current := 0
 var maximum := 0
 var reserve := 0
+## How many crystals the row shows: the normal cap, or more while the player has a unit that raises it (Agiota das Nuvens)
+var crystal_count := GameState.MOMENTUM_CAP
 
-func setup(cur: int, mx: int, res: int = 0) -> MomentumBar:
+func setup(cur: int, mx: int, res: int = 0, cap: int = GameState.MOMENTUM_CAP) -> MomentumBar:
 	current = cur
 	maximum = mx
 	reserve = res
+	crystal_count = maxi(cap, GameState.MOMENTUM_CAP)
 	custom_minimum_size = Vector2(236, 54) # two rows: must fit the Leader column, the Sanctuary card sits right of it
 	size = custom_minimum_size
 	mouse_filter = Control.MOUSE_FILTER_PASS
@@ -24,8 +27,9 @@ Reserva: %d de %d (só feitiços e habilidades)" % [cur, mx, res, GameState.RESE
 func _draw() -> void:
 	var font := UITheme.font("heavy")
 	var cap := GameState.MOMENTUM_CAP
-	var step := 16.0
-	for i in cap:
+	# with a raised cap the crystals sit closer together so the row still fits the Leader column
+	var step := 16.0 if crystal_count <= cap else 13.5
+	for i in crystal_count:
 		var c := Vector2(9 + i * step, 15)
 		var pts := PackedVector2Array([c + Vector2(0, -12), c + Vector2(7, -3), c + Vector2(0, 12), c + Vector2(-7, -3)])
 		var outline := pts + PackedVector2Array([pts[0]])
@@ -42,7 +46,7 @@ func _draw() -> void:
 			draw_colored_polygon(pts, Color(0, 0, 0, 0.4))
 			draw_polyline(outline, Color(1, 1, 1, 0.12), 1.0, true)
 	var t := "%d/%d" % [current, maximum]
-	var x := 9 + cap * step - 4
+	var x := 9 + crystal_count * step - 4
 	draw_string_outline(font, Vector2(x, 23), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 21, 4, Color(0, 0, 0, 0.85))
 	# Momentum above the normal cap (temporary overflow): every crystal is lit and the readout turns hot orange
 	var readout_color := Color("#ff9d3c") if current > cap else Color("#ffe680")

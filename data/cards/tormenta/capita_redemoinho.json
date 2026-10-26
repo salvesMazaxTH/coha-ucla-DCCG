@@ -1,0 +1,24 @@
+{
+  "name": "Capitã Redemoinho",
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["humano"],
+  "essence": "tormenta",
+  "element": "vento",
+  "cost": 5,
+  "atk": 4,
+  "hp": 4,
+  "keywords": ["rapidez:1"],
+  "art": "tormenta/capita_redemoinho.webp",
+  "effects": [
+    {
+      "trigger": "on_attack",
+      "action": "return_to_hand",
+      "target": "random_enemy_unit",
+      "cost_increase": 1
+    }
+  ],
+  "text": "Ao Atacar: devolve uma unidade inimiga aleatória à mão de seu dono; ela passa a custar 1 a mais.",
+  "flavor": "",
+  "tags": []
+}

@@ -159,6 +159,9 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 	for artifact: Card in g.players[p]["relics"]:
 		# free-standing artifacts' untargeted Ao Ativar (e.g. Ossuário Sem Fundo's revive)
 		var artifact_effects: Array = CardDB.card(artifact.card_id).get("activated", {}).get("effects", [])
+		# a Momentum store (Bateria) is only released while it holds something and no other Momentum came this turn
+		if artifact.data().has("momentum_store") and (artifact.stored_momentum <= 0 or g.players[p]["momentum_gain_turn"] == g.turn):
+			continue
 		if g.can_activate(p, artifact.uid) and g.target_spec(artifact_effects) == "" and _revive_is_worth_it(g, p, artifact_effects):
 			return g.activate(p, artifact.uid)
 	for artifact: Card in g.players[p]["relics"]:

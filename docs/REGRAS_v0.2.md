@@ -12,8 +12,9 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - **Única:** cartas com `"max_copies": 1` (ex.: Rusco) só podem ter 1 cópia no deck.
 - Os **domínios** do Líder (Fúria, Fluxo, Natureza, Montanha, Tormenta, Trevas, Devoção) definem as cartas permitidas no deck: as cartas dos domínios da Encarnação do Líder entram à vontade. Cartas **neutras** entram em qualquer deck.
 - Uma carta pode ter **mais de um domínio** (ex.: Morwenna é de Trevas e de Natureza, com moldura meio a meio). Ela só conta como **do domínio do Líder** (sem custo no limite de convidadas) se a Encarnação do Líder tiver **todos** os domínios dela; senão conta como carta de fora.
-- **Fora do domínio (convidadas):** o deck pode ter até **10 cartas** (contando cópias) de domínios que o Líder não tem, de qualquer raridade, com o limite normal de 3 cópias. Podem vir de **quaisquer domínios, em qualquer mistura**: o único limite é o número de cartas. Cartas neutras não entram nessa conta. Campeões também podem ser de fora do domínio, dentro desse mesmo limite.
-- **Líder neutro** (ex.: Vael): toda carta não neutra é "de fora do domínio", então todas contam entre as 10 convidadas (mais as cartas neutras à vontade).
+- **Fora do domínio (convidadas):** o deck pode ter até **10 cartas** (contando cópias) de domínios que o Líder não tem, de qualquer raridade, com o limite normal de 3 cópias. Podem vir de **quaisquer domínios, em qualquer mistura**. Cartas neutras não entram nessa conta. Campeões também podem ser de fora do domínio, dentro desse mesmo limite.
+- **Domínio secundário:** se existir **um domínio presente em todas as convidadas**, o limite sobe para **15 cartas**. Uma convidada com vários domínios conta para cada domínio que o Líder não tem (ex.: com Líder de Natureza, Morwenna conta como Trevas; com Líder de Fúria, conta como Trevas e Natureza). Basta uma convidada sem esse domínio em comum para o limite voltar a 10.
+- **Líder neutro** (ex.: Vael): toda carta não neutra é "de fora do domínio", então todas contam como convidadas (até 10 em qualquer mistura, ou até 15 se todas tiverem um mesmo domínio), além das cartas neutras à vontade.
 - O deck tem exatamente **1 Encarnação do Líder**, o Campeão que é a versão em carta do próprio Líder.
 
 ## Encarnação do Líder (Santuário)

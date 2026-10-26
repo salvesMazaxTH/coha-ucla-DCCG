@@ -1,0 +1,25 @@
+{
+  "name": "Bateria de Segunda Mão",
+  "type": "artifact",
+  "subtypes": [],
+  "rarity": "epic",
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 3,
+  "momentum_store": 3,
+  "art": "tormenta/bateria_de_segunda_mao.webp",
+  "effects": [],
+  "activated": {
+    "cost": 0,
+    "speed": "instantaneo",
+    "exhaust": true,
+    "effects": [
+      { "action": "gain_reserve", "target": "none", "amount": 1, "if": "gained_momentum_this_turn" },
+      { "action": "empty_momentum_store", "target": "none", "if": "gained_momentum_this_turn" },
+      { "action": "gain_momentum", "target": "none", "per": "stored", "lock": true, "if": { "not": "gained_momentum_this_turn" } }
+    ]
+  },
+  "text": "Guarda até 3 de Momentum que vazariam da Reserva.\nAo Ativar (0) {instantaneo} (exaure este artefato): se não ganhou Momentum neste turno, libera o guardado e não ganha mais até o fim do turno; senão, ganha 1 na Reserva e esvazia a Bateria.",
+  "flavor": "",
+  "tags": []
+}

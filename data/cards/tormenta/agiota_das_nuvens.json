@@ -1,0 +1,33 @@
+{
+  "name": "Agiota das Nuvens",
+  "type": "unit",
+  "rarity": "legendary",
+  "species": [
+    "goblin"
+  ],
+  "essence": "tormenta",
+  "element": "vento",
+  "cost": 8,
+  "atk": 6,
+  "hp": 7,
+  "keywords": [
+    "voo"
+  ],
+  "art": "tormenta/agiota_das_nuvens.webp",
+  "effects": [
+    {
+      "trigger": "constante",
+      "action": "momentum_cap",
+      "cap": 12
+    },
+    {
+      "trigger": "on_turn_start",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": 2
+    }
+  ],
+  "text": "Constante: seu teto de Momentum passa a ser 12.\nNo Início do Turno: você ganha 2 de Momentum.",
+  "flavor": "",
+  "tags": []
+}
