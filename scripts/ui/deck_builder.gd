@@ -28,7 +28,6 @@ const WARN := Color("#e8a23a")
 const BAD := Color("#e8484a")
 const INFO := Color("#6aa7e8")
 const CURVE_SLOTS := 8 ## costs 0..6 and "7+"
-const DECK_CODE_PREFIX := "CSA1."
 
 var store: DeckStore
 var catalog: CardCatalog
@@ -1090,32 +1089,15 @@ func _ask_assistant_focus() -> void:
 	box.add_child(back)
 	_open_modal(panel, false)
 
-## Shareable, versioned deck code. JSON is UTF-8 encoded as base64url to keep it copy/paste friendly.
+## Shareable, versioned deck code (the compact format lives in DeckCode).
 func _make_deck_code() -> String:
-	var payload := {
-		"name": _deck_name.strip_edges(),
-		"description": _description,
-		"leader": _leader,
-		"incarnation_id": _incarnation_id,
-		"cards": DeckDB.sorted_cards(_cards),
-	}
-	var encoded := Marshalls.raw_to_base64(JSON.stringify(payload).to_utf8_buffer())
-	encoded = encoded.replace("+", "-").replace("/", "_").trim_suffix("=").trim_suffix("=")
-	return DECK_CODE_PREFIX + encoded
+	return DeckCode.encode(_deck_name.strip_edges(), _description, _leader, _incarnation_id, _cards)
 
 func _decode_deck_code(code: String) -> Dictionary:
-	var cleaned := code.strip_edges()
-	if not cleaned.begins_with(DECK_CODE_PREFIX):
-		return {"error": "Código inválido. Esperava um código iniciado por %s." % DECK_CODE_PREFIX}
-	var encoded := cleaned.substr(DECK_CODE_PREFIX.length()).replace("-", "+").replace("_", "/")
-	while encoded.length() % 4 != 0:
-		encoded += "="
-	var bytes := Marshalls.base64_to_raw(encoded)
-	if bytes.is_empty():
-		return {"error": "Não foi possível decodificar este deckCode."}
-	var parsed: Variant = JSON.parse_string(bytes.get_string_from_utf8())
-	if not parsed is Dictionary:
-		return {"error": "Conteúdo do deckCode inválido."}
+	var decoded := DeckCode.decode(code)
+	if decoded.has("error"):
+		return decoded
+	var parsed: Dictionary = decoded["payload"]
 	var leader := String(parsed.get("leader", ""))
 	if not CardDB.data()["leaders"].has(leader):
 		return {"error": "O deckCode contém um Líder desconhecido."}
@@ -1160,7 +1142,7 @@ func _open_import_code() -> void:
 	box.add_child(help)
 	var input := TextEdit.new()
 	input.custom_minimum_size = Vector2(620, 110)
-	input.placeholder_text = "CSA1.…"
+	input.placeholder_text = "CSA2.…"
 	box.add_child(input)
 	var actions := HBoxContainer.new()
 	actions.alignment = BoxContainer.ALIGNMENT_END

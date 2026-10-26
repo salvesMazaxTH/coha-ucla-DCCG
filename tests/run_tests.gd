@@ -148,6 +148,7 @@ func _init() -> void:
 		check(false, e)
 	_test_card_validation()
 	_test_deck_builder_rules()
+	_test_deck_code()
 	# the golden replays are NOT run here: every card/deck balance change would break them.
 	# Run tests/golden_check.gd by hand before committing an engine/rules change.
 	print("tests done, failures: ", failures)
@@ -161,6 +162,36 @@ func _same_copies(first: Dictionary, second: Dictionary) -> bool:
 		if not second.has(card_id) or int(first[card_id]) != int(second[card_id]):
 			return false
 	return true
+
+## Deck codes: the compact CSA2 format must give back exactly the deck that was written, and old CSA1 codes must still open.
+func _test_deck_code() -> void:
+	check(DeckCode.collisions().is_empty(), "deckCode: ids com o mesmo número: %s" % [DeckCode.collisions()])
+	for deck_id in DeckDB.ids():
+		var deck: Dictionary = DeckDB.get_deck(deck_id)
+		var incarnation_id := String(deck.get("incarnation_id", ""))
+		var code := DeckCode.encode("Deck é ção", "Descrição\ncom linhas", deck["leader"], incarnation_id, deck["cards"])
+		check(code.begins_with(DeckCode.PREFIX_V2), "deckCode: %s sai no formato compacto" % deck_id)
+		var decoded := DeckCode.decode(code)
+		check(decoded.has("payload"), "deckCode: %s decodifica (%s)" % [deck_id, decoded.get("error", "")])
+		if not decoded.has("payload"):
+			continue
+		var payload: Dictionary = decoded["payload"]
+		check(payload["leader"] == deck["leader"] and _same_copies(payload["cards"], deck["cards"]), "deckCode: %s volta igual" % deck_id)
+		check(payload["name"] == "Deck é ção" and payload["description"] == "Descrição\ncom linhas", "deckCode: %s mantém nome e descrição" % deck_id)
+		check(code.length() < 200, "deckCode: %s tem %d caracteres" % [deck_id, code.length()])
+	# a different Encarnação is kept, the Leader's own one is implied
+	var leader_id: String = DeckDB.get_deck("fogo")["leader"]
+	var own_incarnation: String = CardDB.leader(leader_id)["incarnation"]
+	check(not DeckCode.decode(DeckCode.encode("x", "", leader_id, own_incarnation, {}))["payload"].has("incarnation_id"), "deckCode: Encarnação padrão não é gravada")
+	# a code with an unknown card or a cut-off ending is refused, not guessed
+	check(DeckCode.decode("CSA2.AAAAAAEBAAAA").has("error"), "deckCode: Líder desconhecido é recusado")
+	check(DeckCode.decode(DeckCode.PREFIX_V2 + "AAA").has("error"), "deckCode: código curto é recusado")
+	check(DeckCode.decode("XYZ.abc").has("error"), "deckCode: prefixo errado é recusado")
+	# an old JSON code
+	var old_payload := {"name": "Antigo", "description": "", "leader": leader_id, "incarnation_id": own_incarnation, "cards": {"rusco": 1}}
+	var old_code := DeckCode.PREFIX_V1 + Marshalls.raw_to_base64(JSON.stringify(old_payload).to_utf8_buffer()).replace("+", "-").replace("/", "_").trim_suffix("=")
+	var old_decoded := DeckCode.decode(old_code)
+	check(old_decoded.has("payload") and old_decoded["payload"]["name"] == "Antigo", "deckCode: código CSA1 antigo ainda abre")
 
 ## Deck builder: the DeckDB helpers it is built on, and the DeckStore (guest mode, a throwaway file).
 func _test_deck_builder_rules() -> void:

@@ -1,15 +1,40 @@
 extends SceneTree
 ## AI vs AI between two decks (default Ronan/fogo vs Naelthos/agua), alternating who goes first.
 ##   godot --headless --path . -s tests/sim_matchup.gd -- 300 [deck_a] [deck_b] [piloto]
+## A deck can be a prebuilt id, a deck code from the deck builder ("CSA2.…" or the older "CSA1.…") or the path of a deck .json file
+## (same format as data/decks/prebuilt/*.json: leader + cards).
 ## With "piloto", seat 0 (deck_a, meant to be glacial_combo) is played by the scripted ComboPilot.
 
 const ComboPilot = preload("res://tests/combo_pilot.gd")
+
+## Turns a command-line deck argument into a deck id DeckDB knows: prebuilt ids pass through,
+## a deck code or a .json file is registered as a custom deck under `custom_id`.
+func _resolve_deck(argument: String, custom_id: String) -> String:
+	var payload: Variant = null
+	if argument.begins_with("CSA"):
+		payload = DeckCode.decode(argument).get("payload")
+	elif argument.ends_with(".json"):
+		var file := FileAccess.open(argument, FileAccess.READ)
+		if file != null:
+			payload = JSON.parse_string(file.get_as_text())
+	else:
+		return argument
+	if not payload is Dictionary:
+		push_error("deck inválido: " + argument.left(40))
+		quit(1)
+		return argument
+	DeckDB.register_custom(custom_id, String(payload.get("name", custom_id)), "", String(payload["leader"]), payload["cards"], String(payload.get("incarnation_id", "")))
+	var problems := DeckDB.validate(custom_id)
+	if not problems.is_empty():
+		print("AVISO: deck ", custom_id, " ilegal: ", ", ".join(problems))
+	return custom_id
 
 func _init() -> void:
 	var args := OS.get_cmdline_user_args()
 	var n := int(args[0]) if args.size() > 0 else 300
 	var use_pilot := args.size() > 3 and args[3] == "piloto"
-	var decks: Array = [args[1] if args.size() > 1 else "fogo", args[2] if args.size() > 2 else "agua"]
+	var decks: Array = [_resolve_deck(args[1] if args.size() > 1 else "fogo", "mine:sim_a"),
+		_resolve_deck(args[2] if args.size() > 2 else "agua", "mine:sim_b")]
 	# [seat][went first? 1 : 0] -> [wins, games]
 	var stats := [[[0, 0], [0, 0]], [[0, 0], [0, 0]]]
 	var draws := 0
