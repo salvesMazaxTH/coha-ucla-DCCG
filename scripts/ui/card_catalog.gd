@@ -119,6 +119,8 @@ static func values_for(cd: Dictionary, facet_id: String, card_id := "") -> Array
 
 static func _action_categories(cd: Dictionary) -> Array:
 	var found: Dictionary = {}
+	if cd.has("transform"):
+		found["Transformação"] = true
 	for effects in [cd.get("effects", []), cd.get("deck_effects", []), cd.get("activated", {}).get("effects", [])]:
 		_collect_action_categories(effects, found)
 	return found.keys()
