@@ -26,13 +26,16 @@ const ACTION_CATEGORIES := {
 	"Busca ou recupera cartas": ["search_deck", "look_top", "look_bottom", "grave_retrieve", "grave_to_hand"],
 	"Invocação": ["summon", "summon_from", "summon_hand_pick", "revive", "revive_self", "revive_pick"],
 	"Remoção": ["destroy", "destroy_artifact", "banish", "condemn", "kill_leader"],
-	"Controle": ["freeze", "stun", "exhaust", "silence", "suppress_keyword", "strip_defenses", "freeze_slots"],
+	"Congela": ["freeze", "freeze_slots"],
+	"Atordoa": ["stun"],
+	"Exaure": ["exhaust"],
+	"Silencia": ["silence"],
+	"Remove palavras-chave ou defesas": ["suppress_keyword", "strip_defenses"],
 	"Fortalecimento": ["buff", "cap_stats", "species_aura"],
 	"Recursos": ["gain_momentum", "gain_reserve", "raise_max_momentum", "momentum_surge", "momentum_cap", "spend_all_momentum"],
 	"Redução de custo": ["modify_cost", "discount_hand", "cost_reduction"],
 	"Devolução à mão": ["return_to_hand"],
 	"Descarte e moagem": ["discard_hand_pick", "mill", "mill_pick"],
-	"Proteção": ["arm_death_ward", "decoy"],
 	"Transformação": ["transform_self"],
 }
 const SORT_OPTIONS := ["Nome", "Custo: menor primeiro", "Custo: maior primeiro", "Ataque: maior primeiro", "Vida: maior primeiro", "Tipo / nome"]
