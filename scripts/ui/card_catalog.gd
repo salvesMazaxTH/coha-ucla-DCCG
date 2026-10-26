@@ -13,13 +13,28 @@ const FACETS := [
 	{"id": "rarity", "title": "Raridade", "values": "rarity"},
 	{"id": "species", "title": "Espécie", "values": "species"},
 	{"id": "keyword", "title": "Palavra-chave", "values": "keywords"},
-	{"id": "tag", "title": "Tag", "values": "tags"},
 	{"id": "speed", "title": "Velocidade", "values": "speed"},
 	{"id": "subtype", "title": "Subtipo", "values": "subtypes"},
-	{"id": "action", "title": "Ação de efeito", "values": "actions"},
-	{"id": "trigger", "title": "Gatilho / escuta", "values": "triggers"},
-	{"id": "property", "title": "Propriedade", "values": "properties"},
+	{"id": "action", "title": "Ação mecânica", "values": "actions"},
+	{"id": "property", "title": "Características", "values": "properties"},
 ]
+## Friendly groups for common, player-visible actions. More specific engine actions stay discoverable by text search.
+const ACTION_CATEGORIES := {
+	"Dano": ["damage", "add_dot", "burn", "fatigue_burn", "fight", "auto_attack", "kill_leader", "veneno_lethal"],
+	"Cura": ["heal_leader", "leader_max_up", "heal_full", "heal_unit"],
+	"Compra de cartas": ["draw", "draw_discounted"],
+	"Busca ou recupera cartas": ["search_deck", "look_top", "look_bottom", "grave_retrieve", "grave_to_hand"],
+	"Invocação": ["summon", "summon_from", "summon_hand_pick", "revive", "revive_self", "revive_pick"],
+	"Remoção": ["destroy", "destroy_artifact", "banish", "condemn", "kill_leader"],
+	"Controle": ["freeze", "stun", "exhaust", "silence", "suppress_keyword", "strip_defenses", "freeze_slots"],
+	"Fortalecimento": ["buff", "cap_stats", "species_aura"],
+	"Recursos": ["gain_momentum", "gain_reserve", "raise_max_momentum", "momentum_surge", "momentum_cap", "spend_all_momentum"],
+	"Redução de custo": ["modify_cost", "discount_hand", "cost_reduction"],
+	"Devolução à mão": ["return_to_hand"],
+	"Descarte e moagem": ["discard_hand_pick", "mill", "mill_pick"],
+	"Proteção": ["arm_death_ward", "decoy"],
+	"Transformação": ["transform_self"],
+}
 const SORT_OPTIONS := ["Nome", "Custo: menor primeiro", "Custo: maior primeiro", "Ataque: maior primeiro", "Vida: maior primeiro", "Tipo / nome"]
 
 var query := ""
@@ -47,8 +62,8 @@ func _build_facets() -> void:
 		for facet in FACETS:
 			for value in values_for(cd, facet["id"]):
 				facet_values[facet["id"]][value] = true
-	# display-only labels that are not literal values in a card
-	facet_values["property"] = {"com habilidade ativada": true, "com Súbito": true, "ficha": true, "Encarnação de Líder": true, "com artefato": true, "com equipamento": true, "com Local": true, "com efeitos condicionais": true, "com efeito ao entrar": true, "com efeito ao morrer": true, "com efeito contínuo": true}
+	# Player-facing properties that are not literal values in card data.
+	facet_values["property"] = {"com habilidade ativada": true, "com Súbito": true, "Encarnação de Líder": true, "com efeito ao entrar": true, "com efeito ao morrer": true, "com efeito contínuo": true}
 
 ## The ids that pass every filter, in the chosen order. `pool` is the cards to look through.
 func filtered_ids(pool: Array) -> Array[String]:
@@ -85,7 +100,6 @@ static func search_text(card_id: String, cd: Dictionary) -> String:
 	var parts := [card_id, String(cd.get("name", "")), String(cd.get("text", "")), CardDB.essence_names(cd), CardDB.element_names(cd)]
 	parts.append_array(cd.get("species", []))
 	parts.append_array(cd.get("keywords", []))
-	parts.append_array(cd.get("tags", []))
 	return " ".join(parts)
 
 static func values_for(cd: Dictionary, facet_id: String, card_id := "") -> Array:
@@ -95,43 +109,32 @@ static func values_for(cd: Dictionary, facet_id: String, card_id := "") -> Array
 		"type", "rarity", "speed": return [String(cd.get(facet_id, ""))] if cd.has(facet_id) else []
 		"species": return cd.get("species", []).duplicate()
 		"keyword": return cd.get("keywords", []).duplicate()
-		"tag": return cd.get("tags", []).duplicate()
 		"subtype": return cd.get("subtypes", []).duplicate()
-		"action": return _effect_values(cd, "action")
-		"trigger": return _effect_values(cd, "trigger")
+		"action": return _action_categories(cd)
 		"property": return _properties_of(cd, card_id)
 	return []
 
-static func _effect_values(cd: Dictionary, key: String) -> Array:
+static func _action_categories(cd: Dictionary) -> Array:
 	var found: Dictionary = {}
 	for effects in [cd.get("effects", []), cd.get("deck_effects", []), cd.get("activated", {}).get("effects", [])]:
-		_collect_effect_values(effects, key, found)
+		_collect_action_categories(effects, found)
 	return found.keys()
 
-static func _collect_effect_values(effects: Array, key: String, found: Dictionary) -> void:
+static func _collect_action_categories(effects: Array, found: Dictionary) -> void:
 	for effect in effects:
 		if not effect is Dictionary:
 			continue
-		if key == "trigger":
-			# A conditional listener is written as `listen`, whereas an ordinary triggered
-			# effect is written as `trigger`; they belong to the same facet.
-			for timing_key in ["trigger", "listen"]:
-				if effect.has(timing_key):
-					found[String(effect[timing_key])] = true
-		elif effect.has(key):
-			found[String(effect[key])] = true
-		_collect_effect_values(effect.get("then", []), key, found)
+		var action := String(effect.get("action", ""))
+		for category: String in ACTION_CATEGORIES:
+			if ACTION_CATEGORIES[category].has(action):
+				found[category] = true
+		_collect_action_categories(effect.get("then", []), found)
 
 static func _properties_of(cd: Dictionary, card_id: String) -> Array:
 	var props: Array = []
 	if cd.has("activated"): props.append("com habilidade ativada")
 	if cd.has("subito"): props.append("com Súbito")
-	if cd.get("token", false): props.append("ficha")
 	if card_id != "" and CardDB.is_leader_card(card_id): props.append("Encarnação de Líder")
-	if CardDB.is_artifact(cd): props.append("com artefato")
-	if CardDB.is_equipment(cd): props.append("com equipamento")
-	if CardDB.is_local(cd): props.append("com Local")
-	if not cd.get("deck_effects", []).is_empty() or not cd.get("activated", {}).get("effects", []).is_empty(): props.append("com efeitos condicionais")
 	for effect in cd.get("effects", []):
 		if effect.get("trigger", "") == "on_enter": props.append("com efeito ao entrar")
 		if effect.get("trigger", "") == "on_death": props.append("com efeito ao morrer")
@@ -147,8 +150,8 @@ static func facet_label(facet_id: String, value: String) -> String:
 		"rarity": return {"common": "Comum", "epic": "Épica", "champion": "Campeão", "legendary": "Lendário"}.get(value, value)
 		"type": return {"unit": "Unidade", "spell": "Feitiço", "artifact": "Artefato"}.get(value, value)
 		"speed": return {"lento": "Lento", "rapido": "Rápido", "instantaneo": "Instantâneo"}.get(value, value)
-		"action": return value.replace("_", " ").capitalize()
-		"trigger": return String(CardDB.data().get("triggers", {}).get(value, {}).get("name", value))
+		"subtype": return {"equipment": "Equipamento", "local": "Local"}.get(value, value)
+		"action": return value
 	return value.replace("_", " ").capitalize()
 
 func sort_ids(ids: Array[String]) -> void:
