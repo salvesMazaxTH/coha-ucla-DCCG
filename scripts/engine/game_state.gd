@@ -1236,24 +1236,25 @@ func can_use_ability(p: int, allow_unreachable := false) -> bool:
 	var spec := target_spec(ab["effects"])
 	return spec == "" or not valid_targets(p, spec, 0, false, ab["effects"]).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec))
 
-## Unit Ao Ativar (cards.json unit field "activated": {cost, speed, effects, once_per_turn, exhaust}):
+## Ao Ativar on a unit or free-standing artifact (`activated`: cost, speed, effects, once_per_turn, exhaust):
 ## paid like an ability (Reserva counts) and put on the stack, so it can be answered and countered.
-## "exhaust": the unit must be ready (not exhausted) and becomes exhausted, so it cannot attack
-## that turn (and an attacker cannot activate). Being exhausted also means the opponent may challenge it.
+## "once_per_turn" limits either kind of card. "exhaust" is unit-only: the unit must be ready and becomes
+## exhausted, so it cannot attack that turn (and an attacker cannot activate); the opponent may challenge it.
 func can_activate(p: int, uid: int, allow_unreachable := false) -> bool:
 	var c := _activatable_card(uid)
 	if c == null or c.owner != p:
 		return false
+	var is_unit := find_unit(uid) != null
 	var ab: Dictionary = card_of(c).get("activated", {})
 	if ab.is_empty() or not can_cast_speed(p, speed_of(ab)) or int(ab["cost"]) > budget(p, true):
 		return false
-	if ab.get("exhaust", false) and c.has_kw("inerte"):
+	if ab.get("exhaust", false) and is_unit and c.has_kw("inerte"):
 		return false # an inert unit cannot turn to activate an ability
 	if ab.get("once_per_turn", false) and c.activated_turn == turn:
 		return false
 	if _has_action(ab["effects"], "arm_death_ward") and c.death_ward_armed:
 		return false # rearming an already active death shield would only waste Momentum
-	if ab.get("exhaust", false) and c.exhausted:
+	if ab.get("exhaust", false) and is_unit and c.exhausted:
 		return false
 	if _has_action(ab["effects"], "revive_pick") and (not has_free_slot(p) or revive_options(p).is_empty()):
 		return false # nothing to bring back, or no slot for it
@@ -1471,7 +1472,7 @@ func activate(p: int, uid: int, target: int = 0) -> Array:
 		return []
 	_pay(p, int(ab["cost"]), true)
 	c.activated_turn = turn
-	if ab.get("exhaust", false) and not c.has_kw("inerte"):
+	if ab.get("exhaust", false) and find_unit(uid) != null and not c.has_kw("inerte"):
 		c.exhausted = true
 	_emit({"type": "trigger", "uid": uid, "player": p, "card_id": c.card_id, "trigger": "on_activate", "target": target})
 	# a card with "charges" spends one per activation; the last use destroys it, but the ability on the stack still resolves
@@ -3273,8 +3274,6 @@ func _start_turn(p: int, draw: bool) -> void:
 		c.keywords_until_next_turn = []
 		c.rapidez_until_next_turn = 0
 		c.attacks_made = 0
-	for relic: Card in pl["relics"]:
-		relic.exhausted = false # an artifact that turned to activate (Bateria) is ready again
 	_emit({"type": "start_turn", "player": p, "turn": turn})
 	_regenerate_all_units()
 	_resolve_dot_markers(p)

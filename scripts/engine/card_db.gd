@@ -157,6 +157,8 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 			err.call("activated sem \"cost\"")
 		if act.has("speed") and act["speed"] not in SPEEDS:
 			err.call("activated.speed desconhecida \"%s\"" % act["speed"])
+		if act.get("exhaust", false) and type != "unit":
+			err.call("activated.exhaust só pode ser usado por unidades; artefatos usam once_per_turn")
 		_validate_effects(err, act.get("effects", []))
 	for e in cd.get("deck_effects", []):
 		if e.get("action", "") not in DECK_ACTIONS:
