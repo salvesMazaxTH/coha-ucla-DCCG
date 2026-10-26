@@ -1,0 +1,26 @@
+{
+  "name": "Cuspidor de Brasas",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "troll"
+  ],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 3,
+  "atk": 3,
+  "hp": 2,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "add_dot",
+      "target": "enemy_unit",
+      "dot": "queimadura",
+      "amount": 2
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela recebe 2 marcadores de Queimadura.",
+  "flavor": "",
+  "tags": []
+}

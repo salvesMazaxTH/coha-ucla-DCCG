@@ -1,0 +1,32 @@
+{
+  "name": "Gorbo Escarra-Rubra",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "troll"
+  ],
+  "essence": "furia",
+  "element": "sangue",
+  "cost": 3,
+  "atk": 3,
+  "hp": 2,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 1
+    },
+    {
+      "trigger": "on_enter",
+      "action": "add_dot",
+      "target": "enemy_unit",
+      "dot": "sangramento",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela sofre 1 de dano e recebe 1 marcador de Sangramento.",
+  "flavor": "",
+  "tags": []
+}

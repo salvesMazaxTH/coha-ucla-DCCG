@@ -2,7 +2,6 @@
   "name": "Santa Maria Helena",
   "type": "unit",
   "rarity": "legendary",
-  "max_copies": 1,
   "species": ["humano", "santo"],
   "essence": "devocao",
   "cost": 5,

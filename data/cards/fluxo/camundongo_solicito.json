@@ -1,0 +1,34 @@
+{
+  "name": "Camundongo Solícito",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "fera"
+  ],
+  "essence": [
+    "fluxo",
+    "devocao"
+  ],
+  "cost": 3,
+  "atk": 1,
+  "hp": 3,
+  "keywords": [],
+  "art": "fluxo/camundongo_solicito.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
+    },
+    {
+      "trigger": "on_enter",
+      "action": "heal_unit",
+      "target": "ally_or_own_leader",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Entrar: você compra 1 carta. Uma unidade aliada ou o seu Líder, à sua escolha, recupera 1 de Vida.",
+  "flavor": "",
+  "tags": []
+}

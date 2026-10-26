@@ -3,7 +3,7 @@
     "furia": {
       "name": "Fúria",
       "color": "#e0572b",
-      "elements": ["fogo"]
+      "elements": ["fogo", "sangue"]
     },
     "fluxo": {
       "name": "Fluxo",
@@ -42,6 +42,7 @@
   },
   "elements": {
     "fogo": {"name": "Fogo", "color": "#e0572b"},
+    "sangue": {"name": "Sangue", "color": "#b8212f"},
     "agua": {"name": "Água", "color": "#2f8fd6"},
     "gelo": {"name": "Gelo", "color": "#7fd6f0"},
     "raio": {"name": "Raio", "color": "#ffe21f"},

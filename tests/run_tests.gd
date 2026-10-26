@@ -33,6 +33,10 @@ func _init() -> void:
 	_test_artifact_subtypes()
 	_test_room_banish()
 	_test_twin_bolts()
+	_test_furia_blood_cards()
+	_test_cuspidor_de_brasas()
+	_test_camundongo_solicito()
+	_test_furia_remaining_cards()
 	_test_setup()
 	_test_first_player()
 	_test_concede()
@@ -5992,6 +5996,177 @@ func _test_twin_bolts() -> void:
 	g._check_state()
 	g._flush()
 	check(g.find_unit(d.uid) == null, "Diabrete Elétrico morre")
+
+## Fúria sem fogo: o elemento Sangue e as cartas Sangria Desatada, Gorbo Escarra-Rubra e Machadada em Dobro.
+func _test_furia_blood_cards() -> void:
+	_tcard("t_blood_big", 1, 9, [])
+	# O elemento Sangue existe, pertence à Fúria e nenhuma das três cartas gera erro de catálogo
+	check(CardDB.data()["elements"].has("sangue") and CardDB.data()["essences"]["furia"]["elements"].has("sangue"), "elemento Sangue cadastrado e liberado para a Fúria")
+	var catalog_errors: String = str(CardDB.errors())
+	for card_id in ["sangria_desatada", "gorbo_escarra_rubra", "machadada_em_dobro"]:
+		check(not catalog_errors.contains(card_id), "%s: sem erro de validação do catálogo" % card_id)
+	check(CardDB.card("sangria_desatada")["element"] == "sangue" and CardDB.card("gorbo_escarra_rubra")["element"] == "sangue", "Sangria e Gorbo são do elemento Sangue")
+	check(not CardDB.card("machadada_em_dobro").has("element"), "Machadada em Dobro não tem elemento")
+
+	# Sangria Desatada: o seu Líder sofre 3 e você compra 2 cartas
+	var g := _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var own_leader_before: int = g.players[0]["leader_hp"]
+	var enemy_leader_before: int = g.players[1]["leader_hp"]
+	var hand_before: int = g.players[0]["hand"].size()
+	_play_aimed(g, 0, "sangria_desatada", 0)
+	check(g.players[0]["leader_hp"] == own_leader_before - 3, "Sangria Desatada: o próprio Líder sofre 3 de dano")
+	check(g.players[0]["hand"].size() == hand_before + 2, "Sangria Desatada: compra 2 cartas")
+	check(g.players[1]["leader_hp"] == enemy_leader_before, "Sangria Desatada: o Líder inimigo não é afetado")
+
+	# Gorbo Escarra-Rubra: 1 de dano e 1 marcador de Sangramento na unidade escolhida
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var bystander := _put(g, 1, "t_blood_big")
+	var foe := _put(g, 1, "t_blood_big")
+	var gorbo_uid := _play_aimed(g, 0, "gorbo_escarra_rubra", foe.uid)
+	check(foe.damage == 1 and int(foe.dot_markers.get("sangramento", 0)) == 1, "Gorbo: 1 de dano e 1 marcador de Sangramento no alvo")
+	check(bystander.damage == 0 and bystander.dot_markers.is_empty(), "Gorbo: a outra unidade inimiga não é afetada")
+	check(g.find_unit(gorbo_uid) != null and g.find_unit(gorbo_uid).atk_total() == 3, "Gorbo entra em campo com 3 de Ataque")
+	# o Sangramento dispara no início do turno do dono da unidade: marcadores + bônus da faixa de Vida (9 de Vida = +1)
+	g._start_turn(1, false)
+	check(foe.damage == 1 + 2 and foe.dot_markers.is_empty(), "Gorbo: o Sangramento causa 1 marcador + 1 de bônus de Vida (2 no total) e some")
+	# a escolha é opcional: sem unidade inimiga ele só entra
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var lonely_uid := _play_aimed(g, 0, "gorbo_escarra_rubra", 0)
+	check(g.find_unit(lonely_uid) != null, "Gorbo entra mesmo sem unidade inimiga para escolher")
+
+	# Machadada em Dobro: 2 de dano a duas unidades DIFERENTES e 1 ao Líder inimigo
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var first_foe := _put(g, 1, "t_blood_big")
+	var second_foe := _put(g, 1, "t_blood_big")
+	var untouched := _put(g, 1, "t_blood_big")
+	var enemy_leader: int = GameState.LEADER_UID[1]
+	var enemy_leader_hp: int = g.players[1]["leader_hp"]
+	var axe_one := _give(g, 0, "machadada_em_dobro")
+	check(g.play_card(0, axe_one, first_foe.uid, first_foe.uid).is_empty(), "Machadada: não aceita a mesma unidade duas vezes")
+	check(g.play_card(0, axe_one, enemy_leader, second_foe.uid).is_empty(), "Machadada: as duas escolhas são unidades, não o Líder")
+	check(not g.play_card(0, axe_one, first_foe.uid, second_foe.uid).is_empty(), "Machadada: aceita duas unidades diferentes")
+	_resolve_stack(g)
+	check(first_foe.damage == 2 and second_foe.damage == 2 and untouched.damage == 0, "Machadada: 2 de dano a cada unidade escolhida")
+	check(g.players[1]["leader_hp"] == enemy_leader_hp - 1, "Machadada: 1 de dano ao Líder inimigo")
+	# só uma unidade inimiga no campo: não dá para jogar (precisa de duas diferentes)
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var only_foe := _put(g, 1, "t_blood_big")
+	var axe_two := _give(g, 0, "machadada_em_dobro")
+	check(g.play_card(0, axe_two, only_foe.uid, only_foe.uid).is_empty(), "Machadada: com uma só unidade inimiga não há duas diferentes")
+
+func _test_cuspidor_de_brasas() -> void:
+	_tcard("t_ember_big", 1, 9, [])
+	check(not str(CardDB.errors()).contains("cuspidor_de_brasas"), "Cuspidor de Brasas: sem erro de validação do catálogo")
+	check(CardDB.card("cuspidor_de_brasas")["element"] == "fogo" and CardDB.card("cuspidor_de_brasas")["species"] == ["troll"], "Cuspidor de Brasas é um troll de Fogo")
+	var g := _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var bystander := _put(g, 1, "t_ember_big")
+	var foe := _put(g, 1, "t_ember_big")
+	var cuspidor_uid := _play_aimed(g, 0, "cuspidor_de_brasas", foe.uid)
+	check(int(foe.dot_markers.get("queimadura", 0)) == 2, "Cuspidor de Brasas: 2 marcadores de Queimadura no alvo")
+	check(bystander.dot_markers.is_empty(), "Cuspidor de Brasas: a outra unidade inimiga não é afetada")
+	check(g.find_unit(cuspidor_uid) != null and g.find_unit(cuspidor_uid).atk_total() == 3, "Cuspidor de Brasas entra em campo com 3 de Ataque")
+	# a Queimadura causa dano igual aos marcadores no início do turno do dono e some
+	g._start_turn(1, false)
+	check(foe.damage == 2 and foe.dot_markers.is_empty(), "Cuspidor de Brasas: a Queimadura causa 2 de dano e some")
+
+func _test_camundongo_solicito() -> void:
+	check(not str(CardDB.errors()).contains("camundongo_solicito"), "Camundongo Solícito: sem erro de validação do catálogo")
+	check(CardDB.essences_of(CardDB.card("camundongo_solicito")) == ["fluxo", "devocao"], "Camundongo Solícito é de Fluxo e Devoção")
+	# Ao Entrar: compra 1 carta e cura 1 de Vida do Líder escolhido
+	var g := _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	g.players[0]["leader_hp"] -= 5
+	var leader_hp_before: int = g.players[0]["leader_hp"]
+	var hand_before: int = g.players[0]["hand"].size()
+	var mouse_uid := _play_aimed(g, 0, "camundongo_solicito", GameState.LEADER_UID[0])
+	check(g.find_unit(mouse_uid) != null, "Camundongo Solícito entra em campo")
+	# a mão perde o próprio Camundongo (jogado) e ganha 1 carta comprada
+	check(g.players[0]["hand"].size() == hand_before + 1, "Camundongo Solícito: compra 1 carta ao entrar")
+	check(g.players[0]["leader_hp"] == leader_hp_before + 1, "Camundongo Solícito: cura 1 de Vida do Líder")
+
+func _test_furia_remaining_cards() -> void:
+	for card_id in ["ticao_teimoso", "javali_sem_freio", "teodoro_sangue_quente", "vulcaozinho_malcriado"]:
+		check(not str(CardDB.errors()).contains(card_id), "%s: sem erro de validação do catálogo" % card_id)
+	check(CardDB.card("javali_sem_freio").get("element", "") == "" and CardDB.card("teodoro_sangue_quente")["element"] == "sangue", "Javali não tem elemento; Teodoro é de Sangue")
+	_tcard("t_furia_big", 1, 20, [])
+
+	# Tição Teimoso: ao sofrer dano, 1 de dano ao Líder inimigo e +1 de Ataque só neste turno
+	var g := _new_game()
+	_quiet(g)
+	var ember := _put(g, 0, "ticao_teimoso")
+	var enemy_leader_before: int = g.players[1]["leader_hp"]
+	g._deal_damage(ember.uid, 1, null)
+	g._check_state()
+	check(g.players[1]["leader_hp"] == enemy_leader_before - 1, "Tição Teimoso: causa 1 de dano ao Líder inimigo ao sofrer dano")
+	check(ember.atk_total() == 4, "Tição Teimoso: ganha +1 de Ataque ao sofrer dano")
+	g._finish_turn()
+	check(ember.atk_total() == 3, "Tição Teimoso: o +1 de Ataque acaba com o turno")
+
+	# Javali Sem Freio: cada dano sofrido dá +1 de Ataque permanente
+	var boar := _put(g, 0, "javali_sem_freio")
+	check(boar.atk_total() == 4, "Javali Sem Freio: 4 de Ataque quando saudável")
+	g._deal_damage(boar.uid, 1, null)
+	g._check_state()
+	check(boar.atk_total() == 5, "Javali Sem Freio: +1 de Ataque ao sofrer dano")
+	g._deal_damage(boar.uid, 1, null)
+	g._check_state()
+	check(boar.atk_total() == 6, "Javali Sem Freio: o bônus se acumula a cada dano")
+	g._finish_turn()
+	boar.damage = 0
+	check(boar.atk_total() == 6, "Javali Sem Freio: o bônus é permanente (não some com o turno nem com a cura)")
+
+	# Teodoro Sangue-Quente: Líder em 10 ou menos de Vida; ao entrar +3 de Ataque e Ímpeto, e a cada início de turno +2 de Ataque, ambos até o fim do turno
+	var g2 := _new_game()
+	_quiet(g2)
+	g2.players[0]["momentum"] = 10
+	g2.players[0]["leader_hp"] = 11
+	var calm_uid := _play_aimed(g2, 0, "teodoro_sangue_quente", 0)
+	var calm := g2.find_unit(calm_uid)
+	check(calm != null and calm.atk_total() == 3 and not g2.has_kw(calm, "impeto") and not g2.can_attack(calm), "Teodoro: sem bônus (e sem poder atacar) ao entrar com o Líder em 11 de Vida")
+	g2.players[0]["leader_hp"] = 10
+	var angry_uid := _play_aimed(g2, 0, "teodoro_sangue_quente", 0)
+	var angry := g2.find_unit(angry_uid)
+	check(angry != null and angry.atk_total() == 6 and g2.has_kw(angry, "impeto") and g2.can_attack(angry), "Teodoro: +3 de Ataque e Ímpeto ao entrar com o Líder em 10 de Vida, já podendo atacar")
+	g2._finish_turn()
+	check(angry.atk_total() == 3 and not g2.has_kw(angry, "impeto"), "Teodoro: o bônus acaba no fim do turno")
+	g2.players[0]["leader_hp"] = 11
+	g2._start_turn(0, false)
+	check(angry.atk_total() == 3, "Teodoro: No Início do Turno não dá nada com o Líder em 11 de Vida")
+	g2.players[0]["leader_hp"] = 10
+	g2._start_turn(0, false)
+	check(angry.atk_total() == 5 and not g2.has_kw(angry, "impeto"), "Teodoro: No Início do Turno com o Líder em 10 de Vida dá só +2 de Ataque (sem Ímpeto)")
+	g2._finish_turn()
+	check(angry.atk_total() == 3, "Teodoro: o +2 do início do turno também acaba no fim do turno")
+
+	# Vulcãozinho Malcriado: Ao Entrar custa 2 de Vida; Ao Morrer causa 3 a todas as unidades inimigas e ao Líder inimigo
+	var g3 := _new_game()
+	_quiet(g3)
+	g3.players[0]["momentum"] = 10
+	var own_leader_before: int = g3.players[0]["leader_hp"]
+	var foe_a := _put(g3, 1, "t_furia_big")
+	var foe_b := _put(g3, 1, "t_furia_big")
+	var volcano_uid := _play_aimed(g3, 0, "vulcaozinho_malcriado", 0)
+	var volcano := g3.find_unit(volcano_uid)
+	check(volcano != null and g3.players[0]["leader_hp"] == own_leader_before - 2, "Vulcãozinho: o Líder do dono sofre 2 de dano ao entrar")
+	check(volcano != null and g3.has_kw(volcano, "sobrepujanca"), "Vulcãozinho: tem Sobrepujança")
+	var enemy_leader_hp: int = g3.players[1]["leader_hp"]
+	g3._deal_damage(volcano_uid, 99, null)
+	g3._check_state()
+	check(foe_a.damage == 3 and foe_b.damage == 3, "Vulcãozinho: Ao Morrer causa 3 de dano a todas as unidades inimigas")
+	check(g3.players[1]["leader_hp"] == enemy_leader_hp - 3, "Vulcãozinho: Ao Morrer causa 3 de dano ao Líder inimigo")
 
 func _test_overkill() -> void:
 	# Leader at 3: the first attack kills it and the game ends in the middle of the combat

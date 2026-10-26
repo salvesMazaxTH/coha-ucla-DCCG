@@ -1,0 +1,36 @@
+{
+  "name": "Teodoro Sangue-Quente",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "humano"
+  ],
+  "essence": "furia",
+  "element": "sangue",
+  "cost": 3,
+  "atk": 3,
+  "hp": 3,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "if": { "compare": { "stat": "leader_hp", "who": "self", "op": "<=", "value": 10 } },
+      "action": "buff",
+      "target": "self",
+      "atk": 3,
+      "keywords": ["impeto"],
+      "temp": true
+    },
+    {
+      "trigger": "on_turn_start",
+      "if": { "compare": { "stat": "leader_hp", "who": "self", "op": "<=", "value": 10 } },
+      "action": "buff",
+      "target": "self",
+      "atk": 2,
+      "temp": true
+    }
+  ],
+  "text": "Ao Entrar: com o seu Líder em 10 ou menos de Vida, esta unidade recebe +3 de Ataque e Ímpeto até o fim do turno.\nNo Início do Turno: nessa condição, +2 de Ataque neste turno.",
+  "flavor": "",
+  "tags": []
+}

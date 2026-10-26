@@ -1,0 +1,32 @@
+{
+  "name": "Tição Teimoso",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "elemental"
+  ],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 4,
+  "atk": 3,
+  "hp": 4,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_damaged",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 1
+    },
+    {
+      "trigger": "on_damaged",
+      "action": "buff",
+      "target": "self",
+      "atk": 1,
+      "temp": true
+    }
+  ],
+  "text": "Ao Sofrer Dano: causa 1 de dano ao Líder inimigo e esta unidade ganha +1 de Ataque neste turno.",
+  "flavor": "",
+  "tags": []
+}

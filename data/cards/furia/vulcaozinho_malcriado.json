@@ -1,0 +1,37 @@
+{
+  "name": "Vulcãozinho Malcriado",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "elemental"
+  ],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 5,
+  "atk": 5,
+  "hp": 4,
+  "keywords": ["sobrepujanca"],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "own_leader",
+      "amount": 2
+    },
+    {
+      "trigger": "on_death",
+      "action": "damage",
+      "target": "all_enemy_units",
+      "amount": 3
+    },
+    {
+      "trigger": "on_death",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 3
+    }
+  ],
+  "text": "Ao Entrar: seu Líder sofre 2 de dano.\nAo Morrer: causa 3 de dano a todas as unidades inimigas e ao Líder inimigo.",
+  "flavor": "",
+  "tags": []
+}

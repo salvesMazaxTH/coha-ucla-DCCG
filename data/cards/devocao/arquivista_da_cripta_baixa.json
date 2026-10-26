@@ -8,7 +8,7 @@
   "essence": "devocao",
   "element": "luz",
   "cost": 2,
-  "atk": 0,
+  "atk": 1,
   "hp": 3,
   "keywords": [],
   "art": "devocao/arquivista_da_cripta_baixa.webp",

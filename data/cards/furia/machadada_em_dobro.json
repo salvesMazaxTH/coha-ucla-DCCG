@@ -1,0 +1,31 @@
+{
+  "name": "Machadada em Dobro",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "furia",
+  "cost": 3,
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 2
+    },
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "enemy_unit",
+      "pick2": true,
+      "amount": 2
+    },
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 1
+    }
+  ],
+  "text": "Causa 2 de dano a duas unidades inimigas diferentes à sua escolha e 1 de dano ao Líder inimigo.",
+  "flavor": "",
+  "tags": []
+}
