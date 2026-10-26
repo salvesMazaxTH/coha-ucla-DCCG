@@ -1,0 +1,31 @@
+{
+  "name": "Fiado de Taverna",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "furia",
+  "cost": 2,
+  "art": "furia/fiado_de_taverna.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "own_leader",
+      "amount": 3
+    },
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 6
+    },
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 2
+    }
+  ],
+  "text": "Seu Líder sofre 3 de dano. Causa 6 de dano a uma unidade inimiga e 2 de dano ao Líder inimigo.",
+  "flavor": "",
+  "tags": []
+}

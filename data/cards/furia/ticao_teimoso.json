@@ -11,6 +11,7 @@
   "atk": 3,
   "hp": 4,
   "keywords": [],
+  "art": "furia/ticao_teimoso.webp",
   "effects": [
     {
       "trigger": "on_damaged",

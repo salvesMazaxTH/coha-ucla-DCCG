@@ -1,0 +1,27 @@
+{
+  "name": "Ogro Cobrador de Dívidas",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "ogro"
+  ],
+  "essence": "furia",
+  "cost": 5,
+  "atk": 5,
+  "hp": 5,
+  "keywords": [
+    "impeto"
+  ],
+  "art": "furia/ogro_cobrador_de_dividas.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "own_leader",
+      "amount": 3
+    }
+  ],
+  "text": "Ao Entrar: seu Líder sofre 3 de dano.",
+  "flavor": "",
+  "tags": []
+}

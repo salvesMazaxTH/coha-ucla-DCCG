@@ -5,6 +5,7 @@
   "essence": "furia",
   "element": "sangue",
   "cost": 1,
+  "art": "furia/sangria_desatada.webp",
   "effects": [
     {
       "trigger": "on_play",

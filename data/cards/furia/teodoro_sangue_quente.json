@@ -11,6 +11,8 @@
   "atk": 3,
   "hp": 3,
   "keywords": [],
+  "art": "furia/teodoro_sangue_quente.webp",
+  "art_crop": {"x": 0.5, "y": 0.16, "zoom": 1.0},
   "effects": [
     {
       "trigger": "on_enter",

@@ -37,6 +37,7 @@ func _init() -> void:
 	_test_cuspidor_de_brasas()
 	_test_camundongo_solicito()
 	_test_furia_remaining_cards()
+	_test_furia_blood_price_cards()
 	_test_setup()
 	_test_first_player()
 	_test_concede()
@@ -6167,6 +6168,49 @@ func _test_furia_remaining_cards() -> void:
 	g3._check_state()
 	check(foe_a.damage == 3 and foe_b.damage == 3, "Vulcãozinho: Ao Morrer causa 3 de dano a todas as unidades inimigas")
 	check(g3.players[1]["leader_hp"] == enemy_leader_hp - 3, "Vulcãozinho: Ao Morrer causa 3 de dano ao Líder inimigo")
+
+func _test_furia_blood_price_cards() -> void:
+	for card_id in ["fiado_de_taverna", "marlene_cicatriz_viva", "ogro_cobrador_de_dividas"]:
+		check(not str(CardDB.errors()).contains(card_id), "%s: sem erro de validação do catálogo" % card_id)
+	_tcard("t_furia_wall", 1, 20, [])
+
+	# Fiado de Taverna: o Líder do dono sofre 3; a unidade alvo sofre 6 e o Líder inimigo sofre 2
+	var g := _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var own_leader_before: int = g.players[0]["leader_hp"]
+	var enemy_leader_before: int = g.players[1]["leader_hp"]
+	var victim := _put(g, 1, "t_furia_wall")
+	_play_aimed(g, 0, "fiado_de_taverna", victim.uid)
+	check(g.players[0]["leader_hp"] == own_leader_before - 3, "Fiado de Taverna: o seu Líder sofre 3 de dano")
+	check(victim.damage == 6, "Fiado de Taverna: causa 6 de dano à unidade escolhida")
+	check(g.players[1]["leader_hp"] == enemy_leader_before - 2, "Fiado de Taverna: causa 2 de dano ao Líder inimigo")
+
+	# Marlene Cicatriz-Viva: cada dano no Líder aliado dá +1 de Ataque permanente; dano no Líder inimigo não conta
+	var g2 := _new_game()
+	_quiet(g2)
+	var scarred := _put(g2, 0, "marlene_cicatriz_viva")
+	check(scarred.atk_total() == 2, "Marlene: 2 de Ataque quando o Líder está inteiro")
+	g2._deal_damage(GameState.LEADER_UID[0], 2, null)
+	g2._check_state()
+	check(scarred.atk_total() == 3, "Marlene: +1 de Ataque quando o seu Líder sofre dano")
+	g2._deal_damage(GameState.LEADER_UID[1], 2, null)
+	g2._check_state()
+	check(scarred.atk_total() == 3, "Marlene: dano no Líder inimigo não dá Ataque")
+	g2._deal_damage(GameState.LEADER_UID[0], 1, null)
+	g2._check_state()
+	g2._finish_turn()
+	check(scarred.atk_total() == 4, "Marlene: o bônus se acumula e é permanente")
+
+	# Ogro Cobrador de Dívidas: Ímpeto, e o Líder do dono sofre 3 ao entrar
+	var g3 := _new_game()
+	_quiet(g3)
+	g3.players[0]["momentum"] = 10
+	var leader_before: int = g3.players[0]["leader_hp"]
+	var ogre_uid := _play_aimed(g3, 0, "ogro_cobrador_de_dividas", 0)
+	var ogre := g3.find_unit(ogre_uid)
+	check(ogre != null and g3.players[0]["leader_hp"] == leader_before - 3, "Ogro Cobrador: o seu Líder sofre 3 de dano ao entrar")
+	check(ogre != null and g3.has_kw(ogre, "impeto") and g3.can_attack(ogre), "Ogro Cobrador: tem Ímpeto e já pode atacar")
 
 func _test_overkill() -> void:
 	# Leader at 3: the first attack kills it and the game ends in the middle of the combat

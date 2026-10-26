@@ -4,6 +4,7 @@
   "rarity": "common",
   "essence": "furia",
   "cost": 3,
+  "art": "furia/machadada_em_dobro.webp",
   "effects": [
     {
       "trigger": "on_play",

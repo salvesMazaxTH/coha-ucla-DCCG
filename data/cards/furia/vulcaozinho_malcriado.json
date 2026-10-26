@@ -11,6 +11,7 @@
   "atk": 5,
   "hp": 4,
   "keywords": ["sobrepujanca"],
+  "art": "furia/vulcaozinho_malcriado.webp",
   "effects": [
     {
       "trigger": "on_enter",

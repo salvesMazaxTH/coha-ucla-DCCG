@@ -11,6 +11,7 @@
   "atk": 3,
   "hp": 2,
   "keywords": [],
+  "art": "furia/gorbo_escarra_rubra.webp",
   "effects": [
     {
       "trigger": "on_enter",

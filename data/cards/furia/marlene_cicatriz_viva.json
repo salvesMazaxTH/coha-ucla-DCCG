@@ -1,0 +1,29 @@
+{
+  "name": "Marlene Cicatriz-Viva",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "humano"
+  ],
+  "essence": "furia",
+  "cost": 3,
+  "atk": 2,
+  "hp": 4,
+  "keywords": [],
+  "art": "furia/marlene_cicatriz_viva.webp",
+  "effects": [
+    {
+      "listen": "leader_damaged",
+      "scope": "ally",
+      "zones": [
+        "board"
+      ],
+      "action": "buff",
+      "target": "self",
+      "atk": 1
+    }
+  ],
+  "text": "Condicional: sempre que o seu Líder sofre dano, esta unidade recebe +1 de Ataque permanente.",
+  "flavor": "",
+  "tags": []
+}
