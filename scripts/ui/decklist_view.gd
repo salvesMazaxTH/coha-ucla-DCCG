@@ -63,7 +63,8 @@ func open(id: String, stage_size: Vector2) -> DecklistView:
 	grid.add_theme_constant_override("v_separation", ROW_GAP)
 	scroll.add_child(grid)
 	var cards: Dictionary = DeckDB.sorted_cards(DeckDB.get_deck(deck_id)["cards"])
-	var incarnation_id := String(CardDB.leader(DeckDB.get_deck(deck_id)["leader"])["incarnation"])
+	var deck := DeckDB.get_deck(deck_id)
+	var incarnation_id := DeckDB.resolved_incarnation_id(String(deck["leader"]), String(deck.get("incarnation_id", "")))
 	for card_id in cards:
 		var row := DecklistRow.new().setup(card_id, int(cards[card_id]), card_id == incarnation_id)
 		row.tapped.connect(func(tapped_card_id: String): card_chosen.emit(tapped_card_id))
@@ -169,10 +170,15 @@ func _cost_counts() -> Array:
 	var counts: Array = []
 	counts.resize(CURVE_MAX_COST + 1)
 	counts.fill(0)
-	var cards: Dictionary = DeckDB.get_deck(deck_id)["cards"]
+	var deck := DeckDB.get_deck(deck_id)
+	var cards: Dictionary = deck["cards"]
+	var incarnation_id := DeckDB.resolved_incarnation_id(String(deck["leader"]), String(deck.get("incarnation_id", "")))
 	for card_id in cards:
 		var slot := mini(int(CardDB.card(card_id)["cost"]), CURVE_MAX_COST)
-		counts[slot] += int(cards[card_id])
+		var copies := int(cards[card_id])
+		if String(card_id) == incarnation_id:
+			copies -= 1
+		counts[slot] += maxi(0, copies)
 	return counts
 
 func _draw_curve(canvas: Control, counts: Array, accent: Color) -> void:

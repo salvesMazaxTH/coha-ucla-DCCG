@@ -51,7 +51,7 @@ static func deck_payload(deck_id: String) -> Variant:
 		return deck_id
 	var deck: Dictionary = DeckDB.get_deck(deck_id)
 	return {"name": deck.get("name", ""), "description": deck.get("description", ""),
-		"leader": deck.get("leader", ""), "cards": deck.get("cards", {})}
+		"leader": deck.get("leader", ""), "incarnation_id": deck.get("incarnation_id", ""), "cards": deck.get("cards", {})}
 
 func create(deck: String) -> void:
 	send({"t": "create", "deck": deck_payload(deck)})

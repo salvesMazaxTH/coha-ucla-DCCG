@@ -49,6 +49,7 @@ var _deck_id := ""
 var _deck_name := ""
 var _description := ""
 var _leader := ""
+var _incarnation_id := ""
 var _cards: Dictionary = {}
 var _dirty := false
 var _saving := false
@@ -74,6 +75,14 @@ var _list_box: VBoxContainer
 var _list_rows: Dictionary = {}
 var _save_button: Button
 var _status_label: Label
+var _incarnation_label: Label
+
+# The coach is deliberately advisory: DeckDB remains the authority on what is legal.
+# A beginner can turn this on for the current editing session and change its plan at any time.
+var _assistant_enabled := false
+var _assistant_profile := ""
+var _assistant_focus := ""
+var _assistant_prompted := false
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -102,7 +111,7 @@ func _ready() -> void:
 	toast_margin.add_child(_toast_layer)
 
 	for card_id in CardDB.data()["cards"]:
-		if DeckDB.is_deckable(String(card_id)):
+		if DeckDB.is_deckable(String(card_id)) or CardDB.is_leader_card(String(card_id)):
 			_pool.append(String(card_id))
 	store = DeckStore.new()
 	store.name = "DeckStore"
@@ -465,11 +474,11 @@ func _build_banner() -> Control:
 				auth.sign_in_with_google(), true))
 	return panel
 
-func _classify(leader: String, cards: Dictionary) -> Dictionary:
+func _classify(leader: String, cards: Dictionary, incarnation_id := "") -> Dictionary:
 	if leader == "":
 		return {"status": "illegal", "errors": ["O Líder deste deck não existe mais. Abra o deck para escolher outro."]}
-	var errors := DeckDB.validate_cards(leader, cards)
-	var total: int = DeckDB.stats(leader, cards)["total"]
+	var errors := DeckDB.validate_cards(leader, cards, incarnation_id)
+	var total: int = DeckDB.stats(leader, cards, incarnation_id)["total"]
 	var hard := errors.filter(func(message: String) -> bool:
 		var size_problem := message.begins_with("deck tem ") and total < DeckDB.DECK_SIZE
 		return not size_problem and not message.begins_with("o deck precisa de exatamente 1 Encarnação"))
@@ -497,7 +506,7 @@ func _deck_tile(deck: Dictionary) -> Control:
 	var leader: String = deck["leader"]
 	var color := _leader_color(leader)
 	var bg := Color(0.06, 0.055, 0.085, 0.96)
-	var verdict := _classify(leader, deck["cards"])
+	var verdict := _classify(leader, deck["cards"], String(deck.get("incarnation_id", "")))
 	var status: String = verdict["status"]
 	var status_color := GOOD if status == "legal" else (WARN if status == "draft" else BAD)
 	var tile := Panel.new()
@@ -525,7 +534,7 @@ func _deck_tile(deck: Dictionary) -> Control:
 	name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tile.add_child(name_label)
-	var drawn: int = DeckDB.stats(leader, deck["cards"])["total"] if leader != "" else 0
+	var drawn: int = DeckDB.stats(leader, deck["cards"], String(deck.get("incarnation_id", "")))["total"] if leader != "" else 0
 	var leader_line := "%s · %d/%d cartas" % [CardDB.leader(leader)["name"] if leader != "" else "Líder desconhecido", drawn, DeckDB.DECK_SIZE]
 	var sub := _lbl(leader_line, 16, color.lightened(0.35))
 	sub.position = Vector2(12, art_h + 12)
@@ -593,11 +602,12 @@ func _new_deck() -> void:
 		_toast("Limite de %d decks atingido. Exclua algum para criar outro." % DeckStore.MAX_DECKS, WARN)
 		return
 	_pick_leader("NOVO DECK — ESCOLHA O LÍDER", true, func(leader_id: String, template_id: String):
-		var fresh := {"id": "", "name": "Novo deck", "description": "", "leader": leader_id, "cards": {}, "problems": []}
+		var fresh := {"id": "", "name": "Novo deck", "description": "", "leader": leader_id, "incarnation_id": String(CardDB.leader(leader_id)["incarnation"]), "cards": {}, "problems": []}
 		if template_id != "":
 			var template: Dictionary = DeckDB.get_deck(template_id)
 			fresh["name"] = "Meu " + String(template["name"])
 			fresh["description"] = String(template.get("description", ""))
+			fresh["incarnation_id"] = String(template.get("incarnation_id", CardDB.leader(leader_id)["incarnation"]))
 			fresh["cards"] = (template["cards"] as Dictionary).duplicate()
 		_open_editor(fresh, template_id != ""))
 
@@ -605,7 +615,7 @@ func _duplicate(deck: Dictionary) -> void:
 	if store.is_full():
 		_toast("Limite de %d decks atingido." % DeckStore.MAX_DECKS, WARN)
 		return
-	store.save_deck("", ("Cópia de " + String(deck["name"])).left(DeckStore.MAX_NAME), deck["leader"], deck["cards"], deck["description"])
+	store.save_deck("", ("Cópia de " + String(deck["name"])).left(DeckStore.MAX_NAME), deck["leader"], deck["cards"], deck["description"], String(deck.get("incarnation_id", "")))
 
 func _ask_delete(deck: Dictionary) -> void:
 	_confirm("Excluir deck", "Excluir \"%s\"? Isso não pode ser desfeito." % deck["name"], "EXCLUIR", func(): store.delete_deck(String(deck["id"])))
@@ -655,11 +665,16 @@ func _open_editor(deck: Dictionary, start_dirty := false) -> void:
 	_deck_name = String(deck["name"])
 	_description = String(deck.get("description", ""))
 	_leader = String(deck["leader"])
+	_incarnation_id = String(deck.get("incarnation_id", ""))
 	_cards = (deck["cards"] as Dictionary).duplicate()
 	_dirty = start_dirty
 	_saving = false
 	_editing_cloud = store.is_cloud()
 	_load_notes.clear()
+	_assistant_enabled = false
+	_assistant_profile = ""
+	_assistant_focus = ""
+	_assistant_prompted = false
 	for problem in deck.get("problems", []):
 		_load_notes.append(String(problem))
 	if _leader == "":
@@ -670,14 +685,14 @@ func _open_editor(deck: Dictionary, start_dirty := false) -> void:
 	_show_editor()
 
 func _ensure_incarnation() -> void:
-	var incarnation := String(CardDB.leader(_leader)["incarnation"])
-	if not _cards.has(incarnation):
-		_cards[incarnation] = 1
+	_incarnation_id = DeckDB.resolved_incarnation_id(_leader, _incarnation_id)
+	if int(_cards.get(_incarnation_id, 0)) <= 0:
+		_cards[_incarnation_id] = 1
 
 func _set_leader(leader_id: String) -> void:
-	if _leader != "":
-		_cards.erase(String(CardDB.leader(_leader)["incarnation"]))
+	var previous_incarnation := _incarnation_id
 	_leader = leader_id
+	_incarnation_id = previous_incarnation if CardDB.is_incarnation_option(leader_id, previous_incarnation) else String(CardDB.leader(leader_id)["incarnation"])
 	_ensure_incarnation()
 	_dirty = true
 	_show_editor()
@@ -698,6 +713,9 @@ func _show_editor() -> void:
 	row.add_child(_build_deck_panel())
 	_render_cards.call_deferred()
 	_refresh_deck_panel()
+	if not _assistant_prompted:
+		_assistant_prompted = true
+		_offer_deck_assistant.call_deferred()
 
 func _build_sidebar() -> Control:
 	var panel := PanelContainer.new()
@@ -861,8 +879,8 @@ func _refresh_tile(card_id: String) -> void:
 	var counter := tile["counter"] as Label
 	counter.text = "%d/%d" % [copies, limit]
 	counter.add_theme_color_override("font_color", UITheme.GOLD_LIGHT if copies >= limit else UITheme.TEXT)
-	(tile["minus"] as Button).disabled = copies <= 0
-	(tile["plus"] as Button).disabled = copies >= limit
+	(tile["minus"] as Button).disabled = copies <= (1 if card_id == _incarnation_id else 0)
+	(tile["plus"] as Button).disabled = copies >= limit or card_id == _incarnation_id
 
 func _build_deck_panel() -> Control:
 	var panel := PanelContainer.new()
@@ -884,6 +902,19 @@ func _build_deck_panel() -> Control:
 
 	box.add_child(_build_leader_header())
 	box.add_child(_build_meters())
+	var incarnation_row := HBoxContainer.new()
+	_incarnation_label = _lbl("", 15, UITheme.GOLD_LIGHT, "bold")
+	_incarnation_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	incarnation_row.add_child(_incarnation_label)
+	incarnation_row.add_child(_btn("TROCAR", _open_incarnation_picker, false, 14))
+	box.add_child(incarnation_row)
+	_refresh_incarnation_label()
+	var coach_row := HBoxContainer.new()
+	var coach_title := _lbl("ASSISTENTE DE DECK", 15, INFO, "heavy")
+	coach_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	coach_row.add_child(coach_title)
+	coach_row.add_child(_btn("CONFIGURAR" if _assistant_enabled else "ATIVAR", _offer_deck_assistant, false, 14))
+	box.add_child(coach_row)
 
 	_curve = Control.new()
 	_curve.custom_minimum_size = Vector2(0, 96)
@@ -932,12 +963,140 @@ func _build_deck_panel() -> Control:
 	box.add_child(footer)
 	return panel
 
+func _refresh_incarnation_label() -> void:
+	if _incarnation_label == null or not is_instance_valid(_incarnation_label) or not CardDB.data()["cards"].has(_incarnation_id):
+		return
+	_incarnation_label.text = "Encarnação: %s" % String(CardDB.card(_incarnation_id)["name"])
+
+func _open_incarnation_picker() -> void:
+	var options := CardDB.incarnation_options(_leader)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(minf(size.x - 100.0, 700.0), 0)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	panel.add_child(box)
+	box.add_child(_lbl("ESCOLHA A ENCARNAÇÃO", 26, UITheme.GOLD_LIGHT, "title_bold"))
+	var explanation := _lbl("Uma cópia fica no Santuário. Ao trocar, a cópia reservada atual é substituída; cópias extras continuam no deck e seguem o limite normal.", 16, UITheme.TEXT_DIM, "body")
+	explanation.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(explanation)
+	for card_id in options:
+		var cd: Dictionary = CardDB.card(card_id)
+		var marker := " ✓" if card_id == _incarnation_id else ""
+		var option_button := _btn("%s%s · custo %d\n%s" % [cd.get("name", card_id), marker, int(cd.get("cost", 0)), cd.get("text", "")], func():
+			_select_incarnation(card_id), false, 17)
+		option_button.custom_minimum_size = Vector2(620, 64)
+		box.add_child(option_button)
+	var close_row := HBoxContainer.new()
+	close_row.alignment = BoxContainer.ALIGNMENT_END
+	close_row.add_child(_btn("FECHAR", _close_modal))
+	box.add_child(close_row)
+	_open_modal(panel, false)
+
+func _select_incarnation(card_id: String) -> void:
+	if not CardDB.is_incarnation_option(_leader, card_id):
+		_toast("Essa carta não pode ser a Encarnação deste Líder.", BAD)
+		return
+	if int(_cards.get(card_id, 0)) > 1:
+		_toast("Reduza esta carta a 1 cópia antes de escolhê-la como Encarnação.", WARN)
+		return
+	var previous_id := _incarnation_id
+	if int(_cards.get(card_id, 0)) <= 0:
+		var previous_copies := int(_cards.get(previous_id, 0))
+		if previous_copies > 1:
+			_cards[previous_id] = previous_copies - 1
+		else:
+			_cards.erase(previous_id)
+		_cards[card_id] = 1
+	_incarnation_id = card_id
+	_close_modal()
+	_mark_dirty()
+	_refresh_tile(previous_id)
+	_refresh_tile(card_id)
+	_refresh_deck_panel()
+
+## A short, plain-language interview. It gives the analysis a declared game plan instead of
+## pretending that every legal pile of cards has the same goal.
+func _offer_deck_assistant() -> void:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(minf(size.x - 100.0, 650.0), 0)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 14)
+	panel.add_child(box)
+	box.add_child(_lbl("ASSISTENTE DE DECK", 28, UITheme.GOLD_LIGHT, "title_bold"))
+	var intro := _lbl("Quer usar o assistente? Ele acompanha as escolhas deste deck e aponta problemas de construção. Ele só aconselha: você continua no controle.", 17, UITheme.TEXT, "body")
+	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	intro.custom_minimum_size = Vector2(590, 0)
+	box.add_child(intro)
+	var actions := HBoxContainer.new()
+	actions.alignment = BoxContainer.ALIGNMENT_END
+	actions.add_child(_btn("NÃO USAR AGORA", func():
+		_assistant_enabled = false
+		_refresh_deck_panel()
+		_close_modal()))
+	actions.add_child(_btn("USAR ASSISTENTE", func():
+		_close_modal()
+		_ask_archetype(), true))
+	box.add_child(actions)
+	_open_modal(panel, false)
+
+func _ask_archetype() -> void:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(minf(size.x - 100.0, 700.0), 0)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	panel.add_child(box)
+	box.add_child(_lbl("QUAL É O PLANO DO DECK?", 26, UITheme.GOLD_LIGHT, "title_bold"))
+	box.add_child(_lbl("Não existe resposta errada. O assistente vai comparar suas cartas com a estratégia escolhida.", 16, UITheme.TEXT_DIM, "body"))
+	var choices := VBoxContainer.new()
+	choices.add_theme_constant_override("separation", 7)
+	box.add_child(choices)
+	for choice in [["aggro", "AGGRO", "Vencer cedo, pressionando desde os primeiros turnos."], ["midrange", "MIDRANGE", "Disputar bem o meio de jogo com ameaças consistentes."], ["control", "CONTROL", "Responder ao rival e vencer com calma no fim do jogo."], ["combo", "COMBO", "Montar uma combinação ou uma sinergia poderosa."], ["unsure", "NÃO SEI AINDA", "Quero montar e aprender o que cada tipo de carta faz."]]:
+		var key := String(choice[0])
+		choices.add_child(_btn("%s — %s" % [choice[1], choice[2]], func():
+			_assistant_profile = key
+			_close_modal()
+			_ask_assistant_focus(), false, 17))
+	var back := HBoxContainer.new()
+	back.alignment = BoxContainer.ALIGNMENT_END
+	back.add_child(_btn("VOLTAR", _offer_deck_assistant))
+	box.add_child(back)
+	_open_modal(panel, false)
+
+func _ask_assistant_focus() -> void:
+	var options: Array = []
+	match _assistant_profile:
+		"aggro": options = [["burn", "DANO DIRETO", "Quero finalizar o Líder adversário com magias e efeitos de dano."], ["board", "CRIATURAS RÁPIDAS", "Quero lotar a mesa cedo e atacar com unidades baratas."]]
+		"midrange": options = [["pressure", "PRESSÃO CONSTANTE", "Quero curvas equilibradas e ameaças em todo turno."], ["value", "VALOR", "Quero cartas que trocam bem e geram vantagens."]]
+		"control": options = [["removal", "MUITAS RESPOSTAS", "Quero remover ou atrapalhar as ameaças do rival."], ["late", "FINAL DE JOGO", "Quero sobreviver e ganhar com cartas fortes mais tarde."]]
+		"combo": options = [["spells", "COMBO DE EFEITOS", "Quero achar peças com compras e magias."], ["tribal", "SINERGIA DE TRIBO", "Quero muitas cartas da mesma espécie trabalhando juntas."]]
+		_: options = [["learn", "APRENDER", "Quero dicas gerais enquanto experimento."], ["balanced", "EQUILIBRADO", "Quero um deck versátil sem compromisso com um plano único."]]
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(minf(size.x - 100.0, 650.0), 0)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	panel.add_child(box)
+	box.add_child(_lbl("MAIS UMA PERGUNTA", 26, UITheme.GOLD_LIGHT, "title_bold"))
+	box.add_child(_lbl("O que você mais quer que este deck faça?", 17, UITheme.TEXT, "body"))
+	for option in options:
+		var key := String(option[0])
+		box.add_child(_btn("%s — %s" % [option[1], option[2]], func():
+			_assistant_focus = key
+			_assistant_enabled = true
+			_close_modal()
+			_refresh_deck_panel(), false, 17))
+	var back := HBoxContainer.new()
+	back.alignment = BoxContainer.ALIGNMENT_END
+	back.add_child(_btn("VOLTAR", _ask_archetype))
+	box.add_child(back)
+	_open_modal(panel, false)
+
 ## Shareable, versioned deck code. JSON is UTF-8 encoded as base64url to keep it copy/paste friendly.
 func _make_deck_code() -> String:
 	var payload := {
 		"name": _deck_name.strip_edges(),
 		"description": _description,
 		"leader": _leader,
+		"incarnation_id": _incarnation_id,
 		"cards": DeckDB.sorted_cards(_cards),
 	}
 	var encoded := Marshalls.raw_to_base64(JSON.stringify(payload).to_utf8_buffer())
@@ -964,7 +1123,9 @@ func _decode_deck_code(code: String) -> Dictionary:
 	if not raw_cards is Dictionary:
 		return {"error": "A lista de cartas do deckCode está inválida."}
 	var cards: Dictionary = {}
-	var incarnation := String(CardDB.leader(leader)["incarnation"])
+	var incarnation := String(parsed.get("incarnation_id", CardDB.leader(leader)["incarnation"]))
+	if not CardDB.is_incarnation_option(leader, incarnation):
+		return {"error": "O deckCode escolhe uma carta que não pode ser a Encarnação deste Líder."}
 	for raw_id in raw_cards:
 		var card_id := String(raw_id)
 		var value: Variant = raw_cards[raw_id]
@@ -972,7 +1133,7 @@ func _decode_deck_code(code: String) -> Dictionary:
 			return {"error": "Quantidade inválida para a carta %s." % card_id}
 		if not CardDB.data()["cards"].has(card_id):
 			return {"error": "O deckCode contém uma carta desconhecida: %s." % card_id}
-		if card_id != incarnation and not DeckDB.is_deckable(card_id):
+		if card_id != incarnation and not DeckDB.is_deckable(card_id, leader):
 			return {"error": "A carta %s não pode entrar em um deck." % card_id}
 		cards[card_id] = int(value)
 	return {
@@ -981,6 +1142,7 @@ func _decode_deck_code(code: String) -> Dictionary:
 			"name": DeckStore.clean_name(String(parsed.get("name", "Deck importado"))),
 			"description": String(parsed.get("description", "")),
 			"leader": leader,
+			"incarnation_id": incarnation,
 			"cards": cards,
 			"problems": [],
 		}
@@ -1139,6 +1301,9 @@ func _draw_curve() -> void:
 
 func _add_card(card_id: String) -> void:
 	var copies := int(_cards.get(card_id, 0))
+	if card_id == _incarnation_id:
+		_toast("A Encarnação escolhida fica limitada a 1 cópia.", WARN)
+		return
 	var limit := DeckDB.copy_limit(card_id)
 	if copies >= limit:
 		_toast("%s: o máximo é %d cópia%s." % [CardDB.card(card_id)["name"], limit, "" if limit == 1 else "s"], WARN)
@@ -1148,7 +1313,9 @@ func _add_card(card_id: String) -> void:
 
 func _remove_card(card_id: String) -> void:
 	var copies := int(_cards.get(card_id, 0))
-	if copies <= 0:
+	if copies <= (1 if card_id == _incarnation_id else 0):
+		if card_id == _incarnation_id:
+			_toast("Escolha outra Encarnação antes de remover esta última cópia.", WARN)
 		return
 	if copies == 1:
 		_cards.erase(card_id)
@@ -1178,7 +1345,7 @@ func _save() -> void:
 		return
 	_saving = true
 	_update_save_state()
-	store.save_deck(_deck_id, _deck_name, _leader, _cards, _description)
+	store.save_deck(_deck_id, _deck_name, _leader, _cards, _description, _incarnation_id)
 
 func _update_save_state() -> void:
 	if _save_button == null or not is_instance_valid(_save_button):
@@ -1199,7 +1366,7 @@ func _update_save_state() -> void:
 func _refresh_deck_panel() -> void:
 	if _list_box == null or not is_instance_valid(_list_box) or _view != "edit":
 		return
-	var totals := DeckDB.stats(_leader, _cards)
+	var totals := DeckDB.stats(_leader, _cards, _incarnation_id)
 	var total: int = totals["total"]
 	_set_meter("total", total, DeckDB.DECK_SIZE, GOOD if total == DeckDB.DECK_SIZE else (WARN if total < DeckDB.DECK_SIZE else BAD))
 	_set_meter("elite", totals["elite"], DeckDB.MAX_ELITE_CARDS, GOOD if totals["elite"] <= DeckDB.MAX_ELITE_CARDS else BAD)
@@ -1210,15 +1377,17 @@ func _refresh_deck_panel() -> void:
 	_curve_counts = []
 	_curve_counts.resize(CURVE_SLOTS)
 	_curve_counts.fill(0)
-	var incarnation := String(CardDB.leader(_leader)["incarnation"])
+	var incarnation := _incarnation_id
 	for card_id in _cards:
-		if card_id == incarnation:
-			continue
 		var slot := mini(int(CardDB.card(card_id)["cost"]), CURVE_SLOTS - 1)
-		_curve_counts[slot] += int(_cards[card_id])
+		var copies := int(_cards[card_id])
+		if String(card_id) == incarnation:
+			copies -= 1
+		_curve_counts[slot] += maxi(0, copies)
 	_curve.queue_redraw()
 
-	_refresh_warnings(DeckDB.validate_cards(_leader, _cards), totals)
+	_refresh_incarnation_label()
+	_refresh_warnings(DeckDB.validate_cards(_leader, _cards, _incarnation_id), totals)
 	_refresh_list(incarnation)
 	_update_save_state()
 
@@ -1233,8 +1402,128 @@ func _refresh_warnings(errors: Array[String], totals: Dictionary) -> void:
 		_warnings_box.add_child(_note(_humanize(message), WARN if size_problem and int(totals["total"]) <= DeckDB.DECK_SIZE else BAD, "INCOMPLETO" if size_problem and int(totals["total"]) <= DeckDB.DECK_SIZE else "ILEGAL"))
 	if bool(totals["shared_guest_domain"]) and int(totals["off_essence"]) > DeckDB.MAX_OFF_ESSENCE:
 		_warnings_box.add_child(_note("O limite de convidadas subiu para %d porque todas elas são de um mesmo domínio." % DeckDB.MAX_OFF_ESSENCE_SINGLE_DOMAIN, INFO, "INFO"))
+	for coach_note in _coach_notes():
+		_warnings_box.add_child(_note(String(coach_note["text"]), coach_note["color"] as Color, String(coach_note["tag"])))
 	for load_note in _load_notes:
 		_warnings_box.add_child(_note(load_note, INFO, "AVISO"))
+
+## Heuristics are intentionally conservative and start after a few non-incarnation cards.
+## They explain a mismatch with the player's stated plan; they never make a deck illegal.
+func _coach_notes() -> Array[Dictionary]:
+	var notes: Array[Dictionary] = []
+	if not _assistant_enabled:
+		return notes
+	var total := 0
+	var cheap := 0 # cost 0-2
+	var middle := 0 # cost 3-5
+	var expensive := 0 # cost 6+
+	var spells := 0
+	var units := 0
+	var late_threats := 0 # sizeable units that can close a control game
+	var burn := 0
+	var targeted_removal := 0 # one enemy unit at a time
+	var area_removal := 0 # affects every/each enemy unit
+	var draw := 0
+	var species: Dictionary = {}
+	var incarnation := _incarnation_id
+	for card_id in _cards:
+		var copies := int(_cards[card_id])
+		if String(card_id) == incarnation:
+			copies -= 1
+		if copies <= 0:
+			continue
+		var card: Dictionary = CardDB.card(String(card_id))
+		var cost := int(card.get("cost", 0))
+		total += copies
+		if cost <= 2:
+			cheap += copies
+		elif cost <= 5:
+			middle += copies
+		else:
+			expensive += copies
+		if String(card.get("type", "")) == "spell":
+			spells += copies
+		if String(card.get("type", "")) == "unit":
+			units += copies
+			if cost >= 6:
+				late_threats += copies
+		for specie in card.get("species", []):
+			species[String(specie)] = int(species.get(String(specie), 0)) + copies
+		var has_targeted_removal := false
+		var has_area_removal := false
+		var has_draw := false
+		var has_burn := false
+		for effect in card.get("effects", []):
+			var action := String(effect.get("action", ""))
+			var target := String(effect.get("target", ""))
+			if action == "draw":
+				has_draw = true
+			# "all_enemy_units" (Tempestade Estática) and future all_* targets are AoE;
+			# a single target such as any_unit is a punctual answer.
+			if (action == "destroy" or action == "damage") and target.contains("unit"):
+				if target.begins_with("all_") or target.begins_with("each_"):
+					has_area_removal = true
+				else:
+					has_targeted_removal = true
+			if action == "damage" and (target == "enemy_leader" or target == "both_leaders"):
+				has_burn = true
+		if has_draw:
+			draw += copies
+		if has_targeted_removal:
+			targeted_removal += copies
+		if has_area_removal:
+			area_removal += copies
+		if has_burn:
+			burn += copies
+	var plan_name: String = String({"aggro": "Aggro", "midrange": "Midrange", "control": "Control", "combo": "Combo", "unsure": "exploração"}.get(_assistant_profile, ""))
+	notes.append({"text": "Plano acompanhado: %s. O assistente atualiza estas dicas a cada carta adicionada ou removida." % plan_name, "color": INFO, "tag": "ASSISTENTE"})
+	if total < 12:
+		notes.append({"text": "Ainda há poucas cartas para julgar a estratégia (%d/12). Continue montando; as dicas mais fortes aparecem quando a base do deck existir." % total, "color": INFO, "tag": "EM ANÁLISE"})
+		return notes
+	match _assistant_profile:
+		"aggro":
+			if cheap < maxi(8, ceili(total * 0.35)):
+				notes.append({"text": "Seu aggro tem poucas jogadas baratas (%d). Sem presença nos turnos iniciais, ele perde seu maior ponto forte." % cheap, "color": BAD, "tag": "MUITO GRAVE"})
+			if expensive > ceili(total * 0.25):
+				notes.append({"text": "A curva está pesada para aggro: %d cartas custam 6 ou mais. Troque parte delas por pressão cedo." % expensive, "color": WARN, "tag": "MÉDIO"})
+			if _assistant_focus == "burn":
+				if burn == 0:
+					notes.append({"text": "Você escolheu aggro de dano direto, mas o deck não tem dano ao Líder adversário. Adicione finalizadores de burn ou escolha outro plano." , "color": BAD, "tag": "MUITO GRAVE"})
+				elif burn < 4:
+					notes.append({"text": "Há só %d cartas de dano direto. Um burn mais confiável normalmente precisa de mais formas de fechar a partida." % burn, "color": WARN, "tag": "MÉDIO"})
+		"midrange":
+			if middle < ceili(total * 0.40):
+				notes.append({"text": "Faltam cartas de custo 3 a 5 (%d). Midrange precisa ocupar bem o meio da partida." % middle, "color": BAD, "tag": "GRAVE"})
+			if cheap < 4:
+				notes.append({"text": "Poucas cartas baratas podem fazer você perder o tabuleiro antes das ameaças médias chegarem.", "color": WARN, "tag": "MÉDIO"})
+		"control":
+			var total_removal := targeted_removal + area_removal
+			if targeted_removal < 2:
+				notes.append({"text": "Control precisa de respostas pontuais: há %d remoções diretas e %d em área. Remoção em área não resolve uma ameaça grande sozinha." % [targeted_removal, area_removal], "color": BAD, "tag": "GRAVE"})
+			elif total_removal < 3:
+				notes.append({"text": "Há poucas respostas no total (%d pontuais + %d em área). Adicione mais remoções para o plano control ser confiável." % [targeted_removal, area_removal], "color": WARN, "tag": "MÉDIO"})
+			if draw < 2:
+				notes.append({"text": "Há pouca compra de cartas (%d). Sem reposição, control pode ficar sem respostas no fim da partida." % draw, "color": WARN, "tag": "MÉDIO"})
+			if _assistant_focus == "late" and late_threats < 3:
+				notes.append({"text": "Você escolheu vencer no fim de jogo, mas há só %d criaturas grandes (custo 6+). Inclua mais finalizadores para transformar o controle da mesa em vitória." % late_threats, "color": BAD, "tag": "GRAVE"})
+		"combo":
+			if _assistant_focus == "spells":
+				if spells < 6:
+					notes.append({"text": "Um combo de efeitos ainda tem poucas magias (%d). Defina as peças e inclua meios de encontrá-las." % spells, "color": BAD, "tag": "GRAVE"})
+				if draw < 3:
+					notes.append({"text": "Combos precisam de consistência: só %d cartas compram cartas. Procure mais formas de achar suas peças." % draw, "color": WARN, "tag": "MÉDIO"})
+			else:
+				var dominant := 0
+				for specie in species:
+					dominant = maxi(dominant, int(species[specie]))
+				if dominant < 8:
+					notes.append({"text": "A sinergia de tribo ainda não apareceu: a espécie mais presente ocupa só %d cartas. Concentre mais o deck numa espécie." % dominant, "color": BAD, "tag": "GRAVE"})
+		"unsure":
+			if cheap < 4:
+				notes.append({"text": "Dica de iniciante: coloque algumas cartas de custo 0 a 2 para ter o que jogar cedo.", "color": WARN, "tag": "DICA"})
+			if units == 0:
+				notes.append({"text": "O deck ainda não tem unidades. Unidades ajudam a disputar a mesa e tornam a primeira versão mais fácil de jogar.", "color": WARN, "tag": "DICA"})
+	return notes
 
 func _note(text: String, color: Color, tag: String) -> Control:
 	var panel := PanelContainer.new()
@@ -1278,9 +1567,11 @@ func _refresh_list(incarnation: String) -> void:
 		var entry: Dictionary = _list_rows[card_id]
 		var row := entry["row"] as DecklistRow
 		row.copies = int(_cards[card_id])
+		row.is_incarnation = card_id == incarnation
 		row.queue_redraw()
 		if entry.has("plus"):
-			(entry["plus"] as Button).disabled = row.copies >= DeckDB.copy_limit(card_id)
+			(entry["plus"] as Button).disabled = row.copies >= DeckDB.copy_limit(card_id) or card_id == incarnation
+			(entry["minus"] as Button).disabled = row.copies <= (1 if card_id == incarnation else 0)
 		_list_box.move_child(entry["wrap"], index)
 
 func _make_list_row(card_id: String, is_incarnation: bool) -> Dictionary:
@@ -1291,16 +1582,17 @@ func _make_list_row(card_id: String, is_incarnation: bool) -> Dictionary:
 	row.tooltip_text = "Clique para ver a carta"
 	wrap.add_child(row)
 	var entry := {"wrap": wrap, "row": row}
-	if not is_incarnation:
-		var buttons := VBoxContainer.new()
-		buttons.add_theme_constant_override("separation", 6)
-		buttons.alignment = BoxContainer.ALIGNMENT_CENTER
-		var plus := _btn("+", func(): _add_card(card_id), false, 18)
-		plus.custom_minimum_size = Vector2(44, 38)
-		var minus := _btn("-", func(): _remove_card(card_id), false, 18)
-		minus.custom_minimum_size = Vector2(44, 38)
-		buttons.add_child(plus)
-		buttons.add_child(minus)
-		wrap.add_child(buttons)
-		entry["plus"] = plus
+	var buttons := VBoxContainer.new()
+	buttons.add_theme_constant_override("separation", 6)
+	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	var plus := _btn("+", func(): _add_card(card_id), false, 18)
+	plus.custom_minimum_size = Vector2(44, 38)
+	var minus := _btn("-", func(): _remove_card(card_id), false, 18)
+	minus.custom_minimum_size = Vector2(44, 38)
+	minus.disabled = int(_cards[card_id]) <= (1 if is_incarnation else 0)
+	buttons.add_child(plus)
+	buttons.add_child(minus)
+	wrap.add_child(buttons)
+	entry["plus"] = plus
+	entry["minus"] = minus
 	return entry

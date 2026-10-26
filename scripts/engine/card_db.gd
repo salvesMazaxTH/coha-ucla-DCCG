@@ -170,6 +170,8 @@ static func _validate_leader(lid: String, ld: Dictionary) -> void:
 			err.call("falta \"%s\"" % field)
 	if not _data["cards"].has(ld.get("incarnation", "")):
 		err.call("incarnation inexistente \"%s\"" % ld.get("incarnation", ""))
+	elif not is_incarnation_option(lid, String(ld["incarnation"])):
+		err.call("incarnation precisa ser uma unidade Campeã com o nome do Líder")
 	for e in ld.get("essences", []):
 		if not _data["essences"].has(e):
 			err.call("essência desconhecida \"%s\"" % e)
@@ -272,9 +274,38 @@ static func is_relic(cd: Dictionary) -> bool:
 
 static func is_leader_card(id: String) -> bool:
 	for lid in data()["leaders"]:
-		if data()["leaders"][lid]["incarnation"] == id:
+		if is_incarnation_option(String(lid), id):
 			return true
 	return false
+
+## A Leader's Encarnação is a Champion unit whose printed name is the Leader's name, optionally
+## followed by a comma and a title (e.g. "Voltexz, Raio Obliterador"). This lets future versions
+## of a character be chosen without classifying every Leader's card as globally undraftable.
+static func is_incarnation_option(leader_id: String, card_id: String) -> bool:
+	if not data()["leaders"].has(leader_id) or not data()["cards"].has(card_id):
+		return false
+	var cd: Dictionary = card(card_id)
+	if String(cd.get("type", "")) != "unit" or String(cd.get("rarity", "")) != "champion":
+		return false
+	var leader_name := String(data()["leaders"][leader_id].get("name", "")).strip_edges().to_lower()
+	var card_name := String(cd.get("name", "")).strip_edges().to_lower()
+	return card_name == leader_name or card_name.begins_with(leader_name + ",")
+
+## All same-entity Encarnação choices, in display-name order. The configured default should always
+## be among these; retain it as a recovery option for older/temporarily incomplete catalogs.
+static func incarnation_options(leader_id: String) -> Array[String]:
+	var options: Array[String] = []
+	if not data()["leaders"].has(leader_id):
+		return options
+	for card_id in data()["cards"]:
+		if is_incarnation_option(leader_id, String(card_id)):
+			options.append(String(card_id))
+	var default_id := String(data()["leaders"][leader_id].get("incarnation", ""))
+	if options.is_empty() and data()["cards"].has(default_id):
+		options.append(default_id)
+	options.sort_custom(func(first: String, second: String) -> bool:
+		return String(card(first).get("name", first)).naturalnocasecmp_to(String(card(second).get("name", second))) < 0)
+	return options
 
 static func keyword(id: String) -> Dictionary:
 	return data()["keywords"][id]

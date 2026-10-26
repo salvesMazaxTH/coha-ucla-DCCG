@@ -149,11 +149,14 @@ func bus() -> TriggerBus:
 func _make_player(i: int, deck_id: String) -> Dictionary:
 	var d := DeckDB.get_deck(deck_id)
 	var ld := CardDB.leader(d["leader"])
+	var incarnation_id := DeckDB.resolved_incarnation_id(String(d["leader"]), String(d.get("incarnation_id", "")))
 	var deck: Array = []
+	var incarnation_reserved := false
 	for id in d["cards"]:
-		if id == ld["incarnation"]:
-			continue
 		for n in int(d["cards"][id]):
+			if String(id) == incarnation_id and not incarnation_reserved:
+				incarnation_reserved = true
+				continue
 			deck.append(Card.new(_uid(), id, i, "deck"))
 	_shuffle(deck)
 	return {
@@ -165,7 +168,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 			"momentum_lock_turn": -1, # while it equals the current turn, plain (non-refresh) Momentum gains do nothing (Bateria de Segunda Mão)
 		"healing_this_round": 0, "healing_last_round": 0, "damage_this_round": 0, "damage_last_round": 0,
 		"deck": deck, "hand": [], "board": [], "relics": [], "graveyard": [], "banished": [],
-		"incarnation": {"card_id": ld["incarnation"], "in_zone": true, "casts": 0, "cost_mod": 0}, # cost_mod: the Encarnação's own modify_cost total, shared by the Santuário and every copy of it in play
+		"incarnation": {"card_id": incarnation_id, "in_zone": true, "casts": 0, "cost_mod": 0}, # cost_mod: the Encarnação's own modify_cost total, shared by the Santuário and every copy of it in play
 		"ability_used": false, "passive_used": false, "attacked": false, "fatigue": 0, "mulligan_done": false,
 		"played_two": false,
 		"snowball": SNOWBALL_BASE_LEVEL, # damage the next Bola de Neve starts at (grows with every Bola de Neve cast, goes back to snowball_base at the end of the owner's turn)

@@ -661,7 +661,7 @@ func _queue_deck_arts(deck_ids: Array) -> void:
 		var leader_data := CardDB.leader(deck["leader"])
 		art_files.append(leader_data.get("art", ""))
 		var card_ids: Array = deck["cards"].keys()
-		card_ids.append(leader_data.get("incarnation", ""))
+		card_ids.append(deck.get("incarnation_id", leader_data.get("incarnation", "")))
 		for card_id in card_ids:
 			if CardDB.data()["cards"].has(card_id):
 				art_files.append(CardDB.card(card_id).get("art", ""))
@@ -860,11 +860,11 @@ func _refresh_player_decks() -> void:
 	incomplete_player_decks = 0
 	for saved_deck in deck_store.list():
 		var leader_id := String(saved_deck["leader"])
-		if leader_id == "" or not DeckDB.validate_cards(leader_id, saved_deck["cards"]).is_empty():
+		if leader_id == "" or not DeckDB.validate_cards(leader_id, saved_deck["cards"], String(saved_deck.get("incarnation_id", ""))).is_empty():
 			incomplete_player_decks += 1
 			continue
 		DeckDB.register_custom(DeckDB.PLAYER_PREFIX + String(saved_deck["id"]), String(saved_deck["name"]),
-				String(saved_deck["description"]), leader_id, saved_deck["cards"])
+				String(saved_deck["description"]), leader_id, saved_deck["cards"], String(saved_deck.get("incarnation_id", "")))
 
 func _use_deck_store(store: DeckStore) -> void:
 	deck_store = store
@@ -972,7 +972,8 @@ func _deck_showcase(id: String, size: Vector2, choosing_ai_deck: bool) -> Contro
 	for essence_id in ld["essences"]:
 		essence_names.append(CardDB.essence(essence_id).get("name", essence_id))
 	var leader_line := "%s · %d de vida · %s" % [ld["name"], int(ld["hp"]), " / ".join(essence_names)]
-	var footer := "%d cartas · Encarnação: %s" % [DeckDB.card_count(id), CardDB.card(ld["incarnation"])["name"]]
+	var incarnation_id := DeckDB.resolved_incarnation_id(String(d["leader"]), String(d.get("incarnation_id", "")))
+	var footer := "%d cartas · Encarnação: %s" % [DeckDB.card_count(id), CardDB.card(incarnation_id)["name"]]
 	_showcase_text(p, size, who, String(d["name"]), leader_line, col, String(d.get("description", "")), footer, art_h - 30.0)
 	p.add_child(_decklist_button(id, size))
 	return p
@@ -1299,7 +1300,7 @@ func _register_room_decks(deck_data: Variant) -> void:
 	for deck_id in deck_data:
 		var deck: Variant = deck_data[deck_id]
 		if String(deck_id).begins_with(DeckDB.ROOM_PREFIX) and deck is Dictionary:
-			DeckDB.register_custom(String(deck_id), String(deck.get("name", "")), String(deck.get("description", "")), String(deck.get("leader", "")), deck.get("cards", {}))
+			DeckDB.register_custom(String(deck_id), String(deck.get("name", "")), String(deck.get("description", "")), String(deck.get("leader", "")), deck.get("cards", {}), String(deck.get("incarnation_id", "")))
 
 func _on_net(m: Dictionary) -> void:
 	match m.get("t", ""):

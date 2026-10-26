@@ -161,7 +161,7 @@ func _accept_deck(code: String, seat: int, raw: Variant) -> Dictionary:
 		return {"id": "", "error": "Deck inválido: %s." % errors[0]}
 	var room_deck_id := "%s%s:%d" % [DeckDB.ROOM_PREFIX, code, seat]
 	var deck: Dictionary = checked["deck"]
-	DeckDB.register_custom(room_deck_id, deck["name"], deck["description"], deck["leader"], deck["cards"])
+	DeckDB.register_custom(room_deck_id, deck["name"], deck["description"], deck["leader"], deck["cards"], String(deck.get("incarnation_id", "")))
 	return {"id": room_deck_id, "error": ""}
 
 ## The contents of the room's decks that are not prebuilt, so each client can register them before the match.

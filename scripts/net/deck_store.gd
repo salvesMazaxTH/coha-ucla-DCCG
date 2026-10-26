@@ -5,7 +5,7 @@ extends Node
 ## localStorage on the web export, user://decks.json on desktop).
 ##
 ## A deck is always handled as the same Dictionary, wherever it is kept:
-##   {id, name, description, leader, cards {card_id: copies}, updated_at, cloud, problems [String]}
+##   {id, name, description, leader, incarnation_id, cards {card_id: copies}, updated_at, cloud, problems [String]}
 ## `problems` lists what had to be repaired while loading (unknown cards dropped, unknown Leader...).
 ## Rules are NOT enforced here: an unfinished deck is a valid draft. DeckDB.validate_cards judges it.
 ##
@@ -132,11 +132,18 @@ static func normalize(row: Dictionary, cloud: bool) -> Dictionary:
 		if leader != "":
 			problems.append("O Líder \"%s\" não existe mais." % leader)
 		leader = ""
+	var raw_incarnation := String(content.get("incarnation_id", ""))
+	var incarnation_id := ""
+	if leader != "":
+		incarnation_id = DeckDB.resolved_incarnation_id(leader, raw_incarnation)
+		if raw_incarnation != "" and raw_incarnation != incarnation_id:
+			problems.append("A Encarnação salva não combina com este Líder; a opção padrão foi restaurada.")
 	return {
 		"id": String(row.get("id", "")),
 		"name": String(row.get("name", "Deck sem nome")),
 		"description": String(content.get("description", "")),
 		"leader": leader,
+		"incarnation_id": incarnation_id,
 		"cards": DeckDB.sorted_cards(cards),
 		"updated_at": String(row.get("updated_at", row.get("created_at", ""))),
 		"cloud": cloud,
@@ -144,8 +151,8 @@ static func normalize(row: Dictionary, cloud: bool) -> Dictionary:
 	}
 
 ## The JSON that gets stored for a deck.
-static func to_content(leader: String, cards: Dictionary, description := "") -> Dictionary:
-	return {"leader": leader, "cards": DeckDB.sorted_cards(cards), "description": description}
+static func to_content(leader: String, cards: Dictionary, description := "", incarnation_id := "") -> Dictionary:
+	return {"leader": leader, "incarnation_id": DeckDB.resolved_incarnation_id(leader, incarnation_id), "cards": DeckDB.sorted_cards(cards), "description": description}
 
 static func clean_name(deck_name: String) -> String:
 	var cleaned := deck_name.strip_edges().left(MAX_NAME)
@@ -154,8 +161,8 @@ static func clean_name(deck_name: String) -> String:
 # ---------------------------------------------------------------- writing
 
 ## Creates (deck_id == "") or updates a deck. Emits `saved` with the stored deck, or `failed`.
-func save_deck(deck_id: String, deck_name: String, leader: String, cards: Dictionary, description := "") -> void:
-	var content := to_content(leader, cards, description)
+func save_deck(deck_id: String, deck_name: String, leader: String, cards: Dictionary, description := "", incarnation_id := "") -> void:
+	var content := to_content(leader, cards, description, incarnation_id)
 	var clean := clean_name(deck_name)
 	if deck_id == "" and is_full():
 		failed.emit("Limite de %d decks atingido. Exclua algum para criar outro." % MAX_DECKS)
@@ -193,7 +200,7 @@ func import_local_decks() -> void:
 			continue
 		free_slots -= 1
 		var deck := normalize(row, false)
-		_enqueue({"kind": "save_deck", "id": "", "name": clean_name(deck["name"]), "content": to_content(deck["leader"], deck["cards"], deck["description"]), "import_local_id": deck["id"]})
+		_enqueue({"kind": "save_deck", "id": "", "name": clean_name(deck["name"]), "content": to_content(deck["leader"], deck["cards"], deck["description"], deck["incarnation_id"]), "import_local_id": deck["id"]})
 	if _queue.is_empty() and _current.is_empty(): # nothing could be sent (the account is full)
 		_importing = false
 		import_finished.emit(_import_ok, _import_failed)

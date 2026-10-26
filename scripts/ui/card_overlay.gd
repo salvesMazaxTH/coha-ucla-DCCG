@@ -117,8 +117,10 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 		var keyword := CardDB.keyword(keyword_id)
 		var keyword_color := CardView.keyword_color(keyword_id).to_html(false)
 		txt += "[color=#%s][b]%s[/b][/color] — %s\n" % [keyword_color, keyword["name"], CardView.colorize_rules(keyword_text(cd, keyword_id, keyword, instance))]
-	if CardDB.is_leader_card(card_id):
+	if bool(instance.get("incarnation", false)):
 		txt += "\n[color=#e8c25a]Encarnação do Líder:[/color] fica no Santuário. Cada nova conjuração custa mais que a anterior: +1, depois +2, +3, +4... Pode voltar para a mão (jogada de lá, custa o custo normal). Ao ir para o cemitério ou ser banida, volta para o Santuário; se a próxima conjuração passaria de %d, vai para o fundo do deck como carta comum, com o custo normal.\n" % [GameState.MOMENTUM_CAP]
+	elif CardDB.is_leader_card(card_id):
+		txt += "\n[color=#e8c25a]Elegível como Encarnação:[/color] pode ser escolhida no deck de um Líder com o mesmo nome. Se não for a cópia escolhida, é uma Campeã normal e pode ser jogada da mão.\n"
 	if cd.get("token", false):
 		txt += "\n[color=#9ad0c0]Ficha:[/color] não vai para o cemitério e nunca vai para a mão: se fosse, é apagada do jogo.\n"
 	var flavor := CardDB.flavor_for(cd, true)

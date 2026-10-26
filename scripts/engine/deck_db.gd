@@ -86,7 +86,7 @@ static func get_deck(id: String) -> Dictionary:
 
 ## Adds (or replaces) a deck that is not one of the prebuilt files, so the hub, the match and the deck
 ## list can use it like any other deck. The caller has already checked it is legal.
-static func register_custom(id: String, deck_name: String, description: String, leader_id: String, cards: Dictionary) -> void:
+static func register_custom(id: String, deck_name: String, description: String, leader_id: String, cards: Dictionary, incarnation_id := "") -> void:
 	_load()
 	if not _custom_decks.has(id):
 		_custom_ids.append(id)
@@ -97,6 +97,7 @@ static func register_custom(id: String, deck_name: String, description: String, 
 		"name": deck_name,
 		"description": description,
 		"leader": leader_id,
+		"incarnation_id": resolved_incarnation_id(leader_id, incarnation_id),
 		"cards": sorted_cards(copies),
 	}
 
@@ -116,9 +117,9 @@ static func custom_ids(prefix: String) -> Array[String]:
 	return matching
 
 ## Checks a deck that arrived from outside (a client talking to the match server) and cleans it.
-## Returns {"deck": {name, description, leader, cards}, "errors": [String]}; the deck may be used only
-## when errors is empty. Nothing in `raw` is trusted: unknown cards, Leader cards that are not the
-## Leader's own Encarnação, tokens and odd copy counts are all errors.
+## Returns {"deck": {name, description, leader, incarnation_id, cards}, "errors": [String]}; the deck
+## may be used only when errors is empty. Nothing in `raw` is trusted: unknown cards, an Encarnação
+## that does not share the Leader's name, tokens and odd copy counts are all errors.
 static func check_incoming(raw: Variant) -> Dictionary:
 	var errors: Array[String] = []
 	if not raw is Dictionary:
@@ -130,7 +131,10 @@ static func check_incoming(raw: Variant) -> Dictionary:
 	var raw_cards: Variant = raw.get("cards", {})
 	if not raw_cards is Dictionary:
 		return {"deck": {}, "errors": ["lista de cartas malformada"] as Array[String]}
-	var incarnation_id := String(CardDB.leader(leader_id)["incarnation"])
+	var requested_incarnation := String(raw.get("incarnation_id", ""))
+	if requested_incarnation != "" and not CardDB.is_incarnation_option(leader_id, requested_incarnation):
+		errors.append("%s não pode ser a Encarnação deste Líder" % requested_incarnation)
+	var incarnation_id := resolved_incarnation_id(leader_id, requested_incarnation)
 	for card_id in raw_cards:
 		var id := String(card_id)
 		var copies_value: Variant = raw_cards[card_id]
@@ -142,7 +146,7 @@ static func check_incoming(raw: Variant) -> Dictionary:
 			errors.append("%s: carta desconhecida" % id)
 		elif copies < 1 or copies > MAX_CUSTOM_COPIES:
 			errors.append("%s: quantidade inválida" % id)
-		elif id != incarnation_id and not is_deckable(id):
+		elif id != incarnation_id and not is_deckable(id, leader_id):
 			errors.append("%s: não pode entrar no deck" % id)
 		else:
 			cards[id] = copies
@@ -151,10 +155,11 @@ static func check_incoming(raw: Variant) -> Dictionary:
 		"name": deck_name if deck_name != "" else "Deck sem nome",
 		"description": String(raw.get("description", "")).left(MAX_CUSTOM_DESCRIPTION),
 		"leader": leader_id,
+		"incarnation_id": incarnation_id,
 		"cards": cards,
 	}
 	if errors.is_empty():
-		errors.append_array(validate_cards(leader_id, cards))
+		errors.append_array(validate_cards(leader_id, cards, incarnation_id))
 	return {"deck": deck, "errors": errors}
 
 ## Total number of cards in the deck list: DECK_SIZE plus the Encarnação (the Leader is not counted).
@@ -191,7 +196,13 @@ static func _comes_before(first_id: String, second_id: String) -> bool:
 ## Returns a list of rule violations; empty means the deck is legal.
 static func validate(deck_id: String) -> Array[String]:
 	var d := get_deck(deck_id)
-	return validate_cards(d["leader"], d["cards"])
+	return validate_cards(d["leader"], d["cards"], String(d.get("incarnation_id", "")))
+
+## Resolve a saved/manual choice while keeping decks written before incarnation selection compatible.
+static func resolved_incarnation_id(leader_id: String, selected_id := "") -> String:
+	if selected_id != "" and CardDB.is_incarnation_option(leader_id, selected_id):
+		return selected_id
+	return String(CardDB.leader(leader_id).get("incarnation", ""))
 
 ## Most copies of one card a deck may hold ("max_copies": 1 = Única).
 static func copy_limit(card_id: String) -> int:
@@ -218,21 +229,23 @@ static func is_in_leader_domain(leader_id: String, card_id: String) -> bool:
 	var card_domains := CardDB.essences_of(CardDB.card(card_id))
 	return card_domains.all(func(domain): return leader_domains.has(domain))
 
-## Cards a player may put in a deck by hand: not a Leader's own card (the Encarnação is added by the
-## Leader), not a token and not one that only enters play through an effect or a transformation.
-static func is_deckable(card_id: String) -> bool:
+## Cards a player may put in a deck by hand. With no Leader context, canonical Encarnações are
+## conservatively reserved; when a Leader is supplied, the other Leaders' Champions are draftable.
+## Tokens and cards that only enter through effects or transformations are never draftable.
+static func is_deckable(card_id: String, leader_id := "") -> bool:
 	var c := CardDB.card(card_id)
-	return not (CardDB.is_leader_card(card_id) or c.get("token", false) or c.get("undraftable", false) or c.get("transform_only", false))
+	var leader_card_blocked := CardDB.is_leader_card(card_id) and leader_id == ""
+	return not (leader_card_blocked or c.get("token", false) or c.get("undraftable", false) or c.get("transform_only", false))
 
 ## The totals the deck rules are written in, for any {card_id: copies} list under the given Leader:
-##   total              cards that are drawn (the Encarnação is not counted)
+##   total              cards that are drawn (one selected Encarnação copy is not counted)
 ##   elite              Champions + Legendaries, counting copies
 ##   off_essence        guest cards, counting copies
 ##   guest_limit        how many guest cards are allowed right now (rises when one domain is in every guest card)
 ##   shared_guest_domain  true when such a domain exists
 ##   incarnation        copies of the Leader's Encarnação in the list
-static func stats(leader_id: String, cards: Dictionary) -> Dictionary:
-	var ld := CardDB.leader(leader_id)
+static func stats(leader_id: String, cards: Dictionary, selected_incarnation_id := "") -> Dictionary:
+	var incarnation_id := resolved_incarnation_id(leader_id, selected_incarnation_id)
 	var total := 0
 	var elite_cards := 0
 	var off_essence := 0
@@ -240,8 +253,9 @@ static func stats(leader_id: String, cards: Dictionary) -> Dictionary:
 	var shared_guest_domains: Variant = null
 	for id in cards:
 		var n: int = cards[id]
-		if id != ld["incarnation"]:
-			total += n
+		total += n
+		if String(id) == incarnation_id and n > 0:
+			total -= 1 # reserve exactly one physical copy; other copies stay in the draw deck
 		var rarity: String = CardDB.card(id).get("rarity", "")
 		if rarity == "champion" or rarity == "legendary":
 			elite_cards += n
@@ -259,13 +273,15 @@ static func stats(leader_id: String, cards: Dictionary) -> Dictionary:
 		"off_essence": off_essence,
 		"guest_limit": MAX_OFF_ESSENCE_SINGLE_DOMAIN if has_shared_domain else MAX_OFF_ESSENCE,
 		"shared_guest_domain": has_shared_domain,
-		"incarnation": int(cards.get(ld["incarnation"], 0)),
+		"incarnation": int(cards.get(incarnation_id, 0)),
 	}
 
 ## Same check for any {card_id: copies} list under the given Leader.
-static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String]:
+static func validate_cards(leader_id: String, cards: Dictionary, selected_incarnation_id := "") -> Array[String]:
 	var errors: Array[String] = []
-	var ld := CardDB.leader(leader_id)
+	var incarnation_id := resolved_incarnation_id(leader_id, selected_incarnation_id)
+	if selected_incarnation_id != "" and not CardDB.is_incarnation_option(leader_id, selected_incarnation_id):
+		errors.append("%s não pode ser a Encarnação deste Líder" % selected_incarnation_id)
 	for id in cards:
 		var n: int = cards[id]
 		var c := CardDB.card(id)
@@ -276,9 +292,10 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 			errors.append("%s: só entra em jogo por transformação" % id)
 		if c.get("undraftable", false):
 			errors.append("%s: não pode entrar no deck (só é colocada em jogo por um efeito)" % id)
-		if CardDB.is_leader_card(id) and id != ld["incarnation"]:
-			errors.append("%s: Encarnação de outro Líder" % id)
-	var totals := stats(leader_id, cards)
+	var incarnation_copies := int(cards.get(incarnation_id, 0))
+	if incarnation_copies > 1:
+		errors.append("A Encarnação escolhida só pode ter 1 cópia (%d encontradas)" % incarnation_copies)
+	var totals := stats(leader_id, cards, incarnation_id)
 	if totals["off_essence"] > totals["guest_limit"]:
 		if totals["shared_guest_domain"]:
 			errors.append("%d cartas de fora do domínio do Líder (máximo %d)" % [totals["off_essence"], MAX_OFF_ESSENCE_SINGLE_DOMAIN])
@@ -288,6 +305,6 @@ static func validate_cards(leader_id: String, cards: Dictionary) -> Array[String
 		errors.append("%d Campeões + Lendárias (máximo %d)" % [totals["elite"], MAX_ELITE_CARDS])
 	if totals["total"] != DECK_SIZE:
 		errors.append("deck tem %d cartas fora a Encarnação (precisa de %d)" % [totals["total"], DECK_SIZE])
-	if totals["incarnation"] != 1:
-		errors.append("o deck precisa de exatamente 1 Encarnação do Líder (%s)" % ld["incarnation"])
+	if totals["incarnation"] == 0:
+		errors.append("o deck precisa de exatamente 1 Encarnação do Líder (%s)" % incarnation_id)
 	return errors
