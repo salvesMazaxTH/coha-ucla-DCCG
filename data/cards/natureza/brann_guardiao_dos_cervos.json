@@ -5,8 +5,8 @@
   "species": ["fera"],
   "essence": "natureza",
   "cost": 4,
-  "atk": 5,
-  "hp": 6,
+  "atk": 4,
+  "hp": 5,
   "keywords": ["provocacao", "vigilancia", "intimidacao"],
   "art": "natureza/brann_guardiao_dos_cervos.webp",
   "effects": [

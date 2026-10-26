@@ -7,6 +7,7 @@
   "cost": 4,
   "speed": "lento",
   "art": "devocao/chamada_dos_ausentes.webp",
+  "art_crop": {"x": 0.5, "y": 0.58, "zoom": 1.0},
   "effects": [
     {
       "trigger": "on_play",
