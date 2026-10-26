@@ -13,6 +13,7 @@ config/features=PackedStringArray("4.7")
 
 Sfx="*res://scripts/audio/sfx.gd"
 Music="*res://scripts/audio/music.gd"
+SupabaseAuth="*res://scripts/net/supabase_auth.gd"
 
 [audio]
 
