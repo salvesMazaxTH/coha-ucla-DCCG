@@ -116,11 +116,14 @@ func effects_of(item: Dictionary) -> Array:
 		return [] # AI preview: this cast is the "nothing happens" version (see GameState.preview_copy)
 	return CardDB.card(item["card_id"])["effects"]
 
-## Resolves the stack newest-first. Stops early if the game ends or a search needs a choice.
+## Resolves only the top item. If lower items remain, priority reopens before the next one resolves.
 func resolve_stack() -> void:
 	game.stack_passed = false
-	while not game.stack.is_empty() and game.phase in ["main", "combat"]:
+	var lower_stack_sids: Dictionary = {}
+	if not game.stack.is_empty() and game.phase in ["main", "combat"]:
 		var item: Dictionary = game.stack.pop_back()
+		for pending_item in game.stack:
+			lower_stack_sids[int(pending_item["sid"])] = true
 		var p: int = item["player"]
 		var effects := effects_of(item)
 		# For equipment: the unit's stats before the buff, to work out what the equipment gave it
@@ -173,12 +176,21 @@ func resolve_stack() -> void:
 		elif item["kind"] == "subito":
 			_resolve_subito(item)
 		game._check_state()
-	if game.stack.is_empty():
-		game.combat_system().finish_pending_attack() # the attack that cast it deals its combat damage now (or the defender may react again)
-	if game.phase in ["main", "combat"] and game.stack.is_empty():
-		game.summon_window = false
-		if not game.combat_system().is_reacting(game.priority):
-			game.priority = window_owner()
+	if not game.stack.is_empty():
+		var new_item_was_pushed := false
+		for pending_item in game.stack:
+			if not lower_stack_sids.has(int(pending_item["sid"])):
+				new_item_was_pushed = true
+				break
+		game.stack_passed = false
+		if not new_item_was_pushed:
+			game.priority = game.active
+	elif game.phase in ["main", "combat"]:
+		game.combat_system().finish_pending_attack() # the attack that cast it deals damage now (or the defender may react again)
+		if game.phase in ["main", "combat"] and game.stack.is_empty():
+			game.summon_window = false
+			if not game.combat_system().is_reacting(game.priority):
+				game.priority = window_owner()
 
 ## A Súbito summon resolves: the unit enters at the chosen slot (its Ao Entrar fires as usual).
 ## If the board filled up while it waited on the stack, the card goes to the graveyard instead.
@@ -296,7 +308,7 @@ func pass_once() -> void:
 			game.stack_passed = true
 			game.priority = game.opponent(game.priority)
 		else:
-			resolve_stack() # both passed in a row
+			resolve_stack() # both passed in a row: resolve the top item, then reopen priority if needed
 		return
 	if game.summon_window:
 		game.summon_window = false
@@ -358,7 +370,8 @@ func stack_would_kill_leader(p: int) -> bool:
 	# nobody answers inside the copy, and its own settle() must not run this check again
 	preview.skip_rest_of_turn = [false, false]
 	preview.auto_pass = [false, false]
-	for pass_number in LETHAL_CHECK_PASS_LIMIT:
+	var pass_limit := maxi(LETHAL_CHECK_PASS_LIMIT, preview.stack.size() * 2 + 4)
+	for pass_number in pass_limit:
 		if preview.stack.is_empty() or preview.phase not in ["main", "combat"]:
 			break
 		if preview.pass_priority(preview.decider()).is_empty():
@@ -368,7 +381,10 @@ func stack_would_kill_leader(p: int) -> bool:
 ## Auto-passes for whoever holds priority with no legal play, so windows nobody can use
 ## cost no clicks. Stops at a real decision.
 func settle() -> void:
-	for guard in 64:
+	var settle_limit := maxi(64, game.stack.size() * 2 + 16)
+	var guard := 0
+	while guard < settle_limit:
+		guard += 1
 		if game.phase not in ["main", "combat"]:
 			return
 		if not game.pending_tap.is_empty() and game.ask_enter_tapped():

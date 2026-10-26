@@ -69,7 +69,7 @@ var pending_enter: Dictionary = {}
 ## "subito" = a unit summoned with Súbito; uid is the card, plus "slot" where it enters.)
 var stack: Array = []
 ## Who may act during "main"/"combat". Casting hands priority to the opponent (response);
-## a pass with items on the stack resolves the whole stack.
+## after an item resolves, priority reopens before any lower item resolves.
 var priority := 0
 ## Combat window while phase == "combat": "pre_combat" (attacker first, then defender; both may
 ## cast Rápido/Instantâneo; ends when both pass in a row), then "attacks" (attacks one by one; between two
@@ -80,7 +80,7 @@ var window := ""
 var summon_window := false
 ## The other player has already passed since the newest item was put on the stack. The player
 ## holding priority may still stack another Instantâneo (and the opponent answers again);
-## passing instead resolves the stack. So the stack resolves when both players pass in a row.
+## both players passing resolves only the top item, then priority reopens for what's below.
 var stack_passed := false
 ## Turns the "pass, then it comes back to the caster" rule on or off (on in real games; with it
 ## off, the opponent's pass resolves the stack at once, which the older stack tests expect).
@@ -1742,7 +1742,6 @@ func choose_search(p: int, card_uid: int) -> Array:
 		pending_search.clear()
 		phase = _search_return
 		_emit({"type": "hand_summon_skip", "player": p})
-		_resolve_stack()
 		_check_state()
 		stack_system().after_search()
 		stack_system().settle()
@@ -1764,7 +1763,6 @@ func choose_search(p: int, card_uid: int) -> Array:
 		_emit({"type": "revive", "player": p, "card_id": chosen["card_id"]})
 		if has_free_slot(p):
 			_summon(p, Card.new(_uid(), chosen["card_id"], p), false, 0)
-		_resolve_stack()
 		_check_state()
 		stack_system().after_search()
 		stack_system().settle()
@@ -1780,7 +1778,6 @@ func choose_search(p: int, card_uid: int) -> Array:
 		_emit({"type": "hand_summon", "player": p, "uid": card_uid, "card_id": summoned_card.card_id})
 		_summon(p, summoned_card, false, 0, {}, true)
 		summoned_card.banish_at_turn_end = true # set after entering, because enter_board resets it
-		_resolve_stack()
 		_check_state()
 		stack_system().after_search()
 		stack_system().settle()
@@ -1796,7 +1793,6 @@ func choose_search(p: int, card_uid: int) -> Array:
 		pending_search.clear()
 		phase = _search_return
 		_emit({"type": "discard", "player": p, "uid": card_uid, "card_id": discarded_card.card_id})
-		_resolve_stack()
 		_check_state()
 		stack_system().after_search()
 		stack_system().settle()
@@ -1807,7 +1803,6 @@ func choose_search(p: int, card_uid: int) -> Array:
 			pending_search.clear()
 			phase = _search_return
 			_emit({"type": "search_decline", "player": p})
-			_resolve_stack()
 			_check_state()
 			stack_system().after_search()
 			stack_system().settle()
@@ -1831,7 +1826,6 @@ func choose_search(p: int, card_uid: int) -> Array:
 		pending_search.clear()
 		phase = _search_return
 		_emit({"type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"]})
-		_resolve_stack()
 		_check_state() # resumes the triggers that waited for this choice
 		stack_system().after_search()
 		stack_system().settle()
@@ -1880,7 +1874,6 @@ func choose_search(p: int, card_uid: int) -> Array:
 		_emit({"type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"]})
 	if not stays_in_deck:
 		_emit({"type": "look_bottom" if (look or top_search) and not reshuffle else "search_shuffle", "player": p})
-	_resolve_stack() # a search opened mid-resolution: finish the rest of the stack
 	_check_state() # resumes the triggers that waited for this choice
 	stack_system().after_search()
 	stack_system().settle()
@@ -2506,7 +2499,6 @@ func _finish_summon_from(p: int, card_uid: int) -> Array:
 		if pending["leftover_uids"].has(c.uid):
 			looked.append(c)
 	_dispose_summon_leftover(p, String(pending["leftover"]), looked, summoned, bool(pending["shuffle_after"]))
-	_resolve_stack()
 	_check_state() # resumes the triggers that waited for this choice
 	stack_system().after_search()
 	stack_system().settle()
