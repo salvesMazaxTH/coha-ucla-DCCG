@@ -12,6 +12,12 @@ signal closed
 
 const SIDEBAR_W := 300.0
 const DECK_PANEL_W := 500.0
+## the coloured warning bars under the deck list (INCOMPLETO / ILEGAL / LEGAL / AVISO)
+const NOTE_FONT_SIZE := 18 ## message text
+const NOTE_TAG_FONT_SIZE := 15 ## the coloured tag on the left
+const NOTE_TAG_WIDTH := 100.0
+const NOTE_PADDING := Vector2(14, 10) ## space between the bar's border and its content
+const NOTE_BACKGROUND_ALPHA := 0.2
 const CARD_SCALE := 1.1
 const GRID_GAP := 14
 const PAGE_SIZE := 24
@@ -1113,19 +1119,24 @@ func _refresh_warnings(errors: Array[String], totals: Dictionary) -> void:
 
 func _note(text: String, color: Color, tag: String) -> Control:
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", UITheme.box(Color(color, 0.12), 6, Color(color, 0.65), 1))
+	var panel_style := UITheme.box(Color(color, NOTE_BACKGROUND_ALPHA), 8, Color(color, 0.75), 2)
+	panel_style.content_margin_left = NOTE_PADDING.x
+	panel_style.content_margin_right = NOTE_PADDING.x
+	panel_style.content_margin_top = NOTE_PADDING.y
+	panel_style.content_margin_bottom = NOTE_PADDING.y
+	panel.add_theme_stylebox_override("panel", panel_style)
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
+	row.add_theme_constant_override("separation", 12)
 	panel.add_child(row)
-	var chip := _lbl(tag, 12, color.lightened(0.35), "heavy")
-	chip.custom_minimum_size = Vector2(78, 0)
+	var chip := _lbl(tag, NOTE_TAG_FONT_SIZE, color.lightened(0.35), "heavy")
+	chip.custom_minimum_size = Vector2(NOTE_TAG_WIDTH, 0)
 	chip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	chip.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(chip)
-	var message := _lbl(text, 15, UITheme.TEXT, "body")
+	var message := _lbl(text, NOTE_FONT_SIZE, UITheme.TEXT, "body")
 	message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	message.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	message.custom_minimum_size = Vector2(DECK_PANEL_W - 150, 0)
+	message.custom_minimum_size = Vector2(DECK_PANEL_W - NOTE_TAG_WIDTH - 2.0 * NOTE_PADDING.x - 40.0, 0)
 	row.add_child(message)
 	return panel
 
