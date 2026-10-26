@@ -56,6 +56,8 @@ var hub_hotseat := false ## the deck hub's two-step flow is picking decks for ho
 var hub_scroll: ScrollContainer ## the deck hub's scrolling gallery (null/freed outside the hub)
 var hub_scroll_y := 0 ## how far the gallery was scrolled, kept across the hub's redraws
 var hub_drag_distance := 0.0 ## how far the current press has dragged the gallery (a long drag isn't a tap)
+const MENU_SUBTITLE_FONT_SIZE := 18 ## the small hint under each title-menu button
+const MENU_SUBTITLE_COLOR := Color(0.93, 0.9, 0.84, 0.85) ## near-opaque cream so the hint reads on the busy art
 const HUB_MARGIN := 40.0 ## space between the hub's panels and the stage sides
 const HUB_TILE := Vector2(210, 236) ## every deck tile in the gallery has this size, however many decks exist
 const HUB_TILE_GAP := 20.0
@@ -382,18 +384,19 @@ func _show_menu() -> void:
 		sm.set_shader_parameter("strength", 0.55)
 		tr.material = sm
 		layer.add_child(tr)
-	var sup := _label("CHAMPION SHOWDOWN ARENA", 18, Color(UITheme.GOLD, 0.8), HORIZONTAL_ALIGNMENT_CENTER, "title", 4)
-	sup.position = Vector2(0, 196)
-	sup.size = Vector2(stage_w, 30)
-	layer.add_child(sup)
-	var title := _label("DUELO DE CARTAS", 76, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 10)
+	var title := _label("UCLA", 120, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 14)
 	title.add_theme_color_override("font_shadow_color", Color(UITheme.GOLD, 0.35))
 	title.add_theme_constant_override("shadow_outline_size", 22)
 	title.add_theme_constant_override("shadow_offset_x", 0)
 	title.add_theme_constant_override("shadow_offset_y", 0)
-	title.position = Vector2(0, 224)
-	title.size = Vector2(stage_w, 100)
+	title.position = Vector2(0, 140)
+	title.size = Vector2(stage_w, 140)
 	layer.add_child(title)
+	# the acronym alone says nothing to a new player, so the full name sits right under it
+	var full_name := _label("ULTIMATE CLASH OF LEGENDS OF ATECRA", 24, Color(UITheme.GOLD, 0.85), HORIZONTAL_ALIGNMENT_CENTER, "title", 6)
+	full_name.position = Vector2(0, 284)
+	full_name.size = Vector2(stage_w, 34)
+	layer.add_child(full_name)
 	layer.add_child(_ornament(Vector2(stage_w / 2.0, 340), 260))
 	_menu_screen_showing = true
 	# a session restored from an earlier visit skips the entry screen
@@ -543,7 +546,9 @@ func _add_menu_mode_buttons() -> void:
 		b.custom_minimum_size = Vector2(420, 58)
 		b.tooltip_text = opt[1]
 		box.add_child(b)
-		var sub := _label(opt[1], 14, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
+		var sub := _label(opt[1], MENU_SUBTITLE_FONT_SIZE, MENU_SUBTITLE_COLOR, HORIZONTAL_ALIGNMENT_CENTER, "body")
+		# the longer hint (hot-seat) wraps instead of pushing the column wider than the buttons
+		sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		box.add_child(sub)
 	# a guest can still link a Google account later from here
 	account_button = _button("ENTRAR COM GOOGLE", _on_account_button_pressed)

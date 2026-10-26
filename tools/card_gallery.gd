@@ -34,7 +34,7 @@ func _open() -> void:
 	root.size = Vector2i(mini(1500, usable.size.x - 20), mini(940, usable.size.y - 20))
 	root.min_size = Vector2i(mini(WINDOW_MIN.x, root.size.x), mini(WINDOW_MIN.y, root.size.y))
 	root.position = usable.position + (usable.size - root.size) / 2
-	root.title = "CSA — Galeria de Cartas"
+	root.title = "UCLA — Galeria de Cartas"
 	root.theme = UITheme.make()
 	root.window_input.connect(_on_window_input)
 

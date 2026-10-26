@@ -1,6 +1,6 @@
-# CSA — Card Game (0.2.2 Alpha)
+# UCLA — Ultimate Clash of Legends of Atecra (0.2.2 Alpha)
 
-Card game PvP com os campeões do Champion Showdown Arena, feito em **Godot 4.7**.
+Card game PvP com os campeões do universo de Atecra, feito em **Godot 4.7**.
 
 - **Jogar:** abra o `project.godot` no Godot e aperte F5. No menu dá para escolher partida contra a IA ou hot-seat.
 - **Regras:** [docs/REGRAS_v0.2.md](docs/REGRAS_v0.2.md)
