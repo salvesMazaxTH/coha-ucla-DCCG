@@ -111,11 +111,30 @@ static func values_for(cd: Dictionary, facet_id: String, card_id := "") -> Array
 		"element": return CardDB.elements_of(cd)
 		"type", "rarity", "speed": return [String(cd.get(facet_id, ""))] if cd.has(facet_id) else []
 		"species": return cd.get("species", []).duplicate()
-		"keyword": return cd.get("keywords", []).duplicate()
+		"keyword": return _keywords_of(cd)
 		"subtype": return cd.get("subtypes", []).duplicate()
 		"action": return _action_categories(cd)
 		"property": return _properties_of(cd, card_id)
 	return []
+
+static func _keywords_of(cd: Dictionary) -> Array:
+	var found: Dictionary = {}
+	for keyword in cd.get("keywords", []):
+		found[String(keyword)] = true
+	# Valued keywords are normalized into numeric card fields during CardDB loading,
+	# so add their keyword names back for presence-based catalog filtering.
+	for keyword_id in CardDB.data().get("keywords", {}):
+		var definition: Dictionary = CardDB.data()["keywords"][keyword_id]
+		if not definition.get("has_value", false):
+			continue
+		var value_field := "armor" if keyword_id == "armadura" else String(keyword_id)
+		if int(cd.get(value_field, 0)) > 0:
+			found[String(keyword_id)] = true
+	# Tóxico stores its value in toxico_level/toxico_equals_attack and remains in keywords,
+	# but keep this explicit so either printed form is treated as the same keyword.
+	if int(cd.get("toxico_level", 0)) > 0 or bool(cd.get("toxico_equals_attack", false)):
+		found["toxico"] = true
+	return found.keys()
 
 static func _action_categories(cd: Dictionary) -> Array:
 	var found: Dictionary = {}
