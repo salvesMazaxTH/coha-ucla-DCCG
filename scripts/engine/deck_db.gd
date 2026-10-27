@@ -170,6 +170,32 @@ static func card_count(id: String) -> int:
 		total += int(cards[cid])
 	return total
 
+## Unique domains represented by a deck, with the Leader's domains first and remaining domains
+## following the order in card data. The Encarnação is included even in old deck records that omit it
+## from the card-count dictionary.
+static func domains_in(leader_id: String, cards: Dictionary, selected_incarnation_id := "") -> Array[String]:
+	var used: Dictionary = {}
+	var ordered: Array[String] = []
+	if CardDB.data()["leaders"].has(leader_id):
+		for domain in CardDB.leader(leader_id).get("essences", []):
+			_add_domain(ordered, used, String(domain))
+	for card_id in cards:
+		if int(cards[card_id]) <= 0 or not CardDB.data()["cards"].has(String(card_id)):
+			continue
+		for domain in CardDB.essences_of(CardDB.card(String(card_id))):
+			_add_domain(ordered, used, String(domain))
+	if leader_id != "" and CardDB.data()["leaders"].has(leader_id):
+		var incarnation_id := resolved_incarnation_id(leader_id, selected_incarnation_id)
+		if CardDB.data()["cards"].has(incarnation_id):
+			for domain in CardDB.essences_of(CardDB.card(incarnation_id)):
+				_add_domain(ordered, used, String(domain))
+	return ordered
+
+static func _add_domain(ordered: Array[String], used: Dictionary, domain: String) -> void:
+	if not used.has(domain):
+		used[domain] = true
+		ordered.append(domain)
+
 ## The deck list in the order the files are kept: printed cost (lowest first), then units before
 ## spells and other types, then card id. Used by tools/sort_decks.gd and checked by the tests.
 static func sorted_cards(cards: Dictionary) -> Dictionary:

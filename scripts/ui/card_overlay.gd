@@ -89,6 +89,8 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 		if instance.has("frozen"):
 			body = "[color=#9fe8ff][b]Congelada:[/b] não ataca, não desvira e perde a Rapidez (suprimida) até o fim do próximo turno. Revida normalmente.[/color]\n" + body
 		txt += "[font_size=32]%s[/font_size]\n\n" % CardView.colorize_rules(body + text_suffix, 32)
+	if CardDB.is_equipment(cd):
+		txt += "[font_size=32][b]Regra inata:[/b] Uma unidade só pode ter um Equipamento por vez. Se receber outro, o anterior volta para a mão do dono.[/font_size]\n\n"
 	# Glossary: the card's own keywords first, then any keyword its text mentions ("conceda Voo").
 	var glossary_keywords: Array = cd.get("keywords", []).duplicate()
 	if CardView.armor_of_view(cd, instance) > 0 and not glossary_keywords.has("armadura"):

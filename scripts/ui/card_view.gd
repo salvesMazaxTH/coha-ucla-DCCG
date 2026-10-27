@@ -54,6 +54,7 @@ const FROST_CRYSTALS := [[0.08, 16.0, 4.0], [0.21, 28.0, 5.0], [0.34, 13.0, 3.6]
 const FROST_GLINTS := [Vector2(0.3, 0.2), Vector2(0.74, 0.3), Vector2(0.52, 0.58), Vector2(0.18, 0.5), Vector2(0.84, 0.12), Vector2(0.62, 0.8)] ## twinkling stars
 
 var card_id := ""
+var domain_badge_only := "" ## draw only the reusable domain seal, for deck chips and other compact summaries
 var inst: Dictionary = {} ## unit on board (live stats) or hand instance
 var uid := 0
 var face_down := false
@@ -184,6 +185,15 @@ func setup(id: String, instance: Dictionary = {}, size_scale := 1.0) -> CardView
 		queue_redraw())
 	if inst.has("damage") and _keywords(CardDB.card_for(id, inst)).has("furtividade"):
 		_stealth()
+	return self
+
+## Configures this view to draw the same single-domain seal used in a card's top-right badge.
+func setup_domain_badge(domain_id: String, badge_size: float) -> CardView:
+	domain_badge_only = domain_id
+	size = Vector2.ONE * badge_size
+	custom_minimum_size = size
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	set_process(false)
 	return self
 
 ## Updates an existing card view after Main confirms this unit kept the same board slot.
@@ -607,6 +617,10 @@ func _draw_photo_slot(photo: CardPhotoStudio.Photo, slot: int) -> void:
 ## Layers 2 and 4 never change while the card keeps the same data, so they are the parts that can be
 ## drawn from a cached picture instead of shape by shape.
 func _draw() -> void:
+	if domain_badge_only != "":
+		var radius := minf(size.x, size.y) * 0.46
+		_essence_badge(size / 2.0, radius, {"essence": domain_badge_only}, radius / 10.5)
+		return
 	if badge_only != "":
 		_speed_badge(size / 2.0, badge_only, size.y / SPEED_PILL_HEIGHT)
 		return
@@ -978,6 +992,12 @@ func _draw_lettering_and_gems(look: Dictionary) -> void:
 			var live_max_hp: int = inst["hp"] + int(inst.get("bonus_hp", 0)) + int(inst.get("temp_hp", 0)) + int(inst.get("temp_hp_until_next_turn", 0))
 			hp_col = Color("#ff8a80") if inst["damage"] > 0 else (Color("#a8ffa0") if live_max_hp > hp else Color.WHITE)
 			hp = max(0, live_max_hp - inst["damage"])
+		elif not inst.get("permanent_buffs", {}).is_empty():
+			var persistent: Dictionary = inst["permanent_buffs"]
+			atk += int(persistent.get("atk", 0))
+			hp += int(persistent.get("hp", 0))
+			atk_col = Color("#a8ffa0") if atk > int(cd["atk"]) else Color.WHITE
+			hp_col = Color("#a8ffa0") if hp > int(cd["hp"]) else Color.WHITE
 		_gem("diamond", Vector2(14 * s, _face_size.y - 15 * s), 13.5 * s, ATK_COL, str(atk), atk_col, s)
 		_gem("shield", Vector2(_face_size.x - 14 * s, _face_size.y - 15 * s), 12.5 * s, HP_COL, str(hp), hp_col, s)
 
@@ -1276,7 +1296,13 @@ static func critico_chance_percent(critico_level: int) -> int:
 
 ## Live keywords on the board, printed ones elsewhere.
 func _keywords(cd: Dictionary) -> Array:
-	return inst.get("keywords", cd.get("keywords", []))
+	if inst.has("damage"):
+		return inst.get("keywords", cd.get("keywords", []))
+	var out: Array = cd.get("keywords", []).duplicate()
+	for keyword in inst.get("permanent_buffs", {}).get("keywords", []):
+		if not out.has(keyword):
+			out.append(keyword)
+	return out
 
 ## Live periodic marker count. The old `burn` field is accepted for cards from an older network
 ## snapshot, while all new state uses the generic dot_markers dictionary.
@@ -1822,7 +1848,7 @@ func _essence_badge(c: Vector2, r: float, cd: Dictionary, s: float) -> void:
 	for k in ess.size():
 		var kind: String = ess[k]
 		var col := Color("#232328") if kind == "trevas" else Color(CardDB.essence(kind)["color"])
-		var disc_color := col.darkened(0.5) if col.get_luminance() > 0.35 else col # pale domains (Devoção, Montanha) need a darker disc for the off-white sigil to read
+		var disc_color := Color("#D0B974") if kind == "devocao" else (col.darkened(0.5) if col.get_luminance() > 0.35 else col) # Devoção keeps its pearl-amber badge fill
 		_fill_clipped(disc, slices[k], disc_color) # flat colour: no gradient, no highlight
 		_draw_flat_sigil(kind, slice_centers[k], slice_sigil_radius)
 	var seam_color := Color(UITheme.GOLD_LIGHT, 0.8)

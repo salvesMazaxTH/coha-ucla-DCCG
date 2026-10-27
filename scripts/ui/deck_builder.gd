@@ -1,5 +1,7 @@
 class_name DeckBuilder
 extends Control
+const DomainIconRowScript = preload("res://scripts/ui/domain_icon_row.gd")
+const DeckLeaderTooltipScript = preload("res://scripts/ui/deck_leader_tooltip.gd")
 ## The in-game deck builder: "MEUS DECKS". It lists the player's decks (kept by DeckStore: Supabase while
 ## signed in, this device otherwise), and edits one in a three-column screen built from the card gallery:
 ## filters | card catalog | the deck being built, with the engine's own rules (DeckDB) shown live.
@@ -18,7 +20,7 @@ const NOTE_TAG_FONT_SIZE := 15 ## the coloured tag on the left
 const NOTE_TAG_WIDTH := 100.0
 const NOTE_PADDING := Vector2(14, 10) ## space between the bar's border and its content
 const NOTE_BACKGROUND_ALPHA := 0.2
-const CARD_SCALE := 1.1
+const CARD_SCALE := 1.3
 const GRID_GAP := 14
 const PAGE_SIZE := 24
 const DECK_TILE := Vector2(340, 322) # wide enough for EDITAR + DUPLICAR + EXCLUIR on one row
@@ -534,13 +536,23 @@ func _deck_tile(deck: Dictionary) -> Control:
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tile.add_child(name_label)
 	var drawn: int = DeckDB.stats(leader, deck["cards"], String(deck.get("incarnation_id", "")))["total"] if leader != "" else 0
-	var leader_line := "%s · %d/%d cartas" % [CardDB.leader(leader)["name"] if leader != "" else "Líder desconhecido", drawn, DeckDB.DECK_SIZE]
+	var leader_line := "%d/%d cartas" % [drawn, DeckDB.DECK_SIZE]
+	if leader != "":
+		DeckLeaderTooltipScript.attach(tile, String(CardDB.leader(leader)["name"]))
+	var leader_row := HBoxContainer.new()
+	leader_row.add_theme_constant_override("separation", 4)
+	leader_row.position = Vector2(12, art_h + 8)
+	leader_row.size = Vector2(DECK_TILE.x - 24, 28)
+	leader_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sub := _lbl(leader_line, 16, color.lightened(0.35))
-	sub.position = Vector2(12, art_h + 12)
-	sub.size = Vector2(DECK_TILE.x - 24, 22)
+	sub.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sub.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tile.add_child(sub)
+	leader_row.add_child(sub)
+	var domain_row := DomainIconRowScript.new().setup(DeckDB.domains_in(leader, deck["cards"], String(deck.get("incarnation_id", ""))), 23.0, 2)
+	domain_row.size_flags_horizontal = Control.SIZE_SHRINK_END
+	leader_row.add_child(domain_row)
+	tile.add_child(leader_row)
 	var note_text := "Pronto para jogar." if status == "legal" else _humanize(String(verdict["errors"][0]))
 	if not (deck["problems"] as Array).is_empty():
 		note_text = String(deck["problems"][0])
@@ -564,7 +576,9 @@ func _deck_tile(deck: Dictionary) -> Control:
 	buttons.add_child(_btn("EXCLUIR", func(): _ask_delete(deck), false, 14))
 	tile.add_child(buttons)
 	tile.gui_input.connect(func(event: InputEvent):
-		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			if DeckLeaderTooltipScript.consume_tap(tile):
+				return
 			Sfx.play("ui_click")
 			_open_editor(deck))
 	return tile

@@ -4,6 +4,8 @@ extends Control
 
 const ChronicleRowScript = preload("res://scripts/ui/chronicle_row.gd")
 const ChronicleSceneScript = preload("res://scripts/ui/chronicle_scene.gd")
+const DomainIconRowScript = preload("res://scripts/ui/domain_icon_row.gd")
+const DeckLeaderTooltipScript = preload("res://scripts/ui/deck_leader_tooltip.gd")
 
 const SEL := Color("#ffd23f")
 const TARGET := Color("#ff5050")
@@ -60,7 +62,7 @@ const MENU_SUBTITLE_FONT_SIZE := 18 ## the small hint under each title-menu butt
 const MENU_SUBTITLE_COLOR := Color(0.93, 0.9, 0.84, 0.85) ## near-opaque cream so the hint reads on the busy art
 const DECK_TILE_NAME_FONT_SIZES := [21, 19, 17, 15, 13] ## tried in order until the deck name fits its zone on the tile
 const HUB_MARGIN := 40.0 ## space between the hub's panels and the stage sides
-const HUB_TILE := Vector2(210, 236) ## every deck tile in the gallery has this size, however many decks exist
+const HUB_TILE := Vector2(210, 236) ## original chip height, with the Leader line replaced by domain seals
 const HUB_TILE_GAP := 20.0
 const HUB_TILE_PAD := 10.0 ## room around the gallery's tiles for the hover zoom
 ## The gallery's titled dividers, in order; a deck's "section" field picks one (default "essencia").
@@ -778,6 +780,8 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 				var mb := ev as InputEventMouseButton
 				if mb == null or mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT or hub_drag_distance > HUB_DRAG_SLOP:
 					return
+				if DeckLeaderTooltipScript.consume_tap(t):
+					return
 				if choosing_ai_deck:
 					ai_deck = id
 				elif sel_deck != id:
@@ -1087,7 +1091,7 @@ func _art_fade(bg: Color, pos: Vector2, size: Vector2) -> TextureRect:
 	veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return veil
 
-## One deck in the hub gallery: Leader art, deck name and Leader. Always the same size (the full
+## One deck in the hub gallery: Leader art, deck name and domain seals. Always the same size (the full
 ## description lives in the showcase). `id` "" is the AI's "random deck" tile.
 func _deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 	var bg := Color(0.06, 0.055, 0.085, 0.94)
@@ -1122,11 +1126,11 @@ func _deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 		p.add_child(art)
 		p.add_child(_art_fade(bg, Vector2(4, 4 + art_h * 0.5), Vector2(size.x - 8, art_h * 0.5 + 1)))
 	p.add_theme_stylebox_override("panel", UITheme.box(bg, 12, UITheme.GOLD if selected else Color(col, 0.55), 4 if selected else 2, 12 if selected else 6))
-	# the name gets the zone between the art and the Leader's line, and never grows past it: it shrinks
+	# the name gets the zone between the art and domain seals, and never grows past it: it shrinks
 	# step by step until it fits in two lines, and only a name too long even for the smallest step is cut with "…"
 	var nm := _label(deck_name, DECK_TILE_NAME_FONT_SIZES[0], UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 5)
 	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	nm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	nm.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	nm.position = Vector2(8, art_h - 14.0)
 	nm.size = Vector2(size.x - 16, size.y - 34.0 - nm.position.y)
 	for font_size in DECK_TILE_NAME_FONT_SIZES:
@@ -1138,11 +1142,15 @@ func _deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 	nm.clip_text = true
 	p.tooltip_text = deck_name
 	p.add_child(nm)
-	var lead := _label(leader_name, 15, col.lightened(0.3), HORIZONTAL_ALIGNMENT_CENTER, "bold", 3)
-	lead.position = Vector2(8, size.y - 30.0)
-	lead.size = Vector2(size.x - 16, 22)
-	lead.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	p.add_child(lead)
+	if id != "":
+		var domain_deck := DeckDB.get_deck(id)
+		var incarnation_id := DeckDB.resolved_incarnation_id(String(domain_deck["leader"]), String(domain_deck.get("incarnation_id", "")))
+		var domains := DeckDB.domains_in(String(domain_deck["leader"]), domain_deck.get("cards", {}), incarnation_id)
+		DeckLeaderTooltipScript.attach(p, leader_name)
+		var domain_row := DomainIconRowScript.new().setup(domains, 24.5, 2)
+		domain_row.position = Vector2(8, size.y - 31.0)
+		domain_row.size = Vector2(size.x - 16, 28)
+		p.add_child(domain_row)
 	if selected:
 		var check := _label("✔", 20, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 4)
 		var badge := PanelContainer.new()
@@ -1729,7 +1737,8 @@ func _render_command(p: int, pos: Vector2) -> void:
 		empty.size = Vector2(SANCTUARY_W, 20)
 		layer.add_child(empty)
 		return
-	var v := CardView.new().setup(l["card_id"], _display_instance_for_id(l["card_id"], p), SANCTUARY_SCALE)
+	var sanctuary_instance := {"permanent_buffs": l.get("permanent_buffs", {})}
+	var v := CardView.new().setup(l["card_id"], _display_instance_for_id(l["card_id"], p, 0, sanctuary_instance), SANCTUARY_SCALE)
 	v.pivot_offset = v.size / 2.0
 	v.position = pos
 	v.cost_override = g.incarnation_cost(p)
@@ -3350,7 +3359,15 @@ func _aimed_effects() -> Array:
 func _is_first_target(uid: int) -> bool:
 	return not targeting.is_empty() and targeting.has("first") and int(targeting["first"]) == uid
 
-func _fire_target(uid: int) -> void:
+func _fire_target(uid: int, equipment_confirmed := false) -> void:
+	if targeting["kind"] == "hand" and not equipment_confirmed and CardDB.is_equipment(CardDB.card(targeting["card_id"])):
+		var unit := g.find_unit(uid)
+		if unit != null and unit.equipment != null:
+			_ask_confirm("SUBSTITUIR EQUIPAMENTO?",
+					"Esta unidade já tem um Equipamento. Se continuar, o atual volta para a mão do dono.",
+					"EQUIPAR ASSIM MESMO", "CANCELAR",
+					_confirm_equipment_target.bind(int(targeting["uid"]), uid))
+			return
 	match targeting["kind"]:
 		"hand":
 			var spec2 := g.second_spec(CardDB.card(targeting["card_id"]))
@@ -3384,6 +3401,15 @@ func _fire_target(uid: int) -> void:
 			_do(g.choose_enter_target(viewer, uid))
 		"attack":
 			_do(g.attack_unit(viewer, targeting["uid"], uid))
+
+func _confirm_equipment_target(hand_uid: int, target_uid: int) -> void:
+	_close_concede()
+	if g == null or not _my_input() or targeting.get("kind") != "hand" \
+			or int(targeting.get("uid", 0)) != hand_uid or not _is_target(target_uid):
+		targeting = {}
+		_render()
+		return
+	_fire_target(target_uid, true)
 
 func _on_leader_click(p: int) -> void:
 	if _my_input() and _input_must_wait() and _aiming_or_waiting():
@@ -6688,6 +6714,11 @@ func _animate(events: Array, old: Dictionary) -> float:
 				if cd["type"] == "unit" and views.has(uid):
 					var v: CardView = views[uid]
 					var to := _pose(v)
+					var previous_cost_override := v.cost_override
+					var captured_cost := int(e.get("cost", -1))
+					if captured_cost >= 0:
+						v.cost_override = captured_cost
+						v.queue_redraw()
 					handled[uid] = true
 					# the card is heard when it lands on the board (the Encarnação also gets its bell as it leaves the Santuário)
 					placed_uids[uid] = true
@@ -6700,10 +6731,19 @@ func _animate(events: Array, old: Dictionary) -> float:
 					var fs: Vector2 = Vector2.ONE * (to["w"] / v.size.x)
 					tw.tween_property(v, "scale", fs * 1.1, 0.06)
 					tw.tween_property(v, "scale", fs, 0.1)
+					if captured_cost >= 0:
+						tw.tween_interval(0.35)
+						tw.tween_callback(func():
+							if is_instance_valid(v):
+								v.cost_override = previous_cost_override
+								v.queue_redraw())
 					cursor += 0.45
 				else:
 					Sfx.play_event(e, cursor, false)
 					var gh := _ghost(e["card_id"], {}, origin, REVEAL_W / CardView.BASE.x) # built at its final size: scaling up would blur the text
+					if e.has("cost"):
+						gh.cost_override = int(e["cost"])
+						gh.queue_redraw()
 					gh.z_index = 30
 					var tw := _fly(gh, origin, {"c": Vector2(lane_cx, 420), "rot": 0.0, "w": REVEAL_W}, cursor, 0.35, 40.0, true)
 					tw.tween_callback(func(): gh.z_index = 0)
