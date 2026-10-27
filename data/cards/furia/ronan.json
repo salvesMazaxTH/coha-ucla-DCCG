@@ -22,7 +22,7 @@
       "trigger": "on_enter",
       "action": "damage",
       "target": "enemy_unit",
-      "amount": 2
+      "amount": 3
     },
     {
       "trigger": "on_damaged",
@@ -31,7 +31,7 @@
       "atk": 1
     }
   ],
-  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela sofre 2 de dano.\nAo Sofrer Dano: esta unidade ganha +1 de Ataque.",
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela sofre 3 de dano.\nAo Sofrer Dano: esta unidade ganha +1 de Ataque.",
   "flavor": [
     "Dragões, seitas, magos... será que dá pra eu só ter uma terça-feira normal?",
     "Eu tinha um plano: diploma, emprego, boleto pago. Aí veio o dragão.",

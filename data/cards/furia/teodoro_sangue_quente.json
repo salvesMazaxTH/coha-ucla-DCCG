@@ -32,7 +32,7 @@
       "temp": true
     }
   ],
-  "text": "Ao Entrar: com o seu Líder em 10 ou menos de Vida, esta unidade recebe +3 de Ataque e Ímpeto até o fim do turno.\nNo Início do Turno: nessa condição, +2 de Ataque neste turno.",
+  "text": "Ao Entrar: com o seu Líder em 10 ou menos de Vida, esta unidade recebe +3 de Ataque e Ímpeto até o fim do turno.\nNo Início do Turno: com a mesma condição, ela ganha +2 de Ataque neste turno.",
   "flavor": "",
   "tags": []
 }

@@ -21,14 +21,13 @@
       "trigger": "on_challenge",
       "action": "damage",
       "target": "random_enemy_units",
-      "count": 4,
-      "include_leader": true,
-      "amount_from": "self_atk",
+      "count": 3,
+      "amount": 3,
       "lifesteal": true,
       "lifesteal_self": true
     }
   ],
-  "text": "Desdém: é imune a Crítico.\nAo Desafiar: causa X de dano a até 4 inimigos aleatórios diferentes (pode incluir o Líder). X é o Ataque dela. Este efeito tem Roubo de Vida e esta unidade também recupera Vida.",
+  "text": "Esta unidade é imune a Crítico.\nAo Desafiar: causa 3 de dano a até 3 unidades inimigas aleatórias diferentes. Este efeito tem Roubo de Vida e esta unidade também recupera Vida.",
   "flavor": [
     "Sorte? Eu chamo isso de preguiça de quem não sabe errar direito."
   ],
