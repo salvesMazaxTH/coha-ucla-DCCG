@@ -2,16 +2,17 @@ class_name Card
 extends RefCounted
 ## One physical card. The same object travels between zones (deck, hand, board, graveyard,
 ## banished, stack) for the whole match, so a card can keep state and react wherever it is.
-## Board fields are (re)initialized by enter_board(); off the board only identity and the
-## hand discount matter. to_dict() gives the JSON form sent over the network.
+## Board fields are (re)initialized by enter_board(); permanent_buffs are the exception that survives
+## a non-death return to hand or the Santuário. to_dict() gives the JSON form sent over the network.
 
 var uid: int
 var card_id: String
 var owner: int
-var zone := "" ## "deck" / "hand" / "board" / "relics" / "graveyard" / "banished" / "stack" / "equipped" / ""
+var zone := "" ## "deck" / "hand" / "board" / "relics" / "graveyard" / "banished" / "sanctuary" / "stack" / "equipped" / ""
 var discount := 0 ## costs this much less while it stays in hand (Tecnomante); cleared when it leaves the hand
 var turn_discount := 0 ## costs this much less until the end of the current turn while it stays in hand
 var cost_mod := 0 ## added to the cost in every zone and never reset (A Vagante Sombria: -1 per card of yours sent to the graveyard)
+var permanent_buffs: Dictionary = {} ## permanent unit upgrades that survive a non-death return to hand or the Santuário
 var banish_after_cast := false ## taken back from the graveyard by "grave_retrieve": it is banished when its next cast ends
 var banish_at_turn_end := false ## put into play by "summon_hand_pick" (Dona Gertrudes): banished when the turn ends
 var over: Dictionary = {} ## per-instance overrides of the card data (atk, hp, keywords, effects, text...)
@@ -164,6 +165,55 @@ func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:
 	vipranna_heal_locked = false
 	leader_damage_guard_turn = -1
 	death_ward_armed = false
+	apply_permanent_buffs()
+
+## Rebuilds the permanent bonuses that belong to this card, not to an aura or equipment.
+func apply_permanent_buffs() -> void:
+	atk += int(permanent_buffs.get("atk", 0))
+	hp += int(permanent_buffs.get("hp", 0))
+	armor += int(permanent_buffs.get("armor", 0))
+	critico += int(permanent_buffs.get("critico", 0))
+	rapidez += int(permanent_buffs.get("rapidez", 0))
+	cap_atk_gain = int(permanent_buffs.get("cap_atk_gain", 0))
+	for keyword in permanent_buffs.get("keywords", []):
+		if not keywords.has(keyword):
+			keywords.append(keyword)
+	if bool(permanent_buffs.get("shield", false)):
+		shield = true
+	if bool(permanent_buffs.get("magic_shield", false)):
+		magic_shield = true
+	if bool(permanent_buffs.get("supreme_shield", false)):
+		grant_supreme_shield()
+
+## Saves positive, permanent changes made directly to the unit. Equipment is removed before this is called;
+## temporary effects and bonuses computed from other cards live in separate fields and are not captured.
+func capture_permanent_buffs() -> void:
+	var cd := data()
+	var printed_keywords: Array = cd.get("keywords", [])
+	var upgrades := {
+		"atk": maxi(0, atk - int(cd.get("atk", 0))),
+		"hp": maxi(0, hp - int(cd.get("hp", 0))),
+		"armor": maxi(0, armor - int(cd.get("armor", 0))),
+		"critico": maxi(0, critico - int(cd.get("critico", 0))),
+		"rapidez": maxi(0, rapidez - int(cd.get("rapidez", 0))),
+		"cap_atk_gain": cap_atk_gain,
+	}
+	var added_keywords: Array = []
+	for keyword in keywords:
+		if not printed_keywords.has(keyword) and not temp_keywords.has(keyword) and not keywords_until_next_turn.has(keyword):
+			added_keywords.append(keyword)
+	if not added_keywords.is_empty():
+		upgrades["keywords"] = added_keywords
+	if shield and not printed_keywords.has("escudo"):
+		upgrades["shield"] = true
+	if magic_shield and not printed_keywords.has("escudo_magico"):
+		upgrades["magic_shield"] = true
+	if supreme_shield and supreme_shield_expires == "" and not printed_keywords.has("escudo_supremo"):
+		upgrades["supreme_shield"] = true
+	permanent_buffs = upgrades
+
+func reset_permanent_buffs() -> void:
+	permanent_buffs = {}
 
 ## Silenciada: the unit lost every keyword and effect (see silence()).
 func is_silenced() -> bool:
@@ -283,6 +333,8 @@ func to_dict() -> Dictionary:
 		d["turn_discount"] = turn_discount
 	if cost_mod != 0:
 		d["cost_mod"] = cost_mod
+	if not permanent_buffs.is_empty():
+		d["permanent_buffs"] = permanent_buffs.duplicate(true)
 	if banish_after_cast:
 		d["banish_after_cast"] = true # so the client can warn that the next cast banishes it
 	if death_ward_armed:
@@ -386,6 +438,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.discount = int(d.get("discount", 0))
 	c.turn_discount = int(d.get("turn_discount", 0))
 	c.cost_mod = int(d.get("cost_mod", 0))
+	c.permanent_buffs = d.get("permanent_buffs", {}).duplicate(true)
 	c.death_ward_armed = bool(d.get("death_ward_armed", false))
 	c.charges_used = int(d.get("charges_used", 0))
 	c.stored_momentum = int(d.get("stored_momentum", 0))

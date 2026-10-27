@@ -224,7 +224,12 @@ func attach(holder: Card, eq: Card, granted: Dictionary = {}) -> void:
 
 ## The stats an equipment's buff can change, as they are right now.
 func unit_stats(unit: Card) -> Dictionary:
-	return {"atk": unit.atk, "hp": unit.hp, "armor": unit.armor, "keywords": unit.keywords.duplicate()}
+	return {
+		"atk": unit.atk, "hp": unit.hp, "armor": unit.armor, "critico": unit.critico,
+		"rapidez": unit.rapidez, "cap_atk_gain": unit.cap_atk_gain,
+		"keywords": unit.keywords.duplicate(), "shield": unit.shield,
+		"magic_shield": unit.magic_shield, "supreme_shield": unit.supreme_shield,
+	}
 
 ## What the unit gained since `before` (a unit_stats snapshot). Keywords the unit already had are not
 ## counted, so removing the equipment later never strips something the unit owns by itself.
@@ -235,7 +240,14 @@ func stat_gain_since(unit: Card, before: Dictionary) -> Dictionary:
 	for keyword in unit.keywords:
 		if not before["keywords"].has(keyword):
 			gained_keywords.append(keyword)
-	return {"atk": unit.atk - before["atk"], "hp": unit.hp - before["hp"], "armor": unit.armor - before["armor"], "keywords": gained_keywords}
+	return {
+		"atk": unit.atk - before["atk"], "hp": unit.hp - before["hp"], "armor": unit.armor - before["armor"],
+		"critico": maxi(0, unit.critico - before["critico"]), "rapidez": maxi(0, unit.rapidez - before["rapidez"]),
+		"cap_atk_gain": maxi(0, unit.cap_atk_gain - before["cap_atk_gain"]),
+		"keywords": gained_keywords, "shield": unit.shield and not before["shield"],
+		"magic_shield": unit.magic_shield and not before["magic_shield"],
+		"supreme_shield": unit.supreme_shield and not before["supreme_shield"],
+	}
 
 ## Takes back what the unit's equipment gave it. The unit never dies from this: if losing the
 ## Vida would kill it, it stays with 1 Vida left.
@@ -247,8 +259,20 @@ func remove_equipment_bonus(unit: Card) -> void:
 	unit.atk = maxi(0, unit.atk - int(granted.get("atk", 0)))
 	unit.hp -= int(granted.get("hp", 0))
 	unit.armor = maxi(0, unit.armor - int(granted.get("armor", 0)))
+	unit.critico = maxi(0, unit.critico - int(granted.get("critico", 0)))
+	unit.rapidez = maxi(0, unit.rapidez - int(granted.get("rapidez", 0)))
+	unit.cap_atk_gain = maxi(0, unit.cap_atk_gain - int(granted.get("cap_atk_gain", 0)))
 	for keyword in granted.get("keywords", []):
 		unit.keywords.erase(keyword)
+	if granted.get("shield", false):
+		unit.shield = false
+	if granted.get("magic_shield", false):
+		unit.magic_shield = false
+		unit.magic_shield_until_next_turn = false
+		unit.magic_shield_until_end_turn = false
+	if granted.get("supreme_shield", false):
+		unit.supreme_shield = false
+		unit.supreme_shield_expires = ""
 	if unit.hp_left() < 1:
 		unit.damage = unit.hp + unit.bonus_hp + unit.temp_hp + unit.temp_hp_until_next_turn - 1
 

@@ -168,7 +168,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 			"momentum_lock_turn": -1, # while it equals the current turn, plain (non-refresh) Momentum gains do nothing (Bateria de Segunda Mão)
 		"healing_this_round": 0, "healing_last_round": 0, "damage_this_round": 0, "damage_last_round": 0,
 		"deck": deck, "hand": [], "board": [], "relics": [], "graveyard": [], "banished": [],
-		"incarnation": {"card_id": incarnation_id, "in_zone": true, "casts": 0, "cost_mod": 0}, # cost_mod: the Encarnação's own modify_cost total, shared by the Santuário and every copy of it in play
+		"incarnation": {"card_id": incarnation_id, "in_zone": true, "casts": 0, "cost_mod": 0, "permanent_buffs": {}}, # cost_mod and non-death upgrades are shared by the Santuário and every copy in play
 		"ability_used": false, "passive_used": false, "attacked": false, "fatigue": 0, "mulligan_done": false,
 		"played_two": false,
 		"snowball": SNOWBALL_BASE_LEVEL, # damage the next Bola de Neve starts at (grows with every Bola de Neve cast, goes back to snowball_base at the end of the owner's turn)
@@ -376,6 +376,16 @@ func room_banish_options(p: int) -> Array:
 ## `extra_data` is added to the card_moved event ("unit_died": true tells that an equipment fell because its unit died).
 func _move(c: Card, to_zone: String, extra_data := {}) -> void:
 	var from_zone := c.zone
+	if to_zone == "hand":
+		if from_zone == "board":
+			c.capture_permanent_buffs()
+		elif from_zone != "hand":
+			c.reset_permanent_buffs()
+	elif to_zone in ["graveyard", "banished", "deck", "relics", "equipped"] or (to_zone == "" and from_zone == "board"):
+		c.reset_permanent_buffs()
+	elif to_zone == "sanctuary" and c.incarnation:
+		players[c.owner]["incarnation"]["permanent_buffs"] = c.permanent_buffs.duplicate(true)
+		players[c.owner]["incarnation"]["in_zone"] = true
 	if c.incarnation and to_zone in ["graveyard", "banished"]:
 		# The Encarnação never rests in the graveyard or among the banished, wherever it was headed
 		# (discard, overdraw, a fizzled cast...): it goes back to the Santuário instead.
@@ -636,6 +646,7 @@ func window_progress(p: int, cd: Dictionary) -> Dictionary:
 ## the deck as a normal card at its base cost, for good. Otherwise it goes back to the Santuário.
 func _incarnation_leaves(p: int) -> void:
 	var l: Dictionary = players[p]["incarnation"]
+	l["permanent_buffs"] = {} # dying or being banished resets the Encarnação before it returns
 	if incarnation_cost(p) <= MOMENTUM_CAP:
 		l["in_zone"] = true
 		return
@@ -1379,13 +1390,14 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 		return []
 	var pl: Dictionary = players[p]
 	var spent_ice_spell_discount := ice_spell_discount(p, cd) > 0 # read before paying: the discount is for the first spell only
-	_pay(p, cost_of(p, cd, inst) + (counter_extra(cd, target) if spec == "enemy_stack" else 0), _is_spell(cd))
+	var paid_cost := cost_of(p, cd, inst) + (counter_extra(cd, target) if spec == "enemy_stack" else 0)
+	_pay(p, paid_cost, _is_spell(cd))
 	if spent_ice_spell_discount:
 		pl["ice_spell_discount_used"] = true
 	pl["graveyard" if from_graveyard else "hand"].erase(inst)
 	_note_card_played_for_rusco(p, cd)
 	_move(inst, "")
-	var play_event := {"type": "play", "player": p, "uid": hand_uid, "card_id": inst.card_id}
+	var play_event := {"type": "play", "player": p, "uid": hand_uid, "card_id": inst.card_id, "cost": paid_cost}
 	if target != 0:
 		play_event["target"] = target
 	if target2 != 0:
@@ -1427,11 +1439,12 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 ## enters (at `slot`) only when that item resolves; if it is countered, the card goes to the graveyard.
 ## `banish_uid` (0 = none) is the permanent banished from a full field to make room, paid right away.
 func _play_subito(p: int, inst: Card, cd: Dictionary, slot: int, banish_uid := 0) -> Array:
-	_pay(p, subito_cost(p, cd, inst), true)
+	var paid_cost := subito_cost(p, cd, inst)
+	_pay(p, paid_cost, true)
 	players[p]["hand"].erase(inst)
 	_note_card_played_for_rusco(p, cd)
 	_move(inst, "")
-	_emit({"type": "play", "player": p, "uid": inst.uid, "card_id": inst.card_id, "subito": true})
+	_emit({"type": "play", "player": p, "uid": inst.uid, "card_id": inst.card_id, "subito": true, "cost": paid_cost})
 	if banish_uid != 0:
 		slot = _banish_for_room(p, banish_uid, slot)
 	_stack_cards[inst.uid] = inst
@@ -1455,12 +1468,14 @@ func cast_incarnation(p: int, _target: int = 0, slot: int = -1, banish_uid: int 
 	if must_banish and not room_banish_options(p).has(banish_uid):
 		return []
 	var pl: Dictionary = players[p]
-	pl["momentum"] -= incarnation_cost(p)
+	var paid_cost := incarnation_cost(p)
+	pl["momentum"] -= paid_cost
 	pl["incarnation"]["in_zone"] = false
 	pl["incarnation"]["casts"] += 1
 	var c := Card.new(_uid(), pl["incarnation"]["card_id"], p)
+	c.permanent_buffs = pl["incarnation"].get("permanent_buffs", {}).duplicate(true)
 	_note_card_played_for_rusco(p, CardDB.card(c.card_id)) # casting from the Santuário is playing a card too
-	_emit({"type": "play", "player": p, "uid": c.uid, "card_id": c.card_id, "incarnation": true})
+	_emit({"type": "play", "player": p, "uid": c.uid, "card_id": c.card_id, "incarnation": true, "cost": paid_cost})
 	if must_banish:
 		slot = _banish_for_room(p, banish_uid, slot)
 	_summon(p, c, true, 0, {}, true, slot, true)
@@ -1576,8 +1591,9 @@ func banish_unit(exiled: Card) -> void:
 		_move(exiled, "banished")
 	_emit({"type": "banish", "uid": exiled.uid, "player": owner_player, "card_id": exiled.card_id})
 
-## Sends a card back to its owner's hand: a unit from the board (a bounce, not a death: no Ao Morrer, no Aliado Morre)
-## or a card from the graveyard. `cost_increase` makes this copy cost that much more from now on (it stacks on every return).
+## Sends a card back to its owner's hand: a unit from the board (a bounce, not a death: no Ao Morrer, no Aliado Morre;
+## its permanent buffs stay, and its equipment returns separately) or a card from the graveyard.
+## `cost_increase` makes this copy cost that much more from now on (it stacks on every return).
 ## A token just vanishes (it is deleted from the game). The Encarnação CAN come back to the hand like any
 ## unit (it keeps its Encarnação status; played from the hand it costs its normal cost, with no commander
 ## tax and without counting as a new cast) and only goes back to the Santuário if it would go to the graveyard
@@ -1587,7 +1603,7 @@ func return_to_hand(c: Card, cost_increase := 0) -> bool:
 	var owner_player: int = c.owner
 	if c.zone == "board":
 		players[owner_player]["board"].erase(c)
-		_release_equipment(c)
+		stack_system().return_equipment_to_hand(c)
 		if c.data().get("token", false):
 			_move(c, "")
 			_emit({"type": "return_to_hand", "uid": c.uid, "player": owner_player, "card_id": c.card_id})
@@ -1600,6 +1616,25 @@ func return_to_hand(c: Card, cost_increase := 0) -> bool:
 	players[owner_player]["hand"].append(c)
 	_move(c, "hand")
 	_emit({"type": "return_to_hand", "uid": c.uid, "player": owner_player, "card_id": c.card_id})
+	return true
+
+## Returns the Encarnação to the Santuário without treating it as a death; its permanent upgrades survive.
+func return_incarnation_to_sanctuary(c: Card) -> bool:
+	if c == null or not c.incarnation:
+		return false
+	var owner_player: int = c.owner
+	var sanctuary: Dictionary = players[owner_player]["incarnation"]
+	if sanctuary["in_zone"] or sanctuary.get("retired", false):
+		return false
+	if c.zone == "board":
+		players[owner_player]["board"].erase(c)
+		stack_system().return_equipment_to_hand(c)
+		c.capture_permanent_buffs()
+	elif c.zone == "hand":
+		players[owner_player]["hand"].erase(c)
+	else:
+		return false
+	_move(c, "sanctuary")
 	return true
 
 ## Gives up priority. With items on the stack, everything resolves (newest first);

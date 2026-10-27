@@ -1,7 +1,8 @@
 class_name ReturnToHandEffect
 extends Effect
 ## "return_to_hand": the target card goes back to its owner's hand (a bounce, or a card coming back from the graveyard).
-## It is not a death: a unit sent back from the board has no Ao Morrer and no Aliado Morre, and its equipment is released.
+## It is not a death: a unit sent back from the board has no Ao Morrer or Aliado Morre; its permanent buffs stay with it,
+## and its equipment returns separately to its owner's hand.
 ## Use any unit target to bounce a unit, or "self_card" on an "on_death" trigger so the dying card comes back from the graveyard.
 ##   "cost_increase": N (optional, default 0): the card costs N more from now on, every time it comes back, with no cap
 ##   (used with "cost_increase_doubles", Nerithia's increase starts at 2 and doubles on each return).

@@ -106,6 +106,8 @@ func _init() -> void:
 	_test_ai_incarnation_priority()
 	_test_incarnation_retire()
 	_test_fatigue()
+	_test_play_cost_snapshot()
+	_test_bounce_permanent_buffs()
 	_test_naelys_bounce_discount()
 	_test_counter()
 	_test_fight()
@@ -2135,6 +2137,96 @@ func _test_enter_target() -> void:
 	lone.play_card(0, myrra_ally)
 	check(lone.phase == "enter_target", "Myrra com outra unidade aliada: pede alvo")
 
+func _test_bounce_permanent_buffs() -> void:
+	_tcard("t_persistent_bounce", 3, 4, [])
+	var g := _new_game()
+	var p: int = g.active
+	var unit := _put(g, p, "t_persistent_bounce")
+	var permanent_buff: Effect = EffectRegistry.parse_list([{
+		"action": "buff", "target": "ally_unit", "atk": 2, "hp": 3, "armor": 1, "keywords": ["roubo_de_vida"],
+	}])[0]
+	permanent_buff.apply(EffectContext.new(g, p, ""), unit.uid)
+	var temporary_buff: Effect = EffectRegistry.parse_list([{
+		"action": "buff", "target": "ally_unit", "atk": 4, "temp": true,
+	}])[0]
+	temporary_buff.apply(EffectContext.new(g, p, ""), unit.uid)
+	unit.bonus_atk = 6 # a Constante is recomputed from its source, not retained on the card
+	unit.bonus_hp = 2
+	unit.has_bonus = true
+	unit.shield = true
+	unit.atk += 3
+	var equipment := Card.new(g._uid(), "manoplas_incandescentes", p, "equipped")
+	unit.equipment = equipment
+	unit.equipment_grant = {"atk": 3, "shield": true}
+
+	check(g.return_to_hand(unit), "devolver unidade fortalecida à mão")
+	check(g.players[p]["hand"].has(equipment) and equipment.zone == "hand", "equipamento volta separado à mão")
+	check(unit.permanent_buffs.get("atk", 0) == 2 and unit.permanent_buffs.get("hp", 0) == 3, "fortalecimentos permanentes próprios são guardados")
+	check(unit.permanent_buffs.get("armor", 0) == 1 and unit.permanent_buffs.get("keywords", []).has("roubo_de_vida"), "Armadura e palavra-chave permanentes são guardadas")
+	check(not unit.permanent_buffs.get("shield", false) and not unit.shield, "proteção concedida pelo equipamento não acompanha a unidade")
+	check(unit.permanent_buffs.get("temp_atk", 0) == 0 and unit.permanent_buffs.get("bonus_atk", 0) == 0, "bônus temporários e Constantes não são guardados")
+	check(unit.atk == 5 and unit.temp_atk == 4, "remover equipamento não desfaz buff próprio nem altera o estado temporário antes da nova entrada")
+	var mirrored := Card.from_dict(unit.to_dict(), "hand", p)
+	check(mirrored.permanent_buffs == unit.permanent_buffs, "fortalecimentos da mão são sincronizados pela rede")
+
+	g.players[p]["hand"].erase(unit)
+	g._move(unit, "")
+	g._summon(p, unit, false, 0)
+	check(unit.atk == 5 and unit.hp == 7 and unit.armor == 1, "bônus permanentes voltam ao jogar a unidade da mão")
+	check(unit.temp_atk == 0 and unit.bonus_atk == 0 and unit.bonus_hp == 0, "bônus temporário e aura não voltam da mão")
+	check(unit.keywords.has("roubo_de_vida"), "palavra-chave permanente própria volta junto")
+
+	_kill(g, unit)
+	check(g.players[p]["graveyard"].has(unit) and unit.permanent_buffs.is_empty(), "morrer limpa os bônus permanentes")
+
+	var direct_to_graveyard := _put(g, p, "t_persistent_bounce")
+	permanent_buff.apply(EffectContext.new(g, p, ""), direct_to_graveyard.uid)
+	g.players[p]["board"].erase(direct_to_graveyard)
+	g.players[p]["graveyard"].append(direct_to_graveyard)
+	g._move(direct_to_graveyard, "graveyard")
+	check(direct_to_graveyard.permanent_buffs.is_empty(), "ir diretamente ao cemitério também limpa os bônus")
+
+	var incarnation_state: Dictionary = g.players[p]["incarnation"]
+	incarnation_state["card_id"] = "t_persistent_bounce"
+	incarnation_state["in_zone"] = false
+	var incarnation := Card.new(g._uid(), "t_persistent_bounce", p, "hand")
+	incarnation.incarnation = true
+	incarnation.permanent_buffs = {"atk": 2, "hp": 1}
+	g.players[p]["hand"].append(incarnation)
+	check(g.return_incarnation_to_sanctuary(incarnation), "Encarnação pode ir ao Santuário sem morrer")
+	check(incarnation_state["permanent_buffs"] == {"atk": 2, "hp": 1}, "Santuário guarda os bônus da Encarnação sem morte")
+	g.players[p]["momentum"] = GameState.MOMENTUM_CAP
+	g.cast_incarnation(p)
+	var restored_incarnation: Card = g.players[p]["board"].back()
+	check(restored_incarnation.atk == 5 and restored_incarnation.hp == 5, "Encarnação conjurada do Santuário mantém os bônus")
+	_kill(g, restored_incarnation)
+	check(incarnation_state["in_zone"] and incarnation_state["permanent_buffs"].is_empty(), "morte da Encarnação limpa os bônus antes de voltar ao Santuário")
+
+func _test_play_cost_snapshot() -> void:
+	_tspell("t_discounted_play_snapshot", "lento", [])
+	var discounted_spell: Dictionary = CardDB.data()["cards"]["t_discounted_play_snapshot"]
+	discounted_spell["cost"] = 5
+	discounted_spell["effects"] = [{"action": "cost_reduction", "per": "idle_turns", "amount": 2}]
+	var g := _new_game()
+	_quiet(g)
+	var p: int = g.active
+	g.players[p]["momentum"] = 10
+	g.players[p]["idle_turns"] = 1
+	var uid := _give(g, p, "t_discounted_play_snapshot")
+	var play_events := g.play_card(p, uid)
+	var play_event: Dictionary = play_events.filter(func(e): return e["type"] == "play")[0]
+	check(int(play_event.get("cost", -1)) == 3 and int(discounted_spell["cost"]) == 5, "evento de jogada captura o custo reduzido no momento do lançamento")
+
+	var incarnation_game := _new_game()
+	_quiet(incarnation_game)
+	p = incarnation_game.active
+	incarnation_game.players[p]["momentum"] = 10
+	incarnation_game.players[p]["incarnation"]["casts"] = 2
+	var expected_incarnation_cost := incarnation_game.incarnation_cost(p)
+	var incarnation_events := incarnation_game.cast_incarnation(p)
+	var incarnation_play: Dictionary = incarnation_events.filter(func(e): return e["type"] == "play")[0]
+	check(int(incarnation_play.get("cost", -1)) == expected_incarnation_cost, "evento da Encarnação captura custo e taxa atuais")
+
 func _test_naelys_bounce_discount() -> void:
 	_tcard("t_naelys_bounce_ally", 1, 3, [])
 	_tcard("t_naelys_bounce_draw", 1, 3, [])
@@ -2297,7 +2389,7 @@ func _test_ai_spell_preview() -> void:
 ## The AI's Ao Entrar damage (Ronan): it is never skipped when the damage stays marked on a target,
 ## even though Ronan also has an Ao Sofrer Dano buff. It is skipped only when it would be wasted.
 func _test_ai_enter_damage() -> void:
-	# 1. a plain enemy that survives the 2 damage: the damage is permanent, so the AI uses it
+	# 1. a plain enemy that survives the 3 damage: the damage is permanent, so the AI uses it
 	var g := _new_game()
 	_quiet(g)
 	var bastion := _put(g, 1, "bastionario_de_basalto")
@@ -2305,17 +2397,17 @@ func _test_ai_enter_damage() -> void:
 	g.play_card(0, _give(g, 0, "ronan"))
 	check(g.phase == "enter_target", "IA/Ronan: pede alvo do Ao Entrar")
 	SimpleAI.step(g, 0)
-	check(g.find_unit(bastion.uid).damage == 2, "IA/Ronan: causa o dano do Ao Entrar em unidade sem regeneração")
+	check(g.find_unit(bastion.uid).damage == 3, "IA/Ronan: causa o dano do Ao Entrar em unidade sem regeneração")
 
 	# 2. the only enemies would heal (Regeneração) or grow from the damage (Ao Sofrer Dano): nothing gained
 	var wasted := _new_game()
 	_quiet(wasted)
 	var coral := _put(wasted, 1, "sentinela_coral")
-	var enemy_ronan := _put(wasted, 1, "ronan")
+	var enemy_grower := _put(wasted, 1, "avarik")
 	wasted.players[0]["momentum"] = 10
 	wasted.play_card(0, _give(wasted, 0, "ronan"))
 	SimpleAI.step(wasted, 0)
-	check(wasted.find_unit(coral.uid).damage == 0 and wasted.find_unit(enemy_ronan.uid).damage == 0, "IA/Ronan: pula o Ao Entrar quando o dano se perderia ou fortaleceria o alvo")
+	check(wasted.find_unit(coral.uid).damage == 0 and wasted.find_unit(enemy_grower.uid).damage == 0, "IA/Ronan: pula o Ao Entrar quando o dano se perderia ou fortaleceria o alvo")
 	check(wasted.phase != "enter_target", "IA/Ronan: recusar o Ao Entrar encerra a escolha")
 
 	# 3. one regenerating enemy next to one that keeps the damage: it picks the one that keeps it
@@ -2326,7 +2418,7 @@ func _test_ai_enter_damage() -> void:
 	mixed.players[0]["momentum"] = 10
 	mixed.play_card(0, _give(mixed, 0, "ronan"))
 	SimpleAI.step(mixed, 0)
-	check(mixed.find_unit(healing.uid).damage == 0 and mixed.find_unit(lasting.uid).damage == 2, "IA/Ronan: ignora quem regenera e fere quem guarda o dano")
+	check(mixed.find_unit(healing.uid).damage == 0 and mixed.find_unit(lasting.uid).damage == 3, "IA/Ronan: ignora quem regenera e fere quem guarda o dano")
 
 ## Tharox's Massa Inamolgável (+1 Armadura until his next turn): the AI only spends the Momentum when an
 ## exhausted ally would die to an enemy challenge without it and survive with it.
@@ -2902,6 +2994,7 @@ func _test_overlay_keyword_immunities() -> void:
 	var frozen_overlay := CardOverlay.describe("estilhaco_gelido", {}, -1, "", GameState.SNOWBALL_BASE_LEVEL)
 	var burn_overlay := CardOverlay.describe("irina_lancachamas", {}, -1, "", GameState.SNOWBALL_BASE_LEVEL)
 	var poison_overlay := CardOverlay.describe("cicuta_no_cha", {}, -1, "", GameState.SNOWBALL_BASE_LEVEL)
+	var equipment_overlay := CardOverlay.describe("manoplas_incandescentes", {}, -1, "", GameState.SNOWBALL_BASE_LEVEL)
 	check(freeze_overlay.contains("Congelar[/b]") and freeze_overlay.contains("Unidades de Gelo têm imunidade inata ao "),
 			"overlay: a menção a Congele explica Congelar e a imunidade de Gelo")
 	check(frozen_overlay.contains("Congelar[/b]"), "overlay: a menção a Congelada também explica Congelar")
@@ -2909,6 +3002,9 @@ func _test_overlay_keyword_immunities() -> void:
 			"overlay: a menção a Queimadura explica sua imunidade inata")
 	check(poison_overlay.contains("Veneno[/b]") and poison_overlay.contains("ou de Metal não recebem"),
 			"overlay: a menção a Veneno explica suas imunidades inatas")
+	check(equipment_overlay.contains("Regra inata:") and equipment_overlay.contains("Uma unidade só pode ter um Equipamento por vez")
+			and equipment_overlay.contains("o anterior volta para a mão do dono"),
+			"overlay: equipamento explica a regra inata de um equipamento por unidade")
 
 func _test_burn() -> void:
 	# Queimadura accumulates, uses its periodic-damage rule at the controller's turn start, then clears.
@@ -8946,8 +9042,8 @@ func _test_eryon_deck() -> void:
 	check(g.phase != "search", "Recado Urgente: sem o Barão no deck não abre escolha (Gertrudes não conta)")
 	check(g.players[a]["hand"].size() == hand_before + 1, "Recado Urgente: sem o Barão no deck compra 1 carta (%d)" % (g.players[a]["hand"].size() - hand_before))
 
-## Ao Desafiar (on_challenge) and Rália: when she challenges a unit she throws X damage (her Ataque) at up to 4
-## different random enemies, the Leader included, and that damage heals her Leader and herself.
+## Ao Desafiar (on_challenge) and Rália: when she challenges a unit she throws a fixed 3 damage at up to 3
+## different random enemy units (never the Leader), and that damage heals her Leader and herself.
 func _test_ralia_deal_damage() -> void:
 	var ralia_data: Dictionary = CardDB.card("ralia")
 	check(ralia_data["atk"] == 3 and ralia_data["hp"] == 7 and ralia_data["keywords"] == ["intimidacao", "roubo_de_vida"] \
@@ -8967,7 +9063,7 @@ func _test_ralia_deal_damage() -> void:
 	check(g.players[a]["leader_hp"] == g.players[a]["leader_max"] - 7, "Rália: atacar o Líder só cura 3 do golpe (%d)" % g.players[a]["leader_hp"])
 	check(ralia.damage == 5, "Rália: atacar o Líder não cura a própria Rália (%d)" % ralia.damage)
 
-	# challenging with 4 enemy units + the Leader in the pool: exactly 4 different picks of 3 each,
+	# challenging with 4 enemy units in the pool: exactly 3 different picks of 3 each, the enemy Leader is never hit,
 	# and the effect's own damage (no source) never fires it again
 	_tcard("t_ralia_dummy", 0, 30, [])
 	g = _new_game()
@@ -8989,11 +9085,9 @@ func _test_ralia_deal_damage() -> void:
 		var effect_damage := dummy.damage - (3 if dummy == dummies[0] else 0)
 		effect_hits += effect_damage / 3
 		hit_twice = hit_twice or effect_damage > 3
-	var leader_effect_damage := 99 - int(g.players[enemy]["leader_hp"])
-	effect_hits += leader_effect_damage / 3
-	hit_twice = hit_twice or leader_effect_damage > 3
-	check(effect_hits == 4 and not hit_twice, "Rália: 4 inimigos diferentes levam 3 cada (%d golpes, repetido: %s)" % [effect_hits, hit_twice])
-	check(g.players[a]["leader_hp"] == g.players[a]["leader_max"] - 5, "Rália: o golpe cura 3 e o efeito cura 12 (4 x 3) (%d)" % g.players[a]["leader_hp"])
+	check(g.players[enemy]["leader_hp"] == 99, "Rália: o efeito nunca acerta o Líder inimigo (%d)" % g.players[enemy]["leader_hp"])
+	check(effect_hits == 3 and not hit_twice, "Rália: 3 unidades inimigas diferentes levam 3 cada (%d golpes, repetido: %s)" % [effect_hits, hit_twice])
+	check(g.players[a]["leader_hp"] == g.players[a]["leader_max"] - 8, "Rália: o golpe cura 3 e o efeito cura 9 (3 x 3) (%d)" % g.players[a]["leader_hp"])
 
 	# she dies to the counter-attack: the effect already resolved when she declared the challenge
 	_tcard("t_ralia_brute", 9, 30, [])
@@ -9007,7 +9101,7 @@ func _test_ralia_deal_damage() -> void:
 	g.players[enemy]["leader_hp"] = 99
 	_hit(g, ralia, brute.uid)
 	check(g.find_unit(ralia.uid) == null, "Rália: morre no revide de 9")
-	check(brute.damage == 6 and g.players[enemy]["leader_hp"] == 96, "Rália morta no revide: o efeito já tinha batido 3 no bruto e no Líder (bruto %d, Líder %d)" % [brute.damage, g.players[enemy]["leader_hp"]])
+	check(brute.damage == 6 and g.players[enemy]["leader_hp"] == 99, "Rália morta no revide: o efeito já tinha batido 3 no bruto, e o Líder ficou intacto (bruto %d, Líder %d)" % [brute.damage, g.players[enemy]["leader_hp"]])
 
 	# a Silenciada Rália challenges with no Ao Desafiar
 	g = _new_game()
