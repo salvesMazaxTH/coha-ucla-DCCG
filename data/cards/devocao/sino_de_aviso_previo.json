@@ -5,7 +5,7 @@
   "essence": "devocao",
   "element": "luz",
   "cost": 2,
-  "durability": 3,
+  "durability": 2,
   "art": "devocao/sino_de_aviso_previo.webp",
   "effects": [
     {
