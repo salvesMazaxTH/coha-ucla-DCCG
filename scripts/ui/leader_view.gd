@@ -37,7 +37,7 @@ var hp_max := 0
 var deck := 0
 var fatigue := 0 ## damage of the next draw with the deck empty, shown in place of the 0
 var grave := 0
-var poison := 0 ## Veneno markers on this Leader (they lose half their pile per tick; Viprax needs 8 to execute), drawn by CardView's shared dot badge
+var dot_markers: Dictionary = {}
 var requiem := 0 ## Réquiem spells castable from the graveyard right now (glow + badge on the counter)
 var ability_ready := false
 var ability_uses := -1: ## uses of the per-turn-limited ability spent this turn; -1 = the ability has no limit to count
@@ -295,12 +295,7 @@ func _draw() -> void:
 	draw_polyline(sh + PackedVector2Array([sh[0]]), UITheme.GOLD if not low else Color(1, 0.5, 0.4, 0.6 + 0.4 * pulse), 2, true)
 	_text(f_num, str(hp), hc + Vector2(0, 9), 26, Color.WHITE)
 
-	# Veneno markers: the same shared medallion used by unit cards, with the larger Leader scale.
-	if poison > 0:
-		var badge_radius := 12.0 * CardView.DOT_BADGE_ENLARGEMENT
-		var badge_margin := badge_radius * 1.2 + 1.0 # keep the medallion's shadow inside the art
-		var badge_center := Vector2(ART.end.x - badge_margin, ART.position.y + badge_margin)
-		CardView.draw_dot_badge(self, badge_center, badge_radius, 1.0, "veneno", poison, pulse, 1.2)
+	_draw_dot_badges(pulse)
 
 	_draw_ward_badge(f_num)
 
@@ -335,6 +330,21 @@ func _draw() -> void:
 		_deck_pile.show_count(deck, fatigue)
 	if shows_graveyard:
 		_counter(Vector2(230, 98), true, grave, true)
+
+func _draw_dot_badges(pulse: float) -> void:
+	var active_dots: Array = []
+	for dot_id in ["queimadura", "veneno", "sangramento"]:
+		if int(dot_markers.get(dot_id, 0)) > 0:
+			active_dots.append(dot_id)
+	if active_dots.is_empty():
+		return
+	var enlargement: float = CardView.DOT_BADGE_ENLARGEMENT if active_dots.size() == 1 else (1.35 if active_dots.size() == 2 else 0.85)
+	var radius := 12.0 * enlargement
+	var shadow_radius := radius * 1.2
+	var center := Vector2(ART.end.x - shadow_radius - 1.0, ART.position.y + shadow_radius + 1.0)
+	for dot_id in active_dots:
+		CardView.draw_dot_badge(self, center, radius, 1.0, dot_id, int(dot_markers[dot_id]), pulse, 1.2)
+		center.y += shadow_radius * 2.0 + 1.0
 
 ## Small plate with a drawn icon (tombstone) and a count.
 func _counter(pos: Vector2, tomb: bool, n: int, clickable := false) -> void:

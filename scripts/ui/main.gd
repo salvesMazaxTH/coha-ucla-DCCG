@@ -1680,7 +1680,11 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	lv.shows_deck_pile = false # both decks and graveyards sit by the right edge of the table (see _render_piles)
 	lv.shows_graveyard = false
 	lv.grave = pl["graveyard"].size()
-	lv.poison = g.leader_dot_markers(p, "veneno")
+	lv.dot_markers = {
+		"queimadura": g.leader_dot_markers(p, "queimadura"),
+		"veneno": g.leader_dot_markers(p, "veneno"),
+		"sangramento": g.leader_dot_markers(p, "sangramento"),
+	}
 	lv.ward_hits = g.leader_negations_left(p)
 	lv.requiem = g.requiem_cards(p).size() if p == viewer and not _is_ai(p) and g.phase in ["main", "combat"] else 0
 	lv.ability_ready = p == viewer and g.can_use_ability(p, true) and not _is_ai(p)
@@ -1883,21 +1887,50 @@ func _render_board(p: int, y: float) -> void:
 			_tag(v, "CONGELADA", ICE)
 		if unit.is_stunned():
 			_tag(v, "ATORDOADA", CardView.STUN_COL)
-		for worn_index in unit.equipped_cards.size():
-			# the equipment cards sit under their unit, peeking out toward the middle of the table (each further one a bit more)
-			var worn: Card = unit.equipped_cards[worn_index]
-			var equipment_view_data := {"uid": worn.uid}
-			if worn.durability_left() >= 0:
-				equipment_view_data["durability_left"] = worn.durability_left()
-			var eq := CardView.new().setup(worn.card_id, equipment_view_data, 1.15)
-			# anchored to the unit's resting slot, so a tapped unit stepping forward does not drag it along
-			var peek := 22 + 14 * worn_index
-			eq.position = Vector2(v.position.x, roundf(y)) + Vector2(8 + 12 * worn_index, peek if p == viewer else -peek)
-			eq.right_clicked.connect(_show_overlay)
-			layer.add_child(eq)
-			layer.move_child(eq, v.get_index())
-			views["eq%d_%d" % [unit.uid, worn_index]] = eq # kept so the drag gap can slide it along with its unit
+		if not unit.equipped_cards.is_empty():
+			_render_equipment_preview(unit, p, v, y)
+			_render_equipment_badge(unit, p, v, y, card_size)
 	table.set_barrier(TableView.SIDE_MINE if p == viewer else TableView.SIDE_ENEMY, barrier_gaps)
+
+func _render_equipment_preview(unit: Card, owner: int, unit_view: CardView, board_y: float) -> void:
+	var preview_count := mini(2, unit.equipped_cards.size())
+	for preview_index in preview_count:
+		var worn_index := unit.equipped_cards.size() - preview_count + preview_index
+		var worn: Card = unit.equipped_cards[worn_index]
+		var equipment_data := {"uid": worn.uid}
+		if worn.durability_left() >= 0:
+			equipment_data["durability_left"] = worn.durability_left()
+		var preview := CardView.new().setup(worn.card_id, equipment_data, 1.15)
+		var peek := 6 + 6 * preview_index
+		preview.position = Vector2(unit_view.position.x + 4 + 4 * preview_index,
+				roundf(board_y + peek if owner == viewer else board_y - peek))
+		preview.right_clicked.connect(_show_overlay)
+		layer.add_child(preview)
+		layer.move_child(preview, unit_view.get_index())
+		views["eqpreview%d_%d" % [unit.uid, preview_index]] = preview
+
+func _render_equipment_badge(unit: Card, owner: int, unit_view: CardView, board_y: float, card_size: Vector2) -> void:
+	var equipment_count := unit.equipped_cards.size()
+	var badge := Button.new()
+	badge.text = "%d EQ." % equipment_count
+	badge.custom_minimum_size = Vector2(78, 28)
+	badge.size = badge.custom_minimum_size
+	badge.add_theme_font_size_override("font_size", 13)
+	badge.focus_mode = Control.FOCUS_NONE
+	badge.z_index = 20
+	var tooltip := "Clique para inspecionar os equipamentos:"
+	for index in mini(4, equipment_count):
+		var worn: Card = unit.equipped_cards[index]
+		tooltip += "\n- " + String(CardDB.card(worn.card_id).get("name", worn.card_id))
+	if equipment_count > 4:
+		tooltip += "\n- e mais %d" % (equipment_count - 4)
+	badge.tooltip_text = tooltip
+	badge.pressed.connect(_show_equipment_collection.bind(unit, owner))
+	var x := roundf(unit_view.position.x + (unit_view.size.x - badge.size.x) / 2.0)
+	var y := roundf(board_y + card_size.y + 14.0 if owner == viewer else board_y - badge.size.y - 14.0)
+	badge.position = Vector2(x, y)
+	layer.add_child(badge)
+	views["eqbadge%d" % unit.uid] = badge
 
 ## A tapped, not Congelada Provocação unit holds the barrier on the divider (drawn by TableView) shut
 ## except in front of itself. Returns whether `unit` is holding it right now.
@@ -2185,11 +2218,15 @@ func _show_drop_gap(slot: int) -> void:
 		var shift := new_x - unit_view.position.x
 		var tw := unit_view.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 		tw.tween_property(unit_view, "position:x", new_x, 0.12)
-		for worn_index in unit.equipped_cards.size():
-			var equipment_view: Control = views.get("eq%d_%d" % [unit.uid, worn_index])
-			if is_instance_valid(equipment_view):
-				var eq_tw := equipment_view.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-				eq_tw.tween_property(equipment_view, "position:x", equipment_view.position.x + shift, 0.12)
+		var equipment_badge: Control = views.get("eqbadge%d" % unit.uid)
+		if is_instance_valid(equipment_badge):
+			var badge_tw := equipment_badge.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+			badge_tw.tween_property(equipment_badge, "position:x", equipment_badge.position.x + shift, 0.12)
+		for preview_index in mini(2, unit.equipped_cards.size()):
+			var equipment_preview: Control = views.get("eqpreview%d_%d" % [unit.uid, preview_index])
+			if is_instance_valid(equipment_preview):
+				var preview_tw := equipment_preview.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+				preview_tw.tween_property(equipment_preview, "position:x", equipment_preview.position.x + shift, 0.12)
 
 func _hand_drag_move(v: CardView) -> void:
 	var m := layer.get_local_mouse_position()
@@ -2603,8 +2640,8 @@ func _render_stack() -> void:
 		tab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		tab.add_theme_stylebox_override("panel", UITheme.box(_leader_color(it["player"]), 3))
 		layer.add_child(tab)
-		if it["kind"] in ["unit_ability", "subito", "enter_trigger"]:
-			var rb := _stack_pill({"unit_ability": "AO ATIVAR", "subito": "SÚBITO", "enter_trigger": "AO ENTRAR"}[it["kind"]], UITheme.GOLD_LIGHT)
+		if it["kind"] in ["unit_ability", "artifact_equip", "subito", "enter_trigger"]:
+			var rb := _stack_pill({"unit_ability": "AO ATIVAR", "artifact_equip": "EQUIPAR", "subito": "SÚBITO", "enter_trigger": "AO ENTRAR"}[it["kind"]], UITheme.GOLD_LIGHT)
 			rb.position = Vector2(cx + 6.0, pos.y + 4.0)
 			layer.add_child(rb)
 		var price := _counter_price(sid)
@@ -3357,6 +3394,10 @@ func _aimed_effects() -> Array:
 				activator = g.find_relic(targeting["uid"])
 			if activator != null:
 				return g.card_of(activator).get("activated", {}).get("effects", [])
+		"field_equip":
+			var artifact := g.find_relic(targeting["uid"])
+			if artifact != null:
+				return g.card_of(artifact).get("equip_from_field", {}).get("effects", [])
 	return []
 
 ## True when a multi-target effect has already committed this uid as its first pick.
@@ -3366,7 +3407,8 @@ func _is_first_target(uid: int) -> bool:
 	return not targeting.is_empty() and targeting.has("first") and int(targeting["first"]) == uid
 
 func _fire_target(uid: int, equipment_confirmed := false) -> void:
-	if targeting["kind"] == "hand" and not equipment_confirmed and CardDB.is_equipment(CardDB.card(targeting["card_id"])):
+	if targeting["kind"] in ["hand", "field_equip"] and not equipment_confirmed \
+			and (targeting["kind"] == "field_equip" or CardDB.is_equipment(CardDB.card(targeting["card_id"]))):
 		var unit := g.find_unit(uid)
 		if unit != null and not unit.has_equipment_room():
 			_ask_confirm("SUBSTITUIR EQUIPAMENTO?",
@@ -3403,6 +3445,8 @@ func _fire_target(uid: int, equipment_confirmed := false) -> void:
 			_do(g.use_ability(viewer, uid))
 		"unit_ability":
 			_do(g.activate(viewer, targeting["uid"], uid))
+		"field_equip":
+			_do(g.equip_from_field(viewer, targeting["uid"], uid))
 		"enter":
 			_do(g.choose_enter_target(viewer, uid))
 		"attack":
@@ -3410,7 +3454,7 @@ func _fire_target(uid: int, equipment_confirmed := false) -> void:
 
 func _confirm_equipment_target(hand_uid: int, target_uid: int) -> void:
 	_close_concede()
-	if g == null or not _my_input() or targeting.get("kind") != "hand" \
+	if g == null or not _my_input() or targeting.get("kind") not in ["hand", "field_equip"] \
 			or int(targeting.get("uid", 0)) != hand_uid or not _is_target(target_uid):
 		targeting = {}
 		_render()
@@ -3569,6 +3613,66 @@ func _scale_suffix(p: int, cd: Dictionary) -> String:
 	var n := g.scale_count(p, cd)
 	return " (agora: %d)" % n if n >= 0 else ""
 
+func _show_equipment_collection(unit: Card, owner: int) -> void:
+	if unit.equipped_cards.is_empty():
+		return
+	_close_overlay()
+	overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.84)
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.gui_input.connect(_dismiss_overlay_on_input)
+	add_child(overlay)
+
+	var columns := mini(5, unit.equipped_cards.size())
+	var gap := 12.0
+	var card_scale := minf(1.0, (stage_w - 120.0 - gap * (columns - 1)) / (columns * CardView.BASE.x))
+	var grid_width := columns * CardView.BASE.x * card_scale + gap * (columns - 1)
+	var rows := ceili(float(unit.equipped_cards.size()) / columns)
+	var grid_height := rows * CardView.BASE.y * card_scale + gap * (rows - 1)
+
+	var panel := PanelContainer.new()
+	var panel_style := UITheme.panel(14)
+	panel_style.set_content_margin_all(24)
+	panel.add_theme_stylebox_override("panel", panel_style)
+	panel.custom_minimum_size.x = grid_width + 48.0
+	overlay.add_child(panel)
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 10)
+	panel.add_child(content)
+	content.add_child(_label("EQUIPAMENTOS DE %s" % String(CardDB.card(unit.card_id).get("name", unit.card_id)),
+			28, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 5))
+	content.add_child(_label("%d equipamento(s) · clique em uma carta para inspecionar" % unit.equipped_cards.size(),
+			17, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(grid_width, minf(grid_height, STAGE_H - 280.0))
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content.add_child(scroll)
+	var grid := GridContainer.new()
+	grid.columns = columns
+	grid.add_theme_constant_override("h_separation", int(gap))
+	grid.add_theme_constant_override("v_separation", int(gap))
+	scroll.add_child(grid)
+	for worn: Card in unit.equipped_cards:
+		var equipment_data := {"uid": worn.uid}
+		if worn.durability_left() >= 0:
+			equipment_data["durability_left"] = worn.durability_left()
+		var card_view := CardView.new().setup(worn.card_id, equipment_data, card_scale)
+		card_view.snowball_level = int(g.players[owner]["snowball"])
+		card_view.left_clicked.connect(_show_overlay)
+		card_view.right_clicked.connect(_show_overlay)
+		grid.add_child(card_view)
+
+	var close_button := _button("FECHAR", _close_overlay)
+	close_button.custom_minimum_size = Vector2(grid_width, 44)
+	content.add_child(close_button)
+	panel.reset_size()
+	panel.position = (Vector2(stage_w, STAGE_H) - panel.size) / 2.0
+
+func _dismiss_overlay_on_input(e: InputEvent) -> void:
+	if e is InputEventMouseButton and e.pressed:
+		_close_overlay()
+
 func _show_overlay(v: CardView) -> void:
 	if v.face_down:
 		return
@@ -3585,7 +3689,12 @@ func _show_overlay(v: CardView) -> void:
 	var rt_x := CardOverlay.build(overlay, stage_w, v.card_id, v.inst, v.cost_override, v.text_suffix, v.snowball_level)
 	_add_base_card_button(v.card_id)
 	_add_full_art_button(String(cd.get("art", "")))
-	if cd.has("activated") and g != null and _my_input() and g.can_activate(viewer, v.uid, true):
+	var show_activate := cd.has("activated") and g != null and _my_input() and g.can_activate(viewer, v.uid, true)
+	var show_field_equip := cd.has("equip_from_field") and g != null and _my_input() and g.can_equip_from_field(viewer, v.uid, true)
+	var action_count := int(show_activate) + int(show_field_equip)
+	var action_width := 520.0 if action_count < 2 else 250.0
+	var action_index := 0
+	if show_activate:
 		var ab: Dictionary = cd["activated"]
 		var ab_uid := v.uid
 		var ab_btn := _button("Ativar (%d)" % int(ab["cost"]), func():
@@ -3602,9 +3711,28 @@ func _show_overlay(v: CardView) -> void:
 					if views.has(ab_uid) and is_instance_valid(views[ab_uid]):
 						_begin_aim(_visual_rect(views[ab_uid] as Control).get_center())
 					_render()), true)
-		ab_btn.position = Vector2(rt_x, 820.0 + BOT)
-		ab_btn.custom_minimum_size = Vector2(520, 96)
+		ab_btn.position = Vector2(rt_x + action_index * (action_width + 20.0), 820.0 + BOT)
+		ab_btn.custom_minimum_size = Vector2(action_width, 96)
 		overlay.add_child(ab_btn)
+		action_index += 1
+	if show_field_equip:
+		var equip_uid := v.uid
+		var equip_action: Dictionary = cd["equip_from_field"]
+		var equip_btn := _button("Equipar (%d)" % int(equip_action["cost"]), func():
+			_close_overlay()
+			_run_or_queue_input(func():
+				if not _my_input() or not g.can_equip_from_field(viewer, equip_uid, true):
+					return
+				var spec := g.target_spec(equip_action["effects"])
+				if spec == "":
+					return
+				targeting = {"kind": "field_equip", "uid": equip_uid, "spec": spec}
+				if views.has(equip_uid) and is_instance_valid(views[equip_uid]):
+					_begin_aim(_visual_rect(views[equip_uid] as Control).get_center())
+				_render()), true)
+		equip_btn.position = Vector2(rt_x + action_index * (action_width + 20.0), 820.0 + BOT)
+		equip_btn.custom_minimum_size = Vector2(action_width, 96)
+		overlay.add_child(equip_btn)
 	if g != null and _my_input() and _requiem_uids(viewer).has(v.uid):
 		# a Réquiem spell opened from the graveyard viewer: cast it from here (it is banished afterwards)
 		var requiem_uid := v.uid

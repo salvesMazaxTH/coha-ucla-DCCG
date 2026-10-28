@@ -62,6 +62,9 @@ func _init() -> void:
 			m._close_graveyard()
 		await process_frame
 	var last_turn: int = m.g.turn
+	if not await _check_equipment_ui(m):
+		quit(1)
+		return
 	if not await _check_deck_builder(m): # leaves the match, so the turn was read first
 		quit(1)
 		return
@@ -70,6 +73,87 @@ func _init() -> void:
 		return
 	print("smoke ok, turn ", last_turn)
 	quit()
+
+func _check_equipment_ui(m) -> bool:
+	m._start(false, "fogo", "agua")
+	m.pending_pass = false
+	var tobias := Card.new(m.g._uid(), "sacoleiro_tobias_bolso_fundo", 0, "board")
+	m.g.players[0]["board"].append(tobias)
+	var fixture_ids := ["amuleto_do_primeiro_floco", "manoplas_incandescentes"]
+	for index in 4:
+		tobias.equipped_cards.append(Card.new(m.g._uid(), fixture_ids[index % fixture_ids.size()], 0, "equipped"))
+	m._render()
+	await process_frame
+	var badge: Button = m.views.get("eqbadge%d" % tobias.uid)
+	if badge == null:
+		push_error("o indicador de equipamentos não foi renderizado (board=%d, equipamentos=%d, views=%s)" % [
+			m.g.players[0]["board"].size(), tobias.equipped_cards.size(), m.views.keys()])
+		return false
+	if not badge.tooltip_text.contains(String(CardDB.card(fixture_ids[0])["name"])) \
+			or not badge.tooltip_text.contains(String(CardDB.card(fixture_ids[1])["name"])):
+		push_error("o tooltip não identifica os quatro equipamentos: %s" % badge.tooltip_text)
+		return false
+	var back_preview: CardView = m.views.get("eqpreview%d_0" % tobias.uid)
+	var front_preview: CardView = m.views.get("eqpreview%d_1" % tobias.uid)
+	if back_preview == null or front_preview == null \
+			or not is_equal_approx(front_preview.position.y - back_preview.position.y, 6.0):
+		push_error("a pilha deveria mostrar só duas cartas com uma borda traseira discreta")
+		return false
+	badge.pressed.emit()
+	await process_frame
+	var panel: PanelContainer = m.overlay.get_child(0)
+	var content: VBoxContainer = panel.get_child(0)
+	var grid: GridContainer = content.get_child(2).get_child(0)
+	if grid.get_child_count() != 4:
+		push_error("o inspetor deveria mostrar os quatro equipamentos")
+		return false
+	m._close_overlay()
+
+	tobias.equipped_cards.clear()
+	for index in 10:
+		tobias.equipped_cards.append(Card.new(m.g._uid(), fixture_ids[index % fixture_ids.size()], 0, "equipped"))
+	m._render()
+	await process_frame
+	badge = m.views.get("eqbadge%d" % tobias.uid)
+	if badge == null or badge.text != "10 EQ." or not badge.tooltip_text.contains("e mais 6"):
+		push_error("a UI não resumiu corretamente os dez equipamentos do Tobias")
+		return false
+	badge.pressed.emit()
+	await process_frame
+	panel = m.overlay.get_child(0)
+	content = panel.get_child(0)
+	grid = content.get_child(2).get_child(0)
+	if grid.get_child_count() != 10 or panel.position.y < 0 or panel.position.y + panel.size.y > 1034.0:
+		push_error("o inspetor não exibiu os dez equipamentos dentro da área da mesa")
+		return false
+	m._close_overlay()
+
+	tobias.equipped_cards.clear()
+	for index in 100:
+		tobias.equipped_cards.append(Card.new(m.g._uid(), fixture_ids[index % fixture_ids.size()], 0, "equipped"))
+	m._render()
+	await process_frame
+	badge = m.views.get("eqbadge%d" % tobias.uid)
+	if badge == null or badge.text != "100 EQ." or not badge.tooltip_text.contains("e mais 96"):
+		push_error("a UI não resumiu corretamente cem equipamentos do Tobias")
+		return false
+	badge.pressed.emit()
+	await process_frame
+	panel = m.overlay.get_child(0)
+	content = panel.get_child(0)
+	grid = content.get_child(2).get_child(0)
+	if grid.get_child_count() != 100 or panel.position.y < 0 or panel.position.y + panel.size.y > 1034.0:
+		push_error("o inspetor ultrapassou a área da mesa com cem equipamentos")
+		return false
+	var preview_count := 0
+	for key in m.views:
+		if str(key).begins_with("eqpreview%d_" % tobias.uid):
+			preview_count += 1
+	if preview_count != 2:
+		push_error("o volume de cem equipamentos desenhou %d cartas de prévia, não duas" % preview_count)
+		return false
+	m._close_overlay()
+	return true
 
 ## The player's own decks show up in the hub as the third section, and a match can start with one.
 func _check_hub_with_own_deck(m) -> bool:
