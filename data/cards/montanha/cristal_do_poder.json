@@ -13,8 +13,13 @@
     "durability_cost": 1,
     "effects": [{ "action": "buff", "target": "ally_unit", "atk": 2, "temp": true }]
   },
+  "equip_from_field": {
+    "cost": 1,
+    "speed": "lento",
+    "effects": [{ "action": "equip_self", "target": "ally_unit" }]
+  },
   "equipped_grant": { "atk": 2 },
-  "text": "Ao Ativar (1) {instantaneo}: uma unidade aliada ganha +2 de Ataque até o fim do turno. Perde 1 de Durabilidade. Equipado em uma unidade, não pode ser ativado e concede +2 de Ataque a ela.",
+  "text": "Ao Ativar (1) {instantaneo}: uma unidade aliada ganha +2 de Ataque até o fim do turno. Perde 1 de Durabilidade.\nEquipar (1) {lento}: equipe este artefato em uma unidade aliada. Equipado, não pode ser ativado e concede +2 de Ataque a ela.",
   "flavor": "",
   "art": "montanha/cristal_do_poder.webp",
   "art_crop": {"x": 1.0, "y": 0.12, "zoom": 1.0},

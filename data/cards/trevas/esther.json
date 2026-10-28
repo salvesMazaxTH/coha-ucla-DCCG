@@ -2,7 +2,11 @@
   "name": "Esther",
   "type": "unit",
   "rarity": "champion",
-  "species": [],
+  "species": [
+    "dragonoide",
+    "humano",
+    "dragao"
+  ],
   "essence": ["trevas", "furia"],
   "cost": 4,
   "atk": 3,

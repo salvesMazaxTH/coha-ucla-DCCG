@@ -22,6 +22,8 @@ func _read_parameters(data: Dictionary) -> void:
 func apply(context: EffectContext, _target_uid: int) -> void:
 	if action == "revive_self":
 		_revive_self(context)
+	elif action == "revive_self_delayed":
+		_schedule_self_revive(context)
 	elif action == "revive_pick":
 		pass # the choice opens in open_choice, once the effect has resolved
 	else:
@@ -65,6 +67,19 @@ func _revive_self(context: EffectContext) -> void:
 	game._emit({"type": "revive", "player": context.controller, "card_id": dying.card_id})
 	dying.uid = game._uid() # a new instance: it no longer takes part in the combat it died in
 	game._summon(context.controller, dying, false, 0, overrides)
+
+func _schedule_self_revive(context: EffectContext) -> void:
+	var game := context.game
+	var dying := context.dying_card
+	if dying == null or dying.incarnation:
+		return
+	var new_attack: int = dying.atk + attack_change
+	var new_health: int = dying.hp + health_change
+	if new_attack <= 0 or new_health <= 0:
+		return
+	dying.pending_self_revive_turn = game.turn + 1
+	dying.pending_self_revive_atk = new_attack
+	dying.pending_self_revive_hp = new_health
 
 func opens_choice() -> bool:
 	return action == "revive_pick"

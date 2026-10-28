@@ -58,6 +58,9 @@ var surge_active := false ## the surge was on at the last refresh: Escudo is gra
 var frozen := 0 ## Congelada: the turn at whose END it thaws; 0 = not frozen
 var stun_markers := 0 ## Atordoamento: each marker costs the unit one untap (one start of its owner's turn); 0 = not stunned
 var condemned_turn := 0 ## Condenada: the turn at whose START it dies; 0 = not condemned
+var pending_self_revive_turn := 0 ## the turn at whose end this graveyard unit returns; 0 = none
+var pending_self_revive_atk := 0
+var pending_self_revive_hp := 0
 var dot_markers: Dictionary = {} ## accumulated periodic-status markers, keyed by dot id
 var tide_mark := false
 var used_turn: Dictionary = {} ## effect index -> turn it was last used (once_per_turn)
@@ -126,6 +129,9 @@ func effect_list() -> Array:
 ## Puts fresh board state on the card as it enters the board.
 func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:
 	over = overrides
+	pending_self_revive_turn = 0
+	pending_self_revive_atk = 0
+	pending_self_revive_hp = 0
 	var cd := data()
 	var kws: Array = cd.get("keywords", []).duplicate()
 	incarnation = is_incarnation
@@ -365,6 +371,10 @@ func to_dict() -> Dictionary:
 		d["durability_uses"] = durability_uses
 	if stored_momentum > 0:
 		d["stored_momentum"] = stored_momentum
+	if pending_self_revive_turn > 0:
+		d["pending_self_revive_turn"] = pending_self_revive_turn
+		d["pending_self_revive_atk"] = pending_self_revive_atk
+		d["pending_self_revive_hp"] = pending_self_revive_hp
 	if supreme_shield: # written before the board-only part: a free-standing artifact can hold it too
 		d["supreme_shield"] = true
 		if supreme_shield_expires != "":
@@ -473,6 +483,9 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.durability_used = int(d.get("durability_used", 0))
 	c.durability_uses = int(d.get("durability_uses", 0))
 	c.stored_momentum = int(d.get("stored_momentum", 0))
+	c.pending_self_revive_turn = int(d.get("pending_self_revive_turn", 0))
+	c.pending_self_revive_atk = int(d.get("pending_self_revive_atk", 0))
+	c.pending_self_revive_hp = int(d.get("pending_self_revive_hp", 0))
 	c.supreme_shield = bool(d.get("supreme_shield", false))
 	c.supreme_shield_expires = String(d.get("supreme_shield_expires", ""))
 	c.over = d.get("over", {})

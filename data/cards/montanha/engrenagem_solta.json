@@ -1,16 +1,20 @@
 {
   "name": "Engrenagem Solta",
   "type": "artifact",
-  "subtypes": ["equipment"],
+  "subtypes": [],
   "rarity": "common",
   "essence": "montanha",
   "element": "metal",
   "cost": 1,
   "durability": 1,
-  "effects": [
-    { "trigger": "on_play", "action": "buff", "target": "ally_unit", "atk": 1, "hp": 2 }
-  ],
-  "text": "Equipar: concede +1/+2 à unidade equipada.",
+  "effects": [],
+  "equip_from_field": {
+    "cost": 1,
+    "speed": "lento",
+    "effects": [{ "action": "equip_self", "target": "ally_unit" }]
+  },
+  "equipped_grant": { "atk": 1, "hp": 2 },
+  "text": "Enquanto estiver solta no campo, não faz nada.\nEquipar (1) {lento}: equipe este artefato em uma unidade aliada. Ela recebe +1/+2.",
   "flavor": "Sobrou do conserto. Sempre sobra.",
   "art": "montanha/engrenagem_solta.webp",
   "tags": []

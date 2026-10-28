@@ -160,6 +160,15 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 		if act.get("exhaust", false) and type != "unit":
 			err.call("activated.exhaust só pode ser usado por unidades; artefatos usam once_per_turn")
 		_validate_effects(err, act.get("effects", []))
+	if cd.has("equip_from_field"):
+		var equip_action: Dictionary = cd["equip_from_field"]
+		if type != "artifact" or not (cd.get("subtypes", []) as Array).is_empty():
+			err.call("equip_from_field só pode ser usado por artefatos sem subtipo")
+		if not equip_action.has("cost"):
+			err.call("equip_from_field sem \"cost\"")
+		if equip_action.has("speed") and equip_action["speed"] not in SPEEDS:
+			err.call("equip_from_field.speed desconhecida \"%s\"" % equip_action["speed"])
+		_validate_effects(err, equip_action.get("effects", []))
 	for e in cd.get("deck_effects", []):
 		if e.get("action", "") not in DECK_ACTIONS:
 			err.call("deck_effects: action desconhecida \"%s\"" % e.get("action", ""))

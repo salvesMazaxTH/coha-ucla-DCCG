@@ -2074,15 +2074,34 @@ func _test_obscura() -> void:
 	check(_count(g, 0, "replicador_maldito") == 1, "replicador invoca uma cópia ao morrer")
 	var copies: Array = g.players[0]["board"].filter(func(c: Card): return c.card_id == "replicador_maldito" and g.card_of(c)["effects"].is_empty())
 	check(copies.size() == 1, "a cópia não tem o efeito")
-	# Revivente returns forever, as a new instance
-	var first_uid: int = _put(g, 0, "revivente_eterno").uid
+	# Revivente returns at the end of the following turn, as a new instance
+	var revival_game := _obscura_game()
+	_put(revival_game, 0, "revivente_eterno")
 	for i in 3:
-		var cur: Array = g.players[0]["board"].filter(func(c: Card): return c.card_id == "revivente_eterno")
-		check(cur.size() == 1, "revivente está em campo (morte %d)" % i)
-		_kill(g, cur[0])
-	var back: Array = g.players[0]["board"].filter(func(c: Card): return c.card_id == "revivente_eterno")
-	check(back.size() == 1 and back[0].uid != first_uid and g.atk_of(back[0]) == 3 and g.hp_left(back[0]) == 2, "revivente volta sempre, como nova instância")
-	check(not g.players[0]["graveyard"].any(func(e): return e["card_id"] == "revivente_eterno"), "revivente em campo não fica no cemitério")
+		var cur: Array = revival_game.players[0]["board"].filter(func(c: Card): return c.card_id == "revivente_eterno")
+		if cur.size() != 1:
+			check(false, "revivente está em campo (morte %d)" % i)
+			break
+		var old_uid: int = cur[0].uid
+		_kill(revival_game, cur[0])
+		check(_count(revival_game, 0, "revivente_eterno") == 0, "revivente não volta imediatamente (morte %d)" % i)
+		if i == 0 and not revival_game.players[0]["graveyard"].is_empty():
+			var waiting: Card = revival_game.players[0]["graveyard"].back()
+			var restored := Card.from_dict(waiting.to_dict(), "graveyard", 0)
+			check(restored.pending_self_revive_turn == revival_game.turn + 1 and restored.pending_self_revive_atk == 3 and restored.pending_self_revive_hp == 2, "retorno pendente persiste no snapshot")
+		revival_game.end_turn(revival_game.active)
+		check(_count(revival_game, 0, "revivente_eterno") == 0, "revivente espera o fim do turno da morte (morte %d)" % i)
+		revival_game.end_turn(revival_game.active)
+		var back: Array = revival_game.players[0]["board"].filter(func(c: Card): return c.card_id == "revivente_eterno")
+		check(back.size() == 1 and back[0].uid != old_uid and revival_game.atk_of(back[0]) == 3 and revival_game.hp_left(back[0]) == 2, "revivente volta sempre, como nova instância")
+	check(not revival_game.players[0]["graveyard"].any(func(e): return e["card_id"] == "revivente_eterno"), "revivente em campo não fica no cemitério")
+	var full_board_game := _obscura_game()
+	_kill(full_board_game, _put(full_board_game, 0, "revivente_eterno"))
+	while full_board_game.players[0]["board"].size() < GameState.BOARD_LIMIT:
+		_put(full_board_game, 0, "esqueleto_guerreiro")
+	full_board_game.end_turn(full_board_game.active)
+	full_board_game.end_turn(full_board_game.active)
+	check(_count(full_board_game, 0, "revivente_eterno") == 0 and full_board_game.players[0]["graveyard"].any(func(c: Card): return c.card_id == "revivente_eterno" and c.pending_self_revive_turn == 0), "revivente não retorna se o campo estiver cheio no prazo")
 	# Fênix: back with -2/-2 of what it had; stops at 0
 	var fen := _put(g, 0, "fenix_da_chama_profana")
 	_kill(g, fen)
@@ -2799,7 +2818,10 @@ func _test_obscura_rules() -> void:
 	var rv := _put(gr, 0, "revivente_eterno")
 	var hr: int = gr.players[1]["leader_hp"]
 	_kill(gr, rv)
-	check(gr.players[1]["leader_hp"] == hr - 1 and _count(gr, 0, "revivente_eterno") == 1, "revivente que volta também ativa Aliado Morre")
+	check(gr.players[1]["leader_hp"] == hr - 1 and _count(gr, 0, "revivente_eterno") == 0, "Aliado Morre ativa na morte antes do retorno atrasado")
+	gr.end_turn(gr.active)
+	gr.end_turn(gr.active)
+	check(_count(gr, 0, "revivente_eterno") == 1, "Revivente retorna depois de ativar Aliado Morre")
 	# Cientista da Morte summons a skeleton on Aliado Morre, but only when a non-token ally dies
 	var sg := _obscura_game()
 	sg.players[0]["passive_used"] = true
@@ -9409,7 +9431,7 @@ func _test_eryon_deck() -> void:
 	check(g.phase != "search", "Recado Urgente: sem o Barão no deck não abre escolha (Gertrudes não conta)")
 	check(g.players[a]["hand"].size() == hand_before + 1, "Recado Urgente: sem o Barão no deck compra 1 carta (%d)" % (g.players[a]["hand"].size() - hand_before))
 
-## Eight cards added together (Vendedora de Grimório, Sorvetinho Derrete-Lento,
+## Eight cards added together (Vendedora de Grimório, Sorvetinho Derrete-Lento, Bicho Papão, Agora o Bicho vai Pegar,
 ## Jurema Falamanssa, Goblin das Brasas, Esther, Jovahr) and the engine parameters they brought: search "discount",
 ## remove "max_target_cost", "unfreeze" + "unit_state", "keywords_until_owner_turn_end", "source_gain_per_kill", "per": "sacrificed_atk".
 func _test_eight_new_cards() -> void:
@@ -9439,6 +9461,48 @@ func _test_eight_new_cards() -> void:
 	var sorvetinho := _put(g, 0, "sorvetinho_derrete_lento")
 	_kill(g, sorvetinho)
 	check(g.players[0]["snowball"] == level_before + 1 and g.players[0]["snowball_base"] == base_before + 1, "Sorvetinho: ao morrer sobe a Bola de Neve em 1, de forma permanente")
+
+	# Bicho Papão: challenging a unit that costs 2 or less destroys it; a costlier one only takes the blow
+	g = _new_game()
+	_quiet(g)
+	var bicho := _put(g, 0, "bicho_papao")
+	var cheap_wall := _put(g, 1, "t_eight_cost2_wall")
+	cheap_wall.exhausted = true
+	_hit(g, bicho, cheap_wall.uid)
+	check(g.find_unit(cheap_wall.uid) == null, "Bicho Papão: desafiar unidade de custo 2 a destrói")
+	g = _new_game()
+	_quiet(g)
+	bicho = _put(g, 0, "bicho_papao")
+	var costly_wall := _put(g, 1, "t_eight_cost3_wall")
+	costly_wall.exhausted = true
+	_hit(g, bicho, costly_wall.uid)
+	check(g.find_unit(costly_wall.uid) != null and costly_wall.damage == 3, "Bicho Papão: unidade de custo 3 não é destruída, só leva o golpe")
+
+	# Agora o Bicho vai Pegar: fetches a Bicho Papão from the deck and buffs the ones already in play
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var fielded_bicho := _put(g, 0, "bicho_papao")
+	var other_unit := _put(g, 0, "t_eight_fat_three")
+	var deck_bicho := _stack_on_deck(g, 0, "bicho_papao")
+	var spell_uid := _give(g, 0, "agora_o_bicho_vai_pegar")
+	var attack_before: int = g.atk_of(fielded_bicho)
+	g.play_card(0, spell_uid)
+	g.pass_priority(1)
+	check(g.phase == "search", "Agora o Bicho vai Pegar: abre a busca pelo Bicho Papão")
+	g.choose_search(0, deck_bicho.uid)
+	check(g.players[0]["hand"].has(deck_bicho), "Agora o Bicho vai Pegar: o Bicho Papão do deck vai para a mão")
+	check(g.atk_of(fielded_bicho) == attack_before + 2 and g.has_kw(fielded_bicho, "impeto"), "Agora o Bicho vai Pegar: Bicho em campo ganha +2 de Ataque e Ímpeto")
+	check(g.atk_of(other_unit) == 3 and not g.has_kw(other_unit, "impeto"), "Agora o Bicho vai Pegar: outras unidades não são afetadas")
+	# with no Bicho Papão on the board the buff reaches nobody and nothing breaks
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var lonely := _put(g, 0, "t_eight_fat_three")
+	spell_uid = _give(g, 0, "agora_o_bicho_vai_pegar")
+	g.play_card(0, spell_uid)
+	g.pass_priority(1)
+	check(g.atk_of(lonely) == 3 and not g.has_kw(lonely, "impeto"), "Agora o Bicho vai Pegar: sem Bicho em campo ninguém é afetado")
 
 	# Vendedora de Grimório: looks at the top 3, only a spell there can be taken, and it costs 1 less
 	g = _new_game()

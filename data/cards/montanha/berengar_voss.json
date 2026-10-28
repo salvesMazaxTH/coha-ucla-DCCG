@@ -7,7 +7,7 @@
   "element": "metal",
   "cost": 4,
   "atk": 1,
-  "hp": 3,
+  "hp": 4,
   "keywords": [],
   "effects": [
     { "trigger": "constante", "action": "scale", "per": "own_artifacts", "atk": 1, "hp": 1 }

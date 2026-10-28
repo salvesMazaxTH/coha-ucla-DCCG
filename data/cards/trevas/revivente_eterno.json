@@ -17,11 +17,11 @@
   "effects": [
     {
       "trigger": "on_death",
-      "action": "revive_self",
+      "action": "revive_self_delayed",
       "target": "none"
     }
   ],
-  "text": "Ao Morrer: esta unidade volta ao campo.",
+  "text": "Ao Morrer: volta ao campo no fim do turno seguinte.",
   "flavor": "A morte lhe pediu desculpas e o devolveu.",
   "tags": []
 }

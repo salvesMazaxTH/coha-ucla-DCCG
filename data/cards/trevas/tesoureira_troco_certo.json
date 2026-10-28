@@ -14,13 +14,19 @@
   "effects": [
     {
       "trigger": "on_ally_death",
-      "action": "gain_momentum",
-      "target": "none",
+      "action": "draw",
+      "target": "own_leader",
       "amount": 1,
-      "refresh": true
+      "max_per_turn": 1
+    },
+    {
+      "trigger": "on_ally_death",
+      "action": "discard_hand_pick",
+      "target": "none",
+      "max_per_turn": 1
     }
   ],
-  "text": "Aliado Morre: você recupera até 1 de Momentum gasto neste turno.",
+  "text": "Aliado Morre, uma vez por turno: compre 1 carta e depois descarte 1 carta.",
   "flavor": "Cobra a entrada do enterro e devolve o troco dos que choram.",
   "tags": []
 }

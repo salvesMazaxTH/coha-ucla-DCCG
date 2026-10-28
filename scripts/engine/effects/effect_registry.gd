@@ -7,6 +7,7 @@ const AddDotEffectScript = preload("res://scripts/engine/effects/add_dot_effect.
 const DeathWardEffectScript = preload("res://scripts/engine/effects/death_ward_effect.gd")
 const AutoAttackEffectScript = preload("res://scripts/engine/effects/auto_attack_effect.gd")
 const SpendAllMomentumEffectScript = preload("res://scripts/engine/effects/spend_all_momentum_effect.gd")
+const EquipSelfEffectScript = preload("res://scripts/engine/effects/equip_self_effect.gd")
 
 static var ACTIONS: Dictionary = {
 	"damage": DamageEffect,
@@ -43,6 +44,7 @@ static var ACTIONS: Dictionary = {
 	"summon_from": SummonFromEffect,
 	"put_artifact": PutArtifactEffect,
 	"equip_table_artifact": EquipTableArtifactEffect,
+	"equip_self": EquipSelfEffectScript,
 	"inherit_equipment": InheritEquipmentEffect,
 	"lose_durability": LoseDurabilityEffect,
 	"arm_death_ward": DeathWardEffectScript,
@@ -52,6 +54,7 @@ static var ACTIONS: Dictionary = {
 	"mill_pick": MillEffect,
 	"revive": ReviveEffect,
 	"revive_self": ReviveEffect,
+	"revive_self_delayed": ReviveEffect,
 	"revive_pick": ReviveEffect,
 	"destroy": RemoveEffect,
 	"destroy_artifact": RemoveEffect,

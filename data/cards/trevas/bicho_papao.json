@@ -1,0 +1,24 @@
+{
+  "name": "Bicho Papão",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [],
+  "essence": "trevas",
+  "element": "sombra",
+  "cost": 4,
+  "atk": 3,
+  "hp": 4,
+  "keywords": ["intimidacao"],
+  "art": "trevas/bicho_papao.webp",
+  "effects": [
+    {
+      "trigger": "on_challenge",
+      "action": "destroy",
+      "target": "opposed_unit",
+      "max_target_cost": 2
+    }
+  ],
+  "text": "Ao Desafiar: destrói a unidade desafiada se ela custar (2) ou menos.",
+  "flavor": "",
+  "tags": []
+}

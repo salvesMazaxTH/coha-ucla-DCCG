@@ -30,6 +30,8 @@ func stack_cost(item: Dictionary) -> int:
 		return int(CardDB.leader(game.players[item["player"]]["leader_id"])["ability"]["cost"])
 	if item["kind"] == "unit_ability":
 		return int(CardDB.card(item["card_id"])["activated"]["cost"])
+	if item["kind"] == "artifact_equip":
+		return int(CardDB.card(item["card_id"])["equip_from_field"]["cost"])
 	return int(CardDB.card(item["card_id"]).get("cost", 0)) + (GameState.REQUIEM_EXTRA_COST if item.get("requiem", false) else 0)
 
 ## True when the stack item's chosen target(s) include a unit or the Leader of the player who
@@ -110,6 +112,8 @@ func effects_of(item: Dictionary) -> Array:
 		return CardDB.leader(game.players[item["player"]]["leader_id"])["ability"]["effects"]
 	if item["kind"] == "unit_ability":
 		return CardDB.card(item["card_id"])["activated"]["effects"]
+	if item["kind"] == "artifact_equip":
+		return CardDB.card(item["card_id"])["equip_from_field"]["effects"]
 	if item["kind"] == "subito":
 		return [] # a Súbito summon has no effect of its own: the unit just enters when it resolves
 	if game.preview_blank_uid != 0 and item["kind"] == "card" and int(item["uid"]) == game.preview_blank_uid:
@@ -135,6 +139,8 @@ func resolve_stack() -> void:
 		# an Ao Entrar never fizzles: a target that left is simply skipped by the effect itself
 		var spec := "" if is_enter else game.target_spec(effects)
 		var gone := spec != "" and not game.valid_targets(p, spec).has(int(item["target"]))
+		if item["kind"] == "artifact_equip" and game.find_relic(int(item["uid"])) == null:
+			gone = true # the source artifact must still be free-standing when Equipar resolves
 		if item.get("forced_target", false):
 			gone = int(item["target"]) > 0 and game.find_unit(int(item["target"])) == null # only a unit that left the board is lost
 		if gone and item["kind"] == "card" and CardDB.card(item["card_id"]).get("same_target_ok", false) and game.valid_targets(p, spec).has(int(item.get("target2", 0))):
@@ -155,7 +161,7 @@ func resolve_stack() -> void:
 				resolve_context.chosen_target = int(item["target"])
 				resolve_context.forced_target = item.get("forced_target", false)
 				resolve_context.second_target = int(item.get("target2", 0))
-				resolve_context.self_uid = int(item["uid"]) if item["kind"] == "unit_ability" else 0
+				resolve_context.self_uid = int(item["uid"]) if item["kind"] in ["unit_ability", "artifact_equip"] else 0
 				game._spell_resolving = item["kind"] == "card" and CardDB.card(item["card_id"]).get("type", "") == "spell"
 				game._run_effects(resolve_context, effects)
 				game._spell_resolving = false

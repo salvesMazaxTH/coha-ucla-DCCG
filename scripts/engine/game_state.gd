@@ -63,8 +63,9 @@ var pending_search: Dictionary = {}
 ## (phase "enter_target"): {player, uid, card_id, spec}. Optional: target 0 skips the effect.
 var pending_enter: Dictionary = {}
 ## Spells, equipment and leader abilities wait here (LIFO) until both players let them resolve.
-## Item: {sid, player, kind:"card"|"ability"|"unit_ability"|"subito"|"enter_trigger", uid, card_id, target, speed}
+## Item: {sid, player, kind:"card"|"ability"|"unit_ability"|"artifact_equip"|"subito"|"enter_trigger", uid, card_id, target, speed}
 ## ("unit_ability" = a unit's Ao Ativar; uid is the unit, card_id its card.
+## "artifact_equip" = a pure artifact's own Equipar action; uid remains the artifact in its relic slot until resolution.
 ## "enter_trigger" = the Ao Entrar of a unit just played: uid is the unit, target the ally picked; uncounterable.
 ## "subito" = a unit summoned with Súbito; uid is the card, plus "slot" where it enters.)
 var stack: Array = []
@@ -1311,6 +1312,33 @@ func can_activate(p: int, uid: int, allow_unreachable := false) -> bool:
 			return false # not enough units to fuse
 	var spec := target_spec(ab["effects"])
 	return spec == "" or not valid_targets(p, spec, uid, false, ab["effects"]).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec, uid))
+
+## A free-standing pure artifact may declare a separate Equipar action in `equip_from_field`.
+func can_equip_from_field(p: int, uid: int, allow_unreachable := false) -> bool:
+	var artifact := find_relic(uid)
+	if artifact == null or artifact.owner != p:
+		return false
+	var action: Dictionary = card_of(artifact).get("equip_from_field", {})
+	if action.is_empty() or not can_cast_speed(p, speed_of(action)) or int(action["cost"]) > budget(p, true):
+		return false
+	var effects: Array = action.get("effects", [])
+	var spec := target_spec(effects)
+	return spec != "" and (not valid_targets(p, spec, uid, false, effects).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec, uid)))
+
+## Pays for a free-standing artifact's own Equipar action and puts it on the stack.
+func equip_from_field(p: int, uid: int, target: int) -> Array:
+	if not can_equip_from_field(p, uid):
+		return []
+	var artifact := find_relic(uid)
+	var action: Dictionary = card_of(artifact).get("equip_from_field", {})
+	var effects: Array = action.get("effects", [])
+	var spec := target_spec(effects)
+	if spec == "" or not valid_targets(p, spec, uid, false, effects).has(target):
+		return []
+	_pay(p, int(action["cost"]), true)
+	stack_system().push(p, "artifact_equip", uid, artifact.card_id, target, speed_of(action))
+	stack_system().settle()
+	return _flush()
 
 ## The card whose Ao Ativar can be used: a unit on the board or a free-standing artifact.
 func _activatable_card(uid: int) -> Card:
@@ -3298,6 +3326,10 @@ func _finish_turn() -> void:
 	for player_state: Dictionary in players:
 		for card: Card in player_state["hand"]:
 			card.turn_discount = 0
+	if _resolve_delayed_self_revives():
+		_check_state()
+		if phase == "over":
+			return
 	_emit({"type": "end_turn", "player": active})
 	if players[active]["extra_turn_pending"]:
 		# an extra turn: the same player plays again instead of handing the turn over
@@ -3308,6 +3340,29 @@ func _finish_turn() -> void:
 		return
 	players[active]["in_extra_turn"] = false
 	_start_turn(opponent(active), true)
+
+func _resolve_delayed_self_revives() -> bool:
+	var revived_any := false
+	for p in 2:
+		for card: Card in players[p]["graveyard"].duplicate():
+			if card.pending_self_revive_turn <= 0 or card.pending_self_revive_turn > turn:
+				continue
+			var revive_atk := card.pending_self_revive_atk
+			var revive_hp := card.pending_self_revive_hp
+			card.pending_self_revive_turn = 0
+			card.pending_self_revive_atk = 0
+			card.pending_self_revive_hp = 0
+			if revive_atk <= 0 or revive_hp <= 0 or not has_free_slot(p):
+				continue
+			players[p]["graveyard"].erase(card)
+			var overrides: Dictionary = card.over.duplicate(true)
+			overrides["atk"] = revive_atk
+			overrides["hp"] = revive_hp
+			card.uid = _uid()
+			_emit({"type": "revive", "player": p, "card_id": card.card_id})
+			_summon(p, card, false, 0, overrides)
+			revived_any = true
+	return revived_any
 
 ## Artifacts with "momentum_store": N (Bateria de Segunda Mão) catch the Momentum that leaked past the Reserva
 ## at this turn start, each up to its own limit. What goes to the Reserva never counts: only what would be lost.
