@@ -1,12 +1,12 @@
 class_name RandomTarget
 extends TargetSelector
 ## Random picks with the match RNG: random_enemy (any enemy unit or the enemy Leader), random_enemy_unit, random_enemy_units (up to "count" different enemy units; "include_leader": true lets the enemy Leader be one of them), random_enemy_unit_twice (two independent picks, the same unit can be picked twice: 2 damage handed out one by one), random_enemy_unit_spread (the effect's "hits" independent picks over units), random_enemy_spread (the same, including the Leader). These three roll one hit at a time, only among units that still have Vida (see hits_one_at_a_time), random_frozen_enemy_unit
-## (only enemy units that are already Congeladas), most_wounded_enemy_unit (the enemy unit that took the most damage and still has Vida 3 or less, an execution; a tie is rolled; Isarelis), strongest_enemy_units (the "count" enemy units with the highest Ataque, only those with Ataque "min_atk" or more; a tie at the cut-off is rolled; David), random_enemy_and_adjacent, random_ally_unit, random_other_ally_unit (both accept the effect's "only_species": the pool only holds allies of those species). The RNG is only rolled when there is something
+## (only enemy units that are already Congeladas), most_wounded_enemy_unit (the enemy unit that took the most damage and still has Vida 3 or less, an execution; a tie is rolled; Isarelis), strongest_enemy_units (the "count" enemy units with the highest Ataque, only those with Ataque "min_atk" or more; a tie at the cut-off is rolled; David), random_enemy_and_adjacent, random_ally_unit, random_other_ally_unit (both accept the effect's "only_species": the pool only holds allies of those species), random_other_ally_units (up to "count" different allies other than the source, same "only_species"; Brann). The RNG is only rolled when there is something
 ## to pick, so replays stay identical.
 ## A status effect (freeze, exhaust...) never rolls on a unit that already has that status: the pool only holds
 ## units that can still receive it (Effect.is_already_applied_to), and an empty pool means no target.
 
-const NAMES := ["random_enemy", "random_enemy_unit", "random_enemy_units", "random_enemy_unit_twice", "random_enemy_unit_spread", "random_enemy_spread", "random_frozen_enemy_unit", "most_wounded_enemy_unit", "strongest_enemy_units", "random_enemy_and_adjacent", "random_ally_unit", "random_other_ally_unit"]
+const NAMES := ["random_enemy", "random_enemy_unit", "random_enemy_units", "random_enemy_unit_twice", "random_enemy_unit_spread", "random_enemy_spread", "random_frozen_enemy_unit", "most_wounded_enemy_unit", "strongest_enemy_units", "random_enemy_and_adjacent", "random_ally_unit", "random_other_ally_unit", "random_other_ally_units"]
 
 const WOUNDED_TARGET_MAX_HP := 3 ## "most_wounded_enemy_unit" only picks units with this much current Vida or less
 
@@ -114,6 +114,15 @@ func resolve(context: EffectContext, effect: Effect) -> Array:
 			if pool.is_empty():
 				return []
 			return [pool[game.rng.randi_range(0, pool.size() - 1)]]
+		"random_other_ally_units":
+			var ally_pool: Array = _ally_pool(context, effect)
+			var ally_picks: Array = []
+			var ally_pick_count := mini(maxi(0, int(effect.raw.get("count", 1))), ally_pool.size())
+			for pick in ally_pick_count:
+				var ally_index := game.rng.randi_range(0, ally_pool.size() - 1)
+				ally_picks.append(ally_pool[ally_index])
+				ally_pool.remove_at(ally_index)
+			return ally_picks
 	return []
 
 ## The three multi-hit selectors are rolled again before every hit (see TargetSelector.hits_one_at_a_time).
@@ -194,7 +203,7 @@ func _ally_pool(context: EffectContext, effect: Effect) -> Array:
 ## True when this selector is a random ally pick that has nobody to pick right now. Other selectors
 ## return false: they are never asked, so a caller only skips what it knows is empty.
 func has_no_ally_candidates(context: EffectContext, effect: Effect) -> bool:
-	return name in ["random_ally_unit", "random_other_ally_unit"] and _ally_pool(context, effect).is_empty()
+	return name in ["random_ally_unit", "random_other_ally_unit", "random_other_ally_units"] and _ally_pool(context, effect).is_empty()
 
 ## True when the effect asks for no species ("only_species" missing) or the unit's card has one of them.
 func _has_wanted_species(unit: Card, effect: Effect) -> bool:

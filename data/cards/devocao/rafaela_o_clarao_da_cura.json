@@ -8,9 +8,9 @@
   "essence": "devocao",
   "element": "luz",
   "art": "devocao/rafaela_o_clarao_da_cura.webp",
-  "cost": 5,
-  "atk": 3,
-  "hp": 5,
+  "cost": 6,
+  "atk": 4,
+  "hp": 6,
   "keywords": [
     "voo"
   ],

@@ -4,7 +4,7 @@
   "rarity": "epic",
   "essence": "natureza",
   "element": "vegetal",
-  "cost": 7,
+  "cost": 8,
   "speed": "lento",
   "art": "natureza/capina_seletiva.webp",
   "effects": [
@@ -12,7 +12,7 @@
       "action": "cost_reduction",
       "per": "allied_plants_or_tokens",
       "amount": 1,
-      "min_cost": 2
+      "min_cost": 3
     },
     {
       "trigger": "on_play",
@@ -20,7 +20,7 @@
       "target": "enemy_unit"
     }
   ],
-  "text": "Custa (1) a menos para cada Planta ou ficha aliada em campo; o custo mínimo é (2).\nBane uma unidade inimiga à sua escolha.",
+  "text": "Custa (1) a menos para cada Planta ou ficha aliada em campo; o custo mínimo é (3).\nBane uma unidade inimiga à sua escolha.",
   "flavor": "",
   "tags": []
 }

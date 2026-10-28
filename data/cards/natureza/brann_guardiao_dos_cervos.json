@@ -13,12 +13,13 @@
     {
       "trigger": "on_enter",
       "action": "buff",
-      "target": "other_ally_units",
+      "target": "random_other_ally_units",
+      "count": 3,
       "hp": 1,
       "keywords": ["escudo"]
     }
   ],
-  "text": "Ao Entrar: suas outras unidades ganham +1 de Vida permanente e Escudo.",
+  "text": "Ao Entrar: até 3 outras unidades aliadas aleatórias ganham +1 de Vida permanente e Escudo.",
   "flavor": "Quando os galhos baixam a cabeça, é porque ele passou.",
   "tags": []
 }

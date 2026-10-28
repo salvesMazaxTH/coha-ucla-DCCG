@@ -3,7 +3,7 @@
   "type": "spell",
   "rarity": "common",
   "essence": "natureza",
-  "cost": 5,
+  "cost": 6,
   "speed": "rapido",
   "art": "natureza/investida_da_manada.webp",
   "effects": [

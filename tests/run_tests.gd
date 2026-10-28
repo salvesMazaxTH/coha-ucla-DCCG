@@ -935,7 +935,7 @@ func _test_sagrada_board_control() -> void:
 	g_small._heal_leader(0, 1)
 	g_small._check_state()
 	check(g_small.find_unit(small_foe.uid) == null or g_small.find_unit(small_foe_two.uid) == null, "Seymour: a cura mata ao menos uma salamandra de 1 de Vida")
-	# Lucien: 2 de dano a até 3 unidades inimigas diferentes ao entrar
+	# Lucien: 2 de dano a até 2 unidades inimigas diferentes ao entrar
 	_tcard("t_lucien_target", 0, 10, [])
 	var g2 := _new_game()
 	var lucien_targets: Array = []
@@ -944,11 +944,11 @@ func _test_sagrada_board_control() -> void:
 	_put(g2, 0, "lucien")
 	g2._check_state()
 	var damaged_by_lucien: Array = lucien_targets.filter(func(unit: Card): return unit.damage > 0)
-	check(damaged_by_lucien.size() == 3 and damaged_by_lucien.all(func(unit: Card): return unit.damage == 2),
-		"Lucien causa 2 de dano a 3 unidades diferentes, sem distribuir os pontos (%d alvos)" % damaged_by_lucien.size())
+	check(damaged_by_lucien.size() == 2 and damaged_by_lucien.all(func(unit: Card): return unit.damage == 2),
+		"Lucien causa 2 de dano a 2 unidades diferentes, sem distribuir os pontos (%d alvos)" % damaged_by_lucien.size())
 	_put(g2, 0, "uriel")
 	g2._check_state()
-	check(lucien_targets.filter(func(unit: Card): return unit.damage > 0).size() == 3,
+	check(lucien_targets.filter(func(unit: Card): return unit.damage > 0).size() == 2,
 		"Uriel não causa dano ao entrar")
 	var uriel_data: Dictionary = CardDB.card("uriel")
 	check(int(uriel_data["atk"]) == 5 and int(uriel_data["hp"]) == 6
@@ -1364,22 +1364,37 @@ func _test_domain_removals() -> void:
 	check(g.find_unit(foe.uid) == null, "Desabamento Oportuno: destrói a unidade escolhida")
 	check(guard.armor == 0 and not guard.shield, "Desabamento Oportuno: as unidades aliadas perdem Escudo e Armadura")
 
-	# Capina Seletiva: costs 1 less per allied Planta or ficha (floor 2) and banishes an enemy unit
+	# Capina Seletiva: costs 1 less per allied Planta or ficha (floor 3) and banishes an enemy unit
 	g = _new_game()
 	_quiet(g)
 	var capina_uid := _give(g, 0, "capina_seletiva")
 	var capina: Card = g.players[0]["hand"].back()
-	check(g.cost_of(0, capina.data(), capina) == 7, "Capina Seletiva: sem plantas custa 7")
+	check(g.cost_of(0, capina.data(), capina) == 8, "Capina Seletiva: sem plantas custa 8")
 	_put(g, 0, "flor_voraz")
-	check(g.cost_of(0, capina.data(), capina) == 6, "Capina Seletiva: cada Planta aliada reduz 1")
+	check(g.cost_of(0, capina.data(), capina) == 7, "Capina Seletiva: cada Planta aliada reduz 1")
 	for i in 8:
 		_put(g, 0, "flor_voraz")
-	check(g.cost_of(0, capina.data(), capina) == 2, "Capina Seletiva: o custo mínimo é 2")
+	check(g.cost_of(0, capina.data(), capina) == 3, "Capina Seletiva: o custo mínimo é 3")
 	var victim := _put(g, 1, "serpente_marinha")
 	g.players[0]["momentum"] = 10
 	g.play_card(0, capina_uid, victim.uid)
 	_resolve_stack(g)
 	check(g.find_unit(victim.uid) == null and _zone_has(g, 1, "banished", "serpente_marinha"), "Capina Seletiva: bane a unidade inimiga")
+
+	# Brann: Ao Entrar gives +1 Vida and Escudo to at most 3 random OTHER allies (never himself, never more than 3)
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var brann_allies: Array = []
+	for i in 5:
+		brann_allies.append(_put(g, 0, "flor_voraz"))
+	var brann_uid := _give(g, 0, "brann_guardiao_dos_cervos")
+	g.play_card(0, brann_uid)
+	_resolve_stack(g)
+	var brann_card: Card = g.players[0]["board"].filter(func(c: Card): return c.card_id == "brann_guardiao_dos_cervos")[0]
+	var shielded_allies := brann_allies.filter(func(c: Card): return c.shield)
+	check(shielded_allies.size() == 3 and shielded_allies.all(func(c: Card): return c.hp_left() == 2), "Brann: só 3 outras aliadas ganham +1 de Vida e Escudo (%d)" % shielded_allies.size())
+	check(not brann_card.shield and brann_card.hp_left() == int(CardDB.card("brann_guardiao_dos_cervos")["hp"]), "Brann: não buffa a si mesmo")
 
 	# Pacto de Mortalha: sacrifices an ally and destroys the chosen enemy unit
 	g = _new_game()
@@ -1574,8 +1589,8 @@ func _test_durability_rules() -> void:
 	g.stack_system().attach(holder, amulet, {"hp": 2})
 	amulet.durability_used = 2
 	_cast_and_resolve(g, a, "avalanche")
-	check(holder.equipment == null and g.find_unit(holder.uid) != null, "amuleto: sem Durabilidade ele se desfaz e a unidade fica")
-	check(holder.equipment_grant.is_empty(), "amuleto: a unidade perde o bônus de Vida ao quebrar")
+	check(holder.equipped_cards.is_empty() and g.find_unit(holder.uid) != null, "amuleto: sem Durabilidade ele se desfaz e a unidade fica")
+	check(amulet.worn_grant.is_empty(), "amuleto: a unidade perde o bônus de Vida ao quebrar")
 
 	# efeito "perde Durabilidade" numa unidade: quebra o equipamento decorativo (1 de Durabilidade) e tira o bônus
 	g = _new_game()
@@ -1589,7 +1604,7 @@ func _test_durability_rules() -> void:
 	var wear_effect := [{"trigger": "on_enter", "action": "lose_durability", "target": "enemy_unit", "amount": 1}]
 	g._run_effect_dicts(1, wear_effect, "on_enter", carrier.uid, 0, SPELL_SOURCE)
 	g._flush()
-	check(carrier.equipment == null and carrier.armor == armor_before and g.find_unit(carrier.uid) != null,
+	check(carrier.equipped_cards.is_empty() and carrier.armor == armor_before and g.find_unit(carrier.uid) != null,
 		"perde Durabilidade: o equipamento quebra, o bônus some e a unidade continua")
 	# a unit with no equipment is left alone
 	g._run_effect_dicts(1, wear_effect, "on_enter", carrier.uid, 0, SPELL_SOURCE)
@@ -1665,11 +1680,11 @@ func _test_two_dawns_axe() -> void:
 	_hit(g, bearer)
 	g._flush()
 	check(g.players[1]["leader_hp"] == 100 - 3 - 5, "Machado: o 1º ataque causa 3 ao Líder inimigo além do golpe de 1+4 (%d)" % g.players[1]["leader_hp"])
-	check(axe.durability_left() == 1 and bearer.equipment == axe, "Machado: o 1º ataque gastou 1 de Durabilidade e ele segue equipado")
+	check(axe.durability_left() == 1 and bearer.first_equipment() == axe, "Machado: o 1º ataque gastou 1 de Durabilidade e ele segue equipado")
 	_hit(g, bearer)
 	g._flush()
 	check(g.players[1]["leader_hp"] == 100 - 2 * (3 + 5), "Machado: o último ataque ainda tem o +4 de Ataque (%d)" % g.players[1]["leader_hp"])
-	check(bearer.equipment == null and bearer.atk == 1 and g.find_unit(bearer.uid) != null,
+	check(bearer.equipped_cards.is_empty() and bearer.atk == 1 and g.find_unit(bearer.uid) != null,
 		"Machado: depois do 2º ataque ele quebra e leva o +4 de Ataque embora")
 
 func _test_artifact_subtypes() -> void:
@@ -2066,16 +2081,16 @@ func _test_obscura() -> void:
 	g._resolve_stack()
 	g._flush()
 	check(CardDB.is_equipment(CardDB.card("manoplas_incandescentes")) and CardDB.is_artifact(CardDB.card("manoplas_incandescentes")), "equipamento é artefato")
-	check(holder.equipment.card_id == "manoplas_incandescentes" and holder.atk == atk0 + 3, "equipamento anexado e buff aplicado")
+	check(holder.first_equipment().card_id == "manoplas_incandescentes" and holder.atk == atk0 + 3, "equipamento anexado e buff aplicado")
 	# equipping an already equipped unit returns the old equipment to the hand (it does not go to the graveyard)
 	var second_equipment_uid := _give(g, 0, "manoplas_incandescentes")
-	var first_equipment: Card = holder.equipment
+	var first_equipment: Card = holder.first_equipment()
 	g.players[0]["momentum"] = 10
 	var graveyard_before_swap: int = g.players[0]["graveyard"].size()
 	g.play_card(0, second_equipment_uid, holder.uid)
 	g._resolve_stack()
 	g._flush()
-	check(holder.equipment != first_equipment and holder.equipment.uid == second_equipment_uid, "reequipar: a unidade passa a usar o novo equipamento")
+	check(holder.first_equipment() != first_equipment and holder.first_equipment().uid == second_equipment_uid and holder.equipped_cards.size() == 1, "reequipar: a unidade passa a usar o novo equipamento")
 	check(g.players[0]["hand"].has(first_equipment) and first_equipment.zone == "hand", "reequipar: o equipamento anterior volta para a mão")
 	check(g.players[0]["graveyard"].size() == graveyard_before_swap, "reequipar: o equipamento anterior não vai ao cemitério")
 	check(holder.atk == atk0 + 3, "reequipar: o bônus do equipamento anterior sai da unidade (só o do novo vale)")
@@ -2296,8 +2311,8 @@ func _test_bounce_permanent_buffs() -> void:
 	unit.shield = true
 	unit.atk += 3
 	var equipment := Card.new(g._uid(), "manoplas_incandescentes", p, "equipped")
-	unit.equipment = equipment
-	unit.equipment_grant = {"atk": 3, "shield": true}
+	unit.equipped_cards.append(equipment)
+	equipment.worn_grant = {"atk": 3, "shield": true}
 
 	check(g.return_to_hand(unit), "devolver unidade fortalecida à mão")
 	check(g.players[p]["hand"].has(equipment) and equipment.zone == "hand", "equipamento volta separado à mão")
@@ -2979,7 +2994,7 @@ func _test_stun_and_cap() -> void:
 	var repique_target := _put(g, 1, "t_rep_vic")
 	repique_target.magic_shield = true
 	g._run_effect_dicts(0, CardDB.card("repique_desgovernado")["effects"], "on_play", 0, 0, "repique_desgovernado")
-	check(repique_target.magic_shield and repique_target.damage == 9, "Repique Desgovernado: hits aleatórios passam pelo Escudo Mágico (os 9 acertam e ele fica)")
+	check(repique_target.magic_shield and repique_target.damage == 8, "Repique Desgovernado: hits aleatórios passam pelo Escudo Mágico (os 8 acertam e ele fica)")
 	# save/load keeps the markers
 	var restored := Card.from_dict(taunt.to_dict(), "board", 1)
 	check(restored.stun_markers == 1, "atordoamento sobrevive a salvar e carregar")
@@ -8529,6 +8544,10 @@ func _test_sagrada_engine() -> void:
 	g._heal_leader(0, 3)
 	g._check_state()
 	check(g.atk_of(archangel) == attack_before + 1, "Uriel: cura do Líder dá +1 de Ataque (%d -> %d)" % [attack_before, g.atk_of(archangel)])
+	# the Condicional is once per turn: a second heal in the same turn gives nothing
+	g._heal_leader(0, 3)
+	g._check_state()
+	check(g.atk_of(archangel) == attack_before + 1, "Uriel: a segunda cura no mesmo turno não dá Ataque (1x por turno)")
 
 	# graveyard_armor: +1 Armadura per spell of the essence in the owner's graveyard (damage never below 1)
 	_tcard("t_grave_armor", 1, 20, [{"trigger": "constante", "action": "graveyard_armor", "essence": "devocao", "card_type": "spell"}])
@@ -8552,13 +8571,15 @@ func _test_sagrada_engine() -> void:
 	g._deal_damage(graveyard_unit.uid, 5, null)
 	check(graveyard_unit.damage == 1, "graveyard_armor: nunca reduz o dano a menos de 1 (%d)" % graveyard_unit.damage)
 
-	# Nerithia: a partir de 2 feitiços Sagrados, reduz dano para ceil(dano / 2) - 1, sem piso de 1
+	# Nerithia: a partir de 3 feitiços Sagrados, reduz dano para ceil(dano / 2) - 1, sem piso de 1
 	g = _new_game()
 	_quiet(g)
 	var nerithia := _put(g, 0, "nerithia")
 	check(g.damage_after_armor(nerithia, 5) == 5, "Nerithia: sem feitiços Sagrados, dano normal")
 	g.players[0]["graveyard"].append(Card.new(g._uid(), "t_sagrada_spell", 0, "graveyard"))
 	check(g.damage_after_armor(nerithia, 5) == 5, "Nerithia: 1 feitiço Sagrado ainda não ativa a redução")
+	g.players[0]["graveyard"].append(Card.new(g._uid(), "t_sagrada_spell", 0, "graveyard"))
+	check(g.damage_after_armor(nerithia, 5) == 5, "Nerithia: 2 feitiços Sagrados ainda não ativam a redução")
 	g.players[0]["graveyard"].append(Card.new(g._uid(), "t_sagrada_spell", 0, "graveyard"))
 	check(g._deal_damage(nerithia.uid, 1, null) == 0 and nerithia.damage == 0, "Nerithia: dano leve pode virar 0")
 	check(g.damage_after_armor(nerithia, 5) == 2, "Nerithia: metade de dano ímpar arredonda para cima e reduz 1")

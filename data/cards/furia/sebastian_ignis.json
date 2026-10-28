@@ -8,17 +8,24 @@
   "cost": 2,
   "atk": 1,
   "hp": 5,
-  "keywords": [],
+  "keywords": ["provocacao"],
   "art": "furia/sebastian_ignis.webp",
   "effects": [
     {
       "trigger": "on_death",
       "action": "damage",
       "target": "enemy_leader",
-      "amount": 3
+      "amount": 4
+    },
+    {
+      "trigger": "on_death",
+      "action": "add_dot",
+      "dot": "queimadura",
+      "target": "enemy_leader",
+      "amount": 1
     }
   ],
-  "text": "Ao Morrer: causa 3 de dano ao Líder inimigo.",
+  "text": "Ao Morrer: causa 4 de dano ao Líder inimigo e ele recebe 1 marcador de Queimadura.",
   "flavor": "Ele não luta. Só não se dá ao trabalho de cair.",
   "tags": []
 }

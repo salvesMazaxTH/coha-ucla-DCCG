@@ -5,18 +5,18 @@
   "essence": "devocao",
   "element": "luz",
   "art": "devocao/repique_desgovernado.webp",
-  "cost": 3,
+  "cost": 4,
   "speed": "lento",
   "effects": [
     {
       "trigger": "on_play",
       "action": "damage",
       "target": "random_enemy_unit_spread",
-      "hits": 9,
+      "hits": 8,
       "amount": 1
     }
   ],
-  "text": "Distribui 9 de dano aleatoriamente entre as unidades inimigas, 1 por vez.",
+  "text": "Distribui 8 de dano aleatoriamente entre as unidades inimigas, 1 por vez.",
   "flavor": "O sineiro jura que foi o vento. O vento jura que foi o sineiro.",
   "tags": []
 }

@@ -5,13 +5,13 @@
   "species": ["humano", "ascendido"],
   "essence": "devocao",
   "element": "luz",
-  "cost": 3,
+  "cost": 4,
   "atk": 3,
-  "hp": 3,
+  "hp": 4,
   "keywords": ["inalcancavel"],
   "art": "devocao/lucien.webp",
   "effects": [
-    { "trigger": "on_enter", "action": "damage", "target": "random_enemy_units", "count": 3, "amount": 2 },
+    { "trigger": "on_enter", "action": "damage", "target": "random_enemy_units", "count": 2, "amount": 2 },
     {
       "trigger": "on_turn_end",
       "action": "buff",
@@ -19,7 +19,7 @@
       "atk": 1
     }
   ],
-  "text": "Ao Entrar: causa 2 de dano a até 3 unidades inimigas aleatórias diferentes.\nNo Fim do Turno: esta unidade ganha +1 de Ataque permanente.",
+  "text": "Ao Entrar: causa 2 de dano a até 2 unidades inimigas aleatórias diferentes.\nNo Fim do Turno: esta unidade ganha +1 de Ataque permanente.",
   "flavor": "Carrega a Luz Sagrada sem pressa. Ela, por conta própria, chega em todo mundo.",
   "tags": []
 }

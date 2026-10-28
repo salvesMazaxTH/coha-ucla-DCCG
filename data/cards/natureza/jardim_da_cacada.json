@@ -4,7 +4,7 @@
   "rarity": "legendary",
   "essence": "natureza",
   "element": "vegetal",
-  "cost": 4,
+  "cost": 5,
   "speed": "rapido",
   "art": "natureza/jardim_da_cacada.webp",
   "effects": [
