@@ -52,7 +52,7 @@
       "rapidez_min": 1
     }
   ],
-  "text": "Condicional: no início do seu turno, o custo desta carta diminui em (1) por Momentum comum que sobrou, onde quer que ela esteja, até o mínimo de (3); o que foi para a Reserva conta, o que já estava lá, não.\nNo Início do Turno: se Momentum vazou no turno anterior, esta unidade ganha +2/+1 e Escudo Mágico até o fim do turno.\nAo Entrar: concede +1/+1 por Momentum restante (de +1/+1 a +5/+5) e Rapidez 1 (se for menor) às suas outras unidades.",
+  "text": "Condicional: no início do seu turno, o custo desta carta diminui em (1) por Momentum comum que sobrou, onde quer que ela esteja, até o mínimo de (3); o que foi para a Reserva conta, o que já estava lá, não.\nNo Início do Seu Turno: se Momentum vazou no turno anterior, esta unidade ganha +2/+1 e Escudo Mágico até o fim do turno.\nAo Entrar: concede +1/+1 por Momentum restante (de +1/+1 a +5/+5) e Rapidez 1 (se for menor) às suas outras unidades.",
   "flavor": "",
   "tags": []
 }

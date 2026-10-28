@@ -2220,7 +2220,8 @@ func _fire(c: Card, trigger: String, other_uid: int = 0, event_data: Dictionary 
 	bus().emit(event)
 
 ## Gatilhos (cards.json "triggers"): on_play, on_enter, on_death, before_attack, on_attack, on_challenge,
-## on_challenged, on_damaged, on_hit_leader, on_deal_combat_damage, on_turn_start, on_turn_end. "constante" never fires
+## on_challenged, on_damaged, on_hit_leader, on_deal_combat_damage, on_turn_start, on_turn_end (owner's turn
+## only), on_any_turn_start, on_any_turn_end (every turn). "constante" never fires
 ## here: it is continuous and handled by _refresh_scaling.
 ## other_uid is the opposing unit in combat triggers (challenged unit, attacker, damage source).
 func _run_effects(context: EffectContext, effects: Array) -> void:
@@ -3210,6 +3211,7 @@ func _finish_turn() -> void:
 	for c in players[active]["board"].duplicate():
 		_fire(c, "on_turn_end")
 	_fire_deck_effects(active, "on_turn_end")
+	_fire_any_turn_trigger(active, "on_any_turn_end")
 	_check_state()
 	if phase == "over":
 		return
@@ -3377,9 +3379,20 @@ func _start_turn(p: int, draw: bool) -> void:
 		# A unit killed by its own periodic damage no longer gets a turn-start trigger.
 		if find_unit(c.uid) != null:
 			_fire(c, "on_turn_start")
+	_fire_any_turn_trigger(p, "on_any_turn_start")
 	if draw:
 		_draw(p, 1)
 	_check_state()
+
+## "No Início/Fim de Qualquer Turno": unlike on_turn_start/on_turn_end (only the owner's own turn), these
+## fire on every turn, for the units of BOTH players. The player whose turn it is goes first, then the
+## opponent, so the order is predictable.
+func _fire_any_turn_trigger(turn_player: int, trigger: String) -> void:
+	for player_index in [turn_player, opponent(turn_player)]:
+		for unit in players[player_index]["board"].duplicate():
+			# A unit that died earlier in this same step no longer triggers.
+			if find_unit(unit.uid) != null:
+				_fire(unit, trigger)
 
 ## Regeneração: at the start of every turn (either player's) all the damage of each unit that has it is
 ## healed. It happens before the periodic markers and the turn-start triggers, so damage dealt at the end of

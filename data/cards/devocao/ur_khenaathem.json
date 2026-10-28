@@ -31,7 +31,7 @@
       "target": "none"
     }
   ],
-  "text": "Ao Entrar: você pode escolher uma unidade ou um feitiço do seu cemitério e levá-la à sua mão.\nNo Início do Turno: você joga dois turnos consecutivos no total (este e mais um), sem acumular com outros turnos extras.",
+  "text": "Ao Entrar: você pode escolher uma unidade ou um feitiço do seu cemitério e levá-la à sua mão.\nNo Início do Seu Turno: você joga dois turnos consecutivos no total (este e mais um), sem acumular com outros turnos extras.",
   "flavor": "Preside a mesa dos Dirigentes desde antes de haver cadeiras. A pauta de hoje já foi votada ontem.",
   "tags": []
 }

@@ -215,18 +215,20 @@ Gatilhos dizem _quando_ um efeito acontece. Eles abrem o texto da carta no lugar
 
 **Gatilhos não vão para a pilha e não podem ser respondidos:** resolvem na hora em que disparam (Ao Entrar, Ao Morrer etc.). Respostas só são possíveis depois, nas janelas normais.
 
-| Gatilho            | Quando                                                   |
-| ------------------ | -------------------------------------------------------- |
-| Ao Jogar           | A carta é jogada da mão (feitiços e equipamentos).       |
-| Ao Entrar          | A unidade entra em campo.                                |
-| Ao Morrer          | A unidade morre.                                         |
-| Ao Atacar          | A unidade ataca (o Líder ou desafiando uma unidade).     |
-| Ao Desafiar        | A unidade ataca desafiando uma unidade inimiga.          |
-| Ao Ser Desafiada   | A unidade é desafiada por um atacante inimigo.           |
-| Ao Sofrer Dano     | A unidade sofre dano (Escudo anulando o dano não conta). |
-| Ao Atingir o Líder | A unidade causa dano a um Líder.                         |
-| No Início do Turno | Começa o turno do dono da unidade.                       |
-| No Fim do Turno    | Termina o turno do dono da unidade.                      |
+| Gatilho                     | Quando                                                   |
+| --------------------------- | -------------------------------------------------------- |
+| Ao Jogar                    | A carta é jogada da mão (feitiços e equipamentos).       |
+| Ao Entrar                   | A unidade entra em campo.                                |
+| Ao Morrer                   | A unidade morre.                                         |
+| Ao Atacar                   | A unidade ataca (o Líder ou desafiando uma unidade).     |
+| Ao Desafiar                 | A unidade ataca desafiando uma unidade inimiga.          |
+| Ao Ser Desafiada            | A unidade é desafiada por um atacante inimigo.           |
+| Ao Sofrer Dano              | A unidade sofre dano (Escudo anulando o dano não conta). |
+| Ao Atingir o Líder          | A unidade causa dano a um Líder.                         |
+| No Início do Seu Turno      | Começa o turno do dono da unidade.                       |
+| No Fim do Seu Turno         | Termina o turno do dono da unidade.                      |
+| No Início de Qualquer Turno | Começa qualquer turno (do dono ou do oponente).          |
+| No Fim de Qualquer Turno    | Termina qualquer turno (do dono ou do oponente).         |
 
 ### Habilidades ativáveis
 

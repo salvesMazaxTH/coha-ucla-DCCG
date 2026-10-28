@@ -31,7 +31,7 @@
       "target": "none"
     }
   ],
-  "text": "Ao Entrar: congela 5 espaços aleatórios do campo inimigo. O congelamento ignora imunidade; unidades neles são congeladas e exauridas; espaços vazios não aceitam ocupantes até o fim do próximo turno do oponente.\nNo Início do Turno: congela 1 espaço aleatório do campo inimigo da mesma forma.",
+  "text": "Ao Entrar: congela 5 espaços aleatórios do campo inimigo. O congelamento ignora imunidade; unidades neles são congeladas e exauridas; espaços vazios não aceitam ocupantes até o fim do próximo turno do oponente.\nNo Início do Seu Turno: congela 1 espaço aleatório do campo inimigo da mesma forma.",
   "flavor": "Reina sobre tudo que já parou de se mexer.",
   "tags": []
 }

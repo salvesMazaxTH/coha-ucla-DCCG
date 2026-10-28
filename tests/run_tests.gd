@@ -675,6 +675,22 @@ func _test_devocao_support() -> void:
 	g_relic.end_turn(1)
 	g_relic._flush()
 	check(g_relic.players[0]["leader_hp"] == leader_mid, "Relicário de Cabeceira: não cura no fim do turno do oponente")
+	# "De Qualquer Turno": dispara no turno do dono E no do oponente; o "Seu Turno" só no do dono
+	_tcard("t_any_turn", 1, 9, [{"trigger": "on_any_turn_start", "action": "buff", "target": "self", "atk": 1},
+		{"trigger": "on_any_turn_end", "action": "buff", "target": "self", "hp": 1}])
+	_tcard("t_own_turn", 1, 9, [{"trigger": "on_turn_start", "action": "buff", "target": "self", "atk": 1}])
+	var g_any := _new_game()
+	g_any.active = 0
+	var any_turn_unit := _put(g_any, 0, "t_any_turn")
+	var own_turn_unit := _put(g_any, 0, "t_own_turn")
+	g_any.end_turn(0) # fim do turno do dono (+1 Vida) e início do turno do oponente (+1 Ataque)
+	g_any._flush()
+	check(any_turn_unit.atk == 2 and any_turn_unit.hp == 10, "No Início/Fim de Qualquer Turno: dispara na passagem para o turno do oponente (%d/%d)" % [any_turn_unit.atk, any_turn_unit.hp])
+	check(own_turn_unit.atk == 1, "No Início do Seu Turno: não dispara no turno do oponente")
+	g_any.end_turn(1) # fim do turno do oponente e início do turno do dono: os dois disparam de novo
+	g_any._flush()
+	check(any_turn_unit.atk == 3 and any_turn_unit.hp == 11, "No Início/Fim de Qualquer Turno: dispara também no turno do dono (%d/%d)" % [any_turn_unit.atk, any_turn_unit.hp])
+	check(own_turn_unit.atk == 2, "No Início do Seu Turno: dispara no turno do dono")
 	# Sino de Aviso Prévio: um efeito inimigo que mira a unidade dá Escudo Mágico a ela ANTES de atingi-la,
 	# e cada disparo gasta 1 de Durabilidade (2 no total)
 	_tcard("t_bell_hit", 1, 1, [{"trigger": "on_enter", "action": "damage", "target": "enemy_unit", "amount": 1}])
@@ -5751,11 +5767,11 @@ func _test_card_validation() -> void:
 		var listeners: Array = cd.get("effects", []).filter(func(e: Dictionary): return e.has("listen"))
 		if not listeners.is_empty():
 			var listener_text := String(cd.get("text", ""))
-			# "No Fim do Turno" is a generic trigger of its own (it just lives in an artifact, which has no
+			# "No Fim do Seu Turno" is a generic trigger of its own (it just lives in an artifact, which has no
 			# on_turn_end), so a card whose listeners all wait for turn_ended uses that label, not Condicional
 			var only_turn_ended: bool = listeners.all(func(e: Dictionary): return e["listen"] == "turn_ended")
 			if only_turn_ended:
-				check(listener_text.contains("No Fim do Turno:"), "%s: listener de turn_ended precisa escrever 'No Fim do Turno:' no texto" % card_id)
+				check(listener_text.contains("No Fim do Seu Turno:"), "%s: listener de turn_ended precisa escrever 'No Fim do Seu Turno:' no texto" % card_id)
 			else:
 				check(listener_text.contains("Condicional:") or listener_text.contains("Condicional ("), "%s: listener precisa escrever 'Condicional:' (ou 'Condicional (limite):') no texto" % card_id)
 
@@ -6475,10 +6491,10 @@ func _test_furia_remaining_cards() -> void:
 	check(angry.atk_total() == 3 and not g2.has_kw(angry, "impeto"), "Teodoro: o bônus acaba no fim do turno")
 	g2.players[0]["leader_hp"] = 11
 	g2._start_turn(0, false)
-	check(angry.atk_total() == 3, "Teodoro: No Início do Turno não dá nada com o Líder em 11 de Vida")
+	check(angry.atk_total() == 3, "Teodoro: No Início do Seu Turno não dá nada com o Líder em 11 de Vida")
 	g2.players[0]["leader_hp"] = 10
 	g2._start_turn(0, false)
-	check(angry.atk_total() == 5 and not g2.has_kw(angry, "impeto"), "Teodoro: No Início do Turno com o Líder em 10 de Vida dá só +2 de Ataque (sem Ímpeto)")
+	check(angry.atk_total() == 5 and not g2.has_kw(angry, "impeto"), "Teodoro: No Início do Seu Turno com o Líder em 10 de Vida dá só +2 de Ataque (sem Ímpeto)")
 	g2._finish_turn()
 	check(angry.atk_total() == 3, "Teodoro: o +2 do início do turno também acaba no fim do turno")
 

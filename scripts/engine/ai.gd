@@ -777,7 +777,7 @@ static func _buff_target_is_worth_it(g: GameState, unit: Card, effect: Dictionar
 	return false
 
 ## Triggers that keep paying off turn after turn while the unit stays on the board.
-const ENGINE_TRIGGERS := ["on_ally_death", "on_turn_start", "on_turn_end", "constante"]
+const ENGINE_TRIGGERS := ["on_ally_death", "on_turn_start", "on_turn_end", "on_any_turn_start", "on_any_turn_end", "constante"]
 
 ## True for a synergy engine (e.g. Diabrete Sombrio: "Aliado Morre"): a unit with a repeating
 ## trigger, an Ao Ativar ability, or the Encarnação. The AI avoids leaving these exposed to a trade.
