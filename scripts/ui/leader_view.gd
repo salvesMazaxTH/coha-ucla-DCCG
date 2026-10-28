@@ -563,8 +563,6 @@ func _show_ability_popup() -> void:
 	var want := global_position + AC + Vector2(AR + 12, -AR)
 	p.position = Vector2(clamp(want.x, 8, vp.x - p.size.x - 8), clamp(want.y, 8, vp.y - p.size.y - 8))
 
-const SPEED_NAMES := {"rapido": "Rápida", "instantaneo": "Instantânea"}
-
 ## Ability card body: gold title, cost/speed chips, rules text that wraps.
 ## The chips already say speed, cost and "1× por turno", so the matching
 ## lead-in of the text is dropped.
@@ -589,8 +587,8 @@ static func ability_panel(ab: Dictionary, col: Color, uses_spent := -1) -> Contr
 		chips.add_child(_chip("PASSIVA", col.lightened(0.25)))
 	else:
 		chips.add_child(_chip("◆ %d MOMENTUM" % int(ab["cost"]), UITheme.MOMENTUM))
-	if SPEED_NAMES.has(ab.get("speed", "")):
-		chips.add_child(_chip(SPEED_NAMES[ab["speed"]].to_upper(), Color("#9fd8ff")))
+	if not passive and ab.has("speed"):
+		chips.add_child(_speed_seal(str(ab["speed"])))
 	if ab.has("max_per_turn"):
 		var limit_text := "%d× POR TURNO" % int(ab["max_per_turn"])
 		if uses_spent >= 0:
@@ -608,7 +606,7 @@ static func ability_panel(ab: Dictionary, col: Color, uses_spent := -1) -> Contr
 	box.add_child(rule)
 
 	var body: String = ab["text"]
-	for lead in [r"^(Rápida|Instantânea|Passiva)\.\s*", r"^\d+ Momentum, uma vez por turno:\s*", r"^\d+ Momentum:\s*"]:
+	for lead in [r"^(Lenta|Rápida|Instantânea|Passiva)\.\s*", r"^\d+ Momentum, uma vez por turno:\s*", r"^\d+ Momentum:\s*"]:
 		body = RegEx.create_from_string(lead).sub(body, "")
 	if body != "":
 		body = body.substr(0, 1).to_upper() + body.substr(1)
@@ -625,6 +623,16 @@ static func ability_panel(ab: Dictionary, col: Color, uses_spent := -1) -> Contr
 	rt.text = CardView.colorize_rules(body, 21)
 	box.add_child(rt)
 	return box
+
+## The same speed seal the spell cards print (assets/ui/speed_<speed>.png), shrunk to chip height.
+static func _speed_seal(speed: String) -> Control:
+	var seal := TextureRect.new()
+	seal.texture = load("res://assets/ui/speed_%s.png" % speed)
+	seal.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	seal.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	seal.custom_minimum_size = Vector2(0, 24)
+	seal.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return seal
 
 static func _chip(t: String, col: Color) -> Control:
 	var c := PanelContainer.new()
