@@ -9,8 +9,9 @@
   "hp": 7,
   "keywords": ["provocacao", "armadura:2"],
   "counts_as_artifact": true,
+  "equipment_capacity": 2,
   "effects": [],
-  "text": "Esta unidade também conta como um artefato seu em jogo.",
+  "text": "Esta unidade também conta como um artefato seu em jogo e pode vestir até 2 equipamentos ao mesmo tempo.",
   "flavor": "",
   "art": "montanha/matusalem_tartaruga_relicario.webp",
   "tags": []

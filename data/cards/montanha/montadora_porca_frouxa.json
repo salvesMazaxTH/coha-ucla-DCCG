@@ -9,15 +9,16 @@
   "atk": 2,
   "hp": 4,
   "keywords": [],
-  "effects": [],
+  "effects": [{ "trigger": "on_ally_death", "action": "inherit_equipment", "target": "self", "only_if_unequipped": true }],
   "activated": {
     "cost": 1,
     "speed": "lento",
     "exhaust": true,
     "effects": [{ "action": "equip_table_artifact", "target": "ally_artifact", "no_subtypes": true }]
   },
-  "text": "Ao Ativar (1) {lento} (exaure esta unidade): equipa nesta unidade um artefato seu em campo que não tenha subtipo. Ele continua contando como artefato, mas não pode ser ativado.",
+  "text": "Aliado Morre: se esta unidade estiver sem equipamento, ela herda o equipamento que a unidade morta usava.\nAo Ativar (1) {lento} (exaure esta unidade): equipa nesta unidade um artefato seu em campo que não tenha subtipo. Ele continua contando como artefato, mas não pode ser ativado.",
   "flavor": "",
   "art": "montanha/montadora_porca_frouxa.webp",
+  "art_crop": {"x": 0.5, "y": 0.32, "zoom": 1.0},
   "tags": []
 }

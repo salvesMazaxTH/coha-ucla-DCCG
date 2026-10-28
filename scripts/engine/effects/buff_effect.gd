@@ -10,12 +10,15 @@ extends Effect
 ## gives it for good, or only until the end of the turn with "temp": true. A Supremo that is already there is never made shorter.
 ## "per": "momentum_left" multiplies atk/hp by the Momentum the controller still has
 ## (at least `min`, at most `max`). "per": "own_artifacts" multiplies them by the artifacts the controller has in play
-## (Otávio Rebite-Quente: +1 Ataque for each one).
+## (Otávio Rebite-Quente: +1 Ataque for each one). "per": "sacrificed_atk" multiplies them by the Ataque of the unit a
+## "sacrifice" just killed (Esther: she gains +X/+X, X = that Ataque).
 ## "cap_atk": this effect can give one unit at most that much attack in total (e.g. Layla).
 ## "critico_max": true  a unit that has any Crítico at all goes up to Crítico 4 until the end of the turn (units without Crítico are untouched).
 ## "hp_temp_until_next_turn": N gives temporary Vida until the unit's owner's next turn starts.
 ## "keywords_until_next_turn": [...] gives these keywords until the unit's owner's next turn starts (a keyword the unit already
 ## has stays as it is) - Cortina de Fumaça Barata gives Furtividade this way.
+## "keywords_until_owner_turn_end": [...] gives these keywords until the END of the turn its owner plays next (so they last through
+## that whole turn, including when the unit is on the other side's board - Jurema Falamanssa hands an enemy Pacifista for its next turn).
 ## "rapidez_until_next_turn": N lends the unit Rapidez N until its owner's next turn starts (it never lowers a Rapidez the unit already has);
 ## Corrente de Ar pairs it with Esquiva, which does nothing on a unit without Rapidez.
 ## "bonus_if_card": {"card": id, "atk": N, "hp": N}: when the target is that card, it also gains this permanently (Myrra -> Vael).
@@ -43,6 +46,7 @@ var temporary_health_until_next_turn := 0
 var temporary := false
 var keywords: Array = []
 var keywords_until_next_turn: Array = []
+var keywords_until_owner_turn_end: Array = []
 var per := ""
 var multiplier_min := 0
 var multiplier_max := 99
@@ -83,6 +87,7 @@ func _read_parameters(data: Dictionary) -> void:
 	temporary = bool(data.get("temp", false))
 	keywords = data.get("keywords", [])
 	keywords_until_next_turn = data.get("keywords_until_next_turn", [])
+	keywords_until_owner_turn_end = data.get("keywords_until_owner_turn_end", [])
 	per = String(data.get("per", ""))
 	multiplier_min = int(data.get("min", 0))
 	multiplier_max = int(data.get("max", 99))
@@ -128,6 +133,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		multiplier = clampi(int(game.players[context.controller]["momentum"]), multiplier_min, multiplier_max)
 	elif per == "own_artifacts":
 		multiplier = game.artifact_count(context.controller)
+	elif per == "sacrificed_atk":
+		multiplier = context.sacrificed_attack
 	var attack_gain: int = attack * multiplier
 	var health_gain: int = health * multiplier
 	if attack_multiplier > 1:
@@ -195,6 +202,11 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		if not unit.keywords.has(keyword):
 			unit.keywords.append(keyword)
 			unit.keywords_until_next_turn.append(keyword)
+			granted_keywords.append(keyword)
+	for keyword in keywords_until_owner_turn_end:
+		if not unit.keywords.has(keyword):
+			unit.keywords.append(keyword)
+			unit.keywords_until_owner_turn_end.append(keyword)
 			granted_keywords.append(keyword)
 	var buff_event := {"type": "buff", "uid": target_uid, "atk": attack_gain, "hp": health_gain, "keywords": granted_keywords}
 	if minimum_rapidez > unit.rapidez:

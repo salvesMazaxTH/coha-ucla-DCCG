@@ -1,0 +1,44 @@
+{
+  "name": "Jovahr",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [],
+  "essence": ["fluxo", "furia"],
+  "cost": 5,
+  "atk": 4,
+  "hp": 5,
+  "keywords": [],
+  "art": "fluxo/jovahr.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "freeze",
+      "target": "enemy_unit"
+    },
+    {
+      "trigger": "on_attack",
+      "action": "damage",
+      "target": "all_enemy_units",
+      "unit_state": "frozen",
+      "amount": 2,
+      "source_gain_per_kill": 1
+    },
+    {
+      "trigger": "on_attack",
+      "action": "add_dot",
+      "target": "all_enemy_units",
+      "unit_state": "frozen",
+      "dot": "queimadura",
+      "amount": 1
+    },
+    {
+      "trigger": "on_attack",
+      "action": "unfreeze",
+      "target": "all_enemy_units",
+      "unit_state": "frozen"
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela é congelada.\nAo Atacar: cada unidade inimiga Congelada sofre 2 de dano (se isso a matar, esta unidade ganha +1 de Ataque permanente) e recebe 1 marcador de Queimadura; depois, elas descongelam.",
+  "flavor": "",
+  "tags": []
+}

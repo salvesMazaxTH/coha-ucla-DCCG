@@ -250,6 +250,38 @@ func stat_gain_since(unit: Card, before: Dictionary) -> Dictionary:
 		"supreme_shield": unit.supreme_shield and not before["supreme_shield"],
 	}
 
+## Gives the unit what an equipment's `granted` says (the mirror of remove_equipment_bonus), for an equipment that
+## changes hands: a Porca-Frouxa taking the equipment of a fallen ally. Returns what the unit really gained, which
+## is what must be remembered as the new worn_grant: a keyword or shield the unit already had is not counted,
+## so taking the equipment off later never strips something the unit owns by itself.
+func apply_equipment_bonus(unit: Card, granted: Dictionary) -> Dictionary:
+	var gained_keywords: Array = []
+	for keyword in granted.get("keywords", []):
+		if not unit.keywords.has(keyword):
+			unit.keywords.append(keyword)
+			gained_keywords.append(keyword)
+	var gained_shield: bool = granted.get("shield", false) and not unit.shield
+	var gained_magic_shield: bool = granted.get("magic_shield", false) and not unit.magic_shield
+	var gained_supreme_shield: bool = granted.get("supreme_shield", false) and not unit.supreme_shield
+	unit.atk += int(granted.get("atk", 0))
+	unit.hp += int(granted.get("hp", 0))
+	unit.armor += int(granted.get("armor", 0))
+	unit.critico += int(granted.get("critico", 0))
+	unit.rapidez += int(granted.get("rapidez", 0))
+	unit.cap_atk_gain += int(granted.get("cap_atk_gain", 0))
+	if gained_shield:
+		unit.shield = true
+	if gained_magic_shield:
+		unit.magic_shield = true
+	if gained_supreme_shield:
+		unit.grant_supreme_shield()
+	return {
+		"atk": int(granted.get("atk", 0)), "hp": int(granted.get("hp", 0)), "armor": int(granted.get("armor", 0)),
+		"critico": int(granted.get("critico", 0)), "rapidez": int(granted.get("rapidez", 0)),
+		"cap_atk_gain": int(granted.get("cap_atk_gain", 0)), "keywords": gained_keywords,
+		"shield": gained_shield, "magic_shield": gained_magic_shield, "supreme_shield": gained_supreme_shield,
+	}
+
 ## Takes back what one of the unit's equipment gave it. The unit never dies from this: if losing the
 ## Vida would kill it, it stays with 1 Vida left.
 func remove_equipment_bonus(unit: Card, worn: Card) -> void:
@@ -377,9 +409,11 @@ func open_summon_window(p: int) -> void:
 ## response window once the pick is made.
 func after_search() -> void:
 	# a choice that was queued behind the one just answered opens now
-	if game.phase != "search" and not game.queued_choices.is_empty():
+	# (a queued choice whose condition failed is dropped and the next one gets its turn)
+	while game.phase != "search" and not game.queued_choices.is_empty():
 		var next_choice: Dictionary = game.queued_choices.pop_front()
-		next_choice["effect"].open_choice(next_choice["context"])
+		if game.choice_is_due(next_choice["effect"]):
+			next_choice["effect"].open_choice(next_choice["context"])
 	if game._summon_pending and game.phase == "main":
 		game._summon_pending = false
 		open_summon_window(game.active)

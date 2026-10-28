@@ -43,11 +43,13 @@ func source_id() -> String:
 	var source_unit: Card = game.find_unit(self_uid) if self_uid > 0 else null
 	return source_unit.card_id if source_unit != null else ""
 
-## The context for a sacrifice's "then" effects: no trigger filter, no source unit, and the
-## second pick becomes the chosen target. The dying unit and where the effects come from
-## (the spell or ability that sacrificed) carry over.
+## The context for a sacrifice's "then" effects: no trigger filter, and the second pick becomes
+## the chosen target. The dying unit, the unit whose effect this is (so "self" in a "then" still
+## means the sacrificer, e.g. Esther) and where the effects come from (the spell or ability that
+## sacrificed) carry over.
 func for_then_effects() -> EffectContext:
 	var child := EffectContext.new(game, controller, "")
+	child.self_uid = self_uid
 	child.source_card_id = source_card_id
 	child.is_leader_ability = is_leader_ability
 	child.chosen_target = second_target

@@ -15,6 +15,7 @@ func _init() -> void:
 		check(DeckDB.get_deck(d)["cards"].keys() == DeckDB.sorted_cards(DeckDB.get_deck(d)["cards"]).keys(), "deck %s: cartas fora de ordem de custo (rode tools/sort_decks.gd)" % d)
 	_test_flavor()
 	_test_cristal_do_poder_equipado()
+	_test_porca_frouxa_herda_equipamento()
 	_test_art_crop()
 	_test_sfx()
 	_test_off_essence()
@@ -146,6 +147,7 @@ func _init() -> void:
 	_test_momentum_refresh()
 	_test_eryon_deck()
 	_test_ralia_deal_damage()
+	_test_eight_new_cards()
 	_test_play_restrictions()
 	_test_cortina_de_fumaca()
 	_test_sim()
@@ -378,6 +380,69 @@ func _test_cristal_do_poder_equipado() -> void:
 	check(g.artifact_count(a) == 1, "cristal equipado: continua contando como artefato")
 	g.stack_system().remove_equipment_bonus(montadora, cristal)
 	check(montadora.atk == 2, "cristal equipado: ao sair, o bônus é devolvido")
+
+## Montadora Porca-Frouxa: when an ally dies wearing equipment and she wears none, the equipment moves to her
+## (out of the graveyard) and gives her the same bonus it gave the fallen unit.
+func _test_porca_frouxa_herda_equipamento() -> void:
+	_tcard("teste_alvo_gelo", 0, 20, [])
+	var g := _new_game()
+	_quiet(g)
+	var montadora := _put(g, 0, "montadora_porca_frouxa")
+	var fallen := _put(g, 0, "teste_alvo_gelo")
+	var amulet := Card.new(g._uid(), "amuleto_do_primeiro_floco", 0)
+	fallen.hp += 2
+	g.stack_system().attach(fallen, amulet, {"hp": 2})
+	var hp_before: int = montadora.hp
+	g._deal_damage(fallen.uid, 99, null)
+	g._check_state()
+	g._flush()
+	check(g.find_unit(fallen.uid) == null, "porca-frouxa: a aliada equipada morreu")
+	check(montadora.equipped_cards.has(amulet), "porca-frouxa: herda o equipamento da aliada morta")
+	check(not g.players[0]["graveyard"].has(amulet), "porca-frouxa: o equipamento sai do cemitério")
+	check(montadora.hp == hp_before + 2 and amulet.worn_grant.get("hp", 0) == 2, "porca-frouxa: recebe o mesmo bônus de Vida (+2) e o registra")
+	g.stack_system().remove_equipment_bonus(montadora, amulet)
+	check(montadora.hp == hp_before, "porca-frouxa: ao perder o equipamento herdado, o bônus é devolvido")
+
+	# already wearing something: nothing is inherited, the equipment stays in the graveyard
+	g = _new_game()
+	_quiet(g)
+	montadora = _put(g, 0, "montadora_porca_frouxa")
+	var own_cloak := Card.new(g._uid(), "manto_da_ladainha", 0)
+	montadora.armor += 1
+	g.stack_system().attach(montadora, own_cloak, {"armor": 1})
+	fallen = _put(g, 0, "teste_alvo_gelo")
+	amulet = Card.new(g._uid(), "amuleto_do_primeiro_floco", 0)
+	fallen.hp += 2
+	g.stack_system().attach(fallen, amulet, {"hp": 2})
+	g._deal_damage(fallen.uid, 99, null)
+	g._check_state()
+	g._flush()
+	check(montadora.equipped_cards == [own_cloak] and g.players[0]["graveyard"].has(amulet), "porca-frouxa: já equipada, o equipamento da aliada fica no cemitério")
+
+	# the fallen ally wore nothing: nothing to inherit
+	g = _new_game()
+	_quiet(g)
+	montadora = _put(g, 0, "montadora_porca_frouxa")
+	fallen = _put(g, 0, "teste_alvo_gelo")
+	g._deal_damage(fallen.uid, 99, null)
+	g._check_state()
+	g._flush()
+	check(montadora.equipped_cards.is_empty(), "porca-frouxa: aliada sem equipamento não dá nada")
+
+	# Matusalém wears two equipment at once; a third pushes the oldest back to the hand
+	g = _new_game()
+	_quiet(g)
+	var tartaruga := _put(g, 0, "matusalem_tartaruga_relicario")
+	check(tartaruga.equipment_capacity() == 2, "matusalém: capacidade de 2 equipamentos")
+	var first_cloak := Card.new(g._uid(), "manto_da_ladainha", 0)
+	var second_cloak := Card.new(g._uid(), "manto_da_ladainha", 0)
+	var third_cloak := Card.new(g._uid(), "manto_da_ladainha", 0)
+	g.stack_system().attach(tartaruga, first_cloak, {})
+	check(tartaruga.has_equipment_room(), "matusalém: com 1 equipamento ainda cabe outro")
+	g.stack_system().attach(tartaruga, second_cloak, {})
+	check(tartaruga.equipped_cards.size() == 2 and not tartaruga.has_equipment_room(), "matusalém: com 2 equipamentos está cheia")
+	g.stack_system().attach(tartaruga, third_cloak, {})
+	check(tartaruga.equipped_cards.size() == 2 and tartaruga.equipped_cards.has(third_cloak) and not tartaruga.equipped_cards.has(first_cloak), "matusalém: o terceiro equipamento devolve o mais antigo")
 
 func _test_search() -> void:
 	var g := _new_game()
@@ -7387,6 +7452,35 @@ func _test_metalica() -> void:
 	_cast_and_resolve(g, a, "engrenagem_solta", other.uid)
 	check(g.atk_of(uncle) == 3 and g.hp_left(uncle) == 5, "Berengar Voss: artefato equipado também conta")
 
+	# Berengar's leader power (Peça Sobressalente): looks at the top 3 and takes an artifact FIRST; only a card taken makes it discard 1
+	for scenario in ["takes_artifact", "no_artifact_on_top", "declines_search"]:
+		g = _metalica_game()
+		a = g.active
+		g.players[a]["leader_id"] = "berengar_voss"
+		g.players[a]["ability_used"] = false
+		g.players[a]["momentum"] = 5
+		var top_card_ids: Array = ["zeladorbot_3000", "zeladorbot_3000", "zeladorbot_3000"]
+		if scenario != "no_artifact_on_top":
+			top_card_ids[1] = "moedor_de_sucata"
+		for top_card_id in top_card_ids:
+			g.players[a]["deck"].append(Card.new(g._uid(), top_card_id, a))
+		var hand_before: int = g.players[a]["hand"].size()
+		check(g.can_use_ability(a), "Berengar (%s): Peça Sobressalente disponível" % scenario)
+		g.use_ability(a)
+		_resolve_stack(g)
+		if scenario == "no_artifact_on_top":
+			check(g.phase != "search" and g.players[a]["hand"].size() == hand_before, "Berengar: sem artefato no topo não pega nem descarta nada")
+			continue
+		check(g.phase == "search" and not g.pending_search.get("discard_hand", false) and g.pending_search["cards"].size() == 1, "Berengar (%s): a primeira escolha é a busca, não o descarte" % scenario)
+		if scenario == "declines_search":
+			g.choose_search(a, 0)
+			check(g.phase != "search" and g.players[a]["hand"].size() == hand_before, "Berengar: recusar a busca não obriga a descartar")
+			continue
+		g.choose_search(a, int(g.pending_search["cards"][0]["uid"]))
+		check(g.phase == "search" and g.pending_search.get("discard_hand", false), "Berengar: depois de pegar o artefato, pede o descarte")
+		g.choose_search(a, int(g.pending_search["cards"][0]["uid"]))
+		check(g.phase != "search" and g.players[a]["hand"].size() == hand_before, "Berengar: pegou 1 e descartou 1, a mão fica do mesmo tamanho")
+
 	# Morakhan's leader power: an ally gets Reflexão until the end of the turn
 	g = _metalica_game()
 	a = g.active
@@ -9314,6 +9408,119 @@ func _test_eryon_deck() -> void:
 	g._begin_search(a, {"card_ids": ["barao_estrondoso"], "fallback_draw": 1}, 0)
 	check(g.phase != "search", "Recado Urgente: sem o Barão no deck não abre escolha (Gertrudes não conta)")
 	check(g.players[a]["hand"].size() == hand_before + 1, "Recado Urgente: sem o Barão no deck compra 1 carta (%d)" % (g.players[a]["hand"].size() - hand_before))
+
+## Eight cards added together (Vendedora de Grimório, Sorvetinho Derrete-Lento,
+## Jurema Falamanssa, Goblin das Brasas, Esther, Jovahr) and the engine parameters they brought: search "discount",
+## remove "max_target_cost", "unfreeze" + "unit_state", "keywords_until_owner_turn_end", "source_gain_per_kill", "per": "sacrificed_atk".
+func _test_eight_new_cards() -> void:
+	_tcard("t_eight_cost2_wall", 0, 30, [])
+	CardDB.data()["cards"]["t_eight_cost2_wall"]["cost"] = 2
+	_tcard("t_eight_cost3_wall", 0, 30, [])
+	CardDB.data()["cards"]["t_eight_cost3_wall"]["cost"] = 3
+	_tcard("t_eight_fat_three", 3, 3, [])
+	_tcard("t_eight_frail_two", 0, 2, [])
+	_tcard("t_eight_sturdy_five", 0, 5, [])
+	_tspell("t_eight_book_spell", "lento", [])
+	CardDB.data()["cards"]["t_eight_book_spell"]["cost"] = 3
+
+	# Goblin das Brasas: dying puts 2 Queimadura markers on a random enemy unit
+	var g := _new_game()
+	_quiet(g)
+	var goblin := _put(g, 0, "goblin_das_brasas")
+	var burned_enemy := _put(g, 1, "t_eight_sturdy_five")
+	_kill(g, goblin)
+	check(int(burned_enemy.dot_markers.get("queimadura", 0)) == 2, "Goblin das Brasas: ao morrer põe 2 Queimadura numa unidade inimiga")
+
+	# Sorvetinho Derrete-Lento: dying raises the Bola de Neve level, and its base for the rest of the game
+	g = _new_game()
+	_quiet(g)
+	var level_before: int = g.players[0]["snowball"]
+	var base_before: int = g.players[0]["snowball_base"]
+	var sorvetinho := _put(g, 0, "sorvetinho_derrete_lento")
+	_kill(g, sorvetinho)
+	check(g.players[0]["snowball"] == level_before + 1 and g.players[0]["snowball_base"] == base_before + 1, "Sorvetinho: ao morrer sobe a Bola de Neve em 1, de forma permanente")
+
+	# Vendedora de Grimório: looks at the top 3, only a spell there can be taken, and it costs 1 less
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	g.players[0]["deck"].clear()
+	_stack_on_deck(g, 0, "t_eight_fat_three")
+	var found_spell := _stack_on_deck(g, 0, "t_eight_book_spell")
+	_stack_on_deck(g, 0, "t_eight_fat_three")
+	var seller_uid := _give(g, 0, "vendedora_de_grimorio")
+	g.play_card(0, seller_uid)
+	check(g.phase == "search" and g.pending_search["cards"].size() == 1, "Vendedora: só o feitiço entre as 3 do topo é elegível")
+	g.choose_search(0, found_spell.uid)
+	check(g.players[0]["hand"].has(found_spell) and g.cost_of(0, CardDB.card("t_eight_book_spell"), found_spell) == 2, "Vendedora: o feitiço pego custa 1 a menos")
+
+	# Jurema Falamanssa: the chosen enemy gets Pacifista until the end of its owner's next turn
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var pacified_enemy := _put(g, 1, "t_eight_fat_three")
+	var jurema_uid := _give(g, 0, "jurema_falamanssa")
+	g.play_card(0, jurema_uid)
+	check(g.phase == "enter_target", "Jurema: pede a unidade inimiga")
+	g.choose_enter_target(0, pacified_enemy.uid)
+	if g.summon_window:
+		g.pass_priority(1)
+	check(g.has_kw(pacified_enemy, "pacifista"), "Jurema: a unidade escolhida fica com Pacifista")
+	g.end_turn(0)
+	check(g.active == 1 and g.has_kw(pacified_enemy, "pacifista"), "Jurema: Pacifista dura durante o turno do dono da unidade")
+	g.end_turn(1)
+	check(not g.has_kw(pacified_enemy, "pacifista"), "Jurema: Pacifista acaba no fim do turno do dono da unidade")
+
+	# Esther: sacrificing an ally costs her Leader 2 and gives her Ímpeto and +X/+X (X = the sacrificed Ataque)
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var fodder := _put(g, 0, "t_eight_fat_three")
+	var leader_before: int = g.players[0]["leader_hp"]
+	var esther_uid := _give(g, 0, "esther")
+	g.play_card(0, esther_uid)
+	check(g.phase == "enter_target", "Esther: pede a unidade a sacrificar")
+	g.choose_enter_target(0, fodder.uid)
+	var esther := g.find_unit(esther_uid)
+	check(g.find_unit(fodder.uid) == null and g.players[0]["leader_hp"] == leader_before - 2, "Esther: sacrifica o aliado e o Líder sofre 2")
+	check(g.atk_of(esther) == 6 and esther.hp_left() == 6 and g.has_kw(esther, "impeto"), "Esther: ganha +3/+3 (o Ataque do sacrificado) e Ímpeto")
+	# declining the sacrifice changes nothing
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var spared := _put(g, 0, "t_eight_fat_three")
+	leader_before = g.players[0]["leader_hp"]
+	esther_uid = _give(g, 0, "esther")
+	g.play_card(0, esther_uid)
+	g.choose_enter_target(0, 0)
+	esther = g.find_unit(esther_uid)
+	check(g.find_unit(spared.uid) != null and g.players[0]["leader_hp"] == leader_before and g.atk_of(esther) == 3 and not g.has_kw(esther, "impeto"), "Esther: recusar o sacrifício não muda nada")
+
+	# Jovahr: freezes an enemy on entering
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var freeze_victim := _put(g, 1, "t_eight_sturdy_five")
+	var jovahr_uid := _give(g, 0, "jovahr")
+	g.play_card(0, jovahr_uid)
+	g.choose_enter_target(0, freeze_victim.uid)
+	check(freeze_victim.is_frozen(), "Jovahr: ao entrar congela a unidade escolhida")
+	# Jovahr on attack: every Congelada enemy takes 2 and 1 Queimadura then thaws; a kill gives +1 Ataque; others are untouched
+	g = _new_game()
+	_quiet(g)
+	var jovahr := _put(g, 0, "jovahr")
+	var doomed := _put(g, 1, "t_eight_frail_two")
+	var frozen_survivor := _put(g, 1, "t_eight_sturdy_five")
+	var not_frozen := _put(g, 1, "t_eight_sturdy_five")
+	doomed.frozen = 99
+	frozen_survivor.frozen = 99
+	var jovahr_attack_before: int = g.atk_of(jovahr)
+	_hit(g, jovahr)
+	_pass_windows(g)
+	check(g.find_unit(doomed.uid) == null, "Jovahr: Congelada com pouca Vida morre no Ao Atacar")
+	check(g.atk_of(jovahr) == jovahr_attack_before + 1, "Jovahr: ganha +1 de Ataque permanente pela morte")
+	check(frozen_survivor.damage == 2 and int(frozen_survivor.dot_markers.get("queimadura", 0)) == 1 and not frozen_survivor.is_frozen(), "Jovahr: Congelada que sobrevive leva 2, 1 Queimadura e descongela")
+	check(not_frozen.damage == 0 and not not_frozen.dot_markers.has("queimadura"), "Jovahr: unidade não Congelada não é afetada")
 
 ## Ao Desafiar (on_challenge) and Rália: when she challenges a unit she throws a fixed 3 damage at up to 3
 ## different random enemy units (never the Leader), and that damage heals her Leader and herself.

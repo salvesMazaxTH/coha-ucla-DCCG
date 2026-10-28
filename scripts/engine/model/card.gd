@@ -30,6 +30,7 @@ var keywords: Array = []
 var temp_keywords: Array = []
 var rapidez_until_next_turn := 0 ## Rapidez lent only until this unit's owner's next turn starts (Corrente de Ar); the higher of this and `rapidez` counts
 var keywords_until_next_turn: Array = [] ## keywords granted only until this unit's owner's next turn starts (Cortina de Fumaça Barata); they leave then
+var keywords_until_owner_turn_end: Array = [] ## keywords granted only until the end of the turn this unit's owner plays next (Jurema Falamanssa's Pacifista on an enemy)
 var lost_keywords: Array = [] ## keywords taken away only until the end of this turn (Saltador de Cerca); they come back then
 var shield := false
 var temp_armor := 0 ## extra Armadura that ends when its owner's next turn starts
@@ -155,6 +156,7 @@ func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:
 	keywords = kws
 	temp_keywords = []
 	keywords_until_next_turn = []
+	keywords_until_owner_turn_end = []
 	rapidez_until_next_turn = 0
 	lost_keywords = []
 	exhausted = false
@@ -216,7 +218,7 @@ func capture_permanent_buffs() -> void:
 	}
 	var added_keywords: Array = []
 	for keyword in keywords:
-		if not printed_keywords.has(keyword) and not temp_keywords.has(keyword) and not keywords_until_next_turn.has(keyword):
+		if not printed_keywords.has(keyword) and not temp_keywords.has(keyword) and not keywords_until_next_turn.has(keyword) and not keywords_until_owner_turn_end.has(keyword):
 			added_keywords.append(keyword)
 	if not added_keywords.is_empty():
 		upgrades["keywords"] = added_keywords
@@ -262,6 +264,7 @@ func silence() -> void:
 	keywords = []
 	temp_keywords = []
 	keywords_until_next_turn = []
+	keywords_until_owner_turn_end = []
 	rapidez_until_next_turn = 0
 	lost_keywords = [] # nothing left to give back
 	shield = false
@@ -389,6 +392,8 @@ func to_dict() -> Dictionary:
 		d["magic_shield_until_end_turn"] = true
 	if not keywords_until_next_turn.is_empty():
 		d["keywords_until_next_turn"] = keywords_until_next_turn.duplicate()
+	if not keywords_until_owner_turn_end.is_empty():
+		d["keywords_until_owner_turn_end"] = keywords_until_owner_turn_end.duplicate()
 	if rapidez_until_next_turn > 0:
 		d["rapidez_until_next_turn"] = rapidez_until_next_turn
 	if not lost_keywords.is_empty():
@@ -487,6 +492,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.magic_shield_until_next_turn = bool(d.get("magic_shield_until_next_turn", false))
 	c.magic_shield_until_end_turn = bool(d.get("magic_shield_until_end_turn", false))
 	c.keywords_until_next_turn = d.get("keywords_until_next_turn", [])
+	c.keywords_until_owner_turn_end = d.get("keywords_until_owner_turn_end", [])
 	c.rapidez_until_next_turn = int(d.get("rapidez_until_next_turn", 0))
 	c.lost_keywords = d.get("lost_keywords", [])
 	c.temp_hp = int(d.get("temp_hp", 0))

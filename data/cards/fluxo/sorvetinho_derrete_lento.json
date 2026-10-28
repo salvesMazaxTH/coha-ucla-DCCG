@@ -1,0 +1,25 @@
+{
+  "name": "Sorvetinho Derrete-Lento",
+  "type": "unit",
+  "rarity": "common",
+  "species": [],
+  "essence": "fluxo",
+  "element": "gelo",
+  "cost": 2,
+  "atk": 1,
+  "hp": 3,
+  "keywords": [],
+  "art": "fluxo/sorvetinho_derrete_lento.webp",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "snowball_level",
+      "target": "none",
+      "amount": 1,
+      "permanent": true
+    }
+  ],
+  "text": "Ao Morrer: o nível da sua Bola de Neve é aumentado em 1 pelo resto do jogo.",
+  "flavor": "",
+  "tags": []
+}

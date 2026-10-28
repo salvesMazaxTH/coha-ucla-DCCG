@@ -670,10 +670,10 @@
         "once_per_turn": true,
         "speed": "lento",
         "effects": [
-          { "action": "discard_hand_pick", "target": "none" },
-          { "action": "search_deck", "target": "none", "type": "artifact", "top": 3 }
+          { "action": "search_deck", "target": "none", "type": "artifact", "top": 3 },
+          { "action": "discard_hand_pick", "target": "none", "only_if_search_took": true }
         ],
-        "text": "Lenta. 2 Momentum, uma vez por turno: descarta 1 carta da mão, olha as 3 cartas do topo do deck e coloca um artefato entre elas na mão; as outras vão para o fundo do deck."
+        "text": "Lenta. 2 Momentum, uma vez por turno: olha as 3 cartas do topo do deck e coloca um artefato entre elas na mão; as outras vão para o fundo do deck. Se pega um artefato, descarta 1 carta da mão."
       },
       "essences": ["montanha"]
     },

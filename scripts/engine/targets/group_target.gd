@@ -5,6 +5,7 @@ extends TargetSelector
 ## (the middle of the enemy board as it stands: 1 unit if the count is odd, the 2 middle ones if even).
 ## Any group can be narrowed by a "unit_filter" in the effect's JSON: a CardFilter dictionary checked against each
 ## unit's printed card, e.g. {"max_cost": 4} keeps only the units that cost 4 or less (Kazeminus).
+## "unit_state": "frozen" keeps only the units that are Congeladas right now (Jovahr); checked live, when the effect runs.
 
 const NAMES := ["all_enemy_units", "all_units", "other_units", "all_ally_units", "other_ally_units", "center_enemy_units", "all_enemy_tokens"]
 
@@ -39,4 +40,6 @@ func resolve(context: EffectContext, effect: Effect) -> Array:
 	var unit_filter: Dictionary = effect.raw.get("unit_filter", {})
 	if not unit_filter.is_empty():
 		uids = uids.filter(func(uid: int) -> bool: return CardFilter.matches(context.game.find_unit(uid).card_id, unit_filter))
+	if effect.raw.get("unit_state", "") == "frozen":
+		uids = uids.filter(func(uid: int) -> bool: return context.game.find_unit(uid).is_frozen())
 	return uids

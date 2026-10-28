@@ -1,0 +1,25 @@
+{
+  "name": "Goblin das Brasas",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["goblin"],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 2,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [],
+  "art": "furia/goblin_das_brasas.webp",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "add_dot",
+      "target": "random_enemy_unit",
+      "dot": "queimadura",
+      "amount": 2
+    }
+  ],
+  "text": "Ao Morrer: uma unidade inimiga aleatória recebe 2 marcadores de Queimadura.",
+  "flavor": "",
+  "tags": []
+}

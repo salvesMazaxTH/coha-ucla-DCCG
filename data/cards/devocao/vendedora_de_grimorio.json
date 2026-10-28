@@ -1,0 +1,25 @@
+{
+  "name": "Clarice, Vendedora de Grimório",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["humano"],
+  "essence": "devocao",
+  "cost": 3,
+  "atk": 2,
+  "hp": 3,
+  "keywords": [],
+  "art": "devocao/vendedora_de_grimorio.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "search_deck",
+      "target": "none",
+      "type": "spell",
+      "top": 3,
+      "discount": 1
+    }
+  ],
+  "text": "Ao Entrar: você olha as 3 cartas do topo do seu deck e revela um feitiço entre elas para colocá-lo na mão, custando (1) a menos; as outras vão para o fundo do deck.",
+  "flavor": "",
+  "tags": []
+}

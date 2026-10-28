@@ -16,6 +16,7 @@ extends Effect
 ## "spend_momentum": true (with momentum_left) also spends all that Momentum (Curto-Circuito).
 ## "lifesteal": true heals the controller's Leader by the damage this effect really dealt (Rália).
 ## "lifesteal_self": true (with lifesteal) also heals this unit by that same damage, if it is still on the board.
+## "source_gain_per_kill": N = if the damage kills a unit, this unit permanently gains +N Ataque (Jovahr).
 
 var amount := 0
 var amount_from := ""
@@ -30,6 +31,7 @@ var heals_by_damage_dealt := false
 var heals_source_too := false
 var divisor := 1
 var spends_momentum := false
+var source_gain_per_kill := 0
 
 func _read_parameters(data: Dictionary) -> void:
 	divisor = maxi(1, int(data.get("divisor", 1)))
@@ -45,6 +47,7 @@ func _read_parameters(data: Dictionary) -> void:
 	amount_if_leader = int(data.get("amount_if_leader", 0))
 	heals_by_damage_dealt = bool(data.get("lifesteal", false))
 	heals_source_too = bool(data.get("lifesteal_self", false))
+	source_gain_per_kill = int(data.get("source_gain_per_kill", 0))
 
 func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
@@ -83,6 +86,9 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	# the neighbours are found before any damage, so they stay the same if the target dies
 	var neighbour_uids := _neighbours_of(game, victim) if adjacent_amount > 0 else []
 	var damage_dealt := game._deal_damage(target_uid, damage_amount, null)
+	# deaths are settled later, so a victim left with no Vida on the board is the one this damage killed
+	if source_gain_per_kill > 0 and victim != null and damage_dealt > 0 and victim.hp_left() <= 0:
+		_grant_kill_bonus(context)
 	for neighbour_uid in neighbour_uids:
 		damage_dealt += game._deal_damage(neighbour_uid, adjacent_amount, null)
 	if heals_by_damage_dealt:
@@ -94,6 +100,14 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		FreezeEffect.new().apply(context, target_uid)
 	if stuns_target:
 		StunEffect.new().apply(context, target_uid)
+
+## The unit that owns this effect permanently gains Ataque for a kill (nothing happens if it already left the board).
+func _grant_kill_bonus(context: EffectContext) -> void:
+	var source_unit := context.game.find_unit(context.self_uid)
+	if source_unit == null:
+		return
+	source_unit.atk += source_gain_per_kill
+	context.game._emit({"type": "buff", "uid": source_unit.uid, "atk": source_gain_per_kill, "hp": 0, "keywords": []})
 
 ## Heals the unit that owns this effect (never above its Vida); a unit that already left the board is not healed.
 func _heal_source_unit(context: EffectContext, heal_amount: int) -> void:

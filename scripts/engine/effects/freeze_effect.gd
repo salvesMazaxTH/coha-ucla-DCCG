@@ -3,6 +3,7 @@ extends Effect
 ## "freeze": Congelada until the end of the next turn (whoever's turn that is): it doesn't attack,
 ## doesn't untap and doesn't guard its Leader. Its ATK stays whole (it strikes back normally) and it
 ## keeps the position it had (freezing doesn't tap it).
+## "unfreeze": the target thaws on the spot (Jovahr melts the ice with fire). Does nothing to a unit that isn't frozen.
 
 var ignores_immunity := false
 
@@ -16,6 +17,11 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
 	var unit := game.find_unit(target_uid)
 	if unit == null:
+		return
+	if action == "unfreeze":
+		if unit.is_frozen():
+			unit.frozen = 0
+			game._emit({"type": "thaw", "uid": target_uid})
 		return
 	# Gelo units are innately immune, including when the freeze comes from an area effect.
 	if CardDB.has_element(unit.data(), "gelo") and not ignores_immunity:

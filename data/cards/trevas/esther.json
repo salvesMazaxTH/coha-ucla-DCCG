@@ -1,0 +1,37 @@
+{
+  "name": "Esther",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [],
+  "essence": ["trevas", "furia"],
+  "cost": 4,
+  "atk": 3,
+  "hp": 3,
+  "keywords": [],
+  "art": "trevas/esther.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "sacrifice",
+      "target": "other_ally_unit",
+      "then": [
+        {
+          "action": "damage",
+          "target": "own_leader",
+          "amount": 2
+        },
+        {
+          "action": "buff",
+          "target": "self",
+          "atk": 1,
+          "hp": 1,
+          "per": "sacrificed_atk",
+          "keywords": ["impeto"]
+        }
+      ]
+    }
+  ],
+  "text": "Ao Entrar: você pode sacrificar outra unidade aliada; se o fizer, seu Líder sofre 2 de dano e esta unidade ganha Ímpeto e +X/+X permanente, onde X é o Ataque da unidade sacrificada.",
+  "flavor": "",
+  "tags": []
+}

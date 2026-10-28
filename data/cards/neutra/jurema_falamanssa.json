@@ -1,0 +1,23 @@
+{
+  "name": "Jurema Falamanssa",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["humano"],
+  "essence": "neutra",
+  "cost": 3,
+  "atk": 2,
+  "hp": 3,
+  "keywords": [],
+  "art": "neutra/jurema_falamanssa.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "enemy_unit",
+      "keywords_until_owner_turn_end": ["pacifista"]
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; o dano de combate dela é 0 até o fim do próximo turno do oponente.",
+  "flavor": "",
+  "tags": []
+}

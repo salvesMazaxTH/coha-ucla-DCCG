@@ -6,6 +6,8 @@ extends Effect
 ##   "shield_leader_damage": N = if the unit had Escudo, its owner's Leader takes N damage.
 ##   "banish_instead_domain": a unit of that domain is banished by this effect instead of being destroyed: it never dies
 ##   (no Ao Morrer, no Aliado Morre), Indestrutível and death wards don't matter (Expurgo Sagrado).
+##   "max_target_cost": N = only a unit whose printed cost is N or less is destroyed, otherwise nothing happens
+##   (Bicho Papão: a challenged cheap unit dies before combat).
 ## "banish": exile, stronger than destroy. Ignores Indestrutível, the unit never dies (no Ao
 ##   Morrer, no Aliado Morre) and never reaches the graveyard; its equipment does.
 ##   "requires_markers": {"dot": "veneno", "amount": X}: the banish only happens if the unit holds
@@ -20,6 +22,7 @@ var banish_instead_domain := ""
 var required_dot := ""
 var required_dot_amount := 0
 var required_subtype := ""
+var max_target_cost := -1 # -1 = any cost
 
 
 func _read_parameters(data: Dictionary) -> void:
@@ -29,6 +32,7 @@ func _read_parameters(data: Dictionary) -> void:
 	required_dot = String(requirement.get("dot", ""))
 	required_dot_amount = int(requirement.get("amount", 0))
 	required_subtype = String(data.get("subtype", ""))
+	max_target_cost = int(data.get("max_target_cost", -1))
 
 func harms_own_target() -> bool:
 	return true
@@ -48,6 +52,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 func _destroy(context: EffectContext, target_uid: int) -> void:
 	var doomed := context.game.find_unit(target_uid)
 	if doomed == null:
+		return
+	if max_target_cost >= 0 and int(doomed.data()["cost"]) > max_target_cost:
 		return
 	if banish_instead_domain != "" and CardDB.has_essence(doomed.data(), banish_instead_domain):
 		context.game.banish_unit(doomed) # exiled on the spot: it never dies

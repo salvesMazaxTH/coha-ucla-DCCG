@@ -17,5 +17,6 @@
   "text": "Ao Ativar (1) {instantaneo}: uma unidade aliada ganha +2 de Ataque até o fim do turno. Perde 1 de Durabilidade. Equipado em uma unidade, não pode ser ativado e concede +2 de Ataque a ela.",
   "flavor": "",
   "art": "montanha/cristal_do_poder.webp",
+  "art_crop": {"x": 1.0, "y": 0.12, "zoom": 1.0},
   "tags": []
 }

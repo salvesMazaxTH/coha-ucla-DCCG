@@ -95,8 +95,11 @@ var skip_rest_of_turn: Array = [false, false]
 var _search_return := "main"
 ## Choices (discard a card, search the deck...) that an effect list opened while an earlier choice of the same list
 ## was still waiting for its answer. Each entry is {"effect": Effect, "context": EffectContext}; they open one by one,
-## in order, as each answer comes in (see StackSystem.after_search). Peça Sobressalente: discard first, then look.
+## in order, as each answer comes in (see StackSystem.after_search). Peça Sobressalente: look first, then discard.
 var queued_choices: Array = []
+## True when the latest deck search ended with the player taking a card. A choice marked "only_if_search_took"
+## (Peça Sobressalente's discard) is skipped when it is false.
+var last_search_took_card := false
 ## True while combat damage is being dealt and the deaths it causes are resolved; effects
 ## marked "not_in_combat" stay silent then (Cientista da Morte).
 var _combat_damage := false
@@ -1933,6 +1936,9 @@ func choose_search(p: int, card_uid: int) -> Array:
 		deck.erase(found)
 		players[p]["hand"].append(found)
 		_move(found, "hand")
+		# "discount": the card taken costs this much less (Vendedora de Grimório), same per-copy discount as a discount effect
+		found.discount += int(pending_search.get("discount", 0))
+		last_search_took_card = true
 	var look: bool = pending_search.get("look", false)
 	var top_search: bool = pending_search.has("to_bottom") # a search limited to the top N cards
 	var reshuffle: bool = pending_search.get("shuffle", false)
@@ -2266,8 +2272,13 @@ func _run_effects(context: EffectContext, effects: Array) -> void:
 		if effect.opens_choice() and effect.trigger == context.trigger:
 			if phase == "search":
 				queued_choices.append({"effect": effect, "context": context}) # waits for the choice that is open now
-			else:
+			elif choice_is_due(effect):
 				effect.open_choice(context)
+
+## False when a choice must be skipped: "only_if_search_took" means it happens only if the deck search
+## before it in the same effect list ended with the player taking a card (Peça Sobressalente's discard).
+func choice_is_due(effect: Effect) -> bool:
+	return last_search_took_card or not effect.raw.get("only_if_search_took", false)
 
 ## Effects a card has while it sits in the deck ("deck_effects": [{trigger, if, action}]).
 ## "summon_self": that copy leaves the deck and enters its owner's board (no shuffle, nothing is
@@ -2291,6 +2302,7 @@ func _fire_deck_effects(p: int, trigger: String) -> void:
 func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 	if phase == "search":
 		return
+	last_search_took_card = false
 	var matches: Array = []
 	var seen: Dictionary = {}
 	# "top": N looks only at the N cards on top of the deck (the top is the back of the array);
@@ -2317,7 +2329,7 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 			_draw(p, int(e["fallback_draw"]))
 		return
 	# "deck_search": the options are private to the searcher; the opponent only learns the card that was taken (search_take)
-	pending_search = {"player": p, "source_uid": source_uid, "cards": matches, "deck_search": true}
+	pending_search = {"player": p, "source_uid": source_uid, "cards": matches, "deck_search": true, "discount": int(e.get("discount", 0))}
 	if top_only:
 		# the cards looked at but not taken go to the bottom of the deck instead of a shuffle
 		var looked_uids: Array = []
@@ -3098,6 +3110,8 @@ func _move_dead_units() -> void:
 					var dying_is_token: bool = c.data().get("token", false) # "not_token" effects ignore a token dying
 					var dying_card_id: String = c.card_id # "dying_card" effects only hear this card (Luto: Myrra)
 					var effects: Array = c.effect_list()
+					# remembered before the equipment drops to the graveyard, so an Aliado Morre can still take it (Porca-Frouxa)
+					var dying_equipment: Array = c.equipped_cards.duplicate()
 					players[p]["board"].erase(c)
 					changed = true
 					_emit({"type": "death", "uid": dead_uid, "player": p, "card_id": dying_card_id})
@@ -3121,9 +3135,9 @@ func _move_dead_units() -> void:
 					# or the Encarnação returns to the Santuário.
 					for ally in players[p]["board"].duplicate():
 						if players[p]["board"].has(ally):
-							_fire(ally, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token, "dying_card_id": dying_card_id})
+							_fire(ally, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token, "dying_card_id": dying_card_id, "dying_equipment": dying_equipment})
 					for relic in players[p]["relics"].duplicate(): # free-standing artifacts hear it too
-						_fire(relic, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token, "dying_card_id": dying_card_id})
+						_fire(relic, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token, "dying_card_id": dying_card_id, "dying_equipment": dying_equipment})
 					_fire_leader_passive(p, "on_ally_death")
 
 ## Returns the Baluarte-like artifact of p, if any.
@@ -3252,6 +3266,11 @@ func _finish_turn() -> void:
 				if not c.keywords.has(kw):
 					c.keywords.append(kw)
 			c.lost_keywords.clear()
+			# keywords lent "until the end of the owner's turn" leave when the turn that ends now is the owner's own
+			if c.owner == active:
+				for kw in c.keywords_until_owner_turn_end:
+					c.keywords.erase(kw)
+				c.keywords_until_owner_turn_end.clear()
 			if c.magic_shield_until_end_turn:
 				c.magic_shield = false
 				c.magic_shield_until_end_turn = false
