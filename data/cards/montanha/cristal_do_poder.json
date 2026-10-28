@@ -1,0 +1,21 @@
+{
+  "name": "Cristal do Poder",
+  "type": "artifact",
+  "subtypes": [],
+  "rarity": "common",
+  "essence": "montanha",
+  "cost": 3,
+  "durability": 3,
+  "effects": [],
+  "activated": {
+    "cost": 1,
+    "speed": "instantaneo",
+    "durability_cost": 1,
+    "effects": [{ "action": "buff", "target": "ally_unit", "atk": 2, "temp": true }]
+  },
+  "equipped_grant": { "atk": 2 },
+  "text": "Ao Ativar (1) {instantaneo}: uma unidade aliada ganha +2 de Ataque até o fim do turno. Perde 1 de Durabilidade. Equipado em uma unidade, não pode ser ativado e concede +2 de Ataque a ela.",
+  "flavor": "",
+  "art": "montanha/cristal_do_poder.webp",
+  "tags": []
+}

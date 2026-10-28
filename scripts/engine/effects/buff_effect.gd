@@ -9,7 +9,8 @@ extends Effect
 ## "supreme_shield_until": "next_turn" gives Escudo Supremo until its owner's next turn starts. The "escudo_supremo" keyword
 ## gives it for good, or only until the end of the turn with "temp": true. A Supremo that is already there is never made shorter.
 ## "per": "momentum_left" multiplies atk/hp by the Momentum the controller still has
-## (at least `min`, at most `max`).
+## (at least `min`, at most `max`). "per": "own_artifacts" multiplies them by the artifacts the controller has in play
+## (Otávio Rebite-Quente: +1 Ataque for each one).
 ## "cap_atk": this effect can give one unit at most that much attack in total (e.g. Layla).
 ## "critico_max": true  a unit that has any Crítico at all goes up to Crítico 4 until the end of the turn (units without Crítico are untouched).
 ## "hp_temp_until_next_turn": N gives temporary Vida until the unit's owner's next turn starts.
@@ -21,6 +22,8 @@ extends Effect
 ## "bonus_if_species": {"species": [...], "atk": N, "hp": N}: when the target has any of these species, it also gains this permanently (Consagração).
 ## "only_species": [...]: the buff only lands on targets that have at least one of these species; any other target is left
 ## untouched (Mefi'Urdim gives Escudo Mágico only to his divindades, celestiais and anjos).
+## "only_rarity": [...]: the buff only lands on targets of one of these rarities; any other target is left untouched
+## (Otávio gives Ataque Duplo only to a Lendária).
 ## "copy_atk": "highest_ally": the unit takes the Ataque of the OTHER allied unit with the highest Ataque (nothing happens when it
 ## already has as much). With "temp": true it lasts until the end of the turn (Nerithia, Ao Desafiar). Ignores atk/hp.
 ## "copy_atk_min_gain": N (with copy_atk) is a pity: the copy always gives at least +N Ataque, even when no ally has more
@@ -57,12 +60,14 @@ var bonus_species: Array = [] ## "bonus_if_species": species that earn the extra
 var species_bonus_attack := 0
 var species_bonus_health := 0
 var only_species: Array = [] ## "only_species": the target must share one of these species or the buff does nothing
+var only_rarity: Array = [] ## "only_rarity": the target must be one of these rarities or the buff does nothing
 var cleanse := false
 var attack_multiplier := 1
 var copy_minimum_gain := 0 ## "copy_atk_min_gain": the copy never gives less than this much Ataque
 
 func _read_parameters(data: Dictionary) -> void:
 	only_species = data.get("only_species", [])
+	only_rarity = data.get("only_rarity", [])
 	cleanse = bool(data.get("cleanse", false))
 	attack_multiplier = int(data.get("atk_multiply", 1))
 	copy_minimum_gain = int(data.get("copy_atk_min_gain", 0))
@@ -104,6 +109,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		return
 	if not only_species.is_empty() and not _has_any_species(unit, only_species):
 		return
+	if not only_rarity.is_empty() and not only_rarity.has(CardDB.card(unit.card_id).get("rarity", "")):
+		return
 	if cleanse:
 		game.cleanse_unit_markers(unit)
 	if copy_attack_source == "highest_ally":
@@ -119,6 +126,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	var multiplier := 1
 	if per == "momentum_left":
 		multiplier = clampi(int(game.players[context.controller]["momentum"]), multiplier_min, multiplier_max)
+	elif per == "own_artifacts":
+		multiplier = game.artifact_count(context.controller)
 	var attack_gain: int = attack * multiplier
 	var health_gain: int = health * multiplier
 	if attack_multiplier > 1:

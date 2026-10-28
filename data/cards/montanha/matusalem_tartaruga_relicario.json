@@ -1,0 +1,17 @@
+{
+  "name": "Matusalém, Tartaruga-Relicário",
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["fera"],
+  "essence": "montanha",
+  "cost": 5,
+  "atk": 2,
+  "hp": 7,
+  "keywords": ["provocacao", "armadura:2"],
+  "counts_as_artifact": true,
+  "effects": [],
+  "text": "Esta unidade também conta como um artefato seu em jogo.",
+  "flavor": "",
+  "art": "montanha/matusalem_tartaruga_relicario.webp",
+  "tags": []
+}

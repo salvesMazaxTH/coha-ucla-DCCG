@@ -14,6 +14,7 @@ func _init() -> void:
 		check(errs.is_empty(), "deck %s: %s" % [d, errs])
 		check(DeckDB.get_deck(d)["cards"].keys() == DeckDB.sorted_cards(DeckDB.get_deck(d)["cards"]).keys(), "deck %s: cartas fora de ordem de custo (rode tools/sort_decks.gd)" % d)
 	_test_flavor()
+	_test_cristal_do_poder_equipado()
 	_test_art_crop()
 	_test_sfx()
 	_test_off_essence()
@@ -352,6 +353,31 @@ func _put(g: GameState, p: int, card_id: String, ready := true) -> Card:
 	if ready:
 		c.sick = false
 	return c
+
+## Cristal do Poder is one card with two states: loose on the table it can be activated; stored in a
+## Montadora Porca-Frouxa it cannot, and it gives +2 Ataque to her while it stays there.
+func _test_cristal_do_poder_equipado() -> void:
+	var g := _new_game()
+	var a := g.active
+	var o := g.opponent(a)
+	var cristal_data: Dictionary = CardDB.card("cristal_do_poder")
+	check(g.speed_of(cristal_data["activated"]) == "instantaneo", "cristal: o Ao Ativar é Instantâneo")
+	var montadora := _put(g, a, "montadora_porca_frouxa")
+	var cristal := Card.new(g._uid(), "cristal_do_poder", a, "relics")
+	g.players[a]["relics"].append(cristal)
+	check(g.artifact_count(a) == 1, "cristal solto: conta como artefato")
+	g.players[a]["momentum"] = 5
+	g.auto_pass[o] = false
+	g.activate(a, montadora.uid, cristal.uid)
+	g._flush()
+	g.pass_priority(o)
+	g._flush()
+	g.auto_pass[o] = true
+	check(montadora.equipped_cards.has(cristal) and not g.players[a]["relics"].has(cristal), "montadora: o Cristal sai do campo e fica equipado nela")
+	check(montadora.atk == 4, "cristal equipado: +2 de Ataque para a portadora (2 -> 4)")
+	check(g.artifact_count(a) == 1, "cristal equipado: continua contando como artefato")
+	g.stack_system().remove_equipment_bonus(montadora, cristal)
+	check(montadora.atk == 2, "cristal equipado: ao sair, o bônus é devolvido")
 
 func _test_search() -> void:
 	var g := _new_game()

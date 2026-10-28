@@ -1,0 +1,23 @@
+{
+  "name": "Montadora Porca-Frouxa",
+  "type": "unit",
+  "rarity": "legendary",
+  "species": ["humano"],
+  "essence": "montanha",
+  "element": "metal",
+  "cost": 5,
+  "atk": 2,
+  "hp": 4,
+  "keywords": [],
+  "effects": [],
+  "activated": {
+    "cost": 1,
+    "speed": "lento",
+    "exhaust": true,
+    "effects": [{ "action": "equip_table_artifact", "target": "ally_artifact", "no_subtypes": true }]
+  },
+  "text": "Ao Ativar (1) {lento} (exaure esta unidade): equipa nesta unidade um artefato seu em campo que não tenha subtipo. Ele continua contando como artefato, mas não pode ser ativado.",
+  "flavor": "",
+  "art": "montanha/montadora_porca_frouxa.webp",
+  "tags": []
+}

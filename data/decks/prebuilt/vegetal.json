@@ -5,24 +5,24 @@
   "leader": "thalvaressa",
   "cards": {
     "semente_teimosa": 3,
-    "caldria_jardineira_predatoria": 3,
     "cervo_musgoso": 3,
     "cultivador_da_clareira": 3,
     "antidoto_fora_de_estoque": 2,
     "alderion_arauto_da_primavera": 3,
+    "caldria_jardineira_predatoria": 3,
     "morwenna_raiz_podre": 3,
     "brinde_envenenado": 2,
     "lianas_capturantes": 3,
     "brann_guardiao_dos_cervos": 2,
     "guardia_dos_ninhos": 3,
-    "jardim_da_cacada": 2,
     "raiz_mae_do_dossel": 2,
     "eco_da_primavera": 1,
-    "investida_da_manada": 3,
+    "jardim_da_cacada": 2,
     "thalvaressa": 1,
     "vespera_rainha_das_mandibulas": 3,
-    "capina_seletiva": 1,
+    "investida_da_manada": 3,
     "sylvar_cerne_andante": 1,
+    "capina_seletiva": 1,
     "anciao_do_primeiro_bosque": 1
   }
 }

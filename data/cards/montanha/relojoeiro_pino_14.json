@@ -1,0 +1,17 @@
+{
+  "name": "Relojoeiro Pino-14",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["robo"],
+  "essence": "montanha",
+  "cost": 3,
+  "atk": 2,
+  "hp": 3,
+  "keywords": [],
+  "counts_as_artifact": true,
+  "effects": [],
+  "text": "Esta unidade também conta como um artefato seu em jogo.",
+  "flavor": "",
+  "art": "montanha/relojoeiro_pino_14.webp",
+  "tags": []
+}

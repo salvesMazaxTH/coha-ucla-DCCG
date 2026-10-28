@@ -277,9 +277,20 @@ func remove_equipment_bonus(unit: Card, worn: Card) -> void:
 	if unit.hp_left() < 1:
 		unit.damage = unit.hp + unit.bonus_hp + unit.temp_hp + unit.temp_hp_until_next_turn - 1
 
+## The equipment that is about to leave the unit: all of it when `only` is null, else just `only`.
+## Built as a typed list on purpose: a plain `[only]` is an untyped Array, and Godot refuses to store it in an
+## Array[Card] variable (that error stopped the whole effect, so a bounced or dying unit kept going wrong).
+func _equipment_leaving(c: Card, only: Card) -> Array[Card]:
+	var leaving: Array[Card] = []
+	if only == null:
+		leaving.assign(c.equipped_cards) # a copy: the loops below erase from equipped_cards while they walk this list
+	else:
+		leaving.append(only)
+	return leaving
+
 ## Gives one of the unit's equipment back to its owner's hand, to be played again (all of them when `only` is null).
 func return_equipment_to_hand(c: Card, only: Card = null) -> void:
-	var leaving: Array[Card] = c.equipped_cards.duplicate() if only == null else [only]
+	var leaving := _equipment_leaving(c, only)
 	for old_equipment in leaving:
 		if not c.equipped_cards.has(old_equipment):
 			continue
@@ -292,7 +303,7 @@ func return_equipment_to_hand(c: Card, only: Card = null) -> void:
 ## Sends one of the unit's equipment to its owner's graveyard (all of them when `only` is null). `unit_died` is true
 ## only when the unit died (not on a bounce or a banish): the equipment's card_moved event carries it so Mala Sem Alça can tell.
 func release_equipment(c: Card, unit_died := false, only: Card = null) -> void:
-	var leaving: Array[Card] = c.equipped_cards.duplicate() if only == null else [only]
+	var leaving := _equipment_leaving(c, only)
 	for eq in leaving:
 		if not c.equipped_cards.has(eq):
 			continue
@@ -365,6 +376,10 @@ func open_summon_window(p: int) -> void:
 ## A summon whose on_play searched (or whose Ao Entrar awaited a target) opens its
 ## response window once the pick is made.
 func after_search() -> void:
+	# a choice that was queued behind the one just answered opens now
+	if game.phase != "search" and not game.queued_choices.is_empty():
+		var next_choice: Dictionary = game.queued_choices.pop_front()
+		next_choice["effect"].open_choice(next_choice["context"])
 	if game._summon_pending and game.phase == "main":
 		game._summon_pending = false
 		open_summon_window(game.active)

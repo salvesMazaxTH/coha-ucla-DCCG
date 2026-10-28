@@ -93,6 +93,10 @@ var auto_pass: Array = [true, true]
 ## would be asked about is passed for them, even when they do have a legal play. Cleared when a turn begins.
 var skip_rest_of_turn: Array = [false, false]
 var _search_return := "main"
+## Choices (discard a card, search the deck...) that an effect list opened while an earlier choice of the same list
+## was still waiting for its answer. Each entry is {"effect": Effect, "context": EffectContext}; they open one by one,
+## in order, as each answer comes in (see StackSystem.after_search). Peça Sobressalente: discard first, then look.
+var queued_choices: Array = []
 ## True while combat damage is being dealt and the deaths it causes are resolved; effects
 ## marked "not_in_combat" stay silent then (Cientista da Morte).
 var _combat_damage := false
@@ -615,11 +619,14 @@ func allied_plants_or_tokens(p: int) -> int:
 			n += 1
 	return n
 
-## Artifacts a player has in play: free-standing ones plus the equipment worn by their units.
+## Artifacts a player has in play: free-standing ones, the equipment worn by their units, and the units that
+## count as an artifact too ("counts_as_artifact" on the card: Relojoeiro Pino-14, Matusalém).
 func artifact_count(p: int) -> int:
 	var n: int = players[p]["relics"].size()
 	for c: Card in players[p]["board"]:
 		n += c.equipped_cards.size()
+		if c.data().get("counts_as_artifact", false):
+			n += 1
 	return n
 
 ## What a "scale" card counts right now (shown in its text off the board), or -1 if it has none.
@@ -1045,15 +1052,22 @@ func meets_unit_requirement(target_uid: int, spec: String, effects: Array) -> bo
 
 ## False when an effect aimed with `spec` only works on artifacts of one subtype ("subtype": "local" on
 ## "destroy_artifact" = "destroy a Local") and this target is an artifact of another subtype.
-## Effects aimed at another spec, or without "subtype", ignore this check.
+## "no_subtypes": true is the opposite: only an artifact without any subtype (a pure artifact, neither Equipamento
+## nor Local) is a valid target (Montadora Porca-Frouxa).
+## Effects aimed at another spec, or without these parameters, ignore this check.
 func meets_subtype_requirement(target_uid: int, spec: String, effects: Array) -> bool:
 	for effect in effects:
-		var wanted_subtype := String(effect.get("subtype", ""))
-		if wanted_subtype == "" or effect.get("target", "") != spec:
+		if effect.get("target", "") != spec:
 			continue
-		var artifact := find_relic(target_uid)
-		if artifact == null or not artifact.data().get("subtypes", []).has(wanted_subtype):
-			return false
+		var wanted_subtype := String(effect.get("subtype", ""))
+		if wanted_subtype != "":
+			var artifact := find_relic(target_uid)
+			if artifact == null or not artifact.data().get("subtypes", []).has(wanted_subtype):
+				return false
+		if effect.get("no_subtypes", false):
+			var plain_artifact := find_relic(target_uid)
+			if plain_artifact == null or not (plain_artifact.data().get("subtypes", []) as Array).is_empty():
+				return false
 	return true
 
 ## False when an effect aimed with `spec` only works on a target holding enough markers ("requires_markers":
@@ -2239,7 +2253,10 @@ func _run_effects(context: EffectContext, effects: Array) -> void:
 		context.shielded_uids.append_array(context.shielded_this_effect)
 		context.shielded_this_effect.clear()
 		if effect.opens_choice() and effect.trigger == context.trigger:
-			effect.open_choice(context)
+			if phase == "search":
+				queued_choices.append({"effect": effect, "context": context}) # waits for the choice that is open now
+			else:
+				effect.open_choice(context)
 
 ## Effects a card has while it sits in the deck ("deck_effects": [{trigger, if, action}]).
 ## "summon_self": that copy leaves the deck and enters its owner's board (no shuffle, nothing is

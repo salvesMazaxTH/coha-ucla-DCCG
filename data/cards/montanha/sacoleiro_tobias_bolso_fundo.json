@@ -1,0 +1,17 @@
+{
+  "name": "Sacoleiro Tobias Bolso-Fundo",
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["humano"],
+  "essence": "montanha",
+  "cost": 4,
+  "atk": 2,
+  "hp": 5,
+  "keywords": [],
+  "equipment_capacity": -1,
+  "effects": [],
+  "text": "Normalmente uma unidade só pode ter um equipamento por vez. Esta unidade pode ter quantos equipamentos quiser ao mesmo tempo.",
+  "flavor": "",
+  "art": "montanha/sacoleiro_tobias_bolso_fundo.webp",
+  "tags": []
+}

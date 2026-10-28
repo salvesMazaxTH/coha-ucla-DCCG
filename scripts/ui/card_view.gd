@@ -1347,18 +1347,16 @@ static func draw_dot_badge(target: CanvasItem, center: Vector2, radius: float, s
 			center + Vector2(-0.24 * radius, 0.58 * radius), center + Vector2(-0.44 * radius, 0.27 * radius),
 			center + Vector2(-0.42 * radius, -0.2 * radius)])
 	elif dot_id == "sangramento":
-		# a compact blade/slash silhouette, ready for the future Sangramento badge
-		icon = PackedVector2Array([
-			center + Vector2(-0.48 * radius, 0.5 * radius), center + Vector2(0.28 * radius, -0.56 * radius),
-			center + Vector2(0.5 * radius, -0.56 * radius), center + Vector2(-0.25 * radius, 0.5 * radius)])
+		_draw_blood_drop(target, center, radius, scale)
 	else:
 		icon = PackedVector2Array([
 			center + Vector2(0, -0.86 * radius), center + Vector2(0.38 * radius, -0.25 * radius),
 			center + Vector2(0.16 * radius, 0.0), center + Vector2(0.52 * radius, 0.46 * radius),
 			center + Vector2(0, 0.72 * radius), center + Vector2(-0.48 * radius, 0.46 * radius),
 			center + Vector2(-0.16 * radius, 0.0), center + Vector2(-0.38 * radius, -0.25 * radius)])
-	target.draw_colored_polygon(icon, col.lightened(0.2))
-	target.draw_polyline(icon + PackedVector2Array([icon[0]]), Color(1, 1, 1, 0.35), 0.65 * scale, true)
+	if not icon.is_empty(): # the blood drop draws itself above
+		target.draw_colored_polygon(icon, col.lightened(0.2))
+		target.draw_polyline(icon + PackedVector2Array([icon[0]]), Color(1, 1, 1, 0.35), 0.65 * scale, true)
 	var font := UITheme.font("heavy")
 	var label := str(amount)
 	var font_size := maxi(1, int(radius * (1.12 if amount < 10 else 0.88) * text_scale))
@@ -1367,6 +1365,27 @@ static func draw_dot_badge(target: CanvasItem, center: Vector2, radius: float, s
 	# Near-black digits with a pale halo: the icon behind them is light, so white text washed out.
 	target.draw_string_outline(font, pos, label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, maxi(2, int(radius * 0.28)), Color(col.lightened(0.7), 0.95))
 	target.draw_string(font, pos, label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color("#120a18"))
+
+## Sangramento's icon: a smooth blood drop. Its round body is a true circle and its two sides are the
+## straight lines that touch that circle and meet at the tip, so the outline has no corners or dents.
+## A dark rim and a soft white shine on the upper left make it read as a liquid drop, not a flat shape.
+static func _draw_blood_drop(target: CanvasItem, center: Vector2, radius: float, scale: float) -> void:
+	var tip := center + Vector2(0, -0.82 * radius)
+	var body_center := center + Vector2(0, 0.2 * radius)
+	var body_radius := 0.46 * radius
+	# angle between "straight up" and the point where each side touches the round body
+	var side_angle := acos(body_radius / tip.distance_to(body_center))
+	var first_angle := -PI / 2.0 + side_angle # right side, then down around the bottom to the left side
+	var last_angle := 3.0 * PI / 2.0 - side_angle
+	var arc_steps := 40
+	var outline := PackedVector2Array([tip])
+	for step in arc_steps + 1:
+		var angle := lerpf(first_angle, last_angle, float(step) / arc_steps)
+		outline.append(body_center + Vector2(cos(angle), sin(angle)) * body_radius)
+	target.draw_colored_polygon(outline, Color("#ff3348"))
+	target.draw_polyline(outline + PackedVector2Array([tip]), Color("#4a0a14"), 1.0 * scale, true)
+	# glossy shine: a short curved stroke inside the upper left of the body
+	target.draw_arc(body_center, body_radius * 0.62, PI * 1.05, PI * 1.42, 12, Color(1, 1, 1, 0.75), 1.3 * scale, true)
 
 ## Draw every live periodic marker on the card. They stack vertically instead of replacing one another,
 ## so simultaneous Queimadura/Veneno/Sangramento remains unambiguous.

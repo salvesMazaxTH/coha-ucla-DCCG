@@ -651,6 +651,24 @@
       },
       "essences": ["devocao"]
     },
+    "berengar_voss": {
+      "name": "Berengar Voss",
+      "hp": 35,
+      "art": "montanha/berengar_voss_lider.webp",
+      "incarnation": "berengar_voss",
+      "ability": {
+        "name": "Peça Sobressalente",
+        "cost": 2,
+        "once_per_turn": true,
+        "speed": "lento",
+        "effects": [
+          { "action": "discard_hand_pick", "target": "none" },
+          { "action": "search_deck", "target": "none", "type": "artifact", "top": 3 }
+        ],
+        "text": "Lenta. 2 Momentum, uma vez por turno: descarta 1 carta da mão, olha as 3 cartas do topo do deck e coloca um artefato entre elas na mão; as outras vão para o fundo do deck."
+      },
+      "essences": ["montanha"]
+    },
     "morakhan": {
       "name": "Morakhan",
       "hp": 35,
