@@ -1883,18 +1883,20 @@ func _render_board(p: int, y: float) -> void:
 			_tag(v, "CONGELADA", ICE)
 		if unit.is_stunned():
 			_tag(v, "ATORDOADA", CardView.STUN_COL)
-		if unit.equipment != null:
-			# the equipment card sits under its unit, peeking out toward the middle of the table
-			var equipment_view_data := {"uid": unit.equipment.uid}
-			if unit.equipment.durability_left() >= 0:
-				equipment_view_data["durability_left"] = unit.equipment.durability_left()
-			var eq := CardView.new().setup(unit.equipment.card_id, equipment_view_data, 1.15)
+		for worn_index in unit.equipped_cards.size():
+			# the equipment cards sit under their unit, peeking out toward the middle of the table (each further one a bit more)
+			var worn: Card = unit.equipped_cards[worn_index]
+			var equipment_view_data := {"uid": worn.uid}
+			if worn.durability_left() >= 0:
+				equipment_view_data["durability_left"] = worn.durability_left()
+			var eq := CardView.new().setup(worn.card_id, equipment_view_data, 1.15)
 			# anchored to the unit's resting slot, so a tapped unit stepping forward does not drag it along
-			eq.position = Vector2(v.position.x, roundf(y)) + Vector2(8, 22 if p == viewer else -22)
+			var peek := 22 + 14 * worn_index
+			eq.position = Vector2(v.position.x, roundf(y)) + Vector2(8 + 12 * worn_index, peek if p == viewer else -peek)
 			eq.right_clicked.connect(_show_overlay)
 			layer.add_child(eq)
 			layer.move_child(eq, v.get_index())
-			views["eq%d" % unit.uid] = eq # kept so the drag gap can slide it along with its unit
+			views["eq%d_%d" % [unit.uid, worn_index]] = eq # kept so the drag gap can slide it along with its unit
 	table.set_barrier(TableView.SIDE_MINE if p == viewer else TableView.SIDE_ENEMY, barrier_gaps)
 
 ## A tapped, not Congelada Provocação unit holds the barrier on the divider (drawn by TableView) shut
@@ -2183,10 +2185,11 @@ func _show_drop_gap(slot: int) -> void:
 		var shift := new_x - unit_view.position.x
 		var tw := unit_view.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 		tw.tween_property(unit_view, "position:x", new_x, 0.12)
-		var equipment_view: Control = views.get("eq%d" % unit.uid)
-		if is_instance_valid(equipment_view):
-			var eq_tw := equipment_view.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-			eq_tw.tween_property(equipment_view, "position:x", equipment_view.position.x + shift, 0.12)
+		for worn_index in unit.equipped_cards.size():
+			var equipment_view: Control = views.get("eq%d_%d" % [unit.uid, worn_index])
+			if is_instance_valid(equipment_view):
+				var eq_tw := equipment_view.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+				eq_tw.tween_property(equipment_view, "position:x", equipment_view.position.x + shift, 0.12)
 
 func _hand_drag_move(v: CardView) -> void:
 	var m := layer.get_local_mouse_position()
@@ -3365,9 +3368,9 @@ func _is_first_target(uid: int) -> bool:
 func _fire_target(uid: int, equipment_confirmed := false) -> void:
 	if targeting["kind"] == "hand" and not equipment_confirmed and CardDB.is_equipment(CardDB.card(targeting["card_id"])):
 		var unit := g.find_unit(uid)
-		if unit != null and unit.equipment != null:
+		if unit != null and not unit.has_equipment_room():
 			_ask_confirm("SUBSTITUIR EQUIPAMENTO?",
-					"Esta unidade já tem um Equipamento. Se continuar, o atual volta para a mão do dono.",
+					"Esta unidade já tem um Equipamento. Se continuar, o mais antigo volta para a mão do dono.",
 					"EQUIPAR ASSIM MESMO", "CANCELAR",
 					_confirm_equipment_target.bind(int(targeting["uid"]), uid))
 			return

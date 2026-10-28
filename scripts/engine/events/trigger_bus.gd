@@ -108,12 +108,10 @@ func _broadcast(event: GameEvent) -> void:
 ## The equipment worn by a player's units hears the event too (zone "equipped").
 func _offer_worn_equipment(p: int, key: String, event: GameEvent) -> void:
 	for unit: Card in game.players[p]["board"].duplicate():
-		var equipment := unit.equipment
-		if equipment == null:
-			continue
-		for effect: Effect in CardDB.def(equipment.card_id).listeners():
-			if effect.trigger == key and effect.listens_in(EQUIPPED):
-				_offer(equipment, effect, event)
+		for equipment in unit.equipped_cards.duplicate():
+			for effect: Effect in CardDB.def(equipment.card_id).listeners():
+				if effect.trigger == key and effect.listens_in(EQUIPPED):
+					_offer(equipment, effect, event)
 
 ## The Encarnação still waiting in the Santuário hears the event too (see SANCTUARY).
 func _offer_in_sanctuary(p: int, key: String, event: GameEvent) -> void:

@@ -64,8 +64,8 @@ var capped_uses: Dictionary = {} ## effect index -> [turn, times it fired that t
 var conditional_uses_turn := -1 ## the turn "conditional_uses_per_turn" is counting (Seymour)
 var conditional_uses := 0 ## how many Condicional effects of this card were triggered in that turn
 var trigger_counts: Dictionary = {} ## trigger -> how many times this instance fired it, only counted for triggers that have "nth" effects (Vørn Ω)
-var equipment: Card = null
-var equipment_grant: Dictionary = {} ## what the equipment gave this unit ({atk, hp, armor, keywords}); taken back when the equipment leaves
+var equipped_cards: Array[Card] = [] ## the equipment this unit wears, oldest first (see equipment_capacity)
+var worn_grant: Dictionary = {} ## on an equipment card: what it gave its unit ({atk, hp, armor, keywords}); taken back when it leaves
 var cap_atk_gain := 0 ## attack given so far by "cap_atk" buffs
 var dodge_turn := -1 ## turn its Esquiva was last used
 var activated_turn := -1 ## turn its Ao Ativar was last used
@@ -98,6 +98,19 @@ func durability_left() -> int:
 	if total <= 0:
 		return -1
 	return maxi(total - durability_used, 0)
+
+## How many equipment this unit can wear at once: 1 unless its data says otherwise ("equipment_capacity": N, or -1 for no limit).
+func equipment_capacity() -> int:
+	return int(data().get("equipment_capacity", 1))
+
+## The oldest equipment this unit wears, or null.
+func first_equipment() -> Card:
+	return null if equipped_cards.is_empty() else equipped_cards[0]
+
+## True when equipping one more would not push an equipment back to the hand.
+func has_equipment_room() -> bool:
+	var capacity := equipment_capacity()
+	return capacity < 0 or equipped_cards.size() < capacity
 
 ## Card data with this instance's overrides applied.
 func data() -> Dictionary:
@@ -158,8 +171,8 @@ func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:
 	conditional_uses_turn = -1
 	conditional_uses = 0
 	trigger_counts = {}
-	equipment = null
-	equipment_grant = {}
+	equipped_cards = []
+	worn_grant = {}
 	cap_atk_gain = 0
 	dodge_turn = -1
 	activated_turn = -1
@@ -242,7 +255,8 @@ func silence() -> void:
 	temp_hp_until_next_turn = 0
 	temp_atk_until_next_turn = 0
 	cap_atk_gain = 0
-	equipment_grant = {} # the equipment stays attached but gives nothing now, so there is nothing to take back later
+	for worn in equipped_cards: # the equipment stays attached but gives nothing now, so there is nothing to take back later
+		worn.worn_grant = {}
 	keep_alive_with_one_hp()
 	# keywords the card had: the printed ones plus whatever it gained since (an equipment's, a buff's)
 	keywords = []
@@ -418,10 +432,16 @@ func to_dict() -> Dictionary:
 		d["conditional_uses"] = [conditional_uses_turn, conditional_uses]
 	if not trigger_counts.is_empty():
 		d["trigger_counts"] = trigger_counts.duplicate()
-	if equipment != null:
-		d["equipment"] = {"uid": equipment.uid, "card_id": equipment.card_id}
-		if not equipment_grant.is_empty():
-			d["equipment_grant"] = equipment_grant.duplicate(true)
+	if not equipped_cards.is_empty():
+		var worn_list: Array = []
+		for worn in equipped_cards:
+			var worn_data := {"uid": worn.uid, "card_id": worn.card_id}
+			if not worn.worn_grant.is_empty():
+				worn_data["grant"] = worn.worn_grant.duplicate(true)
+			if worn.durability_used > 0:
+				worn_data["durability_used"] = worn.durability_used
+			worn_list.append(worn_data)
+		d["equipment"] = worn_list
 	if cap_atk_gain > 0:
 		d["cap_atk_gain"] = cap_atk_gain
 	if dodge_turn >= 0:
@@ -499,9 +519,11 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	if d.has("conditional_uses"):
 		c.conditional_uses_turn = int(d["conditional_uses"][0])
 		c.conditional_uses = int(d["conditional_uses"][1])
-	if d.has("equipment"):
-		c.equipment = Card.new(int(d["equipment"]["uid"]), String(d["equipment"]["card_id"]), c.owner, "equipped")
-		c.equipment_grant = d.get("equipment_grant", {})
+	for worn_data: Dictionary in d.get("equipment", []):
+		var worn := Card.new(int(worn_data["uid"]), String(worn_data["card_id"]), c.owner, "equipped")
+		worn.worn_grant = worn_data.get("grant", {})
+		worn.durability_used = int(worn_data.get("durability_used", 0))
+		c.equipped_cards.append(worn)
 	c.cap_atk_gain = int(d.get("cap_atk_gain", 0))
 	c.dodge_turn = int(d.get("dodge_turn", -1))
 	c.activated_turn = int(d.get("activated_turn", -1))

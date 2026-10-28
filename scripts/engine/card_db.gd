@@ -173,7 +173,7 @@ static func _validate_leader(lid: String, ld: Dictionary) -> void:
 	if not _data["cards"].has(ld.get("incarnation", "")):
 		err.call("incarnation inexistente \"%s\"" % ld.get("incarnation", ""))
 	elif not is_incarnation_option(lid, String(ld["incarnation"])):
-		err.call("incarnation precisa ser uma unidade Campeã com o nome do Líder")
+		err.call("incarnation precisa ser uma unidade Campeã ou Lendária com o nome do Líder")
 	for e in ld.get("essences", []):
 		if not _data["essences"].has(e):
 			err.call("essência desconhecida \"%s\"" % e)
@@ -280,14 +280,14 @@ static func is_leader_card(id: String) -> bool:
 			return true
 	return false
 
-## A Leader's Encarnação is a Champion unit whose printed name is the Leader's name, optionally
+## A Leader's Encarnação is a Champion or Legendary unit whose printed name is the Leader's name, optionally
 ## followed by a comma and a title (e.g. "Voltexz, Raio Obliterador"). This lets future versions
 ## of a character be chosen without classifying every Leader's card as globally undraftable.
 static func is_incarnation_option(leader_id: String, card_id: String) -> bool:
 	if not data()["leaders"].has(leader_id) or not data()["cards"].has(card_id):
 		return false
 	var cd: Dictionary = card(card_id)
-	if String(cd.get("type", "")) != "unit" or String(cd.get("rarity", "")) != "champion":
+	if String(cd.get("type", "")) != "unit" or not ["champion", "legendary"].has(String(cd.get("rarity", ""))):
 		return false
 	var leader_name := String(data()["leaders"][leader_id].get("name", "")).strip_edges().to_lower()
 	var card_name := String(cd.get("name", "")).strip_edges().to_lower()

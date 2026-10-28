@@ -619,8 +619,7 @@ func allied_plants_or_tokens(p: int) -> int:
 func artifact_count(p: int) -> int:
 	var n: int = players[p]["relics"].size()
 	for c: Card in players[p]["board"]:
-		if c.equipment != null:
-			n += 1
+		n += c.equipped_cards.size()
 	return n
 
 ## What a "scale" card counts right now (shown in its text off the board), or -1 if it has none.
@@ -919,11 +918,10 @@ func _applicable_discount_equipment(p: int, cd: Dictionary) -> Array:
 	if cd.get("type", "") != "spell" or players[p]["ice_spell_discount_used"]:
 		return amulets
 	for unit: Card in players[p]["board"]:
-		if unit.equipment == null:
-			continue
-		var rule: Dictionary = unit.equipment.data().get("spell_discount", {})
-		if not rule.is_empty() and CardDB.has_element(cd, String(rule["element"])):
-			amulets.append(unit.equipment)
+		for worn in unit.equipped_cards:
+			var rule: Dictionary = worn.data().get("spell_discount", {})
+			if not rule.is_empty() and CardDB.has_element(cd, String(rule["element"])):
+				amulets.append(worn)
 	return amulets
 
 ## Momentum p can spend on a play: the Reserva only counts for spells and leader abilities.
@@ -1544,8 +1542,8 @@ func break_artifact(c: Card) -> void:
 	if c.zone == "equipped":
 		var carrier := equipment_carrier(c)
 		if carrier != null:
-			stack_system().remove_equipment_bonus(carrier)
-			_release_equipment(carrier)
+			stack_system().remove_equipment_bonus(carrier, c)
+			stack_system().release_equipment(carrier, false, c)
 	else:
 		destroy_relic(c)
 
@@ -1553,7 +1551,7 @@ func break_artifact(c: Card) -> void:
 func equipment_carrier(equipment: Card) -> Card:
 	for p in players:
 		for unit: Card in p["board"]:
-			if unit.equipment == equipment:
+			if unit.equipped_cards.has(equipment):
 				return unit
 	return null
 
@@ -1606,10 +1604,10 @@ func transform_into(c: Card, into_id: String) -> void:
 	kws.erase("escudo_magico")
 	kws.erase("escudo_supremo")
 	c.keywords = kws
-	if not c.equipment_grant.is_empty(): # the equipment stays on, so what it gave the unit stays too
-		c.atk += int(c.equipment_grant.get("atk", 0))
-		c.hp += int(c.equipment_grant.get("hp", 0))
-		for keyword in c.equipment_grant.get("keywords", []):
+	for worn in c.equipped_cards: # the equipment stays on, so what it gave the unit stays too
+		c.atk += int(worn.worn_grant.get("atk", 0))
+		c.hp += int(worn.worn_grant.get("hp", 0))
+		for keyword in worn.worn_grant.get("keywords", []):
 			if not c.keywords.has(keyword):
 				c.keywords.append(keyword)
 	c.sick = false # a transformed unit is not summoning sick: it can act right away

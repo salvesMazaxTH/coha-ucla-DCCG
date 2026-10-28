@@ -212,13 +212,14 @@ func take_stack_card(item: Dictionary) -> Card:
 		return c
 	return Card.new(uid, item["card_id"], int(item["player"]), "stack")
 
-## Equipment stays on the board under its unit. A unit holds only one: equipping an already
-## equipped unit sends the previous equipment back to its owner's hand (not to the graveyard),
+## Equipment stays on the board under its unit. A unit normally holds only one (see Card.equipment_capacity):
+## equipping a full unit sends its oldest equipment back to its owner's hand (not to the graveyard),
 ## and the unit loses what that equipment had given it. `granted` is what the new one gave.
 func attach(holder: Card, eq: Card, granted: Dictionary = {}) -> void:
-	return_equipment_to_hand(holder)
-	holder.equipment = eq
-	holder.equipment_grant = granted
+	while not holder.has_equipment_room():
+		return_equipment_to_hand(holder, holder.equipped_cards[0])
+	eq.worn_grant = granted
+	holder.equipped_cards.append(eq)
 	game._move(eq, "equipped")
 	game._emit({"type": "attach", "uid": holder.uid, "equip_uid": eq.uid, "card_id": eq.card_id})
 
@@ -249,11 +250,11 @@ func stat_gain_since(unit: Card, before: Dictionary) -> Dictionary:
 		"supreme_shield": unit.supreme_shield and not before["supreme_shield"],
 	}
 
-## Takes back what the unit's equipment gave it. The unit never dies from this: if losing the
+## Takes back what one of the unit's equipment gave it. The unit never dies from this: if losing the
 ## Vida would kill it, it stays with 1 Vida left.
-func remove_equipment_bonus(unit: Card) -> void:
-	var granted := unit.equipment_grant
-	unit.equipment_grant = {}
+func remove_equipment_bonus(unit: Card, worn: Card) -> void:
+	var granted := worn.worn_grant
+	worn.worn_grant = {}
 	if granted.is_empty():
 		return
 	unit.atk = maxi(0, unit.atk - int(granted.get("atk", 0)))
@@ -276,27 +277,29 @@ func remove_equipment_bonus(unit: Card) -> void:
 	if unit.hp_left() < 1:
 		unit.damage = unit.hp + unit.bonus_hp + unit.temp_hp + unit.temp_hp_until_next_turn - 1
 
-## Gives the unit's equipment (if any) back to its owner's hand, to be played again.
-func return_equipment_to_hand(c: Card) -> void:
-	if c.equipment == null:
-		return
-	var old_equipment := c.equipment
-	c.equipment = null
-	remove_equipment_bonus(c)
-	game.players[c.owner]["hand"].append(old_equipment)
-	game._move(old_equipment, "hand")
-	game._emit({"type": "equipment_returned", "uid": c.uid, "equip_uid": old_equipment.uid, "card_id": old_equipment.card_id})
+## Gives one of the unit's equipment back to its owner's hand, to be played again (all of them when `only` is null).
+func return_equipment_to_hand(c: Card, only: Card = null) -> void:
+	var leaving: Array[Card] = c.equipped_cards.duplicate() if only == null else [only]
+	for old_equipment in leaving:
+		if not c.equipped_cards.has(old_equipment):
+			continue
+		c.equipped_cards.erase(old_equipment)
+		remove_equipment_bonus(c, old_equipment)
+		game.players[c.owner]["hand"].append(old_equipment)
+		game._move(old_equipment, "hand")
+		game._emit({"type": "equipment_returned", "uid": c.uid, "equip_uid": old_equipment.uid, "card_id": old_equipment.card_id})
 
-## Sends the unit's equipment (if any) to its owner's graveyard. `unit_died` is true only when the unit died
-## (not on a bounce or a banish): the equipment's card_moved event carries it so Mala Sem Alça can tell.
-func release_equipment(c: Card, unit_died := false) -> void:
-	if c.equipment == null:
-		return
-	var eq := c.equipment
-	c.equipment = null
-	game.players[c.owner]["graveyard"].append(eq)
-	game._move(eq, "graveyard", {"unit_died": unit_died})
-	game._emit({"type": "equipment_break", "uid": c.uid, "equip_uid": eq.uid, "card_id": eq.card_id})
+## Sends one of the unit's equipment to its owner's graveyard (all of them when `only` is null). `unit_died` is true
+## only when the unit died (not on a bounce or a banish): the equipment's card_moved event carries it so Mala Sem Alça can tell.
+func release_equipment(c: Card, unit_died := false, only: Card = null) -> void:
+	var leaving: Array[Card] = c.equipped_cards.duplicate() if only == null else [only]
+	for eq in leaving:
+		if not c.equipped_cards.has(eq):
+			continue
+		c.equipped_cards.erase(eq)
+		game.players[c.owner]["graveyard"].append(eq)
+		game._move(eq, "graveyard", {"unit_died": unit_died})
+		game._emit({"type": "equipment_break", "uid": c.uid, "equip_uid": eq.uid, "card_id": eq.card_id})
 
 ## Removes stack item `sid` without resolving it; a countered card goes to the graveyard.
 func counter(p: int, sid: int) -> void:

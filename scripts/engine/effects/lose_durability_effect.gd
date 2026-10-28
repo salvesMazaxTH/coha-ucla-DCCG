@@ -16,6 +16,9 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	if worn_down == null:
 		var carrier := game.find_unit(target_uid)
 		if carrier != null:
-			worn_down = carrier.equipment
+			for worn in carrier.equipped_cards: # the oldest one that can wear down
+				if worn.durability_left() >= 0:
+					worn_down = worn
+					break
 	if worn_down != null:
 		game.lose_durability(worn_down, amount)
