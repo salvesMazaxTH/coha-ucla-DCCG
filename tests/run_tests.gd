@@ -31,6 +31,7 @@ func _init() -> void:
 	_test_supreme_shield()
 	_test_durability()
 	_test_durability_rules()
+	_test_two_dawns_axe()
 	_test_artifact_subtypes()
 	_test_room_banish()
 	_test_twin_bolts()
@@ -1649,6 +1650,30 @@ func _test_durability_rules() -> void:
 			continue # test fixtures have no art
 		var is_local: bool = (data.get("subtypes", []) as Array).has("local")
 		check(is_local == (not data.has("durability")), "Durabilidade: %s %s" % [card_id, "é Local e não tem" if is_local else "precisa ter"])
+
+## Machado Duas-Alvoradas: +4 ATK to the wearer, 3 damage to the enemy Leader on each of its attacks, and 1 Durability
+## lost once the blows of each attack have landed (so the last attack still has the +4 ATK).
+func _test_two_dawns_axe() -> void:
+	_tcard("t_axe_bearer", 1, 20, [])
+	CardDB.data()["cards"]["t_axe_bearer"]["keywords"] = ["ataque_duplo"]
+	var g := _new_game()
+	_quiet(g)
+	g.players[1]["leader_hp"] = 100
+	var bearer := _put(g, 0, "t_axe_bearer")
+	var axe := Card.new(g._uid(), "machado_duas_alvoradas", 0)
+	bearer.atk += 4 # what the Equipar buff gives; attach() only records it as `granted`
+	g.stack_system().attach(bearer, axe, {"atk": 4})
+	check(axe.durability_left() == 2 and int(CardDB.card("machado_duas_alvoradas")["max_copies"]) == 1,
+		"Machado: 2 de Durabilidade e no máximo 1 cópia por baralho")
+	_hit(g, bearer)
+	g._flush()
+	check(g.players[1]["leader_hp"] == 100 - 3 - 5, "Machado: o 1º ataque causa 3 ao Líder inimigo além do golpe de 1+4 (%d)" % g.players[1]["leader_hp"])
+	check(axe.durability_left() == 1 and bearer.equipment == axe, "Machado: o 1º ataque gastou 1 de Durabilidade e ele segue equipado")
+	_hit(g, bearer)
+	g._flush()
+	check(g.players[1]["leader_hp"] == 100 - 2 * (3 + 5), "Machado: o último ataque ainda tem o +4 de Ataque (%d)" % g.players[1]["leader_hp"])
+	check(bearer.equipment == null and bearer.atk == 1 and g.find_unit(bearer.uid) != null,
+		"Machado: depois do 2º ataque ele quebra e leva o +4 de Ataque embora")
 
 func _test_artifact_subtypes() -> void:
 	# Subtipos de artefato são comparáveis: filtro "subtype" nos alvos de artefato e no match do PlayRestriction

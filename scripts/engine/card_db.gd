@@ -233,7 +233,7 @@ static func _check_listen(err: Callable, e: Dictionary) -> void:
 			err.call("zones texto só aceita \"any\", não \"%s\"" % zones)
 	elif zones is Array:
 		for zone in zones:
-			if zone not in TriggerBus.ZONES and zone != TriggerBus.SANCTUARY:
+			if zone not in TriggerBus.ZONES and zone != TriggerBus.SANCTUARY and zone != TriggerBus.EQUIPPED:
 				err.call("zona desconhecida \"%s\"" % zone)
 	if not e.get("when", {}) is Dictionary:
 		err.call("when precisa ser um objeto")

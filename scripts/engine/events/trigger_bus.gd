@@ -8,14 +8,16 @@ extends RefCounted
 ##   - listening:   {"listen": "leader_damaged", "scope": "enemy", "zones": "any", "when": {...}}
 ##     runs for every card of the match that is in one of its zones and whose scope matches.
 ##
-## "scope" is relative to the listening card: self (the event is about this card), ally (about
-## its owner), enemy (about the opponent) or any (default). "zones" is a list among board, relics, hand,
+## "scope" is relative to the listening card: self (the event is about this card), carrier (about the unit
+## wearing this equipment), ally (about its owner), enemy (about the opponent) or any (default). "zones" is a list among board, relics, hand,
 ## deck, graveyard, banished, or "any" (default: ["board"]). The extra zone "sanctuary" (never part of "any")
 ## is where the Encarnação waits before being cast: it has no card there, so its listening effects run
 ## at once instead of being queued, and can only do things that need no target (modify_cost).
 
 const ZONES := ["board", "relics", "hand", "deck", "graveyard", "banished"]
 const SANCTUARY := "sanctuary"
+## The zone of an equipment while a unit wears it: the card is in no list of the player, it hangs from its unit.
+const EQUIPPED := "equipped"
 
 var game: GameState
 
@@ -100,7 +102,18 @@ func _broadcast(event: GameEvent) -> void:
 				for effect: Effect in CardDB.def(card.card_id).listeners():
 					if effect.trigger == key and effect.listens_in(zone):
 						_offer(card, effect, event)
+		_offer_worn_equipment(player_index, key, event)
 		_offer_in_sanctuary(player_index, key, event)
+
+## The equipment worn by a player's units hears the event too (zone "equipped").
+func _offer_worn_equipment(p: int, key: String, event: GameEvent) -> void:
+	for unit: Card in game.players[p]["board"].duplicate():
+		var equipment := unit.equipment
+		if equipment == null:
+			continue
+		for effect: Effect in CardDB.def(equipment.card_id).listeners():
+			if effect.trigger == key and effect.listens_in(EQUIPPED):
+				_offer(equipment, effect, event)
 
 ## The Encarnação still waiting in the Santuário hears the event too (see SANCTUARY).
 func _offer_in_sanctuary(p: int, key: String, event: GameEvent) -> void:
@@ -152,11 +165,18 @@ func _offer(card: Card, effect: Effect, event: GameEvent) -> void:
 		game.queue_trigger(pending)
 	# the Durability goes after the effect is queued (or done), so the last use still resolves its effect
 	if effect.durability_cost > 0:
-		card.durability_uses += 1
-		if card.durability_uses < effect.durability_every_uses:
-			return # this firing is still free: the wear is paid once every N firings
-		card.durability_uses = 0
-		game.lose_durability(card, effect.durability_cost)
+		if effect.durability_after_attack:
+			game.combat_system().wear_after_attack.append({"card": card, "effect": effect})
+		else:
+			pay_durability(card, effect)
+
+## Charges the Durability a listening effect costs for one firing (see Effect.durability_cost and durability_every_uses).
+func pay_durability(card: Card, effect: Effect) -> void:
+	card.durability_uses += 1
+	if card.durability_uses < effect.durability_every_uses:
+		return # this firing is still free: the wear is paid once every N firings
+	card.durability_uses = 0
+	game.lose_durability(card, effect.durability_cost)
 
 ## Cards with "conditional_uses_per_turn": N may trigger their Condicional (listen) effects, all of them
 ## together, at most N times a turn (Seymour). Own effects like On Turn Start are not counted. Takes one
@@ -176,6 +196,7 @@ func _spend_conditional_use(card: Card) -> bool:
 func _scope_matches(scope: String, card: Card, event: GameEvent) -> bool:
 	match scope:
 		"self": return event.source == card
+		"carrier": return event.source != null and event.source == game.equipment_carrier(card)
 		"ally": return event.player == card.owner
 		"enemy": return event.player != card.owner
 	return true

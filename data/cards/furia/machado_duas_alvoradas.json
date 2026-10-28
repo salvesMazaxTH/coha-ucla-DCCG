@@ -1,0 +1,32 @@
+{
+  "name": "Machado Duas-Alvoradas",
+  "type": "artifact",
+  "subtypes": ["equipment"],
+  "rarity": "legendary",
+  "essence": "furia",
+  "cost": 5,
+  "durability": 2,
+  "max_copies": 1,
+  "art": "furia/machado_duas_alvoradas.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "atk": 4
+    },
+    {
+      "listen": "unit_attacked",
+      "scope": "carrier",
+      "zones": ["equipped"],
+      "durability_cost": 1,
+      "durability_after_attack": true,
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 3
+    }
+  ],
+  "text": "Equipar: concede +4 de Ataque à unidade equipada. Condicional: quando a unidade equipada ataca, causa 3 de dano ao Líder inimigo. Depois de cada ataque, o Machado perde 1 de Durabilidade.",
+  "flavor": "",
+  "tags": []
+}

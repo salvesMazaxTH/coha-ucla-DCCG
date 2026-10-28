@@ -16,10 +16,6 @@ const TAPPED_TILT_DEGREES := 90.0
 ## A tapped card shrinks only a little: lying down it is wider than its cell, so on a crowded row
 ## it overlaps its neighbours a bit instead of turning tiny.
 const TAPPED_MIN_SCALE := 0.85
-## How much of an equipment card (its top: art, cost, Durabilidade medallion) peeks out from behind its unit,
-## as a fraction of the card height, and how many pixels of it are tucked under the unit.
-const EQUIPMENT_PEEK_FRACTION := 0.32
-const EQUIPMENT_PEEK_TUCK := 6.0
 ## A tapped unit steps forward: its front edge sits this many pixels closer to the middle of the table
 ## than the front edge of the standing units, so "the cards in the front line" are the ones that can be attacked.
 const TAPPED_FRONT_ADVANCE := 26.0
@@ -1888,25 +1884,17 @@ func _render_board(p: int, y: float) -> void:
 		if unit.is_stunned():
 			_tag(v, "ATORDOADA", CardView.STUN_COL)
 		if unit.equipment != null:
-			# the equipment card is tucked under its unit, with only its top (art, cost and the Durabilidade
-			# medallion) peeking out behind it. It is clipped to that strip so the visible part is the useful one.
-			var equipment_view_data := {"uid": unit.equipment.uid, "equipped_peek": true}
+			# the equipment card sits under its unit, peeking out toward the middle of the table
+			var equipment_view_data := {"uid": unit.equipment.uid}
 			if unit.equipment.durability_left() >= 0:
 				equipment_view_data["durability_left"] = unit.equipment.durability_left()
 			var eq := CardView.new().setup(unit.equipment.card_id, equipment_view_data, 1.15)
-			eq.left_clicked.connect(_show_overlay)
+			# anchored to the unit's resting slot, so a tapped unit stepping forward does not drag it along
+			eq.position = Vector2(v.position.x, roundf(y)) + Vector2(8, 22 if p == viewer else -22)
 			eq.right_clicked.connect(_show_overlay)
-			var peek_strip := Control.new()
-			peek_strip.clip_contents = true
-			peek_strip.size = Vector2(eq.size.x, roundf(eq.size.y * EQUIPMENT_PEEK_FRACTION))
-			peek_strip.add_child(eq)
-			# anchored to the unit's resting slot, so a tapped unit stepping forward does not drag it along;
-			# behind the unit (below it for the viewer, above it for the opponent), tucked in a few pixels
-			var strip_y: float = y + card_size.y - EQUIPMENT_PEEK_TUCK if p == viewer else y - peek_strip.size.y + EQUIPMENT_PEEK_TUCK
-			peek_strip.position = Vector2(v.position.x, roundf(strip_y))
-			layer.add_child(peek_strip)
-			layer.move_child(peek_strip, v.get_index())
-			views["eq%d" % unit.uid] = peek_strip # kept so the drag gap can slide it along with its unit
+			layer.add_child(eq)
+			layer.move_child(eq, v.get_index())
+			views["eq%d" % unit.uid] = eq # kept so the drag gap can slide it along with its unit
 	table.set_barrier(TableView.SIDE_MINE if p == viewer else TableView.SIDE_ENEMY, barrier_gaps)
 
 ## A tapped, not Congelada Provocação unit holds the barrier on the divider (drawn by TableView) shut

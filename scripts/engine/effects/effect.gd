@@ -36,9 +36,12 @@ var durability_cost := 0
 ## listen only: "durability_every_uses": N makes the cost above be paid once every N firings (the effect itself
 ## fires every time), so a repeatable engine wears out slowly instead of at every firing. 1 = every firing.
 var durability_every_uses := 1
+## listen only: "durability_after_attack": true holds the cost back until the blows of the attack that fired this
+## effect have landed, so equipment that breaks on its last attack still gives its bonus to that attack.
+var durability_after_attack := false
 
 const LISTEN_PREFIX := "listen_"
-const SCOPES := ["self", "ally", "enemy", "any"]
+const SCOPES := ["self", "carrier", "ally", "enemy", "any"]
 
 ## Fills the shared fields, then lets the subclass read its own parameters.
 func setup(data: Dictionary) -> void:
@@ -65,6 +68,7 @@ func setup(data: Dictionary) -> void:
 		immediate = bool(data.get("immediate", false))
 		durability_cost = int(data.get("durability_cost", 0))
 		durability_every_uses = max(1, int(data.get("durability_every_uses", 1)))
+		durability_after_attack = bool(data.get("durability_after_attack", false))
 	_read_parameters(data)
 
 ## Subclasses copy their JSON parameters (amount, atk, keywords...) into fields here.

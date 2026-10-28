@@ -1001,9 +1001,9 @@ func _draw_lettering_and_gems(look: Dictionary) -> void:
 			hp_col = Color("#a8ffa0") if hp > int(cd["hp"]) else Color.WHITE
 		_gem("diamond", Vector2(14 * s, _face_size.y - 15 * s), 13.5 * s, ATK_COL, str(atk), atk_col, s)
 		_gem("shield", Vector2(_face_size.x - 14 * s, _face_size.y - 15 * s), 12.5 * s, HP_COL, str(hp), hp_col, s)
-	elif cd.has("durability") and not inst.get("equipped_peek", false):
+	elif cd.has("durability"):
 		# the points left on the field (equipment included), the total everywhere else
-		_durability_icon(Vector2(_face_size.x - 14 * s, _face_size.y - 15 * s), 12.5 * s, s, int(inst.get("durability_left", cd["durability"])))
+		_durability_icon(Vector2(_face_size.x - 14 * s, _face_size.y - 15 * s), 12.5 * s, s, int(inst.get("durability_left", cd["durability"])), JSON.stringify(cd).contains("durability_cost"))
 
 ## Border of a full-art champion: the essence gradient, kept bright all the way down (the normal frame fades to
 ## near-black at the bottom, which would read as a black border instead of the essence color).
@@ -1411,13 +1411,6 @@ func _kw_badges(art: Rect2, cd: Dictionary, s: float) -> void:
 		c = _side_badge_position(art, badge_index, s)
 		_use_badge(c, 10 * s, s, not inst.get("exhausted", false))
 		badge_index += 1
-	# Durabilidade of an artifact normally sits in the bottom-right corner, where a unit has its Vida gem
-	# (drawn with the other gems). Equipment tucked under its unit shows only the top of its card, so there
-	# the icon rides high, always in view.
-	if cd.has("durability") and inst.get("equipped_peek", false):
-		c = Vector2(art.end.x - 13 * s, art.position.y + 36 * s)
-		_durability_icon(c, 10 * s, s, int(inst.get("durability_left", cd["durability"])))
-
 func _side_badge_position(art: Rect2, index: int, s: float) -> Vector2:
 	var on_right := index >= 3
 	var row := index - 3 if on_right else index
@@ -1438,8 +1431,9 @@ func _armor_badge(c: Vector2, r: float, s: float, amount: int) -> void:
 
 ## Durabilidade icon: a worn brass shield, no medallion around it, with a crack across it and the points left
 ## written on it, like the stat gem of a unit (artifacts have no stats, so it takes their corner).
-## The number turns red on the last point, the warning that the next use breaks the artifact.
-func _durability_icon(c: Vector2, r: float, s: float, points_left: int) -> void:
+## The number turns red on the last point, the warning that the next use breaks the artifact; an artifact that
+## nothing wears down (pure-stat equipment, its Durability is only decorative) never warns.
+func _durability_icon(c: Vector2, r: float, s: float, points_left: int, can_wear_out := true) -> void:
 	var brass := DURABILITY_COL
 	var outline := _shape("shield", c, r)
 	var shadow := _grow(outline, c, 1.18)
@@ -1456,7 +1450,7 @@ func _durability_icon(c: Vector2, r: float, s: float, points_left: int) -> void:
 	var crack := _unit_pts(c, r, [[0.12, -0.9], [-0.1, -0.5], [0.16, -0.2], [-0.04, 0.12], [0.2, 0.42], [0.08, 0.7]])
 	draw_polyline(crack, Color("#120d06"), 1.9 * s, true)
 	draw_polyline(crack, Color(brass.lightened(0.35), 0.75), 0.7 * s, true)
-	var number_color := Color("#ff7a6b") if points_left <= 1 else Color.WHITE
+	var number_color := Color("#ff7a6b") if can_wear_out and points_left <= 1 else Color.WHITE
 	var font := UITheme.font("heavy")
 	var font_size := int(r * 1.3)
 	var text := str(points_left)

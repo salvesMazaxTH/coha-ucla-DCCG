@@ -22,6 +22,9 @@ const LEADER_REACTION_HP_THRESHOLD := 15
 var pending_attack: Dictionary = {}
 ## The defender already passed the "Reagir?" prompt for the pending attack, so its blows land now instead of asking again.
 var reaction_declined := false
+## Durability that equipment owes for an attack ("durability_after_attack"): paid once that attack's blows have landed.
+## Entries are {"card": the equipment, "effect": the listening Effect that charges it}.
+var wear_after_attack: Array = []
 ## Set by a "decoy" effect while an attack's triggers resolve (Hikari's Fantoche de Trapos): the unit that takes the
 ## attacker's blow instead of the challenged one, and the unit that takes the defender's counter-blow
 ## instead of the attacker. 0 = nobody. Read once by attack() and then cleared.
@@ -181,6 +184,7 @@ func _declare_attack(attacker: Card, target_uid: int) -> void:
 	if defender_unit != null:
 		game._fire(attacker, "on_challenge", target_uid)
 		game._fire(defender_unit, "on_challenged", attacker.uid)
+	game._fire(attacker, "unit_attacked", target_uid if defender_unit != null else 0)
 	game._check_state()
 	# a decoy summoned by the triggers above takes the blow (and/or the counter-blow) instead
 	var struck_uid := target_uid
@@ -231,6 +235,7 @@ func finish_pending_attack() -> void:
 		deferred_attack = {}
 		return
 	_exchange_damage(int(attack_info["attacker"]), int(attack_info["target"]), int(attack_info.get("counter_to", 0)))
+	_pay_wear_after_attack()
 	if game.phase == "over":
 		deferred_attack = {}
 		return
@@ -241,6 +246,15 @@ func finish_pending_attack() -> void:
 	spend_postponed_momentum()
 	if not has_any_attacker():
 		end_combat()
+
+## The attack's blows have landed: the equipment that waited for them loses its Durability now.
+func _pay_wear_after_attack() -> void:
+	var owed := wear_after_attack.duplicate()
+	wear_after_attack.clear()
+	for entry: Dictionary in owed:
+		var equipment: Card = entry["card"]
+		if equipment.zone == TriggerBus.EQUIPPED: # it may have fallen off already (its unit died)
+			game.bus().pay_durability(equipment, entry["effect"])
 
 ## Asks to spend all of `player`'s Momentum: right now, unless the attack they declared is still waiting behind
 ## the extra attacks (then it is spent when the sequence ends, see spend_postponed_momentum).
