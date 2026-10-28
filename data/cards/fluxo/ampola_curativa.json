@@ -6,15 +6,16 @@
   "essence": "fluxo",
   "element": "agua",
   "cost": 1,
-  "charges": 2,
+  "durability": 2,
   "art": "fluxo/ampola_curativa.webp",
   "effects": [],
   "activated": {
     "cost": 1,
     "speed": "instantaneo",
+    "durability_cost": 1,
     "effects": [{ "action": "heal_unit", "target": "ally_or_own_leader", "amount": 2 }]
   },
-  "text": "2 usos.\nAo Ativar (1) {instantaneo}: uma unidade aliada ou seu Líder, à sua escolha, recupera 2 de Vida. Cada ativação gasta 1 uso; sem usos, é destruída.",
+  "text": "Ao Ativar (1) {instantaneo}: uma unidade aliada ou seu Líder, à sua escolha, recupera 2 de Vida. Perde 1 de Durabilidade.",
   "flavor": "Um gole só, e a pressa passa.",
   "tags": []
 }

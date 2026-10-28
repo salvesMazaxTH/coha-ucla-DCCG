@@ -5,6 +5,7 @@
   "essence": "fluxo",
   "element": "gelo",
   "cost": 4,
+  "durability": 1,
   "art": "fluxo/camara_de_extase.webp",
   "effects": [],
   "lethal_ward": true,

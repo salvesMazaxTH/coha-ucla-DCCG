@@ -5,6 +5,7 @@
   "essence": "devocao",
   "element": "luz",
   "cost": 4,
+  "durability": 4,
   "art": "devocao/relicario_de_cabeceira.webp",
   "effects": [
     {
@@ -19,12 +20,13 @@
       "listen": "turn_ended",
       "scope": "ally",
       "zones": ["relics"],
+      "durability_cost": 1,
       "action": "heal_unit",
       "target": "all_ally_units",
       "amount": 2
     }
   ],
-  "text": "No Fim do Turno: seu Líder recupera 2 de Vida e cada uma das suas unidades em campo recupera 2 de Vida.",
+  "text": "No Fim do Turno: seu Líder recupera 2 de Vida e cada uma das suas unidades em campo recupera 2 de Vida. Perde 1 de Durabilidade.",
   "flavor": "Um santo pequeno, de plantão, que nunca tira folga.",
   "tags": []
 }

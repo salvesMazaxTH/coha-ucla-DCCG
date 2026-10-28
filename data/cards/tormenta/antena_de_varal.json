@@ -5,12 +5,14 @@
   "essence": "tormenta",
   "element": "raio",
   "cost": 2,
+  "durability": 4,
   "art": "tormenta/antena_de_varal.webp",
   "effects": [
     {
       "listen": "turn_ended",
       "scope": "ally",
       "zones": ["relics"],
+      "durability_cost": 1,
       "action": "damage",
       "target": "enemy_leader",
       "amount": 1,
@@ -18,7 +20,7 @@
       "divisor": 2
     }
   ],
-  "text": "No Fim do Turno: causa ao Líder inimigo 1 de dano a cada 2 de Momentum que sobraram.",
+  "text": "No Fim do Turno: causa ao Líder inimigo 1 de dano a cada 2 de Momentum que sobraram. Perde 1 de Durabilidade.",
   "flavor": "",
   "tags": []
 }

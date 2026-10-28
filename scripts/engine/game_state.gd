@@ -399,6 +399,9 @@ func _move(c: Card, to_zone: String, extra_data := {}) -> void:
 		c.turn_discount = 0
 	if to_zone != "relics":
 		c.stored_momentum = 0 # a Bateria that leaves the field loses what it stored
+	if to_zone != "relics" and to_zone != "equipped":
+		c.durability_used = 0 # an artifact that leaves the field comes back whole
+		c.durability_uses = 0
 	# a Bola de Neve that reaches the hand, deck or graveyard of a player already at Grande level is born Grande
 	# (the copy that was being cast, one fetched from the graveyard, one created by an effect...)
 	if c.card_id == SNOWBALL_CARD_ID and to_zone in ["hand", "deck", "graveyard"] and snowball_is_grande(c.owner):
@@ -901,15 +904,22 @@ func ice_spell_discount_floor(p: int, cd: Dictionary) -> int:
 
 func _applicable_discount_rules(p: int, cd: Dictionary) -> Array:
 	var rules: Array = []
+	for amulet in _applicable_discount_equipment(p, cd):
+		rules.append(amulet.data()["spell_discount"])
+	return rules
+
+## The equipment whose "spell_discount" applies to this spell right now (the ones that wear down when it is cast).
+func _applicable_discount_equipment(p: int, cd: Dictionary) -> Array:
+	var amulets: Array = []
 	if cd.get("type", "") != "spell" or players[p]["ice_spell_discount_used"]:
-		return rules
+		return amulets
 	for unit: Card in players[p]["board"]:
 		if unit.equipment == null:
 			continue
 		var rule: Dictionary = unit.equipment.data().get("spell_discount", {})
 		if not rule.is_empty() and CardDB.has_element(cd, String(rule["element"])):
-			rules.append(rule)
-	return rules
+			amulets.append(unit.equipment)
+	return amulets
 
 ## Momentum p can spend on a play: the Reserva only counts for spells and leader abilities.
 ## Momentum above the player's cap (a temporary overflow) only pays neutral cards and leader abilities:
@@ -1389,11 +1399,14 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 	if spec2 != "" and ((target2 == target and not cd.get("same_target_ok", false)) or not valid_targets(p, spec2).has(target2)):
 		return []
 	var pl: Dictionary = players[p]
-	var spent_ice_spell_discount := ice_spell_discount(p, cd) > 0 # read before paying: the discount is for the first spell only
+	var discount_amulets := _applicable_discount_equipment(p, cd) # read before paying: the discount is for the first spell only
 	var paid_cost := cost_of(p, cd, inst) + (counter_extra(cd, target) if spec == "enemy_stack" else 0)
 	_pay(p, paid_cost, _is_spell(cd))
-	if spent_ice_spell_discount:
+	if not discount_amulets.is_empty():
 		pl["ice_spell_discount_used"] = true
+		# each amulet whose discount was used loses its Durability cost (its own "durability_cost" in the spell_discount rule)
+		for amulet: Card in discount_amulets:
+			lose_durability(amulet, int(amulet.data()["spell_discount"].get("durability_cost", 0)))
 	pl["graveyard" if from_graveyard else "hand"].erase(inst)
 	_note_card_played_for_rusco(p, cd)
 	_move(inst, "")
@@ -1497,21 +1510,47 @@ func activate(p: int, uid: int, target: int = 0) -> Array:
 	if ab.get("exhaust", false) and find_unit(uid) != null and not c.has_kw("inerte"):
 		c.exhausted = true
 	_emit({"type": "trigger", "uid": uid, "player": p, "card_id": c.card_id, "trigger": "on_activate", "target": target})
-	# a card with "charges" spends one per activation; the last use destroys it, but the ability on the stack still resolves
-	var spent_last_charge := spend_charge(c)
+	# an artifact whose Ao Ativar has "durability_cost": N loses that much Durability; the last point breaks it,
+	# but the ability already on the stack still resolves
+	var wore_out := spend_durability(c, int(ab.get("durability_cost", 0)))
 	stack_system().push(p, "unit_ability", uid, c.card_id, target, speed_of(ab))
-	if spent_last_charge:
-		destroy_relic(c)
+	if wore_out:
+		break_artifact(c)
 	stack_system().settle()
 	return _flush()
 
-## Spends one use of a card with "charges": N. True when it was the last one (the caller destroys the artifact).
-func spend_charge(c: Card) -> bool:
-	if c.charges_left() < 0:
+## Takes `amount` Durability from an artifact on the field. True when none is left (the caller then calls
+## break_artifact). Does nothing for a card without Durability.
+func spend_durability(c: Card, amount: int) -> bool:
+	if amount <= 0 or c.durability_left() < 0:
 		return false
-	c.charges_used += 1
-	_emit({"type": "charge_spent", "player": c.owner, "uid": c.uid, "card_id": c.card_id, "left": c.charges_left()})
-	return c.charges_left() == 0
+	c.durability_used += amount
+	_emit({"type": "durability_lost", "player": c.owner, "uid": c.uid, "card_id": c.card_id, "left": c.durability_left()})
+	return c.durability_left() == 0
+
+## spend_durability followed by breaking the artifact when it runs out: the one call for "X loses N Durability".
+func lose_durability(c: Card, amount: int) -> void:
+	if spend_durability(c, amount):
+		break_artifact(c)
+
+## An artifact with no Durability left is destroyed: a free-standing one goes to the graveyard, equipment falls off
+## its unit (which keeps what it is, minus the bonus the equipment gave) and goes to the graveyard too.
+func break_artifact(c: Card) -> void:
+	if c.zone == "equipped":
+		var carrier := equipment_carrier(c)
+		if carrier != null:
+			stack_system().remove_equipment_bonus(carrier)
+			_release_equipment(carrier)
+	else:
+		destroy_relic(c)
+
+## The unit wearing this equipment, or null.
+func equipment_carrier(equipment: Card) -> Card:
+	for p in players:
+		for unit: Card in p["board"]:
+			if unit.equipment == equipment:
+				return unit
+	return null
 
 func use_ability(p: int, target: int = 0) -> Array:
 	if not can_use_ability(p):

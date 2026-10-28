@@ -75,10 +75,10 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 			var per_turn_limit := int(cd.get("conditional_uses_per_turn", 0))
 			body = body.replace("(%dx por turno)" % per_turn_limit,
 					"(%dx por turno — usadas %d/%d)" % [per_turn_limit, int(instance["conditional_uses_now"]), per_turn_limit])
-		if instance.has("charges_left"):
+		if instance.has("durability_left"):
 			body += "
 
-[b]Usos restantes: %d/%d[/b]" % [int(instance["charges_left"]), int(cd["charges"])]
+[b]Durabilidade: %d/%d[/b]" % [int(instance["durability_left"]), int(cd["durability"])]
 		if instance.has("stored_momentum"):
 			body += "
 

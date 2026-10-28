@@ -18,17 +18,17 @@
       "action": "put_artifact",
       "target": "none",
       "card": "ampola_curativa",
-      "charges_left": 1
+      "durability_left": 1
     },
     {
       "trigger": "on_death",
       "action": "put_artifact",
       "target": "none",
       "card": "ampola_curativa",
-      "charges_left": 1
+      "durability_left": 1
     }
   ],
-  "text": "Ao Morrer: duas Ampolas Curativas, com apenas 1 uso cada, entram no seu campo.",
+  "text": "Ao Morrer: duas Ampolas Curativas, com apenas 1 de Durabilidade cada, entram no seu campo.",
   "flavor": "Correu tanto que derramou metade de cada uma pelo caminho.",
   "tags": []
 }

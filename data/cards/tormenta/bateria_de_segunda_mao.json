@@ -6,6 +6,7 @@
   "essence": "tormenta",
   "element": "raio",
   "cost": 3,
+  "durability": 4,
   "momentum_store": 3,
   "art": "tormenta/bateria_de_segunda_mao.webp",
   "effects": [],
@@ -13,12 +14,13 @@
     "cost": 0,
     "speed": "instantaneo",
     "once_per_turn": true,
+    "durability_cost": 1,
     "effects": [
       { "action": "gain_reserve", "target": "none", "amount": 1 },
       { "action": "gain_momentum", "target": "none", "per": "stored", "max": 1, "retain_stored": true }
     ]
   },
-  "text": "Guarda até 3 de Momentum que vazariam da Reserva.\nAo Ativar (0) {instantaneo} (1x por turno): você ganha 1 de Reserva, mesmo com a Bateria vazia. Além disso, libera até 1 do Momentum guardado; o restante continua na Bateria.",
+  "text": "Guarda até 3 de Momentum que vazariam da Reserva.\nAo Ativar (0) {instantaneo} (1x por turno): você ganha 1 de Reserva, mesmo com a Bateria vazia. Além disso, libera até 1 do Momentum guardado; o restante continua na Bateria. Perde 1 de Durabilidade.",
   "flavor": "",
   "tags": []
 }

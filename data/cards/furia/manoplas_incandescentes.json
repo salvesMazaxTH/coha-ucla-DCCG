@@ -6,6 +6,7 @@
   "essence": "furia",
   "element": "fogo",
   "cost": 2,
+  "durability": 1,
   "art": "furia/manoplas_incandescentes.webp",
   "effects": [
     {

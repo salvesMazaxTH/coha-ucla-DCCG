@@ -29,7 +29,8 @@ func _init() -> void:
 	_test_tormenta_wave_two()
 	_test_magic_shield_scope()
 	_test_supreme_shield()
-	_test_limited_charges()
+	_test_durability()
+	_test_durability_rules()
 	_test_artifact_subtypes()
 	_test_room_banish()
 	_test_twin_bolts()
@@ -647,25 +648,39 @@ func _test_devocao_support() -> void:
 	g_relic.end_turn(1)
 	g_relic._flush()
 	check(g_relic.players[0]["leader_hp"] == leader_mid, "Relicário de Cabeceira: não cura no fim do turno do oponente")
-	# Sino de Aviso Prévio: um efeito inimigo que mira a unidade dá Escudo Mágico a ela, 1x por turno
+	# Sino de Aviso Prévio: um efeito inimigo que mira a unidade dá Escudo Mágico a ela ANTES de atingi-la,
+	# e cada disparo gasta 1 de Durabilidade (3 no total)
 	_tcard("t_bell_hit", 1, 1, [{"trigger": "on_enter", "action": "damage", "target": "enemy_unit", "amount": 1}])
 	_tcard("t_bell_body", 1, 5, [])
 	_tcard("t_bell_area", 1, 1, [{"trigger": "on_enter", "action": "damage", "target": "all_enemy_units", "amount": 1}])
 	var g_bell := _new_game()
 	_quiet(g_bell)
 	g_bell.active = 1
-	g_bell.players[0]["relics"].append(Card.new(g_bell._uid(), "sino_de_aviso_previo", 0, "relics"))
+	var bell := Card.new(g_bell._uid(), "sino_de_aviso_previo", 0, "relics")
+	g_bell.players[0]["relics"].append(bell)
 	var guarded := _put(g_bell, 0, "t_bell_body")
 	var second_guarded := _put(g_bell, 0, "t_bell_body")
 	g_bell._run_effect_dicts(1, CardDB.card("t_bell_area")["effects"], "on_enter", 0, 0, SPELL_SOURCE)
 	g_bell._check_state()
 	check(not guarded.magic_shield, "Sino: efeito em área não mira ninguém e não dá escudo")
+	guarded.damage = 0 # the area effect did hit; start counting from clean units
+	second_guarded.damage = 0
 	g_bell._run_effect_dicts(1, CardDB.card("t_bell_hit")["effects"], "on_enter", guarded.uid, 0, SPELL_SOURCE)
 	g_bell._check_state()
-	check(guarded.magic_shield, "Sino: o efeito inimigo que mira a unidade dá Escudo Mágico a ela")
+	# the shield arrives BEFORE the effect, so it absorbs the hit (and is spent doing it): no damage, no shield left
+	check(guarded.damage == 0 and not guarded.magic_shield, "Sino: o Escudo Mágico chega antes do efeito inimigo e o absorve")
+	check(bell.durability_left() == 2, "Sino: o disparo gastou 1 de Durabilidade")
 	g_bell._run_effect_dicts(1, CardDB.card("t_bell_hit")["effects"], "on_enter", second_guarded.uid, 0, SPELL_SOURCE)
 	g_bell._check_state()
-	check(not second_guarded.magic_shield, "Sino: só 1x por turno")
+	check(second_guarded.damage == 0 and bell.durability_left() == 1, "Sino: sem limite de 1x por turno, cada disparo gasta 1")
+	var third_guarded := _put(g_bell, 0, "t_bell_body")
+	g_bell._run_effect_dicts(1, CardDB.card("t_bell_hit")["effects"], "on_enter", third_guarded.uid, 0, SPELL_SOURCE)
+	g_bell._check_state()
+	check(third_guarded.damage == 0 and g_bell.find_relic(bell.uid) == null, "Sino: o 3º disparo ainda protege e quebra o Sino")
+	var fourth_guarded := _put(g_bell, 0, "t_bell_body")
+	g_bell._run_effect_dicts(1, CardDB.card("t_bell_hit")["effects"], "on_enter", fourth_guarded.uid, 0, SPELL_SOURCE)
+	g_bell._check_state()
+	check(fourth_guarded.damage == 1, "Sino: quebrado, não protege mais")
 	var g_own := _new_game()
 	_quiet(g_own)
 	g_own.active = 0
@@ -675,7 +690,7 @@ func _test_devocao_support() -> void:
 	g_own._check_state()
 	check(not own_target.magic_shield, "Sino: efeito do próprio dono não conta como ser mirado")
 
-## Arquivista da Cripta Baixa (look_bottom), Chá de Boldo, Iconoclastia, Joio e Trigo e Leva-Frascos Apressado (charges_left).
+## Arquivista da Cripta Baixa (look_bottom), Chá de Boldo, Iconoclastia, Joio e Trigo e Leva-Frascos Apressado (durability_left).
 func _test_devocao_new_batch() -> void:
 	# Arquivista: olha 2 cartas aleatórias entre as 5 do fundo; a escolhida vai à mão, as outras ficam onde estavam
 	var g := _new_game()
@@ -835,7 +850,7 @@ func _test_devocao_new_batch() -> void:
 	check(g_toll.find_unit(ally_hurt.uid).damage == 1, "Joio e Trigo: unidade aliada recupera 3 de Vida")
 	check(g_toll.find_unit(foe_body.uid).damage == 3, "Joio e Trigo: unidade inimiga leva 3 de dano")
 
-	# put_artifact com charges_left + Leva-Frascos: duas Ampolas com 1 uso cada
+	# put_artifact com durability_left + Leva-Frascos: duas Ampolas com 1 de Durabilidade cada
 	var g_vials := _new_game()
 	g_vials.active = 0
 	var runner := _put(g_vials, 0, "leva_frascos_apressado")
@@ -843,7 +858,7 @@ func _test_devocao_new_batch() -> void:
 	g_vials._check_state()
 	var vials: Array = g_vials.players[0]["relics"].filter(func(relic: Card): return relic.card_id == "ampola_curativa")
 	check(vials.size() == 2, "Leva-Frascos: ao morrer, duas Ampolas Curativas entram no campo (%d)" % vials.size())
-	check(vials.all(func(vial: Card): return vial.charges_left() == 1), "Leva-Frascos: cada Ampola entra com apenas 1 uso")
+	check(vials.all(func(vial: Card): return vial.durability_left() == 1), "Leva-Frascos: cada Ampola entra com apenas 1 de Durabilidade")
 	# sem espaço livre só a primeira cabe
 	var g_full := _new_game()
 	g_full.active = 0
@@ -1487,7 +1502,7 @@ func _test_supreme_shield() -> void:
 	g._flush()
 	check(g.find_relic(bulwark.uid) == null, "sem o Escudo Supremo, o segundo Desmontador destrói o Baluarte")
 
-func _test_limited_charges() -> void:
+func _test_durability() -> void:
 	# Ampola Curativa: 2 usos; Ao Ativar (1) Instantâneo cura 2 da unidade aliada ou do Líder escolhido
 	var g := _new_game()
 	_quiet(g)
@@ -1495,8 +1510,8 @@ func _test_limited_charges() -> void:
 	var vial := Card.new(g._uid(), "ampola_curativa", p)
 	g._place_relic(p, vial)
 	g._flush()
-	check(vial.charges_left() == 2, "Ampola Curativa começa com 2 usos")
-	check(Card.from_dict(vial.to_dict(), "relics", p).charges_left() == 2, "usos intactos no to_dict/from_dict")
+	check(vial.durability_left() == 2, "Ampola Curativa começa com 2 de Durabilidade")
+	check(Card.from_dict(vial.to_dict(), "relics", p).durability_left() == 2, "Durabilidade intacta no to_dict/from_dict")
 	g.players[p]["momentum"] = 5
 	var leader_uid: int = GameState.LEADER_UID[p]
 	g.players[p]["leader_hp"] -= 6
@@ -1507,14 +1522,14 @@ func _test_limited_charges() -> void:
 	check(g.speed_of(CardDB.card("ampola_curativa")["activated"]) == "instantaneo", "Ampola: a ativação é Instantânea")
 	_resolve_stack(g)
 	check(g.players[p]["leader_hp"] == leader_before + 2, "Ampola cura 2 do Líder escolhido")
-	check(vial.charges_left() == 1 and g.find_relic(vial.uid) != null, "a ativação gastou 1 uso")
-	check(Card.from_dict(vial.to_dict(), "relics", p).charges_left() == 1, "usos gastos sobrevivem ao to_dict/from_dict")
-	# the other target: an ally unit chosen by the player; the last use destroys the Ampola but the heal still lands
+	check(vial.durability_left() == 1 and g.find_relic(vial.uid) != null, "a ativação gastou 1 de Durabilidade")
+	check(Card.from_dict(vial.to_dict(), "relics", p).durability_left() == 1, "Durabilidade gasta sobrevive ao to_dict/from_dict")
+	# the other target: an ally unit chosen by the player; the last point of Durability destroys the Ampola but the heal still lands
 	var wounded := _put(g, p, "vigia_do_farol_do_norte")
 	wounded.damage = 3
 	var wounded_hp := wounded.hp_left()
 	g.activate(p, vial.uid, wounded.uid)
-	check(g.find_relic(vial.uid) == null and g.players[p]["graveyard"].has(vial), "no último uso a Ampola é destruída")
+	check(g.find_relic(vial.uid) == null and g.players[p]["graveyard"].has(vial), "na última Durabilidade a Ampola é destruída")
 	_resolve_stack(g)
 	check(wounded.hp_left() == wounded_hp + 2, "Ampola cura 2 da unidade aliada escolhida, mesmo destruída")
 	# the enemy Leader and enemy units are not valid targets
@@ -1525,12 +1540,115 @@ func _test_limited_charges() -> void:
 	g2._place_relic(p2, jug)
 	g2.players[p2]["momentum"] = 5
 	check(not g2.valid_targets(p2, "ally_or_own_leader").has(GameState.LEADER_UID[g2.opponent(p2)]), "Garrafão: Líder inimigo não é alvo")
-	# Garrafão Curativo is strictly better: more uses, more healing, higher cost to play; same activation cost
+	# Garrafão Curativo is strictly better: more Durability, more healing, higher cost to play; same activation cost
 	var small: Dictionary = CardDB.card("ampola_curativa")
 	var big: Dictionary = CardDB.card("garrafao_curativo")
-	check(int(big["charges"]) > int(small["charges"]) and int(big["cost"]) > int(small["cost"])
+	check(int(big["durability"]) > int(small["durability"]) and int(big["cost"]) > int(small["cost"])
 		and int(big["activated"]["effects"][0]["amount"]) > int(small["activated"]["effects"][0]["amount"])
-		and int(big["activated"]["cost"]) == 1 and int(small["activated"]["cost"]) == 1, "Garrafão: mais usos, custo e cura que a Ampola; ativação custa 1")
+		and int(big["activated"]["cost"]) == 1 and int(small["activated"]["cost"]) == 1, "Garrafão: mais Durabilidade, custo e cura que a Ampola; ativação custa 1")
+
+## Durabilidade: contador visível, gasto definido por cada carta, quebra em 0, equipamentos e efeitos "perde Durabilidade".
+func _test_durability_rules() -> void:
+	_tcard("teste_alvo_gelo", 0, 20, [])
+	# Amuleto do Primeiro Floco: só gasta 1 de Durabilidade quando o desconto é de fato usado (o 1º feitiço glacial do turno)
+	var g := _glacial_game()
+	var a: int = g.active
+	g.players[a]["momentum"] = 30
+	var holder := _put(g, a, "teste_alvo_gelo")
+	var base_hp: int = holder.hp_left()
+	var amulet := Card.new(g._uid(), "amuleto_do_primeiro_floco", a)
+	holder.hp += 2 # what the Equipar buff gives; attach() only records it as `granted`
+	g.stack_system().attach(holder, amulet, {"hp": 2})
+	check(amulet.durability_left() == 3 and holder.hp_left() == base_hp + 2, "amuleto: entra com 3 de Durabilidade e concede +2 de Vida")
+	_cast_and_resolve(g, a, "avalanche")
+	check(amulet.durability_left() == 2, "amuleto: o feitiço com desconto gastou 1 de Durabilidade")
+	_cast_and_resolve(g, a, "avalanche")
+	check(amulet.durability_left() == 2, "amuleto: o segundo feitiço do turno não tem desconto e não gasta")
+
+	# on its last point the discounted spell wears the amulet out: it falls off and takes its +2 Vida with it
+	g = _glacial_game()
+	a = g.active
+	g.players[a]["momentum"] = 30
+	holder = _put(g, a, "teste_alvo_gelo")
+	base_hp = holder.hp_left()
+	amulet = Card.new(g._uid(), "amuleto_do_primeiro_floco", a)
+	holder.hp += 2
+	g.stack_system().attach(holder, amulet, {"hp": 2})
+	amulet.durability_used = 2
+	_cast_and_resolve(g, a, "avalanche")
+	check(holder.equipment == null and g.find_unit(holder.uid) != null, "amuleto: sem Durabilidade ele se desfaz e a unidade fica")
+	check(holder.equipment_grant.is_empty(), "amuleto: a unidade perde o bônus de Vida ao quebrar")
+
+	# efeito "perde Durabilidade" numa unidade: quebra o equipamento decorativo (1 de Durabilidade) e tira o bônus
+	g = _new_game()
+	_quiet(g)
+	var carrier := _put(g, 0, "teste_alvo_gelo")
+	var armor_before: int = carrier.armor
+	var cloak := Card.new(g._uid(), "manto_da_ladainha", 0)
+	carrier.armor += 1 # what the Equipar buff gives; attach() only records it as `granted`
+	g.stack_system().attach(carrier, cloak, {"armor": 1})
+	check(cloak.durability_left() == 1 and carrier.armor == armor_before + 1, "equipamento só de atributos: 1 de Durabilidade decorativa e o bônus ativo")
+	var wear_effect := [{"trigger": "on_enter", "action": "lose_durability", "target": "enemy_unit", "amount": 1}]
+	g._run_effect_dicts(1, wear_effect, "on_enter", carrier.uid, 0, SPELL_SOURCE)
+	g._flush()
+	check(carrier.equipment == null and carrier.armor == armor_before and g.find_unit(carrier.uid) != null,
+		"perde Durabilidade: o equipamento quebra, o bônus some e a unidade continua")
+	# a unit with no equipment is left alone
+	g._run_effect_dicts(1, wear_effect, "on_enter", carrier.uid, 0, SPELL_SOURCE)
+	g._flush()
+	check(g.find_unit(carrier.uid) != null, "perde Durabilidade: unidade sem equipamento não sofre nada")
+
+	# a free-standing artifact: loses points down to 0, then goes to the graveyard
+	var jug := Card.new(g._uid(), "garrafao_curativo", 0)
+	g._place_relic(0, jug)
+	g.lose_durability(jug, 3)
+	check(jug.durability_left() == 1 and g.find_relic(jug.uid) != null, "artefato: perder 3 de 4 deixa 1")
+	g.lose_durability(jug, 5)
+	check(g.find_relic(jug.uid) == null, "artefato: Durabilidade 0 destrói") # it leaves the field whole again, so no counter to read
+	check(g.players[0]["graveyard"].has(jug), "artefato destruído por Durabilidade vai ao cemitério")
+
+	# serialization and leaving the field: the wear is kept while on the field and forgotten once the card leaves
+	var worn := Card.new(g._uid(), "urna_cochichante", 0)
+	worn.durability_used = 3
+	check(Card.from_dict(worn.to_dict(), "relics", 0).durability_left() == 2, "Durabilidade gasta sobrevive ao to_dict/from_dict")
+	g._place_relic(0, worn)
+	g.destroy_relic(worn)
+	check(worn.durability_used == 0, "artefato que sai do campo volta inteiro")
+
+	# Urna Cochichante: Ao Ativar custa 0 e gasta 1 de Durabilidade (5 no total)
+	var urn_game := _new_game()
+	_quiet(urn_game)
+	var urn := Card.new(urn_game._uid(), "urna_cochichante", 0)
+	urn_game._place_relic(0, urn)
+	urn_game._flush()
+	check(urn.durability_left() == 5 and int(CardDB.card("urna_cochichante")["activated"]["cost"]) == 0, "Urna: 5 de Durabilidade e Ao Ativar custa 0")
+
+	# Relicário de Cabeceira: cada fim de turno gasta 1 de Durabilidade no total (não 1 por efeito)
+	var relic_game := _new_game()
+	relic_game.active = 0
+	var chapel := Card.new(relic_game._uid(), "relicario_de_cabeceira", 0, "relics")
+	relic_game.players[0]["relics"].append(chapel)
+	relic_game.end_turn(0)
+	relic_game._flush()
+	check(chapel.durability_left() == 3, "Relicário: um fim de turno gasta apenas 1 de Durabilidade (%d)" % chapel.durability_left())
+
+	# Antena de Varal: gasta 1 por disparo mesmo sem causar dano
+	var antenna_game := _new_game()
+	antenna_game.active = 0
+	var antenna := Card.new(antenna_game._uid(), "antena_de_varal", 0, "relics")
+	antenna_game.players[0]["relics"].append(antenna)
+	antenna_game.players[0]["momentum"] = 0
+	antenna_game.end_turn(0)
+	antenna_game._flush()
+	check(antenna.durability_left() == 3, "Antena: disparou sem Momentum sobrando e mesmo assim gastou 1")
+
+	# every non-"local" artifact has Durability, and "local" ones have none
+	for card_id in CardDB.data()["cards"]:
+		var data: Dictionary = CardDB.card(card_id)
+		if data.get("type", "") != "artifact" or data.get("art", "") == "":
+			continue # test fixtures have no art
+		var is_local: bool = (data.get("subtypes", []) as Array).has("local")
+		check(is_local == (not data.has("durability")), "Durabilidade: %s %s" % [card_id, "é Local e não tem" if is_local else "precisa ter"])
 
 func _test_artifact_subtypes() -> void:
 	# Subtipos de artefato são comparáveis: filtro "subtype" nos alvos de artefato e no match do PlayRestriction
@@ -6669,8 +6787,8 @@ func _test_ciclo_da_carpideira() -> void:
 			if unit.card_id == "espirito_choroso":
 				current_spirit_uid = unit.uid
 	check(g.players[1]["leader_hp"] == enemy_hp_before - 6, "ciclo: 3 voltas = 6 de dano no Líder sem unidades inimigas")
-	check(g.players[0]["momentum"] == 0, "ciclo: cada volta gasta 1 de Momentum")
-	check(not g.can_activate(0, urn.uid), "ciclo: sem Momentum a Urna não ativa")
+	check(g.players[0]["momentum"] == 3, "ciclo: a ativação da Urna custa 0, o Momentum não muda")
+	check(urn.durability_left() == 2, "ciclo: cada volta gasta 1 de Durabilidade da Urna (5 -> 2)")
 
 func _test_reembolso_do_ciclo() -> void:
 	# Tesoureira Troco-Certo devolve 1 de Momentum por morte aliada, sem limite: cada volta da Urna (custo 1)
@@ -6739,14 +6857,21 @@ func _test_degelo_na_moenda() -> void:
 	g._flush()
 	var hp_before := int(g.players[0]["leader_hp"])
 	var enemy_deck_before: int = g.players[1]["deck"].size()
-	for lap in 3:
+	for lap in 5:
 		g.activate(0, thawer.uid, spark.uid)
 		g._flush()
 		g.activate(0, spark.uid)
 		g._flush()
 	check(int(g.players[0]["momentum"]) == 2, "moenda: cada volta Zuleica + Fagulha sai de graça (veio %d)" % int(g.players[0]["momentum"]))
-	check(int(g.players[0]["leader_hp"]) == hp_before - 3, "moenda: cada volta custa 1 de Vida do Líder")
-	check(g.players[1]["deck"].size() == enemy_deck_before - 6, "moenda: cada desvirada mói 2 cartas do oponente")
+	check(int(g.players[0]["leader_hp"]) == hp_before - 5, "moenda: cada volta custa 1 de Vida do Líder")
+	check(g.players[1]["deck"].size() == enemy_deck_before - 10, "moenda: cada desvirada mói 2 cartas do oponente")
+	check(mill_artifact.durability_left() == 5, "moenda: 5 moagens gastam só 1 de Durabilidade (a cada 3) (sobrou %d)" % mill_artifact.durability_left())
+	for lap in 13:
+		g.activate(0, thawer.uid, spark.uid)
+		g._flush()
+		g.activate(0, spark.uid)
+		g._flush()
+	check(not g.players[0]["relics"].has(mill_artifact), "moenda: 18 moagens esgotam os 6 de Durabilidade e a quebram")
 	check(not g.valid_targets(0, "other_ally_unit", thawer.uid, false, CardDB.card("zuleica_degela_tudo")["activated"]["effects"]).has(thawer.uid), "zuleica: não desvira a si mesma")
 
 func _test_zaza_fuzue() -> void:

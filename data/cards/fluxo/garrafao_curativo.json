@@ -6,15 +6,16 @@
   "essence": "fluxo",
   "element": "agua",
   "cost": 3,
-  "charges": 4,
+  "durability": 4,
   "art": "fluxo/garrafao_curativo.webp",
   "effects": [],
   "activated": {
     "cost": 1,
     "speed": "instantaneo",
+    "durability_cost": 1,
     "effects": [{ "action": "heal_unit", "target": "ally_or_own_leader", "amount": 3 }]
   },
-  "text": "4 usos.\nAo Ativar (1) {instantaneo}: uma unidade aliada ou seu Líder, à sua escolha, recupera 3 de Vida. Cada ativação gasta 1 uso; sem usos, é destruído.",
+  "text": "Ao Ativar (1) {instantaneo}: uma unidade aliada ou seu Líder, à sua escolha, recupera 3 de Vida. Perde 1 de Durabilidade.",
   "flavor": "Ninguém sabe quem encheu. Todo mundo sabe quem vai beber.",
   "tags": []
 }

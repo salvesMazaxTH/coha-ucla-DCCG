@@ -8,6 +8,7 @@
   "essence": "fluxo",
   "element": "agua",
   "cost": 2,
+  "durability": 1,
   "art": "fluxo/pingente_das_ondas.webp",
   "effects": [
     {

@@ -28,6 +28,14 @@ var scope := "any" ## listen only: self | ally | enemy | any, relative to the ca
 var zones: Array = ["board"] ## listen only: where the card must be ("any" = every zone)
 var when: Dictionary = {} ## listen only: facts the event must have, e.g. {"to": "graveyard"}
 var min_amount := 0 ## listen only: the event's amount (healing, damage...) must be at least this much
+## listen only: "immediate": the effect resolves the instant the event happens instead of waiting in the trigger queue,
+## so it lands BEFORE whatever caused the event finishes (the Sino de Aviso Prévio's shield must be up before the enemy effect hits).
+var immediate := false
+## listen only: "durability_cost": N is how much Durability the card loses each time this effect fires (0 = none).
+var durability_cost := 0
+## listen only: "durability_every_uses": N makes the cost above be paid once every N firings (the effect itself
+## fires every time), so a repeatable engine wears out slowly instead of at every firing. 1 = every firing.
+var durability_every_uses := 1
 
 const LISTEN_PREFIX := "listen_"
 const SCOPES := ["self", "ally", "enemy", "any"]
@@ -54,6 +62,9 @@ func setup(data: Dictionary) -> void:
 		zones = TriggerBus.ZONES.duplicate() if zone_list is String else zone_list
 		when = data.get("when", {})
 		min_amount = int(data.get("min_amount", 0))
+		immediate = bool(data.get("immediate", false))
+		durability_cost = int(data.get("durability_cost", 0))
+		durability_every_uses = max(1, int(data.get("durability_every_uses", 1)))
 	_read_parameters(data)
 
 ## Subclasses copy their JSON parameters (amount, atk, keywords...) into fields here.

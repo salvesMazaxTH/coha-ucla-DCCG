@@ -33,6 +33,7 @@ const STYLES := {
 const MAX_SHOWN_DOMAINS := 4 ## a card with more domains than this only shows the first ones in its frame and badge
 const SIGIL_COLOR := Color("#f4efe6") ## domain sigils are one flat off-white shape (like the Magic colour symbols), never tinted or shaded
 const TRIGGER_COL :=Color("#ff9a4a") ## trigger tags: same weight as keywords, orange to read as another category
+const DURABILITY_COL := Color("#d9c7a0") ## the Durabilidade counter of artifacts: worn brass, a different category from triggers and keywords
 const KEYWORD_COL := Color("#ffe9a8") ## keyword names wherever they appear inside rules text
 const ACTION_KEYWORD_COL := Color("#8bd8f2") ## verbal mechanics (Moer, Dragar), distinct from state keywords
 const GOLD_TRIM := Color("#f3d27a")
@@ -1000,6 +1001,9 @@ func _draw_lettering_and_gems(look: Dictionary) -> void:
 			hp_col = Color("#a8ffa0") if hp > int(cd["hp"]) else Color.WHITE
 		_gem("diamond", Vector2(14 * s, _face_size.y - 15 * s), 13.5 * s, ATK_COL, str(atk), atk_col, s)
 		_gem("shield", Vector2(_face_size.x - 14 * s, _face_size.y - 15 * s), 12.5 * s, HP_COL, str(hp), hp_col, s)
+	elif cd.has("durability") and not inst.get("equipped_peek", false):
+		# the points left on the field (equipment included), the total everywhere else
+		_durability_icon(Vector2(_face_size.x - 14 * s, _face_size.y - 15 * s), 12.5 * s, s, int(inst.get("durability_left", cd["durability"])))
 
 ## Border of a full-art champion: the essence gradient, kept bright all the way down (the normal frame fades to
 ## near-black at the bottom, which would read as a black border instead of the essence color).
@@ -1406,6 +1410,13 @@ func _kw_badges(art: Rect2, cd: Dictionary, s: float) -> void:
 	if inst.has("damage") and cd.get("activated", {}).get("exhaust", false):
 		c = _side_badge_position(art, badge_index, s)
 		_use_badge(c, 10 * s, s, not inst.get("exhausted", false))
+		badge_index += 1
+	# Durabilidade of an artifact normally sits in the bottom-right corner, where a unit has its Vida gem
+	# (drawn with the other gems). Equipment tucked under its unit shows only the top of its card, so there
+	# the icon rides high, always in view.
+	if cd.has("durability") and inst.get("equipped_peek", false):
+		c = Vector2(art.end.x - 13 * s, art.position.y + 36 * s)
+		_durability_icon(c, 10 * s, s, int(inst.get("durability_left", cd["durability"])))
 
 func _side_badge_position(art: Rect2, index: int, s: float) -> Vector2:
 	var on_right := index >= 3
@@ -1424,6 +1435,35 @@ func _armor_badge(c: Vector2, r: float, s: float, amount: int) -> void:
 	draw_colored_polygon(_shape("shield", c, r * 0.82), steel.darkened(0.15))
 	draw_colored_polygon(_shape("shield", c, r * 0.64), steel.darkened(0.55))
 	_text(UITheme.font("heavy"), str(amount), c + Vector2(0, r * 0.32), r * 1.05, Color.WHITE)
+
+## Durabilidade icon: a worn brass shield, no medallion around it, with a crack across it and the points left
+## written on it, like the stat gem of a unit (artifacts have no stats, so it takes their corner).
+## The number turns red on the last point, the warning that the next use breaks the artifact.
+func _durability_icon(c: Vector2, r: float, s: float, points_left: int) -> void:
+	var brass := DURABILITY_COL
+	var outline := _shape("shield", c, r)
+	var shadow := _grow(outline, c, 1.18)
+	for i in shadow.size():
+		shadow[i] += Vector2(0, 2 * s)
+	draw_colored_polygon(shadow, Color(0, 0, 0, 0.55))
+	draw_colored_polygon(_grow(outline, c, 1.16), UITheme.GOLD_DARK.darkened(0.3))
+	draw_colored_polygon(_grow(outline, c, 1.1), UITheme.GOLD)
+	draw_colored_polygon(outline, brass.darkened(0.55))
+	draw_colored_polygon(_grow(outline, c - Vector2(0, r * 0.1), 0.86), brass.darkened(0.2))
+	var rim := _grow(outline, c, 1.1)
+	draw_polyline(rim + PackedVector2Array([rim[0]]), Color(UITheme.GOLD_LIGHT, 0.7), 0.9 * s, true)
+	# the crack: a jagged line from the top edge down to the lower right, dark so it reads as a fissure in the metal
+	var crack := _unit_pts(c, r, [[0.12, -0.9], [-0.1, -0.5], [0.16, -0.2], [-0.04, 0.12], [0.2, 0.42], [0.08, 0.7]])
+	draw_polyline(crack, Color("#120d06"), 1.9 * s, true)
+	draw_polyline(crack, Color(brass.lightened(0.35), 0.75), 0.7 * s, true)
+	var number_color := Color("#ff7a6b") if points_left <= 1 else Color.WHITE
+	var font := UITheme.font("heavy")
+	var font_size := int(r * 1.3)
+	var text := str(points_left)
+	var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	var position := Vector2(c.x - width / 2, c.y + font_size * 0.34 - r * 0.1)
+	draw_string_outline(font, position, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, max(3, int(font_size / 4.0)), Color(0, 0, 0, 0.9))
+	draw_string(font, position, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, number_color)
 
 ## Live Condenada marker: a dark medallion with a violet skull (cranium, jaw, eye sockets, nose).
 func _doom_badge(c: Vector2, r: float, s: float) -> void:
@@ -1680,15 +1720,9 @@ func _panel_lines(cd: Dictionary) -> Array:
 		# cards that limit their Condicional per turn (Seymour) show "(usados/limite)", live on the board
 		if inst.has("conditional_uses_now"):
 			conditional_name += " (%d/%d)" % [int(inst["conditional_uses_now"]), int(cd["conditional_uses_per_turn"])]
-		# cards with limited "charges" show "(restantes/total)" while on the field
-		if inst.has("charges_left"):
-			conditional_name += " (%d/%d)" % [int(inst["charges_left"]), int(cd["charges"])]
 		tags.append([conditional_name, TRIGGER_COL])
 	if cd.has("activated"):
 		var activate_name: String = CardDB.data()["triggers"]["on_activate"]["name"]
-		# a card whose limited "charges" are spent on the Ao Ativar (no Condicional) shows the counter here
-		if inst.has("charges_left") and not _has_conditional_rule(cd):
-			activate_name += " (%d/%d)" % [int(inst["charges_left"]), int(cd["charges"])]
 		# an artifact that stores Momentum shows "(guardado/limite)"
 		if inst.has("stored_momentum"):
 			activate_name += " (%d/%d)" % [int(inst["stored_momentum"]), int(cd["momentum_store"])]

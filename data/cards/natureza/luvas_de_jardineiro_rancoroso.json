@@ -8,6 +8,7 @@
   "essence": "natureza",
   "element": "veneno",
   "cost": 2,
+  "durability": 1,
   "art": "natureza/luvas_de_jardineiro_rancoroso.webp",
   "effects": [
     {

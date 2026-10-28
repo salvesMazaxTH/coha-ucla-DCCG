@@ -74,7 +74,8 @@ var vipranna_heal_total := 0 ## requested healing accepted by this Vipranna duri
 var vipranna_heal_locked := false ## later triggers stay off after this instance reaches the 15-point threshold
 var leader_damage_guard_turn := -1 ## turn in which this card reduced the first damage to its Leader
 var death_ward_armed := false ## a free-standing artifact is ready to prevent one allied unit death
-var charges_used := 0 ## Condicional firings spent so far by a card with "charges": N (Ampola Curativa)
+var durability_used := 0 ## Durability points this artifact has lost so far (see durability_left)
+var durability_uses := 0 ## firings of an effect with "durability_every_uses" since the artifact last lost Durability
 var stored_momentum := 0 ## Momentum held by an artifact with "momentum_store": N (Bateria de Segunda Mão); lost when it leaves the field
 
 ## Card-data fields that are an ability or a keyword's number: silence() deletes them from the unit.
@@ -89,12 +90,14 @@ func _init(card_uid: int, id: String, owner_player: int, in_zone: String = "") -
 	owner = owner_player
 	zone = in_zone
 
-## Uses a card with "charges" has left (-1 when the card has no limited uses).
-func charges_left() -> int:
-	var total: int = int(data().get("charges", 0))
+## Durability this artifact has left (-1 when the card has none: units, spells and "local" artifacts).
+## Every artifact that is not "local" has "durability": N in its data; it loses points only as the card's own
+## text says (an Ao Ativar, a Condicional firing, a discounted spell...) or from a "lose_durability" effect.
+func durability_left() -> int:
+	var total: int = int(data().get("durability", 0))
 	if total <= 0:
 		return -1
-	return maxi(total - charges_used, 0)
+	return maxi(total - durability_used, 0)
 
 ## Card data with this instance's overrides applied.
 func data() -> Dictionary:
@@ -339,8 +342,10 @@ func to_dict() -> Dictionary:
 		d["banish_after_cast"] = true # so the client can warn that the next cast banishes it
 	if death_ward_armed:
 		d["death_ward_armed"] = true
-	if charges_used > 0:
-		d["charges_used"] = charges_used
+	if durability_used > 0:
+		d["durability_used"] = durability_used
+	if durability_uses > 0:
+		d["durability_uses"] = durability_uses
 	if stored_momentum > 0:
 		d["stored_momentum"] = stored_momentum
 	if supreme_shield: # written before the board-only part: a free-standing artifact can hold it too
@@ -440,7 +445,8 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.cost_mod = int(d.get("cost_mod", 0))
 	c.permanent_buffs = d.get("permanent_buffs", {}).duplicate(true)
 	c.death_ward_armed = bool(d.get("death_ward_armed", false))
-	c.charges_used = int(d.get("charges_used", 0))
+	c.durability_used = int(d.get("durability_used", 0))
+	c.durability_uses = int(d.get("durability_uses", 0))
 	c.stored_momentum = int(d.get("stored_momentum", 0))
 	c.supreme_shield = bool(d.get("supreme_shield", false))
 	c.supreme_shield_expires = String(d.get("supreme_shield_expires", ""))

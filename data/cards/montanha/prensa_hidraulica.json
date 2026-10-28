@@ -5,14 +5,16 @@
   "essence": "montanha",
   "element": "metal",
   "cost": 4,
+  "durability": 4,
   "effects": [],
   "activated": {
     "cost": 2,
     "speed": "lento",
     "once_per_turn": true,
+    "durability_cost": 1,
     "effects": [{ "action": "mill", "who": "enemy", "target": "none", "amount": 2 }]
   },
-  "text": "Ao Ativar (2) {lento} (1x por turno): mói 2 cartas do deck do oponente.",
+  "text": "Ao Ativar (2) {lento} (1x por turno): mói 2 cartas do deck do oponente. Perde 1 de Durabilidade.",
   "flavor": "Pressão suficiente para amassar um dia ruim.",
   "art": "montanha/prensa_hidraulica.webp",
   "tags": []

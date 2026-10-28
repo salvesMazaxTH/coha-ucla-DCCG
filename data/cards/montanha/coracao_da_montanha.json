@@ -9,6 +9,7 @@
   "element": "pedra",
   "art": "montanha/coracao_da_montanha.webp",
   "cost": 4,
+  "durability": 1,
   "effects": [
     {
       "trigger": "on_play",

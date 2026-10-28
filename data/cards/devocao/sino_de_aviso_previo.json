@@ -5,19 +5,21 @@
   "essence": "devocao",
   "element": "luz",
   "cost": 2,
+  "durability": 3,
   "art": "devocao/sino_de_aviso_previo.webp",
   "effects": [
     {
       "listen": "unit_targeted",
       "scope": "ally",
       "zones": ["relics"],
-      "once_per_turn": true,
+      "immediate": true,
+      "durability_cost": 1,
       "action": "buff",
       "target": "event_source",
       "keywords": ["escudo_magico"]
     }
   ],
-  "text": "Condicional (1x por turno): quando um efeito do oponente mira uma unidade sua, ela ganha Escudo Mágico.",
+  "text": "Condicional: quando um efeito do oponente mira uma unidade sua, ela ganha Escudo Mágico antes de o efeito atingi-la, e o Sino perde 1 de Durabilidade.",
   "flavor": "Toca um segundo antes do golpe. Ninguém sabe quem puxa a corda.",
   "tags": []
 }

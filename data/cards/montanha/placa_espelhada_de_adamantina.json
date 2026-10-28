@@ -6,6 +6,7 @@
   "essence": "montanha",
   "element": "metal",
   "cost": 3,
+  "durability": 1,
   "effects": [
     { "trigger": "on_play", "action": "buff", "target": "ally_unit", "atk": 1, "hp": 3, "keywords": ["reflexao"] }
   ],

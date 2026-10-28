@@ -5,11 +5,13 @@
   "essence": "trevas",
   "element": "sombra",
   "cost": 2,
+  "durability": 5,
   "art": "trevas/urna_cochichante.webp",
   "effects": [],
   "activated": {
-    "cost": 1,
+    "cost": 0,
     "speed": "lento",
+    "durability_cost": 1,
     "effects": [
       {
         "action": "sacrifice",
@@ -20,7 +22,7 @@
       }
     ]
   },
-  "text": "Ao Ativar (1) {lento}: você sacrifica uma unidade aliada e invoca um Espírito Choroso (ficha 1/1).",
+  "text": "Ao Ativar (0) {lento}: você sacrifica uma unidade aliada e invoca um Espírito Choroso (ficha 1/1). Perde 1 de Durabilidade.",
   "flavor": "Cada sussurro tem dono. Nenhum tem fim.",
   "tags": []
 }

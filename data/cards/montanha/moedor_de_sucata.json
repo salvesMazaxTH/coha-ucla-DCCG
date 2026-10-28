@@ -5,10 +5,11 @@
   "essence": "montanha",
   "element": "metal",
   "cost": 3,
+  "durability": 4,
   "effects": [
-    { "listen": "turn_started", "scope": "ally", "zones": ["relics"], "action": "mill", "who": "enemy", "target": "none", "amount": 1 }
+    { "listen": "turn_started", "scope": "ally", "zones": ["relics"], "durability_cost": 1, "action": "mill", "who": "enemy", "target": "none", "amount": 1 }
   ],
-  "text": "Condicional: no início do seu turno, mói 1 carta do deck do oponente.",
+  "text": "Condicional: no início do seu turno, mói 1 carta do deck do oponente. Perde 1 de Durabilidade.",
   "flavor": "Ninguém sabe o que ele mói. Mas o barulho nunca para.",
   "art": "montanha/moedor_de_sucata.webp",
   "tags": []

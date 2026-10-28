@@ -145,15 +145,18 @@ func _offer(card: Card, effect: Effect, event: GameEvent) -> void:
 		card.used_turn[index] = game.turn
 	if not _spend_conditional_use(card):
 		return # the card already used all of its "conditional_uses_per_turn" this turn
-	game.queue_trigger(PendingTrigger.new(card, [effect], context, effect.trigger))
-	_spend_charge(card)
-
-## Cards with "charges": N lose one use every time a Condicional (listen) effect of theirs fires, and a
-## free-standing artifact is destroyed when the last one is spent (the effect already queued still resolves).
-## (Cards whose uses go on their Ao Ativar spend them in GameState.activate instead.)
-func _spend_charge(card: Card) -> void:
-	if game.spend_charge(card):
-		game.destroy_relic(card)
+	var pending := PendingTrigger.new(card, [effect], context, effect.trigger)
+	if effect.immediate:
+		pending.resolve(game)
+	else:
+		game.queue_trigger(pending)
+	# the Durability goes after the effect is queued (or done), so the last use still resolves its effect
+	if effect.durability_cost > 0:
+		card.durability_uses += 1
+		if card.durability_uses < effect.durability_every_uses:
+			return # this firing is still free: the wear is paid once every N firings
+		card.durability_uses = 0
+		game.lose_durability(card, effect.durability_cost)
 
 ## Cards with "conditional_uses_per_turn": N may trigger their Condicional (listen) effects, all of them
 ## together, at most N times a turn (Seymour). Own effects like On Turn Start are not counted. Takes one

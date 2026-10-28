@@ -5,11 +5,12 @@
   "essence": "montanha",
   "element": "metal",
   "cost": 4,
+  "durability": 6,
   "art": "montanha/moenda_do_seu_belmiro.webp",
   "effects": [
-    { "listen": "unit_readied", "scope": "ally", "zones": ["relics"], "action": "mill", "who": "enemy", "target": "none", "amount": 2 }
+    { "listen": "unit_readied", "scope": "ally", "zones": ["relics"], "durability_cost": 1, "durability_every_uses": 3, "action": "mill", "who": "enemy", "target": "none", "amount": 2 }
   ],
-  "text": "Condicional: sempre que uma unidade aliada é desvirada por um efeito, mói 2 cartas do deck do oponente.",
+  "text": "Condicional: sempre que uma unidade aliada é desvirada por um efeito, mói 2 cartas do deck do oponente. A cada 3 vezes que isso acontece, a Moenda perde 1 de Durabilidade.",
   "flavor": "Seu Belmiro jura que a moenda só gira quando alguém acorda.",
   "tags": []
 }

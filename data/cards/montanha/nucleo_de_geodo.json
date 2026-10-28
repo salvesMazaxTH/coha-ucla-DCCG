@@ -9,6 +9,7 @@
   "element": "pedra",
   "art": "montanha/nucleo_de_geodo.webp",
   "cost": 2,
+  "durability": 1,
   "effects": [
     {
       "trigger": "on_play",
