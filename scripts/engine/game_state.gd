@@ -1940,21 +1940,28 @@ func choose_search(p: int, card_uid: int) -> Array:
 	if stays_in_deck:
 		pass # Dragar: the cards looked at were never taken out of the deck, so the ones not taken stay in place
 	elif (look or top_search) and not reshuffle:
-		# the cards not taken go to the bottom of the deck, unrevealed
 		var not_taken: Array = []
 		if top_search:
 			not_taken = pending_search["to_bottom"]
 		else:
 			for c in options:
 				not_taken.append(int(c["uid"]))
+		var returned_cards: Array[Card] = []
 		for uid in not_taken:
 			if int(uid) == card_uid:
 				continue
 			for d: Card in deck:
 				if d.uid == int(uid):
 					deck.erase(d)
-					deck.push_front(d)
+					returned_cards.append(d)
 					break
+		for returned in returned_cards:
+			if declined:
+				# Declining is not punished: the cards slip back into the deck at random places (the rest of the
+				# deck keeps its order), so the player does not know what comes next but loses no position on purpose.
+				deck.insert(rng.randi_range(0, deck.size()), returned)
+			else:
+				deck.push_front(returned) # a card was taken: the others go to the bottom of the deck, unrevealed
 	else:
 		_shuffle(deck)
 	pending_search.clear()
@@ -1964,7 +1971,10 @@ func choose_search(p: int, card_uid: int) -> Array:
 	else:
 		_emit({"type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"]})
 	if not stays_in_deck:
-		_emit({"type": "look_bottom" if (look or top_search) and not reshuffle else "search_shuffle", "player": p})
+		var put_back_event := "search_shuffle"
+		if (look or top_search) and not reshuffle:
+			put_back_event = "look_scatter" if declined else "look_bottom"
+		_emit({"type": put_back_event, "player": p})
 	_check_state() # resumes the triggers that waited for this choice
 	stack_system().after_search()
 	stack_system().settle()

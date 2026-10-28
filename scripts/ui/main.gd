@@ -4126,14 +4126,16 @@ func _render_search_reveal() -> void:
 	if g.pending_search.has("looked_cards") and g.pending_search.get("leftover", "bottom") == "bottom":
 		summon_hint += " As outras cartas reveladas vão para o fundo do deck."
 	var grave_optional: bool = g.pending_search.get("grave_optional", false) # "grave_to_hand" (Rebobinar): the pick may be skipped
-	var hint := summon_hint if summoning else "Clique em uma carta para levá-la à sua mão, ou escolha não pegar nenhuma; as outras ficam no cemitério." if grave_optional else "Clique em um campeão para colocá-lo em campo sem pagar o custo, ou escolha não colocar nenhum." if hand_summon else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else ("Escolha 1 para a mão; as outras continuam onde estavam no fundo do deck." if g.pending_search.get("from_bottom", false) else "Escolha 1 para a mão; as outras vão para o fundo do deck.") if look else "Clique em uma carta que brilha para adicioná-la à sua mão, ou escolha não pegar nenhuma; as outras cartas olhadas vão para o fundo do deck." if g.pending_search.has("to_bottom") else "Clique em uma carta que brilha para adicioná-la à sua mão e embaralhar o deck, ou escolha não pegar nenhuma."
+	var hint := summon_hint if summoning else "Clique em uma carta para levá-la à sua mão, ou escolha não pegar nenhuma; as outras ficam no cemitério." if grave_optional else "Clique em um campeão para colocá-lo em campo sem pagar o custo, ou escolha não colocar nenhum." if hand_summon else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else ("Escolha 1 para a mão; as outras continuam onde estavam no fundo do deck." if g.pending_search.get("from_bottom", false) else "Escolha 1 para a mão; as outras vão para o fundo do deck.") if look else "Clique em uma carta que brilha para adicioná-la à sua mão, ou escolha não pegar nenhuma. Se pegar uma, as outras vão para o fundo do deck; se não pegar nenhuma, elas voltam a posições aleatórias do deck." if g.pending_search.has("to_bottom") else "Clique em uma carta que brilha para adicioná-la à sua mão e embaralhar o deck, ou escolha não pegar nenhuma."
 	var footer := _label(hint if _my_input() else "A escolha pertence ao oponente.", 18, SEL if _my_input() else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 	box.add_child(footer)
 	if not secret_search:
 		box.add_child(_label("Botão direito (ou segurar o dedo) em uma carta abre ela em tela cheia.", 15, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
 	if (hand_summon or deck_search or summoning or grave_optional) and _my_input():
 		# both picks are optional: uid 0 means "take no card" (Dona Gertrudes puts no champion in play)
-		var skip_button := _button("NÃO INVOCAR NENHUMA" if summoning else "NÃO COLOCAR NENHUM" if hand_summon else "NÃO PEGAR NENHUMA", func(): _on_search_choice(0))
+		# in a top-N search the declined cards are scattered back into the deck, so the button says so
+		var skip_text := "NÃO INVOCAR NENHUMA" if summoning else "NÃO COLOCAR NENHUM" if hand_summon else "DEVOLVER AO DECK (ALEATORIAMENTE)" if g.pending_search.has("to_bottom") and not grave_optional else "NÃO PEGAR NENHUMA"
+		var skip_button := _button(skip_text, func(): _on_search_choice(0))
 		skip_button.custom_minimum_size = Vector2(360, 52)
 		skip_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		box.add_child(skip_button)
@@ -7397,6 +7399,8 @@ func _log_event(e: Dictionary) -> void:
 				_log("%s olhou as %d cartas do topo do deck" % [_pname(e["player"]), e["cards"].size()])
 		"look_bottom":
 			_log("%s colocou as outras no fundo do deck" % _pname(e["player"]))
+		"look_scatter":
+			_log("%s devolveu as cartas olhadas a posições aleatórias do deck" % _pname(e["player"]))
 		"search_shuffle":
 			_log("%s embaralhou o deck" % _pname(e["player"]))
 		"mill":

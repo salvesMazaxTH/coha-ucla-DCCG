@@ -7846,6 +7846,45 @@ func _test_glacial_combo() -> void:
 	looked_uids.sort()
 	check(bottom_uids == looked_uids, "Chamado da Nevasca: as outras cartas olhadas vão para o fundo do deck")
 
+	# declining ("não pegar nenhuma") does not punish: the 5 looked cards slip back into the deck at random places and the
+	# 2 deeper cards keep their relative order. Over several seeds they must not always end up at the bottom.
+	var always_at_bottom := true
+	var decline_keeps_all_cards := true
+	var decline_keeps_deeper_order := true
+	for seed_number in 12:
+		var decline := _combo_game(3, 0, 10, 0)
+		var decline_game: GameState = decline["game"]
+		var decliner: int = decline["me"]
+		decline_game.rng.seed = seed_number + 1
+		decline_game.players[decliner]["deck"].clear()
+		var deck_uids_bottom_to_top: Array = []
+		for card_id in ["bola_de_neve", "ritual_do_degelo", "ladeira_abaixo_e_sem_freio", "estilhaco_gelido", "zero_absoluto", "nythera", "carga_acumulada"]:
+			var declined_deck_card := Card.new(decline_game._uid(), card_id, decliner, "deck")
+			decline_game.players[decliner]["deck"].append(declined_deck_card)
+			deck_uids_bottom_to_top.append(declined_deck_card.uid)
+		var declined_cast_uid := _give(decline_game, decliner, "chamado_da_nevasca")
+		decline_game.play_card(decliner, declined_cast_uid)
+		for guard in 8:
+			if decline_game.stack.is_empty() or decline_game.phase == "search":
+				break
+			decline_game.pass_priority(decline_game.priority)
+		var decline_events: Array = decline_game.choose_search(decliner, 0)
+		var deck_after_decline: Array = decline_game.players[decliner]["deck"]
+		var deck_uids_after: Array = deck_after_decline.map(func(card: Card): return card.uid)
+		var sorted_after := deck_uids_after.duplicate()
+		sorted_after.sort()
+		var sorted_before := deck_uids_bottom_to_top.duplicate()
+		sorted_before.sort()
+		decline_keeps_all_cards = decline_keeps_all_cards and sorted_after == sorted_before and _has_event(decline_events, "search_decline") and _has_event(decline_events, "look_scatter") and not _has_event(decline_events, "look_bottom")
+		var deeper_uids: Array = deck_uids_bottom_to_top.slice(0, 2)
+		var deeper_in_new_order: Array = deck_uids_after.filter(func(uid): return deeper_uids.has(uid))
+		decline_keeps_deeper_order = decline_keeps_deeper_order and deeper_in_new_order == deeper_uids
+		# the old behaviour: the 5 looked cards fill the 5 bottom slots and the 2 deeper cards sit on top of them
+		always_at_bottom = always_at_bottom and deck_uids_after.slice(0, 5).all(func(uid): return not deeper_uids.has(uid))
+	check(decline_keeps_all_cards, "Chamado da Nevasca: recusar mantém todas as cartas no deck e avisa com look_scatter")
+	check(decline_keeps_deeper_order, "Chamado da Nevasca: recusar não mexe na ordem das cartas que não foram olhadas")
+	check(not always_at_bottom, "Chamado da Nevasca: recusar não manda as olhadas sempre para o fundo")
+
 	# the new deck: legal and holding the combo pieces
 	var combo_deck := DeckDB.get_deck("glacial_combo")
 	check(DeckDB.validate("glacial_combo").is_empty() and combo_deck["cards"].has("ritual_do_degelo") and combo_deck["cards"].has("ladeira_abaixo_e_sem_freio"), "deck Ladeira Ascendente é legal e tem as peças do combo")
