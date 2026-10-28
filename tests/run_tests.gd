@@ -5906,6 +5906,24 @@ func _test_eletrica() -> void:
 	g.end_turn(a)
 	g.end_turn(o)
 	check(g.players[a]["unspent"] == 2 and g.cost_of(a, gg) == 9, "gigante: só 2 sobrando -> custo base")
+	# Zefiran Varkesh: 12 base, 4 less when the turn began with more Momentum than the owner's maximum
+	var zefiran: Dictionary = CardDB.card("zefiran_varkesh")
+	g = _eletrica_game()
+	a = g.active
+	o = g.opponent(a)
+	check(zefiran["keywords"] == ["rompante"] and int(zefiran["atk"]) == 7, "zefiran: 7 de Ataque com Rompante")
+	for _round in 3: # past the second player's bonus turns, so only a real surplus can discount it
+		g.end_turn(a)
+		g.end_turn(o)
+	check(g.cost_of(a, zefiran) == 12, "zefiran: turno normal -> custo base 12")
+	g.players[a]["next_momentum"] = 1 # Espírito Carregado: +1 Momentum at the start of the next turn
+	g.end_turn(a)
+	g.end_turn(o)
+	check(g.players[a]["turn_start_momentum"] > g.players[a]["max_momentum"], "zefiran: turno começou acima do máximo")
+	check(g.cost_of(a, zefiran) == 8, "zefiran: começou com Momentum acima do máximo -> custa 8")
+	g.end_turn(a)
+	g.end_turn(o)
+	check(g.cost_of(a, zefiran) == 12, "zefiran: o desconto vale só naquele turno")
 	# Fulgurvoltz: no Ao Entrar; Ao Ativar (4, Lento) destroys every enemy unit, from the stack
 	var fgd: Dictionary = CardDB.card("fulgurvoltz")
 	check(fgd["activated"]["cost"] == 5 and fgd["activated"]["speed"] == "lento", "fulgurvoltz: Ao Ativar custa 5, Lento")

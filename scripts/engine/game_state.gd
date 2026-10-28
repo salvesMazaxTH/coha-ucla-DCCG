@@ -791,7 +791,9 @@ func _since_last_turn(p: int, kind: String) -> int:
 ## wherever the card is, not only on the board, so they are not "Constante")
 ## (e.g. per: "idle_turns" =
 ## per owner turn that started with Momentum leaking past the Reserva; "unspent_momentum" = a flat "amount" off when
-## at least "threshold" plain Momentum was left over from the previous turn; "healing_since_last_turn" = a flat "amount" off
+## at least "threshold" plain Momentum was left over from the previous turn; "starting_momentum_surplus" = a flat "amount" off
+## when the owner's turn began with at least "threshold" more Momentum than their maximum for that turn (a promise from the
+## turn before, the second-player bonus, ...); "healing_since_last_turn" = a flat "amount" off
 ## when at least "threshold" actual Vida was recovered since the owner's previous turn started (that turn, the opponent's turn
 ## after it and the current turn so far), including healing effects, Roubo de Vida and Regeneração;
 ## "damage_since_last_turn" = the same for damage the owner dealt to the opponent's Leader). Never below 0, or below the effect's "min_cost".
@@ -811,6 +813,9 @@ func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 			"allied_plants_or_tokens": n = allied_plants_or_tokens(p)
 			"own_graveyard_cards": n = players[p]["graveyard"].size() / maxi(1, int(e.get("divisor", 1)))
 			"unspent_momentum": n = 1 if int(players[p]["unspent"]) >= int(e.get("threshold", 1)) else 0
+			"starting_momentum_surplus":
+				var surplus: int = int(players[p]["turn_start_momentum"]) - int(players[p]["max_momentum"])
+				n = 1 if surplus >= int(e.get("threshold", 1)) else 0
 			"healing_since_last_turn": n = 1 if _since_last_turn(p, "healing") >= int(e.get("threshold", 1)) else 0
 			"damage_since_last_turn": n = 1 if _since_last_turn(p, "damage") >= int(e.get("threshold", 1)) else 0
 		c -= n * int(e.get("amount", 1))
