@@ -173,7 +173,7 @@ func _test_deck_code() -> void:
 	for deck_id in DeckDB.ids():
 		var deck: Dictionary = DeckDB.get_deck(deck_id)
 		var incarnation_id := String(deck.get("incarnation_id", ""))
-		var code := DeckCode.encode("Deck é ção", "Descrição\ncom linhas", deck["leader"], incarnation_id, deck["cards"])
+		var code := DeckCode.encode("Deck é ção", deck["leader"], incarnation_id, deck["cards"])
 		check(code.begins_with(DeckCode.PREFIX_V2), "deckCode: %s sai no formato compacto" % deck_id)
 		var decoded := DeckCode.decode(code)
 		check(decoded.has("payload"), "deckCode: %s decodifica (%s)" % [deck_id, decoded.get("error", "")])
@@ -181,12 +181,12 @@ func _test_deck_code() -> void:
 			continue
 		var payload: Dictionary = decoded["payload"]
 		check(payload["leader"] == deck["leader"] and _same_copies(payload["cards"], deck["cards"]), "deckCode: %s volta igual" % deck_id)
-		check(payload["name"] == "Deck é ção" and payload["description"] == "Descrição\ncom linhas", "deckCode: %s mantém nome e descrição" % deck_id)
+		check(payload["name"] == "Deck é ção" and payload["description"] == "", "deckCode: %s mantém o nome e não carrega descrição" % deck_id)
 		check(code.length() < 200, "deckCode: %s tem %d caracteres" % [deck_id, code.length()])
 	# a different Encarnação is kept, the Leader's own one is implied
 	var leader_id: String = DeckDB.get_deck("fogo")["leader"]
 	var own_incarnation: String = CardDB.leader(leader_id)["incarnation"]
-	check(not DeckCode.decode(DeckCode.encode("x", "", leader_id, own_incarnation, {}))["payload"].has("incarnation_id"), "deckCode: Encarnação padrão não é gravada")
+	check(not DeckCode.decode(DeckCode.encode("x", leader_id, own_incarnation, {}))["payload"].has("incarnation_id"), "deckCode: Encarnação padrão não é gravada")
 	# a code with an unknown card or a cut-off ending is refused, not guessed
 	check(DeckCode.decode("CSA2.AAAAAAEBAAAA").has("error"), "deckCode: Líder desconhecido é recusado")
 	check(DeckCode.decode(DeckCode.PREFIX_V2 + "AAA").has("error"), "deckCode: código curto é recusado")
@@ -1288,44 +1288,45 @@ func _test_bateria_de_segunda_mao() -> void:
 	g._start_turn(p, false)
 	check(battery.stored_momentum == 0, "Bateria: sem vazamento, nada é guardado")
 
-	# release: no Momentum gained yet this turn -> all stored Momentum at once, then a lock on plain gains
+	# Ao Ativar (0), once a turn: +1 Reserva, then releases 1 of the stored Momentum (the rest stays), and costs 1 Durability
 	battery.stored_momentum = 3
+	pl["reserve"] = 0
 	pl["momentum"] = 0
-	g._start_turn(p, false)
-	pl["momentum"] = 0 # spent everything this turn
-	pl["turn_start_momentum"] = 6
+	battery.activated_turn = -1
 	g.activate(p, battery.uid)
 	_resolve_stack(g)
-	check(pl["momentum"] == 3 and battery.stored_momentum == 0, "Bateria: libera todo o Momentum guardado")
-	check(battery.exhausted, "Bateria: a ativação exaure o artefato")
-	g.gain_momentum(p, 2)
-	check(pl["momentum"] == 3, "Bateria: depois de liberar, ganho comum de Momentum não funciona até o fim do turno")
-	g.gain_momentum(p, 2, false, true)
-	check(pl["momentum"] == 5, "Bateria: o refresh continua funcionando durante o bloqueio")
-	g._start_turn(p, false)
-	check(not battery.exhausted, "Bateria: desvira no início do turno")
-	g.gain_momentum(p, 1)
-	check(pl["momentum"] == int(pl["max_momentum"]) + 1, "Bateria: o bloqueio acaba no turno seguinte")
+	check(pl["reserve"] == 1, "Bateria: a ativação dá 1 de Reserva")
+	check(pl["momentum"] == 1 and battery.stored_momentum == 2, "Bateria: libera só 1 do Momentum guardado, o resto fica")
+	check(battery.durability_left() == 3, "Bateria: a ativação gasta 1 de Durabilidade")
+	check(not battery.exhausted and not g.can_activate(p, battery.uid), "Bateria: não vira, mas só ativa 1 vez por turno")
 
-	# already gained Momentum this turn -> +1 Reserva (never past 2) and the Bateria empties, with no lock
-	battery.stored_momentum = 3
+	# a blocked gain keeps the Momentum stored (the Reserva still comes)
 	pl["reserve"] = 0
 	pl["momentum"] = 0
-	g._start_turn(p, false)
-	pl["reserve"] = 0
-	pl["momentum"] = 0
-	g.gain_momentum(p, 1)
+	pl["momentum_lock_turn"] = g.turn
+	battery.activated_turn = -1
 	g.activate(p, battery.uid)
 	_resolve_stack(g)
-	check(pl["reserve"] == 1 and battery.stored_momentum == 0, "Bateria: se já ganhou Momentum no turno, dá 1 de Reserva e esvazia")
-	g.gain_momentum(p, 1)
-	check(pl["momentum"] == 2, "Bateria: o ramo da Reserva não bloqueia ganhos")
-	battery.stored_momentum = 2
-	battery.exhausted = false
+	check(pl["reserve"] == 1 and pl["momentum"] == 0 and battery.stored_momentum == 2, "Bateria: ganho bloqueado não gasta o Momentum guardado")
+	pl["momentum_lock_turn"] = -1
+
+	# a full Reserva gains nothing, but the Momentum is still released
 	pl["reserve"] = 2
+	pl["momentum"] = 0
+	battery.activated_turn = -1
+	battery.durability_used = 0
 	g.activate(p, battery.uid)
 	_resolve_stack(g)
-	check(pl["reserve"] == 2 and battery.stored_momentum == 0, "Bateria: Reserva cheia não ganha nada, mas a Bateria esvazia")
+	check(pl["reserve"] == 2 and pl["momentum"] == 1 and battery.stored_momentum == 1, "Bateria: Reserva cheia não ganha nada, mas libera o Momentum")
+
+	# an empty Bateria still gives the Reserva
+	battery.stored_momentum = 0
+	pl["reserve"] = 0
+	pl["momentum"] = 0
+	battery.activated_turn = -1
+	g.activate(p, battery.uid)
+	_resolve_stack(g)
+	check(pl["reserve"] == 1 and pl["momentum"] == 0, "Bateria: vazia, ainda dá 1 de Reserva")
 
 	# leaving play loses the store
 	var stored_card := Card.new(g._uid(), "bateria_de_segunda_mao", p)
@@ -4909,9 +4910,9 @@ func _test_stack() -> void:
 	check(not g.can_play(1, _give(g, 1, "bola_de_fogo")), "lento cannot respond")
 	g.play_card(1, inst, foe.uid)
 	check(g.stack.size() == 2 and g.priority == 0, "instant response stacks and passes priority back")
-	g.pass_priority(0)
+	_resolve_stack(g) # a double pass resolves one item at a time: the buff first, then the damage
 	var fc := g.find_unit(foe.uid)
-	check(g.stack.is_empty() and g.priority == 0 and g.phase == "main", "pass resolves the whole stack")
+	check(g.stack.is_empty() and g.priority == 0 and g.phase == "main", "passing in turn resolves the whole stack")
 	check(not fc == null and fc.damage == 2, "LIFO: buff before damage")
 
 	# target gone -> fizzle
@@ -4922,7 +4923,12 @@ func _test_stack() -> void:
 	var kill := _give(g, 1, "t_inst_kill")
 	g.play_card(0, lab, foe.uid)
 	g.play_card(1, kill, foe.uid)
-	check(_has_event(g.pass_priority(0), "fizzle"), "spell fizzles when its target is gone")
+	var fizzled := false
+	for guard in 6: # the kill resolves first, the spell on the bottom fizzles one pass later
+		if g.stack.is_empty():
+			break
+		fizzled = _has_event(g.pass_priority(g.priority), "fizzle") or fizzled
+	check(fizzled, "spell fizzles when its target is gone")
 
 	# nobody can respond -> resolves at once
 	g = _new_game()
@@ -4983,9 +4989,8 @@ func _test_stack() -> void:
 	check(g.can_play(1, defender_instant), "janela A: o defensor responde com Instantânea")
 	g.play_card(1, defender_instant, defender_wall.uid)
 	check(g.stack.size() == 2 and g.priority == 0, "janela A: a resposta empilha e a prioridade volta ao dono do turno")
-	g.pass_priority(0)
-	g.pass_priority(1)
-	check(g.stack.is_empty(), "janela A: os dois passaram, a pilha resolve")
+	_resolve_stack(g) # one item per double pass: the defender's response, then the attacker's Instantânea
+	check(g.stack.is_empty(), "janela A: passando em sequência, a pilha resolve")
 	check(g.find_unit(first_attacker.uid).hp == 5 and g.find_unit(defender_wall.uid) != null, "janela A: as duas Instantâneas resolveram")
 	check(g.window == "attacks" and g.combat_system().in_attacks_window(0), "janela A: resolvida a pilha, o dono do turno volta a atacar")
 	var second_events := g.attack_unit(0, second_attacker.uid, GameState.LEADER_UID[1])
@@ -6951,7 +6956,9 @@ func _test_self_response() -> void:
 	check(g.priority == 1 and not g.stack_passed and g.stack.size() == 2, "empilha por cima do próprio feitiço: o oponente responde de novo")
 	g.pass_priority(1)
 	g.pass_priority(0)
-	check(g.stack.is_empty(), "os dois passaram em sequência: a pilha resolve")
+	check(g.stack.size() == 1, "os dois passaram em sequência: resolve só o item do topo")
+	_resolve_stack(g)
+	check(g.stack.is_empty(), "passando de novo, o resto da pilha resolve")
 	# the last bolt leaves no other play in hand, so the caster's turn to follow up is skipped
 	g.play_card(0, third_bolt, foe.uid)
 	g.pass_priority(1)
