@@ -10,7 +10,9 @@ extends RefCounted
 ##   1        flags (bit 0: the deck uses an Encarnação other than the Leader's default)
 ##   3        that Encarnação, only when bit 0 is set
 ##   then, for 1, 2 and 3 copies in this order: 1 byte N, followed by N cards of 3 bytes each
-##   rest     deck name in UTF-8, then (only if there is one) a 0 byte and the description in UTF-8
+##   rest     deck name in UTF-8
+## The description is never written (a code is for sharing the cards, and a long description made it huge),
+## but codes made earlier may carry one after the name (a 0 byte, then the text), and those are still read.
 ##
 ## Two ids can, rarely, hash to the same number. That never produces a wrong deck: a deck that
 ## uses such a card is written as CSA1 instead, and a CSA2 code that names an ambiguous number is
@@ -62,13 +64,12 @@ static func _fill_map(map: Dictionary, ids: Dictionary, kind: String) -> void:
 
 # ---------------------------------------------------------------- writing
 
-static func encode(deck_name: String, description: String, leader: String, incarnation_id: String, cards: Dictionary) -> String:
-	var compact := _encode_compact(deck_name, description, leader, incarnation_id, cards)
+static func encode(deck_name: String, leader: String, incarnation_id: String, cards: Dictionary) -> String:
+	var compact := _encode_compact(deck_name, leader, incarnation_id, cards)
 	if not compact.is_empty():
 		return PREFIX_V2 + _to_base64url(compact)
 	var payload := {
 		"name": deck_name,
-		"description": description,
 		"leader": leader,
 		"incarnation_id": incarnation_id,
 		"cards": DeckDB.sorted_cards(cards),
@@ -76,7 +77,7 @@ static func encode(deck_name: String, description: String, leader: String, incar
 	return PREFIX_V1 + _to_base64url(JSON.stringify(payload).to_utf8_buffer())
 
 ## Empty when the deck cannot be written as CSA2 without risk (unknown or ambiguous id, odd copy count).
-static func _encode_compact(deck_name: String, description: String, leader: String, incarnation_id: String, cards: Dictionary) -> PackedByteArray:
+static func _encode_compact(deck_name: String, leader: String, incarnation_id: String, cards: Dictionary) -> PackedByteArray:
 	_build_maps()
 	if not _is_unambiguous(_leader_by_index, leader):
 		return PackedByteArray()
@@ -104,9 +105,6 @@ static func _encode_compact(deck_name: String, description: String, leader: Stri
 		for number in numbers:
 			_append_index(bytes, number)
 	bytes.append_array(deck_name.to_utf8_buffer())
-	if description != "":
-		bytes.append(0)
-		bytes.append_array(description.to_utf8_buffer())
 	return bytes
 
 static func _is_unambiguous(map: Dictionary, id: String) -> bool:

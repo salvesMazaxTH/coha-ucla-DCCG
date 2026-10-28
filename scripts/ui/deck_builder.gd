@@ -1105,7 +1105,7 @@ func _ask_assistant_focus() -> void:
 
 ## Shareable, versioned deck code (the compact format lives in DeckCode).
 func _make_deck_code() -> String:
-	return DeckCode.encode(_deck_name.strip_edges(), _description, _leader, _incarnation_id, _cards)
+	return DeckCode.encode(_deck_name.strip_edges(), _leader, _incarnation_id, _cards)
 
 func _decode_deck_code(code: String) -> Dictionary:
 	var decoded := DeckCode.decode(code)
