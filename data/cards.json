@@ -591,6 +591,29 @@
       },
       "essences": ["neutra"]
     },
+    "saraya_kovan": {
+      "name": "Saraya Kovan",
+      "hp": 30,
+      "art": "neutra/saraya_kovan_lider.webp",
+      "incarnation": "saraya_kovan",
+      "ability": {
+        "name": "Mão de Adestradora",
+        "cost": 2,
+        "once_per_turn": true,
+        "speed": "rapido",
+        "effects": [
+          {
+            "action": "buff",
+            "target": "ally_unit",
+            "unit_filter": { "species_any": ["fera", "demihumano"] },
+            "atk": 1,
+            "hp": 1
+          }
+        ],
+        "text": "Rápida. 2 Momentum, uma vez por turno: uma Fera ou Demihumano aliado ganha +1/+1 permanente."
+      },
+      "essences": ["neutra"]
+    },
     "eryon": {
       "name": "Eryon",
       "hp": 30,

@@ -2,7 +2,7 @@
   "name": "Fênix Menor",
   "type": "unit",
   "rarity": "common",
-  "species": ["fera"],
+  "species": ["fera", "ave"],
   "essence": "furia",
   "element": "fogo",
   "cost": 3,
