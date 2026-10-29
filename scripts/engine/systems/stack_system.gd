@@ -171,7 +171,12 @@ func resolve_stack() -> void:
 			var holder := game.find_unit(int(item["target"]))
 			var played := take_stack_card(item)
 			if CardDB.is_equipment(CardDB.card(item["card_id"])) and holder != null and spec != "" and game.valid_targets(p, spec).has(int(item["target"])):
-				attach(holder, played, stat_gain_since(holder, stats_before_equip))
+				var granted := stat_gain_since(holder, stats_before_equip)
+				# The equipment row owns these changes; they must not survive as permanent unit modifiers.
+				for source_entry in granted["stat_sources"]:
+					holder.stat_sources.erase(source_entry)
+				granted.erase("stat_sources")
+				attach(holder, played, granted)
 			elif CardDB.is_relic(CardDB.card(item["card_id"])) and not gone:
 				game._place_relic(p, played)
 			elif item.get("requiem", false) or played.banish_after_cast:
@@ -236,10 +241,11 @@ func unit_stats(unit: Card) -> Dictionary:
 		"rapidez": unit.rapidez, "cap_atk_gain": unit.cap_atk_gain,
 		"keywords": unit.keywords.duplicate(), "shield": unit.shield,
 		"magic_shield": unit.magic_shield, "supreme_shield": unit.supreme_shield,
+		"stat_sources": unit.stat_sources.duplicate(true),
 	}
 
 ## What the unit gained since `before` (a unit_stats snapshot). Keywords the unit already had are not
-## counted, so removing the equipment later never strips something the unit owns by itself.
+## counted. New stat-source notes are returned separately so equipment can own and remove those changes too.
 func stat_gain_since(unit: Card, before: Dictionary) -> Dictionary:
 	if before.is_empty():
 		return {}
@@ -247,6 +253,14 @@ func stat_gain_since(unit: Card, before: Dictionary) -> Dictionary:
 	for keyword in unit.keywords:
 		if not before["keywords"].has(keyword):
 			gained_keywords.append(keyword)
+	var unmatched_sources: Array = before["stat_sources"].duplicate(true)
+	var gained_sources: Array = []
+	for source_entry in unit.stat_sources:
+		var previous_index := unmatched_sources.find(source_entry)
+		if previous_index >= 0:
+			unmatched_sources.remove_at(previous_index)
+		else:
+			gained_sources.append(source_entry.duplicate(true))
 	return {
 		"atk": unit.atk - before["atk"], "hp": unit.hp - before["hp"], "armor": unit.armor - before["armor"],
 		"critico": maxi(0, unit.critico - before["critico"]), "rapidez": maxi(0, unit.rapidez - before["rapidez"]),
@@ -254,6 +268,7 @@ func stat_gain_since(unit: Card, before: Dictionary) -> Dictionary:
 		"keywords": gained_keywords, "shield": unit.shield and not before["shield"],
 		"magic_shield": unit.magic_shield and not before["magic_shield"],
 		"supreme_shield": unit.supreme_shield and not before["supreme_shield"],
+		"stat_sources": gained_sources,
 	}
 
 ## Gives the unit what an equipment's `granted` says (the mirror of remove_equipment_bonus), for an equipment that

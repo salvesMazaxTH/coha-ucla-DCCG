@@ -15,6 +15,7 @@ func _init() -> void:
 		check(DeckDB.get_deck(d)["cards"].keys() == DeckDB.sorted_cards(DeckDB.get_deck(d)["cards"]).keys(), "deck %s: cartas fora de ordem de custo (rode tools/sort_decks.gd)" % d)
 	_test_flavor()
 	_test_cristal_do_poder_equipado()
+	_test_equipment_modifier_sources()
 	_test_porca_frouxa_herda_equipamento()
 	_test_zulmira_ferro_velho()
 	_test_art_crop()
@@ -381,6 +382,42 @@ func _test_cristal_do_poder_equipado() -> void:
 	check(g.artifact_count(a) == 1, "cristal equipado: continua contando como artefato")
 	g.stack_system().remove_equipment_bonus(montadora, cristal)
 	check(montadora.atk == 2, "cristal equipado: ao sair, o bônus é devolvido")
+
+## An equipment's on_play buff belongs to the equipment, not to the unit after it returns to hand.
+func _test_equipment_modifier_sources() -> void:
+	var g := _new_game()
+	var p: int = g.active
+	var unit := _put(g, p, "tyren")
+	g.players[p]["momentum"] = 10
+	g.play_card(p, _give(g, p, "coracao_da_montanha"), unit.uid)
+	g._resolve_stack()
+	g._flush()
+	check(unit.atk == 4 and unit.hp == 8, "Coração da Montanha: Ao Jogar concede +2/+4")
+	check(unit.stat_sources.is_empty(), "Coração da Montanha: a fonte do buff passa a pertencer ao equipamento")
+	var rows := CardOverlay.StatModifiersPanel.rows_for(unit.card_id, unit.to_dict())
+	check(rows.size() == 1 and rows[0]["source"] == "coracao_da_montanha"
+			and rows[0]["until"] == "equipment", "overlay: o bônus do Coração aparece só como equipamento")
+
+	var first_heart: Card = unit.first_equipment()
+	g.players[p]["momentum"] = 10
+	g.play_card(p, _give(g, p, "coracao_da_montanha"), unit.uid)
+	g._resolve_stack()
+	g._flush()
+	check(unit.atk == 4 and unit.hp == 8 and g.players[p]["hand"].has(first_heart),
+			"reequipar Coração da Montanha: só o bônus do equipamento atual fica")
+	check(unit.stat_sources.is_empty(), "reequipar Coração da Montanha: registros anteriores não se acumulam")
+
+	g.players[p]["momentum"] = 10
+	g.play_card(p, _give(g, p, "nucleo_de_geodo"), unit.uid)
+	g._resolve_stack()
+	g._flush()
+	check(unit.atk == 2 and unit.hp == 5 and unit.armor == 1, "trocar o Coração pelo Geodo remove só o bônus antigo")
+	check(unit.stat_sources.is_empty(), "trocar equipamento: fontes permanentes antigas não ficam no personagem")
+	unit.damage = 4
+	rows = CardOverlay.StatModifiersPanel.rows_for(unit.card_id, unit.to_dict())
+	check(rows.size() == 1 and rows[0]["source"] == "nucleo_de_geodo"
+			and rows[0]["changes"] == {"hp": 1, "armor": 1},
+			"overlay: dano marcado não aparece como modificador e o bônus antigo some")
 
 ## Zulmira Ferro-Velho: gets +1 Ataque per 2 artifacts in her owner's graveyard, and her Ao Ativar takes one of
 ## those artifacts back to hand for 1 more (she exhausts; the player may also decline).
