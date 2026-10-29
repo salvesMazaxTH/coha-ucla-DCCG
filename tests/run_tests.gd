@@ -6366,6 +6366,32 @@ func _test_custo_e_contagem() -> void:
 	var jeff: Dictionary = CardDB.card("jeff")
 	check(g.scale_count(0, jeff) == g.graveyard_units(0), "jeff: contagem do texto = unidades no cemitério")
 	check(g.scale_count(0, vag) == -1, "carta sem escala: -1")
+	_test_elefante_incomodante()
+
+## Elefante Incomodante: Ataque e Vida = número de cópias suas em campo (a própria conta).
+func _test_elefante_incomodante() -> void:
+	var g := _new_game()
+	var elephant_data: Dictionary = CardDB.card("elefante_incomodante")
+	check(g.scale_count(0, elephant_data) == 0, "elefante: fora de campo a contagem de outras cópias é 0")
+	var first := _put(g, 0, "elefante_incomodante")
+	g._check_state()
+	check(g.atk_of(first) == 1 and first.hp_left() == 1, "elefante: sozinho é 1/1")
+	var second := _put(g, 0, "elefante_incomodante")
+	g._check_state()
+	check(g.atk_of(first) == 2 and first.hp_left() == 2 and g.atk_of(second) == 2 and second.hp_left() == 2, "elefante: dois são 2/2 cada")
+	var third := _put(g, 0, "elefante_incomodante")
+	g._check_state()
+	check(g.atk_of(third) == 3 and third.hp_left() == 3 and g.atk_of(first) == 3, "elefante: três são 3/3 cada")
+	# the opponent's copies never count for this player
+	var enemy_elephant := _put(g, 1, "elefante_incomodante")
+	g._check_state()
+	check(g.atk_of(first) == 3 and g.atk_of(enemy_elephant) == 1, "elefante: cópias do oponente não contam")
+	# losing a copy shrinks the others, but a damaged one is never killed by the shrink alone
+	g._deal_damage(third.uid, 2, null)
+	g._check_state()
+	g._deal_damage(second.uid, 99, null)
+	g._check_state()
+	check(g.atk_of(first) == 2 and g.atk_of(third) == 2 and third.hp_left() >= 1, "elefante: ao perder uma cópia as outras encolhem para 2/2 sem morrer")
 
 func _test_twin_bolts() -> void:
 	_tcard("t_twin_big", 1, 9, [])

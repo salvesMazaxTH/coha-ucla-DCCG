@@ -2,7 +2,7 @@
   "name": "Gaivota da Tempestade",
   "type": "unit",
   "rarity": "common",
-  "species": ["fera"],
+  "species": ["fera", "ave"],
   "essence": "fluxo",
   "element": "agua",
   "cost": 2,

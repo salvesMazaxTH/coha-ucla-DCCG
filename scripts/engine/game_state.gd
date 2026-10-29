@@ -481,7 +481,7 @@ func _refresh_scaling() -> void:
 	for p in 2:
 		for c: Card in players[p]["board"]:
 			var was_alive := c.hp_left() >= 1
-			var b := scale_bonus(p, card_of(c))
+			var b := scale_bonus(p, card_of(c), c)
 			var aura := species_aura_bonus(c)
 			var surge := momentum_surge_of(p, c)
 			c.bonus_atk = b.x + aura.x + int(surge.get("atk", 0))
@@ -525,12 +525,14 @@ func momentum_cap(p: int) -> int:
 
 ## Atk/hp a card's "constante" scale effects would give it under player p right
 ## now.
-func scale_bonus(p: int, cd: Dictionary) -> Vector2i:
+## `self_card` is the unit carrying the effect (null for a card that is not on the board): "other_allied_copies"
+## needs it so the unit does not count itself.
+func scale_bonus(p: int, cd: Dictionary, self_card: Card = null) -> Vector2i:
 	var out := Vector2i.ZERO
 	for e in cd.get("effects", []):
 		if e.get("trigger", "") != "constante" or e.get("action", "") != "scale":
 			continue
-		var n := _scale_count(p, e)
+		var n := _scale_count(p, e, self_card)
 		out += Vector2i(n * int(e.get("atk", 0)), n * int(e.get("hp", 0)))
 	return out * constants_multiplier(p)
 
@@ -606,13 +608,23 @@ func graveyard_damage_reduction_of(c: Card, amount: int) -> int:
 		return maxi(0, ceili(float(amount) / divisor) - int(e.get("flat_reduction", 0)))
 	return -1
 
-func _scale_count(p: int, e: Dictionary) -> int:
+func _scale_count(p: int, e: Dictionary, self_card: Card = null) -> int:
 	match e.get("per", ""):
+		"other_allied_copies": return other_allied_copies(p, String(e.get("card_id", "")), self_card)
 		"own_graveyard_units": return graveyard_units(p)
 		"enemy_graveyard_units": return graveyard_units(opponent(p))
 		"own_artifacts": return artifact_count(p)
 		"own_graveyard_cards": return players[p]["graveyard"].size() / maxi(1, int(e.get("divisor", 1)))
 	return 0
+
+## Units of player p on the board that are the card `card_id`, not counting `except_card` itself.
+## Elefante Incomodante prints 1/1 and adds +1/+1 per OTHER copy, so its stats equal how many copies are in play.
+func other_allied_copies(p: int, card_id: String, except_card: Card = null) -> int:
+	var n := 0
+	for c: Card in players[p]["board"]:
+		if c != except_card and c.card_id == card_id:
+			n += 1
+	return n
 
 ## Allied units in play that are a Planta or a ficha (Capina Seletiva counts them).
 func allied_plants_or_tokens(p: int) -> int:

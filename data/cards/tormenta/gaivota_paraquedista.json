@@ -2,7 +2,7 @@
   "name": "Gaivota Paraquedista",
   "type": "unit",
   "rarity": "common",
-  "species": ["fera"],
+  "species": ["fera", "ave"],
   "essence": "tormenta",
   "element": "vento",
   "cost": 2,
