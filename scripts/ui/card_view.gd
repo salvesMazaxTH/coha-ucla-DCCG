@@ -312,9 +312,11 @@ func _gui_input(e: InputEvent) -> void:
 	if e is InputEventMouseButton and e.pressed:
 		if e.button_index == MOUSE_BUTTON_LEFT:
 			left_clicked.emit(self)
+			accept_event()
 		elif e.button_index == MOUSE_BUTTON_RIGHT:
 			right_clicked.emit(self)
-		accept_event()
+			accept_event()
+		# any other button (the wheel) is left alone, so a scroll container behind the card can use it
 
 func _process(delta: float) -> void:
 	# (the shield sparks are not here on purpose: they animate in their own shader, see _place_shield_sparks)
@@ -987,11 +989,13 @@ func _draw_lettering_and_gems(look: Dictionary) -> void:
 		var atk_col := Color.WHITE
 		var hp_col := Color.WHITE
 		if inst.has("damage"):
-			var live_atk: int = max(0, inst["atk"] + inst["temp_atk"] + int(inst.get("temp_atk_until_next_turn", 0)) + int(inst.get("bonus_atk", 0)))
-			atk_col = Color("#a8ffa0") if live_atk > atk else (Color("#ff8a80") if live_atk < atk else Color.WHITE)
+			var intrinsic_atk := int(inst.get("intrinsic_atk", 0))
+			var live_atk: int = max(0, inst["atk"] + intrinsic_atk + inst["temp_atk"] + int(inst.get("temp_atk_until_next_turn", 0)) + int(inst.get("bonus_atk", 0)))
+			atk_col = stat_value_color(live_atk, atk + intrinsic_atk)
 			atk = live_atk
-			var live_max_hp: int = inst["hp"] + int(inst.get("bonus_hp", 0)) + int(inst.get("temp_hp", 0)) + int(inst.get("temp_hp_until_next_turn", 0))
-			hp_col = Color("#ff8a80") if inst["damage"] > 0 else (Color("#a8ffa0") if live_max_hp > hp else Color.WHITE)
+			var intrinsic_hp := int(inst.get("intrinsic_hp", 0))
+			var live_max_hp: int = inst["hp"] + intrinsic_hp + int(inst.get("bonus_hp", 0)) + int(inst.get("temp_hp", 0)) + int(inst.get("temp_hp_until_next_turn", 0))
+			hp_col = Color("#ff8a80") if inst["damage"] > 0 else (Color("#a8ffa0") if live_max_hp > hp + intrinsic_hp else Color.WHITE)
 			hp = max(0, live_max_hp - inst["damage"])
 		elif not inst.get("permanent_buffs", {}).is_empty():
 			var persistent: Dictionary = inst["permanent_buffs"]
@@ -1257,6 +1261,10 @@ func _window_polygon(polygon: PackedVector2Array, col: Color) -> void:
 	for piece in Geometry2D.intersect_polygons(polygon, _art_window):
 		draw_colored_polygon(piece, col)
 
+## Green/red when a live stat differs from its unmodified baseline.
+static func stat_value_color(value: int, baseline: int) -> Color:
+	return Color("#a8ffa0") if value > baseline else (Color("#ff8a80") if value < baseline else Color.WHITE)
+
 ## Armadura shown for a unit: the live total on the board (own + temporary + from adjacent allies,
 ## put in the view data by Main as "armor_total"), the printed value everywhere else.
 static func armor_of_view(cd: Dictionary, instance: Dictionary) -> int:
@@ -1279,7 +1287,7 @@ static func toxico_tag_of_view(cd: Dictionary, instance: Dictionary) -> String:
 	if cd.get("toxico_equals_attack", false):
 		if not instance.has("damage"):
 			return keyword_name + " X"
-		var live_attack: int = int(instance["atk"]) + int(instance["temp_atk"]) + int(instance.get("temp_atk_until_next_turn", 0)) + int(instance.get("bonus_atk", 0))
+		var live_attack: int = int(instance["atk"]) + int(instance.get("intrinsic_atk", 0)) + int(instance["temp_atk"]) + int(instance.get("temp_atk_until_next_turn", 0)) + int(instance.get("bonus_atk", 0))
 		return "%s %d" % [keyword_name, maxi(1, live_attack)]
 	var level := int(cd.get("toxico_level", 1))
 	return keyword_name if level <= 1 else "%s %d" % [keyword_name, level]

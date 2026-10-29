@@ -328,7 +328,7 @@ func remove_equipment_bonus(unit: Card, worn: Card) -> void:
 		unit.supreme_shield = false
 		unit.supreme_shield_expires = ""
 	if unit.hp_left() < 1:
-		unit.damage = unit.hp + unit.bonus_hp + unit.temp_hp + unit.temp_hp_until_next_turn - 1
+		unit.damage = unit.hp_total() - 1
 
 ## The equipment that is about to leave the unit: all of it when `only` is null, else just `only`.
 ## Built as a typed list on purpose: a plain `[only]` is an untyped Array, and Godot refuses to store it in an

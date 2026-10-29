@@ -14,7 +14,7 @@ const LETHAL_WARD_NEGATED_HITS := 3 # Câmara de Êxtase: how many hits it negat
 const RESERVE_CAP := 2 ## unspent Momentum banked at turn start; pays only spells and abilities
 const COMMANDER_TAX_STEP := 1 ## the Encarnação's tax grows by this much per previous cast: +1, then +2, +3, +4... (totals 1, 3, 6, 10)
 const WEAK_UNIT_MAX_HP := 3 ## "weak_enemy_unit" targets: enemy units with this much current Vida or less (Isarelis)
-const INTIMIDATE_ATK := 3 ## Intimidacao: attackers with this ATK or less cannot challenge it
+const INTIMIDATE_ATK := 3## Intimidacao: attackers with this ATK or less cannot challenge it
 const SECOND_BONUS_TURNS := 2 ## the second player's first turns that start with +1 Momentum and +1 Reserve (refill)
 const SNOWBALL_GRANDE_AT := 7 ## Bola de Neve level at which every Bola de Neve card of the player evolves into a Grande Bola de Neve
 const SNOWBALL_BASE_LEVEL := 2 ## Bola de Neve level a player starts at; each player's own base can grow permanently (Devaneio Gelado), see players[p]["snowball_base"]
@@ -473,17 +473,20 @@ func graveyard_units(p: int) -> int:
 			n += 1
 	return n
 
-## Recomputes the "constante" effects of board units. Action "scale" gives
-## atk/hp per counted thing (e.g. +2/+2 per unit card in the own graveyard).
+## Recomputes the "constante" effects of board units. Action "scale" gives bonuses;
+## "base_scale" computes a unit's intrinsic base stats instead.
 ## A living unit never dies from LOSING a bonus (an aura source silenced, banished or killed, a smaller
 ## graveyard...): it stays with 1 Vida left, like losing an equipment. Only damage kills.
 func _refresh_scaling() -> void:
 	for p in 2:
 		for c: Card in players[p]["board"]:
 			var was_alive := c.hp_left() >= 1
+			var intrinsic := intrinsic_stats_of(p, card_of(c), c)
 			var b := scale_bonus(p, card_of(c), c)
 			var aura := species_aura_bonus(c)
 			var surge := momentum_surge_of(p, c)
+			c.intrinsic_atk = intrinsic.x
+			c.intrinsic_hp = intrinsic.y
 			c.bonus_atk = b.x + aura.x + int(surge.get("atk", 0))
 			c.bonus_hp = b.y + aura.y
 			if was_alive:
@@ -535,6 +538,18 @@ func scale_bonus(p: int, cd: Dictionary, self_card: Card = null) -> Vector2i:
 		var n := _scale_count(p, e, self_card)
 		out += Vector2i(n * int(e.get("atk", 0)), n * int(e.get("hp", 0)))
 	return out * constants_multiplier(p)
+
+## Dynamic base stats defined by a unit's own Constante; these are not bonuses or modifiers.
+func intrinsic_stats_of(p: int, cd: Dictionary, self_card: Card = null) -> Vector2i:
+	var out := Vector2i.ZERO
+	for e in cd.get("effects", []):
+		if e.get("trigger", "") != "constante" or e.get("action", "") != "base_scale":
+			continue
+		var count := _scale_count(p, e, self_card)
+		out += Vector2i(
+			int(e.get("base_atk", cd.get("atk", 0))) - int(cd.get("atk", 0)) + count * int(e.get("atk", 0)),
+			int(e.get("base_hp", cd.get("hp", 0))) - int(cd.get("hp", 0)) + count * int(e.get("hp", 0)))
+	return out
 
 ## Which of a player's units on the board carry a "doubler" Constante (action "double_constants",
 ## "double_enter" or "double_death"). `ignoring_uid` skips one unit (a doubler never doubles its own Ao Entrar).
@@ -646,6 +661,7 @@ func graveyard_damage_reduction_of(c: Card, amount: int) -> int:
 func _scale_count(p: int, e: Dictionary, self_card: Card = null) -> int:
 	match e.get("per", ""):
 		"other_allied_copies": return other_allied_copies(p, String(e.get("card_id", "")), self_card)
+		"allied_copies": return other_allied_copies(p, String(e.get("card_id", "")))
 		"own_graveyard_units": return graveyard_units(p)
 		"enemy_graveyard_units": return graveyard_units(opponent(p))
 		"own_artifacts": return artifact_count(p)
@@ -662,7 +678,6 @@ func graveyard_artifacts(p: int) -> int:
 	return n
 
 ## Units of player p on the board that are the card `card_id`, not counting `except_card` itself.
-## Elefante Incomodante prints 1/1 and adds +1/+1 per OTHER copy, so its stats equal how many copies are in play.
 func other_allied_copies(p: int, card_id: String, except_card: Card = null) -> int:
 	var n := 0
 	for c: Card in players[p]["board"]:
@@ -692,8 +707,12 @@ func artifact_count(p: int) -> int:
 ## What a "scale" card counts right now (shown in its text off the board), or -1 if it has none.
 func scale_count(p: int, cd: Dictionary) -> int:
 	for e in cd.get("effects", []):
-		if e.get("trigger", "") == "constante" and e.get("action", "") == "scale":
+		if e.get("trigger", "") != "constante":
+			continue
+		if e.get("action", "") == "scale":
 			return _scale_count(p, e)
+		if e.get("action", "") == "base_scale":
+			return int(e.get("base_atk", cd.get("atk", 0))) + _scale_count(p, e) * int(e.get("atk", 0))
 	return -1
 
 ## How far player p is from a "since your previous turn" cost reduction (Gigante Marinho / Vulcânico): {"have": N, "need": M}
@@ -1939,6 +1958,9 @@ func choose_search(p: int, card_uid: int) -> Array:
 	var declined: bool = card_uid == 0 and (pending_search.get("deck_search", false) or pending_search.get("grave_optional", false))
 	if chosen.is_empty() and not declined:
 		return []
+	# a deck search (top-N or whole deck) is mandatory when something is eligible: skipping is only the way out of a whiff
+	if declined and (pending_search.has("to_bottom") or pending_search.has("whole_deck")) and not options.is_empty():
+		return []
 	if pending_search.get("revive", false):
 		# a new copy of the chosen card enters the board; the card itself stays in the graveyard
 		pending_search.clear()
@@ -2032,9 +2054,10 @@ func choose_search(p: int, card_uid: int) -> Array:
 	var top_search: bool = pending_search.has("to_bottom") # a search limited to the top N cards
 	var reshuffle: bool = pending_search.get("shuffle", false)
 	var stays_in_deck: bool = pending_search.get("stay_in_deck", false)
+	var whiff := top_search and options.is_empty() # a top-N look where nothing was eligible
 	if stays_in_deck:
 		pass # Dragar: the cards looked at were never taken out of the deck, so the ones not taken stay in place
-	elif (look or top_search) and not reshuffle:
+	elif (look or top_search) and not reshuffle and not whiff:
 		var not_taken: Array = []
 		if top_search:
 			not_taken = pending_search["to_bottom"]
@@ -2050,26 +2073,26 @@ func choose_search(p: int, card_uid: int) -> Array:
 					deck.erase(d)
 					returned_cards.append(d)
 					break
+		# the cards not taken go to the bottom of the deck as a block shuffled among itself, like on a table:
+		# nobody chooses where each one goes, so there is no bias to exploit
+		_shuffle(returned_cards)
 		for returned in returned_cards:
-			if declined:
-				# Declining is not punished: the cards slip back into the deck at random places (the rest of the
-				# deck keeps its order), so the player does not know what comes next but loses no position on purpose.
-				deck.insert(rng.randi_range(0, deck.size()), returned)
-			else:
-				deck.push_front(returned) # a card was taken: the others go to the bottom of the deck, unrevealed
+			deck.push_front(returned)
 	else:
-		_shuffle(deck)
+		_shuffle(deck) # also the way out of a top-N look that found nothing: the player saw the cards, so the deck is shuffled
+	# a look that found nothing offered no card, so there was nothing to decline: the log only says the deck was shuffled
+	var nothing_was_offered := options.is_empty()
+	var fallback_draw := int(pending_search.get("fallback_draw", 0))
 	pending_search.clear()
 	phase = _search_return
-	if declined:
+	if declined and not nothing_was_offered:
 		_emit({"type": "search_decline", "player": p})
-	else:
+	elif not declined:
 		_emit({"type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"]})
 	if not stays_in_deck:
-		var put_back_event := "search_shuffle"
-		if (look or top_search) and not reshuffle:
-			put_back_event = "look_scatter" if declined else "look_bottom"
-		_emit({"type": put_back_event, "player": p})
+		_emit({"type": "look_bottom" if (look or top_search) and not reshuffle and not whiff else "search_shuffle", "player": p})
+	if nothing_was_offered and fallback_draw > 0:
+		_draw(p, fallback_draw)
 	_check_state() # resumes the triggers that waited for this choice
 	stack_system().after_search()
 	stack_system().settle()
@@ -2395,7 +2418,6 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 		return
 	last_search_took_card = false
 	var matches: Array = []
-	var seen: Dictionary = {}
 	# "top": N looks only at the N cards on top of the deck (the top is the back of the array);
 	# without it the whole deck is searched, which is only for very narrow filters (a single named card)
 	var top_only := int(e.get("top", 0)) > 0
@@ -2407,35 +2429,40 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 		# the filter keys (essence, element, max_cost, type, card_ids, species, tags, tags_any...) are shared with "summon_from"
 		if not CardFilter.matches(c.card_id, e):
 			continue
-		# a whole-deck search lists each card once; a top-N look shows every copy, because each one is really there
-		if not top_only:
-			if seen.has(c.card_id):
-				continue
-			seen[c.card_id] = true
+		# every copy that is really in the deck is listed, like cards laid out on a table
 		matches.append({"uid": c.uid, "card_id": c.card_id})
-	if matches.is_empty():
+	# a search that finds nothing still shows the player the cards looked at (the top N or the whole deck, like
+	# on a table), so it opens the choice with no eligible card: the only way out is to shuffle the deck
+	var looked_but_found_nothing := matches.is_empty() and not searched.is_empty()
+	if matches.is_empty() and not looked_but_found_nothing:
 		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
 		# "fallback_draw": the consolation prize when nothing matched, so the spell is never a dead card (Recado Urgente)
 		if int(e.get("fallback_draw", 0)) > 0:
 			_draw(p, int(e["fallback_draw"]))
 		return
 	# "deck_search": the options are private to the searcher; the opponent only learns the card that was taken (search_take)
-	pending_search = {"player": p, "source_uid": source_uid, "cards": matches, "deck_search": true, "discount": int(e.get("discount", 0))}
+	pending_search = {"player": p, "source_uid": source_uid, "cards": matches, "deck_search": true, "discount": int(e.get("discount", 0)),
+		"fallback_draw": int(e.get("fallback_draw", 0))}
+	# every card looked at, topmost first; "cards" holds only the eligible ones, so the UI can show the rest dimmed
+	var looked_cards: Array = []
+	for index in range(searched.size() - 1, -1, -1):
+		looked_cards.append({"uid": searched[index].uid, "card_id": searched[index].card_id})
+	pending_search["looked_cards"] = looked_cards
 	if top_only:
 		# the cards looked at but not taken go to the bottom of the deck instead of a shuffle
 		var looked_uids: Array = []
-		# every card looked at, topmost first; "cards" holds only the eligible ones, so the UI can show the rest dimmed
-		var looked_cards: Array = []
 		for c: Card in searched:
 			looked_uids.append(c.uid)
-		for index in range(searched.size() - 1, -1, -1):
-			looked_cards.append({"uid": searched[index].uid, "card_id": searched[index].card_id})
 		pending_search["to_bottom"] = looked_uids
 		pending_search["looked"] = searched.size()
-		pending_search["looked_cards"] = looked_cards
+	else:
+		# the whole deck is laid out in its order and the pick is mandatory; the deck is shuffled afterwards
+		pending_search["whole_deck"] = true
 	_search_return = phase
 	phase = "search"
 	_emit({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": matches, "private": true, "looked": pending_search.get("looked", 0)})
+	if looked_but_found_nothing:
+		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
 
 ## The player picks one card from their own hand to discard to the graveyard.
 ## Uses the same choice screen as the overdraw banish; the options are private to the owner.
@@ -2898,7 +2925,7 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 				return 0
 		# Baluarte Santo: cancel the complete damage instance if it would kill this unit.
 		# For combat Toque Letal, any connected hit is lethal unless the target is immune.
-		var total_hp := c.hp + c.bonus_hp + c.temp_hp + c.temp_hp_until_next_turn
+		var total_hp := c.hp_total()
 		var lethal_touch := _combat_damage and source != null and has_kw(source, "toque_letal") \
 			and not _immune_to_lethal_touch(c)
 		if (c.damage + amount >= total_hp or lethal_touch) and _consume_death_ward(c, src_uid):
@@ -2938,7 +2965,7 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		# such as Imunidade contra Trevas without making them damage effects.
 		if _combat_damage and source != null and has_kw(source, "toque_letal") and dealt > 0 \
 				and not _immune_to_lethal_touch(c):
-			c.damage = maxi(c.damage, c.hp + c.bonus_hp + c.temp_hp + c.temp_hp_until_next_turn)
+			c.damage = maxi(c.damage, c.hp_total())
 		# Tóxico X: combat damage that really got through leaves X Veneno markers (blocked damage returned above)
 		if _combat_damage and source != null and has_kw(source, "toxico") and dealt > 0 and c.hp_left() > 0:
 			add_dot_markers(c, "veneno", toxico_markers(source), source.data().get("toxico_ignores_immunity", false))
@@ -3254,7 +3281,7 @@ func _consume_death_ward(victim: Card, source_uid := 0) -> bool:
 func _prevent_unit_death(victim: Card) -> bool:
 	if not _consume_death_ward(victim):
 		return false
-	var total_hp := victim.hp + victim.bonus_hp + victim.temp_hp + victim.temp_hp_until_next_turn
+	var total_hp := victim.hp_total()
 	victim.damage = maxi(0, total_hp - 1)
 	victim.condemned_turn = 0
 	return true
@@ -3674,7 +3701,7 @@ func dot_damage(dot_id: String, unit: Card, markers: int) -> int:
 		return normal_damage
 	if DOT_RULES.get(dot_id, "flat") != "life_bracket":
 		return markers
-	var max_hp := unit.hp + unit.bonus_hp + unit.temp_hp + unit.temp_hp_until_next_turn
+	var max_hp := unit.hp_total()
 	var life_bonus := 0
 	if max_hp >= 6 and max_hp <= 9:
 		life_bonus = 1

@@ -139,7 +139,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	var attack_gain: int = attack * multiplier
 	var health_gain: int = health * multiplier
 	if attack_multiplier > 1:
-		attack_gain += unit.atk * (attack_multiplier - 1)
+		attack_gain += (unit.atk + unit.intrinsic_atk) * (attack_multiplier - 1)
 	if has_attack_cap:
 		attack_gain = mini(attack_gain, attack_cap - unit.cap_atk_gain)
 		if attack_gain <= 0:

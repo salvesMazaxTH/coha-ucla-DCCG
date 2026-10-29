@@ -21,6 +21,8 @@ var over: Dictionary = {} ## per-instance overrides of the card data (atk, hp, k
 var incarnation := false ## the Leader's Encarnação (from the Santuário), NOT the "legendary" rarity; it keeps the flag while it sits in a hand
 var atk := 0
 var hp := 0
+var intrinsic_atk := 0 ## dynamic base stats from the unit's own ability, not a buff or bonus
+var intrinsic_hp := 0
 var damage := 0
 var temp_atk := 0
 var temp_hp := 0 ## extra Vida that lasts until the end of the turn; it soaks damage first, so nothing dies from it expiring
@@ -91,6 +93,7 @@ var stored_momentum := 0 ## Momentum held by an artifact with "momentum_store": 
 ## what a unit DID (not what was done to it).
 const NOT_COPIED_FIELDS := ["uid", "card_id", "owner", "zone", "over", "incarnation", "equipped_cards", "worn_grant",
 		"discount", "turn_discount", "cost_mod", "banish_after_cast", "banish_at_turn_end",
+		"intrinsic_atk", "intrinsic_hp",
 		"pending_self_revive_turn", "pending_self_revive_atk", "pending_self_revive_hp",
 		"exhausted", "sick", "attacks_made", "used_turn", "capped_uses", "conditional_uses_turn", "conditional_uses",
 		"trigger_counts", "dodge_turn", "activated_turn", "vipranna_heal_turn", "vipranna_heal_total",
@@ -157,6 +160,8 @@ func copy_modifiers_from(source: Card) -> void:
 		if value is Array or value is Dictionary:
 			value = value.duplicate(true)
 		set(property_name, value)
+	intrinsic_atk = 0
+	intrinsic_hp = 0
 
 ## Puts fresh board state on the card as it enters the board.
 func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:
@@ -170,6 +175,8 @@ func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:
 	banish_at_turn_end = false # a revived copy is a normal unit again
 	atk = int(cd["atk"])
 	hp = int(cd["hp"])
+	intrinsic_atk = 0
+	intrinsic_hp = 0
 	damage = 0
 	temp_atk = 0
 	temp_hp = 0
@@ -360,7 +367,7 @@ func silence() -> void:
 ## Like losing an equipment: a silence never kills the unit, it stays with 1 Vida.
 func keep_alive_with_one_hp() -> void:
 	if hp_left() < 1:
-		damage = hp + bonus_hp + temp_hp + temp_hp_until_next_turn - 1
+		damage = hp_total() - 1
 
 ## Escudo Supremo granted by an effect. `expires` is "" (until used), "next_turn" or "end_turn". A longer protection
 ## is never shortened by a later, shorter grant.
@@ -386,7 +393,7 @@ func armor_total() -> int:
 
 ## ATK right now (a Congelada unit keeps its full ATK: it still strikes back when challenged).
 func atk_total() -> int:
-	return maxi(0, atk + temp_atk + temp_atk_until_next_turn + bonus_atk)
+	return maxi(0, atk + intrinsic_atk + temp_atk + temp_atk_until_next_turn + bonus_atk)
 
 ## Rapidez right now (0-3). A Congelada unit has its Rapidez suppressed, so it counts as Rapidez 0 until it thaws.
 func rapidez_total() -> int:
@@ -398,8 +405,11 @@ func rapidez_total() -> int:
 func critico_total() -> int:
 	return clampi(maxi(critico + temp_critico, surge_critico), 0, 4)
 
+func hp_total() -> int:
+	return hp + intrinsic_hp + bonus_hp + temp_hp + temp_hp_until_next_turn
+
 func hp_left() -> int:
-	return hp + bonus_hp + temp_hp + temp_hp_until_next_turn - damage
+	return hp_total() - damage
 
 ## Congelada until the end of the next turn: it doesn't attack, doesn't untap and
 ## doesn't guard its Leader (see CombatSystem.attack_targets). ATK and strike back stay whole.
@@ -487,6 +497,10 @@ func to_dict() -> Dictionary:
 	if has_bonus:
 		d["bonus_atk"] = bonus_atk
 		d["bonus_hp"] = bonus_hp
+	if intrinsic_atk != 0:
+		d["intrinsic_atk"] = intrinsic_atk
+	if intrinsic_hp != 0:
+		d["intrinsic_hp"] = intrinsic_hp
 	if not surge_keywords.is_empty():
 		d["surge_keywords"] = surge_keywords.duplicate()
 	if surge_critico > 0:
@@ -560,6 +574,8 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.incarnation = bool(d["incarnation"])
 	c.atk = int(d["atk"])
 	c.hp = int(d["hp"])
+	c.intrinsic_atk = int(d.get("intrinsic_atk", 0))
+	c.intrinsic_hp = int(d.get("intrinsic_hp", 0))
 	c.damage = int(d["damage"])
 	c.temp_atk = int(d["temp_atk"])
 	c.keywords = d["keywords"]

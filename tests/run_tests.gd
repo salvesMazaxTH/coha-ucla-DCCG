@@ -350,7 +350,8 @@ func _put(g: GameState, p: int, card_id: String, ready := true) -> Card:
 	g._flush()
 	if g.phase == "search":
 		var options: Array = g.pending_search["cards"]
-		g.choose_search(p, int(options[0]["uid"]))
+		# a top-of-deck look with nothing eligible is a whiff: its only exit is uid 0 (shuffle the deck)
+		g.choose_search(p, int(options[0]["uid"]) if not options.is_empty() else 0)
 		g._flush()
 	var c := g.find_unit(uid)
 	# a Provocação put here skips the "enter tapped?" question: tests tap units by hand
@@ -6497,30 +6498,58 @@ func _test_custo_e_contagem() -> void:
 	_test_saraya_kovan_package()
 	_test_summon_copy_and_elephant_recall()
 
-## Elefante Incomodante: Ataque e Vida = número de cópias suas em campo (a própria conta).
+## Elefante Incomodante: Ataque e Vida = número de cópias aliadas em campo + 1.
 func _test_elefante_incomodante() -> void:
 	var g := _new_game()
 	var elephant_data: Dictionary = CardDB.card("elefante_incomodante")
-	check(g.scale_count(0, elephant_data) == 0, "elefante: fora de campo a contagem de outras cópias é 0")
+	check(g.scale_count(0, elephant_data) == 1, "elefante: sem cópias em campo, X vale 1")
 	var first := _put(g, 0, "elefante_incomodante")
 	g._check_state()
-	check(g.atk_of(first) == 1 and first.hp_left() == 1, "elefante: sozinho é 1/1")
+	check(g.atk_of(first) == 2 and first.hp_left() == 2, "elefante: sozinho já nasce 2/2")
+	check(g.scale_count(0, elephant_data) == 2, "elefante: o frontend mostra X = cópias aliadas + 1")
+	check(first.intrinsic_atk == 1 and first.intrinsic_hp == 1 and first.bonus_atk == 0 and first.bonus_hp == 0,
+			"elefante: sua escala pertence aos atributos-base, não aos bônus")
+	check(CardView.stat_value_color(g.atk_of(first), first.atk + first.intrinsic_atk) == Color.WHITE
+			and CardView.stat_value_color(first.hp_total(), first.hp + first.intrinsic_hp) == Color.WHITE,
+			"elefante: seus atributos-base não aparecem em verde")
+	var first_instance := first.to_dict()
+	first_instance["constant_sources"] = g.constant_sources_of(first)
+	check(CardOverlay.StatModifiersPanel.rows_for(first.card_id, first_instance).is_empty(),
+			"elefante: a escala-base não aparece como modificador no overlay")
+	var mirrored := Card.from_dict(first.to_dict(), "board", 0)
+	check(mirrored.atk_total() == 2 and mirrored.hp_left() == 2 and mirrored.bonus_atk == 0,
+			"elefante: atributos-base sobrevivem ao espelho de rede sem virar bônus")
+	g._apply_effect(0, {"action": "buff", "atk": 2, "hp": 1}, first.uid, "elefante_incomodante")
+	first_instance = first.to_dict()
+	first_instance["constant_sources"] = g.constant_sources_of(first)
+	var buff_rows := CardOverlay.StatModifiersPanel.rows_for(first.card_id, first_instance)
+	check(g.atk_of(first) == 4 and first.hp_total() == 3 and buff_rows.size() == 1
+			and int(buff_rows[0]["changes"]["atk"]) == 2 and int(buff_rows[0]["changes"]["hp"]) == 1,
+			"elefante: bônus externo é separado dos atributos-base e aparece no overlay")
+	g._apply_effect(0, {"action": "silence"}, first.uid)
+	check(g.atk_of(first) == 1 and first.hp_total() == 1 and first.intrinsic_atk == 0,
+			"elefante: silêncio remove sua fórmula e os bônus")
+	g = _new_game()
+	first = _put(g, 0, "elefante_incomodante")
+	g._check_state()
 	var second := _put(g, 0, "elefante_incomodante")
 	g._check_state()
-	check(g.atk_of(first) == 2 and first.hp_left() == 2 and g.atk_of(second) == 2 and second.hp_left() == 2, "elefante: dois são 2/2 cada")
+	check(g.atk_of(first) == 3 and first.hp_left() == 3 and g.atk_of(second) == 3 and second.hp_left() == 3, "elefante: dois são 3/3 cada")
 	var third := _put(g, 0, "elefante_incomodante")
 	g._check_state()
-	check(g.atk_of(third) == 3 and third.hp_left() == 3 and g.atk_of(first) == 3, "elefante: três são 3/3 cada")
+	check(g.atk_of(third) == 4 and third.hp_left() == 4 and g.atk_of(first) == 4, "elefante: três são 4/4 cada")
 	# the opponent's copies never count for this player
 	var enemy_elephant := _put(g, 1, "elefante_incomodante")
 	g._check_state()
-	check(g.atk_of(first) == 3 and g.atk_of(enemy_elephant) == 1, "elefante: cópias do oponente não contam")
+	check(g.atk_of(first) == 4 and g.atk_of(enemy_elephant) == 2, "elefante: cópias do oponente não contam")
 	# losing a copy shrinks the others, but a damaged one is never killed by the shrink alone
 	g._deal_damage(third.uid, 2, null)
 	g._check_state()
 	g._deal_damage(second.uid, 99, null)
 	g._check_state()
-	check(g.atk_of(first) == 2 and g.atk_of(third) == 2 and third.hp_left() >= 1, "elefante: ao perder uma cópia as outras encolhem para 2/2 sem morrer")
+	check(g.atk_of(first) == 3 and g.atk_of(third) == 3 and third.hp_left() >= 1, "elefante: ao perder uma cópia as outras encolhem para 3/3 sem morrer")
+	g._apply_effect(0, {"action": "cap_stats", "atk": 1, "hp": 1}, first.uid)
+	check(g.atk_of(first) == 1 and first.hp_total() == 1, "elefante: efeito que reduz atributos totais alcança os atributos-base")
 
 ## O grito cinematográfico do Elefante Incomodante: só dispara quando o ataque ao Líder inimigo é letal.
 func _test_incomodante_shout() -> void:
@@ -6556,7 +6585,7 @@ func _test_incomodante_shout() -> void:
 	check(shouts.size() == 1 and shouts[0]["style"] == "wild" and int(shouts[0]["uid"]) == first.uid, "grito: ataque letal ao Líder anuncia o grito (estilo wild, dito pelo atacante)")
 	check(shouts.size() == 1 and String(shouts[0]["text"]).begins_with("INCOMODAM, INCOMODAM, INCOMODAM, INCOMODAM"), "grito: o texto anunciado é a fala completa")
 
-	# not lethal: the Leader has more life than the blow
+	# not lethal: the Leader has more life than the four-power blow
 	g = _new_game()
 	_quiet(g)
 	a = g.active
@@ -6565,7 +6594,7 @@ func _test_incomodante_shout() -> void:
 	_put(g, a, "elefante_incomodante")
 	_put(g, a, "elefante_incomodante")
 	g._check_state()
-	g.players[enemy]["leader_hp"] = 4
+	g.players[enemy]["leader_hp"] = 5
 	events = _hit(g, first)
 	var silent := true
 	for e in events:
@@ -6864,17 +6893,17 @@ func _test_summon_copy_and_elephant_recall() -> void:
 	check(g.activate(0, champion_copier.uid, champion.uid).is_empty(), "Fotocopiadora: não mira um Campeão")
 	check(champion_copier.durability_left() == 2 and int(g.players[0]["momentum"]) == 10, "Fotocopiadora: recusada, nada é pago nem gasto")
 
-	# --- A cópia de Elefante Incomodante conta para a escala (2 em campo = 2/2 cada) ---
+	# --- A cópia de Elefante Incomodante conta para a fórmula (2 em campo = 3/3 cada) ---
 	g = _new_game()
 	_quiet(g)
 	g.players[0]["momentum"] = 10
 	var incomodante := _put(g, 0, "elefante_incomodante")
 	g._check_state()
-	check(g.atk_of(incomodante) == 1, "Incomodante sozinho: 1/1")
+	check(g.atk_of(incomodante) == 2, "Incomodante sozinho: 2/2")
 	g.activate(0, _place_photocopier(g, 0).uid, incomodante.uid)
 	_resolve_stack(g)
 	g._check_state()
-	check(g.atk_of(incomodante) == 2 and incomodante.hp_left() == 2, "Fotocopiadora: a cópia conta como Incomodante (ficam 2/2)")
+	check(g.atk_of(incomodante) == 3 and incomodante.hp_left() == 3, "Fotocopiadora: a cópia conta como Incomodante (ficam 3/3)")
 
 	# --- Campo cheio: a carta resolve sem criar nada ---
 	g = _new_game()
@@ -7920,12 +7949,20 @@ func _test_metalica() -> void:
 	# (the filler is a spell, which is never eligible: Metálica units of cost 4 or less count as "peças" too)
 	g = _metalica_game()
 	a = g.active
+	var buried_artifact_deck := ["engrenagem_solta", "golpe_de_marreta", "golpe_de_marreta", "golpe_de_marreta", "golpe_de_marreta", "golpe_de_marreta"]
 	g.players[a]["deck"].clear()
-	for card_id in ["engrenagem_solta", "golpe_de_marreta", "golpe_de_marreta", "golpe_de_marreta", "golpe_de_marreta", "golpe_de_marreta"]:
+	for card_id in buried_artifact_deck:
 		g.players[a]["deck"].append(Card.new(g._uid(), card_id, a, "deck"))
 	g.players[a]["momentum"] = 20
 	_cast_and_resolve(g, a, "biblioteca_de_pecas")
-	check(g.phase != "search", "Biblioteca de Peças: o artefato fora das 5 do topo não é encontrado")
+	# nothing eligible in the top 5: a whiff, offering no card and only the way out of shuffling the deck
+	check(g.phase == "search" and g.pending_search["cards"].is_empty(), "Biblioteca de Peças: o artefato fora das 5 do topo não é encontrado")
+	g.choose_search(a, 0)
+	check(g.phase != "search", "Biblioteca de Peças: embaralhar o deck encerra a busca sem resultado")
+	# the shuffle scrambled the deck: put it back in order so the artifact lands among the top 5
+	g.players[a]["deck"].clear()
+	for card_id in buried_artifact_deck:
+		g.players[a]["deck"].append(Card.new(g._uid(), card_id, a, "deck"))
 	# with the artifact among the top 5 it is offered face up, and the rest of the top 5 goes to the bottom
 	g.players[a]["deck"].append(Card.new(g._uid(), "moedor_de_sucata", a, "deck"))
 	_cast_and_resolve(g, a, "biblioteca_de_pecas")
@@ -8041,12 +8078,16 @@ func _test_metalica() -> void:
 		g.use_ability(a)
 		_resolve_stack(g)
 		if scenario == "no_artifact_on_top":
+			# a whiff: the top cards are shown, nothing can be taken, and shuffling the deck is the only way out (no discard follows)
+			check(g.phase == "search" and g.pending_search["cards"].is_empty(), "Berengar: sem artefato no topo a busca não oferece nada")
+			g.choose_search(a, 0)
 			check(g.phase != "search" and g.players[a]["hand"].size() == hand_before, "Berengar: sem artefato no topo não pega nem descarta nada")
 			continue
 		check(g.phase == "search" and not g.pending_search.get("discard_hand", false) and g.pending_search["cards"].size() == 1, "Berengar (%s): a primeira escolha é a busca, não o descarte" % scenario)
 		if scenario == "declines_search":
+			# with an artifact on top, taking it is mandatory: refusing is denied and the choice stays open
 			g.choose_search(a, 0)
-			check(g.phase != "search" and g.players[a]["hand"].size() == hand_before, "Berengar: recusar a busca não obriga a descartar")
+			check(g.phase == "search" and g.players[a]["hand"].size() == hand_before, "Berengar: com artefato no topo, recusar a busca é negado")
 			continue
 		g.choose_search(a, int(g.pending_search["cards"][0]["uid"]))
 		check(g.phase == "search" and g.pending_search.get("discard_hand", false), "Berengar: depois de pegar o artefato, pede o descarte")
@@ -8512,44 +8553,70 @@ func _test_glacial_combo() -> void:
 	looked_uids.sort()
 	check(bottom_uids == looked_uids, "Chamado da Nevasca: as outras cartas olhadas vão para o fundo do deck")
 
-	# declining ("não pegar nenhuma") does not punish: the 5 looked cards slip back into the deck at random places and the
-	# 2 deeper cards keep their relative order. Over several seeds they must not always end up at the bottom.
-	var always_at_bottom := true
-	var decline_keeps_all_cards := true
-	var decline_keeps_deeper_order := true
+	# a top-N look is mandatory when something is eligible: declining (uid 0) is refused and the choice stays open
+	var mandatory := _combo_game(3, 0, 10, 0)
+	var mandatory_game: GameState = mandatory["game"]
+	var mandatory_player: int = mandatory["me"]
+	mandatory_game.players[mandatory_player]["deck"].clear()
+	for card_id in ["bola_de_neve", "ritual_do_degelo", "ladeira_abaixo_e_sem_freio", "estilhaco_gelido", "zero_absoluto", "nythera", "carga_acumulada"]:
+		mandatory_game.players[mandatory_player]["deck"].append(Card.new(mandatory_game._uid(), card_id, mandatory_player, "deck"))
+	mandatory_game.play_card(mandatory_player, _give(mandatory_game, mandatory_player, "chamado_da_nevasca"))
+	for guard in 8:
+		if mandatory_game.stack.is_empty() or mandatory_game.phase == "search":
+			break
+		mandatory_game.pass_priority(mandatory_game.priority)
+	var refused_events: Array = mandatory_game.choose_search(mandatory_player, 0)
+	check(refused_events.is_empty() and mandatory_game.phase == "search", "Chamado da Nevasca: com carta elegível, recusar é negado e a escolha continua aberta")
+
+	# a whiff: nothing eligible among the top 5, but the player still sees them and the only way out is to shuffle the deck
+	var all_shuffled_the_same := true
+	var whiff_keeps_all_cards := true
+	var whiff_shows_cards := true
 	for seed_number in 12:
-		var decline := _combo_game(3, 0, 10, 0)
-		var decline_game: GameState = decline["game"]
-		var decliner: int = decline["me"]
-		decline_game.rng.seed = seed_number + 1
-		decline_game.players[decliner]["deck"].clear()
-		var deck_uids_bottom_to_top: Array = []
-		for card_id in ["bola_de_neve", "ritual_do_degelo", "ladeira_abaixo_e_sem_freio", "estilhaco_gelido", "zero_absoluto", "nythera", "carga_acumulada"]:
-			var declined_deck_card := Card.new(decline_game._uid(), card_id, decliner, "deck")
-			decline_game.players[decliner]["deck"].append(declined_deck_card)
-			deck_uids_bottom_to_top.append(declined_deck_card.uid)
-		var declined_cast_uid := _give(decline_game, decliner, "chamado_da_nevasca")
-		decline_game.play_card(decliner, declined_cast_uid)
+		var whiff := _combo_game(3, 0, 10, 0)
+		var whiff_game: GameState = whiff["game"]
+		var whiff_player: int = whiff["me"]
+		whiff_game.rng.seed = seed_number + 1
+		whiff_game.players[whiff_player]["deck"].clear()
+		var whiff_uids: Array = []
+		for card_index in 7:
+			var whiff_card := Card.new(whiff_game._uid(), "geodo_vivo", whiff_player, "deck")
+			whiff_game.players[whiff_player]["deck"].append(whiff_card)
+			whiff_uids.append(whiff_card.uid)
+		whiff_game.play_card(whiff_player, _give(whiff_game, whiff_player, "chamado_da_nevasca"))
 		for guard in 8:
-			if decline_game.stack.is_empty() or decline_game.phase == "search":
+			if whiff_game.stack.is_empty() or whiff_game.phase == "search":
 				break
-			decline_game.pass_priority(decline_game.priority)
-		var decline_events: Array = decline_game.choose_search(decliner, 0)
-		var deck_after_decline: Array = decline_game.players[decliner]["deck"]
-		var deck_uids_after: Array = deck_after_decline.map(func(card: Card): return card.uid)
-		var sorted_after := deck_uids_after.duplicate()
-		sorted_after.sort()
-		var sorted_before := deck_uids_bottom_to_top.duplicate()
-		sorted_before.sort()
-		decline_keeps_all_cards = decline_keeps_all_cards and sorted_after == sorted_before and _has_event(decline_events, "search_decline") and _has_event(decline_events, "look_scatter") and not _has_event(decline_events, "look_bottom")
-		var deeper_uids: Array = deck_uids_bottom_to_top.slice(0, 2)
-		var deeper_in_new_order: Array = deck_uids_after.filter(func(uid): return deeper_uids.has(uid))
-		decline_keeps_deeper_order = decline_keeps_deeper_order and deeper_in_new_order == deeper_uids
-		# the old behaviour: the 5 looked cards fill the 5 bottom slots and the 2 deeper cards sit on top of them
-		always_at_bottom = always_at_bottom and deck_uids_after.slice(0, 5).all(func(uid): return not deeper_uids.has(uid))
-	check(decline_keeps_all_cards, "Chamado da Nevasca: recusar mantém todas as cartas no deck e avisa com look_scatter")
-	check(decline_keeps_deeper_order, "Chamado da Nevasca: recusar não mexe na ordem das cartas que não foram olhadas")
-	check(not always_at_bottom, "Chamado da Nevasca: recusar não manda as olhadas sempre para o fundo")
+			whiff_game.pass_priority(whiff_game.priority)
+		whiff_shows_cards = whiff_shows_cards and whiff_game.phase == "search" and whiff_game.pending_search["cards"].is_empty() and whiff_game.pending_search["looked_cards"].size() == 5
+		var whiff_opponent_view: Dictionary = StateView.snapshot(whiff_game, 1 - whiff_player)["pending_search"]
+		whiff_shows_cards = whiff_shows_cards and whiff_opponent_view["looked_cards"].is_empty()
+		var whiff_events: Array = whiff_game.choose_search(whiff_player, 0)
+		var whiff_deck_uids: Array = whiff_game.players[whiff_player]["deck"].map(func(card: Card): return card.uid)
+		var whiff_sorted := whiff_deck_uids.duplicate()
+		whiff_sorted.sort()
+		whiff_keeps_all_cards = whiff_keeps_all_cards and whiff_sorted == whiff_uids and whiff_game.phase != "search" 			and _has_event(whiff_events, "search_shuffle") and not _has_event(whiff_events, "search_decline") and not _has_event(whiff_events, "look_bottom")
+		all_shuffled_the_same = all_shuffled_the_same and whiff_deck_uids == whiff_uids
+	check(whiff_shows_cards, "Chamado da Nevasca: sem carta elegível, mostra as 5 olhadas (escondidas do oponente) e não oferece nenhuma")
+	check(whiff_keeps_all_cards, "Chamado da Nevasca: sair do whiff embaralha o deck, sem perder cartas e sem search_decline")
+	check(not all_shuffled_the_same, "Chamado da Nevasca: sair do whiff realmente embaralha o deck")
+
+	# the consolation draw of a whiff still happens after the shuffle
+	var consolation := _combo_game(3, 0, 10, 0)
+	var consolation_game: GameState = consolation["game"]
+	var consolation_player: int = consolation["me"]
+	consolation_game.players[consolation_player]["deck"].clear()
+	for card_index in 7:
+		consolation_game.players[consolation_player]["deck"].append(Card.new(consolation_game._uid(), "geodo_vivo", consolation_player, "deck"))
+	consolation_game.play_card(consolation_player, _give(consolation_game, consolation_player, "chamado_da_nevasca"))
+	for guard in 8:
+		if consolation_game.stack.is_empty() or consolation_game.phase == "search":
+			break
+		consolation_game.pass_priority(consolation_game.priority)
+	consolation_game.pending_search["fallback_draw"] = 2
+	var hand_before_consolation: int = consolation_game.players[consolation_player]["hand"].size()
+	consolation_game.choose_search(consolation_player, 0)
+	check(consolation_game.players[consolation_player]["hand"].size() == hand_before_consolation + 2, "whiff de busca no topo: fallback_draw compra depois de embaralhar")
 
 	# the new deck: legal and holding the combo pieces
 	var combo_deck := DeckDB.get_deck("glacial_combo")
@@ -9978,8 +10045,41 @@ func _test_eryon_deck() -> void:
 	g.players[a]["deck"].push_front(Card.new(g._uid(), "dona_gertrudes_fura_fila", a))
 	var hand_before: int = g.players[a]["hand"].size()
 	g._begin_search(a, {"card_ids": ["barao_estrondoso"], "fallback_draw": 1}, 0)
-	check(g.phase != "search", "Recado Urgente: sem o Barão no deck não abre escolha (Gertrudes não conta)")
-	check(g.players[a]["hand"].size() == hand_before + 1, "Recado Urgente: sem o Barão no deck compra 1 carta (%d)" % (g.players[a]["hand"].size() - hand_before))
+	check(g.phase == "search" and g.pending_search["cards"].is_empty(), "Recado Urgente: sem o Barão no deck mostra o deck todo, sem nada para escolher (Gertrudes não conta)")
+	var recado_whiff_events: Array = g.choose_search(a, 0)
+	check(g.phase != "search" and _has_event(recado_whiff_events, "search_shuffle"), "Recado Urgente: sair do whiff embaralha o deck")
+	check(g.players[a]["hand"].size() == hand_before + 1, "Recado Urgente: sem o Barão no deck compra 1 carta depois de embaralhar (%d)" % (g.players[a]["hand"].size() - hand_before))
+
+	# a deck with nothing in it has nothing to show: no window, just the consolation draw
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	g.players[a]["deck"].clear()
+	var empty_hand_before: int = g.players[a]["hand"].size()
+	g._begin_search(a, {"card_ids": ["barao_estrondoso"], "fallback_draw": 1}, 0)
+	check(g.phase != "search", "busca de deck inteiro: deck vazio não abre janela")
+
+	# a whole-deck search shows every card in the deck's order (top first), every copy is offered, and the pick is mandatory
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	g.players[a]["deck"].clear()
+	var whole_deck_order: Array = []
+	for card_id in ["geodo_vivo", "bola_de_neve", "geodo_vivo", "bola_de_neve", "geodo_vivo"]:
+		var whole_card := Card.new(g._uid(), card_id, a, "deck")
+		g.players[a]["deck"].append(whole_card)
+	for index in range(g.players[a]["deck"].size() - 1, -1, -1):
+		whole_deck_order.append(g.players[a]["deck"][index].uid) # the top of the deck is the END of the array
+	g._begin_search(a, {"card_ids": ["bola_de_neve"]}, 0)
+	var shown_uids: Array = g.pending_search["looked_cards"].map(func(option: Dictionary): return int(option["uid"]))
+	check(g.phase == "search" and shown_uids == whole_deck_order, "busca de deck inteiro: mostra o deck todo na ordem, do topo ao fundo")
+	check(g.pending_search["cards"].size() == 2, "busca de deck inteiro: todas as cópias elegíveis são oferecidas")
+	check(g.choose_search(a, 0).is_empty() and g.phase == "search", "busca de deck inteiro: com carta elegível, recusar é negado")
+	var whole_opponent_view: Dictionary = StateView.snapshot(g, 1 - a)["pending_search"]
+	check(whole_opponent_view["looked_cards"].is_empty() and whole_opponent_view["cards"].is_empty(), "busca de deck inteiro: o oponente não vê as cartas")
+	var picked_uid: int = int(g.pending_search["cards"][0]["uid"])
+	var pick_events: Array = g.choose_search(a, picked_uid)
+	check(g.phase != "search" and g.players[a]["hand"].any(func(card: Card): return card.uid == picked_uid) and _has_event(pick_events, "search_shuffle") and g.players[a]["deck"].size() == 4, "busca de deck inteiro: a carta escolhida vai para a mão e o deck é embaralhado")
 
 ## Eight cards added together (Vendedora de Grimório, Sorvetinho Derrete-Lento, Bicho Papão, Agora o Bicho vai Pegar,
 ## Jurema Falamansa, Goblin das Brasas, Esther, Jovahr) and the engine parameters they brought: search "discount",

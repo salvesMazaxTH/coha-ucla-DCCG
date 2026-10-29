@@ -3,10 +3,13 @@ extends Effect
 ## Effects that open a deck choice after their trigger resolves, told apart by `action`:
 ## "search_deck": the player picks a matching card from the deck.
 ##   Filters (read by GameState._begin_search): essence, element, max_cost, type, types_any (one of several types), species, tags (all of them),
-##   tags_any (at least one of them), top (only the N cards on top of the deck are searched; the matches
-##   are revealed to everyone and the looked-at cards not taken go to the bottom of the deck instead of
-##   a shuffle). Without "top" the whole deck is searched: keep that for very narrow filters (a single named
-##   card, like Bruno's Bola de Neve); a broad filter over the whole deck is too strong.
+##   tags_any (at least one of them), top (only the N cards on top of the deck are searched; the player must take
+##   one eligible card and the looked-at cards not taken go, shuffled among themselves, to the bottom of the deck
+##   instead of a shuffle. If none is eligible the player still sees the cards and the only way out is to
+##   shuffle the deck, then `fallback_draw` still applies). Without "top" the whole deck is searched: the player sees the entire deck in its order (top first), must take an
+##   eligible card (declining is refused) and the deck is shuffled afterwards; a whiff shows the deck dimmed with the
+##   same "shuffle the deck" exit. Keep that for very narrow filters (a single named card, like Bruno's Bola de Neve);
+##   a broad filter over the whole deck is too strong.
 ## "discard_hand_pick": the player picks one card from their own hand and discards it to
 ##   the graveyard (only the end-of-turn hand limit banishes; a normal discard goes to the graveyard).
 ## "summon_hand_pick": the player picks a unit card of the given `rarity` (e.g. "champion"; "" = any) from

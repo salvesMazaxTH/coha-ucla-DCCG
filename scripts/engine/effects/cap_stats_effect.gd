@@ -34,7 +34,7 @@ func _cap_attack(unit: Card, source: String) -> int:
 	unit.temp_atk -= from_temporary - take_from_until_next_turn
 	# whatever is left comes off the permanent Ataque (the aura bonus is not ours to remove)
 	var permanent_before := unit.atk
-	unit.atk = maxi(0, unit.atk - (excess - from_temporary))
+	unit.atk = maxi(-unit.intrinsic_atk, unit.atk - (excess - from_temporary))
 	unit.record_stat_change(source, "next_turn", {"atk": -take_from_until_next_turn})
 	unit.record_stat_change(source, "end_turn", {"atk": -(from_temporary - take_from_until_next_turn)})
 	unit.record_stat_change(source, "", {"atk": unit.atk - permanent_before})
@@ -44,7 +44,7 @@ func _cap_attack(unit: Card, source: String) -> int:
 ## (or the ceiling, if lower) and never dies from this.
 func _cap_health(unit: Card, source: String) -> int:
 	var life_before := unit.hp_left()
-	var maximum_before := unit.hp + unit.bonus_hp + unit.temp_hp + unit.temp_hp_until_next_turn
+	var maximum_before := unit.hp_total()
 	var excess := maximum_before - health_ceiling
 	if excess <= 0:
 		return 0
@@ -53,10 +53,10 @@ func _cap_health(unit: Card, source: String) -> int:
 	unit.temp_hp_until_next_turn -= take_from_until_next_turn
 	unit.temp_hp -= from_temporary - take_from_until_next_turn
 	var permanent_before := unit.hp
-	unit.hp = maxi(1, unit.hp - (excess - from_temporary))
+	unit.hp = maxi(1 - unit.intrinsic_hp, unit.hp - (excess - from_temporary))
 	unit.record_stat_change(source, "next_turn", {"hp": -take_from_until_next_turn})
 	unit.record_stat_change(source, "end_turn", {"hp": -(from_temporary - take_from_until_next_turn)})
 	unit.record_stat_change(source, "", {"hp": unit.hp - permanent_before})
-	var maximum_after := unit.hp + unit.bonus_hp + unit.temp_hp + unit.temp_hp_until_next_turn
+	var maximum_after := unit.hp_total()
 	unit.damage = maxi(0, maximum_after - mini(life_before, maximum_after))
 	return maximum_before - maximum_after

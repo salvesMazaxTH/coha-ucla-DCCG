@@ -20,7 +20,8 @@
       "species": "elefante"
     }
   ],
-  "text": "Ao Entrar: você olha as 3 cartas do topo do seu deck e pode pegar 1 Elefante entre elas; as outras vão para o fundo.",
+  "text": "Ao Entrar: você olha as 3 cartas do topo do seu deck e pega 1 Elefante entre elas; as outras vão para o fundo.",
   "flavor": "Fugiu do circo antes da estreia. Voltou com a família inteira, e sem ingresso.",
+  "art": "neutra/filhote_fujao.webp",
   "tags": []
 }

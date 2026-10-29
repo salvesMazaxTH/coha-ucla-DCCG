@@ -115,6 +115,8 @@ var grave_scroll: ScrollContainer
 var grave_owner := 0
 var grave_filter := "all"
 var grave_drag_ms := -1000 ## last finger-drag in the viewer: taps right after it are not clicks
+var search_scroll: ScrollContainer ## the one-row card strip of the open pick window (null when none)
+var search_drag_ms := -1000 ## last scroll of that strip: taps and long-presses right after it are not picks
 var views := {} ## uid (or "cmd<p>") -> Control on screen, for animations
 var _unit_board_views := {} ## uid -> unit CardView from the last board render, kept for same-slot updates
 var _unit_views_for_reuse := {} ## detached unit views being matched against the next board layout
@@ -3081,6 +3083,8 @@ func _input(e: InputEvent) -> void:
 			_hide_chronicle_scene()
 	if grave_view and _grave_scroll_input(e):
 		get_viewport().set_input_as_handled()
+	elif _search_scroll_input(e):
+		get_viewport().set_input_as_handled()
 	elif decklist_view == null and is_instance_valid(hub_scroll) and _hub_scroll_input(e): # the deck list scrolls itself
 		get_viewport().set_input_as_handled()
 
@@ -4169,10 +4173,127 @@ func _grave_scroll_input(e: InputEvent) -> bool:
 		return true
 	return false
 
-const SEARCH_MAX_COLUMNS := 7 ## cards per row in the search window
 const SEARCH_MAX_CARD_SCALE := 1.835 ## few cards: they are shown at most this big (1.0 = a card on the table)
 const SEARCH_SIDE_ROOM := 160.0 ## stage width kept free around the cards (panel margins and borders)
-const SEARCH_VERTICAL_ROOM := 330.0 ## stage height kept free for title, texts and the minimize button
+const SEARCH_VERTICAL_ROOM := 440.0 ## stage height kept free for title, texts, scrollbar, deck map and buttons
+const SEARCH_CARD_GAP := 12.0 ## space between two cards of the strip
+const SEARCH_ROW_MARGIN := 10.0 ## space around the strip, so a glowing card is not cut at the edges
+const SEARCH_SCROLLBAR_HEIGHT := 16.0
+const SEARCH_DRAG_CLICK_GUARD_MSEC := 250 ## taps this soon after a scroll are not picks
+
+## True right after the strip was scrolled (finger swipe, wheel, arrow): the tap that ends a swipe must not pick a card.
+func _search_just_scrolled() -> bool:
+	return Time.get_ticks_msec() - search_drag_ms < SEARCH_DRAG_CLICK_GUARD_MSEC
+
+## Wheel and finger-drag scrolling of the pick window's strip: the cards swallow those events before the ScrollContainer sees them.
+func _search_scroll_input(e: InputEvent) -> bool:
+	if not is_instance_valid(search_scroll) or overlay:
+		return false
+	if e is InputEventMouseButton and e.pressed and e.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]:
+		var forward: bool = e.button_index == MOUSE_BUTTON_WHEEL_DOWN or e.button_index == MOUSE_BUTTON_WHEEL_RIGHT
+		search_scroll.scroll_horizontal += int(search_scroll.get_meta("wheel_step", 120)) * (1 if forward else -1)
+		search_drag_ms = Time.get_ticks_msec()
+		return true
+	if e is InputEventScreenDrag:
+		var xf := search_scroll.get_global_transform_with_canvas()
+		var local: Vector2 = xf.affine_inverse() * e.position
+		if not Rect2(Vector2.ZERO, search_scroll.size).has_point(local):
+			return false
+		search_scroll.scroll_horizontal -= int(e.relative.x / xf.get_scale().x)
+		search_drag_ms = Time.get_ticks_msec()
+		return true
+	return false
+
+## Gold themed bars for the pick window's strip.
+func _style_search_scrollbar(scroll: ScrollContainer) -> void:
+	var bar := scroll.get_h_scroll_bar()
+	bar.custom_minimum_size.y = SEARCH_SCROLLBAR_HEIGHT
+	bar.add_theme_stylebox_override("scroll", UITheme.box(Color(1, 1, 1, 0.10), 8))
+	bar.add_theme_stylebox_override("grabber", UITheme.box(Color(UITheme.GOLD, 0.75), 8))
+	bar.add_theme_stylebox_override("grabber_highlight", UITheme.box(UITheme.GOLD_LIGHT, 8))
+	bar.add_theme_stylebox_override("grabber_pressed", UITheme.box(UITheme.GOLD_LIGHT, 8))
+
+## Tells the player where the cards that glow are when the strip is wider than the screen: pulsing gold arrows
+## at both edges (with how many glowing cards hide on that side; a tap jumps to the nearest one) and a map of the
+## whole strip below it (gold ticks = glowing cards, outlined box = what is on screen; a tap jumps there).
+## `deck_ends` labels the map TOPO / FUNDO (the strip shows the deck in its order, top first).
+func _add_search_scroll_guides(box: VBoxContainer, stage: Control, scroll: ScrollContainer, eligible_flags: Array[bool],
+		card_stride: float, card_width: float, viewport_width: float, deck_ends: bool) -> void:
+	var strip_width := (viewport_width - 2.0 * SEARCH_ROW_MARGIN) # card_row width + margins is the scrolled content
+	var content_width := eligible_flags.size() * card_stride - SEARCH_CARD_GAP + 2.0 * SEARCH_ROW_MARGIN
+	var nearest := {"left": -1, "right": -1} # index of the closest glowing card hidden on each side
+	var arrow_size := Vector2(120, 64)
+	var arrows := {}
+	for side in ["left", "right"]:
+		var arrow := _button("", func(): _scroll_search_to_card(scroll, nearest[side], card_stride, card_width, viewport_width), true)
+		arrow.custom_minimum_size = arrow_size
+		arrow.size = arrow_size
+		arrow.position = Vector2(8.0 if side == "left" else viewport_width - arrow_size.x - 8.0, (stage.custom_minimum_size.y - arrow_size.y) / 2.0)
+		arrow.add_theme_font_size_override("font_size", 26)
+		arrow.visible = false
+		stage.add_child(arrow)
+		var pulse := arrow.create_tween().set_loops()
+		pulse.tween_property(arrow, "modulate", Color(1.55, 1.3, 0.75), 0.5)
+		pulse.tween_property(arrow, "modulate", Color.WHITE, 0.5)
+		arrows[side] = arrow
+	var map_row := HBoxContainer.new()
+	map_row.add_theme_constant_override("separation", 10)
+	map_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	if deck_ends:
+		map_row.add_child(_label("TOPO", 16, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_RIGHT, "bold"))
+	var map := Control.new()
+	map.custom_minimum_size = Vector2(maxf(120.0, strip_width - (170.0 if deck_ends else 0.0)), 28)
+	map.mouse_filter = Control.MOUSE_FILTER_STOP
+	map_row.add_child(map)
+	if deck_ends:
+		map_row.add_child(_label("FUNDO", 16, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_LEFT, "bold"))
+	box.add_child(map_row)
+	map.draw.connect(func():
+		var width := map.size.x
+		map.draw_rect(Rect2(0, 10, width, 8), Color(1, 1, 1, 0.12))
+		for index in eligible_flags.size():
+			if eligible_flags[index]:
+				var tick_x := (SEARCH_ROW_MARGIN + index * card_stride + card_width / 2.0) / content_width * width
+				map.draw_rect(Rect2(tick_x - 3.0, 2, 6, 24), UITheme.GOLD_LIGHT)
+		var seen_left := scroll.scroll_horizontal / content_width * width
+		map.draw_rect(Rect2(seen_left, 4, viewport_width / content_width * width, 20), Color(UITheme.GOLD, 0.9), false, 2.0))
+	map.gui_input.connect(func(event: InputEvent):
+		var pressing: bool = event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT
+		var dragging: bool = event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0
+		if pressing or dragging:
+			scroll.scroll_horizontal = int(event.position.x / map.size.x * content_width - viewport_width / 2.0)
+			search_drag_ms = Time.get_ticks_msec())
+	var refresh := func():
+		var seen_from: float = scroll.scroll_horizontal
+		var counts := {"left": 0, "right": 0}
+		nearest["left"] = -1
+		nearest["right"] = -1
+		for index in eligible_flags.size():
+			if not eligible_flags[index]:
+				continue
+			var card_left := SEARCH_ROW_MARGIN + index * card_stride
+			if card_left + card_width <= seen_from + 4.0:
+				counts["left"] += 1
+				nearest["left"] = index # the last one found is the closest to the screen
+			elif card_left >= seen_from + viewport_width - 4.0:
+				counts["right"] += 1
+				if nearest["right"] == -1:
+					nearest["right"] = index
+		for side in ["left", "right"]:
+			var arrow: Button = arrows[side]
+			arrow.visible = counts[side] > 0
+			arrow.text = "◀  %d" % counts[side] if side == "left" else "%d  ▶" % counts[side]
+		map.queue_redraw()
+	scroll.get_h_scroll_bar().value_changed.connect(func(_value): refresh.call())
+	refresh.call()
+
+## Slides the strip so card number `index` is centered; a short glide, so the player sees what was skipped.
+func _scroll_search_to_card(scroll: ScrollContainer, index: int, card_stride: float, card_width: float, viewport_width: float) -> void:
+	if index < 0 or not is_instance_valid(scroll):
+		return
+	search_drag_ms = Time.get_ticks_msec()
+	var target := int(SEARCH_ROW_MARGIN + index * card_stride - (viewport_width - card_width) / 2.0)
+	scroll.create_tween().tween_property(scroll, "scroll_horizontal", maxi(target, 0), 0.35).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 func _render_search_reveal() -> void:
 	if g.pending_search.is_empty():
@@ -4194,12 +4315,14 @@ func _render_search_reveal() -> void:
 	if search_minimized_signature == search_signature or opponent_choice_is_folded:
 		_render_search_minimized(title, not _my_input())
 		return
+	search_scroll = null
 	search_overlay = _veil(0.84)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
 	search_overlay.add_child(box)
 	box.add_child(_label(title, 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
 	var grave: bool = g.pending_search.get("grave", false)
+	var whole_deck: bool = g.pending_search.get("whole_deck", false) # a search of the whole deck: it is shown in full, in order
 	var sub := "%s está procurando uma carta no deck" % _pname(owner)
 	if deck_search and _my_input():
 		sub = "Você procurou no deck e encontrou estas cartas; as que brilham podem ser escolhidas"
@@ -4208,8 +4331,15 @@ func _render_search_reveal() -> void:
 				sub = "Você olhou as %d cartas do topo do deck e nenhuma pode ser escolhida" % int(g.pending_search["looked"])
 			else:
 				sub = "Você olhou as %d cartas do topo do deck; escolha uma das que brilham" % int(g.pending_search["looked"])
+		elif whole_deck:
+			if g.pending_search.get("cards", []).is_empty():
+				sub = "Você olhou o deck inteiro, na ordem em que estava, e nenhuma carta pode ser escolhida"
+			else:
+				sub = "Você olhou o deck inteiro, na ordem em que estava; escolha uma das que brilham"
 	if secret_search and g.pending_search.has("to_bottom"):
 		sub = "%s está olhando as %d cartas do topo do deck" % [_pname(owner), int(g.pending_search["looked"])]
+	elif secret_search and whole_deck:
+		sub = "%s está olhando o deck inteiro" % _pname(owner)
 	if hand_summon:
 		sub = "%s escolhe um campeão da mão para entrar em campo (será banido no fim do turno)" % _pname(owner)
 	elif discard_hand:
@@ -4225,30 +4355,54 @@ func _render_search_reveal() -> void:
 		elif g.pending_search.has("looked_cards"):
 			sub = "%s está revelando as cartas do topo do deck" % _pname(owner)
 	box.add_child(_label(sub, 20, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
-	var grid := GridContainer.new()
 	var shown_options: Array = [] if secret_search else g.pending_search["cards"]
-	# a top-N look shows every card looked at: the eligible ones glow and can be picked, the others are dimmed
+	# a top-N look and a whole-deck search show every card looked at: the eligible ones glow and can be picked, the others are dimmed
 	var looked_cards: Array = g.pending_search.get("looked_cards", [])
 	var eligible_uids: Dictionary = {}
 	for option in shown_options:
 		eligible_uids[int(option["uid"])] = true
 	if not secret_search and not looked_cards.is_empty():
 		shown_options = looked_cards
-	# big enough to read the card text: as wide as the stage allows in one row of up to 7 cards, and
-	# short enough that every row still fits on the screen
-	const GRID_GAP := 12
-	var grid_columns := maxi(1, mini(SEARCH_MAX_COLUMNS, shown_options.size()))
-	var grid_rows := maxi(1, ceili(float(shown_options.size()) / grid_columns))
-	var scale_that_fits_width := (stage_w - SEARCH_SIDE_ROOM - GRID_GAP * (grid_columns - 1)) / grid_columns / CardView.BASE.x
-	var scale_that_fits_height := (STAGE_H + BOT - SEARCH_VERTICAL_ROOM - GRID_GAP * (grid_rows - 1)) / grid_rows / CardView.BASE.y
-	var card_scale := minf(SEARCH_MAX_CARD_SCALE, minf(scale_that_fits_width, scale_that_fits_height))
-	var grid_width := grid_columns * CardView.BASE.x * card_scale + GRID_GAP * (grid_columns - 1)
-	box.custom_minimum_size = Vector2(maxf(1115.0, grid_width), 0)
-	grid.columns = grid_columns
-	grid.add_theme_constant_override("h_separation", GRID_GAP)
-	grid.add_theme_constant_override("v_separation", GRID_GAP)
-	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	box.add_child(grid)
+	# every pick window is ONE row of cards, big enough to read the card text; a row wider than the screen
+	# scrolls sideways instead of wrapping into more lines or shrinking the cards
+	var card_scale := minf(SEARCH_MAX_CARD_SCALE, (STAGE_H + BOT - SEARCH_VERTICAL_ROOM) / CardView.BASE.y)
+	var room_for_row := stage_w - SEARCH_SIDE_ROOM
+	card_scale = minf(card_scale, room_for_row / CardView.BASE.x) # at least one whole card is always on screen
+	var card_size := (CardView.BASE * card_scale).round()
+	var card_stride := card_size.x + SEARCH_CARD_GAP
+	var row_width := shown_options.size() * card_stride - SEARCH_CARD_GAP + 2.0 * SEARCH_ROW_MARGIN
+	var row_overflows := row_width > room_for_row
+	box.custom_minimum_size = Vector2(maxf(1115.0, minf(row_width, room_for_row)), 0)
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var scrollbar_height := SEARCH_SCROLLBAR_HEIGHT if row_overflows else 0.0
+	var window_size := Vector2(minf(row_width, room_for_row), card_size.y + 2.0 * SEARCH_ROW_MARGIN + scrollbar_height)
+	scroll.custom_minimum_size = window_size
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_style_search_scrollbar(scroll)
+	# the cards swallow wheel and finger events, so _search_scroll_input slides the strip (one card per wheel notch)
+	scroll.set_meta("wheel_step", int(card_stride))
+	search_scroll = scroll
+	var row_margin := MarginContainer.new()
+	row_margin.add_theme_constant_override("margin_left", int(SEARCH_ROW_MARGIN))
+	row_margin.add_theme_constant_override("margin_right", int(SEARCH_ROW_MARGIN))
+	row_margin.add_theme_constant_override("margin_top", int(SEARCH_ROW_MARGIN))
+	row_margin.add_theme_constant_override("margin_bottom", int(SEARCH_ROW_MARGIN))
+	var card_row := HBoxContainer.new()
+	card_row.add_theme_constant_override("separation", int(SEARCH_CARD_GAP))
+	row_margin.add_child(card_row)
+	scroll.add_child(row_margin)
+	var scroll_stage := Control.new() # the scroll window plus the arrows that float over its edges
+	scroll_stage.custom_minimum_size = window_size
+	scroll_stage.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	scroll_stage.add_child(scroll)
+	box.add_child(scroll_stage)
+	var eligible_flags: Array[bool] = []
+	for option in shown_options:
+		eligible_flags.append(eligible_uids.has(int(option["uid"])) and _my_input())
+	if row_overflows and eligible_flags.has(true):
+		_add_search_scroll_guides(box, scroll_stage, scroll, eligible_flags, card_stride, card_size.x, window_size.x, whole_deck or g.pending_search.has("to_bottom"))
 	for option in shown_options:
 		var card_uid: int = option["uid"]
 		var eligible: bool = eligible_uids.has(card_uid)
@@ -4264,25 +4418,29 @@ func _render_search_reveal() -> void:
 			cv.highlight = OK # a glow marks what can be clicked, for every kind of choice
 		elif not eligible:
 			cv.modulate = Color(1, 1, 1, 0.4)
-		cv.right_clicked.connect(_show_overlay)
+		# a swipe along the strip is not a tap nor a long-press: a pick can't be undone
+		cv.right_clicked.connect(func(view): if not _search_just_scrolled(): _show_overlay(view))
 		if can_pick:
-			cv.left_clicked.connect(func(_v): _on_search_choice(card_uid))
-		grid.add_child(cv)
+			cv.left_clicked.connect(func(_v): if not _search_just_scrolled(): _on_search_choice(card_uid))
+		card_row.add_child(cv)
 	var summon_hint := "Clique na carta que brilha para invocá-la de graça, ou escolha não invocar nenhuma."
 	if g.pending_search.has("looked_cards") and g.pending_search.get("leftover", "bottom") == "bottom":
 		summon_hint += " As outras cartas reveladas vão para o fundo do deck."
 	var grave_optional: bool = g.pending_search.get("grave_optional", false) # "grave_to_hand" (Rebobinar): the pick may be skipped
-	var hint := summon_hint if summoning else "Clique em uma carta para levá-la à sua mão, ou escolha não pegar nenhuma; as outras ficam no cemitério." if grave_optional else "Clique em um campeão para colocá-lo em campo sem pagar o custo, ou escolha não colocar nenhum." if hand_summon else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else ("Escolha 1 para a mão; as outras continuam onde estavam no fundo do deck." if g.pending_search.get("from_bottom", false) else "Escolha 1 para a mão; as outras vão para o fundo do deck.") if look else ("Nenhuma das cartas olhadas pode ser escolhida; o deck será embaralhado." if g.pending_search.get("cards", []).is_empty() else "Clique em uma carta que brilha para adicioná-la à sua mão; as outras vão para o fundo do deck.") if g.pending_search.has("to_bottom") else "Clique em uma carta que brilha para adicioná-la à sua mão e embaralhar o deck, ou escolha não pegar nenhuma."
+	var whole_deck_hint := "Nenhuma carta do deck pode ser escolhida; o deck será embaralhado." if g.pending_search.get("cards", []).is_empty() else "Clique em uma carta que brilha para adicioná-la à sua mão; depois o deck é embaralhado."
+	if row_overflows and whole_deck:
+		whole_deck_hint += " Deslize para o lado para ver o deck todo."
+	var hint := summon_hint if summoning else "Clique em uma carta para levá-la à sua mão, ou escolha não pegar nenhuma; as outras ficam no cemitério." if grave_optional else "Clique em um campeão para colocá-lo em campo sem pagar o custo, ou escolha não colocar nenhum." if hand_summon else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else ("Escolha 1 para a mão; as outras continuam onde estavam no fundo do deck." if g.pending_search.get("from_bottom", false) else "Escolha 1 para a mão; as outras vão para o fundo do deck.") if look else ("Nenhuma das cartas olhadas pode ser escolhida; o deck será embaralhado." if g.pending_search.get("cards", []).is_empty() else "Clique em uma carta que brilha para adicioná-la à sua mão; as outras vão para o fundo do deck.") if g.pending_search.has("to_bottom") else whole_deck_hint if whole_deck else "Clique em uma carta que brilha para adicioná-la à sua mão e embaralhar o deck, ou escolha não pegar nenhuma."
 	var footer := _label(hint if _my_input() else "A escolha pertence ao oponente.", 18, SEL if _my_input() else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 	box.add_child(footer)
 	if not secret_search:
 		box.add_child(_label("Botão direito (ou segurar o dedo) em uma carta abre ela em tela cheia.", 15, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
-	# a top-N look is mandatory when a card is eligible: its only button is the way out of a whiff
-	var mandatory_top_look: bool = g.pending_search.has("to_bottom") and not g.pending_search.get("cards", []).is_empty()
-	if (hand_summon or deck_search or summoning or grave_optional) and _my_input() and not mandatory_top_look:
+	# a top-N look and a whole-deck search are mandatory when a card is eligible: their only button is the way out of a whiff
+	var mandatory_deck_look: bool = (g.pending_search.has("to_bottom") or whole_deck) and not g.pending_search.get("cards", []).is_empty()
+	if (hand_summon or deck_search or summoning or grave_optional) and _my_input() and not mandatory_deck_look:
 		# these picks are optional: uid 0 means "take no card" (Dona Gertrudes puts no champion in play)
-		# in a top-N search that found nothing, the button shuffles the deck
-		var skip_text := "NÃO INVOCAR NENHUMA" if summoning else "NÃO COLOCAR NENHUM" if hand_summon else "EMBARALHAR O DECK" if g.pending_search.has("to_bottom") and not grave_optional else "NÃO PEGAR NENHUMA"
+		# in a deck search that found nothing, the button shuffles the deck
+		var skip_text := "NÃO INVOCAR NENHUMA" if summoning else "NÃO COLOCAR NENHUM" if hand_summon else "EMBARALHAR O DECK" if (g.pending_search.has("to_bottom") or whole_deck) and not grave_optional else "NÃO PEGAR NENHUMA"
 		var skip_button := _button(skip_text, func(): _on_search_choice(0))
 		skip_button.custom_minimum_size = Vector2(360, 52)
 		skip_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
