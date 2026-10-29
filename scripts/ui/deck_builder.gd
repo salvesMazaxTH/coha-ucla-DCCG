@@ -1419,7 +1419,9 @@ func _coach_notes() -> Array[Dictionary]:
 	var burn := 0
 	var targeted_removal := 0 # one enemy unit at a time
 	var area_removal := 0 # affects every/each enemy unit
-	var draw := 0
+	var unrestricted_targeted_removal := 0
+	var unrestricted_global_removal := 0
+	var card_selection := 0
 	var species: Dictionary = {}
 	var incarnation := _incarnation_id
 	for card_id in _cards:
@@ -1447,28 +1449,48 @@ func _coach_notes() -> Array[Dictionary]:
 			species[String(specie)] = int(species.get(String(specie), 0)) + copies
 		var has_targeted_removal := false
 		var has_area_removal := false
-		var has_draw := false
+		var has_unrestricted_targeted_removal := false
+		var has_unrestricted_global_removal := false
+		var has_card_selection := false
 		var has_burn := false
-		for effect in card.get("effects", []):
+		var effects: Array = card.get("effects", []).duplicate()
+		var activated: Dictionary = card.get("activated", {})
+		effects.append_array(activated.get("effects", []))
+		for effect in effects:
 			var action := String(effect.get("action", ""))
 			var target := String(effect.get("target", ""))
-			if action == "draw":
-				has_draw = true
-			# "all_enemy_units" (Tempestade Estática) and future all_* targets are AoE;
-			# a single target such as any_unit is a punctual answer.
-			if (action == "destroy" or action == "damage") and target.contains("unit"):
-				if target.begins_with("all_") or target.begins_with("each_"):
+			if action in ["draw", "search_deck", "look_top", "look_bottom"]:
+				has_card_selection = true
+			var is_group_target := target.begins_with("all_") or target.begins_with("each_") \
+					or target.begins_with("other_") or target.begins_with("center_")
+			var removes_units := action in ["destroy", "banish", "damage"] and target.contains("unit")
+			if removes_units:
+				if is_group_target:
 					has_area_removal = true
+					var is_global_target := target in ["all_enemy_units", "all_units", "other_units"]
+					var has_group_restriction := not effect.get("unit_filter", {}).is_empty() \
+							or String(effect.get("unit_state", "")) != ""
+					if is_global_target and not has_group_restriction:
+						has_unrestricted_global_removal = true
 				else:
 					has_targeted_removal = true
+					var is_broad_target := target in ["enemy_unit", "any_unit", "any"]
+					var has_target_restriction := int(effect.get("max_target_cost", -1)) >= 0 \
+							or not effect.get("requires_markers", {}).is_empty()
+					if action in ["destroy", "banish"] and is_broad_target and not has_target_restriction:
+						has_unrestricted_targeted_removal = true
 			if action == "damage" and (target == "enemy_leader" or target == "both_leaders"):
 				has_burn = true
-		if has_draw:
-			draw += copies
+		if has_card_selection:
+			card_selection += copies
 		if has_targeted_removal:
 			targeted_removal += copies
 		if has_area_removal:
 			area_removal += copies
+		if has_unrestricted_targeted_removal:
+			unrestricted_targeted_removal += copies
+		if has_unrestricted_global_removal:
+			unrestricted_global_removal += copies
 		if has_burn:
 			burn += copies
 	var plan_name: String = String({"aggro": "Aggro", "midrange": "Midrange", "control": "Control", "combo": "Combo", "unsure": "exploração"}.get(_assistant_profile, ""))
@@ -1476,10 +1498,19 @@ func _coach_notes() -> Array[Dictionary]:
 	if total < 12:
 		notes.append({"text": "Ainda há poucas cartas para julgar a estratégia (%d/12). Continue montando; as dicas mais fortes aparecem quando a base do deck existir." % total, "color": INFO, "tag": "EM ANÁLISE"})
 		return notes
+	if _assistant_profile != "control" and unrestricted_targeted_removal < 2:
+		notes.append({"text": "Normalmente, recomenda-se ter pelo menos 2 cópias de remoção direta irrestrita; o deck tem %d." % unrestricted_targeted_removal, "color": WARN, "tag": "MÉDIO"})
+	if unrestricted_global_removal < 1:
+		notes.append({"text": "Normalmente, recomenda-se ter pelo menos 1 cópia de remoção global irrestrita; o deck tem %d." % unrestricted_global_removal, "color": WARN, "tag": "MÉDIO"})
+	if card_selection < 1:
+		notes.append({"text": "Normalmente, recomenda-se ter pelo menos 1 forma de comprar ou selecionar uma carta do deck para a mão; o deck tem %d." % card_selection, "color": WARN, "tag": "MÉDIO"})
 	match _assistant_profile:
 		"aggro":
-			if cheap < maxi(8, ceili(total * 0.35)):
+			var cheap_grave_threshold := maxi(8, ceili(total * 0.35))
+			if cheap < cheap_grave_threshold:
 				notes.append({"text": "Seu aggro tem poucas jogadas baratas (%d). Sem presença nos turnos iniciais, ele perde seu maior ponto forte." % cheap, "color": BAD, "tag": "MUITO GRAVE"})
+			elif cheap < maxi(10, ceili(total * 0.45)):
+				notes.append({"text": "O aggro já tem alguma presença inicial, mas %d cartas baratas ainda deixam pouco espaço para pressionar cedo." % cheap, "color": WARN, "tag": "MÉDIO"})
 			if expensive > ceili(total * 0.25):
 				notes.append({"text": "A curva está pesada para aggro: %d cartas custam 6 ou mais. Troque parte delas por pressão cedo." % expensive, "color": WARN, "tag": "MÉDIO"})
 			if _assistant_focus == "burn":
@@ -1488,32 +1519,41 @@ func _coach_notes() -> Array[Dictionary]:
 				elif burn < 4:
 					notes.append({"text": "Há só %d cartas de dano direto. Um burn mais confiável normalmente precisa de mais formas de fechar a partida." % burn, "color": WARN, "tag": "MÉDIO"})
 		"midrange":
-			if middle < ceili(total * 0.40):
+			var middle_grave_threshold := ceili(total * 0.40)
+			if middle < middle_grave_threshold:
 				notes.append({"text": "Faltam cartas de custo 3 a 5 (%d). Midrange precisa ocupar bem o meio da partida." % middle, "color": BAD, "tag": "GRAVE"})
+			elif middle < ceili(total * 0.50):
+				notes.append({"text": "A curva de meio de jogo está quase lá, mas %d cartas de custo 3 a 5 podem deixar alguns turnos sem pressão." % middle, "color": WARN, "tag": "MÉDIO"})
 			if cheap < 4:
 				notes.append({"text": "Poucas cartas baratas podem fazer você perder o tabuleiro antes das ameaças médias chegarem.", "color": WARN, "tag": "MÉDIO"})
 		"control":
-			var total_removal := targeted_removal + area_removal
-			if targeted_removal < 2:
-				notes.append({"text": "Control precisa de respostas pontuais: há %d remoções diretas e %d em área. Remoção em área não resolve uma ameaça grande sozinha." % [targeted_removal, area_removal], "color": BAD, "tag": "GRAVE"})
-			elif total_removal < 3:
-				notes.append({"text": "Há poucas respostas no total (%d pontuais + %d em área). Adicione mais remoções para o plano control ser confiável." % [targeted_removal, area_removal], "color": WARN, "tag": "MÉDIO"})
-			if draw < 2:
-				notes.append({"text": "Há pouca compra de cartas (%d). Sem reposição, control pode ficar sem respostas no fim da partida." % draw, "color": WARN, "tag": "MÉDIO"})
-			if _assistant_focus == "late" and late_threats < 3:
-				notes.append({"text": "Você escolheu vencer no fim de jogo, mas há só %d criaturas grandes (custo 6+). Inclua mais finalizadores para transformar o controle da mesa em vitória." % late_threats, "color": BAD, "tag": "GRAVE"})
+			if unrestricted_targeted_removal < 2:
+				notes.append({"text": "Control precisa de respostas pontuais confiáveis: há %d remoções diretas irrestritas. Normalmente, pelo menos 2 cópias são recomendáveis." % unrestricted_targeted_removal, "color": BAD, "tag": "GRAVE"})
+			elif unrestricted_targeted_removal < 4:
+				notes.append({"text": "O deck já tem respostas pontuais, mas %d cópias ainda podem ser pouco para um plano control consistente." % unrestricted_targeted_removal, "color": WARN, "tag": "MÉDIO"})
+			if card_selection > 0 and card_selection < 3:
+				notes.append({"text": "Control ganha consistência com mais formas de comprar ou selecionar cartas; há só %d." % card_selection, "color": WARN, "tag": "MÉDIO"})
+			if _assistant_focus == "late":
+				if late_threats < 3:
+					notes.append({"text": "Você escolheu vencer no fim de jogo, mas há só %d criaturas grandes (custo 6+). Inclua mais finalizadores para transformar o controle da mesa em vitória." % late_threats, "color": BAD, "tag": "GRAVE"})
+				elif late_threats < 7:
+					notes.append({"text": "O plano de fim de jogo já tem %d criaturas grandes, mas pode faltar uma margem de finalizadores para fechar partidas longas com consistência." % late_threats, "color": WARN, "tag": "MÉDIO"})
 		"combo":
 			if _assistant_focus == "spells":
 				if spells < 6:
 					notes.append({"text": "Um combo de efeitos ainda tem poucas magias (%d). Defina as peças e inclua meios de encontrá-las." % spells, "color": BAD, "tag": "GRAVE"})
-				if draw < 3:
-					notes.append({"text": "Combos precisam de consistência: só %d cartas compram cartas. Procure mais formas de achar suas peças." % draw, "color": WARN, "tag": "MÉDIO"})
+				elif spells < 9:
+					notes.append({"text": "O plano de combo já tem algumas magias, mas %d ainda pode ser pouco para encontrar as peças com regularidade." % spells, "color": WARN, "tag": "MÉDIO"})
+				if card_selection > 0 and card_selection < 3:
+					notes.append({"text": "Combos precisam de consistência: só %d cartas compram ou selecionam cartas. Procure mais formas de achar suas peças." % card_selection, "color": WARN, "tag": "MÉDIO"})
 			else:
 				var dominant := 0
 				for specie in species:
 					dominant = maxi(dominant, int(species[specie]))
 				if dominant < 8:
 					notes.append({"text": "A sinergia de tribo ainda não apareceu: a espécie mais presente ocupa só %d cartas. Concentre mais o deck numa espécie." % dominant, "color": BAD, "tag": "GRAVE"})
+				elif dominant < 12:
+					notes.append({"text": "A espécie principal já aparece em %d cartas, mas mais cópias podem deixar a sinergia de tribo mais consistente." % dominant, "color": WARN, "tag": "MÉDIO"})
 		"unsure":
 			if cheap < 4:
 				notes.append({"text": "Dica de iniciante: coloque algumas cartas de custo 0 a 2 para ter o que jogar cedo.", "color": WARN, "tag": "DICA"})
