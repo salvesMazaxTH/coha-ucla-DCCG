@@ -650,7 +650,16 @@ func _scale_count(p: int, e: Dictionary, self_card: Card = null) -> int:
 		"enemy_graveyard_units": return graveyard_units(opponent(p))
 		"own_artifacts": return artifact_count(p)
 		"own_graveyard_cards": return players[p]["graveyard"].size() / maxi(1, int(e.get("divisor", 1)))
+		"own_graveyard_artifacts": return graveyard_artifacts(p) / maxi(1, int(e.get("divisor", 1)))
 	return 0
+
+## Artifacts sitting in player p's graveyard (Zulmira Ferro-Velho grows with them).
+func graveyard_artifacts(p: int) -> int:
+	var n := 0
+	for entry: Card in players[p]["graveyard"]:
+		if CardDB.card(entry.card_id).get("type", "") == "artifact":
+			n += 1
+	return n
 
 ## Units of player p on the board that are the card `card_id`, not counting `except_card` itself.
 ## Elefante Incomodante prints 1/1 and adds +1/+1 per OTHER copy, so its stats equal how many copies are in play.
@@ -2184,7 +2193,7 @@ func set_auto_pass(p: int, on: bool) -> Array:
 ## matters for adjacency (Armadura from neighbours, "random_enemy_and_adjacent", ...).
 ## respond: the unit was played (hand or Santuário), so its Ao Entrar goes on the stack as an item the
 ## opponent may answer with an Instantâneo (it cannot be countered) instead of resolving at once.
-func _summon(p: int, c: Card, incarnation: bool, target: int, over: Dictionary = {}, ask := false, slot := -1, respond := false) -> void:
+func _summon(p: int, c: Card, incarnation: bool, target: int, over: Dictionary = {}, ask := false, slot := -1, respond := false, suppress_enter := false) -> void:
 	var uid := c.uid
 	var card_id := c.card_id
 	c.owner = p
@@ -2208,6 +2217,8 @@ func _summon(p: int, c: Card, incarnation: bool, target: int, over: Dictionary =
 	# Provocação: on any entry its controller chooses whether it enters tapped (asked once things settle)
 	if has_kw(c, "provocacao") and not has_kw(c, "inerte"):
 		pending_tap.append(uid)
+	if suppress_enter:
+		return # suppress_enter: the unit is on the field but its own Ao Entrar does not run (an identical copy, summon_copy)
 	var spec := enter_spec(cd)
 	var enter_options: Array = valid_targets(p, spec, uid, false, cd.get("effects", [])) if spec != "" else []
 	if _enter_pick_is_moot(p, cd.get("effects", [])):

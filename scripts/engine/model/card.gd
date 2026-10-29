@@ -87,6 +87,16 @@ var durability_uses := 0 ## firings of an effect with "durability_every_uses" si
 var stat_sources: Array = []
 var stored_momentum := 0 ## Momentum held by an artifact with "momentum_store": N (Bateria de Segunda Mão); lost when it leaves the field
 
+## Fields copy_modifiers_from leaves alone: who the card is and where it is, what only matters in other zones, and
+## what a unit DID (not what was done to it).
+const NOT_COPIED_FIELDS := ["uid", "card_id", "owner", "zone", "over", "incarnation", "equipped_cards", "worn_grant",
+		"discount", "turn_discount", "cost_mod", "banish_after_cast", "banish_at_turn_end",
+		"pending_self_revive_turn", "pending_self_revive_atk", "pending_self_revive_hp",
+		"exhausted", "sick", "attacks_made", "used_turn", "capped_uses", "conditional_uses_turn", "conditional_uses",
+		"trigger_counts", "dodge_turn", "activated_turn", "vipranna_heal_turn", "vipranna_heal_total",
+		"vipranna_heal_locked", "leader_damage_guard_turn", "death_ward_armed", "durability_used", "durability_uses",
+		"stored_momentum"]
+
 ## Card-data fields that are an ability or a keyword's number: silence() deletes them from the unit.
 const SILENCED_FIELDS := ["activated", "transform", "rapidez", "critico", "armor", "adjacent_armor", "esquiva", "inert", "imune_critico",
 		"critico_growth", "critico_maximo", "toxico_level", "toxico_equals_attack", "toxico_ignores_immunity",
@@ -130,6 +140,23 @@ func effect_list() -> Array:
 	if over.has("effects"):
 		return EffectRegistry.parse_list(over["effects"])
 	return CardDB.def(card_id).effects()
+
+## Makes this card carry every modifier `source` carries right now, good or bad: buffs, damage, Armadura, shields,
+## keywords (permanent and temporary), Congelada / Atordoamento / Condenada, periodic-status markers, stat sources...
+## It reads every script variable of Card, so a modifier added to Card later is copied without touching this method.
+## Not copied: identity (uid, owner, zone, overrides, equipment list; the caller handles those) and what the unit did
+## this turn (tapped, summoning sickness, attacks made, effect uses), because the copy has just arrived.
+func copy_modifiers_from(source: Card) -> void:
+	for property in get_property_list():
+		if not (int(property["usage"]) & PROPERTY_USAGE_SCRIPT_VARIABLE):
+			continue
+		var property_name: String = property["name"]
+		if NOT_COPIED_FIELDS.has(property_name):
+			continue
+		var value: Variant = source.get(property_name)
+		if value is Array or value is Dictionary:
+			value = value.duplicate(true)
+		set(property_name, value)
 
 ## Puts fresh board state on the card as it enters the board.
 func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:

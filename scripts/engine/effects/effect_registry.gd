@@ -42,6 +42,7 @@ static var ACTIONS: Dictionary = {
 	"fight": FightEffect,
 	"summon": SummonEffect,
 	"summon_from": SummonFromEffect,
+	"summon_copy": SummonCopyEffect,
 	"put_artifact": PutArtifactEffect,
 	"equip_table_artifact": EquipTableArtifactEffect,
 	"equip_self": EquipSelfEffectScript,

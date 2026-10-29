@@ -16,6 +16,7 @@ func _init() -> void:
 	_test_flavor()
 	_test_cristal_do_poder_equipado()
 	_test_porca_frouxa_herda_equipamento()
+	_test_zulmira_ferro_velho()
 	_test_art_crop()
 	_test_sfx()
 	_test_off_essence()
@@ -380,6 +381,42 @@ func _test_cristal_do_poder_equipado() -> void:
 	check(g.artifact_count(a) == 1, "cristal equipado: continua contando como artefato")
 	g.stack_system().remove_equipment_bonus(montadora, cristal)
 	check(montadora.atk == 2, "cristal equipado: ao sair, o bônus é devolvido")
+
+## Zulmira Ferro-Velho: gets +1 Ataque per 2 artifacts in her owner's graveyard, and her Ao Ativar takes one of
+## those artifacts back to hand for 1 more (she exhausts; the player may also decline).
+func _test_zulmira_ferro_velho() -> void:
+	var g := _new_game()
+	_quiet(g)
+	var a := g.active
+	var zulmira := _put(g, a, "zulmira_ferro_velho")
+	check(g.atk_of(zulmira) == 2, "zulmira: sem artefatos no cemitério, fica com o Ataque base (2)")
+	var graveyard_cards: Array = []
+	for artifact_id in ["engrenagem_solta", "nucleo_de_geodo", "cristal_do_poder"]:
+		var artifact := Card.new(g._uid(), artifact_id, a, "graveyard")
+		g.players[a]["graveyard"].append(artifact)
+		graveyard_cards.append(artifact)
+	g.players[a]["graveyard"].append(Card.new(g._uid(), "tyren", a, "graveyard")) # a unit: not counted
+	g._check_state()
+	check(g.graveyard_artifacts(a) == 3 and g.atk_of(zulmira) == 3, "zulmira: 3 artefatos no cemitério dão +1 de Ataque (a unidade não conta)")
+	g.players[a]["graveyard"].append(Card.new(g._uid(), "placa_espelhada_de_adamantina", a, "graveyard"))
+	g._check_state()
+	check(g.atk_of(zulmira) == 4, "zulmira: 4 artefatos no cemitério dão +2 de Ataque")
+
+	# Ao Ativar: pick the Cristal, it returns to hand costing 1 more, and she exhausts
+	g.players[a]["momentum"] = 3
+	var hand_before: int = g.players[a]["hand"].size()
+	g.activate(a, zulmira.uid)
+	g._flush()
+	check(g.phase == "search", "zulmira: o Ao Ativar abre a escolha de um artefato do cemitério")
+	var offered: Array = g.pending_search["cards"]
+	check(offered.size() == 4, "zulmira: só os 4 artefatos são oferecidos (a unidade não)")
+	var cristal: Card = graveyard_cards[2]
+	g.choose_search(a, cristal.uid)
+	g._flush()
+	check(g.players[a]["hand"].has(cristal) and g.players[a]["hand"].size() == hand_before + 1, "zulmira: o artefato escolhido vai para a mão")
+	check(g.cost_of(a, cristal.data(), cristal) == int(cristal.data()["cost"]) + 1, "zulmira: o artefato recuperado custa (1) a mais")
+	check(zulmira.exhausted and g.players[a]["momentum"] == 2, "zulmira: o Ao Ativar custa 1 e a exaure")
+	check(g.atk_of(zulmira) == 3, "zulmira: com um artefato a menos no cemitério (3), o Ataque cai para 3")
 
 ## Montadora Porca-Frouxa: when an ally dies wearing equipment and she wears none, the equipment moves to her
 ## (out of the graveyard) and gives her the same bonus it gave the fallen unit.
@@ -2029,6 +2066,18 @@ func _test_off_essence() -> void:
 	var multi_domain_broken: Dictionary = with_multi_domain.duplicate()
 	multi_domain_broken["afogar"] = 1
 	check(not DeckDB.validate_cards(leader, multi_domain_broken).filter(func(e): return "máximo 10" in e).is_empty(), "sem domínio em comum, o limite volta a 10")
+	# a multi-domain card is NOT a guest when at least one of its domains is the Leader's (Fúria here)
+	check(not DeckDB.is_guest(leader, "esther"), "Esther (Trevas + Fúria) não é convidada para Líder de Fúria")
+	check(not DeckDB.is_guest(leader, "lady_vultrixana"), "Lady Vultrixana (Fúria + Tormenta) não é convidada para Líder de Fúria")
+	check(not DeckDB.is_guest(leader, "giripoca"), "Giripoca (Fluxo + Fúria + Tormenta) não é convidada para Líder de Fúria")
+	check(DeckDB.is_in_leader_domain(leader, "esther"), "carta multi-domínio com um domínio do Líder está no domínio dele")
+	check(DeckDB.is_guest(leader, "azkharon"), "Azkharon (Natureza + Fluxo) continua convidada para Líder de Fúria")
+	check(DeckDB.missing_domains(leader, "azkharon").size() == 2, "sem nenhum domínio em comum, faltam todos os domínios da carta")
+	check(not DeckDB.is_in_leader_domain(leader, "azkharon"), "carta multi-domínio sem nenhum domínio do Líder não está no domínio dele")
+	var partial_match_deck: Dictionary = own_domain_cards.duplicate()
+	for card_id in ["esther", "lady_vultrixana", "giripoca"]:
+		partial_match_deck[card_id] = 3
+	check(DeckDB.stats(leader, partial_match_deck)["off_essence"] == 0, "multi-domínio com match parcial não entra na conta de convidadas")
 	var sixteen_fluxo: Dictionary = fifteen_fluxo.duplicate()
 	sixteen_fluxo["sentinela_coral"] = 1
 	check(not DeckDB.validate_cards(leader, sixteen_fluxo).filter(func(e): return "máximo 15" in e).is_empty(), "16 convidadas do mesmo domínio são ilegais")
@@ -6370,6 +6419,8 @@ func _test_custo_e_contagem() -> void:
 	check(g.scale_count(0, jeff) == g.graveyard_units(0), "jeff: contagem do texto = unidades no cemitério")
 	check(g.scale_count(0, vag) == -1, "carta sem escala: -1")
 	_test_elefante_incomodante()
+	_test_saraya_kovan_package()
+	_test_summon_copy_and_elephant_recall()
 
 ## Elefante Incomodante: Ataque e Vida = número de cópias suas em campo (a própria conta).
 func _test_elefante_incomodante() -> void:
@@ -6395,6 +6446,330 @@ func _test_elefante_incomodante() -> void:
 	g._deal_damage(second.uid, 99, null)
 	g._check_state()
 	check(g.atk_of(first) == 2 and g.atk_of(third) == 2 and third.hp_left() >= 1, "elefante: ao perder uma cópia as outras encolhem para 2/2 sem morrer")
+
+## Pacote da Saraya Kovan: Líder neutra que fortalece Feras e Demihumanos + o núcleo de Elefantes.
+func _test_saraya_kovan_package() -> void:
+	_tcard("t_saraya_human", 2, 2, [])
+	CardDB.data()["cards"]["t_saraya_human"]["species"] = ["humano"]
+	_tcard("t_saraya_beast", 2, 2, [])
+	CardDB.data()["cards"]["t_saraya_beast"]["species"] = ["fera"]
+	_tcard("t_saraya_filler", 1, 1, [])
+
+	# --- Poder do Líder: +1/+1 permanente, só em Fera ou Demihumano aliado ---
+	var g := _new_game()
+	_quiet(g)
+	var p: int = g.active
+	g.players[p]["leader_id"] = "saraya_kovan"
+	g.players[p]["ability_used"] = false
+	g.players[p]["momentum"] = 6
+	var human := _put(g, p, "t_saraya_human")
+	var beast := _put(g, p, "t_saraya_beast")
+	check(g.use_ability(p, human.uid).is_empty() and int(g.players[p]["momentum"]) == 6, "Saraya (Líder): não mira um humano")
+	check(not g.use_ability(p, beast.uid).is_empty(), "Saraya (Líder): mira uma Fera aliada")
+	_resolve_stack(g)
+	check(g.atk_of(beast) == 3 and beast.hp_left() == 3, "Saraya (Líder): a Fera ganha +1/+1 permanente")
+	check(int(g.players[p]["momentum"]) == 4, "Saraya (Líder): custa 2 de Momentum")
+	check(not g.can_use_ability(p), "Saraya (Líder): só uma vez por turno")
+
+	# --- Saraya em campo: aura +1/+1 em Feras e Demihumanos, não em humanos nem nela mesma ---
+	g = _new_game()
+	_quiet(g)
+	var saraya := _put(g, 0, "saraya_kovan")
+	var aura_beast := _put(g, 0, "t_saraya_beast")
+	var aura_human := _put(g, 0, "t_saraya_human")
+	g._check_state()
+	check(g.atk_of(aura_beast) == 3 and aura_beast.hp_left() == 3, "Saraya: Fera aliada tem +1/+1")
+	check(g.atk_of(aura_human) == 2 and aura_human.hp_left() == 2, "Saraya: humano aliado não recebe o bônus")
+	check(g.atk_of(saraya) == 4 and saraya.hp_left() == 6, "Saraya: não se bonifica (continua 4/6)")
+
+	# --- Saraya: Ao Entrar olha 5 cartas e pega uma Fera/Demihumano; o resto vai ao fundo ---
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["hand"].clear()
+	g.players[0]["deck"].clear()
+	var beast_in_deck := Card.new(g._uid(), "t_saraya_beast", 0, "deck")
+	g.players[0]["deck"].append(beast_in_deck)
+	for filler_index in 4:
+		g.players[0]["deck"].append(Card.new(g._uid(), "t_saraya_filler", 0, "deck")) # the top is the back
+	g.players[0]["momentum"] = 10
+	var saraya_hand_uid := _give(g, 0, "saraya_kovan")
+	g.play_card(0, saraya_hand_uid, 0)
+	_resolve_stack(g)
+	check(g.phase == "search" and g.pending_search["cards"].size() == 1, "Saraya: o Ao Entrar oferece só a Fera entre as 5 do topo")
+	g.choose_search(0, beast_in_deck.uid)
+	g._flush()
+	check(_hand_has(g, 0, beast_in_deck.uid), "Saraya: a Fera escolhida vai para a mão")
+	check(g.players[0]["deck"].size() == 4, "Saraya: as outras 4 continuam no deck")
+
+	# --- Filhote Fujão: olha 3 e pega só um Elefante ---
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["hand"].clear()
+	g.players[0]["deck"].clear()
+	var elephant_in_deck := Card.new(g._uid(), "tromba_de_aluguel", 0, "deck")
+	g.players[0]["deck"].append(elephant_in_deck)
+	g.players[0]["deck"].append(Card.new(g._uid(), "t_saraya_beast", 0, "deck")) # a non-elephant Fera is not offered
+	g.players[0]["deck"].append(Card.new(g._uid(), "t_saraya_filler", 0, "deck"))
+	g.players[0]["momentum"] = 5
+	var cub_uid := _give(g, 0, "filhote_fujao")
+	g.play_card(0, cub_uid, 0)
+	_resolve_stack(g)
+	var cub_options: Array = g.pending_search["cards"] if g.phase == "search" else []
+	check(cub_options.size() == 1 and int(cub_options[0]["uid"]) == elephant_in_deck.uid, "Filhote Fujão: só o Elefante entre as 3 é oferecido")
+	g.choose_search(0, elephant_in_deck.uid)
+	g._flush()
+	check(_hand_has(g, 0, elephant_in_deck.uid), "Filhote Fujão: o Elefante vai para a mão")
+
+	# --- Chamado ao Picadeiro: Fera ou Demihumano entre as 5 do topo, mas não um humano ---
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["hand"].clear()
+	g.players[0]["deck"].clear()
+	g.players[0]["deck"].append(Card.new(g._uid(), "t_saraya_human", 0, "deck"))
+	var call_beast := Card.new(g._uid(), "t_saraya_beast", 0, "deck")
+	g.players[0]["deck"].append(call_beast)
+	g.players[0]["momentum"] = 5
+	var call_uid := _give(g, 0, "chamado_ao_picadeiro")
+	g.play_card(0, call_uid, 0)
+	_resolve_stack(g)
+	var call_options: Array = g.pending_search["cards"] if g.phase == "search" else []
+	check(call_options.size() == 1 and int(call_options[0]["uid"]) == call_beast.uid, "Chamado ao Picadeiro: só a Fera é oferecida, o humano não")
+
+	# --- Matriarca: coloca um Elefante da mão em campo de graça e dá +1/+1 aos outros Elefantes ---
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var elephant_in_hand := _give(g, 0, "tromba_de_aluguel")
+	var matriarch_uid := _give(g, 0, "matriarca_pisa_mansinho")
+	g.play_card(0, matriarch_uid, 0)
+	_resolve_stack(g)
+	check(g.phase == "search" and g.pending_search.get("hand_summon", false), "Matriarca: o Ao Entrar abre a escolha de um Elefante da mão")
+	g.choose_search(0, elephant_in_hand)
+	g._flush()
+	var summoned_elephant := g.find_unit(elephant_in_hand)
+	check(summoned_elephant != null and int(g.players[0]["momentum"]) == 5, "Matriarca: o Elefante entra de graça (só os 5 dela foram pagos)")
+	g._check_state()
+	check(g.atk_of(summoned_elephant) == 3 and summoned_elephant.hp_left() == 5, "Matriarca: o outro Elefante fica 3/5 (2/4 + 1/+1)")
+	check(g.atk_of(g.find_unit(matriarch_uid)) == 4, "Matriarca: não se bonifica")
+
+	# --- Estouro da Manada: até 2 Elefantes de custo até 3 do deck entram de graça (não o de custo 4) ---
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["deck"].clear()
+	for stampede_card_id in ["paquiderme_sem_vergonha", "elefante_incomodante", "tromba_de_aluguel", "elefante_incomodante"]:
+		g.players[0]["deck"].append(Card.new(g._uid(), stampede_card_id, 0, "deck"))
+	g.players[0]["momentum"] = 5
+	var stampede_uid := _give(g, 0, "estouro_da_manada")
+	g.play_card(0, stampede_uid, 0)
+	_resolve_stack(g)
+	var small_elephants_on_board := 0
+	var big_elephants_on_board := 0
+	for unit in g.players[0]["board"]:
+		if unit == null:
+			continue
+		if unit.card_id == "paquiderme_sem_vergonha":
+			big_elephants_on_board += 1
+		elif CardDB.data()["cards"][unit.card_id].get("species", []).has("elefante"):
+			small_elephants_on_board += 1
+	check(small_elephants_on_board == 2 and big_elephants_on_board == 0, "Estouro da Manada: 2 Elefantes de custo até 3 entram, o de custo 4 não")
+	check(g.players[0]["deck"].size() == 2, "Estouro da Manada: os outros 2 continuam no deck")
+
+	# --- Saraya, Ao Ativar: coloca Fera/Demihumano de custo até 3 da mão em campo de graça e se exaure ---
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 5
+	var activator := _put(g, 0, "saraya_kovan")
+	var cheap_beast_uid := _give(g, 0, "filhote_fujao")
+	var expensive_beast_uid := _give(g, 0, "paquiderme_sem_vergonha")
+	var human_in_hand_uid := _give(g, 0, "veterinario_de_plantao")
+	g.activate(0, activator.uid)
+	_resolve_stack(g)
+	if g.phase == "search":
+		var activator_options: Array = g.pending_search["cards"]
+		var option_uids: Array = []
+		for option in activator_options:
+			option_uids.append(int(option["uid"]))
+		check(option_uids.has(cheap_beast_uid) and not option_uids.has(expensive_beast_uid) and not option_uids.has(human_in_hand_uid), "Saraya (Ativar): só a Fera de custo até 3 é oferecida")
+		g.choose_search(0, cheap_beast_uid)
+		g._flush()
+	check(g.find_unit(cheap_beast_uid) != null and int(g.players[0]["momentum"]) == 3, "Saraya (Ativar): a Fera entra de graça e a ativação custa 2")
+	check(activator.exhausted, "Saraya (Ativar): exaure a Saraya")
+
+	# --- Coleira de Bronze Gigante: +2/+2 em Fera/Demihumano; um humano nem é alvo válido ---
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var collar_human := _put(g, 0, "t_saraya_human")
+	var collar_beast := _put(g, 0, "t_saraya_beast")
+	var collar_uid := _give(g, 0, "coleira_de_bronze_gigante")
+	check(g.play_card(0, collar_uid, collar_human.uid).is_empty(), "Coleira: não pode ser equipada num humano")
+	check(_hand_has(g, 0, collar_uid) and int(g.players[0]["momentum"]) == 10, "Coleira: recusada, continua na mão e nada é pago")
+	g.play_card(0, collar_uid, collar_beast.uid)
+	_resolve_stack(g)
+	check(g.atk_of(collar_beast) == 4 and collar_beast.hp_left() == 4, "Coleira: a Fera equipada fica 4/4")
+
+	# --- Pisoteio Autorizado: só o PRIMEIRO alvo (aliado) é filtrado por espécie ---
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var stomp_human := _put(g, 0, "t_saraya_human")
+	var stomp_beast := _put(g, 0, "t_saraya_beast")
+	var stomp_enemy := _put(g, 1, "t_saraya_human")
+	var stomp_uid := _give(g, 0, "pisoteio_autorizado")
+	check(g.play_card(0, stomp_uid, stomp_human.uid, stomp_enemy.uid).is_empty(), "Pisoteio: um humano aliado não luta")
+	g.play_card(0, stomp_uid, stomp_beast.uid, stomp_enemy.uid)
+	_resolve_stack(g)
+	check(g.find_unit(stomp_enemy.uid) == null and g.find_unit(stomp_beast.uid) == null, "Pisoteio: Fera 2/2 e inimigo 2/2 se matam (o inimigo pode ser de qualquer espécie)")
+
+	# --- Veterinário de Plantão: cura 3 em todas as Feras/Demihumanos, não em humanos ---
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var vet_beast := _put(g, 0, "t_saraya_beast")
+	var vet_human := _put(g, 0, "t_saraya_human")
+	g._deal_damage(vet_beast.uid, 1, null)
+	g._deal_damage(vet_human.uid, 1, null)
+	var vet_uid := _give(g, 0, "veterinario_de_plantao")
+	g.play_card(0, vet_uid, 0)
+	_resolve_stack(g)
+	check(vet_beast.damage == 0, "Veterinário: cura a Fera aliada")
+	check(vet_human.damage == 1, "Veterinário: não cura um humano")
+
+## Puts A Fotocopiadora Primordial on player p's field as an artifact (the board slot it takes is real) and gives p Momentum to use it.
+func _place_photocopier(g: GameState, p: int) -> Card:
+	var photocopier := Card.new(g._uid(), "a_fotocopiadora_primordial", p)
+	g._place_relic(p, photocopier)
+	g._flush()
+	g.players[p]["momentum"] = 10
+	return photocopier
+
+## summon_copy (A Fotocopiadora Primordial) e o resgate de Elefantes do cemitério (Elefante Não Esquece).
+func _test_summon_copy_and_elephant_recall() -> void:
+	_tcard("t_copy_entrant", 2, 3, [{"trigger": "on_enter", "action": "draw", "target": "none", "amount": 1}])
+
+	# --- A Fotocopiadora: ficha idêntica (mesmo card_id e TODOS os modificadores), sem disparar o Ao Entrar ---
+	var g := _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var original := _put(g, 0, "t_copy_entrant")
+	original.damage = 1
+	original.permanent_buffs = {"atk": 2}
+	original.atk += 2
+	original.temp_atk = 1
+	original.armor = 1
+	original.shield = true
+	original.keywords.append("provocacao")
+	original.frozen = 5
+	original.stun_markers = 2
+	original.dot_markers = {"veneno": 3}
+	original.stat_sources = [{"source": "x", "until": "", "atk": 2}]
+	original.exhausted = true
+	var hand_before: int = g.players[0]["hand"].size()
+	var copier := _place_photocopier(g, 0)
+	check(copier.durability_left() == 2, "Fotocopiadora: começa com 2 de Durabilidade")
+	g.activate(0, copier.uid, original.uid)
+	_resolve_stack(g)
+	check(copier.durability_left() == 1 and g.find_relic(copier.uid) != null, "Fotocopiadora: a ativação gasta 1 de Durabilidade")
+	var copies: Array = []
+	for unit in g.players[0]["board"]:
+		if unit != null and unit.card_id == "t_copy_entrant" and unit.uid != original.uid:
+			copies.append(unit)
+	check(copies.size() == 1, "Fotocopiadora: surge uma cópia da unidade alvo")
+	if copies.size() == 1:
+		var copy: Card = copies[0]
+		check(copy.data().get("token", false), "Fotocopiadora: a cópia é uma ficha")
+		check(copy.damage == 1 and copy.atk == original.atk and copy.temp_atk == 1 and copy.hp == original.hp, "Fotocopiadora: copia dano, ataque e buffs (permanentes e temporários)")
+		check(copy.armor == 1 and copy.shield and copy.keywords.has("provocacao"), "Fotocopiadora: copia Armadura, escudo e keywords")
+		check(copy.frozen == 5 and copy.stun_markers == 2 and copy.dot_markers.get("veneno", 0) == 3, "Fotocopiadora: copia Congelada, Atordoamento e marcadores de status periódico")
+		check(copy.permanent_buffs == original.permanent_buffs and copy.stat_sources == original.stat_sources, "Fotocopiadora: copia as fontes de buff")
+		check(not copy.exhausted and copy.sick, "Fotocopiadora: a cópia acabou de chegar (não herda o estado de exaurida)")
+		copy.dot_markers["veneno"] = 9
+		copy.permanent_buffs["atk"] = 9
+		check(original.dot_markers["veneno"] == 3 and original.permanent_buffs["atk"] == 2, "Fotocopiadora: a cópia não compartilha dicionários com o original")
+		check(g.players[0]["hand"].size() == hand_before, "Fotocopiadora: o Ao Entrar da cópia NÃO dispara (nenhuma carta comprada)")
+		check(int(g.players[0]["momentum"]) == 8, "Fotocopiadora: a ativação custa 2")
+		copy.shield = false # the copied Escudo would absorb the hit
+		copy.armor = 0
+		g._deal_damage(copy.uid, 99, null)
+		g._check_state()
+		var token_in_graveyard := false
+		for dead in g.players[0]["graveyard"]:
+			if dead.uid == copy.uid:
+				token_in_graveyard = true
+		check(g.find_unit(copy.uid) == null and not token_in_graveyard, "Fotocopiadora: a ficha some em vez de ir ao cemitério")
+
+	# --- Sem suppress_on_enter a cópia dispara o Ao Entrar normalmente ---
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var entrant := _put(g, 0, "t_copy_entrant")
+	var plain_hand_before: int = g.players[0]["hand"].size()
+	var plain_copy_effect: Effect = EffectRegistry.parse_list([{"trigger": "on_play", "action": "summon_copy", "target": "ally_unit"}])[0]
+	plain_copy_effect.apply(EffectContext.new(g, 0, ""), entrant.uid)
+	_resolve_stack(g)
+	check(g.players[0]["hand"].size() == plain_hand_before + 1, "summon_copy sem suppress_on_enter: o Ao Entrar da cópia dispara")
+
+	# --- Um Campeão não é alvo válido: nada é pago e a carta continua na mão ---
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var champion := _put(g, 0, "saraya_kovan")
+	var champion_copier := _place_photocopier(g, 0)
+	check(g.activate(0, champion_copier.uid, champion.uid).is_empty(), "Fotocopiadora: não mira um Campeão")
+	check(champion_copier.durability_left() == 2 and int(g.players[0]["momentum"]) == 10, "Fotocopiadora: recusada, nada é pago nem gasto")
+
+	# --- A cópia de Elefante Incomodante conta para a escala (2 em campo = 2/2 cada) ---
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var incomodante := _put(g, 0, "elefante_incomodante")
+	g._check_state()
+	check(g.atk_of(incomodante) == 1, "Incomodante sozinho: 1/1")
+	g.activate(0, _place_photocopier(g, 0).uid, incomodante.uid)
+	_resolve_stack(g)
+	g._check_state()
+	check(g.atk_of(incomodante) == 2 and incomodante.hp_left() == 2, "Fotocopiadora: a cópia conta como Incomodante (ficam 2/2)")
+
+	# --- Campo cheio: a carta resolve sem criar nada ---
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var full_board_copier := _place_photocopier(g, 0)
+	var full_board_target := _put(g, 0, "t_copy_entrant")
+	while g.has_free_slot(0):
+		_put(g, 0, "t_copy_entrant")
+	var units_before: int = g.slots_used(0)
+	g.activate(0, full_board_copier.uid, full_board_target.uid)
+	_resolve_stack(g)
+	check(g.slots_used(0) == units_before, "Fotocopiadora: campo cheio não cria cópia")
+
+	# --- Elefante Não Esquece: só Elefante de custo até 3 do cemitério é oferecido ---
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var small_elephant := Card.new(g._uid(), "elefante_incomodante", 0, "graveyard")
+	var big_elephant := Card.new(g._uid(), "paquiderme_sem_vergonha", 0, "graveyard")
+	var not_elephant := Card.new(g._uid(), "t_copy_entrant", 0, "graveyard")
+	g.players[0]["graveyard"].append_array([small_elephant, big_elephant, not_elephant])
+	g.play_card(0, _give(g, 0, "elefante_nao_esquece"), 0)
+	_resolve_stack(g)
+	var recall_options: Array = g.pending_search["cards"] if g.phase == "search" else []
+	check(recall_options.size() == 1 and int(recall_options[0]["uid"]) == small_elephant.uid, "Elefante Não Esquece: só o Elefante de custo até 3 é oferecido")
+	g.choose_search(0, small_elephant.uid)
+	g._flush()
+	check(g.find_unit(small_elephant.uid) != null and int(g.players[0]["momentum"]) == 7, "Elefante Não Esquece: o Elefante volta de graça (só os 3 da carta foram pagos)")
+
+	# --- ... e a busca pode ser recusada ---
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var declined_elephant := Card.new(g._uid(), "elefante_incomodante", 0, "graveyard")
+	g.players[0]["graveyard"].append(declined_elephant)
+	g.play_card(0, _give(g, 0, "elefante_nao_esquece"), 0)
+	_resolve_stack(g)
+	g.choose_search(0, 0)
+	g._flush()
+	check(g.find_unit(declined_elephant.uid) == null, "Elefante Não Esquece: recusar deixa o Elefante no cemitério")
 
 func _test_twin_bolts() -> void:
 	_tcard("t_twin_big", 1, 9, [])
