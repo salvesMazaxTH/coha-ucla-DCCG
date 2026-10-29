@@ -57,6 +57,7 @@ func _init() -> void:
 	_test_obscura()
 	_test_vegetal()
 	_test_ai_spell_preview()
+	_test_ai_equipment_targets()
 	_test_obscura_rules()
 	_test_cleanse()
 	_test_sagrada_board_control()
@@ -2752,6 +2753,42 @@ func _test_ai_spell_preview() -> void:
 	var useful_bell := _give(target_game, 0, "repique_desgovernado")
 	SimpleAI.step(target_game, 0)
 	check(not _hand_has(target_game, 0, useful_bell), "IA/prévia: lança Repique Desgovernado quando há unidade inimiga")
+
+func _test_ai_equipment_targets() -> void:
+	var g := _new_game()
+	_quiet(g)
+	var p: int = g.active
+	var regular := _put(g, p, "tyren")
+	var matusalem := _put(g, p, "matusalem_tartaruga_relicario")
+	var tobias := _put(g, p, "sacoleiro_tobias_bolso_fundo")
+	regular.equipped_cards.append(Card.new(g._uid(), "nucleo_de_geodo", p, "equipped"))
+	matusalem.equipped_cards.append(Card.new(g._uid(), "nucleo_de_geodo", p, "equipped"))
+	for i in 8:
+		tobias.equipped_cards.append(Card.new(g._uid(), "nucleo_de_geodo", p, "equipped"))
+
+	var equipment := CardDB.card("nucleo_de_geodo")
+	check(SimpleAI._pick_target(g, p, "ally_unit", equipment) == matusalem.uid,
+			"IA/equipamento: ignora unidade cheia e pode equipar Matusalém com um item")
+
+	matusalem.equipped_cards.append(Card.new(g._uid(), "nucleo_de_geodo", p, "equipped"))
+	check(SimpleAI._pick_target(g, p, "ally_unit", equipment) == tobias.uid,
+			"IA/equipamento: respeita os dois espaços de Matusalém e aceita Tobias com vários")
+
+	var full := _new_game()
+	_quiet(full)
+	p = full.active
+	var only_unit := _put(full, p, "tyren")
+	only_unit.equipped_cards.append(Card.new(full._uid(), "nucleo_de_geodo", p, "equipped"))
+	check(SimpleAI._pick_target(full, p, "ally_unit", equipment) == 0,
+			"IA/equipamento: não escolhe unidade cheia quando não há exceção")
+
+	full.players[p]["hand"].clear()
+	full.players[p]["momentum"] = 10
+	var existing_equipment: Card = only_unit.first_equipment()
+	var candidate_uid := _give(full, p, "coracao_da_montanha")
+	SimpleAI.step(full, p)
+	check(_hand_has(full, p, candidate_uid) and only_unit.first_equipment() == existing_equipment,
+			"IA/equipamento: mantém o item na mão em vez de trocar o equipamento de unidade comum")
 
 ## The AI's Ao Entrar damage (Ronan): it is never skipped when the damage stays marked on a target,
 ## even though Ronan also has an Ao Sofrer Dano buff. It is skipped only when it would be wasted.

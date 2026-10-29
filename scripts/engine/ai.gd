@@ -140,6 +140,10 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 			second_target = foe_leader if g.valid_targets(p, spec2).has(foe_leader) else _pick_target(g, p, spec2, card_data, 0, true)
 			if second_target == 0:
 				continue
+		if CardDB.is_equipment(card_data):
+			var equipment_target := g.find_unit(target)
+			if equipment_target == null or not equipment_target.has_equipment_room():
+				continue # never bounce existing gear back to hand just to play another one
 		if card_data["type"] == "spell" and not _spell_changes_the_game(g, p, card.uid, target, second_target):
 			continue # it would resolve and change nothing: keep the Momentum (and the card)
 		var events := g.play_card(p, card.uid, target, second_target)
@@ -536,6 +540,13 @@ static func _pick_target(g: GameState, p: int, spec: String, source, self_uid :=
 		return best_stack_id
 	var effects: Array = _effects_that_use_the_pick(source)
 	var options := g.valid_targets(p, spec, self_uid, false, effects) # Ponto Final Sem Vírgula never aims at a unit without enough Veneno
+	if source is Dictionary and CardDB.is_equipment(source):
+		var equipment_targets: Array = []
+		for uid in options:
+			var unit := g.find_unit(int(uid))
+			if unit != null and unit.has_equipment_room():
+				equipment_targets.append(uid)
+		options = equipment_targets
 	if options.is_empty():
 		return 0
 	if spec == "ally_or_own_leader":
