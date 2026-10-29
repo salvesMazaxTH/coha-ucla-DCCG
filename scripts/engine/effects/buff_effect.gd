@@ -18,7 +18,7 @@ extends Effect
 ## "keywords_until_next_turn": [...] gives these keywords until the unit's owner's next turn starts (a keyword the unit already
 ## has stays as it is) - Cortina de Fumaça Barata gives Furtividade this way.
 ## "keywords_until_owner_turn_end": [...] gives these keywords until the END of the turn its owner plays next (so they last through
-## that whole turn, including when the unit is on the other side's board - Jurema Falamanssa hands an enemy Pacifista for its next turn).
+## that whole turn, including when the unit is on the other side's board - Jurema Falamansa hands an enemy Pacifista for its next turn).
 ## "rapidez_until_next_turn": N lends the unit Rapidez N until its owner's next turn starts (it never lowers a Rapidez the unit already has);
 ## Corrente de Ar pairs it with Esquiva, which does nothing on a unit without Rapidez.
 ## "bonus_if_card": {"card": id, "atk": N, "hp": N}: when the target is that card, it also gains this permanently (Myrra -> Vael).

@@ -9458,7 +9458,7 @@ func _test_eryon_deck() -> void:
 	check(g.players[a]["hand"].size() == hand_before + 1, "Recado Urgente: sem o Barão no deck compra 1 carta (%d)" % (g.players[a]["hand"].size() - hand_before))
 
 ## Eight cards added together (Vendedora de Grimório, Sorvetinho Derrete-Lento, Bicho Papão, Agora o Bicho vai Pegar,
-## Jurema Falamanssa, Goblin das Brasas, Esther, Jovahr) and the engine parameters they brought: search "discount",
+## Jurema Falamansa, Goblin das Brasas, Esther, Jovahr) and the engine parameters they brought: search "discount",
 ## remove "max_target_cost", "unfreeze" + "unit_state", "keywords_until_owner_turn_end", "source_gain_per_kill", "per": "sacrificed_atk".
 func _test_eight_new_cards() -> void:
 	_tcard("t_eight_cost2_wall", 0, 30, [])
@@ -9544,12 +9544,12 @@ func _test_eight_new_cards() -> void:
 	g.choose_search(0, found_spell.uid)
 	check(g.players[0]["hand"].has(found_spell) and g.cost_of(0, CardDB.card("t_eight_book_spell"), found_spell) == 2, "Vendedora: o feitiço pego custa 1 a menos")
 
-	# Jurema Falamanssa: the chosen enemy gets Pacifista until the end of its owner's next turn
+	# Jurema Falamansa: the chosen enemy gets Pacifista until the end of its owner's next turn
 	g = _new_game()
 	_quiet(g)
 	g.players[0]["momentum"] = 10
 	var pacified_enemy := _put(g, 1, "t_eight_fat_three")
-	var jurema_uid := _give(g, 0, "jurema_falamanssa")
+	var jurema_uid := _give(g, 0, "jurema_falamansa")
 	g.play_card(0, jurema_uid)
 	check(g.phase == "enter_target", "Jurema: pede a unidade inimiga")
 	g.choose_enter_target(0, pacified_enemy.uid)
