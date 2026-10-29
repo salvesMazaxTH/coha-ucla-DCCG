@@ -8,6 +8,7 @@ const DeathWardEffectScript = preload("res://scripts/engine/effects/death_ward_e
 const AutoAttackEffectScript = preload("res://scripts/engine/effects/auto_attack_effect.gd")
 const SpendAllMomentumEffectScript = preload("res://scripts/engine/effects/spend_all_momentum_effect.gd")
 const EquipSelfEffectScript = preload("res://scripts/engine/effects/equip_self_effect.gd")
+const ShoutEffectScript = preload("res://scripts/engine/effects/shout_effect.gd")
 
 static var ACTIONS: Dictionary = {
 	"damage": DamageEffect,
@@ -91,6 +92,7 @@ static var ACTIONS: Dictionary = {
 	"momentum_surge": StaticEffect,
 	"momentum_cap": StaticEffect,
 	"auto_attack": AutoAttackEffectScript,
+	"shout": ShoutEffectScript,
 }
 
 ## Actions with no target: continuous abilities, never run by a trigger.

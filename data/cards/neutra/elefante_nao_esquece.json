@@ -1,0 +1,22 @@
+{
+  "name": "Elefante Não Esquece",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "neutra",
+  "cost": 3,
+  "speed": "lento",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "summon_from",
+      "target": "none",
+      "source": "graveyard",
+      "pick": "choose",
+      "species": "elefante",
+      "max_cost": 3
+    }
+  ],
+  "text": "Você pode colocar em campo um Elefante de custo até 3 do seu cemitério, sem pagar custo.",
+  "flavor": "Nem o enterro. Nem a dívida. Muito menos o nome de quem o empurrou.",
+  "tags": []
+}

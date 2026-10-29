@@ -1,0 +1,28 @@
+{
+  "name": "A Fotocopiadora Primordial",
+  "type": "artifact",
+  "subtypes": [],
+  "rarity": "legendary",
+  "essence": "neutra",
+  "cost": 3,
+  "durability": 2,
+  "effects": [],
+  "activated": {
+    "cost": 2,
+    "speed": "lento",
+    "durability_cost": 1,
+    "effects": [
+      {
+        "action": "summon_copy",
+        "target": "ally_unit",
+        "not_rarity": [
+          "champion"
+        ],
+        "suppress_on_enter": true
+      }
+    ]
+  },
+  "text": "Ao Ativar (2) {lento}: cria uma ficha que é uma cópia idêntica de uma unidade aliada alvo que não seja Campeã. O Ao Entrar da cópia não ativa. Perde 1 de Durabilidade.",
+  "flavor": "Antes do primeiro dia havia um zumbido, uma luz verde varrendo o nada e uma voz cansada dizendo: \"só mais uma cópia.\"",
+  "tags": []
+}

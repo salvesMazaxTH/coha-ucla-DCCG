@@ -1,0 +1,20 @@
+{
+  "name": "Tromba de Aluguel",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "fera",
+    "elefante"
+  ],
+  "essence": "neutra",
+  "cost": 3,
+  "atk": 2,
+  "hp": 4,
+  "keywords": [
+    "provocacao"
+  ],
+  "effects": [],
+  "text": "",
+  "flavor": "Carrega piano, derruba parede e empurra o carro atolado. Cobra por hora, e a hora dele é longa.",
+  "tags": []
+}

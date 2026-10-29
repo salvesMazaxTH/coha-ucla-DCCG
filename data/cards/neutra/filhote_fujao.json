@@ -1,0 +1,26 @@
+{
+  "name": "Filhote Fujão",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "fera",
+    "elefante"
+  ],
+  "essence": "neutra",
+  "cost": 1,
+  "atk": 1,
+  "hp": 2,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "search_deck",
+      "target": "none",
+      "top": 3,
+      "species": "elefante"
+    }
+  ],
+  "text": "Ao Entrar: você olha as 3 cartas do topo do seu deck e pode pegar 1 Elefante entre elas; as outras vão para o fundo.",
+  "flavor": "Fugiu do circo antes da estreia. Voltou com a família inteira, e sem ingresso.",
+  "tags": []
+}

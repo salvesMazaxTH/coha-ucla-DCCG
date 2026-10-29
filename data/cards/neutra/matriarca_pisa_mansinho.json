@@ -1,0 +1,37 @@
+{
+  "name": "Matriarca Pisa-Mansinho",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "fera",
+    "elefante"
+  ],
+  "essence": "neutra",
+  "cost": 5,
+  "atk": 4,
+  "hp": 6,
+  "keywords": [
+    "armadura:1"
+  ],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "summon_from",
+      "target": "none",
+      "source": "hand",
+      "species": "elefante"
+    },
+    {
+      "trigger": "constante",
+      "action": "species_aura",
+      "species": [
+        "elefante"
+      ],
+      "atk": 1,
+      "hp": 1
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher um Elefante da sua mão; ele entra em campo sem pagar custo.\nConstante: seus outros Elefantes têm +1/+1.",
+  "flavor": "Anda devagar porque já sabe que todo mundo vai sair da frente.",
+  "tags": []
+}

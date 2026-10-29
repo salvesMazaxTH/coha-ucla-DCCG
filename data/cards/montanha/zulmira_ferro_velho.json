@@ -1,0 +1,27 @@
+{
+  "name": "Zulmira Ferro-Velho",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["gnomo"],
+  "essence": "montanha",
+  "element": "metal",
+  "cost": 4,
+  "atk": 2,
+  "hp": 5,
+  "keywords": [],
+  "effects": [
+    { "trigger": "constante", "action": "scale", "per": "own_graveyard_artifacts", "divisor": 2, "atk": 1 }
+  ],
+  "activated": {
+    "cost": 1,
+    "speed": "lento",
+    "exhaust": true,
+    "effects": [
+      { "action": "grave_to_hand", "target": "none", "type": "artifact", "cost_increase": 1 }
+    ]
+  },
+  "text": "Constante: ganha +1 de Ataque para cada 2 artefatos no seu cemitério.\nAo Ativar (1) {lento} (exaure esta unidade): você pode escolher um artefato do seu cemitério e levá-lo à sua mão; ele custa (1) a mais.",
+  "flavor": "Nada é lixo. Tudo é peça que ainda não encontrou a máquina.",
+  "art": "montanha/zulmira_ferro_velho.webp",
+  "tags": []
+}

@@ -1,0 +1,30 @@
+{
+  "name": "Veterinário de Plantão",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 3,
+  "atk": 2,
+  "hp": 3,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "heal_unit",
+      "target": "all_ally_units",
+      "unit_filter": {
+        "species_any": [
+          "fera",
+          "demihumano"
+        ]
+      },
+      "amount": 3
+    }
+  ],
+  "text": "Ao Entrar: suas Feras e Demihumanos recuperam 3 de Vida.",
+  "flavor": "Atende de coelho a elefante. Cobra igual, mas a luva é maior.",
+  "tags": []
+}

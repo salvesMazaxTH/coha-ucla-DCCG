@@ -1,0 +1,20 @@
+{
+  "name": "Paquiderme Sem Vergonha",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "fera",
+    "elefante"
+  ],
+  "essence": "neutra",
+  "cost": 4,
+  "atk": 3,
+  "hp": 5,
+  "keywords": [
+    "impeto"
+  ],
+  "effects": [],
+  "text": "",
+  "flavor": "Entrou na loja de porcelana por engano. Saiu pela parede dos fundos por convicção.",
+  "tags": []
+}

@@ -1,0 +1,58 @@
+{
+  "name": "Saraya Kovan",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 5,
+  "atk": 4,
+  "hp": 6,
+  "keywords": [],
+  "art": "neutra/saraya_kovan.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "search_deck",
+      "target": "none",
+      "top": 5,
+      "species_any": [
+        "fera",
+        "demihumano"
+      ]
+    },
+    {
+      "trigger": "constante",
+      "action": "species_aura",
+      "species": [
+        "fera",
+        "demihumano"
+      ],
+      "atk": 1,
+      "hp": 1
+    }
+  ],
+  "activated": {
+    "cost": 2,
+    "speed": "lento",
+    "exhaust": true,
+    "effects": [
+      {
+        "action": "summon_from",
+        "target": "none",
+        "source": "hand",
+        "species_any": [
+          "fera",
+          "demihumano"
+        ],
+        "max_cost": 3
+      }
+    ]
+  },
+  "text": "Ao Entrar: você olha as 5 cartas do topo do seu deck e coloca 1 Fera ou Demihumano entre elas na sua mão.\nConstante: suas outras Feras e Demihumanos têm +1/+1.\nAo Ativar (2) {lento} (exaure esta unidade): você pode colocar em campo uma Fera ou Demihumano de custo até 3 da sua mão, sem pagar custo.",
+  "flavor": [
+    "Domou o primeiro elefante aos nove anos, com paciência e meia maçã. O elefante nunca soube que estava sendo domado."
+  ],
+  "tags": []
+}

@@ -21,6 +21,9 @@ var not_token := false ## "not_token": an Aliado Morre trigger is ignored when t
 ## "shout": a line the card yells when this effect actually runs (its "if" passed). Purely cosmetic: the
 ## engine only emits a "shout" event and the UI draws it big over the card (Barão Estrondoso).
 var shout := ""
+## "shout_style": which look the UI gives that shout ("" = the default atomic racing look, "wild" = circus
+## poster font and jungle palette). Cosmetic, like the shout itself.
+var shout_style := ""
 ## "listen": the effect reacts to a game event from anywhere (see TriggerBus). Its `trigger` then
 ## becomes LISTEN_PREFIX + the event name, so no ordinary trigger ever matches it.
 var listen := ""
@@ -57,6 +60,7 @@ func setup(data: Dictionary) -> void:
 	not_in_combat = bool(data.get("not_in_combat", false))
 	not_token = bool(data.get("not_token", false))
 	shout = String(data.get("shout", ""))
+	shout_style = String(data.get("shout_style", ""))
 	if data.has("listen"):
 		listen = String(data["listen"])
 		trigger = LISTEN_PREFIX + listen

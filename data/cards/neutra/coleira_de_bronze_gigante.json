@@ -1,0 +1,29 @@
+{
+  "name": "Coleira de Bronze Gigante",
+  "type": "artifact",
+  "subtypes": [
+    "equipment"
+  ],
+  "rarity": "common",
+  "essence": "neutra",
+  "cost": 2,
+  "durability": 2,
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "unit_filter": {
+        "species_any": [
+          "fera",
+          "demihumano"
+        ]
+      },
+      "atk": 2,
+      "hp": 2
+    }
+  ],
+  "text": "Equipar: concede +2/+2 a uma Fera ou Demihumano.",
+  "flavor": "Pesa mais que o cachorro. O elefante usa como colar de gala.",
+  "tags": []
+}

@@ -1,0 +1,23 @@
+{
+  "name": "Chamado ao Picadeiro",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "neutra",
+  "cost": 2,
+  "speed": "lento",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "search_deck",
+      "target": "none",
+      "top": 5,
+      "species_any": [
+        "fera",
+        "demihumano"
+      ]
+    }
+  ],
+  "text": "Você olha as 5 cartas do topo do seu deck e pega 1 Fera ou Demihumano entre elas; as outras vão para o fundo.",
+  "flavor": "Um assobio, duas palmas e todo bicho do bairro lembra que tinha compromisso.",
+  "tags": []
+}

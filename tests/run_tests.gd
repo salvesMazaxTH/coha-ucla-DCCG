@@ -6419,6 +6419,7 @@ func _test_custo_e_contagem() -> void:
 	check(g.scale_count(0, jeff) == g.graveyard_units(0), "jeff: contagem do texto = unidades no cemitério")
 	check(g.scale_count(0, vag) == -1, "carta sem escala: -1")
 	_test_elefante_incomodante()
+	_test_incomodante_shout()
 	_test_saraya_kovan_package()
 	_test_summon_copy_and_elephant_recall()
 
@@ -6446,6 +6447,71 @@ func _test_elefante_incomodante() -> void:
 	g._deal_damage(second.uid, 99, null)
 	g._check_state()
 	check(g.atk_of(first) == 2 and g.atk_of(third) == 2 and third.hp_left() >= 1, "elefante: ao perder uma cópia as outras encolhem para 2/2 sem morrer")
+
+## O grito cinematográfico do Elefante Incomodante: só dispara quando o ataque ao Líder inimigo é letal.
+func _test_incomodante_shout() -> void:
+	var card_effects: Array = CardDB.card("elefante_incomodante")["effects"]
+	var shout_effect: Dictionary = {}
+	for effect_data in card_effects:
+		if effect_data.get("action", "") == "shout":
+			shout_effect = effect_data
+	check(not shout_effect.is_empty() and shout_effect.get("if", "") == "lethal_attack" and shout_effect.get("shout_style", "") == "wild", "grito: o Incomodante carrega o efeito shout condicionado a lethal_attack, no estilo wild")
+	check(String(shout_effect.get("shout", "")).ends_with("MUITO MAIS!"), "grito: 'MUITO MAIS!' usa espaço sem quebra para explodir junto no final")
+
+	# lethal: three copies make each one 3/3, the enemy Leader has 3 life -> the shout is announced with the wild style
+	var g := _new_game()
+	_quiet(g)
+	var a: int = g.active
+	var enemy: int = g.opponent(a)
+	var first := _put(g, a, "elefante_incomodante")
+	_put(g, a, "elefante_incomodante")
+	_put(g, a, "elefante_incomodante")
+	g._check_state()
+	g.players[enemy]["leader_hp"] = 3
+	var events := _hit(g, first)
+	var shouts: Array = []
+	for e in events:
+		if e["type"] == "shout":
+			shouts.append(e)
+	check(shouts.size() == 1 and shouts[0]["style"] == "wild" and int(shouts[0]["uid"]) == first.uid, "grito: ataque letal ao Líder anuncia o grito (estilo wild, dito pelo atacante)")
+	check(shouts.size() == 1 and String(shouts[0]["text"]).begins_with("INCOMODAM, INCOMODAM, INCOMODAM, INCOMODAM"), "grito: o texto anunciado é a fala completa")
+
+	# not lethal: the Leader has more life than the blow
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	enemy = g.opponent(a)
+	first = _put(g, a, "elefante_incomodante")
+	_put(g, a, "elefante_incomodante")
+	_put(g, a, "elefante_incomodante")
+	g._check_state()
+	g.players[enemy]["leader_hp"] = 4
+	events = _hit(g, first)
+	var silent := true
+	for e in events:
+		if e["type"] == "shout":
+			silent = false
+	check(silent, "grito: ataque que não mata o Líder fica em silêncio")
+
+	# lethal strike power but at a unit: the shout is for the Leader only
+	_tcard("t_shout_wall", 1, 1, [])
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	enemy = g.opponent(a)
+	first = _put(g, a, "elefante_incomodante")
+	_put(g, a, "elefante_incomodante")
+	_put(g, a, "elefante_incomodante")
+	g._check_state()
+	g.players[enemy]["leader_hp"] = 1
+	var wall := _put(g, enemy, "t_shout_wall")
+	wall.exhausted = true
+	events = _hit(g, first, wall.uid)
+	silent = true
+	for e in events:
+		if e["type"] == "shout":
+			silent = false
+	check(silent, "grito: atacar uma unidade nunca dispara, mesmo com o Líder a 1 de Vida")
 
 ## Pacote da Saraya Kovan: Líder neutra que fortalece Feras e Demihumanos + o núcleo de Elefantes.
 func _test_saraya_kovan_package() -> void:
