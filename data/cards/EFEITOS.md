@@ -97,6 +97,8 @@ Cada ação é uma classe em `scripts/engine/effects/`, registrada em `effect_re
 | `graveyard_armor` | `essence`, `card_type` (padrão `"spell"`) | constante: a própria carta ganha +1 Armadura por carta do tipo e do domínio no cemitério do dono. O piso de 1 de dano da Armadura continua valendo |
 | `graveyard_damage_reduction` | `essence`, `card_type`, `minimum_count`, `divisor`, `flat_reduction` | constante: quando o cemitério do dono atingir `minimum_count` cartas do tipo e do domínio, substitui a Armadura nesse dano por `ceil(dano / divisor) - flat_reduction`, limitado a 0; não tem piso de 1 (Nerithia) |
 
+`shout` sozinho não dispara o aviso genérico do gatilho: se todos os efeitos daquele gatilho forem `shout`, não há pop/floats nem SFX genérico, mas a cinemática própria do grito continua. Se houver outra ação no mesmo gatilho (ex.: `auto_attack`), o aviso genérico continua.
+
 ## Alvos
 
 Cada família é uma classe em `scripts/engine/targets/`.

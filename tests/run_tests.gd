@@ -6584,6 +6584,14 @@ func _test_incomodante_shout() -> void:
 			shouts.append(e)
 	check(shouts.size() == 1 and shouts[0]["style"] == "wild" and int(shouts[0]["uid"]) == first.uid, "grito: ataque letal ao Líder anuncia o grito (estilo wild, dito pelo atacante)")
 	check(shouts.size() == 1 and String(shouts[0]["text"]).begins_with("INCOMODAM, INCOMODAM, INCOMODAM, INCOMODAM"), "grito: o texto anunciado é a fala completa")
+	var attack_triggers := events.filter(func(e): return e["type"] == "trigger" and e.get("uid", 0) == first.uid and e.get("trigger", "") == "before_attack")
+	check(attack_triggers.is_empty(), "grito: shout sozinho não emite o gatilho visual/sonoro Ao Atacar")
+
+	var baron_game := _new_game()
+	var baron := _put(baron_game, 0, "barao_estrondoso")
+	baron_game._events.clear()
+	check(baron_game._announce(baron, CardDB.card("barao_estrondoso")["effects"], "before_attack"), "grito: Ao Atacar do Barão continua anunciado por ter auto_attack")
+	check(baron_game._events.size() == 1 and baron_game._events[0]["type"] == "trigger" and SfxScript.sound_for_event(baron_game._events[0], false) == "trigger", "grito: o Ao Atacar de gameplay do Barão mantém o evento que dispara float e SFX")
 
 	# not lethal: the Leader has more life than the four-power blow
 	g = _new_game()

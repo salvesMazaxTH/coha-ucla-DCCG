@@ -2321,17 +2321,25 @@ func _enter_context(p: int, uid: int, target: int, second_target := 0) -> Effect
 	return context
 
 ## Tells the UI that unit c's `trigger` went off, so it can show where the effects that
-## follow come from. Only when at least one of `effects` actually runs for that trigger.
+## follow come from. A shout alone is cosmetic and uses its own cinematic, without the
+## generic trigger pop and sound.
 ## A card that heard an event (a "listen" effect) is the source of what it does, not the card that
 ## caused the event, so it is announced too, under the name "condicional". Says whether it announced.
 func _announce(c: Card, effects: Array, trigger: String) -> bool:
+	var has_non_shout_effect := false
 	for e in effects:
 		var entry_trigger: String = e.trigger if e is Effect else e.get("trigger", "")
-		if entry_trigger == trigger:
-			var shown_trigger := "condicional" if trigger.begins_with(Effect.LISTEN_PREFIX) else trigger
-			_emit({"type": "trigger", "uid": c.uid, "player": c.owner, "card_id": c.card_id, "trigger": shown_trigger})
-			return true
-	return false
+		if entry_trigger != trigger:
+			continue
+		var entry_action: String = e.action if e is Effect else e.get("action", "")
+		if entry_action != "shout":
+			has_non_shout_effect = true
+			break
+	if not has_non_shout_effect:
+		return false
+	var shown_trigger := "condicional" if trigger.begins_with(Effect.LISTEN_PREFIX) else trigger
+	_emit({"type": "trigger", "uid": c.uid, "player": c.owner, "card_id": c.card_id, "trigger": shown_trigger})
+	return true
 
 ## Tells the UI that the card running `context` yells `text` (an effect's "shout"). Cosmetic only.
 func _announce_shout(context: EffectContext, text: String, style := "") -> void:
