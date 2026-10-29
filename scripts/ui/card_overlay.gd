@@ -8,25 +8,40 @@ const BIG_CARD_SCALE := 4.18
 const BIG_CARD_Y := 150.0
 const TEXT_PANEL_Y := 160.0
 const TEXT_PANEL_HEIGHT := 640.0
+const StatModifiersPanel := preload("res://scripts/ui/stat_modifiers_panel.gd")
+## The Modificadores column sits left of the big card, as tall as it. On a narrow stage the card shrinks a
+## little so the column fits; its right edge stays put, so the rules text never moves.
+const MODIFIERS_GAP := 14.0 ## between the column and the big card
+const MODIFIERS_SCREEN_MARGIN := 16.0 ## between the column and the left edge of the screen
+const MODIFIERS_MIN_WIDTH := 236.0
+const MODIFIERS_MAX_WIDTH := 300.0
 
 ## Adds the big card and the text panel to `parent` (a Control as wide as the stage).
 ## Returns the x where the text panel starts, so Main can put its action buttons below it.
 ## `instance` is the live card state ({} for a card that is not on the table).
 static func build(parent: Control, stage_width: float, card_id: String, instance: Dictionary = {},
 		cost_override: int = -1, text_suffix: String = "", snowball_level: int = 0) -> float:
-	var big := CardView.new().setup(card_id, instance, BIG_CARD_SCALE)
+	var modifier_rows := StatModifiersPanel.rows_for(card_id, instance)
+	var card_scale := big_card_scale(stage_width, not modifier_rows.is_empty())
+	var big := CardView.new().setup(card_id, instance, card_scale)
 	big.cost_override = cost_override
 	big.text_suffix = text_suffix
 	big.snowball_level = snowball_level
-	big.position = big_card_position(stage_width)
+	big.position = big_card_position(stage_width, card_scale)
 	big.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(big)
 	var panel := RichTextLabel.new()
 	panel.bbcode_enabled = true
 	panel.text = describe(card_id, instance, cost_override, text_suffix, snowball_level)
 	var panel_x := stage_width / 2.0 - 90.0 # card (4.18 * 120 = ~502 px) ends at stage_width/2 - 118
+	var panel_width := stage_width - 40.0 - panel_x
+	if not modifier_rows.is_empty():
+		# Added before the text panel on purpose: Main finds the text panel as the overlay's last child.
+		var column_width := minf(MODIFIERS_MAX_WIDTH, big.position.x - MODIFIERS_GAP - MODIFIERS_SCREEN_MARGIN)
+		var column_x := big.position.x - MODIFIERS_GAP - column_width
+		StatModifiersPanel.add_to(parent, Vector2(column_x, BIG_CARD_Y), column_width, CardView.BASE.y * card_scale, modifier_rows)
 	panel.position = Vector2(panel_x, TEXT_PANEL_Y)
-	panel.size = Vector2(stage_width - 40.0 - panel_x, TEXT_PANEL_HEIGHT)
+	panel.size = Vector2(panel_width, TEXT_PANEL_HEIGHT)
 	panel.add_theme_font_size_override("normal_font_size", 28)
 	panel.add_theme_font_size_override("bold_font_size", 28)
 	panel.add_theme_font_size_override("italics_font_size", 24)
@@ -34,16 +49,30 @@ static func build(parent: Control, stage_width: float, card_id: String, instance
 	parent.add_child(panel)
 	return panel_x
 
-## Where the big card sits (its top-left corner) on a stage `stage_width` wide.
-static func big_card_position(stage_width: float) -> Vector2:
-	return Vector2(stage_width / 2.0 - 620, BIG_CARD_Y)
+## How big the big card is drawn: the usual size, or a bit smaller when the Modificadores column
+## needs room on its left and the stage is too narrow to give it.
+static func big_card_scale(stage_width: float, has_modifiers: bool) -> float:
+	if not has_modifiers:
+		return BIG_CARD_SCALE
+	var room_for_card := _big_card_right(stage_width) - MODIFIERS_SCREEN_MARGIN - MODIFIERS_MIN_WIDTH - MODIFIERS_GAP
+	return minf(BIG_CARD_SCALE, room_for_card / CardView.BASE.x)
+
+## Where the big card sits (its top-left corner) on a stage `stage_width` wide. A shrunk card keeps
+## its right edge where the full-size card ends, so the text panel stays in place.
+static func big_card_position(stage_width: float, card_scale: float = BIG_CARD_SCALE) -> Vector2:
+	return Vector2(_big_card_right(stage_width) - CardView.BASE.x * card_scale, BIG_CARD_Y)
+
+## The x where the full-size big card ends.
+static func _big_card_right(stage_width: float) -> float:
+	return stage_width / 2.0 - 620 + CardView.BASE.x * BIG_CARD_SCALE
 
 ## The card exactly as it was printed: no live instance, so no buffs, debuffs, markers, overrides or
 ## resets, and no cost, text or Bola de Neve adjustments. Sits right on top of the big card, hidden;
 ## the caller shows it while the "ver carta base" button is held. Returns it so the caller can toggle it.
-static func build_base_card(parent: Control, stage_width: float, card_id: String) -> CardView:
-	var base_card := CardView.new().setup(card_id, {}, BIG_CARD_SCALE)
-	base_card.position = big_card_position(stage_width)
+static func build_base_card(parent: Control, stage_width: float, card_id: String,
+		card_scale: float = BIG_CARD_SCALE) -> CardView:
+	var base_card := CardView.new().setup(card_id, {}, card_scale)
+	base_card.position = big_card_position(stage_width, card_scale)
 	base_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	base_card.visible = false
 	parent.add_child(base_card)

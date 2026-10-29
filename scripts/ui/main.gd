@@ -1824,6 +1824,7 @@ func _render_board(p: int, y: float) -> void:
 		var unit: Card = board[i]
 		var unit_view_data := unit.to_dict()
 		unit_view_data["armor_total"] = g.armor_of(unit) # includes Armadura given by adjacent allies
+		unit_view_data["constant_sources"] = g.constant_sources_of(unit) # who gives each Constante bonus (card overlay)
 		# summoning sickness is only worth showing while it really keeps the unit from attacking
 		unit_view_data["summoning_sick"] = unit.sick and not g.has_kw(unit, "impeto") and not g.has_kw(unit, "rompante")
 		# Condicional uses already spent THIS turn (Seymour's "(0/2)"): the stored count belongs to the turn it was spent in
@@ -3681,6 +3682,8 @@ func _show_overlay(v: CardView) -> void:
 	overlay = ColorRect.new()
 	overlay.color = Color(0, 0, 0, 0.82)
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# above board badges (the "N EQ." tag uses z 20) and flying card ghosts (up to 30)
+	overlay.z_index = 45
 	overlay.gui_input.connect(func(e):
 		if e is InputEventMouseButton and e.pressed:
 			_close_overlay())
@@ -3759,12 +3762,15 @@ func _add_base_card_button(card_id: String) -> void:
 	var text_panel := overlay.get_child(overlay.get_child_count() - 1) as RichTextLabel
 	var live_text := text_panel.text
 	var printed_text := CardOverlay.describe(card_id, {}, -1, "", GameState.SNOWBALL_BASE_LEVEL)
-	var base_card := CardOverlay.build_base_card(overlay, stage_w, card_id)
-	var button_size := Vector2(CardView.BASE.x * CardOverlay.BIG_CARD_SCALE, 84.0)
+	# the printed card has no buffs or debuffs, so the Modificadores column hides while it shows
+	var modifiers_panel := overlay.get_node_or_null(CardOverlay.StatModifiersPanel.NODE_NAME) as Control
+	var card_scale := CardOverlay.big_card_scale(stage_w, modifiers_panel != null)
+	var base_card := CardOverlay.build_base_card(overlay, stage_w, card_id, card_scale)
+	var button_size := Vector2(CardView.BASE.x * card_scale, 84.0)
 	var button := Button.new()
 	button.custom_minimum_size = button_size
 	button.size = button_size
-	button.position = Vector2(CardOverlay.big_card_position(stage_w).x, CardOverlay.BIG_CARD_Y - button_size.y - 16.0)
+	button.position = Vector2(CardOverlay.big_card_position(stage_w, card_scale).x, CardOverlay.BIG_CARD_Y - button_size.y - 16.0)
 	button.focus_mode = Control.FOCUS_NONE
 	button.tooltip_text = "Segure para ver a carta como foi impressa."
 	var icon := Control.new()
@@ -3790,10 +3796,14 @@ func _add_base_card_button(card_id: String) -> void:
 	button.add_child(caption)
 	button.button_down.connect(func():
 		base_card.visible = true
-		text_panel.text = printed_text)
+		text_panel.text = printed_text
+		if modifiers_panel != null:
+			modifiers_panel.visible = false)
 	button.button_up.connect(func():
 		base_card.visible = false
-		text_panel.text = live_text)
+		text_panel.text = live_text
+		if modifiers_panel != null:
+			modifiers_panel.visible = true)
 	overlay.add_child(button)
 
 ## A picture-icon button next to the "ver carta base" one: opens the card's art alone, full screen.

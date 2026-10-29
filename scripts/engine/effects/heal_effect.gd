@@ -81,4 +81,5 @@ func apply(context: EffectContext, target_uid: int) -> void:
 			# opt-in overflow: a heal that goes past what the unit was missing grows its maximum Vida for good
 			if overflow_max_hp > 0 and heal_amount > healed:
 				unit.hp += overflow_max_hp
+				unit.record_stat_change(context.source_id(), "", {"hp": overflow_max_hp})
 				context.game._emit({"type": "buff", "uid": target_uid, "atk": 0, "hp": overflow_max_hp, "keywords": []})

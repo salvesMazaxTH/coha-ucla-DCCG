@@ -80,6 +80,11 @@ var leader_damage_guard_turn := -1 ## turn in which this card reduced the first 
 var death_ward_armed := false ## a free-standing artifact is ready to prevent one allied unit death
 var durability_used := 0 ## Durability points this artifact has lost so far (see durability_left)
 var durability_uses := 0 ## firings of an effect with "durability_every_uses" since the artifact last lost Durability
+## Where this unit's stat changes came from, for the card overlay's "Modificadores" panel. One entry per change:
+## {"source": card id ("" = the Leader's power), "until": "" (permanent) / "end_turn" / "next_turn",
+## and the stats it changed: "atk", "hp", "armor", "critico", "rapidez" (negative = debuff)}.
+## It only explains the numbers; the real stats stay in atk / temp_atk / armor... (see record_stat_change).
+var stat_sources: Array = []
 var stored_momentum := 0 ## Momentum held by an artifact with "momentum_store": N (Bateria de Segunda Mão); lost when it leaves the field
 
 ## Card-data fields that are an ability or a keyword's number: silence() deletes them from the unit.
@@ -189,6 +194,7 @@ func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:
 	vipranna_heal_locked = false
 	leader_damage_guard_turn = -1
 	death_ward_armed = false
+	stat_sources = []
 	apply_permanent_buffs()
 
 ## Rebuilds the permanent bonuses that belong to this card, not to an aura or equipment.
@@ -208,6 +214,8 @@ func apply_permanent_buffs() -> void:
 		magic_shield = true
 	if bool(permanent_buffs.get("supreme_shield", false)):
 		grant_supreme_shield()
+	for source_entry: Dictionary in permanent_buffs.get("sources", []):
+		stat_sources.append(source_entry.duplicate())
 
 ## Saves positive, permanent changes made directly to the unit. Equipment is removed before this is called;
 ## temporary effects and bonuses computed from other cards live in separate fields and are not captured.
@@ -234,10 +242,36 @@ func capture_permanent_buffs() -> void:
 		upgrades["magic_shield"] = true
 	if supreme_shield and supreme_shield_expires == "" and not printed_keywords.has("escudo_supremo"):
 		upgrades["supreme_shield"] = true
+	var permanent_sources: Array = []
+	for source_entry: Dictionary in stat_sources:
+		if String(source_entry.get("until", "")) == "":
+			permanent_sources.append(source_entry.duplicate())
+	if not permanent_sources.is_empty():
+		upgrades["sources"] = permanent_sources
 	permanent_buffs = upgrades
 
 func reset_permanent_buffs() -> void:
 	permanent_buffs = {}
+
+## Notes where a stat change came from (see stat_sources). `until` is "" (permanent), "end_turn" or "next_turn";
+## `changes` holds the stats it changed, e.g. {"atk": 2, "hp": 2}. Zero changes are left out.
+func record_stat_change(source: String, until: String, changes: Dictionary) -> void:
+	var source_entry := {"source": source, "until": until}
+	for stat_name in changes:
+		if int(changes[stat_name]) != 0:
+			source_entry[stat_name] = int(changes[stat_name])
+	if source_entry.size() > 2:
+		stat_sources.append(source_entry)
+
+## Forgets the source notes of the changes that just expired ("end_turn" or "next_turn").
+func expire_stat_sources(until: String) -> void:
+	stat_sources = stat_sources.filter(func(source_entry: Dictionary) -> bool: return String(source_entry.get("until", "")) != until)
+
+## Forgets the source notes of one stat (its value was reset, e.g. Armadura stripped).
+func forget_stat_sources(stat_name: String) -> void:
+	for source_entry: Dictionary in stat_sources:
+		source_entry.erase(stat_name)
+	stat_sources = stat_sources.filter(func(source_entry: Dictionary) -> bool: return source_entry.size() > 2)
 
 ## Silenciada: the unit lost every keyword and effect (see silence()).
 func is_silenced() -> bool:
@@ -284,6 +318,9 @@ func silence() -> void:
 	critico = 0
 	temp_critico = 0
 	armor = maxi(0, armor - int(cd.get("armor", 0)))
+	# only the Armadura changes survive a silence, so only their source notes stay
+	for stat_name in ["atk", "hp", "critico", "rapidez"]:
+		forget_stat_sources(stat_name)
 	var silenced_over := over.duplicate(true)
 	silenced_over["silenced"] = true
 	silenced_over["keywords"] = []
@@ -470,6 +507,8 @@ func to_dict() -> Dictionary:
 			d["vipranna_heal_locked"] = true
 	if leader_damage_guard_turn >= 0:
 		d["leader_damage_guard_turn"] = leader_damage_guard_turn
+	if not stat_sources.is_empty():
+		d["stat_sources"] = stat_sources.duplicate(true)
 	return d
 
 ## Rebuilds a card from to_dict() output (network mirror). Board cards need "owner".
@@ -550,4 +589,5 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.vipranna_heal_total = int(d.get("vipranna_heal_total", 0))
 	c.vipranna_heal_locked = bool(d.get("vipranna_heal_locked", false))
 	c.leader_damage_guard_turn = int(d.get("leader_damage_guard_turn", -1))
+	c.stat_sources = d.get("stat_sources", []).duplicate(true)
 	return c

@@ -119,13 +119,14 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	if cleanse:
 		game.cleanse_unit_markers(unit)
 	if copy_attack_source == "highest_ally":
-		_copy_highest_ally_attack(game, unit)
+		_copy_highest_ally_attack(game, unit, context.source_id())
 		return
 	if critico_to_max:
 		if unit.critico_total() < 1:
 			return
 		var missing_levels: int = 4 - unit.critico_total()
 		unit.temp_critico += missing_levels
+		unit.record_stat_change(context.source_id(), "end_turn", {"critico": missing_levels})
 		game._emit({"type": "buff", "uid": target_uid, "atk": 0, "hp": 0, "keywords": [], "critico": missing_levels})
 		return
 	var multiplier := 1
@@ -144,6 +145,15 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		if attack_gain <= 0:
 			return
 		unit.cap_atk_gain += attack_gain
+	# what this buff changed, per how long it lasts, for the overlay's source list (Card.stat_sources)
+	var permanent_changes := {}
+	var end_of_turn_changes := {}
+	var until_next_turn_changes := {}
+	if temporary:
+		end_of_turn_changes = {"atk": attack_gain, "hp": health_gain, "armor": armor}
+	else:
+		permanent_changes = {"atk": attack_gain, "hp": health_gain, "armor": armor}
+	until_next_turn_changes = {"atk": temporary_attack_until_next_turn, "hp": temporary_health_until_next_turn, "armor": temporary_armor}
 	if temporary:
 		unit.temp_atk += attack_gain
 		unit.temp_hp += health_gain
@@ -153,11 +163,13 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	if bonus_card != "" and unit.card_id == bonus_card:
 		unit.atk += bonus_attack
 		unit.hp += bonus_health
+		_add_changes(permanent_changes, {"atk": bonus_attack, "hp": bonus_health})
 		attack_gain += bonus_attack
 		health_gain += bonus_health
 	if not bonus_species.is_empty() and _shares_species(unit):
 		unit.atk += species_bonus_attack
 		unit.hp += species_bonus_health
+		_add_changes(permanent_changes, {"atk": species_bonus_attack, "hp": species_bonus_health})
 		attack_gain += species_bonus_attack
 		health_gain += species_bonus_health
 	unit.temp_atk_until_next_turn += temporary_attack_until_next_turn # ends when the unit's owner starts their next turn
@@ -171,6 +183,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		unit.armor += armor # Armadura stacks: giving Armadura X to a unit that has Y leaves X + Y
 	var armor_raised_to := 0
 	if minimum_armor > unit.armor:
+		_add_changes(permanent_changes, {"armor": minimum_armor - unit.armor})
 		unit.armor = minimum_armor
 		armor_raised_to = minimum_armor
 	if temporary_magic_shield and not unit.magic_shield:
@@ -210,9 +223,11 @@ func apply(context: EffectContext, target_uid: int) -> void:
 			granted_keywords.append(keyword)
 	var buff_event := {"type": "buff", "uid": target_uid, "atk": attack_gain, "hp": health_gain, "keywords": granted_keywords}
 	if minimum_rapidez > unit.rapidez:
+		_add_changes(permanent_changes, {"rapidez": minimum_rapidez - unit.rapidez})
 		unit.rapidez = minimum_rapidez
 		buff_event["rapidez"] = minimum_rapidez
 	if temporary_rapidez > unit.rapidez_total():
+		_add_changes(until_next_turn_changes, {"rapidez": temporary_rapidez - unit.rapidez_total()})
 		unit.rapidez_until_next_turn = temporary_rapidez
 		buff_event["rapidez"] = temporary_rapidez
 	if armor + temporary_armor > 0:
@@ -220,9 +235,19 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	elif armor_raised_to > 0:
 		buff_event["armor"] = armor_raised_to
 	if temporary_critico > 0:
+		var critico_before := unit.temp_critico
 		unit.temp_critico = mini(4, unit.temp_critico + temporary_critico)
+		_add_changes(end_of_turn_changes, {"critico": unit.temp_critico - critico_before})
 		buff_event["critico"] = temporary_critico
+	unit.record_stat_change(context.source_id(), "", permanent_changes)
+	unit.record_stat_change(context.source_id(), "end_turn", end_of_turn_changes)
+	unit.record_stat_change(context.source_id(), "next_turn", until_next_turn_changes)
 	game._emit(buff_event)
+
+## Adds the stat changes in `extra` to `changes` (both {stat name: amount}).
+func _add_changes(changes: Dictionary, extra: Dictionary) -> void:
+	for stat_name in extra:
+		changes[stat_name] = int(changes.get(stat_name, 0)) + int(extra[stat_name])
 
 ## True when the unit has at least one of the species that earn the "bonus_if_species" extra.
 func _shares_species(unit: Card) -> bool:
@@ -237,7 +262,7 @@ func _has_any_species(unit: Card, wanted_species: Array) -> bool:
 
 ## The unit's Ataque rises to match the strongest OTHER unit on its side. The difference is the gain, so the unit's own
 ## bonuses stay and it never loses Ataque by copying a weaker ally.
-func _copy_highest_ally_attack(game: GameState, unit: Card) -> void:
+func _copy_highest_ally_attack(game: GameState, unit: Card, source: String) -> void:
 	var highest_ally_attack := 0
 	for ally: Card in game.players[unit.owner]["board"]:
 		if ally != unit:
@@ -249,4 +274,5 @@ func _copy_highest_ally_attack(game: GameState, unit: Card) -> void:
 		unit.temp_atk += attack_gain
 	else:
 		unit.atk += attack_gain
+	unit.record_stat_change(source, "end_turn" if temporary else "", {"atk": attack_gain})
 	game._emit({"type": "buff", "uid": unit.uid, "atk": attack_gain, "hp": 0, "keywords": []})

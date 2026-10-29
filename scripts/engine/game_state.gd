@@ -556,7 +556,8 @@ func constants_multiplier(p: int) -> int:
 ## x = Ataque, y = Vida, z = Armadura. An aura only reaches units sharing one of its species
 ## (a card can list several, e.g. ["divindade", "celestial"]). The source's own aura does not reach itself
 ## unless the effect says "include_self": true (Mefi'Urdim).
-func species_aura_bonus(c: Card) -> Vector3i:
+## `sources_out`, when given, receives one {"source": card id, "atk", "hp", "armor"} per aura that reaches the unit.
+func species_aura_bonus(c: Card, sources_out: Array = []) -> Vector3i:
 	var bonus := Vector3i.ZERO
 	var unit_data := card_of(c)
 	var unit_species: Array = unit_data.get("species", [])
@@ -569,14 +570,48 @@ func species_aura_bonus(c: Card) -> Vector3i:
 				continue
 			if source == c and not bool(e.get("include_self", false)):
 				continue
-			if unit_is_token and bool(e.get("tokens", false)):
-				bonus += Vector3i(int(e.get("atk", 0)), int(e.get("hp", 0)), int(e.get("armor", 0)))
-				continue # an aura for tokens gives its bonus once as well
+			var aura_reaches := unit_is_token and bool(e.get("tokens", false)) # an aura for tokens gives its bonus once as well
 			for aura_species in e.get("species", []):
 				if unit_species.has(aura_species):
-					bonus += Vector3i(int(e.get("atk", 0)), int(e.get("hp", 0)), int(e.get("armor", 0)))
+					aura_reaches = true
 					break # one aura gives its bonus once, however many species match
+			if not aura_reaches:
+				continue
+			bonus += Vector3i(int(e.get("atk", 0)), int(e.get("hp", 0)), int(e.get("armor", 0)))
+			var multiplier := constants_multiplier(c.owner)
+			sources_out.append({"source": source.card_id, "atk": int(e.get("atk", 0)) * multiplier, "hp": int(e.get("hp", 0)) * multiplier, "armor": int(e.get("armor", 0)) * multiplier})
 	return bonus * constants_multiplier(c.owner)
+
+## Where each Constante bonus on a unit comes from, for the card overlay's "Modificadores" panel: one
+## {"source": card id, "until": "constant", "atk", "hp", "armor", "critico"} per effect (its own scaling, each ally's
+## aura, the Momentum surge, Armadura from the graveyard or from the neighbours). Zero stats are left out.
+func constant_sources_of(c: Card) -> Array:
+	var raw_sources: Array = []
+	var multiplier := constants_multiplier(c.owner)
+	for e in card_of(c).get("effects", []):
+		if e.get("trigger", "") == "constante" and e.get("action", "") == "scale":
+			var count := _scale_count(c.owner, e, c)
+			raw_sources.append({"source": c.card_id, "atk": count * int(e.get("atk", 0)) * multiplier, "hp": count * int(e.get("hp", 0)) * multiplier})
+	species_aura_bonus(c, raw_sources)
+	var surge := momentum_surge_of(c.owner, c)
+	var critico_from_surge := c.critico_total() - clampi(c.critico + c.temp_critico, 0, 4) # the surge level only counts when it is higher
+	raw_sources.append({"source": c.card_id, "atk": int(surge.get("atk", 0)), "critico": critico_from_surge})
+	raw_sources.append({"source": c.card_id, "armor": graveyard_armor_of(c)})
+	var board: Array = players[c.owner]["board"]
+	var index := board.find(c)
+	for neighbour_index in [index - 1, index + 1]:
+		if index >= 0 and neighbour_index >= 0 and neighbour_index < board.size():
+			var neighbour: Card = board[neighbour_index]
+			raw_sources.append({"source": neighbour.card_id, "armor": int(card_of(neighbour).get("adjacent_armor", 0)) * multiplier})
+	var sources: Array = []
+	for raw_source: Dictionary in raw_sources:
+		var source_entry := {"source": raw_source["source"], "until": "constant"}
+		for stat_name in ["atk", "hp", "armor", "critico"]:
+			if int(raw_source.get(stat_name, 0)) != 0:
+				source_entry[stat_name] = int(raw_source[stat_name])
+		if source_entry.size() > 2:
+			sources.append(source_entry)
+	return sources
 
 ## Armadura a unit gets from its own "graveyard_armor" effect: +1 per card of the given type and
 ## essence in its owner's graveyard (e.g. Sagrada spells for Nerithia).
@@ -1656,6 +1691,8 @@ func transform_into(c: Card, into_id: String) -> void:
 	c.used_turn = {}
 	c.atk = int(cd["atk"])
 	c.hp = int(cd["hp"])
+	c.forget_stat_sources("atk") # the new card starts from its own printed numbers
+	c.forget_stat_sources("hp")
 	c.shield = c.shield or kws.has("escudo")
 	c.magic_shield = c.magic_shield or kws.has("escudo_magico")
 	if kws.has("escudo_supremo"):
@@ -3034,6 +3071,7 @@ func _apply_vipranna_heal(context: EffectContext, amount: int) -> void:
 	_heal_leader(context.controller, amount)
 	vipranna.vipranna_heal_total += amount
 	vipranna.temp_hp_until_next_turn += 1
+	vipranna.record_stat_change(vipranna.card_id, "next_turn", {"hp": 1})
 	_emit({"type": "buff", "uid": vipranna.uid, "atk": 0, "hp": 1, "keywords": [], "until_next_turn": true})
 	if vipranna.vipranna_heal_total >= 15:
 		vipranna.vipranna_heal_locked = true
@@ -3302,6 +3340,7 @@ func _finish_turn() -> void:
 			c.temp_atk = 0
 			c.turn_armor = 0
 			c.temp_critico = 0
+			c.expire_stat_sources("end_turn")
 			for kw in c.temp_keywords:
 				c.keywords.erase(kw)
 			c.temp_keywords.clear()
@@ -3457,6 +3496,7 @@ func _start_turn(p: int, draw: bool) -> void:
 		c.sick = false
 		c.temp_armor = 0
 		c.temp_atk_until_next_turn = 0
+		c.expire_stat_sources("next_turn")
 		if c.magic_shield_until_next_turn:
 			c.magic_shield = false
 			c.magic_shield_until_next_turn = false

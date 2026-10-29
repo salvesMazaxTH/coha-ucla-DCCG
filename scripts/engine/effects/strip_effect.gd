@@ -27,6 +27,7 @@ func _strip_defenses(context: EffectContext, unit: Card) -> void:
 	unit.armor = 0
 	unit.temp_armor = 0
 	unit.turn_armor = 0
+	unit.forget_stat_sources("armor")
 	context.game._emit({"type": "strip_defenses", "uid": unit.uid})
 
 func _suppress_keyword(context: EffectContext, unit: Card) -> void:

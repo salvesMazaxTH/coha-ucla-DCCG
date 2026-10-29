@@ -17,13 +17,13 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	var unit := game.find_unit(target_uid)
 	if unit == null:
 		return
-	var attack_lost := _cap_attack(unit)
-	var health_lost := _cap_health(unit)
+	var attack_lost := _cap_attack(unit, context.source_id())
+	var health_lost := _cap_health(unit, context.source_id())
 	if attack_lost > 0 or health_lost > 0:
 		game._emit({"type": "shrink", "uid": target_uid, "atk": attack_lost, "hp": health_lost})
 
 ## Lowers the unit's Ataque to the ceiling; returns how much was taken away.
-func _cap_attack(unit: Card) -> int:
+func _cap_attack(unit: Card, source: String) -> int:
 	var before := unit.atk_total()
 	var excess := before - attack_ceiling
 	if excess <= 0:
@@ -33,12 +33,16 @@ func _cap_attack(unit: Card) -> int:
 	unit.temp_atk_until_next_turn -= take_from_until_next_turn
 	unit.temp_atk -= from_temporary - take_from_until_next_turn
 	# whatever is left comes off the permanent Ataque (the aura bonus is not ours to remove)
+	var permanent_before := unit.atk
 	unit.atk = maxi(0, unit.atk - (excess - from_temporary))
+	unit.record_stat_change(source, "next_turn", {"atk": -take_from_until_next_turn})
+	unit.record_stat_change(source, "end_turn", {"atk": -(from_temporary - take_from_until_next_turn)})
+	unit.record_stat_change(source, "", {"atk": unit.atk - permanent_before})
 	return before - unit.atk_total()
 
 ## Lowers the unit's Vida to the ceiling; the damage it carries is trimmed so it keeps the same life
 ## (or the ceiling, if lower) and never dies from this.
-func _cap_health(unit: Card) -> int:
+func _cap_health(unit: Card, source: String) -> int:
 	var life_before := unit.hp_left()
 	var maximum_before := unit.hp + unit.bonus_hp + unit.temp_hp + unit.temp_hp_until_next_turn
 	var excess := maximum_before - health_ceiling
@@ -48,7 +52,11 @@ func _cap_health(unit: Card) -> int:
 	var take_from_until_next_turn := mini(from_temporary, unit.temp_hp_until_next_turn)
 	unit.temp_hp_until_next_turn -= take_from_until_next_turn
 	unit.temp_hp -= from_temporary - take_from_until_next_turn
+	var permanent_before := unit.hp
 	unit.hp = maxi(1, unit.hp - (excess - from_temporary))
+	unit.record_stat_change(source, "next_turn", {"hp": -take_from_until_next_turn})
+	unit.record_stat_change(source, "end_turn", {"hp": -(from_temporary - take_from_until_next_turn)})
+	unit.record_stat_change(source, "", {"hp": unit.hp - permanent_before})
 	var maximum_after := unit.hp + unit.bonus_hp + unit.temp_hp + unit.temp_hp_until_next_turn
 	unit.damage = maxi(0, maximum_after - mini(life_before, maximum_after))
 	return maximum_before - maximum_after

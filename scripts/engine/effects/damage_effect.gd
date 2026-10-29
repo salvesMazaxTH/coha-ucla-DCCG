@@ -107,6 +107,7 @@ func _grant_kill_bonus(context: EffectContext) -> void:
 	if source_unit == null:
 		return
 	source_unit.atk += source_gain_per_kill
+	source_unit.record_stat_change(context.source_id(), "", {"atk": source_gain_per_kill})
 	context.game._emit({"type": "buff", "uid": source_unit.uid, "atk": source_gain_per_kill, "hp": 0, "keywords": []})
 
 ## Heals the unit that owns this effect (never above its Vida); a unit that already left the board is not healed.
