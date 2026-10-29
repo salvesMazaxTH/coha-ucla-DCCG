@@ -6069,6 +6069,9 @@ func _test_eletrica() -> void:
 	g.end_turn(a)
 	g.end_turn(o)
 	check(g.cost_of(a, zefiran) == 12, "zefiran: o desconto vale só naquele turno")
+	check(g.subito_cost(a, zefiran) == 10, "zefiran: Súbito custa 10 fixo")
+	g.players[a]["turn_start_momentum"] = g.players[a]["max_momentum"] + 2
+	check(g.cost_of(a, zefiran) == 8 and g.subito_cost(a, zefiran) == 10, "zefiran: o desconto não vale para o Súbito")
 	# Fulgurvoltz: no Ao Entrar; Ao Ativar (4, Lento) destroys every enemy unit, from the stack
 	var fgd: Dictionary = CardDB.card("fulgurvoltz")
 	check(fgd["activated"]["cost"] == 5 and fgd["activated"]["speed"] == "lento", "fulgurvoltz: Ao Ativar custa 5, Lento")

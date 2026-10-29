@@ -1204,7 +1204,10 @@ func is_subito_play(p: int, cd: Dictionary) -> bool:
 	return cd.get("type", "") == "unit" and cd.has("subito") and not _sorcery_time(p) and can_cast_speed(p, "rapido")
 
 ## The Súbito cost for this copy: the normal cost (with its discounts) plus the Súbito premium.
+## A card with "subito_fixed": true always costs exactly its "subito" value (no discounts, no premium).
 func subito_cost(p: int, cd: Dictionary, card: Card = null) -> int:
+	if cd.get("subito_fixed", false):
+		return int(cd["subito"])
 	var premium := int(cd["subito"]) - int(cd["cost"])
 	return cost_of(p, cd, card) + premium
 

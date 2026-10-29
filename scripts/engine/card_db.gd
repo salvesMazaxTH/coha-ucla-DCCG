@@ -133,7 +133,8 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 	if cd.has("speed") and cd["speed"] not in SPEEDS:
 		err.call("speed desconhecida \"%s\"" % cd["speed"])
 	# Súbito: "subito" is the full cost of summoning it outside your own idle Main Phase
-	if cd.has("subito") and (type != "unit" or int(cd["subito"]) <= int(cd.get("cost", 0))):
+	# (a "subito_fixed" card pays exactly that value, so it may be below the normal cost)
+	if cd.has("subito") and (type != "unit" or (not cd.get("subito_fixed", false) and int(cd["subito"]) <= int(cd.get("cost", 0)))):
 		err.call("subito precisa ser uma unidade com custo Súbito maior que o custo normal")
 	if cd.has("transform") and not _data["cards"].has(cd["transform"].get("into", "")):
 		err.call("transform.into inexistente \"%s\"" % cd["transform"].get("into", ""))
