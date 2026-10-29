@@ -12,9 +12,10 @@ const MAX_COPIES := 3
 const MAX_LEGENDARY_COPIES := 2
 ## Champions + legendaries together (counting copies) in one deck.
 const MAX_ELITE_CARDS := 20
-## Guest cards: cards outside the Leader's domains (neutral ones don't count), of any rarity.
+## Guest cards: cards outside the Leader's domains (neutral ones don't count), of any rarity. A card of
+## several domains is NOT a guest when at least one of them is the Leader's.
 ## They can come from any domains, in any mix, up to MAX_OFF_ESSENCE. If one domain appears in EVERY
-## guest card (a multi-domain guest counts for each domain the Leader lacks), the cap rises to
+## guest card (a multi-domain guest counts for each of its domains), the cap rises to
 ## MAX_OFF_ESSENCE_SINGLE_DOMAIN: that shared domain works like a secondary domain.
 ## A neutral Leader has no domain, so every non-neutral card is a guest for it.
 const MAX_OFF_ESSENCE := 10
@@ -236,24 +237,27 @@ static func copy_limit(card_id: String) -> int:
 	var default_limit := MAX_LEGENDARY_COPIES if c.get("rarity", "") == "legendary" else MAX_COPIES
 	return int(c.get("max_copies", default_limit))
 
-## The card's domains the Leader lacks. A card of several domains is on-domain only when the Leader's
-## Incarnation has ALL of them; a neutral card never counts as a guest. Empty = not a guest card.
+## The card's domains the Leader lacks, when the card is a guest. A card of several domains is on-domain
+## as soon as ONE of them is a domain of the Leader's Incarnation (then it is not a guest and this is
+## empty); only when none matches are all of its domains missing. A neutral card never counts as a guest.
 static func missing_domains(leader_id: String, card_id: String) -> Array:
 	var leader_domains: Array = CardDB.leader(leader_id)["essences"]
 	var card_domains := CardDB.essences_of(CardDB.card(card_id))
 	if card_domains.has("neutra"):
 		return []
-	return card_domains.filter(func(domain): return not leader_domains.has(domain))
+	if card_domains.any(func(domain): return leader_domains.has(domain)):
+		return []
+	return card_domains
 
 static func is_guest(leader_id: String, card_id: String) -> bool:
 	return not missing_domains(leader_id, card_id).is_empty()
 
-## Strictly the Leader's own domain: every domain of the card is one the Leader has. Unlike a non-guest,
-## a neutral card does not pass (unless the Leader itself is neutral), because neutral fits any deck.
+## Strictly the Leader's own domain: at least one domain of the card is one the Leader has. Unlike a
+## non-guest, a neutral card does not pass (unless the Leader itself is neutral), because neutral fits any deck.
 static func is_in_leader_domain(leader_id: String, card_id: String) -> bool:
 	var leader_domains: Array = CardDB.leader(leader_id)["essences"]
 	var card_domains := CardDB.essences_of(CardDB.card(card_id))
-	return card_domains.all(func(domain): return leader_domains.has(domain))
+	return card_domains.any(func(domain): return leader_domains.has(domain))
 
 ## Cards a player may put in a deck by hand. With no Leader context, canonical Encarnações are
 ## conservatively reserved; when a Leader is supplied, the other Leaders' Champions are draftable.
