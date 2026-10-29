@@ -6524,13 +6524,19 @@ func _test_elefante_incomodante() -> void:
 
 ## O grito cinematográfico do Elefante Incomodante: só dispara quando o ataque ao Líder inimigo é letal.
 func _test_incomodante_shout() -> void:
-	var card_effects: Array = CardDB.card("elefante_incomodante")["effects"]
+	var elephant_data: Dictionary = CardDB.card("elefante_incomodante")
+	var card_effects: Array = elephant_data["effects"]
 	var shout_effect: Dictionary = {}
 	for effect_data in card_effects:
 		if effect_data.get("action", "") == "shout":
 			shout_effect = effect_data
 	check(not shout_effect.is_empty() and shout_effect.get("if", "") == "lethal_attack" and shout_effect.get("shout_style", "") == "wild", "grito: o Incomodante carrega o efeito shout condicionado a lethal_attack, no estilo wild")
 	check(String(shout_effect.get("shout", "")).ends_with("MUITO MAIS!"), "grito: 'MUITO MAIS!' usa espaço sem quebra para explodir junto no final")
+	var card_view := CardView.new()
+	var attack_tag: String = CardDB.data()["triggers"]["before_attack"]["name"]
+	check(not str(card_view._panel_lines(elephant_data)).contains(attack_tag), "grito: efeito shout não imprime Ao Atacar no corpo da carta")
+	check(str(card_view._panel_lines(CardDB.card("barao_estrondoso"))).contains(attack_tag), "grito: metadado shout não oculta Ao Atacar de um efeito auto_attack")
+	card_view.free()
 
 	# lethal: three copies make each one 3/3, the enemy Leader has 3 life -> the shout is announced with the wild style
 	var g := _new_game()

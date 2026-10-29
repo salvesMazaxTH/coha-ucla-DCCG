@@ -1713,6 +1713,9 @@ func _panel_lines(cd: Dictionary) -> Array:
 		tags.append(["%s (%d)" % [CardDB.keyword("subito")["name"], int(cd["subito"])], Color("#ffd27a")])
 	var seen := {}
 	for e in cd.get("effects", []):
+		# A shout is presentation only; its timing hook is not a printed ability.
+		if e.get("action", "") == "shout":
+			continue
 		var trg: String = e.get("trigger", "")
 		if trg == "" or trg == "on_play" or seen.has(trg):
 			continue
