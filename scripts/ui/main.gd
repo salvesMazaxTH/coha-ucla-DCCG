@@ -117,6 +117,10 @@ var grave_filter := "all"
 var grave_drag_ms := -1000 ## last finger-drag in the viewer: taps right after it are not clicks
 var search_scroll: ScrollContainer ## the one-row card strip of the open pick window (null when none)
 var search_drag_ms := -1000 ## last scroll of that strip: taps and long-presses right after it are not picks
+## A finger always trembles a little during a tap; it only counts as a swipe once it has travelled this far (screen pixels).
+const SWIPE_START_DISTANCE := 14.0
+var finger_press_position := Vector2.ZERO ## where the current touch began
+var finger_is_swiping := false ## true once the current touch moved past SWIPE_START_DISTANCE
 var views := {} ## uid (or "cmd<p>") -> Control on screen, for animations
 var _unit_board_views := {} ## uid -> unit CardView from the last board render, kept for same-slot updates
 var _unit_views_for_reuse := {} ## detached unit views being matched against the next board layout
@@ -3077,6 +3081,9 @@ func _input(e: InputEvent) -> void:
 		last_input_ms = Time.get_ticks_msec()
 	if e is InputEventScreenTouch or e is InputEventScreenDrag:
 		CardView.touched = true
+	if e is InputEventScreenTouch and e.pressed:
+		finger_press_position = e.position
+		finger_is_swiping = false
 	# the Chronicle scene stays open while the pointer is on the list; moving or tapping elsewhere closes it
 	if chronicle_scene and chronicle_scene.visible and (e is InputEventMouseMotion or (e is InputEventMouseButton and e.pressed)):
 		if not _chronicle_list_rect.has_point(get_local_mouse_position()):
@@ -4168,6 +4175,8 @@ func _grave_scroll_input(e: InputEvent) -> bool:
 		grave_scroll.scroll_vertical += (-1 if e.button_index == MOUSE_BUTTON_WHEEL_UP else 1) * 120
 		return true
 	if e is InputEventScreenDrag:
+		if not _finger_is_swiping(e):
+			return false # still a tap: the card under the finger must get it
 		grave_scroll.scroll_vertical -= int(e.relative.y / xf.get_scale().y)
 		grave_drag_ms = Time.get_ticks_msec()
 		return true
@@ -4185,6 +4194,13 @@ const SEARCH_DRAG_CLICK_GUARD_MSEC := 250 ## taps this soon after a scroll are n
 func _search_just_scrolled() -> bool:
 	return Time.get_ticks_msec() - search_drag_ms < SEARCH_DRAG_CLICK_GUARD_MSEC
 
+## True once the finger of the current touch has moved far enough to be a swipe, not a trembling tap.
+## Without this, the tiny drag of every real tap on a phone was taken as a scroll and the tap was thrown away.
+func _finger_is_swiping(drag: InputEventScreenDrag) -> bool:
+	if not finger_is_swiping and drag.position.distance_to(finger_press_position) > SWIPE_START_DISTANCE:
+		finger_is_swiping = true
+	return finger_is_swiping
+
 ## Wheel and finger-drag scrolling of the pick window's strip: the cards swallow those events before the ScrollContainer sees them.
 func _search_scroll_input(e: InputEvent) -> bool:
 	if not is_instance_valid(search_scroll) or overlay:
@@ -4199,6 +4215,8 @@ func _search_scroll_input(e: InputEvent) -> bool:
 		var local: Vector2 = xf.affine_inverse() * e.position
 		if not Rect2(Vector2.ZERO, search_scroll.size).has_point(local):
 			return false
+		if not _finger_is_swiping(e):
+			return false # still a tap: the card under the finger must get it (a pick may be mandatory)
 		search_scroll.scroll_horizontal -= int(e.relative.x / xf.get_scale().x)
 		search_drag_ms = Time.get_ticks_msec()
 		return true
