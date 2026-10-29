@@ -1468,14 +1468,14 @@ func _coach_notes() -> Array[Dictionary]:
 				if is_group_target:
 					has_area_removal = true
 					var is_global_target := target in ["all_enemy_units", "all_units", "other_units"]
-					var has_group_restriction := not effect.get("unit_filter", {}).is_empty() \
+					var has_group_restriction: bool = not effect.get("unit_filter", {}).is_empty() \
 							or String(effect.get("unit_state", "")) != ""
 					if is_global_target and not has_group_restriction:
 						has_unrestricted_global_removal = true
 				else:
 					has_targeted_removal = true
 					var is_broad_target := target in ["enemy_unit", "any_unit", "any"]
-					var has_target_restriction := int(effect.get("max_target_cost", -1)) >= 0 \
+					var has_target_restriction: bool = int(effect.get("max_target_cost", -1)) >= 0 \
 							or not effect.get("requires_markers", {}).is_empty()
 					if action in ["destroy", "banish"] and is_broad_target and not has_target_restriction:
 						has_unrestricted_targeted_removal = true
