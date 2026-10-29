@@ -1417,8 +1417,6 @@ func _coach_notes() -> Array[Dictionary]:
 	var units := 0
 	var late_threats := 0 # sizeable units that can close a control game
 	var burn := 0
-	var targeted_removal := 0 # one enemy unit at a time
-	var area_removal := 0 # affects every/each enemy unit
 	var unrestricted_targeted_removal := 0
 	var unrestricted_global_removal := 0
 	var card_selection := 0
@@ -1447,8 +1445,6 @@ func _coach_notes() -> Array[Dictionary]:
 				late_threats += copies
 		for specie in card.get("species", []):
 			species[String(specie)] = int(species.get(String(specie), 0)) + copies
-		var has_targeted_removal := false
-		var has_area_removal := false
 		var has_unrestricted_targeted_removal := false
 		var has_unrestricted_global_removal := false
 		var has_card_selection := false
@@ -1463,17 +1459,16 @@ func _coach_notes() -> Array[Dictionary]:
 				has_card_selection = true
 			var is_group_target := target.begins_with("all_") or target.begins_with("each_") \
 					or target.begins_with("other_") or target.begins_with("center_")
-			var removes_units := action in ["destroy", "banish", "damage"] and target.contains("unit")
+			var removes_units := action in ["destroy", "banish", "damage"] \
+					and (target.contains("unit") or target == "any")
 			if removes_units:
 				if is_group_target:
-					has_area_removal = true
 					var is_global_target := target in ["all_enemy_units", "all_units", "other_units"]
 					var has_group_restriction: bool = not effect.get("unit_filter", {}).is_empty() \
 							or String(effect.get("unit_state", "")) != ""
 					if is_global_target and not has_group_restriction:
 						has_unrestricted_global_removal = true
 				else:
-					has_targeted_removal = true
 					var is_broad_target := target in ["enemy_unit", "any_unit", "any"]
 					var has_target_restriction: bool = int(effect.get("max_target_cost", -1)) >= 0 \
 							or not effect.get("requires_markers", {}).is_empty()
@@ -1483,10 +1478,6 @@ func _coach_notes() -> Array[Dictionary]:
 				has_burn = true
 		if has_card_selection:
 			card_selection += copies
-		if has_targeted_removal:
-			targeted_removal += copies
-		if has_area_removal:
-			area_removal += copies
 		if has_unrestricted_targeted_removal:
 			unrestricted_targeted_removal += copies
 		if has_unrestricted_global_removal:
