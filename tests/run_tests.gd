@@ -7079,13 +7079,13 @@ func _test_degelo_na_moenda() -> void:
 	check(int(g.players[0]["momentum"]) == 2, "moenda: cada volta Zuleica + Fagulha sai de graça (veio %d)" % int(g.players[0]["momentum"]))
 	check(int(g.players[0]["leader_hp"]) == hp_before - 5, "moenda: cada volta custa 1 de Vida do Líder")
 	check(g.players[1]["deck"].size() == enemy_deck_before - 10, "moenda: cada desvirada mói 2 cartas do oponente")
-	check(mill_artifact.durability_left() == 5, "moenda: 5 moagens gastam só 1 de Durabilidade (a cada 3) (sobrou %d)" % mill_artifact.durability_left())
-	for lap in 13:
+	check(mill_artifact.durability_left() == 4, "moenda: 5 moagens gastam 2 de Durabilidade (a cada 2) (sobrou %d)" % mill_artifact.durability_left())
+	for lap in 7:
 		g.activate(0, thawer.uid, spark.uid)
 		g._flush()
 		g.activate(0, spark.uid)
 		g._flush()
-	check(not g.players[0]["relics"].has(mill_artifact), "moenda: 18 moagens esgotam os 6 de Durabilidade e a quebram")
+	check(not g.players[0]["relics"].has(mill_artifact), "moenda: 12 moagens esgotam os 6 de Durabilidade e a quebram")
 	check(not g.valid_targets(0, "other_ally_unit", thawer.uid, false, CardDB.card("zuleica_degela_tudo")["activated"]["effects"]).has(thawer.uid), "zuleica: não desvira a si mesma")
 
 func _test_zaza_fuzue() -> void:
@@ -7494,11 +7494,11 @@ func _test_metalica() -> void:
 	g.players[a]["momentum"] = 20
 	var uncle := _put(g, a, "berengar_voss")
 	var other := _put(g, a, "zeladorbot_3000")
-	check(g.atk_of(uncle) == 1 and g.hp_left(uncle) == 3, "Berengar Voss: sem artefatos é 1/3")
+	check(g.atk_of(uncle) == 1 and g.hp_left(uncle) == 4, "Berengar Voss: sem artefatos é 1/4")
 	_cast_and_resolve(g, a, "moedor_de_sucata")
-	check(g.atk_of(uncle) == 2 and g.hp_left(uncle) == 4, "Berengar Voss: um artefato em campo dá +1/+1")
+	check(g.atk_of(uncle) == 2 and g.hp_left(uncle) == 5, "Berengar Voss: um artefato em campo dá +1/+1")
 	_cast_and_resolve(g, a, "engrenagem_solta", other.uid)
-	check(g.atk_of(uncle) == 3 and g.hp_left(uncle) == 5, "Berengar Voss: artefato equipado também conta")
+	check(g.atk_of(uncle) == 3 and g.hp_left(uncle) == 6, "Berengar Voss: artefato equipado também conta")
 
 	# Berengar's leader power (Peça Sobressalente): looks at the top 3 and takes an artifact FIRST; only a card taken makes it discard 1
 	for scenario in ["takes_artifact", "no_artifact_on_top", "declines_search"]:
@@ -7913,12 +7913,12 @@ func _test_glacial_combo() -> void:
 	var health_before := 0
 	for victim: Card in spread_victims:
 		health_before += spread_game.hp_left(victim)
-	check(int(CardDB.card("repique_desgovernado")["effects"][0]["hits"]) == 9, "Repique Desgovernado: o JSON da carta distribui 9 de dano (X = 9)")
+	check(int(CardDB.card("repique_desgovernado")["effects"][0]["hits"]) == 8, "Repique Desgovernado: o JSON da carta distribui 8 de dano (X = 8)")
 	_cast_and_resolve(spread_game, 0, "repique_desgovernado")
 	var health_after := 0
 	for victim: Card in spread_victims:
 		health_after += spread_game.hp_left(victim)
-	check(health_before - health_after == 9, "Repique Desgovernado: tira exatamente os pontos de dano da carta de Vida somados das unidades inimigas (sem sobra de Vida alta)")
+	check(health_before - health_after == 8, "Repique Desgovernado: tira exatamente os pontos de dano da carta de Vida somados das unidades inimigas (sem sobra de Vida alta)")
 	# Total Vida below the 9 hits: every hit must find a unit that still has Vida (no hit wasted on an overkilled one),
 	# and the Ao Morrer of the first casualties waits for the end of the spell, so its token is never hit.
 	_tcard("t_spread_low", 1, 3, [])

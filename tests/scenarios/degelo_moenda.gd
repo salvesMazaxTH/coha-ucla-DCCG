@@ -1,14 +1,13 @@
 extends RefCounted
 ## Playtest do Degelo na Moenda: é o meu 10º turno (sem mulligan), campo vazio, 10 de Momentum,
 ## Reserva vazia, e o deck do oponente com 27 cartas (o que sobra mais ou menos no turno 10).
-## Roteiro sugerido: Moenda (4) + Zuleica (2) + Fagulha (2) = 8 de Momentum. Depois:
+## Roteiro sugerido: Moenda (3) + Zuleica (2) + Fagulha (2) = 7 de Momentum. Depois:
 ##   1. ativar a Fagulha (+1 de Momentum, ela exaure);
 ##   2. ativar a Zuleica mirando a Fagulha (-1 de Momentum, -1 de Vida, a Moenda mói 2);
 ##   3. repetir 1 e 2 até o deck do oponente acabar; cada moagem com o deck vazio vira Fadiga.
 ## A Cutucada dá uma volta de graça (sem pagar Vida) e a Maré Curativa compra mais 4 voltas.
 ## Apagar depois do playtest.
 
-const PLAYER_DECK := "fluxo_moenda"
 const ENEMY_DECK := "fogo"
 
 const HAND := [
