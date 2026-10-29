@@ -16,10 +16,12 @@
   "effects": [
     {
       "trigger": "on_enter",
-      "action": "summon_from",
+      "action": "discount_hand",
       "target": "none",
-      "source": "hand",
-      "species": "elefante"
+      "amount": 1,
+      "card_filter": {
+        "species": "elefante"
+      }
     },
     {
       "trigger": "constante",
@@ -27,11 +29,11 @@
       "species": [
         "elefante"
       ],
-      "atk": 1,
-      "hp": 1
+      "hp": 1,
+      "armor": 1
     }
   ],
-  "text": "Ao Entrar: você pode escolher um Elefante da sua mão; ele entra em campo sem pagar custo.\nConstante: seus outros Elefantes têm +1/+1.",
+  "text": "Ao Entrar: os Elefantes na sua mão custam (1) a menos.\nConstante: seus outros Elefantes têm +1 de Vida e Armadura 1.",
   "flavor": "Anda devagar porque já sabe que todo mundo vai sair da frente.",
   "art": "neutra/matriarca_pisa_mansinho.webp",
   "tags": []

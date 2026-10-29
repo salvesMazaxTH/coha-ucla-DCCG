@@ -6718,22 +6718,54 @@ func _test_saraya_kovan_package() -> void:
 	var call_options: Array = g.pending_search["cards"] if g.phase == "search" else []
 	check(call_options.size() == 1 and int(call_options[0]["uid"]) == call_beast.uid, "Chamado ao Picadeiro: só a Fera é oferecida, o humano não")
 
-	# --- Matriarca: coloca um Elefante da mão em campo de graça e dá +1/+1 aos outros Elefantes ---
+	# --- Matriarca: barateia os Elefantes da mão e dá +1 de Vida e Armadura 1 aos outros Elefantes ---
 	g = _new_game()
 	_quiet(g)
 	g.players[0]["momentum"] = 10
-	var elephant_in_hand := _give(g, 0, "tromba_de_aluguel")
+	var elephant_on_board := _put(g, 0, "tromba_de_aluguel")
+	var elephant_in_hand := _give(g, 0, "paquiderme_sem_vergonha")
+	var non_elephant_in_hand := _give(g, 0, "sentinela_dorminhoca")
 	var matriarch_uid := _give(g, 0, "matriarca_pisa_mansinho")
+	var elephant_card := g._hand_card(0, elephant_in_hand)
+	var non_elephant_card := g._hand_card(0, non_elephant_in_hand)
+	var elephant_cost_before := g.cost_of(0, CardDB.card(elephant_card.card_id), elephant_card)
+	var non_elephant_cost_before := g.cost_of(0, CardDB.card(non_elephant_card.card_id), non_elephant_card)
+	var board_elephant_armor_before := g.armor_of(elephant_on_board)
+	var board_elephant_atk_before := g.atk_of(elephant_on_board)
+	var board_elephant_hp_before := elephant_on_board.hp_left()
 	g.play_card(0, matriarch_uid, 0)
 	_resolve_stack(g)
-	check(g.phase == "search" and g.pending_search.get("hand_summon", false), "Matriarca: o Ao Entrar abre a escolha de um Elefante da mão")
-	g.choose_search(0, elephant_in_hand)
-	g._flush()
-	var summoned_elephant := g.find_unit(elephant_in_hand)
-	check(summoned_elephant != null and int(g.players[0]["momentum"]) == 5, "Matriarca: o Elefante entra de graça (só os 5 dela foram pagos)")
 	g._check_state()
-	check(g.atk_of(summoned_elephant) == 3 and summoned_elephant.hp_left() == 5, "Matriarca: o outro Elefante fica 3/5 (2/4 + 1/+1)")
-	check(g.atk_of(g.find_unit(matriarch_uid)) == 4, "Matriarca: não se bonifica")
+	check(g.cost_of(0, CardDB.card(elephant_card.card_id), elephant_card) == elephant_cost_before - 1, "Matriarca: o Elefante na mão custa 1 a menos")
+	check(g.cost_of(0, CardDB.card(non_elephant_card.card_id), non_elephant_card) == non_elephant_cost_before, "Matriarca: o que não é Elefante continua com o mesmo custo")
+	check(elephant_on_board.hp_left() == board_elephant_hp_before + 1 and g.armor_of(elephant_on_board) == board_elephant_armor_before + 1, "Matriarca: o outro Elefante ganha +1 de Vida e Armadura 1")
+	check(g.atk_of(elephant_on_board) == board_elephant_atk_before, "Matriarca: o outro Elefante não ganha ATK")
+	var matriarch_unit := g.find_unit(matriarch_uid)
+	check(matriarch_unit != null and g.armor_of(matriarch_unit) == 1 and matriarch_unit.hp_left() == 6, "Matriarca: não se bonifica (só a Armadura 1 dela)")
+
+	# --- Dona Ribomba: ao entrar e ao morrer, um Elefante de qualquer custo da mão entra de graça ---
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var big_elephant_in_hand := _give(g, 0, "matriarca_pisa_mansinho") # costs 5: no cost cap on Ribomba
+	var small_elephant_in_hand := _give(g, 0, "tromba_de_aluguel")
+	var not_an_elephant_in_hand := _give(g, 0, "sentinela_dorminhoca")
+	var ribomba_uid := _give(g, 0, "dona_ribomba")
+	g.play_card(0, ribomba_uid, 0)
+	_resolve_stack(g)
+	check(g.phase == "search" and g.pending_search.get("hand_summon", false), "Ribomba: o Ao Entrar abre a escolha de um Elefante da mão")
+	var ribomba_option_uids: Array = []
+	for option in g.pending_search.get("cards", []):
+		ribomba_option_uids.append(int(option["uid"]))
+	check(ribomba_option_uids.has(big_elephant_in_hand) and ribomba_option_uids.has(small_elephant_in_hand) and not ribomba_option_uids.has(not_an_elephant_in_hand), "Ribomba: qualquer Elefante é oferecido (até o de custo 5), o que não é Elefante não")
+	g.choose_search(0, big_elephant_in_hand)
+	g._flush()
+	check(g.find_unit(big_elephant_in_hand) != null and int(g.players[0]["momentum"]) == 4, "Ribomba: o Elefante de custo 5 entra de graça (só os 6 dela foram pagos)")
+	_kill(g, g.find_unit(ribomba_uid))
+	check(g.phase == "search" and g.pending_search.get("hand_summon", false), "Ribomba: o Ao Morrer abre outra escolha de Elefante da mão")
+	g.choose_search(0, small_elephant_in_hand)
+	g._flush()
+	check(g.find_unit(small_elephant_in_hand) != null, "Ribomba: ao morrer, o outro Elefante da mão entra de graça")
 
 	# --- Estouro da Manada: até 2 Elefantes de custo até 3 do deck entram de graça (não o de custo 4) ---
 	g = _new_game()
@@ -6757,13 +6789,14 @@ func _test_saraya_kovan_package() -> void:
 	check(small_elephants_on_board == 2 and big_elephants_on_board == 0, "Estouro da Manada: 2 Elefantes de custo até 3 entram, o de custo 4 não")
 	check(g.players[0]["deck"].size() == 2, "Estouro da Manada: os outros 2 continuam no deck")
 
-	# --- Saraya, Ao Ativar: coloca Fera/Demihumano de custo até 3 da mão em campo de graça e se exaure ---
+	# --- Saraya, Ao Ativar: coloca Fera/Demihumano de custo até 4 da mão em campo de graça e se exaure ---
 	g = _new_game()
 	_quiet(g)
 	g.players[0]["momentum"] = 5
 	var activator := _put(g, 0, "saraya_kovan")
 	var cheap_beast_uid := _give(g, 0, "filhote_fujao")
-	var expensive_beast_uid := _give(g, 0, "paquiderme_sem_vergonha")
+	var cost_four_beast_uid := _give(g, 0, "paquiderme_sem_vergonha")
+	var expensive_beast_uid := _give(g, 0, "matriarca_pisa_mansinho")
 	var human_in_hand_uid := _give(g, 0, "veterinario_de_plantao")
 	g.activate(0, activator.uid)
 	_resolve_stack(g)
@@ -6772,7 +6805,7 @@ func _test_saraya_kovan_package() -> void:
 		var option_uids: Array = []
 		for option in activator_options:
 			option_uids.append(int(option["uid"]))
-		check(option_uids.has(cheap_beast_uid) and not option_uids.has(expensive_beast_uid) and not option_uids.has(human_in_hand_uid), "Saraya (Ativar): só a Fera de custo até 3 é oferecida")
+		check(option_uids.has(cheap_beast_uid) and option_uids.has(cost_four_beast_uid) and not option_uids.has(expensive_beast_uid) and not option_uids.has(human_in_hand_uid), "Saraya (Ativar): só as Feras de custo até 4 são oferecidas")
 		g.choose_search(0, cheap_beast_uid)
 		g._flush()
 	check(g.find_unit(cheap_beast_uid) != null and int(g.players[0]["momentum"]) == 3, "Saraya (Ativar): a Fera entra de graça e a ativação custa 2")
