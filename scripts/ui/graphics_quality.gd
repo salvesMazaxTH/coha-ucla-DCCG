@@ -8,7 +8,7 @@ extends RefCounted
 ## Floating embers drifting over the whole table.
 static var show_motes := true
 ## Multiplier for the particle counts and the costly glow layers of battle effects (1.0 = full).
-## Below 0.7 the effects also skip their widest glows (see Main._fx_scale).
+## Below 0.7 the effects also skip their widest glows (see FxLibrary.fx_scale).
 static var effect_detail := 1.0
 ## Noise layers in the Furtividade fog (1 to 4; each layer adds finer swirls and costs as much as the first).
 static var fog_layers := 4

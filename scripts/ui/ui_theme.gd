@@ -15,7 +15,7 @@ const MOMENTUM := Color("#f5c518")
 static var _fonts := {}
 
 ## kind: "title" (Cinzel, engraved caps), "body", "bold", "heavy" (Alegreya Sans), "shout" (Faster One,
-## speed-striped racing caps: only for a card's yelled line, see _shout_fx in main.gd), "shout_wild" (Rye,
+## speed-striped racing caps: only for a card's yelled line, see _shout_fx in fx_library.gd), "shout_wild" (Rye,
 ## circus-poster slab caps: the yelled line of the "wild" shout style, Elefante Incomodante)
 static func font(kind := "body") -> Font:
 	if _fonts.has(kind):
