@@ -357,7 +357,7 @@
     },
     "sangramento": {
       "name": "Sangramento",
-      "text": "Marcadores de Sangramento: no início do turno do controlador, esta unidade sofre dano igual à quantidade de marcadores mais um bônus pela Vida máxima: +0 com 1–5, +1 com 6–9, +2 com 10–13 e +1 adicional a cada 4 de Vida acima de 10. Depois remove todos os marcadores. Esse dano ignora Armadura, Escudo e Escudo Mágico; Indestrutível ainda o impede."
+      "text": "Marcadores de Sangramento: no início do turno do controlador, cada marcador causa 2 de dano a esta unidade. Depois, remove metade dos marcadores, arredondada para cima. Esse dano ignora Armadura, Escudo e Escudo Mágico; Indestrutível ainda o impede."
     },
     "armadura": {
       "name": "Armadura",

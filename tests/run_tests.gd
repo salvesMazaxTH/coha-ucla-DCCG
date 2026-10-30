@@ -3449,7 +3449,8 @@ func _test_burn() -> void:
 	g._apply_effect(0, {"action": "add_dot", "dot": "queimadura", "target": "enemy_unit", "amount": 2}, victim.uid)
 	g._apply_effect(0, {"action": "add_dot", "dot": "queimadura", "target": "enemy_unit", "amount": 1}, victim.uid)
 	check(int(victim.dot_markers.get("queimadura", 0)) == 3, "Queimadura acumula marcadores genéricos")
-	check(g.dot_damage("veneno", victim, 3) == 6 and g.dot_damage("sangramento", tank, 3) == 5, "Veneno causa 2 de dano por marcador e Sangramento usa a fórmula por faixa de Vida")
+	check(g.dot_damage("veneno", victim, 3) == 6 and g.dot_damage("sangramento", tank, 3) == 6, "Veneno e Sangramento causam 2 de dano por marcador, sem depender da Vida máxima")
+	check(g.markers_consumed_per_tick("sangramento", 3) == 2 and g.markers_consumed_per_tick("veneno", 3) == 2 and g.markers_consumed_per_tick("queimadura", 3) == 3, "Veneno e Sangramento perdem metade dos marcadores (arredondada para cima); Queimadura perde todos")
 	victim.temp_hp = 2
 	check(g.dot_damage("veneno", victim, 3) == 6 and CardDB.keyword("veneno")["name"] == "Veneno" and CardDB.keyword("sangramento")["name"] == "Sangramento", "Veneno ignora Vida máxima e as keywords estão no dicionário")
 	victim.temp_hp = 0
@@ -7274,9 +7275,9 @@ func _test_furia_blood_cards() -> void:
 	check(foe.damage == 1 and int(foe.dot_markers.get("sangramento", 0)) == 1, "Gorbo: 1 de dano e 1 marcador de Sangramento no alvo")
 	check(bystander.damage == 0 and bystander.dot_markers.is_empty(), "Gorbo: a outra unidade inimiga não é afetada")
 	check(g.find_unit(gorbo_uid) != null and g.find_unit(gorbo_uid).atk_total() == 3, "Gorbo entra em campo com 3 de Ataque")
-	# o Sangramento dispara no início do turno do dono da unidade: marcadores + bônus da faixa de Vida (9 de Vida = +1)
+	# o Sangramento dispara no início do turno do dono da unidade: 2 de dano por marcador, e o único marcador some
 	g._start_turn(1, false)
-	check(foe.damage == 1 + 2 and foe.dot_markers.is_empty(), "Gorbo: o Sangramento causa 1 marcador + 1 de bônus de Vida (2 no total) e some")
+	check(foe.damage == 1 + 2 and foe.dot_markers.is_empty(), "Gorbo: o Sangramento causa 2 de dano por marcador (3 no total com o dano inicial) e some")
 	# a escolha é opcional: sem unidade inimiga ele só entra
 	g = _new_game()
 	_quiet(g)

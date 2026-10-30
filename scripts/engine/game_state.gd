@@ -23,10 +23,12 @@ const GRANDE_SNOWBALL_CARD_ID := "grande_bola_de_neve" ## a card of its own (tra
 const REQUIEM_EXTRA_COST := 2 ## Réquiem: a spell cast from the graveyard costs this much more, then is banished
 
 ## Periodic marker rules. New marker types reuse add_dot/resolve_dot; only their damage policy differs.
+## "flat": 1 damage per marker and every marker wears off. "poison": 2 damage per marker and half the pile
+## (rounded up) wears off. Only Veneno itself is affected by its hold/lethal cards (see veneno_is_held).
 const DOT_RULES := {
 	"queimadura": "flat",
 	"veneno": "poison",
-	"sangramento": "life_bracket",
+	"sangramento": "poison",
 }
 
 ## Innate immunity of UNITS to a marker kind, given by element: a unit with any of these
@@ -39,7 +41,7 @@ const DOT_IMMUNE_ELEMENTS := {
 	"sangramento": [],
 }
 
-## Each Veneno marker deals 2 damage, then half the pile (rounded up) is removed.
+## Each marker of a "poison" kind (Veneno, Sangramento) deals 2 damage, then half the pile (rounded up) is removed.
 const VENENO_DAMAGE_PER_MARKER := 2
 
 ## Leaders are addressed with negative uids so targets are a single int.
@@ -3641,7 +3643,7 @@ func _resolve_dot_markers(p: int) -> void:
 	for dot_id in players[p]["leader_dots"].keys().duplicate():
 		_resolve_leader_dot(p, String(dot_id))
 
-## A Leader's markers hurt it for 3 damage per marker and then half the pile is removed. It is normal
+## A Leader's markers hurt it by the same per-marker damage as a unit's and wear off the same way. It is normal
 ## damage, so Câmara de Êxtase still applies. While its Veneno is held (see veneno_is_held) the
 ## markers hurt but none wear off.
 func _resolve_leader_dot(p: int, dot_id: String) -> void:
@@ -3650,7 +3652,7 @@ func _resolve_leader_dot(p: int, dot_id: String) -> void:
 		return
 	var held := veneno_is_held(dot_id, LEADER_UID[p])
 	var consumed := 0 if held else markers_consumed_per_tick(dot_id, markers)
-	var damage := markers * VENENO_DAMAGE_PER_MARKER if dot_id == "veneno" else markers
+	var damage := markers * VENENO_DAMAGE_PER_MARKER if DOT_RULES.get(dot_id, "flat") == "poison" else markers
 	_emit({"type": "dot", "uid": LEADER_UID[p], "dot": dot_id, "amount": markers, "damage": damage, "total": markers - consumed, "cleared": true, "held": held})
 	_deal_dot_damage(LEADER_UID[p], damage, dot_id)
 	if held:
@@ -3662,10 +3664,10 @@ func _resolve_leader_dot(p: int, dot_id: String) -> void:
 	else:
 		players[p]["leader_dots"].erase(dot_id)
 
-## How many markers wear off at one tick: Veneno loses half its pile, rounded up; the other kinds
-## (Queimadura, Sangramento) lose all of them.
+## How many markers wear off at one tick: the "poison" kinds (Veneno, Sangramento) lose half their pile,
+## rounded up; Queimadura loses all of them.
 func markers_consumed_per_tick(dot_id: String, markers: int) -> int:
-	if dot_id == "veneno":
+	if DOT_RULES.get(dot_id, "flat") == "poison":
 		return ceili(float(markers) / 2.0)
 	return markers
 
@@ -3742,21 +3744,13 @@ func resolve_dot(unit: Card, dot_id: String) -> void:
 func dot_damage(dot_id: String, unit: Card, markers: int) -> int:
 	if unit == null or markers <= 0:
 		return 0
-	if dot_id == "veneno":
-		var normal_damage := markers * VENENO_DAMAGE_PER_MARKER
-		if turn <= veneno_lethal_until:
-			# Neráxia's window: the tick takes all the Vida the unit has left (never less than the normal tick)
-			return maxi(normal_damage, unit.hp_left())
-		return normal_damage
-	if DOT_RULES.get(dot_id, "flat") != "life_bracket":
+	if DOT_RULES.get(dot_id, "flat") != "poison":
 		return markers
-	var max_hp := unit.hp_total()
-	var life_bonus := 0
-	if max_hp >= 6 and max_hp <= 9:
-		life_bonus = 1
-	elif max_hp >= 10:
-		life_bonus = 2 + floori((max_hp - 10) / 4)
-	return markers + life_bonus
+	var normal_damage := markers * VENENO_DAMAGE_PER_MARKER
+	if dot_id == "veneno" and turn <= veneno_lethal_until:
+		# Neráxia's window: the tick takes all the Vida the unit has left (never less than the normal tick)
+		return maxi(normal_damage, unit.hp_left())
+	return normal_damage
 
 ## Test helpers: apply one raw effect dictionary / run raw effect dictionaries as a trigger would.
 func _apply_effect(player: int, effect_data: Dictionary, target_uid: int, source_card_id := "") -> void:
