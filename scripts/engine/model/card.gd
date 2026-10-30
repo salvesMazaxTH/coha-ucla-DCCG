@@ -75,9 +75,10 @@ var worn_grant: Dictionary = {} ## on an equipment card: what it gave its unit (
 var cap_atk_gain := 0 ## attack given so far by "cap_atk" buffs
 var dodge_turn := -1 ## turn its Esquiva was last used
 var activated_turn := -1 ## turn its Ao Ativar was last used
-var vipranna_heal_turn := -1 ## turn in which this Tox Vipranna last accepted a healing trigger
-var vipranna_heal_total := 0 ## requested healing accepted by this Vipranna during that turn
-var vipranna_heal_locked := false ## later triggers stay off after this instance reaches the 15-point threshold
+var capped_heal_turn := -1 ## turn in which this card last accepted a capped Leader-heal trigger ("per_turn_cap")
+var capped_heal_total := 0 ## requested healing accepted by this card during that turn
+var capped_heal_locked := false ## later triggers stay off after this instance reaches its per-turn cap
+var heal_blocked_until := -1 ## while game turn <= this, this unit cannot recover Vida (block_healing); -1 = not blocked
 var leader_damage_guard_turn := -1 ## turn in which this card reduced the first damage to its Leader
 var death_ward_armed := false ## a free-standing artifact is ready to prevent one allied unit death
 var durability_used := 0 ## Durability points this artifact has lost so far (see durability_left)
@@ -96,8 +97,8 @@ const NOT_COPIED_FIELDS := ["uid", "card_id", "owner", "zone", "over", "incarnat
 		"intrinsic_atk", "intrinsic_hp",
 		"pending_self_revive_turn", "pending_self_revive_atk", "pending_self_revive_hp",
 		"exhausted", "sick", "attacks_made", "used_turn", "capped_uses", "conditional_uses_turn", "conditional_uses",
-		"trigger_counts", "dodge_turn", "activated_turn", "vipranna_heal_turn", "vipranna_heal_total",
-		"vipranna_heal_locked", "leader_damage_guard_turn", "death_ward_armed", "durability_used", "durability_uses",
+		"trigger_counts", "dodge_turn", "activated_turn", "capped_heal_turn", "capped_heal_total",
+		"capped_heal_locked", "heal_blocked_until", "leader_damage_guard_turn", "death_ward_armed", "durability_used", "durability_uses",
 		"stored_momentum"]
 
 ## Card-data fields that are an ability or a keyword's number: silence() deletes them from the unit.
@@ -223,9 +224,10 @@ func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:
 	cap_atk_gain = 0
 	dodge_turn = -1
 	activated_turn = -1
-	vipranna_heal_turn = -1
-	vipranna_heal_total = 0
-	vipranna_heal_locked = false
+	capped_heal_turn = -1
+	capped_heal_total = 0
+	capped_heal_locked = false
+	heal_blocked_until = -1
 	leader_damage_guard_turn = -1
 	death_ward_armed = false
 	stat_sources = []
@@ -549,11 +551,13 @@ func to_dict() -> Dictionary:
 		d["dodge_turn"] = dodge_turn
 	if activated_turn >= 0:
 		d["activated_turn"] = activated_turn
-	if vipranna_heal_turn >= 0:
-		d["vipranna_heal_turn"] = vipranna_heal_turn
-		d["vipranna_heal_total"] = vipranna_heal_total
-		if vipranna_heal_locked:
-			d["vipranna_heal_locked"] = true
+	if capped_heal_turn >= 0:
+		d["capped_heal_turn"] = capped_heal_turn
+		d["capped_heal_total"] = capped_heal_total
+		if capped_heal_locked:
+			d["capped_heal_locked"] = true
+	if heal_blocked_until >= 0:
+		d["heal_blocked_until"] = heal_blocked_until
 	if leader_damage_guard_turn >= 0:
 		d["leader_damage_guard_turn"] = leader_damage_guard_turn
 	if not stat_sources.is_empty():
@@ -636,9 +640,10 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.cap_atk_gain = int(d.get("cap_atk_gain", 0))
 	c.dodge_turn = int(d.get("dodge_turn", -1))
 	c.activated_turn = int(d.get("activated_turn", -1))
-	c.vipranna_heal_turn = int(d.get("vipranna_heal_turn", -1))
-	c.vipranna_heal_total = int(d.get("vipranna_heal_total", 0))
-	c.vipranna_heal_locked = bool(d.get("vipranna_heal_locked", false))
+	c.capped_heal_turn = int(d.get("capped_heal_turn", -1))
+	c.capped_heal_total = int(d.get("capped_heal_total", 0))
+	c.capped_heal_locked = bool(d.get("capped_heal_locked", false))
+	c.heal_blocked_until = int(d.get("heal_blocked_until", -1))
 	c.leader_damage_guard_turn = int(d.get("leader_damage_guard_turn", -1))
 	c.stat_sources = d.get("stat_sources", []).duplicate(true)
 	return c

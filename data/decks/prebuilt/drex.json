@@ -1,0 +1,29 @@
+{
+  "name": "Atrito Sangrento",
+  "description": "Vampiros baratos espalham Sangramento e se curam, cada tique engorda Drex, cada cura feita por uma unidade planta mais Sangramento, e o Banquete Carmesim converte toda essa cura em dano no final.",
+  "order": 26,
+  "leader": "drex",
+  "cards": {
+    "visconde_mordisco": 3,
+    "dentadura_postica": 3,
+    "lady_anemia": 3,
+    "morcego_mensageiro": 3,
+    "cancelamento_do_plano_de_saude": 2,
+    "ponto_de_ruptura": 2,
+    "camundongo_solicito": 2,
+    "conde_gotejante": 3,
+    "gorbo_escarra_rubra": 3,
+    "hematologista_de_plantao": 2,
+    "drex": 1,
+    "leone_daverio": 1,
+    "avalanche": 3,
+    "sangria_geral": 2,
+    "cassian": 1,
+    "naelthos": 1,
+    "afogar": 2,
+    "titanico_morcegalma": 2,
+    "banquete_carmesim": 2,
+    "lorde_sanguessuga": 2,
+    "gigante_marinho": 2
+  }
+}

@@ -188,6 +188,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"damage_negated_until": 0, # Câmara de Êxtase aftermath: the Leader's next hits are negated while turn <= this
 		"damage_negated_left": 0, # ...and this is how many hits are still left to negate
 		"leader_dots": {}, # dot_id -> markers on the Leader. They tick at every turn start of its controller and are consumed like a unit's
+		"leader_heal_blocked_until": 0, # while turn <= this, this Leader cannot recover Vida (block_healing)
 		"leader_veneno_held_until": 0, # while turn <= this, this Leader's Veneno markers hurt but are not consumed (Antídoto Fora de Estoque)
 		"frozen_slots": 0, # Rei Gelado: empty field slots of this player that accept no permanent
 		"frozen_slots_until": 0, # they thaw at the end of this player's own turn, once the turn counter reaches this
@@ -810,7 +811,7 @@ func attack_targets(attacker: Card) -> Array:
 ## Effect spec of a card/ability that needs a chosen target, or "" if none.
 func target_spec(effects: Array) -> String:
 	for e in effects:
-		if e.get("target", "") in ["enemy_unit", "enemy_flying_unit", "enemy_taunt_unit", "weak_enemy_unit", "ally_unit", "other_ally_unit", "ally_or_own_leader", "any_unit", "any", "enemy_stack", "enemy_artifact", "ally_artifact", "any_artifact"]:
+		if e.get("target", "") in ["enemy_unit", "enemy_unit_or_leader", "enemy_flying_unit", "enemy_taunt_unit", "weak_enemy_unit", "ally_unit", "other_ally_unit", "ally_or_own_leader", "any_unit", "any", "enemy_stack", "enemy_artifact", "ally_artifact", "any_artifact"]:
 			return e["target"]
 	return ""
 
@@ -1089,6 +1090,9 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 	match spec:
 		"enemy_unit":
 			for c: Card in theirs: out.append(c.uid)
+		"enemy_unit_or_leader": # an enemy unit or the enemy Leader (Cancelamento do Plano de Saúde)
+			for c: Card in theirs: out.append(c.uid)
+			out.append(LEADER_UID[opponent(p)])
 		"enemy_flying_unit": # an enemy unit with Voo (Estilingueiro Teimoso)
 			for c: Card in theirs:
 				if c.has_kw("voo"): out.append(c.uid)
@@ -1397,6 +1401,8 @@ func can_activate(p: int, uid: int, allow_unreachable := false) -> bool:
 	if c == null or c.owner != p:
 		return false
 	var is_unit := find_unit(uid) != null
+	if not is_unit and equip_pending(uid):
+		return false # mid-Equipar on the stack: the artifact is already becoming equipment, it cannot also be activated
 	var ab: Dictionary = card_of(c).get("activated", {})
 	if ab.is_empty() or not can_cast_speed(p, speed_of(ab)) or int(ab["cost"]) > budget(p, reserve_pays(ab)):
 		return false
@@ -1421,6 +1427,8 @@ func can_equip_from_field(p: int, uid: int, allow_unreachable := false) -> bool:
 	var artifact := find_relic(uid)
 	if artifact == null or artifact.owner != p:
 		return false
+	if equip_pending(uid):
+		return false # its Equipar is already on the stack: equipping it twice makes no sense
 	var action: Dictionary = card_of(artifact).get("equip_from_field", {})
 	if action.is_empty() or not can_cast_speed(p, speed_of(action)) or int(action["cost"]) > budget(p, reserve_pays(action)):
 		return false
@@ -1442,6 +1450,13 @@ func equip_from_field(p: int, uid: int, target: int) -> Array:
 	stack_system().push(p, "artifact_equip", uid, artifact.card_id, target, speed_of(action))
 	stack_system().settle()
 	return _flush()
+
+## True while this free-standing artifact's own Equipar action waits on the stack.
+func equip_pending(artifact_uid: int) -> bool:
+	for item in stack:
+		if item["kind"] == "artifact_equip" and int(item["uid"]) == artifact_uid:
+			return true
+	return false
 
 ## The card whose Ao Ativar can be used: a unit on the board or a free-standing artifact.
 func _activatable_card(uid: int) -> Card:
@@ -3035,6 +3050,11 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 	if _combat_damage and source != null and dealt > 0:
 		_fire(source, "on_deal_combat_damage", t, {"hit_damage": dealt, "target_is_leader": t < 0,
 			"dealer_atk": atk_of(source)})
+		# The same fact for listeners (an equipment hears it with scope "carrier": Dentadura Postiça).
+		var combat_hit := GameEvent.new("combat_damage_dealt", source.owner, source)
+		combat_hit.other_uid = t
+		combat_hit.amount = dealt
+		bus().emit(combat_hit)
 	return dealt
 
 ## Puts `amount` accumulating markers of the `dot_id` kind on the unit (they resolve at its controller's turn start).
@@ -3133,7 +3153,11 @@ func leader_negations_left(p: int) -> int:
 		return 0
 	return int(players[p]["damage_negated_left"])
 
-func _heal_leader(p: int, amount: int) -> void:
+## `healed_by` says who is healing (see EffectContext.heal_origin); "" for heals with no effect behind them
+## (e.g. the lifesteal keyword), which no "healed_by" filter matches.
+func _heal_leader(p: int, amount: int, healed_by := "") -> void:
+	if leader_heal_blocked(p):
+		return
 	var pl: Dictionary = players[p]
 	var healed: int = min(amount, pl["leader_max"] - pl["leader_hp"])
 	if healed > 0:
@@ -3141,54 +3165,58 @@ func _heal_leader(p: int, amount: int) -> void:
 		pl["leader_hp"] += healed
 		pl["healing_this_round"] = int(pl["healing_this_round"]) + healed
 		_emit({"type": "heal", "uid": LEADER_UID[p], "amount": healed, "hp_after": pl["leader_hp"]})
-		_emit_leader_healed(p, healed, hp_before)
+		_emit_leader_healed(p, healed, hp_before, healed_by)
 
-## Tox Vipranna's poison-healing trigger: each instance has a soft 15-point budget per turn.
-## The trigger that reaches or crosses 15 resolves in full; later triggers from that instance are
-## ignored until its controller's next turn. Each accepted trigger gives Vipranna +1 temporary Vida
-## until the start of her owner's next turn.
-func _apply_vipranna_heal(context: EffectContext, amount: int) -> void:
-	var vipranna := find_unit(context.self_uid)
-	if vipranna == null or vipranna.card_id != "tox_vipranna" or amount <= 0:
+## A Leader heal with a soft budget per turn ("per_turn_cap" on a heal_leader effect, e.g. Tox Vipranna 15, Drex).
+## Each instance of the card has its own budget per turn. The trigger that reaches or crosses the cap resolves in
+## full; later triggers from that instance are ignored until the next turn. "source_temp_hp" (opt-in) gives the
+## card that many temporary Vida, until the start of its owner's next turn, for each accepted trigger.
+func _apply_capped_leader_heal(context: EffectContext, amount: int, per_turn_cap: int, source_temp_hp: int) -> void:
+	var source := find_unit(context.self_uid)
+	if source == null or amount <= 0:
 		return
-	if vipranna.vipranna_heal_turn != turn:
-		vipranna.vipranna_heal_turn = turn
-		vipranna.vipranna_heal_total = 0
-		vipranna.vipranna_heal_locked = false
-	if vipranna.vipranna_heal_locked:
+	if source.capped_heal_turn != turn:
+		source.capped_heal_turn = turn
+		source.capped_heal_total = 0
+		source.capped_heal_locked = false
+	if source.capped_heal_locked or leader_heal_blocked(context.controller):
 		return
-	_heal_leader(context.controller, amount)
-	vipranna.vipranna_heal_total += amount
-	vipranna.temp_hp_until_next_turn += 1
-	vipranna.record_stat_change(vipranna.card_id, "next_turn", {"hp": 1})
-	_emit({"type": "buff", "uid": vipranna.uid, "atk": 0, "hp": 1, "keywords": [], "until_next_turn": true})
-	if vipranna.vipranna_heal_total >= 15:
-		vipranna.vipranna_heal_locked = true
+	_heal_leader(context.controller, amount, context.heal_origin())
+	source.capped_heal_total += amount
+	if source_temp_hp > 0:
+		source.temp_hp_until_next_turn += source_temp_hp
+		source.record_stat_change(source.card_id, "next_turn", {"hp": source_temp_hp})
+		_emit({"type": "buff", "uid": source.uid, "atk": 0, "hp": source_temp_hp, "keywords": [], "until_next_turn": true})
+	if source.capped_heal_total >= per_turn_cap:
+		source.capped_heal_locked = true
 
 ## Raises the Leader's maximum life and its current life by the same amount (can pass the starting life).
-func _raise_leader_max(p: int, amount: int) -> void:
+func _raise_leader_max(p: int, amount: int, healed_by := "") -> void:
 	var pl: Dictionary = players[p]
 	pl["leader_max"] += amount
 	var hp_before: int = pl["leader_hp"]
 	pl["leader_hp"] += amount
 	pl["healing_this_round"] = int(pl["healing_this_round"]) + amount
 	_emit({"type": "heal", "uid": LEADER_UID[p], "amount": amount, "hp_after": pl["leader_hp"]})
-	_emit_leader_healed(p, amount, hp_before)
+	_emit_leader_healed(p, amount, hp_before, healed_by)
 
 ## Tells the listeners (Seymour) that a unit just got `amount` Vida back. Call it after the damage was removed.
-func emit_unit_healed(unit: Card, amount: int) -> void:
+## `healed_by` says who is healing (see _heal_leader); listeners read it with "when": {"healed_by": ...}.
+func emit_unit_healed(unit: Card, amount: int, healed_by := "") -> void:
 	players[unit.owner]["healing_this_round"] = int(players[unit.owner]["healing_this_round"]) + amount
 	var healed := GameEvent.new("unit_healed", unit.owner, unit)
 	healed.amount = amount
 	healed.hp_after = unit.hp_left()
 	healed.hp_before = healed.hp_after - amount
+	healed.data = {"healed_by": healed_by}
 	bus().emit(healed)
 
-func _emit_leader_healed(p: int, amount: int, hp_before: int) -> void:
+func _emit_leader_healed(p: int, amount: int, hp_before: int, healed_by := "") -> void:
 	var healed := GameEvent.new("leader_healed", p)
 	healed.amount = amount
 	healed.hp_before = hp_before
 	healed.hp_after = players[p]["leader_hp"]
+	healed.data = {"healed_by": healed_by}
 	bus().emit(healed)
 
 ## Fadiga: damage of the next draw from an empty deck. Doubles each time: 2, 4, 8, 16…
@@ -3629,7 +3657,7 @@ func _fire_any_turn_trigger(turn_player: int, trigger: String) -> void:
 func _regenerate_all_units() -> void:
 	for pl in players:
 		for unit: Card in pl["board"]:
-			if has_kw(unit, "regeneracao") and unit.damage > 0:
+			if has_kw(unit, "regeneracao") and unit.damage > 0 and not unit_heal_blocked(unit):
 				var healed_amount: int = unit.damage
 				unit.damage = 0
 				players[unit.owner]["healing_this_round"] = int(players[unit.owner]["healing_this_round"]) + healed_amount
@@ -3693,6 +3721,31 @@ func hold_veneno_on_leader(p: int, turn_starts: int) -> void:
 	var until := first_turn_start + 2 * (turn_starts - 1)
 	players[p]["leader_veneno_held_until"] = maxi(int(players[p]["leader_veneno_held_until"]), until)
 	_emit({"type": "veneno_hold", "player": p, "turn_starts": turn_starts})
+
+## True while the Leader of player `p` cannot recover Vida (see block_healing_on_leader).
+func leader_heal_blocked(p: int) -> bool:
+	return turn <= int(players[p]["leader_heal_blocked_until"])
+
+## True while `unit` cannot recover Vida (see block_healing_on_unit).
+func unit_heal_blocked(unit: Card) -> bool:
+	return unit != null and turn <= unit.heal_blocked_until
+
+## The last game turn a heal block is active. It covers the rest of the current turn and runs through the end
+## of the blocked side's controller `p` having played `turns` more turns.
+func _heal_block_last_turn(p: int, turns: int) -> int:
+	var first_turn_of_controller := turn + (2 if p == active else 1)
+	return first_turn_of_controller + 2 * (turns - 1)
+
+## The Leader of player `p` cannot recover Vida for `turns` of its controller's next turns.
+## A longer block already running is never shortened.
+func block_healing_on_leader(p: int, turns: int) -> void:
+	players[p]["leader_heal_blocked_until"] = maxi(int(players[p]["leader_heal_blocked_until"]), _heal_block_last_turn(p, turns))
+	_emit({"type": "heal_block", "uid": LEADER_UID[p], "turns": turns})
+
+## `unit` cannot recover Vida for `turns` of its controller's next turns. A longer block already running is never shortened.
+func block_healing_on_unit(unit: Card, turns: int) -> void:
+	unit.heal_blocked_until = maxi(unit.heal_blocked_until, _heal_block_last_turn(unit.owner, turns))
+	_emit({"type": "heal_block", "uid": unit.uid, "turns": turns})
 
 ## Until the start of player `p`'s next turn, the Veneno tick of every poisoned unit deals damage equal to
 ## that unit's current Vida. The window closes right before the tick of `p`'s own next turn start, so

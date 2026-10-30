@@ -95,6 +95,7 @@ func _init() -> void:
 	_test_veneno_lethal()
 	_test_hulglack_death_freeze()
 	_test_venenosa_deck()
+	_test_drex_deck()
 	_test_hikari_decoy()
 	_test_dot_immunity()
 	_test_provocacao()
@@ -385,6 +386,20 @@ func _test_cristal_do_poder_equipado() -> void:
 	check(g.artifact_count(a) == 1, "cristal equipado: continua contando como artefato")
 	g.stack_system().remove_equipment_bonus(montadora, cristal)
 	check(montadora.atk == 2, "cristal equipado: ao sair, o bônus é devolvido")
+
+	# Equipar do campo: com o Equipar na pilha, o Cristal não pode ser ativado nem equipado de novo
+	var g2 := _new_game()
+	var p := g2.active
+	var holder := _put(g2, p, "montadora_porca_frouxa")
+	var loose := Card.new(g2._uid(), "cristal_do_poder", p, "relics")
+	g2.players[p]["relics"].append(loose)
+	g2.players[p]["momentum"] = 8
+	g2.auto_pass[g2.opponent(p)] = false
+	check(g2.can_activate(p, loose.uid, true), "cristal solto, nada na pilha: pode ser ativado")
+	g2.equip_from_field(p, loose.uid, holder.uid)
+	check(g2.stack.size() == 1, "cristal: o Equipar do campo fica na pilha")
+	check(not g2.can_activate(p, loose.uid, true), "cristal com o Equipar na pilha: não pode ser ativado")
+	check(not g2.can_equip_from_field(p, loose.uid, true), "cristal com o Equipar na pilha: não pode ser equipado de novo")
 
 ## An equipment's on_play buff belongs to the equipment, not to the unit after it returns to hand.
 func _test_equipment_modifier_sources() -> void:
@@ -4255,6 +4270,137 @@ func _test_hikari_decoy() -> void:
 	tapper.apply(EffectContext.new(g, 1, ""), token.uid)
 	check(not token.exhausted, "Decoy: inerte, nem efeito consegue virá-lo")
 
+## The Drex deck: heal blocks (Cancelamento do Plano de Saúde), the instant Sangramento tick (Ponto de
+## Ruptura), the "enemy unit or Leader" target and Banquete Carmesim turning healing into damage.
+func _test_drex_deck() -> void:
+	check(DeckDB.validate("drex").is_empty(), "deck Atrito Sangrento é legal: %s" % [DeckDB.validate("drex")])
+	_tcard("t_target_dummy", 1, 12, [])
+
+	# Cancelamento do Plano de Saúde on a Leader: no healing, nothing credited, and it runs out after 2 of its turns
+	var g := _new_game()
+	_quiet(g)
+	var enemy := g.opponent(g.active)
+	var block_healing: Effect = EffectRegistry.parse_list(CardDB.card("cancelamento_do_plano_de_saude")["effects"])[0]
+	block_healing.apply(EffectContext.new(g, g.active, ""), GameState.LEADER_UID[enemy])
+	g.players[enemy]["leader_max"] = 100
+	g.players[enemy]["leader_hp"] = 50
+	g._heal_leader(enemy, 5)
+	check(g.players[enemy]["leader_hp"] == 50 and int(g.players[enemy]["healing_this_round"]) == 0, "Plano de Saúde: Líder bloqueado não recupera Vida nem conta como cura")
+	g.turn += 2 # the first turn of the blocked side's controller
+	check(g.leader_heal_blocked(enemy), "Plano de Saúde: o bloqueio ainda vale no segundo turno de quem o controla")
+	g.turn += 2
+	check(not g.leader_heal_blocked(enemy), "Plano de Saúde: o bloqueio acaba depois de 2 turnos de quem o controla")
+	g._heal_leader(enemy, 5)
+	check(g.players[enemy]["leader_hp"] == 55, "Plano de Saúde: depois do bloqueio o Líder volta a recuperar Vida")
+
+	# the same card on a unit
+	g = _new_game()
+	_quiet(g)
+	var patient := _put(g, g.opponent(g.active), "t_target_dummy")
+	block_healing.apply(EffectContext.new(g, g.active, ""), patient.uid)
+	check(g.unit_heal_blocked(patient), "Plano de Saúde: unidade bloqueada não recupera Vida")
+	g.turn += 4
+	check(not g.unit_heal_blocked(patient), "Plano de Saúde: o bloqueio da unidade também acaba")
+
+	# Ponto de Ruptura: the tick happens now, exactly as the turn-start tick would, on a unit and on a Leader
+	g = _new_game()
+	_quiet(g)
+	enemy = g.opponent(g.active)
+	var bleeding_by_spell := _put(g, enemy, "t_target_dummy")
+	var bleeding_by_turn := _put(g, enemy, "t_target_dummy")
+	g.add_dot_markers(bleeding_by_spell, "sangramento", 3)
+	g.add_dot_markers(bleeding_by_turn, "sangramento", 3)
+	var rupture: Effect = EffectRegistry.parse_list(CardDB.card("ponto_de_ruptura")["effects"])[0]
+	rupture.apply(EffectContext.new(g, g.active, ""), bleeding_by_spell.uid)
+	g.resolve_dot(bleeding_by_turn, "sangramento")
+	check(bleeding_by_spell.damage > 0 and bleeding_by_spell.damage == bleeding_by_turn.damage, "Ponto de Ruptura: o tique de Sangramento acontece agora, igual ao do início do turno")
+	g.players[enemy]["leader_max"] = 100
+	g.players[enemy]["leader_hp"] = 50
+	g.add_leader_dot_markers(enemy, "sangramento", 3)
+	rupture.apply(EffectContext.new(g, g.active, ""), GameState.LEADER_UID[enemy])
+	check(g.players[enemy]["leader_hp"] < 50, "Ponto de Ruptura: também faz o Sangramento do Líder inimigo agir agora")
+
+	# the new target: any enemy unit, plus the enemy Leader, and never an ally
+	var ally := _put(g, g.active, "t_target_dummy")
+	var targets := g.valid_targets(g.active, "enemy_unit_or_leader")
+	check(targets.has(bleeding_by_spell.uid) and targets.has(GameState.LEADER_UID[enemy]) and not targets.has(ally.uid) and not targets.has(GameState.LEADER_UID[g.active]), "enemy_unit_or_leader: unidades inimigas e o Líder inimigo, nunca aliados")
+
+	# Banquete Carmesim: 1 damage per Vida the Leader and units recovered this turn
+	g = _new_game()
+	_quiet(g)
+	enemy = g.opponent(g.active)
+	g.players[enemy]["leader_max"] = 100
+	g.players[enemy]["leader_hp"] = 50
+	g.players[g.active]["healing_this_round"] = 7
+	var feast: Effect = EffectRegistry.parse_list(CardDB.card("banquete_carmesim")["effects"])[0]
+	feast.apply(EffectContext.new(g, g.active, ""), GameState.LEADER_UID[enemy])
+	check(g.players[enemy]["leader_hp"] == 43, "Banquete Carmesim: 7 de cura neste turno viram 7 de dano no Líder inimigo")
+
+	# Drex champion: grows when Sangramento hurts an enemy, and plants Sangramento when an ally unit heals with its own effect
+	g = _new_game()
+	_quiet(g)
+	enemy = g.opponent(g.active)
+	var vampire := _put(g, g.active, "drex")
+	var victim := _put(g, enemy, "t_target_dummy")
+	var healer := _put(g, g.active, "t_target_dummy")
+	g.add_dot_markers(victim, "sangramento", 2)
+	g.resolve_dot(victim, "sangramento")
+	g._check_state()
+	check(vampire.atk == 3 and vampire.hp == 5, "Drex: o Sangramento causando dano a uma unidade inimiga dá +1/+1 permanente")
+	g.players[enemy]["leader_max"] = 100
+	g.players[enemy]["leader_hp"] = 50
+	g.add_leader_dot_markers(enemy, "sangramento", 2)
+	g._resolve_leader_dot(enemy, "sangramento")
+	g._check_state()
+	check(vampire.atk == 4 and vampire.hp == 6, "Drex: o Sangramento causando dano ao Líder inimigo também dá +1/+1")
+	var markers_before := int(victim.dot_markers.get("sangramento", 0))
+	healer.damage = 3
+	g.players[g.active]["leader_max"] = 100
+	g.players[g.active]["leader_hp"] = 50
+	g.emit_unit_healed(healer, 1, "spell")
+	g._check_state()
+	g._heal_leader(g.active, 1, "leader_ability")
+	g._heal_leader(g.active, 1, "artifact")
+	g._heal_leader(g.active, 1)
+	g._check_state()
+	check(int(victim.dot_markers.get("sangramento", 0)) == markers_before, "Drex: cura de feitiço, habilidade de Líder, artefato ou roubo de vida não planta Sangramento")
+	g.emit_unit_healed(healer, 1, "unit")
+	g._check_state()
+	check(int(victim.dot_markers.get("sangramento", 0)) == markers_before + 1, "Drex: cura feita por efeito de unidade (em unidade) planta 1 marcador de Sangramento em um inimigo")
+	g._heal_leader(g.active, 1, "unit")
+	g._check_state()
+	check(int(victim.dot_markers.get("sangramento", 0)) == markers_before + 2, "Drex: cura feita por efeito de unidade (no Líder) também planta Sangramento")
+	var enemy_side_heal := int(victim.dot_markers.get("sangramento", 0))
+	g._heal_leader(enemy, 1, "unit")
+	g._check_state()
+	check(int(victim.dot_markers.get("sangramento", 0)) == enemy_side_heal, "Drex: cura feita por unidade inimiga não planta Sangramento")
+
+	# Drex Ao Ativar: sacrifices another ally and heals his Leader by that unit's Attack
+	_tcard("t_drex_fodder", 3, 2, [])
+	g = _new_game()
+	_quiet(g)
+	enemy = g.opponent(g.active)
+	var vampire_two := _put(g, g.active, "drex")
+	var fodder := _put(g, g.active, "t_drex_fodder")
+	var sangramento_target := _put(g, enemy, "t_target_dummy")
+	g.players[g.active]["leader_max"] = 100
+	g.players[g.active]["leader_hp"] = 50
+	g.players[g.active]["momentum"] = 3
+	vampire_two.exhausted = false
+	g.activate(g.active, vampire_two.uid, fodder.uid)
+	g._flush()
+	g._check_state()
+	check(g.players[g.active]["leader_hp"] == 53, "Drex Ativar: sacrificar uma unidade 3/2 cura 3 de Vida do Líder")
+	check(g.find_unit(fodder.uid) == null, "Drex Ativar: a unidade aliada é sacrificada")
+	check(vampire_two.exhausted and g.players[g.active]["momentum"] == 2, "Drex Ativar: custa 1 e exaure o Drex")
+	check(int(sangramento_target.dot_markers.get("sangramento", 0)) == 1, "Drex Ativar: a cura vem de uma unidade, então planta 1 Sangramento")
+	vampire_two.exhausted = false
+	var momentum_before_alone: int = g.players[g.active]["momentum"]
+	g.activate(g.active, vampire_two.uid, vampire_two.uid)
+	g._flush()
+	check(g.find_unit(vampire_two.uid) != null and g.players[g.active]["leader_hp"] == 53, "Drex Ativar: ele não pode sacrificar a si mesmo")
+	check(g.players[g.active]["momentum"] == momentum_before_alone, "Drex Ativar: sem outra unidade aliada, nada é gasto")
+
 ## The Venenosa cards that need engine support: Hikari's damage per marker, Tox Vipranna healing from
 ## Veneno ticks, Az'Kharon poisoning whoever challenges it.
 func _test_venenosa_deck() -> void:
@@ -4282,20 +4428,20 @@ func _test_venenosa_deck() -> void:
 	g.add_dot_markers(poisoned, "veneno", 2)
 	g.resolve_dot(poisoned, "veneno")
 	g._check_state()
-	check(g.players[0]["leader_hp"] == 22 and vipranna.temp_hp_until_next_turn == 1 and vipranna.vipranna_heal_total == 2, "Tox Vipranna: 2 marcadores causam 4, curam 2 e dão +1 Vida temporária")
+	check(g.players[0]["leader_hp"] == 22 and vipranna.temp_hp_until_next_turn == 1 and vipranna.capped_heal_total == 2, "Tox Vipranna: 2 marcadores causam 4, curam 2 e dão +1 Vida temporária")
 	# The cap is per turn and per Vipranna; the trigger that crosses 15 still resolves in full.
 	var big_target := _put(g, 1, "t_target_dummy") # 6 markers hurt for 12, half is 6
 	g.players[0]["leader_hp"] = 20
 	g.add_dot_markers(big_target, "veneno", 6)
 	g.resolve_dot(big_target, "veneno")
 	g._check_state()
-	check(g.players[0]["leader_hp"] == 26 and vipranna.temp_hp_until_next_turn == 2 and vipranna.vipranna_heal_total == 8, "Tox Vipranna: tick de 12 de dano cura 6 e acumula 8 no turno")
+	check(g.players[0]["leader_hp"] == 26 and vipranna.temp_hp_until_next_turn == 2 and vipranna.capped_heal_total == 8, "Tox Vipranna: tick de 12 de dano cura 6 e acumula 8 no turno")
 	var odd_target := _put(g, 1, "t_target_dummy") # 9 markers hurt for 18, half is 9: the total goes from 8 to 17
 	g.players[0]["leader_hp"] = 20
 	g.add_dot_markers(odd_target, "veneno", 9)
 	g.resolve_dot(odd_target, "veneno")
 	g._check_state()
-	check(g.players[0]["leader_hp"] == 29 and vipranna.vipranna_heal_locked and vipranna.vipranna_heal_total == 17, "Tox Vipranna: a cura que cruza 15 resolve inteira e bloqueia as seguintes")
+	check(g.players[0]["leader_hp"] == 29 and vipranna.capped_heal_locked and vipranna.capped_heal_total == 17, "Tox Vipranna: a cura que cruza 15 resolve inteira e bloqueia as seguintes")
 	_tcard("t_small_tank", 1, 5, [])
 	var small_target := _put(g, 1, "t_small_tank") # 1 marker hurts for 2, half is 1 (below the minimum of 2)
 	g.players[0]["leader_hp"] = 20
@@ -4339,7 +4485,7 @@ func _test_venenosa_deck() -> void:
 	g.add_dot_markers(reset_target, "veneno", 1)
 	g.resolve_dot(reset_target, "veneno")
 	g._check_state()
-	check(g.players[0]["leader_hp"] == 22 and vipranna.vipranna_heal_total == 2 and not vipranna.vipranna_heal_locked, "Tox Vipranna: o limite de 15 reinicia no turno seguinte")
+	check(g.players[0]["leader_hp"] == 22 and vipranna.capped_heal_total == 2 and not vipranna.capped_heal_locked, "Tox Vipranna: o limite de 15 reinicia no turno seguinte")
 
 	# Julian: played from the hand, his Ao Entrar asks for two picks after he enters: who takes the 2 damage, then who gets the Veneno
 	g = _new_game()

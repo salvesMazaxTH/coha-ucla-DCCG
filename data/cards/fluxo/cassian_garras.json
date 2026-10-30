@@ -1,0 +1,33 @@
+{
+  "name": "Cassian, Garras",
+  "type": "unit",
+  "rarity": "champion",
+  "transform_only": true,
+  "species": ["vampiro"],
+  "essence": ["fluxo", "furia"],
+  "cost": 5,
+  "atk": 7,
+  "hp": 4,
+  "keywords": ["impeto"],
+  "art": "fluxo/cassian_garras.webp",
+  "effects": [
+    {
+      "trigger": "on_deal_combat_damage",
+      "action": "add_dot",
+      "dot": "sangramento",
+      "target": "damaged_target",
+      "amount": 2
+    },
+    {
+      "listen": "turn_started",
+      "scope": "ally",
+      "zones": ["board"],
+      "action": "transform_self",
+      "target": "self",
+      "into": "cassian"
+    }
+  ],
+  "text": "Ao Causar Dano de Combate: o alvo (inclusive um Líder) recebe 2 marcadores de Sangramento.\nCondicional: no início do seu turno, esta unidade se transforma em Cassian, Sangue Vivo.",
+  "flavor": "A cortesia ficou em casa. As unhas vieram no lugar.",
+  "tags": []
+}

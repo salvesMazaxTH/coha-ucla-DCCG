@@ -43,6 +43,19 @@ func source_id() -> String:
 	var source_unit: Card = game.find_unit(self_uid) if self_uid > 0 else null
 	return source_unit.card_id if source_unit != null else ""
 
+## Who is healing when an effect of this run heals: "unit" (a unit's own effect, including its Ao Morrer and
+## Ativar), "spell" (a spell from the stack), "artifact" (an artifact or equipment), "leader_ability" (the
+## Leader's ability). It travels in the heal events as `healed_by`, so a listener can ask for a given origin.
+func heal_origin() -> String:
+	if is_leader_ability:
+		return "leader_ability"
+	if source_card_id != "":
+		var source_type := String(CardDB.card(source_card_id).get("type", ""))
+		return "spell" if source_type == "spell" else "artifact"
+	if dying_card != null or game.find_unit(self_uid) != null:
+		return "unit"
+	return "artifact" if self_uid > 0 else ""
+
 ## The context for a sacrifice's "then" effects: no trigger filter, and the second pick becomes
 ## the chosen target. The dying unit, the unit whose effect this is (so "self" in a "then" still
 ## means the sacrificer, e.g. Esther) and where the effects come from (the spell or ability that

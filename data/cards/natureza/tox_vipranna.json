@@ -38,7 +38,8 @@
       "target": "own_leader",
       "per": "half_event_damage",
       "amount": 2,
-      "vipranna": true
+      "per_turn_cap": 15,
+      "source_temp_hp": 1
     },
     {
       "listen": "leader_damaged",
@@ -53,7 +54,8 @@
       "target": "own_leader",
       "per": "half_event_damage",
       "amount": 2,
-      "vipranna": true
+      "per_turn_cap": 15,
+      "source_temp_hp": 1
     }
   ],
   "text": "O Veneno desta unidade ignora imunidade.\nAo Entrar: você pode escolher uma unidade inimiga; ela recebe 2 marcadores de Veneno.\nCondicional: sempre que uma unidade ou o Líder inimigo sofrer dano de Veneno, seu Líder recupera Vida igual à metade do dano (arredondada para cima, mínimo 2) e esta unidade ganha +1 de Vida temporária até o início do seu próximo turno. A ativação que atingir 15 de cura no turno é a última.",

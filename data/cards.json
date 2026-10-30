@@ -167,6 +167,7 @@
     "gnomo": { "name": "Gnomo" },
     "demihumano": { "name": "Demihumano" },
     "morto_vivo": { "name": "Morto-Vivo" },
+    "vampiro": { "name": "Vampiro" },
     "revenante": { "name": "Revenante" },
     "gargoyle": { "name": "Gargoyle" },
     "golem": { "name": "Golem" },
@@ -665,6 +666,28 @@
         "text": "Rápida. 2 Momentum, uma vez por turno: dê 1 marcador de Veneno a uma unidade inimiga, ignorando imunidade."
       },
       "essences": ["natureza"]
+    },
+    "drex": {
+      "name": "Drex",
+      "hp": 30,
+      "art": "trevas/drex_lider.webp",
+      "incarnation": "drex",
+      "ability": {
+        "name": "Incisão Carmesim",
+        "cost": 2,
+        "once_per_turn": true,
+        "speed": "rapido",
+        "effects": [
+          {
+            "action": "add_dot",
+            "dot": "sangramento",
+            "target": "enemy_unit",
+            "amount": 1
+          }
+        ],
+        "text": "Rápida. 2 Momentum, uma vez por turno: dê 1 marcador de Sangramento a uma unidade inimiga."
+      },
+      "essences": ["trevas", "fluxo"]
     },
     "mefi_urdim": {
       "name": "Mefi'Urdim",

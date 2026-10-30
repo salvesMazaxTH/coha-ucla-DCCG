@@ -1,0 +1,25 @@
+{
+  "name": "Cassian, Sangue Vivo",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["vampiro"],
+  "essence": ["fluxo", "furia"],
+  "cost": 5,
+  "atk": 4,
+  "hp": 7,
+  "keywords": ["provocacao", "roubo_de_vida"],
+  "art": "fluxo/cassian.webp",
+  "effects": [
+    {
+      "listen": "turn_started",
+      "scope": "ally",
+      "zones": ["board"],
+      "action": "transform_self",
+      "target": "self",
+      "into": "cassian_garras"
+    }
+  ],
+  "text": "Condicional: no início do seu turno, esta unidade se transforma em Cassian, Garras.",
+  "flavor": "Parado, é uma muralha com modos. Em movimento, é a razão de a muralha existir.",
+  "tags": []
+}

@@ -1,0 +1,24 @@
+{
+  "name": "Leone D'Averio",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["vampiro"],
+  "essence": "furia",
+  "cost": 4,
+  "atk": 4,
+  "hp": 5,
+  "keywords": ["impeto", "roubo_de_vida"],
+  "art": "furia/leone_daverio.webp",
+  "effects": [
+    {
+      "trigger": "on_deal_combat_damage",
+      "action": "add_dot",
+      "dot": "sangramento",
+      "target": "damaged_target",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Causar Dano de Combate: o alvo (inclusive um Líder) recebe 1 marcador de Sangramento.",
+  "flavor": "Chega primeiro, morde primeiro e pede desculpas só depois, se sobrar alguém.",
+  "tags": []
+}

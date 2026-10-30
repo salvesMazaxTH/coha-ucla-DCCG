@@ -14,6 +14,7 @@ extends Effect
 ## "amount_from": "momentum_left" deals `amount` damage per `divisor` Momentum the controller still has (Antena de Varal, Curto-Circuito).
 ## "amount_from": "own_graveyard_cards" deals `amount` damage per `divisor` cards in the controller's graveyard (Ossada Rancorosa).
 ## "spend_momentum": true (with momentum_left) also spends all that Momentum (Curto-Circuito).
+## "amount_from": "healing_this_round" deals `amount` damage per Vida the controller's Leader and units recovered this turn (Banquete Carmesim).
 ## "lifesteal": true heals the controller's Leader by the damage this effect really dealt (Rália).
 ## "lifesteal_self": true (with lifesteal) also heals this unit by that same damage, if it is still on the board.
 ## "source_gain_per_kill": N = if the damage kills a unit, this unit permanently gains +N Ataque (Jovahr).
@@ -69,6 +70,10 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		damage_amount = amount * (graveyard_size / divisor)
 		if damage_amount <= 0:
 			return
+	if amount_from == "healing_this_round":
+		damage_amount = amount * int(game.players[context.controller]["healing_this_round"])
+		if damage_amount <= 0:
+			return
 	var victim := game.find_unit(target_uid)
 	if amount_from == "target_veneno_markers":
 		var marker_count := int(victim.dot_markers.get("veneno", 0)) if victim != null else 0
@@ -92,7 +97,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	for neighbour_uid in neighbour_uids:
 		damage_dealt += game._deal_damage(neighbour_uid, adjacent_amount, null)
 	if heals_by_damage_dealt:
-		game._heal_leader(context.controller, damage_dealt)
+		game._heal_leader(context.controller, damage_dealt, context.heal_origin())
 		if heals_source_too:
 			_heal_source_unit(context, damage_dealt)
 	# a unit the damage already killed is gone from the board, so find_unit finds nothing to freeze
@@ -113,13 +118,13 @@ func _grant_kill_bonus(context: EffectContext) -> void:
 ## Heals the unit that owns this effect (never above its Vida); a unit that already left the board is not healed.
 func _heal_source_unit(context: EffectContext, heal_amount: int) -> void:
 	var source_unit := context.game.find_unit(context.self_uid)
-	if source_unit == null:
+	if source_unit == null or context.game.unit_heal_blocked(source_unit):
 		return
 	var healed := mini(heal_amount, source_unit.damage)
 	if healed > 0:
 		context.game._emit({"type": "heal", "uid": source_unit.uid, "amount": healed})
 		source_unit.damage -= healed
-		context.game.emit_unit_healed(source_unit, healed)
+		context.game.emit_unit_healed(source_unit, healed, context.heal_origin())
 
 ## The Ataque of the unit that owns this effect: live while it is on the board, otherwise the
 ## Ataque it had when it dealt the damage that fired an Ao Causar Dano (0 if neither is known).

@@ -1,0 +1,83 @@
+{
+  "name": "Drex",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "vampiro"
+  ],
+  "essence": [
+    "trevas",
+    "fluxo"
+  ],
+  "cost": 4,
+  "atk": 2,
+  "hp": 4,
+  "keywords": [],
+  "art": "trevas/drex.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "add_dot",
+      "dot": "sangramento",
+      "target": "enemy_unit",
+      "amount": 1
+    },
+    {
+      "listen": "unit_damaged",
+      "scope": "enemy",
+      "zones": ["board"],
+      "when": { "dot": "sangramento" },
+      "action": "buff",
+      "target": "self",
+      "atk": 1,
+      "hp": 1
+    },
+    {
+      "listen": "leader_damaged",
+      "scope": "enemy",
+      "zones": ["board"],
+      "when": { "dot": "sangramento" },
+      "action": "buff",
+      "target": "self",
+      "atk": 1,
+      "hp": 1
+    },
+    {
+      "listen": "unit_healed",
+      "scope": "ally",
+      "zones": ["board"],
+      "when": { "healed_by": "unit" },
+      "action": "add_dot",
+      "dot": "sangramento",
+      "target": "random_enemy_unit",
+      "amount": 1
+    },
+    {
+      "listen": "leader_healed",
+      "scope": "ally",
+      "zones": ["board"],
+      "when": { "healed_by": "unit" },
+      "action": "add_dot",
+      "dot": "sangramento",
+      "target": "random_enemy_unit",
+      "amount": 1
+    }
+  ],
+  "activated": {
+    "cost": 1,
+    "speed": "lento",
+    "exhaust": true,
+    "effects": [
+      {
+        "action": "sacrifice",
+        "target": "other_ally_unit",
+        "then": [
+          { "action": "heal_leader", "target": "none", "amount_from": "sacrificed_atk" }
+        ]
+      }
+    ]
+  },
+  "text": "Ao Entrar: você pode dar 1 marcador de Sangramento a uma unidade inimiga.\nCondicional: quando o Sangramento causa dano a um inimigo, recebe +1/+1 permanente; quando uma unidade aliada cura, uma unidade inimiga aleatória recebe 1 marcador de Sangramento.\nAo Ativar (1) {lento} (exaure esta unidade): você sacrifica outra unidade aliada e seu Líder recupera Vida igual ao Ataque dela.",
+  "flavor": "Ele nunca pede sangue. Só espera você começar a sangrar e agradece pela gentileza.",
+  "tags": []
+}
