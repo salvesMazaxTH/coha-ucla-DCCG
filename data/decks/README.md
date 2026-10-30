@@ -5,15 +5,19 @@ Cada deck é um arquivo JSON próprio. O ID do deck é o nome do arquivo, sem a 
 ```
 data/decks/
   prebuilt/        decks prontos da demo (aparecem no hub de seleção do Online)
-    fogo.json
-    agua.json
-    obscura.json   ("Ceifa de Jeff", mono-Trevas)
-    eletrica.json  ("Slow Midrange", mono-Tormenta)
-    glacial.json   ("Nevasca Eterna", Fluxo, combo de Gelo da Bola de Neve)
-    vael.json      ("Lâmina Voraz", Líder neutro, aggro de Crítico com convidados de outros domínios)
-    metalica.json  ("Montanha de Ferro", Montanha, compra e filtro com artefatos e peças, trituração do deck do oponente que vira Fadiga)
-    mare_consagrada.json  ("Maré Consagrada", Líder Naelys, Fluxo com pacote de cura de Devoção; seção "especial")
+    fogo.json                      Ronan
+    agua.json                      Naelthos
+    eletrica_greedy.json           Voltexz ("Tormenta Voraz", a versão lenta)
+    glacial.json                   Nythera ("Nevasca Eterna")
+    obscura_lento.json             Jeff ("Cemitério Vivo", a versão lenta)
+    rochosa.json, metalica.json, sagrada.json, vegetal.json, venenosa.json, vael.json
+    berengar_voss.json, eryon.json, ignisar_controle.json, kazeminus_vento_de_cauda.json,
+    mare_consagrada.json, saraya_kovan.json
 ```
+
+## Seções do hub
+
+Há exatamente um deck pronto por Líder, todos na seção "ESSENCIAIS: DECKS DOS LÍDERES" (o campo opcional `section` do JSON existe, mas só o valor padrão `essencia` é usado pelos prontos; "meus" é dos decks do jogador).
 
 ## Formato
 

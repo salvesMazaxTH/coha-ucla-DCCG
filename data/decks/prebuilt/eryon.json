@@ -2,7 +2,6 @@
   "name": "Trovão Emprestado",
   "description": "Junte fôlego emprestado, passe de 10 de Momentum e solte o Barão Estrondoso: uma barrigada atômica explosiva que ganha a partida pra você. Enquanto ele não chega, Fluxo e Devoção limpam a mesa, curam e protegem o que importa.",
   "order": 16,
-  "section": "especial",
   "leader": "eryon",
   "cards": {
     "mare_curativa": 1,

@@ -12,7 +12,7 @@
   "effects": [],
   "activated": {
     "cost": 2,
-    "speed": "lento",
+    "speed": "rapido",
     "exhaust": true,
     "effects": [
       { "action": "buff", "target": "ally_unit", "atk": 1, "per": "own_artifacts", "temp": true },
@@ -20,7 +20,7 @@
       { "action": "ready", "target": "ally_unit" }
     ]
   },
-  "text": "Ao Ativar (2) {lento} (exaure esta unidade): uma unidade aliada ganha +1 de Ataque para cada artefato seu em jogo até o fim do turno e é desvirada. Se for Lendária, também ganha Ataque Duplo até o fim do turno.",
+  "text": "Ao Ativar (2) {rapido} (exaure esta unidade): uma unidade aliada ganha +1 de Ataque para cada artefato seu em jogo até o fim do turno e é desvirada. Se for Lendária, também ganha Ataque Duplo até o fim do turno.",
   "flavor": "",
   "art": "montanha/otavio_rebite_quente.webp",
   "tags": []

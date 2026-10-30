@@ -1,0 +1,27 @@
+{
+  "name": "Tremor de Contenção",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "montanha",
+  "art": "montanha/tremor_de_contencao.webp",
+  "cost": 2,
+  "speed": "instantaneo",
+  "extra_cost": {
+    "kind": "lose_armor",
+    "amount": 1,
+    "target": "ally_unit_with_armor"
+  },
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "counter",
+      "target": "enemy_stack",
+      "max_cost": 4
+    }
+  ],
+  "text": "Para jogar, uma unidade aliada com Armadura perde 1 de Armadura. Anula um feitiço ou habilidade inimiga de custo (4) ou menos.",
+  "flavor": "",
+  "tags": [
+    "anular"
+  ]
+}

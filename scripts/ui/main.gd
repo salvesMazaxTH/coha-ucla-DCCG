@@ -71,8 +71,7 @@ const HUB_TILE_PAD := 10.0 ## room around the gallery's tiles for the hover zoom
 ## The gallery's titled dividers, in order; a deck's "section" field picks one (default "essencia").
 ## "hint" is shown instead of tiles when the section has no deck (the others are left out when empty).
 const HUB_SECTIONS := [
-	{"id": DeckDB.SECTION_ESSENCE, "title": "DECKS DE ESSÊNCIA"},
-	{"id": DeckDB.SECTION_SPECIAL, "title": "DECKS ESPECIAIS"},
+	{"id": DeckDB.SECTION_LEADERS, "title": "ESSENCIAIS: DECKS DOS LÍDERES"},
 	{"id": DeckDB.SECTION_MINE, "title": "MEUS DECKS", "hint": "Você ainda não tem nenhum deck pronto. Monte um em MEUS DECKS, no menu inicial: 44 cartas, a Encarnação do Líder e as regras do deck cumpridas."},
 ]
 const HUB_EMPTY_HINT_H := 72.0 ## height of the hint that stands in for the tiles of an empty section

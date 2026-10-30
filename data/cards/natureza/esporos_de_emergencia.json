@@ -1,0 +1,27 @@
+{
+  "name": "Esporos de Emergência",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "natureza",
+  "art": "natureza/esporos_de_emergencia.webp",
+  "cost": 1,
+  "speed": "instantaneo",
+  "extra_cost": {
+    "kind": "sacrifice",
+    "amount": 1,
+    "target": "ally_plant_or_token"
+  },
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "counter",
+      "target": "enemy_stack",
+      "max_cost": 3
+    }
+  ],
+  "text": "Para jogar, você sacrifica uma planta ou ficha aliada. Anula um feitiço ou habilidade inimiga de custo (3) ou menos.",
+  "flavor": "",
+  "tags": [
+    "anular"
+  ]
+}

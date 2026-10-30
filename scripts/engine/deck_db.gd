@@ -21,8 +21,7 @@ const MAX_ELITE_CARDS := 20
 const MAX_OFF_ESSENCE := 10
 const MAX_OFF_ESSENCE_SINGLE_DOMAIN := 15
 const PREBUILT_DIR := "res://data/decks/prebuilt"
-const SECTION_ESSENCE := "essencia"
-const SECTION_SPECIAL := "especial"
+const SECTION_LEADERS := "essencia"
 ## The player's own decks (built in MEUS DECKS) share the hub with the prebuilt ones.
 const SECTION_MINE := "meus"
 ## Id prefixes of decks registered at run time: the player's own decks on this device, and the decks
@@ -66,14 +65,13 @@ static func ids() -> Array[String]:
 	_load()
 	return _ids.duplicate()
 
-## Which hub section a deck belongs to: "essencia" (the default: mono-essence decks that show off one
-## essence), "especial" (decks built around a combo or a neutral Leader, with a splash of other essences)
-## or "meus" (the player's own decks).
+## Which hub section a deck belongs to: "essencia" (the default: ESSENCIAIS, exactly one prebuilt deck
+## per Leader) or "meus" (the player's own decks).
 static func section_of(id: String) -> String:
 	_load()
 	if _custom_decks.has(id):
 		return SECTION_MINE
-	return String(_decks[id].get("section", SECTION_ESSENCE))
+	return String(_decks[id].get("section", SECTION_LEADERS))
 
 static func has(id: String) -> bool:
 	_load()

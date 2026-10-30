@@ -2,7 +2,6 @@
   "name": "Sucata Premiada",
   "description": "Encha o campo de artefatos para inflar o Berengar Voss: unidades que contam como artefato, equipamentos em penca no Sacoleiro e a Montadora guardando sucata. A Zulmira Ferro-Velho recicla os artefatos que caem no cemitério quando a mesa não para em pé. Então o Otávio Rebite-Quente transforma cada artefato em Ataque (e Ataque Duplo numa Lendária) para um final explosivo.",
   "order": 24,
-  "section": "especial",
   "leader": "berengar_voss",
   "cards": {
     "engrenagem_solta": 2,

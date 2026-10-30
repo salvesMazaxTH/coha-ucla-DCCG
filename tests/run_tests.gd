@@ -585,8 +585,11 @@ func _test_constant() -> void:
 	g._check_state()
 	check(g.hp_left(jeff) == 2, "dano persiste ao perder o bônus")
 
+## The Obscura tests play the old Ceifa Veloz list (Rusco, no Vagante), kept as a fixture since it is no longer a prebuilt deck.
 func _obscura_game() -> GameState:
-	var g := GameState.new("obscura_rapido", "fogo", 7)
+	var fixture: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://tests/fixtures/obscura_rapido.json"))
+	DeckDB.register_custom("mine:fixture_obscura_rapido", fixture["name"], fixture["description"], fixture["leader"], fixture["cards"])
+	var g := GameState.new("mine:fixture_obscura_rapido", "fogo", 7)
 	g.mulligan(0, [])
 	g.mulligan(1, [])
 	return g
@@ -8269,6 +8272,23 @@ func _test_metalica() -> void:
 	_cast_and_resolve(g, a, "engrenagem_solta", other.uid)
 	check(g.atk_of(uncle) == 3 and g.hp_left(uncle) == 6, "Berengar Voss: artefato equipado também conta")
 
+	# Berengar Voss: Ao Entrar leva à mão um artefato de custo 2 ou menos do cemitério (o de custo 3 não serve)
+	g = _metalica_game()
+	a = g.active
+	var cheap_artifact := Card.new(g._uid(), "engrenagem_solta", a, "graveyard")
+	var pricey_artifact := Card.new(g._uid(), "moedor_de_sucata", a, "graveyard")
+	g.players[a]["graveyard"].append(cheap_artifact)
+	g.players[a]["graveyard"].append(pricey_artifact)
+	g.active = a
+	g._run_effect_dicts(a, CardDB.card("berengar_voss")["effects"], "on_enter", 0, 0, SPELL_SOURCE)
+	var recoverable: Array = []
+	for option in g.pending_search.get("cards", []):
+		recoverable.append(int(option["uid"]))
+	check(g.phase == "search" and recoverable == [cheap_artifact.uid], "Berengar Voss: Ao Entrar só oferece artefato de custo 2 ou menos do cemitério")
+	if g.phase == "search":
+		g.choose_search(a, cheap_artifact.uid)
+		check(g.players[a]["hand"].has(cheap_artifact) and g.players[a]["graveyard"].has(pricey_artifact), "Berengar Voss: o artefato escolhido volta à mão")
+
 	# Berengar's leader power (Peça Sobressalente): looks at the top 3 and takes an artifact FIRST; only a card taken makes it discard 1
 	for scenario in ["takes_artifact", "no_artifact_on_top", "declines_search"]:
 		g = _metalica_game()
@@ -8826,9 +8846,6 @@ func _test_glacial_combo() -> void:
 	consolation_game.choose_search(consolation_player, 0)
 	check(consolation_game.players[consolation_player]["hand"].size() == hand_before_consolation + 2, "whiff de busca no topo: fallback_draw compra depois de embaralhar")
 
-	# the new deck: legal and holding the combo pieces
-	var combo_deck := DeckDB.get_deck("glacial_combo")
-	check(DeckDB.validate("glacial_combo").is_empty() and combo_deck["cards"].has("ritual_do_degelo") and combo_deck["cards"].has("ladeira_abaixo_e_sem_freio"), "deck Ladeira Ascendente é legal e tem as peças do combo")
 
 func _test_deslizamento() -> void:
 	var g := _new_game()

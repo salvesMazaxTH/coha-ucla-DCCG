@@ -1,0 +1,23 @@
+{
+  "name": "Contracorrente",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "fluxo",
+  "art": "fluxo/contracorrente.webp",
+  "cost": 2,
+  "speed": "instantaneo",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "counter",
+      "target": "enemy_stack",
+      "only_if_ability": true,
+      "owner_draws": 1
+    }
+  ],
+  "text": "Anula uma habilidade ativada inimiga; o dono dela compra 1 carta.",
+  "flavor": "",
+  "tags": [
+    "anular"
+  ]
+}

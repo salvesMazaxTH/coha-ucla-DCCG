@@ -2,7 +2,6 @@
   "name": "Manada Incomodante",
   "description": "Encha o campo de Elefantes Incomodantes: cada um cresce com a manada, o Chamado ao Picadeiro e o Filhote Fujão acham os próximos e o Estouro da Manada despeja dois de uma vez. A Fotocopiadora Primordial duplica o que já está em campo e o Elefante Não Esquece traz os caídos de volta do cemitério. Saraya Kovan infla as Feras, a Matriarca barateia e blinda os Elefantes, Dona Ribomba puxa um da mão de graça ao entrar e ao morrer, e o poder do Líder engorda uma por turno.",
   "order": 25,
-  "section": "especial",
   "leader": "saraya_kovan",
   "cards": {
     "filhote_fujao": 3,

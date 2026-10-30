@@ -9,7 +9,7 @@ func _init() -> void:
 	await process_frame
 	m._show_menu()
 	m._show_hub(false)
-	m.sel_deck = "obscura_rapido"
+	m.sel_deck = "obscura_lento"
 	m._show_hub(true) # step 1: your deck, then "PRÓXIMO"
 	m._show_hub(true, "", true) # step 2: the AI's deck, then "JOGAR"
 	await process_frame
@@ -233,7 +233,7 @@ func _check_deck_builder(m) -> bool:
 	builder.local_deck_path = scratch_path
 	m.layer.add_child(builder)
 	await process_frame
-	var template: Dictionary = DeckDB.get_deck("obscura_rapido")
+	var template: Dictionary = DeckDB.get_deck("obscura_lento")
 	builder._open_editor({"id": "", "name": "Deck de teste", "description": "", "leader": template["leader"], "cards": {}, "problems": []})
 	await process_frame
 	await process_frame # the card grid renders one frame later

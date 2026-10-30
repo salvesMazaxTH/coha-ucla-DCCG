@@ -1,0 +1,22 @@
+{
+  "name": "Quarentena Sagrada",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "devocao",
+  "art": "devocao/quarentena_sagrada.webp",
+  "cost": 2,
+  "speed": "instantaneo",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "counter",
+      "target": "enemy_stack",
+      "only_if_area": true
+    }
+  ],
+  "text": "Anula um feitiço ou habilidade inimiga que afeta várias unidades ao mesmo tempo.",
+  "flavor": "",
+  "tags": [
+    "anular"
+  ]
+}

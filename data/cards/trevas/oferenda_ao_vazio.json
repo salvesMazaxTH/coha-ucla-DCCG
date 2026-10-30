@@ -1,0 +1,27 @@
+{
+  "name": "Oferenda ao Vazio",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "trevas",
+  "art": "trevas/oferenda_ao_vazio.webp",
+  "cost": 1,
+  "speed": "instantaneo",
+  "extra_cost": {
+    "kind": "sacrifice",
+    "amount": 1,
+    "target": "ally_unit"
+  },
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "counter",
+      "target": "enemy_stack",
+      "max_cost": 5
+    }
+  ],
+  "text": "Para jogar, você sacrifica uma unidade aliada. Anula um feitiço ou habilidade inimiga de custo (5) ou menos.",
+  "flavor": "",
+  "tags": [
+    "anular"
+  ]
+}

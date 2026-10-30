@@ -1,0 +1,23 @@
+{
+  "name": "Atraso de Voo",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "tormenta",
+  "art": "tormenta/atraso_de_voo.webp",
+  "cost": 1,
+  "speed": "instantaneo",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "counter",
+      "target": "enemy_stack",
+      "max_cost": 2,
+      "owner_gains_momentum": 1
+    }
+  ],
+  "text": "Anula um feitiço ou habilidade inimiga de custo (2) ou menos; o dono dela ganha 1 de Momentum.",
+  "flavor": "",
+  "tags": [
+    "anular"
+  ]
+}

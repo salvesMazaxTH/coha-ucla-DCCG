@@ -2,7 +2,6 @@
   "name": "Ignisar Controle",
   "description": "Controle de Fúria com duas formas de vencer. Labareda, Fagulhame, Reduzir a Cinzas, Pira-Mundo e D'Lorafya limpam a mesa enquanto Bola de Fogo e Erupção vão direto ao Líder. No fim, Ivan Ignisar e os Gigantes Vulcânicos, que custam 5 a menos depois de um turno de muito dano, fecham o jogo.",
   "order": 18,
-  "section": "especial",
   "leader": "ivan_ignisar",
   "cards": {
     "dragaozinho_flamejante": 2,

@@ -1,0 +1,20 @@
+{
+  "name": "Represália Ardente",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "furia",
+  "art": "furia/represalia_ardente.webp",
+  "cost": 2,
+  "speed": "instantaneo",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage_leader_by_stack_cost",
+      "target": "enemy_stack",
+      "max": 5
+    }
+  ],
+  "text": "Você escolhe um feitiço ou habilidade inimiga; o Líder inimigo sofre dano igual ao custo dela (máximo 5). A habilidade ou feitiço escolhido resolve normalmente.",
+  "flavor": "",
+  "tags": []
+}
