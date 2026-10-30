@@ -10,7 +10,9 @@
   "cost": 7,
   "atk": 5,
   "hp": 7,
-  "keywords": [],
+  "keywords": [
+    "longo_alcance"
+  ],
   "effects": [
     {
       "trigger": "on_enter",

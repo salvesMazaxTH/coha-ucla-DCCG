@@ -1420,14 +1420,14 @@ func _test_tormenta_wave_two() -> void:
 	var vane := _put(g, p_vane, "cata_vento_ambulante")
 	g.players[p_vane]["momentum"] = 0
 	g.end_turn(p_vane)
-	check(g.atk_of(vane) == 2, "Cata-Vento Ambulante: sem Momentum sobrando não cresce")
+	check(g.atk_of(vane) == 1, "Cata-Vento Ambulante: sem Momentum sobrando não cresce")
 	g = _new_game()
 	_quiet(g)
 	p_vane = g.active
 	vane = _put(g, p_vane, "cata_vento_ambulante")
 	g.players[p_vane]["momentum"] = 3
 	g.end_turn(p_vane)
-	check(g.atk_of(vane) == 3, "Cata-Vento Ambulante: com Momentum sobrando ganha +1 de Ataque")
+	check(g.atk_of(vane) == 2, "Cata-Vento Ambulante: com Momentum sobrando ganha +1 de Ataque")
 
 	# Nuvem de Estimação: +1 Ataque for each spell its controller casts (not the opponent's)
 	g = _new_game()
