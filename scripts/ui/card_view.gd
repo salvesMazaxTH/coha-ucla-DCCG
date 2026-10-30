@@ -46,7 +46,11 @@ const STUN_COL := Color("#ffc233") ## Atordoamento: dizzy amber-gold, distinct f
 const BURN_COL := Color("#ff7043") ## Queimadura: hot orange-red, distinct from damage red and frost blue
 const POISON_COL := Color("#b8e86b") ## Veneno: acid-lime drop over a deep violet medallion
 const BLEED_COL := Color("#e85d75") ## Sangramento: reserved by the same shared badge for the future keyword
-const DOT_BADGE_ENLARGEMENT := 1.75 ## size of the marker medallion (Queimadura/Veneno) vs. the other card badges; big enough to read the count on Leaders, which have no overlay
+## Fixed medallion order, so a status keeps its slot. Atordoada comes first: it is the one that changes what the unit can do, so it stays pinned and never takes turns.
+const STATUS_ORDER := ["atordoada", "queimadura", "veneno", "sangramento", "congelar"] # TEMP "congelar": pseudo 5th status for the status-badge scenario
+const MAX_STATUS_MEDALLIONS := 3 ## medallions that fit in the column; with more statuses the last one takes turns
+const STATUS_TURN_SECONDS := 1.6 ## how long the sharing medallion shows each status before the next one
+const DOT_BADGE_ENLARGEMENT :=1.75 ## size of the marker medallion (Queimadura/Veneno) vs. the other card badges; big enough to read the count on Leaders, which have no overlay
 const DOOM_COL := Color("#b57bff") ## Condenada: sickly violet, always paired with a skull so it is not confused with the magic-shield lilac
 const DEATH_WARD_COL := Color("#72e7ff") ## Baluarte armado: bright cyan so it reads as a persistent ready state
 ## Ice spikes of a frozen card, as [x across the card 0..1, length in base px, half width in base px].
@@ -326,7 +330,7 @@ func _process(delta: float) -> void:
 		if not render_transform.is_equal_approx(_photo_transform_seen):
 			_photo_transform_seen = render_transform
 			queue_redraw()
-	if highlight.a > 0 or hovered or _legendary() or inst.has("frozen") or inst.has("stun_markers") or inst.has("condemned_turn") or inst.get("summoning_sick", false):
+	if highlight.a > 0 or hovered or _legendary() or inst.has("frozen") or inst.has("stun_markers") or inst.has("condemned_turn") or inst.get("summoning_sick", false) or _status_amounts().size() > MAX_STATUS_MEDALLIONS:
 		_t += delta
 		_redraw_acc += delta
 		# shimmer at ~30 fps is plenty (GraphicsQuality.card_animation_interval); a glowing or hovered card
@@ -1180,8 +1184,8 @@ func _draw_frost(art: Rect2, s: float) -> void:
 	_draw_snowflake(art.get_center(), art.size.x * 0.3 * (0.4 + 0.6 * grow), s, Color(1, 1, 1, 0.78 * grow))
 	draw_polyline(_art_window + PackedVector2Array([_art_window[0]]), Color(1, 1, 1, 0.95 * grow), 2.2 * s, true)
 
-## The art of a stunned unit: a dull amber veil, stars circling over its head and a medallion with the
-## number of stun markers it still has (each one costs the unit an untap).
+## The art of a stunned unit: a dull amber veil and stars circling over its head. The number of stun
+## markers it still has (each one costs the unit an untap) is a medallion in the status column, see _draw_dot_badges.
 func _draw_stun(art: Rect2, s: float) -> void:
 	draw_colored_polygon(_art_window, Color("#3a2a00", 0.34))
 	var orbit_center := Vector2(art.get_center().x, art.position.y + art.size.y * 0.22)
@@ -1190,13 +1194,6 @@ func _draw_stun(art: Rect2, s: float) -> void:
 		var star_position := orbit_center + Vector2(cos(angle) * art.size.x * 0.32, sin(angle) * art.size.y * 0.07)
 		var in_front := 0.6 + 0.4 * sin(angle) # stars on the near side of the orbit read bigger and brighter
 		_draw_glint(star_position, (4.0 + 4.0 * in_front) * s, Color(1.0, 0.9, 0.45, 0.55 + 0.45 * in_front))
-	var badge_radius := 11 * s
-	var badge_center := Vector2(art.end.x - badge_radius - 2 * s, art.end.y - badge_radius - 2 * s)
-	draw_circle(badge_center + Vector2(0, 1.4 * s), badge_radius * 1.2, Color(0, 0, 0, 0.6))
-	draw_circle(badge_center, badge_radius * 1.14, Color("#4a3200"))
-	draw_circle(badge_center, badge_radius * 1.06, STUN_COL)
-	draw_circle(badge_center, badge_radius, Color("#241800"))
-	_text(UITheme.font("heavy"), str(int(inst.get("stun_markers", 1))), badge_center + Vector2(0, badge_radius * 0.36), badge_radius * 1.15, STUN_COL.lightened(0.3))
 
 ## A unit that just arrived and cannot attack yet (Enjoo de Invocação): the art dims to a calm
 ## slate-blue, and three small "z" rise from its upper-right corner, one after the other, each
@@ -1328,7 +1325,76 @@ static func dot_marker_count_of_view(instance: Dictionary, dot_id: String) -> in
 
 ## Shared live-marker palette. Keeping this here makes the exact same badge readable on cards and Leaders.
 static func dot_badge_color(dot_id: String) -> Color:
-	return {"queimadura": BURN_COL, "veneno": POISON_COL, "sangramento": BLEED_COL, "congelar": FROST_DEEP}.get(dot_id, Color("#d8d2c4"))
+	return {"queimadura": BURN_COL, "veneno": POISON_COL, "sangramento": BLEED_COL, "atordoada": STUN_COL, "congelar": FROST_DEEP}.get(dot_id, Color("#d8d2c4"))
+
+## Draws every live status of a unit or Leader as a column of medallions hanging off `right_edge` (the
+## edge of the card/plate), from `top` down to `bottom`. `amounts` is dot id -> amount.
+## Up to MAX_STATUS_MEDALLIONS statuses each get their own medallion, bigger when there are fewer
+## (`radius_by_count[n - 1]` is the radius for n medallions). With more statuses than that, the first
+## ones keep fixed slots and the LAST slot takes turns showing the leftover ones: it pops each time it
+## changes, and a segmented ring around it shows how many are taking turns and which one is up.
+static func draw_status_column(target: CanvasItem, amounts: Dictionary, right_edge: float, top: float, bottom: float, radius_by_count: Array, scale: float, time: float, pulse := 0.5, text_scale := 1.0) -> void:
+	var active_ids: Array = []
+	for dot_id in STATUS_ORDER:
+		if int(amounts.get(dot_id, 0)) > 0:
+			active_ids.append(dot_id)
+	if active_ids.is_empty():
+		return
+	var slot_count := mini(active_ids.size(), MAX_STATUS_MEDALLIONS)
+	var gap := 1.0 * scale
+	# a medallion plus its drop shadow is 2.4 radii tall, so this is the largest radius where the stack fits
+	var largest_radius_that_fits := ((bottom - top) / slot_count - gap) / 2.4
+	var radius := minf(float(radius_by_count[slot_count - 1]), largest_radius_that_fits)
+	var shadow_radius := radius * 1.2 # the medallion's drop shadow is its widest part
+	var shares_last_slot := active_ids.size() > MAX_STATUS_MEDALLIONS
+	var taking_turns: Array = active_ids.slice(MAX_STATUS_MEDALLIONS - 1) # statuses that share the last slot
+	var turn_number := int(time / STATUS_TURN_SECONDS)
+	var center := Vector2(right_edge - radius * 0.4, top + shadow_radius) # most of the medallion pokes out of the frame
+	for slot in slot_count:
+		var in_sharing_slot := shares_last_slot and slot == slot_count - 1
+		var shown_id: String = taking_turns[turn_number % taking_turns.size()] if in_sharing_slot else active_ids[slot]
+		var slot_radius := radius
+		if in_sharing_slot:
+			# the new status pops in: starts a bit small and settles to full size (ease-out)
+			var settle := clampf(fposmod(time, STATUS_TURN_SECONDS) / 0.22, 0.0, 1.0)
+			slot_radius = radius * (1.0 - 0.45 * pow(1.0 - settle, 3.0))
+		draw_dot_badge(target, center, slot_radius, scale, shown_id, int(amounts[shown_id]), pulse, text_scale)
+		if in_sharing_slot:
+			var current_index := turn_number % taking_turns.size()
+			_draw_turn_ring(target, center, radius * 1.3, scale, taking_turns, current_index)
+			_draw_hidden_count_pill(target, center + Vector2(radius * 0.8, radius * 0.95), radius, taking_turns.size() - 1, dot_badge_color(shown_id), text_scale)
+		center.y += shadow_radius * 2.0 + gap
+
+## The little "+N" capsule on the medallion that takes turns: N statuses are waiting behind the one on
+## display. `anchor` is the capsule's center; it takes the on-display status's color.
+static func _draw_hidden_count_pill(target: CanvasItem, anchor: Vector2, radius: float, hidden_count: int, accent: Color, text_scale: float) -> void:
+	var font := UITheme.font("heavy")
+	var label := "+%d" % hidden_count
+	var font_size := maxi(6, int(radius * 0.85 * text_scale))
+	var text_width := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	var pill_height := font_size * 1.05
+	var pill_half_width := maxf(text_width / 2.0 + pill_height * 0.35, pill_height / 2.0) # never narrower than a circle
+	var end_offset := Vector2(pill_half_width - pill_height / 2.0, 0.0) # centers of the two round ends
+	for layer in 2:
+		var layer_color := accent.lightened(0.25) if layer == 0 else Color("#150f1c")
+		var grow := 1.0 if layer == 0 else 0.0 # the lighter layer is drawn first and larger, leaving a thin rim
+		target.draw_circle(anchor - end_offset, pill_height / 2.0 + grow, layer_color)
+		target.draw_circle(anchor + end_offset, pill_height / 2.0 + grow, layer_color)
+		target.draw_rect(Rect2(anchor - end_offset - Vector2(0, pill_height / 2.0 + grow), Vector2(end_offset.x * 2.0, pill_height + grow * 2.0)), layer_color)
+	target.draw_string(font, anchor + Vector2(-text_width / 2.0, font_size * 0.36), label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, accent.lightened(0.55))
+
+## Segmented ring around the medallion that takes turns: one arc per status in the rotation, in that
+## status's color; the arc of the one on display is bright and thick, the others are dim.
+static func _draw_turn_ring(target: CanvasItem, center: Vector2, ring_radius: float, scale: float, status_ids: Array, current_index: int) -> void:
+	var arc_span := TAU / status_ids.size()
+	var gap_angle := 0.5 # radians left empty between two arcs
+	for index in status_ids.size():
+		var start_angle := -PI / 2.0 + index * arc_span + gap_angle / 2.0
+		var is_current := index == current_index
+		var arc_color := dot_badge_color(status_ids[index])
+		if not is_current:
+			arc_color = Color(arc_color, 0.35)
+		target.draw_arc(center, ring_radius, start_angle, start_angle + arc_span - gap_angle, 12, arc_color, (2.2 if is_current else 1.4) * scale, true)
 
 ## Shared live-marker badge used by unit cards and LeaderView. The icon and count deliberately sit in
 ## the same medallion, so a marker never becomes invisible just because the target is a unit or Leader.
@@ -1336,7 +1402,7 @@ static func draw_dot_badge(target: CanvasItem, center: Vector2, radius: float, s
 	if target == null or amount <= 0:
 		return
 	var col := dot_badge_color(dot_id)
-	var deep := Color("#241332") if dot_id == "veneno" else (Color("#5d1723") if dot_id == "sangramento" else Color("#7d2114"))
+	var deep: Color = {"veneno": Color("#241332"), "sangramento": Color("#5d1723"), "atordoada": Color("#4a3200")}.get(dot_id, Color("#7d2114"))
 	var danger := dot_id == "veneno" and amount >= 6
 	var pulse_alpha := 0.6 + 0.4 * clampf(float(pulse), 0.0, 1.0)
 	target.draw_circle(center + Vector2(0, 1.4 * scale), radius * 1.2, Color(0, 0, 0, 0.62))
@@ -1348,21 +1414,19 @@ static func draw_dot_badge(target: CanvasItem, center: Vector2, radius: float, s
 
 	var icon := PackedVector2Array()
 	if dot_id == "veneno":
-		# acid drop: a pointed top with a rounded lower body
-		icon = PackedVector2Array([
-			center + Vector2(0, -0.78 * radius), center + Vector2(0.42 * radius, -0.2 * radius),
-			center + Vector2(0.44 * radius, 0.27 * radius), center + Vector2(0.24 * radius, 0.58 * radius),
-			center + Vector2(-0.24 * radius, 0.58 * radius), center + Vector2(-0.44 * radius, 0.27 * radius),
-			center + Vector2(-0.42 * radius, -0.2 * radius)])
+		# the same smooth drop as Sangramento, in acid green with a dark purple rim
+		_draw_drop(target, center, radius, scale, col.lightened(0.2), Color("#241332"))
 	elif dot_id == "sangramento":
-		_draw_blood_drop(target, center, radius, scale)
+		_draw_drop(target, center, radius, scale, Color("#ff3348"), Color("#4a0a14"))
+	elif dot_id == "atordoada":
+		# five-point star, like the ones circling the stunned unit's head
+		for point_index in 10:
+			var point_angle := -PI / 2.0 + point_index * TAU / 10.0
+			var point_radius := (0.82 if point_index % 2 == 0 else 0.36) * radius
+			icon.append(center + Vector2(cos(point_angle), sin(point_angle)) * point_radius)
 	else:
-		icon = PackedVector2Array([
-			center + Vector2(0, -0.86 * radius), center + Vector2(0.38 * radius, -0.25 * radius),
-			center + Vector2(0.16 * radius, 0.0), center + Vector2(0.52 * radius, 0.46 * radius),
-			center + Vector2(0, 0.72 * radius), center + Vector2(-0.48 * radius, 0.46 * radius),
-			center + Vector2(-0.16 * radius, 0.0), center + Vector2(-0.38 * radius, -0.25 * radius)])
-	if not icon.is_empty(): # the blood drop draws itself above
+		_draw_flame(target, center, radius, scale)
+	if not icon.is_empty(): # the drops and the flame draw themselves above
 		target.draw_colored_polygon(icon, col.lightened(0.2))
 		target.draw_polyline(icon + PackedVector2Array([icon[0]]), Color(1, 1, 1, 0.35), 0.65 * scale, true)
 	var font := UITheme.font("heavy")
@@ -1374,10 +1438,10 @@ static func draw_dot_badge(target: CanvasItem, center: Vector2, radius: float, s
 	target.draw_string_outline(font, pos, label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, maxi(2, int(radius * 0.28)), Color(col.lightened(0.7), 0.95))
 	target.draw_string(font, pos, label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color("#120a18"))
 
-## Sangramento's icon: a smooth blood drop. Its round body is a true circle and its two sides are the
-## straight lines that touch that circle and meet at the tip, so the outline has no corners or dents.
-## A dark rim and a soft white shine on the upper left make it read as a liquid drop, not a flat shape.
-static func _draw_blood_drop(target: CanvasItem, center: Vector2, radius: float, scale: float) -> void:
+## The icon of Sangramento (blood) and Veneno (poison): a smooth drop. Its round body is a true circle and
+## its two sides are the straight lines that touch that circle and meet at the tip, so the outline has no
+## corners or dents. A dark rim and a soft white shine on the upper left make it read as a liquid drop.
+static func _draw_drop(target: CanvasItem, center: Vector2, radius: float, scale: float, fill_color: Color, rim_color: Color) -> void:
 	var tip := center + Vector2(0, -0.82 * radius)
 	var body_center := center + Vector2(0, 0.2 * radius)
 	var body_radius := 0.46 * radius
@@ -1390,30 +1454,70 @@ static func _draw_blood_drop(target: CanvasItem, center: Vector2, radius: float,
 	for step in arc_steps + 1:
 		var angle := lerpf(first_angle, last_angle, float(step) / arc_steps)
 		outline.append(body_center + Vector2(cos(angle), sin(angle)) * body_radius)
-	target.draw_colored_polygon(outline, Color("#ff3348"))
-	target.draw_polyline(outline + PackedVector2Array([tip]), Color("#4a0a14"), 1.0 * scale, true)
+	target.draw_colored_polygon(outline, fill_color)
+	target.draw_polyline(outline + PackedVector2Array([tip]), rim_color, 1.0 * scale, true)
 	# glossy shine: a short curved stroke inside the upper left of the body
 	target.draw_arc(body_center, body_radius * 0.62, PI * 1.05, PI * 1.42, 12, Color(1, 1, 1, 0.75), 1.3 * scale, true)
 
-## Draw every live periodic marker on the card. They stack vertically instead of replacing one another,
-## so simultaneous Queimadura/Veneno/Sangramento remains unambiguous.
+## Queimadura's icon: a real fire flame, like the 🔥 emoji. The outline is made of smooth curves: a tall
+## main tongue leaning a little to the right, a smaller tongue on each side and a round bottom. Inside it
+## sit a smaller orange flame and a yellow core, so it glows hotter toward the base.
+static func _draw_flame(target: CanvasItem, center: Vector2, radius: float, scale: float) -> void:
+	# Each curve is [start, control 1, control 2, end], in radius units around the center (y grows downward).
+	var outer_curves := [
+		[Vector2(0.06, -0.92), Vector2(0.22, -0.7), Vector2(0.3, -0.46), Vector2(0.24, -0.28)], # main tongue, right edge
+		[Vector2(0.24, -0.28), Vector2(0.34, -0.34), Vector2(0.46, -0.42), Vector2(0.5, -0.56)], # up to the right tongue
+		[Vector2(0.5, -0.56), Vector2(0.7, -0.22), Vector2(0.5, 0.76), Vector2(0.0, 0.76)], # right side down to the bottom
+		[Vector2(0.0, 0.76), Vector2(-0.48, 0.76), Vector2(-0.7, 0.0), Vector2(-0.5, -0.4)], # bottom up to the left tongue
+		[Vector2(-0.5, -0.4), Vector2(-0.42, -0.3), Vector2(-0.3, -0.22), Vector2(-0.2, -0.22)], # down into the left notch
+		[Vector2(-0.2, -0.22), Vector2(-0.22, -0.52), Vector2(-0.08, -0.7), Vector2(0.06, -0.92)], # main tongue, left edge
+	]
+	var core_curves := [
+		[Vector2(0.02, -0.2), Vector2(0.16, 0.04), Vector2(0.34, 0.64), Vector2(0.0, 0.64)],
+		[Vector2(0.0, 0.64), Vector2(-0.34, 0.64), Vector2(-0.16, 0.04), Vector2(0.02, -0.2)],
+	]
+	var outer := _curves_to_polygon(outer_curves, center, radius)
+	# the middle layer is the same flame, shrunk toward a point near its bottom
+	var middle_anchor := center + Vector2(0, 0.62 * radius)
+	var middle := PackedVector2Array()
+	for point in outer:
+		middle.append(middle_anchor + (point - middle_anchor) * 0.7)
+	var core := _curves_to_polygon(core_curves, center, radius)
+	target.draw_colored_polygon(outer, Color("#ff4a1c"))
+	target.draw_colored_polygon(middle, Color("#ff8f1f"))
+	target.draw_colored_polygon(core, Color("#ffd94a"))
+	target.draw_polyline(outer + PackedVector2Array([outer[0]]), Color("#4a0c04"), 0.9 * scale, true)
+
+## Turns a chain of cubic Bézier curves (each [start, control 1, control 2, end], in radius units) into
+## one closed polygon around `center`.
+static func _curves_to_polygon(curves: Array, center: Vector2, radius: float) -> PackedVector2Array:
+	var steps_per_curve := 10
+	var polygon := PackedVector2Array()
+	for curve in curves:
+		for step in steps_per_curve: # the last point of each curve is the first of the next, so it is skipped
+			var t := float(step) / steps_per_curve
+			var point: Vector2 = curve[0].bezier_interpolate(curve[1], curve[2], curve[3], t)
+			polygon.append(center + point * radius)
+	return polygon
+
+## Everything that gets a status medallion on this card, status id -> amount: the live periodic
+## markers (Queimadura/Veneno/Sangramento) and the stun markers (Atordoada).
+func _status_amounts() -> Dictionary:
+	var amounts := {}
+	for status_id in STATUS_ORDER:
+		var amount := int(inst.get("stun_markers", 0)) if status_id == "atordoada" else dot_marker_count_of_view(inst, status_id)
+		if amount > 0:
+			amounts[status_id] = amount
+	return amounts
+
+## Draw the status medallions as a column hanging off the right edge of the card, like a display
+## attached to the frame rather than printed on the art. They stack instead of replacing one another,
+## so simultaneous statuses stay unambiguous (see draw_status_column for what happens past 3).
 func _draw_dot_badges(art: Rect2, s: float, pulse: float) -> void:
-	var active_dots: Array = []
-	for dot_id in ["queimadura", "veneno", "sangramento"]:
-		if dot_marker_count_of_view(inst, dot_id) > 0:
-			active_dots.append(dot_id)
-	if active_dots.is_empty():
-		return
-	# One marker gets the big medallion so the count is readable at a glance; with more markers
-	# each one shrinks so the stack still fits inside the art window.
-	var enlargement: float = DOT_BADGE_ENLARGEMENT if active_dots.size() == 1 else (1.35 if active_dots.size() == 2 else 1.0)
-	var radius := 10 * s * enlargement
-	var shadow_radius := radius * 1.2 # the medallion's drop shadow is its widest part
-	# right edge of the art, just below the essence/doom corner (which ends ~22 px into the art)
-	var center := Vector2(art.end.x - shadow_radius - 1 * s, art.position.y + 22 * s + shadow_radius)
-	for dot_id in active_dots:
-		CardView.draw_dot_badge(self, center, radius, s, dot_id, dot_marker_count_of_view(inst, dot_id), pulse)
-		center.y += shadow_radius * 2.0 + 1 * s
+	var column_top := art.position.y + 22 * s # just below the essence/doom corner (it ends ~22 px into the art)
+	var column_bottom := art.end.y # the name plate starts right under the art
+	var radius_by_count := [10 * s * DOT_BADGE_ENLARGEMENT, 10 * s * 1.35, 10 * s]
+	draw_status_column(self, _status_amounts(), _face_size.x, column_top, column_bottom, radius_by_count, s, _t, pulse)
 
 ## Round medallions down the left edge of the art, then the opposite edge when the left fills.
 func _kw_badges(art: Rect2, cd: Dictionary, s: float) -> void:
@@ -1678,7 +1782,7 @@ func _panel_lines(cd: Dictionary) -> Array:
 		out.append([[kind + spd, Color("#ffd27a") if spd != "" else Color(UITheme.TEXT, 0.6)]])
 	# tags: keywords first, then trigger names (full text lives in the overlay)
 	var tags: Array = []
-	for dot_id in ["queimadura", "veneno", "sangramento"]:
+	for dot_id in ["queimadura", "veneno", "sangramento", "congelar"]: # TEMP "congelar": pseudo 4th marker for the status-badge scenario
 		var dot_amount := dot_marker_count_of_view(inst, dot_id)
 		if dot_amount > 0:
 			tags.append(["%s %d" % [CardDB.keyword(dot_id)["name"], dot_amount], dot_badge_color(dot_id).lightened(0.18)])

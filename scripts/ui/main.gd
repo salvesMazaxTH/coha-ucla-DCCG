@@ -1694,6 +1694,7 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 		"queimadura": g.leader_dot_markers(p, "queimadura"),
 		"veneno": g.leader_dot_markers(p, "veneno"),
 		"sangramento": g.leader_dot_markers(p, "sangramento"),
+		"congelar": g.leader_dot_markers(p, "congelar"), # TEMP pseudo 4th marker for the status-badge scenario
 	}
 	lv.ward_hits = g.leader_negations_left(p)
 	lv.requiem = g.requiem_cards(p).size() if p == viewer and not _is_ai(p) and g.phase in ["main", "combat"] else 0
@@ -1878,6 +1879,7 @@ func _render_board(p: int, y: float) -> void:
 			v.left_clicked.connect(_on_unit_click)
 			v.right_clicked.connect(_show_overlay)
 			v.drag_started.connect(_unit_drag_start)
+		v.text_suffix = _scale_suffix(p, CardDB.card(unit.card_id)) # live "(agora: N)" in the overlay of a unit on the board
 		v.pivot_offset = v.size / 2.0
 		v.position = card_position
 		v.rotation = card_rotation
@@ -1971,6 +1973,7 @@ func _render_relics(p: int, y: float, slots_taken: int) -> void:
 		# Baluarte Santo is born protected: it needs the golden ring too (and loses ring and tag once it breaks)
 		relic_view_data["supreme_shield"] = relic.supreme_shield
 		var v := CardView.new().setup(relic.card_id, relic_view_data, 1.15)
+		v.text_suffix = _scale_suffix(p, CardDB.card(relic.card_id))
 		v.pivot_offset = v.size / 2.0
 		var cell := _board_cell(slots_taken, first_relic_slot + j)
 		v.position = Vector2(cell.x + (cell.y - v.size.x) / 2.0, y)
@@ -4096,7 +4099,10 @@ func _refresh_graveyard() -> void:
 	var castable_uids := _requiem_uids(grave_owner)
 	var counts := {"all": entries.size(), "unit": 0, "spell": 0, "artifact": 0, "requiem": castable_uids.size()}
 	for grave_card: Card in entries:
-		counts[CardDB.card(grave_card.card_id)["type"]] += 1
+		var grave_data := CardDB.card(grave_card.card_id)
+		counts[grave_data["type"]] += 1
+		if CardDB.is_unit_artifact(grave_data):
+			counts["artifact"] += 1 # a unit-artifact is listed under both Unidades and Artefatos
 	if grave_filter == "requiem" and castable_uids.is_empty():
 		grave_filter = "all" # nothing castable anymore (Momentum spent, priority passed)
 	var box := VBoxContainer.new()

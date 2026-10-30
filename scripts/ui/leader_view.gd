@@ -171,7 +171,7 @@ func _has_point(pt: Vector2) -> bool:
 	return PLATE.has_point(pt) or (shows_graveyard and GRAVE_RECT.has_point(pt)) or pt.distance_to(AC) <= AR + 4 or pt.distance_to(HP_C) <= 22
 
 func _process(delta: float) -> void:
-	if targetable or target_selected or ability_ready or active or requiem > 0 or ward_hits > 0:
+	if targetable or target_selected or ability_ready or active or requiem > 0 or ward_hits > 0 or _status_count() > CardView.MAX_STATUS_MEDALLIONS:
 		_t += delta
 		queue_redraw()
 
@@ -331,20 +331,18 @@ func _draw() -> void:
 	if shows_graveyard:
 		_counter(Vector2(230, 98), true, grave, true)
 
-func _draw_dot_badges(pulse: float) -> void:
-	var active_dots: Array = []
-	for dot_id in ["queimadura", "veneno", "sangramento"]:
+## How many different periodic markers (Queimadura/Veneno/Sangramento...) are on this Leader.
+func _status_count() -> int:
+	var count := 0
+	for dot_id in CardView.STATUS_ORDER:
 		if int(dot_markers.get(dot_id, 0)) > 0:
-			active_dots.append(dot_id)
-	if active_dots.is_empty():
-		return
-	var enlargement: float = CardView.DOT_BADGE_ENLARGEMENT if active_dots.size() == 1 else (1.35 if active_dots.size() == 2 else 0.85)
-	var radius := 12.0 * enlargement
-	var shadow_radius := radius * 1.2
-	var center := Vector2(ART.end.x - shadow_radius - 1.0, ART.position.y + shadow_radius + 1.0)
-	for dot_id in active_dots:
-		CardView.draw_dot_badge(self, center, radius, 1.0, dot_id, int(dot_markers[dot_id]), pulse, 1.2)
-		center.y += shadow_radius * 2.0 + 1.0
+			count += 1
+	return count
+
+func _draw_dot_badges(pulse: float) -> void:
+	# The column hangs off the right edge of the plate (between the plate and the deck pile), from the top
+	# down to just above the HP gem. Past 3 statuses the last medallion takes turns (see CardView.draw_status_column).
+	CardView.draw_status_column(self, dot_markers, PLATE.end.x, 6.0, 100.0, [12.0 * 1.4, 12.0 * 1.2, 12.0], 1.0, _t, pulse, 1.2)
 
 ## Small plate with a drawn icon (tombstone) and a count.
 func _counter(pos: Vector2, tomb: bool, n: int, clickable := false) -> void:
