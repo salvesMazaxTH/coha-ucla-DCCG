@@ -21,7 +21,7 @@ func setup(cur: int, mx: int, res: int = 0, cap: int = GameState.MOMENTUM_CAP) -
 	size = custom_minimum_size
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	tooltip_text = "Momentum: %d de %d disponíveis
-Reserva: %d de %d (só feitiços e habilidades)" % [cur, mx, res, GameState.RESERVE_CAP]
+Reserva: %d de %d (só Rápido e Instantâneo)" % [cur, mx, res, GameState.RESERVE_CAP]
 	return self
 
 func _draw() -> void:

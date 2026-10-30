@@ -158,7 +158,7 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 	for unit: Card in g.players[p]["board"]:
 		# untargeted Ao Ativar, before attacking (e.g. Yuki's temporary attack)
 		var activated_effects: Array = unit.data().get("activated", {}).get("effects", [])
-		if g.can_activate(p, unit.uid) and g.target_spec(activated_effects) == "" and g.can_attack(unit) and _revive_is_worth_it(g, p, activated_effects):
+		if g.can_activate(p, unit.uid) and g.target_spec(activated_effects) == "" and g.can_attack(unit) and _revive_is_worth_it(g, p, activated_effects) and _filtered_banish_is_worth_it(g, p, unit, activated_effects):
 			return g.activate(p, unit.uid)
 	for artifact: Card in g.players[p]["relics"]:
 		# free-standing artifacts' untargeted Ao Ativar (e.g. Ossuário Sem Fundo's revive)
@@ -416,6 +416,21 @@ static func _sweeper_is_worth_it(g: GameState, p: int, effect: Dictionary) -> bo
 		return false
 	return killed_enemies >= 2 or (killed_enemies >= 1 and _under_pressure(g, p))
 
+## Area banish narrowed by unit states (Fulgurvoltz, exhausted or weaker enemies): worth it when it takes at least
+## two enemy units, or one while under pressure (it never hits our own side, and Escudo units pass through it).
+static func _filtered_banish_is_worth_it(g: GameState, p: int, source: Card, effects: Array) -> bool:
+	for effect in effects:
+		if effect.get("action", "") != "banish" or effect.get("target", "") != "all_enemy_units" or not effect.has("unit_state_any"):
+			continue
+		var banished := 0
+		for unit: Card in g.players[g.opponent(p)]["board"]:
+			if unit.shield or unit.supreme_shield:
+				continue
+			if effect["unit_state_any"].any(func(state: String) -> bool: return GroupTarget.unit_has_state(g, unit, state, source.uid)):
+				banished += 1
+		return banished >= 2 or (banished >= 1 and _under_pressure(g, p))
+	return true
+
 ## Board reset (Última Badalada): worth it when the stats it takes from the enemy board (plus the enemy
 ## units it keeps from attacking) clearly outweigh the stats it takes from our own board.
 static func _board_reset_is_worth_it(g: GameState, p: int, effect: Dictionary) -> bool:
@@ -642,7 +657,7 @@ static func _try_attack(g: GameState, p: int) -> Array:
 			ready.append(unit)
 	if ready.is_empty():
 		return []
-	var burn_reach := maxi(_burn_reach(g, p, g.budget(p, true)), _burn_reach(g, p, _next_turn_budget(g, p)))
+	var burn_reach := maxi(_burn_reach(g, p, g.budget(p, false)), _burn_reach(g, p, _next_turn_plain_budget(g, p)))
 	var all_in := _lethal_push(g, p, ready)
 	var face_power := _face_strike_total(g, p)
 	# we only rush when the enemy cannot kill us first (otherwise the board has to stay home to trade)
@@ -846,9 +861,9 @@ static func _board_strike_total(g: GameState, player: int) -> int:
 		total += g.strike_power_of(unit)
 	return total
 
-## Momentum the AI can spend on spells next turn (one more than now, plus what is banked in the Reserva).
-static func _next_turn_budget(g: GameState, p: int) -> int:
-	return mini(g.momentum_cap(p), int(g.players[p]["max_momentum"]) + 1) + int(g.players[p]["reserve"])
+## Plain Momentum the AI will have next turn (one more than now). The Reserva is counted apart, see _burn_reach.
+static func _next_turn_plain_budget(g: GameState, p: int) -> int:
+	return mini(g.momentum_cap(p), int(g.players[p]["max_momentum"]) + 1)
 
 ## True for a spell that can send damage to the enemy Leader (Bola de Fogo "any", Choque "enemy_leader").
 static func _is_face_burn(card_data: Dictionary) -> bool:
@@ -866,24 +881,31 @@ static func _face_burn_damage(card_data: Dictionary) -> int:
 	return total
 
 ## The most face damage the burn spells in hand can deal paying at most `budget` Momentum (best subset).
-static func _burn_reach(g: GameState, p: int, budget: int) -> int:
+static func _burn_reach(g: GameState, p: int, plain_budget: int) -> int:
+	var reserve := int(g.players[p]["reserve"])
 	var damages: Array = []
 	var costs: Array = []
+	var fast: Array = [] # only Rápido/Instantâneo burn can be paid from the Reserva
 	for card: Card in g.players[p]["hand"]:
 		var card_data := CardDB.card(card.card_id)
 		var damage := _face_burn_damage(card_data)
 		if damage > 0 and not g.is_dud(p, card_data):
 			damages.append(damage)
 			costs.append(g.cost_of(p, card_data, card))
+			fast.append(g.reserve_pays(card_data))
 	var best := 0
 	for subset in range(1, 1 << damages.size()): # burn is a handful of cards, so trying every subset is cheap
 		var damage_sum := 0
-		var cost_sum := 0
+		var slow_cost := 0
+		var fast_cost := 0
 		for i in damages.size():
 			if subset & (1 << i):
 				damage_sum += damages[i]
-				cost_sum += costs[i]
-		if cost_sum <= budget:
+				if fast[i]:
+					fast_cost += costs[i]
+				else:
+					slow_cost += costs[i]
+		if slow_cost + maxi(0, fast_cost - reserve) <= plain_budget:
 			best = maxi(best, damage_sum)
 	return best
 
@@ -899,12 +921,12 @@ static func _burn_reach(g: GameState, p: int, budget: int) -> int:
 static func _burn_plan(g: GameState, p: int) -> String:
 	var enemy := g.opponent(p)
 	var enemy_hp: int = g.players[enemy]["leader_hp"]
-	var burn_now := _burn_reach(g, p, g.budget(p, true))
+	var burn_now := _burn_reach(g, p, g.budget(p, false))
 	if burn_now <= 0:
 		return "free"
 	if g.active == p and enemy_hp <= burn_now + _face_strike_total(g, p):
 		return "lethal"
-	var burn_next := maxi(burn_now, _burn_reach(g, p, _next_turn_budget(g, p)))
+	var burn_next := maxi(burn_now, _burn_reach(g, p, _next_turn_plain_budget(g, p)))
 	var in_danger: bool = _board_strike_total(g, enemy) >= g.players[p]["leader_hp"]
 	var hand_nearly_full: bool = g.players[p]["hand"].size() >= GameState.HAND_LIMIT - 1
 	if in_danger or hand_nearly_full:

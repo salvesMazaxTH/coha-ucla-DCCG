@@ -1010,14 +1010,14 @@ func _applicable_discount_equipment(p: int, cd: Dictionary) -> Array:
 				amulets.append(worn)
 	return amulets
 
-## Momentum p can spend on a play: the Reserva only counts for spells and leader abilities.
+## Momentum p can spend on a play: the Reserva only counts for Rápido and Instantâneo plays (`fast`).
 ## Momentum above the player's cap (a temporary overflow) only pays neutral cards and leader abilities:
 ## pass the card's data as `cd` so any other essence sees at most momentum_cap(p).
-func budget(p: int, spell: bool, cd := {}) -> int:
+func budget(p: int, fast: bool, cd := {}) -> int:
 	var plain_momentum := int(players[p]["momentum"])
 	if not cd.is_empty() and not CardDB.has_essence(cd, "neutra"):
 		plain_momentum = mini(plain_momentum, momentum_cap(p))
-	return plain_momentum + (int(players[p]["reserve"]) if spell else 0)
+	return plain_momentum + (int(players[p]["reserve"]) if fast else 0)
 
 ## Gives player p Momentum right now. Normally it stops at their cap (MOMENTUM_CAP, or higher with Agiota das
 ## Nuvens); with `overflow` it may go up to MOMENTUM_OVERFLOW_CAP. With `refresh` it only wins back spent
@@ -1037,11 +1037,11 @@ func gain_momentum(p: int, gain: int, overflow := false, refresh := false) -> vo
 	_refresh_scaling() # a surge (11+ Momentum) may have just turned on
 	_emit({"type": "momentum", "player": p})
 
-## Pays `amount`; spells and abilities drain the Reserva first so more plain Momentum is
+## Pays `amount`; Rápido and Instantâneo plays (`fast`) drain the Reserva first so more plain Momentum is
 ## left over to bank next turn.
-func _pay(p: int, amount: int, spell: bool) -> void:
+func _pay(p: int, amount: int, fast: bool) -> void:
 	var pl: Dictionary = players[p]
-	if spell:
+	if fast:
 		var r := mini(amount, int(pl["reserve"]))
 		pl["reserve"] -= r
 		amount -= r
@@ -1060,6 +1060,15 @@ func drain_momentum(p: int) -> int:
 
 static func _is_spell(cd: Dictionary) -> bool:
 	return cd.get("type", "") == "spell"
+
+## True when the Reserva may help pay this source (a spell, leader ability, activated ability or equip action):
+## only Rápido and Instantâneo ones. Lento always uses plain Momentum.
+func reserve_pays(src: Dictionary) -> bool:
+	return speed_of(src) != "lento"
+
+## Same for a card being played: only spells count (units never use the Reserva, not even Saque Rápido ones).
+func _reserve_pays_card(cd: Dictionary) -> bool:
+	return _is_spell(cd) and reserve_pays(cd)
 
 ## include_unreachable: also lists the enemy units with Inalcançável (only to explain why a target is refused).
 ## effects: the effect dictionaries about to be aimed at the pick. A target that cannot satisfy one of their
@@ -1183,7 +1192,7 @@ func card_targets(p: int, cd: Dictionary, inst: Card = null) -> Array:
 	var ok: Array = []
 	for sid in out:
 		var x := counter_extra(cd, sid)
-		if x >= 0 and cost_of(p, cd, inst) + x <= budget(p, _is_spell(cd), cd):
+		if x >= 0 and cost_of(p, cd, inst) + x <= budget(p, _reserve_pays_card(cd), cd):
 			ok.append(sid)
 	return ok
 
@@ -1283,10 +1292,10 @@ func can_play(p: int, hand_uid: int, allow_unreachable := false) -> bool:
 	if is_play_restricted(p, cd):
 		return false
 	if is_subito_play(p, cd):
-		# paid like an ability, so the Reserva counts
+		# Súbito is a Rápido play, so the Reserva counts
 		return inst.zone == "hand" and has_slot_or_banish(p) and not cd.get("cost_sacrifice", false) \
 			and subito_cost(p, cd, inst) <= budget(p, true, cd)
-	if cost_of(p, cd, inst) > budget(p, _is_spell(cd), cd):
+	if cost_of(p, cd, inst) > budget(p, _reserve_pays_card(cd), cd):
 		return false
 	if cd["type"] == "unit":
 		if not _sorcery_time(p):
@@ -1351,7 +1360,7 @@ func can_use_ability(p: int, allow_unreachable := false) -> bool:
 	var ab: Dictionary = CardDB.leader(players[p]["leader_id"])["ability"]
 	if ab.get("passive", false):
 		return false # passives fire on their own trigger
-	if not can_cast_speed(p, speed_of(ab)) or int(ab["cost"]) > budget(p, true):
+	if not can_cast_speed(p, speed_of(ab)) or int(ab["cost"]) > budget(p, reserve_pays(ab)):
 		return false
 	if (ab.get("once_per_turn", false) or ab.get("once_per_cycle", false)) and players[p]["ability_used"]:
 		return false
@@ -1373,7 +1382,7 @@ func can_activate(p: int, uid: int, allow_unreachable := false) -> bool:
 		return false
 	var is_unit := find_unit(uid) != null
 	var ab: Dictionary = card_of(c).get("activated", {})
-	if ab.is_empty() or not can_cast_speed(p, speed_of(ab)) or int(ab["cost"]) > budget(p, true):
+	if ab.is_empty() or not can_cast_speed(p, speed_of(ab)) or int(ab["cost"]) > budget(p, reserve_pays(ab)):
 		return false
 	if ab.get("exhaust", false) and is_unit and c.has_kw("inerte"):
 		return false # an inert unit cannot turn to activate an ability
@@ -1397,7 +1406,7 @@ func can_equip_from_field(p: int, uid: int, allow_unreachable := false) -> bool:
 	if artifact == null or artifact.owner != p:
 		return false
 	var action: Dictionary = card_of(artifact).get("equip_from_field", {})
-	if action.is_empty() or not can_cast_speed(p, speed_of(action)) or int(action["cost"]) > budget(p, true):
+	if action.is_empty() or not can_cast_speed(p, speed_of(action)) or int(action["cost"]) > budget(p, reserve_pays(action)):
 		return false
 	var effects: Array = action.get("effects", [])
 	var spec := target_spec(effects)
@@ -1413,7 +1422,7 @@ func equip_from_field(p: int, uid: int, target: int) -> Array:
 	var spec := target_spec(effects)
 	if spec == "" or not valid_targets(p, spec, uid, false, effects).has(target):
 		return []
-	_pay(p, int(action["cost"]), true)
+	_pay(p, int(action["cost"]), reserve_pays(action))
 	stack_system().push(p, "artifact_equip", uid, artifact.card_id, target, speed_of(action))
 	stack_system().settle()
 	return _flush()
@@ -1437,7 +1446,7 @@ func can_transform(p: int, uid: int) -> bool:
 	if c == null or c.owner != p or not _sorcery_time(p):
 		return false
 	var tf: Dictionary = card_of(c).get("transform", {})
-	return not tf.is_empty() and int(tf["cost"]) <= budget(p, true)
+	return not tf.is_empty() and int(tf["cost"]) <= budget(p, false)
 
 func _hand_card(p: int, uid: int) -> Card:
 	for c: Card in players[p]["hand"]:
@@ -1527,7 +1536,7 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 	var pl: Dictionary = players[p]
 	var discount_amulets := _applicable_discount_equipment(p, cd) # read before paying: the discount is for the first spell only
 	var paid_cost := cost_of(p, cd, inst) + (counter_extra(cd, target) if spec == "enemy_stack" else 0)
-	_pay(p, paid_cost, _is_spell(cd))
+	_pay(p, paid_cost, _reserve_pays_card(cd))
 	if not discount_amulets.is_empty():
 		pl["ice_spell_discount_used"] = true
 		# each amulet whose discount was used loses its Durability cost (its own "durability_cost" in the spell_discount rule)
@@ -1579,7 +1588,7 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 ## `banish_uid` (0 = none) is the permanent banished from a full field to make room, paid right away.
 func _play_subito(p: int, inst: Card, cd: Dictionary, slot: int, banish_uid := 0) -> Array:
 	var paid_cost := subito_cost(p, cd, inst)
-	_pay(p, paid_cost, true)
+	_pay(p, paid_cost, true) # Súbito is Rápido
 	players[p]["hand"].erase(inst)
 	_note_card_played_for_rusco(p, cd)
 	_move(inst, "")
@@ -1631,7 +1640,7 @@ func activate(p: int, uid: int, target: int = 0) -> Array:
 	var spec := target_spec(ab["effects"])
 	if spec != "" and not valid_targets(p, spec, uid, false, ab["effects"]).has(target):
 		return []
-	_pay(p, int(ab["cost"]), true)
+	_pay(p, int(ab["cost"]), reserve_pays(ab))
 	c.activated_turn = turn
 	if ab.get("exhaust", false) and find_unit(uid) != null and not c.has_kw("inerte"):
 		c.exhausted = true
@@ -1685,7 +1694,7 @@ func use_ability(p: int, target: int = 0) -> Array:
 	var spec := target_spec(ab["effects"])
 	if spec != "" and not valid_targets(p, spec, 0, false, ab["effects"]).has(target):
 		return []
-	_pay(p, int(ab["cost"]), true)
+	_pay(p, int(ab["cost"]), reserve_pays(ab))
 	players[p]["ability_used"] = true
 	_emit({"type": "ability", "player": p, "target": target})
 	stack_system().push(p, "ability", 0, "", target, speed_of(ab))
@@ -1698,7 +1707,7 @@ func transform(p: int, uid: int) -> Array:
 		return []
 	var c := find_unit(uid)
 	var tf: Dictionary = card_of(c)["transform"]
-	_pay(p, int(tf["cost"]), true)
+	_pay(p, int(tf["cost"]), false)
 	_emit({"type": "trigger", "uid": uid, "player": p, "card_id": c.card_id, "trigger": "transform"})
 	transform_into(c, tf["into"])
 	_check_state()
@@ -2416,7 +2425,7 @@ func _fire_deck_effects(p: int, trigger: String) -> void:
 				continue
 			var fee := int(e.get("cost", 0))
 			if e.get("action", "") == "summon_self" and players[p]["deck"].has(c) and has_free_slot(p) and budget(p, true) >= fee:
-				_pay(p, fee, true)
+				_pay(p, fee, true) # a trigger, not a play with a speed: the Reserva still pays
 				players[p]["deck"].erase(c)
 				_emit({"type": "enter_from_deck", "player": p, "uid": c.uid, "card_id": c.card_id})
 				_summon(p, c, false, 0)

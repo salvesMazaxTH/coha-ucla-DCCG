@@ -121,7 +121,7 @@
     },
     "on_activate": {
       "name": "Ao Ativar",
-      "text": "Habilidade ativável da unidade: o dono escolhe quando usar, pagando o custo em Momentum indicado (a Reserva ajuda). Vai para a pilha como um feitiço da velocidade indicada, então pode ser respondida e anulada."
+      "text": "Habilidade ativável da unidade: o dono escolhe quando usar, pagando o custo em Momentum indicado (a Reserva ajuda se for Rápida ou Instantânea). Vai para a pilha como um feitiço da velocidade indicada, então pode ser respondida e anulada."
     },
     "transform": {
       "name": "Transformar",

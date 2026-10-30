@@ -1465,7 +1465,7 @@ func _coach_notes() -> Array[Dictionary]:
 				if is_group_target:
 					var is_global_target := target in ["all_enemy_units", "all_units", "other_units"]
 					var has_group_restriction: bool = not effect.get("unit_filter", {}).is_empty() \
-							or String(effect.get("unit_state", "")) != ""
+							or String(effect.get("unit_state", "")) != "" 							or not effect.get("unit_state_any", []).is_empty()
 					if is_global_target and not has_group_restriction:
 						has_unrestricted_global_removal = true
 				else:

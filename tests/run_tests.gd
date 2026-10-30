@@ -6196,19 +6196,30 @@ func _test_eletrica() -> void:
 	check(g.subito_cost(a, zefiran) == 10, "zefiran: Súbito custa 10 fixo")
 	g.players[a]["turn_start_momentum"] = g.players[a]["max_momentum"] + 2
 	check(g.cost_of(a, zefiran) == 8 and g.subito_cost(a, zefiran) == 10, "zefiran: o desconto não vale para o Súbito")
-	# Fulgurvoltz: no Ao Entrar; Ao Ativar (4, Lento) destroys every enemy unit, from the stack
+	# Fulgurvoltz: nothing on entry; Ao Ativar (5, Rápido) banishes the enemy units that are exhausted OR weaker (Ataque + Vida lower than its own 18)
 	var fgd: Dictionary = CardDB.card("fulgurvoltz")
-	check(fgd["activated"]["cost"] == 5 and fgd["activated"]["speed"] == "lento", "fulgurvoltz: Ao Ativar custa 5, Lento")
+	check(fgd["activated"]["cost"] == 5 and fgd["activated"]["speed"] == "rapido", "fulgurvoltz: Ao Ativar custa 5, Rápido")
 	g = _eletrica_game()
 	a = g.active
 	o = g.opponent(a)
 	var fv := _put(g, a, "fulgurvoltz")
-	var foe1 := _put(g, o, "tritao_lanceiro")
-	var foe2 := _put(g, o, "serpente_marinha")
+	var foe1 := _put(g, o, "tritao_lanceiro") # weak
+	var foe2 := _put(g, o, "serpente_marinha") # weak, but we exhaust it too
+	var foe_strong := _put(g, o, "serpente_marinha")
+	foe_strong.hp = 30 # 18 or more: not weaker than Fulgurvoltz, and stays ready
+	var foe_strong_tired := _put(g, o, "serpente_marinha")
+	foe_strong_tired.hp = 30
+	foe_strong_tired.exhausted = true # strong, but exhausted
+	foe2.exhausted = true
 	check(not g.find_unit(foe1.uid) == null, "fulgurvoltz: entrar não destrói nada")
 	g.players[a]["momentum"] = 3
-	g.players[a]["reserve"] = 2 # the Reserva pays abilities, so 5 is reachable the turn it lands
-	check(g.can_activate(a, fv.uid), "fulgurvoltz: ativável pagando com a Reserva")
+	g.players[a]["reserve"] = 2 # Rápido: the Reserva helps pay the 5
+	check(g.can_activate(a, fv.uid), "fulgurvoltz: Rápido, a Reserva ajuda a pagar")
+	g.players[a]["momentum"] = 3
+	g.players[a]["reserve"] = 0
+	check(not g.can_activate(a, fv.uid), "fulgurvoltz: 3 de Momentum não bastam")
+	g.players[a]["momentum"] = 3
+	g.players[a]["reserve"] = 2
 	g.auto_pass[o] = false
 	g.activate(a, fv.uid)
 	g._flush()
@@ -6216,7 +6227,9 @@ func _test_eletrica() -> void:
 	g.pass_priority(o)
 	g._flush()
 	g.auto_pass[o] = true
-	check(g.find_unit(foe1.uid) == null and g.find_unit(foe2.uid) == null and not g.find_unit(fv.uid) == null, "fulgurvoltz: destrói todas as inimigas e fica")
+	check(g.find_unit(foe1.uid) == null and g.find_unit(foe2.uid) == null, "fulgurvoltz: bane as fracas e as exauridas")
+	check(g.find_unit(foe_strong_tired.uid) == null, "fulgurvoltz: bane também a forte quando exausta")
+	check(not g.find_unit(foe_strong.uid) == null and not g.find_unit(fv.uid) == null, "fulgurvoltz: a forte e pronta fica, ele também")
 	# the Ao Ativar exhausts it: no second use, no attack, and now it can be challenged; a new turn refreshes it
 	check(fgd["activated"].get("exhaust", false) and fv.exhausted, "fulgurvoltz: ativar o exaure")
 	g.players[a]["momentum"] = 5
@@ -6768,9 +6781,6 @@ func _test_saraya_kovan_package() -> void:
 	g._flush()
 	check(g.find_unit(small_elephant_in_hand) != null, "Ribomba: ao morrer, o outro Elefante da mão entra de graça")
 
-	# --- Estouro da Manada: até 2 Elefantes de custo até 3 do deck entram de graça (não o de custo 4) ---
-	g = _new_game()
-	_quiet(g)
 	# Ao Morrer from real combat (not a plain _kill): the owner is still asked even though the blow is what ended her
 	g = _new_game()
 	_quiet(g)
@@ -6784,6 +6794,9 @@ func _test_saraya_kovan_package() -> void:
 	g._flush()
 	check(g.find_unit(elephant_waiting_in_hand) != null, "Ribomba: o Elefante escolhido depois do combate entra de graça")
 
+	# --- Estouro da Manada: até 2 Elefantes de custo até 3 do deck entram de graça (não o de custo 4) ---
+	g = _new_game()
+	_quiet(g)
 	g.players[0]["deck"].clear()
 	for stampede_card_id in ["paquiderme_sem_vergonha", "elefante_incomodante", "tromba_de_aluguel", "elefante_incomodante"]:
 		g.players[0]["deck"].append(Card.new(g._uid(), stampede_card_id, 0, "deck"))
@@ -8806,6 +8819,7 @@ func _test_glacial() -> void:
 	var fragile := _put(g, o, "teste_frágil_gelo")
 	g.players[a]["snowball"] = 8
 	leader_before = g.players[o]["leader_hp"]
+	g.players[a]["momentum"] = 3 # Lento: the Reserva cannot pay it, so give plain Momentum
 	_cast_and_resolve(g, a, "grande_bola_de_neve", fragile.uid)
 	check(g.find_unit(fragile.uid) == null and g.players[o]["leader_hp"] <= leader_before - 5, "Grande Bola: o excesso de dano vai pro Líder")
 

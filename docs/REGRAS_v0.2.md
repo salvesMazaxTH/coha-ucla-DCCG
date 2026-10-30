@@ -38,7 +38,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 
 - O Momentum máximo começa em **1** e sobe **+1 por turno**, até o teto de **10**.
 - Ele é reabastecido no início do seu turno. O que sobra vai para a **Reserva**, que guarda até **2**.
-- A **Reserva** só paga **feitiços** e **habilidades** (nunca unidades nem a Encarnação) e é gasta primeiro.
+- A **Reserva** só paga jogadas **Rápidas** e **Instantâneas** (feitiços, habilidades do Líder e ativadas, Súbito), em qualquer janela, no seu turno ou no do oponente. Nunca paga nada **Lento**, unidades nem a Encarnação. Ela é gasta primeiro.
 
 ## Turno
 
@@ -170,11 +170,11 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 ## Elétrica: Momentum guardado
 
 - **Redução de custo da Voltexz:** é um **Condicional** (`listen: turn_started`), não uma redução estática. No início de cada turno seu, se sobrou Momentum comum do turno anterior (já descontado o que você gastou no turno do oponente), o custo da Voltexz cai 1 por Momentum, onde quer que ela esteja (Santuário, mão ou campo), nunca abaixo de 3; é permanente, não há como "desfazer" um turno. Ela **ignora a Reserva**: o que sobrou conta mesmo indo para a Reserva, e o que já estava na Reserva no início do turno não conta de novo. A Encarnação guarda o total no jogador (`incarnation.cost_mod`), então ele vale para qualquer cópia dela. O Fulgurvoltz continua com redução estática: custa 3 a menos por turno iniciado com Momentum vazando (o que não cabe nos 2 da Reserva), nunca menos que 5.
-- **Fulgurvoltz:** não destrói nada ao entrar. Seu Ao Ativar (5, Lento) **exaure a unidade** (não pode estar exausta; quem atacou no turno não ativa, e quem ativou não ataca; exaurida, ela pode ser desafiada) e destrói todas as unidades inimigas; vai para a pilha, então o oponente pode responder e anulá-lo (ex.: Negação de Neraqa, que precisa pagar o +2, já que o custo passa de 4). A Reserva paga habilidades, então no piso de custo (5) dá para entrar e ativar no mesmo turno.
+- **Fulgurvoltz:** não destrói nada ao entrar. Seu Ao Ativar (5, **Rápido**) **exaure a unidade** (não pode estar exausta; quem atacou no turno não ativa, e quem ativou não ataca; exaurida, ela pode ser desafiada) e bane as unidades inimigas que cumprirem **pelo menos uma** de duas condições, conferidas na resolução: estar **exaurida**, ou ter **Ataque + Vida menor** que o do Fulgurvoltz naquele momento. Uma unidade forte e pronta para agir escapa. Vai para a pilha, então o oponente pode responder e anulá-lo (ex.: Negação de Neraqa, que precisa pagar o +2, já que o custo passa de 4). Por ser Rápido, a Reserva ajuda a pagá-lo.
 - **Momentum no próximo turno:** o Espírito Carregado dá +1 Momentum no início do seu próximo turno (soma ao Momentum do turno, até 10).
 - **Sobrecarga (Líder Voltexz):** passiva. No início do seu turno, recupere metade (arredondada para baixo, máx. 2) do Momentum que vazou da Reserva, como Momentum neste turno. "Vazar" = o que não cabe nos 2 da Reserva.
 - **Voltexz em campo:** no início do seu turno, se houve Momentum vazado no turno anterior, ela ganha +2/+1 e Escudo Mágico até o fim do turno.
-- **Efeitos no deck (`deck_effects`):** efeitos que a carta tem enquanto está no deck, não em campo. `summon_self` tira aquela cópia do deck e a coloca em campo (sem embaralhar e sem comprar; com o campo cheio, ela fica no deck). O `cost` opcional é pago na entrada como uma habilidade (a Reserva vale e é gasta primeiro); sem como pagar, a cópia fica no deck. Rusco: no fim do seu turno, se você jogou da mão uma carta com custo, ATK ou VIDA impressos exatamente 2 (`if: played_two`), e você paga 2 de Momentum, ele sai do deck e entra em campo.
+- **Efeitos no deck (`deck_effects`):** efeitos que a carta tem enquanto está no deck, não em campo. `summon_self` tira aquela cópia do deck e a coloca em campo (sem embaralhar e sem comprar; com o campo cheio, ela fica no deck). O `cost` opcional é pago na entrada como uma habilidade (por ser um gatilho e não uma jogada com velocidade, a Reserva vale e é gasta primeiro); sem como pagar, a cópia fica no deck. Rusco: no fim do seu turno, se você jogou da mão uma carta com custo, ATK ou VIDA impressos exatamente 2 (`if: played_two`), e você paga 2 de Momentum, ele sai do deck e entra em campo.
 - Efeitos podem ter condição `if` (ex.: só se sobrou Momentum, só se a Reserva está cheia) e bônus proporcional ao Momentum restante (Voltexz: +1/+1 por Momentum nas suas _outras_ unidades, de +1/+1 a +5/+5: mesmo sem Momentum sobrando dá +1/+1).
 
 ## Glacial: Bola de Neve
@@ -232,7 +232,7 @@ Gatilhos dizem _quando_ um efeito acontece. Eles abrem o texto da carta no lugar
 
 ### Habilidades ativáveis
 
-Não são gatilhos automáticos: o dono decide quando usar. O custo em Momentum aparece entre parênteses logo após o nome, e a Reserva ajuda a pagar.
+Não são gatilhos automáticos: o dono decide quando usar. O custo em Momentum aparece entre parênteses logo após o nome, e a Reserva ajuda a pagar se ele for Rápido ou Instantâneo.
 
 - **Ao Ativar (n) [selo de velocidade] (limites):** a habilidade **vai para a pilha** como um feitiço da velocidade indicada (Lento, Rápido ou Instantâneo). Pode ser respondida e anulada. Exemplo: Yuki, _Ao Ativar (2) [RÁPIDO] (1x por turno): ganhe +2 de Ataque neste turno._
 - **Transformar (n):** é um tipo específico de ativável. Só pode ser usado na sua Fase Principal com a pilha vazia. A unidade vira a carta indicada no mesmo lugar (mantém dano e equipamento) e o Ao Entrar da nova forma dispara. A unidade transformada **não fica com enjoo de invocação**: pode atacar e ativar na hora. **Não usa a pilha**, então não pode ser anulado. Exemplo: Alexa Neruvya, _Transformar (8): Alexa Neruvya Primordial._
