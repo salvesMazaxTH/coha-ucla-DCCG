@@ -9,4 +9,5 @@ Packs used (files keep their original names):
   Digital Audio         laser3, powerUp*, pepSound*, phaser*, lowDown
   RPG Audio             metalLatch, cloth*, knifeSlice
   Sci-Fi Sounds         atomic_boom (lowFrequency_explosion_000 + explosionCrunch_001 mixed into one file)
+  Wikimedia Commons     elephant_trumpet (CC0, "Elephant voice - trumpeting.ogg", made louder with a short fade-out)
   Old CSA (own project)  damage.wav, heal.wav, victorySound.wav, defeatSound.wav

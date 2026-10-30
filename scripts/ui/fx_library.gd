@@ -453,7 +453,8 @@ const SHOUT_FINALE_HOLD := 1.0 ## how long the exploded word stays on screen
 ## The looks a shout can have (an effect's "shout_style"; unknown names fall back to "atomic"):
 ## font = UITheme font kind, buildup = colors of the build-up words (hotter each time), finale = colors the
 ## exploded word cycles through, ghost_a / ghost_b = the two jittering copies under it, dim = the screen
-## tint while the card talks, band = the dark slanted band, edge = its two edge lines, sparks_a / sparks_b.
+## tint while the card talks, band = the dark slanted band, edge = its two edge lines, sparks_a / sparks_b,
+## boom_sound = the Sfx name played when the last word lands.
 const SHOUT_STYLES := {
 	"atomic": {
 		"font": "shout",
@@ -461,7 +462,7 @@ const SHOUT_STYLES := {
 		"finale": [Color("#fff6c8"), Color("#ffd23a"), Color("#ff7a1a"), Color("#ffffff")],
 		"ghost_a": Color(1.0, 0.1, 0.35, 0.8), "ghost_b": Color(0.1, 0.95, 1.0, 0.8),
 		"dim": Color(0.02, 0.0, 0.04), "band": Color(0.08, 0.0, 0.02, 0.88), "edge": Color("#e0b84a"),
-		"sparks_a": Color("#ff9a2a"), "sparks_b": Color("#7af4ff"),
+		"sparks_a": Color("#ff9a2a"), "sparks_b": Color("#7af4ff"), "boom_sound": "atomic_boom",
 	},
 	"wild": { # circus poster font, sand / amber / terracotta build-up, leaf green and sunset orange finale
 		"font": "shout_wild",
@@ -469,7 +470,7 @@ const SHOUT_STYLES := {
 		"finale": [Color("#fff1c1"), Color("#9bdc4f"), Color("#f2a33a"), Color("#ffffff")],
 		"ghost_a": Color(0.25, 0.8, 0.3, 0.8), "ghost_b": Color(1.0, 0.55, 0.1, 0.8),
 		"dim": Color(0.0, 0.05, 0.02), "band": Color(0.03, 0.1, 0.04, 0.88), "edge": Color("#8fd14f"),
-		"sparks_a": Color("#9bdc4f"), "sparks_b": Color("#f2a33a"),
+		"sparks_a": Color("#9bdc4f"), "sparks_b": Color("#f2a33a"), "boom_sound": "elephant_trumpet",
 	},
 }
 
@@ -619,7 +620,7 @@ func _shout_fx(speaker: Control, text: String, t: float, style_name := "") -> fl
 	title_tween.tween_callback(title.queue_free)
 
 	# BOOM, shockwave, screen shake and sparks
-	Sfx.play_in("atomic_boom", boom_t)
+	Sfx.play_in(String(style["boom_sound"]), boom_t)
 	_crushing_blow_fx(speaker, 15, boom_t)
 	_embers(anchor, boom_t, style["sparks_a"], 40)
 	_embers(anchor, boom_t + 0.08, style["sparks_b"], 18)

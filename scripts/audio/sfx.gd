@@ -50,6 +50,8 @@ const SOUNDS := {
 	"crit":           {"files": ["impactMetal_heavy_000"], "db": -3.0, "pitch": 0.0},
 	# a card's yelled line exploding (Barão Estrondoso's ATÔMICA!): a deep boom and a crunch mixed into one file
 	"atomic_boom":    {"files": ["atomic_boom"], "db": -5.0, "pitch": 0.0},
+	# the Elefante Incomodante's yelled line: a real elephant trumpet instead of an explosion
+	"elephant_trumpet": {"files": ["elephant_trumpet"], "db": -4.0, "pitch": 0.03},
 	"reflect":        {"files": ["impactPlate_light_000", "impactPlate_light_001"], "db": -3.0, "pitch": 0.04},
 	"dodge":          {"files": ["cloth1", "cloth2"], "db": -3.0, "pitch": 0.06},
 	# --- units leaving, coming back, statuses
