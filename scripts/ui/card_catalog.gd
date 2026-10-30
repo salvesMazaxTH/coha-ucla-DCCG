@@ -109,7 +109,12 @@ static func values_for(cd: Dictionary, facet_id: String, card_id := "") -> Array
 	match facet_id:
 		"essence": return CardDB.essences_of(cd)
 		"element": return CardDB.elements_of(cd)
-		"type", "rarity", "speed": return [String(cd.get(facet_id, ""))] if cd.has(facet_id) else []
+		"type":
+			var card_types: Array = [String(cd.get("type", ""))]
+			if CardDB.is_unit_artifact(cd):
+				card_types.append("artifact") # a unit-artifact shows up under both Unidade and Artefato
+			return card_types
+		"rarity", "speed": return [String(cd.get(facet_id, ""))] if cd.has(facet_id) else []
 		"species": return cd.get("species", []).duplicate()
 		"keyword": return _keywords_of(cd)
 		"subtype": return cd.get("subtypes", []).duplicate()

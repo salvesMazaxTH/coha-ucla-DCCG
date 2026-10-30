@@ -43,8 +43,12 @@ static func _matches(match_fields: Dictionary, cd: Dictionary) -> bool:
 			return false
 	if match_fields.has("rarity") and String(cd.get("rarity", "")) not in match_fields["rarity"]:
 		return false
-	if match_fields.has("card_type") and String(cd.get("type", "")) not in match_fields["card_type"]:
-		return false
+	if match_fields.has("card_type"):
+		var has_wanted_type := false
+		for type_id in match_fields["card_type"]:
+			has_wanted_type = has_wanted_type or CardDB.has_type(cd, String(type_id))
+		if not has_wanted_type:
+			return false
 	if match_fields.has("subtype"):
 		var has_wanted_subtype := false
 		for subtype_id in match_fields["subtype"]:

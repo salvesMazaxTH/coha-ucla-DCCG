@@ -18,8 +18,10 @@ func _read_parameters(data: Dictionary) -> void:
 
 func apply(context: EffectContext, _target_uid: int) -> void:
 	for card: Card in context.game.players[context.controller]["hand"]:
-		var card_type := String(CardDB.card(card.card_id).get("type", ""))
-		var type_matches := card_types.is_empty() or card_types.has(card_type)
+		var card_data := CardDB.card(card.card_id)
+		var type_matches := card_types.is_empty()
+		for wanted_type in card_types:
+			type_matches = type_matches or CardDB.has_type(card_data, String(wanted_type))
 		var filter_matches := card_filter.is_empty() or CardFilter.matches(card.card_id, card_filter)
 		if type_matches and filter_matches:
 			card.discount += amount

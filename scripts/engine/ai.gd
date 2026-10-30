@@ -988,13 +988,14 @@ static func _wants_enter_tapped(g: GameState, p: int, unit: Card) -> bool:
 	return survives or g.players[p]["leader_hp"] <= 10
 
 ## The artifact pick: free-standing artifacts are not units, so they have no stats to score; the priciest one wins.
+## A unit that is also an artifact is an option too, and is judged by its cost like the others.
 static func _priciest_artifact(g: GameState, options: Array) -> int:
 	var best_uid := 0
 	var best_cost := -1
 	for uid in options:
-		var relic := g.find_relic(uid)
-		if relic != null and int(relic.data().get("cost", 0)) > best_cost:
-			best_cost = int(relic.data().get("cost", 0))
+		var artifact: Card = g.find_relic(uid) if g.find_relic(uid) != null else g.find_unit(uid)
+		if artifact != null and int(artifact.data().get("cost", 0)) > best_cost:
+			best_cost = int(artifact.data().get("cost", 0))
 			best_uid = uid
 	return best_uid
 

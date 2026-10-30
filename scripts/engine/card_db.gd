@@ -272,6 +272,16 @@ static func leader(id: String) -> Dictionary:
 static func is_artifact(cd: Dictionary) -> bool:
 	return cd.get("type", "") == "artifact"
 
+## A unit that is ALSO an artifact for every rule ("counts_as_artifact" on the card: Relojoeiro Pino-14, Matusalém).
+## It still plays and fights as a unit; searches, counts and costs that ask for "artifact" see it too.
+static func is_unit_artifact(cd: Dictionary) -> bool:
+	return cd.get("type", "") == "unit" and cd.get("counts_as_artifact", false)
+
+## True when the card counts as `wanted_type`: its printed type, plus "artifact" for a unit-artifact.
+## Every rule that asks "is this card a unit / spell / artifact?" over a zone (filters, graveyard counts) goes through here.
+static func has_type(cd: Dictionary, wanted_type: String) -> bool:
+	return cd.get("type", "") == wanted_type or (wanted_type == "artifact" and is_unit_artifact(cd))
+
 static func is_equipment(cd: Dictionary) -> bool:
 	return is_artifact(cd) and cd.get("subtypes", []).has("equipment")
 

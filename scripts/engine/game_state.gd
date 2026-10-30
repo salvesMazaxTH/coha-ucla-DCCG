@@ -637,7 +637,7 @@ func graveyard_armor_of(c: Card) -> int:
 			continue
 		for entry: Card in players[c.owner]["graveyard"]:
 			var entry_data := CardDB.card(entry.card_id)
-			if entry_data.get("type", "") == String(e.get("card_type", "spell")) and CardDB.has_essence(entry_data, String(e.get("essence", ""))):
+			if CardDB.has_type(entry_data, String(e.get("card_type", "spell"))) and CardDB.has_essence(entry_data, String(e.get("essence", ""))):
 				total += 1
 	return total * constants_multiplier(c.owner)
 
@@ -650,7 +650,7 @@ func graveyard_damage_reduction_of(c: Card, amount: int) -> int:
 		var count := 0
 		for entry: Card in players[c.owner]["graveyard"]:
 			var entry_data := CardDB.card(entry.card_id)
-			if entry_data.get("type", "") == String(e.get("card_type", "spell")) and CardDB.has_essence(entry_data, String(e.get("essence", ""))):
+			if CardDB.has_type(entry_data, String(e.get("card_type", "spell"))) and CardDB.has_essence(entry_data, String(e.get("essence", ""))):
 				count += 1
 		if count < int(e.get("minimum_count", 2)):
 			continue
@@ -669,11 +669,11 @@ func _scale_count(p: int, e: Dictionary, self_card: Card = null) -> int:
 		"own_graveyard_artifacts": return graveyard_artifacts(p) / maxi(1, int(e.get("divisor", 1)))
 	return 0
 
-## Artifacts sitting in player p's graveyard (Zulmira Ferro-Velho grows with them).
+## Artifacts sitting in player p's graveyard, unit-artifacts included (Zulmira Ferro-Velho grows with them).
 func graveyard_artifacts(p: int) -> int:
 	var n := 0
 	for entry: Card in players[p]["graveyard"]:
-		if CardDB.card(entry.card_id).get("type", "") == "artifact":
+		if CardDB.has_type(CardDB.card(entry.card_id), "artifact"):
 			n += 1
 	return n
 
@@ -695,12 +695,12 @@ func allied_plants_or_tokens(p: int) -> int:
 	return n
 
 ## Artifacts a player has in play: free-standing ones, the equipment worn by their units, and the units that
-## count as an artifact too ("counts_as_artifact" on the card: Relojoeiro Pino-14, Matusalém).
+## are artifacts too (CardDB.is_unit_artifact: Relojoeiro Pino-14, Matusalém).
 func artifact_count(p: int) -> int:
 	var n: int = players[p]["relics"].size()
 	for c: Card in players[p]["board"]:
 		n += c.equipped_cards.size()
-		if c.data().get("counts_as_artifact", false):
+		if CardDB.is_unit_artifact(c.data()):
 			n += 1
 	return n
 
@@ -1115,18 +1115,22 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 		"any":
 			for c: Card in mine + theirs: out.append(c.uid)
 			out.append(LEADER_UID[opponent(p)])
-		"enemy_artifact": # a free-standing artifact on the opponent's side
-			for c: Card in players[opponent(p)]["relics"]: out.append(c.uid)
-		"ally_artifact": # a free-standing artifact on the player's own side
+		"enemy_artifact": # a free-standing artifact on the opponent's side, or a unit that is also an artifact
+			for c: Card in players[opponent(p)]["relics"] + _unit_artifacts_on_board(opponent(p)): out.append(c.uid)
+		"ally_artifact": # a free-standing artifact on the player's own side (a unit-artifact is not one: it cannot be worn)
 			for c: Card in players[p]["relics"]: out.append(c.uid)
-		"any_artifact": # a free-standing artifact on either side
-			for c: Card in players[p]["relics"] + players[opponent(p)]["relics"]: out.append(c.uid)
+		"any_artifact": # a free-standing artifact on either side, or a unit that is also an artifact
+			for c: Card in players[p]["relics"] + players[opponent(p)]["relics"] + _unit_artifacts_on_board(p) + _unit_artifacts_on_board(opponent(p)): out.append(c.uid)
 		"enemy_stack":
 			for it in stack:
 				if it["player"] != p and not stack_system().is_uncounterable(it): out.append(it["sid"])
 	if not effects.is_empty():
 		out = out.filter(func(target_uid: int) -> bool: return meets_marker_requirement(target_uid, spec, effects) and meets_subtype_requirement(target_uid, spec, effects) and meets_unit_requirement(target_uid, spec, effects))
 	return out
+
+## The units on a player's board that also count as an artifact (Relojoeiro Pino-14, Matusalém).
+func _unit_artifacts_on_board(p: int) -> Array:
+	return players[p]["board"].filter(func(unit: Card) -> bool: return CardDB.is_unit_artifact(unit.data()))
 
 ## False when an effect aimed with `spec` only works on units of some kind and this target is not one:
 ## "requires_exhausted" (only a tapped unit, like "ready"), "not_rarity" (never these rarities, like champions) or

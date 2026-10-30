@@ -5,7 +5,7 @@ extends RefCounted
 ## and a card must pass all the keys that are present:
 ##   essence, element        the card has this essence / element
 ##   max_cost, min_cost       printed cost limits (inclusive)
-##   type, types_any          the card type, or one of several types
+##   type, types_any          the card type, or one of several types (a unit-artifact passes as "unit" and as "artifact")
 ##   rarity                   "common" | "epic" | "champion" | "legendary"
 ##   species                  the card has this species
 ##   species_any              the card has at least one of these species
@@ -25,9 +25,9 @@ static func matches(card_id: String, filter: Dictionary) -> bool:
 		return false
 	if filter.has("min_cost") and int(card_data.get("cost", 0)) < int(filter["min_cost"]):
 		return false
-	if filter.has("type") and card_data.get("type", "") != filter["type"]:
+	if filter.has("type") and not CardDB.has_type(card_data, String(filter["type"])):
 		return false
-	if filter.has("types_any") and not filter["types_any"].has(card_data.get("type", "")):
+	if filter.has("types_any") and not _has_any_type(card_data, filter["types_any"]):
 		return false
 	if filter.has("rarity") and card_data.get("rarity", "") != filter["rarity"]:
 		return false
@@ -54,6 +54,12 @@ static func matches(card_id: String, filter: Dictionary) -> bool:
 		if not passes_one_alternative:
 			return false
 	return true
+
+static func _has_any_type(card_data: Dictionary, wanted_types: Array) -> bool:
+	for wanted_type in wanted_types:
+		if CardDB.has_type(card_data, String(wanted_type)):
+			return true
+	return false
 
 static func _shares_any(own_values: Array, wanted_values: Array) -> bool:
 	for wanted in wanted_values:

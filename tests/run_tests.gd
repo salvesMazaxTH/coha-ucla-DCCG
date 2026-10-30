@@ -458,6 +458,13 @@ func _test_zulmira_ferro_velho() -> void:
 	check(zulmira.exhausted and g.players[a]["momentum"] == 2, "zulmira: o Ao Ativar custa 1 e a exaure")
 	check(g.atk_of(zulmira) == 3, "zulmira: com um artefato a menos no cemitério (3), o Ataque cai para 3")
 
+	# Relojoeiro Pino-14 é Unidade-Artefato: no cemitério conta como artefato (e continua sendo unidade para o filtro de unidades)
+	g.players[a]["graveyard"].append(Card.new(g._uid(), "relojoeiro_pino_14", a, "graveyard"))
+	g._check_state()
+	check(g.graveyard_artifacts(a) == 4 and g.atk_of(zulmira) == 4, "zulmira: o Relojoeiro Pino-14 no cemitério conta como artefato (+1 de Ataque)")
+	check(CardDB.has_type(CardDB.card("relojoeiro_pino_14"), "unit") and CardDB.has_type(CardDB.card("relojoeiro_pino_14"), "artifact") and not CardDB.has_type(CardDB.card("relojoeiro_pino_14"), "spell"), "relojoeiro: é unidade e artefato ao mesmo tempo, mas não feitiço")
+	check(CardFilter.matches("relojoeiro_pino_14", {"type": "artifact"}) and CardFilter.matches("relojoeiro_pino_14", {"types_any": ["spell", "artifact"]}) and CardFilter.matches("relojoeiro_pino_14", {"type": "unit"}), "relojoeiro: filtros de busca o aceitam como artefato e como unidade")
+
 ## Montadora Porca-Frouxa: when an ally dies wearing equipment and she wears none, the equipment moves to her
 ## (out of the graveyard) and gives her the same bonus it gave the fallen unit.
 func _test_porca_frouxa_herda_equipamento() -> void:
@@ -1021,6 +1028,19 @@ func _test_devocao_new_batch() -> void:
 	_cast_and_resolve(g_icon, 0, "iconoclastia", target_relic.uid)
 	check(g_icon.players[1]["relics"].is_empty(), "Iconoclastia: o artefato inimigo é destruído")
 	check(g_icon.players[0]["hand"].size() == icon_hand + 1, "Iconoclastia: compra 1 carta (a própria foi jogada, então +1 líquido)")
+
+	# Unidade-artefato (Relojoeiro Pino-14): a remoção de artefato pode escolhê-la e ela morre como unidade;
+	# já a Montadora Porca-Frouxa (artefato solto aliado) não a enxerga como alvo
+	var g_unit_artifact := _new_game()
+	g_unit_artifact.active = 0
+	g_unit_artifact.players[0]["momentum"] = 10
+	var enemy_clockmaker := _put(g_unit_artifact, 1, "relojoeiro_pino_14")
+	var ally_clockmaker := _put(g_unit_artifact, 0, "relojoeiro_pino_14")
+	check(g_unit_artifact.valid_targets(0, "enemy_artifact", 0).has(enemy_clockmaker.uid), "Unidade-artefato inimiga é alvo válido de 'enemy_artifact'")
+	check(not g_unit_artifact.valid_targets(0, "ally_artifact", 0).has(ally_clockmaker.uid), "Unidade-artefato aliada NÃO é alvo da Montadora ('ally_artifact')")
+	_cast_and_resolve(g_unit_artifact, 0, "iconoclastia", enemy_clockmaker.uid)
+	check(g_unit_artifact.find_unit(enemy_clockmaker.uid) == null, "Iconoclastia destrói o Relojoeiro inimigo (morre como unidade)")
+	check(g_unit_artifact.players[1]["graveyard"].size() == 1, "O Relojoeiro destruído vai para o cemitério do dono")
 
 	# Joio e Trigo: 3 de dano nas inimigas, 3 de cura nas aliadas
 	var g_toll := _new_game()
@@ -8272,19 +8292,21 @@ func _test_metalica() -> void:
 	_cast_and_resolve(g, a, "engrenagem_solta", other.uid)
 	check(g.atk_of(uncle) == 3 and g.hp_left(uncle) == 6, "Berengar Voss: artefato equipado também conta")
 
-	# Berengar Voss: Ao Entrar leva à mão um artefato de custo 2 ou menos do cemitério (o de custo 3 não serve)
+	# Berengar Voss: Ao Entrar leva à mão um artefato de custo 3 ou menos do cemitério (o de custo 4 não serve; o Relojoeiro Pino-14, unidade-artefato de custo 3, serve)
 	g = _metalica_game()
 	a = g.active
 	var cheap_artifact := Card.new(g._uid(), "engrenagem_solta", a, "graveyard")
-	var pricey_artifact := Card.new(g._uid(), "moedor_de_sucata", a, "graveyard")
+	var unit_artifact := Card.new(g._uid(), "relojoeiro_pino_14", a, "graveyard")
+	var pricey_artifact := Card.new(g._uid(), "prensa_hidraulica", a, "graveyard")
 	g.players[a]["graveyard"].append(cheap_artifact)
+	g.players[a]["graveyard"].append(unit_artifact)
 	g.players[a]["graveyard"].append(pricey_artifact)
 	g.active = a
 	g._run_effect_dicts(a, CardDB.card("berengar_voss")["effects"], "on_enter", 0, 0, SPELL_SOURCE)
 	var recoverable: Array = []
 	for option in g.pending_search.get("cards", []):
 		recoverable.append(int(option["uid"]))
-	check(g.phase == "search" and recoverable == [cheap_artifact.uid], "Berengar Voss: Ao Entrar só oferece artefato de custo 2 ou menos do cemitério")
+	check(g.phase == "search" and recoverable == [cheap_artifact.uid, unit_artifact.uid], "Berengar Voss: Ao Entrar oferece artefato de custo 3 ou menos do cemitério (inclusive a unidade-artefato), não o de custo 4")
 	if g.phase == "search":
 		g.choose_search(a, cheap_artifact.uid)
 		check(g.players[a]["hand"].has(cheap_artifact) and g.players[a]["graveyard"].has(pricey_artifact), "Berengar Voss: o artefato escolhido volta à mão")

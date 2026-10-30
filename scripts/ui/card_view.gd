@@ -1765,7 +1765,10 @@ func _panel_lines(cd: Dictionary) -> Array:
 		out.append([["FICHA", Color(UITheme.TEXT, 0.6)]])
 	if out.is_empty():
 		var rar :={"legendary": "LENDÁRIO", "champion": "CAMPEÃO", "epic": "UNIDADE ÉPICA", "common": "UNIDADE COMUM"}
-		out.append([[rar.get(cd["rarity"], ""), Color(UITheme.TEXT, 0.45)]])
+		var rarity_label: String = rar.get(cd["rarity"], "")
+		if CardDB.is_unit_artifact(cd):
+			rarity_label = rarity_label.replace("UNIDADE", "UNIDADE-ARTEFATO") if rarity_label.begins_with("UNIDADE") else rarity_label + " · ARTEFATO"
+		out.append([[rarity_label, Color(UITheme.TEXT, 0.45)]])
 	return out
 
 func _draw_back(r: Rect2, s: float, trim: Color) -> void:

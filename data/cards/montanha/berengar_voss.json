@@ -10,10 +10,10 @@
   "hp": 4,
   "keywords": ["impeto"],
   "effects": [
-    { "trigger": "on_enter", "action": "grave_to_hand", "target": "none", "type": "artifact", "max_cost": 2 },
+    { "trigger": "on_enter", "action": "grave_to_hand", "target": "none", "type": "artifact", "max_cost": 3 },
     { "trigger": "constante", "action": "scale", "per": "own_artifacts", "atk": 1, "hp": 1 }
   ],
-  "text": "Ao Entrar: você pode escolher um artefato de custo (2) ou menos do seu cemitério e levá-lo à sua mão.\nConstante: esta unidade ganha +1/+1 para cada artefato seu em jogo (em campo ou equipado).",
+  "text": "Ao Entrar: você pode escolher um artefato de custo (3) ou menos do seu cemitério e levá-lo à sua mão.\nConstante: esta unidade ganha +1/+1 para cada artefato seu em jogo (em campo ou equipado).",
   "flavor": "Tyren puxou a mim o ofício. Aprendi cedo que nenhuma peça é lixo: ela só espera o seu lugar na máquina.",
   "art": "montanha/berengar_voss.webp",
   "tags": []

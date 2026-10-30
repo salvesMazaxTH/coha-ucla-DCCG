@@ -12,7 +12,8 @@ extends Effect
 ##   Morrer, no Aliado Morre) and never reaches the graveyard; its equipment does.
 ##   "requires_markers": {"dot": "veneno", "amount": X}: the banish only happens if the unit holds
 ##   at least X markers of that kind, otherwise nothing happens.
-## "destroy_artifact": the target free-standing artifact goes to the graveyard, freeing its slot.
+## "destroy_artifact": the target free-standing artifact goes to the graveyard, freeing its slot. A unit that is also an
+##   artifact can be the target too; it is destroyed like a unit (Indestrutível and death wards still apply).
 ##   "subtype": "local": only an artifact of that subtype can be picked and destroyed (default: any artifact).
 ## "kill_leader": the targeted Leader dies on the spot, but only if it holds the "requires_markers"
 ##   amount of that marker kind (Viprax's execution). Câmara de Êxtase does not save it.
@@ -46,6 +47,11 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		var artifact := context.game.find_relic(target_uid)
 		if artifact != null and (required_subtype == "" or artifact.data().get("subtypes", []).has(required_subtype)):
 			context.game.destroy_relic(artifact)
+		elif artifact == null and required_subtype == "":
+			# A unit that is also an artifact (Relojoeiro Pino-14) is destroyed like any unit: it dies.
+			var unit_artifact := context.game.find_unit(target_uid)
+			if unit_artifact != null and CardDB.is_unit_artifact(unit_artifact.data()):
+				_destroy(context, target_uid)
 	else:
 		_destroy(context, target_uid)
 

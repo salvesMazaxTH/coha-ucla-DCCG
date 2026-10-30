@@ -78,6 +78,19 @@ static func build_base_card(parent: Control, stage_width: float, card_id: String
 	parent.add_child(base_card)
 	return base_card
 
+## Puts the live count ("(agora: 3)") at the end of the Constante paragraph it counts for, so a card
+## with other abilities around it (Zulmira's Ao Ativar, Berengar's Ao Entrar) does not look like the
+## count belongs to the last line. Cards without a Constante line (the Gigantes) get it at the very end.
+static func with_live_count(body: String, text_suffix: String) -> String:
+	if text_suffix == "":
+		return body
+	var lines := body.split("\n")
+	for line_index in lines.size():
+		if lines[line_index].begins_with("Constante:"):
+			lines[line_index] += text_suffix
+			return "\n".join(lines)
+	return body + text_suffix
+
 ## The BBCode of the text panel: name, kind line, rules text, keyword glossary, Leader note, flavor.
 static func describe(card_id: String, instance: Dictionary, cost_override: int, text_suffix: String,
 		snowball_level: int) -> String:
@@ -86,6 +99,9 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 	var rarity_names := {"legendary": "Lendário", "champion": "Campeão", "epic": "Unidade Épica", "common": "Unidade Comum"}
 	var type_names := {"unit": rarity_names.get(cd["rarity"], "Unidade"), "spell": "Feitiço", "artifact": "Artefato"}
 	var kind: String = type_names[cd["type"]]
+	if CardDB.is_unit_artifact(cd):
+		# a unit that is also an artifact: "Unidade-Artefato Comum" (champions and legendaries have no "Unidade" in their label)
+		kind = kind.replace("Unidade", "Unidade-Artefato") if kind.begins_with("Unidade") else kind + " · Artefato"
 	if CardDB.is_equipment(cd):
 		kind += " · Equipamento"
 	elif CardDB.is_local(cd):
@@ -98,7 +114,7 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 		element_label = " · Elemento: " + CardDB.element_names(cd) # the tag that card texts refer to ("feitiço de Gelo")
 	txt += "[color=#aaaaaa]%s · %s%s · custo %d[/color]\n\n" % [kind, CardDB.essence_names(cd), element_label, shown_cost]
 	if cd.get("text", "") != "":
-		var body := CardView.fill_live_numbers(String(cd["text"]), snowball_level)
+		var body := with_live_count(CardView.fill_live_numbers(String(cd["text"]), snowball_level), text_suffix)
 		# a Condicional with a per-turn limit (Seymour) shows how many uses are already spent, like the Leader power does
 		if instance.has("conditional_uses_now"):
 			var per_turn_limit := int(cd.get("conditional_uses_per_turn", 0))
@@ -117,7 +133,7 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 " % int(instance["stun_markers"]) + body
 		if instance.has("frozen"):
 			body = "[color=#9fe8ff][b]Congelada:[/b] não ataca, não desvira e perde a Rapidez (suprimida) até o fim do próximo turno. Revida normalmente.[/color]\n" + body
-		txt += "[font_size=32]%s[/font_size]\n\n" % CardView.colorize_rules(body + text_suffix, 32)
+		txt += "[font_size=32]%s[/font_size]\n\n" % CardView.colorize_rules(body, 32)
 	if CardDB.is_equipment(cd):
 		txt += "[font_size=32][b]Regra inata:[/b] Uma unidade só pode ter um Equipamento por vez. Se receber outro, o anterior volta para a mão do dono.[/font_size]\n\n"
 	# Glossary: the card's own keywords first, then any keyword its text mentions ("conceda Voo").

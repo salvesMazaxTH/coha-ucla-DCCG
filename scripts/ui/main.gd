@@ -4144,7 +4144,7 @@ func _refresh_graveyard() -> void:
 	if grave_filter == "requiem":
 		shown = entries.filter(func(grave_card: Card): return castable_uids.has(grave_card.uid))
 	elif grave_filter != "all":
-		shown = entries.filter(func(grave_card: Card): return CardDB.card(grave_card.card_id)["type"] == grave_filter)
+		shown = entries.filter(func(grave_card: Card): return CardDB.has_type(CardDB.card(grave_card.card_id), grave_filter))
 	if shown.is_empty():
 		var empty := VBoxContainer.new()
 		empty.size_flags_vertical = Control.SIZE_EXPAND_FILL
