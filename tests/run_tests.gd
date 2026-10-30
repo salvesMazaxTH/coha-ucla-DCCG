@@ -6743,11 +6743,12 @@ func _test_saraya_kovan_package() -> void:
 	var matriarch_unit := g.find_unit(matriarch_uid)
 	check(matriarch_unit != null and g.armor_of(matriarch_unit) == 1 and matriarch_unit.hp_left() == 6, "Matriarca: não se bonifica (só a Armadura 1 dela)")
 
-	# --- Dona Ribomba: ao entrar e ao morrer, um Elefante de qualquer custo da mão entra de graça ---
+	# --- Dona Ribomba (custo 7, 5/7): ao entrar e ao morrer, um Elefante de custo até 6 da mão entra de graça ---
 	g = _new_game()
 	_quiet(g)
 	g.players[0]["momentum"] = 10
-	var big_elephant_in_hand := _give(g, 0, "matriarca_pisa_mansinho") # costs 5: no cost cap on Ribomba
+	var big_elephant_in_hand := _give(g, 0, "matriarca_pisa_mansinho") # costs 5: under the cap of 6
+	var second_ribomba_in_hand := _give(g, 0, "dona_ribomba") # costs 7: over the cap, never offered
 	var small_elephant_in_hand := _give(g, 0, "tromba_de_aluguel")
 	var not_an_elephant_in_hand := _give(g, 0, "sentinela_dorminhoca")
 	var ribomba_uid := _give(g, 0, "dona_ribomba")
@@ -6757,10 +6758,10 @@ func _test_saraya_kovan_package() -> void:
 	var ribomba_option_uids: Array = []
 	for option in g.pending_search.get("cards", []):
 		ribomba_option_uids.append(int(option["uid"]))
-	check(ribomba_option_uids.has(big_elephant_in_hand) and ribomba_option_uids.has(small_elephant_in_hand) and not ribomba_option_uids.has(not_an_elephant_in_hand), "Ribomba: qualquer Elefante é oferecido (até o de custo 5), o que não é Elefante não")
+	check(ribomba_option_uids.has(big_elephant_in_hand) and ribomba_option_uids.has(small_elephant_in_hand) and not ribomba_option_uids.has(not_an_elephant_in_hand) and not ribomba_option_uids.has(second_ribomba_in_hand), "Ribomba: Elefantes de custo até 6 são oferecidos; o que não é Elefante e a outra Ribomba (custo 7) não")
 	g.choose_search(0, big_elephant_in_hand)
 	g._flush()
-	check(g.find_unit(big_elephant_in_hand) != null and int(g.players[0]["momentum"]) == 4, "Ribomba: o Elefante de custo 5 entra de graça (só os 6 dela foram pagos)")
+	check(g.find_unit(big_elephant_in_hand) != null and int(g.players[0]["momentum"]) == 3, "Ribomba: o Elefante de custo 5 entra de graça (só os 7 dela foram pagos)")
 	_kill(g, g.find_unit(ribomba_uid))
 	check(g.phase == "search" and g.pending_search.get("hand_summon", false), "Ribomba: o Ao Morrer abre outra escolha de Elefante da mão")
 	g.choose_search(0, small_elephant_in_hand)
@@ -6770,6 +6771,19 @@ func _test_saraya_kovan_package() -> void:
 	# --- Estouro da Manada: até 2 Elefantes de custo até 3 do deck entram de graça (não o de custo 4) ---
 	g = _new_game()
 	_quiet(g)
+	# Ao Morrer from real combat (not a plain _kill): the owner is still asked even though the blow is what ended her
+	g = _new_game()
+	_quiet(g)
+	var combat_ribomba := _put(g, 0, "dona_ribomba")
+	var elephant_waiting_in_hand := _give(g, 0, "tromba_de_aluguel")
+	var killer := _put(g, 1, "yresa_petronika_primordial") # 7/13: strikes back for exactly Ribomba's 7 Vida
+	killer.exhausted = true
+	_hit(g, combat_ribomba, killer.uid)
+	check(g.find_unit(combat_ribomba.uid) == null and g.phase == "search" and int(g.pending_search.get("player", -1)) == 0, "Ribomba: morta em combate, o dono dela é quem escolhe o Elefante")
+	g.choose_search(0, elephant_waiting_in_hand)
+	g._flush()
+	check(g.find_unit(elephant_waiting_in_hand) != null, "Ribomba: o Elefante escolhido depois do combate entra de graça")
+
 	g.players[0]["deck"].clear()
 	for stampede_card_id in ["paquiderme_sem_vergonha", "elefante_incomodante", "tromba_de_aluguel", "elefante_incomodante"]:
 		g.players[0]["deck"].append(Card.new(g._uid(), stampede_card_id, 0, "deck"))

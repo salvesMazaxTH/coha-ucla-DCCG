@@ -16,7 +16,7 @@
       "max_cost": 3
     }
   ],
-  "text": "Você pode colocar em campo um Elefante de custo até 3 do seu cemitério, sem pagar custo.",
+  "text": "Você pode colocar em campo um Elefante de custo (3) ou menos do seu cemitério, sem pagar custo.",
   "flavor": "Nem o enterro. Nem a dívida. Muito menos o nome de quem o empurrou.",
   "art": "neutra/elefante_nao_esquece.webp",
   "tags": []

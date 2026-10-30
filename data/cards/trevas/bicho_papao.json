@@ -18,7 +18,7 @@
       "max_target_cost": 2
     }
   ],
-  "text": "Ao Desafiar: destrói a unidade desafiada se ela custar (2) ou menos.",
+  "text": "Ao Desafiar: destrói a unidade desafiada se ela for de custo (2) ou menos.",
   "flavor": "",
   "tags": []
 }

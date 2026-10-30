@@ -50,7 +50,7 @@
       }
     ]
   },
-  "text": "Ao Entrar: você olha as 5 cartas do topo do seu deck e coloca 1 Fera ou Demihumano entre elas na sua mão.\nConstante: suas outras Feras e Demihumanos têm +1/+1.\nAo Ativar (2) {lento} (exaure esta unidade): você pode colocar em campo uma Fera ou Demihumano de custo até 4 da sua mão, sem pagar custo.",
+  "text": "Ao Entrar: você olha as 5 cartas do topo do seu deck e coloca 1 Fera ou Demihumano entre elas na sua mão.\nConstante: suas outras Feras e Demihumanos têm +1/+1.\nAo Ativar (2) {lento} (exaure esta unidade): você pode colocar em campo uma Fera ou Demihumano de custo (4) ou menos da sua mão, sem pagar custo.",
   "flavor": [
     "Domou o primeiro elefante aos nove anos, com paciência e meia maçã. O elefante nunca soube que estava sendo domado."
   ],

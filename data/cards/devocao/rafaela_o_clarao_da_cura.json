@@ -35,7 +35,7 @@
       "leftover": "bottom"
     }
   ],
-  "text": "Condicional (1x por turno): quando seu Líder recupera 2 ou mais de Vida, o deck é revelado até um Anjo ou Celestial de custo 5 ou menos; você pode invocá-lo de graça, e as demais cartas vão para o fundo.",
+  "text": "Condicional (1x por turno): quando seu Líder recupera 2 ou mais de Vida, o deck é revelado até um Anjo ou Celestial de custo (5) ou menos; você pode invocá-lo de graça, e as demais cartas vão para o fundo.",
   "flavor": "Cada ferida fechada abre uma janela no céu, e quem mora lá desce para ver.",
   "tags": []
 }

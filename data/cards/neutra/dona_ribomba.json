@@ -1,0 +1,36 @@
+{
+  "name": "Dona Ribomba",
+  "type": "unit",
+  "rarity": "legendary",
+  "species": [
+    "fera",
+    "elefante"
+  ],
+  "essence": "neutra",
+  "cost": 7,
+  "atk": 5,
+  "hp": 7,
+  "keywords": [],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "summon_from",
+      "target": "none",
+      "source": "hand",
+      "species": "elefante",
+      "max_cost": 6
+    },
+    {
+      "trigger": "on_death",
+      "action": "summon_from",
+      "target": "none",
+      "source": "hand",
+      "species": "elefante",
+      "max_cost": 6
+    }
+  ],
+  "text": "Ao Entrar: você pode colocar em campo um Elefante de custo (6) ou menos da sua mão, sem pagar custo.\nAo Morrer: você pode colocar em campo um Elefante de custo (6) ou menos da sua mão, sem pagar custo.",
+  "flavor": "Onde ela passa, a manada passa. Onde ela ainda não passou, a manada já está esperando.",
+  "art": "neutra/dona_ribomba.webp",
+  "tags": []
+}
