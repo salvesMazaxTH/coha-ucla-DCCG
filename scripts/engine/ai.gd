@@ -135,6 +135,11 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 					target = unit.uid
 		elif spec != "" and target == 0 and not is_unit:
 			continue
+		elif card_data.has("extra_cost"):
+			# Oferenda ao Vazio / Esporos / Tremor: the unit that pays the extra cost is the second pick
+			second_target = _pick_extra_cost_payer(g, p, card_data, target)
+			if second_target == 0:
+				continue
 		elif spec2 != "":
 			var foe_leader: int = GameState.LEADER_UID[g.opponent(p)]
 			second_target = foe_leader if g.valid_targets(p, spec2).has(foe_leader) else _pick_target(g, p, spec2, card_data, 0, true)
@@ -493,6 +498,26 @@ static func _pick_sacrifice(g: GameState, p: int) -> int:
 			weakest_score = score
 			weakest_uid = unit.uid
 	return weakest_uid
+
+## The unit that pays a spell's `extra_cost`, or 0 when nobody is cheap enough to give up.
+## Losing Armadura is almost free, so any unit that can pay does. A sacrifice only happens when the
+## cheapest eligible unit is not worth much more than the spell it answers (`stack_id`).
+static func _pick_extra_cost_payer(g: GameState, p: int, card_data: Dictionary, stack_id: int) -> int:
+	var extra_cost: Dictionary = card_data["extra_cost"]
+	var cheapest_uid := 0
+	var cheapest_value := 999
+	for uid in g.valid_targets(p, String(extra_cost["target"])):
+		var unit := g.find_unit(int(uid))
+		if unit != null and _unit_value(g, unit) < cheapest_value:
+			cheapest_value = _unit_value(g, unit)
+			cheapest_uid = unit.uid
+	if cheapest_uid == 0 or extra_cost["kind"] != "sacrifice":
+		return cheapest_uid
+	var answered_cost := 0
+	for item in g.stack:
+		if item["sid"] == stack_id:
+			answered_cost = g.stack_cost(item)
+	return cheapest_uid if cheapest_value <= answered_cost + 3 else 0
 
 ## The effects of `source` that are played right when it is cast or enters (spells: on_play, units: on_enter,
 ## abilities: no trigger). Its other triggers (Ao Sofrer Dano, Ao Morrer...) happen later, on the

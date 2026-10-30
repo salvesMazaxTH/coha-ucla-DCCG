@@ -819,6 +819,8 @@ func target_spec(effects: Array) -> String:
 func second_spec(cd: Dictionary) -> String:
 	if cd["type"] == "unit":
 		return "" # a unit's Ao Entrar picks its targets after it enters (see enter_second_spec)
+	if cd.has("extra_cost"):
+		return String(cd["extra_cost"]["target"]) # whoever pays the extra cost is the second pick
 	for e in cd.get("effects", []):
 		if e.get("pick2", false):
 			return e["target"]
@@ -1096,6 +1098,12 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 				if c.hp_left() <= WEAK_UNIT_MAX_HP: out.append(c.uid)
 		"ally_unit":
 			for c: Card in mine: out.append(c.uid)
+		"ally_unit_with_armor": # an ally unit with at least 1 Armadura of its own (Tremor de Contenção pays with it)
+			for c: Card in mine:
+				if c.armor_total() > 0: out.append(c.uid)
+		"ally_plant_or_token": # an ally planta or ficha (Esporos de Emergência sacrifices one)
+			for c: Card in mine:
+				if c.data().get("token", false) or "planta" in c.data().get("species", []): out.append(c.uid)
 		"other_ally_unit":
 			for c: Card in mine:
 				if c.uid != self_uid: out.append(c.uid)
@@ -1307,6 +1315,8 @@ func can_play(p: int, hand_uid: int, allow_unreachable := false) -> bool:
 		return _sorcery_time(p) and has_slot_or_banish(p) # put on the field like a unit, but through the stack
 	if not can_cast_speed(p, speed_of(cd)):
 		return false
+	if cd.has("extra_cost") and valid_targets(p, String(cd["extra_cost"]["target"])).is_empty():
+		return false # nobody can pay the extra cost (no ally to sacrifice, none with Armadura...)
 	var spec := target_spec(cd["effects"])
 	return spec == "" or not card_targets(p, cd, inst).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec))
 
@@ -1553,6 +1563,10 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 	if from_graveyard:
 		play_event["requiem"] = true
 	_emit(play_event)
+	if cd.has("extra_cost"):
+		_pay_extra_cost(cd["extra_cost"], target2)
+		if phase == "over":
+			return _flush()
 	if must_banish:
 		slot = _banish_for_room(p, banish_uid, slot)
 	if sacrifice:
@@ -1582,6 +1596,20 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 		stack_system().push(p, "card", hand_uid, inst.card_id, target, speed_of(cd), target2, from_graveyard)
 	stack_system().settle()
 	return _flush()
+
+## Pays the "extra_cost" of a spell on top of its Momentum: {"kind": "sacrifice" | "lose_armor", "amount": N,
+## "target": spec of who pays}. `payer_uid` is the unit the player picked as the second target. It is a play cost,
+## so it is gone even if the spell is countered afterwards.
+func _pay_extra_cost(extra_cost: Dictionary, payer_uid: int) -> void:
+	var payer := find_unit(payer_uid)
+	if payer == null:
+		return
+	if extra_cost["kind"] == "sacrifice":
+		payer.damage = 1000000
+		_emit({"type": "sacrifice", "player": payer.owner, "uid": payer_uid})
+		_check_state()
+	elif extra_cost["kind"] == "lose_armor":
+		payer.lose_armor(int(extra_cost.get("amount", 1)))
 
 ## Súbito: pays the Súbito cost and puts the summon on the stack as a Rápido ability. The unit
 ## enters (at `slot`) only when that item resolves; if it is countered, the card goes to the graveyard.

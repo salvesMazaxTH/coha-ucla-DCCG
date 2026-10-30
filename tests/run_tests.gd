@@ -117,6 +117,7 @@ func _init() -> void:
 	_test_bounce_permanent_buffs()
 	_test_naelys_bounce_discount()
 	_test_counter()
+	_test_domain_instants()
 	_test_fight()
 	_test_conditional_counter()
 	_test_reserve()
@@ -4824,6 +4825,145 @@ func _test_counter() -> void:
 	check(g.players[1]["momentum"] == 0, "kicker charges +2")
 	g.pass_priority(0)
 	check(g.stack.is_empty() and g.players[1]["leader_hp"] == hp, "kicked counter stops the big spell")
+
+## Whoever holds priority passes until the stack is empty (bounded, so a bug cannot hang the suite).
+func _resolve_whole_stack(g: GameState) -> void:
+	for pass_number in 20:
+		if g.stack.is_empty():
+			return
+		g.pass_priority(g.decider())
+
+## A spell of the given cost that hurts the enemy Leader for 1 (the cost is what the reactions look at).
+func _tcost_spell(id: String, cost: int) -> void:
+	_tspell(id, "lento", [{"trigger": "on_play", "action": "damage", "target": "enemy_leader", "amount": 1}])
+	CardDB.data()["cards"][id]["cost"] = cost
+
+## A game where both players have plenty of Momentum, for the reaction tests.
+func _rich_game() -> GameState:
+	var g := _new_game()
+	g.players[0]["momentum"] = 9
+	g.players[1]["momentum"] = 9
+	return g
+
+## The seven Instantâneas of the domains (Represália, Contracorrente, Atraso, Quarentena, Esporos, Tremor, Oferenda).
+func _test_domain_instants() -> void:
+	for cost in [2, 3, 4, 5, 7]:
+		_tcost_spell("t_cost%d" % cost, cost)
+	_tcard("t_plant", 1, 1, [])
+	CardDB.data()["cards"]["t_plant"]["species"] = ["planta"]
+	_tcard("t_plain", 2, 2, [])
+	_tcard("t_ability_unit", 1, 3, [])
+	CardDB.data()["cards"]["t_ability_unit"]["activated"] = {"cost": 0, "speed": "rapido", "effects": [{"action": "damage", "target": "enemy_leader", "amount": 1}]}
+	_tspell("t_area", "lento", [{"trigger": "on_play", "action": "damage", "target": "all_enemy_units", "amount": 1}])
+
+	# Represália Ardente: the Leader of whoever played the item takes its cost (max 5) and the play still resolves
+	var g := _rich_game()
+	var caster_hp: int = g.players[0]["leader_hp"]
+	var victim_hp: int = g.players[1]["leader_hp"]
+	g.play_card(0, _give(g, 0, "t_cost3"), 0)
+	var represalia := _give(g, 1, "represalia_ardente")
+	check(g.can_play(1, represalia), "Represália: pode responder a um feitiço inimigo")
+	g.play_card(1, represalia, g.stack[0]["sid"])
+	_resolve_whole_stack(g)
+	check(g.players[0]["leader_hp"] == caster_hp - 3, "Represália: o Líder de quem jogou sofre dano igual ao custo (%d)" % g.players[0]["leader_hp"])
+	check(g.players[1]["leader_hp"] == victim_hp - 1, "Represália: o feitiço punido resolve normalmente")
+	g = _rich_game()
+	caster_hp = g.players[0]["leader_hp"]
+	g.play_card(0, _give(g, 0, "t_cost7"), 0)
+	g.play_card(1, _give(g, 1, "represalia_ardente"), g.stack[0]["sid"])
+	_resolve_whole_stack(g)
+	check(g.players[0]["leader_hp"] == caster_hp - 5, "Represália: o dano para em 5")
+
+	# Contracorrente: only an activated ability; the owner draws 1
+	g = _rich_game()
+	var contracorrente := CardDB.card("contracorrente")
+	g.play_card(0, _give(g, 0, "t_cost3"), 0)
+	check(g.card_targets(1, contracorrente).is_empty(), "Contracorrente: não alcança um feitiço")
+	_resolve_whole_stack(g)
+	var ability_unit := _put(g, 0, "t_ability_unit")
+	g.activate(0, ability_unit.uid)
+	var hand_before: int = g.players[0]["hand"].size()
+	var victim_hp_before: int = g.players[1]["leader_hp"]
+	check(g.card_targets(1, contracorrente).size() == 1, "Contracorrente: alcança uma habilidade ativada")
+	g.play_card(1, _give(g, 1, "contracorrente"), g.stack[0]["sid"])
+	_resolve_whole_stack(g)
+	check(g.players[1]["leader_hp"] == victim_hp_before, "Contracorrente: a habilidade foi anulada")
+	check(g.players[0]["hand"].size() == hand_before + 1, "Contracorrente: o dono da habilidade compra 1 carta")
+
+	# Atraso de Voo: cost 2 or less; the owner gains 1 Momentum
+	var atraso := CardDB.card("atraso_de_voo")
+	g = _rich_game()
+	g.play_card(0, _give(g, 0, "t_cost3"), 0)
+	check(g.card_targets(1, atraso).is_empty(), "Atraso de Voo: não alcança custo 3")
+	g = _rich_game()
+	g.play_card(0, _give(g, 0, "t_cost2"), 0)
+	var momentum_after_cast: int = g.players[0]["momentum"]
+	check(g.card_targets(1, atraso).size() == 1, "Atraso de Voo: alcança custo 2")
+	g.play_card(1, _give(g, 1, "atraso_de_voo"), g.stack[0]["sid"])
+	_resolve_whole_stack(g)
+	check(g.players[0]["momentum"] == momentum_after_cast + 1, "Atraso de Voo: o dono ganha 1 de Momentum")
+
+	# Quarentena Sagrada: only area effects
+	var quarentena := CardDB.card("quarentena_sagrada")
+	g = _rich_game()
+	g.play_card(0, _give(g, 0, "bola_de_fogo"), GameState.LEADER_UID[1])
+	check(g.card_targets(1, quarentena).is_empty(), "Quarentena: não alcança um feitiço de alvo único")
+	g = _rich_game()
+	var exposed := _put(g, 1, "t_plain")
+	g.play_card(0, _give(g, 0, "t_area"), 0)
+	check(g.card_targets(1, quarentena).size() == 1, "Quarentena: alcança um efeito em área")
+	g.play_card(1, _give(g, 1, "quarentena_sagrada"), g.stack[0]["sid"])
+	_resolve_whole_stack(g)
+	check(exposed.damage == 0, "Quarentena: o efeito em área foi anulado")
+
+	# Esporos de Emergência: sacrifices a plant or token, cost 3 or less
+	g = _rich_game()
+	var plain_ally := _put(g, 1, "t_plain")
+	g.play_card(0, _give(g, 0, "t_cost3"), 0)
+	var esporos := _give(g, 1, "esporos_de_emergencia")
+	check(not g.can_play(1, esporos), "Esporos: sem planta nem ficha aliada não dá para jogar")
+	var plant := _put(g, 1, "t_plant")
+	check(g.can_play(1, esporos), "Esporos: com uma planta aliada dá para jogar")
+	check(g.play_card(1, esporos, g.stack[0]["sid"], plain_ally.uid).is_empty(), "Esporos: uma unidade comum não paga o custo")
+	g.play_card(1, esporos, g.stack[0]["sid"], plant.uid)
+	check(g.find_unit(plant.uid) == null, "Esporos: a planta é sacrificada ao jogar")
+	_resolve_whole_stack(g)
+	check(g.players[1]["leader_hp"] == g.players[1]["leader_max"], "Esporos: o feitiço de custo 3 foi anulado")
+	g = _rich_game()
+	_put(g, 1, "t_plant")
+	g.play_card(0, _give(g, 0, "t_cost4"), 0)
+	check(g.card_targets(1, CardDB.card("esporos_de_emergencia")).is_empty(), "Esporos: não alcança custo 4")
+
+	# Tremor de Contenção: an ally with Armadura loses 1 of it to play the card; cost 4 or less
+	g = _rich_game()
+	var armored := _put(g, 1, "t_plain")
+	g.play_card(0, _give(g, 0, "t_cost4"), 0)
+	var tremor := _give(g, 1, "tremor_de_contencao")
+	check(not g.can_play(1, tremor), "Tremor: sem aliado com Armadura não dá para jogar")
+	armored.armor = 2
+	check(g.can_play(1, tremor), "Tremor: com um aliado com Armadura dá para jogar")
+	g.play_card(1, tremor, g.stack[0]["sid"], armored.uid)
+	check(armored.armor == 1, "Tremor: a unidade perde 1 de Armadura ao jogar (%d)" % armored.armor)
+	_resolve_whole_stack(g)
+	check(g.players[1]["leader_hp"] == g.players[1]["leader_max"], "Tremor: o feitiço de custo 4 foi anulado")
+	g = _rich_game()
+	_put(g, 1, "t_plain").armor = 1
+	g.play_card(0, _give(g, 0, "t_cost5"), 0)
+	check(g.card_targets(1, CardDB.card("tremor_de_contencao")).is_empty(), "Tremor: não alcança custo 5")
+
+	# Oferenda ao Vazio: sacrifices any ally, cost 5 or less, and the price is paid as soon as it is cast
+	g = _rich_game()
+	var offering := _put(g, 1, "t_plain")
+	g.play_card(0, _give(g, 0, "t_cost5"), 0)
+	var oferenda := _give(g, 1, "oferenda_ao_vazio")
+	check(g.can_play(1, oferenda), "Oferenda: alcança custo 5")
+	g.play_card(1, oferenda, g.stack[0]["sid"], offering.uid)
+	check(g.find_unit(offering.uid) == null, "Oferenda: a unidade é sacrificada assim que a carta é jogada")
+	_resolve_whole_stack(g)
+	check(g.players[1]["leader_hp"] == g.players[1]["leader_max"], "Oferenda: o feitiço de custo 5 foi anulado")
+	g = _rich_game()
+	g.play_card(0, _give(g, 0, "t_cost3"), 0)
+	check(not g.can_play(1, _give(g, 1, "oferenda_ao_vazio")), "Oferenda: sem aliado para sacrificar não dá para jogar")
 
 ## Magic-style combat entry: attacking needs the explicit "IR PARA O COMBATE" step first.
 func _test_combat_step() -> void:

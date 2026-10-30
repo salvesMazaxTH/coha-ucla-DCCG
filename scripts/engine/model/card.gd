@@ -391,6 +391,14 @@ func has_kw(kw: String) -> bool:
 func armor_total() -> int:
 	return armor + temp_armor + turn_armor
 
+## Loses up to `amount` of its own Armadura: the permanent one first, then the kinds that expire on their own.
+## (The Armadura that comes from an ally's Constante is not the unit's own, so it can't be lost.)
+func lose_armor(amount: int) -> void:
+	for kind in ["armor", "temp_armor", "turn_armor"]:
+		var lost := mini(amount, int(get(kind)))
+		set(kind, int(get(kind)) - lost)
+		amount -= lost
+
 ## ATK right now (a Congelada unit keeps its full ATK: it still strikes back when challenged).
 func atk_total() -> int:
 	return maxi(0, atk + intrinsic_atk + temp_atk + temp_atk_until_next_turn + bonus_atk)

@@ -64,6 +64,19 @@ func item_destroys_units(item: Dictionary) -> bool:
 			return true
 	return false
 
+## True when the stack item is an ability (a Leader's, a unit's Ao Ativar or an artifact's), not a spell
+## ("only_if_ability" counters, Contracorrente).
+func item_is_ability(item: Dictionary) -> bool:
+	return item["kind"] in ["ability", "unit_ability", "artifact_equip"]
+
+## True when the stack item has an effect that hits a whole group of units at once instead of a chosen one
+## ("only_if_area" counters, Quarentena Sagrada).
+func item_is_area_effect(item: Dictionary) -> bool:
+	for item_effect in effects_of(item):
+		if String(item_effect.get("target", "")) in GroupTarget.NAMES:
+			return true
+	return false
+
 ## Extra Momentum a counter (action "counter") must pay to hit stack item `sid`:
 ## 0 up to max_cost, kicker_cost up to kicker_max_cost, -1 when out of reach.
 func counter_extra(cd: Dictionary, sid: int) -> int:
@@ -76,6 +89,10 @@ func counter_extra(cd: Dictionary, sid: int) -> int:
 		if e.get("only_if_targets_ally", false) and not targets_countering_side(it):
 			return -1
 		if e.get("only_if_destroys", false) and not item_destroys_units(it):
+			return -1
+		if e.get("only_if_ability", false) and not item_is_ability(it):
+			return -1
+		if e.get("only_if_area", false) and not item_is_area_effect(it):
 			return -1
 		var c := stack_cost(it)
 		if c <= int(e.get("max_cost", 99)):

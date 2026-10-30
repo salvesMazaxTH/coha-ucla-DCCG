@@ -76,6 +76,7 @@ static var ACTIONS: Dictionary = {
 	"restrict_play": RestrictPlayEffect,
 	"buff": BuffEffect,
 	"counter": CounterEffect,
+	"damage_leader_by_stack_cost": StackCostDamageEffect,
 	"modify_cost": ModifyCostEffect,
 	"discount_hand": DiscountHandEffect,
 	"cost_reduction": StaticEffect,

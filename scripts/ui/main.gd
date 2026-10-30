@@ -2086,7 +2086,7 @@ func _target_selection_numbers(uid: int) -> Array:
 	if targeting.is_empty():
 		return []
 	var picks: Array = targeting.get("picks", [])
-	if picks.is_empty() and targeting.has("first"):
+	if picks.is_empty() and targeting.has("first") and not targeting.get("first_is_stack", false):
 		picks = [targeting["first"]]
 	var out: Array = []
 	for i in picks.size():
@@ -2759,9 +2759,30 @@ func _counter_price(sid: int) -> String:
 	for hand_card: Card in g.players[viewer]["hand"]:
 		if hand_card.uid == targeting["uid"]:
 			var card_data := CardDB.card(hand_card.card_id)
+			var punishment := _stack_punishment(card_data, sid)
+			if punishment >= 0:
+				return "Dano: %d" % punishment # Represália Ardente: it punishes, it does not anular
 			var extra := g.counter_extra(card_data, sid)
 			return "Anular: %d" % (g.cost_of(viewer, card_data) + extra) + (" (+%d)" % extra if extra > 0 else "")
 	return ""
+
+## True for a spell that answers a stack item with damage instead of an anular (Represália Ardente).
+func _punishes_stack(card_data: Dictionary) -> bool:
+	for effect in card_data.get("effects", []):
+		if effect.get("action") == "damage_leader_by_stack_cost":
+			return true
+	return false
+
+## Damage a "punish by cost" spell (Represália Ardente) would deal to the Leader of whoever played stack item
+## `sid`, or -1 when the card has no such effect.
+func _stack_punishment(card_data: Dictionary, sid: int) -> int:
+	if not _punishes_stack(card_data):
+		return -1
+	for effect in card_data["effects"]:
+		for item in g.stack:
+			if item["sid"] == sid:
+				return mini(g.stack_cost(item), int(effect.get("max", 999)))
+	return -1
 
 ## Contextual hint in a pill on the central divider.
 func _render_hint() -> void:
@@ -2858,12 +2879,16 @@ func _hint() -> String:
 			return "Toque no alvo que brilha (Líder ou unidade exaurida) · toque fora cancela."
 		return "Arraste até o alvo que brilha (Líder ou unidade exaurida) · botão direito/Esc cancela."
 	if not targeting.is_empty():
+		if targeting.get("first_is_stack", false):
+			return "Escolha a unidade que paga o custo extra desta carta."
 		if targeting.has("first"):
 			var second_hint := "1º alvo escolhido. Escolha o 2º alvo (pode ser o mesmo)." if CardDB.card(targeting["card_id"]).get("same_target_ok", false) else "1º alvo escolhido. Escolha o 2º alvo."
 			return second_hint
 		var t := "Arraste até o alvo (ou toque nele) · toque fora cancela." if CardView.touch_ui() else "Arraste até o alvo (ou clique nele) · botão direito/Esc cancela."
 		if targeting["spec"] == "enemy_stack":
 			t = "Toque no feitiço/habilidade da pilha que quer anular."
+			if _punishes_stack(CardDB.card(targeting["card_id"])):
+				t = "Toque no feitiço/habilidade da pilha que quer punir."
 		return t
 	if g.decider() != viewer or _is_ai(viewer):
 		return ""
@@ -3393,7 +3418,7 @@ func _is_target(uid: int) -> bool:
 	if targeting["kind"] == "attack":
 		var attacker := g.find_unit(targeting["uid"])
 		return attacker != null and g.attack_targets(attacker).has(uid)
-	if targeting.has("first") and uid == targeting["first"] and not CardDB.card(targeting["card_id"]).get("same_target_ok", false):
+	if targeting.has("first") and not targeting.get("first_is_stack", false) and uid == targeting["first"] and not CardDB.card(targeting["card_id"]).get("same_target_ok", false):
 		return false # the sacrificed unit is already gone
 	return g.valid_targets(viewer, targeting["spec"], targeting.get("uid", 0), false, _aimed_effects()).has(uid)
 
@@ -3421,7 +3446,7 @@ func _aimed_effects() -> Array:
 ## It stays separate from `_is_target`: Relâmpagos Gêmeos may legally pick it again,
 ## but it must remain visibly distinct from the still-available second targets.
 func _is_first_target(uid: int) -> bool:
-	return not targeting.is_empty() and targeting.has("first") and int(targeting["first"]) == uid
+	return not targeting.is_empty() and targeting.has("first") and not targeting.get("first_is_stack", false) and int(targeting["first"]) == uid
 
 func _fire_target(uid: int, equipment_confirmed := false) -> void:
 	if targeting["kind"] in ["hand", "field_equip"] and not equipment_confirmed \
@@ -3438,7 +3463,11 @@ func _fire_target(uid: int, equipment_confirmed := false) -> void:
 			var spec2 := g.second_spec(CardDB.card(targeting["card_id"]))
 			if spec2 != "" and not targeting.has("first"):
 				# second step: pick the damage target after the sacrifice
-				targeting = {"kind": "hand", "uid": targeting["uid"], "card_id": targeting["card_id"], "spec": spec2, "first": uid, "picks": [uid]}
+				targeting = {"kind": "hand", "uid": targeting["uid"], "card_id": targeting["card_id"], "spec": spec2, "first": uid, "first_is_stack": targeting["spec"] == "enemy_stack"}
+				if targeting["first_is_stack"]:
+					targeting["picks"] = [] # the first pick was a stack item, not a unit to number
+				else:
+					targeting["picks"] = [uid]
 				_render()
 			elif _needs_room_banish(targeting["card_id"]):
 				# the card's own target is chosen; the permanent to banish is the last pick
