@@ -440,7 +440,7 @@ static func keyword_ranges(text: String) -> Array:
 		out.append([m.get_start(1), end])
 	return out
 
-## Trigger names (and an optional "(...)" qualifier before the colon, e.g. "Aliado Morre (uma vez por
+## Trigger names (and any "(...)" qualifiers before the colon, e.g. "Aliado Morre (uma vez por
 ## turno):") in bold orange. "Name (cost) {speed} (limits):" -> bold orange, with "{speed}"
 ## (lento/rapido/instantaneo) drawn as the spell speed seal (assets/ui/speed_<speed>.png, see
 ## tools/render_speed_badges.gd).
@@ -448,7 +448,8 @@ static func _colorize_triggers(body: String, line_px: int) -> String:
 	var open := "[b][color=#%s]" % TRIGGER_COL.to_html(false)
 	for tid in CardDB.data()["triggers"]:
 		var tn: String = CardDB.data()["triggers"][tid]["name"]
-		var re := RegEx.create_from_string(r"(%s(?: \([^)]*\))?)(?: \{(lento|rapido|instantaneo)\})?((?: \([^)]*\))?):" % tn)
+		# any number of "(...)" groups may sit before and after the speed ("Ao Ativar (1) {lento} (1x por turno) (como custo ...):")
+		var re := RegEx.create_from_string(r"(%s(?: \([^)]*\))*)(?: \{(lento|rapido|instantaneo)\})?((?: \([^)]*\))*):" % tn)
 		for m in re.search_all(body):
 			var out := open + m.get_string(1) + "[/color][/b]"
 			if m.get_string(2) != "":

@@ -42,12 +42,12 @@
         "target": "enemy_leader",
         "requires_markers": {
           "dot": "veneno",
-          "amount": 8
+          "amount": 7
         }
       }
     ]
   },
-  "text": "O dano de combate desta unidade ao Líder também coloca Veneno nele. O Veneno desta unidade ignora imunidade.\nAo Atingir o Líder: coloca 1 marcador de Veneno a mais no Líder inimigo.\nAo Ativar (2) {rapido} (1x por turno): coloca 1 marcador de Veneno no Líder inimigo. Depois, se ele tiver 8 ou mais marcadores de Veneno, ele morre.",
+  "text": "O dano de combate desta unidade ao Líder também coloca Veneno nele. O Veneno desta unidade ignora imunidade.\nAo Atingir o Líder: coloca 1 marcador de Veneno a mais no Líder inimigo.\nAo Ativar (2) {rapido} (1x por turno): coloca 1 marcador de Veneno no Líder inimigo. Depois, se ele tiver 7 ou mais marcadores de Veneno, ele morre.",
   "flavor": "Ela morde uma vez. O resto é paciência.",
   "tags": []
 }

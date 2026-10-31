@@ -223,6 +223,7 @@ func _apply(g: GameState, p: int, m: Dictionary) -> Array:
 		"incarnation": return g.cast_incarnation(p, int(m.get("target", 0)), int(m.get("slot", -1)), int(m.get("banish", 0)))
 		"ability": return g.use_ability(p, int(m.get("target", 0)))
 		"activate": return g.activate(p, int(m.get("uid", 0)), int(m.get("target", 0)))
+		"activate_discard": return g.begin_activation_discard(p, int(m.get("uid", 0)))
 		"transform": return g.transform(p, int(m.get("uid", 0)))
 		"go_to_combat": return g.go_to_combat(p)
 		"skip_combat": return g.skip_combat(p)

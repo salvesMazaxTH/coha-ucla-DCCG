@@ -20,6 +20,7 @@ const SANCTUARY := "sanctuary"
 const EQUIPPED := "equipped"
 
 var game: GameState
+var _last_conditional_event := {} ## card uid -> the last event that spent one of its conditional uses
 
 func _init(game_state: GameState) -> void:
 	game = game_state
@@ -154,7 +155,7 @@ func _offer(card: Card, effect: Effect, event: GameEvent) -> void:
 		if card.used_turn.get(index, -1) == game.turn:
 			return
 		card.used_turn[index] = game.turn
-	if not _spend_conditional_use(card):
+	if not _spend_conditional_use(card, event):
 		return # the card already used all of its "conditional_uses_per_turn" this turn
 	var pending := PendingTrigger.new(card, [effect], context, effect.trigger)
 	if effect.immediate:
@@ -178,17 +179,21 @@ func pay_durability(card: Card, effect: Effect) -> void:
 
 ## Cards with "conditional_uses_per_turn": N may trigger their Condicional (listen) effects, all of them
 ## together, at most N times a turn (Seymour). Own effects like On Turn Start are not counted. Takes one
-## use and says whether there was one left; cards without the field always may.
-func _spend_conditional_use(card: Card) -> bool:
+## use and says whether there was one left; cards without the field always may. Several Condicional effects
+## reacting to the same event (Drex: buff + heal) are one single use.
+func _spend_conditional_use(card: Card, event: GameEvent) -> bool:
 	var limit: int = int(card.data().get("conditional_uses_per_turn", 0))
 	if limit <= 0:
 		return true
+	if _last_conditional_event.get(card.uid) == event:
+		return true # this event already paid for its use through another effect of the same card
 	if card.conditional_uses_turn != game.turn:
 		card.conditional_uses_turn = game.turn
 		card.conditional_uses = 0
 	if card.conditional_uses >= limit:
 		return false
 	card.conditional_uses += 1
+	_last_conditional_event[card.uid] = event
 	return true
 
 func _scope_matches(scope: String, card: Card, event: GameEvent) -> bool:

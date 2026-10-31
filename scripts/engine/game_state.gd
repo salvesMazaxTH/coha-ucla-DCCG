@@ -23,8 +23,8 @@ const GRANDE_SNOWBALL_CARD_ID := "grande_bola_de_neve" ## a card of its own (tra
 const REQUIEM_EXTRA_COST := 2 ## Réquiem: a spell cast from the graveyard costs this much more, then is banished
 
 ## Periodic marker rules. New marker types reuse add_dot/resolve_dot; only their damage policy differs.
-## "flat": 1 damage per marker and every marker wears off. "poison": 2 damage per marker and half the pile
-## (rounded up) wears off. Only Veneno itself is affected by its hold/lethal cards (see veneno_is_held).
+## "flat": 1 damage per marker. "poison": 2 damage per marker. Either way every marker wears off at its tick
+## (unless held). Only Veneno itself is affected by its hold/lethal cards (see veneno_is_held).
 const DOT_RULES := {
 	"queimadura": "flat",
 	"veneno": "poison",
@@ -41,7 +41,7 @@ const DOT_IMMUNE_ELEMENTS := {
 	"sangramento": [],
 }
 
-## Each marker of a "poison" kind (Veneno, Sangramento) deals 2 damage, then half the pile (rounded up) is removed.
+## Each marker of a "poison" kind (Veneno, Sangramento) deals 2 damage, then the whole pile is removed.
 const VENENO_DAMAGE_PER_MARKER := 2
 
 ## Leaders are addressed with negative uids so targets are a single int.
@@ -3768,7 +3768,7 @@ func _resolve_leader_dot(p: int, dot_id: String, keep_markers := false) -> void:
 	if markers <= 0:
 		return
 	var held := keep_markers or veneno_is_held(dot_id, LEADER_UID[p])
-	var consumed := 0 if held else markers_consumed_per_tick(dot_id, markers)
+	var consumed := 0 if held else markers
 	var damage := markers * VENENO_DAMAGE_PER_MARKER if DOT_RULES.get(dot_id, "flat") == "poison" else markers
 	_emit({"type": "dot", "uid": LEADER_UID[p], "dot": dot_id, "amount": markers, "damage": damage, "total": markers - consumed, "cleared": true, "held": held})
 	_deal_dot_damage(LEADER_UID[p], damage, dot_id)
@@ -3780,13 +3780,6 @@ func _resolve_leader_dot(p: int, dot_id: String, keep_markers := false) -> void:
 		players[p]["leader_dots"][dot_id] = remaining
 	else:
 		players[p]["leader_dots"].erase(dot_id)
-
-## How many markers wear off at one tick: the "poison" kinds (Veneno, Sangramento) lose half their pile,
-## rounded up; Queimadura loses all of them.
-func markers_consumed_per_tick(dot_id: String, markers: int) -> int:
-	if DOT_RULES.get(dot_id, "flat") == "poison":
-		return ceili(float(markers) / 2.0)
-	return markers
 
 ## True when the Veneno markers of `target_uid` (a unit, or a Leader's negative uid) are not consumed
 ## right now: either a Greve Geral dos Antídotos is running, or a Leader's own hold is.
@@ -3861,8 +3854,8 @@ func _resolve_condemned() -> void:
 	_check_state()
 
 ## Resolves one marker type. Only the markers present when this call starts are consumed;
-## a new marker added by an on_damaged trigger remains for the next turn. Veneno loses half its
-## pile, rounded up, and none while it is held (see veneno_is_held): the markers hurt and stay.
+## a new marker added by an on_damaged trigger remains for the next turn. Every marker wears off,
+## except while Veneno is held (see veneno_is_held): the markers hurt and stay.
 ## `keep_markers` (a card effect, Coagulhão) holds them the same way for this one tick, for any marker kind.
 func resolve_dot(unit: Card, dot_id: String, keep_markers := false) -> void:
 	if unit == null:
@@ -3872,7 +3865,7 @@ func resolve_dot(unit: Card, dot_id: String, keep_markers := false) -> void:
 		return
 	var damage := dot_damage(dot_id, unit, markers)
 	var held := keep_markers or veneno_is_held(dot_id, unit.uid)
-	var consumed := 0 if held else markers_consumed_per_tick(dot_id, markers)
+	var consumed := 0 if held else markers
 	_emit({"type": "dot", "uid": unit.uid, "dot": dot_id, "amount": markers, "damage": damage, "total": markers - consumed, "cleared": true, "held": held})
 	_deal_dot_damage(unit.uid, damage, dot_id)
 	if held:

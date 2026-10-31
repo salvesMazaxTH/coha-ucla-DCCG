@@ -84,10 +84,9 @@ static func build_base_card(parent: Control, stage_width: float, card_id: String
 static func with_live_count(body: String, text_suffix: String) -> String:
 	if text_suffix == "":
 		return body
-	# a card with a shared X (Drex): the live value goes right after the printed "(inicial = N)"
-	var initial_x_match := RegEx.create_from_string("\\(inicial = \\d+\\)").search(body)
-	if initial_x_match != null:
-		return body.insert(initial_x_match.get_end(), text_suffix)
+	# a card with a shared X (Drex) uses it in several abilities, so its "(X agora: N)" closes the whole text
+	if body.contains("(inicial = "):
+		return body + text_suffix
 	var lines := body.split("\n")
 	for line_index in lines.size():
 		if lines[line_index].begins_with("Constante:"):

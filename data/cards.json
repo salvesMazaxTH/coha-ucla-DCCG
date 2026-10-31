@@ -354,11 +354,11 @@
     },
     "veneno": {
       "name": "Veneno",
-      "text": "Marcadores de Veneno: no início do turno do controlador, cada marcador causa 2 de dano a esta unidade. Depois, remove metade dos marcadores, arredondada para cima. Esse dano ignora Armadura, Escudo e Escudo Mágico; Indestrutível ainda o impede. Unidades de Veneno ou de Metal não recebem Veneno, a menos que um efeito diga que ignora imunidade; Líderes não têm essa imunidade."
+      "text": "Marcadores de Veneno: no início do turno do controlador, cada marcador causa 2 de dano a esta unidade. Depois, remove todos os marcadores. Esse dano ignora Armadura, Escudo e Escudo Mágico; Indestrutível ainda o impede. Unidades de Veneno ou de Metal não recebem Veneno, a menos que um efeito diga que ignora imunidade; Líderes não têm essa imunidade."
     },
     "sangramento": {
       "name": "Sangramento",
-      "text": "Marcadores de Sangramento: no início do turno do controlador, cada marcador causa 2 de dano a esta unidade. Depois, remove metade dos marcadores, arredondada para cima. Esse dano ignora Armadura, Escudo e Escudo Mágico; Indestrutível ainda o impede."
+      "text": "Marcadores de Sangramento: no início do turno do controlador, cada marcador causa 2 de dano a esta unidade. Depois, remove todos os marcadores. Esse dano ignora Armadura, Escudo e Escudo Mágico; Indestrutível ainda o impede."
     },
     "armadura": {
       "name": "Armadura",

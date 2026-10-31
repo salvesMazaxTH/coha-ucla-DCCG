@@ -3,7 +3,8 @@
   "type": "spell",
   "rarity": "epic",
   "essence": "trevas",
-  "cost": 6,
+  "cost": 4,
+  "speed": "rapido",
   "art": "trevas/banquete_carmesim.webp",
   "effects": [
     {

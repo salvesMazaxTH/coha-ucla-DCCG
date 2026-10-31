@@ -101,6 +101,10 @@ var table: TableView
 var layer: Control
 var overlay: Control
 var search_overlay: Control
+## A "choose one" window shown only on this client (nothing is sent to the server until an option is picked):
+## {"title": String, "subtitle": String, "options": [{"title", "detail", "enabled", "reason", "callback"}]}
+## Empty when closed. Built by _open_option_prompt and drawn by _render_option_prompt.
+var option_prompt := {}
 ## Hash of the pending search the player folded away to look at the table (-1 = none). Comparing the
 ## hash instead of a flag means the next search always opens expanded.
 var search_minimized_signature := -1
@@ -1635,6 +1639,7 @@ func _render_now() -> void:
 	_render_hint()
 	if g.phase == "search":
 		_render_search_reveal()
+	_render_option_prompt()
 	if g.phase == "over":
 		_over_from = layer.get_child_count()
 		_render_game_over()
@@ -1660,6 +1665,92 @@ func _veil(alpha := 0.72) -> PanelContainer:
 func _center(pc: Control) -> void:
 	pc.reset_size()
 	pc.position = (size - pc.size) / 2.0
+
+## Opens the generic "choose one" window. `options` is an Array of {"title", "detail", "enabled", "reason", "callback"};
+## a disabled option is greyed out and its `reason` is shown in the subtitle. Future "Escolha um..." effects reuse it.
+func _open_option_prompt(title: String, options: Array) -> void:
+	option_prompt = {"title": title, "options": options}
+	_render()
+
+func _close_option_prompt() -> void:
+	if option_prompt.is_empty():
+		return
+	option_prompt = {}
+	_render()
+
+## Draws the "choose one" window: one big clickable block per option. Rebuilt on every render from option_prompt.
+func _render_option_prompt() -> void:
+	if option_prompt.is_empty():
+		return
+	if g == null or g.phase in ["search", "over"] or not _my_input():
+		option_prompt = {} # the game moved on (or it is no longer this player's turn to decide)
+		return
+	var options: Array = option_prompt["options"]
+	var pc := _veil(0.84)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 18)
+	pc.add_child(box)
+	box.add_child(_label(String(option_prompt["title"]), 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
+	# the reasons why some blocks are not clickable
+	var reasons: Array = []
+	for option: Dictionary in options:
+		if not bool(option.get("enabled", true)) and String(option.get("reason", "")) != "":
+			reasons.append("%s: %s" % [option["title"], option["reason"]])
+	var subtitle_text := "Escolha uma das opções." if reasons.is_empty() else "\n".join(reasons)
+	var subtitle := _label(subtitle_text, 18, UITheme.TEXT_DIM if not reasons.is_empty() else UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "body")
+	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	subtitle.custom_minimum_size = Vector2(minf(stage_w - 160.0, 720.0), 0)
+	box.add_child(subtitle)
+	var blocks := HBoxContainer.new()
+	blocks.add_theme_constant_override("separation", 20)
+	blocks.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(blocks)
+	var block_width := clampf((minf(stage_w - 160.0, 720.0) - 20.0 * (options.size() - 1)) / options.size(), 200.0, 340.0)
+	for option: Dictionary in options:
+		var enabled: bool = bool(option.get("enabled", true))
+		var callback: Callable = option["callback"]
+		var block := Button.new()
+		block.custom_minimum_size = Vector2(block_width, 230)
+		block.disabled = not enabled
+		block.text = "%s\n\n%s" % [option["title"], option.get("detail", "")]
+		block.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		block.add_theme_font_size_override("font_size", 22)
+		block.pressed.connect(Sfx.play.bind("ui_click"))
+		block.pressed.connect(func():
+			option_prompt = {}
+			callback.call())
+		blocks.add_child(block)
+	var cancel_button := _button("CANCELAR", _close_option_prompt)
+	cancel_button.custom_minimum_size = Vector2(360, 52)
+	cancel_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.add_child(cancel_button)
+	_center.call_deferred(pc)
+
+## Drex-style Ao Ativar with "discard a card or sacrifice an ally" as its extra cost: asks which one to pay.
+func _open_activation_cost_prompt(ability_uid: int) -> void:
+	var can_discard: bool = not g.players[viewer]["hand"].is_empty()
+	var can_sacrifice: bool = not g.valid_targets(viewer, "other_ally_unit", ability_uid, false, []).is_empty()
+	var options: Array = [
+		{
+			"title": "Descartar uma carta",
+			"detail": "Escolha uma carta da sua mão para ir ao cemitério.",
+			"enabled": can_discard,
+			"reason": "sua mão está vazia.",
+			"callback": func(): _do(g.begin_activation_discard(viewer, ability_uid)),
+		},
+		{
+			"title": "Sacrificar uma unidade",
+			"detail": "Escolha no campo outra unidade aliada para sacrificar.",
+			"enabled": can_sacrifice,
+			"reason": "não há outra unidade aliada para sacrificar.",
+			"callback": func():
+				targeting = {"kind": "unit_cost", "uid": ability_uid, "spec": "extra_cost_payer"}
+				if views.has(ability_uid) and is_instance_valid(views[ability_uid]):
+					_begin_aim(_visual_rect(views[ability_uid] as Control).get_center())
+				_render(),
+		},
+	]
+	_open_option_prompt("PAGUE O CUSTO ADICIONAL", options)
 
 func _render_pass() -> void:
 	var p := viewer
@@ -2863,6 +2954,10 @@ func _hint() -> String:
 		var banish_prompt := "Campo cheio: toque na unidade ou artefato seu que será banido para abrir espaço" if CardView.touch_ui() \
 			else "Campo cheio: clique na unidade ou artefato seu que será banido para abrir espaço"
 		return banish_prompt + " · toque fora cancela." if CardView.touch_ui() else banish_prompt + " · botão direito/Esc cancela."
+	if targeting.get("kind") == "unit_cost":
+		var cost_prompt := "Custo adicional: toque noutra unidade aliada para sacrificá-la" if CardView.touch_ui() \
+			else "Custo adicional: clique noutra unidade aliada para sacrificá-la"
+		return cost_prompt + " · toque fora cancela." if CardView.touch_ui() else cost_prompt + " · botão direito/Esc cancela."
 	if targeting.get("kind") == "attack":
 		# say why some targets don't glow: a Provocação forces the challenge, and a unit that
 		# just came in with Ímpeto can only challenge
@@ -3166,6 +3261,9 @@ func _unhandled_input(e: InputEvent) -> void:
 	if concede_view and e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE:
 		_close_concede() # Esc backs out of the pause menu and of the confirmations
 		return
+	if not option_prompt.is_empty() and e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE:
+		_close_option_prompt() # Esc backs out of the "choose one" window
+		return
 	var cancel: bool = (e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE) \
 		or (e is InputEventMouseButton and e.pressed and (e.button_index == MOUSE_BUTTON_RIGHT or CardView.touch_ui()))
 	if cancel and g and _queued_attacker_uid != 0:
@@ -3415,6 +3513,8 @@ func _is_target(uid: int) -> bool:
 			if hand_card.uid == targeting["uid"]:
 				return g.card_targets(viewer, CardDB.card(hand_card.card_id)).has(uid)
 		return false
+	if targeting["kind"] == "unit_cost":
+		return g.valid_targets(viewer, "other_ally_unit", targeting["uid"], false, []).has(uid) # the discard is picked in its own window
 	if targeting["kind"] == "room_banish":
 		return g.room_banish_options(viewer).has(uid)
 	if targeting["kind"] == "attack":
@@ -3491,7 +3591,7 @@ func _fire_target(uid: int, equipment_confirmed := false) -> void:
 			_do(g.cast_incarnation(viewer, uid))
 		"ability":
 			_do(g.use_ability(viewer, uid))
-		"unit_ability":
+		"unit_ability", "unit_cost":
 			_do(g.activate(viewer, targeting["uid"], uid))
 		"field_equip":
 			_do(g.equip_from_field(viewer, targeting["uid"], uid))
@@ -3656,7 +3756,7 @@ func _pending_tap_card_id() -> String:
 func _scale_suffix(p: int, cd: Dictionary, card_id := "") -> String:
 	# a "shared_x" card (Drex): the X grows during the match, so the overlay shows the current value
 	if card_id != "" and cd.has("shared_x"):
-		return " (agora: %d)" % g.shared_x_of(p, card_id)
+		return " (X agora: %d)" % g.shared_x_of(p, card_id)
 	var progress := g.window_progress(p, cd)
 	if not progress.is_empty():
 		# cost reductions that ask for an amount over a window (Gigantes): how far along, e.g. "(3/8)"
@@ -3755,6 +3855,10 @@ func _show_overlay(v: CardView) -> void:
 			# during an animation the activation waits for it to end (and checks again that it is still allowed)
 			_run_or_queue_input(func():
 				if not _my_input() or not g.can_activate(viewer, ab_uid, true):
+					return
+				if ab.has("extra_cost"):
+					# the extra cost (discard a card or sacrifice an ally) is chosen first, in a two-block window
+					_open_activation_cost_prompt(ab_uid)
 					return
 				var spec := g.target_spec(ab["effects"])
 				if spec == "":
@@ -4500,6 +4604,12 @@ func _render_search_reveal() -> void:
 		skip_button.custom_minimum_size = Vector2(360, 52)
 		skip_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		box.add_child(skip_button)
+	if g.pending_search.has("then_activate") and _my_input():
+		# this discard pays an Ao Ativar: backing out spends nothing
+		var cancel_activation_button := _button("CANCELAR", func(): _on_search_choice(0))
+		cancel_activation_button.custom_minimum_size = Vector2(360, 52)
+		cancel_activation_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		box.add_child(cancel_activation_button)
 	var minimize_button := _button("▼  VER A MESA", func():
 		search_minimized_signature = search_signature
 		search_opened_signature = -1

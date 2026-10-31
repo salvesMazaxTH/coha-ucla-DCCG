@@ -76,6 +76,9 @@ func use_ability(_p: int, target: int = 0) -> Array:
 func activate(_p: int, uid: int, target: int = 0) -> Array:
 	return _act({"a": "activate", "uid": uid, "target": target})
 
+func begin_activation_discard(_p: int, uid: int) -> Array:
+	return _act({"a": "activate_discard", "uid": uid})
+
 func transform(_p: int, uid: int) -> Array:
 	return _act({"a": "transform", "uid": uid})
 

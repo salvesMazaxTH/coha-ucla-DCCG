@@ -10,10 +10,11 @@
     "fluxo"
   ],
   "cost": 4,
-  "atk": 3,
+  "atk": 2,
   "hp": 4,
   "keywords": ["escudo", "roubo_de_vida"],
   "shared_x": { "start": 2 },
+  "conditional_uses_per_turn": 2,
   "art": "trevas/drex.webp",
   "effects": [
     {
@@ -104,7 +105,7 @@
   "activated": {
     "cost": 1,
     "speed": "lento",
-    "exhaust": true,
+    "once_per_turn": true,
     "extra_cost": { "kind": "discard_or_sacrifice" },
     "effects": [
       {
@@ -117,7 +118,7 @@
       { "action": "grow_shared_x", "target": "self", "amount": 1 }
     ]
   },
-  "text": "Ao Ativar (1) {lento} (exaure esta unidade; como custo adicional, você descarta uma carta ou sacrifica outra unidade aliada): distribui X (inicial = 2) marcadores de Sangramento entre os inimigos, incluindo o Líder; X aumenta 1 em todos os seus Drex.\nCondicional: quando o Sangramento causa dano a um inimigo ou uma unidade aliada cura, esta unidade recebe +1 de Vida e +1 de Armadura permanentes e seu Líder recupera X+1 de Vida.",
+  "text": "Ao Ativar (1) {lento} (1x por turno) (como custo adicional, você descarta uma carta ou sacrifica outra unidade aliada): distribui X (inicial = 2) marcadores de Sangramento entre os inimigos, incluindo o Líder; X aumenta 1 em todos os seus Drex.\nCondicional (2x por turno): quando o Sangramento causa dano a um inimigo ou uma unidade aliada cura, esta unidade recebe +1 de Vida e +1 de Armadura permanentes e seu Líder recupera X+1 de Vida.",
   "flavor": "Ele nunca pede sangue. Só espera você começar a sangrar e agradece pela gentileza.",
   "tags": []
 }

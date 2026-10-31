@@ -3484,7 +3484,7 @@ func _test_burn() -> void:
 	g._apply_effect(0, {"action": "add_dot", "dot": "queimadura", "target": "enemy_unit", "amount": 1}, victim.uid)
 	check(int(victim.dot_markers.get("queimadura", 0)) == 3, "Queimadura acumula marcadores genéricos")
 	check(g.dot_damage("veneno", victim, 3) == 6 and g.dot_damage("sangramento", tank, 3) == 6, "Veneno e Sangramento causam 2 de dano por marcador, sem depender da Vida máxima")
-	check(g.markers_consumed_per_tick("sangramento", 3) == 2 and g.markers_consumed_per_tick("veneno", 3) == 2 and g.markers_consumed_per_tick("queimadura", 3) == 3, "Veneno e Sangramento perdem metade dos marcadores (arredondada para cima); Queimadura perde todos")
+	pass # (the old half-wear-off helper is gone: every marker wears off at its tick, see the resolve_dot tests)
 	victim.temp_hp = 2
 	check(g.dot_damage("veneno", victim, 3) == 6 and CardDB.keyword("veneno")["name"] == "Veneno" and CardDB.keyword("sangramento")["name"] == "Sangramento", "Veneno ignora Vida máxima e as keywords estão no dicionário")
 	victim.temp_hp = 0
@@ -3897,7 +3897,7 @@ func _test_toxico() -> void:
 	check(CardView.toxico_tag_of_view(attack_data, {}) == "Tóxico X", "Tag: fora do campo o Tóxico por Ataque mostra X")
 	check(CardView.toxico_tag_of_view(attack_data, attacker.to_dict()) == "Tóxico 5", "Tag: no campo mostra o Ataque atual")
 
-	# Veneno on a unit deals 2 damage per marker, then removes half the pile rounded up; Queimadura is still consumed whole
+	# Veneno on a unit deals 2 damage per marker, then the whole pile wears off, like Queimadura
 	g = _new_game()
 	_quiet(g)
 	_tcard("t_decay_tank", 1, 60, [])
@@ -3906,11 +3906,10 @@ func _test_toxico() -> void:
 	g.add_dot_markers(decaying, "queimadura", 2)
 	g.resolve_dot(decaying, "veneno")
 	g.resolve_dot(decaying, "queimadura")
-	check(decaying.damage == 8 and int(decaying.dot_markers.get("veneno", 0)) == 1, "Veneno em unidade: 3 marcadores causam 6 e caem para 1 depois do tick")
-	check(int(decaying.dot_markers.get("queimadura", 0)) == 0, "Queimadura em unidade: continua sendo consumida inteira")
+	check(decaying.damage == 8 and int(decaying.dot_markers.get("veneno", 0)) == 0, "Veneno em unidade: 3 marcadores causam 6 e todos somem depois do tick")
+	check(int(decaying.dot_markers.get("queimadura", 0)) == 0, "Queimadura em unidade: consumida inteira")
 	g.resolve_dot(decaying, "veneno")
-	g.resolve_dot(decaying, "veneno")
-	check(int(decaying.dot_markers.get("veneno", 0)) == 0, "Veneno em unidade: a metade arredondada para cima some depois de 2 ticks")
+	check(decaying.damage == 8, "Veneno em unidade: sem marcadores, um novo tick não causa dano")
 
 ## Veneno on Leaders: Tóxico exception per card, markers that tick but stay, the card-made kill at 12+ and the X+ banish.
 func _test_leader_poison() -> void:
@@ -3934,26 +3933,26 @@ func _test_leader_poison() -> void:
 	g._flush()
 	check(g.players[1]["leader_hp"] == leader_hp_before - 2, "Veneno no Líder: sem marcadores, o turno seguinte não causa dano adicional")
 
-	# Veneno loses half the pile rounded up: a pile of 3 hurts for 6, then 2
+	# Veneno on a Leader: a pile of 3 hurts for 6 and the whole pile wears off
 	g = _new_game()
 	_quiet(g)
 	g.add_leader_dot_markers(1, "veneno", 3)
 	leader_hp_before = g.players[1]["leader_hp"]
 	g.end_turn(g.active)
 	g._flush()
-	check(g.players[1]["leader_hp"] == leader_hp_before - 6 and g.leader_dot_markers(1, "veneno") == 1, "Veneno no Líder: 3 marcadores ferem 6 e sobra 1")
+	check(g.players[1]["leader_hp"] == leader_hp_before - 6 and g.leader_dot_markers(1, "veneno") == 0, "Veneno no Líder: 3 marcadores ferem 6 e todos somem")
 	g.end_turn(g.active)
 	g.end_turn(g.active)
 	g._flush()
-	check(g.players[1]["leader_hp"] == leader_hp_before - 8 and g.leader_dot_markers(1, "veneno") == 0, "Veneno no Líder: no turno seguinte o marcador restante fere 2 e some")
+	check(g.players[1]["leader_hp"] == leader_hp_before - 6 and g.leader_dot_markers(1, "veneno") == 0, "Veneno no Líder: no turno seguinte não sobra nada para ferir")
 
-	# Queimadura on a Leader is untouched by the decay rule: it still goes away in full
+	# Queimadura on a Leader goes away in full too
 	g = _new_game()
 	_quiet(g)
 	g.add_leader_dot_markers(1, "queimadura", 3)
 	g.end_turn(g.active)
 	g._flush()
-	check(g.leader_dot_markers(1, "queimadura") == 0, "Queimadura no Líder: continua sendo consumida inteira")
+	check(g.leader_dot_markers(1, "queimadura") == 0, "Queimadura no Líder: consumida inteira")
 
 	# Tóxico X on a Leader: only a card with toxico_hits_leader leaves X markers, and X is its level
 	_tcard("t_toxic_three", 1, 4, [])
@@ -4053,7 +4052,7 @@ func _test_veneno_hold() -> void:
 	check(poisoned_unit.dot_markers.get("veneno", 0) == 0, "Antídoto: só vale pro Líder, o Veneno de unidade é consumido normal")
 	_next_turn(g)
 	_next_turn(g) # the victim's second turn start: the hold is over
-	check(g.leader_dot_markers(victim, "veneno") == 1 and g.players[victim]["leader_hp"] == leader_hp_start - 12, "Antídoto: no segundo turno dele o Veneno fere e remove metade arredondada para cima")
+	check(g.leader_dot_markers(victim, "veneno") == 0 and g.players[victim]["leader_hp"] == leader_hp_start - 12, "Antídoto: no segundo turno dele o Veneno fere e remove todos os marcadores")
 
 	# Greve Geral dos Antídotos: units and Leaders keep their Veneno for one turn start of each player
 	g = _new_game()
@@ -4074,9 +4073,9 @@ func _test_veneno_hold() -> void:
 	_next_turn(g) # the caster's turn start
 	check(own_unit.dot_markers.get("veneno", 0) == 1, "Greve: o Veneno de quem jogou também fica no turno dele")
 	_next_turn(g) # the victim's next turn start: the hold is over
-	check(enemy_unit.dot_markers.get("veneno", 0) == 1 and g.leader_dot_markers(victim, "veneno") == 1, "Greve: depois da rodada, o Veneno volta a cair pela metade")
+	check(enemy_unit.dot_markers.get("veneno", 0) == 0 and g.leader_dot_markers(victim, "veneno") == 0, "Greve: depois da rodada, o Veneno volta a ser consumido inteiro")
 	_next_turn(g)
-	check(own_unit.dot_markers.get("veneno", 0) == 0, "Greve: o Veneno de quem jogou também volta a cair pela metade")
+	check(own_unit.dot_markers.get("veneno", 0) == 0, "Greve: o Veneno de quem jogou também volta a ser consumido inteiro")
 
 ## Neráxia: until the start of the caster's next turn, the Veneno tick takes all the Vida a poisoned unit has left.
 ## The window closes right before the caster's own tick, so only the opponent's units are reached, and only once.
@@ -4199,18 +4198,18 @@ func _test_dot_immunity() -> void:
 	check(steel_victim.dot_markers.get("veneno", 0) == 1, "Imunidade: Viprax marca o Tóxico para ignorar imunidade")
 	check(not plain_toxic.data().get("toxico_ignores_immunity", false), "Imunidade: Tóxico comum não ignora imunidade")
 
-	# Viprax's Ao Ativar adds a marker first, so 7 markers are already enough; 6 are not
+	# Viprax's Ao Ativar adds a marker first, so 6 markers are already enough; 5 are not
 	var execution_game := _new_game()
 	_quiet(execution_game)
 	var executioner := _put(execution_game, 0, "viprax")
 	execution_game.players[0]["momentum"] = 6
-	execution_game.add_leader_dot_markers(1, "veneno", 6)
+	execution_game.add_leader_dot_markers(1, "veneno", 5)
 	execution_game.activate(0, executioner.uid)
 	execution_game._flush()
-	check(execution_game.leader_dot_markers(1, "veneno") == 7 and execution_game.phase != "over", "Viprax: Ao Ativar com 6 marcadores coloca o 7º e o Líder sobrevive")
+	check(execution_game.leader_dot_markers(1, "veneno") == 6 and execution_game.phase != "over", "Viprax: Ao Ativar com 5 marcadores coloca o 6º e o Líder sobrevive")
 	executioner.activated_turn = -1
 	var execution_events: Array = execution_game.activate(0, executioner.uid)
-	check(execution_game.phase == "over" and execution_game.winner == 0, "Viprax: Ao Ativar com 7 marcadores coloca o 8º e executa o Líder")
+	check(execution_game.phase == "over" and execution_game.winner == 0, "Viprax: Ao Ativar com 6 marcadores coloca o 7º e executa o Líder")
 	var executed_events := execution_events.filter(func(e): return e["type"] == "leader_executed")
 	var leader_damage_events := execution_events.filter(func(e): return e["type"] == "damage" and e["uid"] == GameState.LEADER_UID[1])
 	check(executed_events.size() == 1 and executed_events[0]["hp_before"] > 0, "Execução: emite um evento leader_executed com a Vida anterior do Líder")
@@ -4362,13 +4361,13 @@ func _test_drex_deck() -> void:
 	var vampire := _put(g, g.active, "drex")
 	var victim := _put(g, enemy, "t_target_dummy")
 	var healer := _put(g, g.active, "t_target_dummy")
-	check(vampire.atk == 3 and vampire.hp == 4 and vampire.armor == 0, "Drex: entra como 3/4 sem Armadura")
+	check(vampire.atk == 2 and vampire.hp == 4 and vampire.armor == 0, "Drex: entra como 2/4 sem Armadura")
 	g.players[g.active]["leader_max"] = 100
 	g.players[g.active]["leader_hp"] = 50
 	g.add_dot_markers(victim, "sangramento", 2)
 	g.resolve_dot(victim, "sangramento")
 	g._check_state()
-	check(vampire.atk == 3 and vampire.hp == 5 and vampire.armor == 1, "Drex: o Sangramento causando dano a uma unidade inimiga dá +1 de Vida e +1 de Armadura permanentes (sem Ataque)")
+	check(vampire.atk == 2 and vampire.hp == 5 and vampire.armor == 1, "Drex: o Sangramento causando dano a uma unidade inimiga dá +1 de Vida e +1 de Armadura permanentes (sem Ataque)")
 	check(g.players[g.active]["leader_hp"] == 53, "Drex: o Líder recupera X+1 de Vida (2+1) por inimigo atingido")
 	g.players[enemy]["leader_max"] = 100
 	g.players[enemy]["leader_hp"] = 50
@@ -4376,6 +4375,7 @@ func _test_drex_deck() -> void:
 	g._resolve_leader_dot(enemy, "sangramento")
 	g._check_state()
 	check(vampire.hp == 6 and vampire.armor == 2 and g.players[g.active]["leader_hp"] == 56, "Drex: o Sangramento causando dano ao Líder inimigo também dá +1 de Vida e +1 de Armadura e cura X+1; a Armadura acumula")
+	g.turn += 2 # new turn: the 2 uses above are spent
 	g.grow_shared_x(g.active, "drex")
 	g.add_dot_markers(victim, "sangramento", 2)
 	g.resolve_dot(victim, "sangramento")
@@ -4384,7 +4384,8 @@ func _test_drex_deck() -> void:
 	# the heal Drex itself does must not set the Conditional off again
 	check(vampire.hp == 7 and vampire.armor == 3, "Drex: a cura do próprio Drex não dispara a Condicional de novo (só +1 de Vida e +1 de Armadura por tick)")
 
-	# an ally unit healing with its own effect also sets the Conditional off
+	# an ally unit healing with its own effect also sets the Conditional off (new turn: the use above is spent)
+	g.turn += 2
 	var hp_before_heal := vampire.hp
 	var armor_before_heal := vampire.armor
 	var leader_hp_before_heal: int = g.players[g.active]["leader_hp"]
@@ -4410,6 +4411,7 @@ func _test_drex_deck() -> void:
 	g._check_state()
 	check(vampire.hp == hp_before_enemy_heal, "Drex: cura feita por unidade inimiga não dispara a Condicional")
 	# the lifesteal keyword is a unit healing: Drex has it innately and hears his own, and an ally's
+	g.turn += 2
 	check(vampire.has_kw("roubo_de_vida"), "Drex: tem Roubo de Vida inato")
 	_tcard("t_lifesteal_victim", 1, 12, [])
 	_tcard("t_lifesteal_ally", 3, 3, [])
@@ -4428,6 +4430,25 @@ func _test_drex_deck() -> void:
 	g._deal_damage(lifesteal_victim.uid, 1, ally_lifesteal)
 	g._check_state()
 	check(vampire.hp == hp_before_lifesteal + 1, "Drex: o Roubo de Vida de uma unidade aliada também dispara a Condicional")
+
+	# the Conditional works at most 2 times a turn (buff + heal of one trigger count as ONE use) and comes back next turn
+	g.turn += 2
+	g.players[g.active]["leader_max"] = 1000
+	g.players[g.active]["leader_hp"] = 500
+	var capped_hp_start := vampire.hp
+	var capped_leader_start: int = g.players[g.active]["leader_hp"]
+	for trigger_number in 2:
+		g.emit_unit_healed(healer, 1, "unit")
+		g._check_state()
+	check(vampire.hp == capped_hp_start + 2 and g.players[g.active]["leader_hp"] == capped_leader_start + 2 * (g.shared_x_of(g.active, "drex") + 1), "Drex: 2 gatilhos no turno dão 2x (+1 Vida, +1 Armadura e cura X+1); buff e cura do mesmo gatilho gastam 1 uso só")
+	g.emit_unit_healed(healer, 1, "unit")
+	g._heal_leader(g.active, 1, "unit")
+	g._check_state()
+	check(vampire.hp == capped_hp_start + 2 and g.players[g.active]["leader_hp"] == capped_leader_start + 2 * (g.shared_x_of(g.active, "drex") + 1) + 1, "Drex: o 3º gatilho do mesmo turno não faz nada (só a cura de 1 do próprio teste)")
+	g.turn += 2
+	g.emit_unit_healed(healer, 1, "unit")
+	g._check_state()
+	check(vampire.hp == capped_hp_start + 3, "Drex: no turno seguinte a Condicional volta a ativar")
 
 	# Coagulhão: Ao Entrar makes the Sangramento tick at once on every enemy without consuming it, its Leader heals by the full damage, Ao Morrer ticks again (also without consuming)
 	_tcard("t_target_dummy", 1, 12, [])
@@ -4490,8 +4511,9 @@ func _test_drex_deck() -> void:
 	var second_target := _put(g, enemy, "t_target_dummy")
 	g.players[g.active]["momentum"] = 3
 	vampire_two.exhausted = false
+	vampire_two.activated_turn = -1
 	check(g.shared_x_of(g.active, "drex") == 2, "Drex: o X começa em 2")
-	check(vampire_two.has_kw("escudo") and vampire_two.atk == 3 and vampire_two.hp == 4 and vampire_two.armor == 0, "Drex: 3/4 com Escudo e sem Armadura")
+	check(vampire_two.has_kw("escudo") and vampire_two.atk == 2 and vampire_two.hp == 4 and vampire_two.armor == 0, "Drex: 2/4 com Escudo e sem Armadura")
 	g.activate(g.active, vampire_two.uid, fodder.uid)
 	g._flush()
 	g._check_state()
@@ -4499,12 +4521,13 @@ func _test_drex_deck() -> void:
 	check(spread_total == 2, "Drex Ativar: distribui X (2) marcadores entre os inimigos, incluindo o Líder")
 	check(first_target.damage == 0 and second_target.damage == 0 and g.players[enemy]["leader_hp"] == g.players[enemy]["leader_max"], "Drex Ativar: não causa dano na hora")
 	check(g.find_unit(fodder.uid) == null, "Drex Ativar: sacrificar a unidade aliada paga o custo adicional")
-	check(vampire_two.exhausted and g.players[g.active]["momentum"] == 2, "Drex Ativar: custa 1 de Momentum e exaure o Drex")
+	check(vampire_two.activated_turn == g.turn and not vampire_two.exhausted and g.players[g.active]["momentum"] == 2, "Drex Ativar: custa 1 de Momentum e não exaure o Drex")
 	check(g.shared_x_of(g.active, "drex") == 3, "Drex Ativar: o X sobe 1")
+	check(not g.can_activate(g.active, vampire_two.uid), "Drex Ativar: só 1x por turno")
 	check(g.shared_x_of(g.opponent(g.active), "drex") == 2, "Drex: o X é de cada jogador, o do oponente não muda")
 
 	# the cost can also be a discarded card, and the X is shared with Drex copies that show up later
-	vampire_two.exhausted = false
+	vampire_two.activated_turn = -1
 	var discarded_uid := _give(g, g.active, "t_drex_fodder")
 	g.activate(g.active, vampire_two.uid, discarded_uid)
 	g._flush()
@@ -4517,35 +4540,35 @@ func _test_drex_deck() -> void:
 	check(g.shared_x_of(g.active, later_copy.card_id) == 4, "Drex: uma cópia que entra depois já usa o X crescido")
 
 	# invalid payers are rejected and nothing is spent
-	vampire_two.exhausted = false
+	vampire_two.activated_turn = -1
 	var momentum_before_invalid: int = g.players[g.active]["momentum"]
 	var markers_before_invalid := int(first_target.dot_markers.get("sangramento", 0)) + int(second_target.dot_markers.get("sangramento", 0)) + g.leader_dot_markers(enemy, "sangramento")
 	g.activate(g.active, vampire_two.uid, vampire_two.uid)
 	g.activate(g.active, vampire_two.uid, first_target.uid)
 	g._flush()
-	check(g.players[g.active]["momentum"] == momentum_before_invalid and not vampire_two.exhausted, "Drex Ativar: ele mesmo ou uma unidade inimiga não pagam o custo, nada é gasto")
+	check(g.players[g.active]["momentum"] == momentum_before_invalid and vampire_two.activated_turn != g.turn, "Drex Ativar: ele mesmo ou uma unidade inimiga não pagam o custo, nada é gasto")
 	check(int(first_target.dot_markers.get("sangramento", 0)) + int(second_target.dot_markers.get("sangramento", 0)) + g.leader_dot_markers(enemy, "sangramento") == markers_before_invalid, "Drex Ativar: pagador inválido não distribui marcadores")
 
 	# the discard window: begin_activation_discard opens the pick, nothing is spent until a card is chosen
-	vampire_two.exhausted = false
+	vampire_two.activated_turn = -1
 	var window_card_uid := _give(g, g.active, "t_drex_fodder")
 	var window_phase_before: String = g.phase
 	var window_momentum_before: int = g.players[g.active]["momentum"]
 	var window_x_before: int = g.shared_x_of(g.active, "drex")
 	g.begin_activation_discard(g.active, vampire_two.uid)
 	check(g.phase == "search" and g.pending_search.get("discard_hand", false) and int(g.pending_search.get("then_activate", 0)) == vampire_two.uid, "Drex Ativar (janela): descartar abre a escolha da mão marcada para ativar depois")
-	check(g.players[g.active]["momentum"] == window_momentum_before and not vampire_two.exhausted and _hand_has(g, g.active, window_card_uid), "Drex Ativar (janela): nada é gasto antes de escolher a carta")
+	check(g.players[g.active]["momentum"] == window_momentum_before and vampire_two.activated_turn != g.turn and _hand_has(g, g.active, window_card_uid), "Drex Ativar (janela): nada é gasto antes de escolher a carta")
 	g.choose_search(g.active, 0)
 	check(g.phase == window_phase_before and g.pending_search.is_empty(), "Drex Ativar (janela): cancelar volta para onde estava")
-	check(g.players[g.active]["momentum"] == window_momentum_before and not vampire_two.exhausted and _hand_has(g, g.active, window_card_uid) and g.shared_x_of(g.active, "drex") == window_x_before, "Drex Ativar (janela): cancelar não gasta Momentum, carta nem X")
+	check(g.players[g.active]["momentum"] == window_momentum_before and vampire_two.activated_turn != g.turn and _hand_has(g, g.active, window_card_uid) and g.shared_x_of(g.active, "drex") == window_x_before, "Drex Ativar (janela): cancelar não gasta Momentum, carta nem X")
 	g.begin_activation_discard(g.active, vampire_two.uid)
 	g.choose_search(g.active, window_card_uid)
 	g._flush()
 	g._check_state()
 	check(g.phase == window_phase_before and not _hand_has(g, g.active, window_card_uid), "Drex Ativar (janela): escolher a carta a descarta e volta ao jogo")
-	check(vampire_two.exhausted and g.players[g.active]["momentum"] == window_momentum_before - 1 and g.shared_x_of(g.active, "drex") == window_x_before + 1, "Drex Ativar (janela): escolher a carta paga o Momentum, exaure o Drex e ativa")
+	check(vampire_two.activated_turn == g.turn and g.players[g.active]["momentum"] == window_momentum_before - 1 and g.shared_x_of(g.active, "drex") == window_x_before + 1, "Drex Ativar (janela): escolher a carta paga o Momentum, gasta o 1x por turno e ativa")
 	# with an empty hand the discard window does not open
-	vampire_two.exhausted = false
+	vampire_two.activated_turn = -1
 	g.players[g.active]["hand"].clear()
 	check(g.begin_activation_discard(g.active, vampire_two.uid).is_empty() and g.phase != "search", "Drex Ativar (janela): sem cartas na mão a janela de descarte não abre")
 
@@ -4556,7 +4579,7 @@ func _test_drex_deck() -> void:
 	var vampire_three := _put(g, g.active, "drex")
 	var spare_fodder := _put(g, g.active, "t_drex_fodder")
 	g.players[g.active]["momentum"] = 3
-	vampire_three.exhausted = false
+	vampire_three.activated_turn = -1
 	g.activate(g.active, vampire_three.uid, spare_fodder.uid)
 	g._flush()
 	g._check_state()
@@ -4568,7 +4591,7 @@ func _test_drex_deck() -> void:
 	var lonely := _put(g, g.active, "drex")
 	g.players[g.active]["hand"].clear()
 	g.players[g.active]["momentum"] = 3
-	lonely.exhausted = false
+	lonely.activated_turn = -1
 	check(not g.can_activate(g.active, lonely.uid), "Drex Ativar: sem carta na mão nem outra unidade aliada, não dá para ativar")
 
 ## The Venenosa cards that need engine support: Hikari's damage per marker, Tox Vipranna healing from

@@ -13,7 +13,7 @@
       "target": "enemy_unit"
     }
   ],
-  "text": "Os marcadores de Sangramento de uma unidade inimiga causam dano agora.",
+  "text": "Os marcadores de Sangramento de uma unidade inimiga fazem efeito agora.",
   "flavor": "Por que esperar a hemorragia chegar? Ela já está atrasada para o jantar.",
   "tags": []
 }
