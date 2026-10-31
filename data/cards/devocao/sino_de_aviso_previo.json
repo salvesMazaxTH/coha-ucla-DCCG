@@ -13,6 +13,7 @@
       "scope": "ally",
       "zones": ["relics"],
       "immediate": true,
+      "one_copy_per_event": true,
       "durability_cost": 1,
       "action": "buff",
       "target": "event_source",

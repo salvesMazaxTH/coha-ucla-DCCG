@@ -3769,7 +3769,7 @@ func _resolve_leader_dot(p: int, dot_id: String, keep_markers := false) -> void:
 		return
 	var held := keep_markers or veneno_is_held(dot_id, LEADER_UID[p])
 	var consumed := 0 if held else markers
-	var damage := markers * VENENO_DAMAGE_PER_MARKER if DOT_RULES.get(dot_id, "flat") == "poison" else markers
+	var damage := leader_dot_damage(dot_id, markers)
 	_emit({"type": "dot", "uid": LEADER_UID[p], "dot": dot_id, "amount": markers, "damage": damage, "total": markers - consumed, "cleared": true, "held": held})
 	_deal_dot_damage(LEADER_UID[p], damage, dot_id)
 	if held:
@@ -3905,6 +3905,36 @@ func dot_damage(dot_id: String, unit: Card, markers: int) -> int:
 		# Neráxia's window: the tick takes all the Vida the unit has left (never less than the normal tick)
 		return maxi(normal_damage, unit.hp_left())
 	return normal_damage
+
+## Same calculation for a Leader's markers (a Leader is not a Card, so dot_damage cannot take it).
+func leader_dot_damage(dot_id: String, markers: int) -> int:
+	if markers <= 0:
+		return 0
+	return markers * VENENO_DAMAGE_PER_MARKER if DOT_RULES.get(dot_id, "flat") == "poison" else markers
+
+## All the damage the markers a unit holds right now will deal at its controller's next turn start,
+## every kind of marker added up (Veneno and Sangramento 2 per marker, Queimadura 1).
+func pending_dot_damage(unit: Card) -> int:
+	var total := 0
+	for dot_id in unit.dot_markers:
+		total += dot_damage(String(dot_id), unit, int(unit.dot_markers[dot_id]))
+	return total
+
+## The same for the Leader of player `p`.
+func pending_leader_dot_damage(p: int) -> int:
+	var total := 0
+	for dot_id in players[p]["leader_dots"]:
+		total += leader_dot_damage(String(dot_id), leader_dot_markers(p, String(dot_id)))
+	return total
+
+## True when the markers a unit already holds are enough to kill it at its next tick: more markers on it
+## would change nothing. A marker ignores Armadura and the shields, but an Indestrutível unit survives it.
+func dots_already_kill_unit(unit: Card) -> bool:
+	return not has_kw(unit, "indestrutivel") and pending_dot_damage(unit) >= hp_left(unit)
+
+## The same for the Leader of player `p`.
+func dots_already_kill_leader(p: int) -> bool:
+	return pending_leader_dot_damage(p) >= int(players[p]["leader_hp"])
 
 ## Test helpers: apply one raw effect dictionary / run raw effect dictionaries as a trigger would.
 func _apply_effect(player: int, effect_data: Dictionary, target_uid: int, source_card_id := "") -> void:

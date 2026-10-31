@@ -13,6 +13,15 @@ const FACE_POINT_VALUE_LATE := 3 ## same, with the enemy Leader low (NEAR_END_HP
 const NEAR_END_HP := 12
 const LATE_GAME_TURN := 16
 
+## The Encarnação competes with the hand (see _untaxed_incarnation_should_come_first and _incarnation_rank_against_hand).
+const INCARNATION_WALL_MIN_UNITS := 4 ## an enemy board this wide may be too dangerous to cast into
+const INCARNATION_WALL_STAT_LIMIT := 20 ## ...when its units' Ataque + Vida (current) add up to this much: ~5 per unit, i.e. real
+## units. Four 0/2 fichas add up to 8 and never stop the cast; four 2/3 units add up to 20 and do.
+const INCARNATION_RELIEF_MAX_CHAIN := 3 ## when the table is dangerous, hand plays of up to this many cards are tried (on a copy) to see if they fix it
+const INCARNATION_MAX_EXTRA_WASTED_MOMENTUM := 2 ## casting may leave at most this much more Momentum unspent than keeping it for the hand would
+const INCARNATION_HEAVY_TAX := 3 ## from the third cast on (tax 3+) a hand card of the same cost is usually stronger than the Encarnação
+const INCARNATION_RANK_FIRST := 99 ## rank of an Encarnação cast before every card of the hand
+
 ## Performs one action for player p. Returns its events, or [] when the AI
 ## has nothing more to do (the caller should then stop asking).
 ## `held_card_ids`: cards the AI must not play on its own (a scripted pilot, see ComboPilot, plays them).
@@ -95,75 +104,37 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 		var finisher_events := _cast_face_burn(g, p, held_card_ids)
 		if not finisher_events.is_empty():
 			return finisher_events
+	# the untaxed Encarnação goes before the hand: the earlier the champion is out, the more it snowballs
+	if _untaxed_incarnation_should_come_first(g, p):
+		var first_incarnation_events := g.cast_incarnation(p)
+		if not first_incarnation_events.is_empty():
+			return first_incarnation_events
+	# the Encarnação sits in the hand's ordering at the place its cost earns (see _incarnation_rank_against_hand)
+	var incarnation_rank := _incarnation_rank_against_hand(g, p)
+	var incarnation_was_tried := false
 	# hand first; Réquiem spells in the graveyard are the fallback (they cost 2 more)
 	var candidates: Array = _hand_most_expensive_first(g, p) + g.requiem_cards(p)
 	for card: Card in candidates:
-		if held_card_ids.has(card.card_id) or not g.can_play(p, card.uid):
+		if not incarnation_was_tried and incarnation_rank >= _base_cost(card):
+			incarnation_was_tried = true
+			var ranked_incarnation_events := g.cast_incarnation(p)
+			if not ranked_incarnation_events.is_empty():
+				return ranked_incarnation_events
+		if held_card_ids.has(card.card_id):
 			continue
-		var card_data := CardDB.card(card.card_id)
-		if g.takes_field_slot(card_data, g.is_subito_play(p, card_data)) and not g.has_free_slot(p):
-			continue # the AI never banishes its own permanents to make room
-		var is_unit: bool = card_data["type"] == "unit"
-		if not is_unit and (g.is_dud(p, card_data) or not _spell_is_worth_it(g, p, card_data)):
-			continue
-		var spec := g.card_spec(card_data)
-		var target := _pick_sacrifice(g, p) if card_data.get("cost_sacrifice", false) else _pick_target(g, p, spec, card_data, 0, not is_unit)
-		var spec2 := g.second_spec(card_data)
-		var second_target := 0
-		if _has_sacrifice_effect(card_data):
-			# Mordida / Colheita / Tributo: what is given up and where the damage goes is one decision
-			var plan := _plan_sacrifice_spell(g, p, card_data)
-			if plan.is_empty():
-				continue
-			target = plan[0]
-			second_target = plan[1] if spec2 != "" else 0
-		elif _has_fight(card_data):
-			# a fight needs a matching pair, not the "biggest" unit of each side
-			var pair := _pick_fight(g, p)
-			if pair.is_empty():
-				continue
-			target = pair[0]
-			second_target = pair[1]
-		elif not is_unit and spec == "ally_unit" and not _temporary_buff_effect(card_data).is_empty():
-			# a this-turn buff goes to the strongest ally that will actually attack with it
-			var best_attack := -1
-			for unit: Card in _temporary_buff_beneficiaries(g, p, _temporary_buff_effect(card_data)):
-				if not _buff_target_is_worth_it(g, unit, _temporary_buff_effect(card_data)):
-					continue
-				if unit.atk_total() > best_attack:
-					best_attack = unit.atk_total()
-					target = unit.uid
-		elif spec != "" and target == 0 and not is_unit:
-			continue
-		elif card_data.has("extra_cost"):
-			# Oferenda ao Vazio / Esporos / Tremor: the unit that pays the extra cost is the second pick
-			second_target = _pick_extra_cost_payer(g, p, card_data, target)
-			if second_target == 0:
-				continue
-		elif spec2 != "":
-			var foe_leader: int = GameState.LEADER_UID[g.opponent(p)]
-			second_target = foe_leader if g.valid_targets(p, spec2).has(foe_leader) else _pick_target(g, p, spec2, card_data, 0, true)
-			if second_target == 0:
-				continue
-		if CardDB.is_equipment(card_data):
-			var equipment_target := g.find_unit(target)
-			if equipment_target == null or not equipment_target.has_equipment_room():
-				continue # never bounce existing gear back to hand just to play another one
-		if card_data["type"] == "spell" and not _spell_changes_the_game(g, p, card.uid, target, second_target):
-			continue # it would resolve and change nothing: keep the Momentum (and the card)
-		var events := g.play_card(p, card.uid, target, second_target)
-		if not events.is_empty():
-			return events
-	# The Encarnação is a powerful fallback, not an automatic first play: spend Momentum on
-	# worthwhile cards from hand first, then cast it if no other legal play is available.
-	if g.can_cast_incarnation(p) and g.has_free_slot(p): # never banishes its own permanent to make room
+		var card_events := _try_play_card(g, p, card)
+		if not card_events.is_empty():
+			return card_events
+	# Last resort: the Encarnação was ranked below everything the hand could play (or the hand had nothing
+	# worth playing), so it still gets cast rather than leaving the Momentum unspent.
+	if not incarnation_was_tried and g.can_cast_incarnation(p) and g.has_free_slot(p): # never banishes its own permanent to make room
 		var incarnation_events := g.cast_incarnation(p)
 		if not incarnation_events.is_empty():
 			return incarnation_events
 	for unit: Card in g.players[p]["board"]:
 		# untargeted Ao Ativar, before attacking (e.g. Yuki's temporary attack)
 		var activated_effects: Array = unit.data().get("activated", {}).get("effects", [])
-		if g.can_activate(p, unit.uid) and g.target_spec(activated_effects) == "" and g.can_attack(unit) and _revive_is_worth_it(g, p, activated_effects) and _filtered_banish_is_worth_it(g, p, unit, activated_effects):
+		if g.can_activate(p, unit.uid) and g.target_spec(activated_effects) == "" and g.can_attack(unit) and _revive_is_worth_it(g, p, activated_effects) and _filtered_banish_is_worth_it(g, p, unit, activated_effects) and not _dot_only_effects_are_wasted(g, p, activated_effects):
 			if unit.data().get("activated", {}).has("extra_cost"):
 				# Ao Ativar with a discard-or-sacrifice cost (Drex): only worth it with a cheap payer (the enemy Leader is always a target)
 				var payer_uid := _pick_activation_payer(g, p, unit)
@@ -198,7 +169,8 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 	for unit: Card in g.players[p]["board"]:
 		if g.can_transform(p, unit.uid):
 			return g.transform(p, unit.uid)
-	if g.can_use_ability(p) and not _ability_borrows_momentum(CardDB.leader(g.players[p]["leader_id"])["ability"]["effects"]):
+	if g.can_use_ability(p) and not _ability_borrows_momentum(CardDB.leader(g.players[p]["leader_id"])["ability"]["effects"]) \
+			and not _dot_only_effects_are_wasted(g, p, CardDB.leader(g.players[p]["leader_id"])["ability"]["effects"]):
 		var ability: Dictionary = CardDB.leader(g.players[p]["leader_id"])["ability"]
 		var ability_spec := g.target_spec(ability["effects"])
 		var target := _pick_target(g, p, ability_spec, ability, 0, true)
@@ -209,6 +181,65 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 		if ability_spec == "" or target != 0:
 			return g.use_ability(p, target)
 	return []
+
+## Plays one card of the hand (or a Réquiem spell of the graveyard) the way the AI would: picks its targets,
+## skips it when it would change nothing, and returns the events, or [] when the card is not played.
+## Used both for the real game and for plans made on a copy of it.
+static func _try_play_card(g: GameState, p: int, card: Card) -> Array:
+	if not g.can_play(p, card.uid):
+		return []
+	var card_data := CardDB.card(card.card_id)
+	if g.takes_field_slot(card_data, g.is_subito_play(p, card_data)) and not g.has_free_slot(p):
+		return [] # the AI never banishes its own permanents to make room
+	var is_unit: bool = card_data["type"] == "unit"
+	if not is_unit and (g.is_dud(p, card_data) or not _spell_is_worth_it(g, p, card_data)):
+		return []
+	var spec := g.card_spec(card_data)
+	var target := _pick_sacrifice(g, p) if card_data.get("cost_sacrifice", false) else _pick_target(g, p, spec, card_data, 0, not is_unit)
+	var spec2 := g.second_spec(card_data)
+	var second_target := 0
+	if _has_sacrifice_effect(card_data):
+		# Mordida / Colheita / Tributo: what is given up and where the damage goes is one decision
+		var plan := _plan_sacrifice_spell(g, p, card_data)
+		if plan.is_empty():
+			return []
+		target = plan[0]
+		second_target = plan[1] if spec2 != "" else 0
+	elif _has_fight(card_data):
+		# a fight needs a matching pair, not the "biggest" unit of each side
+		var pair := _pick_fight(g, p)
+		if pair.is_empty():
+			return []
+		target = pair[0]
+		second_target = pair[1]
+	elif not is_unit and spec == "ally_unit" and not _temporary_buff_effect(card_data).is_empty():
+		# a this-turn buff goes to the strongest ally that will actually attack with it
+		var best_attack := -1
+		for unit: Card in _temporary_buff_beneficiaries(g, p, _temporary_buff_effect(card_data)):
+			if not _buff_target_is_worth_it(g, unit, _temporary_buff_effect(card_data)):
+				continue
+			if unit.atk_total() > best_attack:
+				best_attack = unit.atk_total()
+				target = unit.uid
+	elif spec != "" and target == 0 and not is_unit:
+		return []
+	elif card_data.has("extra_cost"):
+		# Oferenda ao Vazio / Esporos / Tremor: the unit that pays the extra cost is the second pick
+		second_target = _pick_extra_cost_payer(g, p, card_data, target)
+		if second_target == 0:
+			return []
+	elif spec2 != "":
+		var foe_leader: int = GameState.LEADER_UID[g.opponent(p)]
+		second_target = foe_leader if g.valid_targets(p, spec2).has(foe_leader) else _pick_target(g, p, spec2, card_data, 0, true)
+		if second_target == 0:
+			return []
+	if CardDB.is_equipment(card_data):
+		var equipment_target := g.find_unit(target)
+		if equipment_target == null or not equipment_target.has_equipment_room():
+			return [] # never bounce existing gear back to hand just to play another one
+	if card_data["type"] == "spell" and not _spell_changes_the_game(g, p, card.uid, target, second_target):
+		return [] # it would resolve and change nothing: keep the Momentum (and the card)
+	return g.play_card(p, card.uid, target, second_target)
 
 ## True when an ability lends Momentum now and takes it back next turn (Eryon's Leader). The AI uses
 ## this ability only after all its plays, when the loan can no longer buy anything, so it just skips it.
@@ -339,6 +370,8 @@ static func _spell_is_worth_it(g: GameState, p: int, card_data: Dictionary) -> b
 		return false # the burn is the finisher: it waits for the face
 	if not _revive_is_worth_it(g, p, effects):
 		return false
+	if _dot_only_effects_are_wasted(g, p, effects):
+		return false # every possible target already dies of its markers (or is immune): more would change nothing
 	var temporary_buff := _temporary_buff_effect(card_data)
 	if not temporary_buff.is_empty() and _temporary_buff_beneficiaries(g, p, temporary_buff).is_empty():
 		return false
@@ -401,6 +434,137 @@ static func _heal_is_worth_it(g: GameState, p: int, effect: Dictionary) -> bool:
 	var leader_in_danger: bool = g.players[p]["leader_hp"] <= 8 and leader_missing >= 2 and target != "all_ally_units"
 	return most_missing >= maxi(1, amount - 1) or leader_in_danger
 
+## True when the AI should cast its Encarnação right now, before spending Momentum on the hand.
+## Only the first cast (no commander tax yet): it is nearly always the right play, since the champion
+## snowballs the earlier it is out. It waits when the cast is not possible (Momentum, slot, timing) or when
+## the table is too dangerous (see _leader_in_reach_of_enemy_board and _enemy_wall_stands). The dangerous
+## table is then handled by _incarnation_rank_against_hand.
+static func _untaxed_incarnation_should_come_first(g: GameState, p: int) -> bool:
+	if not _incarnation_can_be_cast_now(g, p):
+		return false
+	if GameState.commander_tax(int(g.players[p]["incarnation"]["casts"])) != 0:
+		return false # already cast before: it competes with the hand (see _incarnation_rank_against_hand)
+	return not _leader_in_reach_of_enemy_board(g, p) and not _enemy_wall_stands(g, p)
+
+## The Encarnação is castable now, on our own turn with an empty stack and a free slot (the AI never
+## banishes its own permanent to make room).
+static func _incarnation_can_be_cast_now(g: GameState, p: int) -> bool:
+	return g.active == p and g.stack.is_empty() and g.can_cast_incarnation(p) and g.has_free_slot(p)
+
+## Our Leader may die to one swing of the enemy board: the Momentum is better spent on defense.
+static func _leader_in_reach_of_enemy_board(g: GameState, p: int) -> bool:
+	return _board_strike_total(g, g.opponent(p)) >= int(g.players[p]["leader_hp"])
+
+## The enemy has a wall: INCARNATION_WALL_MIN_UNITS+ units whose Ataque + Vida add up to
+## INCARNATION_WALL_STAT_LIMIT or more. A table of 0/2 tokens is no wall; four 3/4 units are.
+static func _enemy_wall_stands(g: GameState, p: int) -> bool:
+	var foe_units: Array = g.players[g.opponent(p)]["board"]
+	if foe_units.size() < INCARNATION_WALL_MIN_UNITS:
+		return false
+	var foe_stat_total := 0
+	for unit: Card in foe_units:
+		foe_stat_total += unit.atk_total() + g.hp_left(unit)
+	return foe_stat_total >= INCARNATION_WALL_STAT_LIMIT
+
+## The most Momentum the plays of the hand can spend, paying at most `budget` (a subset of the playable
+## cards, by their real cost). Reserve is ignored: it only pays spells and abilities.
+static func _most_momentum_the_hand_can_spend(g: GameState, p: int, budget: int) -> int:
+	var reachable := {0: true} # every total some subset of the hand costs, within the budget
+	for card: Card in g.players[p]["hand"]:
+		if not g.can_play(p, card.uid):
+			continue
+		var cost := g.cost_of(p, CardDB.card(card.card_id), card)
+		if cost <= 0 or cost > budget:
+			continue
+		for total: int in reachable.keys():
+			if total + cost <= budget:
+				reachable[total + cost] = true
+	var best := 0
+	for total: int in reachable:
+		best = maxi(best, total)
+	return best
+
+## Where the Encarnação stands in the order the AI tries its plays: it is cast before the first card of the
+## hand whose printed cost is <= the rank. -1 = after the whole hand (only as a fallback), INCARNATION_RANK_FIRST
+## = before everything. The rules, from the point of view of "the Encarnação is one more card of the hand":
+##   - our Leader in reach of the enemy board: -1, the hand decides (defense first);
+##   - an enemy wall stands: if some card of the hand, or a chain of up to INCARNATION_RELIEF_MAX_CHAIN cards
+##     (tried on a copy), shrinks the wall below its limit or brings a Provocação to guard, the hand does it
+##     (-1); if nothing does, the Encarnação comes first, unless casting it wastes more than
+##     INCARNATION_MAX_EXTRA_WASTED_MOMENTUM Momentum compared with keeping the Momentum for the hand;
+##   - no danger, first or second cast (tax 0 or 1): it ranks at its own cost, tying with hand cards of the same cost;
+##   - no danger, third cast or more (tax 3+): a card of the same cost is usually stronger than the taxed
+##     Encarnação, so the hand goes first when its plays can spend that much Momentum (several cards that add
+##     up to the cost count); if the hand can't, the Encarnação comes first.
+static func _incarnation_rank_against_hand(g: GameState, p: int) -> int:
+	if not _incarnation_can_be_cast_now(g, p) or _leader_in_reach_of_enemy_board(g, p):
+		return -1
+	var cost := g.incarnation_cost(p)
+	var momentum := int(g.players[p]["momentum"])
+	if _enemy_wall_stands(g, p):
+		if _hand_can_relieve_the_wall(g, p):
+			return -1
+		var momentum_left_unspent_if_hand_goes_first := momentum - _most_momentum_the_hand_can_spend(g, p, momentum)
+		var momentum_left_unspent_if_cast_first := (momentum - cost) - _most_momentum_the_hand_can_spend(g, p, momentum - cost)
+		if momentum_left_unspent_if_cast_first - momentum_left_unspent_if_hand_goes_first > INCARNATION_MAX_EXTRA_WASTED_MOMENTUM:
+			return -1
+		return INCARNATION_RANK_FIRST
+	if GameState.commander_tax(int(g.players[p]["incarnation"]["casts"])) < INCARNATION_HEAVY_TAX:
+		return cost
+	return -1 if _most_momentum_the_hand_can_spend(g, p, momentum) >= cost else INCARNATION_RANK_FIRST
+
+## True when the hand can answer the enemy wall by itself: one card, or a chain of up to
+## INCARNATION_RELIEF_MAX_CHAIN cards played one after the other (every order is tried, on copies of the game),
+## ends with the wall below its limit or with one of our Provocação units standing exhausted to guard.
+## When the game can't be copied, it answers true: the hand keeps the benefit of the doubt.
+static func _hand_can_relieve_the_wall(g: GameState, p: int) -> bool:
+	var playable_cards: Array = []
+	for card: Card in _hand_most_expensive_first(g, p):
+		if g.can_play(p, card.uid):
+			playable_cards.append(card.uid)
+	return _a_chain_relieves_the_wall(g, p, playable_cards, 0, INCARNATION_RELIEF_MAX_CHAIN)
+
+## One step of the search of _hand_can_relieve_the_wall: from the state `g` (a copy made by the caller, or
+## the real game at the start), plays each of the cards `card_uids[first_index..]` on a fresh copy and looks.
+## Cards are tried in a fixed order (each at most once per chain), so a chain is tested in one order only.
+static func _a_chain_relieves_the_wall(g: GameState, p: int, card_uids: Array, first_index: int, plays_left: int) -> bool:
+	for index in range(first_index, card_uids.size()):
+		var preview := g.preview_copy()
+		if preview == null:
+			return true
+		var preview_card := _card_in_hand(preview, p, int(card_uids[index]))
+		if preview_card == null or _try_play_card(preview, p, preview_card).is_empty():
+			continue # not playable here (or not worth playing): this card is no step of a chain
+		_resolve_preview_stack(preview)
+		_answer_preview_prompts(preview, p)
+		if not _enemy_wall_stands(preview, p) or _a_guard_stands(preview, p):
+			return true
+		if plays_left > 1 and _a_chain_relieves_the_wall(preview, p, card_uids, index + 1, plays_left - 1):
+			return true
+	return false
+
+static func _card_in_hand(g: GameState, p: int, uid: int) -> Card:
+	for card: Card in g.players[p]["hand"]:
+		if card.uid == uid:
+			return card
+	return null
+
+## Settles the questions a play leaves open on a copy (enter tapped, searches, targets on entry) the way the
+## AI itself would answer them, so the copy is back in the main phase.
+static func _answer_preview_prompts(preview: GameState, p: int) -> void:
+	for answer_number in PREVIEW_PASS_LIMIT:
+		if preview.phase not in ["enter_tapped", "search", "enter_target", "discard"]:
+			return
+		if step(preview, preview.decider()).is_empty():
+			return
+
+## One of our Provocação units is exhausted and able to force the enemy attackers to challenge it.
+static func _a_guard_stands(g: GameState, p: int) -> bool:
+	for unit: Card in g.players[p]["board"]:
+		if unit.exhausted and g.has_kw(unit, "provocacao") and not unit.is_frozen() and not unit.is_stunned():
+			return true
+	return false
+
 ## Pressure = our Leader is low, or the enemy board outnumbers ours by 2+.
 static func _under_pressure(g: GameState, p: int) -> bool:
 	return g.players[p]["leader_hp"] <= 10 or g.players[g.opponent(p)]["board"].size() >= g.players[p]["board"].size() + 2
@@ -426,6 +590,62 @@ static func _sweeper_is_worth_it(g: GameState, p: int, effect: Dictionary) -> bo
 	if net_value <= 0:
 		return false
 	return killed_enemies >= 2 or (killed_enemies >= 1 and _under_pressure(g, p))
+
+## Effects that only come along with a marker effect and are worth nothing alone (Drex: X grows by 1).
+const DOT_COMPANION_ACTIONS := ["grow_shared_x"]
+
+## Putting markers on this target changes nothing: the markers it holds already kill it at its next tick
+## (GameState reads 2 per Veneno/Sangramento, 1 per Queimadura), or it is immune to every marker
+## the effects bring. `dot_effects` are the add_dot effects aimed at it.
+static func _dot_is_pointless_on(g: GameState, target_uid: int, dot_effects: Array) -> bool:
+	if target_uid < 0: # a Leader: never immune to a marker
+		return g.dots_already_kill_leader(GameState.LEADER_UID.find(target_uid))
+	var unit := g.find_unit(target_uid)
+	if unit == null or g.dots_already_kill_unit(unit):
+		return true
+	for effect in dot_effects:
+		if bool(effect.get("ignores_immunity", false)) or not g.unit_is_immune_to_dot(unit, String(effect.get("dot", "queimadura"))):
+			return false
+	return true
+
+## True when the enemies that an area or random marker effect (Viprax, Drex) can reach still gain something.
+## Aimed effects are judged by _pick_target, so any spec this does not know counts as useful.
+static func _dot_effect_has_useful_target(g: GameState, p: int, effect: Dictionary) -> bool:
+	var spec := String(effect.get("target", ""))
+	if not spec in ["all_enemy_units", "random_enemy_spread", "random_enemy_unit_spread", "random_enemy_unit", "enemy_unit", "enemy_leader"]:
+		return true
+	var foe := g.opponent(p)
+	if spec in ["random_enemy_spread", "enemy_leader"] and not _dot_is_pointless_on(g, GameState.LEADER_UID[foe], [effect]):
+		return true
+	if spec == "enemy_leader":
+		return false
+	for unit: Card in g.players[foe]["board"]:
+		if g.hp_left(unit) > 0 and not _dot_is_pointless_on(g, unit.uid, [effect]):
+			return true
+	return false
+
+## The add_dot effects of a list that does nothing else but put markers (companions like Drex's X growth
+## allowed), or [] when it has none or also does something else that makes it worth using.
+static func _marker_only_effects(effects: Array) -> Array:
+	var dot_effects: Array = []
+	for effect in effects:
+		var action: String = effect.get("action", "")
+		if action == "add_dot":
+			dot_effects.append(effect)
+		elif not action in DOT_COMPANION_ACTIONS:
+			return []
+	return dot_effects
+
+## An effect list whose whole point is putting markers (a companion like Drex's X growth does not count), and
+## where no marker would still land on anything. Spending Momentum or a cost on it would be a pure waste.
+static func _dot_only_effects_are_wasted(g: GameState, p: int, effects: Array) -> bool:
+	var dot_effects := _marker_only_effects(effects)
+	if dot_effects.is_empty():
+		return false
+	for effect in dot_effects:
+		if _dot_effect_has_useful_target(g, p, effect):
+			return false
+	return true
 
 ## Area banish narrowed by unit states (Fulgurvoltz, exhausted or weaker enemies): worth it when it takes at least
 ## two enemy units, or one while under pressure (it never hits our own side, and Escudo units pass through it).
@@ -626,10 +846,13 @@ static func _pick_target(g: GameState, p: int, spec: String, source, self_uid :=
 		for effect in effects:
 			if effect.get("action") == "buff":
 				friendly = true
+	var marker_effects := _marker_only_effects(effects) # non-empty when the pick only receives markers
 	var best_uid := 0
 	var best_score := -999
 	for uid in options:
 		var score := 0
+		if not marker_effects.is_empty() and _dot_is_pointless_on(g, int(uid), marker_effects):
+			continue # its markers already kill it (or it is immune): a new marker would be wasted
 		if uid < 0: # a Leader
 			if friendly or uid != GameState.LEADER_UID[g.opponent(p)]:
 				continue

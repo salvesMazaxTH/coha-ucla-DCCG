@@ -34,6 +34,9 @@ var min_amount := 0 ## listen only: the event's amount (healing, damage...) must
 ## listen only: "immediate": the effect resolves the instant the event happens instead of waiting in the trigger queue,
 ## so it lands BEFORE whatever caused the event finishes (the Sino de Aviso Prévio's shield must be up before the enemy effect hits).
 var immediate := false
+## listen only: "one_copy_per_event": when several copies of this card hear the same event, only the first one offered
+## (the oldest, as they sit in their zone) reacts and pays; the others stay quiet (two Sinos: one rings, one wears).
+var one_copy_per_event := false
 ## listen only: "durability_cost": N is how much Durability the card loses each time this effect fires (0 = none).
 var durability_cost := 0
 ## listen only: "durability_every_uses": N makes the cost above be paid once every N firings (the effect itself
@@ -70,6 +73,7 @@ func setup(data: Dictionary) -> void:
 		when = data.get("when", {})
 		min_amount = int(data.get("min_amount", 0))
 		immediate = bool(data.get("immediate", false))
+		one_copy_per_event = bool(data.get("one_copy_per_event", false))
 		durability_cost = int(data.get("durability_cost", 0))
 		durability_every_uses = max(1, int(data.get("durability_every_uses", 1)))
 		durability_after_attack = bool(data.get("durability_after_attack", false))

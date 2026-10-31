@@ -21,6 +21,7 @@ const EQUIPPED := "equipped"
 
 var game: GameState
 var _last_conditional_event := {} ## card uid -> the last event that spent one of its conditional uses
+var _last_event_answered_by_card_id := {} ## card id -> the last event a copy answered (effects with "one_copy_per_event")
 
 func _init(game_state: GameState) -> void:
 	game = game_state
@@ -150,6 +151,10 @@ func _offer(card: Card, effect: Effect, event: GameEvent) -> void:
 	# intervening-if: checked now, and again by _run_effects right before the effect applies
 	if effect.condition != null and not effect.condition.check(context):
 		return
+	if effect.one_copy_per_event:
+		if _last_event_answered_by_card_id.get(card.card_id) == event:
+			return # an older copy of this card already reacted to this very event
+		_last_event_answered_by_card_id[card.card_id] = event
 	if effect.once_per_turn:
 		var index := CardDB.def(card.card_id).effects().find(effect)
 		if card.used_turn.get(index, -1) == game.turn:

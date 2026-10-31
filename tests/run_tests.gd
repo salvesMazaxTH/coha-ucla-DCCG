@@ -112,6 +112,8 @@ func _init() -> void:
 	_test_ai_enter_damage()
 	_test_ai_armor_ability()
 	_test_ai_incarnation_priority()
+	_test_ai_untaxed_incarnation_first()
+	_test_ai_incarnation_as_part_of_the_hand()
 	_test_incarnation_retire()
 	_test_fatigue()
 	_test_play_cost_snapshot()
@@ -132,6 +134,7 @@ func _init() -> void:
 	_test_overkill()
 	_test_dud()
 	_test_ai_no_waste()
+	_test_ai_dot_awareness()
 	_test_ai_attack_clauses()
 	_test_ai_burn_plan()
 	_test_requiem()
@@ -888,6 +891,26 @@ func _test_devocao_support() -> void:
 	g_bell._run_effect_dicts(1, CardDB.card("t_bell_hit")["effects"], "on_enter", third_guarded.uid, 0, SPELL_SOURCE)
 	g_bell._check_state()
 	check(third_guarded.damage == 1, "Sino: quebrado, não protege mais")
+	var g_twin := _new_game()
+	_quiet(g_twin)
+	g_twin.active = 1
+	var twin_bell_a := Card.new(g_twin._uid(), "sino_de_aviso_previo", 0, "relics")
+	var twin_bell_b := Card.new(g_twin._uid(), "sino_de_aviso_previo", 0, "relics")
+	g_twin.players[0]["relics"].append(twin_bell_a)
+	g_twin.players[0]["relics"].append(twin_bell_b)
+	var twin_target := _put(g_twin, 0, "t_bell_body")
+	g_twin._run_effect_dicts(1, CardDB.card("t_bell_hit")["effects"], "on_enter", twin_target.uid, 0, SPELL_SOURCE)
+	g_twin._check_state()
+	check(twin_target.damage == 0, "Sino: dois Sinos em campo ainda protegem a unidade mirada")
+	check(twin_bell_a.durability_left() == 1 and twin_bell_b.durability_left() == 2, "Sino: com dois em campo, só o mais antigo toca e gasta Durabilidade")
+	var twin_second := _put(g_twin, 0, "t_bell_body")
+	g_twin._run_effect_dicts(1, CardDB.card("t_bell_hit")["effects"], "on_enter", twin_second.uid, 0, SPELL_SOURCE)
+	g_twin._check_state()
+	check(twin_second.damage == 0 and g_twin.find_relic(twin_bell_a.uid) == null and twin_bell_b.durability_left() == 2, "Sino: o mais antigo quebra primeiro e o mais novo segue intacto")
+	var twin_third := _put(g_twin, 0, "t_bell_body")
+	g_twin._run_effect_dicts(1, CardDB.card("t_bell_hit")["effects"], "on_enter", twin_third.uid, 0, SPELL_SOURCE)
+	g_twin._check_state()
+	check(twin_third.damage == 0 and twin_bell_b.durability_left() == 1, "Sino: o mais novo assume a proteção depois que o antigo quebra")
 	var g_own := _new_game()
 	_quiet(g_own)
 	g_own.active = 0
@@ -2915,13 +2938,14 @@ func _test_ai_armor_ability() -> void:
 	check(threatened.players[0]["ability_used"] == true, "IA/Tharox: usa a Massa Inamolgável quando ela salva uma unidade")
 	check(threatened.armor_of(threatened.find_unit(saved_ally.uid)) == 1 and threatened.armor_of(threatened.find_unit(safe_ally.uid)) == 0, "IA/Tharox: a Armadura vai para a unidade ameaçada")
 
-## The Encarnação is a fallback after worthwhile hand plays, not an automatic first action.
+## A taxed Encarnação (already cast once) is a fallback after worthwhile hand plays, not an automatic first action.
 func _test_ai_incarnation_priority() -> void:
 	_tcard("t_ai_incarnation_alternative", 2, 2, [])
 	var hand_play := GameState.new("vegetal", "agua", 42)
 	hand_play.mulligan(0, [])
 	hand_play.mulligan(1, [])
 	hand_play.players[0]["hand"].clear()
+	hand_play.players[0]["incarnation"]["casts"] = 1 # taxed
 	hand_play.players[0]["momentum"] = 6
 	var alternative_uid := _give(hand_play, 0, "t_ai_incarnation_alternative")
 	SimpleAI.step(hand_play, 0)
@@ -2937,6 +2961,136 @@ func _test_ai_incarnation_priority() -> void:
 	SimpleAI.step(fallback, 0)
 	check(not fallback.players[0]["incarnation"]["in_zone"] and fallback.players[0]["momentum"] == 0,
 		"IA/Encarnação: conjura como fallback quando não há jogadas viáveis na mão")
+
+## The untaxed Encarnação is cast before the hand, unless the AI's Leader could die to one swing of the enemy
+## board, or the enemy has 4+ units whose Ataque + Vida add up to INCARNATION_WALL_STAT_LIMIT or more.
+func _test_ai_untaxed_incarnation_first() -> void:
+	_tcard("t_ai_first_hand_card", 2, 2, [])
+	_tcard("t_ai_first_token", 0, 2, [])
+	_tcard("t_ai_first_soldier", 2, 3, [])
+	_tcard("t_ai_first_striker", 3, 3, [])
+	# a fresh game where player 0 holds one cheap hand card, plus whatever the scenario adds
+	var new_scenario := func(momentum: int) -> GameState:
+		var scenario := GameState.new("vegetal", "agua", 42)
+		scenario.mulligan(0, [])
+		scenario.mulligan(1, [])
+		scenario.players[0]["hand"].clear()
+		scenario.players[0]["momentum"] = momentum
+		_give(scenario, 0, "t_ai_first_hand_card")
+		return scenario
+
+	var early: GameState = new_scenario.call(6)
+	SimpleAI.step(early, 0)
+	check(not early.players[0]["incarnation"]["in_zone"], "IA/Encarnação sem taxa: conjura antes de gastar o Momentum na mão")
+
+	var taxed: GameState = new_scenario.call(6)
+	taxed.players[0]["incarnation"]["casts"] = 1
+	SimpleAI.step(taxed, 0)
+	check(taxed.players[0]["incarnation"]["in_zone"], "IA/Encarnação com taxa: continua sendo só o fallback depois da mão")
+
+	var short_of_momentum: GameState = new_scenario.call(5)
+	SimpleAI.step(short_of_momentum, 0)
+	check(short_of_momentum.players[0]["incarnation"]["in_zone"], "IA/Encarnação sem taxa: sem Momentum suficiente, joga a mão normalmente")
+
+	var full_board: GameState = new_scenario.call(6)
+	for i in GameState.BOARD_LIMIT:
+		_put(full_board, 0, "t_ai_first_soldier")
+	SimpleAI.step(full_board, 0)
+	check(full_board.players[0]["incarnation"]["in_zone"], "IA/Encarnação sem taxa: campo cheio, nunca bane uma permanente própria")
+
+	var leader_at_risk: GameState = new_scenario.call(6)
+	leader_at_risk.players[0]["leader_hp"] = 3
+	_put(leader_at_risk, 1, "t_ai_first_striker")
+	SimpleAI.step(leader_at_risk, 0)
+	check(leader_at_risk.players[0]["incarnation"]["in_zone"], "IA/Encarnação sem taxa: Líder que morre no próximo golpe, não gasta o Momentum nela")
+
+	var token_table: GameState = new_scenario.call(6)
+	for i in 4:
+		_put(token_table, 1, "t_ai_first_token")
+	SimpleAI.step(token_table, 0)
+	check(not token_table.players[0]["incarnation"]["in_zone"], "IA/Encarnação sem taxa: mesa de 4 fichas 0/2 (soma 8) não impede a conjuração")
+
+	var wall_table: GameState = new_scenario.call(6)
+	for i in 4:
+		_put(wall_table, 1, "t_ai_first_soldier") # 2/3 each: 4 units adding up to 20
+	SimpleAI.step(wall_table, 0)
+	check(not wall_table.players[0]["incarnation"]["in_zone"], "IA/Encarnação sem taxa: muralha de 20, mas nada na mão resolve, então conjura mesmo assim")
+
+	var narrow_table: GameState = new_scenario.call(6)
+	for i in 3:
+		_put(narrow_table, 1, "t_ai_first_striker") # strong, but only 3 units
+	SimpleAI.step(narrow_table, 0)
+	check(not narrow_table.players[0]["incarnation"]["in_zone"], "IA/Encarnação sem taxa: menos de 4 unidades inimigas não contam como muralha")
+
+## The Encarnação is one more card of the hand: it ranks by its cost (first and second cast), prefers the hand
+## when taxed heavily and the hand can spend as much, and on a walled table it steps aside only for a hand that
+## really fixes the table (one card, a chain of cards, or a Provocação).
+func _test_ai_incarnation_as_part_of_the_hand() -> void:
+	_tcard("t_ai_rank_soldier", 2, 3, [])
+	_tcard("t_ai_rank_cheap", 2, 2, [])
+	_tcard("t_ai_rank_guard", 2, 5, [])
+	CardDB.data()["cards"]["t_ai_rank_guard"]["keywords"] = ["provocacao"]
+	CardDB.data()["cards"]["t_ai_rank_guard"]["cost"] = 3
+	_tspell("t_ai_rank_sweep", "lento", [{"trigger": "on_play", "action": "damage", "target": "all_enemy_units", "amount": 3}])
+	CardDB.data()["cards"]["t_ai_rank_sweep"]["cost"] = 3
+	_tspell("t_ai_rank_scratch", "lento", [{"trigger": "on_play", "action": "destroy", "target": "enemy_unit"}])
+	CardDB.data()["cards"]["t_ai_rank_scratch"]["cost"] = 1
+	var new_scenario := func(momentum: int, casts: int) -> GameState:
+		var scenario := GameState.new("vegetal", "agua", 42)
+		scenario.mulligan(0, [])
+		scenario.mulligan(1, [])
+		scenario.players[0]["hand"].clear()
+		scenario.players[0]["momentum"] = momentum
+		scenario.players[0]["incarnation"]["casts"] = casts
+		return scenario
+
+	# second cast (tax 1) ties by cost: a hand card dearer than the Encarnação goes first, a cheaper one after it
+	var dearer_card: GameState = new_scenario.call(10, 1)
+	CardDB.data()["cards"]["t_ai_rank_cheap"]["cost"] = dearer_card.incarnation_cost(0) + 1
+	var dearer_uid := _give(dearer_card, 0, "t_ai_rank_cheap")
+	SimpleAI.step(dearer_card, 0)
+	check(not _hand_has(dearer_card, 0, dearer_uid) and dearer_card.players[0]["incarnation"]["in_zone"], "IA/Encarnação taxada 1x: carta mais cara que ela vem antes")
+	var cheaper_card: GameState = new_scenario.call(10, 1)
+	CardDB.data()["cards"]["t_ai_rank_cheap"]["cost"] = cheaper_card.incarnation_cost(0) - 1
+	var cheaper_uid := _give(cheaper_card, 0, "t_ai_rank_cheap")
+	SimpleAI.step(cheaper_card, 0)
+	check(_hand_has(cheaper_card, 0, cheaper_uid) and not cheaper_card.players[0]["incarnation"]["in_zone"], "IA/Encarnação taxada 1x: carta mais barata que ela vem depois")
+
+	# third cast (tax 3): cards that add up to its cost win; without them, the Encarnação still comes first
+	CardDB.data()["cards"]["t_ai_rank_cheap"]["cost"] = 3
+	var heavy_with_hand: GameState = new_scenario.call(10, 2)
+	var heavy_cost: int = heavy_with_hand.incarnation_cost(0)
+	var heavy_uids: Array = []
+	for i in heavy_cost / 3:
+		heavy_uids.append(_give(heavy_with_hand, 0, "t_ai_rank_cheap"))
+	SimpleAI.step(heavy_with_hand, 0)
+	check(heavy_with_hand.players[0]["incarnation"]["in_zone"] and heavy_with_hand.players[0]["momentum"] < 10, "IA/Encarnação taxada 2x: cartas da mão que somam o custo dela vêm antes")
+	var heavy_without_hand: GameState = new_scenario.call(10, 2)
+	_give(heavy_without_hand, 0, "t_ai_rank_cheap")
+	SimpleAI.step(heavy_without_hand, 0)
+	check(not heavy_without_hand.players[0]["incarnation"]["in_zone"], "IA/Encarnação taxada 2x: a mão não gasta tanto, então ela vem primeiro")
+
+	# a walled table: 4 units of 2/3 (adding up to 20)
+	var make_walled := func(hand_card_id: String, extra_enemy_units: int = 0) -> GameState:
+		var walled: GameState = new_scenario.call(6, 0)
+		for i in 4 + extra_enemy_units:
+			_put(walled, 1, "t_ai_rank_soldier")
+		if hand_card_id != "":
+			_give(walled, 0, hand_card_id)
+		return walled
+	var walled_with_sweep: GameState = make_walled.call("t_ai_rank_sweep")
+	SimpleAI.step(walled_with_sweep, 0)
+	check(walled_with_sweep.players[0]["incarnation"]["in_zone"], "IA/muralha: uma carta da mão que desfaz a mesa vai antes da Encarnação")
+	var walled_with_guard: GameState = make_walled.call("t_ai_rank_guard")
+	SimpleAI.step(walled_with_guard, 0)
+	check(walled_with_guard.players[0]["incarnation"]["in_zone"], "IA/muralha: uma Provocação na mão vai antes da Encarnação")
+	var walled_with_chain: GameState = make_walled.call("t_ai_rank_scratch", 1) # 5 units: one kill leaves 4 units (still a wall), two kills leave 3 (no wall)
+	_give(walled_with_chain, 0, "t_ai_rank_scratch")
+	SimpleAI.step(walled_with_chain, 0)
+	check(walled_with_chain.players[0]["incarnation"]["in_zone"], "IA/muralha: dois feitiços em sequência que desfazem a mesa vão antes da Encarnação")
+	var walled_with_nothing: GameState = make_walled.call("t_ai_rank_cheap")
+	SimpleAI.step(walled_with_nothing, 0)
+	check(not walled_with_nothing.players[0]["incarnation"]["in_zone"], "IA/muralha: sem nada na mão que resolva, a Encarnação é conjurada")
 
 func _test_leader_cycle() -> void:
 	var g := _new_game() # fogo: Ronan's Pavio Curto is once per cycle
@@ -4320,6 +4474,35 @@ func _test_drex_deck() -> void:
 	g.turn += 4
 	check(not g.unit_heal_blocked(patient), "Plano de Saúde: o bloqueio da unidade também acaba")
 
+	# feedback: a heal that would have recovered something emits heal_prevented; one with nothing to heal stays silent
+	g = _new_game()
+	_quiet(g)
+	enemy = g.opponent(g.active)
+	block_healing.apply(EffectContext.new(g, g.active, ""), GameState.LEADER_UID[enemy])
+	g.players[enemy]["leader_max"] = 100
+	g.players[enemy]["leader_hp"] = 100
+	g._events.clear()
+	g._heal_leader(enemy, 5)
+	check(not g._events.any(func(e): return e["type"] == "heal_prevented"), "Plano de Saúde: Líder com a Vida cheia não avisa cura bloqueada")
+	g.players[enemy]["leader_hp"] = 50
+	g._heal_leader(enemy, 5)
+	check(g._events.any(func(e): return e["type"] == "heal_prevented" and e["uid"] == GameState.LEADER_UID[enemy]), "Plano de Saúde: cura bloqueada no Líder avisa com heal_prevented")
+	var wounded := _put(g, enemy, "t_target_dummy")
+	block_healing.apply(EffectContext.new(g, g.active, ""), wounded.uid)
+	var unit_heal: Effect = EffectRegistry.parse_list([{"action": "heal_unit", "target": "ally_unit", "amount": 3}])[0]
+	g._events.clear()
+	unit_heal.apply(EffectContext.new(g, enemy, ""), wounded.uid)
+	check(not g._events.any(func(e): return e["type"] == "heal_prevented"), "Plano de Saúde: unidade sem dano não avisa cura bloqueada")
+	wounded.damage = 4
+	unit_heal.apply(EffectContext.new(g, enemy, ""), wounded.uid)
+	check(g._events.any(func(e): return e["type"] == "heal_prevented" and e["uid"] == wounded.uid) and wounded.damage == 4, "Plano de Saúde: cura bloqueada na unidade avisa com heal_prevented e não cura")
+
+	# the block travels in the network snapshot, and the medallion counts the controller's turns left
+	var revived := Card.from_dict(wounded.to_dict(), "board", enemy)
+	check(revived.heal_blocked_until == wounded.heal_blocked_until and revived.heal_blocked_until >= 0, "Plano de Saúde: o bloqueio sobrevive a to_dict/from_dict")
+	check(CardView.heal_block_turns_left(10, 7) == 2 and CardView.heal_block_turns_left(10, 8) == 2 and CardView.heal_block_turns_left(10, 9) == 1 and CardView.heal_block_turns_left(10, 10) == 1 and CardView.heal_block_turns_left(10, 11) == 0, "Plano de Saúde: o medalhão conta os turnos que faltam de quem controla")
+	check(CardView.heal_block_turns_left(-1, 5) == 0, "Plano de Saúde: sem bloqueio o medalhão não aparece")
+
 	# Ponto de Ruptura: the tick happens now, exactly as the turn-start tick would, on a unit and on a Leader
 	g = _new_game()
 	_quiet(g)
@@ -4464,35 +4647,6 @@ func _test_drex_deck() -> void:
 	var blob := _put(g, g.active, "coagulhao")
 	g._check_state()
 	check(first_victim.damage == 2 and second_victim.damage == 2, "Coagulhão: ao entrar (1 marcador = 2 de dano), o marcador de Sangramento de cada unidade inimiga faz efeito na hora")
-	# feedback: a heal that would have recovered something emits heal_prevented; one with nothing to heal stays silent
-	g = _new_game()
-	_quiet(g)
-	enemy = g.opponent(g.active)
-	block_healing.apply(EffectContext.new(g, g.active, ""), GameState.LEADER_UID[enemy])
-	g.players[enemy]["leader_max"] = 100
-	g.players[enemy]["leader_hp"] = 100
-	g._events.clear()
-	g._heal_leader(enemy, 5)
-	check(not g._events.any(func(e): return e["type"] == "heal_prevented"), "Plano de Saúde: Líder com a Vida cheia não avisa cura bloqueada")
-	g.players[enemy]["leader_hp"] = 50
-	g._heal_leader(enemy, 5)
-	check(g._events.any(func(e): return e["type"] == "heal_prevented" and e["uid"] == GameState.LEADER_UID[enemy]), "Plano de Saúde: cura bloqueada no Líder avisa com heal_prevented")
-	var wounded := _put(g, enemy, "t_target_dummy")
-	block_healing.apply(EffectContext.new(g, g.active, ""), wounded.uid)
-	var unit_heal: Effect = EffectRegistry.parse_list([{"action": "heal_unit", "target": "ally_unit", "amount": 3}])[0]
-	g._events.clear()
-	unit_heal.apply(EffectContext.new(g, enemy, ""), wounded.uid)
-	check(not g._events.any(func(e): return e["type"] == "heal_prevented"), "Plano de Saúde: unidade sem dano não avisa cura bloqueada")
-	wounded.damage = 4
-	unit_heal.apply(EffectContext.new(g, enemy, ""), wounded.uid)
-	check(g._events.any(func(e): return e["type"] == "heal_prevented" and e["uid"] == wounded.uid) and wounded.damage == 4, "Plano de Saúde: cura bloqueada na unidade avisa com heal_prevented e não cura")
-
-	# the block travels in the network snapshot, and the medallion counts the controller's turns left
-	var revived := Card.from_dict(wounded.to_dict(), "board", enemy)
-	check(revived.heal_blocked_until == wounded.heal_blocked_until and revived.heal_blocked_until >= 0, "Plano de Saúde: o bloqueio sobrevive a to_dict/from_dict")
-	check(CardView.heal_block_turns_left(10, 7) == 2 and CardView.heal_block_turns_left(10, 8) == 2 and CardView.heal_block_turns_left(10, 9) == 1 and CardView.heal_block_turns_left(10, 10) == 1 and CardView.heal_block_turns_left(10, 11) == 0, "Plano de Saúde: o medalhão conta os turnos que faltam de quem controla")
-	check(CardView.heal_block_turns_left(-1, 5) == 0, "Plano de Saúde: sem bloqueio o medalhão não aparece")
-
 	check(g.players[enemy]["leader_hp"] == 48, "Coagulhão: ao entrar, o Líder inimigo também sangra na hora")
 	check(g.players[g.active]["leader_hp"] == 46, "Coagulhão: o Líder dele recupera o dano inteiro de cada tick (2 + 2 + 2)")
 	check(int(first_victim.dot_markers.get("sangramento", 0)) == 1 and g.leader_dot_markers(enemy, "sangramento") == 1, "Coagulhão: ao entrar, os marcadores ferem mas ficam (nenhum se consome)")
@@ -7978,6 +8132,70 @@ func _test_ai_no_waste() -> void:
 	check(SimpleAI._spell_is_worth_it(g2, 0, shock), "IA: Choque de Largada vale para dar Ímpeto e desafiar uma unidade virada")
 	g2.active = 1
 	check(not SimpleAI._spell_is_worth_it(g2, 0, shock), "IA: buff de turno não é lançado no turno do inimigo")
+
+## The AI counts Veneno/Sangramento as 2 damage per marker (Queimadura as 1) and never spends a marker-only
+## effect on a target whose markers already kill it, or that is immune to them.
+func _test_ai_dot_awareness() -> void:
+	var one_target_dot := [{"action": "add_dot", "dot": "veneno", "target": "enemy_unit", "amount": 1}]
+	_tspell("t_dot_pick", "lento", one_target_dot)
+	_tspell("t_dot_area", "lento", [{"action": "add_dot", "dot": "veneno", "target": "all_enemy_units", "amount": 1}])
+	_tcard("t_dot_victim", 1, 4, [])
+	_tcard("t_dot_fresh", 1, 9, [])
+	_tcard("t_dot_poisonous", 1, 4, [])
+	CardDB.data()["cards"]["t_dot_poisonous"]["element"] = "veneno"
+	var g := _new_game()
+	_quiet(g)
+	g.players[1]["leader_hp"] = 30
+	var victim := _put(g, 1, "t_dot_victim") # 4 life
+	check(SimpleAI._spell_is_worth_it(g, 0, CardDB.card("t_dot_area")), "IA: marcador em área vale quando o inimigo está limpo")
+	g.add_dot_markers(victim, "veneno", 1)
+	check(SimpleAI._pick_target(g, 0, "enemy_unit", CardDB.card("t_dot_pick"), 0, true) == victim.uid, "IA: 1 Veneno (2 de dano) não mata 4 de Vida, ainda escolhe o alvo")
+	g.add_dot_markers(victim, "veneno", 1)
+	check(g.pending_dot_damage(victim) == 4 and g.dots_already_kill_unit(victim), "2 Veneno = 4 de dano pendente, letal para 4 de Vida")
+	check(SimpleAI._pick_target(g, 0, "enemy_unit", CardDB.card("t_dot_pick"), 0, true) != victim.uid, "IA: não põe Veneno em quem já morre dos marcadores")
+	check(not SimpleAI._spell_is_worth_it(g, 0, CardDB.card("t_dot_area")), "IA: não lança marcador em área se todo inimigo já morre dele")
+	var fresh := _put(g, 1, "t_dot_fresh")
+	check(SimpleAI._spell_is_worth_it(g, 0, CardDB.card("t_dot_area")), "IA: marcador em área volta a valer com um inimigo limpo")
+	check(SimpleAI._pick_target(g, 0, "enemy_unit", CardDB.card("t_dot_pick"), 0, true) == fresh.uid, "IA: manda o marcador para o inimigo que ainda não morre")
+	# Sangramento and Veneno are summed; Queimadura counts 1 per marker
+	var mixed := _put(g, 1, "t_dot_victim")
+	g.add_dot_markers(mixed, "veneno", 1)
+	g.add_dot_markers(mixed, "sangramento", 1)
+	check(g.dots_already_kill_unit(mixed), "Veneno + Sangramento somam (2+2 = 4 de dano)")
+	var burning := _put(g, 1, "t_dot_victim")
+	g.add_dot_markers(burning, "queimadura", 2)
+	check(not g.dots_already_kill_unit(burning), "2 Queimaduras valem 2 de dano, não matam 4 de Vida")
+	# Indestrutível is never "already dying"
+	var undying := _put(g, 1, "t_dot_victim")
+	undying.keywords.append("indestrutivel")
+	g.add_dot_markers(undying, "veneno", 5)
+	check(not g.dots_already_kill_unit(undying), "Indestrutível não morre dos marcadores")
+	# immune to every marker the effect brings: nothing to gain
+	var g2 := _new_game()
+	_quiet(g2)
+	g2.players[1]["leader_hp"] = 30
+	_put(g2, 1, "t_dot_poisonous")
+	check(not SimpleAI._spell_is_worth_it(g2, 0, CardDB.card("t_dot_area")), "IA: Veneno só em área não vale se o inimigo é imune a Veneno")
+	check(SimpleAI._pick_target(g2, 0, "enemy_unit", CardDB.card("t_dot_pick"), 0, true) == 0, "IA: não mira Veneno em unidade imune")
+	# the enemy Leader: 3 Veneno = 6 damage already pending on a 6-life Leader
+	var g3 := _new_game()
+	_quiet(g3)
+	g3.players[1]["leader_hp"] = 6
+	check(g3.leader_dot_damage("veneno", 3) == 6 and g3.leader_dot_damage("queimadura", 3) == 3, "Líder: Veneno vale 2 por marcador, Queimadura 1")
+	g3.players[1]["leader_dots"] = {"veneno": 2}
+	check(not g3.dots_already_kill_leader(1), "Líder com 6 de Vida e 2 Veneno (4 de dano) ainda não morre")
+	g3.players[1]["leader_dots"] = {"veneno": 3}
+	check(g3.dots_already_kill_leader(1), "Líder com 6 de Vida e 3 Veneno (6 de dano) já morre")
+	# Drex: the activation (markers spread among the enemies + X growth) is skipped when nothing would receive one
+	var drex_effects: Array = CardDB.card("drex")["activated"]["effects"]
+	var victim_three := _put(g3, 1, "t_dot_victim")
+	g3.add_dot_markers(victim_three, "sangramento", 2)
+	check(SimpleAI._dot_only_effects_are_wasted(g3, 0, drex_effects), "IA: Drex não ativa se o Líder e todas as unidades já morrem do Sangramento")
+	var extra := _put(g3, 1, "t_dot_fresh")
+	check(not SimpleAI._dot_only_effects_are_wasted(g3, 0, drex_effects), "IA: Drex ativa quando ainda há um inimigo sem marcadores letais")
+	extra.hp = 0
+	g3.players[1]["leader_dots"] = {}
+	check(not SimpleAI._dot_only_effects_are_wasted(g3, 0, drex_effects), "IA: Drex ativa quando o Líder inimigo ainda aguenta os marcadores")
 
 ## The AI's attack clauses: face instead of chip challenges, no pointless trades, no feeding Roubo de Vida.
 func _test_ai_attack_clauses() -> void:
