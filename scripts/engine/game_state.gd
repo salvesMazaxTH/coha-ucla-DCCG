@@ -3245,7 +3245,7 @@ func leader_negations_left(p: int) -> int:
 ## `healed_by` says who is healing (see EffectContext.heal_origin); "" for heals with no effect behind them
 ## (the lifesteal keyword counts as a unit healing: "unit").
 func _heal_leader(p: int, amount: int, healed_by := "") -> void:
-	if leader_heal_blocked(p):
+	if leader_heal_prevented(p, amount):
 		return
 	var pl: Dictionary = players[p]
 	var healed: int = min(amount, pl["leader_max"] - pl["leader_hp"])
@@ -3268,7 +3268,7 @@ func _apply_capped_leader_heal(context: EffectContext, amount: int, per_turn_cap
 		source.capped_heal_turn = turn
 		source.capped_heal_total = 0
 		source.capped_heal_locked = false
-	if source.capped_heal_locked or leader_heal_blocked(context.controller):
+	if source.capped_heal_locked or leader_heal_prevented(context.controller, amount):
 		return
 	_heal_leader(context.controller, amount, context.heal_origin())
 	source.capped_heal_total += amount
@@ -3746,7 +3746,7 @@ func _fire_any_turn_trigger(turn_player: int, trigger: String) -> void:
 func _regenerate_all_units() -> void:
 	for pl in players:
 		for unit: Card in pl["board"]:
-			if has_kw(unit, "regeneracao") and unit.damage > 0 and not unit_heal_blocked(unit):
+			if has_kw(unit, "regeneracao") and not unit_heal_prevented(unit, unit.damage) and unit.damage > 0:
 				var healed_amount: int = unit.damage
 				unit.damage = 0
 				players[unit.owner]["healing_this_round"] = int(players[unit.owner]["healing_this_round"]) + healed_amount
@@ -3811,6 +3811,24 @@ func leader_heal_blocked(p: int) -> bool:
 ## True while `unit` cannot recover Vida (see block_healing_on_unit).
 func unit_heal_blocked(unit: Card) -> bool:
 	return unit != null and turn <= unit.heal_blocked_until
+
+## True when the block keeps the Leader of player `p` from recovering `amount` Vida it was really missing; the
+## player sees "Bloqueada!" (heal_prevented). A heal that would have recovered nothing anyway stays silent.
+func leader_heal_prevented(p: int, amount: int) -> bool:
+	if not leader_heal_blocked(p):
+		return false
+	var pl: Dictionary = players[p]
+	if amount > 0 and int(pl["leader_max"]) - int(pl["leader_hp"]) > 0:
+		_emit({"type": "heal_prevented", "uid": LEADER_UID[p]})
+	return true
+
+## Same as leader_heal_prevented, for a unit: reports the block only when `amount` would really have healed damage.
+func unit_heal_prevented(unit: Card, amount: int) -> bool:
+	if not unit_heal_blocked(unit):
+		return false
+	if amount > 0 and unit.damage > 0:
+		_emit({"type": "heal_prevented", "uid": unit.uid})
+	return true
 
 ## The last game turn a heal block is active. It covers the rest of the current turn and runs through the end
 ## of the blocked side's controller `p` having played `turns` more turns.

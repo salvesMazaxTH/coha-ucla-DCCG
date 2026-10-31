@@ -340,6 +340,10 @@
       "name": "Condenada",
       "text": "Uma unidade Condenada morre no início do próximo turno de quem a condenou, mesmo que a carta que a condenou já tenha saído de campo. Curar não ajuda; Indestrutível a salva, e sair de campo desfaz a condenação."
     },
+    "sem_cura": {
+      "name": "Sem cura",
+      "text": "Uma unidade ou Líder Sem cura não recupera Vida: curas, Roubo de Vida e Regeneração não fazem nada nele. O número é quantos turnos de quem o controla ainda faltam. Purificar e aumentar a Vida máxima ainda funcionam."
+    },
     "toxico": {
       "name": "Tóxico",
       "text": "Quando esta unidade causar dano de combate a uma unidade, coloca marcadores de Veneno nela: 1 se não houver número, ou X em \"Tóxico X\" (a tag mostra o valor). Se o dano for evitado (Escudo, Esquiva, Indestrutível), não coloca. Não afeta Líderes, a não ser que a carta diga o contrário."

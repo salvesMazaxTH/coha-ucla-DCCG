@@ -100,7 +100,7 @@ func _chronicle_label(kind: String) -> String:
 		"relic_enter": "RELÍQUIA", "revive": "RETORNO", "return_to_hand": "DE VOLTA À MÃO",
 		"card_created": "CRIAÇÃO", "search_take": "BUSCA", "leader_executed": "EXECUÇÃO",
 		"shield_break": "ESCUDO", "magic_shield_break": "ESCUDO", "supreme_shield_break": "ESCUDO", "freeze": "CONGELADA", "thaw": "DEGELO",
-		"exhaust": "EXAUSTÃO", "stun": "ATORDOADA", "stun_tick": "ATORDOADA", "shrink": "ENCOLHIMENTO", "dodge": "ESQUIVA", "reflect": "REFLEXO", "condemn": "CONDENADA",
+		"exhaust": "EXAUSTÃO", "stun": "ATORDOADA", "stun_tick": "ATORDOADA", "shrink": "ENCOLHIMENTO", "dodge": "ESQUIVA", "reflect": "REFLEXO", "condemn": "CONDENADA", "heal_block": "SEM CURA", "heal_prevented": "SEM CURA",
 		"doom": "SENTENÇA", "doom_resisted": "RESISTIU", "fatigue": "FADIGA", "ban": "BANIMENTO",
 		"concede": "DESISTÊNCIA", "enter_tapped": "PROVOCAÇÃO", "death_ward_armed": "BALUARTE",
 		"death_prevented": "BALUARTE"
@@ -171,7 +171,7 @@ func _chronicle_visual_for_event(e: Dictionary) -> Dictionary:
 				out["target_card_ids"].append(String(e["target_card_id"]))
 			else:
 				_chronicle_add_target(out, int(e.get("target", 0)))
-		"damage", "heal", "shield_break", "magic_shield_break", "supreme_shield_break", "freeze", "exhaust", "dodge", "dot", "destroy", "death", "condemn", "doom", "doom_resisted", "thaw":
+		"damage", "heal", "shield_break", "magic_shield_break", "supreme_shield_break", "freeze", "exhaust", "dodge", "dot", "destroy", "death", "condemn", "doom", "doom_resisted", "thaw", "heal_block", "heal_prevented":
 			out["source_card_id"] = _chronicle_card_id_for_uid(int(e.get("src", 0)))
 			if kind in ["death", "destroy"] and String(e.get("card_id", "")) != "":
 				out["target_card_ids"].append(String(e["card_id"]))
@@ -358,6 +358,10 @@ func _log_event(e: Dictionary) -> void:
 		"doom":
 			var doomed := g.find_unit(e["uid"])
 			_log("%s foi ceifada pela condenação" % ("Uma unidade" if doomed == null else _cname(doomed.card_id)))
+		"heal_block":
+			_log("%s ficou sem cura por %d turno(s) de quem a controla" % [_chronicle_name_for_uid(int(e["uid"])), int(e.get("turns", 1))])
+		"heal_prevented":
+			_log("A cura em %s foi bloqueada" % _chronicle_name_for_uid(int(e["uid"])))
 		"doom_resisted":
 			var resisted := g.find_unit(e["uid"])
 			_log("%s resistiu à condenação" % ("Uma unidade" if resisted == null else _cname(resisted.card_id)))

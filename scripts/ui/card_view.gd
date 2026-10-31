@@ -47,7 +47,8 @@ const BURN_COL := Color("#ff7043") ## Queimadura: hot orange-red, distinct from 
 const POISON_COL := Color("#b8e86b") ## Veneno: acid-lime drop over a deep violet medallion
 const BLEED_COL := Color("#e85d75") ## Sangramento: reserved by the same shared badge for the future keyword
 ## Fixed medallion order, so a status keeps its slot. Atordoada comes first: it is the one that changes what the unit can do, so it stays pinned and never takes turns.
-const STATUS_ORDER := ["atordoada", "queimadura", "veneno", "sangramento", "congelar"] # TEMP "congelar": pseudo 5th status for the status-badge scenario
+const HEAL_BLOCK_COL := Color("#ff6f91") ## Sem cura (block_healing): rose-pink cross under a ban slash, distinct from Veneno lime, doom violet and frost blue
+const STATUS_ORDER := ["atordoada", "queimadura", "veneno", "sangramento", "sem_cura", "congelar"] # TEMP "congelar": pseudo 5th status for the status-badge scenario
 const MAX_STATUS_MEDALLIONS := 3 ## medallions that fit in the column; with more statuses the last one takes turns
 const STATUS_TURN_SECONDS := 1.6 ## how long the sharing medallion shows each status before the next one
 const DOT_BADGE_ENLARGEMENT :=1.75 ## size of the marker medallion (Queimadura/Veneno) vs. the other card badges; big enough to read the count on Leaders, which have no overlay
@@ -1324,9 +1325,23 @@ static func dot_marker_count_of_view(instance: Dictionary, dot_id: String) -> in
 		return int(instance.get("burn", 0))
 	return 0
 
+## How many more turns of its controller a unit (or Leader) stays unable to heal; 0 = not blocked. The view
+## data carries it already counted (main.gd derives it from the engine's heal_blocked_until and the game turn).
+static func heal_block_turns_left_of_view(instance: Dictionary) -> int:
+	return int(instance.get("heal_block_turns_left", 0))
+
+## Turns of its controller left on a heal block that ends after game turn `blocked_until`, seen on turn `turn`.
+## The block covers the rest of the current turn plus the controller's next turns, which come every second game
+## turn and the last one is always `blocked_until`, so the count is those turns from now through that one
+## (the current turn counts when it is the controller's own).
+static func heal_block_turns_left(blocked_until: int, turn: int) -> int:
+	if turn > blocked_until:
+		return 0
+	return (blocked_until - turn) / 2 + 1
+
 ## Shared live-marker palette. Keeping this here makes the exact same badge readable on cards and Leaders.
 static func dot_badge_color(dot_id: String) -> Color:
-	return {"queimadura": BURN_COL, "veneno": POISON_COL, "sangramento": BLEED_COL, "atordoada": STUN_COL, "congelar": FROST_DEEP}.get(dot_id, Color("#d8d2c4"))
+	return {"queimadura": BURN_COL, "veneno": POISON_COL, "sangramento": BLEED_COL, "atordoada": STUN_COL, "sem_cura": HEAL_BLOCK_COL, "congelar": FROST_DEEP}.get(dot_id, Color("#d8d2c4"))
 
 ## Draws every live status of a unit or Leader as a column of medallions hanging off `right_edge` (the
 ## edge of the card/plate), from `top` down to `bottom`. `amounts` is dot id -> amount.
@@ -1403,7 +1418,7 @@ static func draw_dot_badge(target: CanvasItem, center: Vector2, radius: float, s
 	if target == null or amount <= 0:
 		return
 	var col := dot_badge_color(dot_id)
-	var deep: Color = {"veneno": Color("#241332"), "sangramento": Color("#5d1723"), "atordoada": Color("#4a3200")}.get(dot_id, Color("#7d2114"))
+	var deep: Color = {"veneno": Color("#241332"), "sangramento": Color("#5d1723"), "atordoada": Color("#4a3200"), "sem_cura": Color("#4a1024")}.get(dot_id, Color("#7d2114"))
 	var danger := dot_id == "veneno" and amount >= 6
 	var pulse_alpha := 0.6 + 0.4 * clampf(float(pulse), 0.0, 1.0)
 	target.draw_circle(center + Vector2(0, 1.4 * scale), radius * 1.2, Color(0, 0, 0, 0.62))
@@ -1425,6 +1440,8 @@ static func draw_dot_badge(target: CanvasItem, center: Vector2, radius: float, s
 			var point_angle := -PI / 2.0 + point_index * TAU / 10.0
 			var point_radius := (0.82 if point_index % 2 == 0 else 0.36) * radius
 			icon.append(center + Vector2(cos(point_angle), sin(point_angle)) * point_radius)
+	elif dot_id == "sem_cura":
+		_draw_blocked_cross(target, center, radius, scale, col)
 	else:
 		_draw_flame(target, center, radius, scale)
 	if not icon.is_empty(): # the drops and the flame draw themselves above
@@ -1459,6 +1476,24 @@ static func _draw_drop(target: CanvasItem, center: Vector2, radius: float, scale
 	target.draw_polyline(outline + PackedVector2Array([tip]), rim_color, 1.0 * scale, true)
 	# glossy shine: a short curved stroke inside the upper left of the body
 	target.draw_arc(body_center, body_radius * 0.62, PI * 1.05, PI * 1.42, 12, Color(1, 1, 1, 0.75), 1.3 * scale, true)
+
+## Sem cura's icon: the classic heal cross with a "no entry" slash across it, so it reads as "healing is off".
+static func _draw_blocked_cross(target: CanvasItem, center: Vector2, radius: float, scale: float, cross_color: Color) -> void:
+	var arm := 0.24 * radius # half the thickness of each bar
+	var reach := 0.74 * radius # half the length of each bar
+	var cross := PackedVector2Array([
+		center + Vector2(-arm, -reach), center + Vector2(arm, -reach), center + Vector2(arm, -arm),
+		center + Vector2(reach, -arm), center + Vector2(reach, arm), center + Vector2(arm, arm),
+		center + Vector2(arm, reach), center + Vector2(-arm, reach), center + Vector2(-arm, arm),
+		center + Vector2(-reach, arm), center + Vector2(-reach, -arm), center + Vector2(-arm, -arm),
+	])
+	target.draw_colored_polygon(cross, cross_color.lightened(0.2))
+	target.draw_polyline(cross + PackedVector2Array([cross[0]]), Color(1, 1, 1, 0.35), 0.65 * scale, true)
+	# the slash: a dark border first so the bright line stays readable over the cross
+	var slash_from := center + Vector2(-0.8, 0.8) * radius
+	var slash_to := center + Vector2(0.8, -0.8) * radius
+	target.draw_line(slash_from, slash_to, Color("#2a0610"), 2.6 * scale, true)
+	target.draw_line(slash_from, slash_to, Color("#ff3b4e"), 1.5 * scale, true)
 
 ## Queimadura's icon: a real fire flame, like the 🔥 emoji. The outline is made of smooth curves: a tall
 ## main tongue leaning a little to the right, a smaller tongue on each side and a round bottom. Inside it
@@ -1506,7 +1541,11 @@ static func _curves_to_polygon(curves: Array, center: Vector2, radius: float) ->
 func _status_amounts() -> Dictionary:
 	var amounts := {}
 	for status_id in STATUS_ORDER:
-		var amount := int(inst.get("stun_markers", 0)) if status_id == "atordoada" else dot_marker_count_of_view(inst, status_id)
+		var amount := dot_marker_count_of_view(inst, status_id)
+		if status_id == "atordoada":
+			amount = int(inst.get("stun_markers", 0))
+		elif status_id == "sem_cura":
+			amount = heal_block_turns_left_of_view(inst)
 		if amount > 0:
 			amounts[status_id] = amount
 	return amounts
@@ -1787,6 +1826,9 @@ func _panel_lines(cd: Dictionary) -> Array:
 		var dot_amount := dot_marker_count_of_view(inst, dot_id)
 		if dot_amount > 0:
 			tags.append(["%s %d" % [CardDB.keyword(dot_id)["name"], dot_amount], dot_badge_color(dot_id).lightened(0.18)])
+	var heal_block_turns := heal_block_turns_left_of_view(inst)
+	if heal_block_turns > 0:
+		tags.append(["%s %d" % [CardDB.keyword("sem_cura")["name"], heal_block_turns], HEAL_BLOCK_COL.lightened(0.15)])
 	if inst.has("condemned_turn"):
 		tags.append([CardDB.keyword("condenada")["name"], DOOM_COL.lightened(0.15)])
 	if inst.has("frozen"):

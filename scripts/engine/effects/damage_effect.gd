@@ -118,7 +118,7 @@ func _grant_kill_bonus(context: EffectContext) -> void:
 ## Heals the unit that owns this effect (never above its Vida); a unit that already left the board is not healed.
 func _heal_source_unit(context: EffectContext, heal_amount: int) -> void:
 	var source_unit := context.game.find_unit(context.self_uid)
-	if source_unit == null or context.game.unit_heal_blocked(source_unit):
+	if source_unit == null or context.game.unit_heal_prevented(source_unit, heal_amount):
 		return
 	var healed := mini(heal_amount, source_unit.damage)
 	if healed > 0:

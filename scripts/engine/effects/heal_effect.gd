@@ -74,7 +74,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 			var unit := context.game.find_unit(target_uid)
 			if unit != null and cleanse:
 				context.game.cleanse_unit_markers(unit)
-			if unit != null and unit.damage > 0 and not context.game.unit_heal_blocked(unit):
+			if unit != null and not context.game.unit_heal_prevented(unit, unit.damage) and unit.damage > 0:
 				var healed_amount := unit.damage
 				context.game._emit({"type": "heal", "uid": target_uid, "amount": healed_amount})
 				unit.damage = 0
@@ -99,7 +99,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 				heal_amount = context.game.armor_of(unit)
 			elif per == "half_armor": # half the Armadura, rounded up
 				heal_amount = ceili(context.game.armor_of(unit) / 2.0)
-			if context.game.unit_heal_blocked(unit):
+			if context.game.unit_heal_prevented(unit, heal_amount):
 				return
 			var healed := mini(heal_amount, unit.damage)
 			if healed > 0:

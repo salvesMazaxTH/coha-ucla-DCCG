@@ -152,6 +152,8 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 	for dot_id in ["queimadura", "veneno", "sangramento"]:
 		if CardView.dot_marker_count_of_view(instance, dot_id) > 0 and not glossary_keywords.has(dot_id):
 			glossary_keywords.append(dot_id) # live marker: the enlarged view explains its timing and count
+	if CardView.heal_block_turns_left_of_view(instance) > 0 and not glossary_keywords.has("sem_cura"):
+		glossary_keywords.append("sem_cura") # live marker: the enlarged view explains it
 	if instance.has("condemned_turn") and not glossary_keywords.has("condenada"):
 		glossary_keywords.append("condenada") # live marker: the enlarged view explains it
 	if instance.get("shield", false) and not glossary_keywords.has("escudo"):

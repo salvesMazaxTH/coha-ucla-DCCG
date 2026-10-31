@@ -4464,6 +4464,35 @@ func _test_drex_deck() -> void:
 	var blob := _put(g, g.active, "coagulhao")
 	g._check_state()
 	check(first_victim.damage == 2 and second_victim.damage == 2, "Coagulhão: ao entrar (1 marcador = 2 de dano), o marcador de Sangramento de cada unidade inimiga faz efeito na hora")
+	# feedback: a heal that would have recovered something emits heal_prevented; one with nothing to heal stays silent
+	g = _new_game()
+	_quiet(g)
+	enemy = g.opponent(g.active)
+	block_healing.apply(EffectContext.new(g, g.active, ""), GameState.LEADER_UID[enemy])
+	g.players[enemy]["leader_max"] = 100
+	g.players[enemy]["leader_hp"] = 100
+	g._events.clear()
+	g._heal_leader(enemy, 5)
+	check(not g._events.any(func(e): return e["type"] == "heal_prevented"), "Plano de Saúde: Líder com a Vida cheia não avisa cura bloqueada")
+	g.players[enemy]["leader_hp"] = 50
+	g._heal_leader(enemy, 5)
+	check(g._events.any(func(e): return e["type"] == "heal_prevented" and e["uid"] == GameState.LEADER_UID[enemy]), "Plano de Saúde: cura bloqueada no Líder avisa com heal_prevented")
+	var wounded := _put(g, enemy, "t_target_dummy")
+	block_healing.apply(EffectContext.new(g, g.active, ""), wounded.uid)
+	var unit_heal: Effect = EffectRegistry.parse_list([{"action": "heal_unit", "target": "ally_unit", "amount": 3}])[0]
+	g._events.clear()
+	unit_heal.apply(EffectContext.new(g, enemy, ""), wounded.uid)
+	check(not g._events.any(func(e): return e["type"] == "heal_prevented"), "Plano de Saúde: unidade sem dano não avisa cura bloqueada")
+	wounded.damage = 4
+	unit_heal.apply(EffectContext.new(g, enemy, ""), wounded.uid)
+	check(g._events.any(func(e): return e["type"] == "heal_prevented" and e["uid"] == wounded.uid) and wounded.damage == 4, "Plano de Saúde: cura bloqueada na unidade avisa com heal_prevented e não cura")
+
+	# the block travels in the network snapshot, and the medallion counts the controller's turns left
+	var revived := Card.from_dict(wounded.to_dict(), "board", enemy)
+	check(revived.heal_blocked_until == wounded.heal_blocked_until and revived.heal_blocked_until >= 0, "Plano de Saúde: o bloqueio sobrevive a to_dict/from_dict")
+	check(CardView.heal_block_turns_left(10, 7) == 2 and CardView.heal_block_turns_left(10, 8) == 2 and CardView.heal_block_turns_left(10, 9) == 1 and CardView.heal_block_turns_left(10, 10) == 1 and CardView.heal_block_turns_left(10, 11) == 0, "Plano de Saúde: o medalhão conta os turnos que faltam de quem controla")
+	check(CardView.heal_block_turns_left(-1, 5) == 0, "Plano de Saúde: sem bloqueio o medalhão não aparece")
+
 	check(g.players[enemy]["leader_hp"] == 48, "Coagulhão: ao entrar, o Líder inimigo também sangra na hora")
 	check(g.players[g.active]["leader_hp"] == 46, "Coagulhão: o Líder dele recupera o dano inteiro de cada tick (2 + 2 + 2)")
 	check(int(first_victim.dot_markers.get("sangramento", 0)) == 1 and g.leader_dot_markers(enemy, "sangramento") == 1, "Coagulhão: ao entrar, os marcadores ferem mas ficam (nenhum se consome)")

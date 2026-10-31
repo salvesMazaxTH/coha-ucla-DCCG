@@ -1785,6 +1785,7 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 		"queimadura": g.leader_dot_markers(p, "queimadura"),
 		"veneno": g.leader_dot_markers(p, "veneno"),
 		"sangramento": g.leader_dot_markers(p, "sangramento"),
+		"sem_cura": CardView.heal_block_turns_left(int(pl["leader_heal_blocked_until"]), g.turn),
 		"congelar": g.leader_dot_markers(p, "congelar"), # TEMP pseudo 4th marker for the status-badge scenario
 	}
 	lv.ward_hits = g.leader_negations_left(p)
@@ -1927,6 +1928,7 @@ func _render_board(p: int, y: float) -> void:
 		var unit_view_data := unit.to_dict()
 		unit_view_data["armor_total"] = g.armor_of(unit) # includes Armadura given by adjacent allies
 		unit_view_data["constant_sources"] = g.constant_sources_of(unit) # who gives each Constante bonus (card overlay)
+		unit_view_data["heal_block_turns_left"] = CardView.heal_block_turns_left(unit.heal_blocked_until, g.turn) # "Sem cura" medallion
 		# summoning sickness is only worth showing while it really keeps the unit from attacking
 		unit_view_data["summoning_sick"] = unit.sick and not g.has_kw(unit, "impeto") and not g.has_kw(unit, "rompante")
 		# Condicional uses already spent THIS turn (Seymour's "(0/2)"): the stored count belongs to the turn it was spent in
@@ -4994,13 +4996,13 @@ func _animate(events: Array, old: Dictionary) -> float:
 			"countered":
 				_toast("%s foi anulado!" % ("A habilidade do Líder" if e["kind"] == "ability" else _cname(e["card_id"])))
 				cursor += 0.4
-			"magic_shield_break", "supreme_shield_break", "tide_mark", "tide_draw", "dot", "dot_immune", "freeze", "exhaust", "ready", "stun", "stun_tick", "shrink", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up":
+			"magic_shield_break", "supreme_shield_break", "tide_mark", "tide_draw", "dot", "dot_immune", "freeze", "exhaust", "ready", "stun", "stun_tick", "shrink", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up", "heal_block", "heal_prevented":
 				if actors.has(e["uid"]):
 					var dot_name: String = {"queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento"}.get(String(e.get("dot", "")), "Marcador")
 					var dot_label := "%s %d" % [dot_name, int(e.get("amount", 0))]
 					if not e.get("cleared", false):
 						dot_label = "%s +%d" % [dot_name, int(e.get("amount", 0))]
-					var lbl: String = {"magic_shield_break": "Anulado!", "supreme_shield_break": "Absorvido!", "tide_mark": "Maré", "tide_draw": "+1 carta", "dot": dot_label, "dot_immune": "Imune!", "freeze": "Congelada!", "exhaust": "Exausta!", "ready": "Desvirou!", "stun": "Atordoada!", "stun_tick": "Recuperando…", "shrink": "Encolhida!", "condemn": "Condenada!", "doom": "Ceifada!", "doom_resisted": "Resistiu!", "thaw": "Descongelou", "dodge": "Esquivou!", "crit": "Crítico!", "crit_negated": "Desdém!", "critico_up": "Crítico %d!" % int(e.get("level", 0))}[e["type"]]
+					var lbl: String = {"magic_shield_break": "Anulado!", "supreme_shield_break": "Absorvido!", "tide_mark": "Maré", "tide_draw": "+1 carta", "dot": dot_label, "dot_immune": "Imune!", "freeze": "Congelada!", "exhaust": "Exausta!", "ready": "Desvirou!", "stun": "Atordoada!", "stun_tick": "Recuperando…", "shrink": "Encolhida!", "condemn": "Condenada!", "doom": "Ceifada!", "doom_resisted": "Resistiu!", "thaw": "Descongelou", "dodge": "Esquivou!", "crit": "Crítico!", "crit_negated": "Desdém!", "critico_up": "Crítico %d!" % int(e.get("level", 0)), "heal_block": "Cura bloqueada!", "heal_prevented": "Bloqueada!"}[e["type"]]
 					var col: Color = Color("#6fd0ff")
 					if e["type"] == "magic_shield_break":
 						col = Color("#c9a8ff")
@@ -5018,6 +5020,8 @@ func _animate(events: Array, old: Dictionary) -> float:
 						col = CardView.dot_badge_color(String(e.get("dot", "")))
 					elif e["type"] in ["crit", "crit_negated", "critico_up"]:
 						col = Color("#ff9d6e") # same warm tone as the Crítico tag
+					elif e["type"] in ["heal_block", "heal_prevented"]:
+						col = CardView.HEAL_BLOCK_COL
 					fx_library._impact(actors[e["uid"]], lbl, col, cursor, false)
 					if e["type"] == "freeze":
 						fx_library._freeze_fx(actors[e["uid"]], cursor)
@@ -5027,6 +5031,8 @@ func _animate(events: Array, old: Dictionary) -> float:
 						fx_library._supreme_shield_fx(actors[e["uid"]], cursor)
 					elif e["type"] in ["condemn", "doom"]:
 						fx_library._doom_fx(actors[e["uid"]], cursor, e["type"] == "doom")
+					elif e["type"] in ["heal_block", "heal_prevented"]:
+						fx_library._heal_block_fx(actors[e["uid"]], cursor, e["type"] == "heal_prevented")
 				cursor += 0.2
 			"transform":
 				# a unit becomes another card in place (Transformar, transform_self)

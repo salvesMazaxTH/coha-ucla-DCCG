@@ -865,6 +865,80 @@ func _doom_fx(target: Control, t: float, heavy: bool) -> void:
 		if is_instance_valid(wisps):
 			wisps.queue_free())
 
+## Sem cura: a rose heal cross shows over the target at moment t and a red ban slash is struck through it.
+## `prevented` = false is the block being placed (the cross holds a moment, then cracks and fades);
+## `prevented` = true is a heal that got swallowed (a smaller cross that shatters into flying pink shards).
+func _heal_block_fx(target: Control, t: float, prevented: bool) -> void:
+	var center := _center_of(target)
+	var cross_size := 34.0 if prevented else 52.0
+	var arm := cross_size * 0.36
+	var holder := Node2D.new()
+	holder.position = center
+	holder.z_index = 30
+	holder.modulate.a = 0.0
+	fx.add_child(holder)
+	var cross := Polygon2D.new()
+	cross.polygon = PackedVector2Array([
+		Vector2(-arm, -cross_size), Vector2(arm, -cross_size), Vector2(arm, -arm), Vector2(cross_size, -arm),
+		Vector2(cross_size, arm), Vector2(arm, arm), Vector2(arm, cross_size), Vector2(-arm, cross_size),
+		Vector2(-arm, arm), Vector2(-cross_size, arm), Vector2(-cross_size, -arm), Vector2(-arm, -arm)])
+	cross.color = CardView.HEAL_BLOCK_COL
+	holder.add_child(cross)
+	var slash := Line2D.new()
+	slash.add_point(Vector2(-cross_size * 1.15, cross_size * 1.15))
+	slash.add_point(Vector2(cross_size * 1.15, -cross_size * 1.15))
+	slash.width = 9.0
+	slash.default_color = Color("#ff3b4e")
+	slash.modulate.a = 0.0
+	holder.add_child(slash)
+	var tw := holder.create_tween()
+	tw.tween_interval(t)
+	tw.tween_property(holder, "modulate:a", 1.0, 0.08)
+	if prevented:
+		# the cross is hit at once and bursts apart
+		tw.parallel().tween_property(slash, "modulate:a", 1.0, 0.08)
+		tw.tween_interval(0.1)
+		tw.tween_property(holder, "scale", Vector2(1.6, 1.6), 0.3).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.parallel().tween_property(holder, "modulate:a", 0.0, 0.3)
+		tw.parallel().tween_callback(func(): _heal_block_shards(center, 14))
+	else:
+		# the cross pops in, the slash is struck across it, then it cracks (shiver) and fades
+		tw.parallel().tween_property(holder, "scale", Vector2.ONE, 0.16).from(Vector2(0.4, 0.4)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(slash, "modulate:a", 1.0, 0.1)
+		tw.tween_method(func(k: float): holder.position = center + Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 5.0 * (1.0 - k), 0.0, 1.0, 0.3)
+		tw.tween_callback(func(): _heal_block_shards(center, 22))
+		tw.tween_property(holder, "modulate:a", 0.0, 0.35)
+	tw.tween_callback(holder.queue_free)
+
+## Pink shards thrown outward from a point right now (the cracked heal cross of Sem cura).
+func _heal_block_shards(c: Vector2, amount: int) -> void:
+	var shards := CPUParticles2D.new()
+	shards.emitting = false
+	shards.one_shot = true
+	shards.amount = maxi(6, int(amount * fx_scale))
+	shards.lifetime = 0.7
+	shards.explosiveness = 0.95
+	shards.position = c
+	shards.direction = Vector2(0, -1)
+	shards.spread = 180.0
+	shards.gravity = Vector2(0, 220)
+	shards.initial_velocity_min = 90.0
+	shards.initial_velocity_max = 230.0
+	shards.scale_amount_min = 3.0
+	shards.scale_amount_max = 6.0
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(CardView.HEAL_BLOCK_COL, 1.0))
+	ramp.set_color(ramp.get_point_count() - 1, Color(CardView.HEAL_BLOCK_COL, 0.0))
+	shards.color_ramp = ramp
+	shards.z_index = 30
+	fx.add_child(shards)
+	shards.emitting = true
+	var cleanup := fx.create_tween()
+	cleanup.tween_interval(1.2)
+	cleanup.tween_callback(func():
+		if is_instance_valid(shards):
+			shards.queue_free())
+
 ## Effects budget of the current _animate batch: 1.0 for a lone hit, shrinking as more
 ## triggers/deaths pile up (a Diabrete chain would otherwise spawn dozens of emitters at once).
 ## Also scaled by GraphicsQuality.effect_detail, so phones always get lighter effects.
