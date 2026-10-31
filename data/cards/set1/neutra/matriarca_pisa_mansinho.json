@@ -1,0 +1,41 @@
+{
+  "name": "Matriarca Pisa-Mansinho",
+  "set": "set1",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "fera",
+    "elefante"
+  ],
+  "essence": "neutra",
+  "cost": 5,
+  "atk": 4,
+  "hp": 6,
+  "keywords": [
+    "armadura:1"
+  ],
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "discount_hand",
+      "target": "none",
+      "amount": 1,
+      "card_filter": {
+        "species": "elefante"
+      }
+    },
+    {
+      "trigger": "constante",
+      "action": "species_aura",
+      "species": [
+        "elefante"
+      ],
+      "hp": 1,
+      "armor": 1
+    }
+  ],
+  "text": "Ao Entrar: reduz em (1) o custo dos Elefantes na sua mão.\nConstante: seus outros Elefantes têm +1 de Vida e Armadura 1.",
+  "flavor": "Anda devagar porque já sabe que todo mundo vai sair da frente.",
+  "art": "neutra/matriarca_pisa_mansinho.webp",
+  "tags": []
+}

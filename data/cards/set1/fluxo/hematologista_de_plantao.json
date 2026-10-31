@@ -1,0 +1,37 @@
+{
+  "name": "Hematologista de Plantão",
+  "set": "set1",
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["humano"],
+  "essence": ["fluxo", "trevas"],
+  "cost": 3,
+  "atk": 2,
+  "hp": 4,
+  "keywords": [],
+  "conditional_uses_per_turn": 1,
+  "art": "fluxo/hematologista_de_plantao.webp",
+  "effects": [
+    {
+      "listen": "unit_damaged",
+      "scope": "enemy",
+      "zones": ["board"],
+      "when": { "dot": "sangramento" },
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
+    },
+    {
+      "listen": "leader_damaged",
+      "scope": "enemy",
+      "zones": ["board"],
+      "when": { "dot": "sangramento" },
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
+    }
+  ],
+  "text": "Condicional (1x por turno): quando uma unidade ou o Líder inimigo sofre dano de Sangramento, você compra 1 carta.",
+  "flavor": "Analisa a amostra, descarta o paciente e pede o próximo.",
+  "tags": []
+}

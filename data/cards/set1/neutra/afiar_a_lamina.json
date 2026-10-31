@@ -1,0 +1,23 @@
+{
+  "name": "Afiar a Lâmina",
+  "set": "set1",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "neutra",
+  "cost": 1,
+  "speed": "rapido",
+  "art": "neutra/afiar_a_lamina.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "critico_temp": 1
+    }
+  ],
+  "text": "Concede +1 nível de Crítico neste turno (máx. 4) a uma unidade aliada à sua escolha, mesmo que ela não tenha Crítico.",
+  "flavor": [
+    "Pedra, óleo e um pouco de rancor."
+  ],
+  "tags": []
+}

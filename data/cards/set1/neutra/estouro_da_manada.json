@@ -1,0 +1,33 @@
+{
+  "name": "Estouro da Manada",
+  "set": "set1",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "neutra",
+  "cost": 4,
+  "speed": "lento",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "summon_from",
+      "target": "none",
+      "source": "deck",
+      "pick": "random",
+      "species": "elefante",
+      "max_cost": 3
+    },
+    {
+      "trigger": "on_play",
+      "action": "summon_from",
+      "target": "none",
+      "source": "deck",
+      "pick": "random",
+      "species": "elefante",
+      "max_cost": 3
+    }
+  ],
+  "text": "Até 2 Elefantes de custo (3) ou menos do seu deck entram em campo sem pagar custo.",
+  "flavor": "Começa com um espirro. Termina com o prefeito pedindo desculpas na TV.",
+  "art": "neutra/estouro_da_manada.webp",
+  "tags": []
+}

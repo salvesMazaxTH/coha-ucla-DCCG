@@ -1,0 +1,22 @@
+{
+  "name": "Tempestade Estática",
+  "set": "set1",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 5,
+  "speed": "lento",
+  "art": "tormenta/tempestade_estatica.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "all_enemy_units",
+      "amount": 3
+    }
+  ],
+  "text": "Causa 3 de dano a todas as unidades inimigas.",
+  "flavor": "",
+  "tags": []
+}

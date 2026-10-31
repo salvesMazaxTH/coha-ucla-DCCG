@@ -1,0 +1,17 @@
+{
+  "name": "Visconde Mordisco",
+  "set": "set1",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["vampiro"],
+  "essence": ["furia", "trevas"],
+  "cost": 1,
+  "atk": 2,
+  "hp": 1,
+  "keywords": ["impeto"],
+  "art": "furia/visconde_mordisco.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "Título de nobreza, modos de mosquito.",
+  "tags": []
+}

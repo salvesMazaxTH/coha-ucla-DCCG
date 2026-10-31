@@ -1,0 +1,30 @@
+{
+  "name": "Pippa Ziguezague",
+  "set": "set1",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "fada"
+  ],
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 2,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [
+    "furtividade"
+  ],
+  "art": "tormenta/pippa_ziguezague.webp",
+  "effects": [
+    {
+      "trigger": "on_hit_leader",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": 1,
+      "refresh": true
+    }
+  ],
+  "text": "Ao Atingir o Líder: você recupera até 1 de Momentum gasto neste turno.",
+  "flavor": "Ninguém bloqueia o que não viu chegar.",
+  "tags": []
+}

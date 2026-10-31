@@ -13,6 +13,7 @@ func _init() -> void:
 		var errs := DeckDB.validate(d)
 		check(errs.is_empty(), "deck %s: %s" % [d, errs])
 		check(DeckDB.get_deck(d)["cards"].keys() == DeckDB.sorted_cards(DeckDB.get_deck(d)["cards"]).keys(), "deck %s: cartas fora de ordem de custo (rode tools/sort_decks.gd)" % d)
+	_test_card_sets()
 	_test_flavor()
 	_test_cristal_do_poder_equipado()
 	_test_equipment_modifier_sources()
@@ -171,6 +172,27 @@ func _init() -> void:
 	# Run tests/golden_check.gd by hand before committing an engine/rules change.
 	print("tests done, failures: ", failures)
 	quit(1 if failures > 0 else 0)
+
+## Sets: every card lives in data/cards/<set>/<domínio>/ and says which set it belongs to; no folder is left out of the registry.
+func _test_card_sets() -> void:
+	var sets: Dictionary = CardDB.data()["sets"]
+	check(sets.has("set1") and sets.has("set2"), "sets: set1 e set2 cadastrados em data/cards.json")
+	var orders := {}
+	for set_id in sets:
+		check(sets[set_id].has("name") and sets[set_id].has("order"), "set %s: precisa de name e order" % set_id)
+		check(not orders.has(sets[set_id].get("order")), "set %s: order repetida" % set_id)
+		orders[sets[set_id].get("order")] = true
+	# a folder under data/cards that is not in the registry would have all its cards silently ignored
+	for folder in DirAccess.get_directories_at("res://data/cards"):
+		check(sets.has(folder), "pasta data/cards/%s não está cadastrada em \"sets\" de data/cards.json" % folder)
+	var cards_per_set := {}
+	for card_id in CardDB.data()["cards"]:
+		var card_set: String = str(CardDB.card(card_id).get("set", ""))
+		check(sets.has(card_set), "%s: sem set válido (\"%s\")" % [card_id, card_set])
+		cards_per_set[card_set] = int(cards_per_set.get(card_set, 0)) + 1
+	check(int(cards_per_set.get("set1", 0)) > 0, "set1: tem cartas")
+	# the loader reports a wrong "set" field or a repeated id as a catalog error
+	check(not CardDB.errors().any(func(error: String): return error.contains("set") and (error.contains("pasta do set") or error.contains("set desconhecido") or error.contains("id repetido"))), "sets: nenhum erro de set/id no catálogo")
 
 ## Same cards with the same copies, ignoring order and int-vs-float (deck JSON files load numbers as floats).
 func _same_copies(first: Dictionary, second: Dictionary) -> bool:
@@ -4477,6 +4499,11 @@ func _test_drex_deck() -> void:
 	# Cancelamento do Plano de Saúde on a Leader: no healing, nothing credited, and it runs out after 2 of its turns
 	var g := _new_game()
 	_quiet(g)
+	# nobody starts blocked, not even on turn 0 (the mulligan): the "Sem cura" badge must not show before the match begins
+	var turn_before_mulligan_check := g.turn
+	g.turn = 0
+	check(not g.leader_heal_blocked(0) and not g.leader_heal_blocked(1), "Plano de Saúde: nenhum Líder começa bloqueado, nem no mulligan (turno 0)")
+	g.turn = turn_before_mulligan_check
 	var enemy := g.opponent(g.active)
 	var block_healing: Effect = EffectRegistry.parse_list(CardDB.card("cancelamento_do_plano_de_saude")["effects"])[0]
 	block_healing.apply(EffectContext.new(g, g.active, ""), GameState.LEADER_UID[enemy])
@@ -6717,7 +6744,7 @@ func _test_deck_summon_watches() -> void:
 func _test_card_validation() -> void:
 	var errs := CardDB.errors()
 	var before := errs.size()
-	CardDB._validate_card("teste", {"name": "x", "type": "unit", "cost": 1, "text": "", "atk": 1, "hp": 1,
+	CardDB._validate_card("teste", {"name": "x", "set": "set1", "type": "unit", "cost": 1, "text": "", "atk": 1, "hp": 1,
 		"keywords": ["vooo"], "effects": [{"trigger": "on_entr", "action": "dammage", "target": "self"},
 		{"trigger": "on_enter", "action": "damage", "target": "inimigo", "if": "sempre"}]})
 	check(errs.size() - before == 5, "validação: keyword, trigger, action, target e if errados (%d)" % (errs.size() - before))

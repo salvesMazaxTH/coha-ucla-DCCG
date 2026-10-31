@@ -1,0 +1,27 @@
+{
+  "name": "Titânico Morcegalma",
+  "set": "set1",
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["gargoyle"],
+  "essence": "trevas",
+  "element": "sombra",
+  "cost": 6,
+  "atk": 5,
+  "hp": 6,
+  "keywords": [
+    "roubo_de_vida"
+  ],
+  "art": "trevas/titanico_morcegalma.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "mill",
+      "target": "none",
+      "amount": 2
+    }
+  ],
+  "text": "Ao Entrar: Mói 2 cartas do seu deck.",
+  "flavor": "Suas asas cobrem a lua e o que jaz embaixo dela.",
+  "tags": []
+}

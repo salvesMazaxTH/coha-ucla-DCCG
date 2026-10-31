@@ -1,4 +1,8 @@
 {
+  "sets": {
+    "set1": {"name": "Set 1", "order": 1},
+    "set2": {"name": "Set 2", "order": 2}
+  },
   "essences": {
     "furia": {
       "name": "Fúria",

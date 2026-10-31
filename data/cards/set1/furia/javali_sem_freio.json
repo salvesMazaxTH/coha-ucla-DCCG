@@ -1,0 +1,27 @@
+{
+  "name": "Javali Sem Freio",
+  "set": "set1",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "fera"
+  ],
+  "essence": "furia",
+  "cost": 4,
+  "atk": 4,
+  "hp": 3,
+  "keywords": [],
+  "art": "furia/javali_sem_freio.webp",
+  "art_crop": {"x": 0.8, "y": 0.52, "zoom": 1.1},
+  "effects": [
+    {
+      "trigger": "on_damaged",
+      "action": "buff",
+      "target": "self",
+      "atk": 1
+    }
+  ],
+  "text": "Ao Sofrer Dano: esta unidade recebe +1 de Ataque.",
+  "flavor": "",
+  "tags": []
+}

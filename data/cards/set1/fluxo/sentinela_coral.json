@@ -1,0 +1,23 @@
+{
+  "name": "Sentinela de Coral",
+  "set": "set1",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "elemental"
+  ],
+  "essence": "fluxo",
+  "element": "agua",
+  "cost": 3,
+  "atk": 2,
+  "hp": 4,
+  "keywords": [
+    "vigilancia",
+    "regeneracao"
+  ],
+  "art": "fluxo/sentinela_coral.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "Já viu mil navios passarem. Nenhum passou sem permissão.",
+  "tags": []
+}

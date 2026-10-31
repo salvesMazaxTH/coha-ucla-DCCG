@@ -1,0 +1,64 @@
+{
+  "name": "Eryon",
+  "set": "set1",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "humano"
+  ],
+  "essence": "neutra",
+  "cost": 3,
+  "atk": 3,
+  "hp": 5,
+  "keywords": [],
+  "art": "neutra/eryon.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
+    },
+    {
+      "trigger": "on_turn_end",
+      "action": "damage",
+      "target": "random_enemy_spread",
+      "hits_from": "momentum",
+      "hits_from_add": -5,
+      "amount": 2,
+      "if": { "compare": { "stat": "momentum", "who": "self", "op": ">=", "value": 11 } }
+    },
+    {
+      "trigger": "on_turn_end",
+      "action": "spend_all_momentum",
+      "target": "none",
+      "if": { "compare": { "stat": "momentum", "who": "self", "op": ">=", "value": 11 } }
+    }
+  ],
+  "activated": {
+    "cost": 0,
+    "speed": "lento",
+    "once_per_turn": true,
+    "effects": [
+      {
+        "action": "sacrifice",
+        "target": "other_ally_unit",
+        "then": [
+          {
+            "action": "gain_momentum",
+            "target": "none",
+            "amount_from": "sacrificed_cost",
+            "max": 4,
+            "overflow": true,
+            "restriction": { "mode": "only", "match": { "essence": ["neutra"] } }
+          }
+        ]
+      }
+    ]
+  },
+  "text": "Ao Entrar: você compra 1 carta.\nAo Ativar (0) (1x por turno): você sacrifica outra unidade aliada e ganha uma quantidade de Momentum igual ao custo dela (no máximo 4; pode passar de 10 neste turno). Até o fim do turno, você só pode jogar cartas neutras.\nNo Fim do Seu Turno: se tiver 11 ou mais de Momentum, você gasta todo ele e esta unidade dá X golpes de 2 de dano em inimigos aleatórios, incluindo o Líder. X é o Momentum gasto menos 5.",
+  "flavor": [
+    "O fôlego não some. Só muda de dono."
+  ],
+  "tags": []
+}

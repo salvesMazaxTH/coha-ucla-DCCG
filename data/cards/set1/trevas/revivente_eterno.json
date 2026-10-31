@@ -1,0 +1,28 @@
+{
+  "name": "Revivente Eterno",
+  "set": "set1",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "morto_vivo"
+  ],
+  "essence": "trevas",
+  "element": "sombra",
+  "cost": 3,
+  "atk": 3,
+  "hp": 2,
+  "keywords": [
+    "obsessao"
+  ],
+  "art": "trevas/revivente_eterno.webp",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "revive_self_delayed",
+      "target": "none"
+    }
+  ],
+  "text": "Ao Morrer: volta ao campo no fim do turno seguinte.",
+  "flavor": "A morte lhe pediu desculpas e o devolveu.",
+  "tags": []
+}

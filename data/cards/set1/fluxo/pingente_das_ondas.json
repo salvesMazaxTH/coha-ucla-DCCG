@@ -1,0 +1,29 @@
+{
+  "name": "Pingente das Ondas",
+  "set": "set1",
+  "type": "artifact",
+  "subtypes": [
+    "equipment"
+  ],
+  "rarity": "common",
+  "essence": "fluxo",
+  "element": "agua",
+  "cost": 2,
+  "durability": 1,
+  "art": "fluxo/pingente_das_ondas.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "atk": 1,
+      "hp": 1,
+      "keywords": [
+        "roubo_de_vida"
+      ]
+    }
+  ],
+  "text": "Equipar: concede +1/+1 e Roubo de Vida à unidade equipada.",
+  "flavor": "",
+  "tags": []
+}

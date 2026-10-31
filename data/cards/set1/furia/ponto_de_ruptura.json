@@ -1,0 +1,20 @@
+{
+  "name": "Ponto de Ruptura",
+  "set": "set1",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": ["furia", "trevas"],
+  "cost": 2,
+  "art": "furia/ponto_de_ruptura.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "resolve_dot",
+      "dot": "sangramento",
+      "target": "enemy_unit"
+    }
+  ],
+  "text": "Os marcadores de Sangramento de uma unidade inimiga fazem efeito agora.",
+  "flavor": "Por que esperar a hemorragia chegar? Ela já está atrasada para o jantar.",
+  "tags": []
+}

@@ -1,10 +1,12 @@
 class_name CardDB
 extends RefCounted
-## Static card catalog loaded from data/cards.json and data/cards/<essence>/*.json.
+## Static card catalog loaded from data/cards.json and data/cards/<set>/<essence>/*.json.
+## A card's id is its file name, unique across every set; its "set" field must name the folder it lives in.
 
 static var _data: Dictionary = {}
 static var _defs: Dictionary = {} ## id -> CardDef
 static var _errors: Array[String] = []
+static var _set_folder_of: Dictionary = {} ## card id -> the set folder its file was found in (checked against its "set" field)
 
 ## The effect vocabulary lives in EffectRegistry, TargetRegistry and ConditionRegistry; a typo is
 ## checked on load so it is an error, not a silent no-op.
@@ -47,24 +49,30 @@ static func _apply_valued_keywords(cd: Dictionary) -> void:
 static func _load() -> void:
 	_errors.clear()
 	_defs.clear()
+	_set_folder_of.clear()
 	_data = _read_json("res://data/cards.json")
 	if _data.is_empty():
-		_data = {"essences": {}, "elements": {}, "triggers": {}, "species": {}, "keywords": {}, "leaders": {}}
+		_data = {"sets": {}, "essences": {}, "elements": {}, "triggers": {}, "species": {}, "keywords": {}, "leaders": {}}
 	_data["cards"] = {}
-	for essence_id in _data["essences"]:
-		var dir_path: String = "res://data/cards/" + str(essence_id)
-		if not DirAccess.dir_exists_absolute(dir_path):
-			continue
-		for file_name in DirAccess.get_files_at(dir_path):
-			if not file_name.ends_with(".json"):
+	for set_id in _data["sets"]:
+		for essence_id in _data["essences"]:
+			var dir_path: String = "res://data/cards/%s/%s" % [set_id, essence_id]
+			if not DirAccess.dir_exists_absolute(dir_path):
 				continue
-			var id := file_name.trim_suffix(".json")
-			var cd := _read_json(dir_path + "/" + file_name)
-			if cd.is_empty():
-				continue
-			_apply_valued_keywords(cd)
-			_data["cards"][id] = cd
-			_defs[id] = CardDef.new(id, cd)
+			for file_name in DirAccess.get_files_at(dir_path):
+				if not file_name.ends_with(".json"):
+					continue
+				var id := file_name.trim_suffix(".json")
+				if _data["cards"].has(id):
+					_errors.append("carta %s: id repetido (já existe em \"%s\"; o id é o nome do arquivo e vale para todos os sets)" % [id, _set_folder_of[id]])
+					continue
+				var cd := _read_json(dir_path + "/" + file_name)
+				if cd.is_empty():
+					continue
+				_apply_valued_keywords(cd)
+				_data["cards"][id] = cd
+				_set_folder_of[id] = str(set_id)
+				_defs[id] = CardDef.new(id, cd)
 	for id in _data["cards"]:
 		_validate_card(id, _data["cards"][id])
 	for lid in _data["leaders"]:
@@ -95,9 +103,14 @@ static func def(id: String) -> CardDef:
 
 static func _validate_card(id: String, cd: Dictionary) -> void:
 	var err := func(msg: String): _errors.append("carta %s: %s" % [id, msg])
-	for field in ["name", "type", "cost", "text"]:
+	for field in ["name", "set", "type", "cost", "text"]:
 		if not cd.has(field):
 			err.call("falta \"%s\"" % field)
+	if cd.has("set"):
+		if not _data.get("sets", {}).has(cd["set"]):
+			err.call("set desconhecido \"%s\" (cadastre em \"sets\" de data/cards.json)" % cd["set"])
+		elif _set_folder_of.has(id) and _set_folder_of[id] != cd["set"]:
+			err.call("o campo \"set\" diz \"%s\" mas o arquivo está na pasta do set \"%s\"" % [cd["set"], _set_folder_of[id]])
 	var type: String = cd.get("type", "")
 	if type not in TYPES:
 		err.call("type desconhecido \"%s\"" % type)

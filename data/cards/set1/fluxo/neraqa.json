@@ -1,0 +1,32 @@
+{
+  "name": "Neraqa",
+  "set": "set1",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["divindade", "celestial"],
+  "essence": "fluxo",
+  "element": "agua",
+  "cost": 5,
+  "atk": 4,
+  "hp": 5,
+  "keywords": [
+    "vigilancia",
+    "inalcancavel"
+  ],
+  "art": "fluxo/neraqa.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "other_ally_unit",
+      "keywords": [
+        "escudo_magico"
+      ],
+      "atk": 1,
+      "hp": 1
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher outra unidade aliada; ela recebe Escudo Mágico e +1/+1 permanente.",
+  "flavor": "Quebra sobre eles, e volta à calma.",
+  "tags": []
+}

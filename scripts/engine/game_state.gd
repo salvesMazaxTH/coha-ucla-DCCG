@@ -189,7 +189,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"damage_negated_until": 0, # Câmara de Êxtase aftermath: the Leader's next hits are negated while turn <= this
 		"damage_negated_left": 0, # ...and this is how many hits are still left to negate
 		"leader_dots": {}, # dot_id -> markers on the Leader. They tick at every turn start of its controller and are consumed like a unit's
-		"leader_heal_blocked_until": 0, # while turn <= this, this Leader cannot recover Vida (block_healing)
+		"leader_heal_blocked_until": -1, # while turn <= this, this Leader cannot recover Vida (block_healing); -1 = not blocked (0 would block the mulligan, which runs on turn 0)
 		"leader_veneno_held_until": 0, # while turn <= this, this Leader's Veneno markers hurt but are not consumed (Antídoto Fora de Estoque)
 		"frozen_slots": 0, # Rei Gelado: empty field slots of this player that accept no permanent
 		"frozen_slots_until": 0, # they thaw at the end of this player's own turn, once the turn counter reaches this

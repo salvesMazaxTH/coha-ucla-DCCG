@@ -1,0 +1,39 @@
+{
+  "name": "Mala Sem Alça",
+  "set": "set1",
+  "type": "artifact",
+  "subtypes": [
+    "equipment"
+  ],
+  "rarity": "common",
+  "essence": "neutra",
+  "cost": 1,
+  "durability": 1,
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "atk": 1,
+      "hp": 1
+    },
+    {
+      "listen": "card_moved",
+      "scope": "self",
+      "zones": [
+        "graveyard"
+      ],
+      "when": {
+        "from": "equipped",
+        "to": "graveyard",
+        "unit_died": true
+      },
+      "action": "return_to_hand",
+      "target": "self_card"
+    }
+  ],
+  "text": "Equipar: concede +1/+1 à unidade equipada. Condicional: quando a unidade equipada morrer, esta carta volta para a sua mão.",
+  "flavor": "Ninguém sabe de quem é. Todo mundo sabe quem vai carregar.",
+  "art": "neutra/mala_sem_alca.webp",
+  "tags": []
+}

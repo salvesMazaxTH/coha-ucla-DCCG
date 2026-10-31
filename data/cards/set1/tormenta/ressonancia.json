@@ -1,0 +1,24 @@
+{
+  "name": "Ressonância",
+  "set": "set1",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 2,
+  "speed": "instantaneo",
+  "art": "tormenta/ressonancia.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "keywords": [
+        "escudo_magico"
+      ]
+    }
+  ],
+  "text": "Concede Escudo Mágico a uma unidade aliada à sua escolha.",
+  "flavor": "",
+  "tags": []
+}

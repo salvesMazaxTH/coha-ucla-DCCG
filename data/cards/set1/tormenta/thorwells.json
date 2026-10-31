@@ -1,0 +1,23 @@
+{
+  "name": "Thorwells",
+  "set": "set1",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "divindade"
+  ],
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 7,
+  "atk": 6,
+  "hp": 6,
+  "keywords": [
+    "rapidez:3",
+    "esquiva"
+  ],
+  "art": "tormenta/thorwells.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "",
+  "tags": []
+}

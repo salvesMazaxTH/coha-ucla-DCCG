@@ -1,0 +1,22 @@
+{
+  "name": "Descarga de Ideias",
+  "set": "set1",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 3,
+  "speed": "instantaneo",
+  "art": "tormenta/descarga_de_ideias.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 2
+    }
+  ],
+  "text": "Você compra 2 cartas.",
+  "flavor": "",
+  "tags": []
+}

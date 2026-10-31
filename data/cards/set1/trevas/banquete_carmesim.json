@@ -1,0 +1,22 @@
+{
+  "name": "Banquete Carmesim",
+  "set": "set1",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "trevas",
+  "cost": 4,
+  "speed": "rapido",
+  "art": "trevas/banquete_carmesim.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 1,
+      "amount_from": "healing_this_round"
+    }
+  ],
+  "text": "Causa 1 de dano ao Líder inimigo para cada Vida que seu Líder e suas unidades recuperaram neste turno.",
+  "flavor": "Tudo o que entrou pela boca sai pela conta do inimigo.",
+  "tags": []
+}

@@ -244,10 +244,11 @@ func _save_card(card_id: String) -> void:
 	_show_current_card()
 
 func _json_path_of(card_id: String) -> String:
-	for essence_id in CardDB.data()["essences"]:
-		var file_path := "res://data/cards/%s/%s.json" % [essence_id, card_id]
-		if FileAccess.file_exists(file_path):
-			return file_path
+	for set_id in CardDB.data()["sets"]:
+		for essence_id in CardDB.data()["essences"]:
+			var file_path := "res://data/cards/%s/%s/%s.json" % [set_id, essence_id, card_id]
+			if FileAccess.file_exists(file_path):
+				return file_path
 	return ""
 
 ## The card's JSON text with its one-line "art_crop" replaced (or removed when `crop` is empty), changing

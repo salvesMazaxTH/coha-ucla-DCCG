@@ -1,0 +1,18 @@
+{
+  "name": "Relojoeiro Pino-14",
+  "set": "set1",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["robo"],
+  "essence": "montanha",
+  "cost": 3,
+  "atk": 2,
+  "hp": 3,
+  "keywords": [],
+  "counts_as_artifact": true,
+  "effects": [],
+  "text": "Esta carta também é um artefato.",
+  "flavor": "",
+  "art": "montanha/relojoeiro_pino_14.webp",
+  "tags": []
+}

@@ -1,0 +1,38 @@
+{
+  "name": "Leone D'Averio",
+  "set": "set1",
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["vampiro"],
+  "essence": "furia",
+  "cost": 4,
+  "atk": 4,
+  "hp": 5,
+  "keywords": ["impeto", "roubo_de_vida"],
+  "art": "furia/leone_daverio.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "add_dot",
+      "dot": "sangramento",
+      "target": "enemy_unit",
+      "amount": 2
+    },
+    {
+      "trigger": "on_deal_combat_damage",
+      "action": "add_dot",
+      "dot": "sangramento",
+      "target": "damaged_target",
+      "amount": 1
+    },
+    {
+      "trigger": "on_deal_combat_damage",
+      "action": "buff",
+      "target": "self",
+      "atk": 1
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela recebe 2 marcadores de Sangramento.\nAo Causar Dano de Combate: o alvo (inclusive um Líder) recebe 1 marcador de Sangramento e esta unidade recebe +1 de Ataque permanente.",
+  "flavor": "Ergue a taça ao convidado e sorri. Quando o brinde termina, é o convidado que foi servido.",
+  "tags": []
+}

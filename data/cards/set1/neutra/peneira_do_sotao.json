@@ -1,0 +1,23 @@
+{
+  "name": "Peneira do Sótão",
+  "set": "set1",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "neutra",
+  "cost": 1,
+  "speed": "lento",
+  "art": "neutra/peneira_do_sotao.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "search_deck",
+      "target": "none",
+      "top": 4
+    }
+  ],
+  "text": "Você olha as 4 cartas do topo do seu deck e coloca 1 delas na sua mão. As outras vão para o fundo do deck.",
+  "flavor": [
+    "Tudo o que presta estava embaixo do que não presta."
+  ],
+  "tags": []
+}

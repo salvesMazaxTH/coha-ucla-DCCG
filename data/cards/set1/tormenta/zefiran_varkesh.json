@@ -1,0 +1,27 @@
+{
+  "name": "Zefiran Varkesh",
+  "set": "set1",
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["djinn"],
+  "essence": "tormenta",
+  "element": "vento",
+  "cost": 12,
+  "atk": 7,
+  "hp": 6,
+  "subito": 10,
+  "subito_fixed": true,
+  "keywords": ["rompante"],
+  "art": "tormenta/zefiran_varkesh.webp",
+  "effects": [
+    {
+      "action": "cost_reduction",
+      "per": "starting_momentum_surplus",
+      "threshold": 1,
+      "amount": 4
+    }
+  ],
+  "text": "Súbito (10), sem descontos. (Este efeito é uma habilidade, não uma jogada.) Custa (4) a menos se você começou o turno com mais Momentum do que o seu máximo.",
+  "flavor": "",
+  "tags": []
+}

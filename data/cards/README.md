@@ -1,14 +1,19 @@
 # Cartas
 
-Cada carta fica em um arquivo JSON próprio, usando o ID do jogo como nome do arquivo, dentro da pasta do seu **domínio**:
-`furia/`, `fluxo/`, `natureza/`, `montanha/`, `tormenta/`, `trevas/`, `devocao/` e `neutra/`.
-O campo `essence` da carta deve bater com a pasta. Pastas de domínios sem cartas ainda não precisam existir.
+Cada carta fica em um arquivo JSON próprio, usando o ID do jogo como nome do arquivo, dentro da pasta do seu **set** e do seu **domínio**:
+`data/cards/<set>/<domínio>/<id>.json`, por exemplo `set1/furia/kai.json`.
+
+- Sets: `set1/`, `set2/`... Cada set precisa estar cadastrado em `sets` de `../cards.json` (nome e ordem).
+- Domínios: `furia/`, `fluxo/`, `natureza/`, `montanha/`, `tormenta/`, `trevas/`, `devocao/` e `neutra/`. Pastas vazias não precisam existir.
+- O campo `set` da carta (ex.: `"set": "set1"`) deve bater com a pasta do set, e o campo `essence` com a pasta do domínio. O carregador acusa erro se não baterem.
+- O ID (nome do arquivo) é único no jogo inteiro, mesmo entre sets: duas cartas com o mesmo ID em sets diferentes dão erro. Decks, Líderes e efeitos citam a carta só pelo ID, sem o set.
+- Para achar uma carta qualquer: `docs/INDICE_CARTAS.md` (gerado por `tools/generate_card_index.gd`, ver abaixo).
 
 Exemplos:
 
-- `furia/kai.json` — carta do Kai
-- `furia/ronan.json` — carta de campeão do Ronan
-- `furia/labareda.json` — carta de feitiço Labareda
+- `set1/furia/kai.json` — carta do Kai
+- `set1/furia/ronan.json` — carta de campeão do Ronan
+- `set1/furia/labareda.json` — carta de feitiço Labareda
 
 Para alterar habilidades, edite o campo `keywords` usando os IDs definidos em `../cards.json`, na seção `keywords`.
 
@@ -51,4 +56,12 @@ Exemplo:
 
 ## Retratos
 
-Os retratos ficam em `assets/portraits/<domínio>/<id>.webp`, na mesma pasta de domínio da carta (`furia/`, `fluxo/`, `neutra/`…). O campo `art` da carta guarda o caminho relativo a `assets/portraits/`, por exemplo `"art": "furia/kai.webp"`. Retratos de Líderes ficam na pasta do domínio do Líder.
+Os retratos ficam em `assets/portraits/<domínio>/<id>.webp`, na mesma pasta de domínio da carta (`furia/`, `fluxo/`, `neutra/`…). Por enquanto os retratos não são separados por set (o caminho vem do campo `art`, então dá para espelhar os sets depois sem mexer no motor). O campo `art` da carta guarda o caminho relativo a `assets/portraits/`, por exemplo `"art": "furia/kai.webp"`. Retratos de Líderes ficam na pasta do domínio do Líder.
+
+## Índice de cartas
+
+`docs/INDICE_CARTAS.md` lista todas as cartas (set, domínio, ID, nome, raridade, tipo, custo) agrupadas por set. Para regenerar depois de criar ou renomear cartas:
+
+```
+godot --headless --path . -s tools/generate_card_index.gd
+```

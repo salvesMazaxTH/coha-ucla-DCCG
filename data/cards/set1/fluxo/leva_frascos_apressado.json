@@ -1,0 +1,35 @@
+{
+  "name": "Leva-Frascos Apressado",
+  "set": "set1",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "humano"
+  ],
+  "essence": "fluxo",
+  "element": "agua",
+  "cost": 2,
+  "atk": 1,
+  "hp": 2,
+  "keywords": [],
+  "art": "fluxo/leva_frascos_apressado.webp",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "put_artifact",
+      "target": "none",
+      "card": "ampola_curativa",
+      "durability_left": 1
+    },
+    {
+      "trigger": "on_death",
+      "action": "put_artifact",
+      "target": "none",
+      "card": "ampola_curativa",
+      "durability_left": 1
+    }
+  ],
+  "text": "Ao Morrer: duas Ampolas Curativas, com apenas 1 de Durabilidade cada, entram no seu campo.",
+  "flavor": "Correu tanto que derramou metade de cada uma pelo caminho.",
+  "tags": []
+}

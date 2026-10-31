@@ -1,0 +1,20 @@
+{
+  "name": "Cancelamento do Plano de Saúde",
+  "set": "set1",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "trevas",
+  "cost": 2,
+  "art": "trevas/cancelamento_do_plano_de_saude.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "block_healing",
+      "target": "enemy_unit_or_leader",
+      "turns": 2
+    }
+  ],
+  "text": "Uma unidade inimiga ou o Líder inimigo não pode recuperar Vida pelos próximos 2 turnos de quem o controla.",
+  "flavor": "\"Seu tratamento foi considerado procedimento estético.\"",
+  "tags": []
+}
