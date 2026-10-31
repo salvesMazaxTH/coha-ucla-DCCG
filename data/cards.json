@@ -363,7 +363,7 @@
     "armadura": {
       "name": "Armadura",
       "has_value": true,
-      "text": "Armadura X: todo dano que esta unidade receberia é reduzido em X, mas nunca abaixo de 1. Se algo der Armadura a uma unidade que já tem, os valores se somam."
+      "text": "Armadura X: todo dano que esta unidade receberia é reduzido em X, mas nunca abaixo de 1. Se algo der Armadura a uma unidade que já tem, os valores se somam, mas o máximo de Armadura de uma unidade é 5 (a menos que a carta diga o contrário)."
     },
     "rapidez": {
       "name": "Rapidez",

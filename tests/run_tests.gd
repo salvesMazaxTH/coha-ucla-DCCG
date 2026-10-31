@@ -139,6 +139,7 @@ func _init() -> void:
 	_test_elite_limits()
 	_test_armor()
 	_test_tharox_armor_growth()
+	_test_armor_cap()
 	_test_isarelis_hit_leader()
 	_test_silence_and_david()
 	_test_silence_keeps_ally_auras()
@@ -3124,7 +3125,8 @@ func _test_armor() -> void:
 	armor_effect.apply(EffectContext.new(g, 0, ""), wall.uid)
 	check(wall.armor_total() == 6, "Armadura soma: 2 x (1 fixa + 2 temporária) = 6 (%d)" % wall.armor_total())
 	check(g._deal_damage(wall.uid, 5, null) == 1 and wall.damage == 1, "dano menor ou igual à Armadura passa mesmo assim, como 1")
-	check(g._deal_damage(wall.uid, 8, null) == 2 and wall.damage == 3, "dano acima da Armadura passa só o excedente")
+	# the stored sum is 6 but the default cap of 5 applies, so a hit of 8 passes 8 - 5 = 3
+	check(g._deal_damage(wall.uid, 8, null) == 3 and wall.damage == 4, "dano acima da Armadura passa só o excedente (já com o teto de 5)")
 	wall.shield = true
 	g._deal_damage(wall.uid, 4, null)
 	check(not wall.shield, "a Armadura nunca zera o dano: o golpe de 1 gasta o Escudo")
@@ -3141,6 +3143,23 @@ func _test_tharox_armor_growth() -> void:
 		g._deal_damage(tharox.uid, step[0], null)
 		g._check_state()
 		check(g.armor_of(tharox) == step[1], "Tharox: golpe de %d deixa a Armadura em %d (%d)" % [step[0], step[1], g.armor_of(tharox)])
+
+## Armadura has a default maximum of 5 (the final total, own + auras + neighbours); a card that "ignores_armor_cap" (Tharox) goes past it.
+func _test_armor_cap() -> void:
+	_tcard("t_cap_plain", 1, 9, [])
+	var g := _new_game()
+	var plain := _put(g, 0, "t_cap_plain")
+	plain.armor = 4
+	g._apply_effect(0, {"action": "buff", "target": "ally_unit", "armor": 3}, plain.uid)
+	check(plain.armor == 7 and g.armor_of(plain) == 5, "Armadura 7 guardada, mas o máximo padrão é 5 (%d)" % g.armor_of(plain))
+	check(g.damage_after_armor(plain, 9) == 4, "o golpe de 9 só é reduzido em 5 (%d)" % g.damage_after_armor(plain, 9))
+	var tharox := _put(g, 0, "tharox")
+	tharox.armor = 8
+	check(g.armor_of(tharox) == 8 and g.damage_after_armor(tharox, 9) == 1, "Tharox ignora o máximo de Armadura (%d)" % g.armor_of(tharox))
+	check(CardView.armor_of_view(CardDB.card("t_cap_plain"), {"damage": 0, "armor": 7}) == 5, "a UI também mostra no máximo 5")
+	check(CardView.armor_of_view(CardDB.card("tharox"), {"damage": 0, "armor": 8}) == 8, "a UI mostra a Armadura inteira do Tharox")
+	var keyword_text: String = str(CardDB.data()["keywords"]["armadura"]["text"])
+	check(keyword_text.contains("máximo") and keyword_text.contains("5"), "o texto da regra de Armadura diz que o máximo é 5")
 
 ## Vørn Ω grows in three steps, one per Ao Sofrer Dano of that instance (across turns); later hits do nothing.
 func _test_vorn_staged_damage() -> void:
@@ -4336,44 +4355,79 @@ func _test_drex_deck() -> void:
 	feast.apply(EffectContext.new(g, g.active, ""), GameState.LEADER_UID[enemy])
 	check(g.players[enemy]["leader_hp"] == 43, "Banquete Carmesim: 7 de cura neste turno viram 7 de dano no Líder inimigo")
 
-	# Drex champion: grows when Sangramento hurts an enemy, and plants Sangramento when an ally unit heals with its own effect
+	# Drex champion: when Sangramento hurts an enemy (or an ally unit heals with its own effect) he gets +1 Vida and +1 Armadura permanent and his Leader recovers X+1
 	g = _new_game()
 	_quiet(g)
 	enemy = g.opponent(g.active)
 	var vampire := _put(g, g.active, "drex")
 	var victim := _put(g, enemy, "t_target_dummy")
 	var healer := _put(g, g.active, "t_target_dummy")
+	check(vampire.atk == 3 and vampire.hp == 4 and vampire.armor == 0, "Drex: entra como 3/4 sem Armadura")
+	g.players[g.active]["leader_max"] = 100
+	g.players[g.active]["leader_hp"] = 50
 	g.add_dot_markers(victim, "sangramento", 2)
 	g.resolve_dot(victim, "sangramento")
 	g._check_state()
-	check(vampire.atk == 3 and vampire.hp == 5, "Drex: o Sangramento causando dano a uma unidade inimiga dá +1/+1 permanente")
+	check(vampire.atk == 3 and vampire.hp == 5 and vampire.armor == 1, "Drex: o Sangramento causando dano a uma unidade inimiga dá +1 de Vida e +1 de Armadura permanentes (sem Ataque)")
+	check(g.players[g.active]["leader_hp"] == 53, "Drex: o Líder recupera X+1 de Vida (2+1) por inimigo atingido")
 	g.players[enemy]["leader_max"] = 100
 	g.players[enemy]["leader_hp"] = 50
 	g.add_leader_dot_markers(enemy, "sangramento", 2)
 	g._resolve_leader_dot(enemy, "sangramento")
 	g._check_state()
-	check(vampire.atk == 4 and vampire.hp == 6, "Drex: o Sangramento causando dano ao Líder inimigo também dá +1/+1")
-	var markers_before := int(victim.dot_markers.get("sangramento", 0))
+	check(vampire.hp == 6 and vampire.armor == 2 and g.players[g.active]["leader_hp"] == 56, "Drex: o Sangramento causando dano ao Líder inimigo também dá +1 de Vida e +1 de Armadura e cura X+1; a Armadura acumula")
+	g.grow_shared_x(g.active, "drex")
+	g.add_dot_markers(victim, "sangramento", 2)
+	g.resolve_dot(victim, "sangramento")
+	g._check_state()
+	check(g.players[g.active]["leader_hp"] == 56 + 4, "Drex: com o X em 3 o Líder recupera 4 por inimigo atingido")
+	# the heal Drex itself does must not set the Conditional off again
+	check(vampire.hp == 7 and vampire.armor == 3, "Drex: a cura do próprio Drex não dispara a Condicional de novo (só +1 de Vida e +1 de Armadura por tick)")
+
+	# an ally unit healing with its own effect also sets the Conditional off
+	var hp_before_heal := vampire.hp
+	var armor_before_heal := vampire.armor
+	var leader_hp_before_heal: int = g.players[g.active]["leader_hp"]
 	healer.damage = 3
-	g.players[g.active]["leader_max"] = 100
-	g.players[g.active]["leader_hp"] = 50
 	g.emit_unit_healed(healer, 1, "spell")
 	g._check_state()
 	g._heal_leader(g.active, 1, "leader_ability")
 	g._heal_leader(g.active, 1, "artifact")
 	g._heal_leader(g.active, 1)
 	g._check_state()
-	check(int(victim.dot_markers.get("sangramento", 0)) == markers_before, "Drex: cura de feitiço, habilidade de Líder, artefato ou roubo de vida não planta Sangramento")
+	check(vampire.hp == hp_before_heal and vampire.armor == armor_before_heal and g.players[g.active]["leader_hp"] == leader_hp_before_heal + 3, "Drex: cura de feitiço, habilidade de Líder, artefato ou sem origem não dispara a Condicional")
+	leader_hp_before_heal = g.players[g.active]["leader_hp"]
 	g.emit_unit_healed(healer, 1, "unit")
 	g._check_state()
-	check(int(victim.dot_markers.get("sangramento", 0)) == markers_before + 1, "Drex: cura feita por efeito de unidade (em unidade) planta 1 marcador de Sangramento em um inimigo")
+	check(vampire.hp == hp_before_heal + 1 and vampire.armor == armor_before_heal + 1 and g.players[g.active]["leader_hp"] == leader_hp_before_heal + 4, "Drex: cura de unidade aliada (em unidade) dá +1 de Vida, +1 de Armadura e cura X+1 (3+1)")
+	leader_hp_before_heal = g.players[g.active]["leader_hp"]
 	g._heal_leader(g.active, 1, "unit")
 	g._check_state()
-	check(int(victim.dot_markers.get("sangramento", 0)) == markers_before + 2, "Drex: cura feita por efeito de unidade (no Líder) também planta Sangramento")
-	var enemy_side_heal := int(victim.dot_markers.get("sangramento", 0))
+	check(vampire.hp == hp_before_heal + 2 and vampire.armor == armor_before_heal + 2 and g.players[g.active]["leader_hp"] == leader_hp_before_heal + 1 + 4, "Drex: cura de unidade aliada (no Líder) também dispara a Condicional")
+	var hp_before_enemy_heal := vampire.hp
+	g.players[enemy]["leader_hp"] = 40
 	g._heal_leader(enemy, 1, "unit")
 	g._check_state()
-	check(int(victim.dot_markers.get("sangramento", 0)) == enemy_side_heal, "Drex: cura feita por unidade inimiga não planta Sangramento")
+	check(vampire.hp == hp_before_enemy_heal, "Drex: cura feita por unidade inimiga não dispara a Condicional")
+	# the lifesteal keyword is a unit healing: Drex has it innately and hears his own, and an ally's
+	check(vampire.has_kw("roubo_de_vida"), "Drex: tem Roubo de Vida inato")
+	_tcard("t_lifesteal_victim", 1, 12, [])
+	_tcard("t_lifesteal_ally", 3, 3, [])
+	CardDB.card("t_lifesteal_ally")["keywords"] = ["roubo_de_vida"]
+	g.players[g.active]["leader_max"] = 100
+	var leader_hp_before_lifesteal: int = g.players[g.active]["leader_hp"]
+	var hp_before_lifesteal := vampire.hp
+	var armor_before_lifesteal := vampire.armor
+	var lifesteal_victim := _put(g, enemy, "t_lifesteal_victim")
+	g._deal_damage(lifesteal_victim.uid, 1, vampire)
+	g._check_state()
+	check(vampire.hp == hp_before_lifesteal + 1 and vampire.armor == armor_before_lifesteal + 1, "Drex: o próprio Roubo de Vida dispara a Condicional (+1 de Vida e +1 de Armadura)")
+	check(g.players[g.active]["leader_hp"] == leader_hp_before_lifesteal + 1 + 4, "Drex: o Roubo de Vida cura 1 e a Condicional cura X+1 (3+1) sem se repetir")
+	var ally_lifesteal := _put(g, g.active, "t_lifesteal_ally")
+	hp_before_lifesteal = vampire.hp
+	g._deal_damage(lifesteal_victim.uid, 1, ally_lifesteal)
+	g._check_state()
+	check(vampire.hp == hp_before_lifesteal + 1, "Drex: o Roubo de Vida de uma unidade aliada também dispara a Condicional")
 
 	# Coagulhão: Ao Entrar makes the Sangramento tick at once on every enemy without consuming it, its Leader heals by the full damage, Ao Morrer ticks again (also without consuming)
 	_tcard("t_target_dummy", 1, 12, [])
@@ -4401,31 +4455,121 @@ func _test_drex_deck() -> void:
 	check(int(first_victim.dot_markers.get("sangramento", 0)) == 4 and g.leader_dot_markers(enemy, "sangramento") == 4, "Coagulhão: ao morrer, os marcadores também ficam")
 	check(g.players[g.active]["leader_hp"] == leader_hp_before_death, "Coagulhão: depois de morto não cura mais ninguém")
 
-	# Drex Ao Ativar: sacrifices another ally and heals his Leader by that unit's Attack
+	# Lorde Sanguessuga: Ao Entrar plants 3 Sangramento markers, one random enemy unit per marker (never the Leader)
+	g = _new_game()
+	_quiet(g)
+	enemy = g.opponent(g.active)
+	var lone_victim := _put(g, enemy, "t_target_dummy")
+	_put(g, g.active, "lorde_sanguessuga")
+	g._check_state()
+	check(int(lone_victim.dot_markers.get("sangramento", 0)) == 3, "Lorde Sanguessuga: com uma só unidade inimiga, os 3 marcadores vão todos nela")
+	check(g.leader_dot_markers(enemy, "sangramento") == 0, "Lorde Sanguessuga: o Líder inimigo não recebe marcadores")
+	g = _new_game()
+	_quiet(g)
+	enemy = g.opponent(g.active)
+	var spread_a := _put(g, enemy, "t_target_dummy")
+	var spread_b := _put(g, enemy, "t_target_dummy")
+	_put(g, g.active, "lorde_sanguessuga")
+	g._check_state()
+	var planted_total: int = int(spread_a.dot_markers.get("sangramento", 0)) + int(spread_b.dot_markers.get("sangramento", 0))
+	check(planted_total == 3, "Lorde Sanguessuga: com várias unidades inimigas, os 3 marcadores são sorteados entre elas (total 3)")
+	g = _new_game()
+	_quiet(g)
+	_put(g, g.active, "lorde_sanguessuga")
+	g._check_state()
+	check(g.leader_dot_markers(g.opponent(g.active), "sangramento") == 0, "Lorde Sanguessuga: sem unidades inimigas, nada acontece")
+
+	# Drex Ao Ativar: costs a discard OR sacrificing another ally, spreads X Sangramento markers (X starts at 2) among enemy units AND the Leader, and X grows by 1 for every Drex
 	_tcard("t_drex_fodder", 3, 2, [])
 	g = _new_game()
 	_quiet(g)
 	enemy = g.opponent(g.active)
 	var vampire_two := _put(g, g.active, "drex")
 	var fodder := _put(g, g.active, "t_drex_fodder")
-	var sangramento_target := _put(g, enemy, "t_target_dummy")
-	g.players[g.active]["leader_max"] = 100
-	g.players[g.active]["leader_hp"] = 50
+	var first_target := _put(g, enemy, "t_target_dummy")
+	var second_target := _put(g, enemy, "t_target_dummy")
 	g.players[g.active]["momentum"] = 3
 	vampire_two.exhausted = false
+	check(g.shared_x_of(g.active, "drex") == 2, "Drex: o X começa em 2")
+	check(vampire_two.has_kw("escudo") and vampire_two.atk == 3 and vampire_two.hp == 4 and vampire_two.armor == 0, "Drex: 3/4 com Escudo e sem Armadura")
 	g.activate(g.active, vampire_two.uid, fodder.uid)
 	g._flush()
 	g._check_state()
-	check(g.players[g.active]["leader_hp"] == 53, "Drex Ativar: sacrificar uma unidade 3/2 cura 3 de Vida do Líder")
-	check(g.find_unit(fodder.uid) == null, "Drex Ativar: a unidade aliada é sacrificada")
-	check(vampire_two.exhausted and g.players[g.active]["momentum"] == 2, "Drex Ativar: custa 1 e exaure o Drex")
-	check(int(sangramento_target.dot_markers.get("sangramento", 0)) == 1, "Drex Ativar: a cura vem de uma unidade, então planta 1 Sangramento")
+	var spread_total := int(first_target.dot_markers.get("sangramento", 0)) + int(second_target.dot_markers.get("sangramento", 0)) + g.leader_dot_markers(enemy, "sangramento")
+	check(spread_total == 2, "Drex Ativar: distribui X (2) marcadores entre as unidades inimigas e o Líder inimigo")
+	check(first_target.damage == 0 and second_target.damage == 0 and g.players[enemy]["leader_hp"] == g.players[enemy]["leader_max"], "Drex Ativar: não causa dano na hora")
+	check(g.find_unit(fodder.uid) == null, "Drex Ativar: sacrificar a unidade aliada paga o custo adicional")
+	check(vampire_two.exhausted and g.players[g.active]["momentum"] == 2, "Drex Ativar: custa 1 de Momentum e exaure o Drex")
+	check(g.shared_x_of(g.active, "drex") == 3, "Drex Ativar: o X sobe 1")
+	check(g.shared_x_of(g.opponent(g.active), "drex") == 2, "Drex: o X é de cada jogador, o do oponente não muda")
+
+	# the cost can also be a discarded card, and the X is shared with Drex copies that show up later
 	vampire_two.exhausted = false
-	var momentum_before_alone: int = g.players[g.active]["momentum"]
-	g.activate(g.active, vampire_two.uid, vampire_two.uid)
+	var discarded_uid := _give(g, g.active, "t_drex_fodder")
+	g.activate(g.active, vampire_two.uid, discarded_uid)
 	g._flush()
-	check(g.find_unit(vampire_two.uid) != null and g.players[g.active]["leader_hp"] == 53, "Drex Ativar: ele não pode sacrificar a si mesmo")
-	check(g.players[g.active]["momentum"] == momentum_before_alone, "Drex Ativar: sem outra unidade aliada, nada é gasto")
+	g._check_state()
+	check(not _hand_has(g, g.active, discarded_uid), "Drex Ativar: descartar uma carta da mão também paga o custo adicional")
+	check(g.shared_x_of(g.active, "drex") == 4, "Drex Ativar: o segundo Ativar leva o X a 4")
+	var spread_after_second := int(first_target.dot_markers.get("sangramento", 0)) + int(second_target.dot_markers.get("sangramento", 0)) + g.leader_dot_markers(enemy, "sangramento")
+	check(spread_after_second == 2 + 3, "Drex Ativar: o segundo Ativar distribui X (3) marcadores")
+	var later_copy := _put(g, g.active, "drex")
+	check(g.shared_x_of(g.active, later_copy.card_id) == 4, "Drex: uma cópia que entra depois já usa o X crescido")
+
+	# invalid payers are rejected and nothing is spent
+	vampire_two.exhausted = false
+	var momentum_before_invalid: int = g.players[g.active]["momentum"]
+	var markers_before_invalid := int(first_target.dot_markers.get("sangramento", 0)) + int(second_target.dot_markers.get("sangramento", 0)) + g.leader_dot_markers(enemy, "sangramento")
+	g.activate(g.active, vampire_two.uid, vampire_two.uid)
+	g.activate(g.active, vampire_two.uid, first_target.uid)
+	g._flush()
+	check(g.players[g.active]["momentum"] == momentum_before_invalid and not vampire_two.exhausted, "Drex Ativar: ele mesmo ou uma unidade inimiga não pagam o custo, nada é gasto")
+	check(int(first_target.dot_markers.get("sangramento", 0)) + int(second_target.dot_markers.get("sangramento", 0)) + g.leader_dot_markers(enemy, "sangramento") == markers_before_invalid, "Drex Ativar: pagador inválido não distribui marcadores")
+
+	# the discard window: begin_activation_discard opens the pick, nothing is spent until a card is chosen
+	vampire_two.exhausted = false
+	var window_card_uid := _give(g, g.active, "t_drex_fodder")
+	var window_phase_before: String = g.phase
+	var window_momentum_before: int = g.players[g.active]["momentum"]
+	var window_x_before: int = g.shared_x_of(g.active, "drex")
+	g.begin_activation_discard(g.active, vampire_two.uid)
+	check(g.phase == "search" and g.pending_search.get("discard_hand", false) and int(g.pending_search.get("then_activate", 0)) == vampire_two.uid, "Drex Ativar (janela): descartar abre a escolha da mão marcada para ativar depois")
+	check(g.players[g.active]["momentum"] == window_momentum_before and not vampire_two.exhausted and _hand_has(g, g.active, window_card_uid), "Drex Ativar (janela): nada é gasto antes de escolher a carta")
+	g.choose_search(g.active, 0)
+	check(g.phase == window_phase_before and g.pending_search.is_empty(), "Drex Ativar (janela): cancelar volta para onde estava")
+	check(g.players[g.active]["momentum"] == window_momentum_before and not vampire_two.exhausted and _hand_has(g, g.active, window_card_uid) and g.shared_x_of(g.active, "drex") == window_x_before, "Drex Ativar (janela): cancelar não gasta Momentum, carta nem X")
+	g.begin_activation_discard(g.active, vampire_two.uid)
+	g.choose_search(g.active, window_card_uid)
+	g._flush()
+	g._check_state()
+	check(g.phase == window_phase_before and not _hand_has(g, g.active, window_card_uid), "Drex Ativar (janela): escolher a carta a descarta e volta ao jogo")
+	check(vampire_two.exhausted and g.players[g.active]["momentum"] == window_momentum_before - 1 and g.shared_x_of(g.active, "drex") == window_x_before + 1, "Drex Ativar (janela): escolher a carta paga o Momentum, exaure o Drex e ativa")
+	# with an empty hand the discard window does not open
+	vampire_two.exhausted = false
+	g.players[g.active]["hand"].clear()
+	check(g.begin_activation_discard(g.active, vampire_two.uid).is_empty() and g.phase != "search", "Drex Ativar (janela): sem cartas na mão a janela de descarte não abre")
+
+	# with no enemy unit on the board every marker lands on the enemy Leader
+	g = _new_game()
+	_quiet(g)
+	enemy = g.opponent(g.active)
+	var vampire_three := _put(g, g.active, "drex")
+	var spare_fodder := _put(g, g.active, "t_drex_fodder")
+	g.players[g.active]["momentum"] = 3
+	vampire_three.exhausted = false
+	g.activate(g.active, vampire_three.uid, spare_fodder.uid)
+	g._flush()
+	g._check_state()
+	check(g.leader_dot_markers(enemy, "sangramento") == 2, "Drex Ativar: sem unidades inimigas, os X marcadores vão todos no Líder inimigo")
+
+	# with no other unit and an empty hand there is nothing to pay with
+	g = _new_game()
+	_quiet(g)
+	var lonely := _put(g, g.active, "drex")
+	g.players[g.active]["hand"].clear()
+	g.players[g.active]["momentum"] = 3
+	lonely.exhausted = false
+	check(not g.can_activate(g.active, lonely.uid), "Drex Ativar: sem carta na mão nem outra unidade aliada, não dá para ativar")
 
 ## The Venenosa cards that need engine support: Hikari's damage per marker, Tox Vipranna healing from
 ## Veneno ticks, Az'Kharon poisoning whoever challenges it.

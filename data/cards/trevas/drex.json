@@ -10,18 +10,12 @@
     "fluxo"
   ],
   "cost": 4,
-  "atk": 2,
+  "atk": 3,
   "hp": 4,
-  "keywords": [],
+  "keywords": ["escudo", "roubo_de_vida"],
+  "shared_x": { "start": 2 },
   "art": "trevas/drex.webp",
   "effects": [
-    {
-      "trigger": "on_enter",
-      "action": "add_dot",
-      "dot": "sangramento",
-      "target": "enemy_unit",
-      "amount": 1
-    },
     {
       "listen": "unit_damaged",
       "scope": "enemy",
@@ -29,8 +23,19 @@
       "when": { "dot": "sangramento" },
       "action": "buff",
       "target": "self",
-      "atk": 1,
-      "hp": 1
+      "hp": 1,
+      "armor": 1
+    },
+    {
+      "listen": "unit_damaged",
+      "scope": "enemy",
+      "zones": ["board"],
+      "when": { "dot": "sangramento" },
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount_from": "shared_x",
+      "amount": 1,
+      "heal_origin": "reaction"
     },
     {
       "listen": "leader_damaged",
@@ -39,45 +44,80 @@
       "when": { "dot": "sangramento" },
       "action": "buff",
       "target": "self",
-      "atk": 1,
-      "hp": 1
+      "hp": 1,
+      "armor": 1
+    },
+    {
+      "listen": "leader_damaged",
+      "scope": "enemy",
+      "zones": ["board"],
+      "when": { "dot": "sangramento" },
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount_from": "shared_x",
+      "amount": 1,
+      "heal_origin": "reaction"
     },
     {
       "listen": "unit_healed",
       "scope": "ally",
       "zones": ["board"],
       "when": { "healed_by": "unit" },
-      "action": "add_dot",
-      "dot": "sangramento",
-      "target": "random_enemy_unit",
-      "amount": 1
+      "action": "buff",
+      "target": "self",
+      "hp": 1,
+      "armor": 1
+    },
+    {
+      "listen": "unit_healed",
+      "scope": "ally",
+      "zones": ["board"],
+      "when": { "healed_by": "unit" },
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount_from": "shared_x",
+      "amount": 1,
+      "heal_origin": "reaction"
     },
     {
       "listen": "leader_healed",
       "scope": "ally",
       "zones": ["board"],
       "when": { "healed_by": "unit" },
-      "action": "add_dot",
-      "dot": "sangramento",
-      "target": "random_enemy_unit",
-      "amount": 1
+      "action": "buff",
+      "target": "self",
+      "hp": 1,
+      "armor": 1
+    },
+    {
+      "listen": "leader_healed",
+      "scope": "ally",
+      "zones": ["board"],
+      "when": { "healed_by": "unit" },
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount_from": "shared_x",
+      "amount": 1,
+      "heal_origin": "reaction"
     }
   ],
   "activated": {
     "cost": 1,
     "speed": "lento",
     "exhaust": true,
+    "extra_cost": { "kind": "discard_or_sacrifice" },
     "effects": [
       {
-        "action": "sacrifice",
-        "target": "other_ally_unit",
-        "then": [
-          { "action": "heal_leader", "target": "none", "amount_from": "sacrificed_atk" }
-        ]
-      }
+        "action": "add_dot",
+        "dot": "sangramento",
+        "target": "random_enemy_spread",
+        "hits_from": "shared_x",
+        "amount": 1
+      },
+      { "action": "grow_shared_x", "target": "self", "amount": 1 }
     ]
   },
-  "text": "Ao Entrar: você pode dar 1 marcador de Sangramento a uma unidade inimiga.\nCondicional: quando o Sangramento causa dano a um inimigo, recebe +1/+1 permanente; quando uma unidade aliada cura, uma unidade inimiga aleatória recebe 1 marcador de Sangramento.\nAo Ativar (1) {lento} (exaure esta unidade): você sacrifica outra unidade aliada e seu Líder recupera Vida igual ao Ataque dela.",
+  "text": "Ao Ativar (1) {lento} (exaure esta unidade; como custo adicional, você descarta uma carta ou sacrifica outra unidade aliada): distribui X (inicial = 2) marcadores de Sangramento entre as unidades inimigas e o Líder inimigo; X aumenta em 1 para todos os seus Drex.\nCondicional: quando o Sangramento causa dano a um inimigo ou uma unidade aliada cura, esta unidade recebe +1 de Vida e +1 de Armadura permanentes e seu Líder recupera X+1 de Vida.",
   "flavor": "Ele nunca pede sangue. Só espera você começar a sangrar e agradece pela gentileza.",
   "tags": []
 }

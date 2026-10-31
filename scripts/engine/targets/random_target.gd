@@ -59,7 +59,7 @@ func resolve(context: EffectContext, effect: Effect) -> Array:
 			if spread_pool.is_empty():
 				return []
 			var spread_picks: Array = []
-			for hit in int(effect.raw.get("hits", 1)):
+			for hit in _unit_spread_hits(context, effect):
 				spread_picks.append(spread_pool[game.rng.randi_range(0, spread_pool.size() - 1)])
 			return spread_picks
 		"random_enemy_spread":
@@ -72,6 +72,8 @@ func resolve(context: EffectContext, effect: Effect) -> Array:
 			if effect.raw.get("hits_from", "") == "self_atk":
 				var source := game.find_unit(context.self_uid)
 				hits = maxi(maxi(0, int(effect.raw.get("hits_from_min", 0))), (game.atk_of(source) if source != null else 0) + int(effect.raw.get("hits_from_add", 0)))
+			elif effect.raw.get("hits_from", "") == "shared_x":
+				hits = _unit_spread_hits(context, effect)
 			for hit in maxi(0, hits):
 				all_enemy_picks.append(all_enemy_pool[game.rng.randi_range(0, all_enemy_pool.size() - 1)])
 			return all_enemy_picks
@@ -125,6 +127,13 @@ func resolve(context: EffectContext, effect: Effect) -> Array:
 			return ally_picks
 	return []
 
+## How many markers "random_enemy_unit_spread" / "random_enemy_spread" hand out: `hits`, or with "hits_from": "shared_x" the card's shared X
+## right now (Drex), so the X of the moment the ability resolves is the one used.
+func _unit_spread_hits(context: EffectContext, effect: Effect) -> int:
+	if effect.raw.get("hits_from", "") == "shared_x":
+		return maxi(0, context.game.shared_x_of(context.controller, context.source_id()) + int(effect.raw.get("hits_from_add", 0)))
+	return maxi(0, int(effect.raw.get("hits", 1)))
+
 ## The three multi-hit selectors are rolled again before every hit (see TargetSelector.hits_one_at_a_time).
 func hits_one_at_a_time() -> bool:
 	return name in ["random_enemy_unit_twice", "random_enemy_unit_spread", "random_enemy_spread"]
@@ -134,8 +143,10 @@ func hit_count(context: EffectContext, effect: Effect) -> int:
 		"random_enemy_unit_twice":
 			return 2
 		"random_enemy_unit_spread":
-			return maxi(0, int(effect.raw.get("hits", 1)))
+			return _unit_spread_hits(context, effect)
 		"random_enemy_spread":
+			if effect.raw.get("hits_from", "") == "shared_x":
+				return _unit_spread_hits(context, effect)
 			if effect.raw.get("hits_from", "") == "self_atk":
 				var source := context.game.find_unit(context.self_uid)
 				return maxi(maxi(0, int(effect.raw.get("hits_from_min", 0))), (context.game.atk_of(source) if source != null else 0) + int(effect.raw.get("hits_from_add", 0)))

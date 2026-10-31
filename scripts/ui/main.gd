@@ -1757,7 +1757,7 @@ func _render_command(p: int, pos: Vector2) -> void:
 	v.pivot_offset = v.size / 2.0
 	v.position = pos
 	v.cost_override = g.incarnation_cost(p)
-	v.text_suffix = _scale_suffix(p, CardDB.card(l["card_id"]))
+	v.text_suffix = _scale_suffix(p, CardDB.card(l["card_id"]), l["card_id"])
 	v.snowball_level = int(g.players[p]["snowball"])
 	if p == viewer and g.can_cast_incarnation(p) and not _is_ai(p):
 		v.highlight = OK
@@ -1879,7 +1879,7 @@ func _render_board(p: int, y: float) -> void:
 			v.left_clicked.connect(_on_unit_click)
 			v.right_clicked.connect(_show_overlay)
 			v.drag_started.connect(_unit_drag_start)
-		v.text_suffix = _scale_suffix(p, CardDB.card(unit.card_id)) # live "(agora: N)" in the overlay of a unit on the board
+		v.text_suffix = _scale_suffix(p, CardDB.card(unit.card_id), unit.card_id) # live "(agora: N)" in the overlay of a unit on the board
 		v.pivot_offset = v.size / 2.0
 		v.position = card_position
 		v.rotation = card_rotation
@@ -1973,7 +1973,7 @@ func _render_relics(p: int, y: float, slots_taken: int) -> void:
 		# Baluarte Santo is born protected: it needs the golden ring too (and loses ring and tag once it breaks)
 		relic_view_data["supreme_shield"] = relic.supreme_shield
 		var v := CardView.new().setup(relic.card_id, relic_view_data, 1.15)
-		v.text_suffix = _scale_suffix(p, CardDB.card(relic.card_id))
+		v.text_suffix = _scale_suffix(p, CardDB.card(relic.card_id), relic.card_id)
 		v.pivot_offset = v.size / 2.0
 		var cell := _board_cell(slots_taken, first_relic_slot + j)
 		v.position = Vector2(cell.x + (cell.y - v.size.x) / 2.0, y)
@@ -2122,7 +2122,7 @@ func _render_hand(p: int) -> void:
 			v.cost_override = g.subito_cost(p, card_data, hand_card) # Súbito: summoned now at its Súbito cost
 		elif g.cost_of(p, card_data, hand_card) != int(card_data["cost"]):
 			v.cost_override = g.cost_of(p, card_data, hand_card)
-		v.text_suffix = _scale_suffix(p, card_data)
+		v.text_suffix = _scale_suffix(p, card_data, hand_card.card_id)
 		v.snowball_level = int(g.players[p]["snowball"])
 		var k := i - (n - 1) / 2.0
 		v.pivot_offset = Vector2(v.size.x / 2.0, v.size.y)
@@ -2632,7 +2632,7 @@ func _render_stack() -> void:
 			var stack_card_id := String(it["card_id"])
 			var v := CardView.new().setup(stack_card_id, _display_instance_for_id(stack_card_id, stack_owner, int(it.get("uid", 0))), STACK_SCALE)
 			v.snowball_level = int(g.players[stack_owner]["snowball"])
-			v.text_suffix = _scale_suffix(stack_owner, CardDB.card(stack_card_id))
+			v.text_suffix = _scale_suffix(stack_owner, CardDB.card(stack_card_id), stack_card_id)
 			v.left_clicked.connect(func(view: CardView):
 				# a spell on the stack picked as a target during an animation waits for its turn
 				if _my_input() and not targeting.is_empty() and _wait_for_table(_pick_target_when_settled.bind(sid)):
@@ -3653,7 +3653,10 @@ func _pending_tap_card_id() -> String:
 
 ## " (agora: N)" for cards whose text counts something (Jeff: unit cards in the own graveyard), so the
 ## player can add it to the base stats; " (N/M)" for the Gigantes. Empty for the rest.
-func _scale_suffix(p: int, cd: Dictionary) -> String:
+func _scale_suffix(p: int, cd: Dictionary, card_id := "") -> String:
+	# a "shared_x" card (Drex): the X grows during the match, so the overlay shows the current value
+	if card_id != "" and cd.has("shared_x"):
+		return " (agora: %d)" % g.shared_x_of(p, card_id)
 	var progress := g.window_progress(p, cd)
 	if not progress.is_empty():
 		# cost reductions that ask for an amount over a window (Gigantes): how far along, e.g. "(3/8)"
@@ -4174,7 +4177,7 @@ func _refresh_graveyard() -> void:
 		for grave_card: Card in shown:
 			var cv := CardView.new().setup(grave_card.card_id, _display_instance_for_card(grave_card), 1.1)
 			cv.snowball_level = int(g.players[grave_owner]["snowball"])
-			cv.text_suffix = _scale_suffix(grave_owner, CardDB.card(grave_card.card_id))
+			cv.text_suffix = _scale_suffix(grave_owner, CardDB.card(grave_card.card_id), grave_card.card_id)
 			if grave_owner == viewer and g.is_requiem(grave_card):
 				# Réquiem shows what it costs from here (base + 2) and glows when it can be cast now
 				cv.cost_override = g.cost_of(viewer, CardDB.card(grave_card.card_id), grave_card)
@@ -4461,7 +4464,7 @@ func _render_search_reveal() -> void:
 		var cv := CardView.new().setup(option["card_id"], _display_instance_for_id(String(option["card_id"]), owner, card_uid), card_scale)
 		cv.face_down = hidden or String(option["card_id"]) == ""
 		if not cv.face_down:
-			cv.text_suffix = _scale_suffix(owner, CardDB.card(option["card_id"]))
+			cv.text_suffix = _scale_suffix(owner, CardDB.card(option["card_id"]), option["card_id"])
 			cv.snowball_level = int(g.players[owner]["snowball"])
 		# every card can be inspected (right click / long press), picked or not: some rules texts
 		# only make sense in the full-screen view. Only the eligible ones can be chosen.

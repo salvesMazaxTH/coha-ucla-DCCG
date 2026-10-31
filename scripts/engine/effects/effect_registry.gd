@@ -65,6 +65,7 @@ static var ACTIONS: Dictionary = {
 	"kill_leader": RemoveEffect,
 	"hold_veneno": HoldVenenoEffect,
 	"block_healing": BlockHealingEffect,
+	"grow_shared_x": GrowSharedXEffect,
 	"resolve_dot": ResolveDotEffect,
 	"veneno_lethal": VenenoLethalEffect,
 	"sacrifice": SacrificeEffect,

@@ -5,14 +5,14 @@
   "species": ["vampiro"],
   "essence": ["fluxo", "trevas"],
   "cost": 2,
-  "atk": 2,
+  "atk": 3,
   "hp": 2,
   "keywords": [],
   "art": "fluxo/lady_anemia.webp",
   "effects": [
     {
       "trigger": "on_enter",
-      "action": "heal_leader",
+      "action": "damage",
       "target": "own_leader",
       "amount": 2
     },
@@ -20,10 +20,10 @@
       "trigger": "on_death",
       "action": "heal_leader",
       "target": "own_leader",
-      "amount": 3
+      "amount": 4
     }
   ],
-  "text": "Ao Entrar: seu Líder recupera 2 de Vida.\nAo Morrer: seu Líder recupera 3 de Vida.",
+  "text": "Ao Entrar: seu Líder sofre 2 de dano.\nAo Morrer: seu Líder recupera 4 de Vida.",
   "flavor": "Vive de sangue alheio e reclama da própria pressão.",
   "tags": []
 }

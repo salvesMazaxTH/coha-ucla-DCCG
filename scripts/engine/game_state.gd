@@ -184,6 +184,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"snowball": SNOWBALL_BASE_LEVEL, # damage the next Bola de Neve starts at (grows with every Bola de Neve cast, goes back to snowball_base at the end of the owner's turn)
 		"snowball_base": SNOWBALL_BASE_LEVEL, # the level the Bola de Neve goes back to every turn; raised for the rest of the game by Devaneio Gelado
 		"critico_growth": {}, # card_id -> Crítico level reached by "critico_growth" cards (Vael), shared by every copy of it
+		"shared_x": {}, # card_id -> how many times a "shared_x" card (Drex) has grown its X; read through shared_x_of
 		"ice_spell_discount_used": false, # the Amuleto Glacial (ice spell) discount was already spent this turn
 		"damage_negated_until": 0, # Câmara de Êxtase aftermath: the Leader's next hits are negated while turn <= this
 		"damage_negated_left": 0, # ...and this is how many hits are still left to negate
@@ -439,6 +440,19 @@ func grow_critico(striker: Card) -> int:
 				copy.critico = new_level
 	striker.critico = new_level
 	return new_level
+
+## The X of a "shared_x" card (Drex): its printed start plus every time one of its owner's copies grew it.
+## It lives on the player, not on a copy, so every Drex in play shares it and a copy drawn later already has it.
+func shared_x_of(owner: int, card_id: String) -> int:
+	var start := int(CardDB.card(card_id).get("shared_x", {}).get("start", 0))
+	return start + int(players[owner]["shared_x"].get(card_id, 0))
+
+## Raises the X of a "shared_x" card by `amount` for all its owner's copies. Returns the new X.
+func grow_shared_x(owner: int, card_id: String, amount := 1) -> int:
+	players[owner]["shared_x"][card_id] = int(players[owner]["shared_x"].get(card_id, 0)) + amount
+	var new_x := shared_x_of(owner, card_id)
+	_emit({"type": "shared_x", "player": owner, "card_id": card_id, "x": new_x})
+	return new_x
 
 func card_of(c: Card) -> Dictionary:
 	return c.data()
@@ -1419,8 +1433,55 @@ func can_activate(p: int, uid: int, allow_unreachable := false) -> bool:
 	for fusion in ab["effects"]:
 		if fusion.get("action", "") == "fuse" and EffectRegistry.parse(fusion).available_parts(self, p) == 0:
 			return false # not enough units to fuse
+	if ab.has("extra_cost") and extra_cost_payers(p, uid).is_empty():
+		return false # nothing to discard or sacrifice
 	var spec := target_spec(ab["effects"])
 	return spec == "" or not valid_targets(p, spec, uid, false, ab["effects"]).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec, uid))
+
+## Ao Ativar with an "extra_cost" ({"kind": "discard_or_sacrifice"}, Drex): on top of the Momentum, the player
+## discards a card from hand OR sacrifices another ally unit. Returns every uid that can pay it, hand cards first.
+## The picked uid is passed to activate() as its `target`.
+func extra_cost_payers(p: int, uid: int) -> Array:
+	var c := _activatable_card(uid)
+	if c == null:
+		return []
+	var ab: Dictionary = card_of(c).get("activated", {})
+	if ab.get("extra_cost", {}).get("kind", "") != "discard_or_sacrifice":
+		return []
+	var payers: Array = []
+	for hand_card: Card in players[p]["hand"]:
+		payers.append(hand_card.uid)
+	payers.append_array(valid_targets(p, "other_ally_unit", uid, false, []))
+	return payers
+
+## First step of paying an Ao Ativar extra cost by DISCARDING (the player picked "Descartar uma carta"): opens the
+## same hand-pick screen as Folheio. Nothing is spent yet; choose_search then activates with the picked card as the
+## payer, or (uid 0) cancels and goes back to the previous phase.
+func begin_activation_discard(p: int, uid: int) -> Array:
+	if phase == "search" or p != decider() or not can_activate(p, uid):
+		return []
+	if players[p]["hand"].is_empty() or card_of(_activatable_card(uid))["activated"].get("extra_cost", {}).get("kind", "") != "discard_or_sacrifice":
+		return []
+	var options: Array = []
+	for hand_card: Card in players[p]["hand"]:
+		options.append({"uid": hand_card.uid, "card_id": hand_card.card_id})
+	pending_search = {"player": p, "source_uid": uid, "cards": options, "discard_hand": true, "then_activate": uid}
+	_search_return = phase
+	phase = "search"
+	_emit({"type": "discard_pick", "player": p, "source_uid": uid})
+	return _flush()
+
+## Pays a "discard_or_sacrifice" cost with `payer_uid`: a hand card goes to the graveyard, an ally unit is sacrificed.
+func _pay_discard_or_sacrifice(p: int, payer_uid: int) -> void:
+	var hand_card := _hand_card(p, payer_uid)
+	if hand_card != null:
+		players[p]["hand"].erase(hand_card)
+		players[p]["graveyard"].append(hand_card)
+		_move(hand_card, "graveyard")
+		_emit({"type": "discard", "player": p, "uid": payer_uid, "card_id": hand_card.card_id})
+		_check_state()
+		return
+	_pay_extra_cost({"kind": "sacrifice"}, payer_uid)
 
 ## A free-standing pure artifact may declare a separate Equipar action in `equip_from_field`.
 func can_equip_from_field(p: int, uid: int, allow_unreachable := false) -> bool:
@@ -1689,7 +1750,16 @@ func activate(p: int, uid: int, target: int = 0) -> Array:
 	var spec := target_spec(ab["effects"])
 	if spec != "" and not valid_targets(p, spec, uid, false, ab["effects"]).has(target):
 		return []
+	# an extra cost is paid by the card or ally passed as `target`; the ability itself then has no target
+	var payer_uid := 0
+	if ab.has("extra_cost"):
+		if not extra_cost_payers(p, uid).has(target):
+			return []
+		payer_uid = target
+		target = 0
 	_pay(p, int(ab["cost"]), reserve_pays(ab))
+	if payer_uid != 0:
+		_pay_discard_or_sacrifice(p, payer_uid)
 	c.activated_turn = turn
 	if ab.get("exhaust", false) and find_unit(uid) != null and not c.has_kw("inerte"):
 		c.exhausted = true
@@ -2006,6 +2076,12 @@ func choose_search(p: int, card_uid: int) -> Array:
 		stack_system().after_search()
 		stack_system().settle()
 		return _flush()
+	if card_uid == 0 and pending_search.has("then_activate"):
+		# the player backed out of paying an activation by discarding: nothing was spent, back to where they were
+		pending_search.clear()
+		phase = _search_return
+		_check_state()
+		return _flush()
 	var options: Array = pending_search.get("cards", [])
 	var chosen: Dictionary = {}
 	for c in options:
@@ -2046,6 +2122,14 @@ func choose_search(p: int, card_uid: int) -> Array:
 		stack_system().settle()
 		return _flush()
 	if pending_search.get("discard_hand", false):
+		var activation_uid: int = int(pending_search.get("then_activate", 0))
+		if activation_uid != 0:
+			# the discard is the extra cost of an Ao Ativar: leave the search first, then activate with this card as the payer
+			if _hand_card(p, card_uid) == null:
+				return []
+			pending_search.clear()
+			phase = _search_return
+			return activate(p, activation_uid, card_uid)
 		# the chosen card leaves the hand for the graveyard (a normal discard; only overdraw banishes)
 		var discarded_card := _hand_card(p, card_uid)
 		if discarded_card == null:
@@ -2876,6 +2960,11 @@ func _begin_look_bottom(p: int, shown: int, window: int, source_uid: int) -> voi
 ## standing right next to it on the board (the board order is the order the units were played).
 ## The adjacent Armadura is a text Constante, so a Contador Exagerado doubles it.
 func armor_of(c: Card) -> int:
+	# the default cap of 5 applies to the final total; a card with "ignores_armor_cap" (Tharox) skips it
+	return Card.capped_armor(uncapped_armor_of(c), card_of(c))
+
+## The Armadura sum before the default cap (see armor_of).
+func uncapped_armor_of(c: Card) -> int:
 	var total := c.armor_total() + graveyard_armor_of(c)
 	if players[c.owner]["board"].has(c):
 		total += species_aura_bonus(c).z
@@ -3043,7 +3132,7 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		if dealer != victim_owner:
 			players[dealer]["damage_this_round"] = int(players[dealer]["damage_this_round"]) + dealt
 	if source != null and has_kw(source, "roubo_de_vida"):
-		_heal_leader(source.owner, dealt)
+		_heal_leader(source.owner, dealt, "unit") # the lifesteal keyword is a unit healing, so "healed_by": "unit" listeners hear it
 	# Ao Causar Dano de Combate: the unit that really dealt combat (or fight) damage fires once per damage instance.
 	# Effect damage never fires it, so a damage effect on this trigger can't fire itself again.
 	# "dealer_atk" keeps its Ataque at the moment of the hit, in case it died before the effect resolves.
@@ -3154,7 +3243,7 @@ func leader_negations_left(p: int) -> int:
 	return int(players[p]["damage_negated_left"])
 
 ## `healed_by` says who is healing (see EffectContext.heal_origin); "" for heals with no effect behind them
-## (e.g. the lifesteal keyword), which no "healed_by" filter matches.
+## (the lifesteal keyword counts as a unit healing: "unit").
 func _heal_leader(p: int, amount: int, healed_by := "") -> void:
 	if leader_heal_blocked(p):
 		return

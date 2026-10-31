@@ -7,6 +7,9 @@ extends Effect
 ##                With "per": "event_damage" it heals the full damage of that event (Coagulhão: all the Sangramento dealt).
 ##                With "amount_from": "sacrificed_atk" (inside a sacrifice's "then") it heals the Attack the
 ##                sacrificed unit had, instead of `amount` (Drex).
+##                With "amount_from": "shared_x" it heals the card's shared X plus `amount` (Drex: X+1 with amount 1).
+##                "heal_origin": "reaction" (opt-in) reports the heal to listeners as that origin instead of "unit", so a card
+##                that listens to unit heals cannot answer its own heal forever (Drex).
 ##                "per_turn_cap": N (opt-in) gives each instance of the card a soft budget of N Vida healed per turn:
 ##                the trigger that reaches or crosses N still heals in full, later ones do nothing until the next turn.
 ##                "source_temp_hp": N (with per_turn_cap) also gives the card N temporary Vida per accepted trigger,
@@ -26,7 +29,8 @@ extends Effect
 
 var amount := 0
 var per := ""
-var amount_from := "" ## "" = use `amount`; "sacrificed_atk" = the Attack of the unit a sacrifice just killed
+var amount_from := "" ## "" = use `amount`; "sacrificed_atk" = the Attack of the unit a sacrifice just killed; "shared_x" = the card's shared X + `amount`
+var origin_override := "" ## "" = the real origin (EffectContext.heal_origin)
 var per_turn_cap := 0
 var source_temp_hp := 0
 var overflow_max_hp := 0
@@ -38,6 +42,7 @@ func _read_parameters(data: Dictionary) -> void:
 	amount = int(data.get("amount", 0))
 	per = String(data.get("per", ""))
 	amount_from = String(data.get("amount_from", ""))
+	origin_override = String(data.get("heal_origin", ""))
 	per_turn_cap = int(data.get("per_turn_cap", 0))
 	source_temp_hp = int(data.get("source_temp_hp", 0))
 
@@ -45,6 +50,8 @@ func _read_parameters(data: Dictionary) -> void:
 func _leader_heal_amount(context: EffectContext) -> int:
 	if amount_from == "sacrificed_atk":
 		return context.sacrificed_attack
+	if amount_from == "shared_x":
+		return context.game.shared_x_of(context.controller, context.source_id()) + amount
 	if per == "event_damage" and context.event != null:
 		return context.event.amount
 	if per == "half_event_damage" and context.event != null:
@@ -58,7 +65,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 			if per_turn_cap > 0:
 				context.game._apply_capped_leader_heal(context, heal_amount, per_turn_cap, source_temp_hp)
 			else:
-				context.game._heal_leader(context.controller, heal_amount, context.heal_origin())
+				context.game._heal_leader(context.controller, heal_amount, origin_override if origin_override != "" else context.heal_origin())
 			if cleanse:
 				context.game.cleanse_leader_markers(context.controller)
 		"leader_max_up":

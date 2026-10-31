@@ -164,6 +164,12 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 		# untargeted Ao Ativar, before attacking (e.g. Yuki's temporary attack)
 		var activated_effects: Array = unit.data().get("activated", {}).get("effects", [])
 		if g.can_activate(p, unit.uid) and g.target_spec(activated_effects) == "" and g.can_attack(unit) and _revive_is_worth_it(g, p, activated_effects) and _filtered_banish_is_worth_it(g, p, unit, activated_effects):
+			if unit.data().get("activated", {}).has("extra_cost"):
+				# Ao Ativar with a discard-or-sacrifice cost (Drex): only worth it with a cheap payer (the enemy Leader is always a target)
+				var payer_uid := _pick_activation_payer(g, p, unit)
+				if payer_uid != 0:
+					return g.activate(p, unit.uid, payer_uid)
+				continue
 			return g.activate(p, unit.uid)
 	for artifact: Card in g.players[p]["relics"]:
 		# free-standing artifacts' untargeted Ao Ativar (e.g. Ossuário Sem Fundo's revive)
@@ -498,6 +504,25 @@ static func _pick_sacrifice(g: GameState, p: int) -> int:
 			weakest_score = score
 			weakest_uid = unit.uid
 	return weakest_uid
+
+## Who pays the "discard_or_sacrifice" cost of an Ao Ativar (Drex), or 0 when it is not worth paying: the cheapest
+## card in hand when there are at least 2 cards (keeps a play for next turn), else a very cheap ally unit.
+static func _pick_activation_payer(g: GameState, p: int, unit: Card) -> int:
+	var payers: Array = g.extra_cost_payers(p, unit.uid)
+	var cheapest_hand_uid := 0
+	var cheapest_hand_cost := 999
+	for hand_card: Card in g.players[p]["hand"]:
+		var hand_cost := int(CardDB.card(hand_card.card_id).get("cost", 0))
+		if hand_cost < cheapest_hand_cost:
+			cheapest_hand_cost = hand_cost
+			cheapest_hand_uid = hand_card.uid
+	if cheapest_hand_uid != 0 and g.players[p]["hand"].size() >= 2:
+		return cheapest_hand_uid
+	for payer_uid in payers:
+		var ally := g.find_unit(int(payer_uid))
+		if ally != null and _unit_value(g, ally) <= 2:
+			return ally.uid
+	return 0
 
 ## The unit that pays a spell's `extra_cost`, or 0 when nobody is cheap enough to give up.
 ## Losing Armadura is almost free, so any unit that can pay does. A sacrifice only happens when the

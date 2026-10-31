@@ -390,6 +390,15 @@ func has_kw(kw: String) -> bool:
 		return keywords.has(kw) or bool(data().get("inert", false))
 	return keywords.has(kw) or surge_keywords.has(kw)
 
+## The most Armadura a unit can have unless its card says otherwise ("ignores_armor_cap": true, Tharox).
+const DEFAULT_ARMOR_CAP := 5
+
+## Armadura after the default cap: a card that "ignores_armor_cap" keeps the whole value.
+static func capped_armor(total: int, card_data: Dictionary) -> int:
+	if bool(card_data.get("ignores_armor_cap", false)):
+		return total
+	return mini(total, DEFAULT_ARMOR_CAP)
+
 func armor_total() -> int:
 	return armor + temp_armor + turn_armor
 
