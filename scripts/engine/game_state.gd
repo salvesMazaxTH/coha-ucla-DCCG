@@ -1132,8 +1132,9 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 			out.append(LEADER_UID[p])
 		"any_unit":
 			for c: Card in mine + theirs: out.append(c.uid)
-		"any":
+		"any": # truly any target: every unit on both sides and both Leaders, own ones included ("inimigo" in the text uses an enemy_* spec)
 			for c: Card in mine + theirs: out.append(c.uid)
+			out.append(LEADER_UID[p])
 			out.append(LEADER_UID[opponent(p)])
 		"enemy_artifact": # a free-standing artifact on the opponent's side, or a unit that is also an artifact
 			for c: Card in players[opponent(p)]["relics"] + _unit_artifacts_on_board(opponent(p)): out.append(c.uid)
@@ -2553,8 +2554,7 @@ func _fire_deck_effects(p: int, trigger: String) -> void:
 		for e in CardDB.card(c.card_id).get("deck_effects", []):
 			if e.get("trigger", "") != trigger:
 				continue
-			var condition := ConditionRegistry.parse(e.get("if", ""))
-			if condition != null and not condition.check(EffectContext.new(self, p, trigger)):
+			if not _deck_effect_condition_holds(p, e, trigger):
 				continue
 			var fee := int(e.get("cost", 0))
 			if e.get("action", "") == "summon_self" and players[p]["deck"].has(c) and has_free_slot(p) and budget(p, true) >= fee:
@@ -2562,6 +2562,36 @@ func _fire_deck_effects(p: int, trigger: String) -> void:
 				players[p]["deck"].erase(c)
 				_emit({"type": "enter_from_deck", "player": p, "uid": c.uid, "card_id": c.card_id})
 				_summon(p, c, false, 0)
+
+func _deck_effect_condition_holds(p: int, deck_effect: Dictionary, trigger: String) -> bool:
+	var condition := ConditionRegistry.parse(deck_effect.get("if", ""))
+	return condition == null or condition.check(EffectContext.new(self, p, trigger))
+
+## What the "summon_self" cards sitting in p's deck are about to do at the end of p's turn, for the deck pile
+## to show (Rusco). One entry per such card: {"uid", "card_id", "fee", "state", "missing"}.
+## state: "waiting" (the condition isn't met yet, or it isn't p's turn), "ready" (it enters when the turn ends)
+## or "blocked" (the condition is met but the entry can't happen right now; "missing" says why: "momentum" or "room").
+## Reads the same rules as _fire_deck_effects, so what the player sees is what will happen.
+func deck_summon_watches(p: int) -> Array:
+	var watches: Array = []
+	for c in players[p]["deck"]:
+		for e in CardDB.card(c.card_id).get("deck_effects", []):
+			if e.get("trigger", "") != "on_turn_end" or e.get("action", "") != "summon_self":
+				continue
+			var fee := int(e.get("cost", 0))
+			var state := "waiting"
+			var missing := ""
+			if p == active and phase != "over" and _deck_effect_condition_holds(p, e, "on_turn_end"):
+				if budget(p, true) < fee:
+					state = "blocked"
+					missing = "momentum"
+				elif not has_free_slot(p):
+					state = "blocked"
+					missing = "room"
+				else:
+					state = "ready"
+			watches.append({"uid": c.uid, "card_id": c.card_id, "fee": fee, "state": state, "missing": missing})
+	return watches
 
 func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 	if phase == "search":

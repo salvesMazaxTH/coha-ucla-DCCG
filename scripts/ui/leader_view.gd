@@ -680,6 +680,35 @@ class DeckPile extends Control:
 	var _shown_fatigue := -1
 	var base_top_left := LeaderView.DECK_BASE_TOP_LEFT ## bottom card of the pile, in this node's coordinates
 	var card_scale := LeaderView.DECK_CARD_SCALE ## size of each card of the pile (the viewer's pile in the HUD column is bigger)
+	signal watch_tapped(card_id: String) ## the player tapped the watched card's medallion
+	var _watch := {} ## the card waiting in this deck to jump into play (GameState.deck_summon_watches entry), {} when none
+	var _glow_time := 0.0
+	var _burst := -1.0 ## 0..1 while the "it just became ready" ring expands, -1 when idle
+
+	## A card in this deck is waiting to enter play by itself (Rusco): it hangs a portrait medallion on the pile
+	## that says whether it will come in when the turn ends. Call before show_count, which builds the medallion.
+	func set_watch(watch: Dictionary) -> void:
+		_watch = watch
+		_shown_count = -1 # force show_count to rebuild
+		set_process(String(watch.get("state", "waiting")) != "waiting")
+
+	## The watched card just became ready: a ring of light spreads out of the pile once.
+	func ignite() -> void:
+		_burst = 0.0
+		set_process(true)
+
+	func _process(delta: float) -> void:
+		_glow_time += delta
+		if _burst >= 0.0:
+			_burst += delta / 0.7
+			if _burst > 1.0:
+				_burst = -1.0
+		queue_redraw()
+		for child in get_children():
+			if child is WatchMedallion:
+				child.queue_redraw()
+		if _burst < 0.0 and String(_watch.get("state", "waiting")) == "waiting":
+			set_process(false)
 
 	## Center of the top card, in this node's coordinates: drawn cards fly out from here.
 	func top_center(count: int) -> Vector2:
@@ -710,6 +739,15 @@ class DeckPile extends Control:
 		var card_size := CardView.BASE * card_scale
 		badge.center = base_top_left + Vector2(card_size.x / 2.0, card_size.y - 2)
 		add_child(badge)
+		if not _watch.is_empty() and count >= 1:
+			var medallion := WatchMedallion.new()
+			medallion.watch = _watch
+			medallion.size = Vector2(WatchMedallion.TOUCH_SIZE, WatchMedallion.TOUCH_SIZE)
+			# hangs off the top-right corner of the top card, like a seal pinned to the pile
+			var top_right := top_left + Vector2(card_size.x - 8.0, 8.0)
+			medallion.position = top_right - medallion.size / 2.0
+			medallion.tapped.connect(func(): watch_tapped.emit(String(_watch.get("card_id", ""))))
+			add_child(medallion)
 		queue_redraw()
 
 	func _card_back(top_left: Vector2, tilt: float) -> CardView:
@@ -728,6 +766,7 @@ class DeckPile extends Control:
 		if _shown_count <= 0:
 			draw_style_box(UITheme.box(Color(0, 0, 0, 0.35), CORNER, Color(UITheme.TEXT, 0.22), 1), base)
 			return
+		_draw_watch_glow(base)
 		# soft shadow cast on the table, longer toward the bottom-right
 		for i in 6:
 			var shadow := base.grow(1.0 + i * 1.6)
@@ -748,6 +787,112 @@ class DeckPile extends Control:
 				draw_line(Vector2(card.position.x + CORNER, y), Vector2(card.end.x - CORNER, y), Color(UITheme.GOLD, 0.35 - 0.2 * depth), 1.0)
 		# light catching the front-bottom edge of the whole stack
 		draw_line(Vector2(base.position.x + CORNER, base.end.y - 0.5), Vector2(base.end.x - CORNER, base.end.y - 0.5), Color(1, 1, 1, 0.12), 1.0)
+
+	## The whole pile glows in the watch colour: green and pulsing when the watched card will enter play at the
+	## end of the turn, a steady amber rim when it is held back (something is missing), nothing while it just waits.
+	## When it has just become ready, a ring of light also spreads out of the pile once.
+	func _draw_watch_glow(base: Rect2) -> void:
+		var state := String(_watch.get("state", "waiting"))
+		if state == "waiting":
+			return
+		var thickness := LeaderView.deck_thickness(_shown_count)
+		var pile := Rect2(base.position - Vector2(0, thickness), base.size + Vector2(0, thickness))
+		var color := WatchMedallion.ring_color(state)
+		var pulse := 0.5 + 0.5 * sin(_glow_time * 4.0) if state == "ready" else 0.0
+		var strength := (0.65 + 0.35 * pulse) if state == "ready" else 0.45
+		for i in 3:
+			draw_style_box(UITheme.box(Color(0, 0, 0, 0), CORNER + 1 + i * 2, Color(color, (0.85 - i * 0.2) * strength), 2), pile.grow(1.0 + i * 2.0))
+		if _burst >= 0.0:
+			var spread := 4.0 + _burst * 34.0
+			draw_style_box(UITheme.box(Color(0, 0, 0, 0), CORNER + int(spread), Color(color, (1.0 - _burst) * 0.9), 3), pile.grow(spread))
+
+	## Round seal pinned to the pile's top-right corner: the watched card's portrait inside a ring that says
+	## whether it will jump into play at the end of the turn. Dim gold = waiting for its condition, green =
+	## it will come in, amber = the condition is met but something is missing. A pip at the lower right shows
+	## the fee (red when it is the Momentum that is missing, "!" when it is the room on the board).
+	## Tapping it opens the card; hovering shows its rules and the state in words.
+	class WatchMedallion extends Control:
+		signal tapped
+		const TOUCH_SIZE := 60.0 ## fingertip-sized hit area; the seal itself is a bit smaller
+		const RADIUS := 25.0
+		const PIP_RADIUS := 11.0
+		const WAITING_RING := Color("#c9a64e")
+		const BLOCKED_RING := Color("#ffb347")
+		var watch := {}
+
+		static func ring_color(state: String) -> Color:
+			match state:
+				"ready": return LeaderView.READY_GLOW
+				"blocked": return BLOCKED_RING
+			return WAITING_RING
+
+		func _ready() -> void:
+			mouse_filter = Control.MOUSE_FILTER_STOP
+			mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+			tooltip_text = _tooltip()
+
+		func _gui_input(event: InputEvent) -> void:
+			if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+				accept_event()
+				tapped.emit()
+
+		func _tooltip() -> String:
+			var card := CardDB.card(String(watch.get("card_id", "")))
+			var fee := int(watch.get("fee", 0))
+			var status := "Esperando: a condição ainda não foi cumprida neste turno."
+			match String(watch.get("state", "waiting")):
+				"ready": status = "Vai entrar em campo no fim do turno (paga %d de Momentum)." % fee
+				"blocked":
+					if String(watch.get("missing", "")) == "room":
+						status = "Condição cumprida, mas não há espaço no campo: libere uma casa."
+					else:
+						status = "Condição cumprida, mas faltam %d de Momentum para pagar." % fee
+			return "%s\n%s\n\n%s" % [card.get("name", ""), card.get("text", ""), status]
+
+		func _draw() -> void:
+			var state := String(watch.get("state", "waiting"))
+			var center := size / 2.0
+			var ring := ring_color(state)
+			var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 4.0) if state == "ready" else 0.0
+			draw_circle(center + Vector2(0, 2), RADIUS + 3, Color(0, 0, 0, 0.55))
+			draw_circle(center, RADIUS + 2, Color("#120e22"))
+			_draw_portrait(center, Color.WHITE if state != "waiting" else Color(0.72, 0.72, 0.78))
+			if state == "ready":
+				draw_arc(center, RADIUS + 3.5, 0, TAU, 40, Color(ring, 0.25 + 0.4 * pulse), 3.0, true)
+			draw_arc(center, RADIUS + 1.0, 0, TAU, 48, ring, 3.0, true)
+			_draw_pip(center + Vector2.ONE * RADIUS * 0.72, state, ring)
+
+		## The card's art cropped to a circle (square crop biased toward the top, where the face usually is).
+		func _draw_portrait(center: Vector2, tint: Color) -> void:
+			var art := CardView.texture(String(CardDB.card(String(watch.get("card_id", ""))).get("art", "")))
+			if art == null:
+				draw_circle(center, RADIUS, Color("#2a2147"))
+				return
+			var texture_size := art.get_size()
+			var side := minf(texture_size.x, texture_size.y)
+			var crop := Rect2(Vector2((texture_size.x - side) / 2.0, (texture_size.y - side) * 0.25), Vector2(side, side))
+			var points := PackedVector2Array()
+			var uvs := PackedVector2Array()
+			for i in 48:
+				var direction := Vector2.from_angle(TAU * i / 48.0)
+				points.append(center + direction * RADIUS)
+				uvs.append((crop.position + crop.size * (Vector2(0.5, 0.5) + direction * 0.5)) / texture_size)
+			draw_colored_polygon(points, tint, uvs, art)
+
+		func _draw_pip(at: Vector2, state: String, ring: Color) -> void:
+			var text := str(int(watch.get("fee", 0)))
+			var fill := Color("#120e22")
+			var text_color := UITheme.TEXT
+			if state == "blocked":
+				fill = Color("#a32626") if String(watch.get("missing", "")) == "momentum" else BLOCKED_RING.darkened(0.5)
+				if String(watch.get("missing", "")) == "room":
+					text = "!"
+			draw_circle(at, PIP_RADIUS + 1, Color(0, 0, 0, 0.6))
+			draw_circle(at, PIP_RADIUS, fill)
+			draw_arc(at, PIP_RADIUS, 0, TAU, 24, ring, 2.0, true)
+			var font := UITheme.font("heavy")
+			var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+			draw_string(font, at + Vector2(-width / 2.0, 5.8), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, text_color)
 
 	## Round count plate at the front of the pile: gold rim, dark face, the number
 	## (or the next Fadiga damage in red when the deck is empty).

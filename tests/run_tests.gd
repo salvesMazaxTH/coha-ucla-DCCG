@@ -139,10 +139,12 @@ func _init() -> void:
 	_test_ai_burn_plan()
 	_test_requiem()
 	_test_rusco()
+	_test_deck_summon_watches()
 	_test_elite_limits()
 	_test_armor()
 	_test_tharox_armor_growth()
 	_test_armor_cap()
+	_test_any_target_is_really_any()
 	_test_isarelis_hit_leader()
 	_test_silence_and_david()
 	_test_silence_keeps_ally_auras()
@@ -3299,6 +3301,30 @@ func _test_tharox_armor_growth() -> void:
 		check(g.armor_of(tharox) == step[1], "Tharox: golpe de %d deixa a Armadura em %d (%d)" % [step[0], step[1], g.armor_of(tharox)])
 
 ## Armadura has a default maximum of 5 (the final total, own + auras + neighbours); a card that "ignores_armor_cap" (Tharox) goes past it.
+## "qualquer alvo" (spec "any") is literally any: own and enemy units, own and enemy Leader. Only text that says
+## "inimigo" uses an enemy_* spec. The AI still never aims harm at its own side.
+func _test_any_target_is_really_any() -> void:
+	var g := _new_game()
+	g.players[0]["momentum"] = 9
+	var mine := _put(g, 0, "kai")
+	var theirs := _put(g, 1, "kai")
+	var options := g.valid_targets(0, "any")
+	check(options.has(mine.uid), "qualquer alvo inclui unidade aliada")
+	check(options.has(theirs.uid), "qualquer alvo inclui unidade inimiga")
+	check(options.has(GameState.LEADER_UID[0]), "qualquer alvo inclui o próprio Líder")
+	check(options.has(GameState.LEADER_UID[1]), "qualquer alvo inclui o Líder inimigo")
+	var enemy_only := g.valid_targets(0, "enemy_unit_or_leader")
+	check(not enemy_only.has(mine.uid) and not enemy_only.has(GameState.LEADER_UID[0]), "alvo de inimigo continua sem aliados")
+	var own_leader_hp: int = g.players[0]["leader_hp"]
+	g.play_card(0, _give(g, 0, "bola_de_fogo"), GameState.LEADER_UID[0])
+	g.pass_priority(1)
+	check(g.players[0]["leader_hp"] == own_leader_hp - 3, "Bola de Fogo pode ser mirada no próprio Líder")
+	g.play_card(0, _give(g, 0, "bola_de_fogo"), mine.uid)
+	g.pass_priority(1)
+	check(mine.damage == 3, "Bola de Fogo pode ser mirada em unidade aliada")
+	var ai_pick := SimpleAI._pick_target(g, 0, "any", CardDB.card("bola_de_fogo"))
+	check(ai_pick == 0 or ai_pick == theirs.uid or ai_pick == GameState.LEADER_UID[1], "IA nunca mira dano do qualquer alvo no próprio lado")
+
 func _test_armor_cap() -> void:
 	_tcard("t_cap_plain", 1, 9, [])
 	var g := _new_game()
@@ -6645,6 +6671,47 @@ func _test_rusco() -> void:
 	check(bool(g3.players[v]["played_two"]), "rusco: conjurar do Santuário conta como jogar uma carta 2")
 	g3.end_turn(v)
 	check(g3.players[v]["board"].any(func(u: Card): return u.uid == ru3.uid), "rusco: entra depois de conjurar o Vael do Santuário")
+
+## GameState.deck_summon_watches feeds the glow and medallion on the deck pile: it must say what end_turn will do.
+func _test_deck_summon_watches() -> void:
+	var g0 := _new_game()
+	g0.players[g0.active]["deck"] = g0.players[g0.active]["deck"].filter(func(c: Card): return c.card_id != "rusco")
+	check(g0.deck_summon_watches(g0.active).is_empty(), "vigia do deck: sem Rusco no deck, nada a vigiar")
+	# states: waiting (condition not met), ready, blocked by Momentum, blocked by room, and not the owner's turn
+	for case in [
+		["sem carta 2", false, 10, 0, "waiting", ""],
+		["pronto", true, 10, 0, "ready", ""],
+		["pronto só com Reserva", true, 0, 2, "ready", ""],
+		["falta Momentum", true, 1, 0, "blocked", "momentum"],
+		["campo cheio", true, 10, 0, "blocked", "room"],
+	]:
+		var g := _new_game()
+		var a := g.active
+		g.players[a]["deck"] = g.players[a]["deck"].filter(func(c: Card): return c.card_id != "rusco")
+		var ru := Card.new(g._uid(), "rusco", a, "deck")
+		g.players[a]["deck"].push_front(ru)
+		g.players[a]["played_two"] = case[1]
+		g.players[a]["momentum"] = case[2]
+		g.players[a]["reserve"] = case[3]
+		if case[0] == "campo cheio":
+			while g.has_free_slot(a):
+				g.players[a]["board"].append(Card.new(g._uid(), "t_one", a, "board"))
+		var watches := g.deck_summon_watches(a)
+		check(watches.size() == 1 and watches[0]["uid"] == ru.uid and watches[0]["fee"] == 2, "vigia do deck (%s): uma entrada para o Rusco, custo 2" % case[0])
+		check(String(watches[0]["state"]) == case[4] and String(watches[0]["missing"]) == case[5], "vigia do deck (%s): estado %s/%s" % [case[0], case[4], case[5]])
+		# the promise matches the real thing
+		var will_enter: bool = watches[0]["state"] == "ready"
+		g._finish_turn()
+		var came: bool = g.players[a]["board"].any(func(u: Card): return u.uid == ru.uid)
+		check(came == will_enter, "vigia do deck (%s): o aviso bate com o fim do turno" % case[0])
+	# on the opponent's turn the deck's owner is not about to summon anything
+	var go := _new_game()
+	var other := 1 - go.active
+	go.players[other]["deck"].push_front(Card.new(go._uid(), "rusco", other, "deck"))
+	go.players[other]["played_two"] = true
+	go.players[other]["momentum"] = 10
+	var opposing := go.deck_summon_watches(other).filter(func(w): return w["card_id"] == "rusco")
+	check(not opposing.is_empty() and opposing[0]["state"] == "waiting", "vigia do deck: fora do turno do dono fica em espera")
 
 ## A typo in a card's JSON is reported on load instead of silently doing nothing.
 func _test_card_validation() -> void:

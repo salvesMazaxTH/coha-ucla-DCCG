@@ -29,6 +29,7 @@ const STAGE_MAX_W := 2100.0
 var stage_w := 1600.0 ## logical width: 1600 or wider, follows the window aspect
 var col_x := 1352.0
 var lane_cx := 882.0
+var _deck_watch_states := {} ## player -> state of the deck's watched card last render ("waiting"/"ready"/"blocked"), to light the pile up once when it turns ready
 var deck_piles := {} ## player -> LeaderView.DeckPile: each deck, drawn by the right edge of the table (see _render_piles)
 var graveyard_piles := {} ## player -> GraveyardPile: each graveyard, a face-up pile right beside its deck
 var motes: CPUParticles2D
@@ -2626,7 +2627,19 @@ func _render_piles(player: int) -> void:
 	deck_pile.base_top_left = Vector2.ZERO
 	deck_pile.position = deck_position
 	layer.add_child(deck_pile)
+	# a card that jumps into play from the deck (Rusco) is shown only to its owner: it is hidden information
+	var watch := {}
+	if player == viewer:
+		var watches := g.deck_summon_watches(player)
+		if not watches.is_empty():
+			watch = watches[0]
+	deck_pile.set_watch(watch)
 	deck_pile.show_count(g.players[player]["deck"].size(), g.fatigue_next(player))
+	deck_pile.watch_tapped.connect(func(card_id: String): _show_overlay(CardView.new().setup(card_id, {}, 1.0)))
+	var watch_state := String(watch.get("state", ""))
+	if watch_state == "ready" and _deck_watch_states.get(player, "") != "ready":
+		deck_pile.ignite()
+	_deck_watch_states[player] = watch_state
 	deck_piles[player] = deck_pile
 	var graveyard: Array = g.players[player]["graveyard"]
 	var top_card_id := ""
@@ -3552,8 +3565,16 @@ func _aimed_effects() -> Array:
 func _is_first_target(uid: int) -> bool:
 	return not targeting.is_empty() and targeting.has("first") and not targeting.get("first_is_stack", false) and int(targeting["first"]) == uid
 
-func _fire_target(uid: int, equipment_confirmed := false) -> void:
-	if targeting["kind"] in ["hand", "field_equip"] and not equipment_confirmed \
+func _fire_target(uid: int, confirmed := false) -> void:
+	if targeting["kind"] == "room_banish" and not confirmed:
+		# banishing is permanent and the click is easy to mis-aim (beginners, distracted players): always ask first
+		var banished_name := _permanent_name(uid)
+		_ask_confirm("BANIR %s?" % banished_name.to_upper(),
+				"Para abrir espaço no campo, %s será banido(a) do jogo e não volta." % banished_name,
+				"BANIR E JOGAR", "CANCELAR",
+				_confirm_room_banish_target.bind(int(targeting["uid"]), uid))
+		return
+	if targeting["kind"] in ["hand", "field_equip"] and not confirmed \
 			and (targeting["kind"] == "field_equip" or CardDB.is_equipment(CardDB.card(targeting["card_id"]))):
 		var unit := g.find_unit(uid)
 		if unit != null and not unit.has_equipment_room():
@@ -3601,6 +3622,22 @@ func _fire_target(uid: int, equipment_confirmed := false) -> void:
 			_do(g.choose_enter_target(viewer, uid))
 		"attack":
 			_do(g.attack_unit(viewer, targeting["uid"], uid))
+
+## Name of the unit or artifact the player picked to banish.
+func _permanent_name(uid: int) -> String:
+	var permanent := g.find_unit(uid)
+	if permanent == null:
+		permanent = g.find_relic(uid)
+	return String(CardDB.card(permanent.card_id)["name"]) if permanent != null else "a carta escolhida"
+
+func _confirm_room_banish_target(hand_uid: int, target_uid: int) -> void:
+	_close_concede()
+	if g == null or not _my_input() or targeting.get("kind") != "room_banish" \
+			or int(targeting.get("uid", 0)) != hand_uid or not _is_target(target_uid):
+		targeting = {}
+		_render()
+		return
+	_fire_target(target_uid, true)
 
 func _confirm_equipment_target(hand_uid: int, target_uid: int) -> void:
 	_close_concede()
