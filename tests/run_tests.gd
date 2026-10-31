@@ -4496,7 +4496,7 @@ func _test_drex_deck() -> void:
 	g._flush()
 	g._check_state()
 	var spread_total := int(first_target.dot_markers.get("sangramento", 0)) + int(second_target.dot_markers.get("sangramento", 0)) + g.leader_dot_markers(enemy, "sangramento")
-	check(spread_total == 2, "Drex Ativar: distribui X (2) marcadores entre as unidades inimigas e o Líder inimigo")
+	check(spread_total == 2, "Drex Ativar: distribui X (2) marcadores entre os inimigos, incluindo o Líder")
 	check(first_target.damage == 0 and second_target.damage == 0 and g.players[enemy]["leader_hp"] == g.players[enemy]["leader_max"], "Drex Ativar: não causa dano na hora")
 	check(g.find_unit(fodder.uid) == null, "Drex Ativar: sacrificar a unidade aliada paga o custo adicional")
 	check(vampire_two.exhausted and g.players[g.active]["momentum"] == 2, "Drex Ativar: custa 1 de Momentum e exaure o Drex")
