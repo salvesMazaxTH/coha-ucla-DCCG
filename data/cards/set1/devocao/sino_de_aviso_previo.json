@@ -21,7 +21,7 @@
       "keywords": ["escudo_magico"]
     }
   ],
-  "text": "Condicional: quando um efeito do oponente mira uma unidade sua, ela ganha Escudo Mágico antes de o efeito atingi-la, e o Sino perde 1 de Durabilidade.",
+  "text": "Condicional: quando um efeito do oponente mira uma unidade sua, concede Escudo Mágico a ela antes de o efeito atingi-la, e o Sino perde 1 de Durabilidade.",
   "flavor": "Toca um segundo antes do golpe. Ninguém sabe quem puxa a corda.",
   "tags": []
 }

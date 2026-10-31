@@ -42,7 +42,7 @@
       "amount": 4
     }
   ],
-  "text": "Ao Entrar: outra unidade aliada aleatória ganha +2 de Vida e Escudo; você recupera uma Bola de Neve do seu cemitério (ela é banida depois de lançada).\nAo Morrer: seu Líder recupera 4 de Vida.",
+  "text": "Ao Entrar: concede +2 de Vida permanente e Escudo a outra unidade aliada aleatória; você recupera uma Bola de Neve do seu cemitério (ela é banida depois de lançada).\nAo Morrer: seu Líder recupera 4 de Vida.",
   "flavor": "Velha o bastante para ser o cofre, e não a guardiã.",
   "tags": []
 }

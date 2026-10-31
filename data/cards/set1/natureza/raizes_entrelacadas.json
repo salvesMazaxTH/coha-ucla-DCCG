@@ -23,7 +23,7 @@
       "atk": 1
     }
   ],
-  "text": "Invoca uma Mudinha do Dossel (ficha 0/1). Suas unidades ganham +1 de Ataque neste turno.",
+  "text": "Invoca uma Mudinha do Dossel (ficha 0/1). Concede +1 de Ataque neste turno às suas unidades.",
   "flavor": "Uma árvore sozinha faz sombra. Juntas, elas fazem um mundo.",
   "tags": []
 }

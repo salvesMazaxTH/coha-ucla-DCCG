@@ -15,7 +15,7 @@
     "effects": [{ "action": "equip_self", "target": "ally_unit" }]
   },
   "equipped_grant": { "atk": 1, "hp": 2 },
-  "text": "Enquanto estiver solta no campo, não faz nada.\nEquipar (1) {lento}: equipe este artefato em uma unidade aliada. Ela recebe +1/+2.",
+  "text": "Enquanto estiver solta no campo, não faz nada.\nEquipar (1) {lento}: equipe este artefato em uma unidade aliada. Concede +1/+2 a ela.",
   "flavor": "Sobrou do conserto. Sempre sobra.",
   "art": "montanha/engrenagem_solta.webp",
   "tags": []

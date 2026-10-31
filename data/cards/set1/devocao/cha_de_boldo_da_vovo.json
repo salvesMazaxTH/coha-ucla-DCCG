@@ -18,7 +18,7 @@
       "cleanse": true
     }
   ],
-  "text": "Uma unidade aliada à sua escolha é purificada (perde Veneno, Queimadura e Sangramento) e ganha +0/+2 permanente.",
+  "text": "Concede +0/+2 permanente a uma unidade aliada à sua escolha e a purifica (ela perde Veneno, Queimadura e Sangramento).",
   "flavor": "Amargo que dói, mas a vovó jura que é bênção.",
   "tags": []
 }

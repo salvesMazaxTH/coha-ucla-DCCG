@@ -34,7 +34,7 @@
       "card": "mudinha_do_dossel"
     }
   ],
-  "text": "Ao Entrar: invoca uma Mudinha do Dossel (ficha 0/1). Suas plantas ganham +1/+1 neste turno.\nAo Morrer: invoca uma Mudinha do Dossel (ficha 0/1).",
+  "text": "Ao Entrar: invoca uma Mudinha do Dossel (ficha 0/1). Concede +1/+1 neste turno às suas plantas.\nAo Morrer: invoca uma Mudinha do Dossel (ficha 0/1).",
   "flavor": "Toda raiz é uma lembrança procurando água.",
   "tags": []
 }

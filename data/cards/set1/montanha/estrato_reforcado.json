@@ -15,7 +15,7 @@
       "armor_temp": 2
     }
   ],
-  "text": "Uma unidade aliada à sua escolha ganha Armadura 2 até o início do seu próximo turno.",
+  "text": "Concede Armadura 2 até o início do seu próximo turno a uma unidade aliada à sua escolha.",
   "flavor": "",
   "art": "montanha/estrato_reforcado.webp",
   "tags": []

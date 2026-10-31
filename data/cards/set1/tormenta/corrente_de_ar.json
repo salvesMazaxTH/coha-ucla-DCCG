@@ -17,7 +17,7 @@
       "keywords_until_next_turn": ["esquiva"]
     }
   ],
-  "text": "Todas as suas unidades ganham Rapidez 1 e Esquiva até o início do seu próximo turno (quem já tem mais Rapidez a mantém).",
+  "text": "Concede Rapidez 1 e Esquiva até o início do seu próximo turno a todas as suas unidades (quem já tem mais Rapidez a mantém).",
   "flavor": "",
   "tags": []
 }

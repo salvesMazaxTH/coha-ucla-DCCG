@@ -25,7 +25,7 @@
       "keywords": ["escudo_magico"]
     }
   ],
-  "text": "Ao Entrar: seu Líder recupera 1 de Vida e você pode escolher outra unidade aliada; ela ganha Escudo Mágico.",
+  "text": "Ao Entrar: seu Líder recupera 1 de Vida e você pode conceder Escudo Mágico a outra unidade aliada à sua escolha.",
   "flavor": "Não impede a chuva. Impede todo o resto.",
   "tags": []
 }
