@@ -4375,6 +4375,32 @@ func _test_drex_deck() -> void:
 	g._check_state()
 	check(int(victim.dot_markers.get("sangramento", 0)) == enemy_side_heal, "Drex: cura feita por unidade inimiga não planta Sangramento")
 
+	# Coagulhão: Ao Entrar makes the Sangramento tick at once on every enemy without consuming it, its Leader heals by the full damage, Ao Morrer ticks again (also without consuming)
+	_tcard("t_target_dummy", 1, 12, [])
+	g = _new_game()
+	_quiet(g)
+	enemy = g.opponent(g.active)
+	var first_victim := _put(g, enemy, "t_target_dummy")
+	var second_victim := _put(g, enemy, "t_target_dummy")
+	g.players[enemy]["leader_max"] = 100
+	g.players[enemy]["leader_hp"] = 50
+	g.players[g.active]["leader_max"] = 100
+	g.players[g.active]["leader_hp"] = 40
+	var blob := _put(g, g.active, "coagulhao")
+	g._check_state()
+	check(first_victim.damage == 2 and second_victim.damage == 2, "Coagulhão: ao entrar (1 marcador = 2 de dano), o marcador de Sangramento de cada unidade inimiga faz efeito na hora")
+	check(g.players[enemy]["leader_hp"] == 48, "Coagulhão: ao entrar, o Líder inimigo também sangra na hora")
+	check(g.players[g.active]["leader_hp"] == 46, "Coagulhão: o Líder dele recupera o dano inteiro de cada tick (2 + 2 + 2)")
+	check(int(first_victim.dot_markers.get("sangramento", 0)) == 1 and g.leader_dot_markers(enemy, "sangramento") == 1, "Coagulhão: ao entrar, os marcadores ferem mas ficam (nenhum se consome)")
+	g.add_dot_markers(first_victim, "sangramento", 3)
+	g.add_leader_dot_markers(enemy, "sangramento", 3)
+	var leader_hp_before_death: int = g.players[g.active]["leader_hp"]
+	_kill(g, blob)
+	g._check_state()
+	check(first_victim.damage == 10 and g.players[enemy]["leader_hp"] == 40, "Coagulhão: ao morrer, os 4 marcadores de cada inimigo causam o dano na hora (4 x 2)")
+	check(int(first_victim.dot_markers.get("sangramento", 0)) == 4 and g.leader_dot_markers(enemy, "sangramento") == 4, "Coagulhão: ao morrer, os marcadores também ficam")
+	check(g.players[g.active]["leader_hp"] == leader_hp_before_death, "Coagulhão: depois de morto não cura mais ninguém")
+
 	# Drex Ao Ativar: sacrifices another ally and heals his Leader by that unit's Attack
 	_tcard("t_drex_fodder", 3, 2, [])
 	g = _new_game()

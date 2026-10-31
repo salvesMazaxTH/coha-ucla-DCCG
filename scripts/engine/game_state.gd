@@ -3674,11 +3674,11 @@ func _resolve_dot_markers(p: int) -> void:
 ## A Leader's markers hurt it by the same per-marker damage as a unit's and wear off the same way. It is normal
 ## damage, so Câmara de Êxtase still applies. While its Veneno is held (see veneno_is_held) the
 ## markers hurt but none wear off.
-func _resolve_leader_dot(p: int, dot_id: String) -> void:
+func _resolve_leader_dot(p: int, dot_id: String, keep_markers := false) -> void:
 	var markers := leader_dot_markers(p, dot_id)
 	if markers <= 0:
 		return
-	var held := veneno_is_held(dot_id, LEADER_UID[p])
+	var held := keep_markers or veneno_is_held(dot_id, LEADER_UID[p])
 	var consumed := 0 if held else markers_consumed_per_tick(dot_id, markers)
 	var damage := markers * VENENO_DAMAGE_PER_MARKER if DOT_RULES.get(dot_id, "flat") == "poison" else markers
 	_emit({"type": "dot", "uid": LEADER_UID[p], "dot": dot_id, "amount": markers, "damage": damage, "total": markers - consumed, "cleared": true, "held": held})
@@ -3774,14 +3774,15 @@ func _resolve_condemned() -> void:
 ## Resolves one marker type. Only the markers present when this call starts are consumed;
 ## a new marker added by an on_damaged trigger remains for the next turn. Veneno loses half its
 ## pile, rounded up, and none while it is held (see veneno_is_held): the markers hurt and stay.
-func resolve_dot(unit: Card, dot_id: String) -> void:
+## `keep_markers` (a card effect, Coagulhão) holds them the same way for this one tick, for any marker kind.
+func resolve_dot(unit: Card, dot_id: String, keep_markers := false) -> void:
 	if unit == null:
 		return
 	var markers := int(unit.dot_markers.get(dot_id, 0))
 	if markers <= 0:
 		return
 	var damage := dot_damage(dot_id, unit, markers)
-	var held := veneno_is_held(dot_id, unit.uid)
+	var held := keep_markers or veneno_is_held(dot_id, unit.uid)
 	var consumed := 0 if held else markers_consumed_per_tick(dot_id, markers)
 	_emit({"type": "dot", "uid": unit.uid, "dot": dot_id, "amount": markers, "damage": damage, "total": markers - consumed, "cleared": true, "held": held})
 	_deal_dot_damage(unit.uid, damage, dot_id)

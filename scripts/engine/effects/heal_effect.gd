@@ -4,6 +4,7 @@ extends Effect
 ## "heal_leader": heals the controller's Leader by `amount` (never above its maximum). With "per":
 ##                "half_event_damage" it heals half (rounded up) of the damage of the event that made
 ##                the card react, but never less than `amount` (Tox Vipranna: half the Veneno tick, at least 2).
+##                With "per": "event_damage" it heals the full damage of that event (Coagulhão: all the Sangramento dealt).
 ##                With "amount_from": "sacrificed_atk" (inside a sacrifice's "then") it heals the Attack the
 ##                sacrificed unit had, instead of `amount` (Drex).
 ##                "per_turn_cap": N (opt-in) gives each instance of the card a soft budget of N Vida healed per turn:
@@ -40,10 +41,12 @@ func _read_parameters(data: Dictionary) -> void:
 	per_turn_cap = int(data.get("per_turn_cap", 0))
 	source_temp_hp = int(data.get("source_temp_hp", 0))
 
-## What "heal_leader" heals right now: the sacrificed unit's Attack, or `amount`, or half the triggering event's damage when that is more.
+## What "heal_leader" heals right now: the sacrificed unit's Attack, or `amount`, or the triggering event's damage (whole, or half when that is more).
 func _leader_heal_amount(context: EffectContext) -> int:
 	if amount_from == "sacrificed_atk":
 		return context.sacrificed_attack
+	if per == "event_damage" and context.event != null:
+		return context.event.amount
 	if per == "half_event_damage" and context.event != null:
 		return maxi(amount, ceili(context.event.amount / 2.0))
 	return amount
