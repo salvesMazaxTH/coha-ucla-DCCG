@@ -1,0 +1,23 @@
+{
+  "name": "Lorde Sanguessuga",
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["vampiro"],
+  "essence": "trevas",
+  "cost": 7,
+  "atk": 6,
+  "hp": 7,
+  "keywords": ["roubo_de_vida"],
+  "art": "trevas/lorde_sanguessuga.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount": 4
+    }
+  ],
+  "text": "Ao Entrar: seu Líder recupera 4 de Vida.",
+  "flavor": "O último a chegar à mesa e o primeiro a esvaziá-la.",
+  "tags": []
+}

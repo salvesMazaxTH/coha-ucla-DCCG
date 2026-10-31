@@ -1,0 +1,31 @@
+{
+  "name": "Dentadura Postiça",
+  "type": "artifact",
+  "subtypes": ["equipment"],
+  "rarity": "common",
+  "essence": "trevas",
+  "cost": 1,
+  "durability": 2,
+  "art": "trevas/dentadura_postica.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "atk": 1
+    },
+    {
+      "listen": "combat_damage_dealt",
+      "scope": "carrier",
+      "zones": ["equipped"],
+      "durability_cost": 1,
+      "action": "add_dot",
+      "dot": "sangramento",
+      "target": "damaged_target",
+      "amount": 1
+    }
+  ],
+  "text": "Equipar: concede +1 de Ataque à unidade equipada.\nCondicional: quando a unidade equipada causa dano de combate, o alvo (inclusive um Líder) recebe 1 marcador de Sangramento. Perde 1 de Durabilidade a cada uso.",
+  "flavor": "Serve em qualquer boca. Morde em todas.",
+  "tags": []
+}

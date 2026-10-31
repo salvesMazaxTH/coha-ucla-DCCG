@@ -1,0 +1,20 @@
+{
+  "name": "Sangria Geral",
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "trevas",
+  "cost": 4,
+  "art": "trevas/sangria_geral.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "add_dot",
+      "dot": "sangramento",
+      "target": "all_enemy_units",
+      "amount": 1
+    }
+  ],
+  "text": "Todas as unidades inimigas recebem 1 marcador de Sangramento.",
+  "flavor": "Ninguém foi convidado. Todos estão servidos.",
+  "tags": []
+}

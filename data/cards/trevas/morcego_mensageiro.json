@@ -1,0 +1,24 @@
+{
+  "name": "Morcego Mensageiro",
+  "type": "unit",
+  "rarity": "common",
+  "species": ["fera"],
+  "essence": "trevas",
+  "cost": 2,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [],
+  "art": "trevas/morcego_mensageiro.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "add_dot",
+      "dot": "sangramento",
+      "target": "enemy_unit",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela recebe 1 marcador de Sangramento.",
+  "flavor": "Entrega o recado na jugular. Gorjeta é por sua conta.",
+  "tags": []
+}
