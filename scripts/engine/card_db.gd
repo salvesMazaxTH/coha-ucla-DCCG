@@ -1,12 +1,14 @@
 class_name CardDB
 extends RefCounted
 ## Static card catalog loaded from data/cards.json and data/cards/<set>/<essence>/*.json.
-## A card's id is its file name, unique across every set; its "set" field must name the folder it lives in.
+## A card's id is its file name, unique across every set. A set is identified by its NUMBER: the card's
+## "set" field is that number (2), the registry "sets" in data/cards.json maps the number to the full
+## name shown in the UI, and the cards live in the folder data/cards/set<number>/.
 
 static var _data: Dictionary = {}
 static var _defs: Dictionary = {} ## id -> CardDef
 static var _errors: Array[String] = []
-static var _set_folder_of: Dictionary = {} ## card id -> the set folder its file was found in (checked against its "set" field)
+static var _set_number_of: Dictionary = {} ## card id -> the number of the set folder its file was found in (checked against its "set" field)
 
 ## The effect vocabulary lives in EffectRegistry, TargetRegistry and ConditionRegistry; a typo is
 ## checked on load so it is an error, not a silent no-op.
@@ -49,14 +51,15 @@ static func _apply_valued_keywords(cd: Dictionary) -> void:
 static func _load() -> void:
 	_errors.clear()
 	_defs.clear()
-	_set_folder_of.clear()
+	_set_number_of.clear()
 	_data = _read_json("res://data/cards.json")
 	if _data.is_empty():
 		_data = {"sets": {}, "essences": {}, "elements": {}, "triggers": {}, "species": {}, "keywords": {}, "leaders": {}}
 	_data["cards"] = {}
-	for set_id in _data["sets"]:
+	for set_key in _data["sets"]:
+		var set_number := int(set_key)
 		for essence_id in _data["essences"]:
-			var dir_path: String = "res://data/cards/%s/%s" % [set_id, essence_id]
+			var dir_path: String = "res://data/cards/%s/%s" % [set_folder_name(set_number), essence_id]
 			if not DirAccess.dir_exists_absolute(dir_path):
 				continue
 			for file_name in DirAccess.get_files_at(dir_path):
@@ -64,14 +67,14 @@ static func _load() -> void:
 					continue
 				var id := file_name.trim_suffix(".json")
 				if _data["cards"].has(id):
-					_errors.append("carta %s: id repetido (já existe em \"%s\"; o id é o nome do arquivo e vale para todos os sets)" % [id, _set_folder_of[id]])
+					_errors.append("carta %s: id repetido (já existe na pasta %s; o id é o nome do arquivo e vale para todos os sets)" % [id, set_folder_name(_set_number_of[id])])
 					continue
 				var cd := _read_json(dir_path + "/" + file_name)
 				if cd.is_empty():
 					continue
 				_apply_valued_keywords(cd)
 				_data["cards"][id] = cd
-				_set_folder_of[id] = str(set_id)
+				_set_number_of[id] = set_number
 				_defs[id] = CardDef.new(id, cd)
 	for id in _data["cards"]:
 		_validate_card(id, _data["cards"][id])
@@ -107,10 +110,12 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 		if not cd.has(field):
 			err.call("falta \"%s\"" % field)
 	if cd.has("set"):
-		if not _data.get("sets", {}).has(cd["set"]):
-			err.call("set desconhecido \"%s\" (cadastre em \"sets\" de data/cards.json)" % cd["set"])
-		elif _set_folder_of.has(id) and _set_folder_of[id] != cd["set"]:
-			err.call("o campo \"set\" diz \"%s\" mas o arquivo está na pasta do set \"%s\"" % [cd["set"], _set_folder_of[id]])
+		if not (cd["set"] is float or cd["set"] is int):
+			err.call("o campo \"set\" precisa ser o número do set (ex.: 2), não \"%s\"" % cd["set"])
+		elif not _data.get("sets", {}).has(str(int(cd["set"]))):
+			err.call("set desconhecido %d (cadastre o número e o nome em \"sets\" de data/cards.json)" % int(cd["set"]))
+		elif _set_number_of.has(id) and _set_number_of[id] != int(cd["set"]):
+			err.call("o campo \"set\" diz %d mas o arquivo está na pasta do set %d" % [int(cd["set"]), _set_number_of[id]])
 	var type: String = cd.get("type", "")
 	if type not in TYPES:
 		err.call("type desconhecido \"%s\"" % type)
@@ -173,6 +178,24 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 			err.call("activated.speed desconhecida \"%s\"" % act["speed"])
 		if act.get("exhaust", false) and type != "unit":
 			err.call("activated.exhaust só pode ser usado por unidades; artefatos usam once_per_turn")
+		if act.has("extra_cost"):
+			var extra: Dictionary = act["extra_cost"]
+			if extra.get("kind", "") != "discard_or_sacrifice":
+				err.call("activated.extra_cost: tipo desconhecido")
+			else:
+				var options = extra.get("options", null)
+				if not options is Array:
+					err.call("activated.extra_cost: options precisa ser uma lista")
+				else:
+					var picks: Array = []
+					for option in options:
+						if not option is Dictionary or not option.get("title", "") is String or String(option.get("title", "")).is_empty():
+							err.call("activated.extra_cost: opção precisa de title")
+							continue
+						picks.append(option.get("pick", ""))
+					picks.sort()
+					if picks != ["hand_card", "other_ally_unit"]:
+						err.call("activated.extra_cost: precisa de uma opção de descarte e outra de sacrifício")
 		_validate_effects(err, act.get("effects", []))
 	if cd.has("equip_from_field"):
 		var equip_action: Dictionary = cd["equip_from_field"]
@@ -207,7 +230,8 @@ static func _validate_leader(lid: String, ld: Dictionary) -> void:
 		err.call("ability.speed desconhecida \"%s\"" % ab["speed"])
 	_validate_effects(err, ab.get("effects", []))
 
-static func _validate_effects(err: Callable, effects: Array) -> void:
+static func _validate_effects(err: Callable, effects: Array, inside_effect_choice := false) -> void:
+	var has_effect_choice := effects.any(func(entry): return entry is Dictionary and entry.get("action", "") == "choose_effect")
 	for e in effects:
 		if not e is Dictionary:
 			err.call("efeito não é objeto: %s" % str(e))
@@ -215,6 +239,8 @@ static func _validate_effects(err: Callable, effects: Array) -> void:
 		var action: String = e.get("action", "")
 		if not EffectRegistry.is_known(action):
 			err.call("action desconhecida \"%s\"" % action)
+		elif (inside_effect_choice or has_effect_choice) and EffectRegistry.parse(e).opens_choice():
+			err.call("choose_effect ainda não pode ser combinado com outra tela de escolha")
 		if action not in EffectRegistry.STATIC_ACTIONS:
 			if not e.has("target"):
 				err.call("efeito \"%s\" sem target" % action)
@@ -230,7 +256,30 @@ static func _validate_effects(err: Callable, effects: Array) -> void:
 				err.call(restriction_problem)
 		if action == "summon" and e.get("card", "self") != "self" and not _data["cards"].has(e["card"]):
 			err.call("summon de carta inexistente \"%s\"" % e["card"])
-		_validate_effects(err, e.get("then", []))
+		if action == "choose_effect":
+			var options = e.get("options", null)
+			if not options is Array or options.is_empty():
+				err.call("choose_effect precisa de uma lista não vazia de opções")
+			else:
+				for option in options:
+					if not option is Dictionary:
+						err.call("choose_effect: opção precisa ser um objeto")
+						continue
+					if not option.get("title", "") is String or String(option.get("title", "")).is_empty():
+						err.call("choose_effect: opção precisa de title")
+					var option_effects = option.get("effects", null)
+					if not option_effects is Array or option_effects.is_empty():
+						err.call("choose_effect: opção precisa de effects não vazio")
+						continue
+					var chosen_specs: Array = []
+					for child in option_effects:
+						if child is Dictionary and TargetRegistry.needs_choice(String(child.get("target", ""))):
+							if not chosen_specs.has(child["target"]):
+								chosen_specs.append(child["target"])
+					if chosen_specs.size() > 1:
+						err.call("choose_effect: opção só pode escolher um tipo de alvo")
+					_validate_effects(err, option_effects, true)
+		_validate_effects(err, e.get("then", []), inside_effect_choice)
 
 static func _check_trigger_if(err: Callable, e: Dictionary) -> void:
 	if e.has("trigger") and not _data["triggers"].has(e["trigger"]):
@@ -344,6 +393,27 @@ static func incarnation_options(leader_id: String) -> Array[String]:
 
 static func keyword(id: String) -> Dictionary:
 	return data()["keywords"][id]
+
+## The folder under data/cards/ that holds a set's cards ("set2" for set number 2).
+static func set_folder_name(set_number: int) -> String:
+	return "set%d" % set_number
+
+## The number of the set a card belongs to (0 when the card has none).
+static func set_number_of(cd: Dictionary) -> int:
+	return int(cd.get("set", 0))
+
+## The full set name shown in the UI, from the "sets" registry of data/cards.json ("Nuliterra (2026)").
+## A number missing from the registry falls back to "Set <number>".
+static func set_full_name(set_number: int) -> String:
+	return String(data().get("sets", {}).get(str(set_number), {}).get("name", "Set %d" % set_number))
+
+## The registered set numbers, lowest first.
+static func set_numbers() -> Array:
+	var numbers: Array = []
+	for set_key in data().get("sets", {}):
+		numbers.append(int(set_key))
+	numbers.sort()
+	return numbers
 
 static func essence(id: String) -> Dictionary:
 	return data()["essences"][id]

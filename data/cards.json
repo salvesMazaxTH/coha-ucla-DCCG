@@ -1,7 +1,7 @@
 {
   "sets": {
-    "set1": {"name": "Set 1", "order": 1},
-    "set2": {"name": "Set 2", "order": 2}
+    "1": {"name": "Origem"},
+    "2": {"name": "Nuliterra (2026)"}
   },
   "essences": {
     "furia": {

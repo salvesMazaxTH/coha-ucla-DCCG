@@ -1,6 +1,6 @@
 {
   "name": "Madre Badalo-Torto",
-  "set": "set1",
+  "set": 1,
   "type": "unit",
   "rarity": "epic",
   "species": ["humano"],

@@ -1,6 +1,6 @@
 {
   "name": "Contracorrente",
-  "set": "set1",
+  "set": 1,
   "type": "spell",
   "rarity": "epic",
   "essence": "fluxo",

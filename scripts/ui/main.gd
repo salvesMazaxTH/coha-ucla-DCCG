@@ -1636,6 +1636,7 @@ func _render_now() -> void:
 	_render_board(op, 172)
 	_render_board(me, 460)
 	_sync_enter_aim()
+	_sync_effect_choice_prompt()
 	_render_side()
 	_render_hint()
 	if g.phase == "search":
@@ -1673,8 +1674,23 @@ func _open_option_prompt(title: String, options: Array) -> void:
 	option_prompt = {"title": title, "options": options}
 	_render()
 
+func _choice_prompt_options(options: Array, available: Callable, select: Callable) -> Array:
+	var result: Array = []
+	for index in options.size():
+		var option: Dictionary = options[index]
+		result.append({
+			"title": String(option.get("title", "")),
+			"detail": String(option.get("detail", "")),
+			"enabled": bool(available.call(index)),
+			"reason": String(option.get("reason", "não há alvo válido.")),
+			"callback": select.bind(index),
+		})
+	return result
+
 func _close_option_prompt() -> void:
 	if option_prompt.is_empty():
+		return
+	if option_prompt.get("mandatory", false):
 		return
 	option_prompt = {}
 	_render()
@@ -1721,37 +1737,59 @@ func _render_option_prompt() -> void:
 			option_prompt = {}
 			callback.call())
 		blocks.add_child(block)
-	var cancel_button := _button("CANCELAR", _close_option_prompt)
-	cancel_button.custom_minimum_size = Vector2(360, 52)
-	cancel_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	box.add_child(cancel_button)
+	if not option_prompt.get("mandatory", false):
+		var cancel_button := _button("CANCELAR", _close_option_prompt)
+		cancel_button.custom_minimum_size = Vector2(360, 52)
+		cancel_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		box.add_child(cancel_button)
 	_center.call_deferred(pc)
 
-## Drex-style Ao Ativar with "discard a card or sacrifice an ally" as its extra cost: asks which one to pay.
+func _sync_effect_choice_prompt() -> void:
+	if g.phase != "effect_choice" or not _my_input():
+		if option_prompt.get("effect_choice", false):
+			option_prompt = {}
+		return
+	if not targeting.is_empty() or option_prompt.get("effect_choice", false):
+		return
+	var options := _choice_prompt_options(g.pending_effect_choice.get("options", []), g.effect_choice_available, _select_effect_option)
+	option_prompt = {"title": "ESCOLHA UM EFEITO", "options": options, "mandatory": true, "effect_choice": true}
+
+func _select_effect_option(index: int) -> void:
+	if g.phase != "effect_choice" or not _my_input() or not g.effect_choice_available(index):
+		_render()
+		return
+	var mode: Dictionary = g.pending_effect_choice["options"][index]
+	var spec := g.target_spec(mode.get("effects", []))
+	if spec == "":
+		_do(g.choose_effect_option(viewer, index))
+		return
+	var uid := int(g.pending_effect_choice["uid"])
+	targeting = {"kind": "effect_choice", "uid": uid, "spec": spec, "mode": index}
+	if views.has(uid) and is_instance_valid(views[uid]):
+		_begin_aim(_visual_rect(views[uid] as Control).get_center())
+	_render()
+
 func _open_activation_cost_prompt(ability_uid: int) -> void:
-	var can_discard: bool = not g.players[viewer]["hand"].is_empty()
-	var can_sacrifice: bool = not g.valid_targets(viewer, "other_ally_unit", ability_uid, false, []).is_empty()
-	var options: Array = [
-		{
-			"title": "Descartar uma carta",
-			"detail": "Escolha uma carta da sua mão para ir ao cemitério.",
-			"enabled": can_discard,
-			"reason": "sua mão está vazia.",
-			"callback": func(): _do(g.begin_activation_discard(viewer, ability_uid)),
-		},
-		{
-			"title": "Sacrificar uma unidade",
-			"detail": "Escolha no campo outra unidade aliada para sacrificar.",
-			"enabled": can_sacrifice,
-			"reason": "não há outra unidade aliada para sacrificar.",
-			"callback": func():
-				targeting = {"kind": "unit_cost", "uid": ability_uid, "spec": "extra_cost_payer"}
-				if views.has(ability_uid) and is_instance_valid(views[ability_uid]):
-					_begin_aim(_visual_rect(views[ability_uid] as Control).get_center())
-				_render(),
-		},
-	]
+	var options := _choice_prompt_options(g.activation_cost_options(ability_uid),
+		func(index: int): return g.activation_cost_option_available(viewer, ability_uid, index),
+		_select_activation_cost_option.bind(ability_uid))
 	_open_option_prompt("PAGUE O CUSTO ADICIONAL", options)
+
+func _select_activation_cost_option(index: int, ability_uid: int) -> void:
+	if not _my_input() or not g.can_activate(viewer, ability_uid) or not g.activation_cost_option_available(viewer, ability_uid, index):
+		_render()
+		return
+	var option: Dictionary = g.activation_cost_options(ability_uid)[index]
+	match option["pick"]:
+		"hand_card":
+			_do(g.begin_activation_discard(viewer, ability_uid))
+		"other_ally_unit":
+			targeting = {"kind": "unit_cost", "uid": ability_uid, "spec": "extra_cost_payer", "mode": index}
+			if views.has(ability_uid) and is_instance_valid(views[ability_uid]):
+				_begin_aim(_visual_rect(views[ability_uid] as Control).get_center())
+			_render()
+		_:
+			push_error("Unsupported activation cost choice: %s" % option["pick"])
 
 func _render_pass() -> void:
 	var p := viewer
@@ -2920,7 +2958,7 @@ func _render_hint() -> void:
 		hint_text = t
 		hint_since = now
 	hint_pill = pc
-	if not targeting.is_empty() or g.phase in ["search", "discard", "enter_tapped"]:
+	if not targeting.is_empty() or g.phase in ["search", "discard", "enter_tapped", "effect_choice"]:
 		return # choices in progress keep their instructions on screen
 	var left := maxi(hint_since + HINT_MS, hint_until) - now
 	if left <= 0:
@@ -2959,6 +2997,10 @@ func _process(dt: float) -> void:
 		_hint_nudge()
 
 func _hint() -> String:
+	if targeting.get("kind") == "effect_choice":
+		return "Escolha um alvo para o efeito · botão direito/Esc volta às opções."
+	if g.phase == "effect_choice":
+		return "Escolha um efeito." if _my_input() else "O oponente está escolhendo um efeito."
 	if g.phase == "search":
 		if g.pending_search.get("summon_from", false):
 			return "Escolha uma carta para invocar de graça, ou não invoque nenhuma."
@@ -3418,7 +3460,7 @@ func _update_aim() -> void:
 		aim_arrow.to = arrow_space * get_global_mouse_position()
 		aim_arrow.locked = false
 		return
-	var on: bool = g != null and not targeting.is_empty() and targeting.get("spec") != "enemy_stack" 		and _my_input() and g.phase in ["main", "combat", "enter_target"]
+	var on: bool = g != null and not targeting.is_empty() and targeting.get("spec") != "enemy_stack" 		and _my_input() and g.phase in ["main", "combat", "enter_target", "effect_choice"]
 	if not on:
 		if is_instance_valid(aim_arrow):
 			aim_arrow.visible = false
@@ -3430,7 +3472,7 @@ func _update_aim() -> void:
 	aim_arrow.visible = true
 	aim_arrow.move_to_front()
 	var src := aim_src
-	if targeting["kind"] in ["hand", "enter", "attack", "room_banish"] and views.has(targeting["uid"]) and is_instance_valid(views[targeting["uid"]]):
+	if targeting["kind"] in ["hand", "enter", "attack", "room_banish", "effect_choice"] and views.has(targeting["uid"]) and is_instance_valid(views[targeting["uid"]]):
 		var r: Rect2 = _visual_rect(views[targeting["uid"]] as Control)
 		src = Vector2(r.get_center().x, r.position.y + r.size.y * 0.3)
 	var inv := fx.get_global_transform().affine_inverse()
@@ -3527,13 +3569,15 @@ func _on_search_choice(card_uid: int) -> void:
 func _is_target(uid: int) -> bool:
 	if targeting.is_empty():
 		return false
+	if targeting["kind"] == "effect_choice":
+		return g.effect_choice_targets(int(targeting["mode"])).has(uid)
 	if targeting["spec"] == "enemy_stack":
 		for hand_card: Card in g.players[viewer]["hand"]:
 			if hand_card.uid == targeting["uid"]:
 				return g.card_targets(viewer, CardDB.card(hand_card.card_id)).has(uid)
 		return false
 	if targeting["kind"] == "unit_cost":
-		return g.valid_targets(viewer, "other_ally_unit", targeting["uid"], false, []).has(uid) # the discard is picked in its own window
+		return g.activation_cost_option_targets(viewer, int(targeting["uid"]), int(targeting["mode"])).has(uid)
 	if targeting["kind"] == "room_banish":
 		return g.room_banish_options(viewer).has(uid)
 	if targeting["kind"] == "attack":
@@ -3626,6 +3670,8 @@ func _fire_target(uid: int, confirmed := false) -> void:
 			_do(g.choose_enter_target(viewer, uid))
 		"attack":
 			_do(g.attack_unit(viewer, targeting["uid"], uid))
+		"effect_choice":
+			_do(g.choose_effect_option(viewer, int(targeting["mode"]), uid))
 
 ## Name of the unit or artifact the player picked to banish.
 func _permanent_name(uid: int) -> String:

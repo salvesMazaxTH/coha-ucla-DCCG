@@ -62,6 +62,12 @@ func _init() -> void:
 			m._close_graveyard()
 		await process_frame
 	var last_turn: int = m.g.turn
+	if not await _check_effect_choice_ui(m):
+		quit(1)
+		return
+	if not await _check_activation_cost_choice_ui(m):
+		quit(1)
+		return
 	if not await _check_equipment_ui(m):
 		quit(1)
 		return
@@ -73,6 +79,129 @@ func _init() -> void:
 		return
 	print("smoke ok, turn ", last_turn)
 	quit()
+
+func _check_effect_choice_ui(m) -> bool:
+	m._start(false, "fogo", "agua")
+	m.pending_pass = false
+	m.g.mulligan(0, [])
+	m.g.mulligan(1, [])
+	m.g.active = 0
+	m.g.phase = "combat"
+	m.g.window = "attacks"
+	m.g.priority = 0
+	m.g.players[0]["momentum"] = 0
+	m.g.players[1]["momentum"] = 0
+	m.g.players[0]["ability_used"] = true
+	m.g.players[1]["ability_used"] = true
+	var nicolas := Card.new(m.g._uid(), "nicolas", 0, "board")
+	var challenged := Card.new(m.g._uid(), "geodo_vivo", 1, "board")
+	var other := Card.new(m.g._uid(), "geodo_vivo", 1, "board")
+	nicolas.enter_board(false)
+	challenged.enter_board(false)
+	other.enter_board(false)
+	nicolas.sick = false
+	challenged.exhausted = true
+	m.g.players[0]["board"].append(nicolas)
+	m.g.players[1]["board"].append(challenged)
+	m.g.players[1]["board"].append(other)
+	m.g.attack_unit(0, nicolas.uid, challenged.uid)
+	m.viewer = 0
+	m.pending_pass = false
+	m._render_now()
+	if m.g.phase != "effect_choice" or not m.option_prompt.get("mandatory", false) or m.option_prompt["options"].size() != 2:
+		push_error("a escolha do Nicolas não abriu a janela: phase=%s decider=%s viewer=%s prompt=%s" % [m.g.phase, m.g.decider(), m.viewer, m.option_prompt])
+		return false
+	m._close_option_prompt()
+	if m.option_prompt.is_empty():
+		push_error("uma escolha obrigatória não pode ser fechada")
+		return false
+	m.option_prompt["options"][0]["callback"].call()
+	if m.targeting.get("kind") != "effect_choice" or not m._is_target(other.uid) or m._is_target(challenged.uid):
+		push_error("o Tiro não ofereceu apenas os alvos válidos")
+		return false
+	m._cancel_targeting()
+	m._render_now()
+	if m.option_prompt.is_empty():
+		push_error("cancelar a mira deve voltar à escolha")
+		return false
+	m.option_prompt["options"][0]["callback"].call()
+	m._fire_target(other.uid)
+	if other.damage != 4 or m.g.phase == "effect_choice":
+		push_error("o Tiro escolhido pela UI não foi resolvido")
+		return false
+	await process_frame
+	return true
+
+func _check_activation_cost_choice_ui(m) -> bool:
+	m._start(false, "fogo", "agua")
+	m.pending_pass = false
+	m.g.mulligan(0, [])
+	m.g.mulligan(1, [])
+	m.g.active = 0
+	m.g.priority = 0
+	m.g.phase = "main"
+	m.g.players[0]["momentum"] = 3
+	m.viewer = 0
+	var drex := Card.new(m.g._uid(), "drex", 0, "board")
+	var ally := Card.new(m.g._uid(), "geodo_vivo", 0, "board")
+	drex.enter_board(false)
+	ally.enter_board(false)
+	m.g.players[0]["board"].append(drex)
+	m.g.players[0]["board"].append(ally)
+	m._open_activation_cost_prompt(drex.uid)
+	if m.option_prompt["options"].size() != 2 or not m.option_prompt["options"][0]["enabled"] or not m.option_prompt["options"][1]["enabled"]:
+		push_error("Drex: a janela não oferece ambos os custos")
+		return false
+	m._close_option_prompt()
+	if not m.option_prompt.is_empty() or m.g.players[0]["momentum"] != 3:
+		push_error("Drex: cancelar a janela não deve pagar o custo")
+		return false
+	m.g.players[0]["board"].erase(ally)
+	m._open_activation_cost_prompt(drex.uid)
+	if not m.option_prompt["options"][0]["enabled"] or m.option_prompt["options"][1]["enabled"]:
+		push_error("Drex: sem outro aliado apenas descarte fica disponível")
+		return false
+	m._close_option_prompt()
+	m.g.players[0]["board"].append(ally)
+	m._open_activation_cost_prompt(drex.uid)
+	m._render_now()
+	var sacrifice_button: Button = null
+	for node in m.layer.find_children("*", "Button", true, false):
+		if node.text.begins_with("Sacrificar uma unidade"):
+			sacrifice_button = node
+			break
+	if sacrifice_button == null:
+		push_error("Drex: botão de sacrifício não foi renderizado")
+		return false
+	sacrifice_button.pressed.emit()
+	if m.targeting.get("kind") != "unit_cost" or not m._is_target(ally.uid) or m._is_target(drex.uid):
+		push_error("Drex: o sacrifício deve oferecer apenas outra unidade aliada")
+		return false
+	m._cancel_targeting()
+	if m.g.players[0]["momentum"] != 3 or m.g.find_unit(ally.uid) == null:
+		push_error("Drex: cancelar a mira não deve pagar o custo")
+		return false
+	m._open_activation_cost_prompt(drex.uid)
+	m.option_prompt["options"][0]["callback"].call()
+	if m.g.phase != "search" or not m.g.pending_search.get("discard_hand", false):
+		push_error("Drex: o descarte deve abrir a escolha da mão")
+		return false
+	m.g.choose_search(0, 0)
+	if m.g.players[0]["momentum"] != 3 or drex.activated_turn == m.g.turn:
+		push_error("Drex: cancelar o descarte não deve ativar a habilidade")
+		return false
+	m.g.players[0]["hand"].clear()
+	m._open_activation_cost_prompt(drex.uid)
+	if m.option_prompt["options"][0]["enabled"] or not m.option_prompt["options"][1]["enabled"]:
+		push_error("Drex: descarte indisponível e sacrifício disponível")
+		return false
+	m.option_prompt["options"][1]["callback"].call()
+	m._fire_target(ally.uid)
+	if m.g.find_unit(ally.uid) != null or m.g.players[0]["momentum"] != 2 or drex.activated_turn != m.g.turn:
+		push_error("Drex: sacrifício deve pagar o custo e ativar")
+		return false
+	await process_frame
+	return true
 
 func _check_equipment_ui(m) -> bool:
 	m._start(false, "fogo", "agua")

@@ -1,6 +1,6 @@
 {
   "name": "Aren Marevóth",
-  "set": "set1",
+  "set": 1,
   "type": "unit",
   "rarity": "champion",
   "species": ["transfigurado", "forjado_divino"],

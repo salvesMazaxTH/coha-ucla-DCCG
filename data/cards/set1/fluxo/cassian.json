@@ -1,6 +1,6 @@
 {
   "name": "Cassian, Sangue Vivo",
-  "set": "set1",
+  "set": 1,
   "type": "unit",
   "rarity": "champion",
   "species": ["vampiro"],

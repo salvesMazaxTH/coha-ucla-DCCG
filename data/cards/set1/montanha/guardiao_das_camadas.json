@@ -1,6 +1,6 @@
 {
   "name": "Guardião das Camadas",
-  "set": "set1",
+  "set": 1,
   "type": "unit",
   "rarity": "epic",
   "species": ["gigante"],

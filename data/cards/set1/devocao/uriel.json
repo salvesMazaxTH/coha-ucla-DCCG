@@ -1,6 +1,6 @@
 {
   "name": "Arcanjo Uriel",
-  "set": "set1",
+  "set": 1,
   "type": "unit",
   "rarity": "champion",
   "species": ["anjo"],

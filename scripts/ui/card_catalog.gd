@@ -7,6 +7,7 @@ extends RefCounted
 ## displayed name, id, rules text, species, element, tags and keywords.
 
 const FACETS := [
+	{"id": "set", "title": "Set", "values": "set"},
 	{"id": "essence", "title": "Domínio", "values": "essence"},
 	{"id": "element", "title": "Elemento", "values": "element"},
 	{"id": "type", "title": "Tipo", "values": "type"},
@@ -100,13 +101,14 @@ func matches(card_id: String) -> bool:
 	return true
 
 static func search_text(card_id: String, cd: Dictionary) -> String:
-	var parts := [card_id, String(cd.get("name", "")), String(cd.get("text", "")), CardDB.essence_names(cd), CardDB.element_names(cd)]
+	var parts := [card_id, String(cd.get("name", "")), String(cd.get("text", "")), CardDB.essence_names(cd), CardDB.element_names(cd), CardDB.set_full_name(CardDB.set_number_of(cd))]
 	parts.append_array(cd.get("species", []))
 	parts.append_array(cd.get("keywords", []))
 	return " ".join(parts)
 
 static func values_for(cd: Dictionary, facet_id: String, card_id := "") -> Array:
 	match facet_id:
+		"set": return [str(CardDB.set_number_of(cd))] # the set number as text, like every other facet value
 		"essence": return CardDB.essences_of(cd)
 		"element": return CardDB.elements_of(cd)
 		"type":
@@ -172,6 +174,7 @@ static func _properties_of(cd: Dictionary, card_id: String) -> Array:
 
 static func facet_label(facet_id: String, value: String) -> String:
 	match facet_id:
+		"set": return CardDB.set_full_name(int(value))
 		"essence": return String(CardDB.essence(value).get("name", value))
 		"element": return String(CardDB.element(value).get("name", value))
 		"species": return String(CardDB.data().get("species", {}).get(value, {}).get("name", value))
@@ -265,7 +268,10 @@ func _facet_menu(facet: Dictionary, width: float) -> MenuButton:
 	var menu := button.get_popup()
 	menu.hide_on_checkable_item_selection = false
 	var values: Array = facet_values[id].keys()
-	values.sort_custom(func(a, b): return facet_label(id, String(a)).naturalnocasecmp_to(facet_label(id, String(b))) < 0)
+	if id == "set":
+		values.sort_custom(func(a, b): return int(a) < int(b)) # by set number, not by name
+	else:
+		values.sort_custom(func(a, b): return facet_label(id, String(a)).naturalnocasecmp_to(facet_label(id, String(b))) < 0)
 	for index in values.size():
 		var value := String(values[index])
 		menu.add_check_item(facet_label(id, value), index)

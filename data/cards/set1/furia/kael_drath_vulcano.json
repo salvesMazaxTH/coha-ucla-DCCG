@@ -1,6 +1,6 @@
 {
   "name": "Kael'Drath Vulcano",
-  "set": "set1",
+  "set": 1,
   "type": "unit",
   "rarity": "champion",
   "species": ["tita"],

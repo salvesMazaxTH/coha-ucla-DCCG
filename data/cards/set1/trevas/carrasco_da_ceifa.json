@@ -1,6 +1,6 @@
 {
   "name": "Carrasco da Ceifa",
-  "set": "set1",
+  "set": 1,
   "type": "unit",
   "rarity": "common",
   "species": ["demonio"],

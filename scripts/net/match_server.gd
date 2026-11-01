@@ -12,7 +12,7 @@ extends SceneTree
 ##   {t:"resume", code, token}               -> {t:"start", ...} again (reconnect)
 ##   {t:"act", a:<action>, ...args}          -> broadcast {t:"events"} or {t:"reject"} to the sender
 ## actions: mulligan{uids} play{uid,target} incarnation{target} ability{target} attack{attacker,target}
-##          end_combat enter_tapped{tapped} end_turn pass discard{uids} search{uid}
+##          end_combat enter_tapped{tapped} effect_choice{index,target} end_turn pass discard{uids} search{uid}
 ## server -> client: room, start{seat,decks,deck_data,snap} (deck_data holds the contents of the "room:" decks), events{events,snap}, reject{a}, opponent{connected}, error{msg}
 
 const ROOM_TTL := 1800.0 ## seconds an empty room is kept
@@ -223,6 +223,7 @@ func _apply(g: GameState, p: int, m: Dictionary) -> Array:
 		"incarnation": return g.cast_incarnation(p, int(m.get("target", 0)), int(m.get("slot", -1)), int(m.get("banish", 0)))
 		"ability": return g.use_ability(p, int(m.get("target", 0)))
 		"activate": return g.activate(p, int(m.get("uid", 0)), int(m.get("target", 0)))
+		"effect_choice": return g.choose_effect_option(p, int(m.get("index", -1)), int(m.get("target", 0)))
 		"activate_discard": return g.begin_activation_discard(p, int(m.get("uid", 0)))
 		"transform": return g.transform(p, int(m.get("uid", 0)))
 		"go_to_combat": return g.go_to_combat(p)

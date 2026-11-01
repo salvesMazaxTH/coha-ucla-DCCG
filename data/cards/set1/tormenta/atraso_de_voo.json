@@ -1,6 +1,6 @@
 {
   "name": "Atraso de Voo",
-  "set": "set1",
+  "set": 1,
   "type": "spell",
   "rarity": "epic",
   "essence": "tormenta",

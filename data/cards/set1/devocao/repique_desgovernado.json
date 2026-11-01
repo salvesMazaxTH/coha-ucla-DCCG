@@ -1,6 +1,6 @@
 {
   "name": "Repique Desgovernado",
-  "set": "set1",
+  "set": 1,
   "type": "spell",
   "rarity": "common",
   "essence": "devocao",

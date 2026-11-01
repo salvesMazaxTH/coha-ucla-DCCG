@@ -1,6 +1,6 @@
 {
   "name": "Escudeiro de Cascalho",
-  "set": "set1",
+  "set": 1,
   "type": "unit",
   "rarity": "common",
   "species": ["kobold"],

@@ -21,6 +21,7 @@ const SNOWBALL_BASE_LEVEL := 2 ## Bola de Neve level a player starts at; each pl
 const SNOWBALL_CARD_ID := "bola_de_neve"
 const GRANDE_SNOWBALL_CARD_ID := "grande_bola_de_neve" ## a card of its own (transform_only): it only exists through that evolution
 const REQUIEM_EXTRA_COST := 2 ## Réquiem: a spell cast from the graveyard costs this much more, then is banished
+const ChoiceOptions = preload("res://scripts/engine/choice_options.gd")
 
 ## Periodic marker rules. New marker types reuse add_dot/resolve_dot; only their damage policy differs.
 ## "flat": 1 damage per marker. "poison": 2 damage per marker. Either way every marker wears off at its tick
@@ -64,6 +65,11 @@ var pending_search: Dictionary = {}
 ## Ao Entrar waiting for its owner to pick a target, after the unit is already on the board
 ## (phase "enter_target"): {player, uid, card_id, spec}. Optional: target 0 skips the effect.
 var pending_enter: Dictionary = {}
+## Public choice data is serialized for the online client; effect contexts remain on the server.
+var pending_effect_choice: Dictionary = {}
+var _effect_choice_context: EffectContext = null
+var _effect_choice_continuations: Array = []
+var _effect_choice_spell_resolving := false
 ## Spells, equipment and leader abilities wait here (LIFO) until both players let them resolve.
 ## Item: {sid, player, kind:"card"|"ability"|"unit_ability"|"artifact_equip"|"subito"|"enter_trigger", uid, card_id, target, speed}
 ## ("unit_ability" = a unit's Ao Ativar; uid is the unit, card_id its card.
@@ -237,7 +243,7 @@ const PREVIEW_SKIPPED_VARIABLES := ["_bus", "_stack_system", "_combat_system", "
 ## with its current state, so random effects pick the same way they would right now.
 ## Returns null when a safe copy can't be made (triggers still waiting to resolve, or a network game).
 func preview_copy() -> GameState:
-	if not _pending.is_empty() or get_script() != GameState:
+	if not _pending.is_empty() or not pending_effect_choice.is_empty() or get_script() != GameState:
 		return null
 	var copy := GameState.new()
 	var copied_cards := {} # original Card -> its copy, so a card referenced from two places stays one card
@@ -331,6 +337,8 @@ func decider() -> int:
 			return int(pending_search.get("player", active))
 		"enter_target":
 			return int(pending_enter.get("player", active))
+		"effect_choice":
+			return int(pending_effect_choice.get("player", active))
 		"main", "combat":
 			return priority
 	return active
@@ -1161,6 +1169,90 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 		out = out.filter(func(target_uid: int) -> bool: return meets_marker_requirement(target_uid, spec, effects) and meets_subtype_requirement(target_uid, spec, effects) and meets_unit_requirement(target_uid, spec, effects))
 	return out
 
+## Choice options carry ordinary effect lists; the current trigger and its continuation wait for the answer.
+func begin_effect_choice(context: EffectContext, effect: Dictionary) -> void:
+	if phase not in ["main", "combat"]:
+		push_error("choose_effect requires a resolving effect in main or combat")
+		return
+	pending_effect_choice = {
+		"player": context.controller,
+		"uid": context.self_uid,
+		"card_id": context.source_id(),
+		"opposed": context.other_uid,
+		"return_phase": phase,
+		"options": effect.get("options", []).duplicate(true),
+	}
+	if pending_effect_choice["options"].is_empty():
+		push_error("choose_effect requires at least one option")
+		pending_effect_choice.clear()
+		return
+	var available := false
+	for index in pending_effect_choice["options"].size():
+		if effect_choice_available(index):
+			available = true
+			break
+	if not available:
+		pending_effect_choice.clear()
+		return
+	_effect_choice_context = context
+	_effect_choice_spell_resolving = _spell_resolving
+	phase = "effect_choice"
+	_emit({"type": "effect_choice", "player": context.controller, "uid": context.self_uid, "card_id": context.source_id()})
+
+func effect_choice_targets(index: int) -> Array:
+	var options: Array = pending_effect_choice.get("options", [])
+	if index < 0 or index >= options.size():
+		return []
+	var option: Dictionary = options[index]
+	return ChoiceOptions.targets(self, int(pending_effect_choice["player"]), int(pending_effect_choice["uid"]), int(pending_effect_choice["opposed"]), option)
+
+func effect_choice_available(index: int) -> bool:
+	var options: Array = pending_effect_choice.get("options", [])
+	if index < 0 or index >= options.size():
+		return false
+	var option: Dictionary = options[index]
+	return ChoiceOptions.available(self, int(pending_effect_choice["player"]), int(pending_effect_choice["uid"]), int(pending_effect_choice["opposed"]), option)
+
+func choose_effect_option(p: int, index: int, target: int = 0) -> Array:
+	if phase != "effect_choice" or p != decider() or not effect_choice_available(index):
+		return []
+	var option: Dictionary = pending_effect_choice["options"][index]
+	var effects: Array = option.get("effects", [])
+	var spec := target_spec(effects)
+	if (spec != "" and not effect_choice_targets(index).has(target)) or (spec == "" and target != 0):
+		return []
+	var parent_context := _effect_choice_context
+	var context := parent_context.for_choice_effects(target if spec != "" else parent_context.chosen_target)
+	var uid := int(pending_effect_choice["uid"])
+	var card_id := String(pending_effect_choice["card_id"])
+	var return_phase := String(pending_effect_choice["return_phase"])
+	var spell_resolving := _effect_choice_spell_resolving
+	pending_effect_choice.clear()
+	_effect_choice_context = null
+	phase = return_phase
+	_emit({"type": "effect_choice_chosen", "player": p, "uid": uid, "card_id": card_id, "option": index, "target": target})
+	_spell_resolving = spell_resolving
+	_effect_choice_continuations.push_front({"parent_context": parent_context, "child_context": context})
+	_run_effects(context, effects, true)
+	while phase != "effect_choice" and not _effect_choice_continuations.is_empty():
+		var continuation: Dictionary = _effect_choice_continuations.pop_front()
+		if continuation.has("parent_context"):
+			continuation["parent_context"].absorb_choice_results(continuation["child_context"])
+		else:
+			_run_effects(continuation["context"], continuation["effects"], not continuation.get("fresh", false))
+	_spell_resolving = false
+	if phase == "effect_choice":
+		return _flush()
+	stack_system().resume_choice_resolution()
+	_check_state()
+	if phase == "effect_choice":
+		return _flush()
+	stack_system().after_search()
+	if phase == "combat":
+		combat_system().finish_pending_attack()
+	stack_system().settle()
+	return _flush()
+
 ## The units on a player's board that also count as an artifact (Relojoeiro Pino-14, Matusalém).
 func _unit_artifacts_on_board(p: int) -> Array:
 	return players[p]["board"].filter(func(unit: Card) -> bool: return CardDB.is_unit_artifact(unit.data()))
@@ -1478,9 +1570,27 @@ func can_activate(p: int, uid: int, allow_unreachable := false) -> bool:
 	var spec := target_spec(ab["effects"])
 	return spec == "" or not valid_targets(p, spec, uid, false, ab["effects"]).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec, uid))
 
-## Ao Ativar with an "extra_cost" ({"kind": "discard_or_sacrifice"}, Drex): on top of the Momentum, the player
-## discards a card from hand OR sacrifices another ally unit. Returns every uid that can pay it, hand cards first.
-## The picked uid is passed to activate() as its `target`.
+## Options for a pre-activation cost are evaluated by the same choice rules as effect options,
+## but remain cancelable and are paid before the ability goes on the stack.
+func activation_cost_options(uid: int) -> Array:
+	var c := _activatable_card(uid)
+	if c == null:
+		return []
+	return card_of(c).get("activated", {}).get("extra_cost", {}).get("options", [])
+
+func activation_cost_option_targets(p: int, uid: int, index: int) -> Array:
+	var options := activation_cost_options(uid)
+	if index < 0 or index >= options.size():
+		return []
+	return ChoiceOptions.targets(self, p, uid, 0, options[index])
+
+func activation_cost_option_available(p: int, uid: int, index: int) -> bool:
+	var options := activation_cost_options(uid)
+	if index < 0 or index >= options.size():
+		return false
+	return ChoiceOptions.available(self, p, uid, 0, options[index])
+
+## All valid payers for the alternative cost; activate() validates again before paying.
 func extra_cost_payers(p: int, uid: int) -> Array:
 	var c := _activatable_card(uid)
 	if c == null:
@@ -1489,9 +1599,8 @@ func extra_cost_payers(p: int, uid: int) -> Array:
 	if ab.get("extra_cost", {}).get("kind", "") != "discard_or_sacrifice":
 		return []
 	var payers: Array = []
-	for hand_card: Card in players[p]["hand"]:
-		payers.append(hand_card.uid)
-	payers.append_array(valid_targets(p, "other_ally_unit", uid, false, []))
+	for index in activation_cost_options(uid).size():
+		payers.append_array(activation_cost_option_targets(p, uid, index))
 	return payers
 
 ## First step of paying an Ao Ativar extra cost by DISCARDING (the player picked "Descartar uma carta"): opens the
@@ -1502,9 +1611,13 @@ func begin_activation_discard(p: int, uid: int) -> Array:
 		return []
 	if players[p]["hand"].is_empty() or card_of(_activatable_card(uid))["activated"].get("extra_cost", {}).get("kind", "") != "discard_or_sacrifice":
 		return []
+	var payers := extra_cost_payers(p, uid)
 	var options: Array = []
 	for hand_card: Card in players[p]["hand"]:
-		options.append({"uid": hand_card.uid, "card_id": hand_card.card_id})
+		if payers.has(hand_card.uid):
+			options.append({"uid": hand_card.uid, "card_id": hand_card.card_id})
+	if options.is_empty():
+		return []
 	pending_search = {"player": p, "source_uid": uid, "cards": options, "discard_hand": true, "then_activate": uid}
 	_search_return = phase
 	phase = "search"
@@ -2485,7 +2598,10 @@ func run_enter_effects(context: EffectContext, effects: Array) -> void:
 	var doubled := has_doubler(context.controller, "double_enter", context.self_uid)
 	_run_effects(context, effects)
 	if doubled:
-		_run_effects(context, effects)
+		if phase == "effect_choice":
+			_effect_choice_continuations.append({"context": context, "effects": effects, "fresh": true})
+		else:
+			_run_effects(context, effects)
 
 func _has_enter_effects(effects: Array) -> bool:
 	for e in effects:
@@ -2553,11 +2669,13 @@ func _fire(c: Card, trigger: String, other_uid: int = 0, event_data: Dictionary 
 ## only), on_any_turn_start, on_any_turn_end (every turn). "constante" never fires
 ## here: it is continuous and handled by _refresh_scaling.
 ## other_uid is the opposing unit in combat triggers (challenged unit, attacker, damage source).
-func _run_effects(context: EffectContext, effects: Array) -> void:
-	context.shielded_uids.clear() # a repeated run (Arauto Repeteco) is a new application
-	context.shielded_this_effect.clear()
-	context.last_drawn_card = null
-	for entry in effects:
+func _run_effects(context: EffectContext, effects: Array, resume := false) -> void:
+	if not resume:
+		context.shielded_uids.clear() # a repeated run (Arauto Repeteco) is a new application
+		context.shielded_this_effect.clear()
+		context.last_drawn_card = null
+	for index in effects.size():
+		var entry = effects[index]
 		# entries are Effect objects (raw card dictionaries are parsed on the fly)
 		var effect: Effect = entry if entry is Effect else EffectRegistry.parse(entry)
 		if _chain_stopped():
@@ -2582,6 +2700,11 @@ func _run_effects(context: EffectContext, effects: Array) -> void:
 				effect.apply_to(context, target_uid)
 		context.shielded_uids.append_array(context.shielded_this_effect)
 		context.shielded_this_effect.clear()
+		if phase == "effect_choice":
+			var remaining := effects.slice(index + 1)
+			if not remaining.is_empty():
+				_effect_choice_continuations.push_front({"context": context, "effects": remaining})
+			return
 		if effect.opens_choice() and effect.trigger == context.trigger:
 			if phase == "search":
 				queued_choices.append({"effect": effect, "context": context}) # waits for the choice that is open now
@@ -3435,7 +3558,7 @@ func _check_state() -> void:
 	var resolved := 0
 	while true:
 		_move_dead_units()
-		if _pending.is_empty() or phase in ["search", "enter_target", "enter_tapped"]:
+		if _pending.is_empty() or phase in ["search", "enter_target", "enter_tapped", "effect_choice"]:
 			break
 		if _chain_stopped() or resolved >= MAX_TRIGGERS_PER_ACTION:
 			_pending.clear() # a Leader is down or a trigger loop ran away: nothing new resolves

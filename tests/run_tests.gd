@@ -130,6 +130,8 @@ func _init() -> void:
 	_test_conditional_counter()
 	_test_reserve()
 	_test_challenge_triggers()
+	_test_nicolas_effect_choice()
+	_test_generic_effect_choice()
 	_test_strike_order()
 	_test_critico()
 	_test_critico_temp()
@@ -180,23 +182,31 @@ func _init() -> void:
 ## Sets: every card lives in data/cards/<set>/<domínio>/ and says which set it belongs to; no folder is left out of the registry.
 func _test_card_sets() -> void:
 	var sets: Dictionary = CardDB.data()["sets"]
-	check(sets.has("set1") and sets.has("set2"), "sets: set1 e set2 cadastrados em data/cards.json")
-	var orders := {}
-	for set_id in sets:
-		check(sets[set_id].has("name") and sets[set_id].has("order"), "set %s: precisa de name e order" % set_id)
-		check(not orders.has(sets[set_id].get("order")), "set %s: order repetida" % set_id)
-		orders[sets[set_id].get("order")] = true
+	check(sets.has("1") and sets.has("2"), "sets: os sets 1 e 2 cadastrados (por número) em data/cards.json")
+	check(CardDB.set_full_name(2) == "Nuliterra (2026)", "sets: o nome completo do set 2 vem do registro")
+	check(CardDB.set_numbers() == [1, 2], "sets: set_numbers lista os números em ordem")
+	for set_key in sets:
+		check(str(int(set_key)) == set_key, "set %s: a chave do registro precisa ser só o número" % set_key)
+		check(String(sets[set_key].get("name", "")) != "", "set %s: precisa de name" % set_key)
 	# a folder under data/cards that is not in the registry would have all its cards silently ignored
 	for folder in DirAccess.get_directories_at("res://data/cards"):
-		check(sets.has(folder), "pasta data/cards/%s não está cadastrada em \"sets\" de data/cards.json" % folder)
+		var registered := false
+		for set_number in CardDB.set_numbers():
+			registered = registered or CardDB.set_folder_name(set_number) == folder
+		check(registered, "pasta data/cards/%s não está cadastrada em \"sets\" de data/cards.json" % folder)
 	var cards_per_set := {}
 	for card_id in CardDB.data()["cards"]:
-		var card_set: String = str(CardDB.card(card_id).get("set", ""))
-		check(sets.has(card_set), "%s: sem set válido (\"%s\")" % [card_id, card_set])
-		cards_per_set[card_set] = int(cards_per_set.get(card_set, 0)) + 1
-	check(int(cards_per_set.get("set1", 0)) > 0, "set1: tem cartas")
+		var set_number := CardDB.set_number_of(CardDB.card(card_id))
+		check(sets.has(str(set_number)), "%s: sem set válido (%d)" % [card_id, set_number])
+		cards_per_set[set_number] = int(cards_per_set.get(set_number, 0)) + 1
+	check(int(cards_per_set.get(1, 0)) > 0, "set 1: tem cartas")
+	# the deck builder / gallery filter by set: the facet value is the set number, shown with the full set name
+	var sample_id: String = CardDB.data()["cards"].keys()[0]
+	var sample_set := CardDB.set_number_of(CardDB.card(sample_id))
+	check(CardCatalog.values_for(CardDB.card(sample_id), "set", sample_id) == [str(sample_set)], "filtro de set: o valor da carta é o número do set")
+	check(CardCatalog.facet_label("set", "2") == "Nuliterra (2026)", "filtro de set: o rótulo mostra o nome completo")
 	# the loader reports a wrong "set" field or a repeated id as a catalog error
-	check(not CardDB.errors().any(func(error: String): return error.contains("set") and (error.contains("pasta do set") or error.contains("set desconhecido") or error.contains("id repetido"))), "sets: nenhum erro de set/id no catálogo")
+	check(not CardDB.errors().any(func(error: String): return error.contains("set") and (error.contains("pasta do set") or error.contains("set desconhecido") or error.contains("número do set") or error.contains("id repetido"))), "sets: nenhum erro de set/id no catálogo")
 
 ## Same cards with the same copies, ignoring order and int-vs-float (deck JSON files load numbers as floats).
 func _same_copies(first: Dictionary, second: Dictionary) -> bool:
@@ -3313,6 +3323,12 @@ func _test_jardim_do_avo() -> void:
 	check(not g.players[0]["relics"].has(jardim), "jardim: se destrói depois de descontar")
 
 func _test_sengoku_deck_cards() -> void:
+	var samantha_game := _new_game()
+	_quiet(samantha_game)
+	var samantha := _put(samantha_game, 0, "samantha")
+	check(CardDB.elements_of(samantha.data()).is_empty(), "Samantha: não tem elemento")
+	samantha_game.add_dot_markers(samantha, "queimadura", 1)
+	check(int(samantha.dot_markers.get("queimadura", 0)) == 1, "Samantha: sem Fogo não é imune a Queimadura")
 	# Almoço de Domingo: costs the Leader 1 Vida and lends +2 Ataque this turn to the Dragonoides only
 	var g := GameState.new("sengoku", "agua", 42)
 	g.mulligan(0, [])
@@ -5001,6 +5017,24 @@ func _test_drex_deck() -> void:
 	g.players[g.active]["momentum"] = 3
 	vampire_two.exhausted = false
 	vampire_two.activated_turn = -1
+	var cost_hand_uid := _give(g, g.active, "t_drex_fodder")
+	check(g.activation_cost_options(vampire_two.uid).size() == 2 and g.activation_cost_option_available(g.active, vampire_two.uid, 0) and g.activation_cost_option_available(g.active, vampire_two.uid, 1), "Drex: opções de custo disponíveis pela escolha compartilhada")
+	check(g.activation_cost_option_targets(g.active, vampire_two.uid, 0).has(cost_hand_uid) and not g.activation_cost_option_targets(g.active, vampire_two.uid, 0).has(fodder.uid), "Drex: descarte oferece só cartas da mão")
+	check(g.activation_cost_option_targets(g.active, vampire_two.uid, 1).has(fodder.uid) and not g.activation_cost_option_targets(g.active, vampire_two.uid, 1).has(vampire_two.uid), "Drex: sacrifício oferece outra unidade aliada")
+	var cost_remote := RemoteState.new()
+	cost_remote.apply_snapshot(StateView.snapshot(g, g.active))
+	check(cost_remote.activation_cost_option_targets(g.active, vampire_two.uid, 0).has(cost_hand_uid) and cost_remote.activation_cost_option_targets(g.active, vampire_two.uid, 1).has(fodder.uid), "Drex: opções e alvos são iguais no cliente online")
+	var cost_sent := {}
+	cost_remote.send = func(message: Dictionary): cost_sent.merge(message)
+	cost_remote.begin_activation_discard(g.active, vampire_two.uid)
+	check(cost_sent == {"t": "act", "a": "activate_discard", "uid": vampire_two.uid}, "Drex: cliente pede a escolha de descarte ao servidor")
+	cost_sent.clear()
+	cost_remote.activate(g.active, vampire_two.uid, fodder.uid)
+	check(cost_sent == {"t": "act", "a": "activate", "uid": vampire_two.uid, "target": fodder.uid}, "Drex: cliente envia o pagador de sacrifício ao servidor")
+	check(g.begin_activation_discard(enemy, vampire_two.uid).is_empty() and g.activate(enemy, vampire_two.uid, fodder.uid).is_empty(), "Drex: adversário não escolhe nem paga o custo")
+	_give(g, g.active, "t_drex_fodder")
+	var ai_hand_payer := SimpleAI._pick_activation_payer(g, g.active, vampire_two)
+	check(g.extra_cost_payers(g.active, vampire_two.uid).has(ai_hand_payer) and _hand_has(g, g.active, ai_hand_payer), "Drex: IA escolhe pagador válido entre cartas da mão")
 	check(g.shared_x_of(g.active, "drex") == 2, "Drex: o X começa em 2")
 	check(vampire_two.has_kw("escudo") and vampire_two.atk == 2 and vampire_two.hp == 4 and vampire_two.armor == 0, "Drex: 2/4 com Escudo e sem Armadura")
 	g.activate(g.active, vampire_two.uid, fodder.uid)
@@ -5059,6 +5093,11 @@ func _test_drex_deck() -> void:
 	# with an empty hand the discard window does not open
 	vampire_two.activated_turn = -1
 	g.players[g.active]["hand"].clear()
+	_tcard("t_drex_cheap_payer", 0, 1, [])
+	var cheap_payer := _put(g, g.active, "t_drex_cheap_payer")
+	cheap_payer.damage = 0
+	check(SimpleAI._pick_activation_payer(g, g.active, vampire_two) in g.extra_cost_payers(g.active, vampire_two.uid), "Drex: IA escolhe outro aliado elegível quando não descarta")
+	check(not g.activation_cost_option_available(g.active, vampire_two.uid, 0) and g.activation_cost_option_available(g.active, vampire_two.uid, 1), "Drex: sem mão apenas sacrifício fica disponível")
 	check(g.begin_activation_discard(g.active, vampire_two.uid).is_empty() and g.phase != "search", "Drex Ativar (janela): sem cartas na mão a janela de descarte não abre")
 
 	# with no enemy unit on the board every marker lands on the enemy Leader
@@ -5081,6 +5120,7 @@ func _test_drex_deck() -> void:
 	g.players[g.active]["hand"].clear()
 	g.players[g.active]["momentum"] = 3
 	lonely.activated_turn = -1
+	check(not g.activation_cost_option_available(g.active, lonely.uid, 0) and not g.activation_cost_option_available(g.active, lonely.uid, 1), "Drex: ambas opções indisponíveis sem pagadores")
 	check(not g.can_activate(g.active, lonely.uid), "Drex Ativar: sem carta na mão nem outra unidade aliada, não dá para ativar")
 
 ## The Venenosa cards that need engine support: Hikari's damage per marker, Tox Vipranna healing from
@@ -6557,6 +6597,173 @@ func _test_challenge_triggers() -> void:
 	_hit(g, fragile, spear.uid)
 	check(g.find_unit(fragile.uid) == null and spear.damage == 0, "atacante morto pelo Ao Ser Desafiada não causa dano")
 
+func _test_nicolas_effect_choice() -> void:
+	_tcard("t_nicolas_target", 0, 20, [])
+	_tcard("t_nicolas_fire", 0, 20, [])
+	CardDB.data()["cards"]["t_nicolas_fire"]["element"] = "fogo"
+	var data := CardDB.card("nicolas")
+	check(data["cost"] == 3 and data["atk"] == 4 and data["hp"] == 3 and data["rarity"] == "legendary", "Nicolas: custo, atributos e raridade")
+	var g := _new_game()
+	_quiet(g)
+	var nicolas := _put(g, 0, "nicolas")
+	var defender := _put(g, 1, "t_nicolas_target")
+	var other := _put(g, 1, "t_nicolas_target")
+	defender.exhausted = true
+	_hit(g, nicolas, defender.uid)
+	check(g.phase == "effect_choice" and defender.damage == 0 and other.damage == 0, "Nicolas: pausa antes do dano de combate")
+	check(g.decider() == 0 and g.effect_choice_available(0) and g.effect_choice_available(1), "Nicolas: oferece os dois modos")
+	check(g.effect_choice_targets(0).has(other.uid) and not g.effect_choice_targets(0).has(defender.uid), "Nicolas: tiro só mira outra unidade")
+	var state := StateView.snapshot(g, 0)
+	var remote := RemoteState.new()
+	remote.apply_snapshot(state)
+	check(remote.phase == "effect_choice" and remote.decider() == 0 and remote.effect_choice_targets(0).has(other.uid), "Nicolas: escolha e alvos chegam ao cliente online")
+	var sent := {}
+	remote.send = func(message: Dictionary): sent.merge(message)
+	remote.choose_effect_option(0, 0, other.uid)
+	check(sent == {"t": "act", "a": "effect_choice", "index": 0, "target": other.uid}, "Nicolas: cliente envia modo e alvo ao servidor")
+	check(g.choose_effect_option(1, 0, other.uid).is_empty() and g.choose_effect_option(0, 0, defender.uid).is_empty() and g.choose_effect_option(0, 9).is_empty(), "Nicolas: rejeita jogador, alvo e modo inválidos")
+	g.choose_effect_option(0, 0, other.uid)
+	check(other.damage == 4 and defender.damage == 4 and g.phase != "effect_choice", "Nicolas: tiro causa 4 na outra unidade, seguido do combate")
+
+	g = _new_game()
+	_quiet(g)
+	nicolas = _put(g, 0, "nicolas")
+	defender = _put(g, 1, "t_nicolas_target")
+	defender.exhausted = true
+	_hit(g, nicolas, defender.uid)
+	check(not g.effect_choice_available(0) and g.effect_choice_available(1), "Nicolas: tiro indisponível sem outra unidade")
+	g.choose_effect_option(0, 1)
+	check(defender.damage == 7 and int(defender.dot_markers.get("queimadura", 0)) == 1, "Nicolas: punho causa 3, aplica Queimadura e depois combate")
+
+	g = _new_game()
+	_quiet(g)
+	nicolas = _put(g, 0, "nicolas")
+	defender = _put(g, 1, "t_nicolas_fire")
+	defender.exhausted = true
+	_hit(g, nicolas, defender.uid)
+	g.choose_effect_option(0, 1)
+	check(defender.damage == 7 and int(defender.dot_markers.get("queimadura", 0)) == 0, "Nicolas: respeita imunidade inata de Fogo à Queimadura")
+
+	g = _new_game()
+	_quiet(g)
+	nicolas = _put(g, 0, "nicolas")
+	defender = _put(g, 1, "t_nicolas_target")
+	other = _put(g, 1, "t_nicolas_target")
+	other.magic_shield = true
+	defender.exhausted = true
+	_hit(g, nicolas, defender.uid)
+	g.choose_effect_option(0, 0, other.uid)
+	check(other.damage == 0 and not other.magic_shield, "Nicolas: Escudo Mágico bloqueia o tiro escolhido")
+
+	g = _new_game()
+	_quiet(g)
+	nicolas = _put(g, 0, "nicolas")
+	var leader_hp: int = g.players[1]["leader_hp"]
+	_hit(g, nicolas)
+	check(g.phase != "effect_choice" and int(g.players[1]["leader_hp"]) == leader_hp - 4, "Nicolas: atacar Líder não oferece escolha")
+
+	g = _new_game()
+	_quiet(g)
+	nicolas = _put(g, 0, "nicolas")
+	defender = _put(g, 1, "t_nicolas_target")
+	defender.exhausted = true
+	_hit(g, nicolas, defender.uid)
+	check(not SimpleAI.step(g, 0).is_empty() and g.phase != "effect_choice", "Nicolas: IA escolhe e retoma o combate")
+
+func _test_generic_effect_choice() -> void:
+	var options := [
+		{"title": "Um", "detail": "Recupera 1.", "effects": [{"action": "heal_leader", "target": "own_leader", "amount": 1}]},
+		{"title": "Três", "detail": "Recupera 3.", "effects": [{"action": "heal_leader", "target": "own_leader", "amount": 3}]},
+	]
+	_tcard("t_choice_enter", 1, 2, [
+		{"trigger": "on_enter", "action": "choose_effect", "target": "none", "options": options},
+		{"trigger": "on_enter", "action": "damage", "target": "enemy_leader", "amount": 2},
+	])
+	var g := _new_game()
+	_quiet(g)
+	g.players[0]["leader_hp"] -= 5
+	var own_hp: int = g.players[0]["leader_hp"]
+	var enemy_hp: int = g.players[1]["leader_hp"]
+	_put(g, 0, "t_choice_enter")
+	check(g.phase == "effect_choice" and int(g.players[1]["leader_hp"]) == enemy_hp, "Escolha: Ao Entrar pausa antes dos efeitos seguintes")
+	g.choose_effect_option(0, 1)
+	check(int(g.players[0]["leader_hp"]) == own_hp + 3 and int(g.players[1]["leader_hp"]) == enemy_hp - 2, "Escolha: Ao Entrar resolve opção e continua em ordem")
+	check(g.phase == "main", "Escolha: Ao Entrar retorna à fase principal")
+
+	_tspell("t_choice_spell", "lento", [
+		{"trigger": "on_play", "action": "choose_effect", "target": "none", "options": options},
+		{"trigger": "on_play", "action": "damage", "target": "enemy_leader", "amount": 2},
+	])
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["leader_hp"] -= 5
+	own_hp = int(g.players[0]["leader_hp"])
+	enemy_hp = int(g.players[1]["leader_hp"])
+	var spell_uid := _give(g, 0, "t_choice_spell")
+	g.play_card(0, spell_uid)
+	for i in 4:
+		if g.phase == "effect_choice":
+			break
+		g.pass_priority(g.decider())
+	check(g.phase == "effect_choice" and int(g.players[1]["leader_hp"]) == enemy_hp, "Escolha: feitiço pausa antes dos efeitos seguintes")
+	check(not g.players[0]["graveyard"].any(func(card: Card): return card.uid == spell_uid), "Escolha: feitiço só vai ao cemitério após resolver")
+	g.choose_effect_option(0, 1)
+	check(int(g.players[0]["leader_hp"]) == own_hp + 3 and int(g.players[1]["leader_hp"]) == enemy_hp - 2, "Escolha: feitiço resolve opção e continuação")
+	check(g.phase == "main" and g.players[0]["graveyard"].any(func(card: Card): return card.uid == spell_uid), "Escolha: feitiço termina no cemitério e devolve prioridade")
+
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["leader_hp"] -= 5
+	_put(g, 0, "t_choice_enter")
+	check(not SimpleAI.step(g, 0).is_empty() and g.phase == "main", "Escolha: IA responde a opções sem alvo de combate")
+
+	g = _new_game()
+	_quiet(g)
+	_put(g, 0, "arauto_repeteco")
+	g.players[0]["leader_hp"] -= 8
+	own_hp = int(g.players[0]["leader_hp"])
+	enemy_hp = int(g.players[1]["leader_hp"])
+	_put(g, 0, "t_choice_enter")
+	g.choose_effect_option(0, 0)
+	check(g.phase == "effect_choice" and int(g.players[0]["leader_hp"]) == own_hp + 1 and int(g.players[1]["leader_hp"]) == enemy_hp - 2, "Escolha: Arauto repete o Ao Entrar e pede uma nova escolha")
+	g.choose_effect_option(0, 1)
+	check(int(g.players[0]["leader_hp"]) == own_hp + 4 and int(g.players[1]["leader_hp"]) == enemy_hp - 4, "Escolha: repetição completa os efeitos em ordem")
+
+	var nested := [{"title": "Aninhada", "effects": [
+		{"action": "choose_effect", "target": "none", "options": options},
+		{"action": "damage", "target": "enemy_leader", "amount": 1},
+	]}]
+	_tcard("t_nested_choice", 1, 2, [
+		{"trigger": "on_enter", "action": "choose_effect", "target": "none", "options": nested},
+		{"trigger": "on_enter", "action": "damage", "target": "enemy_leader", "amount": 2},
+	])
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["leader_hp"] -= 5
+	own_hp = int(g.players[0]["leader_hp"])
+	enemy_hp = int(g.players[1]["leader_hp"])
+	_put(g, 0, "t_nested_choice")
+	g.choose_effect_option(0, 0)
+	check(g.phase == "effect_choice" and int(g.players[1]["leader_hp"]) == enemy_hp, "Escolha: opção aninhada pausa ambas as continuações")
+	g.choose_effect_option(0, 1)
+	check(int(g.players[0]["leader_hp"]) == own_hp + 3 and int(g.players[1]["leader_hp"]) == enemy_hp - 3 and g.phase == "main", "Escolha: opção aninhada e continuações resolvem em ordem")
+
+	_tcard("t_choice_context", 1, 2, [])
+	for draw_before in [true, false]:
+		g = _new_game()
+		_quiet(g)
+		var source := _put(g, 0, "t_choice_context")
+		var context := EffectContext.new(g, 0)
+		context.self_uid = source.uid
+		var draw := {"action": "draw_discounted", "target": "none", "min_base_cost": 0}
+		var bounce := {"action": "return_to_hand", "target": "self", "needs_drawn_card": true}
+		var choice := {"action": "choose_effect", "target": "none", "options": [
+			{"title": "Contexto", "effects": [bounce if draw_before else draw]}
+		]}
+		g._run_effects(context, [draw, choice] if draw_before else [choice, bounce])
+		g.choose_effect_option(0, 0)
+		check(g.find_unit(source.uid) == null, "Escolha: preserva a carta comprada %s da opção" % ("antes" if draw_before else "depois"))
+
 ## No momentum and no leader ability, so only test cards give plays.
 func _quiet(g: GameState) -> void:
 	for p in 2:
@@ -6997,10 +7204,26 @@ func _test_deck_summon_watches() -> void:
 func _test_card_validation() -> void:
 	var errs := CardDB.errors()
 	var before := errs.size()
-	CardDB._validate_card("teste", {"name": "x", "set": "set1", "type": "unit", "cost": 1, "text": "", "atk": 1, "hp": 1,
+	CardDB._validate_card("teste", {"name": "x", "set": 1, "type": "unit", "cost": 1, "text": "", "atk": 1, "hp": 1,
 		"keywords": ["vooo"], "effects": [{"trigger": "on_entr", "action": "dammage", "target": "self"},
 		{"trigger": "on_enter", "action": "damage", "target": "inimigo", "if": "sempre"}]})
 	check(errs.size() - before == 5, "validação: keyword, trigger, action, target e if errados (%d)" % (errs.size() - before))
+	errs.resize(before)
+	CardDB._validate_effects(func(message: String): errs.append(message), [
+		{"action": "choose_effect", "target": "none", "options": [
+			{"title": "Inválida", "effects": [{"action": "não_existe", "target": "self"}]},
+			{"title": "Dois alvos", "effects": [{"action": "damage", "target": "enemy_unit"}, {"action": "buff", "target": "ally_unit"}]},
+		]},
+	])
+	check(errs.size() - before == 2, "validação: escolha verifica ações internas e não aceita dois tipos de alvo")
+	errs.resize(before)
+	CardDB._validate_effects(func(message: String): errs.append(message), [
+		{"action": "choose_effect", "target": "none", "options": [
+			{"title": "Busca", "effects": [{"action": "search_deck", "target": "none"}]},
+		]},
+		{"action": "look_top", "target": "none"},
+	])
+	check(errs.size() - before == 2, "validação: escolha rejeita outras telas na opção e na mesma lista")
 	errs.resize(before)
 	# A listener is presented as a Condicional on the physical card, so its full-screen rules text
 	# must carry the same explicit label for CardView.colorize_rules to render it in orange and bold.

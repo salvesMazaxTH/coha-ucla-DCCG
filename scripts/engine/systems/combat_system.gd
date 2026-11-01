@@ -186,13 +186,7 @@ func _declare_attack(attacker: Card, target_uid: int) -> void:
 		game._fire(defender_unit, "on_challenged", attacker.uid)
 	game._fire(attacker, "unit_attacked", target_uid if defender_unit != null else 0)
 	game._check_state()
-	# a decoy summoned by the triggers above takes the blow (and/or the counter-blow) instead
-	var struck_uid := target_uid
-	if redirect_hit_to != 0 and game.find_unit(redirect_hit_to) != null:
-		struck_uid = redirect_hit_to
-	pending_attack = {"attacker": attacker.uid, "target": struck_uid, "counter_to": redirect_counter_to}
-	redirect_hit_to = 0
-	redirect_counter_to = 0
+	pending_attack = {"attacker": attacker.uid, "target": target_uid, "awaiting_triggers": true}
 
 ## Declares the attack that waited for the extra attacks. It fizzles (the unit stays tapped) when its attacker
 ## died meanwhile, or its target died or can no longer be hit. Returns true when the attack was declared.
@@ -211,6 +205,8 @@ func _resume_deferred_attack() -> bool:
 ## The attack's combat damage and the end of combat once no attacker is left. Waits while the stack
 ## is not empty: whatever the attack's triggers cast resolves (or is countered) before the blows land.
 func finish_pending_attack() -> void:
+	if game.phase != "combat":
+		return
 	if not game.stack.is_empty() or is_reacting(game.opponent(game.active)):
 		return
 	if pending_attack.is_empty():
@@ -226,6 +222,13 @@ func finish_pending_attack() -> void:
 			if not has_any_attacker():
 				end_combat() # the declared attack fizzled (its attacker died) and nobody is left to attack
 		return
+	if pending_attack.get("awaiting_triggers", false):
+		if redirect_hit_to != 0 and game.find_unit(redirect_hit_to) != null:
+			pending_attack["target"] = redirect_hit_to
+		pending_attack["counter_to"] = redirect_counter_to
+		pending_attack.erase("awaiting_triggers")
+		redirect_hit_to = 0
+		redirect_counter_to = 0
 	if not reaction_declined and _offer_reaction():
 		return # the defender holds priority; their pass (or what they cast, once it resolves) comes back here
 	var attack_info := pending_attack
@@ -371,12 +374,7 @@ func _begin_next_auto_attack() -> bool:
 			game._fire(attacker, "on_challenge", target_uid)
 			game._fire(defender_unit, "on_challenged", attacker.uid)
 		game._check_state()
-		var struck_uid := target_uid
-		if redirect_hit_to != 0 and game.find_unit(redirect_hit_to) != null:
-			struck_uid = redirect_hit_to
-		pending_attack = {"attacker": attacker.uid, "target": struck_uid, "counter_to": redirect_counter_to}
-		redirect_hit_to = 0
-		redirect_counter_to = 0
+		pending_attack = {"attacker": attacker.uid, "target": target_uid, "awaiting_triggers": true}
 		return true
 	return false
 

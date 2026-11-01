@@ -2,7 +2,7 @@
 
 Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está em `data/cards/<set>/<domínio>/<id>.json`.
 
-## Set 1 (406 cartas)
+## Set 1: Origem (406 cartas)
 
 ### Fúria (53)
 
@@ -211,6 +211,7 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `fundicao_de_emergencia` | Fundição de Emergência | Épica | Feitiço | 4 |
 | `geodo_vivo` | Geodo Vivo | Comum | Unidade | 3 |
 | `golpe_de_marreta` | Golpe de Marreta | Comum | Feitiço | 2 |
+| `montadora_porca_frouxa` | Grã-Montadora Nina | Lendária | Unidade | 5 |
 | `guardiao_das_camadas` | Guardião das Camadas | Épica | Unidade | 3 |
 | `hora_extra_compulsoria` | Hora Extra Compulsória | Épica | Feitiço | 3 |
 | `karuun` | Karuun, o Deus da Montanha | Lendária | Unidade | 8 |
@@ -218,7 +219,6 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `matusalem_tartaruga_relicario` | Matusalém, Tartaruga-Relicário | Épica | Unidade | 5 |
 | `moedor_de_sucata` | Moedor de Sucata | Comum | Artefato | 3 |
 | `moenda_do_seu_belmiro` | Moenda do Seu Belmiro | Épica | Artefato | 3 |
-| `montadora_porca_frouxa` | Grã-Montadora Nina | Lendária | Unidade | 5 |
 | `morakhan` | Morakhan | Campeã | Unidade | 6 |
 | `muralha_cara_de_pedra` | Muralha Cara-de-Pedra | Épica | Feitiço | 2 |
 | `muralha_emergente` | Muralha Emergente | Comum | Feitiço | 2 |
@@ -450,9 +450,9 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `zaza_fuzue` | Zazá Fuzuê | Lendária | Unidade | 4 |
 | `zeladora_shhh` | Zeladora Shhh | Comum | Unidade | 4 |
 
-## Set 2 (17 cartas)
+## Set 2: Nuliterra (2026) (18 cartas)
 
-### Fúria (17)
+### Fúria (18)
 
 | ID | Nome | Raridade | Tipo | Custo |
 |---|---|---|---|---|
@@ -467,6 +467,7 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `jardim_do_avo` | Jardim do Avô | Épica | Artefato | 3 |
 | `kyle_fumacinha` | Kyle Fumacinha | Comum | Unidade | 2 |
 | `linhagem_de_ignisar` | Linhagem de Ignisar | Comum | Feitiço | 2 |
+| `nicolas` | Nicolas | Lendária | Unidade | 3 |
 | `ronan_alado` | Ronan Alado | Campeã | Unidade | 4 |
 | `samantha` | Samantha | Lendária | Unidade | 6 |
 | `sengoku` | Sengoku | Campeã | Unidade | 5 |

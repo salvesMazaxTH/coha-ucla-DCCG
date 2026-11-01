@@ -1,6 +1,6 @@
 {
   "name": "Chute no Portão",
-  "set": "set1",
+  "set": 1,
   "type": "spell",
   "rarity": "common",
   "essence": "furia",

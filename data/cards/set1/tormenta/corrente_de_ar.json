@@ -1,6 +1,6 @@
 {
   "name": "Corrente de Ar",
-  "set": "set1",
+  "set": 1,
   "type": "spell",
   "rarity": "common",
   "essence": "tormenta",

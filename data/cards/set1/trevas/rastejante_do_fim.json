@@ -1,6 +1,6 @@
 {
   "name": "Rastejante do Fim",
-  "set": "set1",
+  "set": 1,
   "type": "unit",
   "rarity": "epic",
   "species": ["morto_vivo"],

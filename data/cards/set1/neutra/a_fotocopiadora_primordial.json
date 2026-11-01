@@ -1,6 +1,6 @@
 {
   "name": "A Fotocopiadora Primordial",
-  "set": "set1",
+  "set": 1,
   "type": "artifact",
   "subtypes": [],
   "rarity": "legendary",

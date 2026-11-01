@@ -48,6 +48,7 @@ func apply_snapshot(snap: Dictionary) -> void:
 	winner = s["winner"]
 	pending_search = s["pending_search"]
 	pending_enter = s.get("pending_enter", {})
+	pending_effect_choice = s.get("pending_effect_choice", {})
 	pending_tap = s.get("pending_tap", [])
 	stack = s.get("stack", [])
 	priority = int(s.get("priority", active))
@@ -75,6 +76,9 @@ func use_ability(_p: int, target: int = 0) -> Array:
 
 func activate(_p: int, uid: int, target: int = 0) -> Array:
 	return _act({"a": "activate", "uid": uid, "target": target})
+
+func choose_effect_option(_p: int, index: int, target: int = 0) -> Array:
+	return _act({"a": "effect_choice", "index": index, "target": target})
 
 func begin_activation_discard(_p: int, uid: int) -> Array:
 	return _act({"a": "activate_discard", "uid": uid})

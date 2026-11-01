@@ -1,6 +1,6 @@
 {
   "name": "Núcleo de Geodo",
-  "set": "set1",
+  "set": 1,
   "type": "artifact",
   "subtypes": [
     "equipment"

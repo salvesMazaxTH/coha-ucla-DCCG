@@ -1,6 +1,6 @@
 {
   "name": "Pingente das Ondas",
-  "set": "set1",
+  "set": 1,
   "type": "artifact",
   "subtypes": [
     "equipment"

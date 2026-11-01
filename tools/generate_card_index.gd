@@ -14,9 +14,9 @@ func _init() -> void:
 	lines.append("")
 	lines.append("Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está em `data/cards/<set>/<domínio>/<id>.json`.")
 	lines.append("")
-	for set_id in _set_ids_in_order(catalog["sets"]):
-		var cards_of_set := _card_ids_of_set(catalog["cards"], set_id)
-		lines.append("## %s (%d cartas)" % [catalog["sets"][set_id]["name"], cards_of_set.size()])
+	for set_number in CardDB.set_numbers():
+		var cards_of_set := _card_ids_of_set(catalog["cards"], set_number)
+		lines.append("## Set %d: %s (%d cartas)" % [set_number, CardDB.set_full_name(set_number), cards_of_set.size()])
 		lines.append("")
 		if cards_of_set.is_empty():
 			lines.append("Nenhuma carta ainda.")
@@ -40,15 +40,9 @@ func _init() -> void:
 	print("índice escrito em ", OUTPUT_PATH, " (", catalog["cards"].size(), " cartas)")
 	quit()
 
-## The set ids sorted by their "order" in the registry.
-func _set_ids_in_order(sets: Dictionary) -> Array:
-	var ids := sets.keys()
-	ids.sort_custom(func(first: String, second: String): return int(sets[first]["order"]) < int(sets[second]["order"]))
-	return ids
-
-## The ids of the cards whose "set" is `set_id`, sorted by name.
-func _card_ids_of_set(cards: Dictionary, set_id: String) -> Array:
-	var ids := cards.keys().filter(func(card_id: String): return cards[card_id].get("set", "") == set_id)
+## The ids of the cards whose "set" is `set_number`, sorted by name.
+func _card_ids_of_set(cards: Dictionary, set_number: int) -> Array:
+	var ids := cards.keys().filter(func(card_id: String): return CardDB.set_number_of(cards[card_id]) == set_number)
 	ids.sort_custom(func(first: String, second: String): return String(cards[first]["name"]).naturalnocasecmp_to(String(cards[second]["name"])) < 0)
 	return ids
 

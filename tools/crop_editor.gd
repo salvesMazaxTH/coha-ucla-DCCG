@@ -244,9 +244,9 @@ func _save_card(card_id: String) -> void:
 	_show_current_card()
 
 func _json_path_of(card_id: String) -> String:
-	for set_id in CardDB.data()["sets"]:
+	for set_number in CardDB.set_numbers():
 		for essence_id in CardDB.data()["essences"]:
-			var file_path := "res://data/cards/%s/%s/%s.json" % [set_id, essence_id, card_id]
+			var file_path := "res://data/cards/%s/%s/%s.json" % [CardDB.set_folder_name(set_number), essence_id, card_id]
 			if FileAccess.file_exists(file_path):
 				return file_path
 	return ""

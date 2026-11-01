@@ -1,6 +1,6 @@
 {
   "name": "A Vagante Sombria",
-  "set": "set1",
+  "set": 1,
   "type": "unit",
   "rarity": "epic",
   "species": ["espirito"],

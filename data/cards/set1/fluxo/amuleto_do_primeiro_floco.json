@@ -1,6 +1,6 @@
 {
   "name": "Amuleto do Primeiro Floco",
-  "set": "set1",
+  "set": 1,
   "type": "artifact",
   "subtypes": [
     "equipment"

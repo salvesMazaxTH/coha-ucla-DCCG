@@ -1,6 +1,6 @@
 {
   "name": "Banquete Carmesim",
-  "set": "set1",
+  "set": 1,
   "type": "spell",
   "rarity": "epic",
   "essence": "trevas",

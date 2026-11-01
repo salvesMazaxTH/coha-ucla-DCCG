@@ -1,6 +1,6 @@
 {
   "name": "Devaneio Gelado",
-  "set": "set1",
+  "set": 1,
   "type": "spell",
   "rarity": "common",
   "essence": "fluxo",

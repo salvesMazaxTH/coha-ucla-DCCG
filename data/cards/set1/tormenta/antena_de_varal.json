@@ -1,6 +1,6 @@
 {
   "name": "Antena de Varal",
-  "set": "set1",
+  "set": 1,
   "type": "artifact",
   "rarity": "common",
   "essence": "tormenta",

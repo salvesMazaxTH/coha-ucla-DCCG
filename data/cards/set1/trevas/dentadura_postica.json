@@ -1,6 +1,6 @@
 {
   "name": "Dentadura Postiça",
-  "set": "set1",
+  "set": 1,
   "type": "artifact",
   "subtypes": ["equipment"],
   "rarity": "common",

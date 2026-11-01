@@ -1,6 +1,6 @@
 {
   "name": "Cristal do Poder",
-  "set": "set1",
+  "set": 1,
   "type": "artifact",
   "subtypes": [],
   "rarity": "common",

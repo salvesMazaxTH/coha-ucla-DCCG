@@ -69,3 +69,31 @@ func for_then_effects() -> EffectContext:
 	child.second_target = second_target
 	child.dying_card = dying_card
 	return child
+
+func for_choice_effects(picked_target: int) -> EffectContext:
+	var child := EffectContext.new(game, controller)
+	child.self_uid = self_uid
+	child.other_uid = other_uid
+	child.source_card_id = source_card_id
+	child.is_leader_ability = is_leader_ability
+	child.chosen_target = picked_target
+	child.second_target = second_target
+	child.forced_target = forced_target
+	child.dying_card = dying_card
+	child.sacrificed_attack = sacrificed_attack
+	child.sacrificed_cost = sacrificed_cost
+	child.returned_ally_count = returned_ally_count
+	child.last_drawn_card = last_drawn_card
+	child.event = event
+	child.milled_cards = milled_cards.duplicate()
+	child.shielded_uids.assign(shielded_uids)
+	return child
+
+## Carry per-resolution results back without replacing the original trigger or its chosen targets.
+func absorb_choice_results(child: EffectContext) -> void:
+	sacrificed_attack = child.sacrificed_attack
+	sacrificed_cost = child.sacrificed_cost
+	returned_ally_count = child.returned_ally_count
+	last_drawn_card = child.last_drawn_card
+	milled_cards = child.milled_cards.duplicate()
+	shielded_uids.assign(child.shielded_uids)

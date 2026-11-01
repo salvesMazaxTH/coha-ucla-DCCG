@@ -1,6 +1,6 @@
 {
   "name": "Nerithia Aun'Sael",
-  "set": "set1",
+  "set": 1,
   "type": "unit",
   "rarity": "champion",
   "species": ["celestial", "divindade"],

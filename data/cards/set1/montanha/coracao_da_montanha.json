@@ -1,6 +1,6 @@
 {
   "name": "Coração da Montanha",
-  "set": "set1",
+  "set": 1,
   "type": "artifact",
   "subtypes": [
     "equipment"

@@ -1,6 +1,6 @@
 {
   "name": "Noviça Passo-Miúdo",
-  "set": "set1",
+  "set": 1,
   "type": "unit",
   "rarity": "common",
   "species": ["humano"],

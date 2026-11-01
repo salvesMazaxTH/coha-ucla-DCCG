@@ -4,6 +4,7 @@ extends RefCounted
 ## countering, equipment, and the auto-pass that skips windows nobody can use.
 
 var game: GameState
+var _choice_resolution: Dictionary = {}
 
 func _init(game_state: GameState) -> void:
 	game = game_state
@@ -182,28 +183,46 @@ func resolve_stack() -> void:
 				game._spell_resolving = item["kind"] == "card" and CardDB.card(item["card_id"]).get("type", "") == "spell"
 				game._run_effects(resolve_context, effects)
 				game._spell_resolving = false
-		if item.get("virtual", false):
-			pass # cast by a unit: there is no card to send anywhere
-		elif item["kind"] == "card":
-			var holder := game.find_unit(int(item["target"]))
-			var played := take_stack_card(item)
-			if CardDB.is_equipment(CardDB.card(item["card_id"])) and holder != null and spec != "" and game.valid_targets(p, spec).has(int(item["target"])):
-				var granted := stat_gain_since(holder, stats_before_equip)
-				# The equipment row owns these changes; they must not survive as permanent unit modifiers.
-				for source_entry in granted["stat_sources"]:
-					holder.stat_sources.erase(source_entry)
-				granted.erase("stat_sources")
-				attach(holder, played, granted)
-			elif CardDB.is_relic(CardDB.card(item["card_id"])) and not gone:
-				game._place_relic(p, played)
-			elif item.get("requiem", false) or played.banish_after_cast:
-				game._banish_requiem(played)
-			else:
-				game.players[p]["graveyard"].append(played)
-				game._move(played, "graveyard")
-		elif item["kind"] == "subito":
-			_resolve_subito(item)
-		game._check_state()
+		if game.phase == "effect_choice":
+			_choice_resolution = {"item": item, "spec": spec, "gone": gone, "stats": stats_before_equip, "lower": lower_stack_sids}
+			return
+		_complete_resolved_item(item, spec, gone, stats_before_equip)
+	_finish_resolution_priority(lower_stack_sids)
+
+func resume_choice_resolution() -> void:
+	if _choice_resolution.is_empty():
+		return
+	var waiting := _choice_resolution
+	_choice_resolution = {}
+	_complete_resolved_item(waiting["item"], waiting["spec"], waiting["gone"], waiting["stats"])
+	_finish_resolution_priority(waiting["lower"])
+
+func _complete_resolved_item(item: Dictionary, spec: String, gone: bool, stats_before_equip: Dictionary) -> void:
+	var p: int = item["player"]
+	if item.get("virtual", false):
+		pass # cast by a unit: there is no card to send anywhere
+	elif item["kind"] == "card":
+		var holder := game.find_unit(int(item["target"]))
+		var played := take_stack_card(item)
+		if CardDB.is_equipment(CardDB.card(item["card_id"])) and holder != null and spec != "" and game.valid_targets(p, spec).has(int(item["target"])):
+			var granted := stat_gain_since(holder, stats_before_equip)
+			# The equipment row owns these changes; they must not survive as permanent unit modifiers.
+			for source_entry in granted["stat_sources"]:
+				holder.stat_sources.erase(source_entry)
+			granted.erase("stat_sources")
+			attach(holder, played, granted)
+		elif CardDB.is_relic(CardDB.card(item["card_id"])) and not gone:
+			game._place_relic(p, played)
+		elif item.get("requiem", false) or played.banish_after_cast:
+			game._banish_requiem(played)
+		else:
+			game.players[p]["graveyard"].append(played)
+			game._move(played, "graveyard")
+	elif item["kind"] == "subito":
+		_resolve_subito(item)
+	game._check_state()
+
+func _finish_resolution_priority(lower_stack_sids: Dictionary) -> void:
 	if not game.stack.is_empty():
 		var new_item_was_pushed := false
 		for pending_item in game.stack:
@@ -436,7 +455,7 @@ func pass_once() -> void:
 
 ## After a unit enters from hand/Santuário in the main phase, the opponent may respond.
 func open_summon_window(p: int) -> void:
-	if game.phase in ["search", "enter_target", "enter_tapped"] and p == game.active:
+	if game.phase in ["search", "enter_target", "enter_tapped", "effect_choice"] and p == game.active:
 		game._summon_pending = true
 		return
 	if game.phase == "main" and game.stack.is_empty() and p == game.active:
@@ -506,6 +525,8 @@ func settle() -> void:
 		if game.stack.is_empty():
 			game.stack_passed = false
 			game.combat_system().finish_pending_attack()
+			if game.phase not in ["main", "combat"]:
+				return
 		if game.stack.is_empty() and game.phase == "main" and not game.summon_window:
 			game.priority = game.active
 			return

@@ -3,9 +3,9 @@
 Cada carta fica em um arquivo JSON próprio, usando o ID do jogo como nome do arquivo, dentro da pasta do seu **set** e do seu **domínio**:
 `data/cards/<set>/<domínio>/<id>.json`, por exemplo `set1/furia/kai.json`.
 
-- Sets: `set1/`, `set2/`... Cada set precisa estar cadastrado em `sets` de `../cards.json` (nome e ordem).
+- Sets: identificados só pelo **número**. A pasta é `set<número>/` (`set1/`, `set2/`...) e o nome completo que aparece na UI (ex.: "Nuliterra (2026)") fica em `sets` de `../cards.json`, assim: `"2": {"name": "Nuliterra (2026)"}`. Para criar um set novo: cadastre o número e o nome lá e crie a pasta `set<número>/`.
 - Domínios: `furia/`, `fluxo/`, `natureza/`, `montanha/`, `tormenta/`, `trevas/`, `devocao/` e `neutra/`. Pastas vazias não precisam existir.
-- O campo `set` da carta (ex.: `"set": "set1"`) deve bater com a pasta do set, e o campo `essence` com a pasta do domínio. O carregador acusa erro se não baterem.
+- O campo `set` da carta é o número do set (ex.: `"set": 2`) e deve bater com a pasta; o campo `essence` deve bater com a pasta do domínio. O carregador acusa erro se não baterem.
 - O ID (nome do arquivo) é único no jogo inteiro, mesmo entre sets: duas cartas com o mesmo ID em sets diferentes dão erro. Decks, Líderes e efeitos citam a carta só pelo ID, sem o set.
 - Para achar uma carta qualquer: `docs/INDICE_CARTAS.md` (gerado por `tools/generate_card_index.gd`, ver abaixo).
 
@@ -34,6 +34,8 @@ O arquivo `../cards.json` continua guardando elementos, palavras-chave, espécie
 - `inert`: `true` = compatibilidade para unidades Inertes antigas: nunca atacam, não podem desafiar e não podem ser viradas (nem por efeito). Prefira incluir a keyword `inerte` em `keywords` para que ela também apareça como badge e possa ser concedida por efeitos.
 - `species_display`: rótulo alternativo na tarja de espécie. É apenas visual: não altera as espécies mecânicas em `species`. Cartas que usam esse campo recebem um estilo próprio na tarja.
 - `deck_effects`: efeitos que valem enquanto a carta está no deck (`trigger`, `if`, `action`). Hoje só existe `summon_self` (a cópia sai do deck e entra em campo; `cost` opcional = Momentum pago na entrada, como uma habilidade: a Reserva vale e é gasta primeiro) (ver `_fire_deck_effects` em `game_state.gd`).
+- `choose_effect`: pausa a resolução e oferece as opções em `options`; cada opção tem `title`, `detail` e uma lista `effects`. Um alvo escolhido na opção é pedido depois da escolha, com até um tipo de alvo por opção. Em gatilhos de combate, `requires_opposed` exige a unidade adversária do evento, e `exclude_opposed` a exclui dos alvos escolhidos. Há testes para Ao Desafiar, Ao Entrar e feitiços. Outras telas de escolha, como busca no deck, não podem estar nas opções ou na mesma lista de efeitos; interações indiretas com essas telas ainda precisam de implementação e testes antes do uso. Veja `set2/furia/nicolas.json`.
+- `activated.extra_cost` de tipo `discard_or_sacrifice`: define duas `options` com `title`, `detail`, `reason` e `pick` (`hand_card` ou `other_ally_unit`). Usa a mesma avaliação de opções e a mesma janela de `choose_effect`, mas a escolha é cancelável e o custo é pago antes da habilidade entrar na pilha. Veja `set1/trevas/drex.json`. Outros tipos de custo precisam de implementação própria.
 
 ## Tags
 

@@ -1,6 +1,6 @@
 {
   "name": "Bateria de Segunda Mão",
-  "set": "set1",
+  "set": 1,
   "type": "artifact",
   "subtypes": [],
   "rarity": "epic",

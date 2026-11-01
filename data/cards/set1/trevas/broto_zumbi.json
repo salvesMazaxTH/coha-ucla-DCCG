@@ -1,6 +1,6 @@
 {
   "name": "Broto Zumbi",
-  "set": "set1",
+  "set": 1,
   "type": "unit",
   "rarity": "common",
   "token": true,

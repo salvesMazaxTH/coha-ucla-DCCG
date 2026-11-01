@@ -1,6 +1,6 @@
 {
   "name": "Jardim do Avô",
-  "set": "set2",
+  "set": 2,
   "type": "artifact",
   "subtypes": ["local"],
   "rarity": "epic",

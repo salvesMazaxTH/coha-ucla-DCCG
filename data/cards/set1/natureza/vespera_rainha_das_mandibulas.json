@@ -1,6 +1,6 @@
 {
   "name": "Vespera, Rainha das Mandíbulas",
-  "set": "set1",
+  "set": 1,
   "type": "unit",
   "rarity": "champion",
   "species": ["driade"],

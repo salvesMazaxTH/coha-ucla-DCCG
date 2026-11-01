@@ -9,9 +9,11 @@ const AutoAttackEffectScript = preload("res://scripts/engine/effects/auto_attack
 const SpendAllMomentumEffectScript = preload("res://scripts/engine/effects/spend_all_momentum_effect.gd")
 const EquipSelfEffectScript = preload("res://scripts/engine/effects/equip_self_effect.gd")
 const ShoutEffectScript = preload("res://scripts/engine/effects/shout_effect.gd")
+const ChooseEffectScript = preload("res://scripts/engine/effects/choose_effect.gd")
 
 static var ACTIONS: Dictionary = {
 	"damage": DamageEffect,
+	"choose_effect": ChooseEffectScript,
 	"heal_leader": HealEffect,
 	"leader_max_up": HealEffect,
 	"heal_full": HealEffect,

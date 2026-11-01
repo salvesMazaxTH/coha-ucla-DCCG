@@ -1,6 +1,6 @@
 {
   "name": "Baluarte Santo",
-  "set": "set1",
+  "set": 1,
   "type": "artifact",
   "subtypes": ["local"],
   "rarity": "common",

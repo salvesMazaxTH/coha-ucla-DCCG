@@ -1,6 +1,6 @@
 {
   "name": "Grito de Carga Desafinado",
-  "set": "set1",
+  "set": 1,
   "type": "spell",
   "rarity": "common",
   "essence": "furia",

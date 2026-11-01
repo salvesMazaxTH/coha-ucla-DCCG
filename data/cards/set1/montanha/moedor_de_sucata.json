@@ -1,6 +1,6 @@
 {
   "name": "Moedor de Sucata",
-  "set": "set1",
+  "set": 1,
   "type": "artifact",
   "rarity": "common",
   "essence": "montanha",

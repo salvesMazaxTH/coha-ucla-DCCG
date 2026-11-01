@@ -1,6 +1,6 @@
 {
   "name": "Drex",
-  "set": "set1",
+  "set": 1,
   "type": "unit",
   "rarity": "champion",
   "species": [
@@ -107,7 +107,23 @@
     "cost": 1,
     "speed": "lento",
     "once_per_turn": true,
-    "extra_cost": { "kind": "discard_or_sacrifice" },
+    "extra_cost": {
+      "kind": "discard_or_sacrifice",
+      "options": [
+        {
+          "title": "Descartar uma carta",
+          "detail": "Escolha uma carta da sua mão para ir ao cemitério.",
+          "reason": "sua mão está vazia.",
+          "pick": "hand_card"
+        },
+        {
+          "title": "Sacrificar uma unidade",
+          "detail": "Escolha no campo outra unidade aliada para sacrificar.",
+          "reason": "não há outra unidade aliada para sacrificar.",
+          "pick": "other_ally_unit"
+        }
+      ]
+    },
     "effects": [
       {
         "action": "add_dot",

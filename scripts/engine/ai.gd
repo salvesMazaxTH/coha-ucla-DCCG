@@ -44,6 +44,8 @@ static func step(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 			var target := _pick_target(g, p, asked_spec, card_data, int(g.pending_enter["uid"]))
 			var events := g.choose_enter_target(p, target)
 			return events if not events.is_empty() else g.choose_enter_target(p, 0)
+		"effect_choice":
+			return _choose_effect_option(g, p)
 		"discard":
 			var hand := _hand_most_expensive_first(g, p)
 			var uids_to_discard: Array = []
@@ -70,6 +72,48 @@ static func step(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 				return g.go_to_combat(p)
 			return g.end_turn(p)
 	return []
+
+static func _choose_effect_option(g: GameState, p: int) -> Array:
+	var options: Array = g.pending_effect_choice.get("options", [])
+	var best_index := -1
+	var best_target := 0
+	var best_score := -INF
+	for index in options.size():
+		if not g.effect_choice_available(index):
+			continue
+		var option: Dictionary = options[index]
+		var targets := g.effect_choice_targets(index)
+		if targets.is_empty():
+			targets = [0]
+		for uid in targets:
+			var actual_uid := int(uid)
+			if actual_uid == 0:
+				actual_uid = int(g.pending_effect_choice["opposed"])
+			var unit := g.find_unit(actual_uid)
+			var damage := 0
+			var score := 0.0
+			for effect: Dictionary in option.get("effects", []):
+				if effect.get("action", "") == "damage":
+					damage += int(effect.get("amount", 0))
+				elif effect.get("action", "") in ["draw", "buff", "heal_unit", "heal_leader", "add_dot"]:
+					score += 1.0
+			if unit != null:
+				var sign := 1.0 if unit.owner != p else -1.0
+				score += sign * float(mini(damage, g.hp_left(unit)))
+				if damage >= g.hp_left(unit):
+					score += sign * float(g.atk_of(unit) + 3)
+			elif actual_uid < 0:
+				score += float(damage) if actual_uid == GameState.LEADER_UID[g.opponent(p)] else -float(damage)
+			if actual_uid != 0 and actual_uid == int(g.pending_effect_choice["opposed"]):
+				score += 1.0
+			if score > best_score:
+				best_score = score
+				best_index = index
+				best_target = int(uid)
+	if best_index < 0:
+		push_error("No available effect choice for AI")
+		return []
+	return g.choose_effect_option(p, best_index, best_target)
 
 ## Printed cost of a card (ignores discounts).
 static func _base_cost(card: Card) -> int:
@@ -752,6 +796,8 @@ static func _pick_activation_payer(g: GameState, p: int, unit: Card) -> int:
 	var cheapest_hand_uid := 0
 	var cheapest_hand_cost := 999
 	for hand_card: Card in g.players[p]["hand"]:
+		if not payers.has(hand_card.uid):
+			continue
 		var hand_cost := int(CardDB.card(hand_card.card_id).get("cost", 0))
 		if hand_cost < cheapest_hand_cost:
 			cheapest_hand_cost = hand_cost

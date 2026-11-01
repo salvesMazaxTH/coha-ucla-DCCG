@@ -55,6 +55,7 @@ static func snapshot(g: GameState, seat: int) -> Dictionary:
 		"decider": g.decider(),
 		"pending_search": search,
 		"pending_enter": g.pending_enter.duplicate(true),
+		"pending_effect_choice": g.pending_effect_choice.duplicate(true),
 		"pending_tap": g.pending_tap.duplicate(),
 		"stack": g.stack.duplicate(true),
 		"priority": g.priority,
