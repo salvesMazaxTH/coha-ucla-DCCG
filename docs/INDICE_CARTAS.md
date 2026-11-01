@@ -218,7 +218,7 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `matusalem_tartaruga_relicario` | Matusalém, Tartaruga-Relicário | Épica | Unidade | 5 |
 | `moedor_de_sucata` | Moedor de Sucata | Comum | Artefato | 3 |
 | `moenda_do_seu_belmiro` | Moenda do Seu Belmiro | Épica | Artefato | 3 |
-| `montadora_porca_frouxa` | Montadora Porca-Frouxa | Lendária | Unidade | 5 |
+| `montadora_porca_frouxa` | Grã-Montadora Nina | Lendária | Unidade | 5 |
 | `morakhan` | Morakhan | Campeã | Unidade | 6 |
 | `muralha_cara_de_pedra` | Muralha Cara-de-Pedra | Épica | Feitiço | 2 |
 | `muralha_emergente` | Muralha Emergente | Comum | Feitiço | 2 |

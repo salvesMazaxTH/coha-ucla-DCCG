@@ -2,7 +2,7 @@ class_name InheritEquipmentEffect
 extends Effect
 ## "inherit_equipment": an Aliado Morre effect. The unit that owns it takes over the equipment the ally that just
 ## died was wearing: the equipment leaves the graveyard (where it fell with its bearer) and hangs from this unit,
-## giving it the same bonus it gave the fallen one (Montadora Porca-Frouxa). Use it with target "self".
+## giving it the same bonus it gave the fallen one (Grã-Montadora Nina). Use it with target "self".
 ## "only_if_unequipped": true = only works while this unit wears no equipment at all.
 ## Takes the first equipment the dead ally wore that is still in its owner's graveyard. If it wore several
 ## (Tobias), the others stay where they fell. Nothing happens when the ally wore nothing.

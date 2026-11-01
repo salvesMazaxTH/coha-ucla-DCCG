@@ -5,7 +5,7 @@ extends RefCounted
 ##   Berengar Voss: +1/+1 por artefato, dobrado pelo Contador Exagerado.
 ##   Sacoleiro Tobias: três equipamentos ao mesmo tempo (Coração, Placa Espelhada, Cristal do Poder).
 ##   Matusalém: dois equipamentos (Manto da Ladainha e Coração da Montanha).
-##   Montadora Porca-Frouxa: um Cristal do Poder equipado.
+##   Grã-Montadora Nina: um Cristal do Poder equipado.
 ##   Relojoeiro Pino-14 e Contador Exagerado: sem equipamento (contam para o Voss).
 ## Na zona de artefatos: dois Cristais do Poder soltos.
 

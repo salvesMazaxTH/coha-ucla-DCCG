@@ -289,7 +289,7 @@ func stat_gain_since(unit: Card, before: Dictionary) -> Dictionary:
 	}
 
 ## Gives the unit what an equipment's `granted` says (the mirror of remove_equipment_bonus), for an equipment that
-## changes hands: a Porca-Frouxa taking the equipment of a fallen ally. Returns what the unit really gained, which
+## changes hands: a Nina taking the equipment of a fallen ally. Returns what the unit really gained, which
 ## is what must be remembered as the new worn_grant: a keyword or shield the unit already had is not counted,
 ## so taking the equipment off later never strips something the unit owns by itself.
 func apply_equipment_bonus(unit: Card, granted: Dictionary) -> Dictionary:

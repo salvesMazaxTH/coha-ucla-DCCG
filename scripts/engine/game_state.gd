@@ -1186,7 +1186,7 @@ func meets_unit_requirement(target_uid: int, spec: String, effects: Array) -> bo
 ## False when an effect aimed with `spec` only works on artifacts of one subtype ("subtype": "local" on
 ## "destroy_artifact" = "destroy a Local") and this target is an artifact of another subtype.
 ## "no_subtypes": true is the opposite: only an artifact without any subtype (a pure artifact, neither Equipamento
-## nor Local) is a valid target (Montadora Porca-Frouxa).
+## nor Local) is a valid target (Grã-Montadora Nina).
 ## Effects aimed at another spec, or without these parameters, ignore this check.
 func meets_subtype_requirement(target_uid: int, spec: String, effects: Array) -> bool:
 	for effect in effects:
@@ -3475,7 +3475,7 @@ func _move_dead_units() -> void:
 					var dying_is_token: bool = c.data().get("token", false) # "not_token" effects ignore a token dying
 					var dying_card_id: String = c.card_id # "dying_card" effects only hear this card (Luto: Myrra)
 					var effects: Array = c.effect_list()
-					# remembered before the equipment drops to the graveyard, so an Aliado Morre can still take it (Porca-Frouxa)
+					# remembered before the equipment drops to the graveyard, so an Aliado Morre can still take it (Nina)
 					var dying_equipment: Array = c.equipped_cards.duplicate()
 					players[p]["board"].erase(c)
 					changed = true

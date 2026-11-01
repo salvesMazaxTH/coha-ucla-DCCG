@@ -395,7 +395,7 @@ func _put(g: GameState, p: int, card_id: String, ready := true) -> Card:
 	return c
 
 ## Cristal do Poder is one card with two states: loose on the table it can be activated; stored in a
-## Montadora Porca-Frouxa it cannot, and it gives +2 Ataque to her while it stays there.
+## Grã-Montadora Nina it cannot, and it gives +2 Ataque to her while it stays there.
 func _test_cristal_do_poder_equipado() -> void:
 	var g := _new_game()
 	var a := g.active
@@ -512,7 +512,7 @@ func _test_zulmira_ferro_velho() -> void:
 	check(CardDB.has_type(CardDB.card("relojoeiro_pino_14"), "unit") and CardDB.has_type(CardDB.card("relojoeiro_pino_14"), "artifact") and not CardDB.has_type(CardDB.card("relojoeiro_pino_14"), "spell"), "relojoeiro: é unidade e artefato ao mesmo tempo, mas não feitiço")
 	check(CardFilter.matches("relojoeiro_pino_14", {"type": "artifact"}) and CardFilter.matches("relojoeiro_pino_14", {"types_any": ["spell", "artifact"]}) and CardFilter.matches("relojoeiro_pino_14", {"type": "unit"}), "relojoeiro: filtros de busca o aceitam como artefato e como unidade")
 
-## Montadora Porca-Frouxa: when an ally dies wearing equipment and she wears none, the equipment moves to her
+## Grã-Montadora Nina: when an ally dies wearing equipment and she wears none, the equipment moves to her
 ## (out of the graveyard) and gives her the same bonus it gave the fallen unit.
 func _test_porca_frouxa_herda_equipamento() -> void:
 	_tcard("teste_alvo_gelo", 0, 20, [])
@@ -1097,7 +1097,7 @@ func _test_devocao_new_batch() -> void:
 	check(g_icon.players[0]["hand"].size() == icon_hand + 1, "Iconoclastia: compra 1 carta (a própria foi jogada, então +1 líquido)")
 
 	# Unidade-artefato (Relojoeiro Pino-14): a remoção de artefato pode escolhê-la e ela morre como unidade;
-	# já a Montadora Porca-Frouxa (artefato solto aliado) não a enxerga como alvo
+	# já a Grã-Montadora Nina (artefato solto aliado) não a enxerga como alvo
 	var g_unit_artifact := _new_game()
 	g_unit_artifact.active = 0
 	g_unit_artifact.players[0]["momentum"] = 10
