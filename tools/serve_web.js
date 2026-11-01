@@ -1,10 +1,11 @@
 // Serve the Web export (build/web) over HTTP on the LAN: node tools/serve_web.js [port]
-// Gzips wasm/js/html on the fly (cached in memory) and revalidates files with ETag so reloads are fast.
+// Gzips compressible files on the fly (cached in memory) and revalidates files with ETag.
 const http = require("http"), https = require("https"), fs = require("fs"), path = require("path"), os = require("os"), net = require("net"), zlib = require("zlib");
 const root = path.join(__dirname, "..", "build", "web");
 const port = Number(process.argv[2]) || 8060;
 const types = {".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm", ".pck": "application/octet-stream",
 	".png": "image/png", ".ico": "image/x-icon", ".json": "application/json", ".css": "text/css"};
+const compressible = new Set([".html", ".js", ".wasm", ".json", ".css"]);
 const zipped = new Map();
 const handler = (req, res) => {
 	let p = decodeURIComponent(req.url.split("?")[0]);
@@ -12,10 +13,10 @@ const handler = (req, res) => {
 	const file = path.join(root, path.normalize(p));
 	if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end("404"); }
 	const st = fs.statSync(file), ext = path.extname(file);
-	const etag = '"' + st.size + "-" + st.mtimeMs + '"';
-	const head = {"Content-Type": types[ext] || "application/octet-stream", "ETag": etag, "Cache-Control": "no-cache"};
+	const etag = 'W/"' + st.size + "-" + st.mtimeMs + '"';
+	const head = {"Content-Type": types[ext] || "application/octet-stream", "ETag": etag, "Cache-Control": "no-cache", "Vary": "Accept-Encoding"};
 	if (req.headers["if-none-match"] === etag) { res.writeHead(304, head); return res.end(); }
-	if (/gzip/.test(req.headers["accept-encoding"] || "")) {
+	if (compressible.has(ext) && /gzip/.test(req.headers["accept-encoding"] || "")) {
 		let z = zipped.get(file);
 		if (!z || z.etag !== etag) { z = {etag, buf: zlib.gzipSync(fs.readFileSync(file), {level: 6})}; zipped.set(file, z); }
 		res.writeHead(200, {...head, "Content-Encoding": "gzip", "Content-Length": z.buf.length});

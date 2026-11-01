@@ -6,6 +6,7 @@ Card game PvP com os campeões do universo de Atecra, feito em **Godot 4.7**.
 - **Regras:** [docs/REGRAS_v0.2.md](docs/REGRAS_v0.2.md)
 - **Cartas:** [data/cards/](data/cards/). **Líderes, essências e keywords:** [data/cards.json](data/cards.json). **Decks prontos:** [data/decks/](data/decks/)
 - **Testes:** `godot --headless --path . -s tests/run_tests.gd`. Validam os decks, testam o combate e rodam 40 partidas de IA contra IA.
+- **Jogar no celular:** execute `atualizar_e_servir.bat` e abra o endereço HTTPS informado no celular. O script importa as artes novas, otimiza os retratos com configuração padrão e exporta o jogo; os arquivos originais não são alterados. O tamanho do pacote influencia o tempo de abertura, mesmo com cache.
 
 ## Estrutura
 - `scripts/engine/`: motor de regras puro, sem UI (`game_state.gd`), catálogo de cartas (`card_db.gd`) e IA (`ai.gd`).
