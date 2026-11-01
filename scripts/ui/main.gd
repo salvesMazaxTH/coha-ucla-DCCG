@@ -9,6 +9,7 @@ const DeckLeaderTooltipScript = preload("res://scripts/ui/deck_leader_tooltip.gd
 const FxLibraryScript = preload("res://scripts/ui/fx_library.gd")
 const FxShotsScript = preload("res://scripts/ui/fx_shots.gd")
 const ChronicleLogScript = preload("res://scripts/ui/chronicle_log.gd")
+const DevToolsPanelScript = preload("res://scripts/ui/dev_tools_panel.gd")
 
 const SEL := Color("#ffd23f")
 const TARGET := Color("#ff5050")
@@ -41,6 +42,8 @@ var pending_pass := false
 var _over_from := -1 ## index in layer of the first game-over node (-1 = none this frame)
 var _leader_ko_t := -1.0 ## time of the last Leader HP change in the current animation
 var net: NetClient ## online match link (null offline)
+var dev_mode_enabled := false
+var dev_tools_panel: DevToolsPanel
 var account_button: Button
 var deck_builder: DeckBuilder ## the "MEUS DECKS" screen while it is open
 var _account_was_signed_in := false
@@ -224,6 +227,7 @@ func _is_phone() -> bool:
 	return OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios") 			or (OS.has_feature("web") and DisplayServer.is_touchscreen_available())
 
 func _ready() -> void:
+	dev_mode_enabled = OS.get_cmdline_user_args().has("--dev")
 	# Main covers the whole stage: with the default STOP filter it swallowed every press on empty
 	# table, so `_unhandled_input` (tap outside / right click cancels an aim) never saw it
 	mouse_filter = Control.MOUSE_FILTER_PASS
@@ -233,6 +237,10 @@ func _ready() -> void:
 	# the logical screen is as tall as the stage, so a 16:9 window shows all of it (not a cropped middle)
 	get_window().content_scale_size = Vector2i(1600, int(STAGE_H))
 	_apply_light(_light_on())
+	dev_tools_panel = DevToolsPanelScript.new()
+	dev_tools_panel.action_requested.connect(_on_dev_tool_action)
+	dev_tools_panel.close_requested.connect(_close_dev_tools)
+	add_child(dev_tools_panel)
 	# phones: trim the purely decorative work (see GraphicsQuality)
 	if _is_phone():
 		GraphicsQuality.use_phone_settings()
@@ -321,6 +329,8 @@ func _fit_viewport() -> void:
 	set_anchors_preset(Control.PRESET_TOP_LEFT)
 	size = Vector2(w, STAGE_H)
 	position = (vp - size) / 2.0
+	if is_instance_valid(dev_tools_panel):
+		dev_tools_panel.position = Vector2(stage_w - dev_tools_panel.size.x - 18.0, 18.0)
 	bg.position = -position
 	bg.size = vp
 	var bw := int(360.0 * vp.x / maxf(1.0, vp.y))
@@ -552,14 +562,16 @@ func _add_menu_mode_buttons() -> void:
 	box.position = Vector2(stage_w / 2.0 - 210, 390)
 	box.custom_minimum_size = Vector2(420, 0)
 	layer.add_child(box)
-	for opt in [["JOGAR CONTRA A IA", "Escolha o seu deck e o da IA", func() -> void:
+	var mode_options: Array = [["JOGAR CONTRA A IA", "Escolha o seu deck e o da IA", func() -> void:
 				hub_hotseat = false
 				_show_hub(true), true],
 			["HOT-SEAT", "Dois jogadores no mesmo aparelho, cada um com o deck que quiser", func() -> void:
 				hub_hotseat = true
-				_show_hub(true), false],
-			["ONLINE", "Jogar contra outra pessoa por código de sala", func() -> void: _show_hub(false), false],
-			["MEUS DECKS", "Crie, edite e guarde seus próprios decks", _open_deck_builder, false]]:
+				_show_hub(true), false]]
+	if not dev_mode_enabled:
+		mode_options.append(["ONLINE", "Jogar contra outra pessoa por código de sala", func() -> void: _show_hub(false), false])
+	mode_options.append(["MEUS DECKS", "Crie, edite e guarde seus próprios decks", _open_deck_builder, false])
+	for opt in mode_options:
 		var b := _button(opt[0], opt[2], opt[3])
 		b.custom_minimum_size = Vector2(420, 58)
 		b.tooltip_text = opt[1]
@@ -693,6 +705,9 @@ func _show_online(msg := "") -> void:
 ## AI's deck (ai = true) or create a room / go on to join one by code (online).
 ## `choosing_ai_deck` is the AI mode's second step: the same grid, but the pick is the AI's deck.
 func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
+	if dev_mode_enabled and not ai:
+		_toast("Modo de desenvolvimento: partidas online desativadas.")
+		return
 	_clear_fx()
 	_clear()
 	table.visible = false
@@ -1326,6 +1341,10 @@ func _register_room_decks(deck_data: Variant) -> void:
 			DeckDB.register_custom(String(deck_id), String(deck.get("name", "")), String(deck.get("description", "")), String(deck.get("leader", "")), deck.get("cards", {}), String(deck.get("incarnation_id", "")))
 
 func _on_net(m: Dictionary) -> void:
+	if dev_mode_enabled:
+		net.disconnect_server()
+		online = false
+		return
 	match m.get("t", ""):
 		"room":
 			net.code = m["code"]
@@ -1403,7 +1422,7 @@ func _do(events: Array) -> void:
 	_show_events(events)
 
 func _ai_step() -> void:
-	if g == null or g.phase == "over" or not _is_ai(g.decider()):
+	if g == null or g.phase == "over" or (is_instance_valid(dev_tools_panel) and dev_tools_panel.visible) or not _is_ai(g.decider()):
 		return
 	var ev := SimpleAI.step(g, g.decider())
 	if ev.is_empty():
@@ -3237,7 +3256,76 @@ func _toggle_fps_counter() -> void:
 	_fps_counter.visible = _fps_counter_visible
 	_fps_counter.move_to_front()
 
+func _close_dev_tools() -> void:
+	if not is_instance_valid(dev_tools_panel):
+		return
+	dev_tools_panel.hide()
+	if g != null and g.phase != "over" and _is_ai(g.decider()) and ai_timer.is_stopped():
+		ai_timer.start(0.55)
+
+func _toggle_dev_tools() -> void:
+	if not dev_mode_enabled:
+		return
+	if dev_tools_panel.visible:
+		_close_dev_tools()
+		return
+	if g == null or online or g is RemoteState or not table.visible or g.phase == "over":
+		return
+	dev_tools_panel.refresh(g, vs_ai, viewer)
+	dev_tools_panel.show()
+	ai_timer.stop()
+
+func _on_dev_tool_action(action: String, parameters: Dictionary) -> void:
+	if not dev_mode_enabled or g == null or online or g is RemoteState or g.phase == "over":
+		dev_tools_panel.set_result("Ação disponível apenas em uma partida local ativa.", true)
+		return
+	var state := g as GameState
+	var player := int(parameters.get("player", -1))
+	var events: Array = []
+	match action:
+		"draw_cards":
+			events = state.debug_draw_cards(player, int(parameters.get("amount", 1)))
+		"draw_specific":
+			var card_id := String(parameters.get("card_id", ""))
+			var found := false
+			for card: Card in state.players[player]["deck"] if player >= 0 and player < state.players.size() else []:
+				if card.card_id == card_id:
+					found = true
+					break
+			if not found:
+				dev_tools_panel.set_result("Essa carta não está mais no deck selecionado.", true)
+				return
+			events = state.debug_draw_specific_card(player, card_id)
+		"add_momentum":
+			events = state.debug_add_momentum(player, int(parameters.get("amount", 1)))
+		"refill_momentum":
+			events = state.debug_refill_momentum(player)
+		"refill_reserve":
+			events = state.debug_refill_reserve(player)
+		"raise_leader_max":
+			events = state.debug_raise_leader_max(player, int(parameters.get("amount", 1)))
+		"heal_leader":
+			events = state.debug_heal_leader(player)
+		"damage_leader":
+			events = state.debug_damage_leader(player, int(parameters.get("amount", 1)))
+		_:
+			dev_tools_panel.set_result("Ferramenta de desenvolvimento desconhecida.", true)
+			return
+	dev_tools_panel.refresh(g, vs_ai, viewer)
+	if events.is_empty():
+		_render()
+		dev_tools_panel.set_result("Nenhuma mudança foi necessária.")
+		return
+	for event in events:
+		chronicle_log._log_event(event)
+	_show_events(events)
+	dev_tools_panel.set_result("Ação aplicada.")
+
 func _input(e: InputEvent) -> void:
+	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_F12 and dev_mode_enabled:
+		_toggle_dev_tools()
+		get_viewport().set_input_as_handled()
+		return
 	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_F3:
 		_toggle_fps_counter()
 		get_viewport().set_input_as_handled()

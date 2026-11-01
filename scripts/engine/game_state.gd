@@ -3535,6 +3535,89 @@ func _draw(p: int, n: int) -> void:
 		_emit({"type": "draw", "player": p, "uid": c.uid})
 		bus().emit(GameEvent.new("card_drawn", p, c))
 
+## Local development tools. These actions intentionally bypass normal costs and are never sent online.
+func debug_draw_cards(p: int, amount: int) -> Array:
+	if not _debug_player_valid(p) or amount < 1 or amount > 100:
+		return []
+	_draw(p, amount)
+	return _debug_finish()
+
+func debug_draw_specific_card(p: int, card_id: String) -> Array:
+	if not _debug_player_valid(p) or card_id.is_empty():
+		return []
+	var deck: Array = players[p]["deck"]
+	for i in range(deck.size() - 1, -1, -1):
+		var c: Card = deck[i]
+		if c.card_id != card_id:
+			continue
+		deck.remove_at(i)
+		players[p]["hand"].append(c)
+		_move(c, "hand")
+		_emit({"type": "draw", "player": p, "uid": c.uid})
+		bus().emit(GameEvent.new("card_drawn", p, c))
+		return _debug_finish()
+	return []
+
+func debug_add_momentum(p: int, amount: int) -> Array:
+	if not _debug_player_valid(p) or amount < 1 or amount > MOMENTUM_OVERFLOW_CAP:
+		return []
+	var pl: Dictionary = players[p]
+	var current := int(pl["momentum"])
+	pl["momentum"] = mini(MOMENTUM_OVERFLOW_CAP, current + amount)
+	if int(pl["momentum"]) > current:
+		pl["momentum_gain_turn"] = turn
+	_refresh_scaling()
+	_emit({"type": "momentum", "player": p})
+	return _debug_finish()
+
+func debug_refill_momentum(p: int) -> Array:
+	if not _debug_player_valid(p):
+		return []
+	players[p]["momentum"] = maxi(int(players[p]["momentum"]), int(players[p]["max_momentum"]))
+	_refresh_scaling()
+	_emit({"type": "momentum", "player": p})
+	return _debug_finish()
+
+func debug_refill_reserve(p: int) -> Array:
+	if not _debug_player_valid(p):
+		return []
+	players[p]["reserve"] = RESERVE_CAP
+	_emit({"type": "momentum", "player": p})
+	return _debug_finish()
+
+func debug_raise_leader_max(p: int, amount: int) -> Array:
+	if not _debug_player_valid(p) or amount < 1 or amount > 1000:
+		return []
+	_raise_leader_max(p, amount, "debug")
+	return _debug_finish()
+
+func debug_heal_leader(p: int) -> Array:
+	if not _debug_player_valid(p):
+		return []
+	var pl: Dictionary = players[p]
+	var healed := int(pl["leader_max"]) - int(pl["leader_hp"])
+	if healed <= 0:
+		return []
+	var hp_before: int = int(pl["leader_hp"])
+	pl["leader_hp"] = int(pl["leader_max"])
+	pl["healing_this_round"] = int(pl["healing_this_round"]) + healed
+	_emit({"type": "heal", "uid": LEADER_UID[p], "amount": healed, "hp_after": pl["leader_hp"]})
+	_emit_leader_healed(p, healed, hp_before, "debug")
+	return _debug_finish()
+
+func debug_damage_leader(p: int, amount: int) -> Array:
+	if not _debug_player_valid(p) or amount < 1 or amount > 1000:
+		return []
+	_deal_damage(LEADER_UID[p], amount, null)
+	return _debug_finish()
+
+func _debug_player_valid(p: int) -> bool:
+	return p >= 0 and p < players.size() and phase != "over"
+
+func _debug_finish() -> Array:
+	_check_state()
+	return _flush()
+
 ## Draws the first card (from the top) whose base cost is at least `min_base_cost`; that copy costs
 ## `discount` less while it stays in hand (Tecnomante). Nothing happens, and no Fadiga, if none qualifies.
 func _draw_discounted(p: int, min_base_cost: int, discount: int) -> Card:
