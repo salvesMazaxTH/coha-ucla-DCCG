@@ -240,6 +240,8 @@ func _ready() -> void:
 	dev_tools_panel = DevToolsPanelScript.new()
 	dev_tools_panel.action_requested.connect(_on_dev_tool_action)
 	dev_tools_panel.close_requested.connect(_close_dev_tools)
+	# starts hidden: it only opens with F12 during a local match in development mode (modo_desenvolvimento.bat)
+	dev_tools_panel.hide()
 	add_child(dev_tools_panel)
 	# phones: trim the purely decorative work (see GraphicsQuality)
 	if _is_phone():
