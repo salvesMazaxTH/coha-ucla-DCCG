@@ -170,7 +170,8 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 		if g.can_transform(p, unit.uid):
 			return g.transform(p, unit.uid)
 	if g.can_use_ability(p) and not _ability_borrows_momentum(CardDB.leader(g.players[p]["leader_id"])["ability"]["effects"]) \
-			and not _dot_only_effects_are_wasted(g, p, CardDB.leader(g.players[p]["leader_id"])["ability"]["effects"]):
+			and not _dot_only_effects_are_wasted(g, p, CardDB.leader(g.players[p]["leader_id"])["ability"]["effects"]) \
+			and _ability_is_worth_its_life_cost(g, p, CardDB.leader(g.players[p]["leader_id"])["ability"]):
 		var ability: Dictionary = CardDB.leader(g.players[p]["leader_id"])["ability"]
 		var ability_spec := g.target_spec(ability["effects"])
 		var target := _pick_target(g, p, ability_spec, ability, 0, true)
@@ -240,6 +241,25 @@ static func _try_play_card(g: GameState, p: int, card: Card) -> Array:
 	if card_data["type"] == "spell" and not _spell_changes_the_game(g, p, card.uid, target, second_target):
 		return [] # it would resolve and change nothing: keep the Momentum (and the card)
 	return g.play_card(p, card.uid, target, second_target)
+
+## Vida the AI keeps in reserve after paying an ability's life cost (Sengoku, Peso dos Séculos).
+const MIN_LIFE_AFTER_PAYING := 10
+
+## False when paying the ability's Vida would leave the Leader too low, or (for a play discount) when every
+## matching card in hand is already playable at its full price, so the Vida would buy nothing.
+static func _ability_is_worth_its_life_cost(g: GameState, p: int, ability: Dictionary) -> bool:
+	var life_cost := g.ability_life_cost(p, ability)
+	if life_cost == 0:
+		return true
+	if int(g.players[p]["leader_hp"]) - life_cost < MIN_LIFE_AFTER_PAYING:
+		return false
+	for effect in ability["effects"]:
+		if effect.get("action") != "grant_play_discount":
+			continue
+		for card: Card in g.players[p]["hand"]:
+			if CardFilter.matches(card.card_id, effect.get("card_filter", {})) and g.can_play(p, card.uid):
+				return false
+	return true
 
 ## True when an ability lends Momentum now and takes it back next turn (Eryon's Leader). The AI uses
 ## this ability only after all its plays, when the loan can no longer buy anything, so it just skips it.

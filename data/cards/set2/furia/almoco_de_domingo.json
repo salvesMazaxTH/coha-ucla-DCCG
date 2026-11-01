@@ -1,0 +1,32 @@
+{
+  "name": "Almoço de Domingo",
+  "set": "set2",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 2,
+  "speed": "rapido",
+  "art": "furia/almoco_de_domingo.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "own_leader",
+      "amount": 1
+    },
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "all_ally_units",
+      "only_species": [
+        "dragonoide"
+      ],
+      "atk": 2,
+      "temp": true
+    }
+  ],
+  "text": "Seu Líder sofre 1 de dano. Concede +2 de Ataque neste turno aos seus Dragonoides.",
+  "flavor": "Ninguém lembra quem começou a discussão. Todo mundo termina de pé.",
+  "tags": []
+}

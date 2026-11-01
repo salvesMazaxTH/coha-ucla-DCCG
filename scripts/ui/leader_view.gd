@@ -45,8 +45,14 @@ var ability_uses := -1: ## uses of the per-turn-limited ability spent this turn;
 		ability_uses = value
 		if _gem != null:
 			_gem.uses_spent = value # the hover tooltip reads it live
+var ability_life_cost_now := -1: ## Vida the ability would cost right now (Sengoku: grows with every own turn); -1 = no life_cost
+	set(value):
+		ability_life_cost_now = value
+		if _gem != null:
+			_gem.life_cost_now = value # the hover tooltip reads it live
 var _gem: AbilityGem
 var ability_cost := 0
+const LIFE_COST_COLOR := Color(0.82, 0.18, 0.2) # Vida paid by an ability (life_cost), as opposed to Momentum
 var passive := false # passive ability: fires on its own trigger, no cost, not clickable
 var targetable := false
 var target_selected := false ## already chosen as the first target of a multi-target effect
@@ -317,8 +323,15 @@ func _draw() -> void:
 	# its cost, a small Momentum gem
 	if not passive:
 		var cc := AC + Vector2(AR * 0.75, -AR * 0.75)
-		_diamond(cc, 11, UITheme.MOMENTUM.darkened(0.2) if usable else Color(0.3, 0.3, 0.35), Color(1, 1, 1, 0.8))
-		_text(f_num, str(ability_cost), cc + Vector2(0, 5), 14, Color.WHITE)
+		# an ability paid only in Vida (Sengoku) shows a red heart instead of a Momentum number
+		var pays_life_only: bool = ability_cost == 0 and ld["ability"].has("life_cost")
+		if pays_life_only:
+			# dark gem so the red heart stands out; the heart is drawn as shapes because the web font may lack ♥
+			_diamond(cc, 11, LIFE_COST_COLOR.darkened(0.7) if usable else Color(0.3, 0.3, 0.35), Color(1, 1, 1, 0.8))
+			draw_heart(self, cc + Vector2(0, -1), 8.0, LIFE_COST_COLOR.lightened(0.15) if usable else Color(0.5, 0.5, 0.55))
+		else:
+			_diamond(cc, 11, UITheme.MOMENTUM.darkened(0.2) if usable else Color(0.3, 0.3, 0.35), Color(1, 1, 1, 0.8))
+			_text(f_num, str(ability_cost), cc + Vector2(0, 5), 14, Color.WHITE)
 	var gem_label := "PASSIVA" if passive else "HABILIDADE"
 	if ability_uses >= 0:
 		gem_label += " (%d/%d)" % [ability_uses, int(CardDB.leader(leader_id)["ability"]["max_per_turn"])]
@@ -561,7 +574,7 @@ func _show_ability_popup() -> void:
 	var p := PanelContainer.new()
 	p.add_theme_stylebox_override("panel", UITheme.tooltip_box())
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	p.add_child(ability_panel(CardDB.leader(leader_id)["ability"], elem_color, ability_uses))
+	p.add_child(ability_panel(CardDB.leader(leader_id)["ability"], elem_color, ability_uses, ability_life_cost_now))
 	layer.add_child(p)
 	get_tree().root.add_child(layer)
 	await get_tree().process_frame # let the wrapped text settle its height
@@ -574,7 +587,7 @@ func _show_ability_popup() -> void:
 ## Ability card body: gold title, cost/speed chips, rules text that wraps.
 ## The chips already say speed, cost and "1× por turno", so the matching
 ## lead-in of the text is dropped.
-static func ability_panel(ab: Dictionary, col: Color, uses_spent := -1) -> Control:
+static func ability_panel(ab: Dictionary, col: Color, uses_spent := -1, life_cost_now := -1) -> Control:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 10)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -594,7 +607,10 @@ static func ability_panel(ab: Dictionary, col: Color, uses_spent := -1) -> Contr
 	if passive:
 		chips.add_child(_chip("PASSIVA", col.lightened(0.25)))
 	else:
-		chips.add_child(_chip("◆ %d MOMENTUM" % int(ab["cost"]), UITheme.MOMENTUM))
+		if int(ab["cost"]) > 0 or not ab.has("life_cost"):
+			chips.add_child(_chip("◆ %d MOMENTUM" % int(ab["cost"]), UITheme.MOMENTUM))
+		if ab.has("life_cost"):
+			chips.add_child(_life_cost_chip(ab["life_cost"], life_cost_now))
 	if not passive and ab.has("speed"):
 		chips.add_child(_speed_seal(str(ab["speed"])))
 	if ab.has("max_per_turn"):
@@ -614,10 +630,13 @@ static func ability_panel(ab: Dictionary, col: Color, uses_spent := -1) -> Contr
 	box.add_child(rule)
 
 	var body: String = ab["text"]
-	for lead in [r"^(Lenta|Rápida|Instantânea|Passiva)\.\s*", r"^\d+ Momentum, uma vez por turno:\s*", r"^\d+ Momentum:\s*"]:
+	for lead in [r"^(Lenta|Rápida|Instantânea|Passiva)\.\s*", r"^\d+ Momentum, uma vez por turno:\s*", r"^\d+ Momentum:\s*", r"^Paga [^:]*, uma vez por turno:\s*"]:
 		body = RegEx.create_from_string(lead).sub(body, "")
 	if body != "":
 		body = body.substr(0, 1).to_upper() + body.substr(1)
+	# a Vida cost that grows during the match (Sengoku) closes its text with the value it has right now, like Drex's X
+	if life_cost_now >= 0 and body.contains("X"):
+		body += " (X agora: %d)" % life_cost_now
 	var rt := RichTextLabel.new()
 	rt.bbcode_enabled = true
 	rt.fit_content = true
@@ -642,6 +661,52 @@ static func _speed_seal(speed: String) -> Control:
 	seal.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return seal
 
+## Chip text for an ability's life_cost {start, increase_per_own_turn}: the value it has right now ("4 VIDA"),
+## or "X VIDA" when the caller does not know it (no live match). The red heart is drawn beside it by _life_cost_chip.
+static func _life_cost_chip_text(life_cost: Dictionary, cost_now := -1) -> String:
+	if cost_now >= 0:
+		return "%d VIDA" % cost_now
+	if int(life_cost.get("increase_per_own_turn", 0)) == 0:
+		return "%d VIDA" % int(life_cost.get("start", 0))
+	return "X VIDA"
+
+## The Vida cost chip: a red heart followed by the value ("♥ 4 VIDA").
+static func _life_cost_chip(life_cost: Dictionary, cost_now := -1) -> Control:
+	var chip := _chip(_life_cost_chip_text(life_cost, cost_now), LIFE_COST_COLOR)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 5)
+	var icon := HeartIcon.new()
+	icon.color = LIFE_COST_COLOR.lightened(0.15)
+	row.add_child(icon)
+	# move the text label (the chip's only child) into the row, after the heart
+	var label := chip.get_child(0)
+	chip.remove_child(label)
+	row.add_child(label)
+	chip.add_child(row)
+	return chip
+
+## Draws a heart centered on `center`, `size` being its half-width. Built from two circles and a triangle
+## (the same shape as the "roubo de vida" marker on the cards), so it never depends on a font glyph.
+static func draw_heart(canvas: CanvasItem, center: Vector2, size: float, color: Color) -> void:
+	for side in [-1.0, 1.0]:
+		canvas.draw_circle(center + Vector2(side * 0.28, -0.2) * size, 0.34 * size, color)
+	canvas.draw_colored_polygon(PackedVector2Array([
+		center + Vector2(-0.6, -0.06) * size,
+		center + Vector2(0.6, -0.06) * size,
+		center + Vector2(0, 0.7) * size,
+	]), color)
+
+## A small heart as its own control, so it can sit inside a chip next to a Label.
+class HeartIcon extends Control:
+	var color := Color.WHITE
+
+	func _init() -> void:
+		custom_minimum_size = Vector2(16, 16)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		LeaderView.draw_heart(self, size / 2.0 + Vector2(0, 1), 8.0, color)
+
 static func _chip(t: String, col: Color) -> Control:
 	var c := PanelContainer.new()
 	var sb := UITheme.box(Color(col.darkened(0.75), 0.9), 5, Color(col, 0.55), 1)
@@ -663,9 +728,10 @@ class AbilityGem extends Control:
 	var ability: Dictionary
 	var elem_color := Color.WHITE
 	var uses_spent := -1
+	var life_cost_now := -1
 
 	func _make_custom_tooltip(_for_text: String) -> Object:
-		return LeaderView.ability_panel(ability, elem_color, uses_spent)
+		return LeaderView.ability_panel(ability, elem_color, uses_spent, life_cost_now)
 
 ## The deck as a physical pile seen slightly from the front: a soft shadow on the
 ## table, the side of the stack with every card edge visible (it gets thinner at

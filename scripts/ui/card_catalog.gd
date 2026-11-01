@@ -33,7 +33,7 @@ const ACTION_CATEGORIES := {
 	"Remove palavras-chave ou defesas": ["suppress_keyword", "strip_defenses"],
 	"Fortalecimento": ["buff", "cap_stats", "species_aura"],
 	"Recursos": ["gain_momentum", "gain_reserve", "raise_max_momentum", "momentum_surge", "momentum_cap", "spend_all_momentum"],
-	"Redução de custo": ["modify_cost", "discount_hand", "cost_reduction"],
+	"Redução de custo": ["modify_cost", "discount_hand", "grant_play_discount", "cost_reduction"],
 	"Devolução à mão": ["return_to_hand"],
 	"Descarte e moagem": ["discard_hand_pick", "mill", "mill_pick"],
 	"Transformação": ["transform_self"],

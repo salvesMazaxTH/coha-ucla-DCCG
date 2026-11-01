@@ -59,6 +59,9 @@ func _init() -> void:
 	_test_vegetal()
 	_test_ai_spell_preview()
 	_test_ai_equipment_targets()
+	_test_sengoku_leader()
+	_test_jardim_do_avo()
+	_test_sengoku_deck_cards()
 	_test_obscura_rules()
 	_test_cleanse()
 	_test_sagrada_board_control()
@@ -3138,6 +3141,174 @@ func _test_leader_cycle() -> void:
 	g.players[0]["momentum"] = 5
 	g.players[1]["ability_used"] = true
 	check(not g.players[0]["ability_used"], "ronan: sem uso no seu turno, ainda disponível no do oponente")
+
+## Cost player 0 would pay for the hand card with this uid (the discount offers live on the card, not on the id).
+func _hand_cost(g: GameState, uid: int) -> int:
+	for card: Card in g.players[0]["hand"]:
+		if card.uid == uid:
+			return g.cost_of(0, card.data(), card)
+	return -1
+
+func _test_sengoku_leader() -> void:
+	# Peso dos Séculos: pays 2 Vida on the owner's first turn, +2 for each further turn of the owner's own (the opponent's
+	# turns never count), then ONE Dragonoide of cost <= 6 in hand costs half this turn
+	var g := GameState.new("sengoku", "agua", 42)
+	g.mulligan(0, [])
+	g.mulligan(1, [])
+	g.self_response_enabled = false
+	g.players[0]["hand"].clear()
+	g.players[0]["ability_used"] = false
+	g.players[0]["momentum"] = 10
+	check(not g.can_use_ability(0), "sengoku: sem Dragonoide jogável na mão, Peso dos Séculos não pode ser usado")
+	var ronan_uid := _give(g, 0, "ronan")                   # Dragonoide, cost 4
+	var ivan_uid := _give(g, 0, "ivan_ignisar")             # Dragão primordial, cost 7: above the cap
+	var odd_cost_uid := _give(g, 0, "sopra_brasas")         # Dragonoide, cost 3: pays 2 (the reduction rounds down)
+	var guerreiro_uid := _give(g, 0, "guerreiro_igneo")     # not a Dragonoide
+	check(g.can_use_ability(0), "sengoku: com Dragonoide jogável na mão, Peso dos Séculos pode ser usado")
+	var expected_life_cost := 2 * int(g.players[0]["own_turns_started"])
+	check(g.ability_life_cost(0, CardDB.leader("sengoku")["ability"]) == expected_life_cost and expected_life_cost == 2, "sengoku: no primeiro turno seu o custo é 2 de Vida")
+	var life_before: int = g.players[0]["leader_hp"]
+	var ronan_full_cost: int = _hand_cost(g, ronan_uid)
+	g.use_ability(0, 0)
+	g.pass_priority(1)
+	check(g.players[0]["leader_hp"] == life_before - expected_life_cost, "sengoku: paga de Vida o custo atual (2 no primeiro turno seu)")
+	check(_hand_cost(g, ronan_uid) == ceili(ronan_full_cost / 2.0), "sengoku: Dragonoide da mão custa metade do preço")
+	check(_hand_cost(g, odd_cost_uid) == 2, "sengoku: custo ímpar arredonda o desconto para baixo (3 vira 2)")
+	check(_hand_cost(g, ivan_uid) == int(CardDB.card("ivan_ignisar")["cost"]), "sengoku: custo acima de 6 não recebe desconto")
+	check(_hand_cost(g, guerreiro_uid) == int(CardDB.card("guerreiro_igneo")["cost"]), "sengoku: quem não é Dragonoide não recebe desconto")
+	check(not g.can_use_ability(0), "sengoku: uma vez por turno")
+	var momentum_before: int = g.players[0]["momentum"]
+	g.play_card(0, ronan_uid)
+	g.pass_priority(1)
+	check(g.players[0]["momentum"] == momentum_before - ceili(ronan_full_cost / 2.0),"sengoku: o Dragonoide é jogado pelo preço com desconto")
+	check(_hand_cost(g, odd_cost_uid) == int(CardDB.card("sopra_brasas")["cost"]), "sengoku: a oferta é gasta pela primeira carta jogada")
+	# the offer also lapses at the end of the turn it was granted in
+	var g2 := GameState.new("sengoku", "agua", 42)
+	g2.mulligan(0, [])
+	g2.mulligan(1, [])
+	g2.self_response_enabled = false
+	g2.players[0]["hand"].clear()
+	g2.players[0]["ability_used"] = false
+	g2.players[0]["momentum"] = 10
+	var unused_uid := _give(g2, 0, "ronan")
+	g2.use_ability(0, 0)
+	g2.pass_priority(1)
+	check(_hand_cost(g2, unused_uid) < int(CardDB.card("ronan")["cost"]), "sengoku: oferta ativa no turno em que foi concedida")
+	g2.end_turn(0)
+	check(_hand_cost(g2, unused_uid) == int(CardDB.card("ronan")["cost"]), "sengoku: oferta não usada expira no fim do turno")
+	# the cost follows the owner's OWN turns: the opponent's turn changes nothing, the owner's next turn adds 2
+	var sengoku_ability: Dictionary = CardDB.leader("sengoku")["ability"]
+	check(g2.ability_life_cost(0, sengoku_ability) == 2, "sengoku: o turno do oponente não aumenta o custo")
+	g2.end_turn(1)
+	check(g2.ability_life_cost(0, sengoku_ability) == 4, "sengoku: cada turno seu soma 2 ao custo")
+	# never lets the Leader pay a life cost that would kill it
+	var g3 := GameState.new("sengoku", "agua", 42)
+	g3.mulligan(0, [])
+	g3.mulligan(1, [])
+	g3.players[0]["hand"].clear()
+	g3.players[0]["ability_used"] = false
+	_give(g3, 0, "ronan")
+	g3.players[0]["leader_hp"] = g3.ability_life_cost(0, CardDB.leader("sengoku")["ability"])
+	check(not g3.can_use_ability(0), "sengoku: Vida igual ao custo, a habilidade é bloqueada")
+
+func _test_jardim_do_avo() -> void:
+	# Jardim do Avô: a Local that, at the start of its owner's turn, cheapens the Dragonoides in hand by 1 and then destroys itself
+	var g := GameState.new("sengoku", "agua", 42)
+	g.mulligan(0, [])
+	g.mulligan(1, [])
+	g.self_response_enabled = false
+	g.players[0]["hand"].clear()
+	var dragonoide_uid := _give(g, 0, "ronan")
+	var other_uid := _give(g, 0, "guerreiro_igneo")
+	var jardim := Card.new(g._uid(), "jardim_do_avo", 0, "relics")
+	g.players[0]["relics"].append(jardim)
+	var dragonoide_cost_before := _hand_cost(g, dragonoide_uid)
+	var other_cost_before := _hand_cost(g, other_uid)
+	g.end_turn(0)
+	g.end_turn(1)
+	check(_hand_cost(g, dragonoide_uid) == dragonoide_cost_before - 1, "jardim: o Dragonoide da mão custa 1 a menos no início do turno do dono")
+	check(_hand_cost(g, other_uid) == other_cost_before, "jardim: quem não é Dragonoide não recebe desconto")
+	check(not g.players[0]["relics"].has(jardim), "jardim: se destrói depois de descontar")
+
+func _test_sengoku_deck_cards() -> void:
+	# Almoço de Domingo: costs the Leader 1 Vida and lends +2 Ataque this turn to the Dragonoides only
+	var g := GameState.new("sengoku", "agua", 42)
+	g.mulligan(0, [])
+	g.mulligan(1, [])
+	g.self_response_enabled = false
+	g.players[0]["hand"].clear()
+	g.players[0]["momentum"] = 10
+	var dragonoide := _put(g, 0, "sopra_brasas")
+	var outsider := _put(g, 0, "guerreiro_igneo")
+	var dragonoide_attack_before := g.atk_of(dragonoide)
+	var outsider_attack_before := g.atk_of(outsider)
+	var life_before: int = g.players[0]["leader_hp"]
+	var spell_uid := _give(g, 0, "almoco_de_domingo")
+	g.play_card(0, spell_uid)
+	g.pass_priority(1)
+	check(g.players[0]["leader_hp"] == life_before - 1, "almoço: o Líder do dono sofre 1 de dano")
+	check(g.atk_of(dragonoide) == dragonoide_attack_before + 2, "almoço: o Dragonoide ganha +2 de Ataque neste turno")
+	check(g.atk_of(outsider) == outsider_attack_before, "almoço: quem não é Dragonoide não ganha Ataque")
+	g.end_turn(0)
+	check(g.atk_of(dragonoide) == dragonoide_attack_before, "almoço: o bônus some no fim do turno")
+	# Tullio Chamarisco: Ao Entrar looks at the top 4 and takes a Dragonoide from them
+	var g2 := GameState.new("sengoku", "agua", 42)
+	g2.mulligan(0, [])
+	g2.mulligan(1, [])
+	g2.self_response_enabled = false
+	g2.players[0]["deck"].clear()
+	g2.players[0]["deck"].append(Card.new(g2._uid(), "guerreiro_igneo", 0, "deck"))
+	g2.players[0]["deck"].append(Card.new(g2._uid(), "ronan", 0, "deck"))
+	g2.players[0]["hand"].clear()
+	_put(g2, 0, "tullio_chamarisco")
+	var took_dragonoide := false
+	for card: Card in g2.players[0]["hand"]:
+		if card.card_id == "ronan":
+			took_dragonoide = true
+	check(took_dragonoide, "tullio: Ao Entrar pega um Dragonoide entre as 4 cartas do topo")
+	# The Dragão synergies: Linhagem de Ignisar, Gunnar Escamaferro and Seu Odorico Cinzento cover Dragões besides Dragonoides
+	var g3 := GameState.new("sengoku", "agua", 42)
+	g3.mulligan(0, [])
+	g3.mulligan(1, [])
+	g3.self_response_enabled = false
+	g3.players[0]["hand"].clear()
+	g3.players[0]["momentum"] = 10
+	g3.players[0]["deck"].clear()
+	var plain_dragon_card := Card.new(g3._uid(), "dragaozinho_flamejante", 0, "deck")
+	g3.players[0]["deck"].append(plain_dragon_card)
+	g3.players[0]["deck"].append(Card.new(g3._uid(), "guerreiro_igneo", 0, "deck"))
+	g3.play_card(0, _give(g3, 0, "linhagem_de_ignisar"))
+	g3.pass_priority(1)
+	var offered_plain_dragon := false
+	if g3.phase == "search":
+		for option: Dictionary in g3.pending_search["cards"]:
+			if int(option["uid"]) == plain_dragon_card.uid:
+				offered_plain_dragon = true
+	check(offered_plain_dragon, "linhagem: oferece um Dragão que não é Dragonoide")
+	var g4 := GameState.new("sengoku", "agua", 42)
+	g4.mulligan(0, [])
+	g4.mulligan(1, [])
+	g4.self_response_enabled = false
+	var plain_dragon := _put(g4, 0, "dragaozinho_flamejante")
+	var outsider_unit := _put(g4, 0, "guerreiro_igneo")
+	var plain_dragon_armor_before := g4.armor_of(plain_dragon)
+	var outsider_armor_before := g4.armor_of(outsider_unit)
+	_put(g4, 0, "gunnar_escamaferro")
+	check(g4.armor_of(plain_dragon) == plain_dragon_armor_before + 1, "gunnar: o Dragão que não é Dragonoide ganha Armadura 1")
+	check(g4.armor_of(outsider_unit) == outsider_armor_before, "gunnar: quem não é Dragonoide nem Dragão não ganha Armadura")
+	var g5 := GameState.new("sengoku", "agua", 42)
+	g5.mulligan(0, [])
+	g5.mulligan(1, [])
+	g5.self_response_enabled = false
+	g5.players[0]["hand"].clear()
+	var odorico := _put(g5, 0, "seu_odorico_cinzento")
+	var dragon_in_hand_uid := _give(g5, 0, "ivan_ignisar")
+	var outsider_in_hand_uid := _give(g5, 0, "guerreiro_igneo")
+	var dragon_cost_before := _hand_cost(g5, dragon_in_hand_uid)
+	var outsider_cost_before := _hand_cost(g5, outsider_in_hand_uid)
+	_kill(g5, odorico)
+	check(_hand_cost(g5, dragon_in_hand_uid) == dragon_cost_before - 1, "odorico: o Dragão da mão custa 1 a menos quando ele morre")
+	check(_hand_cost(g5, outsider_in_hand_uid) == outsider_cost_before, "odorico: quem não é Dragonoide nem Dragão não recebe desconto")
 
 func _test_obscura_rules() -> void:
 	# Diabrete: hits the enemy Leader when another ally dies (not for itself), Ao Morrer too

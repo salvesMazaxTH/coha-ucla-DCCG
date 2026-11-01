@@ -1,0 +1,28 @@
+{
+  "name": "Bronca do Avô",
+  "set": "set2",
+  "type": "spell",
+  "rarity": "common",
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 2,
+  "speed": "rapido",
+  "art": "furia/bronca_do_avo.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "own_leader",
+      "amount": 2
+    },
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 5
+    }
+  ],
+  "text": "Seu Líder sofre 2 de dano. Causa 5 de dano a uma unidade inimiga à sua escolha.",
+  "flavor": "O pior não é o grito. É o silêncio de antes dele.",
+  "tags": []
+}

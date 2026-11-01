@@ -95,7 +95,7 @@ func _draw() -> void:
 func _draw_turn_divider() -> void:
 	var font := UITheme.font("title_bold")
 	var font_size := 11
-	var title := "TURNO %d" % int(entry.get("turn", 0))
+	var title := "TURNO"
 	var actor_name := String(entry.get("actor_name", ""))
 	if actor_name != "":
 		title += " · " + actor_name.to_upper()

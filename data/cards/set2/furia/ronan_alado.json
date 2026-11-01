@@ -1,0 +1,45 @@
+{
+  "name": "Ronan Alado",
+  "set": "set2",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "dragonoide",
+    "dragao"
+  ],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 4,
+  "atk": 3,
+  "hp": 4,
+  "keywords": [
+    "voo",
+    "regeneracao"
+  ],
+  "art": "furia/ronan_alado.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "temp": true,
+      "target": "other_ally_units",
+      "only_species": [
+        "dragonoide"
+      ],
+      "atk": 2
+    },
+    {
+      "trigger": "on_damaged",
+      "action": "buff",
+      "target": "self",
+      "atk": 1
+    }
+  ],
+  "text": "Ao Entrar: concede +2 de Ataque aos seus outros Dragonoides neste turno.\nAo Sofrer Dano: esta unidade ganha +1 de Ataque permanente.",
+  "flavor": [
+    "Eu só queria me formar e pagar as contas em dia.",
+    "Meu avô nunca me contou nada. Pelo visto, nem o sobrenome.",
+    "Já estava de mau humor. Agora é pessoal."
+  ],
+  "tags": []
+}

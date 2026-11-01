@@ -1,0 +1,28 @@
+{
+  "name": "Cuspa-Rubi",
+  "set": "set2",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "dragonoide",
+    "dragao"
+  ],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 6,
+  "atk": 5,
+  "hp": 5,
+  "keywords": [],
+  "art": "furia/cuspa_rubi.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "all_enemy_units",
+      "amount": 2
+    }
+  ],
+  "text": "Ao Entrar: causa 2 de dano a todas as unidades inimigas.",
+  "flavor": "Cada cuspe vale uma joia, e ninguém quer o troco.",
+  "tags": []
+}

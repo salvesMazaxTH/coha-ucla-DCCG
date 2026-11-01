@@ -1,0 +1,35 @@
+{
+  "name": "Dona Rescaldina",
+  "set": "set2",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "dragonoide",
+    "dragao"
+  ],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 6,
+  "atk": 5,
+  "hp": 6,
+  "keywords": [],
+  "art": "furia/dona_rescaldina.webp",
+  "art_crop": {"x": 0.5, "y": 0.32, "zoom": 1.0},
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount": 3
+    },
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 3
+    }
+  ],
+  "text": "Ao Entrar: seu Líder recupera 3 de Vida e você pode escolher uma unidade inimiga; ela sofre 3 de dano.",
+  "flavor": "Sopra a sopa, apaga a vela e acende a briga. Tudo no mesmo fôlego.",
+  "tags": []
+}

@@ -1,0 +1,33 @@
+{
+  "name": "Jardim do Avô",
+  "set": "set2",
+  "type": "artifact",
+  "subtypes": ["local"],
+  "rarity": "epic",
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 3,
+  "art": "furia/jardim_do_avo.webp",
+  "effects": [
+    {
+      "listen": "turn_started",
+      "scope": "ally",
+      "zones": ["relics"],
+      "action": "discount_hand",
+      "target": "none",
+      "amount": 1,
+      "card_filter": {"species": "dragonoide"}
+    },
+    {
+      "listen": "turn_started",
+      "scope": "ally",
+      "zones": ["relics"],
+      "action": "destroy_artifact",
+      "subtype": "local",
+      "target": "self_card"
+    }
+  ],
+  "text": "Condicional: no início do seu turno, reduz em (1) o custo dos Dragonoides na sua mão e se destrói.",
+  "flavor": "Entre as tomateiras, ele finge que não está pensando em nada.",
+  "tags": []
+}

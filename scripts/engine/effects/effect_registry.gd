@@ -82,6 +82,7 @@ static var ACTIONS: Dictionary = {
 	"damage_leader_by_stack_cost": StackCostDamageEffect,
 	"modify_cost": ModifyCostEffect,
 	"discount_hand": DiscountHandEffect,
+	"grant_play_discount": GrantPlayDiscountEffect,
 	"cost_reduction": StaticEffect,
 	"silence": SilenceEffect,
 	"strip_defenses": StripEffect,

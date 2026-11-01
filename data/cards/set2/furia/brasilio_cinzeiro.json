@@ -1,0 +1,30 @@
+{
+  "name": "Brasílio Cinzeiro",
+  "set": "set2",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "dragonoide",
+    "dragao"
+  ],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 5,
+  "atk": 6,
+  "hp": 4,
+  "keywords": [
+    "impeto"
+  ],
+  "art": "furia/brasilio_cinzeiro.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Entrar: você compra 1 carta.",
+  "flavor": "Chega fumegando, derruba a porta e ainda pergunta se tem lugar na mesa.",
+  "tags": []
+}

@@ -1795,6 +1795,10 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	# passives with a per-turn limit (Thálvaressa) show how many uses are spent; the engine wipes the count every turn start
 	if CardDB.leader(pl["leader_id"])["ability"].has("max_per_turn"):
 		lv.ability_uses = int(pl.get("passive_uses", 0))
+	# an ability paid in Vida that grows with the player's own turns (Sengoku) tells its current price in the tooltip
+	var leader_ability: Dictionary = CardDB.leader(pl["leader_id"])["ability"]
+	if leader_ability.has("life_cost"):
+		lv.ability_life_cost_now = g.ability_life_cost(p, leader_ability)
 	lv.targetable = _is_target(uid)
 	lv.target_selected = _is_first_target(uid)
 	lv.active = g.active == p and g.phase != "mulligan"
@@ -2531,7 +2535,8 @@ func _render_side() -> void:
 		tsb.shadow_color = Color(UITheme.GOLD, 0.2)
 	tp.add_theme_stylebox_override("panel", tsb)
 	layer.add_child(tp)
-	var tt := _label("TURNO %d" % g.turn, 24, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 4)
+	# no turn number on purpose: the global counter counts both players' turns, which confuses
+	var tt := _label("SEU TURNO" if mine else "TURNO DO OPONENTE", 24 if mine else 20, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 4)
 	tt.position = Vector2(0, 4)
 	tt.size = Vector2(COL_W, 30)
 	tp.add_child(tt)
@@ -3164,7 +3169,6 @@ func _render_game_over() -> void:
 		box.add_child(_label(sub, 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
 	else:
 		box.add_child(_label("Os dois Líderes caíram juntos", 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
-	box.add_child(_label("Turno %d" % g.turn, 14, Color(UITheme.TEXT, 0.4), HORIZONTAL_ALIGNMENT_CENTER, "title"))
 	var b := _button("VOLTAR AO MENU", _show_menu, true)
 	b.custom_minimum_size = Vector2(520, 54)
 	box.add_child(b)

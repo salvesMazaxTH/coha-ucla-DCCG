@@ -1,0 +1,28 @@
+{
+  "name": "Sengoku Dragonoides",
+  "description": "Dragonoides de curva mais alta que o normal em volta do poder do Líder: Peso dos Séculos joga um deles pela metade do preço, então quanto mais cara a carta, maior o ganho. Tutores trazem os grandes, a mesa se engorda e se protege com Provocação, e Sengoku e Ivan Ignisar fecham o jogo.",
+  "order": 27,
+  "leader": "sengoku",
+  "cards": {
+    "dragaozinho_flamejante": 2,
+    "tullio_chamarisco": 3,
+    "kyle_fumacinha": 2,
+    "almoco_de_domingo": 2,
+    "bola_de_fogo": 2,
+    "bronca_do_avo": 3,
+    "linhagem_de_ignisar": 3,
+    "sopra_brasas": 1,
+    "jardim_do_avo": 2,
+    "diana_quase_chama": 3,
+    "gunnar_escamaferro": 3,
+    "ronan": 2,
+    "ronan_alado": 2,
+    "brasilio_cinzeiro": 3,
+    "sengoku": 1,
+    "seu_odorico_cinzento": 3,
+    "cuspa_rubi": 3,
+    "dona_rescaldina": 3,
+    "samantha": 1,
+    "ivan_ignisar": 1
+  }
+}

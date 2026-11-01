@@ -418,6 +418,35 @@
       },
       "essences": ["furia"]
     },
+    "sengoku": {
+      "name": "Sengoku",
+      "hp": 30,
+      "art": "furia/sengoku_lider.webp",
+      "incarnation": "sengoku",
+      "ability": {
+        "name": "Peso dos Séculos",
+        "cost": 0,
+        "life_cost": {
+          "start": 2,
+          "increase_per_own_turn": 2
+        },
+        "once_per_turn": true,
+        "speed": "lento",
+        "effects": [
+          {
+            "action": "grant_play_discount",
+            "target": "none",
+            "divisor": 2,
+            "card_filter": {
+              "max_cost": 6,
+              "species": "dragonoide"
+            }
+          }
+        ],
+        "text": "Lenta. Paga X de Vida, uma vez por turno: neste turno, um Dragonoide de custo (6) ou menos na sua mão custa metade do preço (a redução é arredondada para baixo) para ser jogado. X começa em 2 e aumenta 2 a cada turno seu."
+      },
+      "essences": ["furia"]
+    },
     "ivan_ignisar": {
       "name": "Ivan Ignisar",
       "hp": 30,

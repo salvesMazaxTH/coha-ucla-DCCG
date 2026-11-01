@@ -1,0 +1,33 @@
+{
+  "name": "Gunnar Escamaferro",
+  "set": "set2",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "dragonoide",
+    "dragao"
+  ],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 4,
+  "atk": 3,
+  "hp": 4,
+  "keywords": [
+    "armadura:1"
+  ],
+  "art": "furia/gunnar_escamaferro.webp",
+  "effects": [
+    {
+      "trigger": "constante",
+      "action": "species_aura",
+      "species": [
+        "dragonoide",
+        "dragao"
+      ],
+      "armor": 1
+    }
+  ],
+  "text": "Constante: seus outros Dragonoides e Dragões têm Armadura 1.",
+  "flavor": "Diz que escama não enferruja. A família inteira concorda, de pé atrás dele.",
+  "tags": []
+}

@@ -1,0 +1,35 @@
+{
+  "name": "Diana Quase-Chama",
+  "set": "set2",
+  "type": "unit",
+  "rarity": "epic",
+  "species": [
+    "dragonoide",
+    "dragao"
+  ],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 4,
+  "atk": 3,
+  "hp": 3,
+  "keywords": [
+    "regeneracao",
+    "provocacao"
+  ],
+  "art": "furia/diana_quase_chama.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "other_ally_units",
+      "only_species": [
+        "dragonoide"
+      ],
+      "atk": 1,
+      "hp": 1
+    }
+  ],
+  "text": "Ao Entrar: concede +1/+1 permanente aos seus outros Dragonoides.",
+  "flavor": "Sete meses no Horizonte e ainda acende vela só de encarar o pavio.",
+  "tags": []
+}

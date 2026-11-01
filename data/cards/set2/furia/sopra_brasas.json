@@ -1,0 +1,30 @@
+{
+  "name": "Sopra-Brasas",
+  "set": "set2",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "dragonoide",
+    "dragao"
+  ],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 3,
+  "atk": 3,
+  "hp": 2,
+  "keywords": [
+    "impeto"
+  ],
+  "art": "furia/sopra_brasas.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Entrar: causa 1 de dano ao Líder inimigo.",
+  "flavor": "Antes de qualquer discurso, um sopro. Argumento é com ele.",
+  "tags": []
+}

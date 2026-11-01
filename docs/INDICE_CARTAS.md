@@ -450,6 +450,25 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `zaza_fuzue` | Zazá Fuzuê | Lendária | Unidade | 4 |
 | `zeladora_shhh` | Zeladora Shhh | Comum | Unidade | 4 |
 
-## Set 2 (0 cartas)
+## Set 2 (16 cartas)
 
-Nenhuma carta ainda.
+### Fúria (16)
+
+| ID | Nome | Raridade | Tipo | Custo |
+|---|---|---|---|---|
+| `almoco_de_domingo` | Almoço de Domingo | Comum | Feitiço | 2 |
+| `brasilio_cinzeiro` | Brasílio Cinzeiro | Comum | Unidade | 5 |
+| `bronca_do_avo` | Bronca do Avô | Comum | Feitiço | 2 |
+| `cuspa_rubi` | Cuspa-Rubi | Épica | Unidade | 6 |
+| `diana_quase_chama` | Diana Quase-Chama | Épica | Unidade | 4 |
+| `dona_rescaldina` | Dona Rescaldina | Épica | Unidade | 6 |
+| `gunnar_escamaferro` | Gunnar Escamaferro | Épica | Unidade | 4 |
+| `jardim_do_avo` | Jardim do Avô | Épica | Artefato | 3 |
+| `kyle_fumacinha` | Kyle Fumacinha | Comum | Unidade | 2 |
+| `linhagem_de_ignisar` | Linhagem de Ignisar | Comum | Feitiço | 2 |
+| `ronan_alado` | Ronan Alado | Campeã | Unidade | 4 |
+| `samantha` | Samantha | Lendária | Unidade | 6 |
+| `sengoku` | Sengoku | Campeã | Unidade | 5 |
+| `seu_odorico_cinzento` | Seu Odorico Cinzento | Épica | Unidade | 5 |
+| `sopra_brasas` | Sopra-Brasas | Comum | Unidade | 3 |
+| `tullio_chamarisco` | Tullio Chamarisco | Comum | Unidade | 1 |

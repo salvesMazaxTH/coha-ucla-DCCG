@@ -1,0 +1,29 @@
+{
+  "name": "Tullio Chamarisco",
+  "set": "set2",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "dragonoide",
+    "dragao"
+  ],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 1,
+  "atk": 1,
+  "hp": 2,
+  "keywords": [],
+  "art": "furia/tullio_chamarisco.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "search_deck",
+      "target": "none",
+      "top": 4,
+      "species": "dragonoide"
+    }
+  ],
+  "text": "Ao Entrar: você olha as 4 cartas do topo do seu deck e pega 1 Dragonoide entre elas; as outras vão para o fundo.",
+  "flavor": "Assobia pra chamar a família. A família sempre aparece, nunca na hora.",
+  "tags": []
+}

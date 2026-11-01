@@ -191,7 +191,7 @@ func _draw() -> void:
 	draw_rect(Rect2(16, 14, 4, 26), accent)
 	var title_font := UITheme.font("title_bold")
 	draw_string(title_font, Vector2(28, 35), String(entry.get("label", "EVENTO")), HORIZONTAL_ALIGNMENT_LEFT, -1, 20, accent)
-	var who := "TURNO %d" % int(entry.get("turn", 0))
+	var who := "TURNO"
 	if String(entry.get("actor_name", "")) != "":
 		who += "  ·  " + String(entry["actor_name"]).to_upper()
 	var who_width := title_font.get_string_size(who, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x

@@ -243,7 +243,10 @@ func _log_event(e: Dictionary) -> void:
 			else:
 				_log("%s recuperou %d de Vida" % [_chronicle_name_for_uid(int(e["uid"])), int(e["amount"])])
 		"damage":
-			_log("%s sofreu %d de dano" % [_chronicle_name_for_uid(int(e["uid"])), int(e["amount"])])
+			if e.get("paid", false):
+				_log("%s pagou %d de Vida" % [_chronicle_name_for_uid(int(e["uid"])), int(e["amount"])]) # a cost (Peso dos Séculos), not a hit
+			else:
+				_log("%s sofreu %d de dano" % [_chronicle_name_for_uid(int(e["uid"])), int(e["amount"])])
 		"death":
 			_log("%s morreu" % (_cname(String(e["card_id"])) if e.get("card_id", "") != "" else _chronicle_name_for_uid(int(e.get("uid", 0)))))
 		"leader_executed":
@@ -254,7 +257,7 @@ func _log_event(e: Dictionary) -> void:
 		"fatigue":
 			_log("%s: fadiga %d" % [_pname(e["player"]), e["amount"]])
 		"start_turn":
-			_log("— Turno %d: %s —" % [e["turn"], _pname(e["player"])])
+			_log("— Turno de %s —" % _pname(e["player"]))
 			if int(e["turn"]) == 1:
 				host._first_banner(e["player"])
 		"extra_turn_promised":

@@ -193,11 +193,13 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"leader_veneno_held_until": 0, # while turn <= this, this Leader's Veneno markers hurt but are not consumed (Antídoto Fora de Estoque)
 		"frozen_slots": 0, # Rei Gelado: empty field slots of this player that accept no permanent
 		"frozen_slots_until": 0, # they thaw at the end of this player's own turn, once the turn counter reaches this
+		"own_turns_started": 0, # how many turns this player has started so far (extra turns included); the global `turn` counts both players
 		"extra_turns_taken": 0, # how many extra turns this player has already been given in the whole game
 		"extra_turn_pending": false, # an extra turn was promised: it starts as soon as the current turn finishes
 		"in_extra_turn": false, # the turn being played right now IS an extra turn: it can never promise another one in a row
 		"extra_turn_draws": true, # whether that extra turn begins with the normal card draw
 		"relic_fall_turns": {}, # card_id -> turn in which the last copy of that free-standing artifact left this player's field (Erguer o Baluarte lockout)
+		"play_discount": {}, # {card_filter, divisor, until_turn}: this turn, ONE matching hand card costs 1/divisor of its printed cost (Sengoku, Peso dos Séculos); spent when a card is played
 	}
 
 func _uid() -> int:
@@ -929,8 +931,18 @@ func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 		# the amulets' own "min_cost" floor never raises a spell that was already cheaper than it
 		floor_cost = maxi(floor_cost, mini(ice_spell_discount_floor(p, cd), c))
 	c -= amulet_discount
+	if card != null and card.zone == "hand" and play_discount_applies(p, card):
+		# Peso dos Séculos: the offer replaces the price (printed cost divided and rounded UP, so the reduction itself is rounded down), it is not a stacking discount
+		c = mini(c, ceili(float(cd["cost"]) / int(players[p]["play_discount"]["divisor"])))
 	var requiem_extra := REQUIEM_EXTRA_COST if card != null and card.zone == "graveyard" else 0
 	return maxi(c, floor_cost) + requiem_extra
+
+## True when the one-card offer of grant_play_discount is live this turn and this hand card matches its filter.
+func play_discount_applies(p: int, card: Card) -> bool:
+	var offer: Dictionary = players[p]["play_discount"]
+	if offer.is_empty() or int(offer["until_turn"]) != turn:
+		return false
+	return CardFilter.matches(card.card_id, offer["card_filter"])
 
 ## Sets the Bola de Neve level of player p. When the level crosses into Grande (from below
 ## SNOWBALL_GRANDE_AT to at or above it) every Bola de Neve card of p evolves into a Grande Bola de Neve,
@@ -1401,11 +1413,38 @@ func can_use_ability(p: int, allow_unreachable := false) -> bool:
 		return false
 	if ab.get("blocked_after_debt", false) and players[p].get("paid_debt_this_turn", false):
 		return false # the loan was just repaid this turn: no borrowing again right away
+	if ability_life_cost(p, ab) >= int(players[p]["leader_hp"]):
+		return false # a Leader never pays an ability with their last Vida
 	for effect in EffectRegistry.parse_list(ab["effects"]):
 		if effect is PutArtifactEffect and not effect.can_put(self, p):
 			return false # the artifact is already out (or there is no free slot): the ability would do nothing
+		if effect is GrantPlayDiscountEffect and not _has_playable_with_discount(p, effect):
+			return false # no card in hand could use the offer, so paying for it would be a waste
 	var spec := target_spec(ab["effects"])
 	return spec == "" or not valid_targets(p, spec, 0, false, ab["effects"]).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec))
+
+## The Vida a Leader ability costs p on top of its Momentum: {"life_cost": {"start": S, "increase_per_own_turn": K}}
+## = S on p's first turn, then K more with every further turn of p's own (Sengoku, Peso dos Séculos: cheap early,
+## ruinous late). The opponent's turns never count. 0 when the ability has no life_cost.
+func ability_life_cost(p: int, ab: Dictionary) -> int:
+	var life_cost: Dictionary = ab.get("life_cost", {})
+	if life_cost.is_empty():
+		return 0
+	var later_own_turns := maxi(int(players[p]["own_turns_started"]) - 1, 0)
+	return int(life_cost.get("start", 0)) + int(life_cost.get("increase_per_own_turn", 0)) * later_own_turns
+
+## True when some card in p's hand could be played right now if the offer of `effect` (grant_play_discount) were
+## live: it matches the filter and p can afford and place it. The offer is only borrowed for the check.
+func _has_playable_with_discount(p: int, effect: GrantPlayDiscountEffect) -> bool:
+	var previous_offer: Dictionary = players[p]["play_discount"]
+	players[p]["play_discount"] = {"card_filter": effect.card_filter, "divisor": effect.divisor, "until_turn": turn}
+	var found := false
+	for card: Card in players[p]["hand"]:
+		if play_discount_applies(p, card) and can_play(p, card.uid):
+			found = true
+			break
+	players[p]["play_discount"] = previous_offer
+	return found
 
 ## Ao Ativar on a unit or free-standing artifact (`activated`: cost, speed, effects, once_per_turn, exhaust):
 ## paid like an ability (Reserva counts) and put on the stack, so it can be answered and countered.
@@ -1630,6 +1669,8 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 	var discount_amulets := _applicable_discount_equipment(p, cd) # read before paying: the discount is for the first spell only
 	var paid_cost := cost_of(p, cd, inst) + (counter_extra(cd, target) if spec == "enemy_stack" else 0)
 	_pay(p, paid_cost, _reserve_pays_card(cd))
+	if inst.zone == "hand" and play_discount_applies(p, inst):
+		players[p]["play_discount"] = {} # the one-card offer is spent
 	if not discount_amulets.is_empty():
 		pl["ice_spell_discount_used"] = true
 		# each amulet whose discount was used loses its Durability cost (its own "durability_cost" in the spell_discount rule)
@@ -1815,6 +1856,11 @@ func use_ability(p: int, target: int = 0) -> Array:
 	if spec != "" and not valid_targets(p, spec, 0, false, ab["effects"]).has(target):
 		return []
 	_pay(p, int(ab["cost"]), reserve_pays(ab))
+	var life_cost := ability_life_cost(p, ab)
+	if life_cost > 0:
+		players[p]["leader_hp"] -= life_cost
+		# same event as a hit, so the screen and the Chronicle show the Vida the Leader paid
+		_emit({"type": "damage", "uid": LEADER_UID[p], "amount": life_cost, "src": 0, "hp_after": players[p]["leader_hp"], "paid": true})
 	players[p]["ability_used"] = true
 	_emit({"type": "ability", "player": p, "target": target})
 	stack_system().push(p, "ability", 0, "", target, speed_of(ab))
@@ -3675,6 +3721,7 @@ func _start_turn(p: int, draw: bool) -> void:
 	turn += 1
 	phase = "main"
 	var pl: Dictionary = players[p]
+	pl["own_turns_started"] += 1
 	# a new round begins for p: what was healed/dealt since their previous turn started becomes "last round"
 	pl["healing_last_round"] = int(pl["healing_this_round"])
 	pl["healing_this_round"] = 0

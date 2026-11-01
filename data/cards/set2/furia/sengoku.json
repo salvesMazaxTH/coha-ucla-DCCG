@@ -1,0 +1,43 @@
+{
+  "name": "Sengoku",
+  "set": "set2",
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "dragonoide",
+    "dragao"
+  ],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 5,
+  "atk": 5,
+  "hp": 6,
+  "keywords": [
+    "regeneracao"
+  ],
+  "art": "furia/sengoku.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "discount_hand",
+      "target": "none",
+      "amount": 1,
+      "card_filter": {
+        "species": "dragonoide"
+      }
+    },
+    {
+      "trigger": "constante",
+      "action": "species_aura",
+      "species": [
+        "dragonoide",
+        "dragao"
+      ],
+      "atk": 1,
+      "hp": 1
+    }
+  ],
+  "text": "Ao Entrar: reduz em (1) o custo dos Dragonoides na sua mão.\nConstante: seus outros Dragonoides e Dragões têm +1/+1.",
+  "flavor": "Já perdeu a conta dos anos. O peso, esse, nunca perdeu a conta dele.",
+  "tags": []
+}

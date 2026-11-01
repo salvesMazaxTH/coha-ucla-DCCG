@@ -1,0 +1,33 @@
+{
+  "name": "Kyle Fumacinha",
+  "set": "set2",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "dragonoide",
+    "dragao"
+  ],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 2,
+  "atk": 1,
+  "hp": 3,
+  "keywords": [
+    "provocacao"
+  ],
+  "art": "furia/kyle_fumacinha.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "other_ally_units",
+      "only_species": [
+        "dragonoide"
+      ],
+      "hp": 1
+    }
+  ],
+  "text": "Ao Entrar: concede +1 de Vida permanente aos seus outros Dragonoides.",
+  "flavor": "Cola no Ronan no recreio e jura que é só coincidência o cheiro de queimado.",
+  "tags": []
+}
