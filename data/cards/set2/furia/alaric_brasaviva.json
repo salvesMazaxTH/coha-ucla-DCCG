@@ -1,0 +1,28 @@
+{
+  "name": "Alaric Brasaviva",
+  "set": "set2",
+  "type": "unit",
+  "rarity": "common",
+  "species": [
+    "dragonoide",
+    "dragao"
+  ],
+  "essence": "furia",
+  "element": "fogo",
+  "cost": 4,
+  "atk": 3,
+  "hp": 3,
+  "keywords": [],
+  "art": "furia/alaric_brasaviva.webp",
+  "effects": [
+    {
+      "trigger": "on_death",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 3
+    }
+  ],
+  "text": "Ao Morrer: causa 3 de dano ao Líder inimigo.",
+  "flavor": "Esperou a noite toda por um lanche que esfriou. Ele, não.",
+  "tags": []
+}

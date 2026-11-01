@@ -630,13 +630,10 @@ static func ability_panel(ab: Dictionary, col: Color, uses_spent := -1, life_cos
 	box.add_child(rule)
 
 	var body: String = ab["text"]
-	for lead in [r"^(Lenta|Rápida|Instantânea|Passiva)\.\s*", r"^\d+ Momentum, uma vez por turno:\s*", r"^\d+ Momentum:\s*", r"^Paga [^:]*, uma vez por turno:\s*"]:
+	for lead in [r"^(Lenta|Rápida|Instantânea|Passiva)\.\s*", r"^\d+ Momentum, uma vez por turno:\s*", r"^\d+ Momentum:\s*", r"^Paga [^:]*, uma vez por turno:\s*", r"^Uma vez por turno:\s*"]:
 		body = RegEx.create_from_string(lead).sub(body, "")
 	if body != "":
 		body = body.substr(0, 1).to_upper() + body.substr(1)
-	# a Vida cost that grows during the match (Sengoku) closes its text with the value it has right now, like Drex's X
-	if life_cost_now >= 0 and body.contains("X"):
-		body += " (X agora: %d)" % life_cost_now
 	var rt := RichTextLabel.new()
 	rt.bbcode_enabled = true
 	rt.fit_content = true

@@ -60,6 +60,7 @@ func _init() -> void:
 	_test_ai_spell_preview()
 	_test_ai_equipment_targets()
 	_test_sengoku_leader()
+	_test_sengoku_discount_current_cost()
 	_test_jardim_do_avo()
 	_test_sengoku_deck_cards()
 	_test_obscura_rules()
@@ -3198,6 +3199,12 @@ func _test_sengoku_leader() -> void:
 	check(_hand_cost(g2, unused_uid) == int(CardDB.card("ronan")["cost"]), "sengoku: oferta não usada expira no fim do turno")
 	# the cost follows the owner's OWN turns: the opponent's turn changes nothing, the owner's next turn adds 2
 	var sengoku_ability: Dictionary = CardDB.leader("sengoku")["ability"]
+	var ability_panel := LeaderView.ability_panel(sengoku_ability, Color.WHITE, -1, 4)
+	var ability_text := ability_panel.get_child(3) as RichTextLabel
+	var expected_text := "Seu Líder paga X de Vida. Neste turno, seu próximo Dragonoide de custo base até (6) na mão custa metade do custo atual (arredondado para cima). X começa em 2 e aumenta 2 por turno seu."
+	check(ability_text.text == CardView.colorize_rules(expected_text, 21), "sengoku: texto da habilidade explica o custo de Vida sem repetir informações dos selos")
+	check(LeaderView._life_cost_chip_text(sengoku_ability["life_cost"], 4) == "4 VIDA", "sengoku: selo mostra o custo atual de Vida")
+	ability_panel.free()
 	check(g2.ability_life_cost(0, sengoku_ability) == 2, "sengoku: o turno do oponente não aumenta o custo")
 	g2.end_turn(1)
 	check(g2.ability_life_cost(0, sengoku_ability) == 4, "sengoku: cada turno seu soma 2 ao custo")
@@ -3210,6 +3217,81 @@ func _test_sengoku_leader() -> void:
 	_give(g3, 0, "ronan")
 	g3.players[0]["leader_hp"] = g3.ability_life_cost(0, CardDB.leader("sengoku")["ability"])
 	check(not g3.can_use_ability(0), "sengoku: Vida igual ao custo, a habilidade é bloqueada")
+
+func _test_sengoku_discount_current_cost() -> void:
+	var g := GameState.new("sengoku", "agua", 42)
+	g.mulligan(0, [])
+	g.mulligan(1, [])
+	g.self_response_enabled = false
+	g.players[0]["hand"].clear()
+	var brasilio_uid := _give(g, 0, "brasilio_cinzeiro")
+	var jardim := Card.new(g._uid(), "jardim_do_avo", 0, "relics")
+	g.players[0]["relics"].append(jardim)
+	g.end_turn(0)
+	g.end_turn(1)
+	check(_hand_cost(g, brasilio_uid) == 4, "sengoku: Jardim reduz o custo base 5 de Brasílio para 4")
+	g.players[0]["momentum"] = 2
+	check(g.can_use_ability(0), "sengoku: pode ativar quando só o desconto sobre o custo atual torna a carta jogável")
+	var life_before: int = g.players[0]["leader_hp"]
+	g.use_ability(0, 0)
+	g.pass_priority(1)
+	check(g.players[0]["leader_hp"] == life_before - 4, "sengoku: paga a Vida ao ativar após Jardim")
+	check(_hand_cost(g, brasilio_uid) == 2, "sengoku: custo atual 4 é reduzido para 2, não para metade do custo base 5")
+	var play_events := g.play_card(0, brasilio_uid)
+	var play_events_for_card := play_events.filter(func(e): return e["type"] == "play" and e["uid"] == brasilio_uid)
+	check(play_events_for_card.size() == 1 and int(play_events_for_card[0]["cost"]) == 2, "sengoku: paga o custo atual reduzido ao jogar")
+	check(g.players[0]["play_discount"].is_empty(), "sengoku: jogar a carta consome a oferta")
+
+	_tcard("t_sengoku_cost", 1, 1, [])
+	var cd: Dictionary = CardDB.data()["cards"]["t_sengoku_cost"]
+	cd["species"] = ["dragonoide"]
+	cd["cost"] = 6
+	g = _new_game()
+	g.players[0]["hand"].clear()
+	var uid := _give(g, 0, "t_sengoku_cost")
+	var card: Card = g._hand_card(0, uid)
+	g.players[0]["play_discount"] = {"card_filter": {"species": "dragonoide", "max_cost": 6}, "divisor": 2, "until_turn": g.turn}
+	card.discount = 1
+	check(_hand_cost(g, uid) == 3, "sengoku: custo atual ímpar 5 é arredondado para 3")
+	card.turn_discount = 1
+	check(_hand_cost(g, uid) == 2, "sengoku: considera reduções permanentes e do turno")
+	card.cost_mod = 4
+	check(_hand_cost(g, uid) == 4, "sengoku: considera também aumentos no custo atual")
+	card.cost_mod = -10
+	check(_hand_cost(g, uid) == 0, "sengoku: custo atual não fica negativo")
+	card.discount = 0
+	card.turn_discount = 0
+	card.cost_mod = 0
+	cd["effects"] = [{"action": "cost_reduction", "per": "idle_turns", "amount": 2, "min_cost": 3}]
+	g.players[0]["idle_turns"] = 2
+	check(_hand_cost(g, uid) == 2, "sengoku: divide o custo atual após aplicar o mínimo da redução anterior")
+	cd["cost"] = 7
+	check(not g.play_discount_applies(0, card) and _hand_cost(g, uid) == 3, "sengoku: limite de 6 continua usando o custo base mesmo após redução")
+
+	_tcard("t_sengoku_subito_trigger", 1, 1, [])
+	_tcard("t_sengoku_subito", 1, 1, [])
+	var sub_data: Dictionary = CardDB.data()["cards"]["t_sengoku_subito"]
+	sub_data["species"] = ["dragonoide"]
+	sub_data["cost"] = 4
+	sub_data["subito"] = 6
+	for fixed in [false, true]:
+		sub_data["subito_fixed"] = fixed
+		g = _new_game()
+		_quiet(g)
+		g.players[1]["hand"].clear()
+		g.players[0]["momentum"] = 1
+		g.players[1]["momentum"] = 6
+		var sub_uid := _give(g, 1, "t_sengoku_subito")
+		var sub_card: Card = g._hand_card(1, sub_uid)
+		sub_card.discount = 1
+		g.players[1]["play_discount"] = {"card_filter": {"species": "dragonoide", "max_cost": 6}, "divisor": 2, "until_turn": g.turn}
+		g.play_card(0, _give(g, 0, "t_sengoku_subito_trigger"))
+		check(g.can_play(1, sub_uid), "sengoku: Súbito pode ser jogado na janela de resposta")
+		var sub_events := g.play_card(1, sub_uid)
+		var sub_plays := sub_events.filter(func(e): return e["type"] == "play" and e["uid"] == sub_uid)
+		var expected_cost := 6 if fixed else 4
+		check(sub_plays.size() == 1 and int(sub_plays[0]["cost"]) == expected_cost, "sengoku: Súbito paga o custo correto")
+		check(g.players[1]["play_discount"].is_empty() != fixed, "sengoku: Súbito consome a oferta apenas quando usa o desconto")
 
 func _test_jardim_do_avo() -> void:
 	# Jardim do Avô: a Local that, at the start of its owner's turn, cheapens the Dragonoides in hand by 1 and then destroys itself

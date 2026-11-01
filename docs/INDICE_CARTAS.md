@@ -450,12 +450,13 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `zaza_fuzue` | Zazá Fuzuê | Lendária | Unidade | 4 |
 | `zeladora_shhh` | Zeladora Shhh | Comum | Unidade | 4 |
 
-## Set 2 (16 cartas)
+## Set 2 (17 cartas)
 
-### Fúria (16)
+### Fúria (17)
 
 | ID | Nome | Raridade | Tipo | Custo |
 |---|---|---|---|---|
+| `alaric_brasaviva` | Alaric Brasaviva | Comum | Unidade | 4 |
 | `almoco_de_domingo` | Almoço de Domingo | Comum | Feitiço | 2 |
 | `brasilio_cinzeiro` | Brasílio Cinzeiro | Comum | Unidade | 5 |
 | `bronca_do_avo` | Bronca do Avô | Comum | Feitiço | 2 |

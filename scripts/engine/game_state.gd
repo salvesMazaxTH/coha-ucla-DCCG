@@ -199,7 +199,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"in_extra_turn": false, # the turn being played right now IS an extra turn: it can never promise another one in a row
 		"extra_turn_draws": true, # whether that extra turn begins with the normal card draw
 		"relic_fall_turns": {}, # card_id -> turn in which the last copy of that free-standing artifact left this player's field (Erguer o Baluarte lockout)
-		"play_discount": {}, # {card_filter, divisor, until_turn}: this turn, ONE matching hand card costs 1/divisor of its printed cost (Sengoku, Peso dos Séculos); spent when a card is played
+		"play_discount": {}, # {card_filter, divisor, until_turn}: this turn, ONE matching hand card costs 1/divisor of its current cost; spent when a card is played
 	}
 
 func _uid() -> int:
@@ -931,11 +931,11 @@ func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 		# the amulets' own "min_cost" floor never raises a spell that was already cheaper than it
 		floor_cost = maxi(floor_cost, mini(ice_spell_discount_floor(p, cd), c))
 	c -= amulet_discount
+	c = maxi(c, floor_cost)
 	if card != null and card.zone == "hand" and play_discount_applies(p, card):
-		# Peso dos Séculos: the offer replaces the price (printed cost divided and rounded UP, so the reduction itself is rounded down), it is not a stacking discount
-		c = mini(c, ceili(float(cd["cost"]) / int(players[p]["play_discount"]["divisor"])))
+		c = ceili(float(c) / int(players[p]["play_discount"]["divisor"]))
 	var requiem_extra := REQUIEM_EXTRA_COST if card != null and card.zone == "graveyard" else 0
-	return maxi(c, floor_cost) + requiem_extra
+	return c + requiem_extra
 
 ## True when the one-card offer of grant_play_discount is live this turn and this hand card matches its filter.
 func play_discount_applies(p: int, card: Card) -> bool:
@@ -1741,6 +1741,8 @@ func _pay_extra_cost(extra_cost: Dictionary, payer_uid: int) -> void:
 func _play_subito(p: int, inst: Card, cd: Dictionary, slot: int, banish_uid := 0) -> Array:
 	var paid_cost := subito_cost(p, cd, inst)
 	_pay(p, paid_cost, true) # Súbito is Rápido
+	if not cd.get("subito_fixed", false) and play_discount_applies(p, inst):
+		players[p]["play_discount"] = {}
 	players[p]["hand"].erase(inst)
 	_note_card_played_for_rusco(p, cd)
 	_move(inst, "")

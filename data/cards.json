@@ -443,7 +443,7 @@
             }
           }
         ],
-        "text": "Lenta. Paga X de Vida, uma vez por turno: neste turno, um Dragonoide de custo (6) ou menos na sua mão custa metade do preço (a redução é arredondada para baixo) para ser jogado. X começa em 2 e aumenta 2 a cada turno seu."
+        "text": "Lenta. Uma vez por turno: seu Líder paga X de Vida. Neste turno, seu próximo Dragonoide de custo base até (6) na mão custa metade do custo atual (arredondado para cima). X começa em 2 e aumenta 2 por turno seu."
       },
       "essences": ["furia"]
     },
