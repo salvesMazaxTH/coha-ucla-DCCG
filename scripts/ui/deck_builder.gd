@@ -112,7 +112,7 @@ func _ready() -> void:
 	toast_margin.add_child(_toast_layer)
 
 	for card_id in CardDB.data()["cards"]:
-		if DeckDB.is_deckable(String(card_id)) or CardDB.is_leader_card(String(card_id)):
+		if DeckDB.is_card_visible(String(card_id)) and (DeckDB.is_deckable(String(card_id)) or CardDB.is_leader_card(String(card_id))):
 			_pool.append(String(card_id))
 	store = DeckStore.new()
 	store.name = "DeckStore"
@@ -330,7 +330,7 @@ func _pick_leader(title: String, with_templates: bool, on_pick: Callable, on_can
 		template_flow.add_theme_constant_override("v_separation", 10)
 		template_flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		inner.add_child(template_flow)
-		for deck_id in DeckDB.ids():
+		for deck_id in DeckDB.available_ids():
 			var template: Dictionary = DeckDB.get_deck(deck_id)
 			var template_button := _btn(String(template["name"]), func():
 				_close_modal()

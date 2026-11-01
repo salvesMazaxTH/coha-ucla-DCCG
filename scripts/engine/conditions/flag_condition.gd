@@ -1,8 +1,8 @@
 class_name FlagCondition
 extends Condition
-## The simple string conditions: "if": "momentum_left" | "unspent_momentum" | "momentum_leaked" | "reserve_full" | "played_two" | "oldest_of_its_name" | "no_snowball_in_hand_or_deck" | "gained_momentum_this_turn" | "lethal_attack".
+## The simple string conditions: "if": "momentum_left" | "unspent_momentum" | "momentum_leaked" | "reserve_full" | "played_two" | "oldest_of_its_name" | "no_snowball_in_hand_or_deck" | "gained_momentum_this_turn" | "lethal_attack" | "no_stunned_enemy".
 
-const NAMES := ["momentum_left", "unspent_momentum", "momentum_leaked", "reserve_full", "played_two", "oldest_of_its_name", "no_snowball_in_hand_or_deck", "gained_momentum_this_turn", "lethal_attack"]
+const NAMES := ["momentum_left", "unspent_momentum", "momentum_leaked", "reserve_full", "played_two", "oldest_of_its_name", "no_snowball_in_hand_or_deck", "gained_momentum_this_turn", "lethal_attack", "no_stunned_enemy"]
 
 var name := ""
 
@@ -21,9 +21,16 @@ func check(context: EffectContext) -> bool:
 		# an effect really raised Momentum earlier this turn (a refresh counts; the turn-start Momentum does not)
 		"gained_momentum_this_turn": return player["momentum_gain_turn"] == context.game.turn
 		"lethal_attack": return _attack_is_lethal(context)
+		"no_stunned_enemy": return not _enemy_has_stunned_unit(context)
 		"no_snowball_in_hand_or_deck":
 			return not _has_snowball(player["hand"]) and not _has_snowball(player["deck"])
 	return true
+
+func _enemy_has_stunned_unit(context: EffectContext) -> bool:
+	for unit: Card in context.game.players[context.opponent()]["board"]:
+		if unit.is_stunned():
+			return true
+	return false
 
 func _has_snowball(cards: Array) -> bool:
 	for card: Card in cards:

@@ -65,6 +65,24 @@ static func ids() -> Array[String]:
 	_load()
 	return _ids.duplicate()
 
+static func development_mode_enabled() -> bool:
+	return OS.get_cmdline_user_args().has("--dev")
+
+static func is_card_visible(card_id: String) -> bool:
+	return development_mode_enabled() or not bool(CardDB.card(card_id).get("unreleased", false))
+
+static func is_deck_visible(deck_id: String) -> bool:
+	if not has(deck_id):
+		return false
+	return development_mode_enabled() or not bool(get_deck(deck_id).get("unreleased", false))
+
+static func available_ids() -> Array[String]:
+	var available: Array[String] = []
+	for deck_id in ids():
+		if is_deck_visible(deck_id):
+			available.append(deck_id)
+	return available
+
 ## Which hub section a deck belongs to: "essencia" (the default: ESSENCIAIS, exactly one prebuilt deck
 ## per Leader) or "meus" (the player's own decks).
 static func section_of(id: String) -> String:

@@ -227,7 +227,7 @@ func _is_phone() -> bool:
 	return OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios") 			or (OS.has_feature("web") and DisplayServer.is_touchscreen_available())
 
 func _ready() -> void:
-	dev_mode_enabled = OS.get_cmdline_user_args().has("--dev")
+	dev_mode_enabled = DeckDB.development_mode_enabled()
 	# Main covers the whole stage: with the default STOP filter it swallowed every press on empty
 	# table, so `_unhandled_input` (tap outside / right click cancels an aim) never saw it
 	mouse_filter = Control.MOUSE_FILTER_PASS
@@ -717,8 +717,12 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 	_hub_args = [ai, msg, choosing_ai_deck]
 	_refresh_player_decks()
 	# prebuilt decks first, then the player's own (the third section), so the default pick is always a prebuilt deck
-	var ids: Array[String] = DeckDB.ids()
+	var ids: Array[String] = DeckDB.available_ids()
 	ids.append_array(DeckDB.custom_ids(DeckDB.PLAYER_PREFIX))
+	if ids.is_empty():
+		_toast("Nenhum deck disponível neste modo.")
+		_show_menu()
+		return
 	if not ids.has(sel_deck):
 		sel_deck = ids[0]
 	if ai_deck != "" and not ids.has(ai_deck):

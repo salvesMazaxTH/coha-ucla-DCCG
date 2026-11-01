@@ -62,6 +62,8 @@ func _build_facets() -> void:
 	for facet in FACETS:
 		facet_values[facet["id"]] = {}
 	for card_id in CardDB.data()["cards"]:
+		if not DeckDB.is_card_visible(String(card_id)):
+			continue
 		var cd: Dictionary = CardDB.card(card_id)
 		for facet in FACETS:
 			for value in values_for(cd, facet["id"]):
@@ -79,6 +81,8 @@ func filtered_ids(pool: Array) -> Array[String]:
 	return ids
 
 func matches(card_id: String) -> bool:
+	if not DeckDB.is_card_visible(card_id):
+		return false
 	var cd: Dictionary = CardDB.card(card_id)
 	var needle := query.strip_edges().to_lower()
 	if needle != "" and not search_text(card_id, cd).to_lower().contains(needle):

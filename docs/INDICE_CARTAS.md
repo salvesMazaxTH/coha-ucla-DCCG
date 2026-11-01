@@ -450,7 +450,7 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `zaza_fuzue` | Zazá Fuzuê | Lendária | Unidade | 4 |
 | `zeladora_shhh` | Zeladora Shhh | Comum | Unidade | 4 |
 
-## Set 2: Nuliterra (2026) (18 cartas)
+## Set 2: Nuliterra (2026) (33 cartas)
 
 ### Fúria (18)
 
@@ -474,3 +474,23 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `seu_odorico_cinzento` | Seu Odorico Cinzento | Épica | Unidade | 5 |
 | `sopra_brasas` | Sopra-Brasas | Comum | Unidade | 3 |
 | `tullio_chamarisco` | Tullio Chamarisco | Comum | Unidade | 1 |
+
+### Tormenta (15)
+
+| ID | Nome | Raridade | Tipo | Custo |
+|---|---|---|---|---|
+| `apagao_no_quarteirao` | Apagão no Quarteirão | Comum | Feitiço | 3 |
+| `cadete_ganha_medalha` | Cadete Ganha-Medalha | Comum | Unidade | 3 |
+| `cumulonimbra` | Cumulonimbra | Lendária | Unidade | 6 |
+| `hildegard_voltmann` | Hildegard Voltmann | Épica | Unidade | 6 |
+| `jack_veyr` | Jack Veyr | Campeã | Unidade | 4 |
+| `kira_ventomarcha` | Kira Ventomarcha | Épica | Unidade | 4 |
+| `layla_veyr` | Layla Veyr | Campeã | Unidade | 5 |
+| `luca_puxapilha` | Luca Puxapilha | Épica | Unidade | 3 |
+| `molly_piscaluz` | Molly Piscaluz | Comum | Unidade | 1 |
+| `orvald_rasgaceu` | Orvald Rasgacéu | Épica | Unidade | 5 |
+| `pico_de_corrente` | Pico de Corrente | Comum | Feitiço | 1 |
+| `randy_cassetete` | Randy Cassetete | Épica | Unidade | 3 |
+| `repique_da_queda` | Repique da Queda | Comum | Feitiço | 3 |
+| `tranco_eletrico` | Tranco Elétrico | Comum | Feitiço | 2 |
+| `wendy_pingo_curto` | Wendy Pingo-Curto | Comum | Unidade | 1 |

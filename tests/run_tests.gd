@@ -101,6 +101,7 @@ func _init() -> void:
 	_test_hulglack_death_freeze()
 	_test_venenosa_deck()
 	_test_drex_deck()
+	_test_layla_deck()
 	_test_hikari_decoy()
 	_test_dot_immunity()
 	_test_provocacao()
@@ -185,6 +186,8 @@ func _test_card_sets() -> void:
 	check(sets.has("1") and sets.has("2"), "sets: os sets 1 e 2 cadastrados (por número) em data/cards.json")
 	check(CardDB.set_full_name(2) == "Nuliterra (2026)", "sets: o nome completo do set 2 vem do registro")
 	check(CardDB.set_numbers() == [1, 2], "sets: set_numbers lista os números em ordem")
+	check(CardDB.set_abbreviation(1) == "ORI" and CardDB.set_abbreviation(2) == "NUL",
+			"sets: a abreviação usa as três primeiras letras do nome")
 	for set_key in sets:
 		check(str(int(set_key)) == set_key, "set %s: a chave do registro precisa ser só o número" % set_key)
 		check(String(sets[set_key].get("name", "")) != "", "set %s: precisa de name" % set_key)
@@ -3932,6 +3935,7 @@ func _test_overlay_keyword_immunities() -> void:
 	var burn_overlay := CardOverlay.describe("irina_lancachamas", {}, -1, "", GameState.SNOWBALL_BASE_LEVEL)
 	var poison_overlay := CardOverlay.describe("cicuta_no_cha", {}, -1, "", GameState.SNOWBALL_BASE_LEVEL)
 	var equipment_overlay := CardOverlay.describe("manoplas_incandescentes", {}, -1, "", GameState.SNOWBALL_BASE_LEVEL)
+	var set2_overlay := CardOverlay.describe("randy_cassetete", {}, -1, "", GameState.SNOWBALL_BASE_LEVEL)
 	check(freeze_overlay.contains("Congelar[/b]") and freeze_overlay.contains("Unidades de Gelo têm imunidade inata ao "),
 			"overlay: a menção a Congele explica Congelar e a imunidade de Gelo")
 	check(frozen_overlay.contains("Congelar[/b]"), "overlay: a menção a Congelada também explica Congelar")
@@ -3942,6 +3946,8 @@ func _test_overlay_keyword_immunities() -> void:
 	check(equipment_overlay.contains("Regra inata:") and equipment_overlay.contains("Uma unidade só pode ter um Equipamento por vez")
 			and equipment_overlay.contains("o anterior volta para a mão do dono"),
 			"overlay: equipamento explica a regra inata de um equipamento por unidade")
+	check(set2_overlay.ends_with("[right][font_size=20][color=#888888]002/NUL[/color][/font_size][/right]"),
+			"overlay: número e abreviação do set aparecem depois de todo o texto")
 
 func _test_burn() -> void:
 	# Queimadura accumulates, uses its periodic-damage rule at the controller's turn start, then clears.
@@ -4758,6 +4764,142 @@ func _test_hikari_decoy() -> void:
 	var tapper: Effect = EffectRegistry.parse_list([{"action": "exhaust", "target": "enemy_unit"}])[0]
 	tapper.apply(EffectContext.new(g, 1, ""), token.uid)
 	check(not token.exhausted, "Decoy: inerte, nem efeito consegue virá-lo")
+
+## The Layla deck: Layla Veyr is the Leader's Encarnação through the card's "identity" field (the set 1 Layla stays a
+## normal card), the Leader ability hits harder on a stunned unit, and the damage cards that care about Atordoamento.
+func _test_layla_deck() -> void:
+	check(DeckDB.validate("layla").is_empty(), "deck Layla é legal: %s" % [DeckDB.validate("layla")])
+	check(CardDB.leader("layla")["incarnation"] == "layla_veyr", "Layla: a Encarnação do Líder é a Layla Veyr")
+	check(CardDB.is_incarnation_option("layla", "layla_veyr") and CardDB.is_incarnation_option("layla", "layla"), "Layla: Layla Veyr (identity) e a Layla do set 1 (nome) são opções de Encarnação")
+	check(not CardDB.is_incarnation_option("drex", "layla_veyr"), "identity: Layla Veyr não é Encarnação de outro Líder")
+	check(DeckDB.is_deckable("layla", "layla") and DeckDB.copy_limit("layla") >= 1, "Layla: a do set 1 continua entrando no deck do Líder Layla")
+
+	# Leader ability: 1 damage, 2 on a stunned unit
+	var g := GameState.new("layla", "agua", 42)
+	g.mulligan(0, [])
+	g.mulligan(1, [])
+	g.self_response_enabled = false
+	_quiet(g)
+	_tcard("t_layla_victim", 1, 9, [])
+	var plain := _put(g, 1, "t_layla_victim")
+	var stunned := _put(g, 1, "t_layla_victim")
+	g._apply_effect(0, {"action": "stun", "target": "enemy_unit"}, stunned.uid)
+	g.active = 0
+	g.priority = 0
+	g.players[0]["momentum"] = 10
+	g.players[0]["ability_used"] = false # _quiet marks it as used
+	check(g.can_use_ability(0), "Descarga Dirigida: pode ser usada com 2 de Momentum e alvo")
+	g.use_ability(0, plain.uid)
+	_resolve_stack(g)
+	check(plain.damage == 1, "Descarga Dirigida: 1 de dano numa unidade comum")
+	g.players[0]["ability_used"] = false
+	g.use_ability(0, stunned.uid)
+	_resolve_stack(g)
+	check(stunned.damage == 2, "Descarga Dirigida: 2 de dano numa unidade Atordoada")
+
+	# Cumulonimbra: 1 damage to every enemy, 3 to the stunned ones
+	g = _new_game()
+	_quiet(g)
+	_tcard("t_layla_victim", 1, 9, [])
+	var rasga_plain := _put(g, 1, "t_layla_victim")
+	var rasga_stunned := _put(g, 1, "t_layla_victim")
+	g._apply_effect(0, {"action": "stun", "target": "enemy_unit"}, rasga_stunned.uid)
+	g.players[0]["momentum"] = 10
+	g.play_card(0, _give(g, 0, "cumulonimbra"))
+	_resolve_stack(g)
+	check(rasga_plain.damage == 1 and rasga_stunned.damage == 3, "Cumulonimbra: 1 de dano em todas as inimigas, 3 nas Atordoadas")
+
+	# Apagão no Quarteirão: 1 stun marker on up to 3 different random enemy units
+	g = _new_game()
+	_quiet(g)
+	_tcard("t_layla_victim", 1, 9, [])
+	var apagao_victims: Array = []
+	for victim_index in 4:
+		apagao_victims.append(_put(g, 1, "t_layla_victim"))
+	g.players[0]["momentum"] = 10
+	g.play_card(0, _give(g, 0, "apagao_no_quarteirao"))
+	_resolve_stack(g)
+	var apagao_stunned := 0
+	var apagao_markers := 0
+	for apagao_victim in apagao_victims:
+		apagao_markers += apagao_victim.stun_markers
+		if apagao_victim.stun_markers > 0:
+			apagao_stunned += 1
+	check(apagao_stunned == 2 and apagao_markers == 2, "Apagão no Quarteirão: 1 marcador em 2 unidades inimigas diferentes (de 4)")
+	g = _new_game()
+	_quiet(g)
+	_tcard("t_layla_victim", 1, 9, [])
+	var apagao_lone := _put(g, 1, "t_layla_victim")
+	g.players[0]["momentum"] = 10
+	g.play_card(0, _give(g, 0, "apagao_no_quarteirao"))
+	_resolve_stack(g)
+	check(apagao_lone.stun_markers == 1, "Apagão no Quarteirão: com menos de 2 inimigas, atordoa só as que existem")
+
+	# Hildegard Voltmann: enters stunning 1 marker on up to 3 different random enemy units; only 1 copy per deck
+	g = _new_game()
+	_quiet(g)
+	_tcard("t_layla_victim", 1, 9, [])
+	var hildegard_victims: Array = []
+	for victim_index in 4:
+		hildegard_victims.append(_put(g, 1, "t_layla_victim"))
+	g.players[0]["momentum"] = 10
+	g.play_card(0, _give(g, 0, "hildegard_voltmann"))
+	_resolve_stack(g)
+	var hildegard_stunned := 0
+	for hildegard_victim in hildegard_victims:
+		if hildegard_victim.stun_markers == 1:
+			hildegard_stunned += 1
+	check(hildegard_stunned == 3, "Hildegard Voltmann: Ao Entrar atordoa 3 unidades inimigas diferentes (de 4)")
+	check(DeckDB.copy_limit("hildegard_voltmann") == 3, "Hildegard Voltmann: limite padrão de 3 cópias (o 1-of é escolha do deck)")
+
+	# Repique da Queda: 3 damage, 5 on a stunned unit
+	g = _new_game()
+	_quiet(g)
+	_tcard("t_layla_victim", 1, 9, [])
+	var repique_plain := _put(g, 1, "t_layla_victim")
+	var repique_stunned := _put(g, 1, "t_layla_victim")
+	g._apply_effect(0, {"action": "stun", "target": "enemy_unit"}, repique_stunned.uid)
+	g.players[0]["momentum"] = 10
+	_play_aimed(g, 0, "repique_da_queda", repique_plain.uid)
+	_play_aimed(g, 0, "repique_da_queda", repique_stunned.uid)
+	check(repique_plain.damage == 3 and repique_stunned.damage == 5, "Repique da Queda: 3 de dano, ou 5 se a unidade estiver Atordoada")
+
+	# Layla Veyr enters stunning the chosen enemy; each stun of an enemy in her turn stands her up and gives
+	# +2 Ataque this turn, at most twice per turn
+	g = _new_game()
+	_quiet(g)
+	_tcard("t_layla_victim", 1, 9, [])
+	var victim := _put(g, 1, "t_layla_victim")
+	var second_victim := _put(g, 1, "t_layla_victim")
+	var third_victim := _put(g, 1, "t_layla_victim")
+	g.players[0]["momentum"] = 10
+	var veyr_card := g.find_unit(_play_aimed(g, 0, "layla_veyr", victim.uid))
+	_resolve_stack(g)
+	check(victim.stun_markers == 1 and victim.damage == 0, "Layla Veyr: Ao Entrar só Atordoa, sem dano")
+	check(g.atk_of(veyr_card) == 7, "Layla Veyr: o Atordoamento do próprio Ao Entrar dá +2 de Ataque (5 + 2)")
+	veyr_card.exhausted = true
+	g._apply_effect(0, {"action": "stun", "target": "enemy_unit"}, second_victim.uid)
+	g._check_state() # the stun was applied outside a play, so its triggers still wait in the queue
+	_resolve_stack(g)
+	check(not veyr_card.exhausted and g.atk_of(veyr_card) == 9, "Layla Veyr: novo Atordoamento a desvira e dá mais +2 de Ataque")
+	veyr_card.exhausted = true
+	g._apply_effect(0, {"action": "stun", "target": "enemy_unit"}, third_victim.uid)
+	g._check_state() # the stun was applied outside a play, so its triggers still wait in the queue
+	_resolve_stack(g)
+	check(veyr_card.exhausted and g.atk_of(veyr_card) == 9, "Layla Veyr: o Condicional dispara no máximo 2x por turno")
+
+	# Jack Veyr: each stun of an enemy in his owner's turn deals 2 damage to that very unit, at most twice per turn
+	g = _new_game()
+	_quiet(g)
+	_tcard("t_layla_victim", 1, 9, [])
+	var jack_victims: Array[Card] = [_put(g, 1, "t_layla_victim"), _put(g, 1, "t_layla_victim"), _put(g, 1, "t_layla_victim")]
+	_put(g, 0, "jack_veyr")
+	for jack_victim in jack_victims:
+		g._apply_effect(0, {"action": "stun", "target": "enemy_unit"}, jack_victim.uid)
+		g._check_state() # the stun was applied outside a play, so its triggers still wait in the queue
+		_resolve_stack(g)
+	check(jack_victims[0].damage == 2 and jack_victims[1].damage == 2, "Jack Veyr: a unidade que ficou Atordoada sofre 2 de dano")
+	check(jack_victims[2].damage == 0, "Jack Veyr: só reage 2x por turno (a terceira Atordoada não sofre dano)")
 
 ## The Drex deck: heal blocks (Cancelamento do Plano de Saúde), the instant Sangramento tick (Ponto de
 ## Ruptura), the "enemy unit or Leader" target and Banquete Carmesim turning healing into damage.

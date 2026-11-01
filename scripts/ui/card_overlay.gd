@@ -178,6 +178,9 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 	var flavor := CardDB.flavor_for(cd, true)
 	if flavor != "":
 		txt += "\n[i][color=#888888]%s[/color][/i]" % flavor
+	var set_number := CardDB.set_number_of(cd)
+	txt += "\n\n[right][font_size=20][color=#888888]%03d/%s[/color][/font_size][/right]" % [
+		set_number, CardDB.set_abbreviation(set_number)]
 	return txt
 
 ## Glossary line of a keyword for this card: Esquiva explains the card's own rule (the default one,

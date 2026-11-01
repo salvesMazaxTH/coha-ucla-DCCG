@@ -363,7 +363,9 @@ static func is_leader_card(id: String) -> bool:
 	return false
 
 ## A Leader's Encarnação is a Champion or Legendary unit whose printed name is the Leader's name, optionally
-## followed by a comma and a title (e.g. "Voltexz, Raio Obliterador"). This lets future versions
+## followed by a comma and a title (e.g. "Voltexz, Raio Obliterador"). A card whose printed name does
+## not follow that pattern (e.g. "Layla Veyr" for the Leader "Layla") can still declare the character it
+## embodies with an optional "identity" field holding the Leader's name. This lets future versions
 ## of a character be chosen without classifying every Leader's card as globally undraftable.
 static func is_incarnation_option(leader_id: String, card_id: String) -> bool:
 	if not data()["leaders"].has(leader_id) or not data()["cards"].has(card_id):
@@ -373,7 +375,9 @@ static func is_incarnation_option(leader_id: String, card_id: String) -> bool:
 		return false
 	var leader_name := String(data()["leaders"][leader_id].get("name", "")).strip_edges().to_lower()
 	var card_name := String(cd.get("name", "")).strip_edges().to_lower()
-	return card_name == leader_name or card_name.begins_with(leader_name + ",")
+	var declared_identity := String(cd.get("identity", "")).strip_edges().to_lower()
+	return card_name == leader_name or card_name.begins_with(leader_name + ",") \
+			or (declared_identity != "" and declared_identity == leader_name)
 
 ## All same-entity Encarnação choices, in display-name order. The configured default should always
 ## be among these; retain it as a recovery option for older/temporarily incomplete catalogs.
@@ -406,6 +410,10 @@ static func set_number_of(cd: Dictionary) -> int:
 ## A number missing from the registry falls back to "Set <number>".
 static func set_full_name(set_number: int) -> String:
 	return String(data().get("sets", {}).get(str(set_number), {}).get("name", "Set %d" % set_number))
+
+## A short set code made from the first three letters of its registered name.
+static func set_abbreviation(set_number: int) -> String:
+	return set_full_name(set_number).get_slice(" ", 0).left(3).to_upper()
 
 ## The registered set numbers, lowest first.
 static func set_numbers() -> Array:
