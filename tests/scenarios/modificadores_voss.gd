@@ -26,7 +26,7 @@ static func setup(g: GameState) -> void:
 	_equip(g, tortoise, "manto_da_ladainha", {"armor": 1, "keywords": ["roubo_de_vida"]})
 	_equip(g, tortoise, "coracao_da_montanha", {"atk": 2, "hp": 4})
 
-	var assembler := _put(g, 0, "montadora_porca_frouxa")
+	var assembler := _put(g, 0, "gra_montadora_nina")
 	_equip(g, assembler, "cristal_do_poder", {"atk": 2})
 
 	# artefatos soltos em campo (também contam para o Voss)

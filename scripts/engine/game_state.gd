@@ -179,7 +179,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"index": i, "deck_id": deck_id, "leader_id": d["leader"],
 		"leader_hp": int(ld["hp"]), "leader_max": int(ld["hp"]),
 		"momentum": 0, "max_momentum": 0, "turn_start_momentum": 0, "reserve": 0,
-			"idle_turns": 0, "next_momentum": 0, "play_restrictions": [], "leaked": 0, "unspent": 0,
+			"idle_turns": 0, "next_momentum": 0, "play_restrictions": [], "leaked": 0, "unspent": 0, "saved_momentum": 0,
 			"momentum_gain_turn": -1, # the last turn in which an effect really raised this player's Momentum ("already gained Momentum this turn")
 			"momentum_lock_turn": -1, # while it equals the current turn, plain (non-refresh) Momentum gains do nothing (Bateria de Segunda Mão)
 		"healing_this_round": 0, "healing_last_round": 0, "damage_this_round": 0, "damage_last_round": 0,
@@ -905,7 +905,9 @@ func _since_last_turn(p: int, kind: String) -> int:
 ## wherever the card is, not only on the board, so they are not "Constante")
 ## (e.g. per: "idle_turns" =
 ## per owner turn that started with Momentum leaking past the Reserva; "unspent_momentum" = a flat "amount" off when
-## at least "threshold" plain Momentum was left over from the previous turn; "starting_momentum_surplus" = a flat "amount" off
+## at least "threshold" plain Momentum was left over from the previous turn; "saved_momentum" = one flat reduction when
+## leftover Momentum plus the existing Reserva met the threshold at turn start, counting each point once;
+## "starting_momentum_surplus" = a flat "amount" off
 ## when the owner's turn began with at least "threshold" more Momentum than their maximum for that turn (a promise from the
 ## turn before, the second-player bonus, ...); "healing_since_last_turn" = a flat "amount" off
 ## when at least "threshold" actual Vida was recovered since the owner's previous turn started (that turn, the opponent's turn
@@ -927,6 +929,7 @@ func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 			"allied_plants_or_tokens": n = allied_plants_or_tokens(p)
 			"own_graveyard_cards": n = players[p]["graveyard"].size() / maxi(1, int(e.get("divisor", 1)))
 			"unspent_momentum": n = 1 if int(players[p]["unspent"]) >= int(e.get("threshold", 1)) else 0
+			"saved_momentum": n = 1 if int(players[p]["saved_momentum"]) >= int(e.get("threshold", 1)) else 0
 			"starting_momentum_surplus":
 				var surplus: int = int(players[p]["turn_start_momentum"]) - int(players[p]["max_momentum"])
 				n = 1 if surplus >= int(e.get("threshold", 1)) else 0
@@ -3990,11 +3993,13 @@ func _start_turn(p: int, draw: bool) -> void:
 	pl["healing_this_round"] = 0
 	pl["damage_last_round"] = int(pl["damage_this_round"])
 	pl["damage_this_round"] = 0
+	# Snapshot the distinct Momentum pools before leftover Momentum is banked into the Reserva.
+	pl["saved_momentum"] = int(pl["reserve"]) + int(pl["momentum"])
 	# Momentum that leaks past a full Reserva, after the opponent's turn too, is what really went
 	# unspent (Fulgurvoltz gets cheaper by the turns it happens, Voltexz ignores the Reserva)
 	var leaked: int = int(pl["reserve"]) + int(pl["momentum"]) - RESERVE_CAP
 	pl["leaked"] = maxi(0, leaked) # Sobrecarga refunds part of it this turn
-	# plain Momentum left from the last turn, the Reserva never counted (Gigante Elétrico, Voltexz)
+	# plain Momentum left from the last turn, without the Reserva (Voltexz)
 	pl["unspent"] = int(pl["momentum"])
 	if leaked > 0:
 		pl["idle_turns"] += 1

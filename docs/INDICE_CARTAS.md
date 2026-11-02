@@ -194,8 +194,8 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `brontharax` | Brontharax, Dragão de Bronze | Campeã | Unidade | 7 |
 | `colosso_de_arenito` | Colosso de Arenito | Comum | Unidade | 5 |
 | `yresa_colossus` | Colossus | Épica | Unidade | 0 |
-| `coracao_da_montanha` | Coração da Montanha | Comum | Artefato | 4 |
-| `cristal_do_poder` | Cristal do Poder | Comum | Artefato | 3 |
+| `coracao_da_montanha` | Coração da Montanha | Comum | Artefato | 3 |
+| `cristal_do_poder` | Cristal do Poder | Comum | Artefato | 2 |
 | `desabamento_oportuno` | Desabamento Oportuno | Épica | Feitiço | 4 |
 | `deslizamento_de_placas` | Deslizamento de Placas | Comum | Feitiço | 4 |
 | `desmontador_de_quinquilharia` | Desmontador de Quinquilharia | Comum | Unidade | 3 |
@@ -211,7 +211,7 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `fundicao_de_emergencia` | Fundição de Emergência | Épica | Feitiço | 4 |
 | `geodo_vivo` | Geodo Vivo | Comum | Unidade | 3 |
 | `golpe_de_marreta` | Golpe de Marreta | Comum | Feitiço | 2 |
-| `montadora_porca_frouxa` | Grã-Montadora Nina | Lendária | Unidade | 5 |
+| `gra_montadora_nina` | Grã-Montadora Nina | Lendária | Unidade | 4 |
 | `guardiao_das_camadas` | Guardião das Camadas | Épica | Unidade | 3 |
 | `hora_extra_compulsoria` | Hora Extra Compulsória | Épica | Feitiço | 3 |
 | `karuun` | Karuun, o Deus da Montanha | Lendária | Unidade | 8 |
@@ -222,16 +222,16 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `morakhan` | Morakhan | Campeã | Unidade | 6 |
 | `muralha_cara_de_pedra` | Muralha Cara-de-Pedra | Épica | Feitiço | 2 |
 | `muralha_emergente` | Muralha Emergente | Comum | Feitiço | 2 |
-| `nucleo_de_geodo` | Núcleo de Geodo | Comum | Artefato | 2 |
-| `oraculo_de_quartzo` | Oráculo de Quartzo | Comum | Unidade | 3 |
-| `otavio_rebite_quente` | Otávio Rebite-Quente | Campeã | Unidade | 8 |
+| `nucleo_de_geodo` | Núcleo de Geodo | Comum | Artefato | 1 |
+| `oraculo_de_quartzo` | Oráculo de Quartzo | Comum | Unidade | 2 |
+| `otavio_rebite_quente` | Otávio Rebite-Quente | Campeã | Unidade | 7 |
 | `placa_espelhada_de_adamantina` | Placa Espelhada de Adamantina | Comum | Artefato | 3 |
 | `predador_de_dolomita` | Predador de Dolomita | Comum | Unidade | 3 |
 | `prensa_hidraulica` | Prensa Hidráulica | Épica | Artefato | 4 |
 | `projetil_geomantico` | Projétil Geomântico | Comum | Feitiço | 4 |
 | `quartzina_bagunca_tudo` | Quartzina Bagunça-Tudo | Épica | Unidade | 6 |
 | `rakhana` | Rakhana | Campeã | Unidade | 4 |
-| `relojoeiro_pino_14` | Relojoeiro Pino-14 | Comum | Unidade | 3 |
+| `relojoeiro_pino_14` | Relojoeiro Pino-14 | Comum | Unidade | 2 |
 | `sacoleiro_tobias_bolso_fundo` | Sacoleiro Tobias Bolso-Fundo | Épica | Unidade | 4 |
 | `sentinela_de_xisto` | Sentinela de Xisto | Comum | Unidade | 1 |
 | `yresa_sentinel` | Stoneward | Comum | Unidade | 0 |

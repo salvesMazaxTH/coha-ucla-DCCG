@@ -12,6 +12,7 @@
   "hp": 5,
   "keywords": [],
   "art": "tormenta/ellen_veyr.webp",
+  "art_crop": {"x": 0.5, "y": 0.3, "zoom": 1.0},
   "effects": [
     {
       "listen": "unit_attacked",

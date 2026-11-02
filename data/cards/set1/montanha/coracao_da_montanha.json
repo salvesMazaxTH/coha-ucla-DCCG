@@ -9,7 +9,7 @@
   "essence": "montanha",
   "element": "pedra",
   "art": "montanha/coracao_da_montanha.webp",
-  "cost": 4,
+  "cost": 3,
   "durability": 1,
   "effects": [
     {
@@ -17,10 +17,10 @@
       "action": "buff",
       "target": "ally_unit",
       "atk": 2,
-      "hp": 4
+      "hp": 3
     }
   ],
-  "text": "Equipar: concede +2/+4 à unidade equipada.",
+  "text": "Equipar: concede +2/+3 à unidade equipada.",
   "flavor": "",
   "tags": []
 }

@@ -9,7 +9,7 @@
   "essence": "montanha",
   "element": "pedra",
   "art": "montanha/nucleo_de_geodo.webp",
-  "cost": 2,
+  "cost": 1,
   "durability": 1,
   "effects": [
     {

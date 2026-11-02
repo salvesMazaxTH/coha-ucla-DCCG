@@ -16,12 +16,12 @@
   "effects": [
     {
       "action": "cost_reduction",
-      "per": "unspent_momentum",
-      "threshold": 3,
+      "per": "saved_momentum",
+      "threshold": 4,
       "amount": 5
     }
   ],
-  "text": "Custa (5) a menos se você terminou o turno anterior com 3 ou mais de Momentum sobrando.",
+  "text": "Custa (5) a menos se você começou o turno com 4 ou mais de Momentum guardado, contando o que sobrou e o que estava na Reserva.",
   "flavor": "",
   "tags": []
 }

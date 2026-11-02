@@ -16,6 +16,7 @@ func _init() -> void:
 	_test_card_sets()
 	_test_flavor()
 	_test_cristal_do_poder_equipado()
+	_test_engrenagem_solta_free_equip()
 	_test_equipment_modifier_sources()
 	_test_porca_frouxa_herda_equipamento()
 	_test_zulmira_ferro_velho()
@@ -208,6 +209,8 @@ func _test_card_sets() -> void:
 	var sample_set := CardDB.set_number_of(CardDB.card(sample_id))
 	check(CardCatalog.values_for(CardDB.card(sample_id), "set", sample_id) == [str(sample_set)], "filtro de set: o valor da carta é o número do set")
 	check(CardCatalog.facet_label("set", "2") == "Nuliterra (2026)", "filtro de set: o rótulo mostra o nome completo")
+	var library: Dictionary = CardDB.card("biblioteca_de_pecas")
+	check(int(library["cost"]) == 2 and String(library.get("speed", "")) == "instantaneo", "Biblioteca de Peças: custo 2 e velocidade Instantânea")
 	# the loader reports a wrong "set" field or a repeated id as a catalog error
 	check(not CardDB.errors().any(func(error: String): return error.contains("set") and (error.contains("pasta do set") or error.contains("set desconhecido") or error.contains("número do set") or error.contains("id repetido"))), "sets: nenhum erro de set/id no catálogo")
 
@@ -415,7 +418,7 @@ func _test_cristal_do_poder_equipado() -> void:
 	var o := g.opponent(a)
 	var cristal_data: Dictionary = CardDB.card("cristal_do_poder")
 	check(g.speed_of(cristal_data["activated"]) == "instantaneo", "cristal: o Ao Ativar é Instantâneo")
-	var montadora := _put(g, a, "montadora_porca_frouxa")
+	var montadora := _put(g, a, "gra_montadora_nina")
 	var cristal := Card.new(g._uid(), "cristal_do_poder", a, "relics")
 	g.players[a]["relics"].append(cristal)
 	check(g.artifact_count(a) == 1, "cristal solto: conta como artefato")
@@ -435,7 +438,7 @@ func _test_cristal_do_poder_equipado() -> void:
 	# Equipar do campo: com o Equipar na pilha, o Cristal não pode ser ativado nem equipado de novo
 	var g2 := _new_game()
 	var p := g2.active
-	var holder := _put(g2, p, "montadora_porca_frouxa")
+	var holder := _put(g2, p, "gra_montadora_nina")
 	var loose := Card.new(g2._uid(), "cristal_do_poder", p, "relics")
 	g2.players[p]["relics"].append(loose)
 	g2.players[p]["momentum"] = 8
@@ -446,6 +449,21 @@ func _test_cristal_do_poder_equipado() -> void:
 	check(not g2.can_activate(p, loose.uid, true), "cristal com o Equipar na pilha: não pode ser ativado")
 	check(not g2.can_equip_from_field(p, loose.uid, true), "cristal com o Equipar na pilha: não pode ser equipado de novo")
 
+func _test_engrenagem_solta_free_equip() -> void:
+	var g := _new_game()
+	_quiet(g)
+	var p := g.active
+	var gear_data: Dictionary = CardDB.card("engrenagem_solta")
+	var gear := Card.new(g._uid(), "engrenagem_solta", p, "relics")
+	g.players[p]["relics"].append(gear)
+	g.players[p]["momentum"] = 0
+	g.players[p]["reserve"] = 0
+	_tcard("t_gear_target", 1, 5, [])
+	_put(g, p, "t_gear_target")
+	check(int(gear_data["cost"]) == 1 and int(gear_data["equip_from_field"]["cost"]) == 0,
+		"Engrenagem Solta continua custando 1 para jogar e custa 0 para equipar")
+	check(g.can_equip_from_field(p, gear.uid), "Engrenagem Solta pode ser equipada sem Momentum adicional")
+
 ## An equipment's on_play buff belongs to the equipment, not to the unit after it returns to hand.
 func _test_equipment_modifier_sources() -> void:
 	var g := _new_game()
@@ -455,7 +473,7 @@ func _test_equipment_modifier_sources() -> void:
 	g.play_card(p, _give(g, p, "coracao_da_montanha"), unit.uid)
 	g._resolve_stack()
 	g._flush()
-	check(unit.atk == 4 and unit.hp == 8, "Coração da Montanha: Ao Jogar concede +2/+4")
+	check(unit.atk == 4 and unit.hp == 7, "Coração da Montanha: Ao Jogar concede +2/+3")
 	check(unit.stat_sources.is_empty(), "Coração da Montanha: a fonte do buff passa a pertencer ao equipamento")
 	var rows := CardOverlay.StatModifiersPanel.rows_for(unit.card_id, unit.to_dict())
 	check(rows.size() == 1 and rows[0]["source"] == "coracao_da_montanha"
@@ -466,7 +484,7 @@ func _test_equipment_modifier_sources() -> void:
 	g.play_card(p, _give(g, p, "coracao_da_montanha"), unit.uid)
 	g._resolve_stack()
 	g._flush()
-	check(unit.atk == 4 and unit.hp == 8 and g.players[p]["hand"].has(first_heart),
+	check(unit.atk == 4 and unit.hp == 7 and g.players[p]["hand"].has(first_heart),
 			"reequipar Coração da Montanha: só o bônus do equipamento atual fica")
 	check(unit.stat_sources.is_empty(), "reequipar Coração da Montanha: registros anteriores não se acumulam")
 
@@ -531,7 +549,7 @@ func _test_porca_frouxa_herda_equipamento() -> void:
 	_tcard("teste_alvo_gelo", 0, 20, [])
 	var g := _new_game()
 	_quiet(g)
-	var montadora := _put(g, 0, "montadora_porca_frouxa")
+	var montadora := _put(g, 0, "gra_montadora_nina")
 	var fallen := _put(g, 0, "teste_alvo_gelo")
 	var amulet := Card.new(g._uid(), "amuleto_do_primeiro_floco", 0)
 	fallen.hp += 2
@@ -550,7 +568,7 @@ func _test_porca_frouxa_herda_equipamento() -> void:
 	# already wearing something: nothing is inherited, the equipment stays in the graveyard
 	g = _new_game()
 	_quiet(g)
-	montadora = _put(g, 0, "montadora_porca_frouxa")
+	montadora = _put(g, 0, "gra_montadora_nina")
 	var own_cloak := Card.new(g._uid(), "manto_da_ladainha", 0)
 	montadora.armor += 1
 	g.stack_system().attach(montadora, own_cloak, {"armor": 1})
@@ -566,7 +584,7 @@ func _test_porca_frouxa_herda_equipamento() -> void:
 	# the fallen ally wore nothing: nothing to inherit
 	g = _new_game()
 	_quiet(g)
-	montadora = _put(g, 0, "montadora_porca_frouxa")
+	montadora = _put(g, 0, "gra_montadora_nina")
 	fallen = _put(g, 0, "teste_alvo_gelo")
 	g._deal_damage(fallen.uid, 99, null)
 	g._check_state()
@@ -1190,15 +1208,14 @@ func _test_devocao_new_batch() -> void:
 	check(vials_full.size() == 1, "Leva-Frascos: com só 1 espaço livre entra 1 Ampola e a outra simplesmente não entra (%d)" % vials_full.size())
 
 func _test_sagrada_board_control() -> void:
-	# Seymour, o limpador: curas e feitiços Sagrados causam 1 de dano duas vezes,
-	# cada uma a uma unidade inimiga aleatória
+	# Seymour causes one damage on each qualifying trigger and once at the start of its owner's turn.
 	var g := _new_game()
 	var foe := _put(g, 1, "estrondador_igneo")
 	_put(g, 0, "seymour")
 	g.players[0]["leader_hp"] -= 6
 	g._heal_leader(0, 2)
 	g._check_state()
-	check(g.find_unit(foe.uid).damage == 2, "Seymour reage à cura do Líder: 2 pontos de dano distribuídos (sobrou %d)" % g.find_unit(foe.uid).damage)
+	check(g.find_unit(foe.uid).damage == 1, "Seymour reage à cura do Líder: 1 de dano (sobrou %d)" % g.find_unit(foe.uid).damage)
 	var ally := _put(g, 0, "esqueleto_guerreiro")
 	ally.damage = 1
 	var light := Card.new(g._uid(), "luz_transbordante", 0, "hand")
@@ -1206,15 +1223,15 @@ func _test_sagrada_board_control() -> void:
 	g.players[0]["momentum"] = 10
 	g.play_card(0, light.uid, ally.uid)
 	g._check_state()
-	# Luz Transbordante é feitiço Sagrado (+1) e cura uma aliada (+1)
-	check(g.find_unit(foe.uid) == null, "Seymour reage a cura de aliado e a feitiço Sagrado (a 2ª condicional do turno, mais 2 pontos de dano, mata a inimiga)")
+	# Luz Transbordante is a Devotion spell and heals an ally; the 2x cap allows one further trigger.
+	check(g.find_unit(foe.uid) != null and g.find_unit(foe.uid).damage == 2, "Seymour causa mais 1 ao reagir à cura/feitiço (total 2)")
 	var g_start := _new_game()
 	var start_foe := _put(g_start, 1, "estrondador_igneo")
 	var seymour_start := _put(g_start, 0, "seymour")
 	g_start.active = 0
 	g_start.bus().emit(_turn_start_event(g_start, seymour_start))
 	g_start._check_state()
-	check(g_start.find_unit(start_foe.uid).damage == 0, "Seymour não causa dano no início do turno")
+	check(g_start.find_unit(start_foe.uid).damage == 1, "Seymour causa 1 de dano no início do turno")
 	# as condicionais ativam no máximo 2x por turno: a 3ª não faz nada
 	var g_cap := _new_game()
 	var cap_foe := _put(g_cap, 1, "anciao_do_primeiro_bosque")
@@ -1225,15 +1242,15 @@ func _test_sagrada_board_control() -> void:
 	g_cap._heal_leader(0, 1)
 	g_cap._heal_leader(0, 1)
 	g_cap._check_state()
-	check(g_cap.find_unit(cap_foe.uid).damage == 4, "Seymour: 2 curas condicionais causam 4 de dano (deu %d)" % g_cap.find_unit(cap_foe.uid).damage)
+	check(g_cap.find_unit(cap_foe.uid).damage == 3, "Seymour: o gatilho de turno e 2 curas causam 3 de dano (deu %d)" % g_cap.find_unit(cap_foe.uid).damage)
 	g_cap._heal_leader(0, 1)
 	g_cap._check_state()
-	check(g_cap.find_unit(cap_foe.uid).damage == 4, "Seymour: a 3ª condicional no mesmo turno não causa dano")
+	check(g_cap.find_unit(cap_foe.uid).damage == 3, "Seymour: a 3ª condicional no mesmo turno não causa dano")
 	# no turno seguinte do dono o contador volta a zero
 	g_cap.turn += 2
 	g_cap._heal_leader(0, 1)
 	g_cap._check_state()
-	check(g_cap.find_unit(cap_foe.uid).damage == 6, "Seymour: em outro turno ele volta a ativar")
+	check(g_cap.find_unit(cap_foe.uid).damage == 4, "Seymour: em outro turno ele volta a ativar")
 	# só age no turno do dono: cura durante o turno do oponente não faz nada
 	var g_theirs := _new_game()
 	var theirs_foe := _put(g_theirs, 1, "estrondador_igneo")
@@ -6625,6 +6642,49 @@ func _test_critico() -> void:
 	var retal_events := _hit(g_retal, retal_attacker, retal_defender.uid)
 	check(_has_event(retal_events, "crit") and retal_attacker.damage == 5, "Crítico também vale no revide (3 + 2 = 5, foi %d)" % retal_attacker.damage)
 
+	# Akane deals +1 critical damage normally, and +2 against a target with at least 7 current Vida.
+	_tcard("t_akane_target", 0, 10, [])
+	var g_akane_low := _new_game()
+	_quiet(g_akane_low)
+	var akane_low := _put(g_akane_low, 0, "akane")
+	var akane_target_low := _put(g_akane_low, 1, "t_akane_target")
+	akane_target_low.damage = 4
+	akane_target_low.exhausted = true
+	var akane_damage_before := akane_target_low.damage
+	var akane_low_events := _hit(g_akane_low, akane_low, akane_target_low.uid)
+	check(_has_event(akane_low_events, "crit") and akane_target_low.damage - akane_damage_before == 5,
+		"Akane: alvo com 6 de Vida recebe +1 de dano crítico (crit=%s, dano=%d)" %
+		[_has_event(akane_low_events, "crit"), akane_target_low.damage - akane_damage_before])
+	var g_akane_high := _new_game()
+	_quiet(g_akane_high)
+	var akane_high := _put(g_akane_high, 0, "akane")
+	var akane_target_high := _put(g_akane_high, 1, "t_akane_target")
+	akane_target_high.damage = 3
+	akane_target_high.exhausted = true
+	akane_damage_before = akane_target_high.damage
+	var akane_high_events := _hit(g_akane_high, akane_high, akane_target_high.uid)
+	check(_has_event(akane_high_events, "crit") and akane_target_high.damage - akane_damage_before == 7,
+		"Akane: alvo com 7 de Vida recebe +3 de dano crítico (crit=%s, dano=%d)" %
+		[_has_event(akane_high_events, "crit"), akane_target_high.damage - akane_damage_before])
+	var g_akane_leader := _new_game()
+	_quiet(g_akane_leader)
+	var akane_leader := _put(g_akane_leader, 0, "akane")
+	g_akane_leader.players[1]["leader_hp"] = 9
+	_hit(g_akane_leader, akane_leader)
+	check(g_akane_leader.players[1]["leader_hp"] == 4, "Akane: Líder com 9 de Vida recebe +1 de dano crítico")
+	g_akane_leader = _new_game()
+	_quiet(g_akane_leader)
+	akane_leader = _put(g_akane_leader, 0, "akane")
+	g_akane_leader.players[1]["leader_hp"] = 12
+	_hit(g_akane_leader, akane_leader)
+	check(g_akane_leader.players[1]["leader_hp"] == 7, "Akane: Líder com 12 de Vida recebe +1 de dano crítico")
+	g_akane_leader = _new_game()
+	_quiet(g_akane_leader)
+	akane_leader = _put(g_akane_leader, 0, "akane")
+	g_akane_leader.players[1]["leader_hp"] = 15
+	_hit(g_akane_leader, akane_leader)
+	check(g_akane_leader.players[1]["leader_hp"] == 8, "Akane: Líder com 15 de Vida recebe +3 de dano crítico")
+
 	# Vael: +1 permanent level per crit, up to 4; at level 4 the bonus is +3 and he attacks twice
 	_tcrit("t_vael", 3, 9, 1, {"critico_growth": true, "critico_maximo": {"bonus": 3, "ataque_duplo": true}})
 	# a level-1 Vael crits 25% of the time: try seeds until one lands (each attack ends the combat, so a fresh game per try)
@@ -7634,21 +7694,34 @@ func _test_eletrica() -> void:
 	g.add_cost_mod(a, null, -40, 3)
 	g.players[a]["idle_turns"] = 40
 	check(g.incarnation_cost(a) == 3 and g.cost_of(a, fg) == 5, "eletrica: pisos 3 e 5")
-	# Gigante Elétrico: 9 base, 5 less when 3+ Momentum was left over from the previous turn
+	# Gigante Elétrico: 9 base, 5 less with at least 4 saved Momentum, counting the Reserve once.
 	var gg: Dictionary = CardDB.card("gigante_eletrico")
 	g = _eletrica_game()
 	a = g.active
 	o = g.opponent(a)
 	check(g.cost_of(a, gg) == 9 and int(gg["atk"]) == 8 and int(gg["hp"]) == 7, "gigante: 8/7 custando 9")
 	check(gg["keywords"] == ["sobrepujanca"], "gigante: só Sobrepujança")
+	g.players[a]["reserve"] = 0
 	g.players[a]["momentum"] = 3
 	g.end_turn(a)
 	g.end_turn(o)
-	check(g.players[a]["unspent"] == 3 and g.cost_of(a, gg) == 4, "gigante: 3 de Momentum sobrando -> custa 4")
+	check(g.players[a]["saved_momentum"] == 3 and g.cost_of(a, gg) == 9, "gigante: 3 guardados não atingem o requisito")
+	g = _eletrica_game()
+	a = g.active
+	o = g.opponent(a)
+	g.players[a]["reserve"] = 0
+	g.players[a]["momentum"] = 4
+	g.end_turn(a)
+	g.end_turn(o)
+	check(g.players[a]["saved_momentum"] == 4 and g.cost_of(a, gg) == 4, "gigante: 4 guardados, incluindo o que foi para a Reserva, reduzem o custo")
+	g = _eletrica_game()
+	a = g.active
+	o = g.opponent(a)
+	g.players[a]["reserve"] = 2
 	g.players[a]["momentum"] = 2
 	g.end_turn(a)
 	g.end_turn(o)
-	check(g.players[a]["unspent"] == 2 and g.cost_of(a, gg) == 9, "gigante: só 2 sobrando -> custo base")
+	check(g.players[a]["saved_momentum"] == 4 and g.cost_of(a, gg) == 4, "gigante: conta também 2 de Momentum já guardados na Reserva")
 	# Zefiran Varkesh: 12 base, 4 less when the turn began with more Momentum than the owner's maximum
 	var zefiran: Dictionary = CardDB.card("zefiran_varkesh")
 	g = _eletrica_game()
@@ -11859,7 +11932,7 @@ func _test_eight_new_cards() -> void:
 	check(frozen_survivor.damage == 2 and int(frozen_survivor.dot_markers.get("queimadura", 0)) == 1 and not frozen_survivor.is_frozen(), "Jovahr: Congelada que sobrevive leva 2, 1 Queimadura e descongela")
 	check(not_frozen.damage == 0 and not not_frozen.dot_markers.has("queimadura"), "Jovahr: unidade não Congelada não é afetada")
 
-## Ao Desafiar (on_challenge) and Rália: when she challenges a unit she throws a fixed 3 damage at up to 3
+## Ao Desafiar (on_challenge) and Rália: when she challenges a unit she throws a fixed 2 damage at up to 3
 ## different random enemy units (never the Leader), and that damage heals her Leader and herself.
 func _test_ralia_deal_damage() -> void:
 	var ralia_data: Dictionary = CardDB.card("ralia")
@@ -11900,11 +11973,11 @@ func _test_ralia_deal_damage() -> void:
 	var hit_twice := false
 	for dummy: Card in dummies:
 		var effect_damage := dummy.damage - (3 if dummy == dummies[0] else 0)
-		effect_hits += effect_damage / 3
-		hit_twice = hit_twice or effect_damage > 3
+		effect_hits += effect_damage / 2
+		hit_twice = hit_twice or effect_damage > 2
 	check(g.players[enemy]["leader_hp"] == 99, "Rália: o efeito nunca acerta o Líder inimigo (%d)" % g.players[enemy]["leader_hp"])
-	check(effect_hits == 3 and not hit_twice, "Rália: 3 unidades inimigas diferentes levam 3 cada (%d golpes, repetido: %s)" % [effect_hits, hit_twice])
-	check(g.players[a]["leader_hp"] == g.players[a]["leader_max"] - 8, "Rália: o golpe cura 3 e o efeito cura 9 (3 x 3) (%d)" % g.players[a]["leader_hp"])
+	check(effect_hits == 3 and not hit_twice, "Rália: 3 unidades inimigas diferentes levam 2 cada (%d golpes, repetido: %s)" % [effect_hits, hit_twice])
+	check(g.players[a]["leader_hp"] == g.players[a]["leader_max"] - 11, "Rália: o golpe cura 3 e o efeito cura 6 (3 x 2) (%d)" % g.players[a]["leader_hp"])
 
 	# she dies to the counter-attack: the effect already resolved when she declared the challenge
 	_tcard("t_ralia_brute", 9, 30, [])
@@ -11918,7 +11991,7 @@ func _test_ralia_deal_damage() -> void:
 	g.players[enemy]["leader_hp"] = 99
 	_hit(g, ralia, brute.uid)
 	check(g.find_unit(ralia.uid) == null, "Rália: morre no revide de 9")
-	check(brute.damage == 6 and g.players[enemy]["leader_hp"] == 99, "Rália morta no revide: o efeito já tinha batido 3 no bruto, e o Líder ficou intacto (bruto %d, Líder %d)" % [brute.damage, g.players[enemy]["leader_hp"]])
+	check(brute.damage == 5 and g.players[enemy]["leader_hp"] == 99, "Rália morta no revide: o efeito já tinha batido 2 no bruto, e o Líder ficou intacto (bruto %d, Líder %d)" % [brute.damage, g.players[enemy]["leader_hp"]])
 
 	# a Silenciada Rália challenges with no Ao Desafiar
 	g = _new_game()

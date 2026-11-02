@@ -334,7 +334,7 @@ func _blow_could_kill(striker: Card, victim: Card) -> bool:
 		return game.strike_power_of(striker) > 0
 	var most_damage := game.strike_power_of(striker)
 	if most_damage > 0 and striker.critico_total() > 0:
-		most_damage += CRITICO_BONUS
+		most_damage += _critical_bonus(striker, game.hp_left(victim))
 	return most_damage >= game.hp_left(victim)
 
 ## Every possible target of an automatic extra attack: ALL enemy units plus the enemy Leader, with no restriction
@@ -423,6 +423,17 @@ const CRITICO_CHANCE_PER_LEVEL := 25
 ## A critical blow adds this much damage (a card can set its own with "critico_maximo" at level 4).
 const CRITICO_BONUS := 2
 
+func _critical_bonus(striker: Card, target_hp: int, target_is_leader: bool = false) -> int:
+	var maximum_critical: Dictionary = striker.data().get("critico_maximo", {})
+	var bonus := CRITICO_BONUS
+	if striker.critico_total() >= 4:
+		bonus = int(maximum_critical.get("bonus", CRITICO_BONUS))
+		var threshold_key := "vida_minima_lider" if target_is_leader else "vida_minima_alvo"
+		var target_hp_threshold := int(maximum_critical.get(threshold_key, 0))
+		if target_hp_threshold > 0 and target_hp >= target_hp_threshold:
+			bonus = int(maximum_critical.get("bonus_alvo", bonus))
+	return bonus
+
 ## The damage of one blow: the striker's ATK, plus the Crítico bonus when the roll succeeds.
 ## The bonus is added before Armadura and Escudo (they work on the final number). A defender with
 ## "imune_critico" (Rália's Desdém) cancels the critical: no bonus, and nothing grows.
@@ -439,9 +450,10 @@ func _blow_damage(striker: Card, target_uid: int) -> int:
 		game._emit({"type": "crit_negated", "uid": target.uid})
 		return damage
 	game._emit({"type": "crit", "uid": striker.uid})
-	var bonus := CRITICO_BONUS
-	if level >= 4:
-		bonus = int(striker.data().get("critico_maximo", {}).get("bonus", CRITICO_BONUS))
+	var target_hp := int(game.players[game.opponent(striker.owner)]["leader_hp"])
+	if target != null:
+		target_hp = game.hp_left(target)
+	var bonus := _critical_bonus(striker, target_hp, target == null)
 	# "critico_growth" (Vael): every critical blow raises his Crítico one level, up to 4, for ALL his copies
 	# (hand, deck, field... and future ones, see GameState.grow_critico); the temporary levels don't count
 	if striker.data().get("critico_growth", false) and striker.critico < 4:

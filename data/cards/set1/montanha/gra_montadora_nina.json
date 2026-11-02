@@ -6,7 +6,7 @@
   "species": ["humano"],
   "essence": "montanha",
   "element": "metal",
-  "cost": 5,
+  "cost": 4,
   "atk": 2,
   "hp": 4,
   "keywords": [],

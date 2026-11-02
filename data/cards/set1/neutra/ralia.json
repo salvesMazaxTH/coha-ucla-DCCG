@@ -23,12 +23,12 @@
       "action": "damage",
       "target": "random_enemy_units",
       "count": 3,
-      "amount": 3,
+      "amount": 2,
       "lifesteal": true,
       "lifesteal_self": true
     }
   ],
-  "text": "Esta unidade é imune a Crítico.\nAo Desafiar: causa 3 de dano a até 3 unidades inimigas aleatórias diferentes. Este efeito tem Roubo de Vida e esta unidade também recupera Vida.",
+  "text": "Esta unidade é imune a Crítico.\nAo Desafiar: causa 2 de dano a até 3 unidades inimigas aleatórias diferentes. Este efeito tem Roubo de Vida e esta unidade também recupera Vida.",
   "flavor": [
     "Sorte? Eu chamo isso de preguiça de quem não sabe errar direito."
   ],

@@ -6,7 +6,7 @@
   "essence": "montanha",
   "element": "metal",
   "cost": 2,
-  "speed": "lento",
+  "speed": "instantaneo",
   "effects": [
     {
       "trigger": "on_play",
