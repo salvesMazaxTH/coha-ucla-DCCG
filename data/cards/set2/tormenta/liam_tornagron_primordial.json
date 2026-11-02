@@ -1,0 +1,32 @@
+{
+  "name": "Liam Tornagron Primordial",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "transform_only": true,
+  "species": ["dragao_primordial", "dragao"],
+  "essence": "tormenta",
+  "element": "vento",
+  "cost": 8,
+  "atk": 8,
+  "hp": 9,
+  "keywords": ["voo", "intimidacao"],
+  "art": "tormenta/liam_tornagron_primordial.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "return_to_hand",
+      "target": "all_enemy_units",
+      "cost_increase": 1
+    },
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 4
+    }
+  ],
+  "text": "Ao Entrar: devolve à mão do dono todas as unidades inimigas, que passam a custar 1 a mais; causa 4 de dano ao Líder inimigo.",
+  "flavor": "",
+  "tags": []
+}

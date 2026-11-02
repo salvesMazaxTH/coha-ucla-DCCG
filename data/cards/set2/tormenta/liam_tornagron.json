@@ -1,0 +1,44 @@
+{
+  "name": "Liam Tornagron",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["dragao_primordial", "dragao"],
+  "essence": "tormenta",
+  "element": "vento",
+  "cost": 7,
+  "atk": 6,
+  "hp": 8,
+  "keywords": ["voo"],
+  "art": "tormenta/liam_tornagron.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "restrict_play",
+      "target": "none",
+      "who": "opponent",
+      "restriction": {
+        "mode": "forbid",
+        "match": {"cost": {"op": ">=", "value": 5}},
+        "turns": 2
+      }
+    },
+    {
+      "trigger": "on_turn_end",
+      "action": "stun",
+      "target": "random_enemy_unit"
+    }
+  ],
+  "transform": {
+    "into": "liam_tornagron_primordial",
+    "cost": 8
+  },
+  "text": "Ao Entrar: o oponente não pode jogar cartas de custo 5 ou mais até o fim do próximo turno dele.\nNo Fim do Seu Turno: uma unidade inimiga aleatória recebe 1 marcador de Atordoamento.\nTransformar (8): Liam Tornagron Primordial.",
+  "flavor": [
+    "Fundei este império ao lado de Rai. Eu o sucedi. Não me peça licença para governá-lo.",
+    "Eu estava na Grande Guerra. Vocês estão na minha.",
+    "Séculos de trono me ensinaram uma coisa: o vento não pede permissão.",
+    "Chamam de tirania a ordem que não entendem. Eu a chamo de manhã seguinte."
+  ],
+  "tags": []
+}

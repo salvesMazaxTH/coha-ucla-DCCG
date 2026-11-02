@@ -1,0 +1,24 @@
+{
+  "name": "Randy Cassetete",
+  "unreleased": true,
+  "set": 2,
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["humano"],
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 3,
+  "atk": 3,
+  "hp": 4,
+  "art": "tormenta/randy_cassetete.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "stun",
+      "target": "enemy_unit"
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela recebe 1 marcador de Atordoamento.",
+  "flavor": "Vigia a costa onde nada deveria chegar. O que chega, chega sem magia: o nulifítio engole a mana.",
+  "tags": []
+}

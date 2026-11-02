@@ -1,0 +1,21 @@
+{
+  "name": "Molly Piscaluz",
+  "set": 2,
+  "type": "unit",
+  "rarity": "common",
+  "species": ["humano"],
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 1,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [
+    "impeto",
+    "rapidez:1"
+  ],
+  "art": "tormenta/molly_piscaluz.webp",
+  "effects": [],
+  "text": "",
+  "flavor": "Entrega o despacho antes que a luz do corredor acabe de piscar.",
+  "tags": []
+}
