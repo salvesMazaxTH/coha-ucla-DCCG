@@ -1,0 +1,73 @@
+{
+  "name": "Ellen Veyr",
+  "set": 2,
+  "type": "unit",
+  "rarity": "legendary",
+  "species": [
+    "humano"
+  ],
+  "essence": "tormenta",
+  "cost": 5,
+  "atk": 3,
+  "hp": 5,
+  "keywords": [],
+  "art": "tormenta/ellen_veyr.webp",
+  "effects": [
+    {
+      "listen": "unit_attacked",
+      "scope": "enemy",
+      "zones": [
+        "board"
+      ],
+      "if": {
+        "conditional_use": 1
+      },
+      "action": "damage",
+      "target": "event_source",
+      "amount": 2
+    },
+    {
+      "listen": "unit_attacked",
+      "scope": "enemy",
+      "zones": [
+        "board"
+      ],
+      "if": {
+        "conditional_use": 2
+      },
+      "action": "damage",
+      "target": "event_source",
+      "amount": 5
+    },
+    {
+      "listen": "unit_attacked",
+      "scope": "ally",
+      "zones": [
+        "board"
+      ],
+      "if": {
+        "conditional_use": 1
+      },
+      "action": "damage",
+      "target": "opposed_unit",
+      "amount": 2
+    },
+    {
+      "listen": "unit_attacked",
+      "scope": "ally",
+      "zones": [
+        "board"
+      ],
+      "if": {
+        "conditional_use": 2
+      },
+      "action": "damage",
+      "target": "opposed_unit",
+      "amount": 5
+    }
+  ],
+  "text": "Condicional (2x por turno): quando uma unidade ataca, a atacante inimiga, ou a unidade desafiada por uma aliada, sofre 2 de dano antes do combate. Na 2ª vez do turno, o dano é 5.",
+  "flavor": "",
+  "tags": [],
+  "conditional_uses_per_turn": 2
+}

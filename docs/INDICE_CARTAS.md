@@ -186,8 +186,8 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 |---|---|---|---|---|
 | `arena_tectonica` | Arena Tectônica | Comum | Feitiço | 3 |
 | `arquiteto_do_leito` | Arquiteto do Leito | Comum | Unidade | 4 |
-| `avarik` | Avarik | Épica | Unidade | 4 |
-| `avarion` | Avarion | Épica | Unidade | 4 |
+| `avarik` | Avarik | Campeã | Unidade | 4 |
+| `avarion` | Avarion | Campeã | Unidade | 4 |
 | `bastionario_de_basalto` | Bastionário de Basalto | Épica | Unidade | 2 |
 | `berengar_voss` | Berengar Voss | Lendária | Unidade | 4 |
 | `biblioteca_de_pecas` | Biblioteca de Peças | Comum | Feitiço | 2 |
@@ -206,7 +206,7 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `erosao_direcionada` | Erosão Direcionada | Comum | Feitiço | 2 |
 | `escudeiro_de_cascalho` | Escudeiro de Cascalho | Comum | Unidade | 2 |
 | `estrato_reforcado` | Estrato Reforçado | Comum | Feitiço | 1 |
-| `farkoveth` | Farkoveth | Épica | Unidade | 4 |
+| `farkoveth` | Farkoveth | Campeã | Unidade | 4 |
 | `fresadora_dona_cleide` | Fresadora Dona Cleide | Comum | Unidade | 3 |
 | `fundicao_de_emergencia` | Fundição de Emergência | Épica | Feitiço | 4 |
 | `geodo_vivo` | Geodo Vivo | Comum | Unidade | 3 |
@@ -450,7 +450,7 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `zaza_fuzue` | Zazá Fuzuê | Lendária | Unidade | 4 |
 | `zeladora_shhh` | Zeladora Shhh | Comum | Unidade | 4 |
 
-## Set 2: Nuliterra (2026) (33 cartas)
+## Set 2: Nuliterra (2026) (35 cartas)
 
 ### Fúria (18)
 
@@ -475,13 +475,15 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `sopra_brasas` | Sopra-Brasas | Comum | Unidade | 3 |
 | `tullio_chamarisco` | Tullio Chamarisco | Comum | Unidade | 1 |
 
-### Tormenta (15)
+### Tormenta (17)
 
 | ID | Nome | Raridade | Tipo | Custo |
 |---|---|---|---|---|
 | `apagao_no_quarteirao` | Apagão no Quarteirão | Comum | Feitiço | 3 |
+| `bob_veyr` | Bob Veyr | Campeã | Unidade | 7 |
 | `cadete_ganha_medalha` | Cadete Ganha-Medalha | Comum | Unidade | 3 |
 | `cumulonimbra` | Cumulonimbra | Lendária | Unidade | 6 |
+| `ellen_veyr` | Ellen Veyr | Lendária | Unidade | 5 |
 | `hildegard_voltmann` | Hildegard Voltmann | Épica | Unidade | 6 |
 | `jack_veyr` | Jack Veyr | Campeã | Unidade | 4 |
 | `kira_ventomarcha` | Kira Ventomarcha | Épica | Unidade | 4 |

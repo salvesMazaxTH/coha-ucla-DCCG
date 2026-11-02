@@ -1,0 +1,52 @@
+{
+  "name": "Layla Veyr",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "identity": "Layla",
+  "species": [
+    "humano"
+  ],
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 5,
+  "atk": 5,
+  "hp": 6,
+  "keywords": [
+    "impeto"
+  ],
+  "art": "tormenta/layla_veyr.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "stun",
+      "target": "enemy_unit"
+    },
+    {
+      "listen": "unit_stunned",
+      "scope": "enemy",
+      "zones": [
+        "board"
+      ],
+      "own_turn_only": true,
+      "action": "ready",
+      "target": "self"
+    },
+    {
+      "listen": "unit_stunned",
+      "scope": "enemy",
+      "zones": [
+        "board"
+      ],
+      "own_turn_only": true,
+      "action": "buff",
+      "target": "self",
+      "atk": 2,
+      "temp": true
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela recebe 1 marcador de Atordoamento.\nCondicional (2x por turno): no seu turno, quando uma unidade inimiga ficar Atordoada, esta unidade é desvirada e ganha +2 de Ataque neste turno.",
+  "flavor": "",
+  "tags": [],
+  "conditional_uses_per_turn": 2
+}

@@ -1,0 +1,55 @@
+{
+  "name": "Bob Veyr",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "species": ["humano"],
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 7,
+  "atk": 6,
+  "hp": 8,
+  "keywords": ["rapidez:1"],
+  "art": "tormenta/bob_veyr.webp",
+  "effects": [
+    {
+      "trigger": "on_turn_start",
+      "action": "choose_effect",
+      "target": "none",
+      "options": [
+        {
+          "title": "Disparar",
+          "detail": "O Líder inimigo sofre 2. Sem unidade inimiga Atordoada, o Bob também sofre 2.",
+          "effects": [
+            {"action": "damage", "target": "enemy_leader", "amount": 2},
+            {"action": "damage", "target": "self", "amount": 2, "if": "no_stunned_enemy"}
+          ]
+        },
+        {
+          "title": "Não disparar",
+          "detail": "Nada acontece.",
+          "effects": [
+            {"action": "shout", "target": "none"}
+          ]
+        }
+      ]
+    },
+    {
+      "trigger": "on_turn_end",
+      "action": "damage",
+      "target": "random_enemy_unit",
+      "amount": 3
+    },
+    {
+      "trigger": "on_death",
+      "action": "enemy_hand_bottom",
+      "target": "none",
+      "discard_if_unit": 2
+    }
+  ],
+  "text": "No Início do Seu Turno: você pode causar 2 de dano ao Líder inimigo; sem unidade inimiga Atordoada, esta também sofre 2.
+No Fim do Seu Turno: causa 3 de dano a uma unidade inimiga aleatória.
+Ao Morrer: você pode colocar 1 carta da mão do oponente no fundo do deck dele; se for unidade, você descarta 2 cartas.",
+  "flavor": "O relatório tem duas versões. Nenhuma tem assinatura.",
+  "tags": []
+}

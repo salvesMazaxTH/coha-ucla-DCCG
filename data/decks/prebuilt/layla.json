@@ -1,0 +1,28 @@
+{
+  "name": "Curto Circuito da Família Veyr",
+  "unreleased": true,
+  "description": "Atordoar e cobrar: tropas e figurantes baratos que pingam dano, feitiços que atordoam (um deles em até 2 inimigos de uma vez), Cumulonimbra para varrer o campo, Hildegard Voltmann, chefe de vigilância, para travar três de uma vez e Jack Veyr que cobra em dano cada Atordoamento e Layla Veyr que desvira a cada um.",
+  "order": 28,
+  "leader": "layla",
+  "cards": {
+    "molly_piscaluz": 3,
+    "wendy_pingo_curto": 3,
+    "fio_desencapado": 2,
+    "pico_de_corrente": 2,
+    "choque_direto": 1,
+    "raio_encadeado": 2,
+    "tranco_eletrico": 3,
+    "cadete_ganha_medalha": 3,
+    "luca_puxapilha": 3,
+    "randy_cassetete": 3,
+    "apagao_no_quarteirao": 3,
+    "repique_da_queda": 3,
+    "jack_veyr": 3,
+    "kira_ventomarcha": 3,
+    "layla": 1,
+    "layla_veyr": 1,
+    "orvald_rasgaceu": 3,
+    "cumulonimbra": 2,
+    "hildegard_voltmann": 1
+  }
+}

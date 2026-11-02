@@ -1,0 +1,40 @@
+{
+  "name": "Jack Veyr",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "species": [
+    "humano"
+  ],
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 4,
+  "atk": 4,
+  "hp": 5,
+  "keywords": [
+    "rapidez:1"
+  ],
+  "art": "tormenta/jack_veyr.webp",
+  "effects": [
+    {
+      "trigger": "on_challenge",
+      "action": "stun",
+      "target": "opposed_unit"
+    },
+    {
+      "listen": "unit_stunned",
+      "scope": "enemy",
+      "zones": [
+        "board"
+      ],
+      "own_turn_only": true,
+      "action": "damage",
+      "target": "event_source",
+      "amount": 2
+    }
+  ],
+  "text": "Ao Desafiar: a unidade desafiada recebe 1 marcador de Atordoamento.\nCondicional (2x por turno): no seu turno, quando uma unidade inimiga ficar Atordoada, ela sofre 2 de dano.",
+  "flavor": "",
+  "tags": [],
+  "conditional_uses_per_turn": 2
+}
