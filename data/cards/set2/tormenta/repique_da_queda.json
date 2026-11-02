@@ -1,0 +1,22 @@
+{
+  "name": "Repique da Queda",
+  "set": 2,
+  "type": "spell",
+  "rarity": "common",
+  "essence": "tormenta",
+  "cost": 3,
+  "speed": "rapido",
+  "art": "tormenta/repique_da_queda.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 3,
+      "amount_if_stunned": 5
+    }
+  ],
+  "text": "Causa 3 de dano a uma unidade inimiga, ou 5 se ela estiver Atordoada.",
+  "flavor": "",
+  "tags": []
+}

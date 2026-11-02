@@ -1,0 +1,21 @@
+{
+  "name": "Tranco Elétrico",
+  "set": 2,
+  "type": "spell",
+  "rarity": "common",
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 2,
+  "speed": "rapido",
+  "art": "tormenta/tranco_eletrico.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "stun",
+      "target": "enemy_unit"
+    }
+  ],
+  "text": "Uma unidade inimiga à sua escolha recebe 1 marcador de Atordoamento.",
+  "flavor": "",
+  "tags": []
+}

@@ -1,0 +1,23 @@
+{
+  "name": "Pico de Corrente",
+  "set": 2,
+  "type": "spell",
+  "rarity": "common",
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 1,
+  "speed": "instantaneo",
+  "art": "tormenta/pico_de_corrente.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "buff",
+      "target": "ally_unit",
+      "atk": 2,
+      "temp": true
+    }
+  ],
+  "text": "Concede +2 de Ataque neste turno a uma unidade aliada à sua escolha.",
+  "flavor": "",
+  "tags": []
+}
