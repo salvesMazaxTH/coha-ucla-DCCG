@@ -1,0 +1,25 @@
+{
+  "name": "Hildegard Voltmann",
+  "set": 2,
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["humano"],
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 6,
+  "atk": 5,
+  "hp": 6,
+  "art": "tormenta/hildegard_voltmann.webp",
+  "art_crop": {"x": 0.5, "y": 0.54, "zoom": 1.0},
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "stun",
+      "target": "random_enemy_units",
+      "count": 3
+    }
+  ],
+  "text": "Ao Entrar: a até 3 unidades inimigas aleatórias diferentes, cada uma recebe 1 marcador de Atordoamento.",
+  "flavor": "Dezesseis mil câmeras, um Arcanjo em cada parede e nenhum motivo para você ter saído de casa sem avisar.",
+  "tags": []
+}

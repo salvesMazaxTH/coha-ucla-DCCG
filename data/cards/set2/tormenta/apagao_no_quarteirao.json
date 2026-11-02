@@ -1,0 +1,23 @@
+{
+  "name": "Apagão no Quarteirão",
+  "unreleased": true,
+  "set": 2,
+  "type": "spell",
+  "rarity": "common",
+  "essence": "tormenta",
+  "element": "raio",
+  "cost": 3,
+  "speed": "rapido",
+  "art": "tormenta/apagao_no_quarteirao.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "stun",
+      "target": "random_enemy_units",
+      "count": 2
+    }
+  ],
+  "text": "A até 2 unidades inimigas aleatórias diferentes, cada uma recebe 1 marcador de Atordoamento.",
+  "flavor": "",
+  "tags": []
+}

@@ -1,0 +1,27 @@
+{
+  "name": "Cumulonimbra",
+  "set": 2,
+  "type": "unit",
+  "rarity": "legendary",
+  "species": [],
+  "essence": "tormenta",
+  "cost": 6,
+  "atk": 5,
+  "hp": 6,
+  "art": "tormenta/cumulonimbra.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "all_enemy_units",
+      "amount": 1,
+      "amount_if_stunned": 3
+    }
+  ],
+  "text": "Ao Entrar: causa 1 de dano a todas as unidades inimigas, ou 3 às que estiverem Atordoadas.",
+  "flavor": "",
+  "tags": [],
+  "keywords": [
+    "impeto"
+  ]
+}

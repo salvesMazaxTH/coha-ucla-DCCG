@@ -1,0 +1,23 @@
+{
+  "name": "Wendy Pingo-Curto",
+  "set": 2,
+  "type": "unit",
+  "rarity": "common",
+  "species": ["humano"],
+  "essence": "tormenta",
+  "cost": 1,
+  "atk": 1,
+  "hp": 3,
+  "art": "tormenta/wendy_pingo_curto.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 1
+    }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela sofre 1 de dano.",
+  "flavor": "Tem o dom, mas ainda não o controle. O Horizonte vai ensinar um e cobrar o outro.",
+  "tags": []
+}

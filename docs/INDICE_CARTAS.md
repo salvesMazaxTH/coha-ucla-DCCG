@@ -488,7 +488,7 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `jack_veyr` | Jack Veyr | Campeã | Unidade | 4 |
 | `kira_ventomarcha` | Kira Ventomarcha | Épica | Unidade | 4 |
 | `layla_veyr` | Layla Veyr | Campeã | Unidade | 5 |
-| `luca_puxapilha` | Luca Puxapilha | Épica | Unidade | 3 |
+| `luca_ferri` | Luca Ferri | Épica | Unidade | 3 |
 | `molly_piscaluz` | Molly Piscaluz | Comum | Unidade | 1 |
 | `orvald_rasgaceu` | Orvald Rasgacéu | Épica | Unidade | 5 |
 | `pico_de_corrente` | Pico de Corrente | Comum | Feitiço | 1 |

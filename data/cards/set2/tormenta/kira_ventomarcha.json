@@ -1,0 +1,27 @@
+{
+  "name": "Kira Ventomarcha",
+  "set": 2,
+  "type": "unit",
+  "rarity": "epic",
+  "species": ["humano"],
+  "essence": "tormenta",
+  "cost": 4,
+  "atk": 3,
+  "hp": 5,
+  "art": "tormenta/kira_ventomarcha.webp",
+  "effects": [
+    {
+      "trigger": "on_challenge",
+      "action": "damage",
+      "target": "opposed_unit",
+      "amount": 2,
+      "amount_if_stunned": 4
+    }
+  ],
+  "text": "Ao Desafiar: causa 2 de dano à unidade desafiada, ou 4 se ela estiver Atordoada.",
+  "flavor": "Na vanguarda, marcha sob o rosto do Arcanjo. Quem tropeça diante dela não levanta.",
+  "tags": [],
+  "keywords": [
+    "rapidez:1"
+  ]
+}
