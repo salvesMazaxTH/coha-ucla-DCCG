@@ -148,6 +148,7 @@ func _offer(card: Card, effect: Effect, event: GameEvent) -> void:
 	context.self_uid = card.uid
 	context.other_uid = event.other_uid
 	context.event = event
+	context.conditional_use = _conditional_use_number(card, event)
 	# intervening-if: checked now, and again by _run_effects right before the effect applies
 	if effect.condition != null and not effect.condition.check(context):
 		return
@@ -200,6 +201,17 @@ func _spend_conditional_use(card: Card, event: GameEvent) -> bool:
 	card.conditional_uses += 1
 	_last_conditional_event[card.uid] = event
 	return true
+
+## Which use of the turn this event is for a card with "conditional_uses_per_turn" (1 = first), without spending
+## it: the number a {"conditional_use": N} condition compares against. 0 for cards without the field. An event
+## that already paid for its use (through another effect of the same card) keeps that use's number.
+func _conditional_use_number(card: Card, event: GameEvent) -> int:
+	if int(card.data().get("conditional_uses_per_turn", 0)) <= 0:
+		return 0
+	var uses_this_turn := card.conditional_uses if card.conditional_uses_turn == game.turn else 0
+	if _last_conditional_event.get(card.uid) == event:
+		return uses_this_turn # the use was already counted for this very event
+	return uses_this_turn + 1
 
 func _scope_matches(scope: String, card: Card, event: GameEvent) -> bool:
 	match scope:

@@ -26,6 +26,7 @@ static var ACTIONS: Dictionary = {
 	"look_bottom": DeckEffect,
 	"grave_retrieve": DeckEffect,
 	"grave_to_hand": DeckEffect,
+	"enemy_hand_bottom": DeckEffect,
 	"freeze": FreezeEffect,
 	"unfreeze": FreezeEffect,
 	"stun": StunEffect,

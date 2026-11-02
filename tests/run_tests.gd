@@ -1038,6 +1038,40 @@ func _test_devocao_new_batch() -> void:
 	g_rewind_cost.choose_search(0, pricey.uid)
 	check(pricey.cost_mod == 2, "Rebobinar: cost_increase soma ao custo da carta que volta")
 
+	# Bob Veyr, Ao Morrer: olha a mão do oponente, manda 1 carta ao fundo do deck dele; unidade custa descartar 2
+	var bob_on_death := false
+	for bob_effect in CardDB.card("bob_veyr")["effects"]:
+		bob_on_death = bob_on_death or (bob_effect.get("trigger", "") == "on_death" and bob_effect.get("action", "") == "enemy_hand_bottom")
+	check(bob_on_death, "Bob Veyr: tem o efeito Ao Morrer de mandar carta da mão do oponente ao fundo")
+	for bob_case in ["unit", "spell", "decline"]:
+		var g_bob := _new_game()
+		g_bob.active = 0
+		var foe_card_id := "esqueleto_guerreiro" if bob_case == "unit" else "bola_de_fogo"
+		var foe_card := Card.new(g_bob._uid(), foe_card_id, 1, "hand")
+		g_bob.players[1]["hand"] = [foe_card]
+		var mine_hand_before: int = g_bob.players[0]["hand"].size()
+		var foe_deck_before: int = g_bob.players[1]["deck"].size()
+		g_bob._begin_enemy_hand_bottom(0, 2, 0)
+		check(g_bob.phase == "search" and g_bob.decider() == 0 and g_bob.pending_search["cards"].size() == 1, "Bob (%s): quem escolhe é o dono do Bob e vê a mão do oponente" % bob_case)
+		g_bob.choose_search(0, 0 if bob_case == "decline" else foe_card.uid)
+		if bob_case == "decline":
+			check(g_bob.phase != "search" and g_bob.players[1]["hand"].size() == 1 and g_bob.players[0]["hand"].size() == mine_hand_before, "Bob: recusar não move nem custa nada")
+			continue
+		check(g_bob.players[1]["hand"].is_empty() and g_bob.players[1]["deck"].size() == foe_deck_before + 1 and g_bob.players[1]["deck"][0] == foe_card, "Bob (%s): a carta vai para o fundo do deck do oponente" % bob_case)
+		if bob_case == "spell":
+			check(g_bob.phase != "search" and g_bob.players[0]["hand"].size() == mine_hand_before, "Bob: carta que não é unidade não custa nada")
+		else:
+			check(g_bob.phase == "search" and g_bob.pending_search.get("discard_hand", false) and int(g_bob.pending_search["discards_left"]) == 2, "Bob: unidade pede 2 descartes")
+			g_bob.choose_search(0, int(g_bob.pending_search["cards"][0]["uid"]))
+			check(g_bob.phase == "search" and int(g_bob.pending_search["discards_left"]) == 1, "Bob: depois do 1º descarte falta 1")
+			g_bob.choose_search(0, int(g_bob.pending_search["cards"][0]["uid"]))
+			check(g_bob.phase != "search" and g_bob.players[0]["hand"].size() == mine_hand_before - 2, "Bob: descartou 2 e a escolha fecha")
+	var g_bob_empty := _new_game()
+	g_bob_empty.active = 0
+	g_bob_empty.players[1]["hand"] = []
+	g_bob_empty._begin_enemy_hand_bottom(0, 2, 0)
+	check(g_bob_empty.phase != "search", "Bob: oponente sem cartas na mão não abre escolha")
+
 	# Gablúrio: Ao Entrar compra 2; quando o Líder recupera Vida compra 1, mas só 1x por turno
 	var g_vicar := _new_game()
 	g_vicar.active = 0
@@ -4900,6 +4934,48 @@ func _test_layla_deck() -> void:
 		_resolve_stack(g)
 	check(jack_victims[0].damage == 2 and jack_victims[1].damage == 2, "Jack Veyr: a unidade que ficou Atordoada sofre 2 de dano")
 	check(jack_victims[2].damage == 0, "Jack Veyr: só reage 2x por turno (a terceira Atordoada não sofre dano)")
+
+	# Ellen Veyr: cover fire. Each attack declared in the match makes her shoot before the combat, at most twice per
+	# turn: 2 damage the first time, 5 the second. In her owner's turn the shot hits the unit an ally challenged;
+	# in the enemy's turn it hits the attacker. An attack on a Leader has no unit to shoot.
+	_tcard("t_ellen_target", 1, 20, [])
+	_tcard("t_ellen_attacker", 1, 20, [])
+	g = _new_game()
+	_quiet(g)
+	_put(g, 0, "ellen_veyr")
+	var ellen_targets: Array[Card] = [_put(g, 1, "t_ellen_target"), _put(g, 1, "t_ellen_target"), _put(g, 1, "t_ellen_target")]
+	var ellen_allies: Array[Card] = [_put(g, 0, "t_ellen_attacker"), _put(g, 0, "t_ellen_attacker"), _put(g, 0, "t_ellen_attacker")]
+	for ellen_target in ellen_targets:
+		ellen_target.exhausted = true
+	_hit(g, ellen_allies[0], ellen_targets[0].uid)
+	check(ellen_targets[0].damage == 2 + 1, "Ellen Veyr: no turno dela, o 1º ataque aliado leva 2 de dano na unidade desafiada (+1 do combate)")
+	_hit(g, ellen_allies[1], ellen_targets[1].uid)
+	check(ellen_targets[1].damage == 5 + 1, "Ellen Veyr: o 2º tiro do turno causa 5 de dano (+1 do combate)")
+	_hit(g, ellen_allies[2], ellen_targets[2].uid)
+	check(ellen_targets[2].damage == 1, "Ellen Veyr: só atira 2x por turno (o 3º ataque só sofre o combate)")
+
+	# the enemy's turn: the attacker is the one who is shot, first 2 and then 5 damage
+	g = _new_game()
+	_quiet(g)
+	var ellen_unit := _put(g, 0, "ellen_veyr")
+	var ellen_wall: Array[Card] = [_put(g, 0, "t_ellen_target"), _put(g, 0, "t_ellen_target")]
+	g.end_turn(0)
+	var enemy_attackers: Array[Card] = [_put(g, 1, "t_ellen_attacker"), _put(g, 1, "t_ellen_attacker")]
+	for wall in ellen_wall:
+		wall.exhausted = true
+	_hit(g, enemy_attackers[0], ellen_wall[0].uid)
+	check(enemy_attackers[0].damage == 2 + 1, "Ellen Veyr: no turno inimigo, o atacante leva 2 de dano antes do combate (+1 do combate)")
+	_hit(g, enemy_attackers[1], ellen_wall[1].uid)
+	check(enemy_attackers[1].damage == 5 + 1, "Ellen Veyr: o 2º atacante do turno inimigo leva 5 de dano (+1 do combate)")
+	check(ellen_unit.conditional_uses == 2, "Ellen Veyr: os dois tiros ficam contados como usos do Condicional")
+
+	# an attack on a Leader leaves no unit to shoot: her own side's attacker is never hit
+	g = _new_game()
+	_quiet(g)
+	_put(g, 0, "ellen_veyr")
+	var leader_hitter := _put(g, 0, "t_ellen_attacker")
+	_hit(g, leader_hitter)
+	check(leader_hitter.damage == 0, "Ellen Veyr: ataque ao Líder não tem unidade para atirar")
 
 ## The Drex deck: heal blocks (Cancelamento do Plano de Saúde), the instant Sangramento tick (Ponto de
 ## Ruptura), the "enemy unit or Leader" target and Banquete Carmesim turning healing into damage.

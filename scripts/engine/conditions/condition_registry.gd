@@ -2,7 +2,7 @@ class_name ConditionRegistry
 extends RefCounted
 ## Turns the "if" of cards.json into a Condition object.
 ## "if" is a flag name ("momentum_left") or an object: {"all": [...]}, {"any": [...]},
-## {"not": ...} or {"compare": {...}}. These nest freely.
+## {"not": ...}, {"compare": {...}}, {"conditional_use": N} or {"crossed_below": {...}}. These nest freely.
 
 ## The Condition for an "if" value, or null when there is none (the effect always runs).
 static func parse(value: Variant) -> Condition:
@@ -15,6 +15,7 @@ static func parse(value: Variant) -> Condition:
 		if value.has("any"): return GroupCondition.new("any", _parse_each(value["any"]))
 		if value.has("not"): return GroupCondition.new("not", [_parse_or_true(value["not"])])
 		if value.has("compare"): return CompareCondition.new(value["compare"])
+		if value.has("conditional_use"): return UseNumberCondition.new(int(value["conditional_use"]))
 		if value.has("crossed_below"): return CrossedCondition.new(true, value["crossed_below"])
 		if value.has("crossed_above"): return CrossedCondition.new(false, value["crossed_above"])
 	return Condition.new()
@@ -37,6 +38,8 @@ static func error_of(value: Variant) -> String:
 				return error_of(value["not"])
 			"compare":
 				return CompareCondition.error_of(value["compare"])
+			"conditional_use":
+				return UseNumberCondition.error_of(value[key])
 			"crossed_below", "crossed_above":
 				return CrossedCondition.error_of(value[key])
 	return "if desconhecido \"%s\"" % str(value)

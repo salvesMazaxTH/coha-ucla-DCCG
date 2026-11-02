@@ -129,6 +129,19 @@ static func _choose_search(g: GameState) -> int:
 	var best_uid := 0
 	var best_score := -999
 	var discarding: bool = g.pending_search.get("discard_hand", false)
+	if g.pending_search.get("hand_bottom", false):
+		# Bob Veyr: take the opponent's best card, unless it is a unit and the discards would cost more than it is worth
+		var best_foe_card := 0
+		var best_foe_cost := -1
+		for option in g.pending_search.get("cards", []):
+			var foe_data := CardDB.card(option["card_id"])
+			var foe_cost := int(foe_data.get("cost", 0))
+			if foe_data.get("type", "") == "unit":
+				foe_cost -= 4 * int(g.pending_search.get("discard_if_unit", 0))
+			if foe_cost > best_foe_cost:
+				best_foe_cost = foe_cost
+				best_foe_card = int(option["uid"])
+		return best_foe_card if best_foe_cost >= 0 else 0
 	# search options are plain dicts {uid, card_id}
 	for option in g.pending_search.get("cards", []):
 		var card_data := CardDB.card(option["card_id"])

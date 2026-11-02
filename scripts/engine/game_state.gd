@@ -2251,7 +2251,7 @@ func choose_search(p: int, card_uid: int) -> Array:
 			chosen = c
 			break
 	# a deck search is optional too (Bruno's Bola de Neve), and so is a Rebobinar: uid 0 takes no card
-	var declined: bool = card_uid == 0 and (pending_search.get("deck_search", false) or pending_search.get("grave_optional", false))
+	var declined: bool = card_uid == 0 and (pending_search.get("deck_search", false) or pending_search.get("grave_optional", false) or pending_search.get("hand_bottom", false))
 	if chosen.is_empty() and not declined:
 		return []
 	# a deck search (top-N or whole deck) is mandatory when something is eligible: skipping is only the way out of a whiff
@@ -2283,6 +2283,8 @@ func choose_search(p: int, card_uid: int) -> Array:
 		stack_system().after_search()
 		stack_system().settle()
 		return _flush()
+	if pending_search.get("hand_bottom", false):
+		return _finish_enemy_hand_bottom(p, card_uid, declined)
 	if pending_search.get("discard_hand", false):
 		var activation_uid: int = int(pending_search.get("then_activate", 0))
 		if activation_uid != 0:
@@ -2299,9 +2301,14 @@ func choose_search(p: int, card_uid: int) -> Array:
 		players[p]["hand"].erase(discarded_card)
 		players[p]["graveyard"].append(discarded_card)
 		_move(discarded_card, "graveyard")
+		var discards_left := int(pending_search.get("discards_left", 1)) - 1
+		_emit({"type": "discard", "player": p, "uid": card_uid, "card_id": discarded_card.card_id})
+		if discards_left > 0 and not players[p]["hand"].is_empty():
+			# a multi-card discard (Bob Veyr): the same screen opens again for the next card
+			_open_hand_discard_pick(p, int(pending_search.get("source_uid", 0)), discards_left)
+			return _flush()
 		pending_search.clear()
 		phase = _search_return
-		_emit({"type": "discard", "player": p, "uid": card_uid, "card_id": discarded_card.card_id})
 		_check_state()
 		stack_system().after_search()
 		stack_system().settle()
@@ -2820,16 +2827,64 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 func _begin_hand_discard(p: int, source_uid: int) -> void:
 	if phase == "search":
 		return
+	if players[p]["hand"].is_empty():
+		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
+		return
+	_search_return = phase
+	phase = "search"
+	_open_hand_discard_pick(p, source_uid, 1)
+
+## Shows the hand-discard screen; `discards_left` cards still have to be discarded in this sequence.
+func _open_hand_discard_pick(p: int, source_uid: int, discards_left: int) -> void:
 	var options: Array = []
 	for c: Card in players[p]["hand"]:
+		options.append({"uid": c.uid, "card_id": c.card_id})
+	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "discard_hand": true, "discards_left": discards_left}
+	_emit({"type": "discard_pick", "player": p, "source_uid": source_uid})
+
+## Bob Veyr ("enemy_hand_bottom"): the player looks at the opponent's hand and may send one card of it to the bottom of
+## the opponent's deck. If it was a unit, the player then discards `discard_if_unit` cards of their own.
+func _begin_enemy_hand_bottom(p: int, discard_if_unit: int, source_uid: int) -> void:
+	if phase == "search":
+		return
+	var options: Array = []
+	for c: Card in players[opponent(p)]["hand"]:
 		options.append({"uid": c.uid, "card_id": c.card_id})
 	if options.is_empty():
 		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
 		return
-	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "discard_hand": true}
+	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "hand_bottom": true, "discard_if_unit": discard_if_unit}
 	_search_return = phase
 	phase = "search"
-	_emit({"type": "discard_pick", "player": p, "source_uid": source_uid})
+	_emit({"type": "hand_bottom_pick", "player": p, "source_uid": source_uid})
+
+## The answer to the screen above: uid 0 takes no card; otherwise the picked card goes to the bottom of its owner's deck
+## (the FRONT of the array: draws pop the back) and a unit makes the player discard.
+func _finish_enemy_hand_bottom(p: int, card_uid: int, declined: bool) -> Array:
+	var foe := opponent(p)
+	var discards := int(pending_search.get("discard_if_unit", 0))
+	var source_uid := int(pending_search.get("source_uid", 0))
+	var sent_to_bottom: Card = null
+	if not declined:
+		sent_to_bottom = _hand_card(foe, card_uid)
+		if sent_to_bottom == null:
+			return []
+		players[foe]["hand"].erase(sent_to_bottom)
+		players[foe]["deck"].push_front(sent_to_bottom)
+		_move(sent_to_bottom, "deck")
+		_emit({"type": "hand_bottom", "player": p, "owner": foe, "uid": card_uid, "card_id": sent_to_bottom.card_id})
+	else:
+		_emit({"type": "search_decline", "player": p})
+	var price_is_due: bool = sent_to_bottom != null and CardDB.card(sent_to_bottom.card_id)["type"] == "unit" and discards > 0
+	if price_is_due and not players[p]["hand"].is_empty():
+		_open_hand_discard_pick(p, source_uid, discards)
+		return _flush()
+	pending_search.clear()
+	phase = _search_return
+	_check_state()
+	stack_system().after_search()
+	stack_system().settle()
+	return _flush()
 
 ## The player picks a unit card (of `rarity`; "" = any) from their own hand; it enters the board
 ## for free and is banished at the end of the turn. The options are private to the owner.

@@ -3031,6 +3031,8 @@ func _hint() -> String:
 			return "Escolha uma carta para invocar de graça, ou não invoque nenhuma."
 		if g.pending_search.get("hand_summon", false):
 			return "Escolha um campeão da sua mão para entrar em campo de graça."
+		if g.pending_search.get("hand_bottom", false):
+			return "Escolha uma carta da mão do oponente para ir ao fundo do deck dele, ou não escolha nenhuma."
 		if g.pending_search.get("grave_optional", false):
 			return "Rebobinar: escolha uma carta do cemitério para levar à mão, ou não pegue nenhuma."
 		return "Escolha uma carta da sua mão para descartar." if g.pending_search.get("discard_hand", false) else "Escolha uma das cartas reveladas."
@@ -4645,12 +4647,13 @@ func _render_search_reveal() -> void:
 	# a private look is face up only for its owner (online, the server already masks the cards)
 	var discard_hand: bool = g.pending_search.get("discard_hand", false)
 	var hand_summon: bool = g.pending_search.get("hand_summon", false)
-	var hidden := (look or discard_hand or hand_summon) and not _my_input()
+	var hand_bottom: bool = g.pending_search.get("hand_bottom", false) # Bob Veyr: a look at the opponent's hand
+	var hidden := (look or discard_hand or hand_summon or hand_bottom) and not _my_input()
 	# the options of a deck search are shown only to the searcher; the opponent just sees that a search is happening
 	var deck_search: bool = g.pending_search.get("deck_search", false)
 	var secret_search := deck_search and not _my_input()
 	var summoning: bool = g.pending_search.get("summon_from", false) # "summon_from": a free summon from the deck, hand or graveyard
-	var title := "INVOCAÇÃO GRATUITA" if summoning else "CAMPEÃO DA MÃO" if hand_summon else "DESCARTAR DA MÃO" if discard_hand else "CEMITÉRIO" if g.pending_search.get("grave", false) else (("FUNDO DO DECK" if g.pending_search.get("from_bottom", false) else "TOPO DO DECK") if look else "BUSCA NO DECK")
+	var title := "INVOCAÇÃO GRATUITA" if summoning else "CAMPEÃO DA MÃO" if hand_summon else "MÃO DO OPONENTE" if hand_bottom else "DESCARTAR DA MÃO" if discard_hand else "CEMITÉRIO" if g.pending_search.get("grave", false) else (("FUNDO DO DECK" if g.pending_search.get("from_bottom", false) else "TOPO DO DECK") if look else "BUSCA NO DECK")
 	var search_signature: int = g.pending_search.hash()
 	# the opponent's choice starts folded: there is nothing to do in it, and the table is what matters
 	var opponent_choice_is_folded := not _my_input() and search_opened_signature != search_signature
@@ -4772,17 +4775,17 @@ func _render_search_reveal() -> void:
 	var whole_deck_hint := "Nenhuma carta do deck pode ser escolhida; o deck será embaralhado." if g.pending_search.get("cards", []).is_empty() else "Clique em uma carta que brilha para adicioná-la à sua mão; depois o deck é embaralhado."
 	if row_overflows and whole_deck:
 		whole_deck_hint += " Deslize para o lado para ver o deck todo."
-	var hint := summon_hint if summoning else "Clique em uma carta para levá-la à sua mão, ou escolha não pegar nenhuma; as outras ficam no cemitério." if grave_optional else "Clique em um campeão para colocá-lo em campo sem pagar o custo, ou escolha não colocar nenhum." if hand_summon else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else ("Escolha 1 para a mão; as outras continuam onde estavam no fundo do deck." if g.pending_search.get("from_bottom", false) else "Escolha 1 para a mão; as outras vão para o fundo do deck.") if look else ("Nenhuma das cartas olhadas pode ser escolhida; o deck será embaralhado." if g.pending_search.get("cards", []).is_empty() else "Clique em uma carta que brilha para adicioná-la à sua mão; as outras vão para o fundo do deck.") if g.pending_search.has("to_bottom") else whole_deck_hint if whole_deck else "Clique em uma carta que brilha para adicioná-la à sua mão e embaralhar o deck, ou escolha não pegar nenhuma."
+	var hint := summon_hint if summoning else "Clique em uma carta para levá-la à sua mão, ou escolha não pegar nenhuma; as outras ficam no cemitério." if grave_optional else "Clique em um campeão para colocá-lo em campo sem pagar o custo, ou escolha não colocar nenhum." if hand_summon else "Clique em uma carta para mandá-la ao fundo do deck do dono. Se for uma unidade, você descarta %d cartas; ou escolha nenhuma." % int(g.pending_search.get("discard_if_unit", 0)) if hand_bottom else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else ("Escolha 1 para a mão; as outras continuam onde estavam no fundo do deck." if g.pending_search.get("from_bottom", false) else "Escolha 1 para a mão; as outras vão para o fundo do deck.") if look else ("Nenhuma das cartas olhadas pode ser escolhida; o deck será embaralhado." if g.pending_search.get("cards", []).is_empty() else "Clique em uma carta que brilha para adicioná-la à sua mão; as outras vão para o fundo do deck.") if g.pending_search.has("to_bottom") else whole_deck_hint if whole_deck else "Clique em uma carta que brilha para adicioná-la à sua mão e embaralhar o deck, ou escolha não pegar nenhuma."
 	var footer := _label(hint if _my_input() else "A escolha pertence ao oponente.", 18, SEL if _my_input() else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 	box.add_child(footer)
 	if not secret_search:
 		box.add_child(_label("Botão direito (ou segurar o dedo) em uma carta abre ela em tela cheia.", 15, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
 	# a top-N look and a whole-deck search are mandatory when a card is eligible: their only button is the way out of a whiff
 	var mandatory_deck_look: bool = (g.pending_search.has("to_bottom") or whole_deck) and not g.pending_search.get("cards", []).is_empty()
-	if (hand_summon or deck_search or summoning or grave_optional) and _my_input() and not mandatory_deck_look:
+	if (hand_summon or deck_search or summoning or grave_optional or hand_bottom) and _my_input() and not mandatory_deck_look:
 		# these picks are optional: uid 0 means "take no card" (Dona Gertrudes puts no champion in play)
 		# in a deck search that found nothing, the button shuffles the deck
-		var skip_text := "NÃO INVOCAR NENHUMA" if summoning else "NÃO COLOCAR NENHUM" if hand_summon else "EMBARALHAR O DECK" if (g.pending_search.has("to_bottom") or whole_deck) and not grave_optional else "NÃO PEGAR NENHUMA"
+		var skip_text := "NÃO INVOCAR NENHUMA" if summoning else "NÃO COLOCAR NENHUM" if hand_summon else "NÃO ESCOLHER NENHUMA" if hand_bottom else "EMBARALHAR O DECK" if (g.pending_search.has("to_bottom") or whole_deck) and not grave_optional else "NÃO PEGAR NENHUMA"
 		var skip_button := _button(skip_text, func(): _on_search_choice(0))
 		skip_button.custom_minimum_size = Vector2(360, 52)
 		skip_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER

@@ -21,6 +21,7 @@ var returned_ally_count := 0 ## allied units a "return_to_hand" of this run sent
 var last_drawn_card: Card = null ## the latest card drawn by this effect run, for follow-up effects
 var event: GameEvent = null ## the event that made a listening card react (null for plain triggers)
 var milled_cards: Array = [] ## cards the latest mill of this run sent to the graveyard (offered by mill_pick)
+var conditional_use := 0 ## which use of the turn this Condicional is, for cards with "conditional_uses_per_turn" (0 = no limit); fixed when the event is offered
 
 var shielded_uids: Array[int] = [] ## units whose shield cancelled an earlier effect of this run: the card's later aimed effects skip them
 var shielded_this_effect: Array[int] = [] ## shields broken by the effect running now; repeated hits of one effect (Repique) are independent, so they only count once that effect is over
@@ -85,6 +86,7 @@ func for_choice_effects(picked_target: int) -> EffectContext:
 	child.returned_ally_count = returned_ally_count
 	child.last_drawn_card = last_drawn_card
 	child.event = event
+	child.conditional_use = conditional_use
 	child.milled_cards = milled_cards.duplicate()
 	child.shielded_uids.assign(shielded_uids)
 	return child

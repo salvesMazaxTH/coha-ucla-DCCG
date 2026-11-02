@@ -231,7 +231,12 @@ static func _validate_leader(lid: String, ld: Dictionary) -> void:
 	_validate_effects(err, ab.get("effects", []))
 
 static func _validate_effects(err: Callable, effects: Array, inside_effect_choice := false) -> void:
-	var has_effect_choice := effects.any(func(entry): return entry is Dictionary and entry.get("action", "") == "choose_effect")
+	# effects of different triggers never resolve together, so only a choose_effect that shares a trigger (or listened event)
+	# with another choice screen is a conflict
+	var triggers_with_effect_choice: Array = []
+	for entry in effects:
+		if entry is Dictionary and entry.get("action", "") == "choose_effect":
+			triggers_with_effect_choice.append(String(entry.get("trigger", entry.get("listen", ""))))
 	for e in effects:
 		if not e is Dictionary:
 			err.call("efeito não é objeto: %s" % str(e))
@@ -239,7 +244,7 @@ static func _validate_effects(err: Callable, effects: Array, inside_effect_choic
 		var action: String = e.get("action", "")
 		if not EffectRegistry.is_known(action):
 			err.call("action desconhecida \"%s\"" % action)
-		elif (inside_effect_choice or has_effect_choice) and EffectRegistry.parse(e).opens_choice():
+		elif (inside_effect_choice or triggers_with_effect_choice.has(String(e.get("trigger", e.get("listen", ""))))) and EffectRegistry.parse(e).opens_choice():
 			err.call("choose_effect ainda não pode ser combinado com outra tela de escolha")
 		if action not in EffectRegistry.STATIC_ACTIONS:
 			if not e.has("target"):
