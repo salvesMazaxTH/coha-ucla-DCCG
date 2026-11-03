@@ -715,6 +715,7 @@ func _show_editor() -> void:
 	_close_inspect()
 	_clear_content()
 	catalog = CardCatalog.new()
+	catalog.sort_option = 1
 	_page = 0
 	var margin := _margin(22, 18)
 	_content.add_child(margin)

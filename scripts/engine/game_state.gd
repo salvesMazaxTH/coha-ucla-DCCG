@@ -659,6 +659,21 @@ func opponent_aura_bonus(c: Card, sources_out: Array = []) -> Vector3i:
 			sources_out.append({"source": source.card_id, "atk": aura_bonus.x, "hp": aura_bonus.y})
 	return bonus
 
+## What the "opponent_cost_tax" Constantes on the OTHER side of the board add to the cost of a card of player `p`
+## (Cornélia Aldrovane: the opponent's spells cost 1 more). `card_type` limits it to one card type (empty = every card).
+## The source's owner's double_constants applies.
+func opponent_cost_tax(p: int, cd: Dictionary) -> int:
+	var tax := 0
+	for source: Card in players[opponent(p)]["board"]:
+		for e in card_of(source).get("effects", []):
+			if e.get("trigger", "") != "constante" or e.get("action", "") != "opponent_cost_tax":
+				continue
+			var taxed_type := String(e.get("card_type", ""))
+			if taxed_type != "" and taxed_type != String(cd.get("type", "")):
+				continue
+			tax += int(e.get("amount", 1)) * constants_multiplier(opponent(p))
+	return tax
+
 ## Where each Constante bonus on a unit comes from, for the card overlay's "Modificadores" panel: one
 ## {"source": card id, "until": "constant", "atk", "hp", "armor", "critico"} per effect (its own scaling, each ally's
 ## aura, the Momentum surge, Armadura from the graveyard or from the neighbours). Zero stats are left out.
@@ -725,6 +740,7 @@ func _scale_count(p: int, e: Dictionary, self_card: Card = null) -> int:
 	match e.get("per", ""):
 		"other_allied_copies": return other_allied_copies(p, String(e.get("card_id", "")), self_card)
 		"allied_copies": return other_allied_copies(p, String(e.get("card_id", "")))
+		"other_allied_tribe": return other_allied_tribe_units(p, String(e.get("tribe", "")), self_card)
 		"own_graveyard_units": return graveyard_units(p)
 		"enemy_graveyard_units": return graveyard_units(opponent(p))
 		"own_artifacts": return artifact_count(p)
@@ -745,6 +761,14 @@ func other_allied_copies(p: int, card_id: String, except_card: Card = null) -> i
 	var n := 0
 	for c: Card in players[p]["board"]:
 		if c != except_card and c.card_id == card_id:
+			n += 1
+	return n
+
+## Units of player p on the board with the given tribe, not counting `except_card` itself (Sven grows with the other Dragões Negros).
+func other_allied_tribe_units(p: int, tribe: String, except_card: Card = null) -> int:
+	var n := 0
+	for c: Card in players[p]["board"]:
+		if c != except_card and (c.data().get("tribe", []) as Array).has(tribe):
 			n += 1
 	return n
 
@@ -979,6 +1003,7 @@ func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 		floor_cost = maxi(floor_cost, mini(ice_spell_discount_floor(p, cd), c))
 	c -= amulet_discount
 	c = maxi(c, floor_cost)
+	c += opponent_cost_tax(p, cd) # a curse from the other side of the board; it is a cost, not a discount, so no floor applies
 	if card != null and card.zone == "hand" and play_discount_applies(p, card):
 		c = ceili(float(c) / int(players[p]["play_discount"]["divisor"]))
 	var requiem_extra := REQUIEM_EXTRA_COST if card != null and card.zone == "graveyard" else 0
@@ -2358,10 +2383,13 @@ func choose_search(p: int, card_uid: int) -> Array:
 		_move(discarded_card, "graveyard")
 		var discards_left := int(pending_search.get("discards_left", 1)) - 1
 		_emit({"type": "discard", "player": p, "uid": card_uid, "card_id": discarded_card.card_id})
+		var discard_queue: Array = pending_search.get("discard_queue", [])
 		if discards_left > 0 and not players[p]["hand"].is_empty():
 			# a multi-card discard (Bob Veyr): the same screen opens again for the next card
-			_open_hand_discard_pick(p, int(pending_search.get("source_uid", 0)), discards_left)
+			_open_hand_discard_pick(p, int(pending_search.get("source_uid", 0)), discards_left, discard_queue)
 			return _flush()
+		if _open_next_queued_discard(int(pending_search.get("source_uid", 0)), discard_queue):
+			return _flush() # Soren: the other player's turn to discard
 		pending_search.clear()
 		phase = _search_return
 		_check_state()
@@ -2415,6 +2443,11 @@ func choose_search(p: int, card_uid: int) -> Array:
 		_move(found, "hand")
 		# "discount": the card taken costs this much less (Vendedora de Grimório), same per-copy discount as a discount effect
 		found.discount += int(pending_search.get("discount", 0))
+		# "turn_discount": the card taken costs this much less only until the end of this turn, but never below 1 (Sven)
+		var turn_discount_amount: int = int(pending_search.get("turn_discount", 0))
+		if turn_discount_amount > 0:
+			var cost_now := cost_of(p, found.data(), found)
+			found.turn_discount += clampi(turn_discount_amount, 0, maxi(cost_now - 1, 0))
 		last_search_took_card = true
 	var look: bool = pending_search.get("look", false)
 	var top_search: bool = pending_search.has("to_bottom") # a search limited to the top N cards
@@ -2855,6 +2888,7 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 		return
 	# "deck_search": the options are private to the searcher; the opponent only learns the card that was taken (search_take)
 	pending_search = {"player": p, "source_uid": source_uid, "cards": matches, "deck_search": true, "discount": int(e.get("discount", 0)),
+		"turn_discount": int(e.get("turn_discount", 0)),
 		"fallback_draw": int(e.get("fallback_draw", 0))}
 	# every card looked at, topmost first; "cards" holds only the eligible ones, so the UI can show the rest dimmed
 	var looked_cards: Array = []
@@ -2889,12 +2923,38 @@ func _begin_hand_discard(p: int, source_uid: int) -> void:
 	phase = "search"
 	_open_hand_discard_pick(p, source_uid, 1)
 
+## Soren ("discard_if_over"): each player holding MORE than `limit` cards discards `amount` of them, the controller first.
+## The players still waiting for their turn travel in `discard_queue` inside pending_search.
+func _begin_discard_if_over(p: int, limit: int, amount: int, source_uid: int) -> void:
+	if phase == "search":
+		return
+	var discard_queue: Array = [{"player": p, "limit": limit, "amount": amount}, {"player": opponent(p), "limit": limit, "amount": amount}]
+	_search_return = phase
+	phase = "search"
+	if not _open_next_queued_discard(source_uid, discard_queue):
+		phase = _search_return # nobody held more than the limit
+
+## Opens the discard screen for the next player in `discard_queue` who holds more cards than their limit.
+## Returns false (and opens nothing) when nobody in the queue has to discard.
+func _open_next_queued_discard(source_uid: int, discard_queue: Array) -> bool:
+	var waiting: Array = discard_queue.duplicate()
+	while not waiting.is_empty():
+		var next_entry: Dictionary = waiting.pop_front()
+		var next_player := int(next_entry["player"])
+		if players[next_player]["hand"].size() > int(next_entry["limit"]):
+			_open_hand_discard_pick(next_player, source_uid, int(next_entry["amount"]), waiting)
+			return true
+	return false
+
 ## Shows the hand-discard screen; `discards_left` cards still have to be discarded in this sequence.
-func _open_hand_discard_pick(p: int, source_uid: int, discards_left: int) -> void:
+## `discard_queue` (Soren) lists the other players who discard after this one finishes.
+func _open_hand_discard_pick(p: int, source_uid: int, discards_left: int, discard_queue: Array = []) -> void:
 	var options: Array = []
 	for c: Card in players[p]["hand"]:
 		options.append({"uid": c.uid, "card_id": c.card_id})
 	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "discard_hand": true, "discards_left": discards_left}
+	if not discard_queue.is_empty():
+		pending_search["discard_queue"] = discard_queue
 	_emit({"type": "discard_pick", "player": p, "source_uid": source_uid})
 
 ## Bob Veyr ("enemy_hand_bottom"): the player looks at the opponent's hand and may send one card of it to the bottom of

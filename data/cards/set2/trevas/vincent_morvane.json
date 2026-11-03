@@ -1,0 +1,37 @@
+{
+  "name": "Vincent Morvane",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "tribe": [
+    "dragoes_negros"
+  ],
+  "essence": [
+    "trevas",
+    "tormenta"
+  ],
+  "cost": 3,
+  "atk": 3,
+  "hp": 2,
+  "keywords": [
+    "impeto"
+  ],
+  "art": "trevas/vincent_morvane.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "return_to_hand",
+      "target": "other_ally_unit",
+      "discount_returned_this_turn": 2
+    },
+    {
+      "trigger": "on_death",
+      "action": "return_to_hand",
+      "target": "self_card",
+      "cost_increase": 1
+    }
+  ],
+  "text": "Ao Entrar: você pode devolver outra unidade aliada à sua mão; ela custa (2) a menos neste turno.\nAo Morrer: volta para a sua mão e passa a custar (1) a mais.",
+  "flavor": "",
+  "tags": []
+}

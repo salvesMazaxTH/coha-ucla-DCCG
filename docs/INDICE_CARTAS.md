@@ -517,13 +517,13 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 
 | ID | Nome | Raridade | Tipo | Custo |
 |---|---|---|---|---|
-| `cortejo_de_cinzas` | Cortejo de Cinzas | Épica | Feitiço | 1 |
 | `drake` | Drake | Campeã | Unidade | 4 |
 | `elias_oraculo` | Elias, Oráculo | Campeã | Unidade | 4 |
 | `lucian_mortasa` | Lucian Mortasa | Campeã | Unidade | 4 |
+| `lucian_mortasa_primordial` | Lucian Mortasa Primordial | Campeã | Unidade | 7 |
 | `magni` | Magni | Campeã | Unidade | 6 |
 | `vesper` | Seraphina, Vesper | Campeã | Unidade | 4 |
-| `soren` | Soren | Campeã | Unidade | 6 |
+| `soren` | Soren | Campeã | Unidade | 5 |
 | `sven` | Sven | Campeã | Unidade | 3 |
 | `vincent_morvane` | Vincent Morvane | Campeã | Unidade | 3 |
 

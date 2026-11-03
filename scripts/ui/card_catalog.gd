@@ -31,12 +31,12 @@ const ACTION_CATEGORIES := {
 	"Atordoa": ["stun"],
 	"Exaure": ["exhaust"],
 	"Silencia": ["silence"],
-	"Remove palavras-chave ou defesas": ["suppress_keyword", "strip_defenses"],
+	"Remove palavras-chave ou defesas": ["suppress_keyword", "strip_defenses", "strip_armor"],
 	"Fortalecimento": ["buff", "cap_stats", "tribe_aura", "keyword_aura", "opponent_aura"],
 	"Recursos": ["gain_momentum", "gain_reserve", "raise_max_momentum", "momentum_surge", "momentum_cap", "spend_all_momentum"],
 	"Redução de custo": ["modify_cost", "discount_hand", "grant_play_discount", "cost_reduction"],
 	"Devolução à mão": ["return_to_hand"],
-	"Descarte e moagem": ["discard_hand_pick", "mill", "mill_pick"],
+	"Descarte e moagem": ["discard_hand_pick", "discard_if_over", "mill", "mill_pick"],
 	"Transformação": ["transform_self"],
 }
 const SORT_OPTIONS := ["Nome", "Custo: menor primeiro", "Custo: maior primeiro", "Ataque: maior primeiro", "Vida: maior primeiro", "Tipo / nome"]
@@ -230,6 +230,7 @@ func build_controls(box: Container, width: float, on_change: Callable) -> void:
 	_sort_box = OptionButton.new()
 	for option in SORT_OPTIONS:
 		_sort_box.add_item(option)
+	_sort_box.select(sort_option)
 	_sort_box.item_selected.connect(func(index: int):
 		sort_option = index
 		_changed())

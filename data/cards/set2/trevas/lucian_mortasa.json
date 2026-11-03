@@ -1,0 +1,19 @@
+{
+  "name": "Lucian Mortasa",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "tribe": ["dragoes_negros"],
+  "essence": ["trevas", "furia"],
+  "cost": 4,
+  "atk": 4,
+  "hp": 3,
+  "keywords": ["roubo_de_vida"],
+  "art": "trevas/lucian_mortasa.webp",
+  "effects": [
+    { "trigger": "on_death", "action": "summon", "target": "none", "card": "lucian_mortasa_primordial" }
+  ],
+  "text": "Ao Morrer: invoca Lucian Mortasa Primordial.",
+  "flavor": "",
+  "tags": []
+}

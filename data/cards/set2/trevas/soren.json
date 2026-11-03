@@ -1,0 +1,21 @@
+{
+  "name": "Soren",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "tribe": ["dragoes_negros"],
+  "essence": ["trevas", "montanha"],
+  "cost": 5,
+  "atk": 5,
+  "hp": 5,
+  "keywords": ["armadura:2"],
+  "art": "trevas/soren.webp",
+  "effects": [
+    { "trigger": "on_enter", "action": "discard_if_over", "target": "none", "limit": 4, "amount": 1 },
+    { "trigger": "on_challenge", "action": "strip_armor", "target": "opposed_unit" },
+    { "trigger": "constante", "action": "tribe_aura", "tribe": ["dragoes_negros"], "hp": 1 }
+  ],
+  "text": "Ao Entrar: cada jogador com mais de 4 cartas na mão descarta 1.\nAo Desafiar: a unidade desafiada perde toda a Armadura.\nConstante: os outros Dragões Negros têm +1 de Vida.",
+  "flavor": "",
+  "tags": []
+}

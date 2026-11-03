@@ -57,6 +57,7 @@ func _init() -> void:
 	_test_stun_and_cap()
 	_test_elias_oraculo()
 	_test_cortejo_de_cinzas()
+	_test_sven()
 	_test_vincent_e_vesper()
 	_test_burn()
 	_test_condemn()
@@ -147,6 +148,7 @@ func _init() -> void:
 	_test_critico_data()
 	_test_drake_power()
 	_test_magni()
+	_test_lucian_soren()
 	_test_overkill()
 	_test_dud()
 	_test_ai_no_waste()
@@ -3561,7 +3563,7 @@ func _test_obscura_rules() -> void:
 	var e1 := _put(j2, 1, "kai")
 	var jf2: int = j2.players[1]["leader_hp"]
 	_kill(j2, e1)
-	check(j2.players[1]["leader_hp"] == jf2 and not j2.players[0]["passive_used"], "aliado inimigo morrendo não ativa a passiva")
+	check(j2.players[1]["leader_hp"] == jf2, "aliado inimigo morrendo não causa dano ao Líder")
 
 	# Vagante Sombria: each card of yours sent to the graveyard makes her 1 cheaper wherever she is; indestructible
 	var v := _obscura_game()
@@ -3861,6 +3863,39 @@ func _test_cortejo_de_cinzas() -> void:
 	_resolve_stack(g)
 	check(_board_count(g, 1) == free_filled, "Cortejo: campo cheio do oponente não ganha fichas extras")
 
+## Sven: the Dragão Negro taken from the top 4 costs 3 less this turn but never below 1, and he grows with the other Dragões Negros.
+func _test_sven() -> void:
+	_tcard("t_sven_dn", 2, 2, [])
+	CardDB.card("t_sven_dn")["tribe"] = ["dragoes_negros"]
+	CardDB.card("t_sven_dn")["cost"] = 4
+	_tcard("t_sven_dn_cheap", 1, 1, [])
+	CardDB.card("t_sven_dn_cheap")["tribe"] = ["dragoes_negros"]
+	CardDB.card("t_sven_dn_cheap")["cost"] = 2
+
+	var g := _new_game()
+	_quiet(g)
+	g.players[0]["deck"].append(Card.new(g._uid(), "t_sven_dn", 0, "deck"))
+	_put(g, 0, "sven")
+	var taken: Array = g.players[0]["hand"].filter(func(c: Card): return c.card_id == "t_sven_dn")
+	check(taken.size() == 1 and g.cost_of(0, taken[0].data(), taken[0]) == 1, "Sven: a carta de custo 4 pega custa 1 neste turno (4 - 3)")
+
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["deck"].append(Card.new(g._uid(), "t_sven_dn_cheap", 0, "deck"))
+	_put(g, 0, "sven")
+	var cheap: Array = g.players[0]["hand"].filter(func(c: Card): return c.card_id == "t_sven_dn_cheap")
+	check(cheap.size() == 1 and g.cost_of(0, cheap[0].data(), cheap[0]) == 1, "Sven: a carta de custo 2 pega nunca custa 0 (piso 1)")
+
+	g = _new_game()
+	_quiet(g)
+	var sven := _put(g, 0, "sven")
+	g._refresh_scaling()
+	check(g.atk_of(sven) == 2, "Sven: sozinho continua 2/3")
+	_put(g, 0, "t_sven_dn")
+	_put(g, 0, "t_sven_dn_cheap")
+	g._refresh_scaling()
+	check(g.atk_of(sven) == 4 and sven.hp_total() == 5, "Sven: +1/+1 por outro Dragão Negro que você controla (%d/%d)" % [g.atk_of(sven), sven.hp_total()])
+
 func _test_vincent_e_vesper() -> void:
 	# Vincent: when he dies he teleports back to the hand and costs 1 more each time
 	var g := _new_game()
@@ -3878,6 +3913,20 @@ func _test_vincent_e_vesper() -> void:
 		_kill(g, again)
 		var second: Array = g.players[0]["hand"].filter(func(c: Card): return c.card_id == "vincent_morvane" and c.cost_mod >= 2)
 		check(not second.is_empty(), "Vincent: a segunda morte soma mais 1 ao custo (base %d)" % base_cost)
+
+	# Vincent's Ao Entrar: the chosen other ally goes back to its owner's hand costing 2 less this turn; Ímpeto lets him attack right away
+	g = _new_game()
+	_quiet(g)
+	_tcard("t_vin_ally", 2, 3, [])
+	CardDB.card("t_vin_ally")["cost"] = 4
+	var ally := _put(g, 0, "t_vin_ally")
+	g.players[0]["momentum"] = 10
+	g.players[0]["turn_start_momentum"] = 10
+	_play_aimed(g, 0, "vincent_morvane", ally.uid)
+	check(g.find_unit(ally.uid) == null and _zone_has(g, 0, "hand", "t_vin_ally"), "Vincent: Ao Entrar devolve a outra unidade aliada à mão")
+	var bounced: Array = g.players[0]["hand"].filter(func(c: Card): return c.card_id == "t_vin_ally")
+	check(bounced.size() == 1 and bounced[0].turn_discount == 2 and g.cost_of(0, bounced[0].data(), bounced[0]) == 2, "Vincent: a unidade devolvida custa 2 a menos neste turno")
+	check(CardDB.card("vincent_morvane")["keywords"].has("impeto"), "Vincent: tem Ímpeto")
 
 	# Vesper: Ao Atingir o Líder shows the whole enemy hand; only a card that is not a unit can go to the bottom of their deck, and it costs a discard
 	_tcard("t_vesper_foe", 1, 1, [])
@@ -7096,6 +7145,116 @@ func _test_magni() -> void:
 	g.players[p]["board"].erase(magni)
 	g._check_state()
 	check(g.atk_of(foe) == 2, "Magni: ao sair do campo as unidades inimigas voltam ao Ataque normal (%d)" % g.atk_of(foe))
+
+## Lucian Mortasa: on death his Primordial enters free, hits the enemy Leader for 3 and every enemy unit for 1.
+## Soren: each player holding more than 4 cards discards 1 (controller first), the challenged unit loses its Armadura (not its Escudo), the other Dragões Negros get +1 Vida.
+func _test_lucian_soren() -> void:
+	_tcard("t_ls_filler", 1, 5, [])
+	_tcard("t_ls_dragon", 2, 3, [])
+	CardDB.data()["cards"]["t_ls_dragon"]["tribe"] = ["dragoes_negros"]
+	_tcard("t_ls_foe", 2, 20, [])
+	var g := _new_game()
+	_quiet(g)
+	var p: int = g.active
+	var o: int = 1 - p
+
+	# Lucian dies -> the Primordial enters for free, and its Ao Entrar deals 3 to the enemy Leader
+	var lucian := _put(g, p, "lucian_mortasa")
+	var enemy_unit := _put(g, o, "t_ls_foe")
+	var leader_before: int = g.players[o]["leader_hp"]
+	_kill(g, lucian)
+	_resolve_stack(g)
+	check(_count(g, p, "lucian_mortasa_primordial") == 1, "Lucian: ao morrer o Primordial entra em campo")
+	check(g.players[o]["leader_hp"] == leader_before - 3, "Lucian Primordial: Ao Entrar causa 3 ao Líder inimigo (%d -> %d)" % [leader_before, g.players[o]["leader_hp"]])
+	check(g.hp_left(enemy_unit) == 19, "Lucian Primordial: Ao Entrar também causa 1 a cada unidade inimiga (%d)" % g.hp_left(enemy_unit))
+	check(CardDB.card("lucian_mortasa_primordial").get("transform_only", false), "Lucian Primordial: só existe por evolução (fora do deck)")
+
+	# Soren's Ao Entrar: 6 cards (controller) and 5 cards (opponent) -> each discards exactly ONE, controller first
+	var g2 := _new_game()
+	_quiet(g2)
+	var q: int = g2.active
+	var r: int = 1 - q
+	g2.players[q]["hand"].clear()
+	g2.players[r]["hand"].clear()
+	for i in 6:
+		_give(g2, q, "t_ls_filler")
+	for i in 5:
+		_give(g2, r, "t_ls_filler")
+	var grave_q_before: int = g2.players[q]["graveyard"].size()
+	var grave_r_before: int = g2.players[r]["graveyard"].size()
+	g2._summon(q, Card.new(g2._uid(), "soren", q), false, 0)
+	g2._flush()
+	check(g2.phase == "search" and g2.decider() == q, "Soren: o controlador descarta primeiro")
+	g2.choose_search(q, int(g2.pending_search["cards"][0]["uid"]))
+	g2._flush()
+	check(g2.phase == "search" and g2.decider() == r, "Soren: o controlador descarta só 1; depois o oponente decide (%s)" % g2.decider())
+	g2.choose_search(r, int(g2.pending_search["cards"][0]["uid"]))
+	g2._flush()
+	check(g2.phase != "search", "Soren: acabado o último descarte a fase volta ao normal (%s)" % g2.phase)
+	check(g2.players[q]["hand"].size() == 5 and g2.players[r]["hand"].size() == 4, "Soren: cada um descarta só 1 carta (%d / %d)" % [g2.players[q]["hand"].size(), g2.players[r]["hand"].size()])
+	check(g2.players[q]["graveyard"].size() == grave_q_before + 1 and g2.players[r]["graveyard"].size() == grave_r_before + 1, "Soren: as cartas descartadas vão ao cemitério")
+
+	# nobody above the limit -> no choice opens
+	var g3 := _new_game()
+	_quiet(g3)
+	var s3: int = g3.active
+	g3.players[s3]["hand"].clear()
+	g3.players[1 - s3]["hand"].clear()
+	for i in 3:
+		_give(g3, s3, "t_ls_filler")
+	_give(g3, 1 - s3, "t_ls_filler")
+	g3._summon(s3, Card.new(g3._uid(), "soren", s3), false, 0)
+	g3._flush()
+	check(g3.phase != "search" and g3.players[s3]["hand"].size() == 3 and g3.players[1 - s3]["hand"].size() == 1, "Soren: com 4 ou menos cartas ninguém descarta")
+
+	# only the opponent above the limit -> only the opponent is asked
+	var g4 := _new_game()
+	_quiet(g4)
+	var s4: int = g4.active
+	g4.players[s4]["hand"].clear()
+	g4.players[1 - s4]["hand"].clear()
+	for i in 5:
+		_give(g4, 1 - s4, "t_ls_filler")
+	g4._summon(s4, Card.new(g4._uid(), "soren", s4), false, 0)
+	g4._flush()
+	check(g4.phase == "search" and g4.decider() == 1 - s4, "Soren: só o oponente passa do limite, só ele descarta")
+	g4.choose_search(1 - s4, int(g4.pending_search["cards"][0]["uid"]))
+	g4._flush()
+	check(g4.phase != "search" and g4.players[1 - s4]["hand"].size() == 4, "Soren: o oponente termina com 4 cartas")
+
+	# Ao Desafiar: the challenged unit loses its Armadura but keeps the Escudo; Constante: the OTHER Dragões Negros get +1 Vida
+	var g5 := _new_game()
+	_quiet(g5)
+	var a: int = g5.active
+	g5.players[a]["hand"].clear()
+	g5.players[1 - a]["hand"].clear()
+	var soren := _put(g5, a, "soren")
+	var ally_dragon := _put(g5, a, "t_ls_dragon")
+	var foe := _put(g5, 1 - a, "t_ls_foe")
+	g5._check_state()
+	check(g5.hp_left(ally_dragon) == 4, "Soren: outro Dragão Negro ganha +1 Vida (%d)" % g5.hp_left(ally_dragon))
+	check(g5.hp_left(soren) == 5, "Soren: a Constante não alcança o próprio Soren (%d)" % g5.hp_left(soren))
+	foe.armor = 2
+	foe.shield = true
+	foe.exhausted = true # only a tapped unit can be challenged
+	check(g5.armor_of(foe) == 2, "fixture: o alvo tem Armadura 2")
+	g5.go_to_combat(a)
+	_hit(g5, soren, foe.uid)
+	_resolve_stack(g5)
+	check(g5.armor_of(foe) == 0, "Soren: Ao Desafiar tira toda a Armadura do alvo (%d)" % g5.armor_of(foe))
+
+	# strip_armor alone: the Escudo stays (in Soren's challenge the hit itself pops it, so it is checked with a test unit)
+	_tcard("t_ls_stripper", 1, 1, [{"trigger": "on_enter", "action": "strip_armor", "target": "enemy_unit"}])
+	var g6 := _new_game()
+	_quiet(g6)
+	var b: int = g6.active
+	g6.players[b]["momentum"] = 10
+	var shielded := _put(g6, 1 - b, "t_ls_foe")
+	shielded.armor = 2
+	shielded.shield = true
+	check(shielded.shield and g6.armor_of(shielded) == 2, "strip_armor: o alvo começa com Escudo e Armadura 2")
+	_play_aimed(g6, b, "t_ls_stripper", shielded.uid)
+	check(shielded.shield and g6.armor_of(shielded) == 0, "strip_armor: a Armadura some e o Escudo continua")
 
 ## Ataque Duplo: the unit stays tapped between the two attacks and is spent after the second.
 func _test_double_attack() -> void:

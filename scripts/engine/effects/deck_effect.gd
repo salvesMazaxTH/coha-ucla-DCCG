@@ -12,6 +12,8 @@ extends Effect
 ##   a broad filter over the whole deck is too strong.
 ## "discard_hand_pick": the player picks one card from their own hand and discards it to
 ##   the graveyard (only the end-of-turn hand limit banishes; a normal discard goes to the graveyard).
+## "discard_if_over" (Soren): BOTH players holding MORE than `limit` cards (default 4) discard `amount` (default 1) cards
+##   from their own hand to the graveyard. The controller chooses first, then the opponent; a player at the limit or below discards nothing.
 ## "summon_hand_pick": the player picks a unit card of the given `rarity` (e.g. "champion"; "" = any) from
 ##   their own hand and it enters the board for free. It is banished when the turn ends.
 ## "grave_retrieve": the player picks a copy of `card_id` (or of any card in the `card_ids` list) from their own
@@ -46,6 +48,8 @@ func opens_choice() -> bool:
 func open_choice(context: EffectContext) -> void:
 	if action == "discard_hand_pick":
 		context.game._begin_hand_discard(context.controller, context.self_uid)
+	elif action == "discard_if_over":
+		context.game._begin_discard_if_over(context.controller, int(raw.get("limit", 4)), int(raw.get("amount", 1)), context.self_uid)
 	elif action == "summon_hand_pick":
 		context.game._begin_hand_summon(context.controller, String(raw.get("rarity", "")), context.self_uid)
 	elif action == "grave_retrieve":

@@ -3,6 +3,7 @@ extends Effect
 ## Takes protections away from the target unit, told apart by `action`:
 ## "strip_defenses": the unit loses its Escudo and all of its Armadura (printed, gained, temporary) for good (Furador de Casca).
 ##   The Escudo Mágico is a different protection and stays.
+## "strip_armor" (Soren): like strip_defenses, but only the Armadura goes; the Escudo stays.
 ## "suppress_keyword": the unit loses the keyword named in "keyword" until the end of this turn, then gets it back
 ##   (Saltador de Cerca takes Provocação away so it can be walked past this turn).
 
@@ -18,12 +19,14 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	if action == "suppress_keyword":
 		_suppress_keyword(context, unit)
 	else:
-		_strip_defenses(context, unit)
+		_strip_defenses(context, unit, action == "strip_armor")
 
-func _strip_defenses(context: EffectContext, unit: Card) -> void:
-	if not unit.shield and unit.armor_total() <= 0:
+func _strip_defenses(context: EffectContext, unit: Card, armor_only: bool) -> void:
+	var loses_shield := unit.shield and not armor_only
+	if not loses_shield and unit.armor_total() <= 0:
 		return # nothing to strip
-	unit.shield = false
+	if not armor_only:
+		unit.shield = false
 	unit.armor = 0
 	unit.temp_armor = 0
 	unit.turn_armor = 0

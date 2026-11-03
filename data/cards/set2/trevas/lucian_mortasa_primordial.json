@@ -1,0 +1,22 @@
+{
+  "name": "Lucian Mortasa Primordial",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "transform_only": true,
+  "tribe": ["dragao_primordial", "dragao", "dragoes_negros"],
+  "essence": ["trevas", "furia"],
+  "cost": 7,
+  "atk": 5,
+  "hp": 5,
+  "keywords": ["voo", "intimidacao", "impeto"],
+  "art": "trevas/lucian_mortasa_primordial.webp",
+  "effects": [
+    { "trigger": "on_enter", "action": "damage", "target": "enemy_leader", "amount": 3 },
+    { "trigger": "on_enter", "action": "damage", "target": "all_enemy_units", "amount": 1 }
+  ],
+  "text": "Ao Entrar: causa 3 de dano ao Líder inimigo e 1 de dano a todas as unidades inimigas.",
+  "flavor": "",
+  "tags": [],
+  "unreleased": true
+}

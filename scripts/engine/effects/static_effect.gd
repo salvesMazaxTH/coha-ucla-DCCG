@@ -6,6 +6,7 @@ extends Effect
 ## Momentum above the normal cap: {"min_momentum": 11, "atk": 15, "keywords": [...], "critico": 4}); armor_of reads tribe_aura (Armadura) and graveyard_armor.
 ## "keyword_aura" ({"keywords": ["ataque_duplo"], "min_rapidez": 2, "include_self": true}) gives allied units the keywords while their own Rapidez is at least "min_rapidez" (GameState.keyword_aura_of, refreshed by _refresh_scaling).
 ## "opponent_aura" ({"atk": 1, "hp": 0}) gives every ENEMY unit that bonus while the source is on the board (GameState.opponent_aura_bonus, refreshed by _refresh_scaling; Magni's curse).
+## "opponent_cost_tax" ({"card_type": "spell", "amount": 1}) makes the OPPONENT's cards of that type (empty = all) cost `amount` more while the source is on the board (GameState.opponent_cost_tax, read by cost_of; Cornélia Aldrovane).
 ## "momentum_cap" ({"cap": 12}) raises the owner's Momentum ceiling (read by GameState.momentum_cap).
 ## All of them are read straight from `raw`.
 
