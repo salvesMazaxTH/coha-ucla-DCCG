@@ -25,6 +25,7 @@ func _init() -> void:
 	_test_sfx()
 	_test_off_essence()
 	_test_naelys_leader()
+	_test_jeff_ceifa()
 	_test_many_secondary_domains()
 	_test_death_order()
 	_test_sacrifice_damage()
@@ -2894,6 +2895,34 @@ func _test_naelys_leader() -> void:
 	_resolve_stack(full)
 	check(_hand_has(full, p, full_ally.uid) and full.players[p]["hand"].size() == 5 and full.players[p]["deck"].size() == full_deck_before, "Maré de Retorno: com mais de 4 cartas na mão depois da devolução não compra")
 
+## Líder Jeff, "Ceifa": Lenta, 1 Momentum, uma vez por turno. Sacrifica uma unidade aliada à escolha do jogador; se o
+## sacrifício acontece, compra 1 carta e o Líder recupera 1 de Vida. Sem unidade aliada, não dá para usar.
+func _test_jeff_ceifa() -> void:
+	var ability: Dictionary = CardDB.leader("jeff")["ability"]
+	check(not ability.get("passive", false) and int(ability["cost"]) == 1 and ability["speed"] == "lento" and ability.get("once_per_turn", false), "Ceifa: ativa, Lenta, custo 1, uma vez por turno")
+	var g := _new_game()
+	_quiet(g)
+	var p: int = g.active
+	g.players[p]["leader_id"] = "jeff"
+	g.players[p]["ability_used"] = false
+	g.players[p]["momentum"] = 4
+	check(not g.can_use_ability(p), "Ceifa: indisponível sem unidade aliada")
+	var chosen := _put(g, p, "esqueleto_guerreiro")
+	var spared := _put(g, p, "esqueleto_guerreiro")
+	g.players[p]["leader_hp"] -= 3
+	var hp_before: int = g.players[p]["leader_hp"]
+	var hand_before: int = g.players[p]["hand"].size()
+	var enemy_hp: int = g.players[1 - p]["leader_hp"]
+	check(g.can_use_ability(p), "Ceifa: disponível com uma unidade aliada em campo")
+	g.use_ability(p, chosen.uid)
+	_resolve_stack(g)
+	check(g.find_unit(chosen.uid) == null and g.find_unit(spared.uid) != null, "Ceifa: sacrifica só a aliada escolhida")
+	check(g.players[p]["hand"].size() == hand_before + 1, "Ceifa: compra 1 carta")
+	check(g.players[p]["leader_hp"] == hp_before + 1, "Ceifa: o Líder recupera 1 de Vida")
+	check(g.players[1 - p]["leader_hp"] == enemy_hp, "Ceifa: não causa dano ao Líder inimigo")
+	check(int(g.players[p]["momentum"]) == 3, "Ceifa: custa 1 de Momentum")
+	check(not g.can_use_ability(p), "Ceifa: só uma vez por turno")
+
 func _test_ai_spell_preview() -> void:
 	# a copy looks exactly like the game it came from, and playing on it leaves the real game alone
 	var original := _sagrada_preview_game()
@@ -3527,28 +3556,7 @@ func _test_obscura_rules() -> void:
 	_kill(g2, enemy)
 	check(g2.players[1]["leader_hp"] == h2, "morte de unidade inimiga não ativa Aliado Morre")
 
-	# Jeff passive: once per turn, resets on the next turn
-	var j := _obscura_game()
-	var a1 := _put(j, 0, "esqueleto_guerreiro")
-	var a2 := _put(j, 0, "esqueleto_guerreiro")
-	var jh: int = j.players[0]["hand"].size()
-	var jf: int = j.players[1]["leader_hp"]
-	_kill(j, a1)
-	check(j.players[1]["leader_hp"] == jf - 1 and j.players[0]["hand"].size() == jh and j.players[0]["passive_used"], "passiva do Jeff: 1 de dano, sem comprar")
-	_kill(j, a2)
-	check(j.players[1]["leader_hp"] == jf - 1, "passiva do Jeff só uma vez por turno")
-	_quiet(j)
-	j.end_turn(0)
-	check(not j.players[0]["passive_used"], "passiva reseta no turno seguinte")
-	check(not j.can_use_ability(0), "passiva não é ativável")
-	# the dead Leader-owner's passive does not fire for the opponent's deaths
-	# Ceifa only fires on the owner's own turn
-	var jt := _obscura_game()
-	jt.active = 1
-	var at := _put(jt, 0, "esqueleto_guerreiro")
-	var jtf: int = jt.players[1]["leader_hp"]
-	_kill(jt, at)
-	check(jt.players[1]["leader_hp"] == jtf and not jt.players[0]["passive_used"], "Ceifa não ativa no turno do oponente")
+	# an enemy ally dying no longer hurts anyone: Jeff's Ceifa is an activated ability now (see _test_jeff_ceifa)
 	var j2 := _obscura_game()
 	var e1 := _put(j2, 1, "kai")
 	var jf2: int = j2.players[1]["leader_hp"]

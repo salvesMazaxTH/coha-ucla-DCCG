@@ -527,19 +527,20 @@
       "incarnation": "jeff",
       "ability": {
         "name": "Ceifa",
-        "passive": true,
-        "trigger": "on_ally_death",
-        "cost": 0,
+        "cost": 1,
         "once_per_turn": true,
-        "own_turn_only": true,
+        "speed": "lento",
         "effects": [
           {
-            "action": "damage",
-            "target": "enemy_leader",
-            "amount": 1
+            "action": "sacrifice",
+            "target": "ally_unit",
+            "then": [
+              { "action": "draw", "target": "none", "amount": 1 },
+              { "action": "heal_leader", "target": "own_leader", "amount": 1 }
+            ]
           }
         ],
-        "text": "Passiva. Aliado Morre, só no seu turno e uma vez por turno: cause 1 de dano ao Líder inimigo."
+        "text": "Lenta. 1 Momentum, uma vez por turno: sacrifique uma unidade aliada; compre 1 carta e recupere 1 de Vida."
       },
       "essences": ["trevas"]
     },

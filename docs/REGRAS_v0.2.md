@@ -198,7 +198,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 
 ## Passivas de Líder
 
-- Algumas habilidades de Líder são **passivas**: não custam Momentum, não são clicáveis e disparam sozinhas num gatilho. A passiva do Jeff (_Ceifa_): quando uma unidade aliada morre **durante o seu turno**, 1 de dano ao Líder inimigo, **uma vez por turno**. Não ativa no turno do oponente.
+- Algumas habilidades de Líder são **passivas**: não custam Momentum, não são clicáveis e disparam sozinhas num gatilho. Nem todo Líder é passivo: o Jeff (_Ceifa_) tem uma habilidade ativa, Lenta, de 1 Momentum, uma vez por turno: você sacrifica uma unidade aliada à sua escolha, compra 1 carta e o Líder recupera 1 de Vida.
 
 ## Identidade visual dos domínios
 
