@@ -1,0 +1,29 @@
+{
+  "name": "Elias, Oráculo",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "tribe": ["dragoes_negros"],
+  "essence": ["trevas", "fluxo"],
+  "cost": 4,
+  "atk": 2,
+  "hp": 4,
+  "keywords": [],
+  "art": "trevas/elias_oraculo.webp",
+  "same_target_ok": true,
+  "effects": [
+    { "trigger": "on_enter", "action": "stun", "target": "enemy_unit", "markers": 1 },
+    { "trigger": "on_enter", "action": "stun", "target": "enemy_unit", "markers": 1, "pick2": true }
+  ],
+  "activated": {
+    "cost": 1,
+    "speed": "instantaneo",
+    "exhaust": true,
+    "effects": [
+      { "action": "counter", "target": "enemy_stack", "max_cost": 2 }
+    ]
+  },
+  "text": "Ao Entrar: você pode distribuir 2 marcadores de Atordoamento entre unidades inimigas, à sua escolha.\nAo Ativar (1) {instantaneo} (exaure esta unidade): anula uma carta ou habilidade de custo (2) ou menos na pilha.",
+  "flavor": "",
+  "tags": []
+}

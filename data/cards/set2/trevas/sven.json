@@ -1,0 +1,19 @@
+{
+  "name": "Sven",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "tribe": ["elfo", "dragoes_negros"],
+  "essence": ["trevas", "fluxo"],
+  "cost": 3,
+  "atk": 2,
+  "hp": 3,
+  "keywords": [],
+  "art": "trevas/sven.webp",
+  "effects": [
+    { "trigger": "on_enter", "action": "search_deck", "target": "none", "top": 4, "type": "unit", "tribe": "dragoes_negros", "max_cost": 4 }
+  ],
+  "text": "Ao Entrar: você olha as 4 cartas do topo do seu deck e pega 1 unidade Dragão Negro de custo (4) ou menos entre elas; as outras vão para o fundo.",
+  "flavor": "",
+  "tags": []
+}

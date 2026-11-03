@@ -1,0 +1,30 @@
+{
+  "name": "Seraphina, Vesper",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "tribe": [
+    "dragoes_negros"
+  ],
+  "essence": "trevas",
+  "cost": 4,
+  "atk": 3,
+  "hp": 4,
+  "keywords": [
+    "furtividade"
+  ],
+  "art": "trevas/vesper.webp",
+  "effects": [
+    {
+      "trigger": "on_hit_leader",
+      "action": "enemy_hand_bottom",
+      "target": "none",
+      "exclude_type": "unit",
+      "discard_cost": 1
+    }
+  ],
+  "text": "Ao Atingir o Líder: você pode olhar a mão do oponente e colocar 1 carta dela que não seja unidade no fundo do deck dele. Se fizer isso, descarta 1 carta da sua mão.",
+  "flavor": "",
+  "tags": [],
+  "unreleased": true
+}
