@@ -1650,13 +1650,23 @@ func can_activate(p: int, uid: int, allow_unreachable := false) -> bool:
 	var spec := target_spec(ab["effects"])
 	return spec == "" or not valid_targets(p, spec, uid, false, ab["effects"]).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec, uid))
 
-## Options for a pre-activation cost are evaluated by the same choice rules as effect options,
-## but remain cancelable and are paid before the ability goes on the stack.
+## What a "pay_one_of" option says when the card does not write its own title/detail/reason, per `pick`.
+const ACTIVATION_COST_TEXTS := {
+	"hand_card": {"title": "Descartar uma carta", "detail": "Escolha uma carta da sua mão para ir ao cemitério.", "reason": "sua mão está vazia."},
+	"other_ally_unit": {"title": "Sacrificar uma unidade", "detail": "Escolha no campo outra unidade aliada para sacrificar.", "reason": "não há outra unidade aliada para sacrificar."},
+}
+
+## Options of a "pay_one_of" cost paid before an Ao Ativar goes on the stack (the player pays exactly ONE of them; a card
+## may list a single option). They are evaluated by the same choice rules as effect options, but stay cancelable.
+## Missing title/detail/reason come from ACTIVATION_COST_TEXTS.
 func activation_cost_options(uid: int) -> Array:
 	var c := _activatable_card(uid)
 	if c == null:
 		return []
-	return card_of(c).get("activated", {}).get("extra_cost", {}).get("options", [])
+	var options: Array = []
+	for written: Dictionary in card_of(c).get("activated", {}).get("extra_cost", {}).get("options", []):
+		options.append(ACTIVATION_COST_TEXTS.get(written.get("pick", ""), {}).merged(written, true))
+	return options
 
 func activation_cost_option_targets(p: int, uid: int, index: int) -> Array:
 	var options := activation_cost_options(uid)
@@ -1676,7 +1686,7 @@ func extra_cost_payers(p: int, uid: int) -> Array:
 	if c == null:
 		return []
 	var ab: Dictionary = card_of(c).get("activated", {})
-	if ab.get("extra_cost", {}).get("kind", "") != "discard_or_sacrifice":
+	if ab.get("extra_cost", {}).get("kind", "") != "pay_one_of":
 		return []
 	var payers: Array = []
 	for index in activation_cost_options(uid).size():
@@ -1689,7 +1699,7 @@ func extra_cost_payers(p: int, uid: int) -> Array:
 func begin_activation_discard(p: int, uid: int) -> Array:
 	if phase == "search" or p != decider() or not can_activate(p, uid):
 		return []
-	if players[p]["hand"].is_empty() or card_of(_activatable_card(uid))["activated"].get("extra_cost", {}).get("kind", "") != "discard_or_sacrifice":
+	if players[p]["hand"].is_empty() or card_of(_activatable_card(uid))["activated"].get("extra_cost", {}).get("kind", "") != "pay_one_of":
 		return []
 	var payers := extra_cost_payers(p, uid)
 	var options: Array = []
@@ -1704,8 +1714,8 @@ func begin_activation_discard(p: int, uid: int) -> Array:
 	_emit({"type": "discard_pick", "player": p, "source_uid": uid})
 	return _flush()
 
-## Pays a "discard_or_sacrifice" cost with `payer_uid`: a hand card goes to the graveyard, an ally unit is sacrificed.
-func _pay_discard_or_sacrifice(p: int, payer_uid: int) -> void:
+## Pays a "pay_one_of" cost with `payer_uid`: a hand card goes to the graveyard, an ally unit is sacrificed.
+func _pay_activation_cost(p: int, payer_uid: int) -> void:
 	var hand_card := _hand_card(p, payer_uid)
 	if hand_card != null:
 		players[p]["hand"].erase(hand_card)
@@ -1999,7 +2009,7 @@ func activate(p: int, uid: int, target: int = 0, payer: int = 0) -> Array:
 			target = 0
 	_pay(p, int(ab["cost"]), reserve_pays(ab))
 	if payer_uid != 0:
-		_pay_discard_or_sacrifice(p, payer_uid)
+		_pay_activation_cost(p, payer_uid)
 	c.activated_turn = turn
 	if ab.get("exhaust", false) and find_unit(uid) != null and not c.has_kw("inerte"):
 		c.exhausted = true

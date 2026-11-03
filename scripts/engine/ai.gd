@@ -805,7 +805,7 @@ static func _pick_sacrifice(g: GameState, p: int) -> int:
 			weakest_uid = unit.uid
 	return weakest_uid
 
-## Who pays the "discard_or_sacrifice" cost of an Ao Ativar (Drex), or 0 when it is not worth paying: the cheapest
+## Who pays the "pay_one_of" cost of an Ao Ativar (Drex), or 0 when it is not worth paying: the cheapest
 ## card in hand when there are at least 2 cards (keeps a play for next turn), else a very cheap ally unit.
 static func _pick_activation_payer(g: GameState, p: int, unit: Card) -> int:
 	var payers: Array = g.extra_cost_payers(p, unit.uid)

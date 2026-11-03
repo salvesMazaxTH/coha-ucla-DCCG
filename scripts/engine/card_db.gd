@@ -189,7 +189,7 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 			err.call("activated.exhaust só pode ser usado por unidades; artefatos usam once_per_turn")
 		if act.has("extra_cost"):
 			var extra: Dictionary = act["extra_cost"]
-			if extra.get("kind", "") != "discard_or_sacrifice":
+			if extra.get("kind", "") != "pay_one_of":
 				err.call("activated.extra_cost: tipo desconhecido")
 			else:
 				var options = extra.get("options", null)
@@ -198,8 +198,8 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 				else:
 					var picks: Array = []
 					for option in options:
-						if not option is Dictionary or not option.get("title", "") is String or String(option.get("title", "")).is_empty():
-							err.call("activated.extra_cost: opção precisa de title")
+						if not option is Dictionary:
+							err.call("activated.extra_cost: cada opção precisa ser um objeto com pick")
 							continue
 						picks.append(option.get("pick", ""))
 					for pick in picks:
