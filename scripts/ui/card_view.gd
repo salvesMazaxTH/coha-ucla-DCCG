@@ -146,6 +146,8 @@ var _holding := false
 var _long := false
 var _press_id := 0
 var _press_pos := Vector2.ZERO
+var input_position := Vector2.ZERO
+var _screen_touch_index := -1
 var draggable := false ## set by Main: hand cards that can be played are dragged onto the board
 var dragging := false
 static var _tex_cache := {}
@@ -284,44 +286,87 @@ static func touch_ui() -> bool:
 	return touched or OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios") 		or DisplayServer.is_touchscreen_available()
 
 func _gui_input(e: InputEvent) -> void:
+	if e is InputEventScreenTouch:
+		if e.pressed:
+			if not _holding:
+				_screen_touch_index = e.index
+				_begin_press(_touch_to_canvas_position(e.position))
+		elif e.index == _screen_touch_index:
+			_screen_touch_index = -1
+			_end_press()
+		accept_event()
+		return
+	if e is InputEventScreenDrag and e.index == _screen_touch_index:
+		input_position = _touch_to_canvas_position(e.position)
+		_drag_to(input_position)
+		accept_event()
+		return
+	if (e is InputEventMouseButton or e is InputEventMouseMotion) and e.device == InputEvent.DEVICE_ID_EMULATION:
+		accept_event()
+		return
 	if e is InputEventMouseMotion and _holding and draggable:
-		if not dragging and e.global_position.distance_to(_press_pos) > DRAG_PX:
-			dragging = true
-			drag_started.emit(self)
-		if dragging:
-			drag_moved.emit(self)
+		input_position = e.global_position
+		_drag_to(input_position)
 		accept_event()
 		return
 	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and (touch_ui() or draggable):
 		if e.pressed:
-			_holding = true
-			_long = false
-			dragging = false
-			_press_pos = e.global_position
-			var id := Time.get_ticks_msec()
-			_press_id = id
-			if touch_ui():
-				get_tree().create_timer(0.4).timeout.connect(func():
-					if is_instance_valid(self) and _holding and _press_id == id and not dragging:
-						_long = true
-						right_clicked.emit(self))
+			_begin_press(e.global_position)
 		else:
-			_holding = false
-			if dragging:
-				dragging = false
-				drag_ended.emit(self)
-			elif not _long:
-				left_clicked.emit(self)
+			_end_press()
 		accept_event()
 		return
 	if e is InputEventMouseButton and e.pressed:
 		if e.button_index == MOUSE_BUTTON_LEFT:
+			input_position = e.global_position
 			left_clicked.emit(self)
 			accept_event()
 		elif e.button_index == MOUSE_BUTTON_RIGHT:
 			right_clicked.emit(self)
 			accept_event()
 		# any other button (the wheel) is left alone, so a scroll container behind the card can use it
+
+## Inside _gui_input, Godot hands a touch's position relative to THIS card (its top-left corner is
+## (0, 0)), not relative to the screen like in _input. This turns it back into the table's coordinates,
+## so it also works while the card is moved, scaled or tilted (hand fan, tapped card).
+func _touch_to_canvas_position(local_position: Vector2) -> Vector2:
+	return get_global_transform() * local_position
+
+func _begin_press(position: Vector2) -> void:
+	input_position = position
+	_holding = true
+	_long = false
+	dragging = false
+	_press_pos = position
+	var id := Time.get_ticks_msec()
+	_press_id = id
+	if touch_ui():
+		get_tree().create_timer(0.4).timeout.connect(func():
+			if is_instance_valid(self) and _holding and _press_id == id and not dragging:
+				_long = true
+				right_clicked.emit(self))
+
+func _drag_to(position: Vector2) -> void:
+	if not _holding or not draggable:
+		return
+	if not dragging and position.distance_to(_press_pos) > DRAG_PX:
+		dragging = true
+		drag_started.emit(self)
+	if dragging:
+		drag_moved.emit(self)
+
+func _end_press() -> void:
+	_holding = false
+	if dragging:
+		dragging = false
+		drag_ended.emit(self)
+	elif not _long:
+		left_clicked.emit(self)
+
+func finish_pointer_interaction() -> void:
+	_holding = false
+	dragging = false
+	_screen_touch_index = -1
 
 func _process(delta: float) -> void:
 	# (the shield sparks are not here on purpose: they animate in their own shader, see _place_shield_sparks)
@@ -462,10 +507,44 @@ static func _colorize_triggers(body: String, line_px: int) -> String:
 static func texture(file: String) -> Texture2D:
 	if file == "":
 		return null
-	if not _tex_cache.has(file):
-		var path := "res://assets/portraits/" + file
-		_tex_cache[file] = load(path) if ResourceLoader.exists(path) else null
-	return _tex_cache[file]
+	var limit := GraphicsQuality.art_cache_limit
+	if _tex_cache.has(file):
+		var cached_art: Texture2D = _tex_cache[file]
+		if limit > 0:
+			# A dictionary remembers the order things were added in, so taking the art out and putting it
+			# back moves it to the end of the line: the front of the line is always the art unused the longest.
+			_tex_cache.erase(file)
+			_tex_cache[file] = cached_art
+		return cached_art
+	var path := "res://assets/portraits/" + file
+	var loaded_art: Texture2D = load(path) if ResourceLoader.exists(path) else null
+	_tex_cache[file] = loaded_art
+	if limit > 0:
+		_forget_oldest_arts(limit)
+	return loaded_art
+
+## Lets go of the arts unused the longest until at most `limit` remain. A card that is still showing its
+## art keeps the picture alive on its own (Godot frees a texture only when nothing uses it), so this
+## only frees the memory of arts nobody is looking at.
+static func _forget_oldest_arts(limit: int) -> void:
+	while _tex_cache.size() > limit:
+		_tex_cache.erase(_tex_cache.keys()[0])
+
+static func texture_cache_stats() -> Dictionary:
+	var loaded_count := 0
+	var estimated_bytes := 0
+	for value in _tex_cache.values():
+		if value is Texture2D:
+			var art: Texture2D = value
+			var art_size := art.get_size()
+			loaded_count += 1
+			estimated_bytes += int(float(art_size.x * art_size.y) * 4.0 * 4.0 / 3.0)
+	return {
+		"entries": _tex_cache.size(),
+		"loaded": loaded_count,
+		"estimated_bytes": estimated_bytes,
+		"preload_queue": _art_preload_queue.size(),
+	}
 
 ## The art exactly as the source file on disk, at its full resolution. The imported texture above is
 ## capped at 1024 px (see the .import files) and compressed, so the full-screen art viewer reads the
@@ -495,10 +574,18 @@ static func queue_art_preload(files: Array) -> void:
 		if art_file != "" and not _tex_cache.has(art_file) and not _art_preload_queue.has(art_file):
 			_art_preload_queue.append(art_file)
 
+## With an art cache limit (phones), the preload stops this many arts short of it, leaving room for the
+## arts that show up during the match. The rest of the queue is dropped and loads on demand instead.
+const ART_PRELOAD_HEADROOM := 12
+
 ## Called every frame: loads queued arts until the frame budget is spent.
 static func load_queued_arts() -> void:
 	var start_ms := Time.get_ticks_msec()
 	while not _art_preload_queue.is_empty():
+		var limit := GraphicsQuality.art_cache_limit
+		if limit > 0 and _tex_cache.size() >= limit - ART_PRELOAD_HEADROOM:
+			_art_preload_queue.clear()
+			return
 		texture(_art_preload_queue.pop_front())
 		if Time.get_ticks_msec() - start_ms >= ART_PRELOAD_BUDGET_MS:
 			return

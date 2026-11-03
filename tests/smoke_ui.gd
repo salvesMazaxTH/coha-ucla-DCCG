@@ -29,6 +29,11 @@ func _init() -> void:
 	m._start(false, "fogo", "agua")
 	m.pending_pass = false
 	m._render()
+	var performance_report: String = m._performance_summary(60)
+	if not performance_report.contains("Artes:") or not performance_report.contains("Fotos:"):
+		push_error("o relatório de diagnóstico está incompleto")
+		quit(1)
+		return
 	m._do(m.g.mulligan(0, []))
 	m.pending_pass = false
 	m._do(m.g.mulligan(1, []))
@@ -69,6 +74,9 @@ func _init() -> void:
 		quit(1)
 		return
 	if not await _check_equipment_ui(m):
+		quit(1)
+		return
+	if not await _check_field_equip_input(m):
 		quit(1)
 		return
 	if not await _check_deck_builder(m): # leaves the match, so the turn was read first
@@ -283,6 +291,98 @@ func _check_equipment_ui(m) -> bool:
 		return false
 	m._close_overlay()
 	return true
+
+func _check_field_equip_input(m) -> bool:
+	var tap_state := _prepare_field_equip_match(m, "engrenagem_solta")
+	var artifact: Card = tap_state["artifact"]
+	var unit: Card = tap_state["unit"]
+	var artifact_view: CardView = m.views[artifact.uid]
+	var tap_position: Vector2 = artifact_view.get_global_transform_with_canvas() * (artifact_view.size / 2.0)
+	_send_touch(m, artifact_view, 0, true, tap_position)
+	_send_touch(m, artifact_view, 0, false, tap_position)
+	if m.overlay == null:
+		push_error("tocar no artefato solto não abriu suas ações")
+		return false
+	var equip_button: Button = null
+	for node in m.overlay.find_children("*", "Button", true, false):
+		if node.text.begins_with("Equipar"):
+			equip_button = node
+			break
+	if equip_button == null:
+		push_error("o artefato solto não ofereceu a ação Equipar")
+		return false
+	equip_button.pressed.emit()
+	if m.targeting.get("kind") != "field_equip" or not m._is_target(unit.uid):
+		push_error("Equipar não iniciou a seleção da unidade aliada")
+		return false
+	var unit_view: CardView = m.views[unit.uid]
+	var unit_position: Vector2 = unit_view.get_global_transform_with_canvas() * (unit_view.size / 2.0)
+	_send_touch(m, unit_view, 1, true, unit_position)
+	_send_touch(m, unit_view, 1, false, unit_position)
+	if m.g.stack.is_empty() or m.g.stack[-1]["kind"] != "artifact_equip" or m.g.stack[-1]["uid"] != artifact.uid:
+		push_error("tocar na unidade não equipou o artefato do campo")
+		return false
+	if m.overlay != null:
+		push_error("o toque de seleção abriu uma segunda interface inesperadamente")
+		return false
+
+	var drag_state := _prepare_field_equip_match(m, "cristal_do_poder")
+	artifact = drag_state["artifact"]
+	unit = drag_state["unit"]
+	artifact_view = m.views[artifact.uid]
+	unit_view = m.views[unit.uid]
+	var source_position: Vector2 = artifact_view.get_global_transform_with_canvas() * (artifact_view.size / 2.0)
+	unit_position = unit_view.get_global_transform_with_canvas() * (unit_view.size / 2.0)
+	_send_touch(m, artifact_view, 2, true, source_position)
+	_send_touch_drag(m, artifact_view, 2, unit_position)
+	if m.targeting.get("kind") != "field_equip" or not m._is_target(unit.uid):
+		push_error("arrastar o artefato não iniciou a mira de Equipar")
+		return false
+	_send_touch(m, artifact_view, 2, false, unit_position)
+	if m.g.stack.is_empty() or m.g.stack[-1]["kind"] != "artifact_equip" or m.g.stack[-1]["uid"] != artifact.uid:
+		push_error("soltar o artefato sobre a unidade não equipou")
+		return false
+	await process_frame
+	return true
+
+## A finger touching `view`, delivered the way Godot does it: Main's _input receives the position on
+## the screen, while the card's own _gui_input receives it relative to the card (its top-left is 0, 0).
+func _send_touch(m, view: CardView, finger: int, pressed: bool, screen_position: Vector2) -> void:
+	var touch := InputEventScreenTouch.new()
+	touch.index = finger
+	touch.pressed = pressed
+	touch.position = screen_position
+	m._input(touch)
+	touch = touch.duplicate()
+	touch.position = view.get_global_transform_with_canvas().affine_inverse() * screen_position
+	view._gui_input(touch)
+
+func _send_touch_drag(m, view: CardView, finger: int, screen_position: Vector2) -> void:
+	var drag := InputEventScreenDrag.new()
+	drag.index = finger
+	drag.position = screen_position
+	m._input(drag)
+	drag = drag.duplicate()
+	drag.position = view.get_global_transform_with_canvas().affine_inverse() * screen_position
+	view._gui_input(drag)
+
+func _prepare_field_equip_match(m, artifact_id: String) -> Dictionary:
+	m._start(false, "fogo", "agua")
+	m.pending_pass = false
+	m.g.mulligan(0, [])
+	m.g.mulligan(1, [])
+	m.g.active = 0
+	m.g.priority = 0
+	m.g.phase = "main"
+	m.g.players[0]["momentum"] = 5
+	m.g.auto_pass[1] = false
+	var unit := Card.new(m.g._uid(), "geodo_vivo", 0, "board")
+	m.g.players[0]["board"].append(unit)
+	var artifact := Card.new(m.g._uid(), artifact_id, 0, "relics")
+	m.g.players[0]["relics"].append(artifact)
+	m.viewer = 0
+	m._render()
+	return {"artifact": artifact, "unit": unit}
 
 ## The player's own decks show up in the hub as the third section, and a match can start with one.
 func _check_hub_with_own_deck(m) -> bool:

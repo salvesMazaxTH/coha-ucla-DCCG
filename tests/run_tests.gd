@@ -21,6 +21,7 @@ func _init() -> void:
 	_test_porca_frouxa_herda_equipamento()
 	_test_zulmira_ferro_velho()
 	_test_art_crop()
+	_test_art_cache_limit()
 	_test_sfx()
 	_test_off_essence()
 	_test_naelys_leader()
@@ -12502,3 +12503,43 @@ func _test_art_crop() -> void:
 	check(Rect2(Vector2.ZERO, tall_art).encloses(past_edges), "art_crop: x, y e zoom absurdos continuam dentro da arte")
 	for card_id in CardDB.data()["cards"]:
 		check(not CardDB.errors().any(func(error: String): return error.contains("art_crop") and error.contains(card_id)), "art_crop inválido em %s" % card_id)
+
+func _test_art_cache_limit() -> void:
+	var art_files: Array[String] = []
+	for card_id in CardDB.data()["cards"]:
+		var art_file: String = CardDB.card(card_id).get("art", "")
+		if art_file != "" and not art_files.has(art_file):
+			art_files.append(art_file)
+		if art_files.size() >= 10:
+			break
+	check(art_files.size() == 10, "cache de artes: o teste precisa de 10 artes diferentes")
+	var original_limit := GraphicsQuality.art_cache_limit
+	CardView._tex_cache.clear()
+
+	# Sem limite (PC): tudo que foi mostrado continua carregado.
+	GraphicsQuality.art_cache_limit = 0
+	for art_file in art_files:
+		CardView.texture(art_file)
+	check(CardView._tex_cache.size() == 10, "cache de artes: sem limite nenhuma arte é descartada")
+
+	# Com limite (celular): a arte sem uso há mais tempo é a primeira a sair.
+	CardView._tex_cache.clear()
+	GraphicsQuality.art_cache_limit = 4
+	for index in 4:
+		CardView.texture(art_files[index])
+	CardView.texture(art_files[0]) # usar de novo a mais antiga a renova
+	CardView.texture(art_files[4]) # estoura o limite: a menos usada agora é a arte 1
+	check(CardView._tex_cache.size() == 4, "cache de artes: nunca passa do limite")
+	check(CardView._tex_cache.has(art_files[0]) and not CardView._tex_cache.has(art_files[1]), "cache de artes: sai a arte sem uso há mais tempo, não a mais antiga")
+	check(CardView.texture(art_files[1]) != null, "cache de artes: uma arte descartada carrega de novo quando pedida")
+
+	# A pré-carga para sozinha antes de encher o limite, deixando espaço para o resto da partida.
+	CardView._tex_cache.clear()
+	GraphicsQuality.art_cache_limit = CardView.ART_PRELOAD_HEADROOM + 2
+	CardView.queue_art_preload(art_files)
+	CardView.load_queued_arts()
+	check(CardView._tex_cache.size() <= GraphicsQuality.art_cache_limit - CardView.ART_PRELOAD_HEADROOM + 1, "cache de artes: a pré-carga respeita a folga do limite")
+
+	GraphicsQuality.art_cache_limit = original_limit
+	CardView._art_preload_queue.clear()
+	CardView._tex_cache.clear()

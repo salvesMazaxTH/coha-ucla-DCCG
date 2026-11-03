@@ -27,6 +27,11 @@ static var max_fps := 0
 ## draws that one picture instead of hundreds of shapes and letters; only the animated layers are drawn
 ## live on top (see CardPhotoStudio). On for every device; turn it off to compare the two looks.
 static var bake_card_faces := true
+## How many card arts stay loaded in memory at once (0 = no limit: every art ever shown stays).
+## A decoded art takes about 5-7 MB, so hundreds of them (browsing the deck builder, two full decks) can
+## exhaust a phone browser's memory and make it kill the whole page. Past the limit, the art that went
+## unused the longest is let go and simply loads again if it is ever needed (see CardView.texture).
+static var art_cache_limit := 0
 
 static func use_phone_settings() -> void:
 	show_motes = false
@@ -38,3 +43,4 @@ static func use_phone_settings() -> void:
 	card_animation_interval = 0.05
 	smooth_card_pulse = false
 	max_fps = 60
+	art_cache_limit = 48

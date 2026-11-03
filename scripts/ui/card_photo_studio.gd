@@ -80,6 +80,18 @@ static func lookup(signature: Dictionary) -> Photo:
 		return photo
 	return null
 
+static func cache_stats() -> Dictionary:
+	var pixels := 0
+	for value in _photos.values():
+		var photo: Photo = value
+		pixels += photo.slot_pixels.x * photo.slot_pixels.y * 2
+	return {
+		"photos": _photos.size(),
+		"pixels": pixels,
+		"requests": _requests.size(),
+		"unfinished": _unfinished.size(),
+	}
+
 ## A card that could not draw with a photo leaves this; the studio redraws the card once the photo is ready.
 static func request(card: CardView, signature: Dictionary) -> void:
 	_make_sure_studio_exists()

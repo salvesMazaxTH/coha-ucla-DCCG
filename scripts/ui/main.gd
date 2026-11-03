@@ -85,6 +85,7 @@ const HUB_DRAG_SLOP := 12.0 ## pixels a press may move and still count as a tap 
 var ai_deck := "" ## deck the AI plays, picked in the second step of the AI hub ("" = a random other deck)
 var _fps_counter: Label
 var _fps_counter_visible := false
+var _perf_diagnostics := false
 var _fps_sample_seconds := 0.0
 var _fps_sample_frames := 0
 
@@ -144,6 +145,7 @@ var reaction_attack: Dictionary = {} ## {"attacker": uid, "target": uid} from th
 var aim_drag := false ## the press that started aiming is still held: releasing on a target fires
 var aim_start := Vector2.ZERO
 var aim_src := Vector2.ZERO ## global source point (leader gem, command card)
+var _aim_drag_view: CardView
 var fx: Control ## persistent layer above the table: ghosts, floats, embers
 var fx_library: FxLibrary ## card flights, combat effects and glow primitives (moved out of this file)
 var fx_shots: FxShots ## projectile / slash / boon shot pipeline, built on fx_library
@@ -248,6 +250,9 @@ func _ready() -> void:
 		GraphicsQuality.use_phone_settings()
 	Engine.max_fps = GraphicsQuality.max_fps
 	theme = UITheme.make()
+	_perf_diagnostics = _performance_diagnostics_requested()
+	if _perf_diagnostics:
+		_toggle_fps_counter()
 	bg_vp = SubViewport.new()
 	bg_vp.size = Vector2i(640, 360)
 	bg_vp.disable_3d = true
@@ -683,9 +688,14 @@ func _reset_input() -> void:
 
 ## Queues every art the two decks can show (cards, Leaders, Encarnações) to load in the background
 ## during the mulligan, so no card stalls the game the first time it is drawn.
-func _queue_deck_arts(deck_ids: Array) -> void:
+## The deck at `own_seat` is queued first: its cards are the ones about to be drawn, and on a phone
+## (where the art cache has a limit) the opponent's deck may be left to load on demand.
+func _queue_deck_arts(deck_ids: Array, own_seat := 0) -> void:
 	var art_files: Array = []
-	for deck_id in deck_ids:
+	var ordered_deck_ids: Array = deck_ids.duplicate()
+	if own_seat == 1:
+		ordered_deck_ids.reverse()
+	for deck_id in ordered_deck_ids:
 		if not DeckDB.has(String(deck_id)):
 			continue
 		var deck := DeckDB.get_deck(String(deck_id))
@@ -1364,7 +1374,7 @@ func _on_net(m: Dictionary) -> void:
 			var d: Array = m["decks"]
 			_register_room_decks(m.get("deck_data", {})) # the players' own decks, before anything looks them up
 			var rs := RemoteState.new(d[0], d[1])
-			_queue_deck_arts(d)
+			_queue_deck_arts(d, int(m["seat"]))
 			rs.seat = m["seat"]
 			rs.send = net.send
 			rs.apply_snapshot(m["snap"])
@@ -2139,6 +2149,8 @@ func _render_relics(p: int, y: float, slots_taken: int) -> void:
 		var cell := _board_cell(slots_taken, first_relic_slot + j)
 		v.position = Vector2(cell.x + (cell.y - v.size.x) / 2.0, y)
 		v.ability_ready = p == viewer and targeting.is_empty() and _my_input() and g.can_activate(viewer, relic.uid, true)
+		v.draggable = p == viewer and targeting.is_empty() and _my_input() and not _input_must_wait() \
+			and g.can_equip_from_field(viewer, relic.uid, true)
 		var selected_numbers := _target_selection_numbers(relic.uid)
 		if not selected_numbers.is_empty():
 			v.highlight = SEL
@@ -2147,6 +2159,8 @@ func _render_relics(p: int, y: float, slots_taken: int) -> void:
 			v.highlight = TARGET
 		v.left_clicked.connect(_on_relic_click)
 		v.right_clicked.connect(_show_overlay)
+		if v.draggable:
+			v.drag_started.connect(_relic_drag_start)
 		layer.add_child(v)
 		views[relic.uid] = v
 
@@ -2175,6 +2189,27 @@ func _on_relic_click(v: CardView) -> void:
 		_fire_target(v.uid)
 	elif targeting.is_empty():
 		_show_overlay(v)
+
+func _relic_drag_start(v: CardView) -> void:
+	if not _my_input() or not targeting.is_empty() or _input_must_wait() \
+			or not g.can_equip_from_field(viewer, v.uid, true):
+		return
+	var artifact := g.find_relic(v.uid)
+	if artifact == null:
+		return
+	var effects: Array = g.card_of(artifact).get("equip_from_field", {}).get("effects", [])
+	var spec := g.target_spec(effects)
+	if spec == "":
+		return
+	targeting = {"kind": "field_equip", "uid": v.uid, "spec": spec}
+	aim_src = _visual_rect(v).get_center()
+	aim_start = Vector2.INF
+	aim_drag = true
+	_aim_drag_view = v
+	v.highlight = SEL
+	for uid in views:
+		if uid is int and g.find_unit(uid) != null and views[uid] is CardView:
+			(views[uid] as CardView).highlight = TARGET if _is_target(uid) else Color.TRANSPARENT
 
 ## A relic (or a spell on the stack) picked as a target during an animation: fires once the table
 ## settles, if it is still a valid target.
@@ -2404,7 +2439,7 @@ func _show_drop_gap(slot: int) -> void:
 				preview_tw.tween_property(equipment_preview, "position:x", equipment_preview.position.x + shift, 0.12)
 
 func _hand_drag_move(v: CardView) -> void:
-	var m := layer.get_local_mouse_position()
+	var m := layer.get_global_transform().affine_inverse() * v.input_position
 	var is_unit: bool = CardDB.card(v.card_id)["type"] == "unit"
 	# during an animation the board is left alone (the gap would fight the moving units) and no aim
 	# starts: the card just follows the finger, and dropping it plays it once the animation ends
@@ -2419,6 +2454,7 @@ func _hand_drag_move(v: CardView) -> void:
 		# (a unit with a sacrifice cost also remembers the slot it was dragged to)
 		targeting = {"kind": "hand", "uid": v.uid, "card_id": v.card_id, "spec": _hand_spec(v), "slot": _drop_slot(m.x)}
 		aim_drag = true
+		_aim_drag_view = v
 		aim_start = Vector2.INF
 		_render()
 		return
@@ -2426,7 +2462,7 @@ func _hand_drag_move(v: CardView) -> void:
 	v.highlight = SEL if m.y < PLAY_LINE else OK
 
 func _hand_drag_end(v: CardView) -> void:
-	var m := layer.get_local_mouse_position()
+	var m := layer.get_global_transform().affine_inverse() * v.input_position
 	if _input_must_wait():
 		# an animation is playing: the card flies back to the hand and, if it was dropped on the board,
 		# is played from there as soon as the animation ends
@@ -3014,7 +3050,8 @@ func _process(dt: float) -> void:
 		_fps_sample_seconds += dt
 		_fps_sample_frames += 1
 		if _fps_sample_seconds >= 0.5:
-			_fps_counter.text = "FPS %d" % roundi(_fps_sample_frames / _fps_sample_seconds)
+			var fps := roundi(_fps_sample_frames / _fps_sample_seconds)
+			_fps_counter.text = _performance_summary(fps) if _perf_diagnostics else "FPS %d" % fps
 			_fps_sample_seconds = 0.0
 			_fps_sample_frames = 0
 	if g and Time.get_ticks_msec() - last_input_ms > 15000:
@@ -3254,15 +3291,38 @@ func _toggle_fullscreen() -> void:
 func _toggle_fps_counter() -> void:
 	_fps_counter_visible = not _fps_counter_visible
 	if not is_instance_valid(_fps_counter):
-		_fps_counter = _label("FPS 0", 20, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, "bold", 4)
+		_fps_counter = _label("FPS 0", 14 if _perf_diagnostics else 20, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, "bold", 4)
 		_fps_counter.position = Vector2(14, 12)
-		_fps_counter.size = Vector2(150, 32)
+		_fps_counter.size = Vector2(560, 126) if _perf_diagnostics else Vector2(150, 32)
 		_fps_counter.z_index = 1000
 		add_child(_fps_counter)
 	_fps_sample_seconds = 0.0
 	_fps_sample_frames = 0
 	_fps_counter.visible = _fps_counter_visible
 	_fps_counter.move_to_front()
+
+func _performance_diagnostics_requested() -> bool:
+	if not OS.has_feature("web"):
+		return false
+	return bool(JavaScriptBridge.eval("new URLSearchParams(location.search).get('perf') === '1'"))
+
+func _performance_summary(fps: int) -> String:
+	var mib := 1024.0 * 1024.0
+	var memory_now := int(Performance.get_monitor(Performance.MEMORY_STATIC))
+	var memory_peak := int(Performance.get_monitor(Performance.MEMORY_STATIC_MAX))
+	var texture_memory := int(Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED))
+	var buffer_memory := int(Performance.get_monitor(Performance.RENDER_BUFFER_MEM_USED))
+	var node_count := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+	var art_stats := CardView.texture_cache_stats()
+	var photo_stats := CardPhotoStudio.cache_stats()
+	var art_mib := float(art_stats["estimated_bytes"]) / mib
+	var photo_mib := float(photo_stats["pixels"]) * 4.0 / mib
+	return "FPS %d · Godot %d/%d MB · nós %d\nGPU: texturas %d MB / buffers %d MB\nArtes: %d (%d carregadas, ~%.0f MB) · fila %d\nFotos: %d (~%.0f MB) · pedidos %d · pendentes %d" % [
+		fps, roundi(memory_now / mib), roundi(memory_peak / mib), node_count,
+		roundi(texture_memory / mib), roundi(buffer_memory / mib),
+		art_stats["entries"], art_stats["loaded"], art_mib, art_stats["preload_queue"],
+		photo_stats["photos"], photo_mib, photo_stats["requests"], photo_stats["unfinished"],
+	]
 
 func _close_dev_tools() -> void:
 	if not is_instance_valid(dev_tools_panel):
@@ -3352,7 +3412,11 @@ func _input(e: InputEvent) -> void:
 		if key_used:
 			get_viewport().set_input_as_handled()
 			return
-	if aim_drag and e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and not e.pressed:
+	if aim_drag and e is InputEventScreenTouch and not e.pressed:
+		_aim_release(get_viewport().get_canvas_transform().affine_inverse() * e.position, true)
+	elif _queued_attacker_dragging and e is InputEventScreenTouch and not e.pressed:
+		_release_queued_attacker_drag(get_viewport().get_canvas_transform().affine_inverse() * e.position)
+	elif aim_drag and e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and not e.pressed:
 		_aim_release()
 	elif _queued_attacker_dragging and e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and not e.pressed:
 		_release_queued_attacker_drag()
@@ -3376,12 +3440,18 @@ func _input(e: InputEvent) -> void:
 
 ## Drag-aim released: on a target fires; barely moved (a plain click on the source) keeps
 ## click-targeting; anywhere else cancels, like dropping the card back.
-func _aim_release() -> void:
+func _aim_release(gp := Vector2.INF, from_touch := false) -> void:
 	aim_drag = false
+	var drag_view := _aim_drag_view
+	_aim_drag_view = null
+	if is_instance_valid(drag_view):
+		drag_view.finish_pointer_interaction()
 	if targeting.is_empty() or not _my_input():
 		return
-	var gp := get_global_mouse_position()
-	get_viewport().set_input_as_handled()
+	if gp == Vector2.INF:
+		gp = get_global_mouse_position()
+	if not from_touch:
+		get_viewport().set_input_as_handled()
 	if _input_must_wait():
 		# an animation is playing: what is a legal target is decided once it ends, so remember the
 		# card under the pointer (any card) and pick it then
@@ -3515,12 +3585,12 @@ func _hand_spec(v: CardView) -> String:
 		return spec # blocked only by Inalcançável: aim anyway, aiming at that unit explains the refusal
 	return ""
 
-## Starts aiming from `src` (global; ZERO = the pointer). If the press is still held, the
-## aim is a drag: releasing over a target fires, elsewhere cancels.
+## Starts click-targeting from `src` (global; ZERO = the pointer). Card drags start their aim
+## explicitly, so a touch that opened an action cannot be mistaken for a held mouse press.
 func _begin_aim(src: Vector2) -> void:
 	aim_src = src if src != Vector2.ZERO else get_global_mouse_position()
 	aim_start = get_global_mouse_position()
-	aim_drag = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+	aim_drag = false
 
 ## On-screen rectangle a card really covers. get_global_rect() ignores rotation, so for a tapped
 ## (sideways) card it points at the wrong area; this one turns the card's corners with it.
@@ -3822,6 +3892,7 @@ func _unit_drag_start(v: CardView) -> void:
 		return
 	if _unit_click_acted(v):
 		aim_drag = true # the press is still held, so the release decides
+		_aim_drag_view = v
 
 ## True while an aim is open or clicks are already waiting: the next click on a card is a target pick.
 func _aiming_or_waiting() -> bool:
@@ -3857,9 +3928,11 @@ func _queue_card_click(uid: int) -> void:
 
 ## The press that picked a waiting attacker was released: over another card, that card is its target.
 ## A plain click (released on the attacker itself or on nothing) keeps the arrow following the pointer.
-func _release_queued_attacker_drag() -> void:
+func _release_queued_attacker_drag(gp := Vector2.INF) -> void:
 	_queued_attacker_dragging = false
-	var card_uid := _card_uid_at(get_global_mouse_position())
+	if gp == Vector2.INF:
+		gp = get_global_mouse_position()
+	var card_uid := _card_uid_at(gp)
 	if card_uid != 0 and card_uid != _queued_attacker_uid:
 		_queue_card_click(card_uid)
 
