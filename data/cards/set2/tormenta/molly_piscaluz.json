@@ -3,7 +3,7 @@
   "set": 2,
   "type": "unit",
   "rarity": "common",
-  "tribe": ["humano", "maginaciano"],
+  "tribe": ["maginaciano"],
   "essence": "tormenta",
   "element": "raio",
   "cost": 1,

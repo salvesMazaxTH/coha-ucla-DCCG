@@ -1,0 +1,20 @@
+{
+  "name": "Oswald",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "tribe": ["dragoes_negros"],
+  "essence": "fluxo",
+  "cost": 3,
+  "atk": 1,
+  "hp": 4,
+  "keywords": [],
+  "art": "fluxo/oswald.webp",
+  "effects": [
+    { "trigger": "on_enter", "action": "stun", "target": "enemy_unit" }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela recebe 1 marcador de Atordoamento. (PLACEHOLDER)",
+  "flavor": "",
+  "tags": [],
+  "unreleased": true
+}

@@ -3,9 +3,6 @@
   "set": 1,
   "type": "unit",
   "rarity": "epic",
-  "tribe": [
-    "humano"
-  ],
   "essence": "devocao",
   "element": "luz",
   "art": "devocao/eufrasia_ponto_firme.webp",

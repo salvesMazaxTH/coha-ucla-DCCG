@@ -3,7 +3,7 @@
   "set": 2,
   "type": "unit",
   "rarity": "champion",
-  "tribe": ["humano", "nuliterrano"],
+  "tribe": ["nuliterrano"],
   "essence": "tormenta",
   "element": "raio",
   "cost": 7,

@@ -54,6 +54,19 @@ func _read_stat(player: Dictionary) -> int:
 		"graveyard": return player["graveyard"].size()
 	return 0
 
+## The compare specs of a card's play_condition: {"compare": {...}} is one, {"all": [{"compare": {...}}, ...]} is
+## several that must all hold (Magni). Returns [] when the shape is wrong (the catalog check reports it).
+static func play_condition_specs(play_condition: Dictionary) -> Array:
+	var specs: Array = []
+	if play_condition.has("compare"):
+		specs.append(play_condition["compare"])
+	elif play_condition.has("all") and play_condition["all"] is Array:
+		for part in play_condition["all"]:
+			if not part is Dictionary or not part.has("compare"):
+				return []
+			specs.append(part["compare"])
+	return specs
+
 ## The problem with a compare spec, or "" when it is valid (checked when the catalog loads).
 static func error_of(spec: Variant) -> String:
 	if not spec is Dictionary:

@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "legendary",
-  "tribe": ["humano", "santo"],
+  "tribe": ["santo"],
   "essence": "devocao",
   "cost": 5,
   "atk": 0,

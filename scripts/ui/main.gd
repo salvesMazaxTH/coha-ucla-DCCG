@@ -3110,7 +3110,7 @@ func _hint() -> String:
 		var t := "Arraste até o alvo (ou toque nele) · toque fora cancela." if CardView.touch_ui() else "Arraste até o alvo (ou clique nele) · botão direito/Esc cancela."
 		if targeting["spec"] == "enemy_stack":
 			t = "Toque no feitiço/habilidade da pilha que quer anular."
-			if _punishes_stack(CardDB.card(targeting["card_id"])):
+			if targeting.has("card_id") and _punishes_stack(CardDB.card(targeting["card_id"])): # an Ao Ativar has no card_id
 				t = "Toque no feitiço/habilidade da pilha que quer punir."
 		return t
 	if g.decider() != viewer or _is_ai(viewer):
@@ -3741,6 +3741,8 @@ func _is_target(uid: int) -> bool:
 		for hand_card: Card in g.players[viewer]["hand"]:
 			if hand_card.uid == targeting["uid"]:
 				return g.card_targets(viewer, CardDB.card(hand_card.card_id)).has(uid)
+		if targeting["kind"] == "unit_ability": # an Ao Ativar that counters: same filters as the spell
+			return g.valid_targets(viewer, "enemy_stack", int(targeting["uid"]), false, _aimed_effects()).has(uid)
 		return false
 	if targeting["kind"] == "unit_cost":
 		return g.activation_cost_option_targets(viewer, int(targeting["uid"]), int(targeting["mode"])).has(uid)
@@ -4848,7 +4850,7 @@ func _render_search_reveal() -> void:
 	var whole_deck_hint := "Nenhuma carta do deck pode ser escolhida; o deck será embaralhado." if g.pending_search.get("cards", []).is_empty() else "Clique em uma carta que brilha para adicioná-la à sua mão; depois o deck é embaralhado."
 	if row_overflows and whole_deck:
 		whole_deck_hint += " Deslize para o lado para ver o deck todo."
-	var hint := summon_hint if summoning else "Clique em uma carta para levá-la à sua mão, ou escolha não pegar nenhuma; as outras ficam no cemitério." if grave_optional else "Clique em um campeão para colocá-lo em campo sem pagar o custo, ou escolha não colocar nenhum." if hand_summon else "Clique em uma carta para mandá-la ao fundo do deck do dono. Se for uma unidade, você descarta %d cartas; ou escolha nenhuma." % int(g.pending_search.get("discard_if_unit", 0)) if hand_bottom else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else ("Escolha 1 para a mão; as outras continuam onde estavam no fundo do deck." if g.pending_search.get("from_bottom", false) else "Escolha 1 para a mão; as outras vão para o fundo do deck.") if look else ("Nenhuma das cartas olhadas pode ser escolhida; o deck será embaralhado." if g.pending_search.get("cards", []).is_empty() else "Clique em uma carta que brilha para adicioná-la à sua mão; as outras vão para o fundo do deck.") if g.pending_search.has("to_bottom") else whole_deck_hint if whole_deck else "Clique em uma carta que brilha para adicioná-la à sua mão e embaralhar o deck, ou escolha não pegar nenhuma."
+	var hint := summon_hint if summoning else "Clique em uma carta para levá-la à sua mão, ou escolha não pegar nenhuma; as outras ficam no cemitério." if grave_optional else "Clique em um campeão para colocá-lo em campo sem pagar o custo, ou escolha não colocar nenhum." if hand_summon else ("Clique em uma carta que brilha (não é unidade) para mandá-la ao fundo do deck do dono, ou escolha nenhuma." if g.pending_search.get("exclude_type", "") == "unit" else "Clique em uma carta para mandá-la ao fundo do deck do dono. Se for uma unidade, você descarta %d cartas; ou escolha nenhuma." % int(g.pending_search.get("discard_if_unit", 0))) if hand_bottom else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else ("Escolha 1 para a mão; as outras continuam onde estavam no fundo do deck." if g.pending_search.get("from_bottom", false) else "Escolha 1 para a mão; as outras vão para o fundo do deck.") if look else ("Nenhuma das cartas olhadas pode ser escolhida; o deck será embaralhado." if g.pending_search.get("cards", []).is_empty() else "Clique em uma carta que brilha para adicioná-la à sua mão; as outras vão para o fundo do deck.") if g.pending_search.has("to_bottom") else whole_deck_hint if whole_deck else "Clique em uma carta que brilha para adicioná-la à sua mão e embaralhar o deck, ou escolha não pegar nenhuma."
 	var footer := _label(hint if _my_input() else "A escolha pertence ao oponente.", 18, SEL if _my_input() else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 	box.add_child(footer)
 	if not secret_search:

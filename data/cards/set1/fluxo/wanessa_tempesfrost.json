@@ -4,9 +4,6 @@
   "type": "unit",
   "rarity": "champion",
   "transform_only": true,
-  "tribe": [
-    "humano"
-  ],
   "essence": "fluxo",
   "element": "gelo",
   "cost": 5,

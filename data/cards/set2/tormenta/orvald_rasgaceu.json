@@ -3,7 +3,7 @@
   "set": 2,
   "type": "unit",
   "rarity": "epic",
-  "tribe": ["humano", "maginaciano"],
+  "tribe": ["maginaciano"],
   "essence": "tormenta",
   "cost": 5,
   "atk": 4,

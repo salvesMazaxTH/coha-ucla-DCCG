@@ -3,7 +3,6 @@
   "set": 1,
   "type": "unit",
   "rarity": "common",
-  "tribe": ["humano"],
   "essence": "devocao",
   "cost": 3,
   "atk": 2,

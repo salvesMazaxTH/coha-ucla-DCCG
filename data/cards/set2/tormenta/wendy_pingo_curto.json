@@ -3,7 +3,7 @@
   "set": 2,
   "type": "unit",
   "rarity": "common",
-  "tribe": ["humano", "nuliterrano"],
+  "tribe": ["nuliterrano"],
   "essence": "tormenta",
   "cost": 1,
   "atk": 1,

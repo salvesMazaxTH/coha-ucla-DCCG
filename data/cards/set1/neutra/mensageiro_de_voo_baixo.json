@@ -3,9 +3,6 @@
   "set": 1,
   "type": "unit",
   "rarity": "common",
-  "tribe": [
-    "humano"
-  ],
   "essence": "neutra",
   "cost": 2,
   "atk": 3,

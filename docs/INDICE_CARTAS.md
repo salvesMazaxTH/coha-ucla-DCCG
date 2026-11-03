@@ -450,7 +450,7 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `zaza_fuzue` | Zazá Fuzuê | Lendária | Unidade | 4 |
 | `zeladora_shhh` | Zeladora Shhh | Comum | Unidade | 4 |
 
-## Set 2: Nuliterra (2026) (50 cartas)
+## Set 2: Nuliterra (2026) (51 cartas)
 
 ### Fúria (19)
 
@@ -513,17 +513,18 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `tranco_eletrico` | Tranco Elétrico | Comum | Feitiço | 2 |
 | `wendy_pingo_curto` | Wendy Pingo-Curto | Comum | Unidade | 1 |
 
-### Trevas (8)
+### Trevas (9)
 
 | ID | Nome | Raridade | Tipo | Custo |
 |---|---|---|---|---|
+| `cortejo_de_cinzas` | Cortejo de Cinzas | Épica | Feitiço | 1 |
 | `drake` | Drake | Campeã | Unidade | 4 |
+| `elias_oraculo` | Elias, Oráculo | Campeã | Unidade | 4 |
 | `lucian_mortasa` | Lucian Mortasa | Campeã | Unidade | 4 |
 | `magni` | Magni | Campeã | Unidade | 6 |
-| `oraculo` | Oráculo | Campeã | Unidade | 4 |
+| `vesper` | Seraphina, Vesper | Campeã | Unidade | 4 |
 | `soren` | Soren | Campeã | Unidade | 6 |
 | `sven` | Sven | Campeã | Unidade | 3 |
-| `vesper` | Vesper | Campeã | Unidade | 4 |
 | `vincent_morvane` | Vincent Morvane | Campeã | Unidade | 3 |
 
 ### Devoção (1)

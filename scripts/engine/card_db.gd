@@ -172,10 +172,11 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 	_validate_effects(err, cd.get("effects", []))
 	if cd.has("play_condition"):
 		var condition = cd["play_condition"]
-		if not condition is Dictionary or not condition.has("compare"):
-			err.call("play_condition precisa ser {\"compare\": {...}}")
-		else:
-			var condition_problem := CompareCondition.error_of(condition["compare"])
+		var condition_specs: Array = CompareCondition.play_condition_specs(condition) if condition is Dictionary else []
+		if condition_specs.is_empty():
+			err.call("play_condition precisa ser {\"compare\": {...}} ou {\"all\": [{\"compare\": {...}}, ...]}")
+		for condition_spec in condition_specs:
+			var condition_problem := CompareCondition.error_of(condition_spec)
 			if condition_problem != "":
 				err.call("play_condition: " + condition_problem)
 	if cd.has("activated"):

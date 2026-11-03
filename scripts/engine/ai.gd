@@ -136,6 +136,7 @@ static func _choose_search(g: GameState) -> int:
 		for option in g.pending_search.get("cards", []):
 			var foe_data := CardDB.card(option["card_id"])
 			var foe_cost := int(foe_data.get("cost", 0))
+			foe_cost -= 4 * int(g.pending_search.get("discard_cost", 0))
 			if foe_data.get("type", "") == "unit":
 				foe_cost -= 4 * int(g.pending_search.get("discard_if_unit", 0))
 			if foe_cost > best_foe_cost:

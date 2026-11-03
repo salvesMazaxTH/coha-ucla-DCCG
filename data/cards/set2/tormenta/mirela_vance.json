@@ -1,0 +1,20 @@
+{
+  "name": "Mirela Vance",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "tribe": ["dragoes_negros"],
+  "essence": ["tormenta", "fluxo"],
+  "cost": 5,
+  "atk": 3,
+  "hp": 5,
+  "keywords": [],
+  "art": "tormenta/mirela_vance.webp",
+  "effects": [
+    { "trigger": "on_enter", "action": "stun", "target": "enemy_unit" }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela recebe 1 marcador de Atordoamento. (PLACEHOLDER)",
+  "flavor": "",
+  "tags": [],
+  "unreleased": true
+}

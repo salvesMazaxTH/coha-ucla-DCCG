@@ -3,7 +3,7 @@
   "set": 2,
   "type": "unit",
   "rarity": "champion",
-  "tribe": ["humano", "dragoes_negros"],
+  "tribe": ["dragoes_negros"],
   "essence": ["trevas", "tormenta"],
   "cost": 4,
   "atk": 4,

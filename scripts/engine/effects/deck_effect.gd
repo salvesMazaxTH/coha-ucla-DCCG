@@ -23,6 +23,8 @@ extends Effect
 ## "enemy_hand_bottom" (Bob Veyr): the player may pick ONE card from the OPPONENT'S hand (only the player sees it) and it goes to the
 ##   bottom of the opponent's deck, or takes none. If the card is a unit, the player discards `discard_if_unit` (default 0)
 ##   cards from their own hand (as many as they have). Any other card costs nothing.
+##   `discard_cost` (Vesper, default 0): the player also discards that many cards from their own hand for ANY card sent.
+##   `exclude_type` (Vesper, default "" = none): cards of that type are shown but cannot be picked (the player still sees the whole hand).
 ## "look_top": the player looks at the top `count` cards and takes one; the rest go to the
 ##   bottom (or the deck is shuffled, with "shuffle": true).
 ## "look_bottom" (Dragar): `count` cards (default 2) drawn at random from the bottom `window` cards of the deck
@@ -52,7 +54,7 @@ func open_choice(context: EffectContext) -> void:
 	elif action == "grave_to_hand":
 		context.game._begin_grave_to_hand(context.controller, raw, context.self_uid)
 	elif action == "enemy_hand_bottom":
-		context.game._begin_enemy_hand_bottom(context.controller, int(raw.get("discard_if_unit", 0)), context.self_uid)
+		context.game._begin_enemy_hand_bottom(context.controller, int(raw.get("discard_if_unit", 0)), context.self_uid, String(raw.get("exclude_type", "")), int(raw.get("discard_cost", 0)))
 	elif action == "look_top":
 		context.game._begin_look(context.controller, count, context.self_uid, shuffle)
 	elif action == "look_bottom":

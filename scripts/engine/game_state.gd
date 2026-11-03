@@ -1204,6 +1204,10 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 		"enemy_stack":
 			for it in stack:
 				if it["player"] != p and not stack_system().is_uncounterable(it): out.append(it["sid"])
+			# a counter's own filters (max_cost, only_if_ability...) also bind an Ao Ativar that counters, not only a spell
+			# (a kicker price, if any, is checked against the budget by card_targets)
+			if _has_action(effects, "counter"):
+				out = out.filter(func(stack_id: int) -> bool: return counter_extra({"effects": effects}, stack_id) >= 0)
 	if not effects.is_empty():
 		out = out.filter(func(target_uid: int) -> bool: return meets_marker_requirement(target_uid, spec, effects) and meets_subtype_requirement(target_uid, spec, effects) and meets_unit_requirement(target_uid, spec, effects))
 	return out
@@ -1507,13 +1511,16 @@ func is_play_restricted(p: int, cd: Dictionary) -> bool:
 	return false
 
 ## True when the card's innate "play_condition" (if it has one) holds right now for p. Today it is a
-## {"compare": {...}} spec checked like any other compare condition, before the card is on the board
-## (Magni: only playable while p controls more units than the opponent).
+## {"compare": {...}} spec (or {"all": [...]} of them) checked like any other compare condition, before the card
+## is on the board (Magni: only playable while the opponent has 3+ units and more than p).
 func play_condition_met(p: int, cd: Dictionary) -> bool:
 	var condition: Dictionary = cd.get("play_condition", {})
 	if condition.is_empty():
 		return true
-	return CompareCondition.new(condition["compare"]).check_players(self, p)
+	for spec: Dictionary in CompareCondition.play_condition_specs(condition):
+		if not CompareCondition.new(spec).check_players(self, p):
+			return false
+	return true
 
 func can_cast_incarnation(p: int) -> bool:
 	if is_play_restricted(p, CardDB.card(players[p]["incarnation"]["card_id"])):
@@ -2891,17 +2898,25 @@ func _open_hand_discard_pick(p: int, source_uid: int, discards_left: int) -> voi
 	_emit({"type": "discard_pick", "player": p, "source_uid": source_uid})
 
 ## Bob Veyr ("enemy_hand_bottom"): the player looks at the opponent's hand and may send one card of it to the bottom of
-## the opponent's deck. If it was a unit, the player then discards `discard_if_unit` cards of their own.
-func _begin_enemy_hand_bottom(p: int, discard_if_unit: int, source_uid: int) -> void:
+## the opponent's deck. If it was a unit, the player then discards `discard_if_unit` cards of their own; `discard_cost`
+## (Vesper) is a price paid for ANY card sent, on top of that (as many as they have in hand).
+## `exclude_type` (Vesper: "unit") keeps cards of that type from being picked, but they are still shown in the look.
+func _begin_enemy_hand_bottom(p: int, discard_if_unit: int, source_uid: int, exclude_type := "", discard_cost := 0) -> void:
 	if phase == "search":
 		return
 	var options: Array = []
+	var looked_cards: Array = []
 	for c: Card in players[opponent(p)]["hand"]:
-		options.append({"uid": c.uid, "card_id": c.card_id})
-	if options.is_empty():
+		looked_cards.append({"uid": c.uid, "card_id": c.card_id})
+		if exclude_type == "" or CardDB.card(c.card_id)["type"] != exclude_type:
+			options.append({"uid": c.uid, "card_id": c.card_id})
+	if looked_cards.is_empty():
 		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
 		return
-	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "hand_bottom": true, "discard_if_unit": discard_if_unit}
+	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "hand_bottom": true, "discard_if_unit": discard_if_unit, "discard_cost": discard_cost}
+	if exclude_type != "":
+		pending_search["looked_cards"] = looked_cards # the UI shows every card, the pickable ones glow
+		pending_search["exclude_type"] = exclude_type
 	_search_return = phase
 	phase = "search"
 	_emit({"type": "hand_bottom_pick", "player": p, "source_uid": source_uid})
@@ -2910,7 +2925,8 @@ func _begin_enemy_hand_bottom(p: int, discard_if_unit: int, source_uid: int) -> 
 ## (the FRONT of the array: draws pop the back) and a unit makes the player discard.
 func _finish_enemy_hand_bottom(p: int, card_uid: int, declined: bool) -> Array:
 	var foe := opponent(p)
-	var discards := int(pending_search.get("discard_if_unit", 0))
+	var discards_for_unit := int(pending_search.get("discard_if_unit", 0))
+	var discards_for_any := int(pending_search.get("discard_cost", 0))
 	var source_uid := int(pending_search.get("source_uid", 0))
 	var sent_to_bottom: Card = null
 	if not declined:
@@ -2923,7 +2939,12 @@ func _finish_enemy_hand_bottom(p: int, card_uid: int, declined: bool) -> Array:
 		_emit({"type": "hand_bottom", "player": p, "owner": foe, "uid": card_uid, "card_id": sent_to_bottom.card_id})
 	else:
 		_emit({"type": "search_decline", "player": p})
-	var price_is_due: bool = sent_to_bottom != null and CardDB.card(sent_to_bottom.card_id)["type"] == "unit" and discards > 0
+	var discards := 0
+	if sent_to_bottom != null:
+		discards = discards_for_any
+		if CardDB.card(sent_to_bottom.card_id)["type"] == "unit":
+			discards += discards_for_unit
+	var price_is_due: bool = discards > 0
 	if price_is_due and not players[p]["hand"].is_empty():
 		_open_hand_discard_pick(p, source_uid, discards)
 		return _flush()

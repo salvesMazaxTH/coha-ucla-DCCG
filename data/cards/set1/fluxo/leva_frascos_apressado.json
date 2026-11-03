@@ -3,9 +3,6 @@
   "set": 1,
   "type": "unit",
   "rarity": "common",
-  "tribe": [
-    "humano"
-  ],
   "essence": "fluxo",
   "element": "agua",
   "cost": 2,

@@ -1,0 +1,20 @@
+{
+  "name": "Phaedra",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "tribe": ["dragoes_negros"],
+  "essence": ["furia", "natureza"],
+  "cost": 5,
+  "atk": 5,
+  "hp": 5,
+  "keywords": ["impeto"],
+  "art": "furia/phaedra.webp",
+  "effects": [
+    { "trigger": "on_enter", "action": "damage", "target": "enemy_unit", "amount": 2 }
+  ],
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela recebe 2 de dano. (PLACEHOLDER)",
+  "flavor": "",
+  "tags": [],
+  "unreleased": true
+}

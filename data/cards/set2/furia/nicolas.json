@@ -3,7 +3,7 @@
   "set": 2,
   "type": "unit",
   "rarity": "legendary",
-  "tribe": ["humano", "nuliterrano"],
+  "tribe": ["nuliterrano"],
   "essence": "furia",
   "element": "fogo",
   "cost": 3,

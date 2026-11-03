@@ -54,6 +54,9 @@ func _init() -> void:
 	_test_freeze()
 	_test_overlay_keyword_immunities()
 	_test_stun_and_cap()
+	_test_elias_oraculo()
+	_test_cortejo_de_cinzas()
+	_test_vincent_e_vesper()
 	_test_burn()
 	_test_condemn()
 	_test_constant()
@@ -141,6 +144,8 @@ func _init() -> void:
 	_test_double_attack()
 	_test_dying_card_filter()
 	_test_critico_data()
+	_test_drake_power()
+	_test_magni()
 	_test_overkill()
 	_test_dud()
 	_test_ai_no_waste()
@@ -1487,7 +1492,7 @@ func _test_tormenta_wave_two() -> void:
 	check(g.has_kw(runner, "impeto") and runner.rapidez_total() == 1, "Vento de Cauda: concede Ímpeto e Rapidez 1")
 	check(not g.can_use_ability(p), "Vento de Cauda: só uma vez por turno")
 
-	# Fio Desencapado: 2 damage to any unit and +1 Momentum (so the 1-cost spell pays for itself)
+	# Fio Desencapado: 2 damage to any unit and +1 Momentum back (a fast spell that nets out at 1 Momentum)
 	g = _new_game()
 	_quiet(g)
 	var target := _put(g, 1, "serpente_marinha")
@@ -1495,7 +1500,7 @@ func _test_tormenta_wave_two() -> void:
 	g.players[0]["turn_start_momentum"] = 5
 	_play_aimed(g, 0, "fio_desencapado", target.uid)
 	check(target.damage == 2, "Fio Desencapado: causa 2 de dano")
-	check(g.players[0]["momentum"] == 5, "Fio Desencapado: o Momentum ganho cobre o custo de 1")
+	check(g.players[0]["momentum"] == 4, "Fio Desencapado: custa 2 e devolve 1 de Momentum")
 
 	# Curto-Circuito: 1 damage to the enemy Leader per Momentum left after paying, and all of it is spent
 	g = _new_game()
@@ -3770,6 +3775,164 @@ func _test_adjacent_armor() -> void:
 	check(g.armor_of(right) == 2, "Contador: dois Contadores não dão x4 na Armadura adjacente")
 
 ## Atordoamento (stacking, auto-exhausting freeze-like status) and the cap_stats effect behind Última Badalada.
+## Elias, Oráculo: Ao Entrar distributes 2 Stun markers; Ao Ativar (instantâneo) counters only cheap things on the stack.
+func _test_elias_oraculo() -> void:
+	_tspell("t_cheap_spell", "instantaneo", [{"trigger": "on_play", "action": "damage", "target": "enemy_leader", "amount": 1}])
+	CardDB.data()["cards"]["t_cheap_spell"]["cost"] = 2
+	_tspell("t_dear_spell", "instantaneo", [{"trigger": "on_play", "action": "damage", "target": "enemy_leader", "amount": 1}])
+	CardDB.data()["cards"]["t_dear_spell"]["cost"] = 3
+	_tcard("t_elias_victim", 1, 9, [])
+
+	# Ao Entrar: both markers on the same enemy unit
+	var g := _new_game()
+	_quiet(g)
+	var victim := _put(g, 1, "t_elias_victim")
+	var elias_a := _give(g, 0, "elias_oraculo")
+	g.players[0]["momentum"] = 4
+	g.play_card(0, elias_a, 0)
+	_resolve_stack(g)
+	if g.phase == "enter_target":
+		g.choose_enter_target(0, victim.uid)
+		g.choose_enter_target(0, victim.uid)
+		_resolve_stack(g)
+	check(victim.stun_markers == 2, "Elias: os 2 marcadores podem ir na mesma unidade (%d)" % victim.stun_markers)
+
+	# Ao Ativar: answers a cheap card, cannot target an expensive one
+	g = _new_game()
+	_quiet(g)
+	g.set_auto_pass(0, false)
+	g.set_auto_pass(1, false)
+	var elias := _put(g, 1, "elias_oraculo")
+	check(elias.card_id == "elias_oraculo", "Elias existe no banco de cartas")
+	var cheap := _give(g, 0, "t_cheap_spell")
+	var dear := _give(g, 0, "t_dear_spell")
+	g.players[0]["momentum"] = 6
+	g.players[1]["momentum"] = 3
+	var foe_hp: int = g.players[1]["leader_hp"]
+	g.play_card(0, dear, 0)
+	var ability: Dictionary = CardDB.card("elias_oraculo")["activated"]
+	check(g.valid_targets(1, "enemy_stack", elias.uid, false, ability["effects"]).is_empty(), "Elias não pode anular carta de custo 3")
+	_resolve_stack(g)
+	check(g.players[1]["leader_hp"] == foe_hp - 1, "a carta de custo 3 resolveu normalmente")
+
+	g.players[0]["momentum"] = 6
+	g.play_card(0, cheap, 0)
+	var targets: Array = g.valid_targets(1, "enemy_stack", elias.uid, false, ability["effects"])
+	check(targets.size() == 1, "Elias pode mirar a carta de custo 2 na pilha")
+	check(g.can_activate(1, elias.uid), "Elias ativa em velocidade instantânea na vez do oponente")
+	var hp_before: int = g.players[1]["leader_hp"]
+	g.activate(1, elias.uid, targets[0])
+	check(elias.exhausted, "Elias fica exausto ao anular")
+	_resolve_stack(g)
+	check(g.players[1]["leader_hp"] == hp_before, "a carta de custo 2 foi anulada: sem dano")
+
+func _test_cortejo_de_cinzas() -> void:
+	# "side": "enemy" summons the tokens for the opponent, and the caster draws 2
+	var g := _new_game()
+	_quiet(g)
+	var cortejo := _give(g, 0, "cortejo_de_cinzas")
+	g.players[0]["momentum"] = 3
+	var hand_before: int = g.players[0]["hand"].size()
+	var enemy_board_before := _board_count(g, 1)
+	var own_board_before := _board_count(g, 0)
+	g.play_card(0, cortejo, 0)
+	_resolve_stack(g)
+	check(_board_count(g, 1) == enemy_board_before + 2, "Cortejo: o oponente recebe 2 fichas (%d)" % (_board_count(g, 1) - enemy_board_before))
+	check(_board_count(g, 0) == own_board_before, "Cortejo: nenhuma ficha entra do lado de quem jogou")
+	check(g.players[0]["hand"].size() == hand_before - 1 + 2, "Cortejo: quem jogou compra 2 cartas")
+
+	# a nearly full enemy board only takes what fits
+	g = _new_game()
+	_quiet(g)
+	while g.has_free_slot(1):
+		_put(g, 1, "espirito_choroso")
+	var free_filled := _board_count(g, 1)
+	cortejo = _give(g, 0, "cortejo_de_cinzas")
+	g.players[0]["momentum"] = 3
+	g.play_card(0, cortejo, 0)
+	_resolve_stack(g)
+	check(_board_count(g, 1) == free_filled, "Cortejo: campo cheio do oponente não ganha fichas extras")
+
+func _test_vincent_e_vesper() -> void:
+	# Vincent: when he dies he teleports back to the hand and costs 1 more each time
+	var g := _new_game()
+	_quiet(g)
+	var vincent := _put(g, 0, "vincent_morvane")
+	var base_cost: int = CardDB.card("vincent_morvane")["cost"]
+	_kill(g, vincent)
+	check(g.find_unit(vincent.uid) == null, "Vincent: saiu do campo ao morrer")
+	var in_hand: Array = g.players[0]["hand"].filter(func(c: Card): return c.card_id == "vincent_morvane")
+	check(in_hand.size() == 1, "Vincent: volta para a mão ao morrer (%d)" % in_hand.size())
+	if in_hand.size() == 1:
+		check(in_hand[0].cost_mod == 1, "Vincent: volta custando 1 a mais (%d)" % in_hand[0].cost_mod)
+		var again := _put(g, 0, "vincent_morvane")
+		again.cost_mod = in_hand[0].cost_mod
+		_kill(g, again)
+		var second: Array = g.players[0]["hand"].filter(func(c: Card): return c.card_id == "vincent_morvane" and c.cost_mod >= 2)
+		check(not second.is_empty(), "Vincent: a segunda morte soma mais 1 ao custo (base %d)" % base_cost)
+
+	# Vesper: Ao Atingir o Líder shows the whole enemy hand; only a card that is not a unit can go to the bottom of their deck, and it costs a discard
+	_tcard("t_vesper_foe", 1, 1, [])
+	check(CardDB.card("vesper")["keywords"].has("furtividade"), "Vesper: tem Furtividade")
+	var g_vesper := _vesper_game(["bola_de_fogo", "t_vesper_foe"])
+	var spy: Card = g_vesper["spy"]
+	g = g_vesper["game"]
+	var foe_spell: Card = g.players[1]["hand"][0]
+	var foe_unit: Card = g.players[1]["hand"][1]
+	var foe_deck_before: int = g.players[1]["deck"].size()
+	var my_hand_before: int = g.players[0]["hand"].size()
+	_vesper_hits_leader(g, spy)
+	check(g.phase == "search" and g.decider() == 0, "Vesper: quem escolhe é o dono dela (%s)" % g.phase)
+	check(g.pending_search.get("looked_cards", []).size() == 2 and g.pending_search["cards"].size() == 1, "Vesper: vê a mão toda, mas só a que não é unidade pode ser escolhida")
+	check(g.choose_search(0, foe_unit.uid).is_empty() and g.phase == "search", "Vesper: uma unidade não pode ser escolhida")
+	g.choose_search(0, foe_spell.uid)
+	check(g.players[1]["hand"] == [foe_unit], "Vesper: a carta escolhida sai da mão do oponente")
+	check(g.players[1]["deck"].size() == foe_deck_before + 1 and g.players[1]["deck"][0] == foe_spell, "Vesper: a carta escolhida vai para o fundo do deck do oponente")
+	check(g.phase == "search" and g.pending_search.get("discard_hand", false) and int(g.pending_search["discards_left"]) == 1, "Vesper: mandar a carta custa descartar 1 da mão dela")
+	g.choose_search(0, int(g.pending_search["cards"][0]["uid"]))
+	check(g.phase != "search" and g.players[0]["hand"].size() == my_hand_before - 1, "Vesper: descartou 1 e a escolha fecha")
+
+	# declining keeps both hands untouched and costs nothing
+	g_vesper = _vesper_game(["bola_de_fogo"])
+	g = g_vesper["game"]
+	my_hand_before = g.players[0]["hand"].size()
+	_vesper_hits_leader(g, g_vesper["spy"])
+	g.choose_search(0, 0)
+	check(g.phase != "search" and g.players[1]["hand"].size() == 1 and g.players[0]["hand"].size() == my_hand_before, "Vesper: recusar não move nem custa nada")
+
+	# a hand with only units can be looked at but nothing is offered
+	g_vesper = _vesper_game(["t_vesper_foe"])
+	g = g_vesper["game"]
+	_vesper_hits_leader(g, g_vesper["spy"])
+	check(g.phase == "search" and g.pending_search["cards"].is_empty(), "Vesper: mão só de unidades não oferece nenhuma carta")
+
+	# an empty hand opens nothing
+	g_vesper = _vesper_game([])
+	g = g_vesper["game"]
+	_vesper_hits_leader(g, g_vesper["spy"])
+	check(g.phase != "search", "Vesper: mão vazia não abre escolha")
+
+## A fresh game with Vesper on player 0's board and the given cards in player 1's hand.
+func _vesper_game(foe_hand_ids: Array) -> Dictionary:
+	var g := _new_game()
+	_quiet(g)
+	g.active = 0
+	var spy := _put(g, 0, "vesper")
+	var foe_hand: Array = []
+	for card_id in foe_hand_ids:
+		foe_hand.append(Card.new(g._uid(), card_id, 1, "hand"))
+	g.players[1]["hand"] = foe_hand
+	return {"game": g, "spy": spy}
+
+## A real attack on the Leader, with every response window passed, so Vesper's Ao Atingir o Líder resolves.
+func _vesper_hits_leader(g: GameState, spy: Card) -> void:
+	_hit(g, spy)
+	_pass_windows(g)
+	_resolve_stack(g)
+
+func _board_count(g: GameState, p: int) -> int:
+	return g.players[p]["board"].size()
+
 func _test_stun_and_cap() -> void:
 	_tcard("t_stn_hit", 1, 5, [])
 	_tcard("t_stn_vic", 3, 5, [])
@@ -6775,6 +6938,156 @@ func _test_critico_temp() -> void:
 	check(unit.critico_total() == 4, "critico_temp nunca passa do nível 4 (%d)" % unit.critico_total())
 	g.end_turn(0)
 	check(unit.temp_critico == 0 and unit.critico_total() == 0, "o Crítico temporário some no fim do turno")
+
+## Drake: Revoada Negra (an ally gets +1 Rapidez until the end of the turn, only if it already has some; a Dragão Negro also gets
+## +1 Ataque and the Rapidez even with none) and the Constante that gives Ataque Duplo to allied units with Rapidez 2+.
+func _test_drake_power() -> void:
+	_tcard("t_drake_dn", 2, 4, [])
+	CardDB.data()["cards"]["t_drake_dn"]["tribe"] = ["humano", "dragoes_negros"]
+	_tcard("t_drake_fast_dn", 2, 4, [])
+	CardDB.data()["cards"]["t_drake_fast_dn"]["tribe"] = ["dragoes_negros"]
+	CardDB.data()["cards"]["t_drake_fast_dn"]["rapidez"] = 1
+	_tcard("t_drake_other", 2, 4, [])
+	CardDB.data()["cards"]["t_drake_other"]["tribe"] = ["humano"]
+	_tcard("t_drake_fast_other", 2, 4, [])
+	CardDB.data()["cards"]["t_drake_fast_other"]["tribe"] = ["humano"]
+	CardDB.data()["cards"]["t_drake_fast_other"]["rapidez"] = 1
+	var g := _new_game()
+	_quiet(g)
+	var p: int = g.active
+	g.players[p]["leader_id"] = "drake"
+	var plain_dn := _put(g, p, "t_drake_dn", false)
+	var fast_dn := _put(g, p, "t_drake_fast_dn", false)
+	var plain_other := _put(g, p, "t_drake_other", false)
+	var fast_other := _put(g, p, "t_drake_fast_other", false)
+
+	# a Dragão Negro with no Rapidez gets Rapidez 1 and +1 Ataque
+	g.players[p]["ability_used"] = false
+	g.players[p]["momentum"] = 5
+	g.use_ability(p, plain_dn.uid)
+	_resolve_stack(g)
+	check(g.players[p]["momentum"] == 3, "Revoada Negra: custa 2 de Momentum")
+	check(plain_dn.rapidez_total() == 1 and g.atk_of(plain_dn) == 3, "Revoada Negra: Dragão Negro sem Rapidez ganha Rapidez 1 e +1 ATQ (%d / %d)" % [plain_dn.rapidez_total(), g.atk_of(plain_dn)])
+	check(not g.can_use_ability(p), "Revoada Negra: só uma vez por turno")
+
+	# a Dragão Negro that already has Rapidez 1 goes to 2 (it adds up)
+	g.players[p]["ability_used"] = false
+	g.players[p]["momentum"] = 5
+	g.use_ability(p, fast_dn.uid)
+	_resolve_stack(g)
+	check(fast_dn.rapidez_total() == 2 and g.atk_of(fast_dn) == 3, "Revoada Negra: Dragão Negro com Rapidez 1 vai a 2 e ganha +1 ATQ (%d / %d)" % [fast_dn.rapidez_total(), g.atk_of(fast_dn)])
+
+	# any other unit: nothing without Rapidez, +1 with it
+	g.players[p]["ability_used"] = false
+	g.players[p]["momentum"] = 5
+	g.use_ability(p, plain_other.uid)
+	_resolve_stack(g)
+	check(plain_other.rapidez_total() == 0 and g.atk_of(plain_other) == 2, "Revoada Negra: outra unidade sem Rapidez não ganha nada")
+	g.players[p]["ability_used"] = false
+	g.players[p]["momentum"] = 5
+	g.use_ability(p, fast_other.uid)
+	_resolve_stack(g)
+	check(fast_other.rapidez_total() == 2 and g.atk_of(fast_other) == 2, "Revoada Negra: outra unidade com Rapidez 1 vai a 2, sem ATQ (%d / %d)" % [fast_other.rapidez_total(), g.atk_of(fast_other)])
+
+	# Drake's Constante: Rapidez 2+ gives Ataque Duplo, himself included (Rapidez 2)
+	var drake := _put(g, p, "drake")
+	g._check_state() # after every action the real game settles the Constantes
+	check(g.has_kw(fast_other, "ataque_duplo") and g.has_kw(fast_dn, "ataque_duplo"), "Drake: unidades aliadas com Rapidez 2 têm Ataque Duplo")
+	check(not g.has_kw(plain_dn, "ataque_duplo") and not g.has_kw(plain_other, "ataque_duplo"), "Drake: Rapidez 1 ou nenhuma não basta")
+	check(g.has_kw(drake, "ataque_duplo") and g.attacks_allowed(drake) == 2, "Drake: ele mesmo (Rapidez 2) tem Ataque Duplo")
+	var enemy_fast := _put(g, 1 - p, "t_drake_fast_other")
+	enemy_fast.temp_rapidez = 1
+	g._move_dead_units()
+	check(not g.has_kw(enemy_fast, "ataque_duplo"), "Drake: unidades do oponente não ganham")
+
+	# the aura switches on the moment the ability resolves (no end of turn needed)
+	var g2 := _new_game()
+	_quiet(g2)
+	g2.players[p]["leader_id"] = "drake"
+	g2.players[p]["momentum"] = 5
+	g2.players[p]["ability_used"] = false
+	_put(g2, p, "drake")
+	var ally := _put(g2, p, "t_drake_fast_other", false)
+	check(not g2.has_kw(ally, "ataque_duplo"), "Drake: Rapidez 1 ainda não tem Ataque Duplo")
+	g2.use_ability(p, ally.uid)
+	_resolve_stack(g2)
+	check(g2.has_kw(ally, "ataque_duplo") and g2.attacks_allowed(ally) == 2, "Revoada Negra: o Ataque Duplo liga assim que a habilidade resolve")
+
+	# save/load keeps the temporary Rapidez and the aura keywords
+	var copy := Card.from_dict(fast_other.to_dict(), "board", p)
+	check(copy.temp_rapidez == 1 and copy.aura_keywords.has("ataque_duplo") and copy.rapidez_total() == 2, "temp_rapidez e aura_keywords sobrevivem ao to_dict/from_dict")
+	check(CardView.rapidez_of_view(CardDB.card("t_drake_fast_other"), fast_other.to_dict()) == 2, "a tela soma a Rapidez temporária")
+	check(CardView.attacks_allowed_of_view(CardDB.card("t_drake_fast_other"), fast_other.to_dict()) == 2, "a tela mostra 2 ataques com a aura do Drake")
+
+	# the temporary Rapidez, the +1 Ataque and the aura all end with the turn
+	g.end_turn(p)
+	check(plain_dn.rapidez_total() == 0 and plain_dn.temp_atk == 0 and fast_dn.rapidez_total() == 1 and fast_other.rapidez_total() == 1, "Revoada Negra: Rapidez e ATQ temporários somem no fim do turno")
+	check(not g.has_kw(fast_other, "ataque_duplo") and not g.has_kw(fast_dn, "ataque_duplo"), "Drake: sem a Rapidez extra, o Ataque Duplo vai embora")
+
+## Magni: innate play_condition (opponent has 3+ units and more units than p), the enemy-side Constante (+1 Ataque) and +4 Ataque when he challenges / is challenged.
+func _test_magni() -> void:
+	_tcard("t_magni_body", 2, 6, [])
+	_tcard("t_magni_foe", 2, 20, [])
+	_tcard("t_magni_big", 5, 20, [])
+	var g := _new_game()
+	_quiet(g)
+	var p: int = g.active
+	g.players[p]["momentum"] = 12
+	var magni_uid := _give(g, p, "magni")
+
+	# play_condition: the opponent has 3+ units AND more units than p (so the +1 Ataque always hurts)
+	check(not g.can_play(p, magni_uid), "Magni: sem unidades (0 contra 0) não pode ser jogado")
+	_put(g, p, "t_magni_body")
+	check(not g.can_play(p, magni_uid), "Magni: 1 unidade contra 0 não pode (situação favorável)")
+	_put(g, 1 - p, "t_magni_foe")
+	_put(g, 1 - p, "t_magni_foe")
+	check(not g.can_play(p, magni_uid), "Magni: 1 unidade contra 2 não pode (o oponente precisa de 3 ou mais)")
+	_put(g, 1 - p, "t_magni_foe")
+	check(g.can_play(p, magni_uid), "Magni: 1 unidade contra 3 pode ser jogado")
+	_put(g, p, "t_magni_body")
+	check(g.can_play(p, magni_uid), "Magni: 2 unidades contra 3 pode ser jogado")
+	_put(g, p, "t_magni_body")
+	check(not g.can_play(p, magni_uid), "Magni: 3 unidades contra 3 não pode (empate)")
+
+	# the enemy-side Constante: +1 Ataque to enemy units only, gone when he leaves
+	var foe: Card = g.players[1 - p]["board"][0]
+	var ally: Card = g.players[p]["board"][0]
+	var magni := _put(g, p, "magni")
+	g._check_state()
+	check(g.atk_of(foe) == 3 and g.atk_of(ally) == 2, "Magni: unidades inimigas ganham +1 Ataque, as aliadas não (%d / %d)" % [g.atk_of(foe), g.atk_of(ally)])
+	check(g.atk_of(magni) == 8, "Magni: a própria aura não o alcança (%d)" % g.atk_of(magni))
+	var sources: Array = g.constant_sources_of(foe)
+	check(sources.size() == 1 and sources[0]["source"] == "magni" and int(sources[0]["atk"]) == 1, "Magni: a aura aparece em Modificadores da unidade inimiga")
+
+	# +4 Ataque when he challenges a unit (until end of turn)
+	magni.sick = false
+	g.go_to_combat(p)
+	foe.exhausted = true # only a tapped unit can be challenged
+	_hit(g, magni, foe.uid)
+	_resolve_stack(g)
+	check(g.atk_of(magni) == 12 and magni.temp_atk == 4, "Magni: Ao Desafiar dá +4 de Ataque (%d)" % g.atk_of(magni))
+	g.end_combat(p)
+	g.end_turn(p)
+	check(magni.temp_atk == 0 and g.atk_of(magni) == 8, "Magni: o bônus acaba no fim do turno")
+
+	# +4 Ataque when a unit challenges him
+	var g2 := _new_game()
+	_quiet(g2)
+	var q: int = g2.active
+	var defender := _put(g2, q, "magni")
+	var attacker := _put(g2, 1 - q, "t_magni_big") # ATQ 5+1: Intimidação bars 3 or less
+	g2.end_turn(q)
+	g2.go_to_combat(1 - q)
+	attacker.sick = false
+	defender.exhausted = true
+	_hit(g2, attacker, defender.uid)
+	_resolve_stack(g2)
+	check(defender.temp_atk == 4, "Magni: Ao Ser Desafiada dá +4 de Ataque (%d)" % defender.temp_atk)
+
+	# the Constante disappears with him
+	g.players[p]["board"].erase(magni)
+	g._check_state()
+	check(g.atk_of(foe) == 2, "Magni: ao sair do campo as unidades inimigas voltam ao Ataque normal (%d)" % g.atk_of(foe))
 
 ## Ataque Duplo: the unit stays tapped between the two attacks and is spent after the second.
 func _test_double_attack() -> void:

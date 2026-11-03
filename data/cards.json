@@ -141,7 +141,6 @@
     }
   },
   "tribe": {
-    "humano": { "name": "Humano" },
     "nuliterrano": { "name": "Nuliterrano" },
     "maginaciano": { "name": "Maginaciano" },
     "dragoes_negros": { "name": "Dragões Negros" },
