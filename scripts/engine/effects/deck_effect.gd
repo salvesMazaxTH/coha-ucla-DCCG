@@ -12,6 +12,7 @@ extends Effect
 ##   a broad filter over the whole deck is too strong.
 ## "discard_hand_pick": the player picks one card from their own hand and discards it to
 ##   the graveyard (only the end-of-turn hand limit banishes; a normal discard goes to the graveyard).
+##   `who` (default "self"): "opponent" makes the OPPONENT pick the card from their own hand (Calvin Sem-Face); an empty hand does nothing.
 ## "discard_if_over" (Soren): BOTH players holding MORE than `limit` cards (default 4) discard `amount` (default 1) cards
 ##   from their own hand to the graveyard. The controller chooses first, then the opponent; a player at the limit or below discards nothing.
 ## "summon_hand_pick": the player picks a unit card of the given `rarity` (e.g. "champion"; "" = any) from
@@ -27,6 +28,8 @@ extends Effect
 ##   cards from their own hand (as many as they have). Any other card costs nothing.
 ##   `discard_cost` (Vesper, default 0): the player also discards that many cards from their own hand for ANY card sent.
 ##   `exclude_type` (Vesper, default "" = none): cards of that type are shown but cannot be picked (the player still sees the whole hand).
+## "enemy_hand_tax" (Cornélia Aldrovane): the same look at the OPPONENT'S hand, but the picked card stays where it is and costs
+##   `cost_increase` more while it stays in the hand (it ends when the card is played or leaves the hand). The player may pick none.
 ## "look_top": the player looks at the top `count` cards and takes one; the rest go to the
 ##   bottom (or the deck is shuffled, with "shuffle": true).
 ## "look_bottom" (Dragar): `count` cards (default 2) drawn at random from the bottom `window` cards of the deck
@@ -47,7 +50,11 @@ func opens_choice() -> bool:
 
 func open_choice(context: EffectContext) -> void:
 	if action == "discard_hand_pick":
-		context.game._begin_hand_discard(context.controller, context.self_uid)
+		var opponent_discards: bool = String(raw.get("who", "self")) == "opponent"
+		if opponent_discards:
+			context.game._begin_hand_discard(context.game.opponent(context.controller), context.self_uid, true)
+		else:
+			context.game._begin_hand_discard(context.controller, context.self_uid)
 	elif action == "discard_if_over":
 		context.game._begin_discard_if_over(context.controller, int(raw.get("limit", 4)), int(raw.get("amount", 1)), context.self_uid)
 	elif action == "summon_hand_pick":
@@ -59,6 +66,8 @@ func open_choice(context: EffectContext) -> void:
 		context.game._begin_grave_to_hand(context.controller, raw, context.self_uid)
 	elif action == "enemy_hand_bottom":
 		context.game._begin_enemy_hand_bottom(context.controller, int(raw.get("discard_if_unit", 0)), context.self_uid, String(raw.get("exclude_type", "")), int(raw.get("discard_cost", 0)))
+	elif action == "enemy_hand_tax":
+		context.game._begin_enemy_hand_bottom(context.controller, 0, context.self_uid, "", 0, int(raw.get("cost_increase", 1)))
 	elif action == "look_top":
 		context.game._begin_look(context.controller, count, context.self_uid, shuffle)
 	elif action == "look_bottom":

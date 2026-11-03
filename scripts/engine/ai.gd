@@ -142,6 +142,8 @@ static func _choose_search(g: GameState) -> int:
 			if foe_cost > best_foe_cost:
 				best_foe_cost = foe_cost
 				best_foe_card = int(option["uid"])
+		if int(g.pending_search.get("cost_increase", 0)) > 0:
+			return best_foe_card # Cornélia Aldrovane: nothing is lost by taxing the opponent's priciest card
 		return best_foe_card if best_foe_cost >= 0 else 0
 	# search options are plain dicts {uid, card_id}
 	for option in g.pending_search.get("cards", []):

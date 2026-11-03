@@ -202,9 +202,11 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 							err.call("activated.extra_cost: opção precisa de title")
 							continue
 						picks.append(option.get("pick", ""))
-					picks.sort()
-					if picks != ["hand_card", "other_ally_unit"]:
-						err.call("activated.extra_cost: precisa de uma opção de descarte e outra de sacrifício")
+					for pick in picks:
+						if pick not in ["hand_card", "other_ally_unit"] or picks.count(pick) > 1:
+							err.call("activated.extra_cost: cada opção precisa ser um descarte (hand_card) ou um sacrifício (other_ally_unit), sem repetir")
+					if picks.is_empty():
+						err.call("activated.extra_cost: precisa de pelo menos uma opção")
 		_validate_effects(err, act.get("effects", []))
 	if cd.has("equip_from_field"):
 		var equip_action: Dictionary = cd["equip_from_field"]

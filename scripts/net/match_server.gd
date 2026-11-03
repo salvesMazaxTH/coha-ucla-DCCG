@@ -222,7 +222,7 @@ func _apply(g: GameState, p: int, m: Dictionary) -> Array:
 		"play": return g.play_card(p, int(m.get("uid", 0)), int(m.get("target", 0)), int(m.get("target2", 0)), int(m.get("slot", -1)), int(m.get("banish", 0)))
 		"incarnation": return g.cast_incarnation(p, int(m.get("target", 0)), int(m.get("slot", -1)), int(m.get("banish", 0)))
 		"ability": return g.use_ability(p, int(m.get("target", 0)))
-		"activate": return g.activate(p, int(m.get("uid", 0)), int(m.get("target", 0)))
+		"activate": return g.activate(p, int(m.get("uid", 0)), int(m.get("target", 0)), int(m.get("payer", 0)))
 		"effect_choice": return g.choose_effect_option(p, int(m.get("index", -1)), int(m.get("target", 0)))
 		"activate_discard": return g.begin_activation_discard(p, int(m.get("uid", 0)))
 		"transform": return g.transform(p, int(m.get("uid", 0)))

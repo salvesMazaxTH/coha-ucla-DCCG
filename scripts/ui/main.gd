@@ -1805,6 +1805,10 @@ func _select_effect_option(index: int) -> void:
 	_render()
 
 func _open_activation_cost_prompt(ability_uid: int) -> void:
+	# with a single way to pay (Cornélia: only sacrifice) asking "which cost?" is a pointless step: go straight to it
+	if g.activation_cost_options(ability_uid).size() == 1:
+		_select_activation_cost_option(0, ability_uid)
+		return
 	var options := _choice_prompt_options(g.activation_cost_options(ability_uid),
 		func(index: int): return g.activation_cost_option_available(viewer, ability_uid, index),
 		_select_activation_cost_option.bind(ability_uid))
@@ -3069,6 +3073,8 @@ func _hint() -> String:
 		if g.pending_search.get("hand_summon", false):
 			return "Escolha um campeão da sua mão para entrar em campo de graça."
 		if g.pending_search.get("hand_bottom", false):
+			if int(g.pending_search.get("cost_increase", 0)) > 0:
+				return "Escolha uma carta da mão do oponente para custar %d a mais, ou não escolha nenhuma." % int(g.pending_search["cost_increase"])
 			return "Escolha uma carta da mão do oponente para ir ao fundo do deck dele, ou não escolha nenhuma."
 		if g.pending_search.get("grave_optional", false):
 			return "Rebobinar: escolha uma carta do cemitério para levar à mão, ou não pegue nenhuma."
@@ -3830,8 +3836,19 @@ func _fire_target(uid: int, confirmed := false) -> void:
 			_do(g.cast_incarnation(viewer, uid))
 		"ability":
 			_do(g.use_ability(viewer, uid))
-		"unit_ability", "unit_cost":
-			_do(g.activate(viewer, targeting["uid"], uid))
+		"unit_ability":
+			_do(g.activate(viewer, targeting["uid"], uid, int(targeting.get("payer", 0))))
+		"unit_cost":
+			var paying_unit := g.find_unit(int(targeting["uid"]))
+			var ability_spec := g.target_spec(paying_unit.data()["activated"]["effects"]) if paying_unit != null else ""
+			if ability_spec == "":
+				_do(g.activate(viewer, targeting["uid"], uid))
+			else:
+				# the sacrifice is chosen; the ability's own target comes next (Cornélia Aldrovane)
+				targeting = {"kind": "unit_ability", "uid": paying_unit.uid, "spec": ability_spec, "payer": uid}
+				if views.has(paying_unit.uid) and is_instance_valid(views[paying_unit.uid]):
+					_begin_aim(_visual_rect(views[paying_unit.uid] as Control).get_center())
+				_render()
 		"field_equip":
 			_do(g.equip_from_field(viewer, targeting["uid"], uid))
 		"enter":
@@ -4850,7 +4867,8 @@ func _render_search_reveal() -> void:
 	var whole_deck_hint := "Nenhuma carta do deck pode ser escolhida; o deck será embaralhado." if g.pending_search.get("cards", []).is_empty() else "Clique em uma carta que brilha para adicioná-la à sua mão; depois o deck é embaralhado."
 	if row_overflows and whole_deck:
 		whole_deck_hint += " Deslize para o lado para ver o deck todo."
-	var hint := summon_hint if summoning else "Clique em uma carta para levá-la à sua mão, ou escolha não pegar nenhuma; as outras ficam no cemitério." if grave_optional else "Clique em um campeão para colocá-lo em campo sem pagar o custo, ou escolha não colocar nenhum." if hand_summon else ("Clique em uma carta que brilha (não é unidade) para mandá-la ao fundo do deck do dono, ou escolha nenhuma." if g.pending_search.get("exclude_type", "") == "unit" else "Clique em uma carta para mandá-la ao fundo do deck do dono. Se for uma unidade, você descarta %d cartas; ou escolha nenhuma." % int(g.pending_search.get("discard_if_unit", 0))) if hand_bottom else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else ("Escolha 1 para a mão; as outras continuam onde estavam no fundo do deck." if g.pending_search.get("from_bottom", false) else "Escolha 1 para a mão; as outras vão para o fundo do deck.") if look else ("Nenhuma das cartas olhadas pode ser escolhida; o deck será embaralhado." if g.pending_search.get("cards", []).is_empty() else "Clique em uma carta que brilha para adicioná-la à sua mão; as outras vão para o fundo do deck.") if g.pending_search.has("to_bottom") else whole_deck_hint if whole_deck else "Clique em uma carta que brilha para adicioná-la à sua mão e embaralhar o deck, ou escolha não pegar nenhuma."
+	var hand_tax_amount: int = int(g.pending_search.get("cost_increase", 0)) # Cornélia Aldrovane: the picked hand card costs more instead of leaving
+	var hint := summon_hint if summoning else "Clique em uma carta para levá-la à sua mão, ou escolha não pegar nenhuma; as outras ficam no cemitério." if grave_optional else "Clique em um campeão para colocá-lo em campo sem pagar o custo, ou escolha não colocar nenhum." if hand_summon else ("Clique em uma carta que brilha (não é unidade) para mandá-la ao fundo do deck do dono, ou escolha nenhuma." if g.pending_search.get("exclude_type", "") == "unit" else "Clique em uma carta para mandá-la ao fundo do deck do dono. Se for uma unidade, você descarta %d cartas; ou escolha nenhuma." % int(g.pending_search.get("discard_if_unit", 0))) if hand_bottom and hand_tax_amount == 0 else ("Clique em uma carta para ela custar %d a mais enquanto estiver na mão do dono; ou escolha nenhuma." % hand_tax_amount) if hand_bottom else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else ("Escolha 1 para a mão; as outras continuam onde estavam no fundo do deck." if g.pending_search.get("from_bottom", false) else "Escolha 1 para a mão; as outras vão para o fundo do deck.") if look else ("Nenhuma das cartas olhadas pode ser escolhida; o deck será embaralhado." if g.pending_search.get("cards", []).is_empty() else "Clique em uma carta que brilha para adicioná-la à sua mão; as outras vão para o fundo do deck.") if g.pending_search.has("to_bottom") else whole_deck_hint if whole_deck else "Clique em uma carta que brilha para adicioná-la à sua mão e embaralhar o deck, ou escolha não pegar nenhuma."
 	var footer := _label(hint if _my_input() else "A escolha pertence ao oponente.", 18, SEL if _my_input() else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 	box.add_child(footer)
 	if not secret_search:

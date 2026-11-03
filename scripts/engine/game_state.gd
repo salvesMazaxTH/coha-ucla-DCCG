@@ -1979,7 +1979,9 @@ func cast_incarnation(p: int, _target: int = 0, slot: int = -1, banish_uid: int 
 	stack_system().settle()
 	return _flush()
 
-func activate(p: int, uid: int, target: int = 0) -> Array:
+## `payer` is only for an ability that has BOTH an extra cost and a target of its own (Cornélia Aldrovane: sacrifice an ally,
+## banish an enemy): `target` is then the enemy and `payer` the ally. Without a target spec of its own, `target` is the payer (Drex).
+func activate(p: int, uid: int, target: int = 0, payer: int = 0) -> Array:
 	if not can_activate(p, uid):
 		return []
 	var c := _activatable_card(uid)
@@ -1990,10 +1992,11 @@ func activate(p: int, uid: int, target: int = 0) -> Array:
 	# an extra cost is paid by the card or ally passed as `target`; the ability itself then has no target
 	var payer_uid := 0
 	if ab.has("extra_cost"):
-		if not extra_cost_payers(p, uid).has(target):
+		payer_uid = payer if spec != "" else target
+		if not extra_cost_payers(p, uid).has(payer_uid):
 			return []
-		payer_uid = target
-		target = 0
+		if spec == "":
+			target = 0
 	_pay(p, int(ab["cost"]), reserve_pays(ab))
 	if payer_uid != 0:
 		_pay_discard_or_sacrifice(p, payer_uid)
@@ -2913,11 +2916,14 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 
 ## The player picks one card from their own hand to discard to the graveyard.
 ## Uses the same choice screen as the overdraw banish; the options are private to the owner.
-func _begin_hand_discard(p: int, source_uid: int) -> void:
+## `p` is the player who discards. When it is the opponent of the card's controller (Calvin Sem-Face), an empty hand
+## does nothing and says nothing: the "nothing to discard" notice belongs to the controller's own searches.
+func _begin_hand_discard(p: int, source_uid: int, silent_when_empty := false) -> void:
 	if phase == "search":
 		return
 	if players[p]["hand"].is_empty():
-		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
+		if not silent_when_empty:
+			_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
 		return
 	_search_return = phase
 	phase = "search"
@@ -2961,7 +2967,9 @@ func _open_hand_discard_pick(p: int, source_uid: int, discards_left: int, discar
 ## the opponent's deck. If it was a unit, the player then discards `discard_if_unit` cards of their own; `discard_cost`
 ## (Vesper) is a price paid for ANY card sent, on top of that (as many as they have in hand).
 ## `exclude_type` (Vesper: "unit") keeps cards of that type from being picked, but they are still shown in the look.
-func _begin_enemy_hand_bottom(p: int, discard_if_unit: int, source_uid: int, exclude_type := "", discard_cost := 0) -> void:
+## `cost_increase` (Cornélia Aldrovane, "enemy_hand_tax") swaps the outcome: the picked card stays in the hand but costs that much more
+## for as long as it stays there (a negative per-copy discount, so it ends when the card is played or leaves the hand).
+func _begin_enemy_hand_bottom(p: int, discard_if_unit: int, source_uid: int, exclude_type := "", discard_cost := 0, cost_increase := 0) -> void:
 	if phase == "search":
 		return
 	var options: Array = []
@@ -2973,7 +2981,7 @@ func _begin_enemy_hand_bottom(p: int, discard_if_unit: int, source_uid: int, exc
 	if looked_cards.is_empty():
 		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
 		return
-	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "hand_bottom": true, "discard_if_unit": discard_if_unit, "discard_cost": discard_cost}
+	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "hand_bottom": true, "discard_if_unit": discard_if_unit, "discard_cost": discard_cost, "cost_increase": cost_increase}
 	if exclude_type != "":
 		pending_search["looked_cards"] = looked_cards # the UI shows every card, the pickable ones glow
 		pending_search["exclude_type"] = exclude_type
@@ -2989,7 +2997,14 @@ func _finish_enemy_hand_bottom(p: int, card_uid: int, declined: bool) -> Array:
 	var discards_for_any := int(pending_search.get("discard_cost", 0))
 	var source_uid := int(pending_search.get("source_uid", 0))
 	var sent_to_bottom: Card = null
-	if not declined:
+	var cost_increase := int(pending_search.get("cost_increase", 0))
+	if not declined and cost_increase > 0:
+		var taxed := _hand_card(foe, card_uid)
+		if taxed == null:
+			return []
+		taxed.discount -= cost_increase
+		_emit({"type": "hand_cost_up", "player": p, "owner": foe, "uid": card_uid, "card_id": taxed.card_id, "amount": cost_increase})
+	elif not declined:
 		sent_to_bottom = _hand_card(foe, card_uid)
 		if sent_to_bottom == null:
 			return []

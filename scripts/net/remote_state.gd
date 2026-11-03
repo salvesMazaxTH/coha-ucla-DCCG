@@ -74,8 +74,8 @@ func cast_incarnation(_p: int, target: int = 0, slot: int = -1, banish_uid: int 
 func use_ability(_p: int, target: int = 0) -> Array:
 	return _act({"a": "ability", "target": target})
 
-func activate(_p: int, uid: int, target: int = 0) -> Array:
-	return _act({"a": "activate", "uid": uid, "target": target})
+func activate(_p: int, uid: int, target: int = 0, payer: int = 0) -> Array:
+	return _act({"a": "activate", "uid": uid, "target": target, "payer": payer})
 
 func choose_effect_option(_p: int, index: int, target: int = 0) -> Array:
 	return _act({"a": "effect_choice", "index": index, "target": target})
