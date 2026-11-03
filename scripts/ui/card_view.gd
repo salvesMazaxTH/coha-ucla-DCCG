@@ -1362,6 +1362,10 @@ static func armor_of_view(cd: Dictionary, instance: Dictionary) -> int:
 
 ## The number after the keyword "Crítico" (1-4): the live level on the board (it can grow in play, and
 ## effects add temporary levels until end of turn), the printed one everywhere else. 0 = no Crítico, so no tag.
+static func rapidez_of_view(cd: Dictionary, instance: Dictionary) -> int:
+	var lent_or_printed := maxi(int(instance.get("rapidez", cd.get("rapidez", 0))), int(instance.get("rapidez_until_next_turn", 0)))
+	return clampi(lent_or_printed + int(instance.get("temp_rapidez", 0)), 0, 3) # mirrors Card.rapidez_total
+
 static func critico_of_view(cd: Dictionary, instance: Dictionary) -> int:
 	var permanent_level := int(instance["critico"]) if instance.has("critico") else int(cd.get("critico", 0))
 	return clampi(permanent_level + int(instance.get("temp_critico", 0)), 0, 4)
@@ -1382,7 +1386,7 @@ static func toxico_tag_of_view(cd: Dictionary, instance: Dictionary) -> String:
 ## Crítico 4 ("critico_maximo": {"ataque_duplo": true}, Vael); otherwise 1. Mirrors GameState.attacks_allowed.
 static func attacks_allowed_of_view(cd: Dictionary, instance: Dictionary) -> int:
 	var keywords: Array = instance.get("keywords", cd.get("keywords", []))
-	if keywords.has("ataque_duplo"):
+	if keywords.has("ataque_duplo") or instance.get("aura_keywords", []).has("ataque_duplo"):
 		return 2
 	if critico_of_view(cd, instance) >= 4 and cd.get("critico_maximo", {}).get("ataque_duplo", false):
 		return 2
@@ -1936,7 +1940,7 @@ func _panel_lines(cd: Dictionary) -> Array:
 		tags.append(["%s %d" % [CardDB.keyword("armadura")["name"], armor_value], Color("#c9d6e6")])
 	# Rapidez keyword: Rapidez 0 goes unmentioned and 1-3 read as "Rapidez 1-3"
 	# (a frozen unit has its Rapidez suppressed, so the tag is hidden until it thaws)
-	var rapidez_level := maxi(int(inst.get("rapidez", cd.get("rapidez", 0))), int(inst.get("rapidez_until_next_turn", 0)))
+	var rapidez_level := rapidez_of_view(cd, inst)
 	if rapidez_level > 0 and not inst.has("frozen") and not inst.has("stun_markers"):
 		tags.append(["%s %d" % [CardDB.keyword("rapidez")["name"], rapidez_level], Color("#ffd27a")])
 	# Crítico X: the level reads on the tag ("Crítico 2"); the glossary in the overlay gives the chance

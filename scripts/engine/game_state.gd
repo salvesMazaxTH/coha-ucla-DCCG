@@ -510,7 +510,7 @@ func _refresh_scaling() -> void:
 			var was_alive := c.hp_left() >= 1
 			var intrinsic := intrinsic_stats_of(p, card_of(c), c)
 			var b := scale_bonus(p, card_of(c), c)
-			var aura := tribe_aura_bonus(c)
+			var aura := tribe_aura_bonus(c) + opponent_aura_bonus(c)
 			var surge := momentum_surge_of(p, c)
 			c.intrinsic_atk = intrinsic.x
 			c.intrinsic_hp = intrinsic.y
@@ -527,7 +527,26 @@ func _refresh_scaling() -> void:
 					c.shield = true
 			c.surge_keywords = surge_keywords
 			c.surge_critico = int(surge.get("critico", 0))
+			c.aura_keywords = keyword_aura_of(c)
 			c.surge_active = not surge.is_empty()
+
+## Keywords that allied "keyword_aura" Constantes give unit c right now. Each aura names the keywords, a
+## "min_rapidez" the receiving unit must have (its own Rapidez, so the aura switches on and off as Rapidez
+## changes) and "include_self" (default false). Drake: allied units with Rapidez 2+ get Ataque Duplo.
+func keyword_aura_of(c: Card) -> Array:
+	var granted: Array = []
+	for source: Card in players[c.owner]["board"]:
+		for e in card_of(source).get("effects", []):
+			if e.get("trigger", "") != "constante" or e.get("action", "") != "keyword_aura":
+				continue
+			if source == c and not bool(e.get("include_self", false)):
+				continue
+			if c.rapidez_total() < int(e.get("min_rapidez", 0)):
+				continue
+			for kw in e.get("keywords", []):
+				if not granted.has(kw):
+					granted.append(kw)
+	return granted
 
 ## What a unit's "momentum_surge" Constante gives it right now: {atk, keywords, critico}, or {} while its
 ## controller has less than the effect's "min_momentum" (default: one above MOMENTUM_CAP, i.e. 11+).
@@ -624,6 +643,22 @@ func tribe_aura_bonus(c: Card, sources_out: Array = []) -> Vector3i:
 			sources_out.append({"source": source.card_id, "atk": int(e.get("atk", 0)) * multiplier, "hp": int(e.get("hp", 0)) * multiplier, "armor": int(e.get("armor", 0)) * multiplier})
 	return bonus * constants_multiplier(c.owner)
 
+## What the "opponent_aura" Constantes on the OTHER side of the board give unit `c` (a curse the source puts on the
+## enemy units: Magni gives every enemy unit +1 Ataque). x = Ataque, y = Vida. The source's owner's double_constants applies.
+## `sources_out`, when given, receives one {"source": card id, "atk", "hp"} per aura that reaches the unit.
+func opponent_aura_bonus(c: Card, sources_out: Array = []) -> Vector3i:
+	var bonus := Vector3i.ZERO
+	var source_owner := 1 - c.owner
+	for source: Card in players[source_owner]["board"]:
+		for e in card_of(source).get("effects", []):
+			if e.get("trigger", "") != "constante" or e.get("action", "") != "opponent_aura":
+				continue
+			var multiplier := constants_multiplier(source_owner)
+			var aura_bonus := Vector3i(int(e.get("atk", 0)) * multiplier, int(e.get("hp", 0)) * multiplier, 0)
+			bonus += aura_bonus
+			sources_out.append({"source": source.card_id, "atk": aura_bonus.x, "hp": aura_bonus.y})
+	return bonus
+
 ## Where each Constante bonus on a unit comes from, for the card overlay's "Modificadores" panel: one
 ## {"source": card id, "until": "constant", "atk", "hp", "armor", "critico"} per effect (its own scaling, each ally's
 ## aura, the Momentum surge, Armadura from the graveyard or from the neighbours). Zero stats are left out.
@@ -635,6 +670,7 @@ func constant_sources_of(c: Card) -> Array:
 			var count := _scale_count(c.owner, e, c)
 			raw_sources.append({"source": c.card_id, "atk": count * int(e.get("atk", 0)) * multiplier, "hp": count * int(e.get("hp", 0)) * multiplier})
 	tribe_aura_bonus(c, raw_sources)
+	opponent_aura_bonus(c, raw_sources)
 	var surge := momentum_surge_of(c.owner, c)
 	var critico_from_surge := c.critico_total() - clampi(c.critico + c.temp_critico, 0, 4) # the surge level only counts when it is higher
 	raw_sources.append({"source": c.card_id, "atk": int(surge.get("atk", 0)), "critico": critico_from_surge})
@@ -1429,7 +1465,7 @@ func can_play(p: int, hand_uid: int, allow_unreachable := false) -> bool:
 	if inst == null:
 		return false
 	var cd := CardDB.card(inst.card_id)
-	if is_play_restricted(p, cd):
+	if is_play_restricted(p, cd) or not play_condition_met(p, cd):
 		return false
 	if is_subito_play(p, cd):
 		# Súbito is a Rápido play, so the Reserva counts
@@ -1469,6 +1505,15 @@ func is_play_restricted(p: int, cd: Dictionary) -> bool:
 		if int(restriction["until_turn"]) >= turn and PlayRestriction.blocks(restriction["rule"], cd):
 			return true
 	return false
+
+## True when the card's innate "play_condition" (if it has one) holds right now for p. Today it is a
+## {"compare": {...}} spec checked like any other compare condition, before the card is on the board
+## (Magni: only playable while p controls more units than the opponent).
+func play_condition_met(p: int, cd: Dictionary) -> bool:
+	var condition: Dictionary = cd.get("play_condition", {})
+	if condition.is_empty():
+		return true
+	return CompareCondition.new(condition["compare"]).check_players(self, p)
 
 func can_cast_incarnation(p: int) -> bool:
 	if is_play_restricted(p, CardDB.card(players[p]["incarnation"]["card_id"])):
@@ -3888,6 +3933,7 @@ func _finish_turn() -> void:
 			c.temp_atk = 0
 			c.turn_armor = 0
 			c.temp_critico = 0
+			c.temp_rapidez = 0
 			c.expire_stat_sources("end_turn")
 			for kw in c.temp_keywords:
 				c.keywords.erase(kw)

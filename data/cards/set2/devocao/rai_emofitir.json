@@ -1,0 +1,20 @@
+{
+  "name": "Rai'Emofitir",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "tribe": ["celestial", "divindade", "precursor"],
+  "essence": ["devocao", "trevas"],
+  "cost": 8,
+  "atk": 5,
+  "hp": 9,
+  "keywords": ["toque_letal"],
+  "art": "devocao/rai_emofitir.webp",
+  "effects": [
+    { "trigger": "on_challenge", "action": "banish", "target": "opposed_unit" },
+    { "trigger": "on_challenged", "action": "banish", "target": "opposed_unit" }
+  ],
+  "text": "Ao Desafiar: bane a unidade desafiada.\nAo Ser Desafiada: bane o atacante.",
+  "flavor": "Em Maginácia, o rosto dele está nas moedas. Nenhuma das dez partes concorda em ficar.",
+  "tags": []
+}

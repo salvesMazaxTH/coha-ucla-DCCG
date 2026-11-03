@@ -100,12 +100,14 @@ static var ACTIONS: Dictionary = {
 	"double_death": StaticEffect,
 	"momentum_surge": StaticEffect,
 	"momentum_cap": StaticEffect,
+	"keyword_aura": StaticEffect,
+	"opponent_aura": StaticEffect,
 	"auto_attack": AutoAttackEffectScript,
 	"shout": ShoutEffectScript,
 }
 
 ## Actions with no target: continuous abilities, never run by a trigger.
-const STATIC_ACTIONS := ["cost_reduction", "scale", "base_scale", "tribe_aura", "graveyard_armor", "graveyard_damage_reduction", "double_constants", "double_enter", "double_death", "momentum_surge", "momentum_cap"]
+const STATIC_ACTIONS := ["cost_reduction", "scale", "base_scale", "tribe_aura", "graveyard_armor", "graveyard_damage_reduction", "double_constants", "double_enter", "double_death", "momentum_surge", "momentum_cap", "keyword_aura", "opponent_aura"]
 
 static func is_known(action: String) -> bool:
 	return ACTIONS.has(action)

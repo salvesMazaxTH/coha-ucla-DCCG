@@ -5,8 +5,8 @@
   "rarity": "common",
   "essence": "tormenta",
   "element": "raio",
-  "cost": 1,
-  "speed": "instantaneo",
+  "cost": 2,
+  "speed": "rapido",
   "art": "tormenta/fio_desencapado.webp",
   "effects": [
     {

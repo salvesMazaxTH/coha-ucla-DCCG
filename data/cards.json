@@ -144,6 +144,7 @@
     "humano": { "name": "Humano" },
     "nuliterrano": { "name": "Nuliterrano" },
     "maginaciano": { "name": "Maginaciano" },
+    "dragoes_negros": { "name": "Dragões Negros" },
     "dragonoide": { "name": "Dragonoide" },
     "dragao": { "name": "Dragão" },
     "dragao_primordial": { "name": "Dragão Primordial" },
@@ -749,6 +750,29 @@
         "text": "Rápida. 2 Momentum, uma vez por turno: dê 1 marcador de Sangramento a uma unidade inimiga."
       },
       "essences": ["trevas", "fluxo"]
+    },
+    "drake": {
+      "name": "Drake",
+      "hp": 30,
+      "art": "trevas/drake_lider.webp",
+      "incarnation": "drake",
+      "ability": {
+        "name": "Revoada Negra",
+        "cost": 2,
+        "once_per_turn": true,
+        "speed": "rapido",
+        "effects": [
+          {
+            "action": "buff",
+            "target": "ally_unit",
+            "rapidez_temp": 1,
+            "rapidez_temp_needs_rapidez": true,
+            "tribe_temp_bonus": {"tribe": ["dragoes_negros"], "atk": 1, "ignore_rapidez_need": true}
+          }
+        ],
+        "text": "Rápida. 2 Momentum, uma vez por turno: escolha uma unidade aliada; ela ganha +1 de Rapidez até o fim do turno, mas só se já tiver Rapidez. Um Dragão Negro ganha +1 de Rapidez e +1 de Ataque até o fim do turno, mesmo sem ter Rapidez."
+      },
+      "essences": ["trevas", "tormenta"]
     },
     "mefi_urdim": {
       "name": "Mefi'Urdim",

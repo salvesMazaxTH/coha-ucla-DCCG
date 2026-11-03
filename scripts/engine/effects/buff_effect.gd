@@ -33,6 +33,10 @@ extends Effect
 ## (Nerithia: at least +2 when she challenges).
 ## "atk_multiply": N multiplies the unit's current Ataque (base + permanent gains) by N on top of the plain "atk" gain (Vørn Ω doubles with 2).
 ## "cleanse": true also purifies every target the buff lands on (all its Veneno/Queimadura/Sangramento markers go away).
+## "rapidez_temp": N ADDS N Rapidez until the end of the turn (it stacks with the Rapidez the unit already has, total capped at 3).
+## "rapidez_temp_needs_rapidez": true only gives it to a unit that already has some Rapidez (Drake's power).
+## "tribe_temp_bonus": {"tribe": [...], "atk": N, "ignore_rapidez_need": true}: a target of one of these tribe also gets +N Ataque until the
+## end of the turn, and (with ignore_rapidez_need) gets "rapidez_temp" even without any Rapidez (Drake: a Dragão Negro gets +1 Ataque and +1 Rapidez).
 
 var attack := 0
 var health := 0
@@ -68,6 +72,11 @@ var only_rarity: Array = [] ## "only_rarity": the target must be one of these ra
 var cleanse := false
 var attack_multiplier := 1
 var copy_minimum_gain := 0 ## "copy_atk_min_gain": the copy never gives less than this much Ataque
+var added_rapidez_this_turn := 0 ## "rapidez_temp": Rapidez added on top until the end of the turn
+var added_rapidez_needs_rapidez := false ## "rapidez_temp_needs_rapidez": only for a unit that already has Rapidez
+var turn_bonus_tribe: Array = [] ## "tribe_temp_bonus": tribe that earn the end-of-turn extras below
+var turn_bonus_attack := 0
+var turn_bonus_ignores_rapidez_need := false
 
 func _read_parameters(data: Dictionary) -> void:
 	only_tribe = data.get("only_tribe", [])
@@ -106,6 +115,12 @@ func _read_parameters(data: Dictionary) -> void:
 	bonus_tribe = tribe_bonus.get("tribe", [])
 	tribe_bonus_attack = int(tribe_bonus.get("atk", 0))
 	tribe_bonus_health = int(tribe_bonus.get("hp", 0))
+	added_rapidez_this_turn = int(data.get("rapidez_temp", 0))
+	added_rapidez_needs_rapidez = bool(data.get("rapidez_temp_needs_rapidez", false))
+	var turn_bonus: Dictionary = data.get("tribe_temp_bonus", {})
+	turn_bonus_tribe = turn_bonus.get("tribe", [])
+	turn_bonus_attack = int(turn_bonus.get("atk", 0))
+	turn_bonus_ignores_rapidez_need = bool(turn_bonus.get("ignore_rapidez_need", false))
 
 func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
@@ -172,6 +187,11 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		_add_changes(permanent_changes, {"atk": tribe_bonus_attack, "hp": tribe_bonus_health})
 		attack_gain += tribe_bonus_attack
 		health_gain += tribe_bonus_health
+	var is_turn_bonus_tribe: bool = not turn_bonus_tribe.is_empty() and _has_any_tribe(unit, turn_bonus_tribe)
+	if is_turn_bonus_tribe and turn_bonus_attack != 0:
+		unit.temp_atk += turn_bonus_attack
+		_add_changes(end_of_turn_changes, {"atk": turn_bonus_attack})
+		attack_gain += turn_bonus_attack
 	unit.temp_atk_until_next_turn += temporary_attack_until_next_turn # ends when the unit's owner starts their next turn
 	attack_gain += temporary_attack_until_next_turn
 	unit.temp_hp_until_next_turn += temporary_health_until_next_turn # ends when the unit's owner starts their next turn
@@ -230,6 +250,14 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		_add_changes(until_next_turn_changes, {"rapidez": temporary_rapidez - unit.rapidez_total()})
 		unit.rapidez_until_next_turn = temporary_rapidez
 		buff_event["rapidez"] = temporary_rapidez
+	if added_rapidez_this_turn > 0:
+		var has_rapidez: bool = maxi(unit.rapidez, unit.rapidez_until_next_turn) + unit.temp_rapidez > 0
+		var may_receive: bool = has_rapidez or not added_rapidez_needs_rapidez or (is_turn_bonus_tribe and turn_bonus_ignores_rapidez_need)
+		if may_receive:
+			var rapidez_before: int = unit.rapidez_total()
+			unit.temp_rapidez += added_rapidez_this_turn
+			_add_changes(end_of_turn_changes, {"rapidez": unit.rapidez_total() - rapidez_before})
+			buff_event["rapidez"] = unit.rapidez_total()
 	if armor + temporary_armor > 0:
 		buff_event["armor"] = armor + temporary_armor
 	elif armor_raised_to > 0:

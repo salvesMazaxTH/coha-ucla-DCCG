@@ -143,7 +143,7 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 	var glossary_keywords: Array = cd.get("keywords", []).duplicate()
 	if CardView.armor_of_view(cd, instance) > 0 and not glossary_keywords.has("armadura"):
 		glossary_keywords.append("armadura") # "armadura:N" leaves the keyword list (it is a stat), but the card shows it as a tag
-	if maxi(int(instance.get("rapidez", cd.get("rapidez", 0))), int(instance.get("rapidez_until_next_turn", 0))) > 0 and not instance.has("frozen") and not instance.has("stun_markers"):
+	if CardView.rapidez_of_view(cd, instance) > 0 and not instance.has("frozen") and not instance.has("stun_markers"):
 		glossary_keywords.append("rapidez") # shown as a tag on the card, so the glossary explains it
 	if CardView.critico_of_view(cd, instance) > 0 and not glossary_keywords.has("critico"):
 		glossary_keywords.append("critico") # also shown as a tag (it can grow during the match)

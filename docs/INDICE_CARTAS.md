@@ -272,7 +272,7 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `espirito_carregado` | Espírito Carregado | Comum | Unidade | 2 |
 | `fagulha_bocejante` | Fagulha Bocejante | Comum | Unidade | 2 |
 | `faisca_viva` | Faísca Viva | Comum | Unidade | 1 |
-| `fio_desencapado` | Fio Desencapado | Comum | Feitiço | 1 |
+| `fio_desencapado` | Fio Desencapado | Comum | Feitiço | 2 |
 | `fulgurvoltz` | Fulgurvoltz | Campeã | Unidade | 14 |
 | `gaivota_paraquedista` | Gaivota Paraquedista | Comum | Unidade | 2 |
 | `gigante_eletrico` | Gigante Elétrico | Épica | Unidade | 9 |
@@ -450,9 +450,9 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `zaza_fuzue` | Zazá Fuzuê | Lendária | Unidade | 4 |
 | `zeladora_shhh` | Zeladora Shhh | Comum | Unidade | 4 |
 
-## Set 2: Nuliterra (2026) (35 cartas)
+## Set 2: Nuliterra (2026) (50 cartas)
 
-### Fúria (18)
+### Fúria (19)
 
 | ID | Nome | Raridade | Tipo | Custo |
 |---|---|---|---|---|
@@ -468,6 +468,7 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `kyle_fumacinha` | Kyle Fumacinha | Comum | Unidade | 2 |
 | `linhagem_de_ignisar` | Linhagem de Ignisar | Comum | Feitiço | 2 |
 | `nicolas` | Nicolas | Lendária | Unidade | 3 |
+| `phaedra` | Phaedra | Campeã | Unidade | 5 |
 | `ronan_alado` | Ronan Alado | Campeã | Unidade | 4 |
 | `samantha` | Samantha | Lendária | Unidade | 6 |
 | `sengoku` | Sengoku | Campeã | Unidade | 5 |
@@ -475,7 +476,19 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `sopra_brasas` | Sopra-Brasas | Comum | Unidade | 3 |
 | `tullio_chamarisco` | Tullio Chamarisco | Comum | Unidade | 1 |
 
-### Tormenta (17)
+### Fluxo (1)
+
+| ID | Nome | Raridade | Tipo | Custo |
+|---|---|---|---|---|
+| `oswald` | Oswald | Campeã | Unidade | 3 |
+
+### Montanha (1)
+
+| ID | Nome | Raridade | Tipo | Custo |
+|---|---|---|---|---|
+| `rex` | Rex | Campeã | Unidade | 4 |
+
+### Tormenta (20)
 
 | ID | Nome | Raridade | Tipo | Custo |
 |---|---|---|---|---|
@@ -488,7 +501,10 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `jack_veyr` | Jack Veyr | Campeã | Unidade | 4 |
 | `kira_ventomarcha` | Kira Ventomarcha | Épica | Unidade | 4 |
 | `layla_veyr` | Layla Veyr | Campeã | Unidade | 5 |
+| `liam_tornagron` | Liam Tornagron | Campeã | Unidade | 7 |
+| `liam_tornagron_primordial` | Liam Tornagron Primordial | Campeã | Unidade | 8 |
 | `luca_ferri` | Luca Ferri | Épica | Unidade | 3 |
+| `mirela_vance` | Mirela Vance | Campeã | Unidade | 5 |
 | `molly_piscaluz` | Molly Piscaluz | Comum | Unidade | 1 |
 | `orvald_rasgaceu` | Orvald Rasgacéu | Épica | Unidade | 5 |
 | `pico_de_corrente` | Pico de Corrente | Comum | Feitiço | 1 |
@@ -496,3 +512,22 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `repique_da_queda` | Repique da Queda | Comum | Feitiço | 3 |
 | `tranco_eletrico` | Tranco Elétrico | Comum | Feitiço | 2 |
 | `wendy_pingo_curto` | Wendy Pingo-Curto | Comum | Unidade | 1 |
+
+### Trevas (8)
+
+| ID | Nome | Raridade | Tipo | Custo |
+|---|---|---|---|---|
+| `drake` | Drake | Campeã | Unidade | 4 |
+| `lucian_mortasa` | Lucian Mortasa | Campeã | Unidade | 4 |
+| `magni` | Magni | Campeã | Unidade | 6 |
+| `oraculo` | Oráculo | Campeã | Unidade | 4 |
+| `soren` | Soren | Campeã | Unidade | 6 |
+| `sven` | Sven | Campeã | Unidade | 3 |
+| `vesper` | Vesper | Campeã | Unidade | 4 |
+| `vincent_morvane` | Vincent Morvane | Campeã | Unidade | 3 |
+
+### Devoção (1)
+
+| ID | Nome | Raridade | Tipo | Custo |
+|---|---|---|---|---|
+| `rai_emofitir` | Rai'Emofitir | Campeã | Unidade | 8 |

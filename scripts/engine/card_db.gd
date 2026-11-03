@@ -170,6 +170,14 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 			if crop.has("zoom") and float(crop["zoom"]) < 1.0:
 				err.call("art_crop.zoom precisa ser pelo menos 1")
 	_validate_effects(err, cd.get("effects", []))
+	if cd.has("play_condition"):
+		var condition = cd["play_condition"]
+		if not condition is Dictionary or not condition.has("compare"):
+			err.call("play_condition precisa ser {\"compare\": {...}}")
+		else:
+			var condition_problem := CompareCondition.error_of(condition["compare"])
+			if condition_problem != "":
+				err.call("play_condition: " + condition_problem)
 	if cd.has("activated"):
 		var act: Dictionary = cd["activated"]
 		if not act.has("cost"):

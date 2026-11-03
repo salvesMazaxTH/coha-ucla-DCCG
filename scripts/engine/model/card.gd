@@ -31,6 +31,7 @@ var rapidez := 0 ## Rapidez 0-3, as written on the card (0 = no Rapidez keyword)
 var keywords: Array = []
 var temp_keywords: Array = []
 var rapidez_until_next_turn := 0 ## Rapidez lent only until this unit's owner's next turn starts (Corrente de Ar); the higher of this and `rapidez` counts
+var temp_rapidez := 0 ## extra Rapidez that is ADDED on top and lasts until the end of the turn (Drake's power); the total is still capped at 3
 var keywords_until_next_turn: Array = [] ## keywords granted only until this unit's owner's next turn starts (Cortina de Fumaça Barata); they leave then
 var keywords_until_owner_turn_end: Array = [] ## keywords granted only until the end of the turn this unit's owner plays next (Jurema Falamansa's Pacifista on an enemy)
 var lost_keywords: Array = [] ## keywords taken away only until the end of this turn (Saltador de Cerca); they come back then
@@ -55,6 +56,7 @@ var bonus_atk := 0 ## from "constante" scale effects (see GameState._refresh_sca
 var bonus_hp := 0
 var has_bonus := false ## bonus_* were computed at least once (they only show up in to_dict then)
 var surge_keywords: Array = [] ## keywords given while the owner has 11+ Momentum ("momentum_surge"); recomputed by _refresh_scaling
+var aura_keywords: Array = [] ## keywords an ally's "keyword_aura" Constante gives this unit right now; recomputed by _refresh_scaling
 var surge_critico := 0 ## Crítico level given by the same surge (the higher of it and the unit's own wins)
 var surge_active := false ## the surge was on at the last refresh: Escudo is granted only when it turns on, not on every refresh
 var frozen := 0 ## Congelada: the turn at whose END it thaws; 0 = not frozen
@@ -204,6 +206,7 @@ func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:
 	keywords_until_next_turn = []
 	keywords_until_owner_turn_end = []
 	rapidez_until_next_turn = 0
+	temp_rapidez = 0
 	lost_keywords = []
 	exhausted = false
 	sick = true
@@ -342,6 +345,7 @@ func silence() -> void:
 	keywords_until_next_turn = []
 	keywords_until_owner_turn_end = []
 	rapidez_until_next_turn = 0
+	temp_rapidez = 0
 	lost_keywords = [] # nothing left to give back
 	shield = false
 	magic_shield = false
@@ -388,7 +392,7 @@ func has_kw(kw: String) -> bool:
 		return supreme_shield
 	if kw == "inerte":
 		return keywords.has(kw) or bool(data().get("inert", false))
-	return keywords.has(kw) or surge_keywords.has(kw)
+	return keywords.has(kw) or surge_keywords.has(kw) or aura_keywords.has(kw)
 
 ## The most Armadura a unit can have unless its card says otherwise ("ignores_armor_cap": true, Tharox).
 const DEFAULT_ARMOR_CAP := 5
@@ -418,7 +422,7 @@ func atk_total() -> int:
 func rapidez_total() -> int:
 	if is_frozen() or is_stunned():
 		return 0
-	return clampi(maxi(rapidez, rapidez_until_next_turn), 0, 3)
+	return clampi(maxi(rapidez, rapidez_until_next_turn) + temp_rapidez, 0, 3)
 
 ## Crítico level right now (0 = none, 4 = every blow is critical).
 func critico_total() -> int:
@@ -499,6 +503,8 @@ func to_dict() -> Dictionary:
 		d["keywords_until_owner_turn_end"] = keywords_until_owner_turn_end.duplicate()
 	if rapidez_until_next_turn > 0:
 		d["rapidez_until_next_turn"] = rapidez_until_next_turn
+	if temp_rapidez > 0:
+		d["temp_rapidez"] = temp_rapidez
 	if not lost_keywords.is_empty():
 		d["lost_keywords"] = lost_keywords.duplicate()
 	if temp_hp > 0:
@@ -522,6 +528,8 @@ func to_dict() -> Dictionary:
 		d["intrinsic_hp"] = intrinsic_hp
 	if not surge_keywords.is_empty():
 		d["surge_keywords"] = surge_keywords.duplicate()
+	if not aura_keywords.is_empty():
+		d["aura_keywords"] = aura_keywords.duplicate()
 	if surge_critico > 0:
 		d["surge_critico"] = surge_critico
 	if surge_active:
@@ -610,6 +618,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.keywords_until_next_turn = d.get("keywords_until_next_turn", [])
 	c.keywords_until_owner_turn_end = d.get("keywords_until_owner_turn_end", [])
 	c.rapidez_until_next_turn = int(d.get("rapidez_until_next_turn", 0))
+	c.temp_rapidez = int(d.get("temp_rapidez", 0))
 	c.lost_keywords = d.get("lost_keywords", [])
 	c.temp_hp = int(d.get("temp_hp", 0))
 	c.temp_hp_until_next_turn = int(d.get("temp_hp_until_next_turn", 0))
@@ -625,6 +634,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.bonus_atk = int(d.get("bonus_atk", 0))
 	c.bonus_hp = int(d.get("bonus_hp", 0))
 	c.surge_keywords = d.get("surge_keywords", []).duplicate()
+	c.aura_keywords = d.get("aura_keywords", []).duplicate()
 	c.surge_critico = int(d.get("surge_critico", 0))
 	c.surge_active = bool(d.get("surge_active", false))
 	c.frozen = int(d.get("frozen", 0))

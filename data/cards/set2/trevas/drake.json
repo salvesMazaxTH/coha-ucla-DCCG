@@ -1,0 +1,19 @@
+{
+  "name": "Drake",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "tribe": ["humano", "dragoes_negros"],
+  "essence": ["trevas", "tormenta"],
+  "cost": 4,
+  "atk": 4,
+  "hp": 3,
+  "keywords": ["rapidez:2"],
+  "art": "trevas/drake.webp",
+  "effects": [
+    { "trigger": "constante", "action": "keyword_aura", "keywords": ["ataque_duplo"], "min_rapidez": 2, "include_self": true }
+  ],
+  "text": "Constante: todas as suas unidades com Rapidez 2 ou mais, inclusive esta, têm Ataque Duplo.",
+  "flavor": "",
+  "tags": []
+}
