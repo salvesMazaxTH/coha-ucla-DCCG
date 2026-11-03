@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "common",
-  "species": ["goblin"],
+  "tribe": ["goblin"],
   "essence": "tormenta",
   "element": "raio",
   "cost": 4,

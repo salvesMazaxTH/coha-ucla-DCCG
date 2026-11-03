@@ -1,7 +1,7 @@
 class_name RandomTarget
 extends TargetSelector
 ## Random picks with the match RNG: random_enemy (any enemy unit or the enemy Leader), random_enemy_unit, random_enemy_units (up to "count" different enemy units; "include_leader": true lets the enemy Leader be one of them), random_enemy_unit_twice (two independent picks, the same unit can be picked twice: 2 damage handed out one by one), random_enemy_unit_spread (the effect's "hits" independent picks over units), random_enemy_spread (the same, including the Leader). These three roll one hit at a time, only among units that still have Vida (see hits_one_at_a_time), random_frozen_enemy_unit
-## (only enemy units that are already Congeladas), most_wounded_enemy_unit (the enemy unit that took the most damage and still has Vida 3 or less, an execution; a tie is rolled; Isarelis), strongest_enemy_units (the "count" enemy units with the highest Ataque, only those with Ataque "min_atk" or more; a tie at the cut-off is rolled; David), random_enemy_and_adjacent, random_ally_unit, random_other_ally_unit (both accept the effect's "only_species": the pool only holds allies of those species), random_other_ally_units (up to "count" different allies other than the source, same "only_species"; Brann). The RNG is only rolled when there is something
+## (only enemy units that are already Congeladas), most_wounded_enemy_unit (the enemy unit that took the most damage and still has Vida 3 or less, an execution; a tie is rolled; Isarelis), strongest_enemy_units (the "count" enemy units with the highest Ataque, only those with Ataque "min_atk" or more; a tie at the cut-off is rolled; David), random_enemy_and_adjacent, random_ally_unit, random_other_ally_unit (both accept the effect's "only_tribe": the pool only holds allies of those tribe), random_other_ally_units (up to "count" different allies other than the source, same "only_tribe"; Brann). The RNG is only rolled when there is something
 ## to pick, so replays stay identical.
 ## A status effect (freeze, exhaust...) never rolls on a unit that already has that status: the pool only holds
 ## units that can still receive it (Effect.is_already_applied_to), and an empty pool means no target.
@@ -207,7 +207,7 @@ func _strongest_enemy_units(context: EffectContext, effect: Effect) -> Array:
 func _ally_pool(context: EffectContext, effect: Effect) -> Array:
 	var pool: Array = []
 	for unit: Card in context.game.players[context.controller]["board"]:
-		if (name == "random_ally_unit" or unit.uid != context.self_uid) and not effect.is_already_applied_to(unit) and _has_wanted_species(unit, effect):
+		if (name == "random_ally_unit" or unit.uid != context.self_uid) and not effect.is_already_applied_to(unit) and _has_wanted_tribe(unit, effect):
 			pool.append(unit.uid)
 	return pool
 
@@ -216,12 +216,12 @@ func _ally_pool(context: EffectContext, effect: Effect) -> Array:
 func has_no_ally_candidates(context: EffectContext, effect: Effect) -> bool:
 	return name in ["random_ally_unit", "random_other_ally_unit", "random_other_ally_units"] and _ally_pool(context, effect).is_empty()
 
-## True when the effect asks for no species ("only_species" missing) or the unit's card has one of them.
-func _has_wanted_species(unit: Card, effect: Effect) -> bool:
-	var wanted_species: Array = effect.raw.get("only_species", [])
-	if wanted_species.is_empty():
+## True when the effect asks for no tribe ("only_tribe" missing) or the unit's card has one of them.
+func _has_wanted_tribe(unit: Card, effect: Effect) -> bool:
+	var wanted_tribe: Array = effect.raw.get("only_tribe", [])
+	if wanted_tribe.is_empty():
 		return true
-	for species in CardDB.card(unit.card_id).get("species", []):
-		if wanted_species.has(species):
+	for tribe in CardDB.card(unit.card_id).get("tribe", []):
+		if wanted_tribe.has(tribe):
 			return true
 	return false

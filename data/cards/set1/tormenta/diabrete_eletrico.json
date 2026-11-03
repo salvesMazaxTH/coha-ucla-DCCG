@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "common",
-  "species": ["demonio"],
+  "tribe": ["demonio"],
   "essence": "tormenta",
   "element": "raio",
   "cost": 1,

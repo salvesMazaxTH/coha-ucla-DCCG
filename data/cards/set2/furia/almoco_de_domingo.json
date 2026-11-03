@@ -19,7 +19,7 @@
       "trigger": "on_play",
       "action": "buff",
       "target": "all_ally_units",
-      "only_species": [
+      "only_tribe": [
         "dragonoide"
       ],
       "atk": 2,

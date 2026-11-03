@@ -3,9 +3,10 @@
   "set": 2,
   "type": "unit",
   "rarity": "common",
-  "species": [
+  "tribe": [
     "dragonoide",
-    "dragao"
+    "dragao",
+    "nuliterrano"
   ],
   "essence": "furia",
   "cost": 5,

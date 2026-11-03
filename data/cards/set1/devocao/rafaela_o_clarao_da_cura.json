@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "epic",
-  "species": [
+  "tribe": [
     "anjo"
   ],
   "essence": "devocao",
@@ -28,7 +28,7 @@
       "target": "none",
       "source": "deck",
       "reveal_until": true,
-      "species_any": [
+      "tribe_any": [
         "anjo",
         "celestial"
       ],

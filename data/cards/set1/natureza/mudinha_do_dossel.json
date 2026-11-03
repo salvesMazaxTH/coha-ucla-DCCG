@@ -4,7 +4,7 @@
   "type": "unit",
   "rarity": "common",
   "token": true,
-  "species": ["planta"],
+  "tribe": ["planta"],
   "essence": "natureza",
   "element": "vegetal",
   "cost": 0,

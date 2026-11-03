@@ -4,7 +4,7 @@ extends Effect
 ## while it stays in that hand (the same per-copy discount the Tecnomante gives). Repeating it stacks, so a
 ## card kept in hand for several turns keeps getting cheaper; leaving the hand clears it. Never below (0).
 ## Empty "card_types" = every card. Example: {"action": "discount_hand", "card_types": ["unit", "artifact"], "amount": 1}.
-## "card_filter" (optional) narrows it further with any CardFilter key, e.g. {"species": "elefante"}
+## "card_filter" (optional) narrows it further with any CardFilter key, e.g. {"tribe": "elefante"}
 ## (Matriarca Pisa-Mansinho: only the Elefantes in hand get cheaper).
 
 var amount := 1

@@ -109,8 +109,8 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 		kind += " · Equipamento"
 	elif CardDB.is_local(cd):
 		kind += " · Local"
-	if CardDB.species_names(cd) != "":
-		kind += " — " + CardDB.species_names(cd)
+	if CardDB.tribe_names(cd) != "":
+		kind += " — " + CardDB.tribe_names(cd)
 	var shown_cost: int = cost_override if cost_override >= 0 else int(cd["cost"])
 	var element_label := ""
 	if CardDB.element_names(cd) != "":

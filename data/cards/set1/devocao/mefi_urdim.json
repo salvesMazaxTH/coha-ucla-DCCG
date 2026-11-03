@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "champion",
-  "species": [
+  "tribe": [
     "celestial",
     "divindade",
     "precursor"
@@ -33,7 +33,7 @@
       "trigger": "on_enter",
       "action": "buff",
       "target": "all_ally_units",
-      "only_species": [
+      "only_tribe": [
         "divindade",
         "celestial",
         "anjo"
@@ -45,8 +45,8 @@
     },
     {
       "trigger": "constante",
-      "action": "species_aura",
-      "species": [
+      "action": "tribe_aura",
+      "tribe": [
         "divindade",
         "celestial",
         "anjo"

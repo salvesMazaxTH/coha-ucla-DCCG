@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "champion",
-  "species": ["gnomo"],
+  "tribe": ["gnomo"],
   "essence": "montanha",
   "element": "metal",
   "cost": 4,

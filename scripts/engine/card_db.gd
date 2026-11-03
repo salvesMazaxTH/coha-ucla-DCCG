@@ -54,7 +54,7 @@ static func _load() -> void:
 	_set_number_of.clear()
 	_data = _read_json("res://data/cards.json")
 	if _data.is_empty():
-		_data = {"sets": {}, "essences": {}, "elements": {}, "triggers": {}, "species": {}, "keywords": {}, "leaders": {}}
+		_data = {"sets": {}, "essences": {}, "elements": {}, "triggers": {}, "tribe": {}, "keywords": {}, "leaders": {}}
 	_data["cards"] = {}
 	for set_key in _data["sets"]:
 		var set_number := int(set_key)
@@ -141,8 +141,8 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 	for kw in cd.get("keywords", []):
 		if not _data["keywords"].has(kw):
 			err.call("keyword desconhecida \"%s\"" % kw)
-	for s in cd.get("species", []):
-		if not _data.get("species", {}).has(s):
+	for s in cd.get("tribe", []):
+		if not _data.get("tribe", {}).has(s):
 			err.call("espécie desconhecida \"%s\"" % s)
 	if cd.has("rapidez") and int(cd["rapidez"]) not in [1, 2, 3]:
 		err.call("rapidez precisa ser \"rapidez:1\" a \"rapidez:3\" em keywords")
@@ -473,13 +473,13 @@ static func element_names(cd: Dictionary) -> String:
 		names.append(element(id).get("name", id))
 	return " / ".join(names)
 
-## The one-line label written on the card face (species strip): species and element side by side
-## ("HUMANO · GELO"). A spell or artifact has no species, so it shows just the element ("Gelo").
+## The one-line label written on the card face (tribe strip): tribe and element side by side
+## ("HUMANO · GELO"). A spell or artifact has no tribe, so it shows just the element ("Gelo").
 ## The element is plain lettering on purpose: it must not be confused with the domain badge.
-static func species_and_element_label(cd: Dictionary) -> String:
+static func tribe_and_element_label(cd: Dictionary) -> String:
 	var parts: Array = []
-	if species_names(cd) != "":
-		parts.append(species_names(cd))
+	if tribe_names(cd) != "":
+		parts.append(tribe_names(cd))
 	if element_names(cd) != "":
 		parts.append(element_names(cd))
 	return " · ".join(parts)
@@ -507,12 +507,12 @@ static func flavor_for(cd: Dictionary, in_match := false) -> String:
 		return lines[0]
 	return lines[hash("%s|%d" % [cd.get("name", ""), _flavor_salt]) % lines.size()]
 
-## Display name of a card's species ("Humano / Dragão"), or its visual-only override.
-static func species_names(cd: Dictionary) -> String:
-	var display_label := String(cd.get("species_display", "")).strip_edges()
+## Display name of a card's tribe ("Humano / Dragão"), or its visual-only override.
+static func tribe_names(cd: Dictionary) -> String:
+	var display_label := String(cd.get("tribe_display", "")).strip_edges()
 	if not display_label.is_empty():
 		return display_label
 	var names: Array = []
-	for id in cd.get("species", []):
-		names.append(data().get("species", {}).get(id, {}).get("name", id))
+	for id in cd.get("tribe", []):
+		names.append(data().get("tribe", {}).get(id, {}).get("name", id))
 	return " / ".join(names)

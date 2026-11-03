@@ -3,11 +3,11 @@
   "set": 1,
   "type": "unit",
   "rarity": "epic",
-  "species": [
+  "tribe": [
     "humano",
     "yeti"
   ],
-  "species_display": "Humano? / Yeti?",
+  "tribe_display": "Humano? / Yeti?",
   "essence": "fluxo",
   "element": "gelo",
   "cost": 5,

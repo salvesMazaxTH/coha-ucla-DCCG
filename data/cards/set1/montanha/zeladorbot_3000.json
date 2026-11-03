@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "common",
-  "species": ["robo"],
+  "tribe": ["robo"],
   "essence": "montanha",
   "element": "metal",
   "cost": 2,

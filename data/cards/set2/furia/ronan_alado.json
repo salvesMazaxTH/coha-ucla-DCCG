@@ -3,9 +3,10 @@
   "set": 2,
   "type": "unit",
   "rarity": "champion",
-  "species": [
+  "tribe": [
     "dragonoide",
-    "dragao"
+    "dragao",
+    "nuliterrano"
   ],
   "essence": "furia",
   "element": "fogo",
@@ -23,7 +24,7 @@
       "action": "buff",
       "temp": true,
       "target": "other_ally_units",
-      "only_species": [
+      "only_tribe": [
         "dragonoide"
       ],
       "atk": 2

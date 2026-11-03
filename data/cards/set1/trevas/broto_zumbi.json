@@ -4,7 +4,7 @@
   "type": "unit",
   "rarity": "common",
   "token": true,
-  "species": ["morto_vivo", "planta"],
+  "tribe": ["morto_vivo", "planta"],
   "essence": ["trevas", "natureza"],
   "element": ["sombra", "vegetal"],
   "cost": 0,

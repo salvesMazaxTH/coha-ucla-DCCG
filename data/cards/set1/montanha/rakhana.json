@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "champion",
-  "species": ["forjado_divino", "transfigurado"],
+  "tribe": ["forjado_divino", "transfigurado"],
   "essence": "montanha",
   "element": "metal",
   "cost": 4,

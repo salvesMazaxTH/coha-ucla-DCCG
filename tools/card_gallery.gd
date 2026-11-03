@@ -4,7 +4,7 @@ extends SceneTree
 ##
 ## Click a card to inspect it in the exact same full-screen CardOverlay used during a match.
 ## Filters combine with AND; selecting several values in one filter is an OR. Search looks through
-## the displayed name, id, rules text, species, element, tags and keywords. The filtering itself
+## the displayed name, id, rules text, tribe, element, tags and keywords. The filtering itself
 ## (and its sidebar controls) is CardCatalog, shared with the deck builder.
 
 const WINDOW_MIN := Vector2i(1180, 760)

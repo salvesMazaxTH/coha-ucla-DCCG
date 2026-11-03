@@ -3,7 +3,7 @@
   "set": 2,
   "type": "unit",
   "rarity": "champion",
-  "species": ["dragao_primordial", "dragao"],
+  "tribe": ["dragao_primordial", "dragao", "maginaciano"],
   "essence": "tormenta",
   "element": "vento",
   "cost": 7,

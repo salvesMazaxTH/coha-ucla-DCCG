@@ -316,7 +316,7 @@ func is_silenced() -> bool:
 ## Silence (permanent while the unit stays on the board): strips the card's keywords and every ability, and puts the
 ## unit back to its printed Ataque and Vida (buffs and equipment stats are gone). It keeps the damage it already took
 ## and its status effects (Veneno, Congelada...).
-## It only removes what belongs to THIS unit. A Constante of an ally (species_aura, adjacent_armor...) is the ally's
+## It only removes what belongs to THIS unit. A Constante of an ally (tribe_aura, adjacent_armor...) is the ally's
 ## effect, not this unit's, so its bonus stays until that ally is silenced or leaves: bonus_atk / bonus_hp are
 ## therefore left alone here (GameState._refresh_scaling rebuilds them from the allies' auras and drops the unit's own
 ## scaling, which went away with its effects). SilenceEffect refreshes and then calls keep_alive_with_one_hp().

@@ -2,7 +2,7 @@ class_name DeckEffect
 extends Effect
 ## Effects that open a deck choice after their trigger resolves, told apart by `action`:
 ## "search_deck": the player picks a matching card from the deck.
-##   Filters (read by GameState._begin_search): essence, element, max_cost, type, types_any (one of several types), species, tags (all of them),
+##   Filters (read by GameState._begin_search): essence, element, max_cost, type, types_any (one of several types), tribe, tags (all of them),
 ##   tags_any (at least one of them), top (only the N cards on top of the deck are searched; the player must take
 ##   one eligible card and the looked-at cards not taken go, shuffled among themselves, to the bottom of the deck
 ##   instead of a shuffle. If none is eligible the player still sees the cards and the only way out is to
@@ -18,7 +18,7 @@ extends Effect
 ## graveyard and takes it to the hand;
 ##   that card is BANISHED once it has been cast (the price of getting a second use out of it).
 ## "grave_to_hand" (Rebobinar): the player may pick ONE card from their own graveyard that passes the card filter (any
-##   CardFilter key: type, types_any, species_any, element, max_cost, any_of...; no filter = any card) and takes it to the
+##   CardFilter key: type, types_any, tribe_any, element, max_cost, any_of...; no filter = any card) and takes it to the
 ##   hand, or takes none. `cost_increase` (default 0) makes that copy cost that much more from now on. The card is not banished.
 ## "enemy_hand_bottom" (Bob Veyr): the player may pick ONE card from the OPPONENT'S hand (only the player sees it) and it goes to the
 ##   bottom of the opponent's deck, or takes none. If the card is a unit, the player discards `discard_if_unit` (default 0)

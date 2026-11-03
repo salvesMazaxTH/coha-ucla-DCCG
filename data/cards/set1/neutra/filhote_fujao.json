@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "common",
-  "species": [
+  "tribe": [
     "fera",
     "elefante"
   ],
@@ -18,7 +18,7 @@
       "action": "search_deck",
       "target": "none",
       "top": 3,
-      "species": "elefante"
+      "tribe": "elefante"
     }
   ],
   "text": "Ao Entrar: você olha as 3 cartas do topo do seu deck e pega 1 Elefante entre elas; as outras vão para o fundo.",

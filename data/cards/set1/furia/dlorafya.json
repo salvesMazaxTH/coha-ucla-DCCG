@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "champion",
-  "species": ["divindade", "celestial"],
+  "tribe": ["divindade", "celestial"],
   "essence": "furia",
   "element": "fogo",
   "cost": 7,

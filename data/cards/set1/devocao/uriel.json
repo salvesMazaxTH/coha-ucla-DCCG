@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "champion",
-  "species": ["anjo"],
+  "tribe": ["anjo"],
   "essence": "devocao",
   "element": "luz",
   "cost": 5,

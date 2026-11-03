@@ -12,7 +12,7 @@
       "action": "search_deck",
       "target": "none",
       "top": 5,
-      "species_any": [
+      "tribe_any": [
         "fera",
         "demihumano"
       ]

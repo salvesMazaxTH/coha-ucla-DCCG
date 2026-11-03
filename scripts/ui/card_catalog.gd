@@ -4,7 +4,7 @@ extends RefCounted
 ## builder), plus the sidebar controls that edit it, so both screens filter exactly the same way.
 ##
 ## Filters combine with AND; selecting several values in one facet is an OR. Search looks through the
-## displayed name, id, rules text, species, element, tags and keywords.
+## displayed name, id, rules text, tribe, element, tags and keywords.
 
 const FACETS := [
 	{"id": "set", "title": "Set", "values": "set"},
@@ -12,7 +12,7 @@ const FACETS := [
 	{"id": "element", "title": "Elemento", "values": "element"},
 	{"id": "type", "title": "Tipo", "values": "type"},
 	{"id": "rarity", "title": "Raridade", "values": "rarity"},
-	{"id": "species", "title": "Espécie", "values": "species"},
+	{"id": "tribe", "title": "Espécie", "values": "tribe"},
 	{"id": "keyword", "title": "Palavra-chave", "values": "keywords"},
 	{"id": "speed", "title": "Velocidade", "values": "speed"},
 	{"id": "subtype", "title": "Subtipo", "values": "subtypes"},
@@ -32,7 +32,7 @@ const ACTION_CATEGORIES := {
 	"Exaure": ["exhaust"],
 	"Silencia": ["silence"],
 	"Remove palavras-chave ou defesas": ["suppress_keyword", "strip_defenses"],
-	"Fortalecimento": ["buff", "cap_stats", "species_aura"],
+	"Fortalecimento": ["buff", "cap_stats", "tribe_aura"],
 	"Recursos": ["gain_momentum", "gain_reserve", "raise_max_momentum", "momentum_surge", "momentum_cap", "spend_all_momentum"],
 	"Redução de custo": ["modify_cost", "discount_hand", "grant_play_discount", "cost_reduction"],
 	"Devolução à mão": ["return_to_hand"],
@@ -106,7 +106,7 @@ func matches(card_id: String) -> bool:
 
 static func search_text(card_id: String, cd: Dictionary) -> String:
 	var parts := [card_id, String(cd.get("name", "")), String(cd.get("text", "")), CardDB.essence_names(cd), CardDB.element_names(cd), CardDB.set_full_name(CardDB.set_number_of(cd))]
-	parts.append_array(cd.get("species", []))
+	parts.append_array(cd.get("tribe", []))
 	parts.append_array(cd.get("keywords", []))
 	return " ".join(parts)
 
@@ -121,7 +121,7 @@ static func values_for(cd: Dictionary, facet_id: String, card_id := "") -> Array
 				card_types.append("artifact") # a unit-artifact shows up under both Unidade and Artefato
 			return card_types
 		"rarity", "speed": return [String(cd.get(facet_id, ""))] if cd.has(facet_id) else []
-		"species": return cd.get("species", []).duplicate()
+		"tribe": return cd.get("tribe", []).duplicate()
 		"keyword": return _keywords_of(cd)
 		"subtype": return cd.get("subtypes", []).duplicate()
 		"action": return _action_categories(cd)
@@ -181,7 +181,7 @@ static func facet_label(facet_id: String, value: String) -> String:
 		"set": return CardDB.set_full_name(int(value))
 		"essence": return String(CardDB.essence(value).get("name", value))
 		"element": return String(CardDB.element(value).get("name", value))
-		"species": return String(CardDB.data().get("species", {}).get(value, {}).get("name", value))
+		"tribe": return String(CardDB.data().get("tribe", {}).get(value, {}).get("name", value))
 		"keyword": return String(CardDB.data().get("keywords", {}).get(value, {}).get("name", value))
 		"rarity": return {"common": "Comum", "epic": "Épica", "champion": "Campeão", "legendary": "Lendário"}.get(value, value)
 		"type": return {"unit": "Unidade", "spell": "Feitiço", "artifact": "Artefato"}.get(value, value)

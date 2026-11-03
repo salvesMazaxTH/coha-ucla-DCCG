@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "common",
-  "species": ["goblin"],
+  "tribe": ["goblin"],
   "essence": "furia",
   "element": "fogo",
   "cost": 2,

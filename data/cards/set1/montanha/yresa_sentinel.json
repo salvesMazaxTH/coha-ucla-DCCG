@@ -4,7 +4,7 @@
   "type": "unit",
   "rarity": "common",
   "token": true,
-  "species": [
+  "tribe": [
     "golem"
   ],
   "essence": "montanha",

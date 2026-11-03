@@ -4,7 +4,7 @@
   "type": "unit",
   "rarity": "champion",
   "transform_only": true,
-  "species": [
+  "tribe": [
     "humano"
   ],
   "essence": "fluxo",

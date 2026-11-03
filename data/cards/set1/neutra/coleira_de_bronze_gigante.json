@@ -15,7 +15,7 @@
       "action": "buff",
       "target": "ally_unit",
       "unit_filter": {
-        "species_any": [
+        "tribe_any": [
           "fera",
           "demihumano"
         ]

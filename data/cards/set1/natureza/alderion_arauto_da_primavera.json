@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "champion",
-  "species": ["elfo", "druida"],
+  "tribe": ["elfo", "druida"],
   "essence": "natureza",
   "element": "vegetal",
   "cost": 3,

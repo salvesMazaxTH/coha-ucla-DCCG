@@ -3,7 +3,7 @@ extends Effect
 ## "summon_from": a unit card comes out of a zone of the controller (deck, hand or graveyard) and enters the
 ## board for free. One generic action for every "cheat-summon" card; the zone and the rules are parameters:
 ##   source            "deck" (default) | "hand" | "graveyard"
-##   <card filter>     any CardFilter key (essence, element, max_cost, species_any, tags_any, rarity...);
+##   <card filter>     any CardFilter key (essence, element, max_cost, tribe_any, tags_any, rarity...);
 ##                     only unit cards can be summoned, whatever the filter says
 ##   pick              "choose" (default): the controller picks one of the matching cards, or none (it is optional)
 ##                     "random": a random matching card enters, no choice

@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "common",
-  "species": ["planta"],
+  "tribe": ["planta"],
   "essence": "natureza",
   "element": "vegetal",
   "cost": 1,

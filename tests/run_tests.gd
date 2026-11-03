@@ -800,7 +800,7 @@ func _test_summon_from() -> void:
 	g_none.players[0]["deck"].clear()
 	var first_card := _stack_on_deck(g_none, 0, "esqueleto_guerreiro")
 	var second_card := _stack_on_deck(g_none, 0, "iruvael_o_setimo_clarim")
-	g_none._begin_summon_from(0, {"source": "deck", "reveal_until": true, "species_any": ["anjo"], "max_cost": 5, "leftover": "bottom"}, 0)
+	g_none._begin_summon_from(0, {"source": "deck", "reveal_until": true, "tribe_any": ["anjo"], "max_cost": 5, "leftover": "bottom"}, 0)
 	check(g_none.phase != "search" and g_none.players[0]["deck"] == [first_card, second_card], "summon_from: sem elegível, nada é mostrado e o deck mantém a ordem")
 	# cemitério e mão, com filtro de custo; e o banimento no fim do turno
 	var g_zones := _new_game()
@@ -826,14 +826,14 @@ func _test_summon_from() -> void:
 	_stack_on_deck(g_top, 0, "eliel_vigia_da_aurora") # fundo: fora da janela
 	_stack_on_deck(g_top, 0, "esqueleto_guerreiro")
 	_stack_on_deck(g_top, 0, "esqueleto_guerreiro")
-	g_top._begin_summon_from(0, {"source": "deck", "top": 2, "species_any": ["anjo"]}, 0)
+	g_top._begin_summon_from(0, {"source": "deck", "top": 2, "tribe_any": ["anjo"]}, 0)
 	check(g_top.phase != "search", "summon_from: top 2 não enxerga o Anjo que está a 3 cartas do topo")
 	# pick random: entra sozinha, sem escolha
 	var g_random := _new_game()
 	g_random.active = 0
 	g_random.players[0]["deck"].clear()
 	var lucky := _stack_on_deck(g_random, 0, "eliel_vigia_da_aurora")
-	g_random.summon_from_random(0, {"source": "deck", "reveal_until": true, "species_any": ["anjo"]}, 0)
+	g_random.summon_from_random(0, {"source": "deck", "reveal_until": true, "tribe_any": ["anjo"]}, 0)
 	g_random._flush()
 	check(g_random.phase != "search" and g_random.find_unit(lucky.uid) != null, "summon_from: pick random invoca sem abrir escolha")
 
@@ -885,9 +885,9 @@ func _test_devocao_support() -> void:
 	g.choose_search(0, celestial.uid)
 	g._flush()
 	check(g.find_unit(celestial.uid) != null or g.players[0]["board"].any(func(unit: Card): return unit.card_id == "querubina_guarda_chuva"), "Chamada dos Ausentes: a unidade escolhida volta ao campo")
-	# um Anjo sem o elemento Luz também serve (species_any), e um Divindade
-	check(CardFilter.matches("uriel", {"any_of": [{"element": "luz"}, {"species_any": ["anjo", "celestial", "divindade"]}]}), "any_of: aceita quem passa em qualquer das alternativas")
-	check(not CardFilter.matches("esqueleto_guerreiro", {"any_of": [{"element": "luz"}, {"species_any": ["anjo"]}]}), "any_of: recusa quem não passa em nenhuma")
+	# um Anjo sem o elemento Luz também serve (tribe_any), e um Divindade
+	check(CardFilter.matches("uriel", {"any_of": [{"element": "luz"}, {"tribe_any": ["anjo", "celestial", "divindade"]}]}), "any_of: aceita quem passa em qualquer das alternativas")
+	check(not CardFilter.matches("esqueleto_guerreiro", {"any_of": [{"element": "luz"}, {"tribe_any": ["anjo"]}]}), "any_of: recusa quem não passa em nenhuma")
 	# Relicário de Cabeceira: cura 2 o Líder e 2 cada unidade aliada no fim do turno do dono, não no do oponente
 	var g_relic := _new_game()
 	g_relic.active = 0
@@ -2310,7 +2310,7 @@ func _test_obscura() -> void:
 	# Necrófago: hiena zumbi 0 custo 3/2, no mill any more
 	var nec := _put(g, 0, "necrofago_espectral")
 	check(g.players[0]["deck"].size() == deck_before and g.players[0]["graveyard"].is_empty(), "necrófago não manda mais o topo do deck ao cemitério")
-	check(g.atk_of(nec) == 3 and g.hp_left(nec) == 2 and CardDB.card("necrofago_espectral")["species"] == ["morto_vivo", "fera"], "necrófago é uma hiena zumbi 3/2")
+	check(g.atk_of(nec) == 3 and g.hp_left(nec) == 2 and CardDB.card("necrofago_espectral")["tribe"] == ["morto_vivo", "fera"], "necrófago é uma hiena zumbi 3/2")
 	# Replicador summons one copy of itself without the effect (no chain)
 	var repl := _put(g, 0, "replicador_maldito")
 	check(_count(g, 0, "replicador_maldito") == 1, "replicador não invoca ao entrar")
@@ -3309,13 +3309,13 @@ func _test_sengoku_discount_current_cost() -> void:
 
 	_tcard("t_sengoku_cost", 1, 1, [])
 	var cd: Dictionary = CardDB.data()["cards"]["t_sengoku_cost"]
-	cd["species"] = ["dragonoide"]
+	cd["tribe"] = ["dragonoide"]
 	cd["cost"] = 6
 	g = _new_game()
 	g.players[0]["hand"].clear()
 	var uid := _give(g, 0, "t_sengoku_cost")
 	var card: Card = g._hand_card(0, uid)
-	g.players[0]["play_discount"] = {"card_filter": {"species": "dragonoide", "max_cost": 6}, "divisor": 2, "until_turn": g.turn}
+	g.players[0]["play_discount"] = {"card_filter": {"tribe": "dragonoide", "max_cost": 6}, "divisor": 2, "until_turn": g.turn}
 	card.discount = 1
 	check(_hand_cost(g, uid) == 3, "sengoku: custo atual ímpar 5 é arredondado para 3")
 	card.turn_discount = 1
@@ -3336,7 +3336,7 @@ func _test_sengoku_discount_current_cost() -> void:
 	_tcard("t_sengoku_subito_trigger", 1, 1, [])
 	_tcard("t_sengoku_subito", 1, 1, [])
 	var sub_data: Dictionary = CardDB.data()["cards"]["t_sengoku_subito"]
-	sub_data["species"] = ["dragonoide"]
+	sub_data["tribe"] = ["dragonoide"]
 	sub_data["cost"] = 4
 	sub_data["subito"] = 6
 	for fixed in [false, true]:
@@ -3349,7 +3349,7 @@ func _test_sengoku_discount_current_cost() -> void:
 		var sub_uid := _give(g, 1, "t_sengoku_subito")
 		var sub_card: Card = g._hand_card(1, sub_uid)
 		sub_card.discount = 1
-		g.players[1]["play_discount"] = {"card_filter": {"species": "dragonoide", "max_cost": 6}, "divisor": 2, "until_turn": g.turn}
+		g.players[1]["play_discount"] = {"card_filter": {"tribe": "dragonoide", "max_cost": 6}, "divisor": 2, "until_turn": g.turn}
 		g.play_card(0, _give(g, 0, "t_sengoku_subito_trigger"))
 		check(g.can_play(1, sub_uid), "sengoku: Súbito pode ser jogado na janela de resposta")
 		var sub_events := g.play_card(1, sub_uid)
@@ -3704,11 +3704,11 @@ func _test_vorn_staged_damage() -> void:
 ## Bastionário gives Armadura only to the allies standing right next to it on the board.
 ## A Constante of an ally is the ALLY's effect: silencing the unit it buffs does not turn it off; silencing the carrier does.
 func _test_silence_keeps_ally_auras() -> void:
-	_tcard("t_sil_aura_source", 1, 5, [{"trigger": "constante", "action": "species_aura", "species": ["anjo"],
+	_tcard("t_sil_aura_source", 1, 5, [{"trigger": "constante", "action": "tribe_aura", "tribe": ["anjo"],
 		"atk": 1, "hp": 1, "armor": 1}])
-	CardDB.data()["cards"]["t_sil_aura_source"]["species"] = ["humano"]
+	CardDB.data()["cards"]["t_sil_aura_source"]["tribe"] = ["humano"]
 	_tcard("t_sil_aura_angel", 2, 4, [])
-	CardDB.data()["cards"]["t_sil_aura_angel"]["species"] = ["anjo"]
+	CardDB.data()["cards"]["t_sil_aura_angel"]["tribe"] = ["anjo"]
 	var g := _new_game()
 	_quiet(g)
 	var source := _put(g, 0, "t_sil_aura_source")
@@ -5978,7 +5978,7 @@ func _test_domain_instants() -> void:
 	for cost in [2, 3, 4, 5, 7]:
 		_tcost_spell("t_cost%d" % cost, cost)
 	_tcard("t_plant", 1, 1, [])
-	CardDB.data()["cards"]["t_plant"]["species"] = ["planta"]
+	CardDB.data()["cards"]["t_plant"]["tribe"] = ["planta"]
 	_tcard("t_plain", 2, 2, [])
 	_tcard("t_ability_unit", 1, 3, [])
 	CardDB.data()["cards"]["t_ability_unit"]["activated"] = {"cost": 0, "speed": "rapido", "effects": [{"action": "damage", "target": "enemy_leader", "amount": 1}]}
@@ -7372,7 +7372,7 @@ func _test_vegetal() -> void:
 
 func _test_rusco() -> void:
 	var r := CardDB.card("rusco")
-	check(r["rarity"] == "champion" and r["essence"] == "neutra" and r["species"] == ["demihumano"], "rusco: champion neutro demihumano")
+	check(r["rarity"] == "champion" and r["essence"] == "neutra" and r["tribe"] == ["demihumano"], "rusco: champion neutro demihumano")
 	check(int(r["cost"]) == 2 and int(r["atk"]) == 2 and int(r["hp"]) == 2 and r["keywords"] == ["escudo"], "rusco: 2/2 custo 2 com Escudo")
 	# Única: max_copies 1
 	var leader: String = DeckDB.get_deck("fogo")["leader"]
@@ -7568,7 +7568,7 @@ func _test_ignisar() -> void:
 	check(CardDB.leader("ivan_ignisar")["incarnation"] == "ivan_ignisar" and DeckDB.validate("ignisar_controle").is_empty(), "Ivan Ignisar: o deck Ignisar Controle é legal")
 	check(int(ability["cost"]) == 3 and ability["speed"] == "lento" and ability.get("once_per_turn", false), "Rescaldo: Lenta, custo 3, uma vez por turno")
 	var ivan: Dictionary = CardDB.card("ivan_ignisar")
-	check(int(ivan["cost"]) == 7 and ivan["species"] == ["dragao_primordial", "dragao"], "Ivan Ignisar: custo 7, Dragão Primordial e Dragão")
+	check(int(ivan["cost"]) == 7 and ivan["tribe"] == ["dragao_primordial", "dragao"], "Ivan Ignisar: custo 7, Dragão Primordial e Dragão")
 	# Gigante Vulcânico: 9 base, 5 less when the owner dealt 10+ damage to the opponent's Leader in their previous turn
 	var gv: Dictionary = CardDB.card("gigante_vulcanico")
 	var g := _new_game()
@@ -8194,9 +8194,9 @@ func _test_incomodante_shout() -> void:
 ## Pacote da Saraya Kovan: Líder neutra que fortalece Feras e Demihumanos + o núcleo de Elefantes.
 func _test_saraya_kovan_package() -> void:
 	_tcard("t_saraya_human", 2, 2, [])
-	CardDB.data()["cards"]["t_saraya_human"]["species"] = ["humano"]
+	CardDB.data()["cards"]["t_saraya_human"]["tribe"] = ["humano"]
 	_tcard("t_saraya_beast", 2, 2, [])
-	CardDB.data()["cards"]["t_saraya_beast"]["species"] = ["fera"]
+	CardDB.data()["cards"]["t_saraya_beast"]["tribe"] = ["fera"]
 	_tcard("t_saraya_filler", 1, 1, [])
 
 	# --- Poder do Líder: +1/+1 permanente, só em Fera ou Demihumano aliado ---
@@ -8359,7 +8359,7 @@ func _test_saraya_kovan_package() -> void:
 			continue
 		if unit.card_id == "paquiderme_sem_vergonha":
 			big_elephants_on_board += 1
-		elif CardDB.data()["cards"][unit.card_id].get("species", []).has("elefante"):
+		elif CardDB.data()["cards"][unit.card_id].get("tribe", []).has("elefante"):
 			small_elephants_on_board += 1
 	check(small_elephants_on_board == 2 and big_elephants_on_board == 0, "Estouro da Manada: 2 Elefantes de custo até 3 entram, o de custo 4 não")
 	check(g.players[0]["deck"].size() == 2, "Estouro da Manada: os outros 2 continuam no deck")
@@ -8620,7 +8620,7 @@ func _test_twin_bolts() -> void:
 	check(ally.atk_total() == 2 and g.has_kw(ally, "impeto"), "Choque de Largada: +1 ATK e Ímpeto")
 	# Diabrete Elétrico: Ímpeto, and Ao Morrer gives next-turn Momentum
 	var d := _put(g, 0, "diabrete_eletrico")
-	check(CardDB.card("diabrete_eletrico")["cost"] <= 1 and "demonio" in CardDB.card("diabrete_eletrico")["species"], "Diabrete Elétrico é barato e Demônio")
+	check(CardDB.card("diabrete_eletrico")["cost"] <= 1 and "demonio" in CardDB.card("diabrete_eletrico")["tribe"], "Diabrete Elétrico é barato e Demônio")
 	d.damage = 1000
 	g._check_state()
 	g._flush()
@@ -8696,7 +8696,7 @@ func _test_furia_blood_cards() -> void:
 func _test_cuspidor_de_brasas() -> void:
 	_tcard("t_ember_big", 1, 9, [])
 	check(not str(CardDB.errors()).contains("cuspidor_de_brasas"), "Cuspidor de Brasas: sem erro de validação do catálogo")
-	check(CardDB.card("cuspidor_de_brasas")["element"] == "fogo" and CardDB.card("cuspidor_de_brasas")["species"] == ["troll"], "Cuspidor de Brasas é um troll de Fogo")
+	check(CardDB.card("cuspidor_de_brasas")["element"] == "fogo" and CardDB.card("cuspidor_de_brasas")["tribe"] == ["troll"], "Cuspidor de Brasas é um troll de Fogo")
 	var g := _new_game()
 	_quiet(g)
 	g.players[0]["momentum"] = 10
@@ -10954,53 +10954,53 @@ func _test_sagrada_engine() -> void:
 	var undraftable_errors := DeckDB.validate_cards(base_deck["leader"], undraftable_cards)
 	check(undraftable_errors.any(func(e: String): return e.begins_with("t_undraftable:")), "undraftable: o deck com a carta é recusado")
 
-	# species_aura: the OTHER allied units sharing a listed species get Ataque/Vida/Armadura while the source is in play
-	_tcard("t_aura_source", 1, 5, [{"trigger": "constante", "action": "species_aura", "species": ["divindade", "celestial", "anjo"],
+	# tribe_aura: the OTHER allied units sharing a listed tribe get Ataque/Vida/Armadura while the source is in play
+	_tcard("t_aura_source", 1, 5, [{"trigger": "constante", "action": "tribe_aura", "tribe": ["divindade", "celestial", "anjo"],
 		"atk": 1, "hp": 1, "armor": 1}])
-	CardDB.data()["cards"]["t_aura_source"]["species"] = ["humano"]
+	CardDB.data()["cards"]["t_aura_source"]["tribe"] = ["humano"]
 	_tcard("t_aura_angel", 2, 4, [])
-	CardDB.data()["cards"]["t_aura_angel"]["species"] = ["anjo"]
-	_tcard("t_aura_two_species", 2, 4, [])
-	CardDB.data()["cards"]["t_aura_two_species"]["species"] = ["divindade", "celestial"]
+	CardDB.data()["cards"]["t_aura_angel"]["tribe"] = ["anjo"]
+	_tcard("t_aura_two_tribe", 2, 4, [])
+	CardDB.data()["cards"]["t_aura_two_tribe"]["tribe"] = ["divindade", "celestial"]
 	_tcard("t_aura_human", 2, 4, [])
-	CardDB.data()["cards"]["t_aura_human"]["species"] = ["humano"]
+	CardDB.data()["cards"]["t_aura_human"]["tribe"] = ["humano"]
 	g = _new_game()
 	_quiet(g)
 	var angel := _put(g, 0, "t_aura_angel")
-	check(g.atk_of(angel) == 2, "species_aura: sem a fonte em campo não há bônus")
+	check(g.atk_of(angel) == 2, "tribe_aura: sem a fonte em campo não há bônus")
 	var aura_source := _put(g, 0, "t_aura_source")
-	var two_species := _put(g, 0, "t_aura_two_species")
+	var two_tribe := _put(g, 0, "t_aura_two_tribe")
 	var aura_human := _put(g, 0, "t_aura_human")
 	var enemy_angel := _put(g, 1, "t_aura_angel")
 	g._move_dead_units()
-	check(g.atk_of(angel) == 3 and g.hp_left(angel) == 5 and g.armor_of(angel) == 1, "species_aura: Anjo ganha +1/+1 e Armadura 1 (%d/%d, arm %d)" % [g.atk_of(angel), g.hp_left(angel), g.armor_of(angel)])
-	check(g.atk_of(two_species) == 3 and g.armor_of(two_species) == 1, "species_aura: duas espécies na lista dão o bônus uma vez só")
-	check(g.atk_of(aura_human) == 2 and g.armor_of(aura_human) == 0, "species_aura: espécie fora da lista não ganha")
-	check(g.atk_of(aura_source) == 1 and g.armor_of(aura_source) == 0, "species_aura: a própria fonte não se beneficia")
-	check(g.atk_of(enemy_angel) == 2 and g.armor_of(enemy_angel) == 0, "species_aura: unidades do oponente não ganham")
+	check(g.atk_of(angel) == 3 and g.hp_left(angel) == 5 and g.armor_of(angel) == 1, "tribe_aura: Anjo ganha +1/+1 e Armadura 1 (%d/%d, arm %d)" % [g.atk_of(angel), g.hp_left(angel), g.armor_of(angel)])
+	check(g.atk_of(two_tribe) == 3 and g.armor_of(two_tribe) == 1, "tribe_aura: duas espécies na lista dão o bônus uma vez só")
+	check(g.atk_of(aura_human) == 2 and g.armor_of(aura_human) == 0, "tribe_aura: espécie fora da lista não ganha")
+	check(g.atk_of(aura_source) == 1 and g.armor_of(aura_source) == 0, "tribe_aura: a própria fonte não se beneficia")
+	check(g.atk_of(enemy_angel) == 2 and g.armor_of(enemy_angel) == 0, "tribe_aura: unidades do oponente não ganham")
 	g.players[0]["board"].erase(aura_source)
 	g._move_dead_units()
-	check(g.atk_of(angel) == 2 and g.armor_of(angel) == 0, "species_aura: o bônus some quando a fonte sai de campo")
+	check(g.atk_of(angel) == 2 and g.armor_of(angel) == 0, "tribe_aura: o bônus some quando a fonte sai de campo")
 
-	# species_aura with "include_self": the source benefits from its own aura too (Mefi'Urdim)
-	_tcard("t_aura_self_source", 1, 5, [{"trigger": "constante", "action": "species_aura", "species": ["celestial"],
+	# tribe_aura with "include_self": the source benefits from its own aura too (Mefi'Urdim)
+	_tcard("t_aura_self_source", 1, 5, [{"trigger": "constante", "action": "tribe_aura", "tribe": ["celestial"],
 		"include_self": true, "atk": 1, "hp": 1}])
-	CardDB.data()["cards"]["t_aura_self_source"]["species"] = ["celestial"]
+	CardDB.data()["cards"]["t_aura_self_source"]["tribe"] = ["celestial"]
 	g = _new_game()
 	_quiet(g)
 	var self_source := _put(g, 0, "t_aura_self_source")
 	g._move_dead_units()
-	check(g.atk_of(self_source) == 2 and g.hp_left(self_source) == 6, "species_aura include_self: a fonte ganha +1/+1 (%d/%d)" % [g.atk_of(self_source), g.hp_left(self_source)])
+	check(g.atk_of(self_source) == 2 and g.hp_left(self_source) == 6, "tribe_aura include_self: a fonte ganha +1/+1 (%d/%d)" % [g.atk_of(self_source), g.hp_left(self_source)])
 
-	# buff "only_species": units of other species are left untouched
-	_tcard("t_only_species_buff", 1, 5, [{"trigger": "on_enter", "action": "buff", "target": "all_ally_units",
-		"only_species": ["anjo"], "keywords": ["escudo_magico"]}])
+	# buff "only_tribe": units of other tribe are left untouched
+	_tcard("t_only_tribe_buff", 1, 5, [{"trigger": "on_enter", "action": "buff", "target": "all_ally_units",
+		"only_tribe": ["anjo"], "keywords": ["escudo_magico"]}])
 	g = _new_game()
 	_quiet(g)
 	var only_angel := _put(g, 0, "t_aura_angel")
 	var only_human := _put(g, 0, "t_aura_human")
-	_put(g, 0, "t_only_species_buff")
-	check(only_angel.magic_shield and not only_human.magic_shield, "buff only_species: só a espécie listada ganha o Escudo Mágico")
+	_put(g, 0, "t_only_tribe_buff")
+	check(only_angel.magic_shield and not only_human.magic_shield, "buff only_tribe: só a espécie listada ganha o Escudo Mágico")
 
 	# Mefi'Urdim: Ao Entrar heals 10, raises the Baluarte Santo, gives Escudo Mágico to his tribe; Constante +1/+1 to the tribe and himself
 	g = _new_game()
@@ -11245,22 +11245,22 @@ func _test_sagrada_engine() -> void:
 	_pass_windows(g)
 	check(challenged.damage == 4, "copy_atk (Ao Desafiar): o golpe sai com o Ataque copiado (%d)" % challenged.damage)
 
-	# bonus_if_species: extra permanent Ataque/Vida only when the target has one of the listed species
-	_tcard("t_species_angel", 1, 3, [])
-	CardDB.data()["cards"]["t_species_angel"]["species"] = ["anjo"]
-	_tcard("t_species_human", 1, 3, [])
-	CardDB.data()["cards"]["t_species_human"]["species"] = ["humano"]
-	_tspell("t_species_buff", "lento", [{"trigger": "on_play", "action": "buff", "target": "ally_unit", "atk": 1, "hp": 1,
-		"bonus_if_species": {"species": ["divindade", "celestial", "anjo"], "atk": 1, "hp": 1}}])
+	# bonus_if_tribe: extra permanent Ataque/Vida only when the target has one of the listed tribe
+	_tcard("t_tribe_angel", 1, 3, [])
+	CardDB.data()["cards"]["t_tribe_angel"]["tribe"] = ["anjo"]
+	_tcard("t_tribe_human", 1, 3, [])
+	CardDB.data()["cards"]["t_tribe_human"]["tribe"] = ["humano"]
+	_tspell("t_tribe_buff", "lento", [{"trigger": "on_play", "action": "buff", "target": "ally_unit", "atk": 1, "hp": 1,
+		"bonus_if_tribe": {"tribe": ["divindade", "celestial", "anjo"], "atk": 1, "hp": 1}}])
 	g = _new_game()
 	_quiet(g)
 	player = g.active
-	var species_angel := _put(g, player, "t_species_angel")
-	var species_human := _put(g, player, "t_species_human")
-	_cast_and_resolve(g, player, "t_species_buff", species_angel.uid)
-	_cast_and_resolve(g, player, "t_species_buff", species_human.uid)
-	check(g.atk_of(species_angel) == 3 and g.hp_left(species_angel) == 5, "bonus_if_species: Anjo ganha +1/+1 e o extra +1/+1 (%d/%d)" % [g.atk_of(species_angel), g.hp_left(species_angel)])
-	check(g.atk_of(species_human) == 2 and g.hp_left(species_human) == 4, "bonus_if_species: Humano só ganha o bônus base (%d/%d)" % [g.atk_of(species_human), g.hp_left(species_human)])
+	var tribe_angel := _put(g, player, "t_tribe_angel")
+	var tribe_human := _put(g, player, "t_tribe_human")
+	_cast_and_resolve(g, player, "t_tribe_buff", tribe_angel.uid)
+	_cast_and_resolve(g, player, "t_tribe_buff", tribe_human.uid)
+	check(g.atk_of(tribe_angel) == 3 and g.hp_left(tribe_angel) == 5, "bonus_if_tribe: Anjo ganha +1/+1 e o extra +1/+1 (%d/%d)" % [g.atk_of(tribe_angel), g.hp_left(tribe_angel)])
+	check(g.atk_of(tribe_human) == 2 and g.hp_left(tribe_human) == 4, "bonus_if_tribe: Humano só ganha o bônus base (%d/%d)" % [g.atk_of(tribe_human), g.hp_left(tribe_human)])
 
 	# counter with only_if_destroys: Intercessão can only be aimed at an item that destroys or banishes units
 	_tspell("t_kill_spell", "lento", [{"trigger": "on_play", "action": "destroy", "target": "enemy_unit"}])
@@ -11271,7 +11271,7 @@ func _test_sagrada_engine() -> void:
 	_quiet(g)
 	attacker_side = g.active
 	var defender_side: int = g.opponent(attacker_side)
-	var defended_unit := _put(g, defender_side, "t_species_human")
+	var defended_unit := _put(g, defender_side, "t_tribe_human")
 	_give(g, defender_side, "t_counter_destroy") # holding a response keeps the spell waiting on the stack
 	g.play_card(attacker_side, _give(g, attacker_side, "t_bolt_spell"), defended_unit.uid)
 	check(g.stack.is_empty() and defended_unit.damage == 1, "only_if_destroys: sem alvo possível para o contra-feitiço, o dano resolve direto (%d)" % defended_unit.damage)
@@ -11280,7 +11280,7 @@ func _test_sagrada_engine() -> void:
 	_quiet(g)
 	attacker_side = g.active
 	defender_side = g.opponent(attacker_side)
-	defended_unit = _put(g, defender_side, "t_species_human")
+	defended_unit = _put(g, defender_side, "t_tribe_human")
 	_give(g, defender_side, "t_counter_destroy")
 	g.play_card(attacker_side, _give(g, attacker_side, "t_kill_spell"), defended_unit.uid)
 	check(g.stack.size() == 1, "only_if_destroys: o feitiço de destruição espera na pilha")

@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "common",
-  "species": ["humano"],
+  "tribe": ["humano"],
   "essence": "devocao",
   "art": "devocao/cruzada_pe_de_chumbo.webp",
   "cost": 3,

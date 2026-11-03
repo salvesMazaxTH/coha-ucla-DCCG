@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "champion",
-  "species": ["driade"],
+  "tribe": ["driade"],
   "essence": "natureza",
   "element": "vegetal",
   "cost": 6,
@@ -17,7 +17,7 @@
       "action": "buff",
       "temp": true,
       "target": "all_ally_units",
-      "only_species": ["planta"],
+      "only_tribe": ["planta"],
       "atk": 2,
       "hp": 2
     },

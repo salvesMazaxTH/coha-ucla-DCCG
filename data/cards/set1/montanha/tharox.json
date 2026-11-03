@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "champion",
-  "species": ["tita"],
+  "tribe": ["tita"],
   "essence": "montanha",
   "element": "pedra",
   "cost": 6,

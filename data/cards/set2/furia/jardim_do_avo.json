@@ -16,7 +16,7 @@
       "action": "discount_hand",
       "target": "none",
       "amount": 1,
-      "card_filter": {"species": "dragonoide"}
+      "card_filter": {"tribe": "dragonoide"}
     },
     {
       "listen": "turn_started",

@@ -22,8 +22,8 @@ extends Effect
 ## "rapidez_until_next_turn": N lends the unit Rapidez N until its owner's next turn starts (it never lowers a Rapidez the unit already has);
 ## Corrente de Ar pairs it with Esquiva, which does nothing on a unit without Rapidez.
 ## "bonus_if_card": {"card": id, "atk": N, "hp": N}: when the target is that card, it also gains this permanently (Myrra -> Vael).
-## "bonus_if_species": {"species": [...], "atk": N, "hp": N}: when the target has any of these species, it also gains this permanently (Consagração).
-## "only_species": [...]: the buff only lands on targets that have at least one of these species; any other target is left
+## "bonus_if_tribe": {"tribe": [...], "atk": N, "hp": N}: when the target has any of these tribe, it also gains this permanently (Consagração).
+## "only_tribe": [...]: the buff only lands on targets that have at least one of these tribe; any other target is left
 ## untouched (Mefi'Urdim gives Escudo Mágico only to his divindades, celestiais and anjos).
 ## "only_rarity": [...]: the buff only lands on targets of one of these rarities; any other target is left untouched
 ## (Otávio gives Ataque Duplo only to a Lendária).
@@ -60,17 +60,17 @@ var bonus_attack := 0
 var bonus_health := 0
 var temporary_critico := 0 ## "critico_temp": N extra Crítico levels until the end of the turn (the total never passes 4)
 var copy_attack_source := "" ## "copy_atk": "highest_ally" = copy the Ataque of the strongest other allied unit
-var bonus_species: Array = [] ## "bonus_if_species": species that earn the extra bonus below
-var species_bonus_attack := 0
-var species_bonus_health := 0
-var only_species: Array = [] ## "only_species": the target must share one of these species or the buff does nothing
+var bonus_tribe: Array = [] ## "bonus_if_tribe": tribe that earn the extra bonus below
+var tribe_bonus_attack := 0
+var tribe_bonus_health := 0
+var only_tribe: Array = [] ## "only_tribe": the target must share one of these tribe or the buff does nothing
 var only_rarity: Array = [] ## "only_rarity": the target must be one of these rarities or the buff does nothing
 var cleanse := false
 var attack_multiplier := 1
 var copy_minimum_gain := 0 ## "copy_atk_min_gain": the copy never gives less than this much Ataque
 
 func _read_parameters(data: Dictionary) -> void:
-	only_species = data.get("only_species", [])
+	only_tribe = data.get("only_tribe", [])
 	only_rarity = data.get("only_rarity", [])
 	cleanse = bool(data.get("cleanse", false))
 	attack_multiplier = int(data.get("atk_multiply", 1))
@@ -102,17 +102,17 @@ func _read_parameters(data: Dictionary) -> void:
 	bonus_health = int(bonus.get("hp", 0))
 	temporary_critico = int(data.get("critico_temp", 0))
 	copy_attack_source = String(data.get("copy_atk", ""))
-	var species_bonus: Dictionary = data.get("bonus_if_species", {})
-	bonus_species = species_bonus.get("species", [])
-	species_bonus_attack = int(species_bonus.get("atk", 0))
-	species_bonus_health = int(species_bonus.get("hp", 0))
+	var tribe_bonus: Dictionary = data.get("bonus_if_tribe", {})
+	bonus_tribe = tribe_bonus.get("tribe", [])
+	tribe_bonus_attack = int(tribe_bonus.get("atk", 0))
+	tribe_bonus_health = int(tribe_bonus.get("hp", 0))
 
 func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
 	var unit := game.find_unit(target_uid)
 	if unit == null:
 		return
-	if not only_species.is_empty() and not _has_any_species(unit, only_species):
+	if not only_tribe.is_empty() and not _has_any_tribe(unit, only_tribe):
 		return
 	if not only_rarity.is_empty() and not only_rarity.has(CardDB.card(unit.card_id).get("rarity", "")):
 		return
@@ -166,12 +166,12 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		_add_changes(permanent_changes, {"atk": bonus_attack, "hp": bonus_health})
 		attack_gain += bonus_attack
 		health_gain += bonus_health
-	if not bonus_species.is_empty() and _shares_species(unit):
-		unit.atk += species_bonus_attack
-		unit.hp += species_bonus_health
-		_add_changes(permanent_changes, {"atk": species_bonus_attack, "hp": species_bonus_health})
-		attack_gain += species_bonus_attack
-		health_gain += species_bonus_health
+	if not bonus_tribe.is_empty() and _shares_tribe(unit):
+		unit.atk += tribe_bonus_attack
+		unit.hp += tribe_bonus_health
+		_add_changes(permanent_changes, {"atk": tribe_bonus_attack, "hp": tribe_bonus_health})
+		attack_gain += tribe_bonus_attack
+		health_gain += tribe_bonus_health
 	unit.temp_atk_until_next_turn += temporary_attack_until_next_turn # ends when the unit's owner starts their next turn
 	attack_gain += temporary_attack_until_next_turn
 	unit.temp_hp_until_next_turn += temporary_health_until_next_turn # ends when the unit's owner starts their next turn
@@ -249,14 +249,14 @@ func _add_changes(changes: Dictionary, extra: Dictionary) -> void:
 	for stat_name in extra:
 		changes[stat_name] = int(changes.get(stat_name, 0)) + int(extra[stat_name])
 
-## True when the unit has at least one of the species that earn the "bonus_if_species" extra.
-func _shares_species(unit: Card) -> bool:
-	return _has_any_species(unit, bonus_species)
+## True when the unit has at least one of the tribe that earn the "bonus_if_tribe" extra.
+func _shares_tribe(unit: Card) -> bool:
+	return _has_any_tribe(unit, bonus_tribe)
 
-## True when the unit's card lists at least one of the given species.
-func _has_any_species(unit: Card, wanted_species: Array) -> bool:
-	for species in CardDB.card(unit.card_id).get("species", []):
-		if wanted_species.has(species):
+## True when the unit's card lists at least one of the given tribe.
+func _has_any_tribe(unit: Card, wanted_tribe: Array) -> bool:
+	for tribe in CardDB.card(unit.card_id).get("tribe", []):
+		if wanted_tribe.has(tribe):
 			return true
 	return false
 

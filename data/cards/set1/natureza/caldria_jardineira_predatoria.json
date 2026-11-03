@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "epic",
-  "species": ["humano", "druida"],
+  "tribe": ["humano", "druida"],
   "essence": "natureza",
   "element": "vegetal",
   "cost": 3,

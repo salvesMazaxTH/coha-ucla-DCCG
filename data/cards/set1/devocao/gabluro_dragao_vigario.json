@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "champion",
-  "species": ["dragao"],
+  "tribe": ["dragao"],
   "essence": "devocao",
   "element": "luz",
   "cost": 6,

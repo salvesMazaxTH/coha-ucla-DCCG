@@ -510,7 +510,7 @@ func _refresh_scaling() -> void:
 			var was_alive := c.hp_left() >= 1
 			var intrinsic := intrinsic_stats_of(p, card_of(c), c)
 			var b := scale_bonus(p, card_of(c), c)
-			var aura := species_aura_bonus(c)
+			var aura := tribe_aura_bonus(c)
 			var surge := momentum_surge_of(p, c)
 			c.intrinsic_atk = intrinsic.x
 			c.intrinsic_hp = intrinsic.y
@@ -590,33 +590,33 @@ func has_doubler(p: int, doubler_action: String, ignoring_uid := 0) -> bool:
 	return false
 
 ## 2 while the player has a "double_constants" unit (Contador Exagerado), else 1. It never stacks: two of them still give 2.
-## Only the text Constantes (scale, species_aura, graveyard_armor, adjacent_armor) are multiplied; keywords like Armadura or Rapidez are not.
+## Only the text Constantes (scale, tribe_aura, graveyard_armor, adjacent_armor) are multiplied; keywords like Armadura or Rapidez are not.
 func constants_multiplier(p: int) -> int:
 	return 2 if has_doubler(p, "double_constants") else 1
 
-## What the "species_aura" effects of the OTHER allied units on the board give unit `c`:
-## x = Ataque, y = Vida, z = Armadura. An aura only reaches units sharing one of its species
+## What the "tribe_aura" effects of the OTHER allied units on the board give unit `c`:
+## x = Ataque, y = Vida, z = Armadura. An aura only reaches units sharing one of its tribe
 ## (a card can list several, e.g. ["divindade", "celestial"]). The source's own aura does not reach itself
 ## unless the effect says "include_self": true (Mefi'Urdim).
 ## `sources_out`, when given, receives one {"source": card id, "atk", "hp", "armor"} per aura that reaches the unit.
-func species_aura_bonus(c: Card, sources_out: Array = []) -> Vector3i:
+func tribe_aura_bonus(c: Card, sources_out: Array = []) -> Vector3i:
 	var bonus := Vector3i.ZERO
 	var unit_data := card_of(c)
-	var unit_species: Array = unit_data.get("species", [])
+	var unit_tribe: Array = unit_data.get("tribe", [])
 	var unit_is_token := bool(unit_data.get("token", false))
-	if unit_species.is_empty() and not unit_is_token:
+	if unit_tribe.is_empty() and not unit_is_token:
 		return bonus
 	for source: Card in players[c.owner]["board"]:
 		for e in card_of(source).get("effects", []):
-			if e.get("trigger", "") != "constante" or e.get("action", "") != "species_aura":
+			if e.get("trigger", "") != "constante" or e.get("action", "") != "tribe_aura":
 				continue
 			if source == c and not bool(e.get("include_self", false)):
 				continue
 			var aura_reaches := unit_is_token and bool(e.get("tokens", false)) # an aura for tokens gives its bonus once as well
-			for aura_species in e.get("species", []):
-				if unit_species.has(aura_species):
+			for aura_tribe in e.get("tribe", []):
+				if unit_tribe.has(aura_tribe):
 					aura_reaches = true
-					break # one aura gives its bonus once, however many species match
+					break # one aura gives its bonus once, however many tribe match
 			if not aura_reaches:
 				continue
 			bonus += Vector3i(int(e.get("atk", 0)), int(e.get("hp", 0)), int(e.get("armor", 0)))
@@ -634,7 +634,7 @@ func constant_sources_of(c: Card) -> Array:
 		if e.get("trigger", "") == "constante" and e.get("action", "") == "scale":
 			var count := _scale_count(c.owner, e, c)
 			raw_sources.append({"source": c.card_id, "atk": count * int(e.get("atk", 0)) * multiplier, "hp": count * int(e.get("hp", 0)) * multiplier})
-	species_aura_bonus(c, raw_sources)
+	tribe_aura_bonus(c, raw_sources)
 	var surge := momentum_surge_of(c.owner, c)
 	var critico_from_surge := c.critico_total() - clampi(c.critico + c.temp_critico, 0, 4) # the surge level only counts when it is higher
 	raw_sources.append({"source": c.card_id, "atk": int(surge.get("atk", 0)), "critico": critico_from_surge})
@@ -717,7 +717,7 @@ func allied_plants_or_tokens(p: int) -> int:
 	var n := 0
 	for c: Card in players[p]["board"]:
 		var cd := c.data()
-		if cd.get("token", false) or (cd.get("species", []) as Array).has("planta"):
+		if cd.get("token", false) or (cd.get("tribe", []) as Array).has("planta"):
 			n += 1
 	return n
 
@@ -1146,7 +1146,7 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 				if c.armor_total() > 0: out.append(c.uid)
 		"ally_plant_or_token": # an ally planta or ficha (Esporos de Emergência sacrifices one)
 			for c: Card in mine:
-				if c.data().get("token", false) or "planta" in c.data().get("species", []): out.append(c.uid)
+				if c.data().get("token", false) or "planta" in c.data().get("tribe", []): out.append(c.uid)
 		"other_ally_unit":
 			for c: Card in mine:
 				if c.uid != self_uid: out.append(c.uid)
@@ -2545,7 +2545,7 @@ func _summon(p: int, c: Card, incarnation: bool, target: int, over: Dictionary =
 	_emit({"type": "summon", "player": p, "uid": uid, "card_id": card_id})
 	# Listeners such as Alderion react to the exact unit that just entered, including summoned Plants.
 	var entered := GameEvent.new("unit_entered", p, c)
-	entered.data["plant"] = CardDB.card(c.card_id).get("species", []).has("planta")
+	entered.data["plant"] = CardDB.card(c.card_id).get("tribe", []).has("planta")
 	bus().emit(entered)
 	# Leaders may react to their first token entering each turn. The card is already on the
 	# board, so a passive buff can include the newly summoned token among its legal targets.
@@ -2787,7 +2787,7 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 		var deck_size: int = searched.size()
 		searched = searched.slice(maxi(deck_size - int(e["top"]), 0), deck_size)
 	for c in searched:
-		# the filter keys (essence, element, max_cost, type, card_ids, species, tags, tags_any...) are shared with "summon_from"
+		# the filter keys (essence, element, max_cost, type, card_ids, tribe, tags, tags_any...) are shared with "summon_from"
 		if not CardFilter.matches(c.card_id, e):
 			continue
 		# every copy that is really in the deck is listed, like cards laid out on a table
@@ -3215,7 +3215,7 @@ func _begin_look_bottom(p: int, shown: int, window: int, source_uid: int) -> voi
 
 ## Returns damage actually dealt. source is the dealing unit or null.
 ## Armadura a unit really has: its own (printed + buffs), plus the "graveyard_armor" it counts
-## itself, the "species_aura" Armadura of its allies, and "adjacent_armor" from the allies
+## itself, the "tribe_aura" Armadura of its allies, and "adjacent_armor" from the allies
 ## standing right next to it on the board (the board order is the order the units were played).
 ## The adjacent Armadura is a text Constante, so a Contador Exagerado doubles it.
 func armor_of(c: Card) -> int:
@@ -3226,7 +3226,7 @@ func armor_of(c: Card) -> int:
 func uncapped_armor_of(c: Card) -> int:
 	var total := c.armor_total() + graveyard_armor_of(c)
 	if players[c.owner]["board"].has(c):
-		total += species_aura_bonus(c).z
+		total += tribe_aura_bonus(c).z
 	var board: Array = players[c.owner]["board"]
 	var index := board.find(c)
 	if index < 0:

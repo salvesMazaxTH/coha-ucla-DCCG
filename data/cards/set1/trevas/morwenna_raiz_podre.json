@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "epic",
-  "species": ["morto_vivo", "driade"],
+  "tribe": ["morto_vivo", "driade"],
   "essence": ["trevas", "natureza"],
   "element": ["sombra", "vegetal"],
   "cost": 3,

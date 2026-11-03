@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "champion",
-  "species": [
+  "tribe": [
     "humano"
   ],
   "essence": "neutra",
@@ -18,15 +18,15 @@
       "action": "search_deck",
       "target": "none",
       "top": 5,
-      "species_any": [
+      "tribe_any": [
         "fera",
         "demihumano"
       ]
     },
     {
       "trigger": "constante",
-      "action": "species_aura",
-      "species": [
+      "action": "tribe_aura",
+      "tribe": [
         "fera",
         "demihumano"
       ],
@@ -43,7 +43,7 @@
         "action": "summon_from",
         "target": "none",
         "source": "hand",
-        "species_any": [
+        "tribe_any": [
           "fera",
           "demihumano"
         ],

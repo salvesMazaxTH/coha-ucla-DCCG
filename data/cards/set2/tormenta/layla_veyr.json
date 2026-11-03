@@ -4,8 +4,9 @@
   "type": "unit",
   "rarity": "champion",
   "identity": "Layla",
-  "species": [
-    "humano"
+  "tribe": [
+    "humano",
+    "nuliterrano"
   ],
   "essence": "tormenta",
   "element": "raio",

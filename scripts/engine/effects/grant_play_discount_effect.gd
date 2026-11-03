@@ -7,7 +7,7 @@ extends Effect
 ## card played that matches, and it expires at the end of the turn it was granted in. Granting it again
 ## in the same turn just refreshes the marker, it never stacks.
 ## Example (Sengoku, Peso dos Séculos): {"action": "grant_play_discount", "target": "none", "divisor": 2,
-## "card_filter": {"max_cost": 6, "species": "dragonoide"}}.
+## "card_filter": {"max_cost": 6, "tribe": "dragonoide"}}.
 
 var card_filter: Dictionary = {}
 var divisor := 2

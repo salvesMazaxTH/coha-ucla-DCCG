@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "champion",
-  "species": ["driade", "elemental", "divindade"],
+  "tribe": ["driade", "elemental", "divindade"],
   "essence": "natureza",
   "element": "vegetal",
   "cost": 6,

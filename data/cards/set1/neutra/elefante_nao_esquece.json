@@ -13,7 +13,7 @@
       "target": "none",
       "source": "graveyard",
       "pick": "choose",
-      "species": "elefante",
+      "tribe": "elefante",
       "max_cost": 3
     }
   ],

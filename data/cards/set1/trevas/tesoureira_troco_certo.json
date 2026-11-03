@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "epic",
-  "species": ["humano"],
+  "tribe": ["humano"],
   "essence": "trevas",
   "element": "sombra",
   "cost": 3,

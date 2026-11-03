@@ -3,9 +3,10 @@
   "set": 2,
   "type": "unit",
   "rarity": "champion",
-  "species": [
+  "tribe": [
     "dragonoide",
-    "dragao"
+    "dragao",
+    "nuliterrano"
   ],
   "essence": "furia",
   "element": "fogo",
@@ -23,13 +24,13 @@
       "target": "none",
       "amount": 1,
       "card_filter": {
-        "species": "dragonoide"
+        "tribe": "dragonoide"
       }
     },
     {
       "trigger": "constante",
-      "action": "species_aura",
-      "species": [
+      "action": "tribe_aura",
+      "tribe": [
         "dragonoide",
         "dragao"
       ],

@@ -117,9 +117,9 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 
 ## Espécies
 
-- Uma unidade pode ter uma ou mais **espécies** (ex.: Ronan é Dragonoide, Humano e Dragão), no campo `"species"` do JSON. Os nomes ficam em `species` no `cards.json`. Algumas cartas não têm espécie.
+- Uma unidade pode ter uma ou mais **espécies** (ex.: Ronan é Dragonoide, Humano e Dragão), no campo `"tribe"` do JSON. Os nomes ficam em `tribe` no `cards.json`. Algumas cartas não têm espécie.
 - A espécie aparece numa faixa logo acima do nome, e também no texto completo.
-- Efeitos de busca no deck podem filtrar por espécie (`"species": "merfolk"`). É a base para sinergias de tribo.
+- Efeitos de busca no deck podem filtrar por espécie (`"tribe": "merfolk"`). É a base para sinergias de tribo.
 
 ## Keywords
 
@@ -240,7 +240,7 @@ Não são gatilhos automáticos: o dono decide quando usar. O custo em Momentum 
 - **Transformar (n):** é um tipo específico de ativável. Só pode ser usado na sua Fase Principal com a pilha vazia. A unidade vira a carta indicada no mesmo lugar (mantém dano e equipamento) e o Ao Entrar da nova forma dispara. A unidade transformada **não fica com enjoo de invocação**: pode atacar e ativar na hora. **Não usa a pilha**, então não pode ser anulado. Exemplo: Alexa Neruvya, _Transformar (8): Alexa Neruvya Primordial._
   | Aliado Morre | Outra unidade que você controla **morre**, mesmo que volte na hora (Revivente, Fênix) ou seja a Encarnação voltando ao Santuário. A que morreu não ativa o próprio efeito (para isso existe Ao Morrer). Sacrifício conta. Um efeito pode ser "exceto dano de combate" (`not_in_combat`) ou "exceto fichas" (`not_token`): não dispara se a morte vem do dano de combate / se quem morreu era uma ficha (ex.: Cientista da Morte). |
   | (qualquer gatilho) | Um efeito pode ter "uma vez por turno" (`once_per_turn`): o limite é por unidade e reinicia a cada turno, de qualquer jogador (ex.: Diabrete Sombrio). |
-  | Constante | Sempre, enquanto a unidade está em campo (só em campo; reduções de custo não são Constante). Também são Constante: o bônus de espécie de outra unidade aliada (`species_aura`) e a Armadura por feitiços no cemitério (`graveyard_armor`). Não dispara: é recalculado a cada mudança de estado (ex.: Jeff The Death recebe +1/+1 por unidade no cemitério do dono; o dano sofrido continua valendo se o bônus encolher). |
+  | Constante | Sempre, enquanto a unidade está em campo (só em campo; reduções de custo não são Constante). Também são Constante: o bônus de espécie de outra unidade aliada (`tribe_aura`) e a Armadura por feitiços no cemitério (`graveyard_armor`). Não dispara: é recalculado a cada mudança de estado (ex.: Jeff The Death recebe +1/+1 por unidade no cemitério do dono; o dano sofrido continua valendo se o bônus encolher). |
 
 Alvos de gatilhos que não pedem escolha do jogador: `self`, `opposed_unit` (a unidade do outro lado do desafio, ou a fonte do dano), `attack_target` (em Ao Atacar: a unidade desafiada, ou o Líder inimigo), `all_ally_units`, `other_ally_units` (todas as suas outras unidades, sem a fonte), `all_units` (ambos os lados; o efeito de dano aceita `ally_reduce` para reduzir o dano em aliados de um elemento), `random_ally_unit`, `random_other_ally_unit`, `random_enemy_unit`, `random_enemy_and_adjacent` (uma unidade inimiga aleatória e as adjacentes), `all_enemy_units`, `enemy_leader`, `own_leader` e `both_leaders` (em efeitos de compra, cada líder alvo compra). Só Ao Jogar e Ao Entrar podem usar alvo escolhido pelo jogador.
 

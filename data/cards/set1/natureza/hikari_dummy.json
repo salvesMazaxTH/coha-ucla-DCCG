@@ -5,7 +5,7 @@
   "rarity": "common",
   "token": true,
   "inert": true,
-  "species": [
+  "tribe": [
     "construto"
   ],
   "essence": "natureza",

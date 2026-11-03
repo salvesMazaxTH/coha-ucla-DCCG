@@ -985,7 +985,7 @@ func _draw_live_art_overlays(look: Dictionary, pulse: float, face_origin: Vector
 		draw_colored_polygon(_art_window, Color("#2a0a4a", 0.28 + 0.08 * sin(_t * 3.2)))
 		_doom_badge(Vector2(art.end.x - 11 * s, art.position.y + 11 * s), 10 * s, s)
 
-## Layer 4 (still): keywords, species, name, rules panel, seals and the stat gems.
+## Layer 4 (still): keywords, tribe, name, rules panel, seals and the stat gems.
 func _draw_lettering_and_gems(look: Dictionary) -> void:
 	var s: float = look["s"]
 	var cd: Dictionary = look["cd"]
@@ -995,28 +995,28 @@ func _draw_lettering_and_gems(look: Dictionary) -> void:
 	var art: Rect2 = look["art"]
 	_kw_badges(art, cd, s)
 
-	# species strip on the bottom edge of the art, right above the name plate
-	var custom_species_display := not String(cd.get("species_display", "")).strip_edges().is_empty()
-	var sp_s := CardDB.species_and_element_label(cd).to_upper() # species + element, as lettering (no badge)
+	# tribe strip on the bottom edge of the art, right above the name plate
+	var custom_tribe_display := not String(cd.get("tribe_display", "")).strip_edges().is_empty()
+	var sp_s := CardDB.tribe_and_element_label(cd).to_upper() # tribe + element, as lettering (no badge)
 	if sp_s != "":
 		var spf := UITheme.font("bold")
 		var sp_fs := _fit(spf, sp_s, 8.0 * s, art.size.x - 16 * s)
 		var sp_w := spf.get_string_size(sp_s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(sp_fs)).x + 10 * s
 		var strip := Rect2(Vector2((_face_size.x - sp_w) / 2, (92.5 if full_art else 90.5) * s), Vector2(sp_w, 11 * s))
-		if not full_art: # over a full-card art the species is just lettering on the shaded art, no pill
+		if not full_art: # over a full-card art the tribe is just lettering on the shaded art, no pill
 			var strip_fill := Color(0, 0, 0, 0.62)
 			var strip_outline := Color(trim, 0.45)
 			var strip_width := 0.8 * s
-			if custom_species_display:
+			if custom_tribe_display:
 				strip_fill = Color("#153b4a", 0.94)
 				strip_outline = Color("#9ceaff", 0.95)
 				strip_width = 1.3 * s
 			_rrect_fill(strip, 3 * s, strip_fill)
 			_rrect_line(strip, 3 * s, strip_outline, strip_width)
-		var species_text_color := Color("#e9dcc0")
-		if custom_species_display:
-			species_text_color = Color("#d3f5ff")
-		_text(spf, sp_s, Vector2(_face_size.x / 2, strip.get_center().y + sp_fs * 0.36), sp_fs, species_text_color)
+		var tribe_text_color := Color("#e9dcc0")
+		if custom_tribe_display:
+			tribe_text_color = Color("#d3f5ff")
+		_text(spf, sp_s, Vector2(_face_size.x / 2, strip.get_center().y + sp_fs * 0.36), sp_fs, tribe_text_color)
 
 	if full_art:
 		_draw_full_art_name(cd["name"], s, trim)
@@ -1110,7 +1110,7 @@ func _bright_border_style(style: Dictionary) -> Dictionary:
 
 ## Shading that keeps the lettering readable over a full-card art: a light veil at the top (cost and
 ## essence gems), and a long smooth fade to dark from the middle of the card down, where the name,
-## species and keyword tags are written.
+## tribe and keyword tags are written.
 func _draw_full_art_shading(art: Rect2, s: float) -> void:
 	var shade := Color(0.02, 0.015, 0.03)
 	_window_vgrad(Rect2(art.position, Vector2(art.size.x, 30 * s)), Color(shade, 0.5), Color(shade, 0))

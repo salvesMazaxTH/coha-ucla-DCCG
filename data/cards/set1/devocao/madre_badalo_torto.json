@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "epic",
-  "species": ["humano"],
+  "tribe": ["humano"],
   "essence": "devocao",
   "element": "luz",
   "art": "devocao/madre_badalo_torto.webp",

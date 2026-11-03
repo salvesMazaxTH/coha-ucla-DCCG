@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "epic",
-  "species": ["vampiro"],
+  "tribe": ["vampiro"],
   "essence": "trevas",
   "cost": 7,
   "atk": 6,

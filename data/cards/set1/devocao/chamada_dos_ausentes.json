@@ -17,7 +17,7 @@
       "source": "graveyard",
       "any_of": [
         { "element": "luz" },
-        { "species_any": ["anjo", "celestial", "divindade"] }
+        { "tribe_any": ["anjo", "celestial", "divindade"] }
       ]
     }
   ],

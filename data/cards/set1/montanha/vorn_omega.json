@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "champion",
-  "species": ["robo", "construto"],
+  "tribe": ["robo", "construto"],
   "essence": "montanha",
   "element": "metal",
   "cost": 7,

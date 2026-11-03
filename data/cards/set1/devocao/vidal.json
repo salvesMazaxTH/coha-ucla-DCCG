@@ -4,7 +4,7 @@
   "type": "unit",
   "rarity": "legendary",
   "max_copies": 1,
-  "species": ["divindade"],
+  "tribe": ["divindade"],
   "essence": "devocao",
   "cost": 8,
   "atk": 0,

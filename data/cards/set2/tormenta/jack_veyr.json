@@ -3,8 +3,9 @@
   "set": 2,
   "type": "unit",
   "rarity": "champion",
-  "species": [
-    "humano"
+  "tribe": [
+    "humano",
+    "nuliterrano"
   ],
   "essence": "tormenta",
   "element": "raio",

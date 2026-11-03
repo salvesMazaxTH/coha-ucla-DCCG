@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "common",
-  "species": [
+  "tribe": [
     "humano"
   ],
   "essence": "neutra",
@@ -17,7 +17,7 @@
       "action": "heal_unit",
       "target": "all_ally_units",
       "unit_filter": {
-        "species_any": [
+        "tribe_any": [
           "fera",
           "demihumano"
         ]

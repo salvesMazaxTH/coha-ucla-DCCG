@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "common",
-  "species": ["elemental"],
+  "tribe": ["elemental"],
   "essence": "furia",
   "element": "fogo",
   "cost": 1,

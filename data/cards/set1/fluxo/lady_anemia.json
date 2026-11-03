@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "common",
-  "species": ["vampiro"],
+  "tribe": ["vampiro"],
   "essence": ["fluxo", "trevas"],
   "cost": 2,
   "atk": 3,

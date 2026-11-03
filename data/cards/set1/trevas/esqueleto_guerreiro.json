@@ -4,7 +4,7 @@
   "type": "unit",
   "rarity": "common",
   "token": true,
-  "species": ["morto_vivo"],
+  "tribe": ["morto_vivo"],
   "essence": "trevas",
   "element": "sombra",
   "cost": 1,

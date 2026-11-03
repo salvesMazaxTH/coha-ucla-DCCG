@@ -3,9 +3,10 @@
   "set": 2,
   "type": "unit",
   "rarity": "epic",
-  "species": [
+  "tribe": [
     "dragonoide",
-    "dragao"
+    "dragao",
+    "nuliterrano"
   ],
   "essence": "furia",
   "element": "fogo",
@@ -19,8 +20,8 @@
   "effects": [
     {
       "trigger": "constante",
-      "action": "species_aura",
-      "species": [
+      "action": "tribe_aura",
+      "tribe": [
         "dragonoide",
         "dragao"
       ],

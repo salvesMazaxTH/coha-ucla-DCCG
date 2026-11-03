@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "champion",
-  "species": ["celestial", "divindade"],
+  "tribe": ["celestial", "divindade"],
   "essence": "devocao",
   "cost": 4,
   "atk": 2,

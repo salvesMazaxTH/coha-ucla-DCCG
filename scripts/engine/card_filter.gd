@@ -7,13 +7,13 @@ extends RefCounted
 ##   max_cost, min_cost       printed cost limits (inclusive)
 ##   type, types_any          the card type, or one of several types (a unit-artifact passes as "unit" and as "artifact")
 ##   rarity                   "common" | "epic" | "champion" | "legendary"
-##   species                  the card has this species
-##   species_any              the card has at least one of these species
+##   tribe                  the card has this tribe
+##   tribe_any              the card has at least one of these tribe
 ##   card_ids                 only these named cards
 ##   tags                     the card has ALL of these tags
 ##   tags_any                 the card has at least ONE of these tags
 ##   any_of                   a list of whole filters; the card must pass at least ONE of them (an "or" between
-##                            different kinds of requirement, e.g. element Luz OR species Anjo)
+##                            different kinds of requirement, e.g. element Luz OR tribe Anjo)
 
 static func matches(card_id: String, filter: Dictionary) -> bool:
 	var card_data := CardDB.card(card_id)
@@ -33,10 +33,10 @@ static func matches(card_id: String, filter: Dictionary) -> bool:
 		return false
 	if filter.has("card_ids") and not filter["card_ids"].has(card_id):
 		return false
-	var card_species: Array = card_data.get("species", [])
-	if filter.has("species") and not card_species.has(filter["species"]):
+	var card_tribe: Array = card_data.get("tribe", [])
+	if filter.has("tribe") and not card_tribe.has(filter["tribe"]):
 		return false
-	if filter.has("species_any") and not _shares_any(card_species, filter["species_any"]):
+	if filter.has("tribe_any") and not _shares_any(card_tribe, filter["tribe_any"]):
 		return false
 	var card_tags: Array = card_data.get("tags", [])
 	if filter.has("tags"):

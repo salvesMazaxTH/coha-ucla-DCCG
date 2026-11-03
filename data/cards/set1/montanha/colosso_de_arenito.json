@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "common",
-  "species": ["elemental"],
+  "tribe": ["elemental"],
   "essence": "montanha",
   "element": "pedra",
   "art": "montanha/colosso_de_arenito.webp",

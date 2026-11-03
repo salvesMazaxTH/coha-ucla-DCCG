@@ -3,9 +3,10 @@
   "set": 2,
   "type": "unit",
   "rarity": "epic",
-  "species": [
+  "tribe": [
     "dragonoide",
-    "dragao"
+    "dragao",
+    "nuliterrano"
   ],
   "essence": "furia",
   "element": "fogo",
@@ -23,7 +24,7 @@
       "target": "none",
       "amount": 1,
       "card_filter": {
-        "species_any": ["dragonoide", "dragao"]
+        "tribe_any": ["dragonoide", "dragao"]
       }
     }
   ],

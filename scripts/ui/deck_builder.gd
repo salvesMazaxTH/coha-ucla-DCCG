@@ -1420,7 +1420,7 @@ func _coach_notes() -> Array[Dictionary]:
 	var unrestricted_targeted_removal := 0
 	var unrestricted_global_removal := 0
 	var card_selection := 0
-	var species: Dictionary = {}
+	var tribe: Dictionary = {}
 	var incarnation := _incarnation_id
 	for card_id in _cards:
 		var copies := int(_cards[card_id])
@@ -1443,8 +1443,8 @@ func _coach_notes() -> Array[Dictionary]:
 			units += copies
 			if cost >= 6:
 				late_threats += copies
-		for specie in card.get("species", []):
-			species[String(specie)] = int(species.get(String(specie), 0)) + copies
+		for specie in card.get("tribe", []):
+			tribe[String(specie)] = int(tribe.get(String(specie), 0)) + copies
 		var has_unrestricted_targeted_removal := false
 		var has_unrestricted_global_removal := false
 		var has_card_selection := false
@@ -1539,8 +1539,8 @@ func _coach_notes() -> Array[Dictionary]:
 					notes.append({"text": "Combos precisam de consistência: só %d cartas compram ou selecionam cartas. Procure mais formas de achar suas peças." % card_selection, "color": WARN, "tag": "MÉDIO"})
 			else:
 				var dominant := 0
-				for specie in species:
-					dominant = maxi(dominant, int(species[specie]))
+				for specie in tribe:
+					dominant = maxi(dominant, int(tribe[specie]))
 				if dominant < 8:
 					notes.append({"text": "A sinergia de tribo ainda não apareceu: a espécie mais presente ocupa só %d cartas. Concentre mais o deck numa espécie." % dominant, "color": BAD, "tag": "GRAVE"})
 				elif dominant < 12:

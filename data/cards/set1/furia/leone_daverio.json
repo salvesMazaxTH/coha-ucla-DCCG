@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "champion",
-  "species": ["vampiro"],
+  "tribe": ["vampiro"],
   "essence": "furia",
   "cost": 4,
   "atk": 4,

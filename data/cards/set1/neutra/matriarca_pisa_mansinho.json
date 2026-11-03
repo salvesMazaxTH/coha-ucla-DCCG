@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "epic",
-  "species": [
+  "tribe": [
     "fera",
     "elefante"
   ],
@@ -21,13 +21,13 @@
       "target": "none",
       "amount": 1,
       "card_filter": {
-        "species": "elefante"
+        "tribe": "elefante"
       }
     },
     {
       "trigger": "constante",
-      "action": "species_aura",
-      "species": [
+      "action": "tribe_aura",
+      "tribe": [
         "elefante"
       ],
       "hp": 1,

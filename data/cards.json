@@ -140,8 +140,10 @@
       "text": "O efeito espera uma condição descrita no texto da carta. Quando ela acontece, o efeito dispara sozinho, sem ninguém precisar pagar ou escolher nada."
     }
   },
-  "species": {
+  "tribe": {
     "humano": { "name": "Humano" },
+    "nuliterrano": { "name": "Nuliterrano" },
+    "maginaciano": { "name": "Maginaciano" },
     "dragonoide": { "name": "Dragonoide" },
     "dragao": { "name": "Dragão" },
     "dragao_primordial": { "name": "Dragão Primordial" },
@@ -439,7 +441,7 @@
             "divisor": 2,
             "card_filter": {
               "max_cost": 6,
-              "species": "dragonoide"
+              "tribe": "dragonoide"
             }
           }
         ],
@@ -643,7 +645,7 @@
           {
             "action": "buff",
             "target": "ally_unit",
-            "unit_filter": { "species_any": ["fera", "demihumano"] },
+            "unit_filter": { "tribe_any": ["fera", "demihumano"] },
             "atk": 1,
             "hp": 1
           }
@@ -826,7 +828,7 @@
           {
             "action": "buff",
             "target": "random_other_ally_unit",
-            "only_species": ["planta"],
+            "only_tribe": ["planta"],
             "atk": 0,
             "hp": 1
           }

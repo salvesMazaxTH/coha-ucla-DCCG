@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "common",
-  "species": ["humano"],
+  "tribe": ["humano"],
   "essence": "fluxo",
   "cost": 2,
   "atk": 1,

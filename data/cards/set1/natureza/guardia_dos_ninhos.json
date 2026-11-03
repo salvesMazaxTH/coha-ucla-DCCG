@@ -3,7 +3,7 @@
   "set": 1,
   "type": "unit",
   "rarity": "epic",
-  "species": ["humano", "druida"],
+  "tribe": ["humano", "druida"],
   "essence": "natureza",
   "element": "vegetal",
   "cost": 4,
@@ -17,7 +17,7 @@
       "action": "buff",
       "temp": true,
       "target": "other_ally_units",
-      "only_species": ["planta"],
+      "only_tribe": ["planta"],
       "atk": 1,
       "hp": 1
     }
