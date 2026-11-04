@@ -7,7 +7,7 @@
   "element": "metal",
   "cost": 4,
   "atk": 2,
-  "hp": 4,
+  "hp": 5,
   "keywords": [],
   "effects": [{ "trigger": "on_ally_death", "action": "inherit_equipment", "target": "self", "only_if_unequipped": true }],
   "activated": {

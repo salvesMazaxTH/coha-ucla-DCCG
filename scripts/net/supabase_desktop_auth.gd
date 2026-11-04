@@ -22,7 +22,7 @@ const REFRESH_MARGIN := 60
 
 var project_url := ""
 var publishable_key := ""
-var state: Dictionary = {"ready": true, "session_checked": false, "signed_in": false, "user": {}, "profile": {}, "decks": [], "error": "", "action": {}}
+var state: Dictionary = {"ready": true, "session_checked": false, "signed_in": false, "user": {}, "profile": {}, "decks": [], "deck_stats": [], "stats_status": "guest", "error": "", "action": {}}
 
 var _session: Dictionary = {} ## access_token, refresh_token, expires_at (unix seconds), user
 var _callback_server: TCPServer
@@ -31,6 +31,7 @@ var _callback_request_text := ""
 var _code_verifier := ""
 var _seconds_waiting_for_browser := 0.0
 var _refreshing := false
+var _stats_refreshing := false
 
 func setup(url: String, key: String) -> void:
 	project_url = url
@@ -101,6 +102,8 @@ func sign_out() -> void:
 	state.user = {}
 	state.profile = {}
 	state.decks = []
+	state.deck_stats = []
+	state.stats_status = "guest"
 	state.error = ""
 	_publish()
 
@@ -184,12 +187,17 @@ func _refresh_session() -> bool:
 	_session = {}
 	state.signed_in = false
 	state.user = {}
+	state.deck_stats = []
+	state.stats_status = "guest"
 	_publish()
 	return false
 
 ## Keeps a token response (from login or refresh) in memory and on disk, and marks us signed in.
 func _store_session(token_response: Dictionary) -> void:
 	var user_data: Dictionary = token_response.get("user", {})
+	if String(state.user.get("id", "")) != String(user_data.get("id", "")):
+		state.deck_stats = []
+		state.stats_status = "loading"
 	var expires_at := float(token_response.get("expires_at", 0))
 	if expires_at <= 0:
 		expires_at = Time.get_unix_time_from_system() + float(token_response.get("expires_in", 3600))
@@ -233,10 +241,17 @@ func _load_session_file() -> Dictionary:
 func refresh_account_data() -> void:
 	if not state.signed_in:
 		return
+	var user_id := String(state.user.get("id", ""))
+	state.stats_status = "loading"
+	_publish()
 	var profile_response := await _send(HTTPClient.METHOD_GET, "/rest/v1/profiles?select=id,username,display_name",
 		null, ["Accept: application/vnd.pgrst.object+json"])
 	var decks_response := await _send(HTTPClient.METHOD_GET,
 		"/rest/v1/decks?select=id,name,content,created_at,updated_at&order=updated_at.desc")
+	var stats_response := await _send(HTTPClient.METHOD_GET,
+		"/rest/v1/deck_match_stats?select=deck_key,games,wins,losses,draws&order=deck_key.asc")
+	if not state.signed_in or String(state.user.get("id", "")) != user_id:
+		return
 	if profile_response.ok:
 		state.profile = profile_response.data
 	else:
@@ -245,7 +260,39 @@ func refresh_account_data() -> void:
 		state.decks = decks_response.data
 	else:
 		state.error = decks_response.error
+	if stats_response.ok:
+		state.deck_stats = stats_response.data
+		state.stats_status = "ready"
+		if String(state.error).begins_with("Não foi possível carregar as estatísticas:"):
+			state.error = ""
+	else:
+		state.deck_stats = []
+		state.stats_status = "error"
+		state.error = "Não foi possível carregar as estatísticas: " + String(stats_response.error)
 	_publish()
+
+## Periodic hub refresh: do not redraw the gallery unless the statistics actually changed.
+func refresh_deck_stats() -> void:
+	if not state.signed_in or _stats_refreshing:
+		return
+	_stats_refreshing = true
+	var user_id := String(state.user.get("id", ""))
+	var response := await _send(HTTPClient.METHOD_GET, "/rest/v1/deck_match_stats?select=deck_key,games,wins,losses,draws&order=deck_key.asc")
+	_stats_refreshing = false
+	if not state.signed_in or String(state.user.get("id", "")) != user_id:
+		return
+	var before := [state.deck_stats, state.stats_status, state.error]
+	if response.ok:
+		state.deck_stats = response.data
+		state.stats_status = "ready"
+		if String(state.error).begins_with("Não foi possível carregar as estatísticas:"):
+			state.error = ""
+	else:
+		state.deck_stats = []
+		state.stats_status = "error"
+		state.error = "Não foi possível carregar as estatísticas: " + String(response.error)
+	if before != [state.deck_stats, state.stats_status, state.error]:
+		_publish()
 
 func save_deck(deck_id: String, deck_name: String, content: Dictionary) -> void:
 	if not state.signed_in:

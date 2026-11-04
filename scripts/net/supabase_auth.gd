@@ -14,7 +14,7 @@ const POLL_INTERVAL := 0.4
 ## network), the entry screen stops waiting and shows its buttons anyway.
 const SESSION_CHECK_TIMEOUT := 6.0
 
-var state: Dictionary = {"ready": false, "session_checked": false, "signed_in": false, "user": {}, "profile": {}, "decks": [], "error": ""}
+var state: Dictionary = {"ready": false, "session_checked": false, "signed_in": false, "user": {}, "profile": {}, "decks": [], "deck_stats": [], "stats_status": "guest", "error": ""}
 var _poll_elapsed := 0.0
 var _seconds_since_start := 0.0
 var _session_check_gave_up := false
@@ -94,6 +94,14 @@ func _apply_new_state(new_state: Dictionary) -> void:
 func is_signed_in() -> bool:
 	return bool(state.get("signed_in", false))
 
+## Kept out of the public state dictionary; used only to authenticate to the match server.
+func match_access_token() -> String:
+	if not is_signed_in():
+		return ""
+	if _desktop_auth:
+		return String(_desktop_auth._session.get("access_token", ""))
+	return str(JavaScriptBridge.eval("window.CSAAuthBridge ? window.CSAAuthBridge.matchAccessToken : ''"))
+
 ## False only during the first moments, while Supabase looks for a saved session.
 func is_session_checked() -> bool:
 	return bool(state.get("session_checked", false))
@@ -115,6 +123,12 @@ func refresh_account_data() -> void:
 		_desktop_auth.refresh_account_data()
 	else:
 		_call_bridge("refreshAccountData", [])
+
+func refresh_deck_stats() -> void:
+	if _desktop_auth:
+		_desktop_auth.refresh_deck_stats()
+	else:
+		_call_bridge("refreshDeckStats", [])
 
 func save_deck(deck_id: String, deck_name: String, content: Dictionary) -> void:
 	if _desktop_auth:

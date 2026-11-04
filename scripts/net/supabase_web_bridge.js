@@ -4,9 +4,11 @@
 	const bridge = {
 		sdkReady: false,
 		client: null,
+		matchAccessToken: "",
+		statsRefreshing: false,
 		// session_checked turns true once Supabase has looked for a saved session (or failed to load),
 		// so the game knows whether to show the entry screen or go straight to the menu.
-		state: { ready: false, session_checked: false, signed_in: false, user: {}, profile: {}, decks: [], error: "", action: {} },
+		state: { ready: false, session_checked: false, signed_in: false, user: {}, profile: {}, decks: [], deck_stats: [], stats_status: "guest", error: "", action: {} },
 		configure(url, key) {
 			if (!this.sdkReady || this.client) return;
 			this.client = window.supabaseCreateClient(url, key, {
@@ -14,6 +16,11 @@
 			});
 			this.state.ready = true;
 			this.client.auth.onAuthStateChange((event, session) => {
+				if ((session?.user?.id || "") !== (this.state.user.id || "")) {
+					this.state.deck_stats = [];
+					this.state.stats_status = session ? "loading" : "guest";
+				}
+				this.matchAccessToken = session?.access_token || "";
 				if (event === "INITIAL_SESSION") this.state.session_checked = true;
 				this.state.signed_in = !!session;
 				this.state.user = session?.user ? {
@@ -27,6 +34,8 @@
 				} else if (!session) {
 					this.state.profile = {};
 					this.state.decks = [];
+					this.state.deck_stats = [];
+					this.state.stats_status = "guest";
 				}
 			});
 		},
@@ -45,14 +54,53 @@
 		},
 		async refreshAccountData() {
 			if (!this.client || !this.state.signed_in) return;
-			const [profileResult, decksResult] = await Promise.all([
+			const userId = this.state.user.id;
+			this.state.stats_status = "loading";
+			const [profileResult, decksResult, statsResult] = await Promise.all([
 				this.client.from("profiles").select("id,username,display_name").single(),
-				this.client.from("decks").select("id,name,content,created_at,updated_at").order("updated_at", { ascending: false })
+				this.client.from("decks").select("id,name,content,created_at,updated_at").order("updated_at", { ascending: false }),
+				this.client.from("deck_match_stats").select("deck_key,games,wins,losses,draws").order("deck_key")
 			]);
+			if (!this.state.signed_in || this.state.user.id !== userId) return;
 			if (profileResult.error) this.state.error = profileResult.error.message;
 			else this.state.profile = profileResult.data || {};
 			if (decksResult.error) this.state.error = decksResult.error.message;
 			else this.state.decks = decksResult.data || [];
+			if (statsResult.error) {
+				this.state.deck_stats = [];
+				this.state.stats_status = "error";
+				this.state.error = "Não foi possível carregar as estatísticas: " + statsResult.error.message;
+			} else {
+				this.state.deck_stats = statsResult.data || [];
+				this.state.stats_status = "ready";
+				if (this.state.error.startsWith("Não foi possível carregar as estatísticas:")) this.state.error = "";
+			}
+		},
+		async refreshDeckStats() {
+			if (!this.client || !this.state.signed_in || this.statsRefreshing) return;
+			this.statsRefreshing = true;
+			const userId = this.state.user.id;
+			try {
+				const result = await this.client.from("deck_match_stats").select("deck_key,games,wins,losses,draws").order("deck_key");
+				if (!this.state.signed_in || this.state.user.id !== userId) return;
+				if (result.error) {
+					this.state.deck_stats = [];
+					this.state.stats_status = "error";
+					this.state.error = "Não foi possível carregar as estatísticas: " + result.error.message;
+				} else {
+					this.state.deck_stats = result.data || [];
+					this.state.stats_status = "ready";
+					if (this.state.error.startsWith("Não foi possível carregar as estatísticas:")) this.state.error = "";
+				}
+			} catch (error) {
+				if (this.state.signed_in && this.state.user.id === userId) {
+					this.state.deck_stats = [];
+					this.state.stats_status = "error";
+					this.state.error = "Não foi possível carregar as estatísticas: " + error.message;
+				}
+			} finally {
+				this.statsRefreshing = false;
+			}
 		},
 		async saveDeck(id, name, content) {
 			if (!this.client || !this.state.signed_in) return this.finishAction("save_deck", null, "Entre com Google para salvar decks.");

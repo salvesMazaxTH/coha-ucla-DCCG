@@ -62,6 +62,7 @@ var sel_deck := "" ## deck picked in the hub (a prebuilt id, or a DeckDB.PLAYER_
 var deck_store: DeckStore ## the player's saved decks (MEUS DECKS), listed in the hub; created on first use
 var incomplete_player_decks := 0 ## saved decks that are not ready to play, so the hub leaves them out
 var _hub_args: Array = [] ## the arguments of the last _show_hub call, to redraw it when the player's decks arrive
+var _hub_stats_refresh_at := -30000
 var hub_hotseat := false ## the deck hub's two-step flow is picking decks for hot-seat (player 1, then player 2) instead of AI
 var hub_scroll: ScrollContainer ## the deck hub's scrolling gallery (null/freed outside the hub)
 var hub_scroll_y := 0 ## how far the gallery was scrolled, kept across the hub's redraws
@@ -726,6 +727,7 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 	table.visible = false
 	_set_tints(Color("#3f7bd9"), Color("#e0572b"), 1.6)
 	_hub_args = [ai, msg, choosing_ai_deck]
+	_refresh_hub_stats_if_due()
 	_refresh_player_decks()
 	# prebuilt decks first, then the player's own (the third section), so the default pick is always a prebuilt deck
 	var ids: Array[String] = DeckDB.available_ids()
@@ -937,6 +939,11 @@ func _on_player_decks_changed() -> void:
 	if is_instance_valid(hub_scroll) and hub_scroll.is_visible_in_tree() and _hub_args.size() == 3:
 		hub_scroll_y = hub_scroll.scroll_vertical
 		_show_hub.call_deferred(_hub_args[0], _hub_args[1], _hub_args[2])
+
+func _refresh_hub_stats_if_due() -> void:
+	if SupabaseAuth.is_signed_in() and Time.get_ticks_msec() - _hub_stats_refresh_at >= 30000:
+		_hub_stats_refresh_at = Time.get_ticks_msec()
+		SupabaseAuth.refresh_deck_stats()
 
 ## Puts the deck gallery back where it was scrolled before the redraw, then makes sure the chosen
 ## deck's tile is in view (e.g. when coming back to the hub with a deck far down the list).
@@ -1204,6 +1211,7 @@ func _deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 		var incarnation_id := DeckDB.resolved_incarnation_id(String(domain_deck["leader"]), String(domain_deck.get("incarnation_id", "")))
 		var domains := DeckDB.domains_in(String(domain_deck["leader"]), domain_deck.get("cards", {}), incarnation_id)
 		DeckLeaderTooltipScript.attach(p, leader_name)
+		_add_deck_tile_stats(p, nm, id)
 		var domain_row := DomainIconRowScript.new().setup(domains, 24.5, 2)
 		domain_row.position = Vector2(8, size.y - 31.0)
 		domain_row.size = Vector2(size.x - 16, 28)
@@ -1226,6 +1234,73 @@ func _deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 	p.mouse_exited.connect(func() -> void:
 		p.create_tween().tween_property(p, "scale", Vector2.ONE, 0.12))
 	return p
+
+## Alternate the name with this account's online record without moving the domain seals.
+func _add_deck_tile_stats(tile: Control, name_label: Label, deck_id: String) -> void:
+	var stats_box := Control.new()
+	stats_box.name = "DeckStats"
+	stats_box.position = name_label.position
+	stats_box.size = name_label.size
+	stats_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stats_box.modulate.a = 0.0
+	tile.add_child(stats_box)
+	var status := String(SupabaseAuth.state.get("stats_status", "guest"))
+	if not SupabaseAuth.is_signed_in():
+		status = "guest"
+	if status != "ready":
+		var message := "ENTRE NA CONTA" if status == "guest" else ("CARREGANDO…" if status == "loading" else "INDISPONÍVEL")
+		var hint := _label(message, 14, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
+		hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		hint.size = stats_box.size
+		stats_box.add_child(hint)
+	else:
+		var record := {}
+		for row in SupabaseAuth.state.get("deck_stats", []):
+			if row is Dictionary and String(row.get("deck_key", "")) == deck_id:
+				record = row
+				break
+		var games := int(record.get("games", 0))
+		var wins := int(record.get("wins", 0))
+		var losses := int(record.get("losses", 0))
+		var draws := int(record.get("draws", 0))
+		tile.tooltip_text = "%s\n%d partidas · %d vitórias · %d derrotas · %d empate%s" % [tile.tooltip_text, games, wins, losses, draws, "" if draws == 1 else "s"]
+		var totals := _label("%d J  ·  %d V  ·  %d D" % [games, wins, losses], 14, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "bold")
+		totals.position = Vector2(0, 0)
+		totals.size = Vector2(stats_box.size.x, 23)
+		stats_box.add_child(totals)
+		var rate_text := "%d%% VITÓRIAS" % roundi(100.0 * wins / games) if games > 0 else "SEM PARTIDAS"
+		if draws > 0:
+			rate_text += " · %d E" % draws
+		var rate := _label(rate_text, 14, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "bold")
+		rate.position = Vector2(0, 23)
+		rate.size = Vector2(stats_box.size.x, 22)
+		stats_box.add_child(rate)
+		var bar := ColorRect.new()
+		bar.name = "ResultsBar"
+		bar.position = Vector2(4, stats_box.size.y - 10)
+		bar.size = Vector2(stats_box.size.x - 8, 7)
+		bar.color = Color("#35343b")
+		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		stats_box.add_child(bar)
+		var win_width := bar.size.x * float(wins) / games if games > 0 else 0.0
+		var loss_width := bar.size.x * float(losses) / games if games > 0 else 0.0
+		for segment in [{"name": "Wins", "x": 0.0, "width": win_width, "color": Color("#58c77d")},
+				{"name": "Losses", "x": win_width, "width": loss_width, "color": Color("#dc5b5b")}]:
+			var rect := ColorRect.new()
+			rect.name = segment.name
+			rect.position.x = segment.x
+			rect.size = Vector2(segment.width, bar.size.y)
+			rect.color = segment.color
+			rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			bar.add_child(rect)
+	tile.tree_entered.connect(func() -> void:
+		var tween := tile.create_tween().set_loops()
+		tween.tween_interval(3.5)
+		tween.tween_property(name_label, "modulate:a", 0.0, 0.45)
+		tween.parallel().tween_property(stats_box, "modulate:a", 1.0, 0.45)
+		tween.tween_interval(3.5)
+		tween.tween_property(name_label, "modulate:a", 1.0, 0.45)
+		tween.parallel().tween_property(stats_box, "modulate:a", 0.0, 0.45))
 
 ## A section divider in the hub gallery: the title on the left and a thin gold line under it.
 func _add_hub_section_title(content: Control, title_text: String, pos: Vector2, width: float) -> void:
@@ -1426,6 +1501,11 @@ func _on_net(m: Dictionary) -> void:
 		"opponent":
 			opp_online = m["connected"]
 			_toast("Oponente reconectou." if opp_online else "Oponente desconectou.")
+		"stats_saved":
+			_hub_stats_refresh_at = Time.get_ticks_msec()
+			SupabaseAuth.refresh_deck_stats()
+		"stats_error":
+			_toast(String(m.get("msg", "Erro ao registrar estatísticas.")))
 		"error":
 			net.forget()
 			online = false
@@ -3061,6 +3141,8 @@ func _hint_nudge() -> void:
 
 func _process(dt: float) -> void:
 	CardView.load_queued_arts()
+	if is_instance_valid(hub_scroll) and not hub_scroll.is_queued_for_deletion() and hub_scroll.is_visible_in_tree():
+		_refresh_hub_stats_if_due()
 	_update_aim()
 	_sync_reaction_arrow()
 	if _fps_counter_visible and is_instance_valid(_fps_counter):

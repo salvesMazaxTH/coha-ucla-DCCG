@@ -16,12 +16,18 @@ extends SceneTree
 ## server -> client: room, start{seat,decks,deck_data,snap} (deck_data holds the contents of the "room:" decks), events{events,snap}, reject{a}, opponent{connected}, error{msg}
 
 const ROOM_TTL := 1800.0 ## seconds an empty room is kept
+const MatchStatsServer = preload("res://scripts/net/match_stats_server.gd")
 
 var server := TCPServer.new()
 var pending: Array = [] ## peers that have not identified yet
 var rooms: Dictionary = {} ## code -> room
+var stats: Node
 
 func _initialize() -> void:
+	stats = MatchStatsServer.new()
+	root.add_child.call_deferred(stats)
+	stats.recorded.connect(_on_stats_recorded)
+	stats.recording_failed.connect(_on_stats_recording_failed)
 	var port := 8061
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0 and String(args[0]).is_valid_int():
@@ -50,6 +56,8 @@ func _process(_delta: float) -> bool:
 			pending.erase(p)
 	for code in rooms.keys():
 		var r: Dictionary = rooms[code]
+		if r.get("stats_retry", false) and Time.get_ticks_msec() >= int(r.get("stats_retry_at", 0)):
+			_record_if_over(r)
 		for seat in 2:
 			var ws: WebSocketPeer = r["peers"][seat]
 			if ws == null:
@@ -64,19 +72,25 @@ func _process(_delta: float) -> bool:
 				var msg = JSON.parse_string(ws.get_packet().get_string_from_utf8())
 				if typeof(msg) == TYPE_DICTIONARY:
 					_handle_room(r, seat, msg)
-		if r["peers"][0] == null and r["peers"][1] == null and Time.get_ticks_msec() - r["idle"] > ROOM_TTL * 1000.0:
+		if not bool(r.get("stats_retry", false)) and r["peers"][0] == null and r["peers"][1] == null and Time.get_ticks_msec() - r["idle"] > ROOM_TTL * 1000.0:
 			rooms.erase(code)
 			DeckDB.clear_custom("%s%s:" % [DeckDB.ROOM_PREFIX, code])
 	return false
 
 func _drain_lobby(ws: WebSocketPeer) -> void:
+	var peer := _pending_peer(ws)
+	if peer.is_empty() or bool(peer.get("identifying", false)):
+		return
 	while ws.get_ready_state() == WebSocketPeer.STATE_OPEN and ws.get_available_packet_count() > 0:
 		var msg = JSON.parse_string(ws.get_packet().get_string_from_utf8())
 		if typeof(msg) != TYPE_DICTIONARY:
 			continue
+		peer["identifying"] = true
 		_handle_lobby(ws, msg)
 		if not pending.any(func(p): return p["ws"] == ws):
 			return # seated: the room loop owns this peer now
+		if bool(peer.get("identifying", false)):
+			return
 
 # ---------------------------------------------------------------- lobby
 
@@ -91,16 +105,35 @@ func _code() -> String:
 	return ""
 
 func _handle_lobby(ws: WebSocketPeer, m: Dictionary) -> void:
+	var peer := _pending_peer(ws)
+	if peer.is_empty():
+		return
+	var identity := {"user_id": "", "deck_key": "", "error": ""}
+	if m.get("t", "") in ["create", "join"] and bool(m.get("account", false)):
+		var access_token := String(m.get("access_token", ""))
+		if access_token.is_empty():
+			_send(ws, {"t": "error", "msg": "Sessão da conta indisponível. Entre novamente."})
+			peer["identifying"] = false
+			return
+		identity = await stats.identify(access_token, String(m.get("deck_key", "")), m.get("deck"))
+		if _pending_peer(ws).is_empty() or ws.get_ready_state() != WebSocketPeer.STATE_OPEN:
+			return
+		if not String(identity.get("error", "")).is_empty():
+			_send(ws, {"t": "error", "msg": identity.error})
+			peer["identifying"] = false
+			return
 	match m.get("t", ""):
 		"create":
 			var code := _code()
 			var accepted := _accept_deck(code, 0, m.get("deck"))
 			if accepted["error"] != "":
 				_send(ws, {"t": "error", "msg": accepted["error"]})
+				peer["identifying"] = false
 				return
 			var deck: String = accepted["id"]
 			var token := _token()
 			rooms[code] = {"g": null, "decks": [deck, ""], "peers": [ws, null],
+				"match_id": Crypto.new().generate_random_bytes(16).hex_encode(), "identities": [identity, {}],
 				"tokens": [token, ""], "idle": Time.get_ticks_msec()}
 			_unpend(ws)
 			_send(ws, {"t": "room", "code": code, "seat": 0, "token": token, "deck": deck})
@@ -109,17 +142,21 @@ func _handle_lobby(ws: WebSocketPeer, m: Dictionary) -> void:
 			var r = rooms.get(code)
 			if r == null:
 				_send(ws, {"t": "error", "msg": "Sala não encontrada."})
+				peer["identifying"] = false
 				return
 			if r["tokens"][1] != "":
 				_send(ws, {"t": "error", "msg": "Sala cheia."})
+				peer["identifying"] = false
 				return
 			var accepted := _accept_deck(code, 1, m.get("deck"))
 			if accepted["error"] != "":
 				_send(ws, {"t": "error", "msg": accepted["error"]})
+				peer["identifying"] = false
 				return
 			var join_deck: String = accepted["id"]
 			var token := _token()
 			r["decks"][1] = join_deck
+			r["identities"][1] = identity
 			r["tokens"][1] = token
 			r["peers"][1] = ws
 			_unpend(ws)
@@ -136,6 +173,7 @@ func _handle_lobby(ws: WebSocketPeer, m: Dictionary) -> void:
 				seat = r["tokens"].find(token)
 			if seat < 0:
 				_send(ws, {"t": "error", "msg": "Sala expirada."})
+				peer["identifying"] = false
 				return
 			var old: WebSocketPeer = r["peers"][seat]
 			if old != null:
@@ -146,6 +184,13 @@ func _handle_lobby(ws: WebSocketPeer, m: Dictionary) -> void:
 			if r["g"] != null:
 				_send_start(r, seat)
 				_send(r["peers"][1 - seat], {"t": "opponent", "connected": true})
+	peer["identifying"] = false
+
+func _pending_peer(ws: WebSocketPeer) -> Dictionary:
+	for peer in pending:
+		if peer["ws"] == ws:
+			return peer
+	return {}
 
 ## A client names its deck either by prebuilt id or by sending the full contents of one of the player's
 ## own decks. Contents are never trusted: DeckDB.check_incoming applies every deck rule, and only then is
@@ -192,11 +237,13 @@ func _handle_room(r: Dictionary, seat: int, m: Dictionary) -> void:
 	var g: GameState = r["g"]
 	if m.get("a", "") == "auto": # a setting, not a move: allowed off-turn, never rejected
 		var ev := g.set_auto_pass(seat, bool(m.get("on", true)))
+		_record_if_over(r)
 		for s in 2:
 			_send(r["peers"][s], {"t": "events", "events": StateView.filter_events(ev, s), "snap": StateView.snapshot(g, s)})
 		return
 	if m.get("a", "") == "pass_all": # PASSAR TUDO is a setting too: it is switched during the opponent's turn, when the seat usually has no priority, so it must not go through the decider check of _apply
 		var pass_all_events := g.pass_rest_of_turn(seat) if bool(m.get("on", true)) else g.cancel_pass_rest_of_turn(seat)
+		_record_if_over(r)
 		for s in 2:
 			_send(r["peers"][s], {"t": "events", "events": StateView.filter_events(pass_all_events, s), "snap": StateView.snapshot(g, s)})
 		return
@@ -204,8 +251,38 @@ func _handle_room(r: Dictionary, seat: int, m: Dictionary) -> void:
 	if events.is_empty():
 		_send(r["peers"][seat], {"t": "reject", "a": m.get("a", "")})
 		return
+	_record_if_over(r)
 	for s in 2:
 		_send(r["peers"][s], {"t": "events", "events": StateView.filter_events(events, s), "snap": StateView.snapshot(g, s)})
+
+func _record_if_over(r: Dictionary) -> void:
+	var g: GameState = r["g"]
+	if g == null or g.phase != "over" or bool(r.get("stats_queued", false)):
+		return
+	if DeckDB.development_mode_enabled():
+		r["stats_queued"] = true
+		return
+	if stats.enqueue(r["match_id"], r["identities"], g.winner):
+		r["stats_queued"] = true
+		r["stats_retry"] = false
+	else:
+		if not bool(r.get("stats_retry", false)):
+			for seat in 2:
+				_send(r["peers"][seat], {"t": "stats_error", "msg": "Não foi possível guardar o resultado; o servidor tentará novamente."})
+		r["stats_retry"] = true
+		r["stats_retry_at"] = Time.get_ticks_msec() + 10000
+
+func _on_stats_recorded(match_id: String) -> void:
+	for r in rooms.values():
+		if r.get("match_id", "") == match_id:
+			for seat in 2:
+				_send(r["peers"][seat], {"t": "stats_saved"})
+
+func _on_stats_recording_failed(match_id: String) -> void:
+	for r in rooms.values():
+		if r.get("match_id", "") == match_id:
+			for seat in 2:
+				_send(r["peers"][seat], {"t": "stats_error", "msg": "Estatísticas pendentes: o servidor tentará novamente."})
 
 func _ints(a) -> Array:
 	var out: Array = []

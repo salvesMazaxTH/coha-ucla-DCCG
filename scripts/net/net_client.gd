@@ -54,10 +54,20 @@ static func deck_payload(deck_id: String) -> Variant:
 		"leader": deck.get("leader", ""), "incarnation_id": deck.get("incarnation_id", ""), "cards": deck.get("cards", {})}
 
 func create(deck: String) -> void:
-	send({"t": "create", "deck": deck_payload(deck)})
+	var credentials := _account_credentials()
+	send({"t": "create", "deck": deck_payload(deck), "deck_key": deck,
+		"account": credentials.account, "access_token": credentials.token})
 
 func join(room_code: String, deck: String) -> void:
-	send({"t": "join", "code": room_code, "deck": deck_payload(deck)})
+	var credentials := _account_credentials()
+	send({"t": "join", "code": room_code, "deck": deck_payload(deck), "deck_key": deck,
+		"account": credentials.account, "access_token": credentials.token})
+
+func _account_credentials() -> Dictionary:
+	var auth := get_tree().root.get_node_or_null("SupabaseAuth")
+	if auth == null or not auth.is_signed_in():
+		return {"account": false, "token": ""}
+	return {"account": true, "token": auth.match_access_token()}
 
 func resume() -> void:
 	want_resume = true
