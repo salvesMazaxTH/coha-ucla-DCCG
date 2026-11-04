@@ -1438,6 +1438,7 @@ func _coach_notes() -> Array[Dictionary]:
 	var expensive := 0 # cost 6+
 	var spells := 0
 	var units := 0
+	var cheap_units := 0
 	var late_threats := 0 # sizeable units that can close a control game
 	var burn := 0
 	var unrestricted_targeted_removal := 0
@@ -1464,6 +1465,8 @@ func _coach_notes() -> Array[Dictionary]:
 			spells += copies
 		if String(card.get("type", "")) == "unit":
 			units += copies
+			if cost <= 2:
+				cheap_units += copies
 			if cost >= 6:
 				late_threats += copies
 		for specie in card.get("tribe", []):
@@ -1520,11 +1523,18 @@ func _coach_notes() -> Array[Dictionary]:
 		notes.append({"text": "Normalmente, recomenda-se ter pelo menos 1 forma de comprar ou selecionar uma carta do deck para a mão; o deck tem %d." % card_selection, "color": WARN, "tag": "MÉDIO"})
 	match _assistant_profile:
 		"aggro":
+			var cheap_for_aggro := cheap
+			var grave_message := "Seu aggro tem poucas jogadas baratas (%d). Sem presença nos turnos iniciais, ele perde seu maior ponto forte."
+			var medium_message := "O aggro já tem alguma presença inicial, mas %d cartas baratas ainda deixam pouco espaço para pressionar cedo."
+			if _assistant_focus == "board":
+				cheap_for_aggro = cheap_units
+				grave_message = "Seu plano de lotar a mesa cedo tem poucas unidades de custo 0 a 2 (%d). Magias e artefatos não ocupam espaços da mesa como unidades."
+				medium_message = "Só %d unidades de custo 0 a 2 podem deixar pouca presença para lotar a mesa cedo; priorize unidades baratas."
 			var cheap_grave_threshold := maxi(8, ceili(total * 0.35))
-			if cheap < cheap_grave_threshold:
-				notes.append({"text": "Seu aggro tem poucas jogadas baratas (%d). Sem presença nos turnos iniciais, ele perde seu maior ponto forte." % cheap, "color": BAD, "tag": "MUITO GRAVE"})
-			elif cheap < maxi(10, ceili(total * 0.45)):
-				notes.append({"text": "O aggro já tem alguma presença inicial, mas %d cartas baratas ainda deixam pouco espaço para pressionar cedo." % cheap, "color": WARN, "tag": "MÉDIO"})
+			if cheap_for_aggro < cheap_grave_threshold:
+				notes.append({"text": grave_message % cheap_for_aggro, "color": BAD, "tag": "MUITO GRAVE"})
+			elif cheap_for_aggro < maxi(10, ceili(total * 0.45)):
+				notes.append({"text": medium_message % cheap_for_aggro, "color": WARN, "tag": "MÉDIO"})
 			if expensive > ceili(total * 0.25):
 				notes.append({"text": "A curva está pesada para aggro: %d cartas custam 6 ou mais. Troque parte delas por pressão cedo." % expensive, "color": WARN, "tag": "MÉDIO"})
 			if _assistant_focus == "burn":

@@ -462,6 +462,32 @@ func _check_deck_builder(m) -> bool:
 	builder.local_deck_path = scratch_path
 	m.layer.add_child(builder)
 	await process_frame
+	var cheap_artifact_id := ""
+	var cheap_unit_id := ""
+	for card_id in CardDB.data()["cards"]:
+		var card: Dictionary = CardDB.card(String(card_id))
+		if int(card.get("cost", 99)) != 2:
+			continue
+		if String(card.get("type", "")) == "artifact" and cheap_artifact_id == "":
+			cheap_artifact_id = String(card_id)
+		elif String(card.get("type", "")) == "unit" and cheap_unit_id == "":
+			cheap_unit_id = String(card_id)
+	if cheap_artifact_id == "" or cheap_unit_id == "":
+		push_error("assistente de deck: catálogo precisa de artefato e unidade de custo 2 para testar aggro")
+		return false
+	builder._assistant_enabled = true
+	builder._assistant_profile = "aggro"
+	builder._assistant_focus = "board"
+	builder._cards = {cheap_artifact_id: 16}
+	var assistant_notes: Array[Dictionary] = builder._coach_notes()
+	if not _assistant_notes_contain(assistant_notes, "poucas unidades de custo 0 a 2 (0)"):
+		push_error("assistente de deck contou 16 artefatos como unidades baratas para aggro de mesa")
+		return false
+	builder._cards = {cheap_artifact_id: 8, cheap_unit_id: 8}
+	assistant_notes = builder._coach_notes()
+	if not _assistant_notes_contain(assistant_notes, "Só 8 unidades de custo 0 a 2"):
+		push_error("assistente de deck não contou só as 8 unidades baratas entre 16 cartas")
+		return false
 	var template: Dictionary = DeckDB.get_deck("obscura_lento")
 	builder._open_editor({"id": "", "name": "Deck de teste", "description": "", "leader": template["leader"], "cards": {}, "problems": []})
 	await process_frame
@@ -494,3 +520,9 @@ func _check_deck_builder(m) -> bool:
 	await process_frame
 	DirAccess.remove_absolute(scratch_path)
 	return true
+
+func _assistant_notes_contain(notes: Array[Dictionary], phrase: String) -> bool:
+	for note in notes:
+		if String(note["text"]).contains(phrase):
+			return true
+	return false
