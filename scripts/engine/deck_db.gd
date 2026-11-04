@@ -10,8 +10,8 @@ const DECK_SIZE := 44
 const MAX_COPIES := 3
 ## Legendary cards default to fewer copies than the rest; a card can still override with "max_copies".
 const MAX_LEGENDARY_COPIES := 2
-## Champions + legendaries together (counting copies) in one deck.
-const MAX_ELITE_CARDS := 20
+## Champions together (counting copies) in one deck.
+const MAX_ELITE_CARDS := 22
 ## Guest cards: cards outside the Leader's domains (neutral ones don't count), of any rarity. A card of
 ## several domains is NOT a guest when at least one of them is the Leader's.
 ## They can come from any domains, in any mix, up to MAX_OFF_ESSENCE. If one domain appears in EVERY
@@ -285,7 +285,7 @@ static func is_deckable(card_id: String, leader_id := "") -> bool:
 
 ## The totals the deck rules are written in, for any {card_id: copies} list under the given Leader:
 ##   total              cards that are drawn (one selected Encarnação copy is not counted)
-##   elite              Champions + Legendaries, counting copies
+##   elite              Champions, counting copies
 ##   off_essence        guest cards, counting copies
 ##   guest_limit        how many guest cards are allowed right now (rises when one domain is in every guest card)
 ##   shared_guest_domain  true when such a domain exists
@@ -303,7 +303,7 @@ static func stats(leader_id: String, cards: Dictionary, selected_incarnation_id 
 		if String(id) == incarnation_id and n > 0:
 			total -= 1 # reserve exactly one physical copy; other copies stay in the draw deck
 		var rarity: String = CardDB.card(id).get("rarity", "")
-		if rarity == "champion" or rarity == "legendary":
+		if rarity == "champion":
 			elite_cards += n
 		var missing := missing_domains(leader_id, id)
 		if not missing.is_empty():
@@ -348,7 +348,7 @@ static func validate_cards(leader_id: String, cards: Dictionary, selected_incarn
 		else:
 			errors.append("%d cartas de fora do domínio do Líder (máximo %d; até %d se todas forem de um mesmo domínio)" % [totals["off_essence"], MAX_OFF_ESSENCE, MAX_OFF_ESSENCE_SINGLE_DOMAIN])
 	if totals["elite"] > MAX_ELITE_CARDS:
-		errors.append("%d Campeões + Lendárias (máximo %d)" % [totals["elite"], MAX_ELITE_CARDS])
+		errors.append("%d Campeões (máximo %d)" % [totals["elite"], MAX_ELITE_CARDS])
 	if totals["total"] != DECK_SIZE:
 		errors.append("deck tem %d cartas fora a Encarnação (precisa de %d)" % [totals["total"], DECK_SIZE])
 	if totals["incarnation"] == 0:

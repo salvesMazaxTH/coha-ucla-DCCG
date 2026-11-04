@@ -1239,7 +1239,7 @@ func _build_meters() -> Control:
 	grid.add_theme_constant_override("h_separation", 16)
 	grid.add_theme_constant_override("v_separation", 6)
 	for definition in [["total", "Cartas", "Cartas que você compra: exatamente %d (sem a Encarnação)." % DeckDB.DECK_SIZE],
-			["elite", "Campeões + Lendárias", "Máximo de %d cartas Campeão ou Lendária juntas." % DeckDB.MAX_ELITE_CARDS],
+			["elite", "Campeões", "Máximo de %d cartas Campeão juntas." % DeckDB.MAX_ELITE_CARDS],
 			["off", "Convidadas", "Cartas de fora do domínio do Líder: até %d, ou até %d se todas forem de um mesmo domínio." % [DeckDB.MAX_OFF_ESSENCE, DeckDB.MAX_OFF_ESSENCE_SINGLE_DOMAIN]],
 			["inc", "Encarnação", "O deck precisa de exatamente 1 Encarnação do Líder."]]:
 		var cell := VBoxContainer.new()

@@ -7744,10 +7744,15 @@ func _test_elite_limits() -> void:
 	var leader: String = DeckDB.get_deck("fogo")["leader"]
 	var base: Dictionary = DeckDB.get_deck("fogo")["cards"].duplicate()
 	check(DeckDB.validate_cards(leader, base).is_empty(), "fogo: legal")
-	# three more champions go over the Campeões + Lendárias cap (the deck has 18 of 20)
+	# fogo has 18 champions; the cap is 22, so four more champion copies still fit
 	base["kael_drath_vulcano"] = 3
-	base["salamandra"] = 2
-	check(not DeckDB.validate_cards(leader, base).filter(func(e): return "Campeões + Lendárias" in e).is_empty(), "21 campeões é ilegal")
+	base["ivan_ignisar"] = 1
+	check(DeckDB.stats(leader, base)["elite"] == 22, "fogo: 22 campeões")
+	check(DeckDB.validate_cards(leader, base).filter(func(e): return "Campeões" in e).is_empty(), "22 campeões é legal")
+	# one more champion copy goes over the cap
+	base["lord_of_the_shadowflame"] = 2
+	check(not DeckDB.validate_cards(leader, base).filter(func(e): return "Campeões" in e).is_empty(), "23 campeões é ilegal")
+	base["lord_of_the_shadowflame"] = 1
 	# legendary default is 2 copies
 	_tcard("t_lenda", 1, 1, [])
 	CardDB.card("t_lenda")["rarity"] = "legendary"
@@ -7941,6 +7946,9 @@ func _test_deck_summon_watches() -> void:
 		g.players[a]["reserve"] = case[3]
 		if case[0] == "campo cheio":
 			while g.has_free_slot(a):
+	# legendaries are not elite: 2 more of them on top of the 22 champions stay legal for the cap
+	base["t_lenda"] = 2
+	check(DeckDB.validate_cards(leader, base).filter(func(e): return "Campeões" in e).is_empty(), "lendárias não entram no limite de campeões")
 				g.players[a]["board"].append(Card.new(g._uid(), "t_one", a, "board"))
 		var watches := g.deck_summon_watches(a)
 		check(watches.size() == 1 and watches[0]["uid"] == ru.uid and watches[0]["fee"] == 2, "vigia do deck (%s): uma entrada para o Rusco, custo 2" % case[0])

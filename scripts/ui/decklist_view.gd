@@ -124,21 +124,15 @@ func _counts_line() -> String:
 			parts.append("%d %s" % [counts_by_type[type], TYPE_NAMES[type]])
 	return " · ".join(parts)
 
-## "20 Elites (8 Lendárias · 12 Campeãs)": champions + legendaries, counting copies (DeckDB.MAX_ELITE_CARDS is the limit).
+## "12 Campeãs": champion copies, the ones the elite limit counts (DeckDB.MAX_ELITE_CARDS is the limit).
 func _elites_line() -> String:
-	var legendary_copies := 0
 	var champion_copies := 0
 	var cards: Dictionary = DeckDB.get_deck(deck_id)["cards"]
 	for card_id in cards:
 		var rarity := String(CardDB.card(card_id).get("rarity", ""))
-		if rarity == "legendary":
-			legendary_copies += int(cards[card_id])
-		elif rarity == "champion":
+		if rarity == "champion":
 			champion_copies += int(cards[card_id])
-	var elite_copies := legendary_copies + champion_copies
-	return "%d %s (%d %s · %d %s)" % [elite_copies, "Elite" if elite_copies == 1 else "Elites",
-			legendary_copies, "Lendária" if legendary_copies == 1 else "Lendárias",
-			champion_copies, "Campeã" if champion_copies == 1 else "Campeãs"]
+	return "%d %s" % [champion_copies, "Campeã" if champion_copies == 1 else "Campeãs"]
 
 ## "Aquática ×20 · Sagrada ×12 · Neutra ×6": how many copies of the deck carry each essence, most
 ## numerous first, each in its own color. Neutral counts as an essence here; a dual card counts for both of its.
