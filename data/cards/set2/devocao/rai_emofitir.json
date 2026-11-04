@@ -7,14 +7,14 @@
   "essence": ["devocao", "trevas"],
   "cost": 8,
   "atk": 5,
-  "hp": 9,
+  "hp": 10,
   "keywords": ["toque_letal"],
+  "banish_what_it_kills": true,
   "art": "devocao/rai_emofitir.webp",
   "effects": [
-    { "trigger": "on_challenge", "action": "banish", "target": "opposed_unit" },
-    { "trigger": "on_challenged", "action": "banish", "target": "opposed_unit" }
+    { "trigger": "on_challenge", "action": "buff", "target": "self", "keywords": ["indestrutivel"], "temp": true }
   ],
-  "text": "Ao Desafiar: bane a unidade desafiada.\nAo Ser Desafiada: bane o atacante.",
+  "text": "Condicional: as unidades que seriam destruídas por esta unidade são banidas em vez disso.\nAo Desafiar: ganha Indestrutível até o fim do turno.",
   "flavor": "Em Maginácia, o rosto dele está nas moedas. Nenhuma das dez partes concorda em ficar.",
   "tags": []
 }

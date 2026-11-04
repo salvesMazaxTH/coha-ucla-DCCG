@@ -1883,7 +1883,7 @@ static func _has_always_on_rule(cd: Dictionary) -> bool:
 
 ## True when the card has an automatic effect that waits for a condition (see the Condicional tag).
 static func _has_conditional_rule(cd: Dictionary) -> bool:
-	if cd.has("lethal_ward") or cd.has("death_ward"):
+	if cd.has("lethal_ward") or cd.has("death_ward") or cd.has("banish_what_it_kills"):
 		return true
 	for e in cd.get("effects", []):
 		if e.has("listen") or (not e.has("trigger") and e.get("action", "") == "cost_reduction"):

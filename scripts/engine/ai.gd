@@ -41,7 +41,10 @@ static func step(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 		"enter_target":
 			var card_data := CardDB.card(g.pending_enter["card_id"])
 			var asked_spec: String = g.pending_enter["spec2"] if g.pending_enter.has("first") else g.pending_enter["spec"]
-			var target := _pick_target(g, p, asked_spec, card_data, int(g.pending_enter["uid"]))
+			# lethal first: the damage goes to the Leader when it is the road to the win, otherwise the usual pick
+			var target := _lethal_enter_target(g, p, card_data, asked_spec, int(g.pending_enter["uid"]))
+			if target == 0:
+				target = _pick_target(g, p, asked_spec, card_data, int(g.pending_enter["uid"]))
 			var events := g.choose_enter_target(p, target)
 			return events if not events.is_empty() else g.choose_enter_target(p, 0)
 		"effect_choice":
@@ -159,11 +162,12 @@ static func _choose_search(g: GameState) -> int:
 	return best_uid
 
 static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
-	# burn that finishes the game goes first, before the Momentum is spent on anything else
-	if g.active == p and g.stack.is_empty() and _burn_plan(g, p) == "lethal":
-		var finisher_events := _cast_face_burn(g, p, held_card_ids)
-		if not finisher_events.is_empty():
-			return finisher_events
+	# the road to lethal comes first, before the Momentum is spent on anything else: burn, Ao Entrar damage,
+	# Rompante and this-turn buffs that, added to the board's hits, finish the enemy Leader
+	if g.active == p and g.stack.is_empty():
+		var lethal_events := _play_toward_lethal(g, p, held_card_ids)
+		if not lethal_events.is_empty():
+			return lethal_events
 	# the untaxed Encarnação goes before the hand: the earlier the champion is out, the more it snowballs
 	if _untaxed_incarnation_should_come_first(g, p):
 		var first_incarnation_events := g.cast_incarnation(p)
@@ -453,8 +457,10 @@ static func _spell_is_worth_it(g: GameState, p: int, card_data: Dictionary) -> b
 	if _dot_only_effects_are_wasted(g, p, effects):
 		return false # every possible target already dies of its markers (or is immune): more would change nothing
 	var temporary_buff := _temporary_buff_effect(card_data)
-	if not temporary_buff.is_empty() and _temporary_buff_beneficiaries(g, p, temporary_buff).is_empty():
-		return false
+	if not temporary_buff.is_empty():
+		var beneficiaries := _temporary_buff_beneficiaries(g, p, temporary_buff)
+		if beneficiaries.is_empty() or _temporary_all_ally_buff_is_wasted_by_sickness(g, p, temporary_buff, beneficiaries):
+			return false
 	for effect in effects:
 		var action: String = effect.get("action", "")
 		if action == "cap_stats" and not _board_reset_is_worth_it(g, p, effect):
@@ -475,6 +481,52 @@ static func _temporary_buff_effect(card_data: Dictionary) -> Dictionary:
 			return effect
 	return {}
 
+## Whether this buff actually applies to `unit`, including its printed target filters.
+static func _temporary_buff_applies_to_unit(effect: Dictionary, unit: Card) -> bool:
+	var unit_filter: Dictionary = effect.get("unit_filter", {})
+	if not unit_filter.is_empty() and not CardFilter.matches(unit.card_id, unit_filter):
+		return false
+	if effect.get("requires_exhausted", false) and not unit.exhausted:
+		return false
+	var card_data := CardDB.card(unit.card_id)
+	if (effect.get("not_rarity", []) as Array).has(card_data.get("rarity", "")):
+		return false
+	var tribes: Array = card_data.get("tribe", [])
+	var only_tribe: Array = effect.get("only_tribe", [])
+	if not only_tribe.is_empty():
+		var shares_tribe := false
+		for tribe in only_tribe:
+			if tribes.has(tribe):
+				shares_tribe = true
+				break
+		if not shares_tribe:
+			return false
+	var only_rarity: Array = effect.get("only_rarity", [])
+	return only_rarity.is_empty() or only_rarity.has(card_data.get("rarity", ""))
+
+## A unit with summoning sickness can use a temporary buff only if it grants Ímpeto and opens a legal
+## challenge against an enemy unit. Ímpeto never lets it hit the Leader on the turn it enters.
+static func _temporary_buff_allows_sick_unit_trade(g: GameState, unit: Card, effect: Dictionary) -> bool:
+	if not unit.sick:
+		return true
+	var keywords: Array = effect.get("keywords", [])
+	if not keywords.has("impeto"):
+		return false
+	var granted: Array = []
+	for keyword in keywords:
+		if not unit.keywords.has(keyword):
+			granted.append(keyword)
+	unit.keywords.append_array(granted)
+	var can_trade := false
+	for target_uid in g.attack_targets(unit):
+		var target := g.find_unit(int(target_uid))
+		if target != null and target.owner != unit.owner:
+			can_trade = true
+			break
+	for keyword in granted:
+		unit.keywords.erase(keyword)
+	return can_trade
+
 ## Allies that would really use a this-turn buff: it must be our own turn and the unit must have something
 ## to hit once it has the keywords the buff grants (Ímpeto lets a fresh unit challenge, never go face).
 static func _temporary_buff_beneficiaries(g: GameState, p: int, effect: Dictionary) -> Array:
@@ -482,6 +534,8 @@ static func _temporary_buff_beneficiaries(g: GameState, p: int, effect: Dictiona
 	if g.active != p:
 		return beneficiaries
 	for unit: Card in g.players[p]["board"]:
+		if not _temporary_buff_applies_to_unit(effect, unit):
+			continue
 		var granted: Array = []
 		for keyword in effect.get("keywords", []):
 			if not unit.keywords.has(keyword):
@@ -490,18 +544,44 @@ static func _temporary_buff_beneficiaries(g: GameState, p: int, effect: Dictiona
 		var has_target := not g.attack_targets(unit).is_empty()
 		for keyword in granted:
 			unit.keywords.erase(keyword)
-		if has_target:
+		if has_target and _temporary_buff_allows_sick_unit_trade(g, unit, effect):
 			beneficiaries.append(unit)
 	return beneficiaries
+
+## A broad temporary buff also reaches sick allies, so it is held when any affected sick ally cannot trade with it.
+static func _temporary_all_ally_buff_is_wasted_by_sickness(g: GameState, p: int, effect: Dictionary, beneficiaries: Array) -> bool:
+	if effect.get("target", "") != "all_ally_units":
+		return false
+	var affected_count := 0
+	var has_sick_nonbeneficiary := false
+	for unit: Card in g.players[p]["board"]:
+		if not _temporary_buff_applies_to_unit(effect, unit):
+			continue
+		affected_count += 1
+		if unit.sick and not beneficiaries.has(unit):
+			has_sick_nonbeneficiary = true
+	return affected_count > 1 and has_sick_nonbeneficiary
+
+## Preview pending effects before judging a heal: the AI can get priority again while its previous heal is
+## still on the stack, before the Leader's Vida has actually changed.
+static func _healing_projection(g: GameState) -> GameState:
+	if g.stack.is_empty():
+		return g
+	var preview := g.preview_copy()
+	if preview == null:
+		return g
+	_resolve_preview_stack(preview)
+	return preview
 
 ## A heal needs enough missing life to be worth the card: all but 1 point of it must land, unless the
 ## own Leader is in danger (then any real heal counts).
 static func _heal_is_worth_it(g: GameState, p: int, effect: Dictionary) -> bool:
 	var amount := int(effect.get("amount", 99))
-	var leader_missing: int = g.players[p]["leader_max"] - g.players[p]["leader_hp"]
+	var projected := _healing_projection(g)
+	var leader_missing: int = projected.players[p]["leader_max"] - projected.players[p]["leader_hp"]
 	var most_missing := 0
 	var total_unit_missing := 0
-	for unit: Card in g.players[p]["board"]:
+	for unit: Card in projected.players[p]["board"]:
 		most_missing = maxi(most_missing, unit.damage)
 		total_unit_missing += unit.damage
 	var target: String = effect.get("target", "")
@@ -511,7 +591,7 @@ static func _heal_is_worth_it(g: GameState, p: int, effect: Dictionary) -> bool:
 		most_missing = total_unit_missing
 	elif target == "ally_or_own_leader":
 		most_missing = maxi(most_missing, leader_missing)
-	var leader_in_danger: bool = g.players[p]["leader_hp"] <= 8 and leader_missing >= 2 and target != "all_ally_units"
+	var leader_in_danger: bool = projected.players[p]["leader_hp"] <= 8 and leader_missing >= 2 and target != "all_ally_units"
 	return most_missing >= maxi(1, amount - 1) or leader_in_danger
 
 ## True when the AI should cast its Encarnação right now, before spending Momentum on the hand.
@@ -1126,6 +1206,9 @@ static func _unit_value(g: GameState, unit: Card) -> int:
 ## Don't spend a single-target buff on a throwaway body unless it changes a high-value combat or saves
 ## the Leader from a lethal attack. Broad all-unit buffs are handled separately and aren't filtered here.
 static func _buff_target_is_worth_it(g: GameState, unit: Card, effect: Dictionary) -> bool:
+	if (effect.get("temp", false) or int(effect.get("critico_temp", 0)) > 0) \
+			and not _temporary_buff_allows_sick_unit_trade(g, unit, effect):
+		return false
 	var atk_gain := int(effect.get("atk", 0)) + int(effect.get("atk_temp", 0))
 	var hp_gain := int(effect.get("hp", 0)) + int(effect.get("hp_temp", 0))
 	var enemy: int = g.opponent(unit.owner)
@@ -1306,6 +1389,313 @@ static func _cast_face_burn(g: GameState, p: int, held_card_ids: Array) -> Array
 			return events
 	return []
 
+## ---------------------------------------------------------------------------------------------------------
+## Lethal planner. Top priority of the main phase, ahead of trades and value plays:
+##   1. add up what the board already hits the enemy Leader for (_face_strike_total);
+##   2. if that is not enough, the shortfall is "enemy Leader Vida - board damage";
+##   3. look in the hand for everything that can add face damage this turn (burn spells, Ao Entrar damage
+##      aimed at "any", Rompante units, temporary +ATK buffs) and find the cheapest group of cards that
+##      covers the shortfall inside the Momentum we have;
+##   4. if such a group exists, play it (damage goes to the face, never to a unit); if not, the planner
+##      stays out of the way and the usual trade/value logic runs.
+## ---------------------------------------------------------------------------------------------------------
+
+## True when a tapped enemy Provocação would force a fresh Rompante unit to challenge it instead of hitting the face.
+static func _enemy_guard_closes_face(g: GameState, p: int) -> bool:
+	for enemy_unit: Card in g.players[g.opponent(p)]["board"]:
+		if enemy_unit.exhausted and g.has_kw(enemy_unit, "provocacao") and not g.has_kw(enemy_unit, "eterea") \
+				and not enemy_unit.is_frozen() and not enemy_unit.is_stunned():
+			return true
+	return false
+
+## Our units that can hit the enemy Leader this turn (what a temporary +ATK buff would actually pump).
+static func _face_capable_attackers(g: GameState, p: int) -> Array:
+	var enemy_leader_uid: int = GameState.LEADER_UID[g.opponent(p)]
+	var attackers: Array = []
+	for unit: Card in g.players[p]["board"]:
+		if g.attack_targets(unit).has(enemy_leader_uid):
+			attackers.append(unit)
+	return attackers
+
+## Damage a card of the hand adds to the enemy Leader this turn (0 when it adds none):
+##   - spell: its burn damage, plus the +ATK of a this-turn buff times the attackers that would use it;
+##   - unit: Ao Entrar damage that can be aimed at the Leader, plus (Rompante, face not guarded) its own
+##     attack and the damage it deals to the Leader when attacking.
+static func _face_damage_of_hand_card(g: GameState, p: int, card_data: Dictionary, face_attackers: Array) -> int:
+	var total := 0
+	if card_data.get("type", "") == "spell":
+		total += _face_burn_damage(card_data)
+		var temporary_buff := _temporary_buff_effect(card_data)
+		if not temporary_buff.is_empty() and not face_attackers.is_empty():
+			var beneficiaries := _temporary_buff_beneficiaries(g, p, temporary_buff)
+			if not _temporary_all_ally_buff_is_wasted_by_sickness(g, p, temporary_buff, beneficiaries):
+				var pumped_attackers := 0
+				for unit: Card in beneficiaries:
+					if face_attackers.has(unit):
+						pumped_attackers += 1
+						if temporary_buff.get("target", "") != "all_ally_units":
+							break
+				total += int(temporary_buff.get("atk", 0)) * pumped_attackers
+		return total
+	if card_data.get("type", "") != "unit":
+		return 0
+	for effect in card_data.get("effects", []):
+		if effect.get("trigger", "") == "on_enter" and effect.get("action", "") == "damage" \
+				and effect.get("target", "") in ["any", "enemy_leader"]:
+			total += int(effect.get("amount", 0))
+	if card_data.get("keywords", []).has("rompante") and not _enemy_guard_closes_face(g, p):
+		total += int(card_data.get("atk", 0))
+		for effect in card_data.get("effects", []):
+			if effect.get("trigger", "") == "on_attack" and effect.get("action", "") == "damage" \
+					and effect.get("target", "") == "enemy_leader":
+				total += int(effect.get("amount", 0))
+	return total
+
+## The buff of an ability that can make an attacker hit harder this turn (+ATK to itself, to one ally or to all of
+## them), or {} when the ability has none.
+static func _attack_buff_effect(effects: Array) -> Dictionary:
+	for effect in effects:
+		if effect.get("action", "") != "buff" or not effect.get("target", "") in ["self", "ally_unit", "all_ally_units"]:
+			continue
+		var tribe_bonus: Dictionary = effect.get("tribe_temp_bonus", {})
+		if int(effect.get("atk", 0)) > 0 or int(tribe_bonus.get("atk", 0)) > 0:
+			return effect
+	return {}
+
+## Attack one buff adds to one unit: its "atk" (times the artifacts in play for "per": "own_artifacts") plus the
+## bonus of the right tribe (Drake's power). A buff that scales with something else is not counted: not a promise.
+static func _attack_gain_of_buff(g: GameState, p: int, buff: Dictionary, unit: Card) -> int:
+	var per: String = buff.get("per", "")
+	var multiplier := 1
+	if per == "own_artifacts":
+		multiplier = g.artifact_count(p)
+	elif per != "":
+		multiplier = 0
+	var gain := int(buff.get("atk", 0)) * multiplier
+	var tribe_bonus: Dictionary = buff.get("tribe_temp_bonus", {})
+	var unit_tribes: Array = CardDB.card(unit.card_id).get("tribe", [])
+	for tribe in tribe_bonus.get("tribe", []):
+		if unit_tribes.has(tribe):
+			gain += int(tribe_bonus.get("atk", 0))
+			break
+	return gain
+
+## Face damage an Ao Ativar (of a unit or artifact) or the Leader power adds this turn. `activator` is that unit or
+## artifact, null for the Leader power. Answer: {"damage": int, "aim": int, "direct": bool}, or {} when it adds none.
+##   - direct damage that can be aimed at the enemy Leader: "aim" is the Leader, "direct" is true;
+##   - an +ATK buff: its gain on the best attacker that can reach the face ("aim" is that unit, 0 when it needs no
+##     aim); a unit that taps itself to activate gives up its own attack, which is taken off the gain.
+## Abilities that cost Vida, or make a unit pay (discard / sacrifice), are left out: too fiddly to promise in a plan.
+static func _face_gain_of_ability(g: GameState, p: int, ability: Dictionary, activator: Card, face_attackers: Array) -> Dictionary:
+	if ability.has("extra_cost") or ability.has("life_cost"):
+		return {}
+	var effects: Array = ability.get("effects", [])
+	var enemy_leader_uid: int = GameState.LEADER_UID[g.opponent(p)]
+	var activator_uid := activator.uid if activator != null else 0
+	var aim_spec := g.target_spec(effects)
+	var direct_damage := 0
+	for effect in effects:
+		if effect.get("action", "") == "damage" and effect.get("target", "") in ["any", "enemy_leader"]:
+			direct_damage += int(effect.get("amount", 0))
+	if direct_damage > 0 and aim_spec in ["any", "enemy_leader"] \
+			and g.valid_targets(p, aim_spec, activator_uid, false, effects).has(enemy_leader_uid):
+		return {"damage": direct_damage, "aim": enemy_leader_uid, "direct": true}
+	var buff := _attack_buff_effect(effects)
+	if buff.is_empty() or face_attackers.is_empty():
+		return {}
+	var taps_itself: bool = ability.get("exhaust", false) and activator != null
+	var best_gain := 0
+	var best_aim := 0
+	match buff.get("target", ""):
+		"self":
+			if activator != null and not taps_itself and face_attackers.has(activator):
+				best_gain = _attack_gain_of_buff(g, p, buff, activator)
+				best_aim = 0
+		"all_ally_units":
+			for unit: Card in face_attackers:
+				if buff.has("unit_filter") and not CardFilter.matches(unit.card_id, buff["unit_filter"]):
+					continue
+				best_gain += _attack_gain_of_buff(g, p, buff, unit)
+		"ally_unit":
+			var valid_aims: Array = g.valid_targets(p, aim_spec, activator_uid, false, effects)
+			for unit: Card in face_attackers:
+				if not valid_aims.has(unit.uid) or (taps_itself and unit == activator):
+					continue
+				var gain := _attack_gain_of_buff(g, p, buff, unit)
+				if gain > best_gain:
+					best_gain = gain
+					best_aim = unit.uid
+	if taps_itself and face_attackers.has(activator):
+		best_gain -= g.strike_power_of(activator) # it turns to activate, so it no longer attacks
+	if best_gain <= 0:
+		return {}
+	return {"damage": best_gain, "aim": best_aim, "direct": false}
+
+## Every ability the player could activate for face damage right now: the Leader power, then the Ao Ativar of the
+## units and artifacts in play. Same entry shape as a hand card (see _affordable_face_lines), with "activator"
+## (the unit/artifact; null for the Leader power) in place of "card".
+static func _face_ability_sources(g: GameState, p: int, face_attackers: Array) -> Array:
+	var sources: Array = []
+	if g.can_use_ability(p):
+		var power: Dictionary = CardDB.leader(g.players[p]["leader_id"])["ability"]
+		var power_gain := _face_gain_of_ability(g, p, power, null, face_attackers)
+		if not power_gain.is_empty():
+			sources.append(_ability_source(g, power, null, power_gain))
+	var holders: Array = g.players[p]["board"] + g.players[p]["relics"]
+	for holder: Card in holders:
+		var ability: Dictionary = holder.data().get("activated", {})
+		if ability.is_empty() or not g.can_activate(p, holder.uid):
+			continue
+		var gain := _face_gain_of_ability(g, p, ability, holder, face_attackers)
+		if not gain.is_empty():
+			sources.append(_ability_source(g, ability, holder, gain))
+	return sources
+
+static func _ability_source(g: GameState, ability: Dictionary, activator: Card, gain: Dictionary) -> Dictionary:
+	return {
+		"card": null,
+		"activator": activator,
+		"aim": int(gain["aim"]),
+		"damage": int(gain["damage"]),
+		"cost": int(ability.get("cost", 0)),
+		"paid_by_reserve": g.reserve_pays(ability),
+		"needs_slot": false,
+		"rank": 1 if gain["direct"] else 2,
+	}
+
+## Every group of things that adds face damage and can be paid this turn: hand cards (plain Momentum, the Reserva for
+## Rápido/Instantâneo spells, free field slots for units), the Leader power and the Ao Ativar of what is in play.
+## Each line: {"steps": Array[Dictionary], "damage": int, "cost": int}; a step is a source as built here or by
+## _face_ability_sources: {"card" (hand card, or null for an ability), "activator", "aim", "damage", "cost",
+## "paid_by_reserve", "needs_slot", "rank"}. "rank" is the order to do things in (0 unit, 1 direct damage, 2 buff).
+static func _affordable_face_lines(g: GameState, p: int, held_card_ids: Array = []) -> Array:
+	var face_attackers := _face_capable_attackers(g, p)
+	var sources: Array = []
+	for card: Card in g.players[p]["hand"]:
+		var card_data := CardDB.card(card.card_id)
+		if held_card_ids.has(card.card_id) or g.is_dud(p, card_data) or not g.can_play(p, card.uid):
+			continue
+		if card_data.get("cost_sacrifice", false) or card_data.has("extra_cost"):
+			continue # another unit pays for it: too fiddly to promise in a plan
+		var damage := _face_damage_of_hand_card(g, p, card_data, face_attackers)
+		if damage <= 0:
+			continue
+		var card_rank := 0
+		if card_data.get("type", "") != "unit":
+			card_rank = 1 if _is_face_burn(card_data) else 2
+		sources.append({
+			"card": card,
+			"activator": null,
+			"aim": 0,
+			"damage": damage,
+			"cost": g.cost_of(p, card_data, card),
+			"paid_by_reserve": card_data.get("type", "") == "spell" and g.reserve_pays(card_data),
+			"needs_slot": g.takes_field_slot(card_data, false),
+			"rank": card_rank,
+		})
+	sources.append_array(_face_ability_sources(g, p, face_attackers))
+	var plain_budget := g.budget(p, false)
+	var reserve := int(g.players[p]["reserve"])
+	var free_slots: int = GameState.BOARD_LIMIT - g.slots_used(p) - int(g.players[p]["frozen_slots"])
+	var lines: Array = []
+	for subset in range(1, 1 << sources.size()): # a hand holds a handful of useful cards, so every subset is cheap to try
+		var steps: Array = []
+		var damage_sum := 0
+		var slow_cost := 0
+		var reserve_cost := 0
+		var slots_needed := 0
+		for i in sources.size():
+			if not subset & (1 << i):
+				continue
+			var source: Dictionary = sources[i]
+			steps.append(source)
+			damage_sum += int(source["damage"])
+			if source["paid_by_reserve"]:
+				reserve_cost += int(source["cost"])
+			else:
+				slow_cost += int(source["cost"])
+			if source["needs_slot"]:
+				slots_needed += 1
+		if slots_needed > free_slots or slow_cost + maxi(0, reserve_cost - reserve) > plain_budget:
+			continue
+		lines.append({"steps": steps, "damage": damage_sum, "cost": slow_cost + reserve_cost})
+	return lines
+
+## The most face damage the hand, the Leader power and the Ao Ativar in play could still add this turn (0 when none reaches the face).
+static func _hand_face_reach(g: GameState, p: int, held_card_ids: Array = []) -> int:
+	var best := 0
+	for line: Dictionary in _affordable_face_lines(g, p, held_card_ids):
+		best = maxi(best, int(line["damage"]))
+	return best
+
+## The steps (in the order to do them: hand cards to play, abilities to activate) that close the game this turn
+## together with the board, or [] when the board already does it, or when no affordable group covers the shortfall.
+## Among the groups that do, the one with the fewest steps wins, then the cheapest: the rest of the Momentum stays
+## free for other plays. A step is a source of _affordable_face_lines.
+static func _lethal_line(g: GameState, p: int, held_card_ids: Array = []) -> Array:
+	var shortfall: int = g.players[g.opponent(p)]["leader_hp"] - _face_strike_total(g, p)
+	if shortfall <= 0:
+		return [] # the attackers alone are lethal: nothing to buy, just swing
+	var best_line: Dictionary = {}
+	for line: Dictionary in _affordable_face_lines(g, p, held_card_ids):
+		if int(line["damage"]) < shortfall:
+			continue
+		if best_line.is_empty() or line["steps"].size() < best_line["steps"].size() \
+				or (line["steps"].size() == best_line["steps"].size() and int(line["cost"]) < int(best_line["cost"])):
+			best_line = line
+	if best_line.is_empty():
+		return []
+	var ordered: Array = best_line["steps"].duplicate()
+	# units go first (their Ao Entrar and Rompante change the board), direct damage next, buffs last (they pump what is out by then)
+	ordered.sort_custom(func(a: Dictionary, b: Dictionary): return int(a["rank"]) < int(b["rank"]))
+	return ordered
+
+## Does the next step of the lethal line, if there is a line. [] when there is nothing to do (the usual logic runs).
+static func _play_toward_lethal(g: GameState, p: int, held_card_ids: Array) -> Array:
+	var enemy_leader_uid: int = GameState.LEADER_UID[g.opponent(p)]
+	for step: Dictionary in _lethal_line(g, p, held_card_ids):
+		var events: Array = []
+		var card: Card = step["card"]
+		if card == null:
+			events = _run_ability_step(g, p, step)
+		else:
+			var card_data := CardDB.card(card.card_id)
+			if card_data.get("type", "") == "spell" and _is_face_burn(card_data):
+				if g.valid_targets(p, g.card_spec(card_data)).has(enemy_leader_uid):
+					events = g.play_card(p, card.uid, enemy_leader_uid, 0)
+			else:
+				events = _try_play_card(g, p, card)
+		if not events.is_empty():
+			return events
+	return []
+
+## Activates the ability of a lethal-line step: the Leader power when it has no activator, else the Ao Ativar of
+## the unit or artifact, aimed at the step's aim (the enemy Leader, or the unit that receives the buff).
+static func _run_ability_step(g: GameState, p: int, step: Dictionary) -> Array:
+	var activator: Card = step["activator"]
+	if activator == null:
+		return g.use_ability(p, int(step["aim"]))
+	return g.activate(p, activator.uid, int(step["aim"]))
+
+## Answer to a unit's Ao Entrar prompt when the unit's damage can be aimed at the enemy Leader and that, together
+## with what the board and the rest of the hand can still add, finishes the game. 0 when it should not go face.
+static func _lethal_enter_target(g: GameState, p: int, card_data: Dictionary, asked_spec: String, entering_uid: int) -> int:
+	if g.active != p:
+		return 0
+	var enemy_leader_uid: int = GameState.LEADER_UID[g.opponent(p)]
+	if not g.valid_targets(p, asked_spec, entering_uid).has(enemy_leader_uid):
+		return 0
+	var damage := 0
+	for effect in card_data.get("effects", []):
+		if effect.get("trigger", "") == "on_enter" and effect.get("action", "") == "damage" and effect.get("target", "") == asked_spec:
+			damage += int(effect.get("amount", 0))
+	if damage <= 0:
+		return 0
+	var enemy_hp: int = g.players[g.opponent(p)]["leader_hp"]
+	if damage + _face_strike_total(g, p) + _hand_face_reach(g, p) >= enemy_hp:
+		return enemy_leader_uid
+	return 0
+
 ## A Provocação entering: tapped makes it guard (enemy attackers must challenge it). Worth it
 ## when it survives the strongest enemy hit, or when our Leader is low and needs the protection.
 static func _wants_enter_tapped(g: GameState, p: int, unit: Card) -> bool:
@@ -1332,14 +1722,18 @@ static func _priciest_artifact(g: GameState, options: Array) -> int:
 ## The healing pick: whichever option (own Leader or ally unit) has the most damage to heal.
 ## Ties go to the Leader, which is listed last.
 static func _most_damaged(g: GameState, p: int, options: Array) -> int:
+	var projected := _healing_projection(g)
 	var best_uid := 0
 	var most_damage := -1
 	for uid in options:
 		var damage := 0
 		if uid < 0:
-			damage = g.players[p]["leader_max"] - g.players[p]["leader_hp"]
+			damage = projected.players[p]["leader_max"] - projected.players[p]["leader_hp"]
 		else:
-			damage = g.find_unit(uid).damage
+			var unit := projected.find_unit(uid)
+			if unit == null:
+				continue
+			damage = unit.damage
 		if damage >= most_damage:
 			most_damage = damage
 			best_uid = uid

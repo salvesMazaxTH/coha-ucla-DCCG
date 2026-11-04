@@ -68,6 +68,9 @@ func _destroy(context: EffectContext, target_uid: int) -> void:
 		return
 	if context.game._consume_death_ward(doomed):
 		return # cancel this destruction entirely; the ward was sacrificed instead
+	if context.game.banishes_what_it_kills(context.game.find_unit(context.self_uid)):
+		context.game.banish_unit(doomed) # the destroyer exiles what it destroys (Rai'Emofitir): it never dies
+		return
 	var had_shield: bool = doomed.shield
 	doomed.damage = 1000000
 	context.game._emit({"type": "destroy", "uid": target_uid, "card_id": doomed.card_id})

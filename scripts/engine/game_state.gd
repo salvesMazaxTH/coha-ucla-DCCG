@@ -3531,6 +3531,10 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		if _combat_damage and source != null and has_kw(source, "toque_letal") and dealt > 0 \
 				and not _immune_to_lethal_touch(c):
 			c.damage = maxi(c.damage, c.hp_total())
+		# Rai'Emofitir: a unit whose lethal damage came from a "banish_what_it_kills" source is exiled
+		# instead of dying (decided when the death is processed; see _move_dead_units)
+		if c.hp_left() <= 0 and banishes_what_it_kills(source):
+			c.banish_on_death = true
 		# Tóxico X: combat damage that really got through leaves X Veneno markers (blocked damage returned above)
 		if _combat_damage and source != null and has_kw(source, "toxico") and dealt > 0 and c.hp_left() > 0:
 			add_dot_markers(c, "veneno", toxico_markers(source), source.data().get("toxico_ignores_immunity", false))
@@ -3884,6 +3888,14 @@ func _move_dead_units() -> void:
 			for c in players[p]["board"].duplicate():
 				if hp_left(c) <= 0:
 					if _prevent_unit_death(c):
+						c.banish_on_death = false
+						changed = true
+						continue
+					if c.banish_on_death:
+						# destroyed by a "banish_what_it_kills" unit: exiled on the spot, so it never dies
+						# (no Ao Morrer, no Aliado Morre), exactly like banish_unit
+						c.banish_on_death = false
+						banish_unit(c)
 						changed = true
 						continue
 					var dead_uid: int = c.uid # a revive_self below gives c a new uid
@@ -3919,6 +3931,11 @@ func _move_dead_units() -> void:
 					for relic in players[p]["relics"].duplicate(): # free-standing artifacts hear it too
 						_fire(relic, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token, "dying_card_id": dying_card_id, "dying_equipment": dying_equipment})
 					_fire_leader_passive(p, "on_ally_death")
+
+## True when `source` is a unit whose card says "banish_what_it_kills": a unit it would destroy (combat damage,
+## Toque Letal, its own destroy effects) is banished instead (Rai'Emofitir). Silence removes the rule.
+func banishes_what_it_kills(source: Card) -> bool:
+	return source != null and bool(source.data().get("banish_what_it_kills", false))
 
 ## Returns the Baluarte-like artifact of p, if any.
 func _death_ward_of(p: int) -> Card:

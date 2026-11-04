@@ -59,6 +59,7 @@ func _init() -> void:
 	_test_cortejo_de_cinzas()
 	_test_sven()
 	_test_vincent_e_vesper()
+	_test_figurantes_dragoes_negros()
 	_test_burn()
 	_test_condemn()
 	_test_constant()
@@ -101,6 +102,7 @@ func _init() -> void:
 	_test_ban()
 	_test_combat()
 	_test_toque_letal()
+	_test_banish_what_it_kills()
 	_test_toxico()
 	_test_leader_poison()
 	_test_veneno_hold()
@@ -148,6 +150,7 @@ func _init() -> void:
 	_test_critico_data()
 	_test_drake_power()
 	_test_magni()
+	_test_cornelia()
 	_test_lucian_soren()
 	_test_overkill()
 	_test_dud()
@@ -155,6 +158,8 @@ func _init() -> void:
 	_test_ai_dot_awareness()
 	_test_ai_attack_clauses()
 	_test_ai_burn_plan()
+	_test_ai_lethal_planner()
+	_test_ai_lethal_planner_abilities()
 	_test_requiem()
 	_test_rusco()
 	_test_deck_summon_watches()
@@ -3978,12 +3983,102 @@ func _test_vincent_e_vesper() -> void:
 	_vesper_hits_leader(g, g_vesper["spy"])
 	check(g.phase != "search", "Vesper: mão vazia não abre escolha")
 
-## A fresh game with Vesper on player 0's board and the given cards in player 1's hand.
-func _vesper_game(foe_hand_ids: Array) -> Dictionary:
+## The five Dragões Negros figurantes of the Drake prebuilt: Recruta Cinzento, Mensageira Ilse Rott, Calvin Sem-Face,
+## Convocação Muda and Carga do Sapador.
+func _test_figurantes_dragoes_negros() -> void:
+	_tcard("t_dn_foe", 1, 3, [])
+	_tcard("t_dn_ally", 1, 1, [])
+	CardDB.card("t_dn_ally")["tribe"] = ["dragoes_negros"]
+	_tcard("t_dn_other", 1, 1, [])
+
+	# Recruta Cinzento: Ao Morrer deals 1 damage to a random enemy unit
+	var g := _new_game()
+	_quiet(g)
+	var recruit := _put(g, 0, "recruta_cinzento")
+	var recruit_victim := _put(g, 1, "t_dn_foe")
+	_kill(g, recruit)
+	check(recruit_victim.damage == 1, "Recruta Cinzento: ao morrer causa 1 de dano a uma unidade inimiga (%d)" % recruit_victim.damage)
+	check(CardDB.card("recruta_cinzento")["keywords"].has("impeto"), "Recruta Cinzento: tem Ímpeto")
+
+	# Mensageira Ilse Rott: may sacrifice another ally to draw 1; declining changes nothing
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var fodder := _put(g, 0, "t_dn_other")
+	var messenger_uid := _give(g, 0, "mensageira_ilse_rott")
+	g.play_card(0, messenger_uid)
+	var hand_after_play: int = g.players[0]["hand"].size()
+	check(g.phase == "enter_target", "Mensageira: pede a unidade a sacrificar")
+	g.choose_enter_target(0, fodder.uid)
+	check(g.find_unit(fodder.uid) == null and g.players[0]["hand"].size() == hand_after_play + 1, "Mensageira: sacrifica o aliado e compra 1 carta")
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var spared := _put(g, 0, "t_dn_other")
+	g.play_card(0, _give(g, 0, "mensageira_ilse_rott"))
+	hand_after_play = g.players[0]["hand"].size()
+	g.choose_enter_target(0, 0)
+	check(g.find_unit(spared.uid) != null and g.players[0]["hand"].size() == hand_after_play, "Mensageira: recusar o sacrifício não compra carta")
+	check(CardDB.card("mensageira_ilse_rott")["keywords"].has("esquiva"), "Mensageira: tem Esquiva")
+
+	# Calvin Sem-Face: hitting the Leader makes the OPPONENT pick a card from their own hand, and it goes to the graveyard
+	_tcard("t_calvin_foe", 1, 1, [])
+	var calvin_game := _vesper_game(["t_calvin_foe", "t_dn_other"], "calvin_sem_face")
+	g = calvin_game["game"]
+	var pick_one: Card = g.players[1]["hand"][0]
+	var keep_one: Card = g.players[1]["hand"][1]
+	_vesper_hits_leader(g, calvin_game["spy"])
+	check(g.phase == "search" and g.decider() == 1 and g.pending_search.get("discard_hand", false), "Calvin: quem escolhe o descarte é o oponente (fase %s)" % g.phase)
+	g.choose_search(1, pick_one.uid)
+	check(g.phase != "search" and g.players[1]["hand"] == [keep_one] and g.players[1]["graveyard"].has(pick_one), "Calvin: a carta escolhida vai da mão do oponente para o cemitério")
+	# an empty hand opens nothing
+	calvin_game = _vesper_game([], "calvin_sem_face")
+	g = calvin_game["game"]
+	_vesper_hits_leader(g, calvin_game["spy"])
+	check(g.phase != "search", "Calvin: mão vazia do oponente não abre escolha")
+	check(CardDB.card("calvin_sem_face")["keywords"].has("furtividade"), "Calvin: tem Furtividade")
+
+	# Convocação Muda: only a Dragão Negro ally can be aimed at; it gets +1 Ataque and Ímpeto this turn only
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var dragon := _put(g, 0, "t_dn_ally")
+	var human := _put(g, 0, "t_dn_other")
+	var targets: Array = g.card_targets(0, CardDB.card("convocacao_muda"))
+	check(targets.has(dragon.uid) and not targets.has(human.uid), "Convocação Muda: só mira Dragão Negro aliado")
+	var atk_before: int = g.atk_of(dragon)
+	g.play_card(0, _give(g, 0, "convocacao_muda"), dragon.uid)
+	_resolve_stack(g)
+	check(g.atk_of(dragon) == atk_before + 1 and g.has_kw(dragon, "impeto"), "Convocação Muda: +1 Ataque e Ímpeto")
+	g.end_turn(0)
+	check(g.atk_of(dragon) == atk_before and not g.has_kw(dragon, "impeto"), "Convocação Muda: o bônus acaba no fim do turno")
+
+	# Carga do Sapador: the sacrifice is the price, then 3 damage to the target and 1 to its neighbours
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var sapper := _put(g, 0, "t_dn_ally")
+	var west := _put(g, 1, "t_dn_foe")
+	var center := _put(g, 1, "t_dn_foe")
+	var east := _put(g, 1, "t_dn_foe")
+	var spell_uid := _give(g, 0, "carga_do_sapador")
+	check(g.can_play(0, spell_uid), "Carga do Sapador: com um aliado para sacrificar dá para jogar")
+	g.play_card(0, spell_uid, center.uid, sapper.uid)
+	check(g.find_unit(sapper.uid) == null, "Carga do Sapador: o aliado é sacrificado ao jogar")
+	_resolve_stack(g)
+	check(g.find_unit(center.uid) == null and west.damage == 1 and east.damage == 1, "Carga do Sapador: 3 de dano ao alvo e 1 aos adjacentes (%d/%d)" % [west.damage, east.damage])
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	_put(g, 1, "t_dn_foe")
+	check(not g.can_play(0, _give(g, 0, "carga_do_sapador")), "Carga do Sapador: sem aliado para sacrificar não dá para jogar")
+
+## A fresh game with Vesper (or another spy card) on player 0's board and the given cards in player 1's hand.
+func _vesper_game(foe_hand_ids: Array, spy_card_id := "vesper") -> Dictionary:
 	var g := _new_game()
 	_quiet(g)
 	g.active = 0
-	var spy := _put(g, 0, "vesper")
+	var spy := _put(g, 0, spy_card_id)
 	var foe_hand: Array = []
 	for card_id in foe_hand_ids:
 		foe_hand.append(Card.new(g._uid(), card_id, 1, "hand"))
@@ -4583,6 +4678,78 @@ func _test_toque_letal() -> void:
 	immune.exhausted = true
 	_hit(g, attacker, immune.uid)
 	check(g.find_unit(immune.uid) != null and immune.damage == 0, "Toque Letal: Indestrutível sobrevive")
+
+## Rai'Emofitir: "banish_what_it_kills" makes every unit this unit would destroy be banished instead
+## (combat damage, Toque Letal, destroy effects). It never dies: no Ao Morrer, no graveyard.
+func _test_banish_what_it_kills() -> void:
+	_tcard("t_exiler", 1, 4, [])
+	CardDB.data()["cards"]["t_exiler"]["banish_what_it_kills"] = true
+	CardDB.data()["cards"]["t_exiler"]["keywords"] = ["toque_letal"]
+	_tcard("t_exiler_destroyer", 1, 4, [{"trigger": "on_enter", "action": "destroy", "target": "enemy_unit"}])
+	CardDB.data()["cards"]["t_exiler_destroyer"]["banish_what_it_kills"] = true
+	_tcard("t_dies_with_sting", 1, 4, [{"trigger": "on_death", "action": "damage", "target": "enemy_leader", "amount": 2}])
+	_tcard("t_plain_attacker", 1, 4, [])
+	CardDB.data()["cards"]["t_plain_attacker"]["keywords"] = ["toque_letal"]
+
+	# Toque Letal in combat: the victim is banished, not buried, and its Ao Morrer never happens
+	var g := _new_game()
+	_quiet(g)
+	var attacker := _put(g, 0, "t_exiler")
+	var victim := _put(g, 1, "t_dies_with_sting")
+	victim.exhausted = true
+	var leader_hp: int = g.players[0]["leader_hp"]
+	_hit(g, attacker, victim.uid)
+	check(g.find_unit(victim.uid) == null, "banish_what_it_kills: a vítima sai do campo")
+	check(_zone_has(g, 1, "banished", "t_dies_with_sting") and not _zone_has(g, 1, "graveyard", "t_dies_with_sting"), "banish_what_it_kills: Toque Letal bane em vez de ir ao cemitério")
+	check(g.players[0]["leader_hp"] == leader_hp, "banish_what_it_kills: a vítima banida não dispara Ao Morrer")
+
+	# Control: a normal Toque Letal unit still sends its victim to the graveyard
+	g = _new_game()
+	_quiet(g)
+	attacker = _put(g, 0, "t_plain_attacker")
+	victim = _put(g, 1, "t_dies_with_sting")
+	victim.exhausted = true
+	_hit(g, attacker, victim.uid)
+	check(_zone_has(g, 1, "graveyard", "t_dies_with_sting") and not _zone_has(g, 1, "banished", "t_dies_with_sting"), "banish_what_it_kills: sem o campo a vítima vai ao cemitério")
+
+	# Indestrutível victim: nothing is destroyed, so nothing is banished
+	_tcard("t_immune_unit", 2, 4, [])
+	CardDB.data()["cards"]["t_immune_unit"]["keywords"] = ["indestrutivel"]
+	g = _new_game()
+	_quiet(g)
+	attacker = _put(g, 0, "t_exiler")
+	var immune := _put(g, 1, "t_immune_unit")
+	immune.exhausted = true
+	_hit(g, attacker, immune.uid)
+	check(g.find_unit(immune.uid) != null and g.players[1]["banished"].is_empty(), "banish_what_it_kills: Indestrutível não é banido")
+
+	# Destroy effect from the unit itself
+	g = _new_game()
+	_quiet(g)
+	victim = _put(g, 1, "t_dies_with_sting")
+	leader_hp = g.players[0]["leader_hp"]
+	var destroyer := _put(g, 0, "t_exiler_destroyer")
+	g._run_effect_dicts(0, CardDB.card("t_exiler_destroyer")["effects"], "on_enter", victim.uid, destroyer.uid)
+	g._check_state()
+	check(_zone_has(g, 1, "banished", "t_dies_with_sting") and not _zone_has(g, 1, "graveyard", "t_dies_with_sting"), "banish_what_it_kills: efeito de destruição da unidade também bane")
+	check(g.players[0]["leader_hp"] == leader_hp, "banish_what_it_kills: destruição por efeito banida não dispara Ao Morrer")
+
+	# The real card: field, Condicional label and the challenge Indestrutível
+	var rai := CardDB.card("rai_emofitir")
+	check(bool(rai.get("banish_what_it_kills", false)) and String(rai["text"]).begins_with("Condicional:"), "Rai'Emofitir: regra de banir e texto Condicional")
+	check(CardView._has_conditional_rule(rai), "Rai'Emofitir: a carta mostra o selo Condicional")
+	g = _new_game()
+	_quiet(g)
+	_tcard("t_big_retaliator", 12, 4, [])
+	var rai_unit := _put(g, 0, "rai_emofitir")
+	var retaliator := _put(g, 1, "t_big_retaliator")
+	retaliator.exhausted = true
+	_hit(g, rai_unit, retaliator.uid)
+	check(g.find_unit(rai_unit.uid) != null, "Rai'Emofitir: sobrevive ao revide por causa do Indestrutível ao desafiar")
+	check(_zone_has(g, 1, "banished", "t_big_retaliator"), "Rai'Emofitir: a unidade desafiada é banida")
+	check(rai_unit.has_kw("indestrutivel"), "Rai'Emofitir: Indestrutível dura até o fim do turno")
+	g.end_turn(0)
+	check(not rai_unit.has_kw("indestrutivel"), "Rai'Emofitir: Indestrutível some no fim do turno")
 
 func _test_toxico() -> void:
 	check(CardDB.keyword("toxico")["name"] == "Tóxico", "Tóxico: keyword registrada")
@@ -5495,7 +5662,7 @@ func _test_drex_deck() -> void:
 	check(cost_sent == {"t": "act", "a": "activate_discard", "uid": vampire_two.uid}, "Drex: cliente pede a escolha de descarte ao servidor")
 	cost_sent.clear()
 	cost_remote.activate(g.active, vampire_two.uid, fodder.uid)
-	check(cost_sent == {"t": "act", "a": "activate", "uid": vampire_two.uid, "target": fodder.uid}, "Drex: cliente envia o pagador de sacrifício ao servidor")
+	check(cost_sent == {"t": "act", "a": "activate", "uid": vampire_two.uid, "target": fodder.uid, "payer": 0}, "Drex: cliente envia o pagador de sacrifício ao servidor")
 	check(g.begin_activation_discard(enemy, vampire_two.uid).is_empty() and g.activate(enemy, vampire_two.uid, fodder.uid).is_empty(), "Drex: adversário não escolhe nem paga o custo")
 	_give(g, g.active, "t_drex_fodder")
 	var ai_hand_payer := SimpleAI._pick_activation_payer(g, g.active, vampire_two)
@@ -6032,6 +6199,12 @@ func _test_persistent_damage() -> void:
 	g.end_turn(0)
 	check(coral.damage == 0, "regeneração cura no início do próximo turno (até o do oponente)")
 
+## Puts an artifact straight onto the player's relic row (no summon effects).
+func _put_relic(g: GameState, p: int, card_id: String) -> Card:
+	var relic := Card.new(g._uid(), card_id, p, "relics")
+	g.players[p]["relics"].append(relic)
+	return relic
+
 func _give(g: GameState, p: int, card_id: String) -> int:
 	var uid := g._uid()
 	g.players[p]["hand"].append(Card.new(uid, card_id, p, "hand"))
@@ -6082,6 +6255,8 @@ func _test_reserve() -> void:
 func _test_fight() -> void:
 	_tcard("t_fighter", 4, 6, [])
 	_tcard("t_target", 2, 3, [])
+	_tcard("t_lifesteal_fighter", 4, 6, [])
+	CardDB.card("t_lifesteal_fighter")["keywords"] = ["roubo_de_vida"]
 	var g := _new_game()
 	g.players[0]["momentum"] = 9
 	var ally := _put(g, 0, "t_fighter")
@@ -6090,6 +6265,17 @@ func _test_fight() -> void:
 	g.pass_priority(1)
 	check(g.find_unit(foe.uid) == null, "luta: o inimigo toma o Ataque do aliado e morre")
 	check(ally.damage == 2, "luta: o aliado toma o Ataque do inimigo ao mesmo tempo (%d)" % ally.damage)
+
+	# Roubo de Vida counts the damage the unit deals in a fight, even though it is not combat.
+	g = _new_game()
+	g.players[0]["momentum"] = 9
+	g.players[0]["leader_max"] = 100
+	g.players[0]["leader_hp"] = 50
+	var leeching_ally := _put(g, 0, "t_lifesteal_fighter")
+	var lifesteal_foe := _put(g, 1, "t_target")
+	g.play_card(0, _give(g, 0, "arena_tectonica"), leeching_ally.uid, lifesteal_foe.uid)
+	g.pass_priority(1)
+	check(g.players[0]["leader_hp"] == 54, "luta: Roubo de Vida cura o Líder pelo dano realmente causado")
 
 	# Armadura reduces fight damage like any other damage
 	g = _new_game()
@@ -7155,6 +7341,68 @@ func _test_magni() -> void:
 	g._check_state()
 	check(g.atk_of(foe) == 2, "Magni: ao sair do campo as unidades inimigas voltam ao Ataque normal (%d)" % g.atk_of(foe))
 
+## Cornélia Aldrovane: Ao Entrar taxes 1 card of the opponent's hand (+2 while it stays there), Ao Ativar sacrifices an ally
+## to banish an enemy, and the Constante makes the opponent's spells cost 1 more.
+func _test_cornelia() -> void:
+	_tcard("t_cornelia_ally", 1, 3, [])
+	_tcard("t_cornelia_foe", 2, 9, [])
+	var g := _new_game()
+	_quiet(g)
+	var p: int = g.active
+	var foe_player: int = 1 - p
+	var fireball := Card.new(g._uid(), "bola_de_fogo", foe_player, "hand")
+	var skeleton := Card.new(g._uid(), "esqueleto_guerreiro", foe_player, "hand")
+	g.players[foe_player]["hand"] = [fireball, skeleton]
+	var fireball_cost: int = g.cost_of(foe_player, fireball.data(), fireball)
+	var skeleton_cost: int = g.cost_of(foe_player, skeleton.data(), skeleton)
+
+	# Ao Entrar: the owner sees the opponent's hand and picks a card; declining costs nothing
+	# summoned by hand: _put would answer the prompt on its own
+	var cornelia_uid: int = g._uid()
+	g._summon(p, Card.new(cornelia_uid, "cornelia_aldrovane", p), false, 0)
+	g._flush()
+	var cornelia: Card = g.find_unit(cornelia_uid)
+	cornelia.sick = false
+	check(g.phase == "search" and g.pending_search.get("hand_bottom", false) and int(g.pending_search["cost_increase"]) == 2, "Cornélia: Ao Entrar abre a mão do oponente para escolher uma carta (+2)")
+	check(g.decider() == p and g.pending_search["cards"].size() == 2, "Cornélia: quem escolhe é o dono dela e vê as 2 cartas")
+	g.choose_search(p, skeleton.uid)
+	check(g.phase != "search" and g.players[foe_player]["hand"].has(skeleton), "Cornélia: a carta escolhida continua na mão do oponente")
+	check(g.cost_of(foe_player, skeleton.data(), skeleton) == skeleton_cost + 2, "Cornélia: a carta escolhida custa 2 a mais (%d)" % g.cost_of(foe_player, skeleton.data(), skeleton))
+	check(g.cost_of(foe_player, fireball.data(), fireball) == fireball_cost + 1, "Cornélia: o feitiço do oponente custa 1 a mais pela Constante (%d)" % g.cost_of(foe_player, fireball.data(), fireball))
+	check(g.cost_of(p, fireball.data(), fireball) == fireball_cost, "Cornélia: a Constante não encarece os feitiços do próprio dono")
+
+	# the +2 lasts only while the card stays in that hand
+	g.players[foe_player]["hand"].erase(skeleton)
+	g._move(skeleton, "graveyard")
+	check(skeleton.discount == 0, "Cornélia: ao sair da mão a carta volta ao custo normal")
+
+	# declining the Ao Entrar leaves every cost alone
+	var g_decline := _new_game()
+	_quiet(g_decline)
+	var q: int = g_decline.active
+	var untouched := Card.new(g_decline._uid(), "esqueleto_guerreiro", 1 - q, "hand")
+	g_decline.players[1 - q]["hand"] = [untouched]
+	g_decline._summon(q, Card.new(g_decline._uid(), "cornelia_aldrovane", q), false, 0)
+	g_decline._flush()
+	check(g_decline.phase == "search", "Cornélia: a escolha abre também quando a mão tem uma carta só")
+	g_decline.choose_search(q, 0)
+	check(untouched.discount == 0, "Cornélia: recusar não encarece nada")
+
+	# Ao Ativar: sacrifice another ally (the extra cost), banish the chosen enemy, and she is exhausted
+	var ally := _put(g, p, "t_cornelia_ally")
+	var foe_unit := _put(g, foe_player, "t_cornelia_foe")
+	check(g.can_activate(p, cornelia.uid), "Cornélia: pode ativar com outra aliada e um inimigo em campo")
+	check(g.activate(p, cornelia.uid, foe_unit.uid, cornelia.uid).is_empty(), "Cornélia: ela mesma não pode ser o sacrifício")
+	g.activate(p, cornelia.uid, foe_unit.uid, ally.uid)
+	_resolve_stack(g)
+	check(g.find_unit(ally.uid) == null and g.find_unit(foe_unit.uid) == null, "Cornélia: a aliada é sacrificada e a inimiga é banida")
+	check(cornelia.exhausted and g.find_unit(cornelia.uid) != null, "Cornélia: fica exaurida e continua em campo")
+	check(not g.can_activate(p, cornelia.uid), "Cornélia: sem outra aliada ou já exaurida não ativa de novo")
+
+	# the Constante disappears with her
+	g.players[p]["board"].erase(cornelia)
+	check(g.cost_of(foe_player, fireball.data(), fireball) == fireball_cost, "Cornélia: ao sair do campo os feitiços voltam ao custo normal")
+
 ## Lucian Mortasa: on death his Primordial enters free, hits the enemy Leader for 3 and every enemy unit for 1.
 ## Soren: each player holding more than 4 cards discards 1 (controller first), the challenged unit loses its Armadura (not its Escudo), the other Dragões Negros get +1 Vida.
 func _test_lucian_soren() -> void:
@@ -7177,6 +7425,8 @@ func _test_lucian_soren() -> void:
 	check(g.players[o]["leader_hp"] == leader_before - 3, "Lucian Primordial: Ao Entrar causa 3 ao Líder inimigo (%d -> %d)" % [leader_before, g.players[o]["leader_hp"]])
 	check(g.hp_left(enemy_unit) == 19, "Lucian Primordial: Ao Entrar também causa 1 a cada unidade inimiga (%d)" % g.hp_left(enemy_unit))
 	check(CardDB.card("lucian_mortasa_primordial").get("transform_only", false), "Lucian Primordial: só existe por evolução (fora do deck)")
+	check(CardDB.card("lucian_mortasa_primordial").get("cost", 0) == 6, "Lucian Primordial: custa 6")
+	check(CardDB.card("lucian_mortasa_primordial")["keywords"].has("roubo_de_vida"), "Lucian Primordial: tem Roubo de Vida")
 
 	# Soren's Ao Entrar: 6 cards (controller) and 5 cards (opponent) -> each discards exactly ONE, controller first
 	var g2 := _new_game()
@@ -7769,6 +8019,9 @@ func _test_elite_limits() -> void:
 	check(not DeckDB.validate_cards(leader, lenda_deck).filter(func(e): return "mais de 2 cópias" in e).is_empty(), "lendária: 3 cópias é ilegal")
 	lenda_deck["t_lenda"] = 2
 	check(DeckDB.validate_cards(leader, lenda_deck).filter(func(e): return "t_lenda" in e).is_empty(), "lendária: 2 cópias é legal")
+	# legendaries are not elite: 2 more of them on top of the 22 champions stay legal for the cap
+	base["t_lenda"] = 2
+	check(DeckDB.validate_cards(leader, base).filter(func(e): return "Campeões" in e).is_empty(), "lendárias não entram no limite de campeões")
 
 func _test_vegetal() -> void:
 	var g := GameState.new("vegetal", "fogo", 4242)
@@ -7955,9 +8208,6 @@ func _test_deck_summon_watches() -> void:
 		g.players[a]["reserve"] = case[3]
 		if case[0] == "campo cheio":
 			while g.has_free_slot(a):
-	# legendaries are not elite: 2 more of them on top of the 22 champions stay legal for the cap
-	base["t_lenda"] = 2
-	check(DeckDB.validate_cards(leader, base).filter(func(e): return "Campeões" in e).is_empty(), "lendárias não entram no limite de campeões")
 				g.players[a]["board"].append(Card.new(g._uid(), "t_one", a, "board"))
 		var watches := g.deck_summon_watches(a)
 		check(watches.size() == 1 and watches[0]["uid"] == ru.uid and watches[0]["fee"] == 2, "vigia do deck (%s): uma entrada para o Rusco, custo 2" % case[0])
@@ -9463,6 +9713,28 @@ func _test_ai_no_waste() -> void:
 	check(not SimpleAI._spell_is_worth_it(g, 0, heal), "IA: não gasta cura de 4 com Líder a 1 da vida máxima")
 	g.players[0]["leader_hp"] = g.players[0]["leader_max"] - 4
 	check(SimpleAI._spell_is_worth_it(g, 0, heal), "IA: cura de 4 vale com 4 de vida faltando")
+	# A queued Garrafão heal already restores the Leader before the next priority action is chosen.
+	var jug_game := _new_game()
+	_quiet(jug_game)
+	jug_game.self_response_enabled = true
+	jug_game.auto_pass[1] = false
+	jug_game.players[0]["incarnation"]["in_zone"] = false
+	jug_game.players[0]["momentum"] = 10
+	jug_game.players[0]["leader_hp"] = jug_game.players[0]["leader_max"] - 3
+	var jug := Card.new(jug_game._uid(), "garrafao_curativo", 0)
+	jug_game._place_relic(0, jug)
+	jug_game._flush()
+	var held_cards: Array = []
+	for card: Card in jug_game.players[0]["hand"]:
+		held_cards.append(card.card_id)
+	var first_heal := SimpleAI.step(jug_game, 0, held_cards)
+	check(not first_heal.is_empty() and jug.durability_left() == 3, "IA: usa um tick do Garrafão para curar o Líder")
+	check(jug_game.stack.size() == 1 and jug_game.players[0]["leader_hp"] == jug_game.players[0]["leader_max"] - 3,
+		"IA: o primeiro tick ainda está pendente quando a próxima ação é escolhida")
+	jug_game.pass_priority(1)
+	jug_game._flush()
+	SimpleAI.step(jug_game, 0, held_cards)
+	check(jug.durability_left() == 3, "IA: não gasta mais Durabilidade enquanto a cura pendente já leva o Líder ao máximo")
 	# revive
 	var revive := CardDB.card("chamado_do_alem")
 	check(not SimpleAI._spell_is_worth_it(g, 0, revive), "IA: não ressuscita sem alvo")
@@ -9491,6 +9763,49 @@ func _test_ai_no_waste() -> void:
 	check(SimpleAI._spell_is_worth_it(g2, 0, shock), "IA: Choque de Largada vale para dar Ímpeto e desafiar uma unidade virada")
 	g2.active = 1
 	check(not SimpleAI._spell_is_worth_it(g2, 0, shock), "IA: buff de turno não é lançado no turno do inimigo")
+	# A fresh unit's pre-existing Ímpeto does not make an unrelated temporary buff worthwhile.
+	_tspell("t_temp_buff_no_impeto", "lento", [
+		{"action": "buff", "target": "ally_unit", "atk": 1, "temp": true}
+	])
+	var sick_target_game := _new_game()
+	_quiet(sick_target_game)
+	var sick_target := _put(sick_target_game, 0, "broto_zumbi", false)
+	sick_target.keywords.append("impeto")
+	var vulnerable_enemy := _put(sick_target_game, 1, "broto_zumbi")
+	vulnerable_enemy.keywords.append("vulneravel")
+	check(not SimpleAI._spell_is_worth_it(sick_target_game, 0, CardDB.card("t_temp_buff_no_impeto")),
+			"IA: não gasta buff temporário sem Ímpeto numa unidade com enjoo, mesmo se ela já tiver Ímpeto")
+	# An all-ally buff is held when it affects multiple units but only the ready ally can use it.
+	_tspell("t_all_temp_buff", "lento", [
+		{"action": "buff", "target": "all_ally_units", "atk": 1, "temp": true}
+	])
+	var area_buff_game := _new_game()
+	_quiet(area_buff_game)
+	_put(area_buff_game, 0, "broto_zumbi")
+	_put(area_buff_game, 0, "broto_zumbi", false)
+	var area_buff := CardDB.card("t_all_temp_buff")
+	check(not SimpleAI._spell_is_worth_it(area_buff_game, 0, area_buff),
+			"IA: não gasta buff em área se só uma de várias aliadas consegue aproveitá-lo por causa do enjoo")
+	check(SimpleAI._face_damage_of_hand_card(area_buff_game, 0, area_buff,
+			SimpleAI._face_capable_attackers(area_buff_game, 0)) == 0,
+			"IA: o planejador de letal também não conta buff em área desperdiçado pelo enjoo")
+	# Ímpeto is an exception only when it opens a real challenge; the fresh unit must not hit the Leader.
+	_tspell("t_all_temp_buff_impeto", "lento", [
+		{"action": "buff", "target": "all_ally_units", "atk": 1, "temp": true, "keywords": ["impeto"]}
+	])
+	var area_impeto_game := _new_game()
+	_quiet(area_impeto_game)
+	_put(area_impeto_game, 0, "broto_zumbi")
+	var fresh_ally := _put(area_impeto_game, 0, "broto_zumbi", false)
+	var exposed_enemy := _put(area_impeto_game, 1, "broto_zumbi")
+	exposed_enemy.keywords.append("vulneravel")
+	var area_impeto_buff := CardDB.card("t_all_temp_buff_impeto")
+	check(SimpleAI._temporary_buff_beneficiaries(area_impeto_game, 0, area_impeto_buff["effects"][0]).size() == 2,
+			"IA: Ímpeto permite que a aliada com enjoo aproveite o buff ao desafiar uma unidade Vulnerável")
+	check(SimpleAI._spell_is_worth_it(area_impeto_game, 0, area_impeto_buff),
+			"IA: gasta buff em área quando Ímpeto permite aproveitar em mais de uma aliada")
+	check(not fresh_ally.keywords.has("impeto"),
+			"IA: ao avaliar o buff, não deixa Ímpeto temporário aplicado antes de jogar a carta")
 
 ## The AI counts Veneno/Sangramento as 2 damage per marker (Queimadura as 1) and never spends a marker-only
 ## effect on a target whose markers already kill it, or that is immune to them.
@@ -9652,6 +9967,138 @@ func _test_ai_burn_plan() -> void:
 	check(SimpleAI._burn_plan(g, 0) == "lethal", "IA: burn + ataques fecham o letal (plano %s)" % SimpleAI._burn_plan(g, 0))
 	var events := SimpleAI._try_play(g, 0)
 	check(not events.is_empty() and g.players[1]["leader_hp"] == 2, "IA: lança a Bola de Fogo na face antes de gastar o Momentum (vida %d)" % g.players[1]["leader_hp"])
+
+## The AI works out the road to lethal: board damage, then the shortfall, then what the hand can add to the face.
+func _test_ai_lethal_planner() -> void:
+	_tcard("t_ai_racer", 2, 2, [])
+	_tcard("t_ai_blocker", 1, 3, [])
+	# 1) Irina (Ao Entrar: 3 de dano em qualquer alvo) fecha o letal: o dano vai para o Líder, não para a unidade
+	var g := _new_game()
+	_quiet(g)
+	g.active = 0
+	g.players[0]["max_momentum"] = 4
+	g.players[0]["momentum"] = 4
+	g.players[0]["hand"].clear()
+	g.players[0]["incarnation"]["in_zone"] = false
+	_give(g, 0, "irina_lancachamas")
+	_put(g, 0, "t_ai_racer")
+	var enemy_unit := _put(g, 1, "t_ai_blocker")
+	g.players[1]["leader_hp"] = 5 # o tabuleiro bate 2, faltam 3: exatamente o dano da Irina
+	check(SimpleAI._lethal_line(g, 0).size() == 1, "IA letal: a Irina cobre o que falta (%d cartas na linha)" % SimpleAI._lethal_line(g, 0).size())
+	SimpleAI._try_play(g, 0)
+	for step_count in 6:
+		if g.pending_enter.is_empty():
+			break
+		SimpleAI.step(g, 0, [])
+	check(g.players[1]["leader_hp"] == 2 and enemy_unit.damage == 0, "IA letal: o dano da Irina vai para a face, não para a unidade (vida %d, dano na unidade %d)" % [g.players[1]["leader_hp"], enemy_unit.damage])
+	# 2) Rompante na mão: o ataque da unidade que acabou de entrar conta como dano na face
+	g = _new_game()
+	_quiet(g)
+	g.active = 0
+	g.players[0]["max_momentum"] = 3
+	g.players[0]["momentum"] = 3
+	g.players[0]["hand"].clear()
+	g.players[0]["incarnation"]["in_zone"] = false
+	var kai_uid := _give(g, 0, "kai")
+	g.players[1]["leader_hp"] = 3 # Kai: 2 de ATQ + 1 de "Ao Atacar"
+	check(SimpleAI._lethal_line(g, 0).size() == 1, "IA letal: um Rompante na mão fecha o letal (%d cartas na linha)" % SimpleAI._lethal_line(g, 0).size())
+	SimpleAI._try_play(g, 0)
+	check(g.find_unit(kai_uid) != null, "IA letal: joga o Rompante em vez de outra jogada")
+	# 3) Letal fora de alcance: o planejador não interfere e a Irina segue a lógica normal
+	g = _new_game()
+	_quiet(g)
+	g.active = 0
+	g.players[0]["max_momentum"] = 4
+	g.players[0]["momentum"] = 4
+	g.players[0]["hand"].clear()
+	g.players[0]["incarnation"]["in_zone"] = false
+	_give(g, 0, "irina_lancachamas")
+	_put(g, 0, "t_ai_racer")
+	g.players[1]["leader_hp"] = 40
+	check(SimpleAI._lethal_line(g, 0).is_empty(), "IA letal: sem alcance para o letal, não há linha")
+	# 4) Sem Momentum para pagar a carta, também não há linha
+	g.players[1]["leader_hp"] = 5
+	g.players[0]["momentum"] = 1
+	check(SimpleAI._lethal_line(g, 0).is_empty(), "IA letal: carta que não cabe no Momentum não entra na linha")
+	# 5) Provocação deitada do inimigo fecha a face para o Rompante
+	g = _new_game()
+	_quiet(g)
+	g.active = 0
+	g.players[0]["max_momentum"] = 3
+	g.players[0]["momentum"] = 3
+	g.players[0]["hand"].clear()
+	g.players[0]["incarnation"]["in_zone"] = false
+	_give(g, 0, "kai")
+	CardDB.data()["cards"]["t_ai_guard"] = {"name": "t_ai_guard", "type": "unit", "rarity": "common", "essence": "neutra", "cost": 1,
+		"atk": 1, "hp": 3, "keywords": ["provocacao"], "art": "", "effects": [], "text": "", "flavor": "", "tags": []}
+	var guard := _put(g, 1, "t_ai_guard")
+	guard.exhausted = true
+	g.players[1]["leader_hp"] = 3
+	check(SimpleAI._lethal_line(g, 0).is_empty(), "IA letal: Provocação deitada fecha a face e o Rompante não conta")
+
+## The lethal planner also counts the Leader power and the Ao Ativar of what is already in play.
+func _test_ai_lethal_planner_abilities() -> void:
+	_tcard("t_ai_racer", 2, 2, [])
+	# 1) Poder do Líder (Ronan: 1 de dano em qualquer alvo) cobre 1 ponto que falta, e a IA o usa na face
+	var g := _new_game()
+	_quiet(g)
+	g.active = 0
+	g.players[0]["max_momentum"] = 4
+	g.players[0]["momentum"] = 4
+	g.players[0]["hand"].clear()
+	g.players[0]["incarnation"]["in_zone"] = false
+	g.players[0]["leader_id"] = "ronan"
+	g.players[0]["ability_used"] = false
+	_put(g, 0, "t_ai_racer")
+	g.players[1]["leader_hp"] = 3 # o tabuleiro bate 2: falta 1
+	var line := SimpleAI._lethal_line(g, 0)
+	check(line.size() == 1 and line[0]["card"] == null, "IA letal: o poder do Líder cobre o que falta (%d passos)" % line.size())
+	SimpleAI._try_play(g, 0)
+	check(g.players[1]["leader_hp"] == 2, "IA letal: o poder do Ronan vai para a face (vida %d)" % g.players[1]["leader_hp"])
+	check(SimpleAI._lethal_line(g, 0).is_empty(), "IA letal: depois do poder usado, o tabuleiro já fecha o letal")
+	# 2) Poder já usado neste ciclo: não há linha
+	g = _new_game()
+	_quiet(g)
+	g.active = 0
+	g.players[0]["max_momentum"] = 4
+	g.players[0]["momentum"] = 4
+	g.players[0]["hand"].clear()
+	g.players[0]["incarnation"]["in_zone"] = false
+	g.players[0]["leader_id"] = "ronan"
+	g.players[0]["ability_used"] = true
+	_put(g, 0, "t_ai_racer")
+	g.players[1]["leader_hp"] = 3
+	check(SimpleAI._lethal_line(g, 0).is_empty(), "IA letal: poder do Líder já usado não entra na linha")
+	# 3) Artefato com Ao Ativar de bônus de ATQ (Cristal do Poder: +2 ATQ temporário) pumpa quem ataca
+	g = _new_game()
+	_quiet(g)
+	g.active = 0
+	g.players[0]["max_momentum"] = 4
+	g.players[0]["momentum"] = 4
+	g.players[0]["hand"].clear()
+	g.players[0]["incarnation"]["in_zone"] = false
+	g.players[0]["leader_id"] = "naelys" # poder sem dano na face
+	g.players[0]["ability_used"] = true
+	var attacker := _put(g, 0, "t_ai_racer")
+	var crystal := _put_relic(g, 0, "cristal_do_poder")
+	g.players[1]["leader_hp"] = 4 # o tabuleiro bate 2, o Cristal soma +2
+	line = SimpleAI._lethal_line(g, 0)
+	check(line.size() == 1 and line[0]["activator"] == crystal and line[0]["aim"] == attacker.uid, "IA letal: o Cristal do Poder na unidade que ataca fecha o letal (%d passos)" % line.size())
+	SimpleAI._try_play(g, 0)
+	check(g.strike_power_of(attacker) == 4, "IA letal: o bônus do Cristal foi aplicado (ATQ %d)" % g.strike_power_of(attacker))
+	# 4) Sem unidade que consiga bater na face, o bônus de ATQ não vale nada
+	g = _new_game()
+	_quiet(g)
+	g.active = 0
+	g.players[0]["max_momentum"] = 4
+	g.players[0]["momentum"] = 4
+	g.players[0]["hand"].clear()
+	g.players[0]["incarnation"]["in_zone"] = false
+	g.players[0]["leader_id"] = "naelys"
+	g.players[0]["ability_used"] = true
+	_put_relic(g, 0, "cristal_do_poder")
+	g.players[1]["leader_hp"] = 2
+	check(SimpleAI._lethal_line(g, 0).is_empty(), "IA letal: bônus de ATQ sem atacante não entra na linha")
 
 ## Units can enter the board at any position (Hearthstone style), not only on the right edge.
 func _test_play_slot() -> void:

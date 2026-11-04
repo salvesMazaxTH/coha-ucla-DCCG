@@ -83,6 +83,7 @@ var capped_heal_locked := false ## later triggers stay off after this instance r
 var heal_blocked_until := -1 ## while game turn <= this, this unit cannot recover Vida (block_healing); -1 = not blocked
 var leader_damage_guard_turn := -1 ## turn in which this card reduced the first damage to its Leader
 var death_ward_armed := false ## a free-standing artifact is ready to prevent one allied unit death
+var banish_on_death := false ## its lethal damage came from a "banish_what_it_kills" unit: when it dies it is banished instead (see GameState._move_dead_units)
 var durability_used := 0 ## Durability points this artifact has lost so far (see durability_left)
 var durability_uses := 0 ## firings of an effect with "durability_every_uses" since the artifact last lost Durability
 ## Where this unit's stat changes came from, for the card overlay's "Modificadores" panel. One entry per change:
@@ -100,14 +101,14 @@ const NOT_COPIED_FIELDS := ["uid", "card_id", "owner", "zone", "over", "incarnat
 		"pending_self_revive_turn", "pending_self_revive_atk", "pending_self_revive_hp",
 		"exhausted", "sick", "attacks_made", "used_turn", "capped_uses", "conditional_uses_turn", "conditional_uses",
 		"trigger_counts", "dodge_turn", "activated_turn", "capped_heal_turn", "capped_heal_total",
-		"capped_heal_locked", "heal_blocked_until", "leader_damage_guard_turn", "death_ward_armed", "durability_used", "durability_uses",
+		"capped_heal_locked", "heal_blocked_until", "leader_damage_guard_turn", "death_ward_armed", "banish_on_death", "durability_used", "durability_uses",
 		"stored_momentum"]
 
 ## Card-data fields that are an ability or a keyword's number: silence() deletes them from the unit.
 const SILENCED_FIELDS := ["activated", "transform", "rapidez", "critico", "armor", "adjacent_armor", "esquiva", "inert", "imune_critico",
 		"critico_growth", "critico_maximo", "toxico_level", "toxico_equals_attack", "toxico_ignores_immunity",
 		"toxico_hits_leader", "leader_damage_reduction", "conditional_uses_per_turn",
-		"lethal_touch_immune", "lethal_ward", "death_ward", "spell_discount"]
+		"lethal_touch_immune", "lethal_ward", "death_ward", "spell_discount", "banish_what_it_kills"]
 
 func _init(card_uid: int, id: String, owner_player: int, in_zone: String = "") -> void:
 	uid = card_uid
