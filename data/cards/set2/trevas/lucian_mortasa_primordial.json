@@ -6,10 +6,10 @@
   "transform_only": true,
   "tribe": ["dragao_primordial", "dragao", "dragoes_negros"],
   "essence": ["trevas", "furia"],
-  "cost": 7,
+  "cost": 6,
   "atk": 5,
   "hp": 5,
-  "keywords": ["voo", "intimidacao", "impeto"],
+  "keywords": ["voo", "intimidacao", "impeto", "roubo_de_vida"],
   "art": "trevas/lucian_mortasa_primordial.webp",
   "effects": [
     { "trigger": "on_enter", "action": "damage", "target": "enemy_leader", "amount": 3 },
@@ -17,6 +17,5 @@
   ],
   "text": "Ao Entrar: causa 3 de dano ao Líder inimigo e 1 de dano a todas as unidades inimigas.",
   "flavor": "",
-  "tags": [],
-  "unreleased": true
+  "tags": []
 }

@@ -1,0 +1,34 @@
+{
+  "name": "Cornélia Aldrovane",
+  "set": 2,
+  "type": "unit",
+  "rarity": "legendary",
+  "tribe": ["nuliterrano"],
+  "essence": "trevas",
+  "cost": 6,
+  "atk": 3,
+  "hp": 7,
+  "keywords": [],
+  "art": "trevas/cornelia_aldrovane.webp",
+  "effects": [
+    { "trigger": "on_enter", "action": "enemy_hand_tax", "target": "none", "cost_increase": 2 },
+    { "trigger": "constante", "action": "opponent_cost_tax", "card_type": "spell", "amount": 1 }
+  ],
+  "activated": {
+    "cost": 0,
+    "speed": "lento",
+    "exhaust": true,
+    "extra_cost": {
+      "kind": "pay_one_of",
+      "options": [
+        { "pick": "other_ally_unit" }
+      ]
+    },
+    "effects": [
+      { "action": "banish", "target": "enemy_unit" }
+    ]
+  },
+  "text": "Ao Entrar: você pode olhar a mão do oponente e escolher 1 carta dela; enquanto estiver na mão, ela custa (2) a mais.\nAo Ativar (0) {lento} (exaure esta unidade; como custo adicional, você sacrifica outra unidade aliada): bane uma unidade inimiga à sua escolha.\nConstante: os feitiços do oponente custam (1) a mais.",
+  "flavor": "Toda internação tem um formulário. Quase ninguém lê a última linha.",
+  "tags": []
+}

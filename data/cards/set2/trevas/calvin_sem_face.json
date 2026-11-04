@@ -1,0 +1,19 @@
+{
+  "name": "Calvin Sem-Face",
+  "set": 2,
+  "type": "unit",
+  "rarity": "common",
+  "tribe": ["dragoes_negros"],
+  "essence": ["trevas"],
+  "cost": 2,
+  "atk": 2,
+  "hp": 2,
+  "keywords": ["furtividade"],
+  "art": "trevas/calvin_sem_face.webp",
+  "effects": [
+    { "trigger": "on_hit_leader", "action": "discard_hand_pick", "target": "none", "who": "opponent" }
+  ],
+  "text": "Ao Atingir o Líder: o oponente escolhe 1 carta da mão dele e a descarta.",
+  "flavor": "Ninguém lembra do rosto dele. Por que será?",
+  "tags": []
+}

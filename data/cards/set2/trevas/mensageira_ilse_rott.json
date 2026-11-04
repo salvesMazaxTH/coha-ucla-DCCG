@@ -1,0 +1,27 @@
+{
+  "name": "Mensageira Ilse Rott",
+  "set": 2,
+  "type": "unit",
+  "rarity": "common",
+  "tribe": ["dragoes_negros"],
+  "essence": ["trevas"],
+  "cost": 2,
+  "atk": 2,
+  "hp": 1,
+  "keywords": ["esquiva"],
+  "esquiva": { "max_rapidez": 0 },
+  "art": "trevas/mensageira_ilse_rott.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "sacrifice",
+      "target": "other_ally_unit",
+      "then": [
+        { "action": "draw", "target": "own_leader", "amount": 1 }
+      ]
+    }
+  ],
+  "text": "Ao Entrar: você pode sacrificar outra unidade aliada; se o fizer, compra 1 carta.",
+  "flavor": "Cada recado custa alguém. Ilse nunca pergunta quem.",
+  "tags": []
+}

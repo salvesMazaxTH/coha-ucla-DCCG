@@ -1,0 +1,19 @@
+{
+  "name": "Recruta Cinzento",
+  "set": 2,
+  "type": "unit",
+  "rarity": "common",
+  "tribe": ["dragoes_negros"],
+  "essence": ["trevas"],
+  "cost": 1,
+  "atk": 2,
+  "hp": 1,
+  "keywords": ["impeto"],
+  "art": "trevas/recruta_cinzento.webp",
+  "effects": [
+    { "trigger": "on_death", "action": "damage", "target": "random_enemy_unit", "amount": 1 }
+  ],
+  "text": "Ao Morrer: causa 1 de dano a uma unidade inimiga aleatória.",
+  "flavor": "Entrou na Revoada sem nome e saiu dela com um último golpe.",
+  "tags": []
+}
