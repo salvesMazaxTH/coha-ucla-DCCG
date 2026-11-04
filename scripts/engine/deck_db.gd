@@ -76,6 +76,20 @@ static func is_deck_visible(deck_id: String) -> bool:
 		return false
 	return development_mode_enabled() or not bool(get_deck(deck_id).get("unreleased", false))
 
+## A banned Leader ("banned": true in cards.json) is still listed everywhere, marked BANIDO, but cannot be
+## picked or played unless the game runs in development mode. This is a rule for the menus and the match
+## server only: validate_cards / GameState stay unaware of it so the tests can keep building these decks.
+static func is_leader_banned(leader_id: String) -> bool:
+	if development_mode_enabled() or not CardDB.data()["leaders"].has(leader_id):
+		return false
+	return bool(CardDB.leader(leader_id).get("banned", false))
+
+## A deck is banned when its Leader is (the prebuilt deck and any deck the player builds around that Leader).
+static func is_deck_banned(deck_id: String) -> bool:
+	if not has(deck_id):
+		return false
+	return is_leader_banned(String(get_deck(deck_id)["leader"]))
+
 static func available_ids() -> Array[String]:
 	var available: Array[String] = []
 	for deck_id in ids():
@@ -144,6 +158,8 @@ static func check_incoming(raw: Variant) -> Dictionary:
 	var leader_id := String(raw.get("leader", ""))
 	if not CardDB.data()["leaders"].has(leader_id):
 		return {"deck": {}, "errors": ["Líder desconhecido"] as Array[String]}
+	if is_leader_banned(leader_id):
+		return {"deck": {}, "errors": ["Líder banido"] as Array[String]}
 	var cards: Dictionary = {}
 	var raw_cards: Variant = raw.get("cards", {})
 	if not raw_cards is Dictionary:

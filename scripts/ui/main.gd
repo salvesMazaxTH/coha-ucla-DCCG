@@ -6,6 +6,7 @@ const ChronicleRowScript = preload("res://scripts/ui/chronicle_row.gd")
 const ChronicleSceneScript = preload("res://scripts/ui/chronicle_scene.gd")
 const DomainIconRowScript = preload("res://scripts/ui/domain_icon_row.gd")
 const DeckLeaderTooltipScript = preload("res://scripts/ui/deck_leader_tooltip.gd")
+const BannedRibbonScript = preload("res://scripts/ui/banned_ribbon.gd")
 const FxLibraryScript = preload("res://scripts/ui/fx_library.gd")
 const FxShotsScript = preload("res://scripts/ui/fx_shots.gd")
 const ChronicleLogScript = preload("res://scripts/ui/chronicle_log.gd")
@@ -733,9 +734,15 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 		_toast("Nenhum deck disponível neste modo.")
 		_show_menu()
 		return
-	if not ids.has(sel_deck):
-		sel_deck = ids[0]
-	if ai_deck != "" and not ids.has(ai_deck):
+	# banned decks stay in the gallery (marked BANIDO) but can never be the chosen one
+	var playable_ids: Array[String] = ids.filter(func(deck_id: String) -> bool: return not DeckDB.is_deck_banned(deck_id))
+	if playable_ids.is_empty():
+		_toast("Nenhum deck disponível neste modo.")
+		_show_menu()
+		return
+	if not playable_ids.has(sel_deck):
+		sel_deck = playable_ids[0]
+	if ai_deck != "" and not playable_ids.has(ai_deck):
 		ai_deck = ""
 	var title := _label(("HOT-SEAT" if hub_hotseat else "CONTRA A IA") if ai else "ONLINE", 56, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8)
 	title.position = Vector2(0, 24)
@@ -828,6 +835,10 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 					return
 				if DeckLeaderTooltipScript.consume_tap(t):
 					return
+				if id != "" and DeckDB.is_deck_banned(id):
+					Sfx.play("ui_click")
+					_toast("Este Líder está BANIDO: só pode ser usado no modo de desenvolvimento.")
+					return
 				if choosing_ai_deck:
 					ai_deck = id
 				elif sel_deck != id:
@@ -859,7 +870,7 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 		actions.append(["JOGAR", func() -> void:
 			var opponent_deck := ai_deck
 			if opponent_deck == "":
-				var others := ids.filter(func(d: String) -> bool: return d != sel_deck)
+				var others := playable_ids.filter(func(d: String) -> bool: return d != sel_deck)
 				opponent_deck = String(others.pick_random()) if not others.is_empty() else sel_deck
 			_start(not hub_hotseat, sel_deck, opponent_deck), true])
 	elif net.load_session():
@@ -1197,6 +1208,8 @@ func _deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 		domain_row.position = Vector2(8, size.y - 31.0)
 		domain_row.size = Vector2(size.x - 16, 28)
 		p.add_child(domain_row)
+	if id != "" and DeckDB.is_deck_banned(id):
+		BannedRibbonScript.attach(p)
 	if selected:
 		var check := _label("✔", 20, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 4)
 		var badge := PanelContainer.new()

@@ -345,6 +345,15 @@ func _test_deck_builder_rules() -> void:
 	check(not DeckDB.check_incoming({"leader": leader, "cards": {token_id: 1}})["errors"].is_empty(), "check_incoming: recusa ficha")
 	check(not DeckDB.check_incoming({"leader": leader, "cards": {plain_id: 1}})["errors"].is_empty(), "check_incoming: recusa deck incompleto (regras do deck)")
 
+	# BANIDO: Sengoku stays listed but is unusable outside development mode (the tests run without --dev)
+	if not DeckDB.development_mode_enabled():
+		check(DeckDB.is_leader_banned("sengoku") and DeckDB.is_deck_banned("sengoku"), "BANIDO: Sengoku (Líder e deck pronto) está banido fora do modo de desenvolvimento")
+		check(not DeckDB.is_leader_banned(leader) and not DeckDB.is_deck_banned("fogo"), "BANIDO: outros Líderes e decks não são afetados")
+		check(DeckDB.ids().has("sengoku") and DeckDB.available_ids().has("sengoku"), "BANIDO: o deck continua listado (só marcado)")
+		var banned_try := DeckDB.check_incoming({"leader": "sengoku", "cards": DeckDB.get_deck("sengoku")["cards"]})
+		check(not banned_try["errors"].is_empty(), "BANIDO: check_incoming recusa o Líder banido")
+		check(not DeckDB.is_leader_banned("lider_que_nao_existe") and not DeckDB.is_deck_banned("deck_que_nao_existe"), "BANIDO: id desconhecido não quebra")
+
 ## (The Sfx autoload does not exist in -s mode, so the script is loaded directly; its table and mapping are static.)
 ## Any spell card: effects run with it as their source count as coming from a spell
 const SPELL_SOURCE := "lianas_capturantes"

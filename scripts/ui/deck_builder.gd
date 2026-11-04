@@ -2,6 +2,7 @@ class_name DeckBuilder
 extends Control
 const DomainIconRowScript = preload("res://scripts/ui/domain_icon_row.gd")
 const DeckLeaderTooltipScript = preload("res://scripts/ui/deck_leader_tooltip.gd")
+const BannedRibbonScript = preload("res://scripts/ui/banned_ribbon.gd")
 ## The in-game deck builder: "MEUS DECKS". It lists the player's decks (kept by DeckStore: Supabase while
 ## signed in, this device otherwise), and edits one in a three-column screen built from the card gallery:
 ## filters | card catalog | the deck being built, with the engine's own rules (DeckDB) shown live.
@@ -28,6 +29,7 @@ const LEADER_TILE := Vector2(172, 214)
 const GOOD := Color("#5fcf80")
 const WARN := Color("#e8a23a")
 const BAD := Color("#e8484a")
+const BANNED_MESSAGE := "Este Líder está BANIDO: só pode ser usado no modo de desenvolvimento."
 const INFO := Color("#6aa7e8")
 const CURVE_SLOTS := 8 ## costs 0..6 and "7+"
 
@@ -332,9 +334,16 @@ func _pick_leader(title: String, with_templates: bool, on_pick: Callable, on_can
 		inner.add_child(template_flow)
 		for deck_id in DeckDB.available_ids():
 			var template: Dictionary = DeckDB.get_deck(deck_id)
+			var template_banned := DeckDB.is_deck_banned(deck_id)
 			var template_button := _btn(String(template["name"]), func():
+				if template_banned:
+					_toast(BANNED_MESSAGE, BAD)
+					return
 				_close_modal()
 				on_pick.call(String(template["leader"]), deck_id), false, 16)
+			if template_banned:
+				template_button.clip_contents = true
+				BannedRibbonScript.attach(template_button)
 			template_button.tooltip_text = "%s — %s" % [CardDB.leader(String(template["leader"]))["name"], String(template.get("description", ""))]
 			template_flow.add_child(template_button)
 	var cancel_row := HBoxContainer.new()
@@ -373,11 +382,17 @@ func _leader_tile(leader_id: String, on_click: Callable) -> Control:
 	domains.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	tile.add_child(domains)
 	tile.tooltip_text = "%s\n%s" % [ld["name"], String(ld.get("ability", {}).get("text", ""))]
+	var banned := DeckDB.is_leader_banned(leader_id)
+	if banned:
+		BannedRibbonScript.attach(tile)
 	tile.mouse_entered.connect(func(): tile.modulate = Color(1.12, 1.12, 1.12))
 	tile.mouse_exited.connect(func(): tile.modulate = Color.WHITE)
 	tile.gui_input.connect(func(event: InputEvent):
 		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 			Sfx.play("ui_click")
+			if banned:
+				_toast(BANNED_MESSAGE, BAD)
+				return
 			on_click.call())
 	return tile
 
@@ -575,6 +590,8 @@ func _deck_tile(deck: Dictionary) -> Control:
 	buttons.add_child(_btn("DUPLICAR", func(): _duplicate(deck), false, 14))
 	buttons.add_child(_btn("EXCLUIR", func(): _ask_delete(deck), false, 14))
 	tile.add_child(buttons)
+	if leader != "" and DeckDB.is_leader_banned(leader):
+		BannedRibbonScript.attach(tile)
 	tile.gui_input.connect(func(event: InputEvent):
 		if event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 			if DeckLeaderTooltipScript.consume_tap(tile):
@@ -703,6 +720,9 @@ func _ensure_incarnation() -> void:
 		_cards[_incarnation_id] = 1
 
 func _set_leader(leader_id: String) -> void:
+	if DeckDB.is_leader_banned(leader_id):
+		_toast(BANNED_MESSAGE, BAD)
+		return
 	var previous_incarnation := _incarnation_id
 	_leader = leader_id
 	_incarnation_id = previous_incarnation if CardDB.is_incarnation_option(leader_id, previous_incarnation) else String(CardDB.leader(leader_id)["incarnation"])
@@ -1116,6 +1136,8 @@ func _decode_deck_code(code: String) -> Dictionary:
 	var leader := String(parsed.get("leader", ""))
 	if not CardDB.data()["leaders"].has(leader):
 		return {"error": "O deckCode contém um Líder desconhecido."}
+	if DeckDB.is_leader_banned(leader):
+		return {"error": BANNED_MESSAGE}
 	var raw_cards: Variant = parsed.get("cards", {})
 	if not raw_cards is Dictionary:
 		return {"error": "A lista de cartas do deckCode está inválida."}

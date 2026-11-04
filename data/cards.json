@@ -422,6 +422,7 @@
     },
     "sengoku": {
       "name": "Sengoku",
+      "banned": true,
       "hp": 30,
       "art": "furia/sengoku_lider.webp",
       "incarnation": "sengoku",
