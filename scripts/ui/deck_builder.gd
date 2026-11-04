@@ -7,7 +7,7 @@ const BannedRibbonScript = preload("res://scripts/ui/banned_ribbon.gd")
 ## signed in, this device otherwise), and edits one in a three-column screen built from the card gallery:
 ## filters | card catalog | the deck being built, with the engine's own rules (DeckDB) shown live.
 ##
-## The copy limit of a card is a hard stop. Every other rule (44 cards, Elite cards, guest cards, the
+## The copy limit of a card is a hard stop. Every other rule (44 cards, Champion cards, guest cards, the
 ## Encarnação) is only a warning, so a deck can be reshuffled through illegal states and saved as a
 ## draft; the list marks it LEGAL / INCOMPLETO / ILEGAL.
 

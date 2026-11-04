@@ -12,7 +12,7 @@ const FACETS := [
 	{"id": "element", "title": "Elemento", "values": "element"},
 	{"id": "type", "title": "Tipo", "values": "type"},
 	{"id": "rarity", "title": "Raridade", "values": "rarity"},
-	{"id": "tribe", "title": "Espécie", "values": "tribe"},
+	{"id": "tribe", "title": "Tribo", "values": "tribe"},
 	{"id": "keyword", "title": "Palavra-chave", "values": "keywords"},
 	{"id": "speed", "title": "Velocidade", "values": "speed"},
 	{"id": "subtype", "title": "Subtipo", "values": "subtypes"},

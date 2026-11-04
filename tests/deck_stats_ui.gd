@@ -13,12 +13,20 @@ func _init() -> void:
 	var tile: Control = main._deck_tile("fogo", Vector2(210, 236), false)
 	main.add_child(tile)
 	var box: Control = tile.get_node("DeckStats")
+	var totals: HBoxContainer = box.get_node("Totals")
+	var games_label: Label = totals.get_node("Games")
+	var wins_label: Label = totals.get_node("Wins")
+	var losses_label: Label = totals.get_node("Losses")
 	var texts: Array[String] = []
 	for child in box.get_children():
 		if child is Label:
 			texts.append(child.text)
-	if not texts.has("5 J  ·  3 V  ·  1 D") or not texts.has("60% VITÓRIAS · 1 E"):
+	if games_label.text != "5 J" or wins_label.text != "3 V" or losses_label.text != "1 D" or not texts.has("60% VITÓRIAS · 1 E"):
 		push_error("Estatísticas incorretas: %s" % [texts])
+		quit(1)
+		return
+	if wins_label.get_theme_color("font_color") != Color("#58c77d") or losses_label.get_theme_color("font_color") != Color("#dc5b5b") or games_label.get_theme_font_size("font_size") <= 14 or box.get_node("WinRate").get_theme_font_size("font_size") <= 14:
+		push_error("Cores ou tamanho dos totais incorretos")
 		quit(1)
 		return
 	if not tile.tooltip_text.contains("1 empate") or box.modulate.a != 0.0:
@@ -56,6 +64,16 @@ func _init() -> void:
 	var empty_box: Control = empty_tile.get_node("DeckStats")
 	if empty_box.get_child(1).text != "SEM PARTIDAS" or empty_box.get_node("ResultsBar/Wins").size.x != 0:
 		push_error("Deck sem partidas não deve mostrar porcentagem nem vitórias")
+		quit(1)
+		return
+	auth.state.deck_stats = [{"deck_key": "fogo", "games": 1234567, "wins": 1000000, "losses": 234567, "draws": 0}]
+	var large_tile: Control = main._deck_tile("fogo", Vector2(210, 236), false)
+	main.add_child(large_tile)
+	await process_frame
+	var large_totals: HBoxContainer = large_tile.get_node("DeckStats/Totals")
+	var last: Label = large_totals.get_node("Losses")
+	if large_totals.size.x > large_tile.get_node("DeckStats").size.x or last.position.x + last.size.x > large_totals.size.x:
+		push_error("Totais grandes ultrapassaram a tarja")
 		quit(1)
 		return
 	print("deck stats UI passed")

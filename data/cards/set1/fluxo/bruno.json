@@ -27,7 +27,7 @@
       "type": "spell"
     }
   ],
-  "text": "Ao Entrar: o nível da Bola de Neve sobe em 1 neste turno (sem lançá-la); você procura uma Bola de Neve no seu deck e a coloca na mão.",
+  "text": "Ao Entrar: o nível da Bola de Neve sobe em 1 neste turno (sem lançá-la); você procura uma Bola de Neve no seu deck e a coloca na mão; depois, embaralha o deck.",
   "flavor": "Tinha uma bolinha. Agora tem um problema.",
   "tags": [
     "bola_de_neve"

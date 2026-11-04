@@ -1,0 +1,17 @@
+{
+  "name": "Cortejo de Cinzas",
+  "set": 2,
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "trevas",
+  "cost": 1,
+  "speed": "lento",
+  "art": "trevas/cortejo_de_cinzas.webp",
+  "effects": [
+    { "trigger": "on_play", "action": "summon", "target": "none", "card": "espirito_choroso", "count": 2, "side": "enemy" },
+    { "trigger": "on_play", "action": "draw", "target": "own_leader", "amount": 2 }
+  ],
+  "text": "O oponente invoca 2 Espíritos Chorosos sob o controle dele. Você compra 2 cartas.",
+  "flavor": "",
+  "tags": []
+}

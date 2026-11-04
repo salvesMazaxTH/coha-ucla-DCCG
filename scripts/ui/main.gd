@@ -1249,7 +1249,7 @@ func _add_deck_tile_stats(tile: Control, name_label: Label, deck_id: String) -> 
 		status = "guest"
 	if status != "ready":
 		var message := "ENTRE NA CONTA" if status == "guest" else ("CARREGANDO…" if status == "loading" else "INDISPONÍVEL")
-		var hint := _label(message, 14, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
+		var hint := _label(message, 16, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
 		hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		hint.size = stats_box.size
 		stats_box.add_child(hint)
@@ -1264,16 +1264,45 @@ func _add_deck_tile_stats(tile: Control, name_label: Label, deck_id: String) -> 
 		var losses := int(record.get("losses", 0))
 		var draws := int(record.get("draws", 0))
 		tile.tooltip_text = "%s\n%d partidas · %d vitórias · %d derrotas · %d empate%s" % [tile.tooltip_text, games, wins, losses, draws, "" if draws == 1 else "s"]
-		var totals := _label("%d J  ·  %d V  ·  %d D" % [games, wins, losses], 14, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "bold")
-		totals.position = Vector2(0, 0)
-		totals.size = Vector2(stats_box.size.x, 23)
+		var parts := [
+			{"name": "Games", "text": "%d J" % games, "color": UITheme.TEXT},
+			{"name": "Separator1", "text": "·", "color": UITheme.TEXT},
+			{"name": "Wins", "text": "%d V" % wins, "color": Color("#58c77d")},
+			{"name": "Separator2", "text": "·", "color": UITheme.TEXT},
+			{"name": "Losses", "text": "%d D" % losses, "color": Color("#dc5b5b")},
+		]
+		var totals_size := 17
+		var font := UITheme.font("bold")
+		while totals_size > 7:
+			var total_width := 16.0
+			for part in parts:
+				total_width += font.get_string_size(part.text, HORIZONTAL_ALIGNMENT_LEFT, -1, totals_size).x
+			if total_width <= stats_box.size.x:
+				break
+			totals_size -= 1
+		var totals := HBoxContainer.new()
+		totals.name = "Totals"
+		totals.alignment = BoxContainer.ALIGNMENT_CENTER
+		totals.add_theme_constant_override("separation", 4)
+		totals.size = Vector2(stats_box.size.x, 24)
+		totals.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		totals.clip_contents = true
 		stats_box.add_child(totals)
+		for part in parts:
+			var label := _label(part.text, totals_size, part.color, HORIZONTAL_ALIGNMENT_CENTER, "bold")
+			label.name = part.name
+			totals.add_child(label)
 		var rate_text := "%d%% VITÓRIAS" % roundi(100.0 * wins / games) if games > 0 else "SEM PARTIDAS"
 		if draws > 0:
 			rate_text += " · %d E" % draws
-		var rate := _label(rate_text, 14, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "bold")
-		rate.position = Vector2(0, 23)
+		var rate_size := 16
+		while rate_size > 7 and font.get_string_size(rate_text, HORIZONTAL_ALIGNMENT_LEFT, -1, rate_size).x > stats_box.size.x:
+			rate_size -= 1
+		var rate := _label(rate_text, rate_size, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "bold")
+		rate.name = "WinRate"
+		rate.position = Vector2(0, 24)
 		rate.size = Vector2(stats_box.size.x, 22)
+		rate.clip_text = true
 		stats_box.add_child(rate)
 		var bar := ColorRect.new()
 		bar.name = "ResultsBar"

@@ -189,7 +189,7 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `avarik` | Avarik | Campeã | Unidade | 4 |
 | `avarion` | Avarion | Campeã | Unidade | 4 |
 | `bastionario_de_basalto` | Bastionário de Basalto | Épica | Unidade | 2 |
-| `berengar_voss` | Berengar Voss | Lendária | Unidade | 4 |
+| `berengar_voss` | Berengar Voss | Lendária | Unidade | 3 |
 | `biblioteca_de_pecas` | Biblioteca de Peças | Comum | Feitiço | 2 |
 | `brontharax` | Brontharax, Dragão de Bronze | Campeã | Unidade | 7 |
 | `colosso_de_arenito` | Colosso de Arenito | Comum | Unidade | 5 |
@@ -450,7 +450,7 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `zaza_fuzue` | Zazá Fuzuê | Lendária | Unidade | 4 |
 | `zeladora_shhh` | Zeladora Shhh | Comum | Unidade | 4 |
 
-## Set 2: Nuliterra (2026) (51 cartas)
+## Set 2: Nuliterra (2026) (58 cartas)
 
 ### Fúria (19)
 
@@ -513,15 +513,22 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `tranco_eletrico` | Tranco Elétrico | Comum | Feitiço | 2 |
 | `wendy_pingo_curto` | Wendy Pingo-Curto | Comum | Unidade | 1 |
 
-### Trevas (9)
+### Trevas (16)
 
 | ID | Nome | Raridade | Tipo | Custo |
 |---|---|---|---|---|
+| `calvin_sem_face` | Calvin Sem-Face | Comum | Unidade | 2 |
+| `carga_do_sapador` | Carga do Sapador | Comum | Feitiço | 1 |
+| `convocacao_muda` | Convocação Muda | Comum | Feitiço | 1 |
+| `cornelia_aldrovane` | Cornélia Aldrovane | Lendária | Unidade | 6 |
+| `cortejo_de_cinzas` | Cortejo de Cinzas | Épica | Feitiço | 1 |
 | `drake` | Drake | Campeã | Unidade | 4 |
 | `elias_oraculo` | Elias, Oráculo | Campeã | Unidade | 4 |
 | `lucian_mortasa` | Lucian Mortasa | Campeã | Unidade | 4 |
-| `lucian_mortasa_primordial` | Lucian Mortasa Primordial | Campeã | Unidade | 7 |
+| `lucian_mortasa_primordial` | Lucian Mortasa Primordial | Campeã | Unidade | 6 |
 | `magni` | Magni | Campeã | Unidade | 6 |
+| `mensageira_ilse_rott` | Mensageira Ilse Rott | Comum | Unidade | 2 |
+| `recruta_cinzento` | Recruta Cinzento | Comum | Unidade | 1 |
 | `vesper` | Seraphina, Vesper | Campeã | Unidade | 4 |
 | `soren` | Soren | Campeã | Unidade | 5 |
 | `sven` | Sven | Campeã | Unidade | 3 |
