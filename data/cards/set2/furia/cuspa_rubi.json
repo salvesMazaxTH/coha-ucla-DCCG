@@ -14,6 +14,7 @@
   "atk": 5,
   "hp": 5,
   "keywords": [],
+  "hit_fx": "rubi",
   "art": "furia/cuspa_rubi.webp",
   "effects": [
     {

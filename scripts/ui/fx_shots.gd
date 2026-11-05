@@ -1,7 +1,8 @@
 class_name FxShots
 extends RefCounted
 ## The shots that carry an effect from its source card to its target: the default flaming bolt, the
-## orb of light for good effects (heal, buff, summon), and the card-specific styles (thorn, slash).
+## orb of light for good effects (heal, buff, summon), and the card-specific styles (thorn, bullet,
+## ruby, slash).
 ## Built on FxLibrary's poses and glow primitives; Main (`host`) owns the effects layer.
 
 ## The Main node that owns the table.
@@ -115,6 +116,8 @@ func _shot_timing(style: String, first_shot: bool) -> Dictionary:
 			return {"charge": (SLASH_CHARGE_FIRST if first_shot else SLASH_CHARGE_NEXT) * pace, "flight": SLASH_DASH * pace}
 		"tiro":
 			return {"charge": (BULLET_CHARGE_FIRST if first_shot else BULLET_CHARGE_NEXT) * pace, "flight": BULLET_FLIGHT * pace}
+		"rubi":
+			return {"charge": (RUBY_CHARGE_FIRST if first_shot else RUBY_CHARGE_NEXT) * pace, "flight": RUBY_FLIGHT * pace}
 		"boon":
 			return {"charge": (BOON_CHARGE_FIRST if first_shot else BOON_CHARGE_NEXT) * pace, "flight": BOON_FLIGHT * pace}
 	return {"charge": (BOLT_CHARGE_FIRST if first_shot else BOLT_CHARGE_NEXT) * pace, "flight": BOLT_FLIGHT * pace}
@@ -132,6 +135,8 @@ func _effect_hit(style: String, from: Control, to: Control, t: float, col: Color
 			return _slash_shot(from, to, t, first_shot)
 		"tiro":
 			return _bullet_shot(from, to, t, first_shot)
+		"rubi":
+			return _ruby_shot(from, to, t, first_shot)
 		"boon":
 			return _boon_shot(from, to, t, col, first_shot)
 	return _effect_bolt(from, to, t, col, first_shot)
@@ -1210,6 +1215,273 @@ func _bullet_shot(from: Control, to: Control, t: float, first_shot: bool) -> flo
 			mark_tween.tween_property(mark, "modulate:a", 0.0, 0.3)
 		var cleanup := holder.create_tween()
 		cleanup.tween_interval(BULLET_SMOKE_TIME + 0.2)
+		cleanup.tween_callback(holder.queue_free))
+	return charge + flight
+
+## Timing of the "rubi" hit style (see _ruby_shot): the spitter draws a breath before her first spit,
+## then sprays the rest without pausing; a crystal flies a little slower than a bullet, so it reads.
+const RUBY_CHARGE_FIRST := 0.14
+const RUBY_CHARGE_NEXT := 0.0
+const RUBY_FLIGHT := 0.2
+## How long the crystal burst on the target takes to fade, and when the whole impact is cleaned up.
+const RUBY_BURST_FADE := 0.26
+const RUBY_IMPACT_LIFETIME := 0.6
+## Colors of the rubies (taken from the Cuspa-Rubi's art): a bright red lit face, a deep red shadow
+## face, a pale pink shine for flashes, and a dark outline so a small crystal still reads on a phone.
+const RUBY_LIGHT_COLOR := Color("#ff3346")
+const RUBY_DARK_COLOR := Color("#8c0016")
+const RUBY_SHINE_COLOR := Color("#ffc4cc")
+const RUBY_OUTLINE_COLOR := Color("#2b0006")
+
+## One ruby crystal, pointing along +x: a long faceted shard whose upper face is lit and lower face is
+## in shadow (two flat polygons, which is what makes it look cut), with a dark outline and, if
+## `with_glow`, a faint red glow behind it. `size` scales the whole crystal (1.0 = the main shot).
+func _ruby_crystal(size: float, with_glow: bool) -> Node2D:
+	var crystal := Node2D.new()
+	crystal.scale = Vector2.ONE * size
+	if with_glow:
+		crystal.add_child(fx_library._glow_sprite(18.0, Color(RUBY_LIGHT_COLOR, 0.45)))
+	var tip := Vector2(17, 0)
+	var back := Vector2(-14, 0)
+	var lit_face := Polygon2D.new()
+	lit_face.polygon = PackedVector2Array([tip, Vector2(4, -5.5), Vector2(-10, -3.5), back])
+	lit_face.vertex_colors = PackedColorArray([RUBY_SHINE_COLOR, RUBY_LIGHT_COLOR, RUBY_LIGHT_COLOR, RUBY_DARK_COLOR])
+	crystal.add_child(lit_face)
+	var shadow_face := Polygon2D.new()
+	shadow_face.polygon = PackedVector2Array([tip, back, Vector2(-10, 3.5), Vector2(4, 5.5)])
+	shadow_face.color = RUBY_DARK_COLOR
+	crystal.add_child(shadow_face)
+	var outline := Line2D.new()
+	outline.points = PackedVector2Array([tip, Vector2(4, -5.5), Vector2(-10, -3.5), back, Vector2(-10, 3.5), Vector2(4, 5.5)])
+	outline.closed = true
+	outline.width = 1.4
+	outline.default_color = RUBY_OUTLINE_COLOR
+	outline.joint_mode = Line2D.LINE_JOINT_ROUND
+	crystal.add_child(outline)
+	return crystal
+
+## The "rubi" hit style, for the Cuspa-Rubi, who spits rubies (crystals, not fire):
+## 1. breath (first shot of a trigger only): the spitter leans back, away from the target;
+## 2. spit: she snaps forward and a few tiny red chips spray out of her toward the target;
+## 3. flight: a long ruby crystal flies point-first on a slight arc, with a short red streak and
+##    (when the effects budget allows it) two small chips flying beside it, like the spray in her art;
+## 4. impact: the crystal bursts into a red star of spikes with a flash, and shards bounce off
+##    (a bit off-center, so a volley spreads over the target).
+## Kept light for phones: a handful of flat polygons and two small particle bursts per shot, fewer
+## when many shots fire at once. Follows both ends if they move. Returns the time until it lands.
+func _ruby_shot(from: Control, to: Control, t: float, first_shot: bool) -> float:
+	var timing := _shot_timing("rubi", first_shot)
+	var charge: float = timing["charge"]
+	var flight: float = timing["flight"]
+	var launch_t := t + charge
+	var impact_t := launch_t + flight
+	var rich := fx_library.fx_scale >= 0.7 # big chains skip the side chips and use fewer spikes
+	var path := _shot_path(from, to, 0.1, 50.0)
+	var ends: Dictionary = path["ends"]
+	var refresh_ends: Callable = path["refresh"]
+	var point_at: Callable = path["point_at"]
+	# where on the target this crystal lands, relative to the target's center
+	var hit_offset := Vector2(randf_range(-16.0, 16.0), randf_range(-16.0, 16.0))
+	# the lambdas below reach the shot's nodes through this dictionary instead of capturing them
+	# (same reason as in _effect_bolt: the nodes may be freed while a lambda is still scheduled)
+	var parts := {}
+	var alive := func(key: String) -> Node:
+		var node = parts.get(key)
+		return node if is_instance_valid(node) else null
+
+	# --- 1 and 2. lean back for breath, then snap forward as she spits
+	if from is CardView:
+		var spitter: CardView = from
+		var lunge := spitter.create_tween()
+		lunge.tween_interval(t)
+		if first_shot:
+			lunge.tween_method(func(k: float):
+				var away: Vector2 = (ends["a"] - ends["b"]).normalized()
+				spitter.shake = away * 8.0 * k, 0.0, 1.0, charge).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		lunge.tween_method(func(k: float):
+			var toward: Vector2 = (ends["b"] - ends["a"]).normalized()
+			spitter.shake = toward * 10.0 * (1.0 - k), 0.0, 1.0, 0.16).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		lunge.tween_callback(func(): spitter.shake = Vector2.ZERO)
+
+	var spray := CPUParticles2D.new()
+	spray.emitting = false
+	spray.one_shot = true
+	spray.explosiveness = 0.95
+	spray.local_coords = false
+	spray.amount = maxi(3, int(7 * fx_library.fx_scale))
+	spray.lifetime = 0.35
+	spray.spread = 25.0
+	spray.gravity = Vector2(0, 260)
+	spray.damping_min = 120.0
+	spray.damping_max = 200.0
+	spray.initial_velocity_min = 140.0
+	spray.initial_velocity_max = 320.0
+	spray.angle_min = 0.0
+	spray.angle_max = 360.0
+	spray.scale_amount_min = 2.0
+	spray.scale_amount_max = 3.5
+	var spray_ramp := Gradient.new()
+	spray_ramp.set_color(0, RUBY_LIGHT_COLOR)
+	spray_ramp.set_color(1, Color(RUBY_DARK_COLOR, 0.0))
+	spray.color_ramp = spray_ramp
+	spray.z_index = 25
+	fx.add_child(spray)
+	parts["spray"] = spray
+	var st := fx.create_tween()
+	st.tween_interval(launch_t)
+	st.tween_callback(func():
+		var spray_node: CPUParticles2D = alive.call("spray")
+		if spray_node == null:
+			return # the table was reset mid-animation
+		refresh_ends.call()
+		var toward: Vector2 = (ends["b"] - ends["a"]).normalized()
+		spray_node.position = ends["a"] + toward * 26.0 # from the mouth, a little ahead of the card
+		spray_node.direction = toward
+		spray_node.emitting = true)
+	st.tween_interval(spray.lifetime + 0.1)
+	st.tween_callback(func():
+		var spray_node: Node = alive.call("spray")
+		if spray_node != null:
+			spray_node.queue_free())
+
+	# --- 3. flight: the main crystal, its streak, and (rich only) two small chips beside it
+	var crystal := _ruby_crystal(1.25, true)
+	crystal.z_index = 26
+	crystal.visible = false
+	fx.add_child(crystal)
+	parts["crystal"] = crystal
+	var streak := Line2D.new()
+	streak.width = 5.0
+	streak.material = fx_library._additive()
+	var streak_gradient := Gradient.new()
+	streak_gradient.set_color(0, Color(RUBY_DARK_COLOR, 0.0))
+	streak_gradient.set_color(1, Color(RUBY_LIGHT_COLOR, 0.6))
+	streak.gradient = streak_gradient
+	var streak_width := Curve.new() # pointed at the back
+	streak_width.add_point(Vector2(0, 0.0))
+	streak_width.add_point(Vector2(1, 1))
+	streak.width_curve = streak_width
+	streak.z_index = 25
+	streak.visible = false
+	fx.add_child(streak)
+	parts["streak"] = streak
+	# each chip: how far it sits to the side of the path, and how far behind the main crystal
+	var chips := []
+	if rich:
+		for side in [-1.0, 1.0]:
+			var chip := _ruby_crystal(randf_range(0.4, 0.55), false)
+			chip.z_index = 25
+			chip.visible = false
+			fx.add_child(chip)
+			var key := "chip_%d" % chips.size()
+			parts[key] = chip
+			chips.append({"key": key, "side": side * randf_range(9.0, 15.0), "lag": randf_range(0.05, 0.12)})
+	var ft := fx.create_tween()
+	ft.tween_interval(launch_t)
+	ft.tween_method(func(k: float):
+		refresh_ends.call()
+		var head := ease(k, 1.3) # leaves the mouth hard and keeps speeding up a little
+		var crystal_node: Node2D = alive.call("crystal")
+		if crystal_node == null:
+			return
+		var tip: Vector2 = point_at.call(head)
+		var heading: Vector2 = tip - point_at.call(maxf(head - 0.03, 0.0))
+		if heading.length() > 0.5:
+			crystal_node.rotation = heading.angle()
+		crystal_node.position = tip
+		crystal_node.visible = true
+		var side_axis: Vector2 = heading.normalized().orthogonal()
+		for chip_info in chips:
+			var chip_node: Node2D = alive.call(chip_info["key"])
+			if chip_node == null:
+				continue
+			var chip_u: float = maxf(head - chip_info["lag"], 0.0)
+			chip_node.position = point_at.call(chip_u) + side_axis * chip_info["side"] * minf(chip_u * 4.0, 1.0)
+			chip_node.rotation = crystal_node.rotation
+			chip_node.visible = chip_u > 0.0
+		var streak_node: Line2D = alive.call("streak")
+		if streak_node != null:
+			var streak_points := PackedVector2Array()
+			var streak_start := maxf(head - 0.1, 0.0)
+			for j in 6:
+				streak_points.append(point_at.call(lerpf(streak_start, head, j / 5.0)))
+			streak_node.points = streak_points
+			streak_node.visible = true, 0.0, 1.0, flight)
+	ft.tween_callback(func():
+		var keys := ["crystal", "streak"]
+		for chip_info in chips:
+			keys.append(chip_info["key"])
+		for key in keys:
+			var node: Node = alive.call(key)
+			if node != null:
+				node.queue_free())
+
+	# --- 4. impact: a flash, a red star of crystal spikes and shards bouncing off, in one holder
+	var impact_holder := Node2D.new()
+	impact_holder.z_index = 27
+	fx.add_child(impact_holder)
+	parts["impact"] = impact_holder
+	var it := fx.create_tween()
+	it.tween_interval(impact_t)
+	it.tween_callback(func():
+		var holder: Node2D = alive.call("impact")
+		if holder == null:
+			return
+		refresh_ends.call()
+		var hit_point: Vector2 = ends["b"] + hit_offset
+		var travel: Vector2 = (ends["b"] - point_at.call(0.85)).normalized()
+		var flash := fx_library._glow_sprite(28.0, Color(RUBY_SHINE_COLOR, 0.9))
+		flash.position = hit_point
+		holder.add_child(flash)
+		var flash_tween := flash.create_tween()
+		flash_tween.tween_property(flash, "scale", flash.scale * 1.15, 0.08).from(flash.scale * 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		flash_tween.parallel().tween_property(flash, "modulate:a", 0.0, 0.2).set_delay(0.04)
+		# the star: thin spikes of ruby around the hit point that shoot out and fade (like the
+		# red starbursts on the ground in the card's art)
+		var star := Node2D.new()
+		star.position = hit_point
+		holder.add_child(star)
+		var spike_count := 7 if rich else 5
+		var first_angle := randf() * TAU
+		for i in spike_count:
+			var angle := first_angle + TAU * i / spike_count + randf_range(-0.25, 0.25)
+			var reach := randf_range(16.0, 30.0)
+			var spike := Polygon2D.new()
+			spike.polygon = PackedVector2Array([Vector2(reach, 0), Vector2(3, -2.6), Vector2(3, 2.6)])
+			spike.vertex_colors = PackedColorArray([RUBY_SHINE_COLOR, RUBY_LIGHT_COLOR, RUBY_DARK_COLOR])
+			spike.rotation = angle
+			star.add_child(spike)
+		var star_tween := star.create_tween()
+		star_tween.tween_property(star, "scale", Vector2.ONE, 0.08).from(Vector2.ONE * 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		star_tween.tween_property(star, "modulate:a", 0.0, RUBY_BURST_FADE)
+		# shards: small red bits thrown back out the way the crystal came in, then falling
+		var shards := CPUParticles2D.new()
+		shards.emitting = false
+		shards.one_shot = true
+		shards.explosiveness = 1.0
+		shards.local_coords = false
+		shards.amount = maxi(4, int(10 * fx_library.fx_scale))
+		shards.lifetime = 0.45
+		shards.direction = -travel
+		shards.spread = 70.0
+		shards.gravity = Vector2(0, 640)
+		shards.damping_min = 60.0
+		shards.damping_max = 130.0
+		shards.initial_velocity_min = 120.0
+		shards.initial_velocity_max = 300.0
+		shards.angle_min = 0.0
+		shards.angle_max = 360.0
+		shards.scale_amount_min = 2.2
+		shards.scale_amount_max = 4.2
+		var shard_ramp := Gradient.new()
+		shard_ramp.set_color(0, RUBY_LIGHT_COLOR)
+		shard_ramp.set_color(1, Color(RUBY_DARK_COLOR, 0.0))
+		shards.color_ramp = shard_ramp
+		shards.position = hit_point
+		holder.add_child(shards)
+		shards.emitting = true
+		var cleanup := holder.create_tween()
+		cleanup.tween_interval(RUBY_IMPACT_LIFETIME)
 		cleanup.tween_callback(holder.queue_free))
 	return charge + flight
 
