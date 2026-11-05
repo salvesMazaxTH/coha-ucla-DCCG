@@ -488,6 +488,8 @@ func _check_deck_builder(m) -> bool:
 	if not _assistant_notes_contain(assistant_notes, "Só 8 unidades de custo 0 a 2"):
 		push_error("assistente de deck não contou só as 8 unidades baratas entre 16 cartas")
 		return false
+	if not _check_deck_autofill(builder):
+		return false
 	var template: Dictionary = DeckDB.get_deck("obscura_lento")
 	builder._open_editor({"id": "", "name": "Deck de teste", "description": "", "leader": template["leader"], "cards": {}, "problems": []})
 	await process_frame
@@ -519,6 +521,61 @@ func _check_deck_builder(m) -> bool:
 	builder.queue_free()
 	await process_frame
 	DirAccess.remove_absolute(scratch_path)
+	return true
+
+## "COMPLETAR": for every Leader and every plan of the Deck Assistant, an empty deck must come out legal and
+## with no "grave" note from the assistant. A Leader with too little in its own domains for a plan is only
+## reported (a warning), not a failure, as long as the deck is still legal.
+func _check_deck_autofill(builder) -> bool:
+	var plans := [
+		["aggro", "burn"], ["aggro", "board"], ["midrange", "pressure"], ["midrange", "value"],
+		["control", "removal"], ["control", "late"], ["combo", "spells"], ["combo", "tribal"],
+		["unsure", "learn"], ["unsure", "balanced"],
+	]
+	var unavoidable_graves := 0
+	var decks_built := 0
+	for leader_id in CardDB.data()["leaders"]:
+		if DeckDB.is_leader_banned(String(leader_id)):
+			continue
+		for plan in plans:
+			builder._leader = String(leader_id)
+			builder._incarnation_id = String(CardDB.leader(String(leader_id))["incarnation"])
+			builder._cards = {}
+			builder._ensure_incarnation()
+			builder._assistant_enabled = true
+			builder._assistant_profile = String(plan[0])
+			builder._assistant_focus = String(plan[1])
+			var filled: Dictionary = DeckAutofill.complete(builder._leader, builder._incarnation_id, builder._cards, builder._pool, builder._assistant_profile, builder._assistant_focus)
+			builder._cards = filled["cards"]
+			decks_built += 1
+			var problems := DeckDB.validate_cards(builder._leader, builder._cards, builder._incarnation_id)
+			if not problems.is_empty():
+				push_error("completar deck (%s, %s/%s) gerou deck ilegal: %s" % [leader_id, plan[0], plan[1], problems])
+				return false
+			for note in builder._coach_notes():
+				if note["color"] == builder.BAD:
+					unavoidable_graves += 1
+					print("completar deck: aviso grave restante (%s, %s/%s): %s" % [leader_id, plan[0], plan[1], note["text"]])
+	print("completar deck: %d decks gerados, %d avisos graves restantes" % [decks_built, unavoidable_graves])
+	if unavoidable_graves > 0:
+		push_error("completar deck deixou avisos graves do assistente")
+		return false
+	# the button handler itself: keeps what was chosen and does nothing on a full deck
+	var some_leader := String(CardDB.data()["leaders"].keys()[0])
+	builder._leader = some_leader
+	builder._incarnation_id = String(CardDB.leader(some_leader)["incarnation"])
+	builder._cards = {}
+	builder._ensure_incarnation()
+	builder._assistant_enabled = false
+	builder._autofill_deck()
+	if int(DeckDB.stats(some_leader, builder._cards, builder._incarnation_id)["total"]) != DeckDB.DECK_SIZE:
+		push_error("botão COMPLETAR não deixou o deck com %d cartas" % DeckDB.DECK_SIZE)
+		return false
+	var cards_before: Dictionary = builder._cards.duplicate()
+	builder._autofill_deck()
+	if builder._cards != cards_before:
+		push_error("botão COMPLETAR mexeu num deck que já estava cheio")
+		return false
 	return true
 
 func _assistant_notes_contain(notes: Array[Dictionary], phrase: String) -> bool:

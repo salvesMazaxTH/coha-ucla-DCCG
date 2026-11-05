@@ -948,6 +948,7 @@ func _build_deck_panel() -> Control:
 	coach_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	coach_row.add_child(coach_title)
 	coach_row.add_child(_btn("CONFIGURAR" if _assistant_enabled else "ATIVAR", _offer_deck_assistant, false, 14))
+	coach_row.add_child(_btn("COMPLETAR", _autofill_deck, false, 14))
 	box.add_child(coach_row)
 
 	_curve = Control.new()
@@ -1355,6 +1356,28 @@ func _ask_clear() -> void:
 		_render_cards()
 		_refresh_deck_panel())
 
+## "COMPLETAR": fills the rest of the deck following the plan chosen in the Deck Assistant (a balanced
+## deck when the assistant is off). Only the missing cards are added; the cards already chosen stay.
+func _autofill_deck() -> void:
+	var missing_cards := DeckDB.DECK_SIZE - int(DeckDB.stats(_leader, _cards, _incarnation_id)["total"])
+	if missing_cards <= 0:
+		_toast("O deck já está com %d cartas." % DeckDB.DECK_SIZE, WARN)
+		return
+	var profile := _assistant_profile if _assistant_enabled else "unsure"
+	var focus := _assistant_focus if _assistant_enabled else ""
+	var filled := DeckAutofill.complete(_leader, _incarnation_id, _cards, _pool, profile, focus)
+	_cards = filled["cards"]
+	_mark_dirty()
+	_render_cards()
+	_refresh_deck_panel()
+	var added := int(filled["added"])
+	if added < missing_cards:
+		_toast("Só foi possível adicionar %d de %d cartas: não restam cartas válidas para este Líder." % [added, missing_cards], WARN)
+	elif _assistant_enabled:
+		_toast("%d cartas adicionadas seguindo o plano do assistente." % added, GOOD)
+	else:
+		_toast("%d cartas adicionadas com uma curva equilibrada. Ative o assistente para escolher um plano." % added, GOOD)
+
 func _mark_dirty() -> void:
 	_dirty = true
 	_update_save_state()
@@ -1471,44 +1494,15 @@ func _coach_notes() -> Array[Dictionary]:
 				late_threats += copies
 		for specie in card.get("tribe", []):
 			tribe[String(specie)] = int(tribe.get(String(specie), 0)) + copies
-		var has_unrestricted_targeted_removal := false
-		var has_unrestricted_global_removal := false
-		var has_card_selection := false
-		var has_burn := false
-		var effects: Array = card.get("effects", []).duplicate()
-		var activated: Dictionary = card.get("activated", {})
-		effects.append_array(activated.get("effects", []))
-		for effect in effects:
-			var action := String(effect.get("action", ""))
-			var target := String(effect.get("target", ""))
-			if action in ["draw", "search_deck", "look_top", "look_bottom"]:
-				has_card_selection = true
-			var is_group_target := target.begins_with("all_") or target.begins_with("each_") \
-					or target.begins_with("other_") or target.begins_with("center_")
-			var removes_units := action in ["destroy", "banish", "damage"] \
-					and (target.contains("unit") or target == "any")
-			if removes_units:
-				if is_group_target:
-					var is_global_target := target in ["all_enemy_units", "all_units", "other_units"]
-					var has_group_restriction: bool = not effect.get("unit_filter", {}).is_empty() \
-							or String(effect.get("unit_state", "")) != "" 							or not effect.get("unit_state_any", []).is_empty()
-					if is_global_target and not has_group_restriction:
-						has_unrestricted_global_removal = true
-				else:
-					var is_broad_target := target in ["enemy_unit", "any_unit", "any"]
-					var has_target_restriction: bool = int(effect.get("max_target_cost", -1)) >= 0 \
-							or not effect.get("requires_markers", {}).is_empty()
-					if action in ["destroy", "banish"] and is_broad_target and not has_target_restriction:
-						has_unrestricted_targeted_removal = true
-			if action == "damage" and (target == "enemy_leader" or target == "both_leaders"):
-				has_burn = true
-		if has_card_selection:
+		# what the card does for the counts below (shared with the deck auto-fill, so both agree)
+		var card_traits := DeckAutofill.traits_of(card)
+		if card_traits["card_selection"]:
 			card_selection += copies
-		if has_unrestricted_targeted_removal:
+		if card_traits["targeted_removal"]:
 			unrestricted_targeted_removal += copies
-		if has_unrestricted_global_removal:
+		if card_traits["global_removal"]:
 			unrestricted_global_removal += copies
-		if has_burn:
+		if card_traits["burn"]:
 			burn += copies
 	var plan_name: String = String({"aggro": "Aggro", "midrange": "Midrange", "control": "Control", "combo": "Combo", "unsure": "exploração"}.get(_assistant_profile, ""))
 	notes.append({"text": "Plano acompanhado: %s. O assistente atualiza estas dicas a cada carta adicionada ou removida." % plan_name, "color": INFO, "tag": "ASSISTENTE"})
