@@ -990,7 +990,10 @@ func _thorn_shot(from: Control, to: Control, t: float, first_shot: bool) -> floa
 ## shot, then fires the rest without pausing; a bullet crosses the table almost instantly.
 const BULLET_CHARGE_FIRST := 0.10
 const BULLET_CHARGE_NEXT := 0.0
-const BULLET_FLIGHT := 0.07
+const BULLET_FLIGHT := 0.17
+## The tracer is a short streak of this many pixels that travels, never a line stretched across the
+## whole table (a long thin line in 0.07s read as a laser beam).
+const BULLET_STREAK_LENGTH := 42.0
 ## How long the muzzle flash lasts, and how long the smoke from the impact lingers.
 const BULLET_MUZZLE_TIME := 0.09
 const BULLET_SMOKE_TIME := 0.5
@@ -1087,7 +1090,7 @@ func _bullet_shot(from: Control, to: Control, t: float, first_shot: bool) -> flo
 
 	# --- 3. flight: a thin tracer line (pointed at the back) with a tiny bright head
 	var tracer := Line2D.new()
-	tracer.width = 4.0
+	tracer.width = 5.0
 	tracer.material = fx_library._additive()
 	var tracer_gradient := Gradient.new()
 	tracer_gradient.set_color(0, Color(BULLET_SPARK_COLOR, 0.0))
@@ -1101,7 +1104,7 @@ func _bullet_shot(from: Control, to: Control, t: float, first_shot: bool) -> flo
 	tracer.visible = false
 	fx.add_child(tracer)
 	parts["tracer"] = tracer
-	var head := fx_library._glow_sprite(9.0, Color(BULLET_TRACER_COLOR, 1.0))
+	var head := fx_library._glow_sprite(7.0, Color(BULLET_TRACER_COLOR, 1.0))
 	head.z_index = 26
 	head.visible = false
 	fx.add_child(head)
@@ -1115,7 +1118,8 @@ func _bullet_shot(from: Control, to: Control, t: float, first_shot: bool) -> flo
 		if tracer_node == null or head_node == null:
 			return
 		var front: Vector2 = ends["a"].lerp(ends["b"] + hit_offset, k)
-		var back: Vector2 = ends["a"].lerp(ends["b"] + hit_offset, maxf(k - 0.4, 0.0))
+		var start_point: Vector2 = ends["a"]
+		var back: Vector2 = front - (front - start_point).limit_length(BULLET_STREAK_LENGTH)
 		tracer_node.points = PackedVector2Array([back, front])
 		tracer_node.visible = true
 		head_node.position = front
