@@ -78,6 +78,13 @@ static func build_base_card(parent: Control, stage_width: float, card_id: String
 	parent.add_child(base_card)
 	return base_card
 
+## Name of what one "every N events" counter counts, e.g. "Feitiços lançados por você" (Mali). Unknown events
+## fall back to the raw event name, so any future card with every_n_events still gets a readable line.
+static func _event_counter_label(counter: Dictionary) -> String:
+	var event_names := {"spell_cast": "Feitiços lançados", "spell_resolved": "Feitiços resolvidos"}
+	var scope_names := {"ally": " por você", "enemy": " pelo oponente", "any": " por qualquer jogador"}
+	return String(event_names.get(counter["event"], counter["event"])) + String(scope_names.get(counter["scope"], ""))
+
 ## Puts the live count ("(agora: 3)") at the end of the Constante paragraph it counts for, so a card
 ## with other abilities around it (Zulmira's Ao Ativar, Berengar's Ao Entrar) does not look like the
 ## count belongs to the last line. Cards without a Constante line (the Gigantes) get it at the very end.
@@ -123,6 +130,10 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 			var per_turn_limit := int(cd.get("conditional_uses_per_turn", 0))
 			body = body.replace("(%dx por turno)" % per_turn_limit,
 					"(%dx por turno — usadas %d/%d)" % [per_turn_limit, int(instance["conditional_uses_now"]), per_turn_limit])
+		# effects that fire every N events (Mali): one live line per count, so the player can track each "N/2"
+		if instance.has("event_counters"):
+			for counter in instance["event_counters"]:
+				body += "\n\n[b]%s: %d/%d[/b]" % [_event_counter_label(counter), int(counter["count"]), int(counter["goal"])]
 		if instance.has("durability_left"):
 			body += "
 

@@ -20,4 +20,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		return
 	var enemy := context.opponent()
 	var drawer := enemy if target_uid == GameState.LEADER_UID[enemy] else context.controller
-	context.game._draw(drawer, amount)
+	var cards_to_draw := amount
+	# a spell that already draws for its caster draws more under a "spell_amplifier" Constante (Ottilia Varnholt)
+	if amount > 0 and drawer == context.controller and context.is_spell_source():
+		cards_to_draw += context.game.spell_amplifier_bonus(context.controller, "draw")
+	context.game._draw(drawer, cards_to_draw)

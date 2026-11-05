@@ -44,6 +44,10 @@ func source_id() -> String:
 	var source_unit: Card = game.find_unit(self_uid) if self_uid > 0 else null
 	return source_unit.card_id if source_unit != null else ""
 
+## True while a spell from the stack is the source of these effects (not a unit's own effect, not an artifact).
+func is_spell_source() -> bool:
+	return source_card_id != "" and String(CardDB.card(source_card_id).get("type", "")) == "spell"
+
 ## Who is healing when an effect of this run heals: "unit" (a unit's own effect, including its Ao Morrer and
 ## Ativar), "spell" (a spell from the stack), "artifact" (an artifact or equipment), "leader_ability" (the
 ## Leader's ability). It travels in the heal events as `healed_by`, so a listener can ask for a given origin.

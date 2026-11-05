@@ -1,0 +1,54 @@
+{
+  "name": "Mali Magarc",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "tribe": ["dragao_primordial", "dragao"],
+  "essence": "neutra",
+  "cost": 4,
+  "atk": 2,
+  "hp": 5,
+  "keywords": [],
+  "art": "neutra/mali_magarc.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "modify_cost_cards",
+      "target": "none",
+      "affected_zones": ["hand"],
+      "card_types": ["spell"],
+      "amount": -1,
+      "min_cost": 1
+    },
+    {
+      "listen": "spell_cast",
+      "scope": "ally",
+      "zones": ["board"],
+      "every_n_events": 2,
+      "action": "buff",
+      "target": "self",
+      "atk": 1,
+      "keywords_this_turn": ["escudo_magico"]
+    },
+    {
+      "listen": "spell_cast",
+      "scope": "enemy",
+      "zones": ["board"],
+      "every_n_events": 2,
+      "action": "buff",
+      "target": "self",
+      "atk": 1,
+      "keywords_this_turn": ["escudo_magico"]
+    }
+  ],
+  "transform": {
+    "into": "mali_magarc_primordial",
+    "cost": 4
+  },
+  "text": "Ao Entrar: reduz em (1) o custo dos feitiços na sua mão, mas nunca abaixo de (1).\nCondicional: a cada 2 feitiços que você lança, esta unidade ganha +1 de Ataque permanente e, só neste turno, Escudo Mágico.\nCondicional: o mesmo efeito também se ativa a cada 2 feitiços que o oponente lança, com contagem separada.\nTransformar (4): Mali Magarc Primordial.",
+  "flavor": [
+    "Fui rei da magia quando ela ainda não tinha nome. Vocês chamam de feitiço o que pediram emprestado de mim.",
+    "Antes do primeiro feitiço havia o dragão. O feitiço foi o que sobrou dele."
+  ],
+  "tags": []
+}

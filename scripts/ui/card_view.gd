@@ -1982,6 +1982,12 @@ func _panel_lines(cd: Dictionary) -> Array:
 		# cards that limit their Condicional per turn (Seymour) show "(usados/limite)", live on the board
 		if inst.has("conditional_uses_now"):
 			conditional_name += " (%d/%d)" % [int(inst["conditional_uses_now"]), int(cd["conditional_uses_per_turn"])]
+		# effects that fire every N events (Mali) show their live counts, e.g. "(1/2 · 0/2)"
+		if inst.has("event_counters"):
+			var counts: Array = []
+			for counter in inst["event_counters"]:
+				counts.append("%d/%d" % [int(counter["count"]), int(counter["goal"])])
+			conditional_name += " (%s)" % " · ".join(counts)
 		tags.append([conditional_name, TRIGGER_COL])
 	if cd.has("activated"):
 		var activate_name: String = CardDB.data()["triggers"]["on_activate"]["name"]

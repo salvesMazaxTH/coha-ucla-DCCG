@@ -1,0 +1,47 @@
+{
+  "name": "Mali Magarc Primordial",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "transform_only": true,
+  "tribe": ["dragao_primordial", "dragao"],
+  "essence": "neutra",
+  "cost": 4,
+  "atk": 6,
+  "hp": 7,
+  "keywords": ["voo"],
+  "art": "neutra/mali_magarc_primordial.webp",
+  "effects": [
+    {
+      "listen": "spell_cast",
+      "scope": "ally",
+      "zones": ["board"],
+      "every_n_events": 2,
+      "action": "buff",
+      "target": "self",
+      "atk": 1,
+      "keywords_this_turn": ["escudo_magico"]
+    },
+    {
+      "listen": "spell_cast",
+      "scope": "enemy",
+      "zones": ["board"],
+      "every_n_events": 2,
+      "action": "buff",
+      "target": "self",
+      "atk": 1,
+      "keywords_this_turn": ["escudo_magico"]
+    }
+  ],
+  "activated": {
+    "cost": 1,
+    "speed": "lento",
+    "exhaust": true,
+    "effects": [
+      { "action": "echo_next_spell", "target": "none" }
+    ]
+  },
+  "text": "Condicional: a cada 2 feitiços que você lança, esta unidade ganha +1 de Ataque permanente e, só neste turno, Escudo Mágico.\nCondicional: o mesmo efeito também se ativa a cada 2 feitiços que o oponente lança, com contagem separada.\nAo Ativar (1) {lento} (exaure esta unidade): na próxima vez que você lançar um feitiço, ele é lançado de novo, com os mesmos alvos do original.",
+  "flavor": "",
+  "tags": []
+}

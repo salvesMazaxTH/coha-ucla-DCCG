@@ -45,6 +45,10 @@ var durability_every_uses := 1
 ## listen only: "durability_after_attack": true holds the cost back until the blows of the attack that fired this
 ## effect have landed, so equipment that breaks on its last attack still gives its bonus to that attack.
 var durability_after_attack := false
+## listen only: "every_n_events": N makes the effect fire once every N matching events (2 = on the 2nd, 4th, 6th...).
+## Each effect keeps its own count on the card (Card.trigger_counts), so two effects of the same card that listen to
+## different scopes (your spells / the opponent's spells) count separately. 1 = every event (the usual behaviour).
+var every_n_events := 1
 
 const LISTEN_PREFIX := "listen_"
 const SCOPES := ["self", "carrier", "ally", "enemy", "any"]
@@ -77,6 +81,7 @@ func setup(data: Dictionary) -> void:
 		durability_cost = int(data.get("durability_cost", 0))
 		durability_every_uses = max(1, int(data.get("durability_every_uses", 1)))
 		durability_after_attack = bool(data.get("durability_after_attack", false))
+		every_n_events = max(1, int(data.get("every_n_events", 1)))
 	_read_parameters(data)
 
 ## Subclasses copy their JSON parameters (amount, atk, keywords...) into fields here.

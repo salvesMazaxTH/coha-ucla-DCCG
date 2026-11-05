@@ -151,6 +151,7 @@ func _init() -> void:
 	_test_drake_power()
 	_test_magni()
 	_test_cornelia()
+	_test_mali_and_ottilia()
 	_test_censo_and_queima()
 	_test_lucian_soren()
 	_test_overkill()
@@ -7341,6 +7342,251 @@ func _test_magni() -> void:
 	g.players[p]["board"].erase(magni)
 	g._check_state()
 	check(g.atk_of(foe) == 2, "Magni: ao sair do campo as unidades inimigas voltam ao Ataque normal (%d)" % g.atk_of(foe))
+
+## Mali Magarc (desconto persistente em feitiços, reação ao feitiço inimigo, eco na forma Primordial) e a Constante
+## "spell_amplifier" da Ottilia Varnholt.
+func _test_mali_and_ottilia() -> void:
+	_tspell("t_mali_hit", "instantaneo", [{"trigger": "on_play", "action": "damage", "target": "enemy_leader", "amount": 2}])
+	_tspell("t_mali_aim", "instantaneo", [{"trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 1}])
+	_tspell("t_mali_draw", "instantaneo", [{"trigger": "on_play", "action": "draw", "target": "none", "amount": 1}])
+	_tspell("t_mali_plain", "instantaneo", [])
+	_tspell("t_mali_cost1", "instantaneo", [])
+	CardDB.data()["cards"]["t_mali_cost1"]["cost"] = 1
+	CardDB.data()["cards"]["t_mali_hit"]["cost"] = 3
+	_tcard("t_mali_foe", 1, 9, [])
+	_tcard("t_mali_side", 1, 9, [])
+	_tcard("t_mali_deck_unit", 1, 1, [])
+
+	# Ao Entrar: spells in the HAND cost 1 less, never below 1; the deck, units and cost-0 spells are untouched
+	var g := _new_game()
+	_quiet(g)
+	var p: int = g.active
+	var hand_spell := Card.new(g._uid(), "t_mali_hit", p, "hand")
+	var hand_cheap := Card.new(g._uid(), "t_mali_cost1", p, "hand")
+	var hand_free := Card.new(g._uid(), "t_mali_plain", p, "hand")
+	var hand_unit := Card.new(g._uid(), "t_mali_deck_unit", p, "hand")
+	var deck_spell := Card.new(g._uid(), "t_mali_hit", p, "deck")
+	g.players[p]["hand"] = [hand_spell, hand_cheap, hand_free, hand_unit]
+	g.players[p]["deck"] = [deck_spell]
+	var before_unit: int = g.cost_of(p, hand_unit.data(), hand_unit)
+	_put(g, p, "mali_magarc")
+	check(g.cost_of(p, hand_spell.data(), hand_spell) == 2, "Mali: feitiço na mão custa 1 a menos (%d)" % g.cost_of(p, hand_spell.data(), hand_spell))
+	check(g.cost_of(p, deck_spell.data(), deck_spell) == 3, "Mali: feitiço no deck NÃO é afetado (%d)" % g.cost_of(p, deck_spell.data(), deck_spell))
+	check(g.cost_of(p, hand_cheap.data(), hand_cheap) == 1, "Mali: feitiço de custo 1 não cai abaixo de 1")
+	check(g.cost_of(p, hand_free.data(), hand_free) == 0, "Mali: feitiço de custo 0 continua em 0 (nunca é encarecido)")
+	check(g.cost_of(p, hand_unit.data(), hand_unit) == before_unit, "Mali: unidade na mão não é afetada")
+	g._draw(p, 1)
+	check(g.players[p]["hand"].has(deck_spell) and g.cost_of(p, deck_spell.data(), deck_spell) == 3, "Mali: feitiço comprado depois de Mali entrar vem sem desconto")
+	# a second Mali (bounce/revive/another copy) only discounts what is in hand at that moment, stacking on the hand copies
+	_put(g, p, "mali_magarc")
+	check(g.cost_of(p, hand_spell.data(), hand_spell) == 1, "Mali: segunda entrada desconta de novo só o que está na mão (%d)" % g.cost_of(p, hand_spell.data(), hand_spell))
+	check(g.cost_of(p, deck_spell.data(), deck_spell) == 2, "Mali: a segunda entrada alcança o feitiço agora na mão (%d)" % g.cost_of(p, deck_spell.data(), deck_spell))
+
+	# Condicional: every 2nd spell of EACH side (separate counts) gives +1 Ataque (permanent) AND Escudo Mágico until the end of the turn
+	var g2 := _new_game()
+	_quiet(g2)
+	var caster: int = g2.active
+	var owner: int = 1 - caster
+	g2.players[caster]["momentum"] = 10  # t_mali_hit costs 3 and _quiet zeroes the pool
+	var mali := _put(g2, owner, "mali_magarc")
+	var attack_before: int = g2.atk_of(mali)
+	check(not mali.magic_shield, "Mali: começa sem Escudo Mágico")
+	_cast_and_resolve(g2, caster, "t_mali_hit", GameState.LEADER_UID[owner])
+	check(g2.atk_of(mali) == attack_before and not mali.magic_shield, "Mali: o 1º feitiço do oponente não dá nada (conta 1/2) (%d)" % g2.atk_of(mali))
+	_cast_and_resolve(g2, caster, "t_mali_plain")
+	check(g2.atk_of(mali) == attack_before + 1 and mali.magic_shield, "Mali: o 2º feitiço do oponente dá +1 de Ataque e Escudo Mágico juntos (%d)" % g2.atk_of(mali))
+	_cast_and_resolve(g2, caster, "t_mali_plain") # leaves the opponent's count at 1/2 for the separation check below
+	check(g2.atk_of(mali) == attack_before + 1 and mali.magic_shield, "Mali: a contagem recomeça (3º feitiço não dá Ataque) e o escudo segue até o fim do turno")
+	_next_turn(g2)
+	check(not mali.magic_shield and g2.atk_of(mali) == attack_before + 1, "Mali: o Escudo Mágico some no fim do turno e o Ataque fica")
+	var mali_attack_now: int = g2.atk_of(mali)
+	_cast_and_resolve(g2, owner, "t_mali_plain")
+	check(g2.atk_of(mali) == mali_attack_now and not mali.magic_shield, "Mali: o 1º feitiço do próprio dono não dá nada, e não completa a contagem do oponente (%d)" % g2.atk_of(mali))
+	_cast_and_resolve(g2, owner, "t_mali_plain")
+	check(g2.atk_of(mali) == mali_attack_now + 1 and mali.magic_shield, "Mali: o 2º feitiço do próprio dono completa a contagem própria: +1 de Ataque e Escudo Mágico (%d)" % g2.atk_of(mali))
+
+	# UI counters: one live "N/2" per every_n_events effect, in the card's order (own spells, then the opponent's)
+	var counters_now: Array = mali.event_counters()
+	check(counters_now.size() == 2 and counters_now[0]["scope"] == "ally" and counters_now[1]["scope"] == "enemy", "Mali: expõe duas contagens para a interface (suas, do oponente)")
+	check(int(counters_now[0]["count"]) == 0 and int(counters_now[1]["count"]) == 1 and int(counters_now[0]["goal"]) == 2, "Mali: as contagens mostram 0/2 (suas, recém completada) e 1/2 (oponente) (%s)" % str(counters_now))
+	_cast_and_resolve(g2, owner, "t_mali_plain")
+	check(int(mali.event_counters()[0]["count"]) == 1 and int(mali.event_counters()[1]["count"]) == 1, "Mali: um feitiço seu sobe só a contagem dele (1/2 · 1/2)")
+
+	# Timing: the trigger is queued when the spell is cast, but it only resolves AFTER the spell leaves the stack. So the
+	# 2nd spell of a pair, even aimed at Mali, still hits him (no immortal Mali: the opponent can remove him with a spell);
+	# the shield he gains then blocks the NEXT targeted spell of the turn.
+	var g_timing := _new_game()
+	_quiet(g_timing)
+	var timing_caster: int = g_timing.active
+	var timing_mali := _put(g_timing, 1 - timing_caster, "mali_magarc")
+	_cast_and_resolve(g_timing, timing_caster, "t_mali_aim", timing_mali.uid)
+	check(timing_mali.damage == 1 and not timing_mali.magic_shield, "Mali: o 1º feitiço que o mira o atinge e ainda não há escudo (dano %d)" % timing_mali.damage)
+	_cast_and_resolve(g_timing, timing_caster, "t_mali_aim", timing_mali.uid)
+	check(timing_mali.damage == 2 and timing_mali.magic_shield, "Mali: o 2º feitiço ainda o atinge e só depois ele ganha o escudo (dano %d)" % timing_mali.damage)
+	_cast_and_resolve(g_timing, timing_caster, "t_mali_aim", timing_mali.uid)
+	check(timing_mali.damage == 2 and not timing_mali.magic_shield, "Mali: o 3º feitiço mirado é anulado e consome o escudo (dano %d)" % timing_mali.damage)
+
+	# Transformar (4): vira a forma Primordial 6/7 com Voo
+	var g3 := _new_game()
+	_quiet(g3)
+	var q: int = g3.active
+	var mali3 := _put(g3, q, "mali_magarc")
+	g3.players[q]["momentum"] = 6
+	check(g3.can_transform(q, mali3.uid), "Mali: pode se transformar com 4 de Momentum")
+	g3.transform(q, mali3.uid)
+	_resolve_stack(g3)
+	check(mali3.card_id == "mali_magarc_primordial" and g3.atk_of(mali3) == 6 and g3.hp_left(mali3) == 7 and mali3.has_kw("voo"), "Mali Primordial: 6/7 com Voo")
+	check(CardDB.card("mali_magarc_primordial").get("transform_only", false), "Mali Primordial: só existe pela transformação")
+	check(mali3.event_counters().size() == 2, "Mali Primordial: também expõe as duas contagens")
+
+	# Primordial: the Condicional mirrors Mali's exactly (every 2nd spell of each side: +1 Ataque and Escudo Mágico this turn)
+	var g_mirror := _new_game()
+	_quiet(g_mirror)
+	var mirror_caster: int = g_mirror.active
+	var mirror_owner: int = 1 - mirror_caster
+	g_mirror.players[mirror_caster]["momentum"] = 10
+	g_mirror.players[mirror_owner]["momentum"] = 10
+	var mirror_form := _put(g_mirror, mirror_owner, "mali_magarc_primordial")
+	var mirror_attack: int = g_mirror.atk_of(mirror_form)
+	_cast_and_resolve(g_mirror, mirror_caster, "t_mali_plain")
+	check(g_mirror.atk_of(mirror_form) == mirror_attack and not mirror_form.magic_shield, "Primordial: o 1º feitiço do oponente não dá nada (conta 1/2)")
+	_cast_and_resolve(g_mirror, mirror_caster, "t_mali_plain")
+	check(g_mirror.atk_of(mirror_form) == mirror_attack + 1 and mirror_form.magic_shield, "Primordial: o 2º feitiço do oponente dá +1 de Ataque e Escudo Mágico (%d)" % g_mirror.atk_of(mirror_form))
+	_next_turn(g_mirror)
+	_cast_and_resolve(g_mirror, mirror_owner, "t_mali_plain")
+	check(g_mirror.atk_of(mirror_form) == mirror_attack + 1 and not mirror_form.magic_shield, "Primordial: o escudo do turno anterior sumiu e o 1º feitiço do dono não dá nada")
+	_cast_and_resolve(g_mirror, mirror_owner, "t_mali_plain")
+	check(g_mirror.atk_of(mirror_form) == mirror_attack + 2 and mirror_form.magic_shield, "Primordial: o 2º feitiço do dono dá +1 de Ataque e escudo, com contagem separada (%d)" % g_mirror.atk_of(mirror_form))
+
+	# Transformar zera as contagens (as chaves são por índice de efeito e mudam de dono na carta nova)
+	var g_carry := _new_game()
+	_quiet(g_carry)
+	var carry_owner: int = g_carry.active
+	g_carry.players[carry_owner]["momentum"] = 10
+	var carry_mali := _put(g_carry, carry_owner, "mali_magarc")
+	_cast_and_resolve(g_carry, carry_owner, "t_mali_plain")
+	check(int(carry_mali.event_counters()[0]["count"]) == 1, "Mali: 1/2 antes de transformar")
+	g_carry.transform(carry_owner, carry_mali.uid)
+	_resolve_stack(g_carry)
+	check(carry_mali.card_id == "mali_magarc_primordial" and int(carry_mali.event_counters()[0]["count"]) == 0 and int(carry_mali.event_counters()[1]["count"]) == 0, "Mali: transformar zera as contagens de feitiços")
+
+	# Eco: Ao Ativar arma; o próximo feitiço do dono é lançado de novo com o mesmo alvo
+	var g4 := _new_game()
+	_quiet(g4)
+	var r: int = g4.active
+	var o: int = 1 - r
+	var primordial := _put(g4, r, "mali_magarc_primordial")
+	_put(g4, o, "t_mali_foe")
+	g4.players[r]["momentum"] = 8
+	var attack_start: int = g4.atk_of(primordial)
+	check(g4.can_activate(r, primordial.uid), "Mali Primordial: pode ativar o eco")
+	g4.activate(r, primordial.uid)
+	_resolve_stack(g4)
+	check(primordial.exhausted, "Mali Primordial: ativar exaure")
+	check(int(g4.players[r]["spell_echo_source"]) != 0, "Mali Primordial: o eco fica armado")
+	var life_before: int = g4.players[o]["leader_hp"]
+	var graveyard_before: int = g4.players[r]["graveyard"].size()
+	var uid_hit := _give(g4, r, "t_mali_hit")
+	g4.play_card(r, uid_hit, GameState.LEADER_UID[o])
+	_resolve_stack(g4)
+	check(g4.players[o]["leader_hp"] == life_before - 4, "Eco: o feitiço de 2 de dano é lançado duas vezes (%d)" % (life_before - g4.players[o]["leader_hp"]))
+	check(g4.players[r]["graveyard"].size() == graveyard_before + 1, "Eco: só o original vai ao cemitério")
+	check(int(g4.players[r]["spell_echo_source"]) == 0, "Eco: depois de usado, não fica armado")
+	check(g4.atk_of(primordial) == attack_start, "Eco: o eco não conta como lançamento nem para o dono")
+	life_before = g4.players[o]["leader_hp"]
+	_cast_and_resolve(g4, r, "t_mali_hit", GameState.LEADER_UID[o])
+	check(g4.players[o]["leader_hp"] == life_before - 2, "Eco: o feitiço seguinte, sem eco armado, causa o dano normal")
+
+	# Eco: alvo morto no original = o eco falha sozinho e não escolhe outro alvo
+	var g5 := _new_game()
+	_quiet(g5)
+	var s: int = g5.active
+	var t: int = 1 - s
+	var echo_unit := _put(g5, s, "mali_magarc_primordial")
+	var weak := _put(g5, t, "t_mali_side")
+	weak.hp = 1
+	var bystander := _put(g5, t, "t_mali_foe")
+	g5.players[s]["momentum"] = 8
+	g5.activate(s, echo_unit.uid)
+	_resolve_stack(g5)
+	var uid_aim := _give(g5, s, "t_mali_aim")
+	g5.play_card(s, uid_aim, weak.uid)
+	_resolve_stack(g5)
+	check(g5.find_unit(weak.uid) == null and g5.find_unit(bystander.uid) != null and bystander.damage == 0, "Eco: alvo morto no original, o eco falha e não bate em outro alvo")
+
+	# Eco: armar duas vezes não acumula
+	var g6 := _new_game()
+	_quiet(g6)
+	var u: int = g6.active
+	var v: int = 1 - u
+	var echoer := _put(g6, u, "mali_magarc_primordial")
+	g6.players[u]["momentum"] = 8
+	g6.activate(u, echoer.uid)
+	_resolve_stack(g6)
+	echoer.exhausted = false
+	g6.activate(u, echoer.uid)
+	_resolve_stack(g6)
+	var hp_before: int = g6.players[v]["leader_hp"]
+	_cast_and_resolve(g6, u, "t_mali_hit", GameState.LEADER_UID[v])
+	check(g6.players[v]["leader_hp"] == hp_before - 4, "Eco: armar duas vezes continua sendo um eco só (%d)" % (hp_before - g6.players[v]["leader_hp"]))
+
+	# Ottilia Varnholt: +1 de dano e +1 de compra nos feitiços que já causam dano / compram, se o deck for só feitiços
+	var g7 := _new_game()
+	_quiet(g7)
+	var w: int = g7.active
+	var x: int = 1 - w
+	g7.players[w]["momentum"] = 20  # t_mali_hit costs 3 and _quiet zeroes the pool
+	_put(g7, w, "ottilia_varnholt")
+	g7.players[w]["deck"] = []
+	for i in 8:
+		g7.players[w]["deck"].append(Card.new(g7._uid(), "t_mali_plain", w, "deck"))
+	g7.players[w]["hand"] = []
+	var leader_before: int = g7.players[x]["leader_hp"]
+	_cast_and_resolve(g7, w, "t_mali_hit", GameState.LEADER_UID[x])
+	check(g7.players[x]["leader_hp"] == leader_before - 3, "Ottilia: deck sem unidades, feitiço de 2 de dano causa 3 (%d)" % (leader_before - g7.players[x]["leader_hp"]))
+	var hand_before: int = g7.players[w]["hand"].size()
+	_cast_and_resolve(g7, w, "t_mali_draw")
+	check(g7.players[w]["hand"].size() == hand_before + 2, "Ottilia: feitiço que compra 1 compra 2 (%d)" % (g7.players[w]["hand"].size() - hand_before))
+	var hand_after_draw: int = g7.players[w]["hand"].size()
+	_cast_and_resolve(g7, w, "t_mali_plain")
+	check(g7.players[w]["hand"].size() == hand_after_draw, "Ottilia: feitiço sem dano nem compra não muda")
+
+	# a unit's own damage is not a spell: no bonus
+	_tcard("t_ottilia_pinger", 1, 3, [{"trigger": "on_enter", "action": "damage", "target": "enemy_leader", "amount": 1}])
+	leader_before = g7.players[x]["leader_hp"]
+	_put(g7, w, "t_ottilia_pinger")
+	check(g7.players[x]["leader_hp"] == leader_before - 1, "Ottilia: dano de unidade não é ampliado")
+
+	# razão 3x: com 1 unidade e 3 feitiços no deck vale; com 1 unidade e 2 feitiços, não; recontado a cada vez
+	g7.players[w]["deck"] = [Card.new(g7._uid(), "t_mali_deck_unit", w, "deck")]
+	for i in 3:
+		g7.players[w]["deck"].append(Card.new(g7._uid(), "t_mali_plain", w, "deck"))
+	check(g7.spell_amplifier_bonus(w, "damage") == 1, "Ottilia: 3 feitiços para 1 unidade no deck ativa o bônus")
+	g7.players[w]["deck"].pop_back()
+	check(g7.spell_amplifier_bonus(w, "damage") == 0, "Ottilia: 2 feitiços para 1 unidade não ativa")
+	leader_before = g7.players[x]["leader_hp"]
+	_cast_and_resolve(g7, w, "t_mali_hit", GameState.LEADER_UID[x])
+	check(g7.players[x]["leader_hp"] == leader_before - 2, "Ottilia: com a condição falsa o feitiço causa o dano normal")
+	g7.players[w]["deck"] = []
+	check(g7.spell_amplifier_bonus(w, "damage") == 1 and g7.spell_amplifier_bonus(w, "draw") == 1, "Ottilia: deck vazio conta como 0 unidades")
+
+	# outra cópia da própria Ottilia no deck conta como unidade: só o triplo de feitiços ativa (a via do "0" fica desligada)
+	g7.players[w]["deck"] = [Card.new(g7._uid(), "ottilia_varnholt", w, "deck")]
+	g7.players[w]["deck"].append(Card.new(g7._uid(), "t_mali_plain", w, "deck"))
+	g7.players[w]["deck"].append(Card.new(g7._uid(), "t_mali_plain", w, "deck"))
+	check(g7.spell_amplifier_bonus(w, "damage") == 0, "Ottilia: outra cópia dela no deck conta como unidade (2 feitiços não bastam)")
+	g7.players[w]["deck"].append(Card.new(g7._uid(), "t_mali_plain", w, "deck"))
+	check(g7.spell_amplifier_bonus(w, "damage") == 1, "Ottilia: com outra cópia dela no deck, 3 feitiços ativam pelo triplo")
+
+	# dano nos vizinhos também sobe
+	_tspell("t_mali_splash", "instantaneo", [{"trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 1, "adjacent_amount": 1}])
+	var left := _put(g7, x, "t_mali_side")
+	var middle := _put(g7, x, "t_mali_foe")
+	var right := _put(g7, x, "t_mali_side")
+	var splash_uid := _give(g7, w, "t_mali_splash")
+	g7.play_card(w, splash_uid, middle.uid)
+	_resolve_stack(g7)
+	check(middle.damage == 2 and left.damage == 2 and right.damage == 2, "Ottilia: o dano nos vizinhos também ganha +1 (%d/%d/%d)" % [left.damage, middle.damage, right.damage])
 
 ## Cornélia Aldrovane: Ao Entrar taxes 1 card of the opponent's hand (+2 while it stays there), Ao Ativar sacrifices an ally
 ## to banish an enemy, and the Constante makes the opponent's spells cost 1 more.

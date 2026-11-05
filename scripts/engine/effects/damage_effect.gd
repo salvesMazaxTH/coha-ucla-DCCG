@@ -88,6 +88,10 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	if not ally_reduce.is_empty() and victim != null and victim.owner == context.controller \
 			and CardDB.has_element(victim.data(), ally_reduce["element"]):
 		damage_amount = int(ally_reduce["amount"])
+	# a spell that already deals damage deals more under a "spell_amplifier" Constante (Ottilia Varnholt)
+	var amplifier_bonus := game.spell_amplifier_bonus(context.controller, "damage") if context.is_spell_source() else 0
+	if damage_amount > 0:
+		damage_amount += amplifier_bonus
 	# the neighbours are found before any damage, so they stay the same if the target dies
 	var neighbour_uids := _neighbours_of(game, victim) if adjacent_amount > 0 else []
 	var damage_dealt := game._deal_damage(target_uid, damage_amount, null)
@@ -95,7 +99,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	if source_gain_per_kill > 0 and victim != null and damage_dealt > 0 and victim.hp_left() <= 0:
 		_grant_kill_bonus(context)
 	for neighbour_uid in neighbour_uids:
-		damage_dealt += game._deal_damage(neighbour_uid, adjacent_amount, null)
+		damage_dealt += game._deal_damage(neighbour_uid, adjacent_amount + amplifier_bonus, null)
 	if heals_by_damage_dealt:
 		game._heal_leader(context.controller, damage_dealt, context.heal_origin())
 		if heals_source_too:

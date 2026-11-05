@@ -2138,6 +2138,10 @@ func _render_board(p: int, y: float) -> void:
 		# Condicional uses already spent THIS turn (Seymour's "(0/2)"): the stored count belongs to the turn it was spent in
 		if int(unit.data().get("conditional_uses_per_turn", 0)) > 0:
 			unit_view_data["conditional_uses_now"] = unit.conditional_uses if unit.conditional_uses_turn == g.turn else 0
+		# live "N/2" counters of effects that fire every N events (Mali), so the player can track each count
+		var event_counters := unit.event_counters()
+		if not event_counters.is_empty():
+			unit_view_data["event_counters"] = event_counters
 		var card_size := (CardView.BASE * 1.15).round()
 		var cell := _board_cell(slots_taken, i)
 		var card_position := Vector2(roundf(cell.x + (cell.y - card_size.x) / 2.0), roundf(y)) # whole pixels keep the card text crisp

@@ -15,6 +15,8 @@ extends Effect
 ## "cap_atk": this effect can give one unit at most that much attack in total (e.g. Layla).
 ## "critico_max": true  a unit that has any Crítico at all goes up to Crítico 4 until the end of the turn (units without Crítico are untouched).
 ## "hp_temp_until_next_turn": N gives temporary Vida until the unit's owner's next turn starts.
+## "keywords_this_turn": [...] gives these keywords only until the end of the turn while atk/hp stay permanent
+## (Mali: +1 Ataque permanent and, only this turn, Escudo Mágico, from one effect so both share one count).
 ## "keywords_until_next_turn": [...] gives these keywords until the unit's owner's next turn starts (a keyword the unit already
 ## has stays as it is) - Cortina de Fumaça Barata gives Furtividade this way.
 ## "keywords_until_owner_turn_end": [...] gives these keywords until the END of the turn its owner plays next (so they last through
@@ -49,6 +51,7 @@ var temporary_attack_until_next_turn := 0
 var temporary_health_until_next_turn := 0
 var temporary := false
 var keywords: Array = []
+var keywords_this_turn: Array = []
 var keywords_until_next_turn: Array = []
 var keywords_until_owner_turn_end: Array = []
 var per := ""
@@ -95,7 +98,8 @@ func _read_parameters(data: Dictionary) -> void:
 	temporary_health_until_next_turn = int(data.get("hp_temp_until_next_turn", 0))
 	temporary = bool(data.get("temp", false))
 	keywords = data.get("keywords", [])
-	keywords_until_next_turn = data.get("keywords_until_next_turn", [])
+	keywords_this_turn = data.get("keywords_this_turn", [])
+	keywords_until_next_turn =data.get("keywords_until_next_turn", [])
 	keywords_until_owner_turn_end = data.get("keywords_until_owner_turn_end", [])
 	per = String(data.get("per", ""))
 	multiplier_min = int(data.get("min", 0))
@@ -212,25 +216,12 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	if supreme_shield_until != "":
 		unit.grant_supreme_shield(supreme_shield_until)
 	for keyword in keywords:
-		if keyword == "escudo":
-			unit.shield = true
-		elif keyword == "escudo_supremo":
-			unit.grant_supreme_shield("end_turn" if temporary else "")
-		elif keyword == "escudo_magico":
-			if not unit.magic_shield:
-				unit.magic_shield = true
-				if temporary:
-					unit.magic_shield_until_end_turn = true
-			elif not temporary:
-				# A new permanent grant makes the protection survive any temporary grant already present.
-				unit.magic_shield = true
-				unit.magic_shield_until_end_turn = false
-				unit.magic_shield_until_next_turn = false
-		elif not unit.keywords.has(keyword):
-			unit.keywords.append(keyword)
-			if temporary:
-				unit.temp_keywords.append(keyword)
+		_grant_keyword(unit, keyword, temporary)
+	# the keywords of "keywords_this_turn" always end with the turn, whatever "temp" says about the stats
+	for keyword in keywords_this_turn:
+		_grant_keyword(unit, keyword, true)
 	var granted_keywords: Array = raw.get("keywords", []).duplicate()
+	granted_keywords.append_array(keywords_this_turn)
 	for keyword in keywords_until_next_turn:
 		if not unit.keywords.has(keyword):
 			unit.keywords.append(keyword)
@@ -271,6 +262,27 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	unit.record_stat_change(context.source_id(), "end_turn", end_of_turn_changes)
 	unit.record_stat_change(context.source_id(), "next_turn", until_next_turn_changes)
 	game._emit(buff_event)
+
+## Gives the unit one keyword; with `only_this_turn` it ends with the turn (shields and plain keywords alike).
+func _grant_keyword(unit: Card, keyword: String, only_this_turn: bool) -> void:
+	if keyword == "escudo":
+		unit.shield = true
+	elif keyword == "escudo_supremo":
+		unit.grant_supreme_shield("end_turn" if only_this_turn else "")
+	elif keyword == "escudo_magico":
+		if not unit.magic_shield:
+			unit.magic_shield = true
+			if only_this_turn:
+				unit.magic_shield_until_end_turn = true
+		elif not only_this_turn:
+			# A new permanent grant makes the protection survive any temporary grant already present.
+			unit.magic_shield = true
+			unit.magic_shield_until_end_turn = false
+			unit.magic_shield_until_next_turn = false
+	elif not unit.keywords.has(keyword):
+		unit.keywords.append(keyword)
+		if only_this_turn:
+			unit.temp_keywords.append(keyword)
 
 ## Adds the stat changes in `extra` to `changes` (both {stat name: amount}).
 func _add_changes(changes: Dictionary, extra: Dictionary) -> void:

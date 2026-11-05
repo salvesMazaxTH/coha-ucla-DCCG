@@ -19,7 +19,7 @@
       "discount": 1
     }
   ],
-  "text": "Ao Entrar: você olha as 3 cartas do topo do seu deck e revela um feitiço entre elas para colocá-lo na mão, custando (1) a menos; as outras vão para o fundo do deck.",
+  "text": "Ao Entrar: você olha as 3 cartas do topo do seu deck e revela um feitiço entre elas e o coloca na mão, reduzindo em (1) o custo dele; as outras vão para o fundo do deck.",
   "flavor": "",
   "tags": []
 }

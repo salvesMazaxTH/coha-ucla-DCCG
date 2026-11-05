@@ -10,6 +10,7 @@ const SpendAllMomentumEffectScript = preload("res://scripts/engine/effects/spend
 const EquipSelfEffectScript = preload("res://scripts/engine/effects/equip_self_effect.gd")
 const ShoutEffectScript = preload("res://scripts/engine/effects/shout_effect.gd")
 const ChooseEffectScript = preload("res://scripts/engine/effects/choose_effect.gd")
+const EchoNextSpellEffectScript = preload("res://scripts/engine/effects/echo_next_spell_effect.gd")
 
 static var ACTIONS: Dictionary = {
 	"damage": DamageEffect,
@@ -89,6 +90,8 @@ static var ACTIONS: Dictionary = {
 	"damage_leader_by_stack_cost": StackCostDamageEffect,
 	"modify_cost": ModifyCostEffect,
 	"discount_hand": DiscountHandEffect,
+	"modify_cost_cards": ModifyCostCardsEffect,
+	"echo_next_spell": EchoNextSpellEffectScript,
 	"grant_play_discount": GrantPlayDiscountEffect,
 	"cost_reduction": StaticEffect,
 	"silence": SilenceEffect,
@@ -108,12 +111,13 @@ static var ACTIONS: Dictionary = {
 	"keyword_aura": StaticEffect,
 	"opponent_aura": StaticEffect,
 	"opponent_cost_tax": StaticEffect,
+	"spell_amplifier": StaticEffect,
 	"auto_attack": AutoAttackEffectScript,
 	"shout": ShoutEffectScript,
 }
 
 ## Actions with no target: continuous abilities, never run by a trigger.
-const STATIC_ACTIONS := ["cost_reduction", "scale", "base_scale", "tribe_aura", "graveyard_armor", "graveyard_damage_reduction", "double_constants", "double_enter", "double_death", "momentum_surge", "momentum_cap", "keyword_aura", "opponent_aura", "opponent_cost_tax"]
+const STATIC_ACTIONS := ["cost_reduction", "scale", "base_scale", "tribe_aura", "graveyard_armor", "graveyard_damage_reduction", "double_constants", "double_enter", "double_death", "momentum_surge", "momentum_cap", "keyword_aura", "opponent_aura", "opponent_cost_tax", "spell_amplifier"]
 
 static func is_known(action: String) -> bool:
 	return ACTIONS.has(action)

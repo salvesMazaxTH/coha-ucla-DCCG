@@ -449,6 +449,24 @@ func is_stunned() -> bool:
 func is_condemned() -> bool:
 	return condemned_turn > 0
 
+## The live counters of this card's "every_n_events" effects, for the UI: one {"event", "scope", "count", "goal"}
+## per such effect, in the card's effect order (e.g. Mali: your spells 1/2, then the opponent's spells 0/2).
+## The count lives under the same key the TriggerBus writes ("every_" + the effect's index).
+func event_counters() -> Array:
+	var counters: Array = []
+	var effects: Array = CardDB.def(card_id).effects()
+	for index in effects.size():
+		var effect: Effect = effects[index]
+		if effect.listen == "" or effect.every_n_events <= 1:
+			continue
+		counters.append({
+			"event": effect.listen,
+			"scope": effect.scope,
+			"count": int(trigger_counts.get("every_" + str(index), 0)),
+			"goal": effect.every_n_events,
+		})
+	return counters
+
 ## JSON form: {uid, card_id} off the board (plus "discount" in hand); the full unit on the board.
 func to_dict() -> Dictionary:
 	var d := {"uid": uid, "card_id": card_id}

@@ -165,6 +165,8 @@ func _offer(card: Card, effect: Effect, event: GameEvent) -> void:
 		card.used_turn[index] = game.turn
 	if not _spend_conditional_use(card, event):
 		return # the card already used all of its "conditional_uses_per_turn" this turn
+	if effect.every_n_events > 1 and not _is_nth_event(card, effect):
+		return # an "every_n_events" effect: this event only moved its count forward
 	var pending := PendingTrigger.new(card, [effect], context, effect.trigger)
 	if effect.immediate:
 		pending.resolve(game)
@@ -176,6 +178,17 @@ func _offer(card: Card, effect: Effect, event: GameEvent) -> void:
 			game.combat_system().wear_after_attack.append({"card": card, "effect": effect})
 		else:
 			pay_durability(card, effect)
+
+## Counts one more event for an "every_n_events" effect and says whether this was the Nth (the count then starts over).
+## The count lives on the card, under the effect's position in the card's effect list.
+func _is_nth_event(card: Card, effect: Effect) -> bool:
+	var key := "every_" + str(CardDB.def(card.card_id).effects().find(effect))
+	var count := int(card.trigger_counts.get(key, 0)) + 1
+	if count >= effect.every_n_events:
+		card.trigger_counts.erase(key)
+		return true
+	card.trigger_counts[key] = count
+	return false
 
 ## Charges the Durability a listening effect costs for one firing (see Effect.durability_cost and durability_every_uses).
 func pay_durability(card: Card, effect: Effect) -> void:

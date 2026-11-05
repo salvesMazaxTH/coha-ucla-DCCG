@@ -206,6 +206,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"extra_turn_draws": true, # whether that extra turn begins with the normal card draw
 		"relic_fall_turns": {}, # card_id -> turn in which the last copy of that free-standing artifact left this player's field (Erguer o Baluarte lockout)
 		"play_discount": {}, # {card_filter, divisor, until_turn}: this turn, ONE matching hand card costs 1/divisor of its current cost; spent when a card is played
+		"spell_echo_source": 0, # echo_next_spell: 0 = not armed, otherwise the uid of the unit that armed it (-1 = no unit); spent by the next spell this player casts
 	}
 
 func _uid() -> int:
@@ -673,6 +674,36 @@ func opponent_cost_tax(p: int, cd: Dictionary) -> int:
 				continue
 			tax += int(e.get("amount", 1)) * constants_multiplier(opponent(p))
 	return tax
+
+## What the "spell_amplifier" Constantes on player `p`'s board add to a spell of theirs: `bonus_kind` is "damage"
+## (spells that already deal damage deal more) or "draw" (spells that already draw cards draw more). Ottilia Varnholt:
+## {"damage": 1, "draw": 1, "deck_units_max": 0, "deck_spell_ratio": 3}. The condition looks at the units and spells
+## still in the DECK (the library, recounted every time it is asked): it holds when the deck has at most
+## "deck_units_max" units, or when its spells are at least "deck_spell_ratio" times its units. The source's own
+## double_constants applies; two sources add up.
+func spell_amplifier_bonus(p: int, bonus_kind: String) -> int:
+	var bonus := 0
+	for source: Card in players[p]["board"]:
+		for e in card_of(source).get("effects", []):
+			if e.get("trigger", "") != "constante" or e.get("action", "") != "spell_amplifier":
+				continue
+			if int(e.get(bonus_kind, 0)) > 0 and _spell_amplifier_condition_holds(p, e):
+				bonus += int(e[bonus_kind]) * constants_multiplier(p)
+	return bonus
+
+func _spell_amplifier_condition_holds(p: int, e: Dictionary) -> bool:
+	var units_in_deck := 0
+	var spells_in_deck := 0
+	for card: Card in players[p]["deck"]:
+		var card_data := CardDB.card(card.card_id)
+		if CardDB.has_type(card_data, "unit"):
+			units_in_deck += 1
+		elif CardDB.has_type(card_data, "spell"):
+			spells_in_deck += 1
+	if units_in_deck <= int(e.get("deck_units_max", -1)):
+		return true
+	var ratio := int(e.get("deck_spell_ratio", 0))
+	return ratio > 0 and spells_in_deck >= ratio * units_in_deck
 
 ## Where each Constante bonus on a unit comes from, for the card overlay's "Modificadores" panel: one
 ## {"source": card id, "until": "constant", "atk", "hp", "armor", "critico"} per effect (its own scaling, each ally's
@@ -1921,7 +1952,11 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 		_move(inst, "stack")
 		if cd["type"] == "spell":
 			_announce_spell_cast(p, inst, cd)
-		stack_system().push(p, "card", hand_uid, inst.card_id, target, speed_of(cd), target2, from_graveyard)
+		var echo_fields := {}
+		if cd["type"] == "spell" and int(pl["spell_echo_source"]) != 0:
+			echo_fields["echo_source"] = int(pl["spell_echo_source"]) # this cast is repeated once it resolves
+			pl["spell_echo_source"] = 0
+		stack_system().push(p, "card", hand_uid, inst.card_id, target, speed_of(cd), target2, from_graveyard, echo_fields)
 	stack_system().settle()
 	return _flush()
 
@@ -2101,6 +2136,8 @@ func transform_into(c: Card, into_id: String) -> void:
 	c.card_id = into_id
 	c.over = {}
 	c.used_turn = {}
+	# the "every N events" counts are keyed by effect index, which means something else on the new card
+	c.trigger_counts = {}
 	c.atk = int(cd["atk"])
 	c.hp = int(cd["hp"])
 	c.forget_stat_sources("atk") # the new card starts from its own printed numbers
@@ -2723,12 +2760,20 @@ func _has_enter_effects(effects: Array) -> bool:
 ## Tells the listening cards (Mestra do Gelo Frígido) that p cast a spell. The event's data says
 ## which essences and elements the spell has, one "essence_<id>" / "element_<id>": true fact each, for the "when" filter.
 func _announce_spell_cast(p: int, spell: Card, cd: Dictionary) -> void:
-	var cast := GameEvent.new("spell_cast", p, spell)
+	_emit_spell_event("spell_cast", p, spell, cd)
+
+## Tells the listening cards that p's spell has just finished resolving (it was not countered and did not fizzle).
+## Unlike spell_cast, which fires when the spell goes on the stack, the spell's effects already happened by now.
+func _announce_spell_resolved(p: int, spell: Card, cd: Dictionary) -> void:
+	_emit_spell_event("spell_resolved", p, spell, cd)
+
+func _emit_spell_event(event_type: String, p: int, spell: Card, cd: Dictionary) -> void:
+	var event := GameEvent.new(event_type, p, spell)
 	for essence_id in CardDB.essences_of(cd):
-		cast.data["essence_" + String(essence_id)] = true
+		event.data["essence_" + String(essence_id)] = true
 	for element_id in CardDB.elements_of(cd):
-		cast.data["element_" + String(element_id)] = true
-	bus().emit(cast)
+		event.data["element_" + String(element_id)] = true
+	bus().emit(event)
 
 ## Context for a unit's Ao Entrar effects; `target` is the ally the player chose (0 if none).
 func _enter_context(p: int, uid: int, target: int, second_target := 0) -> EffectContext:
