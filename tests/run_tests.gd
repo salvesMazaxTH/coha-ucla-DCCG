@@ -9840,9 +9840,9 @@ func _test_ai_no_waste() -> void:
 	# heal
 	var heal := CardDB.card("mare_curativa")
 	g.players[0]["leader_hp"] = g.players[0]["leader_max"] - 1
-	check(not SimpleAI._spell_is_worth_it(g, 0, heal), "IA: não gasta cura de 4 com Líder a 1 da vida máxima")
+	check(not SimpleAI._spell_is_worth_it(g, 0, heal), "IA: não gasta cura de 3 com Líder a 1 da vida máxima")
 	g.players[0]["leader_hp"] = g.players[0]["leader_max"] - 4
-	check(SimpleAI._spell_is_worth_it(g, 0, heal), "IA: cura de 4 vale com 4 de vida faltando")
+	check(SimpleAI._spell_is_worth_it(g, 0, heal), "IA: cura de 3 vale com 4 de vida faltando")
 	# A queued Garrafão heal already restores the Leader before the next priority action is chosen.
 	var jug_game := _new_game()
 	_quiet(jug_game)
@@ -12084,7 +12084,7 @@ func _test_sagrada_engine() -> void:
 	var mefi_human := _put(g, 0, "t_aura_human")
 	var mefi := _put(g, 0, "mefi_urdim")
 	g._move_dead_units()
-	check(g.players[0]["leader_hp"] == 25, "Mefi'Urdim: Ao Entrar cura 10 do Líder (%d)" % g.players[0]["leader_hp"])
+	check(g.players[0]["leader_hp"] == 22, "Mefi'Urdim: Ao Entrar cura 7 do Líder (%d)" % g.players[0]["leader_hp"])
 	check(g.players[0]["relics"].any(func(relic: Card): return relic.card_id == "baluarte_santo"), "Mefi'Urdim: Ao Entrar invoca o Baluarte Santo")
 	check(mefi_angel.magic_shield and mefi.magic_shield and not mefi_human.magic_shield, "Mefi'Urdim: Escudo Mágico na tribo, incluindo ele, e em mais ninguém")
 	check(g.atk_of(mefi) == 6 and g.hp_left(mefi) == 11, "Mefi'Urdim: ele mesmo ganha +1/+1 da própria aura (%d/%d)" % [g.atk_of(mefi), g.hp_left(mefi)])

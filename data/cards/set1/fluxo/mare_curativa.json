@@ -13,10 +13,10 @@
       "trigger": "on_play",
       "action": "heal_unit",
       "target": "ally_or_own_leader",
-      "amount": 4
+      "amount": 3
     }
   ],
-  "text": "Recupera 4 de Vida do seu Líder ou de uma unidade aliada à sua escolha.",
+  "text": "Recupera 3 de Vida do seu Líder ou de uma unidade aliada à sua escolha.",
   "flavor": "O que a maré leva, às vezes ela devolve.",
   "tags": []
 }

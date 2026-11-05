@@ -13,12 +13,12 @@
       "trigger": "on_play",
       "action": "heal_unit",
       "target": "ally_or_own_leader",
-      "amount": 4,
+      "amount": 3,
       "overflow_max_hp": 1,
       "cleanse": true
     }
   ],
-  "text": "Uma unidade aliada ou o seu Líder, à sua escolha, recupera 4 de Vida e é purificado (perde todos os marcadores de Veneno, Queimadura e Sangramento). Se a cura passar do que faltava, concede +1 de Vida máxima permanente ao alvo.",
+  "text": "Uma unidade aliada ou o seu Líder, à sua escolha, recupera 3 de Vida e é purificado (perde todos os marcadores de Veneno, Queimadura e Sangramento). Se a cura passar do que faltava, concede +1 de Vida máxima permanente ao alvo.",
   "flavor": "Quando o copo enche, a luz continua. Alguém precisa de copo maior.",
   "tags": []
 }
