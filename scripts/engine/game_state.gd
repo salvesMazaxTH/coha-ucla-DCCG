@@ -1901,7 +1901,7 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 		var sacrificed_index: int = pl["board"].find(find_unit(target))
 		if sacrificed_index >= 0 and sacrificed_index < slot:
 			slot -= 1 # the slot was picked with the sacrificed unit still on the board
-		find_unit(target).damage = 1000000
+		kill_as_sacrifice(find_unit(target), 1000000)
 		_emit({"type": "sacrifice", "player": p, "uid": target})
 		_check_state()
 		if phase == "over":
@@ -1932,7 +1932,7 @@ func _pay_extra_cost(extra_cost: Dictionary, payer_uid: int) -> void:
 	if payer == null:
 		return
 	if extra_cost["kind"] == "sacrifice":
-		payer.damage = 1000000
+		kill_as_sacrifice(payer, 1000000)
 		_emit({"type": "sacrifice", "player": payer.owner, "uid": payer_uid})
 		_check_state()
 	elif extra_cost["kind"] == "lose_armor":
@@ -2376,6 +2376,8 @@ func choose_search(p: int, card_uid: int) -> Array:
 		stack_system().after_search()
 		stack_system().settle()
 		return _flush()
+	if pending_search.get("sacrifice_pick", false):
+		return _finish_enemy_sacrifice(p, card_uid)
 	if pending_search.get("hand_bottom", false):
 		return _finish_enemy_hand_bottom(p, card_uid, declined)
 	if pending_search.get("discard_hand", false):
@@ -3035,6 +3037,60 @@ func _finish_enemy_hand_bottom(p: int, card_uid: int, declined: bool) -> Array:
 		return _flush()
 	pending_search.clear()
 	phase = _search_return
+	_check_state()
+	stack_system().after_search()
+	stack_system().settle()
+	return _flush()
+
+## Queima de Arquivo ("discard_hand_all"): every card in the player's hand goes to the graveyard (a normal discard, not a banish).
+func _discard_whole_hand(p: int) -> void:
+	var hand: Array = players[p]["hand"]
+	var discarded_cards: Array = hand.duplicate()
+	hand.clear()
+	for discarded_card: Card in discarded_cards:
+		players[p]["graveyard"].append(discarded_card)
+		_move(discarded_card, "graveyard")
+		_emit({"type": "discard", "player": p, "uid": discarded_card.uid, "card_id": discarded_card.card_id})
+
+## Censo de Baixas ("enemy_sacrifice_pick"): player `p` (the OPPONENT of the card's controller) sacrifices one unit they control.
+## No units: nothing happens. Exactly one unit: it is sacrificed without asking. Otherwise `p` picks on the search screen
+## (the options are public board units, so nothing is hidden from the other seat).
+func _begin_enemy_sacrifice(p: int, source_uid: int) -> void:
+	var board_units: Array = players[p]["board"]
+	if board_units.is_empty():
+		return
+	if board_units.size() == 1:
+		_sacrifice_unit(p, board_units[0])
+		return
+	if phase == "search":
+		return
+	var options: Array = []
+	for unit: Card in board_units:
+		options.append({"uid": unit.uid, "card_id": unit.card_id})
+	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "sacrifice_pick": true}
+	_search_return = phase
+	phase = "search"
+	_emit({"type": "sacrifice_pick", "player": p, "source_uid": source_uid})
+
+## Every sacrifice goes through here: lethal damage plus the mark that tells the Aliado Morre it causes that the
+## unit was sacrificed (filter "dying_sacrificed"). The death itself is settled later by _move_dead_units.
+func kill_as_sacrifice(unit: Card, lethal_damage: int) -> void:
+	unit.sacrificed = true
+	unit.damage = lethal_damage
+
+## The unit dies as a sacrifice: lethal damage and a "sacrifice" event; the death itself is settled by _check_state.
+func _sacrifice_unit(owner_player: int, victim: Card) -> void:
+	kill_as_sacrifice(victim, victim.hp_total())
+	_emit({"type": "sacrifice", "player": owner_player, "uid": victim.uid})
+
+## The answer to the screen above: the chosen unit (it must be on the picker's own board) is sacrificed.
+func _finish_enemy_sacrifice(p: int, card_uid: int) -> Array:
+	var victim := find_unit(card_uid)
+	if victim == null or victim.owner != p:
+		return []
+	pending_search.clear()
+	phase = _search_return
+	_sacrifice_unit(p, victim)
 	_check_state()
 	stack_system().after_search()
 	stack_system().settle()
@@ -3889,6 +3945,7 @@ func _move_dead_units() -> void:
 				if hp_left(c) <= 0:
 					if _prevent_unit_death(c):
 						c.banish_on_death = false
+						c.sacrificed = false # it lived: a later, ordinary death is not a sacrifice
 						changed = true
 						continue
 					if c.banish_on_death:
@@ -3901,6 +3958,8 @@ func _move_dead_units() -> void:
 					var dead_uid: int = c.uid # a revive_self below gives c a new uid
 					var dying_is_token: bool = c.data().get("token", false) # "not_token" effects ignore a token dying
 					var dying_card_id: String = c.card_id # "dying_card" effects only hear this card (Luto: Myrra)
+					var dying_was_sacrificed: bool = c.sacrificed # "dying_sacrificed" effects only hear a sacrifice
+					c.sacrificed = false # a revive_self brings the same Card back: its next death is a fresh one
 					var effects: Array = c.effect_list()
 					# remembered before the equipment drops to the graveyard, so an Aliado Morre can still take it (Nina)
 					var dying_equipment: Array = c.equipped_cards.duplicate()
@@ -3927,9 +3986,9 @@ func _move_dead_units() -> void:
 					# or the Encarnação returns to the Santuário.
 					for ally in players[p]["board"].duplicate():
 						if players[p]["board"].has(ally):
-							_fire(ally, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token, "dying_card_id": dying_card_id, "dying_equipment": dying_equipment})
+							_fire(ally, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token, "dying_card_id": dying_card_id, "dying_equipment": dying_equipment, "dying_was_sacrificed": dying_was_sacrificed})
 					for relic in players[p]["relics"].duplicate(): # free-standing artifacts hear it too
-						_fire(relic, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token, "dying_card_id": dying_card_id, "dying_equipment": dying_equipment})
+						_fire(relic, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token, "dying_card_id": dying_card_id, "dying_equipment": dying_equipment, "dying_was_sacrificed": dying_was_sacrificed})
 					_fire_leader_passive(p, "on_ally_death")
 
 ## True when `source` is a unit whose card says "banish_what_it_kills": a unit it would destroy (combat damage,

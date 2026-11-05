@@ -1,0 +1,17 @@
+{
+  "name": "Censo de Baixas",
+  "set": 2,
+  "type": "spell",
+  "rarity": "common",
+  "essence": ["trevas"],
+  "cost": 2,
+  "speed": "lento",
+  "art": "trevas/censo_de_baixas.webp",
+  "extra_cost": { "kind": "sacrifice", "amount": 1, "target": "ally_unit" },
+  "effects": [
+    { "trigger": "on_play", "action": "enemy_sacrifice_pick", "target": "none" }
+  ],
+  "text": "Para jogar, você sacrifica uma unidade aliada. O oponente sacrifica uma unidade que controla.",
+  "flavor": "O Núcleo não conta os vivos. Conta o que sobra de cada lado.",
+  "tags": []
+}

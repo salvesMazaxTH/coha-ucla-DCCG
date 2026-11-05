@@ -1,0 +1,17 @@
+{
+  "name": "Queima de Arquivo",
+  "set": 2,
+  "type": "spell",
+  "rarity": "epic",
+  "essence": ["trevas"],
+  "cost": 3,
+  "speed": "lento",
+  "art": "trevas/queima_de_arquivo.webp",
+  "effects": [
+    { "trigger": "on_play", "action": "discard_hand_all", "target": "none" },
+    { "trigger": "on_play", "action": "draw", "target": "own_leader", "amount": 4 }
+  ],
+  "text": "Você descarta toda a sua mão e compra 4 cartas.",
+  "flavor": "O que não está nos autos nunca aconteceu.",
+  "tags": []
+}

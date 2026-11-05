@@ -3200,6 +3200,8 @@ func _hint() -> String:
 			if int(g.pending_search.get("cost_increase", 0)) > 0:
 				return "Escolha uma carta da mão do oponente para custar %d a mais, ou não escolha nenhuma." % int(g.pending_search["cost_increase"])
 			return "Escolha uma carta da mão do oponente para ir ao fundo do deck dele, ou não escolha nenhuma."
+		if g.pending_search.get("sacrifice_pick", false):
+			return "Escolha uma unidade sua para sacrificar."
 		if g.pending_search.get("grave_optional", false):
 			return "Rebobinar: escolha uma carta do cemitério para levar à mão, ou não pegue nenhuma."
 		return "Escolha uma carta da sua mão para descartar." if g.pending_search.get("discard_hand", false) else "Escolha uma das cartas reveladas."
@@ -4869,7 +4871,8 @@ func _render_search_reveal() -> void:
 	var deck_search: bool = g.pending_search.get("deck_search", false)
 	var secret_search := deck_search and not _my_input()
 	var summoning: bool = g.pending_search.get("summon_from", false) # "summon_from": a free summon from the deck, hand or graveyard
-	var title := "INVOCAÇÃO GRATUITA" if summoning else "CAMPEÃO DA MÃO" if hand_summon else "MÃO DO OPONENTE" if hand_bottom else "DESCARTAR DA MÃO" if discard_hand else "CEMITÉRIO" if g.pending_search.get("grave", false) else (("FUNDO DO DECK" if g.pending_search.get("from_bottom", false) else "TOPO DO DECK") if look else "BUSCA NO DECK")
+	var sacrifice_pick: bool = g.pending_search.get("sacrifice_pick", false) # Censo de Baixas: a public pick among units on the board
+	var title := "SACRIFÍCIO" if sacrifice_pick else "INVOCAÇÃO GRATUITA" if summoning else "CAMPEÃO DA MÃO" if hand_summon else "MÃO DO OPONENTE" if hand_bottom else "DESCARTAR DA MÃO" if discard_hand else "CEMITÉRIO" if g.pending_search.get("grave", false) else (("FUNDO DO DECK" if g.pending_search.get("from_bottom", false) else "TOPO DO DECK") if look else "BUSCA NO DECK")
 	var search_signature: int = g.pending_search.hash()
 	# the opponent's choice starts folded: there is nothing to do in it, and the table is what matters
 	var opponent_choice_is_folded := not _my_input() and search_opened_signature != search_signature
@@ -4901,7 +4904,9 @@ func _render_search_reveal() -> void:
 		sub = "%s está olhando as %d cartas do topo do deck" % [_pname(owner), int(g.pending_search["looked"])]
 	elif secret_search and whole_deck:
 		sub = "%s está olhando o deck inteiro" % _pname(owner)
-	if hand_summon:
+	if sacrifice_pick:
+		sub = "Você escolhe uma unidade sua para sacrificar" if _my_input() else "%s escolhe uma unidade sua para sacrificar" % _pname(owner)
+	elif hand_summon:
 		sub = "%s escolhe um campeão da mão para entrar em campo (será banido no fim do turno)" % _pname(owner)
 	elif discard_hand:
 		sub = "%s escolhe uma carta da mão para descartar" % _pname(owner)

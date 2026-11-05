@@ -1967,7 +1967,7 @@ func _panel_lines(cd: Dictionary) -> Array:
 			continue
 		# A trigger tied to one specific card (Luto de Vael: only Myrra dying) is too specific for
 		# the generic tag "Aliado Morre"; the card text explains it instead
-		if e.has("dying_card"):
+		if e.has("dying_card") or e.has("dying_sacrificed"):
 			continue
 		seen[trg] = true
 		tags.append([CardDB.data()["triggers"][trg]["name"], TRIGGER_COL])

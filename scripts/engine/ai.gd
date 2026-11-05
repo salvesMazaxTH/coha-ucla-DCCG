@@ -28,11 +28,7 @@ const INCARNATION_RANK_FIRST := 99 ## rank of an Encarnação cast before every 
 static func step(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 	match g.phase:
 		"mulligan":
-			var cards_to_return: Array = []
-			for card: Card in g.players[p]["hand"]:
-				if _base_cost(card) >= 5 and cards_to_return.size() < GameState.MULLIGAN_MAX:
-					cards_to_return.append(card.uid)
-			return g.mulligan(p, cards_to_return)
+			return g.mulligan(p, _mulligan_returns(g, p))
 		"enter_tapped":
 			var waiting_unit := g.find_unit(int(g.pending_tap[0]))
 			return g.choose_enter_tapped(p, _wants_enter_tapped(g, p, waiting_unit))
@@ -122,6 +118,30 @@ static func _choose_effect_option(g: GameState, p: int) -> Array:
 static func _base_cost(card: Card) -> int:
 	return int(CardDB.card(card.card_id)["cost"])
 
+## Cards of the opening hand to put back. Goes from the most to the least expensive card: every card of cost 5+
+## goes back, and the hand keeps at most one card of cost 4 and two of cost 3, so it can still play something in the first turns.
+static func _mulligan_returns(g: GameState, p: int) -> Array:
+	var cards_to_return: Array = []
+	var kept_cost_four := 0
+	var kept_cost_three := 0
+	for card: Card in _hand_most_expensive_first(g, p):
+		if cards_to_return.size() >= GameState.MULLIGAN_MAX:
+			break
+		var cost := _base_cost(card)
+		if cost >= 5:
+			cards_to_return.append(card.uid)
+		elif cost == 4:
+			if kept_cost_four >= 1:
+				cards_to_return.append(card.uid)
+			else:
+				kept_cost_four += 1
+		elif cost == 3:
+			if kept_cost_three >= 2:
+				cards_to_return.append(card.uid)
+			else:
+				kept_cost_three += 1
+	return cards_to_return
+
 ## Copy of the hand sorted from the most to the least expensive card.
 static func _hand_most_expensive_first(g: GameState, p: int) -> Array:
 	var hand: Array = g.players[p]["hand"].duplicate()
@@ -131,7 +151,8 @@ static func _hand_most_expensive_first(g: GameState, p: int) -> Array:
 static func _choose_search(g: GameState) -> int:
 	var best_uid := 0
 	var best_score := -999
-	var discarding: bool = g.pending_search.get("discard_hand", false)
+	# a discard and a forced sacrifice (Censo de Baixas) both give up the least valuable option
+	var discarding: bool = g.pending_search.get("discard_hand", false) or g.pending_search.get("sacrifice_pick", false)
 	if g.pending_search.get("hand_bottom", false):
 		# Bob Veyr: take the opponent's best card, unless it is a unit and the discards would cost more than it is worth
 		var best_foe_card := 0

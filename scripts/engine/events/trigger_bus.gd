@@ -46,6 +46,8 @@ func _fire_own_effects(event: GameEvent) -> void:
 			continue # a staged effect (Vørn Ω): this is not the occurrence it belongs to
 		if e.get("trigger", "") == event.trigger and e.get("not_token", false) and event.data.get("dying_is_token", false):
 			continue # the ally that died was a ficha
+		if e.get("trigger", "") == event.trigger and e.has("dying_sacrificed") and bool(e["dying_sacrificed"]) != event.data.get("dying_was_sacrificed", false):
+			continue # an Aliado Morre effect that only listens to a sacrifice (true) or only to any other death (false): Inspetora Orna Lutuosa
 		if e.get("trigger", "") == event.trigger and e.has("dying_card") and e["dying_card"] != event.data.get("dying_card_id", ""):
 			continue # an Aliado Morre effect that only listens to one card dying (Luto: Myrra)
 		if e.get("trigger", "") == event.trigger and game._combat_damage and e.get("not_in_combat", false):

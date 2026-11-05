@@ -425,6 +425,8 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s anulou %d de dano que mataria o Líder de %s" % [_cname(e["card_id"]), int(e["amount"]), _pname(e["player"])])
 		"leader_hit_negated":
 			_log("O Líder de %s anulou um golpe de %d (restam %d)" % [_pname(e["player"]), int(e["amount"]), int(e["left"])])
+		"sacrifice_pick":
+			_log("%s escolhe uma unidade sua para sacrificar" % _pname(e["player"]))
 		"discard_pick":
 			_log("%s escolhe uma carta da mão para descartar" % _pname(e["player"]))
 		"hand_bottom_pick":

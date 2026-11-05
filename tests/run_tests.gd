@@ -151,6 +151,7 @@ func _init() -> void:
 	_test_drake_power()
 	_test_magni()
 	_test_cornelia()
+	_test_censo_and_queima()
 	_test_lucian_soren()
 	_test_overkill()
 	_test_dud()
@@ -7402,6 +7403,133 @@ func _test_cornelia() -> void:
 	# the Constante disappears with her
 	g.players[p]["board"].erase(cornelia)
 	check(g.cost_of(foe_player, fireball.data(), fireball) == fireball_cost, "Cornélia: ao sair do campo os feitiços voltam ao custo normal")
+
+## Censo de Baixas: the caster sacrifices an ally to play it, then the OPPONENT picks one of their own units to sacrifice
+## (asked only when they have 2+ units). Queima de Arquivo: discards the whole hand, then draws 4.
+func _test_censo_and_queima() -> void:
+	_tcard("t_cq_filler", 1, 5, [])
+	# no unit to sacrifice -> Censo de Baixas cannot be played
+	var g := _new_game()
+	_quiet(g)
+	var p: int = g.active
+	var o: int = 1 - p
+	g.players[p]["momentum"] = 10
+	var blocked_uid := _give(g, p, "censo_de_baixas")
+	check(g.play_card(p, blocked_uid).is_empty(), "Censo de Baixas: sem unidade aliada para sacrificar não pode ser jogada")
+
+	# the opponent has 2 units -> they choose which one dies (the caster does not)
+	var fodder := _put(g, p, "t_cq_filler")
+	var foe_a := _put(g, o, "t_cq_filler")
+	var foe_b := _put(g, o, "t_cq_filler")
+	g.play_card(p, blocked_uid, 0, fodder.uid)
+	_resolve_stack(g)
+	check(g.find_unit(fodder.uid) == null, "Censo de Baixas: a unidade aliada paga o custo")
+	check(g.phase == "search" and g.pending_search.get("sacrifice_pick", false) and g.decider() == o, "Censo de Baixas: com 2 unidades o OPONENTE escolhe (%s)" % g.phase)
+	check(g.choose_search(p, foe_a.uid).is_empty(), "Censo de Baixas: quem jogou não escolhe por ele")
+	check(g.choose_search(o, fodder.uid).is_empty(), "Censo de Baixas: uid fora das opções é recusado")
+	g.choose_search(o, foe_b.uid)
+	_resolve_stack(g)
+	check(g.phase != "search" and g.find_unit(foe_b.uid) == null and g.find_unit(foe_a.uid) != null, "Censo de Baixas: só a unidade escolhida morre (%s)" % g.phase)
+
+	# exactly one enemy unit -> sacrificed without asking
+	var g2 := _new_game()
+	_quiet(g2)
+	var p2: int = g2.active
+	g2.players[p2]["momentum"] = 10
+	var fodder2 := _put(g2, p2, "t_cq_filler")
+	var lone := _put(g2, 1 - p2, "t_cq_filler")
+	g2.play_card(p2, _give(g2, p2, "censo_de_baixas"), 0, fodder2.uid)
+	_resolve_stack(g2)
+	check(g2.phase != "search" and g2.find_unit(lone.uid) == null, "Censo de Baixas: com uma só unidade ela é sacrificada sem perguntar")
+
+	# no enemy unit -> nothing happens, no prompt
+	var g3 := _new_game()
+	_quiet(g3)
+	var p3: int = g3.active
+	g3.players[p3]["momentum"] = 10
+	var fodder3 := _put(g3, p3, "t_cq_filler")
+	g3.play_card(p3, _give(g3, p3, "censo_de_baixas"), 0, fodder3.uid)
+	_resolve_stack(g3)
+	check(g3.phase != "search", "Censo de Baixas: sem unidade inimiga nada é perguntado")
+
+	# Queima de Arquivo: the whole hand goes to the graveyard BEFORE the 4 cards are drawn
+	var g4 := _new_game()
+	_quiet(g4)
+	var p4: int = g4.active
+	g4.players[p4]["momentum"] = 10
+	g4.players[p4]["hand"].clear()
+	var archive_uid := _give(g4, p4, "queima_de_arquivo")
+	for i in 3:
+		_give(g4, p4, "t_cq_filler")
+	var grave_before: int = g4.players[p4]["graveyard"].size()
+	g4.play_card(p4, archive_uid)
+	_resolve_stack(g4)
+	check(g4.players[p4]["hand"].size() == 4, "Queima de Arquivo: a mão antiga some e 4 cartas novas entram (%d)" % g4.players[p4]["hand"].size())
+	check(g4.players[p4]["graveyard"].size() >= grave_before + 3, "Queima de Arquivo: a mão descartada vai ao cemitério")
+	check(g4.players[p4]["hand"].all(func(c: Card): return c.card_id != "t_cq_filler"), "Queima de Arquivo: nenhuma carta da mão antiga sobra")
+
+	# Inspetora Orna Lutuosa: a SACRIFICED ally draws 1 card; any other death only hits the enemy Leader for 1
+	var g5 := _new_game()
+	_quiet(g5)
+	var p5: int = g5.active
+	var o5: int = 1 - p5
+	g5.players[p5]["momentum"] = 10
+	g5.players[p5]["hand"].clear()
+	_put(g5, p5, "inspetora_orna_lutuosa")
+	var fodder5 := _put(g5, p5, "t_cq_filler")
+	var foe_leader_before: int = g5.players[o5]["leader_hp"]
+	g5.play_card(p5, _give(g5, p5, "censo_de_baixas"), 0, fodder5.uid)
+	_resolve_stack(g5)
+	check(g5.players[p5]["hand"].size() == 1, "Inspetora: aliado sacrificado compra 1 carta (%d)" % g5.players[p5]["hand"].size())
+	check(g5.players[o5]["leader_hp"] == foe_leader_before, "Inspetora: aliado sacrificado NÃO causa o dano ao Líder inimigo")
+
+	var plain_victim := _put(g5, p5, "t_cq_filler")
+	var hand_before_plain: int = g5.players[p5]["hand"].size()
+	_kill(g5, plain_victim)
+	_resolve_stack(g5)
+	check(g5.players[p5]["hand"].size() == hand_before_plain, "Inspetora: morte comum não compra carta")
+	check(g5.players[o5]["leader_hp"] == foe_leader_before - 1, "Inspetora: morte comum causa 1 de dano ao Líder inimigo (%d)" % g5.players[o5]["leader_hp"])
+
+	# a sacrifice FORCED on the opponent (Censo) is a sacrifice for them too: their Inspetora draws
+	var g6 := _new_game()
+	_quiet(g6)
+	var p6: int = g6.active
+	var o6: int = 1 - p6
+	g6.players[p6]["momentum"] = 10
+	g6.players[o6]["hand"].clear()
+	_put(g6, o6, "inspetora_orna_lutuosa")
+	var forced_victim := _put(g6, o6, "t_cq_filler")
+	var fodder6 := _put(g6, p6, "t_cq_filler")
+	g6.play_card(p6, _give(g6, p6, "censo_de_baixas"), 0, fodder6.uid)
+	_resolve_stack(g6)
+	if g6.phase == "search":
+		g6.choose_search(o6, forced_victim.uid)
+		_resolve_stack(g6)
+	check(g6.find_unit(forced_victim.uid) == null, "Inspetora: a unidade do oponente foi sacrificada pelo Censo")
+	check(g6.players[o6]["hand"].size() == 1, "Inspetora: sacrifício forçado do Censo também compra 1 carta para o dono dela (%d)" % g6.players[o6]["hand"].size())
+
+	# each Inspetora effect fires once per turn: a second sacrifice / second plain death in the same turn does nothing
+	var g7 := _new_game()
+	_quiet(g7)
+	var p7: int = g7.active
+	var o7: int = 1 - p7
+	g7.players[p7]["hand"].clear()
+	_put(g7, p7, "inspetora_orna_lutuosa")
+	var first_a := _put(g7, p7, "t_cq_filler")
+	var first_b := _put(g7, p7, "t_cq_filler")
+	var foe_hp_before_cap: int = g7.players[o7]["leader_hp"]
+	g7.kill_as_sacrifice(first_a, 1000)
+	g7.kill_as_sacrifice(first_b, 1000)
+	g7._check_state()
+	g7._flush()
+	_resolve_stack(g7)
+	check(g7.players[p7]["hand"].size() == 1, "Inspetora: 2 sacrifícios no mesmo turno compram só 1 carta (%d)" % g7.players[p7]["hand"].size())
+	var plain_a := _put(g7, p7, "t_cq_filler")
+	var plain_b := _put(g7, p7, "t_cq_filler")
+	_kill(g7, plain_a)
+	_kill(g7, plain_b)
+	_resolve_stack(g7)
+	check(g7.players[o7]["leader_hp"] == foe_hp_before_cap - 1, "Inspetora: 2 mortes comuns no mesmo turno causam só 1 de dano (%d)" % g7.players[o7]["leader_hp"])
 
 ## Lucian Mortasa: on death his Primordial enters free, hits the enemy Leader for 3 and every enemy unit for 1.
 ## Soren: each player holding more than 4 cards discards 1 (controller first), the challenged unit loses its Armadura (not its Escudo), the other Dragões Negros get +1 Vida.

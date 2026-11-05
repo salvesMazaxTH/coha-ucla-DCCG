@@ -15,6 +15,8 @@ extends Effect
 ##   `who` (default "self"): "opponent" makes the OPPONENT pick the card from their own hand (Calvin Sem-Face); an empty hand does nothing.
 ## "discard_if_over" (Soren): BOTH players holding MORE than `limit` cards (default 4) discard `amount` (default 1) cards
 ##   from their own hand to the graveyard. The controller chooses first, then the opponent; a player at the limit or below discards nothing.
+## "enemy_sacrifice_pick" (Censo de Baixas): the OPPONENT picks one unit they control and sacrifices it (it dies, no Escudo
+##   Supremo, Ao Morrer still triggers). With exactly one unit it is sacrificed without asking; with none nothing happens.
 ## "summon_hand_pick": the player picks a unit card of the given `rarity` (e.g. "champion"; "" = any) from
 ##   their own hand and it enters the board for free. It is banished when the turn ends.
 ## "grave_retrieve": the player picks a copy of `card_id` (or of any card in the `card_ids` list) from their own
@@ -57,6 +59,8 @@ func open_choice(context: EffectContext) -> void:
 			context.game._begin_hand_discard(context.controller, context.self_uid)
 	elif action == "discard_if_over":
 		context.game._begin_discard_if_over(context.controller, int(raw.get("limit", 4)), int(raw.get("amount", 1)), context.self_uid)
+	elif action == "enemy_sacrifice_pick":
+		context.game._begin_enemy_sacrifice(context.opponent(), context.self_uid)
 	elif action == "summon_hand_pick":
 		context.game._begin_hand_summon(context.controller, String(raw.get("rarity", "")), context.self_uid)
 	elif action == "grave_retrieve":

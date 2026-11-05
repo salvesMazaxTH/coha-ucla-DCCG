@@ -44,6 +44,8 @@ static var ACTIONS: Dictionary = {
 	"transform_self": TransformEffect,
 	"discard_hand_pick": DeckEffect,
 	"discard_if_over": DeckEffect,
+	"discard_hand_all": DiscardHandEffect,
+	"enemy_sacrifice_pick": DeckEffect,
 	"summon_hand_pick": DeckEffect,
 	"fight": FightEffect,
 	"summon": SummonEffect,

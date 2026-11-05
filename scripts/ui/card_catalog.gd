@@ -36,7 +36,7 @@ const ACTION_CATEGORIES := {
 	"Recursos": ["gain_momentum", "gain_reserve", "raise_max_momentum", "momentum_surge", "momentum_cap", "spend_all_momentum"],
 	"Redução de custo": ["modify_cost", "discount_hand", "grant_play_discount", "cost_reduction"],
 	"Devolução à mão": ["return_to_hand"],
-	"Descarte e moagem": ["discard_hand_pick", "discard_if_over", "mill", "mill_pick"],
+	"Descarte e moagem": ["discard_hand_pick", "discard_if_over", "discard_hand_all", "mill", "mill_pick"],
 	"Transformação": ["transform_self"],
 }
 const SORT_OPTIONS := ["Nome", "Custo: menor primeiro", "Custo: maior primeiro", "Ataque: maior primeiro", "Vida: maior primeiro", "Tipo / nome"]

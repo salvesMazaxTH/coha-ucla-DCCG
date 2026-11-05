@@ -84,6 +84,7 @@ var heal_blocked_until := -1 ## while game turn <= this, this unit cannot recove
 var leader_damage_guard_turn := -1 ## turn in which this card reduced the first damage to its Leader
 var death_ward_armed := false ## a free-standing artifact is ready to prevent one allied unit death
 var banish_on_death := false ## its lethal damage came from a "banish_what_it_kills" unit: when it dies it is banished instead (see GameState._move_dead_units)
+var sacrificed := false ## its lethal damage is a sacrifice: the Aliado Morre it causes is told so ("dying_sacrificed", Inspetora Orna Lutuosa); read and cleared in GameState._move_dead_units
 var durability_used := 0 ## Durability points this artifact has lost so far (see durability_left)
 var durability_uses := 0 ## firings of an effect with "durability_every_uses" since the artifact last lost Durability
 ## Where this unit's stat changes came from, for the card overlay's "Modificadores" panel. One entry per change:
