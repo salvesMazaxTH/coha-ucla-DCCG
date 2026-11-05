@@ -21,6 +21,7 @@
           "title": "Tiro",
           "detail": "Outra unidade inimiga à sua escolha sofre 4 de dano.",
           "exclude_opposed": true,
+          "hit_fx": "tiro",
           "effects": [
             {"action": "damage", "target": "enemy_unit", "amount": 4}
           ]

@@ -7768,7 +7768,8 @@ func _test_nicolas_effect_choice() -> void:
 	remote.choose_effect_option(0, 0, other.uid)
 	check(sent == {"t": "act", "a": "effect_choice", "index": 0, "target": other.uid}, "Nicolas: cliente envia modo e alvo ao servidor")
 	check(g.choose_effect_option(1, 0, other.uid).is_empty() and g.choose_effect_option(0, 0, defender.uid).is_empty() and g.choose_effect_option(0, 9).is_empty(), "Nicolas: rejeita jogador, alvo e modo inválidos")
-	g.choose_effect_option(0, 0, other.uid)
+	var shot_events := g.choose_effect_option(0, 0, other.uid)
+	check(shot_events.any(func(e): return e["type"] == "effect_choice_chosen" and e["hit_fx"] == "tiro"), "Nicolas: o modo Tiro anuncia o estilo de disparo")
 	check(other.damage == 4 and defender.damage == 4 and g.phase != "effect_choice", "Nicolas: tiro causa 4 na outra unidade, seguido do combate")
 
 	g = _new_game()
@@ -7778,7 +7779,8 @@ func _test_nicolas_effect_choice() -> void:
 	defender.exhausted = true
 	_hit(g, nicolas, defender.uid)
 	check(not g.effect_choice_available(0) and g.effect_choice_available(1), "Nicolas: tiro indisponível sem outra unidade")
-	g.choose_effect_option(0, 1)
+	var punch_events := g.choose_effect_option(0, 1)
+	check(punch_events.any(func(e): return e["type"] == "effect_choice_chosen" and e["hit_fx"] == ""), "Nicolas: o modo Punho em Chamas não dispara projétil")
 	check(defender.damage == 7 and int(defender.dot_markers.get("queimadura", 0)) == 1, "Nicolas: punho causa 3, aplica Queimadura e depois combate")
 
 	g = _new_game()

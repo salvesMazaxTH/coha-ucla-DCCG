@@ -1298,7 +1298,8 @@ func choose_effect_option(p: int, index: int, target: int = 0) -> Array:
 	pending_effect_choice.clear()
 	_effect_choice_context = null
 	phase = return_phase
-	_emit({"type": "effect_choice_chosen", "player": p, "uid": uid, "card_id": card_id, "option": index, "target": target})
+	# "hit_fx" on an option is cosmetic: the style its effects fly out of the card with (see FxShots)
+	_emit({"type": "effect_choice_chosen", "player": p, "uid": uid, "card_id": card_id, "option": index, "target": target, "hit_fx": String(option.get("hit_fx", ""))})
 	_spell_resolving = spell_resolving
 	_effect_choice_continuations.push_front({"parent_context": parent_context, "child_context": context})
 	_run_effects(context, effects, true)

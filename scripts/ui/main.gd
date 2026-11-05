@@ -5221,6 +5221,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 	var last_dst := 0
 	var hit_t := 0.0
 	var trig_src := 0 ## unit whose trigger caused the events that follow (0 = none)
+	var trig_style := "" ## how that unit's shots fly: its card's "hit_fx", or the chosen option's own "hit_fx"
 	var trig_shots := 0 ## bolts that trigger already fired (only the first one charges up slowly)
 	var volley_land_t := 0.0 ## when the trigger's last shot lands (the next one follows VOLLEY_GAP later)
 	var fatigue_pending := false ## a Fadiga was just announced: the Leader hit that follows is the game's rule, not a card's effect
@@ -5268,7 +5269,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 		if trig_src != 0 and not is_fatigue_hit and et in ["damage", "heal", "shield_break", "buff", "dot", "freeze", "exhaust", "stun", "condemn", "tide_mark", "magic_shield_break", "supreme_shield_break", "summon"] \
 				and e["uid"] != trig_src and actors.has(trig_src) and actors.has(e["uid"]):
 			# good effects are carried over as an orb; everything else is fired in the source's own style
-			var hit_style := "boon" if fx_shots._is_boon_event(e) else fx_shots._hit_style_of(actors[trig_src])
+			var hit_style := "boon" if fx_shots._is_boon_event(e) else trig_style
 			var first_shot := trig_shots == 0
 			var timing := fx_shots._shot_timing(hit_style, first_shot)
 			var shot_time: float = timing["charge"] + timing["flight"]
@@ -5298,8 +5299,16 @@ func _animate(events: Array, old: Dictionary) -> float:
 				if actors.has(e["uid"]):
 					fx_library._trigger_fx(actors[e["uid"]], e["trigger"], cursor)
 					trig_src = e["uid"]
+					trig_style = fx_shots._hit_style_of(actors[trig_src])
 					trig_shots = 0
 					cursor += 0.3
+			"effect_choice_chosen":
+				# only an option that names its own "hit_fx" flies its effects out of the card (the choice
+				# comes in a batch of its own, after the trigger that offered it)
+				if actors.has(e["uid"]) and String(e.get("hit_fx", "")) != "":
+					trig_src = e["uid"]
+					trig_style = String(e["hit_fx"])
+					trig_shots = 0
 			"trigger_end":
 				trig_src = 0 # the effects that follow have no card to fly out of
 			"shout":

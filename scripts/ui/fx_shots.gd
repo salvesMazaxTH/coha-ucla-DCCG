@@ -113,6 +113,8 @@ func _shot_timing(style: String, first_shot: bool) -> Dictionary:
 			return {"charge": (THORN_CHARGE_FIRST if first_shot else THORN_CHARGE_NEXT) * pace, "flight": THORN_FLIGHT * pace}
 		"corte":
 			return {"charge": (SLASH_CHARGE_FIRST if first_shot else SLASH_CHARGE_NEXT) * pace, "flight": SLASH_DASH * pace}
+		"tiro":
+			return {"charge": (BULLET_CHARGE_FIRST if first_shot else BULLET_CHARGE_NEXT) * pace, "flight": BULLET_FLIGHT * pace}
 		"boon":
 			return {"charge": (BOON_CHARGE_FIRST if first_shot else BOON_CHARGE_NEXT) * pace, "flight": BOON_FLIGHT * pace}
 	return {"charge": (BOLT_CHARGE_FIRST if first_shot else BOLT_CHARGE_NEXT) * pace, "flight": BOLT_FLIGHT * pace}
@@ -128,6 +130,8 @@ func _effect_hit(style: String, from: Control, to: Control, t: float, col: Color
 			return _thorn_shot(from, to, t, first_shot)
 		"corte":
 			return _slash_shot(from, to, t, first_shot)
+		"tiro":
+			return _bullet_shot(from, to, t, first_shot)
 		"boon":
 			return _boon_shot(from, to, t, col, first_shot)
 	return _effect_bolt(from, to, t, col, first_shot)
@@ -980,6 +984,229 @@ func _thorn_shot(from: Control, to: Control, t: float, first_shot: bool) -> floa
 			var node: Node = alive.call(key)
 			if node != null:
 				node.queue_free())
+	return charge + flight
+
+## Timing of the "tiro" hit style (see _bullet_shot): the shooter takes a short aim before its first
+## shot, then fires the rest without pausing; a bullet crosses the table almost instantly.
+const BULLET_CHARGE_FIRST := 0.10
+const BULLET_CHARGE_NEXT := 0.0
+const BULLET_FLIGHT := 0.07
+## How long the muzzle flash lasts, and how long the smoke from the impact lingers.
+const BULLET_MUZZLE_TIME := 0.09
+const BULLET_SMOKE_TIME := 0.5
+## Colors of the shot: a hot white-yellow tracer, orange sparks, and gray smoke.
+const BULLET_TRACER_COLOR := Color("#fff2b8")
+const BULLET_SPARK_COLOR := Color("#ffb347")
+const BULLET_SMOKE_COLOR := Color("#9a9a9a")
+
+## The "tiro" hit style, for modern firearms (nothing magic flies out of the shooter):
+## 1. aim (first shot of a trigger only): the shooter leans a little toward its target;
+## 2. fire: a muzzle flash and a few sparks burst out of the source, and the card kicks back (recoil);
+## 3. flight: a thin white-hot tracer line crosses the table in a straight line, nearly instantly;
+## 4. impact: a small flash, orange sparks thrown back the way the bullet came, a puff of gray smoke
+##    and a dark mark where it hit (a bit off-center, so a volley spreads over the target).
+## Follows both ends if they move. Returns the time from t until the bullet lands.
+func _bullet_shot(from: Control, to: Control, t: float, first_shot: bool) -> float:
+	var timing := _shot_timing("tiro", first_shot)
+	var charge: float = timing["charge"]
+	var flight: float = timing["flight"]
+	var launch_t := t + charge
+	var impact_t := launch_t + flight
+	var rich := fx_library.fx_scale >= 0.7 # big chains skip the smoke and the bullet mark
+	var path := _shot_path(from, to, 0.0, 0.0) # a bullet flies straight
+	var ends: Dictionary = path["ends"]
+	var refresh_ends: Callable = path["refresh"]
+	var point_at: Callable = path["point_at"]
+	# where on the target this bullet lands, relative to the target's center
+	var hit_offset := Vector2(randf_range(-16.0, 16.0), randf_range(-16.0, 16.0))
+	# the lambdas below reach the shot's nodes through this dictionary instead of capturing them
+	# (same reason as in _effect_bolt: the nodes may be freed while a lambda is still scheduled)
+	var parts := {}
+	var alive := func(key: String) -> Node:
+		var node = parts.get(key)
+		return node if is_instance_valid(node) else null
+
+	# --- 1 and 2. aim, then recoil: the source card leans toward the target, then is kicked back
+	if from is CardView:
+		var shooter: CardView = from
+		var recoil := shooter.create_tween()
+		recoil.tween_interval(t)
+		if first_shot:
+			recoil.tween_method(func(k: float):
+				var toward: Vector2 = (ends["b"] - ends["a"]).normalized()
+				shooter.shake = toward * 5.0 * k, 0.0, 1.0, charge).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		recoil.tween_method(func(k: float):
+			var away: Vector2 = (ends["a"] - ends["b"]).normalized()
+			shooter.shake = away * 13.0 * (1.0 - k), 0.0, 1.0, 0.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		recoil.tween_callback(func(): shooter.shake = Vector2.ZERO)
+
+	# --- 2. fire: muzzle flash and sparks at the source, all in one holder freed together
+	var muzzle_holder := Node2D.new()
+	muzzle_holder.z_index = 27
+	fx.add_child(muzzle_holder)
+	parts["muzzle"] = muzzle_holder
+	var mt := fx.create_tween()
+	mt.tween_interval(launch_t)
+	mt.tween_callback(func():
+		var holder: Node2D = alive.call("muzzle")
+		if holder == null:
+			return # the table was reset mid-animation
+		refresh_ends.call()
+		var toward: Vector2 = (ends["b"] - ends["a"]).normalized()
+		var muzzle_point: Vector2 = ends["a"] + toward * 34.0 # a little ahead of the card, where the barrel would be
+		var flash := fx_library._glow_sprite(30.0, Color(BULLET_TRACER_COLOR, 0.95))
+		flash.position = muzzle_point
+		holder.add_child(flash)
+		var flash_tween := flash.create_tween()
+		flash_tween.tween_property(flash, "scale", flash.scale * 1.2, BULLET_MUZZLE_TIME).from(flash.scale * 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		flash_tween.parallel().tween_property(flash, "modulate:a", 0.0, BULLET_MUZZLE_TIME).set_delay(0.02)
+		var muzzle_sparks := CPUParticles2D.new()
+		muzzle_sparks.emitting = false
+		muzzle_sparks.one_shot = true
+		muzzle_sparks.explosiveness = 1.0
+		muzzle_sparks.local_coords = false
+		muzzle_sparks.amount = maxi(4, int(8 * fx_library.fx_scale))
+		muzzle_sparks.lifetime = 0.2
+		muzzle_sparks.direction = toward
+		muzzle_sparks.spread = 22.0
+		muzzle_sparks.gravity = Vector2(0, 300)
+		muzzle_sparks.initial_velocity_min = 160.0
+		muzzle_sparks.initial_velocity_max = 380.0
+		muzzle_sparks.scale_amount_min = 1.5
+		muzzle_sparks.scale_amount_max = 3.0
+		var muzzle_ramp := Gradient.new()
+		muzzle_ramp.set_color(0, Color(BULLET_TRACER_COLOR, 0.95))
+		muzzle_ramp.set_color(1, Color(BULLET_SPARK_COLOR, 0.0))
+		muzzle_sparks.color_ramp = muzzle_ramp
+		muzzle_sparks.position = muzzle_point
+		holder.add_child(muzzle_sparks)
+		muzzle_sparks.emitting = true
+		var cleanup := holder.create_tween()
+		cleanup.tween_interval(0.4)
+		cleanup.tween_callback(holder.queue_free))
+
+	# --- 3. flight: a thin tracer line (pointed at the back) with a tiny bright head
+	var tracer := Line2D.new()
+	tracer.width = 4.0
+	tracer.material = fx_library._additive()
+	var tracer_gradient := Gradient.new()
+	tracer_gradient.set_color(0, Color(BULLET_SPARK_COLOR, 0.0))
+	tracer_gradient.set_color(1, Color(BULLET_TRACER_COLOR, 0.95))
+	tracer.gradient = tracer_gradient
+	var tracer_width := Curve.new()
+	tracer_width.add_point(Vector2(0, 0.0))
+	tracer_width.add_point(Vector2(1, 1.0))
+	tracer.width_curve = tracer_width
+	tracer.z_index = 26
+	tracer.visible = false
+	fx.add_child(tracer)
+	parts["tracer"] = tracer
+	var head := fx_library._glow_sprite(9.0, Color(BULLET_TRACER_COLOR, 1.0))
+	head.z_index = 26
+	head.visible = false
+	fx.add_child(head)
+	parts["head"] = head
+	var ft := fx.create_tween()
+	ft.tween_interval(launch_t)
+	ft.tween_method(func(k: float):
+		refresh_ends.call()
+		var tracer_node: Line2D = alive.call("tracer")
+		var head_node: Sprite2D = alive.call("head")
+		if tracer_node == null or head_node == null:
+			return
+		var front: Vector2 = ends["a"].lerp(ends["b"] + hit_offset, k)
+		var back: Vector2 = ends["a"].lerp(ends["b"] + hit_offset, maxf(k - 0.4, 0.0))
+		tracer_node.points = PackedVector2Array([back, front])
+		tracer_node.visible = true
+		head_node.position = front
+		head_node.visible = true, 0.0, 1.0, flight)
+	ft.tween_callback(func():
+		for key in ["tracer", "head"]:
+			var node: Node = alive.call(key)
+			if node != null:
+				node.queue_free())
+
+	# --- 4. impact: flash, sparks bouncing back, smoke and a dark mark, all in one holder freed together
+	var impact_holder := Node2D.new()
+	impact_holder.z_index = 27
+	fx.add_child(impact_holder)
+	parts["impact"] = impact_holder
+	var it := fx.create_tween()
+	it.tween_interval(impact_t)
+	it.tween_callback(func():
+		var holder: Node2D = alive.call("impact")
+		if holder == null:
+			return
+		refresh_ends.call()
+		var hit_point: Vector2 = ends["b"] + hit_offset
+		var travel: Vector2 = (ends["b"] - ends["a"]).normalized()
+		var flash := fx_library._glow_sprite(24.0, Color(BULLET_TRACER_COLOR, 0.9))
+		flash.position = hit_point
+		holder.add_child(flash)
+		var flash_tween := flash.create_tween()
+		flash_tween.tween_property(flash, "scale", flash.scale * 1.1, 0.07).from(flash.scale * 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		flash_tween.parallel().tween_property(flash, "modulate:a", 0.0, 0.16).set_delay(0.03)
+		var sparks := CPUParticles2D.new()
+		sparks.emitting = false
+		sparks.one_shot = true
+		sparks.explosiveness = 1.0
+		sparks.local_coords = false
+		sparks.amount = maxi(5, int(11 * fx_library.fx_scale))
+		sparks.lifetime = 0.35
+		sparks.direction = -travel # sparks ricochet back out the way the bullet came in
+		sparks.spread = 55.0
+		sparks.gravity = Vector2(0, 520)
+		sparks.damping_min = 60.0
+		sparks.damping_max = 140.0
+		sparks.initial_velocity_min = 140.0
+		sparks.initial_velocity_max = 380.0
+		sparks.scale_amount_min = 1.8
+		sparks.scale_amount_max = 3.6
+		var spark_ramp := Gradient.new()
+		spark_ramp.set_color(0, Color(BULLET_TRACER_COLOR, 0.95))
+		spark_ramp.set_color(1, Color(BULLET_SPARK_COLOR, 0.0))
+		sparks.color_ramp = spark_ramp
+		sparks.position = hit_point
+		holder.add_child(sparks)
+		sparks.emitting = true
+		if rich:
+			var smoke := CPUParticles2D.new()
+			smoke.emitting = false
+			smoke.one_shot = true
+			smoke.explosiveness = 0.8
+			smoke.local_coords = false
+			smoke.amount = 5
+			smoke.lifetime = BULLET_SMOKE_TIME
+			smoke.direction = Vector2.UP
+			smoke.spread = 60.0
+			smoke.gravity = Vector2(0, -25)
+			smoke.damping_min = 40.0
+			smoke.damping_max = 80.0
+			smoke.initial_velocity_min = 30.0
+			smoke.initial_velocity_max = 70.0
+			smoke.scale_amount_min = 5.0
+			smoke.scale_amount_max = 9.0
+			var smoke_ramp := Gradient.new()
+			smoke_ramp.set_color(0, Color(BULLET_SMOKE_COLOR, 0.45))
+			smoke_ramp.set_color(1, Color(BULLET_SMOKE_COLOR, 0.0))
+			smoke.color_ramp = smoke_ramp
+			smoke.position = hit_point
+			holder.add_child(smoke)
+			smoke.emitting = true
+			# the bullet mark: a small dark spot that fades (a normal-blend dot, since the glow sprite is additive)
+			var mark := Polygon2D.new()
+			var mark_points := PackedVector2Array()
+			for step in 8:
+				mark_points.append(hit_point + Vector2.from_angle(TAU * step / 8.0) * 3.5)
+			mark.polygon = mark_points
+			mark.color = Color(0.05, 0.04, 0.04, 0.85)
+			holder.add_child(mark)
+			var mark_tween := mark.create_tween()
+			mark_tween.tween_interval(0.25)
+			mark_tween.tween_property(mark, "modulate:a", 0.0, 0.3)
+		var cleanup := holder.create_tween()
+		cleanup.tween_interval(BULLET_SMOKE_TIME + 0.2)
+		cleanup.tween_callback(holder.queue_free))
 	return charge + flight
 
 ## Timing of the "corte" hit style (see _slash_shot): the blade-wielder gathers herself a little before

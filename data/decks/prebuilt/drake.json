@@ -2,7 +2,6 @@
   "name": "Revoada Negra",
   "description": "Aggro de Dragões Negros: curva baixa de Ímpeto, magias baratas e a Revoada Negra do Líder dão Rapidez e dano direto no rosto antes que a mesa se estabilize.",
   "order": 29,
-  "unreleased": true,
   "leader": "drake",
   "cards": {
     "molly_piscaluz": 3,
