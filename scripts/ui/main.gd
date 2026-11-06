@@ -135,6 +135,9 @@ var views := {} ## uid (or "cmd<p>") -> Control on screen, for animations
 var _unit_board_views := {} ## uid -> unit CardView from the last board render, kept for same-slot updates
 var _unit_views_for_reuse := {} ## detached unit views being matched against the next board layout
 var barricade_was_up := {} ## unit uid -> was it a tapped, unfrozen Provocação in the previous render? (to spot the moment it slams shut)
+var _locked_hand_uids := {} ## hand card uid -> true if it was chained (play restriction) in the previous render
+const LOCK_STAGGER_SECONDS := 0.07 ## delay between the chain lock-ins of cards locked at the same moment
+const MAX_LOCK_SOUNDS := 4 ## a full hand locking at once plays at most this many clanks
 var hand_uids := {} ## viewer's hand cards in the current render
 var hint_text := "" ## the tip pill fades out after a few seconds and returns when the player seems lost
 var hint_since := 0
@@ -670,6 +673,7 @@ func _start(ai: bool, deck_a: String, deck_b: String) -> void:
 	g = GameState.new(deck_a, deck_b)
 	_queue_deck_arts([deck_a, deck_b])
 	barricade_was_up.clear() # unit uids restart with every match
+	_locked_hand_uids.clear()
 	for i in 2:
 		g.auto_pass[i] = _auto_pass_on() or _is_ai(i)
 	CardDB.reroll_flavor()
@@ -2452,6 +2456,9 @@ func _render_hand(p: int) -> void:
 	var hidden_height := CardView.BASE.y * sc * (1.0 - HAND_VISIBLE)
 	var rise := hidden_height + 14.0
 	var rest_y := _screen_bottom() - CardView.BASE.y * sc * HAND_VISIBLE
+	var now_locked_uids := {} # hand card uid -> true, for every card chained in this render
+	var newly_locked_count := 0 # cards that got chained since the previous render (for the ripple delay)
+	var unlock_sound_played := false # one latch sound even when several cards are freed together
 	for i in n:
 		var hand_card: Card = hand[i]
 		var v := CardView.new().setup(hand_card.card_id, _display_instance_for_card(hand_card), sc)
@@ -2486,9 +2493,29 @@ func _render_hand(p: int) -> void:
 		v.set_meta("rest", rest) # where a dragged card flies back to when the table can't be redrawn yet
 		v.mouse_entered.connect(_hand_hover.bind(v, true, rest))
 		v.mouse_exited.connect(_hand_hover.bind(v, false, rest))
+		# Chain lock (ChainLockFx): an effect forbids playing this card right now (Liam Tornagron's "custo 5 ou
+		# mais", any restrict_play). The hand is rebuilt on every render, so only a card that was free in the
+		# previous render plays the lock-in animation; one that was locked and is free again plays the unlock.
+		var forbidden := p == viewer and not _is_ai(p) and g.is_play_restricted(p, card_data)
+		if forbidden:
+			v.locked = true
+			if not _locked_hand_uids.has(hand_card.uid):
+				var lock_delay := newly_locked_count * LOCK_STAGGER_SECONDS # a quick ripple along the hand
+				v.play_lock_in(lock_delay)
+				if newly_locked_count < MAX_LOCK_SOUNDS:
+					Sfx.play_in("chain_lock", lock_delay + ChainLockFx.SNAP_AT * ChainLockFx.LOCK_IN_SECONDS)
+				newly_locked_count += 1
+			now_locked_uids[hand_card.uid] = true
+		elif _locked_hand_uids.has(hand_card.uid):
+			v.locked = true # starts closed so the release can play
+			v.play_unlock()
+			if not unlock_sound_played:
+				Sfx.play("chain_unlock")
+				unlock_sound_played = true
 		layer.add_child(v)
 		views[hand_card.uid] = v
 		hand_uids[hand_card.uid] = true
+	_locked_hand_uids = now_locked_uids
 
 ## Fan card lifts, straightens and grows under the cursor, and sits above its
 ## neighbours (GUI picking follows tree order) until the cursor leaves.

@@ -61,6 +61,10 @@ const SOUNDS := {
 	"revive":         {"files": ["powerUp12"], "db": -6.0, "pitch": 0.0},
 	"freeze":         {"files": ["impactGlass_medium_000", "impactGlass_medium_001"], "db": -4.0, "pitch": 0.04},
 	"thaw":           {"files": ["glass_003"], "db": -5.0, "pitch": 0.0},
+	# a hand card chained by a play restriction (ChainLockFx): the padlock snapping shut, a tug on it, and it springing open
+	"chain_lock":     {"files": ["impactMetal_heavy_000"], "db": -6.0, "pitch": 0.06},
+	"chain_rattle":   {"files": ["impactMetal_light_000", "impactMetal_light_001"], "db": -9.0, "pitch": 0.12},
+	"chain_unlock":   {"files": ["metalLatch"], "db": -6.0, "pitch": 0.05},
 	"stun":           {"files": ["impactBell_heavy_000", "impactBell_heavy_001"], "db": -5.0, "pitch": 0.06}, # a dull bell, like a ringing head
 	"execute":        {"files": ["impactBell_heavy_001"], "db": 0.0, "pitch": -0.2},
 	"fatigue":        {"files": ["lowDown"], "db": -6.0, "pitch": 0.0},

@@ -127,6 +127,30 @@ var frost_burst := 0.0:
 	set(v):
 		frost_burst = v
 		queue_redraw()
+## Proibida de jogar: a play restriction (restrict_play) bars this card right now, so it is drawn under a
+## padlock and two crossed chains (ChainLockFx). Main sets it on the hand cards; dragging it rattles the lock.
+var locked := false:
+	set(value):
+		locked = value
+		queue_redraw()
+## How far the chains have closed over the card (0 = not yet, 1 = locked). It is 1 by default, so a card
+## that was already locked simply shows the lock; play_lock_in() tweens it up from 0 when the lock arrives.
+var lock_in := 1.0:
+	set(value):
+		lock_in = value
+		queue_redraw()
+## The lock falling away when the restriction ends (0 = still locked, 1 = gone), see play_unlock().
+var lock_release := 0.0:
+	set(value):
+		lock_release = value
+		queue_redraw()
+## A tug on the lock when the player tries to drag the card (1 = just tugged, dying down to 0).
+var lock_rattle := 0.0:
+	set(value):
+		lock_rattle = value
+		queue_redraw()
+var _lock_tween: Tween
+var _rattled_this_press := false ## one rattle per press, however long the finger keeps pulling
 var shadow := true
 var fatigue := 0## > 0: not a real card but the Fadiga pseudo-card, showing this much damage
 
@@ -227,6 +251,13 @@ func update_card(id: String, instance: Dictionary = {}, size_scale := 1.0) -> vo
 	proc_wave = 0.0
 	frost_grow = 1.0
 	frost_burst = 0.0
+	if _lock_tween != null:
+		_lock_tween.kill()
+	locked = false
+	lock_in = 1.0
+	lock_release = 0.0
+	lock_rattle = 0.0
+	_rattled_this_press = false
 	shadow = true
 	fatigue = 0
 	_chamfer_frame = false
@@ -304,12 +335,13 @@ func _gui_input(e: InputEvent) -> void:
 	if (e is InputEventMouseButton or e is InputEventMouseMotion) and e.device == InputEvent.DEVICE_ID_EMULATION:
 		accept_event()
 		return
-	if e is InputEventMouseMotion and _holding and draggable:
+	# a locked card is pressed and pulled like a draggable one, but the pull only rattles its lock
+	if e is InputEventMouseMotion and _holding and (draggable or locked):
 		input_position = e.global_position
 		_drag_to(input_position)
 		accept_event()
 		return
-	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and (touch_ui() or draggable):
+	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and (touch_ui() or draggable or locked):
 		if e.pressed:
 			_begin_press(e.global_position)
 		else:
@@ -336,6 +368,7 @@ func _begin_press(position: Vector2) -> void:
 	input_position = position
 	_holding = true
 	_long = false
+	_rattled_this_press = false
 	dragging = false
 	_press_pos = position
 	var id := Time.get_ticks_msec()
@@ -347,6 +380,13 @@ func _begin_press(position: Vector2) -> void:
 				right_clicked.emit(self))
 
 func _drag_to(position: Vector2) -> void:
+	if _holding and locked and not draggable:
+		# pulling a chained card: the lock rattles instead, and letting go afterwards is not a click
+		if not _rattled_this_press and position.distance_to(_press_pos) > DRAG_PX:
+			_rattled_this_press = true
+			_long = true
+			rattle_lock()
+		return
 	if not _holding or not draggable:
 		return
 	if not dragging and position.distance_to(_press_pos) > DRAG_PX:
@@ -376,7 +416,7 @@ func _process(delta: float) -> void:
 		if not render_transform.is_equal_approx(_photo_transform_seen):
 			_photo_transform_seen = render_transform
 			queue_redraw()
-	if highlight.a > 0 or hovered or _legendary() or inst.has("frozen") or inst.has("stun_markers") or inst.has("condemned_turn") or inst.get("summoning_sick", false) or _status_amounts().size() > MAX_STATUS_MEDALLIONS:
+	if highlight.a > 0 or hovered or locked or _legendary() or inst.has("frozen") or inst.has("stun_markers") or inst.has("condemned_turn") or inst.get("summoning_sick", false) or _status_amounts().size() > MAX_STATUS_MEDALLIONS:
 		_t += delta
 		_redraw_acc += delta
 		# shimmer at ~30 fps is plenty (GraphicsQuality.card_animation_interval); a glowing or hovered card
@@ -644,6 +684,54 @@ func banish(delay := 0.0, edge := Color(0.8, 0.7, 1.0), dur := 0.9) -> void:
 	st.tween_property(self, "scale", scale * 0.55, dur).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
 	st.parallel().tween_property(self, "rotation", rotation + 0.5, dur).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
 
+## The chains close over the card (it has just become forbidden to play): they whip in from the corners,
+## the padlock drops and snaps shut, and the card jolts. `delay` staggers several cards locking at once.
+func play_lock_in(delay := 0.0) -> void:
+	if _lock_tween != null:
+		_lock_tween.kill()
+	locked = true
+	lock_in = 0.0
+	lock_release = 0.0
+	_lock_tween = create_tween()
+	_lock_tween.tween_interval(delay)
+	var seconds := ChainLockFx.LOCK_IN_SECONDS
+	_lock_tween.tween_property(self, "lock_in", ChainLockFx.SNAP_AT, seconds * ChainLockFx.SNAP_AT)
+	_lock_tween.tween_callback(_jolt_from_lock)
+	_lock_tween.tween_property(self, "lock_in", 1.0, seconds * (1.0 - ChainLockFx.SNAP_AT))
+
+## The restriction is over: the shackle springs open and the chains fall away.
+func play_unlock() -> void:
+	if _lock_tween != null:
+		_lock_tween.kill()
+	locked = true # stays drawn while it falls away
+	lock_in = 1.0
+	lock_release = 0.0
+	_lock_tween = create_tween()
+	_lock_tween.tween_property(self, "lock_release", 1.0, ChainLockFx.RELEASE_SECONDS).set_ease(Tween.EASE_IN)
+	_lock_tween.tween_callback(func():
+		locked = false
+		lock_release = 0.0)
+
+## Someone tugged at a chained card: the padlock jerks and the chains shiver, with a metallic rattle.
+func rattle_lock() -> void:
+	if not locked:
+		return
+	lock_rattle = 1.0
+	create_tween().tween_property(self, "lock_rattle", 0.0, ChainLockFx.RATTLE_SECONDS)
+	# Looked up by path instead of naming the Sfx autoload: CardView is also loaded by the headless tests,
+	# where autoload names don't exist when the script compiles.
+	var sound_player := get_node_or_null("/root/Sfx")
+	if sound_player != null:
+		sound_player.play("chain_rattle")
+
+## The small knock the card takes when the shackle slams shut.
+func _jolt_from_lock() -> void:
+	var unit := size.x / BASE.x
+	var jolt := create_tween()
+	jolt.tween_property(self, "shake", Vector2(0, 3.0) * unit, 0.04)
+	jolt.tween_property(self, "shake", Vector2(-1.5, -1.0) * unit, 0.05)
+	jolt.tween_property(self, "shake", Vector2.ZERO, 0.08)
+
 func _legendary() -> bool:
 	return not face_down and card_id != "" and CardDB.card(card_id)["rarity"] in ["champion", "legendary"]
 
@@ -762,6 +850,10 @@ func _draw() -> void:
 	# the champion gem is animated (it moves with _t), so it is always drawn live, after the still lettering
 	if look["cd"].get("rarity", "") == "champion" and not look["is_token"]:
 		_champion_gem(Vector2(_face_size.x / 2, _face_size.y - 3 * s), 5.5 * s, look["trim"])
+	# forbidden to play: padlock and chains over the finished face, drawn live (they sway and glint)
+	if locked:
+		ChainLockFx.draw(self, Transform2D(0.0, Vector2(pop, pop), 0.0, face_origin), r, _rrect_pts(r, rad), s,
+			_t, lock_in, lock_release, lock_rattle)
 	_finish(r, rad, s)
 
 ## Paints the static frame/art and lettering/gems into separate vertically stacked photo slots.
