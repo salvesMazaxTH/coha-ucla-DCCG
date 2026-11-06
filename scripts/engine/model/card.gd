@@ -77,6 +77,7 @@ var worn_grant: Dictionary = {} ## on an equipment card: what it gave its unit (
 var cap_atk_gain := 0 ## attack given so far by "cap_atk" buffs
 var dodge_turn := -1 ## turn its Esquiva was last used
 var activated_turn := -1 ## turn its Ao Ativar was last used
+var activated_zone_used := false ## its zone-limited Ao Ativar was used before leaving this zone
 var capped_heal_turn := -1 ## turn in which this card last accepted a capped Leader-heal trigger ("per_turn_cap")
 var capped_heal_total := 0 ## requested healing accepted by this card during that turn
 var capped_heal_locked := false ## later triggers stay off after this instance reaches its per-turn cap
@@ -101,7 +102,7 @@ const NOT_COPIED_FIELDS := ["uid", "card_id", "owner", "zone", "over", "incarnat
 		"intrinsic_atk", "intrinsic_hp",
 		"pending_self_revive_turn", "pending_self_revive_atk", "pending_self_revive_hp",
 		"exhausted", "sick", "attacks_made", "used_turn", "capped_uses", "conditional_uses_turn", "conditional_uses",
-		"trigger_counts", "dodge_turn", "activated_turn", "capped_heal_turn", "capped_heal_total",
+		"trigger_counts", "dodge_turn", "activated_turn", "activated_zone_used", "capped_heal_turn", "capped_heal_total",
 		"capped_heal_locked", "heal_blocked_until", "leader_damage_guard_turn", "death_ward_armed", "banish_on_death", "durability_used", "durability_uses",
 		"stored_momentum"]
 
@@ -588,6 +589,8 @@ func to_dict() -> Dictionary:
 		d["dodge_turn"] = dodge_turn
 	if activated_turn >= 0:
 		d["activated_turn"] = activated_turn
+	if activated_zone_used:
+		d["activated_zone_used"] = true
 	if capped_heal_turn >= 0:
 		d["capped_heal_turn"] = capped_heal_turn
 		d["capped_heal_total"] = capped_heal_total
@@ -679,6 +682,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.cap_atk_gain = int(d.get("cap_atk_gain", 0))
 	c.dodge_turn = int(d.get("dodge_turn", -1))
 	c.activated_turn = int(d.get("activated_turn", -1))
+	c.activated_zone_used = bool(d.get("activated_zone_used", false))
 	c.capped_heal_turn = int(d.get("capped_heal_turn", -1))
 	c.capped_heal_total = int(d.get("capped_heal_total", 0))
 	c.capped_heal_locked = bool(d.get("capped_heal_locked", false))

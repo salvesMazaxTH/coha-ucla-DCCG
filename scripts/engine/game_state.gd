@@ -399,6 +399,8 @@ func room_banish_options(p: int) -> Array:
 ## `extra_data` is added to the card_moved event ("unit_died": true tells that an equipment fell because its unit died).
 func _move(c: Card, to_zone: String, extra_data := {}) -> void:
 	var from_zone := c.zone
+	if from_zone != to_zone:
+		c.activated_zone_used = false
 	if to_zone == "hand":
 		if from_zone == "board":
 			c.capture_permanent_buffs()
@@ -1734,6 +1736,8 @@ func can_activate(p: int, uid: int, allow_unreachable := false) -> bool:
 		return false # an inert unit cannot turn to activate an ability
 	if ab.get("once_per_turn", false) and c.activated_turn == turn:
 		return false
+	if ab.get("once_per_zone", false) and c.activated_zone_used:
+		return false
 	if _has_action(ab["effects"], "arm_death_ward") and c.death_ward_armed:
 		return false # rearming an already active death shield would only waste Momentum
 	if ab.get("exhaust", false) and is_unit and c.exhausted:
@@ -2113,6 +2117,8 @@ func activate(p: int, uid: int, target: int = 0, payer: int = 0) -> Array:
 	if payer_uid != 0:
 		_pay_activation_cost(p, payer_uid)
 	c.activated_turn = turn
+	if ab.get("once_per_zone", false):
+		c.activated_zone_used = true
 	if ab.get("exhaust", false) and find_unit(uid) != null and not c.has_kw("inerte"):
 		c.exhausted = true
 	_emit({"type": "trigger", "uid": uid, "player": p, "card_id": c.card_id, "trigger": "on_activate", "target": target})
