@@ -1,0 +1,28 @@
+{
+  "name": "Afrouxar as Amarras",
+  "set": 2,
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "neutra",
+  "art": "neutra/afrouxar_as_amarras.webp",
+  "cost": 5,
+  "speed": "rapido",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "modify_cost_cards",
+      "target": "none",
+      "affected_zones": [
+        "hand"
+      ],
+      "card_types": [
+        "spell"
+      ],
+      "amount": -1,
+      "min_cost": 1
+    }
+  ],
+  "text": "Reduz em (1) o custo dos feitiços na sua mão, mas nunca abaixo de (1).",
+  "flavor": "Todo feitiço nasceu preso a um nome, um gesto e uma fórmula. Mali nunca concordou com nenhum dos três.",
+  "tags": []
+}

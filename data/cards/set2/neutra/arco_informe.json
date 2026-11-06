@@ -1,0 +1,21 @@
+{
+  "name": "Arco Informe",
+  "set": 2,
+  "type": "spell",
+  "rarity": "common",
+  "essence": "neutra",
+  "art": "neutra/arco_informe.webp",
+  "cost": 2,
+  "speed": "rapido",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "enemy_unit_or_leader",
+      "amount": 2
+    }
+  ],
+  "text": "Uma unidade inimiga ou o Líder inimigo, à sua escolha, recebe 2 de dano.",
+  "flavor": "Antes de haver escolas de magia, havia isto: um dragão apontando, sem forma nenhuma, e o resto do mundo tentando dar nome.",
+  "tags": []
+}

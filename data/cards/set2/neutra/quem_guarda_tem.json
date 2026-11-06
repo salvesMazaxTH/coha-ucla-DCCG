@@ -1,0 +1,23 @@
+{
+  "name": "Quem Guarda, Tem",
+  "set": 2,
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "neutra",
+  "art": "neutra/quem_guarda_tem.webp",
+  "cost": 4,
+  "speed": "lento",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "damage",
+      "target": "enemy_leader",
+      "amount": 1,
+      "amount_from": "own_graveyard_cards",
+      "graveyard_kind": "spell"
+    }
+  ],
+  "text": "causa 1 de dano ao Líder inimigo para cada feitiço no seu cemitério.",
+  "flavor": "Mali nunca jogou fora um feitiço sequer. Nenhum deles, por mais que o pedissem.",
+  "tags": []
+}

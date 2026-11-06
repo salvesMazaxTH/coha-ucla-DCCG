@@ -1,0 +1,24 @@
+{
+  "name": "Feitiço Indeferido",
+  "set": 2,
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "neutra",
+  "art": "neutra/feitico_indeferido.webp",
+  "cost": 2,
+  "speed": "instantaneo",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "counter",
+      "target": "enemy_stack",
+      "only_if_spell": true,
+      "max_cost": 3
+    }
+  ],
+  "text": "Anula um feitiço inimigo de custo (3) ou menos.",
+  "flavor": "Carimbado, protocolado e devolvido ao remetente. O Departamento de Conjurações não aceita recurso.",
+  "tags": [
+    "anular"
+  ]
+}
