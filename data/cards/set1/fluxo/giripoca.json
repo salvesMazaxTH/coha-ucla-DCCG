@@ -9,11 +9,6 @@
     "furia",
     "tormenta"
   ],
-  "element": [
-    "agua",
-    "fogo",
-    "vento"
-  ],
   "cost": 3,
   "atk": 2,
   "hp": 3,

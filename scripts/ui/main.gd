@@ -756,9 +756,15 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 	var subtitle := "Jogador 1: escolha o seu deck" if hub_hotseat else "Escolha o seu deck"
 	if choosing_ai_deck:
 		subtitle = "Jogador 2: escolha o seu deck" if hub_hotseat else "Escolha o deck da IA (ou deixe no aleatório)"
-	var sub := _label(msg if msg != "" else subtitle, 22, UITheme.TEXT if msg != "" else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
-	sub.position = Vector2(0, 122)
-	sub.size = Vector2(stage_w, 30)
+	# A message (e.g. the server refused the room) must be impossible to miss: the screen snaps back to
+	# this hub, so a small grey line was easy to overlook and looked like "the button does nothing".
+	var sub: Label
+	if msg != "":
+		sub = _label(msg, 28, Color("#ff9d7a"), HORIZONTAL_ALIGNMENT_CENTER, "bold", 4)
+	else:
+		sub = _label(subtitle, 22, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
+	sub.position = Vector2(0, 120)
+	sub.size = Vector2(stage_w, 40)
 	layer.add_child(sub)
 
 	# Layout: the chosen deck in a big showcase on the left (full description, never cut), and every

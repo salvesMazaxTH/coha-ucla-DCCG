@@ -4,6 +4,7 @@ extends Node
 signal recorded(match_id: String)
 signal recording_failed(match_id: String)
 
+const SupabaseAuthScript := preload("res://scripts/net/supabase_auth.gd")
 const DEFAULT_QUEUE_PATH := "user://match_stats_pending.json"
 const RETRY_SECONDS := 10.0
 
@@ -17,9 +18,7 @@ var _retry_at := 0.0
 var _queue_valid := true
 
 func _ready() -> void:
-	project_url = OS.get_environment("SUPABASE_URL").trim_suffix("/")
-	public_key = OS.get_environment("SUPABASE_PUBLISHABLE_KEY")
-	service_key = OS.get_environment("SUPABASE_SERVICE_ROLE_KEY")
+	_load_credentials()
 	var configured_queue := OS.get_environment("MATCH_STATS_QUEUE_PATH")
 	if not configured_queue.is_empty():
 		queue_path = configured_queue
@@ -32,19 +31,70 @@ func _ready() -> void:
 			return
 		pending = parsed
 	if not configured():
-		print("match stats: server credentials absent; signed-in online games are unavailable")
+		print("match stats: service key absent; accounts are validated, but match results stay queued until it is set")
 
+## Which Supabase project and keys the server uses. Accounts live in the project the client signs in
+## to, so that project (and its public key, which is not a secret) is the default. A .env file only
+## counts when it names that same project; a .env pointing at another project is ignored, so a stale
+## file can never send tokens (or the service key) to the wrong place.
+func _load_credentials() -> void:
+	project_url = SupabaseAuthScript.PROJECT_URL
+	public_key = SupabaseAuthScript.PUBLISHABLE_KEY
+	var from_environment := OS.get_environment("SUPABASE_URL").trim_suffix("/")
+	var dotenv := _read_dotenv()
+	var dotenv_url := String(dotenv.get("SUPABASE_URL", "")).trim_suffix("/")
+	if not from_environment.is_empty():
+		project_url = from_environment
+	elif not dotenv_url.is_empty() and dotenv_url != project_url:
+		printerr("match stats: .env points to another Supabase project than the game client uses; ignoring .env")
+		dotenv = {}
+	# Only the explicit name overrides the client's key. The old SUPABASE_ANON_KEY name is ignored on
+	# purpose: stale .env files held a key from another project, and Supabase then refused every account.
+	var configured_public := _setting("SUPABASE_PUBLISHABLE_KEY", dotenv)
+	if not configured_public.is_empty():
+		public_key = configured_public
+	service_key = _setting("SUPABASE_SERVICE_ROLE_KEY", dotenv)
+
+## A real environment variable wins; otherwise the value comes from the project's .env file, so the
+## server works no matter which .bat (or none) started it.
+func _setting(name: String, dotenv: Dictionary) -> String:
+	var from_environment := OS.get_environment(name)
+	if not from_environment.is_empty():
+		return from_environment
+	return String(dotenv.get(name, ""))
+
+## Reads KEY=value lines from the .env next to project.godot (server machine only, git-ignored).
+func _read_dotenv() -> Dictionary:
+	var values: Dictionary = {}
+	var path := ProjectSettings.globalize_path("res://.env")
+	if not FileAccess.file_exists(path):
+		return values
+	for raw_line in FileAccess.get_file_as_string(path).split("\n"):
+		var line := raw_line.strip_edges()
+		if line.is_empty() or line.begins_with("#") or not line.contains("="):
+			continue
+		var separator := line.find("=")
+		values[line.left(separator).strip_edges()] = line.substr(separator + 1).strip_edges().trim_prefix("\"").trim_suffix("\"")
+	return values
+
+## Enough to check who a player is (token and saved deck); needs no secret.
+func can_identify() -> bool:
+	return not project_url.is_empty() and not public_key.is_empty()
+
+## Enough to also write match results, which needs the server-only service key.
 func configured() -> bool:
-	return not project_url.is_empty() and not public_key.is_empty() and not service_key.is_empty()
+	return can_identify() and not service_key.is_empty()
 
 ## Empty token means a guest. An account's own deck is checked against its saved contents.
 func identify(token: String, deck_key: String, payload: Variant) -> Dictionary:
 	if token.is_empty():
 		return {"user_id": "", "deck_key": "", "error": ""}
-	if not configured():
-		return {"error": "Estatísticas online indisponíveis: servidor de contas não configurado."}
+	if not can_identify():
+		return {"error": "Servidor sem conexão com o banco de contas."}
 	var user := await _request(HTTPClient.METHOD_GET, "/auth/v1/user", token, public_key)
 	if not user.ok or not user.data is Dictionary or String(user.data.get("id", "")).is_empty():
+		# Status 0 = the request never reached Supabase; 401 = Supabase refused the token (expired or from another project).
+		printerr("match stats: could not validate account token (HTTP %d)" % user.status)
 		return {"error": "Não foi possível validar sua conta. Entre novamente e tente outra vez."}
 	if payload is String:
 		if deck_key != payload:

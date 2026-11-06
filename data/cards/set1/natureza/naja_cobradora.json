@@ -12,12 +12,12 @@
   "atk": 2,
   "hp": 4,
   "keywords": [
-    "toxico:2"
+    "toxico"
   ],
   "toxico_hits_leader": true,
   "art": "natureza/naja_cobradora.webp",
   "effects": [],
-  "text": "O dano de combate desta unidade ao Líder também coloca 2 marcadores de Veneno nele.",
+  "text": "O dano de combate desta unidade ao Líder também coloca 1 marcador de Veneno nele.",
   "flavor": "Todo mundo paga. Só varia a moeda.",
   "tags": []
 }

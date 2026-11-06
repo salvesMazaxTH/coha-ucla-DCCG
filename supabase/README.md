@@ -27,13 +27,13 @@ The deck tiles alternate between their names and the signed-in account's online 
 
 The match server validates each account's access token against Supabase and verifies that a saved deck belongs to the account and matches the played list. Only the authoritative server records the result; RLS lets accounts read only their own rows. Each result is idempotent by match and seat. The server attempts to persist a retry queue before announcing the result and retries failed database writes, including after a server restart. If the queue cannot be written, players are warned and the server retries while the room remains in memory. Place the queue on persistent storage and monitor server errors; losing it before a retry succeeds loses the pending results.
 
-Set these environment variables **only for the match server process**, then restart it:
+The match server reads these settings from its environment variables or, when a variable is not set, from the git-ignored `.env` file next to `project.godot` (so `servir_web.bat`, `atualizar_e_servir.bat` and a manual start all behave the same). Restart the server after changing them:
 
-- `SUPABASE_URL`: the Supabase project URL.
-- `SUPABASE_PUBLISHABLE_KEY`: the project's publishable/anon key, used for token and deck validation.
-- `SUPABASE_SERVICE_ROLE_KEY`: the server-only service role key, used to record results. Never include it in a client export, repository, browser code or public logs.
+- `SUPABASE_URL` (optional): defaults to the project the game client signs in to. A `.env` whose `SUPABASE_URL` names a different project is ignored with a warning, so a stale file never sends tokens or the service key to the wrong project.
+- `SUPABASE_PUBLISHABLE_KEY` (optional): defaults to the client's publishable key, which is almost always what you want; used for token and deck validation. Not a secret. The old `SUPABASE_ANON_KEY` name is ignored (a stale value made Supabase refuse every account), so remove it from `.env`.
+- `SUPABASE_SERVICE_ROLE_KEY`: the server-only service role key of **that same project**, used to record results. Never include it in a client export, repository, browser code or public logs. Without it accounts are still validated and rooms work, but results stay in the pending queue until the key is set.
 - `MATCH_STATS_QUEUE_PATH` (optional): absolute path to the persistent pending-results file. The default is `user://match_stats_pending.json` under Godot's application data directory.
 
-Apply the migration before starting the updated server. Without the server credentials, guest online games still work, but signed-in users cannot create or join an online room rather than silently losing statistics. A database outage leaves completed results queued and shows a pending warning; the server retries them. Players may see a loading or unavailable state until their account data can be refreshed.
+Apply the migration before starting the updated server. A database outage leaves completed results queued and shows a pending warning; the server retries them. Players may see a loading or unavailable state until their account data can be refreshed.
 
 Focused checks: `godot --headless --path . -s tests/deck_stats_ui.gd`, `godot --headless --path . -s tests/deck_stats_queue.gd`, and `node tests/deck_stats_online.mjs`. The last test starts a temporary local fake Supabase and match server; if the Godot executable is not on PATH, set `GODOT_BIN` to its executable path first.

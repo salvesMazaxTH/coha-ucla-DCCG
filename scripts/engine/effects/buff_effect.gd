@@ -9,7 +9,8 @@ extends Effect
 ## "supreme_shield_until": "next_turn" gives Escudo Supremo until its owner's next turn starts. The "escudo_supremo" keyword
 ## gives it for good, or only until the end of the turn with "temp": true. A Supremo that is already there is never made shorter.
 ## "per": "momentum_left" multiplies atk/hp by the Momentum the controller still has
-## (at least `min`, at most `max`). "per": "own_artifacts" multiplies them by the artifacts the controller has in play
+## (at least `min`, at most `max`). "per_offset": N is added to that multiplier afterwards (Voltexz: +X/+X, X = Momentum left + 1).
+## "per": "own_artifacts" multiplies them by the artifacts the controller has in play
 ## (Otávio Rebite-Quente: +1 Ataque for each one). "per": "sacrificed_atk" multiplies them by the Ataque of the unit a
 ## "sacrifice" just killed (Esther: she gains +X/+X, X = that Ataque).
 ## "cap_atk": this effect can give one unit at most that much attack in total (e.g. Layla).
@@ -57,6 +58,7 @@ var keywords_until_owner_turn_end: Array = []
 var per := ""
 var multiplier_min := 0
 var multiplier_max := 99
+var multiplier_offset := 0 ## "per_offset": added to the multiplier after the min/max clamp
 var has_attack_cap := false
 var attack_cap := 0
 var minimum_rapidez := 0
@@ -104,6 +106,7 @@ func _read_parameters(data: Dictionary) -> void:
 	per = String(data.get("per", ""))
 	multiplier_min = int(data.get("min", 0))
 	multiplier_max = int(data.get("max", 99))
+	multiplier_offset = int(data.get("per_offset", 0))
 	has_attack_cap = data.has("cap_atk")
 	attack_cap = int(data.get("cap_atk", 0))
 	minimum_rapidez = int(data.get("rapidez_min", 0))
@@ -150,7 +153,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		return
 	var multiplier := 1
 	if per == "momentum_left":
-		multiplier = clampi(int(game.players[context.controller]["momentum"]), multiplier_min, multiplier_max)
+		multiplier = clampi(int(game.players[context.controller]["momentum"]), multiplier_min, multiplier_max) + multiplier_offset
 	elif per == "own_artifacts":
 		multiplier = game.artifact_count(context.controller)
 	elif per == "sacrificed_atk":

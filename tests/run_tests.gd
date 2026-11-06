@@ -9139,7 +9139,8 @@ func _test_eletrica() -> void:
 	check(fgd["activated"].get("exhaust", false) and fv.exhausted, "fulgurvoltz: ativar o exaure")
 	g.players[a]["momentum"] = 5
 	check(not g.can_activate(a, fv.uid) and not g.can_attack(fv), "fulgurvoltz: exausto não ativa de novo nem ataca")
-	check(not g.can_challenge(_put(g, o, "tritao_lanceiro"), fv) and g.can_challenge(_put(g, o, "serpente_marinha"), fv), "fulgurvoltz exausto: desafiável, mas a Intimidação barra ATK 3 ou menos")
+	# he has no Intimidação (only Sobrepujança, which works when he attacks), so even a weak unit may challenge him
+	check(g.can_challenge(_put(g, o, "tritao_lanceiro"), fv) and g.can_challenge(_put(g, o, "serpente_marinha"), fv), "fulgurvoltz exausto: desafiável por qualquer unidade (sem Intimidação)")
 	var fv2 := _put(g, a, "fulgurvoltz")
 	fv2.exhausted = true # e.g. it attacked this turn
 	check(not g.can_activate(a, fv2.uid), "fulgurvoltz: quem atacou não ativa")
@@ -9202,7 +9203,7 @@ func _test_eletrica() -> void:
 	var ally := _put(g, a, "jack")
 	g.players[a]["momentum"] = 9
 	var vs := _put(g, a, "voltexz")
-	check(atk_ok(g, ally, 3 + 5, 5 + 5) and ally.rapidez_total() == 1, "voltexz: aliados +5/+5 e Rapidez 1")
+	check(atk_ok(g, ally, 3 + 10, 5 + 10) and ally.rapidez_total() == 1, "voltexz: aliados +10/+10 (9 de Momentum + 1) e Rapidez 1")
 	check(g.atk_of(vs) == 8 and vs.rapidez_total() == 3, "voltexz: não bufa a si própria (ATK base 8, Rapidez 3 nativa)")
 	g = _eletrica_game()
 	a = g.active
@@ -9210,10 +9211,10 @@ func _test_eletrica() -> void:
 	g.players[a]["momentum"] = 2
 	_put(g, a, "faisca_viva")
 	g._run_effect_dicts(a, CardDB.card("voltexz")["effects"], "on_enter", 0, 0)
-	check(g.atk_of(ally) == 5 and g.players[a]["board"][0].hp == 7, "voltexz: +1/+1 por Momentum restante")
+	check(g.atk_of(ally) == 6 and g.players[a]["board"][0].hp == 8, "voltexz: 2 de Momentum restante dá +3/+3")
 	g.players[a]["momentum"] = 0
 	g._run_effect_dicts(a, CardDB.card("voltexz")["effects"], "on_enter", 0, 0)
-	check(g.atk_of(ally) == 6 and g.players[a]["board"][0].hp == 8, "voltexz: sem Momentum sobrando, ainda dá +1/+1")
+	check(g.atk_of(ally) == 7 and g.players[a]["board"][0].hp == 9, "voltexz: sem Momentum sobrando, ainda dá +1/+1")
 	# Voltexz converts leaked Momentum into a temporary self-buff at the start of her owner's turn.
 	g = _eletrica_game()
 	a = g.active
