@@ -134,6 +134,15 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 		if instance.has("event_counters"):
 			for counter in instance["event_counters"]:
 				body += "\n\n[b]%s: %d/%d[/b]" % [_event_counter_label(counter), int(counter["count"]), int(counter["goal"])]
+		# Constantes that depend on the deck (Ottilia): a live line saying whether the bonus is on, with the deck counts
+		if instance.has("constant_conditions"):
+			for condition in instance["constant_conditions"]:
+				var status_color := "#7be08a" if bool(condition["holds"]) else "#ff9d9d"
+				var status_word := "ATIVA" if bool(condition["holds"]) else "INATIVA"
+				var counts_line := "deck com %d unidades e %d feitiços" % [int(condition["units"]), int(condition["spells"])]
+				if int(condition["needed_spells"]) >= 0 and not bool(condition["holds"]):
+					counts_line += " (precisa de %d feitiços ou 0 unidades)" % int(condition["needed_spells"])
+				body += "\n\n[color=%s][b]Condição: %s[/b][/color] — %s" % [status_color, status_word, counts_line]
 		if instance.has("durability_left"):
 			body += "
 

@@ -256,7 +256,8 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 			return g.transform(p, unit.uid)
 	if g.can_use_ability(p) and not _ability_borrows_momentum(CardDB.leader(g.players[p]["leader_id"])["ability"]["effects"]) \
 			and not _dot_only_effects_are_wasted(g, p, CardDB.leader(g.players[p]["leader_id"])["ability"]["effects"]) \
-			and _ability_is_worth_its_life_cost(g, p, CardDB.leader(g.players[p]["leader_id"])["ability"]):
+			and _ability_is_worth_its_life_cost(g, p, CardDB.leader(g.players[p]["leader_id"])["ability"]) \
+			and _ability_is_worth_its_graveyard_cost(g, p, CardDB.leader(g.players[p]["leader_id"])["ability"]):
 		var ability: Dictionary = CardDB.leader(g.players[p]["leader_id"])["ability"]
 		var ability_spec := g.target_spec(ability["effects"])
 		var target := _pick_target(g, p, ability_spec, ability, 0, true)
@@ -345,6 +346,16 @@ static func _ability_is_worth_its_life_cost(g: GameState, p: int, ability: Dicti
 			if CardFilter.matches(card.card_id, effect.get("card_filter", {})) and g.can_play(p, card.uid):
 				return false
 	return true
+
+## Cards in hand at or below which the AI will burn graveyard cards (graveyard_cost) to refill: it is a card-advantage
+## engine, so a full hand gains nothing from it.
+const MAX_HAND_FOR_GRAVEYARD_COST := 3
+
+## False when the ability banishes cards from the graveyard and the AI's hand is already comfortably full.
+static func _ability_is_worth_its_graveyard_cost(g: GameState, p: int, ability: Dictionary) -> bool:
+	if g.ability_graveyard_cost_amount(ability) == 0:
+		return true
+	return (g.players[p]["hand"] as Array).size() <= MAX_HAND_FOR_GRAVEYARD_COST
 
 ## True when an ability lends Momentum now and takes it back next turn (Eryon's Leader). The AI uses
 ## this ability only after all its plays, when the loan can no longer buy anything, so it just skips it.
@@ -1508,7 +1519,7 @@ static func _attack_gain_of_buff(g: GameState, p: int, buff: Dictionary, unit: C
 ##     aim); a unit that taps itself to activate gives up its own attack, which is taken off the gain.
 ## Abilities that cost Vida, or make a unit pay (discard / sacrifice), are left out: too fiddly to promise in a plan.
 static func _face_gain_of_ability(g: GameState, p: int, ability: Dictionary, activator: Card, face_attackers: Array) -> Dictionary:
-	if ability.has("extra_cost") or ability.has("life_cost"):
+	if ability.has("extra_cost") or ability.has("life_cost") or ability.has("graveyard_cost"):
 		return {}
 	var effects: Array = ability.get("effects", [])
 	var enemy_leader_uid: int = GameState.LEADER_UID[g.opponent(p)]

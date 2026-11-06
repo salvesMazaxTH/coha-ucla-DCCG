@@ -1,0 +1,28 @@
+{
+  "name": "Pipoca Arcana",
+  "set": 2,
+  "type": "unit",
+  "rarity": "epic",
+  "essence": "neutra",
+  "cost": 3,
+  "atk": 2,
+  "hp": 3,
+  "keywords": [],
+  "art": "neutra/pipoca_arcana.webp",
+  "effects": [
+    {
+      "listen": "spell_cast",
+      "scope": "ally",
+      "zones": [
+        "board"
+      ],
+      "every_n_events": 2,
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
+    }
+  ],
+  "text": "Condicional: a cada 2 feitiços que você lança, você compra 1 carta.",
+  "flavor": "Mali jura que nunca a criou. Ela só estoura, toda vez, no mesmo lugar onde ele acabou de conjurar.",
+  "tags": []
+}

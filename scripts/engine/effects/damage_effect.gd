@@ -13,6 +13,7 @@ extends Effect
 ## "amount_if_stunned": same for a target that is already Atordoada (Layla's Ao Atacar).
 ## "amount_from": "momentum_left" deals `amount` damage per `divisor` Momentum the controller still has (Antena de Varal, Curto-Circuito).
 ## "amount_from": "own_graveyard_cards" deals `amount` damage per `divisor` cards in the controller's graveyard (Ossada Rancorosa).
+## "graveyard_kind": with own_graveyard_cards, only cards of that type (unit/spell/artifact) in the graveyard count (Quem Guarda, Tem).
 ## "spend_momentum": true (with momentum_left) also spends all that Momentum (Curto-Circuito).
 ## "amount_from": "healing_this_round" deals `amount` damage per Vida the controller's Leader and units recovered this turn (Banquete Carmesim).
 ## "lifesteal": true heals the controller's Leader by the damage this effect really dealt (Rália).
@@ -33,6 +34,7 @@ var heals_source_too := false
 var divisor := 1
 var spends_momentum := false
 var source_gain_per_kill := 0
+var graveyard_kind := ""
 
 func _read_parameters(data: Dictionary) -> void:
 	divisor = maxi(1, int(data.get("divisor", 1)))
@@ -49,6 +51,7 @@ func _read_parameters(data: Dictionary) -> void:
 	heals_by_damage_dealt = bool(data.get("lifesteal", false))
 	heals_source_too = bool(data.get("lifesteal_self", false))
 	source_gain_per_kill = int(data.get("source_gain_per_kill", 0))
+	graveyard_kind = String(data.get("graveyard_kind", ""))
 
 func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
@@ -66,7 +69,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		if damage_amount <= 0:
 			return
 	if amount_from == "own_graveyard_cards":
-		var graveyard_size: int = game.players[context.controller]["graveyard"].size()
+		var graveyard_size: int = game.graveyard_size_of_kind(context.controller, graveyard_kind)
 		damage_amount = amount * (graveyard_size / divisor)
 		if damage_amount <= 0:
 			return

@@ -1970,7 +1970,16 @@ func _panel_lines(cd: Dictionary) -> Array:
 		if e.has("dying_card") or e.has("dying_sacrificed"):
 			continue
 		seen[trg] = true
-		tags.append([CardDB.data()["triggers"][trg]["name"], TRIGGER_COL])
+		var trigger_tag_name: String = CardDB.data()["triggers"][trg]["name"]
+		var trigger_tag_color := TRIGGER_COL
+		# a Constante that depends on the deck (Ottilia) says live whether it is on: "Constante · ATIVA" / "· INATIVA"
+		if trg == "constante" and inst.has("constant_conditions"):
+			var all_hold := true
+			for condition in inst["constant_conditions"]:
+				all_hold = all_hold and bool(condition["holds"])
+			trigger_tag_name += " · ATIVA" if all_hold else " · INATIVA"
+			trigger_tag_color = Color("#7be08a") if all_hold else Color(UITheme.TEXT, 0.55)
+		tags.append([trigger_tag_name, trigger_tag_color])
 	# Constante: a rule that is always on (cost reductions, scaling, adjacent Armadura) and has no trigger of its own
 	if not seen.has("constante") and _has_always_on_rule(cd):
 		tags.append([CardDB.data()["triggers"]["constante"]["name"], TRIGGER_COL])

@@ -494,6 +494,16 @@ func hp_left(c: Card) -> int:
 	return c.hp_left()
 
 ## Unit cards in a player's graveyard.
+## Cards in player p's graveyard; with a `kind` ("unit", "spell", "artifact") only cards of that type count.
+func graveyard_size_of_kind(p: int, kind: String) -> int:
+	if kind == "":
+		return players[p]["graveyard"].size()
+	var n := 0
+	for entry: Card in players[p]["graveyard"]:
+		if CardDB.card(entry.card_id).get("type", "") == kind:
+			n += 1
+	return n
+
 func graveyard_units(p: int) -> int:
 	var n := 0
 	for e: Card in players[p]["graveyard"]:
@@ -692,6 +702,16 @@ func spell_amplifier_bonus(p: int, bonus_kind: String) -> int:
 	return bonus
 
 func _spell_amplifier_condition_holds(p: int, e: Dictionary) -> bool:
+	var deck_counts := _deck_unit_and_spell_counts(p)
+	var units_in_deck: int = deck_counts["units"]
+	var spells_in_deck: int = deck_counts["spells"]
+	if units_in_deck <= int(e.get("deck_units_max", -1)):
+		return true
+	var ratio := int(e.get("deck_spell_ratio", 0))
+	return ratio > 0 and spells_in_deck >= ratio * units_in_deck
+
+## How many units and how many spells are still in player `p`'s deck: {"units", "spells"}.
+func _deck_unit_and_spell_counts(p: int) -> Dictionary:
 	var units_in_deck := 0
 	var spells_in_deck := 0
 	for card: Card in players[p]["deck"]:
@@ -700,10 +720,27 @@ func _spell_amplifier_condition_holds(p: int, e: Dictionary) -> bool:
 			units_in_deck += 1
 		elif CardDB.has_type(card_data, "spell"):
 			spells_in_deck += 1
-	if units_in_deck <= int(e.get("deck_units_max", -1)):
-		return true
-	var ratio := int(e.get("deck_spell_ratio", 0))
-	return ratio > 0 and spells_in_deck >= ratio * units_in_deck
+	return {"units": units_in_deck, "spells": spells_in_deck}
+
+## The live state of the Constantes on board unit `c` whose bonus depends on a condition the player cannot see on
+## the table, for the card view and overlay: one {"holds": bool, "units": int, "spells": int, "needed_spells": int}
+## per such effect (Ottilia Varnholt: "holds" says whether her bonus is on right now; "units"/"spells" are the deck
+## counts; "needed_spells" is how many spells the deck needs for the ratio to hold, or -1 when only the empty-of-units
+## way is open). Empty when the card has no such Constante.
+func constant_conditions_of(c: Card) -> Array:
+	var conditions: Array = []
+	for e in card_of(c).get("effects", []):
+		if e.get("trigger", "") != "constante" or e.get("action", "") != "spell_amplifier":
+			continue
+		var deck_counts := _deck_unit_and_spell_counts(c.owner)
+		var ratio := int(e.get("deck_spell_ratio", 0))
+		conditions.append({
+			"holds": _spell_amplifier_condition_holds(c.owner, e),
+			"units": deck_counts["units"],
+			"spells": deck_counts["spells"],
+			"needed_spells": ratio * int(deck_counts["units"]) if ratio > 0 else -1,
+		})
+	return conditions
 
 ## Where each Constante bonus on a unit comes from, for the card overlay's "Modificadores" panel: one
 ## {"source": card id, "until": "constant", "atk", "hp", "armor", "critico"} per effect (its own scaling, each ally's
@@ -1619,6 +1656,8 @@ func can_use_ability(p: int, allow_unreachable := false) -> bool:
 		return false # the loan was just repaid this turn: no borrowing again right away
 	if ability_life_cost(p, ab) >= int(players[p]["leader_hp"]):
 		return false # a Leader never pays an ability with their last Vida
+	if graveyard_cost_cards(p, ab).size() < ability_graveyard_cost_amount(ab):
+		return false # not enough cards of the required kind in the graveyard to banish
 	for effect in EffectRegistry.parse_list(ab["effects"]):
 		if effect is PutArtifactEffect and not effect.can_put(self, p):
 			return false # the artifact is already out (or there is no free slot): the ability would do nothing
@@ -1636,6 +1675,33 @@ func ability_life_cost(p: int, ab: Dictionary) -> int:
 		return 0
 	var later_own_turns := maxi(int(players[p]["own_turns_started"]) - 1, 0)
 	return int(life_cost.get("start", 0)) + int(life_cost.get("increase_per_own_turn", 0)) * later_own_turns
+
+## How many cards a Leader ability banishes from its owner's graveyard as a cost:
+## {"graveyard_cost": {"kind": "spell", "amount": 2}}. 0 when the ability has no graveyard_cost.
+func ability_graveyard_cost_amount(ab: Dictionary) -> int:
+	return int((ab.get("graveyard_cost", {}) as Dictionary).get("amount", 0))
+
+## The cards of p's graveyard that can pay the ability's graveyard_cost, OLDEST FIRST (the order they are banished in).
+## "kind" is a card type ("spell", "unit", "artifact"). Empty when the ability has no graveyard_cost.
+func graveyard_cost_cards(p: int, ab: Dictionary) -> Array:
+	var graveyard_cost: Dictionary = ab.get("graveyard_cost", {})
+	var payers: Array = []
+	if graveyard_cost.is_empty():
+		return payers
+	for c: Card in players[p]["graveyard"]:
+		if CardDB.card(c.card_id).get("type", "") == String(graveyard_cost.get("kind", "")):
+			payers.append(c)
+	return payers
+
+## Pays a graveyard_cost: the oldest matching cards of p's graveyard are banished.
+func _pay_graveyard_cost(p: int, ab: Dictionary) -> void:
+	var payers := graveyard_cost_cards(p, ab)
+	for i in ability_graveyard_cost_amount(ab):
+		var c: Card = payers[i]
+		players[p]["graveyard"].erase(c)
+		players[p]["banished"].append(c)
+		_move(c, "banished")
+		_emit({"type": "banish", "uid": c.uid, "player": p, "card_id": c.card_id})
 
 ## True when some card in p's hand could be played right now if the offer of `effect` (grant_play_discount) were
 ## live: it matches the filter and p can afford and place it. The offer is only borrowed for the check.
@@ -2105,6 +2171,7 @@ func use_ability(p: int, target: int = 0) -> Array:
 		players[p]["leader_hp"] -= life_cost
 		# same event as a hit, so the screen and the Chronicle show the Vida the Leader paid
 		_emit({"type": "damage", "uid": LEADER_UID[p], "amount": life_cost, "src": 0, "hp_after": players[p]["leader_hp"], "paid": true})
+	_pay_graveyard_cost(p, ab)
 	players[p]["ability_used"] = true
 	_emit({"type": "ability", "player": p, "target": target})
 	stack_system().push(p, "ability", 0, "", target, speed_of(ab))
@@ -2133,15 +2200,25 @@ func transform_into(c: Card, into_id: String) -> void:
 	var from: String = c.card_id
 	var cd := CardDB.card(into_id)
 	var kws: Array = cd.get("keywords", []).duplicate()
+	# the new form inherits everything GOOD the unit earned on the board (permanent Ataque/Vida buffs, keywords granted
+	# to it); debuffs are not inherited. Only the printed numbers change. Equipment is left out here because it is added back further down.
+	var old_printed: Dictionary = c.data()
+	var carried_atk: int = c.atk - int(old_printed.get("atk", 0))
+	var carried_hp: int = c.hp - int(old_printed.get("hp", 0))
+	for worn in c.equipped_cards:
+		carried_atk -= int(worn.worn_grant.get("atk", 0))
+		carried_hp -= int(worn.worn_grant.get("hp", 0))
+	var carried_keywords: Array = []
+	for keyword in c.keywords:
+		if not old_printed.get("keywords", []).has(keyword) and not c.temp_keywords.has(keyword) and not c.keywords_until_next_turn.has(keyword) and not c.keywords_until_owner_turn_end.has(keyword):
+			carried_keywords.append(keyword)
 	c.card_id = into_id
 	c.over = {}
 	c.used_turn = {}
 	# the "every N events" counts are keyed by effect index, which means something else on the new card
 	c.trigger_counts = {}
-	c.atk = int(cd["atk"])
-	c.hp = int(cd["hp"])
-	c.forget_stat_sources("atk") # the new card starts from its own printed numbers
-	c.forget_stat_sources("hp")
+	c.atk = int(cd["atk"]) + maxi(0, carried_atk) # the stat_sources notes stay: they still explain the carried part
+	c.hp = int(cd["hp"]) + maxi(0, carried_hp)
 	c.shield = c.shield or kws.has("escudo")
 	c.magic_shield = c.magic_shield or kws.has("escudo_magico")
 	if kws.has("escudo_supremo"):
@@ -2150,6 +2227,9 @@ func transform_into(c: Card, into_id: String) -> void:
 	kws.erase("escudo_magico")
 	kws.erase("escudo_supremo")
 	c.keywords = kws
+	for keyword in carried_keywords:
+		if not c.keywords.has(keyword) and not ["escudo", "escudo_magico", "escudo_supremo"].has(keyword):
+			c.keywords.append(keyword)
 	for worn in c.equipped_cards: # the equipment stays on, so what it gave the unit stays too
 		c.atk += int(worn.worn_grant.get("atk", 0))
 		c.hp += int(worn.worn_grant.get("hp", 0))

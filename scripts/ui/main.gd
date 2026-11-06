@@ -731,7 +731,9 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 	_refresh_player_decks()
 	# prebuilt decks first, then the player's own (the third section), so the default pick is always a prebuilt deck
 	var ids: Array[String] = DeckDB.available_ids()
-	ids.append_array(DeckDB.custom_ids(DeckDB.PLAYER_PREFIX))
+	for deck_id in DeckDB.custom_ids(DeckDB.PLAYER_PREFIX):
+		if DeckDB.is_deck_visible(deck_id):
+			ids.append(deck_id)
 	if ids.is_empty():
 		_toast("Nenhum deck disponível neste modo.")
 		_show_menu()
@@ -2142,6 +2144,10 @@ func _render_board(p: int, y: float) -> void:
 		var event_counters := unit.event_counters()
 		if not event_counters.is_empty():
 			unit_view_data["event_counters"] = event_counters
+		# Constantes that depend on the deck (Ottilia): whether the bonus is on right now
+		var constant_conditions := g.constant_conditions_of(unit)
+		if not constant_conditions.is_empty():
+			unit_view_data["constant_conditions"] = constant_conditions
 		var card_size := (CardView.BASE * 1.15).round()
 		var cell := _board_cell(slots_taken, i)
 		var card_position := Vector2(roundf(cell.x + (cell.y - card_size.x) / 2.0), roundf(y)) # whole pixels keep the card text crisp

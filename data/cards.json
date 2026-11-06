@@ -884,6 +884,25 @@
         "text": "Rápida. 3 Momentum, uma vez por turno: concede Ímpeto neste turno e Rapidez 1 (se for menor) até o início do seu próximo turno a uma unidade aliada."
       },
       "essences": ["tormenta"]
+    },
+    "mali_magarc": {
+      "name": "Mali Magarc",
+      "hp": 30,
+      "art": "neutra/mali_magarc.webp",
+      "incarnation": "mali_magarc",
+      "unreleased": true,
+      "ability": {
+        "name": "(nome a definir)",
+        "cost": 1,
+        "speed": "instantaneo",
+        "graveyard_cost": { "kind": "spell", "amount": 2 },
+        "effects": [
+          { "action": "draw", "target": "none", "amount": 1 },
+          { "action": "gain_reserve", "target": "none", "amount": 2 }
+        ],
+        "text": "Instantânea. 1 Momentum: bane 2 feitiços do seu cemitério, compra 1 carta e enche a Reserva até o limite."
+      },
+      "essences": ["neutra"]
     }
   },
   "cards": {}

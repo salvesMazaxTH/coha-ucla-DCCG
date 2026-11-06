@@ -16,5 +16,6 @@
   "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela recebe 1 marcador de Atordoamento. (PLACEHOLDER)",
   "flavor": "",
   "tags": [],
-  "unreleased": true
+  "unreleased": true,
+  "placeholder": true
 }

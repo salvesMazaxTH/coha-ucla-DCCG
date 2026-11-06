@@ -5,7 +5,7 @@ extends Effect
 ## Rules (see StackSystem._queue_spell_echo):
 ##  - it stays armed until the controller casts a spell; arming twice does not stack, and it ignores spells cast by units;
 ##  - the echo is a new item on the stack: the opponent can respond to it, and if a target is no longer valid it fizzles;
-##  - the echo is not a cast: it does not fire spell_cast listeners and it never goes to the graveyard (only the original does);
+##  - the echo counts as a cast for spell_cast listeners (it fires them when it goes on the stack) but never goes to the graveyard (only the original does);
 ##  - a countered original leaves no echo behind.
 ## Example, inside the card's "activated" block: "effects": [{"action": "echo_next_spell", "target": "none"}].
 

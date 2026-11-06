@@ -152,6 +152,8 @@ func _init() -> void:
 	_test_magni()
 	_test_cornelia()
 	_test_mali_and_ottilia()
+	_test_set2_neutral_spells()
+	_test_mali_leader_graveyard_cost()
 	_test_censo_and_queima()
 	_test_lucian_soren()
 	_test_overkill()
@@ -7345,6 +7347,197 @@ func _test_magni() -> void:
 
 ## Mali Magarc (desconto persistente em feitiços, reação ao feitiço inimigo, eco na forma Primordial) e a Constante
 ## "spell_amplifier" da Ottilia Varnholt.
+## The Mali Magarc Leader: Instantânea, 1 Momentum, banishes the 2 oldest SPELLS of the owner's graveyard (generic
+## "graveyard_cost"), draws 1 card and refills the Reserva to its cap. Not once per turn.
+func _test_mali_leader_graveyard_cost() -> void:
+	_tspell("t_mlg_spell", "instantaneo", [])
+	_tcard("t_mlg_unit", 1, 1, [])
+
+	var g := _new_game()
+	_quiet(g)
+	var p: int = g.active
+	g.players[p]["leader_id"] = "mali_magarc"
+	g.players[p]["ability_used"] = false
+	g.players[p]["momentum"] = 5
+	g.players[p]["reserve"] = 0
+	var ability: Dictionary = CardDB.leader("mali_magarc")["ability"]
+	check(not ability.get("once_per_turn", false), "Líder Mali: o poder não é de uma vez por turno")
+	check(g.speed_of(ability) == "instantaneo", "Líder Mali: o poder é Instantâneo")
+
+	# nothing in the graveyard, or only ONE spell, or only units: unavailable
+	check(not g.can_use_ability(p), "Líder Mali: sem feitiços no cemitério o poder não pode ser usado")
+	var first_spell := Card.new(g._uid(), "t_mlg_spell", p, "graveyard")
+	g.players[p]["graveyard"].append(first_spell)
+	check(not g.can_use_ability(p), "Líder Mali: 1 feitiço no cemitério não basta")
+	g.players[p]["graveyard"].append(Card.new(g._uid(), "t_mlg_unit", p, "graveyard"))
+	check(not g.can_use_ability(p), "Líder Mali: unidade no cemitério não conta como feitiço")
+	var second_spell := Card.new(g._uid(), "t_mlg_spell", p, "graveyard")
+	g.players[p]["graveyard"].append(second_spell)
+	var third_spell := Card.new(g._uid(), "t_mlg_spell", p, "graveyard")
+	g.players[p]["graveyard"].append(third_spell)
+	check(g.can_use_ability(p), "Líder Mali: com 2+ feitiços no cemitério o poder fica disponível")
+
+	var hand_before: int = g.players[p]["hand"].size()
+	var momentum_before: int = g.players[p]["momentum"]
+	g.use_ability(p)
+	_resolve_stack(g)
+	var graveyard: Array = g.players[p]["graveyard"]
+	var banished: Array = g.players[p]["banished"]
+	check(banished.has(first_spell) and banished.has(second_spell), "Líder Mali: bane os 2 feitiços mais antigos")
+	check(graveyard.has(third_spell) and not graveyard.has(first_spell), "Líder Mali: o 3º feitiço (mais recente) fica no cemitério")
+	check(first_spell.zone == "banished", "Líder Mali: o feitiço banido muda de zona (%s)" % first_spell.zone)
+	check(g.players[p]["hand"].size() == hand_before + 1, "Líder Mali: compra 1 carta (%d -> %d)" % [hand_before, g.players[p]["hand"].size()])
+	check(g.players[p]["momentum"] == momentum_before - 1, "Líder Mali: custa 1 Momentum")
+	check(g.players[p]["reserve"] == GameState.RESERVE_CAP, "Líder Mali: enche a Reserva até o limite (%d)" % g.players[p]["reserve"])
+
+	# only one spell left in the graveyard (+ the unit): not usable again, even though it is not once per turn
+	check(not g.can_use_ability(p), "Líder Mali: depois de pagar, com 1 feitiço sobrando não dá para repetir")
+	# but a fresh spell makes it usable again in the same turn: unlimited use
+	g.players[p]["graveyard"].append(Card.new(g._uid(), "t_mlg_spell", p, "graveyard"))
+	check(g.can_use_ability(p), "Líder Mali: pode ser usado de novo no mesmo turno quando o cemitério tem outro par")
+	var spells_banished_total: int = banished.size()
+	g.use_ability(p)
+	_resolve_stack(g)
+	check(g.players[p]["banished"].size() == spells_banished_total + 2, "Líder Mali: o segundo uso bane mais 2")
+
+	# paid from the Reserva alone (no Momentum): Instantânea is a fast play
+	var g2 := _new_game()
+	_quiet(g2)
+	var q: int = g2.active
+	g2.players[q]["leader_id"] = "mali_magarc"
+	g2.players[q]["ability_used"] = false
+	g2.players[q]["momentum"] = 0
+	g2.players[q]["reserve"] = 1
+	g2.players[q]["graveyard"].append(Card.new(g2._uid(), "t_mlg_spell", q, "graveyard"))
+	g2.players[q]["graveyard"].append(Card.new(g2._uid(), "t_mlg_spell", q, "graveyard"))
+	check(g2.can_use_ability(q), "Líder Mali: a Reserva paga o poder Instantâneo")
+
+	# validation of the generic field
+	var bad_kind: Dictionary = CardDB.leader("mali_magarc").duplicate(true)
+	bad_kind["ability"]["graveyard_cost"] = {"kind": "banana", "amount": 2}
+	var errors_before: int = CardDB._errors.size()
+	CardDB._validate_leader("t_bad_kind", bad_kind)
+	check(CardDB._errors.size() > errors_before, "graveyard_cost com tipo desconhecido é rejeitado pela validação")
+	CardDB._errors.resize(errors_before)
+	var bad_amount: Dictionary = CardDB.leader("mali_magarc").duplicate(true)
+	bad_amount["ability"]["graveyard_cost"] = {"kind": "spell", "amount": 0}
+	CardDB._validate_leader("t_bad_amount", bad_amount)
+	check(CardDB._errors.size() > errors_before, "graveyard_cost com amount 0 é rejeitado pela validação")
+	CardDB._errors.resize(errors_before)
+
+## Set 2 neutral pack (Mali's deck): Desvelar o Arcano, Suspiro de Alívio, Arco Informe, Afrouxar as Amarras,
+## Feitiço Indeferido (generic "only_if_spell" counter), Pipoca Arcana and Quem Guarda, Tem (generic "graveyard_kind").
+func _test_set2_neutral_spells() -> void:
+	for card_id in ["desvelar_o_arcano", "suspiro_de_alivio", "arco_informe", "afrouxar_as_amarras", "feitico_indeferido", "pipoca_arcana", "quem_guarda_tem"]:
+		check(not CardDB.card(card_id).is_empty() and CardDB.card(card_id)["essence"] == "neutra", "%s: carta neutra do set 2 carregada" % card_id)
+	_tspell("t_nsp_cost1", "instantaneo", [])
+	_tspell("t_nsp_cost3", "lento", [])
+	_tspell("t_nsp_cost4", "lento", [])
+	_tspell("t_nsp_hit", "lento", [{"trigger": "on_play", "action": "damage", "target": "enemy_leader", "amount": 2}])
+	CardDB.data()["cards"]["t_nsp_cost1"]["cost"] = 1
+	CardDB.data()["cards"]["t_nsp_cost3"]["cost"] = 3
+	CardDB.data()["cards"]["t_nsp_cost4"]["cost"] = 4
+	CardDB.data()["cards"]["t_nsp_hit"]["cost"] = 3
+	_tcard("t_nsp_unit", 1, 1, [])
+
+	# Feitiço Indeferido: only SPELLS of cost 3 or less (never a unit being played, never a spell of cost 4)
+	var indeferido := CardDB.card("feitico_indeferido")
+	check(int(indeferido["cost"]) == 2 and indeferido["speed"] == "instantaneo", "Feitiço Indeferido: custo 2, Instantânea")
+	var g := _rich_game()
+	g.play_card(0, _give(g, 0, "t_nsp_cost4"), 0)
+	check(g.card_targets(1, indeferido).is_empty(), "Feitiço Indeferido: não alcança um feitiço de custo 4")
+	g = _rich_game()
+	g.play_card(0, _give(g, 0, "t_nsp_unit"), 0)
+	check(g.card_targets(1, indeferido).is_empty(), "Feitiço Indeferido: não alcança uma unidade sendo jogada")
+	g = _rich_game()
+	var leader_before: int = g.players[1]["leader_hp"]
+	g.play_card(0, _give(g, 0, "t_nsp_hit"), GameState.LEADER_UID[1])
+	check(g.card_targets(1, indeferido).size() == 1, "Feitiço Indeferido: alcança um feitiço de custo 3")
+	g.play_card(1, _give(g, 1, "feitico_indeferido"), g.stack[0]["sid"])
+	_resolve_whole_stack(g)
+	check(g.players[1]["leader_hp"] == leader_before, "Feitiço Indeferido: o feitiço anulado não causa dano")
+
+	# Quem Guarda, Tem: 1 damage per SPELL in the owner's graveyard (units there do not count)
+	g = _rich_game()
+	for i in 3:
+		g.players[0]["graveyard"].append(Card.new(g._uid(), "t_nsp_cost1", 0, "graveyard"))
+	g.players[0]["graveyard"].append(Card.new(g._uid(), "t_nsp_unit", 0, "graveyard"))
+	leader_before = g.players[1]["leader_hp"]
+	g.play_card(0, _give(g, 0, "quem_guarda_tem"), GameState.LEADER_UID[1])
+	_resolve_whole_stack(g)
+	check(g.players[1]["leader_hp"] == leader_before - 3, "Quem Guarda, Tem: 3 feitiços no cemitério = 3 de dano; a unidade não conta (%d)" % (leader_before - g.players[1]["leader_hp"]))
+
+	# Arco Informe: 2 damage to the enemy Leader or to an enemy unit
+	g = _rich_game()
+	var arco_target := _put(g, 1, "t_nsp_unit")
+	arco_target.hp = 5
+	leader_before = g.players[1]["leader_hp"]
+	g.play_card(0, _give(g, 0, "arco_informe"), GameState.LEADER_UID[1])
+	_resolve_whole_stack(g)
+	check(g.players[1]["leader_hp"] == leader_before - 2, "Arco Informe: 2 de dano no Líder inimigo")
+	g.play_card(0, _give(g, 0, "arco_informe"), arco_target.uid)
+	_resolve_whole_stack(g)
+	check(arco_target.damage == 2, "Arco Informe: 2 de dano em uma unidade inimiga (%d)" % arco_target.damage)
+
+	# Suspiro de Alívio: draws 1
+	g = _rich_game()
+	var suspiro := _give(g, 0, "suspiro_de_alivio")
+	var hand_before: int = g.players[0]["hand"].size()
+	g.play_card(0, suspiro, 0)
+	_resolve_whole_stack(g)
+	check(g.players[0]["hand"].size() == hand_before, "Suspiro de Alívio: gasta a carta e compra 1 (mão %d -> %d)" % [hand_before, g.players[0]["hand"].size()])
+
+	# Afrouxar as Amarras: spells in hand cost 1 less (never below 1); units and the deck are untouched
+	g = _rich_game()
+	var hand_big := Card.new(g._uid(), "t_nsp_cost4", 0, "hand")
+	var hand_small := Card.new(g._uid(), "t_nsp_cost1", 0, "hand")
+	var hand_unit := Card.new(g._uid(), "t_nsp_unit", 0, "hand")
+	var deck_big := Card.new(g._uid(), "t_nsp_cost4", 0, "deck")
+	g.players[0]["hand"].append_array([hand_big, hand_small, hand_unit])
+	g.players[0]["deck"].append(deck_big)
+	var unit_cost_before: int = g.cost_of(0, hand_unit.data(), hand_unit)
+	g.play_card(0, _give(g, 0, "afrouxar_as_amarras"), 0)
+	_resolve_whole_stack(g)
+	check(g.cost_of(0, hand_big.data(), hand_big) == 3, "Afrouxar as Amarras: feitiço de custo 4 na mão passa a custar 3")
+	check(g.cost_of(0, hand_small.data(), hand_small) == 1, "Afrouxar as Amarras: feitiço de custo 1 não cai abaixo de 1")
+	check(g.cost_of(0, hand_unit.data(), hand_unit) == unit_cost_before, "Afrouxar as Amarras: unidade na mão não muda")
+	check(g.cost_of(0, deck_big.data(), deck_big) == 4, "Afrouxar as Amarras: feitiço no deck não muda")
+
+	# Pipoca Arcana: every 2nd spell its owner casts draws 1 (the opponent's spells do not count)
+	g = _rich_game()
+	_put(g, 0, "pipoca_arcana")
+	hand_before = g.players[0]["hand"].size()
+	g.play_card(0, _give(g, 0, "t_nsp_cost1"), 0)
+	_resolve_whole_stack(g)
+	check(g.players[0]["hand"].size() == hand_before, "Pipoca Arcana: o 1º feitiço não compra (mão %d)" % g.players[0]["hand"].size())
+	g.play_card(0, _give(g, 0, "t_nsp_cost1"), 0)
+	_resolve_whole_stack(g)
+	check(g.players[0]["hand"].size() == hand_before + 1, "Pipoca Arcana: o 2º feitiço compra 1 (mão %d, esperado %d)" % [g.players[0]["hand"].size(), hand_before + 1])
+
+	# Desvelar o Arcano: looks at the top 4, must take a SPELL, which costs 1 less this turn
+	g = _rich_game()
+	var wanted_spell := Card.new(g._uid(), "t_nsp_cost3", 0, "deck")
+	var far_spell := Card.new(g._uid(), "t_nsp_cost3", 0, "deck")
+	var second_spell := Card.new(g._uid(), "t_nsp_cost4", 0, "deck")
+	var filler: Array = []
+	for i in 6:
+		filler.append(Card.new(g._uid(), "t_nsp_unit", 0, "deck"))
+	# the top of the deck is the BACK of the array: far_spell sits first, so it is beyond the 4 cards that are looked at
+	g.players[0]["deck"] = [far_spell, filler[0], filler[1], filler[2], filler[3], second_spell, filler[4], wanted_spell]
+	g.play_card(0, _give(g, 0, "desvelar_o_arcano"), 0)
+	_resolve_whole_stack(g)
+	check(g.phase == "search", "Desvelar o Arcano: abre a escolha entre as cartas do topo")
+	var offered: Array = g.pending_search["cards"]
+	check(offered.size() == 2, "Desvelar o Arcano: das 4 do topo, oferece só os 2 feitiços, não a unidade nem o que está fora do topo (%d)" % offered.size())
+	var picked_uid := 0
+	for entry in offered:
+		if entry["card_id"] == "t_nsp_cost3":
+			picked_uid = int(entry["uid"])
+	check(picked_uid != 0, "Desvelar o Arcano: o feitiço aparece entre as 4 do topo")
+	g.choose_search(0, picked_uid)
+	var in_hand: Array = g.players[0]["hand"].filter(func(c: Card) -> bool: return c.uid == picked_uid)
+	check(in_hand.size() == 1 and g.cost_of(0, in_hand[0].data(), in_hand[0]) == 2, "Desvelar o Arcano: o feitiço escolhido vai para a mão e custa 1 a menos neste turno")
+
 func _test_mali_and_ottilia() -> void:
 	_tspell("t_mali_hit", "instantaneo", [{"trigger": "on_play", "action": "damage", "target": "enemy_leader", "amount": 2}])
 	_tspell("t_mali_aim", "instantaneo", [{"trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 1}])
@@ -7426,7 +7619,7 @@ func _test_mali_and_ottilia() -> void:
 	_cast_and_resolve(g_timing, timing_caster, "t_mali_aim", timing_mali.uid)
 	check(timing_mali.damage == 2 and not timing_mali.magic_shield, "Mali: o 3º feitiço mirado é anulado e consome o escudo (dano %d)" % timing_mali.damage)
 
-	# Transformar (4): vira a forma Primordial 6/7 com Voo
+	# Transformar (4): vira a forma Primordial 4/7 com Voo
 	var g3 := _new_game()
 	_quiet(g3)
 	var q: int = g3.active
@@ -7435,7 +7628,7 @@ func _test_mali_and_ottilia() -> void:
 	check(g3.can_transform(q, mali3.uid), "Mali: pode se transformar com 4 de Momentum")
 	g3.transform(q, mali3.uid)
 	_resolve_stack(g3)
-	check(mali3.card_id == "mali_magarc_primordial" and g3.atk_of(mali3) == 6 and g3.hp_left(mali3) == 7 and mali3.has_kw("voo"), "Mali Primordial: 6/7 com Voo")
+	check(mali3.card_id == "mali_magarc_primordial" and g3.atk_of(mali3) == 4 and g3.hp_left(mali3) == 7 and mali3.has_kw("voo"), "Mali Primordial: 4/7 com Voo")
 	check(CardDB.card("mali_magarc_primordial").get("transform_only", false), "Mali Primordial: só existe pela transformação")
 	check(mali3.event_counters().size() == 2, "Mali Primordial: também expõe as duas contagens")
 
@@ -7470,6 +7663,30 @@ func _test_mali_and_ottilia() -> void:
 	_resolve_stack(g_carry)
 	check(carry_mali.card_id == "mali_magarc_primordial" and int(carry_mali.event_counters()[0]["count"]) == 0 and int(carry_mali.event_counters()[1]["count"]) == 0, "Mali: transformar zera as contagens de feitiços")
 
+	# Transformar herda o que há de bom: bônus permanentes de Ataque/Vida e palavras-chave concedidas; debuffs não
+	var g_inherit := _new_game()
+	_quiet(g_inherit)
+	var inherit_owner: int = g_inherit.active
+	g_inherit.players[inherit_owner]["momentum"] = 10
+	var inherit_mali := _put(g_inherit, inherit_owner, "mali_magarc")
+	inherit_mali.atk += 3 # buff permanente ganho no campo
+	inherit_mali.hp += 2
+	inherit_mali.keywords.append("rapidez") # palavra-chave concedida
+	g_inherit.transform(inherit_owner, inherit_mali.uid)
+	_resolve_stack(g_inherit)
+	check(inherit_mali.card_id == "mali_magarc_primordial" and inherit_mali.atk == 7 and inherit_mali.hp == 9, "Transformar: a forma nova herda os buffs permanentes (%d/%d, esperado 7/9)" % [inherit_mali.atk, inherit_mali.hp])
+	check(inherit_mali.keywords.has("rapidez") and inherit_mali.keywords.has("voo"), "Transformar: herda a palavra-chave concedida e mantém as da forma nova")
+
+	var g_debuff := _new_game()
+	_quiet(g_debuff)
+	var debuff_owner: int = g_debuff.active
+	g_debuff.players[debuff_owner]["momentum"] = 10
+	var debuff_mali := _put(g_debuff, debuff_owner, "mali_magarc")
+	debuff_mali.atk -= 1 # debuff permanente: não é herdado
+	g_debuff.transform(debuff_owner, debuff_mali.uid)
+	_resolve_stack(g_debuff)
+	check(debuff_mali.atk == 4, "Transformar: debuff permanente não é herdado (%d, esperado 4)" % debuff_mali.atk)
+
 	# Eco: Ao Ativar arma; o próximo feitiço do dono é lançado de novo com o mesmo alvo
 	var g4 := _new_game()
 	_quiet(g4)
@@ -7492,7 +7709,7 @@ func _test_mali_and_ottilia() -> void:
 	check(g4.players[o]["leader_hp"] == life_before - 4, "Eco: o feitiço de 2 de dano é lançado duas vezes (%d)" % (life_before - g4.players[o]["leader_hp"]))
 	check(g4.players[r]["graveyard"].size() == graveyard_before + 1, "Eco: só o original vai ao cemitério")
 	check(int(g4.players[r]["spell_echo_source"]) == 0, "Eco: depois de usado, não fica armado")
-	check(g4.atk_of(primordial) == attack_start, "Eco: o eco não conta como lançamento nem para o dono")
+	check(g4.atk_of(primordial) == attack_start + 1, "Eco: o eco conta como um lançamento (original + eco = 2 feitiços = +1 de Ataque) (%d)" % (g4.atk_of(primordial) - attack_start))
 	life_before = g4.players[o]["leader_hp"]
 	_cast_and_resolve(g4, r, "t_mali_hit", GameState.LEADER_UID[o])
 	check(g4.players[o]["leader_hp"] == life_before - 2, "Eco: o feitiço seguinte, sem eco armado, causa o dano normal")
@@ -7577,6 +7794,23 @@ func _test_mali_and_ottilia() -> void:
 	check(g7.spell_amplifier_bonus(w, "damage") == 0, "Ottilia: outra cópia dela no deck conta como unidade (2 feitiços não bastam)")
 	g7.players[w]["deck"].append(Card.new(g7._uid(), "t_mali_plain", w, "deck"))
 	check(g7.spell_amplifier_bonus(w, "damage") == 1, "Ottilia: com outra cópia dela no deck, 3 feitiços ativam pelo triplo")
+
+	# indicador na carta/overlay: constant_conditions_of diz se a condição vale agora e mostra as contagens do deck
+	var ottilia_on_board: Card = null
+	for board_card: Card in g7.players[w]["board"]:
+		if board_card.card_id == "ottilia_varnholt":
+			ottilia_on_board = board_card
+	check(ottilia_on_board != null, "Ottilia: (teste) ela está no campo")
+	if ottilia_on_board != null:
+		var status_on: Array = g7.constant_conditions_of(ottilia_on_board)
+		check(status_on.size() == 1 and bool(status_on[0]["holds"]) and int(status_on[0]["units"]) == 1 and int(status_on[0]["spells"]) == 3, "Ottilia: indicador ATIVA com 1 unidade e 3 feitiços no deck")
+		g7.players[w]["deck"].pop_back()
+		var status_off: Array = g7.constant_conditions_of(ottilia_on_board)
+		check(not bool(status_off[0]["holds"]) and int(status_off[0]["needed_spells"]) == 3, "Ottilia: indicador INATIVA com 2 feitiços e 1 unidade (precisa de 3)")
+		g7.players[w]["deck"].append(Card.new(g7._uid(), "t_mali_plain", w, "deck"))
+		check(bool(g7.constant_conditions_of(ottilia_on_board)[0]["holds"]), "Ottilia: o indicador volta a ATIVA ao recontar o deck")
+	var plain_unit := _put(g7, x, "t_mali_foe")
+	check(g7.constant_conditions_of(plain_unit).is_empty(), "Ottilia: carta sem Constante de condição não tem indicador")
 
 	# dano nos vizinhos também sobe
 	_tspell("t_mali_splash", "instantaneo", [{"trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 1, "adjacent_amount": 1}])
@@ -8824,7 +9058,7 @@ func _test_eletrica() -> void:
 	a = g.active
 	o = g.opponent(a)
 	check(g.cost_of(a, gg) == 9 and int(gg["atk"]) == 8 and int(gg["hp"]) == 7, "gigante: 8/7 custando 9")
-	check(gg["keywords"] == ["sobrepujanca"], "gigante: só Sobrepujança")
+	check(gg["keywords"] == ["sobrepujanca", "impeto"], "gigante: Sobrepujança e Ímpeto")
 	g.players[a]["reserve"] = 0
 	g.players[a]["momentum"] = 3
 	g.end_turn(a)

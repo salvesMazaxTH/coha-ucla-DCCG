@@ -20,9 +20,16 @@
       "per": "damage_since_last_turn",
       "threshold": 10,
       "amount": 5
+    },
+    {
+      "trigger": "on_enter",
+      "action": "damage",
+      "target": "enemy_unit",
+      "amount": 3
     }
   ],
-  "text": "Custa (5) a menos se você causou 10 ou mais de dano ao Líder inimigo desde o início do seu turno anterior.",
+  "text": "Custa (5) a menos se você causou 10 ou mais de dano ao Líder inimigo desde o início do seu turno anterior.
+Ao Entrar: você pode escolher uma unidade inimiga; ela sofre 3 de dano.",
   "flavor": "",
   "tags": []
 }

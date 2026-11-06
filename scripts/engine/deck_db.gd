@@ -71,10 +71,25 @@ static func development_mode_enabled() -> bool:
 static func is_card_visible(card_id: String) -> bool:
 	return development_mode_enabled() or not bool(CardDB.card(card_id).get("unreleased", false))
 
+static func is_leader_visible(leader_id: String) -> bool:
+	if not CardDB.data()["leaders"].has(leader_id):
+		return false
+	return development_mode_enabled() or not bool(CardDB.leader(leader_id).get("unreleased", false))
+
+static func visible_leader_ids() -> Array[String]:
+	var visible: Array[String] = []
+	for leader_id in CardDB.data()["leaders"]:
+		if is_leader_visible(String(leader_id)):
+			visible.append(String(leader_id))
+	return visible
+
 static func is_deck_visible(deck_id: String) -> bool:
 	if not has(deck_id):
 		return false
-	return development_mode_enabled() or not bool(get_deck(deck_id).get("unreleased", false))
+	if development_mode_enabled():
+		return true
+	var deck: Dictionary = get_deck(deck_id)
+	return not bool(deck.get("unreleased", false)) and is_leader_visible(String(deck.get("leader", "")))
 
 ## A banned Leader ("banned": true in cards.json) is still listed everywhere, marked BANIDO, but cannot be
 ## picked or played unless the game runs in development mode. This is a rule for the menus and the match

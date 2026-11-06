@@ -611,6 +611,8 @@ static func ability_panel(ab: Dictionary, col: Color, uses_spent := -1, life_cos
 			chips.add_child(_chip("◆ %d MOMENTUM" % int(ab["cost"]), UITheme.MOMENTUM))
 		if ab.has("life_cost"):
 			chips.add_child(_life_cost_chip(ab["life_cost"], life_cost_now))
+	if ab.has("graveyard_cost"):
+		chips.add_child(_chip(_graveyard_cost_chip_text(ab["graveyard_cost"]), UITheme.TEXT))
 	if not passive and ab.has("speed"):
 		chips.add_child(_speed_seal(str(ab["speed"])))
 	if ab.has("max_per_turn"):
@@ -666,6 +668,13 @@ static func _life_cost_chip_text(life_cost: Dictionary, cost_now := -1) -> Strin
 	if int(life_cost.get("increase_per_own_turn", 0)) == 0:
 		return "%d VIDA" % int(life_cost.get("start", 0))
 	return "X VIDA"
+
+## Chip text for an ability's graveyard_cost {kind, amount}: "BANE 2 FEITIÇOS DO CEMITÉRIO".
+static func _graveyard_cost_chip_text(graveyard_cost: Dictionary) -> String:
+	var amount := int(graveyard_cost.get("amount", 0))
+	var kind_names := {"spell": ["FEITIÇO", "FEITIÇOS"], "unit": ["UNIDADE", "UNIDADES"], "artifact": ["ARTEFATO", "ARTEFATOS"]}
+	var names: Array = kind_names.get(String(graveyard_cost.get("kind", "")), ["CARTA", "CARTAS"])
+	return "BANE %d %s DO CEMITÉRIO" % [amount, names[0] if amount == 1 else names[1]]
 
 ## The Vida cost chip: a red heart followed by the value ("♥ 4 VIDA").
 static func _life_cost_chip(life_cost: Dictionary, cost_now := -1) -> Control:

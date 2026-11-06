@@ -70,6 +70,10 @@ func item_destroys_units(item: Dictionary) -> bool:
 func item_is_ability(item: Dictionary) -> bool:
 	return item["kind"] in ["ability", "unit_ability", "artifact_equip"]
 
+## True when the stack item is a spell cast from a card ("only_if_spell" counters, Feitiço Indeferido).
+func item_is_spell(item: Dictionary) -> bool:
+	return item["kind"] == "card" and CardDB.card(item["card_id"]).get("type", "") == "spell"
+
 ## True when the stack item has an effect that hits a whole group of units at once instead of a chosen one
 ## ("only_if_area" counters, Quarentena Sagrada).
 func item_is_area_effect(item: Dictionary) -> bool:
@@ -94,6 +98,8 @@ func counter_extra(cd: Dictionary, sid: int) -> int:
 		if e.get("only_if_ability", false) and not item_is_ability(it):
 			return -1
 		if e.get("only_if_area", false) and not item_is_area_effect(it):
+			return -1
+		if e.get("only_if_spell", false) and not item_is_spell(it):
 			return -1
 		var c := stack_cost(it)
 		if c <= int(e.get("max_cost", 99)):
@@ -228,8 +234,9 @@ func _complete_resolved_item(item: Dictionary, spec: String, gone: bool, stats_b
 
 ## echo_next_spell (Mali Magarc's Dragão Primordial): a spell cast while the echo was armed (play_card stamps
 ## "echo_source" on its stack item) is cast again right after it resolves, aimed at the same target(s). The echo is a
-## virtual item (no card behind it, so it never reaches the graveyard), it carries no "echo_source" (no loop) and
-## it is not announced as a cast (no spell_cast listeners). The opponent can respond to it, and it fizzles by itself
+## virtual item (no card behind it, so it never reaches the graveyard) and it carries no "echo_source" (no loop).
+## It DOES count as a cast for the spell_cast listeners (Mali Primordial's own +1 Ataque / Escudo Mágico counter, Pipoca
+## Arcana), announced through a throwaway Card because the event needs one. The opponent can respond to it, and it fizzles by itself
 ## if a target is gone. A countered original never gets here, so it leaves no echo behind.
 func _queue_spell_echo(item: Dictionary, gone: bool) -> void:
 	var echo_source := int(item.get("echo_source", 0))
@@ -238,6 +245,7 @@ func _queue_spell_echo(item: Dictionary, gone: bool) -> void:
 	var echo_uid := game._uid()
 	var source_uid := echo_source if echo_source > 0 else 0
 	game._emit({"type": "play", "player": item["player"], "uid": echo_uid, "card_id": item["card_id"], "source_uid": source_uid, "target": item["target"]})
+	game._announce_spell_cast(int(item["player"]), Card.new(echo_uid, item["card_id"], int(item["player"]), "stack"), CardDB.card(item["card_id"]))
 	push(item["player"], "card", echo_uid, item["card_id"], int(item["target"]), String(item["speed"]), int(item.get("target2", 0)), false, {"virtual": true, "source_uid": source_uid})
 
 func _finish_resolution_priority(lower_stack_sids: Dictionary) -> void:

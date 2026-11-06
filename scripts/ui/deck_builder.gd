@@ -71,6 +71,7 @@ var _page := 0
 var _tiles: Dictionary = {}
 var _name_edit: LineEdit
 var _meters: Dictionary = {}
+var _type_labels: Dictionary = {}
 var _curve: Control
 var _curve_counts: Array = []
 var _warnings_box: VBoxContainer
@@ -232,6 +233,7 @@ func _clear_content() -> void:
 	_tiles.clear()
 	_list_rows.clear()
 	_meters.clear()
+	_type_labels.clear()
 
 func _toast(text: String, color := UITheme.GOLD_LIGHT) -> void:
 	var panel := PanelContainer.new()
@@ -314,7 +316,7 @@ func _pick_leader(title: String, with_templates: bool, on_pick: Callable, on_can
 	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	inner.add_theme_constant_override("separation", 14)
 	scroll.add_child(inner)
-	var leader_ids: Array = CardDB.data()["leaders"].keys()
+	var leader_ids: Array = DeckDB.visible_leader_ids()
 	leader_ids.sort_custom(func(a, b): return String(CardDB.leader(String(a))["name"]).naturalnocasecmp_to(String(CardDB.leader(String(b))["name"])) < 0)
 	var flow := HFlowContainer.new()
 	flow.add_theme_constant_override("h_separation", 14)
@@ -951,6 +953,16 @@ func _build_deck_panel() -> Control:
 	coach_row.add_child(_btn("COMPLETAR", _autofill_deck, false, 14))
 	box.add_child(coach_row)
 
+	var type_row := HBoxContainer.new()
+	type_row.tooltip_text = "Cartas no deck por tipo, sem a Encarnação reservada."
+	for definition in [["unit", "Unidades"], ["spell", "Feitiços"], ["artifact", "Artefatos"]]:
+		var label := _lbl("", 17, UITheme.TEXT_DIM)
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		type_row.add_child(label)
+		_type_labels[definition[0]] = {"label": label, "title": definition[1]}
+	box.add_child(type_row)
+
 	_curve = Control.new()
 	_curve.custom_minimum_size = Vector2(0, 96)
 	_curve.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1419,13 +1431,22 @@ func _refresh_deck_panel() -> void:
 	_curve_counts = []
 	_curve_counts.resize(CURVE_SLOTS)
 	_curve_counts.fill(0)
+	var type_counts := {"unit": 0, "spell": 0, "artifact": 0}
 	var incarnation := _incarnation_id
 	for card_id in _cards:
-		var slot := mini(int(CardDB.card(card_id)["cost"]), CURVE_SLOTS - 1)
+		var card: Dictionary = CardDB.card(card_id)
+		var slot := mini(int(card["cost"]), CURVE_SLOTS - 1)
 		var copies := int(_cards[card_id])
 		if String(card_id) == incarnation:
 			copies -= 1
-		_curve_counts[slot] += maxi(0, copies)
+		copies = maxi(0, copies)
+		_curve_counts[slot] += copies
+		var card_type := String(card.get("type", ""))
+		if type_counts.has(card_type):
+			type_counts[card_type] += copies
+	for card_type in type_counts:
+		var entry: Dictionary = _type_labels[card_type]
+		(entry["label"] as Label).text = "%s: %d" % [entry["title"], type_counts[card_type]]
 	_curve.queue_redraw()
 
 	_refresh_incarnation_label()

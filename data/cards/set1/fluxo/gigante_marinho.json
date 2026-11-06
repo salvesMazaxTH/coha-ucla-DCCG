@@ -20,9 +20,22 @@
       "per": "healing_since_last_turn",
       "threshold": 8,
       "amount": 5
+    },
+    {
+      "trigger": "on_enter",
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount": 2
+    },
+    {
+      "trigger": "on_enter",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1
     }
   ],
-  "text": "Custa (5) a menos se você recuperou 8 ou mais de Vida desde o início do seu turno anterior.",
+  "text": "Custa (5) a menos se você recuperou 8 ou mais de Vida desde o início do seu turno anterior.
+Ao Entrar: seu Líder recupera 2 de Vida e você compra 1 carta.",
   "flavor": "",
   "tags": []
 }

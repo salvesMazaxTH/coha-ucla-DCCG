@@ -239,6 +239,12 @@ static func _validate_leader(lid: String, ld: Dictionary) -> void:
 		err.call("ability.trigger desconhecido \"%s\"" % ab["trigger"])
 	if ab.has("speed") and ab["speed"] not in SPEEDS:
 		err.call("ability.speed desconhecida \"%s\"" % ab["speed"])
+	if ab.has("graveyard_cost"):
+		var graveyard_cost: Dictionary = ab["graveyard_cost"]
+		if String(graveyard_cost.get("kind", "")) not in TYPES:
+			err.call("ability.graveyard_cost.kind precisa ser um tipo de carta (%s)" % ", ".join(TYPES))
+		if int(graveyard_cost.get("amount", 0)) < 1:
+			err.call("ability.graveyard_cost.amount precisa ser >= 1")
 	_validate_effects(err, ab.get("effects", []))
 
 static func _validate_effects(err: Callable, effects: Array, inside_effect_choice := false) -> void:
