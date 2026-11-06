@@ -45,7 +45,7 @@
     "into": "mali_magarc_primordial",
     "cost": 4
   },
-  "text": "Ao Entrar: reduz em (1) o custo dos feitiços na sua mão, mas nunca abaixo de (1).\nCondicional: a cada 2 feitiços que você lança, esta unidade ganha +1 de Ataque permanente e, só neste turno, Escudo Mágico.\nCondicional: o mesmo efeito também se ativa a cada 2 feitiços que o oponente lança, com contagem separada.\nTransformar (4): Mali Magarc Primordial.",
+  "text": "Ao Entrar: reduz em (1) o custo dos feitiços na sua mão, mas nunca abaixo de (1).\nCondicional: a cada 2 feitiços que você lança, e também a cada 2 que o oponente lança (contagens separadas), esta unidade ganha +1 de Ataque permanente e, só neste turno, Escudo Mágico.\nTransformar (4): Mali Magarc Primordial.",
   "flavor": [
     "Fui rei da magia quando ela ainda não tinha nome. Vocês chamam de feitiço o que pediram emprestado de mim.",
     "Antes do primeiro feitiço havia o dragão. O feitiço foi o que sobrou dele."
