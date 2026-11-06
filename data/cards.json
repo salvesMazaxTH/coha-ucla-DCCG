@@ -888,11 +888,10 @@
     "mali_magarc": {
       "name": "Mali Magarc",
       "hp": 30,
-      "art": "neutra/mali_magarc.webp",
+      "art": "neutra/mali_magarc_lider.webp",
       "incarnation": "mali_magarc",
-      "unreleased": true,
       "ability": {
-        "name": "(nome a definir)",
+        "name": "Sobras do Dragão",
         "cost": 1,
         "speed": "instantaneo",
         "graveyard_cost": { "kind": "spell", "amount": 2 },
