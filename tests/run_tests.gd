@@ -7582,6 +7582,15 @@ func _test_mali_and_ottilia() -> void:
 	var owner: int = 1 - caster
 	g2.players[caster]["momentum"] = 10  # t_mali_hit costs 3 and _quiet zeroes the pool
 	var mali := _put(g2, owner, "mali_magarc")
+	# a cost-1 spell may become free (no floor of 1), and the discount still ends with the turn
+	g = _rich_game()
+	var cheap_spell := Card.new(g._uid(), "t_nsp_cost1", 0, "deck")
+	g.players[0]["deck"] = [cheap_spell]
+	g.play_card(0, _give(g, 0, "desvelar_o_arcano"), 0)
+	_resolve_whole_stack(g)
+	g.choose_search(0, cheap_spell.uid)
+	check(g.cost_of(0, cheap_spell.data(), cheap_spell) == 0, "Desvelar o Arcano: feitiço de custo 1 fica grátis (custo %d)" % g.cost_of(0, cheap_spell.data(), cheap_spell))
+
 	var attack_before: int = g2.atk_of(mali)
 	check(not mali.magic_shield, "Mali: começa sem Escudo Mágico")
 	_cast_and_resolve(g2, caster, "t_mali_hit", GameState.LEADER_UID[owner])

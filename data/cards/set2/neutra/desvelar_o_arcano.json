@@ -14,10 +14,11 @@
       "target": "none",
       "top": 4,
       "type": "spell",
-      "turn_discount": 1
+      "turn_discount": 1,
+      "turn_discount_min_cost": 0
     }
   ],
-  "text": "Você olha as 4 cartas do topo do seu deck e pega 1 feitiço entre elas; ele custa (1) a menos neste turno, mas nunca menos de (1). As outras vão para o fundo.",
+  "text": "Você olha as 4 cartas do topo do seu deck e pega 1 feitiço entre elas; ele custa (1) a menos neste turno. As outras vão para o fundo.",
   "flavor": "Mali diz que não escondeu nada. Só nunca explicou onde olhar.",
   "tags": []
 }

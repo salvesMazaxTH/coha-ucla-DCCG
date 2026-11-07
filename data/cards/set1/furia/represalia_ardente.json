@@ -15,7 +15,7 @@
       "max": 5
     }
   ],
-  "text": "Você escolhe um feitiço ou habilidade inimiga; o Líder inimigo sofre dano igual ao custo dela (máximo 5). A habilidade ou feitiço escolhido resolve normalmente.",
+  "text": "Você escolhe um feitiço ou habilidade inimiga e causa ao Líder inimigo dano igual ao custo dela (máximo 5). A habilidade ou feitiço escolhido resolve normalmente.",
   "flavor": "",
   "tags": []
 }

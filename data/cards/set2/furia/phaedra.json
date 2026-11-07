@@ -13,7 +13,7 @@
   "effects": [
     { "trigger": "on_enter", "action": "damage", "target": "enemy_unit", "amount": 2 }
   ],
-  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela recebe 2 de dano. (PLACEHOLDER)",
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela sofre 2 de dano. (PLACEHOLDER)",
   "flavor": "",
   "tags": [],
   "unreleased": true,

@@ -2582,11 +2582,13 @@ func choose_search(p: int, card_uid: int) -> Array:
 		_move(found, "hand")
 		# "discount": the card taken costs this much less (Vendedora de Grimório), same per-copy discount as a discount effect
 		found.discount += int(pending_search.get("discount", 0))
-		# "turn_discount": the card taken costs this much less only until the end of this turn, but never below 1 (Sven)
+		# "turn_discount": the card taken costs this much less only until the end of this turn. It stops at
+		# "turn_discount_min_cost" (default 1, Sven; 0 lets the card become free, Desvelar o Arcano)
 		var turn_discount_amount: int = int(pending_search.get("turn_discount", 0))
 		if turn_discount_amount > 0:
 			var cost_now := cost_of(p, found.data(), found)
-			found.turn_discount += clampi(turn_discount_amount, 0, maxi(cost_now - 1, 0))
+			var lowest_cost: int = int(pending_search.get("turn_discount_min_cost", 1))
+			found.turn_discount += clampi(turn_discount_amount, 0, maxi(cost_now - lowest_cost, 0))
 		last_search_took_card = true
 	var look: bool = pending_search.get("look", false)
 	var top_search: bool = pending_search.has("to_bottom") # a search limited to the top N cards
@@ -3039,6 +3041,7 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 		"fallback_draw": int(e.get("fallback_draw", 0))}
 	# every card looked at, topmost first; "cards" holds only the eligible ones, so the UI can show the rest dimmed
 	var looked_cards: Array = []
+		"turn_discount_min_cost": int(e.get("turn_discount_min_cost", 1)),
 	for index in range(searched.size() - 1, -1, -1):
 		looked_cards.append({"uid": searched[index].uid, "card_id": searched[index].card_id})
 	pending_search["looked_cards"] = looked_cards

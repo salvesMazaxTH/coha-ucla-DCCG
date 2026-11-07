@@ -19,7 +19,7 @@
       "options": [
         {
           "title": "Tiro",
-          "detail": "Outra unidade inimiga à sua escolha sofre 4 de dano.",
+          "detail": "Causa 4 de dano a outra unidade inimiga à sua escolha.",
           "exclude_opposed": true,
           "hit_fx": "tiro",
           "effects": [
@@ -28,7 +28,7 @@
         },
         {
           "title": "Punho em Chamas",
-          "detail": "A unidade desafiada sofre 3 de dano e recebe 1 marcador de Queimadura.",
+          "detail": "Causa 3 de dano à unidade desafiada, que recebe 1 marcador de Queimadura.",
           "requires_opposed": true,
           "effects": [
             {"action": "damage", "target": "opposed_unit", "amount": 3},
