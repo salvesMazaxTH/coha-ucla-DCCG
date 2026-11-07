@@ -3138,6 +3138,7 @@ func _begin_enemy_hand_bottom(p: int, discard_if_unit: int, source_uid: int, exc
 
 ## The answer to the screen above: uid 0 takes no card; otherwise the picked card goes to the bottom of its owner's deck
 ## (the FRONT of the array: draws pop the back) and a unit makes the player discard.
+		pending_search["only_type"] = only_type
 func _finish_enemy_hand_bottom(p: int, card_uid: int, declined: bool) -> Array:
 	var foe := opponent(p)
 	var discards_for_unit := int(pending_search.get("discard_if_unit", 0))
@@ -3931,7 +3932,9 @@ func suffer_fatigue(p: int) -> void:
 	_deal_damage(LEADER_UID[p], damage_amount, null)
 	_suffering_fatigue = false
 
-func _draw(p: int, n: int) -> void:
+## `routine` marks the normal draw of the turn start: the event carries it so the Crônica can skip it
+## (it only lists draws caused by effects).
+func _draw(p: int, n: int, routine: bool = false) -> void:
 	var pl: Dictionary = players[p]
 	for i in n:
 		if pl["deck"].is_empty():
@@ -3940,7 +3943,7 @@ func _draw(p: int, n: int) -> void:
 		var c: Card = pl["deck"].pop_back()
 		pl["hand"].append(c)
 		_move(c, "hand")
-		_emit({"type": "draw", "player": p, "uid": c.uid})
+		_emit({"type": "draw", "player": p, "uid": c.uid, "routine": routine})
 		bus().emit(GameEvent.new("card_drawn", p, c))
 
 ## Local development tools. These actions intentionally bypass normal costs and are never sent online.

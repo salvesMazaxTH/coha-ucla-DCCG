@@ -235,6 +235,10 @@ func _log_event(e: Dictionary) -> void:
 			if e["tapped"]:
 				var tapped_unit := g.find_unit(e["uid"])
 				_log("%s entrou exaurida (Provocação)" % ("Uma unidade" if tapped_unit == null else _cname(tapped_unit.card_id)))
+		"draw":
+			# the normal draw of the turn start is not listed; only draws caused by cards/effects (never shows which card)
+			if not e.get("routine", false):
+				_log("%s comprou uma carta" % _pname(e["player"]))
 		"heal":
 			if e.get("regeneration", false):
 				var regenerated := g.find_unit(e["uid"])

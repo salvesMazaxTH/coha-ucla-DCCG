@@ -86,6 +86,7 @@ func _init() -> void:
 	_test_ciclo_da_carpideira()
 	_test_reembolso_do_ciclo()
 	_test_fagulha_e_cutucada()
+	_test_tesoureira_compra_e_descarta()
 	_test_degelo_na_moenda()
 	_test_zaza_fuzue()
 	_test_yresa_fusion()
@@ -10981,6 +10982,36 @@ func _test_gertrudes() -> void:
 	var g := _glacial_game()
 	g.players[0]["hand"].clear() # the opening hand is random: start from an empty one
 	g.players[1]["hand"].clear()
+func _test_tesoureira_compra_e_descarta() -> void:
+	# Tesoureira Troco-Certo: quando um aliado morre, compra 1 carta e DEPOIS descarta 1, só uma vez por turno.
+	var g := _new_game()
+	_quiet(g)
+	g.active = 0
+	_put(g, 0, "tesoureira_troco_certo")
+	var victim := _put(g, 0, "espirito_choroso")
+	var second_victim := _put(g, 0, "espirito_choroso")
+	g._flush()
+	var hand_before: int = g.players[0]["hand"].size()
+	var deck_before: int = g.players[0]["deck"].size()
+	var graveyard_before: int = g.players[0]["graveyard"].size()
+	victim.damage = 1000
+	g._check_state()
+	var death_events := g._flush()
+	var draw_events := death_events.filter(func(e): return e["type"] == "draw" and e["player"] == 0)
+	check(draw_events.size() == 1 and not draw_events[0].get("routine", false), "tesoureira: a morte aliada gera 1 evento de compra (que a Crônica lista)")
+	check(g.players[0]["hand"].size() == hand_before + 1 and g.players[0]["deck"].size() == deck_before - 1, "tesoureira: a carta comprada saiu do deck para a mão")
+	check(g.phase == "search" and g.pending_search.get("discard_hand", false), "tesoureira: depois de comprar, pede o descarte")
+	g.choose_search(0, int(g.pending_search["cards"][0]["uid"]))
+	check(g.phase != "search" and g.players[0]["hand"].size() == hand_before, "tesoureira: compra 1 e descarta 1, a mão volta ao tamanho de antes")
+	check(g.players[0]["graveyard"].size() == graveyard_before + 1, "tesoureira: a carta descartada vai para o cemitério (a ficha morta não vai)")
+	# segunda morte no mesmo turno: nem compra nem pede descarte
+	g._flush()
+	var hand_after_first: int = g.players[0]["hand"].size()
+	second_victim.damage = 1000
+	g._check_state()
+	var second_events := g._flush()
+	check(second_events.filter(func(e): return e["type"] == "draw").is_empty() and g.players[0]["hand"].size() == hand_after_first and g.phase != "search", "tesoureira: a 2ª morte no mesmo turno não compra nem descarta")
+
 	var a := g.active
 	var o := g.opponent(a)
 	g.players[a]["momentum"] = 10
