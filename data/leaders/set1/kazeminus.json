@@ -1,0 +1,28 @@
+{
+  "name": "Kazeminus",
+  "set": 1,
+  "hp": 30,
+  "art": "tormenta/kazeminus_lider.webp",
+  "incarnation": "kazeminus",
+  "ability": {
+    "name": "Vento de Cauda",
+    "cost": 3,
+    "once_per_turn": true,
+    "speed": "rapido",
+    "effects": [
+      {
+        "action": "buff",
+        "target": "ally_unit",
+        "keywords": [
+          "impeto"
+        ],
+        "temp": true,
+        "rapidez_until_next_turn": 1
+      }
+    ],
+    "text": "Rápida. 3 Momentum, uma vez por turno: concede Ímpeto neste turno e Rapidez 1 (se for menor) até o início do seu próximo turno a uma unidade aliada."
+  },
+  "essences": [
+    "tormenta"
+  ]
+}

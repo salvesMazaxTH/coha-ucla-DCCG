@@ -1,0 +1,25 @@
+{
+  "name": "Mefi'Urdim",
+  "set": 1,
+  "hp": 30,
+  "art": "devocao/mefi_urdim_lider.webp",
+  "incarnation": "mefi_urdim",
+  "ability": {
+    "name": "Erguer o Baluarte",
+    "cost": 4,
+    "speed": "lento",
+    "effects": [
+      {
+        "action": "put_artifact",
+        "target": "none",
+        "card": "baluarte_santo",
+        "unique": true,
+        "lockout_turns": 2
+      }
+    ],
+    "text": "Lenta. 4 Momentum: coloque o Baluarte Santo no seu campo (só um por vez). Não pode ser usada se um Baluarte seu caiu desde o seu último turno (inclusive nele)."
+  },
+  "essences": [
+    "devocao"
+  ]
+}

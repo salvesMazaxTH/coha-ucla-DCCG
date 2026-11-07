@@ -1,0 +1,32 @@
+{
+  "name": "Eryon",
+  "set": 1,
+  "hp": 30,
+  "art": "neutra/eryon_lider.webp",
+  "incarnation": "eryon",
+  "ability": {
+    "name": "Redistribuir o Fôlego",
+    "cost": 0,
+    "once_per_turn": true,
+    "blocked_after_debt": true,
+    "speed": "lento",
+    "effects": [
+      {
+        "action": "gain_momentum",
+        "target": "none",
+        "amount": 1,
+        "overflow": true
+      },
+      {
+        "action": "gain_momentum",
+        "target": "none",
+        "amount": -1,
+        "next_turn": true
+      }
+    ],
+    "text": "Lenta. 0 Momentum, uma vez por turno: ganhe +1 Momentum neste turno (pode passar de 10). No seu próximo turno, comece com 1 Momentum a menos. Não pode ser usado no turno em que você paga essa dívida."
+  },
+  "essences": [
+    "neutra"
+  ]
+}

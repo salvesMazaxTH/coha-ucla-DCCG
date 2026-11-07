@@ -1,0 +1,26 @@
+{
+  "name": "Tox Vipranna",
+  "set": 1,
+  "hp": 30,
+  "art": "natureza/tox_vipranna_lider.webp",
+  "incarnation": "tox_vipranna",
+  "ability": {
+    "name": "Beijo de Jardim",
+    "cost": 2,
+    "once_per_turn": true,
+    "speed": "rapido",
+    "effects": [
+      {
+        "action": "add_dot",
+        "dot": "veneno",
+        "target": "enemy_unit",
+        "amount": 1,
+        "ignores_immunity": true
+      }
+    ],
+    "text": "Rápida. 2 Momentum, uma vez por turno: dê 1 marcador de Veneno a uma unidade inimiga, ignorando imunidade."
+  },
+  "essences": [
+    "natureza"
+  ]
+}

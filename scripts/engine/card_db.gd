@@ -1,6 +1,8 @@
 class_name CardDB
 extends RefCounted
-## Static card catalog loaded from data/cards.json and data/cards/<set>/<essence>/*.json.
+## Static card catalog loaded from data/cards.json (the shared vocabulary: sets, domains, elements, keywords...),
+## data/cards/<set>/<essence>/*.json (the cards) and data/leaders/<set>/*.json (the Leaders, one file each,
+## with the same "set" field as a card). A Leader stays reachable as data()["leaders"][id].
 ## A card's id is its file name, unique across every set. A set is identified by its NUMBER: the card's
 ## "set" field is that number (2), the registry "sets" in data/cards.json maps the number to the full
 ## name shown in the UI, and the cards live in the folder data/cards/set<number>/.
@@ -9,6 +11,7 @@ static var _data: Dictionary = {}
 static var _defs: Dictionary = {} ## id -> CardDef
 static var _errors: Array[String] = []
 static var _set_number_of: Dictionary = {} ## card id -> the number of the set folder its file was found in (checked against its "set" field)
+static var _set_number_of_leader: Dictionary = {} ## Leader id -> the number of the set folder its file was found in (checked against its "set" field)
 
 ## The effect vocabulary lives in EffectRegistry, TargetRegistry and ConditionRegistry; a typo is
 ## checked on load so it is an error, not a silent no-op.
@@ -52,6 +55,7 @@ static func _load() -> void:
 	_errors.clear()
 	_defs.clear()
 	_set_number_of.clear()
+	_set_number_of_leader.clear()
 	_data = _read_json("res://data/cards.json")
 	if _data.is_empty():
 		_data = {"sets": {}, "essences": {}, "elements": {}, "triggers": {}, "tribe": {}, "keywords": {}, "leaders": {}}
@@ -76,10 +80,34 @@ static func _load() -> void:
 				_data["cards"][id] = cd
 				_set_number_of[id] = set_number
 				_defs[id] = CardDef.new(id, cd)
+	_data["leaders"] = {}
+	for set_key in _data["sets"]:
+		_load_leaders_of_set(int(set_key))
 	for id in _data["cards"]:
 		_validate_card(id, _data["cards"][id])
 	for lid in _data["leaders"]:
 		_validate_leader(lid, _data["leaders"][lid])
+
+## Reads every Leader file of one set (data/leaders/set<number>/<id>.json). The Leader's id is its file name,
+## unique across every set, exactly like a card id.
+static func _load_leaders_of_set(set_number: int) -> void:
+	var dir_path: String = "res://data/leaders/%s" % set_folder_name(set_number)
+	if not DirAccess.dir_exists_absolute(dir_path):
+		return
+	var file_names := Array(DirAccess.get_files_at(dir_path))
+	file_names.sort()
+	for file_name in file_names:
+		if not String(file_name).ends_with(".json"):
+			continue
+		var id := String(file_name).trim_suffix(".json")
+		if _data["leaders"].has(id):
+			_errors.append("líder %s: id repetido (já existe na pasta %s; o id é o nome do arquivo e vale para todos os sets)" % [id, set_folder_name(_set_number_of_leader[id])])
+			continue
+		var ld := _read_json(dir_path + "/" + String(file_name))
+		if ld.is_empty():
+			continue
+		_data["leaders"][id] = ld
+		_set_number_of_leader[id] = set_number
 
 static func _read_json(path: String) -> Dictionary:
 	if not FileAccess.file_exists(path):
@@ -224,9 +252,16 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 
 static func _validate_leader(lid: String, ld: Dictionary) -> void:
 	var err := func(msg: String): _errors.append("líder %s: %s" % [lid, msg])
-	for field in ["name", "hp", "incarnation", "ability"]:
+	for field in ["name", "set", "hp", "incarnation", "ability"]:
 		if not ld.has(field):
 			err.call("falta \"%s\"" % field)
+	if ld.has("set"):
+		if not (ld["set"] is float or ld["set"] is int):
+			err.call("o campo \"set\" precisa ser o número do set (ex.: 2), não \"%s\"" % ld["set"])
+		elif not _data.get("sets", {}).has(str(int(ld["set"]))):
+			err.call("set desconhecido %d (cadastre o número e o nome em \"sets\" de data/cards.json)" % int(ld["set"]))
+		elif _set_number_of_leader.has(lid) and _set_number_of_leader[lid] != int(ld["set"]):
+			err.call("o campo \"set\" diz %d mas o arquivo está na pasta do set %d" % [int(ld["set"]), _set_number_of_leader[lid]])
 	if not _data["cards"].has(ld.get("incarnation", "")):
 		err.call("incarnation inexistente \"%s\"" % ld.get("incarnation", ""))
 	elif not is_incarnation_option(lid, String(ld["incarnation"])):

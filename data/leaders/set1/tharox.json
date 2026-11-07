@@ -1,0 +1,24 @@
+{
+  "name": "Tharox",
+  "set": 1,
+  "hp": 35,
+  "art": "montanha/tharox_lider.webp",
+  "incarnation": "tharox",
+  "ability": {
+    "name": "Massa Inamolgável",
+    "cost": 1,
+    "once_per_turn": true,
+    "speed": "instantaneo",
+    "effects": [
+      {
+        "action": "buff",
+        "target": "ally_unit",
+        "armor_temp": 1
+      }
+    ],
+    "text": "Instantânea. 1 Momentum, uma vez por turno: concede Armadura 1 até o início do seu próximo turno a uma unidade aliada."
+  },
+  "essences": [
+    "montanha"
+  ]
+}

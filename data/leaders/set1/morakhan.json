@@ -1,0 +1,27 @@
+{
+  "name": "Morakhan",
+  "set": 1,
+  "hp": 35,
+  "art": "montanha/morakhan_lider.webp",
+  "incarnation": "morakhan",
+  "ability": {
+    "name": "Postura da Montanha",
+    "cost": 2,
+    "once_per_turn": true,
+    "speed": "instantaneo",
+    "effects": [
+      {
+        "action": "buff",
+        "target": "ally_unit",
+        "keywords": [
+          "reflexao"
+        ],
+        "temp": true
+      }
+    ],
+    "text": "Instantânea. 2 Momentum, uma vez por turno: concede Reflexão neste turno a uma unidade aliada."
+  },
+  "essences": [
+    "montanha"
+  ]
+}

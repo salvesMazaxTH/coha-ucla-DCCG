@@ -1,0 +1,23 @@
+{
+  "name": "Nythera",
+  "set": 1,
+  "hp": 30,
+  "art": "fluxo/nythera_lider.webp",
+  "incarnation": "nythera",
+  "ability": {
+    "name": "Sopro Gélido",
+    "cost": 3,
+    "once_per_turn": true,
+    "speed": "rapido",
+    "effects": [
+      {
+        "action": "freeze",
+        "target": "enemy_unit"
+      }
+    ],
+    "text": "Rápida. 3 Momentum, uma vez por turno: congele uma unidade inimiga."
+  },
+  "essences": [
+    "fluxo"
+  ]
+}

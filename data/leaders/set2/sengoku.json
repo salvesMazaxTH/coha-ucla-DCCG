@@ -1,0 +1,33 @@
+{
+  "name": "Sengoku",
+  "set": 2,
+  "banned": true,
+  "hp": 30,
+  "art": "furia/sengoku_lider.webp",
+  "incarnation": "sengoku",
+  "ability": {
+    "name": "Peso dos Séculos",
+    "cost": 0,
+    "life_cost": {
+      "start": 2,
+      "increase_per_own_turn": 2
+    },
+    "once_per_turn": true,
+    "speed": "lento",
+    "effects": [
+      {
+        "action": "grant_play_discount",
+        "target": "none",
+        "divisor": 2,
+        "card_filter": {
+          "max_cost": 6,
+          "tribe": "dragonoide"
+        }
+      }
+    ],
+    "text": "Lenta. Uma vez por turno: seu Líder paga X de Vida. Neste turno, seu próximo Dragonoide de custo base até (6) na mão custa metade do custo atual (arredondado para cima). X começa em 2 e aumenta 2 por turno seu."
+  },
+  "essences": [
+    "furia"
+  ]
+}

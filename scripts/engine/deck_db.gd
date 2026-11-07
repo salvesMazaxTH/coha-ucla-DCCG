@@ -91,7 +91,7 @@ static func is_deck_visible(deck_id: String) -> bool:
 	var deck: Dictionary = get_deck(deck_id)
 	return not bool(deck.get("unreleased", false)) and is_leader_visible(String(deck.get("leader", "")))
 
-## A banned Leader ("banned": true in cards.json) is still listed everywhere, marked BANIDO, but cannot be
+## A banned Leader ("banned": true in its data/leaders file) is still listed everywhere, marked BANIDO, but cannot be
 ## picked or played unless the game runs in development mode. This is a rule for the menus and the match
 ## server only: validate_cards / GameState stay unaware of it so the tests can keep building these decks.
 static func is_leader_banned(leader_id: String) -> bool:

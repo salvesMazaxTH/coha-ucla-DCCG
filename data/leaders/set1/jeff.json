@@ -1,0 +1,35 @@
+{
+  "name": "Jeff The Death",
+  "set": 1,
+  "hp": 25,
+  "art": "trevas/jeff_lider.webp",
+  "incarnation": "jeff",
+  "ability": {
+    "name": "Ceifa",
+    "cost": 1,
+    "once_per_turn": true,
+    "speed": "lento",
+    "effects": [
+      {
+        "action": "sacrifice",
+        "target": "ally_unit",
+        "then": [
+          {
+            "action": "draw",
+            "target": "none",
+            "amount": 1
+          },
+          {
+            "action": "heal_leader",
+            "target": "own_leader",
+            "amount": 1
+          }
+        ]
+      }
+    ],
+    "text": "Lenta. 1 Momentum, uma vez por turno: sacrifique uma unidade aliada; compre 1 carta e recupere 1 de Vida."
+  },
+  "essences": [
+    "trevas"
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "name": "Mali Magarc",
+  "set": 2,
+  "hp": 30,
+  "art": "neutra/mali_magarc_lider.webp",
+  "incarnation": "mali_magarc",
+  "ability": {
+    "name": "Sobras do Dragão",
+    "cost": 1,
+    "speed": "instantaneo",
+    "graveyard_cost": {
+      "kind": "spell",
+      "amount": 2
+    },
+    "effects": [
+      {
+        "action": "draw",
+        "target": "none",
+        "amount": 1
+      },
+      {
+        "action": "gain_reserve",
+        "target": "none",
+        "amount": 2
+      }
+    ],
+    "text": "Instantânea. 1 Momentum: bane 2 feitiços do seu cemitério, compra 1 carta e enche a Reserva até o limite."
+  },
+  "essences": [
+    "neutra"
+  ]
+}

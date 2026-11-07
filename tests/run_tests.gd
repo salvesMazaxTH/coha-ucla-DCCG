@@ -217,6 +217,16 @@ func _test_card_sets() -> void:
 		for set_number in CardDB.set_numbers():
 			registered = registered or CardDB.set_folder_name(set_number) == folder
 		check(registered, "pasta data/cards/%s não está cadastrada em \"sets\" de data/cards.json" % folder)
+	# same for the Leaders: data/leaders/<set>/ folders must be registered, and every Leader carries a valid "set"
+	for folder in DirAccess.get_directories_at("res://data/leaders"):
+		var leader_folder_registered := false
+		for set_number in CardDB.set_numbers():
+			leader_folder_registered = leader_folder_registered or CardDB.set_folder_name(set_number) == folder
+		check(leader_folder_registered, "pasta data/leaders/%s não está cadastrada em \"sets\" de data/cards.json" % folder)
+	check(CardDB.data()["leaders"].size() == 22, "líderes: os 22 Líderes foram carregados de data/leaders (%d)" % CardDB.data()["leaders"].size())
+	for leader_id in CardDB.data()["leaders"]:
+		var leader_set := int(CardDB.leader(String(leader_id)).get("set", 0))
+		check(sets.has(str(leader_set)), "líder %s: sem set válido (%d)" % [leader_id, leader_set])
 	var cards_per_set := {}
 	for card_id in CardDB.data()["cards"]:
 		var set_number := CardDB.set_number_of(CardDB.card(card_id))

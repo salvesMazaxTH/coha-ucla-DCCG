@@ -1,0 +1,28 @@
+{
+  "name": "Voltexz",
+  "set": 1,
+  "hp": 30,
+  "art": "tormenta/voltexz_lider.webp",
+  "art_focus": 0.2,
+  "incarnation": "voltexz",
+  "ability": {
+    "name": "Sobrecarga",
+    "passive": true,
+    "trigger": "on_turn_start",
+    "cost": 0,
+    "own_turn_only": true,
+    "effects": [
+      {
+        "action": "gain_momentum",
+        "target": "none",
+        "per": "leaked",
+        "divisor": 2,
+        "max": 2
+      }
+    ],
+    "text": "Passiva. No início do seu turno, recupere metade do Momentum que vazou da Reserva, arredondada para baixo (máx. 2)."
+  },
+  "essences": [
+    "tormenta"
+  ]
+}

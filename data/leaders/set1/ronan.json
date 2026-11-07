@@ -1,0 +1,24 @@
+{
+  "name": "Ronan",
+  "set": 1,
+  "hp": 25,
+  "art": "furia/ronan.webp",
+  "incarnation": "ronan",
+  "ability": {
+    "name": "Pavio Curto",
+    "cost": 2,
+    "once_per_cycle": true,
+    "speed": "instantaneo",
+    "effects": [
+      {
+        "action": "damage",
+        "target": "any",
+        "amount": 1
+      }
+    ],
+    "text": "Instantânea. 2 Momentum: cause 1 de dano a qualquer alvo. Recarrega no início do seu turno (se usada no turno do oponente, só volta no seu)."
+  },
+  "essences": [
+    "furia"
+  ]
+}

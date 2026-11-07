@@ -33,7 +33,7 @@ Há exatamente um deck pronto por Líder, todos na seção "ESSENCIAIS: DECKS DO
 
 - `name`, `description`: texto exibido na tela de seleção.
 - `order`: posição no grid (menor primeiro; desempate pelo ID).
-- `leader`: ID em `leaders` do `../cards.json`.
+- `leader`: ID do Líder (nome do arquivo em `../leaders/set<número>/<id>.json`).
 - `cards`: `id da carta -> cópias`. Precisa somar **44** cartas **mais 1 Encarnação** do Líder (45 no arquivo), com no máximo **3** cópias, só domínios permitidos pelo Líder.
 
 ## Carregamento

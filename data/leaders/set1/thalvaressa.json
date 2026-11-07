@@ -1,0 +1,30 @@
+{
+  "name": "Thalvaressa",
+  "set": 1,
+  "hp": 30,
+  "art": "natureza/thalvaressa_lider.webp",
+  "incarnation": "thalvaressa",
+  "ability": {
+    "name": "Crescimento do Dossel",
+    "passive": true,
+    "trigger": "on_ally_token_summon",
+    "cost": 0,
+    "own_turn_only": true,
+    "max_per_turn": 2,
+    "effects": [
+      {
+        "action": "buff",
+        "target": "random_other_ally_unit",
+        "only_tribe": [
+          "planta"
+        ],
+        "atk": 0,
+        "hp": 1
+      }
+    ],
+    "text": "No seu turno, até 2 vezes por turno, quando você invocar uma ficha, concede +1 de Vida permanente a outra planta aliada aleatória (nunca a própria ficha)."
+  },
+  "essences": [
+    "natureza"
+  ]
+}

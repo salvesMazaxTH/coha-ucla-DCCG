@@ -23,7 +23,11 @@ Por exemplo:
 "keywords": ["voo", "impeto"]
 ```
 
-O arquivo `../cards.json` continua guardando elementos, palavras-chave, espécies e líderes. Os decks prontos ficam em `../decks/` (ver o README de lá). O carregamento das cartas individuais é feito por `scripts/engine/card_db.gd`.
+O arquivo `../cards.json` continua guardando sets, domínios, elementos, gatilhos, palavras-chave e espécies. Os **Líderes** ficam fora dele, um arquivo por Líder, em `data/leaders/set<número>/<id>.json` (ver abaixo). Os decks prontos ficam em `../decks/` (ver o README de lá). O carregamento das cartas individuais é feito por `scripts/engine/card_db.gd`.
+
+## Líderes
+
+Cada Líder tem o próprio arquivo em `data/leaders/set<número>/<id>.json` (sem pasta de domínio, porque um Líder pode ter até 2 domínios, em `essences`). O ID é o nome do arquivo e é único entre todos os sets. Como numa carta, o campo `set` é o número do set (ex.: `"set": 2`) e deve bater com a pasta; o carregador acusa erro se não baterem. Os outros campos são os de antes: `name`, `hp`, `art`, `incarnation`, `essences`, `ability` e os opcionais `banned`, `unreleased` e `art_focus`. O resto do código continua lendo `CardDB.data()["leaders"]` e `CardDB.leader(id)`.
 
 ## Campos opcionais
 

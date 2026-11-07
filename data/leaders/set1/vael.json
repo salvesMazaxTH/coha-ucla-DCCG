@@ -1,0 +1,25 @@
+{
+  "name": "Vael",
+  "set": 1,
+  "hp": 25,
+  "art": "neutra/vael_lider.webp",
+  "incarnation": "vael",
+  "ability": {
+    "name": "Fio da Lâmina",
+    "cost": 2,
+    "once_per_turn": true,
+    "speed": "rapido",
+    "effects": [
+      {
+        "action": "buff",
+        "target": "ally_unit",
+        "atk": 2,
+        "temp": true
+      }
+    ],
+    "text": "Rápida. 2 Momentum, uma vez por turno: concede +2 de Ataque neste turno a uma unidade aliada."
+  },
+  "essences": [
+    "neutra"
+  ]
+}

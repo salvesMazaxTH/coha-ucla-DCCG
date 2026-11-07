@@ -1,0 +1,25 @@
+{
+  "name": "Naelthos",
+  "set": 1,
+  "hp": 30,
+  "art": "fluxo/naelthos_lider.webp",
+  "incarnation": "naelthos",
+  "ability": {
+    "name": "Mar que Retorna",
+    "cost": 2,
+    "once_per_turn": true,
+    "speed": "instantaneo",
+    "uncounterable": true,
+    "effects": [
+      {
+        "action": "leader_max_up",
+        "target": "own_leader",
+        "amount": 1
+      }
+    ],
+    "text": "Instantânea. 2 Momentum, uma vez por turno: seu Líder ganha +1 de Vida, mesmo acima da Vida inicial (aumenta a Vida máxima). Pode ser respondida, mas não pode ser anulada."
+  },
+  "essences": [
+    "fluxo"
+  ]
+}

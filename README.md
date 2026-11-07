@@ -5,7 +5,7 @@ Card game PvP com os campeões do universo de Atecra, feito em **Godot 4.7**.
 - **Jogar:** abra o `project.godot` no Godot e aperte F5. No menu dá para escolher partida contra a IA ou hot-seat.
 - **Desenvolvimento:** execute `modo_desenvolvimento.bat`; durante uma partida local, F12 abre ferramentas de teste. O modo oculta e bloqueia partidas online e revela cartas/decks com `"unreleased": true`.
 - **Regras:** [docs/REGRAS_v0.2.md](docs/REGRAS_v0.2.md)
-- **Cartas:** [data/cards/](data/cards/). **Líderes, essências e keywords:** [data/cards.json](data/cards.json). **Decks prontos:** [data/decks/](data/decks/)
+- **Cartas:** [data/cards/](data/cards/). **Líderes:** [data/leaders/](data/leaders/) (um arquivo por Líder, em `set<número>/`). **Sets, essências e keywords:** [data/cards.json](data/cards.json). **Decks prontos:** [data/decks/](data/decks/)
 - **Testes:** `godot --headless --path . -s tests/run_tests.gd`. Validam os decks, testam o combate e rodam 40 partidas de IA contra IA.
 - **Jogar no celular:** execute `atualizar_e_servir.bat` e abra o endereço HTTPS informado no celular. O script importa as artes novas, otimiza os retratos com configuração padrão e exporta o jogo; os arquivos originais não são alterados. O tamanho do pacote influencia o tempo de abertura, mesmo com cache.
 

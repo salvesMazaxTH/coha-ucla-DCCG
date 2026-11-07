@@ -1,0 +1,25 @@
+{
+  "name": "Layla",
+  "set": 2,
+  "hp": 25,
+  "art": "tormenta/layla_lider.webp",
+  "incarnation": "layla_veyr",
+  "ability": {
+    "name": "Descarga Dirigida",
+    "cost": 2,
+    "once_per_turn": true,
+    "speed": "instantaneo",
+    "effects": [
+      {
+        "action": "damage",
+        "target": "enemy_unit",
+        "amount": 1,
+        "amount_if_stunned": 2
+      }
+    ],
+    "text": "Instantânea. 2 Momentum, uma vez por turno: cause 1 de dano a uma unidade inimiga, ou 2 se ela estiver Atordoada."
+  },
+  "essences": [
+    "tormenta"
+  ]
+}
