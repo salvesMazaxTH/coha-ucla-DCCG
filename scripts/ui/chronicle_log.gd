@@ -327,6 +327,12 @@ func _log_event(e: Dictionary) -> void:
 		"banish":
 			_log("%s foi banida" % _cname(e["card_id"]))
 
+		"control_change":
+			var borrowed := g.find_unit(e["uid"])
+			_log("%s assumiu o controle de %s até o fim do turno" % [_pname(e["to"]), "uma unidade" if borrowed == null else _cname(borrowed.card_id)])
+		"control_return":
+			var returned := g.find_unit(e["uid"])
+			_log("%s voltou para o campo de %s" % ["Uma unidade" if returned == null else _cname(returned.card_id), _pname(e["to"])])
 		"sacrifice":
 			var sacrificed := g.find_unit(e["uid"])
 			_log("%s sacrificou %s" % [_pname(e["player"]), "uma unidade" if sacrificed == null else _cname(sacrificed.card_id)])

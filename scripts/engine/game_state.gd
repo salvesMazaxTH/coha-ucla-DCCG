@@ -369,9 +369,14 @@ func find_relic(uid: int) -> Card:
 				return c
 	return null
 
-## How many of p's BOARD_LIMIT field slots are taken: units plus free-standing artifacts.
+## How many of p's BOARD_LIMIT field slots are taken: units plus free-standing artifacts, plus the slots
+## of p's units that an enemy is borrowing right now (take_control): those slots stay reserved so the unit can come home.
 func slots_used(p: int) -> int:
-	return players[p]["board"].size() + players[p]["relics"].size()
+	var used: int = players[p]["board"].size() + players[p]["relics"].size()
+	for borrowed: Card in players[opponent(p)]["board"]:
+		if borrowed.home_owner == p:
+			used += 1
+	return used
 
 ## True while p still has a free field slot for a unit or an artifact. Slots frozen by Rei Gelado don't count.
 func has_free_slot(p: int) -> bool:
@@ -380,7 +385,7 @@ func has_free_slot(p: int) -> bool:
 ## True when p can put one more permanent on the field: either a slot is free, or the field is full
 ## but something on it can be banished to make room (see room_banish_options).
 func has_slot_or_banish(p: int) -> bool:
-	return has_free_slot(p) or slots_used(p) > 0
+	return has_free_slot(p) or players[p]["board"].size() + players[p]["relics"].size() > 0
 
 ## The uids p may banish from their own field to make room for a new permanent when the field is
 ## full: every unit and every free-standing artifact they control. Empty while a slot is still free.
@@ -1419,6 +1424,10 @@ func meets_unit_requirement(target_uid: int, spec: String, effects: Array) -> bo
 			continue
 		if effect.get("requires_exhausted", false) and (unit == null or not unit.exhausted):
 			return false
+		# "take_control" only aims at enemy units, so the thief is the opponent of the target's owner
+		if effect.get("action", "") == "take_control" and unit != null \
+				and not ControlEffect.can_take(self, opponent(unit.owner), unit):
+			return false
 		if unit != null and (effect.get("not_rarity", []) as Array).has(CardDB.card(unit.card_id).get("rarity", "")):
 			return false
 		var unit_filter: Dictionary = effect.get("unit_filter", {})
@@ -2260,12 +2269,30 @@ func transform_into(c: Card, into_id: String) -> void:
 	var target := uid if target_spec(cd["effects"]) == "ally_unit" else 0
 	run_enter_effects(_enter_context(p, uid, target), cd["effects"])
 
+## A unit under borrowed control (take_control) that has just been taken off the thief's board belongs to its real
+## owner again: whatever happens to it next (graveyard, hand, banished, its equipment) goes to the real owner.
+## Call it right after erasing the unit from the board array; it only changes who owns the card.
+func _end_borrowed_control(c: Card) -> void:
+	if c.home_owner >= 0:
+		c.owner = c.home_owner
+		c.home_owner = -1
+
+## Puts a borrowed unit back on its real owner's board (the end of the turn it was taken in). Its slot there was
+## kept reserved by slots_used, so there is always room.
+func _return_borrowed_unit(c: Card) -> void:
+	var thief: int = c.owner
+	players[thief]["board"].erase(c)
+	_end_borrowed_control(c)
+	players[c.owner]["board"].append(c)
+	_emit({"type": "control_return", "uid": c.uid, "from": thief, "to": c.owner})
+
 ## Exiles a unit from the board: it never dies (no Ao Morrer) and never reaches the graveyard;
 ## its equipment does. A banished ficha just vanishes. A banished Encarnação goes back to the
 ## Santuário (or retires) exactly as if it had died, so a single banish never costs a deck its Encarnação.
 func banish_unit(exiled: Card) -> void:
+	players[exiled.owner]["board"].erase(exiled)
+	_end_borrowed_control(exiled)
 	var owner_player: int = exiled.owner
-	players[owner_player]["board"].erase(exiled)
 	_release_equipment(exiled)
 	if exiled.incarnation:
 		_move(exiled, "")
@@ -2289,6 +2316,8 @@ func return_to_hand(c: Card, cost_increase := 0) -> bool:
 	var owner_player: int = c.owner
 	if c.zone == "board":
 		players[owner_player]["board"].erase(c)
+		_end_borrowed_control(c) # a borrowed unit goes back to its real owner's hand, not the thief's
+		owner_player = c.owner
 		stack_system().return_equipment_to_hand(c)
 		if c.data().get("token", false):
 			_move(c, "")
@@ -4168,6 +4197,7 @@ func _move_dead_units() -> void:
 					# remembered before the equipment drops to the graveyard, so an Aliado Morre can still take it (Nina)
 					var dying_equipment: Array = c.equipped_cards.duplicate()
 					players[p]["board"].erase(c)
+					_end_borrowed_control(c) # a borrowed unit rests in its REAL owner's graveyard; the death triggers stay with the controller p
 					changed = true
 					_emit({"type": "death", "uid": dead_uid, "player": p, "card_id": dying_card_id})
 					_release_equipment(c, true)
@@ -4177,7 +4207,7 @@ func _move_dead_units() -> void:
 					elif c.data().get("token", false):
 						_move(c, "") # a ficha dies without ever reaching the graveyard (Vagante, Jeff don't count it)
 					else:
-						players[p]["graveyard"].append(c)
+						players[c.owner]["graveyard"].append(c)
 						_move(c, "graveyard")
 					var death_context := EffectContext.new(self, p, "on_death")
 					death_context.self_uid = dead_uid
@@ -4305,6 +4335,11 @@ func _finish_turn() -> void:
 		players[active]["momentum"] = momentum_cap(active)
 		_refresh_scaling()
 		_emit({"type": "momentum", "player": active})
+	# units borrowed with take_control go home now, before the end-of-turn cleanup below, so each is cleaned as its real owner's
+	for thief_state in players:
+		for c: Card in thief_state["board"].duplicate():
+			if c.home_owner >= 0:
+				_return_borrowed_unit(c)
 	# Dona Gertrudes: the champions she borrowed from the hand leave the game now
 	for p in players:
 		for c: Card in p["board"].duplicate():

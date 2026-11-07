@@ -156,6 +156,7 @@ func _init() -> void:
 	_test_mali_and_ottilia()
 	_test_natureza_canil()
 	_test_wendell()
+	_test_bruce()
 	_test_set2_neutral_spells()
 	_test_mali_leader_graveyard_cost()
 	_test_censo_and_queima()
@@ -8080,6 +8081,70 @@ func _test_wendell() -> void:
 	g._summon(p, Card.new(g._uid(), "wendell_comportao", p), false, 0)
 	g._flush()
 	check(g.phase != "search" and g.players[p]["hand"].is_empty() and g.players[p]["deck"].size() == deck_empty_hand, "Wendell: com a mão vazia nada acontece")
+
+## Bruce (Fluxo): Ao Entrar rouba uma unidade inimiga até o fim do turno ("take_control").
+func _test_bruce() -> void:
+	_tcard("t_bruce_victim", 2, 4, [])
+	_tcard("t_bruce_filler", 1, 1, [])
+	# rouba, a unidade pode atacar na hora e volta para o dono no fim do turno
+	var g := _new_game()
+	_quiet(g)
+	var victim := _put(g, 1, "t_bruce_victim")
+	victim.exhausted = true # estava virada: o novo dono a desvira
+	g.players[0]["momentum"] = 10
+	_play_aimed(g, 0, "bruce", victim.uid)
+	check(g.players[0]["board"].has(victim) and not g.players[1]["board"].has(victim), "Bruce: a unidade inimiga passa para o campo de quem jogou")
+	check(victim.owner == 0 and victim.home_owner == 1, "Bruce: controlador %d, dono de verdade %d" % [victim.owner, victim.home_owner])
+	check(not victim.exhausted and not victim.sick, "Bruce: a unidade roubada vem desvirada e pronta para atacar")
+	check(g.slots_used(1) == 1, "Bruce: o espaço da vítima continua reservado (%d)" % g.slots_used(1))
+	_hit(g, victim)
+	check(victim.exhausted, "Bruce: a unidade roubada atacou")
+	g.end_turn(0)
+	check(g.players[1]["board"].has(victim) and not g.players[0]["board"].has(victim), "Bruce: no fim do turno ela volta para o campo do dono")
+	check(victim.owner == 1 and victim.home_owner == -1, "Bruce: dono restaurado")
+	# Ao Entrar da unidade roubada não dispara de novo (ela não foi invocada)
+	# morrer sob controle alheio: vai para o cemitério do dono de verdade
+	var g_die := _new_game()
+	_quiet(g_die)
+	var doomed := _put(g_die, 1, "t_bruce_victim")
+	g_die.players[0]["momentum"] = 10
+	_play_aimed(g_die, 0, "bruce", doomed.uid)
+	doomed.damage = 99
+	g_die._check_state()
+	check(g_die.players[1]["graveyard"].has(doomed) and not g_die.players[0]["graveyard"].has(doomed), "Bruce: a roubada que morre vai para o cemitério do dono de verdade")
+	check(doomed.owner == 1 and doomed.home_owner == -1, "Bruce: dono restaurado depois de morrer")
+	check(g_die.slots_used(1) == 0 and g_die.slots_used(0) == 1, "Bruce: sem reserva sobrando depois da morte (%d/%d)" % [g_die.slots_used(0), g_die.slots_used(1)])
+	# devolver à mão: vai para a mão do dono de verdade
+	var g_hand := _new_game()
+	_quiet(g_hand)
+	var bounced := _put(g_hand, 1, "t_bruce_victim")
+	g_hand.players[0]["momentum"] = 10
+	_play_aimed(g_hand, 0, "bruce", bounced.uid)
+	g_hand.return_to_hand(bounced)
+	check(g_hand.players[1]["hand"].has(bounced) and not g_hand.players[0]["hand"].has(bounced), "Bruce: devolvida à mão do dono de verdade")
+	check(bounced.owner == 1, "Bruce: dono restaurado depois de voltar à mão")
+	# banir: vai para os banidos do dono de verdade
+	var g_ban := _new_game()
+	_quiet(g_ban)
+	var banished := _put(g_ban, 1, "t_bruce_victim")
+	g_ban.players[0]["momentum"] = 10
+	_play_aimed(g_ban, 0, "bruce", banished.uid)
+	g_ban.banish_unit(banished)
+	check(banished.owner == 1 and banished.home_owner == -1 and not g_ban.players[0]["board"].has(banished), "Bruce: banida volta a pertencer ao dono de verdade")
+	# campo cheio de quem rouba: não há alvo válido
+	var g_full := _new_game()
+	_quiet(g_full)
+	var far := _put(g_full, 1, "t_bruce_victim")
+	for i in 7: # Bruce em si ocupa o último espaço livre ao entrar, então 7 + ele = 8
+		_put(g_full, 0, "t_bruce_filler")
+	check(not ControlEffect.can_take(g_full, 0, far) or g_full.has_free_slot(0), "Bruce: pode_roubar respeita o limite de campo")
+	_put(g_full, 0, "t_bruce_filler")
+	check(not g_full.has_free_slot(0) and not ControlEffect.can_take(g_full, 0, far), "Bruce: com o campo cheio ninguém é roubado")
+	# Encarnação nunca é roubada
+	var g_inc := _new_game()
+	var inc := _put(g_inc, 1, "t_bruce_victim")
+	inc.incarnation = true
+	check(not ControlEffect.can_take(g_inc, 0, inc), "Bruce: Encarnação não pode ser roubada")
 
 func _test_cornelia() -> void:
 	_tcard("t_cornelia_ally", 1, 3, [])

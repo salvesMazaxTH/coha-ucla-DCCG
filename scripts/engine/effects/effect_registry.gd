@@ -29,6 +29,7 @@ static var ACTIONS: Dictionary = {
 	"grave_to_hand": DeckEffect,
 	"enemy_hand_bottom": DeckEffect,
 	"hand_to_bottom": DeckEffect,
+	"take_control": ControlEffect,
 	"enemy_hand_tax": DeckEffect,
 	"freeze": FreezeEffect,
 	"unfreeze": FreezeEffect,

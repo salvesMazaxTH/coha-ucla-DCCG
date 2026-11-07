@@ -15,6 +15,7 @@ var cost_mod := 0 ## added to the cost in every zone and never reset (A Vagante 
 var permanent_buffs: Dictionary = {} ## permanent unit upgrades that survive a non-death return to hand or the Santuário
 var banish_after_cast := false ## taken back from the graveyard by "grave_retrieve": it is banished when its next cast ends
 var banish_at_turn_end := false ## put into play by "summon_hand_pick" (Dona Gertrudes): banished when the turn ends
+var home_owner := -1 ## set only while the unit is under borrowed control ("take_control"): the player it really belongs to; -1 = it is under its own owner's control
 var over: Dictionary = {} ## per-instance overrides of the card data (atk, hp, keywords, effects, text...)
 
 # board state
@@ -98,7 +99,7 @@ var stored_momentum := 0 ## Momentum held by an artifact with "momentum_store": 
 ## Fields copy_modifiers_from leaves alone: who the card is and where it is, what only matters in other zones, and
 ## what a unit DID (not what was done to it).
 const NOT_COPIED_FIELDS := ["uid", "card_id", "owner", "zone", "over", "incarnation", "equipped_cards", "worn_grant",
-		"discount", "turn_discount", "cost_mod", "banish_after_cast", "banish_at_turn_end",
+		"discount", "turn_discount", "cost_mod", "banish_after_cast", "banish_at_turn_end", "home_owner",
 		"intrinsic_atk", "intrinsic_hp",
 		"pending_self_revive_turn", "pending_self_revive_atk", "pending_self_revive_hp",
 		"exhausted", "sick", "attacks_made", "used_turn", "capped_uses", "conditional_uses_turn", "conditional_uses",
@@ -117,6 +118,11 @@ func _init(card_uid: int, id: String, owner_player: int, in_zone: String = "") -
 	card_id = id
 	owner = owner_player
 	zone = in_zone
+
+## The player this card really belongs to: its owner, unless it is under borrowed control ("take_control"),
+## in which case `owner` is the temporary controller and `home_owner` is the real one.
+func rightful_owner() -> int:
+	return home_owner if home_owner >= 0 else owner
 
 ## Durability this artifact has left (-1 when the card has none: units, spells and "local" artifacts).
 ## Every artifact that is not "local" has "durability": N in its data; it loses points only as the card's own
