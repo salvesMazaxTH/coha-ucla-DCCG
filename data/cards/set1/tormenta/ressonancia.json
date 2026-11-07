@@ -15,10 +15,11 @@
       "target": "ally_unit",
       "keywords": [
         "escudo_magico"
-      ]
+      ],
+      "temp": true
     }
   ],
-  "text": "Concede Escudo Mágico a uma unidade aliada à sua escolha.",
+  "text": "Concede Escudo Mágico até o fim do turno a uma unidade aliada à sua escolha.",
   "flavor": "",
   "tags": []
 }

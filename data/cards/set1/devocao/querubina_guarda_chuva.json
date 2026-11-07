@@ -22,10 +22,10 @@
       "trigger": "on_enter",
       "action": "buff",
       "target": "other_ally_unit",
-      "keywords": ["escudo_magico"]
+      "keywords": ["escudo"]
     }
   ],
-  "text": "Ao Entrar: seu Líder recupera 1 de Vida e você pode conceder Escudo Mágico a outra unidade aliada à sua escolha.",
+  "text": "Ao Entrar: seu Líder recupera 1 de Vida e você pode conceder Escudo a outra unidade aliada à sua escolha.",
   "flavor": "Não impede a chuva. Impede todo o resto.",
   "tags": []
 }

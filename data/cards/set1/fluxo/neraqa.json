@@ -19,14 +19,14 @@
       "trigger": "on_enter",
       "action": "buff",
       "target": "other_ally_unit",
-      "keywords": [
+      "keywords_this_turn": [
         "escudo_magico"
       ],
       "atk": 1,
       "hp": 1
     }
   ],
-  "text": "Ao Entrar: você pode conceder Escudo Mágico e +1/+1 permanente a outra unidade aliada à sua escolha.",
+  "text": "Ao Entrar: você pode conceder +1/+1 permanente e, só neste turno, Escudo Mágico a outra unidade aliada à sua escolha.",
   "flavor": "Quebra sobre eles, e volta à calma.",
   "tags": []
 }
