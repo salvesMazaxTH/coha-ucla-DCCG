@@ -7490,15 +7490,16 @@ func _test_set2_neutral_spells() -> void:
 	_resolve_whole_stack(g)
 	check(g.players[1]["leader_hp"] == leader_before, "Feitiço Indeferido: o feitiço anulado não causa dano")
 
-	# Quem Guarda, Tem: 1 damage per SPELL in the owner's graveyard (units there do not count)
+	# Quem Guarda, Tem: 1 damage per 2 SPELLS in the owner's graveyard, rounded down (units there do not count)
 	g = _rich_game()
-	for i in 3:
+	for i in 5:
 		g.players[0]["graveyard"].append(Card.new(g._uid(), "t_nsp_cost1", 0, "graveyard"))
+	g.players[0]["graveyard"].append(Card.new(g._uid(), "t_nsp_unit", 0, "graveyard"))
 	g.players[0]["graveyard"].append(Card.new(g._uid(), "t_nsp_unit", 0, "graveyard"))
 	leader_before = g.players[1]["leader_hp"]
 	g.play_card(0, _give(g, 0, "quem_guarda_tem"), GameState.LEADER_UID[1])
 	_resolve_whole_stack(g)
-	check(g.players[1]["leader_hp"] == leader_before - 3, "Quem Guarda, Tem: 3 feitiços no cemitério = 3 de dano; a unidade não conta (%d)" % (leader_before - g.players[1]["leader_hp"]))
+	check(g.players[1]["leader_hp"] == leader_before - 2, "Quem Guarda, Tem: 5 feitiços no cemitério = 2 de dano (1 a cada 2, arredonda para baixo); as unidades não contam (%d)" % (leader_before - g.players[1]["leader_hp"]))
 
 	# Arco Informe: 2 damage to the enemy Leader or to an enemy unit
 	g = _rich_game()

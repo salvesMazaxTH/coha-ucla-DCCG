@@ -14,10 +14,11 @@
       "target": "enemy_leader",
       "amount": 1,
       "amount_from": "own_graveyard_cards",
-      "graveyard_kind": "spell"
+      "graveyard_kind": "spell",
+      "divisor": 2
     }
   ],
-  "text": "causa 1 de dano ao Líder inimigo para cada feitiço no seu cemitério.",
+  "text": "causa 1 de dano ao Líder inimigo para cada 2 feitiços no seu cemitério.",
   "flavor": "Mali nunca jogou fora um feitiço sequer. Nenhum deles, por mais que o pedissem.",
   "tags": []
 }
