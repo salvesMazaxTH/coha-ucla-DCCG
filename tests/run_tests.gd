@@ -7817,26 +7817,37 @@ func _test_mali_and_ottilia() -> void:
 	_put(g7, w, "t_ottilia_pinger")
 	check(g7.players[x]["leader_hp"] == leader_before - 1, "Ottilia: dano de unidade não é ampliado")
 
-	# razão 3x: com 1 unidade e 3 feitiços no deck vale; com 1 unidade e 2 feitiços, não; recontado a cada vez
+	# mais do que o dobro: com 1 unidade e 3 feitiços no deck vale; com 1 unidade e 2 feitiços (só o dobro), não; recontado a cada vez
 	g7.players[w]["deck"] = [Card.new(g7._uid(), "t_mali_deck_unit", w, "deck")]
 	for i in 3:
 		g7.players[w]["deck"].append(Card.new(g7._uid(), "t_mali_plain", w, "deck"))
 	check(g7.spell_amplifier_bonus(w, "damage") == 1, "Ottilia: 3 feitiços para 1 unidade no deck ativa o bônus")
 	g7.players[w]["deck"].pop_back()
-	check(g7.spell_amplifier_bonus(w, "damage") == 0, "Ottilia: 2 feitiços para 1 unidade não ativa")
+	check(g7.spell_amplifier_bonus(w, "damage") == 0, "Ottilia: 2 feitiços para 1 unidade (exatamente o dobro) não ativa")
 	leader_before = g7.players[x]["leader_hp"]
 	_cast_and_resolve(g7, w, "t_mali_hit", GameState.LEADER_UID[x])
 	check(g7.players[x]["leader_hp"] == leader_before - 2, "Ottilia: com a condição falsa o feitiço causa o dano normal")
 	g7.players[w]["deck"] = []
 	check(g7.spell_amplifier_bonus(w, "damage") == 1 and g7.spell_amplifier_bonus(w, "draw") == 1, "Ottilia: deck vazio conta como 0 unidades")
 
-	# outra cópia da própria Ottilia no deck conta como unidade: só o triplo de feitiços ativa (a via do "0" fica desligada)
+	# outra cópia da própria Ottilia no deck conta como unidade: só mais do que o dobro de feitiços ativa (a via do "0" fica desligada)
 	g7.players[w]["deck"] = [Card.new(g7._uid(), "ottilia_varnholt", w, "deck")]
 	g7.players[w]["deck"].append(Card.new(g7._uid(), "t_mali_plain", w, "deck"))
 	g7.players[w]["deck"].append(Card.new(g7._uid(), "t_mali_plain", w, "deck"))
 	check(g7.spell_amplifier_bonus(w, "damage") == 0, "Ottilia: outra cópia dela no deck conta como unidade (2 feitiços não bastam)")
 	g7.players[w]["deck"].append(Card.new(g7._uid(), "t_mali_plain", w, "deck"))
-	check(g7.spell_amplifier_bonus(w, "damage") == 1, "Ottilia: com outra cópia dela no deck, 3 feitiços ativam pelo triplo")
+	check(g7.spell_amplifier_bonus(w, "damage") == 1, "Ottilia: com outra cópia dela no deck, 3 feitiços ativam (mais do que o dobro)")
+
+	# 2 unidades: 4 feitiços (o dobro) não ativa, 5 feitiços ativa
+	g7.players[w]["deck"] = [Card.new(g7._uid(), "t_mali_deck_unit", w, "deck"), Card.new(g7._uid(), "t_mali_deck_unit", w, "deck")]
+	for i in 4:
+		g7.players[w]["deck"].append(Card.new(g7._uid(), "t_mali_plain", w, "deck"))
+	check(g7.spell_amplifier_bonus(w, "damage") == 0, "Ottilia: 4 feitiços para 2 unidades (exatamente o dobro) não ativa")
+	g7.players[w]["deck"].append(Card.new(g7._uid(), "t_mali_plain", w, "deck"))
+	check(g7.spell_amplifier_bonus(w, "damage") == 1, "Ottilia: 5 feitiços para 2 unidades ativa")
+	g7.players[w]["deck"] = [Card.new(g7._uid(), "ottilia_varnholt", w, "deck")]
+	for i in 3:
+		g7.players[w]["deck"].append(Card.new(g7._uid(), "t_mali_plain", w, "deck"))
 
 	# indicador na carta/overlay: constant_conditions_of diz se a condição vale agora e mostra as contagens do deck
 	var ottilia_on_board: Card = null

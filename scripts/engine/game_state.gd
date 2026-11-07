@@ -689,9 +689,10 @@ func opponent_cost_tax(p: int, cd: Dictionary) -> int:
 
 ## What the "spell_amplifier" Constantes on player `p`'s board add to a spell of theirs: `bonus_kind` is "damage"
 ## (spells that already deal damage deal more) or "draw" (spells that already draw cards draw more). Ottilia Varnholt:
-## {"damage": 1, "draw": 1, "deck_units_max": 0, "deck_spell_ratio": 3}. The condition looks at the units and spells
-## still in the DECK (the library, recounted every time it is asked): it holds when the deck has at most
-## "deck_units_max" units, or when its spells are at least "deck_spell_ratio" times its units. The source's own
+## {"damage": 1, "draw": 1, "deck_units_max": 0, "deck_spell_ratio": 2, "deck_spell_ratio_strict": true}. The
+## condition looks at the units and spells still in the DECK (the library, recounted every time it is asked): it holds
+## when the deck has at most "deck_units_max" units, or when its spells are at least "deck_spell_ratio" times its
+## units ("deck_spell_ratio_strict": true makes it MORE than that many times, e.g. "mais do que o dobro"). The source's own
 ## double_constants applies; two sources add up.
 func spell_amplifier_bonus(p: int, bonus_kind: String) -> int:
 	var bonus := 0
@@ -710,7 +711,15 @@ func _spell_amplifier_condition_holds(p: int, e: Dictionary) -> bool:
 	if units_in_deck <= int(e.get("deck_units_max", -1)):
 		return true
 	var ratio := int(e.get("deck_spell_ratio", 0))
-	return ratio > 0 and spells_in_deck >= ratio * units_in_deck
+	return ratio > 0 and spells_in_deck >= _spells_needed_for_ratio(e, units_in_deck)
+
+## How many spells the deck needs for the "deck_spell_ratio" way of a spell_amplifier to hold, given its unit count:
+## ratio x units ("pelo menos o dobro"), or one more than that when "deck_spell_ratio_strict" ("mais do que o dobro").
+func _spells_needed_for_ratio(e: Dictionary, units_in_deck: int) -> int:
+	var needed := int(e.get("deck_spell_ratio", 0)) * units_in_deck
+	if bool(e.get("deck_spell_ratio_strict", false)):
+		needed += 1
+	return needed
 
 ## How many units and how many spells are still in player `p`'s deck: {"units", "spells"}.
 func _deck_unit_and_spell_counts(p: int) -> Dictionary:
@@ -740,7 +749,7 @@ func constant_conditions_of(c: Card) -> Array:
 			"holds": _spell_amplifier_condition_holds(c.owner, e),
 			"units": deck_counts["units"],
 			"spells": deck_counts["spells"],
-			"needed_spells": ratio * int(deck_counts["units"]) if ratio > 0 else -1,
+			"needed_spells": _spells_needed_for_ratio(e, int(deck_counts["units"])) if ratio > 0 else -1,
 		})
 	return conditions
 

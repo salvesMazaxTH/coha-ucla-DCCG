@@ -7,7 +7,7 @@ extends Effect
 ## "keyword_aura" ({"keywords": ["ataque_duplo"], "min_rapidez": 2, "include_self": true}) gives allied units the keywords while their own Rapidez is at least "min_rapidez" (GameState.keyword_aura_of, refreshed by _refresh_scaling).
 ## "opponent_aura" ({"atk": 1, "hp": 0}) gives every ENEMY unit that bonus while the source is on the board (GameState.opponent_aura_bonus, refreshed by _refresh_scaling; Magni's curse).
 ## "opponent_cost_tax" ({"card_type": "spell", "amount": 1}) makes the OPPONENT's cards of that type (empty = all) cost `amount` more while the source is on the board (GameState.opponent_cost_tax, read by cost_of; Cornélia Aldrovane).
-## "spell_amplifier" ({"damage": 1, "draw": 1, "deck_units_max": 0, "deck_spell_ratio": 3}) makes the owner's spells that already damage / draw do more, while the deck condition holds (GameState.spell_amplifier_bonus; Ottilia Varnholt).
+## "spell_amplifier" ({"damage": 1, "draw": 1, "deck_units_max": 0, "deck_spell_ratio": 2, "deck_spell_ratio_strict": true}) makes the owner's spells that already damage / draw do more, while the deck condition holds (GameState.spell_amplifier_bonus; Ottilia Varnholt).
 ## "momentum_cap" ({"cap": 12}) raises the owner's Momentum ceiling (read by GameState.momentum_cap).
 ## All of them are read straight from `raw`.
 

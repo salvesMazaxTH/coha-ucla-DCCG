@@ -17,10 +17,11 @@
       "damage": 1,
       "draw": 1,
       "deck_units_max": 0,
-      "deck_spell_ratio": 3
+      "deck_spell_ratio": 2,
+      "deck_spell_ratio_strict": true
     }
   ],
-  "text": "Constante: enquanto o seu deck tiver 0 unidades ou pelo menos o triplo de feitiços do que de unidades, os seus feitiços que causam dano causam 1 a mais e os que compram cartas compram 1 a mais.",
+  "text": "Constante: enquanto o seu deck tiver 0 unidades ou mais do que o dobro de feitiços do que de unidades, os seus feitiços que causam dano causam 1 a mais e os que compram cartas compram 1 a mais.",
   "flavor": "Em Maginácia, a ladainha neruviana é proibida. Ottilia a recita de cor, num porão, até a cisterna devolver o eco.",
   "tags": []
 }
