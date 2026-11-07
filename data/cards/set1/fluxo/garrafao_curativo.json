@@ -7,7 +7,7 @@
   "essence": "fluxo",
   "element": "agua",
   "cost": 3,
-  "durability": 4,
+  "durability": 3,
   "art": "fluxo/garrafao_curativo.webp",
   "effects": [],
   "activated": {

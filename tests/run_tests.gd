@@ -1979,8 +1979,8 @@ func _test_durability_rules() -> void:
 	# a free-standing artifact: loses points down to 0, then goes to the graveyard
 	var jug := Card.new(g._uid(), "garrafao_curativo", 0)
 	g._place_relic(0, jug)
-	g.lose_durability(jug, 3)
-	check(jug.durability_left() == 1 and g.find_relic(jug.uid) != null, "artefato: perder 3 de 4 deixa 1")
+	g.lose_durability(jug, 2)
+	check(jug.durability_left() == 1 and g.find_relic(jug.uid) != null, "artefato: perder 2 de 3 deixa 1")
 	g.lose_durability(jug, 5)
 	check(g.find_relic(jug.uid) == null, "artefato: Durabilidade 0 destrói") # it leaves the field whole again, so no counter to read
 	check(g.players[0]["graveyard"].has(jug), "artefato destruído por Durabilidade vai ao cemitério")
@@ -9197,7 +9197,7 @@ func _test_eletrica() -> void:
 	g._resolve_stack()
 	g._flush()
 	check(g.players[a]["momentum"] == 6, "carga acumulada: custa 0, dá +1")
-	# Voltexz Ao Entrar: scaled buff capped at +5/+5, Ataque Rápido for her other units (not herself)
+	# Voltexz Ao Entrar: +X/+X with X = Momentum left + 1 (no cap), Rapidez 1 for her other units (not herself)
 	g = _eletrica_game()
 	a = g.active
 	var ally := _put(g, a, "jack")
@@ -10339,13 +10339,13 @@ func _test_ai_no_waste() -> void:
 	for card: Card in jug_game.players[0]["hand"]:
 		held_cards.append(card.card_id)
 	var first_heal := SimpleAI.step(jug_game, 0, held_cards)
-	check(not first_heal.is_empty() and jug.durability_left() == 3, "IA: usa um tick do Garrafão para curar o Líder")
+	check(not first_heal.is_empty() and jug.durability_left() == 2, "IA: usa um tick do Garrafão para curar o Líder")
 	check(jug_game.stack.size() == 1 and jug_game.players[0]["leader_hp"] == jug_game.players[0]["leader_max"] - 3,
 		"IA: o primeiro tick ainda está pendente quando a próxima ação é escolhida")
 	jug_game.pass_priority(1)
 	jug_game._flush()
 	SimpleAI.step(jug_game, 0, held_cards)
-	check(jug.durability_left() == 3, "IA: não gasta mais Durabilidade enquanto a cura pendente já leva o Líder ao máximo")
+	check(jug.durability_left() == 2, "IA: não gasta mais Durabilidade enquanto a cura pendente já leva o Líder ao máximo")
 	# revive
 	var revive := CardDB.card("chamado_do_alem")
 	check(not SimpleAI._spell_is_worth_it(g, 0, revive), "IA: não ressuscita sem alvo")
