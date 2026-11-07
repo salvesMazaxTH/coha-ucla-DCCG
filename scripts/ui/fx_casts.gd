@@ -10,9 +10,13 @@ extends RefCounted
 ## Which area animation plays comes from the card: its own "cast_fx" field if it has one, otherwise
 ## its element (fogo, agua...), otherwise its domain. Elements without an animation of their own yet use
 ## a shockwave in the card's color (see area_cast).
+## The exception: a card that expressly names its own "hit_fx" (the rubies of Cuspa-Rubi, the slashes of
+## Rália...) is NOT an area cast, so it keeps firing those shots, one per target (see is_area).
 ## Most of it is built from the same cheap pieces as the shots (soft glow dots, lines, one tinted
-## rectangle, tweens). Fire and water are one rectangle with a shader each (shaders/fire_wall.gdshader,
-## shaders/water_surge.gdshader), because glow dots only ever read as energy, never as flames or liquid. On phones (effect_detail below 0.7) the extra glows are skipped.
+## rectangle, tweens). Each element animation is ONE rectangle with a shader (shaders/fire_wall,
+## water_surge, ice_frost, holy_light, lightning_storm, toxic_cloud for the areas; unit_burn, unit_drown,
+## unit_crush, unit_overgrow, unit_corrode for the single destroys), because glow dots only ever read
+## as energy, never as flames, liquid, ice or rock. On phones (effect_detail below 0.7) the extra glows are skipped.
 
 ## The Main node that owns the table.
 var host
@@ -34,12 +38,37 @@ const HARMFUL_ACTIONS := ["damage", "destroy", "add_dot", "freeze", "stun", "exh
 ## Which area animation each element plays. An element missing from this list falls back to its
 ## domain (DOMAIN_STYLES), then to the generic shockwave. To give an element its own animation, write
 ## a function like _fire_area and add its line here and in area_cast.
-const ELEMENT_STYLES := {"fogo": "fogo", "sangue": "fogo", "agua": "agua"}
-const DOMAIN_STYLES := {"furia": "fogo", "fluxo": "agua"}
+## Some styles only have an area animation (gelo, luz, raio), some only a destroy one (pedra, vegetal);
+## veneno has both. A missing one falls back to the shockwave (area) or the red X (destroy).
+const ELEMENT_STYLES := {
+	"fogo": "fogo", "sangue": "fogo", "agua": "agua",
+	"gelo": "gelo", "luz": "luz", "raio": "raio",
+	"pedra": "pedra", "vegetal": "vegetal", "veneno": "veneno",
+}
+const DOMAIN_STYLES := {"furia": "fogo", "fluxo": "agua", "tormenta": "raio"}
 
-## Colors of the sparks and glow around the fire and water shaders.
+## The styles that have their own single-unit destroy animation (see destroy_cast).
+const DESTROY_STYLES := ["fogo", "agua", "pedra", "vegetal", "veneno"]
+
+## Colors of the sparks and glow around each shader (and of the unit dissolving inside it).
 const FIRE_EDGE := Color("#ff5a1e")
 const WATER_CORE := Color("#d8f6ff")
+const ICE_GLOW := Color("#bfeaff")
+const HOLY_GOLD := Color("#ffd67a")
+const BOLT_BLUE := Color("#a8b0ff")
+const STONE_DUST := Color("#a8947a")
+const LEAF_GREEN := Color("#58b34a")
+const VENOM_PURPLE := Color("#a35ad1")
+
+## The color the unit dissolves in after a destroy animation of `style`.
+static func dissolve_color_of(style: String) -> Color:
+	match style:
+		"fogo": return FIRE_EDGE
+		"agua": return WATER_CORE
+		"pedra": return STONE_DUST
+		"vegetal": return LEAF_GREEN
+		"veneno": return VENOM_PURPLE
+	return Color.WHITE
 
 ## The area animation a card plays: its "cast_fx", or the style of its element, or of its domain.
 ## An empty string means the generic shockwave in the card's color.
@@ -58,8 +87,14 @@ func style_of(card_id: String) -> String:
 ## True when the card's effects for this trigger hit a whole group of units at once ("all_units",
 ## "all_enemy_units"...) with something harmful: that is what gets the area animation.
 ## For a spell, pass "on_play".
+## A card that expressly declares its own "hit_fx" is never an area cast: the default animation (from its
+## element or domain) must not replace the shots the card chose for itself, not even for its "Ao Entrar".
+## (A card that also declares a "cast_fx" asked for that area animation too, so it still gets it.)
 func is_area(card_id: String, trigger: String) -> bool:
-	for effect in CardDB.card(card_id).get("effects", []):
+	var card := CardDB.card(card_id)
+	if card.has("hit_fx") and not card.has("cast_fx"):
+		return false
+	for effect in card.get("effects", []):
 		if String(effect.get("trigger", "")) != trigger:
 			continue
 		if not String(effect.get("action", "")) in HARMFUL_ACTIONS:
@@ -81,7 +116,31 @@ func area_cast(card_id: String, origin: Vector2, t: float) -> float:
 			return _fire_area(origin, t)
 		"agua":
 			return _water_area(origin, t)
+		"gelo":
+			return _ice_area(origin, t)
+		"luz":
+			return _light_area(t)
+		"raio":
+			return _lightning_area(t)
+		"veneno":
+			return _poison_area(origin, t)
+	# any other style (pedra, vegetal have only a destroy animation) gets the shockwave
 	return _shockwave_area(origin, t, host._elem_color(card_id))
+
+## A rectangle over the whole arena with `shader`, the "aspect" already set (used by the area casts).
+## Returns the rectangle; its ShaderMaterial is in its `material`.
+func _arena_overlay(shader: Shader) -> ColorRect:
+	var arena := _arena().grow(30.0)
+	var overlay := ColorRect.new()
+	overlay.position = arena.position
+	overlay.size = arena.size
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var overlay_material := ShaderMaterial.new()
+	overlay_material.shader = shader
+	overlay_material.set_shader_parameter("aspect", arena.size.x / arena.size.y)
+	overlay.material = overlay_material
+	fx.add_child(overlay)
+	return overlay
 
 ## A tinted rectangle over the whole arena that fades in and out (the light of the blast on the table).
 func _arena_tint(col: Color, peak_alpha: float, t: float, rise: float, hold: float, fall: float) -> void:
@@ -208,16 +267,140 @@ func _water_area(origin: Vector2, t: float) -> float:
 	# the first hits land when the wave reaches the middle of the table
 	return WATER_ROLL_TIME * 0.5
 
+## Gelo (Avalanche, Zero Absoluto): frost (shaders/ice_frost.gdshader) spreads over the arena from the
+## caster's side, crystal plates growing with cracks and sparkles, holds a moment frozen solid, then
+## the plates shatter one by one.
+const ICE_SPREAD_TIME := 0.65
+const ICE_HOLD_TIME := 0.4
+const ICE_SHATTER_TIME := 0.45
+static var _ice_shader: Shader
+func _ice_area(origin: Vector2, t: float) -> float:
+	if _ice_shader == null:
+		_ice_shader = load("res://scripts/ui/shaders/ice_frost.gdshader")
+	var overlay := _arena_overlay(_ice_shader)
+	var ice_material: ShaderMaterial = overlay.material
+	var arena := _arena().grow(30.0)
+	# the frost starts at the caster's edge of the arena (a caster below the middle = from the bottom)
+	var caster_below := origin.y > arena.get_center().y
+	ice_material.set_shader_parameter("from_bottom", 1.0 if caster_below else 0.0)
+	var tween := overlay.create_tween()
+	tween.tween_interval(t)
+	tween.tween_method(func(value: float): ice_material.set_shader_parameter("progress", value), 0.0, 1.0, ICE_SPREAD_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_interval(ICE_HOLD_TIME)
+	tween.tween_method(func(value: float): ice_material.set_shader_parameter("fade", value), 1.0, 0.0, ICE_SHATTER_TIME)
+	tween.tween_callback(overlay.queue_free)
+	# ice shards flying when the plates shatter, over each row of units
+	var shatter_moment := t + ICE_SPREAD_TIME + ICE_HOLD_TIME
+	for row in [TableView.MY_LANE, TableView.ENEMY_LANE]:
+		for i in 3:
+			var x := lerpf(row.position.x + 80.0, row.end.x - 80.0, (i + 0.5) / 3.0)
+			fx_library._embers(Vector2(x, row.get_center().y), shatter_moment, ICE_GLOW, 12)
+	# the cold light on the table
+	_arena_tint(ICE_GLOW, 0.12, t, 0.3, ICE_SPREAD_TIME + ICE_HOLD_TIME * 0.5, 0.4)
+	_shake(shatter_moment, 4.0, 0.35)
+	# the first hits land when the frost reaches the middle of the table
+	return ICE_SPREAD_TIME * 0.5
+
+## Luz (Expurgo Sagrado, Última Badalada): shafts of holy light (shaders/holy_light.gdshader) pour
+## down over the arena from above, wherever the caster is, then softly go out.
+const LIGHT_DESCEND_TIME := 0.7
+const LIGHT_HOLD_TIME := 0.45
+const LIGHT_FADE_TIME := 0.5
+static var _light_shader: Shader
+func _light_area(t: float) -> float:
+	if _light_shader == null:
+		_light_shader = load("res://scripts/ui/shaders/holy_light.gdshader")
+	var overlay := _arena_overlay(_light_shader)
+	var light_material: ShaderMaterial = overlay.material
+	var tween := overlay.create_tween()
+	tween.tween_interval(t)
+	tween.tween_method(func(value: float): light_material.set_shader_parameter("progress", value), 0.0, 1.0, LIGHT_DESCEND_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.tween_interval(LIGHT_HOLD_TIME)
+	tween.tween_method(func(value: float): light_material.set_shader_parameter("fade", value), 1.0, 0.0, LIGHT_FADE_TIME)
+	tween.tween_callback(overlay.queue_free)
+	# motes of light rising from each row as the light reaches it (top row first)
+	var rich := fx_library.fx_scale >= 0.7
+	var top_row := TableView.ENEMY_LANE if TableView.ENEMY_LANE.position.y < TableView.MY_LANE.position.y else TableView.MY_LANE
+	var bottom_row := TableView.MY_LANE if top_row == TableView.ENEMY_LANE else TableView.ENEMY_LANE
+	for row_and_moment in [[top_row, 0.35], [bottom_row, 0.7]]:
+		var row: Rect2 = row_and_moment[0]
+		for i in (3 if rich else 2):
+			var x := lerpf(row.position.x + 80.0, row.end.x - 80.0, (i + 0.5) / (3.0 if rich else 2.0))
+			fx_library._embers(Vector2(x, row.get_center().y), t + LIGHT_DESCEND_TIME * row_and_moment[1], HOLY_GOLD, 12)
+	_arena_tint(HOLY_GOLD, 0.16 if rich else 0.1, t, 0.35, LIGHT_DESCEND_TIME + LIGHT_HOLD_TIME * 0.5, 0.5)
+	# the first hits land when the light reaches the top row of units
+	return LIGHT_DESCEND_TIME * 0.4
+
+## Raio (Tempestade Estática, Cumulonimbra): the arena darkens under a storm and bolts
+## (shaders/lightning_storm.gdshader) strike the two rows one after another, the table jolting at each.
+const STORM_TIME := 1.0
+const STORM_FADE_TIME := 0.3
+## The bolts strike at these parts of the storm's timeline (must match strike_moment in the shader).
+const BOLT_COUNT := 6
+static var _lightning_shader: Shader
+func _lightning_area(t: float) -> float:
+	if _lightning_shader == null:
+		_lightning_shader = load("res://scripts/ui/shaders/lightning_storm.gdshader")
+	var overlay := _arena_overlay(_lightning_shader)
+	var storm_material: ShaderMaterial = overlay.material
+	# a new seed each cast, so the bolts never strike the same places twice
+	storm_material.set_shader_parameter("seed", randf() * 100.0)
+	var tween := overlay.create_tween()
+	tween.tween_interval(t)
+	tween.tween_method(func(value: float): storm_material.set_shader_parameter("progress", value), 0.0, 1.0, STORM_TIME)
+	tween.tween_method(func(value: float): storm_material.set_shader_parameter("fade", value), 1.0, 0.0, STORM_FADE_TIME)
+	tween.tween_callback(overlay.queue_free)
+	# a small jolt of the table at each strike
+	for i in BOLT_COUNT:
+		var strike_moment := (i + 0.3) / BOLT_COUNT * 0.82 * STORM_TIME
+		_shake(t + strike_moment, 3.5, 0.15)
+	# the first hits land with the first bolt
+	return (0.3 / BOLT_COUNT) * 0.82 * STORM_TIME
+
+## Veneno (Cicuta no Chá, Névoa de Esporos Teimosos): a thick toxic cloud (shaders/toxic_cloud.gdshader)
+## rolls over the arena from the caster's side, spores drifting in it, hangs a moment and thins away.
+const POISON_ROLL_TIME := 0.75
+const POISON_HOLD_TIME := 0.5
+const POISON_FADE_TIME := 0.6
+static var _poison_shader: Shader
+func _poison_area(origin: Vector2, t: float) -> float:
+	if _poison_shader == null:
+		_poison_shader = load("res://scripts/ui/shaders/toxic_cloud.gdshader")
+	var overlay := _arena_overlay(_poison_shader)
+	var cloud_material: ShaderMaterial = overlay.material
+	var arena := _arena().grow(30.0)
+	# the cloud starts at the caster's edge of the arena (a caster below the middle = from the bottom)
+	var caster_below := origin.y > arena.get_center().y
+	cloud_material.set_shader_parameter("from_bottom", 1.0 if caster_below else 0.0)
+	var tween := overlay.create_tween()
+	tween.tween_interval(t)
+	tween.tween_method(func(value: float): cloud_material.set_shader_parameter("progress", value), 0.0, 1.0, POISON_ROLL_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.tween_interval(POISON_HOLD_TIME)
+	tween.tween_method(func(value: float): cloud_material.set_shader_parameter("fade", value), 1.0, 0.0, POISON_FADE_TIME)
+	tween.tween_callback(overlay.queue_free)
+	# spore puffs rising from each row as the cloud swallows it (near row first)
+	var rich := fx_library.fx_scale >= 0.7
+	var near_row := TableView.MY_LANE if caster_below else TableView.ENEMY_LANE
+	var far_row := TableView.ENEMY_LANE if caster_below else TableView.MY_LANE
+	for row_and_moment in [[near_row, 0.35], [far_row, 0.7]]:
+		var row: Rect2 = row_and_moment[0]
+		for i in (3 if rich else 2):
+			var x := lerpf(row.position.x + 80.0, row.end.x - 80.0, (i + 0.5) / (3.0 if rich else 2.0))
+			fx_library._embers(Vector2(x, row.get_center().y), t + POISON_ROLL_TIME * row_and_moment[1], VENOM_PURPLE, 10)
+	# no shake: poison is quiet, it seeps in instead of hitting
+	# the first hits land when the cloud reaches the near row of units
+	return POISON_ROLL_TIME * 0.4
+
 ## ---- Destroy casts: a spell that destroys ONE unit (Reduzir a Cinzas, Afogar) ----
 ## Instead of the red X, the unit is taken by its element (burned, drowned) and dissolves inside it.
 ## Only the card's own "cast_fx" or element counts here, never its domain: a Fúria kick with no
 ## element (Chute no Portão) keeps the X instead of bursting into flames.
 
-## The destroy animation of a spell: "fogo", "agua", or "" when it keeps the X.
+## The destroy animation of a spell: one of DESTROY_STYLES, or "" when it keeps the X.
 func destroy_style_of(card_id: String) -> String:
 	var card := CardDB.card(card_id)
 	var style := String(card["cast_fx"]) if card.has("cast_fx") else String(ELEMENT_STYLES.get(String(card.get("element", "")), ""))
-	return style if style in ["fogo", "agua"] else ""
+	return style if style in DESTROY_STYLES else ""
 
 ## Plays the destroy animation of `style` over the unit `unit_view` at moment t.
 ## Returns the time from t until the unit should start dissolving (inside the fire / under the water).
@@ -229,6 +412,12 @@ func destroy_cast(style: String, unit_view: Control, t: float) -> float:
 			return _burn_unit(center, card_size, t)
 		"agua":
 			return _drown_unit(center, card_size, t)
+		"pedra":
+			return _crush_unit(center, card_size, t)
+		"vegetal":
+			return _overgrow_unit(center, card_size, t)
+		"veneno":
+			return _corrode_unit(center, card_size, t)
 	return 0.0
 
 ## A small rectangle with a shader, placed over a card (used by the destroy casts).
@@ -295,6 +484,87 @@ func _drown_unit(center: Vector2, card_size: Vector2, t: float) -> float:
 	fx_library._embers(Vector2(center.x, center.y - card_size.y * 0.5), t + DROWN_RISE_TIME, WATER_CORE, 14)
 	# the unit starts dissolving once it is fully under water
 	return DROWN_RISE_TIME
+
+## Pedra (Desabamento Oportuno): boulders (shaders/unit_crush.gdshader) fall on the card one after
+## another and pile up, the table jolting at each; the unit dissolves under the pile, then the rocks
+## crumble to dust. The rectangle reaches well above the card: that is the sky the rocks fall through.
+const CRUSH_FALL_TIME := 0.6
+const CRUSH_HOLD_TIME := 0.4
+const CRUSH_CRUMBLE_TIME := 0.45
+static var _crush_shader: Shader
+func _crush_unit(center: Vector2, card_size: Vector2, t: float) -> float:
+	if _crush_shader == null:
+		_crush_shader = load("res://scripts/ui/shaders/unit_crush.gdshader")
+	var rock_size := Vector2(card_size.x * 1.3, card_size.y * 1.6)
+	# the bottom of the rectangle sits just below the card; the extra height goes up
+	var rock_rect := Rect2(Vector2(center.x - rock_size.x * 0.5, center.y + card_size.y * 0.55 - rock_size.y), rock_size)
+	var overlay := _unit_overlay(_crush_shader, rock_rect)
+	var crush_material: ShaderMaterial = overlay.material
+	# where the card's top edge is inside the rectangle (the pile stops there)
+	crush_material.set_shader_parameter("card_top", (center.y - card_size.y * 0.5 - rock_rect.position.y) / rock_size.y)
+	var tween := overlay.create_tween()
+	tween.tween_interval(t)
+	tween.tween_method(func(value: float): crush_material.set_shader_parameter("progress", value), 0.0, 1.0, CRUSH_FALL_TIME)
+	tween.tween_interval(CRUSH_HOLD_TIME)
+	tween.tween_method(func(value: float): crush_material.set_shader_parameter("fade", value), 1.0, 0.0, CRUSH_CRUMBLE_TIME)
+	tween.tween_callback(overlay.queue_free)
+	# the first rock lands about a third of the way in; the heavy jolt comes with it
+	var first_landing := t + CRUSH_FALL_TIME * 0.32
+	_shake(first_landing, 7.0, 0.3)
+	_shake(t + CRUSH_FALL_TIME * 0.75, 5.0, 0.3)
+	fx_library._embers(Vector2(center.x, center.y + card_size.y * 0.4), first_landing, STONE_DUST, 14)
+	fx_library._embers(center, t + CRUSH_FALL_TIME + CRUSH_HOLD_TIME, STONE_DUST, 16)
+	# the unit starts dissolving once most of the pile is on it
+	return CRUSH_FALL_TIME * 0.8
+
+## Vegetal (Capina Seletiva): vines (shaders/unit_overgrow.gdshader) sprout from the base of the card
+## and climb over it with leaves opening, the unit is taken under them, then they wither and fall apart.
+const OVERGROW_TIME := 0.6
+const OVERGROW_HOLD_TIME := 0.45
+const OVERGROW_WITHER_TIME := 0.5
+static var _overgrow_shader: Shader
+func _overgrow_unit(center: Vector2, card_size: Vector2, t: float) -> float:
+	if _overgrow_shader == null:
+		_overgrow_shader = load("res://scripts/ui/shaders/unit_overgrow.gdshader")
+	var vine_size := card_size * Vector2(1.25, 1.15)
+	var vine_rect := Rect2(center - vine_size * 0.5, vine_size)
+	var overlay := _unit_overlay(_overgrow_shader, vine_rect)
+	var vine_material: ShaderMaterial = overlay.material
+	var tween := overlay.create_tween()
+	tween.tween_interval(t)
+	tween.tween_method(func(value: float): vine_material.set_shader_parameter("progress", value), 0.0, 1.0, OVERGROW_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.tween_interval(OVERGROW_HOLD_TIME)
+	tween.tween_method(func(value: float): vine_material.set_shader_parameter("fade", value), 1.0, 0.0, OVERGROW_WITHER_TIME)
+	tween.tween_callback(overlay.queue_free)
+	fx_library._embers(Vector2(center.x, center.y + card_size.y * 0.45), t + 0.05, LEAF_GREEN, 10)
+	# dry leaves falling off as the vines wither
+	fx_library._embers(center, t + OVERGROW_TIME + OVERGROW_HOLD_TIME, Color("#8a6a2e"), 14)
+	# the unit starts dissolving once the vines have climbed most of the way
+	return OVERGROW_TIME * 0.85
+
+## Veneno (Ponto Final sem Vírgula): venom (shaders/unit_corrode.gdshader) oozes down the card from its
+## top in drips and eats holes through it with acid-green rims; the unit dissolves, then the venom fades.
+const CORRODE_TIME := 0.65
+const CORRODE_HOLD_TIME := 0.4
+const CORRODE_FADE_TIME := 0.45
+static var _corrode_shader: Shader
+func _corrode_unit(center: Vector2, card_size: Vector2, t: float) -> float:
+	if _corrode_shader == null:
+		_corrode_shader = load("res://scripts/ui/shaders/unit_corrode.gdshader")
+	var venom_size := card_size * Vector2(1.15, 1.1)
+	var venom_rect := Rect2(center - venom_size * 0.5, venom_size)
+	var overlay := _unit_overlay(_corrode_shader, venom_rect)
+	var venom_material: ShaderMaterial = overlay.material
+	var tween := overlay.create_tween()
+	tween.tween_interval(t)
+	tween.tween_method(func(value: float): venom_material.set_shader_parameter("progress", value), 0.0, 1.0, CORRODE_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_interval(CORRODE_HOLD_TIME)
+	tween.tween_method(func(value: float): venom_material.set_shader_parameter("fade", value), 1.0, 0.0, CORRODE_FADE_TIME)
+	tween.tween_callback(overlay.queue_free)
+	# toxic fumes rising off the card
+	fx_library._embers(Vector2(center.x, center.y - card_size.y * 0.3), t + CORRODE_TIME * 0.6, Color("#9dff52"), 12)
+	# the unit starts dissolving once the venom has eaten into it
+	return CORRODE_TIME * 0.85
 
 ## Generic area cast (elements without their own animation yet): a ball in the card's color swells
 ## on the caster and a shockwave runs over the whole arena.

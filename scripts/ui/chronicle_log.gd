@@ -435,6 +435,10 @@ func _log_event(e: Dictionary) -> void:
 			_log("%s escolhe uma carta da mão para descartar" % _pname(e["player"]))
 		"hand_bottom_pick":
 			_log("%s olha a mão do oponente para mandar uma carta ao fundo do deck" % _pname(e["player"]))
+		"own_hand_bottom_pick":
+			_log("%s escolhe uma carta da própria mão para mandar ao fundo do deck" % _pname(e["player"]))
+		"own_hand_bottom":
+			_log("%s mandou uma carta da própria mão ao fundo do deck" % _pname(e["player"]))
 		"hand_cost_up":
 			_log("%s, na mão de %s, passa a custar %d a mais" % [_cname(e["card_id"]), _pname(e["owner"]), int(e["amount"])])
 		"hand_bottom":

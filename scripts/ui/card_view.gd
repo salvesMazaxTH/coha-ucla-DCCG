@@ -180,6 +180,8 @@ static var _banish: Shader
 static var _stealth_shader: Shader
 static var _shield_sparks_shader: Shader
 var _shield_sparks: ColorRect = null ## animated sparks of Escudo Mágico / Supremo (see _place_shield_sparks)
+static var _indestructible_shader: Shader
+var _indestructible_glow: ColorRect = null ## animated steel rim and sheen of Indestrutível (see _place_indestructible_glow)
 
 ## Keywords that change who can challenge or target whom get an icon medallion on the art (MTG Arena style),
 ## in this order down the left edge, then the right; glyph tint per keyword.
@@ -286,11 +288,13 @@ func update_card(id: String, instance: Dictionary = {}, size_scale := 1.0) -> vo
 	set_process(true)
 	# Tags and target badges belong to the previous state; the shield shader child can safely be reused.
 	for child in get_children():
-		if child != _shield_sparks:
+		if child != _shield_sparks and child != _indestructible_glow:
 			remove_child(child)
 			child.queue_free()
 	if is_instance_valid(_shield_sparks):
 		_shield_sparks.hide()
+	if is_instance_valid(_indestructible_glow):
+		_indestructible_glow.hide()
 	if inst.has("damage") and _keywords(CardDB.card_for(id, inst)).has("furtividade"):
 		_stealth()
 	queue_redraw()
@@ -472,6 +476,49 @@ func _place_shield_sparks(art: Rect2, face_origin: Vector2, pop: float, s: float
 	sparks_material.set_shader_parameter("supreme_on", 1.0 if supreme_shield else 0.0)
 	if not _shield_sparks.visible:
 		_shield_sparks.visible = true
+
+## Indestrutível on the board: a steel rim around the whole card face with running glints and a
+## sheen that sweeps over it, painted by indestructible.gdshader on a ColorRect a little bigger than
+## the face. Called from _draw with where the face is drawn, so it follows zoom, shake and pop.
+## Created the first time a card is indestructible; hidden (not freed) when it stops being.
+func _place_indestructible_glow(face_origin: Vector2, pop: float, s: float, indestructible: bool) -> void:
+	if not indestructible:
+		if _indestructible_glow != null and _indestructible_glow.visible:
+			_indestructible_glow.visible = false
+		return
+	if _indestructible_glow == null:
+		if _indestructible_shader == null:
+			_indestructible_shader = load("res://scripts/ui/shaders/indestructible.gdshader")
+		_indestructible_glow = ColorRect.new()
+		_indestructible_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var glow_material := ShaderMaterial.new()
+		glow_material.shader = _indestructible_shader
+		glow_material.set_shader_parameter("phase", randf() * 10.0)
+		_indestructible_glow.material = glow_material
+		add_child(_indestructible_glow)
+	var margin := 8.0 * s * pop # room around the face for the halo
+	var glow_rect := Rect2(face_origin - Vector2(margin, margin), _face_size * pop + Vector2(margin, margin) * 2.0)
+	if _indestructible_glow.position != glow_rect.position:
+		_indestructible_glow.position = glow_rect.position
+	if _indestructible_glow.size != glow_rect.size:
+		_indestructible_glow.size = glow_rect.size
+	var glow_material := _indestructible_glow.material as ShaderMaterial
+	glow_material.set_shader_parameter("rect_size", glow_rect.size)
+	glow_material.set_shader_parameter("margin", margin)
+	glow_material.set_shader_parameter("corner_radius", 10.0 * s * pop)
+	glow_material.set_shader_parameter("base_pixel", s * pop)
+	if not _indestructible_glow.visible:
+		_indestructible_glow.visible = true
+
+## True when this unit on the board has Indestrutível right now (its own, lent until end of turn,
+## or given by an ally's aura / the Momentum surge).
+func _is_indestructible_now() -> bool:
+	if not inst.has("damage"):
+		return false
+	for keyword_list_name in ["keywords", "aura_keywords", "surge_keywords"]:
+		if inst.get(keyword_list_name, []).has("indestrutivel"):
+			return true
+	return false
 
 ## Rules text as BBCode: trigger names in bold orange, and every keyword name in the text (Voo,
 ## Escudo Mágico, "Armadura 1"...) in bold yellow, so a card that grants or mentions a keyword
@@ -658,6 +705,8 @@ func dissolve(delay := 0.0, edge := Color(1.0, 0.55, 0.15), dur := 0.75) -> void
 	tw.tween_interval(delay)
 	if _shield_sparks != null: # the sparks have their own shader, so they would not burn with the card
 		tw.tween_callback(_shield_sparks.hide)
+	if _indestructible_glow != null: # same for the steel glow
+		tw.tween_callback(_indestructible_glow.hide)
 	tw.tween_property(m, "shader_parameter/progress", 1.0, dur).set_ease(Tween.EASE_IN)
 	tw.tween_callback(queue_free)
 
@@ -677,6 +726,8 @@ func banish(delay := 0.0, edge := Color(0.8, 0.7, 1.0), dur := 0.9) -> void:
 	tw.tween_interval(delay)
 	if _shield_sparks != null: # the sparks have their own shader, so they would not fade with the card
 		tw.tween_callback(_shield_sparks.hide)
+	if _indestructible_glow != null: # same for the steel glow
+		tw.tween_callback(_indestructible_glow.hide)
 	tw.tween_property(m, "shader_parameter/progress", 1.0, dur).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_SINE)
 	tw.tween_callback(queue_free)
 	var st := create_tween()
@@ -826,6 +877,8 @@ func _draw() -> void:
 	draw_set_transform(face_origin, 0.0, Vector2(pop, pop))
 	if (face_down or fatigue > 0) and _shield_sparks != null:
 		_shield_sparks.visible = false
+	if (face_down or fatigue > 0) and _indestructible_glow != null:
+		_indestructible_glow.visible = false
 	var s := _face_size.x / BASE.x
 	var r := Rect2(Vector2.ZERO, _face_size)
 	if fatigue > 0:
@@ -1063,6 +1116,7 @@ func _draw_live_art_overlays(look: Dictionary, pulse: float, face_origin: Vector
 
 	# the moving sparks of both rings (shield_sparks.gdshader): the GPU animates them, the card stays still
 	_place_shield_sparks(art, face_origin, pop, s, inst.get("magic_shield", false), inst.get("supreme_shield", false))
+	_place_indestructible_glow(face_origin, pop, s, _is_indestructible_now())
 	if inst.has("frozen"):
 		_draw_frost(art, s)
 	if inst.has("stun_markers"):

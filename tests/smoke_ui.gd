@@ -9,6 +9,9 @@ func _init() -> void:
 	await process_frame
 	m._show_menu()
 	m._show_hub(false)
+	if not await _check_hub_sections(m):
+		quit(1)
+		return
 	m.sel_deck = "obscura_lento"
 	m._show_hub(true) # step 1: your deck, then "PRÓXIMO"
 	m._show_hub(true, "", true) # step 2: the AI's deck, then "JOGAR"
@@ -87,6 +90,60 @@ func _init() -> void:
 		return
 	print("smoke ok, turn ", last_turn)
 	quit()
+
+func _check_hub_sections(m) -> bool:
+	await process_frame
+	if m.HUB_SECTIONS.size() != 2 or m.HUB_SECTIONS[0]["title"] != "DECKS PRÉ-PRONTOS DOS LÍDERES":
+		push_error("o hub não tem as duas macro-seções esperadas")
+		return false
+	var content := m.hub_scroll.get_child(0) as Control
+	var prebuilt_macro := content.find_child("HubMacro_essencia", true, false) as Button
+	var player_macro := content.find_child("HubMacro_meus", true, false) as Button
+	var classic_header := content.find_child("HubSubsection_classic", true, false) as Button
+	var set2_header := content.find_child("HubSubsection_set_2", true, false) as Button
+	if prebuilt_macro == null or player_macro == null or classic_header == null or set2_header == null:
+		push_error("faltam macro-seções ou subseções no hub")
+		return false
+	if not set2_header.text.contains("Nuliterra (2026)"):
+		push_error("a subseção do Set 2 não usa o nome cadastrado")
+		return false
+
+	var expanded_height := content.custom_minimum_size.y
+	set2_header.pressed.emit()
+	await process_frame
+	await process_frame
+	content = m.hub_scroll.get_child(0) as Control
+	if not m.hub_collapsed.get("subsection:set_2", false) or content.custom_minimum_size.y >= expanded_height:
+		push_error("a subseção do Set 2 não recolheu seu conteúdo")
+		return false
+
+	prebuilt_macro = content.find_child("HubMacro_essencia", true, false) as Button
+	prebuilt_macro.pressed.emit()
+	await process_frame
+	await process_frame
+	content = m.hub_scroll.get_child(0) as Control
+	if not m.hub_collapsed.get("macro:essencia", false) or content.find_child("HubSubsection_classic", true, false) != null:
+		push_error("recolher os pré-prontos não escondeu todas as subseções")
+		return false
+
+	prebuilt_macro = content.find_child("HubMacro_essencia", true, false) as Button
+	prebuilt_macro.pressed.emit()
+	await process_frame
+	await process_frame
+	content = m.hub_scroll.get_child(0) as Control
+	set2_header = content.find_child("HubSubsection_set_2", true, false) as Button
+	if set2_header == null or not m.hub_collapsed.get("subsection:set_2", false):
+		push_error("reabrir os pré-prontos não preservou o estado da subseção")
+		return false
+	var collapsed_height := content.custom_minimum_size.y
+	set2_header.pressed.emit()
+	await process_frame
+	await process_frame
+	content = m.hub_scroll.get_child(0) as Control
+	if m.hub_collapsed.get("subsection:set_2", false) or content.custom_minimum_size.y <= collapsed_height:
+		push_error("a subseção do Set 2 não expandiu novamente")
+		return false
+	return true
 
 func _check_effect_choice_ui(m) -> bool:
 	m._start(false, "fogo", "agua")
@@ -384,7 +441,7 @@ func _prepare_field_equip_match(m, artifact_id: String) -> Dictionary:
 	m._render()
 	return {"artifact": artifact, "unit": unit}
 
-## The player's own decks show up in the hub as the third section, and a match can start with one.
+## The player's own decks show up in the second macro-section, and a match can start with one.
 func _check_hub_with_own_deck(m) -> bool:
 	var scratch_path := "user://smoke_hub_decks.json"
 	DirAccess.remove_absolute(scratch_path)
@@ -406,7 +463,7 @@ func _check_hub_with_own_deck(m) -> bool:
 		push_error("hub não registrou só o deck pronto do jogador (%s, incompletos %d)" % [own_ids, m.incomplete_player_decks])
 		return false
 	if m.HUB_SECTIONS[m.HUB_SECTIONS.size() - 1]["id"] != DeckDB.SECTION_MINE:
-		push_error("MEUS DECKS não é a terceira seção do hub")
+		push_error("MEUS DECKS não é a segunda macro-seção do hub")
 		return false
 	if m.sel_deck.begins_with(DeckDB.PLAYER_PREFIX):
 		push_error("a escolha padrão do hub deveria ser um deck pronto")

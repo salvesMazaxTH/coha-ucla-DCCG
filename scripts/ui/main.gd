@@ -68,6 +68,7 @@ var hub_hotseat := false ## the deck hub's two-step flow is picking decks for ho
 var hub_scroll: ScrollContainer ## the deck hub's scrolling gallery (null/freed outside the hub)
 var hub_scroll_y := 0 ## how far the gallery was scrolled, kept across the hub's redraws
 var hub_drag_distance := 0.0 ## how far the current press has dragged the gallery (a long drag isn't a tap)
+var hub_collapsed := {} ## collapsed macro-sections and prebuilt subsections, preserved across redraws
 const MENU_SUBTITLE_FONT_SIZE := 18 ## the small hint under each title-menu button
 const MENU_SUBTITLE_COLOR := Color(0.93, 0.9, 0.84, 0.85) ## near-opaque cream so the hint reads on the busy art
 const DECK_TILE_NAME_FONT_SIZES := [21, 19, 17, 15, 13] ## tried in order until the deck name fits its zone on the tile
@@ -75,15 +76,17 @@ const HUB_MARGIN := 40.0 ## space between the hub's panels and the stage sides
 const HUB_TILE := Vector2(210, 236) ## original chip height, with the Leader line replaced by domain seals
 const HUB_TILE_GAP := 20.0
 const HUB_TILE_PAD := 10.0 ## room around the gallery's tiles for the hover zoom
-## The gallery's titled dividers, in order; a deck's "section" field picks one (default "essencia").
-## "hint" is shown instead of tiles when the section has no deck (the others are left out when empty).
+## The gallery's two macro-sections. Prebuilt decks are grouped below by the set of their Leader's incarnation.
 const HUB_SECTIONS := [
-	{"id": DeckDB.SECTION_LEADERS, "title": "ESSENCIAIS: DECKS DOS LÍDERES"},
+	{"id": DeckDB.SECTION_LEADERS, "title": "DECKS PRÉ-PRONTOS DOS LÍDERES"},
 	{"id": DeckDB.SECTION_MINE, "title": "MEUS DECKS", "hint": "Você ainda não tem nenhum deck pronto. Monte um em MEUS DECKS, no menu inicial: 44 cartas, a Encarnação do Líder e as regras do deck cumpridas."},
 ]
 const HUB_EMPTY_HINT_H := 72.0 ## height of the hint that stands in for the tiles of an empty section
-const HUB_SECTION_TITLE_H := 52.0 ## height of a divider's title row
+const HUB_SECTION_TITLE_H := 48.0 ## height of a macro-section's collapsible title row
+const HUB_SUBSECTION_TITLE_H := 40.0 ## height of a prebuilt subsection's collapsible title row
+const HUB_SUBSECTION_INDENT := 22.0
 const HUB_SECTION_GAP := 28.0 ## empty space between the end of one section and the next title
+const HUB_SUBSECTION_GAP := 16.0
 const HUB_DRAG_SLOP := 12.0 ## pixels a press may move and still count as a tap on a deck
 var ai_deck := "" ## deck the AI plays, picked in the second step of the AI hub ("" = a random other deck)
 var _fps_counter: Label
@@ -736,7 +739,7 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 	_hub_args = [ai, msg, choosing_ai_deck]
 	_refresh_hub_stats_if_due()
 	_refresh_player_decks()
-	# prebuilt decks first, then the player's own (the third section), so the default pick is always a prebuilt deck
+	# Prebuilt decks stay first so the default pick remains a prebuilt deck.
 	var ids: Array[String] = DeckDB.available_ids()
 	for deck_id in DeckDB.custom_ids(DeckDB.PLAYER_PREFIX):
 		if DeckDB.is_deck_visible(deck_id):
@@ -788,28 +791,48 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 
 	var gallery_x := HUB_MARGIN + showcase_w + 32.0
 	var gallery_w := stage_w - gallery_x - HUB_MARGIN
-	# The gallery is split into titled sections (see DeckDB.section_of); a section with no deck is left out.
+	var prebuilt_ids: Array[String] = []
+	var player_ids: Array[String] = []
+	for deck_id in ids:
+		if DeckDB.section_of(deck_id) == DeckDB.SECTION_MINE:
+			player_ids.append(deck_id)
+		else:
+			prebuilt_ids.append(deck_id)
+	var prebuilt_subsections := _hub_prebuilt_subsections(prebuilt_ids)
+	if choosing_ai_deck:
+		if prebuilt_subsections.is_empty():
+			prebuilt_subsections.append({"id": "classic", "title": "ESSENCIAIS CLÁSSICOS", "ids": []})
+		prebuilt_subsections[0]["ids"].push_front("")
+
 	var gallery_sections: Array = []
-	var random_tile_placed := false
 	for section in HUB_SECTIONS:
-		var section_ids: Array = ids.filter(func(deck_id: String) -> bool: return DeckDB.section_of(deck_id) == section["id"])
-		# the "random deck" tile comes first, in the first section
-		if choosing_ai_deck and not random_tile_placed:
-			section_ids.push_front("")
-			random_tile_placed = true
+		var section_id := String(section["id"])
 		var section_title := String(section["title"])
-		if section["id"] == DeckDB.SECTION_MINE and incomplete_player_decks > 0:
+		if section_id == DeckDB.SECTION_MINE and incomplete_player_decks > 0:
 			section_title += "  ·  %d incompleto%s em MEUS DECKS" % [incomplete_player_decks, "" if incomplete_player_decks == 1 else "s"]
-		if not section_ids.is_empty() or section.has("hint"):
-			gallery_sections.append({"title": section_title, "ids": section_ids, "hint": section.get("hint", "")})
-	var show_section_titles := gallery_sections.size() > 1
+		if section_id == DeckDB.SECTION_LEADERS:
+			gallery_sections.append({
+				"id": section_id,
+				"title": section_title,
+				"subsections": prebuilt_subsections,
+				"hint": "Nenhum deck pré-pronto está disponível." if prebuilt_subsections.is_empty() else "",
+			})
+		else:
+			gallery_sections.append({
+				"id": section_id,
+				"title": section_title,
+				"ids": player_ids,
+				"hint": section.get("hint", ""),
+			})
 	var columns := maxi(1, int((gallery_w + HUB_TILE_GAP) / (HUB_TILE.x + HUB_TILE_GAP)))
-	var content_h := 0.0
-	for section in gallery_sections:
-		if show_section_titles:
-			content_h += HUB_SECTION_TITLE_H
-		content_h += _hub_section_body_height(section, columns) + HUB_SECTION_GAP
-	content_h -= HUB_SECTION_GAP
+	var content_h := 2.0 * HUB_TILE_PAD
+	for i in gallery_sections.size():
+		var section: Dictionary = gallery_sections[i]
+		content_h += HUB_SECTION_TITLE_H
+		if not _hub_section_collapsed(_hub_macro_key(String(section["id"]))):
+			content_h += _hub_macro_body_height(section, columns)
+		if i < gallery_sections.size() - 1:
+			content_h += HUB_SECTION_GAP
 	var scroll := ScrollContainer.new()
 	scroll.position = Vector2(gallery_x, body_top)
 	scroll.size = Vector2(gallery_w, body_h)
@@ -820,54 +843,55 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 	hub_scroll = scroll
 	var content := Control.new()
 	# a few pixels of room around the tiles so the hover zoom and the gold border aren't clipped
-	content.custom_minimum_size = Vector2(gallery_w, content_h + 2.0 * HUB_TILE_PAD)
+	content.custom_minimum_size = Vector2(gallery_w, content_h)
 	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	scroll.add_child(content)
 	var grid_w := columns * HUB_TILE.x + (columns - 1) * HUB_TILE_GAP
 	var grid_x := (gallery_w - grid_w) / 2.0
 	var selected_tile: Control = null
 	var section_top := HUB_TILE_PAD
-	for section in gallery_sections:
-		if show_section_titles:
-			_add_hub_section_title(content, String(section["title"]), Vector2(grid_x, section_top), grid_w)
-			section_top += HUB_SECTION_TITLE_H
-		var section_ids: Array = section["ids"]
-		if section_ids.is_empty():
-			var hint := _label(String(section["hint"]), 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT, "body")
-			hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			hint.position = Vector2(grid_x, section_top)
-			hint.size = Vector2(grid_w, HUB_EMPTY_HINT_H)
-			content.add_child(hint)
-		for i in section_ids.size():
-			var id: String = section_ids[i]
-			var is_selected := id == selected_id
-			var t := _deck_tile(id, HUB_TILE, is_selected)
-			t.position = Vector2(grid_x + (i % columns) * (HUB_TILE.x + HUB_TILE_GAP), section_top + (i / columns) * (HUB_TILE.y + HUB_TILE_GAP))
-			if is_selected:
-				selected_tile = t
-			t.gui_input.connect(func(ev: InputEvent) -> void:
-				# picks on release, and not at the end of a scroll drag
-				var mb := ev as InputEventMouseButton
-				if mb == null or mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT or hub_drag_distance > HUB_DRAG_SLOP:
-					return
-				if DeckLeaderTooltipScript.consume_tap(t):
-					return
-				if id != "" and DeckDB.is_deck_banned(id):
-					Sfx.play("ui_click")
-					_toast("Este Líder está BANIDO: só pode ser usado no modo de desenvolvimento.")
-					return
-				if choosing_ai_deck:
-					ai_deck = id
-				elif sel_deck != id:
-					sel_deck = id
+	for section_index in gallery_sections.size():
+		var section: Dictionary = gallery_sections[section_index]
+		var section_id := String(section["id"])
+		var macro_key := _hub_macro_key(section_id)
+		var macro_collapsed := _hub_section_collapsed(macro_key)
+		_add_hub_section_title(content, String(section["title"]), Vector2(grid_x, section_top), grid_w,
+				macro_key, section_id, macro_collapsed, true, scroll, ai, msg, choosing_ai_deck)
+		section_top += HUB_SECTION_TITLE_H
+		if not macro_collapsed:
+			if section.has("subsections"):
+				var subsections: Array = section["subsections"]
+				if subsections.is_empty():
+					_add_hub_section_body(content, section, grid_x, section_top, grid_w, columns, selected_id, choosing_ai_deck, ai, msg, scroll)
+					section_top += _hub_section_body_height(section, columns)
 				else:
-					return
-				hub_scroll_y = scroll.scroll_vertical
-				_show_hub.call_deferred(ai, msg, choosing_ai_deck))
-			content.add_child(t)
-		section_top += _hub_section_body_height(section, columns) + HUB_SECTION_GAP
+					for subsection_index in subsections.size():
+						var subsection: Dictionary = subsections[subsection_index]
+						var subsection_id := String(subsection["id"])
+						var subsection_key := _hub_subsection_key(subsection_id)
+						var subsection_collapsed := _hub_section_collapsed(subsection_key)
+						_add_hub_section_title(content, String(subsection["title"]),
+								Vector2(grid_x + HUB_SUBSECTION_INDENT, section_top), grid_w - HUB_SUBSECTION_INDENT,
+								subsection_key, subsection_id, subsection_collapsed, false, scroll, ai, msg, choosing_ai_deck)
+						section_top += HUB_SUBSECTION_TITLE_H
+						if not subsection_collapsed:
+							var subsection_tile := _add_hub_section_body(content, subsection, grid_x, section_top,
+									grid_w, columns, selected_id, choosing_ai_deck, ai, msg, scroll)
+							if subsection_tile != null:
+								selected_tile = subsection_tile
+							section_top += _hub_section_body_height(subsection, columns)
+						if subsection_index < subsections.size() - 1:
+							section_top += HUB_SUBSECTION_GAP
+			else:
+				var section_tile := _add_hub_section_body(content, section, grid_x, section_top,
+						grid_w, columns, selected_id, choosing_ai_deck, ai, msg, scroll)
+				if section_tile != null:
+					selected_tile = section_tile
+				section_top += _hub_section_body_height(section, columns)
+		if section_index < gallery_sections.size() - 1:
+			section_top += HUB_SECTION_GAP
 	# edge fades: a hint that there are more decks above or below
-	if content_h + 2.0 * HUB_TILE_PAD > body_h:
+	if content_h > body_h:
 		for at_top in [true, false]:
 			var edge := _hub_edge_fade(at_top)
 			edge.position = Vector2(gallery_x, body_top if at_top else body_bottom - 48.0)
@@ -921,13 +945,119 @@ func _show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 		b.size = Vector2(bw, 72)
 		layer.add_child(b)
 
-## Height of a gallery section below its title: its rows of tiles, or the hint of an empty one.
+## Height of the deck tiles below a section title, or of its empty-state hint.
 func _hub_section_body_height(section: Dictionary, columns: int) -> float:
-	var tile_count: int = section["ids"].size()
+	var tile_count: int = section.get("ids", []).size()
 	if tile_count == 0:
-		return HUB_EMPTY_HINT_H
+		return HUB_EMPTY_HINT_H if String(section.get("hint", "")) != "" else 0.0
 	var rows := ceili(float(tile_count) / float(columns))
 	return rows * HUB_TILE.y + (rows - 1) * HUB_TILE_GAP
+
+func _hub_macro_body_height(section: Dictionary, columns: int) -> float:
+	if not section.has("subsections"):
+		return _hub_section_body_height(section, columns)
+	var subsections: Array = section["subsections"]
+	if subsections.is_empty():
+		return _hub_section_body_height(section, columns)
+	var height := 0.0
+	for i in subsections.size():
+		var subsection: Dictionary = subsections[i]
+		height += HUB_SUBSECTION_TITLE_H
+		if not _hub_section_collapsed(_hub_subsection_key(String(subsection["id"]))):
+			height += _hub_section_body_height(subsection, columns)
+		if i < subsections.size() - 1:
+			height += HUB_SUBSECTION_GAP
+	return height
+
+## Set 1's prebuilt decks are the classic essentials; later sets use their registered full names.
+func _hub_prebuilt_subsections(deck_ids: Array[String]) -> Array:
+	var classic_ids: Array[String] = []
+	var set_groups := {}
+	for deck_id in deck_ids:
+		var deck := DeckDB.get_deck(deck_id)
+		var leader_id := String(deck["leader"])
+		var incarnation_id := String(CardDB.leader(leader_id)["incarnation"])
+		var set_number := CardDB.set_number_of(CardDB.card(incarnation_id))
+		if set_number <= 1:
+			classic_ids.append(deck_id)
+			continue
+		if not set_groups.has(set_number):
+			set_groups[set_number] = []
+		var group_ids: Array = set_groups[set_number]
+		group_ids.append(deck_id)
+	var subsections: Array = []
+	if not classic_ids.is_empty():
+		subsections.append({"id": "classic", "title": "ESSENCIAIS CLÁSSICOS", "ids": classic_ids})
+	for set_number in CardDB.set_numbers():
+		if int(set_number) <= 1 or not set_groups.has(int(set_number)):
+			continue
+		subsections.append({
+			"id": "set_%d" % int(set_number),
+			"title": CardDB.set_full_name(int(set_number)),
+			"ids": set_groups[int(set_number)],
+		})
+	return subsections
+
+func _hub_macro_key(section_id: String) -> String:
+	return "macro:" + section_id
+
+func _hub_subsection_key(subsection_id: String) -> String:
+	return "subsection:" + subsection_id
+
+func _hub_section_collapsed(key: String) -> bool:
+	return bool(hub_collapsed.get(key, false))
+
+func _toggle_hub_section(key: String, scroll: ScrollContainer, ai: bool, msg: String, choosing_ai_deck: bool) -> void:
+	hub_collapsed[key] = not _hub_section_collapsed(key)
+	if is_instance_valid(scroll):
+		hub_scroll_y = scroll.scroll_vertical
+	_show_hub.call_deferred(ai, msg, choosing_ai_deck)
+
+func _add_hub_section_body(content: Control, section: Dictionary, grid_x: float, y: float, grid_w: float,
+		columns: int, selected_id: String, choosing_ai_deck: bool, ai: bool, msg: String,
+		scroll: ScrollContainer) -> Control:
+	var section_ids: Array = section.get("ids", [])
+	if section_ids.is_empty():
+		var hint_text := String(section.get("hint", ""))
+		if hint_text != "":
+			var hint := _label(hint_text, 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT, "body")
+			hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			hint.position = Vector2(grid_x, y)
+			hint.size = Vector2(grid_w, HUB_EMPTY_HINT_H)
+			content.add_child(hint)
+		return null
+	var selected_tile: Control = null
+	for i in section_ids.size():
+		var id: String = section_ids[i]
+		var tile := _deck_tile(id, HUB_TILE, id == selected_id)
+		tile.position = Vector2(grid_x + (i % columns) * (HUB_TILE.x + HUB_TILE_GAP),
+				y + (i / columns) * (HUB_TILE.y + HUB_TILE_GAP))
+		if id == selected_id:
+			selected_tile = tile
+		tile.gui_input.connect(_on_hub_tile_input.bind(tile, id, choosing_ai_deck, ai, msg, scroll))
+		content.add_child(tile)
+	return selected_tile
+
+func _on_hub_tile_input(ev: InputEvent, tile: Control, id: String, choosing_ai_deck: bool,
+		ai: bool, msg: String, scroll: ScrollContainer) -> void:
+	# picks on release, and not at the end of a scroll drag
+	var mb := ev as InputEventMouseButton
+	if mb == null or mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT or hub_drag_distance > HUB_DRAG_SLOP:
+		return
+	if DeckLeaderTooltipScript.consume_tap(tile):
+		return
+	if id != "" and DeckDB.is_deck_banned(id):
+		Sfx.play("ui_click")
+		_toast("Este Líder está BANIDO: só pode ser usado no modo de desenvolvimento.")
+		return
+	if choosing_ai_deck:
+		ai_deck = id
+	elif sel_deck != id:
+		sel_deck = id
+	else:
+		return
+	hub_scroll_y = scroll.scroll_vertical
+	_show_hub.call_deferred(ai, msg, choosing_ai_deck)
 
 ## Registers the player's saved decks (MEUS DECKS) in DeckDB so the hub, the match and the deck list treat
 ## them like prebuilt ones. Only decks that already pass every rule can be played; the rest are counted.
@@ -1346,19 +1476,38 @@ func _add_deck_tile_stats(tile: Control, name_label: Label, deck_id: String) -> 
 		tween.tween_property(name_label, "modulate:a", 1.0, 0.45)
 		tween.parallel().tween_property(stats_box, "modulate:a", 0.0, 0.45))
 
-## A section divider in the hub gallery: the title on the left and a thin gold line under it.
-func _add_hub_section_title(content: Control, title_text: String, pos: Vector2, width: float) -> void:
-	var title := _label(title_text, 22, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_LEFT, "title_bold", 4)
-	title.position = pos + Vector2(4, 4)
-	title.size = Vector2(width - 8, 30)
-	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_child(title)
-	var line := ColorRect.new()
-	line.color = Color(UITheme.GOLD, 0.55)
-	line.position = pos + Vector2(0, 38)
-	line.size = Vector2(width, 2)
-	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_child(line)
+## A full-width button gives each gallery level a clear, independently collapsible header.
+func _add_hub_section_title(content: Control, title_text: String, pos: Vector2, width: float, key: String,
+		node_name: String, collapsed: bool, macro: bool, scroll: ScrollContainer, ai: bool, msg: String,
+		choosing_ai_deck: bool) -> void:
+	var button := Button.new()
+	button.name = ("HubMacro_" if macro else "HubSubsection_") + node_name
+	button.text = ("▸" if collapsed else "▾") + "  " + title_text
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.position = pos
+	button.size = Vector2(width, HUB_SECTION_TITLE_H if macro else HUB_SUBSECTION_TITLE_H)
+	button.focus_mode = Control.FOCUS_NONE
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.add_theme_font_override("font", UITheme.font("title_bold" if macro else "bold"))
+	button.add_theme_font_size_override("font_size", 22 if macro else 18)
+	button.add_theme_color_override("font_color", UITheme.GOLD_LIGHT if macro else UITheme.TEXT)
+	button.add_theme_color_override("font_hover_color", UITheme.GOLD_LIGHT)
+	var normal := UITheme.box(Color("#171a27") if macro else Color("#1a222f"), 6,
+			Color(UITheme.GOLD, 0.55 if macro else 0.3), 1)
+	normal.set_border_width_all(0)
+	if macro:
+		normal.border_width_bottom = 2
+	else:
+		normal.border_width_left = 3
+	normal.set_content_margin_all(10)
+	var hover := normal.duplicate() as StyleBoxFlat
+	hover.bg_color = Color("#292538" if macro else "#252f3d")
+	button.add_theme_stylebox_override("normal", normal)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", hover)
+	button.pressed.connect(Sfx.play.bind("ui_click"))
+	button.pressed.connect(_toggle_hub_section.bind(key, scroll, ai, msg, choosing_ai_deck))
+	content.add_child(button)
 
 ## Join screen: 4-letter room code keypad, entering with the deck picked in the hub.
 func _show_join(msg := "") -> void:
@@ -3242,6 +3391,8 @@ func _hint() -> String:
 			return "Escolha uma carta para invocar de graça, ou não invoque nenhuma."
 		if g.pending_search.get("hand_summon", false):
 			return "Escolha um campeão da sua mão para entrar em campo de graça."
+		if g.pending_search.get("own_hand_bottom", false):
+			return "Escolha uma carta da sua mão para ir ao fundo do deck (e comprar %d), ou não escolha nenhuma." % int(g.pending_search.get("draw_after", 1))
 		if g.pending_search.get("hand_bottom", false):
 			if int(g.pending_search.get("cost_increase", 0)) > 0:
 				return "Escolha uma carta da mão do oponente para custar %d a mais, ou não escolha nenhuma." % int(g.pending_search["cost_increase"])
@@ -4912,13 +5063,14 @@ func _render_search_reveal() -> void:
 	var discard_hand: bool = g.pending_search.get("discard_hand", false)
 	var hand_summon: bool = g.pending_search.get("hand_summon", false)
 	var hand_bottom: bool = g.pending_search.get("hand_bottom", false) # Bob Veyr: a look at the opponent's hand
-	var hidden := (look or discard_hand or hand_summon or hand_bottom) and not _my_input()
+	var own_hand_bottom: bool = g.pending_search.get("own_hand_bottom", false) # Wendell Comportão: a card of the own hand goes to the bottom of the deck, then a draw
+	var hidden := (look or discard_hand or hand_summon or hand_bottom or own_hand_bottom) and not _my_input()
 	# the options of a deck search are shown only to the searcher; the opponent just sees that a search is happening
 	var deck_search: bool = g.pending_search.get("deck_search", false)
 	var secret_search := deck_search and not _my_input()
 	var summoning: bool = g.pending_search.get("summon_from", false) # "summon_from": a free summon from the deck, hand or graveyard
 	var sacrifice_pick: bool = g.pending_search.get("sacrifice_pick", false) # Censo de Baixas: a public pick among units on the board
-	var title := "SACRIFÍCIO" if sacrifice_pick else "INVOCAÇÃO GRATUITA" if summoning else "CAMPEÃO DA MÃO" if hand_summon else "MÃO DO OPONENTE" if hand_bottom else "DESCARTAR DA MÃO" if discard_hand else "CEMITÉRIO" if g.pending_search.get("grave", false) else (("FUNDO DO DECK" if g.pending_search.get("from_bottom", false) else "TOPO DO DECK") if look else "BUSCA NO DECK")
+	var title := "SACRIFÍCIO" if sacrifice_pick else "INVOCAÇÃO GRATUITA" if summoning else "CAMPEÃO DA MÃO" if hand_summon else "MÃO DO OPONENTE" if hand_bottom else "FUNDO DO DECK" if own_hand_bottom else "DESCARTAR DA MÃO" if discard_hand else "CEMITÉRIO" if g.pending_search.get("grave", false) else (("FUNDO DO DECK" if g.pending_search.get("from_bottom", false) else "TOPO DO DECK") if look else "BUSCA NO DECK")
 	var search_signature: int = g.pending_search.hash()
 	# the opponent's choice starts folded: there is nothing to do in it, and the table is what matters
 	var opponent_choice_is_folded := not _my_input() and search_opened_signature != search_signature
@@ -5043,17 +5195,17 @@ func _render_search_reveal() -> void:
 	if row_overflows and whole_deck:
 		whole_deck_hint += " Deslize para o lado para ver o deck todo."
 	var hand_tax_amount: int = int(g.pending_search.get("cost_increase", 0)) # Cornélia Aldrovane: the picked hand card costs more instead of leaving
-	var hint := summon_hint if summoning else "Clique em uma carta para levá-la à sua mão, ou escolha não pegar nenhuma; as outras ficam no cemitério." if grave_optional else "Clique em um campeão para colocá-lo em campo sem pagar o custo, ou escolha não colocar nenhum." if hand_summon else ("Clique em uma carta que brilha (não é unidade) para mandá-la ao fundo do deck do dono, ou escolha nenhuma." if g.pending_search.get("exclude_type", "") == "unit" else "Clique em uma carta para mandá-la ao fundo do deck do dono. Se for uma unidade, você descarta %d cartas; ou escolha nenhuma." % int(g.pending_search.get("discard_if_unit", 0))) if hand_bottom and hand_tax_amount == 0 else ("Clique em uma carta para ela custar %d a mais enquanto estiver na mão do dono; ou escolha nenhuma." % hand_tax_amount) if hand_bottom else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else ("Escolha 1 para a mão; as outras continuam onde estavam no fundo do deck." if g.pending_search.get("from_bottom", false) else "Escolha 1 para a mão; as outras vão para o fundo do deck.") if look else ("Nenhuma das cartas olhadas pode ser escolhida; o deck será embaralhado." if g.pending_search.get("cards", []).is_empty() else "Clique em uma carta que brilha para adicioná-la à sua mão; as outras vão para o fundo do deck.") if g.pending_search.has("to_bottom") else whole_deck_hint if whole_deck else "Clique em uma carta que brilha para adicioná-la à sua mão e embaralhar o deck, ou escolha não pegar nenhuma."
+	var hint := ("Clique em uma carta da sua mão para colocá-la no fundo do deck e comprar %d; ou escolha nenhuma." % int(g.pending_search.get("draw_after", 1))) if own_hand_bottom else summon_hint if summoning else "Clique em uma carta para levá-la à sua mão, ou escolha não pegar nenhuma; as outras ficam no cemitério." if grave_optional else "Clique em um campeão para colocá-lo em campo sem pagar o custo, ou escolha não colocar nenhum." if hand_summon else ("Clique em uma carta que brilha (não é unidade) para mandá-la ao fundo do deck do dono, ou escolha nenhuma." if g.pending_search.get("exclude_type", "") == "unit" else "Clique em uma carta para mandá-la ao fundo do deck do dono. Se for uma unidade, você descarta %d cartas; ou escolha nenhuma." % int(g.pending_search.get("discard_if_unit", 0))) if hand_bottom and hand_tax_amount == 0 else ("Clique em um feitiço que brilha para ele custar %d a mais enquanto estiver na mão do dono; ou escolha nenhuma." % hand_tax_amount if g.pending_search.get("only_type", "") == "spell" else "Clique em uma carta para ela custar %d a mais enquanto estiver na mão do dono; ou escolha nenhuma." % hand_tax_amount) if hand_bottom else "Clique em uma carta para descartá-la (ela vai para o cemitério)." if discard_hand else "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério." if grave else ("Escolha 1 para a mão; as outras continuam onde estavam no fundo do deck." if g.pending_search.get("from_bottom", false) else "Escolha 1 para a mão; as outras vão para o fundo do deck.") if look else ("Nenhuma das cartas olhadas pode ser escolhida; o deck será embaralhado." if g.pending_search.get("cards", []).is_empty() else "Clique em uma carta que brilha para adicioná-la à sua mão; as outras vão para o fundo do deck.") if g.pending_search.has("to_bottom") else whole_deck_hint if whole_deck else "Clique em uma carta que brilha para adicioná-la à sua mão e embaralhar o deck, ou escolha não pegar nenhuma."
 	var footer := _label(hint if _my_input() else "A escolha pertence ao oponente.", 18, SEL if _my_input() else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 	box.add_child(footer)
 	if not secret_search:
 		box.add_child(_label("Botão direito (ou segurar o dedo) em uma carta abre ela em tela cheia.", 15, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
 	# a top-N look and a whole-deck search are mandatory when a card is eligible: their only button is the way out of a whiff
 	var mandatory_deck_look: bool = (g.pending_search.has("to_bottom") or whole_deck) and not g.pending_search.get("cards", []).is_empty()
-	if (hand_summon or deck_search or summoning or grave_optional or hand_bottom) and _my_input() and not mandatory_deck_look:
+	if (hand_summon or deck_search or summoning or grave_optional or hand_bottom or own_hand_bottom) and _my_input() and not mandatory_deck_look:
 		# these picks are optional: uid 0 means "take no card" (Dona Gertrudes puts no champion in play)
 		# in a deck search that found nothing, the button shuffles the deck
-		var skip_text := "NÃO INVOCAR NENHUMA" if summoning else "NÃO COLOCAR NENHUM" if hand_summon else "NÃO ESCOLHER NENHUMA" if hand_bottom else "EMBARALHAR O DECK" if (g.pending_search.has("to_bottom") or whole_deck) and not grave_optional else "NÃO PEGAR NENHUMA"
+		var skip_text := "NÃO INVOCAR NENHUMA" if summoning else "NÃO COLOCAR NENHUM" if hand_summon else "NÃO ESCOLHER NENHUMA" if hand_bottom or own_hand_bottom else "EMBARALHAR O DECK" if (g.pending_search.has("to_bottom") or whole_deck) and not grave_optional else "NÃO PEGAR NENHUMA"
 		var skip_button := _button(skip_text, func(): _on_search_choice(0))
 		skip_button.custom_minimum_size = Vector2(360, 52)
 		skip_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -5322,7 +5474,10 @@ func _animate(events: Array, old: Dictionary) -> float:
 		elif et != "leader_guard":
 			fatigue_pending = false
 		# effects of a trigger fly out of their source as a bolt and land when it arrives
-		if trig_src != 0 and not area_cast_active and not is_fatigue_hit and et in ["damage", "heal", "shield_break", "buff", "dot", "freeze", "exhaust", "stun", "condemn", "tide_mark", "magic_shield_break", "supreme_shield_break", "summon"] \
+		# (a unit sent back to the hand only gets a shot from a spell, the ones with an element color,
+		# like the wind blade of Rajada de Quintal; a unit's own bounce triggers keep no shot)
+		var is_spell_bounce := et == "return_to_hand" and trig_color.a > 0.0
+		if trig_src != 0 and not area_cast_active and not is_fatigue_hit and (is_spell_bounce or et in ["damage", "heal", "shield_break", "buff", "dot", "freeze", "exhaust", "stun", "condemn", "tide_mark", "magic_shield_break", "supreme_shield_break", "summon"]) \
 				and e["uid"] != trig_src and actors.has(trig_src) and actors.has(e["uid"]):
 			# good effects are carried over as an orb; everything else is fired in the source's own style
 			var hit_style := "boon" if fx_shots._is_boon_event(e) else trig_style
@@ -5482,9 +5637,9 @@ func _animate(events: Array, old: Dictionary) -> float:
 						area_cast_active = true
 					else:
 						trig_src = GameState.LEADER_UID[int(e["player"])]
-						trig_style = String(CardDB.card(resolved_card_id).get("hit_fx", ""))
+						trig_style = fx_shots.spell_hit_style(resolved_card_id)
 						trig_shots = 0
-						trig_color = _elem_color(resolved_card_id).lightened(0.25)
+						trig_color = fx_shots.spell_shot_color(resolved_card_id, _elem_color(resolved_card_id).lightened(0.25))
 						destroy_cast_style = fx_casts.destroy_style_of(resolved_card_id)
 			"fizzle":
 				_toast("%s não teve alvo e foi anulado." % (_cname(e["card_id"]) if e["kind"] in ["card", "subito"] else "A habilidade"))
@@ -5589,12 +5744,11 @@ func _animate(events: Array, old: Dictionary) -> float:
 						dissolved_early[destroyed_view] = true
 					cursor += 0.08
 				elif destroyed_view is CardView and destroy_cast_style != "":
-					# destroyed by a fire or water spell (Reduzir a Cinzas, Afogar): no X, the unit burns or
-					# drowns and dissolves inside the fire / under the water
+					# destroyed by an element spell (Reduzir a Cinzas, Afogar, Desabamento Oportuno): no X, the
+					# unit burns / drowns / is crushed and dissolves inside the animation
 					cursor += fx_casts.destroy_cast(destroy_cast_style, destroyed_view, cursor)
 					if ghosts.has(destroyed_view) and not short_lived.has(e["uid"]) and not dissolved_early.has(destroyed_view):
-						var dissolve_color := FxCasts.FIRE_EDGE if destroy_cast_style == "fogo" else FxCasts.WATER_CORE
-						destroyed_view.dissolve(cursor, dissolve_color, 0.75)
+						destroyed_view.dissolve(cursor, FxCasts.dissolve_color_of(destroy_cast_style), 0.75)
 						Sfx.play_in("death", cursor)
 						dissolved_early[destroyed_view] = true
 					cursor += 0.3
@@ -5612,7 +5766,18 @@ func _animate(events: Array, old: Dictionary) -> float:
 						dissolved_early[destroyed_view] = true
 						cursor += 0.2
 			"banish":
-				# a free-standing artifact banished to make room; banished units go through the ghost path
+				# a unit banished by an element spell (Capina Seletiva, Ponto Final sem Vírgula): the vines /
+				# the venom take it first, then it leaves with the usual banish look (not the death dissolve)
+				var banished_view = actors.get(e["uid"])
+				if banished_view is CardView and destroy_cast_style != "" and not area_cast_active:
+					cursor += fx_casts.destroy_cast(destroy_cast_style, banished_view, cursor)
+					if ghosts.has(banished_view) and not short_lived.has(e["uid"]) and not dissolved_early.has(banished_view):
+						banished_view.banish(cursor, FxLibraryScript.BANISH_COL, 0.9)
+						fx_library._banish_fx(fx_library._center_of(banished_view), fx_library._pose(banished_view)["w"], cursor)
+						Sfx.play_in("banish", cursor)
+						dissolved_early[banished_view] = true # the settle loop must not banish it again
+					cursor += 0.3
+				# a free-standing artifact banished to make room; other banished units go through the ghost path
 				var banished_relic_uid: int = int(e["uid"])
 				if e.get("relic", false) and old.has(banished_relic_uid):
 					var banished_relic_ghost := fx_library._ghost(String(e["card_id"]), old[banished_relic_uid]["inst"], old[banished_relic_uid]["pose"])
