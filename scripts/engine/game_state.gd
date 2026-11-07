@@ -545,7 +545,8 @@ func _refresh_scaling() -> void:
 
 ## Keywords that allied "keyword_aura" Constantes give unit c right now. Each aura names the keywords, a
 ## "min_rapidez" the receiving unit must have (its own Rapidez, so the aura switches on and off as Rapidez
-## changes) and "include_self" (default false). Drake: allied units with Rapidez 2+ get Ataque Duplo.
+## changes), "unit_filter" (a CardFilter the receiving unit must pass; Ivone Apito-Seco: {"tribe_any": ["fera"]})
+## and "include_self" (default false). Drake: allied units with Rapidez 2+ get Ataque Duplo.
 func keyword_aura_of(c: Card) -> Array:
 	var granted: Array = []
 	for source: Card in players[c.owner]["board"]:
@@ -555,6 +556,8 @@ func keyword_aura_of(c: Card) -> Array:
 			if source == c and not bool(e.get("include_self", false)):
 				continue
 			if c.rapidez_total() < int(e.get("min_rapidez", 0)):
+				continue
+			if e.has("unit_filter") and not CardFilter.matches(c.card_id, e["unit_filter"]):
 				continue
 			for kw in e.get("keywords", []):
 				if not granted.has(kw):
@@ -2477,7 +2480,7 @@ func choose_search(p: int, card_uid: int) -> Array:
 			chosen = c
 			break
 	# a deck search is optional too (Bruno's Bola de Neve), and so is a Rebobinar: uid 0 takes no card
-	var declined: bool = card_uid == 0 and (pending_search.get("deck_search", false) or pending_search.get("grave_optional", false) or pending_search.get("hand_bottom", false))
+	var declined: bool = card_uid == 0 and (pending_search.get("deck_search", false) or pending_search.get("grave_optional", false) or pending_search.get("hand_bottom", false) or pending_search.get("own_hand_bottom", false))
 	if chosen.is_empty() and not declined:
 		return []
 	# a deck search (top-N or whole deck) is mandatory when something is eligible: skipping is only the way out of a whiff
@@ -2513,6 +2516,8 @@ func choose_search(p: int, card_uid: int) -> Array:
 		return _finish_enemy_sacrifice(p, card_uid)
 	if pending_search.get("hand_bottom", false):
 		return _finish_enemy_hand_bottom(p, card_uid, declined)
+	if pending_search.get("own_hand_bottom", false):
+		return _finish_own_hand_bottom(p, card_uid, declined)
 	if pending_search.get("discard_hand", false):
 		var activation_uid: int = int(pending_search.get("then_activate", 0))
 		if activation_uid != 0:
@@ -3125,29 +3130,32 @@ func _open_hand_discard_pick(p: int, source_uid: int, discards_left: int, discar
 ## `exclude_type` (Vesper: "unit") keeps cards of that type from being picked, but they are still shown in the look.
 ## `cost_increase` (Cornélia Aldrovane, "enemy_hand_tax") swaps the outcome: the picked card stays in the hand but costs that much more
 ## for as long as it stays there (a negative per-copy discount, so it ends when the card is played or leaves the hand).
-func _begin_enemy_hand_bottom(p: int, discard_if_unit: int, source_uid: int, exclude_type := "", discard_cost := 0, cost_increase := 0) -> void:
+## `only_type` (Rex Farejador: "spell") is the opposite of `exclude_type`: only cards of that type can be picked.
+func _begin_enemy_hand_bottom(p: int, discard_if_unit: int, source_uid: int, exclude_type := "", discard_cost := 0, cost_increase := 0, only_type := "") -> void:
 	if phase == "search":
 		return
 	var options: Array = []
 	var looked_cards: Array = []
 	for c: Card in players[opponent(p)]["hand"]:
 		looked_cards.append({"uid": c.uid, "card_id": c.card_id})
-		if exclude_type == "" or CardDB.card(c.card_id)["type"] != exclude_type:
+		var card_type: String = CardDB.card(c.card_id)["type"]
+		var allowed: bool = (exclude_type == "" or card_type != exclude_type) and (only_type == "" or card_type == only_type)
+		if allowed:
 			options.append({"uid": c.uid, "card_id": c.card_id})
 	if looked_cards.is_empty():
 		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
 		return
 	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "hand_bottom": true, "discard_if_unit": discard_if_unit, "discard_cost": discard_cost, "cost_increase": cost_increase}
-	if exclude_type != "":
+	if exclude_type != "" or only_type != "":
 		pending_search["looked_cards"] = looked_cards # the UI shows every card, the pickable ones glow
 		pending_search["exclude_type"] = exclude_type
+		pending_search["only_type"] = only_type
 	_search_return = phase
 	phase = "search"
 	_emit({"type": "hand_bottom_pick", "player": p, "source_uid": source_uid})
 
 ## The answer to the screen above: uid 0 takes no card; otherwise the picked card goes to the bottom of its owner's deck
 ## (the FRONT of the array: draws pop the back) and a unit makes the player discard.
-		pending_search["only_type"] = only_type
 func _finish_enemy_hand_bottom(p: int, card_uid: int, declined: bool) -> Array:
 	var foe := opponent(p)
 	var discards_for_unit := int(pending_search.get("discard_if_unit", 0))
@@ -3179,6 +3187,51 @@ func _finish_enemy_hand_bottom(p: int, card_uid: int, declined: bool) -> Array:
 	var price_is_due: bool = discards > 0
 	if price_is_due and not players[p]["hand"].is_empty():
 		_open_hand_discard_pick(p, source_uid, discards)
+		return _flush()
+	pending_search.clear()
+	phase = _search_return
+	_check_state()
+	stack_system().after_search()
+	stack_system().settle()
+	return _flush()
+
+## Wendell Comportão ("hand_to_bottom"): the player may put ONE card of their own hand at the bottom of their own deck.
+## If they do, they draw `draw_after` cards (a loot that never shrinks the hand). Declining (uid 0) does nothing and draws nothing.
+## The hand is private to its owner, like the discard screen.
+func _begin_own_hand_bottom(p: int, draw_after: int, source_uid: int) -> void:
+	if phase == "search":
+		return
+	if players[p]["hand"].is_empty():
+		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
+		return
+	var options: Array = []
+	for c: Card in players[p]["hand"]:
+		options.append({"uid": c.uid, "card_id": c.card_id})
+	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "own_hand_bottom": true, "draw_after": draw_after}
+	_search_return = phase
+	phase = "search"
+	_emit({"type": "own_hand_bottom_pick", "player": p, "source_uid": source_uid})
+
+## The answer to the screen above: the picked card goes to the bottom of the deck (the FRONT of the array: draws pop the back),
+## then the player draws. Choosing nothing ends the effect without drawing.
+func _finish_own_hand_bottom(p: int, card_uid: int, declined: bool) -> Array:
+	var draw_after := int(pending_search.get("draw_after", 1))
+	if declined:
+		_emit({"type": "search_decline", "player": p})
+	else:
+		var sent_to_bottom := _hand_card(p, card_uid)
+		if sent_to_bottom == null:
+			return []
+		players[p]["hand"].erase(sent_to_bottom)
+		players[p]["deck"].push_front(sent_to_bottom)
+		_move(sent_to_bottom, "deck")
+		_emit({"type": "own_hand_bottom", "player": p, "uid": card_uid, "card_id": sent_to_bottom.card_id})
+		pending_search.clear()
+		phase = _search_return
+		_draw(p, draw_after)
+		_check_state()
+		stack_system().after_search()
+		stack_system().settle()
 		return _flush()
 	pending_search.clear()
 	phase = _search_return
@@ -4261,7 +4314,8 @@ func _finish_turn() -> void:
 		for c in p["board"]:
 			# Damage stays marked between turns. Temporary Vida soaked damage first, so when it
 			# expires it takes that much damage away with it (a unit never dies from a buff ending).
-			c.damage = maxi(0, c.damage - c.temp_hp)
+			# Negative temporary Vida (a debuff "this turn") just wears off: it never adds damage.
+			c.damage = maxi(0, c.damage - maxi(0, c.temp_hp))
 			c.temp_hp = 0
 			c.temp_atk = 0
 			c.turn_armor = 0
@@ -4450,7 +4504,7 @@ func _start_turn(p: int, draw: bool) -> void:
 			_fire(c, "on_turn_start")
 	_fire_any_turn_trigger(p, "on_any_turn_start")
 	if draw:
-		_draw(p, 1)
+		_draw(p, 1, true)
 	_check_state()
 
 ## "No Início/Fim de Qualquer Turno": unlike on_turn_start/on_turn_end (only the owner's own turn), these

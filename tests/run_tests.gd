@@ -36,6 +36,7 @@ func _init() -> void:
 	_test_bateria_de_segunda_mao()
 	_test_tormenta_wave_two()
 	_test_magic_shield_scope()
+	_test_magic_shield_grants_are_limited()
 	_test_supreme_shield()
 	_test_durability()
 	_test_durability_rules()
@@ -85,8 +86,8 @@ func _init() -> void:
 	_test_ossuario()
 	_test_ciclo_da_carpideira()
 	_test_reembolso_do_ciclo()
-	_test_fagulha_e_cutucada()
 	_test_tesoureira_compra_e_descarta()
+	_test_fagulha_e_cutucada()
 	_test_degelo_na_moenda()
 	_test_zaza_fuzue()
 	_test_yresa_fusion()
@@ -153,6 +154,8 @@ func _init() -> void:
 	_test_magni()
 	_test_cornelia()
 	_test_mali_and_ottilia()
+	_test_natureza_canil()
+	_test_wendell()
 	_test_set2_neutral_spells()
 	_test_mali_leader_graveyard_cost()
 	_test_censo_and_queima()
@@ -223,7 +226,7 @@ func _test_card_sets() -> void:
 		for set_number in CardDB.set_numbers():
 			leader_folder_registered = leader_folder_registered or CardDB.set_folder_name(set_number) == folder
 		check(leader_folder_registered, "pasta data/leaders/%s não está cadastrada em \"sets\" de data/cards.json" % folder)
-	check(CardDB.data()["leaders"].size() == 22, "líderes: os 22 Líderes foram carregados de data/leaders (%d)" % CardDB.data()["leaders"].size())
+	check(CardDB.data()["leaders"].size() == 23, "líderes: os 23 Líderes foram carregados de data/leaders (%d)" % CardDB.data()["leaders"].size())
 	for leader_id in CardDB.data()["leaders"]:
 		var leader_set := int(CardDB.leader(String(leader_id)).get("set", 0))
 		check(sets.has(str(leader_set)), "líder %s: sem set válido (%d)" % [leader_id, leader_set])
@@ -902,6 +905,48 @@ func _test_devocao_healers() -> void:
 	g_water.play_card(0, water.uid, 0)
 	g_water._flush()
 	check(g_water.players[0]["hand"].size() == hand_before, "Água Benta: sai da mão (-1) e compra 1 (+1)")
+
+## Escudo Mágico nerf (2026-11-06): granting it ahead of time and for good made protect-the-queen decks too strong.
+## Querubina now grants plain Escudo; Ressonância and Neraqa grant Escudo Mágico only until the end of the turn.
+func _test_magic_shield_grants_are_limited() -> void:
+	var g := _new_game()
+	g.active = 0
+	_quiet(g)
+	var friend := _put(g, 0, "esqueleto_guerreiro")
+	g.players[0]["momentum"] = 10
+	var querubina := _give(g, 0, "querubina_guarda_chuva")
+	g.play_card(0, querubina)
+	if g.phase == "enter_target":
+		g.choose_enter_target(0, friend.uid)
+	_resolve_stack(g)
+	check(friend.shield and not friend.magic_shield, "Querubina: concede Escudo comum, não Escudo Mágico")
+
+	var g_neraqa := _new_game()
+	g_neraqa.active = 0
+	_quiet(g_neraqa)
+	var neraqa_friend := _put(g_neraqa, 0, "esqueleto_guerreiro")
+	var attack_before: int = g_neraqa.atk_of(neraqa_friend)
+	g_neraqa.players[0]["momentum"] = 10
+	var neraqa := _give(g_neraqa, 0, "neraqa")
+	g_neraqa.play_card(0, neraqa)
+	if g_neraqa.phase == "enter_target":
+		g_neraqa.choose_enter_target(0, neraqa_friend.uid)
+	_resolve_stack(g_neraqa)
+	check(neraqa_friend.magic_shield and g_neraqa.atk_of(neraqa_friend) == attack_before + 1, "Neraqa: a aliada recebe +1/+1 e Escudo Mágico")
+	_next_turn(g_neraqa)
+	check(not neraqa_friend.magic_shield and g_neraqa.atk_of(neraqa_friend) == attack_before + 1, "Neraqa: o Escudo Mágico some no fim do turno e o +1/+1 fica")
+
+	var g_resonance := _new_game()
+	g_resonance.active = 0
+	_quiet(g_resonance)
+	var resonance_friend := _put(g_resonance, 0, "esqueleto_guerreiro")
+	g_resonance.players[0]["momentum"] = 10
+	var resonance := _give(g_resonance, 0, "ressonancia")
+	g_resonance.play_card(0, resonance, resonance_friend.uid)
+	_resolve_stack(g_resonance)
+	check(resonance_friend.magic_shield, "Ressonância: concede Escudo Mágico à aliada")
+	_next_turn(g_resonance)
+	check(not resonance_friend.magic_shield, "Ressonância: o Escudo Mágico some no fim do turno")
 
 func _test_devocao_support() -> void:
 	# Chamada dos Ausentes: só ressuscita Luz ou Anjo/Celestial/Divindade (a ressurreição fica presa ao arquétipo)
@@ -2434,6 +2479,33 @@ func _test_obscura() -> void:
 	check(tf.card_id == "alexa_neruvya_primordial" and tf.atk == 7 and g.has_kw(tf, "sobrepujanca") and g.stack.is_empty(), "alexa vira a Primordial sem usar a pilha")
 	check(tf_hurt.damage == 0 and g.players[0]["momentum"] == 0, "transformar paga 8 e dispara o Ao Entrar")
 	check(not g.can_transform(0, tf.uid), "a Primordial não transforma de novo")
+	# Alexa Neruvya Mar-Mãe: o Ao Entrar dá -2/-2 permanente e o piso de Vida 1 impede a morte por esse efeito
+	_tcard("t_floor_big", 4, 5, [])
+	_tcard("t_floor_small", 3, 2, [])
+	_tcard("t_mar_ally", 2, 2, [])
+	var g_big := _new_game()
+	var floor_big := _put(g_big, 1, "t_floor_big")
+	g_big.players[0]["momentum"] = 10
+	_play_aimed(g_big, 0, "alexa_neruvya_mar_mae", floor_big.uid)
+	check(floor_big.atk_total() == 2 and floor_big.hp_left() == 3, "Mar-Mãe: Ao Entrar dá -2/-2 (%d/%d)" % [floor_big.atk_total(), floor_big.hp_left()])
+	var g_floor := _new_game()
+	g_floor.players[0]["momentum"] = 10
+	var floor_small := _put(g_floor, 1, "t_floor_small")
+	_play_aimed(g_floor, 0, "alexa_neruvya_mar_mae", floor_small.uid)
+	check(floor_small.atk_total() == 1 and floor_small.hp_left() == 1 and floor_small.zone == "board", "Mar-Mãe: o piso deixa a Vida em 1 em vez de matar")
+	# o -2/-2 é permanente: continua depois do fim do turno
+	g_floor.end_turn(0)
+	check(floor_small.atk_total() == 1 and floor_small.hp_left() == 1, "Mar-Mãe: o -2/-2 do Ao Entrar não some no fim do turno")
+	# Ao Ativar: Escudo Mágico em outra unidade aliada, só neste turno
+	var g_mar_mae := _new_game()
+	var mar_mae := _put(g_mar_mae, 0, "alexa_neruvya_mar_mae")
+	var shield_ally := _put(g_mar_mae, 0, "t_mar_ally")
+	g_mar_mae.players[0]["momentum"] = 10
+	g_mar_mae.activate(0, mar_mae.uid, shield_ally.uid)
+	_resolve_stack(g_mar_mae)
+	check(g_mar_mae.has_kw(shield_ally, "escudo_magico"), "Mar-Mãe: Ao Ativar concede Escudo Mágico a outra unidade aliada")
+	g_mar_mae.end_turn(0)
+	check(not g_mar_mae.has_kw(shield_ally, "escudo_magico"), "Mar-Mãe: o Escudo Mágico some no fim do turno")
 	# Yuki's Ao Ativar: goes on the stack (Rápido), +2/+2 temporary, once per turn
 	var yk := _put(g, 0, "yuki")
 	g.players[0]["momentum"] = 4
@@ -7572,6 +7644,15 @@ func _test_set2_neutral_spells() -> void:
 	var in_hand: Array = g.players[0]["hand"].filter(func(c: Card) -> bool: return c.uid == picked_uid)
 	check(in_hand.size() == 1 and g.cost_of(0, in_hand[0].data(), in_hand[0]) == 2, "Desvelar o Arcano: o feitiço escolhido vai para a mão e custa 1 a menos neste turno")
 
+	# a cost-1 spell may become free (no floor of 1), and the discount still ends with the turn
+	g = _rich_game()
+	var cheap_spell := Card.new(g._uid(), "t_nsp_cost1", 0, "deck")
+	g.players[0]["deck"] = [cheap_spell]
+	g.play_card(0, _give(g, 0, "desvelar_o_arcano"), 0)
+	_resolve_whole_stack(g)
+	g.choose_search(0, cheap_spell.uid)
+	check(g.cost_of(0, cheap_spell.data(), cheap_spell) == 0, "Desvelar o Arcano: feitiço de custo 1 fica grátis (custo %d)" % g.cost_of(0, cheap_spell.data(), cheap_spell))
+
 func _test_mali_and_ottilia() -> void:
 	_tspell("t_mali_hit", "instantaneo", [{"trigger": "on_play", "action": "damage", "target": "enemy_leader", "amount": 2}])
 	_tspell("t_mali_aim", "instantaneo", [{"trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 1}])
@@ -7616,15 +7697,6 @@ func _test_mali_and_ottilia() -> void:
 	var owner: int = 1 - caster
 	g2.players[caster]["momentum"] = 10  # t_mali_hit costs 3 and _quiet zeroes the pool
 	var mali := _put(g2, owner, "mali_magarc")
-	# a cost-1 spell may become free (no floor of 1), and the discount still ends with the turn
-	g = _rich_game()
-	var cheap_spell := Card.new(g._uid(), "t_nsp_cost1", 0, "deck")
-	g.players[0]["deck"] = [cheap_spell]
-	g.play_card(0, _give(g, 0, "desvelar_o_arcano"), 0)
-	_resolve_whole_stack(g)
-	g.choose_search(0, cheap_spell.uid)
-	check(g.cost_of(0, cheap_spell.data(), cheap_spell) == 0, "Desvelar o Arcano: feitiço de custo 1 fica grátis (custo %d)" % g.cost_of(0, cheap_spell.data(), cheap_spell))
-
 	var attack_before: int = g2.atk_of(mali)
 	check(not mali.magic_shield, "Mali: começa sem Escudo Mágico")
 	_cast_and_resolve(g2, caster, "t_mali_hit", GameState.LEADER_UID[owner])
@@ -7878,6 +7950,137 @@ func _test_mali_and_ottilia() -> void:
 
 ## Cornélia Aldrovane: Ao Entrar taxes 1 card of the opponent's hand (+2 while it stays there), Ao Ativar sacrifices an ally
 ## to banish an enemy, and the Constante makes the opponent's spells cost 1 more.
+## Set 2 Natureza "canil" (USNACOM dogs that hunt magic users): Rex Farejador, Gavião de Vigília, Ivone Apito-Seco,
+## Hank Coleira-Dura, Brutus Ferro-Velho, Alcateia de Esquina and Rinha Clandestina.
+func _test_natureza_canil() -> void:
+	_tcard("t_nat_human", 1, 9, [])
+	_tcard("t_nat_foe", 1, 9, [])
+	_tspell("t_nat_spell", "instantaneo", [])
+
+	# Rex Farejador: Ao Entrar looks at the opponent's hand and offers only SPELLS; the chosen one costs 1 more
+	var g := _new_game()
+	_quiet(g)
+	var p: int = g.active
+	var foe_player: int = 1 - p
+	var fireball := Card.new(g._uid(), "bola_de_fogo", foe_player, "hand")
+	var skeleton := Card.new(g._uid(), "esqueleto_guerreiro", foe_player, "hand")
+	g.players[foe_player]["hand"] = [fireball, skeleton]
+	var fireball_cost: int = g.cost_of(foe_player, fireball.data(), fireball)
+	var skeleton_cost: int = g.cost_of(foe_player, skeleton.data(), skeleton)
+	g._summon(p, Card.new(g._uid(), "rex_farejador", p), false, 0)
+	g._flush()
+	check(g.phase == "search" and g.pending_search.get("hand_bottom", false), "Rex Farejador: Ao Entrar abre a mão do oponente")
+	var rex_offered: Array = g.pending_search["cards"]
+	check(rex_offered.size() == 1 and int(rex_offered[0]["uid"]) == fireball.uid, "Rex Farejador: só o feitiço é oferecido, a unidade não (%d cartas)" % rex_offered.size())
+	g.choose_search(p, fireball.uid)
+	check(g.cost_of(foe_player, fireball.data(), fireball) == fireball_cost + 1, "Rex Farejador: o feitiço escolhido custa 1 a mais (%d)" % g.cost_of(foe_player, fireball.data(), fireball))
+	check(g.cost_of(foe_player, skeleton.data(), skeleton) == skeleton_cost, "Rex Farejador: a unidade do oponente não é afetada")
+
+	# Gavião de Vigília: Ao Desafiar strips the Escudo Mágico of the challenged unit
+	g = _new_game()
+	_quiet(g)
+	var hawk := _put(g, 0, "gaviao_de_vigilia")
+	var shielded := _put(g, 1, "t_nat_foe")
+	shielded.exhausted = true
+	shielded.magic_shield = true
+	_hit(g, hawk, shielded.uid)
+	check(not shielded.magic_shield, "Gavião de Vigília: a unidade desafiada perde o Escudo Mágico")
+
+	# Ivone Apito-Seco: allied Feras get Ímpeto and Vigilância; she and non-Feras do not
+	g = _new_game()
+	_quiet(g)
+	var ivone := _put(g, 0, "ivone_apito_seco")
+	var dog := _put(g, 0, "cao_k9")
+	var human := _put(g, 0, "t_nat_human")
+	var dog_keywords: Array = g.keyword_aura_of(dog)
+	check(dog_keywords.has("impeto") and dog_keywords.has("vigilancia"), "Ivone: uma Fera aliada recebe Ímpeto e Vigilância")
+	check(g.keyword_aura_of(human).is_empty(), "Ivone: unidade que não é Fera não recebe nada")
+	check(g.keyword_aura_of(ivone).is_empty(), "Ivone: ela mesma não se concede nada")
+
+	# Alcateia de Esquina: +1/+1 permanent only on allied Feras
+	g.players[0]["momentum"] = 10
+	var human_atk: int = human.atk_total()
+	var dog_atk: int = dog.atk_total()
+	g.play_card(0, _give(g, 0, "alcateia_de_esquina"), 0)
+	_resolve_whole_stack(g)
+	check(dog.atk_total() == dog_atk + 1 and dog.hp_total() == 3, "Alcateia de Esquina: a Fera aliada ganha +1/+1 (%d/%d)" % [dog.atk_total(), dog.hp_total()])
+	check(human.atk_total() == human_atk, "Alcateia de Esquina: quem não é Fera não ganha nada")
+
+	# Rinha Clandestina: an allied Fera and an enemy unit fight (both take damage); a non-Fera cannot be the fighter
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["momentum"] = 10
+	var fighter := _put(g, 0, "cao_k9") # 2/2
+	var not_a_dog := _put(g, 0, "t_nat_human")
+	var victim := _put(g, 1, "t_nat_foe") # 1/9
+	var rinha_uid := _give(g, 0, "rinha_clandestina")
+	check(g.play_card(0, rinha_uid, not_a_dog.uid, victim.uid).is_empty(), "Rinha Clandestina: quem não é Fera não pode lutar")
+	g.play_card(0, rinha_uid, fighter.uid, victim.uid)
+	_resolve_whole_stack(g)
+	check(victim.damage == 2 and fighter.damage == 1, "Rinha Clandestina: cada um causa dano igual ao seu Ataque (inimigo %d, Fera %d)" % [victim.damage, fighter.damage])
+
+	# Hank Coleira-Dura: Ao Entrar summons 2 Cães K9; each enemy spell buffs a random allied Fera +1/+1
+	g = _new_game()
+	_quiet(g)
+	var hank := _put(g, 0, "hank_coleira_dura")
+	# the two Cães K9 have Provocação, so each asks "enter tapped?": answer no, as a player would
+	for guard in 4:
+		if g.phase == "enter_tapped":
+			g.choose_enter_tapped(g.decider(), false)
+	g.pending_tap.clear()
+	var dogs: Array = g.players[0]["board"].filter(func(c: Card) -> bool: return c.card_id == "cao_k9")
+	check(dogs.size() == 2, "Hank: invoca 2 Cães K9 (%d)" % dogs.size())
+	check(hank.card_id == "hank_coleira_dura" and g.find_unit(hank.uid) != null, "Hank: continua em campo")
+	g.end_turn(0)
+	check(g.active == 1, "Hank: turno passou para o oponente")
+	g.play_card(1, _give(g, 1, "t_nat_spell"), 0)
+	_resolve_whole_stack(g)
+	var total_atk := 0
+	for d: Card in dogs:
+		total_atk += d.atk_total()
+	check(total_atk == 5, "Hank: feitiço do oponente dá +1/+1 a UMA Fera aliada (ataque somado %d, esperado 5)" % total_atk)
+
+## Wendell Comportão (Fluxo): Ao Entrar pode mandar 1 carta da própria mão ao fundo do deck e, se mandou, compra 1.
+func _test_wendell() -> void:
+	var g := _new_game()
+	_quiet(g)
+	var p: int = g.active
+	var kept := Card.new(g._uid(), "esqueleto_guerreiro", p, "hand")
+	var sent := Card.new(g._uid(), "bola_de_fogo", p, "hand")
+	g.players[p]["hand"] = [kept, sent]
+	var deck_before: int = g.players[p]["deck"].size()
+	g._summon(p, Card.new(g._uid(), "wendell_comportao", p), false, 0)
+	g._flush()
+	check(g.phase == "search" and g.pending_search.get("own_hand_bottom", false), "Wendell: Ao Entrar abre a escolha na própria mão")
+	check(g.pending_search["cards"].size() == 2, "Wendell: as duas cartas da mão são oferecidas")
+	g.choose_search(p, sent.uid)
+	check(g.players[p]["deck"][0] == sent, "Wendell: a carta escolhida vai para o FUNDO do deck")
+	check(not g.players[p]["hand"].has(sent) and g.players[p]["hand"].has(kept) and g.players[p]["hand"].size() == 2, "Wendell: a carta sai da mão e uma nova é comprada (mão %d)" % g.players[p]["hand"].size())
+	check(g.players[p]["deck"].size() == deck_before, "Wendell: o deck ganha 1 e perde 1 (%d -> %d)" % [deck_before, g.players[p]["deck"].size()])
+	check(g.phase != "search", "Wendell: a escolha termina")
+
+	# recusar (uid 0) não custa nada e não compra
+	g = _new_game()
+	_quiet(g)
+	p = g.active
+	var only := Card.new(g._uid(), "esqueleto_guerreiro", p, "hand")
+	g.players[p]["hand"] = [only]
+	var deck_declined: int = g.players[p]["deck"].size()
+	g._summon(p, Card.new(g._uid(), "wendell_comportao", p), false, 0)
+	g._flush()
+	g.choose_search(p, 0)
+	check(g.players[p]["hand"] == [only] and g.players[p]["deck"].size() == deck_declined, "Wendell: recusar não move nem compra carta")
+
+	# mão vazia: nada acontece
+	g = _new_game()
+	_quiet(g)
+	p = g.active
+	g.players[p]["hand"] = []
+	var deck_empty_hand: int = g.players[p]["deck"].size()
+	g._summon(p, Card.new(g._uid(), "wendell_comportao", p), false, 0)
+	g._flush()
+	check(g.phase != "search" and g.players[p]["hand"].is_empty() and g.players[p]["deck"].size() == deck_empty_hand, "Wendell: com a mão vazia nada acontece")
+
 func _test_cornelia() -> void:
 	_tcard("t_cornelia_ally", 1, 3, [])
 	_tcard("t_cornelia_foe", 2, 9, [])
@@ -10870,6 +11073,36 @@ func _test_reembolso_do_ciclo() -> void:
 				current_spirit_uid = unit.uid
 	check(momentum_after_each_lap == [1, 1, 1, 1, 1, 1], "reembolso: toda volta sai de graça (veio %s)" % str(momentum_after_each_lap))
 
+func _test_tesoureira_compra_e_descarta() -> void:
+	# Tesoureira Troco-Certo: quando um aliado morre, compra 1 carta e DEPOIS descarta 1, só uma vez por turno.
+	var g := _new_game()
+	_quiet(g)
+	g.active = 0
+	_put(g, 0, "tesoureira_troco_certo")
+	var victim := _put(g, 0, "espirito_choroso")
+	var second_victim := _put(g, 0, "espirito_choroso")
+	g._flush()
+	var hand_before: int = g.players[0]["hand"].size()
+	var deck_before: int = g.players[0]["deck"].size()
+	var graveyard_before: int = g.players[0]["graveyard"].size()
+	victim.damage = 1000
+	g._check_state()
+	var death_events := g._flush()
+	var draw_events := death_events.filter(func(e): return e["type"] == "draw" and e["player"] == 0)
+	check(draw_events.size() == 1 and not draw_events[0].get("routine", false), "tesoureira: a morte aliada gera 1 evento de compra (que a Crônica lista)")
+	check(g.players[0]["hand"].size() == hand_before + 1 and g.players[0]["deck"].size() == deck_before - 1, "tesoureira: a carta comprada saiu do deck para a mão")
+	check(g.phase == "search" and g.pending_search.get("discard_hand", false), "tesoureira: depois de comprar, pede o descarte")
+	g.choose_search(0, int(g.pending_search["cards"][0]["uid"]))
+	check(g.phase != "search" and g.players[0]["hand"].size() == hand_before, "tesoureira: compra 1 e descarta 1, a mão volta ao tamanho de antes")
+	check(g.players[0]["graveyard"].size() == graveyard_before + 1, "tesoureira: a carta descartada vai para o cemitério (a ficha morta não vai)")
+	# segunda morte no mesmo turno: nem compra nem pede descarte
+	g._flush()
+	var hand_after_first: int = g.players[0]["hand"].size()
+	second_victim.damage = 1000
+	g._check_state()
+	var second_events := g._flush()
+	check(second_events.filter(func(e): return e["type"] == "draw").is_empty() and g.players[0]["hand"].size() == hand_after_first and g.phase != "search", "tesoureira: a 2ª morte no mesmo turno não compra nem descarta")
+
 func _test_fagulha_e_cutucada() -> void:
 	# Fagulha Bocejante (Tormenta) exaure para gerar 1 de Momentum; Cutucada no Defunto desvira uma unidade não-Campeã
 	# exausta, então os dois juntos geram Momentum de novo na mesma vez.
@@ -11004,36 +11237,6 @@ func _test_gertrudes() -> void:
 	var g := _glacial_game()
 	g.players[0]["hand"].clear() # the opening hand is random: start from an empty one
 	g.players[1]["hand"].clear()
-func _test_tesoureira_compra_e_descarta() -> void:
-	# Tesoureira Troco-Certo: quando um aliado morre, compra 1 carta e DEPOIS descarta 1, só uma vez por turno.
-	var g := _new_game()
-	_quiet(g)
-	g.active = 0
-	_put(g, 0, "tesoureira_troco_certo")
-	var victim := _put(g, 0, "espirito_choroso")
-	var second_victim := _put(g, 0, "espirito_choroso")
-	g._flush()
-	var hand_before: int = g.players[0]["hand"].size()
-	var deck_before: int = g.players[0]["deck"].size()
-	var graveyard_before: int = g.players[0]["graveyard"].size()
-	victim.damage = 1000
-	g._check_state()
-	var death_events := g._flush()
-	var draw_events := death_events.filter(func(e): return e["type"] == "draw" and e["player"] == 0)
-	check(draw_events.size() == 1 and not draw_events[0].get("routine", false), "tesoureira: a morte aliada gera 1 evento de compra (que a Crônica lista)")
-	check(g.players[0]["hand"].size() == hand_before + 1 and g.players[0]["deck"].size() == deck_before - 1, "tesoureira: a carta comprada saiu do deck para a mão")
-	check(g.phase == "search" and g.pending_search.get("discard_hand", false), "tesoureira: depois de comprar, pede o descarte")
-	g.choose_search(0, int(g.pending_search["cards"][0]["uid"]))
-	check(g.phase != "search" and g.players[0]["hand"].size() == hand_before, "tesoureira: compra 1 e descarta 1, a mão volta ao tamanho de antes")
-	check(g.players[0]["graveyard"].size() == graveyard_before + 1, "tesoureira: a carta descartada vai para o cemitério (a ficha morta não vai)")
-	# segunda morte no mesmo turno: nem compra nem pede descarte
-	g._flush()
-	var hand_after_first: int = g.players[0]["hand"].size()
-	second_victim.damage = 1000
-	g._check_state()
-	var second_events := g._flush()
-	check(second_events.filter(func(e): return e["type"] == "draw").is_empty() and g.players[0]["hand"].size() == hand_after_first and g.phase != "search", "tesoureira: a 2ª morte no mesmo turno não compra nem descarta")
-
 	var a := g.active
 	var o := g.opponent(a)
 	g.players[a]["momentum"] = 10

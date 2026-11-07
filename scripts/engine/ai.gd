@@ -152,7 +152,7 @@ static func _choose_search(g: GameState) -> int:
 	var best_uid := 0
 	var best_score := -999
 	# a discard and a forced sacrifice (Censo de Baixas) both give up the least valuable option
-	var discarding: bool = g.pending_search.get("discard_hand", false) or g.pending_search.get("sacrifice_pick", false)
+	var discarding: bool = g.pending_search.get("discard_hand", false) or g.pending_search.get("sacrifice_pick", false) or g.pending_search.get("own_hand_bottom", false)
 	if g.pending_search.get("hand_bottom", false):
 		# Bob Veyr: take the opponent's best card, unless it is a unit and the discards would cost more than it is worth
 		var best_foe_card := 0

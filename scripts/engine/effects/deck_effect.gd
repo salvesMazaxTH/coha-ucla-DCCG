@@ -32,6 +32,9 @@ extends Effect
 ##   `exclude_type` (Vesper, default "" = none): cards of that type are shown but cannot be picked (the player still sees the whole hand).
 ## "enemy_hand_tax" (Cornélia Aldrovane): the same look at the OPPONENT'S hand, but the picked card stays where it is and costs
 ##   `cost_increase` more while it stays in the hand (it ends when the card is played or leaves the hand). The player may pick none.
+##   `only_type` (Rex Farejador, default "" = any): only cards of that type can be picked (the whole hand is still shown).
+## "hand_to_bottom" (Wendell Comportão): the player may pick ONE card from their own hand and put it at the bottom of their own deck.
+##   If they do, they draw `draw_after` cards (default 1). Picking none does nothing.
 ## "look_top": the player looks at the top `count` cards and takes one; the rest go to the
 ##   bottom (or the deck is shuffled, with "shuffle": true).
 ## "look_bottom" (Dragar): `count` cards (default 2) drawn at random from the bottom `window` cards of the deck
@@ -71,7 +74,9 @@ func open_choice(context: EffectContext) -> void:
 	elif action == "enemy_hand_bottom":
 		context.game._begin_enemy_hand_bottom(context.controller, int(raw.get("discard_if_unit", 0)), context.self_uid, String(raw.get("exclude_type", "")), int(raw.get("discard_cost", 0)))
 	elif action == "enemy_hand_tax":
-		context.game._begin_enemy_hand_bottom(context.controller, 0, context.self_uid, "", 0, int(raw.get("cost_increase", 1)))
+		context.game._begin_enemy_hand_bottom(context.controller, 0, context.self_uid, "", 0, int(raw.get("cost_increase", 1)), String(raw.get("only_type", "")))
+	elif action == "hand_to_bottom":
+		context.game._begin_own_hand_bottom(context.controller, int(raw.get("draw_after", 1)), context.self_uid)
 	elif action == "look_top":
 		context.game._begin_look(context.controller, count, context.self_uid, shuffle)
 	elif action == "look_bottom":

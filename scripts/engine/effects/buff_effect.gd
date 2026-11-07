@@ -40,9 +40,12 @@ extends Effect
 ## "rapidez_temp_needs_rapidez": true only gives it to a unit that already has some Rapidez (Drake's power).
 ## "tribe_temp_bonus": {"tribe": [...], "atk": N, "ignore_rapidez_need": true}: a target of one of these tribe also gets +N Ataque until the
 ## end of the turn, and (with ignore_rapidez_need) gets "rapidez_temp" even without any Rapidez (Drake: a Dragão Negro gets +1 Ataque and +1 Rapidez).
+## "hp_floor": N (with a negative "hp") means this effect never takes the unit's Vida below N: it removes only as much Vida as
+## fits (the Ataque loss still lands in full). A unit already at N or less loses no Vida (Alexa Neruvya Mar-Mãe: -2/-2, but it never dies from it).
 
 var attack := 0
 var health := 0
+var health_floor := 0 ## "hp_floor": the Vida that is left (hp_left) never drops under this because of this effect; 0 = no floor
 var armor := 0
 var temporary_armor := 0
 var minimum_armor := 0
@@ -91,6 +94,7 @@ func _read_parameters(data: Dictionary) -> void:
 	copy_minimum_gain = int(data.get("copy_atk_min_gain", 0))
 	attack = int(data.get("atk", 0))
 	health = int(data.get("hp", 0))
+	health_floor = int(data.get("hp_floor", 0))
 	armor = int(data.get("armor", 0))
 	temporary_armor = int(data.get("armor_temp", 0))
 	minimum_armor = int(data.get("armor_min", 0))
@@ -160,8 +164,15 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		multiplier = context.sacrificed_attack
 	var attack_gain: int = attack * multiplier
 	var health_gain: int = health * multiplier
+	if health_floor > 0 and health_gain < 0:
+		# only remove the Vida that fits above the floor (a unit already at the floor loses none)
+		var removable_health: int = maxi(0, unit.hp_left() - health_floor)
+		health_gain = -mini(-health_gain, removable_health)
 	if attack_multiplier > 1:
 		attack_gain += (unit.atk + unit.intrinsic_atk) * (attack_multiplier - 1)
+	if attack_gain < 0:
+		# Ataque never goes below 0: a debuff removes only the Ataque the unit still has
+		attack_gain = maxi(attack_gain, -unit.atk_total())
 	if has_attack_cap:
 		attack_gain = mini(attack_gain, attack_cap - unit.cap_atk_gain)
 		if attack_gain <= 0:
