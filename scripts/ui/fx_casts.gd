@@ -208,6 +208,94 @@ func _water_area(origin: Vector2, t: float) -> float:
 	# the first hits land when the wave reaches the middle of the table
 	return WATER_ROLL_TIME * 0.5
 
+## ---- Destroy casts: a spell that destroys ONE unit (Reduzir a Cinzas, Afogar) ----
+## Instead of the red X, the unit is taken by its element (burned, drowned) and dissolves inside it.
+## Only the card's own "cast_fx" or element counts here, never its domain: a Fúria kick with no
+## element (Chute no Portão) keeps the X instead of bursting into flames.
+
+## The destroy animation of a spell: "fogo", "agua", or "" when it keeps the X.
+func destroy_style_of(card_id: String) -> String:
+	var card := CardDB.card(card_id)
+	var style := String(card["cast_fx"]) if card.has("cast_fx") else String(ELEMENT_STYLES.get(String(card.get("element", "")), ""))
+	return style if style in ["fogo", "agua"] else ""
+
+## Plays the destroy animation of `style` over the unit `unit_view` at moment t.
+## Returns the time from t until the unit should start dissolving (inside the fire / under the water).
+func destroy_cast(style: String, unit_view: Control, t: float) -> float:
+	var center: Vector2 = fx_library._center_of(unit_view)
+	var card_size: Vector2 = unit_view.size * unit_view.scale
+	match style:
+		"fogo":
+			return _burn_unit(center, card_size, t)
+		"agua":
+			return _drown_unit(center, card_size, t)
+	return 0.0
+
+## A small rectangle with a shader, placed over a card (used by the destroy casts).
+## Returns the rectangle; its ShaderMaterial is in its `material`.
+func _unit_overlay(shader: Shader, rect: Rect2) -> ColorRect:
+	var overlay := ColorRect.new()
+	overlay.position = rect.position
+	overlay.size = rect.size
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var overlay_material := ShaderMaterial.new()
+	overlay_material.shader = shader
+	overlay_material.set_shader_parameter("aspect", rect.size.x / rect.size.y)
+	overlay.material = overlay_material
+	fx.add_child(overlay)
+	return overlay
+
+## Fogo (Reduzir a Cinzas): flames (shaders/unit_burn.gdshader) climb the card from its base, the unit
+## dissolves inside them, then they die out. The rectangle is wider and taller than the card so the
+## tongues of fire lick past its edges.
+const BURN_CLIMB_TIME := 0.45
+const BURN_HOLD_TIME := 0.45
+const BURN_FADE_TIME := 0.4
+static var _burn_shader: Shader
+func _burn_unit(center: Vector2, card_size: Vector2, t: float) -> float:
+	if _burn_shader == null:
+		_burn_shader = load("res://scripts/ui/shaders/unit_burn.gdshader")
+	var flame_size := Vector2(card_size.x * 1.35, card_size.y * 1.45)
+	# the base of the flames sits a little below the card's bottom edge; the extra height goes up
+	var flame_rect := Rect2(Vector2(center.x - flame_size.x * 0.5, center.y + card_size.y * 0.55 - flame_size.y), flame_size)
+	var overlay := _unit_overlay(_burn_shader, flame_rect)
+	var burn_material: ShaderMaterial = overlay.material
+	var tween := overlay.create_tween()
+	tween.tween_interval(t)
+	tween.tween_method(func(value: float): burn_material.set_shader_parameter("progress", value), 0.0, 1.0, BURN_CLIMB_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.tween_interval(BURN_HOLD_TIME)
+	tween.tween_method(func(value: float): burn_material.set_shader_parameter("fade", value), 1.0, 0.0, BURN_FADE_TIME)
+	tween.tween_callback(overlay.queue_free)
+	fx_library._embers(Vector2(center.x, center.y + card_size.y * 0.4), t + 0.1, FIRE_EDGE, 16)
+	fx_library._embers(center, t + BURN_CLIMB_TIME, FIRE_EDGE, 20)
+	_shake(t + 0.1, 3.0, 0.35)
+	# the unit starts dissolving once the flames have climbed most of the way
+	return BURN_CLIMB_TIME * 0.8
+
+## Agua (Afogar): water (shaders/unit_drown.gdshader) rises over the card like a tank filling up,
+## bubbles escaping, the unit dissolves under it, then the water drains away in patches.
+const DROWN_RISE_TIME := 0.5
+const DROWN_HOLD_TIME := 0.5
+const DROWN_DRAIN_TIME := 0.45
+static var _drown_shader: Shader
+func _drown_unit(center: Vector2, card_size: Vector2, t: float) -> float:
+	if _drown_shader == null:
+		_drown_shader = load("res://scripts/ui/shaders/unit_drown.gdshader")
+	var water_size := card_size * Vector2(1.2, 1.12)
+	var water_rect := Rect2(center - water_size * 0.5, water_size)
+	var overlay := _unit_overlay(_drown_shader, water_rect)
+	var drown_material: ShaderMaterial = overlay.material
+	var tween := overlay.create_tween()
+	tween.tween_interval(t)
+	tween.tween_method(func(value: float): drown_material.set_shader_parameter("level", value), 0.0, 1.0, DROWN_RISE_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_interval(DROWN_HOLD_TIME)
+	tween.tween_method(func(value: float): drown_material.set_shader_parameter("drain", value), 0.0, 1.0, DROWN_DRAIN_TIME)
+	tween.tween_callback(overlay.queue_free)
+	fx_library._embers(Vector2(center.x, center.y + card_size.y * 0.45), t + 0.05, WATER_CORE, 12)
+	fx_library._embers(Vector2(center.x, center.y - card_size.y * 0.5), t + DROWN_RISE_TIME, WATER_CORE, 14)
+	# the unit starts dissolving once it is fully under water
+	return DROWN_RISE_TIME
+
 ## Generic area cast (elements without their own animation yet): a ball in the card's color swells
 ## on the caster and a shockwave runs over the whole arena.
 func _shockwave_area(origin: Vector2, t: float, col: Color) -> float:

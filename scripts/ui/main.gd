@@ -5272,6 +5272,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 	var volley_land_t := 0.0 ## when the trigger's last shot lands (the next one follows VOLLEY_GAP later)
 	var trig_color := Color.TRANSPARENT ## color of the shots of a spell (its element); transparent = each effect's own color
 	var area_cast_active := false ## an area cast just played: its hits land without shots and its destroys without the X
+	var destroy_cast_style := "" ## the spell being resolved burns ("fogo") or drowns ("agua") the unit it destroys instead of the X
 	var fatigue_pending := false ## a Fadiga was just announced: the Leader hit that follows is the game's rule, not a card's effect
 	# Leader HP: _render drew the final value, so rewind it to what it was before these events
 	# and step it down/up at each hit's moment instead of jumping straight to the end.
@@ -5309,6 +5310,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 			trig_src = 0
 			trig_color = Color.TRANSPARENT
 			area_cast_active = false
+			destroy_cast_style = ""
 		elif et in ["damage", "shield_break"] and e.get("src", 0) > 0 and trig_src >= 0 and (in_combat or e["src"] != trig_src):
 			trig_src = 0
 			trig_color = Color.TRANSPARENT
@@ -5483,6 +5485,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 						trig_style = String(CardDB.card(resolved_card_id).get("hit_fx", ""))
 						trig_shots = 0
 						trig_color = _elem_color(resolved_card_id).lightened(0.25)
+						destroy_cast_style = fx_casts.destroy_style_of(resolved_card_id)
 			"fizzle":
 				_toast("%s não teve alvo e foi anulado." % (_cname(e["card_id"]) if e["kind"] in ["card", "subito"] else "A habilidade"))
 				cursor += 0.3
@@ -5585,6 +5588,16 @@ func _animate(events: Array, old: Dictionary) -> float:
 						Sfx.play_in("death", cursor)
 						dissolved_early[destroyed_view] = true
 					cursor += 0.08
+				elif destroyed_view is CardView and destroy_cast_style != "":
+					# destroyed by a fire or water spell (Reduzir a Cinzas, Afogar): no X, the unit burns or
+					# drowns and dissolves inside the fire / under the water
+					cursor += fx_casts.destroy_cast(destroy_cast_style, destroyed_view, cursor)
+					if ghosts.has(destroyed_view) and not short_lived.has(e["uid"]) and not dissolved_early.has(destroyed_view):
+						var dissolve_color := FxCasts.FIRE_EDGE if destroy_cast_style == "fogo" else FxCasts.WATER_CORE
+						destroyed_view.dissolve(cursor, dissolve_color, 0.75)
+						Sfx.play_in("death", cursor)
+						dissolved_early[destroyed_view] = true
+					cursor += 0.3
 				elif destroyed_view is CardView:
 					var cross_half_extent: Vector2 = destroyed_view.size * destroyed_view.scale * 0.55
 					fx_library._cross_slash_fx(fx_library._center_of(destroyed_view), cross_half_extent, Color("#ff4040"), cursor)
