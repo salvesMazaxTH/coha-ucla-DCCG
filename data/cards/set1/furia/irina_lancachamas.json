@@ -17,7 +17,7 @@
       "trigger": "on_enter",
       "action": "damage",
       "target": "any",
-      "amount": 3
+      "amount": 4
     },
     {
       "trigger": "on_enter",
@@ -27,7 +27,7 @@
       "amount": 1
     }
   ],
-  "text": "Ao Entrar: você pode escolher qualquer alvo; ele sofre 3 de dano e, se for uma unidade, recebe 1 marcador de Queimadura.",
+  "text": "Ao Entrar: você pode escolher qualquer alvo; ele sofre 4 de dano e, se for uma unidade, recebe 1 marcador de Queimadura.",
   "flavor": "\"Tá tudo bem.\" Não está.",
   "tags": []
 }

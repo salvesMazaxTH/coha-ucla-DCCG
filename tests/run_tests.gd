@@ -10592,7 +10592,7 @@ func _test_ai_burn_plan() -> void:
 func _test_ai_lethal_planner() -> void:
 	_tcard("t_ai_racer", 2, 2, [])
 	_tcard("t_ai_blocker", 1, 3, [])
-	# 1) Irina (Ao Entrar: 3 de dano em qualquer alvo) fecha o letal: o dano vai para o Líder, não para a unidade
+	# 1) Irina (Ao Entrar: 4 de dano em qualquer alvo) fecha o letal: o dano vai para o Líder, não para a unidade
 	var g := _new_game()
 	_quiet(g)
 	g.active = 0
@@ -10603,7 +10603,7 @@ func _test_ai_lethal_planner() -> void:
 	_give(g, 0, "irina_lancachamas")
 	_put(g, 0, "t_ai_racer")
 	var enemy_unit := _put(g, 1, "t_ai_blocker")
-	g.players[1]["leader_hp"] = 5 # o tabuleiro bate 2, faltam 3: exatamente o dano da Irina
+	g.players[1]["leader_hp"] = 6 # o tabuleiro bate 2, faltam 4: exatamente o dano da Irina
 	check(SimpleAI._lethal_line(g, 0).size() == 1, "IA letal: a Irina cobre o que falta (%d cartas na linha)" % SimpleAI._lethal_line(g, 0).size())
 	SimpleAI._try_play(g, 0)
 	for step_count in 6:
