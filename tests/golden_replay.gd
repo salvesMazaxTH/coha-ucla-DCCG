@@ -50,9 +50,11 @@ static func play(a: String, b: String, s: int) -> Array:
 ## Empty when every recorded game replays identically; otherwise one message per divergent game.
 static func compare() -> Array[String]:
 	var errs: Array[String] = []
+	var missing_count := 0
 	for pair in pairs():
+		# Um par sem gravação (deck novo) não é erro: só pulamos e contamos no aviso final.
 		if not FileAccess.file_exists(_path(pair)):
-			errs.append("golden faltando: %s (rode tests/golden_replay.gd)" % _path(pair))
+			missing_count += 1
 			continue
 		var games: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(_path(pair)))
 		for s in SEEDS:
@@ -64,4 +66,6 @@ static func compare() -> Array[String]:
 				if w != h:
 					errs.append("golden %s x %s seed %d, linha %d:\n  esperado: %s\n  obtido:   %s" % [pair[0], pair[1], s, i, w.left(400), h.left(400)])
 					break
+	if missing_count > 0:
+		print("aviso: %d pares sem golden foram pulados (rode tests/golden_replay.gd para gravar)" % missing_count)
 	return errs

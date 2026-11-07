@@ -9,6 +9,7 @@ const DeckLeaderTooltipScript = preload("res://scripts/ui/deck_leader_tooltip.gd
 const BannedRibbonScript = preload("res://scripts/ui/banned_ribbon.gd")
 const FxLibraryScript = preload("res://scripts/ui/fx_library.gd")
 const FxShotsScript = preload("res://scripts/ui/fx_shots.gd")
+const FxCastsScript = preload("res://scripts/ui/fx_casts.gd")
 const ChronicleLogScript = preload("res://scripts/ui/chronicle_log.gd")
 const DevToolsPanelScript = preload("res://scripts/ui/dev_tools_panel.gd")
 
@@ -154,6 +155,7 @@ var _aim_drag_view: CardView
 var fx: Control ## persistent layer above the table: ghosts, floats, embers
 var fx_library: FxLibrary ## card flights, combat effects and glow primitives (moved out of this file)
 var fx_shots: FxShots ## projectile / slash / boon shot pipeline, built on fx_library
+var fx_casts: FxCasts ## cast animations of spells and area triggers (a wall of fire, a flood...), built on fx_library
 var ai_timer: Timer
 ## Animations are never cut short: while one is still playing, the next batch of events waits here
 ## (the engine has already applied it; only the showing is postponed) and plays when the table settles.
@@ -240,6 +242,7 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	fx_library = FxLibraryScript.new(self)
 	fx_shots = FxShotsScript.new(self, fx_library)
+	fx_casts = FxCastsScript.new(self, fx_library)
 	chronicle_log = ChronicleLogScript.new(self)
 	# the logical screen is as tall as the stage, so a 16:9 window shows all of it (not a cropped middle)
 	get_window().content_scale_size = Vector2i(1600, int(STAGE_H))
@@ -5267,6 +5270,8 @@ func _animate(events: Array, old: Dictionary) -> float:
 	var trig_style := "" ## how that unit's shots fly: its card's "hit_fx", or the chosen option's own "hit_fx"
 	var trig_shots := 0 ## bolts that trigger already fired (only the first one charges up slowly)
 	var volley_land_t := 0.0 ## when the trigger's last shot lands (the next one follows VOLLEY_GAP later)
+	var trig_color := Color.TRANSPARENT ## color of the shots of a spell (its element); transparent = each effect's own color
+	var area_cast_active := false ## an area cast just played: its hits land without shots and its destroys without the X
 	var fatigue_pending := false ## a Fadiga was just announced: the Leader hit that follows is the game's rule, not a card's effect
 	# Leader HP: _render drew the final value, so rewind it to what it was before these events
 	# and step it down/up at each hit's moment instead of jumping straight to the end.
@@ -5298,9 +5303,15 @@ func _animate(events: Array, old: Dictionary) -> float:
 		var et: String = e["type"]
 		# a new action or a blow from some other unit ends the trigger's chain of effects
 		# (damage the trigger's own unit deals outside combat still belongs to the trigger)
-		if et in ["play", "ability", "passive", "resolve", "attack", "combat_damage", "start_turn", "end_turn"] \
-				or (et in ["damage", "shield_break"] and e.get("src", 0) > 0 and (in_combat or e["src"] != trig_src)):
+		# (a spell cast from a Leader, trig_src < 0, deals its damage with the spell card as source, so
+		# that does not end it; the spell's chain ends at the next action)
+		if et in ["play", "ability", "passive", "resolve", "attack", "combat_damage", "start_turn", "end_turn"]:
 			trig_src = 0
+			trig_color = Color.TRANSPARENT
+			area_cast_active = false
+		elif et in ["damage", "shield_break"] and e.get("src", 0) > 0 and trig_src >= 0 and (in_combat or e["src"] != trig_src):
+			trig_src = 0
+			trig_color = Color.TRANSPARENT
 		# Fadiga damage has no source card even when a trigger's draw caused it, so no bolt flies for it.
 		# Only the hit right after the "fatigue" event counts (a Leader guard may come between them).
 		var is_fatigue_hit := fatigue_pending and et == "damage"
@@ -5309,7 +5320,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 		elif et != "leader_guard":
 			fatigue_pending = false
 		# effects of a trigger fly out of their source as a bolt and land when it arrives
-		if trig_src != 0 and not is_fatigue_hit and et in ["damage", "heal", "shield_break", "buff", "dot", "freeze", "exhaust", "stun", "condemn", "tide_mark", "magic_shield_break", "supreme_shield_break", "summon"] \
+		if trig_src != 0 and not area_cast_active and not is_fatigue_hit and et in ["damage", "heal", "shield_break", "buff", "dot", "freeze", "exhaust", "stun", "condemn", "tide_mark", "magic_shield_break", "supreme_shield_break", "summon"] \
 				and e["uid"] != trig_src and actors.has(trig_src) and actors.has(e["uid"]):
 			# good effects are carried over as an orb; everything else is fired in the source's own style
 			var hit_style := "boon" if fx_shots._is_boon_event(e) else trig_style
@@ -5324,7 +5335,10 @@ func _animate(events: Array, old: Dictionary) -> float:
 				# air while that one hits. Only something slower than a plain hit in between (each hit
 				# moves the cursor 0.12 on) holds it back.
 				land_t = maxf(volley_land_t + FxShotsScript.VOLLEY_GAP, cursor - 0.12)
-			fx_shots._effect_hit(hit_style, actors[trig_src], actors[e["uid"]], land_t - shot_time, fx_shots._bolt_color(e), first_shot)
+			var shot_color := fx_shots._bolt_color(e)
+			if trig_color.a > 0.0 and hit_style != "boon":
+				shot_color = trig_color # a spell's shot carries the color of its element
+			fx_shots._effect_hit(hit_style, actors[trig_src], actors[e["uid"]], land_t - shot_time, shot_color, first_shot)
 			volley_land_t = land_t
 			cursor = land_t
 			trig_shots += 1
@@ -5344,7 +5358,13 @@ func _animate(events: Array, old: Dictionary) -> float:
 					trig_src = e["uid"]
 					trig_style = fx_shots._hit_style_of(actors[trig_src])
 					trig_shots = 0
+					trig_color = Color.TRANSPARENT
 					cursor += 0.3
+					# a trigger that hits a whole group of units (D'Lorafya's fire) plays one area cast
+					# from the unit instead of one shot per target
+					area_cast_active = fx_casts.is_area(String(e["card_id"]), String(e["trigger"]))
+					if area_cast_active:
+						cursor += fx_casts.area_cast(String(e["card_id"]), fx_library._center_of(actors[e["uid"]]), cursor)
 			"effect_choice_chosen":
 				# only an option that names its own "hit_fx" flies its effects out of the card (the choice
 				# comes in a batch of its own, after the trigger that offered it)
@@ -5352,8 +5372,10 @@ func _animate(events: Array, old: Dictionary) -> float:
 					trig_src = e["uid"]
 					trig_style = String(e["hit_fx"])
 					trig_shots = 0
+					trig_color = Color.TRANSPARENT
 			"trigger_end":
 				trig_src = 0 # the effects that follow have no card to fly out of
+				area_cast_active = false
 			"shout":
 				if actors.has(e["uid"]):
 					cursor = fx_library._shout_fx(actors[e["uid"]], String(e["text"]), cursor, String(e.get("style", "")))
@@ -5448,6 +5470,19 @@ func _animate(events: Array, old: Dictionary) -> float:
 				cursor += 0.2 + hold - 0.15
 			"resolve":
 				cursor += 0.15
+				# a spell goes off from its caster's Leader: an area spell plays its cast over the whole
+				# arena, a spell with targets fires its shots from the Leader in the color of its element
+				var resolved_card_id := String(e.get("card_id", ""))
+				var caster_leader = actors.get(GameState.LEADER_UID[int(e["player"])])
+				if e["kind"] == "card" and resolved_card_id != "" and caster_leader != null 						and String(CardDB.card(resolved_card_id).get("type", "")) == "spell":
+					if fx_casts.is_area(resolved_card_id, "on_play"):
+						cursor += fx_casts.area_cast(resolved_card_id, fx_library._center_of(caster_leader), cursor)
+						area_cast_active = true
+					else:
+						trig_src = GameState.LEADER_UID[int(e["player"])]
+						trig_style = String(CardDB.card(resolved_card_id).get("hit_fx", ""))
+						trig_shots = 0
+						trig_color = _elem_color(resolved_card_id).lightened(0.25)
 			"fizzle":
 				_toast("%s não teve alvo e foi anulado." % (_cname(e["card_id"]) if e["kind"] in ["card", "subito"] else "A habilidade"))
 				cursor += 0.3
@@ -5542,7 +5577,15 @@ func _animate(events: Array, old: Dictionary) -> float:
 				# a "destroy" effect (from any card): the same X as the Leader's execution forms and crosses
 				# over the unit, and only then does it die the usual way (the dissolve)
 				var destroyed_view = actors.get(e["uid"])
-				if destroyed_view is CardView:
+				if destroyed_view is CardView and area_cast_active:
+					# destroyed by an area cast (the flood of Julgamento): no X, the unit just goes under
+					# right away, a little after the previous one
+					if ghosts.has(destroyed_view) and not short_lived.has(e["uid"]) and not dissolved_early.has(destroyed_view):
+						destroyed_view.dissolve(cursor, _elem_color(destroyed_view.card_id).lightened(0.2), 0.75)
+						Sfx.play_in("death", cursor)
+						dissolved_early[destroyed_view] = true
+					cursor += 0.08
+				elif destroyed_view is CardView:
 					var cross_half_extent: Vector2 = destroyed_view.size * destroyed_view.scale * 0.55
 					fx_library._cross_slash_fx(fx_library._center_of(destroyed_view), cross_half_extent, Color("#ff4040"), cursor)
 					cursor += FxLibraryScript.CROSS_SLASH_SECOND_DELAY + FxLibraryScript.CROSS_SLASH_FORM_TIME + 0.12
