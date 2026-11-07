@@ -10,13 +10,15 @@ extends Effect
 ##                With "amount_from": "shared_x" it heals the card's shared X plus `amount` (Drex: X+1 with amount 1).
 ##                "heal_origin": "reaction" (opt-in) reports the heal to listeners as that origin instead of "unit", so a card
 ##                that listens to unit heals cannot answer its own heal forever (Drex).
-##                "per_turn_cap": N (opt-in) gives each instance of the card a soft budget of N Vida healed per turn:
-##                the trigger that reaches or crosses N still heals in full, later ones do nothing until the next turn.
+##                "per_turn_cap": N (opt-in) gives each instance of the card a hard budget of N Vida healed per turn:
+##                the trigger that would pass N heals only what is left, later ones do nothing until the next turn.
 ##                "source_temp_hp": N (with per_turn_cap) also gives the card N temporary Vida per accepted trigger,
 ##                until its owner's next turn starts (Tox Vipranna +1).
 ## "leader_max_up": raises the controller's Leader maximum HP (and current HP) by `amount`.
 ## "heal_full": removes all damage from the target unit.
-## "heal_unit": heals the target unit by `amount`, or by its Armadura when "per" is "armor".
+## "heal_unit": heals the target unit by `amount`, or by its Armadura when "per" is "armor". With "amount_from":
+##              "shared_x" it heals the card's shared X plus `amount`, and "heal_origin" reports the heal as that
+##              origin (Drex phase 2 heals itself as "reaction", so its own heal does not trigger it again).
 ##              A Leader target (negative uid, e.g. from "ally_or_own_leader") heals that Leader instead.
 ##              "overflow_max_hp": N (opt-in, never a default) = when the heal is bigger than the Vida the
 ##              target was missing, it also gains +N maximum Vida for good (unit or Leader).
@@ -63,7 +65,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		"heal_leader":
 			var heal_amount := _leader_heal_amount(context)
 			if per_turn_cap > 0:
-				context.game._apply_capped_leader_heal(context, heal_amount, per_turn_cap, source_temp_hp)
+				context.game._apply_capped_leader_heal(context, heal_amount, per_turn_cap, source_temp_hp, origin_override)
 			else:
 				context.game._heal_leader(context.controller, heal_amount, origin_override if origin_override != "" else context.heal_origin())
 			if cleanse:
@@ -95,6 +97,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 			if cleanse:
 				context.game.cleanse_unit_markers(unit)
 			var heal_amount := amount
+			if amount_from == "shared_x":
+				heal_amount = context.game.shared_x_of(context.controller, context.source_id()) + amount
 			if per == "armor":
 				heal_amount = context.game.armor_of(unit)
 			elif per == "half_armor": # half the Armadura, rounded up
@@ -105,7 +109,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 			if healed > 0:
 				context.game._emit({"type": "heal", "uid": target_uid, "amount": healed})
 				unit.damage -= healed
-				context.game.emit_unit_healed(unit, healed, context.heal_origin())
+				context.game.emit_unit_healed(unit, healed, origin_override if origin_override != "" else context.heal_origin())
 			# opt-in overflow: a heal that goes past what the unit was missing grows its maximum Vida for good
 			if overflow_max_hp > 0 and heal_amount > healed:
 				unit.hp += overflow_max_hp

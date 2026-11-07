@@ -5495,7 +5495,8 @@ func _test_drex_deck() -> void:
 	feast.apply(EffectContext.new(g, g.active, ""), GameState.LEADER_UID[enemy])
 	check(g.players[enemy]["leader_hp"] == 43, "Banquete Carmesim: 7 de cura neste turno viram 7 de dano no Líder inimigo")
 
-	# Drex champion: when Sangramento hurts an enemy (or an ally unit heals with its own effect) he gets +1 Vida and +1 Armadura permanent and his Leader recovers X+1
+	# Drex champion, phase 1 (base Vida below 10): when Sangramento hurts an enemy, or ANOTHER ally unit heals with its own
+	# effect, he gets +1 Vida permanent (no Armadura yet) and his Leader recovers X+1 (at most 10 a turn)
 	g = _new_game()
 	_quiet(g)
 	enemy = g.opponent(g.active)
@@ -5508,27 +5509,25 @@ func _test_drex_deck() -> void:
 	g.add_dot_markers(victim, "sangramento", 2)
 	g.resolve_dot(victim, "sangramento")
 	g._check_state()
-	check(vampire.atk == 2 and vampire.hp == 5 and vampire.armor == 1, "Drex: o Sangramento causando dano a uma unidade inimiga dá +1 de Vida e +1 de Armadura permanentes (sem Ataque)")
+	check(vampire.atk == 2 and vampire.hp == 5 and vampire.armor == 0, "Drex fase 1: o Sangramento causando dano a uma unidade inimiga dá só +1 de Vida permanente (sem Ataque nem Armadura)")
 	check(g.players[g.active]["leader_hp"] == 53, "Drex: o Líder recupera X+1 de Vida (2+1) por inimigo atingido")
 	g.players[enemy]["leader_max"] = 100
 	g.players[enemy]["leader_hp"] = 50
 	g.add_leader_dot_markers(enemy, "sangramento", 2)
 	g._resolve_leader_dot(enemy, "sangramento")
 	g._check_state()
-	check(vampire.hp == 6 and vampire.armor == 2 and g.players[g.active]["leader_hp"] == 56, "Drex: o Sangramento causando dano ao Líder inimigo também dá +1 de Vida e +1 de Armadura e cura X+1; a Armadura acumula")
+	check(vampire.hp == 6 and vampire.armor == 0 and g.players[g.active]["leader_hp"] == 56, "Drex fase 1: o Sangramento causando dano ao Líder inimigo também dá +1 de Vida e cura X+1")
 	g.turn += 2 # new turn: the 2 uses above are spent
 	g.grow_shared_x(g.active, "drex")
 	g.add_dot_markers(victim, "sangramento", 2)
 	g.resolve_dot(victim, "sangramento")
 	g._check_state()
 	check(g.players[g.active]["leader_hp"] == 56 + 4, "Drex: com o X em 3 o Líder recupera 4 por inimigo atingido")
-	# the heal Drex itself does must not set the Conditional off again
-	check(vampire.hp == 7 and vampire.armor == 3, "Drex: a cura do próprio Drex não dispara a Condicional de novo (só +1 de Vida e +1 de Armadura por tick)")
+	check(vampire.hp == 7 and vampire.armor == 0 and vampire.damage == 0, "Drex fase 1: não cura a si mesmo, só ganha +1 de Vida")
 
-	# an ally unit healing with its own effect also sets the Conditional off (new turn: the use above is spent)
+	# another ally unit healing with its own effect also sets the Conditional off (new turn: the use above is spent)
 	g.turn += 2
 	var hp_before_heal := vampire.hp
-	var armor_before_heal := vampire.armor
 	var leader_hp_before_heal: int = g.players[g.active]["leader_hp"]
 	healer.damage = 3
 	g.emit_unit_healed(healer, 1, "spell")
@@ -5537,59 +5536,82 @@ func _test_drex_deck() -> void:
 	g._heal_leader(g.active, 1, "artifact")
 	g._heal_leader(g.active, 1)
 	g._check_state()
-	check(vampire.hp == hp_before_heal and vampire.armor == armor_before_heal and g.players[g.active]["leader_hp"] == leader_hp_before_heal + 3, "Drex: cura de feitiço, habilidade de Líder, artefato ou sem origem não dispara a Condicional")
+	check(vampire.hp == hp_before_heal and vampire.armor == 0 and g.players[g.active]["leader_hp"] == leader_hp_before_heal + 3, "Drex: cura de feitiço, habilidade de Líder, artefato ou sem origem não dispara a Condicional")
 	leader_hp_before_heal = g.players[g.active]["leader_hp"]
 	g.emit_unit_healed(healer, 1, "unit")
 	g._check_state()
-	check(vampire.hp == hp_before_heal + 1 and vampire.armor == armor_before_heal + 1 and g.players[g.active]["leader_hp"] == leader_hp_before_heal + 4, "Drex: cura de unidade aliada (em unidade) dá +1 de Vida, +1 de Armadura e cura X+1 (3+1)")
+	check(vampire.hp == hp_before_heal + 1 and vampire.armor == 0 and g.players[g.active]["leader_hp"] == leader_hp_before_heal + 4, "Drex: cura de outra unidade aliada (em unidade) dá +1 de Vida e cura X+1 (3+1)")
 	leader_hp_before_heal = g.players[g.active]["leader_hp"]
 	g._heal_leader(g.active, 1, "unit")
 	g._check_state()
-	check(vampire.hp == hp_before_heal + 2 and vampire.armor == armor_before_heal + 2 and g.players[g.active]["leader_hp"] == leader_hp_before_heal + 1 + 4, "Drex: cura de unidade aliada (no Líder) também dispara a Condicional")
+	check(vampire.hp == hp_before_heal + 2 and g.players[g.active]["leader_hp"] == leader_hp_before_heal + 1 + 4, "Drex: cura de outra unidade aliada (no Líder) também dispara a Condicional")
 	var hp_before_enemy_heal := vampire.hp
 	g.players[enemy]["leader_hp"] = 40
 	g._heal_leader(enemy, 1, "unit")
 	g._check_state()
 	check(vampire.hp == hp_before_enemy_heal, "Drex: cura feita por unidade inimiga não dispara a Condicional")
-	# the lifesteal keyword is a unit healing: Drex has it innately and hears his own, and an ally's
+	# the lifesteal keyword is a unit healing: an ally's sets him off, his own does not
 	g.turn += 2
 	check(vampire.has_kw("roubo_de_vida"), "Drex: tem Roubo de Vida inato")
 	_tcard("t_lifesteal_victim", 1, 12, [])
 	_tcard("t_lifesteal_ally", 3, 3, [])
 	CardDB.card("t_lifesteal_ally")["keywords"] = ["roubo_de_vida"]
-	g.players[g.active]["leader_max"] = 100
 	var leader_hp_before_lifesteal: int = g.players[g.active]["leader_hp"]
 	var hp_before_lifesteal := vampire.hp
-	var armor_before_lifesteal := vampire.armor
 	var lifesteal_victim := _put(g, enemy, "t_lifesteal_victim")
 	g._deal_damage(lifesteal_victim.uid, 1, vampire)
 	g._check_state()
-	check(vampire.hp == hp_before_lifesteal + 1 and vampire.armor == armor_before_lifesteal + 1, "Drex: o próprio Roubo de Vida dispara a Condicional (+1 de Vida e +1 de Armadura)")
-	check(g.players[g.active]["leader_hp"] == leader_hp_before_lifesteal + 1 + 4, "Drex: o Roubo de Vida cura 1 e a Condicional cura X+1 (3+1) sem se repetir")
+	check(vampire.hp == hp_before_lifesteal and g.players[g.active]["leader_hp"] == leader_hp_before_lifesteal + 1, "Drex: o próprio Roubo de Vida não dispara a Condicional (só cura 1)")
 	var ally_lifesteal := _put(g, g.active, "t_lifesteal_ally")
 	hp_before_lifesteal = vampire.hp
 	g._deal_damage(lifesteal_victim.uid, 1, ally_lifesteal)
 	g._check_state()
-	check(vampire.hp == hp_before_lifesteal + 1, "Drex: o Roubo de Vida de uma unidade aliada também dispara a Condicional")
+	check(vampire.hp == hp_before_lifesteal + 1, "Drex: o Roubo de Vida de outra unidade aliada dispara a Condicional")
 
-	# the Conditional works at most 2 times a turn (buff + heal of one trigger count as ONE use) and comes back next turn
+	# phase 2 (base Vida 10 or more): +1 Armadura permanent INSTEAD of Vida, and he also heals himself X+1
+	check(vampire.hp == 10 and vampire.armor == 0, "Drex: chega a 10 de Vida base sem Armadura")
 	g.turn += 2
-	g.players[g.active]["leader_max"] = 1000
-	g.players[g.active]["leader_hp"] = 500
-	var capped_hp_start := vampire.hp
-	var capped_leader_start: int = g.players[g.active]["leader_hp"]
-	for trigger_number in 2:
+	vampire.damage = 5
+	leader_hp_before_heal = g.players[g.active]["leader_hp"]
+	g.emit_unit_healed(healer, 1, "unit")
+	g._check_state()
+	check(vampire.hp == 10 and vampire.armor == 1, "Drex fase 2: o gatilho dá +1 de Armadura permanente no lugar da Vida")
+	check(g.players[g.active]["leader_hp"] == leader_hp_before_heal + 4 and vampire.damage == 1, "Drex fase 2: o Líder recupera X+1 (4) e o próprio Drex também recupera X+1 (4)")
+	g.emit_unit_healed(healer, 1, "unit")
+	g._check_state()
+	check(vampire.armor == 2 and vampire.damage == 0, "Drex fase 2: a cura do próprio Drex não o dispara de novo, e o 2º gatilho do turno dá mais 1 de Armadura")
+	leader_hp_before_heal = g.players[g.active]["leader_hp"]
+	g.emit_unit_healed(healer, 1, "unit")
+	g._check_state()
+	check(vampire.armor == 2 and g.players[g.active]["leader_hp"] == leader_hp_before_heal, "Drex: a Condicional funciona no máximo 2 vezes por turno (buff e curas do mesmo gatilho gastam 1 uso só)")
+	g.turn += 2
+	for armor_trigger in 4:
 		g.emit_unit_healed(healer, 1, "unit")
 		g._check_state()
-	check(vampire.hp == capped_hp_start + 2 and g.players[g.active]["leader_hp"] == capped_leader_start + 2 * (g.shared_x_of(g.active, "drex") + 1), "Drex: 2 gatilhos no turno dão 2x (+1 Vida, +1 Armadura e cura X+1); buff e cura do mesmo gatilho gastam 1 uso só")
+		if armor_trigger == 1:
+			g.turn += 2
+	check(g.armor_of(vampire) == 5, "Drex fase 2: a Armadura efetiva para no limite padrão de 5")
+	check(vampire.hp == 10, "Drex fase 2: a Vida base não cresce mais")
+
+	# the Leader heal of one Drex is capped at 10 a turn: the trigger that would pass it heals only what is left; his own heal is not capped
+	g.turn += 2
+	while g.shared_x_of(g.active, "drex") < 7:
+		g.grow_shared_x(g.active, "drex") # X = 7: each trigger asks for 8
+	g.players[g.active]["leader_max"] = 1000
+	g.players[g.active]["leader_hp"] = 500
+	vampire.damage = 9
 	g.emit_unit_healed(healer, 1, "unit")
-	g._heal_leader(g.active, 1, "unit")
 	g._check_state()
-	check(vampire.hp == capped_hp_start + 2 and g.players[g.active]["leader_hp"] == capped_leader_start + 2 * (g.shared_x_of(g.active, "drex") + 1) + 1, "Drex: o 3º gatilho do mesmo turno não faz nada (só a cura de 1 do próprio teste)")
+	check(g.players[g.active]["leader_hp"] == 508 and vampire.damage == 1, "Drex: o 1º gatilho cura X+1 inteiro (8) ao Líder, por estar abaixo do limite de 10, e 8 a si mesmo")
+	vampire.damage = 9
+	g.emit_unit_healed(healer, 1, "unit")
+	g._check_state()
+	check(g.players[g.active]["leader_hp"] == 510 and vampire.capped_heal_total == 10, "Drex: o 2º gatilho cura só os 2 que restam do limite de 10 por turno no Líder")
+	check(vampire.damage == 1, "Drex: o limite de 10 vale só para a cura do Líder, a cura de si mesmo (8) continua inteira")
 	g.turn += 2
 	g.emit_unit_healed(healer, 1, "unit")
 	g._check_state()
-	check(vampire.hp == capped_hp_start + 3, "Drex: no turno seguinte a Condicional volta a ativar")
+	check(g.players[g.active]["leader_hp"] == 518, "Drex: o limite de cura volta no turno seguinte")
 
 	# Coagulhão: Ao Entrar makes the Sangramento tick at once on every enemy without consuming it, its Leader heals by the full damage, Ao Morrer ticks again (also without consuming)
 	_tcard("t_target_dummy", 1, 12, [])
@@ -5787,26 +5809,26 @@ func _test_venenosa_deck() -> void:
 	g.resolve_dot(poisoned, "veneno")
 	g._check_state()
 	check(g.players[0]["leader_hp"] == 22 and vipranna.temp_hp_until_next_turn == 1 and vipranna.capped_heal_total == 2, "Tox Vipranna: 2 marcadores causam 4, curam 2 e dão +1 Vida temporária")
-	# The cap is per turn and per Vipranna; the trigger that crosses 15 still resolves in full.
+	# The cap is per turn and per Vipranna; the trigger that would pass 10 heals only what is left.
 	var big_target := _put(g, 1, "t_target_dummy") # 6 markers hurt for 12, half is 6
 	g.players[0]["leader_hp"] = 20
 	g.add_dot_markers(big_target, "veneno", 6)
 	g.resolve_dot(big_target, "veneno")
 	g._check_state()
 	check(g.players[0]["leader_hp"] == 26 and vipranna.temp_hp_until_next_turn == 2 and vipranna.capped_heal_total == 8, "Tox Vipranna: tick de 12 de dano cura 6 e acumula 8 no turno")
-	var odd_target := _put(g, 1, "t_target_dummy") # 9 markers hurt for 18, half is 9: the total goes from 8 to 17
+	var odd_target := _put(g, 1, "t_target_dummy") # 9 markers hurt for 18, half is 9, but only 2 of the 10 are left
 	g.players[0]["leader_hp"] = 20
 	g.add_dot_markers(odd_target, "veneno", 9)
 	g.resolve_dot(odd_target, "veneno")
 	g._check_state()
-	check(g.players[0]["leader_hp"] == 29 and vipranna.capped_heal_locked and vipranna.capped_heal_total == 17, "Tox Vipranna: a cura que cruza 15 resolve inteira e bloqueia as seguintes")
+	check(g.players[0]["leader_hp"] == 22 and vipranna.capped_heal_locked and vipranna.capped_heal_total == 10, "Tox Vipranna: a cura que passaria de 10 recupera só o que resta do limite e bloqueia as seguintes")
 	_tcard("t_small_tank", 1, 5, [])
 	var small_target := _put(g, 1, "t_small_tank") # 1 marker hurts for 2, half is 1 (below the minimum of 2)
 	g.players[0]["leader_hp"] = 20
 	g.add_dot_markers(small_target, "veneno", 1)
 	g.resolve_dot(small_target, "veneno")
 	g._check_state()
-	check(g.players[0]["leader_hp"] == 20 and vipranna.temp_hp_until_next_turn == 3, "Tox Vipranna: depois de cruzar 15 nenhum trigger futuro cura ou dá Vida temporária")
+	check(g.players[0]["leader_hp"] == 20 and vipranna.temp_hp_until_next_turn == 3, "Tox Vipranna: depois de atingir 10 nenhum trigger futuro cura ou dá Vida temporária")
 	g.players[0]["leader_hp"] = 20
 	var own_poisoned := _put(g, 0, "t_target_dummy")
 	g.add_dot_markers(own_poisoned, "veneno", 2)
@@ -5843,7 +5865,7 @@ func _test_venenosa_deck() -> void:
 	g.add_dot_markers(reset_target, "veneno", 1)
 	g.resolve_dot(reset_target, "veneno")
 	g._check_state()
-	check(g.players[0]["leader_hp"] == 22 and vipranna.capped_heal_total == 2 and not vipranna.capped_heal_locked, "Tox Vipranna: o limite de 15 reinicia no turno seguinte")
+	check(g.players[0]["leader_hp"] == 22 and vipranna.capped_heal_total == 2 and not vipranna.capped_heal_locked, "Tox Vipranna: o limite de 10 reinicia no turno seguinte")
 
 	# Julian: played from the hand, his Ao Entrar asks for two picks after he enters: who takes the 2 damage, then who gets the Veneno
 	g = _new_game()

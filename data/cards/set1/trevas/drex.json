@@ -23,9 +23,19 @@
       "scope": "enemy",
       "zones": ["board"],
       "when": { "dot": "sangramento" },
+      "if": { "compare": { "stat": "source_hp", "op": "<", "value": 10 } },
       "action": "buff",
       "target": "self",
-      "hp": 1,
+      "hp": 1
+    },
+    {
+      "listen": "unit_damaged",
+      "scope": "enemy",
+      "zones": ["board"],
+      "when": { "dot": "sangramento" },
+      "if": { "compare": { "stat": "source_hp", "op": ">=", "value": 10 } },
+      "action": "buff",
+      "target": "self",
       "armor": 1
     },
     {
@@ -37,6 +47,19 @@
       "target": "own_leader",
       "amount_from": "shared_x",
       "amount": 1,
+      "heal_origin": "reaction",
+      "per_turn_cap": 10
+    },
+    {
+      "listen": "unit_damaged",
+      "scope": "enemy",
+      "zones": ["board"],
+      "when": { "dot": "sangramento" },
+      "if": { "compare": { "stat": "source_hp", "op": ">=", "value": 10 } },
+      "action": "heal_unit",
+      "target": "self",
+      "amount_from": "shared_x",
+      "amount": 1,
       "heal_origin": "reaction"
     },
     {
@@ -44,9 +67,19 @@
       "scope": "enemy",
       "zones": ["board"],
       "when": { "dot": "sangramento" },
+      "if": { "compare": { "stat": "source_hp", "op": "<", "value": 10 } },
       "action": "buff",
       "target": "self",
-      "hp": 1,
+      "hp": 1
+    },
+    {
+      "listen": "leader_damaged",
+      "scope": "enemy",
+      "zones": ["board"],
+      "when": { "dot": "sangramento" },
+      "if": { "compare": { "stat": "source_hp", "op": ">=", "value": 10 } },
+      "action": "buff",
+      "target": "self",
       "armor": 1
     },
     {
@@ -58,46 +91,105 @@
       "target": "own_leader",
       "amount_from": "shared_x",
       "amount": 1,
+      "heal_origin": "reaction",
+      "per_turn_cap": 10
+    },
+    {
+      "listen": "leader_damaged",
+      "scope": "enemy",
+      "zones": ["board"],
+      "when": { "dot": "sangramento" },
+      "if": { "compare": { "stat": "source_hp", "op": ">=", "value": 10 } },
+      "action": "heal_unit",
+      "target": "self",
+      "amount_from": "shared_x",
+      "amount": 1,
       "heal_origin": "reaction"
     },
     {
       "listen": "unit_healed",
-      "scope": "ally",
+      "scope": "other_ally",
       "zones": ["board"],
       "when": { "healed_by": "unit" },
+      "if": { "compare": { "stat": "source_hp", "op": "<", "value": 10 } },
       "action": "buff",
       "target": "self",
-      "hp": 1,
+      "hp": 1
+    },
+    {
+      "listen": "unit_healed",
+      "scope": "other_ally",
+      "zones": ["board"],
+      "when": { "healed_by": "unit" },
+      "if": { "compare": { "stat": "source_hp", "op": ">=", "value": 10 } },
+      "action": "buff",
+      "target": "self",
       "armor": 1
     },
     {
       "listen": "unit_healed",
-      "scope": "ally",
+      "scope": "other_ally",
       "zones": ["board"],
       "when": { "healed_by": "unit" },
       "action": "heal_leader",
       "target": "own_leader",
       "amount_from": "shared_x",
       "amount": 1,
+      "heal_origin": "reaction",
+      "per_turn_cap": 10
+    },
+    {
+      "listen": "unit_healed",
+      "scope": "other_ally",
+      "zones": ["board"],
+      "when": { "healed_by": "unit" },
+      "if": { "compare": { "stat": "source_hp", "op": ">=", "value": 10 } },
+      "action": "heal_unit",
+      "target": "self",
+      "amount_from": "shared_x",
+      "amount": 1,
       "heal_origin": "reaction"
     },
     {
       "listen": "leader_healed",
-      "scope": "ally",
+      "scope": "other_ally",
       "zones": ["board"],
       "when": { "healed_by": "unit" },
+      "if": { "compare": { "stat": "source_hp", "op": "<", "value": 10 } },
       "action": "buff",
       "target": "self",
-      "hp": 1,
+      "hp": 1
+    },
+    {
+      "listen": "leader_healed",
+      "scope": "other_ally",
+      "zones": ["board"],
+      "when": { "healed_by": "unit" },
+      "if": { "compare": { "stat": "source_hp", "op": ">=", "value": 10 } },
+      "action": "buff",
+      "target": "self",
       "armor": 1
     },
     {
       "listen": "leader_healed",
-      "scope": "ally",
+      "scope": "other_ally",
       "zones": ["board"],
       "when": { "healed_by": "unit" },
       "action": "heal_leader",
       "target": "own_leader",
+      "amount_from": "shared_x",
+      "amount": 1,
+      "heal_origin": "reaction",
+      "per_turn_cap": 10
+    },
+    {
+      "listen": "leader_healed",
+      "scope": "other_ally",
+      "zones": ["board"],
+      "when": { "healed_by": "unit" },
+      "if": { "compare": { "stat": "source_hp", "op": ">=", "value": 10 } },
+      "action": "heal_unit",
+      "target": "self",
       "amount_from": "shared_x",
       "amount": 1,
       "heal_origin": "reaction"
@@ -125,7 +217,7 @@
       { "action": "grow_shared_x", "target": "self", "amount": 1 }
     ]
   },
-  "text": "Ao Ativar (1) {lento} (1x por turno) (como custo adicional, você descarta uma carta ou sacrifica outra unidade aliada): distribui X (inicial = 2) marcadores de Sangramento entre os inimigos, incluindo o Líder; X aumenta 1 em todos os seus Drex.\nCondicional (2x por turno): quando o Sangramento causa dano a um inimigo ou uma unidade aliada cura, esta unidade recebe +1 de Vida e +1 de Armadura permanentes e seu Líder recupera X+1 de Vida.",
+  "text": "Ao Ativar (1) {lento} (1x por turno) (como custo adicional, você descarta uma carta ou sacrifica outra unidade aliada): distribui X (inicial = 2) marcadores de Sangramento entre os inimigos, incluindo o Líder; X aumenta 1 em todos os seus Drex.\nCondicional (2x por turno): quando o Sangramento causa dano a um inimigo ou outra unidade aliada cura, seu Líder recupera X+1 de Vida (máximo de 10 de Vida por turno) e esta unidade recebe +1 de Vida permanente. Com 10 ou mais de Vida, em vez disso recebe +1 de Armadura permanente e também recupera X+1 de Vida.",
   "flavor": "Ele nunca pede sangue. Só espera você começar a sangrar e agradece pela gentileza.",
   "tags": []
 }

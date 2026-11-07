@@ -125,7 +125,7 @@ func _offer_in_sanctuary(p: int, key: String, event: GameEvent) -> void:
 	for effect: Effect in CardDB.def(incarnation["card_id"]).listeners():
 		if effect.trigger != key or not effect.listens_in(SANCTUARY):
 			continue
-		if effect.scope == "self" or (effect.scope == "ally" and event.player != p) \
+		if effect.scope == "self" or (effect.scope in ["ally", "other_ally"] and event.player != p) \
 				or (effect.scope == "enemy" and event.player == p) or not _when_matches(effect.when, event):
 			continue
 		if event.amount < effect.min_amount:
@@ -233,6 +233,7 @@ func _scope_matches(scope: String, card: Card, event: GameEvent) -> bool:
 		"self": return event.source == card
 		"carrier": return event.source != null and event.source == game.equipment_carrier(card)
 		"ally": return event.player == card.owner
+		"other_ally": return event.player == card.owner and event.source != card ## an ally, but not this very card
 		"enemy": return event.player != card.owner
 	return true
 

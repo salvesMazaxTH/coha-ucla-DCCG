@@ -3038,10 +3038,10 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 	# "deck_search": the options are private to the searcher; the opponent only learns the card that was taken (search_take)
 	pending_search = {"player": p, "source_uid": source_uid, "cards": matches, "deck_search": true, "discount": int(e.get("discount", 0)),
 		"turn_discount": int(e.get("turn_discount", 0)),
+		"turn_discount_min_cost": int(e.get("turn_discount_min_cost", 1)),
 		"fallback_draw": int(e.get("fallback_draw", 0))}
 	# every card looked at, topmost first; "cards" holds only the eligible ones, so the UI can show the rest dimmed
 	var looked_cards: Array = []
-		"turn_discount_min_cost": int(e.get("turn_discount_min_cost", 1)),
 	for index in range(searched.size() - 1, -1, -1):
 		looked_cards.append({"uid": searched[index].uid, "card_id": searched[index].card_id})
 	pending_search["looked_cards"] = looked_cards
@@ -3737,7 +3737,7 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		if dealer != victim_owner:
 			players[dealer]["damage_this_round"] = int(players[dealer]["damage_this_round"]) + dealt
 	if source != null and has_kw(source, "roubo_de_vida"):
-		_heal_leader(source.owner, dealt, "unit") # the lifesteal keyword is a unit healing, so "healed_by": "unit" listeners hear it
+		_heal_leader(source.owner, dealt, "unit", source) # the lifesteal keyword is a unit healing, so "healed_by": "unit" listeners hear it
 	# Ao Causar Dano de Combate: the unit that really dealt combat (or fight) damage fires once per damage instance.
 	# Effect damage never fires it, so a damage effect on this trigger can't fire itself again.
 	# "dealer_atk" keeps its Ataque at the moment of the hit, in case it died before the effect resolves.
@@ -3848,8 +3848,8 @@ func leader_negations_left(p: int) -> int:
 	return int(players[p]["damage_negated_left"])
 
 ## `healed_by` says who is healing (see EffectContext.heal_origin); "" for heals with no effect behind them
-## (the lifesteal keyword counts as a unit healing: "unit").
-func _heal_leader(p: int, amount: int, healed_by := "") -> void:
+## (the lifesteal keyword counts as a unit healing: "unit"). `healer` is the unit whose lifesteal heals, if any.
+func _heal_leader(p: int, amount: int, healed_by := "", healer: Card = null) -> void:
 	if leader_heal_prevented(p, amount):
 		return
 	var pl: Dictionary = players[p]
@@ -3859,13 +3859,14 @@ func _heal_leader(p: int, amount: int, healed_by := "") -> void:
 		pl["leader_hp"] += healed
 		pl["healing_this_round"] = int(pl["healing_this_round"]) + healed
 		_emit({"type": "heal", "uid": LEADER_UID[p], "amount": healed, "hp_after": pl["leader_hp"]})
-		_emit_leader_healed(p, healed, hp_before, healed_by)
+		_emit_leader_healed(p, healed, hp_before, healed_by, healer)
 
-## A Leader heal with a soft budget per turn ("per_turn_cap" on a heal_leader effect, e.g. Tox Vipranna 15, Drex).
-## Each instance of the card has its own budget per turn. The trigger that reaches or crosses the cap resolves in
-## full; later triggers from that instance are ignored until the next turn. "source_temp_hp" (opt-in) gives the
+## A Leader heal with a hard budget per turn ("per_turn_cap" on a heal_leader effect, e.g. Tox Vipranna and Drex 10).
+## Each instance of the card has its own budget per turn. The trigger that would pass the cap heals only what is
+## left of it; later triggers from that instance are ignored until the next turn. "source_temp_hp" (opt-in) gives the
 ## card that many temporary Vida, until the start of its owner's next turn, for each accepted trigger.
-func _apply_capped_leader_heal(context: EffectContext, amount: int, per_turn_cap: int, source_temp_hp: int) -> void:
+## `heal_origin` is what listeners are told about this heal (a card that hears its own heal passes "reaction").
+func _apply_capped_leader_heal(context: EffectContext, amount: int, per_turn_cap: int, source_temp_hp: int, heal_origin := "") -> void:
 	var source := find_unit(context.self_uid)
 	if source == null or amount <= 0:
 		return
@@ -3873,9 +3874,12 @@ func _apply_capped_leader_heal(context: EffectContext, amount: int, per_turn_cap
 		source.capped_heal_turn = turn
 		source.capped_heal_total = 0
 		source.capped_heal_locked = false
-	if source.capped_heal_locked or leader_heal_prevented(context.controller, amount):
+	if source.capped_heal_locked:
 		return
-	_heal_leader(context.controller, amount, context.heal_origin())
+	amount = mini(amount, per_turn_cap - source.capped_heal_total)
+	if amount <= 0 or leader_heal_prevented(context.controller, amount):
+		return
+	_heal_leader(context.controller, amount, heal_origin if heal_origin != "" else context.heal_origin())
 	source.capped_heal_total += amount
 	if source_temp_hp > 0:
 		source.temp_hp_until_next_turn += source_temp_hp
@@ -3905,8 +3909,8 @@ func emit_unit_healed(unit: Card, amount: int, healed_by := "") -> void:
 	healed.data = {"healed_by": healed_by}
 	bus().emit(healed)
 
-func _emit_leader_healed(p: int, amount: int, hp_before: int, healed_by := "") -> void:
-	var healed := GameEvent.new("leader_healed", p)
+func _emit_leader_healed(p: int, amount: int, hp_before: int, healed_by := "", healer: Card = null) -> void:
+	var healed := GameEvent.new("leader_healed", p, healer) # the source is only set when a unit's own lifesteal heals (so "other_ally" listeners can skip it)
 	healed.amount = amount
 	healed.hp_before = hp_before
 	healed.hp_after = players[p]["leader_hp"]

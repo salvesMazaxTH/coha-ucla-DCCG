@@ -3,11 +3,14 @@ extends Condition
 ## Compares a number of the game against a value:
 ## {"compare": {"stat": "leader_hp", "who": "enemy", "op": "<", "value": 12}}
 ## stat: leader_hp | momentum | reserve | units | hand | deck | graveyard
+##       source_hp | source_armor: a number of the unit that carries the effect (only in a card's own "if",
+##       not in a play_condition). Drex: {"stat": "source_hp", "op": ">=", "value": 10} = phase 2.
 ## who: "self" (the effect's controller, default) or "enemy"
 ## "vs": "enemy" compares against the enemy's same stat (plus "value" as an offset, default 0) instead of a plain number:
 ## {"stat": "units", "op": ">", "vs": "enemy"} = "you have more units than the opponent" (Magni's play_condition).
 
-const STATS := ["leader_hp", "momentum", "reserve", "units", "hand", "deck", "graveyard"]
+const UNIT_STATS := ["source_hp", "source_armor"]
+const STATS := ["leader_hp", "momentum", "reserve", "units", "hand", "deck", "graveyard", "source_hp", "source_armor"]
 const OPERATORS := ["<", "<=", "==", "!=", ">=", ">"]
 
 var stat := ""
@@ -24,7 +27,17 @@ func _init(spec: Dictionary) -> void:
 	versus_enemy = String(spec.get("vs", "")) == "enemy"
 
 func check(context: EffectContext) -> bool:
+	if stat in UNIT_STATS:
+		return _compare(_read_source_unit_stat(context))
 	return check_players(context.game, context.controller)
+
+## The effect's own unit (the card that is reacting) read through "source_hp" (maximum Vida with every buff,
+## damage not subtracted) or "source_armor" (the Armadura it really has). 0 when the source is no longer on the board.
+func _read_source_unit_stat(context: EffectContext) -> int:
+	var unit := context.game.find_unit(context.self_uid)
+	if unit == null:
+		return 0
+	return unit.hp_total() if stat == "source_hp" else context.game.armor_of(unit)
 
 ## The same comparison without an effect context: `controller` is the player the "self" side means.
 ## Used by a card's play_condition, which is checked before the card is played (GameState.play_condition_met).
@@ -34,6 +47,10 @@ func check_players(game: GameState, controller: int) -> bool:
 	var target_value := value
 	if versus_enemy:
 		target_value += _read_stat(game.players[1 - player_index])
+	return _compare(current, target_value)
+
+## `current` against `target_value` with this condition's operator.
+func _compare(current: int, target_value := value) -> bool:
 	match operator:
 		"<": return current < target_value
 		"<=": return current <= target_value

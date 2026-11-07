@@ -51,7 +51,7 @@ var durability_after_attack := false
 var every_n_events := 1
 
 const LISTEN_PREFIX := "listen_"
-const SCOPES := ["self", "carrier", "ally", "enemy", "any"]
+const SCOPES := ["self", "carrier", "ally", "other_ally", "enemy", "any"]
 
 ## Fills the shared fields, then lets the subclass read its own parameters.
 func setup(data: Dictionary) -> void:
