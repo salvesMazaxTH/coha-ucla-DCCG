@@ -718,6 +718,19 @@ func _spell_amplifier_condition_holds(p: int, e: Dictionary) -> bool:
 	var spells_in_deck: int = deck_counts["spells"]
 	if units_in_deck <= int(e.get("deck_units_max", -1)):
 		return true
+## The bonuses other cards add RIGHT NOW to the numbers printed in the text of a spell of player `p`, for the
+## card view to mark them: {"damage": N, "draw": N}, a key only when N > 0 (so {} = the printed numbers are exact).
+## Anything that is not a spell gets {}, because the "spell_amplifier" Constante only touches spells.
+func live_text_bonuses(p: int, card_data: Dictionary) -> Dictionary:
+	var bonuses := {}
+	if not CardDB.has_type(card_data, "spell"):
+		return bonuses
+	for bonus_kind in ["damage", "draw"]:
+		var bonus := spell_amplifier_bonus(p, bonus_kind)
+		if bonus > 0:
+			bonuses[bonus_kind] = bonus
+	return bonuses
+
 	var ratio := int(e.get("deck_spell_ratio", 0))
 	return ratio > 0 and spells_in_deck >= _spells_needed_for_ratio(e, units_in_deck)
 

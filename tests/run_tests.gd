@@ -7902,6 +7902,18 @@ func _test_mali_and_ottilia() -> void:
 	check(g7.players[x]["leader_hp"] == leader_before - 2, "Ottilia: com a condição falsa o feitiço causa o dano normal")
 	g7.players[w]["deck"] = []
 	check(g7.spell_amplifier_bonus(w, "damage") == 1 and g7.spell_amplifier_bonus(w, "draw") == 1, "Ottilia: deck vazio conta como 0 unidades")
+	# o texto da carta marca os números amplificados como "*N*"
+	var amplified := {"damage": 1, "draw": 1}
+	check(g7.live_text_bonuses(w, CardDB.card("t_mali_hit")) == amplified, "Ottilia: feitiço recebe os bônus ativos para o texto")
+	check(g7.live_text_bonuses(w, CardDB.card("t_ottilia_pinger")).is_empty(), "Ottilia: só feitiços mostram números amplificados")
+	check(CardView.fill_live_numbers("Causa 3 de dano a uma unidade inimiga à sua escolha.", 1, amplified) == "Causa *4* de dano a uma unidade inimiga à sua escolha.", "Texto: dano amplificado aparece como *N*")
+	check(CardView.fill_live_numbers("Você compra 2 cartas.", 1, amplified) == "Você compra *3* cartas.", "Texto: compra amplificada aparece como *N*")
+	check(CardView.fill_live_numbers("Seu Líder sofre 3 de dano; você compra 2 cartas.", 1, amplified) == "Seu Líder sofre *4* de dano; você compra *3* cartas.", "Texto: dano e compra juntos")
+	check(CardView.fill_live_numbers("Causa 2 de dano a uma unidade. Se ela estiver Congelada, causa 4.", 1, amplified) == "Causa *3* de dano a uma unidade. Se ela estiver Congelada, causa *5*.", "Texto: a variante condicional também sobe")
+	check(CardView.fill_live_numbers("Causa 3 de dano a uma unidade, ou 5 se ela estiver Atordoada.", 1, amplified) == "Causa *4* de dano a uma unidade, ou *6* se ela estiver Atordoada.", "Texto: 'ou N se' também sobe")
+	check(CardView.fill_live_numbers("Causa 3 de dano e 2 às unidades adjacentes a ela.", 1, amplified) == "Causa *4* de dano e *3* às unidades adjacentes a ela.", "Texto: dano às adjacentes também sobe")
+	check(CardView.fill_live_numbers("Causa 1 de dano ao Líder inimigo para cada Momentum.", 1, amplified) == "Causa 1 de dano ao Líder inimigo para cada Momentum.", "Texto: dano 'para cada' fica como impresso")
+	check(CardView.fill_live_numbers("Você compra 2 cartas.", 1, {}) == "Você compra 2 cartas.", "Texto: sem bônus nada muda")
 
 	# outra cópia da própria Ottilia no deck conta como unidade: só mais do que o dobro de feitiços ativa (a via do "0" fica desligada)
 	g7.players[w]["deck"] = [Card.new(g7._uid(), "ottilia_varnholt", w, "deck")]

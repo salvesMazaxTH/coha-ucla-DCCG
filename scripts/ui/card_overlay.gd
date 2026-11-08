@@ -20,19 +20,20 @@ const MODIFIERS_MAX_WIDTH := 300.0
 ## Returns the x where the text panel starts, so Main can put its action buttons below it.
 ## `instance` is the live card state ({} for a card that is not on the table).
 static func build(parent: Control, stage_width: float, card_id: String, instance: Dictionary = {},
-		cost_override: int = -1, text_suffix: String = "", snowball_level: int = 0) -> float:
+		cost_override: int = -1, text_suffix: String = "", snowball_level: int = 0, text_bonuses: Dictionary = {}) -> float:
 	var modifier_rows := StatModifiersPanel.rows_for(card_id, instance)
 	var card_scale := big_card_scale(stage_width, not modifier_rows.is_empty())
 	var big := CardView.new().setup(card_id, instance, card_scale)
 	big.cost_override = cost_override
 	big.text_suffix = text_suffix
 	big.snowball_level = snowball_level
+	big.text_bonuses = text_bonuses
 	big.position = big_card_position(stage_width, card_scale)
 	big.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(big)
 	var panel := RichTextLabel.new()
 	panel.bbcode_enabled = true
-	panel.text = describe(card_id, instance, cost_override, text_suffix, snowball_level)
+	panel.text = describe(card_id, instance, cost_override, text_suffix, snowball_level, text_bonuses)
 	var panel_x := stage_width / 2.0 - 90.0 # card (4.18 * 120 = ~502 px) ends at stage_width/2 - 118
 	var panel_width := stage_width - 40.0 - panel_x
 	if not modifier_rows.is_empty():
@@ -103,7 +104,7 @@ static func with_live_count(body: String, text_suffix: String) -> String:
 
 ## The BBCode of the text panel: name, kind line, rules text, keyword glossary, Leader note, flavor.
 static func describe(card_id: String, instance: Dictionary, cost_override: int, text_suffix: String,
-		snowball_level: int) -> String:
+		snowball_level: int, text_bonuses: Dictionary = {}) -> String:
 	var cd := CardDB.card_for(card_id, instance)
 	var txt := "[font_size=48][color=#e8c25a]%s[/color][/font_size]\n" % cd["name"]
 	var rarity_names := {"legendary": "Lendário", "champion": "Campeão", "epic": "Unidade Épica", "common": "Unidade Comum"}
@@ -124,7 +125,7 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 		element_label = " · Elemento: " + CardDB.element_names(cd) # the tag that card texts refer to ("feitiço de Gelo")
 	txt += "[color=#aaaaaa]%s · %s%s · custo %d[/color]\n\n" % [kind, CardDB.essence_names(cd), element_label, shown_cost]
 	if cd.get("text", "") != "":
-		var body := with_live_count(CardView.fill_live_numbers(String(cd["text"]), snowball_level), text_suffix)
+		var body := with_live_count(CardView.fill_live_numbers(String(cd["text"]), snowball_level, text_bonuses), text_suffix)
 		# a Condicional with a per-turn limit (Seymour) shows how many uses are already spent, like the Leader power does
 		if instance.has("conditional_uses_now"):
 			var per_turn_limit := int(cd.get("conditional_uses_per_turn", 0))

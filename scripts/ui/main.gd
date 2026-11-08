@@ -2631,6 +2631,7 @@ func _render_hand(p: int) -> void:
 			v.cost_override = g.cost_of(p, card_data, hand_card)
 		v.text_suffix = _scale_suffix(p, card_data, hand_card.card_id)
 		v.snowball_level = int(g.players[p]["snowball"])
+		v.text_bonuses = g.live_text_bonuses(p, card_data) # amplified damage/draw (Ottilia) shows as "*N*" in the hand
 		var k := i - (n - 1) / 2.0
 		v.pivot_offset = Vector2(v.size.x / 2.0, v.size.y)
 		var pos := Vector2(lane_cx + k * step - v.size.x / 2.0, rest_y + k * k * 1.4)
@@ -3173,6 +3174,7 @@ func _render_stack() -> void:
 			var stack_card_id := String(it["card_id"])
 			var v := CardView.new().setup(stack_card_id, _display_instance_for_id(stack_card_id, stack_owner, int(it.get("uid", 0))), STACK_SCALE)
 			v.snowball_level = int(g.players[stack_owner]["snowball"])
+			v.text_bonuses = g.live_text_bonuses(stack_owner, CardDB.card(stack_card_id))
 			v.text_suffix = _scale_suffix(stack_owner, CardDB.card(stack_card_id), stack_card_id)
 			v.left_clicked.connect(func(view: CardView):
 				# a spell on the stack picked as a target during an animation waits for its turn
@@ -4449,7 +4451,7 @@ func _show_overlay(v: CardView) -> void:
 			_close_overlay())
 	add_child(overlay)
 	# the big card and the full text are built by CardOverlay (tools/view_card.gd shows the same thing)
-	var rt_x := CardOverlay.build(overlay, stage_w, v.card_id, v.inst, v.cost_override, v.text_suffix, v.snowball_level)
+	var rt_x := CardOverlay.build(overlay, stage_w, v.card_id, v.inst, v.cost_override, v.text_suffix, v.snowball_level, v.text_bonuses)
 	_add_base_card_button(v.card_id)
 	_add_full_art_button(String(cd.get("art", "")))
 	var show_activate := cd.has("activated") and g != null and _my_input() and g.can_activate(viewer, v.uid, true)

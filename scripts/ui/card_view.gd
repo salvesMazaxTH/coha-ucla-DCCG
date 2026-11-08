@@ -71,12 +71,50 @@ var dim := false
 var cost_override := -1
 var text_suffix := "" ## live count appended to the rules text in the big view (e.g. "(agora: 3)")
 var snowball_level := GameState.SNOWBALL_BASE_LEVEL ## the owner's Bola de Neve level, shown where the card text says "{nivel}"
+var text_bonuses := {} ## what other cards add to this card's printed damage/draw right now (GameState.live_text_bonuses); shown as "*N*"
 
 ## Fills the live numbers of a rules text: "Cause {nivel} de dano" reads "Cause 5 de dano" once the
 ## owner's Bola de Neve has grown to 5. Without an owner (collection, deck builder) the level stays
 ## at its starting value, 1. Static so the big view in Main fills the text the same way.
-static func fill_live_numbers(rules: String, level: int) -> String:
-	return rules.replace("{nivel}", str(level))
+## `bonuses` ({"damage": N, "draw": N}, see GameState.live_text_bonuses) are the amounts other cards add to the
+## printed numbers right now: those numbers are replaced by the new total between asterisks ("*5*"), so the
+## player sees which numbers are amplified. {} leaves the text untouched.
+static func fill_live_numbers(rules: String, level: int, bonuses: Dictionary = {}) -> String:
+	return mark_amplified_numbers(rules.replace("{nivel}", str(level)), bonuses)
+
+## Rewrites the damage and draw numbers of a spell text as "*total*" (printed number + bonus).
+## Texts whose damage is a total built from something else ("para cada", "por Momentum", the "Distribui" spread)
+## keep their printed damage, because the bonus is not a flat +N on a number written in the text.
+static func mark_amplified_numbers(rules: String, bonuses: Dictionary) -> String:
+	var marked := rules
+	var draw_bonus := int(bonuses.get("draw", 0))
+	if draw_bonus > 0:
+		marked = _add_bonus_to_matches(marked, "(compra )(\\d+)", draw_bonus)
+	var damage_bonus := int(bonuses.get("damage", 0))
+	if damage_bonus > 0 and not _damage_is_a_built_total(marked):
+		for damage_pattern in ["()(\\d+)(?= de dano)", "(causa )(\\d+)", "(ou )(\\d+)(?= se )", "(e )(\\d+)(?= às unidades adjacentes)"]:
+			marked = _add_bonus_to_matches(marked, damage_pattern, damage_bonus)
+	return marked
+
+## True for a text that scales damage by something ("1 de dano para cada ...", "por Momentum") or spreads it.
+static func _damage_is_a_built_total(rules: String) -> bool:
+	return rules.contains("para cada") or rules.contains("Distribui") or rules.contains(" por ")
+
+## For every match of `pattern` (group 1 = leading words kept as they are, group 2 = the number) replaces the
+## number by "*number + bonus*". Numbers that are already marked are not touched twice.
+static func _add_bonus_to_matches(rules: String, pattern: String, bonus: int) -> String:
+	var regex := RegEx.create_from_string(pattern)
+	var result := ""
+	var copied_until := 0
+	for found in regex.search_all(rules):
+		var number_start := found.get_start(2)
+		var number_end := found.get_end(2)
+		if number_start > 0 and rules[number_start - 1] == "*":
+			continue
+		result += rules.substr(copied_until, number_start - copied_until)
+		result += "*%d*" % (int(found.get_string(2)) + bonus)
+		copied_until = number_end
+	return result + rules.substr(copied_until)
 var hovered := false
 var hit_pad := 0.0 ## extra hit area below the card (lifted hand cards)
 ## Hover / drag zoom. Unlike the node's `scale`, which stretches the already drawn card (and blurs
@@ -243,6 +281,7 @@ func update_card(id: String, instance: Dictionary = {}, size_scale := 1.0) -> vo
 	cost_override = -1
 	text_suffix = ""
 	snowball_level = GameState.SNOWBALL_BASE_LEVEL
+	text_bonuses = {}
 	hovered = false
 	hit_pad = 0.0
 	zoom = 1.0
@@ -439,6 +478,7 @@ func prepare_photo_painter(signature: Dictionary, padding: float, slot_height: f
 	size = _face_size
 	cost_override = signature["cost_override"]
 	snowball_level = signature["snowball_level"]
+	text_bonuses = signature["text_bonuses"]
 	_painting_photo = true
 	_photo_padding = padding
 	_photo_slot_height = slot_height
@@ -819,6 +859,7 @@ func _find_ready_photo(pop: float) -> CardPhotoStudio.Photo:
 		"pixel_scale": pixel_scale,
 		"cost_override": cost_override,
 		"snowball_level": snowball_level,
+		"text_bonuses": text_bonuses,
 		"inst": inst,
 	}
 	var photo := CardPhotoStudio.lookup(signature)
@@ -1186,7 +1227,7 @@ func _draw_lettering_and_gems(look: Dictionary) -> void:
 		var tp := Rect2(Vector2(8, 124.5) * s, Vector2(BASE.x - 16, 36.5) * s)
 		_rrect_fill(tp, 4 * s, Color(0, 0, 0, 0.5))
 		_rrect_line(tp, 4 * s, Color(trim, 0.25), 1 * s)
-		_wrapped_text(UITheme.font("bold"), fill_live_numbers(str(cd.get("face_text", cd.get("text", ""))), snowball_level), tp.grow_individual(-3 * s, -1 * s, -3 * s, -1 * s), 11.0 * s, 6.0 * s, Color("#f1e8d4"))
+		_wrapped_text(UITheme.font("bold"), fill_live_numbers(str(cd.get("face_text", cd.get("text", ""))), snowball_level, text_bonuses), tp.grow_individual(-3 * s, -1 * s, -3 * s, -1 * s), 11.0 * s, 6.0 * s, Color("#f1e8d4"))
 		_speed_badge(Vector2(_face_size.x / 2, 17 * s), str(cd.get("speed", "lento")), s)
 	else:
 		var panel := Rect2(Vector2(10, 126) * s, Vector2(BASE.x - 20, 34) * s)
