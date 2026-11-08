@@ -6,7 +6,7 @@
   "incarnation": "alexa_neruvya_mar_mae",
   "ability": {
     "name": "Calmaria",
-    "cost": 2,
+    "cost": 3,
     "once_per_turn": true,
     "speed": "instantaneo",
     "effects": [
@@ -19,7 +19,7 @@
         "temp": true
       }
     ],
-    "text": "Instantânea. 2 Momentum, uma vez por turno: concede Escudo Mágico neste turno a uma unidade aliada."
+    "text": "Instantânea. 3 Momentum, uma vez por turno: concede Escudo Mágico neste turno a uma unidade aliada."
   },
   "essences": [
     "fluxo"

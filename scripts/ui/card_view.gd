@@ -65,6 +65,7 @@ var inst: Dictionary = {} ## unit on board (live stats) or hand instance
 var uid := 0
 var face_down := false
 var highlight := Color.TRANSPARENT ## outline for selection/targets
+var rapidez_sparks := false ## the unit has Rapidez and combat is on: sparks circle its frame (set by main.gd, reset in update_card)
 var ability_ready := false ## an "Ao Ativar" ability or a Transformar can be used right now: violet glow, distinct from the green attack glow
 const ABILITY_GLOW := Color("#c07bff")
 var dim := false
@@ -220,6 +221,8 @@ static var _shield_sparks_shader: Shader
 var _shield_sparks: ColorRect = null ## animated sparks of Escudo Mágico / Supremo (see _place_shield_sparks)
 static var _indestructible_shader: Shader
 var _indestructible_glow: ColorRect = null ## animated steel rim and sheen of Indestrutível (see _place_indestructible_glow)
+static var _rapidez_sparks_shader: Shader
+var _rapidez_sparks: ColorRect = null ## animated sparks circling a fast unit during combat (see _place_rapidez_sparks)
 
 ## Keywords that change who can challenge or target whom get an icon medallion on the art (MTG Arena style),
 ## in this order down the left edge, then the right; glyph tint per keyword.
@@ -277,6 +280,7 @@ func update_card(id: String, instance: Dictionary = {}, size_scale := 1.0) -> vo
 	face_down = false
 	highlight = Color.TRANSPARENT
 	ability_ready = false
+	rapidez_sparks = false
 	dim = false
 	cost_override = -1
 	text_suffix = ""
@@ -327,13 +331,15 @@ func update_card(id: String, instance: Dictionary = {}, size_scale := 1.0) -> vo
 	set_process(true)
 	# Tags and target badges belong to the previous state; the shield shader child can safely be reused.
 	for child in get_children():
-		if child != _shield_sparks and child != _indestructible_glow:
+		if child != _shield_sparks and child != _indestructible_glow and child != _rapidez_sparks:
 			remove_child(child)
 			child.queue_free()
 	if is_instance_valid(_shield_sparks):
 		_shield_sparks.hide()
 	if is_instance_valid(_indestructible_glow):
 		_indestructible_glow.hide()
+	if is_instance_valid(_rapidez_sparks):
+		_rapidez_sparks.hide()
 	if inst.has("damage") and _keywords(CardDB.card_for(id, inst)).has("furtividade"):
 		_stealth()
 	queue_redraw()
@@ -552,6 +558,38 @@ func _place_indestructible_glow(face_origin: Vector2, pop: float, s: float, inde
 
 ## True when this unit on the board has Indestrutível right now (its own, lent until end of turn,
 ## or given by an ally's aura / the Momentum surge).
+## Rapidez during combat: sparks circling the card's frame, painted by rapidez_sparks.gdshader on a
+## ColorRect a little bigger than the face. Called from _draw with where the face is drawn, so it
+## follows zoom, shake and pop. Created the first time it is needed; hidden (not freed) otherwise.
+func _place_rapidez_sparks(face_origin: Vector2, pop: float, s: float, active: bool) -> void:
+	if not active:
+		if _rapidez_sparks != null and _rapidez_sparks.visible:
+			_rapidez_sparks.visible = false
+		return
+	if _rapidez_sparks == null:
+		if _rapidez_sparks_shader == null:
+			_rapidez_sparks_shader = load("res://scripts/ui/shaders/rapidez_sparks.gdshader")
+		_rapidez_sparks = ColorRect.new()
+		_rapidez_sparks.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var sparks_material := ShaderMaterial.new()
+		sparks_material.shader = _rapidez_sparks_shader
+		sparks_material.set_shader_parameter("phase", randf() * 10.0)
+		_rapidez_sparks.material = sparks_material
+		add_child(_rapidez_sparks)
+	var margin := 9.0 * s * pop # room around the face for the sparks that fly outside it
+	var sparks_rect := Rect2(face_origin - Vector2(margin, margin), _face_size * pop + Vector2(margin, margin) * 2.0)
+	if _rapidez_sparks.position != sparks_rect.position:
+		_rapidez_sparks.position = sparks_rect.position
+	if _rapidez_sparks.size != sparks_rect.size:
+		_rapidez_sparks.size = sparks_rect.size
+	var sparks_material := _rapidez_sparks.material as ShaderMaterial
+	sparks_material.set_shader_parameter("rect_size", sparks_rect.size)
+	sparks_material.set_shader_parameter("margin", margin)
+	sparks_material.set_shader_parameter("corner_radius", 10.0 * s * pop)
+	sparks_material.set_shader_parameter("base_pixel", s * pop)
+	if not _rapidez_sparks.visible:
+		_rapidez_sparks.visible = true
+
 func _is_indestructible_now() -> bool:
 	if not inst.has("damage"):
 		return false
@@ -749,6 +787,8 @@ func dissolve(delay := 0.0, edge := Color(1.0, 0.55, 0.15), dur := 0.75) -> void
 		tw.tween_callback(_indestructible_glow.hide)
 	tw.tween_property(m, "shader_parameter/progress", 1.0, dur).set_ease(Tween.EASE_IN)
 	tw.tween_callback(queue_free)
+	if _rapidez_sparks != null: # and for the Rapidez sparks
+		tw.tween_callback(_rapidez_sparks.hide)
 
 ## Banished from the field: the card drains pale, spins and shrinks while a hole closes over
 ## it, instead of burning away like a death. The node frees itself.
@@ -770,6 +810,8 @@ func banish(delay := 0.0, edge := Color(0.8, 0.7, 1.0), dur := 0.9) -> void:
 		tw.tween_callback(_indestructible_glow.hide)
 	tw.tween_property(m, "shader_parameter/progress", 1.0, dur).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_SINE)
 	tw.tween_callback(queue_free)
+	if _rapidez_sparks != null: # and for the Rapidez sparks
+		tw.tween_callback(_rapidez_sparks.hide)
 	var st := create_tween()
 	st.tween_interval(delay)
 	st.tween_property(self, "scale", scale * 0.55, dur).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
@@ -922,6 +964,8 @@ func _draw() -> void:
 		_indestructible_glow.visible = false
 	var s := _face_size.x / BASE.x
 	var r := Rect2(Vector2.ZERO, _face_size)
+	if (face_down or fatigue > 0) and _rapidez_sparks != null:
+		_rapidez_sparks.visible = false
 	if fatigue > 0:
 		_draw_fatigue(r, s, 10.0 * s)
 		return
@@ -1160,6 +1204,7 @@ func _draw_live_art_overlays(look: Dictionary, pulse: float, face_origin: Vector
 	_place_indestructible_glow(face_origin, pop, s, _is_indestructible_now())
 	if inst.has("frozen"):
 		_draw_frost(art, s)
+	_place_rapidez_sparks(face_origin, pop, s, rapidez_sparks and not face_down and fatigue <= 0)
 	if inst.has("stun_markers"):
 		_draw_stun(art, s)
 	if inst.get("summoning_sick", false):

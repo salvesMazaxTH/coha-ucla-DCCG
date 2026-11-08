@@ -2532,6 +2532,9 @@ func _pick_target_when_settled(uid: int) -> void:
 func _decorate_unit(v: CardView, unit: Card, p: int) -> void:
 	# reminder for new players: the unit's "Ao Ativar" can be used now (even the turn it is summoned); Transformar works almost the same way, so it glows too
 	v.ability_ready = p == viewer and targeting.is_empty() and _my_input() and (g.can_activate(viewer, unit.uid, true) or g.can_transform(viewer, unit.uid))
+	# while combat lasts (g.window is "" outside it), a unit with any effective Rapidez gets sparks circling it; frozen or stunned units lose Rapidez, so no sparks
+	v.rapidez_sparks = g.window != "" and CardView.rapidez_of_view(CardDB.card(unit.card_id), v.inst) > 0 \
+			and not v.inst.has("frozen") and not v.inst.has("stun_markers")
 	var selected_numbers := _target_selection_numbers(unit.uid)
 	if not selected_numbers.is_empty():
 		v.highlight = SEL
