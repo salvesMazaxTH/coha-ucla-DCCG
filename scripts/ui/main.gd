@@ -266,12 +266,12 @@ func _ready() -> void:
 	if _perf_diagnostics:
 		_toggle_fps_counter()
 	bg_vp = SubViewport.new()
-	bg_vp.size = Vector2i(640, 360)
+	bg_vp.size = Vector2i(int(GraphicsQuality.table_bake_height * 16.0 / 9.0), GraphicsQuality.table_bake_height)
 	bg_vp.disable_3d = true
 	bg_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	add_child(bg_vp)
 	bg_rect = ColorRect.new()
-	bg_rect.size = Vector2(640, 360)
+	bg_rect.size = Vector2(bg_vp.size)
 	bg_mat = ShaderMaterial.new()
 	bg_mat.shader = load("res://scripts/ui/shaders/table.gdshader")
 	bg_mat.set_shader_parameter("aspect", 1600.0 / 900.0)
@@ -352,9 +352,10 @@ func _fit_viewport() -> void:
 		dev_tools_panel.position = Vector2(stage_w - dev_tools_panel.size.x - 18.0, 18.0)
 	bg.position = -position
 	bg.size = vp
-	var bw := int(360.0 * vp.x / maxf(1.0, vp.y))
-	bg_vp.size = Vector2i(bw, 360)
-	bg_rect.size = Vector2(bw, 360)
+	var bake_height := GraphicsQuality.table_bake_height
+	var bake_width := int(bake_height * vp.x / maxf(1.0, vp.y))
+	bg_vp.size = Vector2i(bake_width, bake_height)
+	bg_rect.size = Vector2(bake_width, bake_height)
 	bg_mat.set_shader_parameter("aspect", vp.x / vp.y)
 	bg_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	if motes:
@@ -389,7 +390,10 @@ func _motes() -> CPUParticles2D:
 	p.color_ramp = ramp
 	return p
 
-func _set_tints(top: Color, bottom: Color, intensity := 1.0) -> void:
+## Repaints the background. `marble_floor` = true only for a match: menus keep the plain dark slate
+## so the marble battle table does not show behind the menu art.
+func _set_tints(top: Color, bottom: Color, intensity := 1.0, marble_floor := false) -> void:
+	bg_mat.set_shader_parameter("marble_floor", marble_floor)
 	bg_mat.set_shader_parameter("top_tint", top)
 	bg_mat.set_shader_parameter("bottom_tint", bottom)
 	bg_mat.set_shader_parameter("intensity", intensity)
@@ -1941,7 +1945,7 @@ func _render_now() -> void:
 	drag_gap_slot = -1 # fresh board views have no gap
 	var me := viewer
 	var op := g.opponent(me)
-	_set_tints(_leader_color(op), _leader_color(me))
+	_set_tints(_leader_color(op), _leader_color(me), 1.0, true)
 	table.enemy_color = _leader_color(op)
 	table.my_color = _leader_color(me)
 	table.sockets = [Rect2(SANCTUARY_X, SANCTUARY_Y_OP, SANCTUARY_W, 264), Rect2(SANCTUARY_X, SANCTUARY_Y_ME, SANCTUARY_W, 264)]

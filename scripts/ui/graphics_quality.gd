@@ -7,6 +7,9 @@ extends RefCounted
 
 ## Floating embers drifting over the whole table.
 static var show_motes := true
+## Height in pixels of the marble table texture. It is baked once (not every frame), so the cost is
+## only memory and a short bake when the window changes size; a lower value blurs the fine veins.
+static var table_bake_height := 1080
 ## Multiplier for the particle counts and the costly glow layers of battle effects (1.0 = full).
 ## Below 0.7 the effects also skip their widest glows (see FxLibrary.fx_scale).
 static var effect_detail := 1.0
@@ -35,6 +38,7 @@ static var art_cache_limit := 0
 
 static func use_phone_settings() -> void:
 	show_motes = false
+	table_bake_height = 720
 	effect_detail = 0.5
 	# Furtividade is rare enough that its shape is worth keeping legible on a phone.
 	# Three layers with a warp still cost less than the four-layer desktop fog.
