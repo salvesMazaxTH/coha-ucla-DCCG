@@ -5,6 +5,8 @@ extends Control
 ## of action (and the damage or healing) in the middle, the card(s) it hit on the right, and the whole
 ## sentence underneath. The row stays tiny; this is where the player actually reads what happened.
 
+const HubGlyphIconScript = preload("res://scripts/ui/hub_glyph_icon.gd")
+
 const PANEL_SIZE := Vector2(640, 404)
 const SIDE_MARGIN := 40.0
 const CARDS_TOP := 66.0
@@ -218,9 +220,7 @@ func _draw_medallion() -> void:
 	draw_arc(_medallion_center, MEDALLION_RADIUS, 0, TAU, 48, accent, 3.0, true)
 	draw_arc(_medallion_center, MEDALLION_RADIUS - 6, 0, TAU, 48, Color(accent, 0.3), 1.0, true)
 	var glyph_font := UITheme.font("heavy")
-	var glyph := String(entry.get("icon", "·"))
-	var glyph_width := glyph_font.get_string_size(glyph, HORIZONTAL_ALIGNMENT_LEFT, -1, 34).x
-	draw_string(glyph_font, _medallion_center + Vector2(-glyph_width / 2.0, 12), glyph, HORIZONTAL_ALIGNMENT_LEFT, -1, 34, accent)
+	HubGlyphIconScript.draw_action_icon(self, String(entry.get("icon", "dot")), _medallion_center, 18.0, accent)
 	var amount := ChronicleRow.amount_text(entry)
 	if amount == "":
 		return

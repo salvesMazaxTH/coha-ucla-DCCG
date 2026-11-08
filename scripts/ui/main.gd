@@ -7,6 +7,7 @@ const ChronicleSceneScript = preload("res://scripts/ui/chronicle_scene.gd")
 const DomainIconRowScript = preload("res://scripts/ui/domain_icon_row.gd")
 const DeckLeaderTooltipScript = preload("res://scripts/ui/deck_leader_tooltip.gd")
 const BannedRibbonScript = preload("res://scripts/ui/banned_ribbon.gd")
+const HubGlyphIconScript = preload("res://scripts/ui/hub_glyph_icon.gd")
 const FxLibraryScript = preload("res://scripts/ui/fx_library.gd")
 const FxShotsScript = preload("res://scripts/ui/fx_shots.gd")
 const FxCastsScript = preload("res://scripts/ui/fx_casts.gd")
@@ -1364,7 +1365,8 @@ func _deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 	if id != "" and DeckDB.is_deck_banned(id):
 		BannedRibbonScript.attach(p)
 	if selected:
-		var check := _label("✔", 20, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 4)
+		# drawn with shapes: the "✔" character is missing from the web font and showed as a broken square on phones
+		var check := HubGlyphIconScript.make(HubGlyphIconScript.Kind.CHECK, 18.0, UITheme.GOLD_LIGHT)
 		var badge := PanelContainer.new()
 		badge.add_theme_stylebox_override("panel", UITheme.box(Color(UITheme.GOLD.darkened(0.6), 0.95), 15, UITheme.GOLD, 2))
 		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1482,7 +1484,7 @@ func _add_hub_section_title(content: Control, title_text: String, pos: Vector2, 
 		choosing_ai_deck: bool) -> void:
 	var button := Button.new()
 	button.name = ("HubMacro_" if macro else "HubSubsection_") + node_name
-	button.text = ("▸" if collapsed else "▾") + "  " + title_text
+	button.text = title_text
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	button.position = pos
 	button.size = Vector2(width, HUB_SECTION_TITLE_H if macro else HUB_SUBSECTION_TITLE_H)
@@ -1500,6 +1502,10 @@ func _add_hub_section_title(content: Control, title_text: String, pos: Vector2, 
 	else:
 		normal.border_width_left = 3
 	normal.set_content_margin_all(10)
+	# room on the left for the arrow icon (drawn with shapes: the "▸" and "▾" characters are missing
+	# from the web font and showed as broken squares on phones)
+	var arrow_size := 16.0 if macro else 14.0
+	normal.content_margin_left = 10.0 + arrow_size + 10.0
 	var hover := normal.duplicate() as StyleBoxFlat
 	hover.bg_color = Color("#292538" if macro else "#252f3d")
 	button.add_theme_stylebox_override("normal", normal)
@@ -1507,6 +1513,10 @@ func _add_hub_section_title(content: Control, title_text: String, pos: Vector2, 
 	button.add_theme_stylebox_override("pressed", hover)
 	button.pressed.connect(Sfx.play.bind("ui_click"))
 	button.pressed.connect(_toggle_hub_section.bind(key, scroll, ai, msg, choosing_ai_deck))
+	var arrow_kind = HubGlyphIconScript.Kind.ARROW_RIGHT if collapsed else HubGlyphIconScript.Kind.ARROW_DOWN
+	var arrow := HubGlyphIconScript.make(arrow_kind, arrow_size, UITheme.GOLD_LIGHT if macro else UITheme.TEXT)
+	arrow.position = Vector2(10.0, (button.size.y - arrow_size) * 0.5)
+	button.add_child(arrow)
 	content.add_child(button)
 
 ## Join screen: 4-letter room code keypad, entering with the deck picked in the hub.
@@ -2863,7 +2873,7 @@ func _render_chronicle() -> void:
 
 	var shown: Array = chronicle_log.chronicle_entries
 	if shown.is_empty() and not chronicle_log.log_lines.is_empty():
-		shown = [{"text": chronicle_log.log_lines[-1], "kind": "info", "icon": "·", "accent": UITheme.GOLD, "label": "EVENTO", "seq": 0}]
+		shown = [{"text": chronicle_log.log_lines[-1], "kind": "info", "icon": "dot", "accent": UITheme.GOLD, "label": "EVENTO", "seq": 0}]
 	if shown.is_empty():
 		var empty_note := _label("Nada aconteceu ainda.", 14, Color(UITheme.TEXT, 0.4), HORIZONTAL_ALIGNMENT_CENTER, "body")
 		empty_note.position = well.position + Vector2(0, list_size.y / 2.0 - 10)
@@ -4827,8 +4837,9 @@ func _refresh_graveyard() -> void:
 	var whose := "Seu cemitério" if grave_owner == viewer and not _is_ai(grave_owner) else "Cemitério de %s" % _pname(grave_owner)
 	var n := entries.size()
 	titles.add_child(_label("%s · %s · %d %s" % [whose, CardDB.leader(g.players[grave_owner]["leader_id"])["name"], n, "carta" if n == 1 else "cartas"], 17, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT, "body"))
-	var close := _button("✕", _close_graveyard)
+	var close := _button("", _close_graveyard)
 	close.custom_minimum_size = Vector2(52, 48)
+	HubGlyphIconScript.attach_to_button(close, HubGlyphIconScript.Kind.CLOSE, 22.0, UITheme.TEXT, "center")
 	close.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	head.add_child(close)
 	var rule := ColorRect.new()
@@ -4989,6 +5000,8 @@ func _add_search_scroll_guides(box: VBoxContainer, stage: Control, scroll: Scrol
 		arrow.size = arrow_size
 		arrow.position = Vector2(8.0 if side == "left" else viewport_width - arrow_size.x - 8.0, (stage.custom_minimum_size.y - arrow_size.y) / 2.0)
 		arrow.add_theme_font_size_override("font_size", 26)
+		# the arrow is drawn with shapes (the web font on phones lacks the arrow characters); the button text is only the count
+		HubGlyphIconScript.attach_to_button(arrow, HubGlyphIconScript.Kind.ARROW_LEFT if side == "left" else HubGlyphIconScript.Kind.ARROW_RIGHT, 22.0, UITheme.TEXT, side, 14.0)
 		arrow.visible = false
 		stage.add_child(arrow)
 		var pulse := arrow.create_tween().set_loops()
@@ -5041,7 +5054,7 @@ func _add_search_scroll_guides(box: VBoxContainer, stage: Control, scroll: Scrol
 		for side in ["left", "right"]:
 			var arrow: Button = arrows[side]
 			arrow.visible = counts[side] > 0
-			arrow.text = "◀  %d" % counts[side] if side == "left" else "%d  ▶" % counts[side]
+			arrow.text = str(counts[side])
 		map.queue_redraw()
 	scroll.get_h_scroll_bar().value_changed.connect(func(_value): refresh.call())
 	refresh.call()
@@ -5216,11 +5229,12 @@ func _render_search_reveal() -> void:
 		cancel_activation_button.custom_minimum_size = Vector2(360, 52)
 		cancel_activation_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		box.add_child(cancel_activation_button)
-	var minimize_button := _button("▼  VER A MESA", func():
+	var minimize_button := _button("VER A MESA", func():
 		search_minimized_signature = search_signature
 		search_opened_signature = -1
 		_render())
 	minimize_button.custom_minimum_size = Vector2(360, 52)
+	HubGlyphIconScript.attach_to_button(minimize_button, HubGlyphIconScript.Kind.ARROW_DOWN, 20.0, UITheme.TEXT, "left", 18.0)
 	minimize_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	box.add_child(minimize_button)
 	_center.call_deferred(search_overlay)
@@ -5235,12 +5249,14 @@ func _render_search_minimized(title: String, opponents_choice := false) -> void:
 	style.shadow_size = 24
 	bar.add_theme_stylebox_override("panel", style)
 	layer.add_child(bar)
-	var restore_text := "▲  VER A ESCOLHA DO OPONENTE · %s" if opponents_choice else "▲  VOLTAR À ESCOLHA · %s"
+	# the leading spaces leave room for the arrow icon drawn at the left edge of the button
+	var restore_text := "      VER A ESCOLHA DO OPONENTE · %s" if opponents_choice else "      VOLTAR À ESCOLHA · %s"
 	var restore_button := _button(restore_text % title, func():
 		search_minimized_signature = -1
 		search_opened_signature = g.pending_search.hash()
 		_render(), true)
 	restore_button.custom_minimum_size = Vector2(520, 60)
+	HubGlyphIconScript.attach_to_button(restore_button, HubGlyphIconScript.Kind.ARROW_UP, 22.0, UITheme.TEXT, "left", 18.0)
 	bar.add_child(restore_button)
 	search_overlay = bar
 	_place_at_top_center.call_deferred(bar)

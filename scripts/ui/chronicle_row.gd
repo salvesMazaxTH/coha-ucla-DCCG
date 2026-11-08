@@ -8,6 +8,8 @@ extends Control
 
 signal focused(row: ChronicleRow)
 
+const HubGlyphIconScript = preload("res://scripts/ui/hub_glyph_icon.gd")
+
 const ROW_HEIGHT := 50.0
 const TURN_DIVIDER_HEIGHT := 28.0
 const SOURCE_CHIP := Rect2(8, 5, 40, 40)
@@ -129,7 +131,7 @@ func _draw_event_tile() -> void:
 	if source_id != "":
 		draw_card_art(self, source_id, SOURCE_CHIP, accent)
 	else:
-		_draw_glyph_chip(SOURCE_CHIP, String(entry.get("icon", "·")), accent)
+		_draw_glyph_chip(SOURCE_CHIP, String(entry.get("icon", "dot")), accent)
 	_draw_action_badge(SOURCE_CHIP.end - Vector2(1, 1), accent)
 
 	# the card(s) it hit, on the right, with the damage or healing stamped on top
@@ -168,10 +170,7 @@ func _draw_event_tile() -> void:
 func _draw_action_badge(center: Vector2, accent: Color) -> void:
 	draw_circle(center, 9.0, Color("#0b0a10"))
 	draw_arc(center, 9.0, 0, TAU, 24, accent, 1.5, true)
-	var font := UITheme.font("heavy")
-	var glyph := String(entry.get("icon", "·"))
-	var glyph_width := font.get_string_size(glyph, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
-	draw_string(font, center + Vector2(-glyph_width / 2.0, 4), glyph, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, accent)
+	HubGlyphIconScript.draw_action_icon(self, String(entry.get("icon", "dot")), center, 5.0, accent)
 
 ## The damage ("−3") or healing ("+2") drawn as a small round stamp over the target.
 func _draw_amount_stamp(center: Vector2) -> void:
@@ -189,9 +188,7 @@ func _draw_amount_stamp(center: Vector2) -> void:
 func _draw_glyph_chip(rect: Rect2, glyph: String, accent: Color) -> void:
 	draw_rect(rect, Color(accent, 0.1))
 	draw_rect(rect, Color(accent, 0.55), false, 1.0)
-	var font := UITheme.font("heavy")
-	var glyph_width := font.get_string_size(glyph, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x
-	draw_string(font, rect.get_center() + Vector2(-glyph_width / 2.0, 7), glyph, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, accent)
+	HubGlyphIconScript.draw_action_icon(self, glyph, rect.get_center(), 10.0, accent)
 
 func _draw_count_pill(center: Vector2, text: String, accent: Color) -> void:
 	draw_circle(center, 8, Color("#090811"))

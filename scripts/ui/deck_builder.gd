@@ -1028,7 +1028,7 @@ func _open_incarnation_picker() -> void:
 	box.add_child(explanation)
 	for card_id in options:
 		var cd: Dictionary = CardDB.card(card_id)
-		var marker := " ✓" if card_id == _incarnation_id else ""
+		var marker := " (atual)" if card_id == _incarnation_id else ""
 		var option_button := _btn("%s%s · custo %d\n%s" % [cd.get("name", card_id), marker, int(cd.get("cost", 0)), cd.get("text", "")], func():
 			_select_incarnation(card_id), false, 17)
 		option_button.custom_minimum_size = Vector2(620, 64)

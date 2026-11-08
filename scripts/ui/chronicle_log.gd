@@ -37,7 +37,7 @@ func _log(t: String) -> void:
 	if not entry.has("kind"):
 		entry["kind"] = "info"
 	if not entry.has("icon"):
-		entry["icon"] = "·"
+		entry["icon"] = "dot"
 	if not entry.has("accent"):
 		entry["accent"] = UITheme.GOLD
 	if not entry.has("label"):
@@ -122,13 +122,15 @@ func _chronicle_actor(e: Dictionary) -> int:
 				return unit.owner
 	return -1
 
+## Name of the symbol drawn for this kind of event (see HubGlyphIcon.draw_action_icon). They are names,
+## not text characters, because the web font on phones lacks many symbols and showed broken squares.
 func _chronicle_icon(kind: String) -> String:
 	return {
-		"play": "▶", "resolve": "✦", "ability": "✦", "passive": "✦", "trigger": "⚡",
-		"attack": "⚔", "damage": "−", "heal": "+", "death": "×", "destroy": "×",
-		"dot": "•", "start_turn": "◷", "transform": "↻", "countered": "⊘", "fizzle": "⊘",
-		"death_ward_armed": "◇", "death_prevented": "◇"
-	}.get(kind, "·")
+		"play": "play", "resolve": "spark", "ability": "spark", "passive": "spark", "trigger": "bolt",
+		"attack": "attack", "damage": "minus", "heal": "plus", "death": "cross", "destroy": "cross",
+		"dot": "bullet", "start_turn": "clock", "transform": "cycle", "countered": "forbidden", "fizzle": "forbidden",
+		"death_ward_armed": "diamond", "death_prevented": "diamond"
+	}.get(kind, "dot")
 
 ## Converts a raw engine event into the visual relationship shown by ChronicleRow.
 ## The event still supplies the prose through _log_event; this only supplies its art and direction.
