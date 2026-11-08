@@ -15,6 +15,5 @@
   ],
   "text": "Constante: o Ataque e a Vida desta unidade são sempre X/X, em que X é a quantidade de Elefantes Incomodantes que você controla em campo + 1.",
   "flavor": "Um elefante incomoda muita gente, dois elefantes incomodam, incomodam, incomodam, incomodam...",
-  "art": "neutra/elefante_incomodante.webp",
-  "tags": []
+  "art": "neutra/elefante_incomodante.webp"
 }

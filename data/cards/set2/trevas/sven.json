@@ -15,6 +15,5 @@
     { "trigger": "constante", "action": "scale", "per": "other_allied_tribe", "tribe": "dragoes_negros", "atk": 1, "hp": 1 }
   ],
   "text": "Ao Entrar: você olha as 4 cartas do topo do seu deck e pega 1 unidade Dragão Negro de custo (4) ou menos entre elas; ela custa (3) a menos neste turno, mas nunca menos de (1). As outras vão para o fundo.\nConstante: ganha +1/+1 para cada outro Dragão Negro que você controla.",
-  "flavor": "",
-  "tags": []
+  "flavor": ""
 }

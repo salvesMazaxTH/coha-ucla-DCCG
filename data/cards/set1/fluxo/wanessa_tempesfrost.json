@@ -26,8 +26,5 @@
     }
   ],
   "text": "Ao Transformar: congela todas as unidades inimigas.\nAo Atacar: lança uma Bola de Neve no alvo do ataque.",
-  "flavor": "A tempestade não pede licença.",
-  "tags": [
-    "bola_de_neve"
-  ]
+  "flavor": "A tempestade não pede licença."
 }

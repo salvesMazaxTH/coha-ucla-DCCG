@@ -17,8 +17,5 @@
     }
   ],
   "text": "O nível da sua Bola de Neve sobe metade do nível atual (arredondado para cima), neste turno.",
-  "flavor": "Foi só um empurrãozinho. Faz uns três minutos que ninguém acha o freio.",
-  "tags": [
-    "combo_degelo"
-  ]
+  "flavor": "Foi só um empurrãozinho. Faz uns três minutos que ninguém acha o freio."
 }

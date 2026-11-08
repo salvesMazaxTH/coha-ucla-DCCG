@@ -371,12 +371,18 @@ func find_relic(uid: int) -> Card:
 
 ## How many of p's BOARD_LIMIT field slots are taken: units plus free-standing artifacts, plus the slots
 ## of p's units that an enemy is borrowing right now (take_control): those slots stay reserved so the unit can come home.
+## A reserved slot is shared with an enemy unit p is holding at the same time (a swap): at the end of the turn one
+## leaves and the other comes back, so only the surplus of away units over held ones needs extra room.
 func slots_used(p: int) -> int:
-	var used: int = players[p]["board"].size() + players[p]["relics"].size()
+	var away := 0 # p's units standing on the enemy field
 	for borrowed: Card in players[opponent(p)]["board"]:
 		if borrowed.home_owner == p:
-			used += 1
-	return used
+			away += 1
+	var held := 0 # the enemy's units standing on p's field
+	for borrowed: Card in players[p]["board"]:
+		if borrowed.home_owner >= 0:
+			held += 1
+	return players[p]["board"].size() + players[p]["relics"].size() + maxi(0, away - held)
 
 ## True while p still has a free field slot for a unit or an artifact. Slots frozen by Rei Gelado don't count.
 func has_free_slot(p: int) -> bool:
@@ -712,12 +718,6 @@ func spell_amplifier_bonus(p: int, bonus_kind: String) -> int:
 				bonus += int(e[bonus_kind]) * constants_multiplier(p)
 	return bonus
 
-func _spell_amplifier_condition_holds(p: int, e: Dictionary) -> bool:
-	var deck_counts := _deck_unit_and_spell_counts(p)
-	var units_in_deck: int = deck_counts["units"]
-	var spells_in_deck: int = deck_counts["spells"]
-	if units_in_deck <= int(e.get("deck_units_max", -1)):
-		return true
 ## The bonuses other cards add RIGHT NOW to the numbers printed in the text of a spell of player `p`, for the
 ## card view to mark them: {"damage": N, "draw": N}, a key only when N > 0 (so {} = the printed numbers are exact).
 ## Anything that is not a spell gets {}, because the "spell_amplifier" Constante only touches spells.
@@ -731,6 +731,12 @@ func live_text_bonuses(p: int, card_data: Dictionary) -> Dictionary:
 			bonuses[bonus_kind] = bonus
 	return bonuses
 
+func _spell_amplifier_condition_holds(p: int, e: Dictionary) -> bool:
+	var deck_counts := _deck_unit_and_spell_counts(p)
+	var units_in_deck: int = deck_counts["units"]
+	var spells_in_deck: int = deck_counts["spells"]
+	if units_in_deck <= int(e.get("deck_units_max", -1)):
+		return true
 	var ratio := int(e.get("deck_spell_ratio", 0))
 	return ratio > 0 and spells_in_deck >= _spells_needed_for_ratio(e, units_in_deck)
 
@@ -1334,7 +1340,7 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 			if _has_action(effects, "counter"):
 				out = out.filter(func(stack_id: int) -> bool: return counter_extra({"effects": effects}, stack_id) >= 0)
 	if not effects.is_empty():
-		out = out.filter(func(target_uid: int) -> bool: return meets_marker_requirement(target_uid, spec, effects) and meets_subtype_requirement(target_uid, spec, effects) and meets_unit_requirement(target_uid, spec, effects))
+		out = out.filter(func(target_uid: int) -> bool: return meets_marker_requirement(target_uid, spec, effects) and meets_subtype_requirement(target_uid, spec, effects) and meets_unit_requirement(target_uid, spec, effects, self_uid))
 	return out
 
 ## Choice options carry ordinary effect lists; the current trigger and its continuation wait for the answer.
@@ -1430,17 +1436,21 @@ func _unit_artifacts_on_board(p: int) -> Array:
 ## "requires_exhausted" (only a tapped unit, like "ready"), "not_rarity" (never these rarities, like champions) or
 ## "unit_filter" (a CardFilter on the printed card, e.g. {"max_cost": 3}: Rajada de Quintal only aims at cheap units).
 ## Effects aimed at another spec, or without these parameters, ignore this check.
-func meets_unit_requirement(target_uid: int, spec: String, effects: Array) -> bool:
+func meets_unit_requirement(target_uid: int, spec: String, effects: Array, self_uid: int = 0) -> bool:
 	var unit := find_unit(target_uid)
 	for effect in effects:
 		if effect.get("target", "") != spec:
 			continue
 		if effect.get("requires_exhausted", false) and (unit == null or not unit.exhausted):
 			return false
-		# "take_control" only aims at enemy units, so the thief is the opponent of the target's owner
-		if effect.get("action", "") == "take_control" and unit != null \
-				and not ControlEffect.can_take(self, opponent(unit.owner), unit):
-			return false
+		# "take_control" only aims at enemy units, so the thief is the opponent of the target's owner;
+		# with "swap_with_self" the unit that carries the ability must also be able to go across (and no free slot is needed)
+		if effect.get("action", "") == "take_control" and unit != null:
+			var swapping: bool = effect.get("swap_with_self", false)
+			if not ControlEffect.can_take(self, opponent(unit.owner), unit, swapping):
+				return false
+			if swapping and not ControlEffect.can_be_swapped_out(find_unit(self_uid)):
+				return false
 		if unit != null and (effect.get("not_rarity", []) as Array).has(CardDB.card(unit.card_id).get("rarity", "")):
 			return false
 		var unit_filter: Dictionary = effect.get("unit_filter", {})
@@ -1510,7 +1520,7 @@ func card_targets(p: int, cd: Dictionary, inst: Card = null) -> Array:
 func speed_of(src: Dictionary) -> String:
 	if src.has("speed"):
 		return String(src["speed"])
-	if (src.get("keywords", []) as Array).has("saque_rapido") or (src.get("tags", []) as Array).has("saque_rapido"):
+	if (src.get("keywords", []) as Array).has("saque_rapido"):
 		return "rapido"
 	return "lento"
 
@@ -3077,7 +3087,7 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 		var deck_size: int = searched.size()
 		searched = searched.slice(maxi(deck_size - int(e["top"]), 0), deck_size)
 	for c in searched:
-		# the filter keys (essence, element, max_cost, type, card_ids, tribe, tags, tags_any...) are shared with "summon_from"
+		# the filter keys (essence, element, max_cost, type, card_ids, tribe, tribe_any...) are shared with "summon_from"
 		if not CardFilter.matches(c.card_id, e):
 			continue
 		# every copy that is really in the deck is listed, like cards laid out on a table

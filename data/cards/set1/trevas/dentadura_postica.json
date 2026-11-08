@@ -27,6 +27,5 @@
     }
   ],
   "text": "Equipar: concede +1 de Ataque à unidade equipada.\nCondicional: quando a unidade equipada causa dano de combate, o alvo (inclusive um Líder) recebe 1 marcador de Sangramento. Perde 1 de Durabilidade a cada uso.",
-  "flavor": "Serve em qualquer boca. Morde em todas.",
-  "tags": []
+  "flavor": "Serve em qualquer boca. Morde em todas."
 }

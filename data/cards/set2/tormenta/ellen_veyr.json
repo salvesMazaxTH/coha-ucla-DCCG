@@ -70,6 +70,5 @@
   ],
   "text": "Condicional (2x por turno): quando uma unidade ataca, a atacante inimiga, ou a unidade desafiada por uma aliada, sofre 2 de dano antes do combate. Na 2ª vez do turno, o dano é 5.",
   "flavor": "",
-  "tags": [],
   "conditional_uses_per_turn": 2
 }

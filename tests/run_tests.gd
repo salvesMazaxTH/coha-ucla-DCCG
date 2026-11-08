@@ -157,6 +157,7 @@ func _init() -> void:
 	_test_natureza_canil()
 	_test_wendell()
 	_test_bruce()
+	_test_tags_field_removed()
 	_test_set2_neutral_spells()
 	_test_mali_leader_graveyard_cost()
 	_test_censo_and_queima()
@@ -2112,7 +2113,7 @@ func _test_two_dawns_axe() -> void:
 func _test_artifact_subtypes() -> void:
 	# Subtipos de artefato são comparáveis: filtro "subtype" nos alvos de artefato e no match do PlayRestriction
 	var plain_card := {"name": "t_plain_artifact", "type": "artifact", "subtypes": [], "rarity": "common", "essence": "neutra",
-		"cost": 1, "effects": [], "text": "", "flavor": "", "art": "", "tags": []}
+		"cost": 1, "effects": [], "text": "", "flavor": "", "art": ""}
 	var local_card := plain_card.duplicate(true)
 	local_card["name"] = "t_local_artifact"
 	local_card["subtypes"] = ["local"]
@@ -2150,7 +2151,7 @@ func _test_room_banish() -> void:
 	_tcard("t_room_body", 1, 1, [])
 	_tcard("t_room_newcomer", 2, 2, [])
 	CardDB.data()["cards"]["t_room_artifact"] = {"name": "t_room_artifact", "type": "artifact", "subtypes": [], "rarity": "common",
-		"essence": "neutra", "cost": 1, "effects": [], "text": "", "flavor": "", "art": "", "tags": []}
+		"essence": "neutra", "cost": 1, "effects": [], "text": "", "flavor": "", "art": ""}
 	CardDB.data()["cards"]["t_room_subito"] = CardDB.data()["cards"]["t_room_newcomer"].duplicate(true)
 	CardDB.data()["cards"]["t_room_subito"]["subito"] = 1
 	_tcard("t_room_trigger", 1, 1, [])
@@ -6322,7 +6323,7 @@ func _give(g: GameState, p: int, card_id: String) -> int:
 
 func _tspell(id: String, speed: String, effects: Array) -> void:
 	CardDB.data()["cards"][id] = {"name": id, "type": "spell", "rarity": "common", "essence": "neutra", "cost": 0,
-		"speed": speed, "art": "", "effects": effects, "text": "", "flavor": "", "tags": []}
+		"speed": speed, "art": "", "effects": effects, "text": "", "flavor": ""}
 
 func _has_event(events: Array, type: String) -> bool:
 	for e in events:
@@ -8157,6 +8158,144 @@ func _test_bruce() -> void:
 	var inc := _put(g_inc, 1, "t_bruce_victim")
 	inc.incarnation = true
 	check(not ControlEffect.can_take(g_inc, 0, inc), "Bruce: Encarnação não pode ser roubada")
+	# uma unidade que já está emprestada não é roubada de novo (o dono de verdade seria esquecido)
+	var g_twice := _new_game()
+	_quiet(g_twice)
+	var twice := _put(g_twice, 1, "t_bruce_victim")
+	g_twice.players[0]["momentum"] = 10
+	_play_aimed(g_twice, 0, "bruce", twice.uid)
+	check(twice.home_owner == 1 and not ControlEffect.can_take(g_twice, 1, twice), "Bruce: a unidade emprestada ao jogador 0 não pode ser tomada de volta no mesmo turno")
+
+	# ---- Ao Ativar: troca de lado ----
+	var g_swap := _new_game()
+	_quiet(g_swap)
+	var swapper := _put(g_swap, 0, "bruce")
+	check(not g_swap.can_activate(0, swapper.uid), "Bruce: sem unidade inimiga a troca de lado não é possível")
+	var swap_victim := _put(g_swap, 1, "t_bruce_victim")
+	swap_victim.exhausted = true
+	g_swap.players[0]["momentum"] = 10
+	check(g_swap.can_activate(0, swapper.uid), "Bruce: com uma unidade inimiga a troca de lado é possível")
+	g_swap.activate(0, swapper.uid, swap_victim.uid)
+	check(g_swap.players[0]["board"].has(swap_victim) and not g_swap.players[1]["board"].has(swap_victim), "Bruce troca: a unidade inimiga veio para o meu campo")
+	check(g_swap.players[1]["board"].has(swapper) and not g_swap.players[0]["board"].has(swapper), "Bruce troca: o Bruce foi para o campo inimigo")
+	check(swap_victim.owner == 0 and swap_victim.home_owner == 1, "Bruce troca: a roubada responde a mim (%d/%d)" % [swap_victim.owner, swap_victim.home_owner])
+	check(swapper.owner == 1 and swapper.home_owner == 0, "Bruce troca: o Bruce responde ao inimigo (%d/%d)" % [swapper.owner, swapper.home_owner])
+	check(not swap_victim.exhausted and not swap_victim.sick, "Bruce troca: a unidade roubada vem pronta para atacar")
+	check(swapper.exhausted, "Bruce troca: o Bruce continua virado (pagou a habilidade), então não dá um atacante grátis ao inimigo")
+	check(g_swap.slots_used(0) == 1 and g_swap.slots_used(1) == 1, "Bruce troca: cada lado continua com 1 espaço usado (%d/%d)" % [g_swap.slots_used(0), g_swap.slots_used(1)])
+	g_swap.end_turn(0)
+	check(g_swap.players[0]["board"].has(swapper) and g_swap.players[1]["board"].has(swap_victim), "Bruce troca: no fim do turno cada um volta para o seu campo")
+	check(swapper.owner == 0 and swapper.home_owner == -1 and swap_victim.owner == 1 and swap_victim.home_owner == -1, "Bruce troca: os dois donos restaurados")
+	check(g_swap.slots_used(0) == 1 and g_swap.slots_used(1) == 1, "Bruce troca: sem reserva sobrando depois de voltar (%d/%d)" % [g_swap.slots_used(0), g_swap.slots_used(1)])
+
+	# a troca é um para um: funciona com o meu campo cheio e com o campo inimigo cheio
+	var g_swap_full := _new_game()
+	_quiet(g_swap_full)
+	var full_swapper := _put(g_swap_full, 0, "bruce")
+	for i in 7:
+		_put(g_swap_full, 0, "t_bruce_filler")
+	for i in 8:
+		_put(g_swap_full, 1, "t_bruce_victim")
+	var full_target: Card = g_swap_full.players[1]["board"][0]
+	g_swap_full.players[0]["momentum"] = 10
+	check(not g_swap_full.has_free_slot(0) and g_swap_full.can_activate(0, full_swapper.uid), "Bruce troca: com os dois campos cheios ainda dá para trocar")
+	g_swap_full.activate(0, full_swapper.uid, full_target.uid)
+	check(g_swap_full.players[0]["board"].size() == 8 and g_swap_full.players[1]["board"].size() == 8, "Bruce troca: os campos continuam com 8 e 8 (%d/%d)" % [g_swap_full.players[0]["board"].size(), g_swap_full.players[1]["board"].size()])
+	check(g_swap_full.slots_used(0) == 8 and g_swap_full.slots_used(1) == 8, "Bruce troca: nenhum lado passa de 8 espaços (%d/%d)" % [g_swap_full.slots_used(0), g_swap_full.slots_used(1)])
+	g_swap_full.end_turn(0)
+	check(g_swap_full.players[0]["board"].size() == 8 and g_swap_full.players[1]["board"].size() == 8 and g_swap_full.players[0]["board"].has(full_swapper), "Bruce troca: tudo volta ao normal com os campos cheios")
+
+	# a unidade roubada morre durante a troca: vai para o cemitério do dono de verdade e o Bruce ainda volta para casa
+	var g_swap_die := _new_game()
+	_quiet(g_swap_die)
+	var die_swapper := _put(g_swap_die, 0, "bruce")
+	var die_victim := _put(g_swap_die, 1, "t_bruce_victim")
+	g_swap_die.players[0]["momentum"] = 10
+	g_swap_die.activate(0, die_swapper.uid, die_victim.uid)
+	die_victim.damage = 99
+	g_swap_die._check_state()
+	check(g_swap_die.players[1]["graveyard"].has(die_victim) and not g_swap_die.players[0]["graveyard"].has(die_victim), "Bruce troca: a roubada que morre vai para o cemitério do dono de verdade")
+	# o Bruce ocupa de verdade um espaço do campo inimigo e o meu espaço dele fica reservado até ele voltar
+	check(g_swap_die.slots_used(0) == 1 and g_swap_die.slots_used(1) == 1, "Bruce troca: o espaço de casa do Bruce segue reservado e ele ocupa o campo inimigo (%d/%d)" % [g_swap_die.slots_used(0), g_swap_die.slots_used(1)])
+	g_swap_die.end_turn(0)
+	check(g_swap_die.players[0]["board"].has(die_swapper) and die_swapper.owner == 0 and die_swapper.home_owner == -1, "Bruce troca: o Bruce volta para casa mesmo sem a troca de volta")
+
+	# o Bruce morre do outro lado: vai para o MEU cemitério e a roubada ainda volta para o dono dela
+	var g_swap_bruce_dies := _new_game()
+	_quiet(g_swap_bruce_dies)
+	var dying_swapper := _put(g_swap_bruce_dies, 0, "bruce")
+	var kept_victim := _put(g_swap_bruce_dies, 1, "t_bruce_victim")
+	g_swap_bruce_dies.players[0]["momentum"] = 10
+	g_swap_bruce_dies.activate(0, dying_swapper.uid, kept_victim.uid)
+	dying_swapper.damage = 99
+	g_swap_bruce_dies._check_state()
+	check(g_swap_bruce_dies.players[0]["graveyard"].has(dying_swapper) and not g_swap_bruce_dies.players[1]["graveyard"].has(dying_swapper), "Bruce troca: o Bruce que morre do outro lado vai para o meu cemitério")
+	g_swap_bruce_dies.end_turn(0)
+	check(g_swap_bruce_dies.players[1]["board"].has(kept_victim) and kept_victim.owner == 1 and kept_victim.home_owner == -1, "Bruce troca: a roubada volta para o dono mesmo com o Bruce morto")
+
+	# um Bruce que já está emprestado não pode trocar de lado, e uma Encarnação não é alvo
+	var g_swap_lent := _new_game()
+	_quiet(g_swap_lent)
+	var lent_swapper := _put(g_swap_lent, 0, "bruce")
+	_put(g_swap_lent, 1, "t_bruce_victim")
+	g_swap_lent.players[0]["momentum"] = 10
+	lent_swapper.home_owner = 1 # como se o inimigo o tivesse tomado emprestado
+	check(not g_swap_lent.can_activate(0, lent_swapper.uid), "Bruce troca: um Bruce emprestado não pode trocar de lado")
+	lent_swapper.home_owner = -1
+	check(g_swap_lent.can_activate(0, lent_swapper.uid), "Bruce troca: de volta ao dono ele pode trocar")
+
+	# Rápido: dá para trocar de lado também no turno do inimigo, e tudo volta no fim dele
+	var g_swap_fast := _new_game()
+	_quiet(g_swap_fast)
+	var fast_swapper := _put(g_swap_fast, 0, "bruce")
+	var fast_victim := _put(g_swap_fast, 1, "t_bruce_victim")
+	_put(g_swap_fast, 1, "t_bruce_filler") # o atacante do inimigo: abre a preparação do combate, onde o Rápido cabe
+	g_swap_fast.end_turn(0)
+	g_swap_fast.players[0]["momentum"] = 10
+	check(not g_swap_fast.can_activate(0, fast_swapper.uid), "Bruce troca: na fase principal do inimigo, sem janela aberta, não dá para usar")
+	g_swap_fast.go_to_combat(1)
+	g_swap_fast.pass_priority(1)
+	check(g_swap_fast.window == "pre_combat" and g_swap_fast.priority == 0 and g_swap_fast.can_activate(0, fast_swapper.uid), "Bruce troca: Rápido, pode ser usado na preparação do combate do inimigo")
+	g_swap_fast.activate(0, fast_swapper.uid, fast_victim.uid)
+	_resolve_stack(g_swap_fast)
+	check(g_swap_fast.players[0]["board"].has(fast_victim) and g_swap_fast.players[1]["board"].has(fast_swapper), "Bruce troca: trocou de lado no turno do inimigo")
+	# depois de uma jogada a prioridade volta para o atacante: os dois passam até os ataques começarem
+	var pass_guard := 0
+	while g_swap_fast.window == "pre_combat" and pass_guard < 4:
+		g_swap_fast.pass_priority(g_swap_fast.priority)
+		pass_guard += 1
+	check(g_swap_fast.window == "attacks", "Bruce troca: os dois passaram, começam os ataques do inimigo (janela %s)" % g_swap_fast.window)
+	g_swap_fast.end_combat(1)
+	g_swap_fast.end_turn(1)
+	check(g_swap_fast.players[0]["board"].has(fast_swapper) and g_swap_fast.players[1]["board"].has(fast_victim), "Bruce troca: no fim do turno do inimigo os dois voltam")
+	check(fast_swapper.home_owner == -1 and fast_victim.home_owner == -1, "Bruce troca: sem dono emprestado sobrando depois do turno do inimigo")
+
+## O campo "tags" saiu das cartas: o motor só o lia na busca do Bruno (e num caminho antigo do saque rápido).
+## Agora essa busca cita as duas cartas pelo id, em "card_ids", como qualquer outro filtro do CardFilter.
+func _test_tags_field_removed() -> void:
+	var cards_with_tags: Array = []
+	for card_id in CardDB.data()["cards"]:
+		if CardDB.data()["cards"][card_id].has("tags"):
+			cards_with_tags.append(card_id)
+	check(cards_with_tags.is_empty(), "tags: nenhuma carta tem mais o campo \"tags\" (%s)" % ", ".join(cards_with_tags))
+	var leaders_with_tags: Array = []
+	for leader_id in CardDB.data()["leaders"]:
+		if CardDB.data()["leaders"][leader_id].has("tags"):
+			leaders_with_tags.append(leader_id)
+	check(leaders_with_tags.is_empty(), "tags: nenhum Líder tem o campo \"tags\" (%s)" % ", ".join(leaders_with_tags))
+	# a busca do Bruno (a única que lia o campo) segue achando as mesmas duas cartas de antes, agora pelo id
+	var bruno_search: Dictionary = {}
+	for effect in CardDB.card("bruno")["effects"]:
+		if effect.get("action", "") == "search_deck":
+			bruno_search = effect
+	check(not bruno_search.is_empty(), "tags: o Bruno ainda tem o efeito de busca no deck")
+	check(not bruno_search.has("tags") and not bruno_search.has("tags_any"), "tags: a busca do Bruno não usa mais tags")
+	var found_by_bruno: Array = []
+	for card_id in CardDB.data()["cards"]:
+		if CardFilter.matches(card_id, bruno_search):
+			found_by_bruno.append(card_id)
+	found_by_bruno.sort()
+	check(found_by_bruno == ["bola_de_neve", "grande_bola_de_neve"], "tags: a busca do Bruno acha só a Bola de Neve e a Grande Bola de Neve (%s)" % ", ".join(found_by_bruno))
 
 func _test_cornelia() -> void:
 	_tcard("t_cornelia_ally", 1, 3, [])
@@ -8734,7 +8873,7 @@ func _quiet(g: GameState) -> void:
 
 func _tcard(id: String, atk: int, hp: int, effects: Array) -> void:
 	CardDB.data()["cards"][id] = {"name": id, "type": "unit", "rarity": "common", "essence": "neutra", "cost": 1,
-		"atk": atk, "hp": hp, "keywords": [], "art": "", "effects": effects, "text": "", "flavor": "", "tags": []}
+		"atk": atk, "hp": hp, "keywords": [], "art": "", "effects": effects, "text": "", "flavor": ""}
 
 ## "listen": a card reacting to an event from anywhere, written only in JSON.
 ## Fixture: when the enemy Leader falls below 12 life and I control 4+ units, 3 damage to all enemy units.
@@ -10975,7 +11114,7 @@ func _test_ai_lethal_planner() -> void:
 	g.players[0]["incarnation"]["in_zone"] = false
 	_give(g, 0, "kai")
 	CardDB.data()["cards"]["t_ai_guard"] = {"name": "t_ai_guard", "type": "unit", "rarity": "common", "essence": "neutra", "cost": 1,
-		"atk": 1, "hp": 3, "keywords": ["provocacao"], "art": "", "effects": [], "text": "", "flavor": "", "tags": []}
+		"atk": 1, "hp": 3, "keywords": ["provocacao"], "art": "", "effects": [], "text": "", "flavor": ""}
 	var guard := _put(g, 1, "t_ai_guard")
 	guard.exhausted = true
 	g.players[1]["leader_hp"] = 3
@@ -12729,7 +12868,7 @@ func _test_sagrada_engine() -> void:
 	_tcard("t_ward_immune", 1, 5, [])
 	CardDB.data()["cards"]["t_ward_immune"]["keywords"] = ["indestrutivel"]
 	CardDB.data()["cards"]["t_bulwark"] = {"name": "t_bulwark", "type": "artifact", "subtypes": ["local"], "rarity": "common",
-		"essence": "neutra", "cost": 0, "art": "", "text": "", "flavor": "", "tags": [], "death_ward": true,
+		"essence": "neutra", "cost": 0, "art": "", "text": "", "flavor": "", "death_ward": true,
 		"activated": {"cost": 2, "speed": "rapido", "effects": [{"action": "arm_death_ward", "target": "none"}]},
 		"effects": [{"trigger": "on_death", "action": "heal_leader", "target": "own_leader", "amount": 3}]}
 	_tspell("t_kill_ally", "lento", [{"trigger": "on_play", "action": "destroy", "target": "ally_unit"}])
@@ -12853,7 +12992,7 @@ func _test_sagrada_engine() -> void:
 	_tcard("t_caster_fan", 1, 5, [{"listen": "spell_cast", "scope": "ally", "when": {"essence_fluxo": true},
 		"action": "buff", "target": "self", "atk": 1}])
 	CardDB.data()["cards"]["t_glacial_spell"] = {"name": "t_glacial_spell", "type": "spell", "rarity": "common", "essence": "fluxo",
-		"cost": 0, "speed": "lento", "art": "", "effects": [], "text": "", "flavor": "", "tags": []}
+		"cost": 0, "speed": "lento", "art": "", "effects": [], "text": "", "flavor": ""}
 	_tspell("t_neutral_spell", "lento", [])
 	g = _new_game()
 	_quiet(g)
@@ -12868,7 +13007,7 @@ func _test_sagrada_engine() -> void:
 	var base_deck: Dictionary = DeckDB.get_deck(DeckDB.ids()[0])
 	var undraftable_cards: Dictionary = base_deck["cards"].duplicate()
 	CardDB.data()["cards"]["t_undraftable"] = {"name": "t_undraftable", "type": "artifact", "rarity": "common", "essence": "neutra",
-		"cost": 0, "art": "", "text": "", "flavor": "", "tags": [], "effects": [], "undraftable": true}
+		"cost": 0, "art": "", "text": "", "flavor": "", "effects": [], "undraftable": true}
 	undraftable_cards["t_undraftable"] = 1
 	var undraftable_errors := DeckDB.validate_cards(base_deck["leader"], undraftable_cards)
 	check(undraftable_errors.any(func(e: String): return e.begins_with("t_undraftable:")), "undraftable: o deck com a carta é recusado")
@@ -14093,7 +14232,7 @@ func _test_champion_rework() -> void:
 ## Silêncio: the unit loses keywords, every ability and its buffs (back to the printed stats); David destroys the 4 strongest enemy units (Ataque 8+).
 func _test_silence_and_david() -> void:
 	CardDB.data()["cards"]["t_loud"] = {"name": "t_loud", "type": "unit", "rarity": "common", "essence": "neutra", "cost": 1,
-		"atk": 3, "hp": 5, "keywords": ["provocacao", "escudo"], "art": "", "text": "", "flavor": "", "tags": [],
+		"atk": 3, "hp": 5, "keywords": ["provocacao", "escudo"], "art": "", "text": "", "flavor": "",
 		"effects": [{"trigger": "on_turn_start", "action": "damage", "target": "enemy_leader", "amount": 2},
 			{"listen": "leader_damaged", "scope": "enemy", "action": "damage", "target": "own_leader", "amount": 1}]}
 	_tcard("t_silencer", 1, 1, [{"trigger": "on_enter", "action": "silence", "target": "enemy_unit"}])
@@ -14200,9 +14339,9 @@ func _zone_has(g: GameState, p: int, zone: String, card_id: String) -> bool:
 func _test_tech_cards() -> void:
 	_tcard("t_plain", 1, 4, [])
 	CardDB.data()["cards"]["t_flyer"] = {"name": "t_flyer", "type": "unit", "rarity": "common", "essence": "neutra", "cost": 1,
-		"atk": 1, "hp": 4, "keywords": ["voo"], "art": "", "effects": [], "text": "", "flavor": "", "tags": []}
+		"atk": 1, "hp": 4, "keywords": ["voo"], "art": "", "effects": [], "text": "", "flavor": ""}
 	CardDB.data()["cards"]["t_wall"] = {"name": "t_wall", "type": "unit", "rarity": "common", "essence": "neutra", "cost": 1,
-		"atk": 1, "hp": 6, "armor": 2, "keywords": ["provocacao", "escudo"], "art": "", "effects": [], "text": "", "flavor": "", "tags": []}
+		"atk": 1, "hp": 6, "armor": 2, "keywords": ["provocacao", "escudo"], "art": "", "effects": [], "text": "", "flavor": ""}
 	_tcard("t_token", 1, 1, [])
 	CardDB.data()["cards"]["t_token"]["token"] = true
 
@@ -14263,7 +14402,7 @@ func _test_tech_cards() -> void:
 	g.players[0]["momentum"] = 10
 	var relic := Card.new(g._uid(), "t_relic", 1, "relics")
 	CardDB.data()["cards"]["t_relic"] = {"name": "t_relic", "type": "artifact", "rarity": "common", "essence": "neutra", "cost": 1,
-		"effects": [], "text": "", "flavor": "", "art": "", "tags": []}
+		"effects": [], "text": "", "flavor": "", "art": ""}
 	g.players[1]["relics"].append(relic)
 	_play_aimed(g, 0, "desmontador_de_quinquilharia", relic.uid)
 	check(g.players[1]["relics"].is_empty(), "Desmontador: destrói o artefato inimigo")

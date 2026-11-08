@@ -1,0 +1,27 @@
+{
+  "name": "Alexa",
+  "set": 2,
+  "hp": 35,
+  "art": "fluxo/alexa_lider.webp",
+  "incarnation": "alexa_neruvya_mar_mae",
+  "ability": {
+    "name": "Calmaria",
+    "cost": 2,
+    "once_per_turn": true,
+    "speed": "instantaneo",
+    "effects": [
+      {
+        "action": "buff",
+        "target": "ally_unit",
+        "keywords": [
+          "escudo_magico"
+        ],
+        "temp": true
+      }
+    ],
+    "text": "Instantânea. 2 Momentum, uma vez por turno: concede Escudo Mágico neste turno a uma unidade aliada."
+  },
+  "essences": [
+    "fluxo"
+  ]
+}

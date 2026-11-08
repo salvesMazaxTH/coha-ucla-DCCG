@@ -23,6 +23,5 @@
   "text": "Ao Ativar (1) {instantaneo}: concede +2 de Ataque até o fim do turno a uma unidade aliada. Perde 1 de Durabilidade.\nEquipar (1) {lento}: equipe este artefato em uma unidade aliada. Equipado, não pode ser ativado e concede +2 de Ataque a ela.",
   "flavor": "",
   "art": "montanha/cristal_do_poder.webp",
-  "art_crop": {"x": 1.0, "y": 0.12, "zoom": 1.0},
-  "tags": []
+  "art_crop": {"x": 1.0, "y": 0.12, "zoom": 1.0}
 }

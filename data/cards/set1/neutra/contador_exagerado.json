@@ -16,6 +16,5 @@
     }
   ],
   "text": "Constante: seus efeitos Constantes de texto contam em dobro. Não acumula.",
-  "flavor": "Arredonda sempre pra cima. E depois arredonda de novo.",
-  "tags": []
+  "flavor": "Arredonda sempre pra cima. E depois arredonda de novo."
 }

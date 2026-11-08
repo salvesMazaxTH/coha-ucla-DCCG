@@ -1,0 +1,40 @@
+{
+  "name": "General Bruce",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "identity": "Bruce",
+  "tribe": ["nuliterrano"],
+  "essence": "fluxo",
+  "cost": 5,
+  "atk": 3,
+  "hp": 5,
+  "keywords": [],
+  "art": "fluxo/general_bruce.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "take_control",
+      "target": "enemy_unit",
+      "until": "end_of_turn"
+    }
+  ],
+  "activated": {
+    "cost": 2,
+    "speed": "rapido",
+    "exhaust": true,
+    "effects": [
+      {
+        "action": "take_control",
+        "target": "enemy_unit",
+        "until": "end_of_turn",
+        "swap_with_self": true
+      }
+    ]
+  },
+  "text": "Ao Entrar: você pode assumir o controle de uma unidade inimiga até o fim do turno; ela pode atacar neste turno.\nAo Ativar (2) {rapido} (exaure esta unidade): você pode trocar de lado com uma unidade inimiga até o fim do turno.",
+  "flavor": [
+    "Você viu a traição acontecer. Ele garante que você só viu o que ele quis que você visse.",
+    "A USNACOM tem soldados com armas antimágicas. Ela tem um general que dispensa a arma e a magia: basta você acreditar."
+  ]
+}

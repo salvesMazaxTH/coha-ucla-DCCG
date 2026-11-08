@@ -29,6 +29,5 @@
     }
   ],
   "text": "Ao Atacar: seu Líder recupera 4 de Vida.\nCondicional (1x por turno): sempre que seu Líder recuperar Vida, esta unidade ganha +1 de Ataque permanente.",
-  "flavor": "Cada ataque devolve ao Líder o fôlego que o mundo tirou.",
-  "tags": []
+  "flavor": "Cada ataque devolve ao Líder o fôlego que o mundo tirou."
 }

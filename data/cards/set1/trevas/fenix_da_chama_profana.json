@@ -26,6 +26,5 @@
     }
   ],
   "text": "Ao Morrer: esta unidade volta ao campo com -2/-2 em relação aos atributos que tinha ao morrer. Se o Ataque ou a Vida chegar a 0 ou menos, não volta.",
-  "flavor": "Suas cinzas ainda queimam.",
-  "tags": []
+  "flavor": "Suas cinzas ainda queimam."
 }

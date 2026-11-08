@@ -35,6 +35,5 @@
   ],
   "text": "Ao Desafiar: a unidade desafiada recebe 1 marcador de Atordoamento.\nCondicional (2x por turno): no seu turno, quando uma unidade inimiga ficar Atordoada, ela sofre 2 de dano.",
   "flavor": "",
-  "tags": [],
   "conditional_uses_per_turn": 2
 }

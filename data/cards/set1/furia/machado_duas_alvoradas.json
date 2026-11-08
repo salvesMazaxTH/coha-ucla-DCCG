@@ -28,6 +28,5 @@
     }
   ],
   "text": "Equipar: concede +4 de Ataque à unidade equipada. Condicional: quando a unidade equipada ataca, causa 3 de dano ao Líder inimigo. Depois de cada ataque, o Machado perde 1 de Durabilidade.",
-  "flavor": "",
-  "tags": []
+  "flavor": ""
 }

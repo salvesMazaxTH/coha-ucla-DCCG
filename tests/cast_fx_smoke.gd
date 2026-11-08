@@ -73,6 +73,6 @@ func _test_temporary_cards() -> void:
 ## Registers a throwaway card in the loaded card data (this process only, nothing is written to disk).
 func _add_temporary_card(card_id: String, fields: Dictionary) -> void:
 	var card := {"name": card_id, "type": "unit", "rarity": "common", "essence": "furia", "cost": 1, "atk": 1, "hp": 1,
-		"art": "", "text": "", "flavor": "", "tags": [], "effects": []}
+		"art": "", "text": "", "flavor": "", "effects": []}
 	card.merge(fields, true)
 	CardDB.data()["cards"][card_id] = card

@@ -21,6 +21,5 @@
     "effects": [{ "action": "buff", "target": "self", "atk": 2, "hp": 2, "temp": true }]
   },
   "text": "Ao Ativar (3) {rapido} (1x por turno): esta unidade ganha +2/+2 neste turno.",
-  "flavor": "Água parada, lâmina sob a lua.",
-  "tags": []
+  "flavor": "Água parada, lâmina sob a lua."
 }

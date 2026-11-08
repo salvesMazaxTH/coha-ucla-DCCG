@@ -1,0 +1,19 @@
+{
+  "name": "Gavião de Vigília",
+  "set": 2,
+  "type": "unit",
+  "rarity": "common",
+  "tribe": ["fera"],
+  "essence": "natureza",
+  "cost": 2,
+  "atk": 1,
+  "hp": 2,
+  "keywords": ["voo", "vigilancia"],
+  "art": "natureza/gaviao_de_vigilia.webp",
+  "effects": [
+    { "trigger": "on_challenge", "action": "strip_magic_shield", "target": "opposed_unit" }
+  ],
+  "text": "Ao Desafiar: a unidade desafiada perde o Escudo Mágico.",
+  "flavor": "",
+  "unreleased": true
+}

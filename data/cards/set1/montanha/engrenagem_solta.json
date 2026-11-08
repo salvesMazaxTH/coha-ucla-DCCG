@@ -17,6 +17,5 @@
   "equipped_grant": { "atk": 1, "hp": 2 },
   "text": "Enquanto estiver solta no campo, não faz nada.\nEquipar (0) {lento}: equipe este artefato em uma unidade aliada. Concede +1/+2 a ela.",
   "flavor": "Sobrou do conserto. Sempre sobra.",
-  "art": "montanha/engrenagem_solta.webp",
-  "tags": []
+  "art": "montanha/engrenagem_solta.webp"
 }

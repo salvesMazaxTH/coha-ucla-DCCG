@@ -1,0 +1,18 @@
+{
+  "name": "Cão K9",
+  "set": 2,
+  "type": "unit",
+  "rarity": "common",
+  "token": true,
+  "tribe": ["fera"],
+  "essence": "natureza",
+  "cost": 0,
+  "atk": 2,
+  "hp": 2,
+  "keywords": ["provocacao"],
+  "art": "natureza/cao_k9.webp",
+  "effects": [],
+  "text": "Ficha: não vai para o cemitério ao morrer.",
+  "flavor": "",
+  "unreleased": true
+}

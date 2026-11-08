@@ -12,6 +12,5 @@
     { "trigger": "on_play", "action": "draw", "target": "own_leader", "amount": 2 }
   ],
   "text": "O oponente invoca 2 Espíritos Chorosos sob o controle dele. Você compra 2 cartas.",
-  "flavor": "",
-  "tags": []
+  "flavor": ""
 }

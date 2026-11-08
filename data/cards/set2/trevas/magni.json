@@ -20,6 +20,5 @@
     { "trigger": "on_challenged", "action": "buff", "target": "self", "atk": 4, "temp": true }
   ],
   "text": "Só pode ser jogado se o oponente controlar 3 ou mais unidades e mais unidades que você.\nConstante: as unidades inimigas têm +1 de Ataque.\nAo Desafiar: ganha +4 de Ataque até o fim do turno.\nAo Ser Desafiada: ganha +4 de Ataque até o fim do turno.",
-  "flavor": "",
-  "tags": []
+  "flavor": ""
 }

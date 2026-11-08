@@ -14,6 +14,5 @@
     { "trigger": "on_hit_leader", "action": "discard_hand_pick", "target": "none", "who": "opponent" }
   ],
   "text": "Ao Atingir o Líder: o oponente escolhe 1 carta da mão dele e a descarta.",
-  "flavor": "Ninguém lembra do rosto dele. Por que será?",
-  "tags": []
+  "flavor": "Ninguém lembra do rosto dele. Por que será?"
 }

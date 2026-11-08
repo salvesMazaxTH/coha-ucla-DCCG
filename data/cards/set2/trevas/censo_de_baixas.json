@@ -12,6 +12,5 @@
     { "trigger": "on_play", "action": "enemy_sacrifice_pick", "target": "none" }
   ],
   "text": "Para jogar, você sacrifica uma unidade aliada. O oponente sacrifica uma unidade que controla.",
-  "flavor": "O Núcleo não conta os vivos. Conta o que sobra de cada lado.",
-  "tags": []
+  "flavor": "O Núcleo não conta os vivos. Conta o que sobra de cada lado."
 }

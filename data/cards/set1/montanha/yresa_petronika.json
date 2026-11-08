@@ -24,7 +24,6 @@
   ],
   "text": "Ao Sofrer Dano: concede +1 de Vida permanente a outra unidade aliada aleatória.\nTransformar (8): Yrêsa Petronika Primordial.",
   "flavor": "",
-  "tags": [],
   "transform": {
     "into": "yresa_petronika_primordial",
     "cost": 8

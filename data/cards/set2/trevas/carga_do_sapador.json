@@ -12,6 +12,5 @@
     { "trigger": "on_play", "action": "damage", "target": "enemy_unit", "amount": 3, "adjacent_amount": 1 }
   ],
   "text": "Para jogar, você sacrifica uma unidade aliada. Causa 3 de dano a uma unidade inimiga à sua escolha e 1 às unidades adjacentes a ela.",
-  "flavor": "O sapador não volta. A parede também não.",
-  "tags": []
+  "flavor": "O sapador não volta. A parede também não."
 }

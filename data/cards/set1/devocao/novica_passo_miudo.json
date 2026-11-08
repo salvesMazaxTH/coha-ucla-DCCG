@@ -13,6 +13,5 @@
     { "trigger": "on_enter", "action": "heal_leader", "target": "own_leader", "amount": 2 }
   ],
   "text": "Ao Entrar: seu Líder recupera 2 de Vida.",
-  "flavor": "Chegou atrasada ao hino, mas na hora do aperto foi a primeira a aparecer.",
-  "tags": []
+  "flavor": "Chegou atrasada ao hino, mas na hora do aperto foi a primeira a aparecer."
 }

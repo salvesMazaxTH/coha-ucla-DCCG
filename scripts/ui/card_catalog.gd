@@ -4,7 +4,7 @@ extends RefCounted
 ## builder), plus the sidebar controls that edit it, so both screens filter exactly the same way.
 ##
 ## Filters combine with AND; selecting several values in one facet is an OR. Search looks through the
-## displayed name, id, rules text, tribe, element, tags and keywords.
+## displayed name, id, rules text, tribe, element and keywords.
 
 const FACETS := [
 	{"id": "set", "title": "Set", "values": "set"},

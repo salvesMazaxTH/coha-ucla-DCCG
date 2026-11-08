@@ -37,6 +37,5 @@
   "text": "Ao Entrar: você pode conceder +1 de Ataque neste turno a uma unidade aliada à sua escolha.\nAo Ativar (1) {rapido} (1x por turno): concede Escudo e, só neste turno, +1 nível de Crítico (mesmo que não tenha Crítico) a uma unidade aliada à sua escolha. Se for o Vael, concede também +1/+1 permanente.\nSe esta unidade morrer, Vael não perdoa.",
   "flavor": [
     "Volte inteiro. Isso não é um pedido."
-  ],
-  "tags": []
+  ]
 }

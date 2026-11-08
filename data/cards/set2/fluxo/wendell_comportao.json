@@ -1,0 +1,18 @@
+{
+  "name": "Wendell Comportão",
+  "set": 2,
+  "type": "unit",
+  "rarity": "common",
+  "essence": "fluxo",
+  "cost": 2,
+  "atk": 1,
+  "hp": 3,
+  "keywords": [],
+  "art": "fluxo/wendell_comportao.webp",
+  "effects": [
+    { "trigger": "on_enter", "action": "hand_to_bottom", "target": "none", "draw_after": 1 }
+  ],
+  "text": "Ao Entrar: você pode colocar 1 carta da sua mão no fundo do seu deck; se fizer isso, compra 1 carta.",
+  "flavor": "Ninguém decora o nome de quem opera a comporta, mas todo mundo já passou por onde ela foi aberta.",
+  "unreleased": true
+}

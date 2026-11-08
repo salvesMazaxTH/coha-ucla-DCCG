@@ -1,0 +1,19 @@
+{
+  "name": "Ivone Apito-Seco",
+  "set": 2,
+  "type": "unit",
+  "rarity": "epic",
+  "tribe": [],
+  "essence": "natureza",
+  "cost": 4,
+  "atk": 3,
+  "hp": 4,
+  "keywords": [],
+  "art": "natureza/ivone_apito_seco.webp",
+  "effects": [
+    { "trigger": "constante", "action": "keyword_aura", "keywords": ["impeto", "vigilancia"], "unit_filter": { "tribe_any": ["fera"] } }
+  ],
+  "text": "Constante: as Feras aliadas têm Ímpeto e Vigilância.",
+  "flavor": "",
+  "unreleased": true
+}

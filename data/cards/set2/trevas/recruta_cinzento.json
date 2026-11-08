@@ -14,6 +14,5 @@
     { "trigger": "on_death", "action": "damage", "target": "random_enemy_unit", "amount": 1 }
   ],
   "text": "Ao Morrer: causa 1 de dano a uma unidade inimiga aleatória.",
-  "flavor": "Entrou na Revoada sem nome e saiu dela com um último golpe.",
-  "tags": []
+  "flavor": "Entrou na Revoada sem nome e saiu dela com um último golpe."
 }

@@ -12,6 +12,5 @@
     { "trigger": "on_play", "action": "draw", "target": "own_leader", "amount": 4 }
   ],
   "text": "Você descarta toda a sua mão e compra 4 cartas.",
-  "flavor": "O que não está nos autos nunca aconteceu.",
-  "tags": []
+  "flavor": "O que não está nos autos nunca aconteceu."
 }

@@ -15,6 +15,5 @@
     { "trigger": "on_hit_leader", "action": "mill", "who": "enemy", "target": "none", "amount": 1 }
   ],
   "text": "Ao Atingir o Líder: mói 1 carta do deck do oponente.",
-  "flavor": "Meu pai segura a montanha. Eu devolvo o que ela recebe.",
-  "tags": []
+  "flavor": "Meu pai segura a montanha. Eu devolvo o que ela recebe."
 }

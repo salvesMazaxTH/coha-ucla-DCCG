@@ -1,0 +1,46 @@
+{
+  "name": "Alexa Neruvya Mar-Mãe",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "identity": "Alexa",
+  "tribe": [
+    "dragao_primordial",
+    "dragao"
+  ],
+  "essence": "fluxo",
+  "element": "agua",
+  "cost": 6,
+  "atk": 3,
+  "hp": 8,
+  "keywords": [
+    "voo"
+  ],
+  "art": "fluxo/alexa_neruvya_mar_mae.webp",
+  "effects": [
+    {
+      "trigger": "on_enter",
+      "action": "buff",
+      "target": "enemy_unit",
+      "atk": -2,
+      "hp": -2,
+      "hp_floor": 1
+    }
+  ],
+  "activated": {
+    "cost": 2,
+    "speed": "rapido",
+    "exhaust": true,
+    "effects": [
+      {
+        "action": "buff",
+        "target": "other_ally_unit",
+        "keywords_this_turn": [
+          "escudo_magico"
+        ]
+      }
+    ]
+  },
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela recebe -2/-2, mas a Vida dela não cai abaixo de 1 por este efeito.\nAo Ativar (2) {rapido} (exaure esta unidade): concede, só neste turno, Escudo Mágico a outra unidade aliada à sua escolha.",
+  "flavor": "Foi celestial, foi dragão, foi rainha. Do mar, guardou só a calma."
+}

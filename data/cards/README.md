@@ -42,17 +42,6 @@ Cada Líder tem o próprio arquivo em `data/leaders/set<número>/<id>.json` (sem
 - `choose_effect`: pausa a resolução e oferece as opções em `options`; cada opção tem `title`, `detail` e uma lista `effects`. Um alvo escolhido na opção é pedido depois da escolha, com até um tipo de alvo por opção. Em gatilhos de combate, `requires_opposed` exige a unidade adversária do evento, e `exclude_opposed` a exclui dos alvos escolhidos. Há testes para Ao Desafiar, Ao Entrar e feitiços. Outras telas de escolha, como busca no deck, não podem estar nas opções ou na mesma lista de efeitos; interações indiretas com essas telas ainda precisam de implementação e testes antes do uso. Veja `set2/furia/nicolas.json`.
 - `activated.extra_cost` de tipo `pay_one_of`: o jogador paga **uma** das `options`, que podem ser uma só (Cornélia) ou várias (Drex). Cada opção tem `pick` (`hand_card` = descarte, `other_ally_unit` = sacrifício) e, opcionalmente, `title`, `detail` e `reason` (sem eles valem os textos padrão do `pick`). Usa a mesma avaliação de opções e a mesma janela de `choose_effect`, mas a escolha é cancelável e o custo é pago antes da habilidade entrar na pilha. Veja `set1/trevas/drex.json`. Outros tipos de custo precisam de implementação própria.
 
-## Tags
-
-`keywords` representam habilidades mecânicas, como `impeto` e `voo`.
-`tags` representam classificações da carta, como `espirito`, e podem ser usadas em efeitos de busca.
-
-Exemplo:
-
-```json
-"tags": ["espirito"]
-```
-
 ## Flavor text
 
 `flavor` é uma string ou uma lista de até 3 strings. Com lista, a primeira é a frase principal (fora de partida) e, durante a partida, cada carta mostra uma frase fixa sorteada no início dela. O sorteio é só visual e usa RNG próprio (`CardDB.flavor_for`).

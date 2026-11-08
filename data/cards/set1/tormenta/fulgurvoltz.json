@@ -31,6 +31,5 @@
     "effects": [{ "action": "banish", "target": "all_enemy_units", "unit_state_any": ["exhausted", "weaker_than_source"] }]
   },
   "text": "7/7 · Rapidez 1 · Sobrepujança. Custa (3) a menos por turno seu com Momentum vazado; o custo mínimo é (5).\nAo Ativar (5) {rapido} (exaure esta unidade): bane as unidades inimigas exauridas e também as que tenham Ataque + Vida menor que o desta unidade. Cada cópia só pode ativar uma vez enquanto permanecer nesta zona; ao mudar de zona, pode ativar novamente.",
-  "flavor": "",
-  "tags": []
+  "flavor": ""
 }

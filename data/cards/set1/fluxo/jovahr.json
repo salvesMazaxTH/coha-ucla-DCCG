@@ -40,6 +40,5 @@
     }
   ],
   "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela é congelada.\nAo Atacar: cada unidade inimiga Congelada sofre 2 de dano (se isso a matar, esta unidade ganha +1 de Ataque permanente) e recebe 1 marcador de Queimadura; depois, elas descongelam.",
-  "flavor": "",
-  "tags": []
+  "flavor": ""
 }

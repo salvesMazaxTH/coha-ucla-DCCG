@@ -47,6 +47,5 @@
   ],
   "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela recebe 1 marcador de Atordoamento.\nCondicional (2x por turno): no seu turno, quando uma unidade inimiga ficar Atordoada, esta unidade é desvirada e ganha +2 de Ataque neste turno.",
   "flavor": "",
-  "tags": [],
   "conditional_uses_per_turn": 2
 }

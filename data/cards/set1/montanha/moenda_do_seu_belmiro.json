@@ -12,6 +12,5 @@
     { "listen": "unit_readied", "scope": "ally", "zones": ["relics"], "durability_cost": 1, "durability_every_uses": 2, "action": "mill", "who": "enemy", "target": "none", "amount": 2 }
   ],
   "text": "Condicional: sempre que uma unidade aliada é desvirada por um efeito, mói 2 cartas do deck do oponente. A cada 2 vezes que isso acontece, a Moenda perde 1 de Durabilidade.",
-  "flavor": "Seu Belmiro jura que a moenda só gira quando alguém acorda.",
-  "tags": []
+  "flavor": "Seu Belmiro jura que a moenda só gira quando alguém acorda."
 }

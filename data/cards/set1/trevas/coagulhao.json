@@ -21,6 +21,5 @@
     { "trigger": "on_death", "action": "resolve_dot", "dot": "sangramento", "consume": false, "target": "enemy_leader" }
   ],
   "text": "Ao Entrar: aplica 1 marcador de Sangramento às unidades e ao Líder inimigos, e os marcadores de Sangramento deles fazem efeito agora, mas não se consomem.\nCondicional: quando o Sangramento causa dano a um inimigo, seu Líder recupera a mesma quantidade de Vida.\nAo Morrer: os marcadores de Sangramento inimigos fazem efeito agora, mas não se consomem.",
-  "flavor": "Os mapas o chamam de mancha. Os pescadores, de maré. Ninguém que o chamou de bicho voltou para corrigir.",
-  "tags": []
+  "flavor": "Os mapas o chamam de mancha. Os pescadores, de maré. Ninguém que o chamou de bicho voltou para corrigir."
 }

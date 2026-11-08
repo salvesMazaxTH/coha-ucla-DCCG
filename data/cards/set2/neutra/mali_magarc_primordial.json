@@ -42,6 +42,5 @@
     ]
   },
   "text": "Condicional: a cada 2 feitiços que você lança, e também a cada 2 que o oponente lança (contagens separadas), esta unidade ganha +1 de Ataque permanente e, só neste turno, Escudo Mágico.\nAo Ativar (1) {lento} (exaure esta unidade): na próxima vez que você lançar um feitiço, ele é lançado de novo, com os mesmos alvos do original.",
-  "flavor": "",
-  "tags": []
+  "flavor": ""
 }

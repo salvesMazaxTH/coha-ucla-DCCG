@@ -14,6 +14,5 @@
   "art": "furia/guerreiro_igneo.webp",
   "effects": [{"trigger":"on_attack","action":"buff","target":"self","atk":1,"temp":true}],
   "text": "Ao Atacar: esta unidade ganha +1 de Ataque neste turno.",
-  "flavor": "",
-  "tags": []
+  "flavor": ""
 }

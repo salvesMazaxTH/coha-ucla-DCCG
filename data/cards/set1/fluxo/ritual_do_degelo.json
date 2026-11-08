@@ -24,8 +24,5 @@
   ],
   "text": "Você ganha 3 de Momentum. No próximo turno, você terá 2 de Momentum a menos.",
   "flavor": "Acendeu uma vela de gelo. Funcionou de um jeito que não devia.",
-  "art": "fluxo/ritual_do_degelo.webp",
-  "tags": [
-    "combo_degelo"
-  ]
+  "art": "fluxo/ritual_do_degelo.webp"
 }

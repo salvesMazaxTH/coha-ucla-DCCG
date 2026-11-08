@@ -11,11 +11,16 @@
   "keywords": [],
   "art": "fluxo/oswald.webp",
   "effects": [
-    { "trigger": "on_enter", "action": "stun", "target": "enemy_unit" }
+    { "trigger": "on_enter", "action": "look_top", "target": "own_leader", "count": 3 }
   ],
-  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela recebe 1 marcador de Atordoamento. (PLACEHOLDER)",
-  "flavor": "",
-  "tags": [],
-  "unreleased": true,
-  "placeholder": true
+  "activated": {
+    "cost": 1,
+    "speed": "lento",
+    "exhaust": true,
+    "effects": [
+      { "action": "buff", "target": "ally_unit", "hp": 1 }
+    ]
+  },
+  "text": "Ao Entrar: você olha as 3 cartas do topo do seu deck e pega 1; as outras vão para o fundo.\nAo Ativar (1) {lento} (exaure esta unidade): concede +1 de Vida permanente a uma unidade aliada à sua escolha.",
+  "flavor": ""
 }

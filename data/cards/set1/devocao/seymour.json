@@ -18,6 +18,5 @@
     { "trigger": "on_turn_start", "action": "damage", "target": "random_enemy_unit", "amount": 1 }
   ],
   "text": "Condicional (2x por turno): no seu turno, sempre que seu Líder ou uma unidade aliada recuperar Vida, ou você lançar um feitiço de Devoção, causa 1 de dano a uma unidade inimiga aleatória.\nNo Início do Seu Turno: causa 1 de dano a uma unidade inimiga aleatória.",
-  "flavor": "O primeiro golpe de cada dia ele deixa passar. O segundo já encontra a luz esperando.",
-  "tags": []
+  "flavor": "O primeiro golpe de cada dia ele deixa passar. O segundo já encontra a luz esperando."
 }

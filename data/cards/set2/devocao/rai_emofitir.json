@@ -15,6 +15,5 @@
     { "trigger": "on_challenge", "action": "buff", "target": "self", "keywords": ["indestrutivel"], "temp": true }
   ],
   "text": "Condicional: as unidades que seriam destruídas por esta unidade são banidas em vez disso.\nAo Desafiar: ganha Indestrutível até o fim do turno.",
-  "flavor": "Em Maginácia, o rosto dele está nas moedas. Nenhuma das dez partes concorda em ficar.",
-  "tags": []
+  "flavor": "Em Maginácia, o rosto dele está nas moedas. Nenhuma das dez partes concorda em ficar."
 }

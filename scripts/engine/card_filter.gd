@@ -10,9 +10,7 @@ extends RefCounted
 ##   tribe                  the card has this tribe
 ##   tribe_any              the card has at least one of these tribe
 ##   card_ids                 only these named cards
-##   tags                     the card has ALL of these tags
-##   tags_any                 the card has at least ONE of these tags
-##   any_of                   a list of whole filters; the card must pass at least ONE of them (an "or" between
+##   any_of                  a list of whole filters; the card must pass at least ONE of them (an "or" between
 ##                            different kinds of requirement, e.g. element Luz OR tribe Anjo)
 
 static func matches(card_id: String, filter: Dictionary) -> bool:
@@ -37,13 +35,6 @@ static func matches(card_id: String, filter: Dictionary) -> bool:
 	if filter.has("tribe") and not card_tribe.has(filter["tribe"]):
 		return false
 	if filter.has("tribe_any") and not _shares_any(card_tribe, filter["tribe_any"]):
-		return false
-	var card_tags: Array = card_data.get("tags", [])
-	if filter.has("tags"):
-		for tag in filter["tags"]:
-			if not card_tags.has(tag):
-				return false
-	if filter.has("tags_any") and not _shares_any(card_tags, filter["tags_any"]):
 		return false
 	if filter.has("any_of"):
 		var passes_one_alternative := false

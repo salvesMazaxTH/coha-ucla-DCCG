@@ -19,6 +19,5 @@
   "text": "Aliado Morre: se esta unidade estiver sem equipamento, ela herda o equipamento que a unidade morta usava.\nAo Ativar (1) {lento} (exaure esta unidade): equipa nesta unidade um artefato seu em campo que não tenha subtipo. Ele continua contando como artefato, mas não pode ser ativado.",
   "flavor": "",
   "art": "montanha/montadora_porca_frouxa.webp",
-  "art_crop": {"x": 0.5, "y": 0.32, "zoom": 1.0},
-  "tags": []
+  "art_crop": {"x": 0.5, "y": 0.32, "zoom": 1.0}
 }

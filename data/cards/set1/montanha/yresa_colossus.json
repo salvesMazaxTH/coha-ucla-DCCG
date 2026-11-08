@@ -19,6 +19,5 @@
   "adjacent_armor": 1,
   "effects": [],
   "text": "Ficha. Esta unidade ganha +1/+2 e Armadura 1 para cada Stoneward fundido nela.\nConstante: unidades aliadas adjacentes a ela têm Armadura 1.",
-  "flavor": "",
-  "tags": []
+  "flavor": ""
 }
