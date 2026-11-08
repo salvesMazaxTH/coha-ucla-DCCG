@@ -8,7 +8,7 @@
   "element": "luz",
   "cost": 5,
   "atk": 5,
-  "hp": 6,
+  "hp": 5,
   "keywords": ["voo", "regeneracao"],
   "art": "devocao/uriel.webp",
   "effects": [

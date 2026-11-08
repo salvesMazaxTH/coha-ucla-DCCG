@@ -1373,8 +1373,8 @@ func _test_sagrada_board_control() -> void:
 	check(lucien_targets.filter(func(unit: Card): return unit.damage > 0).size() == 2,
 		"Uriel não causa dano ao entrar")
 	var uriel_data: Dictionary = CardDB.card("uriel")
-	check(int(uriel_data["atk"]) == 5 and int(uriel_data["hp"]) == 6
-		and not uriel_data["keywords"].has("roubo_de_vida"), "Uriel é 5/6 e não tem Roubo de Vida inato")
+	check(int(uriel_data["atk"]) == 5 and int(uriel_data["hp"]) == 5
+		and not uriel_data["keywords"].has("roubo_de_vida"), "Uriel é 5/5 e não tem Roubo de Vida inato")
 	var uriel_game := _new_game()
 	_quiet(uriel_game)
 	uriel_game.players[0]["leader_hp"] = 10

@@ -8,7 +8,7 @@
   "element": "metal",
   "cost": 7,
   "atk": 5,
-  "hp": 10,
+  "hp": 8,
   "keywords": ["voo", "armadura:1"],
   "effects": [
     { "trigger": "on_turn_end", "action": "mill", "who": "enemy", "target": "none", "amount": 1 }

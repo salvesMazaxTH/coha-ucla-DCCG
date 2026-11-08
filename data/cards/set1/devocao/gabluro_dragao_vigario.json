@@ -7,8 +7,8 @@
   "essence": "devocao",
   "element": "luz",
   "cost": 6,
-  "atk": 6,
-  "hp": 7,
+  "atk": 5,
+  "hp": 6,
   "keywords": ["voo"],
   "art": "devocao/gabluro_dragao_vigario.webp",
   "effects": [

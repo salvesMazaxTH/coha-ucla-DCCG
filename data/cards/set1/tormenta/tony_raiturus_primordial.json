@@ -8,8 +8,8 @@
   "essence": "tormenta",
   "element": "raio",
   "cost": 8,
-  "atk": 9,
-  "hp": 9,
+  "atk": 8,
+  "hp": 8,
   "keywords": ["intimidacao", "impeto", "voo"],
   "art": "tormenta/tony_raiturus_primordial.webp",
   "effects": [

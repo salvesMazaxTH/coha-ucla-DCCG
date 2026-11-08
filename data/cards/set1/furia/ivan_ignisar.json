@@ -10,8 +10,8 @@
   "essence": "furia",
   "element": "fogo",
   "cost": 7,
-  "atk": 7,
-  "hp": 8,
+  "atk": 6,
+  "hp": 7,
   "keywords": [
     "voo"
   ],
