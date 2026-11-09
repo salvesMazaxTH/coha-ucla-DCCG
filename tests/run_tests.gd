@@ -80,6 +80,7 @@ func _init() -> void:
 	_test_sagrada_board_control()
 	_test_devocao_epic_trio()
 	_test_summon_from()
+	_test_summon_random()
 	_test_devocao_healers()
 	_test_devocao_support()
 	_test_devocao_new_batch()
@@ -988,6 +989,137 @@ func _test_summon_from() -> void:
 	g_random.summon_from_random(0, {"source": "deck", "reveal_until": true, "tribe_any": ["anjo"]}, 0)
 	g_random._flush()
 	check(g_random.phase != "search" and g_random.find_unit(lucky.uid) != null, "summon_from: pick random invoca sem abrir escolha")
+
+func _test_summon_random() -> void:
+	var temporary_ids := [
+		"t_sr_epic_4", "t_sr_legendary_5", "t_sr_epic_3", "t_sr_epic_8", "t_sr_common_5",
+		"t_sr_champion_5", "t_sr_token", "t_sr_transform", "t_sr_undraftable", "t_sr_leader_domain",
+		"t_sr_source_count", "t_sr_source_all", "t_sr_source_leader", "t_sr_source_token_default",
+		"t_sr_source_token_enabled", "t_sr_source_exclusions", "t_sr_source_rarity_reject",
+		"t_sr_source_cost_reject", "t_sr_source_fixed_count", "t_sr_source_board_cap",
+		"scenario_summon_random_playtest",
+	]
+	_tunit("t_sr_epic_4", "epic", 4, "neutra")
+	_tunit("t_sr_legendary_5", "legendary", 5, "furia")
+	_tunit("t_sr_epic_3", "epic", 3, "neutra")
+	_tunit("t_sr_epic_8", "epic", 8, "neutra")
+	_tunit("t_sr_common_5", "common", 5, "neutra")
+	_tunit("t_sr_champion_5", "champion", 5, "neutra")
+	_tunit("t_sr_token", "epic", 4, "neutra", {"token": true})
+	_tunit("t_sr_transform", "legendary", 5, "neutra", {"transform_only": true})
+	_tunit("t_sr_undraftable", "legendary", 5, "neutra", {"undraftable": true})
+
+	_tsummon_random("t_sr_source_count", {
+		"domain": "all", "rarity_any": ["epic", "legendary"], "min_cost": 4, "max_cost": 5,
+		"per_graveyard_spell": true,
+		"card_ids": ["t_sr_epic_4", "t_sr_legendary_5", "t_sr_epic_3", "t_sr_epic_8",
+			"t_sr_common_5", "t_sr_champion_5", "t_sr_token", "t_sr_transform", "t_sr_undraftable"],
+	})
+	var g := _new_game()
+	g.players[0]["graveyard"].append(Card.new(g._uid(), "bola_de_fogo", 0, "graveyard"))
+	g.players[0]["graveyard"].append(Card.new(g._uid(), "tsunami", 0, "graveyard"))
+	g.players[0]["graveyard"].append(Card.new(g._uid(), "esqueleto_guerreiro", 0, "graveyard"))
+	_put(g, 0, "t_sr_source_count")
+	var summoned: Array = g.players[0]["board"].filter(func(c: Card): return c.card_id != "t_sr_source_count")
+	check(summoned.size() == 2, "summon_random: invoca uma unidade por Feitiço no cemitério, não por outras cartas")
+	check(summoned.all(func(c: Card): return ["t_sr_epic_4", "t_sr_legendary_5"].has(c.card_id)),
+		"summon_random: aplica raridade, custo, fichas e exclusões obrigatórias")
+	check(CardFilter.matches("t_sr_legendary_5", {"rarity_any": ["epic", "legendary"], "min_cost": 4, "max_cost": 5}),
+		"summon_random: rarity_any aceita uma das raridades e custos inclusivos")
+	check(not CardFilter.matches("t_sr_epic_3", {"rarity_any": ["epic", "legendary"], "min_cost": 4}),
+		"summon_random: min_cost elimina unidades abaixo do custo")
+
+	var domain_game := _new_game()
+	var leader_domain := String(CardDB.leader(domain_game.players[0]["leader_id"])["essences"][0])
+	_tunit("t_sr_leader_domain", "epic", 4, leader_domain)
+	_tsummon_random("t_sr_source_all", {"card_ids": ["t_sr_epic_4"]})
+	domain_game.players[0]["graveyard"].append(Card.new(domain_game._uid(), "bola_de_fogo", 0, "graveyard"))
+	_put(domain_game, 0, "t_sr_source_all")
+	check(domain_game.players[0]["board"].size() == 2 and domain_game.players[0]["board"][1].card_id == "t_sr_epic_4",
+		"summon_random: domain all inclui unidade Neutra")
+
+	_tsummon_random("t_sr_source_leader", {
+		"domain": "leader", "card_ids": ["t_sr_epic_4", "t_sr_leader_domain"],
+	})
+	var leader_game := _new_game()
+	leader_game.players[0]["graveyard"].append(Card.new(leader_game._uid(), "bola_de_fogo", 0, "graveyard"))
+	_put(leader_game, 0, "t_sr_source_leader")
+	check(leader_game.players[0]["board"].size() == 2 and leader_game.players[0]["board"][1].card_id == "t_sr_leader_domain",
+		"summon_random: domain leader aceita domínio do Líder e exclui Neutras")
+
+	_tsummon_random("t_sr_source_token_default", {"card_ids": ["t_sr_token"]})
+	var token_default := _new_game()
+	token_default.players[0]["graveyard"].append(Card.new(token_default._uid(), "bola_de_fogo", 0, "graveyard"))
+	_put(token_default, 0, "t_sr_source_token_default")
+	check(token_default.players[0]["board"].size() == 1, "summon_random: Fichas não entram por padrão")
+
+	_tsummon_random("t_sr_source_token_enabled", {"include_tokens": true, "card_ids": ["t_sr_token"]})
+	var token_enabled := _new_game()
+	token_enabled.players[0]["graveyard"].append(Card.new(token_enabled._uid(), "bola_de_fogo", 0, "graveyard"))
+	_put(token_enabled, 0, "t_sr_source_token_enabled")
+	check(token_enabled.players[0]["board"].size() == 2 and token_enabled.players[0]["board"][1].card_id == "t_sr_token",
+		"summon_random: include_tokens permite Fichas")
+
+	_tsummon_random("t_sr_source_exclusions", {
+		"include_tokens": true, "card_ids": ["t_sr_transform", "t_sr_undraftable"],
+	})
+	var excluded := _new_game()
+	excluded.players[0]["graveyard"].append(Card.new(excluded._uid(), "bola_de_fogo", 0, "graveyard"))
+	_put(excluded, 0, "t_sr_source_exclusions")
+	check(excluded.players[0]["board"].size() == 1,
+		"summon_random: transform_only e undraftable nunca entram, mesmo com include_tokens")
+
+	_tsummon_random("t_sr_source_rarity_reject", {
+		"rarity_any": ["legendary"], "card_ids": ["t_sr_epic_4"],
+	})
+	var rarity_reject := _new_game()
+	rarity_reject.players[0]["graveyard"].append(Card.new(rarity_reject._uid(), "bola_de_fogo", 0, "graveyard"))
+	_put(rarity_reject, 0, "t_sr_source_rarity_reject")
+	check(rarity_reject.players[0]["board"].size() == 1, "summon_random: filtro de raridade rejeita raridade diferente")
+
+	_tsummon_random("t_sr_source_cost_reject", {
+		"min_cost": 4, "card_ids": ["t_sr_epic_3"],
+	})
+	var cost_reject := _new_game()
+	cost_reject.players[0]["graveyard"].append(Card.new(cost_reject._uid(), "bola_de_fogo", 0, "graveyard"))
+	_put(cost_reject, 0, "t_sr_source_cost_reject")
+	check(cost_reject.players[0]["board"].size() == 1, "summon_random: filtro de custo rejeita custo abaixo do mínimo")
+
+	_tsummon_random("t_sr_source_fixed_count", {"count": 2, "card_ids": ["t_sr_epic_4"]})
+	var fixed_count := _new_game()
+	for _i in 3:
+		fixed_count.players[0]["graveyard"].append(Card.new(fixed_count._uid(), "bola_de_fogo", 0, "graveyard"))
+	_put(fixed_count, 0, "t_sr_source_fixed_count")
+	check(fixed_count.players[0]["board"].size() == 3, "summon_random: count define o número fixo quando per_graveyard_spell não é usado")
+
+	_tsummon_random("t_sr_source_board_cap", {
+		"per_graveyard_spell": true, "card_ids": ["t_sr_epic_4"],
+	})
+	var full_board := _new_game()
+	for _i in GameState.BOARD_LIMIT + 2:
+		full_board.players[0]["graveyard"].append(Card.new(full_board._uid(), "bola_de_fogo", 0, "graveyard"))
+	_put(full_board, 0, "t_sr_source_board_cap")
+	check(full_board.players[0]["board"].size() == GameState.BOARD_LIMIT,
+		"summon_random: interrompe as invocações quando a mesa enche")
+	check(full_board.players[0]["board"].filter(func(c: Card): return c.card_id == "t_sr_epic_4").size() == GameState.BOARD_LIMIT - 1,
+		"summon_random: o campo cheio não ultrapassa o limite")
+
+	var scenario_script: GDScript = load("res://tests/scenarios/summon_random_playtest.gd")
+	var scenario_game := GameState.new("agua", "fogo", 42)
+	scenario_script.setup(scenario_game)
+	var scenario_hand: Array = scenario_game.players[0]["hand"]
+	check(scenario_game.players[0]["graveyard"].size() == 12
+		and scenario_game.players[0]["graveyard"].all(func(c: Card): return CardDB.card(c.card_id).get("type", "") == "spell"),
+		"summon_random_playtest: prepara 12 Feitiços no cemitério")
+	check(scenario_hand.size() == 1, "summon_random_playtest: deixa a carta de teste na mão")
+	if scenario_hand.size() == 1:
+		var playtest_card: Card = scenario_hand[0]
+		var playable: bool = CardDB.card(playtest_card.card_id).get("rarity", "") == "common" and scenario_game.can_play(0, playtest_card.uid)
+		check(playable,
+			"summon_random_playtest: carta Comum está pronta para ser jogada")
+
+	for id in temporary_ids:
+		CardDB.data()["cards"].erase(id)
 
 func _test_devocao_healers() -> void:
 	# Querubina: cura 1 o Líder e protege outra aliada com Escudo Mágico
@@ -8984,6 +9116,17 @@ func _quiet(g: GameState) -> void:
 func _tcard(id: String, atk: int, hp: int, effects: Array) -> void:
 	CardDB.data()["cards"][id] = {"name": id, "type": "unit", "rarity": "common", "essence": "neutra", "cost": 1,
 		"atk": atk, "hp": hp, "keywords": [], "art": "", "effects": effects, "text": "", "flavor": ""}
+
+func _tunit(id: String, rarity: String, cost: int, essence: String, extra: Dictionary = {}) -> void:
+	var card := {"name": id, "set": 1, "type": "unit", "rarity": rarity, "essence": essence, "cost": cost,
+		"atk": 1, "hp": 2, "keywords": [], "art": "", "effects": [], "text": "", "flavor": ""}
+	card.merge(extra, true)
+	CardDB.data()["cards"][id] = card
+
+func _tsummon_random(id: String, options: Dictionary) -> void:
+	var effect := {"trigger": "on_enter", "action": "summon_random", "target": "none"}
+	effect.merge(options, true)
+	_tcard(id, 1, 1, [effect])
 
 ## "listen": a card reacting to an event from anywhere, written only in JSON.
 ## Fixture: when the enemy Leader falls below 12 life and I control 4+ units, 3 damage to all enemy units.

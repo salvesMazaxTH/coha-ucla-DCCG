@@ -7,6 +7,7 @@ extends RefCounted
 ##   max_cost, min_cost       printed cost limits (inclusive)
 ##   type, types_any          the card type, or one of several types (a unit-artifact passes as "unit" and as "artifact")
 ##   rarity                   "common" | "epic" | "champion" | "legendary"
+##   rarity_any               one of several rarities
 ##   tribe                  the card has this tribe
 ##   tribe_any              the card has at least one of these tribe
 ##   card_ids                 only these named cards
@@ -29,6 +30,13 @@ static func matches(card_id: String, filter: Dictionary) -> bool:
 		return false
 	if filter.has("rarity") and card_data.get("rarity", "") != filter["rarity"]:
 		return false
+	if filter.has("rarity_any"):
+		var rarities: Variant = filter["rarity_any"]
+		if not rarities is Array:
+			push_error("CardFilter.rarity_any precisa ser uma lista")
+			return false
+		if not rarities.has(card_data.get("rarity", "")):
+			return false
 	if filter.has("card_ids") and not filter["card_ids"].has(card_id):
 		return false
 	var card_tribe: Array = card_data.get("tribe", [])

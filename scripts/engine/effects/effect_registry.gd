@@ -11,6 +11,7 @@ const EquipSelfEffectScript = preload("res://scripts/engine/effects/equip_self_e
 const ShoutEffectScript = preload("res://scripts/engine/effects/shout_effect.gd")
 const ChooseEffectScript = preload("res://scripts/engine/effects/choose_effect.gd")
 const EchoNextSpellEffectScript = preload("res://scripts/engine/effects/echo_next_spell_effect.gd")
+const SummonRandomEffectScript = preload("res://scripts/engine/effects/summon_random_effect.gd")
 
 static var ACTIONS: Dictionary = {
 	"damage": DamageEffect,
@@ -53,6 +54,7 @@ static var ACTIONS: Dictionary = {
 	"summon_hand_pick": DeckEffect,
 	"fight": FightEffect,
 	"summon": SummonEffect,
+	"summon_random": SummonRandomEffectScript,
 	"summon_from": SummonFromEffect,
 	"summon_copy": SummonCopyEffect,
 	"put_artifact": PutArtifactEffect,

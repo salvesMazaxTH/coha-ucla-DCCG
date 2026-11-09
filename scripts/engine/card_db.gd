@@ -313,6 +313,40 @@ static func _validate_effects(err: Callable, effects: Array, inside_effect_choic
 				err.call(restriction_problem)
 		if action == "summon" and e.get("card", "self") != "self" and not _data["cards"].has(e["card"]):
 			err.call("summon de carta inexistente \"%s\"" % e["card"])
+		if action == "summon_random":
+			var domain: Variant = e.get("domain", "all")
+			if not domain is String or String(domain) not in ["all", "leader"]:
+				err.call("summon_random.domain precisa ser \"all\" ou \"leader\"")
+			for field in ["include_tokens", "per_graveyard_spell"]:
+				if e.has(field) and not e[field] is bool:
+					err.call("summon_random.%s precisa ser booleano" % field)
+			if e.has("count"):
+				var count: Variant = e["count"]
+				if not (count is int or count is float) or int(count) < 1 or float(count) != int(count):
+					err.call("summon_random.count precisa ser um inteiro >= 1")
+			var valid_rarities := ["common", "epic", "champion", "legendary"]
+			if e.has("rarity") and (not e["rarity"] is String or not valid_rarities.has(String(e["rarity"]))):
+				err.call("summon_random.rarity desconhecida")
+			if e.has("rarity_any"):
+				var rarities: Variant = e["rarity_any"]
+				if not rarities is Array:
+					err.call("summon_random.rarity_any precisa ser uma lista")
+				else:
+					for rarity in rarities:
+						if not rarity is String or not valid_rarities.has(String(rarity)):
+							err.call("summon_random.rarity_any contém uma raridade desconhecida")
+							break
+			for field in ["min_cost", "max_cost"]:
+				if not e.has(field):
+					continue
+				var cost: Variant = e[field]
+				if not (cost is int or cost is float) or int(cost) < 0 or float(cost) != int(cost):
+					err.call("summon_random.%s precisa ser um inteiro >= 0" % field)
+			if e.has("min_cost") and e.has("max_cost"):
+				var min_cost: Variant = e["min_cost"]
+				var max_cost: Variant = e["max_cost"]
+				if (min_cost is int or min_cost is float) and (max_cost is int or max_cost is float) and int(min_cost) > int(max_cost):
+					err.call("summon_random.min_cost não pode ser maior que max_cost")
 		if action == "choose_effect":
 			var options = e.get("options", null)
 			if not options is Array or options.is_empty():
