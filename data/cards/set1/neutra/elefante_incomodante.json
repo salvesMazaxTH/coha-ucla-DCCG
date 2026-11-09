@@ -13,7 +13,7 @@
     { "trigger": "constante", "action": "base_scale", "per": "allied_copies", "card_id": "elefante_incomodante", "base_atk": 1, "base_hp": 1, "atk": 1, "hp": 1 },
     { "trigger": "before_attack", "action": "shout", "target": "none", "if": "lethal_attack", "shout_style": "wild", "shout": "INCOMODAM, INCOMODAM, INCOMODAM, INCOMODAM MUITO MAIS!" }
   ],
-  "text": "Constante: o Ataque e a Vida desta unidade são sempre X/X, em que X é a quantidade de Elefantes Incomodantes que você controla em campo + 1.",
+  "text": "Constante: o Ataque e a Vida desta unidade são sempre X/X, em que X é a quantidade de cópias de Elefante Incomodante que você controla em campo + 1.",
   "flavor": "Um elefante incomoda muita gente, dois elefantes incomodam, incomodam, incomodam, incomodam...",
   "art": "neutra/elefante_incomodante.webp"
 }

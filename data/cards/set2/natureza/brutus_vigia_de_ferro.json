@@ -1,0 +1,19 @@
+{
+  "name": "Brutus Vigia-De-Ferro",
+  "set": 2,
+  "type": "unit",
+  "rarity": "epic",
+  "tribe": ["fera"],
+  "essence": "natureza",
+  "cost": 6,
+  "atk": 4,
+  "hp": 8,
+  "keywords": ["provocacao"],
+  "art": "natureza/brutus_vigia_de_ferro.webp",
+  "art_crop": {"x": 0.5, "y": 0.16, "zoom": 1.0},
+  "effects": [
+    { "trigger": "on_damaged", "action": "summon", "target": "none", "card": "cao_k9", "once_per_turn": true }
+  ],
+  "text": "Ao Sofrer Dano (uma vez por turno): invoca um Cão K9 (ficha 2/1).",
+  "flavor": ""
+}

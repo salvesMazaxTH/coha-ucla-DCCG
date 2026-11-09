@@ -10,9 +10,9 @@ de memória do projeto, e diga em uma linha a regra que tirou de cada uma:
 
 Resumo, só para lembrar (o arquivo completo manda):
 
-- **Monstros misteriosos:** o usuário quer mais monstros, principalmente Lendárias. Criaturas de espécie
+- **Monstros misteriosos:** o usuário quer mais monstros, principalmente Lendárias. Criaturas de tribo
   desconhecida, quimeras ou criptídeos que lembram um ou mais animais, mas não são "Fera" (animal puro) nem
-  "Demihumano" (humanoide-animal racional). Proponha uma espécie NOVA (ou nenhuma) e pergunte antes de
+  "Demihumano" (humanoide-animal racional). Proponha uma tribo NOVA (ou nenhuma) e pergunte antes de
   fixar; confira `tribe` em `cards.json` para não misturar tribos existentes.
 - **Nomes:** estilo "nome próprio + alcunha que vira sobrenome" (Aurelia Cabo-Solto), um neologismo que
   parece palavra real. Os nomes engraçados são o padrão, mas varie o formato dentro do lote (primeiro nome

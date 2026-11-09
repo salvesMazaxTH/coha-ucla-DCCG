@@ -8,11 +8,10 @@
   "essence": "natureza",
   "cost": 0,
   "atk": 2,
-  "hp": 2,
-  "keywords": ["provocacao"],
+  "hp": 1,
+  "keywords": ["intimidacao"],
   "art": "natureza/cao_k9.webp",
   "effects": [],
   "text": "Ficha: não vai para o cemitério ao morrer.",
-  "flavor": "",
-  "unreleased": true
+  "flavor": ""
 }

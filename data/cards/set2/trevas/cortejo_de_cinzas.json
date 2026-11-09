@@ -11,6 +11,6 @@
     { "trigger": "on_play", "action": "summon", "target": "none", "card": "espirito_choroso", "count": 2, "side": "enemy" },
     { "trigger": "on_play", "action": "draw", "target": "own_leader", "amount": 2 }
   ],
-  "text": "O oponente invoca 2 Espíritos Chorosos sob o controle dele. Você compra 2 cartas.",
+  "text": "O oponente invoca 2 cópias de Espírito Choroso sob o controle dele. Você compra 2 cartas.",
   "flavor": ""
 }
