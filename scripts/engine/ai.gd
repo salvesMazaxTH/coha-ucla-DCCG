@@ -12,6 +12,9 @@ const FACE_POINT_VALUE := 2 ## value of 1 face damage when deciding whether an e
 const FACE_POINT_VALUE_LATE := 3 ## same, with the enemy Leader low (NEAR_END_HP) or late in the game (LATE_GAME_TURN)
 const NEAR_END_HP := 12
 const LATE_GAME_TURN := 16
+const LADEIRA_CARD_ID := "ladeira_abaixo_e_sem_freio"
+const SNOWBALL_CARD_IDS := ["bola_de_neve", "grande_bola_de_neve"]
+const SNOWBALL_COMBO_MIN_ENEMY_UNITS := 2
 
 ## The Encarnação competes with the hand (see _untaxed_incarnation_should_come_first and _incarnation_rank_against_hand).
 const INCARNATION_WALL_MIN_UNITS := 4 ## an enemy board this wide may be too dangerous to cast into
@@ -182,6 +185,90 @@ static func _choose_search(g: GameState) -> int:
 			best_uid = int(option["uid"])
 	return best_uid
 
+## Plans Ladeira -> Bola as one turn-only line instead of treating the level increase as lasting value.
+## A momentum spell may be the first step when it makes the whole line affordable.
+static func _play_snowball_combo(g: GameState, p: int, held_card_ids: Array) -> Array:
+	if g.phase != "main" or g.active != p or not g.stack.is_empty():
+		return []
+	if g.players[g.opponent(p)]["board"].size() < SNOWBALL_COMBO_MIN_ENEMY_UNITS:
+		return []
+	var ladeira_is_held := held_card_ids.has(LADEIRA_CARD_ID)
+	var snowball_is_held := held_card_ids.has("bola_de_neve") or held_card_ids.has("grande_bola_de_neve")
+	if snowball_is_held:
+		return []
+
+	# Finish an already-created temporary level increase before other cards spend the remaining Momentum.
+	if int(g.players[p]["snowball"]) > int(g.players[p]["snowball_base"]):
+		for finisher: Card in g.players[p]["hand"]:
+			if finisher.card_id in SNOWBALL_CARD_IDS and not held_card_ids.has(finisher.card_id):
+				var finisher_events := _try_play_card(g, p, finisher)
+				if not finisher_events.is_empty():
+					return finisher_events
+
+	if ladeira_is_held:
+		return []
+	for ladeira: Card in g.players[p]["hand"]:
+		if ladeira.card_id == LADEIRA_CARD_ID and _ladeira_has_playable_finisher(g, p, ladeira):
+			var ladeira_events := g.play_card(p, ladeira.uid)
+			if not ladeira_events.is_empty():
+				return ladeira_events
+
+	# A play like Ritual do Degelo can make a three-card line affordable. Test it on a copy so the AI
+	# does not spend the accelerator unless Ladeira and its Bola can both follow this turn.
+	for accelerator: Card in g.players[p]["hand"]:
+		if ladeira_is_held or held_card_ids.has(accelerator.card_id) or not _is_on_play_momentum_generator(accelerator):
+			continue
+		if not g.can_play(p, accelerator.uid):
+			continue
+		var preview := g.preview_copy()
+		if preview == null:
+			continue
+		var preview_accelerator := _card_in_hand(preview, p, accelerator.uid)
+		if preview_accelerator == null or _try_play_card(preview, p, preview_accelerator).is_empty():
+			continue
+		_resolve_preview_stack(preview)
+		_answer_preview_prompts(preview, p)
+		if preview.phase != "main" or preview.active != p or not preview.stack.is_empty():
+			continue
+		for ladeira: Card in preview.players[p]["hand"]:
+			if ladeira.card_id == LADEIRA_CARD_ID and _ladeira_has_playable_finisher(preview, p, ladeira):
+				return _try_play_card(g, p, accelerator)
+	return []
+
+## True when casting this Ladeira now leaves a playable Bola de Neve in hand against a multi-unit board.
+static func _ladeira_has_playable_finisher(g: GameState, p: int, ladeira: Card) -> bool:
+	if g.phase != "main" or g.active != p or not g.stack.is_empty():
+		return false
+	if g.players[g.opponent(p)]["board"].size() < SNOWBALL_COMBO_MIN_ENEMY_UNITS:
+		return false
+	if ladeira.card_id != LADEIRA_CARD_ID or not g.can_play(p, ladeira.uid):
+		return false
+	var preview := g.preview_copy()
+	if preview == null:
+		return false
+	var preview_ladeira := _card_in_hand(preview, p, ladeira.uid)
+	if preview_ladeira == null or preview.play_card(p, preview_ladeira.uid).is_empty():
+		return false
+	_resolve_preview_stack(preview)
+	_answer_preview_prompts(preview, p)
+	if preview.phase != "main" or preview.active != p or not preview.stack.is_empty():
+		return false
+	for finisher: Card in preview.players[p]["hand"]:
+		if finisher.card_id in SNOWBALL_CARD_IDS and not _try_play_card(preview, p, finisher).is_empty():
+			return true
+	return false
+
+## Only main-phase spells that gain current-turn Momentum can be accelerators for this line.
+static func _is_on_play_momentum_generator(card: Card) -> bool:
+	var card_data := CardDB.card(card.card_id)
+	if card_data.get("type", "") != "spell":
+		return false
+	for effect: Dictionary in card_data.get("effects", []):
+		if effect.get("trigger", "") == "on_play" and effect.get("action", "") == "gain_momentum" \
+				and int(effect.get("amount", 0)) > 0 and not effect.get("next_turn", false):
+			return true
+	return false
+
 static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 	# the road to lethal comes first, before the Momentum is spent on anything else: burn, Ao Entrar damage,
 	# Rompante and this-turn buffs that, added to the board's hits, finish the enemy Leader
@@ -189,6 +276,9 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 		var lethal_events := _play_toward_lethal(g, p, held_card_ids)
 		if not lethal_events.is_empty():
 			return lethal_events
+		var snowball_events := _play_snowball_combo(g, p, held_card_ids)
+		if not snowball_events.is_empty():
+			return snowball_events
 	# the untaxed Encarnação goes before the hand: the earlier the champion is out, the more it snowballs
 	if _untaxed_incarnation_should_come_first(g, p):
 		var first_incarnation_events := g.cast_incarnation(p)
@@ -274,6 +364,8 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 ## Used both for the real game and for plans made on a copy of it.
 static func _try_play_card(g: GameState, p: int, card: Card) -> Array:
 	if not g.can_play(p, card.uid):
+		return []
+	if card.card_id == LADEIRA_CARD_ID and not _ladeira_has_playable_finisher(g, p, card):
 		return []
 	var card_data := CardDB.card(card.card_id)
 	if g.takes_field_slot(card_data, g.is_subito_play(p, card_data)) and not g.has_free_slot(p):

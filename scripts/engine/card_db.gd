@@ -171,7 +171,7 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 			err.call("keyword desconhecida \"%s\"" % kw)
 	for s in cd.get("tribe", []):
 		if not _data.get("tribe", {}).has(s):
-			err.call("espécie desconhecida \"%s\"" % s)
+			err.call("tribo desconhecida \"%s\"" % s)
 	if cd.has("rapidez") and int(cd["rapidez"]) not in [1, 2, 3]:
 		err.call("rapidez precisa ser \"rapidez:1\" a \"rapidez:3\" em keywords")
 	if cd.has("critico") and int(cd["critico"]) not in [1, 2, 3, 4]:
@@ -317,7 +317,15 @@ static func _validate_effects(err: Callable, effects: Array, inside_effect_choic
 			var domain: Variant = e.get("domain", "all")
 			if not domain is String or String(domain) not in ["all", "leader"]:
 				err.call("summon_random.domain precisa ser \"all\" ou \"leader\"")
-			for field in ["include_tokens", "per_graveyard_spell"]:
+			if e.has("per_graveyard"):
+				var graveyard_rule: Variant = e["per_graveyard"]
+				if not graveyard_rule is Dictionary:
+					err.call("summon_random.per_graveyard precisa ser um objeto de filtro")
+				elif graveyard_rule.has("per"):
+					var group_size: Variant = graveyard_rule["per"]
+					if not (group_size is int or group_size is float) or int(group_size) < 1 or float(group_size) != int(group_size):
+						err.call("summon_random.per_graveyard.per precisa ser um inteiro >= 1")
+			for field in ["include_tokens", "per_graveyard_spell", "as_token"]:
 				if e.has(field) and not e[field] is bool:
 					err.call("summon_random.%s precisa ser booleano" % field)
 			if e.has("count"):

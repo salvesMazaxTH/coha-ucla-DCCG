@@ -82,6 +82,12 @@ func _init() -> void:
 	if not await _check_field_equip_input(m):
 		quit(1)
 		return
+	if not await _check_hand_drop_boundary(m):
+		quit(1)
+		return
+	if not await _check_chronicle_card_click(m):
+		quit(1)
+		return
 	if not await _check_deck_builder(m): # leaves the match, so the turn was read first
 		quit(1)
 		return
@@ -402,6 +408,71 @@ func _check_field_equip_input(m) -> bool:
 	await process_frame
 	return true
 
+func _check_hand_drop_boundary(m) -> bool:
+	var view := CardView.new().setup("geodo_vivo")
+	var pointer_over_line := Vector2(0, m.PLAY_LINE + view.size.y * 0.75 - 1.0)
+	var pointer_under_line := Vector2(0, m.PLAY_LINE + view.size.y * 0.75 + 1.0)
+	if not m._dragged_hand_card_is_over_play_line(view, pointer_over_line) \
+			or m._dragged_hand_card_is_over_play_line(view, pointer_under_line):
+		push_error("a carta arrastada deveria entrar na área de jogada quando sua borda superior cruza a linha")
+		return false
+
+	view.draggable = true
+	m.layer.add_child(view)
+	view._begin_press(Vector2.ZERO)
+	view._drag_to(Vector2(30, 30))
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.global_position = Vector2(100, 100)
+	view._gui_input(release)
+	if view.input_position != release.global_position or view.dragging:
+		push_error("a soltura da carta deveria usar a posição final do evento")
+		return false
+	view.queue_free()
+	return true
+
+func _check_chronicle_card_click(m) -> bool:
+	var previous_entries: Array = m.chronicle_log.chronicle_entries.duplicate(true)
+	var previous_seen_seq: int = m._chronicle_seen_seq
+	m.chronicle_log.chronicle_entries = [{
+		"kind": "attack", "source_card_id": "geodo_vivo", "target_card_ids": ["nicolas", "geodo_vivo"],
+		"seq": 100000, "text": "Teste de clique na Crônica.", "label": "ATAQUE", "icon": "sword", "accent": UITheme.GOLD,
+	}]
+	m._render_chronicle()
+	await process_frame
+	var row := m._chronicle_rows_box.get_child(0) as ChronicleRow
+	if row == null or row._card_at_position(Vector2(20, 25)) != "geodo_vivo":
+		push_error("a miniatura de origem da Crônica não foi reconhecida como clicável")
+		return false
+	var target_id := row._card_at_position(Vector2(row.size.x - 22, 25))
+	var second_target_id := row._card_at_position(Vector2(row.size.x - 40, 25))
+	if target_id != "nicolas" or second_target_id != "geodo_vivo":
+		push_error("as miniaturas de alvo da Crônica não foram reconhecidas como clicáveis")
+		return false
+	row.card_clicked.emit(target_id)
+	if m.overlay == null:
+		push_error("clicar na miniatura da Crônica não abriu o overlay")
+		return false
+	m._close_overlay()
+
+	m._show_chronicle_scene(row)
+	await process_frame
+	var scene_cards: Array = m.chronicle_scene.find_children("*", "CardView", true, false)
+	if scene_cards.is_empty():
+		push_error("a cena da Crônica não criou cartas clicáveis")
+		return false
+	var scene_card := scene_cards[0] as CardView
+	scene_card.left_clicked.emit(scene_card)
+	if m.overlay == null:
+		push_error("clicar na carta da cena da Crônica não abriu o overlay")
+		return false
+	m._close_overlay()
+	m._hide_chronicle_scene()
+	m.chronicle_log.chronicle_entries = previous_entries
+	m._chronicle_seen_seq = previous_seen_seq
+	m._render_chronicle()
+	return true
+
 ## A finger touching `view`, delivered the way Godot does it: Main's _input receives the position on
 ## the screen, while the card's own _gui_input receives it relative to the card (its top-left is 0, 0).
 func _send_touch(m, view: CardView, finger: int, pressed: bool, screen_position: Vector2) -> void:
@@ -589,6 +660,44 @@ func _check_deck_autofill(builder) -> bool:
 		["control", "removal"], ["control", "late"], ["combo", "spells"], ["combo", "tribal"],
 		["unsure", "learn"], ["unsure", "balanced"],
 	]
+	var pressure_middle_unit_goal := 0
+	var pressure_selection_goal := 0
+	var value_selection_goal := 0
+	var pressure_removal_goal := 0
+	var value_removal_goal := 0
+	for goal in DeckAutofill._goals("midrange", "pressure"):
+		match String(goal["metric"]):
+			"middle_unit": pressure_middle_unit_goal = int(goal["goal"])
+			"card_selection": pressure_selection_goal = int(goal["goal"])
+			"targeted_removal": pressure_removal_goal = int(goal["goal"])
+	for goal in DeckAutofill._goals("midrange", "value"):
+		match String(goal["metric"]):
+			"card_selection": value_selection_goal = int(goal["goal"])
+			"targeted_removal": value_removal_goal = int(goal["goal"])
+	if pressure_middle_unit_goal == 0 or value_selection_goal <= pressure_selection_goal \
+			or value_removal_goal <= pressure_removal_goal:
+		push_error("assistente de deck não diferencia midrange de pressão e de valor")
+		return false
+	var garrafao_traits: Dictionary = DeckAutofill.traits_of(CardDB.card("garrafao_curativo"))
+	if not garrafao_traits["sustain"] or not garrafao_traits["repeatable_sustain"] \
+			or DeckAutofill._quality(CardDB.card("garrafao_curativo")) <= 0.0:
+		push_error("assistente de deck não reconhece o Garrafão Curativo como valor recorrente")
+		return false
+	var alexa_incarnation := String(CardDB.leader("alexa")["incarnation"])
+	var alexa_starting_cards := {alexa_incarnation: 1}
+	var pressure_fill: Dictionary = DeckAutofill.complete("alexa", alexa_incarnation, alexa_starting_cards, builder._pool, "midrange", "pressure")
+	var value_fill: Dictionary = DeckAutofill.complete("alexa", alexa_incarnation, alexa_starting_cards, builder._pool, "midrange", "value")
+	var control_fill: Dictionary = DeckAutofill.complete("alexa", alexa_incarnation, alexa_starting_cards, builder._pool, "control", "removal")
+	if pressure_fill["cards"] == value_fill["cards"]:
+		push_error("autocompletar gerou a mesma lista para midrange de pressão e de valor")
+		return false
+	var repeatable_sustain_in_control := 0
+	for card_id in control_fill["cards"]:
+		if DeckAutofill.traits_of(CardDB.card(String(card_id)))["repeatable_sustain"]:
+			repeatable_sustain_in_control += int(control_fill["cards"][card_id])
+	if repeatable_sustain_in_control < 1:
+		push_error("autocompletar de control não incluiu valor recorrente mesmo com candidatos no domínio")
+		return false
 	var unavoidable_graves := 0
 	var decks_built := 0
 	for leader_id in CardDB.data()["leaders"]:

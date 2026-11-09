@@ -2715,9 +2715,9 @@ func _hand_hover(v: CardView, on: bool, rest: Dictionary) -> void:
 
 ## Drag & drop: a playable hand card follows the pointer and is played when released over
 ## the board (above PLAY_LINE); released over the hand it snaps back.
-## The line sits at the lower 20% of our Leader plate: as soon as the pointer is over the Leader
-## (clearly out of the hand) the card counts as played, still short of where the hand begins.
-const PLAY_LINE := LEADER_Y_ME + LeaderView.SIZE.y * 0.8
+## The line sits at the lower 20% of our Leader plate; the card counts as played when its top edge
+## crosses the line, so the pointer does not need to reach it too.
+const PLAY_LINE := LEADER_Y_ME + LeaderView.SIZE.y * 0.8 + 1.25
 var drag_gap_slot := -1 ## slot the board is currently opened at while a unit is dragged (-1 = no gap)
 
 func _hand_drag_start(v: CardView) -> void:
@@ -2777,17 +2777,21 @@ func _show_drop_gap(slot: int) -> void:
 				var preview_tw := equipment_preview.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 				preview_tw.tween_property(equipment_preview, "position:x", equipment_preview.position.x + shift, 0.12)
 
+func _dragged_hand_card_is_over_play_line(v: CardView, pointer_position: Vector2) -> bool:
+	return pointer_position.y - v.size.y * 0.75 < PLAY_LINE
+
 func _hand_drag_move(v: CardView) -> void:
 	var m := layer.get_global_transform().affine_inverse() * v.input_position
+	var over_play_line := _dragged_hand_card_is_over_play_line(v, m)
 	var is_unit: bool = CardDB.card(v.card_id)["type"] == "unit"
 	# during an animation the board is left alone (the gap would fight the moving units) and no aim
 	# starts: the card just follows the finger, and dropping it plays it once the animation ends
 	var table_busy := _input_must_wait()
-	if is_unit and m.y < PLAY_LINE and _my_input() and not v.get_meta("aim", false) and not table_busy:
+	if is_unit and over_play_line and _my_input() and not v.get_meta("aim", false) and not table_busy:
 		_show_drop_gap(_drop_slot(m.x))
 	elif not table_busy:
 		_show_drop_gap(-1)
-	if v.get_meta("aim", false) and m.y < PLAY_LINE and targeting.is_empty() and _my_input() and not table_busy:
+	if v.get_meta("aim", false) and over_play_line and targeting.is_empty() and _my_input() and not table_busy:
 		# a targeted card crossing into the board turns into an aim: it goes back to the hand
 		# (raised) and an arrow follows the finger; releasing on a target plays it there
 		# (a unit with a sacrifice cost also remembers the slot it was dragged to)
@@ -2798,20 +2802,21 @@ func _hand_drag_move(v: CardView) -> void:
 		_render()
 		return
 	v.position = m - Vector2(v.size.x / 2.0, v.size.y * 0.75)
-	v.highlight = SEL if m.y < PLAY_LINE else OK
+	v.highlight = SEL if over_play_line else OK
 
 func _hand_drag_end(v: CardView) -> void:
 	var m := layer.get_global_transform().affine_inverse() * v.input_position
+	var over_play_line := _dragged_hand_card_is_over_play_line(v, m)
 	if _input_must_wait():
 		# an animation is playing: the card flies back to the hand and, if it was dropped on the board,
 		# is played from there as soon as the animation ends
 		_hand_card_back_to_rest(v)
-		if m.y < PLAY_LINE and _my_input():
+		if over_play_line and _my_input():
 			_queued_inputs.append(_play_hand_card_when_settled.bind(v.uid, _drop_slot(m.x)))
 			v.highlight = SEL
 		return
 	drag_gap_slot = -1
-	if m.y < PLAY_LINE and _my_input():
+	if over_play_line and _my_input():
 		_play_from_hand(v, _drop_slot(m.x))
 	else:
 		_render()
@@ -2894,6 +2899,7 @@ func _render_chronicle() -> void:
 		var row := ChronicleRowScript.new().setup(raw, _chronicle_is_ally(raw), seq == open_seq, seq > _chronicle_seen_seq)
 		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.focused.connect(_show_chronicle_scene)
+		row.card_clicked.connect(_show_chronicle_card_overlay)
 		rows_box.add_child(row)
 		newest_seq = maxi(newest_seq, seq)
 	_chronicle_seen_seq = newest_seq
@@ -2930,6 +2936,7 @@ func _chronicle_is_ally(chronicle_entry: Dictionary) -> bool:
 func _show_chronicle_scene(row: ChronicleRow) -> void:
 	if chronicle_scene == null:
 		chronicle_scene = ChronicleSceneScript.new()
+		chronicle_scene.card_clicked.connect(_show_chronicle_card_overlay)
 		add_child(chronicle_scene)
 	var previous_seq := chronicle_scene.shown_seq()
 	var top_left := Vector2(col_x - 18.0 - ChronicleScene.PANEL_SIZE.x, 14.0)
@@ -2941,6 +2948,11 @@ func _show_chronicle_scene(row: ChronicleRow) -> void:
 			sibling.set_active(sibling == row)
 	if previous_seq != chronicle_scene.shown_seq():
 		row.queue_redraw()
+
+func _show_chronicle_card_overlay(card_id: String) -> void:
+	if not CardDB.data().get("cards", {}).has(card_id):
+		return
+	_show_overlay(CardView.new().setup(card_id))
 
 func _hide_chronicle_scene() -> void:
 	if chronicle_scene == null or not chronicle_scene.visible:
@@ -3777,7 +3789,10 @@ func _input(e: InputEvent) -> void:
 		finger_is_swiping = false
 	# the Chronicle scene stays open while the pointer is on the list; moving or tapping elsewhere closes it
 	if chronicle_scene and chronicle_scene.visible and (e is InputEventMouseMotion or (e is InputEventMouseButton and e.pressed)):
-		if not _chronicle_list_rect.has_point(get_local_mouse_position()):
+		var pointer := get_local_mouse_position()
+		var scene_hover_rect := chronicle_scene.get_global_rect()
+		scene_hover_rect.size.x = maxf(scene_hover_rect.end.x, _chronicle_list_rect.position.x) - scene_hover_rect.position.x
+		if not _chronicle_list_rect.has_point(pointer) and not scene_hover_rect.has_point(pointer):
 			_hide_chronicle_scene()
 	if grave_view and _grave_scroll_input(e):
 		get_viewport().set_input_as_handled()
@@ -5520,6 +5535,10 @@ func _animate(events: Array, old: Dictionary) -> float:
 			var shot_color := fx_shots._bolt_color(e)
 			if trig_color.a > 0.0 and hit_style != "boon":
 				shot_color = trig_color # a spell's shot carries the color of its element
+			elif hit_style == "" and actors[trig_src] is CardView:
+				# a unit firing the default bolt also takes its element's shot color when it has one
+				# (a luz unit like Seymour fires the same white-yellow light as the luz spells)
+				shot_color = fx_shots.spell_shot_color((actors[trig_src] as CardView).card_id, shot_color)
 			fx_shots._effect_hit(hit_style, actors[trig_src], actors[e["uid"]], land_t - shot_time, shot_color, first_shot)
 			volley_land_t = land_t
 			cursor = land_t
@@ -5539,6 +5558,9 @@ func _animate(events: Array, old: Dictionary) -> float:
 					fx_library._trigger_fx(actors[e["uid"]], e["trigger"], cursor)
 					trig_src = e["uid"]
 					trig_style = fx_shots._hit_style_of(actors[trig_src])
+					# what it destroys follows the same rule as what it hits: the card's own cast_fx or its
+					# element first, the X only when it has neither
+					destroy_cast_style = fx_casts.destroy_style_of(String(e["card_id"]))
 					trig_shots = 0
 					trig_color = Color.TRANSPARENT
 					cursor += 0.3
@@ -5556,11 +5578,9 @@ func _animate(events: Array, old: Dictionary) -> float:
 					trig_shots = 0
 					trig_color = Color.TRANSPARENT
 			"trigger_end":
+				destroy_cast_style = ""
 				trig_src = 0 # the effects that follow have no card to fly out of
 				area_cast_active = false
-					# what it destroys follows the same rule as what it hits: the card's own cast_fx or its
-					# element first, the X only when it has neither
-					destroy_cast_style = fx_casts.destroy_style_of(String(e["card_id"]))
 			"shout":
 				if actors.has(e["uid"]):
 					cursor = fx_library._shout_fx(actors[e["uid"]], String(e["text"]), cursor, String(e.get("style", "")))
@@ -5578,7 +5598,6 @@ func _animate(events: Array, old: Dictionary) -> float:
 				var uid: int = e["uid"]
 				var cd := CardDB.card(e["card_id"])
 				var origin: Dictionary = {"c": Vector2(lane_cx + EHAND_DX, 30), "rot": 0.0, "w": 96.0}
-				destroy_cast_style = ""
 				if e.get("incarnation", false) and old.has("cmd%d" % e["player"]):
 					origin = old["cmd%d" % e["player"]]["pose"]
 				elif e.get("requiem", false):
@@ -5659,6 +5678,16 @@ func _animate(events: Array, old: Dictionary) -> float:
 				# a spell goes off from its caster's Leader: an area spell plays its cast over the whole
 				# arena, a spell with targets fires its shots from the Leader in the color of its element
 				var resolved_card_id := String(e.get("card_id", ""))
+				# a unit's activated ability announces itself ("trigger") BEFORE it resolves, and the resolve clears
+				# the chain above, so link the unit back as the source: its hits, area cast and destroys then work
+				# exactly like the ones of an Ao Entrar
+				var ability_source_uid := int(e.get("uid", 0))
+				if e["kind"] == "unit_ability" and actors.has(ability_source_uid):
+					trig_src = ability_source_uid
+					trig_style = fx_shots._hit_style_of(actors[trig_src])
+					trig_shots = 0
+					destroy_cast_style = fx_casts.destroy_style_of(resolved_card_id)
+					area_cast_active = fx_casts.is_area(resolved_card_id, "on_activate")
 				var caster_leader = actors.get(GameState.LEADER_UID[int(e["player"])])
 				if e["kind"] == "card" and resolved_card_id != "" and caster_leader != null 						and String(CardDB.card(resolved_card_id).get("type", "")) == "spell":
 					if fx_casts.is_area(resolved_card_id, "on_play"):
@@ -5678,16 +5707,6 @@ func _animate(events: Array, old: Dictionary) -> float:
 				cursor += 0.4
 			"magic_shield_break", "supreme_shield_break", "tide_mark", "tide_draw", "dot", "dot_immune", "freeze", "exhaust", "ready", "stun", "stun_tick", "shrink", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up", "heal_block", "heal_prevented":
 				if actors.has(e["uid"]):
-				# a unit's activated ability announces itself ("trigger") BEFORE it resolves, and the resolve clears
-				# the chain above, so link the unit back as the source: its hits, area cast and destroys then work
-				# exactly like the ones of an Ao Entrar
-				var ability_source_uid := int(e.get("uid", 0))
-				if e["kind"] == "unit_ability" and actors.has(ability_source_uid):
-					trig_src = ability_source_uid
-					trig_style = fx_shots._hit_style_of(actors[trig_src])
-					trig_shots = 0
-					destroy_cast_style = fx_casts.destroy_style_of(resolved_card_id)
-					area_cast_active = fx_casts.is_area(resolved_card_id, "on_activate")
 					var dot_name: String = {"queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento"}.get(String(e.get("dot", "")), "Marcador")
 					var dot_label := "%s %d" % [dot_name, int(e.get("amount", 0))]
 					if not e.get("cleared", false):

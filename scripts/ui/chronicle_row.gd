@@ -7,6 +7,7 @@ extends Control
 ## A "start of turn" event is drawn as a thin divider instead of a tile, so the turns read as chapters.
 
 signal focused(row: ChronicleRow)
+signal card_clicked(card_id: String)
 
 const HubGlyphIconScript = preload("res://scripts/ui/hub_glyph_icon.gd")
 
@@ -80,7 +81,28 @@ func _gui_input(event: InputEvent) -> void:
 	if is_turn_divider():
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		focused.emit(self)
+		var card_id := _card_at_position(get_local_mouse_position())
+		if card_id != "" and CardDB.data().get("cards", {}).has(card_id):
+			card_clicked.emit(card_id)
+		else:
+			focused.emit(self)
+
+func _card_at_position(point: Vector2) -> String:
+	var source_id := String(entry.get("source_card_id", ""))
+	if source_id != "" and SOURCE_CHIP.has_point(point):
+		return source_id
+
+	var target_ids: Array = entry.get("target_card_ids", [])
+	if target_ids.is_empty():
+		return ""
+	var target_rect := Rect2(Vector2(size.x - TARGET_CHIP_SIZE.x - 7, (size.y - TARGET_CHIP_SIZE.y) / 2.0), TARGET_CHIP_SIZE)
+	if entry.has("hp_after"):
+		target_rect.position.x -= 5
+	if target_rect.has_point(point):
+		return String(target_ids[0])
+	if target_ids.size() > 1 and Rect2(target_rect.position + Vector2(-7, -2), target_rect.size).has_point(point):
+		return String(target_ids[1])
+	return ""
 
 ## Colour of whoever did the event: gold for the viewer, red for the opponent.
 func side_color() -> Color:

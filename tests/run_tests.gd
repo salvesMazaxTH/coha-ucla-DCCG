@@ -169,6 +169,7 @@ func _init() -> void:
 	_test_overkill()
 	_test_dud()
 	_test_ai_no_waste()
+	_test_ai_snowball_combo()
 	_test_ai_dot_awareness()
 	_test_ai_attack_clauses()
 	_test_ai_burn_plan()
@@ -253,7 +254,6 @@ func _test_card_sets() -> void:
 	check(not CardDB.errors().any(func(error: String): return error.contains("set") and (error.contains("pasta do set") or error.contains("set desconhecido") or error.contains("número do set") or error.contains("id repetido"))), "sets: nenhum erro de set/id no catálogo")
 
 ## Same cards with the same copies, ignoring order and int-vs-float (deck JSON files load numbers as floats).
-func _same_copies(first: Dictionary, second: Dictionary) -> bool:
 ## The ids of a list of decks, in order.
 func _deck_ids(decks: Array) -> Array:
 	var ids: Array = []
@@ -261,6 +261,7 @@ func _deck_ids(decks: Array) -> Array:
 		ids.append(deck["id"])
 	return ids
 
+func _same_copies(first: Dictionary, second: Dictionary) -> bool:
 	if first.size() != second.size():
 		return false
 	for card_id in first:
@@ -362,7 +363,6 @@ func _test_deck_builder_rules() -> void:
 		DirAccess.remove_absolute(full_store.local_path)
 	full_store.free()
 
-	# decks registered at run time (the player's own and the ones received for an online room)
 	# the order of the player's decks follows the CREATION date: editing a deck never moves it
 	var order_store := DeckStore.new()
 	order_store.use_web_storage = false
@@ -387,6 +387,7 @@ func _test_deck_builder_rules() -> void:
 		DirAccess.remove_absolute(order_store.local_path)
 	order_store.free()
 
+	# decks registered at run time (the player's own and the ones received for an online room)
 	DeckDB.register_custom("mine:teste", "Meu deck", "descrição", leader, fogo["cards"])
 	check(DeckDB.has("mine:teste") and DeckDB.section_of("mine:teste") == DeckDB.SECTION_MINE and DeckDB.get_deck("mine:teste")["leader"] == leader, "DeckDB.register_custom: o deck existe e fica em MEUS DECKS")
 	check(DeckDB.custom_ids(DeckDB.PLAYER_PREFIX).has("mine:teste") and not DeckDB.ids().has("mine:teste"), "DeckDB.custom_ids: separado dos decks prontos")
@@ -1028,6 +1029,7 @@ func _test_summon_random() -> void:
 		"t_sr_source_count", "t_sr_source_all", "t_sr_source_leader", "t_sr_source_token_default",
 		"t_sr_source_token_enabled", "t_sr_source_exclusions", "t_sr_source_rarity_reject",
 		"t_sr_source_cost_reject", "t_sr_source_fixed_count", "t_sr_source_board_cap",
+		"t_sr_beast", "t_sr_source_per_tribe", "t_sr_source_as_token",
 		"scenario_summon_random_playtest",
 	]
 	_tunit("t_sr_epic_4", "epic", 4, "neutra")
@@ -1134,6 +1136,35 @@ func _test_summon_random() -> void:
 		"summon_random: interrompe as invocações quando a mesa enche")
 	check(full_board.players[0]["board"].filter(func(c: Card): return c.card_id == "t_sr_epic_4").size() == GameState.BOARD_LIMIT - 1,
 		"summon_random: o campo cheio não ultrapassa o limite")
+
+	# per_graveyard: one unit for every `per` graveyard cards that pass the filter (rounded down)
+	_tunit("t_sr_beast", "common", 1, "natureza", {"tribe": ["fera"]})
+	_tsummon_random("t_sr_source_per_tribe", {
+		"per_graveyard": {"tribe": "fera", "per": 2}, "card_ids": ["t_sr_epic_4"],
+	})
+	var per_tribe_game := _new_game()
+	for _i in 5:
+		per_tribe_game.players[0]["graveyard"].append(Card.new(per_tribe_game._uid(), "t_sr_beast", 0, "graveyard"))
+	for _i in 3:
+		per_tribe_game.players[0]["graveyard"].append(Card.new(per_tribe_game._uid(), "bola_de_fogo", 0, "graveyard"))
+	_put(per_tribe_game, 0, "t_sr_source_per_tribe")
+	check(per_tribe_game.players[0]["board"].filter(func(c: Card): return c.card_id == "t_sr_epic_4").size() == 2,
+		"summon_random per_graveyard: 5 Feras (e 3 não-Feras) com per 2 invocam 2 unidades")
+	var per_tribe_none := _new_game()
+	per_tribe_none.players[0]["graveyard"].append(Card.new(per_tribe_none._uid(), "t_sr_beast", 0, "graveyard"))
+	_put(per_tribe_none, 0, "t_sr_source_per_tribe")
+	check(per_tribe_none.players[0]["board"].size() == 1, "summon_random per_graveyard: 1 Fera com per 2 não invoca nada")
+	check(per_tribe_game.players[1]["board"].is_empty(), "summon_random per_graveyard: o oponente não ganha unidades")
+
+	# as_token: the summoned unit is a ficha (it vanishes instead of going to the graveyard)
+	_tsummon_random("t_sr_source_as_token", {"as_token": true, "card_ids": ["t_sr_epic_4"]})
+	var as_token_game := _new_game()
+	_put(as_token_game, 0, "t_sr_source_as_token")
+	var summoned_units: Array = as_token_game.players[0]["board"].filter(func(c: Card): return c.card_id == "t_sr_epic_4")
+	check(summoned_units.size() == 1 and summoned_units[0].data().get("token", false),
+		"summon_random as_token: a unidade invocada é uma ficha")
+	check(not per_tribe_game.players[0]["board"].any(func(c: Card): return c.data().get("token", false)),
+		"summon_random sem as_token: nenhuma ficha entra")
 
 	var scenario_script: GDScript = load("res://tests/scenarios/summon_random_playtest.gd")
 	var scenario_game := GameState.new("agua", "fogo", 42)
@@ -8238,7 +8269,7 @@ func _test_mali_and_ottilia() -> void:
 ## Cornélia Aldrovane: Ao Entrar taxes 1 card of the opponent's hand (+2 while it stays there), Ao Ativar sacrifices an ally
 ## to banish an enemy, and the Constante makes the opponent's spells cost 1 more.
 ## Set 2 Natureza "canil" (USNACOM dogs that hunt magic users): Rex Farejador, Gavião de Vigília, Ivone Apito-Seco,
-## Hank Coleira-Dura, Brutus Ferro-Velho, Alcateia de Esquina and Rinha Clandestina.
+## Hank Coleira-Dura, Brutus Vigia-De-Ferro, Alcateia de Esquina and Rinha Clandestina.
 func _test_natureza_canil() -> void:
 	_tcard("t_nat_human", 1, 9, [])
 	_tcard("t_nat_foe", 1, 9, [])
@@ -8290,14 +8321,14 @@ func _test_natureza_canil() -> void:
 	var dog_atk: int = dog.atk_total()
 	g.play_card(0, _give(g, 0, "alcateia_de_esquina"), 0)
 	_resolve_whole_stack(g)
-	check(dog.atk_total() == dog_atk + 1 and dog.hp_total() == 3, "Alcateia de Esquina: a Fera aliada ganha +1/+1 (%d/%d)" % [dog.atk_total(), dog.hp_total()])
+	check(dog.atk_total() == dog_atk + 1 and dog.hp_total() == 2, "Alcateia de Esquina: a Fera aliada ganha +1/+1 (%d/%d)" % [dog.atk_total(), dog.hp_total()])
 	check(human.atk_total() == human_atk, "Alcateia de Esquina: quem não é Fera não ganha nada")
 
 	# Rinha Clandestina: an allied Fera and an enemy unit fight (both take damage); a non-Fera cannot be the fighter
 	g = _new_game()
 	_quiet(g)
 	g.players[0]["momentum"] = 10
-	var fighter := _put(g, 0, "cao_k9") # 2/2
+	var fighter := _put(g, 0, "cao_k9") # 2/1
 	var not_a_dog := _put(g, 0, "t_nat_human")
 	var victim := _put(g, 1, "t_nat_foe") # 1/9
 	var rinha_uid := _give(g, 0, "rinha_clandestina")
@@ -10514,7 +10545,7 @@ func _test_saraya_kovan_package() -> void:
 	_resolve_stack(g)
 	check(g.atk_of(collar_beast) == 4 and collar_beast.hp_left() == 4, "Coleira: a Fera equipada fica 4/4")
 
-	# --- Pisoteio Autorizado: só o PRIMEIRO alvo (aliado) é filtrado por espécie ---
+	# --- Pisoteio Autorizado: só o PRIMEIRO alvo (aliado) é filtrado por tribo ---
 	g = _new_game()
 	_quiet(g)
 	g.players[0]["momentum"] = 10
@@ -10525,7 +10556,7 @@ func _test_saraya_kovan_package() -> void:
 	check(g.play_card(0, stomp_uid, stomp_human.uid, stomp_enemy.uid).is_empty(), "Pisoteio: um humano aliado não luta")
 	g.play_card(0, stomp_uid, stomp_beast.uid, stomp_enemy.uid)
 	_resolve_stack(g)
-	check(g.find_unit(stomp_enemy.uid) == null and g.find_unit(stomp_beast.uid) == null, "Pisoteio: Fera 2/2 e inimigo 2/2 se matam (o inimigo pode ser de qualquer espécie)")
+	check(g.find_unit(stomp_enemy.uid) == null and g.find_unit(stomp_beast.uid) == null, "Pisoteio: Fera 2/2 e inimigo 2/2 se matam (o inimigo pode ser de qualquer tribo)")
 
 	# --- Veterinário de Plantão: cura 3 em todas as Feras/Demihumanos, não em humanos ---
 	g = _new_game()
@@ -10746,6 +10777,10 @@ func _test_furia_blood_cards() -> void:
 	_tcard("t_blood_big", 1, 9, [])
 	# O elemento Sangue existe, pertence à Fúria e nenhuma das três cartas gera erro de catálogo
 	check(CardDB.data()["elements"].has("sangue") and CardDB.data()["essences"]["furia"]["elements"].has("sangue"), "elemento Sangue cadastrado e liberado para a Fúria")
+	# exceção deliberada: a Trevas também aceita Sangue (Coagulhão), a Fluxo não
+	check(CardDB.data()["essences"]["trevas"]["elements"].has("sangue") and not CardDB.data()["essences"]["fluxo"]["elements"].has("sangue"), "Sangue liberado também para a Trevas, não para a Fluxo")
+	check(CardDB.card("coagulhao")["element"] == "sangue", "Coagulhão é do elemento Sangue")
+	check(CardDB.card("drex")["element"] == "sangue", "Drex é do elemento Sangue")
 	var catalog_errors: String = str(CardDB.errors())
 	for card_id in ["sangria_desatada", "gorbo_escarra_rubra", "machadada_em_dobro"]:
 		check(not catalog_errors.contains(card_id), "%s: sem erro de validação do catálogo" % card_id)
@@ -10766,10 +10801,6 @@ func _test_furia_blood_cards() -> void:
 
 	# Gorbo Escarra-Rubra: 1 de dano e 1 marcador de Sangramento na unidade escolhida
 	g = _new_game()
-	# exceção deliberada: a Trevas também aceita Sangue (Coagulhão), a Fluxo não
-	check(CardDB.data()["essences"]["trevas"]["elements"].has("sangue") and not CardDB.data()["essences"]["fluxo"]["elements"].has("sangue"), "Sangue liberado também para a Trevas, não para a Fluxo")
-	check(CardDB.card("coagulhao")["element"] == "sangue", "Coagulhão é do elemento Sangue")
-	check(CardDB.card("drex")["element"] == "sangue", "Drex é do elemento Sangue")
 	_quiet(g)
 	g.players[0]["momentum"] = 10
 	var bystander := _put(g, 1, "t_blood_big")
@@ -11178,6 +11209,109 @@ func _test_ai_no_waste() -> void:
 			"IA: gasta buff em área quando Ímpeto permite aproveitar em mais de uma aliada")
 	check(not fresh_ally.keywords.has("impeto"),
 			"IA: ao avaliar o buff, não deixa Ímpeto temporário aplicado antes de jogar a carta")
+
+## Ladeira is only spent as part of an affordable, multi-target Bola line in the same turn.
+func _test_ai_snowball_combo() -> void:
+	_tcard("t_ai_snowball_target", 0, 20, [])
+	var no_finisher := _new_game()
+	_quiet(no_finisher)
+	no_finisher.active = 0
+	no_finisher.players[0]["max_momentum"] = 10
+	no_finisher.players[0]["momentum"] = 8
+	no_finisher.players[0]["incarnation"]["in_zone"] = false
+	no_finisher.players[0]["hand"].clear()
+	var stranded_ladeira := _give(no_finisher, 0, "ladeira_abaixo_e_sem_freio")
+	SimpleAI.step(no_finisher, 0)
+	check(no_finisher.players[0]["hand"].any(func(card: Card): return card.uid == stranded_ladeira)
+			and int(no_finisher.players[0]["snowball"]) == GameState.SNOWBALL_BASE_LEVEL,
+			"IA Bola: não gasta Ladeira sem uma Bola nem alvos")
+
+	var short_on_momentum := _new_game()
+	_quiet(short_on_momentum)
+	short_on_momentum.active = 0
+	short_on_momentum.players[0]["max_momentum"] = 10
+	short_on_momentum.players[0]["momentum"] = 4
+	short_on_momentum.players[0]["incarnation"]["in_zone"] = false
+	short_on_momentum.players[0]["hand"].clear()
+	_put(short_on_momentum, 1, "t_ai_snowball_target")
+	_put(short_on_momentum, 1, "t_ai_snowball_target")
+	var unaffordable_ladeira := _give(short_on_momentum, 0, "ladeira_abaixo_e_sem_freio")
+	_give(short_on_momentum, 0, "bola_de_neve")
+	SimpleAI.step(short_on_momentum, 0)
+	check(short_on_momentum.players[0]["hand"].any(func(card: Card): return card.uid == unaffordable_ladeira),
+			"IA Bola: guarda a Ladeira quando não consegue pagar a Bola depois dela")
+
+	var one_target := _new_game()
+	_quiet(one_target)
+	one_target.active = 0
+	one_target.players[0]["max_momentum"] = 10
+	one_target.players[0]["momentum"] = 8
+	one_target.players[0]["incarnation"]["in_zone"] = false
+	one_target.players[0]["hand"].clear()
+	_put(one_target, 1, "t_ai_snowball_target")
+	_give(one_target, 0, "bola_de_neve")
+	var one_target_ladeira := _give(one_target, 0, "ladeira_abaixo_e_sem_freio")
+	SimpleAI.step(one_target, 0)
+	check(one_target.players[0]["hand"].any(func(card: Card): return card.uid == one_target_ladeira),
+			"IA Bola: reserva a Ladeira para uma mesa com pelo menos duas unidades")
+
+	var combo := _new_game()
+	_quiet(combo)
+	combo.active = 0
+	combo.players[0]["max_momentum"] = 10
+	combo.players[0]["momentum"] = 8
+	combo.players[0]["incarnation"]["in_zone"] = false
+	combo.players[0]["hand"].clear()
+	_put(combo, 1, "t_ai_snowball_target")
+	_put(combo, 1, "t_ai_snowball_target")
+	var bola_uid := _give(combo, 0, "bola_de_neve")
+	var ladeira_uid := _give(combo, 0, "ladeira_abaixo_e_sem_freio")
+	var first_play := SimpleAI.step(combo, 0)
+	check(not first_play.is_empty()
+			and not combo.players[0]["hand"].any(func(card: Card): return card.uid == ladeira_uid)
+			and combo.players[0]["hand"].any(func(card: Card): return card.uid == bola_uid),
+			"IA Bola: planeja Ladeira antes da Bola mesmo quando a Bola veio primeiro na mão")
+	_resolve_stack(combo)
+	check(int(combo.players[0]["snowball"]) == GameState.SNOWBALL_BASE_LEVEL + 1,
+			"IA Bola: Ladeira eleva o nível para a Bola do mesmo turno")
+	var second_play := SimpleAI.step(combo, 0)
+	check(not second_play.is_empty()
+			and not combo.players[0]["hand"].any(func(card: Card): return card.uid == bola_uid),
+			"IA Bola: prioriza a Bola após preparar o nível temporário")
+	_resolve_stack(combo)
+	check(int(combo.players[0]["snowball"]) == GameState.SNOWBALL_BASE_LEVEL + 2,
+			"IA Bola: a Bola quica nas duas unidades e avança o nível")
+
+	var accelerated := _new_game()
+	_quiet(accelerated)
+	accelerated.active = 0
+	accelerated.players[0]["max_momentum"] = 10
+	accelerated.players[0]["momentum"] = 7
+	accelerated.players[0]["incarnation"]["in_zone"] = false
+	accelerated.players[0]["hand"].clear()
+	_put(accelerated, 1, "t_ai_snowball_target")
+	_put(accelerated, 1, "t_ai_snowball_target")
+	var accelerated_bola := _give(accelerated, 0, "bola_de_neve")
+	var accelerated_ladeira := _give(accelerated, 0, "ladeira_abaixo_e_sem_freio")
+	var ritual_uid := _give(accelerated, 0, "ritual_do_degelo")
+	var accelerator_play := SimpleAI.step(accelerated, 0)
+	check(not accelerator_play.is_empty()
+			and not accelerated.players[0]["hand"].any(func(card: Card): return card.uid == ritual_uid)
+			and accelerated.players[0]["hand"].any(func(card: Card): return card.uid == accelerated_ladeira)
+			and accelerated.players[0]["hand"].any(func(card: Card): return card.uid == accelerated_bola),
+			"IA Bola: usa Ritual primeiro quando ele torna Ladeira + Bola pagáveis")
+	_resolve_stack(accelerated)
+	check(int(accelerated.players[0]["momentum"]) == 9,
+			"IA Bola: o Ritual deixa Momentum suficiente para a sequência")
+	var accelerated_ladeira_play := SimpleAI.step(accelerated, 0)
+	check(not accelerated_ladeira_play.is_empty()
+			and not accelerated.players[0]["hand"].any(func(card: Card): return card.uid == accelerated_ladeira),
+			"IA Bola: joga Ladeira como segundo passo do combo")
+	_resolve_stack(accelerated)
+	var accelerated_bola_play := SimpleAI.step(accelerated, 0)
+	check(not accelerated_bola_play.is_empty()
+			and not accelerated.players[0]["hand"].any(func(card: Card): return card.uid == accelerated_bola),
+			"IA Bola: completa Ritual -> Ladeira -> Bola no mesmo turno")
 
 ## The AI counts Veneno/Sangramento as 2 damage per marker (Queimadura as 1) and never spends a marker-only
 ## effect on a target whose markers already kill it, or that is immune to them.
@@ -13320,8 +13454,8 @@ func _test_sagrada_engine() -> void:
 	var enemy_angel := _put(g, 1, "t_aura_angel")
 	g._move_dead_units()
 	check(g.atk_of(angel) == 3 and g.hp_left(angel) == 5 and g.armor_of(angel) == 1, "tribe_aura: Anjo ganha +1/+1 e Armadura 1 (%d/%d, arm %d)" % [g.atk_of(angel), g.hp_left(angel), g.armor_of(angel)])
-	check(g.atk_of(two_tribe) == 3 and g.armor_of(two_tribe) == 1, "tribe_aura: duas espécies na lista dão o bônus uma vez só")
-	check(g.atk_of(aura_human) == 2 and g.armor_of(aura_human) == 0, "tribe_aura: espécie fora da lista não ganha")
+	check(g.atk_of(two_tribe) == 3 and g.armor_of(two_tribe) == 1, "tribe_aura: duas tribos na lista dão o bônus uma vez só")
+	check(g.atk_of(aura_human) == 2 and g.armor_of(aura_human) == 0, "tribe_aura: tribo fora da lista não ganha")
 	check(g.atk_of(aura_source) == 1 and g.armor_of(aura_source) == 0, "tribe_aura: a própria fonte não se beneficia")
 	check(g.atk_of(enemy_angel) == 2 and g.armor_of(enemy_angel) == 0, "tribe_aura: unidades do oponente não ganham")
 	g.players[0]["board"].erase(aura_source)
@@ -13346,7 +13480,7 @@ func _test_sagrada_engine() -> void:
 	var only_angel := _put(g, 0, "t_aura_angel")
 	var only_human := _put(g, 0, "t_aura_human")
 	_put(g, 0, "t_only_tribe_buff")
-	check(only_angel.magic_shield and not only_human.magic_shield, "buff only_tribe: só a espécie listada ganha o Escudo Mágico")
+	check(only_angel.magic_shield and not only_human.magic_shield, "buff only_tribe: só a tribo listada ganha o Escudo Mágico")
 
 	# Mefi'Urdim: Ao Entrar heals 10, raises the Baluarte Santo, gives Escudo Mágico to his tribe; Constante +1/+1 to the tribe and himself
 	g = _new_game()

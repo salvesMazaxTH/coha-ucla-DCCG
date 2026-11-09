@@ -372,6 +372,7 @@ func _gui_input(e: InputEvent) -> void:
 				_screen_touch_index = e.index
 				_begin_press(_touch_to_canvas_position(e.position))
 		elif e.index == _screen_touch_index:
+			input_position = _touch_to_canvas_position(e.position)
 			_screen_touch_index = -1
 			_end_press()
 		accept_event()
@@ -394,6 +395,7 @@ func _gui_input(e: InputEvent) -> void:
 		if e.pressed:
 			_begin_press(e.global_position)
 		else:
+			input_position = e.global_position
 			_end_press()
 		accept_event()
 		return
@@ -556,8 +558,6 @@ func _place_indestructible_glow(face_origin: Vector2, pop: float, s: float, inde
 	if not _indestructible_glow.visible:
 		_indestructible_glow.visible = true
 
-## True when this unit on the board has Indestrutível right now (its own, lent until end of turn,
-## or given by an ally's aura / the Momentum surge).
 ## Rapidez during combat: sparks circling the card's frame, painted by rapidez_sparks.gdshader on a
 ## ColorRect a little bigger than the face. Called from _draw with where the face is drawn, so it
 ## follows zoom, shake and pop. Created the first time it is needed; hidden (not freed) otherwise.
@@ -590,6 +590,8 @@ func _place_rapidez_sparks(face_origin: Vector2, pop: float, s: float, active: b
 	if not _rapidez_sparks.visible:
 		_rapidez_sparks.visible = true
 
+## True when this unit on the board has Indestrutível right now (its own, lent until end of turn,
+## or given by an ally's aura / the Momentum surge).
 func _is_indestructible_now() -> bool:
 	if not inst.has("damage"):
 		return false
@@ -785,10 +787,10 @@ func dissolve(delay := 0.0, edge := Color(1.0, 0.55, 0.15), dur := 0.75) -> void
 		tw.tween_callback(_shield_sparks.hide)
 	if _indestructible_glow != null: # same for the steel glow
 		tw.tween_callback(_indestructible_glow.hide)
-	tw.tween_property(m, "shader_parameter/progress", 1.0, dur).set_ease(Tween.EASE_IN)
-	tw.tween_callback(queue_free)
 	if _rapidez_sparks != null: # and for the Rapidez sparks
 		tw.tween_callback(_rapidez_sparks.hide)
+	tw.tween_property(m, "shader_parameter/progress", 1.0, dur).set_ease(Tween.EASE_IN)
+	tw.tween_callback(queue_free)
 
 ## Banished from the field: the card drains pale, spins and shrinks while a hole closes over
 ## it, instead of burning away like a death. The node frees itself.
@@ -808,10 +810,10 @@ func banish(delay := 0.0, edge := Color(0.8, 0.7, 1.0), dur := 0.9) -> void:
 		tw.tween_callback(_shield_sparks.hide)
 	if _indestructible_glow != null: # same for the steel glow
 		tw.tween_callback(_indestructible_glow.hide)
-	tw.tween_property(m, "shader_parameter/progress", 1.0, dur).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_SINE)
-	tw.tween_callback(queue_free)
 	if _rapidez_sparks != null: # and for the Rapidez sparks
 		tw.tween_callback(_rapidez_sparks.hide)
+	tw.tween_property(m, "shader_parameter/progress", 1.0, dur).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(queue_free)
 	var st := create_tween()
 	st.tween_interval(delay)
 	st.tween_property(self, "scale", scale * 0.55, dur).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
@@ -872,9 +874,11 @@ func _legendary() -> bool:
 
 var badge_only := "" ## tools/render_speed_badges.gd: draw just this speed seal, centered
 
-## Returns a finished picture only when the card can be shown without stretching or rotating it.
+## Returns a finished picture only when the card can be shown without rotating it. A trigger proc
+## (pop > 1) keeps the picture and just enlarges it for a moment: its rim light and ring are live layers
+## drawn around and over the face, so the whole face no longer has to be redrawn shape by shape.
 func _find_ready_photo(pop: float) -> CardPhotoStudio.Photo:
-	if not GraphicsQuality.bake_card_faces or proc > 0.0 or _is_headless or badge_only != "" or fatigue > 0 or _painting_photo or not is_inside_tree():
+	if not GraphicsQuality.bake_card_faces or _is_headless or badge_only != "" or fatigue > 0 or _painting_photo or not is_inside_tree():
 		_photo_in_use = null
 		texture_filter = CanvasItem.TEXTURE_FILTER_PARENT_NODE
 		CardPhotoStudio.withdraw(self)
@@ -914,7 +918,8 @@ func _find_ready_photo(pop: float) -> CardPhotoStudio.Photo:
 	_photo_in_use = photo
 	# Cached faces are rendered at their final pixel size. Avoid the project's nearest-mipmap
 	# default selecting a smaller level for thin lettering.
-	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	# (while the picture is enlarged by the proc pop, smooth filtering hides the stretch)
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST if is_equal_approx(pop, 1.0) else CanvasItem.TEXTURE_FILTER_LINEAR
 	_photo_transform_seen = render_transform
 	return photo
 
@@ -962,10 +967,10 @@ func _draw() -> void:
 		_shield_sparks.visible = false
 	if (face_down or fatigue > 0) and _indestructible_glow != null:
 		_indestructible_glow.visible = false
-	var s := _face_size.x / BASE.x
-	var r := Rect2(Vector2.ZERO, _face_size)
 	if (face_down or fatigue > 0) and _rapidez_sparks != null:
 		_rapidez_sparks.visible = false
+	var s := _face_size.x / BASE.x
+	var r := Rect2(Vector2.ZERO, _face_size)
 	if fatigue > 0:
 		_draw_fatigue(r, s, 10.0 * s)
 		return
@@ -1202,9 +1207,9 @@ func _draw_live_art_overlays(look: Dictionary, pulse: float, face_origin: Vector
 	# the moving sparks of both rings (shield_sparks.gdshader): the GPU animates them, the card stays still
 	_place_shield_sparks(art, face_origin, pop, s, inst.get("magic_shield", false), inst.get("supreme_shield", false))
 	_place_indestructible_glow(face_origin, pop, s, _is_indestructible_now())
+	_place_rapidez_sparks(face_origin, pop, s, rapidez_sparks and not face_down and fatigue <= 0)
 	if inst.has("frozen"):
 		_draw_frost(art, s)
-	_place_rapidez_sparks(face_origin, pop, s, rapidez_sparks and not face_down and fatigue <= 0)
 	if inst.has("stun_markers"):
 		_draw_stun(art, s)
 	if inst.get("summoning_sick", false):

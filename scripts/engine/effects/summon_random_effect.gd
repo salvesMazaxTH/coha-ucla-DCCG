@@ -8,9 +8,13 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 	var count := int(raw.get("count", 1))
 	if bool(raw.get("per_graveyard_spell", false)):
 		count = game.graveyard_size_of_kind(player, "spell")
+	elif raw.has("per_graveyard"):
+		count = _count_from_graveyard(game, player)
 	if count <= 0 or not game.has_free_slot(player):
 		return
 
+	# "as_token": the summoned unit is a ficha (it vanishes instead of going to the graveyard or back to the hand)
+	var summon_overrides := {"token": true} if bool(raw.get("as_token", false)) else {}
 	var candidates := _candidate_ids(game, player)
 	if candidates.is_empty():
 		game._emit({"type": "search_empty", "player": player, "source_uid": context.self_uid})
@@ -20,7 +24,18 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 		if not game.has_free_slot(player):
 			return
 		var card_id: String = candidates[game.rng.randi_range(0, candidates.size() - 1)]
-		game._summon(player, Card.new(game._uid(), card_id, player), false, 0)
+		game._summon(player, Card.new(game._uid(), card_id, player), false, 0, summon_overrides)
+
+## One unit per `per` graveyard cards that pass the filter written in `per_graveyard` (rounded down).
+## The filter uses the same keys as CardFilter (tribe, element, type...); `per` is the group size (default 1).
+func _count_from_graveyard(game: GameState, player: int) -> int:
+	var graveyard_rule: Dictionary = raw["per_graveyard"]
+	var group_size := maxi(1, int(graveyard_rule.get("per", 1)))
+	var matching_cards := 0
+	for graveyard_card: Card in game.players[player]["graveyard"]:
+		if CardFilter.matches(graveyard_card.card_id, graveyard_rule):
+			matching_cards += 1
+	return matching_cards / group_size
 
 func _candidate_ids(game: GameState, player: int) -> Array[String]:
 	var domain: Variant = raw.get("domain", "all")

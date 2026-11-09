@@ -20,6 +20,8 @@ const LIFE_GEM_RADIUS := 17.0
 const SLIDE_DISTANCE := 14.0
 const SHOW_SECONDS := 0.14
 
+signal card_clicked(card_id: String)
+
 var entry: Dictionary = {}
 var accent := Color.WHITE
 var side_color := Color.WHITE
@@ -32,7 +34,7 @@ var _show_tween: Tween
 
 func _init() -> void:
 	size = PANEL_SIZE
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mouse_filter = Control.MOUSE_FILTER_PASS
 	visible = false
 
 func shown_seq() -> int:
@@ -173,7 +175,9 @@ func _add_card(card_id: String, card_position: Vector2, card_scale: float) -> Co
 	var card := CardView.new().setup(card_id, {}, card_scale)
 	card.position = card_position
 	card.pivot_offset = card.size / 2.0
-	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.mouse_filter = Control.MOUSE_FILTER_STOP
+	card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	card.left_clicked.connect(func(_view: CardView): card_clicked.emit(card_id))
 	add_child(card)
 	return card
 

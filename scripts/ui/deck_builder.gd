@@ -1115,7 +1115,7 @@ func _ask_assistant_focus() -> void:
 		"aggro": options = [["burn", "DANO DIRETO", "Quero finalizar o Líder adversário com magias e efeitos de dano."], ["board", "CRIATURAS RÁPIDAS", "Quero lotar a mesa cedo e atacar com unidades baratas."]]
 		"midrange": options = [["pressure", "PRESSÃO CONSTANTE", "Quero curvas equilibradas e ameaças em todo turno."], ["value", "VALOR", "Quero cartas que trocam bem e geram vantagens."]]
 		"control": options = [["removal", "MUITAS RESPOSTAS", "Quero remover ou atrapalhar as ameaças do rival."], ["late", "FINAL DE JOGO", "Quero sobreviver e ganhar com cartas fortes mais tarde."]]
-		"combo": options = [["spells", "COMBO DE EFEITOS", "Quero achar peças com compras e magias."], ["tribal", "SINERGIA DE TRIBO", "Quero muitas cartas da mesma espécie trabalhando juntas."]]
+		"combo": options = [["spells", "COMBO DE EFEITOS", "Quero achar peças com compras e magias."], ["tribal", "SINERGIA DE TRIBO", "Quero muitas cartas da mesma tribo trabalhando juntas."]]
 		_: options = [["learn", "APRENDER", "Quero dicas gerais enquanto experimento."], ["balanced", "EQUILIBRADO", "Quero um deck versátil sem compromisso com um plano único."]]
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(minf(size.x - 100.0, 650.0), 0)
@@ -1479,6 +1479,7 @@ func _coach_notes() -> Array[Dictionary]:
 	var total := 0
 	var cheap := 0 # cost 0-2
 	var middle := 0 # cost 3-5
+	var middle_units := 0 # units that present pressure during the midgame
 	var expensive := 0 # cost 6+
 	var spells := 0
 	var units := 0
@@ -1488,6 +1489,9 @@ func _coach_notes() -> Array[Dictionary]:
 	var unrestricted_targeted_removal := 0
 	var unrestricted_global_removal := 0
 	var card_selection := 0
+	var soft_removal := 0
+	var sustain := 0
+	var repeatable_sustain := 0
 	var tribe: Dictionary = {}
 	var incarnation := _incarnation_id
 	for card_id in _cards:
@@ -1511,6 +1515,8 @@ func _coach_notes() -> Array[Dictionary]:
 			units += copies
 			if cost <= 2:
 				cheap_units += copies
+			elif cost <= 5:
+				middle_units += copies
 			if cost >= 6:
 				late_threats += copies
 		for specie in card.get("tribe", []):
@@ -1525,16 +1531,23 @@ func _coach_notes() -> Array[Dictionary]:
 			unrestricted_global_removal += copies
 		if card_traits["burn"]:
 			burn += copies
+		if card_traits["soft_removal"]:
+			soft_removal += copies
+		if card_traits["sustain"]:
+			sustain += copies
+		if card_traits["repeatable_sustain"]:
+			repeatable_sustain += copies
 	var plan_name: String = String({"aggro": "Aggro", "midrange": "Midrange", "control": "Control", "combo": "Combo", "unsure": "exploração"}.get(_assistant_profile, ""))
 	notes.append({"text": "Plano acompanhado: %s. O assistente atualiza estas dicas a cada carta adicionada ou removida." % plan_name, "color": INFO, "tag": "ASSISTENTE"})
 	if total < 12:
 		notes.append({"text": "Ainda há poucas cartas para julgar a estratégia (%d/12). Continue montando; as dicas mais fortes aparecem quando a base do deck existir." % total, "color": INFO, "tag": "EM ANÁLISE"})
 		return notes
-	if _assistant_profile != "control" and unrestricted_targeted_removal < 2:
+	var value_midrange := _assistant_profile == "midrange" and _assistant_focus == "value"
+	if _assistant_profile != "control" and not value_midrange and unrestricted_targeted_removal < 2:
 		notes.append({"text": "Normalmente, recomenda-se ter pelo menos 2 cópias de remoção direta irrestrita; o deck tem %d." % unrestricted_targeted_removal, "color": WARN, "tag": "MÉDIO"})
 	if unrestricted_global_removal < 1:
 		notes.append({"text": "Normalmente, recomenda-se ter pelo menos 1 cópia de remoção global irrestrita; o deck tem %d." % unrestricted_global_removal, "color": WARN, "tag": "MÉDIO"})
-	if card_selection < 1:
+	if card_selection < 1 and not value_midrange:
 		notes.append({"text": "Normalmente, recomenda-se ter pelo menos 1 forma de comprar ou selecionar uma carta do deck para a mão; o deck tem %d." % card_selection, "color": WARN, "tag": "MÉDIO"})
 	match _assistant_profile:
 		"aggro":
@@ -1565,11 +1578,26 @@ func _coach_notes() -> Array[Dictionary]:
 				notes.append({"text": "A curva de meio de jogo está quase lá, mas %d cartas de custo 3 a 5 podem deixar alguns turnos sem pressão." % middle, "color": WARN, "tag": "MÉDIO"})
 			if cheap < 4:
 				notes.append({"text": "Poucas cartas baratas podem fazer você perder o tabuleiro antes das ameaças médias chegarem.", "color": WARN, "tag": "MÉDIO"})
+			if _assistant_focus == "pressure" and middle_units < ceili(DeckDB.DECK_SIZE * 0.30):
+				notes.append({"text": "Pressão constante precisa de ameaças no meio da curva: há só %d unidades de custo 3 a 5." % middle_units, "color": WARN, "tag": "MÉDIO"})
+			elif _assistant_focus == "value":
+				if unrestricted_targeted_removal < 3:
+					notes.append({"text": "Midrange de valor ganha com trocas favoráveis: há só %d remoções diretas irrestritas (meta: 3)." % unrestricted_targeted_removal, "color": WARN, "tag": "MÉDIO"})
+				if card_selection < 3:
+					notes.append({"text": "Midrange de valor precisa manter recursos: há só %d formas de comprar ou selecionar cartas (meta: 3)." % card_selection, "color": WARN, "tag": "MÉDIO"})
+				if soft_removal < 2:
+					notes.append({"text": "Midrange de valor também precisa de respostas flexíveis: há só %d efeitos que enfraquecem ou tiram unidades inimigas." % soft_removal, "color": WARN, "tag": "MÉDIO"})
 		"control":
 			if unrestricted_targeted_removal < 2:
 				notes.append({"text": "Control precisa de respostas pontuais confiáveis: há %d remoções diretas irrestritas. Normalmente, pelo menos 2 cópias são recomendáveis." % unrestricted_targeted_removal, "color": BAD, "tag": "GRAVE"})
 			elif unrestricted_targeted_removal < 4:
 				notes.append({"text": "O deck já tem respostas pontuais, mas %d cópias ainda podem ser pouco para um plano control consistente." % unrestricted_targeted_removal, "color": WARN, "tag": "MÉDIO"})
+			if soft_removal < 3:
+				notes.append({"text": "Controle também se beneficia de respostas flexíveis: há só %d efeitos de dano, controle ou enfraquecimento de unidades." % soft_removal, "color": WARN, "tag": "MÉDIO"})
+			if sustain < 2:
+				notes.append({"text": "Para vencer por desgaste, há só %d cartas de cura ou proteção." % sustain, "color": WARN, "tag": "MÉDIO"})
+			if repeatable_sustain < 1:
+				notes.append({"text": "Considere uma fonte recorrente de cura ou proteção para sustentar o plano de desgaste." , "color": WARN, "tag": "MÉDIO"})
 			if card_selection > 0 and card_selection < 3:
 				notes.append({"text": "Control ganha consistência com mais formas de comprar ou selecionar cartas; há só %d." % card_selection, "color": WARN, "tag": "MÉDIO"})
 			if _assistant_focus == "late":
@@ -1590,9 +1618,9 @@ func _coach_notes() -> Array[Dictionary]:
 				for specie in tribe:
 					dominant = maxi(dominant, int(tribe[specie]))
 				if dominant < 8:
-					notes.append({"text": "A sinergia de tribo ainda não apareceu: a espécie mais presente ocupa só %d cartas. Concentre mais o deck numa espécie." % dominant, "color": BAD, "tag": "GRAVE"})
+					notes.append({"text": "A sinergia de tribo ainda não apareceu: a tribo mais presente ocupa só %d cartas. Concentre mais o deck numa tribo." % dominant, "color": BAD, "tag": "GRAVE"})
 				elif dominant < 12:
-					notes.append({"text": "A espécie principal já aparece em %d cartas, mas mais cópias podem deixar a sinergia de tribo mais consistente." % dominant, "color": WARN, "tag": "MÉDIO"})
+					notes.append({"text": "A tribo principal já aparece em %d cartas, mas mais cópias podem deixar a sinergia de tribo mais consistente." % dominant, "color": WARN, "tag": "MÉDIO"})
 		"unsure":
 			if cheap < 4:
 				notes.append({"text": "Dica de iniciante: coloque algumas cartas de custo 0 a 2 para ter o que jogar cedo.", "color": WARN, "tag": "DICA"})
