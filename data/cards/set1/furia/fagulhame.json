@@ -5,6 +5,7 @@
   "rarity": "common",
   "essence": "furia",
   "element": "fogo",
+  "cast_fx": "fagulha",
   "cost": 2,
   "speed": "rapido",
   "art": "furia/fagulhame.webp",

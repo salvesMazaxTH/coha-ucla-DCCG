@@ -13,8 +13,9 @@
   "art": "furia/dlorafya.webp",
   "effects": [
     {"trigger":"on_enter","action":"damage","target":"all_units","amount":3,"ally_reduce":{"element":"fogo","amount":1}},
-    {"trigger":"on_enter","action":"add_dot","dot":"queimadura","target":"all_enemy_units","amount":1,"ignores_immunity":true}
+    {"trigger":"on_enter","action":"add_dot","dot":"queimadura","target":"all_enemy_units","amount":1,"ignores_immunity":true},
+    {"trigger":"on_turn_end","action":"add_dot","dot":"queimadura","target":"random_enemy_unit_spread","hits":3,"amount":1,"ignores_immunity":true}
   ],
-  "text": "Ao Entrar: causa 3 de dano a todas as unidades; unidades de Fogo aliadas sofrem apenas 1. As unidades inimigas recebem 1 marcador de Queimadura (ignora imunidade).",
+  "text": "Ao Entrar: causa 3 de dano a todas as unidades; unidades de Fogo aliadas sofrem apenas 1. As unidades inimigas recebem 1 marcador de Queimadura (ignora imunidade).\nNo Fim do Seu Turno: distribui 3 marcadores de Queimadura aleatoriamente entre as unidades inimigas, 1 por vez (ignora imunidade).",
   "flavor": "O veredito da pira é final."
 }

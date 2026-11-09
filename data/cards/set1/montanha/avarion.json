@@ -12,13 +12,8 @@
   "hp": 3,
   "keywords": [],
   "effects": [
-    {
-      "trigger": "on_enter",
-      "action": "buff",
-      "target": "other_ally_unit",
-      "armor": 1
-    }
+    { "trigger": "constante", "action": "strike_cap", "stat": "atk", "at_most": 3, "capped_damage": 1 }
   ],
-  "text": "Ao Entrar: você pode conceder Armadura 1 permanente a outra unidade aliada à sua escolha.",
+  "text": "Constante (Édito): todas as unidades em campo, aliadas e inimigas, com Ataque 3 ou menos golpeiam causando apenas 1 de dano. Deixa de valer enquanto o Édito do irmão estiver em campo.",
   "flavor": ""
 }

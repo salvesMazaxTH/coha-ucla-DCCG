@@ -14,7 +14,9 @@
     "sobrepujanca"
   ],
   "art": "fluxo/aren_marevoth.webp",
-  "effects": [],
-  "text": "",
+  "effects": [
+    {"trigger": "on_challenge", "action": "draw", "target": "own_leader", "amount": 1}
+  ],
+  "text": "Ao Desafiar: você compra 1 carta.",
   "flavor": "Transfigurado pelas profundezas abissais."
 }

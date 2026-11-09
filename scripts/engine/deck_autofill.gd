@@ -4,9 +4,10 @@ extends RefCounted
 ##
 ## The fill follows the plan the player gave the Deck Assistant (profile + focus): it builds a mana curve
 ## that fits the plan and reaches the card counts the assistant's "grave" and "médio" warnings ask for
-## (cheap units for aggro, removal for control, spells for a spell combo...). The numbers in _goals() are
-## written to sit at or above the thresholds of DeckBuilder._coach_notes(). tests/smoke_ui.gd checks that a
-## filled deck never gets a "grave" note, so change both places together.
+## (cheap units for aggro, mid-cost threats for pressure midrange, card advantage for value midrange,
+## removal for control, spells for a spell combo...). The numbers in _goals() are written to sit at or
+## above the thresholds of DeckBuilder._coach_notes(). tests/smoke_ui.gd checks that a filled deck never
+## gets a "grave" note, so change both places together.
 ##
 ## How it works: the deck is filled one card at a time. For every legal candidate the fill measures how
 ## much closer the deck gets to its goals ("deficit" = how far the deck is from them), adds a small bonus
@@ -20,10 +21,11 @@ const GRAVE_WEIGHT := 8.0 # below the level the assistant calls "grave"
 const MEDIUM_WEIGHT := 3.0 # below the level the assistant calls "médio"
 const CURVE_SHORTAGE_WEIGHT := 1.0 # a slot of the ideal curve that is still empty
 const CURVE_EXCESS_WEIGHT := 0.5 # a card beyond the ideal curve of its cost
-const GUEST_PENALTY := 2.0 # a guest card is only chosen when it solves a real need
+const GUEST_PENALTY := 0.75 # prefer the Leader's domains, but don't exclude strong role-fitting guests
 const LEADER_DOMAIN_BONUS := 0.5
 const NEUTRAL_BONUS := 0.2
 const SAME_TRIBE_BONUS := 0.25 # small push toward a deck whose cards share a tribe
+const REPEAT_COPY_PENALTY := 0.2
 
 # ---------------------------------------------------------------- card traits
 
@@ -34,14 +36,20 @@ static func traits_of(card: Dictionary) -> Dictionary:
 	var has_targeted_removal := false
 	var has_global_removal := false
 	var has_card_selection := false
-	var effects: Array = card.get("effects", []).duplicate()
+	var has_soft_removal := false
+	var has_sustain := false
+	var effects := _effects_of(card)
 	var activated: Dictionary = card.get("activated", {})
-	effects.append_array(activated.get("effects", []))
+	var has_repeatable_sustain := false
 	for effect in effects:
 		var action := String(effect.get("action", ""))
 		var target := String(effect.get("target", ""))
 		if action in ["draw", "search_deck", "look_top", "look_bottom"]:
 			has_card_selection = true
+		if _is_sustain_effect(effect):
+			has_sustain = true
+		if _is_soft_removal_effect(effect):
+			has_soft_removal = true
 		var is_group_target := target.begins_with("all_") or target.begins_with("each_") \
 				or target.begins_with("other_") or target.begins_with("center_")
 		var removes_units := action in ["destroy", "banish", "damage"] \
@@ -62,12 +70,50 @@ static func traits_of(card: Dictionary) -> Dictionary:
 					has_targeted_removal = true
 		if action == "damage" and (target == "enemy_leader" or target == "both_leaders"):
 			has_burn = true
+	for effect in activated.get("effects", []):
+		if _is_sustain_effect(effect):
+			has_repeatable_sustain = true
 	return {
 		"burn": has_burn,
 		"targeted_removal": has_targeted_removal,
 		"global_removal": has_global_removal,
 		"card_selection": has_card_selection,
+		"soft_removal": has_soft_removal,
+		"sustain": has_sustain,
+		"repeatable_sustain": has_repeatable_sustain,
 	}
+
+static func _effects_of(card: Dictionary) -> Array:
+	var effects: Array = card.get("effects", []).duplicate()
+	var activated: Dictionary = card.get("activated", {})
+	effects.append_array(activated.get("effects", []))
+	return effects
+
+static func _is_sustain_effect(effect: Dictionary) -> bool:
+	var action := String(effect.get("action", ""))
+	if action in ["heal_unit", "heal_leader", "heal_full", "leader_max_up"]:
+		return true
+	if action != "buff":
+		return false
+	var keywords: Array = effect.get("keywords", [])
+	return int(effect.get("hp", 0)) > 0 or int(effect.get("armor", 0)) > 0 \
+			or keywords.has("escudo") or keywords.has("escudo_magico") or keywords.has("escudo_supremo")
+
+static func _is_soft_removal_effect(effect: Dictionary) -> bool:
+	var action := String(effect.get("action", ""))
+	var target := String(effect.get("target", ""))
+	if not target.contains("enemy") and target != "opposed_unit":
+		return false
+	match action:
+		"damage":
+			var damage := maxi(int(effect.get("amount", 0)), int(effect.get("amount_if_frozen", 0)))
+			damage = maxi(damage, int(effect.get("amount_if_stunned", 0)))
+			return damage >= 2
+		"freeze", "stun", "return_to_hand", "take_control", "silence":
+			return true
+		"buff":
+			return int(effect.get("atk", 0)) < 0 or int(effect.get("hp", 0)) < 0
+	return false
 
 # ---------------------------------------------------------------- goals
 
@@ -78,8 +124,10 @@ static func _goals(profile: String, focus: String) -> Array[Dictionary]:
 	var goals: Array[Dictionary] = []
 	var deck_size := DeckDB.DECK_SIZE
 	# every plan benefits from some answers and some card selection
-	var selection_goal := 3 if (profile == "control" or (profile == "combo" and focus == "spells")) else 1
-	goals.append({"metric": "targeted_removal", "grave": 2 if profile == "control" else 0, "goal": 4 if profile == "control" else 2})
+	var value_midrange := profile == "midrange" and focus == "value"
+	var selection_goal := 3 if (profile == "control" or (profile == "combo" and focus == "spells") or value_midrange) else 1
+	var targeted_removal_goal := 4 if profile == "control" else (3 if value_midrange else 2)
+	goals.append({"metric": "targeted_removal", "grave": 2 if profile == "control" else 0, "goal": targeted_removal_goal})
 	goals.append({"metric": "global_removal", "grave": 0, "goal": 1})
 	goals.append({"metric": "card_selection", "grave": 0, "goal": selection_goal})
 	match profile:
@@ -93,9 +141,16 @@ static func _goals(profile: String, focus: String) -> Array[Dictionary]:
 			goals.append({"metric": "middle", "grave": ceili(deck_size * 0.40), "goal": ceili(deck_size * 0.50)})
 			goals.append({"metric": "cheap", "grave": 0, "goal": 5})
 			goals.append({"metric": "unit", "grave": 0, "goal": 22})
+			if focus == "pressure":
+				goals.append({"metric": "middle_unit", "grave": 0, "goal": ceili(deck_size * 0.30)})
+			elif focus == "value":
+				goals.append({"metric": "soft_removal", "grave": 0, "goal": 2})
 		"control":
 			goals.append({"metric": "cheap", "grave": 0, "goal": 4})
 			goals.append({"metric": "unit", "grave": 0, "goal": 16})
+			goals.append({"metric": "soft_removal", "grave": 0, "goal": 3})
+			goals.append({"metric": "sustain", "grave": 0, "goal": 2})
+			goals.append({"metric": "repeatable_sustain", "grave": 0, "goal": 1})
 			if focus == "late":
 				goals.append({"metric": "late_threat", "grave": 3, "goal": 8})
 		"combo":
@@ -152,6 +207,7 @@ static func complete(leader_id: String, incarnation_id: String, cards: Dictionar
 			var score: float = improvement + float(description["fit"]) + float(description["quality"])
 			if leading_tribe != "" and description["tribes"].has(leading_tribe):
 				score += SAME_TRIBE_BONUS
+			score -= REPEAT_COPY_PENALTY * int(result_cards.get(card_id, 0))
 			if score > best_score:
 				best_score = score
 				best_id = String(card_id)
@@ -181,6 +237,8 @@ static func _describe(card_id: String, leader_id: String, pursued_tribe: String)
 			metrics.append("cheap_unit")
 	elif cost <= 5:
 		metrics.append("middle")
+		if is_unit:
+			metrics.append("middle_unit")
 	else:
 		metrics.append("expensive")
 		if is_unit:
@@ -210,8 +268,8 @@ static func _describe(card_id: String, leader_id: String, pursued_tribe: String)
 		"quality": _quality(card),
 	}
 
-## A small, rough sense of how good a card is (kept well under one deficit point so it only breaks ties):
-## stats against cost for units, keywords, effects and rarity.
+## A small, rough sense of card quality (kept below one deficit point so plan goals remain decisive).
+## Unlike rarity, effect actions and magnitudes help identify actual interaction and repeatable value.
 static func _quality(card: Dictionary) -> float:
 	var quality := 0.0
 	if String(card.get("type", "")) == "unit":
@@ -219,11 +277,37 @@ static func _quality(card: Dictionary) -> float:
 		var expected_total := float(card.get("cost", 0)) * 1.6 + 2.5
 		quality += clampf((float(stat_total) - expected_total) * 0.08, -0.25, 0.35)
 	quality += minf(0.15, 0.05 * card.get("keywords", []).size())
-	if not card.get("effects", []).is_empty():
-		quality += 0.1
-	match String(card.get("rarity", "")):
-		"champion": quality += 0.1
-		"legendary": quality += 0.15
+	var effect_quality := 0.0
+	for effect in _effects_of(card):
+		var action := String(effect.get("action", ""))
+		var value := 0.0
+		match action:
+			"draw", "search_deck", "look_top", "look_bottom":
+				value = 0.2
+			"destroy", "banish", "return_to_hand", "take_control":
+				value = 0.24
+			"damage":
+				var damage := maxi(int(effect.get("amount", 0)), int(effect.get("amount_if_frozen", 0)))
+				damage = maxi(damage, int(effect.get("amount_if_stunned", 0)))
+				value = minf(0.25, float(damage) * 0.06)
+			"freeze", "stun":
+				value = 0.16
+			"heal_unit", "heal_leader", "heal_full", "leader_max_up":
+				value = minf(0.22, float(effect.get("amount", 1)) * 0.06)
+			"snowball_level":
+				value = 0.18
+			"buff":
+				var stat_delta := absi(int(effect.get("atk", 0))) + absi(int(effect.get("hp", 0))) + absi(int(effect.get("armor", 0)))
+				value = minf(0.18, float(stat_delta) * 0.04)
+			_:
+				value = 0.03
+		if effect.has("if"):
+			value *= 0.65
+		var target := String(effect.get("target", ""))
+		if target.begins_with("all_") or target.begins_with("each_"):
+			value *= 1.25
+		effect_quality += value
+	quality += minf(0.6, effect_quality)
 	return quality
 
 ## The counters the fill keeps up to date as cards are added. "counts" uses the metric names of _goals().

@@ -27,6 +27,7 @@ static var ACTIONS: Dictionary = {
 	"look_bottom": DeckEffect,
 	"grave_retrieve": DeckEffect,
 	"grave_to_hand": DeckEffect,
+	"grave_copy_to_hand": DeckEffect,
 	"enemy_hand_bottom": DeckEffect,
 	"hand_to_bottom": DeckEffect,
 	"take_control": ControlEffect,
@@ -104,6 +105,7 @@ static var ACTIONS: Dictionary = {
 	"scale": StaticEffect,
 	"base_scale": StaticEffect,
 	"tribe_aura": StaticEffect,
+	"equipped_aura": StaticEffect,
 	"graveyard_armor": StaticEffect,
 	"graveyard_damage_reduction": StaticEffect,
 	"double_constants": StaticEffect,
@@ -115,12 +117,13 @@ static var ACTIONS: Dictionary = {
 	"opponent_aura": StaticEffect,
 	"opponent_cost_tax": StaticEffect,
 	"spell_amplifier": StaticEffect,
+	"strike_cap": StaticEffect,
 	"auto_attack": AutoAttackEffectScript,
 	"shout": ShoutEffectScript,
 }
 
 ## Actions with no target: continuous abilities, never run by a trigger.
-const STATIC_ACTIONS := ["cost_reduction", "scale", "base_scale", "tribe_aura", "graveyard_armor", "graveyard_damage_reduction", "double_constants", "double_enter", "double_death", "momentum_surge", "momentum_cap", "keyword_aura", "opponent_aura", "opponent_cost_tax", "spell_amplifier"]
+const STATIC_ACTIONS := ["cost_reduction", "scale", "base_scale", "tribe_aura", "equipped_aura", "graveyard_armor", "graveyard_damage_reduction", "double_constants", "double_enter", "double_death", "momentum_surge", "momentum_cap", "keyword_aura", "opponent_aura", "opponent_cost_tax", "spell_amplifier", "strike_cap"]
 
 static func is_known(action: String) -> bool:
 	return ACTIONS.has(action)

@@ -9,13 +9,25 @@
   "essence": "montanha",
   "element": "pedra",
   "art": "montanha/farkoveth.webp",
+  "hit_fx": "pedra",
   "cost": 4,
   "atk": 4,
   "hp": 5,
   "keywords": [
-    "intimidacao"
+    "furtividade"
   ],
-  "effects": [],
-  "text": "",
+  "effects": [
+    { "trigger": "on_enter", "action": "buff", "target": "self", "armor": 3 },
+    { "trigger": "on_turn_start", "if": { "not": "armor_spent_last_turn" }, "action": "buff", "target": "self", "armor": 2, "armor_up_to": 3 }
+  ],
+  "activated": {
+    "cost": 1,
+    "speed": "lento",
+    "exhaust": true,
+    "effects": [
+      { "action": "damage", "target": "enemy_unit", "amount_from": "self_atk", "spend_own_armor": true }
+    ]
+  },
+  "text": "Ao Entrar: ganha Armadura 3 permanente.\nNo Início do Seu Turno: se não gastou Armadura no turno anterior, recupera 2 de Armadura, até o máximo de 3.\nAo Ativar (1) {lento} (exaure esta unidade): gasta toda a sua Armadura e causa a uma unidade inimiga dano igual ao seu Ataque mais a Armadura gasta.",
   "flavor": ""
 }

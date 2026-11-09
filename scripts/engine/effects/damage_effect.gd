@@ -18,6 +18,7 @@ extends Effect
 ## "amount_from": "healing_this_round" deals `amount` damage per Vida the controller's Leader and units recovered this turn (Banquete Carmesim).
 ## "lifesteal": true heals the controller's Leader by the damage this effect really dealt (Rália).
 ## "lifesteal_self": true (with lifesteal) also heals this unit by that same damage, if it is still on the board.
+## "spend_own_armor": true (with self_atk) also spends ALL of this unit's own Armadura and adds it to the damage (Farkoveth).
 ## "source_gain_per_kill": N = if the damage kills a unit, this unit permanently gains +N Ataque (Jovahr).
 
 var amount := 0
@@ -35,6 +36,7 @@ var divisor := 1
 var spends_momentum := false
 var source_gain_per_kill := 0
 var graveyard_kind := ""
+var spends_own_armor := false
 
 func _read_parameters(data: Dictionary) -> void:
 	divisor = maxi(1, int(data.get("divisor", 1)))
@@ -52,6 +54,7 @@ func _read_parameters(data: Dictionary) -> void:
 	heals_source_too = bool(data.get("lifesteal_self", false))
 	source_gain_per_kill = int(data.get("source_gain_per_kill", 0))
 	graveyard_kind = String(data.get("graveyard_kind", ""))
+	spends_own_armor = bool(data.get("spend_own_armor", false))
 
 func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
@@ -61,6 +64,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		damage_amount = ceili(game.armor_of(source_unit) / 2.0) if source_unit != null else 0
 	if amount_from == "self_atk":
 		damage_amount = _current_attack_of_source(context)
+		if spends_own_armor:
+			damage_amount += _spend_own_armor(context)
 	if amount_from == "momentum_left":
 		var momentum_left := int(game.players[context.controller]["momentum"])
 		damage_amount = amount * (momentum_left / divisor)
@@ -112,6 +117,17 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		FreezeEffect.new().apply(context, target_uid)
 	if stuns_target:
 		StunEffect.new().apply(context, target_uid)
+
+## Spends every point of Armadura the source unit has of its own and returns how much counted (0 if it already left).
+func _spend_own_armor(context: EffectContext) -> int:
+	var source_unit := context.game.find_unit(context.self_uid)
+	if source_unit == null:
+		return 0
+	var counted_armor := context.game.armor_of(source_unit)
+	if source_unit.armor_total() > 0:
+		source_unit.lose_armor(source_unit.armor_total())
+		source_unit.armor_spent_since_turn_start = true
+	return counted_armor
 
 ## The unit that owns this effect permanently gains Ataque for a kill (nothing happens if it already left the board).
 func _grant_kill_bonus(context: EffectContext) -> void:

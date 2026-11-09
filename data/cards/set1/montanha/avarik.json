@@ -12,14 +12,8 @@
   "hp": 5,
   "keywords": [],
   "effects": [
-    {
-      "trigger": "on_damaged",
-      "action": "buff",
-      "target": "self",
-      "atk": 1,
-      "cap_atk": 2
-    }
+    { "trigger": "constante", "action": "strike_cap", "stat": "hp_left", "at_most": 3, "capped_damage": 1 }
   ],
-  "text": "Ao Sofrer Dano: ganha +1 de Ataque (máximo +2 no total).",
+  "text": "Constante (Édito): todas as unidades em campo, aliadas e inimigas, com 3 ou menos de Vida restante golpeiam causando apenas 1 de dano. Deixa de valer enquanto o Édito do irmão estiver em campo.",
   "flavor": ""
 }

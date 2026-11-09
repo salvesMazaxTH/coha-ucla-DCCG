@@ -501,7 +501,30 @@ func atk_of(c: Card) -> int:
 func strike_power_of(c: Card) -> int:
 	if has_kw(c, "pacifista"):
 		return 0
-	return atk_of(c)
+	return strike_cap_applied(c, atk_of(c))
+
+## "strike_cap" Constante (the edicts of Avarik and Avarion): every unit on EITHER board whose `stat`
+## ("atk" or "hp_left", the CURRENT value) is at most `at_most` strikes for only `capped_damage`.
+## It only touches unit strikes (combat blows and "fight"), never spells or periodic damage.
+## Two strike_cap sources of different cards on the boards cancel each other: both edicts go off.
+func strike_cap_applied(striker: Card, damage: int) -> int:
+	var sources: Array = []
+	for p in 2:
+		for source: Card in players[p]["board"]:
+			for e in card_of(source).get("effects", []):
+				if e.get("trigger", "") == "constante" and e.get("action", "") == "strike_cap":
+					sources.append({"card_id": source.card_id, "effect": e})
+	if sources.is_empty():
+		return damage
+	for entry in sources:
+		if entry["card_id"] != sources[0]["card_id"]:
+			return damage # the two edicts nullify each other
+	for entry in sources:
+		var e: Dictionary = entry["effect"]
+		var stat_value := hp_left(striker) if e.get("stat", "atk") == "hp_left" else atk_of(striker)
+		if stat_value <= int(e.get("at_most", 0)):
+			damage = mini(damage, int(e.get("capped_damage", 1)))
+	return damage
 
 func hp_left(c: Card) -> int:
 	return c.hp_left()
@@ -534,7 +557,7 @@ func _refresh_scaling() -> void:
 			var was_alive := c.hp_left() >= 1
 			var intrinsic := intrinsic_stats_of(p, card_of(c), c)
 			var b := scale_bonus(p, card_of(c), c)
-			var aura := tribe_aura_bonus(c) + opponent_aura_bonus(c)
+			var aura := tribe_aura_bonus(c) + equipped_aura_bonus(c) + opponent_aura_bonus(c)
 			var surge := momentum_surge_of(p, c)
 			c.intrinsic_atk = intrinsic.x
 			c.intrinsic_hp = intrinsic.y
@@ -670,6 +693,25 @@ func tribe_aura_bonus(c: Card, sources_out: Array = []) -> Vector3i:
 			sources_out.append({"source": source.card_id, "atk": int(e.get("atk", 0)) * multiplier, "hp": int(e.get("hp", 0)) * multiplier, "armor": int(e.get("armor", 0)) * multiplier})
 	return bonus * constants_multiplier(c.owner)
 
+## What allied "equipped_aura" Constantes give unit c: only other units wearing at least one equipment qualify.
+## x = Ataque, y = Vida. The source's own aura never reaches itself.
+## `sources_out`, when given, receives one entry per aura that reaches the unit.
+func equipped_aura_bonus(c: Card, sources_out: Array = []) -> Vector3i:
+	var bonus := Vector3i.ZERO
+	if c.equipped_cards.is_empty():
+		return bonus
+	for source: Card in players[c.owner]["board"]:
+		if source == c:
+			continue
+		for e in card_of(source).get("effects", []):
+			if e.get("trigger", "") != "constante" or e.get("action", "") != "equipped_aura":
+				continue
+			var multiplier := constants_multiplier(c.owner)
+			var aura := Vector3i(int(e.get("atk", 0)) * multiplier, int(e.get("hp", 0)) * multiplier, 0)
+			bonus += aura
+			sources_out.append({"source": source.card_id, "atk": aura.x, "hp": aura.y})
+	return bonus
+
 ## What the "opponent_aura" Constantes on the OTHER side of the board give unit `c` (a curse the source puts on the
 ## enemy units: Magni gives every enemy unit +1 Ataque). x = Ataque, y = Vida. The source's owner's double_constants applies.
 ## `sources_out`, when given, receives one {"source": card id, "atk", "hp"} per aura that reaches the unit.
@@ -791,6 +833,7 @@ func constant_sources_of(c: Card) -> Array:
 			var count := _scale_count(c.owner, e, c)
 			raw_sources.append({"source": c.card_id, "atk": count * int(e.get("atk", 0)) * multiplier, "hp": count * int(e.get("hp", 0)) * multiplier})
 	tribe_aura_bonus(c, raw_sources)
+	equipped_aura_bonus(c, raw_sources)
 	opponent_aura_bonus(c, raw_sources)
 	var surge := momentum_surge_of(c.owner, c)
 	var critico_from_surge := c.critico_total() - clampi(c.critico + c.temp_critico, 0, 4) # the surge level only counts when it is higher
@@ -1109,6 +1152,8 @@ func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 		floor_cost = maxi(floor_cost, mini(ice_spell_discount_floor(p, cd), c))
 	c -= amulet_discount
 	c = maxi(c, floor_cost)
+	if card != null and card.zone == "hand" and card.cost_zero_turn == turn:
+		c = 0
 	c += opponent_cost_tax(p, cd) # a curse from the other side of the board; it is a cost, not a discount, so no floor applies
 	if card != null and card.zone == "hand" and play_discount_applies(p, card):
 		c = ceili(float(c) / int(players[p]["play_discount"]["divisor"]))
@@ -1788,6 +1833,9 @@ func can_activate(p: int, uid: int, allow_unreachable := false) -> bool:
 		return false
 	if _has_action(ab["effects"], "revive_pick") and (not has_free_slot(p) or revive_options(p).is_empty()):
 		return false # nothing to bring back, or no slot for it
+	for effect: Dictionary in ab["effects"]:
+		if effect.get("action", "") == "grave_copy_to_hand" and _grave_copy_options(p, effect).is_empty():
+			return false # no matching card to copy from the graveyard
 	for fusion in ab["effects"]:
 		if fusion.get("action", "") == "fuse" and EffectRegistry.parse(fusion).available_parts(self, p) == 0:
 			return false # not enough units to fuse
@@ -2601,6 +2649,34 @@ func choose_search(p: int, card_uid: int) -> Array:
 		stack_system().after_search()
 		stack_system().settle()
 		return _flush()
+	if pending_search.get("grave_copy_to_hand", false):
+		if declined:
+			pending_search.clear()
+			phase = _search_return
+			_emit({"type": "search_decline", "player": p})
+			_check_state()
+			stack_system().after_search()
+			stack_system().settle()
+			return _flush()
+		var original: Card = null
+		for grave_card: Card in players[p]["graveyard"]:
+			if grave_card.uid == card_uid:
+				original = grave_card
+				break
+		if original == null:
+			return []
+		var created := Card.new(_uid(), original.card_id, p)
+		players[p]["hand"].append(created)
+		_move(created, "hand")
+		created.cost_zero_turn = turn
+		last_search_took_card = true
+		pending_search.clear()
+		phase = _search_return
+		_emit({"type": "search_take", "player": p, "uid": created.uid, "card_id": created.card_id})
+		_check_state()
+		stack_system().after_search()
+		stack_system().settle()
+		return _flush()
 	if pending_search.get("grave", false):
 		if declined:
 			# Rebobinar: the player took no card, everything stays in the graveyard
@@ -3400,6 +3476,27 @@ func _begin_grave_to_hand(p: int, e: Dictionary, source_uid: int) -> void:
 	phase = "search"
 	_emit({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options})
 
+## Offers the matching cards in p's graveyard; the pick creates a fresh hand copy and leaves the original behind.
+func _grave_copy_options(p: int, e: Dictionary) -> Array:
+	var options: Array = []
+	for c: Card in players[p]["graveyard"]:
+		if CardFilter.matches(c.card_id, e):
+			options.append({"uid": c.uid, "card_id": c.card_id})
+	return options
+
+func _begin_grave_copy_to_hand(p: int, e: Dictionary, source_uid: int) -> void:
+	if phase == "search":
+		return
+	last_search_took_card = false
+	var options := _grave_copy_options(p, e)
+	if options.is_empty():
+		_emit({"type": "search_empty", "player": p, "source_uid": source_uid})
+		return
+	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "grave_copy_to_hand": true, "grave_optional": true}
+	_search_return = phase
+	phase = "search"
+	_emit({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options})
+
 ## Offers the cards just milled (public: they are in the graveyard); one goes to the hand.
 func _begin_grave_pick(p: int, milled: Array, source_uid: int) -> void:
 	if phase == "search":
@@ -3733,6 +3830,7 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 	var dealt := 0
 	var victim_owner := -1
 	var src_uid := source.uid if source != null else 0
+	var unit_victim: Card = null # the unit this hit landed on (stays null for a Leader), to tell if the hit killed it
 	if t < 0:
 		var tp := LEADER_UID.find(t)
 		victim_owner = tp
@@ -3803,6 +3901,7 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 			return 0
 		c.damage += amount
 		dealt = amount
+		unit_victim = c
 		var damage_event := {"type": "damage", "uid": t, "amount": amount, "src": src_uid, "hp_after": c.hp_left()}
 		if damage_kind != "":
 			damage_event["dot"] = damage_kind
@@ -3856,9 +3955,11 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 	# Ao Causar Dano de Combate: the unit that really dealt combat (or fight) damage fires once per damage instance.
 	# Effect damage never fires it, so a damage effect on this trigger can't fire itself again.
 	# "dealer_atk" keeps its Ataque at the moment of the hit, in case it died before the effect resolves.
+	# "target_died": the hit used up the Vida of a unit (never true for a Leader), for effects that read
+	# "only_if_target_dies" (Gorvakharr grows when he destroys a unit in combat).
 	if _combat_damage and source != null and dealt > 0:
 		_fire(source, "on_deal_combat_damage", t, {"hit_damage": dealt, "target_is_leader": t < 0,
-			"dealer_atk": atk_of(source)})
+			"dealer_atk": atk_of(source), "target_died": unit_victim != null and unit_victim.hp_left() <= 0})
 		# The same fact for listeners (an equipment hears it with scope "carrier": Dentadura Postiça).
 		var combat_hit := GameEvent.new("combat_damage_dealt", source.owner, source)
 		combat_hit.other_uid = t
@@ -4559,6 +4660,9 @@ func _start_turn(p: int, draw: bool) -> void:
 	for c in pl["board"].duplicate():
 		# A unit killed by its own periodic damage no longer gets a turn-start trigger.
 		if find_unit(c.uid) != null:
+			# remembers whether it spent its own Armadura during its owner's previous turn (Farkoveth)
+			c.armor_spent_last_turn = c.armor_spent_since_turn_start
+			c.armor_spent_since_turn_start = false
 			_fire(c, "on_turn_start")
 	_fire_any_turn_trigger(p, "on_any_turn_start")
 	if draw:

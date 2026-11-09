@@ -14,7 +14,9 @@
     "roubo_de_vida"
   ],
   "art": "furia/gorvakharr.webp",
-  "effects": [],
-  "text": "",
+  "effects": [
+    {"trigger": "on_deal_combat_damage", "only_if_target_dies": true, "action": "buff", "target": "self", "atk": 1, "hp": 1}
+  ],
+  "text": "Condicional: quando esta unidade destrói uma unidade em combate, ela recebe +1/+1 permanente.",
   "flavor": "O banquete de cinzas nunca termina."
 }

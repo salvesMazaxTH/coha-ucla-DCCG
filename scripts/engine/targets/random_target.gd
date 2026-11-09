@@ -5,6 +5,7 @@ extends TargetSelector
 ## to pick, so replays stay identical.
 ## A status effect (freeze, exhaust...) never rolls on a unit that already has that status: the pool only holds
 ## units that can still receive it (Effect.is_already_applied_to), and an empty pool means no target.
+## prefer_without_magic_shield: true narrows a random ally pool to unshielded allies when any exist.
 
 const NAMES := ["random_enemy", "random_enemy_unit", "random_enemy_units", "random_enemy_unit_twice", "random_enemy_unit_spread", "random_enemy_spread", "random_frozen_enemy_unit", "most_wounded_enemy_unit", "strongest_enemy_units", "random_enemy_and_adjacent", "random_ally_unit", "random_other_ally_unit", "random_other_ally_units"]
 
@@ -206,9 +207,14 @@ func _strongest_enemy_units(context: EffectContext, effect: Effect) -> Array:
 ## The allies this selector may pick from (no dice rolled, so it is safe to ask "is there anyone?" first).
 func _ally_pool(context: EffectContext, effect: Effect) -> Array:
 	var pool: Array = []
+	var without_magic_shield: Array = []
 	for unit: Card in context.game.players[context.controller]["board"]:
 		if (name == "random_ally_unit" or unit.uid != context.self_uid) and not effect.is_already_applied_to(unit) and _has_wanted_tribe(unit, effect):
 			pool.append(unit.uid)
+			if not unit.magic_shield:
+				without_magic_shield.append(unit.uid)
+	if bool(effect.raw.get("prefer_without_magic_shield", false)) and not without_magic_shield.is_empty():
+		return without_magic_shield
 	return pool
 
 ## True when this selector is a random ally pick that has nobody to pick right now. Other selectors

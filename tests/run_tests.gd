@@ -20,6 +20,9 @@ func _init() -> void:
 	_test_equipment_modifier_sources()
 	_test_porca_frouxa_herda_equipamento()
 	_test_zulmira_ferro_velho()
+	_test_avarik_avarion_edicts()
+	_test_gorvakharr_growth()
+	_test_farkoveth_armor_cycle()
 	_test_art_crop()
 	_test_art_cache_limit()
 	_test_sfx()
@@ -563,7 +566,7 @@ func _test_zulmira_ferro_velho() -> void:
 	g._check_state()
 	check(g.atk_of(zulmira) == 4, "zulmira: 4 artefatos no cemitério dão +2 de Ataque")
 
-	# Ao Ativar: pick the Cristal, it returns to hand costing 1 more, and she exhausts
+	# Ao Ativar: pick the Cristal, a copy of it goes to hand costing (0) this turn (the original stays in the graveyard), and she exhausts
 	g.players[a]["momentum"] = 3
 	var hand_before: int = g.players[a]["hand"].size()
 	g.activate(a, zulmira.uid)
@@ -574,17 +577,124 @@ func _test_zulmira_ferro_velho() -> void:
 	var cristal: Card = graveyard_cards[2]
 	g.choose_search(a, cristal.uid)
 	g._flush()
-	check(g.players[a]["hand"].has(cristal) and g.players[a]["hand"].size() == hand_before + 1, "zulmira: o artefato escolhido vai para a mão")
-	check(g.cost_of(a, cristal.data(), cristal) == int(cristal.data()["cost"]) + 1, "zulmira: o artefato recuperado custa (1) a mais")
+	var copy_in_hand: Card = null
+	for hand_card: Card in g.players[a]["hand"]:
+		if hand_card.card_id == "cristal_do_poder":
+			copy_in_hand = hand_card
+	check(copy_in_hand != null and copy_in_hand != cristal and g.players[a]["hand"].size() == hand_before + 1, "zulmira: uma cópia do artefato escolhido vai para a mão")
+	check(g.players[a]["graveyard"].has(cristal), "zulmira: o artefato original continua no cemitério")
+	check(copy_in_hand != null and g.cost_of(a, copy_in_hand.data(), copy_in_hand) == 0, "zulmira: a cópia custa (0) neste turno")
 	check(zulmira.exhausted and g.players[a]["momentum"] == 2, "zulmira: o Ao Ativar custa 1 e a exaure")
-	check(g.atk_of(zulmira) == 3, "zulmira: com um artefato a menos no cemitério (3), o Ataque cai para 3")
+	check(g.graveyard_artifacts(a) == 4 and g.atk_of(zulmira) == 4, "zulmira: o original fica no cemitério, então o Ataque continua 4")
 
 	# Relojoeiro Pino-14 é Unidade-Artefato: no cemitério conta como artefato (e continua sendo unidade para o filtro de unidades)
 	g.players[a]["graveyard"].append(Card.new(g._uid(), "relojoeiro_pino_14", a, "graveyard"))
 	g._check_state()
-	check(g.graveyard_artifacts(a) == 4 and g.atk_of(zulmira) == 4, "zulmira: o Relojoeiro Pino-14 no cemitério conta como artefato (+1 de Ataque)")
+	check(g.graveyard_artifacts(a) == 5 and g.atk_of(zulmira) == 4, "zulmira: o Relojoeiro Pino-14 no cemitério conta como artefato (5 artefatos, ainda +2 de Ataque)")
 	check(CardDB.has_type(CardDB.card("relojoeiro_pino_14"), "unit") and CardDB.has_type(CardDB.card("relojoeiro_pino_14"), "artifact") and not CardDB.has_type(CardDB.card("relojoeiro_pino_14"), "spell"), "relojoeiro: é unidade e artefato ao mesmo tempo, mas não feitiço")
 	check(CardFilter.matches("relojoeiro_pino_14", {"type": "artifact"}) and CardFilter.matches("relojoeiro_pino_14", {"types_any": ["spell", "artifact"]}) and CardFilter.matches("relojoeiro_pino_14", {"type": "unit"}), "relojoeiro: filtros de busca o aceitam como artefato e como unidade")
+
+## Avarik e Avarion: os Éditos limitam o golpe das unidades fracas a 1, dos dois lados; os dois juntos se anulam.
+func _test_avarik_avarion_edicts() -> void:
+	_tcard("t_edict_weak", 2, 6, [])
+	_tcard("t_edict_strong", 4, 6, [])
+	_tcard("t_edict_fragile", 6, 2, [])
+	var g := _new_game()
+	_quiet(g)
+	var a := g.active
+	var b: int = g.opponent(a)
+	var weak := _put(g, b, "t_edict_weak")
+	var strong := _put(g, b, "t_edict_strong")
+	var fragile := _put(g, a, "t_edict_fragile")
+	check(g.strike_power_of(weak) == 2 and g.strike_power_of(fragile) == 6, "edito: sem Avarik nem Avarion, ninguém é limitado")
+
+	var avarion := _put(g, a, "avarion")
+	check(g.strike_power_of(weak) == 1, "avarion: unidade INIMIGA com Ataque 2 golpeia só 1")
+	check(g.strike_power_of(strong) == 4 and g.strike_power_of(fragile) == 6, "avarion: Ataque 4 ou mais não é limitado")
+	check(g.strike_power_of(avarion) == 5, "avarion: ele mesmo (Ataque 5) fica de fora")
+	var ally_weak := _put(g, a, "t_edict_weak")
+	check(g.strike_power_of(ally_weak) == 1, "avarion: vale também para as unidades do próprio dono")
+	check(g._deal_damage(strong.uid, 3, null) == 3, "avarion: dano que não é golpe (feitiço, efeito, periódico) não é limitado")
+	strong.damage = 0
+
+	g.players[a]["board"].erase(avarion)
+	check(g.strike_power_of(weak) == 2, "avarion: sem ele em campo o limite some")
+
+	var avarik := _put(g, a, "avarik")
+	check(g.strike_power_of(fragile) == 1, "avarik: unidade com 2 de Vida restante golpeia só 1")
+	check(g.strike_power_of(strong) == 4 and g.strike_power_of(weak) == 2, "avarik: unidades com Vida alta não são limitadas")
+	check(g.strike_power_of(avarik) == 4, "avarik: começa com 5 de Vida, então ainda golpeia com 4")
+	avarik.damage = 2 # 3 de Vida restante
+	check(g.strike_power_of(avarik) == 1, "avarik: ferido até 3 de Vida, o Édito o alcança e ele golpeia só 1")
+	avarik.damage = 0
+
+	var avarion_again := _put(g, a, "avarion")
+	check(g.strike_power_of(weak) == 2 and g.strike_power_of(fragile) == 6, "edito: Avarik e Avarion juntos em campo, os dois Éditos se desligam")
+	g.players[a]["board"].erase(avarion_again)
+	check(g.strike_power_of(fragile) == 1, "edito: sai um dos irmãos e o outro Édito volta a valer")
+
+## Gorvakharr: grows +1/+1 for good only when his combat hit destroys a unit (not on a hit that leaves it alive, not on the Leader).
+func _test_gorvakharr_growth() -> void:
+	_tcard("t_gorva_frail", 1, 4, [])
+	_tcard("t_gorva_tough", 1, 9, [])
+	var g := _new_game()
+	_quiet(g)
+	var gorva := _put(g, 0, "gorvakharr") # 4/3
+	var tough := _put(g, 1, "t_gorva_tough")
+	tough.exhausted = true
+	_hit(g, gorva, tough.uid)
+	check(g.find_unit(tough.uid) != null and g.atk_of(gorva) == 4, "gorvakharr: golpe que não destrói a unidade não o faz crescer")
+
+	g = _new_game()
+	_quiet(g)
+	gorva = _put(g, 0, "gorvakharr")
+	var frail := _put(g, 1, "t_gorva_frail")
+	frail.exhausted = true
+	_hit(g, gorva, frail.uid)
+	check(g.find_unit(frail.uid) == null, "gorvakharr: o golpe destrói a unidade de 4 de Vida")
+	check(g.atk_of(gorva) == 5 and gorva.hp_left() == 3 + 1 - gorva.damage, "gorvakharr: ao destruir uma unidade em combate, recebe +1/+1 permanente")
+
+	g = _new_game()
+	_quiet(g)
+	gorva = _put(g, 0, "gorvakharr")
+	_put(g, 1, "t_gorva_tough") # standing: doesn't close the face
+	_hit(g, gorva)
+	check(g.atk_of(gorva) == 4, "gorvakharr: bater no Líder não o faz crescer")
+
+## Farkoveth: enters with Armadura 3; his Ao Ativar spends ALL of it for ATQ + Armadura damage; at the start of his
+## owner's turn he regains 2 Armadura (never above 3) only if he spent none on his previous turn.
+func _test_farkoveth_armor_cycle() -> void:
+	_tcard("t_fark_dummy", 1, 20, [])
+	var g := _new_game()
+	_quiet(g)
+	var a := g.active
+	var farkoveth := _put(g, a, "farkoveth")
+	var dummy := _put(g, 1 - a, "t_fark_dummy")
+	check(g.armor_of(farkoveth) == 3, "farkoveth: entra com Armadura 3")
+
+	g.players[a]["momentum"] = 3
+	g.activate(a, farkoveth.uid, dummy.uid)
+	g._flush()
+	check(dummy.damage == 7, "farkoveth: o Ao Ativar causa Ataque (4) + Armadura gasta (3) = 7 de dano")
+	check(g.armor_of(farkoveth) == 0 and farkoveth.exhausted, "farkoveth: gastou toda a Armadura e ficou exausto")
+
+	_next_turn(g)
+	_next_turn(g) # his turn starts: he spent Armadura last turn, so he regains nothing
+	check(g.armor_of(farkoveth) == 0, "farkoveth: gastou Armadura no turno anterior, então não recupera")
+	_next_turn(g)
+	_next_turn(g) # a whole turn without spending
+	check(g.armor_of(farkoveth) == 2, "farkoveth: sem gastar no turno anterior, recupera 2 de Armadura")
+	_next_turn(g)
+	_next_turn(g)
+	check(g.armor_of(farkoveth) == 3, "farkoveth: a recuperação para no máximo de 3 de Armadura")
+	_next_turn(g)
+	_next_turn(g)
+	check(g.armor_of(farkoveth) == 3, "farkoveth: já com 3 de Armadura, nada é acrescentado")
+
+	# the markers survive a save/load round trip
+	farkoveth.armor_spent_last_turn = true
+	var restored := Card.from_dict(farkoveth.to_dict(), "board", a)
+	check(restored.armor_spent_last_turn and not restored.armor_spent_since_turn_start, "farkoveth: os marcadores de Armadura gasta sobrevivem à serialização")
 
 ## Grã-Montadora Nina: when an ally dies wearing equipment and she wears none, the equipment moves to her
 ## (out of the graveyard) and gives her the same bonus it gave the fallen unit.
@@ -3103,7 +3213,7 @@ func _test_ai_enter_damage() -> void:
 	var wasted := _new_game()
 	_quiet(wasted)
 	var coral := _put(wasted, 1, "sentinela_coral")
-	var enemy_grower := _put(wasted, 1, "avarik")
+	var enemy_grower := _put(wasted, 1, "geodo_vivo")
 	wasted.players[0]["momentum"] = 10
 	wasted.play_card(0, _give(wasted, 0, "ronan"))
 	SimpleAI.step(wasted, 0)
@@ -13965,16 +14075,29 @@ func _test_eight_new_cards() -> void:
 	esther = g.find_unit(esther_uid)
 	check(g.find_unit(spared.uid) != null and g.players[0]["leader_hp"] == leader_before and g.atk_of(esther) == 3 and not g.has_kw(esther, "impeto"), "Esther: recusar o sacrifício não muda nada")
 
-	# Jovahr: freezes an enemy on entering
+	# Jovahr: entering offers the very same Maré/Brasa choice as attacking
 	g = _new_game()
 	_quiet(g)
 	g.players[0]["momentum"] = 10
-	var freeze_victim := _put(g, 1, "t_eight_sturdy_five")
-	var jovahr_uid := _give(g, 0, "jovahr")
-	g.play_card(0, jovahr_uid)
-	g.choose_enter_target(0, freeze_victim.uid)
-	check(freeze_victim.is_frozen(), "Jovahr: ao entrar congela a unidade escolhida")
-	# Jovahr on attack: every Congelada enemy takes 2 and 1 Queimadura then thaws; a kill gives +1 Ataque; others are untouched
+	var enter_victim := _put(g, 1, "t_eight_sturdy_five")
+	var enter_jovahr_uid := _give(g, 0, "jovahr")
+	g.play_card(0, enter_jovahr_uid)
+	_pass_windows(g)
+	check(g.phase == "effect_choice" and g.effect_choice_available(0) and g.effect_choice_available(1), "Jovahr: Ao Entrar abre a escolha Maré/Brasa")
+	g.choose_effect_option(0, 0, enter_victim.uid)
+	check(enter_victim.is_frozen(), "Jovahr: Maré no Ao Entrar congela a unidade escolhida")
+	# Jovahr, Maré: on attacking, the player picks one enemy and it is frozen (no Ao Entrar anymore)
+	g = _new_game()
+	_quiet(g)
+	var tide_victim := _put(g, 1, "t_eight_sturdy_five")
+	var tide_bystander := _put(g, 1, "t_eight_sturdy_five")
+	var tide_jovahr := _put(g, 0, "jovahr")
+	_hit(g, tide_jovahr)
+	_pass_windows(g)
+	check(g.phase == "effect_choice" and g.effect_choice_available(0) and g.effect_choice_available(1), "Jovahr: Ao Atacar abre a escolha Maré/Brasa")
+	g.choose_effect_option(0, 0, tide_victim.uid)
+	check(tide_victim.is_frozen() and not tide_bystander.is_frozen(), "Jovahr: Maré congela só a unidade escolhida")
+	# Jovahr, Brasa: every Congelada enemy takes 3 and 1 Queimadura then thaws; a kill gives +1 Ataque; others are untouched
 	g = _new_game()
 	_quiet(g)
 	var jovahr := _put(g, 0, "jovahr")
@@ -13986,9 +14109,11 @@ func _test_eight_new_cards() -> void:
 	var jovahr_attack_before: int = g.atk_of(jovahr)
 	_hit(g, jovahr)
 	_pass_windows(g)
-	check(g.find_unit(doomed.uid) == null, "Jovahr: Congelada com pouca Vida morre no Ao Atacar")
+	g.choose_effect_option(0, 1)
+	_pass_windows(g)
+	check(g.find_unit(doomed.uid) == null, "Jovahr: Congelada com pouca Vida morre na Brasa")
 	check(g.atk_of(jovahr) == jovahr_attack_before + 1, "Jovahr: ganha +1 de Ataque permanente pela morte")
-	check(frozen_survivor.damage == 2 and int(frozen_survivor.dot_markers.get("queimadura", 0)) == 1 and not frozen_survivor.is_frozen(), "Jovahr: Congelada que sobrevive leva 2, 1 Queimadura e descongela")
+	check(frozen_survivor.damage == 3 and int(frozen_survivor.dot_markers.get("queimadura", 0)) == 1 and not frozen_survivor.is_frozen(), "Jovahr: Congelada que sobrevive leva 3, 1 Queimadura e descongela")
 	check(not_frozen.damage == 0 and not not_frozen.dot_markers.has("queimadura"), "Jovahr: unidade não Congelada não é afetada")
 
 ## Ao Desafiar (on_challenge) and Rália: when she challenges a unit she throws a fixed 2 damage at up to 3

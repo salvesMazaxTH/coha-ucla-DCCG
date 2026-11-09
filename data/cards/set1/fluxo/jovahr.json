@@ -13,32 +13,51 @@
   "effects": [
     {
       "trigger": "on_enter",
-      "action": "freeze",
-      "target": "enemy_unit"
+      "action": "choose_effect",
+      "target": "none",
+      "options": [
+        {
+          "title": "Maré",
+          "detail": "Congela uma unidade inimiga à sua escolha.",
+          "effects": [
+            {"action": "freeze", "target": "enemy_unit"}
+          ]
+        },
+        {
+          "title": "Brasa",
+          "detail": "Cada unidade inimiga Congelada sofre 3 de dano (se isso a matar, Jovahr ganha +1 de Ataque permanente) e recebe 1 marcador de Queimadura; depois, elas descongelam.",
+          "effects": [
+            {"action": "damage", "target": "all_enemy_units", "unit_state": "frozen", "amount": 3, "source_gain_per_kill": 1},
+            {"action": "add_dot", "target": "all_enemy_units", "unit_state": "frozen", "dot": "queimadura", "amount": 1},
+            {"action": "unfreeze", "target": "all_enemy_units", "unit_state": "frozen"}
+          ]
+        }
+      ]
     },
     {
       "trigger": "on_attack",
-      "action": "damage",
-      "target": "all_enemy_units",
-      "unit_state": "frozen",
-      "amount": 2,
-      "source_gain_per_kill": 1
-    },
-    {
-      "trigger": "on_attack",
-      "action": "add_dot",
-      "target": "all_enemy_units",
-      "unit_state": "frozen",
-      "dot": "queimadura",
-      "amount": 1
-    },
-    {
-      "trigger": "on_attack",
-      "action": "unfreeze",
-      "target": "all_enemy_units",
-      "unit_state": "frozen"
+      "action": "choose_effect",
+      "target": "none",
+      "options": [
+        {
+          "title": "Maré",
+          "detail": "Congela uma unidade inimiga à sua escolha.",
+          "effects": [
+            {"action": "freeze", "target": "enemy_unit"}
+          ]
+        },
+        {
+          "title": "Brasa",
+          "detail": "Cada unidade inimiga Congelada sofre 3 de dano (se isso a matar, Jovahr ganha +1 de Ataque permanente) e recebe 1 marcador de Queimadura; depois, elas descongelam.",
+          "effects": [
+            {"action": "damage", "target": "all_enemy_units", "unit_state": "frozen", "amount": 3, "source_gain_per_kill": 1},
+            {"action": "add_dot", "target": "all_enemy_units", "unit_state": "frozen", "dot": "queimadura", "amount": 1},
+            {"action": "unfreeze", "target": "all_enemy_units", "unit_state": "frozen"}
+          ]
+        }
+      ]
     }
   ],
-  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela é congelada.\nAo Atacar: cada unidade inimiga Congelada sofre 2 de dano (se isso a matar, esta unidade ganha +1 de Ataque permanente) e recebe 1 marcador de Queimadura; depois, elas descongelam.",
+  "text": "Ao Entrar: você escolhe um — uma unidade inimiga à sua escolha é congelada; ou cada unidade inimiga Congelada sofre 3 de dano (se isso a matar, esta unidade ganha +1 de Ataque permanente) e recebe 1 marcador de Queimadura, e depois elas descongelam.\nAo Atacar: o mesmo efeito do Ao Entrar.",
   "flavor": ""
 }

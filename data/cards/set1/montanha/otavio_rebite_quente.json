@@ -9,7 +9,9 @@
   "atk": 6,
   "hp": 8,
   "keywords": ["armadura:2"],
-  "effects": [],
+  "effects": [
+    { "trigger": "constante", "action": "equipped_aura", "atk": 1, "hp": 2 }
+  ],
   "activated": {
     "cost": 2,
     "speed": "rapido",
@@ -20,7 +22,7 @@
       { "action": "ready", "target": "ally_unit" }
     ]
   },
-  "text": "Ao Ativar (2) {rapido} (exaure esta unidade): concede +1 de Ataque para cada artefato seu em jogo até o fim do turno a uma unidade aliada e a desvira. Se ela for Lendária, concede também Ataque Duplo até o fim do turno.",
+  "text": "Constante: suas outras unidades aliadas com pelo menos um equipamento ganham +1/+2.\nAo Ativar (2) {rapido} (exaure esta unidade): concede +1 de Ataque para cada artefato seu em jogo até o fim do turno a uma unidade aliada e a desvira. Se ela for Lendária, concede também Ataque Duplo até o fim do turno.",
   "flavor": "",
   "art": "montanha/otavio_rebite_quente.webp"
 }

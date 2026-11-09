@@ -4,6 +4,7 @@ extends Effect
 ## only until end of turn). "armor": N adds Armadura permanently (stacks with what it already has);
 ## "armor_temp": N is the same until its owner's next turn starts. With "temp": true "armor" also lasts only until end of turn. "atk_temp": N does that for Ataque.
 ## "armor_min": N raises the unit's Armadura to N when it is lower (nothing happens when it already has N or more).
+## "armor_up_to": N (with "armor") gives at most the Armadura missing to reach N in total (Farkoveth regains 2, never above 3).
 ## "magic_shield_temp": true gives Escudo Mágico only until its owner's next turn starts (Tyren; a unit that already
 ## has a permanent Escudo Mágico keeps it as it is).
 ## "supreme_shield_until": "next_turn" gives Escudo Supremo until its owner's next turn starts. The "escudo_supremo" keyword
@@ -49,6 +50,7 @@ var health_floor := 0 ## "hp_floor": the Vida that is left (hp_left) never drops
 var armor := 0
 var temporary_armor := 0
 var minimum_armor := 0
+var armor_up_to := 0 ## "armor_up_to": the Armadura the unit has after this buff never passes this total (0 = no limit)
 var temporary_magic_shield := false
 var supreme_shield_until := "" ## "next_turn" or "end_turn": a timed Escudo Supremo ("" = none asked for)
 var temporary_attack_until_next_turn := 0
@@ -98,6 +100,7 @@ func _read_parameters(data: Dictionary) -> void:
 	armor = int(data.get("armor", 0))
 	temporary_armor = int(data.get("armor_temp", 0))
 	minimum_armor = int(data.get("armor_min", 0))
+	armor_up_to = int(data.get("armor_up_to", 0))
 	temporary_magic_shield = bool(data.get("magic_shield_temp", false))
 	supreme_shield_until = String(data.get("supreme_shield_until", ""))
 	temporary_attack_until_next_turn = int(data.get("atk_temp", 0))
@@ -164,6 +167,13 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		multiplier = context.sacrificed_attack
 	var attack_gain: int = attack * multiplier
 	var health_gain: int = health * multiplier
+	var armor_gain := armor
+	if armor_up_to > 0:
+		# "armor_up_to": gives only the Armadura missing to reach that total (nothing at all when the unit is already there)
+		armor_gain = mini(armor, armor_up_to - unit.armor_total())
+		if armor_gain <= 0 and attack_gain == 0 and health_gain == 0 and keywords.is_empty():
+			return
+		armor_gain = maxi(armor_gain, 0)
 	if health_floor > 0 and health_gain < 0:
 		# only remove the Vida that fits above the floor (a unit already at the floor loses none)
 		var removable_health: int = maxi(0, unit.hp_left() - health_floor)
@@ -183,9 +193,9 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	var end_of_turn_changes := {}
 	var until_next_turn_changes := {}
 	if temporary:
-		end_of_turn_changes = {"atk": attack_gain, "hp": health_gain, "armor": armor}
+		end_of_turn_changes = {"atk": attack_gain, "hp": health_gain, "armor": armor_gain}
 	else:
-		permanent_changes = {"atk": attack_gain, "hp": health_gain, "armor": armor}
+		permanent_changes = {"atk": attack_gain, "hp": health_gain, "armor": armor_gain}
 	until_next_turn_changes = {"atk": temporary_attack_until_next_turn, "hp": temporary_health_until_next_turn, "armor": temporary_armor}
 	if temporary:
 		unit.temp_atk += attack_gain
@@ -216,9 +226,9 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	health_gain += temporary_health_until_next_turn
 	unit.temp_armor += temporary_armor # lasts until the unit's owner starts their next turn
 	if temporary: # "temp": true makes the plain Armadura last only until the end of this turn
-		unit.turn_armor += armor
+		unit.turn_armor += armor_gain
 	else:
-		unit.armor += armor # Armadura stacks: giving Armadura X to a unit that has Y leaves X + Y
+		unit.armor += armor_gain # Armadura stacks: giving Armadura X to a unit that has Y leaves X + Y
 	var armor_raised_to := 0
 	if minimum_armor > unit.armor:
 		_add_changes(permanent_changes, {"armor": minimum_armor - unit.armor})

@@ -11,6 +11,7 @@ var owner: int
 var zone := "" ## "deck" / "hand" / "board" / "relics" / "graveyard" / "banished" / "sanctuary" / "stack" / "equipped" / ""
 var discount := 0 ## costs this much less while it stays in hand (Tecnomante; negative = costs more, Cornélia Aldrovane); cleared when it leaves the hand
 var turn_discount := 0 ## costs this much less until the end of the current turn while it stays in hand
+var cost_zero_turn := -1 ## this copy costs 0 during this turn; -1 = no turn-specific zero cost
 var cost_mod := 0 ## added to the cost in every zone and never reset (A Vagante Sombria: -1 per card of yours sent to the graveyard)
 var permanent_buffs: Dictionary = {} ## permanent unit upgrades that survive a non-death return to hand or the Santuário
 var banish_after_cast := false ## taken back from the graveyard by "grave_retrieve": it is banished when its next cast ends
@@ -68,6 +69,8 @@ var pending_self_revive_atk := 0
 var pending_self_revive_hp := 0
 var dot_markers: Dictionary = {} ## accumulated periodic-status markers, keyed by dot id
 var tide_mark := false
+var armor_spent_since_turn_start := false ## it spent its own Armadura since its owner's last turn began (Farkoveth)
+var armor_spent_last_turn := false ## the flag above as it stood when its owner's current turn began
 var used_turn: Dictionary = {} ## effect index -> turn it was last used (once_per_turn)
 var capped_uses: Dictionary = {} ## effect index -> [turn, times it fired that turn] (max_per_turn on a unit trigger)
 var conditional_uses_turn := -1 ## the turn "conditional_uses_per_turn" is counting (Seymour)
@@ -99,10 +102,10 @@ var stored_momentum := 0 ## Momentum held by an artifact with "momentum_store": 
 ## Fields copy_modifiers_from leaves alone: who the card is and where it is, what only matters in other zones, and
 ## what a unit DID (not what was done to it).
 const NOT_COPIED_FIELDS := ["uid", "card_id", "owner", "zone", "over", "incarnation", "equipped_cards", "worn_grant",
-		"discount", "turn_discount", "cost_mod", "banish_after_cast", "banish_at_turn_end", "home_owner",
+		"discount", "turn_discount", "cost_zero_turn", "cost_mod", "banish_after_cast", "banish_at_turn_end", "home_owner",
 		"intrinsic_atk", "intrinsic_hp",
 		"pending_self_revive_turn", "pending_self_revive_atk", "pending_self_revive_hp",
-		"exhausted", "sick", "attacks_made", "used_turn", "capped_uses", "conditional_uses_turn", "conditional_uses",
+		"exhausted", "sick", "attacks_made", "armor_spent_since_turn_start", "armor_spent_last_turn", "used_turn", "capped_uses", "conditional_uses_turn", "conditional_uses",
 		"trigger_counts", "dodge_turn", "activated_turn", "activated_zone_used", "capped_heal_turn", "capped_heal_total",
 		"capped_heal_locked", "heal_blocked_until", "leader_damage_guard_turn", "death_ward_armed", "banish_on_death", "durability_used", "durability_uses",
 		"stored_momentum"]
@@ -226,6 +229,8 @@ func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:
 	condemned_turn = 0
 	dot_markers = {}
 	tide_mark = false
+	armor_spent_since_turn_start = false
+	armor_spent_last_turn = false
 	used_turn = {}
 	capped_uses = {}
 	conditional_uses_turn = -1
@@ -481,6 +486,8 @@ func to_dict() -> Dictionary:
 		d["discount"] = discount
 	if zone == "hand" and turn_discount > 0:
 		d["turn_discount"] = turn_discount
+	if zone == "hand" and cost_zero_turn >= 0:
+		d["cost_zero_turn"] = cost_zero_turn
 	if cost_mod != 0:
 		d["cost_mod"] = cost_mod
 	if not permanent_buffs.is_empty():
@@ -571,6 +578,8 @@ func to_dict() -> Dictionary:
 		d["dot_markers"] = dot_markers.duplicate()
 	if tide_mark:
 		d["tide_mark"] = true
+	if armor_spent_since_turn_start or armor_spent_last_turn:
+		d["armor_spent"] = [armor_spent_since_turn_start, armor_spent_last_turn]
 	if not used_turn.is_empty():
 		d["used_turn"] = used_turn.duplicate()
 	if not capped_uses.is_empty():
@@ -615,6 +624,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	var c := Card.new(int(d["uid"]), String(d["card_id"]), int(d.get("owner", owner_player)), in_zone)
 	c.discount = int(d.get("discount", 0))
 	c.turn_discount = int(d.get("turn_discount", 0))
+	c.cost_zero_turn = int(d.get("cost_zero_turn", -1))
 	c.cost_mod = int(d.get("cost_mod", 0))
 	c.permanent_buffs = d.get("permanent_buffs", {}).duplicate(true)
 	c.death_ward_armed = bool(d.get("death_ward_armed", false))
@@ -674,6 +684,9 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	if d.has("burn") and int(d["burn"]) > 0:
 		c.dot_markers["queimadura"] = int(d["burn"])
 	c.tide_mark = bool(d.get("tide_mark", false))
+	if d.has("armor_spent"):
+		c.armor_spent_since_turn_start = bool(d["armor_spent"][0])
+		c.armor_spent_last_turn = bool(d["armor_spent"][1])
 	c.used_turn = d.get("used_turn", {})
 	c.capped_uses = d.get("capped_uses", {}).duplicate()
 	c.trigger_counts = d.get("trigger_counts", {}).duplicate()

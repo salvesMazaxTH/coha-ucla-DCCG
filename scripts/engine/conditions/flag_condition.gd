@@ -1,8 +1,8 @@
 class_name FlagCondition
 extends Condition
-## The simple string conditions: "if": "momentum_left" | "unspent_momentum" | "momentum_leaked" | "reserve_full" | "played_two" | "oldest_of_its_name" | "no_snowball_in_hand_or_deck" | "gained_momentum_this_turn" | "lethal_attack" | "no_stunned_enemy".
+## The simple string conditions: "if": "momentum_left" | "unspent_momentum" | "momentum_leaked" | "reserve_full" | "played_two" | "oldest_of_its_name" | "no_snowball_in_hand_or_deck" | "gained_momentum_this_turn" | "lethal_attack" | "no_stunned_enemy" | "armor_spent_last_turn" (this unit spent its own Armadura since its owner's previous turn began; Farkoveth).
 
-const NAMES := ["momentum_left", "unspent_momentum", "momentum_leaked", "reserve_full", "played_two", "oldest_of_its_name", "no_snowball_in_hand_or_deck", "gained_momentum_this_turn", "lethal_attack", "no_stunned_enemy"]
+const NAMES := ["momentum_left", "unspent_momentum", "momentum_leaked", "reserve_full", "played_two", "oldest_of_its_name", "no_snowball_in_hand_or_deck", "gained_momentum_this_turn", "lethal_attack", "no_stunned_enemy", "armor_spent_last_turn"]
 
 var name := ""
 
@@ -22,6 +22,9 @@ func check(context: EffectContext) -> bool:
 		"gained_momentum_this_turn": return player["momentum_gain_turn"] == context.game.turn
 		"lethal_attack": return _attack_is_lethal(context)
 		"no_stunned_enemy": return not _enemy_has_stunned_unit(context)
+		"armor_spent_last_turn":
+			var source_unit := context.game.find_unit(context.self_uid)
+			return source_unit != null and source_unit.armor_spent_last_turn
 		"no_snowball_in_hand_or_deck":
 			return not _has_snowball(player["hand"]) and not _has_snowball(player["deck"])
 	return true

@@ -24,8 +24,17 @@
       ],
       "atk": 1,
       "hp": 1
+    },
+    {
+      "trigger": "on_turn_start",
+      "action": "buff",
+      "target": "random_other_ally_unit",
+      "prefer_without_magic_shield": true,
+      "keywords_this_turn": [
+        "escudo_magico"
+      ]
     }
   ],
-  "text": "Ao Entrar: você pode conceder +1/+1 permanente e, só neste turno, Escudo Mágico a outra unidade aliada à sua escolha.",
+  "text": "Ao Entrar: você pode conceder +1/+1 permanente e, só neste turno, Escudo Mágico a outra unidade aliada à sua escolha.\nNo Início do Seu Turno: outra unidade aliada aleatória recebe Escudo Mágico neste turno.",
   "flavor": "Quebra sobre eles, e volta à calma."
 }
