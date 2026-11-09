@@ -9,6 +9,7 @@
   "atk": 5,
   "hp": 9,
   "keywords": [],
+  "element": "sangue",
   "art": "trevas/coagulhao.webp",
   "effects": [
     { "trigger": "on_enter", "action": "add_dot", "dot": "sangramento", "target": "all_enemy_units", "amount": 1 },

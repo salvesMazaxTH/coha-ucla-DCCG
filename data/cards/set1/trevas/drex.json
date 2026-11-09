@@ -14,6 +14,7 @@
   "atk": 2,
   "hp": 4,
   "keywords": ["escudo", "roubo_de_vida"],
+  "element": "sangue",
   "shared_x": { "start": 2 },
   "conditional_uses_per_turn": 2,
   "art": "trevas/drex.webp",

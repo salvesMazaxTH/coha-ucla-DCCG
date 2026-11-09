@@ -92,18 +92,28 @@ func _shot_path(from: Control, to: Control, arc: float, arc_cap: float) -> Dicti
 ## "espinho" on the Flor Voraz). Leaders and cards without the field use the default bolt ("").
 func _hit_style_of(source: Control) -> String:
 	if source is CardView:
-		return String(CardDB.card((source as CardView).card_id).get("hit_fx", ""))
+		var card := CardDB.card((source as CardView).card_id)
+		# the card's own "hit_fx" always wins
+		if card.has("hit_fx"):
+			return String(card["hit_fx"])
+		# opt-in "fx_from_element": true makes a unit fly the shot of its element (Cryo Hulglack: ice shards)
+		if bool(card.get("fx_from_element", false)):
+			for element in CardDB.elements_of(card):
+				if SPELL_SHOT_STYLES.has(element):
+					return SPELL_SHOT_STYLES[element]
 	return ""
 
 ## Elements whose single-target spells fire the default bolt in a color of their own, instead of the
 ## color of their domain. To give another element its own shot color, add its line here.
 const ELEMENT_SHOT_COLORS := {
 	"luz": Color("#fff1b8"), # white-yellow, like holy light
+	"sangue": Color("#c8202e"), # blood red, darker than the orange of Fúria
 }
 
 ## Elements (or area styles) whose single-target spells fly a shot of their own instead of the
-## default bolt: a real lightning strike, a thrown rock, an ice shard, a glob of venom, a wind blade.
-const SPELL_SHOT_STYLES := {"raio": "raio", "pedra": "pedra", "gelo": "gelo", "veneno": "veneno", "vento": "vento"}
+## default bolt: a real lightning strike, a thrown rock, an ice shard, a glob of venom, a wind blade,
+## a fireball.
+const SPELL_SHOT_STYLES := {"raio": "raio", "pedra": "pedra", "gelo": "gelo", "veneno": "veneno", "vento": "vento", "fogo": "fogo"}
 
 ## The hit style a single-target spell fires with: its own "hit_fx" when it declares one (that always
 ## wins), else the shot of one of its elements, else the shot of its area style (FxCasts.style_of), else of its domain
@@ -164,6 +174,8 @@ func _shot_timing(style: String, first_shot: bool) -> Dictionary:
 			return {"charge": (VENOM_CHARGE_FIRST if first_shot else VENOM_CHARGE_NEXT) * pace, "flight": VENOM_FLIGHT * pace}
 		"vento":
 			return {"charge": (WIND_CHARGE_FIRST if first_shot else WIND_CHARGE_NEXT) * pace, "flight": WIND_FLIGHT * pace}
+		"fogo":
+			return {"charge": (FIREBALL_CHARGE_FIRST if first_shot else FIREBALL_CHARGE_NEXT) * pace, "flight": FIREBALL_FLIGHT * pace}
 	return {"charge": (BOLT_CHARGE_FIRST if first_shot else BOLT_CHARGE_NEXT) * pace, "flight": BOLT_FLIGHT * pace}
 
 ## Plays the shot of one effect, from the card whose trigger caused it to what it hits, in the
@@ -193,6 +205,8 @@ func _effect_hit(style: String, from: Control, to: Control, t: float, col: Color
 			return _venom_shot(from, to, t, first_shot)
 		"vento":
 			return _wind_shot(from, to, t, first_shot)
+		"fogo":
+			return _fireball_shot(from, to, t, first_shot)
 	return _effect_bolt(from, to, t, col, first_shot)
 
 ## The default hit style: the effect is spat out of its source as a flaming comet that slams into
@@ -2785,5 +2799,218 @@ func _wind_shot(from: Control, to: Control, t: float, first_shot: bool) -> float
 		_knock_back(to, travel, 16.0, 0.26) # wind shoves harder than it hurts
 		var cleanup := holder.create_tween()
 		cleanup.tween_interval(WIND_GUST_TIME + 0.2)
+		cleanup.tween_callback(holder.queue_free))
+	return charge + flight
+
+# ---------------------------------------------------------------------------------------------
+# "fogo": a fireball
+
+const FIREBALL_CHARGE_FIRST := 0.2 ## the fireball forming on the caster before the first throw
+const FIREBALL_CHARGE_NEXT := 0.0
+const FIREBALL_FLIGHT := 0.3 ## time in the air: thrown hard, on a low arc
+const FIREBALL_BLAST_TIME := 0.55 ## how long the explosion, its embers and smoke last
+const FIREBALL_CORE := Color("#fff4c2")
+const FIREBALL_BODY := Color("#ff9a2e")
+const FIREBALL_EDGE := Color("#e8401c")
+const FIREBALL_SMOKE := Color("#4a3a32")
+
+## Builds the fireball: layers of glow, red at the outside, orange in the body and almost white in the
+## core, so it reads as a hot ball of fire and not as a flat dot. Big chains skip the wide outer glow.
+func _make_fireball(radius: float, rich: bool) -> Node2D:
+	var ball := Node2D.new()
+	if rich:
+		ball.add_child(fx_library._glow_sprite(radius * 2.2, Color(FIREBALL_EDGE, 0.55)))
+	ball.add_child(fx_library._glow_sprite(radius * 1.4, FIREBALL_EDGE))
+	ball.add_child(fx_library._glow_sprite(radius * 1.05, FIREBALL_BODY))
+	ball.add_child(fx_library._glow_sprite(radius * 0.6, FIREBALL_CORE))
+	return ball
+
+## The flames the fireball sheds while it flies: hot puffs that stay where they were left, rise a
+## little, shrink and cool from white to orange to red before they vanish (that is the trail of fire).
+func _make_fireball_trail(radius: float) -> CPUParticles2D:
+	var trail := CPUParticles2D.new()
+	trail.emitting = false
+	trail.local_coords = false # the flames stay behind, so they draw the trail
+	trail.amount = maxi(12, int(36 * fx_library.fx_scale))
+	trail.lifetime = 0.32
+	trail.emission_shape = CPUParticles2D.EMISSION_SHAPE_SPHERE
+	trail.emission_sphere_radius = radius * 0.5
+	trail.spread = 180.0
+	trail.gravity = Vector2(0, -70) # flames rise
+	trail.initial_velocity_min = 5.0
+	trail.initial_velocity_max = 30.0
+	trail.scale_amount_min = radius * 0.45
+	trail.scale_amount_max = radius * 0.8
+	var shrink := Curve.new()
+	shrink.add_point(Vector2(0.0, 1.0))
+	shrink.add_point(Vector2(1.0, 0.15))
+	trail.scale_amount_curve = shrink
+	var cooling := Gradient.new()
+	cooling.offsets = PackedFloat32Array([0.0, 0.3, 0.7, 1.0])
+	cooling.colors = PackedColorArray([FIREBALL_CORE, FIREBALL_BODY, Color(FIREBALL_EDGE, 0.6), Color(FIREBALL_EDGE, 0.0)])
+	trail.color_ramp = cooling
+	trail.material = fx_library._additive()
+	return trail
+
+## The "fogo" hit style, a fireball (single-target fire spells):
+## 1. forming (first shot of a trigger only): the fireball swells on the caster;
+## 2. flight: it is thrown on a low arc, flickering, leaving a trail of flames that rise and cool;
+## 3. impact: it explodes on the target: a hot flash, a burst of fire thrown out in all directions,
+##    embers, a puff of dark smoke rising, and the target is knocked back.
+## Follows both ends if they move. Returns the time from t until the fireball lands.
+func _fireball_shot(from: Control, to: Control, t: float, first_shot: bool) -> float:
+	var timing := _shot_timing("fogo", first_shot)
+	var charge: float = timing["charge"]
+	var flight: float = timing["flight"]
+	var launch_t := t + charge
+	var impact_t := launch_t + flight
+	var rich := fx_library.fx_scale >= 0.7 # big chains skip the outer glow and the smoke
+	var path := _shot_path(from, to, 0.12, 45.0) # thrown hard: a low arc
+	var ends: Dictionary = path["ends"]
+	var refresh_ends: Callable = path["refresh"]
+	var point_at: Callable = path["point_at"]
+	# the lambdas below reach the shot's nodes through this dictionary instead of capturing them
+	var parts := {}
+	var alive := func(key: String) -> Node:
+		var node = parts.get(key)
+		return node if is_instance_valid(node) else null
+
+	var ball := _make_fireball(16.0, rich)
+	ball.z_index = 26
+	ball.visible = false
+	fx.add_child(ball)
+	parts["ball"] = ball
+	var trail := _make_fireball_trail(16.0)
+	trail.z_index = 25
+	fx.add_child(trail)
+	parts["trail"] = trail
+
+	# --- 1. forming: the ball swells on the caster (a later shot of a volley appears already formed)
+	var ball_tween := fx.create_tween()
+	ball_tween.tween_interval(t)
+	ball_tween.tween_callback(func():
+		var ball_node: Node2D = alive.call("ball")
+		if ball_node == null:
+			return # the table was reset mid-animation
+		refresh_ends.call()
+		ball_node.position = ends["a"]
+		ball_node.scale = Vector2.ZERO if charge > 0.0 else Vector2.ONE
+		ball_node.visible = true)
+	if charge > 0.0:
+		ball_tween.tween_method(func(k: float):
+			var ball_node: Node2D = alive.call("ball")
+			if ball_node != null:
+				ball_node.scale = Vector2.ONE * k, 0.0, 1.0, charge).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+	# --- 2. flight: the ball flickers along its arc, shedding flames
+	ball_tween.tween_callback(func():
+		var trail_node: CPUParticles2D = alive.call("trail")
+		if trail_node != null:
+			trail_node.position = ends["a"]
+			trail_node.emitting = true)
+	ball_tween.tween_method(func(k: float):
+		refresh_ends.call()
+		var ball_node: Node2D = alive.call("ball")
+		if ball_node == null:
+			return
+		var position_now: Vector2 = point_at.call(k)
+		ball_node.position = position_now
+		# fire never holds still: the ball pulses a little all the way
+		ball_node.scale = Vector2.ONE * (1.0 + sin(k * TAU * 5.0) * 0.08)
+		var trail_node: CPUParticles2D = alive.call("trail")
+		if trail_node != null:
+			trail_node.position = position_now, 0.0, 1.0, flight)
+	ball_tween.tween_callback(func():
+		var ball_node: Node = alive.call("ball")
+		if ball_node != null:
+			ball_node.queue_free()
+		var trail_node: CPUParticles2D = alive.call("trail")
+		if trail_node != null:
+			trail_node.emitting = false
+			var trail_cleanup := trail_node.create_tween()
+			trail_cleanup.tween_interval(0.4)
+			trail_cleanup.tween_callback(trail_node.queue_free))
+
+	# --- 3. impact: the explosion
+	var impact_holder := Node2D.new()
+	impact_holder.z_index = 27
+	fx.add_child(impact_holder)
+	parts["impact"] = impact_holder
+	var impact_tween := fx.create_tween()
+	impact_tween.tween_interval(impact_t)
+	impact_tween.tween_callback(func():
+		var holder: Node2D = alive.call("impact")
+		if holder == null:
+			return
+		refresh_ends.call()
+		var hit_point: Vector2 = ends["b"]
+		var travel: Vector2 = (ends["b"] - ends["a"]).normalized()
+		# the hot flash of the blast: swells fast and fades
+		var flash := fx_library._glow_sprite(46.0, FIREBALL_CORE)
+		flash.position = hit_point
+		var flash_full := flash.scale
+		flash.scale = flash_full * 0.4
+		holder.add_child(flash)
+		var flash_tween := flash.create_tween()
+		flash_tween.tween_property(flash, "scale", flash_full * 1.3, 0.1).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		flash_tween.tween_property(flash, "modulate:a", 0.0, 0.25)
+		# the burst of fire: puffs thrown out in all directions that slow down, shrink and cool
+		var blast := _particle_burst(26, 0.45, FIREBALL_CORE, Color(FIREBALL_EDGE, 0.0))
+		var blast_colors := Gradient.new()
+		blast_colors.offsets = PackedFloat32Array([0.0, 0.25, 0.65, 1.0])
+		blast_colors.colors = PackedColorArray([FIREBALL_CORE, FIREBALL_BODY, Color(FIREBALL_EDGE, 0.7), Color(FIREBALL_EDGE, 0.0)])
+		blast.color_ramp = blast_colors
+		blast.spread = 180.0
+		blast.initial_velocity_min = 90.0
+		blast.initial_velocity_max = 240.0
+		blast.damping_min = 250.0
+		blast.damping_max = 400.0
+		blast.scale_amount_min = 6.0
+		blast.scale_amount_max = 13.0
+		var blast_shrink := Curve.new()
+		blast_shrink.add_point(Vector2(0.0, 1.0))
+		blast_shrink.add_point(Vector2(1.0, 0.2))
+		blast.scale_amount_curve = blast_shrink
+		blast.material = fx_library._additive()
+		blast.position = hit_point
+		holder.add_child(blast)
+		blast.emitting = true
+		# embers: small bright sparks, flung on in the travel direction and falling
+		var sparks := _particle_burst(14, 0.5, Color.WHITE, Color(FIREBALL_BODY, 0.0))
+		sparks.direction = travel
+		sparks.spread = 70.0
+		sparks.gravity = Vector2(0, 420)
+		sparks.initial_velocity_min = 140.0
+		sparks.initial_velocity_max = 300.0
+		sparks.scale_amount_min = 2.0
+		sparks.scale_amount_max = 3.5
+		sparks.material = fx_library._additive()
+		sparks.position = hit_point
+		holder.add_child(sparks)
+		sparks.emitting = true
+		# a puff of dark smoke rising after the fire is gone
+		if rich:
+			var smoke := _particle_burst(8, FIREBALL_BLAST_TIME, Color(FIREBALL_SMOKE, 0.0), Color(FIREBALL_SMOKE, 0.0))
+			var smoke_colors := Gradient.new()
+			smoke_colors.offsets = PackedFloat32Array([0.0, 0.3, 1.0])
+			smoke_colors.colors = PackedColorArray([Color(FIREBALL_SMOKE, 0.0), Color(FIREBALL_SMOKE, 0.55), Color(FIREBALL_SMOKE, 0.0)])
+			smoke.color_ramp = smoke_colors
+			smoke.explosiveness = 0.7
+			smoke.direction = Vector2.UP
+			smoke.spread = 40.0
+			smoke.gravity = Vector2(0, -60)
+			smoke.initial_velocity_min = 20.0
+			smoke.initial_velocity_max = 50.0
+			smoke.scale_amount_min = 9.0
+			smoke.scale_amount_max = 15.0
+			smoke.emission_shape = CPUParticles2D.EMISSION_SHAPE_SPHERE
+			smoke.emission_sphere_radius = 16.0
+			smoke.position = hit_point
+			smoke.z_index = -1 # behind the fire
+			holder.add_child(smoke)
+			smoke.emitting = true
+		_knock_back(to, travel, 10.0, 0.22)
+		var cleanup := holder.create_tween()
+		cleanup.tween_interval(FIREBALL_BLAST_TIME + 0.25)
 		cleanup.tween_callback(holder.queue_free))
 	return charge + flight

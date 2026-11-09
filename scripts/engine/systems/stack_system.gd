@@ -172,7 +172,7 @@ func resolve_stack() -> void:
 		if gone:
 			game._emit({"type": "fizzle", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"], "target": item.get("target", 0), "target2": item.get("target2", 0)})
 		else:
-			game._emit({"type": "resolve", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"], "target": item.get("target", 0), "target2": item.get("target2", 0)})
+			game._emit({"type": "resolve", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"], "uid": int(item.get("uid", 0)), "target": item.get("target", 0), "target2": item.get("target2", 0)})
 			if is_enter:
 				var entering := game.find_unit(int(item["uid"]))
 				if entering != null:

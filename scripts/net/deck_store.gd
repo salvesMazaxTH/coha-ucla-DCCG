@@ -5,7 +5,7 @@ extends Node
 ## localStorage on the web export, user://decks.json on desktop).
 ##
 ## A deck is always handled as the same Dictionary, wherever it is kept:
-##   {id, name, description, leader, incarnation_id, cards {card_id: copies}, updated_at, cloud, problems [String]}
+##   {id, name, description, leader, incarnation_id, cards {card_id: copies}, created_at, updated_at, cloud, problems [String]}
 ## `problems` lists what had to be repaired while loading (unknown cards dropped, unknown Leader...).
 ## Rules are NOT enforced here: an unfinished deck is a valid draft. DeckDB.validate_cards judges it.
 ##
@@ -79,8 +79,8 @@ func account_name() -> String:
 
 # ---------------------------------------------------------------- reading
 
-## Every deck of the current destination (the account while signed in, this device otherwise), most
-## recently changed first.
+## Every deck of the current destination (the account while signed in, this device otherwise), newest
+## CREATED first. Editing a deck never moves it: the order only depends on when the deck was created.
 func list() -> Array[Dictionary]:
 	var decks: Array[Dictionary] = []
 	if is_cloud():
@@ -88,9 +88,12 @@ func list() -> Array[Dictionary]:
 			if row is Dictionary:
 				decks.append(normalize(row, true))
 	else:
-		for row in _read_local():
+		for row in _read_local_with_creation_dates():
 			decks.append(normalize(row, false))
-	decks.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return String(a["updated_at"]) > String(b["updated_at"]))
+	decks.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if a["created_at"] != b["created_at"]:
+			return String(a["created_at"]) > String(b["created_at"])
+		return String(a["id"]) > String(b["id"])) # same instant: the id keeps the order stable
 	return decks
 
 func find(deck_id: String) -> Dictionary:
@@ -145,6 +148,7 @@ static func normalize(row: Dictionary, cloud: bool) -> Dictionary:
 		"leader": leader,
 		"incarnation_id": incarnation_id,
 		"cards": DeckDB.sorted_cards(cards),
+		"created_at": String(row.get("created_at", row.get("updated_at", ""))),
 		"updated_at": String(row.get("updated_at", row.get("created_at", ""))),
 		"cloud": cloud,
 		"problems": problems,
@@ -224,6 +228,19 @@ func _read_local() -> Array[Dictionary]:
 			rows.append(row)
 	return rows
 
+## Decks saved on this device before `created_at` existed have none: the last-changed date is the closest
+## thing to a creation date, so it is written once into those rows and from then on never moves.
+func _read_local_with_creation_dates() -> Array[Dictionary]:
+	var rows := _read_local()
+	var missing_any := false
+	for row in rows:
+		if String(row.get("created_at", "")) == "":
+			row["created_at"] = String(row.get("updated_at", ""))
+			missing_any = true
+	if missing_any:
+		_write_local(rows)
+	return rows
+
 func _write_local(rows: Array) -> bool:
 	var text := JSON.stringify({"version": 1, "decks": rows})
 	if use_web_storage:
@@ -248,8 +265,10 @@ func _save_local(deck_id: String, deck_name: String, content: Dictionary) -> voi
 			row = existing
 			break
 	if row.is_empty():
-		row = {"id": _new_local_id()}
+		row = {"id": _new_local_id(), "created_at": now}
 		rows.append(row)
+	elif String(row.get("created_at", "")) == "":
+		row["created_at"] = String(row.get("updated_at", now))
 	row["name"] = deck_name
 	row["content"] = content
 	row["updated_at"] = now

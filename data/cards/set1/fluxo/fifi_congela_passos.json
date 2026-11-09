@@ -8,6 +8,7 @@
   ],
   "essence": "fluxo",
   "element": "gelo",
+  "fx_from_element": true,
   "cost": 3,
   "atk": 2,
   "hp": 3,

@@ -32,7 +32,7 @@
     "trevas": {
       "name": "Trevas",
       "color": "#44444c",
-      "elements": ["sombra"]
+      "elements": ["sombra", "sangue"]
     },
     "devocao": {
       "name": "Devoção",

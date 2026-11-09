@@ -5558,6 +5558,9 @@ func _animate(events: Array, old: Dictionary) -> float:
 			"trigger_end":
 				trig_src = 0 # the effects that follow have no card to fly out of
 				area_cast_active = false
+					# what it destroys follows the same rule as what it hits: the card's own cast_fx or its
+					# element first, the X only when it has neither
+					destroy_cast_style = fx_casts.destroy_style_of(String(e["card_id"]))
 			"shout":
 				if actors.has(e["uid"]):
 					cursor = fx_library._shout_fx(actors[e["uid"]], String(e["text"]), cursor, String(e.get("style", "")))
@@ -5575,6 +5578,7 @@ func _animate(events: Array, old: Dictionary) -> float:
 				var uid: int = e["uid"]
 				var cd := CardDB.card(e["card_id"])
 				var origin: Dictionary = {"c": Vector2(lane_cx + EHAND_DX, 30), "rot": 0.0, "w": 96.0}
+				destroy_cast_style = ""
 				if e.get("incarnation", false) and old.has("cmd%d" % e["player"]):
 					origin = old["cmd%d" % e["player"]]["pose"]
 				elif e.get("requiem", false):
@@ -5674,6 +5678,16 @@ func _animate(events: Array, old: Dictionary) -> float:
 				cursor += 0.4
 			"magic_shield_break", "supreme_shield_break", "tide_mark", "tide_draw", "dot", "dot_immune", "freeze", "exhaust", "ready", "stun", "stun_tick", "shrink", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up", "heal_block", "heal_prevented":
 				if actors.has(e["uid"]):
+				# a unit's activated ability announces itself ("trigger") BEFORE it resolves, and the resolve clears
+				# the chain above, so link the unit back as the source: its hits, area cast and destroys then work
+				# exactly like the ones of an Ao Entrar
+				var ability_source_uid := int(e.get("uid", 0))
+				if e["kind"] == "unit_ability" and actors.has(ability_source_uid):
+					trig_src = ability_source_uid
+					trig_style = fx_shots._hit_style_of(actors[trig_src])
+					trig_shots = 0
+					destroy_cast_style = fx_casts.destroy_style_of(resolved_card_id)
+					area_cast_active = fx_casts.is_area(resolved_card_id, "on_activate")
 					var dot_name: String = {"queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento"}.get(String(e.get("dot", "")), "Marcador")
 					var dot_label := "%s %d" % [dot_name, int(e.get("amount", 0))]
 					if not e.get("cleared", false):

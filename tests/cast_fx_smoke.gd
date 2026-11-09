@@ -39,6 +39,9 @@ func _test_real_cards() -> void:
 	check(casts.is_area("pira_mundo", "on_play"), "pira_mundo: continua com a parede de chamas")
 	check(casts.is_area("tsunami", "on_play"), "tsunami: continua com a onda")
 	check(casts.is_area("julgamento_da_era_afogada", "on_play"), "julgamento_da_era_afogada: continua com a onda")
+	# Coagulhão (Trevas/Fluxo, element sangue by deliberate exception): its Ao Entrar floods the arena with blood
+	check(casts.style_of("coagulhao") == "sangue", "coagulhao: elemento sangue dá a maré de sangue")
+	check(casts.is_area("coagulhao", "on_enter"), "coagulhao: o Ao Entrar toca a maré de sangue em área")
 	# the rule is generic: any card with its own hit_fx (and no cast_fx) is never an area cast, for any trigger
 	for card_id in CardDB.data()["cards"]:
 		var card: Dictionary = CardDB.card(card_id)
@@ -66,16 +69,42 @@ func _test_temporary_cards() -> void:
 	# declaring BOTH is also an express choice of the area animation, so the cast_fx is honored
 	check(casts.is_area("t_own_shots_and_cast", "on_enter"), "quem declara hit_fx E cast_fx pediu a conjuração de área, ela toca")
 	# no element and no cast_fx (Coagulhão, a Fluxo card that is not water), or an element with no area
-	# animation (pedra): the area effect flies the default bolts instead
+	# animation (metal): the area effect flies the default bolts instead
 	_add_temporary_card("t_no_element", {"essence": "fluxo", "effects": enter_effects})
+	_add_temporary_card("t_metal", {"element": "metal", "effects": enter_effects})
 	_add_temporary_card("t_stone", {"element": "pedra", "effects": enter_effects})
+	_add_temporary_card("t_vine", {"element": "vegetal", "effects": enter_effects})
 	_add_temporary_card("t_no_element_cast", {"cast_fx": "agua", "effects": enter_effects})
 	check(not casts.is_area("t_no_element", "on_enter"), "carta Fluxo sem elemento: o domínio não dá animação de área, usa os lasers padrão")
-	check(not casts.is_area("t_stone", "on_enter"), "elemento pedra (sem animação de área): usa os lasers padrão")
+	check(not casts.is_area("t_metal", "on_enter"), "elemento metal (sem animação de área): usa os lasers padrão")
+	check(casts.is_area("t_stone", "on_enter"), "elemento pedra: toca o deslizamento de rochas em área")
+	check(casts.is_area("t_vine", "on_enter"), "elemento vegetal: toca o espinheiral em área")
 	check(casts.is_area("t_no_element_cast", "on_enter"), "cast_fx declarado toca a animação de área mesmo sem elemento")
+	# a sangue destroy bleeds the unit dry (its own animation), instead of the red X
+	_add_temporary_card("t_blood_destroy", {"type": "spell", "element": "sangue",
+		"effects": [{"trigger": "on_play", "action": "destroy", "target": "enemy_unit"}]})
+	check(casts.destroy_style_of("t_blood_destroy") == "sangue", "destruição de sangue tem a animação própria (sangrar a unidade)")
+	CardDB.data()["cards"].erase("t_blood_destroy")
+	# a raio destroy electrocutes the unit, a gelo one freezes and shatters it and a luz one smites it with holy light
+	for element_and_style in [["raio", "raio"], ["gelo", "gelo"], ["luz", "luz"]]:
+		_add_temporary_card("t_destroy_" + element_and_style[0], {"type": "spell", "element": element_and_style[0],
+			"effects": [{"trigger": "on_play", "action": "destroy", "target": "enemy_unit"}]})
+		check(casts.destroy_style_of("t_destroy_" + element_and_style[0]) == element_and_style[1], "destruição de %s: animação '%s'" % [element_and_style[0], element_and_style[1]])
+		CardDB.data()["cards"].erase("t_destroy_" + element_and_style[0])
+	# destroy_fx wins over cast_fx and element, but only for destroys; without it cast_fx keeps deciding
+	var destroy_effects := [{"trigger": "on_enter", "action": "destroy", "target": "enemy_unit"}]
+	_add_temporary_card("t_destroy_fx", {"element": "fogo", "cast_fx": "agua", "destroy_fx": "sangue", "effects": destroy_effects})
+	_add_temporary_card("t_cast_fx_only", {"element": "fogo", "cast_fx": "agua", "effects": destroy_effects})
+	_add_temporary_card("t_destroy_fx_invalid", {"element": "fogo", "destroy_fx": "fagulha", "effects": destroy_effects})
+	check(casts.destroy_style_of("t_destroy_fx") == "sangue", "destroy_fx ganha do cast_fx e do elemento na destruição")
+	check(casts.style_of("t_destroy_fx") == "agua", "destroy_fx não muda a animação de área (cast_fx continua valendo)")
+	check(casts.destroy_style_of("t_cast_fx_only") == "agua", "sem destroy_fx, o cast_fx continua decidindo a destruição")
+	check(casts.destroy_style_of("t_destroy_fx_invalid") == "", "destroy_fx sem animação de destruição cai no X vermelho")
+	for card_id in ["t_destroy_fx", "t_cast_fx_only", "t_destroy_fx_invalid"]:
+		CardDB.data()["cards"].erase(card_id)
 	# a trigger the card has no harmful area effect for is still not an area cast, with or without hit_fx
 	check(not casts.is_area("t_plain_fire", "on_play"), "gatilho sem efeito em área não é conjuração de área")
-	for card_id in ["t_plain_fire", "t_own_shots", "t_own_shots_and_cast", "t_plain_fire_spell", "t_own_shots_spell", "t_no_element", "t_stone", "t_no_element_cast"]:
+	for card_id in ["t_plain_fire", "t_own_shots", "t_own_shots_and_cast", "t_plain_fire_spell", "t_own_shots_spell", "t_no_element", "t_metal", "t_stone", "t_vine", "t_no_element_cast"]:
 		CardDB.data()["cards"].erase(card_id)
 
 ## Registers a throwaway card in the loaded card data (this process only, nothing is written to disk).

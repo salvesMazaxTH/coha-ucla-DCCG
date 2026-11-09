@@ -254,6 +254,13 @@ func _test_card_sets() -> void:
 
 ## Same cards with the same copies, ignoring order and int-vs-float (deck JSON files load numbers as floats).
 func _same_copies(first: Dictionary, second: Dictionary) -> bool:
+## The ids of a list of decks, in order.
+func _deck_ids(decks: Array) -> Array:
+	var ids: Array = []
+	for deck in decks:
+		ids.append(deck["id"])
+	return ids
+
 	if first.size() != second.size():
 		return false
 	for card_id in first:
@@ -356,6 +363,30 @@ func _test_deck_builder_rules() -> void:
 	full_store.free()
 
 	# decks registered at run time (the player's own and the ones received for an online room)
+	# the order of the player's decks follows the CREATION date: editing a deck never moves it
+	var order_store := DeckStore.new()
+	order_store.use_web_storage = false
+	order_store.allow_cloud = false
+	order_store.local_path = "user://test_decks_order.json"
+	if FileAccess.file_exists(order_store.local_path):
+		DirAccess.remove_absolute(order_store.local_path)
+	var order_content := DeckStore.to_content(leader, fogo["cards"])
+	order_store._write_local([
+		{"id": "local-old", "name": "Velho", "content": order_content, "created_at": "2026-01-01T10:00:00Z", "updated_at": "2026-01-01T10:00:00Z"},
+		{"id": "local-new", "name": "Novo", "content": order_content, "created_at": "2026-06-01T10:00:00Z", "updated_at": "2026-06-01T10:00:00Z"},
+		# a deck saved before `created_at` existed: its last-changed date is used, once
+		{"id": "local-legacy", "name": "Antigo", "content": order_content, "updated_at": "2026-03-01T10:00:00Z"},
+	])
+	check(_deck_ids(order_store.list()) == ["local-new", "local-legacy", "local-old"], "DeckStore: a lista segue a data de criação (%s)" % [_deck_ids(order_store.list())])
+	order_store.save_deck("local-old", "Velho editado", leader, fogo["cards"]) # the oldest deck, just modified
+	order_store.save_deck("local-legacy", "Antigo editado", leader, fogo["cards"])
+	check(_deck_ids(order_store.list()) == ["local-new", "local-legacy", "local-old"], "DeckStore: editar um deck não muda a posição dele (%s)" % [_deck_ids(order_store.list())])
+	order_store.save_deck("", "Recém-criado", leader, fogo["cards"])
+	check(order_store.list()[0]["name"] == "Recém-criado" and order_store.list().size() == 4, "DeckStore: o deck recém-criado entra na ponta da lista")
+	if FileAccess.file_exists(order_store.local_path):
+		DirAccess.remove_absolute(order_store.local_path)
+	order_store.free()
+
 	DeckDB.register_custom("mine:teste", "Meu deck", "descrição", leader, fogo["cards"])
 	check(DeckDB.has("mine:teste") and DeckDB.section_of("mine:teste") == DeckDB.SECTION_MINE and DeckDB.get_deck("mine:teste")["leader"] == leader, "DeckDB.register_custom: o deck existe e fica em MEUS DECKS")
 	check(DeckDB.custom_ids(DeckDB.PLAYER_PREFIX).has("mine:teste") and not DeckDB.ids().has("mine:teste"), "DeckDB.custom_ids: separado dos decks prontos")
@@ -10735,6 +10766,10 @@ func _test_furia_blood_cards() -> void:
 
 	# Gorbo Escarra-Rubra: 1 de dano e 1 marcador de Sangramento na unidade escolhida
 	g = _new_game()
+	# exceção deliberada: a Trevas também aceita Sangue (Coagulhão), a Fluxo não
+	check(CardDB.data()["essences"]["trevas"]["elements"].has("sangue") and not CardDB.data()["essences"]["fluxo"]["elements"].has("sangue"), "Sangue liberado também para a Trevas, não para a Fluxo")
+	check(CardDB.card("coagulhao")["element"] == "sangue", "Coagulhão é do elemento Sangue")
+	check(CardDB.card("drex")["element"] == "sangue", "Drex é do elemento Sangue")
 	_quiet(g)
 	g.players[0]["momentum"] = 10
 	var bystander := _put(g, 1, "t_blood_big")
