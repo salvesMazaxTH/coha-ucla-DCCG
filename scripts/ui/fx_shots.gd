@@ -106,8 +106,8 @@ const ELEMENT_SHOT_COLORS := {
 const SPELL_SHOT_STYLES := {"raio": "raio", "pedra": "pedra", "gelo": "gelo", "veneno": "veneno", "vento": "vento"}
 
 ## The hit style a single-target spell fires with: its own "hit_fx" when it declares one (that always
-## wins), else the shot of one of its elements, else the shot of its area style (FxCasts.style_of:
-## a Tormenta spell with no shot element fires lightning), else the default bolt ("").
+## wins), else the shot of one of its elements, else the shot of its area style (FxCasts.style_of), else of its domain
+## (FxCasts.domain_style_of: a Tormenta spell with no shot element fires lightning), else the default bolt ("").
 ## The element is looked up first because some elements (vento) have a shot but no area animation.
 func spell_hit_style(card_id: String) -> String:
 	var card := CardDB.card(card_id)
@@ -116,7 +116,10 @@ func spell_hit_style(card_id: String) -> String:
 	for element in CardDB.elements_of(card):
 		if SPELL_SHOT_STYLES.has(element):
 			return SPELL_SHOT_STYLES[element]
-	return String(SPELL_SHOT_STYLES.get(host.fx_casts.style_of(card_id), ""))
+	var area_style: String = host.fx_casts.style_of(card_id)
+	if area_style == "":
+		area_style = host.fx_casts.domain_style_of(card_id)
+	return String(SPELL_SHOT_STYLES.get(area_style, ""))
 
 ## The color a single-target spell's shots fly in: its element's color from ELEMENT_SHOT_COLORS when
 ## it has one there, otherwise `domain_color` (what every other spell uses).

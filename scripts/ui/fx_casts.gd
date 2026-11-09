@@ -8,8 +8,10 @@ extends RefCounted
 ##   (a wall of fire sweeping across, a water sphere bursting into a flood...), instead of one shot per target.
 ##
 ## Which area animation plays comes from the card: its own "cast_fx" field if it has one, otherwise
-## its element (fogo, agua...), otherwise its domain. Elements without an animation of their own yet use
-## a shockwave in the card's color (see area_cast).
+## its element (fogo, agua...). NEVER its domain: a Fluxo card with no element (Coagulhão) is not water.
+## A card with no area animation that fits it (no cast_fx, no element, or an element with no area animation
+## yet like pedra and vegetal) is NOT an area cast: its hits fly as the default bolts, one per target,
+## even when it hits the whole table (see is_area).
 ## The exception: a card that expressly names its own "hit_fx" (the rubies of Cuspa-Rubi, the slashes of
 ## Rália...) is NOT an area cast, so it keeps firing those shots, one per target (see is_area).
 ## Most of it is built from the same cheap pieces as the shots (soft glow dots, lines, one tinted
@@ -36,7 +38,7 @@ func _init(host_node, library: FxLibrary) -> void:
 const HARMFUL_ACTIONS := ["damage", "destroy", "add_dot", "freeze", "stun", "exhaust", "condemn", "banish", "bounce", "damage_split"]
 
 ## Which area animation each element plays. An element missing from this list falls back to its
-## domain (DOMAIN_STYLES), then to the generic shockwave. To give an element its own animation, write
+## generic shockwave (a safety net: is_area only lets AREA_STYLES through). To give an element its own animation, write
 ## a function like _fire_area and add its line here and in area_cast.
 ## Some styles only have an area animation (gelo, luz, raio), some only a destroy one (pedra, vegetal);
 ## veneno has both. A missing one falls back to the shockwave (area) or the red X (destroy).
@@ -45,7 +47,13 @@ const ELEMENT_STYLES := {
 	"gelo": "gelo", "luz": "luz", "raio": "raio",
 	"pedra": "pedra", "vegetal": "vegetal", "veneno": "veneno",
 }
+## Only for the SHOTS of a single-target spell (FxShots.spell_hit_style): a Tormenta spell with no element
+## still fires lightning. It never picks an area animation.
 const DOMAIN_STYLES := {"furia": "fogo", "fluxo": "agua", "tormenta": "raio"}
+
+## The styles that really have an area animation (see area_cast). Any other style, pedra and vegetal
+## included (they only have a destroy animation), plays the default bolts instead.
+const AREA_STYLES := ["fogo", "agua", "gelo", "luz", "raio", "veneno"]
 
 ## The styles that have their own single-unit destroy animation (see destroy_cast).
 const DESTROY_STYLES := ["fogo", "agua", "pedra", "vegetal", "veneno"]
@@ -70,16 +78,20 @@ static func dissolve_color_of(style: String) -> Color:
 		"veneno": return VENOM_PURPLE
 	return Color.WHITE
 
-## The area animation a card plays: its "cast_fx", or the style of its element, or of its domain.
-## An empty string means the generic shockwave in the card's color.
+## The style a card plays: its "cast_fx", or the style of its element (never its domain).
+## An empty string means it has none.
 func style_of(card_id: String) -> String:
 	var card := CardDB.card(card_id)
 	if card.has("cast_fx"):
 		return String(card["cast_fx"])
-	var element := String(card.get("element", ""))
-	if ELEMENT_STYLES.has(element):
-		return ELEMENT_STYLES[element]
-	for domain in CardDB.essences_of(card):
+	for element in CardDB.elements_of(card):
+		if ELEMENT_STYLES.has(element):
+			return ELEMENT_STYLES[element]
+	return ""
+
+## The style of the card's domain (furia = fogo...). Only for choosing a shot, never an area animation.
+func domain_style_of(card_id: String) -> String:
+	for domain in CardDB.essences_of(CardDB.card(card_id)):
 		if DOMAIN_STYLES.has(domain):
 			return DOMAIN_STYLES[domain]
 	return ""
@@ -93,6 +105,8 @@ func style_of(card_id: String) -> String:
 func is_area(card_id: String, trigger: String) -> bool:
 	var card := CardDB.card(card_id)
 	if card.has("hit_fx") and not card.has("cast_fx"):
+		return false
+	if not style_of(card_id) in AREA_STYLES:
 		return false
 	for effect in card.get("effects", []):
 		if String(effect.get("trigger", "")) != trigger:
@@ -124,7 +138,7 @@ func area_cast(card_id: String, origin: Vector2, t: float) -> float:
 			return _lightning_area(t)
 		"veneno":
 			return _poison_area(origin, t)
-	# any other style (pedra, vegetal have only a destroy animation) gets the shockwave
+	# is_area only lets the styles above through, so this shockwave is just a safety net
 	return _shockwave_area(origin, t, host._elem_color(card_id))
 
 ## A rectangle over the whole arena with `shader`, the "aspect" already set (used by the area casts).

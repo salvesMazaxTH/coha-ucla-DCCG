@@ -65,9 +65,17 @@ func _test_temporary_cards() -> void:
 	check(not casts.is_area("t_own_shots_spell", "on_play"), "feitiço fogo com hit_fx: mantém os tiros dele")
 	# declaring BOTH is also an express choice of the area animation, so the cast_fx is honored
 	check(casts.is_area("t_own_shots_and_cast", "on_enter"), "quem declara hit_fx E cast_fx pediu a conjuração de área, ela toca")
+	# no element and no cast_fx (Coagulhão, a Fluxo card that is not water), or an element with no area
+	# animation (pedra): the area effect flies the default bolts instead
+	_add_temporary_card("t_no_element", {"essence": "fluxo", "effects": enter_effects})
+	_add_temporary_card("t_stone", {"element": "pedra", "effects": enter_effects})
+	_add_temporary_card("t_no_element_cast", {"cast_fx": "agua", "effects": enter_effects})
+	check(not casts.is_area("t_no_element", "on_enter"), "carta Fluxo sem elemento: o domínio não dá animação de área, usa os lasers padrão")
+	check(not casts.is_area("t_stone", "on_enter"), "elemento pedra (sem animação de área): usa os lasers padrão")
+	check(casts.is_area("t_no_element_cast", "on_enter"), "cast_fx declarado toca a animação de área mesmo sem elemento")
 	# a trigger the card has no harmful area effect for is still not an area cast, with or without hit_fx
 	check(not casts.is_area("t_plain_fire", "on_play"), "gatilho sem efeito em área não é conjuração de área")
-	for card_id in ["t_plain_fire", "t_own_shots", "t_own_shots_and_cast", "t_plain_fire_spell", "t_own_shots_spell"]:
+	for card_id in ["t_plain_fire", "t_own_shots", "t_own_shots_and_cast", "t_plain_fire_spell", "t_own_shots_spell", "t_no_element", "t_stone", "t_no_element_cast"]:
 		CardDB.data()["cards"].erase(card_id)
 
 ## Registers a throwaway card in the loaded card data (this process only, nothing is written to disk).
