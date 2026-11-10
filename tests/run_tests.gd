@@ -419,6 +419,18 @@ func _test_deck_builder_rules() -> void:
 		check(not banned_try["errors"].is_empty(), "BANIDO: check_incoming recusa o Líder banido")
 		check(not DeckDB.is_leader_banned("lider_que_nao_existe") and not DeckDB.is_deck_banned("deck_que_nao_existe"), "BANIDO: id desconhecido não quebra")
 
+		# BANIDO em carta: marca uma carta comum como banida só durante o teste
+		var card_data: Dictionary = CardDB.data()["cards"][plain_id]
+		check(not DeckDB.is_card_banned(plain_id) and not DeckDB.is_card_banned("carta_fantasma"), "BANIDO carta: sem o campo, nada é banido e id desconhecido não quebra")
+		card_data["banned"] = true
+		check(DeckDB.is_card_banned(plain_id) and DeckDB.has_banned_card({plain_id: 1}) and not DeckDB.has_banned_card({}), "BANIDO carta: o campo banned marca a carta")
+		var legal_cards: Dictionary = DeckDB.get_deck("fogo")["cards"].duplicate()
+		legal_cards[plain_id] = 1
+		var banned_card_try := DeckDB.check_incoming({"leader": leader, "cards": legal_cards})
+		check(not banned_card_try["errors"].is_empty() and String(banned_card_try["errors"][0]).contains("banida"), "BANIDO carta: check_incoming recusa deck com carta banida (%s)" % [banned_card_try["errors"]])
+		card_data.erase("banned")
+		check(not DeckDB.is_card_banned(plain_id), "BANIDO carta: sem o campo a carta volta a ser livre")
+
 ## (The Sfx autoload does not exist in -s mode, so the script is loaded directly; its table and mapping are static.)
 ## Any spell card: effects run with it as their source count as coming from a spell
 const SPELL_SOURCE := "lianas_capturantes"
