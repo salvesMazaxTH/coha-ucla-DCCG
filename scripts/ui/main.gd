@@ -2068,8 +2068,8 @@ func _render_side() -> void:
 	layer.add_child(tp)
 	# no turn number on purpose: the global counter counts both players' turns, which confuses
 	var tt := _label(
-		"SEU TURNO" if mine else "TURNO DO OPONENTE",
-		24 if mine else 20,
+		"SEU TURNO" if my_turn else "TURNO DO OPONENTE",
+		24 if my_turn else 20,
 		UITheme.GOLD_LIGHT,
 		HORIZONTAL_ALIGNMENT_CENTER,
 		"title_bold",
@@ -2088,7 +2088,15 @@ func _render_side() -> void:
 	ph.size = Vector2(COL_W, 22)
 	tp.add_child(ph)
 	var d := g.decider()
-	var who := "SUA VEZ" if mine else ("VEZ DA IA" if _is_ai(d) else ("VEZ DO OPONENTE" if online else "VEZ DO JOGADOR %d" % (d + 1)))
+	var who := ""
+	if mine:
+		who = "SUA VEZ" if my_turn else "SUA PRIORIDADE"
+	elif _is_ai(d):
+		who = "VEZ DA IA"
+	elif online:
+		who = "VEZ DO OPONENTE"
+	else:
+		who = "VEZ DO JOGADOR %d" % (d + 1)
 	var wl := _label(who, 15, UITheme.GOLD if mine else Color(UITheme.TEXT, 0.5), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
 	wl.position = Vector2(0, 57)
 	wl.size = Vector2(COL_W, 22)
