@@ -14,7 +14,7 @@ const MOMENTUM := Color("#f5c518")
 
 static var _fonts := {}
 
-## kind: "title" (Cinzel, engraved caps), "body", "bold", "heavy" (Alegreya Sans), "shout" (Faster One,
+## kind: "title" (Cinzel, engraved caps), "plate_name" (Alegreya ExtraBold serif, dark lettering on the card name plate), "body", "bold", "heavy" (Alegreya Sans), "shout" (Faster One,
 ## speed-striped racing caps: only for a card's yelled line, see _shout_fx in fx_library.gd), "shout_wild" (Rye,
 ## circus-poster slab caps: the yelled line of the "wild" shout style, Elefante Incomodante)
 static func font(kind := "body") -> Font:
@@ -27,6 +27,11 @@ static func font(kind := "body") -> Font:
 			v.base_font = load("res://assets/fonts/Cinzel.ttf")
 			v.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): 800 if kind == "title_bold" else 600}
 			v.spacing_glyph = 1
+			f = v
+		"plate_name":
+			var v := FontVariation.new()
+			v.base_font = load("res://assets/fonts/Alegreya.ttf")
+			v.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): 800}
 			f = v
 		"bold":
 			f = load("res://assets/fonts/AlegreyaSans-Bold.ttf")

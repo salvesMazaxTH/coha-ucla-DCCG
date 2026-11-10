@@ -28,6 +28,7 @@ func _init() -> void:
 	_test_art_crop()
 	_test_art_cache_limit()
 	_test_sfx()
+	_test_domain_display_order()
 	_test_off_essence()
 	_test_naelys_leader()
 	_test_jeff_ceifa()
@@ -2579,6 +2580,30 @@ func _test_death_order() -> void:
 			if e.get("type") == "death":
 				order.append(int(e["player"]))
 		check(order == [first, 1 - first], "mortes simultâneas: jogador da vez (%d) primeiro" % first)
+
+func _test_domain_display_order() -> void:
+	# no primary domain: the JSON order never shows, everything follows CardDB.DOMAIN_ORDER
+	check(CardDB.essences_of({"essence": ["natureza", "furia"]}) == ["furia", "natureza"], "ordem fixa: Fúria antes de Natureza")
+	check(CardDB.essences_of({"essence": ["trevas", "devocao", "tormenta"]}) == ["tormenta", "devocao", "trevas"], "ordem fixa: Tormenta, Devoção, Trevas")
+	check(CardDB.essences_of({"essence": ["neutra", "montanha"]}) == ["montanha", "neutra"], "ordem fixa: Neutra por último")
+	check(CardDB.leader_essences({"essences": ["montanha", "fluxo"]}) == ["fluxo", "montanha"], "ordem fixa também nos Líderes")
+	var shuffled_array := ["natureza", "furia"]
+	CardDB.essences_of({"essence": shuffled_array})
+	check(shuffled_array == ["natureza", "furia"], "ordenar domínios não muda o array do JSON")
+	# the deck's row of domain badges is the exception: most numerous first, ties by the fixed order
+	var fire_leader: String = DeckDB.get_deck("fogo")["leader"]
+	var neutral_id := ""
+	var fire_id := ""
+	for card_id in CardDB.data()["cards"]:
+		var domains := CardDB.essences_of(CardDB.card(card_id))
+		if neutral_id == "" and domains == ["neutra"]:
+			neutral_id = card_id
+		if fire_id == "" and domains == ["furia"]:
+			fire_id = card_id
+	var deck_domains := DeckDB.domains_in(fire_leader, {neutral_id: 5, fire_id: 1})
+	check(deck_domains == ["neutra", "furia"], "linha de domínios do deck: o mais numeroso vem primeiro")
+	deck_domains = DeckDB.domains_in(fire_leader, {neutral_id: 2, fire_id: 2})
+	check(deck_domains == ["furia", "neutra"], "linha de domínios do deck: empate segue a ordem fixa")
 
 func _test_off_essence() -> void:
 	# a Leader's domain label must come from its own "essences", not default to neutral

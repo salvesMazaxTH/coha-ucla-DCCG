@@ -186,7 +186,7 @@ static func _essence_color(essence_id: String) -> Color:
 static func _leader_color(leader_id: String) -> Color:
 	if leader_id == "":
 		return Color("#8a8f98")
-	return _essence_color(String(CardDB.leader(leader_id)["essences"][0]))
+	return _essence_color(String(CardDB.leader_essences(CardDB.leader(leader_id))[0]))
 
 static func _top_crop(tex: Texture2D, window: Vector2, focus := 0.06) -> Texture2D:
 	if tex == null:

@@ -1,17 +1,14 @@
 class_name CardDB
 extends RefCounted
-## Static card catalog loaded from data/cards.json (the shared vocabulary: sets, domains, elements, keywords...),
-## data/cards/<set>/<essence>/*.json (the cards) and data/leaders/<set>/*.json (the Leaders, one file each,
-## with the same "set" field as a card). A Leader stays reachable as data()["leaders"][id].
-## A card's id is its file name, unique across every set. A set is identified by its NUMBER: the card's
-## "set" field is that number (2), the registry "sets" in data/cards.json maps the number to the full
-## name shown in the UI, and the cards live in the folder data/cards/set<number>/.
+## Static catalog: shared vocabulary (data/cards.json), cards (data/cards/<set>/<domain>/*.json)
+## and Leaders (data/leaders/<set>/*.json, also reachable as data()["leaders"][id]).
+## A card id is its file name, unique across sets. A set is identified by its number ("set" field).
 
-static var _data: Dictionary = {}
-static var _defs: Dictionary = {} ## id -> CardDef
+static var _data: Dictionary = { }
+static var _defs: Dictionary = { } ## id -> CardDef
 static var _errors: Array[String] = []
-static var _set_number_of: Dictionary = {} ## card id -> the number of the set folder its file was found in (checked against its "set" field)
-static var _set_number_of_leader: Dictionary = {} ## Leader id -> the number of the set folder its file was found in (checked against its "set" field)
+static var _set_number_of: Dictionary = { } ## card id -> number of its set folder
+static var _set_number_of_leader: Dictionary = { } ## Leader id -> number of its set folder
 
 ## The effect vocabulary lives in EffectRegistry, TargetRegistry and ConditionRegistry; a typo is
 ## checked on load so it is an error, not a silent no-op.
@@ -19,18 +16,17 @@ const DECK_ACTIONS := ["summon_self"]
 const TYPES := ["unit", "spell", "artifact"]
 const SPEEDS := ["lento", "rapido", "instantaneo"]
 
+
 static func data() -> Dictionary:
 	if _data.is_empty():
 		_load()
 	return _data
 
-## A keyword with a value is written "armadura:1" or "rapidez:2" in "keywords". The value becomes
-## the card's internal stat (the keyword tag itself is drawn from it), so the entry leaves the list:
-## - "armadura:N" -> "armor" N
-## - "rapidez:N" (Rapidez 1-3) -> "rapidez" N (a card without the keyword has Rapidez 0)
-## - "critico:N" (Crítico 1-4) -> "critico" N
-## - "toxico:N" (Tóxico 2+) -> "toxico_level" N, and "toxico:atk" -> "toxico_equals_attack" (X = its Ataque).
-##   Unlike the others, "toxico" itself stays in the keyword list so grants, silences and has_kw keep working.
+
+## Keywords with a value ("armadura:1", "rapidez:2") become internal stats and leave the list:
+## - "armadura:N" -> "armor", "rapidez:N" -> "rapidez", "critico:N" -> "critico"
+## - "toxico:N" -> "toxico_level", "toxico:atk" -> "toxico_equals_attack"
+##   ("toxico" itself stays in the list so grants, silences and has_kw keep working)
 static func _apply_valued_keywords(cd: Dictionary) -> void:
 	var plain_keywords: Array = []
 	for keyword in cd.get("keywords", []):
@@ -51,6 +47,7 @@ static func _apply_valued_keywords(cd: Dictionary) -> void:
 			plain_keywords.append(keyword)
 	cd["keywords"] = plain_keywords
 
+
 static func _load() -> void:
 	_errors.clear()
 	_defs.clear()
@@ -58,12 +55,23 @@ static func _load() -> void:
 	_set_number_of_leader.clear()
 	_data = _read_json("res://data/cards.json")
 	if _data.is_empty():
-		_data = {"sets": {}, "essences": {}, "elements": {}, "triggers": {}, "tribe": {}, "keywords": {}, "leaders": {}}
-	_data["cards"] = {}
+		_data = {
+			"sets": { },
+			"essences": { },
+			"elements": { },
+			"triggers": { },
+			"tribe": { },
+			"keywords": { },
+			"leaders": { },
+		}
+	_data["cards"] = { }
 	for set_key in _data["sets"]:
 		var set_number := int(set_key)
 		for essence_id in _data["essences"]:
-			var dir_path: String = "res://data/cards/%s/%s" % [set_folder_name(set_number), essence_id]
+			var dir_path: String = "res://data/cards/%s/%s" % [
+				set_folder_name(set_number),
+				essence_id,
+			]
 			if not DirAccess.dir_exists_absolute(dir_path):
 				continue
 			for file_name in DirAccess.get_files_at(dir_path):
@@ -71,7 +79,10 @@ static func _load() -> void:
 					continue
 				var id := file_name.trim_suffix(".json")
 				if _data["cards"].has(id):
-					_errors.append("carta %s: id repetido (já existe na pasta %s; o id é o nome do arquivo e vale para todos os sets)" % [id, set_folder_name(_set_number_of[id])])
+					_errors.append(
+						"carta %s: id repetido (já existe na pasta %s)"
+						% [id, set_folder_name(_set_number_of[id])]
+					)
 					continue
 				var cd := _read_json(dir_path + "/" + file_name)
 				if cd.is_empty():
@@ -80,7 +91,7 @@ static func _load() -> void:
 				_data["cards"][id] = cd
 				_set_number_of[id] = set_number
 				_defs[id] = CardDef.new(id, cd)
-	_data["leaders"] = {}
+	_data["leaders"] = { }
 	for set_key in _data["sets"]:
 		_load_leaders_of_set(int(set_key))
 	for id in _data["cards"]:
@@ -88,8 +99,8 @@ static func _load() -> void:
 	for lid in _data["leaders"]:
 		_validate_leader(lid, _data["leaders"][lid])
 
-## Reads every Leader file of one set (data/leaders/set<number>/<id>.json). The Leader's id is its file name,
-## unique across every set, exactly like a card id.
+
+## Reads every Leader file of one set (data/leaders/set<number>/<id>.json); the id is the file name.
 static func _load_leaders_of_set(set_number: int) -> void:
 	var dir_path: String = "res://data/leaders/%s" % set_folder_name(set_number)
 	if not DirAccess.dir_exists_absolute(dir_path):
@@ -101,7 +112,10 @@ static func _load_leaders_of_set(set_number: int) -> void:
 			continue
 		var id := String(file_name).trim_suffix(".json")
 		if _data["leaders"].has(id):
-			_errors.append("líder %s: id repetido (já existe na pasta %s; o id é o nome do arquivo e vale para todos os sets)" % [id, set_folder_name(_set_number_of_leader[id])])
+			_errors.append(
+				"líder %s: id repetido (já existe na pasta %s)"
+				% [id, set_folder_name(_set_number_of_leader[id])]
+			)
 			continue
 		var ld := _read_json(dir_path + "/" + String(file_name))
 		if ld.is_empty():
@@ -109,20 +123,23 @@ static func _load_leaders_of_set(set_number: int) -> void:
 		_data["leaders"][id] = ld
 		_set_number_of_leader[id] = set_number
 
+
 static func _read_json(path: String) -> Dictionary:
 	if not FileAccess.file_exists(path):
 		_errors.append("%s: arquivo não encontrado" % path)
-		return {}
+		return { }
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
 	if not parsed is Dictionary:
 		_errors.append("%s: JSON inválido" % path)
-		return {}
+		return { }
 	return parsed
+
 
 ## Problems found while loading the catalog (empty when every card is well formed).
 static func errors() -> Array[String]:
 	data()
 	return _errors
+
 
 static func def(id: String) -> CardDef:
 	data()
@@ -132,18 +149,26 @@ static func def(id: String) -> CardDef:
 	# each time, so later edits to their dictionary are always seen
 	return CardDef.new(id, _data["cards"][id])
 
+
 static func _validate_card(id: String, cd: Dictionary) -> void:
-	var err := func(msg: String): _errors.append("carta %s: %s" % [id, msg])
+	var err := func(msg: String):
+		_errors.append("carta %s: %s" % [id, msg])
 	for field in ["name", "set", "type", "cost", "text"]:
 		if not cd.has(field):
 			err.call("falta \"%s\"" % field)
 	if cd.has("set"):
 		if not (cd["set"] is float or cd["set"] is int):
-			err.call("o campo \"set\" precisa ser o número do set (ex.: 2), não \"%s\"" % cd["set"])
-		elif not _data.get("sets", {}).has(str(int(cd["set"]))):
-			err.call("set desconhecido %d (cadastre o número e o nome em \"sets\" de data/cards.json)" % int(cd["set"]))
+			err.call("\"set\" precisa ser o número do set (ex.: 2), não \"%s\"" % cd["set"])
+		elif not _data.get("sets", { }).has(str(int(cd["set"]))):
+			err.call(
+				"set desconhecido %d (cadastre o número e o nome em \"sets\" de data/cards.json)"
+				% int(cd["set"])
+			)
 		elif _set_number_of.has(id) and _set_number_of[id] != int(cd["set"]):
-			err.call("o campo \"set\" diz %d mas o arquivo está na pasta do set %d" % [int(cd["set"]), _set_number_of[id]])
+			err.call(
+				"o campo \"set\" diz %d mas o arquivo está na pasta do set %d"
+				% [int(cd["set"]), _set_number_of[id]]
+			)
 	var type: String = cd.get("type", "")
 	if type not in TYPES:
 		err.call("type desconhecido \"%s\"" % type)
@@ -155,22 +180,25 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 		if not _data["essences"].has(e):
 			err.call("essência desconhecida \"%s\"" % e)
 	var allowed_elements: Array = []
-	var any_element_allowed := false # a domain without an "elements" list (Neutra) accepts any element
+	var any_element_allowed := false # domain without "elements" (Neutra) accepts any
 	for e in essences_of(cd):
 		if _data["essences"].has(e) and _data["essences"][e].has("elements"):
 			allowed_elements.append_array(_data["essences"][e]["elements"])
 		else:
 			any_element_allowed = true
 	for element_id in elements_of(cd):
-		if not _data.get("elements", {}).has(element_id):
+		if not _data.get("elements", { }).has(element_id):
 			err.call("elemento desconhecido \"%s\"" % element_id)
 		elif not any_element_allowed and not allowed_elements.has(element_id):
-			err.call("elemento \"%s\" não combina com o domínio da carta (cada domínio lista seus elementos em \"elements\")" % element_id)
+			err.call(
+				"elemento \"%s\" não combina com o domínio da carta (veja \"elements\")"
+				% element_id
+			)
 	for kw in cd.get("keywords", []):
 		if not _data["keywords"].has(kw):
 			err.call("keyword desconhecida \"%s\"" % kw)
 	for s in cd.get("tribe", []):
-		if not _data.get("tribe", {}).has(s):
+		if not _data.get("tribe", { }).has(s):
 			err.call("tribo desconhecida \"%s\"" % s)
 	if cd.has("rapidez") and int(cd["rapidez"]) not in [1, 2, 3]:
 		err.call("rapidez precisa ser \"rapidez:1\" a \"rapidez:3\" em keywords")
@@ -180,7 +208,13 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 		err.call("speed desconhecida \"%s\"" % cd["speed"])
 	# Súbito: "subito" is the full cost of summoning it outside your own idle Main Phase
 	# (a "subito_fixed" card pays exactly that value, so it may be below the normal cost)
-	if cd.has("subito") and (type != "unit" or (not cd.get("subito_fixed", false) and int(cd["subito"]) <= int(cd.get("cost", 0)))):
+	if (
+		cd.has("subito")
+		and (
+			type != "unit"
+			or (not cd.get("subito_fixed", false) and int(cd["subito"]) <= int(cd.get("cost", 0)))
+		)
+	):
 		err.call("subito precisa ser uma unidade com custo Súbito maior que o custo normal")
 	if cd.has("transform") and not _data["cards"].has(cd["transform"].get("into", "")):
 		err.call("transform.into inexistente \"%s\"" % cd["transform"].get("into", ""))
@@ -193,16 +227,23 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 				if crop_key not in ["x", "y", "zoom"]:
 					err.call("art_crop: campo desconhecido \"%s\"" % crop_key)
 			for focus_key in ["x", "y"]:
-				if crop.has(focus_key) and not (float(crop[focus_key]) >= 0.0 and float(crop[focus_key]) <= 1.0):
+				if (
+					crop.has(focus_key)
+					and not (float(crop[focus_key]) >= 0.0 and float(crop[focus_key]) <= 1.0)
+				):
 					err.call("art_crop.%s precisa ficar entre 0 e 1" % focus_key)
 			if crop.has("zoom") and float(crop["zoom"]) < 1.0:
 				err.call("art_crop.zoom precisa ser pelo menos 1")
 	_validate_effects(err, cd.get("effects", []))
 	if cd.has("play_condition"):
 		var condition = cd["play_condition"]
-		var condition_specs: Array = CompareCondition.play_condition_specs(condition) if condition is Dictionary else []
+		var condition_specs: Array = []
+		if condition is Dictionary:
+			condition_specs = CompareCondition.play_condition_specs(condition)
 		if condition_specs.is_empty():
-			err.call("play_condition precisa ser {\"compare\": {...}} ou {\"all\": [{\"compare\": {...}}, ...]}")
+			err.call(
+				"play_condition precisa ser {\"compare\": ...} ou {\"all\": [{\"compare\": ...}]}"
+			)
 		for condition_spec in condition_specs:
 			var condition_problem := CompareCondition.error_of(condition_spec)
 			if condition_problem != "":
@@ -214,7 +255,9 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 		if act.has("speed") and act["speed"] not in SPEEDS:
 			err.call("activated.speed desconhecida \"%s\"" % act["speed"])
 		if act.get("exhaust", false) and type != "unit":
-			err.call("activated.exhaust só pode ser usado por unidades; artefatos usam once_per_turn")
+			err.call(
+				"activated.exhaust só pode ser usado por unidades; artefatos usam once_per_turn"
+			)
 		if act.has("extra_cost"):
 			var extra: Dictionary = act["extra_cost"]
 			if extra.get("kind", "") != "pay_one_of":
@@ -227,12 +270,16 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 					var picks: Array = []
 					for option in options:
 						if not option is Dictionary:
-							err.call("activated.extra_cost: cada opção precisa ser um objeto com pick")
+							err.call(
+								"activated.extra_cost: cada opção precisa ser um objeto com pick"
+							)
 							continue
 						picks.append(option.get("pick", ""))
 					for pick in picks:
 						if pick not in ["hand_card", "other_ally_unit"] or picks.count(pick) > 1:
-							err.call("activated.extra_cost: cada opção precisa ser um descarte (hand_card) ou um sacrifício (other_ally_unit), sem repetir")
+							err.call(
+								"activated.extra_cost: hand_card ou other_ally_unit, sem repetir"
+							)
 					if picks.is_empty():
 						err.call("activated.extra_cost: precisa de pelo menos uma opção")
 		_validate_effects(err, act.get("effects", []))
@@ -250,18 +297,26 @@ static func _validate_card(id: String, cd: Dictionary) -> void:
 			err.call("deck_effects: action desconhecida \"%s\"" % e.get("action", ""))
 		_check_trigger_if(err, e)
 
+
 static func _validate_leader(lid: String, ld: Dictionary) -> void:
-	var err := func(msg: String): _errors.append("líder %s: %s" % [lid, msg])
+	var err := func(msg: String):
+		_errors.append("líder %s: %s" % [lid, msg])
 	for field in ["name", "set", "hp", "incarnation", "ability"]:
 		if not ld.has(field):
 			err.call("falta \"%s\"" % field)
 	if ld.has("set"):
 		if not (ld["set"] is float or ld["set"] is int):
-			err.call("o campo \"set\" precisa ser o número do set (ex.: 2), não \"%s\"" % ld["set"])
-		elif not _data.get("sets", {}).has(str(int(ld["set"]))):
-			err.call("set desconhecido %d (cadastre o número e o nome em \"sets\" de data/cards.json)" % int(ld["set"]))
+			err.call("\"set\" precisa ser o número do set (ex.: 2), não \"%s\"" % ld["set"])
+		elif not _data.get("sets", { }).has(str(int(ld["set"]))):
+			err.call(
+				"set desconhecido %d (cadastre o número e o nome em \"sets\" de data/cards.json)"
+				% int(ld["set"])
+			)
 		elif _set_number_of_leader.has(lid) and _set_number_of_leader[lid] != int(ld["set"]):
-			err.call("o campo \"set\" diz %d mas o arquivo está na pasta do set %d" % [int(ld["set"]), _set_number_of_leader[lid]])
+			err.call(
+				"o campo \"set\" diz %d mas o arquivo está na pasta do set %d"
+				% [int(ld["set"]), _set_number_of_leader[lid]]
+			)
 	if not _data["cards"].has(ld.get("incarnation", "")):
 		err.call("incarnation inexistente \"%s\"" % ld.get("incarnation", ""))
 	elif not is_incarnation_option(lid, String(ld["incarnation"])):
@@ -269,7 +324,7 @@ static func _validate_leader(lid: String, ld: Dictionary) -> void:
 	for e in ld.get("essences", []):
 		if not _data["essences"].has(e):
 			err.call("essência desconhecida \"%s\"" % e)
-	var ab: Dictionary = ld.get("ability", {})
+	var ab: Dictionary = ld.get("ability", { })
 	if ab.has("trigger") and not _data["triggers"].has(ab["trigger"]):
 		err.call("ability.trigger desconhecido \"%s\"" % ab["trigger"])
 	if ab.has("speed") and ab["speed"] not in SPEEDS:
@@ -277,18 +332,22 @@ static func _validate_leader(lid: String, ld: Dictionary) -> void:
 	if ab.has("graveyard_cost"):
 		var graveyard_cost: Dictionary = ab["graveyard_cost"]
 		if String(graveyard_cost.get("kind", "")) not in TYPES:
-			err.call("ability.graveyard_cost.kind precisa ser um tipo de carta (%s)" % ", ".join(TYPES))
+			err.call(
+				"ability.graveyard_cost.kind precisa ser um tipo de carta (%s)" % ", ".join(TYPES)
+			)
 		if int(graveyard_cost.get("amount", 0)) < 1:
 			err.call("ability.graveyard_cost.amount precisa ser >= 1")
 	_validate_effects(err, ab.get("effects", []))
 
+
 static func _validate_effects(err: Callable, effects: Array, inside_effect_choice := false) -> void:
-	# effects of different triggers never resolve together, so only a choose_effect that shares a trigger (or listened event)
-	# with another choice screen is a conflict
+	# only a choose_effect sharing a trigger with another choice screen is a conflict
 	var triggers_with_effect_choice: Array = []
 	for entry in effects:
 		if entry is Dictionary and entry.get("action", "") == "choose_effect":
-			triggers_with_effect_choice.append(String(entry.get("trigger", entry.get("listen", ""))))
+			triggers_with_effect_choice.append(
+				String(entry.get("trigger", entry.get("listen", "")))
+			)
 	for e in effects:
 		if not e is Dictionary:
 			err.call("efeito não é objeto: %s" % str(e))
@@ -296,7 +355,13 @@ static func _validate_effects(err: Callable, effects: Array, inside_effect_choic
 		var action: String = e.get("action", "")
 		if not EffectRegistry.is_known(action):
 			err.call("action desconhecida \"%s\"" % action)
-		elif (inside_effect_choice or triggers_with_effect_choice.has(String(e.get("trigger", e.get("listen", ""))))) and EffectRegistry.parse(e).opens_choice():
+		elif (
+			(
+				inside_effect_choice
+				or triggers_with_effect_choice.has(String(e.get("trigger", e.get("listen", ""))))
+			)
+			and EffectRegistry.parse(e).opens_choice()
+		):
 			err.call("choose_effect ainda não pode ser combinado com outra tela de escolha")
 		if action not in EffectRegistry.STATIC_ACTIONS:
 			if not e.has("target"):
@@ -308,10 +373,16 @@ static func _validate_effects(err: Callable, effects: Array, inside_effect_choic
 			if not _data["keywords"].has(kw):
 				err.call("keyword desconhecida \"%s\" em efeito" % kw)
 		if action == "restrict_play" or e.has("restriction"):
-			var restriction_problem := PlayRestriction.error_of(e.get("restriction", null), _data["essences"])
+			var restriction_problem := PlayRestriction.error_of(
+				e.get("restriction", null),
+				_data["essences"],
+			)
 			if restriction_problem != "":
 				err.call(restriction_problem)
-		if action == "summon" and e.get("card", "self") != "self" and not _data["cards"].has(e["card"]):
+		if (
+			action == "summon" and e.get("card", "self") != "self"
+			and not _data["cards"].has(e["card"])
+		):
 			err.call("summon de carta inexistente \"%s\"" % e["card"])
 		if action == "summon_random":
 			var domain: Variant = e.get("domain", "all")
@@ -323,17 +394,26 @@ static func _validate_effects(err: Callable, effects: Array, inside_effect_choic
 					err.call("summon_random.per_graveyard precisa ser um objeto de filtro")
 				elif graveyard_rule.has("per"):
 					var group_size: Variant = graveyard_rule["per"]
-					if not (group_size is int or group_size is float) or int(group_size) < 1 or float(group_size) != int(group_size):
+					if (
+						not (group_size is int or group_size is float)
+						or int(group_size) < 1 or float(group_size) != int(group_size)
+					):
 						err.call("summon_random.per_graveyard.per precisa ser um inteiro >= 1")
 			for field in ["include_tokens", "per_graveyard_spell", "as_token"]:
 				if e.has(field) and not e[field] is bool:
 					err.call("summon_random.%s precisa ser booleano" % field)
 			if e.has("count"):
 				var count: Variant = e["count"]
-				if not (count is int or count is float) or int(count) < 1 or float(count) != int(count):
+				if (
+					not (count is int or count is float)
+					or int(count) < 1 or float(count) != int(count)
+				):
 					err.call("summon_random.count precisa ser um inteiro >= 1")
 			var valid_rarities := ["common", "epic", "champion", "legendary"]
-			if e.has("rarity") and (not e["rarity"] is String or not valid_rarities.has(String(e["rarity"]))):
+			if (
+				e.has("rarity")
+				and (not e["rarity"] is String or not valid_rarities.has(String(e["rarity"])))
+			):
 				err.call("summon_random.rarity desconhecida")
 			if e.has("rarity_any"):
 				var rarities: Variant = e["rarity_any"]
@@ -353,7 +433,10 @@ static func _validate_effects(err: Callable, effects: Array, inside_effect_choic
 			if e.has("min_cost") and e.has("max_cost"):
 				var min_cost: Variant = e["min_cost"]
 				var max_cost: Variant = e["max_cost"]
-				if (min_cost is int or min_cost is float) and (max_cost is int or max_cost is float) and int(min_cost) > int(max_cost):
+				if (
+					(min_cost is int or min_cost is float)
+					and (max_cost is int or max_cost is float) and int(min_cost) > int(max_cost)
+				):
 					err.call("summon_random.min_cost não pode ser maior que max_cost")
 		if action == "choose_effect":
 			var options = e.get("options", null)
@@ -364,7 +447,10 @@ static func _validate_effects(err: Callable, effects: Array, inside_effect_choic
 					if not option is Dictionary:
 						err.call("choose_effect: opção precisa ser um objeto")
 						continue
-					if not option.get("title", "") is String or String(option.get("title", "")).is_empty():
+					if (
+						not option.get("title", "") is String
+						or String(option.get("title", "")).is_empty()
+					):
 						err.call("choose_effect: opção precisa de title")
 					var option_effects = option.get("effects", null)
 					if not option_effects is Array or option_effects.is_empty():
@@ -372,13 +458,17 @@ static func _validate_effects(err: Callable, effects: Array, inside_effect_choic
 						continue
 					var chosen_specs: Array = []
 					for child in option_effects:
-						if child is Dictionary and TargetRegistry.needs_choice(String(child.get("target", ""))):
+						if (
+							child is Dictionary
+							and TargetRegistry.needs_choice(String(child.get("target", "")))
+						):
 							if not chosen_specs.has(child["target"]):
 								chosen_specs.append(child["target"])
 					if chosen_specs.size() > 1:
 						err.call("choose_effect: opção só pode escolher um tipo de alvo")
 					_validate_effects(err, option_effects, true)
 		_validate_effects(err, e.get("then", []), inside_effect_choice)
+
 
 static func _check_trigger_if(err: Callable, e: Dictionary) -> void:
 	if e.has("trigger") and not _data["triggers"].has(e["trigger"]):
@@ -389,6 +479,7 @@ static func _check_trigger_if(err: Callable, e: Dictionary) -> void:
 		var problem := ConditionRegistry.error_of(e["if"])
 		if problem != "":
 			err.call(problem)
+
 
 ## The "listen" form: {"listen": event, "scope": ..., "zones": [...] | "any", "when": {...}}.
 static func _check_listen(err: Callable, e: Dictionary) -> void:
@@ -404,18 +495,23 @@ static func _check_listen(err: Callable, e: Dictionary) -> void:
 			err.call("zones texto só aceita \"any\", não \"%s\"" % zones)
 	elif zones is Array:
 		for zone in zones:
-			if zone not in TriggerBus.ZONES and zone != TriggerBus.SANCTUARY and zone != TriggerBus.EQUIPPED:
+			if (
+				zone not in TriggerBus.ZONES and zone != TriggerBus.SANCTUARY
+				and zone != TriggerBus.EQUIPPED
+			):
 				err.call("zona desconhecida \"%s\"" % zone)
-	if not e.get("when", {}) is Dictionary:
+	if not e.get("when", { }) is Dictionary:
 		err.call("when precisa ser um objeto")
+
 
 static func card(id: String) -> Dictionary:
 	return data()["cards"][id]
 
+
 ## Card data with a summoned instance's overrides (atk, hp, keywords, effects, text...) applied.
-static func card_for(id: String, inst: Dictionary = {}) -> Dictionary:
+static func card_for(id: String, inst: Dictionary = { }) -> Dictionary:
 	var cd: Dictionary = data()["cards"][id]
-	var over: Dictionary = inst.get("over", {})
+	var over: Dictionary = inst.get("over", { })
 	if over.is_empty():
 		return cd
 	var m := cd.duplicate()
@@ -425,35 +521,41 @@ static func card_for(id: String, inst: Dictionary = {}) -> Dictionary:
 			m.erase(field) # a null override removes the field (a silenced unit loses its abilities)
 	return m
 
+
 static func leader(id: String) -> Dictionary:
 	return data()["leaders"][id]
+
 
 ## True for a Leader's own champion card (cast from the Command Zone).
 ## Artifacts are a card type of their own; equipment is an artifact subtype.
 static func is_artifact(cd: Dictionary) -> bool:
 	return cd.get("type", "") == "artifact"
 
-## A unit that is ALSO an artifact for every rule ("counts_as_artifact" on the card: Relojoeiro Pino-14, Matusalém).
-## It still plays and fights as a unit; searches, counts and costs that ask for "artifact" see it too.
+
+## A unit that also counts as an artifact ("counts_as_artifact").
 static func is_unit_artifact(cd: Dictionary) -> bool:
 	return cd.get("type", "") == "unit" and cd.get("counts_as_artifact", false)
 
-## True when the card counts as `wanted_type`: its printed type, plus "artifact" for a unit-artifact.
-## Every rule that asks "is this card a unit / spell / artifact?" over a zone (filters, graveyard counts) goes through here.
+
+## True when the card counts as `wanted_type` (a unit-artifact also counts as "artifact").
 static func has_type(cd: Dictionary, wanted_type: String) -> bool:
 	return cd.get("type", "") == wanted_type or (wanted_type == "artifact" and is_unit_artifact(cd))
+
 
 static func is_equipment(cd: Dictionary) -> bool:
 	return is_artifact(cd) and cd.get("subtypes", []).has("equipment")
 
-## "Local": a free-standing artifact that is a place on the field (Baluarte Santo). Only a label, no rule of its own.
+
+## "Local": an artifact that is a place on the field (Baluarte Santo); only a label.
 static func is_local(cd: Dictionary) -> bool:
 	return is_artifact(cd) and cd.get("subtypes", []).has("local")
+
 
 ## A free-standing artifact (an artifact that is not Equipar): it stays on its owner's side of the
 ## field, taking one of the BOARD_LIMIT slots, until an effect destroys it. It never fights.
 static func is_relic(cd: Dictionary) -> bool:
 	return is_artifact(cd) and not is_equipment(cd)
+
 
 static func is_leader_card(id: String) -> bool:
 	for lid in data()["leaders"]:
@@ -461,22 +563,25 @@ static func is_leader_card(id: String) -> bool:
 			return true
 	return false
 
-## A Leader's Encarnação is a Champion or Legendary unit whose printed name is the Leader's name, optionally
-## followed by a comma and a title (e.g. "Voltexz, Raio Obliterador"). A card whose printed name does
-## not follow that pattern (e.g. "Layla Veyr" for the Leader "Layla") can still declare the character it
-## embodies with an optional "identity" field holding the Leader's name. This lets future versions
-## of a character be chosen without classifying every Leader's card as globally undraftable.
+
+## A Leader's Encarnação is a Champion or Legendary named like the Leader, optionally followed by
+## ", title" ("Voltexz, Raio Obliterador"). Other names (e.g. "Layla Veyr") can declare the
+## Leader's name in an "identity" field.
 static func is_incarnation_option(leader_id: String, card_id: String) -> bool:
 	if not data()["leaders"].has(leader_id) or not data()["cards"].has(card_id):
 		return false
 	var cd: Dictionary = card(card_id)
-	if String(cd.get("type", "")) != "unit" or not ["champion", "legendary"].has(String(cd.get("rarity", ""))):
+	if (
+		String(cd.get("type", "")) != "unit"
+		or not ["champion", "legendary"].has(String(cd.get("rarity", "")))
+	):
 		return false
 	var leader_name := String(data()["leaders"][leader_id].get("name", "")).strip_edges().to_lower()
 	var card_name := String(cd.get("name", "")).strip_edges().to_lower()
 	var declared_identity := String(cd.get("identity", "")).strip_edges().to_lower()
 	return card_name == leader_name or card_name.begins_with(leader_name + ",") \
 			or (declared_identity != "" and declared_identity == leader_name)
+
 
 ## All same-entity Encarnação choices, in display-name order. The configured default should always
 ## be among these; retain it as a recovery option for older/temporarily incomplete catalogs.
@@ -490,48 +595,88 @@ static func incarnation_options(leader_id: String) -> Array[String]:
 	var default_id := String(data()["leaders"][leader_id].get("incarnation", ""))
 	if options.is_empty() and data()["cards"].has(default_id):
 		options.append(default_id)
-	options.sort_custom(func(first: String, second: String) -> bool:
-		return String(card(first).get("name", first)).naturalnocasecmp_to(String(card(second).get("name", second))) < 0)
+	options.sort_custom(
+		func(first: String, second: String) -> bool:
+			return String(card(first).get("name", first)).naturalnocasecmp_to(
+				String(card(second).get("name", second))
+			) < 0,
+	)
 	return options
+
 
 static func keyword(id: String) -> Dictionary:
 	return data()["keywords"][id]
+
 
 ## The folder under data/cards/ that holds a set's cards ("set2" for set number 2).
 static func set_folder_name(set_number: int) -> String:
 	return "set%d" % set_number
 
+
 ## The number of the set a card belongs to (0 when the card has none).
 static func set_number_of(cd: Dictionary) -> int:
 	return int(cd.get("set", 0))
 
-## The full set name shown in the UI, from the "sets" registry of data/cards.json ("Nuliterra (2026)").
-## A number missing from the registry falls back to "Set <number>".
+
+## Full set name from the "sets" registry ("Nuliterra (2026)"); missing numbers give "Set <number>".
 static func set_full_name(set_number: int) -> String:
-	return String(data().get("sets", {}).get(str(set_number), {}).get("name", "Set %d" % set_number))
+	return String(data().get("sets", { }).get(str(set_number), { }).get(
+			"name",
+			"Set %d" % set_number,
+		))
+
 
 ## A short set code made from the first three letters of its registered name.
 static func set_abbreviation(set_number: int) -> String:
 	return set_full_name(set_number).get_slice(" ", 0).left(3).to_upper()
 
+
 ## The registered set numbers, lowest first.
 static func set_numbers() -> Array:
 	var numbers: Array = []
-	for set_key in data().get("sets", {}):
+	for set_key in data().get("sets", { }):
 		numbers.append(int(set_key))
 	numbers.sort()
 	return numbers
 
+
 static func essence(id: String) -> Dictionary:
 	return data()["essences"][id]
 
-## A card's essences: "essence" is one id or an Array of ids (dual cards, e.g. natureza + trevas).
+
+## The one fixed order domains are shown in. No domain is "primary": the order in a card's JSON never
+## matters, so everything that lists or colors by domain reads it through sorted_domains().
+const DOMAIN_ORDER := ["furia", "fluxo", "tormenta", "devocao", "natureza", "montanha", "trevas", "neutra"]
+
+
+## Position of a domain in DOMAIN_ORDER (unknown ids go last).
+static func domain_rank(domain_id: String) -> int:
+	var rank := DOMAIN_ORDER.find(domain_id)
+	return rank if rank >= 0 else DOMAIN_ORDER.size()
+
+
+## The given domain ids in DOMAIN_ORDER, as a new array.
+static func sorted_domains(domain_ids: Array) -> Array:
+	var sorted: Array = domain_ids.duplicate()
+	sorted.sort_custom(func(first_id, second_id) -> bool:
+		return domain_rank(String(first_id)) < domain_rank(String(second_id)))
+	return sorted
+
+
+## A card's essences in display order: "essence" is one id or an Array of ids (dual cards, e.g. natureza + trevas).
 static func essences_of(cd: Dictionary) -> Array:
 	var e: Variant = cd.get("essence", "neutra")
-	return (e as Array).duplicate() if e is Array else [String(e)]
+	return sorted_domains(e as Array) if e is Array else [String(e)]
+
+
+## A Leader's domains in display order. A Leader keeps them under "essences" (a card uses "essence").
+static func leader_essences(leader_data: Dictionary) -> Array:
+	return sorted_domains(leader_data.get("essences", ["neutra"]))
+
 
 static func has_essence(cd: Dictionary, id: String) -> bool:
 	return essences_of(cd).has(id)
+
 
 ## Display name of a card's domains ("Natureza / Trevas").
 static func essence_names(cd: Dictionary) -> String:
@@ -540,16 +685,18 @@ static func essence_names(cd: Dictionary) -> String:
 		names.append(essence(id).get("name", id))
 	return " / ".join(names)
 
-## Display name of a Leader's domains. A Leader keeps them under "essences" (a card uses "essence"),
-## so essence_names() would read a Leader as neutral.
+
+## Display name of a Leader's domains. essence_names() would read a Leader as neutral.
 static func leader_essence_names(leader_data: Dictionary) -> String:
 	var names: Array = []
-	for id in leader_data.get("essences", ["neutra"]):
+	for id in leader_essences(leader_data):
 		names.append(essence(id).get("name", id))
 	return " / ".join(names)
 
+
 static func element(id: String) -> Dictionary:
 	return data()["elements"][id]
+
 
 ## A card's elements: "element" is one id, an Array of ids, or missing (many cards have none).
 ## The element carries tribal synergies and innate immunities; it does not affect deckbuilding.
@@ -557,8 +704,10 @@ static func elements_of(cd: Dictionary) -> Array:
 	var e: Variant = cd.get("element", [])
 	return (e as Array).duplicate() if e is Array else ([String(e)] if String(e) != "" else [])
 
+
 static func has_element(cd: Dictionary, id: String) -> bool:
 	return elements_of(cd).has(id)
+
 
 ## Display name of a card's elements ("Água / Gelo"); empty when it has none.
 static func element_names(cd: Dictionary) -> String:
@@ -566,6 +715,7 @@ static func element_names(cd: Dictionary) -> String:
 	for id in elements_of(cd):
 		names.append(element(id).get("name", id))
 	return " / ".join(names)
+
 
 ## The one-line label written on the card face (tribe strip): tribe and element side by side
 ## ("HUMANO · GELO"). A spell or artifact has no tribe, so it shows just the element ("Gelo").
@@ -578,19 +728,26 @@ static func tribe_and_element_label(cd: Dictionary) -> String:
 		parts.append(element_names(cd))
 	return " · ".join(parts)
 
+
 ## Flavor text is cosmetic only, so its roll uses its own RNG and never touches the match RNG.
 static var _flavor_rng := RandomNumberGenerator.new()
 static var _flavor_salt := 0
+
 
 ## Call at the start of each match: every card then shows one fixed line for the whole match.
 static func reroll_flavor() -> void:
 	_flavor_salt = _flavor_rng.randi()
 
+
 ## "flavor" is a String or an Array of Strings; the first entry is the card's main line.
 static func flavor_lines(cd: Dictionary) -> Array:
 	var f: Variant = cd.get("flavor", "")
 	var lines: Array = (f as Array).duplicate() if f is Array else [String(f)]
-	return lines.filter(func(s): return String(s) != "")
+	return lines.filter(
+		func(s):
+			return String(s) != "",
+	)
+
 
 ## The main line outside a match; during a match, the line picked for it ("" if the card has none).
 static func flavor_for(cd: Dictionary, in_match := false) -> String:
@@ -601,6 +758,7 @@ static func flavor_for(cd: Dictionary, in_match := false) -> String:
 		return lines[0]
 	return lines[hash("%s|%d" % [cd.get("name", ""), _flavor_salt]) % lines.size()]
 
+
 ## Display name of a card's tribe ("Humano / Dragão"), or its visual-only override.
 static func tribe_names(cd: Dictionary) -> String:
 	var display_label := String(cd.get("tribe_display", "")).strip_edges()
@@ -608,5 +766,5 @@ static func tribe_names(cd: Dictionary) -> String:
 		return display_label
 	var names: Array = []
 	for id in cd.get("tribe", []):
-		names.append(data().get("tribe", {}).get(id, {}).get("name", id))
+		names.append(data().get("tribe", { }).get(id, { }).get("name", id))
 	return " / ".join(names)

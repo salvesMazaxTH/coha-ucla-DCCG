@@ -264,9 +264,8 @@ class LeaderPortrait extends Control:
 		var leader_data := CardDB.leader(leader_id)
 		leader_card_id = ChronicleRow.LEADER_ID_PREFIX + leader_id
 		leader_name = String(leader_data.get("name", ""))
-		var essences: Array = leader_data.get("essences", [])
-		if not essences.is_empty():
-			essence_color = Color(CardDB.essence(String(essences[0]))["color"])
+		var essences: Array = CardDB.leader_essences(leader_data)
+		essence_color = Color(CardDB.essence(String(essences[0]))["color"])
 		size = CardView.BASE * card_scale
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		return self

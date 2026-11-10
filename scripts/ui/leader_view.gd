@@ -120,7 +120,7 @@ func play_ward_forge(delay: float, hits: int) -> void:
 func setup(id: String) -> LeaderView:
 	leader_id = id
 	var ld := CardDB.leader(id)
-	var ess: String = ld["essences"][0]
+	var ess: String = CardDB.leader_essences(ld)[0]
 	elem_color = Color(CardDB.essence(ess)["color"])
 	_style = CardView.STYLES.get(ess, CardView.STYLES["neutra"])
 	_tex = CardView.texture(ld["art"])

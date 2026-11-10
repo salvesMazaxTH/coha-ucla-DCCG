@@ -218,31 +218,34 @@ static func card_count(id: String) -> int:
 		total += int(cards[cid])
 	return total
 
-## Unique domains represented by a deck, with the Leader's domains first and remaining domains
-## following the order in card data. The Encarnação is included even in old deck records that omit it
+## Unique domains represented by a deck, the most numerous first (copies of the deck carrying each
+## domain; a dual card counts for both). Ties follow CardDB.DOMAIN_ORDER. The Leader's domains always
+## appear, even with no card of them. The Encarnação is included even in old deck records that omit it
 ## from the card-count dictionary.
 static func domains_in(leader_id: String, cards: Dictionary, selected_incarnation_id := "") -> Array[String]:
-	var used: Dictionary = {}
-	var ordered: Array[String] = []
+	var copies_by_domain: Dictionary = {}
 	if CardDB.data()["leaders"].has(leader_id):
-		for domain in CardDB.leader(leader_id).get("essences", []):
-			_add_domain(ordered, used, String(domain))
+		for domain in CardDB.leader_essences(CardDB.leader(leader_id)):
+			copies_by_domain[String(domain)] = 0
 	for card_id in cards:
-		if int(cards[card_id]) <= 0 or not CardDB.data()["cards"].has(String(card_id)):
+		var copies := int(cards[card_id])
+		if copies <= 0 or not CardDB.data()["cards"].has(String(card_id)):
 			continue
 		for domain in CardDB.essences_of(CardDB.card(String(card_id))):
-			_add_domain(ordered, used, String(domain))
+			copies_by_domain[String(domain)] = int(copies_by_domain.get(String(domain), 0)) + copies
 	if leader_id != "" and CardDB.data()["leaders"].has(leader_id):
 		var incarnation_id := resolved_incarnation_id(leader_id, selected_incarnation_id)
-		if CardDB.data()["cards"].has(incarnation_id):
+		if CardDB.data()["cards"].has(incarnation_id) and not cards.has(incarnation_id):
 			for domain in CardDB.essences_of(CardDB.card(incarnation_id)):
-				_add_domain(ordered, used, String(domain))
+				copies_by_domain[String(domain)] = int(copies_by_domain.get(String(domain), 0)) + 1
+	var ordered: Array[String] = []
+	for domain in copies_by_domain:
+		ordered.append(String(domain))
+	ordered.sort_custom(func(first_id: String, second_id: String) -> bool:
+		if copies_by_domain[first_id] != copies_by_domain[second_id]:
+			return copies_by_domain[first_id] > copies_by_domain[second_id]
+		return CardDB.domain_rank(first_id) < CardDB.domain_rank(second_id))
 	return ordered
-
-static func _add_domain(ordered: Array[String], used: Dictionary, domain: String) -> void:
-	if not used.has(domain):
-		used[domain] = true
-		ordered.append(domain)
 
 ## The deck list in the order the files are kept: printed cost (lowest first), then units before
 ## spells and other types, then card id. Used by tools/sort_decks.gd and checked by the tests.

@@ -14,6 +14,13 @@ signal drag_ended(view: CardView)
 const DRAG_PX := 14.0
 
 const BASE := Vector2(120, 170)
+const TOP_PLATE_HEIGHT := 13.0 ## name plate height at card scale 1; the art window starts right under it
+const ART_TOP := 8.0 + TOP_PLATE_HEIGHT ## top of the art window of a non-champion card
+const ART_HEIGHT := 92.0 ## height of the art window of a non-champion card
+const BOTTOM_PLATE_HEIGHT := 10.4 ## type plate (tribe + element, spell speed) right under the art window
+const CHAMFERED_NAME_MARGIN := 4.0 ## extra room at the left of a name plate whose corner is cut (artifacts)
+const PLATE_GAP := 1.6 ## room kept between a plate and the art window, so the window's gold border stays whole
+const COST_ORB_ROOM := 26.0 ## width at the plate's right end kept free for the cost orb
 
 ## Frame palette per domain: gradient top/bottom, metal trim, glow.
 const STYLES := {
@@ -1038,7 +1045,7 @@ func _face_look(s: float, rad: float) -> Dictionary:
 	var window_kind := ""
 	if not face_down:
 		# art window: its shape tells the card kinds apart (rectangle = unit/spell, arch = artifact, medallion = ficha)
-		art = r.grow(-FULL_ART_BORDER * s) if full_art else Rect2(Vector2(7, 8) * s, Vector2(BASE.x - 14, 98) * s)
+		art = r.grow(-FULL_ART_BORDER * s) if full_art else Rect2(Vector2(7, ART_TOP) * s, Vector2(BASE.x - 14, ART_HEIGHT) * s)
 		window_kind = "full" if full_art else ("medallion" if is_token else ("arch" if is_artifact else "rect"))
 		_art_window = _art_window_pts(art, window_kind)
 	return {"s": s, "r": r, "rad": rad, "cd": cd, "styles": styles, "trim": trim, "glow": glow,
@@ -1173,8 +1180,6 @@ func _draw_frame_and_art(look: Dictionary) -> void:
 		_window_vgrad(Rect2(art.position + Vector2(0, art.size.y - 22 * s), Vector2(art.size.x, 22 * s)), Color(0, 0, 0, 0), Color(0, 0, 0, 0.55))
 	if window_kind == "rect":
 		draw_rect(art.grow(0.5 * s), Color(trim, 0.9), false, 1.2 * s)
-		for c in [art.position, Vector2(art.end.x, art.position.y)]:
-			_diamond(c, 3.2 * s, trim)
 	else:
 		var outline := Geometry2D.offset_polygon(_art_window, 0.5 * s)[0]
 		draw_polyline(outline + PackedVector2Array([outline[0]]), Color(trim, 0.9), 1.2 * s, true)
@@ -1232,60 +1237,45 @@ func _draw_lettering_and_gems(look: Dictionary) -> void:
 	var art: Rect2 = look["art"]
 	_kw_badges(art, cd, s)
 
-	# tribe strip on the bottom edge of the art, right above the name plate
-	var custom_tribe_display := not String(cd.get("tribe_display", "")).strip_edges().is_empty()
-	var sp_s := CardDB.tribe_and_element_label(cd).to_upper() # tribe + element, as lettering (no badge)
-	if sp_s != "":
-		var spf := UITheme.font("bold")
-		var sp_fs := _fit(spf, sp_s, 8.0 * s, art.size.x - 16 * s)
-		var sp_w := spf.get_string_size(sp_s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(sp_fs)).x + 10 * s
-		var strip := Rect2(Vector2((_face_size.x - sp_w) / 2, (92.5 if full_art else 90.5) * s), Vector2(sp_w, 11 * s))
-		if not full_art: # over a full-card art the tribe is just lettering on the shaded art, no pill
-			var strip_fill := Color(0, 0, 0, 0.62)
-			var strip_outline := Color(trim, 0.45)
-			var strip_width := 0.8 * s
-			if custom_tribe_display:
-				strip_fill = Color("#153b4a", 0.94)
-				strip_outline = Color("#9ceaff", 0.95)
-				strip_width = 1.3 * s
-			_rrect_fill(strip, 3 * s, strip_fill)
-			_rrect_line(strip, 3 * s, strip_outline, strip_width)
-		var tribe_text_color := Color("#e9dcc0")
-		if custom_tribe_display:
-			tribe_text_color = Color("#d3f5ff")
-		_text(spf, sp_s, Vector2(_face_size.x / 2, strip.get_center().y + sp_fs * 0.36), sp_fs, tribe_text_color)
+	if full_art: # champions: tribe + element are just lettering on the shaded art, no plate
+		var tribe_label := CardDB.tribe_and_element_label(cd).to_upper()
+		if tribe_label != "":
+			var tribe_font := UITheme.font("bold")
+			var tribe_size := _fit(tribe_font, tribe_label, 8.0 * s, art.size.x - 16 * s)
+			var tribe_color := Color("#d3f5ff") if not String(cd.get("tribe_display", "")).strip_edges().is_empty() else Color("#e9dcc0")
+			_text(tribe_font, tribe_label, Vector2(_face_size.x / 2, 98.0 * s + tribe_size * 0.36), tribe_size, tribe_color)
 
-	if full_art:
+	if full_art: # champions keep the official style: centred name over the art, cost and domain badges in the corners
 		_draw_full_art_name(cd["name"], s, trim)
 	else:
-		# name plate (pointed banner overlapping the art)
-		var py := 102.0 * s
-		var ph := 20.0 * s
-		var plate := PackedVector2Array([Vector2(3 * s, py + ph / 2), Vector2(10 * s, py), Vector2(_face_size.x - 10 * s, py),
-			Vector2(_face_size.x - 3 * s, py + ph / 2), Vector2(_face_size.x - 10 * s, py + ph), Vector2(10 * s, py + ph)])
-		draw_colored_polygon(plate, Color("#15121b"))
-		draw_colored_polygon(PackedVector2Array([plate[1], plate[2], plate[3], plate[0]]), Color(1, 1, 1, 0.05))
-		draw_polyline(plate + PackedVector2Array([plate[0]]), trim, 1.2 * s, true)
-		var nf := UITheme.font("title_bold")
-		var name_s: String = cd["name"]
-		_text(nf, name_s, Vector2(_face_size.x / 2, py + ph / 2 + 4 * s), _fit(nf, name_s, 12 * s, _face_size.x - 18 * s), Color("#fff4dc"))
+		_draw_top_name_plate(cd["name"], look)
+		_draw_bottom_type_plate(cd, look)
+		if look["window_kind"] == "rect": # the corner diamonds sit on top of the plate's corners
+			for corner: Vector2 in [art.position, Vector2(art.end.x, art.position.y)]:
+				_diamond(corner, 3.2 * s, trim)
 
 	# lower panel: keywords (units), card type (artifacts) or the rules text (spells)
 	if cd["type"] == "spell":
 		# no gems at the bottom corners of a spell, so its panel is wider and taller to fit the text
 		# (a long text can give a shorter "face_text" for this panel; the big view shows the full "text")
-		var tp := Rect2(Vector2(8, 124.5) * s, Vector2(BASE.x - 16, 36.5) * s)
+		var tp := Rect2(Vector2(8, 125.5) * s, Vector2(BASE.x - 16, 35.5) * s)
 		_rrect_fill(tp, 4 * s, Color(0, 0, 0, 0.5))
 		_rrect_line(tp, 4 * s, Color(trim, 0.25), 1 * s)
+		_draw_panel_watermark(tp, cd, s)
 		_wrapped_text(UITheme.font("bold"), fill_live_numbers(str(cd.get("face_text", cd.get("text", ""))), snowball_level, text_bonuses), tp.grow_individual(-3 * s, -1 * s, -3 * s, -1 * s), 11.0 * s, 6.0 * s, Color("#f1e8d4"))
-		_speed_badge(Vector2(_face_size.x / 2, 17 * s), str(cd.get("speed", "lento")), s)
 	else:
-		var panel := Rect2(Vector2(10, 126) * s, Vector2(BASE.x - 20, 34) * s)
+		var panel := Rect2(Vector2(10, 126 if full_art else 127) * s, Vector2(BASE.x - 20, 34 if full_art else 33) * s)
 		if not full_art: # on a full-art card the keyword tags sit straight on the shaded art
 			_rrect_fill(panel, 4 * s, Color(0, 0, 0, 0.38))
 			_rrect_line(panel, 4 * s, Color(trim, 0.25), 1 * s)
+			_draw_panel_watermark(panel, cd, s)
 		var lines := _panel_lines(cd)
 		var bf := UITheme.font("bold")
+		if lines.is_empty() and cd["type"] == "artifact" and not full_art:
+			# no tag to show (the effect is a plain "Ao Entrar"): the rules text itself fills the panel, as on a spell,
+			# leaving room at the right for the durability shield
+			var text_rect := panel.grow_individual(-3 * s, -1 * s, -(14.0 if cd.has("durability") else 3.0) * s, -1 * s)
+			_wrapped_text(bf, fill_live_numbers(str(cd.get("face_text", cd.get("text", ""))), snowball_level, text_bonuses), text_rect, 11.0 * s, 6.0 * s, Color("#f1e8d4"))
 		# keyword / trigger tags: as big as the panel allows (a bigger size beats perfect proportions on a phone)
 		var tag_font_size := 13.0 * s
 		var tag_line_height := 13.5 * s
@@ -1311,8 +1301,11 @@ func _draw_lettering_and_gems(look: Dictionary) -> void:
 		cost_col = Color("#a8ffa0")
 	elif cost > int(cd["cost"]):
 		cost_col = Color("#ff8a80")
-	_gem("orb", Vector2(14, 14) * s, 13 * s, COST_COL, str(cost), cost_col, s)
-	_essence_badge(Vector2(BASE.x - 14, 14) * s, 10.5 * s, cd, s)
+	if full_art:
+		_gem("orb", Vector2(14, 14) * s, 13 * s, COST_COL, str(cost), cost_col, s)
+		_essence_badge(Vector2(BASE.x - 14, 14) * s, 10.5 * s, cd, s)
+	else:
+		_gem("orb", Vector2(art.end.x - 9 * s, art.position.y - TOP_PLATE_HEIGHT * s / 2), 11 * s, COST_COL, str(cost), cost_col, s)
 	if cd["type"] == "unit":
 		var atk: int = int(cd["atk"])
 		var hp: int = int(cd["hp"])
@@ -1338,6 +1331,97 @@ func _draw_lettering_and_gems(look: Dictionary) -> void:
 	elif cd.has("durability"):
 		# the points left on the field (equipment included), the total everywhere else
 		_durability_icon(Vector2(_face_size.x - 14 * s, _face_size.y - 15 * s), 12.5 * s, s, int(inst.get("durability_left", cd["durability"])), JSON.stringify(cd).contains("durability_cost"))
+
+## Name plate across the top of the art (right above the art window): as wide as it, name small at the left.
+## The cost orb overlaps its right end (room is kept for it).
+func _draw_top_name_plate(card_name: String, look: Dictionary) -> void:
+	var s: float = look["s"]
+	var art: Rect2 = look["art"]
+	var plate := Rect2(art.position - Vector2(0, TOP_PLATE_HEIGHT * s), Vector2(art.size.x, (TOP_PLATE_HEIGHT - PLATE_GAP) * s))
+	_draw_plate(plate, look)
+	var corner_room := CHAMFERED_NAME_MARGIN * s if _chamfer_frame else 0.0 # the cut top-left corner takes some of the plate
+	_plate_lettering(plate, card_name, 8.5 * s, COST_ORB_ROOM * s, s, look["styles"], corner_room)
+
+## Type plate under the art window, as wide as it: the card type at the left, then a dash and its tribe + element ("Unidade — Humano · Gelo"),
+## and for a spell its speed seal (small) at the right.
+func _draw_bottom_type_plate(cd: Dictionary, look: Dictionary) -> void:
+	var s: float = look["s"]
+	var art: Rect2 = look["art"]
+	var plate := Rect2(Vector2(art.position.x, art.end.y + PLATE_GAP * s), Vector2(art.size.x, BOTTOM_PLATE_HEIGHT * s))
+	_draw_plate(plate, look)
+	var label := String({"unit": "Unidade", "spell": "Feitiço", "artifact": "Artefato"}.get(String(cd["type"]), ""))
+	var details := CardDB.tribe_and_element_label(cd)
+	if CardDB.is_equipment(cd):
+		details = "Equipamento" if details == "" else "Equipamento · " + details
+	elif CardDB.is_local(cd):
+		details = "Local" if details == "" else "Local · " + details
+	if details != "":
+		label += " — " + details
+	var is_spell: bool = cd["type"] == "spell"
+	_plate_lettering(plate, label, 7.0 * s, (SPEED_BADGE_ROOM if is_spell else 0.0) * s, s, look["styles"])
+	if is_spell:
+		_speed_badge(Vector2(plate.end.x - 3.0 * s, plate.get_center().y), str(cd.get("speed", "lento")), s * SPEED_BADGE_SCALE, true)
+
+const SPEED_BADGE_SCALE := 0.62 ## the speed seal on the type plate, relative to its normal size
+const SPEED_BADGE_ROOM := 40.0 ## width at the type plate's right end kept free for the speed seal
+const PLATE_INK_LIGHT := Color("#f6f0e0") ## plate lettering: light on every frame...
+const PLATE_INK_DARK := Color("#131215") ## ...except the pearl Devoção one
+
+## A plate shaded like a card-frame band: filled with the frame's own gradient at that spot of the card (split into
+## bands for a multi-domain card), a light top and a dark bottom for volume, a thin black outline and slightly
+## rounded corners.
+func _draw_plate(plate: Rect2, look: Dictionary) -> void:
+	var s: float = look["s"]
+	var card_rect: Rect2 = look["r"]
+	var styles: Array = look["styles"]
+	var radius := 1.8 * s
+	var outline_points := _plate_outline(plate, radius, look)
+	if styles.size() < 2:
+		var cols := PackedColorArray()
+		for p in outline_points:
+			cols.append(_frame_color_at(styles, card_rect, p.y))
+		draw_polygon(outline_points, cols)
+	else:
+		_rrect_grad_split(card_rect, 0.0, styles, s, outline_points)
+	var inner := plate.grow(-0.5 * s)
+	var half := inner.size.y / 2.0
+	_vgrad(Rect2(inner.position, Vector2(inner.size.x, half)), Color(1, 1, 1, 0.2), Color(1, 1, 1, 0.0))
+	_vgrad(Rect2(inner.position + Vector2(0, half), Vector2(inner.size.x, half)), Color(0, 0, 0, 0.0), Color(0, 0, 0, 0.26))
+	draw_polyline(outline_points + PackedVector2Array([outline_points[0]]), Color("#07060a"), 1.0 * s, true)
+
+## Outline of a plate: a rounded rectangle, cut where it would stick out of a chamfered card (the artifact's
+## top corners), keeping a margin inside the engraved line that runs along the frame.
+func _plate_outline(plate: Rect2, radius: float, look: Dictionary) -> PackedVector2Array:
+	var outline := _rrect_pts(plate, radius)
+	if not _chamfer_frame:
+		return outline
+	var s: float = look["s"]
+	var card_rect: Rect2 = look["r"]
+	var rad: float = look["rad"]
+	var inside := Geometry2D.offset_polygon(_rrect_pts(card_rect.grow(-5.0 * s), rad - 4.0 * s), -1.6 * s)
+	var cut := Geometry2D.intersect_polygons(outline, inside[0])
+	return outline if cut.is_empty() else cut[0]
+
+## The frame's colour at height `y` of the card (domains averaged for a multi-domain card).
+func _frame_color_at(styles: Array, card_rect: Rect2, y: float) -> Color:
+	var k := clampf((y - card_rect.position.y) / card_rect.size.y, 0.0, 1.0)
+	return _average_style_color(styles, "top").lerp(_average_style_color(styles, "bot"), k)
+
+## Embossed lettering at the plate's left, shrunk to fit (`right_room` stays free at the right end):
+## light with a dark edge on every frame, dark with a light edge on a frame that is only Devoção.
+func _plate_lettering(plate: Rect2, text: String, max_size: float, right_room: float, s: float, styles: Array, extra_left_margin := 0.0) -> void:
+	var font := UITheme.font("plate_name")
+	var margin := 3.5 * s + extra_left_margin
+	var font_size := _fit(font, text, max_size, plate.size.x - margin - right_room)
+	var baseline := Vector2(plate.position.x + margin, plate.get_center().y + font_size * 0.3)
+	var on_pearl_frame := true
+	for style: Dictionary in styles:
+		if style != STYLES["devocao"]:
+			on_pearl_frame = false
+	var ink := PLATE_INK_DARK if on_pearl_frame else PLATE_INK_LIGHT
+	var edge := Color(1, 1, 1, 0.6) if on_pearl_frame else Color(0, 0, 0, 0.7)
+	draw_string(font, _snap(baseline + Vector2(0, maxf(1.0, s * 0.5))), text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(font_size), edge)
+	draw_string(font, _snap(baseline), text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(font_size), ink)
 
 ## Border of a full-art champion: the essence gradient, kept bright all the way down (the normal frame fades to
 ## near-black at the bottom, which would read as a black border instead of the essence color).
@@ -2141,13 +2225,10 @@ func _panel_lines(cd: Dictionary) -> Array:
 	var out := []
 	if cd["type"] != "unit":
 		# spells never get here: they print their rules text and carry the speed badge instead
-		var kind := "ARTEFATO"
-		if CardDB.is_equipment(cd):
-			kind += " · EQUIPAMENTO"
-		elif CardDB.is_local(cd):
-			kind += " · LOCAL"
-		var spd: String = {"rapido": " · RÁPIDO", "instantaneo": " · INSTANTÂNEO"}.get(cd.get("speed", "lento"), "")
-		out.append([[kind + spd, Color("#ffd27a") if spd != "" else Color(UITheme.TEXT, 0.6)]])
+		# the kind (Artefato — Local / Equipamento) is written on the type plate; only a speed is worth a line here
+		var spd: String = {"rapido": "RÁPIDO", "instantaneo": "INSTANTÂNEO"}.get(cd.get("speed", "lento"), "")
+		if spd != "":
+			out.append([[spd, Color("#ffd27a")]])
 	# tags: keywords first, then trigger names (full text lives in the overlay)
 	var tags: Array = []
 	for dot_id in ["queimadura", "veneno", "sangramento", "congelar"]: # TEMP "congelar": pseudo 4th marker for the status-badge scenario
@@ -2253,7 +2334,7 @@ func _panel_lines(cd: Dictionary) -> Array:
 			out.append(tags.slice(half))
 	if out.is_empty() and cd.get("token", false):
 		out.append([["FICHA", Color(UITheme.TEXT, 0.6)]])
-	if out.is_empty():
+	if out.is_empty() and cd["type"] == "unit":
 		var rar :={"legendary": "LENDÁRIO", "champion": "CAMPEÃO", "epic": "UNIDADE ÉPICA", "common": "UNIDADE COMUM"}
 		var rarity_label: String = rar.get(cd["rarity"], "")
 		if CardDB.is_unit_artifact(cd):
@@ -2303,6 +2384,35 @@ func _placeholder(art: Rect2, cd: Dictionary, col: Color, s: float) -> void:
 	var f := UITheme.font("title_bold")
 	var initial := String(cd["name"]).substr(0, 1)
 	_text(f, initial, Vector2(art.end.x - 12 * s, art.end.y - 6 * s), 13 * s, Color(1, 1, 1, 0.35))
+
+## Faint outline of the card's domain symbols behind the text panel's content (one per domain, side by side).
+func _draw_panel_watermark(panel: Rect2, cd: Dictionary, s: float) -> void:
+	var domains: Array = CardDB.essences_of(cd).slice(0, MAX_SHOWN_DOMAINS)
+	var radius := panel.size.y * 0.4
+	var spacing := radius * 2.4
+	var color := Color(SIGIL_COLOR, 0.24) # the panel is dark on every frame, Devoção included
+	var width := maxf(1.0, 1.1 * s)
+	for k in domains.size():
+		var center := panel.get_center() + Vector2((k - (domains.size() - 1) / 2.0) * spacing, 0)
+		_draw_outline_sigil(String(domains[k]), center, radius, color, width)
+
+## Same shapes as _draw_flat_sigil, but only the contour.
+func _draw_outline_sigil(kind: String, c: Vector2, r: float, color: Color, width: float) -> void:
+	if kind == "trevas":
+		draw_arc(c + Vector2(0, -r * 0.22), r * 0.62 * 1.15, 0, TAU, 32, color, width, true)
+		var u := r * 1.15
+		for side in [-1.0, 1.0]:
+			draw_polyline(PackedVector2Array([c + Vector2(side * u * 0.3, u * 0.3), c + Vector2(side * u * 0.34, u * 0.7)]), color, width, true)
+			draw_arc(c + Vector2(side * u * 0.27, -u * 0.14), u * 0.19, 0, TAU, 12, color, width, true)
+		draw_polyline(PackedVector2Array([c + Vector2(-u * 0.34, u * 0.7), c + Vector2(u * 0.34, u * 0.7)]), color, width, true)
+	elif kind == "furia":
+		for i in 3:
+			var shift := (i - 1) * 0.42 - 0.11
+			var claw := PackedVector2Array([c + Vector2(shift + 0.3, -1) * r, c + Vector2(shift + 0.62, -1) * r, c + Vector2(shift - 0.4, 0.95) * r])
+			draw_polyline(claw + PackedVector2Array([claw[0]]), color, width, true)
+	else:
+		var outline := _sigil(kind, c, r)
+		draw_polyline(outline + PackedVector2Array([outline[0]]), color, width, true)
 
 ## A domain's symbol as one flat SIGIL_COLOR shape, in the spirit of the Magic colour symbols: it only
 ## says "this domain" and is not literal (Fúria is claw marks, not fire, since it is not only fire).
@@ -2597,8 +2707,8 @@ func _rrect_grad(r: Rect2, rad: float, top: Color, bot: Color) -> void:
 
 ## Multi-domain frame: the body is cut by parallel diagonals into one band per domain, each band with its
 ## own gradient, joined by thin light seams. (Two domains = the classic half/half frame.)
-func _rrect_grad_split(r: Rect2, rad: float, band_styles: Array, s: float) -> void:
-	var pts := _rrect_pts(r, rad)
+func _rrect_grad_split(r: Rect2, rad: float, band_styles: Array, s: float, clip_pts := PackedVector2Array()) -> void:
+	var pts := _rrect_pts(r, rad) if clip_pts.is_empty() else clip_pts
 	var band_count := band_styles.size()
 	var slant := r.size.x * 0.24 ## horizontal distance between the top end and the bottom end of a cut
 	var big := 10.0 * r.size.x
@@ -2620,6 +2730,8 @@ func _rrect_grad_split(r: Rect2, rad: float, band_styles: Array, s: float) -> vo
 			for p in poly:
 				cols.append(top.lerp(bot, clamp((p.y - r.position.y) / r.size.y, 0.0, 1.0)))
 			draw_polygon(poly, cols)
+	if not clip_pts.is_empty(): # filling just a piece of the frame (a plate): no seams
+		return
 	for top_x in cut_top_x:
 		draw_line(Vector2(top_x, r.position.y + 1.5 * s), Vector2(top_x - slant, r.end.y - 1.5 * s), Color(1, 1, 1, 0.35), 1.2 * s, true)
 
@@ -2753,7 +2865,7 @@ func _wrapped_text(font: Font, t: String, box: Rect2, max_fs: float, min_fs: flo
 ## steel hourglass (lento), gold bolt (rápido) or cyan double bolt (instantâneo).
 const SPEED_PILL_HEIGHT := 15.0 ## seal height at card scale 1 (was 12.4: the label read too small on phones)
 
-func _speed_badge(c: Vector2, speed: String, s: float) -> void:
+func _speed_badge(c: Vector2, speed: String, s: float, right_aligned := false) -> void:
 	var info: Array = {
 		"lento": ["LENTO", Color("#a9b6c8")],
 		"rapido": ["RÁPIDO", Color("#ffd27a")],
@@ -2768,6 +2880,8 @@ func _speed_badge(c: Vector2, speed: String, s: float) -> void:
 	var fs := _fit(f, label, 9.5 * s, 68 * s - 2 * pad - icon_w - gap)
 	var tw := f.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x
 	var w := 2 * pad + icon_w + gap + tw
+	if right_aligned: # `c` is then the right end of the seal
+		c.x -= w / 2
 	var pill := Rect2(c - Vector2(w / 2, SPEED_PILL_HEIGHT / 2 * s), Vector2(w, SPEED_PILL_HEIGHT * s))
 	_rrect_fill(Rect2(pill.position + Vector2(0, 1.4 * s), pill.size), 7.5 * s, Color(0, 0, 0, 0.45))
 	_rrect_fill(pill, 7.5 * s, Color("#0d0b12", 0.9))

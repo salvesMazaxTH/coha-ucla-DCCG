@@ -88,10 +88,7 @@ func open(id: String, stage_size: Vector2) -> DecklistView:
 func _header() -> Control:
 	var deck := DeckDB.get_deck(deck_id)
 	var leader := CardDB.leader(deck["leader"])
-	var accent := Color(String(CardDB.essence(leader["essences"][0]).get("color", "#8a8f98")))
-	var essence_names: Array = []
-	for essence_id in leader["essences"]:
-		essence_names.append(CardDB.essence(essence_id).get("name", essence_id))
+	var accent := Color(String(CardDB.essence(CardDB.leader_essences(leader)[0]).get("color", "#8a8f98")))
 
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 30)
@@ -101,7 +98,7 @@ func _header() -> Control:
 	row.add_child(texts)
 	texts.add_child(_text("LISTA DO DECK", 15, Color(UITheme.GOLD, 0.9), "title_bold"))
 	texts.add_child(_text(String(deck["name"]), 40, UITheme.GOLD_LIGHT, "title_bold"))
-	texts.add_child(_text("%s · %d de vida · %s" % [leader["name"], int(leader["hp"]), " / ".join(essence_names)],
+	texts.add_child(_text("%s · %d de vida · %s" % [leader["name"], int(leader["hp"]), CardDB.leader_essence_names(leader)],
 			19, accent.lightened(0.35), "bold"))
 	texts.add_child(_text(_counts_line(), 18, UITheme.TEXT_DIM, "bold"))
 	texts.add_child(_text(_elites_line(), 18, UITheme.TEXT_DIM, "bold"))
@@ -154,7 +151,7 @@ func _essences_line() -> Control:
 	essence_ids.sort_custom(func(first_id: String, second_id: String) -> bool:
 		if copies_by_essence[first_id] != copies_by_essence[second_id]:
 			return copies_by_essence[first_id] > copies_by_essence[second_id]
-		return first_id < second_id)
+		return CardDB.domain_rank(first_id) < CardDB.domain_rank(second_id))
 	var line := HBoxContainer.new()
 	line.add_theme_constant_override("separation", 8)
 	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
