@@ -22,7 +22,7 @@ var _hub_args: Array = [] ## the arguments of the last show_hub call, to redraw 
 var hub_hotseat := false ## the deck hub's two-step flow is picking decks for hot-seat (player 1, then player 2) instead of AI
 var hub_scroll_y := 0 ## how far the gallery was scrolled, kept across the hub's redraws
 var hub_drag_distance := 0.0 ## how far the current press has dragged the gallery (a long drag isn't a tap)
-var hub_collapsed := {} ## collapsed macro-sections and prebuilt subsections, preserved across redraws
+var hub_collapsed := { } ## collapsed macro-sections and prebuilt subsections, preserved across redraws
 const MENU_SUBTITLE_FONT_SIZE := 18 ## the small hint under each title-menu button
 const MENU_SUBTITLE_COLOR := Color(0.93, 0.9, 0.84, 0.85) ## near-opaque cream so the hint reads on the busy art
 const DECK_TILE_NAME_FONT_SIZES := [21, 19, 17, 15, 13] ## tried in order until the deck name fits its zone on the tile
@@ -32,8 +32,12 @@ const HUB_TILE_GAP := 20.0
 const HUB_TILE_PAD := 10.0 ## room around the gallery's tiles for the hover zoom
 ## The gallery's two macro-sections. Prebuilt decks are grouped below by the set of their Leader's incarnation.
 const HUB_SECTIONS := [
-	{"id": DeckDB.SECTION_LEADERS, "title": "DECKS PRÉ-PRONTOS DOS LÍDERES"},
-	{"id": DeckDB.SECTION_MINE, "title": "MEUS DECKS", "hint": "Você ainda não tem nenhum deck pronto. Monte um em MEUS DECKS, no menu inicial: 44 cartas, a Encarnação do Líder e as regras do deck cumpridas."},
+	{ "id": DeckDB.SECTION_LEADERS, "title": "DECKS PRÉ-PRONTOS DOS LÍDERES" },
+	{
+		"id": DeckDB.SECTION_MINE,
+		"title": "MEUS DECKS",
+		"hint": "Você ainda não tem nenhum deck pronto. Monte um em MEUS DECKS, no menu inicial: 44 cartas, a Encarnação do Líder e as regras do deck cumpridas.",
+	},
 ]
 const HUB_EMPTY_HINT_H := 72.0 ## height of the hint that stands in for the tiles of an empty section
 const HUB_SECTION_TITLE_H := 48.0 ## height of a macro-section's collapsible title row
@@ -46,8 +50,10 @@ var ai_deck := "" ## deck the AI plays, picked in the second step of the AI hub 
 
 var host
 
+
 func _init(host_node) -> void:
 	host = host_node
+
 
 func show_menu() -> void:
 	if host.online:
@@ -56,7 +62,7 @@ func show_menu() -> void:
 	DeckDB.clear_custom(DeckDB.ROOM_PREFIX) # decks of a finished online match; "resume" sends them again
 	host.g = null
 	Music.stop()
-	host._close_concede()
+	host.table_overlays.close_concede()
 	host._clear_fx()
 	host._clear()
 	host.table.visible = false
@@ -89,7 +95,14 @@ func show_menu() -> void:
 	title.size = Vector2(host.stage_w, 140)
 	host.layer.add_child(title)
 	# the acronym alone says nothing to a new player, so the full name sits right under it
-	var full_name: Label = host._label("ULTIMATE CLASH OF LEGENDS OF ATECRA", 24, Color(UITheme.GOLD, 0.85), HORIZONTAL_ALIGNMENT_CENTER, "title", 6)
+	var full_name: Label = host._label(
+		"ULTIMATE CLASH OF LEGENDS OF ATECRA",
+		24,
+		Color(UITheme.GOLD, 0.85),
+		HORIZONTAL_ALIGNMENT_CENTER,
+		"title",
+		6,
+	)
 	full_name.position = Vector2(0, 284)
 	full_name.size = Vector2(host.stage_w, 34)
 	host.layer.add_child(full_name)
@@ -102,15 +115,23 @@ func show_menu() -> void:
 		_add_menu_mode_buttons()
 	else:
 		_add_entry_buttons()
-	var lt: Button = host._toggle_button("MODO LEVE", host._light_on(), func():
-		host._apply_light(not host._light_on(), true)
-		show_menu.call_deferred())
+	var lt: Button = host._toggle_button(
+		"MODO LEVE",
+		host._light_on(),
+		func():
+			host._apply_light(not host._light_on(), true)
+			show_menu.call_deferred(),
+	)
 	lt.position = Vector2(host.stage_w - 300, 790.0 + host.BOT)
 	lt.size = Vector2(280, 52)
 	host.layer.add_child(lt)
-	var sound_toggle: Button = host._toggle_button("SOM", Sfx.is_enabled(), func():
-		Sfx.set_enabled(not Sfx.is_enabled())
-		show_menu.call_deferred())
+	var sound_toggle: Button = host._toggle_button(
+		"SOM",
+		Sfx.is_enabled(),
+		func():
+			Sfx.set_enabled(not Sfx.is_enabled())
+			show_menu.call_deferred(),
+	)
 	sound_toggle.position = Vector2(host.stage_w - 300, 662.0 + host.BOT)
 	sound_toggle.size = Vector2(280, 52)
 	host.layer.add_child(sound_toggle)
@@ -118,9 +139,13 @@ func show_menu() -> void:
 	volume_control.position = Vector2(host.stage_w - 300, 598.0 + host.BOT)
 	host.layer.add_child(volume_control)
 	# the music has its own switch and volume, stacked above the sound effects ones
-	var music_toggle: Button = host._toggle_button("MÚSICA", Music.is_enabled(), func():
-		Music.set_enabled(not Music.is_enabled())
-		show_menu.call_deferred())
+	var music_toggle: Button = host._toggle_button(
+		"MÚSICA",
+		Music.is_enabled(),
+		func():
+			Music.set_enabled(not Music.is_enabled())
+			show_menu.call_deferred(),
+	)
 	music_toggle.position = Vector2(host.stage_w - 300, 534.0 + host.BOT)
 	music_toggle.size = Vector2(280, 52)
 	host.layer.add_child(music_toggle)
@@ -136,6 +161,7 @@ func show_menu() -> void:
 	ver.size = Vector2(280, 20)
 	host.layer.add_child(ver)
 
+
 ## Entry screen: before the mode buttons, the player either signs in with Google or goes on as a guest.
 func _add_entry_buttons() -> void:
 	var column := VBoxContainer.new()
@@ -149,12 +175,18 @@ func _add_entry_buttons() -> void:
 		return
 	column.add_child(_google_sign_in_button())
 	column.add_child(host._label("Salva seu perfil e seus decks na nuvem", 14, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
-	var guest_button: Button = host._button("ENTRAR COMO CONVIDADO", func() -> void:
-		_entered_menu = true
-		show_menu())
+	var guest_button: Button = host._button(
+		"ENTRAR COMO CONVIDADO",
+		func() -> void:
+			_entered_menu = true
+			show_menu(),
+	)
 	guest_button.custom_minimum_size = Vector2(420, 58)
 	column.add_child(guest_button)
-	column.add_child(host._label("Joga sem conta; nada fica salvo na nuvem", 14, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+	column.add_child(
+		host._label("Joga sem conta; nada fica salvo na nuvem", 14, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
+	)
+
 
 ## The standard "Sign in with Google" button, following Google's branding rules: white background,
 ## thin grey border, the four-colour G on the left and dark grey text (Roboto Medium when the system
@@ -198,6 +230,7 @@ func _google_sign_in_button() -> Button:
 	content_row.add_child(text_label)
 	return button
 
+
 ## Google's official four-colour "G", built from its SVG once and reused.
 func _google_logo() -> Texture2D:
 	if _google_logo_texture:
@@ -214,14 +247,18 @@ func _google_logo() -> Texture2D:
 	_google_logo_texture = ImageTexture.create_from_image(logo_image)
 	return _google_logo_texture
 
+
 ## The deck builder takes over the whole stage; its way back is the title menu.
 func open_deck_builder() -> void:
 	host._clear()
 	host.deck_builder = DeckBuilder.new()
-	host.deck_builder.closed.connect(func() -> void:
-		host.deck_builder = null
-		show_menu())
+	host.deck_builder.closed.connect(
+		func() -> void:
+			host.deck_builder = null
+			show_menu(),
+	)
 	host.layer.add_child(host.deck_builder)
+
 
 ## The full title menu, once the player is in: the three ways to play, the deck builder and the account button.
 func _add_menu_mode_buttons() -> void:
@@ -230,14 +267,34 @@ func _add_menu_mode_buttons() -> void:
 	box.position = Vector2(host.stage_w / 2.0 - 210, 390)
 	box.custom_minimum_size = Vector2(420, 0)
 	host.layer.add_child(box)
-	var mode_options: Array = [["JOGAR CONTRA A IA", "Escolha o seu deck e o da IA", func() -> void:
+	var mode_options: Array = [
+		[
+			"JOGAR CONTRA A IA",
+			"Escolha o seu deck e o da IA",
+			func() -> void:
 				hub_hotseat = false
-				show_hub(true), true],
-			["HOT-SEAT", "Dois jogadores no mesmo aparelho, cada um com o deck que quiser", func() -> void:
+				show_hub(true),
+			true,
+		],
+		[
+			"HOT-SEAT",
+			"Dois jogadores no mesmo aparelho, cada um com o deck que quiser",
+			func() -> void:
 				hub_hotseat = true
-				show_hub(true), false]]
+				show_hub(true),
+			false,
+		],
+	]
 	if not host.dev_mode_enabled:
-		mode_options.append(["ONLINE", "Jogar contra outra pessoa por código de sala", func() -> void: show_hub(false), false])
+		mode_options.append(
+			[
+				"ONLINE",
+				"Jogar contra outra pessoa por código de sala",
+				func() -> void:
+					show_hub(false),
+				false,
+			]
+		)
 	mode_options.append(["MEUS DECKS", "Crie, edite e guarde seus próprios decks", open_deck_builder, false])
 	for opt in mode_options:
 		var b: Button = host._button(opt[0], opt[2], opt[3])
@@ -256,17 +313,20 @@ func _add_menu_mode_buttons() -> void:
 	host.layer.add_child(account_button)
 	_update_account_button()
 
+
 func _on_account_button_pressed() -> void:
 	if SupabaseAuth.is_signed_in():
 		SupabaseAuth.sign_out()
 	else:
 		_start_google_sign_in()
 
+
 func _start_google_sign_in() -> void:
 	SupabaseAuth.sign_in_with_google()
 	# on the web the page itself goes to Google; the executable opens a separate browser window
 	if not OS.has_feature("web"):
 		host._toast("Abrimos o navegador: entre com o Google lá e depois volte ao jogo.")
+
 
 func on_supabase_auth_state_changed(auth_state: Dictionary) -> void:
 	_update_account_button()
@@ -289,15 +349,16 @@ func on_supabase_auth_state_changed(auth_state: Dictionary) -> void:
 	if not error_message.is_empty():
 		host._toast(error_message)
 	elif bool(auth_state.get("signed_in", false)) and not _account_was_signed_in:
-		var profile: Dictionary = auth_state.get("profile", {})
+		var profile: Dictionary = auth_state.get("profile", { })
 		host._toast("Conta Google conectada%s" % (": %s" % String(profile.get("username", "")) if not profile.is_empty() else "."))
 	_account_was_signed_in = bool(auth_state.get("signed_in", false))
+
 
 func _update_account_button() -> void:
 	if not is_instance_valid(account_button):
 		return
 	if SupabaseAuth.is_signed_in():
-		var profile: Dictionary = SupabaseAuth.state.get("profile", {})
+		var profile: Dictionary = SupabaseAuth.state.get("profile", { })
 		var username := String(profile.get("username", "CONTA CONECTADA"))
 		account_button.text = "SAIR DA CONTA · %s" % username.to_upper()
 		account_button.tooltip_text = "Sessão Google ativa. Toque para sair."
@@ -305,26 +366,31 @@ func _update_account_button() -> void:
 		account_button.text = "ENTRAR COM GOOGLE"
 		account_button.tooltip_text = "Vincule sua conta para salvar perfil e decks."
 
+
 ## A thin gold rule with a diamond in the middle, for headings.
 func ornament(center: Vector2, half: float) -> Control:
 	var o := Control.new()
 	o.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	o.position = center
-	o.draw.connect(func():
-		for i in 20:
-			var k := float(i) / 20.0
-			var a := (1.0 - k) * 0.8
-			var x0 := 10 + (half - 10) * k
-			var x1 := 10 + (half - 10) * (k + 0.05)
-			o.draw_line(Vector2(-x0, 0), Vector2(-x1, 0), Color(UITheme.GOLD, a), 1.5)
-			o.draw_line(Vector2(x0, 0), Vector2(x1, 0), Color(UITheme.GOLD, a), 1.5)
-		o.draw_colored_polygon(PackedVector2Array([Vector2(0, -6), Vector2(6, 0), Vector2(0, 6), Vector2(-6, 0)]), UITheme.GOLD))
+	o.draw.connect(
+		func():
+			for i in 20:
+				var k := float(i) / 20.0
+				var a := (1.0 - k) * 0.8
+				var x0 := 10 + (half - 10) * k
+				var x1 := 10 + (half - 10) * (k + 0.05)
+				o.draw_line(Vector2(-x0, 0), Vector2(-x1, 0), Color(UITheme.GOLD, a), 1.5)
+				o.draw_line(Vector2(x0, 0), Vector2(x1, 0), Color(UITheme.GOLD, a), 1.5)
+			o.draw_colored_polygon(PackedVector2Array([Vector2(0, -6), Vector2(6, 0), Vector2(0, 6), Vector2(-6, 0)]), UITheme.GOLD),
+	)
 	return o
 
 # ---------------------------------------------------------------- online
 
+
 func show_online(msg := "") -> void:
 	show_hub(false, msg)
+
 
 ## Deck hub, shared by both modes: pick a prebuilt deck from the grid, then either go on to pick the
 ## AI's deck (ai = true) or create a room / go on to join one by code (online).
@@ -350,7 +416,10 @@ func show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 		show_menu()
 		return
 	# banned decks stay in the gallery (marked BANIDO) but can never be the chosen one
-	var playable_ids: Array[String] = ids.filter(func(deck_id: String) -> bool: return not DeckDB.is_deck_banned(deck_id))
+	var playable_ids: Array[String] = ids.filter(
+		func(deck_id: String) -> bool:
+			return not DeckDB.is_deck_banned(deck_id),
+	)
 	if playable_ids.is_empty():
 		host._toast("Nenhum deck disponível neste modo.")
 		show_menu()
@@ -359,7 +428,14 @@ func show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 		sel_deck = playable_ids[0]
 	if ai_deck != "" and not playable_ids.has(ai_deck):
 		ai_deck = ""
-	var title: Label = host._label(("HOT-SEAT" if hub_hotseat else "CONTRA A IA") if ai else "ONLINE", 56, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8)
+	var title: Label = host._label(
+		("HOT-SEAT" if hub_hotseat else "CONTRA A IA") if ai else "ONLINE",
+		56,
+		UITheme.GOLD_LIGHT,
+		HORIZONTAL_ALIGNMENT_CENTER,
+		"title_bold",
+		8,
+	)
 	title.position = Vector2(0, 24)
 	title.size = Vector2(host.stage_w, 72)
 	host.layer.add_child(title)
@@ -402,7 +478,7 @@ func show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 	var prebuilt_subsections := _hub_prebuilt_subsections(prebuilt_ids)
 	if choosing_ai_deck:
 		if prebuilt_subsections.is_empty():
-			prebuilt_subsections.append({"id": "classic", "title": "ESSENCIAIS CLÁSSICOS", "ids": []})
+			prebuilt_subsections.append({ "id": "classic", "title": "ESSENCIAIS CLÁSSICOS", "ids": [] })
 		prebuilt_subsections[0]["ids"].push_front("")
 
 	var gallery_sections: Array = []
@@ -410,21 +486,21 @@ func show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 		var section_id := String(section["id"])
 		var section_title := String(section["title"])
 		if section_id == DeckDB.SECTION_MINE and incomplete_player_decks > 0:
-			section_title += "  ·  %d incompleto%s em MEUS DECKS" % [incomplete_player_decks, "" if incomplete_player_decks == 1 else "s"]
+			section_title += "  ·  %d incompleto%s em MEUS DECKS" % [
+				incomplete_player_decks,
+				"" if incomplete_player_decks == 1 else "s",
+			]
 		if section_id == DeckDB.SECTION_LEADERS:
-			gallery_sections.append({
-				"id": section_id,
-				"title": section_title,
-				"subsections": prebuilt_subsections,
-				"hint": "Nenhum deck pré-pronto está disponível." if prebuilt_subsections.is_empty() else "",
-			})
+			gallery_sections.append(
+				{
+					"id": section_id,
+					"title": section_title,
+					"subsections": prebuilt_subsections,
+					"hint": "Nenhum deck pré-pronto está disponível." if prebuilt_subsections.is_empty() else "",
+				}
+			)
 		else:
-			gallery_sections.append({
-				"id": section_id,
-				"title": section_title,
-				"ids": player_ids,
-				"hint": section.get("hint", ""),
-			})
+			gallery_sections.append({ "id": section_id, "title": section_title, "ids": player_ids, "hint": section.get("hint", "") })
 	var columns := maxi(1, int((gallery_w + HUB_TILE_GAP) / (HUB_TILE.x + HUB_TILE_GAP)))
 	var content_h := 2.0 * HUB_TILE_PAD
 	for i in gallery_sections.size():
@@ -456,14 +532,38 @@ func show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 		var section_id := String(section["id"])
 		var macro_key := _hub_macro_key(section_id)
 		var macro_collapsed := _hub_section_collapsed(macro_key)
-		_add_hub_section_title(content, String(section["title"]), Vector2(grid_x, section_top), grid_w,
-				macro_key, section_id, macro_collapsed, true, scroll, ai, msg, choosing_ai_deck)
+		_add_hub_section_title(
+			content,
+			String(section["title"]),
+			Vector2(grid_x, section_top),
+			grid_w,
+			macro_key,
+			section_id,
+			macro_collapsed,
+			true,
+			scroll,
+			ai,
+			msg,
+			choosing_ai_deck,
+		)
 		section_top += HUB_SECTION_TITLE_H
 		if not macro_collapsed:
 			if section.has("subsections"):
 				var subsections: Array = section["subsections"]
 				if subsections.is_empty():
-					_add_hub_section_body(content, section, grid_x, section_top, grid_w, columns, selected_id, choosing_ai_deck, ai, msg, scroll)
+					_add_hub_section_body(
+						content,
+						section,
+						grid_x,
+						section_top,
+						grid_w,
+						columns,
+						selected_id,
+						choosing_ai_deck,
+						ai,
+						msg,
+						scroll,
+					)
 					section_top += _hub_section_body_height(section, columns)
 				else:
 					for subsection_index in subsections.size():
@@ -471,21 +571,54 @@ func show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 						var subsection_id := String(subsection["id"])
 						var subsection_key := _hub_subsection_key(subsection_id)
 						var subsection_collapsed := _hub_section_collapsed(subsection_key)
-						_add_hub_section_title(content, String(subsection["title"]),
-								Vector2(grid_x + HUB_SUBSECTION_INDENT, section_top), grid_w - HUB_SUBSECTION_INDENT,
-								subsection_key, subsection_id, subsection_collapsed, false, scroll, ai, msg, choosing_ai_deck)
+						_add_hub_section_title(
+							content,
+							String(subsection["title"]),
+							Vector2(grid_x + HUB_SUBSECTION_INDENT, section_top),
+							grid_w - HUB_SUBSECTION_INDENT,
+							subsection_key,
+							subsection_id,
+							subsection_collapsed,
+							false,
+							scroll,
+							ai,
+							msg,
+							choosing_ai_deck,
+						)
 						section_top += HUB_SUBSECTION_TITLE_H
 						if not subsection_collapsed:
-							var subsection_tile := _add_hub_section_body(content, subsection, grid_x, section_top,
-									grid_w, columns, selected_id, choosing_ai_deck, ai, msg, scroll)
+							var subsection_tile := _add_hub_section_body(
+								content,
+								subsection,
+								grid_x,
+								section_top,
+								grid_w,
+								columns,
+								selected_id,
+								choosing_ai_deck,
+								ai,
+								msg,
+								scroll,
+							)
 							if subsection_tile != null:
 								selected_tile = subsection_tile
 							section_top += _hub_section_body_height(subsection, columns)
 						if subsection_index < subsections.size() - 1:
 							section_top += HUB_SUBSECTION_GAP
 			else:
-				var section_tile := _add_hub_section_body(content, section, grid_x, section_top,
-						grid_w, columns, selected_id, choosing_ai_deck, ai, msg, scroll)
+				var section_tile := _add_hub_section_body(
+					content,
+					section,
+					grid_x,
+					section_top,
+					grid_w,
+					columns,
+					selected_id,
+					choosing_ai_deck,
+					ai,
+					msg,
+					scroll,
+				)
 				if section_tile != null:
 					selected_tile = section_tile
 				section_top += _hub_section_body_height(section, columns)
@@ -498,44 +631,82 @@ func show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 			edge.position = Vector2(gallery_x, body_top if at_top else body_bottom - 48.0)
 			edge.size = Vector2(gallery_w, 48)
 			host.layer.add_child(edge)
-			scroll.get_v_scroll_bar().value_changed.connect(func(_v: float) -> void: _update_hub_edge(edge, scroll, at_top))
+			scroll.get_v_scroll_bar().value_changed.connect(
+				func(_v: float) -> void:
+					_update_hub_edge(edge, scroll, at_top),
+			)
 			_update_hub_edge.call_deferred(edge, scroll, at_top)
 	_restore_hub_scroll.call_deferred(scroll, hub_scroll_y, selected_tile)
 	var y := body_bottom + 20.0
 
 	var actions: Array = []
 	if ai and not choosing_ai_deck:
-		actions.append(["PRÓXIMO: DECK DO JOGADOR 2" if hub_hotseat else "PRÓXIMO: DECK DA IA", func() -> void:
-			hub_scroll_y = 0
-			show_hub.call_deferred(true, "", true), true])
+		actions.append(
+			[
+				"PRÓXIMO: DECK DO JOGADOR 2" if hub_hotseat else "PRÓXIMO: DECK DA IA",
+				func() -> void:
+					hub_scroll_y = 0
+					show_hub.call_deferred(true, "", true),
+				true,
+			]
+		)
 	elif ai:
-		actions.append(["JOGAR", func() -> void:
-			var opponent_deck := ai_deck
-			if opponent_deck == "":
-				var others := playable_ids.filter(func(d: String) -> bool: return d != sel_deck)
-				opponent_deck = String(others.pick_random()) if not others.is_empty() else sel_deck
-			host._start(not hub_hotseat, sel_deck, opponent_deck), true])
+		actions.append(
+			[
+				"JOGAR",
+				func() -> void:
+					var opponent_deck := ai_deck
+					if opponent_deck == "":
+						var others := playable_ids.filter(
+							func(d: String) -> bool:
+								return d != sel_deck,
+						)
+						opponent_deck = String(others.pick_random()) if not others.is_empty() else sel_deck
+					host._start(not hub_hotseat, sel_deck, opponent_deck),
+				true,
+			]
+		)
 	elif host.net.load_session():
-		actions.append(["RETOMAR PARTIDA (%s)" % host.net.code, func() -> void:
-			host.online = true
-			host.net.resume(), true])
+		actions.append(
+			[
+				"RETOMAR PARTIDA (%s)" % host.net.code,
+				func() -> void:
+					host.online = true
+					host.net.resume(),
+				true,
+			]
+		)
 	if not ai:
-		actions.append(["CRIAR SALA", func() -> void:
-			host.online = true
-			host.net.create(sel_deck)
-			show_wait("Criando sala…"), true])
-		actions.append(["ENTRAR COM CÓDIGO", func() -> void:
-			code_entry = ""
-			_show_join(), false])
+		actions.append(
+			[
+				"CRIAR SALA",
+				func() -> void:
+					host.online = true
+					host.net.create(sel_deck)
+					show_wait("Criando sala…"),
+				true,
+			]
+		)
+		actions.append(
+			[
+				"ENTRAR COM CÓDIGO",
+				func() -> void:
+					code_entry = ""
+					_show_join(),
+				false,
+			]
+		)
 	# one row: Voltar on the left, then the actions
 	var bw := 400.0
 	var back_w := 240.0
 	var row_w := back_w + actions.size() * (bw + 24.0)
 	var bx: float = (host.stage_w - row_w) / 2.0
 	# from the AI-deck step, Voltar goes back to picking your own deck
-	var back_action := (func() -> void:
-		hub_scroll_y = 0
-		show_hub.call_deferred(true)) if choosing_ai_deck else show_menu
+	var back_action: Callable = show_menu
+	if choosing_ai_deck:
+		back_action = func() -> void:
+			hub_scroll_y = 0
+			show_hub.call_deferred(true)
 	var bk: Button = host._button("Voltar", back_action)
 	bk.position = Vector2(bx, y)
 	bk.size = Vector2(back_w, 72)
@@ -546,6 +717,7 @@ func show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 		b.size = Vector2(bw, 72)
 		host.layer.add_child(b)
 
+
 ## Height of the deck tiles below a section title, or of its empty-state hint.
 func _hub_section_body_height(section: Dictionary, columns: int) -> float:
 	var tile_count: int = section.get("ids", []).size()
@@ -553,6 +725,7 @@ func _hub_section_body_height(section: Dictionary, columns: int) -> float:
 		return HUB_EMPTY_HINT_H if String(section.get("hint", "")) != "" else 0.0
 	var rows := ceili(float(tile_count) / float(columns))
 	return rows * HUB_TILE.y + (rows - 1) * HUB_TILE_GAP
+
 
 func _hub_macro_body_height(section: Dictionary, columns: int) -> float:
 	if not section.has("subsections"):
@@ -570,10 +743,11 @@ func _hub_macro_body_height(section: Dictionary, columns: int) -> float:
 			height += HUB_SUBSECTION_GAP
 	return height
 
+
 ## Set 1's prebuilt decks are the classic essentials; later sets use their registered full names.
 func _hub_prebuilt_subsections(deck_ids: Array[String]) -> Array:
 	var classic_ids: Array[String] = []
-	var set_groups := {}
+	var set_groups := { }
 	for deck_id in deck_ids:
 		var deck := DeckDB.get_deck(deck_id)
 		var leader_id := String(deck["leader"])
@@ -588,25 +762,27 @@ func _hub_prebuilt_subsections(deck_ids: Array[String]) -> Array:
 		group_ids.append(deck_id)
 	var subsections: Array = []
 	if not classic_ids.is_empty():
-		subsections.append({"id": "classic", "title": "ESSENCIAIS CLÁSSICOS", "ids": classic_ids})
+		subsections.append({ "id": "classic", "title": "ESSENCIAIS CLÁSSICOS", "ids": classic_ids })
 	for set_number in CardDB.set_numbers():
 		if int(set_number) <= 1 or not set_groups.has(int(set_number)):
 			continue
-		subsections.append({
-			"id": "set_%d" % int(set_number),
-			"title": CardDB.set_full_name(int(set_number)),
-			"ids": set_groups[int(set_number)],
-		})
+		subsections.append(
+			{ "id": "set_%d" % int(set_number), "title": CardDB.set_full_name(int(set_number)), "ids": set_groups[int(set_number)] }
+		)
 	return subsections
+
 
 func _hub_macro_key(section_id: String) -> String:
 	return "macro:" + section_id
 
+
 func _hub_subsection_key(subsection_id: String) -> String:
 	return "subsection:" + subsection_id
 
+
 func _hub_section_collapsed(key: String) -> bool:
 	return bool(hub_collapsed.get(key, false))
+
 
 func _toggle_hub_section(key: String, scroll: ScrollContainer, ai: bool, msg: String, choosing_ai_deck: bool) -> void:
 	hub_collapsed[key] = not _hub_section_collapsed(key)
@@ -614,9 +790,20 @@ func _toggle_hub_section(key: String, scroll: ScrollContainer, ai: bool, msg: St
 		hub_scroll_y = scroll.scroll_vertical
 	show_hub.call_deferred(ai, msg, choosing_ai_deck)
 
-func _add_hub_section_body(content: Control, section: Dictionary, grid_x: float, y: float, grid_w: float,
-		columns: int, selected_id: String, choosing_ai_deck: bool, ai: bool, msg: String,
-		scroll: ScrollContainer) -> Control:
+
+func _add_hub_section_body(
+	content: Control,
+	section: Dictionary,
+	grid_x: float,
+	y: float,
+	grid_w: float,
+	columns: int,
+	selected_id: String,
+	choosing_ai_deck: bool,
+	ai: bool,
+	msg: String,
+	scroll: ScrollContainer,
+) -> Control:
 	var section_ids: Array = section.get("ids", [])
 	if section_ids.is_empty():
 		var hint_text := String(section.get("hint", ""))
@@ -631,16 +818,23 @@ func _add_hub_section_body(content: Control, section: Dictionary, grid_x: float,
 	for i in section_ids.size():
 		var id: String = section_ids[i]
 		var tile := deck_tile(id, HUB_TILE, id == selected_id)
-		tile.position = Vector2(grid_x + (i % columns) * (HUB_TILE.x + HUB_TILE_GAP),
-				y + (i / columns) * (HUB_TILE.y + HUB_TILE_GAP))
+		tile.position = Vector2(grid_x + (i % columns) * (HUB_TILE.x + HUB_TILE_GAP), y + (i / columns) * (HUB_TILE.y + HUB_TILE_GAP))
 		if id == selected_id:
 			selected_tile = tile
 		tile.gui_input.connect(_on_hub_tile_input.bind(tile, id, choosing_ai_deck, ai, msg, scroll))
 		content.add_child(tile)
 	return selected_tile
 
-func _on_hub_tile_input(ev: InputEvent, tile: Control, id: String, choosing_ai_deck: bool,
-		ai: bool, msg: String, scroll: ScrollContainer) -> void:
+
+func _on_hub_tile_input(
+	ev: InputEvent,
+	tile: Control,
+	id: String,
+	choosing_ai_deck: bool,
+	ai: bool,
+	msg: String,
+	scroll: ScrollContainer,
+) -> void:
 	# picks on release, and not at the end of a scroll drag
 	var mb := ev as InputEventMouseButton
 	if mb == null or mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT or hub_drag_distance > HUB_DRAG_SLOP:
@@ -660,6 +854,7 @@ func _on_hub_tile_input(ev: InputEvent, tile: Control, id: String, choosing_ai_d
 	hub_scroll_y = scroll.scroll_vertical
 	show_hub.call_deferred(ai, msg, choosing_ai_deck)
 
+
 ## Registers the player's saved decks (MEUS DECKS) in DeckDB so the hub, the match and the deck list treat
 ## them like prebuilt ones. Only decks that already pass every rule can be played; the rest are counted.
 func _refresh_player_decks() -> void:
@@ -672,13 +867,21 @@ func _refresh_player_decks() -> void:
 		if leader_id == "" or not DeckDB.validate_cards(leader_id, saved_deck["cards"], String(saved_deck.get("incarnation_id", ""))).is_empty():
 			incomplete_player_decks += 1
 			continue
-		DeckDB.register_custom(DeckDB.PLAYER_PREFIX + String(saved_deck["id"]), String(saved_deck["name"]),
-				String(saved_deck["description"]), leader_id, saved_deck["cards"], String(saved_deck.get("incarnation_id", "")))
+		DeckDB.register_custom(
+			DeckDB.PLAYER_PREFIX + String(saved_deck["id"]),
+			String(saved_deck["name"]),
+			String(saved_deck["description"]),
+			leader_id,
+			saved_deck["cards"],
+			String(saved_deck.get("incarnation_id", "")),
+		)
+
 
 func use_deck_store(store: DeckStore) -> void:
 	deck_store = store
 	host.add_child(deck_store)
 	deck_store.changed.connect(_on_player_decks_changed)
+
 
 ## The account's decks arrive (or change) after the hub was drawn: draw it again with them.
 func _on_player_decks_changed() -> void:
@@ -686,10 +889,12 @@ func _on_player_decks_changed() -> void:
 		hub_scroll_y = host.hub_scroll.scroll_vertical
 		show_hub.call_deferred(_hub_args[0], _hub_args[1], _hub_args[2])
 
+
 func refresh_hub_stats_if_due() -> void:
 	if SupabaseAuth.is_signed_in() and Time.get_ticks_msec() - host._hub_stats_refresh_at >= 30000:
 		host._hub_stats_refresh_at = Time.get_ticks_msec()
 		SupabaseAuth.refresh_deck_stats()
+
 
 ## Puts the deck gallery back where it was scrolled before the redraw, then makes sure the chosen
 ## deck's tile is in view (e.g. when coming back to the hub with a deck far down the list).
@@ -699,6 +904,7 @@ func _restore_hub_scroll(scroll: ScrollContainer, scroll_y: int, selected_tile: 
 	scroll.scroll_vertical = scroll_y
 	if selected_tile != null and is_instance_valid(selected_tile):
 		scroll.ensure_control_visible(selected_tile)
+
 
 ## A strip that fades the gallery's top or bottom edge into the background.
 func _hub_edge_fade(at_top: bool) -> TextureRect:
@@ -715,6 +921,7 @@ func _hub_edge_fade(at_top: bool) -> TextureRect:
 	edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return edge
 
+
 ## Shows an edge fade only while there is more gallery hidden past that edge.
 func _update_hub_edge(edge: Control, scroll: ScrollContainer, at_top: bool) -> void:
 	if not is_instance_valid(edge) or not is_instance_valid(scroll):
@@ -722,6 +929,7 @@ func _update_hub_edge(edge: Control, scroll: ScrollContainer, at_top: bool) -> v
 	var bar := scroll.get_v_scroll_bar()
 	var hidden_past_edge := bar.value > 1.0 if at_top else bar.value < bar.max_value - bar.page - 1.0
 	edge.modulate.a = 1.0 if hidden_past_edge else 0.0
+
 
 ## Wheel and finger-drag scrolling of the deck gallery (the tiles swallow those events before the
 ## ScrollContainer sees them). Also measures how far a press has moved, so a drag doesn't pick a deck.
@@ -751,6 +959,7 @@ func hub_scroll_input(e: InputEvent) -> bool:
 		host.hub_scroll.scroll_vertical -= int(drag_y / xf.get_scale().y)
 	return true
 
+
 ## The big panel on the left of the hub: the chosen deck's Leader art, name, Leader line, Encarnação,
 ## full description and size. `id` "" is the AI's "random deck" choice.
 func _deck_showcase(id: String, size: Vector2, choosing_ai_deck: bool) -> Control:
@@ -759,22 +968,38 @@ func _deck_showcase(id: String, size: Vector2, choosing_ai_deck: bool) -> Contro
 	p.size = size
 	p.clip_contents = true
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var who := ("DECK DO JOGADOR 2" if hub_hotseat else "DECK DA IA") if choosing_ai_deck else ("JOGADOR 1" if hub_hotseat else "SEU DECK")
+	var who := ("DECK DO JOGADOR 2" if hub_hotseat else "DECK DA IA") if choosing_ai_deck else (
+		"JOGADOR 1" if hub_hotseat else "SEU DECK"
+	)
 	if id == "":
 		p.add_theme_stylebox_override("panel", UITheme.box(bg, 16, UITheme.GOLD, 3, 20))
 		var mark: Label = host._label("?", 220, Color(UITheme.GOLD_LIGHT, 0.5), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8)
 		mark.position = Vector2(0, size.y * 0.12)
 		mark.size = Vector2(size.x, 300)
 		p.add_child(mark)
-		_showcase_text(p, size, who, "Deck Aleatório", "", UITheme.GOLD_LIGHT, "A IA joga com um dos outros decks, sorteado na hora de começar.", "", size.y * 0.5)
+		_showcase_text(
+			p,
+			size,
+			who,
+			"Deck Aleatório",
+			"",
+			UITheme.GOLD_LIGHT,
+			"A IA joga com um dos outros decks, sorteado na hora de começar.",
+			"",
+			size.y * 0.5,
+		)
 		return p
 	var d := DeckDB.get_deck(id)
 	var ld := CardDB.leader(d["leader"])
-	var col := Color(String(CardDB.essence(ld["essences"][0]).get("color", "#8a8f98")))
+	var col := Color(String(CardDB.essence(CardDB.leader_essences(ld)[0]).get("color", "#8a8f98")))
 	p.add_theme_stylebox_override("panel", UITheme.box(bg, 16, Color(col, 0.85), 3, 20))
 	var art_h := size.y * 0.5
 	var art := TextureRect.new()
-	art.texture = host._top_crop(CardView.texture(String(ld.get("art", ""))), Vector2(size.x - 8, art_h), float(ld.get("art_focus", 0.06)))
+	art.texture = host._top_crop(
+		CardView.texture(String(ld.get("art", ""))),
+		Vector2(size.x - 8, art_h),
+		float(ld.get("art_focus", 0.06)),
+	)
 	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	art.stretch_mode = TextureRect.STRETCH_SCALE
 	art.position = Vector2(4, 4)
@@ -782,15 +1007,13 @@ func _deck_showcase(id: String, size: Vector2, choosing_ai_deck: bool) -> Contro
 	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	p.add_child(art)
 	p.add_child(_art_fade(bg, Vector2(4, 4 + art_h * 0.45), Vector2(size.x - 8, art_h * 0.55 + 1)))
-	var essence_names: Array = []
-	for essence_id in ld["essences"]:
-		essence_names.append(CardDB.essence(essence_id).get("name", essence_id))
-	var leader_line := "%s · %d de vida · %s" % [ld["name"], int(ld["hp"]), " / ".join(essence_names)]
+	var leader_line := "%s · %d de vida · %s" % [ld["name"], int(ld["hp"]), CardDB.leader_essence_names(ld)]
 	var incarnation_id := DeckDB.resolved_incarnation_id(String(d["leader"]), String(d.get("incarnation_id", "")))
 	var footer := "%d cartas · Encarnação: %s" % [DeckDB.card_count(id), CardDB.card(incarnation_id)["name"]]
 	_showcase_text(p, size, who, String(d["name"]), leader_line, col, String(d.get("description", "")), footer, art_h - 30.0)
 	p.add_child(_decklist_button(id, size))
 	return p
+
 
 ## A small "list" pill in the showcase's top right corner: opens the deck's card list (DecklistView).
 func _decklist_button(id: String, showcase_size: Vector2) -> Button:
@@ -804,11 +1027,13 @@ func _decklist_button(id: String, showcase_size: Vector2) -> Button:
 	var icon := Control.new()
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	icon.position = Vector2(40.0, button_size.y / 2.0)
-	icon.draw.connect(func():
-		# the universal "list" icon: three lines, each with a bullet in front
-		for line_y in [-14.0, 0.0, 14.0]:
-			icon.draw_circle(Vector2(-18.0, line_y), 3.5, UITheme.GOLD_LIGHT)
-			icon.draw_line(Vector2(-8.0, line_y), Vector2(20.0, line_y), UITheme.GOLD_LIGHT, 3.5))
+	icon.draw.connect(
+		func():
+			# the universal "list" icon: three lines, each with a bullet in front
+			for line_y in [-14.0, 0.0, 14.0]:
+				icon.draw_circle(Vector2(-18.0, line_y), 3.5, UITheme.GOLD_LIGHT)
+				icon.draw_line(Vector2(-8.0, line_y), Vector2(20.0, line_y), UITheme.GOLD_LIGHT, 3.5),
+	)
 	button.add_child(icon)
 	var caption: Label = host._label("LISTA", 26, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_LEFT, "bold")
 	caption.position = Vector2(80.0, 0.0)
@@ -816,10 +1041,14 @@ func _decklist_button(id: String, showcase_size: Vector2) -> Button:
 	caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	button.add_child(caption)
 	button.pressed.connect(Sfx.play.bind("ui_click"))
-	button.pressed.connect(func(): _open_decklist(id))
+	button.pressed.connect(
+		func():
+			_open_decklist(id),
+	)
 	return button
 
 # ---------------------------------------------------------------- deck list
+
 
 ## Opens the deck list window. A tap on one of its cards shows the match's own card overlay on top of it.
 func _open_decklist(deck_id: String) -> void:
@@ -828,6 +1057,7 @@ func _open_decklist(deck_id: String) -> void:
 	host.decklist_view.closed.connect(close_decklist)
 	host.decklist_view.card_chosen.connect(_show_decklist_card)
 	host.add_child(host.decklist_view)
+
 
 func close_decklist() -> void:
 	if host.decklist_view == null:
@@ -838,15 +1068,27 @@ func close_decklist() -> void:
 		old_view.get_parent().remove_child(old_view)
 	old_view.queue_free()
 
+
 ## The overlay needs a CardView to read from; a plain printed card (no match state) is enough here.
 func _show_decklist_card(card_id: String) -> void:
-	var printed_card := CardView.new().setup(card_id, {}, 1.0)
-	host._show_overlay(printed_card)
+	var printed_card := CardView.new().setup(card_id, { }, 1.0)
+	host.table_overlays.show_overlay(printed_card)
 	printed_card.free()
+
 
 ## The showcase's text block, from `top` down: a small "SEU DECK" tag, the deck name, the Leader line,
 ## the full description (wrapped, and smaller only if it would not fit) and a footer.
-func _showcase_text(p: Control, size: Vector2, who: String, deck_name: String, leader_line: String, col: Color, description: String, footer: String, top: float) -> void:
+func _showcase_text(
+	p: Control,
+	size: Vector2,
+	who: String,
+	deck_name: String,
+	leader_line: String,
+	col: Color,
+	description: String,
+	footer: String,
+	top: float,
+) -> void:
 	var tag: Label = host._label(who, 15, Color(UITheme.GOLD, 0.9), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
 	tag.position = Vector2(20, top - 26.0)
 	tag.size = Vector2(size.x - 40, 22)
@@ -885,6 +1127,7 @@ func _showcase_text(p: Control, size: Vector2, who: String, deck_name: String, l
 		foot.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		p.add_child(foot)
 
+
 ## A gradient that melts the bottom of a portrait into the panel color.
 func _art_fade(bg: Color, pos: Vector2, size: Vector2) -> TextureRect:
 	var fade := GradientTexture2D.new()
@@ -900,6 +1143,7 @@ func _art_fade(bg: Color, pos: Vector2, size: Vector2) -> TextureRect:
 	veil.size = size
 	veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return veil
+
 
 ## One deck in the hub gallery: Leader art, deck name and domain seals. Always the same size (the full
 ## description lives in the showcase). `id` "" is the AI's "random deck" tile.
@@ -923,11 +1167,15 @@ func deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 	else:
 		var d := DeckDB.get_deck(id)
 		var ld := CardDB.leader(d["leader"])
-		col = Color(String(CardDB.essence(ld["essences"][0]).get("color", "#8a8f98")))
+		col = Color(String(CardDB.essence(CardDB.leader_essences(ld)[0]).get("color", "#8a8f98")))
 		deck_name = String(d["name"])
 		leader_name = String(ld["name"])
 		var art := TextureRect.new()
-		art.texture = host._top_crop(CardView.texture(String(ld.get("art", ""))), Vector2(size.x - 8, art_h), float(ld.get("art_focus", 0.06)))
+		art.texture = host._top_crop(
+			CardView.texture(String(ld.get("art", ""))),
+			Vector2(size.x - 8, art_h),
+			float(ld.get("art_focus", 0.06)),
+		)
 		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		art.stretch_mode = TextureRect.STRETCH_SCALE
 		art.position = Vector2(4, 4)
@@ -935,10 +1183,20 @@ func deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		p.add_child(art)
 		p.add_child(_art_fade(bg, Vector2(4, 4 + art_h * 0.5), Vector2(size.x - 8, art_h * 0.5 + 1)))
-	p.add_theme_stylebox_override("panel", UITheme.box(bg, 12, UITheme.GOLD if selected else Color(col, 0.55), 4 if selected else 2, 12 if selected else 6))
+	p.add_theme_stylebox_override(
+		"panel",
+		UITheme.box(bg, 12, UITheme.GOLD if selected else Color(col, 0.55), 4 if selected else 2, 12 if selected else 6),
+	)
 	# the name gets the zone between the art and domain seals, and never grows past it: it shrinks
 	# step by step until it fits in two lines, and only a name too long even for the smallest step is cut with "…"
-	var nm: Label = host._label(deck_name, DECK_TILE_NAME_FONT_SIZES[0], UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 5)
+	var nm: Label = host._label(
+		deck_name,
+		DECK_TILE_NAME_FONT_SIZES[0],
+		UITheme.GOLD_LIGHT,
+		HORIZONTAL_ALIGNMENT_CENTER,
+		"title_bold",
+		5,
+	)
 	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	nm.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	nm.position = Vector2(8, art_h - 14.0)
@@ -954,8 +1212,11 @@ func deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 	p.add_child(nm)
 	if id != "":
 		var domain_deck := DeckDB.get_deck(id)
-		var incarnation_id := DeckDB.resolved_incarnation_id(String(domain_deck["leader"]), String(domain_deck.get("incarnation_id", "")))
-		var domains := DeckDB.domains_in(String(domain_deck["leader"]), domain_deck.get("cards", {}), incarnation_id)
+		var incarnation_id := DeckDB.resolved_incarnation_id(
+			String(domain_deck["leader"]),
+			String(domain_deck.get("incarnation_id", "")),
+		)
+		var domains := DeckDB.domains_in(String(domain_deck["leader"]), domain_deck.get("cards", { }), incarnation_id)
 		DeckLeaderTooltipScript.attach(p, leader_name)
 		_add_deck_tile_stats(p, nm, id)
 		var domain_row := DomainIconRowScript.new().setup(domains, 24.5, 2)
@@ -975,12 +1236,17 @@ func deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 		badge.position = Vector2(size.x - 42, 10)
 		p.add_child(badge)
 	# hover (mouse only): a gentle lift so the gallery feels alive on desktop
-	p.mouse_entered.connect(func() -> void:
-		if not CardView.touched:
-			p.create_tween().tween_property(p, "scale", Vector2.ONE * 1.04, 0.12))
-	p.mouse_exited.connect(func() -> void:
-		p.create_tween().tween_property(p, "scale", Vector2.ONE, 0.12))
+	p.mouse_entered.connect(
+		func() -> void:
+			if not CardView.touched:
+				p.create_tween().tween_property(p, "scale", Vector2.ONE * 1.04, 0.12),
+	)
+	p.mouse_exited.connect(
+		func() -> void:
+			p.create_tween().tween_property(p, "scale", Vector2.ONE, 0.12),
+	)
 	return p
+
 
 ## Alternate the name with this account's online record without moving the domain seals.
 func _add_deck_tile_stats(tile: Control, name_label: Label, deck_id: String) -> void:
@@ -1001,7 +1267,7 @@ func _add_deck_tile_stats(tile: Control, name_label: Label, deck_id: String) -> 
 		hint.size = stats_box.size
 		stats_box.add_child(hint)
 	else:
-		var record := {}
+		var record := { }
 		for row in SupabaseAuth.state.get("deck_stats", []):
 			if row is Dictionary and String(row.get("deck_key", "")) == deck_id:
 				record = row
@@ -1010,13 +1276,20 @@ func _add_deck_tile_stats(tile: Control, name_label: Label, deck_id: String) -> 
 		var wins := int(record.get("wins", 0))
 		var losses := int(record.get("losses", 0))
 		var draws := int(record.get("draws", 0))
-		tile.tooltip_text = "%s\n%d partidas · %d vitórias · %d derrotas · %d empate%s" % [tile.tooltip_text, games, wins, losses, draws, "" if draws == 1 else "s"]
+		tile.tooltip_text = "%s\n%d partidas · %d vitórias · %d derrotas · %d empate%s" % [
+			tile.tooltip_text,
+			games,
+			wins,
+			losses,
+			draws,
+			"" if draws == 1 else "s",
+		]
 		var parts := [
-			{"name": "Games", "text": "%d J" % games, "color": UITheme.TEXT},
-			{"name": "Separator1", "text": "·", "color": UITheme.TEXT},
-			{"name": "Wins", "text": "%d V" % wins, "color": Color("#58c77d")},
-			{"name": "Separator2", "text": "·", "color": UITheme.TEXT},
-			{"name": "Losses", "text": "%d D" % losses, "color": Color("#dc5b5b")},
+			{ "name": "Games", "text": "%d J" % games, "color": UITheme.TEXT },
+			{ "name": "Separator1", "text": "·", "color": UITheme.TEXT },
+			{ "name": "Wins", "text": "%d V" % wins, "color": Color("#58c77d") },
+			{ "name": "Separator2", "text": "·", "color": UITheme.TEXT },
+			{ "name": "Losses", "text": "%d D" % losses, "color": Color("#dc5b5b") },
 		]
 		var totals_size := 17
 		var font := UITheme.font("bold")
@@ -1060,8 +1333,10 @@ func _add_deck_tile_stats(tile: Control, name_label: Label, deck_id: String) -> 
 		stats_box.add_child(bar)
 		var win_width := bar.size.x * float(wins) / games if games > 0 else 0.0
 		var loss_width := bar.size.x * float(losses) / games if games > 0 else 0.0
-		for segment in [{"name": "Wins", "x": 0.0, "width": win_width, "color": Color("#58c77d")},
-				{"name": "Losses", "x": win_width, "width": loss_width, "color": Color("#dc5b5b")}]:
+		for segment in [
+			{ "name": "Wins", "x": 0.0, "width": win_width, "color": Color("#58c77d") },
+			{ "name": "Losses", "x": win_width, "width": loss_width, "color": Color("#dc5b5b") },
+		]:
 			var rect := ColorRect.new()
 			rect.name = segment.name
 			rect.position.x = segment.x
@@ -1069,19 +1344,33 @@ func _add_deck_tile_stats(tile: Control, name_label: Label, deck_id: String) -> 
 			rect.color = segment.color
 			rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			bar.add_child(rect)
-	tile.tree_entered.connect(func() -> void:
-		var tween := tile.create_tween().set_loops()
-		tween.tween_interval(3.5)
-		tween.tween_property(name_label, "modulate:a", 0.0, 0.45)
-		tween.parallel().tween_property(stats_box, "modulate:a", 1.0, 0.45)
-		tween.tween_interval(3.5)
-		tween.tween_property(name_label, "modulate:a", 1.0, 0.45)
-		tween.parallel().tween_property(stats_box, "modulate:a", 0.0, 0.45))
+	tile.tree_entered.connect(
+		func() -> void:
+			var tween := tile.create_tween().set_loops()
+			tween.tween_interval(3.5)
+			tween.tween_property(name_label, "modulate:a", 0.0, 0.45)
+			tween.parallel().tween_property(stats_box, "modulate:a", 1.0, 0.45)
+			tween.tween_interval(3.5)
+			tween.tween_property(name_label, "modulate:a", 1.0, 0.45)
+			tween.parallel().tween_property(stats_box, "modulate:a", 0.0, 0.45),
+	)
+
 
 ## A full-width button gives each gallery level a clear, independently collapsible header.
-func _add_hub_section_title(content: Control, title_text: String, pos: Vector2, width: float, key: String,
-		node_name: String, collapsed: bool, macro: bool, scroll: ScrollContainer, ai: bool, msg: String,
-		choosing_ai_deck: bool) -> void:
+func _add_hub_section_title(
+	content: Control,
+	title_text: String,
+	pos: Vector2,
+	width: float,
+	key: String,
+	node_name: String,
+	collapsed: bool,
+	macro: bool,
+	scroll: ScrollContainer,
+	ai: bool,
+	msg: String,
+	choosing_ai_deck: bool,
+) -> void:
 	var button := Button.new()
 	button.name = ("HubMacro_" if macro else "HubSubsection_") + node_name
 	button.text = title_text
@@ -1094,8 +1383,7 @@ func _add_hub_section_title(content: Control, title_text: String, pos: Vector2, 
 	button.add_theme_font_size_override("font_size", 22 if macro else 18)
 	button.add_theme_color_override("font_color", UITheme.GOLD_LIGHT if macro else UITheme.TEXT)
 	button.add_theme_color_override("font_hover_color", UITheme.GOLD_LIGHT)
-	var normal := UITheme.box(Color("#171a27") if macro else Color("#1a222f"), 6,
-			Color(UITheme.GOLD, 0.55 if macro else 0.3), 1)
+	var normal := UITheme.box(Color("#171a27") if macro else Color("#1a222f"), 6, Color(UITheme.GOLD, 0.55 if macro else 0.3), 1)
 	normal.set_border_width_all(0)
 	if macro:
 		normal.border_width_bottom = 2
@@ -1119,6 +1407,7 @@ func _add_hub_section_title(content: Control, title_text: String, pos: Vector2, 
 	button.add_child(arrow)
 	content.add_child(button)
 
+
 ## Join screen: 4-letter room code keypad, entering with the deck picked in the hub.
 func _show_join(msg := "") -> void:
 	host._clear_fx()
@@ -1131,7 +1420,15 @@ func _show_join(msg := "") -> void:
 	box.custom_minimum_size = Vector2(600, 0)
 	host.layer.add_child(box)
 	box.add_child(host._label("ENTRAR NA SALA", 48, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8))
-	box.add_child(host._label(msg if msg != "" else "Deck: %s" % DeckDB.get_deck(sel_deck)["name"], 22, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
+	box.add_child(
+		host._label(
+			msg if msg != "" else "Deck: %s" % DeckDB.get_deck(sel_deck)["name"],
+			22,
+			UITheme.TEXT,
+			HORIZONTAL_ALIGNMENT_CENTER,
+			"bold",
+		)
+	)
 	var slots: Label = host._label(_code_text(), 64, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6)
 	host.join_slots = slots
 	box.add_child(slots)
@@ -1152,30 +1449,40 @@ func _show_join(msg := "") -> void:
 	var go: Button = host._button("ENTRAR NA SALA", _join_typed_room, true)
 	go.custom_minimum_size = Vector2(600, 64)
 	box.add_child(go)
-	var bk: Button = host._button("Voltar", func() -> void: show_online())
+	var bk: Button = host._button(
+		"Voltar",
+		func() -> void:
+			show_online(),
+	)
 	bk.custom_minimum_size = Vector2(600, 52)
 	box.add_child(bk)
+
 
 func _code_text() -> String:
 	return code_entry + "_".repeat(4 - code_entry.length())
 
+
 ## Letters a room code can use (no I, L or O: they look like 1 and 0).
 const ROOM_CODE_LETTERS := "ABCDEFGHJKMNPQRSTUVWXYZ"
+
 
 func _type_room_code_letter(letter: String) -> void:
 	if code_entry.length() < 4:
 		code_entry += letter
 		host.join_slots.text = _code_text()
 
+
 func _erase_room_code_letter() -> void:
 	code_entry = code_entry.substr(0, code_entry.length() - 1)
 	host.join_slots.text = _code_text()
+
 
 func _join_typed_room() -> void:
 	if code_entry.length() == 4:
 		host.online = true
 		host.net.join(code_entry, sel_deck)
 		show_wait("Entrando na sala…")
+
 
 ## The physical keyboard types into the join screen like its on-screen keypad does.
 ## Returns true when the key was used.
@@ -1194,6 +1501,7 @@ func join_screen_key(key: InputEventKey) -> bool:
 		return true
 	return false
 
+
 ## Space / Enter during a game press the main action button on screen (PASSAR, RESOLVER, ENCERRAR
 ## TURNO, IR PARA O COMBATE...), the same as clicking it. Choices that need a deliberate answer
 ## (mulligan, enter tapped, discard...) are left to the mouse.
@@ -1201,11 +1509,15 @@ func press_main_action_with_keyboard() -> bool:
 	if host.g == null or host.g.phase not in ["main", "combat"] or host.overlay or host.grave_view or host.concede_view:
 		return false
 	for action_button: Button in host.get_tree().get_nodes_in_group("action_buttons"):
-		if action_button.theme_type_variation == "PrimaryButton" and not action_button.disabled \
-				and action_button.is_visible_in_tree() and not action_button.is_queued_for_deletion():
+		if (
+				action_button.theme_type_variation == "PrimaryButton" and not action_button.disabled \
+					and action_button.is_visible_in_tree()
+			and not action_button.is_queued_for_deletion()
+		):
 			action_button.pressed.emit()
 			return true
 	return false
+
 
 func show_wait(text: String, show_code := "") -> void:
 	host._clear_fx()
@@ -1221,10 +1533,13 @@ func show_wait(text: String, show_code := "") -> void:
 		box.add_child(host._label("CÓDIGO DA SALA", 26, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
 		box.add_child(host._label(show_code, 120, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 12))
 	box.add_child(host._label(text, 28, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
-	var c: Button = host._button("Cancelar", func():
-		host.net.forget()
-		host.net.disconnect_server()
-		host.online = false
-		show_menu())
+	var c: Button = host._button(
+		"Cancelar",
+		func():
+			host.net.forget()
+			host.net.disconnect_server()
+			host.online = false
+			show_menu(),
+	)
 	c.custom_minimum_size = Vector2(600, 56)
 	box.add_child(c)

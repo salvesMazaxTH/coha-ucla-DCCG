@@ -547,7 +547,7 @@ func _boon_shot(from: Control, to: Control, t: float, col: Color, first_shot: bo
 	var ends: Dictionary = path["ends"]
 	var refresh_ends: Callable = path["refresh"]
 	var point_at: Callable = path["point_at"]
-	var target_radius: float = fx_library._pose(to)["w"] * 0.6 if to is CardView else 70.0
+	var target_radius: float = fx_library.pose_of(to)["w"] * 0.6 if to is CardView else 70.0
 	# the lambdas below reach the bolt's nodes through this dictionary instead of capturing them:
 	# Godot reports an error when a lambda runs after a node it captured was freed (the orb is
 	# freed on landing, and a table reset frees everything mid-flight)
@@ -568,7 +568,7 @@ func _boon_shot(from: Control, to: Control, t: float, col: Color, first_shot: bo
 	parts["orb"] = orb
 
 	# --- 1. charge: a ring closes in on the source while the orb swells there
-	var charge_ring := fx_library._ring_line(fx_library._pose(from)["w"] * 0.55 if from is CardView else 70.0, 4.0, Color(hot, 0.9))
+	var charge_ring := fx_library._ring_line(fx_library.pose_of(from)["w"] * 0.55 if from is CardView else 70.0, 4.0, Color(hot, 0.9))
 	charge_ring.z_index = 25
 	charge_ring.visible = false
 	fx.add_child(charge_ring)

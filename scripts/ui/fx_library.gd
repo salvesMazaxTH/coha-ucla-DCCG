@@ -35,7 +35,7 @@ func _init(host_node) -> void:
 	host = host_node
 
 ## Pose of a Control as its visual center, rotation and on-screen width.
-func _pose(v: Control) -> Dictionary:
+func pose_of(v: Control) -> Dictionary:
 	var zoom: float = v.zoom if v is CardView else 1.0 # a zoomed card is bigger without a node scale
 	var s: float = v.scale.x * zoom
 	return {"c": v.position + v.pivot_offset + (v.size / 2.0 - v.pivot_offset).rotated(v.rotation) * s,
@@ -48,18 +48,18 @@ func _apply_pose(v: Control, p: Dictionary) -> void:
 	v.position = p["c"] - v.pivot_offset - (v.size / 2.0 - v.pivot_offset).rotated(p["rot"]) * s
 
 ## Where every card is right now, taken before a re-render replaces it.
-func _snapshot() -> Dictionary:
+func snapshot_views() -> Dictionary:
 	var out := {}
 	for k in views:
 		var v = views[k]
 		if v is CardView and is_instance_valid(v) and not v.is_queued_for_deletion():
-			out[k] = {"pose": _pose(v), "card_id": v.card_id, "inst": v.inst.duplicate(true), "hand": hand_uids.has(k)}
+			out[k] = {"pose": pose_of(v), "card_id": v.card_id, "inst": v.inst.duplicate(true), "hand": hand_uids.has(k)}
 	return out
 
 func _center_of(c: Control) -> Vector2:
 	if c is LeaderView:
 		return c.position + LeaderView.PC
-	return _pose(c)["c"]
+	return pose_of(c)["c"]
 
 func _fly(v: Control, from: Dictionary, to: Dictionary, t0: float, dur: float, arc := 0.0, hide := false) -> Tween:
 	_apply_pose(v, from)
@@ -83,7 +83,7 @@ func _fly(v: Control, from: Dictionary, to: Dictionary, t0: float, dur: float, a
 func _enter_from_deck(v: CardView, owner_player: int, t0: float) -> float:
 	const FLIGHT_TIME := 0.5
 	var deck_pose: Dictionary = host._deck_top_pose(owner_player)
-	var to := _pose(v)
+	var to := pose_of(v)
 	v.z_index = 20
 	v.face_down = true
 	var tw := _fly(v, deck_pose, to, t0, FLIGHT_TIME, 60.0, true)
@@ -138,7 +138,7 @@ func _draw_from_deck(v: CardView, to: Dictionary, t0: float) -> void:
 const BOUNCE_FLIGHT_TIME := 0.55
 const BOUNCE_LIFT_HEIGHT := 30.0 ## how far the card rises before it heads for the hand
 func _bounce_to_enemy_hand_fx(ghost: CardView, owner_player: int, t: float) -> float:
-	var from := _pose(ghost)
+	var from := pose_of(ghost)
 	var hand_size: int = g.players[owner_player]["hand"].size()
 	var card_size: Vector2 = CardView.BASE * host.ENEMY_HAND_SCALE
 	# the last card of the fan: the bounced card is always added at the end of the hand
@@ -268,7 +268,7 @@ const TRANSFORM_TIME := 0.75
 func _transform_fx(uid: int, from_id: String, into_id: String, actors: Dictionary, old: Dictionary, t: float) -> void:
 	var new_view: CardView = actors[uid]
 	var old_instance: Dictionary = old[uid]["inst"] if old.has(uid) else {}
-	var old_pose: Dictionary = old[uid]["pose"] if old.has(uid) else _pose(new_view)
+	var old_pose: Dictionary = old[uid]["pose"] if old.has(uid) else pose_of(new_view)
 	var old_card := _ghost(from_id, old_instance, old_pose)
 	old_card.z_index = 20
 	var color: Color = host.table_animator.elem_color(into_id).lightened(0.35)
@@ -949,7 +949,7 @@ var fx_chain_scale := 1.0
 
 ## Draws the death shader, a particle burst and a gradient line once, invisibly, so the GPU
 ## compiles them at startup instead of freezing the first time a unit dies.
-func _prewarm_fx() -> void:
+func prewarm_fx() -> void:
 	var holder := Control.new()
 	holder.modulate.a = 0.01
 	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1127,7 +1127,7 @@ func _trigger_fx(v: Control, trigger: String, t: float) -> void:
 	tag.reset_size()
 	tag.pivot_offset = tag.size / 2.0
 	# sits on the card's top edge; pushed inside the screen near its borders
-	var half_h: float = _pose(v)["w"] * CardView.BASE.y / CardView.BASE.x / 2.0 if v is CardView else 60.0
+	var half_h: float = pose_of(v)["w"] * CardView.BASE.y / CardView.BASE.x / 2.0 if v is CardView else 60.0
 	var vw: float = host.get_viewport_rect().size.x
 	var pos := Vector2(c.x - tag.size.x / 2.0, c.y - half_h - tag.size.y * 0.55)
 	pos.x = clampf(pos.x, 8.0, vw - tag.size.x - 8.0)

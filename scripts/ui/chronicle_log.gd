@@ -11,7 +11,7 @@ var host
 var log_lines: Array = []
 ## Structured visual history (newest last, capped at 120).
 var chronicle_entries: Array = []
-## The visual description of the event being logged right now; every `_log` call inside it uses it.
+## The visual description of the event being logged right now; every `add_line` call inside it uses it.
 var _chronicle_visual_context: Dictionary = {}
 ## Every Chronicle entry gets a number, so a row can be found again after a redraw.
 var _chronicle_next_seq := 1
@@ -30,7 +30,7 @@ func _pname(p: int) -> String:
 func _cname(id: String) -> String:
 	return host._cname(id)
 
-func _log(t: String) -> void:
+func add_line(t: String) -> void:
 	log_lines.append(t)
 	var entry := _chronicle_visual_context.duplicate(true)
 	entry["text"] = t
@@ -133,7 +133,7 @@ func _chronicle_icon(kind: String) -> String:
 	}.get(kind, "dot")
 
 ## Converts a raw engine event into the visual relationship shown by ChronicleRow.
-## The event still supplies the prose through _log_event; this only supplies its art and direction.
+## The event still supplies the prose through log_event; this only supplies its art and direction.
 func _chronicle_visual_for_event(e: Dictionary) -> Dictionary:
 	var kind := String(e.get("type", "info"))
 	var out := {"kind": kind, "icon": _chronicle_icon(kind), "accent": _chronicle_accent(kind, String(e.get("dot", ""))),
@@ -199,158 +199,158 @@ func _chronicle_visual_for_event(e: Dictionary) -> Dictionary:
 			out["source_card_id"] = String(e.get("card_id", ""))
 	return out
 
-func _log_event(e: Dictionary) -> void:
+func log_event(e: Dictionary) -> void:
 	_chronicle_visual_context = _chronicle_visual_for_event(e)
 	match e["type"]:
 		"play":
 			if e.get("subito", false):
-				_log("%s invocou %s com Súbito" % [_pname(e["player"]), _cname(e["card_id"])])
+				add_line("%s invocou %s com Súbito" % [_pname(e["player"]), _cname(e["card_id"])])
 			elif e.has("source_uid"):
 				var caster_unit := g.find_unit(int(e["source_uid"]))
-				_log("%s lançou %s%s" % [_pname(e["player"]), _cname(e["card_id"]), "" if caster_unit == null else " com " + _cname(caster_unit.card_id)])
+				add_line("%s lançou %s%s" % [_pname(e["player"]), _cname(e["card_id"]), "" if caster_unit == null else " com " + _cname(caster_unit.card_id)])
 			else:
-				_log("%s jogou %s%s" % [_pname(e["player"]), _cname(e["card_id"]), " (Réquiem)" if e.get("requiem", false) else ""])
+				add_line("%s jogou %s%s" % [_pname(e["player"]), _cname(e["card_id"]), " (Réquiem)" if e.get("requiem", false) else ""])
 		"ability":
-			_log("%s usou %s" % [_pname(e["player"]), CardDB.leader(g.players[e["player"]]["leader_id"])["ability"]["name"]])
+			add_line("%s usou %s" % [_pname(e["player"]), CardDB.leader(g.players[e["player"]]["leader_id"])["ability"]["name"]])
 		"transform":
-			_log("%s transformou %s em %s" % [_pname(e["player"]), _cname(e["from"]), _cname(e["card_id"])])
+			add_line("%s transformou %s em %s" % [_pname(e["player"]), _cname(e["from"]), _cname(e["card_id"])])
 		"passive":
-			_log("%s ativou %s" % [_pname(e["player"]), CardDB.leader(g.players[e["player"]]["leader_id"])["ability"]["name"]])
+			add_line("%s ativou %s" % [_pname(e["player"]), CardDB.leader(g.players[e["player"]]["leader_id"])["ability"]["name"]])
 		"shout":
-			_log("%s: “%s”" % [_cname(e["card_id"]), e["text"]])
+			add_line("%s: “%s”" % [_cname(e["card_id"]), e["text"]])
 		"trigger":
 			var trg: Dictionary = CardDB.data()["triggers"].get(e["trigger"], {})
-			_log("%s: %s" % [_cname(e["card_id"]), trg.get("name", e["trigger"])])
+			add_line("%s: %s" % [_cname(e["card_id"]), trg.get("name", e["trigger"])])
 		"resolve":
 			var resolved_name := _cname(String(e.get("card_id", ""))) if String(e.get("card_id", "")) != "" else "a habilidade do Líder"
-			_log("%s resolveu" % resolved_name)
+			add_line("%s resolveu" % resolved_name)
 		"attack":
 			var attacker := g.find_unit(e["attacker"])
 			var attacker_name := _cname(String(e["attacker_card_id"])) if attacker == null and e.get("attacker_card_id", "") != "" else ("uma unidade" if attacker == null else _cname(attacker.card_id))
 			if int(e["target"]) < 0:
-				_log("%s atacou o Líder com %s" % [_pname(e["player"]), attacker_name])
+				add_line("%s atacou o Líder com %s" % [_pname(e["player"]), attacker_name])
 			else:
 				var challenged := g.find_unit(e["target"])
 				var target_name := _cname(String(e["target_card_id"])) if challenged == null and e.get("target_card_id", "") != "" else ("uma unidade" if challenged == null else _cname(challenged.card_id))
-				_log("%s desafiou %s com %s" % [_pname(e["player"]), target_name, attacker_name])
+				add_line("%s desafiou %s com %s" % [_pname(e["player"]), target_name, attacker_name])
 		"enter_tapped":
 			if e["tapped"]:
 				var tapped_unit := g.find_unit(e["uid"])
-				_log("%s entrou exaurida (Provocação)" % ("Uma unidade" if tapped_unit == null else _cname(tapped_unit.card_id)))
+				add_line("%s entrou exaurida (Provocação)" % ("Uma unidade" if tapped_unit == null else _cname(tapped_unit.card_id)))
 		"draw":
 			# the normal draw of the turn start is not listed; only draws caused by cards/effects (never shows which card)
 			if not e.get("routine", false):
-				_log("%s comprou uma carta" % _pname(e["player"]))
+				add_line("%s comprou uma carta" % _pname(e["player"]))
 		"heal":
 			if e.get("regeneration", false):
 				var regenerated := g.find_unit(e["uid"])
 				if regenerated != null:
-					_log("%s regenerou %d" % [_cname(regenerated.card_id), e["amount"]])
+					add_line("%s regenerou %d" % [_cname(regenerated.card_id), e["amount"]])
 			else:
-				_log("%s recuperou %d de Vida" % [_chronicle_name_for_uid(int(e["uid"])), int(e["amount"])])
+				add_line("%s recuperou %d de Vida" % [_chronicle_name_for_uid(int(e["uid"])), int(e["amount"])])
 		"damage":
 			if e.get("paid", false):
-				_log("%s pagou %d de Vida" % [_chronicle_name_for_uid(int(e["uid"])), int(e["amount"])]) # a cost (Peso dos Séculos), not a hit
+				add_line("%s pagou %d de Vida" % [_chronicle_name_for_uid(int(e["uid"])), int(e["amount"])]) # a cost (Peso dos Séculos), not a hit
 			else:
-				_log("%s sofreu %d de dano" % [_chronicle_name_for_uid(int(e["uid"])), int(e["amount"])])
+				add_line("%s sofreu %d de dano" % [_chronicle_name_for_uid(int(e["uid"])), int(e["amount"])])
 		"death":
-			_log("%s morreu" % (_cname(String(e["card_id"])) if e.get("card_id", "") != "" else _chronicle_name_for_uid(int(e.get("uid", 0)))))
+			add_line("%s morreu" % (_cname(String(e["card_id"])) if e.get("card_id", "") != "" else _chronicle_name_for_uid(int(e.get("uid", 0)))))
 		"leader_executed":
-			_log("O Líder de %s foi executado!" % _pname(e["player"]))
+			add_line("O Líder de %s foi executado!" % _pname(e["player"]))
 		"concede":
 			host.conceded = e["player"]
-			_log("%s desistiu da partida" % _pname(e["player"]))
+			add_line("%s desistiu da partida" % _pname(e["player"]))
 		"fatigue":
-			_log("%s: fadiga %d" % [_pname(e["player"]), e["amount"]])
+			add_line("%s: fadiga %d" % [_pname(e["player"]), e["amount"]])
 		"start_turn":
-			_log("— Turno de %s —" % _pname(e["player"]))
+			add_line("— Turno de %s —" % _pname(e["player"]))
 			if int(e["turn"]) == 1:
 				host.table_animator.first_banner(e["player"])
 		"extra_turn_promised":
-			_log("%s vai jogar um turno extra!" % _pname(e["player"]))
+			add_line("%s vai jogar um turno extra!" % _pname(e["player"]))
 		"ban":
-			_log("%s baniu uma carta da mão" % _pname(e["player"]))
+			add_line("%s baniu uma carta da mão" % _pname(e["player"]))
 		"search_reveal":
 			if e.get("private", false):
 				# the options of a deck search stay secret; only the card taken is announced (search_take)
 				if int(e.get("looked", 0)) > 0:
-					_log("%s olhou as %d cartas do topo do deck" % [_pname(e["player"]), int(e["looked"])])
+					add_line("%s olhou as %d cartas do topo do deck" % [_pname(e["player"]), int(e["looked"])])
 				else:
-					_log("%s procurou uma carta no deck" % _pname(e["player"]))
+					add_line("%s procurou uma carta no deck" % _pname(e["player"]))
 			else:
 				var names: Array = []
 				for c in e["cards"]:
 					names.append(_cname(c["card_id"]))
-				_log("%s revelou: %s" % [_pname(e["player"]), ", ".join(names)])
+				add_line("%s revelou: %s" % [_pname(e["player"]), ", ".join(names)])
 		"look_top":
 			if e.get("from_bottom", false):
-				_log("%s olhou %d cartas do fundo do deck" % [_pname(e["player"]), e["cards"].size()])
+				add_line("%s olhou %d cartas do fundo do deck" % [_pname(e["player"]), e["cards"].size()])
 			else:
-				_log("%s olhou as %d cartas do topo do deck" % [_pname(e["player"]), e["cards"].size()])
+				add_line("%s olhou as %d cartas do topo do deck" % [_pname(e["player"]), e["cards"].size()])
 		"look_bottom":
-			_log("%s colocou as outras no fundo do deck" % _pname(e["player"]))
+			add_line("%s colocou as outras no fundo do deck" % _pname(e["player"]))
 		"search_shuffle":
-			_log("%s embaralhou o deck" % _pname(e["player"]))
+			add_line("%s embaralhou o deck" % _pname(e["player"]))
 		"mill":
 			var milled: Array = []
 			for cid in e["cards"]:
 				milled.append(_cname(cid))
-			_log("Do deck de %s ao cemitério: %s" % [_pname(e["player"]), ", ".join(milled)])
+			add_line("Do deck de %s ao cemitério: %s" % [_pname(e["player"]), ", ".join(milled)])
 		"reflect":
 			var mirror := g.find_unit(e["uid"])
-			_log("%s refletiu %d de dano" % ["Uma unidade" if mirror == null else _cname(mirror.card_id), int(e["amount"])])
+			add_line("%s refletiu %d de dano" % ["Uma unidade" if mirror == null else _cname(mirror.card_id), int(e["amount"])])
 		"revive":
-			_log("%s reviveu %s" % [_pname(e["player"]), _cname(e["card_id"])])
+			add_line("%s reviveu %s" % [_pname(e["player"]), _cname(e["card_id"])])
 		"return_to_hand":
-			_log("%s voltou para a mão de %s" % [_cname(e["card_id"]), _pname(e["player"])])
+			add_line("%s voltou para a mão de %s" % [_cname(e["card_id"]), _pname(e["player"])])
 		"relic_enter":
-			_log("%s colocou %s em campo" % [_pname(e["player"]), _cname(e["card_id"])])
+			add_line("%s colocou %s em campo" % [_pname(e["player"]), _cname(e["card_id"])])
 		"summon":
-			_log("%s invocou %s" % [_pname(e["player"]), _cname(e["card_id"])])
+			add_line("%s invocou %s" % [_pname(e["player"]), _cname(e["card_id"])])
 		"relic_destroyed":
-			_log("%s foi destruído" % _cname(e["card_id"]))
+			add_line("%s foi destruído" % _cname(e["card_id"]))
 		"durability_lost":
-			_log("%s perdeu 1 de Durabilidade (restam %d)" % [_cname(e["card_id"]), int(e["left"])])
+			add_line("%s perdeu 1 de Durabilidade (restam %d)" % [_cname(e["card_id"]), int(e["left"])])
 		"death_ward_armed":
-			_log("%s foi armado: a próxima morte de uma unidade será negada" % _cname(e["card_id"]))
+			add_line("%s foi armado: a próxima morte de uma unidade será negada" % _cname(e["card_id"]))
 		"death_prevented":
-			_log("%s foi destruído para impedir a morte de %s" % [_cname(e["ward_card_id"]), _cname(e["card_id"])])
+			add_line("%s foi destruído para impedir a morte de %s" % [_cname(e["ward_card_id"]), _cname(e["card_id"])])
 		"fuse":
-			_log("%d fichas se fundiram em %s" % [int(e["count"]), _cname(e["card_id"])])
+			add_line("%d fichas se fundiram em %s" % [int(e["count"]), _cname(e["card_id"])])
 		"attach":
-			_log("%s foi equipado em uma unidade" % _cname(e["card_id"]))
+			add_line("%s foi equipado em uma unidade" % _cname(e["card_id"]))
 		"equipment_returned":
-			_log("%s voltou para a mão (a unidade foi reequipada)" % _cname(e["card_id"]))
+			add_line("%s voltou para a mão (a unidade foi reequipada)" % _cname(e["card_id"]))
 		"equipment_break":
-			_log("%s foi ao cemitério com a unidade equipada" % _cname(e["card_id"]))
+			add_line("%s foi ao cemitério com a unidade equipada" % _cname(e["card_id"]))
 		"destroy":
 			var destroyed := g.find_unit(e["uid"])
-			_log("%s foi destruída" % ("Uma unidade" if destroyed == null else _cname(destroyed.card_id)))
+			add_line("%s foi destruída" % ("Uma unidade" if destroyed == null else _cname(destroyed.card_id)))
 		"banish":
-			_log("%s foi banida" % _cname(e["card_id"]))
+			add_line("%s foi banida" % _cname(e["card_id"]))
 
 		"control_change":
 			var borrowed := g.find_unit(e["uid"])
-			_log("%s assumiu o controle de %s até o fim do turno" % [_pname(e["to"]), "uma unidade" if borrowed == null else _cname(borrowed.card_id)])
+			add_line("%s assumiu o controle de %s até o fim do turno" % [_pname(e["to"]), "uma unidade" if borrowed == null else _cname(borrowed.card_id)])
 		"control_return":
 			var returned := g.find_unit(e["uid"])
-			_log("%s voltou para o campo de %s" % ["Uma unidade" if returned == null else _cname(returned.card_id), _pname(e["to"])])
+			add_line("%s voltou para o campo de %s" % ["Uma unidade" if returned == null else _cname(returned.card_id), _pname(e["to"])])
 		"sacrifice":
 			var sacrificed := g.find_unit(e["uid"])
-			_log("%s sacrificou %s" % [_pname(e["player"]), "uma unidade" if sacrificed == null else _cname(sacrificed.card_id)])
+			add_line("%s sacrificou %s" % [_pname(e["player"]), "uma unidade" if sacrificed == null else _cname(sacrificed.card_id)])
 		"freeze":
 			var frozen := g.find_unit(e["uid"])
-			_log("%s foi congelada" % ("Uma unidade" if frozen == null else _cname(frozen.card_id)))
+			add_line("%s foi congelada" % ("Uma unidade" if frozen == null else _cname(frozen.card_id)))
 		"stun":
-			_log("%s foi atordoada" % _chronicle_name_for_uid(int(e["uid"])))
+			add_line("%s foi atordoada" % _chronicle_name_for_uid(int(e["uid"])))
 		"stun_tick":
-			_log("%s se recupera do atordoamento (%d marcador(es) restante(s))" % [_chronicle_name_for_uid(int(e["uid"])), int(e["markers"])])
+			add_line("%s se recupera do atordoamento (%d marcador(es) restante(s))" % [_chronicle_name_for_uid(int(e["uid"])), int(e["markers"])])
 		"shrink":
-			_log("%s foi encolhida (-%d Ataque, -%d Vida)" % [_chronicle_name_for_uid(int(e["uid"])), int(e["atk"]), int(e["hp"])])
+			add_line("%s foi encolhida (-%d Ataque, -%d Vida)" % [_chronicle_name_for_uid(int(e["uid"])), int(e["atk"]), int(e["hp"])])
 		"shield_break":
-			_log("%s perdeu o Escudo" % _chronicle_name_for_uid(int(e["uid"])))
+			add_line("%s perdeu o Escudo" % _chronicle_name_for_uid(int(e["uid"])))
 		"dodge":
-			_log("%s esquivou do ataque" % _chronicle_name_for_uid(int(e["uid"])))
+			add_line("%s esquivou do ataque" % _chronicle_name_for_uid(int(e["uid"])))
 		"dot":
 			var dotted := g.find_unit(e["uid"])
 			var dot_names := {"queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento"}
@@ -358,107 +358,107 @@ func _log_event(e: Dictionary) -> void:
 			if int(e["uid"]) < 0: # a Leader holds the markers
 				dotted_name = "O Líder de %s" % _pname(GameState.LEADER_UID.find(int(e["uid"])))
 			if e.get("cleared", false):
-				_log("%s sofreu %d de %s%s" % [dotted_name, int(e.get("damage", e.get("amount", 0))), dot_names.get(String(e.get("dot", "")), "status"), " (marcadores mantidos)" if e.get("held", false) else ""])
+				add_line("%s sofreu %d de %s%s" % [dotted_name, int(e.get("damage", e.get("amount", 0))), dot_names.get(String(e.get("dot", "")), "status"), " (marcadores mantidos)" if e.get("held", false) else ""])
 			else:
-				_log("%s recebeu %d marcador(es) de %s" % [dotted_name, int(e.get("amount", 0)), dot_names.get(String(e.get("dot", "")), "status")])
+				add_line("%s recebeu %d marcador(es) de %s" % [dotted_name, int(e.get("amount", 0)), dot_names.get(String(e.get("dot", "")), "status")])
 		"dot_immune":
 			var immune_unit := g.find_unit(e["uid"])
 			var immune_name := "Uma unidade" if immune_unit == null else _cname(immune_unit.card_id)
 			if int(e["uid"]) < 0:
 				immune_name = "O Líder de %s" % _pname(GameState.LEADER_UID.find(int(e["uid"])))
-			_log("%s é imune a %s" % [immune_name, {"queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento", "congelar": "Congelamento"}.get(String(e.get("dot", "")), "esse status")])
+			add_line("%s é imune a %s" % [immune_name, {"queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento", "congelar": "Congelamento"}.get(String(e.get("dot", "")), "esse status")])
 		"condemn":
 			var condemned := g.find_unit(e["uid"])
-			_log("%s foi condenada" % ("Uma unidade" if condemned == null else _cname(condemned.card_id)))
+			add_line("%s foi condenada" % ("Uma unidade" if condemned == null else _cname(condemned.card_id)))
 		"doom":
 			var doomed := g.find_unit(e["uid"])
-			_log("%s foi ceifada pela condenação" % ("Uma unidade" if doomed == null else _cname(doomed.card_id)))
+			add_line("%s foi ceifada pela condenação" % ("Uma unidade" if doomed == null else _cname(doomed.card_id)))
 		"heal_block":
-			_log("%s ficou sem cura por %d turno(s) de quem a controla" % [_chronicle_name_for_uid(int(e["uid"])), int(e.get("turns", 1))])
+			add_line("%s ficou sem cura por %d turno(s) de quem a controla" % [_chronicle_name_for_uid(int(e["uid"])), int(e.get("turns", 1))])
 		"heal_prevented":
-			_log("A cura em %s foi bloqueada" % _chronicle_name_for_uid(int(e["uid"])))
+			add_line("A cura em %s foi bloqueada" % _chronicle_name_for_uid(int(e["uid"])))
 		"doom_resisted":
 			var resisted := g.find_unit(e["uid"])
-			_log("%s resistiu à condenação" % ("Uma unidade" if resisted == null else _cname(resisted.card_id)))
+			add_line("%s resistiu à condenação" % ("Uma unidade" if resisted == null else _cname(resisted.card_id)))
 		"exhaust":
 			var exhausted_unit := g.find_unit(e["uid"])
-			_log("%s ficou exausta" % ("Uma unidade" if exhausted_unit == null else _cname(exhausted_unit.card_id)))
+			add_line("%s ficou exausta" % ("Uma unidade" if exhausted_unit == null else _cname(exhausted_unit.card_id)))
 		"ready":
 			var readied_unit := g.find_unit(e["uid"])
-			_log("%s desvirou" % ("Uma unidade" if readied_unit == null else _cname(readied_unit.card_id)))
+			add_line("%s desvirou" % ("Uma unidade" if readied_unit == null else _cname(readied_unit.card_id)))
 		"card_created":
-			_log("%s criou %s no %s" % [_pname(e["player"]), _cname(e["card_id"]), "topo do deck" if e["to"] == "deck_top" else "mão"])
+			add_line("%s criou %s no %s" % [_pname(e["player"]), _cname(e["card_id"]), "topo do deck" if e["to"] == "deck_top" else "mão"])
 		"slots_frozen":
-			_log("%d espaços do campo de %s foram sorteados para congelar (%d vazios bloqueados)" % [e["positions"].size(), _pname(e["player"]), e["blocked"]])
+			add_line("%d espaços do campo de %s foram sorteados para congelar (%d vazios bloqueados)" % [e["positions"].size(), _pname(e["player"]), e["blocked"]])
 		"slots_thaw":
-			_log("Os espaços congelados de %s descongelaram" % _pname(e["player"]))
+			add_line("Os espaços congelados de %s descongelaram" % _pname(e["player"]))
 		"thaw":
 			var thawed := g.find_unit(e["uid"])
 			if thawed != null:
-				_log("%s descongelou" % _cname(thawed.card_id))
+				add_line("%s descongelou" % _cname(thawed.card_id))
 		"incarnation_retired":
-			_log("%s foi para o fundo do deck como carta comum" % _cname(e["card_id"]))
+			add_line("%s foi para o fundo do deck como carta comum" % _cname(e["card_id"]))
 		"enter_skip":
-			_log("%s: Ao Entrar recusado" % _cname(e["card_id"]))
+			add_line("%s: Ao Entrar recusado" % _cname(e["card_id"]))
 		"search_empty":
-			_log("%s não encontrou uma carta que atendesse à busca" % _pname(e["player"]))
+			add_line("%s não encontrou uma carta que atendesse à busca" % _pname(e["player"]))
 		"enter_from_deck":
-			_log("%s saiu do deck e entrou em campo para %s" % [_cname(e["card_id"]), _pname(e["player"])])
+			add_line("%s saiu do deck e entrou em campo para %s" % [_cname(e["card_id"]), _pname(e["player"])])
 		"search_take":
-			_log("%s escolheu %s na busca" % [_pname(e["player"]), _cname(e["card_id"])])
+			add_line("%s escolheu %s na busca" % [_pname(e["player"]), _cname(e["card_id"])])
 		"fizzle":
-			_log("%s foi anulado (alvo inválido)" % (_cname(e["card_id"]) if e["kind"] in ["card", "subito"] else "Habilidade"))
+			add_line("%s foi anulado (alvo inválido)" % (_cname(e["card_id"]) if e["kind"] in ["card", "subito"] else "Habilidade"))
 		"countered":
-			_log("%s anulou %s" % [_pname(e["by"]), _cname(e["card_id"]) if e["kind"] in ["card", "subito"] else "a habilidade de " + _pname(e["player"])])
+			add_line("%s anulou %s" % [_pname(e["by"]), _cname(e["card_id"]) if e["kind"] in ["card", "subito"] else "a habilidade de " + _pname(e["player"])])
 		"magic_shield_break":
 			var shielded := g.find_unit(e["uid"])
-			_log("Escudo Mágico anulou o efeito" + ("" if shielded == null else " em " + _cname(shielded.card_id)))
+			add_line("Escudo Mágico anulou o efeito" + ("" if shielded == null else " em " + _cname(shielded.card_id)))
 		"supreme_shield_break":
 			var supreme_holder: Card = g.find_unit(e["uid"])
 			if supreme_holder == null:
 				supreme_holder = g.find_relic(e["uid"]) # a free-standing artifact (Baluarte Santo) can hold it too
-			_log("Escudo Supremo absorveu" + ("" if supreme_holder == null else " em " + _cname(supreme_holder.card_id)))
+			add_line("Escudo Supremo absorveu" + ("" if supreme_holder == null else " em " + _cname(supreme_holder.card_id)))
 		"tide_draw":
-			_log("%s: a maré retorna, compra 1" % _pname(e["player"]))
+			add_line("%s: a maré retorna, compra 1" % _pname(e["player"]))
 		"snowball":
-			_log("%s: %s com %d de dano inicial" % [_pname(e["player"]), "Grande Bola de Neve" if e["grande"] else "Bola de Neve", int(e["amount"])])
+			add_line("%s: %s com %d de dano inicial" % [_pname(e["player"]), "Grande Bola de Neve" if e["grande"] else "Bola de Neve", int(e["amount"])])
 		"snowball_evolve":
-			_log("%s: a Bola de Neve chegou ao nível Grande, e %d carta(s) viraram Grande Bola de Neve" % [_pname(e["player"]), int(e["count"])])
+			add_line("%s: a Bola de Neve chegou ao nível Grande, e %d carta(s) viraram Grande Bola de Neve" % [_pname(e["player"]), int(e["count"])])
 		"snowball_devolve":
-			_log("%s: o nível da Bola de Neve acabou, e %d carta(s) voltaram a ser Bola de Neve" % [_pname(e["player"]), int(e["count"])])
+			add_line("%s: o nível da Bola de Neve acabou, e %d carta(s) voltaram a ser Bola de Neve" % [_pname(e["player"]), int(e["count"])])
 		"snowball_reset":
-			_log("%s: a Bola de Neve volta ao nível %d" % [_pname(e["player"]), int(e["level"])])
+			add_line("%s: a Bola de Neve volta ao nível %d" % [_pname(e["player"]), int(e["level"])])
 		"snowball_level":
-			_log("%s: o nível da Bola de Neve sobe para %d" % [_pname(e["player"]), int(e["level"])])
+			add_line("%s: o nível da Bola de Neve sobe para %d" % [_pname(e["player"]), int(e["level"])])
 		"relic_redirect":
 			var saved_unit := g.find_unit(e["saved"])
-			_log("%s foi destruído no lugar de %s" % [_cname(e["card_id"]), "uma unidade" if saved_unit == null else _cname(saved_unit.card_id)])
+			add_line("%s foi destruído no lugar de %s" % [_cname(e["card_id"]), "uma unidade" if saved_unit == null else _cname(saved_unit.card_id)])
 		"lethal_ward":
-			_log("%s anulou %d de dano que mataria o Líder de %s" % [_cname(e["card_id"]), int(e["amount"]), _pname(e["player"])])
+			add_line("%s anulou %d de dano que mataria o Líder de %s" % [_cname(e["card_id"]), int(e["amount"]), _pname(e["player"])])
 		"leader_hit_negated":
-			_log("O Líder de %s anulou um golpe de %d (restam %d)" % [_pname(e["player"]), int(e["amount"]), int(e["left"])])
+			add_line("O Líder de %s anulou um golpe de %d (restam %d)" % [_pname(e["player"]), int(e["amount"]), int(e["left"])])
 		"sacrifice_pick":
-			_log("%s escolhe uma unidade sua para sacrificar" % _pname(e["player"]))
+			add_line("%s escolhe uma unidade sua para sacrificar" % _pname(e["player"]))
 		"discard_pick":
-			_log("%s escolhe uma carta da mão para descartar" % _pname(e["player"]))
+			add_line("%s escolhe uma carta da mão para descartar" % _pname(e["player"]))
 		"hand_bottom_pick":
-			_log("%s olha a mão do oponente para mandar uma carta ao fundo do deck" % _pname(e["player"]))
+			add_line("%s olha a mão do oponente para mandar uma carta ao fundo do deck" % _pname(e["player"]))
 		"own_hand_bottom_pick":
-			_log("%s escolhe uma carta da própria mão para mandar ao fundo do deck" % _pname(e["player"]))
+			add_line("%s escolhe uma carta da própria mão para mandar ao fundo do deck" % _pname(e["player"]))
 		"own_hand_bottom":
-			_log("%s mandou uma carta da própria mão ao fundo do deck" % _pname(e["player"]))
+			add_line("%s mandou uma carta da própria mão ao fundo do deck" % _pname(e["player"]))
 		"hand_cost_up":
-			_log("%s, na mão de %s, passa a custar %d a mais" % [_cname(e["card_id"]), _pname(e["owner"]), int(e["amount"])])
+			add_line("%s, na mão de %s, passa a custar %d a mais" % [_cname(e["card_id"]), _pname(e["owner"]), int(e["amount"])])
 		"hand_bottom":
-			_log("%s foi da mão de %s para o fundo do deck dela" % [_cname(e["card_id"]), _pname(e["owner"])])
+			add_line("%s foi da mão de %s para o fundo do deck dela" % [_cname(e["card_id"]), _pname(e["owner"])])
 		"hand_summon_pick":
-			_log("%s escolhe um campeão da mão para entrar em campo de graça" % _pname(e["player"]))
+			add_line("%s escolhe um campeão da mão para entrar em campo de graça" % _pname(e["player"]))
 		"hand_summon":
-			_log("%s colocou %s em campo direto da mão (será banido no fim do turno)" % [_pname(e["player"]), _cname(e["card_id"])])
+			add_line("%s colocou %s em campo direto da mão (será banido no fim do turno)" % [_pname(e["player"]), _cname(e["card_id"])])
 		"search_decline":
-			_log("%s preferiu não pegar nenhuma das cartas encontradas" % _pname(e["player"]))
+			add_line("%s preferiu não pegar nenhuma das cartas encontradas" % _pname(e["player"]))
 		"hand_summon_skip":
-			_log("%s preferiu não colocar nenhum campeão em campo" % _pname(e["player"]))
+			add_line("%s preferiu não colocar nenhum campeão em campo" % _pname(e["player"]))
 		"discard":
-			_log("%s descartou %s" % [_pname(e["player"]), _cname(e["card_id"])])
+			add_line("%s descartou %s" % [_pname(e["player"]), _cname(e["card_id"])])
 	_chronicle_visual_context = {}

@@ -54,20 +54,20 @@ func _init() -> void:
 			if c is CardView and not c.face_down:
 				v = c
 		if v:
-			m._show_overlay(v)
-			m._close_overlay()
+			m.table_overlays.show_overlay(v)
+			m.table_overlays.close_overlay()
 		if i % 5 == 0: # graveyard viewer: open, every filter, survive a re-render, close
-			m._show_graveyard(i % 2)
-			for f in m.GRAVE_FILTERS:
-				m.grave_filter = f[0]
-				m._refresh_graveyard()
+			m.table_overlays.show_graveyard(i % 2)
+			for f in m.table_overlays.GRAVE_FILTERS:
+				m.table_overlays.grave_filter = f[0]
+				m.table_overlays.refresh_graveyard()
 			m._render()
 			# search/over close it on purpose (see _render)
 			if m.grave_view == null and not m.g.phase in ["search", "over"]:
 				push_error("cemitério fechou no re-render")
 				quit(1)
 				return
-			m._close_graveyard()
+			m.table_overlays.close_graveyard()
 		await process_frame
 	var last_turn: int = m.g.turn
 	if not await _check_effect_choice_ui(m):
@@ -307,7 +307,7 @@ func _check_equipment_ui(m) -> bool:
 	if grid.get_child_count() != 4:
 		push_error("o inspetor deveria mostrar os quatro equipamentos")
 		return false
-	m._close_overlay()
+	m.table_overlays.close_overlay()
 
 	tobias.equipped_cards.clear()
 	for index in 10:
@@ -326,7 +326,7 @@ func _check_equipment_ui(m) -> bool:
 	if grid.get_child_count() != 10 or panel.position.y < 0 or panel.position.y + panel.size.y > 1034.0:
 		push_error("o inspetor não exibiu os dez equipamentos dentro da área da mesa")
 		return false
-	m._close_overlay()
+	m.table_overlays.close_overlay()
 
 	tobias.equipped_cards.clear()
 	for index in 100:
@@ -352,7 +352,7 @@ func _check_equipment_ui(m) -> bool:
 	if preview_count != 2:
 		push_error("o volume de cem equipamentos desenhou %d cartas de prévia, não duas" % preview_count)
 		return false
-	m._close_overlay()
+	m.table_overlays.close_overlay()
 	return true
 
 func _check_field_equip_input(m) -> bool:
@@ -453,7 +453,7 @@ func _check_chronicle_card_click(m) -> bool:
 	if m.overlay == null:
 		push_error("clicar na miniatura da Crônica não abriu o overlay")
 		return false
-	m._close_overlay()
+	m.table_overlays.close_overlay()
 
 	m._show_chronicle_scene(row)
 	await process_frame
@@ -466,7 +466,7 @@ func _check_chronicle_card_click(m) -> bool:
 	if m.overlay == null:
 		push_error("clicar na carta da cena da Crônica não abriu o overlay")
 		return false
-	m._close_overlay()
+	m.table_overlays.close_overlay()
 	m._hide_chronicle_scene()
 	m.chronicle_log.chronicle_entries = previous_entries
 	m._chronicle_seen_seq = previous_seen_seq
