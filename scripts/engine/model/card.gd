@@ -482,9 +482,9 @@ func event_counters() -> Array:
 ## JSON form: {uid, card_id} off the board (plus "discount" in hand); the full unit on the board.
 func to_dict() -> Dictionary:
 	var d := {"uid": uid, "card_id": card_id}
-	if zone == "hand" and discount > 0:
+	if zone == "hand" and discount != 0: # negative = a tax (Cornélia, Rex Farejador); dropping it hid the higher cost from the client
 		d["discount"] = discount
-	if zone == "hand" and turn_discount > 0:
+	if zone == "hand" and turn_discount != 0:
 		d["turn_discount"] = turn_discount
 	if zone == "hand" and cost_zero_turn >= 0:
 		d["cost_zero_turn"] = cost_zero_turn

@@ -8629,6 +8629,10 @@ func _test_cornelia() -> void:
 	check(g.cost_of(foe_player, fireball.data(), fireball) == fireball_cost + 1, "Cornélia: o feitiço do oponente custa 1 a mais pela Constante (%d)" % g.cost_of(foe_player, fireball.data(), fireball))
 	check(g.cost_of(p, fireball.data(), fireball) == fireball_cost, "Cornélia: a Constante não encarece os feitiços do próprio dono")
 
+	# the client only sees the snapshot: the tax has to travel in it, or the cost badge never changes
+	var mirrored_skeleton: Card = Card.from_dict(skeleton.to_dict(), "hand", foe_player)
+	check(g.cost_of(foe_player, mirrored_skeleton.data(), mirrored_skeleton) == skeleton_cost + 2, "Cornélia: a taxa de +2 sobrevive ao snapshot enviado ao cliente (%d)" % g.cost_of(foe_player, mirrored_skeleton.data(), mirrored_skeleton))
+
 	# the +2 lasts only while the card stays in that hand
 	g.players[foe_player]["hand"].erase(skeleton)
 	g._move(skeleton, "graveyard")
