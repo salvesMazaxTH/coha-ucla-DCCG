@@ -2627,7 +2627,7 @@ func _hint() -> String:
 		"mulligan":
 			return "Clique em até 3 cartas para trocar."
 		"discard":
-			return "Mão acima de 10: escolha %d para banir." % (g.players[viewer]["hand"].size() - GameState.HAND_LIMIT)
+			return "Mão acima do limite: escolha %d para banir." % (g.players[viewer]["hand"].size() - GameState.HAND_LIMIT)
 		"main":
 			if CardView.touch_ui():
 				return "Arraste cartas para o campo · toque: ver carta · quando acabar, IR PARA O COMBATE"

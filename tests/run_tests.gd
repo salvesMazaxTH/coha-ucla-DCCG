@@ -9801,11 +9801,11 @@ func _test_ban() -> void:
 	check(pl["hand"].size() == GameState.HAND_LIMIT + 2, "comprar com a mão cheia mantém as cartas na mão")
 	_quiet(g)
 	g.end_turn(0)
-	check(g.phase == "discard", "mão acima de 10 pede banimento no fim do turno")
+	check(g.phase == "discard", "mão acima do limite pede banimento no fim do turno")
 	var pick: Array = [pl["hand"][0].uid, pl["hand"][1].uid]
 	check(g.discard(0, [pick[0]]).is_empty(), "banir menos que o necessário é recusado")
 	var ev: Array = g.discard(0, pick)
-	check(pl["hand"].size() == GameState.HAND_LIMIT and pl["banished"].size() == 2, "baniu até 10 cartas")
+	check(pl["hand"].size() == GameState.HAND_LIMIT and pl["banished"].size() == 2, "baniu até o limite da mão")
 	check(pl["graveyard"].size() == gy, "carta banida não vai ao cemitério")
 	check(ev.any(func(e): return e["type"] == "ban") and not ev.any(func(e): return e["type"] == "discard"), "evento ban")
 	# the opponent never sees what was banished from the hand

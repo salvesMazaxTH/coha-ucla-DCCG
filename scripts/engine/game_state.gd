@@ -4,9 +4,9 @@ extends RefCounted
 ## state and returns an Array of event Dictionaries the UI can animate.
 ## Invalid actions return [] and leave state untouched.
 
-const START_HAND := 5
+const START_HAND := 7
 const MULLIGAN_MAX := 3
-const HAND_LIMIT := 10
+const HAND_LIMIT := 7
 const BOARD_LIMIT := 8
 const MOMENTUM_CAP := 12
 ## the most Momentum a turn can hold when an effect says "overflow" (Eryon's deck); the part above MOMENTUM_CAP vanishes at the

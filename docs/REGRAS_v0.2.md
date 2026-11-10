@@ -29,9 +29,10 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 
 ## Início da partida
 
-- Os dois jogadores começam com **5 cartas** na mão.
+- Os dois jogadores começam com **7 cartas** na mão.
 - **Mulligan:** cada jogador pode devolver até 3 cartas ao deck, que é embaralhado, e comprar a mesma quantidade.
-- Quem joga primeiro **não compra** no primeiro turno. Quem joga em segundo compra normalmente, então cada um começa o seu primeiro turno com 5 e 6 cartas, respectivamente.
+- Quem joga primeiro **não compra** no primeiro turno. Quem joga em segundo compra normalmente e começa seu primeiro turno com 8 cartas; no fim desse turno, bane o excedente até ficar com 7.
+- O limite da mão é **7 cartas**. Se terminar o turno acima desse limite, o jogador bane cartas até ficar com 7.
 - Quem joga em segundo coloca a carta do fundo do deck no Reservatório no início de seu primeiro turno.
 
 ## Momentum
