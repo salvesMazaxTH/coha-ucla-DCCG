@@ -65,10 +65,18 @@ func open(id: String, stage_size: Vector2) -> DecklistView:
 	var cards: Dictionary = DeckDB.sorted_cards(DeckDB.get_deck(deck_id)["cards"])
 	var deck := DeckDB.get_deck(deck_id)
 	var incarnation_id := DeckDB.resolved_incarnation_id(String(deck["leader"]), String(deck.get("incarnation_id", "")))
-	for card_id in cards:
-		var row := DecklistRow.new().setup(card_id, int(cards[card_id]), card_id == incarnation_id)
-		row.tapped.connect(func(tapped_card_id: String): card_chosen.emit(tapped_card_id))
-		grid.add_child(row)
+	# the grid fills row by row, so the cards are added in an order that reads column by column
+	var card_ids: Array = cards.keys()
+	var rows_per_column := ceili(card_ids.size() / float(COLUMN_COUNT))
+	for row_index in rows_per_column:
+		for column_index in COLUMN_COUNT:
+			var card_index := column_index * rows_per_column + row_index
+			if card_index >= card_ids.size():
+				continue
+			var card_id: String = card_ids[card_index]
+			var row := DecklistRow.new().setup(card_id, int(cards[card_id]), card_id == incarnation_id)
+			row.tapped.connect(func(tapped_card_id: String): card_chosen.emit(tapped_card_id))
+			grid.add_child(row)
 
 	# the X sits on top of the window, not inside its layout
 	var close_button := _close_button()
