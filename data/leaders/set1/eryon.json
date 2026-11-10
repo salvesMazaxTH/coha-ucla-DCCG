@@ -1,6 +1,7 @@
 {
   "name": "Eryon",
   "set": 1,
+  "banned": true,
   "hp": 30,
   "art": "neutra/eryon_lider.webp",
   "incarnation": "eryon",

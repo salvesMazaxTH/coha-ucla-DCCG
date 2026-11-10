@@ -2,7 +2,7 @@ class_name CompareCondition
 extends Condition
 ## Compares a number of the game against a value:
 ## {"compare": {"stat": "leader_hp", "who": "enemy", "op": "<", "value": 12}}
-## stat: leader_hp | momentum | reserve | units | hand | deck | graveyard
+## stat: leader_hp | momentum | battery | units | hand | deck | graveyard
 ##       source_hp | source_armor: a number of the unit that carries the effect (only in a card's own "if",
 ##       not in a play_condition). Drex: {"stat": "source_hp", "op": ">=", "value": 10} = phase 2.
 ## who: "self" (the effect's controller, default) or "enemy"
@@ -10,7 +10,7 @@ extends Condition
 ## {"stat": "units", "op": ">", "vs": "enemy"} = "you have more units than the opponent" (Magni's play_condition).
 
 const UNIT_STATS := ["source_hp", "source_armor"]
-const STATS := ["leader_hp", "momentum", "reserve", "units", "hand", "deck", "graveyard", "source_hp", "source_armor"]
+const STATS := ["leader_hp", "momentum", "battery", "units", "hand", "deck", "graveyard", "source_hp", "source_armor"]
 const OPERATORS := ["<", "<=", "==", "!=", ">=", ">"]
 
 var stat := ""
@@ -64,7 +64,7 @@ func _read_stat(player: Dictionary) -> int:
 	match stat:
 		"leader_hp": return int(player["leader_hp"])
 		"momentum": return int(player["momentum"])
-		"reserve": return int(player["reserve"])
+		"battery": return int(player["battery"])
 		"units": return player["board"].size()
 		"hand": return player["hand"].size()
 		"deck": return player["deck"].size()

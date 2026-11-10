@@ -10,7 +10,7 @@ extends Effect
 ## "refresh": true only wins back Momentum already spent this turn: it stops at the Momentum the turn
 ## started with, so unlike a plain gain it can never push the total above that (Tormenta's gains can).
 ## "amount_from": "sacrificed_cost" (inside a sacrifice's "then") gains the printed cost of the sacrificed unit, at most `max`.
-## "per": "leaked" refunds the Momentum that leaked past the Reserva this turn instead:
+## "per": "leaked" refunds Momentum that spilled past the Bateria this turn instead:
 ## floor(leaked / divisor), at most `max`.
 ## "per": "returned_allies" gains `amount` Momentum for each allied unit that a "return_to_hand" earlier in the same
 ## effect run sent back to the hand (Kazeminus), at most `max`.

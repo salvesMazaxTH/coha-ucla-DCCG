@@ -334,11 +334,7 @@ func spend_postponed_momentum() -> void:
 		_spend_all_momentum(player)
 
 func _spend_all_momentum(player: int) -> void:
-	if int(game.players[player]["momentum"]) <= 0:
-		return
-	game.players[player]["momentum"] = 0
-	game.refresh_scaling() # a surge (11+ Momentum) may have just turned off
-	game.emit_event({"type": "momentum", "player": player})
+	game.drain_momentum(player)
 
 ## True while `player` is being asked whether to react to the attack that was just declared: the
 ## defender holds

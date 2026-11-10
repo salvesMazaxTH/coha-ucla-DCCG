@@ -1,6 +1,7 @@
 {
   "name": "Gaivota Paraquedista",
   "set": 1,
+  "banned": true,
   "type": "unit",
   "rarity": "common",
   "tribe": ["fera", "ave"],

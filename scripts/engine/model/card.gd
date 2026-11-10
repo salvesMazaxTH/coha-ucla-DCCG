@@ -8,7 +8,7 @@ extends RefCounted
 var uid: int
 var card_id: String
 var owner: int
-var zone := "" ## "deck" / "hand" / "board" / "relics" / "graveyard" / "banished" / "sanctuary" / "stack" / "equipped" / ""
+var zone := "" ## "deck" / "hand" / "board" / "relics" / "reservoir" / "graveyard" / "banished" / "sanctuary" / "stack" / "equipped" / ""
 var discount := 0 ## costs this much less while it stays in hand (Tecnomante; negative = costs more, Cornélia Aldrovane); cleared when it leaves the hand
 var turn_discount := 0 ## costs this much less until the end of the current turn while it stays in hand
 var cost_zero_turn := -1 ## this copy costs 0 during this turn; -1 = no turn-specific zero cost
@@ -53,6 +53,7 @@ const SUPREME_SHIELD_LENGTH := {"end_turn": 1, "next_turn": 2, "": 3} ## how lon
 var supreme_shield := false ## Escudo Supremo: one charge that absorbs absolutely anything aimed at this card (a free-standing artifact can hold it too)
 var supreme_shield_expires := "" ## "" = until used; "next_turn" = until its owner's next turn starts; "end_turn" = until the current turn ends
 var exhausted := false
+var reservoir_revealed_turn := -1 ## face-up only during the turn this card entered the Reservoir
 var sick := true
 var bonus_atk := 0 ## from "constante" scale effects (see GameState.refresh_scaling)
 var bonus_hp := 0
@@ -483,6 +484,10 @@ func event_counters() -> Array:
 ## JSON form: {uid, card_id} off the board (plus "discount" in hand); the full unit on the board.
 func to_dict() -> Dictionary:
 	var d := {"uid": uid, "card_id": card_id}
+	if zone == "reservoir":
+		d["exhausted"] = exhausted
+		d["reservoir_revealed_turn"] = reservoir_revealed_turn
+		return d
 	if zone == "hand" and discount != 0: # negative = a tax (Cornélia, Rex Farejador); dropping it hid the higher cost from the client
 		d["discount"] = discount
 	if zone == "hand" and turn_discount != 0:
@@ -640,6 +645,10 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.supreme_shield = bool(d.get("supreme_shield", false))
 	c.supreme_shield_expires = String(d.get("supreme_shield_expires", ""))
 	c.over = d.get("over", {})
+	if in_zone == "reservoir":
+		c.exhausted = bool(d.get("exhausted", false))
+		c.reservoir_revealed_turn = int(d.get("reservoir_revealed_turn", -1))
+		return c
 	if in_zone != "board":
 		return c
 	c.incarnation = bool(d["incarnation"])

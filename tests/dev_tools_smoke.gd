@@ -40,9 +40,9 @@ func _test_resources(game: GameState) -> void:
 	game.players[0]["max_momentum"] = 4
 	game.debug_refill_momentum(0)
 	check(game.players[0]["momentum"] == 4, "Momentum refill restores current maximum")
-	game.players[0]["reserve"] = 0
-	game.debug_refill_reserve(0)
-	check(game.players[0]["reserve"] == GameState.RESERVE_CAP, "Reserve refill restores the full reserve")
+	game.players[0]["battery"] = 0
+	game.debug_refill_battery(0)
+	check(game.players[0]["battery"] == GameState.BATTERY_CAP, "Bateria refills to its cap")
 
 func _test_leader_tools(game: GameState) -> void:
 	var old_max := int(game.players[0]["leader_max"])

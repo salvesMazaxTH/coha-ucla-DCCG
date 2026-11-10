@@ -1,6 +1,7 @@
 {
   "name": "Ajudante de Gambiarra",
   "set": 1,
+  "banned": true,
   "type": "unit",
   "rarity": "common",
   "essence": "neutra",

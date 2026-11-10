@@ -1,6 +1,6 @@
 extends RefCounted
 ## Playtest do Degelo na Moenda: é o meu 10º turno (sem mulligan), campo vazio, 10 de Momentum,
-## Reserva vazia, e o deck do oponente com 27 cartas (o que sobra mais ou menos no turno 10).
+## Bateria vazia, e o deck do oponente com 27 cartas (o que sobra mais ou menos no turno 10).
 ## Roteiro sugerido: Moenda (3) + Zuleica (2) + Fagulha (2) = 7 de Momentum. Depois:
 ##   1. ativar a Fagulha (+1 de Momentum, ela exaure);
 ##   2. ativar a Zuleica mirando a Fagulha (-1 de Momentum, -1 de Vida, a Moenda mói 2);
@@ -37,10 +37,10 @@ static func setup(g: GameState) -> void:
 	var enemy_deck: Array = g.players[1]["deck"]
 	while enemy_deck.size() > ENEMY_DECK_SIZE:
 		enemy_deck.pop_back()
-	# 10º turno meu (eu jogo nos turnos ímpares): Momentum máximo 10 cheio, Reserva vazia
+	# 10º turno meu (eu jogo nos turnos ímpares): Momentum máximo 10 cheio, Bateria vazia
 	g.turn = 19
 	g.players[0]["max_momentum"] = 10
 	g.players[0]["momentum"] = 10
-	g.players[0]["reserve"] = 0
+	g.players[0]["battery"] = 0
 	g.players[1]["max_momentum"] = 9
 	g.flush_events()

@@ -8,13 +8,13 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 
 ## Deck
 
-- O deck tem **44 cartas**, com até **3 cópias** de cada uma, mais a **Encarnação** (que fica no Santuário). O Líder fica fora dessa contagem.
-- **Única:** cartas com `"max_copies": 1` (ex.: Rusco) só podem ter 1 cópia no deck.
+- O deck tem **59 cartas**, com até **4 cópias** de cada uma (**3** para Lendárias), mais a **Encarnação** (que fica no Santuário). O Líder fica fora dessa contagem.
+- **Única:** Jeff e Rusco têm limite de 1 cópia no deck.
 - Os **domínios** do Líder (Fúria, Fluxo, Natureza, Montanha, Tormenta, Trevas, Devoção) definem as cartas permitidas no deck: as cartas dos domínios da Encarnação do Líder entram à vontade. Cartas **neutras** entram em qualquer deck.
 - Uma carta pode ter **mais de um domínio** (ex.: Morwenna é de Trevas e de Natureza, com moldura meio a meio). Ela conta como **do domínio do Líder** (sem custo no limite de convidadas) se a Encarnação do Líder tiver **pelo menos um** dos domínios dela; só conta como carta de fora se **nenhum** bater. Os Líderes têm no máximo 2 domínios.
-- **Fora do domínio (convidadas):** o deck pode ter até **10 cartas** (contando cópias) de domínios que o Líder não tem, de qualquer raridade, com o limite normal de 3 cópias. Podem vir de **quaisquer domínios, em qualquer mistura**. Cartas neutras não entram nessa conta. Campeões também podem ser de fora do domínio, dentro desse mesmo limite.
-- **Domínio secundário:** se existir **um domínio presente em todas as convidadas**, o limite sobe para **15 cartas**. Uma convidada com vários domínios (nenhum deles do Líder) conta para cada um deles (ex.: com Líder de Fúria, Morwenna conta como Trevas e Natureza; com Líder de Natureza ela nem é convidada). Basta uma convidada sem esse domínio em comum para o limite voltar a 10.
-- **Líder neutro** (ex.: Vael): toda carta não neutra é "de fora do domínio", então todas contam como convidadas (até 10 em qualquer mistura, ou até 15 se todas tiverem um mesmo domínio), além das cartas neutras à vontade.
+- **Fora do domínio (convidadas):** o deck pode ter até **12 cartas** (contando cópias) de domínios que o Líder não tem, de qualquer raridade, com o limite normal de cópias. Podem vir de **quaisquer domínios, em qualquer mistura**. Cartas neutras não entram nessa conta. Campeões também podem ser de fora do domínio, dentro desse mesmo limite.
+- **Domínio secundário:** se existir **um domínio presente em todas as convidadas**, o limite sobe para **18 cartas**. Uma convidada com vários domínios (nenhum deles do Líder) conta para cada um deles (ex.: com Líder de Fúria, Morwenna conta como Trevas e Natureza; com Líder de Natureza ela nem é convidada). Basta uma convidada sem esse domínio em comum para o limite voltar a 12.
+- **Líder neutro** (ex.: Vael): toda carta não neutra é "de fora do domínio", então todas contam como convidadas (até 12 em qualquer mistura, ou até 18 se todas tiverem um mesmo domínio), além das cartas neutras à vontade.
 - O deck tem exatamente **1 Encarnação do Líder**, o Campeão que é a versão em carta do próprio Líder.
 
 ## Encarnação do Líder (Santuário)
@@ -32,17 +32,21 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - Os dois jogadores começam com **5 cartas** na mão.
 - **Mulligan:** cada jogador pode devolver até 3 cartas ao deck, que é embaralhado, e comprar a mesma quantidade.
 - Quem joga primeiro **não compra** no primeiro turno. Quem joga em segundo compra normalmente, então cada um começa o seu primeiro turno com 5 e 6 cartas, respectivamente.
-- Quem joga em segundo, nos seus **dois primeiros turnos**, ganha **+1 Momentum** (só naquele turno; o máximo não muda) e **recarrega 1 da Reserva** (até o limite de 2).
+- Quem joga em segundo coloca a carta do fundo do deck no Reservatório no início de seu primeiro turno.
 
 ## Momentum
 
-- O Momentum máximo começa em **1** e sobe **+1 por turno**, até o teto de **10**.
-- Ele é reabastecido no início do seu turno. O que sobra vai para a **Reserva**, que guarda até **2**.
-- A **Reserva** só paga jogadas **Rápidas** e **Instantâneas** (feitiços, habilidades do Líder e ativadas, Súbito), em qualquer janela, no seu turno ou no do oponente. Nunca paga nada **Lento**, unidades nem a Encarnação. Ela é gasta primeiro.
+- Cada jogador tem um **Reservatório**, uma zona pública de cartas permanentes e inacessíveis a efeitos.
+- Uma vez por turno, na fase principal livre, o jogador pode depositar uma carta da mão no próprio Reservatório, desvirada.
+- Cada carta desvirada no Reservatório pode ser virada para pagar 1 de Momentum, até 12 disponíveis. Não há Momentum automático.
+- As cartas desviram no fim do turno do dono. Permanecem disponíveis no turno do oponente e as que forem viradas nele permanecem viradas até o próximo fim de turno do dono.
+- As cartas ficam com a face visível no turno em que entram no Reservatório; depois mostram o verso padrão.
+- Cada jogador começa com **2** na **Bateria do seu Reservatório**, que é totalmente recarregada no início de cada turno seu.
+- A **Bateria do seu Reservatório** só paga jogadas **Rápidas** e **Instantâneas** (feitiços, habilidades do Líder e ativadas, Súbito), em qualquer janela, no seu turno ou no do oponente. Nunca paga nada **Lento**, unidades nem a Encarnação. Ela é gasta primeiro.
 
 ## Turno
 
-1. **Início:** o Momentum é reabastecido, você compra 1 carta e suas unidades ficam prontas (desviram).
+1. **Início:** a Bateria do seu Reservatório é recarregada, você compra 1 carta e suas unidades ficam prontas (desviram).
 2. **Fase principal:** jogue cartas, conjure a Encarnação e use a habilidade do Líder.
 3. **Combate**, uma vez por turno (veja _Combate_ abaixo).
 4. **Segunda fase principal**.
@@ -84,7 +88,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
   - **Rápida:** também nas janelas de combate.
   - **Instantânea:** também em resposta a qualquer coisa na pilha.
 - Unidades, a Encarnação, atacar e encerrar o turno seguem a regra das lentas. Unidades não usam a pilha.
-  - Exceção: **Súbito (N)**. Pagando N (a Reserva ajuda), a unidade pode ser invocada em qualquer janela onde uma Rápida caberia. Essa invocação é uma habilidade, não uma jogada: vai para a pilha (Rápida), pode ser respondida e anulada (anulada, a carta vai para o cemitério) e a unidade só entra quando ela resolve. Na sua fase principal livre, a carta é jogada normalmente, pelo custo normal.
+  - Exceção: **Súbito (N)**. Pagando N (a Bateria do seu Reservatório ajuda), a unidade pode ser invocada em qualquer janela onde uma Rápida caberia. Essa invocação é uma habilidade, não uma jogada: vai para a pilha (Rápida), pode ser respondida e anulada (anulada, a carta vai para o cemitério) e a unidade só entra quando ela resolve. Na sua fase principal livre, a carta é jogada normalmente, pelo custo normal.
 - **Pilha:** feitiços, equipamentos e habilidades vão para a pilha, e a prioridade passa para o adversário.
   - Quem tem prioridade pode responder com uma Instantânea ou passar.
   - Quando alguém passa, a pilha inteira resolve, do mais novo para o mais antigo.
@@ -170,14 +174,14 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 
 ## Elétrica: Momentum guardado
 
-- **Redução de custo da Voltexz:** é um **Condicional** (`listen: turn_started`), não uma redução estática. No início de cada turno seu, se sobrou Momentum comum do turno anterior (já descontado o que você gastou no turno do oponente), o custo da Voltexz cai 1 por Momentum, onde quer que ela esteja (Santuário, mão ou campo), nunca abaixo de 3; é permanente, não há como "desfazer" um turno. Ela **ignora a Reserva**: o que sobrou conta mesmo indo para a Reserva, e o que já estava na Reserva no início do turno não conta de novo. A Encarnação guarda o total no jogador (`incarnation.cost_mod`), então ele vale para qualquer cópia dela. O Fulgurvoltz continua com redução estática: custa 3 a menos por turno iniciado com Momentum vazando (o que não cabe nos 2 da Reserva), nunca menos que 5.
-- **Gigante Elétrico:** custa 5 a menos quando havia pelo menos 4 de Momentum guardado no início do turno. Conta, sem duplicar pontos, o Momentum comum que restou e a Reserva que já estava guardada; assim inclui tanto o que foi para a Reserva naquele fechamento quanto o que já estava nela.
-- **Fulgurvoltz (7/7, Rapidez 1, Sobrepujança):** não bane nada ao entrar. Seu Ao Ativar (5, **Rápido**) **exaure a unidade** (não pode estar exausta; quem atacou no turno não ativa, e quem ativou não ataca; exausta, ela pode ser desafiada) e bane as unidades inimigas que cumprirem **pelo menos uma** de duas condições, conferidas na resolução: estar **exaurida**, ou ter **Ataque + Vida menor** que o do Fulgurvoltz naquele momento. Cada cópia só pode usar este Ao Ativar uma vez enquanto permanecer na mesma zona; ao mudar de zona, seu uso é restaurado. Uma unidade forte e pronta para agir escapa. Vai para a pilha, então o oponente pode responder e anulá-lo (ex.: Negação de Neraqa, que precisa pagar o +2, já que o custo passa de 4). Por ser Rápido, a Reserva ajuda a pagá-lo.
+- **Redução de custo da Voltexz:** é um **Condicional** (`listen: turn_started`), não uma redução estática. No início de cada turno seu, se sobrou Momentum comum do turno anterior (já descontado o que você gastou no turno do oponente), o custo da Voltexz cai 1 por Momentum, onde quer que ela esteja (Santuário, mão ou campo), nunca abaixo de 3; é permanente, não há como "desfazer" um turno. Ela **ignora a Bateria do seu Reservatório**: o que sobrou conta mesmo indo para a Bateria do seu Reservatório, e o que já estava na Bateria do seu Reservatório no início do turno não conta de novo. A Encarnação guarda o total no jogador (`incarnation.cost_mod`), então ele vale para qualquer cópia dela. O Fulgurvoltz continua com redução estática: custa 3 a menos por turno iniciado com Momentum vazando (o que não cabe nos 2 da Bateria do seu Reservatório), nunca menos que 5.
+- **Gigante Elétrico:** custa 5 a menos quando havia pelo menos 4 de Momentum guardado no início do turno. Conta, sem duplicar pontos, o Momentum comum que restou e a Bateria do seu Reservatório que já estava guardada; assim inclui tanto o que foi para a Bateria do seu Reservatório naquele fechamento quanto o que já estava nela.
+- **Fulgurvoltz (7/7, Rapidez 1, Sobrepujança):** não bane nada ao entrar. Seu Ao Ativar (5, **Rápido**) **exaure a unidade** (não pode estar exausta; quem atacou no turno não ativa, e quem ativou não ataca; exausta, ela pode ser desafiada) e bane as unidades inimigas que cumprirem **pelo menos uma** de duas condições, conferidas na resolução: estar **exaurida**, ou ter **Ataque + Vida menor** que o do Fulgurvoltz naquele momento. Cada cópia só pode usar este Ao Ativar uma vez enquanto permanecer na mesma zona; ao mudar de zona, seu uso é restaurado. Uma unidade forte e pronta para agir escapa. Vai para a pilha, então o oponente pode responder e anulá-lo (ex.: Negação de Neraqa, que precisa pagar o +2, já que o custo passa de 4). Por ser Rápido, a Bateria do seu Reservatório ajuda a pagá-lo.
 - **Momentum no próximo turno:** o Espírito Carregado dá +1 Momentum no início do seu próximo turno (soma ao Momentum do turno, até 10).
-- **Sobrecarga (Líder Voltexz):** passiva. No início do seu turno, recupere metade (arredondada para baixo, máx. 2) do Momentum que vazou da Reserva, como Momentum neste turno. "Vazar" = o que não cabe nos 2 da Reserva.
+- **Sobrecarga (Líder Voltexz):** passiva. No início do seu turno, recupere metade (arredondada para baixo, máx. 2) do Momentum que vazou da Bateria do seu Reservatório, como Momentum neste turno. "Vazar" = o que não cabe nos 2 da Bateria do seu Reservatório.
 - **Voltexz em campo:** no início do seu turno, se houve Momentum vazado no turno anterior, ela ganha +2/+1 e Escudo Mágico até o fim do turno.
-- **Efeitos no deck (`deck_effects`):** efeitos que a carta tem enquanto está no deck, não em campo. `summon_self` tira aquela cópia do deck e a coloca em campo (sem embaralhar e sem comprar; com o campo cheio, ela fica no deck). O `cost` opcional é pago na entrada como uma habilidade (por ser um gatilho e não uma jogada com velocidade, a Reserva vale e é gasta primeiro); sem como pagar, a cópia fica no deck. Rusco: no fim do seu turno, se você jogou da mão uma carta com custo, ATK ou VIDA impressos exatamente 2 (`if: played_two`), e você paga 2 de Momentum, ele sai do deck e entra em campo.
-- Efeitos podem ter condição `if` (ex.: só se sobrou Momentum, só se a Reserva está cheia) e bônus proporcional ao Momentum restante (Voltexz: +1/+1 por Momentum nas suas _outras_ unidades, de +1/+1 a +5/+5: mesmo sem Momentum sobrando dá +1/+1).
+- **Efeitos no deck (`deck_effects`):** efeitos que a carta tem enquanto está no deck, não em campo. `summon_self` tira aquela cópia do deck e a coloca em campo (sem embaralhar e sem comprar; com o campo cheio, ela fica no deck). O `cost` opcional é pago na entrada como uma habilidade (por ser um gatilho e não uma jogada com velocidade, a Bateria do seu Reservatório vale e é gasta primeiro); sem como pagar, a cópia fica no deck. Rusco: no fim do seu turno, se você jogou da mão uma carta com custo, ATK ou VIDA impressos exatamente 2 (`if: played_two`), e você paga 2 de Momentum, ele sai do deck e entra em campo.
+- Efeitos podem ter condição `if` (ex.: só se sobrou Momentum, só se a Bateria do seu Reservatório está cheia) e bônus proporcional ao Momentum restante (Voltexz: +1/+1 por Momentum nas suas _outras_ unidades, de +1/+1 a +5/+5: mesmo sem Momentum sobrando dá +1/+1).
 
 ## Glacial: Bola de Neve
 
@@ -235,7 +239,7 @@ Gatilhos dizem _quando_ um efeito acontece. Eles abrem o texto da carta no lugar
 
 ### Habilidades ativáveis
 
-Não são gatilhos automáticos: o dono decide quando usar. O custo em Momentum aparece entre parênteses logo após o nome, e a Reserva ajuda a pagar se ele for Rápido ou Instantâneo.
+Não são gatilhos automáticos: o dono decide quando usar. O custo em Momentum aparece entre parênteses logo após o nome, e a Bateria do seu Reservatório ajuda a pagar se ele for Rápido ou Instantâneo.
 
 - **Ao Ativar (n) [selo de velocidade] (limites):** a habilidade **vai para a pilha** como um feitiço da velocidade indicada (Lento, Rápido ou Instantâneo). Pode ser respondida e anulada. Exemplo: Yuki, _Ao Ativar (2) [RÁPIDO] (1x por turno): ganhe +2 de Ataque neste turno._
 - **Transformar (n):** é um tipo específico de ativável. Só pode ser usado na sua Fase Principal com a pilha vazia. A unidade vira a carta indicada no mesmo lugar (mantém dano e equipamento) e o Ao Entrar da nova forma dispara. A unidade transformada **não fica com enjoo de invocação**: pode atacar e ativar na hora. **Não usa a pilha**, então não pode ser anulado. Exemplo: Alexa Neruvya, _Transformar (8): Alexa Neruvya Primordial._

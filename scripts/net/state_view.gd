@@ -5,7 +5,7 @@ extends RefCounted
 
 const HIDDEN := ""
 
-const CARD_ZONES := ["deck", "hand", "board", "relics", "graveyard", "banished"]
+const CARD_ZONES := ["deck", "hand", "board", "relics", "graveyard", "banished", "reservoir"]
 
 ## Hides which cards these are: keeps only the uid. Accepts Card objects or card dicts.
 static func _mask(cards: Array) -> Array:
@@ -13,6 +13,19 @@ static func _mask(cards: Array) -> Array:
 	for card in cards:
 		var card_uid: int = card.uid if card is Card else card["uid"]
 		out.append({"uid": card_uid, "card_id": HIDDEN})
+	return out
+
+static func _reservoir_view(cards: Array, current_turn: int) -> Array:
+	var out: Array = []
+	for card in cards:
+		var card_data: Dictionary = card.to_dict() if card is Card else card
+		var revealed_turn := int(card_data.get("reservoir_revealed_turn", -1))
+		out.append({
+			"uid": int(card_data["uid"]),
+			"card_id": String(card_data.get("card_id", HIDDEN)) if revealed_turn == current_turn else HIDDEN,
+			"exhausted": bool(card_data.get("exhausted", false)),
+			"reservoir_revealed_turn": revealed_turn,
+		})
 	return out
 
 ## Turns a zone's Card objects into the plain dicts sent over the network.
@@ -38,6 +51,7 @@ static func snapshot(g: GameState, seat: int) -> Dictionary:
 		if i != seat:
 			player["banished"] = _mask(player["banished"]) # cards banished from the hand stay private
 			player["hand"] = _mask(player["hand"])
+			player["reservoir"] = _reservoir_view(player["reservoir"], g.turn)
 		players.append(player)
 	var search: Dictionary = g.pending_search.duplicate(true)
 	if (search.get("look", false) or search.get("discard_hand", false) or search.get("hand_summon", false) or search.get("hand_bottom", false) or search.get("own_hand_bottom", false)) and int(search["player"]) != seat:

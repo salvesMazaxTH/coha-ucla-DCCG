@@ -3,7 +3,6 @@
   "set": 1,
   "type": "unit",
   "rarity": "legendary",
-  "max_copies": 1,
   "tribe": ["divindade"],
   "essence": "devocao",
   "cost": 8,
@@ -41,6 +40,6 @@
       "hp": 3
     }
   ],
-  "text": "Única.\nAo Entrar: todas as suas unidades recuperam toda a Vida e são purificadas, e o seu Líder é purificado. Concede +3/+3 permanentes a duas outras unidades suas, à sua escolha.",
+  "text": "Ao Entrar: todas as suas unidades recuperam toda a Vida e são purificadas, e o seu Líder é purificado. Concede +3/+3 permanentes a duas outras unidades suas, à sua escolha.",
   "flavor": "Ele nunca levantou a mão. Todo mundo ao redor dele, sim."
 }

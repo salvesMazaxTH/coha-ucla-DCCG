@@ -1,7 +1,7 @@
 extends SceneTree
 ## AI vs AI between two decks (default Ronan/fogo vs Naelthos/agua), alternating who goes first.
 ##   godot --headless --path . -s tests/sim_matchup.gd -- 300 [deck_a] [deck_b] [piloto]
-## A deck can be a prebuilt id, a deck code from the deck builder ("CSA2.…" or the older "CSA1.…") or the path of a deck .json file
+## A deck can be a prebuilt id, a deck code from the deck builder ("CSA3.…" or the older "CSA2.…" and "CSA1.…") or the path of a deck .json file
 ## (same format as data/decks/prebuilt/*.json: leader + cards).
 ## With "piloto", seat 0 (deck_a, meant to be glacial_combo) is played by the scripted ComboPilot.
 

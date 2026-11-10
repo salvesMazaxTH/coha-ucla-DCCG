@@ -94,6 +94,7 @@ var _locked_hand_uids := { } ## hand card uid -> true if it was chained (play re
 const LOCK_STAGGER_SECONDS := 0.07 ## delay between the chain lock-ins of cards locked at the same moment
 const MAX_LOCK_SOUNDS := 4 ## a full hand locking at once plays at most this many clanks
 var hand_uids := { } ## viewer's hand cards in the current render
+var reservoir_drop_panel: Panel
 var hint_text := "" ## the tip pill fades out after a few seconds and returns when the player seems lost
 var hint_since := 0
 var hint_until := 0
@@ -790,6 +791,8 @@ func _render_now() -> void:
 	_render_hand(me)
 	_render_leader(op, Vector2(lane_cx - LeaderView.CX, LEADER_Y_OP), Vector2(20, SANCTUARY_Y_OP - 62.0))
 	_render_leader(me, Vector2(lane_cx - LeaderView.CX, LEADER_Y_ME), Vector2(20, SANCTUARY_Y_ME + 272.0))
+	_render_reservoir(op)
+	_render_reservoir(me)
 	_render_board(op, 172)
 	_render_board(me, 460)
 	_sync_enter_aim()
@@ -1063,7 +1066,7 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	var mb := MomentumBar.new()
 	mb.position = mom_pos
 	layer.add_child(mb)
-	mb.setup(pl["momentum"], pl["max_momentum"], int(pl.get("reserve", 0)), g.momentum_cap(p))
+	mb.setup(pl["momentum"], pl["max_momentum"], int(pl.get("battery", 0)), g.momentum_cap(p))
 
 
 const HAND_SCALE := 1.4875 ## hand cards are cut at the bottom, so they can be bigger than the room they take
@@ -1082,6 +1085,62 @@ const SANCTUARY_W := 180.0
 const LEADER_Y_OP := 4.0 ## Leader plates: centered, between each hand and its board
 const LEADER_Y_ME := 656.0
 const EHAND_DX := 190.0 ## the opponent hand fans out beside their Leader
+
+
+func _reservoir_rect(p: int) -> Rect2:
+	return Rect2(230.0, 700.0 if p == viewer else 24.0, 410.0, 112.0)
+
+
+func _render_reservoir(p: int) -> void:
+	var rect := _reservoir_rect(p)
+	var panel := Panel.new()
+	panel.position = rect.position
+	panel.size = rect.size
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_theme_stylebox_override("panel", UITheme.box(Color(0.03, 0.04, 0.09, 0.88), 8, Color(UITheme.GOLD, 0.65), 2))
+	layer.add_child(panel)
+	if p == viewer:
+		reservoir_drop_panel = panel
+	var caption := _label(
+		"RESERVATÓRIO  •  %d disponíveis" % g.reservoir_ready(p),
+		14, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_LEFT, "bold", 2,
+	)
+	caption.position = Vector2(8, 3)
+	caption.size = Vector2(390, 19)
+	panel.add_child(caption)
+	if p == viewer:
+		var instruction := _label("ARRASTE DA MÃO PARA DEPOSITAR", 10, UITheme.TEXT, HORIZONTAL_ALIGNMENT_RIGHT, "bold", 1)
+		instruction.position = Vector2(175, 3)
+		instruction.size = Vector2(225, 18)
+		panel.add_child(instruction)
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(5, 23)
+	scroll.size = Vector2(400, 84)
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.mouse_filter = Control.MOUSE_FILTER_PASS
+	panel.add_child(scroll)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 3)
+	scroll.add_child(row)
+	for card: Card in g.players[p]["reservoir"]:
+		var cell := Control.new()
+		cell.custom_minimum_size = Vector2(64, 72)
+		cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(cell)
+		var visible_face := card.reservoir_revealed_turn == g.turn
+		var view := CardView.new().setup(card.card_id if visible_face else "", {}, 0.36)
+		view.face_down = not visible_face
+		view.mouse_filter = Control.MOUSE_FILTER_STOP if visible_face else Control.MOUSE_FILTER_IGNORE
+		view.pivot_offset = view.size / 2.0
+		view.position = (cell.custom_minimum_size - view.size) / 2.0
+		if card.exhausted:
+			view.rotation = PI / 2.0
+		if visible_face:
+			view.left_clicked.connect(table_overlays.show_overlay)
+			view.right_clicked.connect(table_overlays.show_overlay)
+		cell.add_child(view)
+	if p == viewer:
+		panel.tooltip_text = "Arraste uma carta da mão para cá para depositá-la permanentemente."
 
 
 func _render_command(p: int, pos: Vector2) -> void:
@@ -1573,7 +1632,7 @@ func _render_hand(p: int) -> void:
 		v.right_clicked.connect(table_overlays.show_overlay)
 		v.draggable = (
 			p == viewer and g.phase in ["main", "combat"] and targeting.is_empty()
-			and _my_input() and g.can_play(p, hand_card.uid, true)
+			and _my_input() and (g.can_play(p, hand_card.uid, true) or g.can_store_in_reservoir(p, hand_card.uid))
 		)
 		v.drag_started.connect(_hand_drag_start)
 		v.drag_moved.connect(_hand_drag_move)
@@ -1713,16 +1772,28 @@ func _dragged_hand_card_is_over_play_line(v: CardView, pointer_position: Vector2
 
 func _hand_drag_move(v: CardView) -> void:
 	var m := layer.get_global_transform().affine_inverse() * v.input_position
+	var over_reservoir := _reservoir_rect(viewer).has_point(m)
+	if is_instance_valid(reservoir_drop_panel):
+		var color := OK if over_reservoir and g.can_store_in_reservoir(viewer, v.uid) else Color(UITheme.GOLD, 0.65)
+		reservoir_drop_panel.add_theme_stylebox_override(
+			"panel", UITheme.box(Color(0.03, 0.04, 0.09, 0.88), 8, color, 3 if over_reservoir else 2),
+		)
 	var over_play_line := _dragged_hand_card_is_over_play_line(v, m)
 	var is_unit: bool = CardDB.card(v.card_id)["type"] == "unit"
 	# during an animation the board is left alone (the gap would fight the moving units) and no aim
 	# starts: the card just follows the finger, and dropping it plays it once the animation ends
 	var table_busy := _input_must_wait()
-	if is_unit and over_play_line and _my_input() and not v.get_meta("aim", false) and not table_busy:
+	if (
+		is_unit and over_play_line and not over_reservoir and _my_input()
+		and not v.get_meta("aim", false) and not table_busy and g.can_play(viewer, v.uid, true)
+	):
 		_show_drop_gap(_drop_slot(m.x))
 	elif not table_busy:
 		_show_drop_gap(-1)
-	if v.get_meta("aim", false) and over_play_line and targeting.is_empty() and _my_input() and not table_busy:
+	if (
+		v.get_meta("aim", false) and TableView.MY_LANE.has_point(m) and not over_reservoir
+		and targeting.is_empty() and _my_input() and not table_busy and g.can_play(viewer, v.uid, true)
+	):
 		# a targeted card crossing into the board turns into an aim: it goes back to the hand
 		# (raised) and an arrow follows the finger; releasing on a target plays it there
 		# (a unit with a sacrifice cost also remembers the slot it was dragged to)
@@ -1733,11 +1804,18 @@ func _hand_drag_move(v: CardView) -> void:
 		_render()
 		return
 	v.position = m - Vector2(v.size.x / 2.0, v.size.y * 0.75)
-	v.highlight = SEL if over_play_line else OK
+	v.highlight = SEL if over_play_line or over_reservoir else OK
 
 
 func _hand_drag_end(v: CardView) -> void:
 	var m := layer.get_global_transform().affine_inverse() * v.input_position
+	if _reservoir_rect(viewer).has_point(m):
+		if _input_must_wait():
+			_hand_card_back_to_rest(v)
+			_queued_inputs.append(_store_hand_card_when_settled.bind(v.uid))
+		elif _my_input():
+			_do(g.store_in_reservoir(viewer, v.uid))
+		return
 	var over_play_line := _dragged_hand_card_is_over_play_line(v, m)
 	if _input_must_wait():
 		# an animation is playing: the card flies back to the hand and, if it was dropped on the board,
@@ -1751,6 +1829,14 @@ func _hand_drag_end(v: CardView) -> void:
 	if over_play_line and _my_input():
 		_play_from_hand(v, _drop_slot(m.x))
 	else:
+		_render()
+
+
+func _store_hand_card_when_settled(uid: int) -> void:
+	if _my_input() and g.can_store_in_reservoir(viewer, uid):
+		_do(g.store_in_reservoir(viewer, uid))
+	else:
+		_toast("Não dá para depositar essa carta agora.")
 		_render()
 
 
@@ -2877,8 +2963,8 @@ func _on_dev_tool_action(action: String, parameters: Dictionary) -> void:
 			events = state.debug_add_momentum(player, int(parameters.get("amount", 1)))
 		"refill_momentum":
 			events = state.debug_refill_momentum(player)
-		"refill_reserve":
-			events = state.debug_refill_reserve(player)
+		"refill_battery":
+			events = state.debug_refill_battery(player)
 		"raise_leader_max":
 			events = state.debug_raise_leader_max(player, int(parameters.get("amount", 1)))
 		"heal_leader":

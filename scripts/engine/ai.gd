@@ -11,6 +11,7 @@ const LATE_GAME_TURN := 16
 const LADEIRA_CARD_ID := "ladeira_abaixo_e_sem_freio"
 const SNOWBALL_CARD_IDS := ["bola_de_neve", "grande_bola_de_neve"]
 const SNOWBALL_COMBO_MIN_ENEMY_UNITS := 2
+const LAST_HAND_CARD_COST_MARGIN := 3
 
 ## The Encarnação competes with the hand (see _untaxed_incarnation_should_come_first and _incarnation_rank_against_hand).
 const INCARNATION_WALL_MIN_UNITS := 4 ## an enemy board this wide may be too dangerous to cast into
@@ -65,6 +66,13 @@ static func step(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 			if not g.stack.is_empty() or p != g.active:
 				var response := _try_play(g, p, held_card_ids)
 				return response if not response.is_empty() else g.pass_priority(p)
+			for card: Card in _hand_most_expensive_first(g, p):
+				if (
+					not held_card_ids.has(card.card_id)
+					and g.can_store_in_reservoir(p, card.uid)
+					and _should_store_in_reservoir(g, p, card)
+				):
+					return g.store_in_reservoir(p, card.uid)
 			var events := _try_play(g, p, held_card_ids)
 			if not events.is_empty():
 				return events
@@ -72,6 +80,27 @@ static func step(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 				return g.go_to_combat(p)
 			return g.end_turn(p)
 	return []
+
+
+static func _should_store_in_reservoir(g: GameState, p: int, card: Card) -> bool:
+	if g.players[p]["hand"].size() > 1:
+		return true
+	if _reservoir_covers_deck_costs(g, p):
+		return false
+	if AIProfile.of_player(g, p) == AIProfile.PROFILES["aggro"]:
+		return false
+	var available := g.reservoir_ready(p)
+	var cost := g.cost_of(p, CardDB.card(card.card_id), card)
+	return available - cost >= LAST_HAND_CARD_COST_MARGIN
+
+
+static func _reservoir_covers_deck_costs(g: GameState, p: int) -> bool:
+	var maximum_budget := mini(g.momentum_cap(p), g.players[p]["reservoir"].size())
+	for card: Card in g.players[p]["deck"]:
+		var cost := g.cost_of(p, CardDB.card(card.card_id), card)
+		if cost > maximum_budget:
+			return false
+	return not g.players[p]["deck"].is_empty()
 
 
 static func _choose_effect_option(g: GameState, p: int) -> Array:
@@ -343,15 +372,15 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 	for artifact: Card in g.players[p]["relics"]:
 		# free-standing artifacts' untargeted Ao Ativar (e.g. Ossuário Sem Fundo's revive)
 		var artifact_effects: Array = CardDB.card(artifact.card_id).get("activated", { }).get("effects", [])
-		# Bateria gives Reserve even when empty, and releases stored Momentum whenever there is room.
+		# The Bateria refills even when empty; stored Momentum is released whenever there is room.
 		if artifact.data().has("momentum_store"):
 			var player: Dictionary = g.players[p]
-			var can_gain_reserve := int(player["reserve"]) < GameState.RESERVE_CAP
+			var can_gain_battery := int(player["battery"]) < GameState.BATTERY_CAP
 			var can_release_stored := (
 				artifact.stored_momentum > 0 and int(player["momentum"]) < g.momentum_cap(p)
 				and int(player["momentum_lock_turn"]) != g.turn
 			)
-			if not can_gain_reserve and not can_release_stored:
+			if not can_gain_battery and not can_release_stored:
 				continue
 		if (g.can_activate(p, artifact.uid) and g.target_spec(artifact_effects) == "" and _revive_is_worth_it(g, p, artifact_effects)):
 			return g.activate(p, artifact.uid)
@@ -803,7 +832,7 @@ static func _enemy_wall_stands(g: GameState, p: int) -> bool:
 
 
 ## The most Momentum the plays of the hand can spend, paying at most `budget` (a subset of the playable
-## cards, by their real cost). Reserve is ignored: it only pays spells and abilities.
+## cards, by their real cost). The Bateria is ignored: it only pays spells and abilities.
 static func _most_momentum_the_hand_can_spend(g: GameState, p: int, budget: int) -> int:
 	var reachable := { 0: true } # every total some subset of the hand costs, within the budget
 	for card: Card in g.players[p]["hand"]:
@@ -1528,9 +1557,9 @@ static func _board_strike_total(g: GameState, player: int) -> int:
 	return total
 
 
-## Plain Momentum the AI will have next turn (one more than now). The Reserva is counted apart, see _burn_reach.
+## Momentum from the Reservoir next turn; the Bateria is counted separately.
 static func _next_turn_plain_budget(g: GameState, p: int) -> int:
-	return mini(g.momentum_cap(p), int(g.players[p]["max_momentum"]) + 1)
+	return mini(g.momentum_cap(p), g.players[p]["reservoir"].size() + (1 if not g.players[p]["hand"].is_empty() else 0))
 
 
 ## True for a spell that can send damage to the enemy Leader (Bola de Fogo "any", Choque "enemy_leader").
@@ -1552,17 +1581,17 @@ static func _face_burn_damage(card_data: Dictionary) -> int:
 
 ## The most face damage the burn spells in hand can deal paying at most `budget` Momentum (best subset).
 static func _burn_reach(g: GameState, p: int, plain_budget: int) -> int:
-	var reserve := int(g.players[p]["reserve"])
+	var battery := int(g.players[p]["battery"])
 	var damages: Array = []
 	var costs: Array = []
-	var fast: Array = [] # only Rápido/Instantâneo burn can be paid from the Reserva
+	var fast: Array = [] # only Rápido/Instantâneo burn can be paid from the Bateria
 	for card: Card in g.players[p]["hand"]:
 		var card_data := CardDB.card(card.card_id)
 		var damage := _face_burn_damage(card_data)
 		if damage > 0 and not g.is_dud(p, card_data):
 			damages.append(damage)
 			costs.append(g.cost_of(p, card_data, card))
-			fast.append(g.reserve_pays(card_data))
+			fast.append(g.battery_pays(card_data))
 	var best := 0
 	for subset in range(1, 1 << damages.size()): # burn is a handful of cards, so trying every subset is cheap
 		var damage_sum := 0
@@ -1575,7 +1604,7 @@ static func _burn_reach(g: GameState, p: int, plain_budget: int) -> int:
 					fast_cost += costs[i]
 				else:
 					slow_cost += costs[i]
-		if slow_cost + maxi(0, fast_cost - reserve) <= plain_budget:
+		if slow_cost + maxi(0, fast_cost - battery) <= plain_budget:
 			best = maxi(best, damage_sum)
 	return best
 
@@ -1800,16 +1829,16 @@ static func _ability_source(g: GameState, ability: Dictionary, activator: Card, 
 		"aim": int(gain["aim"]),
 		"damage": int(gain["damage"]),
 		"cost": int(ability.get("cost", 0)),
-		"paid_by_reserve": g.reserve_pays(ability),
+		"paid_by_battery": g.battery_pays(ability),
 		"needs_slot": false,
 		"rank": 1 if gain["direct"] else 2,
 	}
 
 
-## Every group of things that adds face damage and can be paid this turn: hand cards (Momentum, or Reserva for
+## Every group of things that adds face damage and can be paid this turn: hand cards (Momentum, or Bateria for
 ## Rápido/Instantâneo spells; units need a free slot), the Leader power and the Ao Ativar of what is in play.
 ## Each line: {"steps": Array[Dictionary], "damage": int, "cost": int}; a step is a source as built here or by
-## _face_ability_sources: {"card", "activator", "aim", "damage", "cost", "paid_by_reserve", "needs_slot", "rank"}.
+## _face_ability_sources: {"card", "activator", "aim", "damage", "cost", "paid_by_battery", "needs_slot", "rank"}.
 ## "rank" is the order to act in (0 unit, 1 direct damage, 2 buff).
 static func _affordable_face_lines(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 	var face_attackers := _face_capable_attackers(g, p)
@@ -1833,21 +1862,21 @@ static func _affordable_face_lines(g: GameState, p: int, held_card_ids: Array = 
 				"aim": 0,
 				"damage": damage,
 				"cost": g.cost_of(p, card_data, card),
-				"paid_by_reserve": card_data.get("type", "") == "spell" and g.reserve_pays(card_data),
+				"paid_by_battery": card_data.get("type", "") == "spell" and g.battery_pays(card_data),
 				"needs_slot": g.takes_field_slot(card_data, false),
 				"rank": card_rank,
 			}
 		)
 	sources.append_array(_face_ability_sources(g, p, face_attackers))
 	var plain_budget := g.budget(p, false)
-	var reserve := int(g.players[p]["reserve"])
+	var battery := int(g.players[p]["battery"])
 	var free_slots: int = GameState.BOARD_LIMIT - g.slots_used(p) - int(g.players[p]["frozen_slots"])
 	var lines: Array = []
 	for subset in range(1, 1 << sources.size()): # a hand holds a handful of useful cards, so every subset is cheap to try
 		var steps: Array = []
 		var damage_sum := 0
 		var slow_cost := 0
-		var reserve_cost := 0
+		var battery_cost := 0
 		var slots_needed := 0
 		for i in sources.size():
 			if not subset & (1 << i):
@@ -1855,15 +1884,15 @@ static func _affordable_face_lines(g: GameState, p: int, held_card_ids: Array = 
 			var source: Dictionary = sources[i]
 			steps.append(source)
 			damage_sum += int(source["damage"])
-			if source["paid_by_reserve"]:
-				reserve_cost += int(source["cost"])
+			if source["paid_by_battery"]:
+				battery_cost += int(source["cost"])
 			else:
 				slow_cost += int(source["cost"])
 			if source["needs_slot"]:
 				slots_needed += 1
-		if slots_needed > free_slots or slow_cost + maxi(0, reserve_cost - reserve) > plain_budget:
+		if slots_needed > free_slots or slow_cost + maxi(0, battery_cost - battery) > plain_budget:
 			continue
-		lines.append({ "steps": steps, "damage": damage_sum, "cost": slow_cost + reserve_cost })
+		lines.append({ "steps": steps, "damage": damage_sum, "cost": slow_cost + battery_cost })
 	return lines
 
 

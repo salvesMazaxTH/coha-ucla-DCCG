@@ -7,7 +7,7 @@ const BannedRibbonScript = preload("res://scripts/ui/banned_ribbon.gd")
 ## signed in, this device otherwise), and edits one in a three-column screen built from the card gallery:
 ## filters | card catalog | the deck being built, with the engine's own rules (DeckDB) shown live.
 ##
-## The copy limit of a card is a hard stop. Every other rule (44 cards, Champion cards, guest cards, the
+## The copy limit of a card is a hard stop. Every other rule (59 cards, Champion cards, guest cards, the
 ## Encarnação) is only a warning, so a deck can be reshuffled through illegal states and saved as a
 ## draft; the list marks it LEGAL / INCOMPLETO / ILEGAL.
 
@@ -1197,7 +1197,7 @@ func _open_import_code() -> void:
 	box.add_child(help)
 	var input := TextEdit.new()
 	input.custom_minimum_size = Vector2(620, 110)
-	input.placeholder_text = "CSA2.…"
+	input.placeholder_text = "CSA3.…"
 	box.add_child(input)
 	var actions := HBoxContainer.new()
 	actions.alignment = BoxContainer.ALIGNMENT_END

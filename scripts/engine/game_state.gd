@@ -8,16 +8,16 @@ const START_HAND := 5
 const MULLIGAN_MAX := 3
 const HAND_LIMIT := 10
 const BOARD_LIMIT := 8
-const MOMENTUM_CAP := 10
+const MOMENTUM_CAP := 12
 ## the most Momentum a turn can hold when an effect says "overflow" (Eryon's deck); the part above MOMENTUM_CAP vanishes at the
 ## end of the turn
-const MOMENTUM_OVERFLOW_CAP := 20
+const MOMENTUM_OVERFLOW_CAP := 12
 const LETHAL_WARD_NEGATED_HITS := 3 # Câmara de Êxtase: how many hits it negates after saving the Leader
-const RESERVE_CAP := 2 ## unspent Momentum banked at turn start; pays only spells and abilities
+const BATTERY_CAP := 2 ## refills at the start of each player's turn; pays only Rápido and Instantâneo plays
 const COMMANDER_TAX_STEP := 1 ## the Encarnação's tax grows by this much per previous cast: +1, then +2, +3, +4... (totals 1, 3, 6, 10)
 const WEAK_UNIT_MAX_HP := 3 ## "weak_enemy_unit" targets: enemy units with this much current Vida or less (Isarelis)
 const INTIMIDATE_ATK := 3 ## Intimidacao: attackers with this ATK or less cannot challenge it
-const SECOND_BONUS_TURNS := 2 ## the second player's first turns that start with +1 Momentum and +1 Reserve (refill)
+const SECOND_BONUS_TURNS := 2 ## the second player's first turns that start with +1 Momentum and +1 to the Bateria
 const SNOWBALL_GRANDE_AT := 7 ## Bola de Neve level at which every Bola de Neve card of the player evolves into a Grande Bola de Neve
 ## Bola de Neve level a player starts at; each player's own base can grow permanently (Devaneio Gelado), see
 ## players[p]["snowball_base"]
@@ -185,7 +185,9 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"momentum": 0,
 		"max_momentum": 0,
 		"turn_start_momentum": 0,
-		"reserve": 0,
+		"battery": BATTERY_CAP,
+		"reservoir": [],
+		"reservoir_stored_turn": -1,
 		"idle_turns": 0,
 		"next_momentum": 0,
 		"play_restrictions": [],
@@ -472,6 +474,8 @@ func room_banish_options(p: int) -> Array:
 ## `extra_data` is added to the card_moved event ("unit_died": true tells that an equipment fell because its unit died).
 func _move(c: Card, to_zone: String, extra_data := { }) -> void:
 	var from_zone := c.zone
+	if from_zone == "reservoir":
+		return # cards deposited there are permanent and cannot be moved by effects
 	if from_zone != to_zone:
 		c.activated_zone_used = false
 		c.zone_used_effects.clear()
@@ -480,7 +484,7 @@ func _move(c: Card, to_zone: String, extra_data := { }) -> void:
 			c.capture_permanent_buffs()
 		elif from_zone != "hand":
 			c.reset_permanent_buffs()
-	elif to_zone in ["graveyard", "banished", "deck", "relics", "equipped"] or (to_zone == "" and from_zone == "board"):
+	elif to_zone in ["graveyard", "banished", "deck", "relics", "equipped", "reservoir"] or (to_zone == "" and from_zone == "board"):
 		c.reset_permanent_buffs()
 	elif to_zone == "sanctuary" and c.incarnation:
 		players[c.owner]["incarnation"]["permanent_buffs"] = c.permanent_buffs.duplicate(true)
@@ -705,7 +709,7 @@ func momentum_cap(p: int) -> int:
 		for e in card_of(unit).get("effects", []):
 			if e.get("trigger", "") == "constante" and e.get("action", "") == "momentum_cap":
 				cap = maxi(cap, int(e.get("cap", MOMENTUM_CAP)))
-	return cap
+	return mini(cap, MOMENTUM_CAP)
 
 
 ## Atk/hp a card's "constante" scale effects would give it under player p right
@@ -1292,9 +1296,9 @@ func _since_last_turn(p: int, kind: String) -> int:
 ## Momentum cost of a card for player p, after its cost_reduction effects (no trigger: they apply
 ## wherever the card is, not only on the board, so they are not "Constante")
 ## (e.g. per: "idle_turns" =
-## per owner turn that started with Momentum leaking past the Reserva; "unspent_momentum" = a flat "amount" off when
+## per owner turn that started with Momentum leaking past the Bateria; "unspent_momentum" = a flat "amount" off when
 ## at least "threshold" plain Momentum was left over from the previous turn; "saved_momentum" = one flat reduction when
-## leftover Momentum plus the existing Reserva met the threshold at turn start, counting each point once;
+## leftover Momentum plus the existing Bateria met the threshold at turn start, counting each point once;
 ## "starting_momentum_surplus" = a flat "amount" off
 ## when the owner's turn began with at least "threshold" more Momentum than their maximum for that turn (a promise from the
 ## turn before, the second-player bonus, ...); "healing_since_last_turn" = a flat "amount" off
@@ -1463,14 +1467,73 @@ func _applicable_discount_equipment(p: int, cd: Dictionary) -> Array:
 	return amulets
 
 
-## Momentum p can spend on a play: the Reserva only counts for Rápido and Instantâneo plays (`fast`).
+## Untapped cards in the Reservoir each provide one additional Momentum for the next payment.
+func reservoir_ready(p: int) -> int:
+	var ready := 0
+	for card: Card in players[p]["reservoir"]:
+		if not card.exhausted:
+			ready += 1
+	return mini(ready, MOMENTUM_CAP)
+
+
+func _sync_reservoir_momentum(p: int) -> void:
+	players[p]["momentum"] = reservoir_ready(p)
+	players[p]["max_momentum"] = mini(players[p]["reservoir"].size(), MOMENTUM_CAP)
+
+
+## True when p can permanently deposit one hand card during their Main Phase.
+func can_store_in_reservoir(p: int, hand_uid: int) -> bool:
+	return (
+		_main_phase_idle(p)
+		and int(players[p]["reservoir_stored_turn"]) != turn
+		and _hand_card(p, hand_uid) != null
+	)
+
+
+## Permanently deposits one hand card. This action does not use the stack or Momentum.
+func store_in_reservoir(p: int, hand_uid: int) -> Array:
+	if not can_store_in_reservoir(p, hand_uid):
+		return []
+	var card := _hand_card(p, hand_uid)
+	players[p]["hand"].erase(card)
+	players[p]["reservoir"].append(card)
+	_move(card, "reservoir")
+	card.exhausted = false
+	card.reservoir_revealed_turn = turn
+	players[p]["reservoir_stored_turn"] = turn
+	_sync_reservoir_momentum(p)
+	refresh_scaling()
+	emit_event({"type": "reservoir_add", "player": p, "uid": card.uid, "card_id": card.card_id, "from": "hand"})
+	return flush_events()
+
+
+## Moves the top `amount` cards of p's deck into the Reservoir; those cards are permanently lost.
+func move_top_deck_to_reservoir(p: int, amount := 1, source_uid := 0) -> int:
+	var moved := 0
+	for _index in maxi(amount, 0):
+		if players[p]["deck"].is_empty():
+			break
+		var card: Card = players[p]["deck"].pop_back()
+		players[p]["reservoir"].append(card)
+		_move(card, "reservoir")
+		card.exhausted = false
+		card.reservoir_revealed_turn = turn
+		moved += 1
+		emit_event({
+			"type": "reservoir_add", "player": p, "uid": card.uid, "card_id": card.card_id,
+			"from": "deck", "source_uid": source_uid,
+		})
+	if moved > 0:
+		_sync_reservoir_momentum(p)
+		refresh_scaling()
+	return moved
+
+
+## Momentum p can spend on a play: the Bateria do seu Reservatório only counts for Rápido and Instantâneo plays (`fast`).
 ## Momentum above the player's cap (a temporary overflow) only pays neutral cards and leader abilities:
 ## pass the card's data as `cd` so any other essence sees at most momentum_cap(p).
 func budget(p: int, fast: bool, cd := { }) -> int:
-	var plain_momentum := int(players[p]["momentum"])
-	if not cd.is_empty() and not CardDB.has_essence(cd, "neutra"):
-		plain_momentum = mini(plain_momentum, momentum_cap(p))
-	return plain_momentum + (int(players[p]["reserve"]) if fast else 0)
+	return reservoir_ready(p) + (int(players[p]["battery"]) if fast else 0)
 
 
 ## Gives player p Momentum right now. Normally it stops at their cap (MOMENTUM_CAP, or higher with Agiota das
@@ -1492,24 +1555,36 @@ func gain_momentum(p: int, gain: int, overflow := false, refresh := false) -> vo
 	emit_event({ "type": "momentum", "player": p })
 
 
-## Pays `amount`; Rápido and Instantâneo plays (`fast`) drain the Reserva first so more plain Momentum is
+## Pays `amount`; Rápido and Instantâneo plays (`fast`) drain the Bateria first so more plain Momentum is
 ## left over to bank next turn.
 func _pay(p: int, amount: int, fast: bool) -> void:
 	var pl: Dictionary = players[p]
 	if fast:
-		var r := mini(amount, int(pl["reserve"]))
-		pl["reserve"] -= r
+		var r := mini(amount, int(pl["battery"]))
+		pl["battery"] -= r
 		amount -= r
-	pl["momentum"] -= amount
+	for card: Card in pl["reservoir"]:
+		if amount <= 0:
+			break
+		if card.exhausted:
+			continue
+		card.exhausted = true
+		amount -= 1
+		emit_event({"type": "reservoir_tap", "player": p, "uid": card.uid})
+	_sync_reservoir_momentum(p)
 	refresh_scaling() # a surge (11+ Momentum) may have just turned off
 
 
-## Spends all the plain Momentum player p still has (the Reserva is untouched) and returns how much that was.
+## Spends all the plain Momentum player p still has (the Bateria is untouched) and returns how much that was.
 func drain_momentum(p: int) -> int:
-	var drained := int(players[p]["momentum"])
+	var drained := reservoir_ready(p)
 	if drained <= 0:
 		return 0
-	players[p]["momentum"] = 0
+	for card: Card in players[p]["reservoir"]:
+		if not card.exhausted:
+			card.exhausted = true
+			emit_event({"type": "reservoir_tap", "player": p, "uid": card.uid})
+	_sync_reservoir_momentum(p)
 	refresh_scaling() # a surge (11+ Momentum) may have just turned off
 	emit_event({ "type": "momentum", "player": p })
 	return drained
@@ -1519,15 +1594,15 @@ static func _is_spell(cd: Dictionary) -> bool:
 	return cd.get("type", "") == "spell"
 
 
-## True when the Reserva may help pay this source (a spell, leader ability, activated ability or equip action):
+## True when the Bateria may help pay this source (a spell, leader ability, activated ability or equip action):
 ## only Rápido and Instantâneo ones. Lento always uses plain Momentum.
-func reserve_pays(src: Dictionary) -> bool:
+func battery_pays(src: Dictionary) -> bool:
 	return speed_of(src) != "lento"
 
 
-## Same for a card being played: only spells count (units never use the Reserva, not even Saque Rápido ones).
-func _reserve_pays_card(cd: Dictionary) -> bool:
-	return _is_spell(cd) and reserve_pays(cd)
+## Same for a card being played: only spells count (units never use the Bateria, not even Saque Rápido ones).
+func _battery_pays_card(cd: Dictionary) -> bool:
+	return _is_spell(cd) and battery_pays(cd)
 
 
 ## include_unreachable: also lists the enemy units with Inalcançável (only to explain why a target is refused).
@@ -1830,7 +1905,7 @@ func card_targets(p: int, cd: Dictionary, inst: Card = null) -> Array:
 	var ok: Array = []
 	for sid in out:
 		var x := counter_extra(cd, sid)
-		if x >= 0 and cost_of(p, cd, inst) + x <= budget(p, _reserve_pays_card(cd), cd):
+		if x >= 0 and cost_of(p, cd, inst) + x <= budget(p, _battery_pays_card(cd), cd):
 			ok.append(sid)
 	return ok
 
@@ -1942,10 +2017,10 @@ func can_play(p: int, hand_uid: int, allow_unreachable := false) -> bool:
 	if is_play_restricted(p, cd) or not play_condition_met(p, cd):
 		return false
 	if is_subito_play(p, cd):
-		# Súbito is a Rápido play, so the Reserva counts
+		# Súbito is a Rápido play, so the Bateria counts
 		return inst.zone == "hand" and has_slot_or_banish(p) and not cd.get("cost_sacrifice", false) \
 				and subito_cost(p, cd, inst) <= budget(p, true, cd)
-	if cost_of(p, cd, inst) > budget(p, _reserve_pays_card(cd), cd):
+	if cost_of(p, cd, inst) > budget(p, _battery_pays_card(cd), cd):
 		return false
 	if cd["type"] == "unit":
 		if not _sorcery_time(p):
@@ -2034,7 +2109,7 @@ func can_use_ability(p: int, allow_unreachable := false) -> bool:
 	var ab: Dictionary = CardDB.leader(players[p]["leader_id"])["ability"]
 	if ab.get("passive", false):
 		return false # passives fire on their own trigger
-	if not can_cast_speed(p, speed_of(ab)) or int(ab["cost"]) > budget(p, reserve_pays(ab)):
+	if not can_cast_speed(p, speed_of(ab)) or int(ab["cost"]) > budget(p, battery_pays(ab)):
 		return false
 	if (ab.get("once_per_turn", false) or ab.get("once_per_cycle", false)) and players[p]["ability_used"]:
 		return false
@@ -2112,7 +2187,7 @@ func _has_playable_with_discount(p: int, effect: GrantPlayDiscountEffect) -> boo
 
 
 ## Ao Ativar on a unit or free-standing artifact (`activated`: cost, speed, effects, once_per_turn, exhaust):
-## paid like an ability (Reserva counts) and put on the stack, so it can be answered and countered.
+## paid like an ability (the Bateria counts) and put on the stack, so it can be answered and countered.
 ## "once_per_turn" limits either kind of card. "exhaust" is unit-only: the unit must be ready and becomes
 ## exhausted, so it cannot attack that turn (and an attacker cannot activate); the opponent may challenge it.
 func can_activate(p: int, uid: int, allow_unreachable := false) -> bool:
@@ -2123,7 +2198,7 @@ func can_activate(p: int, uid: int, allow_unreachable := false) -> bool:
 	if not is_unit and equip_pending(uid):
 		return false # mid-Equipar on the stack: the artifact is already becoming equipment, it cannot also be activated
 	var ab: Dictionary = card_of(c).get("activated", { })
-	if ab.is_empty() or not can_cast_speed(p, speed_of(ab)) or int(ab["cost"]) > budget(p, reserve_pays(ab)):
+	if ab.is_empty() or not can_cast_speed(p, speed_of(ab)) or int(ab["cost"]) > budget(p, battery_pays(ab)):
 		return false
 	if ab.get("exhaust", false) and is_unit and c.has_kw("inerte"):
 		return false # an inert unit cannot turn to activate an ability
@@ -2254,7 +2329,7 @@ func can_equip_from_field(p: int, uid: int, allow_unreachable := false) -> bool:
 	if equip_pending(uid):
 		return false # its Equipar is already on the stack: equipping it twice makes no sense
 	var action: Dictionary = card_of(artifact).get("equip_from_field", { })
-	if action.is_empty() or not can_cast_speed(p, speed_of(action)) or int(action["cost"]) > budget(p, reserve_pays(action)):
+	if action.is_empty() or not can_cast_speed(p, speed_of(action)) or int(action["cost"]) > budget(p, battery_pays(action)):
 		return false
 	var effects: Array = action.get("effects", [])
 	var spec := target_spec(effects)
@@ -2277,7 +2352,7 @@ func equip_from_field(p: int, uid: int, target: int) -> Array:
 	var spec := target_spec(effects)
 	if spec == "" or not valid_targets(p, spec, uid, false, effects).has(target):
 		return []
-	_pay(p, int(action["cost"]), reserve_pays(action))
+	_pay(p, int(action["cost"]), battery_pays(action))
 	stack_system().push(p, "artifact_equip", uid, artifact.card_id, target, speed_of(action))
 	stack_system().settle()
 	return flush_events()
@@ -2306,7 +2381,7 @@ func _has_action(effects: Array, action_name: String) -> bool:
 
 
 ## Transformar (cards.json unit field "transform": {into, cost}) (cards.json unit field {into, cost}): Lento, paid like an ability
-## (Reserva counts), and it never uses the stack, so it cannot be answered or countered.
+## (the Bateria counts), and it never uses the stack, so it cannot be answered or countered.
 func can_transform(p: int, uid: int) -> bool:
 	var c := find_unit(uid)
 	if c == null or c.owner != p or not _sorcery_time(p):
@@ -2409,7 +2484,7 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 	var pl: Dictionary = players[p]
 	var discount_amulets := _applicable_discount_equipment(p, cd) # read before paying: the discount is for the first spell only
 	var paid_cost := cost_of(p, cd, inst) + (counter_extra(cd, target) if spec == "enemy_stack" else 0)
-	_pay(p, paid_cost, _reserve_pays_card(cd))
+	_pay(p, paid_cost, _battery_pays_card(cd))
 	if inst.zone == "hand" and play_discount_applies(p, inst):
 		players[p]["play_discount"] = { } # the one-card offer is spent
 	if not discount_amulets.is_empty():
@@ -2520,7 +2595,7 @@ func cast_incarnation(p: int, _target: int = 0, slot: int = -1, banish_uid: int 
 		return []
 	var pl: Dictionary = players[p]
 	var paid_cost := incarnation_cost(p)
-	pl["momentum"] -= paid_cost
+	_pay(p, paid_cost, false)
 	pl["incarnation"]["in_zone"] = false
 	pl["incarnation"]["casts"] += 1
 	var c := Card.new(_uid(), pl["incarnation"]["card_id"], p)
@@ -2554,7 +2629,7 @@ func activate(p: int, uid: int, target: int = 0, payer: int = 0) -> Array:
 			return []
 		if spec == "":
 			target = 0
-	_pay(p, int(ab["cost"]), reserve_pays(ab))
+	_pay(p, int(ab["cost"]), battery_pays(ab))
 	if payer_uid != 0:
 		_pay_activation_cost(p, payer_uid)
 	c.activated_turn = turn
@@ -2617,7 +2692,7 @@ func use_ability(p: int, target: int = 0) -> Array:
 	var spec := target_spec(ab["effects"])
 	if spec != "" and not valid_targets(p, spec, 0, false, ab["effects"]).has(target):
 		return []
-	_pay(p, int(ab["cost"]), reserve_pays(ab))
+	_pay(p, int(ab["cost"]), battery_pays(ab))
 	var life_cost := ability_life_cost(p, ab)
 	if life_cost > 0:
 		players[p]["leader_hp"] -= life_cost
@@ -3550,7 +3625,7 @@ func choice_is_due(effect: Effect) -> bool:
 
 ## Effects a card has while it sits in the deck ("deck_effects": [{trigger, if, action}]).
 ## "summon_self": that copy leaves the deck and enters its owner's board (no shuffle, nothing is
-## drawn). Optional "cost": paid on the way in like an ability (Reserva first, then Momentum); if it
+## drawn). Optional "cost": paid on the way in like an ability (the Bateria first, then Momentum); if it
 ## can't be paid, or the board is full, the copy stays in the deck.
 func _fire_deck_effects(p: int, trigger: String) -> void:
 	for c in players[p]["deck"].duplicate():
@@ -3561,7 +3636,7 @@ func _fire_deck_effects(p: int, trigger: String) -> void:
 				continue
 			var fee := int(e.get("cost", 0))
 			if e.get("action", "") == "summon_self" and players[p]["deck"].has(c) and has_free_slot(p) and budget(p, true) >= fee:
-				_pay(p, fee, true) # a trigger, not a play with a speed: the Reserva still pays
+				_pay(p, fee, true) # a trigger, not a play with a speed: the Bateria still pays
 				players[p]["deck"].erase(c)
 				emit_event({ "type": "enter_from_deck", "player": p, "uid": c.uid, "card_id": c.card_id })
 				_summon(p, c, false, 0)
@@ -4819,10 +4894,10 @@ func debug_refill_momentum(p: int) -> Array:
 	return _debug_finish()
 
 
-func debug_refill_reserve(p: int) -> Array:
+func debug_refill_battery(p: int) -> Array:
 	if not _debug_player_valid(p):
 		return []
-	players[p]["reserve"] = RESERVE_CAP
+	players[p]["battery"] = BATTERY_CAP
 	emit_event({ "type": "momentum", "player": p })
 	return _debug_finish()
 
@@ -5255,8 +5330,8 @@ func _resolve_delayed_self_revives() -> bool:
 	return revived_any
 
 
-## Artifacts with "momentum_store": N (Bateria de Segunda Mão) catch the Momentum that leaked past the Reserva
-## at this turn start, each up to its own limit. What goes to the Reserva never counts: only what would be lost.
+## Artifacts with "momentum_store": N catch Momentum that spilled past the Bateria at this turn start.
+## Each stores up to its own limit. Momentum kept in the Bateria never counts: only what would be lost.
 func _store_leaked_momentum(pl: Dictionary, leaked: int) -> void:
 	var left_to_store := leaked
 	for relic: Card in pl["relics"]:
@@ -5283,27 +5358,26 @@ func _start_turn(p: int, draw: bool) -> void:
 	pl["healing_this_round"] = 0
 	pl["damage_last_round"] = int(pl["damage_this_round"])
 	pl["damage_this_round"] = 0
-	# Snapshot the distinct Momentum pools before leftover Momentum is banked into the Reserva.
-	pl["saved_momentum"] = int(pl["reserve"]) + int(pl["momentum"])
-	# Momentum that leaks past a full Reserva, after the opponent's turn too, is what really went
-	# unspent (Fulgurvoltz gets cheaper by the turns it happens, Voltexz ignores the Reserva)
-	var leaked: int = int(pl["reserve"]) + int(pl["momentum"]) - RESERVE_CAP
-	pl["leaked"] = maxi(0, leaked) # Sobrecarga refunds part of it this turn
-	# plain Momentum left from the last turn, without the Reserva (Voltexz)
+	# Plain Momentum left from the last turn is remembered for legacy card conditions, then expires.
 	pl["unspent"] = int(pl["momentum"])
-	if leaked > 0:
+	pl["saved_momentum"] = int(pl["momentum"])
+	pl["leaked"] = 0
+	if int(pl["momentum"]) > 0:
 		pl["idle_turns"] += 1
-		_store_leaked_momentum(pl, leaked)
-	pl["reserve"] = mini(RESERVE_CAP, int(pl["reserve"]) + int(pl["momentum"])) # bank what went unspent
-	# the ceiling is MOMENTUM_CAP, or higher while a "momentum_cap" unit is on the board; without it the
-	# maximum falls back to the normal ceiling, so the extra Momentum is not kept
-	pl["max_momentum"] = mini(momentum_cap(p), int(pl["max_momentum"]) + 1)
-	pl["momentum"] = pl["max_momentum"]
-	if p != first and turn <= SECOND_BONUS_TURNS * 2:
-		# going second: on each of the first SECOND_BONUS_TURNS turns, +1 Momentum (this turn only)
-		# and 1 Reserva refilled (never past the cap)
-		pl["reserve"] = mini(RESERVE_CAP, int(pl["reserve"]) + 1)
-		pl["momentum"] += 1
+	pl["battery"] = BATTERY_CAP # the Bateria refills independently of unspent Momentum
+	for card: Card in pl["reservoir"]:
+		if card.exhausted:
+			card.exhausted = false
+			emit_event({"type": "reservoir_untap", "player": p, "uid": card.uid})
+	if p != first and int(pl["own_turns_started"]) == 1 and not pl["deck"].is_empty():
+		var bottom_card: Card = pl["deck"].pop_front()
+		pl["reservoir"].append(bottom_card)
+		_move(bottom_card, "reservoir")
+		bottom_card.exhausted = false
+		bottom_card.reservoir_revealed_turn = turn
+		emit_event({"type": "reservoir_add", "player": p, "uid": bottom_card.uid, "card_id": bottom_card.card_id, "from": "deck"})
+	_sync_reservoir_momentum(p)
+	refresh_scaling()
 	for i in 2:
 		var q: Dictionary = players[i]
 		# once_per_turn: refreshed every turn, so instants can be used on either turn.
@@ -5315,10 +5389,7 @@ func _start_turn(p: int, draw: bool) -> void:
 	# remembered for the whole turn: a Leader ability with "blocked_after_debt" (Eryon's loan) cannot be
 	# used on the turn its owner pays a Momentum debt, so the loan can't be rolled over forever
 	pl["paid_debt_this_turn"] = int(pl["next_momentum"]) < 0
-	if int(pl["next_momentum"]) != 0:
-		# positive = Momentum promised for this turn; negative = a debt (Ritual do Degelo), never below 0
-		pl["momentum"] = clampi(int(pl["momentum"]) + int(pl["next_momentum"]), 0, momentum_cap(p))
-		pl["next_momentum"] = 0
+	pl["next_momentum"] = 0
 	# what this turn began with, after the second-player bonus and any promise or debt: a "refresh" gain
 	# (gain_momentum with "refresh": true) can win back spent Momentum only up to this
 	pl["turn_start_momentum"] = int(pl["momentum"])

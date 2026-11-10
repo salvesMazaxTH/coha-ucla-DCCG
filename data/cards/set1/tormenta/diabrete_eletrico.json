@@ -1,6 +1,7 @@
 {
   "name": "Diabrete Elétrico",
   "set": 1,
+  "banned": true,
   "type": "unit",
   "rarity": "common",
   "tribe": ["demonio"],

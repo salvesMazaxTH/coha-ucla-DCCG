@@ -1,6 +1,7 @@
 {
   "name": "Espírito Carregado",
   "set": 1,
+  "banned": true,
   "type": "unit",
   "rarity": "common",
   "tribe": [

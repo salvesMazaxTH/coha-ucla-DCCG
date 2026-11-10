@@ -1,6 +1,7 @@
 {
   "name": "Druida das Falhas",
   "set": 1,
+  "banned": true,
   "type": "unit",
   "rarity": "common",
   "tribe": [],

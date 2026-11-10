@@ -1,72 +1,32 @@
 class_name MomentumBar
 extends Control
-## Momentum as a row of crystals: lit (available), spent (hollow) and locked
-## (not unlocked yet this game), with an "x/y" readout; below it the Reserva: up to
-## RESERVE_CAP smaller arcane crystals that only pay for spells and abilities.
+## Compact resource summary; individual Momentum sources appear in the Reservoir.
 
-const RESERVE_COL := Color("#7fd0ff")
+const BATTERY_COL := Color("#7fd0ff")
 
 var current := 0
 var maximum := 0
-var reserve := 0
-## How many crystals the row shows: the normal cap, or more while the player has a unit that raises it (Agiota das Nuvens)
-var crystal_count := GameState.MOMENTUM_CAP
+var battery := 0
 
-func setup(cur: int, mx: int, res: int = 0, cap: int = GameState.MOMENTUM_CAP) -> MomentumBar:
+func setup(cur: int, mx: int, battery_value: int = 0, _cap: int = GameState.MOMENTUM_CAP) -> MomentumBar:
 	current = cur
 	maximum = mx
-	reserve = res
-	crystal_count = maxi(cap, GameState.MOMENTUM_CAP)
-	custom_minimum_size = Vector2(236, 54) # two rows: must fit the Leader column, the Sanctuary card sits right of it
+	battery = battery_value
+	custom_minimum_size = Vector2(236, 54)
 	size = custom_minimum_size
 	mouse_filter = Control.MOUSE_FILTER_PASS
-	tooltip_text = "Momentum: %d de %d disponíveis
-Reserva: %d de %d (só Rápido e Instantâneo)" % [cur, mx, res, GameState.RESERVE_CAP]
+	tooltip_text = (
+		"Momentum: %d de %d disponíveis\nBateria do seu Reservatório: %d de %d (somente Rápido e Instantâneo)"
+		% [cur, mx, battery_value, GameState.BATTERY_CAP]
+	)
 	return self
 
 func _draw() -> void:
 	var font := UITheme.font("heavy")
-	var cap := GameState.MOMENTUM_CAP
-	# with a raised cap the crystals sit closer together so the row still fits the Leader column
-	var step := 16.0 if crystal_count <= cap else 13.5
-	for i in crystal_count:
-		var c := Vector2(9 + i * step, 15)
-		var pts := PackedVector2Array([c + Vector2(0, -12), c + Vector2(7, -3), c + Vector2(0, 12), c + Vector2(-7, -3)])
-		var outline := pts + PackedVector2Array([pts[0]])
-		if i < current:
-			draw_circle(c, 10, Color(UITheme.MOMENTUM, 0.18))
-			draw_colored_polygon(pts, UITheme.MOMENTUM)
-			draw_colored_polygon(PackedVector2Array([pts[0], pts[1], c + Vector2(0, -1), pts[3]]), Color("#fff4b8"))
-			draw_colored_polygon(PackedVector2Array([c + Vector2(0, -1), pts[1], pts[2]]), UITheme.MOMENTUM.darkened(0.35))
-			draw_polyline(outline, Color("#fffbe0"), 1.0, true)
-		elif i < maximum:
-			draw_colored_polygon(pts, Color(UITheme.MOMENTUM.darkened(0.7), 0.85))
-			draw_polyline(outline, Color(UITheme.MOMENTUM, 0.55), 1.2, true)
-		else:
-			draw_colored_polygon(pts, Color(0, 0, 0, 0.4))
-			draw_polyline(outline, Color(1, 1, 1, 0.12), 1.0, true)
-	var t := "%d/%d" % [current, maximum]
-	var x := 9 + crystal_count * step - 4
-	draw_string_outline(font, Vector2(x, 23), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 21, 4, Color(0, 0, 0, 0.85))
-	# Momentum above the normal cap (temporary overflow): every crystal is lit and the readout turns hot orange
-	var readout_color := Color("#ff9d3c") if current > cap else Color("#ffe680")
-	draw_string(font, Vector2(x, 23), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 21, readout_color)
-	var rx := 9.0
-	var ry := 42.0 # Reserva on its own row
-	for i in GameState.RESERVE_CAP:
-		var c := Vector2(rx + i * 14, ry)
-		var pts := PackedVector2Array([c + Vector2(0, -9), c + Vector2(5.5, -2), c + Vector2(0, 9), c + Vector2(-5.5, -2)])
-		var outline := pts + PackedVector2Array([pts[0]])
-		if i < reserve:
-			draw_circle(c, 8, Color(RESERVE_COL, 0.22))
-			draw_colored_polygon(pts, RESERVE_COL)
-			draw_colored_polygon(PackedVector2Array([pts[0], pts[1], c + Vector2(0, -1), pts[3]]), Color("#e6f7ff"))
-			draw_colored_polygon(PackedVector2Array([c + Vector2(0, -1), pts[1], pts[2]]), RESERVE_COL.darkened(0.4))
-			draw_polyline(outline, Color("#f0faff"), 1.0, true)
-		else:
-			draw_colored_polygon(pts, Color(RESERVE_COL.darkened(0.75), 0.7))
-			draw_polyline(outline, Color(RESERVE_COL, 0.4), 1.0, true)
-	var rt := "%d/%d" % [reserve, GameState.RESERVE_CAP]
-	var rtx := rx + GameState.RESERVE_CAP * 14 - 3
-	draw_string_outline(font, Vector2(rtx, ry + 7), rt, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, 4, Color(0, 0, 0, 0.85))
-	draw_string(font, Vector2(rtx, ry + 7), rt, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, RESERVE_COL)
+	draw_string(font, Vector2(0, 15), "MOMENTUM", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UITheme.GOLD_LIGHT)
+	draw_string(font, Vector2(135, 15), "%d / %d" % [current, maximum], HORIZONTAL_ALIGNMENT_LEFT, -1, 16, UITheme.MOMENTUM)
+	for i in GameState.MOMENTUM_CAP:
+		var color := UITheme.MOMENTUM if i < current else Color(UITheme.MOMENTUM, 0.18)
+		draw_rect(Rect2(i * 16.0, 20, 12, 5), color)
+	draw_string(font, Vector2(0, 45), "BATERIA DO SEU RESERVATÓRIO", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, BATTERY_COL)
+	draw_string(font, Vector2(177, 45), "%d / %d" % [battery, GameState.BATTERY_CAP], HORIZONTAL_ALIGNMENT_LEFT, -1, 15, BATTERY_COL)

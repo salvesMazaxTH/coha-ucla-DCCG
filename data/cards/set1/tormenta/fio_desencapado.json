@@ -1,6 +1,7 @@
 {
   "name": "Fio Desencapado",
   "set": 1,
+  "banned": true,
   "type": "spell",
   "rarity": "common",
   "essence": "tormenta",

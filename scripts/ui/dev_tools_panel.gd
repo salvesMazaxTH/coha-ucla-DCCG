@@ -103,11 +103,11 @@ func _ready() -> void:
 	refill_momentum_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	refill_momentum_button.pressed.connect(func() -> void: _request("refill_momentum"))
 	resource_row.add_child(refill_momentum_button)
-	var refill_reserve_button := Button.new()
-	refill_reserve_button.text = "Reencher Reserva"
-	refill_reserve_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	refill_reserve_button.pressed.connect(func() -> void: _request("refill_reserve"))
-	resource_row.add_child(refill_reserve_button)
+	var refill_battery_button := Button.new()
+	refill_battery_button.text = "Reencher a Bateria"
+	refill_battery_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	refill_battery_button.pressed.connect(func() -> void: _request("refill_battery"))
+	resource_row.add_child(refill_battery_button)
 
 	content.add_child(_section_title("Líder"))
 	var life_row := HBoxContainer.new()

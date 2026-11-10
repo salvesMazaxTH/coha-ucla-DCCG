@@ -3,7 +3,7 @@ extends Effect
 ## "modify_cost": changes the cost of the target card by `amount` (negative = cheaper) for the rest
 ## of the match, in whatever zone it is. Use target "self_card" so a card can cheapen itself.
 ## "per": "unspent_momentum" multiplies `amount` by the plain Momentum the controller left unspent
-## (the Reserva never counts). "min_cost" stops a reduction at that cost, taking only what fits (Voltexz).
+## (the Bateria never counts). "min_cost" stops a reduction at that cost, taking only what fits (Voltexz).
 ## The Encarnação keeps its total on the player (see GameState.add_cost_mod), so it also works from the Santuário
 ## (target uid 0).
 

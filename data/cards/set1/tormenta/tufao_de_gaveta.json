@@ -1,6 +1,7 @@
 {
   "name": "Tufão de Gaveta",
   "set": 1,
+  "banned": true,
   "type": "spell",
   "rarity": "epic",
   "essence": "tormenta",

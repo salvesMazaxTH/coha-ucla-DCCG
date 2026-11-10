@@ -6,20 +6,20 @@ extends RefCounted
 ## run time under an id with a prefix; every function below that takes a deck id accepts them too.
 
 ## Cards that are drawn: the deck list without the Encarnação, which waits in the Sanctuary instead.
-const DECK_SIZE := 44
-const MAX_COPIES := 3
-## Legendary cards default to fewer copies than the rest; a card can still override with "max_copies".
-const MAX_LEGENDARY_COPIES := 2
+const DECK_SIZE := 59
+const MAX_COPIES := 4
+## Legendary cards have a lower copy limit; exceptional cards can override it.
+const MAX_LEGENDARY_COPIES := 3
 ## Champions together (counting copies) in one deck.
-const MAX_ELITE_CARDS := 22
+const MAX_ELITE_CARDS := 24
 ## Guest cards: cards outside the Leader's domains (neutral ones don't count), of any rarity. A card of
 ## several domains is NOT a guest when at least one of them is the Leader's.
 ## They can come from any domains, in any mix, up to MAX_OFF_ESSENCE. If one domain appears in EVERY
 ## guest card (a multi-domain guest counts for each of its domains), the cap rises to
 ## MAX_OFF_ESSENCE_SINGLE_DOMAIN: that shared domain works like a secondary domain.
 ## A neutral Leader has no domain, so every non-neutral card is a guest for it.
-const MAX_OFF_ESSENCE := 10
-const MAX_OFF_ESSENCE_SINGLE_DOMAIN := 15
+const MAX_OFF_ESSENCE := 12
+const MAX_OFF_ESSENCE_SINGLE_DOMAIN := 18
 const PREBUILT_DIR := "res://data/decks/prebuilt"
 const SECTION_LEADERS := "essencia"
 ## The player's own decks (built in MEUS DECKS) share the hub with the prebuilt ones.
@@ -299,7 +299,7 @@ static func resolved_incarnation_id(leader_id: String, selected_id := "") -> Str
 		return selected_id
 	return String(CardDB.leader(leader_id).get("incarnation", ""))
 
-## Most copies of one card a deck may hold ("max_copies": 1 = Única).
+## Most copies of one card a deck may hold, including explicit exceptions.
 static func copy_limit(card_id: String) -> int:
 	var c := CardDB.card(card_id)
 	var default_limit := MAX_LEGENDARY_COPIES if c.get("rarity", "") == "legendary" else MAX_COPIES

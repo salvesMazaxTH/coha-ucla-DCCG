@@ -1,6 +1,7 @@
 {
   "name": "Eryon",
   "set": 1,
+  "banned": true,
   "type": "unit",
   "rarity": "champion",
   "essence": "neutra",

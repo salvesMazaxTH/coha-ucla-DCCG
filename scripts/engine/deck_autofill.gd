@@ -25,7 +25,7 @@ const GUEST_PENALTY := 0.75 # prefer the Leader's domains, but don't exclude str
 const LEADER_DOMAIN_BONUS := 0.5
 const NEUTRAL_BONUS := 0.2
 const SAME_TRIBE_BONUS := 0.25 # small push toward a deck whose cards share a tribe
-const REPEAT_COPY_PENALTY := 0.2
+const REPEAT_COPY_BONUS := 0.3 # per copy already in the deck: a consistent deck plays full sets, not one of everything
 
 # ---------------------------------------------------------------- card traits
 
@@ -167,11 +167,37 @@ static func _goals(profile: String, focus: String) -> Array[Dictionary]:
 
 ## How many cards of each cost the deck should have (sums to DeckDB.DECK_SIZE).
 static func _ideal_curve(profile: String) -> Array[int]:
+	var shape: Array[int]
 	match profile:
-		"aggro": return [2, 8, 10, 9, 7, 4, 3, 1]
-		"midrange": return [1, 4, 7, 9, 9, 6, 5, 3]
-		"control": return [1, 4, 7, 7, 7, 6, 6, 6]
-		_: return [1, 5, 8, 8, 8, 6, 5, 3]
+		"aggro": shape = [2, 8, 10, 9, 7, 4, 3, 1]
+		"midrange": shape = [1, 4, 7, 9, 9, 6, 5, 3]
+		"control": shape = [1, 4, 7, 7, 7, 6, 6, 6]
+		_: shape = [1, 5, 8, 8, 8, 6, 5, 3]
+	return _scaled_to_deck_size(shape)
+
+## The curve shapes above are written as proportions; this stretches one to exactly DeckDB.DECK_SIZE cards
+## (the buckets with the biggest rounding remainder get the leftover cards).
+static func _scaled_to_deck_size(shape: Array[int]) -> Array[int]:
+	var shape_total := 0
+	for count in shape:
+		shape_total += count
+	var scaled: Array[int] = []
+	var remainders: Array[float] = []
+	var assigned := 0
+	for count in shape:
+		var exact := float(count) * DeckDB.DECK_SIZE / shape_total
+		scaled.append(int(exact))
+		remainders.append(exact - int(exact))
+		assigned += int(exact)
+	while assigned < DeckDB.DECK_SIZE:
+		var best_bucket := 0
+		for bucket in remainders.size():
+			if remainders[bucket] > remainders[best_bucket]:
+				best_bucket = bucket
+		scaled[best_bucket] += 1
+		remainders[best_bucket] = -1.0
+		assigned += 1
+	return scaled
 
 # ---------------------------------------------------------------- the fill
 
@@ -207,7 +233,7 @@ static func complete(leader_id: String, incarnation_id: String, cards: Dictionar
 			var score: float = improvement + float(description["fit"]) + float(description["quality"])
 			if leading_tribe != "" and description["tribes"].has(leading_tribe):
 				score += SAME_TRIBE_BONUS
-			score -= REPEAT_COPY_PENALTY * int(result_cards.get(card_id, 0))
+			score += REPEAT_COPY_BONUS * int(result_cards.get(card_id, 0))
 			if score > best_score:
 				best_score = score
 				best_id = String(card_id)

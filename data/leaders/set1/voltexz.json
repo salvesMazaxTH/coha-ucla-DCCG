@@ -1,6 +1,7 @@
 {
   "name": "Voltexz",
   "set": 1,
+  "banned": true,
   "hp": 30,
   "art": "tormenta/voltexz_lider.webp",
   "art_focus": 0.2,
@@ -20,7 +21,7 @@
         "max": 2
       }
     ],
-    "text": "Passiva. No início do seu turno, recupere metade do Momentum que vazou da Reserva, arredondada para baixo (máx. 2)."
+    "text": "Passiva. No início do seu turno, recupere metade do Momentum que vazou da Bateria do seu Reservatório, arredondada para baixo (máx. 2)."
   },
   "essences": [
     "tormenta"

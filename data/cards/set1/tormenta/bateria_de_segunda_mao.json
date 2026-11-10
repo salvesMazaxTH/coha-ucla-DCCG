@@ -1,6 +1,7 @@
 {
   "name": "Bateria de Segunda Mão",
   "set": 1,
+  "banned": true,
   "type": "artifact",
   "subtypes": [],
   "rarity": "epic",
@@ -17,10 +18,10 @@
     "once_per_turn": true,
     "durability_cost": 1,
     "effects": [
-      { "action": "gain_reserve", "target": "none", "amount": 1 },
+      { "action": "gain_battery", "target": "none", "amount": 1 },
       { "action": "gain_momentum", "target": "none", "per": "stored", "max": 1, "retain_stored": true }
     ]
   },
-  "text": "Guarda até 3 de Momentum que vazariam da Reserva.\nAo Ativar (0) {instantaneo} (1x por turno): você ganha 1 de Reserva, mesmo com a Bateria vazia. Além disso, libera até 1 do Momentum guardado; o restante continua na Bateria. Perde 1 de Durabilidade.",
+  "text": "Guarda até 3 de Momentum que vazariam além do limite da Bateria do seu Reservatório.\nAo Ativar (0) {instantaneo} (1x por turno): a Bateria do seu Reservatório ganha 1, mesmo se estiver vazia. Além disso, libera até 1 do Momentum guardado; o restante continua guardado neste artefato. Perde 1 de Durabilidade.",
   "flavor": ""
 }

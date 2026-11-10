@@ -1,6 +1,7 @@
 {
   "name": "Trovão Arrependido",
   "set": 1,
+  "banned": true,
   "type": "unit",
   "rarity": "epic",
   "tribe": ["elemental"],

@@ -148,7 +148,7 @@ func _init() -> void:
 	_test_domain_instants()
 	_test_fight()
 	_test_conditional_counter()
-	_test_reserve()
+	_test_battery()
 	_test_challenge_triggers()
 	_test_nicolas_effect_choice()
 	_test_generic_effect_choice()
@@ -273,14 +273,14 @@ func _same_copies(first: Dictionary, second: Dictionary) -> bool:
 			return false
 	return true
 
-## Deck codes: the compact CSA2 format must give back exactly the deck that was written, and old CSA1 codes must still open.
+## Deck codes: the compact CSA3 format must give back exactly the deck that was written, and old CSA1 codes must still open.
 func _test_deck_code() -> void:
 	check(DeckCode.collisions().is_empty(), "deckCode: ids com o mesmo número: %s" % [DeckCode.collisions()])
 	for deck_id in DeckDB.ids():
 		var deck: Dictionary = DeckDB.get_deck(deck_id)
 		var incarnation_id := String(deck.get("incarnation_id", ""))
 		var code := DeckCode.encode("Deck é ção", deck["leader"], incarnation_id, deck["cards"])
-		check(code.begins_with(DeckCode.PREFIX_V2), "deckCode: %s sai no formato compacto" % deck_id)
+		check(code.begins_with(DeckCode.PREFIX_V3), "deckCode: %s sai no formato compacto" % deck_id)
 		var decoded := DeckCode.decode(code)
 		check(decoded.has("payload"), "deckCode: %s decodifica (%s)" % [deck_id, decoded.get("error", "")])
 		if not decoded.has("payload"):
@@ -295,8 +295,20 @@ func _test_deck_code() -> void:
 	check(not DeckCode.decode(DeckCode.encode("x", leader_id, own_incarnation, {}))["payload"].has("incarnation_id"), "deckCode: Encarnação padrão não é gravada")
 	# a code with an unknown card or a cut-off ending is refused, not guessed
 	check(DeckCode.decode("CSA2.AAAAAAEBAAAA").has("error"), "deckCode: Líder desconhecido é recusado")
-	check(DeckCode.decode(DeckCode.PREFIX_V2 + "AAA").has("error"), "deckCode: código curto é recusado")
+	check(DeckCode.decode(DeckCode.PREFIX_V3 + "AAA").has("error"), "deckCode: código curto é recusado")
 	check(DeckCode.decode("XYZ.abc").has("error"), "deckCode: prefixo errado é recusado")
+	# 4 copies fit in the code, and a CSA2 code (3 copy groups, written before 4 copies existed) still opens
+	var four_copies := {"rusco": 4, "bola_de_neve": 2}
+	var four_decoded := DeckCode.decode(DeckCode.encode("x", leader_id, own_incarnation, four_copies))
+	check(four_decoded.has("payload") and _same_copies(four_decoded["payload"]["cards"], four_copies), "deckCode: 4 cópias voltam iguais")
+	var old_bytes := PackedByteArray()
+	for number in [DeckCode.index_of(leader_id), DeckCode.index_of("rusco")]:
+		old_bytes.append_array([(number >> 16) & 0xFF, (number >> 8) & 0xFF, number & 0xFF])
+	old_bytes.insert(3, 0) # flags: no custom Encarnação
+	old_bytes.insert(4, 1) # the group of 1 copy has one card
+	old_bytes.append_array([0, 0]) # no cards with 2 or 3 copies
+	var old_v2 := DeckCode.decode(DeckCode.PREFIX_V2 + Marshalls.raw_to_base64(old_bytes).replace("+", "-").replace("/", "_").trim_suffix("="))
+	check(old_v2.has("payload") and _same_copies(old_v2["payload"]["cards"], {"rusco": 1}), "deckCode: código CSA2 antigo (3 grupos) ainda abre")
 	# an old JSON code
 	var old_payload := {"name": "Antigo", "description": "", "leader": leader_id, "incarnation_id": own_incarnation, "cards": {"rusco": 1}}
 	var old_code := DeckCode.PREFIX_V1 + Marshalls.raw_to_base64(JSON.stringify(old_payload).to_utf8_buffer()).replace("+", "-").replace("/", "_").trim_suffix("=")
@@ -308,7 +320,7 @@ func _test_deck_builder_rules() -> void:
 	var fogo: Dictionary = DeckDB.get_deck("fogo")
 	var leader: String = fogo["leader"]
 	var totals := DeckDB.stats(leader, fogo["cards"])
-	check(totals["total"] == DeckDB.DECK_SIZE and totals["incarnation"] == 1, "stats: deck pronto tem 44 cartas e 1 Encarnação (%s)" % [totals])
+	check(totals["total"] == DeckDB.DECK_SIZE and totals["incarnation"] == 1, "stats: deck pronto tem 59 cartas e 1 Encarnação (%s)" % [totals])
 	check(totals["off_essence"] <= totals["guest_limit"] and totals["elite"] <= DeckDB.MAX_ELITE_CARDS, "stats: deck pronto respeita convidadas e elites")
 	check(DeckDB.copy_limit("rusco") == 1, "copy_limit: carta Única")
 	check(not DeckDB.is_deckable(CardDB.leader(leader)["incarnation"]), "is_deckable: a Encarnação não entra à mão")
@@ -552,7 +564,7 @@ func _test_engrenagem_solta_free_equip() -> void:
 	var gear := Card.new(g._uid(), "engrenagem_solta", p, "relics")
 	g.players[p]["relics"].append(gear)
 	g.players[p]["momentum"] = 0
-	g.players[p]["reserve"] = 0
+	g.players[p]["battery"] = 0
 	_tcard("t_gear_target", 1, 5, [])
 	_put(g, p, "t_gear_target")
 	check(int(gear_data["cost"]) == 1 and int(gear_data["equip_from_field"]["cost"]) == 0,
@@ -2004,79 +2016,79 @@ func _test_bateria_de_segunda_mao() -> void:
 	var g := _new_game()
 	_quiet(g)
 	var p: int = g.active
-	var battery := Card.new(g._uid(), "bateria_de_segunda_mao", p)
-	g._place_relic(p, battery)
+	var store_artifact := Card.new(g._uid(), "bateria_de_segunda_mao", p)
+	g._place_relic(p, store_artifact)
 	g.flush_events()
 	var pl: Dictionary = g.players[p]
 
-	# only the Momentum that leaks past a full Reserva is stored: what the Reserva banks never counts
-	pl["reserve"] = 2
-	pl["momentum"] = 2 # 2 Reserva + 2 unspent - cap 2 = 2 leaked
+	# only Momentum above a full Bateria is stored; what goes into the Bateria never counts
+	pl["battery"] = 2
+	pl["momentum"] = 2 # 2 Bateria + 2 unspent - cap 2 = 2 leaked
 	g._start_turn(p, false)
-	check(battery.stored_momentum == 2, "Bateria: guarda só o que vazou da Reserva (2)")
-	pl["reserve"] = 0
-	pl["momentum"] = 3 # 0 Reserva + 3 unspent - cap 2 = 1 leaked
+	check(store_artifact.stored_momentum == 2, "Artefato: guarda só o que vazou da Bateria (2)")
+	pl["battery"] = 0
+	pl["momentum"] = 3 # 0 Bateria + 3 unspent - cap 2 = 1 leaked
 	g._start_turn(p, false)
-	check(battery.stored_momentum == 3, "Bateria: acumula entre turnos, até o limite de 3")
-	pl["reserve"] = 2
+	check(store_artifact.stored_momentum == 3, "Artefato: acumula entre turnos, até o limite de 3")
+	pl["battery"] = 2
 	pl["momentum"] = 5
 	g._start_turn(p, false)
-	check(battery.stored_momentum == 3, "Bateria: cheia, não guarda mais")
-	check(Card.from_dict(battery.to_dict(), "relics", p).stored_momentum == 3, "Bateria: o Momentum guardado sobrevive ao salvar e carregar")
+	check(store_artifact.stored_momentum == 3, "Artefato: cheio, não guarda mais")
+	check(Card.from_dict(store_artifact.to_dict(), "relics", p).stored_momentum == 3, "Artefato: o Momentum guardado sobrevive ao salvar e carregar")
 
 	# a turn that leaks nothing stores nothing
-	pl["reserve"] = 0
+	pl["battery"] = 0
 	pl["momentum"] = 1
-	battery.stored_momentum = 0
+	store_artifact.stored_momentum = 0
 	g._start_turn(p, false)
-	check(battery.stored_momentum == 0, "Bateria: sem vazamento, nada é guardado")
+	check(store_artifact.stored_momentum == 0, "Artefato: sem vazamento, nada é guardado")
 
-	# Ao Ativar (0), once a turn: +1 Reserva, then releases 1 of the stored Momentum (the rest stays), and costs 1 Durability
-	battery.stored_momentum = 3
-	pl["reserve"] = 0
+	# Ao Ativar (0), once a turn: +1 Bateria, then releases 1 of the stored Momentum (the rest stays), and costs 1 Durability
+	store_artifact.stored_momentum = 3
+	pl["battery"] = 0
 	pl["momentum"] = 0
-	battery.activated_turn = -1
-	g.activate(p, battery.uid)
+	store_artifact.activated_turn = -1
+	g.activate(p, store_artifact.uid)
 	_resolve_stack(g)
-	check(pl["reserve"] == 1, "Bateria: a ativação dá 1 de Reserva")
-	check(pl["momentum"] == 1 and battery.stored_momentum == 2, "Bateria: libera só 1 do Momentum guardado, o resto fica")
-	check(battery.durability_left() == 3, "Bateria: a ativação gasta 1 de Durabilidade")
-	check(not battery.exhausted and not g.can_activate(p, battery.uid), "Bateria: não vira, mas só ativa 1 vez por turno")
+	check(pl["battery"] == 1, "Artefato: a ativação dá 1 de Bateria")
+	check(pl["momentum"] == 1 and store_artifact.stored_momentum == 2, "Artefato: libera só 1 do Momentum guardado, o resto fica")
+	check(store_artifact.durability_left() == 3, "Artefato: a ativação gasta 1 de Durabilidade")
+	check(not store_artifact.exhausted and not g.can_activate(p, store_artifact.uid), "Artefato: não vira, mas só ativa 1 vez por turno")
 
-	# a blocked gain keeps the Momentum stored (the Reserva still comes)
-	pl["reserve"] = 0
+	# a blocked gain keeps the Momentum stored (the Bateria still comes)
+	pl["battery"] = 0
 	pl["momentum"] = 0
 	pl["momentum_lock_turn"] = g.turn
-	battery.activated_turn = -1
-	g.activate(p, battery.uid)
+	store_artifact.activated_turn = -1
+	g.activate(p, store_artifact.uid)
 	_resolve_stack(g)
-	check(pl["reserve"] == 1 and pl["momentum"] == 0 and battery.stored_momentum == 2, "Bateria: ganho bloqueado não gasta o Momentum guardado")
+	check(pl["battery"] == 1 and pl["momentum"] == 0 and store_artifact.stored_momentum == 2, "Artefato: ganho bloqueado não gasta o Momentum guardado")
 	pl["momentum_lock_turn"] = -1
 
-	# a full Reserva gains nothing, but the Momentum is still released
-	pl["reserve"] = 2
+	# a full Bateria gains nothing, but the Momentum is still released
+	pl["battery"] = 2
 	pl["momentum"] = 0
-	battery.activated_turn = -1
-	battery.durability_used = 0
-	g.activate(p, battery.uid)
+	store_artifact.activated_turn = -1
+	store_artifact.durability_used = 0
+	g.activate(p, store_artifact.uid)
 	_resolve_stack(g)
-	check(pl["reserve"] == 2 and pl["momentum"] == 1 and battery.stored_momentum == 1, "Bateria: Reserva cheia não ganha nada, mas libera o Momentum")
+	check(pl["battery"] == 2 and pl["momentum"] == 1 and store_artifact.stored_momentum == 1, "Artefato: Bateria cheia não ganha nada, mas libera o Momentum")
 
-	# an empty Bateria still gives the Reserva
-	battery.stored_momentum = 0
-	pl["reserve"] = 0
+	# an artifact holding nothing still gives the Bateria
+	store_artifact.stored_momentum = 0
+	pl["battery"] = 0
 	pl["momentum"] = 0
-	battery.activated_turn = -1
-	g.activate(p, battery.uid)
+	store_artifact.activated_turn = -1
+	g.activate(p, store_artifact.uid)
 	_resolve_stack(g)
-	check(pl["reserve"] == 1 and pl["momentum"] == 0, "Bateria: vazia, ainda dá 1 de Reserva")
+	check(pl["battery"] == 1 and pl["momentum"] == 0, "Artefato: sem Momentum guardado, ainda dá 1 de Bateria")
 
 	# leaving play loses the store
 	var stored_card := Card.new(g._uid(), "bateria_de_segunda_mao", p)
 	g._place_relic(p, stored_card)
 	stored_card.stored_momentum = 3
 	g.destroy_relic(stored_card)
-	check(g.find_relic(stored_card.uid) == null and stored_card.stored_momentum == 0, "Bateria: destruída, o Momentum guardado se perde")
+	check(g.find_relic(stored_card.uid) == null and stored_card.stored_momentum == 0, "Artefato: destruído, o Momentum guardado se perde")
 
 func _test_domain_removals() -> void:
 	# Expurgo Sagrado: destroys every unit, but Trevas units are banished on the spot (they never die: no Ao Morrer)
@@ -2639,7 +2651,7 @@ func _test_off_essence() -> void:
 	# fire deck: swap in off-essence (aquática) cards; neutral and own-essence cards don't count
 	var base: Dictionary = DeckDB.get_deck("fogo")["cards"].duplicate()
 	var leader: String = DeckDB.get_deck("fogo")["leader"]
-	# the deck may already hold a guest card of its own (e.g. a Montanha artifact answer): clear those first so the 10 guest slots start empty
+	# the deck may already hold a guest card of its own (e.g. a Montanha artifact answer): clear those first so the guest slots start empty
 	for card_id in base.keys():
 		var domains := CardDB.essences_of(CardDB.card(card_id))
 		if not (domains.has("neutra") or domains.has("furia")):
@@ -2647,9 +2659,9 @@ func _test_off_essence() -> void:
 	var victims: Array = base.keys().filter(func(k): return k != DeckDB.get_deck("fogo")["leader"] and CardDB.card(k).get("rarity", "") != "champion")
 	var swapped := 0
 	for k in victims:
-		if swapped >= 10:
+		if swapped >= DeckDB.MAX_OFF_ESSENCE:
 			break
-		var take: int = mini(int(base[k]), 10 - swapped)
+		var take: int = mini(int(base[k]), DeckDB.MAX_OFF_ESSENCE - swapped)
 		base[k] -= take
 		if base[k] == 0:
 			base.erase(k)
@@ -2658,37 +2670,41 @@ func _test_off_essence() -> void:
 	base["tsunami"] = 3
 	base["bencao_das_profundezas"] = 3
 	base["espirito_da_mare"] = 1
-	check(DeckDB.validate_cards(leader, base).filter(func(e): return "fora do domínio" in e).is_empty(), "10 cartas de fora da essência são permitidas")
-	var removable_card: String = base.keys().filter(func(k): return k != "afogar" and k != "tsunami" and k != "bencao_das_profundezas" and k != "espirito_da_mare" and k != leader)[0]
-	# an 11th guest card from the SAME domain (Fluxo) is fine: a shared guest domain raises the cap to 15
+	base["serpente_marinha"] = 2
+	check(DeckDB.validate_cards(leader, base).filter(func(e): return "fora do domínio" in e).is_empty(), "12 cartas de fora da essência são permitidas")
+	var removable_card: String = base.keys().filter(func(k): return k != "afogar" and k != "tsunami" and k != "bencao_das_profundezas" and k != "espirito_da_mare" and k != "serpente_marinha" and k != leader)[0]
+	# a 13th guest card from the SAME domain (Fluxo) is fine: a shared guest domain raises the cap to 18
 	var same_domain: Dictionary = base.duplicate()
 	same_domain["tritao_lanceiro"] = 1
 	same_domain[removable_card] -= 1
-	check(DeckDB.validate_cards(leader, same_domain).filter(func(e): return "fora do domínio" in e).is_empty(), "11 convidadas do mesmo domínio são legais (até 15)")
-	# an 11th guest card from ANOTHER domain (Tormenta) breaks the shared domain, so the cap falls back to 10
+	check(DeckDB.validate_cards(leader, same_domain).filter(func(e): return "fora do domínio" in e).is_empty(), "13 convidadas do mesmo domínio são legais (até 18)")
+	# a 13th guest card from ANOTHER domain (Tormenta) breaks the shared domain, so the cap falls back to 12
 	var mixed: Dictionary = base.duplicate()
 	mixed["carga_acumulada"] = 1
 	mixed[removable_card] -= 1
-	check(not DeckDB.validate_cards(leader, mixed).filter(func(e): return "máximo 10" in e).is_empty(), "11 convidadas de domínios misturados são ilegais")
+	check(not DeckDB.validate_cards(leader, mixed).filter(func(e): return "máximo 12" in e).is_empty(), "13 convidadas de domínios misturados são ilegais")
 	# only the card count is checked below, so the lists are built from the Leader's own cards plus Fluxo guests
 	var own_domain_cards: Dictionary = {}
 	for card_id in DeckDB.get_deck("fogo")["cards"]:
 		var domains := CardDB.essences_of(CardDB.card(card_id))
 		if domains.has("neutra") or domains.has("furia"):
 			own_domain_cards[card_id] = DeckDB.get_deck("fogo")["cards"][card_id]
-	var fifteen_fluxo: Dictionary = own_domain_cards.duplicate()
+	var eighteen_fluxo: Dictionary = own_domain_cards.duplicate()
 	for card_id in ["afogar", "tsunami", "bencao_das_profundezas", "tritao_lanceiro", "serpente_marinha"]:
-		fifteen_fluxo[card_id] = 3
-	check(DeckDB.validate_cards(leader, fifteen_fluxo).filter(func(e): return "fora do domínio" in e).is_empty(), "15 convidadas do mesmo domínio são legais")
+		eighteen_fluxo[card_id] = 3
+	eighteen_fluxo["afogar"] = 4
+	eighteen_fluxo["tsunami"] = 4
+	eighteen_fluxo["bencao_das_profundezas"] = 4
+	check(DeckDB.validate_cards(leader, eighteen_fluxo).filter(func(e): return "fora do domínio" in e).is_empty(), "18 convidadas do mesmo domínio são legais")
 	# a multi-domain guest (Morwenna: Trevas + Natureza) keeps the bonus when it shares a domain with the others...
 	var with_multi_domain: Dictionary = own_domain_cards.duplicate()
 	for card_id in ["cova_rasa", "colheita_de_almas", "chamado_do_alem", "morwenna_raiz_podre"]:
-		with_multi_domain[card_id] = 3
-	check(DeckDB.validate_cards(leader, with_multi_domain).filter(func(e): return "fora do domínio" in e).is_empty(), "convidada multi-domínio que compartilha o domínio das outras mantém o limite de 15")
+		with_multi_domain[card_id] = 4
+	check(DeckDB.validate_cards(leader, with_multi_domain).filter(func(e): return "fora do domínio" in e).is_empty(), "convidada multi-domínio que compartilha o domínio das outras mantém o limite de 18")
 	# ...but not when another guest shares nothing with it (a Fluxo card has neither Trevas nor Natureza)
 	var multi_domain_broken: Dictionary = with_multi_domain.duplicate()
 	multi_domain_broken["afogar"] = 1
-	check(not DeckDB.validate_cards(leader, multi_domain_broken).filter(func(e): return "máximo 10" in e).is_empty(), "sem domínio em comum, o limite volta a 10")
+	check(not DeckDB.validate_cards(leader, multi_domain_broken).filter(func(e): return "máximo 12" in e).is_empty(), "sem domínio em comum, o limite volta a 12")
 	# a multi-domain card is NOT a guest when at least one of its domains is the Leader's (Fúria here)
 	check(not DeckDB.is_guest(leader, "esther"), "Esther (Trevas + Fúria) não é convidada para Líder de Fúria")
 	check(not DeckDB.is_guest(leader, "lady_vultrixana"), "Lady Vultrixana (Fúria + Tormenta) não é convidada para Líder de Fúria")
@@ -2701,12 +2717,12 @@ func _test_off_essence() -> void:
 	for card_id in ["esther", "lady_vultrixana", "giripoca"]:
 		partial_match_deck[card_id] = 3
 	check(DeckDB.stats(leader, partial_match_deck)["off_essence"] == 0, "multi-domínio com match parcial não entra na conta de convidadas")
-	var sixteen_fluxo: Dictionary = fifteen_fluxo.duplicate()
-	sixteen_fluxo["sentinela_coral"] = 1
-	check(not DeckDB.validate_cards(leader, sixteen_fluxo).filter(func(e): return "máximo 15" in e).is_empty(), "16 convidadas do mesmo domínio são ilegais")
+	var nineteen_fluxo: Dictionary = eighteen_fluxo.duplicate()
+	nineteen_fluxo["sentinela_coral"] = 1
+	check(not DeckDB.validate_cards(leader, nineteen_fluxo).filter(func(e): return "máximo 18" in e).is_empty(), "19 convidadas do mesmo domínio são ilegais")
 	var champ: Dictionary = base.duplicate()
 	champ["alexa_neruvya"] = 1 # a champion of another essence
-	check(DeckDB.validate_cards(leader, champ).filter(func(e): return "Campeão" in e).is_empty(), "Campeão de fora da essência é permitido (conta nas 10 de fora)")
+	check(DeckDB.validate_cards(leader, champ).filter(func(e): return "Campeão" in e).is_empty(), "Campeão de fora da essência é permitido (conta nas 12 de fora)")
 
 ## Guests may come from any mix of domains: only their count is limited.
 func _test_many_secondary_domains() -> void:
@@ -2817,7 +2833,7 @@ func _test_obscura() -> void:
 	tf_hurt.damage = 1
 	var tf := _put(g, 0, "alexa_neruvya")
 	g.players[0]["momentum"] = 7
-	g.players[0]["reserve"] = 0
+	g.players[0]["battery"] = 0
 	check(not g.can_transform(0, tf.uid), "transformar exige 8 de Momentum")
 	g.players[0]["momentum"] = 8
 	g.transform(0, tf.uid)
@@ -2855,7 +2871,7 @@ func _test_obscura() -> void:
 	# Yuki's Ao Ativar: goes on the stack (Rápido), +2/+2 temporary, once per turn
 	var yk := _put(g, 0, "yuki")
 	g.players[0]["momentum"] = 4
-	g.players[0]["reserve"] = 0
+	g.players[0]["battery"] = 0
 	check(g.can_activate(0, yk.uid), "yuki pode ativar")
 	g.auto_pass[1] = false # keep the response window open
 	g.activate(0, yk.uid)
@@ -4941,11 +4957,11 @@ func _test_first_player() -> void:
 	var seen := [[1, 1, 0]]
 	g.players[1]["momentum"] = 0
 	for t in 5:
-		seen.append([g.active, g.players[g.active]["momentum"], g.players[g.active]["reserve"]])
-		g.players[g.active]["momentum"] = 0 # spend everything: only the bonus reaches the Reserve
-		g.players[g.active]["reserve"] = 0
+		seen.append([g.active, g.players[g.active]["momentum"], g.players[g.active]["battery"]])
+		g.players[g.active]["momentum"] = 0 # spend everything: only the bonus reaches the Bateria
+		g.players[g.active]["battery"] = 0
 		g.end_turn(g.active)
-	check(seen == [[1, 1, 0], [0, 2, 1], [1, 2, 0], [0, 3, 1], [1, 3, 0], [0, 3, 0]], "segundo jogador: +1 Momentum e +1 de Reserva nos 2 primeiros turnos (%s)" % [seen])
+	check(seen == [[1, 1, 0], [0, 2, 1], [1, 2, 0], [0, 3, 1], [1, 3, 0], [0, 3, 0]], "segundo jogador: +1 Momentum e +1 de Bateria nos 2 primeiros turnos (%s)" % [seen])
 	g = GameState.new("fogo", "agua", 1, 1)
 	g.mulligan(1, [])
 	g.mulligan(0, [])
@@ -5777,7 +5793,7 @@ func _test_layla_deck() -> void:
 		if hildegard_victim.stun_markers == 1:
 			hildegard_stunned += 1
 	check(hildegard_stunned == 3, "Hildegard Voltmann: Ao Entrar atordoa 3 unidades inimigas diferentes (de 4)")
-	check(DeckDB.copy_limit("hildegard_voltmann") == 3, "Hildegard Voltmann: limite padrão de 3 cópias (o 1-of é escolha do deck)")
+	check(DeckDB.copy_limit("hildegard_voltmann") == DeckDB.MAX_COPIES, "Hildegard Voltmann: limite padrão de cópias (o 1-of é escolha do deck)")
 
 	# Repique da Queda: 3 damage, 5 on a stunned unit
 	g = _new_game()
@@ -6721,36 +6737,36 @@ func _has_event(events: Array, type: String) -> bool:
 			return true
 	return false
 
-func _test_reserve() -> void:
+func _test_battery() -> void:
 	var g := _new_game()
 	var p := g.active
 	g.players[p]["momentum"] = 5
 	g.end_turn(p)
 	g.end_turn(g.active)
-	check(g.active == p and g.players[p]["reserve"] == GameState.RESERVE_CAP, "reserva guarda o Momentum não gasto, até 2")
+	check(g.active == p and g.players[p]["battery"] == GameState.BATTERY_CAP, "Bateria guarda o Momentum não gasto, até 2")
 	g.players[p]["momentum"] = 0
 	var unit := _give(g, p, "guerreiro_igneo")
-	check(not g.can_play(p, unit), "reserva não paga unidades")
+	check(not g.can_play(p, unit), "Bateria não paga unidades")
 	g.players[p]["momentum"] = 1
 	var hp: int = g.players[1 - p]["leader_hp"]
 	var bola := _give(g, p, "bola_de_fogo")
-	check(g.can_play(p, bola), "reserva + Momentum pagam feitiço")
+	check(g.can_play(p, bola), "Bateria + Momentum pagam feitiço")
 	g.play_card(p, bola, GameState.LEADER_UID[1 - p])
 	if not g.stack.is_empty(): # Naelthos' ability is instant, so its owner may answer
 		g.pass_priority(g.priority)
 	_pass_windows(g)
-	# the reserve (2) is spent before the Momentum, whatever the spell costs now
-	var momentum_left := 1 - maxi(0, CardDB.card("bola_de_fogo")["cost"] - GameState.RESERVE_CAP)
-	check(g.players[p]["reserve"] == 0 and g.players[p]["momentum"] == momentum_left, "feitiço gasta a reserva primeiro")
-	check(g.players[1 - p]["leader_hp"] < hp, "feitiço pago com reserva resolve")
+	# the Bateria (2) is spent before the Momentum, whatever the spell costs now
+	var momentum_left := 1 - maxi(0, CardDB.card("bola_de_fogo")["cost"] - GameState.BATTERY_CAP)
+	check(g.players[p]["battery"] == 0 and g.players[p]["momentum"] == momentum_left, "feitiço gasta a Bateria primeiro")
+	check(g.players[1 - p]["leader_hp"] < hp, "feitiço pago com a Bateria resolve")
 	var g2 := _new_game()
 	var q := g2.active
 	g2.players[q]["leader_id"] = "ronan"
 	g2.players[q]["momentum"] = 0
-	g2.players[q]["reserve"] = 2
-	check(g2.can_use_ability(q), "reserva paga habilidade do líder")
+	g2.players[q]["battery"] = 2
+	check(g2.can_use_ability(q), "Bateria paga habilidade do líder")
 	g2.use_ability(q, GameState.LEADER_UID[1 - q])
-	check(g2.players[q]["reserve"] == 0, "habilidade gasta a reserva")
+	check(g2.players[q]["battery"] == 0, "habilidade gasta a Bateria")
 
 ## "fight" (Arena Tectônica): ally and enemy hit each other at the same time, outside combat.
 func _test_fight() -> void:
@@ -7077,17 +7093,17 @@ func _test_subito() -> void:
 	g.pass_priority(0)
 	check(g.stack.is_empty() and g.find_unit(sub) != null and g.find_unit(sub).owner == 1, "Súbito: the unit enters when it resolves")
 
-	# the Reserva pays for Súbito too (drained first, like any ability)
+	# the Bateria pays for Súbito too (drained first, like any ability)
 	g = _new_game()
 	_quiet(g)
 	g.players[0]["momentum"] = 1
 	g.players[1]["momentum"] = 1
-	g.players[1]["reserve"] = 2
+	g.players[1]["battery"] = 2
 	sub = _give(g, 1, "t_sub")
 	g.play_card(0, _give(g, 0, "t_sub_trigger"), 0)
-	check(g.can_play(1, sub), "Súbito: 1 Momentum + 2 Reserva are enough for Súbito (3)")
+	check(g.can_play(1, sub), "Súbito: 1 Momentum + 2 Bateria are enough for Súbito (3)")
 	g.play_card(1, sub)
-	check(g.players[1]["reserve"] == 0 and g.players[1]["momentum"] == 0 and g.find_unit(sub) != null, "Súbito: the Reserva is spent first")
+	check(g.players[1]["battery"] == 0 and g.players[1]["momentum"] == 0 and g.find_unit(sub) != null, "Súbito: the Bateria is spent first")
 
 	# a counter answers it: the card goes to the graveyard
 	g = _new_game()
@@ -7845,7 +7861,7 @@ func _test_magni() -> void:
 ## Mali Magarc (desconto persistente em feitiços, reação ao feitiço inimigo, eco na forma Primordial) e a Constante
 ## "spell_amplifier" da Ottilia Varnholt.
 ## The Mali Magarc Leader: Instantânea, 1 Momentum, banishes the 2 oldest SPELLS of the owner's graveyard (generic
-## "graveyard_cost"), draws 1 card and refills the Reserva to its cap. Not once per turn.
+## "graveyard_cost"), draws 1 card and refills the Bateria to its cap. Not once per turn.
 func _test_mali_leader_graveyard_cost() -> void:
 	_tspell("t_mlg_spell", "instantaneo", [])
 	_tcard("t_mlg_unit", 1, 1, [])
@@ -7856,7 +7872,7 @@ func _test_mali_leader_graveyard_cost() -> void:
 	g.players[p]["leader_id"] = "mali_magarc"
 	g.players[p]["ability_used"] = false
 	g.players[p]["momentum"] = 5
-	g.players[p]["reserve"] = 0
+	g.players[p]["battery"] = 0
 	var ability: Dictionary = CardDB.leader("mali_magarc")["ability"]
 	check(not ability.get("once_per_turn", false), "Líder Mali: o poder não é de uma vez por turno")
 	check(g.speed_of(ability) == "instantaneo", "Líder Mali: o poder é Instantâneo")
@@ -7885,7 +7901,7 @@ func _test_mali_leader_graveyard_cost() -> void:
 	check(first_spell.zone == "banished", "Líder Mali: o feitiço banido muda de zona (%s)" % first_spell.zone)
 	check(g.players[p]["hand"].size() == hand_before + 1, "Líder Mali: compra 1 carta (%d -> %d)" % [hand_before, g.players[p]["hand"].size()])
 	check(g.players[p]["momentum"] == momentum_before - 1, "Líder Mali: custa 1 Momentum")
-	check(g.players[p]["reserve"] == GameState.RESERVE_CAP, "Líder Mali: enche a Reserva até o limite (%d)" % g.players[p]["reserve"])
+	check(g.players[p]["battery"] == GameState.BATTERY_CAP, "Líder Mali: enche a Bateria até o limite (%d)" % g.players[p]["battery"])
 
 	# only one spell left in the graveyard (+ the unit): not usable again, even though it is not once per turn
 	check(not g.can_use_ability(p), "Líder Mali: depois de pagar, com 1 feitiço sobrando não dá para repetir")
@@ -7897,17 +7913,17 @@ func _test_mali_leader_graveyard_cost() -> void:
 	_resolve_stack(g)
 	check(g.players[p]["banished"].size() == spells_banished_total + 2, "Líder Mali: o segundo uso bane mais 2")
 
-	# paid from the Reserva alone (no Momentum): Instantânea is a fast play
+	# paid from the Bateria alone (no Momentum): Instantânea is a fast play
 	var g2 := _new_game()
 	_quiet(g2)
 	var q: int = g2.active
 	g2.players[q]["leader_id"] = "mali_magarc"
 	g2.players[q]["ability_used"] = false
 	g2.players[q]["momentum"] = 0
-	g2.players[q]["reserve"] = 1
+	g2.players[q]["battery"] = 1
 	g2.players[q]["graveyard"].append(Card.new(g2._uid(), "t_mlg_spell", q, "graveyard"))
 	g2.players[q]["graveyard"].append(Card.new(g2._uid(), "t_mlg_spell", q, "graveyard"))
-	check(g2.can_use_ability(q), "Líder Mali: a Reserva paga o poder Instantâneo")
+	check(g2.can_use_ability(q), "Líder Mali: a Bateria paga o poder Instantâneo")
 
 	# validation of the generic field
 	var bad_kind: Dictionary = CardDB.leader("mali_magarc").duplicate(true)
@@ -9491,25 +9507,24 @@ func _test_elite_limits() -> void:
 	var leader: String = DeckDB.get_deck("fogo")["leader"]
 	var base: Dictionary = DeckDB.get_deck("fogo")["cards"].duplicate()
 	check(DeckDB.validate_cards(leader, base).is_empty(), "fogo: legal")
-	# fogo has 18 champions; the cap is 22, so four more champion copies still fit
-	base["kael_drath_vulcano"] = 3
-	base["ivan_ignisar"] = 1
-	check(DeckDB.stats(leader, base)["elite"] == 22, "fogo: 22 campeões")
-	check(DeckDB.validate_cards(leader, base).filter(func(e): return "Campeões" in e).is_empty(), "22 campeões é legal")
+	# só as cópias de campeão contam para o limite: 6 x 4 = 24 exatos, depois 25
+	var champions_only: Dictionary = {"kael_drath_vulcano": 4, "ivan_ignisar": 4, "lord_of_the_shadowflame": 4, "vulnara": 4, "kai": 4, "victoria": 4}
+	check(DeckDB.stats(leader, champions_only)["elite"] == 24, "fogo: 24 campeões")
+	check(DeckDB.validate_cards(leader, champions_only).filter(func(e): return "Campeões" in e).is_empty(), "24 campeões é legal")
 	# one more champion copy goes over the cap
-	base["lord_of_the_shadowflame"] = 2
-	check(not DeckDB.validate_cards(leader, base).filter(func(e): return "Campeões" in e).is_empty(), "23 campeões é ilegal")
-	base["lord_of_the_shadowflame"] = 1
-	# legendary default is 2 copies
+	champions_only["irina_lancachamas"] = 1
+	check(not DeckDB.validate_cards(leader, champions_only).filter(func(e): return "Campeões" in e).is_empty(), "25 campeões é ilegal")
+	champions_only.erase("irina_lancachamas")
+	# legendary default is 3 copies
 	_tcard("t_lenda", 1, 1, [])
 	CardDB.card("t_lenda")["rarity"] = "legendary"
-	var lenda_deck: Dictionary = {"t_lenda": 3}
-	check(not DeckDB.validate_cards(leader, lenda_deck).filter(func(e): return "mais de 2 cópias" in e).is_empty(), "lendária: 3 cópias é ilegal")
-	lenda_deck["t_lenda"] = 2
-	check(DeckDB.validate_cards(leader, lenda_deck).filter(func(e): return "t_lenda" in e).is_empty(), "lendária: 2 cópias é legal")
-	# legendaries are not elite: 2 more of them on top of the 22 champions stay legal for the cap
-	base["t_lenda"] = 2
-	check(DeckDB.validate_cards(leader, base).filter(func(e): return "Campeões" in e).is_empty(), "lendárias não entram no limite de campeões")
+	var lenda_deck: Dictionary = {"t_lenda": 4}
+	check(not DeckDB.validate_cards(leader, lenda_deck).filter(func(e): return "mais de 3 cópias" in e).is_empty(), "lendária: 4 cópias é ilegal")
+	lenda_deck["t_lenda"] = 3
+	check(DeckDB.validate_cards(leader, lenda_deck).filter(func(e): return "t_lenda" in e).is_empty(), "lendária: 3 cópias é legal")
+	# legendaries are not elite: 3 more of them on top of the 24 champions stay legal for the cap
+	champions_only["t_lenda"] = 3
+	check(DeckDB.validate_cards(leader, champions_only).filter(func(e): return "Campeões" in e).is_empty(), "lendárias não entram no limite de campeões")
 
 func _test_vegetal() -> void:
 	var g := GameState.new("vegetal", "fogo", 4242)
@@ -9634,7 +9649,7 @@ func _test_rusco() -> void:
 		g.end_turn(a)
 		var on_board: bool = g.players[a]["board"].any(func(u: Card): return u.uid == ru.uid)
 		check(on_board == case[1] and g.players[a]["deck"].has(ru) != case[1] and not g.players[a]["hand"].has(ru), "rusco: carta '%s' -> entra em campo = %s" % [case[0], case[1]])
-	# the 2 Momentum is paid like an ability: Reserva first, then Momentum
+	# the 2 Momentum is paid like an ability: Bateria first, then Momentum
 	for case in [[2, 0, true], [0, 2, true], [1, 1, true], [1, 0, false], [0, 1, false]]:
 		var gp := _new_game()
 		var pa := gp.active
@@ -9642,12 +9657,12 @@ func _test_rusco() -> void:
 		gp.players[pa]["deck"].push_front(rup)
 		gp.players[pa]["played_two"] = true
 		gp.players[pa]["momentum"] = case[0]
-		gp.players[pa]["reserve"] = case[1]
+		gp.players[pa]["battery"] = case[1]
 		gp._finish_turn()
 		var came: bool = gp.players[pa]["board"].any(func(u: Card): return u.uid == rup.uid)
-		check(came == case[2] and gp.players[pa]["deck"].has(rup) != case[2], "rusco: Momentum %d + Reserva %d -> entra = %s" % [case[0], case[1], case[2]])
+		check(came == case[2] and gp.players[pa]["deck"].has(rup) != case[2], "rusco: Momentum %d + Bateria %d -> entra = %s" % [case[0], case[1], case[2]])
 		if came:
-			check(gp.players[pa]["momentum"] + gp.players[pa]["reserve"] == case[0] + case[1] - 2 and gp.players[pa]["reserve"] == maxi(0, case[1] - 2), "rusco: paga 2, Reserva primeiro")
+			check(gp.players[pa]["momentum"] + gp.players[pa]["battery"] == case[0] + case[1] - 2 and gp.players[pa]["battery"] == maxi(0, case[1] - 2), "rusco: paga 2, Bateria primeiro")
 	# a Rusco played from the hand does not come back by himself
 	var g2 := _new_game()
 	var b := g2.active
@@ -9682,7 +9697,7 @@ func _test_deck_summon_watches() -> void:
 	for case in [
 		["sem carta 2", false, 10, 0, "waiting", ""],
 		["pronto", true, 10, 0, "ready", ""],
-		["pronto só com Reserva", true, 0, 2, "ready", ""],
+		["pronto só com Bateria", true, 0, 2, "ready", ""],
 		["falta Momentum", true, 1, 0, "blocked", "momentum"],
 		["campo cheio", true, 10, 0, "blocked", "room"],
 	]:
@@ -9693,7 +9708,7 @@ func _test_deck_summon_watches() -> void:
 		g.players[a]["deck"].push_front(ru)
 		g.players[a]["played_two"] = case[1]
 		g.players[a]["momentum"] = case[2]
-		g.players[a]["reserve"] = case[3]
+		g.players[a]["battery"] = case[3]
 		if case[0] == "campo cheio":
 			while g.has_free_slot(a):
 				g.players[a]["board"].append(Card.new(g._uid(), "t_one", a, "board"))
@@ -9869,7 +9884,7 @@ func _test_ignisar() -> void:
 	var victim := _put(g, o, "t_ivan_foe")
 	var leader_before: int = g.players[o]["leader_hp"]
 	g.players[a]["momentum"] = 8
-	g.players[a]["reserve"] = 0
+	g.players[a]["battery"] = 0
 	g.players[a]["damage_this_round"] = 0 # the base form's Ao Entrar already hit the Leader
 	g.transform(a, dragon.uid)
 	_resolve_stack(g)
@@ -9893,33 +9908,33 @@ func _test_eletrica() -> void:
 	var vx: Dictionary = CardDB.card("voltexz")
 	var fg: Dictionary = CardDB.card("fulgurvoltz")
 	check(g.incarnation_cost(a) == 15 and g.cost_of(a, fg) == 14, "eletrica: custos base 15 e 14")
-	# Voltexz ignores the Reserva: all plain Momentum left counts (even the part that gets banked);
-	# Fulgurvoltz still counts only the turns where Momentum leaked past the Reserva (2)
+	# Voltexz ignores the Bateria: all plain Momentum left counts (even the part that gets banked);
+	# Fulgurvoltz still counts only the turns where Momentum leaked past the Bateria (2)
 	var copy := g.find_card(_give(g, a, "voltexz")) # a loose copy in the hand cheapens by itself too
 	g.players[a]["momentum"] = 3
-	g.players[a]["reserve"] = 1
+	g.players[a]["battery"] = 1
 	g.end_turn(a)
 	g.players[o]["momentum"] = 0
 	g.end_turn(o)
-	check(g.incarnation_cost_mod(a) == -3 and g.players[a]["idle_turns"] == 1, "eletrica: Voltexz conta os 3 sobrados, mesmo os que vão para a Reserva")
+	check(g.incarnation_cost_mod(a) == -3 and g.players[a]["idle_turns"] == 1, "eletrica: Voltexz conta os 3 sobrados, mesmo os que vão para a Bateria")
 	check(g.incarnation_cost_mod(o) == 0 and g.players[o]["idle_turns"] == 0, "eletrica: sem Momentum sobrando não conta")
 	check(g.incarnation_cost(a) == 12 and g.cost_of(a, fg) == 11, "eletrica: custo cai com o Momentum sobrado")
 	check(copy.cost_mod == -3 and g.cost_of(a, vx, copy) == 12, "eletrica: a cópia na mão também fica mais barata")
-	# what already sat in the Reserva at the start of the turn is not counted again
+	# what already sat in the Bateria at the start of the turn is not counted again
 	g = _eletrica_game()
 	a = g.active
 	o = g.opponent(a)
 	g.players[a]["momentum"] = 0
-	g.players[a]["reserve"] = 2
+	g.players[a]["battery"] = 2
 	g.end_turn(a)
 	g.end_turn(o)
-	check(g.incarnation_cost_mod(a) == 0 and g.players[a]["idle_turns"] == 0, "eletrica: a Reserva que já estava cheia não conta de novo")
+	check(g.incarnation_cost_mod(a) == 0 and g.players[a]["idle_turns"] == 0, "eletrica: a Bateria que já estava cheia não conta de novo")
 	# spending on the opponent's turn reduces the savings (counted at the owner's next start)
 	g = _eletrica_game()
 	a = g.active
 	o = g.opponent(a)
 	g.players[a]["momentum"] = 3
-	g.players[a]["reserve"] = 2
+	g.players[a]["battery"] = 2
 	g.end_turn(a)
 	g.players[a]["momentum"] = 1 # spent 2 during the opponent's turn
 	g.end_turn(o)
@@ -9930,14 +9945,14 @@ func _test_eletrica() -> void:
 	g.add_cost_mod(a, null, -40, 3)
 	g.players[a]["idle_turns"] = 40
 	check(g.incarnation_cost(a) == 3 and g.cost_of(a, fg) == 5, "eletrica: pisos 3 e 5")
-	# Gigante Elétrico: 9 base, 5 less with at least 4 saved Momentum, counting the Reserve once.
+	# Gigante Elétrico: 9 base, 5 less with at least 4 saved Momentum, counting the Bateria once.
 	var gg: Dictionary = CardDB.card("gigante_eletrico")
 	g = _eletrica_game()
 	a = g.active
 	o = g.opponent(a)
 	check(g.cost_of(a, gg) == 9 and int(gg["atk"]) == 8 and int(gg["hp"]) == 7, "gigante: 8/7 custando 9")
 	check(gg["keywords"] == ["sobrepujanca", "impeto"], "gigante: Sobrepujança e Ímpeto")
-	g.players[a]["reserve"] = 0
+	g.players[a]["battery"] = 0
 	g.players[a]["momentum"] = 3
 	g.end_turn(a)
 	g.end_turn(o)
@@ -9945,19 +9960,19 @@ func _test_eletrica() -> void:
 	g = _eletrica_game()
 	a = g.active
 	o = g.opponent(a)
-	g.players[a]["reserve"] = 0
+	g.players[a]["battery"] = 0
 	g.players[a]["momentum"] = 4
 	g.end_turn(a)
 	g.end_turn(o)
-	check(g.players[a]["saved_momentum"] == 4 and g.cost_of(a, gg) == 4, "gigante: 4 guardados, incluindo o que foi para a Reserva, reduzem o custo")
+	check(g.players[a]["saved_momentum"] == 4 and g.cost_of(a, gg) == 4, "gigante: 4 guardados, incluindo o que foi para a Bateria, reduzem o custo")
 	g = _eletrica_game()
 	a = g.active
 	o = g.opponent(a)
-	g.players[a]["reserve"] = 2
+	g.players[a]["battery"] = 2
 	g.players[a]["momentum"] = 2
 	g.end_turn(a)
 	g.end_turn(o)
-	check(g.players[a]["saved_momentum"] == 4 and g.cost_of(a, gg) == 4, "gigante: conta também 2 de Momentum já guardados na Reserva")
+	check(g.players[a]["saved_momentum"] == 4 and g.cost_of(a, gg) == 4, "gigante: conta também 2 de Momentum já guardados na Bateria")
 	# Zefiran Varkesh: 12 base, 4 less when the turn began with more Momentum than the owner's maximum
 	var zefiran: Dictionary = CardDB.card("zefiran_varkesh")
 	g = _eletrica_game()
@@ -9996,17 +10011,17 @@ func _test_eletrica() -> void:
 	foe2.exhausted = true
 	check(not g.find_unit(foe1.uid) == null, "fulgurvoltz: entrar não destrói nada")
 	g.players[a]["momentum"] = 3
-	g.players[a]["reserve"] = 2 # Rápido: the Reserva helps pay the 5
-	check(g.can_activate(a, fv.uid), "fulgurvoltz: Rápido, a Reserva ajuda a pagar")
+	g.players[a]["battery"] = 2 # Rápido: the Bateria helps pay the 5
+	check(g.can_activate(a, fv.uid), "fulgurvoltz: Rápido, a Bateria ajuda a pagar")
 	g.players[a]["momentum"] = 3
-	g.players[a]["reserve"] = 0
+	g.players[a]["battery"] = 0
 	check(not g.can_activate(a, fv.uid), "fulgurvoltz: 3 de Momentum não bastam")
 	g.players[a]["momentum"] = 3
-	g.players[a]["reserve"] = 2
+	g.players[a]["battery"] = 2
 	g.auto_pass[o] = false
 	g.activate(a, fv.uid)
 	g.flush_events()
-	check(g.stack.size() == 1 and g.players[a]["momentum"] == 0 and g.players[a]["reserve"] == 0, "fulgurvoltz: vai para a pilha pagando 5")
+	check(g.stack.size() == 1 and g.players[a]["momentum"] == 0 and g.players[a]["battery"] == 0, "fulgurvoltz: vai para a pilha pagando 5")
 	g.pass_priority(o)
 	g.flush_events()
 	g.auto_pass[o] = true
@@ -10059,14 +10074,14 @@ func _test_eletrica() -> void:
 	o = g.opponent(a)
 	_put(g, a, "espirito_carregado")
 	check(g.players[a]["next_momentum"] == 1 and g.players[a]["momentum"] == 0, "espírito carregado: +1 só no próximo turno")
-	g.players[a]["reserve"] = 0 # keep Sobrecarga (full Reserva) out of the count
+	g.players[a]["battery"] = 0 # keep Sobrecarga (full Bateria) out of the count
 	g.end_turn(a)
 	g.end_turn(o)
 	check(g.players[a]["momentum"] == g.players[a]["max_momentum"] + 1 and g.players[a]["next_momentum"] == 0, "espírito carregado: +1 Momentum no início do próximo turno")
 	_put(g, a, "eletroad")
 	g.players[a]["momentum"] = 0
 	g.end_turn(a)
-	g.players[a]["reserve"] = 0
+	g.players[a]["battery"] = 0
 	g.end_turn(o)
 	check(g.players[a]["momentum"] == g.players[a]["max_momentum"] + 1, "eletroad: +1 Momentum no início do turno")
 	var cu := _give(g, a, "carga_acumulada")
@@ -10203,7 +10218,7 @@ func _test_eletrica() -> void:
 	g.deal_damage(sp.uid, 1, slow)
 	check(sp.damage == 1, "esquiva (override): sem Rapidez é evitada, mesmo com ATK maior")
 	g.combat_damage = false
-	# Sobrecarga: Reserva cheia no início do turno dá +1 Momentum (só ao dono)
+	# Sobrecarga: Bateria cheia no início do turno dá +1 Momentum (só ao dono)
 	g = _eletrica_game()
 	a = g.active
 	g.players[a]["momentum"] = 0
@@ -10259,7 +10274,7 @@ func _test_intimidacao() -> void:
 	g = _eletrica_game()
 	var rt := _put(g, g.active, "tony_raiturus")
 	g.players[g.active]["momentum"] = 8
-	g.players[g.active]["reserve"] = 0
+	g.players[g.active]["battery"] = 0
 	check(g.can_transform(g.active, rt.uid), "raiturus pode transformar com 8")
 	g.transform(g.active, rt.uid)
 	g.flush_events()
@@ -10269,7 +10284,7 @@ func _test_intimidacao() -> void:
 	g = _eletrica_game()
 	var fresh := _put(g, g.active, "tony_raiturus", false)
 	g.players[g.active]["momentum"] = 8
-	g.players[g.active]["reserve"] = 0
+	g.players[g.active]["battery"] = 0
 	check(fresh.sick, "raiturus recém-jogado está com enjoo de invocação")
 	g.transform(g.active, fresh.uid)
 	g.flush_events()
@@ -11950,13 +11965,13 @@ func _test_self_response() -> void:
 
 ## Deck "Ladeira Ascendente": Ritual do Degelo (+3 Momentum agora, -2 no próximo turno; não mexe no nível), Ladeira Abaixo e Sem Freio (sobe metade do nível, arredondada para cima),
 ## a Wanessa que vira Tempesfrost ao cruzar para Grande, e a Bola de Neve que a Tempesfrost lança no Líder.
-## Fixture: turn-8 resources (8 Momentum + 2 Reserva), Wanessa untransformed, Bola de Neve level 3-5.
-func _combo_game(level: int, enemy_units: int, momentum: int, reserve: int) -> Dictionary:
+## Fixture: turn-8 resources (8 Momentum + 2 Bateria), Wanessa untransformed, Bola de Neve level 3-5.
+func _combo_game(level: int, enemy_units: int, momentum: int, battery: int) -> Dictionary:
 	var g := _glacial_game()
 	var a := g.active
 	var o := g.opponent(a)
 	g.players[a]["momentum"] = momentum
-	g.players[a]["reserve"] = reserve
+	g.players[a]["battery"] = battery
 	g.players[a]["snowball"] = level
 	g.players[o]["leader_hp"] = 60
 	var enemies: Array = []
@@ -11979,7 +11994,7 @@ func _test_gertrudes() -> void:
 	var a := g.active
 	var o := g.opponent(a)
 	g.players[a]["momentum"] = 10
-	g.players[a]["reserve"] = 0
+	g.players[a]["battery"] = 0
 	g.players[a]["snowball"] = 5
 	g.players[o]["leader_hp"] = 60
 	var wanessa_uid := _give(g, a, "princesa_wanessa")
@@ -12102,7 +12117,7 @@ func _test_myrra_activate() -> void:
 		var g := _new_game()
 		_quiet(g)
 		g.players[0]["momentum"] = 5
-		g.players[0]["reserve"] = 0
+		g.players[0]["battery"] = 0
 		var myrra := _put(g, 0, "myrra")
 		var ally := _put(g, 0, target_card)
 		var base_attack: int = ally.atk
@@ -12492,7 +12507,7 @@ func _test_glacial_combo() -> void:
 			var leader_damage: int = 60 - int(g.players[o]["leader_hp"])
 			check(leader_damage >= 10, "combo (%s): dano ao Líder inimigo foi %d (esperado 10 ou mais)" % [label, leader_damage])
 
-	# two turns earlier (6 Momentum + 2 Reserva) the last Grande Bola de Neve no longer fits
+	# two turns earlier (6 Momentum + 2 Bateria) the last Grande Bola de Neve no longer fits
 	var early := _combo_game(3, 1, 6, 2)
 	var early_game: GameState = early["game"]
 	var early_player: int = early["me"]
@@ -13028,7 +13043,7 @@ func _test_glacial() -> void:
 	var fragile := _put(g, o, "teste_frágil_gelo")
 	g.players[a]["snowball"] = 8
 	leader_before = g.players[o]["leader_hp"]
-	g.players[a]["momentum"] = 3 # Lento: the Reserva cannot pay it, so give plain Momentum
+	g.players[a]["momentum"] = 3 # Lento: the Bateria cannot pay it, so give plain Momentum
 	_cast_and_resolve(g, a, "grande_bola_de_neve", fragile.uid)
 	check(g.find_unit(fragile.uid) == null and g.players[o]["leader_hp"] <= leader_before - 5, "Grande Bola: o excesso de dano vai pro Líder")
 
@@ -14174,13 +14189,13 @@ func _test_eryon_deck() -> void:
 	eryon = _put(g, a, "eryon")
 	fodder = _put(g, a, "barao_estrondoso")
 	g.players[a]["momentum"] = 10
-	g.players[a]["reserve"] = 2
+	g.players[a]["battery"] = 2
 	g.players[eryon_enemy]["leader_hp"] = 60
 	g.activate(a, eryon.uid, fodder.uid)
 	g._finish_turn()
 	g.flush_events()
 	check(g.players[eryon_enemy]["leader_hp"] == 42, "Eryon: 14 de Momentum = 9 golpes de 2 (%d)" % g.players[eryon_enemy]["leader_hp"])
-	check(g.players[a]["momentum"] == 0 and g.players[a]["reserve"] == 2, "Eryon: gasta o Momentum e preserva a Reserva (%d/%d)" % [g.players[a]["momentum"], g.players[a]["reserve"]])
+	check(g.players[a]["momentum"] == 0 and g.players[a]["battery"] == 2, "Eryon: gasta o Momentum e preserva a Bateria (%d/%d)" % [g.players[a]["momentum"], g.players[a]["battery"]])
 	g = _new_game()
 	_quiet(g)
 	a = g.active
@@ -14241,22 +14256,22 @@ func _test_eryon_deck() -> void:
 		and g.has_kw(baron, "sobrepujanca") and baron.critico_total() == 4,
 		"Barão: com 11 de Momentum ganha +15, Sobrepujança e Crítico 4 sem renovar Escudo")
 
-	# Barão, Ao Atingir o Líder: a hit of 10+ with more than 8 Momentum spends all plain Momentum (never the Reserva)
+	# Barão, Ao Atingir o Líder: a hit of 10+ with more than 8 Momentum spends all plain Momentum (never the Bateria)
 	g = _new_game()
 	_quiet(g)
 	a = g.active
 	var baron_enemy: int = g.opponent(a)
 	baron = _put(g, a, "barao_estrondoso")
 	g.players[a]["momentum"] = 11
-	g.players[a]["reserve"] = 2
+	g.players[a]["battery"] = 2
 	g.refresh_scaling()
 	g.players[baron_enemy]["leader_hp"] = 60
 	_hit(g, baron)
 	g.flush_events()
 	# two blows of 22 (20 ATK + 2 of Crítico 4): the Momentum is spent only after BOTH, so the declared blow keeps the surge
 	check(g.players[baron_enemy]["leader_hp"] == 16, "Barão: o gasto de Momentum espera os dois golpes, ambos com o surto (Líder com %d)" % g.players[baron_enemy]["leader_hp"])
-	check(g.players[a]["momentum"] == 0 and g.players[a]["reserve"] == 2,
-		"Barão: golpe de 10+ no Líder gasta todo o Momentum e preserva a Reserva (%d/%d)" % [g.players[a]["momentum"], g.players[a]["reserve"]])
+	check(g.players[a]["momentum"] == 0 and g.players[a]["battery"] == 2,
+		"Barão: golpe de 10+ no Líder gasta todo o Momentum e preserva a Bateria (%d/%d)" % [g.players[a]["momentum"], g.players[a]["battery"]])
 	g = _new_game()
 	_quiet(g)
 	a = g.active

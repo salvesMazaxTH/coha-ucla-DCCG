@@ -1,6 +1,7 @@
 {
   "name": "Voltexz",
   "set": 1,
+  "banned": true,
   "type": "unit",
   "rarity": "champion",
   "tribe": [
@@ -52,6 +53,6 @@
       "rapidez_min": 1
     }
   ],
-  "text": "Condicional: no início do seu turno, o custo desta carta diminui em (1) por Momentum comum que sobrou, onde quer que ela esteja, até o mínimo de (3); o que foi para a Reserva conta, o que já estava lá, não.\nNo Início do Seu Turno: se Momentum vazou no turno anterior, esta unidade ganha +2/+1 e Escudo Mágico até o fim do turno.\nAo Entrar: concede +X/+X permanente e Rapidez 1 (se for menor) às suas outras unidades, onde X é o Momentum restante + 1.",
+  "text": "Condicional: no início do seu turno, o custo desta carta diminui em (1) por Momentum comum que sobrou, onde quer que ela esteja, até o mínimo de (3); o que foi para a Bateria do seu Reservatório conta, o que já estava lá, não.\nNo Início do Seu Turno: se Momentum vazou no turno anterior, esta unidade ganha +2/+1 e Escudo Mágico até o fim do turno.\nAo Entrar: concede +X/+X permanente e Rapidez 1 (se for menor) às suas outras unidades, onde X é o Momentum restante + 1.",
   "flavor": ""
 }

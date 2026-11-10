@@ -129,7 +129,7 @@
     },
     "on_activate": {
       "name": "Ao Ativar",
-      "text": "Habilidade ativável da unidade: o dono escolhe quando usar, pagando o custo em Momentum indicado (a Reserva ajuda se for Rápida ou Instantânea). Vai para a pilha como um feitiço da velocidade indicada, então pode ser respondida e anulada."
+      "text": "Habilidade ativável da unidade: o dono escolhe quando usar, pagando o custo em Momentum indicado (a Bateria do seu Reservatório ajuda se for Rápida ou Instantânea). Vai para a pilha como um feitiço da velocidade indicada, então pode ser respondida e anulada."
     },
     "transform": {
       "name": "Transformar",
@@ -386,7 +386,7 @@
     },
     "subito": {
       "name": "Súbito",
-      "text": "Súbito (N): além do jeito normal, você pode invocar esta unidade pagando N em qualquer janela em que um feitiço Rápido poderia ser lançado (no turno do oponente, no pré-combate, em resposta). Essa invocação é uma habilidade, não uma jogada: vai para a pilha e pode ser respondida e anulada (anulada, a carta vai para o cemitério). A Reserva ajuda a pagar."
+      "text": "Súbito (N): além do jeito normal, você pode invocar esta unidade pagando N em qualquer janela em que um feitiço Rápido poderia ser lançado (no turno do oponente, no pré-combate, em resposta). Essa invocação é uma habilidade, não uma jogada: vai para a pilha e pode ser respondida e anulada (anulada, a carta vai para o cemitério). A Bateria do seu Reservatório ajuda a pagar."
     },
     "esquiva": {
       "name": "Esquiva",

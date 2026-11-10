@@ -1,6 +1,7 @@
 {
   "name": "Agiota das Nuvens",
   "set": 1,
+  "banned": true,
   "type": "unit",
   "rarity": "legendary",
   "tribe": [

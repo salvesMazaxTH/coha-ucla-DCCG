@@ -1,6 +1,7 @@
 {
   "name": "Mali Magarc",
   "set": 2,
+  "banned": true,
   "hp": 30,
   "art": "neutra/mali_magarc_lider.webp",
   "incarnation": "mali_magarc",
@@ -19,12 +20,12 @@
         "amount": 1
       },
       {
-        "action": "gain_reserve",
+        "action": "gain_battery",
         "target": "none",
         "amount": 2
       }
     ],
-    "text": "Instantânea. 1 Momentum: bane 2 feitiços do seu cemitério, compra 1 carta e enche a Reserva até o limite."
+    "text": "Instantânea. 1 Momentum: bane 2 feitiços do seu cemitério, compra 1 carta e enche a Bateria do seu Reservatório até o limite."
   },
   "essences": [
     "neutra"

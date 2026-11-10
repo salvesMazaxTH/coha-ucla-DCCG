@@ -1,7 +1,6 @@
-class_name GainReserveEffect
+class_name GainBatteryEffect
 extends Effect
-## "gain_reserve": the controller banks `amount` Reserva right now, never above GameState.RESERVE_CAP
-## (with a full Reserva it does nothing). The Reserva only pays for spells and abilities.
+## "gain_battery": adds `amount` to the controller's Bateria, up to its cap.
 
 var amount := 1
 
@@ -10,5 +9,5 @@ func _read_parameters(data: Dictionary) -> void:
 
 func apply(context: EffectContext, _target_uid: int) -> void:
 	var player: Dictionary = context.game.players[context.controller]
-	player["reserve"] = mini(GameState.RESERVE_CAP, int(player["reserve"]) + amount)
+	player["battery"] = mini(GameState.BATTERY_CAP, int(player["battery"]) + amount)
 	context.game.emit_event({"type": "momentum", "player": context.controller}) # redraws the Momentum bar

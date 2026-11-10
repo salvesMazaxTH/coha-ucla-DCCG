@@ -1,6 +1,7 @@
 {
   "name": "Condutor da Tempestade",
   "set": 1,
+  "banned": true,
   "type": "unit",
   "rarity": "common",
   "essence": "tormenta",

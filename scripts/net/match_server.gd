@@ -13,7 +13,8 @@ extends SceneTree
 ##   {t:"act", a:<action>, ...args}          -> broadcast {t:"events"} or {t:"reject"} to the sender
 ## actions: mulligan{uids} play{uid,target} incarnation{target} ability{target} attack{attacker,target}
 ##          end_combat enter_tapped{tapped} effect_choice{index,target} end_turn pass discard{uids} search{uid}
-## server -> client: room, start{seat,decks,deck_data,snap} (deck_data holds the contents of the "room:" decks), events{events,snap}, reject{a}, opponent{connected}, error{msg}
+## server -> client: room, start{seat,decks,deck_data,snap}, events{events,snap}, reject{a},
+## opponent{connected}, error{msg}. deck_data holds the contents of the "room:" decks.
 
 const ROOM_TTL := 1800.0 ## seconds an empty room is kept
 const MatchStatsServer = preload("res://scripts/net/match_stats_server.gd")
@@ -72,7 +73,10 @@ func _process(_delta: float) -> bool:
 				var msg = JSON.parse_string(ws.get_packet().get_string_from_utf8())
 				if typeof(msg) == TYPE_DICTIONARY:
 					_handle_room(r, seat, msg)
-		if not bool(r.get("stats_retry", false)) and r["peers"][0] == null and r["peers"][1] == null and Time.get_ticks_msec() - r["idle"] > ROOM_TTL * 1000.0:
+		if (
+			not bool(r.get("stats_retry", false)) and r["peers"][0] == null and r["peers"][1] == null
+			and Time.get_ticks_msec() - r["idle"] > ROOM_TTL * 1000.0
+		):
 			rooms.erase(code)
 			DeckDB.clear_custom("%s%s:" % [DeckDB.ROOM_PREFIX, code])
 	return false
@@ -206,7 +210,10 @@ func _accept_deck(code: String, seat: int, raw: Variant) -> Dictionary:
 		return {"id": "", "error": "Deck inválido: %s." % errors[0]}
 	var room_deck_id := "%s%s:%d" % [DeckDB.ROOM_PREFIX, code, seat]
 	var deck: Dictionary = checked["deck"]
-	DeckDB.register_custom(room_deck_id, deck["name"], deck["description"], deck["leader"], deck["cards"], String(deck.get("incarnation_id", "")))
+	DeckDB.register_custom(
+		room_deck_id, deck["name"], deck["description"], deck["leader"], deck["cards"],
+		String(deck.get("incarnation_id", "")),
+	)
 	return {"id": room_deck_id, "error": ""}
 
 ## The contents of the room's decks that are not prebuilt, so each client can register them before the match.
@@ -228,7 +235,10 @@ func _token() -> String:
 # ---------------------------------------------------------------- match
 
 func _send_start(r: Dictionary, seat: int) -> void:
-	_send(r["peers"][seat], {"t": "start", "seat": seat, "decks": r["decks"], "deck_data": _custom_deck_contents(r), "snap": StateView.snapshot(r["g"], seat)})
+	_send(r["peers"][seat], {
+		"t": "start", "seat": seat, "decks": r["decks"],
+		"deck_data": _custom_deck_contents(r), "snap": StateView.snapshot(r["g"], seat),
+	})
 
 func _handle_room(r: Dictionary, seat: int, m: Dictionary) -> void:
 	r["idle"] = Time.get_ticks_msec()
@@ -241,7 +251,8 @@ func _handle_room(r: Dictionary, seat: int, m: Dictionary) -> void:
 		for s in 2:
 			_send(r["peers"][s], {"t": "events", "events": StateView.filter_events(ev, s), "snap": StateView.snapshot(g, s)})
 		return
-	if m.get("a", "") == "pass_all": # PASSAR TUDO is a setting too: it is switched during the opponent's turn, when the seat usually has no priority, so it must not go through the decider check of _apply
+	# PASSAR TUDO is a setting and can be switched during the opponent's turn.
+	if m.get("a", "") == "pass_all":
 		var pass_all_events := g.pass_rest_of_turn(seat) if bool(m.get("on", true)) else g.cancel_pass_rest_of_turn(seat)
 		_record_if_over(r)
 		for s in 2:
@@ -296,7 +307,12 @@ func _apply(g: GameState, p: int, m: Dictionary) -> Array:
 		return []
 	match m.get("a", ""):
 		"mulligan": return g.mulligan(p, _ints(m.get("uids")))
-		"play": return g.play_card(p, int(m.get("uid", 0)), int(m.get("target", 0)), int(m.get("target2", 0)), int(m.get("slot", -1)), int(m.get("banish", 0)))
+		"play":
+			return g.play_card(
+				p, int(m.get("uid", 0)), int(m.get("target", 0)), int(m.get("target2", 0)),
+				int(m.get("slot", -1)), int(m.get("banish", 0)),
+			)
+		"store_in_reservoir": return g.store_in_reservoir(p, int(m.get("uid", 0)))
 		"incarnation": return g.cast_incarnation(p, int(m.get("target", 0)), int(m.get("slot", -1)), int(m.get("banish", 0)))
 		"ability": return g.use_ability(p, int(m.get("target", 0)))
 		"activate": return g.activate(p, int(m.get("uid", 0)), int(m.get("target", 0)), int(m.get("payer", 0)))

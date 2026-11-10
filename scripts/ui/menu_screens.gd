@@ -36,7 +36,10 @@ const HUB_SECTIONS := [
 	{
 		"id": DeckDB.SECTION_MINE,
 		"title": "MEUS DECKS",
-		"hint": "Você ainda não tem nenhum deck pronto. Monte um em MEUS DECKS, no menu inicial: 44 cartas, a Encarnação do Líder e as regras do deck cumpridas.",
+		"hint": (
+			"Você ainda não tem nenhum deck pronto. Monte um em MEUS DECKS, no menu inicial: "
+			+ "59 cartas, a Encarnação do Líder e as regras do deck cumpridas."
+		),
 	},
 ]
 const HUB_EMPTY_HINT_H := 72.0 ## height of the hint that stands in for the tiles of an empty section

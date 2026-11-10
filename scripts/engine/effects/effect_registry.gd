@@ -85,7 +85,7 @@ static var ACTIONS: Dictionary = {
 	"fuse": FuseEffect,
 	"gain_momentum": GainMomentumEffect,
 	"raise_max_momentum": RaiseMaxMomentumEffect,
-	"gain_reserve": GainReserveEffect,
+	"gain_battery": GainBatteryEffect,
 	"empty_momentum_store": EmptyMomentumStoreEffect,
 	"extra_turn": ExtraTurnEffect,
 	"spend_all_momentum": SpendAllMomentumEffectScript,
