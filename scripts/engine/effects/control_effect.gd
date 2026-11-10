@@ -66,4 +66,4 @@ func _move_to_side(game: GameState, unit: Card, new_controller: int, ready_to_fi
 		unit.sick = false # borrowed to fight: it can attack the turn it is taken
 		if not unit.is_frozen() and not unit.is_stunned():
 			unit.exhausted = false # a unit that attacked on its own turn is still tapped: it is straightened for its new master
-	game._emit({"type": "control_change", "uid": unit.uid, "from": real_owner, "to": new_controller})
+	game.emit_event({"type": "control_change", "uid": unit.uid, "from": real_owner, "to": new_controller})

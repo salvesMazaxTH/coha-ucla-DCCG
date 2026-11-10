@@ -8,4 +8,4 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 	if artifact == null or artifact.stored_momentum <= 0:
 		return
 	artifact.stored_momentum = 0
-	context.game._emit({"type": "momentum_stored", "player": artifact.owner, "uid": artifact.uid, "stored": 0})
+	context.game.emit_event({"type": "momentum_stored", "player": artifact.owner, "uid": artifact.uid, "stored": 0})

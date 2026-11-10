@@ -73,9 +73,9 @@ func _destroy(context: EffectContext, target_uid: int) -> void:
 		return
 	var had_shield: bool = doomed.shield
 	doomed.damage = 1000000
-	context.game._emit({"type": "destroy", "uid": target_uid, "card_id": doomed.card_id})
+	context.game.emit_event({"type": "destroy", "uid": target_uid, "card_id": doomed.card_id})
 	if had_shield and shield_leader_damage > 0:
-		context.game._deal_damage(GameState.LEADER_UID[doomed.owner], shield_leader_damage, null)
+		context.game.deal_damage(GameState.LEADER_UID[doomed.owner], shield_leader_damage, null)
 
 func _kill_leader(context: EffectContext, target_uid: int) -> void:
 	var leader_player := GameState.LEADER_UID.find(target_uid)

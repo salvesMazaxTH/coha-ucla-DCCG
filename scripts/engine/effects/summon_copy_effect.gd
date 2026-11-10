@@ -27,4 +27,4 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	if copy.zone != "board":
 		return # something moved it away while it entered (a reaction killed it): there is nothing left to copy onto
 	copy.copy_modifiers_from(original)
-	game._check_state() # the copied damage may already be lethal, and scaling is recomputed from the copied state
+	game.check_state() # the copied damage may already be lethal, and scaling is recomputed from the copied state

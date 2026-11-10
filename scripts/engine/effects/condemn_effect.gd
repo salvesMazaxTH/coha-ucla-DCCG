@@ -17,4 +17,4 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	# this is the controller's own turn, otherwise the very next turn.
 	var turns_until_sentence := 2 if game.active == context.controller else 1
 	unit.condemned_turn = game.turn + turns_until_sentence
-	game._emit({"type": "condemn", "uid": target_uid})
+	game.emit_event({"type": "condemn", "uid": target_uid})

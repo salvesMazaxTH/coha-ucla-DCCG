@@ -476,12 +476,12 @@ func _new_game(seed_value := 42) -> GameState:
 func _put(g: GameState, p: int, card_id: String, ready := true) -> Card:
 	var uid := g._uid()
 	g._summon(p, Card.new(uid, card_id, p), false, 0)
-	g._flush()
+	g.flush_events()
 	if g.phase == "search":
 		var options: Array = g.pending_search["cards"]
 		# a top-of-deck look with nothing eligible is a whiff: its only exit is uid 0 (shuffle the deck)
 		g.choose_search(p, int(options[0]["uid"]) if not options.is_empty() else 0)
-		g._flush()
+		g.flush_events()
 	var c := g.find_unit(uid)
 	# a Provocação put here skips the "enter tapped?" question: tests tap units by hand
 	g.pending_tap.erase(uid)
@@ -504,9 +504,9 @@ func _test_cristal_do_poder_equipado() -> void:
 	g.players[a]["momentum"] = 5
 	g.auto_pass[o] = false
 	g.activate(a, montadora.uid, cristal.uid)
-	g._flush()
+	g.flush_events()
 	g.pass_priority(o)
-	g._flush()
+	g.flush_events()
 	g.auto_pass[o] = true
 	check(montadora.equipped_cards.has(cristal) and not g.players[a]["relics"].has(cristal), "montadora: o Cristal sai do campo e fica equipado nela")
 	check(montadora.atk == 4, "cristal equipado: +2 de Ataque para a portadora (2 -> 4)")
@@ -551,7 +551,7 @@ func _test_equipment_modifier_sources() -> void:
 	g.players[p]["momentum"] = 10
 	g.play_card(p, _give(g, p, "coracao_da_montanha"), unit.uid)
 	g._resolve_stack()
-	g._flush()
+	g.flush_events()
 	check(unit.atk == 4 and unit.hp == 7, "Coração da Montanha: Ao Jogar concede +2/+3")
 	check(unit.stat_sources.is_empty(), "Coração da Montanha: a fonte do buff passa a pertencer ao equipamento")
 	var rows := CardOverlay.StatModifiersPanel.rows_for(unit.card_id, unit.to_dict())
@@ -562,7 +562,7 @@ func _test_equipment_modifier_sources() -> void:
 	g.players[p]["momentum"] = 10
 	g.play_card(p, _give(g, p, "coracao_da_montanha"), unit.uid)
 	g._resolve_stack()
-	g._flush()
+	g.flush_events()
 	check(unit.atk == 4 and unit.hp == 7 and g.players[p]["hand"].has(first_heart),
 			"reequipar Coração da Montanha: só o bônus do equipamento atual fica")
 	check(unit.stat_sources.is_empty(), "reequipar Coração da Montanha: registros anteriores não se acumulam")
@@ -570,7 +570,7 @@ func _test_equipment_modifier_sources() -> void:
 	g.players[p]["momentum"] = 10
 	g.play_card(p, _give(g, p, "nucleo_de_geodo"), unit.uid)
 	g._resolve_stack()
-	g._flush()
+	g.flush_events()
 	check(unit.atk == 2 and unit.hp == 5 and unit.armor == 1, "trocar o Coração pelo Geodo remove só o bônus antigo")
 	check(unit.stat_sources.is_empty(), "trocar equipamento: fontes permanentes antigas não ficam no personagem")
 	unit.damage = 4
@@ -593,23 +593,23 @@ func _test_zulmira_ferro_velho() -> void:
 		g.players[a]["graveyard"].append(artifact)
 		graveyard_cards.append(artifact)
 	g.players[a]["graveyard"].append(Card.new(g._uid(), "tyren", a, "graveyard")) # a unit: not counted
-	g._check_state()
+	g.check_state()
 	check(g.graveyard_artifacts(a) == 3 and g.atk_of(zulmira) == 3, "zulmira: 3 artefatos no cemitério dão +1 de Ataque (a unidade não conta)")
 	g.players[a]["graveyard"].append(Card.new(g._uid(), "placa_espelhada_de_adamantina", a, "graveyard"))
-	g._check_state()
+	g.check_state()
 	check(g.atk_of(zulmira) == 4, "zulmira: 4 artefatos no cemitério dão +2 de Ataque")
 
 	# Ao Ativar: pick the Cristal, a copy of it goes to hand costing (0) this turn (the original stays in the graveyard), and she exhausts
 	g.players[a]["momentum"] = 3
 	var hand_before: int = g.players[a]["hand"].size()
 	g.activate(a, zulmira.uid)
-	g._flush()
+	g.flush_events()
 	check(g.phase == "search", "zulmira: o Ao Ativar abre a escolha de um artefato do cemitério")
 	var offered: Array = g.pending_search["cards"]
 	check(offered.size() == 4, "zulmira: só os 4 artefatos são oferecidos (a unidade não)")
 	var cristal: Card = graveyard_cards[2]
 	g.choose_search(a, cristal.uid)
-	g._flush()
+	g.flush_events()
 	var copy_in_hand: Card = null
 	for hand_card: Card in g.players[a]["hand"]:
 		if hand_card.card_id == "cristal_do_poder":
@@ -622,7 +622,7 @@ func _test_zulmira_ferro_velho() -> void:
 
 	# Relojoeiro Pino-14 é Unidade-Artefato: no cemitério conta como artefato (e continua sendo unidade para o filtro de unidades)
 	g.players[a]["graveyard"].append(Card.new(g._uid(), "relojoeiro_pino_14", a, "graveyard"))
-	g._check_state()
+	g.check_state()
 	check(g.graveyard_artifacts(a) == 5 and g.atk_of(zulmira) == 4, "zulmira: o Relojoeiro Pino-14 no cemitério conta como artefato (5 artefatos, ainda +2 de Ataque)")
 	check(CardDB.has_type(CardDB.card("relojoeiro_pino_14"), "unit") and CardDB.has_type(CardDB.card("relojoeiro_pino_14"), "artifact") and not CardDB.has_type(CardDB.card("relojoeiro_pino_14"), "spell"), "relojoeiro: é unidade e artefato ao mesmo tempo, mas não feitiço")
 	check(CardFilter.matches("relojoeiro_pino_14", {"type": "artifact"}) and CardFilter.matches("relojoeiro_pino_14", {"types_any": ["spell", "artifact"]}) and CardFilter.matches("relojoeiro_pino_14", {"type": "unit"}), "relojoeiro: filtros de busca o aceitam como artefato e como unidade")
@@ -647,7 +647,7 @@ func _test_avarik_avarion_edicts() -> void:
 	check(g.strike_power_of(avarion) == 5, "avarion: ele mesmo (Ataque 5) fica de fora")
 	var ally_weak := _put(g, a, "t_edict_weak")
 	check(g.strike_power_of(ally_weak) == 1, "avarion: vale também para as unidades do próprio dono")
-	check(g._deal_damage(strong.uid, 3, null) == 3, "avarion: dano que não é golpe (feitiço, efeito, periódico) não é limitado")
+	check(g.deal_damage(strong.uid, 3, null) == 3, "avarion: dano que não é golpe (feitiço, efeito, periódico) não é limitado")
 	strong.damage = 0
 
 	g.players[a]["board"].erase(avarion)
@@ -707,7 +707,7 @@ func _test_farkoveth_armor_cycle() -> void:
 
 	g.players[a]["momentum"] = 3
 	g.activate(a, farkoveth.uid, dummy.uid)
-	g._flush()
+	g.flush_events()
 	check(dummy.damage == 7, "farkoveth: o Ao Ativar causa Ataque (4) + Armadura gasta (3) = 7 de dano")
 	check(g.armor_of(farkoveth) == 0 and farkoveth.exhausted, "farkoveth: gastou toda a Armadura e ficou exausto")
 
@@ -741,9 +741,9 @@ func _test_porca_frouxa_herda_equipamento() -> void:
 	fallen.hp += 2
 	g.stack_system().attach(fallen, amulet, {"hp": 2})
 	var hp_before: int = montadora.hp
-	g._deal_damage(fallen.uid, 99, null)
-	g._check_state()
-	g._flush()
+	g.deal_damage(fallen.uid, 99, null)
+	g.check_state()
+	g.flush_events()
 	check(g.find_unit(fallen.uid) == null, "porca-frouxa: a aliada equipada morreu")
 	check(montadora.equipped_cards.has(amulet), "porca-frouxa: herda o equipamento da aliada morta")
 	check(not g.players[0]["graveyard"].has(amulet), "porca-frouxa: o equipamento sai do cemitério")
@@ -762,9 +762,9 @@ func _test_porca_frouxa_herda_equipamento() -> void:
 	amulet = Card.new(g._uid(), "amuleto_do_primeiro_floco", 0)
 	fallen.hp += 2
 	g.stack_system().attach(fallen, amulet, {"hp": 2})
-	g._deal_damage(fallen.uid, 99, null)
-	g._check_state()
-	g._flush()
+	g.deal_damage(fallen.uid, 99, null)
+	g.check_state()
+	g.flush_events()
 	check(montadora.equipped_cards == [own_cloak] and g.players[0]["graveyard"].has(amulet), "porca-frouxa: já equipada, o equipamento da aliada fica no cemitério")
 
 	# the fallen ally wore nothing: nothing to inherit
@@ -772,9 +772,9 @@ func _test_porca_frouxa_herda_equipamento() -> void:
 	_quiet(g)
 	montadora = _put(g, 0, "gra_montadora_nina")
 	fallen = _put(g, 0, "teste_alvo_gelo")
-	g._deal_damage(fallen.uid, 99, null)
-	g._check_state()
-	g._flush()
+	g.deal_damage(fallen.uid, 99, null)
+	g.check_state()
+	g.flush_events()
 	check(montadora.equipped_cards.is_empty(), "porca-frouxa: aliada sem equipamento não dá nada")
 
 	# Matusalém wears two equipment at once; a third pushes the oldest back to the hand
@@ -799,7 +799,7 @@ func _test_search() -> void:
 	var deck_size: int = deck.size()
 	var uid := g._uid()
 	g._summon(1, Card.new(uid, "serpente_marinha", 1), false, 0)
-	var evs: Array = g._flush()
+	var evs: Array = g.flush_events()
 	check(g.phase == "search" and g.pending_search.get("look", false), "serpente olha o topo do deck")
 	check(g.pending_search["cards"].size() == 4, "olha 4 cartas")
 	var mine: Dictionary = StateView.snapshot(g, 1)["pending_search"]
@@ -827,7 +827,7 @@ func _test_search() -> void:
 	deck = g.players[1]["deck"]
 	deck_size = deck.size()
 	g._summon(1, Card.new(g._uid(), "oraculo_das_mares", 1), false, 0)
-	g._flush()
+	g.flush_events()
 	check(g.phase == "search" and g.pending_search["cards"].size() == 4, "oráculo olha 4 cartas")
 	var pick: int = int(g.pending_search["cards"][2]["uid"])
 	var picked2: Array = g.choose_search(1, pick)
@@ -842,18 +842,18 @@ func _test_constant() -> void:
 	g.players[0]["graveyard"].append(Card.new(g._uid(), "serpente_marinha", 0, "graveyard"))
 	g.players[0]["graveyard"].append(Card.new(g._uid(), "gaivota_da_tempestade", 0, "graveyard"))
 	g.players[0]["graveyard"].append(Card.new(g._uid(), "bola_de_fogo", 0, "graveyard"))
-	g._check_state()
+	g.check_state()
 	check(g.atk_of(jeff) == 5 and g.hp_left(jeff) == 5, "jeff +1/+1 por unidade no cemitério (feitiço não conta)")
 	g.players[1]["graveyard"].append(Card.new(g._uid(), "serpente_marinha", 1, "graveyard"))
-	g._check_state()
+	g.check_state()
 	check(g.atk_of(jeff) == 5, "cemitério inimigo não conta")
 	g.players[0]["graveyard"].pop_back()
 	g.players[0]["graveyard"].pop_back()
-	g._check_state()
+	g.check_state()
 	check(g.atk_of(jeff) == 4, "bônus encolhe quando o cemitério encolhe")
 	jeff.damage = 1
 	g.players[0]["graveyard"].clear()
-	g._check_state()
+	g.check_state()
 	check(g.hp_left(jeff) == 2, "dano persiste ao perder o bônus")
 
 ## The Obscura tests play the old Ceifa Veloz list (Rusco, no Vagante), kept as a fixture since it is no longer a prebuilt deck.
@@ -875,14 +875,14 @@ func _test_cleanse() -> void:
 	g.players[0]["hand"].append(light)
 	g.players[0]["momentum"] = 10
 	g.play_card(0, light.uid, GameState.LEADER_UID[0])
-	g._flush()
+	g.flush_events()
 	check(g.leader_dot_markers(0, "veneno") == 0, "Luz Transbordante purifica o Líder")
 	var ally := _put(g, 0, "esqueleto_guerreiro")
 	ally.dot_markers = {"veneno": 2, "queimadura": 1}
 	var light2 := Card.new(g._uid(), "luz_transbordante", 0, "hand")
 	g.players[0]["hand"].append(light2)
 	g.play_card(0, light2.uid, ally.uid)
-	g._flush()
+	g.flush_events()
 	check(ally.dot_markers.is_empty(), "Luz Transbordante purifica a unidade alvo")
 	g.players[0]["leader_dots"] = {"veneno": 4}
 	var angel := _put(g, 0, "uriel")
@@ -898,12 +898,12 @@ func _test_devocao_epic_trio() -> void:
 	g.players[0]["leader_hp"] -= 8
 	var hand_before: int = g.players[0]["hand"].size()
 	var nurse := _put(g, 0, "eufrasia_ponto_firme")
-	g._check_state()
+	g.check_state()
 	check(g.players[0]["hand"].size() == hand_before + 1, "Eufrásia: o Ao Entrar cura o Líder e ela mesma compra 1 carta (mão %d -> %d)" % [hand_before, g.players[0]["hand"].size()])
 	g._heal_leader(0, 1)
-	g._check_state()
+	g.check_state()
 	g._heal_leader(0, 1)
-	g._check_state()
+	g.check_state()
 	check(g.players[0]["hand"].size() == hand_before + 1, "Eufrásia: a segunda cura no mesmo turno não compra de novo")
 	check(nurse.atk == 1 and nurse.hp == 4, "Eufrásia: 1/4")
 	# Zadquiel: Ao Entrar cura Líder e aliadas, Ao Atacar cura 2, Ao Morrer cura 5
@@ -924,7 +924,7 @@ func _test_devocao_epic_trio() -> void:
 	check(g_clarion.find_unit(foe.uid) == null or g_clarion.find_unit(foe.uid).damage == foe_damage_before + 3, "Iruvael: Ao Entrar causa 3 de dano às unidades inimigas")
 	var atk_before: int = clarion.atk
 	g_clarion.end_turn(0)
-	g_clarion._flush()
+	g_clarion.flush_events()
 	check(g_clarion.find_unit(clarion.uid).atk == atk_before + 1, "Iruvael: ganha +1 de Ataque no Fim do Turno (%d -> %d)" % [atk_before, g_clarion.find_unit(clarion.uid).atk])
 
 ## Puts a fresh card on the TOP of p's deck (the top is the end of the array).
@@ -945,10 +945,10 @@ func _test_summon_from() -> void:
 	_put(g, 0, "rafaela_o_clarao_da_cura")
 	g.players[0]["leader_hp"] -= 8
 	g._heal_leader(0, 1)
-	g._check_state()
+	g.check_state()
 	check(g.phase != "search", "Rafaela: cura de só 1 não dispara (min_amount)")
 	g._heal_leader(0, 2)
-	g._check_state()
+	g.check_state()
 	check(g.phase == "search" and g.pending_search.get("summon_from", false), "Rafaela: cura de 2 abre a escolha de invocação")
 	var offered: Array = g.pending_search["cards"]
 	check(offered.size() == 1 and int(offered[0]["uid"]) == angel.uid, "Rafaela: só o Anjo de custo <= 5 é oferecido (o de custo 7 é pulado)")
@@ -956,7 +956,7 @@ func _test_summon_from() -> void:
 	check(shown == ["esqueleto_guerreiro", "iruvael_o_setimo_clarim", "eliel_vigia_da_aurora"], "Rafaela: o dono vê todas as cartas reveladas, na ordem do topo (%s)" % str(shown))
 	check(StateView.snapshot(g, 1)["pending_search"]["looked_cards"].is_empty(), "Rafaela: o oponente não vê as cartas reveladas")
 	g.choose_search(0, angel.uid)
-	g._flush()
+	g.flush_events()
 	check(g.phase != "search" and g.find_unit(angel.uid) != null, "Rafaela: o Anjo escolhido entra em campo de graça")
 	var deck: Array = g.players[0]["deck"]
 	check(deck.size() == 3 and deck.back().card_id == "esqueleto_guerreiro", "Rafaela: o que foi revelado e não invocado vai ao fundo; o resto do deck fica por cima")
@@ -964,7 +964,7 @@ func _test_summon_from() -> void:
 	seen_at_bottom.sort()
 	check(seen_at_bottom == ["esqueleto_guerreiro", "iruvael_o_setimo_clarim"], "Rafaela: o fundo do deck recebeu as 2 cartas puladas")
 	g._heal_leader(0, 2)
-	g._check_state()
+	g.check_state()
 	check(g.phase != "search", "Rafaela: só 1x por turno")
 	# recusar: nada é invocado e as reveladas também vão ao fundo
 	var g_decline := _new_game()
@@ -974,9 +974,9 @@ func _test_summon_from() -> void:
 	_put(g_decline, 0, "rafaela_o_clarao_da_cura")
 	g_decline.players[0]["leader_hp"] -= 8
 	g_decline._heal_leader(0, 3)
-	g_decline._check_state()
+	g_decline.check_state()
 	g_decline.choose_search(0, 0)
-	g_decline._flush()
+	g_decline.flush_events()
 	check(g_decline.phase != "search" and g_decline.find_unit(spare.uid) == null, "summon_from: recusar (uid 0) não invoca nada")
 	check(g_decline.players[0]["deck"].size() == 1, "summon_from: a carta recusada continua no deck (fundo)")
 	# sem nenhuma elegível nada é mostrado, então o deck não muda de ordem
@@ -997,7 +997,7 @@ func _test_summon_from() -> void:
 	g_zones._begin_summon_from(0, {"source": "graveyard", "max_cost": 3, "banish_at_turn_end": true}, 0)
 	check(g_zones.phase == "search" and g_zones.pending_search["cards"].size() == 1, "summon_from: do cemitério, o filtro de custo deixa 1 opção")
 	g_zones.choose_search(0, dead.uid)
-	g_zones._flush()
+	g_zones.flush_events()
 	var revived: Card = null
 	for unit: Card in g_zones.players[0]["board"]:
 		if unit.card_id == "eliel_vigia_da_aurora":
@@ -1019,7 +1019,7 @@ func _test_summon_from() -> void:
 	g_random.players[0]["deck"].clear()
 	var lucky := _stack_on_deck(g_random, 0, "eliel_vigia_da_aurora")
 	g_random.summon_from_random(0, {"source": "deck", "reveal_until": true, "tribe_any": ["anjo"]}, 0)
-	g_random._flush()
+	g_random.flush_events()
 	check(g_random.phase != "search" and g_random.find_unit(lucky.uid) != null, "summon_from: pick random invoca sem abrir escolha")
 
 func _test_summon_random() -> void:
@@ -1191,7 +1191,7 @@ func _test_devocao_healers() -> void:
 	g.players[0]["leader_hp"] -= 4
 	var hp_before: int = g.players[0]["leader_hp"]
 	_put(g, 0, "querubina_guarda_chuva")
-	g._flush()
+	g.flush_events()
 	check(g.players[0]["leader_hp"] == hp_before + 1, "Querubina: o Ao Entrar cura 1 o Líder")
 	# Irmã Gaze-Limpa: cura 2 e purifica todas as unidades aliadas
 	var g_nun := _new_game()
@@ -1209,7 +1209,7 @@ func _test_devocao_healers() -> void:
 	g_water.players[0]["momentum"] = 10
 	var hand_before: int = g_water.players[0]["hand"].size()
 	g_water.play_card(0, water.uid, 0)
-	g_water._flush()
+	g_water.flush_events()
 	check(g_water.players[0]["hand"].size() == hand_before, "Água Benta: sai da mão (-1) e compra 1 (+1)")
 
 ## Escudo Mágico nerf (2026-11-06): granting it ahead of time and for good made protect-the-queen decks too strong.
@@ -1266,12 +1266,12 @@ func _test_devocao_support() -> void:
 	g.players[0]["hand"].append(call)
 	g.players[0]["momentum"] = 10
 	g.play_card(0, call.uid, 0)
-	g._flush()
+	g.flush_events()
 	g.pass_priority(1)
-	g._flush()
+	g.flush_events()
 	check(g.phase == "search" and g.pending_search["cards"].size() == 1 and int(g.pending_search["cards"][0]["uid"]) == celestial.uid, "Chamada dos Ausentes: só a unidade de Luz/celestial é oferecida, a comum não")
 	g.choose_search(0, celestial.uid)
-	g._flush()
+	g.flush_events()
 	check(g.find_unit(celestial.uid) != null or g.players[0]["board"].any(func(unit: Card): return unit.card_id == "querubina_guarda_chuva"), "Chamada dos Ausentes: a unidade escolhida volta ao campo")
 	# um Anjo sem o elemento Luz também serve (tribe_any), e um Divindade
 	check(CardFilter.matches("uriel", {"any_of": [{"element": "luz"}, {"tribe_any": ["anjo", "celestial", "divindade"]}]}), "any_of: aceita quem passa em qualquer das alternativas")
@@ -1287,12 +1287,12 @@ func _test_devocao_support() -> void:
 	var relic_ally_hp: int = relic_ally.hp_left()
 	var leader_before: int = g_relic.players[0]["leader_hp"]
 	g_relic.end_turn(0)
-	g_relic._flush()
+	g_relic.flush_events()
 	check(g_relic.players[0]["leader_hp"] == leader_before + 2, "Relicário de Cabeceira: cura 2 o Líder no fim do turno do dono (%d -> %d)" % [leader_before, g_relic.players[0]["leader_hp"]])
 	check(relic_ally.hp_left() == relic_ally_hp + 2, "Relicário de Cabeceira: cada unidade aliada ferida recupera 2 de Vida (%d -> %d)" % [relic_ally_hp, relic_ally.hp_left()])
 	var leader_mid: int = g_relic.players[0]["leader_hp"]
 	g_relic.end_turn(1)
-	g_relic._flush()
+	g_relic.flush_events()
 	check(g_relic.players[0]["leader_hp"] == leader_mid, "Relicário de Cabeceira: não cura no fim do turno do oponente")
 	# "De Qualquer Turno": dispara no turno do dono E no do oponente; o "Seu Turno" só no do dono
 	_tcard("t_any_turn", 1, 9, [{"trigger": "on_any_turn_start", "action": "buff", "target": "self", "atk": 1},
@@ -1303,11 +1303,11 @@ func _test_devocao_support() -> void:
 	var any_turn_unit := _put(g_any, 0, "t_any_turn")
 	var own_turn_unit := _put(g_any, 0, "t_own_turn")
 	g_any.end_turn(0) # fim do turno do dono (+1 Vida) e início do turno do oponente (+1 Ataque)
-	g_any._flush()
+	g_any.flush_events()
 	check(any_turn_unit.atk == 2 and any_turn_unit.hp == 10, "No Início/Fim de Qualquer Turno: dispara na passagem para o turno do oponente (%d/%d)" % [any_turn_unit.atk, any_turn_unit.hp])
 	check(own_turn_unit.atk == 1, "No Início do Seu Turno: não dispara no turno do oponente")
 	g_any.end_turn(1) # fim do turno do oponente e início do turno do dono: os dois disparam de novo
-	g_any._flush()
+	g_any.flush_events()
 	check(any_turn_unit.atk == 3 and any_turn_unit.hp == 11, "No Início/Fim de Qualquer Turno: dispara também no turno do dono (%d/%d)" % [any_turn_unit.atk, any_turn_unit.hp])
 	check(own_turn_unit.atk == 2, "No Início do Seu Turno: dispara no turno do dono")
 	# Sino de Aviso Prévio: um efeito inimigo que mira a unidade dá Escudo Mágico a ela ANTES de atingi-la,
@@ -1323,21 +1323,21 @@ func _test_devocao_support() -> void:
 	var guarded := _put(g_bell, 0, "t_bell_body")
 	var second_guarded := _put(g_bell, 0, "t_bell_body")
 	g_bell._run_effect_dicts(1, CardDB.card("t_bell_area")["effects"], "on_enter", 0, 0, SPELL_SOURCE)
-	g_bell._check_state()
+	g_bell.check_state()
 	check(not guarded.magic_shield, "Sino: efeito em área não mira ninguém e não dá escudo")
 	guarded.damage = 0 # the area effect did hit; start counting from clean units
 	second_guarded.damage = 0
 	g_bell._run_effect_dicts(1, CardDB.card("t_bell_hit")["effects"], "on_enter", guarded.uid, 0, SPELL_SOURCE)
-	g_bell._check_state()
+	g_bell.check_state()
 	# the shield arrives BEFORE the effect, so it absorbs the hit (and is spent doing it): no damage, no shield left
 	check(guarded.damage == 0 and not guarded.magic_shield, "Sino: o Escudo Mágico chega antes do efeito inimigo e o absorve")
 	check(bell.durability_left() == 1, "Sino: o disparo gastou 1 de Durabilidade")
 	g_bell._run_effect_dicts(1, CardDB.card("t_bell_hit")["effects"], "on_enter", second_guarded.uid, 0, SPELL_SOURCE)
-	g_bell._check_state()
+	g_bell.check_state()
 	check(second_guarded.damage == 0 and g_bell.find_relic(bell.uid) == null, "Sino: o 2º disparo ainda protege e quebra o Sino")
 	var third_guarded := _put(g_bell, 0, "t_bell_body")
 	g_bell._run_effect_dicts(1, CardDB.card("t_bell_hit")["effects"], "on_enter", third_guarded.uid, 0, SPELL_SOURCE)
-	g_bell._check_state()
+	g_bell.check_state()
 	check(third_guarded.damage == 1, "Sino: quebrado, não protege mais")
 	var g_twin := _new_game()
 	_quiet(g_twin)
@@ -1348,16 +1348,16 @@ func _test_devocao_support() -> void:
 	g_twin.players[0]["relics"].append(twin_bell_b)
 	var twin_target := _put(g_twin, 0, "t_bell_body")
 	g_twin._run_effect_dicts(1, CardDB.card("t_bell_hit")["effects"], "on_enter", twin_target.uid, 0, SPELL_SOURCE)
-	g_twin._check_state()
+	g_twin.check_state()
 	check(twin_target.damage == 0, "Sino: dois Sinos em campo ainda protegem a unidade mirada")
 	check(twin_bell_a.durability_left() == 1 and twin_bell_b.durability_left() == 2, "Sino: com dois em campo, só o mais antigo toca e gasta Durabilidade")
 	var twin_second := _put(g_twin, 0, "t_bell_body")
 	g_twin._run_effect_dicts(1, CardDB.card("t_bell_hit")["effects"], "on_enter", twin_second.uid, 0, SPELL_SOURCE)
-	g_twin._check_state()
+	g_twin.check_state()
 	check(twin_second.damage == 0 and g_twin.find_relic(twin_bell_a.uid) == null and twin_bell_b.durability_left() == 2, "Sino: o mais antigo quebra primeiro e o mais novo segue intacto")
 	var twin_third := _put(g_twin, 0, "t_bell_body")
 	g_twin._run_effect_dicts(1, CardDB.card("t_bell_hit")["effects"], "on_enter", twin_third.uid, 0, SPELL_SOURCE)
-	g_twin._check_state()
+	g_twin.check_state()
 	check(twin_third.damage == 0 and twin_bell_b.durability_left() == 1, "Sino: o mais novo assume a proteção depois que o antigo quebra")
 	var g_own := _new_game()
 	_quiet(g_own)
@@ -1365,7 +1365,7 @@ func _test_devocao_support() -> void:
 	g_own.players[0]["relics"].append(Card.new(g_own._uid(), "sino_de_aviso_previo", 0, "relics"))
 	var own_target := _put(g_own, 0, "t_bell_body")
 	g_own._run_effect_dicts(0, [{"trigger": "on_enter", "action": "buff", "target": "ally_unit", "atk": 1}], "on_enter", own_target.uid, 0, SPELL_SOURCE)
-	g_own._check_state()
+	g_own.check_state()
 	check(not own_target.magic_shield, "Sino: efeito do próprio dono não conta como ser mirado")
 
 ## Arquivista da Cripta Baixa (look_bottom), Chá de Boldo, Iconoclastia, Joio e Trigo e Leva-Frascos Apressado (durability_left).
@@ -1489,13 +1489,13 @@ func _test_devocao_new_batch() -> void:
 	var vicar_hand_before: int = g_vicar.players[0]["hand"].size()
 	# o Ao Entrar roda aqui dentro; Gablúrio já está em campo, então a cura que ele causa aciona o próprio Condicional
 	var vicar := _put(g_vicar, 0, "gabluro_dragao_vigario")
-	g_vicar._check_state()
+	g_vicar.check_state()
 	check(g_vicar.players[0]["leader_hp"] == 14,"Gablúrio: Ao Entrar cura 4 o Líder (10 -> %d)" % g_vicar.players[0]["leader_hp"])
 	# 2 cartas do Ao Entrar + 1 da cura do Líder que o próprio Ao Entrar provocou
 	check(g_vicar.players[0]["hand"].size() == vicar_hand_before + 3, "Gablúrio: Ao Entrar compra 2 e a cura que ele mesmo causa compra mais 1")
 	check(vicar_victim.hp_left() == vicar_victim_hp - 3 or g_vicar.find_unit(vicar_victim.uid) == null, "Gablúrio: a cura do Líder também causa 3 de dano a uma unidade inimiga")
 	g_vicar._heal_leader(0, 1)
-	g_vicar._check_state()
+	g_vicar.check_state()
 	check(g_vicar.players[0]["hand"].size() == vicar_hand_before + 3, "Gablúrio: a compra da cura é 1x por turno")
 
 	# Ur'Khenaathem: the extra turn needs him to have lived through a full round; it repeats every round but never twice in a row
@@ -1579,8 +1579,8 @@ func _test_devocao_new_batch() -> void:
 	var g_vials := _new_game()
 	g_vials.active = 0
 	var runner := _put(g_vials, 0, "leva_frascos_apressado")
-	g_vials._deal_damage(runner.uid, 99, null)
-	g_vials._check_state()
+	g_vials.deal_damage(runner.uid, 99, null)
+	g_vials.check_state()
 	var vials: Array = g_vials.players[0]["relics"].filter(func(relic: Card): return relic.card_id == "ampola_curativa")
 	check(vials.size() == 2, "Leva-Frascos: ao morrer, duas Ampolas Curativas entram no campo (%d)" % vials.size())
 	check(vials.all(func(vial: Card): return vial.durability_left() == 1), "Leva-Frascos: cada Ampola entra com apenas 1 de Durabilidade")
@@ -1591,8 +1591,8 @@ func _test_devocao_new_batch() -> void:
 	for i in GameState.BOARD_LIMIT - 1:
 		_put(g_full, 0, "t_full_body")
 	var runner_full := _put(g_full, 0, "leva_frascos_apressado")
-	g_full._deal_damage(runner_full.uid, 99, null)
-	g_full._check_state()
+	g_full.deal_damage(runner_full.uid, 99, null)
+	g_full.check_state()
 	var vials_full: Array = g_full.players[0]["relics"].filter(func(relic: Card): return relic.card_id == "ampola_curativa")
 	check(vials_full.size() == 1, "Leva-Frascos: com só 1 espaço livre entra 1 Ampola e a outra simplesmente não entra (%d)" % vials_full.size())
 
@@ -1603,7 +1603,7 @@ func _test_sagrada_board_control() -> void:
 	_put(g, 0, "seymour")
 	g.players[0]["leader_hp"] -= 6
 	g._heal_leader(0, 2)
-	g._check_state()
+	g.check_state()
 	check(g.find_unit(foe.uid).damage == 1, "Seymour reage à cura do Líder: 1 de dano (sobrou %d)" % g.find_unit(foe.uid).damage)
 	var ally := _put(g, 0, "esqueleto_guerreiro")
 	ally.damage = 1
@@ -1611,7 +1611,7 @@ func _test_sagrada_board_control() -> void:
 	g.players[0]["hand"].append(light)
 	g.players[0]["momentum"] = 10
 	g.play_card(0, light.uid, ally.uid)
-	g._check_state()
+	g.check_state()
 	# Luz Transbordante is a Devotion spell and heals an ally; the 2x cap allows one further trigger.
 	check(g.find_unit(foe.uid) != null and g.find_unit(foe.uid).damage == 2, "Seymour causa mais 1 ao reagir à cura/feitiço (total 2)")
 	var g_start := _new_game()
@@ -1619,7 +1619,7 @@ func _test_sagrada_board_control() -> void:
 	var seymour_start := _put(g_start, 0, "seymour")
 	g_start.active = 0
 	g_start.bus().emit(_turn_start_event(g_start, seymour_start))
-	g_start._check_state()
+	g_start.check_state()
 	check(g_start.find_unit(start_foe.uid).damage == 1, "Seymour causa 1 de dano no início do turno")
 	# as condicionais ativam no máximo 2x por turno: a 3ª não faz nada
 	var g_cap := _new_game()
@@ -1630,15 +1630,15 @@ func _test_sagrada_board_control() -> void:
 	g_cap.bus().emit(_turn_start_event(g_cap, seymour_cap))
 	g_cap._heal_leader(0, 1)
 	g_cap._heal_leader(0, 1)
-	g_cap._check_state()
+	g_cap.check_state()
 	check(g_cap.find_unit(cap_foe.uid).damage == 3, "Seymour: o gatilho de turno e 2 curas causam 3 de dano (deu %d)" % g_cap.find_unit(cap_foe.uid).damage)
 	g_cap._heal_leader(0, 1)
-	g_cap._check_state()
+	g_cap.check_state()
 	check(g_cap.find_unit(cap_foe.uid).damage == 3, "Seymour: a 3ª condicional no mesmo turno não causa dano")
 	# no turno seguinte do dono o contador volta a zero
 	g_cap.turn += 2
 	g_cap._heal_leader(0, 1)
-	g_cap._check_state()
+	g_cap.check_state()
 	check(g_cap.find_unit(cap_foe.uid).damage == 4, "Seymour: em outro turno ele volta a ativar")
 	# só age no turno do dono: cura durante o turno do oponente não faz nada
 	var g_theirs := _new_game()
@@ -1647,20 +1647,20 @@ func _test_sagrada_board_control() -> void:
 	g_theirs.active = 1
 	g_theirs.players[0]["leader_hp"] -= 3
 	g_theirs._heal_leader(0, 1)
-	g_theirs._check_state()
+	g_theirs.check_state()
 	check(g_theirs.find_unit(theirs_foe.uid).damage == 0, "Seymour não reage a cura no turno do oponente")
 	# sem unidade inimiga, não acontece nada
 	var g_empty := _new_game()
 	_put(g_empty, 0, "seymour")
 	g_empty._heal_leader(0, 1)
-	g_empty._check_state()
+	g_empty.check_state()
 	var g_small := _new_game()
 	var small_foe := _put(g_small, 1, "salamandra")
 	var small_foe_two := _put(g_small, 1, "salamandra")
 	_put(g_small, 0, "seymour")
 	g_small.players[0]["leader_hp"] -= 3
 	g_small._heal_leader(0, 1)
-	g_small._check_state()
+	g_small.check_state()
 	check(g_small.find_unit(small_foe.uid) == null or g_small.find_unit(small_foe_two.uid) == null, "Seymour: a cura mata ao menos uma salamandra de 1 de Vida")
 	# Lucien: 2 de dano a até 2 unidades inimigas diferentes ao entrar
 	_tcard("t_lucien_target", 0, 10, [])
@@ -1669,12 +1669,12 @@ func _test_sagrada_board_control() -> void:
 	for i in 5:
 		lucien_targets.append(_put(g2, 1, "t_lucien_target"))
 	_put(g2, 0, "lucien")
-	g2._check_state()
+	g2.check_state()
 	var damaged_by_lucien: Array = lucien_targets.filter(func(unit: Card): return unit.damage > 0)
 	check(damaged_by_lucien.size() == 2 and damaged_by_lucien.all(func(unit: Card): return unit.damage == 2),
 		"Lucien causa 2 de dano a 2 unidades diferentes, sem distribuir os pontos (%d alvos)" % damaged_by_lucien.size())
 	_put(g2, 0, "uriel")
-	g2._check_state()
+	g2.check_state()
 	check(lucien_targets.filter(func(unit: Card): return unit.damage > 0).size() == 2,
 		"Uriel não causa dano ao entrar")
 	var uriel_data: Dictionary = CardDB.card("uriel")
@@ -1686,7 +1686,7 @@ func _test_sagrada_board_control() -> void:
 	var uriel := _put(uriel_game, 0, "uriel")
 	check(uriel_game.players[0]["leader_hp"] == 10, "Uriel não tem Ao Entrar")
 	_hit(uriel_game, uriel)
-	uriel_game._flush()
+	uriel_game.flush_events()
 	check(uriel_game.players[0]["leader_hp"] == 14,
 		"Uriel cura 4 do Líder ao atacar, sem Roubo de Vida adicional (%d)" % uriel_game.players[0]["leader_hp"])
 	# Nerithia: Ímpeto, e o Ao Desafiar dá sempre ao menos +2 de Ataque
@@ -1706,7 +1706,7 @@ func _test_sacrifice_damage() -> void:
 	var jeff := _put(g, 0, "jeff")
 	for i in 3:
 		g.players[0]["graveyard"].append(Card.new(g._uid(), "esqueleto_guerreiro", 0, "graveyard"))
-	g._check_state()
+	g.check_state()
 	var atk: int = g.atk_of(jeff)
 	check(atk == 6, "jeff com 3 unidades no cemitério tem 6 de ataque")
 	var foe := _put(g, 1, "serpente_marinha")
@@ -1719,7 +1719,7 @@ func _test_sacrifice_damage() -> void:
 	var lf: int = g.players[1]["leader_hp"]
 	g.play_card(0, spell.uid, jeff.uid, GameState.LEADER_UID[1])
 	g.pass_priority(1)
-	g._flush()
+	g.flush_events()
 	check(g.find_unit(jeff.uid) == null, "unidade foi sacrificada")
 	check(g.players[1]["leader_hp"] == lf - atk, "dano no Líder = ataque total do sacrificado (%d)" % atk)
 	# works against a unit, and against an ally
@@ -1727,7 +1727,7 @@ func _test_sacrifice_damage() -> void:
 	g.players[0]["hand"].append(s2)
 	g.play_card(0, s2.uid, ally.uid, foe.uid)
 	g.pass_priority(1)
-	g._flush()
+	g.flush_events()
 	check(g.find_unit(ally.uid) == null and g.find_unit(foe.uid).damage == 1, "dano também acerta unidade (ataque 1 do esqueleto)")
 
 ## The four epic unrestricted removals added so every domain has an answer: Expurgo Sagrado (Devoção), Desabamento Oportuno
@@ -1852,7 +1852,7 @@ func _test_tormenta_wave_one() -> void:
 	var leader_hp: int = g.players[1]["leader_hp"]
 	g.players[0]["momentum"] = 0
 	thunder.damage = 99
-	g._check_state()
+	g.check_state()
 	check(g.players[1]["leader_hp"] == leader_hp - 5, "Trovão Arrependido: ao morrer causa 5 de dano ao Líder inimigo")
 	check(g.players[0]["momentum"] == 2, "Trovão Arrependido: ao morrer dá 2 de Momentum")
 
@@ -1903,7 +1903,7 @@ func _test_tormenta_wave_two() -> void:
 	_quiet(g)
 	var p_antenna: int = g.active
 	g._place_relic(p_antenna, Card.new(g._uid(), "antena_de_varal", p_antenna))
-	g._flush()
+	g.flush_events()
 	g.players[p_antenna]["momentum"] = 7
 	leader_hp = g.players[1 - p_antenna]["leader_hp"]
 	g.end_turn(p_antenna)
@@ -1990,7 +1990,7 @@ func _test_bateria_de_segunda_mao() -> void:
 	var p: int = g.active
 	var battery := Card.new(g._uid(), "bateria_de_segunda_mao", p)
 	g._place_relic(p, battery)
-	g._flush()
+	g.flush_events()
 	var pl: Dictionary = g.players[p]
 
 	# only the Momentum that leaks past a full Reserva is stored: what the Reserva banks never counts
@@ -2170,7 +2170,7 @@ func _test_magic_shield_scope() -> void:
 	g.players[0]["momentum"] = 5
 	g.use_ability(0, ability_victim.uid)
 	g.pass_priority(1)
-	g._flush()
+	g.flush_events()
 	check(not ability_victim.magic_shield and ability_victim.damage == 0, "Escudo Mágico anula a Habilidade de Líder")
 	# the "then" effects of a spell keep the spell origin: Mordida de Defunto's damage is cancelled too
 	g = _new_game()
@@ -2183,7 +2183,7 @@ func _test_magic_shield_scope() -> void:
 	g.players[0]["momentum"] = 10
 	g.play_card(0, bite.uid, sacrificed.uid, shielded_foe.uid)
 	g.pass_priority(1)
-	g._flush()
+	g.flush_events()
 	check(g.find_unit(sacrificed.uid) == null and shielded_foe.damage == 0 and not shielded_foe.magic_shield, "o dano do 'então' de um feitiço de sacrifício também é anulado pelo Escudo Mágico")
 
 ## Escudo Supremo: one charge that absorbs damage and any effect, from any source, including sacrifice.
@@ -2199,7 +2199,7 @@ func _test_supreme_shield() -> void:
 	check(holder.damage == 0 and not holder.supreme_shield, "Escudo Supremo absorve o efeito de uma unidade e se gasta")
 	# plain damage (a direct hit, not an effect) is absorbed as well
 	holder.grant_supreme_shield()
-	check(g._deal_damage(holder.uid, 3, null) == 0 and holder.damage == 0 and not holder.supreme_shield, "Escudo Supremo absorve dano comum")
+	check(g.deal_damage(holder.uid, 3, null) == 0 and holder.damage == 0 and not holder.supreme_shield, "Escudo Supremo absorve dano comum")
 	# a destroy effect from a spell is absorbed
 	holder.grant_supreme_shield()
 	g._apply_effect(0, {"action": "destroy", "target": "enemy_unit"}, holder.uid, SPELL_SOURCE)
@@ -2209,7 +2209,7 @@ func _test_supreme_shield() -> void:
 	g._apply_effect(1, {"action": "sacrifice", "target": "ally_unit"}, holder.uid, SPELL_SOURCE)
 	check(g.find_unit(holder.uid) != null and not holder.supreme_shield, "Escudo Supremo absorve até o sacrifício do próprio dono")
 	# the charge is gone: the next hit lands
-	g._deal_damage(holder.uid, 3, null)
+	g.deal_damage(holder.uid, 3, null)
 	check(holder.damage == 3, "sem a carga, o dano passa")
 	# expiry: end_turn goes at the end of the turn, next_turn at the start of the controller's next turn
 	holder.grant_supreme_shield("end_turn")
@@ -2233,13 +2233,13 @@ func _test_supreme_shield() -> void:
 	_quiet(g)
 	var bulwark := Card.new(g._uid(), "baluarte_santo", 0)
 	g._place_relic(0, bulwark)
-	g._flush()
+	g.flush_events()
 	check(bulwark.supreme_shield, "Baluarte Santo nasce com Escudo Supremo")
 	g._run_effect_dicts(1, CardDB.card("desmontador_de_quinquilharia")["effects"], "on_enter", bulwark.uid, 999)
-	g._flush()
+	g.flush_events()
 	check(g.find_relic(bulwark.uid) != null and not bulwark.supreme_shield, "Desmontador de Quinquilharia não destrói o Baluarte Santo: só gasta o Escudo Supremo")
 	g._run_effect_dicts(1, CardDB.card("desmontador_de_quinquilharia")["effects"], "on_enter", bulwark.uid, 999)
-	g._flush()
+	g.flush_events()
 	check(g.find_relic(bulwark.uid) == null, "sem o Escudo Supremo, o segundo Desmontador destrói o Baluarte")
 
 func _test_durability() -> void:
@@ -2249,7 +2249,7 @@ func _test_durability() -> void:
 	var p: int = g.active
 	var vial := Card.new(g._uid(), "ampola_curativa", p)
 	g._place_relic(p, vial)
-	g._flush()
+	g.flush_events()
 	check(vial.durability_left() == 2, "Ampola Curativa começa com 2 de Durabilidade")
 	check(Card.from_dict(vial.to_dict(), "relics", p).durability_left() == 2, "Durabilidade intacta no to_dict/from_dict")
 	g.players[p]["momentum"] = 5
@@ -2330,12 +2330,12 @@ func _test_durability_rules() -> void:
 	check(cloak.durability_left() == 1 and carrier.armor == armor_before + 1, "equipamento só de atributos: 1 de Durabilidade decorativa e o bônus ativo")
 	var wear_effect := [{"trigger": "on_enter", "action": "lose_durability", "target": "enemy_unit", "amount": 1}]
 	g._run_effect_dicts(1, wear_effect, "on_enter", carrier.uid, 0, SPELL_SOURCE)
-	g._flush()
+	g.flush_events()
 	check(carrier.equipped_cards.is_empty() and carrier.armor == armor_before and g.find_unit(carrier.uid) != null,
 		"perde Durabilidade: o equipamento quebra, o bônus some e a unidade continua")
 	# a unit with no equipment is left alone
 	g._run_effect_dicts(1, wear_effect, "on_enter", carrier.uid, 0, SPELL_SOURCE)
-	g._flush()
+	g.flush_events()
 	check(g.find_unit(carrier.uid) != null, "perde Durabilidade: unidade sem equipamento não sofre nada")
 
 	# a free-standing artifact: loses points down to 0, then goes to the graveyard
@@ -2360,7 +2360,7 @@ func _test_durability_rules() -> void:
 	_quiet(urn_game)
 	var urn := Card.new(urn_game._uid(), "urna_cochichante", 0)
 	urn_game._place_relic(0, urn)
-	urn_game._flush()
+	urn_game.flush_events()
 	check(urn.durability_left() == 5 and int(CardDB.card("urna_cochichante")["activated"]["cost"]) == 0, "Urna: 5 de Durabilidade e Ao Ativar custa 0")
 
 	# Relicário de Cabeceira: cada fim de turno gasta 1 de Durabilidade no total (não 1 por efeito)
@@ -2369,7 +2369,7 @@ func _test_durability_rules() -> void:
 	var chapel := Card.new(relic_game._uid(), "relicario_de_cabeceira", 0, "relics")
 	relic_game.players[0]["relics"].append(chapel)
 	relic_game.end_turn(0)
-	relic_game._flush()
+	relic_game.flush_events()
 	check(chapel.durability_left() == 3, "Relicário: um fim de turno gasta apenas 1 de Durabilidade (%d)" % chapel.durability_left())
 
 	# Antena de Varal: gasta 1 por disparo mesmo sem causar dano
@@ -2379,7 +2379,7 @@ func _test_durability_rules() -> void:
 	antenna_game.players[0]["relics"].append(antenna)
 	antenna_game.players[0]["momentum"] = 0
 	antenna_game.end_turn(0)
-	antenna_game._flush()
+	antenna_game.flush_events()
 	check(antenna.durability_left() == 3, "Antena: disparou sem Momentum sobrando e mesmo assim gastou 1")
 
 	# every non-"local" artifact has Durability, and "local" ones have none
@@ -2405,11 +2405,11 @@ func _test_two_dawns_axe() -> void:
 	check(axe.durability_left() == 2 and int(CardDB.card("machado_duas_alvoradas")["max_copies"]) == 1,
 		"Machado: 2 de Durabilidade e no máximo 1 cópia por baralho")
 	_hit(g, bearer)
-	g._flush()
+	g.flush_events()
 	check(g.players[1]["leader_hp"] == 100 - 3 - 5, "Machado: o 1º ataque causa 3 ao Líder inimigo além do golpe de 1+4 (%d)" % g.players[1]["leader_hp"])
 	check(axe.durability_left() == 1 and bearer.first_equipment() == axe, "Machado: o 1º ataque gastou 1 de Durabilidade e ele segue equipado")
 	_hit(g, bearer)
-	g._flush()
+	g.flush_events()
 	check(g.players[1]["leader_hp"] == 100 - 2 * (3 + 5), "Machado: o último ataque ainda tem o +4 de Ataque (%d)" % g.players[1]["leader_hp"])
 	check(bearer.equipped_cards.is_empty() and bearer.atk == 1 and g.find_unit(bearer.uid) != null,
 		"Machado: depois do 2º ataque ele quebra e leva o +4 de Ataque embora")
@@ -2431,7 +2431,7 @@ func _test_artifact_subtypes() -> void:
 	g._place_relic(1, enemy_plain)
 	g._place_relic(1, enemy_local)
 	g._place_relic(0, own_local)
-	g._flush()
+	g.flush_events()
 	var destroy_any := [{"action": "destroy_artifact", "target": "enemy_artifact"}]
 	var destroy_local := [{"trigger": "on_play", "action": "destroy_artifact", "target": "enemy_artifact", "subtype": "local"}]
 	check(g.valid_targets(0, "enemy_artifact", 0, false, destroy_any).size() == 2, "enemy_artifact sem subtype: qualquer artefato inimigo")
@@ -2505,7 +2505,7 @@ func _test_room_banish() -> void:
 		_put(artifact_game, 0, "t_room_body")
 	var old_artifact := Card.new(artifact_game._uid(), "t_room_artifact", 0)
 	artifact_game._place_relic(0, old_artifact)
-	artifact_game._flush()
+	artifact_game.flush_events()
 	check(not artifact_game.has_free_slot(0), "artefato solto ocupa espaço do campo")
 	var artifact_uid := _give(artifact_game, 0, "t_room_artifact")
 	check(artifact_game.play_card(0, artifact_uid).is_empty(), "campo cheio: artefato solto sem banimento é recusado")
@@ -2571,9 +2571,9 @@ func _test_death_order() -> void:
 		var b := _put(g, 1, "vigia_do_farol_do_norte")
 		a.damage = 1000
 		b.damage = 1000
-		g._check_state()
+		g.check_state()
 		var order: Array = []
-		for e in g._flush():
+		for e in g.flush_events():
 			if e.get("type") == "death":
 				order.append(int(e["player"]))
 		check(order == [first, 1 - first], "mortes simultâneas: jogador da vez (%d) primeiro" % first)
@@ -2684,8 +2684,8 @@ func _test_many_secondary_domains() -> void:
 
 func _kill(g: GameState, c: Card) -> void:
 	c.damage = 1000
-	g._check_state()
-	g._flush()
+	g.check_state()
+	g.flush_events()
 
 func _count(g: GameState, p: int, card_id: String) -> int:
 	return g.players[p]["board"].filter(func(c: Card): return c.card_id == card_id).size()
@@ -2761,7 +2761,7 @@ func _test_obscura() -> void:
 	var spell := _give(g, 0, "colheita_de_almas")
 	g.players[0]["momentum"] = 10
 	g.play_card(0, spell, fodder.uid)
-	g._flush()
+	g.flush_events()
 	check(g.players[1]["leader_hp"] == foe - 4 and g.find_unit(fodder.uid) == null, "colheita: sacrifica e causa 4")
 	# Alexa Primordial: Ao Entrar heals every damaged ally fully
 	_tcard("t_sturdy", 1, 4, []) # the Ao Entrar now waits on the stack, so a 1-life unit with 1 damage would die before the heal
@@ -2781,7 +2781,7 @@ func _test_obscura() -> void:
 	check(not g.can_transform(0, tf.uid), "transformar exige 8 de Momentum")
 	g.players[0]["momentum"] = 8
 	g.transform(0, tf.uid)
-	g._flush()
+	g.flush_events()
 	check(tf.card_id == "alexa_neruvya_primordial" and tf.atk == 7 and g.has_kw(tf, "sobrepujanca") and g.stack.is_empty(), "alexa vira a Primordial sem usar a pilha")
 	check(tf_hurt.damage == 0 and g.players[0]["momentum"] == 0, "transformar paga 8 e dispara o Ao Entrar")
 	check(not g.can_transform(0, tf.uid), "a Primordial não transforma de novo")
@@ -2819,10 +2819,10 @@ func _test_obscura() -> void:
 	check(g.can_activate(0, yk.uid), "yuki pode ativar")
 	g.auto_pass[1] = false # keep the response window open
 	g.activate(0, yk.uid)
-	g._flush()
+	g.flush_events()
 	check(g.stack.size() == 1 and g.stack[0]["kind"] == "unit_ability" and g.priority == 1, "ao ativar vai para a pilha")
 	g.pass_priority(1)
-	g._flush()
+	g.flush_events()
 	g.auto_pass[1] = true
 	check(g.stack.is_empty() and g.atk_of(yk) == 4 and g.hp_left(yk) == 4 and g.players[0]["momentum"] == 1, "yuki ganha +2/+2 temporário")
 	check(not g.can_activate(0, yk.uid), "ao ativar da yuki é 1x por turno")
@@ -2846,7 +2846,7 @@ func _test_obscura() -> void:
 	var af2 := _give(g, 0, "afogar")
 	g.play_card(0, af2, af_own.uid)
 	g._resolve_stack()
-	g._flush()
+	g.flush_events()
 	check(g.find_unit(af_t.uid) == null and g.find_unit(af_own.uid) == null, "afogar destrói a unidade escolhida, inclusive a própria")
 	var af_ind := _put(g, 1, "jeff")
 	af_ind.keywords.append("indestrutivel")
@@ -2854,7 +2854,7 @@ func _test_obscura() -> void:
 	g.players[0]["momentum"] = 10
 	g.play_card(0, af3, af_ind.uid)
 	g._resolve_stack()
-	g._flush()
+	g.flush_events()
 	check(not g.find_unit(af_ind.uid) == null, "afogar não destrói Indestrutível")
 	_kill(g, af_ind)
 	# Equipment: an artifact attached under the unit; dies with it
@@ -2864,7 +2864,7 @@ func _test_obscura() -> void:
 	var atk0: int = holder.atk
 	g.play_card(0, eqid, holder.uid)
 	g._resolve_stack()
-	g._flush()
+	g.flush_events()
 	check(CardDB.is_equipment(CardDB.card("manoplas_incandescentes")) and CardDB.is_artifact(CardDB.card("manoplas_incandescentes")), "equipamento é artefato")
 	check(holder.first_equipment().card_id == "manoplas_incandescentes" and holder.atk == atk0 + 3, "equipamento anexado e buff aplicado")
 	# equipping an already equipped unit returns the old equipment to the hand (it does not go to the graveyard)
@@ -2874,7 +2874,7 @@ func _test_obscura() -> void:
 	var graveyard_before_swap: int = g.players[0]["graveyard"].size()
 	g.play_card(0, second_equipment_uid, holder.uid)
 	g._resolve_stack()
-	g._flush()
+	g.flush_events()
 	check(holder.first_equipment() != first_equipment and holder.first_equipment().uid == second_equipment_uid and holder.equipped_cards.size() == 1, "reequipar: a unidade passa a usar o novo equipamento")
 	check(g.players[0]["hand"].has(first_equipment) and first_equipment.zone == "hand", "reequipar: o equipamento anterior volta para a mão")
 	check(g.players[0]["graveyard"].size() == graveyard_before_swap, "reequipar: o equipamento anterior não vai ao cemitério")
@@ -2886,13 +2886,13 @@ func _test_obscura() -> void:
 	g.players[0]["momentum"] = 10
 	g.play_card(0, _give(g, 0, "pingente_das_ondas"), swap_unit.uid)
 	g._resolve_stack()
-	g._flush()
+	g.flush_events()
 	check(swap_unit.hp == swap_base_hp + 1 and swap_unit.keywords.has("roubo_de_vida"), "equipamento dá +1 Vida e Roubo de Vida")
 	swap_unit.damage = swap_unit.hp - 1 # one Vida left
 	g.players[0]["momentum"] = 10
 	g.play_card(0, _give(g, 0, "manoplas_incandescentes"), swap_unit.uid)
 	g._resolve_stack()
-	g._flush()
+	g.flush_events()
 	check(g.find_unit(swap_unit.uid) != null, "perder a Vida do equipamento não mata a unidade")
 	check(swap_unit.hp_left() == 1, "a unidade fica com 1 de Vida quando perder o equipamento a mataria")
 	check(swap_unit.hp == swap_base_hp and swap_unit.keywords == swap_base_keywords, "trocar o equipamento remove a Vida e o Roubo de Vida dele")
@@ -2909,10 +2909,10 @@ func _test_obscura() -> void:
 	g.players[0]["momentum"] = 10
 	g.play_card(0, jul, 0)
 	g._resolve_stack()
-	g._flush()
+	g.flush_events()
 	check(not g.find_unit(jeff.uid) == null and g.find_unit(mine.uid) == null, "julgamento destrói todas as unidades, exceto Indestrutível")
 	# damage is always 0 against Indestrutível and does not consume its shield
-	var dmg_dealt: int = g._deal_damage(jeff.uid, 50, null)
+	var dmg_dealt: int = g.deal_damage(jeff.uid, 50, null)
 	check(dmg_dealt == 0 and g.find_unit(jeff.uid).damage == 0 and g.find_unit(jeff.uid).shield, "dano contra Indestrutível é sempre 0")
 	_kill(g, jeff)
 	# Tributo ao Abismo: sacrifice -> mill 3 -> pick one of those 3 from the graveyard
@@ -2922,7 +2922,7 @@ func _test_obscura() -> void:
 	var ex_deck: int = g.players[0]["deck"].size()
 	var ex_hand: int = g.players[0]["hand"].size()
 	g.play_card(0, ex, ex_fodder.uid)
-	g._flush()
+	g.flush_events()
 	check(g.phase == "search" and g.pending_search.get("grave", false) and g.pending_search["cards"].size() == 3, "tributo oferece as 3 cartas moídas")
 	check(g.players[0]["deck"].size() == ex_deck - 3, "tributo moeu 3")
 	var ex_pick: Dictionary = g.pending_search["cards"][1]
@@ -2955,7 +2955,7 @@ func _test_incarnation_retire() -> void:
 		g.pass_priority(1)
 	var u: Card = g.players[0]["board"].back()
 	u.damage = 999
-	g._check_state()
+	g.check_state()
 	check(l["in_zone"] and not l.get("retired", false), "encarnação: morte com custo pagável volta ao Santuário")
 	g.players[0]["momentum"] = 10
 	l["casts"] = 10
@@ -2963,7 +2963,7 @@ func _test_incarnation_retire() -> void:
 	g._summon(0, Card.new(g._uid(), l["card_id"], 0), true, 0)
 	g.players[0]["board"].back().damage = 999
 	var deck_n: int = g.players[0]["deck"].size()
-	g._check_state()
+	g.check_state()
 	var bottom: Card = g.players[0]["deck"][0]
 	check(l["retired"] and not l["in_zone"] and not g.can_cast_incarnation(0), "encarnação: custo acima de 10 aposenta")
 	check(g.players[0]["deck"].size() == deck_n + 1 and bottom.card_id == l["card_id"], "encarnação: vai para o fundo do deck")
@@ -3016,7 +3016,7 @@ func _test_incarnation_retire() -> void:
 	check(incarnation_unit.zone == "board" and incarnation_unit.incarnation and int(bounce_state["casts"]) == 1, "encarnação jogada da mão: custo normal, sem contar como nova conjuração")
 	check(bounce_game.incarnation_cost(0) == cost_with_tax, "encarnação jogada da mão: a taxa do Santuário não muda")
 	incarnation_unit.damage = 999
-	bounce_game._check_state()
+	bounce_game.check_state()
 	check(bounce_state["in_zone"] and bounce_game.players[0]["graveyard"].is_empty(), "encarnação: morrer depois de voltar da mão leva ao Santuário")
 	# discarded or banished from the hand, it also goes to the Santuário instead of the graveyard / banished zone
 	for destination in ["graveyard", "banished"]:
@@ -3950,11 +3950,11 @@ func _test_obscura_rules() -> void:
 	_kill(sg, rat3)
 	check(_count(sg, 0, "esqueleto_guerreiro") == n1 + 2, "cientista invoca um esqueleto por aliado que morre (sem limite por turno)")
 	# a death caused by combat damage triggers it too (no restriction)
-	sg._combat_damage = true
+	sg.combat_damage = true
 	var rat4 := _put(sg, 0, "rato_do_ossuario")
 	var n3: int = _count(sg, 0, "esqueleto_guerreiro")
 	_kill(sg, rat4)
-	sg._combat_damage = false
+	sg.combat_damage = false
 	check(_count(sg, 0, "esqueleto_guerreiro") == n3 + 1, "cientista também invoca quando o aliado morre em combate")
 	# an enemy ally dying does not count
 	var g2 := _obscura_game()
@@ -3983,14 +3983,14 @@ func _test_obscura_rules() -> void:
 		var dead := Card.new(v._uid(), "esqueleto_guerreiro", 0, "board")
 		v.players[0]["graveyard"].append(dead)
 		v._move(dead, "graveyard")
-	v._check_state() # the listeners were queued by the moves; resolve them
+	v.check_state() # the listeners were queued by the moves; resolve them
 	check(v.cost_of(0, vag, vag_hand) == 7, "vagante na mão custa 1 a menos por carta sua que foi ao cemitério")
 	check(v.cost_of(0, vag, vag_deck) == 7, "vagante no deck também baixa o custo")
 	for i in 20:
 		var dead2 := Card.new(v._uid(), "cova_rasa", 0, "board")
 		v.players[0]["graveyard"].append(dead2)
 		v._move(dead2, "graveyard")
-	v._check_state()
+	v.check_state()
 	check(v.cost_of(0, vag, vag_hand) == 0, "custo nunca fica abaixo de 0")
 	var enemy_dead := Card.new(v._uid(), "esqueleto_guerreiro", 1, "board")
 	v.players[1]["graveyard"].append(enemy_dead)
@@ -4010,7 +4010,7 @@ func _test_obscura_rules() -> void:
 	var sc := _give(fresh, 0, "colheita_de_almas")
 	fresh.players[0]["momentum"] = 10
 	fresh.play_card(0, sc, vc2.uid)
-	fresh._flush()
+	fresh.flush_events()
 	check(fresh.find_unit(vc2.uid) == null, "sacrifício ainda mata a vagante")
 
 	# Necrófago additional cost: sacrifice an ally you control (the AI pays with its weakest)
@@ -4025,7 +4025,7 @@ func _test_obscura_rules() -> void:
 	check(n.card_spec(CardDB.card("necrofago_espectral")) == "ally_unit", "necrófago pede um alvo aliado")
 	check(n.play_card(0, nid, 0).is_empty(), "necrófago sem alvo de sacrifício não entra")
 	n.play_card(0, nid, weak.uid)
-	n._flush()
+	n.flush_events()
 	check(n.find_unit(weak.uid) == null and _count(n, 0, "necrofago_espectral") == 1 and not n.find_unit(strong.uid) == null, "necrófago sacrificou o escolhido e entrou")
 	check(n.players[0]["graveyard"].any(func(e): return e["card_id"] == "rato_do_ossuario"), "o sacrificado foi ao cemitério")
 	# full board: the sacrifice itself frees the slot
@@ -4037,7 +4037,7 @@ func _test_obscura_rules() -> void:
 	check(fb.can_play(0, fid), "com o campo cheio o sacrifício libera a vaga")
 	var ai_pick := SimpleAI._pick_sacrifice(fb, 0)
 	fb.play_card(0, fid, ai_pick)
-	fb._flush()
+	fb.flush_events()
 	check(fb.players[0]["board"].size() == GameState.BOARD_LIMIT and _count(fb, 0, "necrofago_espectral") == 1, "campo cheio: troca o sacrificado pelo necrófago")
 
 ## Armadura reduces every damage instance, stacks when given again, and the temporary part ends at the owner's next turn.
@@ -4048,11 +4048,11 @@ func _test_armor() -> void:
 	armor_effect.apply(EffectContext.new(g, 0, ""), wall.uid)
 	armor_effect.apply(EffectContext.new(g, 0, ""), wall.uid)
 	check(wall.armor_total() == 6, "Armadura soma: 2 x (1 fixa + 2 temporária) = 6 (%d)" % wall.armor_total())
-	check(g._deal_damage(wall.uid, 5, null) == 1 and wall.damage == 1, "dano menor ou igual à Armadura passa mesmo assim, como 1")
+	check(g.deal_damage(wall.uid, 5, null) == 1 and wall.damage == 1, "dano menor ou igual à Armadura passa mesmo assim, como 1")
 	# the stored sum is 6 but the default cap of 5 applies, so a hit of 8 passes 8 - 5 = 3
-	check(g._deal_damage(wall.uid, 8, null) == 3 and wall.damage == 4, "dano acima da Armadura passa só o excedente (já com o teto de 5)")
+	check(g.deal_damage(wall.uid, 8, null) == 3 and wall.damage == 4, "dano acima da Armadura passa só o excedente (já com o teto de 5)")
 	wall.shield = true
-	g._deal_damage(wall.uid, 4, null)
+	g.deal_damage(wall.uid, 4, null)
 	check(not wall.shield, "a Armadura nunca zera o dano: o golpe de 1 gasta o Escudo")
 	g._start_turn(0, false)
 	check(wall.armor_total() == 2, "a parte temporária some no início do próximo turno do dono (%d)" % wall.armor_total())
@@ -4064,8 +4064,8 @@ func _test_tharox_armor_growth() -> void:
 	check(g.armor_of(tharox) == 0, "Tharox começa sem Armadura")
 	# each row: [damage of the hit, expected Armadura afterwards]
 	for step in [[1, 1], [1, 2], [1, 2], [2, 3], [2, 3], [3, 4]]:
-		g._deal_damage(tharox.uid, step[0], null)
-		g._check_state()
+		g.deal_damage(tharox.uid, step[0], null)
+		g.check_state()
 		check(g.armor_of(tharox) == step[1], "Tharox: golpe de %d deixa a Armadura em %d (%d)" % [step[0], step[1], g.armor_of(tharox)])
 
 ## Armadura has a default maximum of 5 (the final total, own + auras + neighbours); a card that "ignores_armor_cap" (Tharox) goes past it.
@@ -4117,8 +4117,8 @@ func _test_vorn_staged_damage() -> void:
 	var other_vorn := _put(g, 0, "vorn_omega")
 	# each row: [expected Ataque, expected Armadura] after one more hit; a turn passes between hits
 	for step in [[5, 0], [10, 0], [10, 3], [10, 3], [10, 3]]:
-		g._deal_damage(vorn.uid, 1, null)
-		g._check_state()
+		g.deal_damage(vorn.uid, 1, null)
+		g.check_state()
 		check(vorn.atk == step[0] and g.armor_of(vorn) == step[1], "Vørn Ω: Ataque %d e Armadura %d após o golpe (%d/%d)" % [step[0], step[1], vorn.atk, g.armor_of(vorn)])
 		g.turn += 1
 	check(other_vorn.atk == 3, "a contagem é por instância: o outro Vørn Ω continua no 1º degrau")
@@ -4135,16 +4135,16 @@ func _test_silence_keeps_ally_auras() -> void:
 	_quiet(g)
 	var source := _put(g, 0, "t_sil_aura_source")
 	var angel := _put(g, 0, "t_sil_aura_angel")
-	g._refresh_scaling()
+	g.refresh_scaling()
 	check(g.atk_of(angel) == 3 and g.hp_left(angel) == 5 and g.armor_of(angel) == 1, "aura: o Anjo começa com +1/+1 e Armadura 1")
 	angel.damage = 4 # 1 Vida left, counting the aura
 	g._apply_effect(0, {"action": "silence", "target": "enemy_unit"}, angel.uid)
-	g._check_state()
+	g.check_state()
 	check(angel.is_silenced(), "aura: o Anjo foi silenciado")
 	check(g.atk_of(angel) == 3 and g.armor_of(angel) == 1, "aura: silenciar o buffado NÃO tira o bônus da Constante aliada (%d, arm %d)" % [g.atk_of(angel), g.armor_of(angel)])
 	check(g.hp_left(angel) == 1, "aura: o Silêncio não cura nem mata o buffado (sobra %d)" % g.hp_left(angel))
 	g._apply_effect(0, {"action": "silence", "target": "enemy_unit"}, source.uid)
-	g._check_state()
+	g.check_state()
 	check(g.atk_of(angel) == 2 and g.armor_of(angel) == 0, "aura: silenciar quem carrega a Constante desliga o bônus (%d, arm %d)" % [g.atk_of(angel), g.armor_of(angel)])
 	check(g.find_unit(angel.uid) != null and g.hp_left(angel) == 1, "aura: perder a aura (fonte silenciada) nunca mata o aliado ferido, sobra 1 Vida (%d)" % g.hp_left(angel))
 
@@ -4153,14 +4153,14 @@ func _test_silence_keeps_ally_auras() -> void:
 	_quiet(g)
 	source = _put(g, 0, "t_sil_aura_source")
 	angel = _put(g, 0, "t_sil_aura_angel")
-	g._refresh_scaling()
+	g.refresh_scaling()
 	angel.damage = 4
 	source.damage = source.hp
-	g._check_state()
+	g.check_state()
 	check(g.find_unit(source.uid) == null, "aura: a fonte morreu")
 	check(g.find_unit(angel.uid) != null and g.hp_left(angel) == 1, "aura: a fonte morrer também não mata o aliado ferido (sobra %d)" % g.hp_left(angel))
 	angel.damage = angel.hp
-	g._check_state()
+	g.check_state()
 	check(g.find_unit(angel.uid) == null, "aura: dano de verdade ainda mata")
 
 	# adjacent_armor: the Armadura comes from the neighbour's Constante
@@ -4183,7 +4183,7 @@ func _test_adjacent_armor() -> void:
 	var far := _put(g, 0, "escudeiro_de_cascalho")
 	check(g.armor_of(left) == 1 and g.armor_of(guard) == 1 and g.armor_of(right) == 1, "Armadura adjacente vem dos vizinhos, não da própria unidade")
 	check(g.armor_of(far) == 0, "unidade longe do Bastionário não recebe")
-	check(g._deal_damage(right.uid, 1, null) == 1, "dano 1 passa mesmo com a Armadura adjacente (mínimo 1)")
+	check(g.deal_damage(right.uid, 1, null) == 1, "dano 1 passa mesmo com a Armadura adjacente (mínimo 1)")
 	# Contador Exagerado doubles the adjacent Armadura (a text Constante), and never stacks
 	_put(g, 0, "contador_exagerado")
 	check(g.armor_of(right) == 2 and g.armor_of(left) == 2, "Contador: a Armadura adjacente conta em dobro")
@@ -4296,11 +4296,11 @@ func _test_sven() -> void:
 	g = _new_game()
 	_quiet(g)
 	var sven := _put(g, 0, "sven")
-	g._refresh_scaling()
+	g.refresh_scaling()
 	check(g.atk_of(sven) == 2, "Sven: sozinho continua 2/3")
 	_put(g, 0, "t_sven_dn")
 	_put(g, 0, "t_sven_dn_cheap")
-	g._refresh_scaling()
+	g.refresh_scaling()
 	check(g.atk_of(sven) == 4 and sven.hp_total() == 5, "Sven: +1/+1 por outro Dragão Negro que você controla (%d/%d)" % [g.atk_of(sven), sven.hp_total()])
 
 func _test_vincent_e_vesper() -> void:
@@ -5123,7 +5123,7 @@ func _test_banish_what_it_kills() -> void:
 	leader_hp = g.players[0]["leader_hp"]
 	var destroyer := _put(g, 0, "t_exiler_destroyer")
 	g._run_effect_dicts(0, CardDB.card("t_exiler_destroyer")["effects"], "on_enter", victim.uid, destroyer.uid)
-	g._check_state()
+	g.check_state()
 	check(_zone_has(g, 1, "banished", "t_dies_with_sting") and not _zone_has(g, 1, "graveyard", "t_dies_with_sting"), "banish_what_it_kills: efeito de destruição da unidade também bane")
 	check(g.players[0]["leader_hp"] == leader_hp, "banish_what_it_kills: destruição por efeito banida não dispara Ao Morrer")
 
@@ -5243,12 +5243,12 @@ func _test_leader_poison() -> void:
 	# the Leader's markers hurt it at the start of its controller's turn (2 per marker) and are consumed, like a unit's
 	var leader_hp_before: int = g.players[1]["leader_hp"]
 	g.end_turn(g.active)
-	g._flush()
+	g.flush_events()
 	check(g.players[1]["leader_hp"] == leader_hp_before - 2, "Veneno no Líder: no início do turno dele, 2 de dano por marcador")
 	check(g.leader_dot_markers(1, "veneno") == 0, "Veneno no Líder: os marcadores são consumidos depois de causar dano")
 	g.end_turn(g.active)
 	g.end_turn(g.active)
-	g._flush()
+	g.flush_events()
 	check(g.players[1]["leader_hp"] == leader_hp_before - 2, "Veneno no Líder: sem marcadores, o turno seguinte não causa dano adicional")
 
 	# Veneno on a Leader: a pile of 3 hurts for 6 and the whole pile wears off
@@ -5257,11 +5257,11 @@ func _test_leader_poison() -> void:
 	g.add_leader_dot_markers(1, "veneno", 3)
 	leader_hp_before = g.players[1]["leader_hp"]
 	g.end_turn(g.active)
-	g._flush()
+	g.flush_events()
 	check(g.players[1]["leader_hp"] == leader_hp_before - 6 and g.leader_dot_markers(1, "veneno") == 0, "Veneno no Líder: 3 marcadores ferem 6 e todos somem")
 	g.end_turn(g.active)
 	g.end_turn(g.active)
-	g._flush()
+	g.flush_events()
 	check(g.players[1]["leader_hp"] == leader_hp_before - 6 and g.leader_dot_markers(1, "veneno") == 0, "Veneno no Líder: no turno seguinte não sobra nada para ferir")
 
 	# Queimadura on a Leader goes away in full too
@@ -5269,7 +5269,7 @@ func _test_leader_poison() -> void:
 	_quiet(g)
 	g.add_leader_dot_markers(1, "queimadura", 3)
 	g.end_turn(g.active)
-	g._flush()
+	g.flush_events()
 	check(g.leader_dot_markers(1, "queimadura") == 0, "Queimadura no Líder: consumida inteira")
 
 	# Tóxico X on a Leader: only a card with toxico_hits_leader leaves X markers, and X is its level
@@ -5293,7 +5293,7 @@ func _test_leader_poison() -> void:
 	# the engine never kills by markers alone: 12+ markers are harmless until a card effect asks
 	add_marker = EffectRegistry.parse_list([{"trigger": "on_play", "action": "add_dot", "target": "enemy_leader", "dot": "veneno", "amount": 9}])[0]
 	add_marker.apply(EffectContext.new(g, 0, ""), GameState.LEADER_UID[1])
-	g._check_leaders()
+	g.check_leaders()
 	check(g.leader_dot_markers(1, "veneno") == 12 and g.phase != "over", "Veneno no Líder: 12 marcadores sozinhos não matam (não é regra do motor)")
 
 	var execution: Effect = EffectRegistry.parse_list([{"trigger": "on_play", "action": "kill_leader", "target": "enemy_leader", "requires_markers": {"dot": "veneno", "amount": 12}}])[0]
@@ -5301,10 +5301,10 @@ func _test_leader_poison() -> void:
 	_quiet(short_game)
 	short_game.add_leader_dot_markers(1, "veneno", 11)
 	execution.apply(EffectContext.new(short_game, 0, ""), GameState.LEADER_UID[1])
-	short_game._check_leaders()
+	short_game.check_leaders()
 	check(short_game.phase != "over", "kill_leader: com 11 marcadores nada acontece")
 	execution.apply(EffectContext.new(g, 0, ""), GameState.LEADER_UID[1])
-	g._check_leaders()
+	g.check_leaders()
 	check(g.players[1]["leader_hp"] <= 0 and g.phase == "over" and g.winner == 0, "kill_leader: com 12 marcadores o Líder morre na hora")
 
 	# banish only if the unit holds enough markers
@@ -5451,7 +5451,7 @@ func _test_veneno_lethal() -> void:
 ## Ends the active player's turn and settles everything that starts the next one.
 func _next_turn(g: GameState) -> void:
 	g.end_turn(g.active)
-	g._flush()
+	g.flush_events()
 
 ## Hikari's Decoy: a 0/2 inert token that takes the blow in her place (when challenged) or the counter-blow
 ## (when she challenges, but only if she would have suffered it).
@@ -5523,7 +5523,7 @@ func _test_dot_immunity() -> void:
 	execution_game.players[0]["momentum"] = 6
 	execution_game.add_leader_dot_markers(1, "veneno", 5)
 	execution_game.activate(0, executioner.uid)
-	execution_game._flush()
+	execution_game.flush_events()
 	check(execution_game.leader_dot_markers(1, "veneno") == 6 and execution_game.phase != "over", "Viprax: Ao Ativar com 5 marcadores coloca o 6º e o Líder sobrevive")
 	executioner.activated_turn = -1
 	var execution_events: Array = execution_game.activate(0, executioner.uid)
@@ -5720,12 +5720,12 @@ func _test_layla_deck() -> void:
 	check(g.atk_of(veyr_card) == 7, "Layla Veyr: o Atordoamento do próprio Ao Entrar dá +2 de Ataque (5 + 2)")
 	veyr_card.exhausted = true
 	g._apply_effect(0, {"action": "stun", "target": "enemy_unit"}, second_victim.uid)
-	g._check_state() # the stun was applied outside a play, so its triggers still wait in the queue
+	g.check_state() # the stun was applied outside a play, so its triggers still wait in the queue
 	_resolve_stack(g)
 	check(not veyr_card.exhausted and g.atk_of(veyr_card) == 9, "Layla Veyr: novo Atordoamento a desvira e dá mais +2 de Ataque")
 	veyr_card.exhausted = true
 	g._apply_effect(0, {"action": "stun", "target": "enemy_unit"}, third_victim.uid)
-	g._check_state() # the stun was applied outside a play, so its triggers still wait in the queue
+	g.check_state() # the stun was applied outside a play, so its triggers still wait in the queue
 	_resolve_stack(g)
 	check(veyr_card.exhausted and g.atk_of(veyr_card) == 9, "Layla Veyr: o Condicional dispara no máximo 2x por turno")
 
@@ -5737,7 +5737,7 @@ func _test_layla_deck() -> void:
 	_put(g, 0, "jack_veyr")
 	for jack_victim in jack_victims:
 		g._apply_effect(0, {"action": "stun", "target": "enemy_unit"}, jack_victim.uid)
-		g._check_state() # the stun was applied outside a play, so its triggers still wait in the queue
+		g.check_state() # the stun was applied outside a play, so its triggers still wait in the queue
 		_resolve_stack(g)
 	check(jack_victims[0].damage == 2 and jack_victims[1].damage == 2, "Jack Veyr: a unidade que ficou Atordoada sofre 2 de dano")
 	check(jack_victims[2].damage == 0, "Jack Veyr: só reage 2x por turno (a terceira Atordoada não sofre dano)")
@@ -5897,20 +5897,20 @@ func _test_drex_deck() -> void:
 	g.players[g.active]["leader_hp"] = 50
 	g.add_dot_markers(victim, "sangramento", 2)
 	g.resolve_dot(victim, "sangramento")
-	g._check_state()
+	g.check_state()
 	check(vampire.atk == 2 and vampire.hp == 5 and vampire.armor == 0, "Drex fase 1: o Sangramento causando dano a uma unidade inimiga dá só +1 de Vida permanente (sem Ataque nem Armadura)")
 	check(g.players[g.active]["leader_hp"] == 53, "Drex: o Líder recupera X+1 de Vida (2+1) por inimigo atingido")
 	g.players[enemy]["leader_max"] = 100
 	g.players[enemy]["leader_hp"] = 50
 	g.add_leader_dot_markers(enemy, "sangramento", 2)
 	g._resolve_leader_dot(enemy, "sangramento")
-	g._check_state()
+	g.check_state()
 	check(vampire.hp == 6 and vampire.armor == 0 and g.players[g.active]["leader_hp"] == 56, "Drex fase 1: o Sangramento causando dano ao Líder inimigo também dá +1 de Vida e cura X+1")
 	g.turn += 2 # new turn: the 2 uses above are spent
 	g.grow_shared_x(g.active, "drex")
 	g.add_dot_markers(victim, "sangramento", 2)
 	g.resolve_dot(victim, "sangramento")
-	g._check_state()
+	g.check_state()
 	check(g.players[g.active]["leader_hp"] == 56 + 4, "Drex: com o X em 3 o Líder recupera 4 por inimigo atingido")
 	check(vampire.hp == 7 and vampire.armor == 0 and vampire.damage == 0, "Drex fase 1: não cura a si mesmo, só ganha +1 de Vida")
 
@@ -5920,24 +5920,24 @@ func _test_drex_deck() -> void:
 	var leader_hp_before_heal: int = g.players[g.active]["leader_hp"]
 	healer.damage = 3
 	g.emit_unit_healed(healer, 1, "spell")
-	g._check_state()
+	g.check_state()
 	g._heal_leader(g.active, 1, "leader_ability")
 	g._heal_leader(g.active, 1, "artifact")
 	g._heal_leader(g.active, 1)
-	g._check_state()
+	g.check_state()
 	check(vampire.hp == hp_before_heal and vampire.armor == 0 and g.players[g.active]["leader_hp"] == leader_hp_before_heal + 3, "Drex: cura de feitiço, habilidade de Líder, artefato ou sem origem não dispara a Condicional")
 	leader_hp_before_heal = g.players[g.active]["leader_hp"]
 	g.emit_unit_healed(healer, 1, "unit")
-	g._check_state()
+	g.check_state()
 	check(vampire.hp == hp_before_heal + 1 and vampire.armor == 0 and g.players[g.active]["leader_hp"] == leader_hp_before_heal + 4, "Drex: cura de outra unidade aliada (em unidade) dá +1 de Vida e cura X+1 (3+1)")
 	leader_hp_before_heal = g.players[g.active]["leader_hp"]
 	g._heal_leader(g.active, 1, "unit")
-	g._check_state()
+	g.check_state()
 	check(vampire.hp == hp_before_heal + 2 and g.players[g.active]["leader_hp"] == leader_hp_before_heal + 1 + 4, "Drex: cura de outra unidade aliada (no Líder) também dispara a Condicional")
 	var hp_before_enemy_heal := vampire.hp
 	g.players[enemy]["leader_hp"] = 40
 	g._heal_leader(enemy, 1, "unit")
-	g._check_state()
+	g.check_state()
 	check(vampire.hp == hp_before_enemy_heal, "Drex: cura feita por unidade inimiga não dispara a Condicional")
 	# the lifesteal keyword is a unit healing: an ally's sets him off, his own does not
 	g.turn += 2
@@ -5948,13 +5948,13 @@ func _test_drex_deck() -> void:
 	var leader_hp_before_lifesteal: int = g.players[g.active]["leader_hp"]
 	var hp_before_lifesteal := vampire.hp
 	var lifesteal_victim := _put(g, enemy, "t_lifesteal_victim")
-	g._deal_damage(lifesteal_victim.uid, 1, vampire)
-	g._check_state()
+	g.deal_damage(lifesteal_victim.uid, 1, vampire)
+	g.check_state()
 	check(vampire.hp == hp_before_lifesteal and g.players[g.active]["leader_hp"] == leader_hp_before_lifesteal + 1, "Drex: o próprio Roubo de Vida não dispara a Condicional (só cura 1)")
 	var ally_lifesteal := _put(g, g.active, "t_lifesteal_ally")
 	hp_before_lifesteal = vampire.hp
-	g._deal_damage(lifesteal_victim.uid, 1, ally_lifesteal)
-	g._check_state()
+	g.deal_damage(lifesteal_victim.uid, 1, ally_lifesteal)
+	g.check_state()
 	check(vampire.hp == hp_before_lifesteal + 1, "Drex: o Roubo de Vida de outra unidade aliada dispara a Condicional")
 
 	# phase 2 (base Vida 10 or more): +1 Armadura permanent INSTEAD of Vida, and he also heals himself X+1
@@ -5963,20 +5963,20 @@ func _test_drex_deck() -> void:
 	vampire.damage = 5
 	leader_hp_before_heal = g.players[g.active]["leader_hp"]
 	g.emit_unit_healed(healer, 1, "unit")
-	g._check_state()
+	g.check_state()
 	check(vampire.hp == 10 and vampire.armor == 1, "Drex fase 2: o gatilho dá +1 de Armadura permanente no lugar da Vida")
 	check(g.players[g.active]["leader_hp"] == leader_hp_before_heal + 4 and vampire.damage == 1, "Drex fase 2: o Líder recupera X+1 (4) e o próprio Drex também recupera X+1 (4)")
 	g.emit_unit_healed(healer, 1, "unit")
-	g._check_state()
+	g.check_state()
 	check(vampire.armor == 2 and vampire.damage == 0, "Drex fase 2: a cura do próprio Drex não o dispara de novo, e o 2º gatilho do turno dá mais 1 de Armadura")
 	leader_hp_before_heal = g.players[g.active]["leader_hp"]
 	g.emit_unit_healed(healer, 1, "unit")
-	g._check_state()
+	g.check_state()
 	check(vampire.armor == 2 and g.players[g.active]["leader_hp"] == leader_hp_before_heal, "Drex: a Condicional funciona no máximo 2 vezes por turno (buff e curas do mesmo gatilho gastam 1 uso só)")
 	g.turn += 2
 	for armor_trigger in 4:
 		g.emit_unit_healed(healer, 1, "unit")
-		g._check_state()
+		g.check_state()
 		if armor_trigger == 1:
 			g.turn += 2
 	check(g.armor_of(vampire) == 5, "Drex fase 2: a Armadura efetiva para no limite padrão de 5")
@@ -5990,16 +5990,16 @@ func _test_drex_deck() -> void:
 	g.players[g.active]["leader_hp"] = 500
 	vampire.damage = 9
 	g.emit_unit_healed(healer, 1, "unit")
-	g._check_state()
+	g.check_state()
 	check(g.players[g.active]["leader_hp"] == 508 and vampire.damage == 1, "Drex: o 1º gatilho cura X+1 inteiro (8) ao Líder, por estar abaixo do limite de 10, e 8 a si mesmo")
 	vampire.damage = 9
 	g.emit_unit_healed(healer, 1, "unit")
-	g._check_state()
+	g.check_state()
 	check(g.players[g.active]["leader_hp"] == 510 and vampire.capped_heal_total == 10, "Drex: o 2º gatilho cura só os 2 que restam do limite de 10 por turno no Líder")
 	check(vampire.damage == 1, "Drex: o limite de 10 vale só para a cura do Líder, a cura de si mesmo (8) continua inteira")
 	g.turn += 2
 	g.emit_unit_healed(healer, 1, "unit")
-	g._check_state()
+	g.check_state()
 	check(g.players[g.active]["leader_hp"] == 518, "Drex: o limite de cura volta no turno seguinte")
 
 	# Coagulhão: Ao Entrar makes the Sangramento tick at once on every enemy without consuming it, its Leader heals by the full damage, Ao Morrer ticks again (also without consuming)
@@ -6014,7 +6014,7 @@ func _test_drex_deck() -> void:
 	g.players[g.active]["leader_max"] = 100
 	g.players[g.active]["leader_hp"] = 40
 	var blob := _put(g, g.active, "coagulhao")
-	g._check_state()
+	g.check_state()
 	check(first_victim.damage == 2 and second_victim.damage == 2, "Coagulhão: ao entrar (1 marcador = 2 de dano), o marcador de Sangramento de cada unidade inimiga faz efeito na hora")
 	check(g.players[enemy]["leader_hp"] == 48, "Coagulhão: ao entrar, o Líder inimigo também sangra na hora")
 	check(g.players[g.active]["leader_hp"] == 46, "Coagulhão: o Líder dele recupera o dano inteiro de cada tick (2 + 2 + 2)")
@@ -6023,7 +6023,7 @@ func _test_drex_deck() -> void:
 	g.add_leader_dot_markers(enemy, "sangramento", 3)
 	var leader_hp_before_death: int = g.players[g.active]["leader_hp"]
 	_kill(g, blob)
-	g._check_state()
+	g.check_state()
 	check(first_victim.damage == 10 and g.players[enemy]["leader_hp"] == 40, "Coagulhão: ao morrer, os 4 marcadores de cada inimigo causam o dano na hora (4 x 2)")
 	check(int(first_victim.dot_markers.get("sangramento", 0)) == 4 and g.leader_dot_markers(enemy, "sangramento") == 4, "Coagulhão: ao morrer, os marcadores também ficam")
 	check(g.players[g.active]["leader_hp"] == leader_hp_before_death, "Coagulhão: depois de morto não cura mais ninguém")
@@ -6034,7 +6034,7 @@ func _test_drex_deck() -> void:
 	enemy = g.opponent(g.active)
 	var lone_victim := _put(g, enemy, "t_target_dummy")
 	_put(g, g.active, "lorde_sanguessuga")
-	g._check_state()
+	g.check_state()
 	check(int(lone_victim.dot_markers.get("sangramento", 0)) == 3, "Lorde Sanguessuga: com uma só unidade inimiga, os 3 marcadores vão todos nela")
 	check(g.leader_dot_markers(enemy, "sangramento") == 0, "Lorde Sanguessuga: o Líder inimigo não recebe marcadores")
 	g = _new_game()
@@ -6043,13 +6043,13 @@ func _test_drex_deck() -> void:
 	var spread_a := _put(g, enemy, "t_target_dummy")
 	var spread_b := _put(g, enemy, "t_target_dummy")
 	_put(g, g.active, "lorde_sanguessuga")
-	g._check_state()
+	g.check_state()
 	var planted_total: int = int(spread_a.dot_markers.get("sangramento", 0)) + int(spread_b.dot_markers.get("sangramento", 0))
 	check(planted_total == 3, "Lorde Sanguessuga: com várias unidades inimigas, os 3 marcadores são sorteados entre elas (total 3)")
 	g = _new_game()
 	_quiet(g)
 	_put(g, g.active, "lorde_sanguessuga")
-	g._check_state()
+	g.check_state()
 	check(g.leader_dot_markers(g.opponent(g.active), "sangramento") == 0, "Lorde Sanguessuga: sem unidades inimigas, nada acontece")
 
 	# Drex Ao Ativar: costs a discard OR sacrificing another ally, spreads X Sangramento markers (X starts at 2) among enemy units AND the Leader, and X grows by 1 for every Drex
@@ -6085,8 +6085,8 @@ func _test_drex_deck() -> void:
 	check(g.shared_x_of(g.active, "drex") == 2, "Drex: o X começa em 2")
 	check(vampire_two.has_kw("escudo") and vampire_two.atk == 2 and vampire_two.hp == 4 and vampire_two.armor == 0, "Drex: 2/4 com Escudo e sem Armadura")
 	g.activate(g.active, vampire_two.uid, fodder.uid)
-	g._flush()
-	g._check_state()
+	g.flush_events()
+	g.check_state()
 	var spread_total := int(first_target.dot_markers.get("sangramento", 0)) + int(second_target.dot_markers.get("sangramento", 0)) + g.leader_dot_markers(enemy, "sangramento")
 	check(spread_total == 2, "Drex Ativar: distribui X (2) marcadores entre os inimigos, incluindo o Líder")
 	check(first_target.damage == 0 and second_target.damage == 0 and g.players[enemy]["leader_hp"] == g.players[enemy]["leader_max"], "Drex Ativar: não causa dano na hora")
@@ -6100,8 +6100,8 @@ func _test_drex_deck() -> void:
 	vampire_two.activated_turn = -1
 	var discarded_uid := _give(g, g.active, "t_drex_fodder")
 	g.activate(g.active, vampire_two.uid, discarded_uid)
-	g._flush()
-	g._check_state()
+	g.flush_events()
+	g.check_state()
 	check(not _hand_has(g, g.active, discarded_uid), "Drex Ativar: descartar uma carta da mão também paga o custo adicional")
 	check(g.shared_x_of(g.active, "drex") == 4, "Drex Ativar: o segundo Ativar leva o X a 4")
 	var spread_after_second := int(first_target.dot_markers.get("sangramento", 0)) + int(second_target.dot_markers.get("sangramento", 0)) + g.leader_dot_markers(enemy, "sangramento")
@@ -6115,7 +6115,7 @@ func _test_drex_deck() -> void:
 	var markers_before_invalid := int(first_target.dot_markers.get("sangramento", 0)) + int(second_target.dot_markers.get("sangramento", 0)) + g.leader_dot_markers(enemy, "sangramento")
 	g.activate(g.active, vampire_two.uid, vampire_two.uid)
 	g.activate(g.active, vampire_two.uid, first_target.uid)
-	g._flush()
+	g.flush_events()
 	check(g.players[g.active]["momentum"] == momentum_before_invalid and vampire_two.activated_turn != g.turn, "Drex Ativar: ele mesmo ou uma unidade inimiga não pagam o custo, nada é gasto")
 	check(int(first_target.dot_markers.get("sangramento", 0)) + int(second_target.dot_markers.get("sangramento", 0)) + g.leader_dot_markers(enemy, "sangramento") == markers_before_invalid, "Drex Ativar: pagador inválido não distribui marcadores")
 
@@ -6133,8 +6133,8 @@ func _test_drex_deck() -> void:
 	check(g.players[g.active]["momentum"] == window_momentum_before and vampire_two.activated_turn != g.turn and _hand_has(g, g.active, window_card_uid) and g.shared_x_of(g.active, "drex") == window_x_before, "Drex Ativar (janela): cancelar não gasta Momentum, carta nem X")
 	g.begin_activation_discard(g.active, vampire_two.uid)
 	g.choose_search(g.active, window_card_uid)
-	g._flush()
-	g._check_state()
+	g.flush_events()
+	g.check_state()
 	check(g.phase == window_phase_before and not _hand_has(g, g.active, window_card_uid), "Drex Ativar (janela): escolher a carta a descarta e volta ao jogo")
 	check(vampire_two.activated_turn == g.turn and g.players[g.active]["momentum"] == window_momentum_before - 1 and g.shared_x_of(g.active, "drex") == window_x_before + 1, "Drex Ativar (janela): escolher a carta paga o Momentum, gasta o 1x por turno e ativa")
 	# with an empty hand the discard window does not open
@@ -6156,8 +6156,8 @@ func _test_drex_deck() -> void:
 	g.players[g.active]["momentum"] = 3
 	vampire_three.activated_turn = -1
 	g.activate(g.active, vampire_three.uid, spare_fodder.uid)
-	g._flush()
-	g._check_state()
+	g.flush_events()
+	g.check_state()
 	check(g.leader_dot_markers(enemy, "sangramento") == 2, "Drex Ativar: sem unidades inimigas, os X marcadores vão todos no Líder inimigo")
 
 	# with no other unit and an empty hand there is nothing to pay with
@@ -6196,33 +6196,33 @@ func _test_venenosa_deck() -> void:
 	g.players[0]["leader_hp"] = 20
 	g.add_dot_markers(poisoned, "veneno", 2)
 	g.resolve_dot(poisoned, "veneno")
-	g._check_state()
+	g.check_state()
 	check(g.players[0]["leader_hp"] == 22 and vipranna.temp_hp_until_next_turn == 1 and vipranna.capped_heal_total == 2, "Tox Vipranna: 2 marcadores causam 4, curam 2 e dão +1 Vida temporária")
 	# The cap is per turn and per Vipranna; the trigger that would pass 10 heals only what is left.
 	var big_target := _put(g, 1, "t_target_dummy") # 6 markers hurt for 12, half is 6
 	g.players[0]["leader_hp"] = 20
 	g.add_dot_markers(big_target, "veneno", 6)
 	g.resolve_dot(big_target, "veneno")
-	g._check_state()
+	g.check_state()
 	check(g.players[0]["leader_hp"] == 26 and vipranna.temp_hp_until_next_turn == 2 and vipranna.capped_heal_total == 8, "Tox Vipranna: tick de 12 de dano cura 6 e acumula 8 no turno")
 	var odd_target := _put(g, 1, "t_target_dummy") # 9 markers hurt for 18, half is 9, but only 2 of the 10 are left
 	g.players[0]["leader_hp"] = 20
 	g.add_dot_markers(odd_target, "veneno", 9)
 	g.resolve_dot(odd_target, "veneno")
-	g._check_state()
+	g.check_state()
 	check(g.players[0]["leader_hp"] == 22 and vipranna.capped_heal_locked and vipranna.capped_heal_total == 10, "Tox Vipranna: a cura que passaria de 10 recupera só o que resta do limite e bloqueia as seguintes")
 	_tcard("t_small_tank", 1, 5, [])
 	var small_target := _put(g, 1, "t_small_tank") # 1 marker hurts for 2, half is 1 (below the minimum of 2)
 	g.players[0]["leader_hp"] = 20
 	g.add_dot_markers(small_target, "veneno", 1)
 	g.resolve_dot(small_target, "veneno")
-	g._check_state()
+	g.check_state()
 	check(g.players[0]["leader_hp"] == 20 and vipranna.temp_hp_until_next_turn == 3, "Tox Vipranna: depois de atingir 10 nenhum trigger futuro cura ou dá Vida temporária")
 	g.players[0]["leader_hp"] = 20
 	var own_poisoned := _put(g, 0, "t_target_dummy")
 	g.add_dot_markers(own_poisoned, "veneno", 2)
 	g.resolve_dot(own_poisoned, "veneno")
-	g._check_state()
+	g.check_state()
 	check(g.players[0]["leader_hp"] == 20, "Tox Vipranna: Veneno em unidade aliada não cura")
 	# the Leader ticks heal her owner too: 2 damage per marker, half rounded up, minimum 2
 	g = _new_game()
@@ -6232,20 +6232,20 @@ func _test_venenosa_deck() -> void:
 	g.players[0]["leader_hp"] = 20
 	g.add_leader_dot_markers(1, "veneno", 5)
 	g._resolve_leader_dot(1, "veneno")
-	g._check_state()
+	g.check_state()
 	check(g.players[0]["leader_hp"] == 25, "Tox Vipranna: tick de 10 de Veneno no Líder inimigo cura 5")
 	g.players[0]["leader_hp"] = 20
 	g.players[1]["leader_dots"].clear() # isolate the next tick
 	g.add_leader_dot_markers(1, "veneno", 1)
 	g._resolve_leader_dot(1, "veneno")
-	g._check_state()
+	g.check_state()
 	check(g.players[0]["leader_hp"] == 22, "Tox Vipranna: tick de 1 de Veneno no Líder inimigo cura o mínimo de 2")
 	g.players[0]["leader_hp"] = 20
 	g.add_leader_dot_markers(0, "veneno", 4)
 	g._resolve_leader_dot(0, "veneno")
 	check(g.players[0]["leader_hp"] == 12, "Tox Vipranna: Veneno no Líder dela causa 2 por marcador e não cura")
 	check(vipranna.temp_hp_until_next_turn == 2, "Tox Vipranna: cada trigger aceito acumula Vida temporária")
-	g._deal_damage(vipranna.uid, 1, null)
+	g.deal_damage(vipranna.uid, 1, null)
 	check(vipranna.hp_left() == 6, "Tox Vipranna: a Vida temporária absorve dano antes de expirar")
 	g._start_turn(vipranna.owner, false)
 	check(vipranna.temp_hp_until_next_turn == 0 and vipranna.damage == 0, "Tox Vipranna: a Vida temporária dura até o início do próximo turno dela")
@@ -6253,7 +6253,7 @@ func _test_venenosa_deck() -> void:
 	g.players[0]["leader_hp"] = 20
 	g.add_dot_markers(reset_target, "veneno", 1)
 	g.resolve_dot(reset_target, "veneno")
-	g._check_state()
+	g.check_state()
 	check(g.players[0]["leader_hp"] == 22 and vipranna.capped_heal_total == 2 and not vipranna.capped_heal_locked, "Tox Vipranna: o limite de 10 reinicia no turno seguinte")
 
 	# Julian: played from the hand, his Ao Entrar asks for two picks after he enters: who takes the 2 damage, then who gets the Veneno
@@ -6269,7 +6269,7 @@ func _test_venenosa_deck() -> void:
 	check(g.phase == "enter_target" and int(g.pending_enter.get("first", 0)) == julian_hurt.uid, "Julian: depois do primeiro alvo pede o segundo (Veneno)")
 	g.choose_enter_target(0, julian_poisoned.uid)
 	g.stack_system().settle()
-	g._flush()
+	g.flush_events()
 	check(julian_hurt.damage == 2 and int(julian_hurt.dot_markers.get("veneno", 0)) == 0, "Julian: o primeiro alvo toma 2 de dano e nenhum Veneno")
 	check(julian_poisoned.damage == 0 and int(julian_poisoned.dot_markers.get("veneno", 0)) == 1, "Julian: o segundo alvo toma 1 Veneno e nenhum dano")
 	# the same unit may take both
@@ -6282,7 +6282,7 @@ func _test_venenosa_deck() -> void:
 	g.choose_enter_target(0, julian_both.uid)
 	g.choose_enter_target(0, julian_both.uid)
 	g.stack_system().settle()
-	g._flush()
+	g.flush_events()
 	check(julian_both.damage == 2 and int(julian_both.dot_markers.get("veneno", 0)) == 1, "Julian: pode dar dano e Veneno na mesma unidade")
 	# declining the second pick keeps the damage and drops only the Veneno
 	g = _new_game()
@@ -6294,7 +6294,7 @@ func _test_venenosa_deck() -> void:
 	g.choose_enter_target(0, julian_half.uid)
 	g.choose_enter_target(0, 0)
 	g.stack_system().settle()
-	g._flush()
+	g.flush_events()
 	check(g.phase == "main" and julian_half.damage == 2 and int(julian_half.dot_markers.get("veneno", 0)) == 0, "Julian: pular o segundo alvo mantém o dano e tira só o Veneno")
 	# no unit may ask for a second pick when played: its picks are asked after it enters
 	for unit_id in CardDB.data()["cards"]:
@@ -6585,7 +6585,7 @@ func _test_persistent_damage() -> void:
 	var g := _new_game()
 	_quiet(g)
 	var unit := _put(g, 0, "t_pd")
-	g._deal_damage(unit.uid, 3, null)
+	g.deal_damage(unit.uid, 3, null)
 	g.end_turn(0)
 	check(unit.damage == 3, "o dano fica marcado entre os turnos")
 
@@ -6594,11 +6594,11 @@ func _test_persistent_damage() -> void:
 	_quiet(g)
 	var soaker := _put(g, 0, "t_pd")
 	g._apply_effect(0, {"action": "buff", "target": "self", "hp": 3, "temp": true}, soaker.uid)
-	g._deal_damage(soaker.uid, 2, null)
+	g.deal_damage(soaker.uid, 2, null)
 	var bigger := _put(g, 0, "t_pd")
 	g._apply_effect(0, {"action": "buff", "target": "self", "hp": 3, "temp": true}, bigger.uid)
-	g._deal_damage(bigger.uid, 7, null)
-	g._check_state()
+	g.deal_damage(bigger.uid, 7, null)
+	g.check_state()
 	check(not g.find_unit(bigger.uid) == null, "com Vida temporária, 7 de dano não mata uma 1/5+3")
 	g.end_turn(0)
 	check(soaker.damage == 0, "vida temporária absorveu o dano todo")
@@ -6609,7 +6609,7 @@ func _test_persistent_damage() -> void:
 	_quiet(g)
 	var coral := _put(g, 1, "sentinela_coral")
 	check(g.has_kw(coral, "regeneracao"), "sentinela de coral tem regeneração")
-	g._deal_damage(coral.uid, 2, null)
+	g.deal_damage(coral.uid, 2, null)
 	check(coral.damage == 2, "regeneração não cura no meio do turno")
 	g.end_turn(0)
 	check(coral.damage == 0, "regeneração cura no início do próximo turno (até o do oponente)")
@@ -7658,7 +7658,7 @@ func _test_drake_power() -> void:
 
 	# Drake's Constante: Rapidez 2+ gives Ataque Duplo, himself included (Rapidez 2)
 	var drake := _put(g, p, "drake")
-	g._check_state() # after every action the real game settles the Constantes
+	g.check_state() # after every action the real game settles the Constantes
 	check(g.has_kw(fast_other, "ataque_duplo") and g.has_kw(fast_dn, "ataque_duplo"), "Drake: unidades aliadas com Rapidez 2 têm Ataque Duplo")
 	check(not g.has_kw(plain_dn, "ataque_duplo") and not g.has_kw(plain_other, "ataque_duplo"), "Drake: Rapidez 1 ou nenhuma não basta")
 	check(g.has_kw(drake, "ataque_duplo") and g.attacks_allowed(drake) == 2, "Drake: ele mesmo (Rapidez 2) tem Ataque Duplo")
@@ -7720,7 +7720,7 @@ func _test_magni() -> void:
 	var foe: Card = g.players[1 - p]["board"][0]
 	var ally: Card = g.players[p]["board"][0]
 	var magni := _put(g, p, "magni")
-	g._check_state()
+	g.check_state()
 	check(g.atk_of(foe) == 3 and g.atk_of(ally) == 2, "Magni: unidades inimigas ganham +1 Ataque, as aliadas não (%d / %d)" % [g.atk_of(foe), g.atk_of(ally)])
 	check(g.atk_of(magni) == 8, "Magni: a própria aura não o alcança (%d)" % g.atk_of(magni))
 	var sources: Array = g.constant_sources_of(foe)
@@ -7753,7 +7753,7 @@ func _test_magni() -> void:
 
 	# the Constante disappears with him
 	g.players[p]["board"].erase(magni)
-	g._check_state()
+	g.check_state()
 	check(g.atk_of(foe) == 2, "Magni: ao sair do campo as unidades inimigas voltam ao Ataque normal (%d)" % g.atk_of(foe))
 
 ## Mali Magarc (desconto persistente em feitiços, reação ao feitiço inimigo, eco na forma Primordial) e a Constante
@@ -8286,7 +8286,7 @@ func _test_natureza_canil() -> void:
 	var fireball_cost: int = g.cost_of(foe_player, fireball.data(), fireball)
 	var skeleton_cost: int = g.cost_of(foe_player, skeleton.data(), skeleton)
 	g._summon(p, Card.new(g._uid(), "rex_farejador", p), false, 0)
-	g._flush()
+	g.flush_events()
 	check(g.phase == "search" and g.pending_search.get("hand_bottom", false), "Rex Farejador: Ao Entrar abre a mão do oponente")
 	var rex_offered: Array = g.pending_search["cards"]
 	check(rex_offered.size() == 1 and int(rex_offered[0]["uid"]) == fireball.uid, "Rex Farejador: só o feitiço é oferecido, a unidade não (%d cartas)" % rex_offered.size())
@@ -8368,7 +8368,7 @@ func _test_wendell() -> void:
 	g.players[p]["hand"] = [kept, sent]
 	var deck_before: int = g.players[p]["deck"].size()
 	g._summon(p, Card.new(g._uid(), "wendell_comportao", p), false, 0)
-	g._flush()
+	g.flush_events()
 	check(g.phase == "search" and g.pending_search.get("own_hand_bottom", false), "Wendell: Ao Entrar abre a escolha na própria mão")
 	check(g.pending_search["cards"].size() == 2, "Wendell: as duas cartas da mão são oferecidas")
 	g.choose_search(p, sent.uid)
@@ -8385,7 +8385,7 @@ func _test_wendell() -> void:
 	g.players[p]["hand"] = [only]
 	var deck_declined: int = g.players[p]["deck"].size()
 	g._summon(p, Card.new(g._uid(), "wendell_comportao", p), false, 0)
-	g._flush()
+	g.flush_events()
 	g.choose_search(p, 0)
 	check(g.players[p]["hand"] == [only] and g.players[p]["deck"].size() == deck_declined, "Wendell: recusar não move nem compra carta")
 
@@ -8396,7 +8396,7 @@ func _test_wendell() -> void:
 	g.players[p]["hand"] = []
 	var deck_empty_hand: int = g.players[p]["deck"].size()
 	g._summon(p, Card.new(g._uid(), "wendell_comportao", p), false, 0)
-	g._flush()
+	g.flush_events()
 	check(g.phase != "search" and g.players[p]["hand"].is_empty() and g.players[p]["deck"].size() == deck_empty_hand, "Wendell: com a mão vazia nada acontece")
 
 ## Bruce (Fluxo): Ao Entrar rouba uma unidade inimiga até o fim do turno ("take_control").
@@ -8427,7 +8427,7 @@ func _test_bruce() -> void:
 	g_die.players[0]["momentum"] = 10
 	_play_aimed(g_die, 0, "bruce", doomed.uid)
 	doomed.damage = 99
-	g_die._check_state()
+	g_die.check_state()
 	check(g_die.players[1]["graveyard"].has(doomed) and not g_die.players[0]["graveyard"].has(doomed), "Bruce: a roubada que morre vai para o cemitério do dono de verdade")
 	check(doomed.owner == 1 and doomed.home_owner == -1, "Bruce: dono restaurado depois de morrer")
 	check(g_die.slots_used(1) == 0 and g_die.slots_used(0) == 1, "Bruce: sem reserva sobrando depois da morte (%d/%d)" % [g_die.slots_used(0), g_die.slots_used(1)])
@@ -8517,7 +8517,7 @@ func _test_bruce() -> void:
 	g_swap_die.players[0]["momentum"] = 10
 	g_swap_die.activate(0, die_swapper.uid, die_victim.uid)
 	die_victim.damage = 99
-	g_swap_die._check_state()
+	g_swap_die.check_state()
 	check(g_swap_die.players[1]["graveyard"].has(die_victim) and not g_swap_die.players[0]["graveyard"].has(die_victim), "Bruce troca: a roubada que morre vai para o cemitério do dono de verdade")
 	# o Bruce ocupa de verdade um espaço do campo inimigo e o meu espaço dele fica reservado até ele voltar
 	check(g_swap_die.slots_used(0) == 1 and g_swap_die.slots_used(1) == 1, "Bruce troca: o espaço de casa do Bruce segue reservado e ele ocupa o campo inimigo (%d/%d)" % [g_swap_die.slots_used(0), g_swap_die.slots_used(1)])
@@ -8532,7 +8532,7 @@ func _test_bruce() -> void:
 	g_swap_bruce_dies.players[0]["momentum"] = 10
 	g_swap_bruce_dies.activate(0, dying_swapper.uid, kept_victim.uid)
 	dying_swapper.damage = 99
-	g_swap_bruce_dies._check_state()
+	g_swap_bruce_dies.check_state()
 	check(g_swap_bruce_dies.players[0]["graveyard"].has(dying_swapper) and not g_swap_bruce_dies.players[1]["graveyard"].has(dying_swapper), "Bruce troca: o Bruce que morre do outro lado vai para o meu cemitério")
 	g_swap_bruce_dies.end_turn(0)
 	check(g_swap_bruce_dies.players[1]["board"].has(kept_victim) and kept_victim.owner == 1 and kept_victim.home_owner == -1, "Bruce troca: a roubada volta para o dono mesmo com o Bruce morto")
@@ -8618,7 +8618,7 @@ func _test_cornelia() -> void:
 	# summoned by hand: _put would answer the prompt on its own
 	var cornelia_uid: int = g._uid()
 	g._summon(p, Card.new(cornelia_uid, "cornelia_aldrovane", p), false, 0)
-	g._flush()
+	g.flush_events()
 	var cornelia: Card = g.find_unit(cornelia_uid)
 	cornelia.sick = false
 	check(g.phase == "search" and g.pending_search.get("hand_bottom", false) and int(g.pending_search["cost_increase"]) == 2, "Cornélia: Ao Entrar abre a mão do oponente para escolher uma carta (+2)")
@@ -8641,7 +8641,7 @@ func _test_cornelia() -> void:
 	var untouched := Card.new(g_decline._uid(), "esqueleto_guerreiro", 1 - q, "hand")
 	g_decline.players[1 - q]["hand"] = [untouched]
 	g_decline._summon(q, Card.new(g_decline._uid(), "cornelia_aldrovane", q), false, 0)
-	g_decline._flush()
+	g_decline.flush_events()
 	check(g_decline.phase == "search", "Cornélia: a escolha abre também quando a mão tem uma carta só")
 	g_decline.choose_search(q, 0)
 	check(untouched.discount == 0, "Cornélia: recusar não encarece nada")
@@ -8777,8 +8777,8 @@ func _test_censo_and_queima() -> void:
 	var foe_hp_before_cap: int = g7.players[o7]["leader_hp"]
 	g7.kill_as_sacrifice(first_a, 1000)
 	g7.kill_as_sacrifice(first_b, 1000)
-	g7._check_state()
-	g7._flush()
+	g7.check_state()
+	g7.flush_events()
 	_resolve_stack(g7)
 	check(g7.players[p7]["hand"].size() == 1, "Inspetora: 2 sacrifícios no mesmo turno compram só 1 carta (%d)" % g7.players[p7]["hand"].size())
 	var plain_a := _put(g7, p7, "t_cq_filler")
@@ -8827,13 +8827,13 @@ func _test_lucian_soren() -> void:
 	var grave_q_before: int = g2.players[q]["graveyard"].size()
 	var grave_r_before: int = g2.players[r]["graveyard"].size()
 	g2._summon(q, Card.new(g2._uid(), "soren", q), false, 0)
-	g2._flush()
+	g2.flush_events()
 	check(g2.phase == "search" and g2.decider() == q, "Soren: o controlador descarta primeiro")
 	g2.choose_search(q, int(g2.pending_search["cards"][0]["uid"]))
-	g2._flush()
+	g2.flush_events()
 	check(g2.phase == "search" and g2.decider() == r, "Soren: o controlador descarta só 1; depois o oponente decide (%s)" % g2.decider())
 	g2.choose_search(r, int(g2.pending_search["cards"][0]["uid"]))
-	g2._flush()
+	g2.flush_events()
 	check(g2.phase != "search", "Soren: acabado o último descarte a fase volta ao normal (%s)" % g2.phase)
 	check(g2.players[q]["hand"].size() == 5 and g2.players[r]["hand"].size() == 4, "Soren: cada um descarta só 1 carta (%d / %d)" % [g2.players[q]["hand"].size(), g2.players[r]["hand"].size()])
 	check(g2.players[q]["graveyard"].size() == grave_q_before + 1 and g2.players[r]["graveyard"].size() == grave_r_before + 1, "Soren: as cartas descartadas vão ao cemitério")
@@ -8848,7 +8848,7 @@ func _test_lucian_soren() -> void:
 		_give(g3, s3, "t_ls_filler")
 	_give(g3, 1 - s3, "t_ls_filler")
 	g3._summon(s3, Card.new(g3._uid(), "soren", s3), false, 0)
-	g3._flush()
+	g3.flush_events()
 	check(g3.phase != "search" and g3.players[s3]["hand"].size() == 3 and g3.players[1 - s3]["hand"].size() == 1, "Soren: com 4 ou menos cartas ninguém descarta")
 
 	# only the opponent above the limit -> only the opponent is asked
@@ -8860,10 +8860,10 @@ func _test_lucian_soren() -> void:
 	for i in 5:
 		_give(g4, 1 - s4, "t_ls_filler")
 	g4._summon(s4, Card.new(g4._uid(), "soren", s4), false, 0)
-	g4._flush()
+	g4.flush_events()
 	check(g4.phase == "search" and g4.decider() == 1 - s4, "Soren: só o oponente passa do limite, só ele descarta")
 	g4.choose_search(1 - s4, int(g4.pending_search["cards"][0]["uid"]))
-	g4._flush()
+	g4.flush_events()
 	check(g4.phase != "search" and g4.players[1 - s4]["hand"].size() == 4, "Soren: o oponente termina com 4 cartas")
 
 	# Ao Desafiar: the challenged unit loses its Armadura but keeps the Escudo; Constante: the OTHER Dragões Negros get +1 Vida
@@ -8875,7 +8875,7 @@ func _test_lucian_soren() -> void:
 	var soren := _put(g5, a, "soren")
 	var ally_dragon := _put(g5, a, "t_ls_dragon")
 	var foe := _put(g5, 1 - a, "t_ls_foe")
-	g5._check_state()
+	g5.check_state()
 	check(g5.hp_left(ally_dragon) == 4, "Soren: outro Dragão Negro ganha +1 Vida (%d)" % g5.hp_left(ally_dragon))
 	check(g5.hp_left(soren) == 5, "Soren: a Constante não alcança o próprio Soren (%d)" % g5.hp_left(soren))
 	foe.armor = 2
@@ -9204,14 +9204,14 @@ func _test_listeners() -> void:
 		_put(g, 0, "t_tough")
 	var victim := _put(g, 1, "t_tough")
 	g.players[1]["leader_hp"] = 14
-	g._deal_damage(GameState.LEADER_UID[1], 1, null)
-	g._check_state()
+	g.deal_damage(GameState.LEADER_UID[1], 1, null)
+	g.check_state()
 	check(g.find_unit(victim.uid).damage == 0, "listen: 13 life has not crossed 12 yet")
-	g._deal_damage(GameState.LEADER_UID[1], 3, null)
-	g._check_state()
+	g.deal_damage(GameState.LEADER_UID[1], 3, null)
+	g.check_state()
 	check(g.find_unit(victim.uid).damage == 3, "listen: crossing below 12 with 4 units hits all enemy units")
-	g._deal_damage(GameState.LEADER_UID[1], 1, null)
-	g._check_state()
+	g.deal_damage(GameState.LEADER_UID[1], 1, null)
+	g.check_state()
 	check(g.find_unit(victim.uid).damage == 3, "listen: fires once, not while the life stays below")
 
 	g = _new_game()
@@ -9220,7 +9220,7 @@ func _test_listeners() -> void:
 		_put(g, 0, "t_tough") # only 3 units
 	victim = _put(g, 1, "t_tough")
 	g.players[1]["leader_hp"] = 14
-	g._deal_damage(GameState.LEADER_UID[1], 3, null)
+	g.deal_damage(GameState.LEADER_UID[1], 3, null)
 	check(g.find_unit(victim.uid).damage == 0, "listen: the if (4+ units) is not met with 3")
 
 	g = _new_game()
@@ -9229,7 +9229,7 @@ func _test_listeners() -> void:
 		_put(g, 1, "t_tough")
 	victim = _put(g, 0, "t_tough")
 	g.players[1]["leader_hp"] = 14
-	g._deal_damage(GameState.LEADER_UID[1], 3, null)
+	g.deal_damage(GameState.LEADER_UID[1], 3, null)
 	check(g.find_unit(victim.uid).damage == 0, "listen: scope enemy ignores its own Leader")
 
 	# the other listenable events: unit_damaged, card_drawn, turn_started, turn_ended
@@ -9241,14 +9241,14 @@ func _test_listeners() -> void:
 		"action": "buff", "target": "self", "atk": 2}])
 	g = _new_game()
 	var hurt := _put(g, 0, "t_pain")
-	g._deal_damage(hurt.uid, 2, null)
-	g._check_state()
+	g.deal_damage(hurt.uid, 2, null)
+	g.check_state()
 	check(g.find_unit(hurt.uid).atk == 2, "listen: unit_damaged fires for the unit hurt")
 	g = _new_game()
 	var reader := _put(g, 0, "t_reader")
 	g._draw(0, 1)
 	g._draw(1, 1)
-	g._check_state()
+	g.check_state()
 	check(g.find_unit(reader.uid).hp == 10, "listen: card_drawn with scope ally counts only own draws")
 	g = _new_game()
 	var clock := _put(g, 0, "t_clock")
@@ -9263,7 +9263,7 @@ func _test_listeners() -> void:
 	_put(g, 0, "t_growth")
 	var entering_plant := _put(g, 0, "mudinha_do_dossel")
 	var entering_human := _put(g, 0, "guardia_dos_ninhos")
-	g._check_state()
+	g.check_state()
 	check(entering_plant.temp_hp_until_next_turn == 1,
 		"listen unit_entered: Planta recebe Vida temporária até o próximo turno")
 	check(entering_human.temp_hp_until_next_turn == 0, "listen unit_entered: não dispara para unidade que não é Planta")
@@ -9303,7 +9303,7 @@ func _test_triggers() -> void:
 
 	g = _new_game()
 	var h := _put(g, 1, "t_hurt")
-	g._deal_damage(h.uid, 1, null)
+	g.deal_damage(h.uid, 1, null)
 	check(g.find_unit(h.uid).damage == 1, "on_damaged no-source safe")
 
 	# Cartas reais: Dlorafya, Salamandra, Espírito da Maré, Ronan
@@ -9313,7 +9313,7 @@ func _test_triggers() -> void:
 	var foe2 := _put(g, 1, "tritao_lanceiro") # 2/2
 	var d := _put(g, 0, "dlorafya")
 	check(g.find_unit(ally.uid).damage == 1, "dlorafya: ally igneo takes 1")
-	g._check_state()
+	g.check_state()
 	check(g.find_unit(foe.uid).damage == 3 and int(g.find_unit(foe.uid).dot_markers.get("queimadura", 0)) == 1 and g.find_unit(foe2.uid) == null, "dlorafya: enemies take 3 e recebem Queimadura")
 	check(g.find_unit(d.uid).damage == 1, "dlorafya: self takes 1")
 
@@ -9348,16 +9348,16 @@ func _test_triggers() -> void:
 
 	g = _new_game()
 	var ron := _put(g, 0, "ronan")
-	g._deal_damage(ron.uid, 1, null)
-	g._check_state()
+	g.deal_damage(ron.uid, 1, null)
+	g.check_state()
 	check(g.find_unit(ron.uid).atk == 5, "ronan Ao Sofrer Dano +1 atk")
 
 	g = _new_game()
 	var vig := _put(g, 0, "vigia_do_farol_do_norte")
 	var hand_n: int = g.players[0]["hand"].size()
-	g._deal_damage(vig.uid, 5, null)
-	g._check_state()
-	g._check_state()
+	g.deal_damage(vig.uid, 5, null)
+	g.check_state()
+	g.check_state()
 	check(g.players[0]["hand"].size() == hand_n + 1, "vigia Ao Morrer draws 1")
 
 	g = _new_game()
@@ -9386,15 +9386,15 @@ func _test_triggers() -> void:
 	g = _new_game()
 	var f := _put(g, 0, "fenix_menor")
 	check(f.atk == 2 and f.hp == 2, "fenix is 2/2")
-	g._deal_damage(f.uid, 5, null)
-	g._check_state()
+	g.deal_damage(f.uid, 5, null)
+	g.check_state()
 	check(g.find_unit(f.uid) == null, "fenix original died")
 	check(g.players[0]["board"].size() == 1, "fenix revived")
 	var r: Card = g.players[0]["board"][0]
 	check(r.card_id == "fenix_menor" and r.atk == 1 and r.hp == 1, "revived as 1/1")
 	check(g.card_of(r)["effects"].is_empty() and g.card_of(r)["text"] == "", "revived has no text/effects")
-	g._deal_damage(r.uid, 5, null)
-	g._check_state()
+	g.deal_damage(r.uid, 5, null)
+	g.check_state()
 	check(g.players[0]["board"].is_empty(), "revived fenix stays dead")
 
 func _test_elite_limits() -> void:
@@ -9430,7 +9430,7 @@ func _test_vegetal() -> void:
 	# (never the token that just entered, never a non-plant)
 	var human_ally := _put(g, 0, "guardia_dos_ninhos") # put first: her own Ao Entrar would buff a plant already on the board
 	var plant_ally := _put(g, 0, "semente_teimosa")
-	g._check_state()
+	g.check_state()
 	# Semente Teimosa summons a Mudinha of its own on entering, and that token already fires the passive once: reset the turn's uses
 	# so the checks below start from a clean slate, and measure the plant's Vida only after that first buff
 	g.players[0]["passive_uses"] = 0
@@ -9441,16 +9441,16 @@ func _test_vegetal() -> void:
 			g.players[0]["board"].erase(seedling)
 	var human_base_hp: int = int(CardDB.card("guardia_dos_ninhos")["hp"])
 	var first_token := _put(g, 0, "mudinha_do_dossel")
-	g._check_state()
+	g.check_state()
 	check(first_token.hp == 1 and first_token.atk == 0, "Thalvaressa: a ficha invocada não recebe o próprio Crescimento do Dossel")
 	check(plant_ally.hp == plant_base_hp + 1 and plant_ally.atk == int(CardDB.card("semente_teimosa")["atk"]), "Thalvaressa: a outra planta aliada ganha só +1 de Vida")
 	check(human_ally.hp == human_base_hp, "Thalvaressa: aliado que não é planta não recebe o buff")
 	var second_token := _put(g, 0, "mudinha_do_dossel")
-	g._check_state()
+	g.check_state()
 	var tokens_hp_gained: int = (first_token.hp - 1) + (second_token.hp - 1)
 	check((plant_ally.hp - plant_base_hp) + tokens_hp_gained == 2, "Thalvaressa: o segundo trigger do turno também dispara")
 	var third_token := _put(g, 0, "mudinha_do_dossel")
-	g._check_state()
+	g.check_state()
 	var all_hp_gained: int = (plant_ally.hp - plant_base_hp) + (first_token.hp - 1) + (second_token.hp - 1) + (third_token.hp - 1)
 	check(all_hp_gained == 2, "Thalvaressa: o terceiro trigger do turno não dispara (máximo 2)")
 	# on the opponent's turn the passive stays silent
@@ -9458,7 +9458,7 @@ func _test_vegetal() -> void:
 	g._start_turn(1, false)
 	var hp_before_enemy_turn: int = all_hp_gained
 	var token_on_enemy_turn := _put(g, 0, "mudinha_do_dossel")
-	g._check_state()
+	g.check_state()
 	var hp_after_enemy_turn: int = (plant_ally.hp - plant_base_hp) + (first_token.hp - 1) + (second_token.hp - 1) + (third_token.hp - 1) + (token_on_enemy_turn.hp - 1)
 	check(hp_after_enemy_turn == hp_before_enemy_turn, "Thalvaressa: fora do turno do dono o passivo não dispara")
 	# Cultivador da Clareira: the +1/+1 goes to ANOTHER unit that was already there (not himself, not the token he summons).
@@ -9485,14 +9485,14 @@ func _test_vegetal() -> void:
 	_quiet(quiet_garden)
 	_put(quiet_garden, 0, "guardia_dos_ninhos")
 	_put(quiet_garden, 0, "mudinha_do_dossel")
-	quiet_garden._check_state()
+	quiet_garden.check_state()
 	check(int(quiet_garden.players[0].get("passive_uses", 0)) == 0 and not quiet_garden.players[0]["passive_used"], "Thalvaressa: sem alvo válido o passivo não é anunciado nem gasta um uso")
 	_put(quiet_garden, 0, "semente_teimosa")
-	quiet_garden._check_state() # Semente's own Mudinha fires the passive once on entering; start counting from here
+	quiet_garden.check_state() # Semente's own Mudinha fires the passive once on entering; start counting from here
 	quiet_garden.players[0]["passive_uses"] = 0
 	quiet_garden.players[0]["passive_used"] = false
 	_put(quiet_garden, 0, "mudinha_do_dossel")
-	quiet_garden._check_state()
+	quiet_garden.check_state()
 	check(int(quiet_garden.players[0].get("passive_uses", 0)) == 1, "Thalvaressa: com uma planta aliada em campo o passivo volta a disparar")
 	# Flor Voraz uses one 1-damage roll per Attack, with a minimum of one, including the Leader in its pool.
 	var spread := EffectRegistry.parse({"action": "damage", "target": "random_enemy_spread", "hits_from": "self_atk", "hits_from_min": 1, "amount": 1})
@@ -9503,16 +9503,16 @@ func _test_vegetal() -> void:
 	var flower := _put(g, 0, "flor_voraz")
 	check(flower.atk == 0 and flower.hp == 1, "Flor Voraz: ficha 0/1")
 	var hp_before: int = int(g.players[1]["leader_hp"])
-	g._fire(flower, "on_turn_end")
-	g._check_state()
+	g.fire_trigger(flower, "on_turn_end")
+	g.check_state()
 	check(int(g.players[1]["leader_hp"]) == hp_before - 1, "Flor Voraz: com 0 de Ataque causa um golpe")
 	flower.atk = 1
-	g._fire(flower, "on_turn_end")
-	g._check_state()
+	g.fire_trigger(flower, "on_turn_end")
+	g.check_state()
 	check(int(g.players[1]["leader_hp"]) == hp_before - 2, "Flor Voraz: com 1 de Ataque causa um golpe")
 	flower.atk = 3
-	g._fire(flower, "on_turn_end")
-	g._check_state()
+	g.fire_trigger(flower, "on_turn_end")
+	g.check_state()
 	check(int(g.players[1]["leader_hp"]) == hp_before - 5, "Flor Voraz: com 3 de Ataque causa três golpes")
 
 func _test_rusco() -> void:
@@ -9692,7 +9692,7 @@ func _test_ban() -> void:
 		pl["hand"].append(Card.new(g._uid(), "kai", 0, "hand"))
 	var gy: int = pl["graveyard"].size()
 	g._draw(0, 2)
-	g._flush()
+	g.flush_events()
 	check(pl["hand"].size() == GameState.HAND_LIMIT + 2, "comprar com a mão cheia mantém as cartas na mão")
 	_quiet(g)
 	g.end_turn(0)
@@ -9723,25 +9723,25 @@ func _test_ignisar() -> void:
 	var foe := _put(g, o, "kael_drath_vulcano")
 	var own := _put(g, a, "kael_drath_vulcano")
 	check(g.cost_of(a, gv) == 9 and int(gv["atk"]) == 8 and int(gv["hp"]) == 7, "gigante vulcânico: 8/7 custando 9")
-	g._deal_damage(foe.uid, 4, null) # damage to units (enemy or own) does not count
-	g._deal_damage(GameState.LEADER_UID[o], 5, null)
-	g._deal_damage(own.uid, 4, null)
+	g.deal_damage(foe.uid, 4, null) # damage to units (enemy or own) does not count
+	g.deal_damage(GameState.LEADER_UID[o], 5, null)
+	g.deal_damage(own.uid, 4, null)
 	g.end_turn(a)
 	check(g.cost_of(a, gv) == 9, "gigante vulcânico: 5 de dano ao Líder -> custo base")
 	# the opponent's turn counts too: 5 more damage to their Leader while it is their turn makes 10 in total
 	check(g.window_progress(a, gv) == {"have": 5, "need": 10}, "gigante vulcânico: o texto mostra 5 de 10 (faltam 5)")
-	g._deal_damage(GameState.LEADER_UID[o], 5, null)
+	g.deal_damage(GameState.LEADER_UID[o], 5, null)
 	check(g.window_progress(a, gv) == {"have": 10, "need": 10}, "gigante vulcânico: o texto mostra 10 de 10")
 	check(g.cost_of(a, gv) == 4, "gigante vulcânico: dano causado no turno do oponente também conta")
 	g.end_turn(o)
 	check(g.cost_of(a, gv) == 4, "gigante vulcânico: a janela ainda cobre o turno anterior no turno seguinte")
 	# damage to the dealer's own Leader and Fadiga count for the opponent / nobody, never for the dealer
-	g._deal_damage(GameState.LEADER_UID[a], 9, null)
+	g.deal_damage(GameState.LEADER_UID[a], 9, null)
 	g.suffer_fatigue(o)
 	check(g.players[a]["damage_this_round"] == 0 and g.players[o]["damage_this_round"] == 9, "gigante vulcânico: dano ao próprio Líder conta para o oponente; Fadiga não conta para ninguém")
 	g.end_turn(a)
 	g.end_turn(o)
-	g._deal_damage(foe.uid, 9, null)
+	g.deal_damage(foe.uid, 9, null)
 	check(g.cost_of(a, gv) == 9, "gigante vulcânico: só dano a unidades, e a janela anterior já passou -> custo base")
 	# Gigante Marinho: the same window for Vida recovered (the healing of the opponent's turn counts too)
 	var gm: Dictionary = CardDB.card("gigante_marinho")
@@ -9915,10 +9915,10 @@ func _test_eletrica() -> void:
 	g.players[a]["reserve"] = 2
 	g.auto_pass[o] = false
 	g.activate(a, fv.uid)
-	g._flush()
+	g.flush_events()
 	check(g.stack.size() == 1 and g.players[a]["momentum"] == 0 and g.players[a]["reserve"] == 0, "fulgurvoltz: vai para a pilha pagando 5")
 	g.pass_priority(o)
-	g._flush()
+	g.flush_events()
 	g.auto_pass[o] = true
 	check(g.find_unit(foe1.uid) == null and g.find_unit(foe2.uid) == null, "fulgurvoltz: bane as fracas e as exauridas")
 	check(g.find_unit(foe_strong_tired.uid) == null, "fulgurvoltz: bane também a forte quando exausta")
@@ -9943,11 +9943,11 @@ func _test_eletrica() -> void:
 	var neg2 := _give(g, o, "negacao_de_neraqa")
 	g.auto_pass[o] = false
 	g.activate(a, fv.uid)
-	g._flush()
+	g.flush_events()
 	check(g.can_play(o, neg2), "fulgurvoltz: Negação de Neraqa pode responder")
 	g.play_card(o, neg2, g.stack[0]["sid"])
 	g.pass_priority(a)
-	g._flush()
+	g.flush_events()
 	check(g.stack.is_empty() and not g.find_unit(foe1.uid) == null, "fulgurvoltz: habilidade anulada, inimigas ficam")
 	# Encarnação retirement uses the current cost (with reductions) plus the tax
 	var l: Dictionary = g.players[a]["incarnation"]
@@ -9983,7 +9983,7 @@ func _test_eletrica() -> void:
 	g.players[a]["momentum"] = 5
 	g.play_card(a, cu, 0)
 	g._resolve_stack()
-	g._flush()
+	g.flush_events()
 	check(g.players[a]["momentum"] == 6, "carga acumulada: custa 0, dá +1")
 	# Voltexz Ao Entrar: +X/+X with X = Momentum left + 1 (no cap), Rapidez 1 for her other units (not herself)
 	g = _eletrica_game()
@@ -10009,14 +10009,14 @@ func _test_eletrica() -> void:
 	var start_voltexz := _put(g, a, "voltexz")
 	g.players[a]["leaked"] = 0
 	g.bus().emit(GameEvent.new("turn_started", a))
-	g._check_state()
+	g.check_state()
 	check(atk_ok(g, start_voltexz, 8, 6) and not start_voltexz.magic_shield, "voltexz: sem Momentum vazado, não ganha o bônus de turno")
 	g = _eletrica_game()
 	a = g.active
 	start_voltexz = _put(g, a, "voltexz")
 	g.players[a]["leaked"] = 1
 	g.bus().emit(GameEvent.new("turn_started", a))
-	g._check_state()
+	g.check_state()
 	check(g.atk_of(start_voltexz) == 10 and start_voltexz.hp + start_voltexz.temp_hp == 7 and start_voltexz.magic_shield and start_voltexz.magic_shield_until_end_turn, "voltexz: Momentum vazado dá +2/+1 e Escudo Mágico temporários (ATQ %d, Vida %d+%d, escudo %s, fim %s, vazou %d)" % [g.atk_of(start_voltexz), start_voltexz.hp, start_voltexz.temp_hp, start_voltexz.magic_shield, start_voltexz.magic_shield_until_end_turn, g.players[a]["leaked"]])
 	g.end_turn(a)
 	check(atk_ok(g, start_voltexz, 8, 6) and not start_voltexz.magic_shield, "voltexz: bônus de vazamento expira no fim do turno")
@@ -10027,7 +10027,7 @@ func _test_eletrica() -> void:
 	start_voltexz.magic_shield_until_end_turn = true
 	g.players[a]["leaked"] = 1
 	g.bus().emit(GameEvent.new("turn_started", a))
-	g._check_state()
+	g.check_state()
 	check(start_voltexz.magic_shield_until_end_turn and not start_voltexz.magic_shield_until_next_turn, "voltexz: o bônus temporário não torna permanente um Escudo Mágico já temporário")
 	# Jack: +1 attack per Momentum left at end of turn
 	g = _eletrica_game()
@@ -10044,8 +10044,8 @@ func _test_eletrica() -> void:
 	# Layla: +1 attack per damage taken, no cap
 	var ly := _put(g, g.active, "layla")
 	for i in 5:
-		g._deal_damage(ly.uid, 1, null)
-		g._check_state()
+		g.deal_damage(ly.uid, 1, null)
+		g.check_state()
 		ly.damage = 0
 	check(g.atk_of(ly) == 9, "layla: +1 por dano, sem limite (%d)" % g.atk_of(ly))
 	_tcard("t_layla_wall", 0, 20, []) # survives the fight, so the damage can be read
@@ -10076,7 +10076,7 @@ func _test_eletrica() -> void:
 	_quiet(g)
 	var vic := _put(g, 0, "victoria")
 	_hit(g, vic)
-	g._flush()
+	g.flush_events()
 	check(g.atk_of(vic) == 3 and vic.atk == 3, "victoria: +1 de Ataque permanente ao atacar (%d)" % g.atk_of(vic))
 	# Esquiva: the first combat damage per turn from a slower unit is avoided
 	g = _eletrica_game()
@@ -10084,67 +10084,67 @@ func _test_eletrica() -> void:
 	o = g.opponent(a)
 	var th := _put(g, o, "thorwells") # 5/6
 	var weak := _put(g, a, "jack") # 2/4
-	g._combat_damage = true
-	g._deal_damage(th.uid, 2, weak)
+	g.combat_damage = true
+	g.deal_damage(th.uid, 2, weak)
 	check(th.damage == 0, "esquiva: dano de combate de Rapidez menor é evitado")
-	g._deal_damage(th.uid, 2, weak)
+	g.deal_damage(th.uid, 2, weak)
 	check(th.damage == 2, "esquiva: só a primeira vez no turno")
-	g._combat_damage = false
+	g.combat_damage = false
 	g.turn += 1
-	g._combat_damage = true
+	g.combat_damage = true
 	var strong := _put(g, a, "voltexz") # Rapidez 3, same as Thorwells
-	g._deal_damage(th.uid, 1, strong)
+	g.deal_damage(th.uid, 1, strong)
 	check(th.damage == 3, "esquiva: Rapidez igual ou maior não é evitada")
 	g.turn += 1
-	g._deal_damage(th.uid, 1, weak)
+	g.deal_damage(th.uid, 1, weak)
 	check(th.damage == 3, "esquiva: de novo no turno seguinte")
-	g._combat_damage = false
+	g.combat_damage = false
 	g.turn += 1
-	g._deal_damage(th.uid, 1, weak)
+	g.deal_damage(th.uid, 1, weak)
 	check(th.damage == 4, "esquiva: dano fora de combate não é evitado")
 	# Esquiva with an override: Espírito Carregado dodges anything with Rapidez 0 (no Rapidez)
 	var sp := _put(g, o, "espirito_carregado")
 	var slow := _put(g, a, "jack")
 	var fast := _put(g, a, "layla") # Rapidez 1
 	g.turn += 1
-	g._combat_damage = true
-	g._deal_damage(sp.uid, 1, fast)
+	g.combat_damage = true
+	g.deal_damage(sp.uid, 1, fast)
 	check(sp.damage == 1, "esquiva (override): Rapidez 1 acerta")
-	g._deal_damage(sp.uid, 1, slow)
+	g.deal_damage(sp.uid, 1, slow)
 	check(sp.damage == 1, "esquiva (override): sem Rapidez é evitada, mesmo com ATK maior")
-	g._combat_damage = false
+	g.combat_damage = false
 	# Sobrecarga: Reserva cheia no início do turno dá +1 Momentum (só ao dono)
 	g = _eletrica_game()
 	a = g.active
 	g.players[a]["momentum"] = 0
 	g.players[a]["leaked"] = 0
 	g._fire_leader_passive(a, "on_turn_start")
-	g._check_state()
+	g.check_state()
 	check(g.players[a]["momentum"] == 0, "sobrecarga: nada vazou, nada volta")
 	g.players[a]["leaked"] = 1
 	g._fire_leader_passive(a, "on_turn_start")
-	g._check_state()
+	g.check_state()
 	check(g.players[a]["momentum"] == 0, "sobrecarga: vazou 1, metade para baixo é 0")
 	g.players[a]["leaked"] = 3
 	g._fire_leader_passive(a, "on_turn_start")
-	g._check_state()
+	g.check_state()
 	check(g.players[a]["momentum"] == 1, "sobrecarga: vazou 3, volta 1 (metade p/ baixo)")
 	g.players[a]["momentum"] = 0
 	g.players[a]["momentum"] = 0
 	g.players[a]["leaked"] = 9
 	g._fire_leader_passive(a, "on_turn_start")
-	g._check_state()
+	g.check_state()
 	check(g.players[a]["momentum"] == 2, "sobrecarga: devolve no máximo 2")
 	# nothing to refund (first turn, or leaked 0/1): the passive does not even show up in the Crônica
 	g = _eletrica_game()
 	a = g.active
 	g.players[a]["leaked"] = 1
-	g._flush()
+	g.flush_events()
 	g._fire_leader_passive(a, "on_turn_start")
-	check(not _has_event(g._flush(), "passive"), "sobrecarga: sem nada a devolver, não anuncia a passiva")
+	check(not _has_event(g.flush_events(), "passive"), "sobrecarga: sem nada a devolver, não anuncia a passiva")
 	g.players[a]["leaked"] = 2
 	g._fire_leader_passive(a, "on_turn_start")
-	check(_has_event(g._flush(), "passive"), "sobrecarga: com Momentum a devolver, anuncia a passiva")
+	check(_has_event(g.flush_events(), "passive"), "sobrecarga: com Momentum a devolver, anuncia a passiva")
 
 func _test_intimidacao() -> void:
 	_tcard("t_int", 4, 4, [])
@@ -10172,7 +10172,7 @@ func _test_intimidacao() -> void:
 	g.players[g.active]["reserve"] = 0
 	check(g.can_transform(g.active, rt.uid), "raiturus pode transformar com 8")
 	g.transform(g.active, rt.uid)
-	g._flush()
+	g.flush_events()
 	check(rt.card_id == "tony_raiturus_primordial" and g.atk_of(rt) == 9 and rt.hp == 9 and g.has_kw(rt, "intimidacao") and g.has_kw(rt, "impeto") and g.has_kw(rt, "voo") and g.stack.is_empty(), "raiturus vira o Primordial 9/9 Intimidacao + Ímpeto + Voo")
 	check(not g.can_transform(g.active, rt.uid), "o Primordial não transforma de novo")
 	# a unit transformed the turn it entered is not summoning sick
@@ -10182,7 +10182,7 @@ func _test_intimidacao() -> void:
 	g.players[g.active]["reserve"] = 0
 	check(fresh.sick, "raiturus recém-jogado está com enjoo de invocação")
 	g.transform(g.active, fresh.uid)
-	g._flush()
+	g.flush_events()
 	check(not fresh.sick and g.can_attack(fresh), "unidade transformada não tem enjoo de invocação")
 
 func atk_ok(g: GameState, c: Card, atk: int, hp: int) -> bool:
@@ -10211,7 +10211,7 @@ func _test_elefante_incomodante() -> void:
 	var elephant_data: Dictionary = CardDB.card("elefante_incomodante")
 	check(g.scale_count(0, elephant_data) == 1, "elefante: sem cópias em campo, X vale 1")
 	var first := _put(g, 0, "elefante_incomodante")
-	g._check_state()
+	g.check_state()
 	check(g.atk_of(first) == 2 and first.hp_left() == 2, "elefante: sozinho já nasce 2/2")
 	check(g.scale_count(0, elephant_data) == 2, "elefante: o frontend mostra X = cópias aliadas + 1")
 	check(first.intrinsic_atk == 1 and first.intrinsic_hp == 1 and first.bonus_atk == 0 and first.bonus_hp == 0,
@@ -10238,22 +10238,22 @@ func _test_elefante_incomodante() -> void:
 			"elefante: silêncio remove sua fórmula e os bônus")
 	g = _new_game()
 	first = _put(g, 0, "elefante_incomodante")
-	g._check_state()
+	g.check_state()
 	var second := _put(g, 0, "elefante_incomodante")
-	g._check_state()
+	g.check_state()
 	check(g.atk_of(first) == 3 and first.hp_left() == 3 and g.atk_of(second) == 3 and second.hp_left() == 3, "elefante: dois são 3/3 cada")
 	var third := _put(g, 0, "elefante_incomodante")
-	g._check_state()
+	g.check_state()
 	check(g.atk_of(third) == 4 and third.hp_left() == 4 and g.atk_of(first) == 4, "elefante: três são 4/4 cada")
 	# the opponent's copies never count for this player
 	var enemy_elephant := _put(g, 1, "elefante_incomodante")
-	g._check_state()
+	g.check_state()
 	check(g.atk_of(first) == 4 and g.atk_of(enemy_elephant) == 2, "elefante: cópias do oponente não contam")
 	# losing a copy shrinks the others, but a damaged one is never killed by the shrink alone
-	g._deal_damage(third.uid, 2, null)
-	g._check_state()
-	g._deal_damage(second.uid, 99, null)
-	g._check_state()
+	g.deal_damage(third.uid, 2, null)
+	g.check_state()
+	g.deal_damage(second.uid, 99, null)
+	g.check_state()
 	check(g.atk_of(first) == 3 and g.atk_of(third) == 3 and third.hp_left() >= 1, "elefante: ao perder uma cópia as outras encolhem para 3/3 sem morrer")
 	g._apply_effect(0, {"action": "cap_stats", "atk": 1, "hp": 1}, first.uid)
 	check(g.atk_of(first) == 1 and first.hp_total() == 1, "elefante: efeito que reduz atributos totais alcança os atributos-base")
@@ -10282,7 +10282,7 @@ func _test_incomodante_shout() -> void:
 	var first := _put(g, a, "elefante_incomodante")
 	_put(g, a, "elefante_incomodante")
 	_put(g, a, "elefante_incomodante")
-	g._check_state()
+	g.check_state()
 	g.players[enemy]["leader_hp"] = 3
 	var events := _hit(g, first)
 	var shouts: Array = []
@@ -10308,7 +10308,7 @@ func _test_incomodante_shout() -> void:
 	first = _put(g, a, "elefante_incomodante")
 	_put(g, a, "elefante_incomodante")
 	_put(g, a, "elefante_incomodante")
-	g._check_state()
+	g.check_state()
 	g.players[enemy]["leader_hp"] = 5
 	events = _hit(g, first)
 	var silent := true
@@ -10326,7 +10326,7 @@ func _test_incomodante_shout() -> void:
 	first = _put(g, a, "elefante_incomodante")
 	_put(g, a, "elefante_incomodante")
 	_put(g, a, "elefante_incomodante")
-	g._check_state()
+	g.check_state()
 	g.players[enemy]["leader_hp"] = 1
 	var wall := _put(g, enemy, "t_shout_wall")
 	wall.exhausted = true
@@ -10367,7 +10367,7 @@ func _test_saraya_kovan_package() -> void:
 	var saraya := _put(g, 0, "saraya_kovan")
 	var aura_beast := _put(g, 0, "t_saraya_beast")
 	var aura_human := _put(g, 0, "t_saraya_human")
-	g._check_state()
+	g.check_state()
 	check(g.atk_of(aura_beast) == 3 and aura_beast.hp_left() == 3, "Saraya: Fera aliada tem +1/+1")
 	check(g.atk_of(aura_human) == 2 and aura_human.hp_left() == 2, "Saraya: humano aliado não recebe o bônus")
 	check(g.atk_of(saraya) == 4 and saraya.hp_left() == 6, "Saraya: não se bonifica (continua 4/6)")
@@ -10387,7 +10387,7 @@ func _test_saraya_kovan_package() -> void:
 	_resolve_stack(g)
 	check(g.phase == "search" and g.pending_search["cards"].size() == 1, "Saraya: o Ao Entrar oferece só a Fera entre as 5 do topo")
 	g.choose_search(0, beast_in_deck.uid)
-	g._flush()
+	g.flush_events()
 	check(_hand_has(g, 0, beast_in_deck.uid), "Saraya: a Fera escolhida vai para a mão")
 	check(g.players[0]["deck"].size() == 4, "Saraya: as outras 4 continuam no deck")
 
@@ -10407,7 +10407,7 @@ func _test_saraya_kovan_package() -> void:
 	var cub_options: Array = g.pending_search["cards"] if g.phase == "search" else []
 	check(cub_options.size() == 1 and int(cub_options[0]["uid"]) == elephant_in_deck.uid, "Filhote Fujão: só o Elefante entre as 3 é oferecido")
 	g.choose_search(0, elephant_in_deck.uid)
-	g._flush()
+	g.flush_events()
 	check(_hand_has(g, 0, elephant_in_deck.uid), "Filhote Fujão: o Elefante vai para a mão")
 
 	# --- Chamado ao Picadeiro: Fera ou Demihumano entre as 5 do topo, mas não um humano ---
@@ -10442,7 +10442,7 @@ func _test_saraya_kovan_package() -> void:
 	var board_elephant_hp_before := elephant_on_board.hp_left()
 	g.play_card(0, matriarch_uid, 0)
 	_resolve_stack(g)
-	g._check_state()
+	g.check_state()
 	check(g.cost_of(0, CardDB.card(elephant_card.card_id), elephant_card) == elephant_cost_before - 1, "Matriarca: o Elefante na mão custa 1 a menos")
 	check(g.cost_of(0, CardDB.card(non_elephant_card.card_id), non_elephant_card) == non_elephant_cost_before, "Matriarca: o que não é Elefante continua com o mesmo custo")
 	check(elephant_on_board.hp_left() == board_elephant_hp_before + 1 and g.armor_of(elephant_on_board) == board_elephant_armor_before + 1, "Matriarca: o outro Elefante ganha +1 de Vida e Armadura 1")
@@ -10467,12 +10467,12 @@ func _test_saraya_kovan_package() -> void:
 		ribomba_option_uids.append(int(option["uid"]))
 	check(ribomba_option_uids.has(big_elephant_in_hand) and ribomba_option_uids.has(small_elephant_in_hand) and not ribomba_option_uids.has(not_an_elephant_in_hand) and not ribomba_option_uids.has(second_ribomba_in_hand), "Ribomba: Elefantes de custo até 6 são oferecidos; o que não é Elefante e a outra Ribomba (custo 7) não")
 	g.choose_search(0, big_elephant_in_hand)
-	g._flush()
+	g.flush_events()
 	check(g.find_unit(big_elephant_in_hand) != null and int(g.players[0]["momentum"]) == 3, "Ribomba: o Elefante de custo 5 entra de graça (só os 7 dela foram pagos)")
 	_kill(g, g.find_unit(ribomba_uid))
 	check(g.phase == "search" and g.pending_search.get("hand_summon", false), "Ribomba: o Ao Morrer abre outra escolha de Elefante da mão")
 	g.choose_search(0, small_elephant_in_hand)
-	g._flush()
+	g.flush_events()
 	check(g.find_unit(small_elephant_in_hand) != null, "Ribomba: ao morrer, o outro Elefante da mão entra de graça")
 
 	# Ao Morrer from real combat (not a plain _kill): the owner is still asked even though the blow is what ended her
@@ -10485,7 +10485,7 @@ func _test_saraya_kovan_package() -> void:
 	_hit(g, combat_ribomba, killer.uid)
 	check(g.find_unit(combat_ribomba.uid) == null and g.phase == "search" and int(g.pending_search.get("player", -1)) == 0, "Ribomba: morta em combate, o dono dela é quem escolhe o Elefante")
 	g.choose_search(0, elephant_waiting_in_hand)
-	g._flush()
+	g.flush_events()
 	check(g.find_unit(elephant_waiting_in_hand) != null, "Ribomba: o Elefante escolhido depois do combate entra de graça")
 
 	# --- Estouro da Manada: até 2 Elefantes de custo até 3 do deck entram de graça (não o de custo 4) ---
@@ -10528,7 +10528,7 @@ func _test_saraya_kovan_package() -> void:
 			option_uids.append(int(option["uid"]))
 		check(option_uids.has(cheap_beast_uid) and option_uids.has(cost_four_beast_uid) and not option_uids.has(expensive_beast_uid) and not option_uids.has(human_in_hand_uid), "Saraya (Ativar): só as Feras de custo até 4 são oferecidas")
 		g.choose_search(0, cheap_beast_uid)
-		g._flush()
+		g.flush_events()
 	check(g.find_unit(cheap_beast_uid) != null and int(g.players[0]["momentum"]) == 3, "Saraya (Ativar): a Fera entra de graça e a ativação custa 2")
 	check(activator.exhausted, "Saraya (Ativar): exaure a Saraya")
 
@@ -10564,8 +10564,8 @@ func _test_saraya_kovan_package() -> void:
 	g.players[0]["momentum"] = 10
 	var vet_beast := _put(g, 0, "t_saraya_beast")
 	var vet_human := _put(g, 0, "t_saraya_human")
-	g._deal_damage(vet_beast.uid, 1, null)
-	g._deal_damage(vet_human.uid, 1, null)
+	g.deal_damage(vet_beast.uid, 1, null)
+	g.deal_damage(vet_human.uid, 1, null)
 	var vet_uid := _give(g, 0, "veterinario_de_plantao")
 	g.play_card(0, vet_uid, 0)
 	_resolve_stack(g)
@@ -10576,7 +10576,7 @@ func _test_saraya_kovan_package() -> void:
 func _place_photocopier(g: GameState, p: int) -> Card:
 	var photocopier := Card.new(g._uid(), "a_fotocopiadora_primordial", p)
 	g._place_relic(p, photocopier)
-	g._flush()
+	g.flush_events()
 	g.players[p]["momentum"] = 10
 	return photocopier
 
@@ -10627,8 +10627,8 @@ func _test_summon_copy_and_elephant_recall() -> void:
 		check(int(g.players[0]["momentum"]) == 8, "Fotocopiadora: a ativação custa 2")
 		copy.shield = false # the copied Escudo would absorb the hit
 		copy.armor = 0
-		g._deal_damage(copy.uid, 99, null)
-		g._check_state()
+		g.deal_damage(copy.uid, 99, null)
+		g.check_state()
 		var token_in_graveyard := false
 		for dead in g.players[0]["graveyard"]:
 			if dead.uid == copy.uid:
@@ -10660,11 +10660,11 @@ func _test_summon_copy_and_elephant_recall() -> void:
 	_quiet(g)
 	g.players[0]["momentum"] = 10
 	var incomodante := _put(g, 0, "elefante_incomodante")
-	g._check_state()
+	g.check_state()
 	check(g.atk_of(incomodante) == 2, "Incomodante sozinho: 2/2")
 	g.activate(0, _place_photocopier(g, 0).uid, incomodante.uid)
 	_resolve_stack(g)
-	g._check_state()
+	g.check_state()
 	check(g.atk_of(incomodante) == 3 and incomodante.hp_left() == 3, "Fotocopiadora: a cópia conta como Incomodante (ficam 3/3)")
 
 	# --- Campo cheio: a carta resolve sem criar nada ---
@@ -10693,7 +10693,7 @@ func _test_summon_copy_and_elephant_recall() -> void:
 	var recall_options: Array = g.pending_search["cards"] if g.phase == "search" else []
 	check(recall_options.size() == 1 and int(recall_options[0]["uid"]) == small_elephant.uid, "Elefante Não Esquece: só o Elefante de custo até 3 é oferecido")
 	g.choose_search(0, small_elephant.uid)
-	g._flush()
+	g.flush_events()
 	check(g.find_unit(small_elephant.uid) != null and int(g.players[0]["momentum"]) == 7, "Elefante Não Esquece: o Elefante volta de graça (só os 3 da carta foram pagos)")
 
 	# --- ... e a busca pode ser recusada ---
@@ -10705,7 +10705,7 @@ func _test_summon_copy_and_elephant_recall() -> void:
 	g.play_card(0, _give(g, 0, "elefante_nao_esquece"), 0)
 	_resolve_stack(g)
 	g.choose_search(0, 0)
-	g._flush()
+	g.flush_events()
 	check(g.find_unit(declined_elephant.uid) == null, "Elefante Não Esquece: recusar deixa o Elefante no cemitério")
 
 func _test_twin_bolts() -> void:
@@ -10725,14 +10725,14 @@ func _test_twin_bolts() -> void:
 	check(not g.play_card(0, s1, foe.uid, foe.uid).is_empty(), "Relâmpagos Gêmeos aceita a mesma unidade duas vezes")
 	_pass_windows(g)
 	g.pass_priority(1)
-	g._flush()
+	g.flush_events()
 	check(g.find_unit(foe.uid).damage == 6, "mesma unidade recebe 3 + 3 de dano")
 	# different targets
 	g.players[0]["momentum"] = 10
 	var s2 := _give(g, 0, "relampagos_gemeos")
 	g.play_card(0, s2, foe.uid, foe2.uid)
 	g.pass_priority(1)
-	g._flush()
+	g.flush_events()
 	check(g.find_unit(foe2.uid).damage == 3, "alvo 2 recebeu 3 de dano")
 	check(g.find_unit(foe.uid) == null, "alvo 1 recebeu mais 3 de dano (6 + 3 = morreu)")
 	check(g.players[1]["leader_hp"] == lf, "o Líder inimigo não leva dano")
@@ -10743,9 +10743,9 @@ func _test_twin_bolts() -> void:
 	var dmg2: int = g.find_unit(foe2.uid).damage
 	g.play_card(0, s3, victim.uid, foe2.uid)
 	victim.damage = 1000
-	g._check_state()
+	g.check_state()
 	g.pass_priority(1)
-	g._flush()
+	g.flush_events()
 	check(g.find_unit(foe2.uid).damage == dmg2 + 3, "alvo 1 sumiu: o segundo raio ainda acerta")
 	# Choque Direto: 2 to the face only; Choque de Largada: +1 ATK and Ímpeto until end of turn
 	g.players[0]["momentum"] = 10
@@ -10755,21 +10755,21 @@ func _test_twin_bolts() -> void:
 	var lf3: int = g.players[1]["leader_hp"]
 	g.play_card(0, s4, 0, 0)
 	g.pass_priority(1)
-	g._flush()
+	g.flush_events()
 	check(g.players[1]["leader_hp"] == lf3 - 2, "Choque Direto causa 2 ao Líder inimigo")
 	var ally := _put(g, 0, "faisca_viva")
 	var s5 := _give(g, 0, "choque_de_largada")
 	check(CardDB.card("choque_de_largada")["speed"] == "instantaneo" and CardDB.card("choque_de_largada")["cost"] == 1, "Choque de Largada: custo 1, Instantâneo")
 	g.play_card(0, s5, ally.uid, 0)
 	g.pass_priority(1)
-	g._flush()
+	g.flush_events()
 	check(ally.atk_total() == 2 and g.has_kw(ally, "impeto"), "Choque de Largada: +1 ATK e Ímpeto")
 	# Diabrete Elétrico: Ímpeto, and Ao Morrer gives next-turn Momentum
 	var d := _put(g, 0, "diabrete_eletrico")
 	check(CardDB.card("diabrete_eletrico")["cost"] <= 1 and "demonio" in CardDB.card("diabrete_eletrico")["tribe"], "Diabrete Elétrico é barato e Demônio")
 	d.damage = 1000
-	g._check_state()
-	g._flush()
+	g.check_state()
+	g.flush_events()
 	check(g.find_unit(d.uid) == null, "Diabrete Elétrico morre")
 
 ## Fúria sem fogo: o elemento Sangue e as cartas Sangria Desatada, Gorbo Escarra-Rubra e Machadada em Dobro.
@@ -10887,8 +10887,8 @@ func _test_furia_remaining_cards() -> void:
 	_quiet(g)
 	var ember := _put(g, 0, "ticao_teimoso")
 	var enemy_leader_before: int = g.players[1]["leader_hp"]
-	g._deal_damage(ember.uid, 1, null)
-	g._check_state()
+	g.deal_damage(ember.uid, 1, null)
+	g.check_state()
 	check(g.players[1]["leader_hp"] == enemy_leader_before - 1, "Tição Teimoso: causa 1 de dano ao Líder inimigo ao sofrer dano")
 	check(ember.atk_total() == 4, "Tição Teimoso: ganha +1 de Ataque ao sofrer dano")
 	g._finish_turn()
@@ -10897,11 +10897,11 @@ func _test_furia_remaining_cards() -> void:
 	# Javali Sem Freio: cada dano sofrido dá +1 de Ataque permanente
 	var boar := _put(g, 0, "javali_sem_freio")
 	check(boar.atk_total() == 4, "Javali Sem Freio: 4 de Ataque quando saudável")
-	g._deal_damage(boar.uid, 1, null)
-	g._check_state()
+	g.deal_damage(boar.uid, 1, null)
+	g.check_state()
 	check(boar.atk_total() == 5, "Javali Sem Freio: +1 de Ataque ao sofrer dano")
-	g._deal_damage(boar.uid, 1, null)
-	g._check_state()
+	g.deal_damage(boar.uid, 1, null)
+	g.check_state()
 	check(boar.atk_total() == 6, "Javali Sem Freio: o bônus se acumula a cada dano")
 	g._finish_turn()
 	boar.damage = 0
@@ -10942,8 +10942,8 @@ func _test_furia_remaining_cards() -> void:
 	check(volcano != null and g3.players[0]["leader_hp"] == own_leader_before - 2, "Vulcãozinho: o Líder do dono sofre 2 de dano ao entrar")
 	check(volcano != null and g3.has_kw(volcano, "sobrepujanca"), "Vulcãozinho: tem Sobrepujança")
 	var enemy_leader_hp: int = g3.players[1]["leader_hp"]
-	g3._deal_damage(volcano_uid, 99, null)
-	g3._check_state()
+	g3.deal_damage(volcano_uid, 99, null)
+	g3.check_state()
 	check(foe_a.damage == 3 and foe_b.damage == 3, "Vulcãozinho: Ao Morrer causa 3 de dano a todas as unidades inimigas")
 	check(g3.players[1]["leader_hp"] == enemy_leader_hp - 3, "Vulcãozinho: Ao Morrer causa 3 de dano ao Líder inimigo")
 
@@ -10969,14 +10969,14 @@ func _test_furia_blood_price_cards() -> void:
 	_quiet(g2)
 	var scarred := _put(g2, 0, "marlene_cicatriz_viva")
 	check(scarred.atk_total() == 2, "Marlene: 2 de Ataque quando o Líder está inteiro")
-	g2._deal_damage(GameState.LEADER_UID[0], 2, null)
-	g2._check_state()
+	g2.deal_damage(GameState.LEADER_UID[0], 2, null)
+	g2.check_state()
 	check(scarred.atk_total() == 3, "Marlene: +1 de Ataque quando o seu Líder sofre dano")
-	g2._deal_damage(GameState.LEADER_UID[1], 2, null)
-	g2._check_state()
+	g2.deal_damage(GameState.LEADER_UID[1], 2, null)
+	g2.check_state()
 	check(scarred.atk_total() == 3, "Marlene: dano no Líder inimigo não dá Ataque")
-	g2._deal_damage(GameState.LEADER_UID[0], 1, null)
-	g2._check_state()
+	g2.deal_damage(GameState.LEADER_UID[0], 1, null)
+	g2.check_state()
 	g2._finish_turn()
 	check(scarred.atk_total() == 4, "Marlene: o bônus se acumula e é permanente")
 
@@ -11126,7 +11126,7 @@ func _test_ai_no_waste() -> void:
 	jug_game.players[0]["leader_hp"] = jug_game.players[0]["leader_max"] - 3
 	var jug := Card.new(jug_game._uid(), "garrafao_curativo", 0)
 	jug_game._place_relic(0, jug)
-	jug_game._flush()
+	jug_game.flush_events()
 	var held_cards: Array = []
 	for card: Card in jug_game.players[0]["hand"]:
 		held_cards.append(card.card_id)
@@ -11135,7 +11135,7 @@ func _test_ai_no_waste() -> void:
 	check(jug_game.stack.size() == 1 and jug_game.players[0]["leader_hp"] == jug_game.players[0]["leader_max"] - 3,
 		"IA: o primeiro tick ainda está pendente quando a próxima ação é escolhida")
 	jug_game.pass_priority(1)
-	jug_game._flush()
+	jug_game.flush_events()
 	SimpleAI.step(jug_game, 0, held_cards)
 	check(jug.durability_left() == 2, "IA: não gasta mais Durabilidade enquanto a cura pendente já leva o Líder ao máximo")
 	# revive
@@ -11636,7 +11636,7 @@ func _test_ossuario() -> void:
 	_quiet(g)
 	var relic := Card.new(g._uid(), "ossuario_sem_fundo", 0)
 	g._place_relic(0, relic)
-	g._flush()
+	g.flush_events()
 	check(g.find_relic(relic.uid) != null, "ossuário: fica em campo como relíquia")
 	var unit := _put(g, 0, "t_oss")
 	check(g.slots_used(0) == 2, "ossuário: ocupa um espaço de unidade")
@@ -11646,15 +11646,15 @@ func _test_ossuario() -> void:
 	g.players[0]["momentum"] = 4
 	check(g.can_activate(0, relic.uid), "ossuário: pode ativar com 4 e unidade no cemitério")
 	g.activate(0, relic.uid)
-	g._flush()
+	g.flush_events()
 	check(g.phase == "search" and g.pending_search.get("revive", false), "ossuário: abre escolha de reviver")
 	if g.phase == "search":
 		var options: Array = g.pending_search["cards"]
 		g.choose_search(0, int(options[0]["uid"]))
-		g._flush()
+		g.flush_events()
 	check(_count(g, 0, "t_oss") == 1, "ossuário: cópia revivida em campo")
 	g.destroy_relic(relic)
-	g._flush()
+	g.flush_events()
 	check(g.find_relic(relic.uid) == null and g.slots_used(0) == 1, "ossuário: destruído libera o espaço")
 
 func _test_ciclo_da_carpideira() -> void:
@@ -11665,7 +11665,7 @@ func _test_ciclo_da_carpideira() -> void:
 	_quiet(g)
 	var urn := Card.new(g._uid(), "urna_cochichante", 0)
 	g._place_relic(0, urn)
-	g._flush()
+	g.flush_events()
 	_put(g, 0, "carpideira_soluco_curto")
 	var spirit := _put(g, 0, "espirito_choroso")
 	for filler_number in 5:
@@ -11677,7 +11677,7 @@ func _test_ciclo_da_carpideira() -> void:
 	for lap in 3:
 		check(g.can_activate(0, urn.uid), "ciclo: volta %d pode ativar a Urna com Momentum sobrando" % lap)
 		g.activate(0, urn.uid, current_spirit_uid)
-		g._flush()
+		g.flush_events()
 		check(_count(g, 0, "espirito_choroso") == 1, "ciclo: volta %d deixa exatamente 1 Espírito (campo cheio)" % lap)
 		check(g.slots_used(0) == 8, "ciclo: volta %d continua com 8 espaços" % lap)
 		for unit in g.players[0]["board"]:
@@ -11694,7 +11694,7 @@ func _test_reembolso_do_ciclo() -> void:
 	_quiet(g)
 	var urn := Card.new(g._uid(), "urna_cochichante", 0)
 	g._place_relic(0, urn)
-	g._flush()
+	g.flush_events()
 	_put(g, 0, "carpideira_soluco_curto")
 	_put(g, 0, "tesoureira_troco_certo")
 	var spirit := _put(g, 0, "espirito_choroso")
@@ -11704,7 +11704,7 @@ func _test_reembolso_do_ciclo() -> void:
 	var momentum_after_each_lap: Array = []
 	for lap in 6:
 		g.activate(0, urn.uid, current_spirit_uid)
-		g._flush()
+		g.flush_events()
 		momentum_after_each_lap.append(int(g.players[0]["momentum"]))
 		for unit in g.players[0]["board"]:
 			if unit.card_id == "espirito_choroso":
@@ -11719,13 +11719,13 @@ func _test_tesoureira_compra_e_descarta() -> void:
 	_put(g, 0, "tesoureira_troco_certo")
 	var victim := _put(g, 0, "espirito_choroso")
 	var second_victim := _put(g, 0, "espirito_choroso")
-	g._flush()
+	g.flush_events()
 	var hand_before: int = g.players[0]["hand"].size()
 	var deck_before: int = g.players[0]["deck"].size()
 	var graveyard_before: int = g.players[0]["graveyard"].size()
 	victim.damage = 1000
-	g._check_state()
-	var death_events := g._flush()
+	g.check_state()
+	var death_events := g.flush_events()
 	var draw_events := death_events.filter(func(e): return e["type"] == "draw" and e["player"] == 0)
 	check(draw_events.size() == 1 and not draw_events[0].get("routine", false), "tesoureira: a morte aliada gera 1 evento de compra (que a Crônica lista)")
 	check(g.players[0]["hand"].size() == hand_before + 1 and g.players[0]["deck"].size() == deck_before - 1, "tesoureira: a carta comprada saiu do deck para a mão")
@@ -11734,11 +11734,11 @@ func _test_tesoureira_compra_e_descarta() -> void:
 	check(g.phase != "search" and g.players[0]["hand"].size() == hand_before, "tesoureira: compra 1 e descarta 1, a mão volta ao tamanho de antes")
 	check(g.players[0]["graveyard"].size() == graveyard_before + 1, "tesoureira: a carta descartada vai para o cemitério (a ficha morta não vai)")
 	# segunda morte no mesmo turno: nem compra nem pede descarte
-	g._flush()
+	g.flush_events()
 	var hand_after_first: int = g.players[0]["hand"].size()
 	second_victim.damage = 1000
-	g._check_state()
-	var second_events := g._flush()
+	g.check_state()
+	var second_events := g.flush_events()
 	check(second_events.filter(func(e): return e["type"] == "draw").is_empty() and g.players[0]["hand"].size() == hand_after_first and g.phase != "search", "tesoureira: a 2ª morte no mesmo turno não compra nem descarta")
 
 func _test_fagulha_e_cutucada() -> void:
@@ -11751,7 +11751,7 @@ func _test_fagulha_e_cutucada() -> void:
 	g.players[0]["momentum"] = 0
 	check(g.can_activate(0, spark.uid), "fagulha: pronta, pode ativar")
 	g.activate(0, spark.uid)
-	g._flush()
+	g.flush_events()
 	check(int(g.players[0]["momentum"]) == 1 and spark.exhausted, "fagulha: ganha 1 de Momentum e fica exausta")
 	check(not g.can_activate(0, spark.uid), "fagulha: exausta não ativa de novo")
 	var poke := _give(g, 0, "cutucada_no_defunto")
@@ -11762,10 +11762,10 @@ func _test_fagulha_e_cutucada() -> void:
 	check(not g.valid_targets(0, "ally_unit", poke, false, CardDB.card("cutucada_no_defunto")["effects"]).has(ready_unit.uid), "cutucada: unidade que não está exausta não é alvo")
 	check(not g.valid_targets(0, "ally_unit", poke, false, CardDB.card("cutucada_no_defunto")["effects"]).has(champion.uid), "cutucada: Campeão exausto não é alvo")
 	g.play_card(0, poke, spark.uid)
-	g._flush()
+	g.flush_events()
 	check(not spark.exhausted, "cutucada: a Fagulha desvira")
 	g.activate(0, spark.uid)
-	g._flush()
+	g.flush_events()
 	check(int(g.players[0]["momentum"]) == 2, "fagulha + cutucada: segunda ativação gera mais 1 de Momentum")
 
 func _test_degelo_na_moenda() -> void:
@@ -11775,29 +11775,29 @@ func _test_degelo_na_moenda() -> void:
 	_quiet(g)
 	var mill_artifact := Card.new(g._uid(), "moenda_do_seu_belmiro", 0)
 	g._place_relic(0, mill_artifact)
-	g._flush()
+	g.flush_events()
 	var thawer := _put(g, 0, "zuleica_degela_tudo")
 	var spark := _put(g, 0, "fagulha_bocejante")
 	g.players[0]["turn_start_momentum"] = 2 # a Fagulha só devolve o que foi gasto: começou o turno com 2
 	g.players[0]["momentum"] = 1
 	g.activate(0, spark.uid)
-	g._flush()
+	g.flush_events()
 	var hp_before := int(g.players[0]["leader_hp"])
 	var enemy_deck_before: int = g.players[1]["deck"].size()
 	for lap in 5:
 		g.activate(0, thawer.uid, spark.uid)
-		g._flush()
+		g.flush_events()
 		g.activate(0, spark.uid)
-		g._flush()
+		g.flush_events()
 	check(int(g.players[0]["momentum"]) == 2, "moenda: cada volta Zuleica + Fagulha sai de graça (veio %d)" % int(g.players[0]["momentum"]))
 	check(int(g.players[0]["leader_hp"]) == hp_before - 5, "moenda: cada volta custa 1 de Vida do Líder")
 	check(g.players[1]["deck"].size() == enemy_deck_before - 10, "moenda: cada desvirada mói 2 cartas do oponente")
 	check(mill_artifact.durability_left() == 4, "moenda: 5 moagens gastam 2 de Durabilidade (a cada 2) (sobrou %d)" % mill_artifact.durability_left())
 	for lap in 7:
 		g.activate(0, thawer.uid, spark.uid)
-		g._flush()
+		g.flush_events()
 		g.activate(0, spark.uid)
-		g._flush()
+		g.flush_events()
 	check(not g.players[0]["relics"].has(mill_artifact), "moenda: 12 moagens esgotam os 6 de Durabilidade e a quebram")
 	check(not g.valid_targets(0, "other_ally_unit", thawer.uid, false, CardDB.card("zuleica_degela_tudo")["activated"]["effects"]).has(thawer.uid), "zuleica: não desvira a si mesma")
 
@@ -11814,8 +11814,8 @@ func _test_zaza_fuzue() -> void:
 	var artifact_cost := g.cost_of(0, CardDB.card("moenda_do_seu_belmiro"), artifact_in_hand)
 	var spell_cost := g.cost_of(0, CardDB.card("labareda"), spell_in_hand)
 	for turn_end in 2:
-		g._fire(party_mage, "on_turn_end")
-		g._check_state()
+		g.fire_trigger(party_mage, "on_turn_end")
+		g.check_state()
 	check(g.cost_of(0, CardDB.card("geodo_vivo"), unit_in_hand) == maxi(0, unit_cost - 2), "zazá: unidade na mão fica (1) mais barata a cada fim de turno")
 	check(g.cost_of(0, CardDB.card("moenda_do_seu_belmiro"), artifact_in_hand) == artifact_cost - 2, "zazá: artefato na mão também barateia")
 	check(g.cost_of(0, CardDB.card("labareda"), spell_in_hand) == spell_cost, "zazá: feitiço não barateia")
@@ -11890,7 +11890,7 @@ func _test_gertrudes() -> void:
 		if g.stack.is_empty():
 			break
 		g.pass_priority(g.priority)
-	g._flush()
+	g.flush_events()
 	check(g.phase == "search" and g.pending_search.get("hand_summon", false), "Gertrudes: o Ao Entrar abre a escolha de um campeão da mão")
 	var offered: Array = g.pending_search["cards"]
 	check(offered.size() == 1 and int(offered[0]["uid"]) == wanessa_uid, "Gertrudes: só campeões da mão são oferecidos")
@@ -11921,7 +11921,7 @@ func _test_gertrudes() -> void:
 		if enter.stack.is_empty():
 			break
 		enter.pass_priority(enter.priority)
-	enter._flush()
+	enter.flush_events()
 	enter.choose_search(enter_player, enter_wanessa)
 	if enter.phase == "enter_target":
 		enter.choose_enter_target(enter_player, enemy.uid)
@@ -11938,7 +11938,7 @@ func _test_gertrudes() -> void:
 		if empty.stack.is_empty():
 			break
 		empty.pass_priority(empty.priority)
-	empty._flush()
+	empty.flush_events()
 	check(empty.phase != "search", "Gertrudes: sem campeão na mão, não abre escolha")
 
 	# a full board: there is no slot for the champion
@@ -11955,7 +11955,7 @@ func _test_gertrudes() -> void:
 		if crowded.stack.is_empty():
 			break
 		crowded.pass_priority(crowded.priority)
-	crowded._flush()
+	crowded.flush_events()
 	check(crowded.phase != "search", "Gertrudes: com o campo cheio não há onde colocar o campeão")
 
 	# the pick is optional: declining keeps the champion in hand and nothing enters the board
@@ -11970,7 +11970,7 @@ func _test_gertrudes() -> void:
 		if declined.stack.is_empty():
 			break
 		declined.pass_priority(declined.priority)
-	declined._flush()
+	declined.flush_events()
 	check(declined.phase == "search", "Gertrudes: a escolha abre antes de recusar")
 	check(declined.choose_search(1 - declined_player, 0).is_empty(), "Gertrudes: o oponente não recusa por você")
 	check(not declined.choose_search(declined_player, 0).is_empty(), "Gertrudes: recusar (uid 0) é aceito")
@@ -11990,7 +11990,7 @@ func _test_gertrudes() -> void:
 		if hidden.stack.is_empty():
 			break
 		hidden.pass_priority(hidden.priority)
-	hidden._flush()
+	hidden.flush_events()
 	var seen_by_opponent: Dictionary = StateView.snapshot(hidden, 1 - hidden_player)
 	check(String(seen_by_opponent["pending_search"]["cards"][0]["card_id"]) == "", "Gertrudes: o adversário não vê qual campeão está na mão")
 
@@ -12009,12 +12009,12 @@ func _test_myrra_activate() -> void:
 		g.auto_pass[1] = true
 		check(g.can_activate(0, myrra.uid), "Myrra pode ativar")
 		g.activate(0, myrra.uid, ally.uid)
-		g._flush()
+		g.flush_events()
 		for guard in 8:
 			if g.stack.is_empty():
 				break
 			g.pass_priority(g.priority)
-		g._flush()
+		g.flush_events()
 		check(ally.shield and ally.temp_critico == 1, "Myrra (%s): Escudo e +1 de Crítico" % target_card)
 		var expected_bonus := 1 if target_card == "vael" else 0
 		check(ally.atk == base_attack + expected_bonus and ally.hp == base_health + expected_bonus, "Myrra (%s): +1/+1 permanente só para o Vael" % target_card)
@@ -12082,13 +12082,13 @@ func _test_metalica() -> void:
 	g.players[a]["momentum"] = 30
 	var tyren := _put(g, b, "tyren")
 	check(g.armor_of(tyren) == 0 and not tyren.magic_shield, "Tyren: sem Armadura nem Escudo Mágico ao entrar")
-	g._deal_damage(tyren.uid, 1, null)
-	g._check_state() # a direct hit only queues the Ao Sofrer Dano trigger; this resolves it
+	g.deal_damage(tyren.uid, 1, null)
+	g.check_state() # a direct hit only queues the Ao Sofrer Dano trigger; this resolves it
 	check(tyren.armor == 1, "Tyren: dano que não é de feitiço faz a Armadura passar a ser 1")
 	check(not tyren.magic_shield, "Tyren: dano que não é de feitiço não dá Escudo Mágico")
 	tyren.armor = 3
-	g._deal_damage(tyren.uid, 1, null)
-	g._check_state() # a direct hit only queues the Ao Sofrer Dano trigger; this resolves it
+	g.deal_damage(tyren.uid, 1, null)
+	g.check_state() # a direct hit only queues the Ao Sofrer Dano trigger; this resolves it
 	check(tyren.armor == 3, "Tyren: uma Armadura maior que 1 não é diminuída")
 	tyren.armor = 0
 	tyren.damage = 0 # the earlier hits would otherwise leave too little Vida for a 3-damage spell
@@ -12203,8 +12203,8 @@ func _test_metalica() -> void:
 	CardDB.data()["cards"]["t_mirror"]["keywords"] = ["reflexao"]
 	var mirror_a := _put(g, a, "t_mirror")
 	var mirror_b := _put(g, b, "t_mirror")
-	g._deal_damage(mirror_a.uid, 5, mirror_b)
-	g._flush()
+	g.deal_damage(mirror_a.uid, 5, mirror_b)
+	g.flush_events()
 	check(g.hp_left(mirror_a) == 1, "Reflexão: quem tem Reflexão sofre o dano normal (5)")
 	check(g.hp_left(mirror_b) == 3, "Reflexão: o atacante sofre metade do dano, arredondada para cima (3)")
 	check(g.hp_left(mirror_a) == 1, "Reflexão: o dano refletido não reflete de volta")
@@ -12297,17 +12297,17 @@ func _test_metalica() -> void:
 	check(not mountain.shield and not g.has_kw(mountain, "escudo"), "Morakhan: sem Escudo")
 	check(g.has_kw(mountain, "reflexao"), "Morakhan: tem Reflexão")
 	var deck_before_hits: int = g.players[b]["deck"].size()
-	g._deal_damage(mountain.uid, 3, attacker)
-	g._check_state() # a direct hit only queues the Ao Sofrer Dano trigger; this resolves it
+	g.deal_damage(mountain.uid, 3, attacker)
+	g.check_state() # a direct hit only queues the Ao Sofrer Dano trigger; this resolves it
 	check(g.atk_of(mountain) == 1, "Morakhan: ao sofrer dano ganha +1 de Ataque")
-	g._deal_damage(mountain.uid, 3, attacker)
-	g._check_state()
+	g.deal_damage(mountain.uid, 3, attacker)
+	g.check_state()
 	check(g.atk_of(mountain) == 1, "Morakhan: o Ao Sofrer Dano é uma vez por turno (o segundo dano não dá bônus)")
 	check(g.players[b]["deck"].size() == deck_before_hits - 1, "Morakhan: só mói 1 carta por turno, mesmo sofrendo dois danos")
 	g.end_turn(g.active)
 	check(g.atk_of(mountain) == 1, "Morakhan: o bônus continua durante o turno do oponente")
-	g._deal_damage(mountain.uid, 3, attacker)
-	g._check_state()
+	g.deal_damage(mountain.uid, 3, attacker)
+	g.check_state()
 	check(g.atk_of(mountain) == 2, "Morakhan: no turno seguinte o gatilho volta a funcionar")
 	g.end_turn(g.active)
 	check(g.atk_of(mountain) == 0, "Morakhan: o bônus some quando o próximo turno do controlador começa")
@@ -12332,7 +12332,7 @@ func _test_metalica() -> void:
 	tapped_enemy.exhausted = true
 	check(g.attack_targets(mountain).has(tapped_enemy.uid), "0 de Ataque: pode desafiar uma unidade virada")
 	var challenge_events := _hit(g, mountain, tapped_enemy.uid)
-	g._check_state()
+	g.check_state()
 	check(not challenge_events.is_empty(), "0 de Ataque: o desafio acontece")
 	# the only damage the target takes is Morakhan's Reflexão (half of what it struck back), never a blow of its own
 	check(tapped_enemy.damage == ceili(mountain.damage / 2.0), "0 de Ataque: o desafio não causa dano ao alvo (só a Reflexão volta)")
@@ -12385,7 +12385,7 @@ func _test_glacial_combo() -> void:
 				if g.stack.is_empty():
 					break
 				g.pass_priority(g.priority)
-			g._flush()
+			g.flush_events()
 			check(g.budget(a, true) == 1, "combo (%s): o combo do 8º turno termina com 1 de Momentum sobrando" % label)
 			_hit(g, princess, GameState.LEADER_UID[o])
 			var leader_damage: int = 60 - int(g.players[o]["leader_hp"])
@@ -12483,7 +12483,7 @@ func _test_glacial_combo() -> void:
 	var fifi_bystander: Card = fifi["enemies"][1]
 	_cast_and_resolve(fifi_game, fifi["me"], "fifi_congela_passos")
 	fifi_game.choose_enter_target(fifi["me"], fifi_victim.uid) # her Ao Entrar target is chosen after she enters
-	fifi_game._flush()
+	fifi_game.flush_events()
 	check(fifi_victim.exhausted and fifi_victim.frozen > 0, "Fifi: Ao Entrar congela e exaure a unidade escolhida")
 	check(not fifi_bystander.exhausted and fifi_bystander.frozen == 0, "Fifi: a outra unidade inimiga não é afetada")
 	var fifi_tempesfrost := _put(fifi_game, fifi["me"], "wanessa_tempesfrost")
@@ -12499,7 +12499,7 @@ func _test_glacial_combo() -> void:
 	var espectro_victim: Card = espectro["enemies"][0]
 	_cast_and_resolve(espectro_game, espectro["me"], "espectro_do_gelo_aprisionante")
 	espectro_game.choose_enter_target(espectro["me"], espectro_victim.uid)
-	espectro_game._flush()
+	espectro_game.flush_events()
 	check(espectro_victim.exhausted and espectro_victim.frozen > 0, "Espectro: Ao Entrar congela e exaure a unidade escolhida")
 	check(not espectro["enemies"][1].exhausted and espectro["enemies"][1].frozen == 0, "Espectro: a outra unidade inimiga não é afetada")
 
@@ -12509,7 +12509,7 @@ func _test_glacial_combo() -> void:
 	var wanessa_victim: Card = wanessa["enemies"][0]
 	_cast_and_resolve(wanessa_game, wanessa["me"], "princesa_wanessa")
 	wanessa_game.choose_enter_target(wanessa["me"], wanessa_victim.uid)
-	wanessa_game._flush()
+	wanessa_game.flush_events()
 	check(wanessa_victim.exhausted and wanessa_victim.frozen > 0, "Princesa Wanessa: Ao Entrar congela e exaure a unidade escolhida")
 	check(not wanessa["enemies"][1].exhausted and wanessa["enemies"][1].frozen == 0, "Princesa Wanessa: a outra unidade inimiga não é afetada")
 
@@ -12824,7 +12824,7 @@ func _test_yresa_fusion() -> void:
 	g.activate(0, yresa.uid)
 	g.pass_priority(0)
 	g.pass_priority(1)
-	g._flush()
+	g.flush_events()
 	check(_count(g, 0, "yresa_sentinel") == 0 and _count(g, 0, "yresa_colossus") == 1, "fusão: 2 Stonewards viram 1 Colossus")
 	var colossus: Card = g.players[0]["board"].filter(func(c: Card): return c.card_id == "yresa_colossus")[0]
 	check(colossus.atk == 2 and colossus.hp == 4 and colossus.armor == 2, "colossus: +1/+2 e Armadura 1 por Stoneward (%d/%d A%d)" % [colossus.atk, colossus.hp, colossus.armor])
@@ -12857,7 +12857,7 @@ func _resolve_stack(g: GameState) -> void:
 			break
 		else:
 			g.pass_priority(g.priority)
-	g._flush()
+	g.flush_events()
 
 func _test_glacial() -> void:
 	_tcard("teste_alvo_gelo", 0, 20, [])
@@ -12972,7 +12972,7 @@ func _test_glacial() -> void:
 		if g.stack.is_empty():
 			break
 		g.pass_priority(g.priority)
-	g._flush()
+	g.flush_events()
 	check(int(g.players[a]["snowball"]) >= 7 and crossing_bola.card_id == "grande_bola_de_neve" and crossing_bola.zone == "graveyard", "a Bola que cruza o nível 7 termina no cemitério já como Grande")
 
 	# Nythera, Ao Entrar: puts a Bola on top only when none is already in hand or deck
@@ -13063,23 +13063,23 @@ func _test_glacial() -> void:
 	var chamber := Card.new(g._uid(), "camara_de_extase", a)
 	g._place_relic(a, chamber)
 	g.players[a]["leader_hp"] = 5
-	g._deal_damage(GameState.LEADER_UID[a], 9, null)
+	g.deal_damage(GameState.LEADER_UID[a], 9, null)
 	check(g.players[a]["leader_hp"] == 5, "câmara: o dano que mataria é anulado")
 	check(g.find_relic(chamber.uid) == null, "câmara: é destruída ao proteger")
 	# the next 3 hits do nothing, in this same turn; the 4th one lands in full
 	for hit_number in 3:
-		g._deal_damage(GameState.LEADER_UID[a], 3, null)
+		g.deal_damage(GameState.LEADER_UID[a], 3, null)
 		check(g.players[a]["leader_hp"] == 5, "câmara: o golpe %d depois de proteger é reduzido a 0" % (hit_number + 1))
-	g._deal_damage(GameState.LEADER_UID[a], 3, null)
+	g.deal_damage(GameState.LEADER_UID[a], 3, null)
 	check(g.players[a]["leader_hp"] == 2, "câmara: o 4º golpe causa o dano inteiro")
 	# the protection ends with the controller's next turn, even if hits are left
 	g = _glacial_game()
 	a = g.active
 	g._place_relic(a, Card.new(g._uid(), "camara_de_extase", a))
 	g.players[a]["leader_hp"] = 5
-	g._deal_damage(GameState.LEADER_UID[a], 9, null)
+	g.deal_damage(GameState.LEADER_UID[a], 9, null)
 	g.turn += 3
-	g._deal_damage(GameState.LEADER_UID[a], 3, null)
+	g.deal_damage(GameState.LEADER_UID[a], 3, null)
 	check(g.players[a]["leader_hp"] == 2, "câmara: depois do fim do próximo turno do dono o dano volta ao normal")
 
 	# the Chamber's event names the unit whose blow was cancelled (the screen needs it to show the hit landing)
@@ -13090,7 +13090,7 @@ func _test_glacial() -> void:
 	g.players[a]["leader_hp"] = 5
 	var striker := _put(g, g.opponent(a), "teste_alvo_gelo")
 	g._events.clear()
-	g._deal_damage(GameState.LEADER_UID[a], 9, striker)
+	g.deal_damage(GameState.LEADER_UID[a], 9, striker)
 	var ward_event := {}
 	for event: Dictionary in g._events:
 		if event["type"] == "lethal_ward":
@@ -13100,7 +13100,7 @@ func _test_glacial() -> void:
 	# each negated hit emits an event with the layers still standing, so the screen can break the outer shell
 	for expected_left in [2, 1, 0]:
 		g._events.clear()
-		g._deal_damage(GameState.LEADER_UID[a], 3, striker)
+		g.deal_damage(GameState.LEADER_UID[a], 3, striker)
 		var negated_events: Array = g._events.filter(func(e): return e["type"] == "leader_hit_negated")
 		check(negated_events.size() == 1 and int(negated_events[0]["left"]) == expected_left and int(negated_events[0]["src"]) == striker.uid, "câmara: o golpe anulado informa %d camada(s) restante(s)" % expected_left)
 		check(g.leader_negations_left(a) == expected_left, "câmara: contador de camadas em %d" % expected_left)
@@ -13200,7 +13200,7 @@ func _test_glacial() -> void:
 	check(not search_options.is_empty() and search_options.all(func(option: Dictionary) -> bool: return option["card_id"] == "bola_de_neve"), "Bruno: só Bola de Neve é oferecida na busca")
 	var bruno_hand_size_before_search: int = g.players[a]["hand"].size()
 	g.choose_search(a, int(search_options[0]["uid"]))
-	g._flush()
+	g.flush_events()
 	check(g.players[a]["hand"].size() == bruno_hand_size_before_search + 1 and g.players[a]["hand"].any(func(c: Card) -> bool: return c.card_id == "bola_de_neve"), "Bruno: a Bola de Neve escolhida vai do deck para a mão")
 	var bruno := g.find_unit(bruno_uid)
 	check(bruno != null and not CardDB.card("bruno")["keywords"].has("rompante"), "Bruno: sem Rompante, não é mais uma unidade agressiva")
@@ -13223,7 +13223,7 @@ func _test_glacial() -> void:
 		g.pass_priority(g.priority)
 	check(g.phase == "search", "Ysvane: Ao Entrar oferece a Bola de Neve do cemitério (fase %s)" % g.phase)
 	g.choose_search(a, bola_in_graveyard.uid)
-	g._flush()
+	g.flush_events()
 	var ysvane_card: Card = g.players[a]["board"].filter(func(c: Card): return c.card_id == "ysvane")[0]
 	check(g.players[a]["hand"].has(bola_in_graveyard) and not g.players[a]["graveyard"].has(bola_in_graveyard), "Ysvane: a Bola de Neve volta do cemitério para a mão")
 	check(bola_in_graveyard.banish_after_cast, "Ysvane: a Bola recuperada fica marcada para ser banida depois de lançada")
@@ -13238,7 +13238,7 @@ func _test_glacial() -> void:
 		if g.stack.is_empty():
 			break
 		g.pass_priority(g.priority)
-	g._flush()
+	g.flush_events()
 	check(g.players[a]["banished"].has(bola_in_graveyard) and not g.players[a]["graveyard"].has(bola_in_graveyard), "Ysvane: a Bola recuperada é banida depois de lançada, não vai ao cemitério")
 	var shielded_count: int = g.players[a]["board"].filter(func(c: Card): return c.shield).size()
 	check(shielded_count == 0, "Ysvane: lançar feitiço glacial não dá mais Escudo (%d)" % shielded_count)
@@ -13308,7 +13308,7 @@ func _test_sagrada_engine() -> void:
 	_resolve_stack(g)
 	check(bulwark.death_ward_armed and g.players[player]["momentum"] == 0, "Baluarte: a ativação arma a proteção e paga 2")
 	protected_unit.damage = protected_unit.hp
-	g._check_state()
+	g.check_state()
 	check(g.find_unit(protected_unit.uid) != null and protected_unit.hp_left() == 1, "Baluarte: a próxima morte por dano é negada")
 	check(g.find_relic(bulwark.uid) == null, "Baluarte: é destruído depois de negar a morte")
 	check(g.players[player]["leader_hp"] == 23, "Baluarte: Ao Morrer cura 3 do Líder (%d)" % g.players[player]["leader_hp"])
@@ -13358,7 +13358,7 @@ func _test_sagrada_engine() -> void:
 	g.players[player]["ability_used"] = false
 	check(not g.can_use_ability(player), "Erguer o Baluarte: bloqueado enquanto já existe um em campo (unique)")
 	g.destroy_relic(g.players[player]["relics"][0])
-	g._flush()
+	g.flush_events()
 	check(g.can_use_ability(player), "Erguer o Baluarte: pode erguer de novo quando não há nenhum")
 
 	# lockout_turns: after a Baluarte falls (own turn X, opponent's X+1 or the next own turn X+2) no new one until a clean own turn
@@ -13371,7 +13371,7 @@ func _test_sagrada_engine() -> void:
 	var fall_turn: int = g.turn
 	g._place_relic(player, Card.new(g._uid(), "t_bulwark", player))
 	g.destroy_relic(g.players[player]["relics"][0])
-	g._flush()
+	g.flush_events()
 	check(not g.can_use_ability(player), "Erguer o Baluarte: caiu neste turno, bloqueado")
 	g.turn = fall_turn + 1
 	check(g.relic_fell_within(player, "t_bulwark", 2), "Erguer o Baluarte: caiu no turno X, ainda bloqueado em X+1")
@@ -13382,7 +13382,7 @@ func _test_sagrada_engine() -> void:
 	g.turn = fall_turn + 5 # an opponent's turn: the fall happens there
 	g._place_relic(player, Card.new(g._uid(), "t_bulwark", player))
 	g.destroy_relic(g.players[player]["relics"][0])
-	g._flush()
+	g.flush_events()
 	g.turn += 1
 	check(not g.can_use_ability(player), "Erguer o Baluarte: caiu no turno do oponente, bloqueado no turno seguinte do dono")
 	g.turn += 2
@@ -13518,7 +13518,7 @@ func _test_sagrada_engine() -> void:
 	g.choose_enter_target(0, vidal_ally.uid)
 	check(g.phase == "enter_target", "Vidal: não deixa repetir o mesmo alvo")
 	g.choose_enter_target(0, vidal_ally_three.uid)
-	g._flush()
+	g.flush_events()
 	g._move_dead_units()
 	check(int(CardDB.card("vidal")["cost"]) == 8, "Vidal: custo 8")
 	check(vidal_ally.damage == 0 and vidal_ally.dot_markers.is_empty(), "Vidal: cura e purifica totalmente as unidades aliadas")
@@ -13533,11 +13533,11 @@ func _test_sagrada_engine() -> void:
 	var archangel := _put(g, 0, "uriel")
 	var attack_before := g.atk_of(archangel)
 	g._heal_leader(0, 3)
-	g._check_state()
+	g.check_state()
 	check(g.atk_of(archangel) == attack_before + 1, "Uriel: cura do Líder dá +1 de Ataque (%d -> %d)" % [attack_before, g.atk_of(archangel)])
 	# the Condicional is once per turn: a second heal in the same turn gives nothing
 	g._heal_leader(0, 3)
-	g._check_state()
+	g.check_state()
 	check(g.atk_of(archangel) == attack_before + 1, "Uriel: a segunda cura no mesmo turno não dá Ataque (1x por turno)")
 
 	# graveyard_armor: +1 Armadura per spell of the essence in the owner's graveyard (damage never below 1)
@@ -13554,12 +13554,12 @@ func _test_sagrada_engine() -> void:
 	for i in 3:
 		g.players[0]["graveyard"].append(Card.new(g._uid(), "t_sagrada_spell", 0, "graveyard"))
 	check(g.armor_of(graveyard_unit) == 3, "graveyard_armor: 3 feitiços Sagrados, Armadura 3 (%d)" % g.armor_of(graveyard_unit))
-	g._deal_damage(graveyard_unit.uid, 5, null)
+	g.deal_damage(graveyard_unit.uid, 5, null)
 	check(graveyard_unit.damage == 2, "graveyard_armor: dano 5 vira 2 (%d)" % graveyard_unit.damage)
 	for i in 8:
 		g.players[0]["graveyard"].append(Card.new(g._uid(), "t_sagrada_spell", 0, "graveyard"))
 	graveyard_unit.damage = 0
-	g._deal_damage(graveyard_unit.uid, 5, null)
+	g.deal_damage(graveyard_unit.uid, 5, null)
 	check(graveyard_unit.damage == 1, "graveyard_armor: nunca reduz o dano a menos de 1 (%d)" % graveyard_unit.damage)
 
 	# Nerithia: a partir de 3 feitiços Sagrados, reduz dano para ceil(dano / 2) - 1, sem piso de 1
@@ -13572,9 +13572,9 @@ func _test_sagrada_engine() -> void:
 	g.players[0]["graveyard"].append(Card.new(g._uid(), "t_sagrada_spell", 0, "graveyard"))
 	check(g.damage_after_armor(nerithia, 5) == 5, "Nerithia: 2 feitiços Sagrados ainda não ativam a redução")
 	g.players[0]["graveyard"].append(Card.new(g._uid(), "t_sagrada_spell", 0, "graveyard"))
-	check(g._deal_damage(nerithia.uid, 1, null) == 0 and nerithia.damage == 0, "Nerithia: dano leve pode virar 0")
+	check(g.deal_damage(nerithia.uid, 1, null) == 0 and nerithia.damage == 0, "Nerithia: dano leve pode virar 0")
 	check(g.damage_after_armor(nerithia, 5) == 2, "Nerithia: metade de dano ímpar arredonda para cima e reduz 1")
-	g._deal_damage(nerithia.uid, 10, null)
+	g.deal_damage(nerithia.uid, 10, null)
 	check(nerithia.damage == 4, "Nerithia: dano alto usa ceil(10 / 2) - 1 (%d)" % nerithia.damage)
 
 	# Imunidade contra Obscura: combat damage and AIMED effects of enemy Obscura cards do nothing; area effects still hit
@@ -13664,13 +13664,13 @@ func _test_sagrada_engine() -> void:
 	player = g.active
 	var resilient := _put(g, player, "t_resilient")
 	for round_number in range(1, 4):
-		g._deal_damage(resilient.uid, 99, null)
-		g._check_state() # moves the dead unit out and resolves its Ao Morrer
+		g.deal_damage(resilient.uid, 99, null)
+		g.check_state() # moves the dead unit out and resolves its Ao Morrer
 		check(g.players[player]["hand"].has(resilient) and not g.players[player]["graveyard"].has(resilient), "return_to_hand (Ao Morrer): volta do cemitério para a mão (volta %d)" % round_number)
 		check(resilient.cost_mod == round_number, "return_to_hand: o custo sobe 1 por volta, sem teto (%d)" % resilient.cost_mod)
 		g.players[player]["hand"].erase(resilient)
 		g._summon(player, resilient, false, 0)
-		g._flush()
+		g.flush_events()
 		resilient.sick = false
 
 	# Nerithia's death tax doubles per copy: +2, +4, +8, +16 to her base cost.
@@ -13682,8 +13682,8 @@ func _test_sagrada_engine() -> void:
 	var nerithia_costs := [6, 10, 18, 34]
 	var nerithia_mods := [2, 6, 14, 30]
 	for i in nerithia_costs.size():
-		g._deal_damage(escalating_nerithia.uid, 99, null)
-		g._check_state()
+		g.deal_damage(escalating_nerithia.uid, 99, null)
+		g.check_state()
 		check(g.players[player]["hand"].has(escalating_nerithia), "Nerithia: volta à mão após morrer (%d)" % (i + 1))
 		check(escalating_nerithia.cost_mod == nerithia_mods[i], "Nerithia: aumento acumulado da própria cópia (%d)" % nerithia_mods[i])
 		check(g.cost_of(player, CardDB.card("nerithia"), escalating_nerithia) == nerithia_costs[i], "Nerithia: custo base + aumentos dobrados (%d)" % nerithia_costs[i])
@@ -13691,7 +13691,7 @@ func _test_sagrada_engine() -> void:
 		if i < nerithia_costs.size() - 1:
 			g.players[player]["hand"].erase(escalating_nerithia)
 			g._summon(player, escalating_nerithia, false, 0)
-			g._flush()
+			g.flush_events()
 			escalating_nerithia.sick = false
 
 	# copy_atk "highest_ally": the Ataque rises to the strongest OTHER ally; never lowers; "temp" ends with the turn
@@ -13859,7 +13859,7 @@ func _test_momentum_overflow() -> void:
 	a = g.active
 	var baron := _put(g, a, "t_surge_baron")
 	g.players[a]["momentum"] = 10
-	g._refresh_scaling()
+	g.refresh_scaling()
 	check(g.atk_of(baron) == 5 and not g.has_kw(baron, "sobrepujanca") and baron.critico_total() == 0, "surto: com 10 de Momentum o Barão é comum")
 	g.gain_momentum(a, 1, true)
 	check(g.atk_of(baron) == 20 and g.has_kw(baron, "sobrepujanca") and g.has_kw(baron, "impeto") and baron.critico_total() == 4, "surto: com 11 vira +15 Ataque, Sobrepujança, Ímpeto e Crítico 4")
@@ -13870,19 +13870,19 @@ func _test_momentum_overflow() -> void:
 	check(not baron.surge_keywords.has("escudo"), "surto: Escudo não vira palavra-chave fixa, é concedido uma vez")
 	# the Escudo is spent by the first damage and is NOT granted again while the surge stays on
 	baron.shield = false
-	g._refresh_scaling()
+	g.refresh_scaling()
 	check(not baron.shield, "surto: Escudo gasto não volta a cada atualização enquanto o surto continua")
 	# only after the surge goes off and on again is the Escudo granted again
 	g.players[a]["momentum"] = 10
-	g._refresh_scaling()
+	g.refresh_scaling()
 	check(not baron.surge_active and not baron.shield, "surto: desligado, sem Escudo")
 	g.gain_momentum(a, 1, true)
 	check(baron.shield, "surto: ligar de novo concede um novo Escudo")
 	g.players[a]["momentum"] = 10
-	g._refresh_scaling()
+	g.refresh_scaling()
 	baron.shield = false
 	g.players[a]["momentum"] = 10
-	g._refresh_scaling()
+	g.refresh_scaling()
 	check(g.atk_of(baron) == 5 and not g.has_kw(baron, "impeto"), "surto: volta ao normal quando o Momentum cai para 10")
 
 	# auto_attack: with the surge on the Barão hits twice (the second blow ends a Leader at 3 life)
@@ -13892,7 +13892,7 @@ func _test_momentum_overflow() -> void:
 	var enemy: int = g.opponent(a)
 	baron = _put(g, a, "t_surge_baron")
 	g.players[a]["momentum"] = 11
-	g._refresh_scaling()
+	g.refresh_scaling()
 	g.players[enemy]["leader_hp"] = 30
 	_hit(g, baron)
 	check(baron.attacks_made == 2, "auto_attack: o Barão atacou duas vezes")
@@ -13905,7 +13905,7 @@ func _test_momentum_overflow() -> void:
 	enemy = g.opponent(a)
 	baron = _put(g, a, "t_surge_baron")
 	g.players[a]["momentum"] = 10
-	g._refresh_scaling()
+	g.refresh_scaling()
 	g.players[enemy]["leader_hp"] = 30
 	_hit(g, baron)
 	check(baron.attacks_made == 1 and g.players[enemy]["leader_hp"] == 25, "auto_attack: sem o surto é um golpe só")
@@ -13922,7 +13922,7 @@ func _test_momentum_overflow() -> void:
 	challenged.exhausted = true
 	other_wall.exhausted = true
 	g.players[a]["momentum"] = 11
-	g._refresh_scaling()
+	g.refresh_scaling()
 	var events := _hit(g, baron, challenged.uid)
 	var attack_targets: Array = []
 	var damage_steps := 0
@@ -13952,7 +13952,7 @@ func _test_momentum_overflow() -> void:
 		var ghost := _put(g, enemy, "t_surge_ghost") # untapped on purpose
 		challenged.exhausted = true
 		g.players[a]["momentum"] = 11
-		g._refresh_scaling()
+		g.refresh_scaling()
 		events = _hit(g, baron, challenged.uid)
 		attack_targets = []
 		for e in events:
@@ -13980,7 +13980,7 @@ func _test_momentum_overflow() -> void:
 		challenged.exhausted = true
 		other_brute.exhausted = true
 		g.players[a]["momentum"] = 11
-		g._refresh_scaling()
+		g.refresh_scaling()
 		baron.shield = false # the surge Escudo would absorb the first counter-blow; this test wants the Barão to die
 		events = _hit(g, baron, challenged.uid)
 		var attack_count := 0
@@ -14047,7 +14047,7 @@ func _test_eryon_deck() -> void:
 	g.activate(a, eryon.uid, expensive.uid)
 	check(g.players[a]["momentum"] == 14, "Eryon: custo 7 rende no máximo 4 (%d)" % g.players[a]["momentum"])
 	g._finish_turn()
-	g._flush()
+	g.flush_events()
 	check(g.players[g.opponent(a)]["leader_hp"] == 99 - 18, "Eryon: no fim do turno, 14 de Momentum = 9 golpes de 2 (%d)" % g.players[g.opponent(a)]["leader_hp"])
 	check(g.players[a]["momentum"] == 0, "Eryon: no fim do turno, acima de 10, gasta todo o Momentum (%d)" % g.players[a]["momentum"])
 
@@ -14062,7 +14062,7 @@ func _test_eryon_deck() -> void:
 	g.players[eryon_enemy]["leader_hp"] = 60
 	g.activate(a, eryon.uid, fodder.uid)
 	g._finish_turn()
-	g._flush()
+	g.flush_events()
 	check(g.players[a]["momentum"] == 0, "Eryon: com 11 de Momentum no fim do turno gasta todo o Momentum (%d)" % g.players[a]["momentum"])
 	check(g.players[eryon_enemy]["leader_hp"] == 48, "Eryon: 11 de Momentum = 6 golpes de 2 só no Líder (%d)" % g.players[eryon_enemy]["leader_hp"])
 	# with overflow the blows grow: 10 + 4 = 14 Momentum = 9 blows = 18 damage
@@ -14077,7 +14077,7 @@ func _test_eryon_deck() -> void:
 	g.players[eryon_enemy]["leader_hp"] = 60
 	g.activate(a, eryon.uid, fodder.uid)
 	g._finish_turn()
-	g._flush()
+	g.flush_events()
 	check(g.players[eryon_enemy]["leader_hp"] == 42, "Eryon: 14 de Momentum = 9 golpes de 2 (%d)" % g.players[eryon_enemy]["leader_hp"])
 	check(g.players[a]["momentum"] == 0 and g.players[a]["reserve"] == 2, "Eryon: gasta o Momentum e preserva a Reserva (%d/%d)" % [g.players[a]["momentum"], g.players[a]["reserve"]])
 	g = _new_game()
@@ -14090,8 +14090,8 @@ func _test_eryon_deck() -> void:
 	g.players[eryon_enemy]["leader_hp"] = 60
 	g.activate(a, eryon.uid, fodder.uid)
 	check(g.players[a]["momentum"] == 8, "Eryon: 5 + 3 de Momentum (%d)" % g.players[a]["momentum"])
-	g._fire(eryon, "on_turn_end")
-	g._flush()
+	g.fire_trigger(eryon, "on_turn_end")
+	g.flush_events()
 	check(g.players[a]["momentum"] == 8 and g.players[eryon_enemy]["leader_hp"] == 60,
 		"Eryon: terminando o turno com menos de 11 de Momentum não causa dano (%d / %d)" % [g.players[a]["momentum"], g.players[eryon_enemy]["leader_hp"]])
 
@@ -14104,12 +14104,12 @@ func _test_eryon_deck() -> void:
 	g.players[a]["momentum"] = 11
 	g.players[eryon_enemy]["leader_hp"] = 60
 	var spender := _put(g, a, "barao_estrondoso")
-	g._refresh_scaling()
+	g.refresh_scaling()
 	_hit(g, spender)
-	g._flush()
+	g.flush_events()
 	var leader_hp_after_baron: int = g.players[eryon_enemy]["leader_hp"]
 	g._finish_turn()
-	g._flush()
+	g.flush_events()
 	check(g.players[eryon_enemy]["leader_hp"] == leader_hp_after_baron,
 		"Eryon: depois que o Barão gasta o Momentum, o fim do turno não dá golpes (%d -> %d)" % [leader_hp_after_baron, g.players[eryon_enemy]["leader_hp"]])
 
@@ -14122,20 +14122,20 @@ func _test_eryon_deck() -> void:
 	g.players[a]["momentum"] = 12
 	g.players[eryon_enemy]["leader_hp"] = 60
 	g._finish_turn()
-	g._flush()
+	g.flush_events()
 	check(g.players[eryon_enemy]["leader_hp"] == 46 and g.players[a]["momentum"] == 0,
 		"Eryon: sem ativar, terminar com 12 de Momentum dá 7 golpes de 2 (%d / %d)" % [g.players[eryon_enemy]["leader_hp"], g.players[a]["momentum"]])
 
 	# Barão with the real card: Ímpeto and Escudo are innate; the surge turns on at 11 Momentum
 	var baron := _put(g, a, "barao_estrondoso")
 	g.players[a]["momentum"] = 10
-	g._refresh_scaling()
+	g.refresh_scaling()
 	check(g.atk_of(baron) == 5 and g.has_kw(baron, "impeto") and baron.shield
 		and not g.has_kw(baron, "sobrepujanca") and baron.critico_total() == 0,
 		"Barão: com 10 de Momentum já tem Ímpeto e Escudo, sem o bônus")
 	baron.shield = false
 	g.players[a]["momentum"] = 11
-	g._refresh_scaling()
+	g.refresh_scaling()
 	check(g.atk_of(baron) == 20 and g.has_kw(baron, "impeto") and not baron.shield
 		and g.has_kw(baron, "sobrepujanca") and baron.critico_total() == 4,
 		"Barão: com 11 de Momentum ganha +15, Sobrepujança e Crítico 4 sem renovar Escudo")
@@ -14148,10 +14148,10 @@ func _test_eryon_deck() -> void:
 	baron = _put(g, a, "barao_estrondoso")
 	g.players[a]["momentum"] = 11
 	g.players[a]["reserve"] = 2
-	g._refresh_scaling()
+	g.refresh_scaling()
 	g.players[baron_enemy]["leader_hp"] = 60
 	_hit(g, baron)
-	g._flush()
+	g.flush_events()
 	# two blows of 22 (20 ATK + 2 of Crítico 4): the Momentum is spent only after BOTH, so the declared blow keeps the surge
 	check(g.players[baron_enemy]["leader_hp"] == 16, "Barão: o gasto de Momentum espera os dois golpes, ambos com o surto (Líder com %d)" % g.players[baron_enemy]["leader_hp"])
 	check(g.players[a]["momentum"] == 0 and g.players[a]["reserve"] == 2,
@@ -14162,10 +14162,10 @@ func _test_eryon_deck() -> void:
 	baron_enemy = g.opponent(a)
 	baron = _put(g, a, "barao_estrondoso")
 	g.players[a]["momentum"] = 10
-	g._refresh_scaling()
+	g.refresh_scaling()
 	g.players[baron_enemy]["leader_hp"] = 60
 	_hit(g, baron)
-	g._flush()
+	g.flush_events()
 	check(g.players[a]["momentum"] == 10, "Barão: golpe de 5 no Líder (abaixo de 10) não gasta Momentum (%d)" % g.players[a]["momentum"])
 
 	# Cobrador de Pedágio Torto: only the oldest copy in play gives +1 Momentum, and never above 10
@@ -14584,7 +14584,7 @@ func _test_cortina_de_fumaca() -> void:
 	g.players[a]["hand"].append(curtain)
 	g.players[a]["momentum"] = 10
 	g.play_card(a, curtain.uid)
-	g._flush()
+	g.flush_events()
 	check(g.has_kw(first_unit, "furtividade") and g.has_kw(second_unit, "furtividade"), "Cortina de Fumaça: todas as unidades aliadas ganham Furtividade")
 	g._start_turn(a, false)
 	check(not g.has_kw(first_unit, "furtividade") and not g.has_kw(second_unit, "furtividade"), "Cortina de Fumaça: a Furtividade acaba quando o turno do dono começa")
@@ -14597,13 +14597,13 @@ func _test_champion_rework() -> void:
 	var jack_attack_before := jack_game.atk_of(jack)
 	var jack_health_before := jack.hp
 	jack_game.players[0]["momentum"] = 3
-	jack_game._fire(jack, "on_turn_end")
-	jack_game._check_state()
+	jack_game.fire_trigger(jack, "on_turn_end")
+	jack_game.check_state()
 	check(jack_game.atk_of(jack) == jack_attack_before + 3, "Jack: ganha +3 de Ataque com 3 de Momentum sobrando (%d)" % jack_game.atk_of(jack))
 	check(jack.hp == jack_health_before, "Jack: não ganha Vida")
 	jack_game.players[0]["momentum"] = 0
-	jack_game._fire(jack, "on_turn_end")
-	jack_game._check_state()
+	jack_game.fire_trigger(jack, "on_turn_end")
+	jack_game.check_state()
 	check(jack_game.atk_of(jack) == jack_attack_before + 3, "Jack: sem Momentum sobrando não ganha nada")
 
 	# Kai's Ao Atacar damages the Leader without burning; only his combat damage burns.
@@ -14619,11 +14619,11 @@ func _test_champion_rework() -> void:
 	var kai_second := _put(kai_game, 0, "kai")
 	kai_game.players[0]["attacked"] = false
 	var markers_before := int(kai_victim.dot_markers.get("queimadura", 0))
-	kai_game._deal_damage(kai_victim.uid, 1, kai_second)
+	kai_game.deal_damage(kai_victim.uid, 1, kai_second)
 	check(int(kai_victim.dot_markers.get("queimadura", 0)) == markers_before,
 		"Kai: dano fora de combate causado por ele não deixa Queimadura")
 	var other_burn := kai_game.leader_dot_markers(1, "queimadura")
-	kai_game._deal_damage(GameState.LEADER_UID[1], 1, null)
+	kai_game.deal_damage(GameState.LEADER_UID[1], 1, null)
 	check(kai_game.leader_dot_markers(1, "queimadura") == other_burn, "Kai: dano que não é dele não queima")
 
 	# Ao Sofrer Dano fires when the unit survives the hit, but not when the hit kills it
@@ -14632,11 +14632,11 @@ func _test_champion_rework() -> void:
 	_quiet(avenger_game)
 	var surviving_avenger := _put(avenger_game, 0, "t_avenger")
 	var enemy_life_before: int = avenger_game.players[1]["leader_hp"]
-	avenger_game._deal_damage(surviving_avenger.uid, 1, null)
-	avenger_game._check_state()
+	avenger_game.deal_damage(surviving_avenger.uid, 1, null)
+	avenger_game.check_state()
 	check(avenger_game.players[1]["leader_hp"] == enemy_life_before - 2, "Ao Sofrer Dano: dispara quando a unidade sobrevive")
-	avenger_game._deal_damage(surviving_avenger.uid, 5, null)
-	avenger_game._check_state()
+	avenger_game.deal_damage(surviving_avenger.uid, 5, null)
+	avenger_game.check_state()
 	check(avenger_game.players[1]["leader_hp"] == enemy_life_before - 2, "Ao Sofrer Dano: não dispara com dano letal")
 
 	# Isarelis: Ao Entrar can only pick an enemy unit with Vida <= 3 and destroys it (Escudo does not save it)
@@ -14702,11 +14702,11 @@ func _test_silence_and_david() -> void:
 	check(buffed.hp_left() == 1, "Silêncio: o dano fica, mas a unidade nunca morre por perder Vida (sobra 1)")
 	var leader_before: int = g.players[0]["leader_hp"]
 	var own_leader_before: int = g.players[1]["leader_hp"]
-	g._fire(loud, "on_turn_start")
-	g._check_state()
+	g.fire_trigger(loud, "on_turn_start")
+	g.check_state()
 	check(g.players[0]["leader_hp"] == leader_before, "Silêncio: o efeito Ao Iniciar o Turno não dispara mais")
-	g._deal_damage(GameState.LEADER_UID[0], 1, null)
-	g._check_state()
+	g.deal_damage(GameState.LEADER_UID[0], 1, null)
+	g.check_state()
 	check(g.players[1]["leader_hp"] == own_leader_before, "Silêncio: o Condicional (listen) não reage mais")
 	leader_before = g.players[0]["leader_hp"]
 	var copy := Card.from_dict(loud.to_dict(), "board", 1)
@@ -14717,8 +14717,8 @@ func _test_silence_and_david() -> void:
 	check(not twin.is_silenced() and twin.has_kw("provocacao"), "Silêncio: outra cópia da mesma carta não é afetada")
 	leader_before = g.players[0]["leader_hp"]
 	own_leader_before = g.players[1]["leader_hp"]
-	g._fire(twin, "on_turn_start")
-	g._check_state()
+	g.fire_trigger(twin, "on_turn_start")
+	g.check_state()
 	check(g.players[0]["leader_hp"] == leader_before - 2, "Silêncio: a cópia sem Silêncio continua disparando")
 	check(g.players[1]["leader_hp"] == own_leader_before - 1, "Silêncio: e o Condicional da cópia também reage")
 
@@ -14868,7 +14868,7 @@ func _test_tech_cards() -> void:
 	_play_aimed(g, 0, "mala_sem_alca", plain.uid)
 	check(g.atk_of(plain) == 2 and g.hp_left(plain) == 5, "Mala: a unidade ganha +1/+1")
 	plain.damage = 99
-	g._check_state()
+	g.check_state()
 	check(_zone_has(g, 0, "hand", "mala_sem_alca"), "Mala: volta para a mão quando a unidade morre")
 	check(not _zone_has(g, 0, "graveyard", "mala_sem_alca"), "Mala: não fica no cemitério")
 	g = _new_game()
@@ -14878,7 +14878,7 @@ func _test_tech_cards() -> void:
 	_play_aimed(g, 0, "mala_sem_alca", second.uid)
 	check(not _zone_has(g, 0, "hand", "mala_sem_alca"), "Mala: depois de jogada, sai da mão")
 	g._release_equipment(second) # the unit leaves without dying (a bounce or a banish)
-	g._check_state()
+	g.check_state()
 	check(_zone_has(g, 0, "graveyard", "mala_sem_alca") and not _zone_has(g, 0, "hand", "mala_sem_alca"), "Mala: se a unidade só sai (sem morrer), a Mala fica no cemitério")
 
 	# Arauto Repeteco: other units' Ao Entrar happen twice, two Arautos still only twice
@@ -14903,19 +14903,19 @@ func _test_tech_cards() -> void:
 	var death_unit := _put(g, 0, "t_death_hit")
 	leader_before = g.players[1]["leader_hp"]
 	death_unit.damage = 99
-	g._check_state()
+	g.check_state()
 	check(g.players[1]["leader_hp"] == leader_before - 2, "Coveiro: sem o Coveiro o Ao Morrer acontece uma vez")
 	var gravedigger := _put(g, 0, "coveiro_bis")
 	death_unit = _put(g, 0, "t_death_hit")
 	leader_before = g.players[1]["leader_hp"]
 	death_unit.damage = 99
-	g._check_state()
+	g.check_state()
 	check(g.players[1]["leader_hp"] == leader_before - 4, "Coveiro: com o Coveiro o Ao Morrer acontece duas vezes")
 	death_unit = _put(g, 0, "t_death_hit")
 	leader_before = g.players[1]["leader_hp"]
 	death_unit.damage = 99
 	gravedigger.damage = 99
-	g._check_state()
+	g.check_state()
 	check(g.players[1]["leader_hp"] == leader_before - 4, "Coveiro: morrendo junto com a unidade ainda dobra o Ao Morrer dela")
 
 	# Contador Exagerado: text Constantes count double (and never stack)
@@ -14925,13 +14925,13 @@ func _test_tech_cards() -> void:
 	var scaler := _put(g, 0, "t_scaler")
 	for i in 3:
 		g.players[0]["graveyard"].append(Card.new(g._uid(), "t_plain", 0, "graveyard"))
-	g._refresh_scaling()
+	g.refresh_scaling()
 	check(g.atk_of(scaler) == 4, "Contador: sem ele, +1 por unidade do cemitério (1+3)")
 	_put(g, 0, "contador_exagerado")
-	g._refresh_scaling()
+	g.refresh_scaling()
 	check(g.atk_of(scaler) == 7, "Contador: com ele conta em dobro (1+6)")
 	_put(g, 0, "contador_exagerado")
-	g._refresh_scaling()
+	g.refresh_scaling()
 	check(g.atk_of(scaler) == 7, "Contador: dois Contadores não dão x4")
 
 ## Isarelis' Ao Atingir o Líder destroys the most wounded enemy unit that has Vida <= 3 (an execution).
@@ -14947,15 +14947,15 @@ func _test_isarelis_hit_leader() -> void:
 	low_a.damage = 5 # Vida 3
 	var low_b := _put(g, 1, "t_big_foe")
 	low_b.damage = 6 # Vida 2: the most wounded of the executable ones
-	g._fire(isarelis, "on_hit_leader")
-	g._check_state()
+	g.fire_trigger(isarelis, "on_hit_leader")
+	g.check_state()
 	check(g.find_unit(low_b.uid) == null, "Isarelis: Ao Atingir o Líder destrói a mais ferida com 3 de Vida ou menos")
 	check(g.find_unit(unhurt.uid) != null and g.find_unit(healthy_wounded.uid) != null and g.find_unit(low_a.uid) != null, "Isarelis: não destrói as outras (sem ferida, Vida acima de 3, menos ferida)")
-	g._fire(isarelis, "on_hit_leader")
-	g._check_state()
+	g.fire_trigger(isarelis, "on_hit_leader")
+	g.check_state()
 	check(g.find_unit(low_a.uid) == null, "Isarelis: no golpe seguinte vai para a próxima mais ferida")
-	g._fire(isarelis, "on_hit_leader")
-	g._check_state()
+	g.fire_trigger(isarelis, "on_hit_leader")
+	g.check_state()
 	check(g.find_unit(unhurt.uid) != null and g.find_unit(healthy_wounded.uid) != null, "Isarelis: sem ferida elegível, não destrói ninguém")
 
 func _test_maria_helena() -> void:
@@ -14969,20 +14969,20 @@ func _test_maria_helena() -> void:
 	g.players[0]["leader_hp"] = 20
 	var maria := _put(g, 0, "maria_helena")
 	check(maria.hp == 12, "Santa Maria Helena: Vida base 12")
-	g._fire(maria, "on_turn_start")
-	g._check_state()
+	g.fire_trigger(maria, "on_turn_start")
+	g.check_state()
 	check(g.players[0]["leader_hp"] == 22, "Santa Maria Helena: cura 2 no início do turno")
 
 	var before: int = g.players[0]["leader_hp"]
-	check(g._deal_damage(GameState.LEADER_UID[0], 5, null) == 2 and g.players[0]["leader_hp"] == before - 2,
+	check(g.deal_damage(GameState.LEADER_UID[0], 5, null) == 2 and g.players[0]["leader_hp"] == before - 2,
 		"Santa Maria Helena: primeiro dano do turno é reduzido em 3")
 	before = g.players[0]["leader_hp"]
-	check(g._deal_damage(GameState.LEADER_UID[0], 5, null) == 5 and g.players[0]["leader_hp"] == before - 5,
+	check(g.deal_damage(GameState.LEADER_UID[0], 5, null) == 5 and g.players[0]["leader_hp"] == before - 5,
 		"Santa Maria Helena: danos seguintes do mesmo turno não são reduzidos")
 
 	g._start_turn(0, false)
 	before = g.players[0]["leader_hp"]
-	check(g._deal_damage(GameState.LEADER_UID[0], 2, null) == 1 and g.players[0]["leader_hp"] == before - 1,
+	check(g.deal_damage(GameState.LEADER_UID[0], 2, null) == 1 and g.players[0]["leader_hp"] == before - 1,
 		"Santa Maria Helena: a redução nunca transforma dano em menos de 1 e reinicia no turno seguinte")
 
 func _test_art_crop() -> void:

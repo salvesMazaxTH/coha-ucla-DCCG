@@ -68,7 +68,7 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 		gain = mini(maximum, stored_artifact.stored_momentum)
 		if not retain_stored:
 			stored_artifact.stored_momentum = 0 # preserve the legacy behavior: refused Momentum is lost
-			context.game._emit({"type": "momentum_stored", "player": stored_artifact.owner, "uid": stored_artifact.uid, "stored": 0})
+			context.game.emit_event({"type": "momentum_stored", "player": stored_artifact.owner, "uid": stored_artifact.uid, "stored": 0})
 	if next_turn:
 		player["next_momentum"] += gain
 	else:
@@ -78,7 +78,7 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 		var really_gained := gained_amount > 0
 		if retain_stored and stored_artifact != null:
 			stored_artifact.stored_momentum = maxi(0, stored_artifact.stored_momentum - gained_amount)
-			context.game._emit({"type": "momentum_stored", "player": stored_artifact.owner, "uid": stored_artifact.uid, "stored": stored_artifact.stored_momentum})
+			context.game.emit_event({"type": "momentum_stored", "player": stored_artifact.owner, "uid": stored_artifact.uid, "stored": stored_artifact.stored_momentum})
 		if not restriction.is_empty() and really_gained:
 			context.game.add_play_restriction(context.controller, restriction)
 		if lock and really_gained:

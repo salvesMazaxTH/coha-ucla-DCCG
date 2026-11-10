@@ -31,4 +31,4 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 	if permanent:
 		game.players[context.controller]["snowball_base"] = int(game.players[context.controller]["snowball_base"]) + amount
 	game.set_snowball_level(context.controller, new_level)
-	game._emit({"type": "snowball_level", "player": context.controller, "level": new_level})
+	game.emit_event({"type": "snowball_level", "player": context.controller, "level": new_level})

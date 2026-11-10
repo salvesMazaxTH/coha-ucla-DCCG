@@ -53,4 +53,4 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 		victim_state["frozen_slots"] += blocked_count
 		# thaws at the end of the victim's next turn: that is turn+1 when the caster is playing now, else turn+2
 		victim_state["frozen_slots_until"] = game.turn + (1 if game.active == context.controller else 2)
-	game._emit({"type": "slots_frozen", "player": victim, "positions": chosen_positions, "blocked": blocked_count})
+	game.emit_event({"type": "slots_frozen", "player": victim, "positions": chosen_positions, "blocked": blocked_count})

@@ -20,4 +20,4 @@ static func setup(g: GameState) -> void:
 	g.players[1]["max_momentum"] = 7
 	g.players[1]["momentum"] = 7
 	g.players[1]["incarnation"]["in_zone"] = false
-	g._flush()
+	g.flush_events()

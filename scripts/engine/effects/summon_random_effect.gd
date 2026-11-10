@@ -17,7 +17,7 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 	var summon_overrides := {"token": true} if bool(raw.get("as_token", false)) else {}
 	var candidates := _candidate_ids(game, player)
 	if candidates.is_empty():
-		game._emit({"type": "search_empty", "player": player, "source_uid": context.self_uid})
+		game.emit_event({"type": "search_empty", "player": player, "source_uid": context.self_uid})
 		return
 
 	for _i in count:

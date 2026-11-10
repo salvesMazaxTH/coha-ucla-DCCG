@@ -1,3 +1,8 @@
 {
-  "js/ts.tsdk.path": "node_modules\\typescript\\lib"
+  "js/ts.tsdk.path": "node_modules\\typescript\\lib",
+  "[gdscript]": {
+    "editor.defaultFormatter": "DoHe.godot-format",
+    "editor.formatOnSave": true
+  },
+  "godotFormatter.useSpaces": false
 }

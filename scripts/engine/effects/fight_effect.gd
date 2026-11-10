@@ -16,9 +16,9 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	# Escudo Mágico on the opponent of the fight cancels it: that unit was picked as a target
 	if cancelled_by_any_shield(context, second_unit, true):
 		return
-	game._emit({"type": "fight", "uid": first_unit.uid, "other": second_unit.uid})
+	game.emit_event({"type": "fight", "uid": first_unit.uid, "other": second_unit.uid})
 	# both strikes are measured before either lands, so a unit killed by the other still hits back
 	var first_strike := game.strike_power_of(first_unit)
 	var second_strike := game.strike_power_of(second_unit)
-	game._deal_damage(second_unit.uid, first_strike, first_unit)
-	game._deal_damage(first_unit.uid, second_strike, second_unit)
+	game.deal_damage(second_unit.uid, first_strike, first_unit)
+	game.deal_damage(first_unit.uid, second_strike, second_unit)

@@ -18,6 +18,6 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	unit.stun_markers += markers
 	if not unit.has_kw("inerte"):
 		unit.exhausted = true
-	game._emit({"type": "stun", "uid": target_uid, "markers": unit.stun_markers})
+	game.emit_event({"type": "stun", "uid": target_uid, "markers": unit.stun_markers})
 	# cards listening to "unit_stunned" react to it (Layla Veyr); 'player' is the stunned unit's owner
 	game.bus().emit(GameEvent.new("unit_stunned", unit.owner, unit))

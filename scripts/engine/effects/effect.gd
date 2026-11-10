@@ -126,7 +126,7 @@ func cancelled_by_magic_shield(context: EffectContext, unit: Card, aimed_by_choi
 		return false
 	unit.magic_shield = false
 	context.shielded_this_effect.append(unit.uid)
-	context.game._emit({"type": "magic_shield_break", "uid": unit.uid})
+	context.game.emit_event({"type": "magic_shield_break", "uid": unit.uid})
 	return true
 
 ## True for effects that hurt the card they land on even when they come from its own side (destroy, banish,
@@ -170,7 +170,7 @@ func apply_to(context: EffectContext, target_uid: int) -> void:
 	# (nothing is spent). Untargeted and area effects still reach it, as with Inalcançável.
 	if hit_unit != null and hit_unit.owner != context.controller and target.needs_choice() \
 			and game.is_immune_to_essence_of(hit_unit, context.source_id()):
-		game._emit({"type": "dot_immune", "uid": target_uid, "dot": ""})
+		game.emit_event({"type": "dot_immune", "uid": target_uid, "dot": ""})
 		return
 	apply(context, target_uid)
 

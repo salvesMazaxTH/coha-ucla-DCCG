@@ -40,7 +40,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		_grande_effect().apply(context, target_uid)
 		return
 	var start_damage: int = int(game.players[caster]["snowball"])
-	game._emit({"type": "snowball", "player": caster, "uid": target_uid, "amount": start_damage, "grande": overflow_to_leader})
+	game.emit_event({"type": "snowball", "player": caster, "uid": target_uid, "amount": start_damage, "grande": overflow_to_leader})
 	# listeners (Princesa Wanessa becomes Tempesfrost) hear about every Bola de Neve before it hits
 	var cast_event := GameEvent.new("snowball_cast", caster, null)
 	cast_event.amount = start_damage
@@ -48,7 +48,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	game.bus().emit(cast_event)
 
 	if target_uid < 0:
-		game._deal_damage(target_uid, start_damage, null)
+		game.deal_damage(target_uid, start_damage, null)
 		return
 	var first_unit := game.find_unit(target_uid)
 	if first_unit == null:
@@ -92,6 +92,6 @@ func _hit(context: EffectContext, unit: Card, damage_amount: int, aimed_by_choic
 	if cancelled_by_any_shield(context, unit, aimed_by_choice):
 		return
 	var life_before := unit.hp_left()
-	var dealt := game._deal_damage(unit.uid, damage_amount, null)
+	var dealt := game.deal_damage(unit.uid, damage_amount, null)
 	if overflow_to_leader and dealt > life_before:
-		game._deal_damage(game.LEADER_UID[unit.owner], dealt - life_before, null)
+		game.deal_damage(game.LEADER_UID[unit.owner], dealt - life_before, null)

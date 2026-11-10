@@ -50,7 +50,7 @@ func _fire_own_effects(event: GameEvent) -> void:
 			continue # an Aliado Morre effect that only listens to a sacrifice (true) or only to any other death (false): Inspetora Orna Lutuosa
 		if e.get("trigger", "") == event.trigger and e.has("dying_card") and e["dying_card"] != event.data.get("dying_card_id", ""):
 			continue # an Aliado Morre effect that only listens to one card dying (Luto: Myrra)
-		if e.get("trigger", "") == event.trigger and game._combat_damage and e.get("not_in_combat", false):
+		if e.get("trigger", "") == event.trigger and game.combat_damage and e.get("not_in_combat", false):
 			continue
 		if e.get("trigger", "") == event.trigger and e.get("only_from_spell", false) and not event.data.get("from_spell", false):
 			continue # an Ao Sofrer Dano effect that only reacts to damage dealt by a spell (Tyren)

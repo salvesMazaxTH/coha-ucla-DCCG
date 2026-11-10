@@ -11,4 +11,4 @@ func _read_parameters(data: Dictionary) -> void:
 func apply(context: EffectContext, _target_uid: int) -> void:
 	var player: Dictionary = context.game.players[context.controller]
 	player["reserve"] = mini(GameState.RESERVE_CAP, int(player["reserve"]) + amount)
-	context.game._emit({"type": "momentum", "player": context.controller}) # redraws the Momentum bar
+	context.game.emit_event({"type": "momentum", "player": context.controller}) # redraws the Momentum bar

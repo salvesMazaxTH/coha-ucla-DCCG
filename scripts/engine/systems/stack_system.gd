@@ -119,7 +119,7 @@ func push(p: int, kind: String, uid: int, card_id: String, target: int, speed: S
 	game._summon_pending = false
 	game.stack_passed = false # every new item restarts the round of passes
 	game.priority = game.opponent(p)
-	game._emit({"type": "stack_push", "item": item.duplicate()})
+	game.emit_event({"type": "stack_push", "item": item.duplicate()})
 
 ## A Bola de Neve cast by a unit (Wanessa Tempesfrost's Ao Atacar): a card item with no real card behind
 ## it. "virtual" = it never goes to a hand or graveyard; "forced_target" = it keeps its target even when
@@ -128,7 +128,7 @@ func push(p: int, kind: String, uid: int, card_id: String, target: int, speed: S
 func push_unit_snowball(p: int, source_uid: int, card_id: String, target: int) -> void:
 	var cast_uid := game._uid()
 	# the same "play" event a card from the hand sends: the UI shows the card (flying out of the casting unit)
-	game._emit({"type": "play", "player": p, "uid": cast_uid, "card_id": card_id, "source_uid": source_uid, "target": target})
+	game.emit_event({"type": "play", "player": p, "uid": cast_uid, "card_id": card_id, "source_uid": source_uid, "target": target})
 	push(p, "card", cast_uid, card_id, target, "lento", 0, false, {"virtual": true, "forced_target": true, "source_uid": source_uid})
 
 func effects_of(item: Dictionary) -> Array:
@@ -170,9 +170,9 @@ func resolve_stack() -> void:
 		if gone and item["kind"] == "card" and CardDB.card(item["card_id"]).get("same_target_ok", false) and game.valid_targets(p, spec).has(int(item.get("target2", 0))):
 			gone = false # twin bolts: the other target is still there, only this bolt is lost
 		if gone:
-			game._emit({"type": "fizzle", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"], "target": item.get("target", 0), "target2": item.get("target2", 0)})
+			game.emit_event({"type": "fizzle", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"], "target": item.get("target", 0), "target2": item.get("target2", 0)})
 		else:
-			game._emit({"type": "resolve", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"], "uid": int(item.get("uid", 0)), "target": item.get("target", 0), "target2": item.get("target2", 0)})
+			game.emit_event({"type": "resolve", "sid": item["sid"], "player": p, "card_id": item["card_id"], "kind": item["kind"], "uid": int(item.get("uid", 0)), "target": item.get("target", 0), "target2": item.get("target2", 0)})
 			if is_enter:
 				var entering := game.find_unit(int(item["uid"]))
 				if entering != null:
@@ -230,7 +230,7 @@ func _complete_resolved_item(item: Dictionary, spec: String, gone: bool, stats_b
 	elif item["kind"] == "subito":
 		_resolve_subito(item)
 	_queue_spell_echo(item, gone)
-	game._check_state()
+	game.check_state()
 
 ## echo_next_spell (Mali Magarc's Dragão Primordial): a spell cast while the echo was armed (play_card stamps
 ## "echo_source" on its stack item) is cast again right after it resolves, aimed at the same target(s). The echo is a
@@ -244,7 +244,7 @@ func _queue_spell_echo(item: Dictionary, gone: bool) -> void:
 		return
 	var echo_uid := game._uid()
 	var source_uid := echo_source if echo_source > 0 else 0
-	game._emit({"type": "play", "player": item["player"], "uid": echo_uid, "card_id": item["card_id"], "source_uid": source_uid, "target": item["target"]})
+	game.emit_event({"type": "play", "player": item["player"], "uid": echo_uid, "card_id": item["card_id"], "source_uid": source_uid, "target": item["target"]})
 	game._announce_spell_cast(int(item["player"]), Card.new(echo_uid, item["card_id"], int(item["player"]), "stack"), CardDB.card(item["card_id"]))
 	push(item["player"], "card", echo_uid, item["card_id"], int(item["target"]), String(item["speed"]), int(item.get("target2", 0)), false, {"virtual": true, "source_uid": source_uid})
 
@@ -294,7 +294,7 @@ func attach(holder: Card, eq: Card, granted: Dictionary = {}) -> void:
 	eq.worn_grant = granted
 	holder.equipped_cards.append(eq)
 	game._move(eq, "equipped")
-	game._emit({"type": "attach", "uid": holder.uid, "equip_uid": eq.uid, "card_id": eq.card_id})
+	game.emit_event({"type": "attach", "uid": holder.uid, "equip_uid": eq.uid, "card_id": eq.card_id})
 
 ## The stats an equipment's buff can change, as they are right now.
 func unit_stats(unit: Card) -> Dictionary:
@@ -413,7 +413,7 @@ func return_equipment_to_hand(c: Card, only: Card = null) -> void:
 		remove_equipment_bonus(c, old_equipment)
 		game.players[c.owner]["hand"].append(old_equipment)
 		game._move(old_equipment, "hand")
-		game._emit({"type": "equipment_returned", "uid": c.uid, "equip_uid": old_equipment.uid, "card_id": old_equipment.card_id})
+		game.emit_event({"type": "equipment_returned", "uid": c.uid, "equip_uid": old_equipment.uid, "card_id": old_equipment.card_id})
 
 ## Sends one of the unit's equipment to its owner's graveyard (all of them when `only` is null). `unit_died` is true
 ## only when the unit died (not on a bounce or a banish): the equipment's card_moved event carries it so Mala Sem Alça can tell.
@@ -425,7 +425,7 @@ func release_equipment(c: Card, unit_died := false, only: Card = null) -> void:
 		c.equipped_cards.erase(eq)
 		game.players[c.owner]["graveyard"].append(eq)
 		game._move(eq, "graveyard", {"unit_died": unit_died})
-		game._emit({"type": "equipment_break", "uid": c.uid, "equip_uid": eq.uid, "card_id": eq.card_id})
+		game.emit_event({"type": "equipment_break", "uid": c.uid, "equip_uid": eq.uid, "card_id": eq.card_id})
 
 ## Removes stack item `sid` without resolving it; a countered card goes to the graveyard.
 func counter(p: int, sid: int) -> void:
@@ -442,7 +442,7 @@ func counter(p: int, sid: int) -> void:
 		else:
 			game.players[it["player"]]["graveyard"].append(countered)
 			game._move(countered, "graveyard")
-	game._emit({"type": "countered", "sid": sid, "player": it["player"], "by": p, "card_id": it["card_id"], "kind": it["kind"], "target": it.get("target", 0), "target2": it.get("target2", 0)})
+	game.emit_event({"type": "countered", "sid": sid, "player": it["player"], "by": p, "card_id": it["card_id"], "kind": it["kind"], "target": it.get("target", 0), "target2": it.get("target2", 0)})
 
 ## Who holds priority when a window opens or the stack empties: always the active player
 ## (in the pre-combat window the attacker acts first, then the defender).
@@ -452,7 +452,7 @@ func window_owner() -> int:
 func open_window(w: String) -> void:
 	game.window = w
 	game.priority = window_owner()
-	game._emit({"type": "window", "window": w, "player": game.priority})
+	game.emit_event({"type": "window", "window": w, "player": game.priority})
 
 func pass_once() -> void:
 	if not game.stack.is_empty():

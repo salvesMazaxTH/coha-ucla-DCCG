@@ -15,6 +15,6 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	if unit == null or unit.is_silenced():
 		return
 	unit.silence()
-	game._refresh_scaling() # the unit's own scaling is gone, the auras of its allies stay (they are the allies' effects)
+	game.refresh_scaling() # the unit's own scaling is gone, the auras of its allies stay (they are the allies' effects)
 	unit.keep_alive_with_one_hp()
-	game._emit({"type": "silence", "uid": target_uid})
+	game.emit_event({"type": "silence", "uid": target_uid})

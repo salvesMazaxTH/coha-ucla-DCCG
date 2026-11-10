@@ -35,7 +35,7 @@ func _strip_defenses(context: EffectContext, unit: Card, armor_only: bool) -> vo
 	unit.temp_armor = 0
 	unit.turn_armor = 0
 	unit.forget_stat_sources("armor")
-	context.game._emit({"type": "strip_defenses", "uid": unit.uid})
+	context.game.emit_event({"type": "strip_defenses", "uid": unit.uid})
 
 func _strip_magic_shield(context: EffectContext, unit: Card) -> void:
 	if not unit.magic_shield:
@@ -43,11 +43,11 @@ func _strip_magic_shield(context: EffectContext, unit: Card) -> void:
 	unit.magic_shield = false
 	unit.magic_shield_until_next_turn = false
 	unit.magic_shield_until_end_turn = false
-	context.game._emit({"type": "magic_shield_break", "uid": unit.uid})
+	context.game.emit_event({"type": "magic_shield_break", "uid": unit.uid})
 
 func _suppress_keyword(context: EffectContext, unit: Card) -> void:
 	if not unit.keywords.has(keyword_name):
 		return
 	unit.keywords.erase(keyword_name)
 	unit.lost_keywords.append(keyword_name)
-	context.game._emit({"type": "keyword_lost", "uid": unit.uid, "keyword": keyword_name})
+	context.game.emit_event({"type": "keyword_lost", "uid": unit.uid, "keyword": keyword_name})

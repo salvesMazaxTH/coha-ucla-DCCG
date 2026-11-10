@@ -15,18 +15,18 @@ static func setup(g: GameState) -> void:
 	g.players[0]["momentum"] = 10
 	for card_id in ["naelthos", "mare_curativa"]:
 		g.players[0]["hand"].append(Card.new(g._uid(), card_id, 0, "hand"))
-	g._flush()
+	g.flush_events()
 
 static func _put(g: GameState, player: int, card_id: String) -> Card:
 	var uid := g._uid()
 	g._summon(player, Card.new(uid, card_id, player), false, 0)
-	g._flush()
+	g.flush_events()
 	if g.phase == "search":
 		g.choose_search(player, int(g.pending_search["cards"][0]["uid"]))
-		g._flush()
+		g.flush_events()
 	if g.phase == "enter_tapped": # Provocação entrando: o cenário decide o tap
 		g.choose_enter_tapped(player, false)
-		g._flush()
+		g.flush_events()
 	g.pending_tap.erase(uid)
 	var unit := g.find_unit(uid)
 	unit.sick = false

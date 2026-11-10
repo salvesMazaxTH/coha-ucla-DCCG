@@ -36,8 +36,8 @@ static func setup(g: GameState) -> void:
 	_modify(sentinel, "gatuno_do_beco_torto", "", {"hp": -2})
 
 	g.players[0]["momentum"] = 10
-	g._refresh_scaling() # recalcula a aura da Matriarca agora, antes da primeira ação
-	g._flush()
+	g.refresh_scaling() # recalcula a aura da Matriarca agora, antes da primeira ação
+	g.flush_events()
 
 ## Changes the unit's stats the way an effect would and records where the change came from.
 ## until: "" permanente, "end_turn" até o fim do turno, "next_turn" até o próximo turno de quem a controla.
@@ -66,13 +66,13 @@ static func _modify(unit: Card, source: String, until: String, changes: Dictiona
 static func _put(g: GameState, player: int, card_id: String) -> Card:
 	var uid := g._uid()
 	g._summon(player, Card.new(uid, card_id, player), false, 0)
-	g._flush()
+	g.flush_events()
 	if g.phase == "search":
 		g.choose_search(player, 0) # recusa a busca (mão vazia de propósito)
-		g._flush()
+		g.flush_events()
 	if g.phase == "enter_tapped":
 		g.choose_enter_tapped(player, false)
-		g._flush()
+		g.flush_events()
 	g.pending_tap.erase(uid)
 	var unit := g.find_unit(uid)
 	unit.sick = false

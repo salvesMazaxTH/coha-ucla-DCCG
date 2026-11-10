@@ -23,5 +23,5 @@ func resolve(game: GameState) -> void:
 	var announced := source != null and announce_as != "" and game._announce(source, effects, announce_as)
 	if not announced:
 		# nobody to show as the source (a Leader passive): the UI must not keep crediting the previous trigger's card
-		game._emit({"type": "trigger_end"})
+		game.emit_event({"type": "trigger_end"})
 	game._run_effects(context, effects)

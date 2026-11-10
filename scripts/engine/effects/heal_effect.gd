@@ -78,7 +78,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 				context.game.cleanse_unit_markers(unit)
 			if unit != null and not context.game.unit_heal_prevented(unit, unit.damage) and unit.damage > 0:
 				var healed_amount := unit.damage
-				context.game._emit({"type": "heal", "uid": target_uid, "amount": healed_amount})
+				context.game.emit_event({"type": "heal", "uid": target_uid, "amount": healed_amount})
 				unit.damage = 0
 				context.game.emit_unit_healed(unit, healed_amount, context.heal_origin())
 		"heal_unit":
@@ -107,11 +107,11 @@ func apply(context: EffectContext, target_uid: int) -> void:
 				return
 			var healed := mini(heal_amount, unit.damage)
 			if healed > 0:
-				context.game._emit({"type": "heal", "uid": target_uid, "amount": healed})
+				context.game.emit_event({"type": "heal", "uid": target_uid, "amount": healed})
 				unit.damage -= healed
 				context.game.emit_unit_healed(unit, healed, origin_override if origin_override != "" else context.heal_origin())
 			# opt-in overflow: a heal that goes past what the unit was missing grows its maximum Vida for good
 			if overflow_max_hp > 0 and heal_amount > healed:
 				unit.hp += overflow_max_hp
 				unit.record_stat_change(context.source_id(), "", {"hp": overflow_max_hp})
-				context.game._emit({"type": "buff", "uid": target_uid, "atk": 0, "hp": overflow_max_hp, "keywords": []})
+				context.game.emit_event({"type": "buff", "uid": target_uid, "atk": 0, "hp": overflow_max_hp, "keywords": []})

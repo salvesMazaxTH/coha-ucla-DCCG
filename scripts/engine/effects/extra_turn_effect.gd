@@ -23,4 +23,4 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 	player["extra_turns_taken"] += 1
 	player["extra_turn_pending"] = true
 	player["extra_turn_draws"] = draws
-	game._emit({"type": "extra_turn_promised", "player": context.controller})
+	game.emit_event({"type": "extra_turn_promised", "player": context.controller})

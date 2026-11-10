@@ -12,4 +12,4 @@ extends Effect
 func apply(context: EffectContext, _target_uid: int) -> void:
 	var game := context.game
 	game.players[context.controller]["spell_echo_source"] = context.self_uid if context.self_uid != 0 else -1
-	game._emit({"type": "spell_echo_armed", "player": context.controller, "uid": context.self_uid})
+	game.emit_event({"type": "spell_echo_armed", "player": context.controller, "uid": context.self_uid})

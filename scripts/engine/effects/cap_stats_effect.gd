@@ -20,7 +20,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	var attack_lost := _cap_attack(unit, context.source_id())
 	var health_lost := _cap_health(unit, context.source_id())
 	if attack_lost > 0 or health_lost > 0:
-		game._emit({"type": "shrink", "uid": target_uid, "atk": attack_lost, "hp": health_lost})
+		game.emit_event({"type": "shrink", "uid": target_uid, "atk": attack_lost, "hp": health_lost})
 
 ## Lowers the unit's Ataque to the ceiling; returns how much was taken away.
 func _cap_attack(unit: Card, source: String) -> int:

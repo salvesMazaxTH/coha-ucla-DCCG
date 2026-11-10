@@ -12,7 +12,7 @@
 		configure(url, key) {
 			if (!this.sdkReady || this.client) return;
 			this.client = window.supabaseCreateClient(url, key, {
-				auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true, flowType: "pkce" }
+				auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: false, flowType: "pkce" }
 			});
 			this.state.ready = true;
 			this.client.auth.onAuthStateChange((event, session) => {
@@ -38,12 +38,46 @@
 					this.state.stats_status = "guest";
 				}
 			});
+			void this.completeOAuthCallback();
+		},
+		async completeOAuthCallback() {
+			const callbackUrl = new URL(window.location.href);
+			const code = callbackUrl.searchParams.get("code");
+			const authError = callbackUrl.searchParams.get("error_description") || callbackUrl.searchParams.get("error");
+			if (!code && !authError) return;
+
+			// Godot's Web export reloads the whole page on the OAuth round-trip. Exchange the
+			// PKCE code explicitly after Supabase has restored the verifier from browser storage.
+			try {
+				await this.client.auth.initialize();
+				if (authError) {
+					callbackUrl.searchParams.delete("error");
+					callbackUrl.searchParams.delete("error_description");
+					callbackUrl.searchParams.delete("error_code");
+					callbackUrl.searchParams.delete("state");
+					window.history.replaceState(window.history.state, "", callbackUrl.pathname + callbackUrl.search + callbackUrl.hash);
+					this.state.error = "Login Google falhou: " + authError;
+					this.state.session_checked = true;
+					return;
+				}
+				callbackUrl.searchParams.delete("code");
+				callbackUrl.searchParams.delete("state");
+				window.history.replaceState(window.history.state, "", callbackUrl.pathname + callbackUrl.search + callbackUrl.hash);
+				const { error } = await this.client.auth.exchangeCodeForSession(code);
+				if (error) throw error;
+			} catch (error) {
+				this.state.error = "Login Google falhou: " + (error?.message || String(error));
+				this.state.session_checked = true;
+			}
 		},
 		async signInGoogle() {
 			if (!this.client) { this.state.error = "A conexão com Supabase ainda está iniciando."; return; }
+			const callbackUrl = new URL(window.location.href);
+			callbackUrl.search = "";
+			callbackUrl.hash = "";
 			const { error } = await this.client.auth.signInWithOAuth({
 				provider: "google",
-				options: { redirectTo: window.location.href }
+				options: { redirectTo: callbackUrl.toString() }
 			});
 			if (error) this.state.error = error.message;
 		},

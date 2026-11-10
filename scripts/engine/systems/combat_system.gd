@@ -1,44 +1,47 @@
 class_name CombatSystem
 extends RefCounted
-## Combat: one attack at a time. Each ready unit taps to hit the enemy Leader's face or to
-## challenge an exhausted or Vulnerable enemy unit. The challenged unit strikes back.
-## Tapped enemy units do not guard the Leader: the face is always open, except to a Provocação, which
-## is the only thing that forces a challenge. A Congelada Provocação doesn't force attacks into it.
-##
-## Flow of a combat:
-##   1. "IR PARA O COMBATE" opens the "pre_combat" window: the attacker gets priority first, then the
-##      defender; both may cast Rápido/Instantâneo. It ends when both pass in a row with an empty stack.
-##   2. The "attacks" window: the attacker declares attacks one by one, until they press "ENCERRAR COMBATE" or
-##      no unit can attack anymore. Between two attacks the attacker may also cast an Instantâneo (spell or
-##      ability); the defender answers it through the stack.
-##   3. A declared attack can be answered, but only when it matters: the defender is asked ("Reagir?") only if
-##      they hold an Instantâneo they can cast right now AND the attack would leave the Leader at 15 HP or less,
-##      or could kill a unit (see attack_is_worth_a_reply). Otherwise nobody is asked and the blows land at once.
+## Combat uses pre-combat, attacks, and reaction windows.
+## Ready units attack the Leader or challenge tapped/Vulnerable enemies.
+## Challenged units strike back.
+## Tapped enemies do not guard the Leader, except a non-frozen Provocação.
+## Both players may cast Rápido/Instantâneo pre-combat.
+## The attacker may cast Instantâneo between attacks.
+## The defender may react with a castable Instantâneo if an attack could kill a unit or
+## leave the Leader at 15 HP or less.
 
 var game: GameState
 const LEADER_REACTION_HP_THRESHOLD := 15
 ## An attack whose Ao Atacar put something on the stack (a Bola de Neve): its combat damage waits
 ## until the stack is empty. {"attacker": uid, "target": uid}, or empty when no attack is waiting.
 var pending_attack: Dictionary = {}
-## The defender already passed the "Reagir?" prompt for the pending attack, so its blows land now instead of asking again.
+## The defender already passed the "Reagir?" prompt for the pending attack, so its blows land now
+## instead of asking again.
 var reaction_declined := false
-## Durability that equipment owes for an attack ("durability_after_attack"): paid once that attack's blows have landed.
+## Durability that equipment owes for an attack ("durability_after_attack"): paid once that attack's
+## blows have landed.
 ## Entries are {"card": the equipment, "effect": the listening Effect that charges it}.
 var wear_after_attack: Array = []
-## Set by a "decoy" effect while an attack's triggers resolve (Hikari's Fantoche de Trapos): the unit that takes the
-## attacker's blow instead of the challenged one, and the unit that takes the defender's counter-blow
+## Set by a "decoy" effect while an attack's triggers resolve (Hikari's Fantoche de Trapos): the
+## unit that takes the
+## attacker's blow instead of the challenged one, and the unit that takes the defender's
+## counter-blow
 ## instead of the attacker. 0 = nobody. Read once by attack() and then cleared.
 var redirect_hit_to := 0
 var redirect_counter_to := 0
-## Units whose "auto_attack" (Barão Estrondoso) asked for one more attack at a random enemy. It is queued by
-## the internal trigger "before_attack" (the player just sees it as Ao Atacar), so each extra attack resolves
-## completely BEFORE the declared one. The extra attack fires no Ao Atacar, so it never chains forever.
+## Units whose "auto_attack" (Barão Estrondoso) asked for one more attack at a random enemy. It is
+## queued by
+## the internal trigger "before_attack" (the player just sees it as Ao Atacar), so each extra attack
+## resolves
+## completely BEFORE the declared one. The extra attack fires no Ao Atacar, so it never chains
+## forever.
 var auto_attack_queue: Array = []
 ## The attack the player declared, waiting while the extra attacks before it resolve.
 ## {"attacker": uid, "target": uid}, or empty when no declared attack is waiting.
 var deferred_attack: Dictionary = {}
-## Players whose "spend_all_momentum" (Barão Estrondoso) fired while the declared attack was still waiting behind
-## the extra attacks: the Momentum is spent only once the whole sequence is over, so the declared blow still has the surge.
+## Players whose "spend_all_momentum" (Barão Estrondoso) fired while the declared attack was still
+## waiting behind
+## the extra attacks: the Momentum is spent only once the whole sequence is over, so the declared
+## blow still has the surge.
 var players_to_spend_momentum: Array = []
 
 func _init(game_state: GameState) -> void:
@@ -48,7 +51,7 @@ func _init(game_state: GameState) -> void:
 func start_combat(player: int) -> void:
 	game.phase = "combat"
 	game.stack_passed = false
-	game._emit({"type": "combat_step", "player": player})
+	game.emit_event({"type": "combat_step", "player": player})
 	game.stack_system().open_window("pre_combat")
 
 ## Both players passed in a row with an empty stack: the attacks begin.
@@ -64,12 +67,15 @@ func has_any_attacker() -> bool:
 			return true
 	return false
 
-## Can `attacker` challenge `target`? The target must be an enemy unit that is tapped or Vulnerável, and the
+## Can `attacker` challenge `target`? The target must be an enemy unit that is tapped or
+## Vulnerável,
+## and the
 ## attacker must be able to reach it:
 ##   Voo: only an attacker with Voo or Longo Alcance can challenge it.
 ##   Furtividade: only an attacker with Furtividade or Vigilância can challenge it.
 ##   Intimidação: an attacker with ATK 3 or less cannot challenge it.
-##   Obsessão: the attacker may only hit the Leader, except that a tapped Provocação still stops it
+##   Obsessão: the attacker may only hit the Leader, except that a tapped Provocação still stops
+##   it
 ##     (it can challenge only Provocação units, and then must).
 ##   Rompante (the turn it enters): it goes for the Leader and may only challenge a Provocação.
 ##   Etérea: nothing can ever challenge it (not even when it has Provocação).
@@ -83,17 +89,26 @@ func can_challenge(attacker: Card, target: Card) -> bool:
 		return false
 	if game.has_kw(target, "eterea"):
 		return false
-	if game.has_kw(target, "voo") and not (game.has_kw(attacker, "voo") or game.has_kw(attacker, "longo_alcance")):
+	if (
+		game.has_kw(target, "voo")
+		and not (game.has_kw(attacker, "voo") or game.has_kw(attacker, "longo_alcance"))
+	):
 		return false
-	if game.has_kw(target, "furtividade") and not (game.has_kw(attacker, "furtividade") or game.has_kw(attacker, "vigilancia")):
+	if (
+		game.has_kw(target, "furtividade")
+		and not (game.has_kw(attacker, "furtividade") or game.has_kw(attacker, "vigilancia"))
+	):
 		return false
 	if game.has_kw(target, "intimidacao") and game.atk_of(attacker) <= GameState.INTIMIDATE_ATK:
 		return false
 	return true
 
-## Rompante: on the turn it enters, the unit can hit the enemy Leader (Ímpeto can only challenge) and
-## cannot challenge ordinary tapped units. A tapped Provocação still stops it (it must challenge that
-## one), so a taunt is always an answer to a Rompante finisher. From the next turn on it is a normal unit.
+## Rompante: on the turn it enters, the unit can hit the enemy Leader (Ímpeto can only challenge)
+## and
+## cannot challenge ordinary tapped units. A tapped Provocação still stops it (it must challenge
+## that
+## one), so a taunt is always an answer to a Rompante finisher. From the next turn on it is a normal
+## unit.
 func is_rompante_rush(attacker: Card) -> bool:
 	return attacker.sick and game.has_kw(attacker, "rompante")
 
@@ -103,11 +118,19 @@ func is_rompante_rush(attacker: Card) -> bool:
 func forced_taunts(attacker: Card) -> Array:
 	var out: Array = []
 	for enemy_unit: Card in game.players[game.opponent(attacker.owner)]["board"]:
-		if enemy_unit.exhausted and game.has_kw(enemy_unit, "provocacao") and not enemy_unit.is_frozen() and not enemy_unit.is_stunned() and can_challenge(attacker, enemy_unit):
+		if (
+			enemy_unit.exhausted
+			and game.has_kw(enemy_unit, "provocacao")
+			and not enemy_unit.is_frozen()
+			and not enemy_unit.is_stunned()
+			and can_challenge(attacker, enemy_unit)
+		):
 			out.append(enemy_unit.uid)
 	return out
 
-## The tapped or Vulnerável enemy units this attacker is able to challenge (any of them, Provocação or not).
+## The tapped or Vulnerável enemy units this attacker is able to challenge (any of them,
+## Provocação
+## or not).
 func challengeable_units(attacker: Card) -> Array:
 	var out: Array = []
 	for enemy_unit: Card in game.players[game.opponent(attacker.owner)]["board"]:
@@ -120,20 +143,23 @@ func challengeable_units(attacker: Card) -> Array:
 ## Order of the rules:
 ##   1. a tapped (not Congelada) Provocação it can challenge: only those;
 ##   2. Prudência: only the challengeable units, never the Leader's face;
-##   3. otherwise the challengeable units (any tapped or Vulnerable enemy unit) and the enemy Leader's face.
+##   3. otherwise the challengeable units (any tapped or Vulnerable enemy unit) and the enemy
+##   Leader's face.
 func attack_targets(attacker: Card) -> Array:
 	if attacker == null or not game.can_attack(attacker):
 		return []
 	return reachable_targets(attacker)
 
 ## The targets of attack_targets() without asking whether the attacker is still ready to attack.
-## The player's declared attack uses it again after the extra attacks: the attacker is already tapped by then.
+## The player's declared attack uses it again after the extra attacks: the attacker is already
+## tapped by then.
 func reachable_targets(attacker: Card) -> Array:
 	var taunts := forced_taunts(attacker)
 	if not taunts.is_empty():
 		return taunts
 	var challengeable := challengeable_units(attacker)
-	# Prudência (the opposite of Obsessão): it only ever challenges, the Leader's face is never an option
+	# Prudência (the opposite of Obsessão): it only ever challenges, the Leader's face is never an
+	# option
 	if game.has_kw(attacker, "prudencia"):
 		return challengeable
 	var enemy_leader: int = GameState.LEADER_UID[game.opponent(attacker.owner)]
@@ -151,8 +177,10 @@ func in_attacks_window(player: int) -> bool:
 		and game.priority == player and game.stack.is_empty()
 
 ## One attack: `attacker_uid` taps and hits `target_uid` (a negative uid = the enemy Leader's face,
-## otherwise a challenged enemy unit). The blows land at once unless the defender gets to react first
-## (see _offer_reaction): then they wait for the defender's pass, or for what the defender casts to resolve.
+## otherwise a challenged enemy unit). The blows land at once unless the defender gets to react
+## first
+## (see _offer_reaction): then they wait for the defender's pass, or for what the defender casts to
+## resolve.
 func attack(player: int, attacker_uid: int, target_uid: int) -> Array:
 	if not in_attacks_window(player):
 		return []
@@ -161,35 +189,53 @@ func attack(player: int, attacker_uid: int, target_uid: int) -> Array:
 		return []
 	attacker.exhausted = true # it stays tapped between the two attacks of Ataque Duplo too
 	attacker.attacks_made += 1
-	# "before_attack" (shown to the player as Ao Atacar, Barão Estrondoso): the extra attacks it queues resolve
-	# first, one after the other; the attack declared here waits in deferred_attack until they are done
+	# "before_attack" queues extra attacks that resolve before the declared attack.
+	# Barão Estrondoso's extra attacks do not trigger it again.
 	auto_attack_queue.clear()
-	game._fire(attacker, "before_attack", target_uid)
-	game._check_state()
+	game.fire_trigger(attacker, "before_attack", target_uid)
+	game.check_state()
 	deferred_attack = {"attacker": attacker_uid, "target": target_uid}
 	finish_pending_attack() # does nothing yet when the triggers left something on the stack
 	game.stack_system().settle()
-	return game._flush()
+	return game.flush_events()
 
-## Declares the attack the player chose (the "attack" event, Ao Atacar, Ao Desafiar / Ao Ser Desafiada) and
+## Declares the attack the player chose (the "attack" event, Ao Atacar, Ao Desafiar / Ao Ser
+## Desafiada) and
 ## leaves it as the pending attack. Its combat damage comes from finish_pending_attack().
 func _declare_attack(attacker: Card, target_uid: int) -> void:
 	var defender_unit: Card = game.find_unit(target_uid) if target_uid > 0 else null
-	var target_card_id := defender_unit.card_id if defender_unit != null else String(CardDB.leader(game.players[game.opponent(attacker.owner)]["leader_id"]).get("incarnation", ""))
-	game._emit({"type": "attack", "player": attacker.owner, "attacker": attacker.uid, "target": target_uid, "attacker_card_id": attacker.card_id, "target_card_id": target_card_id})
+	var target_card_id := (
+		defender_unit.card_id
+		if defender_unit != null
+		else String(
+			CardDB.leader(game.players[game.opponent(attacker.owner)]["leader_id"]).get(
+				"incarnation", ""
+			)
+		)
+	)
+	game.emit_event({
+		"type": "attack",
+		"player": attacker.owner,
+		"attacker": attacker.uid,
+		"target": target_uid,
+		"attacker_card_id": attacker.card_id,
+		"target_card_id": target_card_id,
+	})
 	redirect_hit_to = 0
 	redirect_counter_to = 0
 	# triggers: Ao Atacar always; Ao Desafiar / Ao Ser Desafiada only when a unit is challenged
-	game._fire(attacker, "on_attack", target_uid if defender_unit != null else 0)
+	game.fire_trigger(attacker, "on_attack", target_uid if defender_unit != null else 0)
 	if defender_unit != null:
-		game._fire(attacker, "on_challenge", target_uid)
-		game._fire(defender_unit, "on_challenged", attacker.uid)
-	game._fire(attacker, "unit_attacked", target_uid if defender_unit != null else 0)
-	game._check_state()
+		game.fire_trigger(attacker, "on_challenge", target_uid)
+		game.fire_trigger(defender_unit, "on_challenged", attacker.uid)
+	game.fire_trigger(attacker, "unit_attacked", target_uid if defender_unit != null else 0)
+	game.check_state()
 	pending_attack = {"attacker": attacker.uid, "target": target_uid, "awaiting_triggers": true}
 
-## Declares the attack that waited for the extra attacks. It fizzles (the unit stays tapped) when its attacker
-## died meanwhile, or its target died or can no longer be hit. Returns true when the attack was declared.
+## Declares the attack that waited for the extra attacks. It fizzles (the unit stays tapped) when
+## its attacker
+## died meanwhile, or its target died or can no longer be hit. Returns true when the attack was
+## declared.
 func _resume_deferred_attack() -> bool:
 	if deferred_attack.is_empty():
 		return false
@@ -203,14 +249,17 @@ func _resume_deferred_attack() -> bool:
 	return true
 
 ## The attack's combat damage and the end of combat once no attacker is left. Waits while the stack
-## is not empty: whatever the attack's triggers cast resolves (or is countered) before the blows land.
+## is not empty: whatever the attack's triggers cast resolves (or is countered) before the blows
+## land.
 func finish_pending_attack() -> void:
 	if game.phase != "combat":
 		return
 	if not game.stack.is_empty() or is_reacting(game.opponent(game.active)):
 		return
 	if pending_attack.is_empty():
-		# "before_attack" has resolved and nothing is being fought yet: start the extra attacks, then the declared one
+		# "before_attack" has resolved and nothing is being fought yet: start the extra attacks,
+		# then the
+		# declared one
 		if deferred_attack.is_empty():
 			return
 		if game.phase == "over":
@@ -220,7 +269,8 @@ func finish_pending_attack() -> void:
 		else:
 			spend_postponed_momentum() # the declared attack fizzled, so the sequence ends here
 			if not has_any_attacker():
-				end_combat() # the declared attack fizzled (its attacker died) and nobody is left to attack
+				end_combat()
+				# the declared attack fizzled (its attacker died) and nobody is left to attack
 		return
 	if pending_attack.get("awaiting_triggers", false):
 		if redirect_hit_to != 0 and game.find_unit(redirect_hit_to) != null:
@@ -230,19 +280,26 @@ func finish_pending_attack() -> void:
 		redirect_hit_to = 0
 		redirect_counter_to = 0
 	if not reaction_declined and _offer_reaction():
-		return # the defender holds priority; their pass (or what they cast, once it resolves) comes back here
+		return
+		# the defender holds priority; their pass (or what they cast, once it resolves) comes back
+		# here
 	var attack_info := pending_attack
 	pending_attack = {}
 	reaction_declined = false
 	if game.phase == "over":
 		deferred_attack = {}
 		return
-	_exchange_damage(int(attack_info["attacker"]), int(attack_info["target"]), int(attack_info.get("counter_to", 0)))
+	_exchange_damage(
+		int(attack_info["attacker"]),
+		int(attack_info["target"]),
+		int(attack_info.get("counter_to", 0))
+	)
 	_pay_wear_after_attack()
 	if game.phase == "over":
 		deferred_attack = {}
 		return
-	# the extra attacks (auto_attack) come first; once they are done the attack the player declared goes
+	# the extra attacks (auto_attack) come first; once they are done the attack the player declared
+	# goes
 	if _begin_next_auto_attack() or _resume_deferred_attack():
 		finish_pending_attack()
 		return
@@ -259,7 +316,8 @@ func _pay_wear_after_attack() -> void:
 		if equipment.zone == TriggerBus.EQUIPPED: # it may have fallen off already (its unit died)
 			game.bus().pay_durability(equipment, entry["effect"])
 
-## Asks to spend all of `player`'s Momentum: right now, unless the attack they declared is still waiting behind
+## Asks to spend all of `player`'s Momentum: right now, unless the attack they declared is still
+## waiting behind
 ## the extra attacks (then it is spent when the sequence ends, see spend_postponed_momentum).
 func spend_all_momentum_after_attacks(player: int) -> void:
 	if deferred_attack.is_empty():
@@ -267,7 +325,8 @@ func spend_all_momentum_after_attacks(player: int) -> void:
 	elif not players_to_spend_momentum.has(player):
 		players_to_spend_momentum.append(player)
 
-## The extra attacks and the declared one are all over: spends the Momentum that was waiting for this moment.
+## The extra attacks and the declared one are all over: spends the Momentum that was waiting for
+## this moment.
 func spend_postponed_momentum() -> void:
 	var waiting := players_to_spend_momentum.duplicate()
 	players_to_spend_momentum.clear()
@@ -278,28 +337,41 @@ func _spend_all_momentum(player: int) -> void:
 	if int(game.players[player]["momentum"]) <= 0:
 		return
 	game.players[player]["momentum"] = 0
-	game._refresh_scaling() # a surge (11+ Momentum) may have just turned off
-	game._emit({"type": "momentum", "player": player})
+	game.refresh_scaling() # a surge (11+ Momentum) may have just turned off
+	game.emit_event({"type": "momentum", "player": player})
 
-## True while `player` is being asked whether to react to the attack that was just declared: the defender holds
-## priority in the attacks window with an empty stack. The attacker never holds it there (they declare the next
-## attack or end combat), so it can be read from the public state alone (the online client has no pending_attack).
+## True while `player` is being asked whether to react to the attack that was just declared: the
+## defender holds
+## priority in the attacks window with an empty stack. The attacker never holds it there (they
+## declare the next
+## attack or end combat), so it can be read from the public state alone (the online client has no
+## pending_attack).
 func is_reacting(player: int) -> bool:
 	return game.phase == "combat" and game.window == "attacks" and player != game.active \
 		and game.priority == player and game.stack.is_empty()
 
-## The defender's chance to answer a declared attack before its blows land (Window B). The defender is only asked
-## when they have an Instantâneo they can really cast right now AND the attack matters (see attack_is_worth_a_reply);
-## otherwise nothing is asked and the attack just resolves. Returns true when the defender now holds priority.
+## The defender's chance to answer a declared attack before its blows land (Window B). The defender
+## is only asked
+## when they have an Instantâneo they can really cast right now AND the attack matters (see
+## attack_is_worth_a_reply);
+## otherwise nothing is asked and the attack just resolves. Returns true when the defender now holds
+## priority.
 func _offer_reaction() -> bool:
 	if game.phase != "combat" or not attack_is_worth_a_reply(pending_attack):
 		return false
 	var defender := game.opponent(game.active)
 	var previous_priority := game.priority
 	game.priority = defender
-	# with priority on the defender, has_play() only sees what is castable now: an Instantâneo within their Momentum
+	# with priority on the defender, has_play() only sees what is castable now: an Instantâneo
+	# within
+	# their Momentum
 	if game.stack_system().has_play(defender):
-		game._emit({"type": "reaction", "player": defender, "attacker": int(pending_attack["attacker"]), "target": int(pending_attack["target"])})
+		game.emit_event({
+			"type": "reaction",
+			"player": defender,
+			"attacker": int(pending_attack["attacker"]),
+			"target": int(pending_attack["target"]),
+		})
 		return true
 	game.priority = previous_priority
 	return false
@@ -310,9 +382,12 @@ func pass_reaction() -> void:
 	game.priority = game.active
 	finish_pending_attack()
 
-## Is the declared attack serious enough to stop the game for? Yes when its damage would leave the Leader at
-## 15 HP or less, or when a unit could die in the exchange: the struck unit by the blow, or the attacker by the counter-blow.
-## Deliberately generous (Armadura, Escudo and the order of strikes are ignored; a Crítico is counted): asking
+## Is the declared attack serious enough to stop the game for? Yes when its damage would leave the
+## Leader at
+## 15 HP or less, or when a unit could die in the exchange: the struck unit by the blow, or the
+## attacker by the counter-blow.
+## Deliberately generous (Armadura, Escudo and the order of strikes are ignored; a Crítico is
+## counted): asking
 ## once too often costs a click, missing a real chance would cost the unit.
 func attack_is_worth_a_reply(attack_info: Dictionary) -> bool:
 	var attacker := game.find_unit(int(attack_info["attacker"]))
@@ -322,13 +397,18 @@ func attack_is_worth_a_reply(attack_info: Dictionary) -> bool:
 	if target_uid < 0:
 		var damage := game.strike_power_of(attacker)
 		var defender := game.opponent(attacker.owner)
-		return damage > 0 and int(game.players[defender]["leader_hp"]) - damage <= LEADER_REACTION_HP_THRESHOLD
+		return (
+			damage > 0
+			and int(game.players[defender]["leader_hp"]) - damage
+			<= LEADER_REACTION_HP_THRESHOLD
+		)
 	var target := game.find_unit(target_uid)
 	if target == null:
 		return false
 	return _blow_could_kill(attacker, target) or _blow_could_kill(target, attacker)
 
-## Could `striker`'s blow kill `victim`? Tóxico always can; otherwise the Ataque (plus a possible Crítico) against Vida left.
+## Could `striker`'s blow kill `victim`? Tóxico always can; otherwise the Ataque (plus a possible
+## Crítico) against Vida left.
 func _blow_could_kill(striker: Card, victim: Card) -> bool:
 	if game.has_kw(striker, "toxico"):
 		return game.strike_power_of(striker) > 0
@@ -337,8 +417,11 @@ func _blow_could_kill(striker: Card, victim: Card) -> bool:
 		most_damage += _critical_bonus(striker, game.hp_left(victim))
 	return most_damage >= game.hp_left(victim)
 
-## Every possible target of an automatic extra attack: ALL enemy units plus the enemy Leader, with no restriction
-## at all (tapped or not, Provocação, Voo, Furtividade, Etérea, Ímpeto... none of it matters for the random pick).
+## Every possible target of an automatic extra attack: ALL enemy units plus the enemy Leader, with
+## no restriction
+## at all (tapped or not, Provocação, Voo, Furtividade, Etérea, Ímpeto... none of it matters for
+## the
+## random pick).
 func auto_attack_targets(attacker: Card) -> Array:
 	var out: Array = []
 	for enemy_unit: Card in game.players[game.opponent(attacker.owner)]["board"]:
@@ -346,10 +429,14 @@ func auto_attack_targets(attacker: Card) -> Array:
 	out.append(GameState.LEADER_UID[game.opponent(attacker.owner)])
 	return out
 
-## Takes the next queued automatic attack: picks a random target for the attacker (auto_attack_targets), fires
-## Ao Desafiar / Ao Ser Desafiada (not Ao Atacar) and leaves the attack waiting as the pending attack.
-## A unit the player is about to challenge (deferred_attack) is never the pick, so the extra blow can't kill it
-## first and waste the declared attack; the enemy Leader is always in the pool, so the pick only fails if the attacker can't act.
+## Takes the next queued automatic attack: picks a random target for the attacker
+## (auto_attack_targets), fires
+## Ao Desafiar / Ao Ser Desafiada (not Ao Atacar) and leaves the attack waiting as the pending
+## attack.
+## A unit the player is about to challenge (deferred_attack) is never the pick, so the extra blow
+## can't kill it
+## first and waste the declared attack; the enemy Leader is always in the pool, so the pick only
+## fails if the attacker can't act.
 ## Returns false when the queue holds nobody who can still attack.
 func _begin_next_auto_attack() -> bool:
 	while not auto_attack_queue.is_empty():
@@ -360,20 +447,36 @@ func _begin_next_auto_attack() -> bool:
 		var targets := auto_attack_targets(attacker)
 		var declared_target := int(deferred_attack.get("target", 0))
 		if declared_target > 0:
-			targets.erase(declared_target) # the Leader stays a valid pick: hitting it twice is the point of the combo
+			targets.erase(declared_target)
+			# the Leader stays a valid pick: hitting it twice is the point of the combo
 		if targets.is_empty():
 			continue
 		var target_uid: int = targets[game.rng.randi_range(0, targets.size() - 1)]
 		var defender_unit: Card = game.find_unit(target_uid) if target_uid > 0 else null
 		attacker.attacks_made += 1
-		var target_card_id := defender_unit.card_id if defender_unit != null else String(CardDB.leader(game.players[game.opponent(attacker.owner)]["leader_id"]).get("incarnation", ""))
-		game._emit({"type": "attack", "player": attacker.owner, "attacker": attacker.uid, "target": target_uid, "attacker_card_id": attacker.card_id, "target_card_id": target_card_id})
+		var target_card_id := (
+			defender_unit.card_id
+			if defender_unit != null
+			else String(
+				CardDB.leader(game.players[game.opponent(attacker.owner)]["leader_id"]).get(
+					"incarnation", ""
+				)
+			)
+		)
+		game.emit_event({
+			"type": "attack",
+			"player": attacker.owner,
+			"attacker": attacker.uid,
+			"target": target_uid,
+			"attacker_card_id": attacker.card_id,
+			"target_card_id": target_card_id,
+		})
 		redirect_hit_to = 0
 		redirect_counter_to = 0
 		if defender_unit != null:
-			game._fire(attacker, "on_challenge", target_uid)
-			game._fire(defender_unit, "on_challenged", attacker.uid)
-		game._check_state()
+			game.fire_trigger(attacker, "on_challenge", target_uid)
+			game.fire_trigger(defender_unit, "on_challenged", attacker.uid)
+		game.check_state()
 		pending_attack = {"attacker": attacker.uid, "target": target_uid, "awaiting_triggers": true}
 		return true
 	return false
@@ -381,44 +484,52 @@ func _begin_next_auto_attack() -> bool:
 ## The attacker and its target deal their combat damage in Rapidez order: the faster one strikes
 ## first, equal Rapidez strike at the same time. A unit that is already dead (a trigger above or the
 ## faster strike may have killed it) deals nothing. Hitting the Leader takes nothing back.
-## `counter_uid` (a decoy on the attacker's side) takes the defender's counter-blow instead of the attacker.
+## `counter_uid` (a decoy on the attacker's side) takes the defender's counter-blow instead of the
+## attacker.
 func _exchange_damage(attacker_uid: int, target_uid: int, counter_uid := 0) -> void:
 	var defending_player := game.opponent(game.active)
-	game._emit({"type": "combat_damage"})
-	game._combat_damage = true
+	game.emit_event({"type": "combat_damage"})
+	game.combat_damage = true
 	for step in STRIKE_STEPS:
 		var attacker := game.find_unit(attacker_uid)
 		if attacker == null:
 			break
 		if target_uid < 0:
 			if strike_step(attacker) == step:
-				game._deal_damage(target_uid, _blow_damage(attacker, target_uid), attacker)
+				game.deal_damage(target_uid, _blow_damage(attacker, target_uid), attacker)
 			continue
 		var defender_unit := game.find_unit(target_uid)
 		if strike_step(attacker) == step:
 			if defender_unit != null:
 				var blow := _blow_damage(attacker, defender_unit.uid)
 				var excess := blow - game.hp_left(defender_unit)
-				game._deal_damage(defender_unit.uid, blow, attacker)
+				game.deal_damage(defender_unit.uid, blow, attacker)
 				if game.has_kw(attacker, "sobrepujanca") and excess > 0:
-					game._deal_damage(GameState.LEADER_UID[defending_player], excess, attacker)
+					game.deal_damage(GameState.LEADER_UID[defending_player], excess, attacker)
 			elif game.has_kw(attacker, "sobrepujanca"):
 				var leader_uid: int = GameState.LEADER_UID[defending_player]
-				game._deal_damage(leader_uid, _blow_damage(attacker, leader_uid), attacker) # target already dead
+				game.deal_damage(leader_uid, _blow_damage(attacker, leader_uid), attacker)
+				# target already dead
 		defender_unit = game.find_unit(target_uid)
 		attacker = game.find_unit(attacker_uid)
 		if defender_unit != null and attacker != null and strike_step(defender_unit) == step:
 			var counter_victim := game.find_unit(counter_uid) if counter_uid > 0 else null
 			if counter_victim == null:
 				counter_victim = attacker
-			game._deal_damage(counter_victim.uid, _blow_damage(defender_unit, counter_victim.uid), defender_unit)
-		game._check_state()
-	# a Leader that drops to 0 still takes the remaining strikes (overkill); the result is decided once, here
-	game._combat_damage = false
-	game._check_state()
-	game._check_leaders()
+			game.deal_damage(
+				counter_victim.uid,
+				_blow_damage(defender_unit, counter_victim.uid),
+				defender_unit
+			)
+		game.check_state()
+	# a Leader that drops to 0 still takes the remaining strikes (overkill); the result is decided
+	# once, here
+	game.combat_damage = false
+	game.check_state()
+	game.check_leaders()
 
-## Crítico: every level is this much chance (in percent) that a blow is critical; level 4 is certain.
+## Crítico: every level is this much chance (in percent) that a blow is critical; level 4 is
+## certain.
 const CRITICO_CHANCE_PER_LEVEL := 25
 ## A critical blow adds this much damage (a card can set its own with "critico_maximo" at level 4).
 const CRITICO_BONUS := 2
@@ -438,7 +549,8 @@ func _critical_bonus(striker: Card, target_hp: int, target_is_leader: bool = fal
 ## The bonus is added before Armadura and Escudo (they work on the final number). A defender with
 ## "imune_critico" (Rália's Desdém) cancels the critical: no bonus, and nothing grows.
 func _blow_damage(striker: Card, target_uid: int) -> int:
-	var damage := game.strike_power_of(striker) # a Pacifista deals 0 (and a critical never adds to a zero blow)
+	var damage := game.strike_power_of(striker)
+	# a Pacifista deals 0 (and a critical never adds to a zero blow)
 	var level := striker.critico_total()
 	if level <= 0 or damage <= 0:
 		return damage
@@ -447,18 +559,21 @@ func _blow_damage(striker: Card, target_uid: int) -> int:
 		return damage
 	var target := game.find_unit(target_uid) if target_uid > 0 else null
 	if target != null and target.data().get("imune_critico", false):
-		game._emit({"type": "crit_negated", "uid": target.uid})
+		game.emit_event({"type": "crit_negated", "uid": target.uid})
 		return damage
-	game._emit({"type": "crit", "uid": striker.uid})
+	game.emit_event({"type": "crit", "uid": striker.uid})
 	var target_hp := int(game.players[game.opponent(striker.owner)]["leader_hp"])
 	if target != null:
 		target_hp = game.hp_left(target)
 	var bonus := _critical_bonus(striker, target_hp, target == null)
-	# "critico_growth" (Vael): every critical blow raises his Crítico one level, up to 4, for ALL his copies
-	# (hand, deck, field... and future ones, see GameState.grow_critico); the temporary levels don't count
+	# "critico_growth" (Vael): every critical blow raises his Crítico one level, up to 4, for ALL
+	# his
+	# copies
+	# (hand, deck, field... and future ones, see GameState.grow_critico); the temporary levels don't
+	# count
 	if striker.data().get("critico_growth", false) and striker.critico < 4:
 		game.grow_critico(striker)
-		game._emit({"type": "critico_up", "uid": striker.uid, "level": striker.critico_total()})
+		game.emit_event({"type": "critico_up", "uid": striker.uid, "level": striker.critico_total()})
 	return damage + bonus
 
 ## Leaves combat: back to the Main Phase, no more attacks this turn.
@@ -466,15 +581,17 @@ func end_combat() -> void:
 	game.window = ""
 	game.stack_passed = false
 	if game.phase != "over":
-		# a deck search opened by this attack (an on_attack/on_hit search effect) must stay open: the player
+		# a deck search opened by this attack (an on_attack/on_hit search effect) must stay open:
+		# the
+		# player
 		# answers it first and the game then returns to the Main Phase
 		if game.phase == "search":
-			game._search_return = "main"
+			game.search_return = "main"
 		else:
 			game.phase = "main"
 		game.priority = game.active
 		game.players[game.active]["attacked"] = true
-		game._emit({"type": "combat_end", "player": game.active})
+		game.emit_event({"type": "combat_end", "player": game.active})
 
 ## Esquiva condition (once per turn): by default the other unit has less Rapidez than the dodger.
 ## A card can override it with "esquiva": {"max_rapidez": N} = the other unit has Rapidez N or less.
@@ -484,10 +601,15 @@ func dodges(c: Card, source: Card) -> bool:
 		return source.rapidez_total() <= int(rule["max_rapidez"])
 	return source.rapidez_total() < c.rapidez_total()
 
-## Will `defender` get to hurt `attacker` with its counter-blow when `attacker` challenges it? No when it
-## deals 0 damage, or when the attacker strikes strictly first (more Rapidez) and the blow surely kills it
-## (Escudo, Esquiva, Indestrutível and Armadura are taken into account; a Crítico only adds damage, so it is
-## ignored). Used by the Decoy of Hikari so it is only summoned when there is a counter-blow to dodge.
+## Will `defender` get to hurt `attacker` with its counter-blow when `attacker` challenges it? No
+## when it
+## deals 0 damage, or when the attacker strikes strictly first (more Rapidez) and the blow surely
+## kills it
+## (Escudo, Esquiva, Indestrutível and Armadura are taken into account; a Crítico only adds
+## damage,
+## so it is
+## ignored). Used by the Decoy of Hikari so it is only summoned when there is a counter-blow to
+## dodge.
 func defender_will_counter(attacker: Card, defender: Card) -> bool:
 	if game.strike_power_of(defender) <= 0:
 		return false
@@ -495,7 +617,11 @@ func defender_will_counter(attacker: Card, defender: Card) -> bool:
 		return true
 	if game.has_kw(defender, "indestrutivel") or defender.shield:
 		return true
-	if game.has_kw(defender, "esquiva") and defender.dodge_turn != game.turn and dodges(defender, attacker):
+	if (
+		game.has_kw(defender, "esquiva")
+		and defender.dodge_turn != game.turn
+		and dodges(defender, attacker)
+	):
 		return true
 	var blow := game.damage_after_armor(defender, game.strike_power_of(attacker))
 	return blow < game.hp_left(defender)

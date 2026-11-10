@@ -9,4 +9,4 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 	if relic == null or relic.owner != context.controller:
 		return
 	relic.death_ward_armed = true
-	context.game._emit({"type": "death_ward_armed", "player": relic.owner, "uid": relic.uid, "card_id": relic.card_id})
+	context.game.emit_event({"type": "death_ward_armed", "player": relic.owner, "uid": relic.uid, "card_id": relic.card_id})

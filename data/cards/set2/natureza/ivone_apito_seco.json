@@ -3,7 +3,7 @@
   "set": 2,
   "type": "unit",
   "rarity": "epic",
-  "tribe": [],
+  "tribe": ["nuliterrano"],
   "essence": "natureza",
   "cost": 4,
   "atk": 3,

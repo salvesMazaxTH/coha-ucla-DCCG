@@ -156,7 +156,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		var missing_levels: int = 4 - unit.critico_total()
 		unit.temp_critico += missing_levels
 		unit.record_stat_change(context.source_id(), "end_turn", {"critico": missing_levels})
-		game._emit({"type": "buff", "uid": target_uid, "atk": 0, "hp": 0, "keywords": [], "critico": missing_levels})
+		game.emit_event({"type": "buff", "uid": target_uid, "atk": 0, "hp": 0, "keywords": [], "critico": missing_levels})
 		return
 	var multiplier := 1
 	if per == "momentum_left":
@@ -285,7 +285,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	unit.record_stat_change(context.source_id(), "", permanent_changes)
 	unit.record_stat_change(context.source_id(), "end_turn", end_of_turn_changes)
 	unit.record_stat_change(context.source_id(), "next_turn", until_next_turn_changes)
-	game._emit(buff_event)
+	game.emit_event(buff_event)
 
 ## Gives the unit one keyword; with `only_this_turn` it ends with the turn (shields and plain keywords alike).
 func _grant_keyword(unit: Card, keyword: String, only_this_turn: bool) -> void:
@@ -339,4 +339,4 @@ func _copy_highest_ally_attack(game: GameState, unit: Card, source: String) -> v
 	else:
 		unit.atk += attack_gain
 	unit.record_stat_change(source, "end_turn" if temporary else "", {"atk": attack_gain})
-	game._emit({"type": "buff", "uid": unit.uid, "atk": attack_gain, "hp": 0, "keywords": []})
+	game.emit_event({"type": "buff", "uid": unit.uid, "atk": attack_gain, "hp": 0, "keywords": []})

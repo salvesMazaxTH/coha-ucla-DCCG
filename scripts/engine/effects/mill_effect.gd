@@ -28,7 +28,7 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 		context.milled_cards.append(card)
 		milled_ids.append(card.card_id)
 	if not milled_ids.is_empty():
-		game._emit({"type": "mill", "player": deck_owner, "cards": milled_ids})
+		game.emit_event({"type": "mill", "player": deck_owner, "cards": milled_ids})
 	if mills_enemy and milled_ids.size() < amount:
 		game.suffer_fatigue(deck_owner)
 

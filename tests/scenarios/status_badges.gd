@@ -25,20 +25,20 @@ static func setup(g: GameState) -> void:
 	three_plus_stun.stun_markers = 2
 	g.players[0]["leader_dots"] = {"queimadura": 5, "veneno": 8, "sangramento": 2}
 	g.players[1]["leader_dots"] = {"queimadura": 5, "veneno": 8, "sangramento": 2, "congelar": 3}
-	g._check_state()
-	g._flush()
+	g.check_state()
+	g.flush_events()
 
 ## Põe uma carta direto no campo, resolve as escolhas que a entrada pedir e tira o enjoo de invocação.
 static func _put(g: GameState, player: int, card_id: String) -> Card:
 	var uid := g._uid()
 	g._summon(player, Card.new(uid, card_id, player), false, 0)
-	g._flush()
+	g.flush_events()
 	if g.phase == "search":
 		g.choose_search(player, int(g.pending_search["cards"][0]["uid"]))
-		g._flush()
+		g.flush_events()
 	if g.phase == "enter_tapped":
 		g.choose_enter_tapped(player, false)
-		g._flush()
+		g.flush_events()
 	g.pending_tap.erase(uid)
 	var unit := g.find_unit(uid)
 	unit.sick = false

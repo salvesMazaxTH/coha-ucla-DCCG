@@ -6,6 +6,7 @@
   "tribe": ["nuliterrano"],
   "essence": "tormenta",
   "element": "raio",
+  "fx_from_element": true,
   "cost": 7,
   "atk": 6,
   "hp": 8,

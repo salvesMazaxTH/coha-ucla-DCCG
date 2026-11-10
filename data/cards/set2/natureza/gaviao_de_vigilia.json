@@ -3,7 +3,7 @@
   "set": 2,
   "type": "unit",
   "rarity": "common",
-  "tribe": ["fera"],
+  "tribe": ["fera", "nuliterrano"],
   "essence": "natureza",
   "cost": 2,
   "atk": 1,

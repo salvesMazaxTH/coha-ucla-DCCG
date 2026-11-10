@@ -40,7 +40,7 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 		"hp": int(base["hp"]) + health_per_unit * count,
 		"armor": int(base.get("armor", 0)) + armor_per_unit * count,
 	}
-	game._emit({"type": "fuse", "player": context.controller, "uids": fused_uids, "card_id": into_card_id, "count": count})
+	game.emit_event({"type": "fuse", "player": context.controller, "uids": fused_uids, "card_id": into_card_id, "count": count})
 	game._summon(context.controller, Card.new(game._uid(), into_card_id, context.controller), false, 0, overrides, false, slot)
 
 ## How many units this fusion would take right now (0 when below the minimum).

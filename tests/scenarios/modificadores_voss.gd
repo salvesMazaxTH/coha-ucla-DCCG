@@ -36,8 +36,8 @@ static func setup(g: GameState) -> void:
 		g._move(loose_artifact, "relics")
 
 	g.players[0]["momentum"] = 10
-	g._refresh_scaling() # recalcula o Voss agora, com todos os artefatos já em jogo
-	g._flush()
+	g.refresh_scaling() # recalcula o Voss agora, com todos os artefatos já em jogo
+	g.flush_events()
 
 ## Equipa um artefato direto na unidade, aplicando o bônus que ele concede.
 static func _equip(g: GameState, holder: Card, artifact_id: String, granted: Dictionary) -> void:
@@ -49,13 +49,13 @@ static func _equip(g: GameState, holder: Card, artifact_id: String, granted: Dic
 static func _put(g: GameState, player: int, card_id: String) -> Card:
 	var uid := g._uid()
 	g._summon(player, Card.new(uid, card_id, player), false, 0)
-	g._flush()
+	g.flush_events()
 	if g.phase == "search":
 		g.choose_search(player, 0) # recusa a busca
-		g._flush()
+		g.flush_events()
 	if g.phase == "enter_tapped":
 		g.choose_enter_tapped(player, false)
-		g._flush()
+		g.flush_events()
 	g.pending_tap.erase(uid)
 	var unit := g.find_unit(uid)
 	unit.sick = false

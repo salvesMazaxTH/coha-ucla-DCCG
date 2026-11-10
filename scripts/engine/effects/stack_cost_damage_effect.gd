@@ -17,4 +17,4 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	var damage_amount := mini(game.stack_cost(punished_item), maximum)
 	if damage_amount <= 0:
 		return
-	game._deal_damage(GameState.LEADER_UID[int(punished_item["player"])], damage_amount, null)
+	game.deal_damage(GameState.LEADER_UID[int(punished_item["player"])], damage_amount, null)

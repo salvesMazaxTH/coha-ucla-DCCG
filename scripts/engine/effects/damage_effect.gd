@@ -102,12 +102,12 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		damage_amount += amplifier_bonus
 	# the neighbours are found before any damage, so they stay the same if the target dies
 	var neighbour_uids := _neighbours_of(game, victim) if adjacent_amount > 0 else []
-	var damage_dealt := game._deal_damage(target_uid, damage_amount, null)
+	var damage_dealt := game.deal_damage(target_uid, damage_amount, null)
 	# deaths are settled later, so a victim left with no Vida on the board is the one this damage killed
 	if source_gain_per_kill > 0 and victim != null and damage_dealt > 0 and victim.hp_left() <= 0:
 		_grant_kill_bonus(context)
 	for neighbour_uid in neighbour_uids:
-		damage_dealt += game._deal_damage(neighbour_uid, adjacent_amount + amplifier_bonus, null)
+		damage_dealt += game.deal_damage(neighbour_uid, adjacent_amount + amplifier_bonus, null)
 	if heals_by_damage_dealt:
 		game._heal_leader(context.controller, damage_dealt, context.heal_origin())
 		if heals_source_too:
@@ -136,7 +136,7 @@ func _grant_kill_bonus(context: EffectContext) -> void:
 		return
 	source_unit.atk += source_gain_per_kill
 	source_unit.record_stat_change(context.source_id(), "", {"atk": source_gain_per_kill})
-	context.game._emit({"type": "buff", "uid": source_unit.uid, "atk": source_gain_per_kill, "hp": 0, "keywords": []})
+	context.game.emit_event({"type": "buff", "uid": source_unit.uid, "atk": source_gain_per_kill, "hp": 0, "keywords": []})
 
 ## Heals the unit that owns this effect (never above its Vida); a unit that already left the board is not healed.
 func _heal_source_unit(context: EffectContext, heal_amount: int) -> void:
@@ -145,7 +145,7 @@ func _heal_source_unit(context: EffectContext, heal_amount: int) -> void:
 		return
 	var healed := mini(heal_amount, source_unit.damage)
 	if healed > 0:
-		context.game._emit({"type": "heal", "uid": source_unit.uid, "amount": healed})
+		context.game.emit_event({"type": "heal", "uid": source_unit.uid, "amount": healed})
 		source_unit.damage -= healed
 		context.game.emit_unit_healed(source_unit, healed, context.heal_origin())
 

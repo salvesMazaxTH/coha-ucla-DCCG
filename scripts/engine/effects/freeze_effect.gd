@@ -21,12 +21,12 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	if action == "unfreeze":
 		if unit.is_frozen():
 			unit.frozen = 0
-			game._emit({"type": "thaw", "uid": target_uid})
+			game.emit_event({"type": "thaw", "uid": target_uid})
 		return
 	# Gelo units are innately immune, including when the freeze comes from an area effect.
 	if CardDB.has_element(unit.data(), "gelo") and not ignores_immunity:
-		game._emit({"type": "dot_immune", "uid": target_uid, "dot": "congelar"})
+		game.emit_event({"type": "dot_immune", "uid": target_uid, "dot": "congelar"})
 		return
 	# `frozen` holds the turn at whose END the unit thaws
 	unit.frozen = maxi(unit.frozen, game.turn + 1)
-	game._emit({"type": "freeze", "uid": target_uid})
+	game.emit_event({"type": "freeze", "uid": target_uid})

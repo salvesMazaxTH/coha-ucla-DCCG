@@ -13,4 +13,4 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	if unit == null or unit.exhausted or unit.has_kw("inerte"): # an inert unit never taps
 		return
 	unit.exhausted = true
-	game._emit({"type": "exhaust", "uid": target_uid})
+	game.emit_event({"type": "exhaust", "uid": target_uid})

@@ -22,4 +22,4 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 	else:
 		player["deck"].append(created) # draws pop the back, so the back is the top
 		game._move(created, "deck")
-	game._emit({"type": "card_created", "player": context.controller, "uid": created.uid, "card_id": created.card_id, "to": destination})
+	game.emit_event({"type": "card_created", "player": context.controller, "uid": created.uid, "card_id": created.card_id, "to": destination})

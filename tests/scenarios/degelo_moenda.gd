@@ -43,4 +43,4 @@ static func setup(g: GameState) -> void:
 	g.players[0]["momentum"] = 10
 	g.players[0]["reserve"] = 0
 	g.players[1]["max_momentum"] = 9
-	g._flush()
+	g.flush_events()

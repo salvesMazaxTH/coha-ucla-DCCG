@@ -28,19 +28,19 @@ static func setup(g: GameState) -> void:
 	g.players[0]["max_momentum"] = 10
 	g.players[0]["momentum"] = 10
 	g.players[1]["max_momentum"] = 9
-	g._flush()
+	g.flush_events()
 
 ## Põe uma carta direto no campo, resolve as escolhas que a entrada pedir e tira o enjoo de invocação.
 static func _put(g: GameState, player: int, card_id: String) -> Card:
 	var uid := g._uid()
 	g._summon(player, Card.new(uid, card_id, player), false, 0)
-	g._flush()
+	g.flush_events()
 	if g.phase == "search":
 		g.choose_search(player, int(g.pending_search["cards"][0]["uid"]))
-		g._flush()
+		g.flush_events()
 	if g.phase == "enter_tapped":
 		g.choose_enter_tapped(player, false)
-		g._flush()
+		g.flush_events()
 	g.pending_tap.erase(uid)
 	var unit := g.find_unit(uid)
 	unit.sick = false

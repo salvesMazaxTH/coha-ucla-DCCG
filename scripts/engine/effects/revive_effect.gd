@@ -45,7 +45,7 @@ func _revive_random(context: EffectContext) -> void:
 		return
 	var pick: Card = candidates[game.rng.randi_range(0, candidates.size() - 1)]
 	player["graveyard"].erase(pick)
-	game._emit({"type": "revive", "player": context.controller, "card_id": pick.card_id})
+	game.emit_event({"type": "revive", "player": context.controller, "card_id": pick.card_id})
 	pick.uid = game._uid() # back on the board as a new instance
 	game._summon(context.controller, pick, false, 0)
 
@@ -64,7 +64,7 @@ func _revive_self(context: EffectContext) -> void:
 	var overrides: Dictionary = dying.over.duplicate()
 	overrides["atk"] = new_attack
 	overrides["hp"] = new_health
-	game._emit({"type": "revive", "player": context.controller, "card_id": dying.card_id})
+	game.emit_event({"type": "revive", "player": context.controller, "card_id": dying.card_id})
 	dying.uid = game._uid() # a new instance: it no longer takes part in the combat it died in
 	game._summon(context.controller, dying, false, 0, overrides)
 

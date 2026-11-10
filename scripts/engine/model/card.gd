@@ -54,11 +54,11 @@ var supreme_shield := false ## Escudo Supremo: one charge that absorbs absolutel
 var supreme_shield_expires := "" ## "" = until used; "next_turn" = until its owner's next turn starts; "end_turn" = until the current turn ends
 var exhausted := false
 var sick := true
-var bonus_atk := 0 ## from "constante" scale effects (see GameState._refresh_scaling)
+var bonus_atk := 0 ## from "constante" scale effects (see GameState.refresh_scaling)
 var bonus_hp := 0
 var has_bonus := false ## bonus_* were computed at least once (they only show up in to_dict then)
-var surge_keywords: Array = [] ## keywords given while the owner has 11+ Momentum ("momentum_surge"); recomputed by _refresh_scaling
-var aura_keywords: Array = [] ## keywords an ally's "keyword_aura" Constante gives this unit right now; recomputed by _refresh_scaling
+var surge_keywords: Array = [] ## keywords given while the owner has 11+ Momentum ("momentum_surge"); recomputed by refresh_scaling
+var aura_keywords: Array = [] ## keywords an ally's "keyword_aura" Constante gives this unit right now; recomputed by refresh_scaling
 var surge_critico := 0 ## Crítico level given by the same surge (the higher of it and the unit's own wins)
 var surge_active := false ## the surge was on at the last refresh: Escudo is granted only when it turns on, not on every refresh
 var frozen := 0 ## Congelada: the turn at whose END it thaws; 0 = not frozen
@@ -335,7 +335,7 @@ func is_silenced() -> bool:
 ## and its status effects (Veneno, Congelada...).
 ## It only removes what belongs to THIS unit. A Constante of an ally (tribe_aura, adjacent_armor...) is the ally's
 ## effect, not this unit's, so its bonus stays until that ally is silenced or leaves: bonus_atk / bonus_hp are
-## therefore left alone here (GameState._refresh_scaling rebuilds them from the allies' auras and drops the unit's own
+## therefore left alone here (GameState.refresh_scaling rebuilds them from the allies' auras and drops the unit's own
 ## scaling, which went away with its effects). SilenceEffect refreshes and then calls keep_alive_with_one_hp().
 ## It is written as per-instance overrides ("over"), so everything that reads the card through data() sees a card without
 ## abilities, and the network mirror carries it for free. A null override deletes that field from the merged data.

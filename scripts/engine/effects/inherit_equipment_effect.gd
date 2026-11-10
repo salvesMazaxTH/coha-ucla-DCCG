@@ -26,6 +26,6 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		graveyard.erase(fallen_equipment)
 		# worn_grant is read before attach(), which overwrites it with the new bonus
 		var granted := game.stack_system().apply_equipment_bonus(heir, fallen_equipment.worn_grant)
-		game._emit({"type": "buff", "uid": heir.uid, "atk": int(granted["atk"]), "hp": int(granted["hp"]), "keywords": granted["keywords"]})
+		game.emit_event({"type": "buff", "uid": heir.uid, "atk": int(granted["atk"]), "hp": int(granted["hp"]), "keywords": granted["keywords"]})
 		game.stack_system().attach(heir, fallen_equipment, granted)
 		return

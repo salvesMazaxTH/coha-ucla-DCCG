@@ -51,7 +51,7 @@ static func setup(g: GameState) -> void:
 	g.players[0]["hand"].append(test_card)
 	g.players[0]["max_momentum"] = 10
 	g.players[0]["momentum"] = 10
-	g._flush()
+	g.flush_events()
 
 static func _random_common_unit(g: GameState) -> String:
 	var candidates: Array[String] = []

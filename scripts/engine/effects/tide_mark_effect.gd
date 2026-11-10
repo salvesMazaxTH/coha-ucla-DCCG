@@ -6,4 +6,4 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	var unit := context.game.find_unit(target_uid)
 	if unit != null:
 		unit.tide_mark = true
-		context.game._emit({"type": "tide_mark", "uid": target_uid})
+		context.game.emit_event({"type": "tide_mark", "uid": target_uid})
