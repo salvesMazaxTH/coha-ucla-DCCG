@@ -3465,7 +3465,7 @@ func _test_ai_equipment_targets() -> void:
 			"IA/equipamento: mantém o item na mão em vez de trocar o equipamento de unidade comum")
 
 ## The AI's Ao Entrar damage (Ronan): it is never skipped when the damage stays marked on a target,
-## even though Ronan also has an Ao Sofrer Dano buff. It is skipped only when it would be wasted.
+## even though Ronan also has an Ao Sobreviver a Dano buff. It is skipped only when it would be wasted.
 func _test_ai_enter_damage() -> void:
 	# 1. a plain enemy that survives the 3 damage: the damage is permanent, so the AI uses it
 	var g := _new_game()
@@ -3477,7 +3477,7 @@ func _test_ai_enter_damage() -> void:
 	SimpleAI.step(g, 0)
 	check(g.find_unit(bastion.uid).damage == 3, "IA/Ronan: causa o dano do Ao Entrar em unidade sem regeneração")
 
-	# 2. the only enemies would heal (Regeneração) or grow from the damage (Ao Sofrer Dano): nothing gained
+	# 2. the only enemies would heal (Regeneração) or grow from the damage (Ao Sobreviver a Dano): nothing gained
 	var wasted := _new_game()
 	_quiet(wasted)
 	var coral := _put(wasted, 1, "sentinela_coral")
@@ -4183,7 +4183,7 @@ func _test_armor_cap() -> void:
 	var keyword_text: String = str(CardDB.data()["keywords"]["armadura"]["text"])
 	check(keyword_text.contains("máximo") and keyword_text.contains("5"), "o texto da regra de Armadura diz que o máximo é 5")
 
-## Vørn Ω grows in three steps, one per Ao Sofrer Dano of that instance (across turns); later hits do nothing.
+## Vørn Ω grows in three steps, one per Ao Sobreviver a Dano of that instance (across turns); later hits do nothing.
 func _test_vorn_staged_damage() -> void:
 	var g := _new_game()
 	var vorn := _put(g, 0, "vorn_omega")
@@ -9350,7 +9350,7 @@ func _test_triggers() -> void:
 	_tcard("t_atk", 1, 5, [{"trigger": "on_attack", "action": "damage", "target": "enemy_leader", "amount": 2}])
 	_tcard("t_chd", 1, 5, [{"trigger": "on_challenged", "action": "buff", "target": "self", "atk": 3, "temp": true}])
 	_tcard("t_turn", 1, 5, [{"trigger": "on_turn_end", "action": "buff", "target": "self", "atk": 1, "hp": 1}])
-	_tcard("t_hurt", 1, 9, [{"trigger": "on_damaged", "action": "damage", "target": "opposed_unit", "amount": 1}])
+	_tcard("t_hurt", 1, 9, [{"trigger": "on_survive_damage", "action": "damage", "target": "opposed_unit", "amount": 1}])
 	var g := _new_game()
 	var a := _put(g, 0, "t_atk")
 	var hp: int = g.players[1]["leader_hp"]
@@ -9382,7 +9382,7 @@ func _test_triggers() -> void:
 	g = _new_game()
 	var h := _put(g, 1, "t_hurt")
 	g.deal_damage(h.uid, 1, null)
-	check(g.find_unit(h.uid).damage == 1, "on_damaged no-source safe")
+	check(g.find_unit(h.uid).damage == 1, "on_survive_damage no-source safe")
 
 	# Cartas reais: Dlorafya, Salamandra, Espírito da Maré, Ronan
 	g = _new_game()
@@ -9428,7 +9428,7 @@ func _test_triggers() -> void:
 	var ron := _put(g, 0, "ronan")
 	g.deal_damage(ron.uid, 1, null)
 	g.check_state()
-	check(g.find_unit(ron.uid).atk == 5, "ronan Ao Sofrer Dano +1 atk")
+	check(g.find_unit(ron.uid).atk == 5, "ronan Ao Sobreviver a Dano +1 atk")
 
 	g = _new_game()
 	var vig := _put(g, 0, "vigia_do_farol_do_norte")
@@ -12172,12 +12172,12 @@ func _test_metalica() -> void:
 	var tyren := _put(g, b, "tyren")
 	check(g.armor_of(tyren) == 0 and not tyren.magic_shield, "Tyren: sem Armadura nem Escudo Mágico ao entrar")
 	g.deal_damage(tyren.uid, 1, null)
-	g.check_state() # a direct hit only queues the Ao Sofrer Dano trigger; this resolves it
+	g.check_state() # a direct hit only queues the Ao Sobreviver a Dano trigger; this resolves it
 	check(tyren.armor == 1, "Tyren: dano que não é de feitiço faz a Armadura passar a ser 1")
 	check(not tyren.magic_shield, "Tyren: dano que não é de feitiço não dá Escudo Mágico")
 	tyren.armor = 3
 	g.deal_damage(tyren.uid, 1, null)
-	g.check_state() # a direct hit only queues the Ao Sofrer Dano trigger; this resolves it
+	g.check_state() # a direct hit only queues the Ao Sobreviver a Dano trigger; this resolves it
 	check(tyren.armor == 3, "Tyren: uma Armadura maior que 1 não é diminuída")
 	tyren.armor = 0
 	tyren.damage = 0 # the earlier hits would otherwise leave too little Vida for a 3-damage spell
@@ -12387,11 +12387,11 @@ func _test_metalica() -> void:
 	check(g.has_kw(mountain, "reflexao"), "Morakhan: tem Reflexão")
 	var deck_before_hits: int = g.players[b]["deck"].size()
 	g.deal_damage(mountain.uid, 3, attacker)
-	g.check_state() # a direct hit only queues the Ao Sofrer Dano trigger; this resolves it
+	g.check_state() # a direct hit only queues the Ao Sobreviver a Dano trigger; this resolves it
 	check(g.atk_of(mountain) == 1, "Morakhan: ao sofrer dano ganha +1 de Ataque")
 	g.deal_damage(mountain.uid, 3, attacker)
 	g.check_state()
-	check(g.atk_of(mountain) == 1, "Morakhan: o Ao Sofrer Dano é uma vez por turno (o segundo dano não dá bônus)")
+	check(g.atk_of(mountain) == 1, "Morakhan: o Ao Sobreviver a Dano é uma vez por turno (o segundo dano não dá bônus)")
 	check(g.players[b]["deck"].size() == deck_before_hits - 1, "Morakhan: só mói 1 carta por turno, mesmo sofrendo dois danos")
 	g.end_turn(g.active)
 	check(g.atk_of(mountain) == 1, "Morakhan: o bônus continua durante o turno do oponente")
@@ -14715,18 +14715,59 @@ func _test_champion_rework() -> void:
 	kai_game.deal_damage(GameState.LEADER_UID[1], 1, null)
 	check(kai_game.leader_dot_markers(1, "queimadura") == other_burn, "Kai: dano que não é dele não queima")
 
-	# Ao Sofrer Dano fires when the unit survives the hit, but not when the hit kills it
-	_tcard("t_avenger", 1, 3, [{"trigger": "on_damaged", "action": "damage", "target": "enemy_leader", "amount": 2}])
+	# Ao Sobreviver a Dano fires only when the unit survives the hit; Ao Sofrer Dano fires even when it kills
+	_tcard("t_avenger", 1, 3, [{"trigger": "on_survive_damage", "action": "damage", "target": "enemy_leader", "amount": 2}])
+	_tcard("t_last_word", 1, 3, [{"trigger": "on_damaged", "action": "damage", "target": "enemy_leader", "amount": 2}])
 	var avenger_game := _new_game()
 	_quiet(avenger_game)
 	var surviving_avenger := _put(avenger_game, 0, "t_avenger")
+	var last_word_unit := _put(avenger_game, 0, "t_last_word")
 	var enemy_life_before: int = avenger_game.players[1]["leader_hp"]
 	avenger_game.deal_damage(surviving_avenger.uid, 1, null)
 	avenger_game.check_state()
-	check(avenger_game.players[1]["leader_hp"] == enemy_life_before - 2, "Ao Sofrer Dano: dispara quando a unidade sobrevive")
+	check(avenger_game.players[1]["leader_hp"] == enemy_life_before - 2, "Ao Sobreviver a Dano: dispara quando a unidade sobrevive")
 	avenger_game.deal_damage(surviving_avenger.uid, 5, null)
 	avenger_game.check_state()
-	check(avenger_game.players[1]["leader_hp"] == enemy_life_before - 2, "Ao Sofrer Dano: não dispara com dano letal")
+	check(avenger_game.players[1]["leader_hp"] == enemy_life_before - 2, "Ao Sobreviver a Dano: não dispara com dano letal")
+	avenger_game.deal_damage(last_word_unit.uid, 1, null)
+	avenger_game.check_state()
+	check(avenger_game.players[1]["leader_hp"] == enemy_life_before - 4, "Ao Sofrer Dano: dispara quando a unidade sobrevive")
+	avenger_game.deal_damage(last_word_unit.uid, 5, null)
+	avenger_game.check_state()
+	check(avenger_game.players[1]["leader_hp"] == enemy_life_before - 6, "Ao Sofrer Dano: dispara também com dano letal")
+
+	# once_per_zone on a trigger: works once while the card stays in one zone
+	_tcard("t_once_zone", 1, 9, [{"trigger": "on_survive_damage", "action": "buff", "target": "self", "atk": 1, "hp": 2, "once_per_zone": true}])
+	var zone_game := _new_game()
+	_quiet(zone_game)
+	var zone_unit := _put(zone_game, 0, "t_once_zone")
+	var zone_atk_before: int = zone_game.atk_of(zone_unit)
+	zone_game.deal_damage(zone_unit.uid, 1, null)
+	zone_game.check_state()
+	zone_game.deal_damage(zone_unit.uid, 1, null)
+	zone_game.check_state()
+	check(zone_game.atk_of(zone_unit) == zone_atk_before + 1, "once_per_zone: o gatilho só dá o bônus uma vez")
+
+	# Regeneração subpack: Neco Sete-Vidas grows once, Penitente do Espinho punishes the enemy Leader once per turn
+	var neco_game := _new_game()
+	_quiet(neco_game)
+	var neco := _put(neco_game, 0, "neco_sete_vidas")
+	neco_game.deal_damage(neco.uid, 1, null)
+	neco_game.check_state()
+	neco_game.deal_damage(neco.uid, 1, null)
+	neco_game.check_state()
+	check(neco_game.atk_of(neco) == 3 and neco.hp == 5, "Neco Sete-Vidas: cresce +1/+2 só na primeira vez que sobrevive")
+	check(neco_game.has_kw(neco, "regeneracao"), "Neco Sete-Vidas: ganha Regeneração ao sobreviver")
+	var penitent_game := _new_game()
+	_quiet(penitent_game)
+	_put(penitent_game, 0, "penitente_do_espinho")
+	var wounded_ally := _put(penitent_game, 0, "neco_sete_vidas")
+	var penitent_enemy_life: int = penitent_game.players[1]["leader_hp"]
+	penitent_game.deal_damage(wounded_ally.uid, 1, null)
+	penitent_game.check_state()
+	penitent_game.deal_damage(wounded_ally.uid, 1, null)
+	penitent_game.check_state()
+	check(penitent_game.players[1]["leader_hp"] == penitent_enemy_life - 2, "Penitente do Espinho: 2 de dano no Líder inimigo, uma vez por turno")
 
 	# Isarelis: Ao Entrar can only pick an enemy unit with Vida <= 3 and destroys it (Escudo does not save it)
 	_tcard("t_weak_foe", 1, 3, [])

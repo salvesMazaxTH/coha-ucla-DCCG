@@ -53,9 +53,9 @@ func _fire_own_effects(event: GameEvent) -> void:
 		if e.get("trigger", "") == event.trigger and game.combat_damage and e.get("not_in_combat", false):
 			continue
 		if e.get("trigger", "") == event.trigger and e.get("only_from_spell", false) and not event.data.get("from_spell", false):
-			continue # an Ao Sofrer Dano effect that only reacts to damage dealt by a spell (Tyren)
+			continue # an Ao Sofrer Dano / Ao Sobreviver a Dano effect that only reacts to damage dealt by a spell (Tyren)
 		if e.get("trigger", "") == event.trigger and e.get("hit_at_least_armor", false) and not event.data.get("hit_reached_armor", true):
-			continue # an Ao Sofrer Dano effect that a hit weaker than the unit's Armadura can't trigger (Tharox)
+			continue # an Ao Sofrer Dano / Ao Sobreviver a Dano effect that a hit weaker than the unit's Armadura can't trigger (Tharox)
 		if e.get("trigger", "") == event.trigger and e.has("min_hit_damage") and int(event.data.get("hit_damage", 0)) < int(e["min_hit_damage"]):
 			continue # an Ao Atingir o Líder effect that a lighter hit can't trigger (Barão Estrondoso)
 		if e.get("trigger", "") == event.trigger and e.get("only_if_target_dies", false) and not event.data.get("target_died", false):
@@ -66,6 +66,10 @@ func _fire_own_effects(event: GameEvent) -> void:
 			if card.used_turn.get(i, -1) == game.turn:
 				continue # "once per turn" effect already used this turn
 			card.used_turn[i] = game.turn
+		if e.get("trigger", "") == event.trigger and e.get("once_per_zone", false):
+			if card.zone_used_effects.has(i):
+				continue # "once per zone" effect already used since the card entered this zone
+			card.zone_used_effects[i] = true
 		if e.get("trigger", "") == event.trigger and e.has("max_per_turn") and not _spend_capped_use(card, i, int(e["max_per_turn"])):
 			continue # a capped effect that already fired its N times this turn (Tesoureira Troco-Certo)
 		effects.append(e)
@@ -165,6 +169,11 @@ func _offer(card: Card, effect: Effect, event: GameEvent) -> void:
 		if card.used_turn.get(index, -1) == game.turn:
 			return
 		card.used_turn[index] = game.turn
+	if effect.once_per_zone:
+		var zone_index := CardDB.def(card.card_id).effects().find(effect)
+		if card.zone_used_effects.has(zone_index):
+			return
+		card.zone_used_effects[zone_index] = true
 	if not _spend_conditional_use(card, event):
 		return # the card already used all of its "conditional_uses_per_turn" this turn
 	if effect.every_n_events > 1 and not _is_nth_event(card, effect):

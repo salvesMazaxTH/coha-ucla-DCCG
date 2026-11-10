@@ -1132,7 +1132,7 @@ static func _pick_extra_cost_payer(g: GameState, p: int, card_data: Dictionary, 
 
 
 ## The effects of `source` played right when it is cast or enters (spells: on_play, units: on_enter, abilities: no trigger).
-## Its later triggers (Ao Sofrer Dano, Ao Morrer...) must not decide the target: Ronan's Ao Sofrer Dano buff
+## Its later triggers (Ao Sobreviver a Dano, Ao Morrer...) must not decide the target: Ronan's Ao Sobreviver a Dano buff
 ## once made the AI skip his Ao Entrar damage.
 static func _effects_that_use_the_pick(source) -> Array:
 	var effects: Array = []
@@ -1144,11 +1144,11 @@ static func _effects_that_use_the_pick(source) -> Array:
 	return effects
 
 
-## True when damage that leaves `unit` alive would make it better (an Ao Sofrer Dano buff, e.g. Ronan's +1 Ataque).
-## A harmless Ao Sofrer Dano (nothing good for the unit) does not count: damaging it is just as fine.
+## True when damage that leaves `unit` alive would make it better (an Ao Sobreviver a Dano buff, e.g. Ronan's +1 Ataque).
+## A harmless Ao Sobreviver a Dano (nothing good for the unit) does not count: damaging it is just as fine.
 static func _punishes_surviving_damage(unit: Card) -> bool:
 	for effect in unit.data().get("effects", []):
-		if effect.get("trigger", "") == "on_damaged" and effect.get("action", "") == "buff":
+		if effect.get("trigger", "") == "on_survive_damage" and effect.get("action", "") == "buff":
 			return true
 	return false
 
@@ -1263,7 +1263,7 @@ static func _pick_target(g: GameState, p: int, spec: String, source, self_uid :=
 					if unit.has_kw("regeneracao"):
 						continue # ...except on Regeneração: it heals at the start of the next turn, before its owner acts
 					if _punishes_surviving_damage(unit):
-						continue # ...and except on a unit that grows stronger from it (Ao Sofrer Dano)
+						continue # ...and except on a unit that grows stronger from it (Ao Sobreviver a Dano)
 					if strict:
 						score = damage_amount + 1 # chip damage from a spell: the face is usually better
 				if unit.magic_shield:

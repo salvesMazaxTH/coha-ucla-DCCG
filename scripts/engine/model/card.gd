@@ -82,6 +82,7 @@ var cap_atk_gain := 0 ## attack given so far by "cap_atk" buffs
 var dodge_turn := -1 ## turn its Esquiva was last used
 var activated_turn := -1 ## turn its Ao Ativar was last used
 var activated_zone_used := false ## its zone-limited Ao Ativar was used before leaving this zone
+var zone_used_effects: Dictionary = {} ## effect index -> true once a trigger with "once_per_zone" fired in this zone
 var capped_heal_turn := -1 ## turn in which this card last accepted a capped Leader-heal trigger ("per_turn_cap")
 var capped_heal_total := 0 ## requested healing accepted by this card during that turn
 var capped_heal_locked := false ## later triggers stay off after this instance reaches its per-turn cap
@@ -106,7 +107,7 @@ const NOT_COPIED_FIELDS := ["uid", "card_id", "owner", "zone", "over", "incarnat
 		"intrinsic_atk", "intrinsic_hp",
 		"pending_self_revive_turn", "pending_self_revive_atk", "pending_self_revive_hp",
 		"exhausted", "sick", "attacks_made", "armor_spent_since_turn_start", "armor_spent_last_turn", "used_turn", "capped_uses", "conditional_uses_turn", "conditional_uses",
-		"trigger_counts", "dodge_turn", "activated_turn", "activated_zone_used", "capped_heal_turn", "capped_heal_total",
+		"trigger_counts", "dodge_turn", "activated_turn", "activated_zone_used", "zone_used_effects", "capped_heal_turn", "capped_heal_total",
 		"capped_heal_locked", "heal_blocked_until", "leader_damage_guard_turn", "death_ward_armed", "banish_on_death", "durability_used", "durability_uses",
 		"stored_momentum"]
 
@@ -606,6 +607,8 @@ func to_dict() -> Dictionary:
 		d["activated_turn"] = activated_turn
 	if activated_zone_used:
 		d["activated_zone_used"] = true
+	if not zone_used_effects.is_empty():
+		d["zone_used_effects"] = zone_used_effects.keys()
 	if capped_heal_turn >= 0:
 		d["capped_heal_turn"] = capped_heal_turn
 		d["capped_heal_total"] = capped_heal_total
@@ -702,6 +705,8 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.dodge_turn = int(d.get("dodge_turn", -1))
 	c.activated_turn = int(d.get("activated_turn", -1))
 	c.activated_zone_used = bool(d.get("activated_zone_used", false))
+	for used_index in d.get("zone_used_effects", []):
+		c.zone_used_effects[int(used_index)] = true
 	c.capped_heal_turn = int(d.get("capped_heal_turn", -1))
 	c.capped_heal_total = int(d.get("capped_heal_total", 0))
 	c.capped_heal_locked = bool(d.get("capped_heal_locked", false))

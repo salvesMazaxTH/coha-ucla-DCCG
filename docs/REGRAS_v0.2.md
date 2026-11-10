@@ -225,7 +225,8 @@ Gatilhos dizem _quando_ um efeito acontece. Eles abrem o texto da carta no lugar
 | Ao Atacar                   | A unidade ataca (o Líder ou desafiando uma unidade).     |
 | Ao Desafiar                 | A unidade ataca desafiando uma unidade inimiga.          |
 | Ao Ser Desafiada            | A unidade é desafiada por um atacante inimigo.           |
-| Ao Sofrer Dano              | A unidade sofre dano (Escudo anulando o dano não conta). |
+| Ao Sofrer Dano              | A unidade sofre dano, mesmo letal (Escudo anulando o dano não conta). |
+| Ao Sobreviver a Dano        | A unidade sofre dano e continua em campo.                |
 | Ao Atingir o Líder          | A unidade causa dano a um Líder.                         |
 | No Início do Seu Turno      | Começa o turno do dono da unidade.                       |
 | No Fim do Seu Turno         | Termina o turno do dono da unidade.                      |

@@ -9,15 +9,19 @@ const MULLIGAN_MAX := 3
 const HAND_LIMIT := 10
 const BOARD_LIMIT := 8
 const MOMENTUM_CAP := 10
-const MOMENTUM_OVERFLOW_CAP := 20 ## the most Momentum a turn can hold when an effect says "overflow" (Eryon's deck); the part above MOMENTUM_CAP vanishes at the end of the turn
+## the most Momentum a turn can hold when an effect says "overflow" (Eryon's deck); the part above MOMENTUM_CAP vanishes at the
+## end of the turn
+const MOMENTUM_OVERFLOW_CAP := 20
 const LETHAL_WARD_NEGATED_HITS := 3 # Câmara de Êxtase: how many hits it negates after saving the Leader
 const RESERVE_CAP := 2 ## unspent Momentum banked at turn start; pays only spells and abilities
 const COMMANDER_TAX_STEP := 1 ## the Encarnação's tax grows by this much per previous cast: +1, then +2, +3, +4... (totals 1, 3, 6, 10)
 const WEAK_UNIT_MAX_HP := 3 ## "weak_enemy_unit" targets: enemy units with this much current Vida or less (Isarelis)
-const INTIMIDATE_ATK := 3## Intimidacao: attackers with this ATK or less cannot challenge it
+const INTIMIDATE_ATK := 3 ## Intimidacao: attackers with this ATK or less cannot challenge it
 const SECOND_BONUS_TURNS := 2 ## the second player's first turns that start with +1 Momentum and +1 Reserve (refill)
 const SNOWBALL_GRANDE_AT := 7 ## Bola de Neve level at which every Bola de Neve card of the player evolves into a Grande Bola de Neve
-const SNOWBALL_BASE_LEVEL := 2 ## Bola de Neve level a player starts at; each player's own base can grow permanently (Devaneio Gelado), see players[p]["snowball_base"]
+## Bola de Neve level a player starts at; each player's own base can grow permanently (Devaneio Gelado), see
+## players[p]["snowball_base"]
+const SNOWBALL_BASE_LEVEL := 2
 const SNOWBALL_CARD_ID := "bola_de_neve"
 const GRANDE_SNOWBALL_CARD_ID := "grande_bola_de_neve" ## a card of its own (transform_only): it only exists through that evolution
 const REQUIEM_EXTRA_COST := 2 ## Réquiem: a spell cast from the graveyard costs this much more, then is banished
@@ -26,21 +30,13 @@ const ChoiceOptions = preload("res://scripts/engine/choice_options.gd")
 ## Periodic marker rules. New marker types reuse add_dot/resolve_dot; only their damage policy differs.
 ## "flat": 1 damage per marker. "poison": 2 damage per marker. Either way every marker wears off at its tick
 ## (unless held). Only Veneno itself is affected by its hold/lethal cards (see veneno_is_held).
-const DOT_RULES := {
-	"queimadura": "flat",
-	"veneno": "poison",
-	"sangramento": "poison",
-}
+const DOT_RULES := { "queimadura": "flat", "veneno": "poison", "sangramento": "poison" }
 
 ## Innate immunity of UNITS to a marker kind, given by element: a unit with any of these
 ## elements can never receive that kind of marker. Leaders have no immunity. A card effect skips it by saying so explicitly
 ## ("ignores_immunity" in the effect, "toxico_ignores_immunity" on the card for its Tóxico).
 ## Sangramento has no immune element yet.
-const DOT_IMMUNE_ELEMENTS := {
-	"veneno": ["veneno", "metal"],
-	"queimadura": ["fogo"],
-	"sangramento": [],
-}
+const DOT_IMMUNE_ELEMENTS := { "veneno": ["veneno", "metal"], "queimadura": ["fogo"], "sangramento": [] }
 
 ## Each marker of a "poison" kind (Veneno, Sangramento) deals 2 damage, then the whole pile is removed.
 const VENENO_DAMAGE_PER_MARKER := 2
@@ -61,12 +57,12 @@ var winner := -1 ## -1 none, 0/1 player, 2 draw
 var pending_tap: Array = []
 var _enter_tapped_return := "main" ## the phase to go back to after the choice
 ## Pending deterministic deck search. The matching cards are public until chosen.
-var pending_search: Dictionary = {}
+var pending_search: Dictionary = { }
 ## Ao Entrar waiting for its owner to pick a target, after the unit is already on the board
 ## (phase "enter_target"): {player, uid, card_id, spec}. Optional: target 0 skips the effect.
-var pending_enter: Dictionary = {}
+var pending_enter: Dictionary = { }
 ## Public choice data is serialized for the online client; effect contexts remain on the server.
-var pending_effect_choice: Dictionary = {}
+var pending_effect_choice: Dictionary = { }
 var _effect_choice_context: EffectContext = null
 var _effect_choice_continuations: Array = []
 var _effect_choice_spell_resolving := false
@@ -128,10 +124,11 @@ var _combat_system: CombatSystem ## built on first use, like _bus
 const EVENT_CAP := 300 ## events one action may produce before triggers/effects stop resolving
 const MAX_TRIGGERS_PER_ACTION := 60 ## queued triggers resolved in one go, so trigger loops always end
 ## Cards played from hand while they wait on the stack (uid -> Card); stack items themselves stay plain dicts.
-var _stack_cards: Dictionary = {}
+var _stack_cards: Dictionary = { }
 ## Only set on a preview copy (see preview_copy): the card with this uid resolves with no effects at all,
 ## so the AI can compare "cast it for real" against "cast it and nothing happens".
 var preview_blank_uid := 0
+
 
 func _init(deck_a: String = "", deck_b: String = "", seed_value: int = 0, first_player: int = 0) -> void:
 	if deck_a == "":
@@ -144,11 +141,13 @@ func _init(deck_a: String = "", deck_b: String = "", seed_value: int = 0, first_
 		_draw(i, START_HAND)
 	_events.clear()
 
+
 ## The stack and priority windows (built on first use, like bus()).
 func stack_system() -> StackSystem:
 	if _stack_system == null:
 		_stack_system = StackSystem.new(self)
 	return _stack_system
+
 
 ## Attack, block and damage resolution (built on first use).
 func combat_system() -> CombatSystem:
@@ -156,11 +155,13 @@ func combat_system() -> CombatSystem:
 		_combat_system = CombatSystem.new(self)
 	return _combat_system
 
+
 ## Delivers GameEvents to the cards that react to them (own triggers and "listen").
 func bus() -> TriggerBus:
 	if _bus == null:
 		_bus = TriggerBus.new(self)
 	return _bus
+
 
 func _make_player(i: int, deck_id: String) -> Dictionary:
 	var d := DeckDB.get_deck(deck_id)
@@ -176,42 +177,84 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 			deck.append(Card.new(_uid(), id, i, "deck"))
 	_shuffle(deck)
 	return {
-		"index": i, "deck_id": deck_id, "leader_id": d["leader"],
-		"leader_hp": int(ld["hp"]), "leader_max": int(ld["hp"]),
-		"momentum": 0, "max_momentum": 0, "turn_start_momentum": 0, "reserve": 0,
-			"idle_turns": 0, "next_momentum": 0, "play_restrictions": [], "leaked": 0, "unspent": 0, "saved_momentum": 0,
-			"momentum_gain_turn": -1, # the last turn in which an effect really raised this player's Momentum ("already gained Momentum this turn")
-			"momentum_lock_turn": -1, # while it equals the current turn, plain (non-refresh) Momentum gains do nothing (Bateria de Segunda Mão)
-		"healing_this_round": 0, "healing_last_round": 0, "damage_this_round": 0, "damage_last_round": 0,
-		"deck": deck, "hand": [], "board": [], "relics": [], "graveyard": [], "banished": [],
-		"incarnation": {"card_id": incarnation_id, "in_zone": true, "casts": 0, "cost_mod": 0, "permanent_buffs": {}}, # cost_mod and non-death upgrades are shared by the Santuário and every copy in play
-		"ability_used": false, "passive_used": false, "attacked": false, "fatigue": 0, "mulligan_done": false,
+		"index": i,
+		"deck_id": deck_id,
+		"leader_id": d["leader"],
+		"leader_hp": int(ld["hp"]),
+		"leader_max": int(ld["hp"]),
+		"momentum": 0,
+		"max_momentum": 0,
+		"turn_start_momentum": 0,
+		"reserve": 0,
+		"idle_turns": 0,
+		"next_momentum": 0,
+		"play_restrictions": [],
+		"leaked": 0,
+		"unspent": 0,
+		"saved_momentum": 0,
+		# the last turn in which an effect really raised this player's Momentum ("already gained Momentum this turn")
+		"momentum_gain_turn": -1,
+		# while it equals the current turn, plain (non-refresh) Momentum gains do nothing (Bateria de Segunda Mão)
+		"momentum_lock_turn": -1,
+		"healing_this_round": 0,
+		"healing_last_round": 0,
+		"damage_this_round": 0,
+		"damage_last_round": 0,
+		"deck": deck,
+		"hand": [],
+		"board": [],
+		"relics": [],
+		"graveyard": [],
+		"banished": [],
+		# cost_mod and non-death upgrades are shared by the Santuário and every copy in play
+		"incarnation": { "card_id": incarnation_id, "in_zone": true, "casts": 0, "cost_mod": 0, "permanent_buffs": { } },
+		"ability_used": false,
+		"passive_used": false,
+		"attacked": false,
+		"fatigue": 0,
+		"mulligan_done": false,
 		"played_two": false,
-		"snowball": SNOWBALL_BASE_LEVEL, # damage the next Bola de Neve starts at (grows with every Bola de Neve cast, goes back to snowball_base at the end of the owner's turn)
-		"snowball_base": SNOWBALL_BASE_LEVEL, # the level the Bola de Neve goes back to every turn; raised for the rest of the game by Devaneio Gelado
-		"critico_growth": {}, # card_id -> Crítico level reached by "critico_growth" cards (Vael), shared by every copy of it
-		"shared_x": {}, # card_id -> how many times a "shared_x" card (Drex) has grown its X; read through shared_x_of
+		# damage the next Bola de Neve starts at (grows with every Bola de Neve cast, goes back to snowball_base at the end of the
+		# owner's turn)
+		"snowball": SNOWBALL_BASE_LEVEL,
+		# the level the Bola de Neve goes back to every turn; raised for the rest of the game by Devaneio Gelado
+		"snowball_base": SNOWBALL_BASE_LEVEL,
+		"critico_growth": { }, # card_id -> Crítico level reached by "critico_growth" cards (Vael), shared by every copy of it
+		"shared_x": { }, # card_id -> how many times a "shared_x" card (Drex) has grown its X; read through shared_x_of
 		"ice_spell_discount_used": false, # the Amuleto Glacial (ice spell) discount was already spent this turn
 		"damage_negated_until": 0, # Câmara de Êxtase aftermath: the Leader's next hits are negated while turn <= this
 		"damage_negated_left": 0, # ...and this is how many hits are still left to negate
-		"leader_dots": {}, # dot_id -> markers on the Leader. They tick at every turn start of its controller and are consumed like a unit's
-		"leader_heal_blocked_until": -1, # while turn <= this, this Leader cannot recover Vida (block_healing); -1 = not blocked (0 would block the mulligan, which runs on turn 0)
-		"leader_veneno_held_until": 0, # while turn <= this, this Leader's Veneno markers hurt but are not consumed (Antídoto Fora de Estoque)
+		# dot_id -> markers on the Leader. They tick at every turn start of its controller and are consumed like a unit's
+		"leader_dots": { },
+		# while turn <= this, this Leader cannot recover Vida (block_healing); -1 = not blocked (0 would block the mulligan, which
+		# runs on turn 0)
+		"leader_heal_blocked_until": -1,
+		# while turn <= this, this Leader's Veneno markers hurt but are not consumed (Antídoto Fora de Estoque)
+		"leader_veneno_held_until": 0,
 		"frozen_slots": 0, # Rei Gelado: empty field slots of this player that accept no permanent
 		"frozen_slots_until": 0, # they thaw at the end of this player's own turn, once the turn counter reaches this
-		"own_turns_started": 0, # how many turns this player has started so far (extra turns included); the global `turn` counts both players
+		# how many turns this player has started so far (extra turns included); the global `turn` counts both players
+		"own_turns_started": 0,
 		"extra_turns_taken": 0, # how many extra turns this player has already been given in the whole game
 		"extra_turn_pending": false, # an extra turn was promised: it starts as soon as the current turn finishes
 		"in_extra_turn": false, # the turn being played right now IS an extra turn: it can never promise another one in a row
 		"extra_turn_draws": true, # whether that extra turn begins with the normal card draw
-		"relic_fall_turns": {}, # card_id -> turn in which the last copy of that free-standing artifact left this player's field (Erguer o Baluarte lockout)
-		"play_discount": {}, # {card_filter, divisor, until_turn}: this turn, ONE matching hand card costs 1/divisor of its current cost; spent when a card is played
-		"spell_echo_source": 0, # echo_next_spell: 0 = not armed, otherwise the uid of the unit that armed it (-1 = no unit); spent by the next spell this player casts
+		# card_id -> turn in which the last copy of that free-standing artifact left this player's field (Erguer o Baluarte
+		# lockout)
+		"relic_fall_turns": { },
+		# {card_filter, divisor, until_turn}: this turn, ONE matching hand card costs 1/divisor of its current cost; spent when a
+		# card is played
+		"play_discount": { },
+		# echo_next_spell: 0 = not armed, otherwise the uid of the unit that armed it (-1 = no unit); spent by the next spell this
+		# player casts
+		"spell_echo_source": 0,
 	}
+
 
 func _uid() -> int:
 	_next_uid += 1
 	return _next_uid
+
 
 func _shuffle(arr: Array) -> void:
 	for i in range(arr.size() - 1, 0, -1):
@@ -220,24 +263,29 @@ func _shuffle(arr: Array) -> void:
 		arr[i] = arr[j]
 		arr[j] = t
 
+
 func emit_event(e: Dictionary) -> void:
 	_events.append(e)
+
 
 ## Triggers and effects stop resolving once a Leader is down (combat strikes still land, so the overkill shows,
 ## but nothing new fires off it) or when one action has already produced EVENT_CAP events (runaway chain).
 func _chain_stopped() -> bool:
 	return _events.size() >= EVENT_CAP or players[0]["leader_hp"] <= 0 or players[1]["leader_hp"] <= 0
 
+
 func flush_events() -> Array:
 	var out := _events
 	_events = []
 	return out
+
 
 # ---------------------------------------------------------------- previews (used by the AI)
 
 ## Variables a preview never copies or compares: the helper systems are rebuilt on first use, the event list
 ## starts empty, and the random generator / uid counter move on even when a spell changes nothing.
 const PREVIEW_SKIPPED_VARIABLES := ["_bus", "_stack_system", "_combat_system", "_events", "rng", "_next_uid"]
+
 
 ## A full, independent copy of this game for the AI to try a move on ("what would happen if I cast this?").
 ## Every Card is copied too, so nothing done on the copy touches this game. The random generator is copied
@@ -247,7 +295,7 @@ func preview_copy() -> GameState:
 	if not _pending.is_empty() or not pending_effect_choice.is_empty() or get_script() != GameState:
 		return null
 	var copy := GameState.new()
-	var copied_cards := {} # original Card -> its copy, so a card referenced from two places stays one card
+	var copied_cards := { } # original Card -> its copy, so a card referenced from two places stays one card
 	for property in get_property_list():
 		if not (property["usage"] & PROPERTY_USAGE_SCRIPT_VARIABLE):
 			continue
@@ -257,8 +305,9 @@ func preview_copy() -> GameState:
 		copy.set(variable_name, _preview_copy_value(get(variable_name), copied_cards))
 	copy.rng.seed = rng.seed
 	copy.rng.state = rng.state
-	copy._next_uid = _next_uid
+	copy.set("_next_uid", _next_uid)
 	return copy
+
 
 static func _preview_copy_value(value: Variant, copied_cards: Dictionary) -> Variant:
 	if value is Card:
@@ -275,6 +324,7 @@ static func _preview_copy_value(value: Variant, copied_cards: Dictionary) -> Var
 		return dictionary_copy
 	return value # numbers, strings, flags (other objects are shared: they are read-only data)
 
+
 static func _preview_copy_card(card: Card, copied_cards: Dictionary) -> Card:
 	if copied_cards.has(card):
 		return copied_cards[card]
@@ -285,10 +335,11 @@ static func _preview_copy_card(card: Card, copied_cards: Dictionary) -> Card:
 			card_copy.set(property["name"], _preview_copy_value(card.get(property["name"]), copied_cards))
 	return card_copy
 
+
 ## Text describing everything that matters in this game right now (Leaders, every card in every zone, the stack,
 ## markers, counters...). Two games with the same snapshot are the same game, give or take random luck.
 func preview_snapshot() -> String:
-	var snapshot := {}
+	var snapshot := { }
 	for property in get_property_list():
 		if not (property["usage"] & PROPERTY_USAGE_SCRIPT_VARIABLE):
 			continue
@@ -298,9 +349,10 @@ func preview_snapshot() -> String:
 		snapshot[variable_name] = _snapshot_value(get(variable_name))
 	return var_to_str(snapshot)
 
+
 static func _snapshot_value(value: Variant) -> Variant:
 	if value is Card:
-		var card_fields := {}
+		var card_fields := { }
 		for property in value.get_property_list():
 			if property["usage"] & PROPERTY_USAGE_SCRIPT_VARIABLE:
 				var field: Variant = value.get(property["name"])
@@ -313,7 +365,7 @@ static func _snapshot_value(value: Variant) -> Variant:
 			array_snapshot.append(_snapshot_value(element))
 		return array_snapshot
 	if value is Dictionary:
-		var dictionary_snapshot := {}
+		var dictionary_snapshot := { }
 		for key in value:
 			dictionary_snapshot[key] = _snapshot_value(value[key])
 		return dictionary_snapshot
@@ -323,8 +375,10 @@ static func _snapshot_value(value: Variant) -> Variant:
 
 # ---------------------------------------------------------------- queries
 
+
 func opponent(p: int) -> int:
 	return 1 - p
+
 
 ## The player whose input the game is waiting for.
 func decider() -> int:
@@ -344,6 +398,7 @@ func decider() -> int:
 			return priority
 	return active
 
+
 ## The unit with this uid on either board, or null.
 func find_unit(uid: int) -> Card:
 	for p in players:
@@ -351,6 +406,7 @@ func find_unit(uid: int) -> Card:
 			if c.uid == uid:
 				return c
 	return null
+
 
 ## The card with this uid in any zone of either player (board, hand, deck, graveyard, banished), or null.
 func find_card(uid: int) -> Card:
@@ -361,6 +417,7 @@ func find_card(uid: int) -> Card:
 					return c
 	return null
 
+
 ## The free-standing artifact with this uid on either side of the field, or null.
 func find_relic(uid: int) -> Card:
 	for p in players:
@@ -368,6 +425,7 @@ func find_relic(uid: int) -> Card:
 			if c.uid == uid:
 				return c
 	return null
+
 
 ## How many of p's BOARD_LIMIT field slots are taken: units plus free-standing artifacts, plus the slots
 ## of p's units that an enemy is borrowing right now (take_control): those slots stay reserved so the unit can come home.
@@ -384,14 +442,17 @@ func slots_used(p: int) -> int:
 			held += 1
 	return players[p]["board"].size() + players[p]["relics"].size() + maxi(0, away - held)
 
+
 ## True while p still has a free field slot for a unit or an artifact. Slots frozen by Rei Gelado don't count.
 func has_free_slot(p: int) -> bool:
 	return slots_used(p) + int(players[p]["frozen_slots"]) < BOARD_LIMIT
+
 
 ## True when p can put one more permanent on the field: either a slot is free, or the field is full
 ## but something on it can be banished to make room (see room_banish_options).
 func has_slot_or_banish(p: int) -> bool:
 	return has_free_slot(p) or players[p]["board"].size() + players[p]["relics"].size() > 0
+
 
 ## The uids p may banish from their own field to make room for a new permanent when the field is
 ## full: every unit and every free-standing artifact they control. Empty while a slot is still free.
@@ -405,13 +466,15 @@ func room_banish_options(p: int) -> Array:
 		options.append(artifact.uid)
 	return options
 
+
 ## Moves a card to another zone (the caller takes it out of its old array and puts it in the new one).
 ## The single place a card changes zone, so later "goes to the graveyard" hooks live here.
 ## `extra_data` is added to the card_moved event ("unit_died": true tells that an equipment fell because its unit died).
-func _move(c: Card, to_zone: String, extra_data := {}) -> void:
+func _move(c: Card, to_zone: String, extra_data := { }) -> void:
 	var from_zone := c.zone
 	if from_zone != to_zone:
 		c.activated_zone_used = false
+		c.zone_used_effects.clear()
 	if to_zone == "hand":
 		if from_zone == "board":
 			c.capture_permanent_buffs()
@@ -452,9 +515,10 @@ func _move(c: Card, to_zone: String, extra_data := {}) -> void:
 	if CardDB.card(c.card_id).get("critico_growth", false):
 		c.critico = maxi(c.critico, int(players[c.owner]["critico_growth"].get(c.card_id, 0)))
 	var moved := GameEvent.new("card_moved", c.owner, c)
-	moved.data = {"from": from_zone, "to": to_zone}
+	moved.data = { "from": from_zone, "to": to_zone }
 	moved.data.merge(extra_data)
 	bus().emit(moved)
+
 
 ## A "critico_growth" card (Vael) landed a critical: its Crítico goes up one level (max 4) for EVERY copy
 ## its owner has, in the deck, hand, field, graveyard or banished, and for the copies that show up later.
@@ -471,24 +535,29 @@ func grow_critico(striker: Card) -> int:
 	striker.critico = new_level
 	return new_level
 
+
 ## The X of a "shared_x" card (Drex): its printed start plus every time one of its owner's copies grew it.
 ## It lives on the player, not on a copy, so every Drex in play shares it and a copy drawn later already has it.
 func shared_x_of(owner: int, card_id: String) -> int:
-	var start := int(CardDB.card(card_id).get("shared_x", {}).get("start", 0))
+	var start := int(CardDB.card(card_id).get("shared_x", { }).get("start", 0))
 	return start + int(players[owner]["shared_x"].get(card_id, 0))
+
 
 ## Raises the X of a "shared_x" card by `amount` for all its owner's copies. Returns the new X.
 func grow_shared_x(owner: int, card_id: String, amount := 1) -> int:
 	players[owner]["shared_x"][card_id] = int(players[owner]["shared_x"].get(card_id, 0)) + amount
 	var new_x := shared_x_of(owner, card_id)
-	emit_event({"type": "shared_x", "player": owner, "card_id": card_id, "x": new_x})
+	emit_event({ "type": "shared_x", "player": owner, "card_id": card_id, "x": new_x })
 	return new_x
+
 
 func card_of(c: Card) -> Dictionary:
 	return c.data()
 
+
 func has_kw(c: Card, kw: String) -> bool:
 	return c.has_kw(kw)
+
 
 ## Veneno markers one Tóxico hit leaves. Plain Tóxico is 1; a card can print "toxico:N" (level N) or
 ## "toxico:atk" (X is its current Ataque, buffs included). A unit that only gained Tóxico in play has 1.
@@ -498,8 +567,10 @@ func toxico_markers(source: Card) -> int:
 		return maxi(1, source.atk_total())
 	return maxi(1, int(card_data.get("toxico_level", 1)))
 
+
 func atk_of(c: Card) -> int:
 	return c.atk_total()
+
 
 ## The damage this unit deals when it strikes (combat blow or "fight" effect): its Ataque, except a
 ## Pacifista, whose strike is always 0 no matter how much Ataque it has. Effects that only read the
@@ -508,6 +579,7 @@ func strike_power_of(c: Card) -> int:
 	if has_kw(c, "pacifista"):
 		return 0
 	return strike_cap_applied(c, atk_of(c))
+
 
 ## "strike_cap" Constante (the edicts of Avarik and Avarion): every unit on EITHER board whose `stat`
 ## ("atk" or "hp_left", the CURRENT value) is at most `at_most` strikes for only `capped_damage`.
@@ -519,7 +591,7 @@ func strike_cap_applied(striker: Card, damage: int) -> int:
 		for source: Card in players[p]["board"]:
 			for e in card_of(source).get("effects", []):
 				if e.get("trigger", "") == "constante" and e.get("action", "") == "strike_cap":
-					sources.append({"card_id": source.card_id, "effect": e})
+					sources.append({ "card_id": source.card_id, "effect": e })
 	if sources.is_empty():
 		return damage
 	for entry in sources:
@@ -532,8 +604,10 @@ func strike_cap_applied(striker: Card, damage: int) -> int:
 			damage = mini(damage, int(e.get("capped_damage", 1)))
 	return damage
 
+
 func hp_left(c: Card) -> int:
 	return c.hp_left()
+
 
 ## Unit cards in a player's graveyard.
 ## Cards in player p's graveyard; with a `kind` ("unit", "spell", "artifact") only cards of that type count.
@@ -546,12 +620,14 @@ func graveyard_size_of_kind(p: int, kind: String) -> int:
 			n += 1
 	return n
 
+
 func graveyard_units(p: int) -> int:
 	var n := 0
 	for e: Card in players[p]["graveyard"]:
 		if CardDB.card(e.card_id)["type"] == "unit":
 			n += 1
 	return n
+
 
 ## Recomputes the "constante" effects of board units. Action "scale" gives bonuses;
 ## "base_scale" computes a unit's intrinsic base stats instead.
@@ -583,6 +659,7 @@ func refresh_scaling() -> void:
 			c.aura_keywords = keyword_aura_of(c)
 			c.surge_active = not surge.is_empty()
 
+
 ## Keywords that allied "keyword_aura" Constantes give unit c right now. Each aura names the keywords, a
 ## "min_rapidez" the receiving unit must have (its own Rapidez, so the aura switches on and off as Rapidez
 ## changes), "unit_filter" (a CardFilter the receiving unit must pass; Ivone Apito-Seco: {"tribe_any": ["fera"]})
@@ -604,6 +681,7 @@ func keyword_aura_of(c: Card) -> Array:
 					granted.append(kw)
 	return granted
 
+
 ## What a unit's "momentum_surge" Constante gives it right now: {atk, keywords, critico}, or {} while its
 ## controller has less than the effect's "min_momentum" (default: one above MOMENTUM_CAP, i.e. 11+).
 ## Barão Estrondoso: +15 Ataque, Escudo (once, when the surge turns on), Sobrepujança, Ímpeto and Crítico 4
@@ -614,8 +692,9 @@ func momentum_surge_of(p: int, c: Card) -> Dictionary:
 			continue
 		if int(players[p]["momentum"]) < int(e.get("min_momentum", MOMENTUM_CAP + 1)):
 			continue
-		return {"atk": int(e.get("atk", 0)), "keywords": e.get("keywords", []).duplicate(), "critico": int(e.get("critico", 0))}
-	return {}
+		return { "atk": int(e.get("atk", 0)), "keywords": e.get("keywords", []).duplicate(), "critico": int(e.get("critico", 0)) }
+	return { }
+
 
 ## The most Momentum player p can hold as real, spendable Momentum: MOMENTUM_CAP, unless one of their units
 ## on the board has a "momentum_cap" Constante (Agiota das Nuvens: {"cap": 12}). The highest one counts; two
@@ -627,6 +706,7 @@ func momentum_cap(p: int) -> int:
 			if e.get("trigger", "") == "constante" and e.get("action", "") == "momentum_cap":
 				cap = maxi(cap, int(e.get("cap", MOMENTUM_CAP)))
 	return cap
+
 
 ## Atk/hp a card's "constante" scale effects would give it under player p right
 ## now.
@@ -641,6 +721,7 @@ func scale_bonus(p: int, cd: Dictionary, self_card: Card = null) -> Vector2i:
 		out += Vector2i(n * int(e.get("atk", 0)), n * int(e.get("hp", 0)))
 	return out * constants_multiplier(p)
 
+
 ## Dynamic base stats defined by a unit's own Constante; these are not bonuses or modifiers.
 func intrinsic_stats_of(p: int, cd: Dictionary, self_card: Card = null) -> Vector2i:
 	var out := Vector2i.ZERO
@@ -650,8 +731,10 @@ func intrinsic_stats_of(p: int, cd: Dictionary, self_card: Card = null) -> Vecto
 		var count := _scale_count(p, e, self_card)
 		out += Vector2i(
 			int(e.get("base_atk", cd.get("atk", 0))) - int(cd.get("atk", 0)) + count * int(e.get("atk", 0)),
-			int(e.get("base_hp", cd.get("hp", 0))) - int(cd.get("hp", 0)) + count * int(e.get("hp", 0)))
+			int(e.get("base_hp", cd.get("hp", 0))) - int(cd.get("hp", 0)) + count * int(e.get("hp", 0)),
+		)
 	return out
+
 
 ## Which of a player's units on the board carry a "doubler" Constante (action "double_constants",
 ## "double_enter" or "double_death"). `ignoring_uid` skips one unit (a doubler never doubles its own Ao Entrar).
@@ -664,10 +747,13 @@ func has_doubler(p: int, doubler_action: String, ignoring_uid := 0) -> bool:
 				return true
 	return false
 
+
 ## 2 while the player has a "double_constants" unit (Contador Exagerado), else 1. It never stacks: two of them still give 2.
-## Only the text Constantes (scale, tribe_aura, graveyard_armor, adjacent_armor) are multiplied; keywords like Armadura or Rapidez are not.
+## Only the text Constantes (scale, tribe_aura, graveyard_armor, adjacent_armor) are multiplied;
+## keywords like Armadura or Rapidez are not.
 func constants_multiplier(p: int) -> int:
 	return 2 if has_doubler(p, "double_constants") else 1
+
 
 ## What the "tribe_aura" effects of the OTHER allied units on the board give unit `c`:
 ## x = Ataque, y = Vida, z = Armadura. An aura only reaches units sharing one of its tribe
@@ -696,8 +782,16 @@ func tribe_aura_bonus(c: Card, sources_out: Array = []) -> Vector3i:
 				continue
 			bonus += Vector3i(int(e.get("atk", 0)), int(e.get("hp", 0)), int(e.get("armor", 0)))
 			var multiplier := constants_multiplier(c.owner)
-			sources_out.append({"source": source.card_id, "atk": int(e.get("atk", 0)) * multiplier, "hp": int(e.get("hp", 0)) * multiplier, "armor": int(e.get("armor", 0)) * multiplier})
+			sources_out.append(
+				{
+					"source": source.card_id,
+					"atk": int(e.get("atk", 0)) * multiplier,
+					"hp": int(e.get("hp", 0)) * multiplier,
+					"armor": int(e.get("armor", 0)) * multiplier,
+				}
+			)
 	return bonus * constants_multiplier(c.owner)
+
 
 ## What allied "equipped_aura" Constantes give unit c: only other units wearing at least one equipment qualify.
 ## x = Ataque, y = Vida. The source's own aura never reaches itself.
@@ -715,8 +809,9 @@ func equipped_aura_bonus(c: Card, sources_out: Array = []) -> Vector3i:
 			var multiplier := constants_multiplier(c.owner)
 			var aura := Vector3i(int(e.get("atk", 0)) * multiplier, int(e.get("hp", 0)) * multiplier, 0)
 			bonus += aura
-			sources_out.append({"source": source.card_id, "atk": aura.x, "hp": aura.y})
+			sources_out.append({ "source": source.card_id, "atk": aura.x, "hp": aura.y })
 	return bonus
+
 
 ## What the "opponent_aura" Constantes on the OTHER side of the board give unit `c` (a curse the source puts on the
 ## enemy units: Magni gives every enemy unit +1 Ataque). x = Ataque, y = Vida. The source's owner's double_constants applies.
@@ -731,8 +826,9 @@ func opponent_aura_bonus(c: Card, sources_out: Array = []) -> Vector3i:
 			var multiplier := constants_multiplier(source_owner)
 			var aura_bonus := Vector3i(int(e.get("atk", 0)) * multiplier, int(e.get("hp", 0)) * multiplier, 0)
 			bonus += aura_bonus
-			sources_out.append({"source": source.card_id, "atk": aura_bonus.x, "hp": aura_bonus.y})
+			sources_out.append({ "source": source.card_id, "atk": aura_bonus.x, "hp": aura_bonus.y })
 	return bonus
+
 
 ## What the "opponent_cost_tax" Constantes on the OTHER side of the board add to the cost of a card of player `p`
 ## (Cornélia Aldrovane: the opponent's spells cost 1 more). `card_type` limits it to one card type (empty = every card).
@@ -748,6 +844,7 @@ func opponent_cost_tax(p: int, cd: Dictionary) -> int:
 				continue
 			tax += int(e.get("amount", 1)) * constants_multiplier(opponent(p))
 	return tax
+
 
 ## What the "spell_amplifier" Constantes on player `p`'s board add to a spell of theirs: `bonus_kind` is "damage"
 ## (spells that already deal damage deal more) or "draw" (spells that already draw cards draw more). Ottilia Varnholt:
@@ -766,11 +863,12 @@ func spell_amplifier_bonus(p: int, bonus_kind: String) -> int:
 				bonus += int(e[bonus_kind]) * constants_multiplier(p)
 	return bonus
 
+
 ## The bonuses other cards add RIGHT NOW to the numbers printed in the text of a spell of player `p`, for the
 ## card view to mark them: {"damage": N, "draw": N}, a key only when N > 0 (so {} = the printed numbers are exact).
 ## Anything that is not a spell gets {}, because the "spell_amplifier" Constante only touches spells.
 func live_text_bonuses(p: int, card_data: Dictionary) -> Dictionary:
-	var bonuses := {}
+	var bonuses := { }
 	if not CardDB.has_type(card_data, "spell"):
 		return bonuses
 	for bonus_kind in ["damage", "draw"]:
@@ -778,6 +876,7 @@ func live_text_bonuses(p: int, card_data: Dictionary) -> Dictionary:
 		if bonus > 0:
 			bonuses[bonus_kind] = bonus
 	return bonuses
+
 
 func _spell_amplifier_condition_holds(p: int, e: Dictionary) -> bool:
 	var deck_counts := _deck_unit_and_spell_counts(p)
@@ -788,6 +887,7 @@ func _spell_amplifier_condition_holds(p: int, e: Dictionary) -> bool:
 	var ratio := int(e.get("deck_spell_ratio", 0))
 	return ratio > 0 and spells_in_deck >= _spells_needed_for_ratio(e, units_in_deck)
 
+
 ## How many spells the deck needs for the "deck_spell_ratio" way of a spell_amplifier to hold, given its unit count:
 ## ratio x units ("pelo menos o dobro"), or one more than that when "deck_spell_ratio_strict" ("mais do que o dobro").
 func _spells_needed_for_ratio(e: Dictionary, units_in_deck: int) -> int:
@@ -795,6 +895,7 @@ func _spells_needed_for_ratio(e: Dictionary, units_in_deck: int) -> int:
 	if bool(e.get("deck_spell_ratio_strict", false)):
 		needed += 1
 	return needed
+
 
 ## How many units and how many spells are still in player `p`'s deck: {"units", "spells"}.
 func _deck_unit_and_spell_counts(p: int) -> Dictionary:
@@ -806,7 +907,8 @@ func _deck_unit_and_spell_counts(p: int) -> Dictionary:
 			units_in_deck += 1
 		elif CardDB.has_type(card_data, "spell"):
 			spells_in_deck += 1
-	return {"units": units_in_deck, "spells": spells_in_deck}
+	return { "units": units_in_deck, "spells": spells_in_deck }
+
 
 ## The live state of the Constantes on board unit `c` whose bonus depends on a condition the player cannot see on
 ## the table, for the card view and overlay: one {"holds": bool, "units": int, "spells": int, "needed_spells": int}
@@ -820,13 +922,16 @@ func constant_conditions_of(c: Card) -> Array:
 			continue
 		var deck_counts := _deck_unit_and_spell_counts(c.owner)
 		var ratio := int(e.get("deck_spell_ratio", 0))
-		conditions.append({
-			"holds": _spell_amplifier_condition_holds(c.owner, e),
-			"units": deck_counts["units"],
-			"spells": deck_counts["spells"],
-			"needed_spells": _spells_needed_for_ratio(e, int(deck_counts["units"])) if ratio > 0 else -1,
-		})
+		conditions.append(
+			{
+				"holds": _spell_amplifier_condition_holds(c.owner, e),
+				"units": deck_counts["units"],
+				"spells": deck_counts["spells"],
+				"needed_spells": _spells_needed_for_ratio(e, int(deck_counts["units"])) if ratio > 0 else -1,
+			}
+		)
 	return conditions
+
 
 ## Where each Constante bonus on a unit comes from, for the card overlay's "Modificadores" panel: one
 ## {"source": card id, "until": "constant", "atk", "hp", "armor", "critico"} per effect (its own scaling, each ally's
@@ -837,29 +942,37 @@ func constant_sources_of(c: Card) -> Array:
 	for e in card_of(c).get("effects", []):
 		if e.get("trigger", "") == "constante" and e.get("action", "") == "scale":
 			var count := _scale_count(c.owner, e, c)
-			raw_sources.append({"source": c.card_id, "atk": count * int(e.get("atk", 0)) * multiplier, "hp": count * int(e.get("hp", 0)) * multiplier})
+			raw_sources.append(
+				{
+					"source": c.card_id,
+					"atk": count * int(e.get("atk", 0)) * multiplier,
+					"hp": count * int(e.get("hp", 0)) * multiplier,
+				}
+			)
 	tribe_aura_bonus(c, raw_sources)
 	equipped_aura_bonus(c, raw_sources)
 	opponent_aura_bonus(c, raw_sources)
 	var surge := momentum_surge_of(c.owner, c)
-	var critico_from_surge := c.critico_total() - clampi(c.critico + c.temp_critico, 0, 4) # the surge level only counts when it is higher
-	raw_sources.append({"source": c.card_id, "atk": int(surge.get("atk", 0)), "critico": critico_from_surge})
-	raw_sources.append({"source": c.card_id, "armor": graveyard_armor_of(c)})
+	# the surge level only counts when it is higher
+	var critico_from_surge := c.critico_total() - clampi(c.critico + c.temp_critico, 0, 4)
+	raw_sources.append({ "source": c.card_id, "atk": int(surge.get("atk", 0)), "critico": critico_from_surge })
+	raw_sources.append({ "source": c.card_id, "armor": graveyard_armor_of(c) })
 	var board: Array = players[c.owner]["board"]
 	var index := board.find(c)
 	for neighbour_index in [index - 1, index + 1]:
 		if index >= 0 and neighbour_index >= 0 and neighbour_index < board.size():
 			var neighbour: Card = board[neighbour_index]
-			raw_sources.append({"source": neighbour.card_id, "armor": int(card_of(neighbour).get("adjacent_armor", 0)) * multiplier})
+			raw_sources.append({ "source": neighbour.card_id, "armor": int(card_of(neighbour).get("adjacent_armor", 0)) * multiplier })
 	var sources: Array = []
 	for raw_source: Dictionary in raw_sources:
-		var source_entry := {"source": raw_source["source"], "until": "constant"}
+		var source_entry := { "source": raw_source["source"], "until": "constant" }
 		for stat_name in ["atk", "hp", "armor", "critico"]:
 			if int(raw_source.get(stat_name, 0)) != 0:
 				source_entry[stat_name] = int(raw_source[stat_name])
 		if source_entry.size() > 2:
 			sources.append(source_entry)
 	return sources
+
 
 ## Armadura a unit gets from its own "graveyard_armor" effect: +1 per card of the given type and
 ## essence in its owner's graveyard (e.g. Sagrada spells for Nerithia).
@@ -870,9 +983,13 @@ func graveyard_armor_of(c: Card) -> int:
 			continue
 		for entry: Card in players[c.owner]["graveyard"]:
 			var entry_data := CardDB.card(entry.card_id)
-			if CardDB.has_type(entry_data, String(e.get("card_type", "spell"))) and CardDB.has_essence(entry_data, String(e.get("essence", ""))):
+			if (
+				CardDB.has_type(entry_data, String(e.get("card_type", "spell")))
+				and CardDB.has_essence(entry_data, String(e.get("essence", "")))
+			):
 				total += 1
 	return total * constants_multiplier(c.owner)
+
 
 ## Damage reduction from a graveyard threshold, or -1 when the card has no active one.
 ## This replaces Armadura for that hit, so it may reduce damage all the way to 0.
@@ -883,7 +1000,10 @@ func graveyard_damage_reduction_of(c: Card, amount: int) -> int:
 		var count := 0
 		for entry: Card in players[c.owner]["graveyard"]:
 			var entry_data := CardDB.card(entry.card_id)
-			if CardDB.has_type(entry_data, String(e.get("card_type", "spell"))) and CardDB.has_essence(entry_data, String(e.get("essence", ""))):
+			if (
+				CardDB.has_type(entry_data, String(e.get("card_type", "spell")))
+				and CardDB.has_essence(entry_data, String(e.get("essence", "")))
+			):
 				count += 1
 		if count < int(e.get("minimum_count", 2)):
 			continue
@@ -891,17 +1011,27 @@ func graveyard_damage_reduction_of(c: Card, amount: int) -> int:
 		return maxi(0, ceili(float(amount) / divisor) - int(e.get("flat_reduction", 0)))
 	return -1
 
+
 func _scale_count(p: int, e: Dictionary, self_card: Card = null) -> int:
 	match e.get("per", ""):
-		"other_allied_copies": return other_allied_copies(p, String(e.get("card_id", "")), self_card)
-		"allied_copies": return other_allied_copies(p, String(e.get("card_id", "")))
-		"other_allied_tribe": return other_allied_tribe_units(p, String(e.get("tribe", "")), self_card)
-		"own_graveyard_units": return graveyard_units(p)
-		"enemy_graveyard_units": return graveyard_units(opponent(p))
-		"own_artifacts": return artifact_count(p)
-		"own_graveyard_cards": return players[p]["graveyard"].size() / maxi(1, int(e.get("divisor", 1)))
-		"own_graveyard_artifacts": return graveyard_artifacts(p) / maxi(1, int(e.get("divisor", 1)))
+		"other_allied_copies":
+			return other_allied_copies(p, String(e.get("card_id", "")), self_card)
+		"allied_copies":
+			return other_allied_copies(p, String(e.get("card_id", "")))
+		"other_allied_tribe":
+			return other_allied_tribe_units(p, String(e.get("tribe", "")), self_card)
+		"own_graveyard_units":
+			return graveyard_units(p)
+		"enemy_graveyard_units":
+			return graveyard_units(opponent(p))
+		"own_artifacts":
+			return artifact_count(p)
+		"own_graveyard_cards":
+			return players[p]["graveyard"].size() / maxi(1, int(e.get("divisor", 1)))
+		"own_graveyard_artifacts":
+			return graveyard_artifacts(p) / maxi(1, int(e.get("divisor", 1)))
 	return 0
+
 
 ## Artifacts sitting in player p's graveyard, unit-artifacts included (Zulmira Ferro-Velho grows with them).
 func graveyard_artifacts(p: int) -> int:
@@ -911,6 +1041,7 @@ func graveyard_artifacts(p: int) -> int:
 			n += 1
 	return n
 
+
 ## Units of player p on the board that are the card `card_id`, not counting `except_card` itself.
 func other_allied_copies(p: int, card_id: String, except_card: Card = null) -> int:
 	var n := 0
@@ -919,6 +1050,7 @@ func other_allied_copies(p: int, card_id: String, except_card: Card = null) -> i
 			n += 1
 	return n
 
+
 ## Units of player p on the board with the given tribe, not counting `except_card` itself (Sven grows with the other Dragões Negros).
 func other_allied_tribe_units(p: int, tribe: String, except_card: Card = null) -> int:
 	var n := 0
@@ -926,6 +1058,7 @@ func other_allied_tribe_units(p: int, tribe: String, except_card: Card = null) -
 		if c != except_card and (c.data().get("tribe", []) as Array).has(tribe):
 			n += 1
 	return n
+
 
 ## Allied units in play that are a Planta or a ficha (Capina Seletiva counts them).
 func allied_plants_or_tokens(p: int) -> int:
@@ -936,6 +1069,7 @@ func allied_plants_or_tokens(p: int) -> int:
 			n += 1
 	return n
 
+
 ## Artifacts a player has in play: free-standing ones, the equipment worn by their units, and the units that
 ## are artifacts too (CardDB.is_unit_artifact: Relojoeiro Pino-14, Matusalém).
 func artifact_count(p: int) -> int:
@@ -945,6 +1079,7 @@ func artifact_count(p: int) -> int:
 		if CardDB.is_unit_artifact(c.data()):
 			n += 1
 	return n
+
 
 ## What a "scale" card counts right now (shown in its text off the board), or -1 if it has none.
 func scale_count(p: int, cd: Dictionary) -> int:
@@ -957,6 +1092,7 @@ func scale_count(p: int, cd: Dictionary) -> int:
 			return int(e.get("base_atk", cd.get("atk", 0))) + _scale_count(p, e) * int(e.get("atk", 0))
 	return -1
 
+
 ## How far player p is from a "since your previous turn" cost reduction (Gigante Marinho / Vulcânico): {"have": N, "need": M}
 ## with what they did so far and what the card asks for. Empty when the card has no such reduction. The card text shows it live.
 func window_progress(p: int, cd: Dictionary) -> Dictionary:
@@ -965,10 +1101,11 @@ func window_progress(p: int, cd: Dictionary) -> Dictionary:
 			continue
 		match e.get("per", ""):
 			"healing_since_last_turn":
-				return {"have": _since_last_turn(p, "healing"), "need": int(e.get("threshold", 1))}
+				return { "have": _since_last_turn(p, "healing"), "need": int(e.get("threshold", 1)) }
 			"damage_since_last_turn":
-				return {"have": _since_last_turn(p, "damage"), "need": int(e.get("threshold", 1))}
-	return {}
+				return { "have": _since_last_turn(p, "damage"), "need": int(e.get("threshold", 1)) }
+	return { }
+
 
 ## The Encarnação would go to the graveyard or be banished (from the board, the hand or anywhere else;
 ## a return to hand does NOT count: it stays a card in hand and keeps being the Encarnação).
@@ -976,13 +1113,14 @@ func window_progress(p: int, cd: Dictionary) -> Dictionary:
 ## the deck as a normal card at its base cost, for good. Otherwise it goes back to the Santuário.
 func _incarnation_leaves(p: int) -> void:
 	var l: Dictionary = players[p]["incarnation"]
-	l["permanent_buffs"] = {} # dying or being banished resets the Encarnação before it returns
+	l["permanent_buffs"] = { } # dying or being banished resets the Encarnação before it returns
 	if incarnation_cost(p) <= MOMENTUM_CAP:
 		l["in_zone"] = true
 		return
 	l["retired"] = true
 	players[p]["deck"].insert(0, Card.new(_uid(), l["card_id"], p, "deck")) # draws pop the back
-	emit_event({"type": "incarnation_retired", "player": p, "card_id": l["card_id"]})
+	emit_event({ "type": "incarnation_retired", "player": p, "card_id": l["card_id"] })
+
 
 ## True while the Encarnação sits in this player's hand (it came back through a return-to-hand effect).
 func incarnation_in_hand(p: int) -> bool:
@@ -991,14 +1129,17 @@ func incarnation_in_hand(p: int) -> bool:
 			return true
 	return false
 
+
 func incarnation_cost(p: int) -> int:
 	var l: Dictionary = players[p]["incarnation"]
 	return cost_of(p, CardDB.card(l["card_id"])) + incarnation_cost_mod(p) + commander_tax(int(l["casts"]))
+
 
 ## Total modify_cost of p's Encarnação. The Santuário has no card to hold it, and a copy in hand or on the
 ## field would lose it when it goes back, so it lives on the player and every copy reads it from here.
 func incarnation_cost_mod(p: int) -> int:
 	return int(players[p]["incarnation"].get("cost_mod", 0))
+
 
 ## Applies a modify_cost `change` to `card`, or to p's Encarnação when the card is it (or when there is no
 ## card: the Santuário). `min_cost` (0 = none) stops a reduction at that cost: it only takes what fits.
@@ -1014,13 +1155,16 @@ func add_cost_mod(p: int, card: Card, change: int, min_cost := 0) -> void:
 	else:
 		card.cost_mod += change
 
+
 ## Extra cost of the Encarnação after `casts` previous casts: 1 + 2 + ... + casts, times COMMANDER_TAX_STEP.
 static func commander_tax(casts: int) -> int:
 	return COMMANDER_TAX_STEP * casts * (casts + 1) / 2
 
+
 ## Congelada: no attack, no untap, no guarding the Leader until the end of the next turn.
 func is_frozen(c: Card) -> bool:
 	return c.is_frozen()
+
 
 ## The unit is ready to attack: not tapped, not Congelada, not summoning sick (unless Ímpeto or
 ## Rompante). A unit with 0 ATK may attack too: it deals no damage, but the attack animation plays
@@ -1028,31 +1172,54 @@ func is_frozen(c: Card) -> bool:
 func can_attack(c: Card) -> bool:
 	# a tapped unit may attack again only while it still has attacks left (Ataque Duplo)
 	var has_attack_left := not c.exhausted or (c.attacks_made > 0 and c.attacks_made < attacks_allowed(c))
-	return has_attack_left and not has_kw(c, "inerte") and not c.is_frozen() and not c.is_stunned() and (not c.sick or has_kw(c, "impeto") or has_kw(c, "rompante"))
+	return (
+		has_attack_left and not has_kw(c, "inerte") and not c.is_frozen() and not c.is_stunned()
+		and (not c.sick or has_kw(c, "impeto") or has_kw(c, "rompante"))
+	)
+
 
 ## Attacks per turn: 2 with Ataque Duplo, which a card can also earn by reaching Crítico 4
 ## ("critico_maximo": {"ataque_duplo": true}, Vael); otherwise 1.
 func attacks_allowed(c: Card) -> int:
 	if has_kw(c, "ataque_duplo"):
 		return 2
-	if c.critico_total() >= 4 and c.data().get("critico_maximo", {}).get("ataque_duplo", false):
+	if c.critico_total() >= 4 and c.data().get("critico_maximo", { }).get("ataque_duplo", false):
 		return 2
 	return 1
+
 
 ## Can `attacker` challenge `target` (an exhausted or Vulnerable enemy unit within reach)? See CombatSystem.
 func can_challenge(attacker: Card, target: Card) -> bool:
 	return combat_system().can_challenge(attacker, target)
 
+
 ## Every uid `attacker` may hit right now (challengeable units and/or the enemy Leader's negative uid).
 func attack_targets(attacker: Card) -> Array:
 	return combat_system().attack_targets(attacker)
 
+
 ## Effect spec of a card/ability that needs a chosen target, or "" if none.
 func target_spec(effects: Array) -> String:
 	for e in effects:
-		if e.get("target", "") in ["enemy_unit", "enemy_unit_or_leader", "enemy_flying_unit", "enemy_taunt_unit", "weak_enemy_unit", "ally_unit", "other_ally_unit", "ally_or_own_leader", "any_unit", "any", "enemy_stack", "enemy_artifact", "ally_artifact", "any_artifact"]:
+		if e.get("target", "") in [
+			"enemy_unit",
+			"enemy_unit_or_leader",
+			"enemy_flying_unit",
+			"enemy_taunt_unit",
+			"weak_enemy_unit",
+			"ally_unit",
+			"other_ally_unit",
+			"ally_or_own_leader",
+			"any_unit",
+			"any",
+			"enemy_stack",
+			"enemy_artifact",
+			"ally_artifact",
+			"any_artifact",
+		]:
 			return e["target"]
 	return ""
+
 
 ## Second target a card needs on top of its first (e.g. the damage target after the sacrifice), or "".
 ## Declared on a "then" effect with "pick": true, or on a top-level effect with "pick2": true
@@ -1073,6 +1240,7 @@ func second_spec(cd: Dictionary) -> String:
 				return t["target"]
 	return ""
 
+
 ## True when a spell would do nothing right now (only revive effects, and no unit to bring back).
 func is_dud(p: int, cd: Dictionary) -> bool:
 	var effects: Array = cd.get("effects", [])
@@ -1088,6 +1256,7 @@ func is_dud(p: int, cd: Dictionary) -> bool:
 					return false
 	return true
 
+
 ## Target a card needs when played: its additional sacrifice cost (the unit to sacrifice)
 ## or the chosen target of its effects. A unit's Ao Entrar target is picked after it enters
 ## (see enter_spec), so it is not part of playing it.
@@ -1095,6 +1264,7 @@ func card_spec(cd: Dictionary) -> String:
 	if cd.get("cost_sacrifice", false):
 		return "ally_unit"
 	return "" if cd["type"] == "unit" else target_spec(cd["effects"])
+
 
 ## Target spec of a unit's Ao Entrar, or "".
 func enter_spec(cd: Dictionary) -> String:
@@ -1104,6 +1274,7 @@ func enter_spec(cd: Dictionary) -> String:
 			on_enter.append(e)
 	return target_spec(on_enter)
 
+
 ## Target spec of the second pick of a unit's Ao Entrar (an on_enter effect with "pick2": true), or "".
 ## It is asked after the first pick; "same_target_ok" on the card lets both picks be the same target.
 func enter_second_spec(cd: Dictionary) -> String:
@@ -1112,9 +1283,11 @@ func enter_second_spec(cd: Dictionary) -> String:
 			return e["target"]
 	return ""
 
+
 ## How much "healing" or "damage" player p did since their previous turn started: last round plus the round in progress.
 func _since_last_turn(p: int, kind: String) -> int:
 	return int(players[p][kind + "_last_round"]) + int(players[p][kind + "_this_round"])
+
 
 ## Momentum cost of a card for player p, after its cost_reduction effects (no trigger: they apply
 ## wherever the card is, not only on the board, so they are not "Constante")
@@ -1127,9 +1300,11 @@ func _since_last_turn(p: int, kind: String) -> int:
 ## turn before, the second-player bonus, ...); "healing_since_last_turn" = a flat "amount" off
 ## when at least "threshold" actual Vida was recovered since the owner's previous turn started (that turn, the opponent's turn
 ## after it and the current turn so far), including healing effects, Roubo de Vida and Regeneração;
-## "damage_since_last_turn" = the same for damage the owner dealt to the opponent's Leader). Never below 0, or below the effect's "min_cost".
+## "damage_since_last_turn" = the same for damage the owner dealt to the opponent's Leader).
+## Never below 0, or below the effect's "min_cost".
 func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
-	var c := int(cd["cost"]) - (card.discount + card.turn_discount if card != null else 0) # per-copy discounts; stacks with cost_reduction, same "min_cost" floor
+	# per-copy discounts; stacks with cost_reduction, same "min_cost" floor
+	var c := int(cd["cost"]) - (card.discount + card.turn_discount if card != null else 0)
 	if card != null:
 		c += card.cost_mod # permanent per-copy change (modify_cost), kept in every zone
 		if card.incarnation:
@@ -1140,16 +1315,23 @@ func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 			continue
 		var n := 0
 		match e.get("per", ""):
-			"idle_turns": n = int(players[p]["idle_turns"])
-			"allied_plants_or_tokens": n = allied_plants_or_tokens(p)
-			"own_graveyard_cards": n = players[p]["graveyard"].size() / maxi(1, int(e.get("divisor", 1)))
-			"unspent_momentum": n = 1 if int(players[p]["unspent"]) >= int(e.get("threshold", 1)) else 0
-			"saved_momentum": n = 1 if int(players[p]["saved_momentum"]) >= int(e.get("threshold", 1)) else 0
+			"idle_turns":
+				n = int(players[p]["idle_turns"])
+			"allied_plants_or_tokens":
+				n = allied_plants_or_tokens(p)
+			"own_graveyard_cards":
+				n = players[p]["graveyard"].size() / maxi(1, int(e.get("divisor", 1)))
+			"unspent_momentum":
+				n = 1 if int(players[p]["unspent"]) >= int(e.get("threshold", 1)) else 0
+			"saved_momentum":
+				n = 1 if int(players[p]["saved_momentum"]) >= int(e.get("threshold", 1)) else 0
 			"starting_momentum_surplus":
 				var surplus: int = int(players[p]["turn_start_momentum"]) - int(players[p]["max_momentum"])
 				n = 1 if surplus >= int(e.get("threshold", 1)) else 0
-			"healing_since_last_turn": n = 1 if _since_last_turn(p, "healing") >= int(e.get("threshold", 1)) else 0
-			"damage_since_last_turn": n = 1 if _since_last_turn(p, "damage") >= int(e.get("threshold", 1)) else 0
+			"healing_since_last_turn":
+				n = 1 if _since_last_turn(p, "healing") >= int(e.get("threshold", 1)) else 0
+			"damage_since_last_turn":
+				n = 1 if _since_last_turn(p, "damage") >= int(e.get("threshold", 1)) else 0
 		c -= n * int(e.get("amount", 1))
 		floor_cost = maxi(floor_cost, int(e.get("min_cost", 0)))
 	var amulet_discount := ice_spell_discount(p, cd)
@@ -1166,12 +1348,14 @@ func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 	var requiem_extra := REQUIEM_EXTRA_COST if card != null and card.zone == "graveyard" else 0
 	return c + requiem_extra
 
+
 ## True when the one-card offer of grant_play_discount is live this turn and this hand card matches its filter.
 func play_discount_applies(p: int, card: Card) -> bool:
 	var offer: Dictionary = players[p]["play_discount"]
 	if offer.is_empty() or int(offer["until_turn"]) != turn:
 		return false
 	return CardFilter.matches(card.card_id, offer["card_filter"])
+
 
 ## Sets the Bola de Neve level of player p. When the level crosses into Grande (from below
 ## SNOWBALL_GRANDE_AT to at or above it) every Bola de Neve card of p evolves into a Grande Bola de Neve,
@@ -1186,6 +1370,7 @@ func set_snowball_level(p: int, new_level: int) -> void:
 		crossing.amount = new_level
 		bus().emit(crossing)
 
+
 ## End of p's own turn: the Bola de Neve level goes back to the player's base level, so a combo has to happen inside a single turn.
 ## If it was Grande, every Grande Bola de Neve card of p turns back into a normal Bola de Neve.
 func reset_snowball_level(p: int) -> void:
@@ -1196,10 +1381,12 @@ func reset_snowball_level(p: int) -> void:
 	if was_grande:
 		_devolve_snowball_cards(p)
 	if level_before != base_level: # decks with no Bola de Neve never move the level, so there is nothing to announce
-		emit_event({"type": "snowball_reset", "player": p, "level": base_level})
+		emit_event({ "type": "snowball_reset", "player": p, "level": base_level })
+
 
 func snowball_is_grande(p: int) -> bool:
 	return int(players[p]["snowball"]) >= SNOWBALL_GRANDE_AT
+
 
 ## Turns every Bola de Neve card of player p (hand, deck, graveyard and the stack) into a Grande Bola de
 ## Neve. The card keeps its uid, its discount and its cost changes: only the card it is changes.
@@ -1217,7 +1404,8 @@ func _evolve_snowball_cards(p: int) -> void:
 			item["card_id"] = GRANDE_SNOWBALL_CARD_ID
 			evolved += 1
 	if evolved > 0:
-		emit_event({"type": "snowball_evolve", "player": p, "count": evolved, "uids": evolved_uids})
+		emit_event({ "type": "snowball_evolve", "player": p, "count": evolved, "uids": evolved_uids })
+
 
 ## The reverse of _evolve_snowball_cards: every Grande Bola de Neve card of player p goes back to being a Bola de Neve.
 func _devolve_snowball_cards(p: int) -> void:
@@ -1234,7 +1422,8 @@ func _devolve_snowball_cards(p: int) -> void:
 			item["card_id"] = SNOWBALL_CARD_ID
 			reverted += 1
 	if reverted > 0:
-		emit_event({"type": "snowball_devolve", "player": p, "count": reverted, "uids": reverted_uids})
+		emit_event({ "type": "snowball_devolve", "player": p, "count": reverted, "uids": reverted_uids })
+
 
 ## Momentum off the first spell of an element each turn, from the equipped "spell_discount" artifacts
 ## (Amuleto do Primeiro Floco) on p's units. The discounts of several amulets add up.
@@ -1245,6 +1434,7 @@ func ice_spell_discount(p: int, cd: Dictionary) -> int:
 		total += int(rule["amount"])
 	return total
 
+
 ## The cost the amulets' discount cannot push the spell under: the highest "min_cost" among the amulets that apply.
 func ice_spell_discount_floor(p: int, cd: Dictionary) -> int:
 	var floor_cost := 0
@@ -1252,11 +1442,13 @@ func ice_spell_discount_floor(p: int, cd: Dictionary) -> int:
 		floor_cost = maxi(floor_cost, int(rule.get("min_cost", 0)))
 	return floor_cost
 
+
 func _applicable_discount_rules(p: int, cd: Dictionary) -> Array:
 	var rules: Array = []
 	for amulet in _applicable_discount_equipment(p, cd):
 		rules.append(amulet.data()["spell_discount"])
 	return rules
+
 
 ## The equipment whose "spell_discount" applies to this spell right now (the ones that wear down when it is cast).
 func _applicable_discount_equipment(p: int, cd: Dictionary) -> Array:
@@ -1265,19 +1457,21 @@ func _applicable_discount_equipment(p: int, cd: Dictionary) -> Array:
 		return amulets
 	for unit: Card in players[p]["board"]:
 		for worn in unit.equipped_cards:
-			var rule: Dictionary = worn.data().get("spell_discount", {})
+			var rule: Dictionary = worn.data().get("spell_discount", { })
 			if not rule.is_empty() and CardDB.has_element(cd, String(rule["element"])):
 				amulets.append(worn)
 	return amulets
 
+
 ## Momentum p can spend on a play: the Reserva only counts for Rápido and Instantâneo plays (`fast`).
 ## Momentum above the player's cap (a temporary overflow) only pays neutral cards and leader abilities:
 ## pass the card's data as `cd` so any other essence sees at most momentum_cap(p).
-func budget(p: int, fast: bool, cd := {}) -> int:
+func budget(p: int, fast: bool, cd := { }) -> int:
 	var plain_momentum := int(players[p]["momentum"])
 	if not cd.is_empty() and not CardDB.has_essence(cd, "neutra"):
 		plain_momentum = mini(plain_momentum, momentum_cap(p))
 	return plain_momentum + (int(players[p]["reserve"]) if fast else 0)
+
 
 ## Gives player p Momentum right now. Normally it stops at their cap (MOMENTUM_CAP, or higher with Agiota das
 ## Nuvens); with `overflow` it may go up to MOMENTUM_OVERFLOW_CAP. With `refresh` it only wins back spent
@@ -1295,7 +1489,8 @@ func gain_momentum(p: int, gain: int, overflow := false, refresh := false) -> vo
 	if int(pl["momentum"]) > current:
 		pl["momentum_gain_turn"] = turn # a refresh counts too
 	refresh_scaling() # a surge (11+ Momentum) may have just turned on
-	emit_event({"type": "momentum", "player": p})
+	emit_event({ "type": "momentum", "player": p })
+
 
 ## Pays `amount`; Rápido and Instantâneo plays (`fast`) drain the Reserva first so more plain Momentum is
 ## left over to bank next turn.
@@ -1308,6 +1503,7 @@ func _pay(p: int, amount: int, fast: bool) -> void:
 	pl["momentum"] -= amount
 	refresh_scaling() # a surge (11+ Momentum) may have just turned off
 
+
 ## Spends all the plain Momentum player p still has (the Reserva is untouched) and returns how much that was.
 func drain_momentum(p: int) -> int:
 	var drained := int(players[p]["momentum"])
@@ -1315,20 +1511,24 @@ func drain_momentum(p: int) -> int:
 		return 0
 	players[p]["momentum"] = 0
 	refresh_scaling() # a surge (11+ Momentum) may have just turned off
-	emit_event({"type": "momentum", "player": p})
+	emit_event({ "type": "momentum", "player": p })
 	return drained
+
 
 static func _is_spell(cd: Dictionary) -> bool:
 	return cd.get("type", "") == "spell"
+
 
 ## True when the Reserva may help pay this source (a spell, leader ability, activated ability or equip action):
 ## only Rápido and Instantâneo ones. Lento always uses plain Momentum.
 func reserve_pays(src: Dictionary) -> bool:
 	return speed_of(src) != "lento"
 
+
 ## Same for a card being played: only spells count (units never use the Reserva, not even Saque Rápido ones).
 func _reserve_pays_card(cd: Dictionary) -> bool:
 	return _is_spell(cd) and reserve_pays(cd)
+
 
 ## include_unreachable: also lists the enemy units with Inalcançável (only to explain why a target is refused).
 ## effects: the effect dictionaries about to be aimed at the pick. A target that cannot satisfy one of their
@@ -1344,55 +1544,85 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 			theirs.append(enemy_unit)
 	match spec:
 		"enemy_unit":
-			for c: Card in theirs: out.append(c.uid)
+			for c: Card in theirs:
+				out.append(c.uid)
 		"enemy_unit_or_leader": # an enemy unit or the enemy Leader (Cancelamento do Plano de Saúde)
-			for c: Card in theirs: out.append(c.uid)
+			for c: Card in theirs:
+				out.append(c.uid)
 			out.append(LEADER_UID[opponent(p)])
 		"enemy_flying_unit": # an enemy unit with Voo (Estilingueiro Teimoso)
 			for c: Card in theirs:
-				if c.has_kw("voo"): out.append(c.uid)
+				if c.has_kw("voo"):
+					out.append(c.uid)
 		"enemy_taunt_unit": # an enemy unit with Provocação (Saltador de Cerca)
 			for c: Card in theirs:
-				if c.has_kw("provocacao"): out.append(c.uid)
+				if c.has_kw("provocacao"):
+					out.append(c.uid)
 		"weak_enemy_unit": # an enemy unit whose current Vida is WEAK_UNIT_MAX_HP or less (Isarelis' execution)
 			for c: Card in theirs:
-				if c.hp_left() <= WEAK_UNIT_MAX_HP: out.append(c.uid)
+				if c.hp_left() <= WEAK_UNIT_MAX_HP:
+					out.append(c.uid)
 		"ally_unit":
-			for c: Card in mine: out.append(c.uid)
+			for c: Card in mine:
+				out.append(c.uid)
 		"ally_unit_with_armor": # an ally unit with at least 1 Armadura of its own (Tremor de Contenção pays with it)
 			for c: Card in mine:
-				if c.armor_total() > 0: out.append(c.uid)
+				if c.armor_total() > 0:
+					out.append(c.uid)
 		"ally_plant_or_token": # an ally planta or ficha (Esporos de Emergência sacrifices one)
 			for c: Card in mine:
-				if c.data().get("token", false) or "planta" in c.data().get("tribe", []): out.append(c.uid)
+				if c.data().get("token", false) or "planta" in c.data().get("tribe", []):
+					out.append(c.uid)
 		"other_ally_unit":
 			for c: Card in mine:
-				if c.uid != self_uid: out.append(c.uid)
+				if c.uid != self_uid:
+					out.append(c.uid)
 		"ally_or_own_leader": # an ally unit or your own Leader (healing like Maré Curativa)
-			for c: Card in mine: out.append(c.uid)
+			for c: Card in mine:
+				out.append(c.uid)
 			out.append(LEADER_UID[p])
 		"any_unit":
-			for c: Card in mine + theirs: out.append(c.uid)
-		"any": # truly any target: every unit on both sides and both Leaders, own ones included ("inimigo" in the text uses an enemy_* spec)
-			for c: Card in mine + theirs: out.append(c.uid)
+			for c: Card in mine + theirs:
+				out.append(c.uid)
+		# truly any target: every unit on both sides and both Leaders, own ones included ("inimigo" in the text uses an enemy_*
+		# spec)
+		"any":
+			for c: Card in mine + theirs:
+				out.append(c.uid)
 			out.append(LEADER_UID[p])
 			out.append(LEADER_UID[opponent(p)])
 		"enemy_artifact": # a free-standing artifact on the opponent's side, or a unit that is also an artifact
-			for c: Card in players[opponent(p)]["relics"] + _unit_artifacts_on_board(opponent(p)): out.append(c.uid)
+			for c: Card in players[opponent(p)]["relics"] + _unit_artifacts_on_board(opponent(p)):
+				out.append(c.uid)
 		"ally_artifact": # a free-standing artifact on the player's own side (a unit-artifact is not one: it cannot be worn)
-			for c: Card in players[p]["relics"]: out.append(c.uid)
+			for c: Card in players[p]["relics"]:
+				out.append(c.uid)
 		"any_artifact": # a free-standing artifact on either side, or a unit that is also an artifact
-			for c: Card in players[p]["relics"] + players[opponent(p)]["relics"] + _unit_artifacts_on_board(p) + _unit_artifacts_on_board(opponent(p)): out.append(c.uid)
+			var artifacts: Array = players[p]["relics"] + players[opponent(p)]["relics"]
+			artifacts += _unit_artifacts_on_board(p) + _unit_artifacts_on_board(opponent(p))
+			for c: Card in artifacts:
+				out.append(c.uid)
 		"enemy_stack":
 			for it in stack:
-				if it["player"] != p and not stack_system().is_uncounterable(it): out.append(it["sid"])
+				if it["player"] != p and not stack_system().is_uncounterable(it):
+					out.append(it["sid"])
 			# a counter's own filters (max_cost, only_if_ability...) also bind an Ao Ativar that counters, not only a spell
 			# (a kicker price, if any, is checked against the budget by card_targets)
 			if _has_action(effects, "counter"):
-				out = out.filter(func(stack_id: int) -> bool: return counter_extra({"effects": effects}, stack_id) >= 0)
+				out = out.filter(
+					func(stack_id: int) -> bool:
+						return counter_extra({ "effects": effects }, stack_id) >= 0,
+				)
 	if not effects.is_empty():
-		out = out.filter(func(target_uid: int) -> bool: return meets_marker_requirement(target_uid, spec, effects) and meets_subtype_requirement(target_uid, spec, effects) and meets_unit_requirement(target_uid, spec, effects, self_uid))
+		out = out.filter(
+			func(target_uid: int) -> bool:
+				return (
+					meets_marker_requirement(target_uid, spec, effects) and meets_subtype_requirement(target_uid, spec, effects)
+					and meets_unit_requirement(target_uid, spec, effects, self_uid)
+				),
+		)
 	return out
+
 
 ## Choice options carry ordinary effect lists; the current trigger and its continuation wait for the answer.
 func begin_effect_choice(context: EffectContext, effect: Dictionary) -> void:
@@ -1422,21 +1652,36 @@ func begin_effect_choice(context: EffectContext, effect: Dictionary) -> void:
 	_effect_choice_context = context
 	_effect_choice_spell_resolving = _spell_resolving
 	phase = "effect_choice"
-	emit_event({"type": "effect_choice", "player": context.controller, "uid": context.self_uid, "card_id": context.source_id()})
+	emit_event({ "type": "effect_choice", "player": context.controller, "uid": context.self_uid, "card_id": context.source_id() })
+
 
 func effect_choice_targets(index: int) -> Array:
 	var options: Array = pending_effect_choice.get("options", [])
 	if index < 0 or index >= options.size():
 		return []
 	var option: Dictionary = options[index]
-	return ChoiceOptions.targets(self, int(pending_effect_choice["player"]), int(pending_effect_choice["uid"]), int(pending_effect_choice["opposed"]), option)
+	return ChoiceOptions.targets(
+		self,
+		int(pending_effect_choice["player"]),
+		int(pending_effect_choice["uid"]),
+		int(pending_effect_choice["opposed"]),
+		option,
+	)
+
 
 func effect_choice_available(index: int) -> bool:
 	var options: Array = pending_effect_choice.get("options", [])
 	if index < 0 or index >= options.size():
 		return false
 	var option: Dictionary = options[index]
-	return ChoiceOptions.available(self, int(pending_effect_choice["player"]), int(pending_effect_choice["uid"]), int(pending_effect_choice["opposed"]), option)
+	return ChoiceOptions.available(
+		self,
+		int(pending_effect_choice["player"]),
+		int(pending_effect_choice["uid"]),
+		int(pending_effect_choice["opposed"]),
+		option,
+	)
+
 
 func choose_effect_option(p: int, index: int, target: int = 0) -> Array:
 	if phase != "effect_choice" or p != decider() or not effect_choice_available(index):
@@ -1456,9 +1701,19 @@ func choose_effect_option(p: int, index: int, target: int = 0) -> Array:
 	_effect_choice_context = null
 	phase = return_phase
 	# "hit_fx" on an option is cosmetic: the style its effects fly out of the card with (see FxShots)
-	emit_event({"type": "effect_choice_chosen", "player": p, "uid": uid, "card_id": card_id, "option": index, "target": target, "hit_fx": String(option.get("hit_fx", ""))})
+	emit_event(
+		{
+			"type": "effect_choice_chosen",
+			"player": p,
+			"uid": uid,
+			"card_id": card_id,
+			"option": index,
+			"target": target,
+			"hit_fx": String(option.get("hit_fx", "")),
+		}
+	)
 	_spell_resolving = spell_resolving
-	_effect_choice_continuations.push_front({"parent_context": parent_context, "child_context": context})
+	_effect_choice_continuations.push_front({ "parent_context": parent_context, "child_context": context })
 	_run_effects(context, effects, true)
 	while phase != "effect_choice" and not _effect_choice_continuations.is_empty():
 		var continuation: Dictionary = _effect_choice_continuations.pop_front()
@@ -1479,9 +1734,14 @@ func choose_effect_option(p: int, index: int, target: int = 0) -> Array:
 	stack_system().settle()
 	return flush_events()
 
+
 ## The units on a player's board that also count as an artifact (Relojoeiro Pino-14, Matusalém).
 func _unit_artifacts_on_board(p: int) -> Array:
-	return players[p]["board"].filter(func(unit: Card) -> bool: return CardDB.is_unit_artifact(unit.data()))
+	return players[p]["board"].filter(
+		func(unit: Card) -> bool:
+			return CardDB.is_unit_artifact(unit.data()),
+	)
+
 
 ## False when an effect aimed with `spec` only works on units of some kind and this target is not one:
 ## "requires_exhausted" (only a tapped unit, like "ready"), "not_rarity" (never these rarities, like champions) or
@@ -1504,10 +1764,11 @@ func meets_unit_requirement(target_uid: int, spec: String, effects: Array, self_
 				return false
 		if unit != null and (effect.get("not_rarity", []) as Array).has(CardDB.card(unit.card_id).get("rarity", "")):
 			return false
-		var unit_filter: Dictionary = effect.get("unit_filter", {})
+		var unit_filter: Dictionary = effect.get("unit_filter", { })
 		if unit != null and not unit_filter.is_empty() and not CardFilter.matches(unit.card_id, unit_filter):
 			return false
 	return true
+
 
 ## False when an effect aimed with `spec` only works on artifacts of one subtype ("subtype": "local" on
 ## "destroy_artifact" = "destroy a Local") and this target is an artifact of another subtype.
@@ -1529,12 +1790,13 @@ func meets_subtype_requirement(target_uid: int, spec: String, effects: Array) ->
 				return false
 	return true
 
+
 ## False when an effect aimed with `spec` only works on a target holding enough markers ("requires_markers":
 ## the banish of Ponto Final Sem Vírgula, the execution of Viprax) and this target does not have them.
 ## A Leader target uid is negative. Effects aimed at another spec are not about this pick and are ignored.
 func meets_marker_requirement(target_uid: int, spec: String, effects: Array) -> bool:
 	for effect in effects:
-		var requirement: Dictionary = effect.get("requires_markers", {})
+		var requirement: Dictionary = effect.get("requires_markers", { })
 		if requirement.is_empty() or effect.get("target", "") != spec:
 			continue
 		var dot_id := String(requirement.get("dot", ""))
@@ -1549,10 +1811,15 @@ func meets_marker_requirement(target_uid: int, spec: String, effects: Array) -> 
 			return false
 	return true
 
+
 ## True when the only thing stopping an aimed effect is Inalcançável: there would be a target without it.
 ## The screen keeps such an action enabled and explains the refusal when the player aims at the unit.
 func targets_blocked_by_reach(p: int, spec: String, self_uid: int = 0) -> bool:
-	return spec != "" and spec != "enemy_stack" and valid_targets(p, spec, self_uid).is_empty() 		and not valid_targets(p, spec, self_uid, true).is_empty()
+	return (
+		spec != "" and spec != "enemy_stack" and valid_targets(p, spec, self_uid).is_empty()
+		and not valid_targets(p, spec, self_uid, true).is_empty()
+	)
+
 
 ## Targets a card from hand can be played on right now (counters filter by reach and Momentum).
 func card_targets(p: int, cd: Dictionary, inst: Card = null) -> Array:
@@ -1567,6 +1834,7 @@ func card_targets(p: int, cd: Dictionary, inst: Card = null) -> Array:
 			ok.append(sid)
 	return ok
 
+
 ## Speed of a card or leader ability: "lento" (default), "rapido" or "instantaneo".
 func speed_of(src: Dictionary) -> String:
 	if src.has("speed"):
@@ -1574,6 +1842,7 @@ func speed_of(src: Dictionary) -> String:
 	if (src.get("keywords", []) as Array).has("saque_rapido"):
 		return "rapido"
 	return "lento"
+
 
 ## Lento: own Main Phase with an empty stack. Rápido: also the pre-combat window (both players)
 ## and the summon response window. Instantâneo: also as a response to anything on the stack, and in the attacks
@@ -1590,13 +1859,16 @@ func can_cast_speed(p: int, speed: String) -> bool:
 		return speed == "instantaneo"
 	return window == "pre_combat" and speed != "lento"
 
+
 ## Units, the Encarnação and ending the turn: own Main Phase, empty stack.
 func _sorcery_time(p: int) -> bool:
 	return _main_phase_idle(p)
 
+
 ## Own Main Phase, empty stack, nothing pending.
 func _main_phase_idle(p: int) -> bool:
 	return phase == "main" and p == active and priority == p and stack.is_empty() and not summon_window
+
 
 ## True when p still has a legal attack this turn (so "IR PARA O COMBATE" is worth offering).
 func can_go_to_combat(p: int) -> bool:
@@ -1607,6 +1879,7 @@ func can_go_to_combat(p: int) -> bool:
 			return true
 	return false
 
+
 ## Ends the first Main Phase and opens the pre-combat window (attacker first, then defender).
 func go_to_combat(p: int) -> Array:
 	if not can_go_to_combat(p):
@@ -1615,10 +1888,12 @@ func go_to_combat(p: int) -> Array:
 	stack_system().settle()
 	return flush_events()
 
+
 ## One attack during the "attacks" window: `attacker_uid` taps and hits `target_uid`
 ## (the enemy Leader's negative uid, or an enemy unit it can challenge). Resolves at once.
 func attack_unit(p: int, attacker_uid: int, target_uid: int) -> Array:
 	return combat_system().attack(p, attacker_uid, target_uid)
+
 
 ## "ENCERRAR COMBATE": the attacker stops attacking and goes to the second Main Phase.
 func end_combat(p: int) -> Array:
@@ -1628,6 +1903,7 @@ func end_combat(p: int) -> Array:
 	stack_system().settle()
 	return flush_events()
 
+
 ## Leaves combat without attacking: no more attacks this turn (second Main Phase).
 ## Works from the Main Phase (skipping combat entirely) or from the attacks window.
 func skip_combat(p: int) -> Array:
@@ -1636,8 +1912,9 @@ func skip_combat(p: int) -> Array:
 	if not _main_phase_idle(p) or players[p]["attacked"]:
 		return []
 	players[p]["attacked"] = true
-	emit_event({"type": "combat_skipped", "player": p})
+	emit_event({ "type": "combat_skipped", "player": p })
 	return flush_events()
+
 
 ## Súbito (cards.json unit field "subito": its Súbito cost, e.g. 5 = "Súbito (5)"): outside your own
 ## idle Main Phase, the unit can still be summoned in any window where a Rápido spell could be cast,
@@ -1646,6 +1923,7 @@ func skip_combat(p: int) -> Array:
 func is_subito_play(p: int, cd: Dictionary) -> bool:
 	return cd.get("type", "") == "unit" and cd.has("subito") and not _sorcery_time(p) and can_cast_speed(p, "rapido")
 
+
 ## The Súbito cost for this copy: the normal cost (with its discounts) plus the Súbito premium.
 ## A card with "subito_fixed": true always costs exactly its "subito" value (no discounts, no premium).
 func subito_cost(p: int, cd: Dictionary, card: Card = null) -> int:
@@ -1653,6 +1931,7 @@ func subito_cost(p: int, cd: Dictionary, card: Card = null) -> int:
 		return int(cd["subito"])
 	var premium := int(cd["subito"]) - int(cd["cost"])
 	return cost_of(p, cd, card) + premium
+
 
 ## allow_unreachable: true for the screen (see targets_blocked_by_reach); the AI and the actions stay strict.
 func can_play(p: int, hand_uid: int, allow_unreachable := false) -> bool:
@@ -1665,7 +1944,7 @@ func can_play(p: int, hand_uid: int, allow_unreachable := false) -> bool:
 	if is_subito_play(p, cd):
 		# Súbito is a Rápido play, so the Reserva counts
 		return inst.zone == "hand" and has_slot_or_banish(p) and not cd.get("cost_sacrifice", false) \
-			and subito_cost(p, cd, inst) <= budget(p, true, cd)
+				and subito_cost(p, cd, inst) <= budget(p, true, cd)
 	if cost_of(p, cd, inst) > budget(p, _reserve_pays_card(cd), cd):
 		return false
 	if cd["type"] == "unit":
@@ -1683,6 +1962,7 @@ func can_play(p: int, hand_uid: int, allow_unreachable := false) -> bool:
 	var spec := target_spec(cd["effects"])
 	return spec == "" or not card_targets(p, cd, inst).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec))
 
+
 ## Starts a play restriction on p (see PlayRestriction for the rule format). It lasts `turns` turns
 ## counting the current one (`turn` goes up at every player's turn start, so no cleanup is needed).
 func add_play_restriction(p: int, rule: Dictionary) -> void:
@@ -1690,8 +1970,9 @@ func add_play_restriction(p: int, rule: Dictionary) -> void:
 	for existing in players[p]["play_restrictions"]:
 		if int(existing["until_turn"]) >= turn:
 			still_active.append(existing) # drop the ones that already ended
-	still_active.append({"rule": rule, "until_turn": turn + int(rule.get("turns", 1)) - 1})
+	still_active.append({ "rule": rule, "until_turn": turn + int(rule.get("turns", 1)) - 1 })
 	players[p]["play_restrictions"] = still_active
+
 
 ## True when an active restriction of p bars this card (its data `cd`). It covers every way of
 ## playing a card: hand, Réquiem from the graveyard, Súbito and the Encarnação.
@@ -1701,11 +1982,12 @@ func is_play_restricted(p: int, cd: Dictionary) -> bool:
 			return true
 	return false
 
+
 ## True when the card's innate "play_condition" (if it has one) holds right now for p. Today it is a
 ## {"compare": {...}} spec (or {"all": [...]} of them) checked like any other compare condition, before the card
 ## is on the board (Magni: only playable while the opponent has 3+ units and more than p).
 func play_condition_met(p: int, cd: Dictionary) -> bool:
-	var condition: Dictionary = cd.get("play_condition", {})
+	var condition: Dictionary = cd.get("play_condition", { })
 	if condition.is_empty():
 		return true
 	for spec: Dictionary in CompareCondition.play_condition_specs(condition):
@@ -1713,11 +1995,16 @@ func play_condition_met(p: int, cd: Dictionary) -> bool:
 			return false
 	return true
 
+
 func can_cast_incarnation(p: int) -> bool:
 	if is_play_restricted(p, CardDB.card(players[p]["incarnation"]["card_id"])):
 		return false
-	return _sorcery_time(p) and players[p]["incarnation"]["in_zone"] \
-		and incarnation_cost(p) <= players[p]["momentum"] and has_slot_or_banish(p)
+	return (
+		_sorcery_time(p) and players[p]["incarnation"]["in_zone"] \
+				and incarnation_cost(p) <= players[p]["momentum"]
+		and has_slot_or_banish(p)
+	)
+
 
 ## True when playing this card takes a field slot, so a full field makes the player banish a permanent
 ## first. A unit paid by sacrifice frees its own slot, and a plain spell never takes one.
@@ -1727,6 +2014,7 @@ func takes_field_slot(cd: Dictionary, as_subito := false) -> bool:
 	if cd["type"] == "unit":
 		return not cd.get("cost_sacrifice", false)
 	return CardDB.is_relic(cd)
+
 
 ## The extra cost of putting a permanent on a full field: banishes `banish_uid` from p's field.
 ## Returns the board slot to use, moved one to the left when the banished unit stood before it.
@@ -1740,6 +2028,7 @@ func _banish_for_room(p: int, banish_uid: int, slot: int) -> int:
 	else:
 		banish_relic(find_relic(banish_uid))
 	return slot
+
 
 func can_use_ability(p: int, allow_unreachable := false) -> bool:
 	var ab: Dictionary = CardDB.leader(players[p]["leader_id"])["ability"]
@@ -1761,27 +2050,33 @@ func can_use_ability(p: int, allow_unreachable := false) -> bool:
 		if effect is GrantPlayDiscountEffect and not _has_playable_with_discount(p, effect):
 			return false # no card in hand could use the offer, so paying for it would be a waste
 	var spec := target_spec(ab["effects"])
-	return spec == "" or not valid_targets(p, spec, 0, false, ab["effects"]).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec))
+	return (
+		spec == "" or not valid_targets(p, spec, 0, false, ab["effects"]).is_empty()
+		or (allow_unreachable and targets_blocked_by_reach(p, spec))
+	)
+
 
 ## The Vida a Leader ability costs p on top of its Momentum: {"life_cost": {"start": S, "increase_per_own_turn": K}}
 ## = S on p's first turn, then K more with every further turn of p's own (Sengoku, Peso dos Séculos: cheap early,
 ## ruinous late). The opponent's turns never count. 0 when the ability has no life_cost.
 func ability_life_cost(p: int, ab: Dictionary) -> int:
-	var life_cost: Dictionary = ab.get("life_cost", {})
+	var life_cost: Dictionary = ab.get("life_cost", { })
 	if life_cost.is_empty():
 		return 0
 	var later_own_turns := maxi(int(players[p]["own_turns_started"]) - 1, 0)
 	return int(life_cost.get("start", 0)) + int(life_cost.get("increase_per_own_turn", 0)) * later_own_turns
 
+
 ## How many cards a Leader ability banishes from its owner's graveyard as a cost:
 ## {"graveyard_cost": {"kind": "spell", "amount": 2}}. 0 when the ability has no graveyard_cost.
 func ability_graveyard_cost_amount(ab: Dictionary) -> int:
-	return int((ab.get("graveyard_cost", {}) as Dictionary).get("amount", 0))
+	return int((ab.get("graveyard_cost", { }) as Dictionary).get("amount", 0))
+
 
 ## The cards of p's graveyard that can pay the ability's graveyard_cost, OLDEST FIRST (the order they are banished in).
 ## "kind" is a card type ("spell", "unit", "artifact"). Empty when the ability has no graveyard_cost.
 func graveyard_cost_cards(p: int, ab: Dictionary) -> Array:
-	var graveyard_cost: Dictionary = ab.get("graveyard_cost", {})
+	var graveyard_cost: Dictionary = ab.get("graveyard_cost", { })
 	var payers: Array = []
 	if graveyard_cost.is_empty():
 		return payers
@@ -1789,6 +2084,7 @@ func graveyard_cost_cards(p: int, ab: Dictionary) -> Array:
 		if CardDB.card(c.card_id).get("type", "") == String(graveyard_cost.get("kind", "")):
 			payers.append(c)
 	return payers
+
 
 ## Pays a graveyard_cost: the oldest matching cards of p's graveyard are banished.
 func _pay_graveyard_cost(p: int, ab: Dictionary) -> void:
@@ -1798,13 +2094,14 @@ func _pay_graveyard_cost(p: int, ab: Dictionary) -> void:
 		players[p]["graveyard"].erase(c)
 		players[p]["banished"].append(c)
 		_move(c, "banished")
-		emit_event({"type": "banish", "uid": c.uid, "player": p, "card_id": c.card_id})
+		emit_event({ "type": "banish", "uid": c.uid, "player": p, "card_id": c.card_id })
+
 
 ## True when some card in p's hand could be played right now if the offer of `effect` (grant_play_discount) were
 ## live: it matches the filter and p can afford and place it. The offer is only borrowed for the check.
 func _has_playable_with_discount(p: int, effect: GrantPlayDiscountEffect) -> bool:
 	var previous_offer: Dictionary = players[p]["play_discount"]
-	players[p]["play_discount"] = {"card_filter": effect.card_filter, "divisor": effect.divisor, "until_turn": turn}
+	players[p]["play_discount"] = { "card_filter": effect.card_filter, "divisor": effect.divisor, "until_turn": turn }
 	var found := false
 	for card: Card in players[p]["hand"]:
 		if play_discount_applies(p, card) and can_play(p, card.uid):
@@ -1812,6 +2109,7 @@ func _has_playable_with_discount(p: int, effect: GrantPlayDiscountEffect) -> boo
 			break
 	players[p]["play_discount"] = previous_offer
 	return found
+
 
 ## Ao Ativar on a unit or free-standing artifact (`activated`: cost, speed, effects, once_per_turn, exhaust):
 ## paid like an ability (Reserva counts) and put on the stack, so it can be answered and countered.
@@ -1824,7 +2122,7 @@ func can_activate(p: int, uid: int, allow_unreachable := false) -> bool:
 	var is_unit := find_unit(uid) != null
 	if not is_unit and equip_pending(uid):
 		return false # mid-Equipar on the stack: the artifact is already becoming equipment, it cannot also be activated
-	var ab: Dictionary = card_of(c).get("activated", {})
+	var ab: Dictionary = card_of(c).get("activated", { })
 	if ab.is_empty() or not can_cast_speed(p, speed_of(ab)) or int(ab["cost"]) > budget(p, reserve_pays(ab)):
 		return false
 	if ab.get("exhaust", false) and is_unit and c.has_kw("inerte"):
@@ -1848,13 +2146,26 @@ func can_activate(p: int, uid: int, allow_unreachable := false) -> bool:
 	if ab.has("extra_cost") and extra_cost_payers(p, uid).is_empty():
 		return false # nothing to discard or sacrifice
 	var spec := target_spec(ab["effects"])
-	return spec == "" or not valid_targets(p, spec, uid, false, ab["effects"]).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec, uid))
+	return (
+		spec == "" or not valid_targets(p, spec, uid, false, ab["effects"]).is_empty()
+		or (allow_unreachable and targets_blocked_by_reach(p, spec, uid))
+	)
+
 
 ## What a "pay_one_of" option says when the card does not write its own title/detail/reason, per `pick`.
 const ACTIVATION_COST_TEXTS := {
-	"hand_card": {"title": "Descartar uma carta", "detail": "Escolha uma carta da sua mão para ir ao cemitério.", "reason": "sua mão está vazia."},
-	"other_ally_unit": {"title": "Sacrificar uma unidade", "detail": "Escolha no campo outra unidade aliada para sacrificar.", "reason": "não há outra unidade aliada para sacrificar."},
+	"hand_card": {
+		"title": "Descartar uma carta",
+		"detail": "Escolha uma carta da sua mão para ir ao cemitério.",
+		"reason": "sua mão está vazia.",
+	},
+	"other_ally_unit": {
+		"title": "Sacrificar uma unidade",
+		"detail": "Escolha no campo outra unidade aliada para sacrificar.",
+		"reason": "não há outra unidade aliada para sacrificar.",
+	},
 }
+
 
 ## Options of a "pay_one_of" cost paid before an Ao Ativar goes on the stack (the player pays exactly ONE of them; a card
 ## may list a single option). They are evaluated by the same choice rules as effect options, but stay cancelable.
@@ -1864,9 +2175,10 @@ func activation_cost_options(uid: int) -> Array:
 	if c == null:
 		return []
 	var options: Array = []
-	for written: Dictionary in card_of(c).get("activated", {}).get("extra_cost", {}).get("options", []):
-		options.append(ACTIVATION_COST_TEXTS.get(written.get("pick", ""), {}).merged(written, true))
+	for written: Dictionary in card_of(c).get("activated", { }).get("extra_cost", { }).get("options", []):
+		options.append(ACTIVATION_COST_TEXTS.get(written.get("pick", ""), { }).merged(written, true))
 	return options
+
 
 func activation_cost_option_targets(p: int, uid: int, index: int) -> Array:
 	var options := activation_cost_options(uid)
@@ -1874,24 +2186,27 @@ func activation_cost_option_targets(p: int, uid: int, index: int) -> Array:
 		return []
 	return ChoiceOptions.targets(self, p, uid, 0, options[index])
 
+
 func activation_cost_option_available(p: int, uid: int, index: int) -> bool:
 	var options := activation_cost_options(uid)
 	if index < 0 or index >= options.size():
 		return false
 	return ChoiceOptions.available(self, p, uid, 0, options[index])
 
+
 ## All valid payers for the alternative cost; activate() validates again before paying.
 func extra_cost_payers(p: int, uid: int) -> Array:
 	var c := _activatable_card(uid)
 	if c == null:
 		return []
-	var ab: Dictionary = card_of(c).get("activated", {})
-	if ab.get("extra_cost", {}).get("kind", "") != "pay_one_of":
+	var ab: Dictionary = card_of(c).get("activated", { })
+	if ab.get("extra_cost", { }).get("kind", "") != "pay_one_of":
 		return []
 	var payers: Array = []
 	for index in activation_cost_options(uid).size():
 		payers.append_array(activation_cost_option_targets(p, uid, index))
 	return payers
+
 
 ## First step of paying an Ao Ativar extra cost by DISCARDING (the player picked "Descartar uma carta"): opens the
 ## same hand-pick screen as Folheio. Nothing is spent yet; choose_search then activates with the picked card as the
@@ -1899,20 +2214,24 @@ func extra_cost_payers(p: int, uid: int) -> Array:
 func begin_activation_discard(p: int, uid: int) -> Array:
 	if phase == "search" or p != decider() or not can_activate(p, uid):
 		return []
-	if players[p]["hand"].is_empty() or card_of(_activatable_card(uid))["activated"].get("extra_cost", {}).get("kind", "") != "pay_one_of":
+	if players[p]["hand"].is_empty():
+		return []
+	var extra_cost_spec: Dictionary = card_of(_activatable_card(uid))["activated"].get("extra_cost", { })
+	if extra_cost_spec.get("kind", "") != "pay_one_of":
 		return []
 	var payers := extra_cost_payers(p, uid)
 	var options: Array = []
 	for hand_card: Card in players[p]["hand"]:
 		if payers.has(hand_card.uid):
-			options.append({"uid": hand_card.uid, "card_id": hand_card.card_id})
+			options.append({ "uid": hand_card.uid, "card_id": hand_card.card_id })
 	if options.is_empty():
 		return []
-	pending_search = {"player": p, "source_uid": uid, "cards": options, "discard_hand": true, "then_activate": uid}
+	pending_search = { "player": p, "source_uid": uid, "cards": options, "discard_hand": true, "then_activate": uid }
 	search_return = phase
 	phase = "search"
-	emit_event({"type": "discard_pick", "player": p, "source_uid": uid})
+	emit_event({ "type": "discard_pick", "player": p, "source_uid": uid })
 	return flush_events()
+
 
 ## Pays a "pay_one_of" cost with `payer_uid`: a hand card goes to the graveyard, an ally unit is sacrificed.
 func _pay_activation_cost(p: int, payer_uid: int) -> void:
@@ -1921,10 +2240,11 @@ func _pay_activation_cost(p: int, payer_uid: int) -> void:
 		players[p]["hand"].erase(hand_card)
 		players[p]["graveyard"].append(hand_card)
 		_move(hand_card, "graveyard")
-		emit_event({"type": "discard", "player": p, "uid": payer_uid, "card_id": hand_card.card_id})
+		emit_event({ "type": "discard", "player": p, "uid": payer_uid, "card_id": hand_card.card_id })
 		check_state()
 		return
-	_pay_extra_cost({"kind": "sacrifice"}, payer_uid)
+	_pay_extra_cost({ "kind": "sacrifice" }, payer_uid)
+
 
 ## A free-standing pure artifact may declare a separate Equipar action in `equip_from_field`.
 func can_equip_from_field(p: int, uid: int, allow_unreachable := false) -> bool:
@@ -1933,19 +2253,26 @@ func can_equip_from_field(p: int, uid: int, allow_unreachable := false) -> bool:
 		return false
 	if equip_pending(uid):
 		return false # its Equipar is already on the stack: equipping it twice makes no sense
-	var action: Dictionary = card_of(artifact).get("equip_from_field", {})
+	var action: Dictionary = card_of(artifact).get("equip_from_field", { })
 	if action.is_empty() or not can_cast_speed(p, speed_of(action)) or int(action["cost"]) > budget(p, reserve_pays(action)):
 		return false
 	var effects: Array = action.get("effects", [])
 	var spec := target_spec(effects)
-	return spec != "" and (not valid_targets(p, spec, uid, false, effects).is_empty() or (allow_unreachable and targets_blocked_by_reach(p, spec, uid)))
+	return (
+		spec != ""
+		and (
+			not valid_targets(p, spec, uid, false, effects).is_empty()
+			or (allow_unreachable and targets_blocked_by_reach(p, spec, uid))
+		)
+	)
+
 
 ## Pays for a free-standing artifact's own Equipar action and puts it on the stack.
 func equip_from_field(p: int, uid: int, target: int) -> Array:
 	if not can_equip_from_field(p, uid):
 		return []
 	var artifact := find_relic(uid)
-	var action: Dictionary = card_of(artifact).get("equip_from_field", {})
+	var action: Dictionary = card_of(artifact).get("equip_from_field", { })
 	var effects: Array = action.get("effects", [])
 	var spec := target_spec(effects)
 	if spec == "" or not valid_targets(p, spec, uid, false, effects).has(target):
@@ -1955,6 +2282,7 @@ func equip_from_field(p: int, uid: int, target: int) -> Array:
 	stack_system().settle()
 	return flush_events()
 
+
 ## True while this free-standing artifact's own Equipar action waits on the stack.
 func equip_pending(artifact_uid: int) -> bool:
 	for item in stack:
@@ -1962,10 +2290,12 @@ func equip_pending(artifact_uid: int) -> bool:
 			return true
 	return false
 
+
 ## The card whose Ao Ativar can be used: a unit on the board or a free-standing artifact.
 func _activatable_card(uid: int) -> Card:
 	var unit := find_unit(uid)
 	return unit if unit != null else find_relic(uid)
+
 
 ## True if one of these effect dictionaries has this action.
 func _has_action(effects: Array, action_name: String) -> bool:
@@ -1974,14 +2304,16 @@ func _has_action(effects: Array, action_name: String) -> bool:
 			return true
 	return false
 
+
 ## Transformar (cards.json unit field "transform": {into, cost}) (cards.json unit field {into, cost}): Lento, paid like an ability
 ## (Reserva counts), and it never uses the stack, so it cannot be answered or countered.
 func can_transform(p: int, uid: int) -> bool:
 	var c := find_unit(uid)
 	if c == null or c.owner != p or not _sorcery_time(p):
 		return false
-	var tf: Dictionary = card_of(c).get("transform", {})
+	var tf: Dictionary = card_of(c).get("transform", { })
 	return not tf.is_empty() and int(tf["cost"]) <= budget(p, false)
+
 
 func _hand_card(p: int, uid: int) -> Card:
 	for c: Card in players[p]["hand"]:
@@ -1989,10 +2321,12 @@ func _hand_card(p: int, uid: int) -> Card:
 			return c
 	return null
 
+
 ## True for a spell with Réquiem (it can be cast from the graveyard).
 func is_requiem(c: Card) -> bool:
 	var cd := CardDB.card(c.card_id)
 	return cd["type"] == "spell" and (cd.get("keywords", []) as Array).has("requiem")
+
 
 ## The card a play action with this uid refers to: from the hand, or a Réquiem spell in the graveyard.
 func _castable_card(p: int, uid: int) -> Card:
@@ -2004,6 +2338,7 @@ func _castable_card(p: int, uid: int) -> Card:
 			return c
 	return null
 
+
 ## Réquiem spells in p's graveyard that p could cast right now, newest first.
 func requiem_cards(p: int) -> Array:
 	var out: Array = []
@@ -2013,13 +2348,15 @@ func requiem_cards(p: int) -> Array:
 	out.reverse()
 	return out
 
+
 ## Banishes a Réquiem spell once its cast is over (resolved, fizzled or countered).
 func _banish_requiem(c: Card) -> void:
 	players[c.owner]["banished"].append(c)
 	_move(c, "banished")
-	emit_event({"type": "banish", "uid": c.uid, "player": c.owner, "card_id": c.card_id})
+	emit_event({ "type": "banish", "uid": c.uid, "player": c.owner, "card_id": c.card_id })
 
 # ---------------------------------------------------------------- actions
+
 
 ## Put back up to MULLIGAN_MAX cards and redraw that many.
 func mulligan(p: int, hand_uids: Array) -> Array:
@@ -2039,10 +2376,11 @@ func mulligan(p: int, hand_uids: Array) -> Array:
 	_shuffle(pl["deck"])
 	_draw(p, back.size())
 	pl["mulligan_done"] = true
-	emit_event({"type": "mulligan", "player": p, "count": back.size()})
+	emit_event({ "type": "mulligan", "player": p, "count": back.size() })
 	if players[0]["mulligan_done"] and players[1]["mulligan_done"]:
 		_start_turn(first, false)
 	return flush_events()
+
 
 ## slot: where a unit enters the board (0 = leftmost, -1 = rightmost); ignored for spells.
 ## banish_uid: with a full field, the permanent of p's own field banished to make room (part of the cost).
@@ -2073,7 +2411,7 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 	var paid_cost := cost_of(p, cd, inst) + (counter_extra(cd, target) if spec == "enemy_stack" else 0)
 	_pay(p, paid_cost, _reserve_pays_card(cd))
 	if inst.zone == "hand" and play_discount_applies(p, inst):
-		players[p]["play_discount"] = {} # the one-card offer is spent
+		players[p]["play_discount"] = { } # the one-card offer is spent
 	if not discount_amulets.is_empty():
 		pl["ice_spell_discount_used"] = true
 		# each amulet whose discount was used loses its Durability cost (its own "durability_cost" in the spell_discount rule)
@@ -2082,7 +2420,7 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 	pl["graveyard" if from_graveyard else "hand"].erase(inst)
 	_note_card_played_for_rusco(p, cd)
 	_move(inst, "")
-	var play_event := {"type": "play", "player": p, "uid": hand_uid, "card_id": inst.card_id, "cost": paid_cost}
+	var play_event := { "type": "play", "player": p, "uid": hand_uid, "card_id": inst.card_id, "cost": paid_cost }
 	if target != 0:
 		play_event["target"] = target
 	if target2 != 0:
@@ -2102,7 +2440,7 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 		if sacrificed_index >= 0 and sacrificed_index < slot:
 			slot -= 1 # the slot was picked with the sacrificed unit still on the board
 		kill_as_sacrifice(find_unit(target), 1000000)
-		emit_event({"type": "sacrifice", "player": p, "uid": target})
+		emit_event({ "type": "sacrifice", "player": p, "uid": target })
 		check_state()
 		if phase == "over":
 			return flush_events()
@@ -2112,7 +2450,7 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 			stack_system().settle()
 			return flush_events()
 	if cd["type"] == "unit":
-		_summon(p, inst, false, 0, {}, true, slot, true)
+		_summon(p, inst, false, 0, { }, true, slot, true)
 		check_state()
 		stack_system().open_summon_window(p)
 	else:
@@ -2120,13 +2458,14 @@ func play_card(p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: i
 		_move(inst, "stack")
 		if cd["type"] == "spell":
 			_announce_spell_cast(p, inst, cd)
-		var echo_fields := {}
+		var echo_fields := { }
 		if cd["type"] == "spell" and int(pl["spell_echo_source"]) != 0:
 			echo_fields["echo_source"] = int(pl["spell_echo_source"]) # this cast is repeated once it resolves
 			pl["spell_echo_source"] = 0
 		stack_system().push(p, "card", hand_uid, inst.card_id, target, speed_of(cd), target2, from_graveyard, echo_fields)
 	stack_system().settle()
 	return flush_events()
+
 
 ## Pays the "extra_cost" of a spell on top of its Momentum: {"kind": "sacrifice" | "lose_armor", "amount": N,
 ## "target": spec of who pays}. `payer_uid` is the unit the player picked as the second target. It is a play cost,
@@ -2137,10 +2476,11 @@ func _pay_extra_cost(extra_cost: Dictionary, payer_uid: int) -> void:
 		return
 	if extra_cost["kind"] == "sacrifice":
 		kill_as_sacrifice(payer, 1000000)
-		emit_event({"type": "sacrifice", "player": payer.owner, "uid": payer_uid})
+		emit_event({ "type": "sacrifice", "player": payer.owner, "uid": payer_uid })
 		check_state()
 	elif extra_cost["kind"] == "lose_armor":
 		payer.lose_armor(int(extra_cost.get("amount", 1)))
+
 
 ## Súbito: pays the Súbito cost and puts the summon on the stack as a Rápido ability. The unit
 ## enters (at `slot`) only when that item resolves; if it is countered, the card goes to the graveyard.
@@ -2149,11 +2489,11 @@ func _play_subito(p: int, inst: Card, cd: Dictionary, slot: int, banish_uid := 0
 	var paid_cost := subito_cost(p, cd, inst)
 	_pay(p, paid_cost, true) # Súbito is Rápido
 	if not cd.get("subito_fixed", false) and play_discount_applies(p, inst):
-		players[p]["play_discount"] = {}
+		players[p]["play_discount"] = { }
 	players[p]["hand"].erase(inst)
 	_note_card_played_for_rusco(p, cd)
 	_move(inst, "")
-	emit_event({"type": "play", "player": p, "uid": inst.uid, "card_id": inst.card_id, "subito": true, "cost": paid_cost})
+	emit_event({ "type": "play", "player": p, "uid": inst.uid, "card_id": inst.card_id, "subito": true, "cost": paid_cost })
 	if banish_uid != 0:
 		slot = _banish_for_room(p, banish_uid, slot)
 	_stack_cards[inst.uid] = inst
@@ -2163,11 +2503,13 @@ func _play_subito(p: int, inst: Card, cd: Dictionary, slot: int, banish_uid := 0
 	stack_system().settle()
 	return flush_events()
 
+
 ## Rusco: remembers that p played a card with cost, ATK or HP exactly 2 this turn
 ## (from the hand, with Súbito or from the Santuário).
 func _note_card_played_for_rusco(p: int, card_data: Dictionary) -> void:
 	if int(card_data.get("cost", 0)) == 2 or int(card_data.get("atk", 0)) == 2 or int(card_data.get("hp", 0)) == 2:
 		players[p]["played_two"] = true
+
 
 ## banish_uid: with a full field, the permanent of p's own field banished to make room.
 func cast_incarnation(p: int, _target: int = 0, slot: int = -1, banish_uid: int = 0) -> Array:
@@ -2182,16 +2524,17 @@ func cast_incarnation(p: int, _target: int = 0, slot: int = -1, banish_uid: int 
 	pl["incarnation"]["in_zone"] = false
 	pl["incarnation"]["casts"] += 1
 	var c := Card.new(_uid(), pl["incarnation"]["card_id"], p)
-	c.permanent_buffs = pl["incarnation"].get("permanent_buffs", {}).duplicate(true)
+	c.permanent_buffs = pl["incarnation"].get("permanent_buffs", { }).duplicate(true)
 	_note_card_played_for_rusco(p, CardDB.card(c.card_id)) # casting from the Santuário is playing a card too
-	emit_event({"type": "play", "player": p, "uid": c.uid, "card_id": c.card_id, "incarnation": true, "cost": paid_cost})
+	emit_event({ "type": "play", "player": p, "uid": c.uid, "card_id": c.card_id, "incarnation": true, "cost": paid_cost })
 	if must_banish:
 		slot = _banish_for_room(p, banish_uid, slot)
-	_summon(p, c, true, 0, {}, true, slot, true)
+	_summon(p, c, true, 0, { }, true, slot, true)
 	check_state()
 	stack_system().open_summon_window(p)
 	stack_system().settle()
 	return flush_events()
+
 
 ## `payer` is only for an ability that has BOTH an extra cost and a target of its own (Cornélia Aldrovane: sacrifice an ally,
 ## banish an enemy): `target` is then the enemy and `payer` the ally. Without a target spec of its own, `target` is the payer (Drex).
@@ -2219,7 +2562,7 @@ func activate(p: int, uid: int, target: int = 0, payer: int = 0) -> Array:
 		c.activated_zone_used = true
 	if ab.get("exhaust", false) and find_unit(uid) != null and not c.has_kw("inerte"):
 		c.exhausted = true
-	emit_event({"type": "trigger", "uid": uid, "player": p, "card_id": c.card_id, "trigger": "on_activate", "target": target})
+	emit_event({ "type": "trigger", "uid": uid, "player": p, "card_id": c.card_id, "trigger": "on_activate", "target": target })
 	# an artifact whose Ao Ativar has "durability_cost": N loses that much Durability; the last point breaks it,
 	# but the ability already on the stack still resolves
 	var wore_out := spend_durability(c, int(ab.get("durability_cost", 0)))
@@ -2229,19 +2572,22 @@ func activate(p: int, uid: int, target: int = 0, payer: int = 0) -> Array:
 	stack_system().settle()
 	return flush_events()
 
+
 ## Takes `amount` Durability from an artifact on the field. True when none is left (the caller then calls
 ## break_artifact). Does nothing for a card without Durability.
 func spend_durability(c: Card, amount: int) -> bool:
 	if amount <= 0 or c.durability_left() < 0:
 		return false
 	c.durability_used += amount
-	emit_event({"type": "durability_lost", "player": c.owner, "uid": c.uid, "card_id": c.card_id, "left": c.durability_left()})
+	emit_event({ "type": "durability_lost", "player": c.owner, "uid": c.uid, "card_id": c.card_id, "left": c.durability_left() })
 	return c.durability_left() == 0
+
 
 ## spend_durability followed by breaking the artifact when it runs out: the one call for "X loses N Durability".
 func lose_durability(c: Card, amount: int) -> void:
 	if spend_durability(c, amount):
 		break_artifact(c)
+
 
 ## An artifact with no Durability left is destroyed: a free-standing one goes to the graveyard, equipment falls off
 ## its unit (which keeps what it is, minus the bonus the equipment gave) and goes to the graveyard too.
@@ -2254,6 +2600,7 @@ func break_artifact(c: Card) -> void:
 	else:
 		destroy_relic(c)
 
+
 ## The unit wearing this equipment, or null.
 func equipment_carrier(equipment: Card) -> Card:
 	for p in players:
@@ -2261,6 +2608,7 @@ func equipment_carrier(equipment: Card) -> Card:
 			if unit.equipped_cards.has(equipment):
 				return unit
 	return null
+
 
 func use_ability(p: int, target: int = 0) -> Array:
 	if not can_use_ability(p):
@@ -2274,13 +2622,23 @@ func use_ability(p: int, target: int = 0) -> Array:
 	if life_cost > 0:
 		players[p]["leader_hp"] -= life_cost
 		# same event as a hit, so the screen and the Chronicle show the Vida the Leader paid
-		emit_event({"type": "damage", "uid": LEADER_UID[p], "amount": life_cost, "src": 0, "hp_after": players[p]["leader_hp"], "paid": true})
+		emit_event(
+			{
+				"type": "damage",
+				"uid": LEADER_UID[p],
+				"amount": life_cost,
+				"src": 0,
+				"hp_after": players[p]["leader_hp"],
+				"paid": true,
+			}
+		)
 	_pay_graveyard_cost(p, ab)
 	players[p]["ability_used"] = true
-	emit_event({"type": "ability", "player": p, "target": target})
+	emit_event({ "type": "ability", "player": p, "target": target })
 	stack_system().push(p, "ability", 0, "", target, speed_of(ab))
 	stack_system().settle()
 	return flush_events()
+
 
 ## Transformar (paid): the unit becomes its "transform" card, then the usual checks run.
 func transform(p: int, uid: int) -> Array:
@@ -2289,11 +2647,12 @@ func transform(p: int, uid: int) -> Array:
 	var c := find_unit(uid)
 	var tf: Dictionary = card_of(c)["transform"]
 	_pay(p, int(tf["cost"]), false)
-	emit_event({"type": "trigger", "uid": uid, "player": p, "card_id": c.card_id, "trigger": "transform"})
+	emit_event({ "type": "trigger", "uid": uid, "player": p, "card_id": c.card_id, "trigger": "transform" })
 	transform_into(c, tf["into"])
 	check_state()
 	stack_system().settle()
 	return flush_events()
+
 
 ## The unit becomes card `into_id` in place (same uid, keeps damage, exhaustion and equipment; base
 ## stats and keywords come from the new card), then its Ao Entrar fires. Used by the paid
@@ -2305,7 +2664,8 @@ func transform_into(c: Card, into_id: String) -> void:
 	var cd := CardDB.card(into_id)
 	var kws: Array = cd.get("keywords", []).duplicate()
 	# the new form inherits everything GOOD the unit earned on the board (permanent Ataque/Vida buffs, keywords granted
-	# to it); debuffs are not inherited. Only the printed numbers change. Equipment is left out here because it is added back further down.
+	# to it); debuffs are not inherited. Only the printed numbers change. Equipment is left out here
+	# because it is added back further down.
 	var old_printed: Dictionary = c.data()
 	var carried_atk: int = c.atk - int(old_printed.get("atk", 0))
 	var carried_hp: int = c.hp - int(old_printed.get("hp", 0))
@@ -2314,13 +2674,16 @@ func transform_into(c: Card, into_id: String) -> void:
 		carried_hp -= int(worn.worn_grant.get("hp", 0))
 	var carried_keywords: Array = []
 	for keyword in c.keywords:
-		if not old_printed.get("keywords", []).has(keyword) and not c.temp_keywords.has(keyword) and not c.keywords_until_next_turn.has(keyword) and not c.keywords_until_owner_turn_end.has(keyword):
+		if (
+			not old_printed.get("keywords", []).has(keyword) and not c.temp_keywords.has(keyword)
+			and not c.keywords_until_next_turn.has(keyword) and not c.keywords_until_owner_turn_end.has(keyword)
+		):
 			carried_keywords.append(keyword)
 	c.card_id = into_id
-	c.over = {}
-	c.used_turn = {}
+	c.over = { }
+	c.used_turn = { }
 	# the "every N events" counts are keyed by effect index, which means something else on the new card
-	c.trigger_counts = {}
+	c.trigger_counts = { }
 	c.atk = int(cd["atk"]) + maxi(0, carried_atk) # the stat_sources notes stay: they still explain the carried part
 	c.hp = int(cd["hp"]) + maxi(0, carried_hp)
 	c.shield = c.shield or kws.has("escudo")
@@ -2341,10 +2704,11 @@ func transform_into(c: Card, into_id: String) -> void:
 			if not c.keywords.has(keyword):
 				c.keywords.append(keyword)
 	c.sick = false # a transformed unit is not summoning sick: it can act right away
-	emit_event({"type": "transform", "player": p, "uid": uid, "from": from, "card_id": into_id})
+	emit_event({ "type": "transform", "player": p, "uid": uid, "from": from, "card_id": into_id })
 	_announce(c, cd["effects"], "on_enter")
 	var target := uid if target_spec(cd["effects"]) == "ally_unit" else 0
 	run_enter_effects(_enter_context(p, uid, target), cd["effects"])
+
 
 ## A unit under borrowed control (take_control) that has just been taken off the thief's board belongs to its real
 ## owner again: whatever happens to it next (graveyard, hand, banished, its equipment) goes to the real owner.
@@ -2354,6 +2718,7 @@ func _end_borrowed_control(c: Card) -> void:
 		c.owner = c.home_owner
 		c.home_owner = -1
 
+
 ## Puts a borrowed unit back on its real owner's board (the end of the turn it was taken in). Its slot there was
 ## kept reserved by slots_used, so there is always room.
 func _return_borrowed_unit(c: Card) -> void:
@@ -2361,7 +2726,8 @@ func _return_borrowed_unit(c: Card) -> void:
 	players[thief]["board"].erase(c)
 	_end_borrowed_control(c)
 	players[c.owner]["board"].append(c)
-	emit_event({"type": "control_return", "uid": c.uid, "from": thief, "to": c.owner})
+	emit_event({ "type": "control_return", "uid": c.uid, "from": thief, "to": c.owner })
+
 
 ## Exiles a unit from the board: it never dies (no Ao Morrer) and never reaches the graveyard;
 ## its equipment does. A banished ficha just vanishes. A banished Encarnação goes back to the
@@ -2379,7 +2745,8 @@ func banish_unit(exiled: Card) -> void:
 	else:
 		players[owner_player]["banished"].append(exiled)
 		_move(exiled, "banished")
-	emit_event({"type": "banish", "uid": exiled.uid, "player": owner_player, "card_id": exiled.card_id})
+	emit_event({ "type": "banish", "uid": exiled.uid, "player": owner_player, "card_id": exiled.card_id })
+
 
 ## Sends a card back to its owner's hand: a unit from the board (a bounce, not a death: no Ao Morrer, no Aliado Morre;
 ## its permanent buffs stay, and its equipment returns separately) or a card from the graveyard.
@@ -2398,7 +2765,7 @@ func return_to_hand(c: Card, cost_increase := 0) -> bool:
 		stack_system().return_equipment_to_hand(c)
 		if c.data().get("token", false):
 			_move(c, "")
-			emit_event({"type": "return_to_hand", "uid": c.uid, "player": owner_player, "card_id": c.card_id})
+			emit_event({ "type": "return_to_hand", "uid": c.uid, "player": owner_player, "card_id": c.card_id })
 			return false
 	elif c.zone == "graveyard":
 		players[owner_player]["graveyard"].erase(c)
@@ -2407,8 +2774,9 @@ func return_to_hand(c: Card, cost_increase := 0) -> bool:
 	c.cost_mod += cost_increase
 	players[owner_player]["hand"].append(c)
 	_move(c, "hand")
-	emit_event({"type": "return_to_hand", "uid": c.uid, "player": owner_player, "card_id": c.card_id})
+	emit_event({ "type": "return_to_hand", "uid": c.uid, "player": owner_player, "card_id": c.card_id })
 	return true
+
 
 ## Returns the Encarnação to the Santuário without treating it as a death; its permanent upgrades survive.
 func return_incarnation_to_sanctuary(c: Card) -> bool:
@@ -2429,6 +2797,7 @@ func return_incarnation_to_sanctuary(c: Card) -> bool:
 	_move(c, "sanctuary")
 	return true
 
+
 ## Gives up priority. With items on the stack, everything resolves (newest first);
 ## in an empty combat window the combat moves on to the next window.
 func pass_priority(p: int) -> Array:
@@ -2436,30 +2805,33 @@ func pass_priority(p: int) -> Array:
 		return []
 	if stack.is_empty() and phase == "main" and not summon_window:
 		return [] # nothing to pass: end the turn instead
-	emit_event({"type": "pass", "player": p})
+	emit_event({ "type": "pass", "player": p })
 	stack_system().pass_once()
 	stack_system().settle()
 	return flush_events()
+
 
 ## Gives up the match: the opponent wins at once. Allowed at any moment, even off-turn or mid-stack.
 func concede(p: int) -> Array:
 	if phase == "over":
 		return []
-	emit_event({"type": "concede", "player": p})
+	emit_event({ "type": "concede", "player": p })
 	winner = opponent(p)
 	phase = "over"
-	emit_event({"type": "game_over", "winner": winner})
+	emit_event({ "type": "game_over", "winner": winner })
 	return flush_events()
+
 
 func end_turn(p: int) -> Array:
 	if not _sorcery_time(p):
 		return []
 	if players[p]["hand"].size() > HAND_LIMIT:
 		phase = "discard"
-		emit_event({"type": "discard_required", "player": p, "count": players[p]["hand"].size() - HAND_LIMIT})
+		emit_event({ "type": "discard_required", "player": p, "count": players[p]["hand"].size() - HAND_LIMIT })
 		return flush_events()
 	_finish_turn()
 	return flush_events()
+
 
 func discard(p: int, hand_uids: Array) -> Array:
 	var need: int = players[p]["hand"].size() - HAND_LIMIT
@@ -2474,10 +2846,11 @@ func discard(p: int, hand_uids: Array) -> Array:
 		# Banished, not discarded: the card never reaches the graveyard (hidden from the opponent).
 		players[p]["banished"].append(c)
 		_move(c, "banished")
-		emit_event({"type": "ban", "player": p, "uid": uid})
+		emit_event({ "type": "ban", "player": p, "uid": uid })
 	phase = "main"
 	_finish_turn()
 	return flush_events()
+
 
 ## Picks the target of the pending Ao Entrar (0 = decline: its targeted effects are skipped,
 ## the rest still happen), then the unit's summon response window opens.
@@ -2502,7 +2875,7 @@ func choose_enter_target(p: int, target: int) -> Array:
 			second_options.erase(target)
 		if not second_options.is_empty():
 			pending_enter["first"] = target
-			emit_event({"type": "enter_target", "player": p, "uid": uid, "card_id": pending_enter["card_id"]})
+			emit_event({ "type": "enter_target", "player": p, "uid": uid, "card_id": pending_enter["card_id"] })
 			return flush_events()
 	var first_target: int = int(pending_enter["first"]) if asking_second else target
 	var second_target: int = target if asking_second else 0
@@ -2512,7 +2885,7 @@ func choose_enter_target(p: int, target: int) -> Array:
 	var c := find_unit(uid)
 	var effects: Array = card_of(c)["effects"]
 	if first_target == 0 or (asking_second and second_target == 0):
-		emit_event({"type": "enter_skip", "player": p, "uid": uid, "card_id": c.card_id})
+		emit_event({ "type": "enter_skip", "player": p, "uid": uid, "card_id": c.card_id })
 	# a declined (or impossible) pick drops the effects that needed it, the rest still happen
 	var rest: Array = []
 	for e in effects:
@@ -2527,6 +2900,7 @@ func choose_enter_target(p: int, target: int) -> Array:
 	stack_system().settle()
 	return flush_events()
 
+
 ## A Provocação that just entered waits for its controller: enter tapped or not.
 ## Returns false when no living unit is waiting (units that already left are dropped).
 func ask_enter_tapped() -> bool:
@@ -2538,8 +2912,9 @@ func ask_enter_tapped() -> bool:
 		_enter_tapped_return = phase
 		phase = "enter_tapped"
 	var unit := find_unit(int(pending_tap[0]))
-	emit_event({"type": "enter_tapped_choice", "player": unit.owner, "uid": unit.uid, "card_id": unit.card_id})
+	emit_event({ "type": "enter_tapped_choice", "player": unit.owner, "uid": unit.uid, "card_id": unit.card_id })
 	return true
+
 
 ## The controller's answer for the waiting Provocação: tapped = true makes it enter exhausted,
 ## so it forces enemy attackers to challenge it (and can be challenged).
@@ -2550,13 +2925,14 @@ func choose_enter_tapped(p: int, tapped: bool) -> Array:
 	if unit != null:
 		if tapped and not unit.has_kw("inerte"):
 			unit.exhausted = true
-		emit_event({"type": "enter_tapped", "player": p, "uid": unit.uid, "tapped": tapped})
+		emit_event({ "type": "enter_tapped", "player": p, "uid": unit.uid, "tapped": tapped })
 	# the next waiting Provocação is asked by settle(); otherwise the game goes back to where it was
 	phase = _enter_tapped_return
 	check_state()
 	stack_system().after_search()
 	stack_system().settle()
 	return flush_events()
+
 
 ## Choose one of the public cards revealed by a deterministic deck search.
 func choose_search(p: int, card_uid: int) -> Array:
@@ -2568,7 +2944,7 @@ func choose_search(p: int, card_uid: int) -> Array:
 		# Dona Gertrudes: the pick is optional, so choosing no card puts nothing on the board
 		pending_search.clear()
 		phase = search_return
-		emit_event({"type": "hand_summon_skip", "player": p})
+		emit_event({ "type": "hand_summon_skip", "player": p })
 		check_state()
 		stack_system().after_search()
 		stack_system().settle()
@@ -2580,13 +2956,19 @@ func choose_search(p: int, card_uid: int) -> Array:
 		check_state()
 		return flush_events()
 	var options: Array = pending_search.get("cards", [])
-	var chosen: Dictionary = {}
+	var chosen: Dictionary = { }
 	for c in options:
 		if int(c["uid"]) == card_uid:
 			chosen = c
 			break
 	# a deck search is optional too (Bruno's Bola de Neve), and so is a Rebobinar: uid 0 takes no card
-	var declined: bool = card_uid == 0 and (pending_search.get("deck_search", false) or pending_search.get("grave_optional", false) or pending_search.get("hand_bottom", false) or pending_search.get("own_hand_bottom", false))
+	var declined: bool = (
+		card_uid == 0
+		and (
+			pending_search.get("deck_search", false) or pending_search.get("grave_optional", false)
+			or pending_search.get("hand_bottom", false) or pending_search.get("own_hand_bottom", false)
+		)
+	)
 	if chosen.is_empty() and not declined:
 		return []
 	# a deck search (top-N or whole deck) is mandatory when something is eligible: skipping is only the way out of a whiff
@@ -2596,7 +2978,7 @@ func choose_search(p: int, card_uid: int) -> Array:
 		# a new copy of the chosen card enters the board; the card itself stays in the graveyard
 		pending_search.clear()
 		phase = search_return
-		emit_event({"type": "revive", "player": p, "card_id": chosen["card_id"]})
+		emit_event({ "type": "revive", "player": p, "card_id": chosen["card_id"] })
 		if has_free_slot(p):
 			_summon(p, Card.new(_uid(), chosen["card_id"], p), false, 0)
 		check_state()
@@ -2611,8 +2993,8 @@ func choose_search(p: int, card_uid: int) -> Array:
 		players[p]["hand"].erase(summoned_card)
 		pending_search.clear()
 		phase = search_return
-		emit_event({"type": "hand_summon", "player": p, "uid": card_uid, "card_id": summoned_card.card_id})
-		_summon(p, summoned_card, false, 0, {}, true)
+		emit_event({ "type": "hand_summon", "player": p, "uid": card_uid, "card_id": summoned_card.card_id })
+		_summon(p, summoned_card, false, 0, { }, true)
 		summoned_card.banish_at_turn_end = true # set after entering, because enter_board resets it
 		check_state()
 		stack_system().after_search()
@@ -2641,7 +3023,7 @@ func choose_search(p: int, card_uid: int) -> Array:
 		players[p]["graveyard"].append(discarded_card)
 		_move(discarded_card, "graveyard")
 		var discards_left := int(pending_search.get("discards_left", 1)) - 1
-		emit_event({"type": "discard", "player": p, "uid": card_uid, "card_id": discarded_card.card_id})
+		emit_event({ "type": "discard", "player": p, "uid": card_uid, "card_id": discarded_card.card_id })
 		var discard_queue: Array = pending_search.get("discard_queue", [])
 		if discards_left > 0 and not players[p]["hand"].is_empty():
 			# a multi-card discard (Bob Veyr): the same screen opens again for the next card
@@ -2659,7 +3041,7 @@ func choose_search(p: int, card_uid: int) -> Array:
 		if declined:
 			pending_search.clear()
 			phase = search_return
-			emit_event({"type": "search_decline", "player": p})
+			emit_event({ "type": "search_decline", "player": p })
 			check_state()
 			stack_system().after_search()
 			stack_system().settle()
@@ -2678,7 +3060,7 @@ func choose_search(p: int, card_uid: int) -> Array:
 		last_search_took_card = true
 		pending_search.clear()
 		phase = search_return
-		emit_event({"type": "search_take", "player": p, "uid": created.uid, "card_id": created.card_id})
+		emit_event({ "type": "search_take", "player": p, "uid": created.uid, "card_id": created.card_id })
 		check_state()
 		stack_system().after_search()
 		stack_system().settle()
@@ -2688,7 +3070,7 @@ func choose_search(p: int, card_uid: int) -> Array:
 			# Rebobinar: the player took no card, everything stays in the graveyard
 			pending_search.clear()
 			phase = search_return
-			emit_event({"type": "search_decline", "player": p})
+			emit_event({ "type": "search_decline", "player": p })
 			check_state()
 			stack_system().after_search()
 			stack_system().settle()
@@ -2711,7 +3093,7 @@ func choose_search(p: int, card_uid: int) -> Array:
 		_move(taken, "hand")
 		pending_search.clear()
 		phase = search_return
-		emit_event({"type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"]})
+		emit_event({ "type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"] })
 		check_state() # resumes the triggers that waited for this choice
 		stack_system().after_search()
 		stack_system().settle()
@@ -2774,11 +3156,13 @@ func choose_search(p: int, card_uid: int) -> Array:
 	pending_search.clear()
 	phase = search_return
 	if declined and not nothing_was_offered:
-		emit_event({"type": "search_decline", "player": p})
+		emit_event({ "type": "search_decline", "player": p })
 	elif not declined:
-		emit_event({"type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"]})
+		emit_event({ "type": "search_take", "player": p, "uid": card_uid, "card_id": chosen["card_id"] })
 	if not stays_in_deck:
-		emit_event({"type": "look_bottom" if (look or top_search) and not reshuffle and not whiff else "search_shuffle", "player": p})
+		emit_event(
+			{ "type": "look_bottom" if (look or top_search) and not reshuffle and not whiff else "search_shuffle", "player": p }
+		)
 	if nothing_was_offered and fallback_draw > 0:
 		_draw(p, fallback_draw)
 	check_state() # resumes the triggers that waited for this choice
@@ -2788,19 +3172,24 @@ func choose_search(p: int, card_uid: int) -> Array:
 
 # ---------------------------------------------------------------- stack & combat (see systems/)
 
+
 ## Momentum cost of a spell/ability on the stack.
 func stack_cost(item: Dictionary) -> int:
 	return stack_system().stack_cost(item)
+
 
 ## Extra Momentum a counter must pay to hit stack item `sid` (-1 when out of reach).
 func counter_extra(cd: Dictionary, sid: int) -> int:
 	return stack_system().counter_extra(cd, sid)
 
+
 func _resolve_stack() -> void:
 	stack_system().resolve_stack()
 
+
 func _counter(p: int, sid: int) -> void:
 	stack_system().counter(p, sid)
+
 
 ## A free-standing artifact resolved: it takes a field slot (or goes to the graveyard if the
 ## field filled up while it waited on the stack).
@@ -2811,14 +3200,17 @@ func _place_relic(p: int, c: Card) -> void:
 		return
 	players[p]["relics"].append(c)
 	_move(c, "relics")
-	c.supreme_shield = CardDB.card(c.card_id).get("keywords", []).has("escudo_supremo") # an artifact can be born protected (Baluarte Santo)
+	# an artifact can be born protected (Baluarte Santo)
+	c.supreme_shield = CardDB.card(c.card_id).get("keywords", []).has("escudo_supremo")
 	c.supreme_shield_expires = ""
-	emit_event({"type": "relic_enter", "player": p, "uid": c.uid, "card_id": c.card_id})
+	emit_event({ "type": "relic_enter", "player": p, "uid": c.uid, "card_id": c.card_id })
+
 
 ## True when a copy of `card_id` left p's field `turns` or fewer turns ago (the current turn counts as 0).
 func relic_fell_within(p: int, card_id: String, turns: int) -> bool:
-	var fall_turns: Dictionary = players[p].get("relic_fall_turns", {})
+	var fall_turns: Dictionary = players[p].get("relic_fall_turns", { })
 	return fall_turns.has(card_id) and turn - int(fall_turns[card_id]) <= turns
+
 
 ## Escudo Supremo: spends the holder's one charge. True when there was a charge to spend.
 func spend_supreme_shield(holder: Card, source_uid := 0) -> bool:
@@ -2826,8 +3218,9 @@ func spend_supreme_shield(holder: Card, source_uid := 0) -> bool:
 		return false
 	holder.supreme_shield = false
 	holder.supreme_shield_expires = ""
-	emit_event({"type": "supreme_shield_break", "uid": holder.uid, "src": source_uid})
+	emit_event({ "type": "supreme_shield_break", "uid": holder.uid, "src": source_uid })
 	return true
+
 
 ## Destroys a free-standing artifact: it leaves the field (freeing its slot) for the graveyard.
 func destroy_relic(c: Card) -> void:
@@ -2837,7 +3230,7 @@ func destroy_relic(c: Card) -> void:
 	players[p]["relics"].erase(c)
 	players[p]["relic_fall_turns"][c.card_id] = turn
 	players[p]["graveyard"].append(c)
-	emit_event({"type": "relic_destroyed", "player": p, "uid": c.uid, "card_id": c.card_id})
+	emit_event({ "type": "relic_destroyed", "player": p, "uid": c.uid, "card_id": c.card_id })
 	_move(c, "graveyard")
 	# Ao Morrer of a free-standing artifact (Baluarte Santo heals its Leader), same pattern as a dying unit
 	var death_context := EffectContext.new(self, p, "on_death")
@@ -2845,6 +3238,7 @@ func destroy_relic(c: Card) -> void:
 	death_context.dying_card = c
 	if not _chain_stopped():
 		queue_trigger(PendingTrigger.new(c, c.effect_list(), death_context, "on_death"))
+
 
 ## Exiles a free-standing artifact from the field: it never goes to the graveyard, so no Ao Morrer
 ## and no "fell recently" memory (unlike destroy_relic). Its slot is free again.
@@ -2855,14 +3249,17 @@ func banish_relic(c: Card) -> void:
 	players[p]["relics"].erase(c)
 	players[p]["banished"].append(c)
 	_move(c, "banished")
-	emit_event({"type": "banish", "uid": c.uid, "player": p, "card_id": c.card_id, "relic": true})
+	emit_event({ "type": "banish", "uid": c.uid, "player": p, "card_id": c.card_id, "relic": true })
+
 
 func _release_equipment(c: Card, unit_died := false) -> void:
 	stack_system().release_equipment(c, unit_died)
 
+
 ## Can p do anything right now besides passing?
 func _has_play(p: int) -> bool:
 	return stack_system().has_play(p)
+
 
 ## "PASSAR TUDO": p stops being asked for responses during the rest of the opponent's turn.
 ## Valid at any moment of the opponent's turn. If p is being asked right now, that window is passed too;
@@ -2873,12 +3270,13 @@ func pass_rest_of_turn(p: int) -> Array:
 		return []
 	skip_rest_of_turn[p] = true
 	if p != priority or stack_system().stack_would_kill_leader(p):
-		emit_event({"type": "pass_all_on", "player": p})
+		emit_event({ "type": "pass_all_on", "player": p })
 		return flush_events()
-	emit_event({"type": "pass", "player": p})
+	emit_event({ "type": "pass", "player": p })
 	stack_system().pass_once()
 	stack_system().settle()
 	return flush_events()
+
 
 ## Takes "PASSAR TUDO" back: from now on p is asked for responses again. Windows already passed stay passed.
 ## A setting like set_auto_pass, so it is allowed at any moment.
@@ -2886,8 +3284,9 @@ func cancel_pass_rest_of_turn(p: int) -> Array:
 	if not skip_rest_of_turn[p]:
 		return []
 	skip_rest_of_turn[p] = false
-	emit_event({"type": "pass_all_off", "player": p})
+	emit_event({ "type": "pass_all_off", "player": p })
 	return flush_events()
+
 
 ## Turns p's auto-pass on or off. Turning it on while p holds an unusable window passes it.
 func set_auto_pass(p: int, on: bool) -> Array:
@@ -2898,13 +3297,24 @@ func set_auto_pass(p: int, on: bool) -> Array:
 
 # ---------------------------------------------------------------- internals
 
+
 ## ask: played from hand/Santuário, so a targeted Ao Entrar waits for its owner's pick
 ## (phase "enter_target") instead of resolving right away.
 ## slot: board position to enter at (0 = leftmost); -1 or past the end = rightmost. Position
 ## matters for adjacency (Armadura from neighbours, "random_enemy_and_adjacent", ...).
 ## respond: the unit was played (hand or Santuário), so its Ao Entrar goes on the stack as an item the
 ## opponent may answer with an Instantâneo (it cannot be countered) instead of resolving at once.
-func _summon(p: int, c: Card, incarnation: bool, target: int, over: Dictionary = {}, ask := false, slot := -1, respond := false, suppress_enter := false) -> void:
+func _summon(
+	p: int,
+	c: Card,
+	incarnation: bool,
+	target: int,
+	over: Dictionary = { },
+	ask := false,
+	slot := -1,
+	respond := false,
+	suppress_enter := false,
+) -> void:
 	var uid := c.uid
 	var card_id := c.card_id
 	c.owner = p
@@ -2916,7 +3326,7 @@ func _summon(p: int, c: Card, incarnation: bool, target: int, over: Dictionary =
 		board.append(c)
 	else:
 		board.insert(slot, c)
-	emit_event({"type": "summon", "player": p, "uid": uid, "card_id": card_id})
+	emit_event({ "type": "summon", "player": p, "uid": uid, "card_id": card_id })
 	# Listeners such as Alderion react to the exact unit that just entered, including summoned Plants.
 	var entered := GameEvent.new("unit_entered", p, c)
 	entered.data["plant"] = CardDB.card(c.card_id).get("tribe", []).has("planta")
@@ -2939,14 +3349,22 @@ func _summon(p: int, c: Card, incarnation: bool, target: int, over: Dictionary =
 	if only_itself and target == 0:
 		target = uid
 	if ask and spec != "" and not enter_options.is_empty() and not only_itself:
-		pending_enter = {"player": p, "uid": uid, "card_id": card_id, "spec": spec, "spec2": enter_second_spec(cd), "respond": respond}
+		pending_enter = {
+			"player": p,
+			"uid": uid,
+			"card_id": card_id,
+			"spec": spec,
+			"spec2": enter_second_spec(cd),
+			"respond": respond,
+		}
 		phase = "enter_target"
-		emit_event({"type": "enter_target", "player": p, "uid": uid, "card_id": card_id})
+		emit_event({ "type": "enter_target", "player": p, "uid": uid, "card_id": card_id })
 		return
 	# "ally_unit" Ao Entrar with no chosen ally falls back to the unit itself
 	if target == 0 and target_spec(cd["effects"]) == "ally_unit":
 		target = uid
 	_trigger_enter(p, c, cd["effects"], target, respond)
+
 
 ## True when an Ao Entrar pick can have no effect: a return that is only paid for by an earlier discounted draw
 ## (Naelys), while the deck has no card that draw could take. The pick is asked before the draw happens, so this checks the deck now.
@@ -2968,6 +3386,7 @@ func _enter_pick_is_moot(p: int, effects: Array) -> bool:
 			return false
 	return true
 
+
 ## Runs the unit's Ao Entrar `effects`, or (respond) puts them on the stack so the opponent can answer first.
 func _trigger_enter(p: int, c: Card, effects: Array, target: int, respond: bool, second_target := 0) -> void:
 	if respond and _has_enter_effects(effects):
@@ -2976,6 +3395,7 @@ func _trigger_enter(p: int, c: Card, effects: Array, target: int, respond: bool,
 	_announce(c, effects, "on_enter")
 	run_enter_effects(_enter_context(p, c.uid, target, second_target), effects)
 
+
 ## Runs a unit's Ao Entrar effects; a second time when its controller has a "double_enter" unit (Arauto Repeteco)
 ## on the board that is not the entering unit itself. The same chosen target is used, no new input is asked.
 func run_enter_effects(context: EffectContext, effects: Array) -> void:
@@ -2983,9 +3403,10 @@ func run_enter_effects(context: EffectContext, effects: Array) -> void:
 	_run_effects(context, effects)
 	if doubled:
 		if phase == "effect_choice":
-			_effect_choice_continuations.append({"context": context, "effects": effects, "fresh": true})
+			_effect_choice_continuations.append({ "context": context, "effects": effects, "fresh": true })
 		else:
 			_run_effects(context, effects)
+
 
 func _has_enter_effects(effects: Array) -> bool:
 	for e in effects:
@@ -2993,15 +3414,18 @@ func _has_enter_effects(effects: Array) -> bool:
 			return true
 	return false
 
+
 ## Tells the listening cards (Mestra do Gelo Frígido) that p cast a spell. The event's data says
 ## which essences and elements the spell has, one "essence_<id>" / "element_<id>": true fact each, for the "when" filter.
 func _announce_spell_cast(p: int, spell: Card, cd: Dictionary) -> void:
 	_emit_spell_event("spell_cast", p, spell, cd)
 
+
 ## Tells the listening cards that p's spell has just finished resolving (it was not countered and did not fizzle).
 ## Unlike spell_cast, which fires when the spell goes on the stack, the spell's effects already happened by now.
 func _announce_spell_resolved(p: int, spell: Card, cd: Dictionary) -> void:
 	_emit_spell_event("spell_resolved", p, spell, cd)
+
 
 func _emit_spell_event(event_type: String, p: int, spell: Card, cd: Dictionary) -> void:
 	var event := GameEvent.new(event_type, p, spell)
@@ -3011,6 +3435,7 @@ func _emit_spell_event(event_type: String, p: int, spell: Card, cd: Dictionary) 
 		event.data["element_" + String(element_id)] = true
 	bus().emit(event)
 
+
 ## Context for a unit's Ao Entrar effects; `target` is the ally the player chose (0 if none).
 func _enter_context(p: int, uid: int, target: int, second_target := 0) -> EffectContext:
 	var context := EffectContext.new(self, p, "on_enter")
@@ -3018,6 +3443,7 @@ func _enter_context(p: int, uid: int, target: int, second_target := 0) -> Effect
 	context.chosen_target = target
 	context.second_target = second_target
 	return context
+
 
 ## Tells the UI that unit c's `trigger` went off, so it can show where the effects that
 ## follow come from. A shout alone is cosmetic and uses its own cinematic, without the
@@ -3037,18 +3463,29 @@ func _announce(c: Card, effects: Array, trigger: String) -> bool:
 	if not has_non_shout_effect:
 		return false
 	var shown_trigger := "condicional" if trigger.begins_with(Effect.LISTEN_PREFIX) else trigger
-	emit_event({"type": "trigger", "uid": c.uid, "player": c.owner, "card_id": c.card_id, "trigger": shown_trigger})
+	emit_event({ "type": "trigger", "uid": c.uid, "player": c.owner, "card_id": c.card_id, "trigger": shown_trigger })
 	return true
+
 
 ## Tells the UI that the card running `context` yells `text` (an effect's "shout"). Cosmetic only.
 func _announce_shout(context: EffectContext, text: String, style := "") -> void:
 	var shouting_card := find_card(context.self_uid)
 	if shouting_card == null:
 		return
-	emit_event({"type": "shout", "uid": shouting_card.uid, "player": shouting_card.owner, "card_id": shouting_card.card_id, "text": text, "style": style})
+	emit_event(
+		{
+			"type": "shout",
+			"uid": shouting_card.uid,
+			"player": shouting_card.owner,
+			"card_id": shouting_card.card_id,
+			"text": text,
+			"style": style,
+		}
+	)
 
-## Fires a unit's own trigger. Depth-capped so on_damaged chains cannot loop forever.
-func fire_trigger(c: Card, trigger: String, other_uid: int = 0, event_data: Dictionary = {}) -> void:
+
+## Fires a unit's own trigger. Depth-capped so on_damaged / on_survive_damage chains cannot loop forever.
+func fire_trigger(c: Card, trigger: String, other_uid: int = 0, event_data: Dictionary = { }) -> void:
 	if c == null:
 		return
 	var event := GameEvent.new(trigger, c.owner, c)
@@ -3056,8 +3493,9 @@ func fire_trigger(c: Card, trigger: String, other_uid: int = 0, event_data: Dict
 	event.data = event_data
 	bus().emit(event)
 
+
 ## Gatilhos (cards.json "triggers"): on_play, on_enter, on_death, before_attack, on_attack, on_challenge,
-## on_challenged, on_damaged, on_hit_leader, on_deal_combat_damage, on_turn_start, on_turn_end (owner's turn
+## on_challenged, on_damaged, on_survive_damage, on_hit_leader, on_deal_combat_damage, on_turn_start, on_turn_end (owner's turn
 ## only), on_any_turn_start, on_any_turn_end (every turn). "constante" never fires
 ## here: it is continuous and handled by refresh_scaling.
 ## other_uid is the opposing unit in combat triggers (challenged unit, attacker, damage source).
@@ -3095,18 +3533,20 @@ func _run_effects(context: EffectContext, effects: Array, resume := false) -> vo
 		if phase == "effect_choice":
 			var remaining := effects.slice(index + 1)
 			if not remaining.is_empty():
-				_effect_choice_continuations.push_front({"context": context, "effects": remaining})
+				_effect_choice_continuations.push_front({ "context": context, "effects": remaining })
 			return
 		if effect.opens_choice() and effect.trigger == context.trigger:
 			if phase == "search":
-				queued_choices.append({"effect": effect, "context": context}) # waits for the choice that is open now
+				queued_choices.append({ "effect": effect, "context": context }) # waits for the choice that is open now
 			elif choice_is_due(effect):
 				effect.open_choice(context)
+
 
 ## False when a choice must be skipped: "only_if_search_took" means it happens only if the deck search
 ## before it in the same effect list ended with the player taking a card (Peça Sobressalente's discard).
 func choice_is_due(effect: Effect) -> bool:
 	return last_search_took_card or not effect.raw.get("only_if_search_took", false)
+
 
 ## Effects a card has while it sits in the deck ("deck_effects": [{trigger, if, action}]).
 ## "summon_self": that copy leaves the deck and enters its owner's board (no shuffle, nothing is
@@ -3123,12 +3563,14 @@ func _fire_deck_effects(p: int, trigger: String) -> void:
 			if e.get("action", "") == "summon_self" and players[p]["deck"].has(c) and has_free_slot(p) and budget(p, true) >= fee:
 				_pay(p, fee, true) # a trigger, not a play with a speed: the Reserva still pays
 				players[p]["deck"].erase(c)
-				emit_event({"type": "enter_from_deck", "player": p, "uid": c.uid, "card_id": c.card_id})
+				emit_event({ "type": "enter_from_deck", "player": p, "uid": c.uid, "card_id": c.card_id })
 				_summon(p, c, false, 0)
+
 
 func _deck_effect_condition_holds(p: int, deck_effect: Dictionary, trigger: String) -> bool:
 	var condition := ConditionRegistry.parse(deck_effect.get("if", ""))
 	return condition == null or condition.check(EffectContext.new(self, p, trigger))
+
 
 ## What the "summon_self" cards sitting in p's deck are about to do at the end of p's turn, for the deck pile
 ## to show (Rusco). One entry per such card: {"uid", "card_id", "fee", "state", "missing"}.
@@ -3153,8 +3595,9 @@ func deck_summon_watches(p: int) -> Array:
 					missing = "room"
 				else:
 					state = "ready"
-			watches.append({"uid": c.uid, "card_id": c.card_id, "fee": fee, "state": state, "missing": missing})
+			watches.append({ "uid": c.uid, "card_id": c.card_id, "fee": fee, "state": state, "missing": missing })
 	return watches
+
 
 func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 	if phase == "search":
@@ -3173,25 +3616,31 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 		if not CardFilter.matches(c.card_id, e):
 			continue
 		# every copy that is really in the deck is listed, like cards laid out on a table
-		matches.append({"uid": c.uid, "card_id": c.card_id})
+		matches.append({ "uid": c.uid, "card_id": c.card_id })
 	# a search that finds nothing still shows the player the cards looked at (the top N or the whole deck, like
 	# on a table), so it opens the choice with no eligible card: the only way out is to shuffle the deck
 	var looked_but_found_nothing := matches.is_empty() and not searched.is_empty()
 	if matches.is_empty() and not looked_but_found_nothing:
-		emit_event({"type": "search_empty", "player": p, "source_uid": source_uid})
+		emit_event({ "type": "search_empty", "player": p, "source_uid": source_uid })
 		# "fallback_draw": the consolation prize when nothing matched, so the spell is never a dead card (Recado Urgente)
 		if int(e.get("fallback_draw", 0)) > 0:
 			_draw(p, int(e["fallback_draw"]))
 		return
 	# "deck_search": the options are private to the searcher; the opponent only learns the card that was taken (search_take)
-	pending_search = {"player": p, "source_uid": source_uid, "cards": matches, "deck_search": true, "discount": int(e.get("discount", 0)),
+	pending_search = {
+		"player": p,
+		"source_uid": source_uid,
+		"cards": matches,
+		"deck_search": true,
+		"discount": int(e.get("discount", 0)),
 		"turn_discount": int(e.get("turn_discount", 0)),
 		"turn_discount_min_cost": int(e.get("turn_discount_min_cost", 1)),
-		"fallback_draw": int(e.get("fallback_draw", 0))}
+		"fallback_draw": int(e.get("fallback_draw", 0)),
+	}
 	# every card looked at, topmost first; "cards" holds only the eligible ones, so the UI can show the rest dimmed
 	var looked_cards: Array = []
 	for index in range(searched.size() - 1, -1, -1):
-		looked_cards.append({"uid": searched[index].uid, "card_id": searched[index].card_id})
+		looked_cards.append({ "uid": searched[index].uid, "card_id": searched[index].card_id })
 	pending_search["looked_cards"] = looked_cards
 	if top_only:
 		# the cards looked at but not taken go to the bottom of the deck instead of a shuffle
@@ -3205,9 +3654,19 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 		pending_search["whole_deck"] = true
 	search_return = phase
 	phase = "search"
-	emit_event({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": matches, "private": true, "looked": pending_search.get("looked", 0)})
+	emit_event(
+		{
+			"type": "search_reveal",
+			"player": p,
+			"source_uid": source_uid,
+			"cards": matches,
+			"private": true,
+			"looked": pending_search.get("looked", 0),
+		}
+	)
 	if looked_but_found_nothing:
-		emit_event({"type": "search_empty", "player": p, "source_uid": source_uid})
+		emit_event({ "type": "search_empty", "player": p, "source_uid": source_uid })
+
 
 ## The player picks one card from their own hand to discard to the graveyard.
 ## Uses the same choice screen as the overdraw banish; the options are private to the owner.
@@ -3218,22 +3677,27 @@ func _begin_hand_discard(p: int, source_uid: int, silent_when_empty := false) ->
 		return
 	if players[p]["hand"].is_empty():
 		if not silent_when_empty:
-			emit_event({"type": "search_empty", "player": p, "source_uid": source_uid})
+			emit_event({ "type": "search_empty", "player": p, "source_uid": source_uid })
 		return
 	search_return = phase
 	phase = "search"
 	_open_hand_discard_pick(p, source_uid, 1)
+
 
 ## Soren ("discard_if_over"): each player holding MORE than `limit` cards discards `amount` of them, the controller first.
 ## The players still waiting for their turn travel in `discard_queue` inside pending_search.
 func _begin_discard_if_over(p: int, limit: int, amount: int, source_uid: int) -> void:
 	if phase == "search":
 		return
-	var discard_queue: Array = [{"player": p, "limit": limit, "amount": amount}, {"player": opponent(p), "limit": limit, "amount": amount}]
+	var discard_queue: Array = [
+		{ "player": p, "limit": limit, "amount": amount },
+		{ "player": opponent(p), "limit": limit, "amount": amount },
+	]
 	search_return = phase
 	phase = "search"
 	if not _open_next_queued_discard(source_uid, discard_queue):
 		phase = search_return # nobody held more than the limit
+
 
 ## Opens the discard screen for the next player in `discard_queue` who holds more cards than their limit.
 ## Returns false (and opens nothing) when nobody in the queue has to discard.
@@ -3247,16 +3711,18 @@ func _open_next_queued_discard(source_uid: int, discard_queue: Array) -> bool:
 			return true
 	return false
 
+
 ## Shows the hand-discard screen; `discards_left` cards still have to be discarded in this sequence.
 ## `discard_queue` (Soren) lists the other players who discard after this one finishes.
 func _open_hand_discard_pick(p: int, source_uid: int, discards_left: int, discard_queue: Array = []) -> void:
 	var options: Array = []
 	for c: Card in players[p]["hand"]:
-		options.append({"uid": c.uid, "card_id": c.card_id})
-	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "discard_hand": true, "discards_left": discards_left}
+		options.append({ "uid": c.uid, "card_id": c.card_id })
+	pending_search = { "player": p, "source_uid": source_uid, "cards": options, "discard_hand": true, "discards_left": discards_left }
 	if not discard_queue.is_empty():
 		pending_search["discard_queue"] = discard_queue
-	emit_event({"type": "discard_pick", "player": p, "source_uid": source_uid})
+	emit_event({ "type": "discard_pick", "player": p, "source_uid": source_uid })
+
 
 ## Bob Veyr ("enemy_hand_bottom"): the player looks at the opponent's hand and may send one card of it to the bottom of
 ## the opponent's deck. If it was a unit, the player then discards `discard_if_unit` cards of their own; `discard_cost`
@@ -3265,28 +3731,45 @@ func _open_hand_discard_pick(p: int, source_uid: int, discards_left: int, discar
 ## `cost_increase` (Cornélia Aldrovane, "enemy_hand_tax") swaps the outcome: the picked card stays in the hand but costs that much more
 ## for as long as it stays there (a negative per-copy discount, so it ends when the card is played or leaves the hand).
 ## `only_type` (Rex Farejador: "spell") is the opposite of `exclude_type`: only cards of that type can be picked.
-func _begin_enemy_hand_bottom(p: int, discard_if_unit: int, source_uid: int, exclude_type := "", discard_cost := 0, cost_increase := 0, only_type := "") -> void:
+func _begin_enemy_hand_bottom(
+	p: int,
+	discard_if_unit: int,
+	source_uid: int,
+	exclude_type := "",
+	discard_cost := 0,
+	cost_increase := 0,
+	only_type := "",
+) -> void:
 	if phase == "search":
 		return
 	var options: Array = []
 	var looked_cards: Array = []
 	for c: Card in players[opponent(p)]["hand"]:
-		looked_cards.append({"uid": c.uid, "card_id": c.card_id})
+		looked_cards.append({ "uid": c.uid, "card_id": c.card_id })
 		var card_type: String = CardDB.card(c.card_id)["type"]
 		var allowed: bool = (exclude_type == "" or card_type != exclude_type) and (only_type == "" or card_type == only_type)
 		if allowed:
-			options.append({"uid": c.uid, "card_id": c.card_id})
+			options.append({ "uid": c.uid, "card_id": c.card_id })
 	if looked_cards.is_empty():
-		emit_event({"type": "search_empty", "player": p, "source_uid": source_uid})
+		emit_event({ "type": "search_empty", "player": p, "source_uid": source_uid })
 		return
-	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "hand_bottom": true, "discard_if_unit": discard_if_unit, "discard_cost": discard_cost, "cost_increase": cost_increase}
+	pending_search = {
+		"player": p,
+		"source_uid": source_uid,
+		"cards": options,
+		"hand_bottom": true,
+		"discard_if_unit": discard_if_unit,
+		"discard_cost": discard_cost,
+		"cost_increase": cost_increase,
+	}
 	if exclude_type != "" or only_type != "":
 		pending_search["looked_cards"] = looked_cards # the UI shows every card, the pickable ones glow
 		pending_search["exclude_type"] = exclude_type
 		pending_search["only_type"] = only_type
 	search_return = phase
 	phase = "search"
-	emit_event({"type": "hand_bottom_pick", "player": p, "source_uid": source_uid})
+	emit_event({ "type": "hand_bottom_pick", "player": p, "source_uid": source_uid })
+
 
 ## The answer to the screen above: uid 0 takes no card; otherwise the picked card goes to the bottom of its owner's deck
 ## (the FRONT of the array: draws pop the back) and a unit makes the player discard.
@@ -3302,7 +3785,9 @@ func _finish_enemy_hand_bottom(p: int, card_uid: int, declined: bool) -> Array:
 		if taxed == null:
 			return []
 		taxed.discount -= cost_increase
-		emit_event({"type": "hand_cost_up", "player": p, "owner": foe, "uid": card_uid, "card_id": taxed.card_id, "amount": cost_increase})
+		emit_event(
+			{ "type": "hand_cost_up", "player": p, "owner": foe, "uid": card_uid, "card_id": taxed.card_id, "amount": cost_increase }
+		)
 	elif not declined:
 		sent_to_bottom = _hand_card(foe, card_uid)
 		if sent_to_bottom == null:
@@ -3310,9 +3795,9 @@ func _finish_enemy_hand_bottom(p: int, card_uid: int, declined: bool) -> Array:
 		players[foe]["hand"].erase(sent_to_bottom)
 		players[foe]["deck"].push_front(sent_to_bottom)
 		_move(sent_to_bottom, "deck")
-		emit_event({"type": "hand_bottom", "player": p, "owner": foe, "uid": card_uid, "card_id": sent_to_bottom.card_id})
+		emit_event({ "type": "hand_bottom", "player": p, "owner": foe, "uid": card_uid, "card_id": sent_to_bottom.card_id })
 	else:
-		emit_event({"type": "search_decline", "player": p})
+		emit_event({ "type": "search_decline", "player": p })
 	var discards := 0
 	if sent_to_bottom != null:
 		discards = discards_for_any
@@ -3329,6 +3814,7 @@ func _finish_enemy_hand_bottom(p: int, card_uid: int, declined: bool) -> Array:
 	stack_system().settle()
 	return flush_events()
 
+
 ## Wendell Comportão ("hand_to_bottom"): the player may put ONE card of their own hand at the bottom of their own deck.
 ## If they do, they draw `draw_after` cards (a loot that never shrinks the hand). Declining (uid 0) does nothing and draws nothing.
 ## The hand is private to its owner, like the discard screen.
@@ -3336,22 +3822,23 @@ func _begin_own_hand_bottom(p: int, draw_after: int, source_uid: int) -> void:
 	if phase == "search":
 		return
 	if players[p]["hand"].is_empty():
-		emit_event({"type": "search_empty", "player": p, "source_uid": source_uid})
+		emit_event({ "type": "search_empty", "player": p, "source_uid": source_uid })
 		return
 	var options: Array = []
 	for c: Card in players[p]["hand"]:
-		options.append({"uid": c.uid, "card_id": c.card_id})
-	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "own_hand_bottom": true, "draw_after": draw_after}
+		options.append({ "uid": c.uid, "card_id": c.card_id })
+	pending_search = { "player": p, "source_uid": source_uid, "cards": options, "own_hand_bottom": true, "draw_after": draw_after }
 	search_return = phase
 	phase = "search"
-	emit_event({"type": "own_hand_bottom_pick", "player": p, "source_uid": source_uid})
+	emit_event({ "type": "own_hand_bottom_pick", "player": p, "source_uid": source_uid })
+
 
 ## The answer to the screen above: the picked card goes to the bottom of the deck (the FRONT of the array: draws pop the back),
 ## then the player draws. Choosing nothing ends the effect without drawing.
 func _finish_own_hand_bottom(p: int, card_uid: int, declined: bool) -> Array:
 	var draw_after := int(pending_search.get("draw_after", 1))
 	if declined:
-		emit_event({"type": "search_decline", "player": p})
+		emit_event({ "type": "search_decline", "player": p })
 	else:
 		var sent_to_bottom := _hand_card(p, card_uid)
 		if sent_to_bottom == null:
@@ -3359,7 +3846,7 @@ func _finish_own_hand_bottom(p: int, card_uid: int, declined: bool) -> Array:
 		players[p]["hand"].erase(sent_to_bottom)
 		players[p]["deck"].push_front(sent_to_bottom)
 		_move(sent_to_bottom, "deck")
-		emit_event({"type": "own_hand_bottom", "player": p, "uid": card_uid, "card_id": sent_to_bottom.card_id})
+		emit_event({ "type": "own_hand_bottom", "player": p, "uid": card_uid, "card_id": sent_to_bottom.card_id })
 		pending_search.clear()
 		phase = search_return
 		_draw(p, draw_after)
@@ -3374,6 +3861,7 @@ func _finish_own_hand_bottom(p: int, card_uid: int, declined: bool) -> Array:
 	stack_system().settle()
 	return flush_events()
 
+
 ## Queima de Arquivo ("discard_hand_all"): every card in the player's hand goes to the graveyard (a normal discard, not a banish).
 func _discard_whole_hand(p: int) -> void:
 	var hand: Array = players[p]["hand"]
@@ -3382,7 +3870,8 @@ func _discard_whole_hand(p: int) -> void:
 	for discarded_card: Card in discarded_cards:
 		players[p]["graveyard"].append(discarded_card)
 		_move(discarded_card, "graveyard")
-		emit_event({"type": "discard", "player": p, "uid": discarded_card.uid, "card_id": discarded_card.card_id})
+		emit_event({ "type": "discard", "player": p, "uid": discarded_card.uid, "card_id": discarded_card.card_id })
+
 
 ## Censo de Baixas ("enemy_sacrifice_pick"): player `p` (the OPPONENT of the card's controller) sacrifices one unit they control.
 ## No units: nothing happens. Exactly one unit: it is sacrificed without asking. Otherwise `p` picks on the search screen
@@ -3398,11 +3887,12 @@ func _begin_enemy_sacrifice(p: int, source_uid: int) -> void:
 		return
 	var options: Array = []
 	for unit: Card in board_units:
-		options.append({"uid": unit.uid, "card_id": unit.card_id})
-	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "sacrifice_pick": true}
+		options.append({ "uid": unit.uid, "card_id": unit.card_id })
+	pending_search = { "player": p, "source_uid": source_uid, "cards": options, "sacrifice_pick": true }
 	search_return = phase
 	phase = "search"
-	emit_event({"type": "sacrifice_pick", "player": p, "source_uid": source_uid})
+	emit_event({ "type": "sacrifice_pick", "player": p, "source_uid": source_uid })
+
 
 ## Every sacrifice goes through here: lethal damage plus the mark that tells the Aliado Morre it causes that the
 ## unit was sacrificed (filter "dying_sacrificed"). The death itself is settled later by _move_dead_units.
@@ -3410,10 +3900,12 @@ func kill_as_sacrifice(unit: Card, lethal_damage: int) -> void:
 	unit.sacrificed = true
 	unit.damage = lethal_damage
 
+
 ## The unit dies as a sacrifice: lethal damage and a "sacrifice" event; the death itself is settled by check_state.
 func _sacrifice_unit(owner_player: int, victim: Card) -> void:
 	kill_as_sacrifice(victim, victim.hp_total())
-	emit_event({"type": "sacrifice", "player": owner_player, "uid": victim.uid})
+	emit_event({ "type": "sacrifice", "player": owner_player, "uid": victim.uid })
+
 
 ## The answer to the screen above: the chosen unit (it must be on the picker's own board) is sacrificed.
 func _finish_enemy_sacrifice(p: int, card_uid: int) -> Array:
@@ -3428,6 +3920,7 @@ func _finish_enemy_sacrifice(p: int, card_uid: int) -> Array:
 	stack_system().settle()
 	return flush_events()
 
+
 ## The player picks a unit card (of `rarity`; "" = any) from their own hand; it enters the board
 ## for free and is banished at the end of the turn. The options are private to the owner.
 ## The pick is optional: choose_search with uid 0 declines it.
@@ -3438,14 +3931,15 @@ func _begin_hand_summon(p: int, rarity: String, source_uid: int) -> void:
 	for c: Card in players[p]["hand"]:
 		var card_data := CardDB.card(c.card_id)
 		if card_data["type"] == "unit" and (rarity == "" or card_data.get("rarity", "") == rarity):
-			options.append({"uid": c.uid, "card_id": c.card_id})
+			options.append({ "uid": c.uid, "card_id": c.card_id })
 	if options.is_empty() or not has_free_slot(p):
-		emit_event({"type": "search_empty", "player": p, "source_uid": source_uid})
+		emit_event({ "type": "search_empty", "player": p, "source_uid": source_uid })
 		return
-	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "hand_summon": true}
+	pending_search = { "player": p, "source_uid": source_uid, "cards": options, "hand_summon": true }
 	search_return = phase
 	phase = "search"
-	emit_event({"type": "hand_summon_pick", "player": p, "source_uid": source_uid})
+	emit_event({ "type": "hand_summon_pick", "player": p, "source_uid": source_uid })
+
 
 ## Offers every copy of `card_id` in the graveyard (just one entry per copy); the pick goes to the
 ## hand marked to be banished after its next cast.
@@ -3455,14 +3949,15 @@ func _begin_grave_retrieve(p: int, wanted_ids: Array, source_uid: int) -> void:
 	var options: Array = []
 	for c in players[p]["graveyard"]:
 		if wanted_ids.has(c.card_id):
-			options.append({"uid": c.uid, "card_id": c.card_id})
+			options.append({ "uid": c.uid, "card_id": c.card_id })
 	if options.is_empty():
-		emit_event({"type": "search_empty", "player": p, "source_uid": source_uid})
+		emit_event({ "type": "search_empty", "player": p, "source_uid": source_uid })
 		return
-	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "grave": true, "banish_after_cast": true}
+	pending_search = { "player": p, "source_uid": source_uid, "cards": options, "grave": true, "banish_after_cast": true }
 	search_return = phase
 	phase = "search"
-	emit_event({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options})
+	emit_event({ "type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options })
+
 
 ## Rebobinar ("grave_to_hand"): offers the cards of the graveyard that pass the effect's card filter; the player takes ONE
 ## to the hand (it may cost `cost_increase` more from now on) or none. The graveyard is public, so the options are too.
@@ -3472,23 +3967,31 @@ func _begin_grave_to_hand(p: int, e: Dictionary, source_uid: int) -> void:
 	var options: Array = []
 	for c: Card in players[p]["graveyard"]:
 		if CardFilter.matches(c.card_id, e):
-			options.append({"uid": c.uid, "card_id": c.card_id})
+			options.append({ "uid": c.uid, "card_id": c.card_id })
 	if options.is_empty():
-		emit_event({"type": "search_empty", "player": p, "source_uid": source_uid})
+		emit_event({ "type": "search_empty", "player": p, "source_uid": source_uid })
 		return
-	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "grave": true, "grave_optional": true,
-		"cost_increase": int(e.get("cost_increase", 0))}
+	pending_search = {
+		"player": p,
+		"source_uid": source_uid,
+		"cards": options,
+		"grave": true,
+		"grave_optional": true,
+		"cost_increase": int(e.get("cost_increase", 0)),
+	}
 	search_return = phase
 	phase = "search"
-	emit_event({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options})
+	emit_event({ "type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options })
+
 
 ## Offers the matching cards in p's graveyard; the pick creates a fresh hand copy and leaves the original behind.
 func _grave_copy_options(p: int, e: Dictionary) -> Array:
 	var options: Array = []
 	for c: Card in players[p]["graveyard"]:
 		if CardFilter.matches(c.card_id, e):
-			options.append({"uid": c.uid, "card_id": c.card_id})
+			options.append({ "uid": c.uid, "card_id": c.card_id })
 	return options
+
 
 func _begin_grave_copy_to_hand(p: int, e: Dictionary, source_uid: int) -> void:
 	if phase == "search":
@@ -3496,12 +3999,13 @@ func _begin_grave_copy_to_hand(p: int, e: Dictionary, source_uid: int) -> void:
 	last_search_took_card = false
 	var options := _grave_copy_options(p, e)
 	if options.is_empty():
-		emit_event({"type": "search_empty", "player": p, "source_uid": source_uid})
+		emit_event({ "type": "search_empty", "player": p, "source_uid": source_uid })
 		return
-	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "grave_copy_to_hand": true, "grave_optional": true}
+	pending_search = { "player": p, "source_uid": source_uid, "cards": options, "grave_copy_to_hand": true, "grave_optional": true }
 	search_return = phase
 	phase = "search"
-	emit_event({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options})
+	emit_event({ "type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options })
+
 
 ## Offers the cards just milled (public: they are in the graveyard); one goes to the hand.
 func _begin_grave_pick(p: int, milled: Array, source_uid: int) -> void:
@@ -3511,25 +4015,28 @@ func _begin_grave_pick(p: int, milled: Array, source_uid: int) -> void:
 	for c in milled:
 		for g in players[p]["graveyard"]:
 			if g.uid == c.uid:
-				options.append({"uid": c.uid, "card_id": c.card_id})
+				options.append({ "uid": c.uid, "card_id": c.card_id })
 				break
 	if options.is_empty():
-		emit_event({"type": "search_empty", "player": p, "source_uid": source_uid})
+		emit_event({ "type": "search_empty", "player": p, "source_uid": source_uid })
 		return
-	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "grave": true}
+	pending_search = { "player": p, "source_uid": source_uid, "cards": options, "grave": true }
 	search_return = phase
 	phase = "search"
-	emit_event({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options})
+	emit_event({ "type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options })
 
 # ---------------------------------------------------------------- "summon_from" (see SummonFromEffect)
+
 
 ## True when the card is a unit that passes the effect's card filter (only units can be summoned).
 func _summon_from_accepts(card_id: String, e: Dictionary) -> bool:
 	return CardDB.card(card_id)["type"] == "unit" and CardFilter.matches(card_id, e)
 
+
 ## True when the effect looks through the WHOLE deck (neither "top" nor "reveal_until"): the deck is shuffled afterwards.
 func _summon_from_scans_whole_deck(e: Dictionary) -> bool:
 	return String(e.get("source", "deck")) == "deck" and int(e.get("top", 0)) <= 0 and not bool(e.get("reveal_until", false))
+
 
 ## The cards a "summon_from" can bring in, and (deck only) every card looked at on the way, topmost first.
 ## Returns {"matches": Array[Card], "looked": Array[Card]}.
@@ -3541,11 +4048,11 @@ func _summon_from_candidates(p: int, e: Dictionary) -> Dictionary:
 		for c: Card in players[p][source]:
 			if _summon_from_accepts(c.card_id, e):
 				matches.append(c)
-		return {"matches": matches, "looked": looked}
+		return { "matches": matches, "looked": looked }
 	var window := int(e.get("top", 0))
 	var reveal_until := bool(e.get("reveal_until", false))
 	var whole_deck := _summon_from_scans_whole_deck(e)
-	var seen: Dictionary = {}
+	var seen: Dictionary = { }
 	var deck: Array = players[p]["deck"]
 	# the top of the deck is the back of the array
 	for index in range(deck.size() - 1, -1, -1):
@@ -3563,22 +4070,24 @@ func _summon_from_candidates(p: int, e: Dictionary) -> Dictionary:
 		matches.append(c)
 		if reveal_until:
 			break
-	return {"matches": matches, "looked": looked}
+	return { "matches": matches, "looked": looked }
+
 
 ## A card the "summon_from" picked leaves its zone and enters the board for free.
 ## `ask`: lets the player choose the targets of its Ao Entrar (off for a random pick, which resolves in the middle of an effect).
 func _summon_from_zone(p: int, card: Card, source: String, banish_at_turn_end: bool, ask: bool) -> void:
 	players[p][source].erase(card)
 	if source == "hand":
-		emit_event({"type": "hand_summon", "player": p, "uid": card.uid, "card_id": card.card_id})
+		emit_event({ "type": "hand_summon", "player": p, "uid": card.uid, "card_id": card.card_id })
 	elif source == "graveyard":
 		card.uid = _uid() # back on the board as a new instance
-		emit_event({"type": "revive", "player": p, "card_id": card.card_id})
+		emit_event({ "type": "revive", "player": p, "card_id": card.card_id })
 	else:
-		emit_event({"type": "enter_from_deck", "player": p, "uid": card.uid, "card_id": card.card_id})
-	_summon(p, card, false, 0, {}, ask)
+		emit_event({ "type": "enter_from_deck", "player": p, "uid": card.uid, "card_id": card.card_id })
+	_summon(p, card, false, 0, { }, ask)
 	if banish_at_turn_end:
 		card.banish_at_turn_end = true # set after entering, because enter_board resets it
+
 
 ## The deck cards looked at but not summoned: a shuffled trip to the bottom of the deck (the order of the
 ## top is never learned) or to the graveyard. A whole-deck look just reshuffles the deck.
@@ -3586,7 +4095,7 @@ func _dispose_summon_leftover(p: int, mode: String, looked: Array, summoned: Car
 	var deck: Array = players[p]["deck"]
 	if shuffle_after:
 		_shuffle(deck)
-		emit_event({"type": "search_shuffle", "player": p})
+		emit_event({ "type": "search_shuffle", "player": p })
 		return
 	var leftover: Array = []
 	for c: Card in looked:
@@ -3602,17 +4111,18 @@ func _dispose_summon_leftover(p: int, mode: String, looked: Array, summoned: Car
 			players[p]["graveyard"].append(c)
 			_move(c, "graveyard")
 			milled_ids.append(c.card_id)
-		emit_event({"type": "mill", "player": p, "cards": milled_ids})
+		emit_event({ "type": "mill", "player": p, "cards": milled_ids })
 	else:
 		for c: Card in leftover:
 			deck.erase(c)
 			deck.push_front(c)
-		emit_event({"type": "look_bottom", "player": p})
+		emit_event({ "type": "look_bottom", "player": p })
+
 
 ## "summon_from" with "pick": "random": a random matching card enters at once, no choice.
 func summon_from_random(p: int, e: Dictionary, source_uid: int) -> void:
 	if not has_free_slot(p):
-		emit_event({"type": "search_empty", "player": p, "source_uid": source_uid})
+		emit_event({ "type": "search_empty", "player": p, "source_uid": source_uid })
 		return
 	var found := _summon_from_candidates(p, e)
 	var matches: Array = found["matches"]
@@ -3621,8 +4131,9 @@ func summon_from_random(p: int, e: Dictionary, source_uid: int) -> void:
 		summoned = matches[rng.randi_range(0, matches.size() - 1)]
 		_summon_from_zone(p, summoned, String(e.get("source", "deck")), bool(e.get("banish_at_turn_end", false)), false)
 	else:
-		emit_event({"type": "search_empty", "player": p, "source_uid": source_uid})
+		emit_event({ "type": "search_empty", "player": p, "source_uid": source_uid })
 	_dispose_summon_leftover(p, String(e.get("leftover", "bottom")), found["looked"], summoned, _summon_from_scans_whole_deck(e))
+
 
 ## "summon_from" with "pick": "choose": offers the matching cards; the controller picks one (or none) and it enters the board.
 ## Uses the same choice screen as the searches; the options are private unless they come from the graveyard.
@@ -3630,7 +4141,7 @@ func _begin_summon_from(p: int, e: Dictionary, source_uid: int) -> void:
 	if phase == "search":
 		return
 	if not has_free_slot(p):
-		emit_event({"type": "search_empty", "player": p, "source_uid": source_uid})
+		emit_event({ "type": "search_empty", "player": p, "source_uid": source_uid })
 		return
 	var source := String(e.get("source", "deck"))
 	var found := _summon_from_candidates(p, e)
@@ -3639,21 +4150,28 @@ func _begin_summon_from(p: int, e: Dictionary, source_uid: int) -> void:
 	var shuffle_after := _summon_from_scans_whole_deck(e)
 	var leftover_mode := String(e.get("leftover", "bottom"))
 	if matches.is_empty():
-		emit_event({"type": "search_empty", "player": p, "source_uid": source_uid})
-		# nothing was offered, so nothing was shown: the deck keeps its order (only a public mill or a whole-deck shuffle still happens)
+		emit_event({ "type": "search_empty", "player": p, "source_uid": source_uid })
+		# nothing was offered, so nothing was shown: the deck keeps its order
+		# (only a public mill or a whole-deck shuffle still happens)
 		if leftover_mode != "bottom" or shuffle_after:
 			_dispose_summon_leftover(p, leftover_mode, looked, null, shuffle_after)
 		return
 	var options: Array = []
 	for c: Card in matches:
-		options.append({"uid": c.uid, "card_id": c.card_id})
+		options.append({ "uid": c.uid, "card_id": c.card_id })
 	var looked_uids: Array = []
 	for c: Card in looked:
 		looked_uids.append(c.uid)
 	pending_search = {
-		"player": p, "source_uid": source_uid, "cards": options, "summon_from": true, "source": source,
+		"player": p,
+		"source_uid": source_uid,
+		"cards": options,
+		"summon_from": true,
+		"source": source,
 		"banish_at_turn_end": bool(e.get("banish_at_turn_end", false)),
-		"leftover": leftover_mode, "leftover_uids": looked_uids, "shuffle_after": shuffle_after,
+		"leftover": leftover_mode,
+		"leftover_uids": looked_uids,
+		"shuffle_after": shuffle_after,
 	}
 	# the same flags the other pickers use, so the choice screen and the network masking treat the zone's privacy right
 	if source == "hand":
@@ -3667,12 +4185,22 @@ func _begin_summon_from(p: int, e: Dictionary, source_uid: int) -> void:
 		if int(e.get("top", 0)) > 0 or bool(e.get("reveal_until", false)):
 			var looked_cards: Array = []
 			for c: Card in looked:
-				looked_cards.append({"uid": c.uid, "card_id": c.card_id})
+				looked_cards.append({ "uid": c.uid, "card_id": c.card_id })
 			pending_search["looked"] = looked.size()
 			pending_search["looked_cards"] = looked_cards
 	search_return = phase
 	phase = "search"
-	emit_event({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options, "private": source != "graveyard", "looked": pending_search.get("looked", 0)})
+	emit_event(
+		{
+			"type": "search_reveal",
+			"player": p,
+			"source_uid": source_uid,
+			"cards": options,
+			"private": source != "graveyard",
+			"looked": pending_search.get("looked", 0),
+		}
+	)
+
 
 ## The controller answered a "summon_from" choice: card_uid 0 summons nothing.
 func _finish_summon_from(p: int, card_uid: int) -> Array:
@@ -3697,7 +4225,7 @@ func _finish_summon_from(p: int, card_uid: int) -> Array:
 	if summoned != null:
 		_summon_from_zone(p, summoned, source, bool(pending["banish_at_turn_end"]), true)
 	else:
-		emit_event({"type": "search_decline", "player": p})
+		emit_event({ "type": "search_decline", "player": p })
 	var looked: Array = []
 	for c: Card in players[p]["deck"]:
 		if pending["leftover_uids"].has(c.uid):
@@ -3708,17 +4236,19 @@ func _finish_summon_from(p: int, card_uid: int) -> Array:
 	stack_system().settle()
 	return flush_events()
 
+
 ## Unit cards in p's graveyard a "revive_pick" could bring back (one entry per different card).
 func revive_options(p: int, max_cost := 99) -> Array:
 	var options: Array = []
-	var seen: Dictionary = {}
+	var seen: Dictionary = { }
 	for c: Card in players[p]["graveyard"]:
 		var cd := CardDB.card(c.card_id)
 		if cd["type"] != "unit" or int(cd.get("cost", 0)) > max_cost or seen.has(c.card_id):
 			continue
 		seen[c.card_id] = true
-		options.append({"uid": c.uid, "card_id": c.card_id})
+		options.append({ "uid": c.uid, "card_id": c.card_id })
 	return options
+
 
 ## Offers the unit cards of p's graveyard; a copy of the chosen one enters the board
 ## (Ossuário Sem Fundo). Uses the same choice screen as the searches.
@@ -3727,12 +4257,13 @@ func _begin_revive_pick(p: int, max_cost: int, source_uid: int) -> void:
 		return
 	var options := revive_options(p, max_cost)
 	if options.is_empty() or not has_free_slot(p):
-		emit_event({"type": "search_empty", "player": p, "source_uid": source_uid})
+		emit_event({ "type": "search_empty", "player": p, "source_uid": source_uid })
 		return
-	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "revive": true}
+	pending_search = { "player": p, "source_uid": source_uid, "cards": options, "revive": true }
 	search_return = phase
 	phase = "search"
-	emit_event({"type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options})
+	emit_event({ "type": "search_reveal", "player": p, "source_uid": source_uid, "cards": options })
+
 
 ## Private look at the top `n` cards: only the owner sees them (StateView hides them from
 ## the other seat); the one taken is revealed by search_take, the rest go to the bottom (or, with "shuffle", the deck is shuffled).
@@ -3742,14 +4273,15 @@ func _begin_look(p: int, n: int, source_uid: int, reshuffle: bool = false) -> vo
 	var deck: Array = players[p]["deck"]
 	var top: Array = []
 	for i in range(deck.size() - 1, maxi(deck.size() - n, 0) - 1, -1): # top of the deck is the back
-		top.append({"uid": deck[i].uid, "card_id": deck[i].card_id})
+		top.append({ "uid": deck[i].uid, "card_id": deck[i].card_id })
 	if top.is_empty():
-		emit_event({"type": "search_empty", "player": p, "source_uid": source_uid})
+		emit_event({ "type": "search_empty", "player": p, "source_uid": source_uid })
 		return
-	pending_search = {"player": p, "source_uid": source_uid, "cards": top, "look": true, "shuffle": reshuffle}
+	pending_search = { "player": p, "source_uid": source_uid, "cards": top, "look": true, "shuffle": reshuffle }
 	search_return = phase
 	phase = "search"
-	emit_event({"type": "look_top", "player": p, "source_uid": source_uid, "cards": top})
+	emit_event({ "type": "look_top", "player": p, "source_uid": source_uid, "cards": top })
+
 
 ## "look_bottom" (Dragar): `shown` cards drawn at random from the bottom `window` cards of the deck are looked at
 ## privately, like a top look; the one taken goes to the hand (revealed to everyone by search_take) and the others
@@ -3764,14 +4296,22 @@ func _begin_look_bottom(p: int, shown: int, window: int, source_uid: int) -> voi
 	_shuffle(bottom_cards)
 	var options: Array = []
 	for i in mini(shown, bottom_cards.size()):
-		options.append({"uid": bottom_cards[i].uid, "card_id": bottom_cards[i].card_id})
+		options.append({ "uid": bottom_cards[i].uid, "card_id": bottom_cards[i].card_id })
 	if options.is_empty():
-		emit_event({"type": "search_empty", "player": p, "source_uid": source_uid})
+		emit_event({ "type": "search_empty", "player": p, "source_uid": source_uid })
 		return
-	pending_search = {"player": p, "source_uid": source_uid, "cards": options, "look": true, "from_bottom": true, "stay_in_deck": true}
+	pending_search = {
+		"player": p,
+		"source_uid": source_uid,
+		"cards": options,
+		"look": true,
+		"from_bottom": true,
+		"stay_in_deck": true,
+	}
 	search_return = phase
 	phase = "search"
-	emit_event({"type": "look_top", "player": p, "source_uid": source_uid, "cards": options, "from_bottom": true})
+	emit_event({ "type": "look_top", "player": p, "source_uid": source_uid, "cards": options, "from_bottom": true })
+
 
 ## Returns damage actually dealt. source is the dealing unit or null.
 ## Armadura a unit really has: its own (printed + buffs), plus the "graveyard_armor" it counts
@@ -3781,6 +4321,7 @@ func _begin_look_bottom(p: int, shown: int, window: int, source_uid: int) -> voi
 func armor_of(c: Card) -> int:
 	# the default cap of 5 applies to the final total; a card with "ignores_armor_cap" (Tharox) skips it
 	return Card.capped_armor(uncapped_armor_of(c), card_of(c))
+
 
 ## The Armadura sum before the default cap (see armor_of).
 func uncapped_armor_of(c: Card) -> int:
@@ -3797,6 +4338,7 @@ func uncapped_armor_of(c: Card) -> int:
 			adjacent_total += int(card_of(board[neighbour_index]).get("adjacent_armor", 0))
 	return total + adjacent_total * constants_multiplier(c.owner)
 
+
 ## Damage a unit takes from one hit of `amount` after its Armadura: reduced, but never below 1
 ## (a hit of 0 stays 0).
 func damage_after_armor(c: Card, amount: int) -> int:
@@ -3807,16 +4349,20 @@ func damage_after_armor(c: Card, amount: int) -> int:
 		return graveyard_reduction
 	return maxi(1, amount - armor_of(c))
 
+
 func deal_damage(t: int, amount: int, source: Card) -> int:
 	return _deal_damage_internal(t, amount, source, false)
 
+
 func deal_combat_damage(target_uid: int, amount: int, source: Card) -> int:
 	return deal_damage(target_uid, amount, source)
+
 
 ## Periodic damage is already an applied status, so its damage bypasses Armadura, Escudo and
 ## Escudo Mágico. Indestrutível remains the stronger protection and still prevents it.
 func _deal_dot_damage(t: int, amount: int, dot_id: String) -> int:
 	return _deal_damage_internal(t, amount, null, true, dot_id)
+
 
 ## Santa Maria Helena: the first damage instance to her Leader each turn is reduced by 3,
 ## but the hit itself can never be reduced below 1. This applies before other Leader modifiers.
@@ -3829,9 +4375,10 @@ func _apply_leader_damage_guard(p: int, amount: int, src_uid: int) -> int:
 		var reduced := maxi(1, amount - reduction)
 		var prevented := amount - reduced
 		if prevented > 0:
-			emit_event({"type": "leader_guard", "uid": c.uid, "amount": prevented, "src": src_uid})
+			emit_event({ "type": "leader_guard", "uid": c.uid, "amount": prevented, "src": src_uid })
 		return reduced
 	return amount
+
 
 func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protections: bool, damage_kind := "") -> int:
 	if amount <= 0:
@@ -3849,7 +4396,16 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		# controller's next turn (whichever comes first)
 		if amount > 0 and turn <= int(players[tp]["damage_negated_until"]) and int(players[tp]["damage_negated_left"]) > 0:
 			players[tp]["damage_negated_left"] -= 1
-			emit_event({"type": "leader_hit_negated", "uid": t, "player": tp, "amount": amount, "src": src_uid, "left": int(players[tp]["damage_negated_left"])})
+			emit_event(
+				{
+					"type": "leader_hit_negated",
+					"uid": t,
+					"player": tp,
+					"amount": amount,
+					"src": src_uid,
+					"left": int(players[tp]["damage_negated_left"]),
+				}
+			)
 			return 0
 		# Câmara de Êxtase: a killing blow is cancelled completely and the Chamber is spent
 		var ward := _lethal_ward_of(tp)
@@ -3859,16 +4415,16 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		players[tp]["leader_hp"] -= amount
 		dealt = amount
 		# "hp_after": the life left once this hit landed (the Chronicle shows it next to the damage)
-		emit_event({"type": "damage", "uid": t, "amount": amount, "src": src_uid, "hp_after": players[tp]["leader_hp"]})
+		emit_event({ "type": "damage", "uid": t, "amount": amount, "src": src_uid, "hp_after": players[tp]["leader_hp"] })
 		var damaged := GameEvent.new("leader_damaged", tp, source)
 		damaged.amount = amount
 		damaged.hp_before = hp_before
 		damaged.hp_after = players[tp]["leader_hp"]
 		if damage_kind != "":
-			damaged.data = {"dot": damage_kind}
+			damaged.data = { "dot": damage_kind }
 		bus().emit(damaged)
 		if source != null:
-			fire_trigger(source, "on_hit_leader", 0, {"hit_damage": amount})
+			fire_trigger(source, "on_hit_leader", 0, { "hit_damage": amount })
 		# Tóxico normally skips Leaders; a card with "toxico_hits_leader" is the exception
 		if combat_damage and source != null and has_kw(source, "toxico") and source.data().get("toxico_hits_leader", false):
 			add_leader_dot_markers(tp, "veneno", toxico_markers(source))
@@ -3881,7 +4437,7 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		# Imunidade contra Trevas: the combat damage of an enemy Trevas unit is always 0 (Escudo isn't
 		# consumed). Effect damage is covered in Effect.apply_to, and only when it aims at this unit.
 		if combat_damage and source != null and source.owner != c.owner and is_immune_to_essence_of(c, source.card_id):
-			emit_event({"type": "dot_immune", "uid": t, "dot": ""})
+			emit_event({ "type": "dot_immune", "uid": t, "dot": "" })
 			return 0
 		# Escudo Supremo absorbs any damage at all (even a periodic tick) and is spent by it
 		if spend_supreme_shield(c, src_uid):
@@ -3891,27 +4447,30 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		var armor_before := armor_of(c)
 		if not bypass_unit_protections:
 			# Esquiva: the first combat damage each turn from a qualifying attacker is avoided
-			if combat_damage and has_kw(c, "esquiva") and source != null and combat_system().dodges(c, source) 				and c.dodge_turn != turn:
+			if (
+				combat_damage and has_kw(c, "esquiva") and source != null
+				and combat_system().dodges(c, source) and c.dodge_turn != turn
+			):
 				c.dodge_turn = turn
-				emit_event({"type": "dodge", "uid": t, "src": src_uid})
+				emit_event({ "type": "dodge", "uid": t, "src": src_uid })
 				return 0
 			# Armadura: reduces every damage instance, but a hit always deals at least 1
 			amount = damage_after_armor(c, amount)
 			if c.shield:
 				c.shield = false
-				emit_event({"type": "shield_break", "uid": t, "src": src_uid})
+				emit_event({ "type": "shield_break", "uid": t, "src": src_uid })
 				return 0
 		# Baluarte Santo: cancel the complete damage instance if it would kill this unit.
 		# For combat Toque Letal, any connected hit is lethal unless the target is immune.
 		var total_hp := c.hp_total()
 		var lethal_touch := combat_damage and source != null and has_kw(source, "toque_letal") \
-			and not _immune_to_lethal_touch(c)
+				and not _immune_to_lethal_touch(c)
 		if (c.damage + amount >= total_hp or lethal_touch) and _consume_death_ward(c, src_uid):
 			return 0
 		c.damage += amount
 		dealt = amount
 		unit_victim = c
-		var damage_event := {"type": "damage", "uid": t, "amount": amount, "src": src_uid, "hp_after": c.hp_left()}
+		var damage_event := { "type": "damage", "uid": t, "amount": amount, "src": src_uid, "hp_after": c.hp_left() }
 		if damage_kind != "":
 			damage_event["dot"] = damage_kind
 		emit_event(damage_event)
@@ -3920,23 +4479,24 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		unit_hurt.amount = amount
 		unit_hurt.hp_before = c.hp_left() + amount
 		unit_hurt.hp_after = c.hp_left()
-		unit_hurt.data = {"survived": c.hp_left() > 0} # a "when": {"survived": true} listener ignores lethal hits (Ampola Curativa)
+		unit_hurt.data = { "survived": c.hp_left() > 0 } # a "when": {"survived": true} listener ignores lethal hits (Ampola Curativa)
 		if damage_kind != "":
 			unit_hurt.data["dot"] = damage_kind
 		bus().emit(unit_hurt)
 		# Mar que Retorna: the marked unit survived damage -> its owner draws once
 		if c.tide_mark and c.hp_left() > 0:
 			c.tide_mark = false
-			emit_event({"type": "tide_draw", "uid": t, "player": c.owner})
+			emit_event({ "type": "tide_draw", "uid": t, "player": c.owner })
 			_draw(c.owner, 1)
-		# Ao Sofrer Dano only fires if the unit survived the damage; a lethal hit just kills it
+		# Ao Sofrer Dano fires on every hit that lands, lethal or not; Ao Sobreviver a Dano only when the unit is still alive
+		var hit_data := { "from_spell": _spell_resolving and source == null, "hit_reached_armor": raw_amount >= armor_before }
+		fire_trigger(c, "on_damaged", src_uid, hit_data)
 		if c.hp_left() > 0:
-			fire_trigger(c, "on_damaged", src_uid, {"from_spell": _spell_resolving and source == null,
-				"hit_reached_armor": raw_amount >= armor_before})
+			fire_trigger(c, "on_survive_damage", src_uid, hit_data.duplicate())
 		# Reflexão: half of the damage taken (rounded up) goes back to the unit that dealt it. The
 		# returning damage has no source, so two mirrors facing each other can't bounce it forever.
 		if has_kw(c, "reflexao") and source != null and source != c and find_unit(src_uid) != null:
-			emit_event({"type": "reflect", "uid": t, "target": src_uid, "amount": ceili(amount / 2.0)})
+			emit_event({ "type": "reflect", "uid": t, "target": src_uid, "amount": ceili(amount / 2.0) })
 			deal_damage(src_uid, ceili(amount / 2.0), null)
 		# Toque Letal is a combat-damage rider, not a destroy effect: Escudo and Esquiva
 		# return before this point with dealt == 0, while Indestrutível is checked here as
@@ -3960,15 +4520,25 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		if dealer != victim_owner:
 			players[dealer]["damage_this_round"] = int(players[dealer]["damage_this_round"]) + dealt
 	if source != null and has_kw(source, "roubo_de_vida"):
-		_heal_leader(source.owner, dealt, "unit", source) # the lifesteal keyword is a unit healing, so "healed_by": "unit" listeners hear it
+		# the lifesteal keyword is a unit healing, so "healed_by": "unit" listeners hear it
+		_heal_leader(source.owner, dealt, "unit", source)
 	# Ao Causar Dano de Combate: the unit that really dealt combat (or fight) damage fires once per damage instance.
 	# Effect damage never fires it, so a damage effect on this trigger can't fire itself again.
 	# "dealer_atk" keeps its Ataque at the moment of the hit, in case it died before the effect resolves.
 	# "target_died": the hit used up the Vida of a unit (never true for a Leader), for effects that read
 	# "only_if_target_dies" (Gorvakharr grows when he destroys a unit in combat).
 	if combat_damage and source != null and dealt > 0:
-		fire_trigger(source, "on_deal_combat_damage", t, {"hit_damage": dealt, "target_is_leader": t < 0,
-			"dealer_atk": atk_of(source), "target_died": unit_victim != null and unit_victim.hp_left() <= 0})
+		fire_trigger(
+			source,
+			"on_deal_combat_damage",
+			t,
+			{
+				"hit_damage": dealt,
+				"target_is_leader": t < 0,
+				"dealer_atk": atk_of(source),
+				"target_died": unit_victim != null and unit_victim.hp_left() <= 0,
+			},
+		)
 		# The same fact for listeners (an equipment hears it with scope "carrier": Dentadura Postiça).
 		var combat_hit := GameEvent.new("combat_damage_dealt", source.owner, source)
 		combat_hit.other_uid = t
@@ -3976,13 +4546,15 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 		bus().emit(combat_hit)
 	return dealt
 
+
 ## Puts `amount` accumulating markers of the `dot_id` kind on the unit (they resolve at its controller's turn start).
 func add_dot_markers(unit: Card, dot_id: String, amount: int, ignores_immunity := false) -> void:
 	if not ignores_immunity and unit_is_immune_to_dot(unit, dot_id):
-		emit_event({"type": "dot_immune", "uid": unit.uid, "dot": dot_id})
+		emit_event({ "type": "dot_immune", "uid": unit.uid, "dot": dot_id })
 		return
 	unit.dot_markers[dot_id] = int(unit.dot_markers.get(dot_id, 0)) + amount
-	emit_event({"type": "dot", "uid": unit.uid, "dot": dot_id, "amount": amount, "total": int(unit.dot_markers[dot_id])})
+	emit_event({ "type": "dot", "uid": unit.uid, "dot": dot_id, "amount": amount, "total": int(unit.dot_markers[dot_id]) })
+
 
 ## Puts markers on a Leader (player `p`). Like a unit's, they hurt it and are consumed at the start
 ## of its controller's turn (see _resolve_leader_dot), unless a card holds the Veneno in place.
@@ -3990,21 +4562,24 @@ func add_dot_markers(unit: Card, dot_id: String, amount: int, ignores_immunity :
 func add_leader_dot_markers(p: int, dot_id: String, amount: int) -> void:
 	var leader_dots: Dictionary = players[p]["leader_dots"]
 	leader_dots[dot_id] = int(leader_dots.get(dot_id, 0)) + amount
-	emit_event({"type": "dot", "uid": LEADER_UID[p], "dot": dot_id, "amount": amount, "total": int(leader_dots[dot_id])})
+	emit_event({ "type": "dot", "uid": LEADER_UID[p], "dot": dot_id, "amount": amount, "total": int(leader_dots[dot_id]) })
+
 
 ## Purify: removes every periodic-status marker (Veneno, Queimadura, Sangramento) from the unit.
 func cleanse_unit_markers(unit: Card) -> void:
 	if unit.dot_markers.is_empty():
 		return
-	unit.dot_markers = {}
-	emit_event({"type": "cleanse", "uid": unit.uid})
+	unit.dot_markers = { }
+	emit_event({ "type": "cleanse", "uid": unit.uid })
+
 
 ## Purify: removes every periodic-status marker from the Leader of player `p`.
 func cleanse_leader_markers(p: int) -> void:
 	if players[p]["leader_dots"].is_empty():
 		return
-	players[p]["leader_dots"] = {}
-	emit_event({"type": "cleanse", "uid": LEADER_UID[p]})
+	players[p]["leader_dots"] = { }
+	emit_event({ "type": "cleanse", "uid": LEADER_UID[p] })
+
 
 ## True when one of the unit's elements makes it immune to markers of `dot_id`.
 func unit_is_immune_to_dot(unit: Card, dot_id: String) -> bool:
@@ -4014,6 +4589,7 @@ func unit_is_immune_to_dot(unit: Card, dot_id: String) -> bool:
 			return true
 	return false
 
+
 ## Kills the Leader of player `p` on the spot (a card effect, e.g. Viprax's execution). Câmara de
 ## Êxtase and the damage halving do not apply. This is not damage: it emits its own "leader_executed"
 ## event (never a "damage" one) so the UI can play a dedicated execution animation instead of a big hit.
@@ -4022,14 +4598,16 @@ func kill_leader_outright(p: int, dot_id := "") -> void:
 	if hp_before <= 0:
 		return
 	players[p]["leader_hp"] = 0
-	var execution_event := {"type": "leader_executed", "uid": LEADER_UID[p], "player": p, "hp_before": hp_before}
+	var execution_event := { "type": "leader_executed", "uid": LEADER_UID[p], "player": p, "hp_before": hp_before }
 	if dot_id != "":
 		execution_event["dot"] = dot_id
 	emit_event(execution_event)
 
+
 ## How many markers of `dot_id` the Leader of player `p` holds.
 func leader_dot_markers(p: int, dot_id: String) -> int:
 	return int(players[p]["leader_dots"].get(dot_id, 0))
+
 
 ## True when unit `c` has the Imunidade contra <domínio> of the domain of the card `source_card_id` (keyword "imunidade_" + domain id).
 ## Only the opposing side's cards of that essence are blocked; the unit's own owner can still affect it.
@@ -4042,12 +4620,14 @@ func is_immune_to_essence_of(c: Card, source_card_id: String) -> bool:
 			return true
 	return false
 
+
 func _immune_to_lethal_touch(c: Card) -> bool:
 	if c == null:
 		return true
 	return has_kw(c, "indestrutivel") \
-		or has_kw(c, "imunidade_trevas") \
-		or bool(c.data().get("lethal_touch_immune", false))
+			or has_kw(c, "imunidade_trevas") \
+			or bool(c.data().get("lethal_touch_immune", false))
+
 
 ## The free-standing artifact of player p that cancels a lethal blow to their Leader (Câmara de Êxtase), if any.
 func _lethal_ward_of(p: int) -> Card:
@@ -4056,21 +4636,34 @@ func _lethal_ward_of(p: int) -> Card:
 			return relic
 	return null
 
+
 ## The Chamber cancels `prevented` damage, is destroyed, and then negates the Leader's next 3 damage
-## instances (even in this same turn) until the end of its controller's next turn. `source_uid` is the unit whose blow was cancelled (0 = not a unit), so the
-## screen can show that blow landing on the Leader.
+## instances (even in this same turn) until the end of its controller's next turn. `source_uid` is the unit whose
+## blow was cancelled (0 = not a unit), so the screen can show that blow landing on the Leader.
 func _trigger_lethal_ward(p: int, ward: Card, prevented: int, source_uid := 0) -> void:
 	var until := turn + (2 if p == active else 1)
 	players[p]["damage_negated_until"] = maxi(int(players[p]["damage_negated_until"]), until)
 	players[p]["damage_negated_left"] = LETHAL_WARD_NEGATED_HITS
-	emit_event({"type": "lethal_ward", "player": p, "uid": ward.uid, "card_id": ward.card_id, "amount": prevented, "src": source_uid, "hits": LETHAL_WARD_NEGATED_HITS})
+	emit_event(
+		{
+			"type": "lethal_ward",
+			"player": p,
+			"uid": ward.uid,
+			"card_id": ward.card_id,
+			"amount": prevented,
+			"src": source_uid,
+			"hits": LETHAL_WARD_NEGATED_HITS,
+		}
+	)
 	destroy_relic(ward)
+
 
 ## How many of the Leader's next hits are still reduced to 0 by the Câmara de Êxtase aftermath (0 once its window closed).
 func leader_negations_left(p: int) -> int:
 	if turn > int(players[p]["damage_negated_until"]):
 		return 0
 	return int(players[p]["damage_negated_left"])
+
 
 ## `healed_by` says who is healing (see EffectContext.heal_origin); "" for heals with no effect behind them
 ## (the lifesteal keyword counts as a unit healing: "unit"). `healer` is the unit whose lifesteal heals, if any.
@@ -4083,8 +4676,9 @@ func _heal_leader(p: int, amount: int, healed_by := "", healer: Card = null) -> 
 		var hp_before: int = pl["leader_hp"]
 		pl["leader_hp"] += healed
 		pl["healing_this_round"] = int(pl["healing_this_round"]) + healed
-		emit_event({"type": "heal", "uid": LEADER_UID[p], "amount": healed, "hp_after": pl["leader_hp"]})
+		emit_event({ "type": "heal", "uid": LEADER_UID[p], "amount": healed, "hp_after": pl["leader_hp"] })
 		_emit_leader_healed(p, healed, hp_before, healed_by, healer)
+
 
 ## A Leader heal with a hard budget per turn ("per_turn_cap" on a heal_leader effect, e.g. Tox Vipranna and Drex 10).
 ## Each instance of the card has its own budget per turn. The trigger that would pass the cap heals only what is
@@ -4108,10 +4702,11 @@ func _apply_capped_leader_heal(context: EffectContext, amount: int, per_turn_cap
 	source.capped_heal_total += amount
 	if source_temp_hp > 0:
 		source.temp_hp_until_next_turn += source_temp_hp
-		source.record_stat_change(source.card_id, "next_turn", {"hp": source_temp_hp})
-		emit_event({"type": "buff", "uid": source.uid, "atk": 0, "hp": source_temp_hp, "keywords": [], "until_next_turn": true})
+		source.record_stat_change(source.card_id, "next_turn", { "hp": source_temp_hp })
+		emit_event({ "type": "buff", "uid": source.uid, "atk": 0, "hp": source_temp_hp, "keywords": [], "until_next_turn": true })
 	if source.capped_heal_total >= per_turn_cap:
 		source.capped_heal_locked = true
+
 
 ## Raises the Leader's maximum life and its current life by the same amount (can pass the starting life).
 func _raise_leader_max(p: int, amount: int, healed_by := "") -> void:
@@ -4120,8 +4715,9 @@ func _raise_leader_max(p: int, amount: int, healed_by := "") -> void:
 	var hp_before: int = pl["leader_hp"]
 	pl["leader_hp"] += amount
 	pl["healing_this_round"] = int(pl["healing_this_round"]) + amount
-	emit_event({"type": "heal", "uid": LEADER_UID[p], "amount": amount, "hp_after": pl["leader_hp"]})
+	emit_event({ "type": "heal", "uid": LEADER_UID[p], "amount": amount, "hp_after": pl["leader_hp"] })
 	_emit_leader_healed(p, amount, hp_before, healed_by)
+
 
 ## Tells the listeners (Seymour) that a unit just got `amount` Vida back. Call it after the damage was removed.
 ## `healed_by` says who is healing (see _heal_leader); listeners read it with "when": {"healed_by": ...}.
@@ -4131,30 +4727,35 @@ func emit_unit_healed(unit: Card, amount: int, healed_by := "") -> void:
 	healed.amount = amount
 	healed.hp_after = unit.hp_left()
 	healed.hp_before = healed.hp_after - amount
-	healed.data = {"healed_by": healed_by}
+	healed.data = { "healed_by": healed_by }
 	bus().emit(healed)
 
+
 func _emit_leader_healed(p: int, amount: int, hp_before: int, healed_by := "", healer: Card = null) -> void:
-	var healed := GameEvent.new("leader_healed", p, healer) # the source is only set when a unit's own lifesteal heals (so "other_ally" listeners can skip it)
+	# the source is only set when a unit's own lifesteal heals (so "other_ally" listeners can skip it)
+	var healed := GameEvent.new("leader_healed", p, healer)
 	healed.amount = amount
 	healed.hp_before = hp_before
 	healed.hp_after = players[p]["leader_hp"]
-	healed.data = {"healed_by": healed_by}
+	healed.data = { "healed_by": healed_by }
 	bus().emit(healed)
+
 
 ## Fadiga: damage of the next draw from an empty deck. Doubles each time: 2, 4, 8, 16…
 func fatigue_next(p: int) -> int:
 	return 2 << int(players[p]["fatigue"])
+
 
 ## Player `p` suffers one Fadiga: damage to their Leader, and the next one doubles. A draw from an empty deck,
 ## milling an already-empty deck and Hora Extra Compulsória all end up here.
 func suffer_fatigue(p: int) -> void:
 	var damage_amount := fatigue_next(p)
 	players[p]["fatigue"] += 1
-	emit_event({"type": "fatigue", "player": p, "amount": damage_amount})
+	emit_event({ "type": "fatigue", "player": p, "amount": damage_amount })
 	_suffering_fatigue = true
 	deal_damage(LEADER_UID[p], damage_amount, null)
 	_suffering_fatigue = false
+
 
 ## `routine` marks the normal draw of the turn start: the event carries it so the Crônica can skip it
 ## (it only lists draws caused by effects).
@@ -4167,8 +4768,9 @@ func _draw(p: int, n: int, routine: bool = false) -> void:
 		var c: Card = pl["deck"].pop_back()
 		pl["hand"].append(c)
 		_move(c, "hand")
-		emit_event({"type": "draw", "player": p, "uid": c.uid, "routine": routine})
+		emit_event({ "type": "draw", "player": p, "uid": c.uid, "routine": routine })
 		bus().emit(GameEvent.new("card_drawn", p, c))
+
 
 ## Local development tools. These actions intentionally bypass normal costs and are never sent online.
 func debug_draw_cards(p: int, amount: int) -> Array:
@@ -4176,6 +4778,7 @@ func debug_draw_cards(p: int, amount: int) -> Array:
 		return []
 	_draw(p, amount)
 	return _debug_finish()
+
 
 func debug_draw_specific_card(p: int, card_id: String) -> Array:
 	if not _debug_player_valid(p) or card_id.is_empty():
@@ -4188,10 +4791,11 @@ func debug_draw_specific_card(p: int, card_id: String) -> Array:
 		deck.remove_at(i)
 		players[p]["hand"].append(c)
 		_move(c, "hand")
-		emit_event({"type": "draw", "player": p, "uid": c.uid})
+		emit_event({ "type": "draw", "player": p, "uid": c.uid })
 		bus().emit(GameEvent.new("card_drawn", p, c))
 		return _debug_finish()
 	return []
+
 
 func debug_add_momentum(p: int, amount: int) -> Array:
 	if not _debug_player_valid(p) or amount < 1 or amount > MOMENTUM_OVERFLOW_CAP:
@@ -4202,29 +4806,33 @@ func debug_add_momentum(p: int, amount: int) -> Array:
 	if int(pl["momentum"]) > current:
 		pl["momentum_gain_turn"] = turn
 	refresh_scaling()
-	emit_event({"type": "momentum", "player": p})
+	emit_event({ "type": "momentum", "player": p })
 	return _debug_finish()
+
 
 func debug_refill_momentum(p: int) -> Array:
 	if not _debug_player_valid(p):
 		return []
 	players[p]["momentum"] = maxi(int(players[p]["momentum"]), int(players[p]["max_momentum"]))
 	refresh_scaling()
-	emit_event({"type": "momentum", "player": p})
+	emit_event({ "type": "momentum", "player": p })
 	return _debug_finish()
+
 
 func debug_refill_reserve(p: int) -> Array:
 	if not _debug_player_valid(p):
 		return []
 	players[p]["reserve"] = RESERVE_CAP
-	emit_event({"type": "momentum", "player": p})
+	emit_event({ "type": "momentum", "player": p })
 	return _debug_finish()
+
 
 func debug_raise_leader_max(p: int, amount: int) -> Array:
 	if not _debug_player_valid(p) or amount < 1 or amount > 1000:
 		return []
 	_raise_leader_max(p, amount, "debug")
 	return _debug_finish()
+
 
 func debug_heal_leader(p: int) -> Array:
 	if not _debug_player_valid(p):
@@ -4236,9 +4844,10 @@ func debug_heal_leader(p: int) -> Array:
 	var hp_before: int = int(pl["leader_hp"])
 	pl["leader_hp"] = int(pl["leader_max"])
 	pl["healing_this_round"] = int(pl["healing_this_round"]) + healed
-	emit_event({"type": "heal", "uid": LEADER_UID[p], "amount": healed, "hp_after": pl["leader_hp"]})
+	emit_event({ "type": "heal", "uid": LEADER_UID[p], "amount": healed, "hp_after": pl["leader_hp"] })
 	_emit_leader_healed(p, healed, hp_before, "debug")
 	return _debug_finish()
+
 
 func debug_damage_leader(p: int, amount: int) -> Array:
 	if not _debug_player_valid(p) or amount < 1 or amount > 1000:
@@ -4246,12 +4855,15 @@ func debug_damage_leader(p: int, amount: int) -> Array:
 	deal_damage(LEADER_UID[p], amount, null)
 	return _debug_finish()
 
+
 func _debug_player_valid(p: int) -> bool:
 	return p >= 0 and p < players.size() and phase != "over"
+
 
 func _debug_finish() -> Array:
 	check_state()
 	return flush_events()
+
 
 ## Draws the first card (from the top) whose base cost is at least `min_base_cost`; that copy costs
 ## `discount` less while it stays in hand (Tecnomante). Nothing happens, and no Fadiga, if none qualifies.
@@ -4264,10 +4876,11 @@ func _draw_discounted(p: int, min_base_cost: int, discount: int) -> Card:
 			players[p]["hand"].append(c)
 			_move(c, "hand")
 			c.discount += discount
-			emit_event({"type": "draw", "player": p, "uid": c.uid})
+			emit_event({ "type": "draw", "player": p, "uid": c.uid })
 			bus().emit(GameEvent.new("card_drawn", p, c))
 			return c
 	return null
+
 
 ## Stabilizes the game after an action: moves dead units out, then resolves the queued triggers one
 ## at a time (active player's first), looping until nothing is left to do. A trigger that opens a
@@ -4288,12 +4901,15 @@ func check_state() -> void:
 	if not combat_damage:
 		check_leaders()
 
+
 func settle_state() -> void:
 	check_state()
+
 
 ## Called by the TriggerBus (and the death/passive code) when a trigger fires.
 func queue_trigger(trigger: PendingTrigger) -> void:
 	_pending.append(trigger)
+
 
 ## APNAP: the oldest trigger of the active player goes first, else the oldest of the opponent.
 func _take_next_pending() -> PendingTrigger:
@@ -4301,6 +4917,7 @@ func _take_next_pending() -> PendingTrigger:
 		if _pending[i].controller() == active:
 			return _pending.pop_at(i)
 	return _pending.pop_front()
+
 
 ## Moves dead units out and queues their Ao Morrer / Aliado Morre. Loops until stable.
 ## Deaths are processed active player first (APNAP), then the opponent.
@@ -4335,9 +4952,10 @@ func _move_dead_units() -> void:
 					# remembered before the equipment drops to the graveyard, so an Aliado Morre can still take it (Nina)
 					var dying_equipment: Array = c.equipped_cards.duplicate()
 					players[p]["board"].erase(c)
-					_end_borrowed_control(c) # a borrowed unit rests in its REAL owner's graveyard; the death triggers stay with the controller p
+					# a borrowed unit rests in its REAL owner's graveyard; the death triggers stay with the controller p
+					_end_borrowed_control(c)
 					changed = true
-					emit_event({"type": "death", "uid": dead_uid, "player": p, "card_id": dying_card_id})
+					emit_event({ "type": "death", "uid": dead_uid, "player": p, "card_id": dying_card_id })
 					_release_equipment(c, true)
 					var waits_to_revive: bool = c.incarnation and _incarnation_revives_after_death(effects)
 					if c.incarnation and not waits_to_revive:
@@ -4347,7 +4965,7 @@ func _move_dead_units() -> void:
 						_move(c, "") # a ficha dies without ever reaching the graveyard (Vagante, Jeff don't count it)
 					else:
 						players[c.owner]["graveyard"].append(c)
-						_move(c, "graveyard", {"incarnation_revives": waits_to_revive})
+						_move(c, "graveyard", { "incarnation_revives": waits_to_revive })
 					var death_context := EffectContext.new(self, p, "on_death")
 					death_context.self_uid = dead_uid
 					death_context.dying_card = c
@@ -4359,10 +4977,31 @@ func _move_dead_units() -> void:
 					# or the Encarnação returns to the Santuário.
 					for ally in players[p]["board"].duplicate():
 						if players[p]["board"].has(ally):
-							fire_trigger(ally, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token, "dying_card_id": dying_card_id, "dying_equipment": dying_equipment, "dying_was_sacrificed": dying_was_sacrificed})
+							fire_trigger(
+								ally,
+								"on_ally_death",
+								dead_uid,
+								{
+									"dying_is_token": dying_is_token,
+									"dying_card_id": dying_card_id,
+									"dying_equipment": dying_equipment,
+									"dying_was_sacrificed": dying_was_sacrificed,
+								},
+							)
 					for relic in players[p]["relics"].duplicate(): # free-standing artifacts hear it too
-						fire_trigger(relic, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token, "dying_card_id": dying_card_id, "dying_equipment": dying_equipment, "dying_was_sacrificed": dying_was_sacrificed})
+						fire_trigger(
+							relic,
+							"on_ally_death",
+							dead_uid,
+							{
+								"dying_is_token": dying_is_token,
+								"dying_card_id": dying_card_id,
+								"dying_equipment": dying_equipment,
+								"dying_was_sacrificed": dying_was_sacrificed,
+							},
+						)
 					_fire_leader_passive(p, "on_ally_death")
+
 
 ## True when the Encarnação's Ao Morrer is a revive_self_delayed with "keeps_incarnation" (Jeff The Death):
 ## it waits in the graveyard and returns as the Encarnação instead of going back to the Santuário.
@@ -4375,6 +5014,7 @@ func _incarnation_revives_after_death(effects: Array) -> bool:
 			return true
 	return false
 
+
 ## An Encarnação left in the graveyard with no return pending (the revive was stopped, or could not happen)
 ## goes back to the Santuário, exactly as an ordinary death of the Encarnação would have.
 func _send_stranded_incarnations_home() -> void:
@@ -4385,10 +5025,12 @@ func _send_stranded_incarnations_home() -> void:
 				_move(card, "")
 				_incarnation_leaves(p)
 
+
 ## True when `source` is a unit whose card says "banish_what_it_kills": a unit it would destroy (combat damage,
 ## Toque Letal, its own destroy effects) is banished instead (Rai'Emofitir). Silence removes the rule.
 func banishes_what_it_kills(source: Card) -> bool:
 	return source != null and bool(source.data().get("banish_what_it_kills", false))
+
 
 ## Returns the Baluarte-like artifact of p, if any.
 func _death_ward_of(p: int) -> Card:
@@ -4397,16 +5039,27 @@ func _death_ward_of(p: int) -> Card:
 			return relic
 	return null
 
+
 ## Consumes the automatic ward when a unit would die. Banishment bypasses this death path.
 ## `source_uid` is the unit whose blow was cancelled (0 = not a unit), so the screen can show that blow landing.
 func _consume_death_ward(victim: Card, source_uid := 0) -> bool:
 	var ward := _death_ward_of(victim.owner)
 	if ward == null:
 		return false
-	emit_event({"type": "death_prevented", "player": victim.owner, "uid": victim.uid, "card_id": victim.card_id,
-		"ward_uid": ward.uid, "ward_card_id": ward.card_id, "src": source_uid})
+	emit_event(
+		{
+			"type": "death_prevented",
+			"player": victim.owner,
+			"uid": victim.uid,
+			"card_id": victim.card_id,
+			"ward_uid": ward.uid,
+			"ward_card_id": ward.card_id,
+			"src": source_uid,
+		}
+	)
 	destroy_relic(ward)
 	return true
+
 
 ## Fallback for deaths from effects not intercepted at their damage/removal point.
 func _prevent_unit_death(victim: Card) -> bool:
@@ -4417,6 +5070,7 @@ func _prevent_unit_death(victim: Card) -> bool:
 	victim.condemned_turn = 0
 	return true
 
+
 func check_leaders() -> void:
 	if phase == "over":
 		return
@@ -4424,7 +5078,8 @@ func check_leaders() -> void:
 	if dead[0] or dead[1]:
 		winner = 2 if dead[0] and dead[1] else (1 if dead[0] else 0)
 		phase = "over"
-		emit_event({"type": "game_over", "winner": winner})
+		emit_event({ "type": "game_over", "winner": winner })
+
 
 ## Leader passive ("passive": true in the leader's ability): runs its effects when `trigger` happens,
 ## once per turn if "once_per_turn", or at most "max_per_turn" times a turn. `trigger_unit_uid` is the unit that
@@ -4451,8 +5106,9 @@ func _fire_leader_passive(p: int, trigger: String, trigger_unit_uid := 0) -> voi
 	players[p]["passive_used"] = true
 	if ab.has("max_per_turn"):
 		players[p]["passive_uses"] = int(players[p].get("passive_uses", 0)) + 1
-	emit_event({"type": "passive", "player": p})
+	emit_event({ "type": "passive", "player": p })
 	queue_trigger(PendingTrigger.new(null, passive_effects, passive_context))
+
 
 ## True when every effect of the passive is a random ally pick with no candidate, so firing it would
 ## only announce "ativou ..." and burn one of its uses for nothing.
@@ -4464,6 +5120,7 @@ func _passive_has_nobody_to_target(effects: Array, context: EffectContext) -> bo
 		if selector == null or not selector.has_no_ally_candidates(context, effect):
 			return false
 	return true
+
 
 ## True when every effect of the passive is a "leaked" Momentum refund (Sobrecarga) and the refund
 ## comes to 0, so firing it would only show a pointless "ativou Sobrecarga".
@@ -4480,6 +5137,7 @@ func _passive_refunds_nothing(p: int, ability: Dictionary) -> bool:
 			return false
 	return true
 
+
 func _finish_turn() -> void:
 	bus().emit(GameEvent.new("turn_ended", active))
 	for c in players[active]["board"].duplicate():
@@ -4494,7 +5152,7 @@ func _finish_turn() -> void:
 	if int(players[active]["momentum"]) > momentum_cap(active):
 		players[active]["momentum"] = momentum_cap(active)
 		refresh_scaling()
-		emit_event({"type": "momentum", "player": active})
+		emit_event({ "type": "momentum", "player": active })
 	# units borrowed with take_control go home now, before the end-of-turn cleanup below, so each is cleaned as its real owner's
 	for thief_state in players:
 		for c: Card in thief_state["board"].duplicate():
@@ -4547,12 +5205,12 @@ func _finish_turn() -> void:
 		for c: Card in q["board"]:
 			if c.frozen > 0 and turn >= c.frozen:
 				c.frozen = 0
-				emit_event({"type": "thaw", "uid": c.uid})
+				emit_event({ "type": "thaw", "uid": c.uid })
 	# Rei Gelado: the frozen empty slots thaw at the END of their owner's turn, so that turn really felt them
 	var ending: Dictionary = players[active]
 	if int(ending["frozen_slots"]) > 0 and turn >= int(ending["frozen_slots_until"]):
 		ending["frozen_slots"] = 0
-		emit_event({"type": "slots_thaw", "player": active})
+		emit_event({ "type": "slots_thaw", "player": active })
 	for player_state: Dictionary in players:
 		for card: Card in player_state["hand"]:
 			card.turn_discount = 0
@@ -4560,16 +5218,17 @@ func _finish_turn() -> void:
 		check_state()
 		if phase == "over":
 			return
-	emit_event({"type": "end_turn", "player": active})
+	emit_event({ "type": "end_turn", "player": active })
 	if players[active]["extra_turn_pending"]:
 		# an extra turn: the same player plays again instead of handing the turn over
 		players[active]["extra_turn_pending"] = false
 		players[active]["in_extra_turn"] = true # set before the turn starts, so its own Início do Turno cannot chain another
-		emit_event({"type": "extra_turn", "player": active})
+		emit_event({ "type": "extra_turn", "player": active })
 		_start_turn(active, bool(players[active]["extra_turn_draws"]))
 		return
 	players[active]["in_extra_turn"] = false
 	_start_turn(opponent(active), true)
+
 
 func _resolve_delayed_self_revives() -> bool:
 	var revived_any := false
@@ -4589,11 +5248,12 @@ func _resolve_delayed_self_revives() -> bool:
 			overrides["atk"] = revive_atk
 			overrides["hp"] = revive_hp
 			card.uid = _uid()
-			emit_event({"type": "revive", "player": p, "card_id": card.card_id})
+			emit_event({ "type": "revive", "player": p, "card_id": card.card_id })
 			_summon(p, card, false, 0, overrides)
 			revived_any = true
 	_send_stranded_incarnations_home() # a return that found the field full leaves the Encarnação stranded
 	return revived_any
+
 
 ## Artifacts with "momentum_store": N (Bateria de Segunda Mão) catch the Momentum that leaked past the Reserva
 ## at this turn start, each up to its own limit. What goes to the Reserva never counts: only what would be lost.
@@ -4605,7 +5265,8 @@ func _store_leaked_momentum(pl: Dictionary, leaked: int) -> void:
 		if taken > 0:
 			relic.stored_momentum += taken
 			left_to_store -= taken
-			emit_event({"type": "momentum_stored", "player": relic.owner, "uid": relic.uid, "stored": relic.stored_momentum})
+			emit_event({ "type": "momentum_stored", "player": relic.owner, "uid": relic.uid, "stored": relic.stored_momentum })
+
 
 func _start_turn(p: int, draw: bool) -> void:
 	active = p
@@ -4670,7 +5331,7 @@ func _start_turn(p: int, draw: bool) -> void:
 			c.temp_hp_until_next_turn = 0
 		if c.is_stunned(): # an Atordoada unit loses one marker instead of untapping
 			c.stun_markers -= 1
-			emit_event({"type": "stun_tick", "uid": c.uid, "markers": c.stun_markers})
+			emit_event({ "type": "stun_tick", "uid": c.uid, "markers": c.stun_markers })
 		elif not c.is_frozen(): # a Congelada unit stays tapped through this whole turn
 			c.exhausted = false
 		c.sick = false
@@ -4688,7 +5349,7 @@ func _start_turn(p: int, draw: bool) -> void:
 		c.keywords_until_next_turn = []
 		c.rapidez_until_next_turn = 0
 		c.attacks_made = 0
-	emit_event({"type": "start_turn", "player": p, "turn": turn})
+	emit_event({ "type": "start_turn", "player": p, "turn": turn })
 	_regenerate_all_units()
 	_resolve_dot_markers(p)
 	_resolve_condemned()
@@ -4706,6 +5367,7 @@ func _start_turn(p: int, draw: bool) -> void:
 		_draw(p, 1, true)
 	check_state()
 
+
 ## "No Início/Fim de Qualquer Turno": unlike on_turn_start/on_turn_end (only the owner's own turn), these
 ## fire on every turn, for the units of BOTH players. The player whose turn it is goes first, then the
 ## opponent, so the order is predictable.
@@ -4715,6 +5377,7 @@ func _fire_any_turn_trigger(turn_player: int, trigger: String) -> void:
 			# A unit that died earlier in this same step no longer triggers.
 			if find_unit(unit.uid) != null:
 				fire_trigger(unit, trigger)
+
 
 ## Regeneração: at the start of every turn (either player's) all the damage of each unit that has it is
 ## healed. It happens before the periodic markers and the turn-start triggers, so damage dealt at the end of
@@ -4727,7 +5390,10 @@ func _regenerate_all_units() -> void:
 				var healed_amount: int = unit.damage
 				unit.damage = 0
 				players[unit.owner]["healing_this_round"] = int(players[unit.owner]["healing_this_round"]) + healed_amount
-				emit_event({"type": "heal", "uid": unit.uid, "amount": healed_amount, "regeneration": true, "hp_after": unit.hp_left()})
+				emit_event(
+					{ "type": "heal", "uid": unit.uid, "amount": healed_amount, "regeneration": true, "hp_after": unit.hp_left() }
+				)
+
 
 ## Resolves every periodic marker on every unit controlled by p, and on p's Leader, at the start of that turn.
 func _resolve_dot_markers(p: int) -> void:
@@ -4736,6 +5402,7 @@ func _resolve_dot_markers(p: int) -> void:
 			resolve_dot(unit, String(dot_id))
 	for dot_id in players[p]["leader_dots"].keys().duplicate():
 		_resolve_leader_dot(p, String(dot_id))
+
 
 ## A Leader's markers hurt it by the same per-marker damage as a unit's and wear off the same way. It is normal
 ## damage, so Câmara de Êxtase still applies. While its Veneno is held (see veneno_is_held) the
@@ -4747,7 +5414,18 @@ func _resolve_leader_dot(p: int, dot_id: String, keep_markers := false) -> void:
 	var held := keep_markers or veneno_is_held(dot_id, LEADER_UID[p])
 	var consumed := 0 if held else markers
 	var damage := leader_dot_damage(dot_id, markers)
-	emit_event({"type": "dot", "uid": LEADER_UID[p], "dot": dot_id, "amount": markers, "damage": damage, "total": markers - consumed, "cleared": true, "held": held})
+	emit_event(
+		{
+			"type": "dot",
+			"uid": LEADER_UID[p],
+			"dot": dot_id,
+			"amount": markers,
+			"damage": damage,
+			"total": markers - consumed,
+			"cleared": true,
+			"held": held,
+		}
+	)
 	_deal_dot_damage(LEADER_UID[p], damage, dot_id)
 	if held:
 		return
@@ -4757,6 +5435,7 @@ func _resolve_leader_dot(p: int, dot_id: String, keep_markers := false) -> void:
 		players[p]["leader_dots"][dot_id] = remaining
 	else:
 		players[p]["leader_dots"].erase(dot_id)
+
 
 ## True when the Veneno markers of `target_uid` (a unit, or a Leader's negative uid) are not consumed
 ## right now: either a Greve Geral dos Antídotos is running, or a Leader's own hold is.
@@ -4768,10 +5447,12 @@ func veneno_is_held(dot_id: String, target_uid: int) -> bool:
 	var leader_player := LEADER_UID.find(target_uid)
 	return leader_player >= 0 and turn <= int(players[leader_player]["leader_veneno_held_until"])
 
+
 ## Nobody's Veneno is consumed for the next `turn_starts` turn starts (of either player).
 func hold_veneno_for_everyone(turn_starts: int) -> void:
 	veneno_held_until = maxi(veneno_held_until, turn + turn_starts)
-	emit_event({"type": "veneno_hold", "player": -1, "turn_starts": turn_starts})
+	emit_event({ "type": "veneno_hold", "player": -1, "turn_starts": turn_starts })
+
 
 ## The Veneno on the Leader of player `p` is not consumed for the next `turn_starts` turn starts of
 ## that Leader's controller.
@@ -4779,15 +5460,18 @@ func hold_veneno_on_leader(p: int, turn_starts: int) -> void:
 	var first_turn_start := turn + (2 if p == active else 1)
 	var until := first_turn_start + 2 * (turn_starts - 1)
 	players[p]["leader_veneno_held_until"] = maxi(int(players[p]["leader_veneno_held_until"]), until)
-	emit_event({"type": "veneno_hold", "player": p, "turn_starts": turn_starts})
+	emit_event({ "type": "veneno_hold", "player": p, "turn_starts": turn_starts })
+
 
 ## True while the Leader of player `p` cannot recover Vida (see block_healing_on_leader).
 func leader_heal_blocked(p: int) -> bool:
 	return turn <= int(players[p]["leader_heal_blocked_until"])
 
+
 ## True while `unit` cannot recover Vida (see block_healing_on_unit).
 func unit_heal_blocked(unit: Card) -> bool:
 	return unit != null and turn <= unit.heal_blocked_until
+
 
 ## True when the block keeps the Leader of player `p` from recovering `amount` Vida it was really missing; the
 ## player sees "Bloqueada!" (heal_prevented). A heal that would have recovered nothing anyway stays silent.
@@ -4796,16 +5480,18 @@ func leader_heal_prevented(p: int, amount: int) -> bool:
 		return false
 	var pl: Dictionary = players[p]
 	if amount > 0 and int(pl["leader_max"]) - int(pl["leader_hp"]) > 0:
-		emit_event({"type": "heal_prevented", "uid": LEADER_UID[p]})
+		emit_event({ "type": "heal_prevented", "uid": LEADER_UID[p] })
 	return true
+
 
 ## Same as leader_heal_prevented, for a unit: reports the block only when `amount` would really have healed damage.
 func unit_heal_prevented(unit: Card, amount: int) -> bool:
 	if not unit_heal_blocked(unit):
 		return false
 	if amount > 0 and unit.damage > 0:
-		emit_event({"type": "heal_prevented", "uid": unit.uid})
+		emit_event({ "type": "heal_prevented", "uid": unit.uid })
 	return true
+
 
 ## The last game turn a heal block is active. It covers the rest of the current turn and runs through the end
 ## of the blocked side's controller `p` having played `turns` more turns.
@@ -4813,16 +5499,19 @@ func _heal_block_last_turn(p: int, turns: int) -> int:
 	var first_turn_of_controller := turn + (2 if p == active else 1)
 	return first_turn_of_controller + 2 * (turns - 1)
 
+
 ## The Leader of player `p` cannot recover Vida for `turns` of its controller's next turns.
 ## A longer block already running is never shortened.
 func block_healing_on_leader(p: int, turns: int) -> void:
 	players[p]["leader_heal_blocked_until"] = maxi(int(players[p]["leader_heal_blocked_until"]), _heal_block_last_turn(p, turns))
-	emit_event({"type": "heal_block", "uid": LEADER_UID[p], "turns": turns})
+	emit_event({ "type": "heal_block", "uid": LEADER_UID[p], "turns": turns })
+
 
 ## `unit` cannot recover Vida for `turns` of its controller's next turns. A longer block already running is never shortened.
 func block_healing_on_unit(unit: Card, turns: int) -> void:
 	unit.heal_blocked_until = maxi(unit.heal_blocked_until, _heal_block_last_turn(unit.owner, turns))
-	emit_event({"type": "heal_block", "uid": unit.uid, "turns": turns})
+	emit_event({ "type": "heal_block", "uid": unit.uid, "turns": turns })
+
 
 ## Until the start of player `p`'s next turn, the Veneno tick of every poisoned unit deals damage equal to
 ## that unit's current Vida. The window closes right before the tick of `p`'s own next turn start, so
@@ -4830,7 +5519,8 @@ func block_healing_on_unit(unit: Card, turns: int) -> void:
 func make_veneno_lethal_until_next_turn_of(p: int) -> void:
 	var next_turn_start := turn + (2 if p == active else 1)
 	veneno_lethal_until = maxi(veneno_lethal_until, next_turn_start - 1)
-	emit_event({"type": "veneno_lethal", "player": p})
+	emit_event({ "type": "veneno_lethal", "player": p })
+
 
 ## Carries out every sentence that is due: a Condenada unit (on either board) dies when the turn
 ## number stored on it arrives. Indestrutível survives, but the mark is spent either way.
@@ -4841,15 +5531,16 @@ func _resolve_condemned() -> void:
 				continue
 			unit.condemned_turn = 0
 			if unit.has_kw("indestrutivel"):
-				emit_event({"type": "doom_resisted", "uid": unit.uid})
+				emit_event({ "type": "doom_resisted", "uid": unit.uid })
 				continue
 			unit.damage = 1000000
-			emit_event({"type": "doom", "uid": unit.uid})
+			emit_event({ "type": "doom", "uid": unit.uid })
 	# Clear the dead right away, so a doomed unit gets no start-of-turn trigger.
 	check_state()
 
+
 ## Resolves one marker type. Only the markers present when this call starts are consumed;
-## a new marker added by an on_damaged trigger remains for the next turn. Every marker wears off,
+## a new marker added by an on_survive_damage trigger remains for the next turn. Every marker wears off,
 ## except while Veneno is held (see veneno_is_held): the markers hurt and stay.
 ## `keep_markers` (a card effect, Coagulhão) holds them the same way for this one tick, for any marker kind.
 func resolve_dot(unit: Card, dot_id: String, keep_markers := false) -> void:
@@ -4861,7 +5552,18 @@ func resolve_dot(unit: Card, dot_id: String, keep_markers := false) -> void:
 	var damage := dot_damage(dot_id, unit, markers)
 	var held := keep_markers or veneno_is_held(dot_id, unit.uid)
 	var consumed := 0 if held else markers
-	emit_event({"type": "dot", "uid": unit.uid, "dot": dot_id, "amount": markers, "damage": damage, "total": markers - consumed, "cleared": true, "held": held})
+	emit_event(
+		{
+			"type": "dot",
+			"uid": unit.uid,
+			"dot": dot_id,
+			"amount": markers,
+			"damage": damage,
+			"total": markers - consumed,
+			"cleared": true,
+			"held": held,
+		}
+	)
 	_deal_dot_damage(unit.uid, damage, dot_id)
 	if held:
 		return
@@ -4870,6 +5572,7 @@ func resolve_dot(unit: Card, dot_id: String, keep_markers := false) -> void:
 		unit.dot_markers[dot_id] = remaining
 	else:
 		unit.dot_markers.erase(dot_id)
+
 
 ## Calculates the damage for one periodic marker type without applying it.
 func dot_damage(dot_id: String, unit: Card, markers: int) -> int:
@@ -4883,11 +5586,13 @@ func dot_damage(dot_id: String, unit: Card, markers: int) -> int:
 		return maxi(normal_damage, unit.hp_left())
 	return normal_damage
 
+
 ## Same calculation for a Leader's markers (a Leader is not a Card, so dot_damage cannot take it).
 func leader_dot_damage(dot_id: String, markers: int) -> int:
 	if markers <= 0:
 		return 0
 	return markers * VENENO_DAMAGE_PER_MARKER if DOT_RULES.get(dot_id, "flat") == "poison" else markers
+
 
 ## All the damage the markers a unit holds right now will deal at its controller's next turn start,
 ## every kind of marker added up (Veneno and Sangramento 2 per marker, Queimadura 1).
@@ -4897,6 +5602,7 @@ func pending_dot_damage(unit: Card) -> int:
 		total += dot_damage(String(dot_id), unit, int(unit.dot_markers[dot_id]))
 	return total
 
+
 ## The same for the Leader of player `p`.
 func pending_leader_dot_damage(p: int) -> int:
 	var total := 0
@@ -4904,20 +5610,24 @@ func pending_leader_dot_damage(p: int) -> int:
 		total += leader_dot_damage(String(dot_id), leader_dot_markers(p, String(dot_id)))
 	return total
 
+
 ## True when the markers a unit already holds are enough to kill it at its next tick: more markers on it
 ## would change nothing. A marker ignores Armadura and the shields, but an Indestrutível unit survives it.
 func dots_already_kill_unit(unit: Card) -> bool:
 	return not has_kw(unit, "indestrutivel") and pending_dot_damage(unit) >= hp_left(unit)
 
+
 ## The same for the Leader of player `p`.
 func dots_already_kill_leader(p: int) -> bool:
 	return pending_leader_dot_damage(p) >= int(players[p]["leader_hp"])
+
 
 ## Test helpers: apply one raw effect dictionary / run raw effect dictionaries as a trigger would.
 func _apply_effect(player: int, effect_data: Dictionary, target_uid: int, source_card_id := "") -> void:
 	var context := EffectContext.new(self, player, "")
 	context.source_card_id = source_card_id
 	EffectRegistry.parse(effect_data).apply_to(context, target_uid)
+
 
 func _run_effect_dicts(player: int, effects: Array, trigger: String, chosen: int, self_uid: int, source_card_id := "") -> void:
 	var context := EffectContext.new(self, player, trigger)
