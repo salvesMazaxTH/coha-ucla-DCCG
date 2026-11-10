@@ -1,0 +1,17 @@
+{
+  "name": "Rebrota de Fresta",
+  "set": 2,
+  "type": "spell",
+  "rarity": "common",
+  "essence": "natureza",
+  "cost": 1,
+  "speed": "rapido",
+  "art": "natureza/rebrota_de_fresta.webp",
+  "effects": [
+    { "trigger": "on_play", "action": "damage", "target": "ally_unit", "amount": 2 },
+    { "trigger": "on_play", "action": "buff", "target": "ally_unit", "keywords": ["regeneracao"] }
+  ],
+  "text": "Uma unidade aliada, à sua escolha, sofre 2 de dano e ganha Regeneração permanente.",
+  "flavor": "",
+  "unreleased": true
+}

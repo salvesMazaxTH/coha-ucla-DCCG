@@ -25,13 +25,13 @@
       "amount": 3
     },
     {
-      "trigger": "on_damaged",
+      "trigger": "on_survive_damage",
       "action": "buff",
       "target": "self",
       "atk": 1
     }
   ],
-  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela sofre 3 de dano.\nAo Sofrer Dano: esta unidade ganha +1 de Ataque.",
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela sofre 3 de dano.\nAo Sobreviver a Dano: esta unidade ganha +1 de Ataque.",
   "flavor": [
     "Dragões, seitas, magos... será que dá pra eu só ter uma terça-feira normal?",
     "Eu tinha um plano: diploma, emprego, boleto pago. Aí veio o dragão.",

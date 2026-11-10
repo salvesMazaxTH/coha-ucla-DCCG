@@ -1,0 +1,25 @@
+{
+  "name": "Carpideira de Seiva",
+  "set": 2,
+  "type": "unit",
+  "rarity": "epic",
+  "essence": ["trevas", "natureza"],
+  "cost": 3,
+  "atk": 2,
+  "hp": 4,
+  "keywords": ["regeneracao"],
+  "art": "natureza/carpideira_de_seiva.webp",
+  "effects": [],
+  "activated": {
+    "cost": 0,
+    "speed": "lento",
+    "exhaust": true,
+    "effects": [
+      { "action": "damage", "target": "self", "amount": 2 },
+      { "action": "draw", "target": "own_leader", "amount": 1 }
+    ]
+  },
+  "text": "Ao Ativar (0) {lento} (exaure esta unidade): esta unidade sofre 2 de dano e você compra 1 carta.",
+  "flavor": "",
+  "unreleased": true
+}

@@ -89,7 +89,11 @@
     },
     "on_damaged": {
       "name": "Ao Sofrer Dano",
-      "text": "O efeito acontece quando a unidade sofre dano (Escudo anulando o dano não conta)."
+      "text": "O efeito acontece quando a unidade sofre dano, mesmo que o golpe seja letal (Escudo anulando o dano não conta)."
+    },
+    "on_survive_damage": {
+      "name": "Ao Sobreviver a Dano",
+      "text": "O efeito acontece quando a unidade sofre dano e continua em campo (um golpe letal não dispara)."
     },
     "on_hit_leader": {
       "name": "Ao Atingir o Líder",

@@ -15,12 +15,12 @@
   "art_crop": {"x": 0.8, "y": 0.52, "zoom": 1.1},
   "effects": [
     {
-      "trigger": "on_damaged",
+      "trigger": "on_survive_damage",
       "action": "buff",
       "target": "self",
       "atk": 1
     }
   ],
-  "text": "Ao Sofrer Dano: esta unidade recebe +1 de Ataque.",
+  "text": "Ao Sobreviver a Dano: esta unidade recebe +1 de Ataque.",
   "flavor": ""
 }

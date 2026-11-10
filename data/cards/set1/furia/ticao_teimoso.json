@@ -15,19 +15,19 @@
   "art": "furia/ticao_teimoso.webp",
   "effects": [
     {
-      "trigger": "on_damaged",
+      "trigger": "on_survive_damage",
       "action": "damage",
       "target": "enemy_leader",
       "amount": 1
     },
     {
-      "trigger": "on_damaged",
+      "trigger": "on_survive_damage",
       "action": "buff",
       "target": "self",
       "atk": 1,
       "temp": true
     }
   ],
-  "text": "Ao Sofrer Dano: causa 1 de dano ao Líder inimigo e esta unidade ganha +1 de Ataque neste turno.",
+  "text": "Ao Sobreviver a Dano: causa 1 de dano ao Líder inimigo e esta unidade ganha +1 de Ataque neste turno.",
   "flavor": ""
 }

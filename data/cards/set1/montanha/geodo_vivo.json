@@ -13,7 +13,7 @@
   "keywords": [],
   "effects": [
     {
-      "trigger": "on_damaged",
+      "trigger": "on_survive_damage",
       "action": "buff",
       "target": "self",
       "atk": 1,
@@ -21,6 +21,6 @@
       "cap_atk": 2
     }
   ],
-  "text": "Ao Sofrer Dano: ganha +1/+1 (o Ataque ganho por este efeito vai até +2 no total).",
+  "text": "Ao Sobreviver a Dano: ganha +1/+1 (o Ataque ganho por este efeito vai até +2 no total).",
   "flavor": ""
 }

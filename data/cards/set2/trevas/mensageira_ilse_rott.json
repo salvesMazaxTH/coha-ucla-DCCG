@@ -6,10 +6,9 @@
   "tribe": ["dragoes_negros"],
   "essence": ["trevas"],
   "cost": 2,
-  "atk": 2,
+  "atk": 1,
   "hp": 1,
-  "keywords": ["esquiva"],
-  "esquiva": { "max_rapidez": 0 },
+  "keywords": ["rapidez:1", "esquiva"],
   "art": "trevas/mensageira_ilse_rott.webp",
   "effects": [
     {

@@ -1,0 +1,27 @@
+{
+  "name": "Neco Sete-Vidas",
+  "set": 2,
+  "type": "unit",
+  "rarity": "common",
+  "tribe": ["fera"],
+  "essence": "natureza",
+  "cost": 2,
+  "atk": 2,
+  "hp": 3,
+  "keywords": [],
+  "art": "natureza/neco_sete_vidas.webp",
+  "effects": [
+    {
+      "trigger": "on_survive_damage",
+      "action": "buff",
+      "target": "self",
+      "atk": 1,
+      "hp": 2,
+      "keywords": ["regeneracao"],
+      "once_per_zone": true
+    }
+  ],
+  "text": "Ao Sobreviver a Dano (uma vez): ganha +1/+2 e Regeneração permanentes.",
+  "flavor": "",
+  "unreleased": true
+}

@@ -16,13 +16,13 @@
   "keywords": [],
   "effects": [
     {
-      "trigger": "on_damaged",
+      "trigger": "on_survive_damage",
       "action": "buff",
       "target": "random_other_ally_unit",
       "hp": 1
     }
   ],
-  "text": "Ao Sofrer Dano: concede +1 de Vida permanente a outra unidade aliada aleatória.\nTransformar (8): Yrêsa Petronika Primordial.",
+  "text": "Ao Sobreviver a Dano: concede +1 de Vida permanente a outra unidade aliada aleatória.\nTransformar (8): Yrêsa Petronika Primordial.",
   "flavor": "",
   "transform": {
     "into": "yresa_petronika_primordial",
