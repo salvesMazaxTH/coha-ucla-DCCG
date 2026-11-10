@@ -5,7 +5,7 @@ extends RefCounted
 ## Invalid actions return [] and leave state untouched.
 
 const START_HAND := 7
-const MULLIGAN_MAX := 3
+const MULLIGAN_MAX := 4
 const HAND_LIMIT := 7
 const BOARD_LIMIT := 8
 const MOMENTUM_CAP := 12

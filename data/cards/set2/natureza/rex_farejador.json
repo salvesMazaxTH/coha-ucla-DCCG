@@ -10,6 +10,7 @@
   "hp": 2,
   "keywords": ["vigilancia"],
   "art": "natureza/rex_farejador.webp",
+  "art_crop": {"x": 0.5, "y": 0.24, "zoom": 1.0},
   "effects": [
     { "trigger": "on_enter", "action": "enemy_hand_tax", "target": "none", "cost_increase": 1, "only_type": "spell" }
   ],

@@ -16,6 +16,7 @@ const DevToolsPanelScript = preload("res://scripts/ui/dev_tools_panel.gd")
 const SEL := Color("#ffd23f")
 const TARGET := Color("#ff5050")
 const OK := Color("#4dff88")
+const INK_BLUE := Color("#50cfff")
 const ICE := FxLibraryScript.ICE
 ## An exhausted (tapped) unit lies sideways on the table, like a tapped Magic card.
 const TAPPED_TILT_DEGREES := 90.0
@@ -1093,6 +1094,12 @@ func _reservoir_rect(p: int) -> Rect2:
 
 func _render_reservoir(p: int) -> void:
 	var rect := _reservoir_rect(p)
+	var can_ink := false
+	if p == viewer and _my_input():
+		for hand_card: Card in g.players[p]["hand"]:
+			if g.can_store_in_reservoir(p, hand_card.uid):
+				can_ink = true
+				break
 	var panel := Panel.new()
 	panel.position = rect.position
 	panel.size = rect.size
@@ -1141,6 +1148,30 @@ func _render_reservoir(p: int) -> void:
 		cell.add_child(view)
 	if p == viewer:
 		panel.tooltip_text = "Arraste uma carta da mão para cá para depositá-la permanentemente."
+	if can_ink:
+		_add_reservoir_ink_glow(panel, rect.size)
+
+
+func _add_reservoir_ink_glow(panel: Panel, panel_size: Vector2) -> void:
+	var glow := Panel.new()
+	glow.size = panel_size
+	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color.TRANSPARENT
+	style.draw_center = false
+	style.set_corner_radius_all(8)
+	style.set_border_width_all(2)
+	style.border_color = INK_BLUE
+	style.shadow_color = Color(INK_BLUE.r, INK_BLUE.g, INK_BLUE.b, 0.8)
+	style.shadow_size = 12
+	style.shadow_offset = Vector2.ZERO
+	style.anti_aliasing = true
+	glow.add_theme_stylebox_override("panel", style)
+	glow.modulate.a = 0.45
+	panel.add_child(glow)
+	var pulse := glow.create_tween().set_loops()
+	pulse.tween_property(glow, "modulate:a", 1.0, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	pulse.tween_property(glow, "modulate:a", 0.45, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
 func _render_command(p: int, pos: Vector2) -> void:
@@ -1626,6 +1657,8 @@ func _render_hand(p: int) -> void:
 			v.highlight = SEL
 		elif g.phase in ["main", "combat"] and g.can_play(p, hand_card.uid, true) and not _is_ai(p):
 			v.highlight = OK
+		elif _my_input() and g.can_store_in_reservoir(p, hand_card.uid):
+			v.highlight = INK_BLUE
 		v.position = pos
 		v.rotation = rot
 		v.left_clicked.connect(_on_hand_click)
@@ -2020,6 +2053,9 @@ func _render_side() -> void:
 		"enter_tapped": "Provocação · entrada",
 	}
 	var mine := g.decider() == viewer and not _is_ai(viewer)
+	var my_turn := g.active == viewer
+	if g.phase == "mulligan":
+		my_turn = mine
 	var tp := Panel.new()
 	tp.position = Vector2(col_x, 326)
 	tp.size = Vector2(COL_W, 84)

@@ -30,7 +30,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 ## Início da partida
 
 - Os dois jogadores começam com **7 cartas** na mão.
-- **Mulligan:** cada jogador pode devolver até 3 cartas ao deck, que é embaralhado, e comprar a mesma quantidade.
+- **Mulligan:** cada jogador pode devolver até 4 cartas ao deck, que é embaralhado, e comprar a mesma quantidade.
 - Quem joga primeiro **não compra** no primeiro turno. Quem joga em segundo compra normalmente e começa seu primeiro turno com 8 cartas; no fim desse turno, bane o excedente até ficar com 7.
 - O limite da mão é **7 cartas**. Se terminar o turno acima desse limite, o jogador bane cartas até ficar com 7.
 - Quem joga em segundo coloca a carta do fundo do deck no Reservatório no início de seu primeiro turno.
@@ -51,7 +51,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 2. **Fase principal:** jogue cartas, conjure a Encarnação e use a habilidade do Líder.
 3. **Combate**, uma vez por turno (veja _Combate_ abaixo).
 4. **Segunda fase principal**.
-5. **Fim do turno:** se você tiver mais de **10 cartas** na mão, escolha quais **banir** até ficar com 10 (não vão ao cemitério; o oponente não vê quais foram). Os bônus temporários acabam. **O dano nas unidades continua marcado** (só curas e Regeneração o removem).
+5. **Fim do turno:** se você tiver mais de **7 cartas** na mão, escolha quais **banir** até ficar com 7 (não vão ao cemitério; o oponente não vê quais foram). Os bônus temporários acabam. **O dano nas unidades continua marcado** (só curas e Regeneração o removem).
 
 ## Combate
 
