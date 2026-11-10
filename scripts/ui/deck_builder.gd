@@ -30,6 +30,7 @@ const GOOD := Color("#5fcf80")
 const WARN := Color("#e8a23a")
 const BAD := Color("#e8484a")
 const BANNED_MESSAGE := "Este Líder está BANIDO: só pode ser usado no modo de desenvolvimento."
+const BANNED_CARD_MESSAGE := "Esta carta está BANIDA: só pode ser usada no modo de desenvolvimento."
 const INFO := Color("#6aa7e8")
 const CURVE_SLOTS := 8 ## costs 0..6 and "7+"
 
@@ -611,7 +612,7 @@ func _deck_tile(deck: Dictionary) -> Control:
 	buttons.add_child(_btn("DUPLICAR", func(): _duplicate(deck), false, 14))
 	buttons.add_child(_btn("EXCLUIR", func(): _ask_delete(deck), false, 14))
 	tile.add_child(buttons)
-	if leader != "" and DeckDB.is_leader_banned(leader):
+	if (leader != "" and DeckDB.is_leader_banned(leader)) or DeckDB.has_banned_card(deck.get("cards", {})):
 		BannedRibbonScript.attach(tile)
 	tile.gui_input.connect(func(event: InputEvent):
 		if event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
@@ -925,6 +926,8 @@ func _card_tile(card_id: String) -> Control:
 	frame_box.bg_color = Color(UITheme.GOLD, 0.0)
 	frame.add_theme_stylebox_override("panel", frame_box)
 	holder.add_child(frame)
+	if DeckDB.is_card_banned(card_id):
+		BannedRibbonScript.attach(holder)
 
 	var badge := PanelContainer.new()
 	badge.add_theme_stylebox_override("panel", UITheme.box(Color(0.05, 0.04, 0.08, 0.94), 12, UITheme.GOLD_LIGHT, 2))
@@ -1278,6 +1281,8 @@ func _decode_deck_code(code: String) -> Dictionary:
 			return {"error": "O deckCode contém uma carta desconhecida: %s." % card_id}
 		if card_id != incarnation and not DeckDB.is_deckable(card_id, leader):
 			return {"error": "A carta %s não pode entrar em um deck." % card_id}
+		if DeckDB.is_card_banned(card_id):
+			return {"error": BANNED_CARD_MESSAGE}
 		cards[card_id] = int(value)
 	return {
 		"deck": {
@@ -1472,6 +1477,9 @@ func _draw_curve() -> void:
 # ---------------------------------------------------------------- editing
 
 func _add_card(card_id: String) -> void:
+	if DeckDB.is_card_banned(card_id):
+		_toast(BANNED_CARD_MESSAGE, BAD)
+		return
 	var copies := int(_cards.get(card_id, 0))
 	if card_id == _incarnation_id:
 		_toast("A Encarnação escolhida fica limitada a 1 cópia.", WARN)
@@ -1517,7 +1525,8 @@ func _autofill_deck() -> void:
 		return
 	var profile := _assistant_profile if _assistant_enabled else "unsure"
 	var focus := _assistant_focus if _assistant_enabled else ""
-	var filled := DeckAutofill.complete(_leader, _incarnation_id, _cards, _pool, profile, focus)
+	var allowed_pool: Array = _pool.filter(func(card_id: String) -> bool: return not DeckDB.is_card_banned(card_id))
+	var filled := DeckAutofill.complete(_leader, _incarnation_id, _cards, allowed_pool, profile, focus)
 	_cards = filled["cards"]
 	_mark_dirty()
 	_render_cards()

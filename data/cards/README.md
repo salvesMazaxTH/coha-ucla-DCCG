@@ -32,6 +32,7 @@ Cada Líder tem o próprio arquivo em `data/leaders/set<número>/<id>.json` (sem
 ## Campos opcionais
 
 - `max_copies`: máximo de cópias no deck (padrão 3; 2 para cartas Lendárias). `1` = **Única**; escreva "Única." na primeira linha do `text`.
+- `banned`: `true` = carta banida, como um Líder banido. Continua listada nos menus e no catálogo, marcada BANIDO, mas não entra em deck (montador, código de deck, preenchimento automático e servidor de partidas recusam), exceto no modo de desenvolvimento. Um deck com carta banida também conta como banido. O motor das partidas não checa o campo: testes ainda montam decks com a carta.
 - `armor`: Armadura impressa da unidade (N). Todo dano que ela receberia cai em N, mas nunca abaixo de 1; os valores somam quando um efeito dá mais (`armor` fixo ou `armor_temp` até o início do próximo turno do dono, no `buff`).
 - `adjacent_armor`: enquanto a unidade estiver no campo, as unidades aliadas ao lado dela (posição anterior e seguinte no campo, que segue a ordem em que foram jogadas) ganham N de Armadura. É um Constante (o texto da carta começa com "Constante:") e o Contador Exagerado dobra o valor.
 - `token`: `true` = ficha (só existe invocada por `summon`, nunca em deck). Ao morrer ou ser banida some do jogo: não vai ao cemitério nem aos banidos, mas ainda dispara Aliado Morre. Se fosse voltar para a mão, também é apagada do jogo. Não conta nas cartas únicas da essência.

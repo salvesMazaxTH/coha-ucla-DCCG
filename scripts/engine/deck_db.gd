@@ -98,11 +98,27 @@ static func is_leader_banned(leader_id: String) -> bool:
 		return false
 	return bool(CardDB.leader(leader_id).get("banned", false))
 
-## A deck is banned when its Leader is (the prebuilt deck and any deck the player builds around that Leader).
+## A banned card ("banned": true in its data/cards file) works like a banned Leader: still listed, marked BANIDO,
+## but it cannot go into a deck unless the game runs in development mode. Same scope: menus and match server only.
+static func is_card_banned(card_id: String) -> bool:
+	if development_mode_enabled() or not CardDB.data()["cards"].has(card_id):
+		return false
+	return bool(CardDB.card(card_id).get("banned", false))
+
+## True when any card of a {card_id: copies} list is banned.
+static func has_banned_card(cards: Dictionary) -> bool:
+	for card_id in cards:
+		if is_card_banned(String(card_id)):
+			return true
+	return false
+
+## A deck is banned when its Leader is (the prebuilt deck and any deck the player builds around that Leader)
+## or when it holds a banned card.
 static func is_deck_banned(deck_id: String) -> bool:
 	if not has(deck_id):
 		return false
-	return is_leader_banned(String(get_deck(deck_id)["leader"]))
+	var deck: Dictionary = get_deck(deck_id)
+	return is_leader_banned(String(deck["leader"])) or has_banned_card(deck.get("cards", {}))
 
 static func available_ids() -> Array[String]:
 	var available: Array[String] = []
@@ -202,6 +218,8 @@ static func check_incoming(raw: Variant) -> Dictionary:
 			errors.append("%s: quantidade inválida" % id)
 		elif id != incarnation_id and not is_deckable(id, leader_id):
 			errors.append("%s: não pode entrar no deck" % id)
+		elif is_card_banned(id):
+			errors.append("%s: carta banida" % id)
 		else:
 			cards[id] = copies
 	var deck_name := String(raw.get("name", "")).strip_edges().left(MAX_CUSTOM_NAME)
