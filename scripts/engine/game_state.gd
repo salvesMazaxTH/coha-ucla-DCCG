@@ -422,9 +422,15 @@ func _move(c: Card, to_zone: String, extra_data := {}) -> void:
 	elif to_zone == "sanctuary" and c.incarnation:
 		players[c.owner]["incarnation"]["permanent_buffs"] = c.permanent_buffs.duplicate(true)
 		players[c.owner]["incarnation"]["in_zone"] = true
-	if c.incarnation and to_zone in ["graveyard", "banished"]:
+	if to_zone != "graveyard":
+		c.pending_self_revive_turn = 0 # a delayed return only makes sense while waiting in the graveyard
+	if (
+		c.incarnation and to_zone in ["graveyard", "banished"]
+		and not (to_zone == "graveyard" and extra_data.get("incarnation_revives", false))
+	):
 		# The Encarnação never rests in the graveyard or among the banished, wherever it was headed
 		# (discard, overdraw, a fizzled cast...): it goes back to the Santuário instead.
+		# Exception: one that died with a keeps_incarnation revive waits in the graveyard for it.
 		players[c.owner][to_zone].erase(c)
 		to_zone = ""
 		c.incarnation = false # this copy is gone; the Santuário makes a fresh one on the next cast
@@ -4270,6 +4276,8 @@ func check_state() -> void:
 	var resolved := 0
 	while true:
 		_move_dead_units()
+		if _pending.is_empty():
+			_send_stranded_incarnations_home()
 		if _pending.is_empty() or phase in ["search", "enter_target", "enter_tapped", "effect_choice"]:
 			break
 		if _chain_stopped() or resolved >= MAX_TRIGGERS_PER_ACTION:
@@ -4331,14 +4339,15 @@ func _move_dead_units() -> void:
 					changed = true
 					emit_event({"type": "death", "uid": dead_uid, "player": p, "card_id": dying_card_id})
 					_release_equipment(c, true)
-					if c.incarnation:
+					var waits_to_revive: bool = c.incarnation and _incarnation_revives_after_death(effects)
+					if c.incarnation and not waits_to_revive:
 						_move(c, "")
 						_incarnation_leaves(p)
 					elif c.data().get("token", false):
 						_move(c, "") # a ficha dies without ever reaching the graveyard (Vagante, Jeff don't count it)
 					else:
 						players[c.owner]["graveyard"].append(c)
-						_move(c, "graveyard")
+						_move(c, "graveyard", {"incarnation_revives": waits_to_revive})
 					var death_context := EffectContext.new(self, p, "on_death")
 					death_context.self_uid = dead_uid
 					death_context.dying_card = c
@@ -4354,6 +4363,27 @@ func _move_dead_units() -> void:
 					for relic in players[p]["relics"].duplicate(): # free-standing artifacts hear it too
 						fire_trigger(relic, "on_ally_death", dead_uid, {"dying_is_token": dying_is_token, "dying_card_id": dying_card_id, "dying_equipment": dying_equipment, "dying_was_sacrificed": dying_was_sacrificed})
 					_fire_leader_passive(p, "on_ally_death")
+
+## True when the Encarnação's Ao Morrer is a revive_self_delayed with "keeps_incarnation" (Jeff The Death):
+## it waits in the graveyard and returns as the Encarnação instead of going back to the Santuário.
+func _incarnation_revives_after_death(effects: Array) -> bool:
+	for effect: Effect in effects:
+		if (
+			effect is ReviveEffect and effect.trigger == "on_death"
+			and effect.action == "revive_self_delayed" and effect.keeps_incarnation
+		):
+			return true
+	return false
+
+## An Encarnação left in the graveyard with no return pending (the revive was stopped, or could not happen)
+## goes back to the Santuário, exactly as an ordinary death of the Encarnação would have.
+func _send_stranded_incarnations_home() -> void:
+	for p in 2:
+		for card: Card in players[p]["graveyard"].duplicate():
+			if card.incarnation and card.pending_self_revive_turn <= 0:
+				players[p]["graveyard"].erase(card)
+				_move(card, "")
+				_incarnation_leaves(p)
 
 ## True when `source` is a unit whose card says "banish_what_it_kills": a unit it would destroy (combat damage,
 ## Toque Letal, its own destroy effects) is banished instead (Rai'Emofitir). Silence removes the rule.
@@ -4562,6 +4592,7 @@ func _resolve_delayed_self_revives() -> bool:
 			emit_event({"type": "revive", "player": p, "card_id": card.card_id})
 			_summon(p, card, false, 0, overrides)
 			revived_any = true
+	_send_stranded_incarnations_home() # a return that found the field full leaves the Encarnação stranded
 	return revived_any
 
 ## Artifacts with "momentum_store": N (Bateria de Segunda Mão) catch the Momentum that leaked past the Reserva

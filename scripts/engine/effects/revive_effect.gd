@@ -12,8 +12,10 @@ var max_cost := 99
 var revive_count := 1
 var attack_change := 0
 var health_change := 0
+var keeps_incarnation := false ## revive_self_delayed only: the Encarnação waits in the graveyard and returns as the Encarnação, instead of going straight back to the Santuário
 
 func _read_parameters(data: Dictionary) -> void:
+	keeps_incarnation = bool(data.get("keeps_incarnation", false))
 	max_cost = int(data.get("max_cost", 99))
 	revive_count = maxi(1, int(data.get("count", 1)))
 	attack_change = int(data.get("atk", 0))
@@ -71,7 +73,7 @@ func _revive_self(context: EffectContext) -> void:
 func _schedule_self_revive(context: EffectContext) -> void:
 	var game := context.game
 	var dying := context.dying_card
-	if dying == null or dying.incarnation:
+	if dying == null or (dying.incarnation and not keeps_incarnation):
 		return
 	var new_attack: int = dying.atk + attack_change
 	var new_health: int = dying.hp + health_change

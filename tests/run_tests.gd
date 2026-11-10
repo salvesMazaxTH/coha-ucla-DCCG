@@ -139,6 +139,7 @@ func _init() -> void:
 	_test_ai_untaxed_incarnation_first()
 	_test_ai_incarnation_as_part_of_the_hand()
 	_test_incarnation_retire()
+	_test_jeff_incarnation_revives()
 	_test_fatigue()
 	_test_play_cost_snapshot()
 	_test_bounce_permanent_buffs()
@@ -2969,6 +2970,52 @@ func _test_fatigue() -> void:
 		hits.append(hp - g.players[0]["leader_hp"])
 		hp = g.players[0]["leader_hp"]
 	check(hits == [2, 4, 8] and g.fatigue_next(0) == 16, "fadiga dobra: 2, 4, 8, depois 16")
+
+## Jeff's Ao Morrer carries "keeps_incarnation": as the Encarnação he waits in the graveyard and comes back as the Encarnação.
+func _test_jeff_incarnation_revives() -> void:
+	check(CardDB.card("jeff").get("max_copies", 3) == 1, "jeff: Única (max_copies 1)")
+	var g := _obscura_game()
+	_quiet(g)
+	g.players[0]["passive_used"] = true
+	var state: Dictionary = g.players[0]["incarnation"]
+	check(state["card_id"] == "jeff", "jeff: é a Encarnação do Líder Obscura")
+	g.players[0]["momentum"] = 10
+	g.cast_incarnation(0)
+	if g.phase == "enter_target":
+		g.choose_enter_target(0, 0)
+	if g.summon_window:
+		g.pass_priority(1)
+	var old_uid: int = g.players[0]["board"].back().uid
+	_kill(g, g.players[0]["board"].back())
+	check(_count(g, 0, "jeff") == 0 and not state["in_zone"], "jeff Encarnação: morto, espera no cemitério e não volta ao Santuário")
+	check(not g.can_cast_incarnation(0), "jeff Encarnação: não pode ser conjurado de novo enquanto espera")
+	g.end_turn(g.active)
+	g.end_turn(g.active)
+	var back: Array = g.players[0]["board"].filter(func(c: Card): return c.card_id == "jeff")
+	check(back.size() == 1 and back[0].uid != old_uid and back[0].incarnation, "jeff Encarnação: volta ao campo como Encarnação")
+	check(not g.players[0]["graveyard"].any(func(c: Card): return c.card_id == "jeff"), "jeff Encarnação: não fica no cemitério depois de voltar")
+	# the base stats it comes back with are those it died with (Constante not counted twice)
+	check(g.atk_of(back[0]) >= 3 and g.hp_left(back[0]) >= 3, "jeff Encarnação: volta com Ataque e Vida válidos (%d/%d)" % [g.atk_of(back[0]), g.hp_left(back[0])])
+	# banished from the field: no revive, ordinary Encarnação rule (back to the Santuário)
+	g.banish_unit(back[0])
+	check(state["in_zone"] and g.players[0]["banished"].is_empty(), "jeff Encarnação: banido volta ao Santuário")
+	# a revive that finds the field full sends him home instead of stranding him in the graveyard
+	var full_game := _obscura_game()
+	_quiet(full_game)
+	full_game.players[0]["passive_used"] = true
+	var full_state: Dictionary = full_game.players[0]["incarnation"]
+	full_game.players[0]["momentum"] = 10
+	full_game.cast_incarnation(0)
+	if full_game.phase == "enter_target":
+		full_game.choose_enter_target(0, 0)
+	if full_game.summon_window:
+		full_game.pass_priority(1)
+	_kill(full_game, full_game.players[0]["board"].back())
+	while full_game.players[0]["board"].size() < GameState.BOARD_LIMIT:
+		_put(full_game, 0, "esqueleto_guerreiro")
+	full_game.end_turn(full_game.active)
+	full_game.end_turn(full_game.active)
+	check(full_state["in_zone"] and not full_game.players[0]["graveyard"].any(func(c: Card): return c.card_id == "jeff"), "jeff Encarnação: campo cheio no retorno, vai para o Santuário")
 
 func _test_incarnation_retire() -> void:
 	var g := _new_game()
