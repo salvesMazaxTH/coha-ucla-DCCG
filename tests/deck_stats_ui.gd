@@ -10,7 +10,7 @@ func _init() -> void:
 	var main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 	await process_frame
-	var tile: Control = main._deck_tile("fogo", Vector2(210, 236), false)
+	var tile: Control = main.menu_screens.deck_tile("fogo", Vector2(210, 236), false)
 	main.add_child(tile)
 	var box: Control = tile.get_node("DeckStats")
 	var totals: HBoxContainer = box.get_node("Totals")
@@ -51,7 +51,7 @@ func _init() -> void:
 		quit(1)
 		return
 	auth.state = {"signed_in": false, "stats_status": "guest", "deck_stats": []}
-	var guest_tile: Control = main._deck_tile("fogo", Vector2(210, 236), false)
+	var guest_tile: Control = main.menu_screens.deck_tile("fogo", Vector2(210, 236), false)
 	main.add_child(guest_tile)
 	var guest_label: Label = guest_tile.get_node("DeckStats").get_child(0)
 	if guest_label.text != "ENTRE NA CONTA":
@@ -59,7 +59,7 @@ func _init() -> void:
 		quit(1)
 		return
 	auth.state = {"signed_in": true, "stats_status": "ready", "deck_stats": []}
-	var empty_tile: Control = main._deck_tile("agua", Vector2(210, 236), false)
+	var empty_tile: Control = main.menu_screens.deck_tile("agua", Vector2(210, 236), false)
 	main.add_child(empty_tile)
 	var empty_box: Control = empty_tile.get_node("DeckStats")
 	if empty_box.get_child(1).text != "SEM PARTIDAS" or empty_box.get_node("ResultsBar/Wins").size.x != 0:
@@ -67,7 +67,7 @@ func _init() -> void:
 		quit(1)
 		return
 	auth.state.deck_stats = [{"deck_key": "fogo", "games": 1234567, "wins": 1000000, "losses": 234567, "draws": 0}]
-	var large_tile: Control = main._deck_tile("fogo", Vector2(210, 236), false)
+	var large_tile: Control = main.menu_screens.deck_tile("fogo", Vector2(210, 236), false)
 	main.add_child(large_tile)
 	await process_frame
 	var large_totals: HBoxContainer = large_tile.get_node("DeckStats/Totals")

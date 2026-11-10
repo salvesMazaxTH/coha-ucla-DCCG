@@ -7,14 +7,14 @@ func _init() -> void:
 	var m = load("res://scenes/main.tscn").instantiate()
 	root.add_child(m)
 	await process_frame
-	m._show_menu()
-	m._show_hub(false)
+	m.menu_screens.show_menu()
+	m.menu_screens.show_hub(false)
 	if not await _check_hub_sections(m):
 		quit(1)
 		return
-	m.sel_deck = "obscura_lento"
-	m._show_hub(true) # step 1: your deck, then "PRÓXIMO"
-	m._show_hub(true, "", true) # step 2: the AI's deck, then "JOGAR"
+	m.menu_screens.sel_deck = "obscura_lento"
+	m.menu_screens.show_hub(true) # step 1: your deck, then "PRÓXIMO"
+	m.menu_screens.show_hub(true, "", true) # step 2: the AI's deck, then "JOGAR"
 	await process_frame
 	var play: Button = null
 	for c in m.layer.get_children():
@@ -99,7 +99,7 @@ func _init() -> void:
 
 func _check_hub_sections(m) -> bool:
 	await process_frame
-	if m.HUB_SECTIONS.size() != 2 or m.HUB_SECTIONS[0]["title"] != "DECKS PRÉ-PRONTOS DOS LÍDERES":
+	if m.menu_screens.HUB_SECTIONS.size() != 2 or m.menu_screens.HUB_SECTIONS[0]["title"] != "DECKS PRÉ-PRONTOS DOS LÍDERES":
 		push_error("o hub não tem as duas macro-seções esperadas")
 		return false
 	var content := m.hub_scroll.get_child(0) as Control
@@ -119,7 +119,7 @@ func _check_hub_sections(m) -> bool:
 	await process_frame
 	await process_frame
 	content = m.hub_scroll.get_child(0) as Control
-	if not m.hub_collapsed.get("subsection:set_2", false) or content.custom_minimum_size.y >= expanded_height:
+	if not m.menu_screens.hub_collapsed.get("subsection:set_2", false) or content.custom_minimum_size.y >= expanded_height:
 		push_error("a subseção do Set 2 não recolheu seu conteúdo")
 		return false
 
@@ -128,7 +128,7 @@ func _check_hub_sections(m) -> bool:
 	await process_frame
 	await process_frame
 	content = m.hub_scroll.get_child(0) as Control
-	if not m.hub_collapsed.get("macro:essencia", false) or content.find_child("HubSubsection_classic", true, false) != null:
+	if not m.menu_screens.hub_collapsed.get("macro:essencia", false) or content.find_child("HubSubsection_classic", true, false) != null:
 		push_error("recolher os pré-prontos não escondeu todas as subseções")
 		return false
 
@@ -138,7 +138,7 @@ func _check_hub_sections(m) -> bool:
 	await process_frame
 	content = m.hub_scroll.get_child(0) as Control
 	set2_header = content.find_child("HubSubsection_set_2", true, false) as Button
-	if set2_header == null or not m.hub_collapsed.get("subsection:set_2", false):
+	if set2_header == null or not m.menu_screens.hub_collapsed.get("subsection:set_2", false):
 		push_error("reabrir os pré-prontos não preservou o estado da subseção")
 		return false
 	var collapsed_height := content.custom_minimum_size.y
@@ -146,7 +146,7 @@ func _check_hub_sections(m) -> bool:
 	await process_frame
 	await process_frame
 	content = m.hub_scroll.get_child(0) as Control
-	if m.hub_collapsed.get("subsection:set_2", false) or content.custom_minimum_size.y <= collapsed_height:
+	if m.menu_screens.hub_collapsed.get("subsection:set_2", false) or content.custom_minimum_size.y <= collapsed_height:
 		push_error("a subseção do Set 2 não expandiu novamente")
 		return false
 	return true
@@ -516,31 +516,31 @@ func _prepare_field_equip_match(m, artifact_id: String) -> Dictionary:
 func _check_hub_with_own_deck(m) -> bool:
 	var scratch_path := "user://smoke_hub_decks.json"
 	DirAccess.remove_absolute(scratch_path)
-	if m.deck_store != null:
-		m.deck_store.queue_free()
+	if m.menu_screens.deck_store != null:
+		m.menu_screens.deck_store.queue_free()
 	var store = load("res://scripts/net/deck_store.gd").new()
 	store.use_web_storage = false
 	store.allow_cloud = false # a saved Google session on this machine must not receive test decks
 	store.local_path = scratch_path
-	m._use_deck_store(store)
+	m.menu_screens.use_deck_store(store)
 	var template: Dictionary = DeckDB.get_deck("fogo")
 	store.save_deck("", "Meu fogo", template["leader"], template["cards"], "Cópia de teste")
 	store.save_deck("", "Pela metade", template["leader"], {}, "") # incomplete: hidden from the hub
-	m._show_menu()
-	m._show_hub(true)
+	m.menu_screens.show_menu()
+	m.menu_screens.show_hub(true)
 	await process_frame
 	var own_ids: Array[String] = DeckDB.custom_ids(DeckDB.PLAYER_PREFIX)
-	if own_ids.size() != 1 or DeckDB.get_deck(own_ids[0])["name"] != "Meu fogo" or m.incomplete_player_decks != 1:
-		push_error("hub não registrou só o deck pronto do jogador (%s, incompletos %d)" % [own_ids, m.incomplete_player_decks])
+	if own_ids.size() != 1 or DeckDB.get_deck(own_ids[0])["name"] != "Meu fogo" or m.menu_screens.incomplete_player_decks != 1:
+		push_error("hub não registrou só o deck pronto do jogador (%s, incompletos %d)" % [own_ids, m.menu_screens.incomplete_player_decks])
 		return false
-	if m.HUB_SECTIONS[m.HUB_SECTIONS.size() - 1]["id"] != DeckDB.SECTION_MINE:
+	if m.menu_screens.HUB_SECTIONS[m.menu_screens.HUB_SECTIONS.size() - 1]["id"] != DeckDB.SECTION_MINE:
 		push_error("MEUS DECKS não é a segunda macro-seção do hub")
 		return false
-	if m.sel_deck.begins_with(DeckDB.PLAYER_PREFIX):
+	if m.menu_screens.sel_deck.begins_with(DeckDB.PLAYER_PREFIX):
 		push_error("a escolha padrão do hub deveria ser um deck pronto")
 		return false
-	m.sel_deck = own_ids[0]
-	m._show_hub(true, "", true)
+	m.menu_screens.sel_deck = own_ids[0]
+	m.menu_screens.show_hub(true, "", true)
 	await process_frame
 	var play: Button = null
 	for c in m.layer.get_children():
@@ -559,7 +559,7 @@ func _check_hub_with_own_deck(m) -> bool:
 	if not DeckDB.has(room_deck_id):
 		push_error("deck de sala não foi registrado")
 		return false
-	m._show_menu()
+	m.menu_screens.show_menu()
 	if DeckDB.has(room_deck_id):
 		push_error("deck de sala não foi limpo ao voltar ao menu")
 		return false
@@ -570,8 +570,8 @@ func _check_hub_with_own_deck(m) -> bool:
 ## "MEUS DECKS": open from the menu and leave, then create / edit / save / duplicate / delete a deck
 ## against a throwaway file so the player's real decks are never touched.
 func _check_deck_builder(m) -> bool:
-	m._show_menu()
-	m._open_deck_builder()
+	m.menu_screens.show_menu()
+	m.menu_screens.open_deck_builder()
 	await process_frame
 	if not is_instance_valid(m.deck_builder):
 		push_error("MEUS DECKS não abriu")
