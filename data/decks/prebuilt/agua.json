@@ -3,6 +3,7 @@
   "description": "Cura, controle e o pacote de gelo de Fluxo: congela as ameaças, anula feitiços e vence pelo desgaste.",
   "order": 2,
   "leader": "naelthos",
+  "ai_profile": "control",
   "cards": {
     "espirito_da_mare": 2,
     "tritao_lanceiro": 2,

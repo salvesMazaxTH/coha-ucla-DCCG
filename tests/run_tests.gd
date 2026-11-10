@@ -13,6 +13,8 @@ func _init() -> void:
 		var errs := DeckDB.validate(d)
 		check(errs.is_empty(), "deck %s: %s" % [d, errs])
 		check(DeckDB.get_deck(d)["cards"].keys() == DeckDB.sorted_cards(DeckDB.get_deck(d)["cards"]).keys(), "deck %s: cartas fora de ordem de custo (rode tools/sort_decks.gd)" % d)
+		var ai_profile := String(DeckDB.get_deck(d).get("ai_profile", AIProfile.DEFAULT))
+		check(AIProfile.PROFILES.has(ai_profile), "deck %s: ai_profile desconhecido '%s'" % [d, ai_profile])
 	_test_card_sets()
 	_test_flavor()
 	_test_cristal_do_poder_equipado()
@@ -11404,6 +11406,7 @@ func _test_ai_attack_clauses() -> void:
 	# 2. an even trade that leaves the Leader healthy is not taken: the unit stays home
 	g = _new_game()
 	_quiet(g)
+	g.players[0]["deck_id"] = "vegetal" # midrange profile
 	_put(g, 0, "t_ai_even")
 	var rival := _put(g, 1, "t_ai_bruiser")
 	rival.exhausted = true
@@ -11411,6 +11414,16 @@ func _test_ai_attack_clauses() -> void:
 	g.go_to_combat(0)
 	var events := SimpleAI._try_attack(g, 0)
 	check(events.is_empty() and rival.damage == 0 and g.players[1]["leader_hp"] == 25, "IA: troca igual com o inimigo saudável não acontece, nem exposição à toa")
+	# 2b. the same table with an aggro deck: the exposed hit is worth it
+	g = _new_game()
+	_quiet(g)
+	_put(g, 0, "t_ai_even")
+	rival = _put(g, 1, "t_ai_bruiser")
+	rival.exhausted = true
+	g.players[1]["leader_hp"] = 25
+	g.go_to_combat(0)
+	SimpleAI._try_attack(g, 0)
+	check(g.players[1]["leader_hp"] == 22 and rival.damage == 0, "IA aggro: no mesmo cenário vai na face (vida %d)" % g.players[1]["leader_hp"])
 	# 3. a Roubo de Vida target is a worse trade: its strike-back heals the enemy Leader
 	_tcard("t_ai_leech", 3, 3, [])
 	CardDB.card("t_ai_leech")["keywords"] = ["roubo_de_vida"]

@@ -3,6 +3,7 @@
   "description": "Aggro de Dragões Negros: curva baixa de Ímpeto, magias baratas e a Revoada Negra do Líder dão Rapidez e dano direto no rosto antes que a mesa se estabilize.",
   "order": 29,
   "leader": "drake",
+  "ai_profile": "aggro",
   "cards": {
     "molly_piscaluz": 3,
     "recruta_cinzento": 3,

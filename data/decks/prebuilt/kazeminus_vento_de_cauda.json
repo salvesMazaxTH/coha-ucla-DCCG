@@ -3,6 +3,7 @@
   "description": "Agressão média com bounce: unidades baratas com Rapidez e Ímpeto, devolver as unidades inimigas à mão para atrasar a mesa deles e refazer o Ao Entrar das suas, e feitiços baratos que se pagam sozinhos em Momentum. O Vento de Cauda do Kazeminus dá Ímpeto e Rapidez a quem precisar entrar na briga. Convidadas de Fúria reforçam o Ímpeto.",
   "order": 23,
   "leader": "kazeminus",
+  "ai_profile": "aggro",
   "cards": {
     "diabrete_eletrico": 3,
     "choque_de_largada": 2,

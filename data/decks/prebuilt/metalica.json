@@ -3,6 +3,7 @@
   "description": "Segure a linha com Provocação, Armadura e Reflexão enquanto os moedores compram e filtram a mão. Moa o deck do oponente até o fim: com o deck vazio, cada moagem vira Fadiga.",
   "order": 11,
   "leader": "morakhan",
+  "ai_profile": "control",
   "cards": {
     "engrenagem_solta": 2,
     "zeladorbot_3000": 3,

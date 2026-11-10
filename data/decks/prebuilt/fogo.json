@@ -3,6 +3,7 @@
   "description": "Agressão e pressão de dano. Unidades com Ímpeto e dano direto para fechar o jogo rápido.",
   "order": 1,
   "leader": "ronan",
+  "ai_profile": "aggro",
   "cards": {
     "dragaozinho_flamejante": 2,
     "fada_do_fogo": 1,

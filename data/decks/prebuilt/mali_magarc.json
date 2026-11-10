@@ -3,6 +3,7 @@
   "description": "Feitiços de compra e dano para encher o cemitério e ativar Mali, anulações baratas para ela sobreviver, Isarelis e Ralia para segurar o campo, e Maré Curativa para o Líder aguentar. Ottilia amplifica o dano e as compras.",
   "order": 30,
   "leader": "mali_magarc",
+  "ai_profile": "control",
   "cards": {
     "desvelar_o_arcano": 3,
     "mare_curativa": 2,

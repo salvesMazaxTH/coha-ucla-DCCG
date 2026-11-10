@@ -3,6 +3,7 @@
   "description": "Atordoar e cobrar: tropas e figurantes baratos que pingam dano, feitiços que atordoam (um deles em até 2 inimigos de uma vez), Cumulonimbra para varrer o campo, Hildegard Voltmann para travar três de uma vez, Jack Veyr que cobra em dano cada Atordoamento, Layla Veyr que desvira a cada um, Bob Veyr e Ellen Veyr como pesos pesados da família e Liam Tornagron no topo da curva.",
   "order": 28,
   "leader": "layla",
+  "ai_profile": "aggro",
   "cards": {
     "molly_piscaluz": 3,
     "wendy_pingo_curto": 3,

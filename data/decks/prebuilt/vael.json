@@ -3,6 +3,7 @@
   "description": "Aggro de Crítico: Vael barato e com Rapidez, buffs rápidos e Escudo Mágico para ele sobreviver e a fúria quando Myrra cai.",
   "order": 10,
   "leader": "vael",
+  "ai_profile": "aggro",
   "cards": {
     "diabrete_eletrico": 3,
     "gatuno_do_beco_torto": 3,

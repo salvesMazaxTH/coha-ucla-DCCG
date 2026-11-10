@@ -3,6 +3,7 @@
   "description": "Dragonoides de curva mais alta que o normal em volta do poder do Líder: Peso dos Séculos joga um deles pela metade do preço, então quanto mais cara a carta, maior o ganho. Tutores trazem os grandes, a mesa se engorda e se protege com Provocação, e Sengoku e Ivan Ignisar fecham o jogo.",
   "order": 27,
   "leader": "sengoku",
+  "ai_profile": "midrange",
   "cards": {
     "dragaozinho_flamejante": 2,
     "tullio_chamarisco": 3,

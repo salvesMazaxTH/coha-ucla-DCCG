@@ -3,6 +3,7 @@
   "description": "Moa o deck, encha o cemitério e solte a Vagante Sombria quase de graça, com reanimação e sacrifícios.",
   "order": 4,
   "leader": "jeff",
+  "ai_profile": "control",
   "cards": {
     "diabrete_sombrio": 3,
     "vigia_do_farol_do_norte": 2,

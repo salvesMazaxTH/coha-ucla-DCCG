@@ -3,6 +3,7 @@
   "description": "Tudo no Fulgurvoltz: 3 cópias, Momentum guardado, compra de cartas e limpeza de campo até ele cair.",
   "order": 6,
   "leader": "voltexz",
+  "ai_profile": "control",
   "cards": {
     "carga_acumulada": 3,
     "faisca_viva": 3,

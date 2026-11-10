@@ -3,6 +3,7 @@
   "description": "Naelys vai e volta com a maré: devolve aliados para reutilizar o Ao Entrar com desconto e compra quando a mão esvazia. As curas de Fluxo e de Devoção alimentam o Arcanjo Uriel, que cresce a cada cura, e Seymour, que estilhaça o campo inimigo a cada uma.",
   "order": 17,
   "leader": "naelys",
+  "ai_profile": "midrange",
   "cards": {
     "mare_curativa": 1,
     "ampola_curativa": 3,

@@ -3,6 +3,7 @@
   "description": "Muralha de unidades resistentes. Armadura protege o time e a mesa cresce até ficar difícil de remover.",
   "order": 9,
   "leader": "tharox",
+  "ai_profile": "midrange",
   "cards": {
     "nucleo_de_geodo": 1,
     "bastionario_de_basalto": 2,

@@ -3,6 +3,7 @@
   "description": "Feitiços glaciais, congelamento e a Bola de Neve que cresce a cada quique até virar Grande, com um pacote de águas para curar, comprar e anular feitiços.",
   "order": 7,
   "leader": "nythera",
+  "ai_profile": "control",
   "cards": {
     "amuleto_do_primeiro_floco": 1,
     "espirito_da_aurora": 1,

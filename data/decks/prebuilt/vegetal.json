@@ -3,6 +3,7 @@
   "description": "Midrange de fichas, crescimento permanente e explosões de dano das Flores Vorazes.",
   "order": 13,
   "leader": "thalvaressa",
+  "ai_profile": "midrange",
   "cards": {
     "semente_teimosa": 3,
     "cervo_musgoso": 3,
