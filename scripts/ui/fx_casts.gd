@@ -155,7 +155,7 @@ func area_cast(card_id: String, origin: Vector2, t: float) -> float:
 		"vegetal":
 			return _vine_area(origin, t)
 	# is_area only lets the styles above through, so this shockwave is just a safety net
-	return _shockwave_area(origin, t, host._elem_color(card_id))
+	return _shockwave_area(origin, t, host.table_animator.elem_color(card_id))
 
 ## A rectangle over the whole arena with `shader`, the "aspect" already set (used by the area casts).
 ## Returns the rectangle; its ShaderMaterial is in its `material`.

@@ -265,7 +265,7 @@ func _log_event(e: Dictionary) -> void:
 		"start_turn":
 			_log("— Turno de %s —" % _pname(e["player"]))
 			if int(e["turn"]) == 1:
-				host._first_banner(e["player"])
+				host.table_animator.first_banner(e["player"])
 		"extra_turn_promised":
 			_log("%s vai jogar um turno extra!" % _pname(e["player"]))
 		"ban":

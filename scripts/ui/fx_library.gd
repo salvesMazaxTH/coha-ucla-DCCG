@@ -1,7 +1,7 @@
 class_name FxLibrary
 extends RefCounted
 ## The table's animation toolbox: where a card is (poses) and how it flies, plus every visual effect
-## the event player (Main._animate) can ask for: lunges, impacts, freezes, shields, shouts, embers...
+## the event player (TableAnimator.animate) can ask for: lunges, impacts, freezes, shields, shouts, embers...
 ## The shots that carry an effect from its source card to its target live in FxShots.
 ##
 ## It draws on Main's effects layer (`fx`). Main is `host`: what the effects only read (the layer, the
@@ -271,7 +271,7 @@ func _transform_fx(uid: int, from_id: String, into_id: String, actors: Dictionar
 	var old_pose: Dictionary = old[uid]["pose"] if old.has(uid) else _pose(new_view)
 	var old_card := _ghost(from_id, old_instance, old_pose)
 	old_card.z_index = 20
-	var color: Color = host._elem_color(into_id).lightened(0.35)
+	var color: Color = host.table_animator.elem_color(into_id).lightened(0.35)
 	old_card.dissolve(t, color, 0.45)
 	var pop := new_view.create_tween()
 	pop.tween_interval(t + 0.1)
@@ -939,7 +939,7 @@ func _heal_block_shards(c: Vector2, amount: int) -> void:
 		if is_instance_valid(shards):
 			shards.queue_free())
 
-## Effects budget of the current _animate batch: 1.0 for a lone hit, shrinking as more
+## Effects budget of the current TableAnimator.animate batch: 1.0 for a lone hit, shrinking as more
 ## triggers/deaths pile up (a Diabrete chain would otherwise spawn dozens of emitters at once).
 ## Also scaled by GraphicsQuality.effect_detail, so phones always get lighter effects.
 var fx_scale := 1.0
