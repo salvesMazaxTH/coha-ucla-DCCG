@@ -39,6 +39,8 @@ extends Effect
 ##   If they do, they draw `draw_after` cards (default 1). Picking none does nothing.
 ## "look_top": the player looks at the top `count` cards and takes one; the rest go to the
 ##   bottom (or the deck is shuffled, with "shuffle": true).
+## "look_top_to_reservoir" (Agiota das Nuvens): the player sees the top card of their deck, then chooses to put either
+##   that card or the bottom card (unseen) into their Reservoir. The choice is mandatory; an empty deck does nothing.
 ## "look_bottom" (Dragar): `count` cards (default 2) drawn at random from the bottom `window` cards of the deck
 ##   (default 5) are looked at privately; the player takes one to the hand (revealed to everyone) and the others
 ##   stay in the deck where they were.
@@ -83,6 +85,8 @@ func open_choice(context: EffectContext) -> void:
 		context.game._begin_own_hand_bottom(context.controller, int(raw.get("draw_after", 1)), context.self_uid)
 	elif action == "look_top":
 		context.game._begin_look(context.controller, count, context.self_uid, shuffle)
+	elif action == "look_top_to_reservoir":
+		context.game._begin_reservoir_look(context.controller, context.self_uid)
 	elif action == "look_bottom":
 		context.game._begin_look_bottom(context.controller, count, window, context.self_uid)
 	else:

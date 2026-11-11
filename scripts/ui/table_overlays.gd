@@ -929,6 +929,7 @@ func render_search_reveal() -> void:
 	var secret_search: bool = deck_search and not host._my_input()
 	var summoning: bool = host.g.pending_search.get("summon_from", false) # "summon_from": a free summon from the deck, hand or graveyard
 	var sacrifice_pick: bool = host.g.pending_search.get("sacrifice_pick", false) # Censo de Baixas: a public pick among units on the board
+	var reservoir_pick: bool = host.g.pending_search.get("reservoir_pick", false) # Agiota: the top card or the unseen bottom card goes to the Reservoir
 	var title := "BUSCA NO DECK"
 	if sacrifice_pick:
 		title = "SACRIFÍCIO"
@@ -992,6 +993,11 @@ func render_search_reveal() -> void:
 			sub = "Você pode escolher uma destas cartas do fundo do deck; ela vai para a sua mão"
 		else:
 			sub = "%s está olhando cartas do fundo do deck" % host._pname(owner)
+	elif reservoir_pick:
+		if host._my_input():
+			sub = "Você olhou a carta do topo do deck"
+		else:
+			sub = "%s está olhando a carta do topo do deck" % host._pname(owner)
 	elif look:
 		sub = "%s está olhando as %d cartas do topo do deck" % [host._pname(owner), host.g.pending_search["cards"].size()]
 	if summoning:
@@ -1143,6 +1149,8 @@ func render_search_reveal() -> void:
 		hint = "Clique em uma carta para descartá-la (ela vai para o cemitério)."
 	elif grave:
 		hint = "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério."
+	elif reservoir_pick:
+		hint = "Escolha qual carta vai para o Reservatório: esta, do topo, ou a do fundo do deck (que você não viu)."
 	elif look:
 		if host.g.pending_search.get("from_bottom", false):
 			hint = "Escolha 1 para a mão; as outras continuam onde estavam no fundo do deck."
@@ -1206,6 +1214,24 @@ func render_search_reveal() -> void:
 		skip_button.custom_minimum_size = Vector2(360, 52)
 		skip_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		box.add_child(skip_button)
+	if reservoir_pick and host._my_input():
+		var top_uid: int = int(host.g.pending_search["cards"][0]["uid"])
+		var top_button: Button = host._button(
+			"ESTA, DO TOPO",
+			func():
+				host._on_search_choice(top_uid),
+		)
+		top_button.custom_minimum_size = Vector2(360, 52)
+		top_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		box.add_child(top_button)
+		var bottom_button: Button = host._button(
+			"A DO FUNDO DO DECK",
+			func():
+				host._on_search_choice(GameState.RESERVOIR_PICK_BOTTOM),
+		)
+		bottom_button.custom_minimum_size = Vector2(360, 52)
+		bottom_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		box.add_child(bottom_button)
 	if host.g.pending_search.has("then_activate") and host._my_input():
 		# this discard pays an Ao Ativar: backing out spends nothing
 		var cancel_activation_button: Button = host._button(

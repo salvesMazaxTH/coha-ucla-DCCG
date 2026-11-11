@@ -1,7 +1,6 @@
 {
   "name": "Diabrete Elétrico",
   "set": 1,
-  "banned": true,
   "type": "unit",
   "rarity": "common",
   "tribe": ["demonio"],
@@ -18,12 +17,11 @@
   "effects": [
     {
       "trigger": "on_death",
-      "action": "gain_momentum",
+      "action": "untap_reservoir",
       "target": "none",
-      "amount": 1,
-      "next_turn": true
+      "amount": 1
     }
   ],
-  "text": "Ao Morrer: você ganha +1 de Momentum no início do seu próximo turno.",
+  "text": "Ao Morrer: você desvira uma carta do seu Reservatório.",
   "flavor": ""
 }

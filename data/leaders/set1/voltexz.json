@@ -1,7 +1,6 @@
 {
   "name": "Voltexz",
   "set": 1,
-  "banned": true,
   "hp": 30,
   "art": "tormenta/voltexz_lider.webp",
   "art_focus": 0.2,
@@ -14,14 +13,13 @@
     "own_turn_only": true,
     "effects": [
       {
+        "if": "unspent_momentum_threshold",
         "action": "gain_momentum",
         "target": "none",
-        "per": "leaked",
-        "divisor": 2,
-        "max": 2
+        "amount": 1
       }
     ],
-    "text": "Passiva. No início do seu turno, recupere metade do Momentum que vazou da Bateria do seu Reservatório, arredondada para baixo (máx. 2)."
+    "text": "Passiva. No início do seu turno, se sobraram 2 ou mais de Momentum até o seu desvirar, ganhe 1 de Momentum neste turno."
   },
   "essences": [
     "tormenta"

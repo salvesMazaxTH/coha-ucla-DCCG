@@ -7,7 +7,7 @@ const BannedRibbonScript = preload("res://scripts/ui/banned_ribbon.gd")
 ## signed in, this device otherwise), and edits one in a three-column screen built from the card gallery:
 ## filters | card catalog | the deck being built, with the engine's own rules (DeckDB) shown live.
 ##
-## The copy limit of a card is a hard stop. Every other rule (59 cards, Champion cards, guest cards, the
+## The copy limit of a card is a hard stop. Every other rule (59 cards, Champion cards, the two domains, the
 ## Encarnação) is only a warning, so a deck can be reshuffled through illegal states and saved as a
 ## draft; the list marks it LEGAL / INCOMPLETO / ILEGAL.
 
@@ -67,7 +67,8 @@ var _count_label: Label
 var _page_label: Label
 var _prev_button: Button
 var _next_button: Button
-var _domain_toggle: CheckButton
+var _legal_toggle: CheckButton
+var _rendered_ids: Array[String] = []
 var _page := 0
 var _tiles: Dictionary = {}
 var _name_edit: LineEdit
@@ -844,12 +845,13 @@ func _build_catalog() -> Control:
 	_count_label = _lbl("", 19, UITheme.GOLD_LIGHT)
 	_count_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(_count_label)
-	_domain_toggle = CheckButton.new()
-	_domain_toggle.text = "Só o domínio do Líder"
-	_domain_toggle.tooltip_text = ("Mostra só as cartas dos domínios do Líder: esconde as cartas de outros domínios "
-		+ "e também as neutras.")
-	_domain_toggle.toggled.connect(func(_on: bool): _restart_pages())
-	top.add_child(_domain_toggle)
+	_legal_toggle = CheckButton.new()
+	_legal_toggle.text = "Só legais"
+	_legal_toggle.button_pressed = true
+	_legal_toggle.tooltip_text = ("Mostra só as cartas que ainda podem entrar no deck sem quebrar a regra dos "
+		+ "dois domínios nem o limite de Champions. As cartas que já estão no deck continuam aparecendo.")
+	_legal_toggle.toggled.connect(func(_on: bool): _restart_pages())
+	top.add_child(_legal_toggle)
 	_prev_button = _btn("‹", func(): _change_page(-1))
 	_prev_button.tooltip_text = "Página anterior"
 	top.add_child(_prev_button)
@@ -883,9 +885,43 @@ func _change_page(delta: int) -> void:
 
 func _visible_ids() -> Array[String]:
 	var pool: Array = _pool
-	if _domain_toggle != null and _domain_toggle.button_pressed:
-		pool = _pool.filter(func(card_id: String) -> bool: return DeckDB.is_in_leader_domain(_leader, card_id))
+	if _legal_toggle != null and _legal_toggle.button_pressed:
+		pool = _legally_addable(_pool)
 	return catalog.filtered_ids(pool)
+
+## The cards of `pool` that one more copy keeps legal (Champion limit and the two-domain rule), plus the
+## ones already in the deck so they can still be adjusted.
+func _legally_addable(pool: Array) -> Array:
+	var totals := DeckDB.stats(_leader, _cards, _incarnation_id)
+	var elite_is_full: bool = totals["elite"] >= DeckDB.MAX_ELITE_CARDS
+	var domains_are_valid: bool = totals["domain_mode"] != "invalid"
+	# in the two-domain mode the answer depends only on the card's domains, so it is worked out once per set
+	var answer_by_domains: Dictionary = {}
+	var result: Array = []
+	for card_id in pool:
+		if int(_cards.get(card_id, 0)) > 0:
+			result.append(card_id)
+			continue
+		if elite_is_full and CardDB.card(card_id).get("rarity", "") == "champion":
+			continue
+		if domains_are_valid:
+			var card_domains := CardDB.essences_of(CardDB.card(card_id))
+			var key := ",".join(card_domains)
+			if totals["domain_mode"] != "two" or not answer_by_domains.has(key):
+				var deck_after := _cards.duplicate()
+				deck_after[card_id] = 1
+				answer_by_domains[key] = DeckDB.domain_check(_leader, deck_after)["mode"] != "invalid"
+			if not answer_by_domains[key]:
+				continue
+		result.append(card_id)
+	return result
+
+## Re-draws the catalog only when the deck change made some card appear or disappear from it.
+func _refresh_catalog_if_changed() -> void:
+	if _card_flow == null or not is_instance_valid(_card_flow) or not _legal_toggle.button_pressed:
+		return
+	if _visible_ids() != _rendered_ids:
+		_render_cards()
 
 func _render_cards() -> void:
 	if _card_flow == null or not is_instance_valid(_card_flow):
@@ -895,6 +931,7 @@ func _render_cards() -> void:
 		child.queue_free()
 	_tiles.clear()
 	var ids := _visible_ids()
+	_rendered_ids = ids
 	var total_pages := maxi(1, ceili(float(ids.size()) / PAGE_SIZE))
 	_page = clampi(_page, 0, total_pages - 1)
 	var first := _page * PAGE_SIZE
@@ -936,16 +973,6 @@ func _card_tile(card_id: String) -> Control:
 	badge.position = Vector2(cell_w - 50, 4)
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	holder.add_child(badge)
-
-	var guest_tag: Control = null
-	if DeckDB.is_outside_leader_domain(_leader, card_id):
-		guest_tag = PanelContainer.new()
-		guest_tag.add_theme_stylebox_override("panel", UITheme.box(Color(WARN.darkened(0.5), 0.94), 6, WARN, 1))
-		guest_tag.add_child(_lbl("OUTRO DOMÍNIO", 12, WARN.lightened(0.3), "heavy"))
-		guest_tag.position = Vector2(4, 4)
-		guest_tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		guest_tag.tooltip_text = "Fora do domínio do Líder: define o segundo domínio do deck (só cabe um domínio extra)."
-		holder.add_child(guest_tag)
 
 	var controls := HBoxContainer.new()
 	controls.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -1569,6 +1596,7 @@ func _update_save_state() -> void:
 func _refresh_deck_panel() -> void:
 	if _list_box == null or not is_instance_valid(_list_box) or _view != "edit":
 		return
+	_refresh_catalog_if_changed()
 	var totals := DeckDB.stats(_leader, _cards, _incarnation_id)
 	var total: int = totals["total"]
 	_set_meter("total", total, DeckDB.DECK_SIZE, GOOD if total == DeckDB.DECK_SIZE else (WARN if total < DeckDB.DECK_SIZE else BAD))

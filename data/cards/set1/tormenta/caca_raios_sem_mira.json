@@ -1,7 +1,6 @@
 {
   "name": "Caça-Raios Sem Mira",
   "set": 1,
-  "banned": true,
   "type": "unit",
   "rarity": "common",
   "tribe": ["goblin"],

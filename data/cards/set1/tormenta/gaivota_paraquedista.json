@@ -1,7 +1,6 @@
 {
   "name": "Gaivota Paraquedista",
   "set": 1,
-  "banned": true,
   "type": "unit",
   "rarity": "common",
   "tribe": ["fera", "ave"],
@@ -20,13 +19,12 @@
     },
     {
       "trigger": "on_enter",
-      "action": "gain_momentum",
+      "action": "untap_reservoir",
       "target": "none",
       "per": "returned_allies",
-      "amount": 1,
-      "refresh": true
+      "amount": 1
     }
   ],
-  "text": "Ao Entrar: você pode devolver outra unidade aliada à sua mão e recupera até 1 de Momentum gasto neste turno.",
+  "text": "Ao Entrar: você pode devolver outra unidade aliada à sua mão; se devolver, desvira 1 carta do seu Reservatório.",
   "flavor": ""
 }

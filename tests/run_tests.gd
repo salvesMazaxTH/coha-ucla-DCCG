@@ -26,6 +26,7 @@ func _init() -> void:
 	_test_gorvakharr_growth()
 	_test_farkoveth_armor_cycle()
 	_test_ai_reservoir_duplicate()
+	_test_reservoir_store_effects()
 	_test_art_crop()
 	_test_art_cache_limit()
 	_test_sfx()
@@ -38,6 +39,7 @@ func _init() -> void:
 	_test_domain_removals()
 	_test_kazeminus()
 	_test_agiota_das_nuvens()
+	_test_diabrete_eletrico_untap()
 	_test_tormenta_wave_one()
 	_test_bateria_de_segunda_mao()
 	_test_tormenta_wave_two()
@@ -1783,16 +1785,14 @@ func _test_sacrifice_damage() -> void:
 
 ## The four epic unrestricted removals added so every domain has an answer: Expurgo Sagrado (Devoção), Desabamento Oportuno
 ## (Montanha), Capina Seletiva (Natureza) and Pacto de Mortalha (Trevas).
-## Kazeminus: Ao Entrar sends every OTHER unit that costs 4 or less (both sides) back to the hand and gives 1 Momentum
-## per allied unit returned; his Ao Ativar (exhaust) bounces an enemy unit.
+## Kazeminus: Ao Entrar sends every OTHER unit that costs 4 or less (both sides) back to the hand and untaps 1 Reservoir
+## card per allied unit returned; his Ao Ativar (exhaust) bounces an enemy unit.
 func _test_kazeminus() -> void:
 	_tcard("t_k_cheap", 2, 2, [])
 	_tcard("t_k_big", 2, 2, [])
 	CardDB.data()["cards"]["t_k_big"]["cost"] = 6
 	var g := _new_game()
 	_quiet(g)
-	# the turn started with 7 Momentum and Kazeminus' cost already spent them: the refresh can win back up to 7
-	g.players[0]["turn_start_momentum"] = 7
 	var ally_cheap := _put(g, 0, "t_k_cheap")
 	var ally_big := _put(g, 0, "t_k_big")
 	var enemy_cheap := _put(g, 1, "t_k_cheap")
@@ -1802,49 +1802,125 @@ func _test_kazeminus() -> void:
 	check(g.find_unit(enemy_cheap.uid) == null and _zone_has(g, 1, "hand", "t_k_cheap"), "Kazeminus: devolve a unidade inimiga de custo 4 ou menos")
 	check(g.find_unit(ally_big.uid) != null and g.find_unit(enemy_big.uid) != null, "Kazeminus: unidades de custo 5 ou mais ficam em campo")
 	check(g.find_unit(kazeminus.uid) != null, "Kazeminus: não devolve a si mesmo")
-	check(g.players[0]["momentum"] == 1, "Kazeminus: recupera 1 de Momentum por unidade aliada devolvida (só a aliada conta)")
 
-	# the refresh never goes past the Momentum the turn started with (here 0), unlike a plain gain
+	# Ao Entrar untaps 1 Reservoir card per allied unit returned (enemy units do not count)
+	var untap_game := _new_game()
+	_quiet(untap_game)
+	_fill_reservoir(untap_game, 0, 5)
+	for reservoir_card: Card in untap_game.players[0]["reservoir"]:
+		reservoir_card.exhausted = true
+	untap_game._sync_reservoir_momentum(0)
+	_put(untap_game, 0, "t_k_cheap")
+	_put(untap_game, 0, "t_k_cheap")
+	_put(untap_game, 1, "t_k_cheap")
+	_put(untap_game, 0, "kazeminus")
+	check(untap_game.players[0]["momentum"] == 2, "Kazeminus: desvira 1 carta do Reservatório por unidade aliada devolvida (só a aliada conta)")
+
+	# the untap never goes past the tapped cards: 3 allies returned but only 1 card tapped
 	var capped_game := _new_game()
 	_quiet(capped_game)
-	capped_game.players[0]["turn_start_momentum"] = 0
-	_put(capped_game, 0, "t_k_cheap")
+	_fill_reservoir(capped_game, 0, 5)
+	capped_game.players[0]["reservoir"][0].exhausted = true
+	capped_game._sync_reservoir_momentum(0)
+	for ally_index in 3:
+		_put(capped_game, 0, "t_k_cheap")
 	_put(capped_game, 0, "kazeminus")
-	check(capped_game.players[0]["momentum"] == 0, "Kazeminus: o Momentum recuperado não passa do que o turno começou")
+	check(capped_game.players[0]["momentum"] == 5, "Kazeminus: o desvirar não passa das cartas viradas")
+	check(capped_game.players[0]["momentum_float"] == 0, "Kazeminus: não gera Momentum flutuante")
+
 	# Ao Ativar (2) rápido, exhausts him: bounces an enemy unit
-	g.players[0]["momentum"] = 2
+	_fill_reservoir(g, 0, 2)
 	g.activate(0, kazeminus.uid, enemy_big.uid)
 	_resolve_stack(g)
 	check(g.find_unit(enemy_big.uid) == null and _zone_has(g, 1, "hand", "t_k_big"), "Kazeminus: Ao Ativar devolve a unidade inimiga escolhida")
 	check(kazeminus.exhausted and g.players[0]["momentum"] == 0, "Kazeminus: Ao Ativar custa 2 e exaure a unidade")
 	check(not g.can_activate(0, kazeminus.uid), "Kazeminus: exausto não ativa de novo")
 
-## Agiota das Nuvens: while on the board, his owner's Momentum cap is 12 instead of 10 (a Constante, "momentum_cap"),
-## and at the start of every turn his owner gains 2 Momentum.
+## Agiota das Nuvens: while on the board, his owner's Momentum cap is 15 and the Bateria holds 3 (two Constantes),
+## and his Ao Ativar looks at the deck top, then puts either the top or the bottom card into the Reservatório.
 func _test_agiota_das_nuvens() -> void:
 	var g := _new_game()
 	_quiet(g)
 	check(g.momentum_cap(0) == GameState.MOMENTUM_CAP, "Agiota: sem ele o teto de Momentum é o normal")
+	check(g.battery_cap(0) == GameState.BATTERY_CAP, "Agiota: sem ele a Bateria tem a capacidade normal")
 	g.players[0]["momentum"] = 8
-	g.gain_momentum(0, 5)
+	g.gain_momentum(0, 20)
 	check(g.players[0]["momentum"] == GameState.MOMENTUM_CAP, "Agiota: sem ele o ganho para no teto normal")
+	g.players[0]["momentum"] = 0
+	g.players[0]["momentum_float"] = 0
 
 	var agiota := _put(g, 0, "agiota_das_nuvens")
-	check(g.momentum_cap(0) == 12, "Agiota: com ele em campo o teto do dono é 12")
-	check(g.momentum_cap(1) == GameState.MOMENTUM_CAP, "Agiota: o teto do adversário não muda")
-	g.gain_momentum(0, 5)
-	check(g.players[0]["momentum"] == 12, "Agiota: o ganho de Momentum sobe até 12")
+	check(g.momentum_cap(0) == 15, "Agiota: com ele em campo o teto do dono é 15")
+	check(g.battery_cap(0) == 3, "Agiota: com ele em campo a Bateria do dono tem 3")
+	check(g.momentum_cap(1) == GameState.MOMENTUM_CAP and g.battery_cap(1) == GameState.BATTERY_CAP, "Agiota: o adversário não muda")
+	g.gain_momentum(0, 20)
+	check(g.players[0]["momentum"] == 15, "Agiota: o ganho de Momentum sobe até 15")
 
-	# turn start: the 10 Reservatório cards come back ready and the Constante adds 2 floating Momentum
-	_fill_reservoir(g, 0, 10)
+	# turn start: the Bateria refills to 3 and no Momentum is gained on its own any more
+	_fill_reservoir(g, 0, 4)
 	g._start_turn(0, false)
-	check(g.players[0]["momentum"] == 12, "Agiota: início do turno dá 10 do Reservatório + 2 de Momentum")
+	check(g.players[0]["battery"] == 3, "Agiota: a Bateria enche até 3 no início do turno")
+	check(g.players[0]["momentum"] == 4, "Agiota: o início do turno só dá o Momentum do Reservatório")
 
-	# without him the 2 Momentum stop coming
+	# Ao Ativar: costs 1, does not exhaust, once per turn
+	var reservoir_before: int = g.players[0]["reservoir"].size()
+	var top_card: Card = g.players[0]["deck"].back()
+	var bottom_card: Card = g.players[0]["deck"].front()
+	var deck_before: int = g.players[0]["deck"].size()
+	g.players[0]["momentum"] = 4
+	check(g.can_activate(0, agiota.uid), "Agiota: pode ativar com Momentum")
+	g.activate(0, agiota.uid, 0)
+	_resolve_stack(g)
+	check(g.phase == "search" and g.pending_search.get("reservoir_pick", false), "Agiota: o Ao Ativar abre a escolha entre topo e fundo")
+	check(not agiota.exhausted and g.players[0]["momentum"] == 3, "Agiota: o Ao Ativar custa 1 e não exaure")
+	check(g.choose_search(0, 0).is_empty() and g.phase == "search", "Agiota: uid 0 não é uma escolha válida")
+	check(g.choose_search(0, 987654).is_empty() and g.phase == "search", "Agiota: uid desconhecido não é uma escolha válida")
+	g.choose_search(0, top_card.uid)
+	g.flush_events()
+	check(g.phase != "search" and g.players[0]["deck"].size() == deck_before - 1, "Agiota: escolher o topo tira uma carta do deck")
+	check(g.players[0]["reservoir"].has(top_card) and not g.players[0]["reservoir"].has(bottom_card), "Agiota: a carta do topo vai para o Reservatório")
+	check(g.players[0]["reservoir"].size() == reservoir_before + 1, "Agiota: o Reservatório ganha exatamente uma carta")
+	check(not g.can_activate(0, agiota.uid), "Agiota: o Ao Ativar é 1x por turno")
+
+	# next turn: choosing the bottom card instead
+	g.players[0]["momentum"] = 4
+	agiota.activated_turn = -1
+	top_card = g.players[0]["deck"].back()
+	bottom_card = g.players[0]["deck"].front()
+	g._begin_reservoir_look(0, agiota.uid)
+	g.choose_search(0, GameState.RESERVOIR_PICK_BOTTOM)
+	g.flush_events()
+	check(g.players[0]["reservoir"].has(bottom_card), "Agiota: escolher o fundo manda a carta do fundo do deck")
+	check(not g.players[0]["reservoir"].has(top_card) and g.players[0]["deck"].back() == top_card, "Agiota: a carta do topo continua no deck")
+
+	# empty deck: nothing to look at
+	g.players[0]["deck"].clear()
+	g.phase = "main"
+	g._begin_reservoir_look(0, agiota.uid)
+	check(g.phase != "search", "Agiota: com o deck vazio o Ao Ativar não abre escolha")
+	check(not g.move_bottom_deck_to_reservoir(0), "Reservatório: sem carta no fundo do deck nada se move")
+
+	# without him the caps go back to normal
 	g.players[0]["board"].erase(agiota)
-	g.players[0]["momentum_float"] = 0 # a real turn end would have expired it
-	g._start_turn(0, false)
-	check(g.players[0]["momentum"] == 10, "Agiota: sem ele o turno começa só com o Momentum do Reservatório")
+	check(g.momentum_cap(0) == GameState.MOMENTUM_CAP and g.battery_cap(0) == GameState.BATTERY_CAP, "Agiota: ao sair de campo os tetos voltam ao normal")
+
+## Diabrete Elétrico: when it dies, its owner untaps one tapped Reservatório card (never more Momentum than cards held).
+func _test_diabrete_eletrico_untap() -> void:
+	var g := _new_game()
+	_quiet(g)
+	_fill_reservoir(g, 0, 3)
+	g.players[0]["reservoir"][0].exhausted = true
+	g.players[0]["reservoir"][1].exhausted = true
+	g._sync_reservoir_momentum(0)
+	check(g.players[0]["momentum"] == 1, "Diabrete: com 2 cartas viradas sobra 1 de Momentum")
+	var imp := _put(g, 0, "diabrete_eletrico")
+	imp.damage = 99
+	g.check_state()
+	_resolve_stack(g)
+	check(g.find_unit(imp.uid) == null, "Diabrete: o dano letal o destrói")
+	check(g.players[0]["momentum"] == 2, "Diabrete: Ao Morrer desvira uma carta do Reservatório")
+	check(g.untap_reservoir_cards(0, 5) == 1 and g.players[0]["momentum"] == 3, "Reservatório: desvirar nunca passa das cartas viradas")
+	check(g.untap_reservoir_cards(0, 1) == 0, "Reservatório: sem carta virada nada é desvirado")
 
 ## Rajada de Quintal (bounce limited by cost, +1 cost), Corrente de Ar (timed Rapidez + Esquiva),
 ## Meteorologista Pessimista (takes a spell from the top of the deck) and Trovão Arrependido (Ao Morrer).
@@ -1893,17 +1969,20 @@ func _test_tormenta_wave_one() -> void:
 	g.choose_search(0, int(spell.uid))
 	check(g.players[0]["hand"].any(func(c: Card) -> bool: return c.uid == spell.uid) and g.players[0]["hand"].size() == hand_before + 1, "Meteorologista: o feitiço escolhido vai para a mão")
 
-	# Trovão Arrependido: Ímpeto, and on death 5 damage to the enemy Leader plus 2 Momentum
+	# Trovão Arrependido: Ímpeto, and on death 5 damage to the enemy Leader plus untaps 2 Reservoir cards
 	g = _new_game()
 	_quiet(g)
 	var thunder := _put(g, 0, "trovao_arrependido")
 	check(g.has_kw(thunder, "impeto"), "Trovão Arrependido: tem Ímpeto")
 	var leader_hp: int = g.players[1]["leader_hp"]
-	g.players[0]["momentum"] = 0
+	_fill_reservoir(g, 0, 5)
+	for reservoir_card: Card in g.players[0]["reservoir"]:
+		reservoir_card.exhausted = true
+	g._sync_reservoir_momentum(0)
 	thunder.damage = 99
 	g.check_state()
 	check(g.players[1]["leader_hp"] == leader_hp - 5, "Trovão Arrependido: ao morrer causa 5 de dano ao Líder inimigo")
-	check(g.players[0]["momentum"] == 2, "Trovão Arrependido: ao morrer dá 2 de Momentum")
+	check(g.players[0]["momentum"] == 2 and g.players[0]["momentum_float"] == 0, "Trovão Arrependido: ao morrer desvira 2 cartas do Reservatório (não gera flutuante)")
 
 ## Kazeminus' Vento de Cauda, the "momentum_left" damage (Curto-Circuito, Antena de Varal) and the other
 ## second-wave Tormenta cards: Fio Desencapado, Gaivota Paraquedista, Caça-Raios Sem Mira, Capitã Redemoinho,
@@ -1928,11 +2007,10 @@ func _test_tormenta_wave_two() -> void:
 	g = _new_game()
 	_quiet(g)
 	var target := _put(g, 1, "serpente_marinha")
-	g.players[0]["momentum"] = 5
-	g.players[0]["turn_start_momentum"] = 5
+	_fill_reservoir(g, 0, 5)
 	_play_aimed(g, 0, "fio_desencapado", target.uid)
 	check(target.damage == 2, "Fio Desencapado: causa 2 de dano")
-	check(g.players[0]["momentum"] == 4, "Fio Desencapado: custa 2 e devolve 1 de Momentum")
+	check(g.players[0]["momentum"] == 4 and g.players[0]["momentum_float"] == 1, "Fio Desencapado: custa 2 e dá 1 de Momentum flutuante")
 
 	# Curto-Circuito: 1 damage to the enemy Leader per Momentum left after paying, and all of it is spent
 	g = _new_game()
@@ -1958,21 +2036,20 @@ func _test_tormenta_wave_two() -> void:
 	g.end_turn(p_antenna)
 	check(g.players[1 - p_antenna]["leader_hp"] == leader_hp - 3, "Antena de Varal: 7 de Momentum sobrando = 3 de dano no fim do turno")
 
-	# Gaivota Paraquedista: bounces another ally and gets back 1 spent Momentum
+	# Gaivota Paraquedista: bounces another ally and untaps 1 Reservoir card
 	g = _new_game()
 	_quiet(g)
 	var ally := _put(g, 0, "meteorologista_pessimista")
-	g.players[0]["momentum"] = 10
-	g.players[0]["turn_start_momentum"] = 10
+	_fill_reservoir(g, 0, 10)
 	_play_aimed(g, 0, "gaivota_paraquedista", ally.uid)
 	check(g.find_unit(ally.uid) == null and _zone_has(g, 0, "hand", "meteorologista_pessimista"), "Gaivota: devolve a outra aliada à mão")
-	check(g.players[0]["momentum"] == 9, "Gaivota: custa 2 e recupera 1 de Momentum gasto")
+	check(g.players[0]["momentum"] == 9 and g.players[0]["momentum_float"] == 0, "Gaivota: custa 2 e desvira 1 carta do Reservatório")
 
 	# Caça-Raios Sem Mira: hitting the Leader gives 1 Momentum (Ímpeto alone never reaches the face on the turn it enters)
 	g = _new_game()
 	_quiet(g)
 	var hunter := _put(g, 0, "caca_raios_sem_mira")
-	g.players[0]["momentum"] = 0
+	_fill_reservoir(g, 0, 3)
 	leader_hp = g.players[1]["leader_hp"]
 	g.players[1]["hand"] = [] # an Instantâneo in the defender's hand would make the game ask them to react first
 	g.players[1]["ability_used"] = true
@@ -1980,7 +2057,22 @@ func _test_tormenta_wave_two() -> void:
 	g.attack_unit(0, hunter.uid, GameState.LEADER_UID[1])
 	_resolve_stack(g)
 	check(g.players[1]["leader_hp"] == leader_hp - 4, "Caça-Raios: o ataque ao Líder causa 4 de dano")
-	check(g.players[0]["momentum"] == 1, "Caça-Raios: acertar o Líder dá 1 de Momentum")
+	check(g.players[0]["momentum"] == 4 and g.players[0]["momentum_float"] == 1, "Caça-Raios: acertar o Líder dá 1 de Momentum flutuante")
+
+	# Pippa Ziguezague: hitting the Leader untaps 1 Reservoir card
+	g = _new_game()
+	_quiet(g)
+	var pippa := _put(g, 0, "pippa_ziguezague")
+	_fill_reservoir(g, 0, 3)
+	for pippa_reservoir_card: Card in g.players[0]["reservoir"]:
+		pippa_reservoir_card.exhausted = true
+	g._sync_reservoir_momentum(0)
+	g.players[1]["hand"] = []
+	g.players[1]["ability_used"] = true
+	_open_attacks(g)
+	g.attack_unit(0, pippa.uid, GameState.LEADER_UID[1])
+	_resolve_stack(g)
+	check(g.players[0]["momentum"] == 1 and g.players[0]["momentum_float"] == 0, "Pippa Ziguezague: acertar o Líder desvira 1 carta do Reservatório")
 
 	# Capitã Redemoinho: when she attacks she bounces a random enemy unit, which then costs 1 more
 	g = _new_game()
@@ -1993,18 +2085,17 @@ func _test_tormenta_wave_two() -> void:
 	check(g.find_unit(victim.uid) == null and _zone_has(g, 1, "hand", "meteorologista_pessimista"), "Capitã Redemoinho: ao atacar devolve uma unidade inimiga")
 	check(g.find_unit(captain.uid) != null, "Capitã Redemoinho: continua em campo depois do ataque")
 
-	# Tufão de Gaveta: sends home every unit of cost 3 or less (both sides) and refunds Momentum per ally sent
+	# Tufão de Gaveta: sends home every unit of cost 3 or less (both sides) and untaps 1 Reservoir card per ally sent
 	g = _new_game()
 	_quiet(g)
 	var cheap_ally := _put(g, 0, "meteorologista_pessimista") # cost 2
 	var big_ally := _put(g, 0, "trovao_arrependido") # cost 6
 	var cheap_foe := _put(g, 1, "meteorologista_pessimista")
-	g.players[0]["momentum"] = 10
-	g.players[0]["turn_start_momentum"] = 10
+	_fill_reservoir(g, 0, 10)
 	_cast_and_resolve(g, 0, "tufao_de_gaveta")
 	check(g.find_unit(cheap_ally.uid) == null and g.find_unit(cheap_foe.uid) == null, "Tufão de Gaveta: devolve as unidades baratas dos dois lados")
 	check(g.find_unit(big_ally.uid) != null, "Tufão de Gaveta: unidades de custo maior ficam")
-	check(g.players[0]["momentum"] == 5, "Tufão de Gaveta: custa 6 e recupera 1 por unidade aliada devolvida")
+	check(g.players[0]["momentum"] == 5, "Tufão de Gaveta: custa 6 e desvira 1 carta do Reservatório por unidade aliada devolvida")
 
 	# Cata-Vento Ambulante: grows only when Momentum was left over at the end of the turn
 	g = _new_game()
@@ -2042,7 +2133,24 @@ func _test_bateria_de_segunda_mao() -> void:
 	g.flush_events()
 	var pl: Dictionary = g.players[p]
 
-	# nothing spills past the Bateria anymore, so nothing is stored by itself; the stored amount still survives save and load
+	# at the owner's untap the artifact keeps the unspent Momentum, up to its capacity of 3
+	pl["momentum"] = 2
+	g._start_turn(p, false)
+	check(store_artifact.stored_momentum == 2, "Artefato: ao desvirar, guarda o Momentum que sobrou")
+	pl["momentum"] = 5
+	g._start_turn(p, false)
+	check(store_artifact.stored_momentum == 3, "Artefato: guarda no máximo 3 de Momentum")
+	pl["momentum"] = 0
+	store_artifact.stored_momentum = 1
+	g._start_turn(p, false)
+	check(store_artifact.stored_momentum == 1, "Artefato: sem Momentum sobrando, nada muda")
+	var opponent: int = 1 - p
+	g.players[opponent]["momentum"] = 2
+	g._start_turn(opponent, false)
+	check(store_artifact.stored_momentum == 1, "Artefato: o desvirar do oponente não enche o artefato")
+	g.active = p
+
+	# the stored amount survives save and load
 	store_artifact.stored_momentum = 3
 	check(Card.from_dict(store_artifact.to_dict(), "relics", p).stored_momentum == 3, "Artefato: o Momentum guardado sobrevive ao salvar e carregar")
 
@@ -3238,12 +3346,12 @@ func _test_play_cost_snapshot() -> void:
 	_tspell("t_discounted_play_snapshot", "lento", [])
 	var discounted_spell: Dictionary = CardDB.data()["cards"]["t_discounted_play_snapshot"]
 	discounted_spell["cost"] = 5
-	discounted_spell["effects"] = [{"action": "cost_reduction", "per": "idle_turns", "amount": 2}]
+	discounted_spell["effects"] = [{"action": "cost_reduction", "per": "unspent_turns", "amount": 2}]
 	var g := _new_game()
 	_quiet(g)
 	var p: int = g.active
 	g.players[p]["momentum"] = 10
-	g.players[p]["idle_turns"] = 1
+	g.players[p]["unspent_turns"] = 1
 	var uid := _give(g, p, "t_discounted_play_snapshot")
 	var play_events := g.play_card(p, uid)
 	var play_event: Dictionary = play_events.filter(func(e): return e["type"] == "play")[0]
@@ -3874,8 +3982,8 @@ func _test_sengoku_discount_current_cost() -> void:
 	card.discount = 0
 	card.turn_discount = 0
 	card.cost_mod = 0
-	cd["effects"] = [{"action": "cost_reduction", "per": "idle_turns", "amount": 2, "min_cost": 3}]
-	g.players[0]["idle_turns"] = 2
+	cd["effects"] = [{"action": "cost_reduction", "per": "unspent_turns", "amount": 2, "min_cost": 3}]
+	g.players[0]["unspent_turns"] = 2
 	check(_hand_cost(g, uid) == 2, "sengoku: divide o custo atual após aplicar o mínimo da redução anterior")
 	cd["cost"] = 7
 	check(not g.play_discount_applies(0, card) and _hand_cost(g, uid) == 3, "sengoku: limite de 6 continua usando o custo base mesmo após redução")
@@ -9963,16 +10071,16 @@ func _test_eletrica() -> void:
 	var vx: Dictionary = CardDB.card("voltexz")
 	var fg: Dictionary = CardDB.card("fulgurvoltz")
 	check(g.incarnation_cost(a) == 15 and g.cost_of(a, fg) == 14, "eletrica: custos base 15 e 14")
-	# Voltexz ignores the Bateria: all plain Momentum left counts (even the part that gets banked);
-	# Fulgurvoltz still counts only the turns where Momentum leaked past the Bateria (2)
+	# Voltexz counts all plain Momentum left unspent until the owner's untap, whatever the Bateria holds;
+	# Fulgurvoltz counts only the turns that started with 2 or more unspent
 	var copy := g.find_card(_give(g, a, "voltexz")) # a loose copy in the hand cheapens by itself too
 	g.players[a]["momentum"] = 3
 	g.players[a]["battery"] = 1
 	g.end_turn(a)
 	g.players[o]["momentum"] = 0
 	g.end_turn(o)
-	check(g.incarnation_cost_mod(a) == -3 and g.players[a]["idle_turns"] == 1, "eletrica: Voltexz conta os 3 sobrados, mesmo os que vão para a Bateria")
-	check(g.incarnation_cost_mod(o) == 0 and g.players[o]["idle_turns"] == 0, "eletrica: sem Momentum sobrando não conta")
+	check(g.incarnation_cost_mod(a) == -3 and g.players[a]["unspent_turns"] == 1, "eletrica: Voltexz conta os 3 sobrados, Fulgurvoltz conta o turno (3 ≥ 2)")
+	check(g.incarnation_cost_mod(o) == 0 and g.players[o]["unspent_turns"] == 0, "eletrica: sem Momentum sobrando não conta")
 	check(g.incarnation_cost(a) == 12 and g.cost_of(a, fg) == 11, "eletrica: custo cai com o Momentum sobrado")
 	check(copy.cost_mod == -3 and g.cost_of(a, vx, copy) == 12, "eletrica: a cópia na mão também fica mais barata")
 	# what already sat in the Bateria at the start of the turn is not counted again
@@ -9983,7 +10091,7 @@ func _test_eletrica() -> void:
 	g.players[a]["battery"] = 2
 	g.end_turn(a)
 	g.end_turn(o)
-	check(g.incarnation_cost_mod(a) == 0 and g.players[a]["idle_turns"] == 0, "eletrica: a Bateria que já estava cheia não conta de novo")
+	check(g.incarnation_cost_mod(a) == 0 and g.players[a]["unspent_turns"] == 0, "eletrica: a Bateria cheia não conta como Momentum sobrando")
 	# spending on the opponent's turn reduces the savings (counted at the owner's next start)
 	g = _eletrica_game()
 	a = g.active
@@ -9994,11 +10102,12 @@ func _test_eletrica() -> void:
 	g.players[a]["momentum"] = 1 # spent 2 during the opponent's turn
 	g.end_turn(o)
 	check(g.incarnation_cost_mod(a) == -1, "eletrica: gasto no turno do oponente reduz o que sobra")
+	check(g.players[a]["unspent_turns"] == 0, "eletrica: só 1 sobrando não conta como turno de Fulgurvoltz (mínimo 2)")
 	# the floor stops the reduction exactly at 3 (and at 5 for the Fulgurvoltz)
 	g = _eletrica_game()
 	a = g.active
 	g.add_cost_mod(a, null, -40, 3)
-	g.players[a]["idle_turns"] = 40
+	g.players[a]["unspent_turns"] = 40
 	check(g.incarnation_cost(a) == 3 and g.cost_of(a, fg) == 5, "eletrica: pisos 3 e 5")
 	# Gigante Elétrico: 9 base, 5 less with at least 4 saved Momentum, counting the Bateria once.
 	var gg: Dictionary = CardDB.card("gigante_eletrico")
@@ -10167,29 +10276,36 @@ func _test_eletrica() -> void:
 	g.players[a]["momentum"] = 0
 	g._run_effect_dicts(a, CardDB.card("voltexz")["effects"], "on_enter", 0, 0)
 	check(g.atk_of(ally) == 7 and g.players[a]["board"][0].hp == 9, "voltexz: sem Momentum sobrando, ainda dá +1/+1")
-	# Voltexz converts leaked Momentum into a temporary self-buff at the start of her owner's turn.
+	# Voltexz turns 2+ unspent Momentum into a temporary self-buff at the start of her owner's turn.
 	g = _eletrica_game()
 	a = g.active
 	var start_voltexz := _put(g, a, "voltexz")
-	g.players[a]["leaked"] = 0
+	g.players[a]["unspent"] = 0
 	g.bus().emit(GameEvent.new("turn_started", a))
 	g.check_state()
-	check(atk_ok(g, start_voltexz, 8, 6) and not start_voltexz.magic_shield, "voltexz: sem Momentum vazado, não ganha o bônus de turno")
+	check(atk_ok(g, start_voltexz, 8, 6) and not start_voltexz.magic_shield, "voltexz: sem Momentum sobrando, não ganha o bônus de turno")
 	g = _eletrica_game()
 	a = g.active
 	start_voltexz = _put(g, a, "voltexz")
-	g.players[a]["leaked"] = 1
+	g.players[a]["unspent"] = 1
 	g.bus().emit(GameEvent.new("turn_started", a))
 	g.check_state()
-	check(g.atk_of(start_voltexz) == 10 and start_voltexz.hp + start_voltexz.temp_hp == 7 and start_voltexz.magic_shield and start_voltexz.magic_shield_until_end_turn, "voltexz: Momentum vazado dá +2/+1 e Escudo Mágico temporários (ATQ %d, Vida %d+%d, escudo %s, fim %s, vazou %d)" % [g.atk_of(start_voltexz), start_voltexz.hp, start_voltexz.temp_hp, start_voltexz.magic_shield, start_voltexz.magic_shield_until_end_turn, g.players[a]["leaked"]])
+	check(atk_ok(g, start_voltexz, 8, 6) and not start_voltexz.magic_shield, "voltexz: 1 de Momentum sobrando não chega ao mínimo de 2")
+	g = _eletrica_game()
+	a = g.active
+	start_voltexz = _put(g, a, "voltexz")
+	g.players[a]["unspent"] = 2
+	g.bus().emit(GameEvent.new("turn_started", a))
+	g.check_state()
+	check(g.atk_of(start_voltexz) == 10 and start_voltexz.hp + start_voltexz.temp_hp == 7 and start_voltexz.magic_shield and start_voltexz.magic_shield_until_end_turn, "voltexz: 2 de Momentum sobrando dá +2/+1 e Escudo Mágico temporários (ATQ %d, Vida %d+%d, escudo %s, fim %s, sobrou %d)" % [g.atk_of(start_voltexz), start_voltexz.hp, start_voltexz.temp_hp, start_voltexz.magic_shield, start_voltexz.magic_shield_until_end_turn, g.players[a]["unspent"]])
 	g.end_turn(a)
-	check(atk_ok(g, start_voltexz, 8, 6) and not start_voltexz.magic_shield, "voltexz: bônus de vazamento expira no fim do turno")
+	check(atk_ok(g, start_voltexz, 8, 6) and not start_voltexz.magic_shield, "voltexz: o bônus de Momentum sobrando expira no fim do turno")
 	g = _eletrica_game()
 	a = g.active
 	start_voltexz = _put(g, a, "voltexz")
 	start_voltexz.magic_shield = true
 	start_voltexz.magic_shield_until_end_turn = true
-	g.players[a]["leaked"] = 1
+	g.players[a]["unspent"] = 2
 	g.bus().emit(GameEvent.new("turn_started", a))
 	g.check_state()
 	check(start_voltexz.magic_shield_until_end_turn and not start_voltexz.magic_shield_until_next_turn, "voltexz: o bônus temporário não torna permanente um Escudo Mágico já temporário")
@@ -10277,38 +10393,33 @@ func _test_eletrica() -> void:
 	g.deal_damage(sp.uid, 1, slow)
 	check(sp.damage == 1, "esquiva (override): sem Rapidez é evitada, mesmo com ATK maior")
 	g.combat_damage = false
-	# Sobrecarga: Bateria cheia no início do turno dá +1 Momentum (só ao dono)
+	# Sobrecarga: 2 or more Momentum left unspent until the untap gives a flat +1 Momentum this turn
 	g = _eletrica_game()
 	a = g.active
 	g.players[a]["momentum"] = 0
-	g.players[a]["leaked"] = 0
+	g.players[a]["unspent"] = 1
 	g._fire_leader_passive(a, "on_turn_start")
 	g.check_state()
-	check(g.players[a]["momentum"] == 0, "sobrecarga: nada vazou, nada volta")
-	g.players[a]["leaked"] = 1
+	check(g.players[a]["momentum"] == 0, "sobrecarga: sobrou só 1, não chega ao mínimo de 2")
+	g.players[a]["unspent"] = 2
 	g._fire_leader_passive(a, "on_turn_start")
 	g.check_state()
-	check(g.players[a]["momentum"] == 0, "sobrecarga: vazou 1, metade para baixo é 0")
-	g.players[a]["leaked"] = 3
-	g._fire_leader_passive(a, "on_turn_start")
-	g.check_state()
-	check(g.players[a]["momentum"] == 1, "sobrecarga: vazou 3, volta 1 (metade p/ baixo)")
+	check(g.players[a]["momentum"] == 1, "sobrecarga: sobraram 2, ganha 1 de Momentum")
 	g.players[a]["momentum"] = 0
-	g.players[a]["momentum"] = 0
-	g.players[a]["leaked"] = 9
+	g.players[a]["unspent"] = 9
 	g._fire_leader_passive(a, "on_turn_start")
 	g.check_state()
-	check(g.players[a]["momentum"] == 2, "sobrecarga: devolve no máximo 2")
-	# nothing to refund (first turn, or leaked 0/1): the passive does not even show up in the Crônica
+	check(g.players[a]["momentum"] == 1, "sobrecarga: sobrar mais não aumenta o ganho, continua 1")
+	# below the threshold (or the first turn): the passive does not even show up in the Crônica
 	g = _eletrica_game()
 	a = g.active
-	g.players[a]["leaked"] = 1
+	g.players[a]["unspent"] = 1
 	g.flush_events()
 	g._fire_leader_passive(a, "on_turn_start")
-	check(not _has_event(g.flush_events(), "passive"), "sobrecarga: sem nada a devolver, não anuncia a passiva")
-	g.players[a]["leaked"] = 2
+	check(not _has_event(g.flush_events(), "passive"), "sobrecarga: sem Momentum sobrando o bastante, não anuncia a passiva")
+	g.players[a]["unspent"] = 2
 	g._fire_leader_passive(a, "on_turn_start")
-	check(_has_event(g.flush_events(), "passive"), "sobrecarga: com Momentum a devolver, anuncia a passiva")
+	check(_has_event(g.flush_events(), "passive"), "sobrecarga: com 2 sobrando, anuncia a passiva")
 
 func _test_intimidacao() -> void:
 	_tcard("t_int", 4, 4, [])
@@ -14046,18 +14157,7 @@ func _test_momentum_refresh() -> void:
 	var second_druid := _put(g, a, "druida_das_falhas")
 	check(second_druid != null and g.players[a]["momentum"] == 5, "Druida: já no Momentum do início, a entrada não rende nada")
 
-	# Condutor da Tempestade is real ramp: the maximum goes up for good, the Momentum in hand stays
-	g = _new_game()
-	_quiet(g)
-	a = g.active
-	_fill_reservoir(g, a, 4)
-	g.players[a]["momentum"] = 4
-	_put(g, a, "condutor_da_tempestade")
-	check(g.players[a]["max_momentum"] == 5, "Condutor: o Momentum máximo sobe 1 (veio %d)" % g.players[a]["max_momentum"])
-	check(g.players[a]["momentum"] == 4, "Condutor: não dá Momentum no turno em que entra")
-	_fill_reservoir(g, a, GameState.MOMENTUM_CAP)
-	_put(g, a, "condutor_da_tempestade")
-	check(g.players[a]["max_momentum"] == GameState.MOMENTUM_CAP, "Condutor: o máximo nunca passa do teto")
+	_test_condutor_da_tempestade_cap()
 
 	# Pippa refreshes: hitting the Leader only returns Momentum spent this turn
 	g = _new_game()
@@ -14067,6 +14167,59 @@ func _test_momentum_refresh() -> void:
 	g.players[a]["momentum"] = 4
 	g.gain_momentum(a, 1, false, true)
 	check(g.players[a]["momentum"] == 4, "refresh sem gasto não rende (base da Pippa)")
+
+func _test_condutor_da_tempestade_cap() -> void:
+	var g := _new_game()
+	_quiet(g)
+	var a := g.active
+	g.absolute_momentum_cap_enabled = true
+	_fill_reservoir(g, a, 14)
+	check(g.momentum_cap(a) == 12 and g.players[a]["momentum"] == 12, "Condutor: sem nada, o cap é 12 e só 12 dos 14 contam")
+	_put(g, a, "condutor_da_tempestade")
+	check(g.momentum_cap(a) == 13, "Condutor: o cap do Reservatório sobe 1 (veio %d)" % g.momentum_cap(a))
+	check(g.players[a]["momentum"] == 13 and g.players[a]["max_momentum"] == 13, "Condutor: a carta a mais no Reservatório passa a contar")
+
+	# before Agiota: stays 15
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	g.absolute_momentum_cap_enabled = true
+	_put(g, a, "condutor_da_tempestade")
+	var early_agiota := _put(g, a, "agiota_das_nuvens")
+	check(g.momentum_cap(a) == 15, "Condutor antes da Agiota: cap 15 (veio %d)" % g.momentum_cap(a))
+	g.players[a]["board"].erase(early_agiota)
+	check(g.momentum_cap(a) == 13, "Condutor antes da Agiota: sem ela, o cap volta a 12 + 1 (veio %d)" % g.momentum_cap(a))
+
+	# after Agiota: 16
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	g.absolute_momentum_cap_enabled = true
+	var late_agiota := _put(g, a, "agiota_das_nuvens")
+	_put(g, a, "condutor_da_tempestade")
+	check(g.momentum_cap(a) == 16, "Condutor depois da Agiota: cap 16 (veio %d)" % g.momentum_cap(a))
+	g.players[a]["board"].erase(late_agiota)
+	check(g.momentum_cap(a) == 13, "Condutor depois da Agiota: sem ela, o cap volta a 12 + 1 (veio %d)" % g.momentum_cap(a))
+
+	# the absolute ceiling
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	g.absolute_momentum_cap_enabled = true
+	g.players[a]["momentum_cap_extras"] = 7
+	_put(g, a, "condutor_da_tempestade")
+	_put(g, a, "condutor_da_tempestade")
+	check(g.momentum_cap(a) == GameState.MOMENTUM_ABSOLUTE_CAP, "Condutor: o cap nunca passa de 20 (veio %d)" % g.momentum_cap(a))
+
+	# ceiling off (dev mode / scenarios)
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	g.absolute_momentum_cap_enabled = false
+	g.players[a]["momentum_cap_extras"] = 7
+	_put(g, a, "condutor_da_tempestade")
+	_put(g, a, "condutor_da_tempestade")
+	check(g.momentum_cap(a) == 21, "Condutor sem o teto absoluto: passa de 20 (veio %d)" % g.momentum_cap(a))
 
 func _test_momentum_overflow() -> void:
 	var surge_condition := {"compare": {"stat": "momentum", "op": ">=", "value": 11}}
@@ -14245,7 +14398,7 @@ func _test_momentum_overflow() -> void:
 
 ## The Eryon deck: the Leader's loan, Eryon's sacrifice-for-Momentum, Cobrador's overflow and the named search.
 func _test_eryon_deck() -> void:
-	# Leader: +1 Momentum now (past 10 allowed), 1 less at the start of the next turn
+	# Leader: +1 Momentum now, 1 less at the start of the next turn
 	var g := _new_game()
 	_quiet(g)
 	var a := g.active
@@ -14296,9 +14449,9 @@ func _test_eryon_deck() -> void:
 	g._finish_turn()
 	g.flush_events()
 	check(g.players[g.opponent(a)]["leader_hp"] == 99 - 14, "Eryon: no fim do turno, 12 de Momentum = 7 golpes de 2 (%d)" % g.players[g.opponent(a)]["leader_hp"])
-	check(g.players[a]["momentum"] == 0, "Eryon: no fim do turno, com 11 ou mais, gasta todo o Momentum (%d)" % g.players[a]["momentum"])
+	check(g.players[a]["momentum"] == 0, "Eryon: no fim do turno, com 10 ou mais, gasta todo o Momentum (%d)" % g.players[a]["momentum"])
 
-	# Eryon, 11+ Momentum after the gain: blows of 2 spread over the enemies (Leader included); below 11 nothing happens
+	# Eryon, 10+ Momentum after the gain: blows of 2 spread over the enemies (Leader included); below 10 nothing happens
 	g = _new_game()
 	_quiet(g)
 	a = g.active
@@ -14340,7 +14493,20 @@ func _test_eryon_deck() -> void:
 	g.fire_trigger(eryon, "on_turn_end")
 	g.flush_events()
 	check(g.players[a]["momentum"] == 8 and g.players[eryon_enemy]["leader_hp"] == 60,
-		"Eryon: terminando o turno com menos de 11 de Momentum não causa dano (%d / %d)" % [g.players[a]["momentum"], g.players[eryon_enemy]["leader_hp"]])
+		"Eryon: terminando o turno com menos de 10 de Momentum não causa dano (%d / %d)" % [g.players[a]["momentum"], g.players[eryon_enemy]["leader_hp"]])
+
+	# the lowest case: exactly 10 Momentum = 5 blows of 2
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	eryon_enemy = g.opponent(a)
+	eryon = _put(g, a, "eryon")
+	g.players[a]["momentum"] = 10
+	g.players[eryon_enemy]["leader_hp"] = 60
+	g._finish_turn()
+	g.flush_events()
+	check(g.players[eryon_enemy]["leader_hp"] == 50 and g.players[a]["momentum"] == 0,
+		"Eryon: terminar com 10 de Momentum dá 5 golpes de 2 (%d / %d)" % [g.players[eryon_enemy]["leader_hp"], g.players[a]["momentum"]])
 
 	# the point of waiting: the Momentum is spent on the Barão first, so at the end of the turn nothing is left to blow up
 	g = _new_game()
@@ -14360,7 +14526,7 @@ func _test_eryon_deck() -> void:
 	check(g.players[eryon_enemy]["leader_hp"] == leader_hp_after_baron,
 		"Eryon: depois que o Barão gasta o Momentum, o fim do turno não dá golpes (%d -> %d)" % [leader_hp_after_baron, g.players[eryon_enemy]["leader_hp"]])
 
-	# the end-of-turn blows don't need the activation: ending the turn with 11+ Momentum is enough
+	# the end-of-turn blows don't need the activation: ending the turn with 9+ Momentum is enough
 	g = _new_game()
 	_quiet(g)
 	a = g.active
@@ -14373,21 +14539,21 @@ func _test_eryon_deck() -> void:
 	check(g.players[eryon_enemy]["leader_hp"] == 46 and g.players[a]["momentum"] == 0,
 		"Eryon: sem ativar, terminar com 12 de Momentum dá 7 golpes de 2 (%d / %d)" % [g.players[eryon_enemy]["leader_hp"], g.players[a]["momentum"]])
 
-	# Barão with the real card: Ímpeto and Escudo are innate; the surge turns on at 11 Momentum
+	# Barão with the real card: Ímpeto and Escudo are innate; the surge turns on at 10 Momentum
 	var baron := _put(g, a, "barao_estrondoso")
-	g.players[a]["momentum"] = 10
+	g.players[a]["momentum"] = 9
 	g.refresh_scaling()
 	check(g.atk_of(baron) == 5 and g.has_kw(baron, "impeto") and baron.shield
 		and not g.has_kw(baron, "sobrepujanca") and baron.critico_total() == 0,
-		"Barão: com 10 de Momentum já tem Ímpeto e Escudo, sem o bônus")
+		"Barão: com 9 de Momentum já tem Ímpeto e Escudo, sem o bônus")
 	baron.shield = false
-	g.players[a]["momentum"] = 11
+	g.players[a]["momentum"] = 10
 	g.refresh_scaling()
 	check(g.atk_of(baron) == 20 and g.has_kw(baron, "impeto") and not baron.shield
 		and g.has_kw(baron, "sobrepujanca") and baron.critico_total() == 4,
-		"Barão: com 11 de Momentum ganha +15, Sobrepujança e Crítico 4 sem renovar Escudo")
+		"Barão: com 10 de Momentum ganha +15, Sobrepujança e Crítico 4 sem renovar Escudo")
 
-	# Barão, Ao Atingir o Líder: a hit of 10+ with more than 8 Momentum spends all plain Momentum (never the Bateria)
+	# Barão, Ao Atingir o Líder: a hit of 10+ with 10+ Momentum spends all plain Momentum (never the Bateria)
 	g = _new_game()
 	_quiet(g)
 	a = g.active
@@ -14408,12 +14574,12 @@ func _test_eryon_deck() -> void:
 	a = g.active
 	baron_enemy = g.opponent(a)
 	baron = _put(g, a, "barao_estrondoso")
-	g.players[a]["momentum"] = 10
+	g.players[a]["momentum"] = 8
 	g.refresh_scaling()
 	g.players[baron_enemy]["leader_hp"] = 60
 	_hit(g, baron)
 	g.flush_events()
-	check(g.players[a]["momentum"] == 10, "Barão: golpe de 5 no Líder (abaixo de 10) não gasta Momentum (%d)" % g.players[a]["momentum"])
+	check(g.players[a]["momentum"] == 8, "Barão: golpe de 5 no Líder (abaixo de 10) não gasta Momentum (%d)" % g.players[a]["momentum"])
 
 	# Cobrador de Pedágio Torto: only the oldest copy in play gives +1 Momentum, and never above 10
 	var baseline_momentum := 0
@@ -15294,6 +15460,39 @@ func _test_ai_reservoir_duplicate() -> void:
 		else:
 			check(_hand_has(g, p, dear_uid), "IA/Reservatório (control): mantém a mais cara quando há repetida")
 			check(_hand_has(g, p, copy_a_uid) != _hand_has(g, p, copy_b_uid), "IA/Reservatório (control): armazena uma das repetidas")
+
+## Eletroad raises the hand deposits per turn to 2; Espírito Carregado moves the top of the deck into the Reservatório.
+func _test_reservoir_store_effects() -> void:
+	var g := _new_game()
+	_quiet(g)
+	var p := g.active
+	g.players[p]["reservoir_stored_turn"] = -1
+	g.players[p]["reservoir_stored_count"] = 0
+	var first_uid := _give(g, p, "bola_de_fogo")
+	var second_uid := _give(g, p, "bola_de_fogo")
+	var third_uid := _give(g, p, "bola_de_fogo")
+	check(g.reservoir_store_limit(p) == 1, "Eletroad: sem ele o limite de depósitos é 1")
+	g.store_in_reservoir(p, first_uid)
+	check(not g.can_store_in_reservoir(p, second_uid), "Eletroad: sem ele o segundo depósito do turno é recusado")
+	g.players[p]["reservoir_stored_turn"] = -1
+	g.players[p]["reservoir_stored_count"] = 0
+	_put(g, p, "eletroad")
+	check(g.reservoir_store_limit(p) == 2, "Eletroad: em campo o limite sobe para 2")
+	g.store_in_reservoir(p, second_uid)
+	check(g.can_store_in_reservoir(p, third_uid), "Eletroad: o segundo depósito do turno é permitido")
+	g.store_in_reservoir(p, third_uid)
+	var fourth_uid := _give(g, p, "bola_de_fogo")
+	check(not g.can_store_in_reservoir(p, fourth_uid), "Eletroad: o terceiro depósito do turno é recusado")
+
+	var deck_before: int = g.players[p]["deck"].size()
+	var reservoir_before: int = g.players[p]["reservoir"].size()
+	_put(g, p, "espirito_carregado")
+	check(g.players[p]["deck"].size() == deck_before - 1, "Espírito Carregado: a carta do topo sai do deck")
+	check(g.players[p]["reservoir"].size() == reservoir_before + 1, "Espírito Carregado: a carta do topo vai para o Reservatório")
+	g.players[p]["deck"].clear()
+	reservoir_before = g.players[p]["reservoir"].size()
+	_put(g, p, "espirito_carregado")
+	check(g.players[p]["reservoir"].size() == reservoir_before, "Espírito Carregado: com o deck vazio não faz nada")
 
 func _test_art_crop() -> void:
 	var tall_art := Vector2(1000, 2000)

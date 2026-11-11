@@ -1,7 +1,6 @@
 {
   "name": "Trovão Arrependido",
   "set": 1,
-  "banned": true,
   "type": "unit",
   "rarity": "epic",
   "tribe": ["elemental"],
@@ -21,11 +20,11 @@
     },
     {
       "trigger": "on_death",
-      "action": "gain_momentum",
+      "action": "untap_reservoir",
       "target": "none",
       "amount": 2
     }
   ],
-  "text": "Ao Morrer: causa 5 de dano ao Líder inimigo e você ganha 2 de Momentum.",
+  "text": "Ao Morrer: causa 5 de dano ao Líder inimigo e você desvira 2 cartas do seu Reservatório.",
   "flavor": ""
 }

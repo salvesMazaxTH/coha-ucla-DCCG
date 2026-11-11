@@ -1,7 +1,6 @@
 {
   "name": "Kazeminus",
   "set": 1,
-  "banned": true,
   "type": "unit",
   "rarity": "champion",
   "tribe": [
@@ -28,11 +27,10 @@
     },
     {
       "trigger": "on_enter",
-      "action": "gain_momentum",
+      "action": "untap_reservoir",
       "target": "none",
       "per": "returned_allies",
-      "amount": 1,
-      "refresh": true
+      "amount": 1
     }
   ],
   "activated": {
@@ -41,6 +39,6 @@
     "exhaust": true,
     "effects": [{ "action": "return_to_hand", "target": "enemy_unit" }]
   },
-  "text": "Ao Entrar: devolve às mãos de seus donos todas as outras unidades de custo (4) ou menos, aliadas e inimigas; você recupera até 1 de Momentum gasto neste turno por unidade aliada devolvida.\nAo Ativar (2) {rapido} (exaure esta unidade): devolve uma unidade inimiga à mão.",
+  "text": "Ao Entrar: devolve às mãos de seus donos todas as outras unidades de custo (4) ou menos, aliadas e inimigas; você desvira 1 carta do seu Reservatório por unidade aliada devolvida.\nAo Ativar (2) {rapido} (exaure esta unidade): devolve uma unidade inimiga à mão.",
   "flavor": ""
 }

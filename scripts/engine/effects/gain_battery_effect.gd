@@ -9,5 +9,5 @@ func _read_parameters(data: Dictionary) -> void:
 
 func apply(context: EffectContext, _target_uid: int) -> void:
 	var player: Dictionary = context.game.players[context.controller]
-	player["battery"] = mini(GameState.BATTERY_CAP, int(player["battery"]) + amount)
+	player["battery"] = mini(context.game.battery_cap(context.controller), int(player["battery"]) + amount)
 	context.game.emit_event({"type": "momentum", "player": context.controller}) # redraws the Momentum bar

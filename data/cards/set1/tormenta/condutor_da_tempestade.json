@@ -1,7 +1,6 @@
 {
   "name": "Condutor da Tempestade",
   "set": 1,
-  "banned": true,
   "type": "unit",
   "rarity": "common",
   "essence": "tormenta",
@@ -21,6 +20,6 @@
       "amount": 1
     }
   ],
-  "text": "Ao Entrar: seu Momentum máximo aumenta em 1 permanentemente.",
+  "text": "Ao Entrar: o limite do seu Reservatório aumenta em 1 permanentemente.",
   "flavor": ""
 }

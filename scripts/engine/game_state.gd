@@ -9,9 +9,12 @@ const MULLIGAN_MAX := 4
 const HAND_LIMIT := 7
 const BOARD_LIMIT := 8
 const MOMENTUM_CAP := 12
+const MOMENTUM_ABSOLUTE_CAP := 20 ## no effect, combo or future card takes a Reservoir cap past this (except in development mode / test scenarios)
+const RESERVOIR_STORES_PER_TURN := 1 ## hand cards a player may deposit in the Reservoir each turn, before any Constante raises it
 ## the most Momentum a turn can hold when an effect says "overflow" (Eryon's deck); the part above MOMENTUM_CAP vanishes at the
 ## end of the turn
 const MOMENTUM_OVERFLOW_CAP := 12
+const UNSPENT_MOMENTUM_THRESHOLD := 2 ## a turn that starts with this much unspent Momentum or more counts for "unspent_turns" and "unspent_momentum_threshold"
 const LETHAL_WARD_NEGATED_HITS := 3 # Câmara de Êxtase: how many hits it negates after saving the Leader
 const BATTERY_CAP := 2 ## refills at the start of each player's turn; pays only Rápido and Instantâneo plays
 const COMMANDER_TAX_STEP := 1 ## the Encarnação's tax grows by this much per previous cast: +1, then +2, +3, +4... (totals 1, 3, 6, 10)
@@ -186,13 +189,15 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"max_momentum": 0,
 		"turn_start_momentum": 0,
 		"momentum_float": 0,
+		"momentum_cap_extras": 0,
+		"momentum_cap_extras_over_constante": 0,
 		"battery": BATTERY_CAP,
 		"reservoir": [],
 		"reservoir_stored_turn": -1,
-		"idle_turns": 0,
+		"reservoir_stored_count": 0, # hand cards deposited in the turn of reservoir_stored_turn
+		"unspent_turns": 0,
 		"next_momentum": 0,
 		"play_restrictions": [],
-		"leaked": 0,
 		"unspent": 0,
 		"saved_momentum": 0,
 		# the last turn in which an effect really raised this player's Momentum ("already gained Momentum this turn")
@@ -688,7 +693,7 @@ func keyword_aura_of(c: Card) -> Array:
 
 
 ## What a unit's "momentum_surge" Constante gives it right now: {atk, keywords, critico}, or {} while its
-## controller has less than the effect's "min_momentum" (default: one above MOMENTUM_CAP, i.e. 11+).
+## controller has less than the effect's "min_momentum" (default: one above MOMENTUM_CAP).
 ## Barão Estrondoso: +15 Ataque, Escudo (once, when the surge turns on), Sobrepujança, Ímpeto and Crítico 4
 ## only while the surge is on.
 func momentum_surge_of(p: int, c: Card) -> Dictionary:
@@ -702,16 +707,49 @@ func momentum_surge_of(p: int, c: Card) -> Dictionary:
 	return { }
 
 
-## The most Momentum player p can hold as real, spendable Momentum: MOMENTUM_CAP, unless one of their units
-## on the board has a "momentum_cap" Constante (Agiota das Nuvens: {"cap": 12}). The highest one counts; two
-## of them do not stack. Losing that unit takes the extra Momentum away: it vanishes at the end of the turn.
+## Off in development mode and test scenarios.
+var absolute_momentum_cap_enabled := not DeckDB.development_mode_enabled()
+
+
+## The most Momentum p can hold: MOMENTUM_CAP + extras, or the "momentum_cap" Constante (Agiota) + the extras
+## raised while it was on the board, whichever is higher. Never past MOMENTUM_ABSOLUTE_CAP.
 func momentum_cap(p: int) -> int:
-	var cap := MOMENTUM_CAP
+	var cap := MOMENTUM_CAP + int(players[p].get("momentum_cap_extras", 0))
+	var constante_cap := constante_momentum_cap(p)
+	if constante_cap > MOMENTUM_CAP:
+		cap = maxi(cap, constante_cap + int(players[p].get("momentum_cap_extras_over_constante", 0)))
+	return limit_to_absolute_cap(cap)
+
+
+func constante_momentum_cap(p: int) -> int:
+	var cap := 0
 	for unit: Card in players[p]["board"]:
 		for e in card_of(unit).get("effects", []):
 			if e.get("trigger", "") == "constante" and e.get("action", "") == "momentum_cap":
 				cap = maxi(cap, int(e.get("cap", MOMENTUM_CAP)))
-	return mini(cap, MOMENTUM_CAP)
+	return cap
+
+
+func add_momentum_cap_extras(p: int, amount: int) -> void:
+	players[p]["momentum_cap_extras"] = int(players[p].get("momentum_cap_extras", 0)) + amount
+	if constante_momentum_cap(p) > MOMENTUM_CAP:
+		players[p]["momentum_cap_extras_over_constante"] = int(players[p].get("momentum_cap_extras_over_constante", 0)) + amount
+	_sync_reservoir_momentum(p)
+
+
+func limit_to_absolute_cap(cap: int) -> int:
+	return mini(cap, MOMENTUM_ABSOLUTE_CAP) if absolute_momentum_cap_enabled else cap
+
+
+## How much Momentum p's Bateria holds when it refills: BATTERY_CAP, unless one of their units on the board has a
+## "battery_cap" Constante (Agiota das Nuvens: {"cap": 3}). The highest one counts.
+func battery_cap(p: int) -> int:
+	var cap := BATTERY_CAP
+	for unit: Card in players[p]["board"]:
+		for e in card_of(unit).get("effects", []):
+			if e.get("trigger", "") == "constante" and e.get("action", "") == "battery_cap":
+				cap = maxi(cap, int(e.get("cap", BATTERY_CAP)))
+	return cap
 
 
 ## Atk/hp a card's "constante" scale effects would give it under player p right
@@ -1297,8 +1335,8 @@ func _since_last_turn(p: int, kind: String) -> int:
 
 ## Momentum cost of a card for player p, after its cost_reduction effects (no trigger: they apply
 ## wherever the card is, not only on the board, so they are not "Constante")
-## (e.g. per: "idle_turns" =
-## per owner turn that started with Momentum leaking past the Bateria; "unspent_momentum" = a flat "amount" off when
+## (e.g. per: "unspent_turns" =
+## per owner turn that started with UNSPENT_MOMENTUM_THRESHOLD or more unspent Momentum; "unspent_momentum" = a flat "amount" off when
 ## at least "threshold" plain Momentum was left over from the previous turn; "saved_momentum" = one flat reduction when
 ## leftover Momentum plus the existing Bateria met the threshold at turn start, counting each point once;
 ## "starting_momentum_surplus" = a flat "amount" off
@@ -1321,8 +1359,8 @@ func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 			continue
 		var n := 0
 		match e.get("per", ""):
-			"idle_turns":
-				n = int(players[p]["idle_turns"])
+			"unspent_turns":
+				n = int(players[p]["unspent_turns"])
 			"allied_plants_or_tokens":
 				n = allied_plants_or_tokens(p)
 			"own_graveyard_cards":
@@ -1475,18 +1513,36 @@ func reservoir_ready(p: int) -> int:
 	for card: Card in players[p]["reservoir"]:
 		if not card.exhausted:
 			ready += 1
-	return mini(ready, MOMENTUM_CAP)
+	return mini(ready, momentum_cap(p))
 
 
 ## Momentum is the ready Reservoir cards plus the floating part (Momentum given by effects, which expires at turn end).
 func _sync_reservoir_momentum(p: int) -> void:
 	players[p]["momentum"] = reservoir_ready(p) + int(players[p]["momentum_float"])
-	players[p]["max_momentum"] = mini(players[p]["reservoir"].size(), MOMENTUM_CAP)
+	players[p]["max_momentum"] = mini(players[p]["reservoir"].size(), momentum_cap(p))
+
+
+## How many hand cards p may deposit in the Reservoir each turn: RESERVOIR_STORES_PER_TURN, unless one of their
+## units on the board has a "reservoir_store_limit" Constante (Eletroad: {"limit": 2}). The highest one counts.
+func reservoir_store_limit(p: int) -> int:
+	var limit := RESERVOIR_STORES_PER_TURN
+	for unit: Card in players[p]["board"]:
+		for e in card_of(unit).get("effects", []):
+			if e.get("trigger", "") == "constante" and e.get("action", "") == "reservoir_store_limit":
+				limit = maxi(limit, int(e.get("limit", RESERVOIR_STORES_PER_TURN)))
+	return limit
+
+
+## Hand cards p already deposited in the Reservoir this turn.
+func reservoir_stores_used(p: int) -> int:
+	if int(players[p]["reservoir_stored_turn"]) != turn:
+		return 0
+	return maxi(1, int(players[p]["reservoir_stored_count"]))
 
 
 ## True when p can permanently deposit one hand card during their Main Phase.
 func can_store_in_reservoir(p: int, hand_uid: int) -> bool:
-	if not _main_phase_idle(p) or int(players[p]["reservoir_stored_turn"]) == turn:
+	if not _main_phase_idle(p) or reservoir_stores_used(p) >= reservoir_store_limit(p):
 		return false
 	var card := _hand_card(p, hand_uid)
 	return card != null and not bool(CardDB.card(card.card_id).get("non_storable", false))
@@ -1502,6 +1558,7 @@ func store_in_reservoir(p: int, hand_uid: int) -> Array:
 	_move(card, "reservoir")
 	card.exhausted = false
 	card.reservoir_revealed_turn = turn
+	players[p]["reservoir_stored_count"] = reservoir_stores_used(p) + 1
 	players[p]["reservoir_stored_turn"] = turn
 	_sync_reservoir_momentum(p)
 	refresh_scaling()
@@ -1515,20 +1572,51 @@ func move_top_deck_to_reservoir(p: int, amount := 1, source_uid := 0) -> int:
 	for _index in maxi(amount, 0):
 		if players[p]["deck"].is_empty():
 			break
-		var card: Card = players[p]["deck"].pop_back()
-		players[p]["reservoir"].append(card)
-		_move(card, "reservoir")
-		card.exhausted = false
-		card.reservoir_revealed_turn = turn
+		_deck_card_to_reservoir(p, players[p]["deck"].pop_back(), source_uid)
 		moved += 1
-		emit_event({
-			"type": "reservoir_add", "player": p, "uid": card.uid, "card_id": card.card_id,
-			"from": "deck", "source_uid": source_uid,
-		})
 	if moved > 0:
 		_sync_reservoir_momentum(p)
 		refresh_scaling()
 	return moved
+
+
+## Moves the BOTTOM card of p's deck into the Reservoir (the deck's front); it is permanently lost too.
+func move_bottom_deck_to_reservoir(p: int, source_uid := 0) -> bool:
+	if players[p]["deck"].is_empty():
+		return false
+	_deck_card_to_reservoir(p, players[p]["deck"].pop_front(), source_uid)
+	_sync_reservoir_momentum(p)
+	refresh_scaling()
+	return true
+
+
+## The card was already taken out of the deck: it enters p's Reservoir ready to spend.
+func _deck_card_to_reservoir(p: int, card: Card, source_uid: int) -> void:
+	players[p]["reservoir"].append(card)
+	_move(card, "reservoir")
+	card.exhausted = false
+	card.reservoir_revealed_turn = turn
+	emit_event({
+		"type": "reservoir_add", "player": p, "uid": card.uid, "card_id": card.card_id,
+		"from": "deck", "source_uid": source_uid,
+	})
+
+
+## Untaps up to `amount` tapped cards of p's Reservoir (oldest first) and returns how many were untapped.
+## Each one is worth 1 Momentum again, so it can never go past the cards the Reservoir holds.
+func untap_reservoir_cards(p: int, amount := 1) -> int:
+	var untapped := 0
+	for card: Card in players[p]["reservoir"]:
+		if untapped >= amount:
+			break
+		if card.exhausted:
+			card.exhausted = false
+			untapped += 1
+			emit_event({"type": "reservoir_untap", "player": p, "uid": card.uid})
+	if untapped > 0:
+		_sync_reservoir_momentum(p)
+		refresh_scaling()
+	return untapped
 
 
 ## Momentum p can spend on a play: the Bateria do seu Reservatório only counts for Rápido and Instantâneo plays (`fast`).
@@ -3028,6 +3116,8 @@ func choose_search(p: int, card_uid: int) -> Array:
 		return []
 	if pending_search.get("summon_from", false):
 		return _finish_summon_from(p, card_uid)
+	if pending_search.get("reservoir_pick", false):
+		return _finish_reservoir_pick(p, card_uid)
 	if card_uid == 0 and pending_search.get("hand_summon", false):
 		# Dona Gertrudes: the pick is optional, so choosing no card puts nothing on the board
 		pending_search.clear()
@@ -4371,6 +4461,43 @@ func _begin_look(p: int, n: int, source_uid: int, reshuffle: bool = false) -> vo
 	emit_event({ "type": "look_top", "player": p, "source_uid": source_uid, "cards": top })
 
 
+## "look_top_to_reservoir" (Agiota das Nuvens): the owner privately sees the top card of the deck, then must choose
+## between putting that card or the (unseen) bottom card into the Reservoir. There is no way to decline: the
+## activation cost was already paid. choose_search gets the top card's uid for the top, or RESERVOIR_PICK_BOTTOM.
+const RESERVOIR_PICK_BOTTOM := -1
+
+func _begin_reservoir_look(p: int, source_uid: int) -> void:
+	if phase == "search":
+		return
+	var deck: Array = players[p]["deck"]
+	if deck.is_empty():
+		emit_event({ "type": "search_empty", "player": p, "source_uid": source_uid })
+		return
+	var top_card: Card = deck.back()
+	var top: Array = [{ "uid": top_card.uid, "card_id": top_card.card_id }]
+	pending_search = { "player": p, "source_uid": source_uid, "cards": top, "look": true, "reservoir_pick": true }
+	search_return = phase
+	phase = "search"
+	emit_event({ "type": "look_top", "player": p, "source_uid": source_uid, "cards": top })
+
+
+func _finish_reservoir_pick(p: int, card_uid: int) -> Array:
+	var source_uid: int = int(pending_search.get("source_uid", 0))
+	var top_uid: int = int(pending_search["cards"][0]["uid"])
+	if card_uid != top_uid and card_uid != RESERVOIR_PICK_BOTTOM:
+		return []
+	pending_search.clear()
+	phase = search_return
+	if card_uid == RESERVOIR_PICK_BOTTOM:
+		move_bottom_deck_to_reservoir(p, source_uid)
+	else:
+		move_top_deck_to_reservoir(p, 1, source_uid)
+	check_state()
+	stack_system().after_search()
+	stack_system().settle()
+	return flush_events()
+
+
 ## "look_bottom" (Dragar): `shown` cards drawn at random from the bottom `window` cards of the deck are looked at
 ## privately, like a top look; the one taken goes to the hand (revealed to everyone by search_take) and the others
 ## stay exactly where they were in the deck ("stay_in_deck").
@@ -4911,7 +5038,7 @@ func debug_refill_momentum(p: int) -> Array:
 func debug_refill_battery(p: int) -> Array:
 	if not _debug_player_valid(p):
 		return []
-	players[p]["battery"] = BATTERY_CAP
+	players[p]["battery"] = battery_cap(p)
 	emit_event({ "type": "momentum", "player": p })
 	return _debug_finish()
 
@@ -5185,11 +5312,11 @@ func _fire_leader_passive(p: int, trigger: String, trigger_unit_uid := 0) -> voi
 	# "passive_uses" only exists for passives with a limit above 1 (it is wiped every turn start)
 	if ab.has("max_per_turn") and int(players[p].get("passive_uses", 0)) >= int(ab["max_per_turn"]):
 		return
-	if _passive_refunds_nothing(p, ab):
-		return # nothing leaked: do not announce a passive that does nothing (e.g. on the first turn)
 	var passive_context := EffectContext.new(self, p, "")
 	passive_context.self_uid = trigger_unit_uid
 	var passive_effects := EffectRegistry.parse_list(ab["effects"])
+	if _passive_conditions_all_fail(passive_effects, passive_context):
+		return # e.g. Sobrecarga without enough unspent Momentum: do not announce a passive that does nothing
 	if _passive_has_nobody_to_target(passive_effects, passive_context):
 		return # e.g. Crescimento do Dossel when the only plant is the token that just entered
 	players[p]["passive_used"] = true
@@ -5211,18 +5338,13 @@ func _passive_has_nobody_to_target(effects: Array, context: EffectContext) -> bo
 	return true
 
 
-## True when every effect of the passive is a "leaked" Momentum refund (Sobrecarga) and the refund
-## comes to 0, so firing it would only show a pointless "ativou Sobrecarga".
-func _passive_refunds_nothing(p: int, ability: Dictionary) -> bool:
-	var effects: Array = ability["effects"]
+## True when every effect of the passive has an "if" that fails right now, so firing it would only
+## show a pointless "ativou ...".
+func _passive_conditions_all_fail(effects: Array, context: EffectContext) -> bool:
 	if effects.is_empty():
 		return false
-	for effect_data: Dictionary in effects:
-		if effect_data.get("action", "") != "gain_momentum" or effect_data.get("per", "") != "leaked":
-			return false
-		var divisor := maxi(1, int(effect_data.get("divisor", 1)))
-		var refund := mini(int(effect_data.get("max", MOMENTUM_CAP)), int(players[p]["leaked"]) / divisor)
-		if refund > 0:
+	for effect: Effect in effects:
+		if effect.condition == null or effect.condition.check(context):
 			return false
 	return true
 
@@ -5244,6 +5366,11 @@ func _finish_turn() -> void:
 		players[active]["momentum_float"] = maxi(0, int(players[active]["momentum_float"]) - overflow_removed)
 		refresh_scaling()
 		emit_event({ "type": "momentum", "player": active })
+	# a Bateria bigger than the normal one (Agiota) shrinks back when the unit that gave it is gone
+	for battery_owner in players.size():
+		if int(players[battery_owner]["battery"]) > battery_cap(battery_owner):
+			players[battery_owner]["battery"] = battery_cap(battery_owner)
+			emit_event({ "type": "momentum", "player": battery_owner })
 	# units borrowed with take_control go home now, before the end-of-turn cleanup below, so each is cleaned as its real owner's
 	for thief_state in players:
 		for c: Card in thief_state["board"].duplicate():
@@ -5357,6 +5484,24 @@ func _resolve_delayed_self_revives() -> bool:
 	return revived_any
 
 
+## The Momentum p left unspent is about to be lost to the untap: each artifact with "momentum_store" keeps as much of it
+## as it has room for (Bateria de Segunda Mão).
+func _store_unspent_momentum(p: int, unspent: int) -> void:
+	var left := unspent
+	for relic: Card in players[p]["relics"]:
+		var capacity := int(relic.data().get("momentum_store", 0))
+		if left <= 0:
+			return
+		if capacity <= 0:
+			continue
+		var kept := mini(left, capacity - relic.stored_momentum)
+		if kept <= 0:
+			continue
+		relic.stored_momentum += kept
+		left -= kept
+		emit_event({"type": "momentum_stored", "player": p, "uid": relic.uid, "stored": relic.stored_momentum})
+
+
 func _start_turn(p: int, draw: bool) -> void:
 	active = p
 	priority = p
@@ -5373,12 +5518,13 @@ func _start_turn(p: int, draw: bool) -> void:
 	pl["damage_last_round"] = int(pl["damage_this_round"])
 	pl["damage_this_round"] = 0
 	# Plain Momentum left from the last turn is remembered for legacy card conditions, then expires.
+	# read before the untap below, so it also counts the cards left untapped through the opponent's turn
 	pl["unspent"] = int(pl["momentum"])
 	pl["saved_momentum"] = int(pl["momentum"]) + int(pl["battery"]) # what was left in the Bateria counts as saved too
-	pl["leaked"] = 0
-	if int(pl["momentum"]) > 0:
-		pl["idle_turns"] += 1
-	pl["battery"] = BATTERY_CAP # the Bateria refills independently of unspent Momentum
+	if int(pl["unspent"]) >= UNSPENT_MOMENTUM_THRESHOLD:
+		pl["unspent_turns"] += 1
+	pl["battery"] = battery_cap(p) # the Bateria refills independently of unspent Momentum
+	_store_unspent_momentum(p, int(pl["unspent"]))
 	for card: Card in pl["reservoir"]:
 		if card.exhausted:
 			card.exhausted = false

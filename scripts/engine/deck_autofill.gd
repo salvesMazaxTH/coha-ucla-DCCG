@@ -12,7 +12,7 @@ extends RefCounted
 ## How it works: the deck is filled one card at a time. For every legal candidate the fill measures how
 ## much closer the deck gets to its goals ("deficit" = how far the deck is from them), adds a small bonus
 ## for card quality and for fitting the Leader's domains, and adds the best one. Only cards the player
-## may already add by hand are used, so the result obeys every deck rule (copies, champion cap, guests).
+## may already add by hand are used, so the result obeys every deck rule (copies, champion cap, two domains).
 
 ## Cost buckets of the curve: 0, 1, 2, 3, 4, 5, 6, 7 or more.
 const CURVE_BUCKETS := 8
@@ -21,7 +21,7 @@ const GRAVE_WEIGHT := 8.0 # below the level the assistant calls "grave"
 const MEDIUM_WEIGHT := 3.0 # below the level the assistant calls "médio"
 const CURVE_SHORTAGE_WEIGHT := 1.0 # a slot of the ideal curve that is still empty
 const CURVE_EXCESS_WEIGHT := 0.5 # a card beyond the ideal curve of its cost
-const GUEST_PENALTY := 0.75 # prefer the Leader's domains, but don't exclude strong role-fitting guests
+const OTHER_DOMAIN_PENALTY := 0.75 # prefer the Leader's domains, but don't exclude strong role-fitting cards of another one
 const LEADER_DOMAIN_BONUS := 0.5
 const NEUTRAL_BONUS := 0.2
 const SAME_TRIBE_BONUS := 0.25 # small push toward a deck whose cards share a tribe
@@ -290,7 +290,7 @@ static func _describe(card_id: String, leader_id: String, pursued_tribe: String)
 	if pursued_tribe != "" and tribes.has(pursued_tribe):
 		metrics.append("pursued_tribe")
 	var is_outside := DeckDB.is_outside_leader_domain(leader_id, card_id)
-	var fit := -GUEST_PENALTY
+	var fit := -OTHER_DOMAIN_PENALTY
 	if not is_outside:
 		fit = LEADER_DOMAIN_BONUS if DeckDB.is_in_leader_domain(leader_id, card_id) else NEUTRAL_BONUS
 	return {

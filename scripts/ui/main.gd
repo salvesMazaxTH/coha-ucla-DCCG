@@ -1070,7 +1070,7 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	layer.add_child(mb)
 	mb.setup(
 		int(pl["momentum"]) - int(pl["momentum_float"]), pl["max_momentum"], int(pl.get("battery", 0)),
-		g.momentum_cap(p), int(pl["momentum_float"]),
+		g.momentum_cap(p), int(pl["momentum_float"]), g.battery_cap(p),
 	)
 
 
@@ -2626,6 +2626,8 @@ func _hint() -> String:
 			return "Escolha uma carta da mão do oponente para ir ao fundo do deck dele, ou não escolha nenhuma."
 		if g.pending_search.get("sacrifice_pick", false):
 			return "Escolha uma unidade sua para sacrificar."
+		if g.pending_search.get("reservoir_pick", false):
+			return "Escolha qual carta vai para o Reservatório: a do topo ou a do fundo do deck."
 		if g.pending_search.get("grave_optional", false):
 			return "Rebobinar: escolha uma carta do cemitério para levar à mão, ou não pegue nenhuma."
 		if g.pending_search.get("discard_hand", false):

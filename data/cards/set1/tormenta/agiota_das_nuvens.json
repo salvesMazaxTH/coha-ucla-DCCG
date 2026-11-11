@@ -1,7 +1,6 @@
 {
   "name": "Agiota das Nuvens",
   "set": 1,
-  "banned": true,
   "type": "unit",
   "rarity": "legendary",
   "tribe": [
@@ -20,15 +19,25 @@
     {
       "trigger": "constante",
       "action": "momentum_cap",
-      "cap": 12
+      "cap": 15
     },
     {
-      "trigger": "on_turn_start",
-      "action": "gain_momentum",
-      "target": "none",
-      "amount": 2
+      "trigger": "constante",
+      "action": "battery_cap",
+      "cap": 3
     }
   ],
-  "text": "Constante: seu teto de Momentum passa a ser 12.\nNo Início do Seu Turno: você ganha 2 de Momentum.",
+  "activated": {
+    "cost": 1,
+    "speed": "instantaneo",
+    "once_per_turn": true,
+    "effects": [
+      {
+        "action": "look_top_to_reservoir",
+        "target": "none"
+      }
+    ]
+  },
+  "text": "Constante: o teto do seu Reservatório passa a ser 15 e a capacidade da sua Bateria passa a ser 3.\nAo Ativar (1) {instantaneo} (1x por turno): você olha a carta do topo do seu deck e coloca no Reservatório ela ou a carta do fundo.",
   "flavor": ""
 }

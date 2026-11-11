@@ -285,6 +285,8 @@ func log_event(e: Dictionary) -> void:
 		"look_top":
 			if e.get("from_bottom", false):
 				add_line("%s olhou %d cartas do fundo do deck" % [_pname(e["player"]), e["cards"].size()])
+			elif e["cards"].size() == 1:
+				add_line("%s olhou a carta do topo do deck" % _pname(e["player"]))
 			else:
 				add_line("%s olhou as %d cartas do topo do deck" % [_pname(e["player"]), e["cards"].size()])
 		"look_bottom":

@@ -1,7 +1,6 @@
 {
   "name": "Eletroad",
   "set": 1,
-  "banned": true,
   "type": "unit",
   "rarity": "common",
   "tribe": [
@@ -9,19 +8,18 @@
   ],
   "essence": "tormenta",
   "element": "raio",
-  "cost": 3,
+  "cost": 4,
   "atk": 2,
-  "hp": 4,
+  "hp": 5,
   "keywords": [],
   "art": "tormenta/eletroad.webp",
   "effects": [
     {
-      "trigger": "on_turn_start",
-      "action": "gain_momentum",
-      "target": "none",
-      "amount": 1
+      "trigger": "constante",
+      "action": "reservoir_store_limit",
+      "limit": 2
     }
   ],
-  "text": "No Início do Seu Turno: você ganha +1 de Momentum neste turno.",
+  "text": "Constante: você pode armazenar 2 cartas por turno no seu Reservatório.",
   "flavor": ""
 }

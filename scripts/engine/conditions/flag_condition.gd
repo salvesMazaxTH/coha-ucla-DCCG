@@ -1,8 +1,8 @@
 class_name FlagCondition
 extends Condition
-## The simple string conditions: "if": "momentum_left" | "unspent_momentum" | "momentum_leaked" | "battery_full" | "played_two" | "oldest_of_its_name" | "no_snowball_in_hand_or_deck" | "gained_momentum_this_turn" | "lethal_attack" | "no_stunned_enemy" | "armor_spent_last_turn" (this unit spent its own Armadura since its owner's previous turn began; Farkoveth).
+## The simple string conditions: "if": "momentum_left" | "unspent_momentum" | "unspent_momentum_threshold" (UNSPENT_MOMENTUM_THRESHOLD or more unspent until this turn's untap) | "battery_full" | "played_two" | "oldest_of_its_name" | "no_snowball_in_hand_or_deck" | "gained_momentum_this_turn" | "lethal_attack" | "no_stunned_enemy" | "armor_spent_last_turn" (this unit spent its own Armadura since its owner's previous turn began; Farkoveth).
 
-const NAMES := ["momentum_left", "unspent_momentum", "momentum_leaked", "battery_full", "played_two", "oldest_of_its_name", "no_snowball_in_hand_or_deck", "gained_momentum_this_turn", "lethal_attack", "no_stunned_enemy", "armor_spent_last_turn"]
+const NAMES := ["momentum_left", "unspent_momentum", "unspent_momentum_threshold", "battery_full", "played_two", "oldest_of_its_name", "no_snowball_in_hand_or_deck", "gained_momentum_this_turn", "lethal_attack", "no_stunned_enemy", "armor_spent_last_turn"]
 
 var name := ""
 
@@ -14,8 +14,8 @@ func check(context: EffectContext) -> bool:
 	match name:
 		"momentum_left": return player["momentum"] > 0
 		"unspent_momentum": return player["unspent"] > 0 # plain Momentum left over at the start of this turn
-		"momentum_leaked": return player["leaked"] > 0 # Momentum that spilled past the Bateria last turn
-		"battery_full": return player["battery"] >= GameState.BATTERY_CAP
+		"unspent_momentum_threshold": return player["unspent"] >= GameState.UNSPENT_MOMENTUM_THRESHOLD
+		"battery_full": return player["battery"] >= context.game.battery_cap(context.controller)
 		"played_two": return player["played_two"]
 		"oldest_of_its_name": return _is_oldest_copy_on_board(context, player)
 		# an effect really raised Momentum earlier this turn (a refresh counts; the turn-start Momentum does not)

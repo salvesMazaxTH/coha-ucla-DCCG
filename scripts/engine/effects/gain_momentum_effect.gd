@@ -10,8 +10,6 @@ extends Effect
 ## "refresh": true only wins back Momentum already spent this turn: it stops at the Momentum the turn
 ## started with, so unlike a plain gain it can never push the total above that (Tormenta's gains can).
 ## "amount_from": "sacrificed_cost" (inside a sacrifice's "then") gains the printed cost of the sacrificed unit, at most `max`.
-## "per": "leaked" refunds Momentum that spilled past the Bateria this turn instead:
-## floor(leaked / divisor), at most `max`.
 ## "per": "returned_allies" gains `amount` Momentum for each allied unit that a "return_to_hand" earlier in the same
 ## effect run sent back to the hand (Kazeminus), at most `max`.
 ## "per": "stored" releases up to "max" Momentum this artifact has stored (the default maximum is 10). By default, all stored Momentum is emptied;
@@ -21,7 +19,6 @@ extends Effect
 
 var amount := 0
 var per := ""
-var divisor := 1
 var maximum := GameState.MOMENTUM_CAP
 var next_turn := false
 var overflow := false
@@ -40,7 +37,6 @@ func _read_parameters(data: Dictionary) -> void:
 	restriction = data.get("restriction", {})
 	amount = int(data.get("amount", 0))
 	per = String(data.get("per", ""))
-	divisor = maxi(1, int(data.get("divisor", 1)))
 	maximum = int(data.get("max", GameState.MOMENTUM_CAP))
 	next_turn = bool(data.get("next_turn", false))
 
@@ -51,10 +47,6 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 	if amount_from == "sacrificed_cost":
 		# Momentum equal to the cost of the unit a sacrifice just killed, capped by "max"
 		gain = mini(maximum, context.sacrificed_cost)
-		if gain <= 0:
-			return
-	elif per == "leaked":
-		gain = mini(maximum, int(player["leaked"]) / divisor)
 		if gain <= 0:
 			return
 	elif per == "returned_allies":

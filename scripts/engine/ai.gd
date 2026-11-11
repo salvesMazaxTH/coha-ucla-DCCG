@@ -210,6 +210,12 @@ static func _hand_most_expensive_first(g: GameState, p: int) -> Array:
 static func _choose_search(g: GameState) -> int:
 	var best_uid := 0
 	var best_score := -999
+	if g.pending_search.get("reservoir_pick", false):
+		# Agiota: the choice is mandatory; the seen top card is kept unless it is a cheap one (the unseen bottom card is a gamble)
+		var top_card := CardDB.card(g.pending_search["cards"][0]["card_id"])
+		if int(top_card.get("cost", 0)) >= 3:
+			return GameState.RESERVOIR_PICK_BOTTOM
+		return int(g.pending_search["cards"][0]["uid"])
 	# a discard and a forced sacrifice (Censo de Baixas) both give up the least valuable option
 	var discarding: bool = (
 		g.pending_search.get("discard_hand", false)
@@ -418,7 +424,7 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 		# The Bateria refills even when empty; stored Momentum is released whenever there is room.
 		if artifact.data().has("momentum_store"):
 			var player: Dictionary = g.players[p]
-			var can_gain_battery := int(player["battery"]) < GameState.BATTERY_CAP
+			var can_gain_battery := int(player["battery"]) <g.battery_cap(p)
 			var can_release_stored := (
 				artifact.stored_momentum > 0
 				and int(player["momentum"]) < g.momentum_cap(p)

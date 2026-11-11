@@ -7,6 +7,8 @@ const AddDotEffectScript = preload("res://scripts/engine/effects/add_dot_effect.
 const DeathWardEffectScript = preload("res://scripts/engine/effects/death_ward_effect.gd")
 const AutoAttackEffectScript = preload("res://scripts/engine/effects/auto_attack_effect.gd")
 const SpendAllMomentumEffectScript = preload("res://scripts/engine/effects/spend_all_momentum_effect.gd")
+const TopDeckToReservoirEffectScript = preload("res://scripts/engine/effects/top_deck_to_reservoir_effect.gd")
+const UntapReservoirEffectScript = preload("res://scripts/engine/effects/untap_reservoir_effect.gd")
 const EquipSelfEffectScript = preload("res://scripts/engine/effects/equip_self_effect.gd")
 const ShoutEffectScript = preload("res://scripts/engine/effects/shout_effect.gd")
 const ChooseEffectScript = preload("res://scripts/engine/effects/choose_effect.gd")
@@ -25,6 +27,7 @@ static var ACTIONS: Dictionary = {
 	"tide_mark": TideMarkEffect,
 	"search_deck": DeckEffect,
 	"look_top": DeckEffect,
+	"look_top_to_reservoir": DeckEffect,
 	"look_bottom": DeckEffect,
 	"grave_retrieve": DeckEffect,
 	"grave_to_hand": DeckEffect,
@@ -85,6 +88,8 @@ static var ACTIONS: Dictionary = {
 	"fuse": FuseEffect,
 	"gain_momentum": GainMomentumEffect,
 	"raise_max_momentum": RaiseMaxMomentumEffect,
+	"top_deck_to_reservoir": TopDeckToReservoirEffectScript,
+	"untap_reservoir": UntapReservoirEffectScript,
 	"gain_battery": GainBatteryEffect,
 	"empty_momentum_store": EmptyMomentumStoreEffect,
 	"extra_turn": ExtraTurnEffect,
@@ -115,6 +120,8 @@ static var ACTIONS: Dictionary = {
 	"double_death": StaticEffect,
 	"momentum_surge": StaticEffect,
 	"momentum_cap": StaticEffect,
+	"battery_cap": StaticEffect,
+	"reservoir_store_limit": StaticEffect,
 	"keyword_aura": StaticEffect,
 	"opponent_aura": StaticEffect,
 	"opponent_cost_tax": StaticEffect,
@@ -125,10 +132,32 @@ static var ACTIONS: Dictionary = {
 }
 
 ## Actions with no target: continuous abilities, never run by a trigger.
-const STATIC_ACTIONS := ["cost_reduction", "scale", "base_scale", "tribe_aura", "equipped_aura", "graveyard_armor", "graveyard_damage_reduction", "double_constants", "double_enter", "double_death", "momentum_surge", "momentum_cap", "keyword_aura", "opponent_aura", "opponent_cost_tax", "spell_amplifier", "strike_cap"]
+const STATIC_ACTIONS := [
+	"cost_reduction",
+	"scale",
+	"base_scale",
+	"tribe_aura",
+	"equipped_aura",
+	"graveyard_armor",
+	"graveyard_damage_reduction",
+	"double_constants",
+	"double_enter",
+	"double_death",
+	"momentum_surge",
+	"momentum_cap",
+	"battery_cap",
+	"reservoir_store_limit",
+	"keyword_aura",
+	"opponent_aura",
+	"opponent_cost_tax",
+	"spell_amplifier",
+	"strike_cap",
+]
+
 
 static func is_known(action: String) -> bool:
 	return ACTIONS.has(action)
+
 
 ## The Effect object for one JSON entry (an unknown action becomes an effect that does nothing).
 static func parse(data: Dictionary) -> Effect:
@@ -136,6 +165,7 @@ static func parse(data: Dictionary) -> Effect:
 	var effect: Effect = effect_class.new()
 	effect.setup(data)
 	return effect
+
 
 ## Effect objects for a JSON "effects" list, in the same order.
 static func parse_list(entries: Array) -> Array:
