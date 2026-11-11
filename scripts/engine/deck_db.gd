@@ -12,14 +12,13 @@ const MAX_COPIES := 3
 const MAX_LEGENDARY_COPIES := 2
 ## Champions together (counting copies) in one deck.
 const MAX_ELITE_CARDS := 22
-## Guest cards: cards outside the Leader's domains (neutral ones don't count), of any rarity. A card of
-## several domains is NOT a guest when at least one of them is the Leader's.
-## They can come from any domains, in any mix, up to MAX_OFF_ESSENCE. If one domain appears in EVERY
-## guest card (a multi-domain guest counts for each of its domains), the cap rises to
-## MAX_OFF_ESSENCE_SINGLE_DOMAIN: that shared domain works like a secondary domain.
-## A neutral Leader has no domain, so every non-neutral card is a guest for it.
-const MAX_OFF_ESSENCE := 10
-const MAX_OFF_ESSENCE_SINGLE_DOMAIN := 15
+## Deck domains. A deck uses at most 2 domains: the Leader's own plus, when the Leader has only one, a
+## second one that is simply whatever the first off-domain card brings. A card of several domains fits
+## when at least one of them is a deck domain. Neutral cards fit any deck and are never counted.
+## A neutral Leader has no domain: its deck picks any 2 domains the same way.
+## Exception (not for a neutral Leader): 3 domains, exactly THREE_DOMAIN_COPIES cards of each (the
+## Encarnação counts in one of them), and no neutral cards at all.
+const THREE_DOMAIN_COPIES := 15
 const PREBUILT_DIR := "res://data/decks/prebuilt"
 const SECTION_LEADERS := "essencia"
 ## The player's own decks (built in MEUS DECKS) share the hub with the prebuilt ones.
@@ -132,7 +131,14 @@ static func get_deck(id: String) -> Dictionary:
 
 ## Adds (or replaces) a deck that is not one of the prebuilt files, so the hub, the match and the deck
 ## list can use it like any other deck. The caller has already checked it is legal.
-static func register_custom(id: String, deck_name: String, description: String, leader_id: String, cards: Dictionary, incarnation_id := "") -> void:
+static func register_custom(
+	id: String,
+	deck_name: String,
+	description: String,
+	leader_id: String,
+	cards: Dictionary,
+	incarnation_id := "",
+) -> void:
 	_load()
 	if not _custom_decks.has(id):
 		_custom_ids.append(id)
@@ -287,20 +293,90 @@ static func copy_limit(card_id: String) -> int:
 	var default_limit := MAX_LEGENDARY_COPIES if c.get("rarity", "") == "legendary" else MAX_COPIES
 	return int(c.get("max_copies", default_limit))
 
-## The card's domains the Leader lacks, when the card is a guest. A card of several domains is on-domain
-## as soon as ONE of them is a domain of the Leader's Incarnation (then it is not a guest and this is
-## empty); only when none matches are all of its domains missing. A neutral card never counts as a guest.
-static func missing_domains(leader_id: String, card_id: String) -> Array:
-	var leader_domains: Array = CardDB.leader(leader_id)["essences"]
+## A card that brings a domain the Leader lacks: it is not neutral and none of its domains is the Leader's.
+static func is_outside_leader_domain(leader_id: String, card_id: String) -> bool:
 	var card_domains := CardDB.essences_of(CardDB.card(card_id))
-	if card_domains.has("neutra"):
-		return []
-	if card_domains.any(func(domain): return leader_domains.has(domain)):
-		return []
-	return card_domains
+	return not card_domains.has("neutra") and not is_in_leader_domain(leader_id, card_id)
 
-static func is_guest(leader_id: String, card_id: String) -> bool:
-	return not missing_domains(leader_id, card_id).is_empty()
+## Every way of choosing `size` items from `items`, each way as an array in the original order.
+static func _combinations(items: Array, size: int) -> Array:
+	if size == 0:
+		return [[]]
+	var result: Array = []
+	for index in range(items.size() - size + 1):
+		for rest in _combinations(items.slice(index + 1), size - 1):
+			result.append([items[index]] + rest)
+	return result
+
+## Whether every card group (a {"domains", "copies"} dictionary) has at least one domain in `deck_domains`.
+static func _all_groups_fit(deck_domains: Array, groups: Array) -> bool:
+	return groups.all(func(group): return group["domains"].any(func(domain): return deck_domains.has(domain)))
+
+## Whether the copies in `groups` can be split among exactly the three `deck_domains`, each copy counted
+## in one domain it has, with at most THREE_DOMAIN_COPIES per domain. For any set of domains, the copies
+## that can ONLY go in that set must fit its room (Hall's condition); that is also enough.
+static func _can_split_three_ways(deck_domains: Array, groups: Array) -> bool:
+	for subset_mask in range(1, 8):
+		var subset: Array = []
+		for position in 3:
+			if subset_mask & (1 << position):
+				subset.append(deck_domains[position])
+		var copies_limited_to_subset := 0
+		for group in groups:
+			var domains_in_deck: Array = group["domains"].filter(func(domain): return deck_domains.has(domain))
+			if domains_in_deck.all(func(domain): return subset.has(domain)):
+				copies_limited_to_subset += int(group["copies"])
+		if copies_limited_to_subset > THREE_DOMAIN_COPIES * subset.size():
+			return false
+	return true
+
+## Which domains the deck uses and whether that is allowed. Returns:
+##   domains  the deck's domains (the Leader's, plus the second one when some card brings it)
+##   mode     "two" (up to 2 domains), "three" (the 20-20-20 exception) or "invalid"
+##   error    why it is invalid ("" when it is not)
+## The Encarnação is a card of the list like any other.
+static func domain_check(leader_id: String, cards: Dictionary) -> Dictionary:
+	var leader_domains: Array = CardDB.leader(leader_id)["essences"].filter(func(domain): return domain != "neutra")
+	var neutral_leader := leader_domains.is_empty()
+	var groups: Array = []
+	var neutral_copies := 0
+	for card_id in cards:
+		var copies := int(cards[card_id])
+		if copies <= 0:
+			continue
+		var card_domains := CardDB.essences_of(CardDB.card(card_id))
+		if card_domains.has("neutra"):
+			neutral_copies += copies
+		else:
+			groups.append({"domains": card_domains, "copies": copies})
+	var real_domains: Array = CardDB.DOMAIN_ORDER.filter(func(domain): return domain != "neutra")
+	for size in range(leader_domains.size(), 3):
+		for candidate in _combinations(real_domains, size):
+			if leader_domains.all(func(domain): return candidate.has(domain)) and _all_groups_fit(candidate, groups):
+				return {"domains": candidate, "mode": "two", "error": ""}
+	if neutral_leader:
+		return {
+			"domains": [],
+			"mode": "invalid",
+			"error": "o deck usa domínios demais (um Líder neutro escolhe livremente até 2 domínios)",
+		}
+	var neutral_problem := false
+	var split_problem := false
+	for candidate in _combinations(real_domains, 3):
+		if not leader_domains.all(func(domain): return candidate.has(domain)) or not _all_groups_fit(candidate, groups):
+			continue
+		if neutral_copies > 0:
+			neutral_problem = true
+		elif not _can_split_three_ways(candidate, groups):
+			split_problem = true
+		else:
+			return {"domains": candidate, "mode": "three", "error": ""}
+	var error := "o deck usa domínios demais (o do Líder + 1 outro, ou 3 domínios com %d cartas de cada)" % THREE_DOMAIN_COPIES
+	if neutral_problem:
+		error = "deck com 3 domínios não pode ter cartas neutras (%d no deck)" % neutral_copies
+	elif split_problem:
+		error = "deck com 3 domínios precisa de %d cartas de cada domínio (a Encarnação conta em um só)" % THREE_DOMAIN_COPIES
+	return {"domains": [], "mode": "invalid", "error": error}
 
 ## Strictly the Leader's own domain: at least one domain of the card is one the Leader has. Unlike a
 ## non-guest, a neutral card does not pass (unless the Leader itself is neutral), because neutral fits any deck.
@@ -320,17 +396,14 @@ static func is_deckable(card_id: String, leader_id := "") -> bool:
 ## The totals the deck rules are written in, for any {card_id: copies} list under the given Leader:
 ##   total              cards that are drawn (one selected Encarnação copy is not counted)
 ##   elite              Champions, counting copies
-##   off_essence        guest cards, counting copies
-##   guest_limit        how many guest cards are allowed right now (rises when one domain is in every guest card)
-##   shared_guest_domain  true when such a domain exists
+##   domain_mode        "two", "three" or "invalid" (see domain_check)
+##   deck_domains       the domains the deck uses (empty when invalid)
+##   domain_error       why the domains are not allowed ("" when they are)
 ##   incarnation        copies of the Leader's Encarnação in the list
 static func stats(leader_id: String, cards: Dictionary, selected_incarnation_id := "") -> Dictionary:
 	var incarnation_id := resolved_incarnation_id(leader_id, selected_incarnation_id)
 	var total := 0
 	var elite_cards := 0
-	var off_essence := 0
-	# domains that appear in every guest card so far; null until the first guest card is seen
-	var shared_guest_domains: Variant = null
 	for id in cards:
 		var n: int = cards[id]
 		total += n
@@ -339,20 +412,13 @@ static func stats(leader_id: String, cards: Dictionary, selected_incarnation_id 
 		var rarity: String = CardDB.card(id).get("rarity", "")
 		if rarity == "champion":
 			elite_cards += n
-		var missing := missing_domains(leader_id, id)
-		if not missing.is_empty():
-			off_essence += n
-			if shared_guest_domains == null:
-				shared_guest_domains = missing
-			else:
-				shared_guest_domains = shared_guest_domains.filter(func(domain): return missing.has(domain))
-	var has_shared_domain: bool = shared_guest_domains != null and not shared_guest_domains.is_empty()
+	var domain_result := domain_check(leader_id, cards)
 	return {
 		"total": total,
 		"elite": elite_cards,
-		"off_essence": off_essence,
-		"guest_limit": MAX_OFF_ESSENCE_SINGLE_DOMAIN if has_shared_domain else MAX_OFF_ESSENCE,
-		"shared_guest_domain": has_shared_domain,
+		"domain_mode": domain_result["mode"],
+		"deck_domains": domain_result["domains"],
+		"domain_error": domain_result["error"],
 		"incarnation": int(cards.get(incarnation_id, 0)),
 	}
 
@@ -376,11 +442,8 @@ static func validate_cards(leader_id: String, cards: Dictionary, selected_incarn
 	if incarnation_copies > 1:
 		errors.append("A Encarnação escolhida só pode ter 1 cópia (%d encontradas)" % incarnation_copies)
 	var totals := stats(leader_id, cards, incarnation_id)
-	if totals["off_essence"] > totals["guest_limit"]:
-		if totals["shared_guest_domain"]:
-			errors.append("%d cartas de fora do domínio do Líder (máximo %d)" % [totals["off_essence"], MAX_OFF_ESSENCE_SINGLE_DOMAIN])
-		else:
-			errors.append("%d cartas de fora do domínio do Líder (máximo %d; até %d se todas forem de um mesmo domínio)" % [totals["off_essence"], MAX_OFF_ESSENCE, MAX_OFF_ESSENCE_SINGLE_DOMAIN])
+	if totals["domain_error"] != "":
+		errors.append(totals["domain_error"])
 	if totals["elite"] > MAX_ELITE_CARDS:
 		errors.append("%d Campeões (máximo %d)" % [totals["elite"], MAX_ELITE_CARDS])
 	if totals["total"] != DECK_SIZE:

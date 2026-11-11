@@ -133,7 +133,11 @@ static func _goals(profile: String, focus: String) -> Array[Dictionary]:
 	match profile:
 		"aggro":
 			var cheap_metric := "cheap_unit" if focus == "board" else "cheap"
-			goals.append({"metric": cheap_metric, "grave": maxi(8, ceili(deck_size * 0.35)), "goal": maxi(10, ceili(deck_size * 0.45))})
+			goals.append({
+				"metric": cheap_metric,
+				"grave": maxi(8, ceili(deck_size * 0.35)),
+				"goal": maxi(10, ceili(deck_size * 0.45)),
+			})
 			goals.append({"metric": "unit", "grave": 0, "goal": 24})
 			if focus == "burn":
 				goals.append({"metric": "burn", "grave": 1, "goal": 5})
@@ -178,7 +182,14 @@ static func _ideal_curve(profile: String) -> Array[int]:
 ## Returns {"cards": the completed {card_id: copies} list, "added": how many cards were put in}.
 ## `candidates` is every card the player may add (the deck builder's pool). The incarnation card keeps
 ## its single copy and is never added again. When no legal card is left the deck stays shorter than full.
-static func complete(leader_id: String, incarnation_id: String, cards: Dictionary, candidates: Array, profile: String, focus: String) -> Dictionary:
+static func complete(
+	leader_id: String,
+	incarnation_id: String,
+	cards: Dictionary,
+	candidates: Array,
+	profile: String,
+	focus: String,
+) -> Dictionary:
 	var result_cards: Dictionary = cards.duplicate()
 	var goals := _goals(profile, focus)
 	var ideal_curve := _ideal_curve(profile)
@@ -252,9 +263,9 @@ static func _describe(card_id: String, leader_id: String, pursued_tribe: String)
 			metrics.append(String(trait_name))
 	if pursued_tribe != "" and tribes.has(pursued_tribe):
 		metrics.append("pursued_tribe")
-	var missing_domains := DeckDB.missing_domains(leader_id, card_id)
+	var is_outside := DeckDB.is_outside_leader_domain(leader_id, card_id)
 	var fit := -GUEST_PENALTY
-	if missing_domains.is_empty():
+	if not is_outside:
 		fit = LEADER_DOMAIN_BONUS if DeckDB.is_in_leader_domain(leader_id, card_id) else NEUTRAL_BONUS
 	return {
 		"id": card_id,
@@ -263,7 +274,7 @@ static func _describe(card_id: String, leader_id: String, pursued_tribe: String)
 		"tribes": tribes,
 		"is_champion": rarity == "champion",
 		"limit": DeckDB.copy_limit(card_id),
-		"missing_domains": missing_domains,
+		"is_outside": is_outside,
 		"fit": fit,
 		"quality": _quality(card),
 	}
@@ -337,19 +348,21 @@ static func _apply(state: Dictionary, description: Dictionary, delta: int) -> vo
 	for tribe_id in description["tribes"]:
 		state["tribes"][tribe_id] = int(state["tribes"].get(tribe_id, 0)) + delta
 
-## Whether one more copy of the card keeps the deck legal: copy limit, champion cap and guest limit.
+## Whether one more copy of the card keeps the deck legal: copy limit, champion cap and deck domains.
 ## The last two are measured by DeckDB.stats() on the deck as it would be after the addition, so the
 ## fill obeys exactly the rules the deck builder shows.
 static func _can_add(description: Dictionary, cards: Dictionary, leader_id: String, incarnation_id: String) -> bool:
 	var card_id := String(description["id"])
 	if int(cards.get(card_id, 0)) >= int(description["limit"]):
 		return false
-	if not description["is_champion"] and description["missing_domains"].is_empty():
-		return true # not a champion and not a guest: no other rule can be broken
+	if not description["is_champion"] and not description["is_outside"]:
+		return true # not a champion and not from outside the Leader's domains: no other rule can be broken
 	var deck_after := cards.duplicate()
 	deck_after[card_id] = int(cards.get(card_id, 0)) + 1
 	var totals := DeckDB.stats(leader_id, deck_after, incarnation_id)
-	return int(totals["elite"]) <= DeckDB.MAX_ELITE_CARDS and int(totals["off_essence"]) <= int(totals["guest_limit"])
+	# the fill never starts a 3-domain deck on its own: that mode forbids the neutral cards it may add later
+	var domains_allowed: bool = totals["domain_mode"] == "two" or (totals["domain_mode"] == "three" and not description["is_outside"])
+	return int(totals["elite"]) <= DeckDB.MAX_ELITE_CARDS and domains_allowed
 
 ## How far the deck is from its goals: lower is better, 0 means every goal and the whole ideal curve is met.
 static func _deficit(state: Dictionary, goals: Array[Dictionary], ideal_curve: Array[int]) -> float:
@@ -383,7 +396,7 @@ static func _choose_pursued_tribe(leader_id: String, incarnation_id: String, car
 	var reachable: Dictionary = {}
 	for candidate in candidates:
 		var candidate_id := String(candidate)
-		if candidate_id == incarnation_id or not DeckDB.missing_domains(leader_id, candidate_id).is_empty():
+		if candidate_id == incarnation_id or DeckDB.is_outside_leader_domain(leader_id, candidate_id):
 			continue
 		var room := DeckDB.copy_limit(candidate_id)
 		for tribe_id in CardDB.card(candidate_id).get("tribe", []):
