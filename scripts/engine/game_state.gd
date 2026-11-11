@@ -11,8 +11,7 @@ const BOARD_LIMIT := 8
 const MOMENTUM_CAP := 12
 const MOMENTUM_ABSOLUTE_CAP := 20 ## no effect, combo or future card takes a Reservoir cap past this (except in development mode / test scenarios)
 const RESERVOIR_STORES_PER_TURN := 1 ## hand cards a player may deposit in the Reservoir each turn, before any Constante raises it
-## the most Momentum a turn can hold when an effect says "overflow" (Eryon's deck); the part above MOMENTUM_CAP vanishes at the
-## end of the turn
+## debug / dev-tools gain ceiling only
 const MOMENTUM_OVERFLOW_CAP := 12
 const UNSPENT_MOMENTUM_THRESHOLD := 2 ## a turn that starts with this much unspent Momentum or more counts for "unspent_turns" and "unspent_momentum_threshold"
 const LETHAL_WARD_NEGATED_HITS := 3 # Câmara de Êxtase: how many hits it negates after saving the Leader
@@ -1627,16 +1626,15 @@ func budget(p: int, fast: bool, cd := { }) -> int:
 
 
 ## Gives player p Momentum right now. It is floating Momentum: it does not depend on the number of cards in the
-## Reservoir and expires at the end of the turn. Normally it stops at their cap (MOMENTUM_CAP, or higher with
-## Agiota das Nuvens); with `overflow` it may go up to MOMENTUM_OVERFLOW_CAP. With `refresh` it only wins back
-## spent Momentum: it stops at what the turn started with (turn_start_momentum). It never lowers Momentum the
-## player already has above the ceiling.
-func gain_momentum(p: int, gain: int, overflow := false, refresh := false) -> void:
+## Reservoir and expires at the end of the turn. It may go past the player's cap, up to MOMENTUM_ABSOLUTE_CAP (the part
+## above the cap is not banked at end of turn). With `refresh` it only wins back spent Momentum: it stops at what
+## the turn started with (turn_start_momentum). It never lowers Momentum the player already has above the ceiling.
+func gain_momentum(p: int, gain: int, refresh := false) -> void:
 	var pl: Dictionary = players[p]
 	if not refresh and int(pl["momentum_lock_turn"]) == turn:
 		return # locked until the end of this turn: only a refresh can still win Momentum back
 	var current := int(pl["momentum"])
-	var ceiling := maxi(MOMENTUM_OVERFLOW_CAP, momentum_cap(p)) if overflow else momentum_cap(p)
+	var ceiling := maxi(MOMENTUM_ABSOLUTE_CAP, momentum_cap(p))
 	if refresh:
 		ceiling = mini(ceiling, int(pl["turn_start_momentum"]))
 	var gained := maxi(current, mini(ceiling, current + gain)) - current
@@ -5359,7 +5357,7 @@ func _finish_turn() -> void:
 	if phase == "over":
 		return
 	reset_snowball_level(active)
-	# Momentum above the normal cap was only a temporary overflow: it vanishes now, before it can bank
+	# the part above the cap does not bank
 	if int(players[active]["momentum"]) > momentum_cap(active):
 		var overflow_removed := int(players[active]["momentum"]) - momentum_cap(active)
 		players[active]["momentum"] = momentum_cap(active)

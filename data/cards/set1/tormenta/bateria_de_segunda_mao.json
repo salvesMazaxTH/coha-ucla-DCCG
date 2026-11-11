@@ -7,7 +7,7 @@
   "essence": "tormenta",
   "element": "raio",
   "cost": 3,
-  "durability": 4,
+  "durability": 3,
   "momentum_store": 3,
   "art": "tormenta/bateria_de_segunda_mao.webp",
   "effects": [],

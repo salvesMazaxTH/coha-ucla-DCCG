@@ -1,7 +1,6 @@
 {
   "name": "Cobrador de Pedágio Torto",
   "set": 1,
-  "banned": true,
   "type": "unit",
   "rarity": "common",
   "essence": "neutra",

@@ -1844,8 +1844,8 @@ func _test_agiota_das_nuvens() -> void:
 	check(g.momentum_cap(0) == GameState.MOMENTUM_CAP, "Agiota: sem ele o teto de Momentum é o normal")
 	check(g.battery_cap(0) == GameState.BATTERY_CAP, "Agiota: sem ele a Bateria tem a capacidade normal")
 	g.players[0]["momentum"] = 8
-	g.gain_momentum(0, 20)
-	check(g.players[0]["momentum"] == GameState.MOMENTUM_CAP, "Agiota: sem ele o ganho para no teto normal")
+	g.gain_momentum(0, 30)
+	check(g.players[0]["momentum"] == GameState.MOMENTUM_ABSOLUTE_CAP, "Agiota: sem ele o ganho flutuante passa do teto do Reservatório, até 20")
 	g.players[0]["momentum"] = 0
 	g.players[0]["momentum_float"] = 0
 
@@ -1853,8 +1853,8 @@ func _test_agiota_das_nuvens() -> void:
 	check(g.momentum_cap(0) == 15, "Agiota: com ele em campo o teto do dono é 15")
 	check(g.battery_cap(0) == 3, "Agiota: com ele em campo a Bateria do dono tem 3")
 	check(g.momentum_cap(1) == GameState.MOMENTUM_CAP and g.battery_cap(1) == GameState.BATTERY_CAP, "Agiota: o adversário não muda")
-	g.gain_momentum(0, 20)
-	check(g.players[0]["momentum"] == 15, "Agiota: o ganho de Momentum sobe até 15")
+	g.gain_momentum(0, 30)
+	check(g.players[0]["momentum"] == GameState.MOMENTUM_ABSOLUTE_CAP, "Agiota: o ganho flutuante também para em 20")
 
 	# turn start: the Bateria refills to 3 and no Momentum is gained on its own any more
 	_fill_reservoir(g, 0, 4)
@@ -10103,12 +10103,12 @@ func _test_eletrica() -> void:
 	g.end_turn(o)
 	check(g.incarnation_cost_mod(a) == -1, "eletrica: gasto no turno do oponente reduz o que sobra")
 	check(g.players[a]["unspent_turns"] == 0, "eletrica: só 1 sobrando não conta como turno de Fulgurvoltz (mínimo 2)")
-	# the floor stops the reduction exactly at 3 (and at 5 for the Fulgurvoltz)
+	# the floor stops the reduction exactly at 4 (and at 6 for the Fulgurvoltz)
 	g = _eletrica_game()
 	a = g.active
-	g.add_cost_mod(a, null, -40, 3)
+	g.add_cost_mod(a, null, -40, 4)
 	g.players[a]["unspent_turns"] = 40
-	check(g.incarnation_cost(a) == 3 and g.cost_of(a, fg) == 5, "eletrica: pisos 3 e 5")
+	check(g.incarnation_cost(a) == 4 and g.cost_of(a, fg) == 6, "eletrica: pisos 4 e 6")
 	# Gigante Elétrico: 9 base, 5 less with at least 4 saved Momentum, counting the Bateria once.
 	var gg: Dictionary = CardDB.card("gigante_eletrico")
 	g = _eletrica_game()
@@ -10254,17 +10254,20 @@ func _test_eletrica() -> void:
 	check(g.players[a]["momentum"] == g.players[a]["max_momentum"] + 1, "eletroad: +1 Momentum no início do turno")
 	var cu := _give(g, a, "carga_acumulada")
 	g.players[a]["momentum"] = 5
+	g.players[a]["battery"] = 0
 	g.play_card(a, cu, 0)
 	g._resolve_stack()
 	g.flush_events()
-	check(g.players[a]["momentum"] == 6, "carga acumulada: custa 0, dá +1")
+	check(g.players[a]["momentum"] == 6, "carga acumulada: custa 1, dá +2")
 	# Voltexz Ao Entrar: +X/+X with X = Momentum left + 1 (no cap), Rapidez 1 for her other units (not herself)
 	g = _eletrica_game()
 	a = g.active
 	var ally := _put(g, a, "jack")
 	g.players[a]["momentum"] = 9
+	g.players[a]["battery"] = 2
 	var vs := _put(g, a, "voltexz")
 	check(atk_ok(g, ally, 3 + 10, 5 + 10) and ally.rapidez_total() == 1, "voltexz: aliados +10/+10 (9 de Momentum + 1) e Rapidez 1")
+	check(g.players[a]["momentum"] == 0 and g.players[a]["battery"] == 2, "voltexz: gasta todo o Momentum depois do bônus, sem tocar na Bateria")
 	check(g.atk_of(vs) == 8 and vs.rapidez_total() == 3, "voltexz: não bufa a si própria (ATK base 8, Rapidez 3 nativa)")
 	g = _eletrica_game()
 	a = g.active
@@ -10393,18 +10396,18 @@ func _test_eletrica() -> void:
 	g.deal_damage(sp.uid, 1, slow)
 	check(sp.damage == 1, "esquiva (override): sem Rapidez é evitada, mesmo com ATK maior")
 	g.combat_damage = false
-	# Sobrecarga: 2 or more Momentum left unspent until the untap gives a flat +1 Momentum this turn
+	# Sobrecarga: 3 or more Momentum left unspent until the untap gives a flat +1 Momentum this turn
 	g = _eletrica_game()
 	a = g.active
 	g.players[a]["momentum"] = 0
-	g.players[a]["unspent"] = 1
-	g._fire_leader_passive(a, "on_turn_start")
-	g.check_state()
-	check(g.players[a]["momentum"] == 0, "sobrecarga: sobrou só 1, não chega ao mínimo de 2")
 	g.players[a]["unspent"] = 2
 	g._fire_leader_passive(a, "on_turn_start")
 	g.check_state()
-	check(g.players[a]["momentum"] == 1, "sobrecarga: sobraram 2, ganha 1 de Momentum")
+	check(g.players[a]["momentum"] == 0, "sobrecarga: sobraram só 2, não chega ao mínimo de 3")
+	g.players[a]["unspent"] = 3
+	g._fire_leader_passive(a, "on_turn_start")
+	g.check_state()
+	check(g.players[a]["momentum"] == 1, "sobrecarga: sobraram 3, ganha 1 de Momentum")
 	g.players[a]["momentum"] = 0
 	g.players[a]["unspent"] = 9
 	g._fire_leader_passive(a, "on_turn_start")
@@ -10413,13 +10416,13 @@ func _test_eletrica() -> void:
 	# below the threshold (or the first turn): the passive does not even show up in the Crônica
 	g = _eletrica_game()
 	a = g.active
-	g.players[a]["unspent"] = 1
+	g.players[a]["unspent"] = 2
 	g.flush_events()
 	g._fire_leader_passive(a, "on_turn_start")
 	check(not _has_event(g.flush_events(), "passive"), "sobrecarga: sem Momentum sobrando o bastante, não anuncia a passiva")
-	g.players[a]["unspent"] = 2
+	g.players[a]["unspent"] = 3
 	g._fire_leader_passive(a, "on_turn_start")
-	check(_has_event(g.flush_events(), "passive"), "sobrecarga: com 2 sobrando, anuncia a passiva")
+	check(_has_event(g.flush_events(), "passive"), "sobrecarga: com 3 sobrando, anuncia a passiva")
 
 func _test_intimidacao() -> void:
 	_tcard("t_int", 4, 4, [])
@@ -14124,8 +14127,7 @@ func _test_sagrada_engine() -> void:
 
 ## Santa Maria Helena: 0/6 for five, periodic Leader healing, and one first-hit reduction per turn.
 ## Jack (Attack per leftover Momentum), Kai (Queimadura on any combat damage he deals) and Isarelis (executes a weak enemy).
-## Momentum above the normal cap of 10 (Eryon's deck): a temporary overflow, the "momentum_surge" static
-## effect that wakes up with it, and "auto_attack" (an extra attack at a random target).
+## Momentum above the Reservoir cap (Eryon's deck), the "momentum_surge" static effect and "auto_attack".
 func _test_momentum_refresh() -> void:
 	# a refresh gain only wins back spent Momentum: it stops at what the turn started with
 	var g := _new_game()
@@ -14134,16 +14136,16 @@ func _test_momentum_refresh() -> void:
 	g.players[a]["momentum"] = 6
 	g.players[a]["turn_start_momentum"] = 6
 	g.players[a]["momentum"] = 2 # spent 4 this turn
-	g.gain_momentum(a, 3, false, true)
+	g.gain_momentum(a, 3, true)
 	check(g.players[a]["momentum"] == 5, "refresh: recupera os 3 gastos (veio %d)" % g.players[a]["momentum"])
-	g.gain_momentum(a, 3, false, true)
+	g.gain_momentum(a, 3, true)
 	check(g.players[a]["momentum"] == 6, "refresh: para no Momentum do início do turno (veio %d)" % g.players[a]["momentum"])
-	g.gain_momentum(a, 2, false, true)
+	g.gain_momentum(a, 2, true)
 	check(g.players[a]["momentum"] == 6, "refresh: sem nada gasto não rende nada")
 	# a plain gain still pushes past the start, and a refresh never lowers what is already above it
 	g.gain_momentum(a, 2)
 	check(g.players[a]["momentum"] == 8, "ganho comum passa do Momentum do início do turno")
-	g.gain_momentum(a, 2, false, true)
+	g.gain_momentum(a, 2, true)
 	check(g.players[a]["momentum"] == 8, "refresh: nunca derruba o Momentum que já passa do início")
 
 	# Druida das Falhas refreshes its 2 on entering (the card text says "recupera até")
@@ -14165,7 +14167,7 @@ func _test_momentum_refresh() -> void:
 	a = g.active
 	g.players[a]["turn_start_momentum"] = 4
 	g.players[a]["momentum"] = 4
-	g.gain_momentum(a, 1, false, true)
+	g.gain_momentum(a, 1, true)
 	check(g.players[a]["momentum"] == 4, "refresh sem gasto não rende (base da Pippa)")
 
 func _test_condutor_da_tempestade_cap() -> void:
@@ -14228,16 +14230,14 @@ func _test_momentum_overflow() -> void:
 			"keywords": ["escudo", "sobrepujanca", "impeto"], "critico": 4},
 		{"trigger": "before_attack", "action": "auto_attack", "target": "none", "if": surge_condition}])
 
-	# gaining: nothing goes above the cap, with or without overflow
+	# gaining: floating Momentum may pass the Reservoir cap, never the absolute cap
 	var g := _new_game()
 	var a := g.active
 	g.players[a]["momentum"] = 9
-	g.gain_momentum(a, 3, true)
-	check(g.players[a]["momentum"] == GameState.MOMENTUM_CAP, "overflow: 9 + 3 com overflow chega ao teto")
-	g.gain_momentum(a, 2)
-	check(g.players[a]["momentum"] == GameState.MOMENTUM_CAP, "overflow: ganho comum não sobe acima do teto")
-	g.gain_momentum(a, 50, true)
-	check(g.players[a]["momentum"] == GameState.MOMENTUM_OVERFLOW_CAP, "overflow: nunca passa do teto temporário")
+	g.gain_momentum(a, 5)
+	check(g.players[a]["momentum"] == 14, "flutuante: ganho comum passa do teto do Reservatório")
+	g.gain_momentum(a, 50)
+	check(g.players[a]["momentum"] == GameState.MOMENTUM_ABSOLUTE_CAP, "flutuante: nunca passa do teto absoluto")
 
 	# spending: every card sees the whole Momentum, no matter its domain
 	check(g.budget(a, false, CardDB.card("t_surge_baron")) == g.players[a]["momentum"], "orçamento: carta neutra enxerga todo o Momentum")
@@ -14261,7 +14261,7 @@ func _test_momentum_overflow() -> void:
 	g.players[a]["momentum"] = 10
 	g.refresh_scaling()
 	check(g.atk_of(baron) == 5 and not g.has_kw(baron, "sobrepujanca") and baron.critico_total() == 0, "surto: com 10 de Momentum o Barão é comum")
-	g.gain_momentum(a, 1, true)
+	g.gain_momentum(a, 1)
 	check(g.atk_of(baron) == 20 and g.has_kw(baron, "sobrepujanca") and g.has_kw(baron, "impeto") and baron.critico_total() == 4, "surto: com 11 vira +15 Ataque, Sobrepujança, Ímpeto e Crítico 4")
 	check(baron.shield and g.has_kw(baron, "escudo"), "surto: ao ligar, o Barão ganha Escudo")
 	var restored := Card.from_dict(baron.to_dict(), "board", a)
@@ -14276,7 +14276,7 @@ func _test_momentum_overflow() -> void:
 	g.players[a]["momentum"] = 10
 	g.refresh_scaling()
 	check(not baron.surge_active and not baron.shield, "surto: desligado, sem Escudo")
-	g.gain_momentum(a, 1, true)
+	g.gain_momentum(a, 1)
 	check(baron.shield, "surto: ligar de novo concede um novo Escudo")
 	g.players[a]["momentum"] = 10
 	g.refresh_scaling()
@@ -14438,17 +14438,17 @@ func _test_eryon_deck() -> void:
 	g.activate(a, eryon.uid, fodder.uid)
 	check(g.find_unit(fodder.uid) == null, "Eryon: a unidade sacrificada morre")
 	# the activation only gains Momentum: the blows wait for the end of the turn, so the player keeps the Momentum to spend
-	check(g.players[a]["momentum"] == GameState.MOMENTUM_CAP and g.players[g.opponent(a)]["leader_hp"] == 99,
+	check(g.players[a]["momentum"] == 13 and g.players[g.opponent(a)]["leader_hp"] == 99,
 		"Eryon: ativar só ganha Momentum, sem golpes na hora (%d / %d)" % [g.players[a]["momentum"], g.players[g.opponent(a)]["leader_hp"]])
 	check(g.is_play_restricted(a, CardDB.card("esqueleto_guerreiro")), "Eryon: sacrificar para ganhar Momentum trava o turno só para cartas neutras")
 	var expensive := _put(g, a, "barao_estrondoso")
 	g.players[a]["momentum"] = 10
 	eryon.activated_turn = -1
 	g.activate(a, eryon.uid, expensive.uid)
-	check(g.players[a]["momentum"] == GameState.MOMENTUM_CAP, "Eryon: custo 7 rende no máximo 4, sempre até o teto (%d)" % g.players[a]["momentum"])
+	check(g.players[a]["momentum"] == 14, "Eryon: custo 7 rende no máximo 4, passando do teto do Reservatório (%d)" % g.players[a]["momentum"])
 	g._finish_turn()
 	g.flush_events()
-	check(g.players[g.opponent(a)]["leader_hp"] == 99 - 14, "Eryon: no fim do turno, 12 de Momentum = 7 golpes de 2 (%d)" % g.players[g.opponent(a)]["leader_hp"])
+	check(g.players[g.opponent(a)]["leader_hp"] == 99 - 18, "Eryon: no fim do turno, 14 de Momentum = 9 golpes de 2 (%d)" % g.players[g.opponent(a)]["leader_hp"])
 	check(g.players[a]["momentum"] == 0, "Eryon: no fim do turno, com 10 ou mais, gasta todo o Momentum (%d)" % g.players[a]["momentum"])
 
 	# Eryon, 10+ Momentum after the gain: blows of 2 spread over the enemies (Leader included); below 10 nothing happens
@@ -14465,7 +14465,7 @@ func _test_eryon_deck() -> void:
 	g.flush_events()
 	check(g.players[a]["momentum"] == 0, "Eryon: com 11 de Momentum no fim do turno gasta todo o Momentum (%d)" % g.players[a]["momentum"])
 	check(g.players[eryon_enemy]["leader_hp"] == 48, "Eryon: 11 de Momentum = 6 golpes de 2 só no Líder (%d)" % g.players[eryon_enemy]["leader_hp"])
-	# the cap bounds the blows: 10 + 4 stops at 12 Momentum = 7 blows = 14 damage
+	# 10 + 4 = 14 Momentum (past the Reservoir cap) = 9 blows = 18 damage
 	g = _new_game()
 	_quiet(g)
 	a = g.active
@@ -14478,7 +14478,7 @@ func _test_eryon_deck() -> void:
 	g.activate(a, eryon.uid, fodder.uid)
 	g._finish_turn()
 	g.flush_events()
-	check(g.players[eryon_enemy]["leader_hp"] == 46, "Eryon: 12 de Momentum = 7 golpes de 2 (%d)" % g.players[eryon_enemy]["leader_hp"])
+	check(g.players[eryon_enemy]["leader_hp"] == 42, "Eryon: 14 de Momentum = 9 golpes de 2 (%d)" % g.players[eryon_enemy]["leader_hp"])
 	check(g.players[a]["momentum"] == 0 and g.players[a]["battery"] == 2, "Eryon: gasta o Momentum e preserva a Bateria (%d/%d)" % [g.players[a]["momentum"], g.players[a]["battery"]])
 	g = _new_game()
 	_quiet(g)
@@ -14581,7 +14581,7 @@ func _test_eryon_deck() -> void:
 	g.flush_events()
 	check(g.players[a]["momentum"] == 8, "Barão: golpe de 5 no Líder (abaixo de 10) não gasta Momentum (%d)" % g.players[a]["momentum"])
 
-	# Cobrador de Pedágio Torto: only the oldest copy in play gives +1 Momentum, and never above 10
+	# Cobrador de Pedágio Torto: only the oldest copy in play gives +1 Momentum
 	var baseline_momentum := 0
 	for copies in [0, 1, 3]:
 		g = _new_game()
@@ -14601,7 +14601,7 @@ func _test_eryon_deck() -> void:
 		_put(g, a, "cobrador_de_pedagio_torto")
 	_fill_reservoir(g, a, GameState.MOMENTUM_CAP)
 	g._start_turn(a, false)
-	check(int(g.players[a]["momentum"]) <= GameState.MOMENTUM_CAP, "Cobrador: o Momentum dele nunca passa de 10 (%d)" % g.players[a]["momentum"])
+	check(int(g.players[a]["momentum"]) == GameState.MOMENTUM_CAP + 1, "Cobrador: com o Reservatório cheio, as duas cópias rendem só +1 (%d)" % g.players[a]["momentum"])
 	# The Cobrador no longer restricts playable cards when it grants Momentum.
 	g = _new_game()
 	_quiet(g)

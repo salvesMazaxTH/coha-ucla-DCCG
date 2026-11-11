@@ -13,13 +13,13 @@
     "own_turn_only": true,
     "effects": [
       {
-        "if": "unspent_momentum_threshold",
+        "if": { "compare": { "stat": "unspent", "who": "self", "op": ">=", "value": 3 } },
         "action": "gain_momentum",
         "target": "none",
         "amount": 1
       }
     ],
-    "text": "Passiva. No início do seu turno, se sobraram 2 ou mais de Momentum até o seu desvirar, ganhe 1 de Momentum neste turno."
+    "text": "Passiva. No início do seu turno, se sobraram 3 ou mais de Momentum até o seu desvirar, ganhe 1 de Momentum neste turno."
   },
   "essences": [
     "tormenta"

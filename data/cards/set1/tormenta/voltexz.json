@@ -27,7 +27,7 @@
       "target": "self_card",
       "per": "unspent_momentum",
       "amount": -1,
-      "min_cost": 3
+      "min_cost": 4
     },
     {
       "listen": "turn_started",
@@ -50,8 +50,13 @@
       "atk": 1,
       "hp": 1,
       "rapidez_min": 1
+    },
+    {
+      "trigger": "on_enter",
+      "action": "spend_all_momentum",
+      "target": "none"
     }
   ],
-  "text": "Condicional: no início do seu turno, o custo desta carta diminui em (1) por Momentum que sobrou, onde quer que ela esteja, até o mínimo de (3).\nNo Início do Seu Turno: se sobraram 2 ou mais de Momentum até o seu desvirar, esta unidade ganha +2/+1 e Escudo Mágico até o fim do turno.\nAo Entrar: concede +X/+X permanente e Rapidez 1 (se for menor) às suas outras unidades, onde X é o Momentum restante + 1.",
+  "text": "Condicional: no início do seu turno, o custo desta carta diminui em (1) por Momentum que sobrou, onde quer que ela esteja, até o mínimo de (4).\nNo Início do Seu Turno: se sobraram 2 ou mais de Momentum até o seu desvirar, esta unidade ganha +2/+1 e Escudo Mágico até o fim do turno.\nAo Entrar: concede +X/+X permanente e Rapidez 1 (se for menor) às suas outras unidades, onde X é o Momentum restante + 1. Em seguida, você gasta todo o seu Momentum (a Bateria do seu Reservatório não conta).",
   "flavor": ""
 }

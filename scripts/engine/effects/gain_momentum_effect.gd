@@ -1,10 +1,9 @@
 class_name GainMomentumEffect
 extends Effect
-## "gain_momentum": +amount Momentum right now (never above the cap), or at the start of the
+## "gain_momentum": +amount Momentum right now, or at the start of the
 ## controller's next turn ("next_turn": true). A negative amount with "next_turn" is a debt: the
 ## next turn starts with that much less Momentum (never below 0).
-## "overflow": true lets the gain go past the normal cap (up to GameState.MOMENTUM_OVERFLOW_CAP) for this
-## turn only; the part above the cap pays neutral cards and leader abilities, and vanishes at end of turn.
+## Any gain may go past the player's cap, up to GameState.MOMENTUM_ABSOLUTE_CAP; it vanishes at end of turn.
 ## "restriction": {...} (only when the Momentum really went up) starts a PlayRestriction on the controller,
 ## e.g. "only neutral cards this turn", so ramp packages can't cheat out other essences' champions.
 ## "refresh": true only wins back Momentum already spent this turn: it stops at the Momentum the turn
@@ -21,7 +20,6 @@ var amount := 0
 var per := ""
 var maximum := GameState.MOMENTUM_CAP
 var next_turn := false
-var overflow := false
 var refresh := false
 var restriction: Dictionary = {}
 var amount_from := ""
@@ -32,7 +30,6 @@ func _read_parameters(data: Dictionary) -> void:
 	lock = bool(data.get("lock", false))
 	retain_stored = bool(data.get("retain_stored", false))
 	amount_from = String(data.get("amount_from", ""))
-	overflow = bool(data.get("overflow", false))
 	refresh = bool(data.get("refresh", false))
 	restriction = data.get("restriction", {})
 	amount = int(data.get("amount", 0))
@@ -65,7 +62,7 @@ func apply(context: EffectContext, _target_uid: int) -> void:
 		player["next_momentum"] += gain
 	else:
 		var momentum_before := int(player["momentum"])
-		context.game.gain_momentum(context.controller, gain, overflow, refresh)
+		context.game.gain_momentum(context.controller, gain, refresh)
 		var gained_amount := maxi(0, int(player["momentum"]) - momentum_before)
 		var really_gained := gained_amount > 0
 		if retain_stored and stored_artifact != null:

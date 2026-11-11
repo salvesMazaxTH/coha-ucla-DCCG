@@ -8,9 +8,9 @@
   ],
   "essence": "tormenta",
   "element": "raio",
-  "cost": 3,
-  "atk": 2,
-  "hp": 1,
+  "cost": 4,
+  "atk": 3,
+  "hp": 2,
   "keywords": [
     "rapidez:2",
     "voo",
