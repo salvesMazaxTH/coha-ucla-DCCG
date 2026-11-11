@@ -7,6 +7,7 @@ extends Effect
 ## "armor_up_to": N (with "armor") gives at most the Armadura missing to reach N in total (Farkoveth regains 2, never above 3).
 ## "magic_shield_temp": true gives Escudo Mágico only until its owner's next turn starts (Tyren; a unit that already
 ## has a permanent Escudo Mágico keeps it as it is).
+## "magic_shield_until_next_turn_end": true gives it through the end of the next turn (Alexa Neruvya Mar-Mãe).
 ## "supreme_shield_until": "next_turn" gives Escudo Supremo until its owner's next turn starts. The "escudo_supremo" keyword
 ## gives it for good, or only until the end of the turn with "temp": true. A Supremo that is already there is never made shorter.
 ## "per": "momentum_left" multiplies atk/hp by the Momentum the controller still has
@@ -52,6 +53,7 @@ var temporary_armor := 0
 var minimum_armor := 0
 var armor_up_to := 0 ## "armor_up_to": the Armadura the unit has after this buff never passes this total (0 = no limit)
 var temporary_magic_shield := false
+var magic_shield_until_next_turn_end := false
 var supreme_shield_until := "" ## "next_turn" or "end_turn": a timed Escudo Supremo ("" = none asked for)
 var temporary_attack_until_next_turn := 0
 var temporary_health_until_next_turn := 0
@@ -102,6 +104,7 @@ func _read_parameters(data: Dictionary) -> void:
 	minimum_armor = int(data.get("armor_min", 0))
 	armor_up_to = int(data.get("armor_up_to", 0))
 	temporary_magic_shield = bool(data.get("magic_shield_temp", false))
+	magic_shield_until_next_turn_end = bool(data.get("magic_shield_until_next_turn_end", false))
 	supreme_shield_until = String(data.get("supreme_shield_until", ""))
 	temporary_attack_until_next_turn = int(data.get("atk_temp", 0))
 	temporary_health_until_next_turn = int(data.get("hp_temp_until_next_turn", 0))
@@ -234,9 +237,15 @@ func apply(context: EffectContext, target_uid: int) -> void:
 		_add_changes(permanent_changes, {"armor": minimum_armor - unit.armor})
 		unit.armor = minimum_armor
 		armor_raised_to = minimum_armor
+	if magic_shield_until_next_turn_end and not unit.magic_shield:
+		unit.magic_shield = true
+		unit.magic_shield_until_next_turn = false
+		unit.magic_shield_until_end_turn = false
+		unit.magic_shield_expires_after_turn = game.turn + 1
 	if temporary_magic_shield and not unit.magic_shield:
 		unit.magic_shield = true
 		unit.magic_shield_until_next_turn = true
+		unit.magic_shield_expires_after_turn = 0
 	if supreme_shield_until != "":
 		unit.grant_supreme_shield(supreme_shield_until)
 	for keyword in keywords:
@@ -298,11 +307,14 @@ func _grant_keyword(unit: Card, keyword: String, only_this_turn: bool) -> void:
 			unit.magic_shield = true
 			if only_this_turn:
 				unit.magic_shield_until_end_turn = true
+				unit.magic_shield_until_next_turn = false
+				unit.magic_shield_expires_after_turn = 0
 		elif not only_this_turn:
 			# A new permanent grant makes the protection survive any temporary grant already present.
 			unit.magic_shield = true
 			unit.magic_shield_until_end_turn = false
 			unit.magic_shield_until_next_turn = false
+			unit.magic_shield_expires_after_turn = 0
 	elif not unit.keywords.has(keyword):
 		unit.keywords.append(keyword)
 		if only_this_turn:

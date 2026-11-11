@@ -386,6 +386,7 @@ func remove_equipment_bonus(unit: Card, worn: Card) -> void:
 		unit.magic_shield = false
 		unit.magic_shield_until_next_turn = false
 		unit.magic_shield_until_end_turn = false
+		unit.magic_shield_expires_after_turn = 0
 	if granted.get("supreme_shield", false):
 		unit.supreme_shield = false
 		unit.supreme_shield_expires = ""

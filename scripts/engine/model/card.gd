@@ -48,6 +48,7 @@ var attacks_made := 0 ## attacks declared this turn (Ataque Duplo lets a unit at
 var magic_shield := false
 var magic_shield_until_next_turn := false ## the Escudo Mágico was granted only until its owner's next turn starts (Tyren)
 var magic_shield_until_end_turn := false ## the Escudo Mágico was granted with temp:true and expires at the current turn's end
+var magic_shield_expires_after_turn := 0 ## global turn number whose end expires this Escudo Mágico; 0 = no deadline
 const SUPREME_SHIELD_LENGTH := {"end_turn": 1, "next_turn": 2, "": 3} ## how long each expiry lasts, to keep the longest
 
 var supreme_shield := false ## Escudo Supremo: one charge that absorbs absolutely anything aimed at this card (a free-standing artifact can hold it too)
@@ -204,6 +205,7 @@ func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:
 	temp_atk_until_next_turn = 0
 	magic_shield_until_next_turn = false
 	magic_shield_until_end_turn = false
+	magic_shield_expires_after_turn = 0
 	supreme_shield = kws.has("escudo_supremo")
 	supreme_shield_expires = ""
 	critico = int(cd.get("critico", 0))
@@ -366,6 +368,7 @@ func silence() -> void:
 	magic_shield = false
 	magic_shield_until_next_turn = false
 	magic_shield_until_end_turn = false
+	magic_shield_expires_after_turn = 0
 	supreme_shield = false
 	supreme_shield_expires = ""
 	# keyword numbers: Rapidez and Crítico are keyword-only; of the Armadura only the printed part goes
@@ -532,6 +535,8 @@ func to_dict() -> Dictionary:
 		d["magic_shield_until_next_turn"] = true
 	if magic_shield_until_end_turn:
 		d["magic_shield_until_end_turn"] = true
+	if magic_shield_expires_after_turn > 0:
+		d["magic_shield_expires_after_turn"] = magic_shield_expires_after_turn
 	if not keywords_until_next_turn.is_empty():
 		d["keywords_until_next_turn"] = keywords_until_next_turn.duplicate()
 	if not keywords_until_owner_turn_end.is_empty():
@@ -657,6 +662,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.temp_atk_until_next_turn = int(d.get("temp_atk_until_next_turn", 0))
 	c.magic_shield_until_next_turn = bool(d.get("magic_shield_until_next_turn", false))
 	c.magic_shield_until_end_turn = bool(d.get("magic_shield_until_end_turn", false))
+	c.magic_shield_expires_after_turn = int(d.get("magic_shield_expires_after_turn", 0))
 	c.keywords_until_next_turn = d.get("keywords_until_next_turn", [])
 	c.keywords_until_owner_turn_end = d.get("keywords_until_owner_turn_end", [])
 	c.rapidez_until_next_turn = int(d.get("rapidez_until_next_turn", 0))

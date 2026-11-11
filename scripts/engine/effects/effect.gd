@@ -127,6 +127,9 @@ func cancelled_by_magic_shield(context: EffectContext, unit: Card, aimed_by_choi
 	if not unit.magic_shield:
 		return false
 	unit.magic_shield = false
+	unit.magic_shield_until_next_turn = false
+	unit.magic_shield_until_end_turn = false
+	unit.magic_shield_expires_after_turn = 0
 	context.shielded_this_effect.append(unit.uid)
 	context.game.emit_event({"type": "magic_shield_break", "uid": unit.uid})
 	return true
