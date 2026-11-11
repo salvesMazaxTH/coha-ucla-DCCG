@@ -30,10 +30,9 @@ func _init() -> void:
 	_test_art_cache_limit()
 	_test_sfx()
 	_test_domain_display_order()
-	_test_off_essence()
+	_test_domain_rules()
 	_test_naelys_leader()
 	_test_jeff_ceifa()
-	_test_many_secondary_domains()
 	_test_death_order()
 	_test_sacrifice_damage()
 	_test_domain_removals()
@@ -323,7 +322,7 @@ func _test_deck_builder_rules() -> void:
 	var leader: String = fogo["leader"]
 	var totals := DeckDB.stats(leader, fogo["cards"])
 	check(totals["total"] == DeckDB.DECK_SIZE and totals["incarnation"] == 1, "stats: deck pronto tem 59 cartas e 1 Encarnação (%s)" % [totals])
-	check(totals["off_essence"] <= totals["guest_limit"] and totals["elite"] <= DeckDB.MAX_ELITE_CARDS, "stats: deck pronto respeita convidadas e elites")
+	check(totals["domain_mode"] != "invalid" and totals["elite"] <= DeckDB.MAX_ELITE_CARDS, "stats: deck pronto respeita domínios e elites")
 	check(DeckDB.copy_limit("rusco") == 1, "copy_limit: carta Única")
 	check(not DeckDB.is_deckable(CardDB.leader(leader)["incarnation"]), "is_deckable: a Encarnação não entra à mão")
 	var token_id := ""
@@ -2633,113 +2632,98 @@ func _test_domain_display_order() -> void:
 	deck_domains = DeckDB.domains_in(fire_leader, {neutral_id: 2, fire_id: 2})
 	check(deck_domains == ["furia", "neutra"], "linha de domínios do deck: empate segue a ordem fixa")
 
-func _test_off_essence() -> void:
+func _first_card_with_domains(domains: Array) -> String:
+	for card_id in CardDB.data()["cards"].keys():
+		if CardDB.essences_of(CardDB.card(card_id)) == domains and DeckDB.is_deckable(card_id):
+			return card_id
+	return ""
+
+func _test_domain_rules() -> void:
 	# a Leader's domain label must come from its own "essences", not default to neutral
 	check(CardDB.leader_essence_names(CardDB.leader(DeckDB.get_deck("fogo")["leader"])) == String(CardDB.essence("furia")["name"]), "nome do domínio do Líder de fogo")
-	# "só o domínio do Líder" filter: own domain passes; neutral and guest cards do not (neutral is not a guest, though)
 	var fire_leader: String = DeckDB.get_deck("fogo")["leader"]
-	check(DeckDB.is_in_leader_domain(fire_leader, "afogar") == false, "filtro de domínio: convidada fora")
-	check(DeckDB.is_guest(fire_leader, "afogar"), "filtro de domínio: afogar é convidada no deck de fogo")
-	var neutral_id := ""
-	var own_domain_id := ""
-	for card_id in CardDB.data()["cards"].keys():
-		var card_domains := CardDB.essences_of(CardDB.card(card_id))
-		if neutral_id == "" and card_domains == ["neutra"] and DeckDB.is_deckable(card_id):
-			neutral_id = card_id
-		if own_domain_id == "" and card_domains == ["furia"] and DeckDB.is_deckable(card_id):
-			own_domain_id = card_id
-	check(neutral_id != "" and not DeckDB.is_in_leader_domain(fire_leader, neutral_id), "filtro de domínio: neutra não passa")
-	check(neutral_id != "" and not DeckDB.is_guest(fire_leader, neutral_id), "filtro de domínio: neutra continua não sendo convidada")
-	check(own_domain_id != "" and DeckDB.is_in_leader_domain(fire_leader, own_domain_id), "filtro de domínio: carta do domínio passa")
-	# fire deck: swap in off-essence (aquática) cards; neutral and own-essence cards don't count
-	var base: Dictionary = DeckDB.get_deck("fogo")["cards"].duplicate()
-	var leader: String = DeckDB.get_deck("fogo")["leader"]
-	# the deck may already hold a guest card of its own (e.g. a Montanha artifact answer): clear those first so the guest slots start empty
-	for card_id in base.keys():
-		var domains := CardDB.essences_of(CardDB.card(card_id))
-		if not (domains.has("neutra") or domains.has("furia")):
-			base.erase(card_id)
-	var victims: Array = base.keys().filter(func(k): return k != DeckDB.get_deck("fogo")["leader"] and CardDB.card(k).get("rarity", "") != "champion")
-	var swapped := 0
-	for k in victims:
-		if swapped >= DeckDB.MAX_OFF_ESSENCE:
-			break
-		var take: int = mini(int(base[k]), DeckDB.MAX_OFF_ESSENCE - swapped)
-		base[k] -= take
-		if base[k] == 0:
-			base.erase(k)
-		swapped += take
-	base["afogar"] = 3
-	base["tsunami"] = 3
-	base["bencao_das_profundezas"] = 3
-	base["espirito_da_mare"] = 1
-	base["serpente_marinha"] = 2
-	check(DeckDB.validate_cards(leader, base).filter(func(e): return "fora do domínio" in e).is_empty(), "12 cartas de fora da essência são permitidas")
-	var removable_card: String = base.keys().filter(func(k): return k != "afogar" and k != "tsunami" and k != "bencao_das_profundezas" and k != "espirito_da_mare" and k != "serpente_marinha" and k != leader)[0]
-	# a 13th guest card from the SAME domain (Fluxo) is fine: a shared guest domain raises the cap to 18
-	var same_domain: Dictionary = base.duplicate()
-	same_domain["tritao_lanceiro"] = 1
-	same_domain[removable_card] -= 1
-	check(DeckDB.validate_cards(leader, same_domain).filter(func(e): return "fora do domínio" in e).is_empty(), "13 convidadas do mesmo domínio são legais (até 18)")
-	# a 13th guest card from ANOTHER domain (Tormenta) breaks the shared domain, so the cap falls back to 12
-	var mixed: Dictionary = base.duplicate()
-	mixed["carga_acumulada"] = 1
-	mixed[removable_card] -= 1
-	check(not DeckDB.validate_cards(leader, mixed).filter(func(e): return "máximo 12" in e).is_empty(), "13 convidadas de domínios misturados são ilegais")
-	# only the card count is checked below, so the lists are built from the Leader's own cards plus Fluxo guests
-	var own_domain_cards: Dictionary = {}
-	for card_id in DeckDB.get_deck("fogo")["cards"]:
-		var domains := CardDB.essences_of(CardDB.card(card_id))
-		if domains.has("neutra") or domains.has("furia"):
-			own_domain_cards[card_id] = DeckDB.get_deck("fogo")["cards"][card_id]
-	var eighteen_fluxo: Dictionary = own_domain_cards.duplicate()
-	for card_id in ["afogar", "tsunami", "bencao_das_profundezas", "tritao_lanceiro", "serpente_marinha"]:
-		eighteen_fluxo[card_id] = 3
-	eighteen_fluxo["afogar"] = 4
-	eighteen_fluxo["tsunami"] = 4
-	eighteen_fluxo["bencao_das_profundezas"] = 4
-	check(DeckDB.validate_cards(leader, eighteen_fluxo).filter(func(e): return "fora do domínio" in e).is_empty(), "18 convidadas do mesmo domínio são legais")
-	# a multi-domain guest (Morwenna: Trevas + Natureza) keeps the bonus when it shares a domain with the others...
-	var with_multi_domain: Dictionary = own_domain_cards.duplicate()
-	for card_id in ["cova_rasa", "colheita_de_almas", "chamado_do_alem", "morwenna_raiz_podre"]:
-		with_multi_domain[card_id] = 4
-	check(DeckDB.validate_cards(leader, with_multi_domain).filter(func(e): return "fora do domínio" in e).is_empty(), "convidada multi-domínio que compartilha o domínio das outras mantém o limite de 18")
-	# ...but not when another guest shares nothing with it (a Fluxo card has neither Trevas nor Natureza)
-	var multi_domain_broken: Dictionary = with_multi_domain.duplicate()
-	multi_domain_broken["afogar"] = 1
-	check(not DeckDB.validate_cards(leader, multi_domain_broken).filter(func(e): return "máximo 12" in e).is_empty(), "sem domínio em comum, o limite volta a 12")
-	# a multi-domain card is NOT a guest when at least one of its domains is the Leader's (Fúria here)
-	check(not DeckDB.is_guest(leader, "esther"), "Esther (Trevas + Fúria) não é convidada para Líder de Fúria")
-	check(not DeckDB.is_guest(leader, "lady_vultrixana"), "Lady Vultrixana (Fúria + Tormenta) não é convidada para Líder de Fúria")
-	check(not DeckDB.is_guest(leader, "giripoca"), "Giripoca (Fluxo + Fúria + Tormenta) não é convidada para Líder de Fúria")
-	check(DeckDB.is_in_leader_domain(leader, "esther"), "carta multi-domínio com um domínio do Líder está no domínio dele")
-	check(DeckDB.is_guest(leader, "azkharon"), "Azkharon (Natureza + Fluxo) continua convidada para Líder de Fúria")
-	check(DeckDB.missing_domains(leader, "azkharon").size() == 2, "sem nenhum domínio em comum, faltam todos os domínios da carta")
-	check(not DeckDB.is_in_leader_domain(leader, "azkharon"), "carta multi-domínio sem nenhum domínio do Líder não está no domínio dele")
-	var partial_match_deck: Dictionary = own_domain_cards.duplicate()
-	for card_id in ["esther", "lady_vultrixana", "giripoca"]:
-		partial_match_deck[card_id] = 3
-	check(DeckDB.stats(leader, partial_match_deck)["off_essence"] == 0, "multi-domínio com match parcial não entra na conta de convidadas")
-	var nineteen_fluxo: Dictionary = eighteen_fluxo.duplicate()
-	nineteen_fluxo["sentinela_coral"] = 1
-	check(not DeckDB.validate_cards(leader, nineteen_fluxo).filter(func(e): return "máximo 18" in e).is_empty(), "19 convidadas do mesmo domínio são ilegais")
-	var champ: Dictionary = base.duplicate()
-	champ["alexa_neruvya"] = 1 # a champion of another essence
-	check(DeckDB.validate_cards(leader, champ).filter(func(e): return "Campeão" in e).is_empty(), "Campeão de fora da essência é permitido (conta nas 12 de fora)")
+	var fire_card := _first_card_with_domains(["furia"])
+	var water_card := _first_card_with_domains(["fluxo"])
+	var storm_card := _first_card_with_domains(["tormenta"])
+	var mountain_card := _first_card_with_domains(["montanha"])
+	var neutral_card := _first_card_with_domains(["neutra"])
+	check(fire_card != "" and water_card != "" and storm_card != "" and mountain_card != "" and neutral_card != "", "cartas de cada domínio existem para os testes")
+	# "só o domínio do Líder" filter and the outside tag: neutral is neither in the domain nor outside
+	check(not DeckDB.is_in_leader_domain(fire_leader, neutral_card), "filtro de domínio: neutra não passa")
+	check(DeckDB.is_in_leader_domain(fire_leader, fire_card), "filtro de domínio: carta do domínio passa")
+	check(DeckDB.is_outside_leader_domain(fire_leader, water_card), "carta de outro domínio é 'de fora'")
+	check(not DeckDB.is_outside_leader_domain(fire_leader, neutral_card), "neutra nunca é 'de fora'")
+	check(not DeckDB.is_outside_leader_domain(fire_leader, fire_card), "carta do domínio não é 'de fora'")
+	# a multi-domain card sharing one domain with the Leader is not outside
+	check(not DeckDB.is_outside_leader_domain(fire_leader, "esther"), "Esther (Trevas + Fúria) não é de fora para Líder de Fúria")
+	check(not DeckDB.is_outside_leader_domain(fire_leader, "lady_vultrixana"), "Lady Vultrixana (Fúria + Tormenta) não é de fora para Líder de Fúria")
+	check(not DeckDB.is_outside_leader_domain(fire_leader, "giripoca"), "Giripoca (Fluxo + Fúria + Tormenta) não é de fora para Líder de Fúria")
+	check(DeckDB.is_outside_leader_domain(fire_leader, "azkharon"), "Azkharon (Natureza + Fluxo) é de fora para Líder de Fúria")
 
-## Guests may come from any mix of domains: only their count is limited.
-func _test_many_secondary_domains() -> void:
-	var leader: String = DeckDB.get_deck("fogo")["leader"]
-	var cards: Dictionary = {}
-	for k in DeckDB.get_deck("fogo")["cards"]:
-		var essences := CardDB.essences_of(CardDB.card(k))
-		if essences.has("neutra") or essences.has("furia"):
-			cards[k] = DeckDB.get_deck("fogo")["cards"][k]
-	# three different guest domains (Fluxo, Montanha, Tormenta), 9 cards in total
-	cards["afogar"] = 3
-	cards["arena_tectonica"] = 3
-	cards["carga_acumulada"] = 3
-	check(DeckDB.validate_cards(leader, cards).filter(func(e): return "fora do domínio" in e).is_empty(), "convidadas de três domínios diferentes são legais dentro do limite")
+	# one-domain Leader: its own domain plus neutrals is fine, and one outside card picks the second domain
+	var check_result := DeckDB.domain_check(fire_leader, {fire_card: 4, neutral_card: 30})
+	check(check_result["mode"] == "two" and check_result["domains"] == ["furia"], "Líder de 1 domínio: só o dele + neutras é legal")
+	check_result = DeckDB.domain_check(fire_leader, {fire_card: 4, neutral_card: 30, water_card: 4})
+	check(check_result["mode"] == "two" and check_result["domains"] == ["furia", "fluxo"], "uma carta de fora escolhe o segundo domínio")
+	check_result = DeckDB.domain_check(fire_leader, {fire_card: 4, water_card: 4, storm_card: 1})
+	check(check_result["mode"] == "three", "dois domínios de fora entram na exceção de 3 domínios (ainda sem as 20 cartas)")
+	check_result = DeckDB.domain_check(fire_leader, {fire_card: 4, water_card: 4, storm_card: 1, mountain_card: 1})
+	check(check_result["mode"] == "invalid" and "domínios demais" in check_result["error"], "um quarto domínio é ilegal")
+	# multi-domain cards that share one of the deck's two domains are fine
+	check_result = DeckDB.domain_check(fire_leader, {fire_card: 4, water_card: 4, "lady_vultrixana": 3, "azkharon": 3})
+	check(check_result["mode"] == "two" and check_result["domains"] == ["furia", "fluxo"], "multi-domínio que divide um dos dois domínios continua entrando")
+	# a multi-domain outside card also decides the second domain by itself
+	check_result = DeckDB.domain_check(fire_leader, {fire_card: 4, "azkharon": 3, water_card: 2})
+	check(check_result["mode"] == "two" and check_result["domains"] == ["furia", "fluxo"], "o segundo domínio pode ser o de uma carta dual (a ordem de adição não importa)")
+	check_result = DeckDB.domain_check(fire_leader, {fire_card: 4, "azkharon": 3, storm_card: 2})
+	check(check_result["mode"] != "two", "dual de fora + outro domínio sem ligação não cabe em 2 domínios")
+
+	# two-domain Leader (Drex: Trevas + Fluxo): only those domains, neutrals unrestricted
+	check_result = DeckDB.domain_check("drex", {water_card: 4, neutral_card: 30, "esther": 2})
+	check(check_result["mode"] == "two", "Líder de 2 domínios aceita cartas dos seus domínios, duais ou não, e neutras")
+	check_result = DeckDB.domain_check("drex", {water_card: 4, fire_card: 4, neutral_card: 30})
+	check(check_result["mode"] == "invalid" and "neutras" in check_result["error"], "Líder de 2 domínios + um terceiro com neutras é ilegal")
+	check_result = DeckDB.domain_check("drex", {water_card: 4, fire_card: 4, storm_card: 4})
+	check(check_result["mode"] == "invalid", "Líder de 2 domínios com 2 domínios de fora é ilegal")
+
+	# 3-domain exception: exactly 20 of each, the Encarnação counts in only one, no neutrals
+	var incarnation_id: String = CardDB.leader(fire_leader)["incarnation"]
+	check(CardDB.essences_of(CardDB.card(incarnation_id)) == ["furia"], "a Encarnação do Líder de fogo é de Fúria (premissa dos testes de 20-20-20)")
+	var three_domains := {incarnation_id: 1, fire_card: 19, water_card: 20, storm_card: 20}
+	check_result = DeckDB.domain_check(fire_leader, three_domains)
+	check(check_result["mode"] == "three" and check_result["domains"] == ["furia", "fluxo", "tormenta"], "20-20-20 com a Encarnação num dos 20 é legal")
+	var one_too_many := three_domains.duplicate()
+	one_too_many[fire_card] = 20
+	check_result = DeckDB.domain_check(fire_leader, one_too_many)
+	check(check_result["mode"] == "invalid" and "20 cartas de cada" in check_result["error"], "21 de um domínio (Encarnação inclusa) é ilegal")
+	var with_neutral := three_domains.duplicate()
+	with_neutral[neutral_card] = 1
+	check_result = DeckDB.domain_check(fire_leader, with_neutral)
+	check(check_result["mode"] == "invalid" and "neutras" in check_result["error"], "3 domínios não aceitam nenhuma neutra")
+	# a dual card counts in one domain only: 41 cards that can only be Fúria/Tormenta do not fit in 40
+	var dual_overflow := {incarnation_id: 1, fire_card: 19, "lady_vultrixana": 5, storm_card: 16, water_card: 20}
+	check_result = DeckDB.domain_check(fire_leader, dual_overflow)
+	check(check_result["mode"] == "invalid", "dual conta em um domínio só: sobra de Fúria + Tormenta é ilegal")
+	var dual_fits := {incarnation_id: 1, fire_card: 10, "lady_vultrixana": 8, storm_card: 12, water_card: 20}
+	check_result = DeckDB.domain_check(fire_leader, dual_fits)
+	check(check_result["mode"] == "three", "dual pode ocupar a vaga de qualquer um dos seus domínios")
+
+	# neutral Leader (Vael, Saraya Kovan, Eryon, Mali Magarc): picks any 2 domains freely, never 3
+	for neutral_leader in ["vael", "saraya_kovan", "eryon", "mali_magarc"]:
+		check_result = DeckDB.domain_check(neutral_leader, {fire_card: 4, water_card: 4, neutral_card: 30})
+		check(check_result["mode"] == "two", "Líder neutro (%s) escolhe 2 domínios livres" % neutral_leader)
+		check_result = DeckDB.domain_check(neutral_leader, {fire_card: 20, water_card: 20, storm_card: 19})
+		check(check_result["mode"] == "invalid" and "Líder neutro" in check_result["error"], "Líder neutro (%s) não tem a exceção de 3 domínios" % neutral_leader)
+
+	# whole-deck integration: validate_cards and stats report the domain error
+	var base: Dictionary = DeckDB.get_deck("fogo")["cards"].duplicate()
+	check(DeckDB.validate_cards(fire_leader, base).filter(func(e): return "domínios demais" in e).is_empty(), "deck pronto de fogo respeita os domínios")
+	var broken := base.duplicate()
+	for card_id in [water_card, storm_card, mountain_card]:
+		broken[card_id] = broken.get(card_id, 0) + 1
+	check(not DeckDB.validate_cards(fire_leader, broken).filter(func(e): return "domínios demais" in e).is_empty(), "deck com 3 domínios de fora é ilegal")
+	var stats_of_broken := DeckDB.stats(fire_leader, broken)
+	check(stats_of_broken["domain_mode"] != "two" and stats_of_broken["domain_error"] != "", "stats expõe o modo e o erro de domínios")
 
 func _kill(g: GameState, c: Card) -> void:
 	c.damage = 1000

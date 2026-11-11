@@ -145,7 +145,12 @@ func _unhandled_input(event: InputEvent) -> void:
 func _back() -> void:
 	if _view == "edit":
 		if _dirty:
-			_confirm("Sair sem salvar?", "Este deck tem alterações que ainda não foram salvas. Se sair agora, elas serão perdidas.", "SAIR SEM SALVAR", _show_list)
+			_confirm(
+				"Sair sem salvar?",
+				"Este deck tem alterações que ainda não foram salvas. Se sair agora, elas serão perdidas.",
+				"SAIR SEM SALVAR",
+				_show_list,
+			)
 		else:
 			_show_list()
 	else:
@@ -318,7 +323,9 @@ func _pick_leader(title: String, with_templates: bool, on_pick: Callable, on_can
 	inner.add_theme_constant_override("separation", 14)
 	scroll.add_child(inner)
 	var leader_ids: Array = DeckDB.visible_leader_ids()
-	leader_ids.sort_custom(func(a, b): return String(CardDB.leader(String(a))["name"]).naturalnocasecmp_to(String(CardDB.leader(String(b))["name"])) < 0)
+	leader_ids.sort_custom(
+		func(a, b): return String(CardDB.leader(String(a))["name"]).naturalnocasecmp_to(String(CardDB.leader(String(b))["name"])) < 0,
+	)
 	var flow := HFlowContainer.new()
 	flow.add_theme_constant_override("h_separation", 14)
 	flow.add_theme_constant_override("v_separation", 14)
@@ -347,7 +354,10 @@ func _pick_leader(title: String, with_templates: bool, on_pick: Callable, on_can
 			if template_banned:
 				template_button.clip_contents = true
 				BannedRibbonScript.attach(template_button)
-			template_button.tooltip_text = "%s — %s" % [CardDB.leader(String(template["leader"]))["name"], String(template.get("description", ""))]
+			template_button.tooltip_text = "%s — %s" % [
+				CardDB.leader(String(template["leader"]))["name"],
+				String(template.get("description", "")),
+			]
 			template_flow.add_child(template_button)
 	var cancel_row := HBoxContainer.new()
 	cancel_row.alignment = BoxContainer.ALIGNMENT_END
@@ -487,7 +497,10 @@ func _build_banner() -> Control:
 			row.add_child(import)
 	else:
 		texts.add_child(_lbl("Modo convidado", 20, WARN))
-		texts.add_child(_lbl("Seus decks ficam salvos só neste dispositivo. Entre com Google para guardá-los na nuvem (e trazer os que já criou).", 16, UITheme.TEXT_DIM, "body"))
+		texts.add_child(
+			_lbl(("Seus decks ficam salvos só neste dispositivo. Entre com Google para guardá-los na nuvem (e trazer "
+				+ "os que já criou)."), 16, UITheme.TEXT_DIM, "body"),
+		)
 		if auth != null and auth.is_session_checked():
 			row.add_child(_btn("ENTRAR COM GOOGLE", func():
 				auth.sign_in_with_google(), true))
@@ -542,7 +555,9 @@ func _deck_tile(deck: Dictionary) -> Control:
 
 	var badge := PanelContainer.new()
 	badge.add_theme_stylebox_override("panel", UITheme.box(Color(status_color.darkened(0.55), 0.95), 8, status_color, 2))
-	badge.add_child(_lbl({"legal": "LEGAL", "draft": "INCOMPLETO", "illegal": "ILEGAL"}[status], 14, status_color.lightened(0.3), "heavy"))
+	badge.add_child(
+		_lbl({"legal": "LEGAL", "draft": "INCOMPLETO", "illegal": "ILEGAL"}[status], 14, status_color.lightened(0.3), "heavy"),
+	)
 	badge.position = Vector2(12, 12)
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tile.add_child(badge)
@@ -567,7 +582,11 @@ func _deck_tile(deck: Dictionary) -> Control:
 	sub.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	leader_row.add_child(sub)
-	var domain_row := DomainIconRowScript.new().setup(DeckDB.domains_in(leader, deck["cards"], String(deck.get("incarnation_id", ""))), 23.0, 2)
+	var domain_row := DomainIconRowScript.new().setup(
+		DeckDB.domains_in(leader, deck["cards"], String(deck.get("incarnation_id", ""))),
+		23.0,
+		2,
+	)
 	domain_row.size_flags_horizontal = Control.SIZE_SHRINK_END
 	leader_row.add_child(domain_row)
 	tile.add_child(leader_row)
@@ -635,7 +654,15 @@ func _new_deck() -> void:
 		_toast("Limite de %d decks atingido. Exclua algum para criar outro." % DeckStore.MAX_DECKS, WARN)
 		return
 	_pick_leader("NOVO DECK — ESCOLHA O LÍDER", true, func(leader_id: String, template_id: String):
-		var fresh := {"id": "", "name": "Novo deck", "description": "", "leader": leader_id, "incarnation_id": String(CardDB.leader(leader_id)["incarnation"]), "cards": {}, "problems": []}
+		var fresh := {
+			"id": "",
+			"name": "Novo deck",
+			"description": "",
+			"leader": leader_id,
+			"incarnation_id": String(CardDB.leader(leader_id)["incarnation"]),
+			"cards": {},
+			"problems": [],
+		}
 		if template_id != "":
 			var template: Dictionary = DeckDB.get_deck(template_id)
 			fresh["name"] = "Meu " + String(template["name"])
@@ -648,10 +675,22 @@ func _duplicate(deck: Dictionary) -> void:
 	if store.is_full():
 		_toast("Limite de %d decks atingido." % DeckStore.MAX_DECKS, WARN)
 		return
-	store.save_deck("", ("Cópia de " + String(deck["name"])).left(DeckStore.MAX_NAME), deck["leader"], deck["cards"], deck["description"], String(deck.get("incarnation_id", "")))
+	store.save_deck(
+		"",
+		("Cópia de " + String(deck["name"])).left(DeckStore.MAX_NAME),
+		deck["leader"],
+		deck["cards"],
+		deck["description"],
+		String(deck.get("incarnation_id", "")),
+	)
 
 func _ask_delete(deck: Dictionary) -> void:
-	_confirm("Excluir deck", "Excluir \"%s\"? Isso não pode ser desfeito." % deck["name"], "EXCLUIR", func(): store.delete_deck(String(deck["id"])))
+	_confirm(
+		"Excluir deck",
+		"Excluir \"%s\"? Isso não pode ser desfeito." % deck["name"],
+		"EXCLUIR",
+		func(): store.delete_deck(String(deck["id"])),
+	)
 
 # ================================================================ store events
 
@@ -663,7 +702,11 @@ func _on_store_changed() -> void:
 		_editing_cloud = store.is_cloud()
 		_deck_id = ""
 		_dirty = true
-		_toast("Seu destino mudou (%s). Salve de novo para guardar este deck." % ("conta Google" if _editing_cloud else "este dispositivo"), WARN)
+		_toast(
+			"Seu destino mudou (%s). Salve de novo para guardar este deck."
+			% ("conta Google" if _editing_cloud else "este dispositivo"),
+			WARN,
+		)
 		_update_save_state()
 
 func _on_saved(deck: Dictionary) -> void:
@@ -685,9 +728,20 @@ func _on_failed(message: String) -> void:
 
 func _on_import_finished(imported: int, failed_count: int) -> void:
 	if failed_count > 0:
-		_toast("%d deck%s importado%s; %d não foi possível importar (continuam neste dispositivo)." % [imported, "" if imported == 1 else "s", "" if imported == 1 else "s", failed_count], WARN)
+		_toast(
+			"%d deck%s importado%s; %d não foi possível importar (continuam neste dispositivo)." % [
+				imported,
+				"" if imported == 1 else "s",
+				"" if imported == 1 else "s",
+				failed_count,
+			],
+			WARN,
+		)
 	else:
-		_toast("%d deck%s importado%s para a sua conta." % [imported, "" if imported == 1 else "s", "" if imported == 1 else "s"], GOOD)
+		_toast(
+			"%d deck%s importado%s para a sua conta." % [imported, "" if imported == 1 else "s", "" if imported == 1 else "s"],
+			GOOD,
+		)
 	if _view == "list":
 		_show_list()
 
@@ -728,7 +782,9 @@ func _set_leader(leader_id: String) -> void:
 		return
 	var previous_incarnation := _incarnation_id
 	_leader = leader_id
-	_incarnation_id = previous_incarnation if CardDB.is_incarnation_option(leader_id, previous_incarnation) else String(CardDB.leader(leader_id)["incarnation"])
+	_incarnation_id = previous_incarnation if CardDB.is_incarnation_option(leader_id, previous_incarnation) else String(
+		CardDB.leader(leader_id)["incarnation"],
+	)
 	_ensure_incarnation()
 	_dirty = true
 	_show_editor()
@@ -765,7 +821,12 @@ func _build_sidebar() -> Control:
 	box.add_theme_constant_override("separation", 8)
 	scroll.add_child(box)
 	box.add_child(_lbl("CATÁLOGO", 26, UITheme.GOLD_LIGHT, "title_bold"))
-	var help := _lbl("Clique numa carta para adicioná-la. Botão direito (ou segurar) mostra os detalhes.", 15, UITheme.TEXT_DIM, "body")
+	var help := _lbl(
+		"Clique numa carta para adicioná-la. Botão direito (ou segurar) mostra os detalhes.",
+		15,
+		UITheme.TEXT_DIM,
+		"body",
+	)
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	help.custom_minimum_size = Vector2(SIDEBAR_W - 40, 0)
 	box.add_child(help)
@@ -785,7 +846,8 @@ func _build_catalog() -> Control:
 	top.add_child(_count_label)
 	_domain_toggle = CheckButton.new()
 	_domain_toggle.text = "Só o domínio do Líder"
-	_domain_toggle.tooltip_text = "Mostra só as cartas dos domínios do Líder: esconde as convidadas e também as neutras."
+	_domain_toggle.tooltip_text = ("Mostra só as cartas dos domínios do Líder: esconde as cartas de outros domínios "
+		+ "e também as neutras.")
 	_domain_toggle.toggled.connect(func(_on: bool): _restart_pages())
 	top.add_child(_domain_toggle)
 	_prev_button = _btn("‹", func(): _change_page(-1))
@@ -876,13 +938,13 @@ func _card_tile(card_id: String) -> Control:
 	holder.add_child(badge)
 
 	var guest_tag: Control = null
-	if DeckDB.is_guest(_leader, card_id):
+	if DeckDB.is_outside_leader_domain(_leader, card_id):
 		guest_tag = PanelContainer.new()
 		guest_tag.add_theme_stylebox_override("panel", UITheme.box(Color(WARN.darkened(0.5), 0.94), 6, WARN, 1))
-		guest_tag.add_child(_lbl("CONVIDADA", 12, WARN.lightened(0.3), "heavy"))
+		guest_tag.add_child(_lbl("OUTRO DOMÍNIO", 12, WARN.lightened(0.3), "heavy"))
 		guest_tag.position = Vector2(4, 4)
 		guest_tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		guest_tag.tooltip_text = "Fora do domínio do Líder: conta no limite de cartas convidadas."
+		guest_tag.tooltip_text = "Fora do domínio do Líder: define o segundo domínio do deck (só cabe um domínio extra)."
 		holder.add_child(guest_tag)
 
 	var controls := HBoxContainer.new()
@@ -901,7 +963,14 @@ func _card_tile(card_id: String) -> Control:
 	plus.custom_minimum_size = Vector2(34, 30)
 	controls.add_child(plus)
 	holder.add_child(controls)
-	_tiles[card_id] = {"frame": frame_box, "badge": badge, "badge_label": badge_label, "counter": counter, "minus": minus, "plus": plus}
+	_tiles[card_id] = {
+		"frame": frame_box,
+		"badge": badge,
+		"badge_label": badge_label,
+		"counter": counter,
+		"minus": minus,
+		"plus": plus,
+	}
 	_refresh_tile(card_id)
 	return holder
 
@@ -1026,13 +1095,20 @@ func _open_incarnation_picker() -> void:
 	box.add_theme_constant_override("separation", 12)
 	panel.add_child(box)
 	box.add_child(_lbl("ESCOLHA A ENCARNAÇÃO", 26, UITheme.GOLD_LIGHT, "title_bold"))
-	var explanation := _lbl("Uma cópia fica no Santuário. Ao trocar, a cópia reservada atual é substituída; cópias extras continuam no deck e seguem o limite normal.", 16, UITheme.TEXT_DIM, "body")
+	var explanation := _lbl(
+		("Uma cópia fica no Santuário. Ao trocar, a cópia reservada atual é substituída; cópias extras continuam no "
+			+ "deck e seguem o limite normal."),
+		16,
+		UITheme.TEXT_DIM,
+		"body",
+	)
 	explanation.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(explanation)
 	for card_id in options:
 		var cd: Dictionary = CardDB.card(card_id)
 		var marker := " (atual)" if card_id == _incarnation_id else ""
-		var option_button := _btn("%s%s · custo %d\n%s" % [cd.get("name", card_id), marker, int(cd.get("cost", 0)), cd.get("text", "")], func():
+		var option_text := "%s%s · custo %d\n%s" % [cd.get("name", card_id), marker, int(cd.get("cost", 0)), cd.get("text", "")]
+		var option_button := _btn(option_text, func():
 			_select_incarnation(card_id), false, 17)
 		option_button.custom_minimum_size = Vector2(620, 64)
 		box.add_child(option_button)
@@ -1073,7 +1149,13 @@ func _offer_deck_assistant() -> void:
 	box.add_theme_constant_override("separation", 14)
 	panel.add_child(box)
 	box.add_child(_lbl("ASSISTENTE DE DECK", 28, UITheme.GOLD_LIGHT, "title_bold"))
-	var intro := _lbl("Quer usar o assistente? Ele acompanha as escolhas deste deck e aponta problemas de construção. Ele só aconselha: você continua no controle.", 17, UITheme.TEXT, "body")
+	var intro := _lbl(
+		("Quer usar o assistente? Ele acompanha as escolhas deste deck e aponta problemas de construção. Ele só "
+			+ "aconselha: você continua no controle."),
+		17,
+		UITheme.TEXT,
+		"body",
+	)
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	intro.custom_minimum_size = Vector2(590, 0)
 	box.add_child(intro)
@@ -1096,11 +1178,24 @@ func _ask_archetype() -> void:
 	box.add_theme_constant_override("separation", 10)
 	panel.add_child(box)
 	box.add_child(_lbl("QUAL É O PLANO DO DECK?", 26, UITheme.GOLD_LIGHT, "title_bold"))
-	box.add_child(_lbl("Não existe resposta errada. O assistente vai comparar suas cartas com a estratégia escolhida.", 16, UITheme.TEXT_DIM, "body"))
+	box.add_child(
+		_lbl(
+			"Não existe resposta errada. O assistente vai comparar suas cartas com a estratégia escolhida.",
+			16,
+			UITheme.TEXT_DIM,
+			"body",
+		),
+	)
 	var choices := VBoxContainer.new()
 	choices.add_theme_constant_override("separation", 7)
 	box.add_child(choices)
-	for choice in [["aggro", "AGGRO", "Vencer cedo, pressionando desde os primeiros turnos."], ["midrange", "MIDRANGE", "Disputar bem o meio de jogo com ameaças consistentes."], ["control", "CONTROL", "Responder ao rival e vencer com calma no fim do jogo."], ["combo", "COMBO", "Montar uma combinação ou uma sinergia poderosa."], ["unsure", "NÃO SEI AINDA", "Quero montar e aprender o que cada tipo de carta faz."]]:
+	for choice in [
+		["aggro", "AGGRO", "Vencer cedo, pressionando desde os primeiros turnos."],
+		["midrange", "MIDRANGE", "Disputar bem o meio de jogo com ameaças consistentes."],
+		["control", "CONTROL", "Responder ao rival e vencer com calma no fim do jogo."],
+		["combo", "COMBO", "Montar uma combinação ou uma sinergia poderosa."],
+		["unsure", "NÃO SEI AINDA", "Quero montar e aprender o que cada tipo de carta faz."],
+	]:
 		var key := String(choice[0])
 		choices.add_child(_btn("%s — %s" % [choice[1], choice[2]], func():
 			_assistant_profile = key
@@ -1115,11 +1210,26 @@ func _ask_archetype() -> void:
 func _ask_assistant_focus() -> void:
 	var options: Array = []
 	match _assistant_profile:
-		"aggro": options = [["burn", "DANO DIRETO", "Quero finalizar o Líder adversário com magias e efeitos de dano."], ["board", "CRIATURAS RÁPIDAS", "Quero lotar a mesa cedo e atacar com unidades baratas."]]
-		"midrange": options = [["pressure", "PRESSÃO CONSTANTE", "Quero curvas equilibradas e ameaças em todo turno."], ["value", "VALOR", "Quero cartas que trocam bem e geram vantagens."]]
-		"control": options = [["removal", "MUITAS RESPOSTAS", "Quero remover ou atrapalhar as ameaças do rival."], ["late", "FINAL DE JOGO", "Quero sobreviver e ganhar com cartas fortes mais tarde."]]
-		"combo": options = [["spells", "COMBO DE EFEITOS", "Quero achar peças com compras e magias."], ["tribal", "SINERGIA DE TRIBO", "Quero muitas cartas da mesma tribo trabalhando juntas."]]
-		_: options = [["learn", "APRENDER", "Quero dicas gerais enquanto experimento."], ["balanced", "EQUILIBRADO", "Quero um deck versátil sem compromisso com um plano único."]]
+		"aggro": options = [
+			["burn", "DANO DIRETO", "Quero finalizar o Líder adversário com magias e efeitos de dano."],
+			["board", "CRIATURAS RÁPIDAS", "Quero lotar a mesa cedo e atacar com unidades baratas."],
+		]
+		"midrange": options = [
+			["pressure", "PRESSÃO CONSTANTE", "Quero curvas equilibradas e ameaças em todo turno."],
+			["value", "VALOR", "Quero cartas que trocam bem e geram vantagens."],
+		]
+		"control": options = [
+			["removal", "MUITAS RESPOSTAS", "Quero remover ou atrapalhar as ameaças do rival."],
+			["late", "FINAL DE JOGO", "Quero sobreviver e ganhar com cartas fortes mais tarde."],
+		]
+		"combo": options = [
+			["spells", "COMBO DE EFEITOS", "Quero achar peças com compras e magias."],
+			["tribal", "SINERGIA DE TRIBO", "Quero muitas cartas da mesma tribo trabalhando juntas."],
+		]
+		_: options = [
+			["learn", "APRENDER", "Quero dicas gerais enquanto experimento."],
+			["balanced", "EQUILIBRADO", "Quero um deck versátil sem compromisso com um plano único."],
+		]
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(minf(size.x - 100.0, 650.0), 0)
 	var box := VBoxContainer.new()
@@ -1164,7 +1274,8 @@ func _decode_deck_code(code: String) -> Dictionary:
 	for raw_id in raw_cards:
 		var card_id := String(raw_id)
 		var value: Variant = raw_cards[raw_id]
-		if not (value is int or value is float) or float(value) != float(int(value)) or int(value) < 1 or int(value) > DeckStore.MAX_CARD_COPIES:
+		var is_whole_number: bool = (value is int or value is float) and float(value) == float(int(value))
+		if not is_whole_number or int(value) < 1 or int(value) > DeckStore.MAX_CARD_COPIES:
 			return {"error": "Quantidade inválida para a carta %s." % card_id}
 		if not CardDB.data()["cards"].has(card_id):
 			return {"error": "O deckCode contém uma carta desconhecida: %s." % card_id}
@@ -1192,7 +1303,12 @@ func _open_import_code() -> void:
 	box.add_theme_constant_override("separation", 12)
 	panel.add_child(box)
 	box.add_child(_lbl("IMPORTAR DECKCODE", 26, UITheme.GOLD_LIGHT, "title_bold"))
-	var help := _lbl("Cole aqui o código do deck. O deck será aberto no builder como um rascunho; salve para guardar.", 16, UITheme.TEXT_DIM, "body")
+	var help := _lbl(
+		"Cole aqui o código do deck. O deck será aberto no builder como um rascunho; salve para guardar.",
+		16,
+		UITheme.TEXT_DIM,
+		"body",
+	)
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(help)
 	var input := TextEdit.new()
@@ -1209,7 +1325,12 @@ func _open_import_code() -> void:
 			return
 		_close_modal()
 		if _view == "edit":
-			_confirm("Importar deckCode?", "O deckCode vai substituir o conteúdo que está aberto. O deck importado será um novo deck.", "SUBSTITUIR", func(): _open_editor(result["deck"], true))
+			_confirm(
+				"Importar deckCode?",
+				"O deckCode vai substituir o conteúdo que está aberto. O deck importado será um novo deck.",
+				"SUBSTITUIR",
+				func(): _open_editor(result["deck"], true),
+			)
 		else:
 			_open_editor(result["deck"], true), true))
 	box.add_child(actions)
@@ -1225,7 +1346,12 @@ func _export_code() -> void:
 	box.add_theme_constant_override("separation", 12)
 	panel.add_child(box)
 	box.add_child(_lbl("DECKCODE COPIADO", 26, UITheme.GOLD_LIGHT, "title_bold"))
-	var help := _lbl("O código já está na área de transferência. Você também pode selecioná-lo e copiar daqui:", 16, UITheme.TEXT_DIM, "body")
+	var help := _lbl(
+		"O código já está na área de transferência. Você também pode selecioná-lo e copiar daqui:",
+		16,
+		UITheme.TEXT_DIM,
+		"body",
+	)
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(help)
 	var output := TextEdit.new()
@@ -1258,7 +1384,11 @@ func _build_leader_header() -> Control:
 	title.add_theme_color_override("font_outline_color", Color.BLACK)
 	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	info.add_child(title)
-	var domains := _lbl("Domínio: %s · Vida %d" % [CardDB.leader_essence_names(ld), int(ld["hp"])], 16, _leader_color(_leader).lightened(0.4))
+	var domains := _lbl(
+		"Domínio: %s · Vida %d" % [CardDB.leader_essence_names(ld), int(ld["hp"])],
+		16,
+		_leader_color(_leader).lightened(0.4),
+	)
 	domains.add_theme_constant_override("outline_size", 4)
 	domains.add_theme_color_override("font_outline_color", Color.BLACK)
 	info.add_child(domains)
@@ -1280,7 +1410,9 @@ func _build_meters() -> Control:
 	grid.add_theme_constant_override("v_separation", 6)
 	for definition in [["total", "Cartas", "Cartas que você compra: exatamente %d (sem a Encarnação)." % DeckDB.DECK_SIZE],
 			["elite", "Campeões", "Máximo de %d cartas Campeão juntas." % DeckDB.MAX_ELITE_CARDS],
-			["off", "Convidadas", "Cartas de fora do domínio do Líder: até %d, ou até %d se todas forem de um mesmo domínio." % [DeckDB.MAX_OFF_ESSENCE, DeckDB.MAX_OFF_ESSENCE_SINGLE_DOMAIN]],
+			["domains", "Domínios", ("O deck usa os domínios do Líder e, se ele tem só um, mais um domínio qualquer. "
+				+ "Com 3 domínios: exatamente %d cartas de cada (a Encarnação conta em um só) e nenhuma neutra.")
+				% DeckDB.THREE_DOMAIN_COPIES],
 			["inc", "Encarnação", "O deck precisa de exatamente 1 Encarnação do Líder."]]:
 		var cell := VBoxContainer.new()
 		cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1328,7 +1460,15 @@ func _draw_curve() -> void:
 			var bar := Rect2(left + 5.0, baseline - bar_h, slot_w - 10.0, bar_h)
 			_curve.draw_rect(bar, Color(DecklistRow.COST_COLOR, 0.9))
 			_curve.draw_rect(Rect2(bar.position, Vector2(bar.size.x, 3.0)), DecklistRow.COST_COLOR.lightened(0.5))
-			_curve.draw_string(font, Vector2(left, bar.position.y - 3.0), str(count), HORIZONTAL_ALIGNMENT_CENTER, slot_w, 14, UITheme.TEXT)
+			_curve.draw_string(
+				font,
+				Vector2(left, bar.position.y - 3.0),
+				str(count),
+				HORIZONTAL_ALIGNMENT_CENTER,
+				slot_w,
+				14,
+				UITheme.TEXT,
+			)
 		var caption := "%d+" % slot if slot == CURVE_SLOTS - 1 else str(slot)
 		_curve.draw_string(font, Vector2(left, baseline + 18.0), caption, HORIZONTAL_ALIGNMENT_CENTER, slot_w, 15, UITheme.TEXT_DIM)
 	_curve.draw_line(Vector2(10, baseline), Vector2(_curve.size.x - 10, baseline), Color(UITheme.GOLD, 0.5), 2.0)
@@ -1433,8 +1573,9 @@ func _refresh_deck_panel() -> void:
 	var total: int = totals["total"]
 	_set_meter("total", total, DeckDB.DECK_SIZE, GOOD if total == DeckDB.DECK_SIZE else (WARN if total < DeckDB.DECK_SIZE else BAD))
 	_set_meter("elite", totals["elite"], DeckDB.MAX_ELITE_CARDS, GOOD if totals["elite"] <= DeckDB.MAX_ELITE_CARDS else BAD)
-	var guest_limit: int = totals["guest_limit"]
-	_set_meter("off", totals["off_essence"], guest_limit, GOOD if totals["off_essence"] <= guest_limit else BAD)
+	var domain_limit := 3 if totals["domain_mode"] == "three" else 2
+	var domain_count: int = (totals["deck_domains"] as Array).size() if totals["domain_mode"] != "invalid" else domain_limit + 1
+	_set_meter("domains", domain_count, domain_limit, GOOD if totals["domain_mode"] != "invalid" else BAD)
 	_set_meter("inc", totals["incarnation"], 1, GOOD if totals["incarnation"] == 1 else BAD)
 
 	_curve_counts = []
@@ -1471,9 +1612,17 @@ func _refresh_warnings(errors: Array[String], totals: Dictionary) -> void:
 		_warnings_box.add_child(_note("Deck legal: pronto para jogar.", GOOD, "LEGAL"))
 	for message in errors:
 		var size_problem := message.begins_with("deck tem ") or message.begins_with("o deck precisa de exatamente 1 Encarnação")
-		_warnings_box.add_child(_note(_humanize(message), WARN if size_problem and int(totals["total"]) <= DeckDB.DECK_SIZE else BAD, "INCOMPLETO" if size_problem and int(totals["total"]) <= DeckDB.DECK_SIZE else "ILEGAL"))
-	if bool(totals["shared_guest_domain"]) and int(totals["off_essence"]) > DeckDB.MAX_OFF_ESSENCE:
-		_warnings_box.add_child(_note("O limite de convidadas subiu para %d porque todas elas são de um mesmo domínio." % DeckDB.MAX_OFF_ESSENCE_SINGLE_DOMAIN, INFO, "INFO"))
+		_warnings_box.add_child(
+			_note(
+				_humanize(message),
+				WARN if size_problem and int(totals["total"]) <= DeckDB.DECK_SIZE else BAD,
+				"INCOMPLETO" if size_problem and int(totals["total"]) <= DeckDB.DECK_SIZE else "ILEGAL",
+			),
+		)
+	if totals["domain_mode"] == "three":
+		_warnings_box.add_child(
+			_note("Deck de 3 domínios: %d cartas de cada, sem neutras." % DeckDB.THREE_DOMAIN_COPIES, INFO, "INFO"),
+		)
 	for coach_note in _coach_notes():
 		_warnings_box.add_child(_note(String(coach_note["text"]), coach_note["color"] as Color, String(coach_note["tag"])))
 	for load_note in _load_notes:
@@ -1546,95 +1695,249 @@ func _coach_notes() -> Array[Dictionary]:
 			sustain += copies
 		if card_traits["repeatable_sustain"]:
 			repeatable_sustain += copies
-	var plan_name: String = String({"aggro": "Aggro", "midrange": "Midrange", "control": "Control", "combo": "Combo", "unsure": "exploração"}.get(_assistant_profile, ""))
-	notes.append({"text": "Plano acompanhado: %s. O assistente atualiza estas dicas a cada carta adicionada ou removida." % plan_name, "color": INFO, "tag": "ASSISTENTE"})
+	var plan_name: String = String(
+		{
+			"aggro": "Aggro",
+			"midrange": "Midrange",
+			"control": "Control",
+			"combo": "Combo",
+			"unsure": "exploração",
+		}.get(_assistant_profile, ""),
+	)
+	notes.append({
+		"text": "Plano acompanhado: %s. O assistente atualiza estas dicas a cada carta adicionada ou removida." % plan_name,
+		"color": INFO,
+		"tag": "ASSISTENTE",
+	})
 	if total < 12:
-		notes.append({"text": "Ainda há poucas cartas para julgar a estratégia (%d/12). Continue montando; as dicas mais fortes aparecem quando a base do deck existir." % total, "color": INFO, "tag": "EM ANÁLISE"})
+		notes.append({
+			"text": ("Ainda há poucas cartas para julgar a estratégia (%d/12). Continue montando; as dicas mais "
+				+ "fortes aparecem quando a base do deck existir.") % total,
+			"color": INFO,
+			"tag": "EM ANÁLISE",
+		})
 		return notes
 	var value_midrange := _assistant_profile == "midrange" and _assistant_focus == "value"
 	if _assistant_profile != "control" and not value_midrange and unrestricted_targeted_removal < 2:
-		notes.append({"text": "Normalmente, recomenda-se ter pelo menos 2 cópias de remoção direta irrestrita; o deck tem %d." % unrestricted_targeted_removal, "color": WARN, "tag": "MÉDIO"})
+		notes.append({
+			"text": "Normalmente, recomenda-se ter pelo menos 2 cópias de remoção direta irrestrita; o deck tem %d."
+			% unrestricted_targeted_removal,
+			"color": WARN,
+			"tag": "MÉDIO",
+		})
 	if unrestricted_global_removal < 1:
-		notes.append({"text": "Normalmente, recomenda-se ter pelo menos 1 cópia de remoção global irrestrita; o deck tem %d." % unrestricted_global_removal, "color": WARN, "tag": "MÉDIO"})
+		notes.append({
+			"text": "Normalmente, recomenda-se ter pelo menos 1 cópia de remoção global irrestrita; o deck tem %d."
+			% unrestricted_global_removal,
+			"color": WARN,
+			"tag": "MÉDIO",
+		})
 	if card_selection < 1 and not value_midrange:
-		notes.append({"text": "Normalmente, recomenda-se ter pelo menos 1 forma de comprar ou selecionar uma carta do deck para a mão; o deck tem %d." % card_selection, "color": WARN, "tag": "MÉDIO"})
+		notes.append({
+			"text": ("Normalmente, recomenda-se ter pelo menos 1 forma de comprar ou selecionar uma carta do deck "
+				+ "para a mão; o deck tem %d.") % card_selection,
+			"color": WARN,
+			"tag": "MÉDIO",
+		})
 	match _assistant_profile:
 		"aggro":
 			var cheap_for_aggro := cheap
-			var grave_message := "Seu aggro tem poucas jogadas baratas (%d). Sem presença nos turnos iniciais, ele perde seu maior ponto forte."
-			var medium_message := "O aggro já tem alguma presença inicial, mas %d cartas baratas ainda deixam pouco espaço para pressionar cedo."
+			var grave_message := ("Seu aggro tem poucas jogadas baratas (%d). Sem presença nos turnos iniciais, ele "
+				+ "perde seu maior ponto forte.")
+			var medium_message := ("O aggro já tem alguma presença inicial, mas %d cartas baratas ainda deixam pouco "
+				+ "espaço para pressionar cedo.")
 			if _assistant_focus == "board":
 				cheap_for_aggro = cheap_units
-				grave_message = "Seu plano de lotar a mesa cedo tem poucas unidades de custo 0 a 2 (%d). Magias e artefatos não ocupam espaços da mesa como unidades."
-				medium_message = "Só %d unidades de custo 0 a 2 podem deixar pouca presença para lotar a mesa cedo; priorize unidades baratas."
+				grave_message = ("Seu plano de lotar a mesa cedo tem poucas unidades de custo 0 a 2 (%d). Magias e "
+					+ "artefatos não ocupam espaços da mesa como unidades.")
+				medium_message = ("Só %d unidades de custo 0 a 2 podem deixar pouca presença para lotar a mesa cedo; "
+					+ "priorize unidades baratas.")
 			var cheap_grave_threshold := maxi(8, ceili(total * 0.35))
 			if cheap_for_aggro < cheap_grave_threshold:
 				notes.append({"text": grave_message % cheap_for_aggro, "color": BAD, "tag": "MUITO GRAVE"})
 			elif cheap_for_aggro < maxi(10, ceili(total * 0.45)):
 				notes.append({"text": medium_message % cheap_for_aggro, "color": WARN, "tag": "MÉDIO"})
 			if expensive > ceili(total * 0.25):
-				notes.append({"text": "A curva está pesada para aggro: %d cartas custam 6 ou mais. Troque parte delas por pressão cedo." % expensive, "color": WARN, "tag": "MÉDIO"})
+				notes.append({
+					"text": ("A curva está pesada para aggro: %d cartas custam 6 ou mais. Troque parte delas por "
+						+ "pressão cedo.") % expensive,
+					"color": WARN,
+					"tag": "MÉDIO",
+				})
 			if _assistant_focus == "burn":
 				if burn == 0:
-					notes.append({"text": "Você escolheu aggro de dano direto, mas o deck não tem dano ao Líder adversário. Adicione finalizadores de burn ou escolha outro plano." , "color": BAD, "tag": "MUITO GRAVE"})
+					notes.append({
+						"text": ("Você escolheu aggro de dano direto, mas o deck não tem dano ao Líder adversário. "
+							+ "Adicione finalizadores de burn ou escolha outro plano."),
+						"color": BAD,
+						"tag": "MUITO GRAVE",
+					})
 				elif burn < 4:
-					notes.append({"text": "Há só %d cartas de dano direto. Um burn mais confiável normalmente precisa de mais formas de fechar a partida." % burn, "color": WARN, "tag": "MÉDIO"})
+					notes.append({
+						"text": ("Há só %d cartas de dano direto. Um burn mais confiável normalmente precisa de mais "
+							+ "formas de fechar a partida.") % burn,
+						"color": WARN,
+						"tag": "MÉDIO",
+					})
 		"midrange":
 			var middle_grave_threshold := ceili(total * 0.40)
 			if middle < middle_grave_threshold:
-				notes.append({"text": "Faltam cartas de custo 3 a 5 (%d). Midrange precisa ocupar bem o meio da partida." % middle, "color": BAD, "tag": "GRAVE"})
+				notes.append({
+					"text": "Faltam cartas de custo 3 a 5 (%d). Midrange precisa ocupar bem o meio da partida." % middle,
+					"color": BAD,
+					"tag": "GRAVE",
+				})
 			elif middle < ceili(total * 0.50):
-				notes.append({"text": "A curva de meio de jogo está quase lá, mas %d cartas de custo 3 a 5 podem deixar alguns turnos sem pressão." % middle, "color": WARN, "tag": "MÉDIO"})
+				notes.append({
+					"text": ("A curva de meio de jogo está quase lá, mas %d cartas de custo 3 a 5 podem deixar "
+						+ "alguns turnos sem pressão.") % middle,
+					"color": WARN,
+					"tag": "MÉDIO",
+				})
 			if cheap < 4:
-				notes.append({"text": "Poucas cartas baratas podem fazer você perder o tabuleiro antes das ameaças médias chegarem.", "color": WARN, "tag": "MÉDIO"})
+				notes.append({
+					"text": "Poucas cartas baratas podem fazer você perder o tabuleiro antes das ameaças médias chegarem.",
+					"color": WARN,
+					"tag": "MÉDIO",
+				})
 			if _assistant_focus == "pressure" and middle_units < ceili(DeckDB.DECK_SIZE * 0.30):
-				notes.append({"text": "Pressão constante precisa de ameaças no meio da curva: há só %d unidades de custo 3 a 5." % middle_units, "color": WARN, "tag": "MÉDIO"})
+				notes.append({
+					"text": "Pressão constante precisa de ameaças no meio da curva: há só %d unidades de custo 3 a 5." % middle_units,
+					"color": WARN,
+					"tag": "MÉDIO",
+				})
 			elif _assistant_focus == "value":
 				if unrestricted_targeted_removal < 3:
-					notes.append({"text": "Midrange de valor ganha com trocas favoráveis: há só %d remoções diretas irrestritas (meta: 3)." % unrestricted_targeted_removal, "color": WARN, "tag": "MÉDIO"})
+					notes.append({
+						"text": ("Midrange de valor ganha com trocas favoráveis: há só %d remoções diretas "
+							+ "irrestritas (meta: 3).") % unrestricted_targeted_removal,
+						"color": WARN,
+						"tag": "MÉDIO",
+					})
 				if card_selection < 3:
-					notes.append({"text": "Midrange de valor precisa manter recursos: há só %d formas de comprar ou selecionar cartas (meta: 3)." % card_selection, "color": WARN, "tag": "MÉDIO"})
+					notes.append({
+						"text": ("Midrange de valor precisa manter recursos: há só %d formas de comprar ou "
+							+ "selecionar cartas (meta: 3).") % card_selection,
+						"color": WARN,
+						"tag": "MÉDIO",
+					})
 				if soft_removal < 2:
-					notes.append({"text": "Midrange de valor também precisa de respostas flexíveis: há só %d efeitos que enfraquecem ou tiram unidades inimigas." % soft_removal, "color": WARN, "tag": "MÉDIO"})
+					notes.append({
+						"text": ("Midrange de valor também precisa de respostas flexíveis: há só %d efeitos que "
+							+ "enfraquecem ou tiram unidades inimigas.") % soft_removal,
+						"color": WARN,
+						"tag": "MÉDIO",
+					})
 		"control":
 			if unrestricted_targeted_removal < 2:
-				notes.append({"text": "Control precisa de respostas pontuais confiáveis: há %d remoções diretas irrestritas. Normalmente, pelo menos 2 cópias são recomendáveis." % unrestricted_targeted_removal, "color": BAD, "tag": "GRAVE"})
+				notes.append({
+					"text": ("Control precisa de respostas pontuais confiáveis: há %d remoções diretas irrestritas. "
+						+ "Normalmente, pelo menos 2 cópias são recomendáveis.") % unrestricted_targeted_removal,
+					"color": BAD,
+					"tag": "GRAVE",
+				})
 			elif unrestricted_targeted_removal < 4:
-				notes.append({"text": "O deck já tem respostas pontuais, mas %d cópias ainda podem ser pouco para um plano control consistente." % unrestricted_targeted_removal, "color": WARN, "tag": "MÉDIO"})
+				notes.append({
+					"text": ("O deck já tem respostas pontuais, mas %d cópias ainda podem ser pouco para um plano "
+						+ "control consistente.") % unrestricted_targeted_removal,
+					"color": WARN,
+					"tag": "MÉDIO",
+				})
 			if soft_removal < 3:
-				notes.append({"text": "Controle também se beneficia de respostas flexíveis: há só %d efeitos de dano, controle ou enfraquecimento de unidades." % soft_removal, "color": WARN, "tag": "MÉDIO"})
+				notes.append({
+					"text": ("Controle também se beneficia de respostas flexíveis: há só %d efeitos de dano, "
+						+ "controle ou enfraquecimento de unidades.") % soft_removal,
+					"color": WARN,
+					"tag": "MÉDIO",
+				})
 			if sustain < 2:
-				notes.append({"text": "Para vencer por desgaste, há só %d cartas de cura ou proteção." % sustain, "color": WARN, "tag": "MÉDIO"})
+				notes.append({
+					"text": "Para vencer por desgaste, há só %d cartas de cura ou proteção." % sustain,
+					"color": WARN,
+					"tag": "MÉDIO",
+				})
 			if repeatable_sustain < 1:
-				notes.append({"text": "Considere uma fonte recorrente de cura ou proteção para sustentar o plano de desgaste." , "color": WARN, "tag": "MÉDIO"})
+				notes.append({
+					"text": "Considere uma fonte recorrente de cura ou proteção para sustentar o plano de desgaste.",
+					"color": WARN,
+					"tag": "MÉDIO",
+				})
 			if card_selection > 0 and card_selection < 3:
-				notes.append({"text": "Control ganha consistência com mais formas de comprar ou selecionar cartas; há só %d." % card_selection, "color": WARN, "tag": "MÉDIO"})
+				notes.append({
+					"text": "Control ganha consistência com mais formas de comprar ou selecionar cartas; há só %d." % card_selection,
+					"color": WARN,
+					"tag": "MÉDIO",
+				})
 			if _assistant_focus == "late":
 				if late_threats < 3:
-					notes.append({"text": "Você escolheu vencer no fim de jogo, mas há só %d criaturas grandes (custo 6+). Inclua mais finalizadores para transformar o controle da mesa em vitória." % late_threats, "color": BAD, "tag": "GRAVE"})
+					notes.append({
+						"text": ("Você escolheu vencer no fim de jogo, mas há só %d criaturas grandes (custo 6+). "
+							+ "Inclua mais finalizadores para transformar o controle da mesa em vitória.") % late_threats,
+						"color": BAD,
+						"tag": "GRAVE",
+					})
 				elif late_threats < 7:
-					notes.append({"text": "O plano de fim de jogo já tem %d criaturas grandes, mas pode faltar uma margem de finalizadores para fechar partidas longas com consistência." % late_threats, "color": WARN, "tag": "MÉDIO"})
+					notes.append({
+						"text": ("O plano de fim de jogo já tem %d criaturas grandes, mas pode faltar uma margem de "
+							+ "finalizadores para fechar partidas longas com consistência.") % late_threats,
+						"color": WARN,
+						"tag": "MÉDIO",
+					})
 		"combo":
 			if _assistant_focus == "spells":
 				if spells < 6:
-					notes.append({"text": "Um combo de efeitos ainda tem poucas magias (%d). Defina as peças e inclua meios de encontrá-las." % spells, "color": BAD, "tag": "GRAVE"})
+					notes.append({
+						"text": ("Um combo de efeitos ainda tem poucas magias (%d). Defina as peças e inclua meios "
+							+ "de encontrá-las.") % spells,
+						"color": BAD,
+						"tag": "GRAVE",
+					})
 				elif spells < 9:
-					notes.append({"text": "O plano de combo já tem algumas magias, mas %d ainda pode ser pouco para encontrar as peças com regularidade." % spells, "color": WARN, "tag": "MÉDIO"})
+					notes.append({
+						"text": ("O plano de combo já tem algumas magias, mas %d ainda pode ser pouco para encontrar "
+							+ "as peças com regularidade.") % spells,
+						"color": WARN,
+						"tag": "MÉDIO",
+					})
 				if card_selection > 0 and card_selection < 3:
-					notes.append({"text": "Combos precisam de consistência: só %d cartas compram ou selecionam cartas. Procure mais formas de achar suas peças." % card_selection, "color": WARN, "tag": "MÉDIO"})
+					notes.append({
+						"text": ("Combos precisam de consistência: só %d cartas compram ou selecionam cartas. "
+							+ "Procure mais formas de achar suas peças.") % card_selection,
+						"color": WARN,
+						"tag": "MÉDIO",
+					})
 			else:
 				var dominant := 0
 				for specie in tribe:
 					dominant = maxi(dominant, int(tribe[specie]))
 				if dominant < 8:
-					notes.append({"text": "A sinergia de tribo ainda não apareceu: a tribo mais presente ocupa só %d cartas. Concentre mais o deck numa tribo." % dominant, "color": BAD, "tag": "GRAVE"})
+					notes.append({
+						"text": ("A sinergia de tribo ainda não apareceu: a tribo mais presente ocupa só %d cartas. "
+							+ "Concentre mais o deck numa tribo.") % dominant,
+						"color": BAD,
+						"tag": "GRAVE",
+					})
 				elif dominant < 12:
-					notes.append({"text": "A tribo principal já aparece em %d cartas, mas mais cópias podem deixar a sinergia de tribo mais consistente." % dominant, "color": WARN, "tag": "MÉDIO"})
+					notes.append({
+						"text": ("A tribo principal já aparece em %d cartas, mas mais cópias podem deixar a sinergia "
+							+ "de tribo mais consistente.") % dominant,
+						"color": WARN,
+						"tag": "MÉDIO",
+					})
 		"unsure":
 			if cheap < 4:
-				notes.append({"text": "Dica de iniciante: coloque algumas cartas de custo 0 a 2 para ter o que jogar cedo.", "color": WARN, "tag": "DICA"})
+				notes.append({
+					"text": "Dica de iniciante: coloque algumas cartas de custo 0 a 2 para ter o que jogar cedo.",
+					"color": WARN,
+					"tag": "DICA",
+				})
 			if units == 0:
-				notes.append({"text": "O deck ainda não tem unidades. Unidades ajudam a disputar a mesa e tornam a primeira versão mais fácil de jogar.", "color": WARN, "tag": "DICA"})
+				notes.append({
+					"text": ("O deck ainda não tem unidades. Unidades ajudam a disputar a mesa e tornam a primeira "
+						+ "versão mais fácil de jogar."),
+					"color": WARN,
+					"tag": "DICA",
+				})
 	return notes
 
 func _note(text: String, color: Color, tag: String) -> Control:
