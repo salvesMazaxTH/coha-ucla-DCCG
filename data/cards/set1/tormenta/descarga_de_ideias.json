@@ -5,7 +5,7 @@
   "rarity": "common",
   "essence": "tormenta",
   "element": "raio",
-  "cost": 3,
+  "cost": 4,
   "speed": "instantaneo",
   "art": "tormenta/descarga_de_ideias.webp",
   "effects": [

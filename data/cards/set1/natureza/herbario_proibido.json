@@ -5,8 +5,8 @@
   "rarity": "common",
   "essence": "natureza",
   "element": "vegetal",
-  "cost": 3,
-  "speed": "lento",
+  "cost": 4,
+  "speed": "rapido",
   "art": "natureza/herbario_proibido.webp",
   "effects": [
     {

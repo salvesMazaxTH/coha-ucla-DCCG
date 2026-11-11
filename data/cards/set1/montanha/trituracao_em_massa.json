@@ -5,8 +5,8 @@
   "rarity": "common",
   "essence": "montanha",
   "element": "metal",
-  "cost": 2,
-  "speed": "lento",
+  "cost": 3,
+  "speed": "rapido",
   "effects": [
     { "trigger": "on_play", "action": "mill", "who": "enemy", "target": "none", "amount": 2 },
     { "trigger": "on_play", "action": "draw", "target": "own_leader", "amount": 1 }

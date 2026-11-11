@@ -5,8 +5,8 @@
   "rarity": "common",
   "essence": "fluxo",
   "element": "gelo",
-  "cost": 2,
-  "speed": "lento",
+  "cost": 3,
+  "speed": "rapido",
   "art": "fluxo/chamado_da_nevasca.webp",
   "effects": [
     {
