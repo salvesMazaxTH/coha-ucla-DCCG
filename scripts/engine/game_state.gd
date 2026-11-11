@@ -17,7 +17,7 @@ const BATTERY_CAP := 2 ## refills at the start of each player's turn; pays only 
 const COMMANDER_TAX_STEP := 1 ## the Encarnação's tax grows by this much per previous cast: +1, then +2, +3, +4... (totals 1, 3, 6, 10)
 const WEAK_UNIT_MAX_HP := 3 ## "weak_enemy_unit" targets: enemy units with this much current Vida or less (Isarelis)
 const INTIMIDATE_ATK := 3 ## Intimidacao: attackers with this ATK or less cannot challenge it
-const SECOND_BONUS_TURNS := 2 ## the second player's first turns that start with +1 Momentum and +1 to the Bateria
+const SECOND_PLAYER_CRYSTAL_ID := "cristal_de_momentum"
 const SNOWBALL_GRANDE_AT := 7 ## Bola de Neve level at which every Bola de Neve card of the player evolves into a Grande Bola de Neve
 ## Bola de Neve level a player starts at; each player's own base can grow permanently (Devaneio Gelado), see
 ## players[p]["snowball_base"]
@@ -1486,11 +1486,10 @@ func _sync_reservoir_momentum(p: int) -> void:
 
 ## True when p can permanently deposit one hand card during their Main Phase.
 func can_store_in_reservoir(p: int, hand_uid: int) -> bool:
-	return (
-		_main_phase_idle(p)
-		and int(players[p]["reservoir_stored_turn"]) != turn
-		and _hand_card(p, hand_uid) != null
-	)
+	if not _main_phase_idle(p) or int(players[p]["reservoir_stored_turn"]) == turn:
+		return false
+	var card := _hand_card(p, hand_uid)
+	return card != null and not bool(CardDB.card(card.card_id).get("non_storable", false))
 
 
 ## Permanently deposits one hand card. This action does not use the stack or Momentum.
@@ -2464,6 +2463,9 @@ func mulligan(p: int, hand_uids: Array) -> Array:
 	pl["mulligan_done"] = true
 	emit_event({ "type": "mulligan", "player": p, "count": back.size() })
 	if players[0]["mulligan_done"] and players[1]["mulligan_done"]:
+		var second := opponent(first)
+		var crystal := Card.new(_uid(), SECOND_PLAYER_CRYSTAL_ID, second, "hand")
+		players[second]["hand"].append(crystal)
 		_start_turn(first, false)
 	return flush_events()
 
@@ -5381,13 +5383,6 @@ func _start_turn(p: int, draw: bool) -> void:
 		if card.exhausted:
 			card.exhausted = false
 			emit_event({"type": "reservoir_untap", "player": p, "uid": card.uid})
-	if p != first and int(pl["own_turns_started"]) == 1 and not pl["deck"].is_empty():
-		var bottom_card: Card = pl["deck"].pop_front()
-		pl["reservoir"].append(bottom_card)
-		_move(bottom_card, "reservoir")
-		bottom_card.exhausted = false
-		bottom_card.reservoir_revealed_turn = turn
-		emit_event({"type": "reservoir_add", "player": p, "uid": bottom_card.uid, "card_id": bottom_card.card_id, "from": "deck"})
 	_sync_reservoir_momentum(p)
 	refresh_scaling()
 	for i in 2:

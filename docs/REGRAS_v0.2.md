@@ -30,16 +30,16 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 ## Início da partida
 
 - Os dois jogadores começam com **7 cartas** na mão.
-- **Mulligan:** cada jogador pode devolver até 4 cartas ao deck, que é embaralhado, e comprar a mesma quantidade.
-- Quem joga primeiro **não compra** no primeiro turno. Quem joga em segundo compra normalmente e começa seu primeiro turno com 8 cartas; no fim desse turno, bane o excedente até ficar com 7.
+- **Mulligan:** cada jogador pode devolver até 3 cartas ao deck, que é embaralhado, e comprar a mesma quantidade.
+- Quem joga primeiro **não compra** no primeiro turno. Depois do mulligan, quem joga em segundo recebe o Cristal de Momentum na mão; ele compra normalmente e começa seu primeiro turno com 9 cartas, banindo o excedente até ficar com 7 no fim do turno.
 - O limite da mão é **7 cartas**. Se terminar o turno acima desse limite, o jogador bane cartas até ficar com 7.
-- Quem joga em segundo coloca a carta do fundo do deck no Reservatório no início de seu primeiro turno.
 
 ## Momentum
 
 - Cada jogador tem um **Reservatório**, uma zona pública de cartas permanentes e inacessíveis a efeitos.
 - Uma vez por turno, na fase principal livre, o jogador pode depositar uma carta da mão no próprio Reservatório, desvirada.
 - Cada carta desvirada no Reservatório pode ser virada para pagar 1 de Momentum, até 12 disponíveis. Não há Momentum automático.
+- O segundo jogador recebe, depois do mulligan, uma cópia de **Cristal de Momentum** na mão. É uma spell neutra de custo 0, indraftável e que não pode ser armazenada no Reservatório. Ao conjurá-la, recebe 1 de Momentum flutuante naquele turno e recarrega a Bateria do seu Reservatório. A carta permanece na mão até ser jogada; o Momentum flutuante não usado expira no fim do turno.
 - As cartas desviram no fim do turno do dono. Permanecem disponíveis no turno do oponente e as que forem viradas nele permanecem viradas até o próximo fim de turno do dono.
 - As cartas ficam com a face visível no turno em que entram no Reservatório; depois mostram o verso padrão.
 - Cada jogador começa com **2** na **Bateria do seu Reservatório**, que é totalmente recarregada no início de cada turno seu.

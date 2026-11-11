@@ -337,6 +337,28 @@ static func _is_on_play_momentum_generator(card: Card) -> bool:
 	return false
 
 
+## The second player's Crystal is only spent when it unlocks another worthwhile action.
+static func _crystal_unlocks_follow_up(g: GameState, p: int, crystal: Card, held_card_ids: Array) -> bool:
+	var held_with_crystal := held_card_ids.duplicate()
+	if not held_with_crystal.has(GameState.SECOND_PLAYER_CRYSTAL_ID):
+		held_with_crystal.append(GameState.SECOND_PLAYER_CRYSTAL_ID)
+	var current_preview := g.preview_copy()
+	if current_preview == null or not _try_play(current_preview, p, held_with_crystal).is_empty():
+		return false
+
+	var preview := g.preview_copy()
+	if preview == null:
+		return false
+	var preview_crystal := _card_in_hand(preview, p, crystal.uid)
+	if preview_crystal == null or _try_play_card(preview, p, preview_crystal).is_empty():
+		return false
+	_resolve_preview_stack(preview)
+	_answer_preview_prompts(preview)
+	if preview.phase != "main" or preview.active != p or not preview.stack.is_empty():
+		return false
+	return not _try_play(preview, p, held_with_crystal).is_empty()
+
+
 static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 	# the road to lethal comes first, before the Momentum is spent on anything else: burn, Ao Entrar damage,
 	# Rompante and this-turn buffs that, added to the board's hits, finish the enemy Leader
@@ -363,6 +385,8 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 			if not ranked_incarnation_events.is_empty():
 				return ranked_incarnation_events
 		if held_card_ids.has(card.card_id):
+			continue
+		if card.card_id == GameState.SECOND_PLAYER_CRYSTAL_ID and not _crystal_unlocks_follow_up(g, p, card, held_card_ids):
 			continue
 		var card_events := _try_play_card(g, p, card)
 		if not card_events.is_empty():
@@ -1579,7 +1603,16 @@ static func _board_strike_total(g: GameState, player: int) -> int:
 
 ## Momentum from the Reservoir next turn; the Bateria is counted separately.
 static func _next_turn_plain_budget(g: GameState, p: int) -> int:
-	return mini(g.momentum_cap(p), g.players[p]["reservoir"].size() + (1 if not g.players[p]["hand"].is_empty() else 0))
+	var can_store := false
+	var has_crystal := false
+	for card: Card in g.players[p]["hand"]:
+		var cd := CardDB.card(card.card_id)
+		can_store = can_store or not bool(cd.get("non_storable", false))
+		has_crystal = has_crystal or card.card_id == GameState.SECOND_PLAYER_CRYSTAL_ID
+	return mini(
+		g.momentum_cap(p),
+		g.players[p]["reservoir"].size() + int(can_store) + int(has_crystal),
+	)
 
 
 ## True for a spell that can send damage to the enemy Leader (Bola de Fogo "any", Choque "enemy_leader").

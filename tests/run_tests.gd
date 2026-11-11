@@ -174,6 +174,7 @@ func _init() -> void:
 	_test_overkill()
 	_test_dud()
 	_test_ai_no_waste()
+	_test_ai_crystal_follow_up()
 	_test_ai_snowball_combo()
 	_test_ai_dot_awareness()
 	_test_ai_attack_clauses()
@@ -4974,17 +4975,43 @@ func _test_first_player() -> void:
 	check(g.decider() == 1, "first=1: mulligan começa pelo jogador 1")
 	g.mulligan(1, [])
 	check(g.decider() == 0, "first=1: depois o jogador 0")
+	check(g.players[0]["hand"].all(func(card: Card): return card.card_id != GameState.SECOND_PLAYER_CRYSTAL_ID), "Cristal: não entra antes do mulligan terminar")
 	g.mulligan(0, [])
 	check(g.phase == "main" and g.active == 1 and g.turn == 1, "first=1: o jogador 1 abre o turno 1")
 	check(g.players[1]["hand"].size() == GameState.START_HAND, "first=1: sem compra no turno 1")
+	var crystal_uid := 0
+	for card: Card in g.players[0]["hand"]:
+		if card.card_id == GameState.SECOND_PLAYER_CRYSTAL_ID:
+			crystal_uid = card.uid
+			break
+	check(crystal_uid != 0 and g.players[0]["hand"].size() == GameState.START_HAND + 1, "Cristal: dado ao segundo jogador após o mulligan")
+	check(g.players[0]["reservoir"].is_empty() and g.players[0]["momentum_float"] == 0, "Cristal: sem recurso automático no início")
 	g.end_turn(1)
-	check(g.players[0]["hand"].size() == GameState.START_HAND + 1, "first=1: o segundo jogador compra no turno dele")
-	check(g.players[0]["reservoir"].size() == 1 and g.players[0]["momentum"] == 1, "first=1: o segundo jogador começa com a carta do fundo do deck no Reservatório")
+	check(g.players[0]["hand"].size() == GameState.START_HAND + 2, "first=1: o segundo compra normalmente no turno dele")
+	check(not g.can_store_in_reservoir(0, crystal_uid), "Cristal: não pode ser armazenado no Reservatório")
+	check(g.can_play(0, crystal_uid), "Cristal: pode ser conjurado normalmente")
+	g.players[0]["battery"] = 0
+	g.players[1]["battery"] = 0 # an opponent with nothing to respond with lets the Cristal resolve at once
+	g.play_card(0, crystal_uid)
+	check(
+		g.players[0]["momentum_float"] == 1 and g.players[0]["battery"] == GameState.BATTERY_CAP
+		and g.budget(0, false) == 1 and g.budget(0, true) == 3,
+		"Cristal: concede 1 Momentum flutuante e recarrega a Bateria",
+	)
+	g._pay(0, 1, true)
+	check(
+		g.players[0]["momentum_float"] == 1 and g.players[0]["momentum"] == 1 and g.players[0]["battery"] == GameState.BATTERY_CAP - 1,
+		"Cristal: um pagamento Rápido gasta a Bateria antes do Momentum flutuante",
+	)
+	g._pay(0, 2, true)
+	check(g.players[0]["momentum_float"] == 0 and g.players[0]["momentum"] == 0 and g.players[0]["battery"] == 0, "Momentum flutuante é gasto depois da Bateria")
 	g.gain_momentum(0, 1)
-	check(g.players[0]["momentum_float"] == 1 and g.budget(0, false) == 2, "Momentum de efeito é flutuante e soma com o do Reservatório")
 	g.end_turn(0) # 8 cards in hand: the turn waits for the discard
 	g.discard(0, [g.players[0]["hand"][0].uid])
 	check(g.players[0]["momentum_float"] == 0 and g.active == 1, "Momentum flutuante não usado expira no fim do turno")
+	g.end_turn(1)
+	g.discard(1, [g.players[1]["hand"][0].uid])
+	check(g.active == 0 and g.players[0]["momentum_float"] == 0 and g.players[0]["reservoir"].is_empty(), "sem bônus automático nos turnos seguintes")
 
 func _test_concede() -> void:
 	var g := _new_game()
@@ -11363,6 +11390,70 @@ func _test_ai_no_waste() -> void:
 	check(not fresh_ally.keywords.has("impeto"),
 			"IA: ao avaliar o buff, não deixa Ímpeto temporário aplicado antes de jogar a carta")
 
+func _test_ai_crystal_follow_up() -> void:
+	_tunit("t_ai_crystal_follow_up", "common", 1, "neutra")
+	_tunit("t_ai_crystal_too_expensive", "common", 2, "neutra")
+	var no_follow_up := _new_game()
+	_quiet(no_follow_up)
+	no_follow_up.active = 0
+	no_follow_up.phase = "main"
+	no_follow_up.players[0]["hand"].clear()
+	no_follow_up.players[0]["reservoir"].clear()
+	_fill_reservoir(no_follow_up, 0, 0)
+	no_follow_up.players[0]["momentum"] = 0
+	no_follow_up.players[0]["momentum_float"] = 0
+	no_follow_up.players[0]["battery"] = 0
+	no_follow_up.players[0]["incarnation"]["in_zone"] = false
+	var unused_crystal_uid := _give(no_follow_up, 0, GameState.SECOND_PLAYER_CRYSTAL_ID)
+	_give(no_follow_up, 0, "t_ai_crystal_too_expensive")
+	var events := SimpleAI._try_play(no_follow_up, 0)
+	check(events.is_empty() and no_follow_up.players[0]["hand"].any(
+			func(card: Card): return card.uid == unused_crystal_uid),
+			"IA: guarda o Cristal quando o Momentum extra não habilita nenhuma jogada")
+
+	var unlocks_play := _new_game()
+	_quiet(unlocks_play)
+	unlocks_play.active = 0
+	unlocks_play.phase = "main"
+	unlocks_play.players[0]["hand"].clear()
+	unlocks_play.players[0]["reservoir"].clear()
+	_fill_reservoir(unlocks_play, 0, 0)
+	unlocks_play.players[0]["momentum"] = 0
+	unlocks_play.players[0]["momentum_float"] = 0
+	unlocks_play.players[0]["battery"] = 0
+	unlocks_play.players[0]["incarnation"]["in_zone"] = false
+	_give(unlocks_play, 0, GameState.SECOND_PLAYER_CRYSTAL_ID)
+	var unlocked_card_uid := _give(unlocks_play, 0, "t_ai_crystal_follow_up")
+	events = SimpleAI._try_play(unlocks_play, 0)
+	check(not events.is_empty() and unlocks_play.players[0]["hand"].any(
+			func(card: Card): return card.uid == unlocked_card_uid)
+			and unlocks_play.players[0]["hand"].size() == 1,
+			"IA: usa o Cristal quando o Momentum flutuante destrava uma jogada")
+
+	var already_affordable := _new_game()
+	_quiet(already_affordable)
+	already_affordable.active = 0
+	already_affordable.phase = "main"
+	already_affordable.players[0]["hand"].clear()
+	already_affordable.players[0]["reservoir"].clear()
+	already_affordable.players[0]["reservoir"].append(
+			Card.new(already_affordable._uid(), "t_ai_crystal_follow_up", 0, "reservoir"))
+	_fill_reservoir(already_affordable, 0, 1)
+	already_affordable.players[0]["momentum"] = 1
+	already_affordable.players[0]["momentum_float"] = 0
+	already_affordable.players[0]["battery"] = 0
+	already_affordable.players[0]["incarnation"]["in_zone"] = false
+	var preserved_crystal_uid := _give(already_affordable, 0, GameState.SECOND_PLAYER_CRYSTAL_ID)
+	var payable_card_uid := _give(already_affordable, 0, "t_ai_crystal_follow_up")
+	events = SimpleAI._try_play(already_affordable, 0)
+	check(not events.is_empty() and already_affordable.players[0]["hand"].any(
+			func(card: Card): return card.uid == preserved_crystal_uid)
+			and not already_affordable.players[0]["hand"].any(
+			func(card: Card): return card.uid == payable_card_uid),
+			"IA: faz primeiro a jogada que o Momentum normal já paga, sem gastar o Cristal")
+
+
+## Ladeira is only spent as part of an affordable, multi-target Bola line in the same turn.
 func _test_ai_snowball_combo() -> void:
 	_tcard("t_ai_snowball_target", 0, 20, [])
 	var no_finisher := _new_game()

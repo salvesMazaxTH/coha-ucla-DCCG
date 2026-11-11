@@ -1,0 +1,28 @@
+{
+  "name": "Cristal de Momentum",
+  "set": 1,
+  "type": "spell",
+  "rarity": "common",
+  "essence": "neutra",
+  "cost": 0,
+  "speed": "lento",
+  "undraftable": true,
+  "non_storable": true,
+  "art": "neutra/cristal_de_momentum.webp",
+  "effects": [
+    {
+      "trigger": "on_play",
+      "action": "gain_momentum",
+      "target": "none",
+      "amount": 1
+    },
+    {
+      "trigger": "on_play",
+      "action": "gain_battery",
+      "target": "none",
+      "amount": 2
+    }
+  ],
+  "text": "Você ganha 1 de Momentum neste turno. A Bateria do seu Reservatório é recarregada.",
+  "flavor": ""
+}
