@@ -185,6 +185,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"momentum": 0,
 		"max_momentum": 0,
 		"turn_start_momentum": 0,
+		"momentum_float": 0,
 		"battery": BATTERY_CAP,
 		"reservoir": [],
 		"reservoir_stored_turn": -1,
@@ -694,7 +695,8 @@ func momentum_surge_of(p: int, c: Card) -> Dictionary:
 	for e in card_of(c).get("effects", []):
 		if e.get("trigger", "") != "constante" or e.get("action", "") != "momentum_surge":
 			continue
-		if int(players[p]["momentum"]) < int(e.get("min_momentum", MOMENTUM_CAP + 1)):
+		var momentum_now := int(players[p]["momentum"])
+		if momentum_now < int(e.get("min_momentum", MOMENTUM_CAP + 1)):
 			continue
 		return { "atk": int(e.get("atk", 0)), "keywords": e.get("keywords", []).duplicate(), "critico": int(e.get("critico", 0)) }
 	return { }
@@ -1476,8 +1478,9 @@ func reservoir_ready(p: int) -> int:
 	return mini(ready, MOMENTUM_CAP)
 
 
+## Momentum is the ready Reservoir cards plus the floating part (Momentum given by effects, which expires at turn end).
 func _sync_reservoir_momentum(p: int) -> void:
-	players[p]["momentum"] = reservoir_ready(p)
+	players[p]["momentum"] = reservoir_ready(p) + int(players[p]["momentum_float"])
 	players[p]["max_momentum"] = mini(players[p]["reservoir"].size(), MOMENTUM_CAP)
 
 
@@ -1533,12 +1536,13 @@ func move_top_deck_to_reservoir(p: int, amount := 1, source_uid := 0) -> int:
 ## Momentum above the player's cap (a temporary overflow) only pays neutral cards and leader abilities:
 ## pass the card's data as `cd` so any other essence sees at most momentum_cap(p).
 func budget(p: int, fast: bool, cd := { }) -> int:
-	return reservoir_ready(p) + (int(players[p]["battery"]) if fast else 0)
+	return int(players[p]["momentum"]) + (int(players[p]["battery"]) if fast else 0)
 
 
-## Gives player p Momentum right now. Normally it stops at their cap (MOMENTUM_CAP, or higher with Agiota das
-## Nuvens); with `overflow` it may go up to MOMENTUM_OVERFLOW_CAP. With `refresh` it only wins back spent
-## Momentum: it stops at what the turn started with (turn_start_momentum). It never lowers Momentum the
+## Gives player p Momentum right now. It is floating Momentum: it does not depend on the number of cards in the
+## Reservoir and expires at the end of the turn. Normally it stops at their cap (MOMENTUM_CAP, or higher with
+## Agiota das Nuvens); with `overflow` it may go up to MOMENTUM_OVERFLOW_CAP. With `refresh` it only wins back
+## spent Momentum: it stops at what the turn started with (turn_start_momentum). It never lowers Momentum the
 ## player already has above the ceiling.
 func gain_momentum(p: int, gain: int, overflow := false, refresh := false) -> void:
 	var pl: Dictionary = players[p]
@@ -1548,43 +1552,50 @@ func gain_momentum(p: int, gain: int, overflow := false, refresh := false) -> vo
 	var ceiling := maxi(MOMENTUM_OVERFLOW_CAP, momentum_cap(p)) if overflow else momentum_cap(p)
 	if refresh:
 		ceiling = mini(ceiling, int(pl["turn_start_momentum"]))
-	pl["momentum"] = maxi(current, mini(ceiling, current + gain))
-	if int(pl["momentum"]) > current:
+	var gained := maxi(current, mini(ceiling, current + gain)) - current
+	pl["momentum"] = current + gained
+	pl["momentum_float"] = int(pl["momentum_float"]) + gained
+	if gained > 0:
 		pl["momentum_gain_turn"] = turn # a refresh counts too
 	refresh_scaling() # a surge (11+ Momentum) may have just turned on
 	emit_event({ "type": "momentum", "player": p })
 
 
-## Pays `amount`; Rápido and Instantâneo plays (`fast`) drain the Bateria first so more plain Momentum is
-## left over to bank next turn.
+## Pays `amount` of Momentum. Fast plays drain the Bateria first; the rest comes out of the floating part,
+## then out of the ready Reservoir cards (each one is tapped).
 func _pay(p: int, amount: int, fast: bool) -> void:
 	var pl: Dictionary = players[p]
 	if fast:
-		var r := mini(amount, int(pl["battery"]))
-		pl["battery"] -= r
-		amount -= r
+		var from_battery := mini(amount, int(pl["battery"]))
+		pl["battery"] -= from_battery
+		amount -= from_battery
+	var from_momentum := mini(amount, int(pl["momentum"]))
+	pl["momentum"] -= from_momentum
+	var from_floating := mini(from_momentum, int(pl["momentum_float"]))
+	pl["momentum_float"] -= from_floating
+	var cards_to_tap := from_momentum - from_floating
 	for card: Card in pl["reservoir"]:
-		if amount <= 0:
+		if cards_to_tap <= 0:
 			break
 		if card.exhausted:
 			continue
 		card.exhausted = true
-		amount -= 1
+		cards_to_tap -= 1
 		emit_event({"type": "reservoir_tap", "player": p, "uid": card.uid})
-	_sync_reservoir_momentum(p)
 	refresh_scaling() # a surge (11+ Momentum) may have just turned off
 
 
-## Spends all the plain Momentum player p still has (the Bateria is untouched) and returns how much that was.
+## Spends all the Momentum player p still has (the Bateria is untouched) and returns how much that was.
 func drain_momentum(p: int) -> int:
-	var drained := reservoir_ready(p)
+	var drained := int(players[p]["momentum"])
 	if drained <= 0:
 		return 0
+	players[p]["momentum"] = 0
+	players[p]["momentum_float"] = 0
 	for card: Card in players[p]["reservoir"]:
 		if not card.exhausted:
 			card.exhausted = true
 			emit_event({"type": "reservoir_tap", "player": p, "uid": card.uid})
-	_sync_reservoir_momentum(p)
 	refresh_scaling() # a surge (11+ Momentum) may have just turned off
 	emit_event({ "type": "momentum", "player": p })
 	return drained
@@ -2076,7 +2087,7 @@ func can_cast_incarnation(p: int) -> bool:
 		return false
 	return (
 		_sorcery_time(p) and players[p]["incarnation"]["in_zone"] \
-				and incarnation_cost(p) <= players[p]["momentum"]
+				and incarnation_cost(p) <= budget(p, false)
 		and has_slot_or_banish(p)
 	)
 
@@ -4878,6 +4889,7 @@ func debug_add_momentum(p: int, amount: int) -> Array:
 	var pl: Dictionary = players[p]
 	var current := int(pl["momentum"])
 	pl["momentum"] = mini(MOMENTUM_OVERFLOW_CAP, current + amount)
+	pl["momentum_float"] = int(pl["momentum_float"]) + int(pl["momentum"]) - current
 	if int(pl["momentum"]) > current:
 		pl["momentum_gain_turn"] = turn
 	refresh_scaling()
@@ -5225,7 +5237,9 @@ func _finish_turn() -> void:
 	reset_snowball_level(active)
 	# Momentum above the normal cap was only a temporary overflow: it vanishes now, before it can bank
 	if int(players[active]["momentum"]) > momentum_cap(active):
+		var overflow_removed := int(players[active]["momentum"]) - momentum_cap(active)
 		players[active]["momentum"] = momentum_cap(active)
+		players[active]["momentum_float"] = maxi(0, int(players[active]["momentum_float"]) - overflow_removed)
 		refresh_scaling()
 		emit_event({ "type": "momentum", "player": active })
 	# units borrowed with take_control go home now, before the end-of-turn cleanup below, so each is cleaned as its real owner's
@@ -5298,6 +5312,13 @@ func _finish_turn() -> void:
 		if phase == "over":
 			return
 	emit_event({ "type": "end_turn", "player": active })
+	for floating_owner in 2:
+		var expired_float := int(players[floating_owner]["momentum_float"])
+		if expired_float > 0:
+			players[floating_owner]["momentum"] = maxi(0, int(players[floating_owner]["momentum"]) - expired_float)
+			players[floating_owner]["momentum_float"] = 0
+			refresh_scaling()
+			emit_event({ "type": "momentum", "player": floating_owner })
 	if players[active]["extra_turn_pending"]:
 		# an extra turn: the same player plays again instead of handing the turn over
 		players[active]["extra_turn_pending"] = false
@@ -5334,19 +5355,6 @@ func _resolve_delayed_self_revives() -> bool:
 	return revived_any
 
 
-## Artifacts with "momentum_store": N catch Momentum that spilled past the Bateria at this turn start.
-## Each stores up to its own limit. Momentum kept in the Bateria never counts: only what would be lost.
-func _store_leaked_momentum(pl: Dictionary, leaked: int) -> void:
-	var left_to_store := leaked
-	for relic: Card in pl["relics"]:
-		var room := int(relic.data().get("momentum_store", 0)) - relic.stored_momentum
-		var taken := mini(left_to_store, maxi(room, 0))
-		if taken > 0:
-			relic.stored_momentum += taken
-			left_to_store -= taken
-			emit_event({ "type": "momentum_stored", "player": relic.owner, "uid": relic.uid, "stored": relic.stored_momentum })
-
-
 func _start_turn(p: int, draw: bool) -> void:
 	active = p
 	priority = p
@@ -5364,7 +5372,7 @@ func _start_turn(p: int, draw: bool) -> void:
 	pl["damage_this_round"] = 0
 	# Plain Momentum left from the last turn is remembered for legacy card conditions, then expires.
 	pl["unspent"] = int(pl["momentum"])
-	pl["saved_momentum"] = int(pl["momentum"])
+	pl["saved_momentum"] = int(pl["momentum"]) + int(pl["battery"]) # what was left in the Bateria counts as saved too
 	pl["leaked"] = 0
 	if int(pl["momentum"]) > 0:
 		pl["idle_turns"] += 1
@@ -5392,8 +5400,13 @@ func _start_turn(p: int, draw: bool) -> void:
 		q.erase("passive_uses")
 	# remembered for the whole turn: a Leader ability with "blocked_after_debt" (Eryon's loan) cannot be
 	# used on the turn its owner pays a Momentum debt, so the loan can't be rolled over forever
-	pl["paid_debt_this_turn"] = int(pl["next_momentum"]) < 0
+	var promised := int(pl["next_momentum"])
+	pl["paid_debt_this_turn"] = promised < 0
 	pl["next_momentum"] = 0
+	if promised > 0:
+		gain_momentum(p, promised)
+	elif promised < 0:
+		_pay(p, -promised, false)
 	# what this turn began with, after the second-player bonus and any promise or debt: a "refresh" gain
 	# (gain_momentum with "refresh": true) can win back spent Momentum only up to this
 	pl["turn_start_momentum"] = int(pl["momentum"])

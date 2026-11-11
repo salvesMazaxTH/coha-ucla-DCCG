@@ -66,7 +66,7 @@ static func step(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 			if not g.stack.is_empty() or p != g.active:
 				var response := _try_play(g, p, held_card_ids)
 				return response if not response.is_empty() else g.pass_priority(p)
-			for card: Card in _hand_most_expensive_first(g, p):
+			for card: Card in _reservoir_store_order(g, p):
 				if (
 					not held_card_ids.has(card.card_id)
 					and g.can_store_in_reservoir(p, card.uid)
@@ -82,6 +82,25 @@ static func step(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 	return []
 
 
+## Hand order for choosing what to store: the dearest first; with `store_duplicate_first` in the profile,
+## cards that have another copy in hand come before the rest (the dearest of each group first).
+static func _reservoir_store_order(g: GameState, p: int) -> Array:
+	var ordered := _hand_most_expensive_first(g, p)
+	if not bool(AIProfile.of_player(g, p).get("store_duplicate_first", false)):
+		return ordered
+	var copies_in_hand := {}
+	for card: Card in ordered:
+		copies_in_hand[card.card_id] = int(copies_in_hand.get(card.card_id, 0)) + 1
+	var duplicates: Array = []
+	var singles: Array = []
+	for card: Card in ordered:
+		if int(copies_in_hand[card.card_id]) > 1:
+			duplicates.append(card)
+		else:
+			singles.append(card)
+	return duplicates + singles
+
+
 static func _should_store_in_reservoir(g: GameState, p: int, card: Card) -> bool:
 	if g.players[p]["hand"].size() > 1:
 		return true
@@ -89,7 +108,7 @@ static func _should_store_in_reservoir(g: GameState, p: int, card: Card) -> bool
 		return false
 	if AIProfile.of_player(g, p) == AIProfile.PROFILES["aggro"]:
 		return false
-	var available := g.reservoir_ready(p)
+	var available := g.budget(p, false)
 	var cost := g.cost_of(p, CardDB.card(card.card_id), card)
 	return available - cost >= LAST_HAND_CARD_COST_MARGIN
 
@@ -377,7 +396,8 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 			var player: Dictionary = g.players[p]
 			var can_gain_battery := int(player["battery"]) < GameState.BATTERY_CAP
 			var can_release_stored := (
-				artifact.stored_momentum > 0 and int(player["momentum"]) < g.momentum_cap(p)
+				artifact.stored_momentum > 0
+				and int(player["momentum"]) < g.momentum_cap(p)
 				and int(player["momentum_lock_turn"]) != g.turn
 			)
 			if not can_gain_battery and not can_release_stored:

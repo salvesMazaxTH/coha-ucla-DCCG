@@ -76,7 +76,7 @@ Gerado por `tools/generate_card_index.gd`: não edite à mão. Cada carta está 
 | `bola_de_neve` | Bola de Neve | Lendária | Feitiço | 4 |
 | `bruno` | Bruno | Campeã | Unidade | 3 |
 | `bencao_das_profundezas` | Bênção das Profundezas | Comum | Feitiço | 2 |
-| `camundongo_solicito` | Camundongo Solícito | Comum | Unidade | 3 |
+| `camundongo_solicito` | Camundongo Solícito | Comum | Unidade | 2 |
 | `cassian_garras` | Cassian, Garras | Campeã | Unidade | 5 |
 | `cassian` | Cassian, Sangue Vivo | Campeã | Unidade | 5 |
 | `chamado_da_nevasca` | Chamado da Nevasca | Comum | Feitiço | 2 |

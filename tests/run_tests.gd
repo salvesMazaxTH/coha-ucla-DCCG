@@ -25,6 +25,7 @@ func _init() -> void:
 	_test_avarik_avarion_edicts()
 	_test_gorvakharr_growth()
 	_test_farkoveth_armor_cycle()
+	_test_ai_reservoir_duplicate()
 	_test_art_crop()
 	_test_art_cache_limit()
 	_test_sfx()
@@ -497,9 +498,30 @@ func _new_game(seed_value := 42) -> GameState:
 	var g := GameState.new("fogo", "agua", seed_value)
 	g.mulligan(0, [])
 	g.mulligan(1, [])
+	_calm_start(g)
 	# the old stack tests expect priority to go straight to the opponent; _test_self_response turns it back on
 	g.self_response_enabled = false
+	_calm_start(g)
 	return g
+
+## Old tests expect an opponent with nothing to respond with (the Bateria starts full for both players) and turns
+## that can end without a discard (a hand of 7 plus a draw goes past the limit): empty the Bateria, trim the hands (a long chain of turns would otherwise pass the limit of 7).
+func _calm_start(g: GameState) -> void:
+	for p in 2:
+		g.players[p]["battery"] = 0
+		g.players[p]["reservoir_stored_turn"] = g.turn # the AI would spend its first action storing a card
+		while g.players[p]["hand"].size() > 2:
+			g.players[p]["deck"].append(g.players[p]["hand"].pop_back())
+
+## Gives player p exactly `amount` ready Reservatório cards (the Momentum a turn starts with) and fills their Momentum to match.
+func _fill_reservoir(g: GameState, p: int, amount: int) -> void:
+	g.players[p]["reservoir"].clear()
+	for _index in amount:
+		var card := Card.new(g._uid(), "bola_de_fogo", p)
+		g.players[p]["reservoir"].append(card)
+	g.players[p]["momentum_float"] = 0
+	g.players[p]["reservoir_stored_turn"] = g.turn
+	g._sync_reservoir_momentum(p)
 
 func _put(g: GameState, p: int, card_id: String, ready := true) -> Card:
 	var uid := g._uid()
@@ -891,6 +913,7 @@ func _obscura_game() -> GameState:
 	var g := GameState.new("mine:fixture_obscura_rapido", "fogo", 7)
 	g.mulligan(0, [])
 	g.mulligan(1, [])
+	_calm_start(g)
 	return g
 
 ## Kills a unit by damage and resolves the deaths (revives and triggers included).
@@ -1797,7 +1820,7 @@ func _test_kazeminus() -> void:
 	check(not g.can_activate(0, kazeminus.uid), "Kazeminus: exausto não ativa de novo")
 
 ## Agiota das Nuvens: while on the board, his owner's Momentum cap is 12 instead of 10 (a Constante, "momentum_cap"),
-## and at the start of every turn his owner gains 2 Momentum. Without him the ceiling goes back to 10.
+## and at the start of every turn his owner gains 2 Momentum.
 func _test_agiota_das_nuvens() -> void:
 	var g := _new_game()
 	_quiet(g)
@@ -1812,18 +1835,16 @@ func _test_agiota_das_nuvens() -> void:
 	g.gain_momentum(0, 5)
 	check(g.players[0]["momentum"] == 12, "Agiota: o ganho de Momentum sobe até 12")
 
-	# turn start: the maximum grows by 1 from 10 (to 11) and the Constante's 2 Momentum fill the rest, up to 12
-	g.players[0]["max_momentum"] = 10
-	g.players[0]["momentum"] = 0
+	# turn start: the 10 Reservatório cards come back ready and the Constante adds 2 floating Momentum
+	_fill_reservoir(g, 0, 10)
 	g._start_turn(0, false)
-	check(g.players[0]["max_momentum"] == 11, "Agiota: o máximo de Momentum passa de 10 (11 no turno seguinte)")
-	check(g.players[0]["momentum"] == 12, "Agiota: início do turno dá 11 de máximo + 2 de Momentum, limitado a 12")
+	check(g.players[0]["momentum"] == 12, "Agiota: início do turno dá 10 do Reservatório + 2 de Momentum")
 
-	# losing him sends the ceiling back to 10
+	# without him the 2 Momentum stop coming
 	g.players[0]["board"].erase(agiota)
-	check(g.momentum_cap(0) == GameState.MOMENTUM_CAP, "Agiota: sem ele em campo o teto volta a 10")
+	g.players[0]["momentum_float"] = 0 # a real turn end would have expired it
 	g._start_turn(0, false)
-	check(g.players[0]["max_momentum"] == GameState.MOMENTUM_CAP, "Agiota: sem ele o máximo volta a 10")
+	check(g.players[0]["momentum"] == 10, "Agiota: sem ele o turno começa só com o Momentum do Reservatório")
 
 ## Rajada de Quintal (bounce limited by cost, +1 cost), Corrente de Ar (timed Rapidez + Esquiva),
 ## Meteorologista Pessimista (takes a spell from the top of the deck) and Trovão Arrependido (Ao Morrer).
@@ -2021,27 +2042,9 @@ func _test_bateria_de_segunda_mao() -> void:
 	g.flush_events()
 	var pl: Dictionary = g.players[p]
 
-	# only Momentum above a full Bateria is stored; what goes into the Bateria never counts
-	pl["battery"] = 2
-	pl["momentum"] = 2 # 2 Bateria + 2 unspent - cap 2 = 2 leaked
-	g._start_turn(p, false)
-	check(store_artifact.stored_momentum == 2, "Artefato: guarda só o que vazou da Bateria (2)")
-	pl["battery"] = 0
-	pl["momentum"] = 3 # 0 Bateria + 3 unspent - cap 2 = 1 leaked
-	g._start_turn(p, false)
-	check(store_artifact.stored_momentum == 3, "Artefato: acumula entre turnos, até o limite de 3")
-	pl["battery"] = 2
-	pl["momentum"] = 5
-	g._start_turn(p, false)
-	check(store_artifact.stored_momentum == 3, "Artefato: cheio, não guarda mais")
+	# nothing spills past the Bateria anymore, so nothing is stored by itself; the stored amount still survives save and load
+	store_artifact.stored_momentum = 3
 	check(Card.from_dict(store_artifact.to_dict(), "relics", p).stored_momentum == 3, "Artefato: o Momentum guardado sobrevive ao salvar e carregar")
-
-	# a turn that leaks nothing stores nothing
-	pl["battery"] = 0
-	pl["momentum"] = 1
-	store_artifact.stored_momentum = 0
-	g._start_turn(p, false)
-	check(store_artifact.stored_momentum == 0, "Artefato: sem vazamento, nada é guardado")
 
 	# Ao Ativar (0), once a turn: +1 Bateria, then releases 1 of the stored Momentum (the rest stays), and costs 1 Durability
 	store_artifact.stored_momentum = 3
@@ -2430,8 +2433,7 @@ func _test_two_dawns_axe() -> void:
 	var axe := Card.new(g._uid(), "machado_duas_alvoradas", 0)
 	bearer.atk += 4 # what the Equipar buff gives; attach() only records it as `granted`
 	g.stack_system().attach(bearer, axe, {"atk": 4})
-	check(axe.durability_left() == 2 and int(CardDB.card("machado_duas_alvoradas")["max_copies"]) == 1,
-		"Machado: 2 de Durabilidade e no máximo 1 cópia por baralho")
+	check(axe.durability_left() == 2, "Machado: 2 de Durabilidade")
 	_hit(g, bearer)
 	g.flush_events()
 	check(g.players[1]["leader_hp"] == 100 - 3 - 5, "Machado: o 1º ataque causa 3 ao Líder inimigo além do golpe de 1+4 (%d)" % g.players[1]["leader_hp"])
@@ -2805,6 +2807,7 @@ func _test_obscura() -> void:
 	check(g.atk_of(tit) == 5 and g.hp_left(tit) == 6 and g.has_kw(tit, "roubo_de_vida") and not g.has_kw(tit, "voo"), "titânico 5/6 Roubo de Vida sem Voo")
 	check(g.players[0]["deck"].size() == dk - 2 and g.players[0]["graveyard"].size() == gy + 2, "titânico mói 2")
 	# Necromante revives a unit of cost <= 3 (seeded, so it does not depend on what the mill happened to hit)
+	g.players[0]["graveyard"].clear()
 	g.players[0]["graveyard"].append(Card.new(g._uid(), "esqueleto_guerreiro", 0, "graveyard"))
 	gy = g.players[0]["graveyard"].size()
 	_put(g, 0, "o_espiritomante")
@@ -3348,6 +3351,7 @@ func _sagrada_preview_game() -> GameState:
 	var g := GameState.new("sagrada", "fogo", 42)
 	g.mulligan(0, [])
 	g.mulligan(1, [])
+	_calm_start(g)
 	_quiet(g)
 	g.players[0]["hand"].clear()
 	g.players[0]["incarnation"]["in_zone"] = false
@@ -3539,6 +3543,7 @@ func _test_ai_armor_ability() -> void:
 	var empty := GameState.new("rochosa", "agua", 42)
 	empty.mulligan(0, [])
 	empty.mulligan(1, [])
+	_calm_start(empty)
 	empty.players[0]["hand"].clear()
 	empty.players[0]["incarnation"]["in_zone"] = false
 	empty.players[0]["momentum"] = 5
@@ -3552,6 +3557,7 @@ func _test_ai_armor_ability() -> void:
 	var hopeless := GameState.new("rochosa", "agua", 42)
 	hopeless.mulligan(0, [])
 	hopeless.mulligan(1, [])
+	_calm_start(hopeless)
 	hopeless.players[0]["hand"].clear()
 	hopeless.players[0]["incarnation"]["in_zone"] = false
 	hopeless.players[0]["momentum"] = 5
@@ -3566,6 +3572,7 @@ func _test_ai_armor_ability() -> void:
 	var threatened := GameState.new("rochosa", "agua", 42)
 	threatened.mulligan(0, [])
 	threatened.mulligan(1, [])
+	_calm_start(threatened)
 	threatened.players[0]["hand"].clear()
 	threatened.players[0]["incarnation"]["in_zone"] = false
 	threatened.players[0]["momentum"] = 5
@@ -3584,6 +3591,7 @@ func _test_ai_incarnation_priority() -> void:
 	var hand_play := GameState.new("vegetal", "agua", 42)
 	hand_play.mulligan(0, [])
 	hand_play.mulligan(1, [])
+	_calm_start(hand_play)
 	hand_play.players[0]["hand"].clear()
 	hand_play.players[0]["incarnation"]["casts"] = 1 # taxed
 	hand_play.players[0]["momentum"] = 6
@@ -3596,6 +3604,7 @@ func _test_ai_incarnation_priority() -> void:
 	var fallback := GameState.new("vegetal", "agua", 43)
 	fallback.mulligan(0, [])
 	fallback.mulligan(1, [])
+	_calm_start(fallback)
 	fallback.players[0]["hand"].clear()
 	fallback.players[0]["momentum"] = 6
 	SimpleAI.step(fallback, 0)
@@ -3614,6 +3623,7 @@ func _test_ai_untaxed_incarnation_first() -> void:
 		var scenario := GameState.new("vegetal", "agua", 42)
 		scenario.mulligan(0, [])
 		scenario.mulligan(1, [])
+		_calm_start(scenario)
 		scenario.players[0]["hand"].clear()
 		scenario.players[0]["momentum"] = momentum
 		_give(scenario, 0, "t_ai_first_hand_card")
@@ -3679,6 +3689,7 @@ func _test_ai_incarnation_as_part_of_the_hand() -> void:
 		var scenario := GameState.new("vegetal", "agua", 42)
 		scenario.mulligan(0, [])
 		scenario.mulligan(1, [])
+		_calm_start(scenario)
 		scenario.players[0]["hand"].clear()
 		scenario.players[0]["momentum"] = momentum
 		scenario.players[0]["incarnation"]["casts"] = casts
@@ -3768,6 +3779,7 @@ func _test_sengoku_leader() -> void:
 	var g := GameState.new("sengoku", "agua", 42)
 	g.mulligan(0, [])
 	g.mulligan(1, [])
+	_calm_start(g)
 	g.self_response_enabled = false
 	g.players[0]["hand"].clear()
 	g.players[0]["ability_used"] = false
@@ -3799,6 +3811,7 @@ func _test_sengoku_leader() -> void:
 	var g2 := GameState.new("sengoku", "agua", 42)
 	g2.mulligan(0, [])
 	g2.mulligan(1, [])
+	_calm_start(g2)
 	g2.self_response_enabled = false
 	g2.players[0]["hand"].clear()
 	g2.players[0]["ability_used"] = false
@@ -3824,6 +3837,7 @@ func _test_sengoku_leader() -> void:
 	var g3 := GameState.new("sengoku", "agua", 42)
 	g3.mulligan(0, [])
 	g3.mulligan(1, [])
+	_calm_start(g3)
 	g3.players[0]["hand"].clear()
 	g3.players[0]["ability_used"] = false
 	_give(g3, 0, "ronan")
@@ -3834,6 +3848,7 @@ func _test_sengoku_discount_current_cost() -> void:
 	var g := GameState.new("sengoku", "agua", 42)
 	g.mulligan(0, [])
 	g.mulligan(1, [])
+	_calm_start(g)
 	g.self_response_enabled = false
 	g.players[0]["hand"].clear()
 	var brasilio_uid := _give(g, 0, "brasilio_cinzeiro")
@@ -3910,6 +3925,7 @@ func _test_jardim_do_avo() -> void:
 	var g := GameState.new("sengoku", "agua", 42)
 	g.mulligan(0, [])
 	g.mulligan(1, [])
+	_calm_start(g)
 	g.self_response_enabled = false
 	g.players[0]["hand"].clear()
 	var dragonoide_uid := _give(g, 0, "ronan")
@@ -3935,6 +3951,7 @@ func _test_sengoku_deck_cards() -> void:
 	var g := GameState.new("sengoku", "agua", 42)
 	g.mulligan(0, [])
 	g.mulligan(1, [])
+	_calm_start(g)
 	g.self_response_enabled = false
 	g.players[0]["hand"].clear()
 	g.players[0]["momentum"] = 10
@@ -3955,6 +3972,7 @@ func _test_sengoku_deck_cards() -> void:
 	var g2 := GameState.new("sengoku", "agua", 42)
 	g2.mulligan(0, [])
 	g2.mulligan(1, [])
+	_calm_start(g2)
 	g2.self_response_enabled = false
 	g2.players[0]["deck"].clear()
 	g2.players[0]["deck"].append(Card.new(g2._uid(), "guerreiro_igneo", 0, "deck"))
@@ -3970,6 +3988,7 @@ func _test_sengoku_deck_cards() -> void:
 	var g3 := GameState.new("sengoku", "agua", 42)
 	g3.mulligan(0, [])
 	g3.mulligan(1, [])
+	_calm_start(g3)
 	g3.self_response_enabled = false
 	g3.players[0]["hand"].clear()
 	g3.players[0]["momentum"] = 10
@@ -3988,6 +4007,7 @@ func _test_sengoku_deck_cards() -> void:
 	var g4 := GameState.new("sengoku", "agua", 42)
 	g4.mulligan(0, [])
 	g4.mulligan(1, [])
+	_calm_start(g4)
 	g4.self_response_enabled = false
 	var plain_dragon := _put(g4, 0, "dragaozinho_flamejante")
 	var outsider_unit := _put(g4, 0, "guerreiro_igneo")
@@ -3999,6 +4019,7 @@ func _test_sengoku_deck_cards() -> void:
 	var g5 := GameState.new("sengoku", "agua", 42)
 	g5.mulligan(0, [])
 	g5.mulligan(1, [])
+	_calm_start(g5)
 	g5.self_response_enabled = false
 	g5.players[0]["hand"].clear()
 	var odorico := _put(g5, 0, "seu_odorico_cinzento")
@@ -4684,6 +4705,7 @@ func _test_stun_and_cap() -> void:
 	var sg := GameState.new("sagrada", "fogo", 7)
 	sg.mulligan(0, [])
 	sg.mulligan(1, [])
+	_calm_start(sg)
 	sg.self_response_enabled = false
 	_quiet(sg)
 	var cd := CardDB.card("ultima_badalada")
@@ -4942,8 +4964,9 @@ func _test_setup() -> void:
 	check(g.players[0]["deck"].size() == DeckDB.DECK_SIZE - GameState.START_HAND, "incarnation not in deck")
 	g.mulligan(0, [g.players[0]["hand"][0].uid])
 	g.mulligan(1, [])
-	check(g.phase == "main" and g.active == 0 and g.players[0]["momentum"] == 1, "turn 1 momentum")
+	check(g.phase == "main" and g.active == 0 and g.players[0]["momentum"] == 0, "turn 1 starts without automatic Momentum")
 	check(g.players[0]["hand"].size() == GameState.START_HAND, "no draw turn 1")
+	check(g.players[0]["reservoir"].is_empty() and g.players[0]["momentum_float"] == 0, "first player gets no automatic Reservoir or float")
 
 func _test_first_player() -> void:
 	var g := GameState.new("fogo", "agua", 1, 1)
@@ -4956,22 +4979,12 @@ func _test_first_player() -> void:
 	check(g.players[1]["hand"].size() == GameState.START_HAND, "first=1: sem compra no turno 1")
 	g.end_turn(1)
 	check(g.players[0]["hand"].size() == GameState.START_HAND + 1, "first=1: o segundo jogador compra no turno dele")
-	var seen := [[1, 1, 0]]
-	g.players[1]["momentum"] = 0
-	for t in 5:
-		seen.append([g.active, g.players[g.active]["momentum"], g.players[g.active]["battery"]])
-		g.players[g.active]["momentum"] = 0 # spend everything: only the bonus reaches the Bateria
-		g.players[g.active]["battery"] = 0
-		g.end_turn(g.active)
-	check(seen == [[1, 1, 0], [0, 2, 1], [1, 2, 0], [0, 3, 1], [1, 3, 0], [0, 3, 0]], "segundo jogador: +1 Momentum e +1 de Bateria nos 2 primeiros turnos (%s)" % [seen])
-	g = GameState.new("fogo", "agua", 1, 1)
-	g.mulligan(1, [])
-	g.mulligan(0, [])
-	g.end_turn(1)
-	g.players[0]["momentum"] = 1 # spent little on the first turn
-	g.end_turn(0)
-	g.end_turn(1)
-	check(g.budget(0, true) == 5 and g.budget(0, false) == 3, "segundo jogador: feitiço de custo 5 no 2º turno se poupou")
+	check(g.players[0]["reservoir"].size() == 1 and g.players[0]["momentum"] == 1, "first=1: o segundo jogador começa com a carta do fundo do deck no Reservatório")
+	g.gain_momentum(0, 1)
+	check(g.players[0]["momentum_float"] == 1 and g.budget(0, false) == 2, "Momentum de efeito é flutuante e soma com o do Reservatório")
+	g.end_turn(0) # 8 cards in hand: the turn waits for the discard
+	g.discard(0, [g.players[0]["hand"][0].uid])
+	check(g.players[0]["momentum_float"] == 0 and g.active == 1, "Momentum flutuante não usado expira no fim do turno")
 
 func _test_concede() -> void:
 	var g := _new_game()
@@ -5554,7 +5567,14 @@ func _test_veneno_lethal() -> void:
 
 ## Ends the active player's turn and settles everything that starts the next one.
 func _next_turn(g: GameState) -> void:
-	g.end_turn(g.active)
+	var ending_player: int = g.active
+	g.end_turn(ending_player)
+	if g.phase == "discard":
+		var hand: Array = g.players[ending_player]["hand"]
+		var surplus: Array = []
+		for index in hand.size() - GameState.HAND_LIMIT:
+			surplus.append(hand[index].uid)
+		g.discard(ending_player, surplus)
 	g.flush_events()
 
 ## Hikari's Decoy: a 0/2 inert token that takes the blow in her place (when challenged) or the counter-blow
@@ -5723,6 +5743,7 @@ func _test_layla_deck() -> void:
 	var g := GameState.new("layla", "agua", 42)
 	g.mulligan(0, [])
 	g.mulligan(1, [])
+	_calm_start(g)
 	g.self_response_enabled = false
 	_quiet(g)
 	_tcard("t_layla_victim", 1, 9, [])
@@ -7876,7 +7897,7 @@ func _test_mali_leader_graveyard_cost() -> void:
 	g.players[p]["momentum"] = 5
 	g.players[p]["battery"] = 0
 	var ability: Dictionary = CardDB.leader("mali_magarc")["ability"]
-	check(not ability.get("once_per_turn", false), "Líder Mali: o poder não é de uma vez por turno")
+	check(ability.get("once_per_turn", false), "Líder Mali: o poder é de uma vez por turno")
 	check(g.speed_of(ability) == "instantaneo", "Líder Mali: o poder é Instantâneo")
 
 	# nothing in the graveyard, or only ONE spell, or only units: unavailable
@@ -7905,15 +7926,12 @@ func _test_mali_leader_graveyard_cost() -> void:
 	check(g.players[p]["momentum"] == momentum_before - 1, "Líder Mali: custa 1 Momentum")
 	check(g.players[p]["battery"] == GameState.BATTERY_CAP, "Líder Mali: enche a Bateria até o limite (%d)" % g.players[p]["battery"])
 
-	# only one spell left in the graveyard (+ the unit): not usable again, even though it is not once per turn
-	check(not g.can_use_ability(p), "Líder Mali: depois de pagar, com 1 feitiço sobrando não dá para repetir")
-	# but a fresh spell makes it usable again in the same turn: unlimited use
+	# once per turn: even with another pair of spells in the graveyard it cannot be used again this turn
 	g.players[p]["graveyard"].append(Card.new(g._uid(), "t_mlg_spell", p, "graveyard"))
-	check(g.can_use_ability(p), "Líder Mali: pode ser usado de novo no mesmo turno quando o cemitério tem outro par")
-	var spells_banished_total: int = banished.size()
-	g.use_ability(p)
-	_resolve_stack(g)
-	check(g.players[p]["banished"].size() == spells_banished_total + 2, "Líder Mali: o segundo uso bane mais 2")
+	g.players[p]["graveyard"].append(Card.new(g._uid(), "t_mlg_spell", p, "graveyard"))
+	check(not g.can_use_ability(p), "Líder Mali: uma vez por turno, não repete no mesmo turno mesmo com outro par no cemitério")
+	g.players[p]["ability_used"] = false # next turn
+	check(g.can_use_ability(p), "Líder Mali: no turno seguinte o poder volta")
 
 	# paid from the Bateria alone (no Momentum): Instantânea is a fast play
 	var g2 := _new_game()
@@ -7926,6 +7944,24 @@ func _test_mali_leader_graveyard_cost() -> void:
 	g2.players[q]["graveyard"].append(Card.new(g2._uid(), "t_mlg_spell", q, "graveyard"))
 	g2.players[q]["graveyard"].append(Card.new(g2._uid(), "t_mlg_spell", q, "graveyard"))
 	check(g2.can_use_ability(q), "Líder Mali: a Bateria paga o poder Instantâneo")
+	g2.use_ability(q)
+	_resolve_stack(g2)
+	check(g2.players[q]["battery"] == GameState.BATTERY_CAP, "Líder Mali: pago com a Bateria, o poder a enche de novo (%d)" % g2.players[q]["battery"])
+	check(g2.players[q]["momentum"] == 0, "Líder Mali: pagar com a Bateria não gasta Momentum do Reservatório")
+
+	# Bateria already full: the power still works and the Bateria stays at the cap (no overflow)
+	var g_full := _new_game()
+	_quiet(g_full)
+	var full_owner: int = g_full.active
+	g_full.players[full_owner]["leader_id"] = "mali_magarc"
+	g_full.players[full_owner]["ability_used"] = false
+	g_full.players[full_owner]["momentum"] = 3
+	g_full.players[full_owner]["battery"] = GameState.BATTERY_CAP
+	g_full.players[full_owner]["graveyard"].append(Card.new(g_full._uid(), "t_mlg_spell", full_owner, "graveyard"))
+	g_full.players[full_owner]["graveyard"].append(Card.new(g_full._uid(), "t_mlg_spell", full_owner, "graveyard"))
+	g_full.use_ability(full_owner)
+	_resolve_stack(g_full)
+	check(g_full.players[full_owner]["battery"] == GameState.BATTERY_CAP and g_full.players[full_owner]["momentum"] == 3, "Líder Mali: com a Bateria cheia, ela paga o custo e volta cheia (Momentum intacto)")
 
 	# validation of the generic field
 	var bad_kind: Dictionary = CardDB.leader("mali_magarc").duplicate(true)
@@ -9281,6 +9317,8 @@ func _test_generic_effect_choice() -> void:
 func _quiet(g: GameState) -> void:
 	for p in 2:
 		g.players[p]["momentum"] = 0
+		g.players[p]["momentum_float"] = 0
+		g.players[p]["battery"] = 0
 		g.players[p]["ability_used"] = true
 
 func _tcard(id: String, atk: int, hp: int, effects: Array) -> void:
@@ -9532,6 +9570,7 @@ func _test_vegetal() -> void:
 	var g := GameState.new("vegetal", "fogo", 4242)
 	g.mulligan(0, [])
 	g.mulligan(1, [])
+	_calm_start(g)
 	_quiet(g)
 	# Thalvaressa: on her owner's turn, each of the first 2 tokens gives +1 Vida to ANOTHER random plant
 	# (never the token that just entered, never a non-plant)
@@ -9589,6 +9628,7 @@ func _test_vegetal() -> void:
 	var quiet_garden := GameState.new("vegetal", "fogo", 4243)
 	quiet_garden.mulligan(0, [])
 	quiet_garden.mulligan(1, [])
+	_calm_start(quiet_garden)
 	_quiet(quiet_garden)
 	_put(quiet_garden, 0, "guardia_dos_ninhos")
 	_put(quiet_garden, 0, "mudinha_do_dossel")
@@ -9679,6 +9719,7 @@ func _test_rusco() -> void:
 	var g3 := GameState.new("vael", "agua", 42)
 	g3.mulligan(0, [])
 	g3.mulligan(1, [])
+	_calm_start(g3)
 	var v := g3.active
 	g3.players[v]["deck"] = g3.players[v]["deck"].filter(func(c: Card): return c.card_id != "rusco")
 	var ru3 := Card.new(g3._uid(), "rusco", v, "deck")
@@ -9898,6 +9939,7 @@ func _eletrica_game() -> GameState:
 	var g := GameState.new("eletrica_greedy", "fogo", 42)
 	g.mulligan(0, [])
 	g.mulligan(1, [])
+	_calm_start(g)
 	g.self_response_enabled = false # same reason as in _new_game
 	_quiet(g)
 	return g
@@ -10069,7 +10111,11 @@ func _test_eletrica() -> void:
 	g.players[a]["incarnation"]["cost_mod"] = -4
 	l["in_zone"] = false
 	g._incarnation_leaves(a)
-	check(l.get("retired", false), "voltexz: custo atual 11 + taxa 1 = 12 (Momentum sobrado 4) aposenta")
+	check(l["in_zone"] and not l.get("retired", false), "voltexz: custo atual 11 + taxa 1 = 12 ainda cabe no teto de Momentum")
+	g.players[a]["incarnation"]["cost_mod"] = -2
+	l["in_zone"] = false
+	g._incarnation_leaves(a)
+	check(l.get("retired", false), "voltexz: custo atual 13 + taxa 1 = 14 passa do teto e aposenta")
 	# gain_momentum: now and at the next turn
 	g = _eletrica_game()
 	a = g.active
@@ -11317,13 +11363,12 @@ func _test_ai_no_waste() -> void:
 	check(not fresh_ally.keywords.has("impeto"),
 			"IA: ao avaliar o buff, não deixa Ímpeto temporário aplicado antes de jogar a carta")
 
-## Ladeira is only spent as part of an affordable, multi-target Bola line in the same turn.
 func _test_ai_snowball_combo() -> void:
 	_tcard("t_ai_snowball_target", 0, 20, [])
 	var no_finisher := _new_game()
 	_quiet(no_finisher)
 	no_finisher.active = 0
-	no_finisher.players[0]["max_momentum"] = 10
+	_fill_reservoir(no_finisher, 0, 10)
 	no_finisher.players[0]["momentum"] = 8
 	no_finisher.players[0]["incarnation"]["in_zone"] = false
 	no_finisher.players[0]["hand"].clear()
@@ -11336,7 +11381,7 @@ func _test_ai_snowball_combo() -> void:
 	var short_on_momentum := _new_game()
 	_quiet(short_on_momentum)
 	short_on_momentum.active = 0
-	short_on_momentum.players[0]["max_momentum"] = 10
+	_fill_reservoir(short_on_momentum, 0, 10)
 	short_on_momentum.players[0]["momentum"] = 4
 	short_on_momentum.players[0]["incarnation"]["in_zone"] = false
 	short_on_momentum.players[0]["hand"].clear()
@@ -11351,7 +11396,7 @@ func _test_ai_snowball_combo() -> void:
 	var one_target := _new_game()
 	_quiet(one_target)
 	one_target.active = 0
-	one_target.players[0]["max_momentum"] = 10
+	_fill_reservoir(one_target, 0, 10)
 	one_target.players[0]["momentum"] = 8
 	one_target.players[0]["incarnation"]["in_zone"] = false
 	one_target.players[0]["hand"].clear()
@@ -11365,7 +11410,7 @@ func _test_ai_snowball_combo() -> void:
 	var combo := _new_game()
 	_quiet(combo)
 	combo.active = 0
-	combo.players[0]["max_momentum"] = 10
+	_fill_reservoir(combo, 0, 10)
 	combo.players[0]["momentum"] = 8
 	combo.players[0]["incarnation"]["in_zone"] = false
 	combo.players[0]["hand"].clear()
@@ -11392,7 +11437,7 @@ func _test_ai_snowball_combo() -> void:
 	var accelerated := _new_game()
 	_quiet(accelerated)
 	accelerated.active = 0
-	accelerated.players[0]["max_momentum"] = 10
+	_fill_reservoir(accelerated, 0, 10)
 	accelerated.players[0]["momentum"] = 7
 	accelerated.players[0]["incarnation"]["in_zone"] = false
 	accelerated.players[0]["hand"].clear()
@@ -11574,7 +11619,7 @@ func _test_ai_burn_plan() -> void:
 	var g := _new_game()
 	_quiet(g)
 	g.active = 0
-	g.players[0]["max_momentum"] = 5
+	_fill_reservoir(g, 0, 5)
 	g.players[0]["momentum"] = 5
 	g.players[0]["hand"].clear()
 	g.players[0]["incarnation"]["in_zone"] = false # the Leader's Encarnação would be cast before anything else
@@ -11600,7 +11645,7 @@ func _test_ai_lethal_planner() -> void:
 	var g := _new_game()
 	_quiet(g)
 	g.active = 0
-	g.players[0]["max_momentum"] = 4
+	_fill_reservoir(g, 0, 4)
 	g.players[0]["momentum"] = 4
 	g.players[0]["hand"].clear()
 	g.players[0]["incarnation"]["in_zone"] = false
@@ -11619,7 +11664,7 @@ func _test_ai_lethal_planner() -> void:
 	g = _new_game()
 	_quiet(g)
 	g.active = 0
-	g.players[0]["max_momentum"] = 3
+	_fill_reservoir(g, 0, 3)
 	g.players[0]["momentum"] = 3
 	g.players[0]["hand"].clear()
 	g.players[0]["incarnation"]["in_zone"] = false
@@ -11632,7 +11677,7 @@ func _test_ai_lethal_planner() -> void:
 	g = _new_game()
 	_quiet(g)
 	g.active = 0
-	g.players[0]["max_momentum"] = 4
+	_fill_reservoir(g, 0, 4)
 	g.players[0]["momentum"] = 4
 	g.players[0]["hand"].clear()
 	g.players[0]["incarnation"]["in_zone"] = false
@@ -11648,7 +11693,7 @@ func _test_ai_lethal_planner() -> void:
 	g = _new_game()
 	_quiet(g)
 	g.active = 0
-	g.players[0]["max_momentum"] = 3
+	_fill_reservoir(g, 0, 3)
 	g.players[0]["momentum"] = 3
 	g.players[0]["hand"].clear()
 	g.players[0]["incarnation"]["in_zone"] = false
@@ -11667,7 +11712,7 @@ func _test_ai_lethal_planner_abilities() -> void:
 	var g := _new_game()
 	_quiet(g)
 	g.active = 0
-	g.players[0]["max_momentum"] = 4
+	_fill_reservoir(g, 0, 4)
 	g.players[0]["momentum"] = 4
 	g.players[0]["hand"].clear()
 	g.players[0]["incarnation"]["in_zone"] = false
@@ -11684,7 +11729,7 @@ func _test_ai_lethal_planner_abilities() -> void:
 	g = _new_game()
 	_quiet(g)
 	g.active = 0
-	g.players[0]["max_momentum"] = 4
+	_fill_reservoir(g, 0, 4)
 	g.players[0]["momentum"] = 4
 	g.players[0]["hand"].clear()
 	g.players[0]["incarnation"]["in_zone"] = false
@@ -11697,7 +11742,7 @@ func _test_ai_lethal_planner_abilities() -> void:
 	g = _new_game()
 	_quiet(g)
 	g.active = 0
-	g.players[0]["max_momentum"] = 4
+	_fill_reservoir(g, 0, 4)
 	g.players[0]["momentum"] = 4
 	g.players[0]["hand"].clear()
 	g.players[0]["incarnation"]["in_zone"] = false
@@ -11714,7 +11759,7 @@ func _test_ai_lethal_planner_abilities() -> void:
 	g = _new_game()
 	_quiet(g)
 	g.active = 0
-	g.players[0]["max_momentum"] = 4
+	_fill_reservoir(g, 0, 4)
 	g.players[0]["momentum"] = 4
 	g.players[0]["hand"].clear()
 	g.players[0]["incarnation"]["in_zone"] = false
@@ -12157,6 +12202,7 @@ func _metalica_game() -> GameState:
 	var g := GameState.new("metalica", "fogo", 42)
 	g.mulligan(0, [])
 	g.mulligan(1, [])
+	_calm_start(g)
 	g.self_response_enabled = false
 	_quiet(g)
 	return g
@@ -12534,12 +12580,12 @@ func _test_glacial_combo() -> void:
 	check(int(ritual_game.players[ritual["me"]]["next_momentum"]) == -2, "Ritual do Degelo: deixa uma dívida de 2 Momentum para o próximo turno")
 	# the debt is charged when the next turn starts and never takes Momentum below 0
 	var debt_player: int = ritual["me"]
-	ritual_game.players[debt_player]["max_momentum"] = 5
+	_fill_reservoir(ritual_game, debt_player, 5)
 	ritual_game._start_turn(debt_player, false)
-	check(int(ritual_game.players[debt_player]["max_momentum"]) == 6 and int(ritual_game.players[debt_player]["momentum"]) == 4 and int(ritual_game.players[debt_player]["next_momentum"]) == 0, "Ritual do Degelo: a dívida tira 2 só do Momentum daquele turno, sem mexer no máximo")
+	check(int(ritual_game.players[debt_player]["max_momentum"]) == 5 and int(ritual_game.players[debt_player]["momentum"]) == 3 and int(ritual_game.players[debt_player]["next_momentum"]) == 0, "Ritual do Degelo: a dívida tira 2 só do Momentum daquele turno, sem mexer no máximo")
 	ritual_game._start_turn(debt_player, false)
-	check(int(ritual_game.players[debt_player]["max_momentum"]) == 7 and int(ritual_game.players[debt_player]["momentum"]) == 7, "Ritual do Degelo: no turno seguinte o Momentum volta ao máximo, sem dívida")
-	ritual_game.players[debt_player]["max_momentum"] = 1
+	check(int(ritual_game.players[debt_player]["max_momentum"]) == 5 and int(ritual_game.players[debt_player]["momentum"]) == 5, "Ritual do Degelo: no turno seguinte o Momentum volta ao máximo, sem dívida")
+	_fill_reservoir(ritual_game, debt_player, 1)
 	ritual_game.players[debt_player]["next_momentum"] = -2
 	ritual_game._start_turn(debt_player, false)
 	check(int(ritual_game.players[debt_player]["momentum"]) == 0, "Ritual do Degelo: a dívida nunca deixa o Momentum negativo")
@@ -12687,10 +12733,11 @@ func _test_glacial_combo() -> void:
 		_put(block_game, block_foe, "teste_alvo_gelo")
 	check(not block_game.has_free_slot(block_foe), "Rei Gelado: com 3 unidades e 5 espaços congelados o campo inimigo está cheio")
 	# they thaw at the END of the victim's own next turn, not before
-	block_game.end_turn(block["me"])
+	_next_turn(block_game)
 	check(block_game.active == block_foe and int(block_game.players[block_foe]["frozen_slots"]) == 5, "Rei Gelado: os espaços seguem congelados durante o turno do oponente")
-	block_game.end_turn(block_foe)
-	check(int(block_game.players[block_foe]["frozen_slots"]) == 0 and block_game.has_free_slot(block_foe), "Rei Gelado: os espaços descongelam no fim do turno do oponente")
+	_next_turn(block_game)
+	# the 5 thawed; the only blocked slot left is the one the Rei freezes when his owner's turn starts again
+	check(int(block_game.players[block_foe]["frozen_slots"]) == 1 and block_game.has_free_slot(block_foe), "Rei Gelado: os 5 espaços descongelam no fim do turno do oponente, resta só o do Início do Turno do Rei")
 
 	# Rei Gelado never rolls on what is already frozen: 6 of 8 enemy units are Congeladas, so only the 2 others are hit
 	var thin := _combo_game(8, 8, 10, 0)
@@ -12955,6 +13002,7 @@ func _glacial_game() -> GameState:
 	var g := GameState.new("glacial", "fogo", 42)
 	g.mulligan(0, [])
 	g.mulligan(1, [])
+	_calm_start(g)
 	g.self_response_enabled = false
 	_quiet(g)
 	return g
@@ -13036,10 +13084,14 @@ func _test_glacial() -> void:
 	# Grande Bola de Neve is its own card: own cost, and every hit has Sobrepujança
 	check(g.cost_of(a, CardDB.card("bola_de_neve")) == 4, "Bola de Neve comum custa 4")
 	check(g.cost_of(a, CardDB.card("grande_bola_de_neve")) == 3, "Grande Bola de Neve continua custando 3")
-	var duplicate_bola_deck: Dictionary = DeckDB.get_deck("glacial")["cards"].duplicate()
-	duplicate_bola_deck["bola_de_neve"] = 2
-	duplicate_bola_deck["chamado_da_nevasca"] = 2
-	check(not DeckDB.validate_cards(DeckDB.get_deck("glacial")["leader"], duplicate_bola_deck).filter(func(error): return "bola_de_neve: mais de 1 cópia" in error).is_empty(), "Bola de Neve é Única no deck")
+	# experimento: a Bola de Neve não é mais Única; é lendária, então vai até 3 cópias no deck
+	check(DeckDB.copy_limit("bola_de_neve") == 3, "Bola de Neve (experimento) vai até 3 cópias")
+	var bola_deck: Dictionary = DeckDB.get_deck("glacial")["cards"].duplicate()
+	var bola_leader: String = DeckDB.get_deck("glacial")["leader"]
+	bola_deck["bola_de_neve"] = 3
+	check(DeckDB.validate_cards(bola_leader, bola_deck).filter(func(error): return "bola_de_neve: mais de" in error).is_empty(), "3 Bolas de Neve são legais")
+	bola_deck["bola_de_neve"] = 4
+	check(not DeckDB.validate_cards(bola_leader, bola_deck).filter(func(error): return "bola_de_neve: mais de 3 cópias" in error).is_empty(), "4 Bolas de Neve são ilegais")
 	check(CardDB.card("grande_bola_de_neve").get("transform_only", false), "Grande Bola de Neve só existe por evolução (não entra em deck)")
 	_tcard("teste_frágil_gelo", 0, 3, [])
 	var fragile := _put(g, o, "teste_frágil_gelo")
@@ -13923,12 +13975,12 @@ func _test_momentum_refresh() -> void:
 	g = _new_game()
 	_quiet(g)
 	a = g.active
-	g.players[a]["max_momentum"] = 4
+	_fill_reservoir(g, a, 4)
 	g.players[a]["momentum"] = 4
 	_put(g, a, "condutor_da_tempestade")
 	check(g.players[a]["max_momentum"] == 5, "Condutor: o Momentum máximo sobe 1 (veio %d)" % g.players[a]["max_momentum"])
 	check(g.players[a]["momentum"] == 4, "Condutor: não dá Momentum no turno em que entra")
-	g.players[a]["max_momentum"] = 9
+	_fill_reservoir(g, a, GameState.MOMENTUM_CAP)
 	_put(g, a, "condutor_da_tempestade")
 	check(g.players[a]["max_momentum"] == GameState.MOMENTUM_CAP, "Condutor: o máximo nunca passa do teto")
 
@@ -13948,28 +14000,30 @@ func _test_momentum_overflow() -> void:
 			"keywords": ["escudo", "sobrepujanca", "impeto"], "critico": 4},
 		{"trigger": "before_attack", "action": "auto_attack", "target": "none", "if": surge_condition}])
 
-	# gaining: a plain gain never lowers an overflowing pool, an overflow gain stops at the overflow cap
+	# gaining: nothing goes above the cap, with or without overflow
 	var g := _new_game()
 	var a := g.active
 	g.players[a]["momentum"] = 9
 	g.gain_momentum(a, 3, true)
-	check(g.players[a]["momentum"] == 12, "overflow: 9 + 3 com overflow chega a 12")
+	check(g.players[a]["momentum"] == GameState.MOMENTUM_CAP, "overflow: 9 + 3 com overflow chega ao teto")
 	g.gain_momentum(a, 2)
-	check(g.players[a]["momentum"] == 12, "overflow: ganho comum não derruba nem sobe acima do teto 10")
+	check(g.players[a]["momentum"] == GameState.MOMENTUM_CAP, "overflow: ganho comum não sobe acima do teto")
 	g.gain_momentum(a, 50, true)
 	check(g.players[a]["momentum"] == GameState.MOMENTUM_OVERFLOW_CAP, "overflow: nunca passa do teto temporário")
 
-	# spending: only neutral cards (and leader abilities) see the part above 10
-	g.players[a]["momentum"] = 13
-	var neutral_data := CardDB.card("t_surge_baron")
-	var other_essence_data := CardDB.card("jack")
-	check(g.budget(a, false, neutral_data) == 13, "overflow: carta neutra enxerga os 13")
-	check(g.budget(a, false, other_essence_data) == GameState.MOMENTUM_CAP, "overflow: carta de outra essência enxerga só 10")
-	check(g.budget(a, true) == 13, "overflow: habilidade de Líder enxerga os 13")
+	# spending: every card sees the whole Momentum, no matter its domain
+	check(g.budget(a, false, CardDB.card("t_surge_baron")) == g.players[a]["momentum"], "orçamento: carta neutra enxerga todo o Momentum")
+	check(g.budget(a, false, CardDB.card("jack")) == g.players[a]["momentum"], "orçamento: carta de outro domínio enxerga todo o Momentum")
 
-	# the excess vanishes at the end of the owner's turn
-	g.end_turn(a)
-	check(g.players[a]["momentum"] == GameState.MOMENTUM_CAP, "overflow: o que passa de 10 some no fim do turno")
+	# the floating part vanishes at the end of the owner's turn, the Reservatório part stays
+	g = _new_game()
+	_quiet(g)
+	a = g.active
+	_fill_reservoir(g, a, 5)
+	g.gain_momentum(a, 3)
+	check(g.players[a]["momentum"] == 8, "flutuante: 5 do Reservatório + 3 flutuantes")
+	_next_turn(g)
+	check(g.players[a]["momentum"] == 5, "flutuante: o que não vem do Reservatório some no fim do turno (veio %d)" % g.players[a]["momentum"])
 
 	# the surge: off at 10, on at 11, off again when the Momentum is spent
 	g = _new_game()
@@ -14125,7 +14179,7 @@ func _test_eryon_deck() -> void:
 	g.players[a]["next_momentum"] = 0
 	g.players[a]["ability_used"] = false # _quiet blocks the Leader ability; this test needs it
 	g.use_ability(a)
-	check(g.players[a]["momentum"] == 11, "Eryon Líder: +1 Momentum passa de 10 (%d)" % g.players[a]["momentum"])
+	check(g.players[a]["momentum"] == 11, "Eryon Líder: +1 Momentum flutuante (%d)" % g.players[a]["momentum"])
 	check(g.players[a]["next_momentum"] == -1, "Eryon Líder: dívida de 1 no próximo turno (%d)" % g.players[a]["next_momentum"])
 
 	# the loan is paid by the debt alone: it does NOT restrict the cards the turn can play
@@ -14156,18 +14210,18 @@ func _test_eryon_deck() -> void:
 	g.activate(a, eryon.uid, fodder.uid)
 	check(g.find_unit(fodder.uid) == null, "Eryon: a unidade sacrificada morre")
 	# the activation only gains Momentum: the blows wait for the end of the turn, so the player keeps the Momentum to spend
-	check(g.players[a]["momentum"] == 13 and g.players[g.opponent(a)]["leader_hp"] == 99,
+	check(g.players[a]["momentum"] == GameState.MOMENTUM_CAP and g.players[g.opponent(a)]["leader_hp"] == 99,
 		"Eryon: ativar só ganha Momentum, sem golpes na hora (%d / %d)" % [g.players[a]["momentum"], g.players[g.opponent(a)]["leader_hp"]])
 	check(g.is_play_restricted(a, CardDB.card("esqueleto_guerreiro")), "Eryon: sacrificar para ganhar Momentum trava o turno só para cartas neutras")
 	var expensive := _put(g, a, "barao_estrondoso")
 	g.players[a]["momentum"] = 10
 	eryon.activated_turn = -1
 	g.activate(a, eryon.uid, expensive.uid)
-	check(g.players[a]["momentum"] == 14, "Eryon: custo 7 rende no máximo 4 (%d)" % g.players[a]["momentum"])
+	check(g.players[a]["momentum"] == GameState.MOMENTUM_CAP, "Eryon: custo 7 rende no máximo 4, sempre até o teto (%d)" % g.players[a]["momentum"])
 	g._finish_turn()
 	g.flush_events()
-	check(g.players[g.opponent(a)]["leader_hp"] == 99 - 18, "Eryon: no fim do turno, 14 de Momentum = 9 golpes de 2 (%d)" % g.players[g.opponent(a)]["leader_hp"])
-	check(g.players[a]["momentum"] == 0, "Eryon: no fim do turno, acima de 10, gasta todo o Momentum (%d)" % g.players[a]["momentum"])
+	check(g.players[g.opponent(a)]["leader_hp"] == 99 - 14, "Eryon: no fim do turno, 12 de Momentum = 7 golpes de 2 (%d)" % g.players[g.opponent(a)]["leader_hp"])
+	check(g.players[a]["momentum"] == 0, "Eryon: no fim do turno, com 11 ou mais, gasta todo o Momentum (%d)" % g.players[a]["momentum"])
 
 	# Eryon, 11+ Momentum after the gain: blows of 2 spread over the enemies (Leader included); below 11 nothing happens
 	g = _new_game()
@@ -14183,7 +14237,7 @@ func _test_eryon_deck() -> void:
 	g.flush_events()
 	check(g.players[a]["momentum"] == 0, "Eryon: com 11 de Momentum no fim do turno gasta todo o Momentum (%d)" % g.players[a]["momentum"])
 	check(g.players[eryon_enemy]["leader_hp"] == 48, "Eryon: 11 de Momentum = 6 golpes de 2 só no Líder (%d)" % g.players[eryon_enemy]["leader_hp"])
-	# with overflow the blows grow: 10 + 4 = 14 Momentum = 9 blows = 18 damage
+	# the cap bounds the blows: 10 + 4 stops at 12 Momentum = 7 blows = 14 damage
 	g = _new_game()
 	_quiet(g)
 	a = g.active
@@ -14196,7 +14250,7 @@ func _test_eryon_deck() -> void:
 	g.activate(a, eryon.uid, fodder.uid)
 	g._finish_turn()
 	g.flush_events()
-	check(g.players[eryon_enemy]["leader_hp"] == 42, "Eryon: 14 de Momentum = 9 golpes de 2 (%d)" % g.players[eryon_enemy]["leader_hp"])
+	check(g.players[eryon_enemy]["leader_hp"] == 46, "Eryon: 12 de Momentum = 7 golpes de 2 (%d)" % g.players[eryon_enemy]["leader_hp"])
 	check(g.players[a]["momentum"] == 0 and g.players[a]["battery"] == 2, "Eryon: gasta o Momentum e preserva a Bateria (%d/%d)" % [g.players[a]["momentum"], g.players[a]["battery"]])
 	g = _new_game()
 	_quiet(g)
@@ -14304,7 +14358,7 @@ func _test_eryon_deck() -> void:
 	a = g.active
 	for copy_number in 2:
 		_put(g, a, "cobrador_de_pedagio_torto")
-	g.players[a]["max_momentum"] = GameState.MOMENTUM_CAP
+	_fill_reservoir(g, a, GameState.MOMENTUM_CAP)
 	g._start_turn(a, false)
 	check(int(g.players[a]["momentum"]) <= GameState.MOMENTUM_CAP, "Cobrador: o Momentum dele nunca passa de 10 (%d)" % g.players[a]["momentum"])
 	# The Cobrador no longer restricts playable cards when it grants Momentum.
@@ -14312,7 +14366,7 @@ func _test_eryon_deck() -> void:
 	_quiet(g)
 	a = g.active
 	_put(g, a, "cobrador_de_pedagio_torto")
-	g.players[a]["max_momentum"] = 4
+	_fill_reservoir(g, a, 4)
 	g._start_turn(a, false)
 	check(not g.is_play_restricted(a, CardDB.card("esqueleto_guerreiro")), "Cobrador: ganhar Momentum não restringe cartas de outras essências")
 	check(not g.is_play_restricted(a, CardDB.card("ajudante_de_gambiarra")), "Cobrador: ganhar Momentum mantém cartas neutras jogáveis")
@@ -14320,7 +14374,7 @@ func _test_eryon_deck() -> void:
 	_quiet(g)
 	a = g.active
 	_put(g, a, "cobrador_de_pedagio_torto")
-	g.players[a]["max_momentum"] = GameState.MOMENTUM_CAP
+	_fill_reservoir(g, a, GameState.MOMENTUM_CAP)
 	g._start_turn(a, false)
 	check(not g.is_play_restricted(a, CardDB.card("esqueleto_guerreiro")), "Cobrador: sem ganho real de Momentum (já em 10) não há trava")
 
@@ -15143,6 +15197,28 @@ func _test_maria_helena() -> void:
 	before = g.players[0]["leader_hp"]
 	check(g.deal_damage(GameState.LEADER_UID[0], 2, null) == 1 and g.players[0]["leader_hp"] == before - 1,
 		"Santa Maria Helena: a redução nunca transforma dano em menos de 1 e reinicia no turno seguinte")
+
+## Which card the AI stores in the Reservatório: the dearest, or a repeated one when the profile says so.
+func _test_ai_reservoir_duplicate() -> void:
+	for profile_name in ["midrange", "control"]:
+		var g := _new_game()
+		_quiet(g)
+		var p := g.active
+		g.players[p]["ai_profile_override"] = profile_name
+		g.players[p]["hand"].clear()
+		g.players[p]["momentum"] = 0
+		g.players[p]["reservoir_stored_turn"] = -1
+		var dear_uid := _give(g, p, "ronan")
+		var copy_a_uid := _give(g, p, "bastionario_de_basalto")
+		var copy_b_uid := _give(g, p, "bastionario_de_basalto")
+		var stored_before: int = g.players[p]["reservoir"].size()
+		SimpleAI.step(g, p)
+		check(g.players[p]["reservoir"].size() == stored_before + 1, "IA/Reservatório (%s): armazena uma carta" % profile_name)
+		if profile_name == "midrange":
+			check(not _hand_has(g, p, dear_uid), "IA/Reservatório (midrange): armazena a mais cara")
+		else:
+			check(_hand_has(g, p, dear_uid), "IA/Reservatório (control): mantém a mais cara quando há repetida")
+			check(_hand_has(g, p, copy_a_uid) != _hand_has(g, p, copy_b_uid), "IA/Reservatório (control): armazena uma das repetidas")
 
 func _test_art_crop() -> void:
 	var tall_art := Vector2(1000, 2000)

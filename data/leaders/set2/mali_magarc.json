@@ -1,7 +1,6 @@
 {
   "name": "Mali Magarc",
   "set": 2,
-  "banned": true,
   "hp": 30,
   "art": "neutra/mali_magarc_lider.webp",
   "incarnation": "mali_magarc",
@@ -9,6 +8,7 @@
     "name": "Sobras do Dragão",
     "cost": 1,
     "speed": "instantaneo",
+    "once_per_turn": true,
     "graveyard_cost": {
       "kind": "spell",
       "amount": 2
@@ -25,7 +25,7 @@
         "amount": 2
       }
     ],
-    "text": "Instantânea. 1 Momentum: bane 2 feitiços do seu cemitério, compra 1 carta e enche a Bateria do seu Reservatório até o limite."
+    "text": "Instantânea. 1 Momentum, uma vez por turno: bane 2 feitiços do seu cemitério, compra 1 carta e enche a Bateria do seu Reservatório até o limite."
   },
   "essences": [
     "neutra"

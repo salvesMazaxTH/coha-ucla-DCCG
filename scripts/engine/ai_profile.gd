@@ -5,12 +5,13 @@ extends RefCounted
 ##   rush_turns: all-in at the face when the enemy Leader dies within this many swings
 ##   hold_turns: burn is kept for the face when the enemy Leader dies within this many swings (0 = burn is removal)
 ##   face_point_value(_late): value of 1 face damage against the unit it may cost
+##   store_duplicate_first: when storing in the Reservatório, a card with another copy in hand goes first (else the dearest)
 
 const DEFAULT := "midrange"
 const PROFILES := {
-	"aggro": {"trade_min_gain": 5, "rush_turns": 3, "hold_turns": 3, "face_point_value": 3, "face_point_value_late": 4},
-	"midrange": {"trade_min_gain": 3, "rush_turns": 2, "hold_turns": 2, "face_point_value": 2, "face_point_value_late": 3},
-	"control": {"trade_min_gain": 1, "rush_turns": 1, "hold_turns": 0, "face_point_value": 1, "face_point_value_late": 2},
+	"aggro": {"trade_min_gain": 5, "rush_turns": 3, "hold_turns": 3, "face_point_value": 3, "face_point_value_late": 4, "store_duplicate_first": false},
+	"midrange": {"trade_min_gain": 3, "rush_turns": 2, "hold_turns": 2, "face_point_value": 2, "face_point_value_late": 3, "store_duplicate_first": false},
+	"control": {"trade_min_gain": 1, "rush_turns": 1, "hold_turns": 0, "face_point_value": 1, "face_point_value_late": 2, "store_duplicate_first": true},
 }
 
 

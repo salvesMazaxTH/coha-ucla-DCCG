@@ -95,7 +95,8 @@ var _locked_hand_uids := { } ## hand card uid -> true if it was chained (play re
 const LOCK_STAGGER_SECONDS := 0.07 ## delay between the chain lock-ins of cards locked at the same moment
 const MAX_LOCK_SOUNDS := 4 ## a full hand locking at once plays at most this many clanks
 var hand_uids := { } ## viewer's hand cards in the current render
-var reservoir_drop_panel: Panel
+var reservoir_ink_glow: Panel ## blue pulse: a card can still be deposited this turn
+var reservoir_drop_glow: Panel ## strong yellow: the card being dragged will be deposited if released here
 var hint_text := "" ## the tip pill fades out after a few seconds and returns when the player seems lost
 var hint_since := 0
 var hint_until := 0
@@ -1067,7 +1068,10 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	var mb := MomentumBar.new()
 	mb.position = mom_pos
 	layer.add_child(mb)
-	mb.setup(pl["momentum"], pl["max_momentum"], int(pl.get("battery", 0)), g.momentum_cap(p))
+	mb.setup(
+		int(pl["momentum"]) - int(pl["momentum_float"]), pl["max_momentum"], int(pl.get("battery", 0)),
+		g.momentum_cap(p), int(pl["momentum_float"]),
+	)
 
 
 const HAND_SCALE := 1.4875 ## hand cards are cut at the bottom, so they can be bigger than the room they take
@@ -1106,8 +1110,6 @@ func _render_reservoir(p: int) -> void:
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_theme_stylebox_override("panel", UITheme.box(Color(0.03, 0.04, 0.09, 0.88), 8, Color(UITheme.GOLD, 0.65), 2))
 	layer.add_child(panel)
-	if p == viewer:
-		reservoir_drop_panel = panel
 	var caption := _label(
 		"RESERVATÓRIO  •  %d disponíveis" % g.reservoir_ready(p),
 		14, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_LEFT, "bold", 2,
@@ -1148,11 +1150,20 @@ func _render_reservoir(p: int) -> void:
 		cell.add_child(view)
 	if p == viewer:
 		panel.tooltip_text = "Arraste uma carta da mão para cá para depositá-la permanentemente."
+	if p != viewer:
+		return
+	reservoir_ink_glow = null
 	if can_ink:
-		_add_reservoir_ink_glow(panel, rect.size)
+		reservoir_ink_glow = _add_reservoir_glow(panel, rect.size, INK_BLUE, 2, 12)
+		reservoir_ink_glow.modulate.a = 0.45
+		var pulse := reservoir_ink_glow.create_tween().set_loops()
+		pulse.tween_property(reservoir_ink_glow, "modulate:a", 1.0, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		pulse.tween_property(reservoir_ink_glow, "modulate:a", 0.45, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	reservoir_drop_glow = _add_reservoir_glow(panel, rect.size, SEL, 4, 26)
+	reservoir_drop_glow.visible = false
 
 
-func _add_reservoir_ink_glow(panel: Panel, panel_size: Vector2) -> void:
+func _add_reservoir_glow(panel: Panel, panel_size: Vector2, color: Color, border_width: int, shadow_size: int) -> Panel:
 	var glow := Panel.new()
 	glow.size = panel_size
 	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1160,18 +1171,23 @@ func _add_reservoir_ink_glow(panel: Panel, panel_size: Vector2) -> void:
 	style.bg_color = Color.TRANSPARENT
 	style.draw_center = false
 	style.set_corner_radius_all(8)
-	style.set_border_width_all(2)
-	style.border_color = INK_BLUE
-	style.shadow_color = Color(INK_BLUE.r, INK_BLUE.g, INK_BLUE.b, 0.8)
-	style.shadow_size = 12
+	style.set_border_width_all(border_width)
+	style.border_color = color
+	style.shadow_color = Color(color.r, color.g, color.b, 0.85)
+	style.shadow_size = shadow_size
 	style.shadow_offset = Vector2.ZERO
 	style.anti_aliasing = true
 	glow.add_theme_stylebox_override("panel", style)
-	glow.modulate.a = 0.45
 	panel.add_child(glow)
-	var pulse := glow.create_tween().set_loops()
-	pulse.tween_property(glow, "modulate:a", 1.0, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	pulse.tween_property(glow, "modulate:a", 0.45, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	return glow
+
+
+## While a dragged card would be deposited, the blue "can deposit" pulse gives way to the yellow glow.
+func _show_reservoir_drop_glow(will_deposit: bool) -> void:
+	if is_instance_valid(reservoir_drop_glow):
+		reservoir_drop_glow.visible = will_deposit
+	if is_instance_valid(reservoir_ink_glow):
+		reservoir_ink_glow.visible = not will_deposit
 
 
 func _render_command(p: int, pos: Vector2) -> void:
@@ -1806,11 +1822,9 @@ func _dragged_hand_card_is_over_play_line(v: CardView, pointer_position: Vector2
 func _hand_drag_move(v: CardView) -> void:
 	var m := layer.get_global_transform().affine_inverse() * v.input_position
 	var over_reservoir := _reservoir_rect(viewer).has_point(m)
-	if is_instance_valid(reservoir_drop_panel):
-		var color := OK if over_reservoir and g.can_store_in_reservoir(viewer, v.uid) else Color(UITheme.GOLD, 0.65)
-		reservoir_drop_panel.add_theme_stylebox_override(
-			"panel", UITheme.box(Color(0.03, 0.04, 0.09, 0.88), 8, color, 3 if over_reservoir else 2),
-		)
+	var will_deposit := over_reservoir and _my_input() and g.can_store_in_reservoir(viewer, v.uid)
+	_show_reservoir_drop_glow(will_deposit)
+	_set_card_sinking_into_reservoir(v, will_deposit)
 	var over_play_line := _dragged_hand_card_is_over_play_line(v, m)
 	var is_unit: bool = CardDB.card(v.card_id)["type"] == "unit"
 	# during an animation the board is left alone (the gap would fight the moving units) and no aim
@@ -1837,10 +1851,33 @@ func _hand_drag_move(v: CardView) -> void:
 		_render()
 		return
 	v.position = m - Vector2(v.size.x / 2.0, v.size.y * 0.75)
-	v.highlight = SEL if over_play_line or over_reservoir else OK
+	if will_deposit:
+		v.highlight = Color.TRANSPARENT
+	else:
+		v.highlight = SEL if over_play_line or over_reservoir else OK
+
+
+## Over the Reservatório the dragged card shrinks, tilts and takes an ink-blue tint, as if already
+## sinking in; leaving the area brings it back to its normal drag look.
+func _set_card_sinking_into_reservoir(v: CardView, sinking: bool) -> void:
+	if bool(v.get_meta("sinking", false)) == sinking:
+		return
+	v.set_meta("sinking", sinking)
+	if v.has_meta("tw"):
+		var old: Tween = v.get_meta("tw")
+		if old and old.is_valid():
+			old.kill()
+	var tw := v.create_tween().set_parallel(true).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	v.set_meta("tw", tw)
+	tw.tween_property(v, "zoom", 0.62 if sinking else 1.12, 0.16)
+	tw.tween_property(v, "rotation", -0.12 if sinking else 0.0, 0.16)
+	tw.tween_property(v, "modulate", Color(0.62, 0.82, 1.0, 0.9) if sinking else Color.WHITE, 0.16)
 
 
 func _hand_drag_end(v: CardView) -> void:
+	_show_reservoir_drop_glow(false)
+	v.set_meta("sinking", false)
+	v.modulate = Color.WHITE
 	var m := layer.get_global_transform().affine_inverse() * v.input_position
 	if _reservoir_rect(viewer).has_point(m):
 		if _input_must_wait():
