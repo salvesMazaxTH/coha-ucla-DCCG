@@ -1302,8 +1302,8 @@ func _draw_lettering_and_gems(look: Dictionary) -> void:
 	elif cost > int(cd["cost"]):
 		cost_col = Color("#ff8a80")
 	if full_art:
-		_gem("orb", Vector2(14, 14) * s, 13 * s, COST_COL, str(cost), cost_col, s)
-		_essence_badge(Vector2(BASE.x - 14, 14) * s, 10.5 * s, cd, s)
+		_gem("orb", Vector2(BASE.x - 14, 14) * s, 13 * s, COST_COL, str(cost), cost_col, s) # right corner, like the other cards
+		_essence_badge(Vector2(14, 14) * s, 10.5 * s, cd, s)
 	else:
 		_gem("orb", Vector2(art.end.x - 9 * s, art.position.y - TOP_PLATE_HEIGHT * s / 2), 11 * s, COST_COL, str(cost), cost_col, s)
 	if cd["type"] == "unit":
