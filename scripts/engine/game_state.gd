@@ -5265,6 +5265,10 @@ func _finish_turn() -> void:
 			if c.magic_shield_until_end_turn:
 				c.magic_shield = false
 				c.magic_shield_until_end_turn = false
+				c.magic_shield_expires_after_turn = 0
+			if c.magic_shield_expires_after_turn > 0 and turn >= c.magic_shield_expires_after_turn:
+				c.magic_shield = false
+				c.magic_shield_expires_after_turn = 0
 			if c.supreme_shield_expires == "end_turn":
 				c.supreme_shield = false
 				c.supreme_shield_expires = ""
@@ -5412,6 +5416,7 @@ func _start_turn(p: int, draw: bool) -> void:
 		if c.magic_shield_until_next_turn:
 			c.magic_shield = false
 			c.magic_shield_until_next_turn = false
+			c.magic_shield_expires_after_turn = 0
 		if c.supreme_shield_expires == "next_turn":
 			c.supreme_shield = false
 			c.supreme_shield_expires = ""

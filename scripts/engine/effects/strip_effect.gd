@@ -43,6 +43,7 @@ func _strip_magic_shield(context: EffectContext, unit: Card) -> void:
 	unit.magic_shield = false
 	unit.magic_shield_until_next_turn = false
 	unit.magic_shield_until_end_turn = false
+	unit.magic_shield_expires_after_turn = 0
 	context.game.emit_event({"type": "magic_shield_break", "uid": unit.uid})
 
 func _suppress_keyword(context: EffectContext, unit: Card) -> void:

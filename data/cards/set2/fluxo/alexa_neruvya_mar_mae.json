@@ -35,12 +35,10 @@
       {
         "action": "buff",
         "target": "other_ally_unit",
-        "keywords_this_turn": [
-          "escudo_magico"
-        ]
+        "magic_shield_until_next_turn_end": true
       }
     ]
   },
-  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela recebe -2/-2, mas a Vida dela não cai abaixo de 1 por este efeito.\nAo Ativar (2) {rapido} (exaure esta unidade): concede, só neste turno, Escudo Mágico a outra unidade aliada à sua escolha.",
+  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela recebe -2/-2, mas a Vida dela não cai abaixo de 1 por este efeito.\nAo Ativar (2) {rapido} (exaure esta unidade): concede Escudo Mágico a outra unidade aliada à sua escolha até o fim do próximo turno.",
   "flavor": "Foi celestial, foi dragão, foi rainha. Do mar, guardou só a calma."
 }

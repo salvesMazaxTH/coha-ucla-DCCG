@@ -2858,7 +2858,7 @@ func _test_obscura() -> void:
 	# o -2/-2 é permanente: continua depois do fim do turno
 	g_floor.end_turn(0)
 	check(floor_small.atk_total() == 1 and floor_small.hp_left() == 1, "Mar-Mãe: o -2/-2 do Ao Entrar não some no fim do turno")
-	# Ao Ativar: Escudo Mágico em outra unidade aliada, só neste turno
+	# Ao Ativar: o Escudo Mágico em outra unidade aliada dura até o fim do próximo turno
 	var g_mar_mae := _new_game()
 	var mar_mae := _put(g_mar_mae, 0, "alexa_neruvya_mar_mae")
 	var shield_ally := _put(g_mar_mae, 0, "t_mar_ally")
@@ -2867,7 +2867,9 @@ func _test_obscura() -> void:
 	_resolve_stack(g_mar_mae)
 	check(g_mar_mae.has_kw(shield_ally, "escudo_magico"), "Mar-Mãe: Ao Ativar concede Escudo Mágico a outra unidade aliada")
 	g_mar_mae.end_turn(0)
-	check(not g_mar_mae.has_kw(shield_ally, "escudo_magico"), "Mar-Mãe: o Escudo Mágico some no fim do turno")
+	check(g_mar_mae.has_kw(shield_ally, "escudo_magico"), "Mar-Mãe: o Escudo Mágico sobrevive ao fim do turno atual")
+	g_mar_mae.end_turn(1)
+	check(not g_mar_mae.has_kw(shield_ally, "escudo_magico"), "Mar-Mãe: o Escudo Mágico some no fim do próximo turno")
 	# Yuki's Ao Ativar: goes on the stack (Rápido), +2/+2 temporary, once per turn
 	var yk := _put(g, 0, "yuki")
 	g.players[0]["momentum"] = 4
