@@ -5,8 +5,8 @@
   "rarity": "common",
   "essence": "neutra",
   "art": "neutra/desvelar_o_arcano.webp",
-  "cost": 1,
-  "speed": "lento",
+  "cost": 2,
+  "speed": "rapido",
   "effects": [
     {
       "trigger": "on_play",

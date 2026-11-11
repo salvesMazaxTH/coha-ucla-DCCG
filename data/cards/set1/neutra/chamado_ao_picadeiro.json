@@ -4,8 +4,8 @@
   "type": "spell",
   "rarity": "common",
   "essence": "neutra",
-  "cost": 2,
-  "speed": "lento",
+  "cost": 3,
+  "speed": "rapido",
   "effects": [
     {
       "trigger": "on_play",
