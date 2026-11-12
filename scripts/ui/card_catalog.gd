@@ -215,7 +215,7 @@ func build_controls(box: Container, width: float, on_change: Callable) -> void:
 
 	box.add_child(_section("CUSTO"))
 	var cost_row := HBoxContainer.new()
-	cost_row.add_theme_constant_override("separation", 2)
+	cost_row.add_theme_constant_override("separation", 0)
 	_cost_buttons.clear()
 	for cost in COST_BUTTON_LAST + 1:
 		var button := _cost_button(cost)
@@ -324,7 +324,7 @@ class CostOrb extends Control:
 	var _hovered := false
 
 	func _init() -> void:
-		custom_minimum_size = Vector2(0, 34)
+		custom_minimum_size = Vector2(0, 36)
 		size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		mouse_entered.connect(func():
@@ -347,9 +347,9 @@ class CostOrb extends Control:
 
 	func _draw() -> void:
 		var center := size / 2
-		var radius := minf(size.x, size.y) / 2 / 1.3
-		self_modulate = Color(1, 1, 1, 1.0 if pressed else (0.6 if _hovered else 0.35))
-		CardView.draw_gem(self, "orb", center, radius, UITheme.MOMENTUM, label, Color.WHITE, 1.0)
+		var radius := minf(size.x, size.y) / 2 / 1.17
+		var body := UITheme.MOMENTUM if pressed else UITheme.MOMENTUM.darkened(0.3 if _hovered else 0.55)
+		CardView.draw_gem(self, "orb", center, radius, body, label, Color.WHITE, 1.0, 2)
 		if pressed:
 			draw_arc(center, radius * 1.25, 0, TAU, 40, UITheme.GOLD_LIGHT, 2.0, true)
 
