@@ -39,18 +39,17 @@ const ACTION_CATEGORIES := {
 	"Descarte e moagem": ["discard_hand_pick", "hand_to_bottom", "discard_if_over", "discard_hand_all", "mill", "mill_pick"],
 	"Transformação": ["transform_self"],
 }
+const COST_BUTTON_LAST := 6
 const SORT_OPTIONS := ["Nome", "Custo: menor primeiro", "Custo: maior primeiro", "Ataque: maior primeiro", "Vida: maior primeiro", "Tipo / nome"]
 
 var query := ""
-var min_cost := 0 ## 0 = no limit
-var max_cost := 0 ## 0 = no limit
+var selected_costs: Dictionary = {} ## cost -> true; empty = any cost; COST_BUTTON_LAST means that cost or more
 var sort_option := 0
 var selected: Dictionary = {} ## facet id -> Dictionary of selected values
 var facet_values: Dictionary = {} ## facet id -> Dictionary of every value present in the catalog
 
 var search_box: LineEdit
-var _min_box: SpinBox
-var _max_box: SpinBox
+var _cost_buttons: Array[CostOrb] = []
 var _sort_box: OptionButton
 var _facet_buttons: Dictionary = {}
 var _on_change := Callable()
@@ -87,10 +86,7 @@ func matches(card_id: String) -> bool:
 	var needle := query.strip_edges().to_lower()
 	if needle != "" and not search_text(card_id, cd).to_lower().contains(needle):
 		return false
-	var cost := int(cd.get("cost", 0))
-	if min_cost > 0 and cost < min_cost:
-		return false
-	if max_cost > 0 and cost > max_cost:
+	if not selected_costs.is_empty() and not selected_costs.has(mini(int(cd.get("cost", 0)), COST_BUTTON_LAST)):
 		return false
 	for facet_id in selected:
 		var choices: Dictionary = selected[facet_id]
@@ -219,11 +215,12 @@ func build_controls(box: Container, width: float, on_change: Callable) -> void:
 
 	box.add_child(_section("CUSTO"))
 	var cost_row := HBoxContainer.new()
-	cost_row.add_theme_constant_override("separation", 8)
-	_min_box = _cost_box("mín.", func(value: int): min_cost = value)
-	_max_box = _cost_box("máx.", func(value: int): max_cost = value)
-	cost_row.add_child(_min_box)
-	cost_row.add_child(_max_box)
+	cost_row.add_theme_constant_override("separation", 2)
+	_cost_buttons.clear()
+	for cost in COST_BUTTON_LAST + 1:
+		var button := _cost_button(cost)
+		_cost_buttons.append(button)
+		cost_row.add_child(button)
 	box.add_child(cost_row)
 
 	box.add_child(_section("ORDENAR"))
@@ -248,12 +245,11 @@ func build_controls(box: Container, width: float, on_change: Callable) -> void:
 func clear_filters() -> void:
 	selected.clear()
 	query = ""
-	min_cost = 0
-	max_cost = 0
+	selected_costs.clear()
+	for button in _cost_buttons:
+		button.set_pressed_no_signal(false)
 	if search_box != null:
 		search_box.text = ""
-		_min_box.value = 0
-		_max_box.value = 0
 	for id in _facet_buttons:
 		var menu := (_facet_buttons[id] as MenuButton).get_popup()
 		for i in menu.item_count:
@@ -307,19 +303,55 @@ func _refresh_facet_caption(id: String) -> void:
 	var count: int = (selected.get(id, {}) as Dictionary).size()
 	(_facet_buttons[id] as MenuButton).text = title if count == 0 else "%s (%d)" % [title, count]
 
-func _cost_box(placeholder: String, setter: Callable) -> SpinBox:
-	var box := SpinBox.new()
-	box.min_value = 0
-	box.max_value = 20
-	box.step = 1
-	box.allow_greater = true
-	box.custom_minimum_size = Vector2(120, 36)
-	box.tooltip_text = "Custo " + placeholder
-	box.get_line_edit().placeholder_text = placeholder
-	box.value_changed.connect(func(value: float):
-		setter.call(int(value))
+## A toggle for one cost; the last one stands for "that cost or more".
+func _cost_button(cost: int) -> CostOrb:
+	var orb := CostOrb.new()
+	orb.label = "%d+" % cost if cost == COST_BUTTON_LAST else str(cost)
+	orb.tooltip_text = "Custo %s" % orb.label
+	orb.toggled.connect(func(pressed: bool):
+		if pressed:
+			selected_costs[cost] = true
+		else:
+			selected_costs.erase(cost)
 		_changed())
-	return box
+	return orb
+
+## The cost orb printed on every card, used as a toggle: dimmed when off, full colour with a light ring when on.
+class CostOrb extends Control:
+	signal toggled(pressed: bool)
+	var label := ""
+	var pressed := false
+	var _hovered := false
+
+	func _init() -> void:
+		custom_minimum_size = Vector2(0, 34)
+		size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		mouse_entered.connect(func():
+			_hovered = true
+			queue_redraw())
+		mouse_exited.connect(func():
+			_hovered = false
+			queue_redraw())
+
+	func set_pressed_no_signal(value: bool) -> void:
+		pressed = value
+		queue_redraw()
+
+	func _gui_input(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			pressed = not pressed
+			queue_redraw()
+			toggled.emit(pressed)
+			accept_event()
+
+	func _draw() -> void:
+		var center := size / 2
+		var radius := minf(size.x, size.y) / 2 / 1.3
+		self_modulate = Color(1, 1, 1, 1.0 if pressed else (0.6 if _hovered else 0.35))
+		CardView.draw_gem(self, "orb", center, radius, UITheme.MOMENTUM, label, Color.WHITE, 1.0)
+		if pressed:
+			draw_arc(center, radius * 1.25, 0, TAU, 40, UITheme.GOLD_LIGHT, 2.0, true)
 
 static func _section(text: String) -> Label:
 	var label := Label.new()
