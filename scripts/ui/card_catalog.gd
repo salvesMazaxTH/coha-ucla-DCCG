@@ -50,8 +50,7 @@ var facet_values: Dictionary = {} ## facet id -> Dictionary of every value prese
 
 var search_box: LineEdit
 var _cost_buttons: Array[CostOrb] = []
-var _sort_box: OptionButton
-var _facet_buttons: Dictionary = {}
+var _facet_buttons: Dictionary = {} ## facet id (or "sort") -> {header, chips, title}
 var _on_change := Callable()
 
 func _init() -> void:
@@ -201,13 +200,16 @@ func sort_ids(ids: Array[String]) -> void:
 
 # ---------------------------------------------------------------- sidebar controls
 
-## Fills `box` with the filter controls: search, cost range, sort order, one menu per facet and a clear
-## button. `on_change` is called (with no arguments) every time a filter changes.
+## Fills `box` with the filter controls: search, cost range, sort order, one folding list per facet and a
+## clear button. `on_change` is called (with no arguments) every time a filter changes.
+## Nothing here opens a popup: the choices unfold inside the sidebar, so they scale with it on phones.
 func build_controls(box: Container, width: float, on_change: Callable) -> void:
 	_on_change = on_change
 	search_box = LineEdit.new()
 	search_box.placeholder_text = "Buscar nome, texto ou id..."
 	search_box.clear_button_enabled = true
+	search_box.add_theme_font_size_override("font_size", 18)
+	search_box.custom_minimum_size = Vector2(0, 46)
 	search_box.text_changed.connect(func(text: String):
 		query = text
 		_changed())
@@ -224,21 +226,19 @@ func build_controls(box: Container, width: float, on_change: Callable) -> void:
 	box.add_child(cost_row)
 
 	box.add_child(_section("ORDENAR"))
-	_sort_box = OptionButton.new()
-	for option in SORT_OPTIONS:
-		_sort_box.add_item(option)
-	_sort_box.select(sort_option)
-	_sort_box.item_selected.connect(func(index: int):
-		sort_option = index
-		_changed())
-	box.add_child(_sort_box)
+	var sort_values: Array = []
+	for index in SORT_OPTIONS.size():
+		sort_values.append(index)
+	box.add_child(_folding_list("sort", "Ordenar", sort_values, width, true))
 
 	box.add_child(_section("FILTROS"))
 	for facet in FACETS:
 		if not facet_values[facet["id"]].is_empty():
-			box.add_child(_facet_menu(facet, width))
+			box.add_child(_folding_list(facet["id"], facet["title"], _sorted_values(facet["id"]), width, false))
 	var clear := Button.new()
 	clear.text = "LIMPAR FILTROS"
+	clear.add_theme_font_size_override("font_size", 18)
+	clear.custom_minimum_size = Vector2(0, 48)
 	clear.pressed.connect(clear_filters)
 	box.add_child(clear)
 
@@ -251,9 +251,10 @@ func clear_filters() -> void:
 	if search_box != null:
 		search_box.text = ""
 	for id in _facet_buttons:
-		var menu := (_facet_buttons[id] as MenuButton).get_popup()
-		for i in menu.item_count:
-			menu.set_item_checked(i, false)
+		if id == "sort":
+			continue
+		for chip in (_facet_buttons[id]["chips"] as Container).get_children():
+			(chip as Button).set_pressed_no_signal(false)
 		_refresh_facet_caption(id)
 	_changed()
 
@@ -261,47 +262,106 @@ func _changed() -> void:
 	if _on_change.is_valid():
 		_on_change.call()
 
-func _facet_menu(facet: Dictionary, width: float) -> MenuButton:
-	var id: String = facet["id"]
-	var button := MenuButton.new()
-	button.custom_minimum_size = Vector2(width, 36)
-	_facet_buttons[id] = button
-	var menu := button.get_popup()
-	menu.hide_on_checkable_item_selection = false
+func _sorted_values(id: String) -> Array:
 	var values: Array = facet_values[id].keys()
 	if id == "set":
 		values.sort_custom(func(a, b): return int(a) < int(b)) # by set number, not by name
 	else:
 		values.sort_custom(func(a, b): return facet_label(id, String(a)).naturalnocasecmp_to(facet_label(id, String(b))) < 0)
-	for index in values.size():
-		var value := String(values[index])
-		menu.add_check_item(facet_label(id, value), index)
-		menu.set_item_metadata(index, value)
-	menu.id_pressed.connect(func(index: int):
-		var value := String(menu.get_item_metadata(index))
-		var choices: Dictionary = selected.get(id, {})
-		if choices.has(value):
-			choices.erase(value)
+	return values
+
+## A header button that unfolds a row of chips under it. `single_choice` makes the chips work as one
+## choice (the sort order); otherwise each chip toggles one value of the facet `id`.
+func _folding_list(id: String, title: String, values: Array, width: float, single_choice: bool) -> Control:
+	var holder := VBoxContainer.new()
+	holder.add_theme_constant_override("separation", 6)
+	var header := FoldingHeader.new()
+	header.custom_minimum_size = Vector2(width, 48)
+	holder.add_child(header)
+	var chips := HFlowContainer.new()
+	chips.visible = false
+	chips.add_theme_constant_override("h_separation", 6)
+	chips.add_theme_constant_override("v_separation", 6)
+	holder.add_child(chips)
+	_facet_buttons[id] = {"header": header, "chips": chips, "title": title}
+	header.pressed.connect(func():
+		chips.visible = not chips.visible
+		header.open = chips.visible
+		header.queue_redraw())
+	var group := ButtonGroup.new() if single_choice else null
+	for value in values:
+		var chip := _chip(SORT_OPTIONS[value] if single_choice else facet_label(id, String(value)))
+		if single_choice:
+			chip.button_group = group
+			chip.button_pressed = value == sort_option
+			chip.toggled.connect(func(on: bool):
+				if on:
+					sort_option = value
+					_refresh_facet_caption(id)
+					_changed())
 		else:
-			choices[value] = true
-		if choices.is_empty():
-			selected.erase(id)
-		else:
-			selected[id] = choices
-		menu.set_item_checked(index, choices.has(value))
-		_refresh_facet_caption(id)
-		_changed())
+			chip.toggled.connect(func(on: bool):
+				var choices: Dictionary = selected.get(id, {})
+				if on:
+					choices[String(value)] = true
+				else:
+					choices.erase(String(value))
+				if choices.is_empty():
+					selected.erase(id)
+				else:
+					selected[id] = choices
+				_refresh_facet_caption(id)
+				_changed())
+		chips.add_child(chip)
 	_refresh_facet_caption(id)
-	return button
+	return holder
+
+static func _chip(text: String) -> Button:
+	var chip := Button.new()
+	chip.text = text
+	chip.toggle_mode = true
+	chip.custom_minimum_size = Vector2(0, 40)
+	chip.add_theme_font_size_override("font_size", 17)
+	var off := UITheme.box(Color("#1d1a26"), 16, Color(UITheme.GOLD, 0.35), 2)
+	var on := UITheme.box(Color("#c99a3a"), 16, UITheme.GOLD_LIGHT, 2)
+	for style in [off, on]:
+		style.content_margin_left = 12
+		style.content_margin_right = 12
+		style.content_margin_top = 4
+		style.content_margin_bottom = 4
+	chip.add_theme_stylebox_override("normal", off)
+	chip.add_theme_stylebox_override("hover", off)
+	chip.add_theme_stylebox_override("pressed", on)
+	chip.add_theme_stylebox_override("hover_pressed", on)
+	chip.add_theme_color_override("font_pressed_color", Color("#1a1206"))
+	chip.add_theme_color_override("font_hover_pressed_color", Color("#1a1206"))
+	return chip
 
 func _refresh_facet_caption(id: String) -> void:
-	var title := ""
-	for facet in FACETS:
-		if facet["id"] == id:
-			title = facet["title"]
-			break
-	var count: int = (selected.get(id, {}) as Dictionary).size()
-	(_facet_buttons[id] as MenuButton).text = title if count == 0 else "%s (%d)" % [title, count]
+	var entry: Dictionary = _facet_buttons[id]
+	var title: String = entry["title"]
+	if id == "sort":
+		title = SORT_OPTIONS[sort_option]
+	else:
+		var count: int = (selected.get(id, {}) as Dictionary).size()
+		if count > 0:
+			title = "%s (%d)" % [title, count]
+	(entry["header"] as Button).text = title
+
+## The header of a folding list: a big left-aligned button with an arrow on the right.
+class FoldingHeader extends Button:
+	var open := false
+
+	func _init() -> void:
+		alignment = HORIZONTAL_ALIGNMENT_LEFT
+		text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		add_theme_font_size_override("font_size", 20)
+
+	func _draw() -> void:
+		var center := Vector2(size.x - 20, size.y / 2)
+		var arrow := PackedVector2Array([center + Vector2(-7, -4), center + Vector2(7, -4), center + Vector2(0, 5)]) if open \
+			else PackedVector2Array([center + Vector2(-4, -7), center + Vector2(5, 0), center + Vector2(-4, 7)])
+		draw_colored_polygon(arrow, UITheme.GOLD_LIGHT)
 
 ## A toggle for one cost; the last one stands for "that cost or more".
 func _cost_button(cost: int) -> CostOrb:
@@ -324,7 +384,7 @@ class CostOrb extends Control:
 	var _hovered := false
 
 	func _init() -> void:
-		custom_minimum_size = Vector2(0, 38)
+		custom_minimum_size = Vector2(0, 46)
 		size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		mouse_entered.connect(func():
@@ -356,7 +416,7 @@ class CostOrb extends Control:
 static func _section(text: String) -> Label:
 	var label := Label.new()
 	label.text = text
-	label.add_theme_font_size_override("font_size", 14)
+	label.add_theme_font_size_override("font_size", 17)
 	label.add_theme_color_override("font_color", Color(UITheme.GOLD, 0.78))
 	label.add_theme_font_override("font", UITheme.font("bold"))
 	label.add_theme_constant_override("outline_size", 1)

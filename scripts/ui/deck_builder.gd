@@ -13,8 +13,10 @@ const BannedRibbonScript = preload("res://scripts/ui/banned_ribbon.gd")
 
 signal closed
 
-const SIDEBAR_W := 300.0
-const DECK_PANEL_W := 500.0
+## Target physical size of one logical pixel (in CSS pixels). Below it the builder zooms in.
+const COMFORT_CSS_PER_PIXEL := 0.68
+const MAX_ZOOM := 1.8
+const COMPACT_ZOOM := 1.3 ## from this zoom on, the editor uses the narrower phone layout
 ## the coloured warning bars under the deck list (INCOMPLETO / ILEGAL / LEGAL / AVISO)
 const NOTE_FONT_SIZE := 18 ## message text
 const NOTE_TAG_FONT_SIZE := 15 ## the coloured tag on the left
@@ -41,6 +43,10 @@ var local_deck_path := ""
 
 var _pool: Array[String] = [] ## every card a player may put in a deck
 var _view := "list"
+## Everything except the backdrop and the card inspector lives in `_stage`, which is scaled by `_ui_zoom`:
+## on a phone the whole builder grows so buttons and text keep a finger-friendly size.
+var _stage: Control
+var _ui_zoom := 1.0
 var _content: Control
 var _modal_layer: Control
 var _toast_layer: VBoxContainer
@@ -98,19 +104,25 @@ func _ready() -> void:
 	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(backdrop)
+	_stage = Control.new()
+	_stage.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_stage)
+	_ui_zoom = _wanted_zoom()
+	_fit_stage()
+	resized.connect(_on_resized)
 	_content = Control.new()
 	_content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_content)
+	_stage.add_child(_content)
 	_modal_layer = Control.new()
 	_modal_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_modal_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_modal_layer)
+	_stage.add_child(_modal_layer)
 	var toast_margin := MarginContainer.new()
 	toast_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	toast_margin.add_theme_constant_override("margin_bottom", 96)
 	toast_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(toast_margin)
+	_stage.add_child(toast_margin)
 	_toast_layer = VBoxContainer.new()
 	_toast_layer.alignment = BoxContainer.ALIGNMENT_END
 	_toast_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -156,6 +168,58 @@ func _back() -> void:
 			_show_list()
 	else:
 		closed.emit()
+
+# ================================================================ zoom (phones)
+
+## How much to zoom so one logical pixel is at least COMFORT_CSS_PER_PIXEL on the real screen.
+## 1.0 on a PC monitor; about 1.75 on a phone held sideways.
+func _wanted_zoom() -> float:
+	var visible_height := get_viewport().get_visible_rect().size.y
+	if visible_height <= 0.0:
+		return 1.0
+	var screen_scale := maxf(1.0, DisplayServer.screen_get_scale())
+	var css_per_pixel := float(get_window().size.y) / visible_height / screen_scale
+	if css_per_pixel <= 0.0:
+		return 1.0
+	return clampf(COMFORT_CSS_PER_PIXEL / css_per_pixel, 1.0, MAX_ZOOM)
+
+func _fit_stage() -> void:
+	_stage.scale = Vector2.ONE * _ui_zoom
+	_stage.position = Vector2.ZERO
+	_stage.size = size / _ui_zoom
+
+func _on_resized() -> void:
+	var was_compact := _is_compact()
+	var old_zoom := _ui_zoom
+	_ui_zoom = _wanted_zoom()
+	_fit_stage()
+	if _view != "edit" or is_equal_approx(old_zoom, _ui_zoom):
+		return
+	if was_compact != _is_compact():
+		_rebuild_editor.call_deferred()
+	else:
+		_render_cards.call_deferred()
+
+## Rebuilds the editor with the same deck (used when the screen switches between phone and PC layout).
+func _rebuild_editor() -> void:
+	if _view != "edit":
+		return
+	var was_dirty := _dirty
+	_show_editor()
+	_dirty = was_dirty
+
+func _is_compact() -> bool:
+	return _ui_zoom >= COMPACT_ZOOM
+
+func _sidebar_width() -> float:
+	return 250.0 if _is_compact() else 300.0
+
+func _deck_panel_width() -> float:
+	return 430.0 if _is_compact() else 500.0
+
+## Cards stay about the same size on screen (a bit bigger on phones), whatever the zoom.
+func _card_scale() -> float:
+	return CARD_SCALE * (1.07 if _is_compact() else 1.04) / _ui_zoom
 
 # ================================================================ helpers
 
@@ -308,8 +372,8 @@ func _confirm(title: String, text: String, ok_text: String, on_ok: Callable) -> 
 ## Leader (and optionally a ready-made deck to start from) chooser. `on_pick(leader_id, template_id)`.
 func _pick_leader(title: String, with_templates: bool, on_pick: Callable, on_cancel := Callable()) -> void:
 	var panel := PanelContainer.new()
-	var width := minf(size.x - 120.0, 1320.0)
-	var height := minf(size.y - 100.0, 860.0)
+	var width := minf(_stage.size.x - 120.0, 1320.0)
+	var height := minf(_stage.size.y - 100.0, 860.0)
 	panel.custom_minimum_size = Vector2(width, height)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
@@ -418,7 +482,7 @@ func _inspect(card_id: String) -> void:
 	_inspect_overlay.gui_input.connect(func(event: InputEvent):
 		if event is InputEventMouseButton and event.pressed:
 			_close_inspect())
-	_modal_layer.add_child(_inspect_overlay)
+	add_child(_inspect_overlay) # outside the zoomed stage: the big card already sizes itself to the screen
 	CardOverlay.build(_inspect_overlay, size.x, card_id)
 
 func _close_inspect() -> void:
@@ -797,10 +861,10 @@ func _show_editor() -> void:
 	catalog = CardCatalog.new()
 	catalog.sort_option = 1
 	_page = 0
-	var margin := _margin(22, 18)
+	var margin := _margin(10, 8) if _is_compact() else _margin(22, 18)
 	_content.add_child(margin)
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 16)
+	row.add_theme_constant_override("separation", 10 if _is_compact() else 16)
 	margin.add_child(row)
 	row.add_child(_build_sidebar())
 	row.add_child(_build_catalog())
@@ -813,7 +877,7 @@ func _show_editor() -> void:
 
 func _build_sidebar() -> Control:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(SIDEBAR_W, 0)
+	panel.custom_minimum_size = Vector2(_sidebar_width(), 0)
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	panel.add_child(scroll)
@@ -829,9 +893,10 @@ func _build_sidebar() -> Control:
 		"body",
 	)
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	help.custom_minimum_size = Vector2(SIDEBAR_W - 40, 0)
+	help.custom_minimum_size = Vector2(_sidebar_width() - 40, 0)
+	help.visible = not _is_compact()
 	box.add_child(help)
-	catalog.build_controls(box, SIDEBAR_W - 40, _restart_pages)
+	catalog.build_controls(box, _sidebar_width() - 40, _restart_pages)
 	return panel
 
 func _build_catalog() -> Control:
@@ -842,24 +907,28 @@ func _build_catalog() -> Control:
 	panel.add_child(outer)
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 8)
-	_count_label = _lbl("", 19, UITheme.GOLD_LIGHT)
+	_count_label = _lbl("", 20, UITheme.GOLD_LIGHT)
+	_count_label.clip_text = true
 	_count_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(_count_label)
 	_legal_toggle = CheckButton.new()
 	_legal_toggle.text = "Só legais"
+	_legal_toggle.add_theme_font_size_override("font_size", 18)
 	_legal_toggle.button_pressed = true
 	_legal_toggle.tooltip_text = ("Mostra só as cartas que ainda podem entrar no deck sem quebrar a regra dos "
 		+ "dois domínios nem o limite de Champions. As cartas que já estão no deck continuam aparecendo.")
 	_legal_toggle.toggled.connect(func(_on: bool): _restart_pages())
 	top.add_child(_legal_toggle)
-	_prev_button = _btn("‹", func(): _change_page(-1))
+	_prev_button = _btn("‹", func(): _change_page(-1), false, 24)
+	_prev_button.custom_minimum_size = Vector2(52, 44)
 	_prev_button.tooltip_text = "Página anterior"
 	top.add_child(_prev_button)
-	_page_label = _lbl("", 16, UITheme.TEXT_DIM)
+	_page_label = _lbl("", 18, UITheme.TEXT_DIM)
 	_page_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_page_label.custom_minimum_size = Vector2(80, 0)
+	_page_label.custom_minimum_size = Vector2(70, 0)
 	top.add_child(_page_label)
-	_next_button = _btn("›", func(): _change_page(1))
+	_next_button = _btn("›", func(): _change_page(1), false, 24)
+	_next_button.custom_minimum_size = Vector2(52, 44)
 	_next_button.tooltip_text = "Próxima página"
 	top.add_child(_next_button)
 	outer.add_child(top)
@@ -936,7 +1005,7 @@ func _render_cards() -> void:
 	_page = clampi(_page, 0, total_pages - 1)
 	var first := _page * PAGE_SIZE
 	var last := mini(first + PAGE_SIZE, ids.size())
-	_count_label.text = "%d de %d cartas" % [ids.size(), _pool.size()]
+	_count_label.text = "%d cartas" % ids.size() if _is_compact() else "%d de %d cartas" % [ids.size(), _pool.size()]
 	_page_label.text = "%d / %d" % [_page + 1, total_pages]
 	_prev_button.disabled = _page == 0
 	_next_button.disabled = _page >= total_pages - 1
@@ -945,10 +1014,12 @@ func _render_cards() -> void:
 	CardView.load_queued_arts()
 
 func _card_tile(card_id: String) -> Control:
-	var cell_w := CardView.BASE.x * CARD_SCALE
+	var card_scale := _card_scale()
+	var cell_w := CardView.BASE.x * card_scale
+	var button_height := 40.0 if _is_compact() else 36.0
 	var holder := Control.new()
-	holder.custom_minimum_size = Vector2(cell_w, CardView.BASE.y * CARD_SCALE + 40.0)
-	var card := CardView.new().setup(card_id, {}, CARD_SCALE)
+	holder.custom_minimum_size = Vector2(cell_w, CardView.BASE.y * card_scale + button_height + 8.0)
+	var card := CardView.new().setup(card_id, {}, card_scale)
 	card.set_process(false)
 	card.tooltip_text = "%s\n%s" % [CardDB.card(card_id)["name"], card_id]
 	card.left_clicked.connect(func(_view: CardView): _add_card(card_id))
@@ -970,28 +1041,31 @@ func _card_tile(card_id: String) -> Control:
 	badge.add_theme_stylebox_override("panel", UITheme.box(Color(0.05, 0.04, 0.08, 0.94), 12, UITheme.GOLD_LIGHT, 2))
 	var badge_label := _lbl("", 17, UITheme.GOLD_LIGHT, "heavy")
 	badge.add_child(badge_label)
-	badge.position = Vector2(cell_w - 50, 4)
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	holder.add_child(badge)
 
+	# compact: no counter (the badge shows copies/limit), the two buttons share the whole width
 	var controls := HBoxContainer.new()
-	controls.alignment = BoxContainer.ALIGNMENT_CENTER
 	controls.add_theme_constant_override("separation", 6)
-	controls.position = Vector2(0, card.size.y + 4.0)
-	controls.size = Vector2(cell_w, 32)
-	var minus := _btn("-", func(): _remove_card(card_id), false, 18)
-	minus.custom_minimum_size = Vector2(34, 30)
+	controls.position = Vector2(0, card.size.y + 6.0)
+	controls.size = Vector2(cell_w, button_height)
+	var minus := _btn("-", func(): _remove_card(card_id), false, 24)
+	minus.custom_minimum_size = Vector2(44, button_height)
+	minus.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	controls.add_child(minus)
-	var counter := _lbl("", 16, UITheme.TEXT)
-	counter.custom_minimum_size = Vector2(44, 0)
+	var counter := _lbl("", 19, UITheme.TEXT)
+	counter.custom_minimum_size = Vector2(48, 0)
 	counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	counter.visible = not _is_compact()
 	controls.add_child(counter)
-	var plus := _btn("+", func(): _add_card(card_id), false, 18)
-	plus.custom_minimum_size = Vector2(34, 30)
+	var plus := _btn("+", func(): _add_card(card_id), false, 24)
+	plus.custom_minimum_size = Vector2(44, button_height)
+	plus.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	controls.add_child(plus)
 	holder.add_child(controls)
 	_tiles[card_id] = {
 		"frame": frame_box,
+		"cell_w": cell_w,
 		"badge": badge,
 		"badge_label": badge_label,
 		"counter": counter,
@@ -1010,7 +1084,10 @@ func _refresh_tile(card_id: String) -> void:
 	(tile["frame"] as StyleBoxFlat).bg_color = Color(UITheme.GOLD, 0.12 if copies > 0 else 0.0)
 	(tile["frame"] as StyleBoxFlat).border_color = Color(UITheme.GOLD_LIGHT, 1.0 if copies > 0 else 0.0)
 	(tile["badge"] as Control).visible = copies > 0
-	(tile["badge_label"] as Label).text = "×%d" % copies
+	(tile["badge_label"] as Label).text = "%d/%d" % [copies, limit] if _is_compact() else "×%d" % copies
+	var badge := tile["badge"] as Control
+	badge.reset_size()
+	badge.position = Vector2(float(tile["cell_w"]) - badge.size.x - 4.0, 4.0)
 	var counter := tile["counter"] as Label
 	counter.text = "%d/%d" % [copies, limit]
 	counter.add_theme_color_override("font_color", UITheme.GOLD_LIGHT if copies >= limit else UITheme.TEXT)
@@ -1019,10 +1096,21 @@ func _refresh_tile(card_id: String) -> void:
 
 func _build_deck_panel() -> Control:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(DECK_PANEL_W, 0)
+	panel.custom_minimum_size = Vector2(_deck_panel_width(), 0)
+	var compact := _is_compact()
+	# the footer stays pinned; everything above it scrolls as one piece when the screen is short
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 8)
+	panel.add_child(outer)
+	var panel_scroll := ScrollContainer.new()
+	panel_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	panel_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	outer.add_child(panel_scroll)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
-	panel.add_child(box)
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	panel_scroll.add_child(box)
 
 	_name_edit = LineEdit.new()
 	_name_edit.text = _deck_name
@@ -1038,18 +1126,27 @@ func _build_deck_panel() -> Control:
 	box.add_child(_build_leader_header())
 	box.add_child(_build_meters())
 	var incarnation_row := HBoxContainer.new()
-	_incarnation_label = _lbl("", 15, UITheme.GOLD_LIGHT, "bold")
+	incarnation_row.add_theme_constant_override("separation", 8)
+	_incarnation_label = _lbl("", 17, UITheme.GOLD_LIGHT, "bold")
 	_incarnation_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_incarnation_label.clip_text = true
 	incarnation_row.add_child(_incarnation_label)
-	incarnation_row.add_child(_btn("TROCAR", _open_incarnation_picker, false, 14))
+	var change_incarnation := _btn("TROCAR", _open_incarnation_picker, false, 16)
+	change_incarnation.custom_minimum_size = Vector2(0, 40)
+	incarnation_row.add_child(change_incarnation)
 	box.add_child(incarnation_row)
 	_refresh_incarnation_label()
 	var coach_row := HBoxContainer.new()
-	var coach_title := _lbl("ASSISTENTE DE DECK", 15, INFO, "heavy")
+	coach_row.add_theme_constant_override("separation", 8)
+	var coach_title := _lbl("ASSISTENTE" if compact else "ASSISTENTE DE DECK", 17, INFO, "heavy")
 	coach_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	coach_row.add_child(coach_title)
-	coach_row.add_child(_btn("CONFIGURAR" if _assistant_enabled else "ATIVAR", _offer_deck_assistant, false, 14))
-	coach_row.add_child(_btn("COMPLETAR", _autofill_deck, false, 14))
+	for coach_button in [
+		_btn("CONFIGURAR" if _assistant_enabled else "ATIVAR", _offer_deck_assistant, false, 16),
+		_btn("COMPLETAR", _autofill_deck, false, 16),
+	]:
+		coach_button.custom_minimum_size = Vector2(0, 40)
+		coach_row.add_child(coach_button)
 	box.add_child(coach_row)
 
 	var type_row := HBoxContainer.new()
@@ -1063,14 +1160,17 @@ func _build_deck_panel() -> Control:
 	box.add_child(type_row)
 
 	_curve = Control.new()
-	_curve.custom_minimum_size = Vector2(0, 96)
+	_curve.custom_minimum_size = Vector2(0, 70 if compact else 96)
 	_curve.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_curve.draw.connect(_draw_curve)
 	box.add_child(_curve)
 
+	# compact: the inner lists grow instead of scrolling, so the panel has a single scroll
 	var warnings_scroll := ScrollContainer.new()
-	warnings_scroll.custom_minimum_size = Vector2(0, 128)
+	warnings_scroll.custom_minimum_size = Vector2(0, 0 if compact else 128)
 	warnings_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	if compact:
+		warnings_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	box.add_child(warnings_scroll)
 	_warnings_box = VBoxContainer.new()
 	_warnings_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1079,34 +1179,40 @@ func _build_deck_panel() -> Control:
 
 	var list_scroll := ScrollContainer.new()
 	list_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	list_scroll.custom_minimum_size = Vector2(0, 0 if compact else 200)
 	list_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	if compact:
+		list_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	box.add_child(list_scroll)
 	_list_box = VBoxContainer.new()
 	_list_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_list_box.add_theme_constant_override("separation", 4)
 	list_scroll.add_child(_list_box)
 
-	_status_label = _lbl("", 15, UITheme.TEXT_DIM, "body")
+	_status_label = _lbl("", 16, UITheme.TEXT_DIM, "body")
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	box.add_child(_status_label)
 	var code_row := HBoxContainer.new()
 	code_row.add_theme_constant_override("separation", 8)
-	var import_button := _btn("IMPORTAR DECKCODE", _open_import_code, false, 15)
+	var import_button := _btn("IMPORTAR CÓDIGO" if compact else "IMPORTAR DECKCODE", _open_import_code, false, 16)
 	import_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	import_button.custom_minimum_size = Vector2(0, 42)
 	code_row.add_child(import_button)
-	var export_button := _btn("EXPORTAR DECKCODE", _export_code, false, 15)
+	var export_button := _btn("EXPORTAR CÓDIGO" if compact else "EXPORTAR DECKCODE", _export_code, false, 16)
 	export_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	export_button.custom_minimum_size = Vector2(0, 42)
 	code_row.add_child(export_button)
 	box.add_child(code_row)
 	var footer := HBoxContainer.new()
 	footer.add_theme_constant_override("separation", 8)
-	footer.add_child(_btn("‹ VOLTAR", _back, false, 17))
-	footer.add_child(_btn("LIMPAR", _ask_clear, false, 17))
-	_save_button = _btn("SALVAR DECK", _save, true, 18)
+	for footer_button in [_btn("‹ VOLTAR", _back, false, 18), _btn("LIMPAR", _ask_clear, false, 18)]:
+		footer_button.custom_minimum_size = Vector2(0, 50)
+		footer.add_child(footer_button)
+	_save_button = _btn("SALVAR DECK", _save, true, 19)
 	_save_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_save_button.custom_minimum_size = Vector2(0, 48)
+	_save_button.custom_minimum_size = Vector2(0, 50)
 	footer.add_child(_save_button)
-	box.add_child(footer)
+	outer.add_child(footer)
 	return panel
 
 func _refresh_incarnation_label() -> void:
@@ -1117,7 +1223,7 @@ func _refresh_incarnation_label() -> void:
 func _open_incarnation_picker() -> void:
 	var options := CardDB.incarnation_options(_leader)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(minf(size.x - 100.0, 700.0), 0)
+	panel.custom_minimum_size = Vector2(minf(_stage.size.x - 100.0, 700.0), 0)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
 	panel.add_child(box)
@@ -1171,7 +1277,7 @@ func _select_incarnation(card_id: String) -> void:
 ## pretending that every legal pile of cards has the same goal.
 func _offer_deck_assistant() -> void:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(minf(size.x - 100.0, 650.0), 0)
+	panel.custom_minimum_size = Vector2(minf(_stage.size.x - 100.0, 650.0), 0)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 14)
 	panel.add_child(box)
@@ -1200,7 +1306,7 @@ func _offer_deck_assistant() -> void:
 
 func _ask_archetype() -> void:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(minf(size.x - 100.0, 700.0), 0)
+	panel.custom_minimum_size = Vector2(minf(_stage.size.x - 100.0, 700.0), 0)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 10)
 	panel.add_child(box)
@@ -1258,7 +1364,7 @@ func _ask_assistant_focus() -> void:
 			["balanced", "EQUILIBRADO", "Quero um deck versátil sem compromisso com um plano único."],
 		]
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(minf(size.x - 100.0, 650.0), 0)
+	panel.custom_minimum_size = Vector2(minf(_stage.size.x - 100.0, 650.0), 0)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
 	panel.add_child(box)
@@ -1325,7 +1431,7 @@ func _decode_deck_code(code: String) -> Dictionary:
 
 func _open_import_code() -> void:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(minf(size.x - 100.0, 680.0), 0)
+	panel.custom_minimum_size = Vector2(minf(_stage.size.x - 100.0, 680.0), 0)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
 	panel.add_child(box)
@@ -1368,7 +1474,7 @@ func _export_code() -> void:
 	var code := _make_deck_code()
 	DisplayServer.clipboard_set(code)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(minf(size.x - 100.0, 680.0), 0)
+	panel.custom_minimum_size = Vector2(minf(_stage.size.x - 100.0, 680.0), 0)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
 	panel.add_child(box)
@@ -1398,12 +1504,12 @@ func _build_leader_header() -> Control:
 	holder.custom_minimum_size = Vector2(0, 100)
 	holder.clip_contents = true
 	holder.add_theme_stylebox_override("panel", UITheme.box(bg, 10, Color(_leader_color(_leader), 0.7), 2))
-	var portrait := _leader_portrait(_leader, Vector2(DECK_PANEL_W - 24, 100), bg)
+	var portrait := _leader_portrait(_leader, Vector2(_deck_panel_width() - 24, 100), bg)
 	portrait.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	holder.add_child(portrait)
 	var info := VBoxContainer.new()
 	info.position = Vector2(14, 14)
-	info.size = Vector2(DECK_PANEL_W - 200, 70)
+	info.size = Vector2(_deck_panel_width() - 200, 70)
 	info.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var ld: Dictionary = CardDB.leader(_leader)
 	var title := _lbl(String(ld["name"]), 24, UITheme.GOLD_LIGHT, "title_bold")
@@ -1425,7 +1531,7 @@ func _build_leader_header() -> Control:
 		_pick_leader("TROCAR O LÍDER", false, func(leader_id: String, _template: String):
 			if leader_id != _leader:
 				_set_leader(leader_id)), false, 15)
-	change.position = Vector2(DECK_PANEL_W - 24 - 146, 14)
+	change.position = Vector2(_deck_panel_width() - 24 - 146, 14)
 	change.size = Vector2(134, 38)
 	holder.add_child(change)
 	return holder
@@ -2006,7 +2112,7 @@ func _note(text: String, color: Color, tag: String) -> Control:
 	var message := _lbl(text, NOTE_FONT_SIZE, UITheme.TEXT, "body")
 	message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	message.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	message.custom_minimum_size = Vector2(DECK_PANEL_W - NOTE_TAG_WIDTH - 2.0 * NOTE_PADDING.x - 40.0, 0)
+	message.custom_minimum_size = Vector2(_deck_panel_width() - NOTE_TAG_WIDTH - 2.0 * NOTE_PADDING.x - 40.0, 0)
 	row.add_child(message)
 	return panel
 
