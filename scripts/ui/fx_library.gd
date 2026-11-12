@@ -41,7 +41,7 @@ func pose_of(v: Control) -> Dictionary:
 	return {"c": v.position + v.pivot_offset + (v.size / 2.0 - v.pivot_offset).rotated(v.rotation) * s,
 		"rot": v.rotation, "w": v.size.x * s}
 
-func _apply_pose(v: Control, p: Dictionary) -> void:
+func apply_pose(v: Control, p: Dictionary) -> void:
 	var s: float = p["w"] / v.size.x
 	v.rotation = p["rot"]
 	v.scale = Vector2.ONE * s
@@ -56,13 +56,13 @@ func snapshot_views() -> Dictionary:
 			out[k] = {"pose": pose_of(v), "card_id": v.card_id, "inst": v.inst.duplicate(true), "hand": hand_uids.has(k)}
 	return out
 
-func _center_of(c: Control) -> Vector2:
+func center_of(c: Control) -> Vector2:
 	if c is LeaderView:
 		return c.position + LeaderView.PC
 	return pose_of(c)["c"]
 
-func _fly(v: Control, from: Dictionary, to: Dictionary, t0: float, dur: float, arc := 0.0, hide := false) -> Tween:
-	_apply_pose(v, from)
+func fly_card(v: Control, from: Dictionary, to: Dictionary, t0: float, dur: float, arc := 0.0, hide := false) -> Tween:
+	apply_pose(v, from)
 	var tw := v.create_tween()
 	if hide:
 		v.visible = false
@@ -73,20 +73,20 @@ func _fly(v: Control, from: Dictionary, to: Dictionary, t0: float, dur: float, a
 	tw.tween_method(func(t: float):
 		var c: Vector2 = from["c"].lerp(to["c"], t)
 		c.y -= arc * 4.0 * t * (1.0 - t)
-		_apply_pose(v, {"c": c, "rot": lerp_angle(from["rot"], to["rot"], t), "w": lerpf(from["w"], to["w"], t)}),
+		apply_pose(v, {"c": c, "rot": lerp_angle(from["rot"], to["rot"], t), "w": lerpf(from["w"], to["w"], t)}),
 		0.0, 1.0, dur).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	return tw
 
 ## A unit that enters the board straight from the deck: it leaves the top of its owner's pile face
 ## down, flips face up halfway (like a drawn card) and lands in its slot with the same small bounce
 ## and sound as a unit played from the hand. Returns how long it takes.
-func _enter_from_deck(v: CardView, owner_player: int, t0: float) -> float:
+func enter_from_deck(v: CardView, owner_player: int, t0: float) -> float:
 	const FLIGHT_TIME := 0.5
 	var deck_pose: Dictionary = host._deck_top_pose(owner_player)
 	var to := pose_of(v)
 	v.z_index = 20
 	v.face_down = true
-	var tw := _fly(v, deck_pose, to, t0, FLIGHT_TIME, 60.0, true)
+	var tw := fly_card(v, deck_pose, to, t0, FLIGHT_TIME, 60.0, true)
 	tw.tween_callback(func(): v.z_index = 0)
 	var landing_scale: Vector2 = Vector2.ONE * (to["w"] / v.size.x)
 	tw.tween_property(v, "scale", landing_scale * 1.1, 0.06)
@@ -106,9 +106,9 @@ const DRAW_FLIGHT_TIME := 0.62
 const DRAW_ARC_HEIGHT := 90.0 ## how high the card lifts above the straight line from deck to hand
 const DRAW_TILT_DEGREES := -10.0 ## the card leans a little while it travels, like one tossed by hand
 
-func _draw_from_deck(v: CardView, to: Dictionary, t0: float) -> void:
+func draw_from_deck(v: CardView, to: Dictionary, t0: float) -> void:
 	var from: Dictionary = host._deck_top_pose(viewer)
-	_apply_pose(v, from)
+	apply_pose(v, from)
 	v.face_down = true
 	v.visible = false
 	v.z_index = 25
@@ -121,7 +121,7 @@ func _draw_from_deck(v: CardView, to: Dictionary, t0: float) -> void:
 		var center: Vector2 = from["c"].lerp(to["c"], eased)
 		center.y -= DRAW_ARC_HEIGHT * 4.0 * eased * (1.0 - eased)
 		var tilt := deg_to_rad(DRAW_TILT_DEGREES) * sin(PI * eased)
-		_apply_pose(v, {"c": center, "rot": lerp_angle(from["rot"], to["rot"], eased) + tilt, "w": lerpf(from["w"], to["w"], eased)})
+		apply_pose(v, {"c": center, "rot": lerp_angle(from["rot"], to["rot"], eased) + tilt, "w": lerpf(from["w"], to["w"], eased)})
 		# turning over: the card narrows to its edge around the middle of the flight, then shows its face
 		var turn := clampf((eased - 0.25) / 0.5, 0.0, 1.0)
 		if v.face_down and turn >= 0.5:
@@ -137,7 +137,7 @@ func _draw_from_deck(v: CardView, to: Dictionary, t0: float) -> void:
 ## Starts at moment t; returns how long the flight takes.
 const BOUNCE_FLIGHT_TIME := 0.55
 const BOUNCE_LIFT_HEIGHT := 30.0 ## how far the card rises before it heads for the hand
-func _bounce_to_enemy_hand_fx(ghost: CardView, owner_player: int, t: float) -> float:
+func bounce_to_enemy_hand_fx(ghost: CardView, owner_player: int, t: float) -> float:
 	var from := pose_of(ghost)
 	var hand_size: int = g.players[owner_player]["hand"].size()
 	var card_size: Vector2 = CardView.BASE * host.ENEMY_HAND_SCALE
@@ -155,7 +155,7 @@ func _bounce_to_enemy_hand_fx(ghost: CardView, owner_player: int, t: float) -> f
 		var eased := ease(progress, -1.6) # slow lift-off, quicker towards the hand
 		var center: Vector2 = from["c"].lerp(to["c"], eased)
 		center.y -= BOUNCE_LIFT_HEIGHT * 4.0 * eased * (1.0 - eased) * (1.0 - eased) # a small hop at the start
-		_apply_pose(ghost, {"c": center, "rot": lerp_angle(from["rot"], to["rot"], eased), "w": lerpf(from["w"], to["w"], eased)})
+		apply_pose(ghost, {"c": center, "rot": lerp_angle(from["rot"], to["rot"], eased), "w": lerpf(from["w"], to["w"], eased)})
 		# turning over: it narrows to its edge around the middle of the flight, then shows its back
 		var turn := clampf((progress - 0.2) / 0.5, 0.0, 1.0)
 		if not ghost.face_down and turn >= 0.5:
@@ -179,12 +179,12 @@ const MILL_MAX_STAGGER_TOTAL := 0.4 ## the whole row of starts never takes longe
 ## The cards `card_ids` leave the top of `deck_owner`'s deck one after another and land in their
 ## graveyard. Starts at moment t; returns how long the animation queue should wait (the cards keep
 ## flying on their own after that, they overlap with whatever plays next).
-func _mill_fx(deck_owner: int, card_ids: Array, t: float) -> float:
+func mill_fx(deck_owner: int, card_ids: Array, t: float) -> float:
 	var leader_view = views.get(GameState.LEADER_UID[deck_owner])
 	if not (leader_view is LeaderView) or card_ids.is_empty():
 		return 0.0
 	var deck_pose: Dictionary = host._deck_top_pose(deck_owner)
-	var grave_pose: Dictionary = host._graveyard_pose(deck_owner)
+	var grave_pose: Dictionary = host.graveyard_pose(deck_owner)
 	# the card is shown a bit toward the middle of the table, so the Leader's own frame doesn't hide it
 	var middle_y: float = (host._screen_top() + host._screen_bottom()) / 2.0
 	var shown_pose := {"c": deck_pose["c"] + Vector2(0, 170.0 * signf(middle_y - deck_pose["c"].y)), "rot": 0.0, "w": MILL_CARD_W}
@@ -193,7 +193,7 @@ func _mill_fx(deck_owner: int, card_ids: Array, t: float) -> float:
 	var stagger := minf(MILL_STAGGER, MILL_MAX_STAGGER_TOTAL / card_ids.size())
 	var total_time := MILL_RISE_TIME + MILL_HOLD_TIME + MILL_DROP_TIME
 	for i in card_ids.size():
-		var ghost := _ghost(card_ids[i], host._display_instance_for_id(String(card_ids[i]), deck_owner), deck_pose, MILL_CARD_W / CardView.BASE.x) # built at its biggest size: only shrinks, never blurs
+		var ghost := make_ghost(card_ids[i], host.display_instance_for_id(String(card_ids[i]), deck_owner), deck_pose, MILL_CARD_W / CardView.BASE.x) # built at its biggest size: only shrinks, never blurs
 		ghost.z_index = 30
 		ghost.visible = false
 		var flight := ghost.create_tween()
@@ -209,7 +209,7 @@ func _mill_fx(deck_owner: int, card_ids: Array, t: float) -> float:
 				var drop_progress := (seconds - MILL_RISE_TIME - MILL_HOLD_TIME) / MILL_DROP_TIME
 				pose = _blend_pose(shown_pose, grave_pose, drop_progress)
 				ghost.modulate.a = 1.0 - drop_progress * drop_progress
-			_apply_pose(ghost, pose),
+			apply_pose(ghost, pose),
 			0.0, total_time, total_time)
 		flight.tween_callback(ghost.queue_free)
 	return (card_ids.size() - 1) * stagger + 0.1
@@ -219,12 +219,12 @@ func _blend_pose(from: Dictionary, to: Dictionary, progress: float) -> Dictionar
 	var eased := ease(clampf(progress, 0.0, 1.0), -2.0) if progress < 1.0 else 1.0
 	return {"c": from["c"].lerp(to["c"], eased), "rot": lerp_angle(from["rot"], to["rot"], eased), "w": lerpf(from["w"], to["w"], eased)}
 
-func _ghost(card_id: String, inst: Dictionary, pose: Dictionary, size_scale := 1.15) -> CardView:
+func make_ghost(card_id: String, inst: Dictionary, pose: Dictionary, size_scale := 1.15) -> CardView:
 	var v := CardView.new().setup(card_id, inst, size_scale)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.pivot_offset = v.size / 2.0
 	fx.add_child(v)
-	_apply_pose(v, pose)
+	apply_pose(v, pose)
 	return v
 
 ## Timing of an attack lunge: pull back, rush in, stay on the target a moment, walk back.
@@ -241,7 +241,7 @@ const TAP_DELAY := 0.12
 const SHORT_LIVED_ARRIVAL_TIME := 0.6
 const TAP_TIME := 0.45
 
-func _lunge(a: CardView, target: Control, t: float) -> void:
+func lunge_at_target(a: CardView, target: Control, t: float) -> void:
 	var tw := a.create_tween()
 	tw.tween_interval(t)
 	# The direction is measured when the lunge starts, not now: the table was already redrawn in its
@@ -250,7 +250,7 @@ func _lunge(a: CardView, target: Control, t: float) -> void:
 	# is turned back by the card's rotation and divided by its scale.
 	tw.tween_callback(func():
 		a.z_index = 20
-		var offset_to_target: Vector2 = ((_center_of(target) - _center_of(a)) * 0.72 / a.scale.x).rotated(-a.rotation)
+		var offset_to_target: Vector2 = ((center_of(target) - center_of(a)) * 0.72 / a.scale.x).rotated(-a.rotation)
 		var strike := a.create_tween()
 		strike.tween_property(a, "lunge", -offset_to_target * 0.22, LUNGE_WINDUP_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 		strike.tween_property(a, "lunge", offset_to_target, LUNGE_STRIKE_TIME).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
@@ -265,11 +265,11 @@ const TRANSFORM_TIME := 0.75
 ## _render already drew the new card, so a ghost of the old one is laid over it and, at moment t,
 ## burns away in the new card's color: it reveals the new card beneath, which pops with a flash and a
 ## ring of light. The ghost is created now, so the old card stays on screen until the moment arrives.
-func _transform_fx(uid: int, from_id: String, into_id: String, actors: Dictionary, old: Dictionary, t: float) -> void:
+func transform_fx(uid: int, from_id: String, into_id: String, actors: Dictionary, old: Dictionary, t: float) -> void:
 	var new_view: CardView = actors[uid]
 	var old_instance: Dictionary = old[uid]["inst"] if old.has(uid) else {}
 	var old_pose: Dictionary = old[uid]["pose"] if old.has(uid) else pose_of(new_view)
-	var old_card := _ghost(from_id, old_instance, old_pose)
+	var old_card := make_ghost(from_id, old_instance, old_pose)
 	old_card.z_index = 20
 	var color: Color = host.table_animator.elem_color(into_id).lightened(0.35)
 	old_card.dissolve(t, color, 0.45)
@@ -283,8 +283,8 @@ func _transform_fx(uid: int, from_id: String, into_id: String, actors: Dictionar
 	ring.tween_interval(t + 0.14)
 	ring.tween_property(new_view, "proc_wave", 1.0, 0.55).from(0.001)
 	ring.tween_callback(func(): new_view.proc_wave = 0.0)
-	_embers(_center_of(new_view), t + 0.1, color, 24)
-	_impact(new_view, "Transformou!", color, t + 0.15, false)
+	spawn_embers(center_of(new_view), t + 0.1, color, 24)
+	hit_impact(new_view, "Transformou!", color, t + 0.15, false)
 
 ## Câmara de Êxtase cancelling a killing blow: at the moment of impact the Chamber pulses and sends a
 ## ring of light to the Leader, "Anulado!" floats over the Leader (like a Magic Shield), the Leader
@@ -293,10 +293,10 @@ func _transform_fx(uid: int, from_id: String, into_id: String, actors: Dictionar
 const WARD_FADE_DELAY := 0.55
 const WARD_FADE_TIME := 1.1
 
-func _ward_fx(leader: Control, ward: CardView, t: float, col: Color) -> void:
+func ward_fx(leader: Control, ward: CardView, t: float, col: Color) -> void:
 	if leader != null:
-		_impact(leader, "Anulado!", col, t, false)
-		_embers(_center_of(leader), t, col, 18)
+		hit_impact(leader, "Anulado!", col, t, false)
+		spawn_embers(center_of(leader), t, col, 18)
 		var ring := Line2D.new()
 		var points := PackedVector2Array()
 		for i in 33:
@@ -304,7 +304,7 @@ func _ward_fx(leader: Control, ward: CardView, t: float, col: Color) -> void:
 		ring.points = points
 		ring.width = 5.0
 		ring.default_color = Color(col, 0.85)
-		ring.position = _center_of(leader)
+		ring.position = center_of(leader)
 		ring.z_index = 58
 		ring.scale = Vector2(0.3, 0.3)
 		ring.modulate.a = 0.0
@@ -330,18 +330,18 @@ func _ward_fx(leader: Control, ward: CardView, t: float, col: Color) -> void:
 	wave.tween_interval(t + 0.04)
 	wave.tween_property(ward, "proc_wave", 1.0, 0.55).from(0.001)
 	wave.tween_callback(func(): ward.proc_wave = 0.0)
-	_embers(_center_of(ward), t + 0.05, col, 16)
+	spawn_embers(center_of(ward), t + 0.05, col, 16)
 	ward.dissolve(t + WARD_FADE_DELAY, col, WARD_FADE_TIME)
 
-## Combat damage at or above this makes the whole screen react (see _crushing_blow_fx).
+## Combat damage at or above this makes the whole screen react (see crushing_blow_fx).
 const CRUSHING_BLOW_DAMAGE := 7
 const CRUSHING_BLOW_SHAKE_TIME := 1.2
 
 ## Heavy-hit feedback, kept cheap on purpose (no full-screen overlays, no scaling of the whole
 ## screen): a decaying trauma shake of the screen (strength = trauma squared, 1.2s) plus one
 ## shockwave ring and a few sparks at the impact point.
-func _crushing_blow_fx(target: Control, amount: int, t: float) -> void:
-	var center := _center_of(target)
+func crushing_blow_fx(target: Control, amount: int, t: float) -> void:
+	var center := center_of(target)
 	var power := clampf(float(amount - CRUSHING_BLOW_DAMAGE) / 8.0, 0.0, 1.0) # 7 dmg = base, 15+ = max
 	var strength := 6.0 + 6.0 * power ## peak shake in pixels
 
@@ -369,7 +369,7 @@ func _crushing_blow_fx(target: Control, amount: int, t: float) -> void:
 	ring_tween.tween_property(ring, "scale", Vector2.ONE * (3.5 + 1.5 * power), 0.45).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
 	ring_tween.parallel().tween_property(ring, "modulate:a", 0.0, 0.45)
 	ring_tween.tween_callback(ring.queue_free)
-	_embers(center, t, Color(1.0, 0.6, 0.25), 14)
+	spawn_embers(center, t, Color(1.0, 0.6, 0.25), 14)
 
 ## Execution (a card effect kills the Leader outright, e.g. Viprax): deliberately unlike a hit.
 ## The Leader trembles while a ring closes in on it (wind-up), then two slashes cross it, the screen
@@ -378,8 +378,8 @@ func _crushing_blow_fx(target: Control, amount: int, t: float) -> void:
 const EXECUTION_WINDUP_TIME := 0.55
 const EXECUTION_DRAIN_TIME := 0.9
 
-func _execution_fx(leader: LeaderView, hp_before: int, t: float, col: Color) -> float:
-	var center := _center_of(leader)
+func execution_fx(leader: LeaderView, hp_before: int, t: float, col: Color) -> float:
+	var center := center_of(leader)
 	var strike_t := t + EXECUTION_WINDUP_TIME
 
 	# wind-up: the Leader trembles harder and harder, a ring closes in on it
@@ -407,11 +407,11 @@ func _execution_fx(leader: LeaderView, hp_before: int, t: float, col: Color) -> 
 	ring_tween.tween_callback(ring.queue_free)
 
 	# strike: two crossing slashes, the heaviest screen shake and sparks in the effect's color
-	_cross_slash_fx(center, Vector2(95, 75), col, strike_t)
-	_crushing_blow_fx(leader, 15, strike_t)
-	_embers(center, strike_t, col, 30)
+	cross_slash_fx(center, Vector2(95, 75), col, strike_t)
+	crushing_blow_fx(leader, 15, strike_t)
+	spawn_embers(center, strike_t, col, 30)
 
-	var title: Label = host._label("Execução", 52, col.lightened(0.35), HORIZONTAL_ALIGNMENT_CENTER, "heavy", 12)
+	var title: Label = host.make_label("Execução", 52, col.lightened(0.35), HORIZONTAL_ALIGNMENT_CENTER, "heavy", 12)
 	title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 	title.size = Vector2(340, 66)
 	title.pivot_offset = title.size / 2.0
@@ -474,7 +474,7 @@ const SHOUT_STYLES := {
 	},
 }
 
-func _shout_fx(speaker: Control, text: String, t: float, style_name := "") -> float:
+func shout_fx(speaker: Control, text: String, t: float, style_name := "") -> float:
 	var style: Dictionary = SHOUT_STYLES.get(style_name, SHOUT_STYLES["atomic"])
 	var buildup_colors: Array = style["buildup"]
 	var finale_colors: Array = style["finale"]
@@ -485,7 +485,7 @@ func _shout_fx(speaker: Control, text: String, t: float, style_name := "") -> fl
 	var finale_word := words[words.size() - 1].replace(" ", " ")
 	var buildup_words := words.slice(0, words.size() - 1)
 	# everything happens over the speaker, pushed inside the screen near its borders
-	var anchor := _center_of(speaker)
+	var anchor := center_of(speaker)
 	anchor.x = clampf(anchor.x, screen.x * 0.3, screen.x * 0.7)
 	anchor.y = clampf(anchor.y, screen.y * 0.25, screen.y * 0.75)
 	# when each build-up word appears: a word ending with a comma holds the beat a little longer
@@ -621,9 +621,9 @@ func _shout_fx(speaker: Control, text: String, t: float, style_name := "") -> fl
 
 	# BOOM, shockwave, screen shake and sparks
 	Sfx.play_in(String(style["boom_sound"]), boom_t)
-	_crushing_blow_fx(speaker, 15, boom_t)
-	_embers(anchor, boom_t, style["sparks_a"], 40)
-	_embers(anchor, boom_t + 0.08, style["sparks_b"], 18)
+	crushing_blow_fx(speaker, 15, boom_t)
+	spawn_embers(anchor, boom_t, style["sparks_a"], 40)
+	spawn_embers(anchor, boom_t + 0.08, style["sparks_b"], 18)
 	return boom_t + 0.35
 
 ## A label in the shout font, hidden, already added to the fx layer, sized to its text and pivoting on
@@ -633,7 +633,7 @@ func _shout_label(text: String, font_size: int, color: Color, max_width: float, 
 	var text_width := shout_font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 	if text_width > max_width:
 		font_size = int(font_size * max_width / text_width)
-	var label: Label = host._label(text, font_size, color, HORIZONTAL_ALIGNMENT_CENTER, font_kind, maxi(6, font_size / 7))
+	var label: Label = host.make_label(text, font_size, color, HORIZONTAL_ALIGNMENT_CENTER, font_kind, maxi(6, font_size / 7))
 	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 	label.z_index = 62
 	label.modulate.a = 0.0
@@ -646,7 +646,7 @@ func _shout_label(text: String, font_size: int, color: Color, max_width: float, 
 ## `half_extent` is how far each slash reaches from the center (half the width and height of the X).
 const CROSS_SLASH_SECOND_DELAY := 0.09
 const CROSS_SLASH_FORM_TIME := 0.12 ## how long one slash takes to be drawn
-func _cross_slash_fx(center: Vector2, half_extent: Vector2, col: Color, t: float) -> void:
+func cross_slash_fx(center: Vector2, half_extent: Vector2, col: Color, t: float) -> void:
 	_execution_slash(center, Vector2(-half_extent.x, -half_extent.y), half_extent, col, t)
 	_execution_slash(center, Vector2(half_extent.x, -half_extent.y), Vector2(-half_extent.x, half_extent.y), col, t + CROSS_SLASH_SECOND_DELAY)
 
@@ -675,7 +675,7 @@ func _apply_screen_trauma(progress: float, rest_position: Vector2, strength: flo
 	host.position = rest_position + Vector2(randf_range(-1, 1), randf_range(-1, 1)) * intensity
 
 ## Shake + red flash on the target and a floating number over it.
-func _impact(target: Control, text: String, col: Color, t: float, hurt: bool) -> void:
+func hit_impact(target: Control, text: String, col: Color, t: float, hurt: bool) -> void:
 	var tw := target.create_tween()
 	tw.tween_interval(t)
 	if hurt and target is CardView:
@@ -688,11 +688,11 @@ func _impact(target: Control, text: String, col: Color, t: float, hurt: bool) ->
 		var base := target.position
 		tw.tween_method(func(k: float): target.position = base + Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 9.0 * (1.0 - k), 0.0, 1.0, 0.32)
 		tw.tween_callback(func(): target.position = base)
-	var l: Label = host._label(text, 46, col, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 10)
+	var l: Label = host.make_label(text, 46, col, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 10)
 	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 	l.size = Vector2(160, 58)
 	l.pivot_offset = l.size / 2.0
-	l.position = _center_of(target) - l.size / 2.0 + Vector2(0, -16)
+	l.position = center_of(target) - l.size / 2.0 + Vector2(0, -16)
 	l.scale = Vector2(0.4, 0.4)
 	l.modulate.a = 0.0
 	fx.add_child(l)
@@ -707,7 +707,7 @@ func _impact(target: Control, text: String, col: Color, t: float, hurt: bool) ->
 ## A unit gets frozen. _render already drew it covered in ice, so the ice is wiped off now and, at
 ## moment t, it slams back on: a white-blue flash with two shockwaves, the ice growing over the card
 ## from nothing, a shiver and a burst of flying shards.
-func _freeze_fx(target: Control, t: float) -> void:
+func freeze_fx(target: Control, t: float) -> void:
 	if not target is CardView:
 		return
 	var cv: CardView = target
@@ -723,11 +723,11 @@ func _freeze_fx(target: Control, t: float) -> void:
 	shiver.tween_interval(t)
 	shiver.tween_method(func(k: float): cv.shake = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 4.0 * (1.0 - k), 0.0, 1.0, 0.4)
 	shiver.tween_callback(func(): cv.shake = Vector2.ZERO)
-	_frost_shards(_center_of(cv), t, 30)
+	frost_shards(center_of(cv), t, 30)
 
 ## Empty slots get frozen (Rei Gelado). _render already drew them covered in ice, so the ice is wiped
 ## off, and at moment t it slams back on like it does on a unit: flash, shockwaves, growing ice, shards.
-func _freeze_slots_fx(frozen_player: int, t: float) -> void:
+func freeze_slots_fx(frozen_player: int, t: float) -> void:
 	for node in layer.get_children():
 		if not node is FrozenSlotView or node.owner_player != frozen_player:
 			continue
@@ -740,10 +740,10 @@ func _freeze_slots_fx(frozen_player: int, t: float) -> void:
 		burst.tween_interval(t)
 		burst.tween_property(tile, "frost_burst", 1.0, 0.65).from(0.001)
 		burst.tween_callback(func(): tile.frost_burst = 0.0)
-		_frost_shards(tile.position + tile.size / 2.0, t, 24)
+		frost_shards(tile.position + tile.size / 2.0, t, 24)
 
 ## Ice shards thrown outward from a point at moment t, falling a little as they fade.
-func _frost_shards(c: Vector2, t: float, amount: int) -> void:
+func frost_shards(c: Vector2, t: float, amount: int) -> void:
 	var p := CPUParticles2D.new()
 	p.emitting = false
 	p.one_shot = true
@@ -779,9 +779,9 @@ func _frost_shards(c: Vector2, t: float, amount: int) -> void:
 			p.queue_free())
 
 ## Escudo Supremo: a gold-and-ivory burst, with layered rings and star-like rays.
-func _supreme_shield_fx(target: Control, t: float) -> void:
+func supreme_shield_fx(target: Control, t: float) -> void:
 	var burst := Node2D.new()
-	burst.position = _center_of(target)
+	burst.position = center_of(target)
 	burst.z_index = 55
 	fx.add_child(burst)
 	var outer := _ring_line(34.0, 4.0, Color("#ffd86b"))
@@ -825,7 +825,7 @@ func _supreme_shield_fx(target: Control, t: float) -> void:
 
 ## Condenada / Ceifada: violet wisps of dark smoke rising off a unit at moment t, plus a short shiver.
 ## `heavy` makes the sentence being carried out bigger and darker than the mark being placed.
-func _doom_fx(target: Control, t: float, heavy: bool) -> void:
+func doom_fx(target: Control, t: float, heavy: bool) -> void:
 	if not target is CardView:
 		return
 	var cv: CardView = target
@@ -839,7 +839,7 @@ func _doom_fx(target: Control, t: float, heavy: bool) -> void:
 	wisps.amount = maxi(8, int((46 if heavy else 24) * fx_scale))
 	wisps.lifetime = 1.1
 	wisps.explosiveness = 0.8
-	wisps.position = _center_of(cv)
+	wisps.position = center_of(cv)
 	wisps.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
 	wisps.emission_rect_extents = Vector2(40, 60)
 	wisps.direction = Vector2(0, -1)
@@ -868,8 +868,8 @@ func _doom_fx(target: Control, t: float, heavy: bool) -> void:
 ## Sem cura: a rose heal cross shows over the target at moment t and a red ban slash is struck through it.
 ## `prevented` = false is the block being placed (the cross holds a moment, then cracks and fades);
 ## `prevented` = true is a heal that got swallowed (a smaller cross that shatters into flying pink shards).
-func _heal_block_fx(target: Control, t: float, prevented: bool) -> void:
-	var center := _center_of(target)
+func heal_block_fx(target: Control, t: float, prevented: bool) -> void:
+	var center := center_of(target)
 	var cross_size := 34.0 if prevented else 52.0
 	var arm := cross_size * 0.36
 	var holder := Node2D.new()
@@ -999,18 +999,18 @@ func prewarm_fx() -> void:
 	thorn_spike.vertex_colors = PackedColorArray([Color.WHITE, Color.RED, Color.GREEN])
 	holder.add_child(thorn_spike)
 	# floating numbers / trigger tags: big outlined glyphs are rasterized on first use
-	var num: Label = host._label("-0123456789+/!", 46, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 10)
+	var num: Label = host.make_label("-0123456789+/!", 46, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 10)
 	num.size = Vector2(400, 58)
 	holder.add_child(num)
-	var tg: Label = host._label("Ao Morrer Aliado Morre Ao Entrar Escudo Maré Congelada", 17, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 4)
+	var tg: Label = host.make_label("Ao Morrer Aliado Morre Ao Entrar Escudo Maré Congelada", 17, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 4)
 	tg.position = Vector2(0, 60)
 	holder.add_child(tg)
-	var shout_glyphs: Label = host._label("SUPER HIPER ULTRA MEGA… ATÔMICA!", 40, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, "shout", 10)
+	var shout_glyphs: Label = host.make_label("SUPER HIPER ULTRA MEGA… ATÔMICA!", 40, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, "shout", 10)
 	shout_glyphs.position = Vector2(0, 90)
 	holder.add_child(shout_glyphs)
 	host.get_tree().create_timer(0.5).timeout.connect(holder.queue_free)
 
-func _embers(c: Vector2, t: float, col: Color, amount := 36) -> void:
+func spawn_embers(c: Vector2, t: float, col: Color, amount := 36) -> void:
 	amount = maxi(4, int(amount * fx_scale))
 	var p := CPUParticles2D.new()
 	p.emitting = false
@@ -1047,7 +1047,7 @@ const BANISH_COL := Color(0.8, 0.7, 1.0)
 
 ## Banish flourish at a card's center: a pale ring contracting onto it while motes of light
 ## are pulled inward (the opposite of the death embers, which rise and scatter).
-func _banish_fx(c: Vector2, w: float, t: float) -> void:
+func banish_fx(c: Vector2, w: float, t: float) -> void:
 	var rad := w * 0.75
 	var ring := Line2D.new()
 	var pts := PackedVector2Array()
@@ -1101,7 +1101,7 @@ func _banish_fx(c: Vector2, w: float, t: float) -> void:
 ## A unit's trigger went off: the card pops with a hot rim light, a ring pulses out of it,
 ## light sweeps across it, sparks fly and a tag names the trigger, in the same orange as
 ## trigger names in the rules text, so what follows reads as coming from this card.
-func _trigger_fx(v: Control, trigger: String, t: float) -> void:
+func trigger_fx(v: Control, trigger: String, t: float) -> void:
 	if v is CardView:
 		var cv: CardView = v
 		var tw := cv.create_tween()
@@ -1114,12 +1114,12 @@ func _trigger_fx(v: Control, trigger: String, t: float) -> void:
 		wt.tween_interval(t + 0.04)
 		wt.tween_property(cv, "proc_wave", 1.0, 0.55).from(0.001)
 		wt.tween_callback(func(): cv.proc_wave = 0.0)
-	var c := _center_of(v)
-	_embers(c, t + 0.05, CardView.TRIGGER_COL, 16)
+	var c := center_of(v)
+	spawn_embers(c, t + 0.05, CardView.TRIGGER_COL, 16)
 	var trg: Dictionary = CardDB.data()["triggers"].get(trigger, {})
 	if trg.is_empty():
 		return
-	var tag: Label = host._label(String(trg["name"]), 17, CardView.TRIGGER_COL.lightened(0.3), HORIZONTAL_ALIGNMENT_CENTER, "heavy", 4)
+	var tag: Label = host.make_label(String(trg["name"]), 17, CardView.TRIGGER_COL.lightened(0.3), HORIZONTAL_ALIGNMENT_CENTER, "heavy", 4)
 	tag.add_theme_stylebox_override("normal", UITheme.box(Color(0.05, 0.03, 0.02, 0.92), 12, Color(CardView.TRIGGER_COL, 0.95), 2, 10))
 	tag.z_index = 25
 	tag.modulate.a = 0.0
@@ -1177,8 +1177,8 @@ func _streak(from: Control, to: Control, t: float, col: Color) -> float:
 		var d: Control = wt.get_ref()
 		if f == null or d == null:
 			return
-		var a := _center_of(f)
-		var b := _center_of(d)
+		var a := center_of(f)
+		var b := center_of(d)
 		var ctrl := (a + b) / 2.0 + (b - a).orthogonal().normalized() * minf(a.distance_to(b) * 0.18, 70.0) * bend
 		var head := ease(k, -2.0)
 		var tail := clampf(head - 0.45, 0.0, 1.0) + fade * (head - clampf(head - 0.45, 0.0, 1.0))

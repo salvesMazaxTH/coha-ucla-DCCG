@@ -249,7 +249,7 @@ func _fire_area(origin: Vector2, t: float) -> float:
 		var row: Rect2 = row_and_moment[0]
 		for i in ember_points:
 			var x := lerpf(row.position.x + 80.0, row.end.x - 80.0, (i + 0.5) / ember_points)
-			fx_library._embers(Vector2(x, row.get_center().y), t + FIRE_SWEEP_TIME * row_and_moment[1], FIRE_EDGE, 18)
+			fx_library.spawn_embers(Vector2(x, row.get_center().y), t + FIRE_SWEEP_TIME * row_and_moment[1], FIRE_EDGE, 18)
 	# the heat lighting up the table
 	_arena_tint(FIRE_EDGE, 0.18 if rich else 0.12, t, 0.2, FIRE_SWEEP_TIME * 0.6, 0.4)
 	_shake(t + FIRE_SWEEP_TIME * 0.3, 5.0, 0.5)
@@ -390,7 +390,7 @@ func _water_area(origin: Vector2, t: float) -> float:
 		var row: Rect2 = row_and_moment[0]
 		for i in 3:
 			var x := lerpf(row.position.x + 80.0, row.end.x - 80.0, (i + 0.5) / 3.0)
-			fx_library._embers(Vector2(x, row.get_center().y), t + WATER_ROLL_TIME * row_and_moment[1], WATER_CORE, 14)
+			fx_library.spawn_embers(Vector2(x, row.get_center().y), t + WATER_ROLL_TIME * row_and_moment[1], WATER_CORE, 14)
 	_shake(t + WATER_ROLL_TIME * 0.3, 6.0, 0.5)
 	# the first hits land when the wave reaches the middle of the table
 	return WATER_ROLL_TIME * 0.5
@@ -422,7 +422,7 @@ func _ice_area(origin: Vector2, t: float) -> float:
 	for row in [TableView.MY_LANE, TableView.ENEMY_LANE]:
 		for i in 3:
 			var x := lerpf(row.position.x + 80.0, row.end.x - 80.0, (i + 0.5) / 3.0)
-			fx_library._embers(Vector2(x, row.get_center().y), shatter_moment, ICE_GLOW, 12)
+			fx_library.spawn_embers(Vector2(x, row.get_center().y), shatter_moment, ICE_GLOW, 12)
 	# the cold light on the table
 	_arena_tint(ICE_GLOW, 0.12, t, 0.3, ICE_SPREAD_TIME + ICE_HOLD_TIME * 0.5, 0.4)
 	_shake(shatter_moment, 4.0, 0.35)
@@ -454,7 +454,7 @@ func _light_area(t: float) -> float:
 		var row: Rect2 = row_and_moment[0]
 		for i in (3 if rich else 2):
 			var x := lerpf(row.position.x + 80.0, row.end.x - 80.0, (i + 0.5) / (3.0 if rich else 2.0))
-			fx_library._embers(Vector2(x, row.get_center().y), t + LIGHT_DESCEND_TIME * row_and_moment[1], HOLY_GOLD, 12)
+			fx_library.spawn_embers(Vector2(x, row.get_center().y), t + LIGHT_DESCEND_TIME * row_and_moment[1], HOLY_GOLD, 12)
 	_arena_tint(HOLY_GOLD, 0.16 if rich else 0.1, t, 0.35, LIGHT_DESCEND_TIME + LIGHT_HOLD_TIME * 0.5, 0.5)
 	# the first hits land when the light reaches the top row of units
 	return LIGHT_DESCEND_TIME * 0.4
@@ -514,7 +514,7 @@ func _poison_area(origin: Vector2, t: float) -> float:
 		var row: Rect2 = row_and_moment[0]
 		for i in (3 if rich else 2):
 			var x := lerpf(row.position.x + 80.0, row.end.x - 80.0, (i + 0.5) / (3.0 if rich else 2.0))
-			fx_library._embers(Vector2(x, row.get_center().y), t + POISON_ROLL_TIME * row_and_moment[1], VENOM_PURPLE, 10)
+			fx_library.spawn_embers(Vector2(x, row.get_center().y), t + POISON_ROLL_TIME * row_and_moment[1], VENOM_PURPLE, 10)
 	# no shake: poison is quiet, it seeps in instead of hitting
 	# the first hits land when the cloud reaches the near row of units
 	return POISON_ROLL_TIME * 0.4
@@ -549,7 +549,7 @@ func _stone_area(origin: Vector2, t: float) -> float:
 		var row: Rect2 = row_and_moment[0]
 		for i in (3 if rich else 2):
 			var x := lerpf(row.position.x + 80.0, row.end.x - 80.0, (i + 0.5) / (3.0 if rich else 2.0))
-			fx_library._embers(Vector2(x, row.get_center().y), t + STONE_FALL_TIME * row_and_moment[1], STONE_DUST, 12)
+			fx_library.spawn_embers(Vector2(x, row.get_center().y), t + STONE_FALL_TIME * row_and_moment[1], STONE_DUST, 12)
 	# the first hits land when the first boulders have reached the table
 	return STONE_FALL_TIME * 0.45
 
@@ -584,11 +584,11 @@ func _vine_area(origin: Vector2, t: float) -> float:
 		var row: Rect2 = row_and_moment[0]
 		for i in (3 if rich else 2):
 			var x := lerpf(row.position.x + 80.0, row.end.x - 80.0, (i + 0.5) / (3.0 if rich else 2.0))
-			fx_library._embers(Vector2(x, row.get_center().y), t + VINE_GROW_TIME * row_and_moment[1], LEAF_GREEN, 8)
+			fx_library.spawn_embers(Vector2(x, row.get_center().y), t + VINE_GROW_TIME * row_and_moment[1], LEAF_GREEN, 8)
 	# ...and dry brown leaves falling as they wither
 	if rich:
 		for row in [near_row, far_row]:
-			fx_library._embers(row.get_center(), t + VINE_GROW_TIME + VINE_HOLD_TIME + 0.1, DRY_LEAF_BROWN, 10)
+			fx_library.spawn_embers(row.get_center(), t + VINE_GROW_TIME + VINE_HOLD_TIME + 0.1, DRY_LEAF_BROWN, 10)
 	# the first hits land when the vines reach the near row of units
 	return VINE_GROW_TIME * 0.4
 
@@ -708,7 +708,7 @@ func destroy_style_of(card_id: String) -> String:
 ## Plays the destroy animation of `style` over the unit `unit_view` at moment t.
 ## Returns the time from t until the unit should start dissolving (inside the fire / under the water).
 func destroy_cast(style: String, unit_view: Control, t: float) -> float:
-	var center: Vector2 = fx_library._center_of(unit_view)
+	var center: Vector2 = fx_library.center_of(unit_view)
 	var card_size: Vector2 = unit_view.size * unit_view.scale
 	match style:
 		"fogo":
@@ -766,8 +766,8 @@ func _burn_unit(center: Vector2, card_size: Vector2, t: float) -> float:
 	tween.tween_interval(BURN_HOLD_TIME)
 	tween.tween_method(func(value: float): burn_material.set_shader_parameter("fade", value), 1.0, 0.0, BURN_FADE_TIME)
 	tween.tween_callback(overlay.queue_free)
-	fx_library._embers(Vector2(center.x, center.y + card_size.y * 0.4), t + 0.1, FIRE_EDGE, 16)
-	fx_library._embers(center, t + BURN_CLIMB_TIME, FIRE_EDGE, 20)
+	fx_library.spawn_embers(Vector2(center.x, center.y + card_size.y * 0.4), t + 0.1, FIRE_EDGE, 16)
+	fx_library.spawn_embers(center, t + BURN_CLIMB_TIME, FIRE_EDGE, 20)
 	_shake(t + 0.1, 3.0, 0.35)
 	# the unit starts dissolving once the flames have climbed most of the way
 	return BURN_CLIMB_TIME * 0.8
@@ -791,8 +791,8 @@ func _drown_unit(center: Vector2, card_size: Vector2, t: float) -> float:
 	tween.tween_interval(DROWN_HOLD_TIME)
 	tween.tween_method(func(value: float): drown_material.set_shader_parameter("drain", value), 0.0, 1.0, DROWN_DRAIN_TIME)
 	tween.tween_callback(overlay.queue_free)
-	fx_library._embers(Vector2(center.x, center.y + card_size.y * 0.45), t + 0.05, WATER_CORE, 12)
-	fx_library._embers(Vector2(center.x, center.y - card_size.y * 0.5), t + DROWN_RISE_TIME, WATER_CORE, 14)
+	fx_library.spawn_embers(Vector2(center.x, center.y + card_size.y * 0.45), t + 0.05, WATER_CORE, 12)
+	fx_library.spawn_embers(Vector2(center.x, center.y - card_size.y * 0.5), t + DROWN_RISE_TIME, WATER_CORE, 14)
 	# the unit starts dissolving once it is fully under water
 	return DROWN_RISE_TIME
 
@@ -823,8 +823,8 @@ func _crush_unit(center: Vector2, card_size: Vector2, t: float) -> float:
 	var first_landing := t + CRUSH_FALL_TIME * 0.32
 	_shake(first_landing, 7.0, 0.3)
 	_shake(t + CRUSH_FALL_TIME * 0.75, 5.0, 0.3)
-	fx_library._embers(Vector2(center.x, center.y + card_size.y * 0.4), first_landing, STONE_DUST, 14)
-	fx_library._embers(center, t + CRUSH_FALL_TIME + CRUSH_HOLD_TIME, STONE_DUST, 16)
+	fx_library.spawn_embers(Vector2(center.x, center.y + card_size.y * 0.4), first_landing, STONE_DUST, 14)
+	fx_library.spawn_embers(center, t + CRUSH_FALL_TIME + CRUSH_HOLD_TIME, STONE_DUST, 16)
 	# the unit starts dissolving once most of the pile is on it
 	return CRUSH_FALL_TIME * 0.8
 
@@ -847,9 +847,9 @@ func _overgrow_unit(center: Vector2, card_size: Vector2, t: float) -> float:
 	tween.tween_interval(OVERGROW_HOLD_TIME)
 	tween.tween_method(func(value: float): vine_material.set_shader_parameter("fade", value), 1.0, 0.0, OVERGROW_WITHER_TIME)
 	tween.tween_callback(overlay.queue_free)
-	fx_library._embers(Vector2(center.x, center.y + card_size.y * 0.45), t + 0.05, LEAF_GREEN, 10)
+	fx_library.spawn_embers(Vector2(center.x, center.y + card_size.y * 0.45), t + 0.05, LEAF_GREEN, 10)
 	# dry leaves falling off as the vines wither
-	fx_library._embers(center, t + OVERGROW_TIME + OVERGROW_HOLD_TIME, Color("#8a6a2e"), 14)
+	fx_library.spawn_embers(center, t + OVERGROW_TIME + OVERGROW_HOLD_TIME, Color("#8a6a2e"), 14)
 	# the unit starts dissolving once the vines have climbed most of the way
 	return OVERGROW_TIME * 0.85
 
@@ -873,7 +873,7 @@ func _corrode_unit(center: Vector2, card_size: Vector2, t: float) -> float:
 	tween.tween_method(func(value: float): venom_material.set_shader_parameter("fade", value), 1.0, 0.0, CORRODE_FADE_TIME)
 	tween.tween_callback(overlay.queue_free)
 	# toxic fumes rising off the card
-	fx_library._embers(Vector2(center.x, center.y - card_size.y * 0.3), t + CORRODE_TIME * 0.6, Color("#9dff52"), 12)
+	fx_library.spawn_embers(Vector2(center.x, center.y - card_size.y * 0.3), t + CORRODE_TIME * 0.6, Color("#9dff52"), 12)
 	# the unit starts dissolving once the venom has eaten into it
 	return CORRODE_TIME * 0.85
 
@@ -953,8 +953,8 @@ func _electrocute_unit(center: Vector2, card_size: Vector2, t: float) -> float:
 		xray_clock = flash_start + XRAY_RISE_TIME + XRAY_FALL_TIME
 		_shake(flash_start, 3.0, 0.1)
 	# sparks off the card, and a jolt with the first strike
-	fx_library._embers(center, t + 0.05, BOLT_BLUE, 14)
-	fx_library._embers(Vector2(center.x, center.y + card_size.y * 0.3), t + 0.25, BOLT_BLUE, 10)
+	fx_library.spawn_embers(center, t + 0.05, BOLT_BLUE, 14)
+	fx_library.spawn_embers(Vector2(center.x, center.y + card_size.y * 0.3), t + 0.25, BOLT_BLUE, 10)
 	_shake(t, 4.0, 0.2)
 	# the unit starts dissolving between the two flashes
 	return XRAY_FLASH_MOMENTS[0] + XRAY_RISE_TIME + XRAY_FALL_TIME + 0.05
@@ -999,8 +999,8 @@ func _smite_unit(center: Vector2, card_size: Vector2, t: float) -> float:
 	halo_tween.tween_interval(t + SMITE_HALO_START)
 	halo_tween.tween_method(func(value: float): light_material.set_shader_parameter("halo", value), 0.0, 1.0, SMITE_HALO_TIME)
 	# gold motes rising off the card, and a soft jolt when the light lands
-	fx_library._embers(center, t + SMITE_WASH_START + SMITE_WASH_RISE_TIME * 0.5, HOLY_GOLD, 22)
-	fx_library._embers(Vector2(center.x, center.y - card_size.y * 0.2), t + SMITE_WASH_START + SMITE_WASH_RISE_TIME, Color.WHITE, 10)
+	fx_library.spawn_embers(center, t + SMITE_WASH_START + SMITE_WASH_RISE_TIME * 0.5, HOLY_GOLD, 22)
+	fx_library.spawn_embers(Vector2(center.x, center.y - card_size.y * 0.2), t + SMITE_WASH_START + SMITE_WASH_RISE_TIME, Color.WHITE, 10)
 	_shake(t + SMITE_FALL_TIME * 0.6, 2.0, 0.15)
 	# the unit starts dissolving once the veil is at its peak (the card is hidden in the light)
 	return SMITE_WASH_START + SMITE_WASH_RISE_TIME
@@ -1042,9 +1042,9 @@ func _freeze_unit(unit_view: Control, center: Vector2, card_size: Vector2, t: fl
 	flash_tween.tween_method(func(value: float): frost_material.set_shader_parameter("flash", value), 0.0, 1.0, 0.03)
 	flash_tween.tween_method(func(value: float): frost_material.set_shader_parameter("flash", value), 1.0, 0.0, 0.25)
 	# a little chill while it freezes, then the splinters and the jolt when it breaks
-	fx_library._embers(Vector2(center.x, center.y - card_size.y * 0.3), t + FREEZE_TIME * 0.4, ICE_GLOW, 8)
-	fx_library._embers(center, t + FREEZE_SHATTER_MOMENT, ICE_GLOW, 18)
-	fx_library._embers(center, t + FREEZE_SHATTER_MOMENT + 0.05, Color.WHITE, 8)
+	fx_library.spawn_embers(Vector2(center.x, center.y - card_size.y * 0.3), t + FREEZE_TIME * 0.4, ICE_GLOW, 8)
+	fx_library.spawn_embers(center, t + FREEZE_SHATTER_MOMENT, ICE_GLOW, 18)
+	fx_library.spawn_embers(center, t + FREEZE_SHATTER_MOMENT + 0.05, Color.WHITE, 8)
 	_shake(t + FREEZE_SHATTER_MOMENT, 4.0, 0.2)
 	# the real card is already gone (hidden) at the break, so main can start its dissolve there
 	return FREEZE_SHATTER_MOMENT

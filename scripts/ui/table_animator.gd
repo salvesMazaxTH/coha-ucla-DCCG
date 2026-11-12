@@ -82,16 +82,16 @@ func _ability_banner(p: int, t: float, hold: float, passive := false) -> void:
 	col.add_theme_constant_override("separation", 6)
 	box.add_child(col)
 	col.add_child(
-		host._label(
-			"%s · %s do Líder" % [host._pname(p), "Passiva" if passive else "Habilidade"],
+		host.make_label(
+			"%s · %s do Líder" % [host.player_name(p), "Passiva" if passive else "Habilidade"],
 			15,
 			Color(UITheme.TEXT, 0.6),
 			HORIZONTAL_ALIGNMENT_CENTER,
 			"body",
 		)
 	)
-	col.add_child(host._label(String(ab["name"]), 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "bold", 4))
-	var tx: Label = host._label(String(ab.get("text", "")), 18, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "body")
+	col.add_child(host.make_label(String(ab["name"]), 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "bold", 4))
+	var tx: Label = host.make_label(String(ab.get("text", "")), 18, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "body")
 	tx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	tx.custom_minimum_size = Vector2(w - 32, 0)
 	col.add_child(tx)
@@ -113,7 +113,7 @@ func first_banner(p: int) -> void:
 	var mine: bool = p == viewer if (online or vs_ai) else true
 	var title := "VOCÊ COMEÇA" if mine else "OPONENTE COMEÇA"
 	if not online and not vs_ai:
-		title = "%s COMEÇA" % host._pname(p).to_upper()
+		title = "%s COMEÇA" % host.player_name(p).to_upper()
 	var tint: Color = UITheme.GOLD_LIGHT if mine else Color("#ff8a80")
 	var band := Control.new()
 	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -133,11 +133,11 @@ func first_banner(p: int) -> void:
 		line.size = Vector2(stage_w, 2)
 		line.position = Vector2(0, y)
 		band.add_child(line)
-	var sub: Label = host._label("PRIMEIRO TURNO", 16, Color(UITheme.TEXT, 0.65), HORIZONTAL_ALIGNMENT_CENTER, "body")
+	var sub: Label = host.make_label("PRIMEIRO TURNO", 16, Color(UITheme.TEXT, 0.65), HORIZONTAL_ALIGNMENT_CENTER, "body")
 	sub.size = Vector2(stage_w, 24)
 	sub.position = Vector2(0, 376)
 	band.add_child(sub)
-	var lb: Label = host._label(title, 46, tint, HORIZONTAL_ALIGNMENT_CENTER, "bold", 6)
+	var lb: Label = host.make_label(title, 46, tint, HORIZONTAL_ALIGNMENT_CENTER, "bold", 6)
 	lb.size = Vector2(stage_w, 64)
 	lb.position = Vector2(0, 404)
 	band.add_child(lb)
@@ -190,7 +190,7 @@ func animate(events: Array, old: Dictionary) -> float:
 	var ghost_exiled: Array = [] ## parallel to ghosts
 	for k in old:
 		if k is int and k > 0 and not views.has(k) and not old[k]["hand"] and old[k]["inst"].has("damage"):
-			var gh := fx_library._ghost(old[k]["card_id"], old[k]["inst"], old[k]["pose"])
+			var gh := fx_library.make_ghost(old[k]["card_id"], old[k]["inst"], old[k]["pose"])
 			actors[k] = gh
 			ghosts.append(gh)
 			ghost_exiled.append(exiled.has(k))
@@ -212,12 +212,12 @@ func animate(events: Array, old: Dictionary) -> float:
 		):
 			continue
 		var owner_player: int = e["player"]
-		var lane_index: int = host._laid_out_slots(owner_player) + int(short_lived_per_player.get(owner_player, 0))
+		var lane_index: int = host.laid_out_slots(owner_player) + int(short_lived_per_player.get(owner_player, 0))
 		short_lived_per_player[owner_player] = int(short_lived_per_player.get(owner_player, 0)) + 1
-		var lane_cell: Vector2 = host._board_cell(lane_index + 1, lane_index)
+		var lane_cell: Vector2 = host.board_cell(lane_index + 1, lane_index)
 		var lane_y := 460.0 if owner_player == viewer else 172.0
-		var short_ghost := fx_library._ghost(e["card_id"], { }, { "c": Vector2.ZERO, "rot": 0.0, "w": 1.0 })
-		fx_library._apply_pose(
+		var short_ghost := fx_library.make_ghost(e["card_id"], { }, { "c": Vector2.ZERO, "rot": 0.0, "w": 1.0 })
+		fx_library.apply_pose(
 			short_ghost,
 			{
 				"c": Vector2(roundf(lane_cell.x + lane_cell.y / 2.0), roundf(lane_y) + short_ghost.size.y / 2.0),
@@ -325,9 +325,9 @@ func animate(events: Array, old: Dictionary) -> float:
 			and actors.has(trig_src) and actors.has(e["uid"])
 		):
 			# good effects are carried over as an orb; everything else is fired in the source's own style
-			var hit_style := "boon" if fx_shots._is_boon_event(e) else trig_style
+			var hit_style := "boon" if fx_shots.is_boon_event(e) else trig_style
 			var first_shot := trig_shots == 0
-			var timing := fx_shots._shot_timing(hit_style, first_shot)
+			var timing := fx_shots.shot_timing(hit_style, first_shot)
 			var shot_time: float = timing["charge"] + timing["flight"]
 			var land_t := cursor + shot_time
 			if hit_style == "boon":
@@ -337,14 +337,14 @@ func animate(events: Array, old: Dictionary) -> float:
 				# air while that one hits. Only something slower than a plain hit in between (each hit
 				# moves the cursor 0.12 on) holds it back.
 				land_t = maxf(volley_land_t + FxShots.VOLLEY_GAP, cursor - 0.12)
-			var shot_color := fx_shots._bolt_color(e)
+			var shot_color := fx_shots.bolt_color(e)
 			if trig_color.a > 0.0 and hit_style != "boon":
 				shot_color = trig_color # a spell's shot carries the color of its element
 			elif hit_style == "" and actors[trig_src] is CardView:
 				# a unit firing the default bolt also takes its element's shot color when it has one
 				# (a luz unit like Seymour fires the same white-yellow light as the luz spells)
 				shot_color = fx_shots.spell_shot_color((actors[trig_src] as CardView).card_id, shot_color)
-			fx_shots._effect_hit(hit_style, actors[trig_src], actors[e["uid"]], land_t - shot_time, shot_color, first_shot)
+			fx_shots.effect_hit(hit_style, actors[trig_src], actors[e["uid"]], land_t - shot_time, shot_color, first_shot)
 			volley_land_t = land_t
 			cursor = land_t
 			trig_shots += 1
@@ -360,9 +360,9 @@ func animate(events: Array, old: Dictionary) -> float:
 		match et:
 			"trigger":
 				if actors.has(e["uid"]):
-					fx_library._trigger_fx(actors[e["uid"]], e["trigger"], cursor)
+					fx_library.trigger_fx(actors[e["uid"]], e["trigger"], cursor)
 					trig_src = e["uid"]
-					trig_style = fx_shots._hit_style_of(actors[trig_src])
+					trig_style = fx_shots.hit_style_of(actors[trig_src])
 					# what it destroys follows the same rule as what it hits: the card's own cast_fx or its
 					# element first, the X only when it has neither
 					destroy_cast_style = fx_casts.destroy_style_of(String(e["card_id"]))
@@ -373,7 +373,7 @@ func animate(events: Array, old: Dictionary) -> float:
 					# from the unit instead of one shot per target
 					area_cast_active = fx_casts.is_area(String(e["card_id"]), String(e["trigger"]))
 					if area_cast_active:
-						cursor += fx_casts.area_cast(String(e["card_id"]), fx_library._center_of(actors[e["uid"]]), cursor)
+						cursor += fx_casts.area_cast(String(e["card_id"]), fx_library.center_of(actors[e["uid"]]), cursor)
 			"effect_choice_chosen":
 				# only an option that names its own "hit_fx" flies its effects out of the card (the choice
 				# comes in a batch of its own, after the trigger that offered it)
@@ -388,7 +388,7 @@ func animate(events: Array, old: Dictionary) -> float:
 				area_cast_active = false
 			"shout":
 				if actors.has(e["uid"]):
-					cursor = fx_library._shout_fx(actors[e["uid"]], String(e["text"]), cursor, String(e.get("style", "")))
+					cursor = fx_library.shout_fx(actors[e["uid"]], String(e["text"]), cursor, String(e.get("style", "")))
 			"buff":
 				if actors.has(e["uid"]):
 					var parts: Array = []
@@ -397,7 +397,7 @@ func animate(events: Array, old: Dictionary) -> float:
 					for kw in e.get("keywords", []):
 						parts.append(String(CardDB.data()["keywords"].get(kw, { }).get("name", kw)))
 					if not parts.is_empty():
-						fx_library._impact(actors[e["uid"]], " ".join(parts), Color("#a8ffa0"), cursor, false)
+						fx_library.hit_impact(actors[e["uid"]], " ".join(parts), Color("#a8ffa0"), cursor, false)
 				cursor += 0.15
 			"play":
 				var uid: int = e["uid"]
@@ -407,7 +407,7 @@ func animate(events: Array, old: Dictionary) -> float:
 					origin = old["cmd%d" % e["player"]]["pose"]
 				elif e.get("requiem", false):
 					# a Réquiem spell rises from its caster's graveyard
-					origin = { "c": host._graveyard_pose(int(e["player"]))["c"], "rot": 0.0, "w": 96.0 }
+					origin = { "c": host.graveyard_pose(int(e["player"]))["c"], "rot": 0.0, "w": 96.0 }
 				elif e.has("source_uid") and old.has(e["source_uid"]):
 					origin = old[e["source_uid"]]["pose"] # cast by a unit (Bola de Neve of Tempesfrost): it leaves that unit
 				elif old.has(uid):
@@ -427,7 +427,7 @@ func animate(events: Array, old: Dictionary) -> float:
 						Sfx.play_in("incarnation", cursor)
 					Sfx.play_in("card_place", cursor + 0.38)
 					v.z_index = 20
-					var tw := fx_library._fly(v, origin, to, cursor, 0.42, 70.0, true)
+					var tw := fx_library.fly_card(v, origin, to, cursor, 0.42, 70.0, true)
 					tw.tween_callback(
 						func():
 							v.z_index = 0,
@@ -446,12 +446,12 @@ func animate(events: Array, old: Dictionary) -> float:
 					cursor += 0.45
 				else:
 					Sfx.play_event(e, cursor, false)
-					var gh := fx_library._ghost(e["card_id"], { }, origin, REVEAL_W / CardView.BASE.x) # built at its final size: scaling up would blur the text
+					var gh := fx_library.make_ghost(e["card_id"], { }, origin, REVEAL_W / CardView.BASE.x) # built at its final size: scaling up would blur the text
 					if e.has("cost"):
 						gh.cost_override = int(e["cost"])
 						gh.queue_redraw()
 					gh.z_index = 30
-					var tw := fx_library._fly(
+					var tw := fx_library.fly_card(
 						gh,
 						origin,
 						{ "c": Vector2(lane_cx, 420), "rot": 0.0, "w": REVEAL_W },
@@ -473,7 +473,7 @@ func animate(events: Array, old: Dictionary) -> float:
 				if views.get(uid) is CardView:
 					handled[uid] = true
 					placed_uids[uid] = true
-					cursor += fx_library._enter_from_deck(views[uid], int(e["player"]), cursor)
+					cursor += fx_library.enter_from_deck(views[uid], int(e["player"]), cursor)
 			"fatigue":
 				# shown like a played card, so the hit on the Leader that follows makes sense
 				var fv := CardView.new().setup("", { }, FATIGUE_W / CardView.BASE.x)
@@ -483,7 +483,7 @@ func animate(events: Array, old: Dictionary) -> float:
 				fv.z_index = 30
 				fx.add_child(fv)
 				var from_y: float = 860.0 + host.BOT if e["player"] == viewer else 30.0
-				fx_library._fly(
+				fx_library.fly_card(
 					fv,
 					{ "c": Vector2(lane_cx + host.EHAND_DX, from_y), "rot": 0.0, "w": 96.0 },
 					{ "c": Vector2(lane_cx, 420), "rot": 0.0, "w": FATIGUE_W },
@@ -513,7 +513,7 @@ func animate(events: Array, old: Dictionary) -> float:
 				var ability_source_uid := int(e.get("uid", 0))
 				if e["kind"] == "unit_ability" and actors.has(ability_source_uid):
 					trig_src = ability_source_uid
-					trig_style = fx_shots._hit_style_of(actors[trig_src])
+					trig_style = fx_shots.hit_style_of(actors[trig_src])
 					trig_shots = 0
 					destroy_cast_style = fx_casts.destroy_style_of(resolved_card_id)
 					area_cast_active = fx_casts.is_area(resolved_card_id, "on_activate")
@@ -523,7 +523,7 @@ func animate(events: Array, old: Dictionary) -> float:
 					and String(CardDB.card(resolved_card_id).get("type", "")) == "spell"
 				):
 					if fx_casts.is_area(resolved_card_id, "on_play"):
-						cursor += fx_casts.area_cast(resolved_card_id, fx_library._center_of(caster_leader), cursor)
+						cursor += fx_casts.area_cast(resolved_card_id, fx_library.center_of(caster_leader), cursor)
 						area_cast_active = true
 					else:
 						trig_src = GameState.LEADER_UID[int(e["player"])]
@@ -532,13 +532,13 @@ func animate(events: Array, old: Dictionary) -> float:
 						trig_color = fx_shots.spell_shot_color(resolved_card_id, elem_color(resolved_card_id).lightened(0.25))
 						destroy_cast_style = fx_casts.destroy_style_of(resolved_card_id)
 			"fizzle":
-				host._toast(
+				host.show_toast(
 					"%s não teve alvo e foi anulado."
-					% (host._cname(e["card_id"]) if e["kind"] in ["card", "subito"] else "A habilidade")
+					% (host.card_name(e["card_id"]) if e["kind"] in ["card", "subito"] else "A habilidade")
 				)
 				cursor += 0.3
 			"countered":
-				host._toast("%s foi anulado!" % ("A habilidade do Líder" if e["kind"] == "ability" else host._cname(e["card_id"])))
+				host.show_toast("%s foi anulado!" % ("A habilidade do Líder" if e["kind"] == "ability" else host.card_name(e["card_id"])))
 				cursor += 0.4
 			"magic_shield_break", "supreme_shield_break", "tide_mark", "tide_draw", "dot", "dot_immune", "freeze", "exhaust", "ready", "stun", "stun_tick", "shrink", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up", "heal_block", "heal_prevented":
 				if actors.has(e["uid"]):
@@ -592,29 +592,29 @@ func animate(events: Array, old: Dictionary) -> float:
 						col = Color("#ff9d6e") # same warm tone as the Crítico tag
 					elif e["type"] in ["heal_block", "heal_prevented"]:
 						col = CardView.HEAL_BLOCK_COL
-					fx_library._impact(actors[e["uid"]], lbl, col, cursor, false)
+					fx_library.hit_impact(actors[e["uid"]], lbl, col, cursor, false)
 					if e["type"] == "freeze":
-						fx_library._freeze_fx(actors[e["uid"]], cursor)
+						fx_library.freeze_fx(actors[e["uid"]], cursor)
 					elif e["type"] == "thaw":
-						fx_library._frost_shards(fx_library._center_of(actors[e["uid"]]), cursor, 16)
+						fx_library.frost_shards(fx_library.center_of(actors[e["uid"]]), cursor, 16)
 					elif e["type"] == "supreme_shield_break":
-						fx_library._supreme_shield_fx(actors[e["uid"]], cursor)
+						fx_library.supreme_shield_fx(actors[e["uid"]], cursor)
 					elif e["type"] in ["condemn", "doom"]:
-						fx_library._doom_fx(actors[e["uid"]], cursor, e["type"] == "doom")
+						fx_library.doom_fx(actors[e["uid"]], cursor, e["type"] == "doom")
 					elif e["type"] in ["heal_block", "heal_prevented"]:
-						fx_library._heal_block_fx(actors[e["uid"]], cursor, e["type"] == "heal_prevented")
+						fx_library.heal_block_fx(actors[e["uid"]], cursor, e["type"] == "heal_prevented")
 				cursor += 0.2
 			"transform":
 				# a unit becomes another card in place (Transformar, transform_self)
 				if actors.has(e["uid"]):
-					fx_library._transform_fx(e["uid"], e["from"], e["card_id"], actors, old, cursor)
+					fx_library.transform_fx(e["uid"], e["from"], e["card_id"], actors, old, cursor)
 					cursor += FxLibraryScript.TRANSFORM_TIME
 			"snowball_evolve":
 				# Bola de Neve cards turning into Grande Bola de Neve: the ones in hand are visible
 				var evolved_in_view := false
 				for evolved_uid in e.get("uids", []):
 					if actors.has(evolved_uid) and old.has(evolved_uid):
-						fx_library._transform_fx(
+						fx_library.transform_fx(
 							evolved_uid,
 							old[evolved_uid]["card_id"],
 							actors[evolved_uid].card_id,
@@ -630,7 +630,7 @@ func animate(events: Array, old: Dictionary) -> float:
 				var devolved_in_view := false
 				for devolved_uid in e.get("uids", []):
 					if actors.has(devolved_uid) and old.has(devolved_uid):
-						fx_library._transform_fx(
+						fx_library.transform_fx(
 							devolved_uid,
 							old[devolved_uid]["card_id"],
 							actors[devolved_uid].card_id,
@@ -643,8 +643,8 @@ func animate(events: Array, old: Dictionary) -> float:
 					cursor += FxLibraryScript.TRANSFORM_TIME
 			"slots_frozen":
 				if int(e["blocked"]) > 0:
-					host._toast("%s: %d espaço(s) vazio(s) congelado(s)!" % [host._pname(e["player"]), e["blocked"]])
-				fx_library._freeze_slots_fx(int(e["player"]), cursor)
+					host.show_toast("%s: %d espaço(s) vazio(s) congelado(s)!" % [host.player_name(e["player"]), e["blocked"]])
+				fx_library.freeze_slots_fx(int(e["player"]), cursor)
 				cursor += 0.5
 			"summon", "draw", "search_take":
 				appear[e["uid"]] = cursor
@@ -655,15 +655,15 @@ func animate(events: Array, old: Dictionary) -> float:
 					var pop := arriving.create_tween()
 					pop.tween_interval(cursor)
 					pop.tween_property(arriving, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-					fx_library._embers(fx_library._center_of(arriving), cursor, elem_color(arriving.card_id).lightened(0.3), 20)
+					fx_library.spawn_embers(fx_library.center_of(arriving), cursor, elem_color(arriving.card_id).lightened(0.3), 20)
 					cursor += FxLibraryScript.SHORT_LIVED_ARRIVAL_TIME
 				if e["type"] == "search_take" and int(e["player"]) != viewer:
-					host._toast("%s pegou %s do deck" % [host._pname(e["player"]), host._cname(e["card_id"])])
+					host.show_toast("%s pegou %s do deck" % [host.player_name(e["player"]), host.card_name(e["card_id"])])
 					cursor += 0.5
 			"search_reveal", "look_top":
 				cursor += 0.35
 			"mill":
-				cursor += fx_library._mill_fx(int(e["player"]), e["cards"], cursor)
+				cursor += fx_library.mill_fx(int(e["player"]), e["cards"], cursor)
 			"destroy":
 				# a "destroy" effect (from any card): the same X as the Leader's execution forms and crosses
 				# over the unit, and only then does it die the usual way (the dissolve)
@@ -687,14 +687,14 @@ func animate(events: Array, old: Dictionary) -> float:
 					cursor += 0.3
 				elif destroyed_view is CardView:
 					var cross_half_extent: Vector2 = destroyed_view.size * destroyed_view.scale * 0.55
-					fx_library._cross_slash_fx(fx_library._center_of(destroyed_view), cross_half_extent, Color("#ff4040"), cursor)
+					fx_library.cross_slash_fx(fx_library.center_of(destroyed_view), cross_half_extent, Color("#ff4040"), cursor)
 					cursor += FxLibraryScript.CROSS_SLASH_SECOND_DELAY + FxLibraryScript.CROSS_SLASH_FORM_TIME + 0.12
 					# a table ghost does not wait for the end of the batch: it dissolves right after the X.
 					# (a stand-in summoned and killed in this batch dissolves at its own "death" event)
 					if ghosts.has(destroyed_view) and not short_lived.has(e["uid"]) and not dissolved_early.has(destroyed_view):
 						var destroyed_color := elem_color(destroyed_view.card_id)
 						destroyed_view.dissolve(cursor, destroyed_color.lightened(0.2), 0.75)
-						fx_library._embers(fx_library._center_of(destroyed_view), cursor + 0.1, destroyed_color)
+						fx_library.spawn_embers(fx_library.center_of(destroyed_view), cursor + 0.1, destroyed_color)
 						Sfx.play_in("death", cursor)
 						dissolved_early[destroyed_view] = true
 						cursor += 0.2
@@ -706,36 +706,36 @@ func animate(events: Array, old: Dictionary) -> float:
 					cursor += fx_casts.destroy_cast(destroy_cast_style, banished_view, cursor)
 					if ghosts.has(banished_view) and not short_lived.has(e["uid"]) and not dissolved_early.has(banished_view):
 						banished_view.banish(cursor, FxLibraryScript.BANISH_COL, 0.9)
-						fx_library._banish_fx(fx_library._center_of(banished_view), fx_library.pose_of(banished_view)["w"], cursor)
+						fx_library.banish_fx(fx_library.center_of(banished_view), fx_library.pose_of(banished_view)["w"], cursor)
 						Sfx.play_in("banish", cursor)
 						dissolved_early[banished_view] = true # the settle loop must not banish it again
 					cursor += 0.3
 				# a free-standing artifact banished to make room; other banished units go through the ghost path
 				var banished_relic_uid: int = int(e["uid"])
 				if e.get("relic", false) and old.has(banished_relic_uid):
-					var banished_relic_ghost := fx_library._ghost(
+					var banished_relic_ghost := fx_library.make_ghost(
 						String(e["card_id"]),
 						old[banished_relic_uid]["inst"],
 						old[banished_relic_uid]["pose"],
 					)
 					banished_relic_ghost.z_index = 20
 					banished_relic_ghost.banish(cursor, FxLibraryScript.BANISH_COL, 0.9)
-					fx_library._banish_fx(
-						fx_library._center_of(banished_relic_ghost),
+					fx_library.banish_fx(
+						fx_library.center_of(banished_relic_ghost),
 						fx_library.pose_of(banished_relic_ghost)["w"],
 						cursor,
 					)
 					Sfx.play_in("banish", cursor)
 			"relic_destroyed":
 				# Relics do not use the unit ghost path (they have no damage field), so give every
-				# ordinary artifact removal a readable dissolve. Dedicated wards keep their own fx_library._ward_fx.
+				# ordinary artifact removal a readable dissolve. Dedicated wards keep their own fx_library.ward_fx.
 				var relic_uid: int = int(e["uid"])
 				if not special_relic_exit_uids.has(relic_uid) and old.has(relic_uid):
 					var relic_color := elem_color(String(e["card_id"]))
-					var relic_ghost := fx_library._ghost(String(e["card_id"]), old[relic_uid]["inst"], old[relic_uid]["pose"])
+					var relic_ghost := fx_library.make_ghost(String(e["card_id"]), old[relic_uid]["inst"], old[relic_uid]["pose"])
 					relic_ghost.z_index = 20
 					relic_ghost.dissolve(cursor, relic_color.lightened(0.2), 0.75)
-					fx_library._embers(fx_library._center_of(relic_ghost), cursor + 0.1, relic_color)
+					fx_library.spawn_embers(fx_library.center_of(relic_ghost), cursor + 0.1, relic_color)
 					Sfx.play_in("death", cursor)
 			"return_to_hand":
 				# an opponent's unit going back to their hand has no card on the table to fly (its hand is
@@ -747,7 +747,7 @@ func animate(events: Array, old: Dictionary) -> float:
 							and int(e["player"]) != viewer
 					and not CardDB.card(e["card_id"]).get("token", false)
 				):
-					fx_library._bounce_to_enemy_hand_fx(bounced_ghost, int(e["player"]), cursor)
+					fx_library.bounce_to_enemy_hand_fx(bounced_ghost, int(e["player"]), cursor)
 					dissolved_early[bounced_ghost] = true # the settle loop must not dissolve it too
 					cursor += 0.25
 			"death":
@@ -757,7 +757,7 @@ func animate(events: Array, old: Dictionary) -> float:
 					var fall_t := maxf(cursor, hit_t) + 0.1
 					var fall_col := elem_color(fallen.card_id)
 					fallen.dissolve(fall_t, fall_col.lightened(0.2), 0.6)
-					fx_library._embers(fx_library._center_of(fallen), fall_t + 0.1, fall_col)
+					fx_library.spawn_embers(fx_library.center_of(fallen), fall_t + 0.1, fall_col)
 					dissolved_early[fallen] = true
 					Sfx.play_in("death", fall_t)
 					cursor = maxf(cursor, fall_t + 0.3)
@@ -774,7 +774,7 @@ func animate(events: Array, old: Dictionary) -> float:
 					if ward_src == last_src:
 						ward_t = hit_t
 					else:
-						fx_library._lunge(actors[ward_src], ward_leader, cursor)
+						fx_library.lunge_at_target(actors[ward_src], ward_leader, cursor)
 						hit_t = cursor + FxLibraryScript.LUNGE_IMPACT_TIME
 						ward_t = hit_t
 						last_src = ward_src
@@ -782,9 +782,9 @@ func animate(events: Array, old: Dictionary) -> float:
 						cursor += FxLibraryScript.LUNGE_TOTAL_TIME
 				var ward_ghost: CardView = null
 				if old.has(e["uid"]): # the Chamber is already gone from the table: a ghost stands in for it
-					ward_ghost = fx_library._ghost(old[e["uid"]]["card_id"], old[e["uid"]]["inst"], old[e["uid"]]["pose"])
+					ward_ghost = fx_library.make_ghost(old[e["uid"]]["card_id"], old[e["uid"]]["inst"], old[e["uid"]]["pose"])
 					ward_ghost.z_index = 20
-				fx_library._ward_fx(ward_leader, ward_ghost, ward_t, elem_color(e["card_id"]).lightened(0.3))
+				fx_library.ward_fx(ward_leader, ward_ghost, ward_t, elem_color(e["card_id"]).lightened(0.3))
 				if ward_leader is LeaderView:
 					ward_leader.play_ward_forge(ward_t + 0.3, int(e.get("hits", 3)))
 				cursor = maxf(cursor, ward_t + FxLibraryScript.WARD_FADE_DELAY + FxLibraryScript.WARD_FADE_TIME)
@@ -797,7 +797,7 @@ func animate(events: Array, old: Dictionary) -> float:
 					if negated_src == last_src:
 						negated_t = hit_t
 					else:
-						fx_library._lunge(actors[negated_src], negated_leader, cursor)
+						fx_library.lunge_at_target(actors[negated_src], negated_leader, cursor)
 						hit_t = cursor + FxLibraryScript.LUNGE_IMPACT_TIME
 						negated_t = hit_t
 						last_src = negated_src
@@ -808,8 +808,8 @@ func animate(events: Array, old: Dictionary) -> float:
 				Sfx.play_event(e, negated_t, in_combat)
 				if negated_leader is LeaderView:
 					negated_leader.play_ward_break(negated_t, int(e["left"]))
-					fx_library._impact(negated_leader, "Anulado!", LeaderView.WARD_COL, negated_t, false)
-					fx_library._embers(fx_library._center_of(negated_leader), negated_t, LeaderView.WARD_COL, 10)
+					fx_library.hit_impact(negated_leader, "Anulado!", LeaderView.WARD_COL, negated_t, false)
+					fx_library.spawn_embers(fx_library.center_of(negated_leader), negated_t, LeaderView.WARD_COL, 10)
 				cursor = maxf(cursor, negated_t + 0.3)
 			"death_prevented":
 				# Baluarte Santo: same beat as the Câmara — the blow lands on the unit, the Baluarte answers and fades away
@@ -820,7 +820,7 @@ func animate(events: Array, old: Dictionary) -> float:
 					if saved_src == last_src:
 						saved_t = hit_t
 					else:
-						fx_library._lunge(actors[saved_src], saved_unit_view, cursor)
+						fx_library.lunge_at_target(actors[saved_src], saved_unit_view, cursor)
 						hit_t = cursor + FxLibraryScript.LUNGE_IMPACT_TIME
 						saved_t = hit_t
 						last_src = saved_src
@@ -828,13 +828,13 @@ func animate(events: Array, old: Dictionary) -> float:
 						cursor += FxLibraryScript.LUNGE_TOTAL_TIME
 				var baluarte_ghost: CardView = null
 				if old.has(e["ward_uid"]): # the Baluarte is already gone from the table: a ghost stands in for it
-					baluarte_ghost = fx_library._ghost(
+					baluarte_ghost = fx_library.make_ghost(
 						old[e["ward_uid"]]["card_id"],
 						old[e["ward_uid"]]["inst"],
 						old[e["ward_uid"]]["pose"],
 					)
 					baluarte_ghost.z_index = 20
-				fx_library._ward_fx(saved_unit_view, baluarte_ghost, saved_t, elem_color(e["ward_card_id"]).lightened(0.3))
+				fx_library.ward_fx(saved_unit_view, baluarte_ghost, saved_t, elem_color(e["ward_card_id"]).lightened(0.3))
 				cursor = maxf(cursor, saved_t + FxLibraryScript.WARD_FADE_DELAY + FxLibraryScript.WARD_FADE_TIME)
 			"leader_executed":
 				# a card effect killed the Leader outright: not a hit, so it gets its own animation
@@ -843,8 +843,8 @@ func animate(events: Array, old: Dictionary) -> float:
 					var execution_color := Color("#ff4040")
 					if e.has("dot"):
 						execution_color = CardView.dot_badge_color(String(e["dot"]))
-					var execution_end := fx_library._execution_fx(doomed_leader, int(e["hp_before"]), cursor, execution_color)
-					host._leader_ko_t = maxf(host._leader_ko_t, execution_end - 0.5)
+					var execution_end := fx_library.execution_fx(doomed_leader, int(e["hp_before"]), cursor, execution_color)
+					host.leader_ko_time = maxf(host.leader_ko_time, execution_end - 0.5)
 					cursor = execution_end
 			"damage", "shield_break", "heal":
 				var dst: int = e["uid"]
@@ -857,7 +857,7 @@ func animate(events: Array, old: Dictionary) -> float:
 					if src == last_src or (src == last_dst and dst == last_src):
 						t = hit_t
 					else:
-						fx_library._lunge(actors[src], actors[dst], cursor)
+						fx_library.lunge_at_target(actors[src], actors[dst], cursor)
 						hit_t = cursor + FxLibraryScript.LUNGE_IMPACT_TIME
 						t = hit_t
 						last_src = src
@@ -872,7 +872,7 @@ func animate(events: Array, old: Dictionary) -> float:
 					var hp_change: int = -e["amount"] if e["type"] == "damage" else e["amount"]
 					var ltw := lv.create_tween()
 					ltw.tween_interval(t)
-					host._leader_ko_t = maxf(host._leader_ko_t, t)
+					host.leader_ko_time = maxf(host.leader_ko_time, t)
 					# each hit adds its own change instead of writing a total: the hits are not always
 					# shown in event order (a retaliation lands with the blow, a reflection after it),
 					# and a total written late would overwrite the hits shown before it
@@ -895,14 +895,14 @@ func animate(events: Array, old: Dictionary) -> float:
 				if actors.has(dst):
 					match e["type"]:
 						"damage":
-							fx_library._impact(actors[dst], "-%d" % e["amount"], Color("#ff5050"), t, true)
+							fx_library.hit_impact(actors[dst], "-%d" % e["amount"], Color("#ff5050"), t, true)
 							if in_combat and int(e["amount"]) >= FxLibraryScript.CRUSHING_BLOW_DAMAGE and e.get("src", 0) > 0:
-								fx_library._crushing_blow_fx(actors[dst], int(e["amount"]), t)
+								fx_library.crushing_blow_fx(actors[dst], int(e["amount"]), t)
 								cursor = maxf(cursor, t + 0.35) # let the blow land before the next event
 						"heal":
-							fx_library._impact(actors[dst], "+%d" % e["amount"], Color("#5dff8a"), t, false)
+							fx_library.hit_impact(actors[dst], "+%d" % e["amount"], Color("#5dff8a"), t, false)
 						"shield_break":
-							fx_library._impact(actors[dst], "Escudo!", Color("#9fe3ff"), t, false)
+							fx_library.hit_impact(actors[dst], "Escudo!", Color("#9fe3ff"), t, false)
 	var settle := cursor + 0.1
 	var board_t := settle + (0.4 if not ghosts.is_empty() else 0.0)
 	for i in ghosts.size():
@@ -911,12 +911,12 @@ func animate(events: Array, old: Dictionary) -> float:
 			continue
 		if ghost_exiled[i]:
 			gh.banish(settle + i * 0.06, FxLibraryScript.BANISH_COL, 0.9)
-			fx_library._banish_fx(fx_library._center_of(gh), fx_library.pose_of(gh)["w"], settle + i * 0.06)
+			fx_library.banish_fx(fx_library.center_of(gh), fx_library.pose_of(gh)["w"], settle + i * 0.06)
 			Sfx.play_in("banish", settle + i * 0.06)
 			continue
 		var col := elem_color(gh.card_id)
 		gh.dissolve(settle + i * 0.06, col.lightened(0.2), 0.75)
-		fx_library._embers(fx_library._center_of(gh), settle + i * 0.06 + 0.1, col)
+		fx_library.spawn_embers(fx_library.center_of(gh), settle + i * 0.06 + 0.1, col)
 		Sfx.play_in("death", settle + i * 0.06)
 	var deck_n := 0
 	var board_end := board_t + 0.3 ## when the last card has finished moving into place
@@ -942,14 +942,14 @@ func animate(events: Array, old: Dictionary) -> float:
 			var turns := absf(from["rot"] - to["rot"]) > 0.01 # tapping or untapping
 			if turns:
 				# lies down (or stands up) slowly, only after the hit is over and the card is back home
-				fx_library._fly(v, from, to, board_t + FxLibraryScript.TAP_DELAY, FxLibraryScript.TAP_TIME)
+				fx_library.fly_card(v, from, to, board_t + FxLibraryScript.TAP_DELAY, FxLibraryScript.TAP_TIME)
 				board_end = maxf(board_end, board_t + FxLibraryScript.TAP_DELAY + FxLibraryScript.TAP_TIME)
 			elif from["c"].distance_to(to["c"]) > 1.0 or abs(from["w"] - to["w"]) > 1.0:
 				var lane_owner := int(v.inst.get("owner", -1))
 				var makes_room := lanes_with_newcomer.has(lane_owner) and not lanes_with_ghost.has(lane_owner)
-				fx_library._fly(v, from, to, 0.0 if hand_uids.has(k) or makes_room else board_t, 0.28)
+				fx_library.fly_card(v, from, to, 0.0 if hand_uids.has(k) or makes_room else board_t, 0.28)
 		elif hand_uids.has(k):
-			fx_library._draw_from_deck(v, to, appear.get(k, 0.0) + 0.18 * deck_n)
+			fx_library.draw_from_deck(v, to, appear.get(k, 0.0) + 0.18 * deck_n)
 			deck_n += 1
 		else:
 			var resting_scale: Vector2 = v.scale # a tapped unit rests smaller (see _render_board)

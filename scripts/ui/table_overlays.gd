@@ -65,7 +65,7 @@ func show_equipment_collection(unit: Card, owner: int) -> void:
 	content.add_theme_constant_override("separation", 10)
 	panel.add_child(content)
 	content.add_child(
-		host._label(
+		host.make_label(
 			"EQUIPAMENTOS DE %s" % String(CardDB.card(unit.card_id).get("name", unit.card_id)),
 			28,
 			UITheme.GOLD_LIGHT,
@@ -75,7 +75,7 @@ func show_equipment_collection(unit: Card, owner: int) -> void:
 		)
 	)
 	content.add_child(
-		host._label(
+		host.make_label(
 			"%d equipamento(s) · clique em uma carta para inspecionar" % unit.equipped_cards.size(),
 			17,
 			UITheme.TEXT_DIM,
@@ -103,7 +103,7 @@ func show_equipment_collection(unit: Card, owner: int) -> void:
 		card_view.right_clicked.connect(show_overlay)
 		grid.add_child(card_view)
 
-	var close_button: Button = host._button("FECHAR", close_overlay)
+	var close_button: Button = host.make_button("FECHAR", close_overlay)
 	close_button.custom_minimum_size = Vector2(grid_width, 44)
 	content.add_child(close_button)
 	panel.reset_size()
@@ -144,12 +144,12 @@ func show_overlay(v: CardView) -> void:
 	)
 	_add_base_card_button(v.card_id)
 	_add_full_art_button(String(cd.get("art", "")))
-	var show_activate: bool = cd.has("activated") and host.g != null and host._my_input() and host.g.can_activate(
+	var show_activate: bool = cd.has("activated") and host.g != null and host.viewer_can_act() and host.g.can_activate(
 			host.viewer,
 			v.uid,
 			true,
 		)
-	var show_field_equip: bool = cd.has("equip_from_field") and host.g != null and host._my_input() and host.g.can_equip_from_field(
+	var show_field_equip: bool = cd.has("equip_from_field") and host.g != null and host.viewer_can_act() and host.g.can_equip_from_field(
 			host.viewer,
 			v.uid,
 			true,
@@ -160,27 +160,27 @@ func show_overlay(v: CardView) -> void:
 	if show_activate:
 		var ab: Dictionary = cd["activated"]
 		var ab_uid := v.uid
-		var ab_btn: Button = host._button(
+		var ab_btn: Button = host.make_button(
 			"Ativar (%d)" % int(ab["cost"]),
 			func():
 				close_overlay()
 				# during an animation the activation waits for it to end (and checks again that it is still allowed)
-				host._run_or_queue_input(
+				host.run_or_queue_input(
 					func():
-						if not host._my_input() or not host.g.can_activate(host.viewer, ab_uid, true):
+						if not host.viewer_can_act() or not host.g.can_activate(host.viewer, ab_uid, true):
 							return
 						if ab.has("extra_cost"):
 							# the extra cost (discard a card or sacrifice an ally) is chosen first, in a two-block window
-							host._open_activation_cost_prompt(ab_uid)
+							host.open_activation_cost_prompt(ab_uid)
 							return
 						var spec: String = host.g.target_spec(ab["effects"])
 						if spec == "":
-							host._do(host.g.activate(host.viewer, ab_uid, 0))
+							host.handle_action_result(host.g.activate(host.viewer, ab_uid, 0))
 						else:
 							host.targeting = { "kind": "unit_ability", "uid": ab_uid, "spec": spec }
 							if host.views.has(ab_uid) and is_instance_valid(host.views[ab_uid]):
-								host._begin_aim(host._visual_rect(host.views[ab_uid] as Control).get_center())
-							host._render(),
+								host.begin_aim(host.visual_rect_of(host.views[ab_uid] as Control).get_center())
+							host.render_table(),
 				),
 			true,
 		)
@@ -191,48 +191,48 @@ func show_overlay(v: CardView) -> void:
 	if show_field_equip:
 		var equip_uid := v.uid
 		var equip_action: Dictionary = cd["equip_from_field"]
-		var equip_btn: Button = host._button(
+		var equip_btn: Button = host.make_button(
 			"Equipar (%d)" % int(equip_action["cost"]),
 			func():
 				close_overlay()
-				host._run_or_queue_input(
+				host.run_or_queue_input(
 					func():
-						if not host._my_input() or not host.g.can_equip_from_field(host.viewer, equip_uid, true):
+						if not host.viewer_can_act() or not host.g.can_equip_from_field(host.viewer, equip_uid, true):
 							return
 						var spec: String = host.g.target_spec(equip_action["effects"])
 						if spec == "":
 							return
 						host.targeting = { "kind": "field_equip", "uid": equip_uid, "spec": spec }
 						if host.views.has(equip_uid) and is_instance_valid(host.views[equip_uid]):
-							host._begin_aim(host._visual_rect(host.views[equip_uid] as Control).get_center())
-						host._render(),
+							host.begin_aim(host.visual_rect_of(host.views[equip_uid] as Control).get_center())
+						host.render_table(),
 				),
 			true,
 		)
 		equip_btn.position = Vector2(rt_x + action_index * (action_width + 20.0), 820.0 + host.BOT)
 		equip_btn.custom_minimum_size = Vector2(action_width, 96)
 		host.overlay.add_child(equip_btn)
-	if host.g != null and host._my_input() and requiem_uids(host.viewer).has(v.uid):
+	if host.g != null and host.viewer_can_act() and requiem_uids(host.viewer).has(v.uid):
 		# a Réquiem spell opened from the graveyard viewer: cast it from here (it is banished afterwards)
 		var requiem_uid := v.uid
 		var requiem_card_id := v.card_id
-		var requiem_btn: Button = host._button(
+		var requiem_btn: Button = host.make_button(
 			"Lançar Réquiem (%d)" % v.cost_override,
 			func():
 				close_overlay()
 				close_graveyard()
-				host._cast_requiem(requiem_uid, requiem_card_id),
+				host.cast_requiem(requiem_uid, requiem_card_id),
 			true,
 		)
 		requiem_btn.position = Vector2(rt_x, 820.0 + host.BOT)
 		requiem_btn.custom_minimum_size = Vector2(520, 96)
 		host.overlay.add_child(requiem_btn)
-	if cd.has("transform") and host.g != null and host._my_input() and host.g.can_transform(host.viewer, v.uid):
-		var tb: Button = host._button(
+	if cd.has("transform") and host.g != null and host.viewer_can_act() and host.g.can_transform(host.viewer, v.uid):
+		var tb: Button = host.make_button(
 			"Transformar (%d)" % int(cd["transform"]["cost"]),
 			func():
 				close_overlay()
-				host._do(host.g.transform(host.viewer, v.uid)),
+				host.handle_action_result(host.g.transform(host.viewer, v.uid)),
 			true,
 		)
 		tb.position = Vector2(rt_x, 820.0 + host.BOT)
@@ -276,7 +276,7 @@ func _add_base_card_button(card_id: String) -> void:
 			icon.draw_circle(Vector2.ZERO, 8.0, UITheme.GOLD_LIGHT),
 	)
 	button.add_child(icon)
-	var caption: Label = host._label("Segure: ver carta base", 26, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_LEFT, "bold")
+	var caption: Label = host.make_label("Segure: ver carta base", 26, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_LEFT, "bold")
 	caption.position = Vector2(104.0, 0.0)
 	caption.size = Vector2(button_size.x - 120.0, button_size.y)
 	caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -388,11 +388,11 @@ func ask_confirm(title: String, text: String, yes_label: String, no_label: Strin
 	if host.g == null or host.g.phase == "over" or host.concede_view:
 		return
 	var box := _open_modal_box(title)
-	box.add_child(host._label(text, 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
-	var yes: Button = host._button(yes_label, on_yes, true)
+	box.add_child(host.make_label(text, 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+	var yes: Button = host.make_button(yes_label, on_yes, true)
 	yes.custom_minimum_size = Vector2(460, 54)
 	box.add_child(yes)
-	var no: Button = host._button(no_label, close_concede)
+	var no: Button = host.make_button(no_label, close_concede)
 	no.custom_minimum_size = Vector2(460, 48)
 	box.add_child(no)
 	_center_modal(box)
@@ -419,7 +419,7 @@ func _open_modal_box(title: String) -> VBoxContainer:
 	box.custom_minimum_size = Vector2(460, 0)
 	box.add_theme_constant_override("separation", 14)
 	pc.add_child(box)
-	box.add_child(host._label(title, 34, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
+	box.add_child(host.make_label(title, 34, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
 	host.concede_view.add_child(pc)
 	return box
 
@@ -429,7 +429,7 @@ func _center_modal(box: VBoxContainer) -> void:
 	host.add_child(host.concede_view)
 	pc.reset_size()
 	pc.position = (Vector2(host.stage_w, host.STAGE_H) - pc.size) / 2.0
-	host._center.call_deferred(pc)
+	host.center_in_screen.call_deferred(pc)
 
 
 ## The in-game menu: settings and the ways out, without leaving the match. Same persistent slot as the
@@ -442,9 +442,9 @@ func open_pause_menu() -> void:
 	var reopen := func():
 		close_concede()
 		open_pause_menu.call_deferred()
-	var volume_control: Control = host._volume_slider(Vector2(460, 52))
+	var volume_control: Control = host.make_volume_slider(Vector2(460, 52))
 	box.add_child(volume_control)
-	var sound_toggle: Button = host._toggle_button(
+	var sound_toggle: Button = host.make_toggle_button(
 		"SOM",
 		Sfx.is_enabled(),
 		func():
@@ -454,9 +454,9 @@ func open_pause_menu() -> void:
 	sound_toggle.custom_minimum_size = Vector2(460, 52)
 	box.add_child(sound_toggle)
 	# the music has its own volume and switch, apart from the sound effects
-	var music_volume_control: Control = host._volume_slider(Vector2(460, 52), true)
+	var music_volume_control: Control = host.make_volume_slider(Vector2(460, 52), true)
 	box.add_child(music_volume_control)
-	var music_toggle: Button = host._toggle_button(
+	var music_toggle: Button = host.make_toggle_button(
 		"MÚSICA",
 		Music.is_enabled(),
 		func():
@@ -465,13 +465,13 @@ func open_pause_menu() -> void:
 	)
 	music_toggle.custom_minimum_size = Vector2(460, 52)
 	box.add_child(music_toggle)
-	var fullscreen_button: Button = host._button("Tela cheia (F11)", host._toggle_fullscreen)
+	var fullscreen_button: Button = host.make_button("Tela cheia (F11)", host.toggle_fullscreen)
 	fullscreen_button.custom_minimum_size = Vector2(460, 48)
 	box.add_child(fullscreen_button)
-	var continue_button: Button = host._button("CONTINUAR JOGANDO", close_concede, true)
+	var continue_button: Button = host.make_button("CONTINUAR JOGANDO", close_concede, true)
 	continue_button.custom_minimum_size = Vector2(460, 54)
 	box.add_child(continue_button)
-	var concede_button: Button = host._button(
+	var concede_button: Button = host.make_button(
 		"Conceder",
 		func():
 			close_concede()
@@ -479,7 +479,7 @@ func open_pause_menu() -> void:
 	)
 	concede_button.custom_minimum_size = Vector2(460, 48)
 	box.add_child(concede_button)
-	var leave_button: Button = host._button(
+	var leave_button: Button = host.make_button(
 		"Sair para o menu principal",
 		func():
 			close_concede()
@@ -510,7 +510,7 @@ func _confirm_concede() -> void:
 	close_concede()
 	if host.g == null or host.g.phase == "over":
 		return
-	host._do(host.g.concede(host.viewer))
+	host.handle_action_result(host.g.concede(host.viewer))
 
 # ---------------------------------------------------------------- graveyard viewer
 
@@ -567,7 +567,7 @@ func close_graveyard() -> void:
 ## Uids of the Réquiem spells the viewer can cast from the own graveyard right now (empty for the opponent's).
 func requiem_uids(p: int) -> Array:
 	var uids: Array = []
-	if p != host.viewer or host._is_ai(p) or host.g.phase not in ["main", "combat"]:
+	if p != host.viewer or host.is_ai(p) or host.g.phase not in ["main", "combat"]:
 		return uids
 	for requiem_card: Card in host.g.requiem_cards(p):
 		uids.append(requiem_card.uid)
@@ -604,14 +604,14 @@ func refresh_graveyard() -> void:
 	titles.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	titles.add_theme_constant_override("separation", 2)
 	head.add_child(titles)
-	titles.add_child(host._label("CEMITÉRIO", 34, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_LEFT, "title_bold", 6))
-	var whose := "Seu cemitério" if grave_owner == host.viewer and not host._is_ai(grave_owner) else "Cemitério de %s" % host._pname(
+	titles.add_child(host.make_label("CEMITÉRIO", 34, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_LEFT, "title_bold", 6))
+	var whose := "Seu cemitério" if grave_owner == host.viewer and not host.is_ai(grave_owner) else "Cemitério de %s" % host.player_name(
 		grave_owner
 	)
 	var n := entries.size()
 	var grave_owner_leader_name: String = CardDB.leader(host.g.players[grave_owner]["leader_id"])["name"]
 	titles.add_child(
-		host._label(
+		host.make_label(
 			"%s · %s · %d %s" % [whose, grave_owner_leader_name, n, "carta" if n == 1 else "cartas"],
 			17,
 			UITheme.TEXT_DIM,
@@ -619,7 +619,7 @@ func refresh_graveyard() -> void:
 			"body",
 		)
 	)
-	var close: Button = host._button("", close_graveyard)
+	var close: Button = host.make_button("", close_graveyard)
 	close.custom_minimum_size = Vector2(52, 48)
 	HubGlyphIconScript.attach_to_button(close, HubGlyphIconScript.Kind.CLOSE, 22.0, UITheme.TEXT, "center")
 	close.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -638,7 +638,7 @@ func refresh_graveyard() -> void:
 		filters.push_front(["requiem", "RÉQUIEM"])
 	for f in filters:
 		var fid: String = f[0]
-		var b: Button = host._button(
+		var b: Button = host.make_button(
 			"%s  %d" % [f[1], counts[fid]],
 			func():
 				grave_filter = fid
@@ -666,9 +666,9 @@ func refresh_graveyard() -> void:
 		empty.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		empty.alignment = BoxContainer.ALIGNMENT_CENTER
 		empty.add_theme_constant_override("separation", 8)
-		empty.add_child(host._label("☠", 72, Color(UITheme.TEXT, 0.25), HORIZONTAL_ALIGNMENT_CENTER))
+		empty.add_child(host.make_label("☠", 72, Color(UITheme.TEXT, 0.25), HORIZONTAL_ALIGNMENT_CENTER))
 		empty.add_child(
-			host._label(
+			host.make_label(
 				"Nenhuma carta aqui." if entries.is_empty() else "Nenhuma carta deste tipo.",
 				24,
 				UITheme.TEXT_DIM,
@@ -690,7 +690,7 @@ func refresh_graveyard() -> void:
 		grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		sc.add_child(grid)
 		for grave_card: Card in shown:
-			var cv := CardView.new().setup(grave_card.card_id, host._display_instance_for_card(grave_card), 1.1)
+			var cv := CardView.new().setup(grave_card.card_id, host.display_instance_for_card(grave_card), 1.1)
 			cv.snowball_level = int(host.g.players[grave_owner]["snowball"])
 			cv.text_suffix = scale_suffix(grave_owner, CardDB.card(grave_card.card_id), grave_card.card_id)
 			if grave_owner == host.viewer and host.g.is_requiem(grave_card):
@@ -815,7 +815,7 @@ func _add_search_scroll_guides(
 	var arrow_size := Vector2(120, 64)
 	var arrows := { }
 	for side in ["left", "right"]:
-		var arrow: Button = host._button(
+		var arrow: Button = host.make_button(
 			"",
 			func():
 				_scroll_search_to_card(scroll, nearest[side], card_stride, card_width, viewport_width),
@@ -847,13 +847,13 @@ func _add_search_scroll_guides(
 	map_row.add_theme_constant_override("separation", 10)
 	map_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	if deck_ends:
-		map_row.add_child(host._label("TOPO", 16, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_RIGHT, "bold"))
+		map_row.add_child(host.make_label("TOPO", 16, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_RIGHT, "bold"))
 	var map := Control.new()
 	map.custom_minimum_size = Vector2(maxf(120.0, strip_width - (170.0 if deck_ends else 0.0)), 28)
 	map.mouse_filter = Control.MOUSE_FILTER_STOP
 	map_row.add_child(map)
 	if deck_ends:
-		map_row.add_child(host._label("FUNDO", 16, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_LEFT, "bold"))
+		map_row.add_child(host.make_label("FUNDO", 16, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_LEFT, "bold"))
 	box.add_child(map_row)
 	map.draw.connect(
 		func():
@@ -923,10 +923,10 @@ func render_search_reveal() -> void:
 	var hand_summon: bool = host.g.pending_search.get("hand_summon", false)
 	var hand_bottom: bool = host.g.pending_search.get("hand_bottom", false)
 	var own_hand_bottom: bool = host.g.pending_search.get("own_hand_bottom", false)
-	var hidden: bool = (look or discard_hand or hand_summon or hand_bottom or own_hand_bottom) and not host._my_input()
+	var hidden: bool = (look or discard_hand or hand_summon or hand_bottom or own_hand_bottom) and not host.viewer_can_act()
 	# the options of a deck search are shown only to the searcher; the opponent just sees that a search is happening
 	var deck_search: bool = host.g.pending_search.get("deck_search", false)
-	var secret_search: bool = deck_search and not host._my_input()
+	var secret_search: bool = deck_search and not host.viewer_can_act()
 	var summoning: bool = host.g.pending_search.get("summon_from", false) # "summon_from": a free summon from the deck, hand or graveyard
 	var sacrifice_pick: bool = host.g.pending_search.get("sacrifice_pick", false) # Censo de Baixas: a public pick among units on the board
 	var reservoir_pick: bool = host.g.pending_search.get("reservoir_pick", false) # Agiota: the top card or the unseen bottom card goes to the Reservoir
@@ -949,20 +949,20 @@ func render_search_reveal() -> void:
 		title = "FUNDO DO DECK" if host.g.pending_search.get("from_bottom", false) else "TOPO DO DECK"
 	var search_signature: int = host.g.pending_search.hash()
 	# the opponent's choice starts folded: there is nothing to do in it, and the table is what matters
-	var opponent_choice_is_folded: bool = not host._my_input() and search_opened_signature != search_signature
+	var opponent_choice_is_folded: bool = not host.viewer_can_act() and search_opened_signature != search_signature
 	if search_minimized_signature == search_signature or opponent_choice_is_folded:
-		_render_search_minimized(title, not host._my_input())
+		_render_search_minimized(title, not host.viewer_can_act())
 		return
 	search_scroll = null
-	host.search_overlay = host._veil(0.84)
+	host.search_overlay = host.make_veil(0.84)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
 	host.search_overlay.add_child(box)
-	box.add_child(host._label(title, 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
+	box.add_child(host.make_label(title, 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
 	var grave: bool = host.g.pending_search.get("grave", false)
 	var whole_deck: bool = host.g.pending_search.get("whole_deck", false) # a search of the whole deck: it is shown in full, in order
-	var sub := "%s está procurando uma carta no deck" % host._pname(owner)
-	if deck_search and host._my_input():
+	var sub := "%s está procurando uma carta no deck" % host.player_name(owner)
+	if deck_search and host.viewer_can_act():
 		sub = "Você procurou no deck e encontrou estas cartas; as que brilham podem ser escolhidas"
 		if host.g.pending_search.has("to_bottom"):
 			if host.g.pending_search.get("cards", []).is_empty():
@@ -975,41 +975,41 @@ func render_search_reveal() -> void:
 			else:
 				sub = "Você olhou o deck inteiro, na ordem em que estava; escolha uma das que brilham"
 	if secret_search and host.g.pending_search.has("to_bottom"):
-		sub = "%s está olhando as %d cartas do topo do deck" % [host._pname(owner), int(host.g.pending_search["looked"])]
+		sub = "%s está olhando as %d cartas do topo do deck" % [host.player_name(owner), int(host.g.pending_search["looked"])]
 	elif secret_search and whole_deck:
-		sub = "%s está olhando o deck inteiro" % host._pname(owner)
+		sub = "%s está olhando o deck inteiro" % host.player_name(owner)
 	if sacrifice_pick:
 		sub = (
 			"Você escolhe uma unidade sua para sacrificar"
-			if host._my_input()
-			else "%s escolhe uma unidade sua para sacrificar" % host._pname(owner)
+			if host.viewer_can_act()
+			else "%s escolhe uma unidade sua para sacrificar" % host.player_name(owner)
 		)
 	elif hand_summon:
-		sub = "%s escolhe um campeão da mão para entrar em campo (será banido no fim do turno)" % host._pname(owner)
+		sub = "%s escolhe um campeão da mão para entrar em campo (será banido no fim do turno)" % host.player_name(owner)
 	elif discard_hand:
-		sub = "%s escolhe uma carta da mão para descartar" % host._pname(owner)
+		sub = "%s escolhe uma carta da mão para descartar" % host.player_name(owner)
 	elif look and host.g.pending_search.get("from_bottom", false):
-		if host._my_input():
+		if host.viewer_can_act():
 			sub = "Você pode escolher uma destas cartas do fundo do deck; ela vai para a sua mão"
 		else:
-			sub = "%s está olhando cartas do fundo do deck" % host._pname(owner)
+			sub = "%s está olhando cartas do fundo do deck" % host.player_name(owner)
 	elif reservoir_pick:
-		if host._my_input():
+		if host.viewer_can_act():
 			sub = "Você olhou a carta do topo do deck"
 		else:
-			sub = "%s está olhando a carta do topo do deck" % host._pname(owner)
+			sub = "%s está olhando a carta do topo do deck" % host.player_name(owner)
 	elif look:
-		sub = "%s está olhando as %d cartas do topo do deck" % [host._pname(owner), host.g.pending_search["cards"].size()]
+		sub = "%s está olhando as %d cartas do topo do deck" % [host.player_name(owner), host.g.pending_search["cards"].size()]
 	if summoning:
-		if host._my_input():
+		if host.viewer_can_act():
 			sub = "Você pode invocar uma destas cartas de graça"
 		else:
-			sub = "%s está escolhendo uma carta para invocar de graça" % host._pname(owner)
-		if host.g.pending_search.has("looked_cards") and host._my_input():
+			sub = "%s está escolhendo uma carta para invocar de graça" % host.player_name(owner)
+		if host.g.pending_search.has("looked_cards") and host.viewer_can_act():
 			sub = "Você revelou estas cartas do topo do deck, na ordem; a que brilha pode ser invocada de graça"
 		elif host.g.pending_search.has("looked_cards"):
-			sub = "%s está revelando as cartas do topo do deck" % host._pname(owner)
-	box.add_child(host._label(sub, 20, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+			sub = "%s está revelando as cartas do topo do deck" % host.player_name(owner)
+	box.add_child(host.make_label(sub, 20, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
 	var shown_options: Array = [] if secret_search else host.g.pending_search["cards"]
 	# a top-N look and a whole-deck search show every card looked at: the eligible ones glow and can be picked, the others are dimmed
 	var looked_cards: Array = host.g.pending_search.get("looked_cards", [])
@@ -1055,7 +1055,7 @@ func render_search_reveal() -> void:
 	box.add_child(scroll_stage)
 	var eligible_flags: Array[bool] = []
 	for option in shown_options:
-		eligible_flags.append(eligible_uids.has(int(option["uid"])) and host._my_input())
+		eligible_flags.append(eligible_uids.has(int(option["uid"])) and host.viewer_can_act())
 	if row_overflows and eligible_flags.has(true):
 		_add_search_scroll_guides(
 			box,
@@ -1072,7 +1072,7 @@ func render_search_reveal() -> void:
 		var eligible: bool = eligible_uids.has(card_uid)
 		var cv := CardView.new().setup(
 			option["card_id"],
-			host._display_instance_for_id(String(option["card_id"]), owner, card_uid),
+			host.display_instance_for_id(String(option["card_id"]), owner, card_uid),
 			card_scale,
 		)
 		cv.face_down = hidden or String(option["card_id"]) == ""
@@ -1081,7 +1081,7 @@ func render_search_reveal() -> void:
 			cv.snowball_level = int(host.g.players[owner]["snowball"])
 		# every card can be inspected (right click / long press), picked or not: some rules texts
 		# only make sense in the full-screen view. Only the eligible ones can be chosen.
-		var can_pick: bool = eligible and host._my_input()
+		var can_pick: bool = eligible and host.viewer_can_act()
 		if can_pick:
 			cv.highlight = host.OK # a glow marks what can be clicked, for every kind of choice
 		elif not eligible:
@@ -1096,7 +1096,7 @@ func render_search_reveal() -> void:
 			cv.left_clicked.connect(
 				func(_v):
 					if not _search_just_scrolled():
-						host._on_search_choice(card_uid),
+						host.on_search_choice(card_uid),
 			)
 		card_row.add_child(cv)
 	var summon_hint := "Clique na carta que brilha para invocá-la de graça, ou escolha não invocar nenhuma."
@@ -1165,17 +1165,17 @@ func render_search_reveal() -> void:
 		hint = whole_deck_hint
 	else:
 		hint = "Clique em uma carta que brilha para adicioná-la à sua mão e embaralhar o deck, ou escolha não pegar nenhuma."
-	var footer: Label = host._label(
-		hint if host._my_input() else "A escolha pertence ao oponente.",
+	var footer: Label = host.make_label(
+		hint if host.viewer_can_act() else "A escolha pertence ao oponente.",
 		18,
-		host.SEL if host._my_input() else UITheme.TEXT_DIM,
+		host.SEL if host.viewer_can_act() else UITheme.TEXT_DIM,
 		HORIZONTAL_ALIGNMENT_CENTER,
 		"body",
 	)
 	box.add_child(footer)
 	if not secret_search:
 		box.add_child(
-			host._label(
+			host.make_label(
 				"Botão direito (ou segurar o dedo) em uma carta abre ela em tela cheia.",
 				15,
 				UITheme.TEXT_DIM,
@@ -1189,7 +1189,7 @@ func render_search_reveal() -> void:
 	)
 	if (
 		(hand_summon or deck_search or summoning or grave_optional or hand_bottom or own_hand_bottom)
-		and host._my_input() and not mandatory_deck_look
+		and host.viewer_can_act() and not mandatory_deck_look
 	):
 		# these picks are optional: uid 0 means "take no card" (Dona Gertrudes puts no champion in play)
 		# in a deck search that found nothing, the button shuffles the deck
@@ -1206,54 +1206,54 @@ func render_search_reveal() -> void:
 				)
 			)
 		)
-		var skip_button: Button = host._button(
+		var skip_button: Button = host.make_button(
 			skip_text,
 			func():
-				host._on_search_choice(0),
+				host.on_search_choice(0),
 		)
 		skip_button.custom_minimum_size = Vector2(360, 52)
 		skip_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		box.add_child(skip_button)
-	if reservoir_pick and host._my_input():
+	if reservoir_pick and host.viewer_can_act():
 		var top_uid: int = int(host.g.pending_search["cards"][0]["uid"])
-		var top_button: Button = host._button(
+		var top_button: Button = host.make_button(
 			"ESTA, DO TOPO",
 			func():
-				host._on_search_choice(top_uid),
+				host.on_search_choice(top_uid),
 		)
 		top_button.custom_minimum_size = Vector2(360, 52)
 		top_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		box.add_child(top_button)
-		var bottom_button: Button = host._button(
+		var bottom_button: Button = host.make_button(
 			"A DO FUNDO DO DECK",
 			func():
-				host._on_search_choice(GameState.RESERVOIR_PICK_BOTTOM),
+				host.on_search_choice(GameState.RESERVOIR_PICK_BOTTOM),
 		)
 		bottom_button.custom_minimum_size = Vector2(360, 52)
 		bottom_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		box.add_child(bottom_button)
-	if host.g.pending_search.has("then_activate") and host._my_input():
+	if host.g.pending_search.has("then_activate") and host.viewer_can_act():
 		# this discard pays an Ao Ativar: backing out spends nothing
-		var cancel_activation_button: Button = host._button(
+		var cancel_activation_button: Button = host.make_button(
 			"CANCELAR",
 			func():
-				host._on_search_choice(0),
+				host.on_search_choice(0),
 		)
 		cancel_activation_button.custom_minimum_size = Vector2(360, 52)
 		cancel_activation_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		box.add_child(cancel_activation_button)
-	var minimize_button: Button = host._button(
+	var minimize_button: Button = host.make_button(
 		"VER A MESA",
 		func():
 			search_minimized_signature = search_signature
 			search_opened_signature = -1
-			host._render(),
+			host.render_table(),
 	)
 	minimize_button.custom_minimum_size = Vector2(360, 52)
 	HubGlyphIconScript.attach_to_button(minimize_button, HubGlyphIconScript.Kind.ARROW_DOWN, 20.0, UITheme.TEXT, "left", 18.0)
 	minimize_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	box.add_child(minimize_button)
-	host._center.call_deferred(host.search_overlay)
+	host.center_in_screen.call_deferred(host.search_overlay)
 
 
 ## The search folded into a small bar at the top of the screen, so the table can be seen (and cards on
@@ -1268,12 +1268,12 @@ func _render_search_minimized(title: String, opponents_choice := false) -> void:
 	host.layer.add_child(bar)
 	# the leading spaces leave room for the arrow icon drawn at the left edge of the button
 	var restore_text := "      VER A ESCOLHA DO OPONENTE · %s" if opponents_choice else "      VOLTAR À ESCOLHA · %s"
-	var restore_button: Button = host._button(
+	var restore_button: Button = host.make_button(
 		restore_text % title,
 		func():
 			search_minimized_signature = -1
 			search_opened_signature = host.g.pending_search.hash()
-			host._render(),
+			host.render_table(),
 		true,
 	)
 	restore_button.custom_minimum_size = Vector2(520, 60)

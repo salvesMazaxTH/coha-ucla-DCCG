@@ -66,10 +66,10 @@ func show_menu() -> void:
 	host.g = null
 	Music.stop()
 	host.table_overlays.close_concede()
-	host._clear_fx()
-	host._clear()
+	host.reset_animation_state()
+	host.clear_table()
 	host.table.visible = false
-	host._set_tints(Color("#3f7bd9"), Color("#e0572b"), 1.6)
+	host.set_background_tints(Color("#3f7bd9"), Color("#e0572b"), 1.6)
 	# the two Leaders of the slice, facing each other from the edges
 	for side in [["furia/ronan.webp", 0.0, 1.0], ["fluxo/naelthos.webp", host.stage_w - 640.0, 0.0]]:
 		var tex := CardView.texture(side[0])
@@ -89,7 +89,7 @@ func show_menu() -> void:
 		sm.set_shader_parameter("strength", 0.55)
 		tr.material = sm
 		host.layer.add_child(tr)
-	var title: Label = host._label("UCLA", 120, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 14)
+	var title: Label = host.make_label("UCLA", 120, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 14)
 	title.add_theme_color_override("font_shadow_color", Color(UITheme.GOLD, 0.35))
 	title.add_theme_constant_override("shadow_outline_size", 22)
 	title.add_theme_constant_override("shadow_offset_x", 0)
@@ -98,7 +98,7 @@ func show_menu() -> void:
 	title.size = Vector2(host.stage_w, 140)
 	host.layer.add_child(title)
 	# the acronym alone says nothing to a new player, so the full name sits right under it
-	var full_name: Label = host._label(
+	var full_name: Label = host.make_label(
 		"ULTIMATE CLASH OF LEGENDS OF ATECRA",
 		24,
 		Color(UITheme.GOLD, 0.85),
@@ -110,7 +110,7 @@ func show_menu() -> void:
 	full_name.size = Vector2(host.stage_w, 34)
 	host.layer.add_child(full_name)
 	host.layer.add_child(ornament(Vector2(host.stage_w / 2.0, 340), 260))
-	host._menu_screen_showing = true
+	host.menu_screen_showing = true
 	# a session restored from an earlier visit skips the entry screen
 	if SupabaseAuth.is_signed_in():
 		_entered_menu = true
@@ -118,17 +118,17 @@ func show_menu() -> void:
 		_add_menu_mode_buttons()
 	else:
 		_add_entry_buttons()
-	var lt: Button = host._toggle_button(
+	var lt: Button = host.make_toggle_button(
 		"MODO LEVE",
-		host._light_on(),
+		host.is_light_mode_on(),
 		func():
-			host._apply_light(not host._light_on(), true)
+			host.apply_light_mode(not host.is_light_mode_on(), true)
 			show_menu.call_deferred(),
 	)
 	lt.position = Vector2(host.stage_w - 300, 790.0 + host.BOT)
 	lt.size = Vector2(280, 52)
 	host.layer.add_child(lt)
-	var sound_toggle: Button = host._toggle_button(
+	var sound_toggle: Button = host.make_toggle_button(
 		"SOM",
 		Sfx.is_enabled(),
 		func():
@@ -138,11 +138,11 @@ func show_menu() -> void:
 	sound_toggle.position = Vector2(host.stage_w - 300, 662.0 + host.BOT)
 	sound_toggle.size = Vector2(280, 52)
 	host.layer.add_child(sound_toggle)
-	var volume_control: Control = host._volume_slider(Vector2(280, 52))
+	var volume_control: Control = host.make_volume_slider(Vector2(280, 52))
 	volume_control.position = Vector2(host.stage_w - 300, 598.0 + host.BOT)
 	host.layer.add_child(volume_control)
 	# the music has its own switch and volume, stacked above the sound effects ones
-	var music_toggle: Button = host._toggle_button(
+	var music_toggle: Button = host.make_toggle_button(
 		"MÚSICA",
 		Music.is_enabled(),
 		func():
@@ -152,14 +152,14 @@ func show_menu() -> void:
 	music_toggle.position = Vector2(host.stage_w - 300, 534.0 + host.BOT)
 	music_toggle.size = Vector2(280, 52)
 	host.layer.add_child(music_toggle)
-	var music_volume_control: Control = host._volume_slider(Vector2(280, 52), true)
+	var music_volume_control: Control = host.make_volume_slider(Vector2(280, 52), true)
 	music_volume_control.position = Vector2(host.stage_w - 300, 470.0 + host.BOT)
 	host.layer.add_child(music_volume_control)
-	var fs: Button = host._button("Tela cheia (F11)", host._toggle_fullscreen)
+	var fs: Button = host.make_button("Tela cheia (F11)", host.toggle_fullscreen)
 	fs.position = Vector2(host.stage_w - 300, 790.0 + host.BOT - 64.0)
 	fs.size = Vector2(280, 52)
 	host.layer.add_child(fs)
-	var ver: Label = host._label("0.2.2 Alpha", 13, Color(1, 1, 1, 0.35), HORIZONTAL_ALIGNMENT_RIGHT, "body")
+	var ver: Label = host.make_label("0.2.2 Alpha", 13, Color(1, 1, 1, 0.35), HORIZONTAL_ALIGNMENT_RIGHT, "body")
 	ver.position = Vector2(host.stage_w - 300, 864.0 + host.BOT)
 	ver.size = Vector2(280, 20)
 	host.layer.add_child(ver)
@@ -174,11 +174,11 @@ func _add_entry_buttons() -> void:
 	host.layer.add_child(column)
 	if not SupabaseAuth.is_session_checked():
 		# still looking for a saved session: no buttons yet, so they don't flash and vanish
-		column.add_child(host._label("Verificando sua conta…", 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+		column.add_child(host.make_label("Verificando sua conta…", 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
 		return
 	column.add_child(_google_sign_in_button())
-	column.add_child(host._label("Salva seu perfil e seus decks na nuvem", 14, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
-	var guest_button: Button = host._button(
+	column.add_child(host.make_label("Salva seu perfil e seus decks na nuvem", 14, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+	var guest_button: Button = host.make_button(
 		"ENTRAR COMO CONVIDADO",
 		func() -> void:
 			_entered_menu = true
@@ -187,7 +187,7 @@ func _add_entry_buttons() -> void:
 	guest_button.custom_minimum_size = Vector2(420, 58)
 	column.add_child(guest_button)
 	column.add_child(
-		host._label("Joga sem conta; nada fica salvo na nuvem", 14, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
+		host.make_label("Joga sem conta; nada fica salvo na nuvem", 14, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body")
 	)
 
 
@@ -227,7 +227,7 @@ func _google_sign_in_button() -> Button:
 	google_font.font_names = PackedStringArray(["Roboto", "Segoe UI", "Helvetica Neue", "Arial"])
 	google_font.font_weight = 500
 	google_font.fallbacks = [UITheme.font("bold")]
-	var text_label: Label = host._label("Entrar com o Google", 20, Color("#1f1f1f"), HORIZONTAL_ALIGNMENT_LEFT)
+	var text_label: Label = host.make_label("Entrar com o Google", 20, Color("#1f1f1f"), HORIZONTAL_ALIGNMENT_LEFT)
 	text_label.add_theme_font_override("font", google_font)
 	text_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	content_row.add_child(text_label)
@@ -253,7 +253,7 @@ func _google_logo() -> Texture2D:
 
 ## The deck builder takes over the whole stage; its way back is the title menu.
 func open_deck_builder() -> void:
-	host._clear()
+	host.clear_table()
 	host.deck_builder = DeckBuilder.new()
 	host.deck_builder.closed.connect(
 		func() -> void:
@@ -300,16 +300,16 @@ func _add_menu_mode_buttons() -> void:
 		)
 	mode_options.append(["MEUS DECKS", "Crie, edite e guarde seus próprios decks", open_deck_builder, false])
 	for opt in mode_options:
-		var b: Button = host._button(opt[0], opt[2], opt[3])
+		var b: Button = host.make_button(opt[0], opt[2], opt[3])
 		b.custom_minimum_size = Vector2(420, 58)
 		b.tooltip_text = opt[1]
 		box.add_child(b)
-		var sub: Label = host._label(opt[1], MENU_SUBTITLE_FONT_SIZE, MENU_SUBTITLE_COLOR, HORIZONTAL_ALIGNMENT_CENTER, "body")
+		var sub: Label = host.make_label(opt[1], MENU_SUBTITLE_FONT_SIZE, MENU_SUBTITLE_COLOR, HORIZONTAL_ALIGNMENT_CENTER, "body")
 		# the longer hint (hot-seat) wraps instead of pushing the column wider than the buttons
 		sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		box.add_child(sub)
 	# a guest can still link a Google account later from here
-	account_button = host._button("ENTRAR COM GOOGLE", _on_account_button_pressed)
+	account_button = host.make_button("ENTRAR COM GOOGLE", _on_account_button_pressed)
 	account_button.position = Vector2(24, 24)
 	account_button.size = Vector2(300, 52)
 	account_button.tooltip_text = "Vincule sua conta para salvar perfil e decks."
@@ -328,14 +328,14 @@ func _start_google_sign_in() -> void:
 	SupabaseAuth.sign_in_with_google()
 	# on the web the page itself goes to Google; the executable opens a separate browser window
 	if not OS.has_feature("web"):
-		host._toast("Abrimos o navegador: entre com o Google lá e depois volte ao jogo.")
+		host.show_toast("Abrimos o navegador: entre com o Google lá e depois volte ao jogo.")
 
 
 func on_supabase_auth_state_changed(auth_state: Dictionary) -> void:
 	_update_account_button()
 	var signed_in_now := bool(auth_state.get("signed_in", false))
 	var session_checked_now := bool(auth_state.get("session_checked", false))
-	if host._menu_screen_showing:
+	if host.menu_screen_showing:
 		if signed_in_now and not _entered_menu:
 			# came back from Google (or a saved session was found): go into the full menu
 			_entered_menu = true
@@ -350,10 +350,10 @@ func on_supabase_auth_state_changed(auth_state: Dictionary) -> void:
 	_session_was_checked = session_checked_now
 	var error_message := String(auth_state.get("error", ""))
 	if not error_message.is_empty():
-		host._toast(error_message)
+		host.show_toast(error_message)
 	elif bool(auth_state.get("signed_in", false)) and not _account_was_signed_in:
 		var profile: Dictionary = auth_state.get("profile", { })
-		host._toast("Conta Google conectada%s" % (": %s" % String(profile.get("username", "")) if not profile.is_empty() else "."))
+		host.show_toast("Conta Google conectada%s" % (": %s" % String(profile.get("username", "")) if not profile.is_empty() else "."))
 	_account_was_signed_in = bool(auth_state.get("signed_in", false))
 
 
@@ -400,12 +400,12 @@ func show_online(msg := "") -> void:
 ## `choosing_ai_deck` is the AI mode's second step: the same grid, but the pick is the AI's deck.
 func show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 	if host.dev_mode_enabled and not ai:
-		host._toast("Modo de desenvolvimento: partidas online desativadas.")
+		host.show_toast("Modo de desenvolvimento: partidas online desativadas.")
 		return
-	host._clear_fx()
-	host._clear()
+	host.reset_animation_state()
+	host.clear_table()
 	host.table.visible = false
-	host._set_tints(Color("#3f7bd9"), Color("#e0572b"), 1.6)
+	host.set_background_tints(Color("#3f7bd9"), Color("#e0572b"), 1.6)
 	_hub_args = [ai, msg, choosing_ai_deck]
 	refresh_hub_stats_if_due()
 	_refresh_player_decks()
@@ -415,7 +415,7 @@ func show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 		if DeckDB.is_deck_visible(deck_id):
 			ids.append(deck_id)
 	if ids.is_empty():
-		host._toast("Nenhum deck disponível neste modo.")
+		host.show_toast("Nenhum deck disponível neste modo.")
 		show_menu()
 		return
 	# banned decks stay in the gallery (marked BANIDO) but can never be the chosen one
@@ -424,14 +424,14 @@ func show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 			return not DeckDB.is_deck_banned(deck_id),
 	)
 	if playable_ids.is_empty():
-		host._toast("Nenhum deck disponível neste modo.")
+		host.show_toast("Nenhum deck disponível neste modo.")
 		show_menu()
 		return
 	if not playable_ids.has(sel_deck):
 		sel_deck = playable_ids[0]
 	if ai_deck != "" and not playable_ids.has(ai_deck):
 		ai_deck = ""
-	var title: Label = host._label(
+	var title: Label = host.make_label(
 		("HOT-SEAT" if hub_hotseat else "CONTRA A IA") if ai else "ONLINE",
 		56,
 		UITheme.GOLD_LIGHT,
@@ -450,9 +450,9 @@ func show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 	# this hub, so a small grey line was easy to overlook and looked like "the button does nothing".
 	var sub: Label
 	if msg != "":
-		sub = host._label(msg, 28, Color("#ff9d7a"), HORIZONTAL_ALIGNMENT_CENTER, "bold", 4)
+		sub = host.make_label(msg, 28, Color("#ff9d7a"), HORIZONTAL_ALIGNMENT_CENTER, "bold", 4)
 	else:
-		sub = host._label(subtitle, 22, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
+		sub = host.make_label(subtitle, 22, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
 	sub.position = Vector2(0, 120)
 	sub.size = Vector2(host.stage_w, 40)
 	host.layer.add_child(sub)
@@ -665,7 +665,7 @@ func show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 								return d != sel_deck,
 						)
 						opponent_deck = String(others.pick_random()) if not others.is_empty() else sel_deck
-					host._start(not hub_hotseat, sel_deck, opponent_deck),
+					host.start_match(not hub_hotseat, sel_deck, opponent_deck),
 				true,
 			]
 		)
@@ -710,12 +710,12 @@ func show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 		back_action = func() -> void:
 			hub_scroll_y = 0
 			show_hub.call_deferred(true)
-	var bk: Button = host._button("Voltar", back_action)
+	var bk: Button = host.make_button("Voltar", back_action)
 	bk.position = Vector2(bx, y)
 	bk.size = Vector2(back_w, 72)
 	host.layer.add_child(bk)
 	for i in actions.size():
-		var b: Button = host._button(actions[i][0], actions[i][1], actions[i][2])
+		var b: Button = host.make_button(actions[i][0], actions[i][1], actions[i][2])
 		b.position = Vector2(bx + back_w + 24.0 + i * (bw + 24.0), y)
 		b.size = Vector2(bw, 72)
 		host.layer.add_child(b)
@@ -811,7 +811,7 @@ func _add_hub_section_body(
 	if section_ids.is_empty():
 		var hint_text := String(section.get("hint", ""))
 		if hint_text != "":
-			var hint: Label = host._label(hint_text, 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT, "body")
+			var hint: Label = host.make_label(hint_text, 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT, "body")
 			hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			hint.position = Vector2(grid_x, y)
 			hint.size = Vector2(grid_w, HUB_EMPTY_HINT_H)
@@ -846,7 +846,7 @@ func _on_hub_tile_input(
 		return
 	if id != "" and DeckDB.is_deck_banned(id):
 		Sfx.play("ui_click")
-		host._toast("Este Líder está BANIDO: só pode ser usado no modo de desenvolvimento.")
+		host.show_toast("Este Líder está BANIDO: só pode ser usado no modo de desenvolvimento.")
 		return
 	if choosing_ai_deck:
 		ai_deck = id
@@ -894,8 +894,8 @@ func _on_player_decks_changed() -> void:
 
 
 func refresh_hub_stats_if_due() -> void:
-	if SupabaseAuth.is_signed_in() and Time.get_ticks_msec() - host._hub_stats_refresh_at >= 30000:
-		host._hub_stats_refresh_at = Time.get_ticks_msec()
+	if SupabaseAuth.is_signed_in() and Time.get_ticks_msec() - host.hub_stats_refresh_at >= 30000:
+		host.hub_stats_refresh_at = Time.get_ticks_msec()
 		SupabaseAuth.refresh_deck_stats()
 
 
@@ -976,7 +976,7 @@ func _deck_showcase(id: String, size: Vector2, choosing_ai_deck: bool) -> Contro
 	)
 	if id == "":
 		p.add_theme_stylebox_override("panel", UITheme.box(bg, 16, UITheme.GOLD, 3, 20))
-		var mark: Label = host._label("?", 220, Color(UITheme.GOLD_LIGHT, 0.5), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8)
+		var mark: Label = host.make_label("?", 220, Color(UITheme.GOLD_LIGHT, 0.5), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8)
 		mark.position = Vector2(0, size.y * 0.12)
 		mark.size = Vector2(size.x, 300)
 		p.add_child(mark)
@@ -998,7 +998,7 @@ func _deck_showcase(id: String, size: Vector2, choosing_ai_deck: bool) -> Contro
 	p.add_theme_stylebox_override("panel", UITheme.box(bg, 16, Color(col, 0.85), 3, 20))
 	var art_h := size.y * 0.5
 	var art := TextureRect.new()
-	art.texture = host._top_crop(
+	art.texture = host.crop_portrait_to_top(
 		CardView.texture(String(ld.get("art", ""))),
 		Vector2(size.x - 8, art_h),
 		float(ld.get("art_focus", 0.06)),
@@ -1038,7 +1038,7 @@ func _decklist_button(id: String, showcase_size: Vector2) -> Button:
 				icon.draw_line(Vector2(-8.0, line_y), Vector2(20.0, line_y), UITheme.GOLD_LIGHT, 3.5),
 	)
 	button.add_child(icon)
-	var caption: Label = host._label("LISTA", 26, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_LEFT, "bold")
+	var caption: Label = host.make_label("LISTA", 26, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_LEFT, "bold")
 	caption.position = Vector2(80.0, 0.0)
 	caption.size = Vector2(button_size.x - 88.0, button_size.y)
 	caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -1092,18 +1092,18 @@ func _showcase_text(
 	footer: String,
 	top: float,
 ) -> void:
-	var tag: Label = host._label(who, 15, Color(UITheme.GOLD, 0.9), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
+	var tag: Label = host.make_label(who, 15, Color(UITheme.GOLD, 0.9), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
 	tag.position = Vector2(20, top - 26.0)
 	tag.size = Vector2(size.x - 40, 22)
 	p.add_child(tag)
-	var nm: Label = host._label(deck_name, 40, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8)
+	var nm: Label = host.make_label(deck_name, 40, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8)
 	nm.position = Vector2(20, top - 6.0)
 	nm.size = Vector2(size.x - 40, 52)
 	nm.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	p.add_child(nm)
 	var y := top + 50.0
 	if leader_line != "":
-		var lead: Label = host._label(leader_line, 19, col.lightened(0.35), HORIZONTAL_ALIGNMENT_CENTER, "bold", 3)
+		var lead: Label = host.make_label(leader_line, 19, col.lightened(0.35), HORIZONTAL_ALIGNMENT_CENTER, "bold", 3)
 		lead.position = Vector2(20, y)
 		lead.size = Vector2(size.x - 40, 26)
 		lead.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -1113,7 +1113,7 @@ func _showcase_text(
 	y += 26.0
 	var footer_h := 40.0 if footer != "" else 0.0
 	var room := size.y - y - footer_h - 16.0
-	var blurb: Label = host._label(description, 23, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "body", 3)
+	var blurb: Label = host.make_label(description, 23, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "body", 3)
 	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	blurb.position = Vector2(32, y)
 	blurb.size = Vector2(size.x - 64, room)
@@ -1124,7 +1124,7 @@ func _showcase_text(
 			break
 	p.add_child(blurb)
 	if footer != "":
-		var foot: Label = host._label(footer, 17, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold", 3)
+		var foot: Label = host.make_label(footer, 17, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold", 3)
 		foot.position = Vector2(20, size.y - footer_h)
 		foot.size = Vector2(size.x - 40, 24)
 		foot.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -1163,7 +1163,7 @@ func deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 	var deck_name := "Aleatório"
 	var leader_name := "sorteado ao jogar"
 	if id == "":
-		var mark: Label = host._label("?", 96, Color(UITheme.GOLD_LIGHT, 0.55), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6)
+		var mark: Label = host.make_label("?", 96, Color(UITheme.GOLD_LIGHT, 0.55), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6)
 		mark.position = Vector2(0, art_h * 0.12)
 		mark.size = Vector2(size.x, art_h)
 		p.add_child(mark)
@@ -1174,7 +1174,7 @@ func deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 		deck_name = String(d["name"])
 		leader_name = String(ld["name"])
 		var art := TextureRect.new()
-		art.texture = host._top_crop(
+		art.texture = host.crop_portrait_to_top(
 			CardView.texture(String(ld.get("art", ""))),
 			Vector2(size.x - 8, art_h),
 			float(ld.get("art_focus", 0.06)),
@@ -1192,7 +1192,7 @@ func deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 	)
 	# the name gets the zone between the art and domain seals, and never grows past it: it shrinks
 	# step by step until it fits in two lines, and only a name too long even for the smallest step is cut with "…"
-	var nm: Label = host._label(
+	var nm: Label = host.make_label(
 		deck_name,
 		DECK_TILE_NAME_FONT_SIZES[0],
 		UITheme.GOLD_LIGHT,
@@ -1265,7 +1265,7 @@ func _add_deck_tile_stats(tile: Control, name_label: Label, deck_id: String) -> 
 		status = "guest"
 	if status != "ready":
 		var message := "ENTRE NA CONTA" if status == "guest" else ("CARREGANDO…" if status == "loading" else "INDISPONÍVEL")
-		var hint: Label = host._label(message, 16, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
+		var hint: Label = host.make_label(message, 16, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
 		hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		hint.size = stats_box.size
 		stats_box.add_child(hint)
@@ -1312,7 +1312,7 @@ func _add_deck_tile_stats(tile: Control, name_label: Label, deck_id: String) -> 
 		totals.clip_contents = true
 		stats_box.add_child(totals)
 		for part in parts:
-			var label: Label = host._label(part.text, totals_size, part.color, HORIZONTAL_ALIGNMENT_CENTER, "bold")
+			var label: Label = host.make_label(part.text, totals_size, part.color, HORIZONTAL_ALIGNMENT_CENTER, "bold")
 			label.name = part.name
 			totals.add_child(label)
 		var rate_text := "%d%% VITÓRIAS" % roundi(100.0 * wins / games) if games > 0 else "SEM PARTIDAS"
@@ -1321,7 +1321,7 @@ func _add_deck_tile_stats(tile: Control, name_label: Label, deck_id: String) -> 
 		var rate_size := 16
 		while rate_size > 7 and font.get_string_size(rate_text, HORIZONTAL_ALIGNMENT_LEFT, -1, rate_size).x > stats_box.size.x:
 			rate_size -= 1
-		var rate: Label = host._label(rate_text, rate_size, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "bold")
+		var rate: Label = host.make_label(rate_text, rate_size, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "bold")
 		rate.name = "WinRate"
 		rate.position = Vector2(0, 24)
 		rate.size = Vector2(stats_box.size.x, 22)
@@ -1413,18 +1413,18 @@ func _add_hub_section_title(
 
 ## Join screen: 4-letter room code keypad, entering with the deck picked in the hub.
 func _show_join(msg := "") -> void:
-	host._clear_fx()
-	host._clear()
+	host.reset_animation_state()
+	host.clear_table()
 	host.table.visible = false
-	host._set_tints(Color("#3f7bd9"), Color("#e0572b"), 1.6)
+	host.set_background_tints(Color("#3f7bd9"), Color("#e0572b"), 1.6)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 14)
 	box.position = Vector2(host.stage_w / 2.0 - 300, 90)
 	box.custom_minimum_size = Vector2(600, 0)
 	host.layer.add_child(box)
-	box.add_child(host._label("ENTRAR NA SALA", 48, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8))
+	box.add_child(host.make_label("ENTRAR NA SALA", 48, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8))
 	box.add_child(
-		host._label(
+		host.make_label(
 			msg if msg != "" else "Deck: %s" % DeckDB.get_deck(sel_deck)["name"],
 			22,
 			UITheme.TEXT,
@@ -1432,7 +1432,7 @@ func _show_join(msg := "") -> void:
 			"bold",
 		)
 	)
-	var slots: Label = host._label(_code_text(), 64, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6)
+	var slots: Label = host.make_label(_code_text(), 64, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6)
 	host.join_slots = slots
 	box.add_child(slots)
 	var grid := GridContainer.new()
@@ -1441,18 +1441,18 @@ func _show_join(msg := "") -> void:
 	grid.add_theme_constant_override("v_separation", 8)
 	box.add_child(grid)
 	for ch in ROOM_CODE_LETTERS:
-		var kb: Button = host._button(ch, _type_room_code_letter.bind(ch))
+		var kb: Button = host.make_button(ch, _type_room_code_letter.bind(ch))
 		kb.custom_minimum_size = Vector2(68, 60)
 		kb.add_theme_font_size_override("font_size", 26)
 		grid.add_child(kb)
-	var back: Button = host._button("⌫", _erase_room_code_letter)
+	var back: Button = host.make_button("⌫", _erase_room_code_letter)
 	back.custom_minimum_size = Vector2(68, 60)
 	back.add_theme_font_size_override("font_size", 26)
 	grid.add_child(back)
-	var go: Button = host._button("ENTRAR NA SALA", _join_typed_room, true)
+	var go: Button = host.make_button("ENTRAR NA SALA", _join_typed_room, true)
 	go.custom_minimum_size = Vector2(600, 64)
 	box.add_child(go)
-	var bk: Button = host._button(
+	var bk: Button = host.make_button(
 		"Voltar",
 		func() -> void:
 			show_online(),
@@ -1523,20 +1523,20 @@ func press_main_action_with_keyboard() -> bool:
 
 
 func show_wait(text: String, show_code := "") -> void:
-	host._clear_fx()
-	host._clear()
+	host.reset_animation_state()
+	host.clear_table()
 	host.table.visible = false
-	host._set_tints(Color("#3f7bd9"), Color("#e0572b"), 1.6)
+	host.set_background_tints(Color("#3f7bd9"), Color("#e0572b"), 1.6)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 20)
 	box.position = Vector2(host.stage_w / 2.0 - 300, 260)
 	box.custom_minimum_size = Vector2(600, 0)
 	host.layer.add_child(box)
 	if show_code != "":
-		box.add_child(host._label("CÓDIGO DA SALA", 26, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
-		box.add_child(host._label(show_code, 120, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 12))
-	box.add_child(host._label(text, 28, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
-	var c: Button = host._button(
+		box.add_child(host.make_label("CÓDIGO DA SALA", 26, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
+		box.add_child(host.make_label(show_code, 120, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 12))
+	box.add_child(host.make_label(text, 28, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
+	var c: Button = host.make_button(
 		"Cancelar",
 		func():
 			host.net.forget()

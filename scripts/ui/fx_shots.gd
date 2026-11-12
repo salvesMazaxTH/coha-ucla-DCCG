@@ -39,7 +39,7 @@ const BOON_FLIGHT := 0.32
 ## Color of the bolt that carries an effect, by what the effect does: red-orange for damage,
 ## green for healing, ice for freezing, the marker's own color for poison/bleed and so on.
 ## A summon has its own fuchsia, so a card appearing never reads as a stat bonus (lime).
-func _bolt_color(e: Dictionary) -> Color:
+func bolt_color(e: Dictionary) -> Color:
 	match String(e["type"]):
 		"damage", "shield_break", "magic_shield_break", "supreme_shield_break":
 			return Color("#ff5a2e")
@@ -71,16 +71,16 @@ func _bolt_color(e: Dictionary) -> Color:
 ##   "point_at": a Callable(u) -> Vector2, the point at fraction u of the path (0 = source, 1 = target).
 func _shot_path(from: Control, to: Control, arc: float, arc_cap: float) -> Dictionary:
 	var bend := 1.0 if randf() < 0.5 else -1.0
-	var ends := {"a": fx_library._center_of(from), "b": fx_library._center_of(to)}
+	var ends := {"a": fx_library.center_of(from), "b": fx_library.center_of(to)}
 	var source_ref: WeakRef = weakref(from)
 	var target_ref: WeakRef = weakref(to)
 	var refresh_ends := func():
 		var source_view: Control = source_ref.get_ref()
 		var target_view: Control = target_ref.get_ref()
 		if source_view != null:
-			ends["a"] = fx_library._center_of(source_view)
+			ends["a"] = fx_library.center_of(source_view)
 		if target_view != null:
-			ends["b"] = fx_library._center_of(target_view)
+			ends["b"] = fx_library.center_of(target_view)
 	var point_at := func(u: float) -> Vector2:
 		var a: Vector2 = ends["a"]
 		var b: Vector2 = ends["b"]
@@ -90,7 +90,7 @@ func _shot_path(from: Control, to: Control, arc: float, arc_cap: float) -> Dicti
 
 ## The hit style a card's effects fly with: its JSON's optional "hit_fx" field (for example
 ## "espinho" on the Flor Voraz). Leaders and cards without the field use the default bolt ("").
-func _hit_style_of(source: Control) -> String:
+func hit_style_of(source: Control) -> String:
 	if source is CardView:
 		var card := CardDB.card((source as CardView).card_id)
 		# the card's own "hit_fx" always wins
@@ -141,7 +141,7 @@ func spell_shot_color(card_id: String, domain_color: Color) -> Color:
 
 ## Whether an event is good for the card it lands on: healing, a summon, or a buff that only adds
 ## (a buff with a negative number is a debuff, and that one is fired like any hit).
-func _is_boon_event(e: Dictionary) -> bool:
+func is_boon_event(e: Dictionary) -> bool:
 	match String(e["type"]):
 		"heal", "summon":
 			return true
@@ -151,7 +151,7 @@ func _is_boon_event(e: Dictionary) -> bool:
 
 ## Timing of one shot in a hit style: {"charge": the wind-up on the source before it leaves,
 ## "flight": its time in the air}. Big chains fire faster, so a long chain does not drag.
-func _shot_timing(style: String, first_shot: bool) -> Dictionary:
+func shot_timing(style: String, first_shot: bool) -> Dictionary:
 	var pace := 0.55 + 0.45 * fx_library.fx_chain_scale
 	match style:
 		"espinho":
@@ -179,11 +179,11 @@ func _shot_timing(style: String, first_shot: bool) -> Dictionary:
 	return {"charge": (BOLT_CHARGE_FIRST if first_shot else BOLT_CHARGE_NEXT) * pace, "flight": BOLT_FLIGHT * pace}
 
 ## Plays the shot of one effect, from the card whose trigger caused it to what it hits, in the
-## source card's own hit style (see _hit_style_of). Returns the time from t until the shot lands,
+## source card's own hit style (see hit_style_of). Returns the time from t until the shot lands,
 ## which is when the effect's number pops.
 ## To add a new style: write a function with the same parameters that returns the same time,
 ## add a line for it here, and put "hit_fx": "<style name>" in the cards that should use it.
-func _effect_hit(style: String, from: Control, to: Control, t: float, col: Color, first_shot: bool) -> float:
+func effect_hit(style: String, from: Control, to: Control, t: float, col: Color, first_shot: bool) -> float:
 	match style:
 		"espinho":
 			return _thorn_shot(from, to, t, first_shot)
@@ -219,7 +219,7 @@ func _effect_hit(style: String, from: Control, to: Control, t: float, col: Color
 ##    sparks thrown on in the travel direction.
 ## Follows both ends if they move. Returns the time from t until the comet lands.
 func _effect_bolt(from: Control, to: Control, t: float, col: Color, first_shot: bool) -> float:
-	var timing := _shot_timing("", first_shot)
+	var timing := shot_timing("", first_shot)
 	var charge: float = timing["charge"]
 	var flight: float = timing["flight"]
 	var launch_t := t + charge
@@ -537,7 +537,7 @@ func _effect_bolt(from: Control, to: Control, t: float, col: Color, first_shot: 
 ## 4. arrival: a flash, a ring and sparks thrown on in the travel direction.
 ## Follows both ends if they move. Returns the time from t until the orb lands.
 func _boon_shot(from: Control, to: Control, t: float, col: Color, first_shot: bool) -> float:
-	var timing := _shot_timing("boon", first_shot)
+	var timing := shot_timing("boon", first_shot)
 	var charge: float = timing["charge"]
 	var flight: float = timing["flight"]
 	var rich := fx_library.fx_scale >= 0.7 # big chains skip the costliest layers (wide glow, reticle)
@@ -836,7 +836,7 @@ const SAP_COLOR := Color("#7fd04a")
 ##    target instead of piling on one spot), quivers, splashes sap and drops off a moment later.
 ## Follows both ends if they move. Returns the time from t until the thorn lands.
 func _thorn_shot(from: Control, to: Control, t: float, first_shot: bool) -> float:
-	var timing := _shot_timing("espinho", first_shot)
+	var timing := shot_timing("espinho", first_shot)
 	var charge: float = timing["charge"]
 	var flight: float = timing["flight"]
 	var launch_t := t + charge
@@ -1083,7 +1083,7 @@ const BULLET_SMOKE_COLOR := Color("#9a9a9a")
 ##    and a dark mark where it hit (a bit off-center, so a volley spreads over the target).
 ## Follows both ends if they move. Returns the time from t until the bullet lands.
 func _bullet_shot(from: Control, to: Control, t: float, first_shot: bool) -> float:
-	var timing := _shot_timing("tiro", first_shot)
+	var timing := shot_timing("tiro", first_shot)
 	var charge: float = timing["charge"]
 	var flight: float = timing["flight"]
 	var launch_t := t + charge
@@ -1338,7 +1338,7 @@ func _ruby_crystal(size: float, with_glow: bool) -> Node2D:
 ## Kept light for phones: a handful of flat polygons and two small particle bursts per shot, fewer
 ## when many shots fire at once. Follows both ends if they move. Returns the time until it lands.
 func _ruby_shot(from: Control, to: Control, t: float, first_shot: bool) -> float:
-	var timing := _shot_timing("rubi", first_shot)
+	var timing := shot_timing("rubi", first_shot)
 	var charge: float = timing["charge"]
 	var flight: float = timing["flight"]
 	var launch_t := t + charge
@@ -1574,7 +1574,7 @@ const SLASH_SPARK_COLOR := Color("#ffe8b0")
 ##    volley over several targets never repeats itself), with a flash and sparks thrown along the blade.
 ## Follows both ends if they move. Returns the time from t until the cut lands.
 func _slash_shot(from: Control, to: Control, t: float, first_shot: bool) -> float:
-	var timing := _shot_timing("corte", first_shot)
+	var timing := shot_timing("corte", first_shot)
 	var charge: float = timing["charge"]
 	var dash: float = timing["flight"]
 	var launch_t := t + charge
@@ -1807,7 +1807,7 @@ func _lightning_fork_points(start: Vector2, heading: Vector2) -> PackedVector2Ar
 ## `col` is the spell's color (Tormenta's purple). Follows both ends if they move. Returns the time
 ## from t until the bolt lands.
 func _lightning_shot(from: Control, to: Control, t: float, col: Color, first_shot: bool) -> float:
-	var timing := _shot_timing("raio", first_shot)
+	var timing := shot_timing("raio", first_shot)
 	var charge: float = timing["charge"]
 	var flight: float = timing["flight"]
 	var launch_t := t + charge
@@ -2013,7 +2013,7 @@ func _make_rock(radius: float) -> Node2D:
 ##    target card is knocked back the way the rock was going.
 ## Follows both ends if they move. Returns the time from t until the rock lands.
 func _rock_shot(from: Control, to: Control, t: float, first_shot: bool) -> float:
-	var timing := _shot_timing("pedra", first_shot)
+	var timing := shot_timing("pedra", first_shot)
 	var charge: float = timing["charge"]
 	var flight: float = timing["flight"]
 	var launch_t := t + charge
@@ -2269,7 +2269,7 @@ func _make_ice_shard(length: float) -> Node2D:
 ##    on the target, which is jolted back a little.
 ## Follows both ends if they move. Returns the time from t until the shard lands.
 func _ice_shot(from: Control, to: Control, t: float, first_shot: bool) -> float:
-	var timing := _shot_timing("gelo", first_shot)
+	var timing := shot_timing("gelo", first_shot)
 	var charge: float = timing["charge"]
 	var flight: float = timing["flight"]
 	var launch_t := t + charge
@@ -2452,7 +2452,7 @@ func _make_venom_glob(radius: float) -> Node2D:
 ##    a few bubbles rise and pop over the target.
 ## Follows both ends if they move. Returns the time from t until the glob lands.
 func _venom_shot(from: Control, to: Control, t: float, first_shot: bool) -> float:
-	var timing := _shot_timing("veneno", first_shot)
+	var timing := shot_timing("veneno", first_shot)
 	var charge: float = timing["charge"]
 	var flight: float = timing["flight"]
 	var launch_t := t + charge
@@ -2675,7 +2675,7 @@ func _make_wind_blade(radius: float) -> Node2D:
 ##    target is shoved hard the way the wind was blowing.
 ## Follows both ends if they move. Returns the time from t until the blade lands.
 func _wind_shot(from: Control, to: Control, t: float, first_shot: bool) -> float:
-	var timing := _shot_timing("vento", first_shot)
+	var timing := shot_timing("vento", first_shot)
 	var charge: float = timing["charge"]
 	var flight: float = timing["flight"]
 	var launch_t := t + charge
@@ -2859,7 +2859,7 @@ func _make_fireball_trail(radius: float) -> CPUParticles2D:
 ##    embers, a puff of dark smoke rising, and the target is knocked back.
 ## Follows both ends if they move. Returns the time from t until the fireball lands.
 func _fireball_shot(from: Control, to: Control, t: float, first_shot: bool) -> float:
-	var timing := _shot_timing("fogo", first_shot)
+	var timing := shot_timing("fogo", first_shot)
 	var charge: float = timing["charge"]
 	var flight: float = timing["flight"]
 	var launch_t := t + charge

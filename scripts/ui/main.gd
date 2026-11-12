@@ -43,16 +43,16 @@ var vs_ai := true
 var viewer := 0 ## whose perspective is drawn
 var pending_pass := false
 var _over_from := -1 ## index in layer of the first game-over node (-1 = none this frame)
-var _leader_ko_t := -1.0 ## time of the last Leader HP change in the current animation
+var leader_ko_time := -1.0 ## time of the last Leader HP change in the current animation
 var net: NetClient ## online match link (null offline)
 var dev_mode_enabled := false
 var dev_tools_panel: DevToolsPanel
 var deck_builder: DeckBuilder ## the "MEUS DECKS" screen while it is open
-var _menu_screen_showing := false ## the title screen (entry or full menu) is what is on screen now
+var menu_screen_showing := false ## the title screen (entry or full menu) is what is on screen now
 var online := false
 var opp_online := true
 var join_slots: Label ## the room-code display of the join screen; null on every other screen (the keyboard types into it)
-var _hub_stats_refresh_at := -30000
+var hub_stats_refresh_at := -30000
 var hub_scroll: ScrollContainer ## the deck hub's scrolling gallery (null/freed outside the hub)
 var _fps_counter: Label
 var _fps_counter_visible := false
@@ -81,9 +81,9 @@ var search_overlay: Control
 ## {"title": String, "subtitle": String, "options": [{"title", "detail", "enabled", "reason", "callback"}]}
 ## Empty when closed. Built by _open_option_prompt and drawn by _render_option_prompt.
 var option_prompt := { }
-var grave_view: Control ## graveyard viewer (child of Main, outlives _render)
+var grave_view: Control ## graveyard viewer (child of Main, outlives render_table)
 var decklist_view: DecklistView ## a deck's card list, opened from the deck selection hub (child of Main)
-var concede_view: Control ## "concede?" confirmation (child of Main, outlives _render)
+var concede_view: Control ## "concede?" confirmation (child of Main, outlives render_table)
 var conceded := -1 ## player who gave up this match (-1 = nobody); only used for the game-over text
 var finger_press_position := Vector2.ZERO ## where the current touch began
 var finger_is_swiping := false ## true once the current touch moved past SWIPE_START_DISTANCE
@@ -124,7 +124,7 @@ var _waiting_event_batches: Array = [] ## each entry is one Array of events, in 
 var _waiting_events_timer: Timer
 ## While the table is busy (see _table_busy) the engine may already be ahead of what the screen shows,
 ## so redrawing would spoil the future (a unit that dies in the waiting batch would vanish before its
-## fight is shown). _render only takes note, and the redraw happens once the table settles.
+## fight is shown). render_table only takes note, and the redraw happens once the table settles.
 var _render_when_settled := false
 ## Clicks given while the table is busy are not judged against a screen that is out of date: each one
 ## waits here, in order, and runs once the last animation has ended (the player's "next move" buffer).
@@ -151,7 +151,7 @@ var _hand_base := 0 ## child index of the first hand card in layer
 
 
 ## "Modo leve": renders at the 1600x900 base size and upscales (fewer pixels, softer text).
-func _apply_light(on: bool, save := false) -> void:
+func apply_light_mode(on: bool, save := false) -> void:
 	get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_VIEWPORT if on else Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 	if save:
 		var cf := ConfigFile.new()
@@ -161,7 +161,7 @@ func _apply_light(on: bool, save := false) -> void:
 
 
 ## Phones default to light mode until the player picks one explicitly.
-func _light_on() -> bool:
+func is_light_mode_on() -> bool:
 	var cf := ConfigFile.new()
 	if cf.load("user://settings.cfg") != Error.OK:
 		return _is_phone()
@@ -186,14 +186,14 @@ func _set_auto_pass(on: bool) -> void:
 		return
 	var ev := []
 	for i in 2:
-		if not _is_ai(i):
+		if not is_ai(i):
 			ev += g.set_auto_pass(i, on)
 	if on and not ev.is_empty():
 		for e in ev:
 			chronicle_log.log_event(e)
 		_show_events(ev)
 	else:
-		_render()
+		render_table()
 
 
 func _is_phone() -> bool:
@@ -217,7 +217,7 @@ func _ready() -> void:
 	menu_screens = MenuScreensScript.new(self)
 	# the logical screen is as tall as the stage, so a 16:9 window shows all of it (not a cropped middle)
 	get_window().content_scale_size = Vector2i(1600, int(STAGE_H))
-	_apply_light(_light_on())
+	apply_light_mode(is_light_mode_on())
 	dev_tools_panel = DevToolsPanelScript.new()
 	dev_tools_panel.action_requested.connect(_on_dev_tool_action)
 	dev_tools_panel.close_requested.connect(_close_dev_tools)
@@ -294,13 +294,13 @@ func _load_scenario() -> void:
 			continue
 		var script: GDScript = load("res://tests/scenarios/%s.gd" % a.trim_prefix("--scenario="))
 		var scenario_constants := script.get_script_constant_map()
-		_start(true, String(scenario_constants.get("PLAYER_DECK", "agua")), String(scenario_constants.get("ENEMY_DECK", "fogo")))
+		start_match(true, String(scenario_constants.get("PLAYER_DECK", "agua")), String(scenario_constants.get("ENEMY_DECK", "fogo")))
 		script.setup(g)
 		g.auto_pass[0] = _auto_pass_on()
 		pending_pass = false
 		chronicle_log.log_lines = ["Cenário de teste carregado."]
 		chronicle_log.chronicle_entries.clear()
-		_render()
+		render_table()
 
 
 ## The stage is 900 tall and at least 1600 wide: on wider windows (phones in
@@ -332,7 +332,7 @@ func _fit_viewport() -> void:
 		motes.emission_rect_extents = Vector2(w / 2.0 + 20.0, STAGE_H / 2.0)
 	if changed and layer:
 		if table.visible and g:
-			_render.call_deferred()
+			render_table.call_deferred()
 		elif not table.visible and not is_instance_valid(deck_builder):
 			menu_screens.show_menu.call_deferred() # the deck builder stretches with the stage by itself
 
@@ -363,7 +363,7 @@ func _motes() -> CPUParticles2D:
 
 ## Repaints the background. `marble_floor` = true only for a match: menus keep the plain dark slate
 ## so the marble battle table does not show behind the menu art.
-func _set_tints(top: Color, bottom: Color, intensity := 1.0, marble_floor := false) -> void:
+func set_background_tints(top: Color, bottom: Color, intensity := 1.0, marble_floor := false) -> void:
 	bg_mat.set_shader_parameter("marble_floor", marble_floor)
 	bg_mat.set_shader_parameter("top_tint", top)
 	bg_mat.set_shader_parameter("bottom_tint", bottom)
@@ -377,7 +377,7 @@ func _leader_color(p: int) -> Color:
 # ---------------------------------------------------------------- match start and online link
 
 
-func _start(ai: bool, deck_a: String, deck_b: String) -> void:
+func start_match(ai: bool, deck_a: String, deck_b: String) -> void:
 	if online:
 		net.disconnect_server()
 		online = false
@@ -387,7 +387,7 @@ func _start(ai: bool, deck_a: String, deck_b: String) -> void:
 	barricade_was_up.clear() # unit uids restart with every match
 	_locked_hand_uids.clear()
 	for i in 2:
-		g.auto_pass[i] = _auto_pass_on() or _is_ai(i)
+		g.auto_pass[i] = _auto_pass_on() or is_ai(i)
 	CardDB.reroll_flavor()
 	Sfx.play("card_shuffle")
 	Music.play_match()
@@ -397,8 +397,8 @@ func _start(ai: bool, deck_a: String, deck_b: String) -> void:
 	viewer = 0
 	pending_pass = not vs_ai
 	_reset_input()
-	_clear_fx()
-	_render()
+	reset_animation_state()
+	render_table()
 
 
 func _reset_input() -> void:
@@ -433,9 +433,9 @@ func _on_link(up: bool) -> void:
 	if not online or g == null:
 		return
 	if up:
-		_toast("Reconectado.")
+		show_toast("Reconectado.")
 	else:
-		_toast("Conexão perdida… reconectando.")
+		show_toast("Conexão perdida… reconectando.")
 
 
 ## An online match can use the players' own decks. The server sends their contents (already validated
@@ -494,8 +494,8 @@ func _on_net(m: Dictionary) -> void:
 				chronicle_log.chronicle_entries.clear()
 				conceded = -1
 			_reset_input()
-			_clear_fx()
-			_render()
+			reset_animation_state()
+			render_table()
 		"events":
 			if not (g is RemoteState):
 				return
@@ -507,17 +507,17 @@ func _on_net(m: Dictionary) -> void:
 				chronicle_log.log_event(e)
 			_show_events(m["events"])
 		"reject":
-			_toast("Ação inválida.")
+			show_toast("Ação inválida.")
 			Sfx.play("ui_error")
 			_stop_waiting_for_pass_all()
 		"opponent":
 			opp_online = m["connected"]
-			_toast("Oponente reconectou." if opp_online else "Oponente desconectou.")
+			show_toast("Oponente reconectou." if opp_online else "Oponente desconectou.")
 		"stats_saved":
-			_hub_stats_refresh_at = Time.get_ticks_msec()
+			hub_stats_refresh_at = Time.get_ticks_msec()
 			SupabaseAuth.refresh_deck_stats()
 		"stats_error":
-			_toast(String(m.get("msg", "Erro ao registrar estatísticas.")))
+			show_toast(String(m.get("msg", "Erro ao registrar estatísticas.")))
 		"error":
 			net.forget()
 			online = false
@@ -526,13 +526,13 @@ func _on_net(m: Dictionary) -> void:
 # ---------------------------------------------------------------- actions
 
 
-func _do(events: Array) -> void:
+func handle_action_result(events: Array) -> void:
 	if g is RemoteState:
 		return ## the server answers with "events" (see _on_net)
 	if events.is_empty():
-		_toast("Ação inválida.")
+		show_toast("Ação inválida.")
 		Sfx.play("ui_error")
-		_render() # brings back the action button that greyed out when it was pressed
+		render_table() # brings back the action button that greyed out when it was pressed
 		return
 	_reset_input()
 	for e in events:
@@ -545,7 +545,7 @@ func _do(events: Array) -> void:
 
 
 func _ai_step() -> void:
-	if g == null or g.phase == "over" or (is_instance_valid(dev_tools_panel) and dev_tools_panel.visible) or not _is_ai(g.decider()):
+	if g == null or g.phase == "over" or (is_instance_valid(dev_tools_panel) and dev_tools_panel.visible) or not is_ai(g.decider()):
 		return
 	var ev := SimpleAI.step(g, g.decider())
 	if ev.is_empty():
@@ -586,21 +586,21 @@ func _play_events(events: Array) -> void:
 		elif e["type"] in ["combat_damage", "combat_end"]:
 			reaction_attack.clear()
 	var old := fx_library.snapshot_views()
-	_leader_ko_t = -1.0
+	leader_ko_time = -1.0
 	_over_from = -1
-	_render_now() # not _render: other batches may still be waiting, and this one must be drawn now
+	_render_now() # not render_table: other batches may still be waiting, and this one must be drawn now
 	var end := table_animator.animate(events, old)
 	_animation_busy_until_ms = Time.get_ticks_msec() + int(end * 1000.0)
 	_settle_timer.start(maxf(end, 0.05))
 	# the Victory/Defeat screen waits for the killing blow to land instead of spoiling it
 	if g.phase == "over" and _waiting_event_batches.is_empty():
 		# same moment as the Victory/Defeat screen (the last batch only, so a queue of batches does not announce it early)
-		var jingle_delay := maxf(_leader_ko_t + 0.7, end) if _leader_ko_t >= 0.0 else end
+		var jingle_delay := maxf(leader_ko_time + 0.7, end) if leader_ko_time >= 0.0 else end
 		Sfx.play_in(_match_end_sound(), jingle_delay)
 		# the music dies away just as the jingle starts, so the jingle is heard on its own
 		get_tree().create_timer(jingle_delay).timeout.connect(Music.fade_out.bind(1.5))
 	if g.phase == "over" and _over_from >= 0 and end > 0.0:
-		var delay := maxf(_leader_ko_t + 0.7, end) if _leader_ko_t >= 0.0 else end
+		var delay := maxf(leader_ko_time + 0.7, end) if leader_ko_time >= 0.0 else end
 		for n in layer.get_children().slice(_over_from):
 			n.modulate.a = 0.0
 			var otw: Tween = n.create_tween()
@@ -623,13 +623,13 @@ func _match_end_sound() -> String:
 	return "victory"
 
 
-func _is_ai(p: int) -> bool:
+func is_ai(p: int) -> bool:
 	return vs_ai and p == 1
 
 # ---------------------------------------------------------------- render
 
 
-func _clear() -> void:
+func clear_table() -> void:
 	# A state update can arrive while the full-screen card overlay is open (AI, online opponent,
 	# animation batch...). Remove it before rebuilding the table, otherwise the old overlay survives
 	# over the new layer for a frame and leaves duplicated/offset UI behind.
@@ -652,7 +652,7 @@ func _clear() -> void:
 	_unit_board_views.clear()
 	if layer:
 		layer.queue_free()
-	_menu_screen_showing = false
+	menu_screen_showing = false
 	layer = Control.new()
 	search_overlay = null
 	layer.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -680,7 +680,7 @@ func _finish_unit_view_reuse() -> void:
 	_unit_views_for_reuse.clear()
 
 
-func _clear_fx() -> void:
+func reset_animation_state() -> void:
 	# a new screen or match: nothing from the previous one should still be waiting to play
 	_waiting_event_batches.clear()
 	_animation_busy_until_ms = 0
@@ -707,7 +707,7 @@ func _table_busy() -> bool:
 
 ## Redraws the table, unless an animation is playing: then the redraw waits until the table settles
 ## (drawing now would cut the animation short and could show things that have not happened on screen yet).
-func _render() -> void:
+func render_table() -> void:
 	if _table_busy():
 		_render_when_settled = true
 		return
@@ -747,7 +747,7 @@ func _input_must_wait() -> bool:
 
 
 ## Runs the input now, or stores it to run once the table settles (see _input_must_wait).
-func _run_or_queue_input(input: Callable) -> void:
+func run_or_queue_input(input: Callable) -> void:
 	if _input_must_wait():
 		_queued_inputs.append(input)
 	else:
@@ -766,11 +766,11 @@ func _wait_for_table(input: Callable) -> bool:
 
 func _render_now() -> void:
 	_render_when_settled = false
-	_clear()
+	clear_table()
 	drag_gap_slot = -1 # fresh board views have no gap
 	var me := viewer
 	var op := g.opponent(me)
-	_set_tints(_leader_color(op), _leader_color(me), 1.0, true)
+	set_background_tints(_leader_color(op), _leader_color(me), 1.0, true)
 	table.enemy_color = _leader_color(op)
 	table.my_color = _leader_color(me)
 	table.sockets = [Rect2(SANCTUARY_X, SANCTUARY_Y_OP, SANCTUARY_W, 264), Rect2(SANCTUARY_X, SANCTUARY_Y_ME, SANCTUARY_W, 264)]
@@ -807,13 +807,13 @@ func _render_now() -> void:
 	if g.phase == "over":
 		_over_from = layer.get_child_count()
 		_render_game_over()
-	elif _is_ai(g.decider()) and ai_timer.is_stopped():
+	elif is_ai(g.decider()) and ai_timer.is_stopped():
 		ai_timer.start() # not while it is already counting: every redraw would push the AI's move back
 	_finish_unit_view_reuse()
 
 
 ## Full-screen veil over the table with a centered panel.
-func _veil(alpha := 0.72) -> PanelContainer:
+func make_veil(alpha := 0.72) -> PanelContainer:
 	var dim := ColorRect.new()
 	dim.color = Color(0, 0, 0, alpha)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -828,7 +828,7 @@ func _veil(alpha := 0.72) -> PanelContainer:
 	return pc
 
 
-func _center(pc: Control) -> void:
+func center_in_screen(pc: Control) -> void:
 	pc.reset_size()
 	pc.position = (size - pc.size) / 2.0
 
@@ -837,7 +837,7 @@ func _center(pc: Control) -> void:
 ## a disabled option is greyed out and its `reason` is shown in the subtitle. Future "Escolha um..." effects reuse it.
 func _open_option_prompt(title: String, options: Array) -> void:
 	option_prompt = { "title": title, "options": options }
-	_render()
+	render_table()
 
 
 func _choice_prompt_options(options: Array, available: Callable, select: Callable) -> Array:
@@ -862,29 +862,29 @@ func _close_option_prompt() -> void:
 	if option_prompt.get("mandatory", false):
 		return
 	option_prompt = { }
-	_render()
+	render_table()
 
 
 ## Draws the "choose one" window: one big clickable block per option. Rebuilt on every render from option_prompt.
 func _render_option_prompt() -> void:
 	if option_prompt.is_empty():
 		return
-	if g == null or g.phase in ["search", "over"] or not _my_input():
+	if g == null or g.phase in ["search", "over"] or not viewer_can_act():
 		option_prompt = { } # the game moved on (or it is no longer this player's turn to decide)
 		return
 	var options: Array = option_prompt["options"]
-	var pc := _veil(0.84)
+	var pc := make_veil(0.84)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 18)
 	pc.add_child(box)
-	box.add_child(_label(String(option_prompt["title"]), 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
+	box.add_child(make_label(String(option_prompt["title"]), 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
 	# the reasons why some blocks are not clickable
 	var reasons: Array = []
 	for option: Dictionary in options:
 		if not bool(option.get("enabled", true)) and String(option.get("reason", "")) != "":
 			reasons.append("%s: %s" % [option["title"], option["reason"]])
 	var subtitle_text := "Escolha uma das opções." if reasons.is_empty() else "\n".join(reasons)
-	var subtitle := _label(
+	var subtitle := make_label(
 		subtitle_text,
 		18,
 		UITheme.TEXT_DIM if not reasons.is_empty() else UITheme.TEXT,
@@ -916,15 +916,15 @@ func _render_option_prompt() -> void:
 		)
 		blocks.add_child(block)
 	if not option_prompt.get("mandatory", false):
-		var cancel_button := _button("CANCELAR", _close_option_prompt)
+		var cancel_button := make_button("CANCELAR", _close_option_prompt)
 		cancel_button.custom_minimum_size = Vector2(360, 52)
 		cancel_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		box.add_child(cancel_button)
-	_center.call_deferred(pc)
+	center_in_screen.call_deferred(pc)
 
 
 func _sync_effect_choice_prompt() -> void:
-	if g.phase != "effect_choice" or not _my_input():
+	if g.phase != "effect_choice" or not viewer_can_act():
 		if option_prompt.get("effect_choice", false):
 			option_prompt = { }
 		return
@@ -935,22 +935,22 @@ func _sync_effect_choice_prompt() -> void:
 
 
 func _select_effect_option(index: int) -> void:
-	if g.phase != "effect_choice" or not _my_input() or not g.effect_choice_available(index):
-		_render()
+	if g.phase != "effect_choice" or not viewer_can_act() or not g.effect_choice_available(index):
+		render_table()
 		return
 	var mode: Dictionary = g.pending_effect_choice["options"][index]
 	var spec := g.target_spec(mode.get("effects", []))
 	if spec == "":
-		_do(g.choose_effect_option(viewer, index))
+		handle_action_result(g.choose_effect_option(viewer, index))
 		return
 	var uid := int(g.pending_effect_choice["uid"])
 	targeting = { "kind": "effect_choice", "uid": uid, "spec": spec, "mode": index }
 	if views.has(uid) and is_instance_valid(views[uid]):
-		_begin_aim(_visual_rect(views[uid] as Control).get_center())
-	_render()
+		begin_aim(visual_rect_of(views[uid] as Control).get_center())
+	render_table()
 
 
-func _open_activation_cost_prompt(ability_uid: int) -> void:
+func open_activation_cost_prompt(ability_uid: int) -> void:
 	# with a single way to pay (Cornélia: only sacrifice) asking "which cost?" is a pointless step: go straight to it
 	if g.activation_cost_options(ability_uid).size() == 1:
 		_select_activation_cost_option(0, ability_uid)
@@ -966,34 +966,34 @@ func _open_activation_cost_prompt(ability_uid: int) -> void:
 
 func _select_activation_cost_option(index: int, ability_uid: int) -> void:
 	if (
-		not _my_input() or not g.can_activate(viewer, ability_uid)
+		not viewer_can_act() or not g.can_activate(viewer, ability_uid)
 		or not g.activation_cost_option_available(viewer, ability_uid, index)
 	):
-		_render()
+		render_table()
 		return
 	var option: Dictionary = g.activation_cost_options(ability_uid)[index]
 	match option["pick"]:
 		"hand_card":
-			_do(g.begin_activation_discard(viewer, ability_uid))
+			handle_action_result(g.begin_activation_discard(viewer, ability_uid))
 		"other_ally_unit":
 			targeting = { "kind": "unit_cost", "uid": ability_uid, "spec": "extra_cost_payer", "mode": index }
 			if views.has(ability_uid) and is_instance_valid(views[ability_uid]):
-				_begin_aim(_visual_rect(views[ability_uid] as Control).get_center())
-			_render()
+				begin_aim(visual_rect_of(views[ability_uid] as Control).get_center())
+			render_table()
 		_:
 			push_error("Unsupported activation cost choice: %s" % option["pick"])
 
 
 func _render_pass() -> void:
 	var p := viewer
-	var pc := _veil(0.55)
+	var pc := make_veil(0.55)
 	var box := VBoxContainer.new()
 	box.custom_minimum_size = Vector2(460, 0)
 	box.add_theme_constant_override("separation", 16)
 	pc.add_child(box)
-	box.add_child(_label("PASSE O DISPOSITIVO", 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
+	box.add_child(make_label("PASSE O DISPOSITIVO", 30, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 6))
 	box.add_child(
-		_label(
+		make_label(
 			"Jogador %d · %s" % [p + 1, CardDB.leader(g.players[p]["leader_id"])["name"]],
 			20,
 			UITheme.TEXT,
@@ -1001,11 +1001,11 @@ func _render_pass() -> void:
 			"bold",
 		)
 	)
-	var b := _button(
+	var b := make_button(
 		"ESTOU PRONTO",
 		func():
 			pending_pass = false
-			_render(),
+			render_table(),
 		true,
 	)
 	b.pressed.connect(
@@ -1014,7 +1014,7 @@ func _render_pass() -> void:
 	) # answers at once even if the redraw waits for an animation
 	b.custom_minimum_size = Vector2(460, 56)
 	box.add_child(b)
-	_center.call_deferred(pc)
+	center_in_screen.call_deferred(pc)
 
 
 func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
@@ -1037,8 +1037,8 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 		"congelar": g.leader_dot_markers(p, "congelar"), # TEMP pseudo 4th marker for the status-badge scenario
 	}
 	lv.ward_hits = g.leader_negations_left(p)
-	lv.requiem = g.requiem_cards(p).size() if p == viewer and not _is_ai(p) and g.phase in ["main", "combat"] else 0
-	lv.ability_ready = p == viewer and g.can_use_ability(p, true) and not _is_ai(p)
+	lv.requiem = g.requiem_cards(p).size() if p == viewer and not is_ai(p) and g.phase in ["main", "combat"] else 0
+	lv.ability_ready = p == viewer and g.can_use_ability(p, true) and not is_ai(p)
 	# passives with a per-turn limit (Thálvaressa) show how many uses are spent; the engine wipes the count every turn start
 	if CardDB.leader(pl["leader_id"])["ability"].has("max_per_turn"):
 		lv.ability_uses = int(pl.get("passive_uses", 0))
@@ -1099,7 +1099,7 @@ func _reservoir_rect(p: int) -> Rect2:
 func _render_reservoir(p: int) -> void:
 	var rect := _reservoir_rect(p)
 	var can_ink := false
-	if p == viewer and _my_input():
+	if p == viewer and viewer_can_act():
 		for hand_card: Card in g.players[p]["hand"]:
 			if g.can_store_in_reservoir(p, hand_card.uid):
 				can_ink = true
@@ -1110,7 +1110,7 @@ func _render_reservoir(p: int) -> void:
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_theme_stylebox_override("panel", UITheme.box(Color(0.03, 0.04, 0.09, 0.88), 8, Color(UITheme.GOLD, 0.65), 2))
 	layer.add_child(panel)
-	var caption := _label(
+	var caption := make_label(
 		"RESERVATÓRIO  •  %d disponíveis" % g.reservoir_ready(p),
 		14, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_LEFT, "bold", 2,
 	)
@@ -1118,7 +1118,7 @@ func _render_reservoir(p: int) -> void:
 	caption.size = Vector2(390, 19)
 	panel.add_child(caption)
 	if p == viewer:
-		var instruction := _label("ARRASTE DA MÃO PARA DEPOSITAR", 10, UITheme.TEXT, HORIZONTAL_ALIGNMENT_RIGHT, "bold", 1)
+		var instruction := make_label("ARRASTE DA MÃO PARA DEPOSITAR", 10, UITheme.TEXT, HORIZONTAL_ALIGNMENT_RIGHT, "bold", 1)
 		instruction.position = Vector2(175, 3)
 		instruction.size = Vector2(225, 18)
 		panel.add_child(instruction)
@@ -1193,7 +1193,7 @@ func _show_reservoir_drop_glow(will_deposit: bool) -> void:
 func _render_command(p: int, pos: Vector2) -> void:
 	var l: Dictionary = g.players[p]["incarnation"]
 	if p == viewer:
-		var cap := _label("SANTUÁRIO", 13, Color(UITheme.GOLD, 0.7), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
+		var cap := make_label("SANTUÁRIO", 13, Color(UITheme.GOLD, 0.7), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
 		cap.position = pos + Vector2(-1, -20)
 		cap.size = Vector2(SANCTUARY_W, 16)
 		layer.add_child(cap)
@@ -1203,19 +1203,19 @@ func _render_command(p: int, pos: Vector2) -> void:
 			where = "NO DECK"
 		elif g.incarnation_in_hand(p):
 			where = "NA MÃO"
-		var empty := _label(where, 12, Color(UITheme.TEXT, 0.35), HORIZONTAL_ALIGNMENT_CENTER, "title", 2)
+		var empty := make_label(where, 12, Color(UITheme.TEXT, 0.35), HORIZONTAL_ALIGNMENT_CENTER, "title", 2)
 		empty.position = pos + Vector2(-1, 115)
 		empty.size = Vector2(SANCTUARY_W, 20)
 		layer.add_child(empty)
 		return
 	var sanctuary_instance := { "permanent_buffs": l.get("permanent_buffs", { }) }
-	var v := CardView.new().setup(l["card_id"], _display_instance_for_id(l["card_id"], p, 0, sanctuary_instance), SANCTUARY_SCALE)
+	var v := CardView.new().setup(l["card_id"], display_instance_for_id(l["card_id"], p, 0, sanctuary_instance), SANCTUARY_SCALE)
 	v.pivot_offset = v.size / 2.0
 	v.position = pos
 	v.cost_override = g.incarnation_cost(p)
 	v.text_suffix = table_overlays.scale_suffix(p, CardDB.card(l["card_id"]), l["card_id"])
 	v.snowball_level = int(g.players[p]["snowball"])
-	if p == viewer and g.can_cast_incarnation(p) and not _is_ai(p):
+	if p == viewer and g.can_cast_incarnation(p) and not is_ai(p):
 		v.highlight = OK
 	if p == viewer and (targeting.get("kind") == "incarnation" or (targeting.get("kind") == "room_banish" and targeting["uid"] == 0)):
 		v.highlight = SEL
@@ -1231,7 +1231,7 @@ func _render_command(p: int, pos: Vector2) -> void:
 ## Builds the instance data used by every card outside the board. Persistent upgrades are stored on
 ## the player's shared state rather than on the printed card JSON, so this keeps Santuário, hand,
 ## search, stack and graveyard views honest about what that player currently owns.
-func _display_instance_for_id(card_id: String, owner: int, uid := 0, base_instance: Dictionary = { }) -> Dictionary:
+func display_instance_for_id(card_id: String, owner: int, uid := 0, base_instance: Dictionary = { }) -> Dictionary:
 	var instance := base_instance.duplicate(true)
 	if uid != 0:
 		instance["uid"] = uid
@@ -1247,10 +1247,10 @@ func _display_instance_for_id(card_id: String, owner: int, uid := 0, base_instan
 	return instance
 
 
-func _display_instance_for_card(card: Card) -> Dictionary:
+func display_instance_for_card(card: Card) -> Dictionary:
 	if card == null:
 		return { }
-	return _display_instance_for_id(card.card_id, card.owner, card.uid, card.to_dict())
+	return display_instance_for_id(card.card_id, card.owner, card.uid, card.to_dict())
 
 
 ## Stage y of the top / bottom edge of the screen. The window can show more than the stage (black
@@ -1279,7 +1279,7 @@ func _render_enemy_hand(p: int) -> void:
 		)
 		layer.add_child(v)
 	if n > 0:
-		var cnt := _label("%d" % n, 15, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 5)
+		var cnt := make_label("%d" % n, 15, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 5)
 		cnt.position = Vector2(lane_cx + EHAND_DX + (n - 1) / 2.0 * 30 + 52, _screen_top() + 18.0)
 		cnt.size = Vector2(30, 20)
 		layer.add_child(cnt)
@@ -1287,7 +1287,7 @@ func _render_enemy_hand(p: int) -> void:
 
 ## Horizontal cell of the unit at `index` in a lane holding `count` units: x = left edge, y = width.
 ## The lane is centered, so adding a unit shifts every cell (used to open a gap while dragging).
-func _board_cell(count: int, index: int) -> Vector2:
+func board_cell(count: int, index: int) -> Vector2:
 	var w: float = min(146.0, (TableView.ENEMY_LANE.size.x - 20.0) / max(1, count))
 	var x0 := TableView.ENEMY_LANE.get_center().x - count * w / 2.0
 	return Vector2(x0 + index * w, w)
@@ -1296,7 +1296,7 @@ func _board_cell(count: int, index: int) -> Vector2:
 func _render_board(p: int, y: float) -> void:
 	var board: Array = g.players[p]["board"]
 	# units first, then the free-standing artifacts, then the slots frozen by Rei Gelado
-	var slots_taken: int = _laid_out_slots(p)
+	var slots_taken: int = laid_out_slots(p)
 	_render_relics(p, y, slots_taken)
 	_render_frozen_slots(p, y, slots_taken)
 	var barrier_gaps: Array = [] # where this side's Provocação barrier is open (see TableView.set_barrier)
@@ -1320,7 +1320,7 @@ func _render_board(p: int, y: float) -> void:
 		if not constant_conditions.is_empty():
 			unit_view_data["constant_conditions"] = constant_conditions
 		var card_size := (CardView.BASE * 1.15).round()
-		var cell := _board_cell(slots_taken, i)
+		var cell := board_cell(slots_taken, i)
 		var card_position := Vector2(roundf(cell.x + (cell.y - card_size.x) / 2.0), roundf(y)) # whole pixels keep the card text crisp
 		var card_rotation := 0.0
 		var card_scale := Vector2.ONE
@@ -1367,7 +1367,7 @@ func _render_board(p: int, y: float) -> void:
 		v.scale = card_scale
 		_decorate_unit(v, unit, p)
 		# on touch an attacker is also dragged to its target (on a mouse the press already starts the aim)
-		v.draggable = CardView.touch_ui() and p == viewer and _my_input() and targeting.is_empty() \
+		v.draggable = CardView.touch_ui() and p == viewer and viewer_can_act() and targeting.is_empty() \
 				and g.combat_system().in_attacks_window(viewer)
 		layer.add_child(v)
 		views[unit.uid] = v
@@ -1462,10 +1462,10 @@ func _render_relics(p: int, y: float, slots_taken: int) -> void:
 		var v := CardView.new().setup(relic.card_id, relic_view_data, 1.15)
 		v.text_suffix = table_overlays.scale_suffix(p, CardDB.card(relic.card_id), relic.card_id)
 		v.pivot_offset = v.size / 2.0
-		var cell := _board_cell(slots_taken, first_relic_slot + j)
+		var cell := board_cell(slots_taken, first_relic_slot + j)
 		v.position = Vector2(cell.x + (cell.y - v.size.x) / 2.0, y)
-		v.ability_ready = p == viewer and targeting.is_empty() and _my_input() and g.can_activate(viewer, relic.uid, true)
-		v.draggable = p == viewer and targeting.is_empty() and _my_input() and not _input_must_wait() \
+		v.ability_ready = p == viewer and targeting.is_empty() and viewer_can_act() and g.can_activate(viewer, relic.uid, true)
+		v.draggable = p == viewer and targeting.is_empty() and viewer_can_act() and not _input_must_wait() \
 				and g.can_equip_from_field(viewer, relic.uid, true)
 		var selected_numbers := _target_selection_numbers(relic.uid)
 		if not selected_numbers.is_empty():
@@ -1482,7 +1482,7 @@ func _render_relics(p: int, y: float, slots_taken: int) -> void:
 
 
 ## How many cells the lane of player p is divided into: taken slots plus the ones frozen by Rei Gelado.
-func _laid_out_slots(p: int) -> int:
+func laid_out_slots(p: int) -> int:
 	return g.slots_used(p) + int(g.players[p]["frozen_slots"])
 
 
@@ -1495,23 +1495,23 @@ func _render_frozen_slots(p: int, y: float, slots_taken: int) -> void:
 		var tile := FrozenSlotView.new()
 		tile.owner_player = p
 		tile.size = CardView.BASE * 1.15
-		var cell := _board_cell(slots_taken, first_frozen_slot + j)
+		var cell := board_cell(slots_taken, first_frozen_slot + j)
 		tile.position = Vector2(cell.x + (cell.y - tile.size.x) / 2.0, y)
 		layer.add_child(tile)
 		_tag(tile, "CONGELADO", ICE)
 
 
 func _on_relic_click(v: CardView) -> void:
-	if _my_input() and not targeting.is_empty() and _wait_for_table(_pick_target_when_settled.bind(v.uid)):
+	if viewer_can_act() and not targeting.is_empty() and _wait_for_table(_pick_target_when_settled.bind(v.uid)):
 		return
-	if _my_input() and not targeting.is_empty() and _is_target(v.uid):
+	if viewer_can_act() and not targeting.is_empty() and _is_target(v.uid):
 		_fire_target(v.uid)
 	elif targeting.is_empty():
 		table_overlays.show_overlay(v)
 
 
 func _relic_drag_start(v: CardView) -> void:
-	if not _my_input() or not targeting.is_empty() or _input_must_wait() \
+	if not viewer_can_act() or not targeting.is_empty() or _input_must_wait() \
 			or not g.can_equip_from_field(viewer, v.uid, true):
 		return
 	var artifact := g.find_relic(v.uid)
@@ -1522,7 +1522,7 @@ func _relic_drag_start(v: CardView) -> void:
 	if spec == "":
 		return
 	targeting = { "kind": "field_equip", "uid": v.uid, "spec": spec }
-	aim_src = _visual_rect(v).get_center()
+	aim_src = visual_rect_of(v).get_center()
 	aim_start = Vector2.INF
 	aim_drag = true
 	_aim_drag_view = v
@@ -1535,14 +1535,14 @@ func _relic_drag_start(v: CardView) -> void:
 ## A relic (or a spell on the stack) picked as a target during an animation: fires once the table
 ## settles, if it is still a valid target.
 func _pick_target_when_settled(uid: int) -> void:
-	if _my_input() and not targeting.is_empty() and _is_target(uid):
+	if viewer_can_act() and not targeting.is_empty() and _is_target(uid):
 		_fire_target(uid)
 
 
 func _decorate_unit(v: CardView, unit: Card, p: int) -> void:
 	# reminder for new players: "Ao Ativar" (and Transformar) can be used now, even the turn it is summoned
 	v.ability_ready = (
-		p == viewer and targeting.is_empty() and _my_input()
+		p == viewer and targeting.is_empty() and viewer_can_act()
 		and (g.can_activate(viewer, unit.uid, true) or g.can_transform(viewer, unit.uid))
 	)
 	# during combat, a unit with effective Rapidez gets sparks (frozen or stunned units lose it)
@@ -1563,7 +1563,7 @@ func _decorate_unit(v: CardView, unit: Card, p: int) -> void:
 		v.highlight = SEL # the attacker being aimed right now
 		return
 	# during our attacks, every unit that can still attack glows
-	if p == viewer and targeting.is_empty() and _my_input() and g.combat_system().in_attacks_window(viewer) \
+	if p == viewer and targeting.is_empty() and viewer_can_act() and g.combat_system().in_attacks_window(viewer) \
 			and not g.attack_targets(unit).is_empty():
 		v.highlight = OK
 
@@ -1582,7 +1582,7 @@ func _tag(v: Control, t: String, col: Color) -> void:
 	sb.content_margin_bottom = 1
 	pc.add_theme_stylebox_override("panel", sb)
 	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pc.add_child(_label(t, 11, col.lightened(0.4), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3))
+	pc.add_child(make_label(t, 11, col.lightened(0.4), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3))
 	var tag_count := 0
 	for child in v.get_children():
 		if child is PanelContainer:
@@ -1604,7 +1604,7 @@ func _add_target_badges(v: Control, numbers: Array) -> void:
 		badge.z_index = 12
 		var sb := UITheme.box(Color("#171221", 0.96), badge_size / 2.0, SEL, 3, 6)
 		badge.add_theme_stylebox_override("panel", sb)
-		badge.add_child(_label(str(numbers[i]), 34, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 6))
+		badge.add_child(make_label(str(numbers[i]), 34, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 6))
 		v.add_child(badge)
 		badge.reset_size()
 		var art_center := Vector2(v.size.x * 0.5, v.size.y * 0.3353)
@@ -1652,7 +1652,7 @@ func _render_hand(p: int) -> void:
 	var unlock_sound_played := false # one latch sound even when several cards are freed together
 	for i in n:
 		var hand_card: Card = hand[i]
-		var v := CardView.new().setup(hand_card.card_id, _display_instance_for_card(hand_card), sc)
+		var v := CardView.new().setup(hand_card.card_id, display_instance_for_card(hand_card), sc)
 		var card_data := CardDB.card(hand_card.card_id)
 		if g.is_subito_play(p, card_data):
 			v.cost_override = g.subito_cost(p, card_data, hand_card) # Súbito: summoned now at its Súbito cost
@@ -1671,9 +1671,9 @@ func _render_hand(p: int) -> void:
 		elif targeting.get("uid", 0) == hand_card.uid and targeting.get("kind") in ["hand", "room_banish"]:
 			pos.y -= rise + 20.0
 			v.highlight = SEL
-		elif g.phase in ["main", "combat"] and g.can_play(p, hand_card.uid, true) and not _is_ai(p):
+		elif g.phase in ["main", "combat"] and g.can_play(p, hand_card.uid, true) and not is_ai(p):
 			v.highlight = OK
-		elif _my_input() and g.can_store_in_reservoir(p, hand_card.uid):
+		elif viewer_can_act() and g.can_store_in_reservoir(p, hand_card.uid):
 			v.highlight = INK_BLUE
 		v.position = pos
 		v.rotation = rot
@@ -1681,7 +1681,7 @@ func _render_hand(p: int) -> void:
 		v.right_clicked.connect(table_overlays.show_overlay)
 		v.draggable = (
 			p == viewer and g.phase in ["main", "combat"] and targeting.is_empty()
-			and _my_input() and (g.can_play(p, hand_card.uid, true) or g.can_store_in_reservoir(p, hand_card.uid))
+			and viewer_can_act() and (g.can_play(p, hand_card.uid, true) or g.can_store_in_reservoir(p, hand_card.uid))
 		)
 		v.drag_started.connect(_hand_drag_start)
 		v.drag_moved.connect(_hand_drag_move)
@@ -1693,7 +1693,7 @@ func _render_hand(p: int) -> void:
 		# Chain lock (ChainLockFx): an effect forbids playing this card right now (Liam Tornagron's "custo 5 ou
 		# mais", any restrict_play). The hand is rebuilt on every render, so only a card that was free in the
 		# previous render plays the lock-in animation; one that was locked and is free again plays the unlock.
-		var forbidden := p == viewer and not _is_ai(p) and g.is_play_restricted(p, card_data)
+		var forbidden := p == viewer and not is_ai(p) and g.is_play_restricted(p, card_data)
 		if forbidden:
 			v.locked = true
 			if not _locked_hand_uids.has(hand_card.uid):
@@ -1766,10 +1766,10 @@ func _hand_drag_start(v: CardView) -> void:
 ## Board position a unit dropped at local x would take: the number of our units whose centre is
 ## to its left. Measured on the resting layout (no gap) so the slot does not flicker as the gap opens.
 func _drop_slot(x: float) -> int:
-	var count: int = _laid_out_slots(viewer)
+	var count: int = laid_out_slots(viewer)
 	var slot := 0
 	for i in g.players[viewer]["board"].size(): # artifacts always stay after the units
-		var cell := _board_cell(count, i)
+		var cell := board_cell(count, i)
 		if x > cell.x + cell.y / 2.0:
 			slot += 1
 	return slot
@@ -1781,13 +1781,13 @@ func _show_drop_gap(slot: int) -> void:
 		return
 	drag_gap_slot = slot
 	var board: Array = g.players[viewer]["board"]
-	var count: int = _laid_out_slots(viewer) + (1 if slot >= 0 else 0)
+	var count: int = laid_out_slots(viewer) + (1 if slot >= 0 else 0)
 	for relic: Card in g.players[viewer]["relics"]: # artifacts sit after the units, so they always slide right
 		var relic_view: Control = views.get(relic.uid)
 		if not is_instance_valid(relic_view):
 			continue
 		var relic_index: int = board.size() + g.players[viewer]["relics"].find(relic) + (1 if slot >= 0 else 0)
-		var relic_cell := _board_cell(count, relic_index)
+		var relic_cell := board_cell(count, relic_index)
 		relic_view.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT).tween_property(
 			relic_view,
 			"position:x",
@@ -1799,7 +1799,7 @@ func _show_drop_gap(slot: int) -> void:
 		var unit_view: Control = views.get(unit.uid)
 		if not is_instance_valid(unit_view):
 			continue
-		var cell := _board_cell(count, i + (1 if slot >= 0 and i >= slot else 0))
+		var cell := board_cell(count, i + (1 if slot >= 0 and i >= slot else 0))
 		var new_x := cell.x + (cell.y - unit_view.size.x) / 2.0
 		var shift := new_x - unit_view.position.x
 		var tw := unit_view.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
@@ -1822,7 +1822,7 @@ func _dragged_hand_card_is_over_play_line(v: CardView, pointer_position: Vector2
 func _hand_drag_move(v: CardView) -> void:
 	var m := layer.get_global_transform().affine_inverse() * v.input_position
 	var over_reservoir := _reservoir_rect(viewer).has_point(m)
-	var will_deposit := over_reservoir and _my_input() and g.can_store_in_reservoir(viewer, v.uid)
+	var will_deposit := over_reservoir and viewer_can_act() and g.can_store_in_reservoir(viewer, v.uid)
 	_show_reservoir_drop_glow(will_deposit)
 	_set_card_sinking_into_reservoir(v, will_deposit)
 	var over_play_line := _dragged_hand_card_is_over_play_line(v, m)
@@ -1831,7 +1831,7 @@ func _hand_drag_move(v: CardView) -> void:
 	# starts: the card just follows the finger, and dropping it plays it once the animation ends
 	var table_busy := _input_must_wait()
 	if (
-		is_unit and over_play_line and not over_reservoir and _my_input()
+		is_unit and over_play_line and not over_reservoir and viewer_can_act()
 		and not v.get_meta("aim", false) and not table_busy and g.can_play(viewer, v.uid, true)
 	):
 		_show_drop_gap(_drop_slot(m.x))
@@ -1839,7 +1839,7 @@ func _hand_drag_move(v: CardView) -> void:
 		_show_drop_gap(-1)
 	if (
 		v.get_meta("aim", false) and TableView.MY_LANE.has_point(m) and not over_reservoir
-		and targeting.is_empty() and _my_input() and not table_busy and g.can_play(viewer, v.uid, true)
+		and targeting.is_empty() and viewer_can_act() and not table_busy and g.can_play(viewer, v.uid, true)
 	):
 		# a targeted card crossing into the board turns into an aim: it goes back to the hand
 		# (raised) and an arrow follows the finger; releasing on a target plays it there
@@ -1848,7 +1848,7 @@ func _hand_drag_move(v: CardView) -> void:
 		aim_drag = true
 		_aim_drag_view = v
 		aim_start = Vector2.INF
-		_render()
+		render_table()
 		return
 	v.position = m - Vector2(v.size.x / 2.0, v.size.y * 0.75)
 	if will_deposit:
@@ -1883,31 +1883,31 @@ func _hand_drag_end(v: CardView) -> void:
 		if _input_must_wait():
 			_hand_card_back_to_rest(v)
 			_queued_inputs.append(_store_hand_card_when_settled.bind(v.uid))
-		elif _my_input():
-			_do(g.store_in_reservoir(viewer, v.uid))
+		elif viewer_can_act():
+			handle_action_result(g.store_in_reservoir(viewer, v.uid))
 		return
 	var over_play_line := _dragged_hand_card_is_over_play_line(v, m)
 	if _input_must_wait():
 		# an animation is playing: the card flies back to the hand and, if it was dropped on the board,
 		# is played from there as soon as the animation ends
 		_hand_card_back_to_rest(v)
-		if over_play_line and _my_input():
+		if over_play_line and viewer_can_act():
 			_queued_inputs.append(_play_hand_card_when_settled.bind(v.uid, _drop_slot(m.x)))
 			v.highlight = SEL
 		return
 	drag_gap_slot = -1
-	if over_play_line and _my_input():
+	if over_play_line and viewer_can_act():
 		_play_from_hand(v, _drop_slot(m.x))
 	else:
-		_render()
+		render_table()
 
 
 func _store_hand_card_when_settled(uid: int) -> void:
-	if _my_input() and g.can_store_in_reservoir(viewer, uid):
-		_do(g.store_in_reservoir(viewer, uid))
+	if viewer_can_act() and g.can_store_in_reservoir(viewer, uid):
+		handle_action_result(g.store_in_reservoir(viewer, uid))
 	else:
-		_toast("Não dá para depositar essa carta agora.")
-		_render()
+		show_toast("Não dá para depositar essa carta agora.")
+		render_table()
 
 
 ## A dragged hand card glides back to its place in the fan (used when the table can't be redrawn yet).
@@ -1926,7 +1926,7 @@ func _hand_card_back_to_rest(v: CardView) -> void:
 ## Plays a hand card that was dropped on the board during an animation (if it can still be played).
 func _play_hand_card_when_settled(uid: int, slot: int) -> void:
 	var view = views.get(uid)
-	if _my_input() and is_instance_valid(view) and view is CardView and hand_uids.has(uid):
+	if viewer_can_act() and is_instance_valid(view) and view is CardView and hand_uids.has(uid):
 		_play_from_hand(view, slot)
 
 
@@ -1945,7 +1945,7 @@ func _render_chronicle() -> void:
 	var panel_style := UITheme.box(Color(0.035, 0.03, 0.055, 0.92), 10, Color(UITheme.GOLD, 0.45), 1, 12)
 	chronicle_panel.add_theme_stylebox_override("panel", panel_style)
 	layer.add_child(chronicle_panel)
-	var title := _label("CRÔNICA", 15, UITheme.GOLD, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
+	var title := make_label("CRÔNICA", 15, UITheme.GOLD, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
 	title.position = Vector2(0, 7)
 	title.size = Vector2(COL_W, 20)
 	chronicle_panel.add_child(title)
@@ -1982,7 +1982,7 @@ func _render_chronicle() -> void:
 			{ "text": chronicle_log.log_lines[-1], "kind": "info", "icon": "dot", "accent": UITheme.GOLD, "label": "EVENTO", "seq": 0 }
 		]
 	if shown.is_empty():
-		var empty_note := _label("Nada aconteceu ainda.", 14, Color(UITheme.TEXT, 0.4), HORIZONTAL_ALIGNMENT_CENTER, "body")
+		var empty_note := make_label("Nada aconteceu ainda.", 14, Color(UITheme.TEXT, 0.4), HORIZONTAL_ALIGNMENT_CENTER, "body")
 		empty_note.position = well.position + Vector2(0, list_size.y / 2.0 - 10)
 		empty_note.size = Vector2(list_size.x, 20)
 		chronicle_panel.add_child(empty_note)
@@ -2089,7 +2089,7 @@ func _render_side() -> void:
 		"enter_target": "Ao Entrar · alvo",
 		"enter_tapped": "Provocação · entrada",
 	}
-	var mine := g.decider() == viewer and not _is_ai(viewer)
+	var mine := g.decider() == viewer and not is_ai(viewer)
 	var my_turn := g.active == viewer
 	if g.phase == "mulligan":
 		my_turn = mine
@@ -2104,7 +2104,7 @@ func _render_side() -> void:
 	tp.add_theme_stylebox_override("panel", tsb)
 	layer.add_child(tp)
 	# no turn number on purpose: the global counter counts both players' turns, which confuses
-	var tt := _label(
+	var tt := make_label(
 		"SEU TURNO" if my_turn else "TURNO DO OPONENTE",
 		24 if my_turn else 20,
 		UITheme.GOLD_LIGHT,
@@ -2120,7 +2120,7 @@ func _render_side() -> void:
 		ph_t = "Resposta · pilha %d" % g.stack.size()
 	elif g.summon_window:
 		ph_t = "Resposta · invocação"
-	var ph := _label(ph_t, 17, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
+	var ph := make_label(ph_t, 17, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
 	ph.position = Vector2(0, 33)
 	ph.size = Vector2(COL_W, 22)
 	tp.add_child(ph)
@@ -2128,13 +2128,13 @@ func _render_side() -> void:
 	var who := ""
 	if mine:
 		who = "SUA VEZ" if my_turn else "SUA PRIORIDADE"
-	elif _is_ai(d):
+	elif is_ai(d):
 		who = "VEZ DA IA"
 	elif online:
 		who = "VEZ DO OPONENTE"
 	else:
 		who = "VEZ DO JOGADOR %d" % (d + 1)
-	var wl := _label(who, 15, UITheme.GOLD if mine else Color(UITheme.TEXT, 0.5), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
+	var wl := make_label(who, 15, UITheme.GOLD if mine else Color(UITheme.TEXT, 0.5), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
 	wl.position = Vector2(0, 57)
 	wl.size = Vector2(COL_W, 22)
 	tp.add_child(wl)
@@ -2151,7 +2151,7 @@ func _render_side() -> void:
 			layer.add_child(b)
 			y += b.size.y + 10
 	elif g.phase != "over":
-		var wait := _button(
+		var wait := make_button(
 			"TURNO DO OPONENTE",
 			func():
 				pass,
@@ -2170,7 +2170,7 @@ func _render_side() -> void:
 	_render_piles(1 - viewer)
 	_render_stack()
 	var ap_on := _auto_pass_on()
-	var ap := _toggle_button(
+	var ap := make_toggle_button(
 		"AUTO-PASSE",
 		ap_on,
 		func():
@@ -2182,13 +2182,13 @@ func _render_side() -> void:
 	layer.add_child(ap)
 	var half := (COL_W - 8.0) / 2.0
 	# during the match "Menu" opens the pause menu (settings, concede, leave); once it is over there is nothing left to pause
-	var menu := _button("Menu", menu_screens.show_menu if g.phase == "over" else table_overlays.open_pause_menu)
+	var menu := make_button("Menu", menu_screens.show_menu if g.phase == "over" else table_overlays.open_pause_menu)
 	menu.position = Vector2(col_x, 832.0 + BOT)
 	menu.size = Vector2(COL_W if g.phase == "over" else half, 52)
 	menu.add_theme_font_size_override("font_size", 20)
 	layer.add_child(menu)
 	if g.phase != "over":
-		var cc := _button("Conceder", table_overlays.ask_concede)
+		var cc := make_button("Conceder", table_overlays.ask_concede)
 		cc.position = Vector2(col_x + half + 8.0, 832.0 + BOT)
 		cc.size = Vector2(half, 52)
 		cc.add_theme_font_size_override("font_size", 18)
@@ -2249,7 +2249,7 @@ func _render_piles(player: int) -> void:
 	if not graveyard.is_empty():
 		var top_card: Card = graveyard.back()
 		top_card_id = top_card.card_id
-		top_instance = _display_instance_for_id(top_card_id, player, top_card.uid)
+		top_instance = display_instance_for_id(top_card_id, player, top_card.uid)
 	# only the viewer can cast Réquiem spells from their own graveyard: no green glow on the opponent's
 	var castable_requiem: int = table_overlays.requiem_uids(viewer).size() if player == viewer else 0
 	var graveyard_pile := GraveyardPile.new().setup(graveyard.size(), top_card_id, top_instance, castable_requiem, PILE_CARD_SCALE)
@@ -2263,7 +2263,7 @@ func _render_piles(player: int) -> void:
 
 
 ## Where `player`'s graveyard is on the stage: milled cards land there, Réquiem spells rise from it.
-func _graveyard_pose(player: int) -> Dictionary:
+func graveyard_pose(player: int) -> Dictionary:
 	var graveyard_pile = graveyard_piles.get(player)
 	if is_instance_valid(graveyard_pile):
 		return { "c": graveyard_pile.position + graveyard_pile.top_center(), "rot": 0.0, "w": graveyard_pile.card_size_on_screen().x }
@@ -2319,12 +2319,12 @@ func _render_stack() -> void:
 	bsb.shadow_color = Color(UITheme.GOLD, 0.2)
 	back.add_theme_stylebox_override("panel", bsb)
 	layer.add_child(back)
-	var head := _label("PILHA · %d" % g.stack.size(), 16, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
+	var head := make_label("PILHA · %d" % g.stack.size(), 16, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
 	head.position = Vector2(px, py + 10)
 	head.size = Vector2(pw, 22)
 	layer.add_child(head)
 	if hidden > 0:
-		var more := _label("+%d antigas" % hidden, 12, Color(UITheme.TEXT, 0.55), HORIZONTAL_ALIGNMENT_CENTER, "body")
+		var more := make_label("+%d antigas" % hidden, 12, Color(UITheme.TEXT, 0.55), HORIZONTAL_ALIGNMENT_CENTER, "body")
 		more.position = Vector2(px, py + 30)
 		more.size = Vector2(pw, 14)
 		layer.add_child(more)
@@ -2347,7 +2347,7 @@ func _render_stack() -> void:
 			var stack_card_id := String(it["card_id"])
 			var v := CardView.new().setup(
 				stack_card_id,
-				_display_instance_for_id(stack_card_id, stack_owner, int(it.get("uid", 0))),
+				display_instance_for_id(stack_card_id, stack_owner, int(it.get("uid", 0))),
 				STACK_SCALE,
 			)
 			v.snowball_level = int(g.players[stack_owner]["snowball"])
@@ -2356,7 +2356,7 @@ func _render_stack() -> void:
 			v.left_clicked.connect(
 				func(view: CardView):
 					# a spell on the stack picked as a target during an animation waits for its turn
-					if _my_input() and not targeting.is_empty() and _wait_for_table(_pick_target_when_settled.bind(sid)):
+					if viewer_can_act() and not targeting.is_empty() and _wait_for_table(_pick_target_when_settled.bind(sid)):
 						return
 					if _is_target(sid):
 						_fire_target(sid)
@@ -2400,8 +2400,8 @@ func _render_stack() -> void:
 	# caption under the pile: who owns the next thing to resolve, and its speed
 	var top: Dictionary = items[-1]
 	var sp: String = { "lento": "Lento", "rapido": "Rápido", "instantaneo": "Instantâneo" }.get(top["speed"], "")
-	var cap := _label(
-		"%s · %s\nresolve primeiro" % [_pname(top["player"]), sp],
+	var cap := make_label(
+		"%s · %s\nresolve primeiro" % [player_name(top["player"]), sp],
 		13,
 		Color(UITheme.TEXT, 0.7),
 		HORIZONTAL_ALIGNMENT_CENTER,
@@ -2457,7 +2457,7 @@ func _stack_pill(t: String, col: Color) -> PanelContainer:
 	sb.content_margin_top = 1
 	sb.content_margin_bottom = 1
 	pc.add_theme_stylebox_override("panel", sb)
-	pc.add_child(_label(t, 12, col, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
+	pc.add_child(make_label(t, 12, col, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
 	pc.reset_size()
 	return pc
 
@@ -2482,12 +2482,12 @@ func _stack_ability_card(it: Dictionary, sz: Vector2) -> Control:
 	else:
 		pnl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pnl.add_theme_stylebox_override("panel", sb)
-	var nm := _label(String(lead["ability"]["name"]), 19, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
+	var nm := make_label(String(lead["ability"]["name"]), 19, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
 	nm.position = Vector2(8, 8)
 	nm.size = Vector2(sz.x - 16, 56)
 	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	pnl.add_child(nm)
-	var sub := _label(
+	var sub := make_label(
 		"Habilidade de Líder\n%s" % String(lead.get("name", "")),
 		13,
 		Color(UITheme.TEXT, 0.7),
@@ -2549,7 +2549,7 @@ func _render_hint() -> void:
 	pc.add_theme_stylebox_override("panel", sb)
 	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var col := SEL if not targeting.is_empty() or g.phase == "enter_tapped" else UITheme.TEXT
-	pc.add_child(_label(t, 26, col, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
+	pc.add_child(make_label(t, 26, col, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
 	layer.add_child(pc)
 	pc.reset_size()
 	pc.position = Vector2(TableView.ENEMY_LANE.get_center().x - pc.size.x / 2.0, TableView.DIVIDER_Y + 18) # below the divider emblem
@@ -2579,7 +2579,7 @@ func _hint_fade(pc: Control, hold: float) -> void:
 
 ## Bring the tip back (idle for long, or a click that did nothing).
 func _hint_nudge() -> void:
-	if not is_instance_valid(hint_pill) or hint_pill.modulate.a > 0.01 or not _my_input():
+	if not is_instance_valid(hint_pill) or hint_pill.modulate.a > 0.01 or not viewer_can_act():
 		return
 	hint_until = Time.get_ticks_msec() + 5000
 	_hint_fade(hint_pill, 5.0)
@@ -2608,7 +2608,7 @@ func _hint() -> String:
 	if targeting.get("kind") == "effect_choice":
 		return "Escolha um alvo para o efeito · botão direito/Esc volta às opções."
 	if g.phase == "effect_choice":
-		return "Escolha um efeito." if _my_input() else "O oponente está escolhendo um efeito."
+		return "Escolha um efeito." if viewer_can_act() else "O oponente está escolhendo um efeito."
 	if g.phase == "search":
 		if g.pending_search.get("summon_from", false):
 			return "Escolha uma carta para invocar de graça, ou não invoque nenhuma."
@@ -2635,7 +2635,7 @@ func _hint() -> String:
 		return "Escolha uma das cartas reveladas."
 	if targeting.get("kind") == "enter":
 		var which := "segundo alvo" if g.pending_enter.has("first") else "alvo"
-		return "Ao Entrar de %s: toque no %s ou pule o efeito." % [_cname(g.pending_enter.get("card_id", "")), which]
+		return "Ao Entrar de %s: toque no %s ou pule o efeito." % [card_name(g.pending_enter.get("card_id", "")), which]
 	if targeting.get("kind") == "room_banish":
 		var banish_prompt := "Campo cheio: toque na unidade ou artefato seu que será banido para abrir espaço" if CardView.touch_ui() \
 				else "Campo cheio: clique na unidade ou artefato seu que será banido para abrir espaço"
@@ -2652,7 +2652,7 @@ func _hint() -> String:
 		if not taunts.is_empty():
 			var taunt_names: Array = []
 			for taunt_uid in taunts:
-				taunt_names.append(_cname(g.find_unit(taunt_uid).card_id))
+				taunt_names.append(card_name(g.find_unit(taunt_uid).card_id))
 			return "Provocação: este ataque precisa desafiar %s." % " ou ".join(taunt_names)
 		if attacker != null and g.combat_system().is_rompante_rush(attacker):
 			return "Rompante: no turno em que entra, ela pode atacar o Líder (só uma Provocação a segura)."
@@ -2681,7 +2681,7 @@ func _hint() -> String:
 			if targeting.has("card_id") and _punishes_stack(CardDB.card(targeting["card_id"])): # an Ao Ativar has no card_id
 				t = "Toque no feitiço/habilidade da pilha que quer punir."
 		return t
-	if g.decider() != viewer or _is_ai(viewer):
+	if g.decider() != viewer or is_ai(viewer):
 		return ""
 	if g.phase in ["main", "combat"] and g.skip_rest_of_turn[viewer] and g.active != viewer and not g.stack.is_empty():
 		return "PASSAR TUDO está ligado, mas esta jogada mataria o seu Líder: responda com um Instantâneo ou passe."
@@ -2706,7 +2706,7 @@ func _hint() -> String:
 					if g.combat_system().is_reacting(viewer):
 						return "Reagir? Jogue uma Instantânea antes do dano ou passe."
 		"enter_tapped":
-			return "%s tem Provocação: entrar exaurida obriga os inimigos a desafiá-la." % _cname(_pending_tap_card_id())
+			return "%s tem Provocação: entrar exaurida obriga os inimigos a desafiá-la." % card_name(_pending_tap_card_id())
 		"mulligan":
 			return "Clique em até 3 cartas para trocar."
 		"discard":
@@ -2727,7 +2727,7 @@ func _pass_button_label() -> String:
 
 ## The "PASSAR TUDO" switch only exists during the opponent's turn: on your own turn there is nothing to pass.
 func _pass_all_switch_available() -> bool:
-	return g.phase in ["main", "combat"] and g.active != viewer and not _is_ai(viewer)
+	return g.phase in ["main", "combat"] and g.active != viewer and not is_ai(viewer)
 
 
 ## "PASSAR TUDO": from the opponent's next play on, you are not asked for responses until their turn ends.
@@ -2740,7 +2740,7 @@ func _pass_all_switch() -> Button:
 		is_on = true
 	elif _pass_all_waiting_for_server and is_on != _pass_all_expected_state:
 		title = "…"
-	var button := _toggle_button(title, is_on, _on_pass_all_pressed)
+	var button := make_toggle_button(title, is_on, _on_pass_all_pressed)
 	button.tooltip_text = (
 		"Não pergunta mais por respostas até o turno do oponente acabar. "
 		+ "Vale a partir da próxima jogada dele; só avisa se ela for matar o seu Líder."
@@ -2751,7 +2751,7 @@ func _pass_all_switch() -> Button:
 func _on_pass_all_pressed() -> void:
 	if _pass_all_arming: # still inside the undo window: take it back here, nothing was sent
 		_pass_all_arming = false
-		_render()
+		render_table()
 		return
 	if _pass_all_waiting_for_server:
 		return # the server has not answered the last press yet
@@ -2767,23 +2767,23 @@ func _on_pass_all_pressed() -> void:
 				_pass_all_arming = false
 				_send_pass_all(true),
 	)
-	_render()
+	render_table()
 
 
 ## Sends the switch to the engine (or the server). Online, the switch keeps showing "…" until the snapshot echoes it.
 func _send_pass_all(on: bool) -> void:
 	if g == null or g.phase not in ["main", "combat"] or (on and g.active == viewer):
-		_render() # the turn changed while the press was waiting: nothing to switch any more
+		render_table() # the turn changed while the press was waiting: nothing to switch any more
 		return
 	if g is RemoteState:
 		_pass_all_waiting_for_server = true
 		_pass_all_expected_state = on
 		get_tree().create_timer(PASS_ALL_SERVER_TIMEOUT_SECONDS).timeout.connect(_stop_waiting_for_pass_all)
-	_run_or_queue_input(
+	run_or_queue_input(
 		func():
-			_do(g.pass_rest_of_turn(viewer) if on else g.cancel_pass_rest_of_turn(viewer)),
+			handle_action_result(g.pass_rest_of_turn(viewer) if on else g.cancel_pass_rest_of_turn(viewer)),
 	)
-	_render()
+	render_table()
 
 
 ## The server never answered (or refused): the switch goes back to showing the real state.
@@ -2791,7 +2791,7 @@ func _stop_waiting_for_pass_all() -> void:
 	if _pass_all_waiting_for_server:
 		_pass_all_waiting_for_server = false
 		if g != null:
-			_render()
+			render_table()
 
 
 func _action_buttons() -> Array:
@@ -2802,7 +2802,7 @@ func _action_buttons() -> Array:
 				_action_button(
 					"CONFIRMAR (%d)" % picked.size(),
 					func():
-						_do(g.mulligan(viewer, picked.duplicate())),
+						handle_action_result(g.mulligan(viewer, picked.duplicate())),
 					true,
 				)
 			)
@@ -2812,7 +2812,7 @@ func _action_buttons() -> Array:
 					_action_button(
 						"ENCERRAR COMBATE",
 						func():
-							_do(g.end_combat(viewer)),
+							handle_action_result(g.end_combat(viewer)),
 						true,
 					)
 				)
@@ -2821,7 +2821,7 @@ func _action_buttons() -> Array:
 					_action_button(
 						_pass_button_label(),
 						func():
-							_do(g.pass_priority(viewer)),
+							handle_action_result(g.pass_priority(viewer)),
 						true,
 					)
 				)
@@ -2831,7 +2831,7 @@ func _action_buttons() -> Array:
 					_action_button(
 						_pass_button_label(),
 						func():
-							_do(g.pass_priority(viewer)),
+							handle_action_result(g.pass_priority(viewer)),
 						true,
 					)
 				)
@@ -2840,7 +2840,7 @@ func _action_buttons() -> Array:
 					_action_button(
 						"IR PARA O COMBATE",
 						func():
-							_do(g.go_to_combat(viewer)),
+							handle_action_result(g.go_to_combat(viewer)),
 						true,
 					)
 				)
@@ -2848,7 +2848,7 @@ func _action_buttons() -> Array:
 					_action_button(
 						"Encerrar turno",
 						func():
-							_do(g.end_turn(viewer)),
+							handle_action_result(g.end_turn(viewer)),
 					)
 				)
 			else:
@@ -2856,7 +2856,7 @@ func _action_buttons() -> Array:
 					_action_button(
 						"ENCERRAR TURNO",
 						func():
-							_do(g.end_turn(viewer)),
+							handle_action_result(g.end_turn(viewer)),
 						true,
 					)
 				)
@@ -2865,7 +2865,7 @@ func _action_buttons() -> Array:
 				_action_button(
 					"ENTRAR EXAURIDA",
 					func():
-						_do(g.choose_enter_tapped(viewer, true)),
+						handle_action_result(g.choose_enter_tapped(viewer, true)),
 					true,
 				)
 			)
@@ -2873,7 +2873,7 @@ func _action_buttons() -> Array:
 				_action_button(
 					"ENTRAR PRONTA",
 					func():
-						_do(g.choose_enter_tapped(viewer, false)),
+						handle_action_result(g.choose_enter_tapped(viewer, false)),
 					true,
 				)
 			)
@@ -2882,7 +2882,7 @@ func _action_buttons() -> Array:
 				_action_button(
 					"PULAR EFEITO",
 					func():
-						_do(g.choose_enter_target(viewer, 0)),
+						handle_action_result(g.choose_enter_target(viewer, 0)),
 					true,
 				)
 			)
@@ -2891,7 +2891,7 @@ func _action_buttons() -> Array:
 			var b := _action_button(
 				"BANIR (%d/%d)" % [picked.size(), need],
 				func():
-					_do(g.discard(viewer, picked.duplicate())),
+					handle_action_result(g.discard(viewer, picked.duplicate())),
 				true,
 			)
 			b.disabled = picked.size() != need
@@ -2900,7 +2900,7 @@ func _action_buttons() -> Array:
 
 
 func _render_game_over() -> void:
-	var pc := _veil()
+	var pc := make_veil()
 	var box := VBoxContainer.new()
 	box.custom_minimum_size = Vector2(520, 0)
 	box.add_theme_constant_override("separation", 14)
@@ -2920,7 +2920,7 @@ func _render_game_over() -> void:
 	if is_draw:
 		title_color = Color("#dfe3ec")
 		glow_color = Color("#9aa3b8")
-	var big := _label(txt, 64 if txt.length() < 10 else 44, title_color, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 10)
+	var big := make_label(txt, 64 if txt.length() < 10 else 44, title_color, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 10)
 	big.add_theme_color_override("font_shadow_color", Color(glow_color, 0.35))
 	big.add_theme_constant_override("shadow_outline_size", 24)
 	big.add_theme_constant_override("shadow_offset_x", 0)
@@ -2929,21 +2929,21 @@ func _render_game_over() -> void:
 	if g.winner < 2:
 		var sub := "%s triunfa na arena" % CardDB.leader(g.players[g.winner]["leader_id"])["name"]
 		if conceded >= 0:
-			sub = "%s desistiu da partida" % ("Você" if (vs_ai and conceded == 0) else _pname(conceded))
-		box.add_child(_label(sub, 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+			sub = "%s desistiu da partida" % ("Você" if (vs_ai and conceded == 0) else player_name(conceded))
+		box.add_child(make_label(sub, 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
 	else:
-		box.add_child(_label("Os dois Líderes caíram juntos", 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
-	var b := _button("VOLTAR AO MENU", menu_screens.show_menu, true)
+		box.add_child(make_label("Os dois Líderes caíram juntos", 18, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+	var b := make_button("VOLTAR AO MENU", menu_screens.show_menu, true)
 	b.custom_minimum_size = Vector2(520, 54)
 	box.add_child(b)
-	_center.call_deferred(pc)
+	center_in_screen.call_deferred(pc)
 
 # ---------------------------------------------------------------- input
 
 
 ## Window <-> full screen (F11 or the menu button). In a browser this is the page's full screen,
 ## which the browser only allows right after a key press or tap, which is what calls this.
-func _toggle_fullscreen() -> void:
+func toggle_fullscreen() -> void:
 	var is_full := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if is_full else DisplayServer.WINDOW_MODE_FULLSCREEN)
 
@@ -2951,7 +2951,7 @@ func _toggle_fullscreen() -> void:
 func _toggle_fps_counter() -> void:
 	_fps_counter_visible = not _fps_counter_visible
 	if not is_instance_valid(_fps_counter):
-		_fps_counter = _label("FPS 0", 14 if _perf_diagnostics else 20, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, "bold", 4)
+		_fps_counter = make_label("FPS 0", 14 if _perf_diagnostics else 20, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, "bold", 4)
 		_fps_counter.position = Vector2(14, 12)
 		_fps_counter.size = Vector2(560, 126) if _perf_diagnostics else Vector2(150, 32)
 		_fps_counter.z_index = 1000
@@ -3004,7 +3004,7 @@ func _close_dev_tools() -> void:
 	if not is_instance_valid(dev_tools_panel):
 		return
 	dev_tools_panel.hide()
-	if g != null and g.phase != "over" and _is_ai(g.decider()) and ai_timer.is_stopped():
+	if g != null and g.phase != "over" and is_ai(g.decider()) and ai_timer.is_stopped():
 		ai_timer.start(0.55)
 
 
@@ -3059,7 +3059,7 @@ func _on_dev_tool_action(action: String, parameters: Dictionary) -> void:
 			return
 	dev_tools_panel.refresh(g, vs_ai, viewer)
 	if events.is_empty():
-		_render()
+		render_table()
 		dev_tools_panel.set_result("Nenhuma mudança foi necessária.")
 		return
 	for event in events:
@@ -3078,7 +3078,7 @@ func _input(e: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_F11:
-		_toggle_fullscreen()
+		toggle_fullscreen()
 		get_viewport().set_input_as_handled()
 		return
 	# here (not in _unhandled_input) so a button that kept the focus from a click does not swallow Space / Enter
@@ -3129,7 +3129,7 @@ func _aim_release(gp := Vector2.INF, from_touch := false) -> void:
 	_aim_drag_view = null
 	if is_instance_valid(drag_view):
 		drag_view.finish_pointer_interaction()
-	if targeting.is_empty() or not _my_input():
+	if targeting.is_empty() or not viewer_can_act():
 		return
 	if gp == Vector2.INF:
 		gp = get_global_mouse_position()
@@ -3154,7 +3154,7 @@ func _aim_release(gp := Vector2.INF, from_touch := false) -> void:
 	):
 		return
 	targeting = { }
-	_render()
+	render_table()
 
 
 func _unhandled_input(e: InputEvent) -> void:
@@ -3197,19 +3197,19 @@ func _unhandled_input(e: InputEvent) -> void:
 func _cancel_targeting() -> void:
 	if not targeting.is_empty() and targeting["kind"] != "enter":
 		targeting = { }
-		_render()
+		render_table()
 
 
-func _my_input() -> bool:
-	return g.decider() == viewer and not _is_ai(viewer) and not pending_pass
+func viewer_can_act() -> bool:
+	return g.decider() == viewer and not is_ai(viewer) and not pending_pass
 
 
 func _on_hand_click(v: CardView) -> void:
-	if not _my_input():
+	if not viewer_can_act():
 		return
 	if targeting.get("kind") in ["hand", "room_banish"] and targeting["uid"] == v.uid:
 		targeting = { }
-		_render()
+		render_table()
 		return
 	match g.phase:
 		"mulligan":
@@ -3223,17 +3223,17 @@ func _on_hand_click(v: CardView) -> void:
 ## slot: where a unit enters our board (-1 = rightmost); only drag & drop picks one.
 func _play_from_hand(v: CardView, slot := -1) -> void:
 	if not g.can_play(viewer, v.uid, true):
-		_toast("Não dá para jogar essa carta agora.")
-		_render()
+		show_toast("Não dá para jogar essa carta agora.")
+		render_table()
 		return
 	var spec := _hand_spec(v)
 	if spec != "":
 		targeting = { "kind": "hand", "uid": v.uid, "card_id": v.card_id, "spec": spec, "slot": slot }
-		_begin_aim(Vector2.ZERO)
-		_render()
+		begin_aim(Vector2.ZERO)
+		render_table()
 	elif CardDB.card(v.card_id)["type"] != "unit" and g.is_dud(viewer, CardDB.card(v.card_id)):
 		# allowed (it can bait a counter), but never by accident
-		_render()
+		render_table()
 		table_overlays.ask_confirm(
 			"SEM EFEITO AGORA",
 			"Não há nada para reviver no seu cemitério. Jogar mesmo assim?",
@@ -3244,7 +3244,7 @@ func _play_from_hand(v: CardView, slot := -1) -> void:
 	elif _needs_room_banish(v.card_id):
 		_begin_room_banish(v.uid, v.card_id, slot)
 	else:
-		_do(g.play_card(viewer, v.uid, 0, 0, slot))
+		handle_action_result(g.play_card(viewer, v.uid, 0, 0, slot))
 
 
 ## True when playing this card takes a field slot and the field is full: the player must banish one of
@@ -3269,12 +3269,12 @@ func _begin_room_banish(hand_uid: int, card_id: String, slot := -1, target := 0,
 		"target2": target2,
 	}
 	var source_view = views.get(hand_uid) if hand_uid != 0 else views.get("cmd%d" % viewer)
-	_begin_aim(_visual_rect(source_view).get_center() if is_instance_valid(source_view) else Vector2.ZERO)
-	_render()
+	begin_aim(visual_rect_of(source_view).get_center() if is_instance_valid(source_view) else Vector2.ZERO)
+	render_table()
 
 
 ## Casts a Réquiem spell from the graveyard through the same flow as a hand card (target aiming, dud confirm).
-func _cast_requiem(uid: int, card_id: String) -> void:
+func cast_requiem(uid: int, card_id: String) -> void:
 	var stand_in := CardView.new().setup(card_id, { "uid": uid }, 1.0) # only its uid/card_id are read
 	_play_from_hand(stand_in)
 	stand_in.free()
@@ -3283,7 +3283,7 @@ func _cast_requiem(uid: int, card_id: String) -> void:
 func _play_dud(uid: int) -> void:
 	table_overlays.close_concede()
 	if g != null and g.can_play(viewer, uid):
-		_do(g.play_card(viewer, uid, 0))
+		handle_action_result(g.play_card(viewer, uid, 0))
 
 
 ## Target spec of a playable hand card that needs a target now ("" if it plays straight away).
@@ -3297,7 +3297,7 @@ func _hand_spec(v: CardView) -> String:
 
 ## Starts click-targeting from `src` (global; ZERO = the pointer). Card drags start their aim
 ## explicitly, so a touch that opened an action cannot be mistaken for a held mouse press.
-func _begin_aim(src: Vector2) -> void:
+func begin_aim(src: Vector2) -> void:
 	aim_src = src if src != Vector2.ZERO else get_global_mouse_position()
 	aim_start = get_global_mouse_position()
 	aim_drag = false
@@ -3305,7 +3305,7 @@ func _begin_aim(src: Vector2) -> void:
 
 ## On-screen rectangle a card really covers. get_global_rect() ignores rotation, so for a tapped
 ## (sideways) card it points at the wrong area; this one turns the card's corners with it.
-func _visual_rect(c: Control) -> Rect2:
+func visual_rect_of(c: Control) -> Rect2:
 	return c.get_global_transform() * Rect2(Vector2.ZERO, c.size)
 
 
@@ -3317,7 +3317,7 @@ func _target_at(gp: Vector2) -> int:
 	for k in views:
 		if k is int and k != 0 and _is_target(k) and not hand_uids.has(k):
 			var c: Control = views[k]
-			if is_instance_valid(c) and _visual_rect(c).has_point(gp) and c.get_index() > found_draw_order:
+			if is_instance_valid(c) and visual_rect_of(c).has_point(gp) and c.get_index() > found_draw_order:
 				found_uid = k
 				found_draw_order = c.get_index()
 	return found_uid
@@ -3333,7 +3333,7 @@ func _update_aim() -> void:
 			fx.add_child(aim_arrow)
 		aim_arrow.visible = true
 		aim_arrow.move_to_front()
-		var waiting_rect := _visual_rect(waiting_attacker_view)
+		var waiting_rect := visual_rect_of(waiting_attacker_view)
 		var arrow_space := fx.get_global_transform().affine_inverse()
 		aim_arrow.from = arrow_space * Vector2(waiting_rect.get_center().x, waiting_rect.position.y + waiting_rect.size.y * 0.3)
 		aim_arrow.to = arrow_space * get_global_mouse_position()
@@ -3341,7 +3341,7 @@ func _update_aim() -> void:
 		return
 	var on: bool = (
 		g != null and not targeting.is_empty() and targeting.get("spec") != "enemy_stack"
-		and _my_input() and g.phase in ["main", "combat", "enter_target", "effect_choice"]
+		and viewer_can_act() and g.phase in ["main", "combat", "enter_target", "effect_choice"]
 	)
 	if not on:
 		if is_instance_valid(aim_arrow):
@@ -3358,7 +3358,7 @@ func _update_aim() -> void:
 		targeting["kind"] in ["hand", "enter", "attack", "room_banish", "effect_choice"]
 		and views.has(targeting["uid"]) and is_instance_valid(views[targeting["uid"]])
 	):
-		var r: Rect2 = _visual_rect(views[targeting["uid"]] as Control)
+		var r: Rect2 = visual_rect_of(views[targeting["uid"]] as Control)
 		src = Vector2(r.get_center().x, r.position.y + r.size.y * 0.3)
 	var inv := fx.get_global_transform().affine_inverse()
 	var gp := get_global_mouse_position()
@@ -3384,8 +3384,8 @@ func _sync_reaction_arrow() -> void:
 		fx.add_child(reaction_arrow)
 	reaction_arrow.visible = true
 	reaction_arrow.move_to_front()
-	var source_rect := _visual_rect(source)
-	var target_rect := _visual_rect(target)
+	var source_rect := visual_rect_of(source)
+	var target_rect := visual_rect_of(target)
 	var inv := fx.get_global_transform().affine_inverse()
 	reaction_arrow.from = inv * Vector2(source_rect.get_center().x, source_rect.position.y + source_rect.size.y * 0.3)
 	reaction_arrow.to = inv * target_rect.get_center()
@@ -3397,11 +3397,11 @@ func _toggle_pick(uid: int, cap: int) -> void:
 		picked.erase(uid)
 	elif picked.size() < cap:
 		picked.append(uid)
-	_render()
+	render_table()
 
 
 func _on_incarnation(p: int) -> void:
-	if p != viewer or not _my_input():
+	if p != viewer or not viewer_can_act():
 		return
 	if _wait_for_table(_on_incarnation.bind(p)):
 		return
@@ -3410,13 +3410,13 @@ func _on_incarnation(p: int) -> void:
 	if not g.has_free_slot(p):
 		_begin_room_banish(0, g.players[p]["incarnation"]["card_id"])
 		return
-	_do(g.cast_incarnation(p)) # its Ao Entrar target (if any) is picked once it is on the board
+	handle_action_result(g.cast_incarnation(p)) # its Ao Entrar target (if any) is picked once it is on the board
 
 
 ## While our Ao Entrar waits for a target, aim from the unit on the board; the choice is
 ## optional (the side button skips it), so it cannot be cancelled away.
 func _sync_enter_aim() -> void:
-	if g.phase != "enter_target" or not _my_input():
+	if g.phase != "enter_target" or not viewer_can_act():
 		if targeting.get("kind") == "enter":
 			targeting = { }
 		return
@@ -3434,7 +3434,7 @@ func _sync_enter_aim() -> void:
 
 
 func _on_ability(p: int) -> void:
-	if not _my_input():
+	if not viewer_can_act():
 		return
 	if _wait_for_table(_on_ability.bind(p)):
 		return
@@ -3444,18 +3444,18 @@ func _on_ability(p: int) -> void:
 	if spec != "":
 		targeting = { "kind": "ability", "uid": 0, "spec": spec }
 		var lv: Control = views.get(GameState.LEADER_UID[p])
-		_begin_aim(lv.get_global_transform() * LeaderView.AC if is_instance_valid(lv) else Vector2.ZERO)
-		_render()
+		begin_aim(lv.get_global_transform() * LeaderView.AC if is_instance_valid(lv) else Vector2.ZERO)
+		render_table()
 	else:
-		_do(g.use_ability(p, 0))
+		handle_action_result(g.use_ability(p, 0))
 
 
-func _on_search_choice(card_uid: int) -> void:
-	if not _my_input() or _wait_for_table(_on_search_choice.bind(card_uid)):
+func on_search_choice(card_uid: int) -> void:
+	if not viewer_can_act() or _wait_for_table(on_search_choice.bind(card_uid)):
 		return
 	if g.phase != "search":
 		return
-	_do(g.choose_search(viewer, card_uid))
+	handle_action_result(g.choose_search(viewer, card_uid))
 
 
 func _is_target(uid: int) -> bool:
@@ -3557,48 +3557,48 @@ func _fire_target(uid: int, confirmed := false) -> void:
 					targeting["picks"] = [] # the first pick was a stack item, not a unit to number
 				else:
 					targeting["picks"] = [uid]
-				_render()
+				render_table()
 			elif _needs_room_banish(targeting["card_id"]):
 				# the card's own target is chosen; the permanent to banish is the last pick
 				var first_pick: int = targeting["first"] if targeting.has("first") else uid
 				var second_pick: int = uid if targeting.has("first") else 0
 				_begin_room_banish(targeting["uid"], targeting["card_id"], targeting.get("slot", -1), first_pick, second_pick)
 			elif targeting.has("first"):
-				_do(g.play_card(viewer, targeting["uid"], targeting["first"], uid))
+				handle_action_result(g.play_card(viewer, targeting["uid"], targeting["first"], uid))
 			else:
-				_do(g.play_card(viewer, targeting["uid"], uid, 0, targeting.get("slot", -1)))
+				handle_action_result(g.play_card(viewer, targeting["uid"], uid, 0, targeting.get("slot", -1)))
 		"room_banish":
 			var hand_uid: int = targeting["uid"]
 			var slot: int = targeting.get("slot", -1)
 			if hand_uid == 0:
-				_do(g.cast_incarnation(viewer, 0, slot, uid))
+				handle_action_result(g.cast_incarnation(viewer, 0, slot, uid))
 			else:
-				_do(g.play_card(viewer, hand_uid, targeting["target"], targeting["target2"], slot, uid))
+				handle_action_result(g.play_card(viewer, hand_uid, targeting["target"], targeting["target2"], slot, uid))
 		"incarnation":
-			_do(g.cast_incarnation(viewer, uid))
+			handle_action_result(g.cast_incarnation(viewer, uid))
 		"ability":
-			_do(g.use_ability(viewer, uid))
+			handle_action_result(g.use_ability(viewer, uid))
 		"unit_ability":
-			_do(g.activate(viewer, targeting["uid"], uid, int(targeting.get("payer", 0))))
+			handle_action_result(g.activate(viewer, targeting["uid"], uid, int(targeting.get("payer", 0))))
 		"unit_cost":
 			var paying_unit := g.find_unit(int(targeting["uid"]))
 			var ability_spec := g.target_spec(paying_unit.data()["activated"]["effects"]) if paying_unit != null else ""
 			if ability_spec == "":
-				_do(g.activate(viewer, targeting["uid"], uid))
+				handle_action_result(g.activate(viewer, targeting["uid"], uid))
 			else:
 				# the sacrifice is chosen; the ability's own target comes next (Cornélia Aldrovane)
 				targeting = { "kind": "unit_ability", "uid": paying_unit.uid, "spec": ability_spec, "payer": uid }
 				if views.has(paying_unit.uid) and is_instance_valid(views[paying_unit.uid]):
-					_begin_aim(_visual_rect(views[paying_unit.uid] as Control).get_center())
-				_render()
+					begin_aim(visual_rect_of(views[paying_unit.uid] as Control).get_center())
+				render_table()
 		"field_equip":
-			_do(g.equip_from_field(viewer, targeting["uid"], uid))
+			handle_action_result(g.equip_from_field(viewer, targeting["uid"], uid))
 		"enter":
-			_do(g.choose_enter_target(viewer, uid))
+			handle_action_result(g.choose_enter_target(viewer, uid))
 		"attack":
-			_do(g.attack_unit(viewer, targeting["uid"], uid))
+			handle_action_result(g.attack_unit(viewer, targeting["uid"], uid))
 		"effect_choice":
-			_do(g.choose_effect_option(viewer, int(targeting["mode"]), uid))
+			handle_action_result(g.choose_effect_option(viewer, int(targeting["mode"]), uid))
 
 
 ## Name of the unit or artifact the player picked to banish.
@@ -3612,12 +3612,12 @@ func _permanent_name(uid: int) -> String:
 func _confirm_room_banish_target(hand_uid: int, target_uid: int) -> void:
 	table_overlays.close_concede()
 	if (
-		g == null or not _my_input() or targeting.get("kind") != "room_banish" \
+		g == null or not viewer_can_act() or targeting.get("kind") != "room_banish" \
 				or int(targeting.get("uid", 0)) != hand_uid
 		or not _is_target(target_uid)
 	):
 		targeting = { }
-		_render()
+		render_table()
 		return
 	_fire_target(target_uid, true)
 
@@ -3625,21 +3625,21 @@ func _confirm_room_banish_target(hand_uid: int, target_uid: int) -> void:
 func _confirm_equipment_target(hand_uid: int, target_uid: int) -> void:
 	table_overlays.close_concede()
 	if (
-		g == null or not _my_input() or targeting.get("kind") not in ["hand", "field_equip"] \
+		g == null or not viewer_can_act() or targeting.get("kind") not in ["hand", "field_equip"] \
 				or int(targeting.get("uid", 0)) != hand_uid
 		or not _is_target(target_uid)
 	):
 		targeting = { }
-		_render()
+		render_table()
 		return
 	_fire_target(target_uid, true)
 
 
 func _on_leader_click(p: int) -> void:
-	if _my_input() and _input_must_wait() and _aiming_or_waiting():
+	if viewer_can_act() and _input_must_wait() and _aiming_or_waiting():
 		_queue_card_click(GameState.LEADER_UID[p])
 		return
-	if _my_input() and _is_target(GameState.LEADER_UID[p]):
+	if viewer_can_act() and _is_target(GameState.LEADER_UID[p]):
 		_fire_target(GameState.LEADER_UID[p])
 
 
@@ -3661,7 +3661,7 @@ func _unit_drag_start(v: CardView) -> void:
 	if _input_must_wait() and _click_should_wait(v.uid):
 		_queue_card_click(v.uid) # picked during an animation: the release is handled by _input
 		return
-	if not _my_input() or not targeting.is_empty():
+	if not viewer_can_act() or not targeting.is_empty():
 		return
 	if _unit_click_acted(v):
 		aim_drag = true # the press is still held, so the release decides
@@ -3676,7 +3676,7 @@ func _aiming_or_waiting() -> bool:
 ## Should a click on this unit, given during an animation, wait for it to end? Yes when it is meant to
 ## act (pick a target, pick one of our attackers); a plain look at a card opens its overlay right away.
 func _click_should_wait(uid: int) -> bool:
-	if not _my_input():
+	if not viewer_can_act():
 		return false
 	if _aiming_or_waiting():
 		return true
@@ -3718,7 +3718,7 @@ func _release_queued_attacker_drag(gp := Vector2.INF) -> void:
 ## gone or no longer a legal target (a Provocação that died in the fight that was playing): then the
 ## aim is dropped and the attacker stays ready, instead of acting on something the player never saw.
 func _click_card_when_settled(uid: int) -> void:
-	if not _my_input():
+	if not viewer_can_act():
 		return
 	var acted := false
 	if uid < 0:
@@ -3730,7 +3730,7 @@ func _click_card_when_settled(uid: int) -> void:
 		if is_instance_valid(view) and view is CardView:
 			acted = _unit_click_acted(view)
 	if not acted and not targeting.is_empty() and targeting["kind"] != "enter":
-		_toast("Esse alvo não está mais disponível.")
+		show_toast("Esse alvo não está mais disponível.")
 		_cancel_targeting()
 
 
@@ -3741,7 +3741,7 @@ func _card_uid_at(gp: Vector2) -> int:
 	for k in views:
 		if k is int and k != 0 and not hand_uids.has(k):
 			var c: Control = views[k]
-			if is_instance_valid(c) and _visual_rect(c).has_point(gp) and c.get_index() > found_draw_order:
+			if is_instance_valid(c) and visual_rect_of(c).has_point(gp) and c.get_index() > found_draw_order:
 				found_uid = k
 				found_draw_order = c.get_index()
 	return found_uid
@@ -3749,7 +3749,7 @@ func _card_uid_at(gp: Vector2) -> int:
 
 ## Runs the click's action and returns true, or returns false when the click had no action.
 func _unit_click_acted(v: CardView) -> bool:
-	if not _my_input():
+	if not viewer_can_act():
 		return false
 	var unit := g.find_unit(v.uid)
 	if unit == null:
@@ -3762,11 +3762,11 @@ func _unit_click_acted(v: CardView) -> bool:
 	# our attacks: pick an attacker, then an arrow follows the finger to its target
 	if g.combat_system().in_attacks_window(viewer) and unit.owner == viewer:
 		if g.attack_targets(unit).is_empty():
-			_toast("Essa unidade não pode atacar agora.")
+			show_toast("Essa unidade não pode atacar agora.")
 			return true
 		targeting = { "kind": "attack", "uid": unit.uid, "spec": "attack" }
-		_begin_aim(_visual_rect(v).get_center())
-		_render()
+		begin_aim(visual_rect_of(v).get_center())
+		render_table()
 		return true
 	return false
 
@@ -3778,7 +3778,7 @@ func _warn_unreachable(uid: int) -> bool:
 	var unit := g.find_unit(uid)
 	if unit == null or unit.owner == viewer or not g.has_kw(unit, "inalcancavel"):
 		return false
-	_toast("Inalcançável: essa unidade não pode ser alvo.")
+	show_toast("Inalcançável: essa unidade não pode ser alvo.")
 	return true
 
 
@@ -3796,12 +3796,12 @@ var _toast_tw: Tween
 
 
 ## Short transient message (refused actions) instead of log spam.
-func _toast(t: String) -> void:
+func show_toast(t: String) -> void:
 	if _toast_node and is_instance_valid(_toast_node):
 		_toast_node.queue_free()
 	if _toast_tw:
 		_toast_tw.kill()
-	var l := _label(t, 24, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "bold", 4)
+	var l := make_label(t, 24, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "bold", 4)
 	l.add_theme_stylebox_override("normal", UITheme.box(Color(0.03, 0.03, 0.05, 0.92), 20, Color(UITheme.GOLD, 0.8), 2, 10))
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	fx.add_child(l)
@@ -3818,19 +3818,19 @@ func _log(t: String) -> void:
 	chronicle_log.add_line(t)
 
 
-func _pname(p: int) -> String:
+func player_name(p: int) -> String:
 	if online:
 		return "Você" if p == viewer else "Oponente"
-	return "IA" if _is_ai(p) else "J%d" % (p + 1)
+	return "IA" if is_ai(p) else "J%d" % (p + 1)
 
 
-func _cname(id: String) -> String:
+func card_name(id: String) -> String:
 	return CardDB.card(id)["name"]
 
 # ---------------------------------------------------------------- widgets
 
 
-func _label(t: String, fs: int, col: Color, align := HORIZONTAL_ALIGNMENT_LEFT, kind := "", outline := 0) -> Label:
+func make_label(t: String, fs: int, col: Color, align := HORIZONTAL_ALIGNMENT_LEFT, kind := "", outline := 0) -> Label:
 	var l := Label.new()
 	l.text = t
 	l.horizontal_alignment = align
@@ -3845,7 +3845,7 @@ func _label(t: String, fs: int, col: Color, align := HORIZONTAL_ALIGNMENT_LEFT, 
 	return l
 
 
-func _button(t: String, cb: Callable, primary := false) -> Button:
+func make_button(t: String, cb: Callable, primary := false) -> Button:
 	var b := Button.new()
 	b.text = t
 	if primary:
@@ -3892,11 +3892,11 @@ func _sound_icon_button(button_size: float) -> Button:
 ## A volume slider with a "VOLUME DOS EFEITOS 70%" title (menu): the sound effects, or the music when
 ## `for_music` is true (each has its own volume). Moving it changes the volume live and saves it;
 ## letting go plays a click so the new level can be heard right away.
-func _volume_slider(control_size: Vector2, for_music := false) -> Control:
+func make_volume_slider(control_size: Vector2, for_music := false) -> Control:
 	var holder := Control.new()
 	holder.custom_minimum_size = control_size
 	holder.size = control_size
-	var title_label := _label("", 15, UITheme.TEXT, HORIZONTAL_ALIGNMENT_LEFT, "bold")
+	var title_label := make_label("", 15, UITheme.TEXT, HORIZONTAL_ALIGNMENT_LEFT, "bold")
 	title_label.position = Vector2(4, 0)
 	title_label.size = Vector2(control_size.x, 22)
 	holder.add_child(title_label)
@@ -3929,11 +3929,11 @@ func _volume_slider(control_size: Vector2, for_music := false) -> Control:
 
 ## An on/off button shown as a sliding switch instead of the words "LIGADO"/"desligado":
 ## gold track with the knob on the right when on, dark track with the knob on the left when off.
-func _toggle_button(title: String, is_on: bool, on_press: Callable) -> Button:
+func make_toggle_button(title: String, is_on: bool, on_press: Callable) -> Button:
 	var button := Button.new()
 	button.pressed.connect(Sfx.play.bind("ui_toggle"))
 	button.pressed.connect(on_press)
-	var title_label := _label(title, 17, UITheme.TEXT if is_on else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT, "bold")
+	var title_label := make_label(title, 17, UITheme.TEXT if is_on else UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_LEFT, "bold")
 	title_label.position = Vector2(16, 0)
 	title_label.size = Vector2(150, 48)
 	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -3988,14 +3988,14 @@ func _action_button(text: String, action: Callable, primary := false) -> Button:
 		func():
 			for action_button: Button in get_tree().get_nodes_in_group("action_buttons"):
 				action_button.disabled = true
-			_run_or_queue_input(action),
+			run_or_queue_input(action),
 	)
 	return button
 
 
 ## Crops a tall portrait to a wide window, anchored near the top so the face stays in frame
 ## (a centered crop shows the torso instead).
-func _top_crop(tex: Texture2D, window: Vector2, focus := 0.06) -> Texture2D:
+func crop_portrait_to_top(tex: Texture2D, window: Vector2, focus := 0.06) -> Texture2D:
 	if tex == null:
 		return null
 	var ts := tex.get_size()

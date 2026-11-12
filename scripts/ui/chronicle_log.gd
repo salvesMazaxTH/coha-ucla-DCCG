@@ -25,10 +25,10 @@ func _init(host_node) -> void:
 
 ## Player name as the Chronicle shows it ("Você", "IA", "J1"...). Main decides it (online / AI).
 func _pname(p: int) -> String:
-	return host._pname(p)
+	return host.player_name(p)
 
 func _cname(id: String) -> String:
-	return host._cname(id)
+	return host.card_name(id)
 
 func add_line(t: String) -> void:
 	log_lines.append(t)

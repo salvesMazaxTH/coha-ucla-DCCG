@@ -29,26 +29,26 @@ func _init() -> void:
 		push_error("hub vs IA não iniciou a partida com o deck escolhido")
 		quit(1)
 		return
-	m._start(false, "fogo", "agua")
+	m.start_match(false, "fogo", "agua")
 	m.pending_pass = false
-	m._render()
+	m.render_table()
 	var performance_report: String = m._performance_summary(60)
 	if not performance_report.contains("Artes:") or not performance_report.contains("Fotos:"):
 		push_error("o relatório de diagnóstico está incompleto")
 		quit(1)
 		return
-	m._do(m.g.mulligan(0, []))
+	m.handle_action_result(m.g.mulligan(0, []))
 	m.pending_pass = false
-	m._do(m.g.mulligan(1, []))
+	m.handle_action_result(m.g.mulligan(1, []))
 	m.pending_pass = false
 	for i in 30:
 		if m.g.phase == "over":
 			break
 		var ev = SimpleAI.step(m.g, m.g.decider())
 		m.viewer = m.g.decider()
-		m._do(ev)
+		m.handle_action_result(ev)
 		m.pending_pass = false
-		m._render()
+		m.render_table()
 		var v = null
 		for c in m.layer.get_children():
 			if c is CardView and not c.face_down:
@@ -61,7 +61,7 @@ func _init() -> void:
 			for f in m.table_overlays.GRAVE_FILTERS:
 				m.table_overlays.grave_filter = f[0]
 				m.table_overlays.refresh_graveyard()
-			m._render()
+			m.render_table()
 			# search/over close it on purpose (see _render)
 			if m.grave_view == null and not m.g.phase in ["search", "over"]:
 				push_error("cemitério fechou no re-render")
@@ -152,7 +152,7 @@ func _check_hub_sections(m) -> bool:
 	return true
 
 func _check_effect_choice_ui(m) -> bool:
-	m._start(false, "fogo", "agua")
+	m.start_match(false, "fogo", "agua")
 	m.pending_pass = false
 	m.g.mulligan(0, [])
 	m.g.mulligan(1, [])
@@ -204,7 +204,7 @@ func _check_effect_choice_ui(m) -> bool:
 	return true
 
 func _check_activation_cost_choice_ui(m) -> bool:
-	m._start(false, "fogo", "agua")
+	m.start_match(false, "fogo", "agua")
 	m.pending_pass = false
 	m.g.mulligan(0, [])
 	m.g.mulligan(1, [])
@@ -219,7 +219,7 @@ func _check_activation_cost_choice_ui(m) -> bool:
 	ally.enter_board(false)
 	m.g.players[0]["board"].append(drex)
 	m.g.players[0]["board"].append(ally)
-	m._open_activation_cost_prompt(drex.uid)
+	m.open_activation_cost_prompt(drex.uid)
 	if m.option_prompt["options"].size() != 2 or not m.option_prompt["options"][0]["enabled"] or not m.option_prompt["options"][1]["enabled"]:
 		push_error("Drex: a janela não oferece ambos os custos")
 		return false
@@ -228,13 +228,13 @@ func _check_activation_cost_choice_ui(m) -> bool:
 		push_error("Drex: cancelar a janela não deve pagar o custo")
 		return false
 	m.g.players[0]["board"].erase(ally)
-	m._open_activation_cost_prompt(drex.uid)
+	m.open_activation_cost_prompt(drex.uid)
 	if not m.option_prompt["options"][0]["enabled"] or m.option_prompt["options"][1]["enabled"]:
 		push_error("Drex: sem outro aliado apenas descarte fica disponível")
 		return false
 	m._close_option_prompt()
 	m.g.players[0]["board"].append(ally)
-	m._open_activation_cost_prompt(drex.uid)
+	m.open_activation_cost_prompt(drex.uid)
 	m._render_now()
 	var sacrifice_button: Button = null
 	for node in m.layer.find_children("*", "Button", true, false):
@@ -252,7 +252,7 @@ func _check_activation_cost_choice_ui(m) -> bool:
 	if m.g.players[0]["momentum"] != 3 or m.g.find_unit(ally.uid) == null:
 		push_error("Drex: cancelar a mira não deve pagar o custo")
 		return false
-	m._open_activation_cost_prompt(drex.uid)
+	m.open_activation_cost_prompt(drex.uid)
 	m.option_prompt["options"][0]["callback"].call()
 	if m.g.phase != "search" or not m.g.pending_search.get("discard_hand", false):
 		push_error("Drex: o descarte deve abrir a escolha da mão")
@@ -262,7 +262,7 @@ func _check_activation_cost_choice_ui(m) -> bool:
 		push_error("Drex: cancelar o descarte não deve ativar a habilidade")
 		return false
 	m.g.players[0]["hand"].clear()
-	m._open_activation_cost_prompt(drex.uid)
+	m.open_activation_cost_prompt(drex.uid)
 	if m.option_prompt["options"][0]["enabled"] or not m.option_prompt["options"][1]["enabled"]:
 		push_error("Drex: descarte indisponível e sacrifício disponível")
 		return false
@@ -275,14 +275,14 @@ func _check_activation_cost_choice_ui(m) -> bool:
 	return true
 
 func _check_equipment_ui(m) -> bool:
-	m._start(false, "fogo", "agua")
+	m.start_match(false, "fogo", "agua")
 	m.pending_pass = false
 	var tobias := Card.new(m.g._uid(), "sacoleiro_tobias_bolso_fundo", 0, "board")
 	m.g.players[0]["board"].append(tobias)
 	var fixture_ids := ["amuleto_do_primeiro_floco", "manoplas_incandescentes"]
 	for index in 4:
 		tobias.equipped_cards.append(Card.new(m.g._uid(), fixture_ids[index % fixture_ids.size()], 0, "equipped"))
-	m._render()
+	m.render_table()
 	await process_frame
 	var badge: Button = m.views.get("eqbadge%d" % tobias.uid)
 	if badge == null:
@@ -312,7 +312,7 @@ func _check_equipment_ui(m) -> bool:
 	tobias.equipped_cards.clear()
 	for index in 10:
 		tobias.equipped_cards.append(Card.new(m.g._uid(), fixture_ids[index % fixture_ids.size()], 0, "equipped"))
-	m._render()
+	m.render_table()
 	await process_frame
 	badge = m.views.get("eqbadge%d" % tobias.uid)
 	if badge == null or badge.text != "10 EQ." or not badge.tooltip_text.contains("e mais 6"):
@@ -331,7 +331,7 @@ func _check_equipment_ui(m) -> bool:
 	tobias.equipped_cards.clear()
 	for index in 100:
 		tobias.equipped_cards.append(Card.new(m.g._uid(), fixture_ids[index % fixture_ids.size()], 0, "equipped"))
-	m._render()
+	m.render_table()
 	await process_frame
 	badge = m.views.get("eqbadge%d" % tobias.uid)
 	if badge == null or badge.text != "100 EQ." or not badge.tooltip_text.contains("e mais 96"):
@@ -495,7 +495,7 @@ func _send_touch_drag(m, view: CardView, finger: int, screen_position: Vector2) 
 	view._gui_input(drag)
 
 func _prepare_field_equip_match(m, artifact_id: String) -> Dictionary:
-	m._start(false, "fogo", "agua")
+	m.start_match(false, "fogo", "agua")
 	m.pending_pass = false
 	m.g.mulligan(0, [])
 	m.g.mulligan(1, [])
@@ -509,7 +509,7 @@ func _prepare_field_equip_match(m, artifact_id: String) -> Dictionary:
 	var artifact := Card.new(m.g._uid(), artifact_id, 0, "relics")
 	m.g.players[0]["relics"].append(artifact)
 	m.viewer = 0
-	m._render()
+	m.render_table()
 	return {"artifact": artifact, "unit": unit}
 
 ## The player's own decks show up in the second macro-section, and a match can start with one.
