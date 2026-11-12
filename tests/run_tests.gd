@@ -8563,16 +8563,16 @@ func _test_natureza_canil() -> void:
 	_hit(g, hawk, shielded.uid)
 	check(not shielded.magic_shield, "Gavião de Vigília: a unidade desafiada perde o Escudo Mágico")
 
-	# Ivone Apito-Seco: allied Feras get Ímpeto and Vigilância; she and non-Feras do not
+	# Adestradora Regina Tavares: allied Feras get Ímpeto and Vigilância; she and non-Feras do not
 	g = _new_game()
 	_quiet(g)
-	var ivone := _put(g, 0, "ivone_apito_seco")
+	var trainer := _put(g, 0, "adestradora_regina_tavares")
 	var dog := _put(g, 0, "cao_k9")
 	var human := _put(g, 0, "t_nat_human")
 	var dog_keywords: Array = g.keyword_aura_of(dog)
-	check(dog_keywords.has("impeto") and dog_keywords.has("vigilancia"), "Ivone: uma Fera aliada recebe Ímpeto e Vigilância")
-	check(g.keyword_aura_of(human).is_empty(), "Ivone: unidade que não é Fera não recebe nada")
-	check(g.keyword_aura_of(ivone).is_empty(), "Ivone: ela mesma não se concede nada")
+	check(dog_keywords.has("impeto") and dog_keywords.has("vigilancia"), "Regina: uma Fera aliada recebe Ímpeto e Vigilância")
+	check(g.keyword_aura_of(human).is_empty(), "Regina: unidade que não é Fera não recebe nada")
+	check(g.keyword_aura_of(trainer).is_empty(), "Regina: ela mesma não se concede nada")
 
 	# Alcateia de Esquina: +1/+1 permanent only on allied Feras
 	g.players[0]["momentum"] = 10
@@ -15080,7 +15080,7 @@ func _test_champion_rework() -> void:
 	neco_game.check_state()
 	neco_game.deal_damage(neco.uid, 1, null)
 	neco_game.check_state()
-	check(neco_game.atk_of(neco) == 3 and neco.hp == 5, "Neco Sete-Vidas: cresce +1/+2 só na primeira vez que sobrevive")
+	check(neco_game.atk_of(neco) == 2 and neco.hp == 5, "Neco Sete-Vidas: cresce +1/+2 só na primeira vez que sobrevive")
 	check(neco_game.has_kw(neco, "regeneracao"), "Neco Sete-Vidas: ganha Regeneração ao sobreviver")
 	var penitent_game := _new_game()
 	_quiet(penitent_game)

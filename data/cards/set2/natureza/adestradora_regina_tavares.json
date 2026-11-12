@@ -1,19 +1,18 @@
 {
-  "name": "Ivone Apito-Seco",
+  "name": "Adestradora Regina Tavares",
   "set": 2,
   "type": "unit",
-  "rarity": "epic",
+  "rarity": "legendary",
   "tribe": ["nuliterrano"],
   "essence": "natureza",
   "cost": 4,
   "atk": 3,
   "hp": 4,
   "keywords": [],
-  "art": "natureza/ivone_apito_seco.webp",
+  "art": "natureza/adestradora_regina_tavares.webp",
   "effects": [
     { "trigger": "constante", "action": "keyword_aura", "keywords": ["impeto", "vigilancia"], "unit_filter": { "tribe_any": ["fera"] } }
   ],
   "text": "Constante: as Feras aliadas têm Ímpeto e Vigilância.",
-  "flavor": "",
-  "unreleased": true
+  "flavor": ""
 }
