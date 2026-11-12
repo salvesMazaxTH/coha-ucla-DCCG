@@ -194,6 +194,8 @@ func _init() -> void:
 	_test_adjacent_armor()
 	_test_sagrada_engine()
 	_test_maria_helena()
+	_test_hermes_pragueiro()
+	_test_zelador_vinicius_rangel()
 	_test_champion_rework()
 	_test_momentum_overflow()
 	_test_momentum_refresh()
@@ -5961,7 +5963,7 @@ func _test_drex_deck() -> void:
 	feast.apply(EffectContext.new(g, g.active, ""), GameState.LEADER_UID[enemy])
 	check(g.players[enemy]["leader_hp"] == 43, "Banquete Carmesim: 7 de cura neste turno viram 7 de dano no Líder inimigo")
 
-	# Drex champion, phase 1 (base Vida below 10): when Sangramento hurts an enemy, or ANOTHER ally unit heals with its own
+	# Drex champion, phase 1 (shared X below 6): when Sangramento hurts an enemy, or ANOTHER ally unit heals with its own
 	# effect, he gets +1 Vida permanent (no Armadura yet) and his Leader recovers X+1 (at most 10 a turn)
 	g = _new_game()
 	_quiet(g)
@@ -6034,22 +6036,41 @@ func _test_drex_deck() -> void:
 	g.check_state()
 	check(vampire.hp == hp_before_lifesteal + 1, "Drex: o Roubo de Vida de outra unidade aliada dispara a Condicional")
 
-	# phase 2 (base Vida 10 or more): +1 Armadura permanent INSTEAD of Vida, and he also heals himself X+1
-	check(vampire.hp == 10 and vampire.armor == 0, "Drex: chega a 10 de Vida base sem Armadura")
+	# phase 2 (shared X of 6 or more): +1 Armadura permanent INSTEAD of Vida, and he also heals himself X+1
+	check(
+		vampire.hp == 10 and vampire.armor == 0 and g.shared_x_of(g.active, "drex") == 3,
+		"Drex: ainda na fase 1 com X em 3, sem Armadura",
+	)
+	while g.shared_x_of(g.active, "drex") < 5:
+		g.grow_shared_x(g.active, "drex")
 	g.turn += 2
-	vampire.damage = 5
+	g.emit_unit_healed(healer, 1, "unit")
+	g.check_state()
+	check(vampire.hp == 11 and vampire.armor == 0, "Drex: com X em 5 ainda é fase 1, dá +1 de Vida")
+	g.grow_shared_x(g.active, "drex") # X = 6
+	g.turn += 2
+	vampire.damage = 9
 	leader_hp_before_heal = g.players[g.active]["leader_hp"]
 	g.emit_unit_healed(healer, 1, "unit")
 	g.check_state()
-	check(vampire.hp == 10 and vampire.armor == 1, "Drex fase 2: o gatilho dá +1 de Armadura permanente no lugar da Vida")
-	check(g.players[g.active]["leader_hp"] == leader_hp_before_heal + 4 and vampire.damage == 1, "Drex fase 2: o Líder recupera X+1 (4) e o próprio Drex também recupera X+1 (4)")
+	check(vampire.hp == 11 and vampire.armor == 1, "Drex fase 2: com X em 6 o gatilho dá +1 de Armadura permanente no lugar da Vida")
+	check(
+		g.players[g.active]["leader_hp"] == leader_hp_before_heal + 7 and vampire.damage == 2,
+		"Drex fase 2: o Líder recupera X+1 (7) e o próprio Drex também recupera X+1 (7)",
+	)
 	g.emit_unit_healed(healer, 1, "unit")
 	g.check_state()
-	check(vampire.armor == 2 and vampire.damage == 0, "Drex fase 2: a cura do próprio Drex não o dispara de novo, e o 2º gatilho do turno dá mais 1 de Armadura")
+	check(
+		vampire.armor == 2 and vampire.damage == 0,
+		"Drex fase 2: a cura do próprio Drex não o dispara de novo, e o 2º gatilho do turno dá mais 1 de Armadura",
+	)
 	leader_hp_before_heal = g.players[g.active]["leader_hp"]
 	g.emit_unit_healed(healer, 1, "unit")
 	g.check_state()
-	check(vampire.armor == 2 and g.players[g.active]["leader_hp"] == leader_hp_before_heal, "Drex: a Condicional funciona no máximo 2 vezes por turno (buff e curas do mesmo gatilho gastam 1 uso só)")
+	check(
+		vampire.armor == 2 and g.players[g.active]["leader_hp"] == leader_hp_before_heal,
+		"Drex: a Condicional funciona no máximo 2 vezes por turno (buff e curas do mesmo gatilho gastam 1 uso só)",
+	)
 	g.turn += 2
 	for armor_trigger in 4:
 		g.emit_unit_healed(healer, 1, "unit")
@@ -6057,7 +6078,7 @@ func _test_drex_deck() -> void:
 		if armor_trigger == 1:
 			g.turn += 2
 	check(g.armor_of(vampire) == 5, "Drex fase 2: a Armadura efetiva para no limite padrão de 5")
-	check(vampire.hp == 10, "Drex fase 2: a Vida base não cresce mais")
+	check(vampire.hp == 11, "Drex fase 2: a Vida base não cresce mais")
 
 	# the Leader heal of one Drex is capped at 10 a turn: the trigger that would pass it heals only what is left; his own heal is not capped
 	g.turn += 2
@@ -14763,14 +14784,14 @@ func _test_champion_rework() -> void:
 	check(neco_game.has_kw(neco, "regeneracao"), "Neco Sete-Vidas: ganha Regeneração ao sobreviver")
 	var penitent_game := _new_game()
 	_quiet(penitent_game)
-	_put(penitent_game, 0, "penitente_do_espinho")
+	_put(penitent_game, 0, "penitente_ulisses")
 	var wounded_ally := _put(penitent_game, 0, "neco_sete_vidas")
 	var penitent_enemy_life: int = penitent_game.players[1]["leader_hp"]
 	penitent_game.deal_damage(wounded_ally.uid, 1, null)
 	penitent_game.check_state()
 	penitent_game.deal_damage(wounded_ally.uid, 1, null)
 	penitent_game.check_state()
-	check(penitent_game.players[1]["leader_hp"] == penitent_enemy_life - 2, "Penitente do Espinho: 2 de dano no Líder inimigo, uma vez por turno")
+	check(penitent_game.players[1]["leader_hp"] == penitent_enemy_life - 2, "Penitente Ulisses: 2 de dano no Líder inimigo, uma vez por turno")
 
 	# Isarelis: Ao Entrar can only pick an enemy unit with Vida <= 3 and destroys it (Escudo does not save it)
 	_tcard("t_weak_foe", 1, 3, [])
@@ -15090,6 +15111,95 @@ func _test_isarelis_hit_leader() -> void:
 	g.fire_trigger(isarelis, "on_hit_leader")
 	g.check_state()
 	check(g.find_unit(unhurt.uid) != null and g.find_unit(healthy_wounded.uid) != null, "Isarelis: sem ferida elegível, não destrói ninguém")
+
+func _test_hermes_pragueiro() -> void:
+	_tcard("t_herm_victim", 1, 3, [])
+	var g := _new_game()
+	_quiet(g)
+	var hermes := _put(g, 0, "hermes_pragueiro")
+	var own_token := _put(g, 0, "pombo_de_praca")
+	var own_unit := _put(g, 0, "t_herm_victim")
+	var enemy_token := _put(g, 1, "pombo_de_praca")
+	g._move_dead_units()
+	check(g.has_kw(own_token, "toxico"), "Hermes: ficha aliada tem Tóxico")
+	check(not g.has_kw(own_unit, "toxico"), "Hermes: unidade aliada que não é ficha não ganha Tóxico")
+	check(not g.has_kw(enemy_token, "toxico"), "Hermes: ficha inimiga não ganha Tóxico")
+
+	var poisoned := _put(g, 1, "t_herm_victim")
+	var bystander := _put(g, 1, "t_herm_victim")
+	var clean := _put(g, 1, "t_herm_victim")
+	g.add_dot_markers(poisoned, "veneno", 3)
+	_kill(g, clean)
+	check(int(bystander.dot_markers.get("veneno", 0)) == 0, "Hermes: morte sem Veneno não passa nada")
+	_kill(g, poisoned)
+	var passed := 0
+	for enemy_unit in g.players[1]["board"]:
+		passed += int(enemy_unit.dot_markers.get("veneno", 0))
+	check(passed == 3, "Hermes: os 3 marcadores de Veneno da unidade morta passam para outra inimiga (%d)" % passed)
+
+	# the contagion ignores immunity: a Veneno-immune unit is the only possible target and still gets the markers
+	_tcard("t_herm_immune", 1, 6, [])
+	CardDB.data()["cards"]["t_herm_immune"]["element"] = "veneno"
+	var enemy_board: Array = g.players[1]["board"]
+	while not enemy_board.is_empty():
+		_kill(g, enemy_board[0])
+	var immune := _put(g, 1, "t_herm_immune")
+	var immune_source := _put(g, 1, "t_herm_victim")
+	g.add_dot_markers(immune_source, "veneno", 2)
+	_kill(g, immune_source)
+	check(int(immune.dot_markers.get("veneno", 0)) == 2, "Hermes: o contágio ignora a imunidade a Veneno")
+
+	# a lone poisoned unit has no one to pass them to: they go to the enemy Leader; an allied death never triggers the contagion
+	_kill(g, immune)
+	var lone := _put(g, 1, "t_herm_victim")
+	g.add_dot_markers(lone, "veneno", 2)
+	var leader_before := g.leader_dot_markers(1, "veneno")
+	_kill(g, lone)
+	check(g.leader_dot_markers(1, "veneno") == leader_before + 1, "Hermes: sem outra unidade inimiga o Líder inimigo herda metade (2 -> 1)")
+	for case: Array in [[1, 1], [5, 2]]:
+		var carrier := _put(g, 1, "t_herm_victim")
+		g.add_dot_markers(carrier, "veneno", case[0])
+		leader_before = g.leader_dot_markers(1, "veneno")
+		_kill(g, carrier)
+		check(g.leader_dot_markers(1, "veneno") == leader_before + case[1], "Hermes: o Líder herda metade arredondada para baixo, mínimo 1 (%d -> %d)" % [case[0], case[1]])
+	g.add_dot_markers(own_unit, "veneno", 2)
+	var enemy_probe := _put(g, 1, "t_herm_victim")
+	_kill(g, own_unit)
+	check(int(enemy_probe.dot_markers.get("veneno", 0)) == 0, "Hermes: morte de aliada envenenada não contagia")
+	g.players[0]["board"].erase(hermes)
+
+
+func _test_zelador_vinicius_rangel() -> void:
+	_tcard("t_zel_plain", 1, 3, [])
+	var cases := [
+		{ "tokens": 3, "label": "3 fichas", "sacrificed": 2, "destroyed": true },
+		{ "tokens": 2, "label": "2 fichas", "sacrificed": 2, "destroyed": true },
+		{ "tokens": 1, "label": "1 ficha", "sacrificed": 0, "destroyed": false },
+		{ "tokens": 0, "label": "nenhuma ficha", "sacrificed": 0, "destroyed": false },
+	]
+	for case: Dictionary in cases:
+		var g := _new_game()
+		_quiet(g)
+		g.players[0]["momentum"] = 3
+		var plain_ally := _put(g, 0, "t_zel_plain")
+		var tokens: Array = []
+		for i in int(case["tokens"]):
+			tokens.append(_put(g, 0, "pombo_de_praca"))
+		var enemy := _put(g, 1, "t_zel_plain")
+		g.play_card(0, _give(g, 0, "zelador_vinicius_rangel"))
+		if g.phase == "enter_target":
+			g.choose_enter_target(0, enemy.uid)
+		g.flush_events()
+		g._move_dead_units()
+		var tokens_left := 0
+		for token: Card in tokens:
+			if g.find_unit(token.uid) != null:
+				tokens_left += 1
+		var label: String = case["label"]
+		check(int(case["tokens"]) - tokens_left == int(case["sacrificed"]), "Zelador (%s): sacrifica %d fichas (sobraram %d)" % [label, int(case["sacrificed"]), tokens_left])
+		check((g.find_unit(enemy.uid) == null) == bool(case["destroyed"]), "Zelador (%s): inimigo destruído = %s" % [label, str(case["destroyed"])])
+		check(g.find_unit(plain_ally.uid) != null, "Zelador (%s): aliada que não é ficha nunca é sacrificada" % label)
+
 
 func _test_maria_helena() -> void:
 	var cd := CardDB.card("maria_helena")

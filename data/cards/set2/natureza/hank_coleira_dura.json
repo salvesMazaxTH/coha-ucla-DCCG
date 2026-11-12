@@ -2,11 +2,11 @@
   "name": "Hank Coleira-Dura",
   "set": 2,
   "type": "unit",
-  "rarity": "champion",
+  "rarity": "legendary",
   "tribe": ["nuliterrano"],
   "essence": "natureza",
   "cost": 6,
-  "atk": 5,
+  "atk": 4,
   "hp": 5,
   "keywords": [],
   "art": "natureza/hank_coleira_dura.webp",
@@ -25,6 +25,5 @@
     }
   ],
   "text": "Ao Entrar: invoca duas cópias de Cão K9 (ficha 2/1).\nCondicional: sempre que o oponente lança um feitiço, concede +1/+1 permanente a uma Fera aliada aleatória.",
-  "flavor": "",
-  "unreleased": true
+  "flavor": ""
 }

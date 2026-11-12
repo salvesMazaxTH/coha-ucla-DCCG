@@ -1,0 +1,19 @@
+{
+  "name": "Vizinha Dirce Almeida",
+  "set": 2,
+  "type": "unit",
+  "rarity": "common",
+  "tribe": ["nuliterrano"],
+  "essence": "natureza",
+  "cost": 3,
+  "atk": 1,
+  "hp": 2,
+  "keywords": [],
+  "art": "natureza/vizinha_dirce_almeida.webp",
+  "effects": [
+    { "trigger": "on_enter", "action": "summon", "target": "none", "card": "pombo_de_praca" },
+    { "trigger": "on_enter", "action": "summon", "target": "none", "card": "pombo_de_praca" }
+  ],
+  "text": "Ao Entrar: invoca 2 fichas de Pombo de Praça.",
+  "flavor": "O prédio todo reclama das migalhas. Os pombos, não."
+}

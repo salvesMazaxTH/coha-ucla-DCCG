@@ -1,0 +1,29 @@
+{
+  "name": "Hermes Pragueiro",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "tribe": [],
+  "essence": "natureza",
+  "cost": 3,
+  "atk": 3,
+  "hp": 4,
+  "keywords": ["toxico"],
+  "art": "natureza/hermes_pragueiro.webp",
+  "effects": [
+    { "trigger": "constante", "action": "keyword_aura", "keywords": ["toxico"], "unit_filter": { "token": true } },
+    {
+      "listen": "unit_died",
+      "scope": "enemy",
+      "min_amount": 1,
+      "action": "add_dot",
+      "dot": "veneno",
+      "amount_from": "event_amount",
+      "ignores_immunity": true,
+      "leader_gets_half": true,
+      "target": "random_enemy_unit_else_leader"
+    }
+  ],
+  "text": "Constante: as fichas aliadas têm Tóxico. Condicional: sempre que uma unidade inimiga com marcadores de Veneno morre, esses marcadores passam, ignorando imunidade, para outra unidade inimiga aleatória ou, se não houver, o Líder inimigo herda metade deles (arredondado para baixo, nunca menos que 1).",
+  "flavor": ""
+}

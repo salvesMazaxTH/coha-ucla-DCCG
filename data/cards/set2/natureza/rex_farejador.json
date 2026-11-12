@@ -14,6 +14,5 @@
     { "trigger": "on_enter", "action": "enemy_hand_tax", "target": "none", "cost_increase": 1, "only_type": "spell" }
   ],
   "text": "Ao Entrar: você pode olhar a mão do oponente e escolher 1 feitiço dela; enquanto estiver na mão, ele custa (1) a mais.",
-  "flavor": "",
-  "unreleased": true
+  "flavor": ""
 }

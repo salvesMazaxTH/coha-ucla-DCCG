@@ -1,5 +1,5 @@
 {
-  "name": "Penitente do Espinho",
+  "name": "Penitente Ulisses",
   "set": 2,
   "type": "unit",
   "rarity": "epic",
@@ -8,7 +8,7 @@
   "atk": 3,
   "hp": 3,
   "keywords": [],
-  "art": "natureza/penitente_do_espinho.webp",
+  "art": "natureza/penitente_ulisses.webp",
   "effects": [
     {
       "listen": "unit_damaged",
@@ -22,6 +22,5 @@
     }
   ],
   "text": "Condicional (uma vez por turno): sempre que uma unidade aliada sobreviver a dano, o Líder inimigo sofre 2 de dano.",
-  "flavor": "",
-  "unreleased": true
+  "flavor": ""
 }

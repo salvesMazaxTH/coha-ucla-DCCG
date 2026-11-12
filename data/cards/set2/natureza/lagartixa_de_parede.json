@@ -1,0 +1,19 @@
+{
+  "name": "Lagartixa de Parede",
+  "set": 2,
+  "type": "unit",
+  "rarity": "common",
+  "tribe": ["fera"],
+  "essence": "natureza",
+  "cost": 2,
+  "atk": 1,
+  "hp": 2,
+  "keywords": ["regeneracao"],
+  "art": "natureza/lagartixa_de_parede.webp",
+  "effects": [
+    { "trigger": "on_death", "action": "summon", "target": "none", "card": "filhote_de_lagartixa" },
+    { "trigger": "on_death", "action": "summon", "target": "none", "card": "filhote_de_lagartixa" }
+  ],
+  "text": "Ao Morrer: invoca 2 fichas de Filhote de Lagartixa.",
+  "flavor": ""
+}

@@ -229,6 +229,7 @@ func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:
 	bonus_hp = 0
 	has_bonus = false
 	frozen = 0
+	stun_markers = 0
 	condemned_turn = 0
 	dot_markers = {}
 	tide_mark = false

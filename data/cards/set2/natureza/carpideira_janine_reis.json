@@ -1,5 +1,5 @@
 {
-  "name": "Carpideira de Seiva",
+  "name": "Carpideira Janine Reis",
   "set": 2,
   "type": "unit",
   "rarity": "epic",
@@ -8,7 +8,7 @@
   "atk": 2,
   "hp": 4,
   "keywords": ["regeneracao"],
-  "art": "natureza/carpideira_de_seiva.webp",
+  "art": "natureza/carpideira_janine_reis.webp",
   "effects": [],
   "activated": {
     "cost": 0,
@@ -20,6 +20,5 @@
     ]
   },
   "text": "Ao Ativar (0) {lento} (exaure esta unidade): esta unidade sofre 2 de dano e você compra 1 carta.",
-  "flavor": "",
-  "unreleased": true
+  "flavor": ""
 }

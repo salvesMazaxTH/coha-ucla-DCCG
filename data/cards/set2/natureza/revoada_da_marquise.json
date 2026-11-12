@@ -1,0 +1,17 @@
+{
+  "name": "Revoada da Marquise",
+  "set": 2,
+  "type": "spell",
+  "rarity": "epic",
+  "essence": "natureza",
+  "cost": 4,
+  "speed": "lento",
+  "unreleased": true,
+  "art": "",
+  "effects": [
+    { "trigger": "on_play", "action": "summon", "target": "none", "card": "pombo_de_praca", "count": 3 },
+    { "trigger": "on_play", "action": "buff", "target": "all_ally_units", "unit_filter": { "token": true }, "atk": 1, "hp": 1 }
+  ],
+  "text": "Invoca 3 fichas de Pombo de Praça. Suas fichas aliadas ganham +1/+1 permanente.",
+  "flavor": ""
+}

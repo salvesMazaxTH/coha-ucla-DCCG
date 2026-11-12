@@ -1,0 +1,23 @@
+{
+  "name": "Zelador Vinicius Rangel",
+  "set": 2,
+  "type": "unit",
+  "rarity": "common",
+  "tribe": ["nuliterrano"],
+  "essence": "natureza",
+  "cost": 3,
+  "atk": 1,
+  "hp": 3,
+  "keywords": [],
+  "effects": [
+    { "trigger": "on_enter", "action": "sacrifice", "target": "random_other_ally_units", "count": 2, "unit_filter": { "token": true }, "all_or_nothing": true },
+    {
+      "trigger": "on_enter",
+      "if": { "compare": { "stat": "sacrificed_units", "op": ">=", "value": 2 } },
+      "action": "destroy",
+      "target": "enemy_unit"
+    }
+  ],
+  "text": "Ao Entrar: sacrifica 2 fichas aliadas aleatórias. Se o fizer, destrói 1 unidade inimiga.",
+  "flavor": ""
+}

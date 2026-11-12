@@ -22,6 +22,7 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	then_context.sacrificed_attack = victim.atk_total() # last known attack, buffs included
 	then_context.sacrificed_cost = int(CardDB.card(victim.card_id).get("cost", 0))
 	game.kill_as_sacrifice(victim, victim.hp_total())
+	context.sacrificed_count += 1
 	game.emit_event({"type": "sacrifice", "player": context.controller, "uid": target_uid})
 	if not then_effects.is_empty():
 		# The victim leaves the board before the "then" effects, so a summon has its slot back even on a full board.
