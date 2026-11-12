@@ -2607,7 +2607,7 @@ func _gem(kind: String, c: Vector2, r: float, col: Color, t: String, tcol: Color
 	draw_gem(self, kind, c, r, col, t, tcol, s)
 
 ## Static so other UI (cost filter in the catalog) draws the exact same gem on its own canvas.
-static func draw_gem(canvas: CanvasItem, kind: String, c: Vector2, r: float, col: Color, t: String, tcol: Color, s: float) -> void:
+static func draw_gem(canvas: CanvasItem, kind: String, c: Vector2, r: float, col: Color, t: String, tcol: Color, s: float, outline_width := -1) -> void:
 	var pts := _shape(kind, c, r)
 	var shadow_pts := _grow(pts, c, 1.18)
 	for i in shadow_pts.size():
@@ -2625,7 +2625,7 @@ static func draw_gem(canvas: CanvasItem, kind: String, c: Vector2, r: float, col
 	var fs := r * 1.3
 	var w := f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x
 	var pos := Vector2(c.x - w / 2, c.y + fs * 0.34 - (r * 0.1 if kind == "shield" else 0.0))
-	canvas.draw_string_outline(f, pos, t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), max(3, int(fs / 4)), Color(0, 0, 0, 0.9))
+	canvas.draw_string_outline(f, pos, t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), outline_width if outline_width >= 0 else max(3, int(fs / 4)), Color(0, 0, 0, 0.9))
 	canvas.draw_string(f, pos, t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), tcol)
 
 static func _shape(kind: String, c: Vector2, r: float) -> PackedVector2Array:
