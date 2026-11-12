@@ -6,7 +6,7 @@
   "tribe": ["fera"],
   "essence": "natureza",
   "cost": 2,
-  "atk": 2,
+  "atk": 1,
   "hp": 3,
   "keywords": [],
   "art": "natureza/neco_sete_vidas.webp",
@@ -22,6 +22,5 @@
     }
   ],
   "text": "Ao Sobreviver a Dano (uma vez): ganha +1/+2 e Regeneração permanentes.",
-  "flavor": "",
-  "unreleased": true
+  "flavor": ""
 }
