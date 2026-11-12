@@ -10,12 +10,12 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 
 - O deck tem **59 cartas**, com até **4 cópias** de cada uma (**3** para Lendárias), mais a **Encarnação** (que fica no Santuário). O Líder fica fora dessa contagem.
 - **Única:** Jeff e Rusco têm limite de 1 cópia no deck.
-- Um deck usa **dois domínios**. Cartas **neutras** entram em qualquer deck, não contam como domínio e nunca atrapalham.
-- **Líder com dois domínios** (ex.: Drex): o deck só pode ter cartas desses dois domínios, duais ou não, mais neutras.
-- **Líder com um domínio:** esse é um dos dois domínios do deck. O segundo é escolhido ao adicionar uma carta que não divide nenhum domínio com o Líder. Depois disso, só entram cartas do domínio do Líder, do segundo domínio ou neutras; uma carta de um terceiro domínio torna o deck ilegal.
-- Uma carta pode ter **mais de um domínio** (ex.: Morwenna é de Trevas e de Natureza, com moldura meio a meio). Ela entra se **pelo menos um** dos seus domínios for um dos dois domínios do deck. Os Líderes têm no máximo 2 domínios.
-- **Líder neutro** (Vael, Saraya Kovan, Eryon, Mali Magarc): escolhe livremente os 2 domínios do deck pelas cartas que adicionar, e as neutras entram à vontade. Não tem a exceção de 3 domínios.
-- **Exceção de 3 domínios** (qualquer Líder não neutro): o deck pode ter 3 domínios diferentes, mas com exatamente **20 cartas de cada** (60 no total). A Encarnação conta em um só dos 20, e uma carta dual conta em um só dos seus domínios. Esse deck **não pode ter cartas neutras**.
+- Um deck usa **até 3 domínios**, contando o do Líder. Cartas **neutras** entram em qualquer deck e nunca trazem domínio.
+- **Domínio principal:** pelo menos **31 das 60 cartas** (contando a Encarnação) são do domínio do Líder. Neutras contam no total do deck, mas não no domínio principal.
+- **Líder com dois domínios** (ex.: Drex): uma carta de qualquer um dos dois conta como principal. Sobra lugar para mais 1 domínio.
+- **Líder com um domínio:** os outros 2 domínios são escolhidos pelas cartas que não dividem domínio com o Líder.
+- Uma carta pode ter **mais de um domínio** (ex.: Morwenna é de Trevas e de Natureza, com moldura meio a meio). Se um deles é do Líder, ela conta só como do Líder e não traz domínio novo. Se não, entra quando **pelo menos um** dos seus domínios é um dos domínios do deck. Os Líderes têm no máximo 2 domínios.
+- **Líder neutro** (Vael, Saraya Kovan, Eryon, Mali Magarc): o Neutro é o domínio dele e ocupa uma das 3 vagas, então entram no máximo 2 domínios de verdade. O principal pode ser **qualquer um** (o Neutro também): basta um domínio chegar a 31.
 - O deck tem exatamente **1 Encarnação do Líder**, o Campeão que é a versão em carta do próprio Líder.
 
 ## Encarnação do Líder (Santuário)

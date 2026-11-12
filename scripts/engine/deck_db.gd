@@ -12,13 +12,13 @@ const MAX_COPIES := 4
 const MAX_LEGENDARY_COPIES := 3
 ## Champions together (counting copies) in one deck.
 const MAX_ELITE_CARDS := 24
-## Deck domains. A deck uses at most 2 domains: the Leader's own plus, when the Leader has only one, a
-## second one that is simply whatever the first off-domain card brings. A card of several domains fits
-## when at least one of them is a deck domain. Neutral cards fit any deck and are never counted.
-## A neutral Leader has no domain: its deck picks any 2 domains the same way.
-## Exception (not for a neutral Leader): 3 domains, exactly THREE_DOMAIN_COPIES cards of each (the
-## Encarnação counts in one of them), and no neutral cards at all.
-const THREE_DOMAIN_COPIES := 20
+## Deck domains. A deck uses at most MAX_DOMAINS domains: the Leader's own plus any others (a neutral
+## Leader counts Neutro as its domain, so it adds at most 2 real ones). A card of several domains that has
+## one of the Leader's counts only as the Leader's. Neutral cards never add a domain.
+## Main domain: at least MAIN_DOMAIN_MIN cards of the deck (60 with the Encarnação) are of the Leader's
+## domain. A neutral Leader may make any one domain its main one, Neutro included.
+const MAX_DOMAINS := 3
+const MAIN_DOMAIN_MIN := (DECK_SIZE + 1) / 2 + 1
 const PREBUILT_DIR := "res://data/decks/prebuilt"
 const SECTION_LEADERS := "essencia"
 ## The player's own decks (built in MEUS DECKS) share the hub with the prebuilt ones.
@@ -330,71 +330,61 @@ static func _combinations(items: Array, size: int) -> Array:
 static func _all_groups_fit(deck_domains: Array, groups: Array) -> bool:
 	return groups.all(func(group): return group["domains"].any(func(domain): return deck_domains.has(domain)))
 
-## Whether the copies in `groups` can be split among exactly the three `deck_domains`, each copy counted
-## in one domain it has, with at most THREE_DOMAIN_COPIES per domain. For any set of domains, the copies
-## that can ONLY go in that set must fit its room (Hall's condition); that is also enough.
-static func _can_split_three_ways(deck_domains: Array, groups: Array) -> bool:
-	for subset_mask in range(1, 8):
-		var subset: Array = []
-		for position in 3:
-			if subset_mask & (1 << position):
-				subset.append(deck_domains[position])
-		var copies_limited_to_subset := 0
-		for group in groups:
-			var domains_in_deck: Array = group["domains"].filter(func(domain): return deck_domains.has(domain))
-			if domains_in_deck.all(func(domain): return subset.has(domain)):
-				copies_limited_to_subset += int(group["copies"])
-		if copies_limited_to_subset > THREE_DOMAIN_COPIES * subset.size():
-			return false
-	return true
-
 ## Which domains the deck uses and whether that is allowed. Returns:
-##   domains  the deck's domains (the Leader's, plus the second one when some card brings it)
-##   mode     "two" (up to 2 domains), "three" (the 20-20-20 exception) or "invalid"
-##   error    why it is invalid ("" when it is not)
-## The Encarnação is a card of the list like any other.
+##   domains       the deck's domains (the Leader's plus the ones other cards bring; empty when invalid)
+##   mode          "ok" or "invalid"
+##   error         why it is invalid ("" when it is not)
+##   main_domains  the main domain (the Leader's domains; for a neutral Leader, its best domain)
+##   main_copies   cards of the main domain, the Encarnação included
+## The Encarnação is a card of the list like any other. The deck is invalid as soon as the cards outside
+## the main domain no longer leave room for MAIN_DOMAIN_MIN of it, so a complete deck that is not
+## invalid always reaches the minimum.
 static func domain_check(leader_id: String, cards: Dictionary) -> Dictionary:
 	var leader_domains: Array = CardDB.leader(leader_id)["essences"].filter(func(domain): return domain != "neutra")
 	var neutral_leader := leader_domains.is_empty()
 	var groups: Array = []
-	var neutral_copies := 0
+	var total_copies := 0
+	var main_copies := 0
+	var copies_by_domain: Dictionary = {}
 	for card_id in cards:
 		var copies := int(cards[card_id])
 		if copies <= 0:
 			continue
+		total_copies += copies
 		var card_domains := CardDB.essences_of(CardDB.card(card_id))
-		if card_domains.has("neutra"):
-			neutral_copies += copies
-		else:
+		for domain in card_domains:
+			copies_by_domain[domain] = int(copies_by_domain.get(domain, 0)) + copies
+		if card_domains.any(func(domain): return leader_domains.has(domain)):
+			main_copies += copies
+		elif not card_domains.has("neutra"):
 			groups.append({"domains": card_domains, "copies": copies})
-	var real_domains: Array = CardDB.DOMAIN_ORDER.filter(func(domain): return domain != "neutra")
-	for size in range(leader_domains.size(), 3):
-		for candidate in _combinations(real_domains, size):
-			if leader_domains.all(func(domain): return candidate.has(domain)) and _all_groups_fit(candidate, groups):
-				return {"domains": candidate, "mode": "two", "error": ""}
+	var main_domains: Array = leader_domains
 	if neutral_leader:
-		return {
-			"domains": [],
-			"mode": "invalid",
-			"error": "o deck usa domínios demais (um Líder neutro escolhe livremente até 2 domínios)",
-		}
-	var neutral_problem := false
-	var split_problem := false
-	for candidate in _combinations(real_domains, 3):
-		if not leader_domains.all(func(domain): return candidate.has(domain)) or not _all_groups_fit(candidate, groups):
-			continue
-		if neutral_copies > 0:
-			neutral_problem = true
-		elif not _can_split_three_ways(candidate, groups):
-			split_problem = true
-		else:
-			return {"domains": candidate, "mode": "three", "error": ""}
-	var error := "o deck usa domínios demais (o do Líder + 1 outro, ou 3 domínios com %d cartas de cada)" % THREE_DOMAIN_COPIES
-	if neutral_problem:
-		error = "deck com 3 domínios não pode ter cartas neutras (%d no deck)" % neutral_copies
-	elif split_problem:
-		error = "deck com 3 domínios precisa de %d cartas de cada domínio (a Encarnação conta em um só)" % THREE_DOMAIN_COPIES
-	return {"domains": [], "mode": "invalid", "error": error}
+		var best_domain := "neutra"
+		for domain in CardDB.DOMAIN_ORDER:
+			if int(copies_by_domain.get(domain, 0)) > int(copies_by_domain.get(best_domain, 0)):
+				best_domain = domain
+		main_domains = [best_domain]
+		main_copies = int(copies_by_domain.get(best_domain, 0))
+	var result := {"domains": [], "mode": "invalid", "error": "", "main_domains": main_domains, "main_copies": main_copies}
+	# a neutral Leader's own domain (Neutro) takes one of the MAX_DOMAINS places
+	var other_domains_allowed := MAX_DOMAINS - maxi(1, leader_domains.size())
+	var other_domains: Array = CardDB.DOMAIN_ORDER.filter(func(domain): return domain != "neutra" and not leader_domains.has(domain))
+	var domains_found := false
+	for size in range(0, other_domains_allowed + 1):
+		for candidate in _combinations(other_domains, size):
+			if not domains_found and _all_groups_fit(candidate, groups):
+				result["domains"] = leader_domains + candidate
+				domains_found = true
+	if not domains_found:
+		result["error"] = "o deck usa domínios demais (máximo %d, contando o do Líder)" % MAX_DOMAINS
+		return result
+	var room_outside_main := DECK_SIZE + 1 - MAIN_DOMAIN_MIN
+	if total_copies - main_copies > room_outside_main:
+		result["error"] = "o domínio principal precisa de %d cartas, e as outras já passam de %d" % [MAIN_DOMAIN_MIN, room_outside_main]
+		return result
+	result["mode"] = "ok"
+	return result
 
 ## Strictly the Leader's own domain: at least one domain of the card is one the Leader has. Unlike a
 ## non-guest, a neutral card does not pass (unless the Leader itself is neutral), because neutral fits any deck.
@@ -414,9 +404,10 @@ static func is_deckable(card_id: String, leader_id := "") -> bool:
 ## The totals the deck rules are written in, for any {card_id: copies} list under the given Leader:
 ##   total              cards that are drawn (one selected Encarnação copy is not counted)
 ##   elite              Champions, counting copies
-##   domain_mode        "two", "three" or "invalid" (see domain_check)
+##   domain_mode        "ok" or "invalid" (see domain_check)
 ##   deck_domains       the domains the deck uses (empty when invalid)
 ##   domain_error       why the domains are not allowed ("" when they are)
+##   main_domains       the main domain and main_copies, its cards (see domain_check)
 ##   incarnation        copies of the Leader's Encarnação in the list
 static func stats(leader_id: String, cards: Dictionary, selected_incarnation_id := "") -> Dictionary:
 	var incarnation_id := resolved_incarnation_id(leader_id, selected_incarnation_id)
@@ -437,6 +428,8 @@ static func stats(leader_id: String, cards: Dictionary, selected_incarnation_id 
 		"domain_mode": domain_result["mode"],
 		"deck_domains": domain_result["domains"],
 		"domain_error": domain_result["error"],
+		"main_domains": domain_result["main_domains"],
+		"main_copies": domain_result["main_copies"],
 		"incarnation": int(cards.get(incarnation_id, 0)),
 	}
 

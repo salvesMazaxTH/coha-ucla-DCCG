@@ -7,7 +7,7 @@ const BannedRibbonScript = preload("res://scripts/ui/banned_ribbon.gd")
 ## signed in, this device otherwise), and edits one in a three-column screen built from the card gallery:
 ## filters | card catalog | the deck being built, with the engine's own rules (DeckDB) shown live.
 ##
-## The copy limit of a card is a hard stop. Every other rule (59 cards, Champion cards, the two domains, the
+## The copy limit of a card is a hard stop. Every other rule (59 cards, Champion cards, the deck domains, the
 ## Encarnação) is only a warning, so a deck can be reshuffled through illegal states and saved as a
 ## draft; the list marks it LEGAL / INCOMPLETO / ILEGAL.
 
@@ -889,13 +889,13 @@ func _visible_ids() -> Array[String]:
 		pool = _legally_addable(_pool)
 	return catalog.filtered_ids(pool)
 
-## The cards of `pool` that one more copy keeps legal (Champion limit and the two-domain rule), plus the
+## The cards of `pool` that one more copy keeps legal (Champion limit and the domain rules), plus the
 ## ones already in the deck so they can still be adjusted.
 func _legally_addable(pool: Array) -> Array:
 	var totals := DeckDB.stats(_leader, _cards, _incarnation_id)
 	var elite_is_full: bool = totals["elite"] >= DeckDB.MAX_ELITE_CARDS
 	var domains_are_valid: bool = totals["domain_mode"] != "invalid"
-	# in the two-domain mode the answer depends only on the card's domains, so it is worked out once per set
+	# the answer depends only on the card's domains, so it is worked out once per set of domains
 	var answer_by_domains: Dictionary = {}
 	var result: Array = []
 	for card_id in pool:
@@ -907,7 +907,7 @@ func _legally_addable(pool: Array) -> Array:
 		if domains_are_valid:
 			var card_domains := CardDB.essences_of(CardDB.card(card_id))
 			var key := ",".join(card_domains)
-			if totals["domain_mode"] != "two" or not answer_by_domains.has(key):
+			if not answer_by_domains.has(key):
 				var deck_after := _cards.duplicate()
 				deck_after[card_id] = 1
 				answer_by_domains[key] = DeckDB.domain_check(_leader, deck_after)["mode"] != "invalid"
@@ -1437,9 +1437,10 @@ func _build_meters() -> Control:
 	grid.add_theme_constant_override("v_separation", 6)
 	for definition in [["total", "Cartas", "Cartas que você compra: exatamente %d (sem a Encarnação)." % DeckDB.DECK_SIZE],
 			["elite", "Campeões", "Máximo de %d cartas Campeão juntas." % DeckDB.MAX_ELITE_CARDS],
-			["domains", "Domínios", ("O deck usa os domínios do Líder e, se ele tem só um, mais um domínio qualquer. "
-				+ "Com 3 domínios: exatamente %d cartas de cada (a Encarnação conta em um só) e nenhuma neutra.")
-				% DeckDB.THREE_DOMAIN_COPIES],
+			["domains", "Domínios", ("Até %d domínios, contando o do Líder (o Líder neutro conta o Neutro como o dele). "
+				+ "Carta que tem o domínio do Líder conta só como dele; neutras nunca trazem domínio.") % DeckDB.MAX_DOMAINS],
+			["main", "Principal", ("Pelo menos %d cartas (contando a Encarnação) do domínio do Líder. "
+				+ "O Líder neutro escolhe um domínio qualquer, o Neutro também vale.") % DeckDB.MAIN_DOMAIN_MIN],
 			["inc", "Encarnação", "O deck precisa de exatamente 1 Encarnação do Líder."]]:
 		var cell := VBoxContainer.new()
 		cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1449,6 +1450,9 @@ func _build_meters() -> Control:
 		var title := _lbl(definition[1], 15, UITheme.TEXT_DIM)
 		title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		line.add_child(title)
+		var badges := HBoxContainer.new()
+		badges.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		line.add_child(badges)
 		var value := _lbl("", 17, UITheme.TEXT, "heavy")
 		line.add_child(value)
 		cell.add_child(line)
@@ -1457,7 +1461,7 @@ func _build_meters() -> Control:
 		bar.custom_minimum_size = Vector2(0, 10)
 		bar.add_theme_stylebox_override("background", UITheme.box(Color(1, 1, 1, 0.08), 5))
 		cell.add_child(bar)
-		_meters[definition[0]] = {"bar": bar, "value": value}
+		_meters[definition[0]] = {"bar": bar, "value": value, "badges": badges}
 		grid.add_child(cell)
 	return grid
 
@@ -1470,6 +1474,13 @@ func _set_meter(key: String, amount: int, maximum: int, color: Color, caption :=
 	var value := meter["value"] as Label
 	value.text = caption if caption != "" else "%d/%d" % [amount, maximum]
 	value.add_theme_color_override("font_color", color.lightened(0.25))
+
+func _set_meter_badges(key: String, domains: Array) -> void:
+	var badges := _meters[key]["badges"] as HBoxContainer
+	for child in badges.get_children():
+		badges.remove_child(child)
+		child.queue_free()
+	badges.add_child(DomainIconRowScript.new().setup(domains, 18.0, 2))
 
 func _draw_curve() -> void:
 	var font := UITheme.font("bold")
@@ -1601,9 +1612,21 @@ func _refresh_deck_panel() -> void:
 	var total: int = totals["total"]
 	_set_meter("total", total, DeckDB.DECK_SIZE, GOOD if total == DeckDB.DECK_SIZE else (WARN if total < DeckDB.DECK_SIZE else BAD))
 	_set_meter("elite", totals["elite"], DeckDB.MAX_ELITE_CARDS, GOOD if totals["elite"] <= DeckDB.MAX_ELITE_CARDS else BAD)
-	var domain_limit := 3 if totals["domain_mode"] == "three" else 2
-	var domain_count: int = (totals["deck_domains"] as Array).size() if totals["domain_mode"] != "invalid" else domain_limit + 1
-	_set_meter("domains", domain_count, domain_limit, GOOD if totals["domain_mode"] != "invalid" else BAD)
+	var domains_are_valid: bool = totals["domain_mode"] != "invalid"
+	# a neutral Leader's own domain is Neutro, which takes one of the places
+	var leader_is_neutral: bool = (CardDB.leader(_leader)["essences"] as Array).all(func(domain): return domain == "neutra")
+	var domain_count: int = (totals["deck_domains"] as Array).size() + (1 if leader_is_neutral else 0)
+	if not domains_are_valid:
+		domain_count = DeckDB.MAX_DOMAINS + 1
+	_set_meter("domains", domain_count, DeckDB.MAX_DOMAINS, GOOD if domains_are_valid else BAD)
+	var used_domains: Array = (totals["deck_domains"] as Array).duplicate()
+	if leader_is_neutral and domains_are_valid:
+		used_domains.push_front("neutra")
+	_set_meter_badges("domains", used_domains)
+	var main_copies: int = totals["main_copies"]
+	var main_color := GOOD if main_copies >= DeckDB.MAIN_DOMAIN_MIN else (WARN if domains_are_valid else BAD)
+	_set_meter("main", main_copies, DeckDB.MAIN_DOMAIN_MIN, main_color)
+	_set_meter_badges("main", totals["main_domains"])
 	_set_meter("inc", totals["incarnation"], 1, GOOD if totals["incarnation"] == 1 else BAD)
 
 	_curve_counts = []
@@ -1646,10 +1669,6 @@ func _refresh_warnings(errors: Array[String], totals: Dictionary) -> void:
 				WARN if size_problem and int(totals["total"]) <= DeckDB.DECK_SIZE else BAD,
 				"INCOMPLETO" if size_problem and int(totals["total"]) <= DeckDB.DECK_SIZE else "ILEGAL",
 			),
-		)
-	if totals["domain_mode"] == "three":
-		_warnings_box.add_child(
-			_note("Deck de 3 domínios: %d cartas de cada, sem neutras." % DeckDB.THREE_DOMAIN_COPIES, INFO, "INFO"),
 		)
 	for coach_note in _coach_notes():
 		_warnings_box.add_child(_note(String(coach_note["text"]), coach_note["color"] as Color, String(coach_note["tag"])))

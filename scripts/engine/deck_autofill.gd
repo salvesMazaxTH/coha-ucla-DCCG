@@ -12,7 +12,7 @@ extends RefCounted
 ## How it works: the deck is filled one card at a time. For every legal candidate the fill measures how
 ## much closer the deck gets to its goals ("deficit" = how far the deck is from them), adds a small bonus
 ## for card quality and for fitting the Leader's domains, and adds the best one. Only cards the player
-## may already add by hand are used, so the result obeys every deck rule (copies, champion cap, two domains).
+## may already add by hand are used, so the result obeys every deck rule (copies, champion cap, deck domains).
 
 ## Cost buckets of the curve: 0, 1, 2, 3, 4, 5, 6, 7 or more.
 const CURVE_BUCKETS := 8
@@ -290,6 +290,7 @@ static func _describe(card_id: String, leader_id: String, pursued_tribe: String)
 	if pursued_tribe != "" and tribes.has(pursued_tribe):
 		metrics.append("pursued_tribe")
 	var is_outside := DeckDB.is_outside_leader_domain(leader_id, card_id)
+	var leader_is_neutral: bool = (CardDB.leader(leader_id)["essences"] as Array).all(func(domain): return domain == "neutra")
 	var fit := -OTHER_DOMAIN_PENALTY
 	if not is_outside:
 		fit = LEADER_DOMAIN_BONUS if DeckDB.is_in_leader_domain(leader_id, card_id) else NEUTRAL_BONUS
@@ -301,6 +302,7 @@ static func _describe(card_id: String, leader_id: String, pursued_tribe: String)
 		"is_champion": rarity == "champion",
 		"limit": DeckDB.copy_limit(card_id),
 		"is_outside": is_outside,
+		"is_main": not leader_is_neutral and DeckDB.is_in_leader_domain(leader_id, card_id),
 		"fit": fit,
 		"quality": _quality(card),
 	}
@@ -381,14 +383,12 @@ static func _can_add(description: Dictionary, cards: Dictionary, leader_id: Stri
 	var card_id := String(description["id"])
 	if int(cards.get(card_id, 0)) >= int(description["limit"]):
 		return false
-	if not description["is_champion"] and not description["is_outside"]:
-		return true # not a champion and not from outside the Leader's domains: no other rule can be broken
+	if not description["is_champion"] and description["is_main"]:
+		return true # not a champion and of the Leader's own domain: no other rule can be broken
 	var deck_after := cards.duplicate()
 	deck_after[card_id] = int(cards.get(card_id, 0)) + 1
 	var totals := DeckDB.stats(leader_id, deck_after, incarnation_id)
-	# the fill never starts a 3-domain deck on its own: that mode forbids the neutral cards it may add later
-	var domains_allowed: bool = totals["domain_mode"] == "two" or (totals["domain_mode"] == "three" and not description["is_outside"])
-	return int(totals["elite"]) <= DeckDB.MAX_ELITE_CARDS and domains_allowed
+	return int(totals["elite"]) <= DeckDB.MAX_ELITE_CARDS and totals["domain_mode"] != "invalid"
 
 ## How far the deck is from its goals: lower is better, 0 means every goal and the whole ideal curve is met.
 static func _deficit(state: Dictionary, goals: Array[Dictionary], ideal_curve: Array[int]) -> float:
