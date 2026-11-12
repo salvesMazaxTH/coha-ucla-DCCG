@@ -9,7 +9,7 @@
   "essence": "tormenta",
   "element": "raio",
   "cost": 4,
-  "atk": 3,
+  "atk": 2,
   "hp": 2,
   "keywords": [
     "rapidez:2",
@@ -25,9 +25,10 @@
     {
       "trigger": "on_enter",
       "action": "top_deck_to_reservoir",
-      "target": "none"
+      "target": "none",
+      "exhausted": true
     }
   ],
-  "text": "Ao Entrar: coloca a carta do topo do seu deck no seu Reservatório.",
+  "text": "Ao Entrar: coloca a carta do topo do seu deck no seu Reservatório, virada.",
   "flavor": ""
 }

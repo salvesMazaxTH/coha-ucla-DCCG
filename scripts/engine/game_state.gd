@@ -1175,7 +1175,9 @@ func incarnation_in_hand(p: int) -> bool:
 
 func incarnation_cost(p: int) -> int:
 	var l: Dictionary = players[p]["incarnation"]
-	return cost_of(p, CardDB.card(l["card_id"])) + incarnation_cost_mod(p) + commander_tax(int(l["casts"]))
+	# the stored reduction may overshoot (no floor), the cost itself never goes below 0
+	var current_cost := maxi(0, cost_of(p, CardDB.card(l["card_id"])) + incarnation_cost_mod(p))
+	return current_cost + commander_tax(int(l["casts"]))
 
 
 ## Total modify_cost of p's Encarnação. The Santuário has no card to hold it, and a copy in hand or on the
@@ -1566,12 +1568,12 @@ func store_in_reservoir(p: int, hand_uid: int) -> Array:
 
 
 ## Moves the top `amount` cards of p's deck into the Reservoir; those cards are permanently lost.
-func move_top_deck_to_reservoir(p: int, amount := 1, source_uid := 0) -> int:
+func move_top_deck_to_reservoir(p: int, amount := 1, source_uid := 0, enters_exhausted := false) -> int:
 	var moved := 0
 	for _index in maxi(amount, 0):
 		if players[p]["deck"].is_empty():
 			break
-		_deck_card_to_reservoir(p, players[p]["deck"].pop_back(), source_uid)
+		_deck_card_to_reservoir(p, players[p]["deck"].pop_back(), source_uid, enters_exhausted)
 		moved += 1
 	if moved > 0:
 		_sync_reservoir_momentum(p)
@@ -1589,11 +1591,11 @@ func move_bottom_deck_to_reservoir(p: int, source_uid := 0) -> bool:
 	return true
 
 
-## The card was already taken out of the deck: it enters p's Reservoir ready to spend.
-func _deck_card_to_reservoir(p: int, card: Card, source_uid: int) -> void:
+## The card was already taken out of the deck: it enters p's Reservoir ready to spend, or tapped if asked.
+func _deck_card_to_reservoir(p: int, card: Card, source_uid: int, enters_exhausted := false) -> void:
 	players[p]["reservoir"].append(card)
 	_move(card, "reservoir")
-	card.exhausted = false
+	card.exhausted = enters_exhausted
 	card.reservoir_revealed_turn = turn
 	emit_event({
 		"type": "reservoir_add", "player": p, "uid": card.uid, "card_id": card.card_id,
