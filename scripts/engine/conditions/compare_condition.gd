@@ -3,14 +3,15 @@ extends Condition
 ## Compares a number of the game against a value:
 ## {"compare": {"stat": "leader_hp", "who": "enemy", "op": "<", "value": 12}}
 ## stat: leader_hp | momentum | unspent (Momentum left at the start of the turn) | battery | units | hand | deck | graveyard
-##       source_hp | source_armor: a number of the unit that carries the effect (only in a card's own "if",
-##       not in a play_condition). Drex: {"stat": "source_hp", "op": ">=", "value": 10} = phase 2.
+##       sacrificed_units: how many units the "sacrifice" effects of this same run have killed so far (Zelador Vinicius Rangel: >= 2).
+##       source_hp | source_armor | source_x: a number of the unit that carries the effect (only in a card's own "if",
+##       not in a play_condition). source_x is the shared X of that card. Drex: {"stat": "source_x", "op": ">=", "value": 6} = phase 2.
 ## who: "self" (the effect's controller, default) or "enemy"
 ## "vs": "enemy" compares against the enemy's same stat (plus "value" as an offset, default 0) instead of a plain number:
 ## {"stat": "units", "op": ">", "vs": "enemy"} = "you have more units than the opponent" (Magni's play_condition).
 
-const UNIT_STATS := ["source_hp", "source_armor"]
-const STATS := ["leader_hp", "momentum", "unspent", "battery", "units", "hand", "deck", "graveyard", "source_hp", "source_armor"]
+const UNIT_STATS := ["source_hp", "source_armor", "source_x"]
+const STATS := ["leader_hp", "momentum", "unspent", "battery", "units", "hand", "deck", "graveyard", "sacrificed_units", "source_hp", "source_armor", "source_x"]
 const OPERATORS := ["<", "<=", "==", "!=", ">=", ">"]
 
 var stat := ""
@@ -29,15 +30,21 @@ func _init(spec: Dictionary) -> void:
 func check(context: EffectContext) -> bool:
 	if stat in UNIT_STATS:
 		return _compare(_read_source_unit_stat(context))
+	if stat == "sacrificed_units":
+		return _compare(context.sacrificed_count)
 	return check_players(context.game, context.controller)
 
 ## The effect's own unit (the card that is reacting) read through "source_hp" (maximum Vida with every buff,
-## damage not subtracted) or "source_armor" (the Armadura it really has). 0 when the source is no longer on the board.
+## damage not subtracted), "source_armor" (the Armadura it really has) or "source_x" (the card's shared X).
+## 0 when the source is no longer on the board.
 func _read_source_unit_stat(context: EffectContext) -> int:
 	var unit := context.game.find_unit(context.self_uid)
 	if unit == null:
 		return 0
-	return unit.hp_total() if stat == "source_hp" else context.game.armor_of(unit)
+	match stat:
+		"source_hp": return unit.hp_total()
+		"source_x": return context.game.shared_x_of(context.controller, context.source_id())
+	return context.game.armor_of(unit)
 
 ## The same comparison without an effect context: `controller` is the player the "self" side means.
 ## Used by a card's play_condition, which is checked before the card is played (GameState.play_condition_met).

@@ -671,7 +671,7 @@ func refresh_scaling() -> void:
 
 ## Keywords that allied "keyword_aura" Constantes give unit c right now. Each aura names the keywords, a
 ## "min_rapidez" the receiving unit must have (its own Rapidez, so the aura switches on and off as Rapidez
-## changes), "unit_filter" (a CardFilter the receiving unit must pass; Ivone Apito-Seco: {"tribe_any": ["fera"]})
+## changes), "unit_filter" (a CardFilter the receiving unit must pass; Adestradora Regina Tavares: {"tribe_any": ["fera"]})
 ## and "include_self" (default false). Drake: allied units with Rapidez 2+ get Ataque Duplo.
 func keyword_aura_of(c: Card) -> Array:
 	var granted: Array = []
@@ -5163,6 +5163,7 @@ func _move_dead_units() -> void:
 					var dying_is_token: bool = c.data().get("token", false) # "not_token" effects ignore a token dying
 					var dying_card_id: String = c.card_id # "dying_card" effects only hear this card (Luto: Myrra)
 					var dying_was_sacrificed: bool = c.sacrificed # "dying_sacrificed" effects only hear a sacrifice
+					var dying_veneno_markers: int = int(c.dot_markers.get("veneno", 0)) # read before the unit leaves; unit_died hands them on
 					c.sacrificed = false # a revive_self brings the same Card back: its next death is a fresh one
 					var effects: Array = c.effect_list()
 					# remembered before the equipment drops to the graveyard, so an Aliado Morre can still take it (Nina)
@@ -5217,6 +5218,10 @@ func _move_dead_units() -> void:
 							},
 						)
 					_fire_leader_passive(p, "on_ally_death")
+					var died_event := GameEvent.new("unit_died", p, c)
+					died_event.amount = dying_veneno_markers
+					died_event.data = { "was_token": dying_is_token, "card_id": dying_card_id }
+					bus().emit(died_event)
 
 
 ## True when the Encarnação's Ao Morrer is a revive_self_delayed with "keeps_incarnation" (Jeff The Death):

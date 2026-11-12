@@ -5,13 +5,13 @@ extends RefCounted
 ## from anywhere ("listen": "leader_damaged", see Effect and TriggerBus).
 
 ## Events a card can listen to with "listen" (the unit triggers of cards.json work too).
-const LISTENABLE := ["leader_damaged", "leader_healed", "card_moved", "unit_entered", "unit_damaged", "unit_healed", "card_drawn", "turn_started", "turn_ended", "spell_cast", "spell_resolved", "snowball_cast", "snowball_grande", "unit_readied", "unit_stunned", "unit_targeted", "unit_attacked", "combat_damage_dealt"]
+const LISTENABLE := ["leader_damaged", "leader_healed", "card_moved", "unit_entered", "unit_damaged", "unit_healed", "card_drawn", "turn_started", "turn_ended", "spell_cast", "spell_resolved", "snowball_cast", "snowball_grande", "unit_readied", "unit_stunned", "unit_targeted", "unit_attacked", "combat_damage_dealt", "unit_died"]
 
 var trigger := "" ## the event name: "on_attack", "leader_damaged", "card_moved"...
 var player := -1 ## whose leader / card / unit it happened to
 var source: Card = null ## the card it happened to or that caused it (null when there is none)
 var other_uid := 0 ## the opposing unit in combat triggers (blocker, attacker, damage source)
-var amount := 0 ## damage or healing done
+var amount := 0 ## damage or healing done (unit_died: the Veneno markers the unit carried when it died)
 var hp_before := 0 ## life before / after, for leader_damaged, leader_healed, unit_damaged and unit_healed
 var hp_after := 0
 var data: Dictionary = {} ## extra facts a "when" filter can test, e.g. card_moved: {"from": "hand", "to": "graveyard"}

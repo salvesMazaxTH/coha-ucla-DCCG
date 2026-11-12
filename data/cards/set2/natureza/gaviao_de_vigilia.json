@@ -14,6 +14,5 @@
     { "trigger": "on_challenge", "action": "strip_magic_shield", "target": "opposed_unit" }
   ],
   "text": "Ao Desafiar: a unidade desafiada perde o Escudo Mágico.",
-  "flavor": "",
-  "unreleased": true
+  "flavor": ""
 }

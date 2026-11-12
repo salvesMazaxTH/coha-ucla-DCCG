@@ -1,0 +1,17 @@
+{
+  "name": "Filhote de Lagartixa",
+  "set": 2,
+  "type": "unit",
+  "rarity": "common",
+  "token": true,
+  "tribe": ["fera"],
+  "essence": "natureza",
+  "cost": 0,
+  "atk": 1,
+  "hp": 1,
+  "keywords": [],
+  "art": "natureza/filhote_de_lagartixa.webp",
+  "effects": [],
+  "text": "Ficha: não vai para o cemitério ao morrer.",
+  "flavor": ""
+}

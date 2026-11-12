@@ -1,0 +1,17 @@
+{
+  "name": "Pombo de Praça",
+  "set": 2,
+  "type": "unit",
+  "rarity": "common",
+  "token": true,
+  "tribe": ["fera"],
+  "essence": "natureza",
+  "cost": 0,
+  "atk": 1,
+  "hp": 1,
+  "keywords": ["voo"],
+  "art": "natureza/pombo_de_praca.webp",
+  "effects": [],
+  "text": "Ficha: não vai para o cemitério ao morrer.",
+  "flavor": ""
+}

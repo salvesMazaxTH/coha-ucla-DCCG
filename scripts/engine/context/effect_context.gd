@@ -17,6 +17,7 @@ var second_target := 0 ## the second pick ("pick"/"pick2", e.g. the damage targe
 var dying_card: Card = null ## the unit whose Ao Morrer is resolving (for summon "self" and revive_self)
 var sacrificed_attack := 0 ## total attack of the unit a "sacrifice" just killed (read by its "then" effects)
 var sacrificed_cost := 0 ## printed Momentum cost of the unit a "sacrifice" just killed (read by its "then" effects)
+var sacrificed_count := 0 ## units the "sacrifice" effects of this run have killed so far (read by the "sacrificed_units" compare stat)
 var returned_ally_count := 0 ## allied units a "return_to_hand" of this run sent back to the hand (read by "gain_momentum" per "returned_allies")
 var last_drawn_card: Card = null ## the latest card drawn by this effect run, for follow-up effects
 var event: GameEvent = null ## the event that made a listening card react (null for plain triggers)
@@ -87,6 +88,7 @@ func for_choice_effects(picked_target: int) -> EffectContext:
 	child.dying_card = dying_card
 	child.sacrificed_attack = sacrificed_attack
 	child.sacrificed_cost = sacrificed_cost
+	child.sacrificed_count = sacrificed_count
 	child.returned_ally_count = returned_ally_count
 	child.last_drawn_card = last_drawn_card
 	child.event = event
@@ -99,6 +101,7 @@ func for_choice_effects(picked_target: int) -> EffectContext:
 func absorb_choice_results(child: EffectContext) -> void:
 	sacrificed_attack = child.sacrificed_attack
 	sacrificed_cost = child.sacrificed_cost
+	sacrificed_count = child.sacrificed_count
 	returned_ally_count = child.returned_ally_count
 	last_drawn_card = child.last_drawn_card
 	milled_cards = child.milled_cards.duplicate()

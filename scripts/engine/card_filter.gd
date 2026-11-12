@@ -11,6 +11,7 @@ extends RefCounted
 ##   tribe                  the card has this tribe
 ##   tribe_any              the card has at least one of these tribe
 ##   card_ids                 only these named cards
+##   token                    true = only fichas, false = no fichas
 ##   any_of                  a list of whole filters; the card must pass at least ONE of them (an "or" between
 ##                            different kinds of requirement, e.g. element Luz OR tribe Anjo)
 
@@ -38,6 +39,8 @@ static func matches(card_id: String, filter: Dictionary) -> bool:
 		if not rarities.has(card_data.get("rarity", "")):
 			return false
 	if filter.has("card_ids") and not filter["card_ids"].has(card_id):
+		return false
+	if filter.has("token") and bool(card_data.get("token", false)) != bool(filter["token"]):
 		return false
 	var card_tribe: Array = card_data.get("tribe", [])
 	if filter.has("tribe") and not card_tribe.has(filter["tribe"]):

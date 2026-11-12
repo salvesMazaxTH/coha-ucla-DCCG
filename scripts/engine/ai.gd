@@ -408,6 +408,7 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 		var activated_effects: Array = unit.data().get("activated", { }).get("effects", [])
 		if (
 			g.can_activate(p, unit.uid) and g.target_spec(activated_effects) == "" and g.can_attack(unit)
+			and not g.attack_targets(unit).is_empty()
 			and _revive_is_worth_it(g, p, activated_effects) and _filtered_banish_is_worth_it(g, p, unit, activated_effects)
 			and not _dot_only_effects_are_wasted(g, p, activated_effects)
 		):

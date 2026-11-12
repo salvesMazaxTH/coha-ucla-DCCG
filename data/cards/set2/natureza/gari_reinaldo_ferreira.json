@@ -1,0 +1,18 @@
+{
+  "name": "Gari Reinaldo Ferreira",
+  "set": 2,
+  "type": "unit",
+  "rarity": "common",
+  "tribe": ["nuliterrano"],
+  "essence": "natureza",
+  "cost": 3,
+  "atk": 2,
+  "hp": 2,
+  "keywords": [],
+  "art": "natureza/gari_reinaldo_ferreira.webp",
+  "effects": [
+    { "trigger": "constante", "action": "tribe_aura", "tribe": [], "tokens": true, "atk": 1 }
+  ],
+  "text": "Constante: as fichas aliadas têm +1 de Ataque.",
+  "flavor": "Às quatro da manhã, só o Reinaldo e os pombos estão acordados."
+}
