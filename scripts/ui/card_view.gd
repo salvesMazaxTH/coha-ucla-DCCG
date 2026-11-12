@@ -2604,27 +2604,31 @@ func _token_seal(c: Vector2, r: float, trim: Color) -> void:
 
 ## Embossed gem: drop shadow, metal bezel, body, glossy highlight, specular.
 func _gem(kind: String, c: Vector2, r: float, col: Color, t: String, tcol: Color, s: float) -> void:
+	draw_gem(self, kind, c, r, col, t, tcol, s)
+
+## Static so other UI (cost filter in the catalog) draws the exact same gem on its own canvas.
+static func draw_gem(canvas: CanvasItem, kind: String, c: Vector2, r: float, col: Color, t: String, tcol: Color, s: float) -> void:
 	var pts := _shape(kind, c, r)
 	var shadow_pts := _grow(pts, c, 1.18)
 	for i in shadow_pts.size():
 		shadow_pts[i] += Vector2(0, 2 * s)
-	draw_colored_polygon(shadow_pts, Color(0, 0, 0, 0.55))
-	draw_colored_polygon(_grow(pts, c, 1.16), UITheme.GOLD_DARK.darkened(0.3))
-	draw_colored_polygon(_grow(pts, c, 1.1), UITheme.GOLD)
-	draw_colored_polygon(pts, col.darkened(0.35))
-	draw_colored_polygon(_grow(pts, c - Vector2(0, r * 0.1), 0.86), col)
-	draw_colored_polygon(_grow(pts, c - Vector2(0, r * 0.55), 0.5), Color(col.lightened(0.5), 0.45))
-	draw_circle(c + Vector2(-r * 0.32, -r * 0.42), r * 0.14, Color(1, 1, 1, 0.55))
+	canvas.draw_colored_polygon(shadow_pts, Color(0, 0, 0, 0.55))
+	canvas.draw_colored_polygon(_grow(pts, c, 1.16), UITheme.GOLD_DARK.darkened(0.3))
+	canvas.draw_colored_polygon(_grow(pts, c, 1.1), UITheme.GOLD)
+	canvas.draw_colored_polygon(pts, col.darkened(0.35))
+	canvas.draw_colored_polygon(_grow(pts, c - Vector2(0, r * 0.1), 0.86), col)
+	canvas.draw_colored_polygon(_grow(pts, c - Vector2(0, r * 0.55), 0.5), Color(col.lightened(0.5), 0.45))
+	canvas.draw_circle(c + Vector2(-r * 0.32, -r * 0.42), r * 0.14, Color(1, 1, 1, 0.55))
 	var rim := _grow(pts, c, 1.1)
-	draw_polyline(rim + PackedVector2Array([rim[0]]), Color(UITheme.GOLD_LIGHT, 0.7), 0.9 * s, true)
+	canvas.draw_polyline(rim + PackedVector2Array([rim[0]]), Color(UITheme.GOLD_LIGHT, 0.7), 0.9 * s, true)
 	var f := UITheme.font("heavy")
 	var fs := r * 1.3
 	var w := f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x
 	var pos := Vector2(c.x - w / 2, c.y + fs * 0.34 - (r * 0.1 if kind == "shield" else 0.0))
-	draw_string_outline(f, pos, t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), max(3, int(fs / 4)), Color(0, 0, 0, 0.9))
-	draw_string(f, pos, t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), tcol)
+	canvas.draw_string_outline(f, pos, t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), max(3, int(fs / 4)), Color(0, 0, 0, 0.9))
+	canvas.draw_string(f, pos, t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs), tcol)
 
-func _shape(kind: String, c: Vector2, r: float) -> PackedVector2Array:
+static func _shape(kind: String, c: Vector2, r: float) -> PackedVector2Array:
 	var pts := PackedVector2Array()
 	match kind:
 		"diamond":
@@ -2779,7 +2783,7 @@ func _vgrad(r: Rect2, top: Color, bot: Color) -> void:
 func _diamond(c: Vector2, r: float, col: Color) -> void:
 	draw_colored_polygon(PackedVector2Array([c + Vector2(0, -r), c + Vector2(r * 0.8, 0), c + Vector2(0, r), c + Vector2(-r * 0.8, 0)]), col)
 
-func _grow(pts: PackedVector2Array, c: Vector2, k: float) -> PackedVector2Array:
+static func _grow(pts: PackedVector2Array, c: Vector2, k: float) -> PackedVector2Array:
 	var out := PackedVector2Array()
 	for p in pts:
 		out.append(c + (p - c) * k)
