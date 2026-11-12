@@ -312,9 +312,65 @@ func _folding_list(id: String, title: String, values: Array, width: float, singl
 					selected[id] = choices
 				_refresh_facet_caption(id)
 				_changed())
+		if id == "rarity":
+			_add_rarity_gem(chip, String(value))
+		elif id == "essence":
+			_add_domain_seal(chip, String(value))
+		elif id == "speed":
+			_add_speed_icon(chip, String(value))
 		chips.add_child(chip)
 	_refresh_facet_caption(id)
 	return holder
+
+## Puts the same rarity gem the cards carry (just smaller) at the left of a rarity chip, with a slightly smaller font.
+static func _add_rarity_gem(chip: Button, rarity: String) -> void:
+	chip.add_theme_font_size_override("font_size", 15)
+	var gem_radius := 9.0
+	var gap := 8.0
+	for style_name in ["normal", "hover", "pressed", "hover_pressed"]:
+		var style: StyleBoxFlat = chip.get_theme_stylebox(style_name)
+		style.content_margin_left = 12 + gem_radius * 2 + gap
+	var gem := RarityGem.new()
+	gem.rarity = rarity
+	gem.radius = gem_radius
+	gem.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gem.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	gem.offset_left = 12
+	chip.add_child(gem)
+
+## Puts the same domain seal the cards carry (smaller) at the left of a domain chip.
+static func _add_domain_seal(chip: Button, domain_id: String) -> void:
+	var seal_size := 25.0
+	_reserve_icon_room(chip, seal_size)
+	_add_centered_icon(chip, CardView.new().setup_domain_badge(domain_id, seal_size), Vector2.ONE * seal_size)
+
+## Puts the speed seal's icon (hourglass / bolt / double bolt, same drawing as the cards) at the left of a speed chip.
+static func _add_speed_icon(chip: Button, speed: String) -> void:
+	var icon := SpeedIcon.new()
+	icon.speed = speed
+	var icon_width := 22.0 if speed == "instantaneo" else 14.0
+	icon.custom_minimum_size = Vector2(icon_width, 22)
+	_reserve_icon_room(chip, icon_width)
+	_add_centered_icon(chip, icon, icon.custom_minimum_size)
+
+static func _reserve_icon_room(chip: Button, icon_width: float) -> void:
+	chip.add_theme_font_size_override("font_size", 15)
+	for style_name in ["normal", "hover", "pressed", "hover_pressed"]:
+		var style: StyleBoxFlat = chip.get_theme_stylebox(style_name)
+		style.content_margin_left = 10 + icon_width + 6
+
+## Anchors `icon` to the chip's left edge, vertically centered, so it stays inside whatever height the chip gets.
+static func _add_centered_icon(chip: Button, icon: Control, icon_size: Vector2) -> void:
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.set_anchor(SIDE_LEFT, 0.0)
+	icon.set_anchor(SIDE_RIGHT, 0.0)
+	icon.set_anchor(SIDE_TOP, 0.5)
+	icon.set_anchor(SIDE_BOTTOM, 0.5)
+	icon.offset_left = 10
+	icon.offset_right = 10 + icon_size.x
+	icon.offset_top = -icon_size.y / 2.0
+	icon.offset_bottom = icon_size.y / 2.0
+	chip.add_child(icon)
 
 static func _chip(text: String) -> Button:
 	var chip := Button.new()
@@ -377,6 +433,31 @@ func _cost_button(cost: int) -> CostOrb:
 	return orb
 
 ## The cost orb printed on every card, used as a toggle: dimmed when off, full colour with a light ring when on.
+## Draws a card's rarity gem (animated for champions) inside a button.
+class RarityGem extends Control:
+	var rarity := "common"
+	var radius := 9.0
+	var _time := 0.0
+
+	func _ready() -> void:
+		set_process(rarity == "champion")
+
+	func _process(delta: float) -> void:
+		_time += delta
+		queue_redraw()
+
+	func _draw() -> void:
+		var center := Vector2(radius * 1.3, size.y / 2.0)
+		CardView.draw_rarity_gem(self, center, radius, rarity, UITheme.GOLD_LIGHT, _time)
+
+## Draws the speed seal's icon inside a button.
+class SpeedIcon extends Control:
+	var speed := "lento"
+
+	func _draw() -> void:
+		var colors := {"lento": Color("#a9b6c8"), "rapido": Color("#ffd27a"), "instantaneo": Color("#7fe8ff")}
+		CardView.draw_speed_icon(self, size / 2.0, 5.6 * 1.5, speed, colors.get(speed, Color.WHITE), 1.5)
+
 class CostOrb extends Control:
 	signal toggled(pressed: bool)
 	var label := ""

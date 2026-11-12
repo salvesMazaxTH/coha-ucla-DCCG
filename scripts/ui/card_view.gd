@@ -999,7 +999,7 @@ func _draw() -> void:
 		_draw_lettering_and_gems(look)
 	# the champion gem is animated (it moves with _t), so it is always drawn live, after the still lettering
 	if look["cd"].get("rarity", "") == "champion" and not look["is_token"]:
-		_champion_gem(Vector2(_face_size.x / 2, _face_size.y - 3 * s), 5.5 * s, look["trim"])
+		_champion_gem(self, Vector2(_face_size.x / 2, _face_size.y - 3 * s), 5.5 * s, look["trim"], _t)
 	# forbidden to play: padlock and chains over the finished face, drawn live (they sway and glint)
 	if locked:
 		ChainLockFx.draw(self, Transform2D(0.0, Vector2(pop, pop), 0.0, face_origin), r, _rrect_pts(r, rad), s,
@@ -1291,7 +1291,7 @@ func _draw_lettering_and_gems(look: Dictionary) -> void:
 	if is_token:
 		_token_seal(Vector2(_face_size.x / 2, _face_size.y - 3 * s), 5.5 * s, trim) # fichas have no rarity
 	elif cd["rarity"] != "champion": # (the champion gem is animated: _draw adds it live)
-		_rarity_gem(Vector2(_face_size.x / 2, _face_size.y - 3 * s), 5.5 * s, cd["rarity"], trim)
+		draw_rarity_gem(self, Vector2(_face_size.x / 2, _face_size.y - 3 * s), 5.5 * s, cd["rarity"], trim, _t)
 	_diamond(Vector2(_face_size.x / 2, 2.5 * s), 3.5 * s, trim)
 
 	# gems
@@ -2186,7 +2186,7 @@ func _kw_badge(kw: String, c: Vector2, r: float, s: float) -> void:
 			draw_colored_polygon(_unit_pts(c, g, [[-0.14, -0.58], [0.14, -0.58], [0.14, -0.14], [0.58, -0.14], [0.58, 0.14],
 				[0.14, 0.14], [0.14, 0.58], [-0.14, 0.58], [-0.14, 0.14], [-0.58, 0.14], [-0.58, -0.14], [-0.14, -0.14]]), lit)
 
-func _unit_pts(c: Vector2, r: float, pts: Array) -> PackedVector2Array:
+static func _unit_pts(c: Vector2, r: float, pts: Array) -> PackedVector2Array:
 	var out := PackedVector2Array()
 	for p in pts:
 		out.append(c + Vector2(p[0], p[1]) * r)
@@ -2510,7 +2510,7 @@ func _essence_badge(c: Vector2, r: float, cd: Dictionary, s: float) -> void:
 		var kind: String = ess[k]
 		var col := Color("#232328") if kind == "trevas" else Color(CardDB.essence(kind)["color"])
 		var disc_color := Color("#D0B974") if kind == "devocao" else (col.darkened(0.5) if col.get_luminance() > 0.35 else col) # Devoção keeps its pearl-amber badge fill
-		_fill_clipped(disc, slices[k], disc_color) # flat colour: no gradient, no highlight
+		_fill_clipped(self, disc, slices[k], disc_color) # flat colour: no gradient, no highlight
 		_draw_flat_sigil(kind, slice_centers[k], slice_sigil_radius)
 	var seam_color := Color(UITheme.GOLD_LIGHT, 0.8)
 	if ess.size() == 2:
@@ -2522,18 +2522,19 @@ func _essence_badge(c: Vector2, r: float, cd: Dictionary, s: float) -> void:
 	var rim := _grow(disc, c, 1.1)
 	draw_polyline(rim + PackedVector2Array([rim[0]]), Color(UITheme.GOLD_LIGHT, 0.7), 0.9 * s, true)
 
-func _fill_clipped(poly: PackedVector2Array, clip: PackedVector2Array, col: Color) -> void:
+static func _fill_clipped(canvas: CanvasItem, poly: PackedVector2Array, clip: PackedVector2Array, col: Color) -> void:
 	if clip.is_empty():
-		draw_colored_polygon(poly, col)
+		canvas.draw_colored_polygon(poly, col)
 		return
 	for piece in Geometry2D.intersect_polygons(poly, clip):
-		draw_colored_polygon(piece, col)
+		canvas.draw_colored_polygon(piece, col)
 
 ## Rarity gem on the bottom edge: white (common), amethyst (epic), orange (legendary),
 ## and the animated prismatic gem for champions (the rarest, see _champion_gem).
-func _rarity_gem(c: Vector2, r: float, rarity: String, trim: Color) -> void:
+## Static so the catalog's rarity filter draws the exact same gem; `time` drives the champion animation.
+static func draw_rarity_gem(canvas: CanvasItem, c: Vector2, r: float, rarity: String, trim: Color, time := 0.0) -> void:
 	if rarity == "champion":
-		_champion_gem(c, r, trim)
+		_champion_gem(canvas, c, r, trim, time)
 		return
 	var col := Color("#f2f2f2")
 	if rarity == "epic":
@@ -2543,57 +2544,57 @@ func _rarity_gem(c: Vector2, r: float, rarity: String, trim: Color) -> void:
 	var pts := PackedVector2Array()
 	for p in [[0, -1.0], [0.85, -0.3], [0.85, 0.3], [0, 1.0], [-0.85, 0.3], [-0.85, -0.3]]:
 		pts.append(c + Vector2(p[0], p[1]) * r)
-	draw_colored_polygon(_grow(pts, c, 1.3), Color("#07060a"))
-	draw_colored_polygon(pts, col.darkened(0.4))
+	canvas.draw_colored_polygon(_grow(pts, c, 1.3), Color("#07060a"))
+	canvas.draw_colored_polygon(pts, col.darkened(0.4))
 	# facets
-	draw_colored_polygon(PackedVector2Array([pts[0], pts[1], c, pts[5]]), col.lightened(0.25))
-	draw_colored_polygon(PackedVector2Array([pts[1], pts[2], pts[3], c]), col)
-	draw_colored_polygon(PackedVector2Array([pts[5], c, pts[3], pts[4]]), col.darkened(0.2))
-	draw_polyline(pts + PackedVector2Array([pts[0]]), trim, 1.0, true)
-	draw_circle(c + Vector2(-r * 0.3, -r * 0.4), r * 0.16, Color(1, 1, 1, 0.8))
+	canvas.draw_colored_polygon(PackedVector2Array([pts[0], pts[1], c, pts[5]]), col.lightened(0.25))
+	canvas.draw_colored_polygon(PackedVector2Array([pts[1], pts[2], pts[3], c]), col)
+	canvas.draw_colored_polygon(PackedVector2Array([pts[5], c, pts[3], pts[4]]), col.darkened(0.2))
+	canvas.draw_polyline(pts + PackedVector2Array([pts[0]]), trim, 1.0, true)
+	canvas.draw_circle(c + Vector2(-r * 0.3, -r * 0.4), r * 0.16, Color(1, 1, 1, 0.8))
 
 ## Champion gem, rarer than the legendary one: only slightly bigger (it must not cover the card text), eight-sided (the other gems are hexagons),
 ## every facet cycles through the rainbow, a white glint sweeps across it every few seconds and
-## little stars twinkle around it. Moves with `_t`, which keeps running on champion cards.
-func _champion_gem(c: Vector2, r: float, trim: Color) -> void:
+## little stars twinkle around it. Moves with `time`, which keeps running on champion cards.
+static func _champion_gem(canvas: CanvasItem, c: Vector2, r: float, trim: Color, time: float) -> void:
 	c.y += r * 0.35 # sits lower on the frame so it stays clear of the card text
 	r *= 1.2
 	var outline := PackedVector2Array()
 	for p in [[0, -1.15], [0.6, -0.7], [1.0, 0], [0.6, 0.7], [0, 1.15], [-0.6, 0.7], [-1.0, 0], [-0.6, -0.7]]:
 		outline.append(c + Vector2(p[0], p[1]) * r)
 	# soft pulsing aura behind the gem
-	var pulse := 0.5 + 0.5 * sin(_t * 3.0)
-	draw_circle(c, r * (1.9 + 0.2 * pulse), Color(1, 1, 1, 0.10 + 0.08 * pulse))
-	draw_colored_polygon(_grow(outline, c, 1.25), Color("#07060a"))
+	var pulse := 0.5 + 0.5 * sin(time * 3.0)
+	canvas.draw_circle(c, r * (1.9 + 0.2 * pulse), Color(1, 1, 1, 0.10 + 0.08 * pulse))
+	canvas.draw_colored_polygon(_grow(outline, c, 1.25), Color("#07060a"))
 	# one triangle per side, each with its own hue that slowly rotates around the colour wheel;
 	# the facets facing up-left are lighter, the ones facing down-right darker
 	for i in outline.size():
-		var hue := fposmod(_t * 0.2 + i / float(outline.size()) * 0.6, 1.0)
+		var hue := fposmod(time * 0.2 + i / float(outline.size()) * 0.6, 1.0)
 		var facing_light := 0.5 + 0.5 * cos((float(i) - 6.5) / outline.size() * TAU)
 		var facet_color := Color.from_hsv(hue, 0.8, 0.6 + 0.4 * facing_light)
-		draw_colored_polygon(PackedVector2Array([outline[i], outline[(i + 1) % outline.size()], c]), facet_color)
-	draw_polyline(outline + PackedVector2Array([outline[0]]), trim, 1.0, true)
+		canvas.draw_colored_polygon(PackedVector2Array([outline[i], outline[(i + 1) % outline.size()], c]), facet_color)
+	canvas.draw_polyline(outline + PackedVector2Array([outline[0]]), trim, 1.0, true)
 	# white glint sweeping left to right once every 2.8 s (the rest of the cycle it rests)
-	var sweep := fposmod(_t, 2.8) / 0.9
+	var sweep := fposmod(time, 2.8) / 0.9
 	if sweep < 1.0:
 		var band_x := lerpf(-1.4, 1.4, sweep) * r
 		var band := PackedVector2Array([c + Vector2(band_x - 0.35 * r, -1.3 * r), c + Vector2(band_x + 0.1 * r, -1.3 * r),
 			c + Vector2(band_x - 0.1 * r, 1.3 * r), c + Vector2(band_x - 0.55 * r, 1.3 * r)])
-		_fill_clipped(band, outline, Color(1, 1, 1, 0.75))
-	draw_circle(c + Vector2(-r * 0.3, -r * 0.45), r * 0.14, Color(1, 1, 1, 0.9))
+		_fill_clipped(canvas, band, outline, Color(1, 1, 1, 0.75))
+	canvas.draw_circle(c + Vector2(-r * 0.3, -r * 0.45), r * 0.14, Color(1, 1, 1, 0.9))
 	# twinkling four-point stars, each on its own rhythm
 	for star in [[Vector2(-1.5, -0.8), 0.0], [Vector2(1.5, -1.1), 2.1], [Vector2(0.9, -1.9), 4.2]]:
-		var twinkle := maxf(0.0, sin(_t * 4.0 + float(star[1])))
+		var twinkle := maxf(0.0, sin(time * 4.0 + float(star[1])))
 		if twinkle > 0.05:
-			_sparkle(c + Vector2(star[0]) * r, r * 0.55 * twinkle, Color(1, 1, 1, 0.5 + 0.5 * twinkle))
+			_sparkle(canvas, c + Vector2(star[0]) * r, r * 0.55 * twinkle, Color(1, 1, 1, 0.5 + 0.5 * twinkle))
 
 ## Four-pointed star (a "glint"), `radius` from the center to each tip.
-func _sparkle(c: Vector2, radius: float, col: Color) -> void:
+static func _sparkle(canvas: CanvasItem, c: Vector2, radius: float, col: Color) -> void:
 	var pts := PackedVector2Array()
 	for i in 8:
 		var angle := i * TAU / 8.0 - PI / 2.0
 		pts.append(c + Vector2(cos(angle), sin(angle)) * (radius if i % 2 == 0 else radius * 0.25))
-	draw_colored_polygon(pts, col)
+	canvas.draw_colored_polygon(pts, col)
 
 ## Stand-in for the rarity gem on a ficha: a hollow, translucent diamond outline (nothing solid, nothing colored).
 func _token_seal(c: Vector2, r: float, trim: Color) -> void:
@@ -2869,6 +2870,22 @@ func _wrapped_text(font: Font, t: String, box: Rect2, max_fs: float, min_fs: flo
 ## steel hourglass (lento), gold bolt (rápido) or cyan double bolt (instantâneo).
 const SPEED_PILL_HEIGHT := 15.0 ## seal height at card scale 1 (was 12.4: the label read too small on phones)
 
+## The speed seal's icon (hourglass, bolt, double bolt); static so the catalog's speed filter draws the same one.
+## `u` is the half-height of the icon, `s` the line-width scale.
+static func draw_speed_icon(canvas: CanvasItem, ic: Vector2, u: float, speed: String, col: Color, s: float) -> void:
+	var bolt := [[0.3, -1], [-0.6, 0.15], [-0.05, 0.15], [-0.3, 1], [0.6, -0.2], [0.05, -0.2]]
+	match speed:
+		"rapido":
+			canvas.draw_colored_polygon(_unit_pts(ic, u, bolt), col)
+		"instantaneo":
+			for dx in [-0.5, 0.5]:
+				canvas.draw_colored_polygon(_unit_pts(ic + Vector2(dx * 5.2 * s, 0), u, bolt), col)
+		_:
+			canvas.draw_colored_polygon(_unit_pts(ic, u, [[-0.65, -1], [0.65, -1], [0, 0]]), Color(col, 0.55))
+			canvas.draw_colored_polygon(_unit_pts(ic, u, [[0, 0], [0.65, 1], [-0.65, 1]]), col)
+			canvas.draw_line(ic + Vector2(-0.8, -1) * u, ic + Vector2(0.8, -1) * u, col, 1.0 * s)
+			canvas.draw_line(ic + Vector2(-0.8, 1) * u, ic + Vector2(0.8, 1) * u, col, 1.0 * s)
+
 func _speed_badge(c: Vector2, speed: String, s: float, right_aligned := false) -> void:
 	var info: Array = {
 		"lento": ["LENTO", Color("#a9b6c8")],
@@ -2891,18 +2908,7 @@ func _speed_badge(c: Vector2, speed: String, s: float, right_aligned := false) -
 	_rrect_fill(pill, 7.5 * s, Color("#0d0b12", 0.9))
 	_rrect_line(pill, 7.5 * s, Color(col, 0.95), 1.1 * s)
 	var ic := Vector2(pill.position.x + pad + icon_w / 2, c.y)
-	var u := 5.6 * s # half-height of the icon
-	match speed:
-		"rapido":
-			draw_colored_polygon(_unit_pts(ic, u, [[0.3, -1], [-0.6, 0.15], [-0.05, 0.15], [-0.3, 1], [0.6, -0.2], [0.05, -0.2]]), col)
-		"instantaneo":
-			for dx in [-0.5, 0.5]:
-				draw_colored_polygon(_unit_pts(ic + Vector2(dx * 5.2 * s, 0), u, [[0.3, -1], [-0.6, 0.15], [-0.05, 0.15], [-0.3, 1], [0.6, -0.2], [0.05, -0.2]]), col)
-		_:
-			draw_colored_polygon(_unit_pts(ic, u, [[-0.65, -1], [0.65, -1], [0, 0]]), Color(col, 0.55))
-			draw_colored_polygon(_unit_pts(ic, u, [[0, 0], [0.65, 1], [-0.65, 1]]), col)
-			draw_line(ic + Vector2(-0.8, -1) * u, ic + Vector2(0.8, -1) * u, col, 1.0 * s)
-			draw_line(ic + Vector2(-0.8, 1) * u, ic + Vector2(0.8, 1) * u, col, 1.0 * s)
+	draw_speed_icon(self, ic, 5.6 * s, speed, col, s)
 	_text(f, label, Vector2(pill.position.x + pad + icon_w + gap + tw / 2, c.y + fs * 0.36), fs, col.lightened(0.25))
 
 ## Like _text, but the character ranges in `keyword_spans` are drawn in KEYWORD_COL.

@@ -76,6 +76,7 @@ var _next_button: Button
 var _domain_toggle: CheckButton
 var _page := 0
 var _tiles: Dictionary = {}
+var _tile_scale := 1.0 ## card scale used by the tiles on screen (grown to fill the catalog width)
 var _name_edit: LineEdit
 var _meters: Dictionary = {}
 var _type_labels: Dictionary = {}
@@ -218,7 +219,23 @@ func _deck_panel_width() -> float:
 
 ## Cards stay about the same size on screen (a bit bigger on phones), whatever the zoom.
 func _card_scale() -> float:
-	return CARD_SCALE * (1.07 if _is_compact() else 1.04) / _ui_zoom
+	return CARD_SCALE * (1.10 if _is_compact() else 1.08) / _ui_zoom
+
+## Grows the cards (up to 7.5%) so whole columns fill the catalog width, leaving no gap at the right.
+func _fitted_card_scale() -> float:
+	var base := _card_scale()
+	if _card_scroll == null or not is_instance_valid(_card_scroll):
+		return base
+	var width := _card_scroll.size.x - _card_scroll.get_v_scroll_bar().get_combined_minimum_size().x - 2.0
+	if width <= 0.0:
+		return base
+	var columns := maxi(1, floori((width + GRID_GAP) / (CardView.BASE.x * base + GRID_GAP)))
+	var filling := ((width + GRID_GAP) / columns - GRID_GAP) / CardView.BASE.x
+	return minf(filling, base * 1.075)
+
+func _on_catalog_resized() -> void:
+	if not is_equal_approx(_fitted_card_scale(), _tile_scale):
+		_render_cards.call_deferred()
 
 # ================================================================ helpers
 
@@ -936,9 +953,12 @@ func _build_catalog() -> Control:
 	outer.add_child(_card_scroll)
 	_card_flow = HFlowContainer.new()
 	_card_flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_card_flow.alignment = FlowContainer.ALIGNMENT_CENTER
+	_card_flow.last_wrap_alignment = FlowContainer.LAST_WRAP_ALIGNMENT_BEGIN
 	_card_flow.add_theme_constant_override("h_separation", GRID_GAP)
 	_card_flow.add_theme_constant_override("v_separation", GRID_GAP)
 	_card_scroll.add_child(_card_flow)
+	_card_scroll.resized.connect(_on_catalog_resized)
 	return panel
 
 func _restart_pages() -> void:
@@ -963,6 +983,7 @@ func _render_cards() -> void:
 		_card_flow.remove_child(child)
 		child.queue_free()
 	_tiles.clear()
+	_tile_scale = _fitted_card_scale()
 	var ids := _visible_ids()
 	var total_pages := maxi(1, ceili(float(ids.size()) / PAGE_SIZE))
 	_page = clampi(_page, 0, total_pages - 1)
@@ -977,7 +998,7 @@ func _render_cards() -> void:
 	CardView.load_queued_arts()
 
 func _card_tile(card_id: String) -> Control:
-	var card_scale := _card_scale()
+	var card_scale := _tile_scale
 	var cell_w := CardView.BASE.x * card_scale
 	var button_height := 40.0 if _is_compact() else 36.0
 	var holder := Control.new()
