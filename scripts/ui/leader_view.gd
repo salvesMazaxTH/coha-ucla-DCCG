@@ -30,6 +30,11 @@ const HP_C := Vector2(180, 118) ## HP gem center
 const RAD := 10.0
 const ART := Rect2(58, 7, 128, 84)
 const BANNER := Rect2(58, 96, 128, 24)
+const CUT_SHADER := preload("res://scripts/ui/shaders/leader_top_cut.gdshader")
+const CUT_START_X := 48.0 ## the jagged cut spans the whole plate width
+const CUT_END_X := 196.0
+const CUT_POINT_COUNT := 9 ## heights of the cut line, evenly spaced between CUT_START_X and CUT_END_X
+const CUT_BASE_Y := 64.0 ## the cut wanders around the plate's middle
 
 var leader_id := ""
 var hp := 0
@@ -80,6 +85,21 @@ var ward_flash := 0.0: ## brief white-hot flare across the shells (forging and b
 var ward_forge := 1.0: ## 0 → 1: the shells condense onto the Leader one after another, inner first
 	set(value):
 		ward_forge = value
+		queue_redraw()
+var top_destroyed := false: ## the Leader died: the top half of the plate is gone, with a jagged edge
+	set(value):
+		if value == top_destroyed:
+			return
+		top_destroyed = value
+		if value:
+			var cut_material := ShaderMaterial.new()
+			cut_material.shader = CUT_SHADER
+			cut_material.set_shader_parameter("cut_start_x", CUT_START_X)
+			cut_material.set_shader_parameter("cut_end_x", CUT_END_X)
+			cut_material.set_shader_parameter("cut_y", cut_heights(leader_id))
+			material = cut_material
+		else:
+			material = null
 		queue_redraw()
 var _ward_breaks := {} ## slot → 0..1 progress of a shell that is shattering right now
 
@@ -152,6 +172,40 @@ func setup(id: String) -> LeaderView:
 	_deck_pile.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_deck_pile)
 	return self
+
+## Heights of the jagged cut, the same for a given Leader every time (it must survive re-renders).
+## The line zigzags: each point goes up or down from the middle, alternating, by a random amount.
+static func cut_heights(id: String) -> PackedFloat32Array:
+	var random := RandomNumberGenerator.new()
+	random.seed = id.hash()
+	var heights := PackedFloat32Array()
+	var direction := -1.0 if random.randf() < 0.5 else 1.0
+	for i in CUT_POINT_COUNT:
+		heights.append(CUT_BASE_Y + direction * random.randf_range(4.0, 14.0))
+		direction = -direction
+	return heights
+
+## Height of the cut line at local x (the same straight-segment blend the shader uses).
+static func cut_y_at(heights: PackedFloat32Array, x: float) -> float:
+	var along := clampf((x - CUT_START_X) / (CUT_END_X - CUT_START_X), 0.0, 1.0) * (CUT_POINT_COUNT - 1)
+	var index := mini(int(along), CUT_POINT_COUNT - 2)
+	return lerpf(heights[index], heights[index + 1], along - index)
+
+## The part of the plate above the cut, as a polygon in local coordinates: this is what bursts into shards.
+func top_piece_outline() -> PackedVector2Array:
+	var heights := cut_heights(leader_id)
+	var outline := PackedVector2Array()
+	var corners := _rrect_pts(PLATE, RAD)
+	var corner_count := corners.size() / 4 # the points come as four corner arcs: top-right, bottom-right, bottom-left, top-left
+	for i in corner_count: # top-right arc
+		outline.append(corners[i])
+	var step := (PLATE.end.x - PLATE.position.x) / 16.0
+	for i in 17: # cut line from right to left
+		var x := PLATE.end.x - step * i
+		outline.append(Vector2(x, cut_y_at(heights, x)))
+	for i in corner_count: # top-left arc
+		outline.append(corners[corner_count * 3 + i])
+	return outline
 
 ## Center of the pile's top card, in this control's coordinates: drawn cards fly out from here.
 static func deck_top_center(count: int) -> Vector2:

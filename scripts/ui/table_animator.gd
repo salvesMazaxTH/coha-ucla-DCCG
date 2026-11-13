@@ -164,6 +164,15 @@ func _count_ghosts(old: Dictionary) -> int:
 	return n
 
 
+const LEADER_DEATH_LAG := 0.1 ## the Leader's burst starts this long after the blow that kills it
+
+## The dead Leader bursts at `burst_time`; the result screen waits for the burst to finish.
+## Returns the moment (s) when the burst is over.
+func play_leader_death(leader_view: LeaderView, burst_time: float) -> float:
+	var burst_end: float = burst_time + host.fx_leader_death.play(leader_view, burst_time)
+	host._leader_ko_t = maxf(host._leader_ko_t, burst_end - host.KO_OVERLAY_DELAY)
+	return burst_end
+
 ## Plays the events out over the freshly rendered table: cards fly from where
 ## they were, attackers lunge, victims shake, numbers float, the dead dissolve.
 ## Returns the time (s) at which everything has settled.
@@ -260,7 +269,12 @@ func animate(events: Array, old: Dictionary) -> float:
 			if not leader_hp.has(e["uid"]):
 				leader_hp[e["uid"]] = views[e["uid"]].hp
 			leader_hp[e["uid"]] += e["amount"] if e["type"] == "damage" else -e["amount"]
+	# a Leader that ends up dead was drawn without its top half: it must be whole until its burst
+	var dying_leaders := { }
 	for uid in leader_hp:
+		if views[uid].hp <= 0:
+			views[uid].top_destroyed = false
+			dying_leaders[uid] = true
 		views[uid].hp = leader_hp[uid]
 	# Same for units on the board: rewind the damage counter shown on each card to what it was
 	# before these events, then step it at each hit (so an AoE visibly ticks every card).
@@ -846,6 +860,9 @@ func animate(events: Array, old: Dictionary) -> float:
 					var execution_end := fx_library._execution_fx(doomed_leader, int(e["hp_before"]), cursor, execution_color)
 					host._leader_ko_t = maxf(host._leader_ko_t, execution_end - 0.5)
 					cursor = execution_end
+					if dying_leaders.has(e["uid"]):
+						dying_leaders.erase(e["uid"])
+						cursor = maxf(cursor, play_leader_death(doomed_leader, execution_end - 0.5))
 			"damage", "shield_break", "heal":
 				var dst: int = e["uid"]
 				var t := cursor
@@ -873,6 +890,9 @@ func animate(events: Array, old: Dictionary) -> float:
 					var ltw := lv.create_tween()
 					ltw.tween_interval(t)
 					host._leader_ko_t = maxf(host._leader_ko_t, t)
+					if leader_hp[dst] <= 0 and dying_leaders.has(dst):
+						dying_leaders.erase(dst)
+						cursor = maxf(cursor, play_leader_death(lv, t + LEADER_DEATH_LAG))
 					# each hit adds its own change instead of writing a total: the hits are not always
 					# shown in event order (a retaliation lands with the blow, a reflection after it),
 					# and a total written late would overwrite the hits shown before it

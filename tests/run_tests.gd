@@ -131,6 +131,7 @@ func _init() -> void:
 	_test_subito()
 	_test_combat_step()
 	_test_leader_cycle()
+	_test_leader_cut()
 	_test_enter_target()
 	_test_ai_enter_damage()
 	_test_ai_armor_ability()
@@ -3731,6 +3732,21 @@ func _test_leader_cycle() -> void:
 	check(not g.players[0]["ability_used"], "ronan: sem uso no seu turno, ainda disponível no do oponente")
 
 ## Cost player 0 would pay for the hand card with this uid (the discount offers live on the card, not on the id).
+func _test_leader_cut() -> void:
+	# the jagged cut is the same every time for a given Leader and differs between Leaders
+	var heights := LeaderView.cut_heights("ronan")
+	check(heights.size() == LeaderView.CUT_POINT_COUNT, "corte do Líder: um ponto por posição da linha")
+	check(heights == LeaderView.cut_heights("ronan"), "corte do Líder: o mesmo Líder tem sempre o mesmo corte")
+	check(heights != LeaderView.cut_heights("sengoku"), "corte do Líder: Líderes diferentes têm cortes diferentes")
+	for i in heights.size() - 1:
+		check(absf(heights[i] - heights[i + 1]) > 8.0, "corte do Líder: a linha é em zigue-zague, não reta")
+	check(is_equal_approx(LeaderView.cut_y_at(heights, LeaderView.CUT_START_X), heights[0]), "corte do Líder: começa no primeiro ponto")
+	check(is_equal_approx(LeaderView.cut_y_at(heights, LeaderView.CUT_END_X), heights[heights.size() - 1]), "corte do Líder: termina no último ponto")
+	var leader_view := LeaderView.new()
+	leader_view.leader_id = "ronan"
+	check(leader_view.top_piece_outline().size() > 20, "parte de cima do Líder: contorno válido")
+	leader_view.free()
+
 func _hand_cost(g: GameState, uid: int) -> int:
 	for card: Card in g.players[0]["hand"]:
 		if card.uid == uid:

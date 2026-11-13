@@ -42,6 +42,7 @@ var vs_ai := true
 var viewer := 0 ## whose perspective is drawn
 var pending_pass := false
 var _over_from := -1 ## index in layer of the first game-over node (-1 = none this frame)
+const KO_OVERLAY_DELAY := 0.7 ## the result screen shows this long after the Leader's last hit
 var _leader_ko_t := -1.0 ## time of the last Leader HP change in the current animation
 var net: NetClient ## online match link (null offline)
 var dev_mode_enabled := false
@@ -112,6 +113,7 @@ var fx_shots: FxShots ## projectile / slash / boon shot pipeline, built on fx_li
 var menu_screens: MenuScreens ## title menu, deck hub, online room screens and deck list (moved out of this file)
 var table_overlays: TableOverlays ## card overlay, pause menu, graveyard viewer and search reveal (moved out of this file)
 var table_animator: TableAnimator ## plays each batch of events on the table (moved out of this file)
+var fx_leader_death: FxLeaderDeath ## what plays when a Leader dies, before the result screen
 var fx_casts: FxCasts ## cast animations of spells and area triggers (a wall of fire, a flood...), built on fx_library
 var ai_timer: Timer
 ## Animations are never cut short: while one is still playing, the next batch of events waits here
@@ -208,6 +210,7 @@ func _ready() -> void:
 	fx_library = FxLibraryScript.new(self)
 	fx_shots = FxShotsScript.new(self, fx_library)
 	fx_casts = FxCastsScript.new(self, fx_library)
+	fx_leader_death = FxLeaderDeath.new(self, fx_library)
 	table_animator = TableAnimatorScript.new(self, fx_library, fx_shots, fx_casts)
 	chronicle_log = ChronicleLogScript.new(self)
 	table_overlays = TableOverlaysScript.new(self)
@@ -592,12 +595,12 @@ func _play_events(events: Array) -> void:
 	# the Victory/Defeat screen waits for the killing blow to land instead of spoiling it
 	if g.phase == "over" and _waiting_event_batches.is_empty():
 		# same moment as the Victory/Defeat screen (the last batch only, so a queue of batches does not announce it early)
-		var jingle_delay := maxf(_leader_ko_t + 0.7, end) if _leader_ko_t >= 0.0 else end
+		var jingle_delay := maxf(_leader_ko_t + KO_OVERLAY_DELAY, end) if _leader_ko_t >= 0.0 else end
 		Sfx.play_in(_match_end_sound(), jingle_delay)
 		# the music dies away just as the jingle starts, so the jingle is heard on its own
 		get_tree().create_timer(jingle_delay).timeout.connect(Music.fade_out.bind(1.5))
 	if g.phase == "over" and _over_from >= 0 and end > 0.0:
-		var delay := maxf(_leader_ko_t + 0.7, end) if _leader_ko_t >= 0.0 else end
+		var delay := maxf(_leader_ko_t + KO_OVERLAY_DELAY, end) if _leader_ko_t >= 0.0 else end
 		for n in layer.get_children().slice(_over_from):
 			n.modulate.a = 0.0
 			var otw: Tween = n.create_tween()
@@ -1018,6 +1021,7 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	var lv := LeaderView.new().setup(pl["leader_id"])
 	lv.position = pos
 	lv.hp = pl["leader_hp"]
+	lv.top_destroyed = lv.hp <= 0
 	lv.hp_max = pl["leader_max"]
 	lv.deck = pl["deck"].size()
 	lv.fatigue = g.fatigue_next(p)

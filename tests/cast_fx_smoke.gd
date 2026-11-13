@@ -18,9 +18,46 @@ func _init() -> void:
 	await process_frame
 	_test_real_cards()
 	_test_temporary_cards()
+	_test_leader_death_variants()
+	_test_leader_death_shards()
 	if failures == 0:
 		print("Cast fx smoke tests passed.")
 	quit(failures)
+
+## The Leader's death animation: always the burst, unless an alternative is registered AND the 1% roll hits.
+func _test_leader_death_variants() -> void:
+	var death = load("res://scripts/ui/fx_leader_death.gd").new(null, null)
+	check(death.pick_variant(0.0) == "burst", "morte do Líder: sem alternativas, sempre o estouro")
+	death.register_variant("outra", func(_leader_view, _t): return 1.0)
+	check(death.pick_variant(0.005) == "outra", "morte do Líder: com alternativa, o 1% sorteado a escolhe")
+	check(death.pick_variant(0.5) == "burst", "morte do Líder: fora do 1%, o estouro")
+	check(death.pick_variant(0.011) == "burst", "morte do Líder: logo acima do 1%, o estouro")
+
+## The top piece of the portrait breaks into a few irregular shards that add up to it (nothing lost, nothing overlapping).
+func _test_leader_death_shards() -> void:
+	var death_script = load("res://scripts/ui/fx_leader_death.gd")
+	var leader_view := LeaderView.new()
+	leader_view.leader_id = "ronan"
+	var outline := leader_view.top_piece_outline()
+	leader_view.free()
+	var outline_area: float = death_script.polygon_area(outline)
+	check(outline_area > 1000.0, "cacos do Líder: contorno com área")
+	check(is_equal_approx(death_script.polygon_area(PackedVector2Array([Vector2(0, 0), Vector2(10, 0), Vector2(10, 10), Vector2(0, 10)])), 100.0), "polygon_area: quadrado 10x10")
+	var random := RandomNumberGenerator.new()
+	for seed_number in 5:
+		random.seed = seed_number + 1
+		var shards: Array = death_script.split_into_shards(outline, random)
+		var total_area := 0.0
+		var biggest := 0.0
+		var smallest := INF
+		for shard in shards:
+			var area: float = death_script.polygon_area(shard)
+			total_area += area
+			biggest = maxf(biggest, area)
+			smallest = minf(smallest, area)
+		check(shards.size() >= 3 and shards.size() <= death_script.SHARD_SEED_COUNT + 3, "cacos do Líder: poucos cacos (%d)" % shards.size())
+		check(total_area <= outline_area + 1.0 and total_area >= outline_area * 0.9, "cacos do Líder: as áreas somam o contorno (%.0f de %.0f)" % [total_area, outline_area])
+		check(biggest > smallest * 1.5, "cacos do Líder: tamanhos diferentes")
 
 ## The script is loaded at runtime (not preloaded) for the same reason: see the top of this file.
 func _new_casts():
