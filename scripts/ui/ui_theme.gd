@@ -16,7 +16,8 @@ static var _fonts := {}
 
 ## kind: "title" (Cinzel, engraved caps), "plate_name" (Alegreya ExtraBold serif, dark lettering on the card name plate), "body", "bold", "heavy" (Alegreya Sans), "shout" (Faster One,
 ## speed-striped racing caps: only for a card's yelled line, see _shout_fx in fx_library.gd), "shout_wild" (Rye,
-## circus-poster slab caps: the yelled line of the "wild" shout style, Elefante Incomodante)
+## circus-poster slab caps: the yelled line of the "wild" shout style, Elefante Incomodante), "back_logo" (New Rocker,
+## rock-poster blackletter: only the UCLA logo on the card back)
 static func font(kind := "body") -> Font:
 	if _fonts.has(kind):
 		return _fonts[kind]
@@ -41,6 +42,8 @@ static func font(kind := "body") -> Font:
 			f = load("res://assets/fonts/FasterOne-Regular.ttf")
 		"shout_wild":
 			f = load("res://assets/fonts/Rye-Regular.ttf")
+		"back_logo":
+			f = load("res://assets/fonts/NewRocker-Regular.ttf")
 		_:
 			f = load("res://assets/fonts/AlegreyaSans-Regular.ttf")
 	_fonts[kind] = f

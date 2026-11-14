@@ -2333,36 +2333,123 @@ func _panel_lines(cd: Dictionary) -> Array:
 		out.append([[rarity_label, Color(UITheme.TEXT, 0.45)]])
 	return out
 
+const BACK_LOGO := "UCLA"
+const BACK_INK := Color("#100c22")
+const BACK_VIOLET := Color("#9d86ff")
+const BACK_GEM := Color("#7b4dff")
+
 func _draw_back(r: Rect2, s: float, trim: Color) -> void:
 	var inner := r.grow(-7 * s)
+	var c := r.get_center()
 	_rrect_fill(inner, 5 * s, Color("#17122e"))
-	# diamond lattice
+	# diamond lattice, fading out near the middle so the logo stands on a clean field
 	var step := 11.0 * s
 	var row := 0
 	var y := inner.position.y + step / 2
 	while y < inner.end.y:
 		var x := inner.position.x + (step / 2 if row % 2 == 0 else step)
 		while x < inner.end.x - 2 * s:
-			_diamond(Vector2(x, y), 1.8 * s, Color(trim, 0.16))
+			var fade := clampf(Vector2(x, y).distance_to(c) / (52 * s), 0.2, 1.0)
+			_diamond(Vector2(x, y), 1.8 * s, Color(trim, 0.16 * fade))
 			x += step
 		y += step / 2
 		row += 1
+	_draw_back_sheen(inner)
 	_rrect_line(inner, 5 * s, Color(trim, 0.6), 1.2 * s)
-	# central medallion
-	var c := r.get_center()
+	_rrect_line(inner.grow(-3 * s), 3 * s, Color(trim, 0.22), 0.8 * s)
+	for corner_side in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]:
+		_draw_back_corner(inner.grow(-6 * s), corner_side, s, trim)
+	_draw_back_crest(c, s, trim)
+	_draw_back_logo(c, s)
+	for glint_y in [inner.position.y + 13 * s, inner.end.y - 13 * s]:
+		_draw_glint(Vector2(c.x, glint_y), 5 * s, Color(trim, 0.9))
+		for side in [-1.0, 1.0]:
+			draw_circle(Vector2(c.x + side * 8 * s, glint_y), 0.9 * s, Color(trim, 0.6))
+
+## Two faint diagonal stripes of light across the back, like foil catching the lamp.
+func _draw_back_sheen(inner: Rect2) -> void:
+	var outline := PackedVector2Array([inner.position, Vector2(inner.end.x, inner.position.y), inner.end, Vector2(inner.position.x, inner.end.y)])
+	var w := inner.size.x
+	for stripe in [[0.62, 0.86, 0.045], [0.92, 0.98, 0.03]]:
+		var band := PackedVector2Array([
+			inner.position + Vector2(w * stripe[0], 0), inner.position + Vector2(w * stripe[1], 0),
+			Vector2(inner.position.x + w * (stripe[1] - 0.7), inner.end.y), Vector2(inner.position.x + w * (stripe[0] - 0.7), inner.end.y)])
+		for piece in Geometry2D.intersect_polygons(outline, band):
+			draw_colored_polygon(piece, Color(1, 1, 1, stripe[2]))
+
+## Gold bracket in one corner of the back: two arms ending in rivets, a gem at the bend and a little tick inward.
+func _draw_back_corner(area: Rect2, side: Vector2, s: float, trim: Color) -> void:
+	var corner := area.get_center() + Vector2(side.x * area.size.x / 2, side.y * area.size.y / 2)
+	var arm_x := corner + Vector2(-side.x * 15 * s, 0)
+	var arm_y := corner + Vector2(0, -side.y * 15 * s)
+	draw_polyline(PackedVector2Array([arm_y, corner, arm_x]), Color(trim, 0.85), 1.1 * s, true)
+	for arm_end in [arm_x, arm_y]:
+		draw_circle(arm_end, 1.3 * s, Color(trim, 0.85))
+	draw_line(corner - side * 3.5 * s, corner - side * 7 * s, Color(trim, 0.5), 0.9 * s, true)
+	draw_circle(corner - side * 8.5 * s, 1.0 * s, Color(trim, 0.5))
+	_diamond(corner, 2.8 * s, UITheme.GOLD_LIGHT)
+
+## The emblem behind the logo: violet glow, sunburst, a tall gold rhombus, a crown on top and a gem below.
+func _draw_back_crest(c: Vector2, s: float, trim: Color) -> void:
 	for i in 6:
-		draw_circle(c, (34 - i * 3) * s, Color("#9d86ff", 0.025))
-	draw_circle(c, 25 * s, Color("#100c22"))
-	draw_arc(c, 25 * s, 0, TAU, 48, trim, 2 * s, true)
-	draw_arc(c, 20 * s, 0, TAU, 48, Color(trim, 0.5), 1 * s, true)
-	var star := PackedVector2Array()
+		draw_circle(c, (44 - i * 4) * s, Color(BACK_VIOLET, 0.03))
 	for i in 16:
-		var a := i * TAU / 16 - PI / 2
-		star.append(c + Vector2(cos(a), sin(a)) * (17 if i % 2 == 0 else 7) * s)
-	draw_colored_polygon(star, Color(trim, 0.85))
-	_diamond(c, 4 * s, UITheme.GOLD_LIGHT)
-	for c2 in [Vector2(c.x, inner.position.y + 14 * s), Vector2(c.x, inner.end.y - 14 * s)]:
-		_diamond(c2, 4 * s, Color(trim, 0.7))
+		var a := i * TAU / 16
+		var length := (50 if i % 2 == 0 else 38) * s
+		draw_line(c + Vector2(cos(a), sin(a)) * 16 * s, c + Vector2(cos(a), sin(a)) * length, Color(trim, 0.13), 0.8 * s, true)
+	var half_w := 30.0 * s
+	var half_h := 46.0 * s
+	var rhombus := PackedVector2Array([c + Vector2(0, -half_h), c + Vector2(half_w, 0), c + Vector2(0, half_h), c + Vector2(-half_w, 0)])
+	draw_colored_polygon(rhombus, BACK_INK)
+	draw_polyline(rhombus + PackedVector2Array([rhombus[0]]), trim, 1.5 * s, true)
+	var inner_rhombus := _grow(rhombus, c, 0.84)
+	draw_polyline(inner_rhombus + PackedVector2Array([inner_rhombus[0]]), Color(trim, 0.45), 0.8 * s, true)
+	_diamond(c + Vector2(0, -half_h), 2.6 * s, UITheme.GOLD_LIGHT)
+	_diamond(c + Vector2(0, half_h), 2.6 * s, UITheme.GOLD_LIGHT)
+	_draw_back_crown(c + Vector2(0, -22 * s), s, trim)
+	_draw_back_gem(c + Vector2(0, 23 * s), 4.2 * s, trim)
+	# ribbon with notched ends, the logo sits on it
+	var ribbon_w := 47.0 * s
+	var ribbon_h := 11.5 * s
+	var notch := 5.0 * s
+	var ribbon := PackedVector2Array([
+		c + Vector2(-ribbon_w, -ribbon_h), c + Vector2(ribbon_w, -ribbon_h), c + Vector2(ribbon_w - notch, 0),
+		c + Vector2(ribbon_w, ribbon_h), c + Vector2(-ribbon_w, ribbon_h), c + Vector2(-ribbon_w + notch, 0)])
+	draw_colored_polygon(ribbon, Color("#1c1440"))
+	draw_polyline(ribbon + PackedVector2Array([ribbon[0]]), Color(trim, 0.9), 1.1 * s, true)
+	for edge_y in [-ribbon_h + 2.2 * s, ribbon_h - 2.2 * s]:
+		draw_line(c + Vector2(-ribbon_w + notch, edge_y), c + Vector2(ribbon_w - notch, edge_y), Color(trim, 0.3), 0.6 * s, true)
+
+func _draw_back_crown(base_center: Vector2, s: float, trim: Color) -> void:
+	var half := 7.0 * s
+	var height := 7.5 * s
+	var b := base_center
+	var crown := PackedVector2Array([
+		b + Vector2(-half, 0), b + Vector2(-half - 1 * s, -height), b + Vector2(-half * 0.45, -height * 0.45),
+		b + Vector2(0, -height * 1.25), b + Vector2(half * 0.45, -height * 0.45), b + Vector2(half + 1 * s, -height), b + Vector2(half, 0)])
+	draw_colored_polygon(crown, trim)
+	draw_line(b + Vector2(-half, 0.8 * s), b + Vector2(half, 0.8 * s), UITheme.GOLD_LIGHT, 1.2 * s, true)
+	for tip in [crown[1], crown[3], crown[5]]:
+		draw_circle(tip, 1.1 * s, UITheme.GOLD_LIGHT)
+
+## Round violet cabochon in a gold setting, with a small highlight.
+func _draw_back_gem(c: Vector2, radius: float, trim: Color) -> void:
+	draw_circle(c, radius + 1.2 * radius / 4.2, trim)
+	draw_circle(c, radius, BACK_GEM.darkened(0.35))
+	draw_circle(c + Vector2(0, radius * 0.15), radius * 0.72, BACK_GEM)
+	draw_circle(c + Vector2(-radius * 0.35, -radius * 0.35), radius * 0.28, Color(1, 1, 1, 0.75))
+
+## "UCLA" in embossed gold: dark outline, a shadow under the letters, a light rim above and the gold face on top.
+func _draw_back_logo(c: Vector2, s: float) -> void:
+	var font := UITheme.font("back_logo")
+	var font_size := int(round(27 * s))
+	var text_width := font.get_string_size(BACK_LOGO, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	var baseline := Vector2(c.x - text_width / 2, c.y + font_size * 0.3)
+	draw_string_outline(font, baseline + Vector2(0, 1.6 * s), BACK_LOGO, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, maxi(2, int(3 * s)), Color(0, 0, 0, 0.75))
+	draw_string_outline(font, baseline, BACK_LOGO, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, maxi(2, int(2.4 * s)), BACK_INK)
+	draw_string(font, baseline + Vector2(0, 1.0 * s), BACK_LOGO, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, UITheme.GOLD_DARK)
+	draw_string(font, baseline + Vector2(0, -0.7 * s), BACK_LOGO, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, UITheme.GOLD_LIGHT)
+	draw_string(font, baseline, BACK_LOGO, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, UITheme.GOLD)
 
 ## Art stand-in for cards without a portrait: gradient, glow, essence sigil.
 func _placeholder(art: Rect2, cd: Dictionary, col: Color, s: float) -> void:
