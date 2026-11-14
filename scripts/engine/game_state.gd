@@ -242,7 +242,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		# card_id -> turn in which the last copy of that free-standing artifact left this player's field (Erguer o Baluarte
 		# lockout)
 		"relic_fall_turns": { },
-		# {card_filter, divisor, until_turn}: this turn, ONE matching hand card costs 1/divisor of its current cost; spent when a
+		# {card_filter, divisor, reduction, min_cost, until_turn}: this turn, ONE matching hand card gets the discount; spent when a
 		# card is played
 		"play_discount": { },
 		# echo_next_spell: 0 = not armed, otherwise the uid of the unit that armed it (-1 = no unit); spent by the next spell this
@@ -1344,7 +1344,7 @@ func cost_of(p: int, cd: Dictionary, card: Card = null) -> int:
 		c = 0
 	c += opponent_cost_tax(p, cd) # a curse from the other side of the board; it is a cost, not a discount, so no floor applies
 	if card != null and card.zone == "hand" and play_discount_applies(p, card):
-		c = ceili(float(c) / int(players[p]["play_discount"]["divisor"]))
+		c = GrantPlayDiscountEffect.discounted_cost(c, players[p]["play_discount"])
 	var requiem_extra := REQUIEM_EXTRA_COST if card != null and card.zone == "graveyard" else 0
 	return c + requiem_extra
 
@@ -2101,7 +2101,7 @@ func _pay_graveyard_cost(p: int, ab: Dictionary) -> void:
 ## live: it matches the filter and p can afford and place it. The offer is only borrowed for the check.
 func _has_playable_with_discount(p: int, effect: GrantPlayDiscountEffect) -> bool:
 	var previous_offer: Dictionary = players[p]["play_discount"]
-	players[p]["play_discount"] = { "card_filter": effect.card_filter, "divisor": effect.divisor, "until_turn": turn }
+	players[p]["play_discount"] = effect.offer(turn)
 	var found := false
 	for card: Card in players[p]["hand"]:
 		if play_discount_applies(p, card) and can_play(p, card.uid):

@@ -5,7 +5,7 @@
   "rarity": "epic",
   "essence": "natureza",
   "cost": 3,
-  "speed": "lento",
+  "speed": "instantaneo",
   "art": "natureza/rinha_clandestina.webp",
   "effects": [
     {

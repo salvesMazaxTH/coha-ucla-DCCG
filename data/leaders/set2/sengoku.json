@@ -9,7 +9,7 @@
     "name": "Peso dos Séculos",
     "cost": 0,
     "life_cost": {
-      "start": 2,
+      "start": 3,
       "increase_per_own_turn": 2
     },
     "once_per_turn": true,
@@ -18,14 +18,15 @@
       {
         "action": "grant_play_discount",
         "target": "none",
-        "divisor": 2,
+        "reduction": 2,
+        "min_cost": 1,
         "card_filter": {
-          "max_cost": 6,
-          "tribe": "dragonoide"
+          "max_cost": 7,
+          "tribe_any": ["dragao", "dragonoide"]
         }
       }
     ],
-    "text": "Lenta. Uma vez por turno: seu Líder paga X de Vida. Neste turno, seu próximo Dragonoide de custo base até (6) na mão custa metade do custo atual (arredondado para cima). X começa em 2 e aumenta 2 por turno seu."
+    "text": "Lenta. Uma vez por turno: seu Líder paga X de Vida. Neste turno, seu próximo Dragão ou Dragonoide de custo base até (7) na mão custa (2) a menos (mínimo (1)). X começa em 3 e aumenta 2 por turno seu."
   },
   "essences": [
     "furia"

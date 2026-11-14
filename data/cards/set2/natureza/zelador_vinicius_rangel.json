@@ -9,6 +9,7 @@
   "atk": 1,
   "hp": 3,
   "keywords": [],
+  "art": "natureza/zelador_vinicius_rangel.webp",
   "effects": [
     { "trigger": "on_enter", "action": "sacrifice", "target": "random_other_ally_units", "count": 2, "unit_filter": { "token": true }, "all_or_nothing": true },
     {

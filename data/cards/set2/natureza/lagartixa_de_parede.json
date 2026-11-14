@@ -10,6 +10,7 @@
   "hp": 2,
   "keywords": ["regeneracao"],
   "art": "natureza/lagartixa_de_parede.webp",
+  "art_crop": {"x": 0.5, "y": 0.42, "zoom": 1.0},
   "effects": [
     { "trigger": "on_death", "action": "summon", "target": "none", "card": "filhote_de_lagartixa" },
     { "trigger": "on_death", "action": "summon", "target": "none", "card": "filhote_de_lagartixa" }
