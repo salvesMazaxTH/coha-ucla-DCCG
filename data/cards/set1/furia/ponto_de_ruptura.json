@@ -11,9 +11,10 @@
       "trigger": "on_play",
       "action": "resolve_dot",
       "dot": "sangramento",
+      "consume": false,
       "target": "enemy_unit"
     }
   ],
-  "text": "Os marcadores de Sangramento de uma unidade inimiga fazem efeito agora.",
+  "text": "Os marcadores de Sangramento de uma unidade inimiga fazem efeito agora, mas não se consomem.",
   "flavor": "Por que esperar a hemorragia chegar? Ela já está atrasada para o jantar."
 }

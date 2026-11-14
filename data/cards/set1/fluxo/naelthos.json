@@ -32,12 +32,12 @@
       {
         "action": "heal_leader",
         "target": "own_leader",
-        "amount": 4
+        "amount": 3
       },
       {
         "action": "heal_unit",
         "target": "all_ally_units",
-        "amount": 4
+        "amount": 3
       },
       {
         "action": "buff",
@@ -46,6 +46,6 @@
       }
     ]
   },
-  "text": "Ao Entrar: seu Líder recupera 4 de Vida.\nAo Ativar (3) {lento} (1x por turno): seu Líder e cada unidade aliada recuperam 4 de Vida; esta unidade ganha +1 de Vida permanente.",
+  "text": "Ao Entrar: seu Líder recupera 4 de Vida.\nAo Ativar (3) {lento} (1x por turno): seu Líder e cada unidade aliada recuperam 3 de Vida; esta unidade ganha +1 de Vida permanente.",
   "flavor": "O mar sempre retorna."
 }

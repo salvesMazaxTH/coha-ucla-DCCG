@@ -953,7 +953,7 @@ func _stack_on_deck(g: GameState, p: int, card_id: String) -> Card:
 	return card
 
 func _test_summon_from() -> void:
-	# Rafaela: cura do Líder de 2+ revela o deck até o primeiro Anjo/Celestial de custo <= 5
+	# Rafaela: cura do Líder de 4+ revela o deck até o primeiro Anjo/Celestial de custo <= 4
 	var g := _new_game()
 	g.active = 0
 	g.players[0]["deck"].clear()
@@ -963,14 +963,14 @@ func _test_summon_from() -> void:
 	_stack_on_deck(g, 0, "esqueleto_guerreiro")
 	_put(g, 0, "rafaela_o_clarao_da_cura")
 	g.players[0]["leader_hp"] -= 8
-	g._heal_leader(0, 1)
+	g._heal_leader(0, 3)
 	g.check_state()
-	check(g.phase != "search", "Rafaela: cura de só 1 não dispara (min_amount)")
-	g._heal_leader(0, 2)
+	check(g.phase != "search", "Rafaela: cura de só 3 não dispara (min_amount)")
+	g._heal_leader(0, 4)
 	g.check_state()
-	check(g.phase == "search" and g.pending_search.get("summon_from", false), "Rafaela: cura de 2 abre a escolha de invocação")
+	check(g.phase == "search" and g.pending_search.get("summon_from", false), "Rafaela: cura de 4 abre a escolha de invocação")
 	var offered: Array = g.pending_search["cards"]
-	check(offered.size() == 1 and int(offered[0]["uid"]) == angel.uid, "Rafaela: só o Anjo de custo <= 5 é oferecido (o de custo 7 é pulado)")
+	check(offered.size() == 1 and int(offered[0]["uid"]) == angel.uid, "Rafaela: só o Anjo de custo <= 4 é oferecido (o de custo 7 é pulado)")
 	var shown: Array = g.pending_search["looked_cards"].map(func(option: Dictionary): return String(option["card_id"]))
 	check(shown == ["esqueleto_guerreiro", "iruvael_o_setimo_clarim", "eliel_vigia_da_aurora"], "Rafaela: o dono vê todas as cartas reveladas, na ordem do topo (%s)" % str(shown))
 	check(StateView.snapshot(g, 1)["pending_search"]["looked_cards"].is_empty(), "Rafaela: o oponente não vê as cartas reveladas")
@@ -992,7 +992,7 @@ func _test_summon_from() -> void:
 	var spare := _stack_on_deck(g_decline, 0, "eliel_vigia_da_aurora")
 	_put(g_decline, 0, "rafaela_o_clarao_da_cura")
 	g_decline.players[0]["leader_hp"] -= 8
-	g_decline._heal_leader(0, 3)
+	g_decline._heal_leader(0, 4)
 	g_decline.check_state()
 	g_decline.choose_search(0, 0)
 	g_decline.flush_events()
@@ -1697,8 +1697,8 @@ func _test_sagrada_board_control() -> void:
 	check(lucien_targets.filter(func(unit: Card): return unit.damage > 0).size() == 2,
 		"Uriel não causa dano ao entrar")
 	var uriel_data: Dictionary = CardDB.card("uriel")
-	check(int(uriel_data["atk"]) == 5 and int(uriel_data["hp"]) == 5
-		and not uriel_data["keywords"].has("roubo_de_vida"), "Uriel é 5/5 e não tem Roubo de Vida inato")
+	check(int(uriel_data["atk"]) == 5 and int(uriel_data["hp"]) == 4
+		and not uriel_data["keywords"].has("roubo_de_vida"), "Uriel é 5/4 e não tem Roubo de Vida inato")
 	var uriel_game := _new_game()
 	_quiet(uriel_game)
 	uriel_game.players[0]["leader_hp"] = 10
@@ -5959,39 +5959,43 @@ func _test_layla_deck() -> void:
 	check(jack_victims[0].damage == 2 and jack_victims[1].damage == 2, "Jack Veyr: a unidade que ficou Atordoada sofre 2 de dano")
 	check(jack_victims[2].damage == 0, "Jack Veyr: só reage 2x por turno (a terceira Atordoada não sofre dano)")
 
-	# Ellen Veyr: cover fire. Each attack declared in the match makes her shoot before the combat, at most twice per
-	# turn: 2 damage the first time, 5 the second. In her owner's turn the shot hits the unit an ally challenged;
+	# Ellen Veyr: cover fire. Each attack declared in the match makes her shoot before the combat, at most 3 times per
+	# turn: 1 damage the first two times, 3 the third. In her owner's turn the shot hits the unit an ally challenged;
 	# in the enemy's turn it hits the attacker. An attack on a Leader has no unit to shoot.
 	_tcard("t_ellen_target", 1, 20, [])
 	_tcard("t_ellen_attacker", 1, 20, [])
 	g = _new_game()
 	_quiet(g)
 	_put(g, 0, "ellen_veyr")
-	var ellen_targets: Array[Card] = [_put(g, 1, "t_ellen_target"), _put(g, 1, "t_ellen_target"), _put(g, 1, "t_ellen_target")]
-	var ellen_allies: Array[Card] = [_put(g, 0, "t_ellen_attacker"), _put(g, 0, "t_ellen_attacker"), _put(g, 0, "t_ellen_attacker")]
+	var ellen_targets: Array[Card] = [_put(g, 1, "t_ellen_target"), _put(g, 1, "t_ellen_target"), _put(g, 1, "t_ellen_target"), _put(g, 1, "t_ellen_target")]
+	var ellen_allies: Array[Card] = [_put(g, 0, "t_ellen_attacker"), _put(g, 0, "t_ellen_attacker"), _put(g, 0, "t_ellen_attacker"), _put(g, 0, "t_ellen_attacker")]
 	for ellen_target in ellen_targets:
 		ellen_target.exhausted = true
 	_hit(g, ellen_allies[0], ellen_targets[0].uid)
-	check(ellen_targets[0].damage == 2 + 1, "Ellen Veyr: no turno dela, o 1º ataque aliado leva 2 de dano na unidade desafiada (+1 do combate)")
+	check(ellen_targets[0].damage == 1 + 1, "Ellen Veyr: no turno dela, o 1º ataque aliado leva 1 de dano na unidade desafiada (+1 do combate)")
 	_hit(g, ellen_allies[1], ellen_targets[1].uid)
-	check(ellen_targets[1].damage == 5 + 1, "Ellen Veyr: o 2º tiro do turno causa 5 de dano (+1 do combate)")
+	check(ellen_targets[1].damage == 1 + 1, "Ellen Veyr: o 2º tiro do turno também causa 1 de dano (+1 do combate)")
 	_hit(g, ellen_allies[2], ellen_targets[2].uid)
-	check(ellen_targets[2].damage == 1, "Ellen Veyr: só atira 2x por turno (o 3º ataque só sofre o combate)")
+	check(ellen_targets[2].damage == 3 + 1, "Ellen Veyr: o 3º tiro do turno causa 3 de dano (+1 do combate)")
+	_hit(g, ellen_allies[3], ellen_targets[3].uid)
+	check(ellen_targets[3].damage == 1, "Ellen Veyr: só atira 3x por turno (o 4º ataque só sofre o combate)")
 
-	# the enemy's turn: the attacker is the one who is shot, first 2 and then 5 damage
+	# the enemy's turn: the attacker is the one who is shot, 1, 1 and then 3 damage
 	g = _new_game()
 	_quiet(g)
 	var ellen_unit := _put(g, 0, "ellen_veyr")
-	var ellen_wall: Array[Card] = [_put(g, 0, "t_ellen_target"), _put(g, 0, "t_ellen_target")]
+	var ellen_wall: Array[Card] = [_put(g, 0, "t_ellen_target"), _put(g, 0, "t_ellen_target"), _put(g, 0, "t_ellen_target")]
 	g.end_turn(0)
-	var enemy_attackers: Array[Card] = [_put(g, 1, "t_ellen_attacker"), _put(g, 1, "t_ellen_attacker")]
+	var enemy_attackers: Array[Card] = [_put(g, 1, "t_ellen_attacker"), _put(g, 1, "t_ellen_attacker"), _put(g, 1, "t_ellen_attacker")]
 	for wall in ellen_wall:
 		wall.exhausted = true
 	_hit(g, enemy_attackers[0], ellen_wall[0].uid)
-	check(enemy_attackers[0].damage == 2 + 1, "Ellen Veyr: no turno inimigo, o atacante leva 2 de dano antes do combate (+1 do combate)")
+	check(enemy_attackers[0].damage == 1 + 1, "Ellen Veyr: no turno inimigo, o atacante leva 1 de dano antes do combate (+1 do combate)")
 	_hit(g, enemy_attackers[1], ellen_wall[1].uid)
-	check(enemy_attackers[1].damage == 5 + 1, "Ellen Veyr: o 2º atacante do turno inimigo leva 5 de dano (+1 do combate)")
-	check(ellen_unit.conditional_uses == 2, "Ellen Veyr: os dois tiros ficam contados como usos do Condicional")
+	check(enemy_attackers[1].damage == 1 + 1, "Ellen Veyr: o 2º atacante do turno inimigo leva 1 de dano (+1 do combate)")
+	_hit(g, enemy_attackers[2], ellen_wall[2].uid)
+	check(enemy_attackers[2].damage == 3 + 1, "Ellen Veyr: o 3º atacante do turno inimigo leva 3 de dano (+1 do combate)")
+	check(ellen_unit.conditional_uses == 3, "Ellen Veyr: os três tiros ficam contados como usos do Condicional")
 
 	# an attack on a Leader leaves no unit to shoot: her own side's attacker is never hit
 	g = _new_game()
@@ -13933,14 +13937,14 @@ func _test_sagrada_engine() -> void:
 	player = g.active
 	var escalating_nerithia := _put(g, player, "nerithia")
 	var other_nerithia := _put(g, player, "nerithia")
-	var nerithia_costs := [6, 10, 18, 34]
-	var nerithia_mods := [2, 6, 14, 30]
+	var nerithia_costs := [7, 10, 13, 16]
+	var nerithia_mods := [3, 6, 9, 12]
 	for i in nerithia_costs.size():
 		g.deal_damage(escalating_nerithia.uid, 99, null)
 		g.check_state()
 		check(g.players[player]["hand"].has(escalating_nerithia), "Nerithia: volta à mão após morrer (%d)" % (i + 1))
 		check(escalating_nerithia.cost_mod == nerithia_mods[i], "Nerithia: aumento acumulado da própria cópia (%d)" % nerithia_mods[i])
-		check(g.cost_of(player, CardDB.card("nerithia"), escalating_nerithia) == nerithia_costs[i], "Nerithia: custo base + aumentos dobrados (%d)" % nerithia_costs[i])
+		check(g.cost_of(player, CardDB.card("nerithia"), escalating_nerithia) == nerithia_costs[i], "Nerithia: custo base + 3 por morte (%d)" % nerithia_costs[i])
 		check(other_nerithia.cost_mod == 0, "Nerithia: outra cópia não recebe o aumento")
 		if i < nerithia_costs.size() - 1:
 			g.players[player]["hand"].erase(escalating_nerithia)
