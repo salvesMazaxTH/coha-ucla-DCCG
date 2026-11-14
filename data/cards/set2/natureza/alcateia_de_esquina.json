@@ -4,12 +4,12 @@
   "type": "spell",
   "rarity": "common",
   "essence": "natureza",
-  "cost": 2,
+  "cost": 3,
   "speed": "lento",
   "art": "natureza/alcateia_de_esquina.webp",
   "effects": [
-    { "trigger": "on_play", "action": "buff", "target": "all_ally_units", "only_tribe": ["fera"], "atk": 1, "hp": 1 }
+    { "trigger": "on_play", "action": "buff", "target": "all_ally_units", "only_tribe": ["cao"], "atk": 1, "hp": 2 }
   ],
-  "text": "Concede +1/+1 permanente às suas Feras.",
+  "text": "Concede +1/+2 permanente aos seus Cães.",
   "flavor": ""
 }

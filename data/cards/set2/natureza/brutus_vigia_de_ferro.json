@@ -3,7 +3,7 @@
   "set": 2,
   "type": "unit",
   "rarity": "epic",
-  "tribe": ["fera", "nuliterrano"],
+  "tribe": ["fera", "cao", "nuliterrano"],
   "essence": "natureza",
   "cost": 6,
   "atk": 4,

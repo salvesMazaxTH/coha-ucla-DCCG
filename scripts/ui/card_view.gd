@@ -1706,7 +1706,12 @@ static func critico_chance_percent(critico_level: int) -> int:
 ## Live keywords on the board, printed ones elsewhere.
 func _keywords(cd: Dictionary) -> Array:
 	if inst.has("damage"):
-		return inst.get("keywords", cd.get("keywords", []))
+		var live_keywords: Array = inst.get("keywords", cd.get("keywords", [])).duplicate()
+		for keyword_list_name in ["aura_keywords", "surge_keywords"]:
+			for keyword in inst.get(keyword_list_name, []):
+				if not live_keywords.has(keyword):
+					live_keywords.append(keyword)
+		return live_keywords
 	var out: Array = cd.get("keywords", []).duplicate()
 	for keyword in inst.get("permanent_buffs", {}).get("keywords", []):
 		if not out.has(keyword):

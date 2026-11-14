@@ -66,6 +66,9 @@ static func step(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 			if not g.stack.is_empty() or p != g.active:
 				var response := _try_play(g, p, held_card_ids)
 				return response if not response.is_empty() else g.pass_priority(p)
+			var discount_events := _play_with_discount_power(g, p, held_card_ids)
+			if not discount_events.is_empty():
+				return discount_events
 			for card: Card in _reservoir_store_order(g, p):
 				if (
 					not held_card_ids.has(card.card_id)
@@ -80,6 +83,59 @@ static func step(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 				return g.go_to_combat(p)
 			return g.end_turn(p)
 	return []
+
+
+## Leader power that discounts one card (Sengoku, Peso dos Séculos). It has to come before the Reservoir and before the
+## cheap plays, which would spend the Momentum (or store the card) the discount is meant to stretch.
+## 1. an offer is active: the dearest matching unit of the hand is played with it;
+## 2. otherwise the power is used when it unlocks a unit that is not playable at full price and that costs more
+##    than anything the hand can play right now.
+static func _play_with_discount_power(g: GameState, p: int, held_card_ids: Array) -> Array:
+	var ability: Dictionary = CardDB.leader(g.players[p]["leader_id"])["ability"]
+	var discount := _discount_effect(ability)
+	if discount == null:
+		return []
+	var offer: Dictionary = g.players[p]["play_discount"]
+	if not offer.is_empty() and int(offer["until_turn"]) == g.turn:
+		for card: Card in _hand_most_expensive_first(g, p):
+			if g.play_discount_applies(p, card) and not held_card_ids.has(card.card_id):
+				var card_events := _try_play_card(g, p, card)
+				if not card_events.is_empty():
+					return card_events
+		return []
+	if not g.can_use_ability(p) or int(g.players[p]["leader_hp"]) - g.ability_life_cost(p, ability) < MIN_LIFE_AFTER_PAYING:
+		return []
+	if _discount_unlocks_dearer_unit(g, p, discount, held_card_ids):
+		return g.use_ability(p, 0)
+	return []
+
+
+static func _discount_effect(ability: Dictionary) -> GrantPlayDiscountEffect:
+	for effect in EffectRegistry.parse_list(ability["effects"]):
+		if effect is GrantPlayDiscountEffect:
+			return effect
+	return null
+
+
+static func _discount_unlocks_dearer_unit(g: GameState, p: int, discount: GrantPlayDiscountEffect, held_card_ids: Array) -> bool:
+	var best_playable_cost := -1
+	var playable_without_offer: Array = []
+	for card: Card in g.players[p]["hand"]:
+		if not held_card_ids.has(card.card_id) and g.can_play(p, card.uid):
+			playable_without_offer.append(card.uid)
+			best_playable_cost = maxi(best_playable_cost, _base_cost(card))
+	var previous_offer: Dictionary = g.players[p]["play_discount"]
+	g.players[p]["play_discount"] = discount.offer(g.turn)
+	var best_unlocked_cost := -1
+	for card: Card in g.players[p]["hand"]:
+		if (
+			held_card_ids.has(card.card_id) or playable_without_offer.has(card.uid) or CardDB.card(card.card_id)["type"] != "unit"
+			or not g.play_discount_applies(p, card) or not g.can_play(p, card.uid) or not g.has_free_slot(p)
+		):
+			continue
+		best_unlocked_cost = maxi(best_unlocked_cost, _base_cost(card))
+	g.players[p]["play_discount"] = previous_offer
+	return best_unlocked_cost > best_playable_cost
 
 
 ## Hand order for choosing what to store: the dearest first; with `store_duplicate_first` in the profile,

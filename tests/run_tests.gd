@@ -137,6 +137,7 @@ func _init() -> void:
 	_test_leader_cut()
 	_test_enter_target()
 	_test_ai_enter_damage()
+	_test_ai_sengoku_discount_power()
 	_test_ai_armor_ability()
 	_test_ai_incarnation_priority()
 	_test_ai_untaxed_incarnation_first()
@@ -3628,6 +3629,85 @@ func _test_ai_enter_damage() -> void:
 	SimpleAI.step(mixed, 0)
 	check(mixed.find_unit(healing.uid).damage == 0 and mixed.find_unit(lasting.uid).damage == 3, "IA/Ronan: ignora quem regenera e fere quem guarda o dano")
 
+## Sengoku's AI: Peso dos Séculos comes BEFORE the cheap plays and the Reservatório storing, and is spent on a
+## Dragonoide dearer than anything the hand could play without it.
+func _test_ai_sengoku_discount_power() -> void:
+	# 1. turn 1 with nothing stored yet: it stores one card for Momentum, then cheats the cost-3 Dragonoide for 1
+	var g := GameState.new("sengoku", "agua", 42)
+	g.mulligan(0, [])
+	g.mulligan(1, [])
+	g.self_response_enabled = false
+	for p in 2:
+		g.players[p]["battery"] = 0
+		g.players[p]["hand"].clear()
+	g.players[0]["ability_used"] = false
+	_give(g, 0, "sopra_brasas")
+	_give(g, 0, "bola_de_fogo")
+	_give(g, 0, "guerreiro_igneo")
+	var life_before: int = g.players[0]["leader_hp"]
+	_run_ai_turn(g)
+	check(
+		g.players[0]["leader_hp"] == life_before - 3,
+		"IA/Sengoku: gasta o Peso dos Séculos no turno 1 em vez de só jogar e guardar cartas",
+	)
+	check(
+		_board_has(g, 0, "sopra_brasas"),
+		"IA/Sengoku: o Dragonoide de custo 3 entra em campo pelo preço com desconto",
+	)
+
+	# 2. a cost-3 Dragonoide is playable at full price, but a cost-4 one is dearer: the power goes to the dearer one
+	var dearer := GameState.new("sengoku", "agua", 42)
+	dearer.mulligan(0, [])
+	dearer.mulligan(1, [])
+	_calm_start(dearer)
+	dearer.self_response_enabled = false
+	dearer.players[0]["hand"].clear()
+	dearer.players[0]["ability_used"] = false
+	dearer.players[0]["momentum"] = 3
+	_give(dearer, 0, "sopra_brasas")
+	_give(dearer, 0, "ronan")
+	_run_ai_turn(dearer)
+	check(
+		_board_has(dearer, 0, "ronan"),
+		"IA/Sengoku: usa o poder para trapacear o Dragonoide mais caro em vez de jogar o mais barato",
+	)
+
+	# 3. the Leader is too low on Vida to pay: the power stays unused
+	var weak := GameState.new("sengoku", "agua", 42)
+	weak.mulligan(0, [])
+	weak.mulligan(1, [])
+	_calm_start(weak)
+	weak.self_response_enabled = false
+	weak.players[0]["hand"].clear()
+	weak.players[0]["ability_used"] = false
+	weak.players[0]["momentum"] = 3
+	weak.players[0]["leader_hp"] = 11
+	_give(weak, 0, "ronan")
+	_run_ai_turn(weak)
+	check(weak.players[0]["leader_hp"] == 11, "IA/Sengoku: não gasta o poder se a Vida ficaria abaixo do piso")
+
+
+## Both players act until the turn changes (the opponent answers on the stack).
+func _run_ai_turn(g: GameState) -> void:
+	var turn_at_start := g.turn
+	var guard := 0
+	while g.turn == turn_at_start and guard < 60:
+		guard += 1
+		var progressed := false
+		for p in 2:
+			if not SimpleAI.step(g, p).is_empty():
+				progressed = true
+		if not progressed:
+			break
+
+
+func _board_has(g: GameState, p: int, card_id: String) -> bool:
+	for unit in g.players[p]["board"]:
+		if unit != null and unit.card_id == card_id:
+			return true
+	return false
+
+
 ## Tharox's Massa Inamolgável (+1 Armadura until his next turn): the AI only spends the Momentum when an
 ## exhausted ally would die to an enemy challenge without it and survive with it.
 func _test_ai_armor_ability() -> void:
@@ -3885,8 +3965,8 @@ func _hand_cost(g: GameState, uid: int) -> int:
 	return -1
 
 func _test_sengoku_leader() -> void:
-	# Peso dos Séculos: pays 2 Vida on the owner's first turn, +2 for each further turn of the owner's own (the opponent's
-	# turns never count), then ONE Dragonoide of cost <= 6 in hand costs half this turn
+	# Peso dos Séculos: pays 3 Vida on the owner's first turn, +2 for each further turn of the owner's own (the opponent's
+	# turns never count), then ONE Dragão or Dragonoide of cost <= 7 in hand costs 2 less this turn (never below 1)
 	var g := GameState.new("sengoku", "agua", 42)
 	g.mulligan(0, [])
 	g.mulligan(1, [])
@@ -3896,28 +3976,43 @@ func _test_sengoku_leader() -> void:
 	g.players[0]["ability_used"] = false
 	g.players[0]["momentum"] = 10
 	check(not g.can_use_ability(0), "sengoku: sem Dragonoide jogável na mão, Peso dos Séculos não pode ser usado")
-	var ronan_uid := _give(g, 0, "ronan")                   # Dragonoide, cost 4
-	var ivan_uid := _give(g, 0, "ivan_ignisar")             # Dragão primordial, cost 7: above the cap
-	var odd_cost_uid := _give(g, 0, "sopra_brasas")         # Dragonoide, cost 3: pays 2 (the reduction rounds down)
-	var guerreiro_uid := _give(g, 0, "guerreiro_igneo")     # not a Dragonoide
+	var ronan_uid := _give(g, 0, "ronan") # Dragonoide, cost 4
+	var ivan_uid := _give(g, 0, "ivan_ignisar") # Dragão primordial, cost 7: right at the cap
+	var odd_cost_uid := _give(g, 0, "sopra_brasas") # Dragonoide, cost 3: pays 1
+	var guerreiro_uid := _give(g, 0, "guerreiro_igneo") # not a Dragonoide
 	check(g.can_use_ability(0), "sengoku: com Dragonoide jogável na mão, Peso dos Séculos pode ser usado")
-	var expected_life_cost := 2 * int(g.players[0]["own_turns_started"])
-	check(g.ability_life_cost(0, CardDB.leader("sengoku")["ability"]) == expected_life_cost and expected_life_cost == 2, "sengoku: no primeiro turno seu o custo é 2 de Vida")
+	var expected_life_cost := 3 + 2 * (int(g.players[0]["own_turns_started"]) - 1)
+	check(
+		g.ability_life_cost(0, CardDB.leader("sengoku")["ability"]) == expected_life_cost and expected_life_cost == 3,
+		"sengoku: no primeiro turno seu o custo é 3 de Vida",
+	)
 	var life_before: int = g.players[0]["leader_hp"]
 	var ronan_full_cost: int = _hand_cost(g, ronan_uid)
 	g.use_ability(0, 0)
 	g.pass_priority(1)
-	check(g.players[0]["leader_hp"] == life_before - expected_life_cost, "sengoku: paga de Vida o custo atual (2 no primeiro turno seu)")
-	check(_hand_cost(g, ronan_uid) == ceili(ronan_full_cost / 2.0), "sengoku: Dragonoide da mão custa metade do preço")
-	check(_hand_cost(g, odd_cost_uid) == 2, "sengoku: custo ímpar arredonda o desconto para baixo (3 vira 2)")
-	check(_hand_cost(g, ivan_uid) == int(CardDB.card("ivan_ignisar")["cost"]), "sengoku: custo acima de 6 não recebe desconto")
-	check(_hand_cost(g, guerreiro_uid) == int(CardDB.card("guerreiro_igneo")["cost"]), "sengoku: quem não é Dragonoide não recebe desconto")
+	check(
+		g.players[0]["leader_hp"] == life_before - expected_life_cost,
+		"sengoku: paga de Vida o custo atual (3 no primeiro turno seu)",
+	)
+	check(_hand_cost(g, ronan_uid) == ronan_full_cost - 2, "sengoku: Dragonoide da mão custa 2 a menos")
+	check(_hand_cost(g, odd_cost_uid) == 1, "sengoku: custo 3 cai para 1, o mínimo")
+	check(_hand_cost(g, ivan_uid) == int(CardDB.card("ivan_ignisar")["cost"]) - 2, "sengoku: Dragão de custo 7 também recebe o desconto")
+	check(
+		_hand_cost(g, guerreiro_uid) == int(CardDB.card("guerreiro_igneo")["cost"]),
+		"sengoku: quem não é Dragão nem Dragonoide não recebe desconto",
+	)
 	check(not g.can_use_ability(0), "sengoku: uma vez por turno")
 	var momentum_before: int = g.players[0]["momentum"]
 	g.play_card(0, ronan_uid)
 	g.pass_priority(1)
-	check(g.players[0]["momentum"] == momentum_before - ceili(ronan_full_cost / 2.0),"sengoku: o Dragonoide é jogado pelo preço com desconto")
-	check(_hand_cost(g, odd_cost_uid) == int(CardDB.card("sopra_brasas")["cost"]), "sengoku: a oferta é gasta pela primeira carta jogada")
+	check(
+		g.players[0]["momentum"] == momentum_before - (ronan_full_cost - 2),
+		"sengoku: o Dragonoide é jogado pelo preço com desconto",
+	)
+	check(
+		_hand_cost(g, odd_cost_uid) == int(CardDB.card("sopra_brasas")["cost"]),
+		"sengoku: a oferta é gasta pela primeira carta jogada",
+	)
 	# the offer also lapses at the end of the turn it was granted in
 	var g2 := GameState.new("sengoku", "agua", 42)
 	g2.mulligan(0, [])
@@ -3937,13 +4032,16 @@ func _test_sengoku_leader() -> void:
 	var sengoku_ability: Dictionary = CardDB.leader("sengoku")["ability"]
 	var ability_panel := LeaderView.ability_panel(sengoku_ability, Color.WHITE, -1, 4)
 	var ability_text := ability_panel.get_child(3) as RichTextLabel
-	var expected_text := "Seu Líder paga X de Vida. Neste turno, seu próximo Dragonoide de custo base até (6) na mão custa metade do custo atual (arredondado para cima). X começa em 2 e aumenta 2 por turno seu."
-	check(ability_text.text == CardView.colorize_rules(expected_text, 21), "sengoku: texto da habilidade explica o custo de Vida sem repetir informações dos selos")
+	var expected_text := "Seu Líder paga X de Vida. Neste turno, seu próximo Dragão ou Dragonoide de custo base até (7) na mão custa (2) a menos (mínimo (1)). X começa em 3 e aumenta 2 por turno seu."
+	check(
+		ability_text.text == CardView.colorize_rules(expected_text, 21),
+		"sengoku: texto da habilidade explica o custo de Vida sem repetir informações dos selos",
+	)
 	check(LeaderView._life_cost_chip_text(sengoku_ability["life_cost"], 4) == "4 VIDA", "sengoku: selo mostra o custo atual de Vida")
 	ability_panel.free()
-	check(g2.ability_life_cost(0, sengoku_ability) == 2, "sengoku: o turno do oponente não aumenta o custo")
+	check(g2.ability_life_cost(0, sengoku_ability) == 3, "sengoku: o turno do oponente não aumenta o custo")
 	g2.end_turn(1)
-	check(g2.ability_life_cost(0, sengoku_ability) == 4, "sengoku: cada turno seu soma 2 ao custo")
+	check(g2.ability_life_cost(0, sengoku_ability) == 5, "sengoku: cada turno seu soma 2 ao custo")
 	# never lets the Leader pay a life cost that would kill it
 	var g3 := GameState.new("sengoku", "agua", 42)
 	g3.mulligan(0, [])
@@ -3954,6 +4052,16 @@ func _test_sengoku_leader() -> void:
 	_give(g3, 0, "ronan")
 	g3.players[0]["leader_hp"] = g3.ability_life_cost(0, CardDB.leader("sengoku")["ability"])
 	check(not g3.can_use_ability(0), "sengoku: Vida igual ao custo, a habilidade é bloqueada")
+
+func _sengoku_offer(turn: int) -> Dictionary:
+	return {
+		"card_filter": { "tribe_any": ["dragao", "dragonoide"], "max_cost": 7 },
+		"divisor": 2,
+		"reduction": 2,
+		"min_cost": 1,
+		"until_turn": turn,
+	}
+
 
 func _test_sengoku_discount_current_cost() -> void:
 	var g := GameState.new("sengoku", "agua", 42)
@@ -3973,11 +4081,17 @@ func _test_sengoku_discount_current_cost() -> void:
 	var life_before: int = g.players[0]["leader_hp"]
 	g.use_ability(0, 0)
 	g.pass_priority(1)
-	check(g.players[0]["leader_hp"] == life_before - 4, "sengoku: paga a Vida ao ativar após Jardim")
-	check(_hand_cost(g, brasilio_uid) == 2, "sengoku: custo atual 4 é reduzido para 2, não para metade do custo base 5")
+	check(g.players[0]["leader_hp"] == life_before - 5, "sengoku: paga a Vida ao ativar após Jardim")
+	check(_hand_cost(g, brasilio_uid) == 2, "sengoku: custo atual 4 é reduzido para 2, não calculado sobre o custo base 5")
 	var play_events := g.play_card(0, brasilio_uid)
-	var play_events_for_card := play_events.filter(func(e): return e["type"] == "play" and e["uid"] == brasilio_uid)
-	check(play_events_for_card.size() == 1 and int(play_events_for_card[0]["cost"]) == 2, "sengoku: paga o custo atual reduzido ao jogar")
+	var play_events_for_card := play_events.filter(
+		func(e):
+			return e["type"] == "play" and e["uid"] == brasilio_uid,
+	)
+	check(
+		play_events_for_card.size() == 1 and int(play_events_for_card[0]["cost"]) == 2,
+		"sengoku: paga o custo atual reduzido ao jogar",
+	)
 	check(g.players[0]["play_discount"].is_empty(), "sengoku: jogar a carta consome a oferta")
 
 	_tcard("t_sengoku_cost", 1, 1, [])
@@ -3988,28 +4102,35 @@ func _test_sengoku_discount_current_cost() -> void:
 	g.players[0]["hand"].clear()
 	var uid := _give(g, 0, "t_sengoku_cost")
 	var card: Card = g._hand_card(0, uid)
-	g.players[0]["play_discount"] = {"card_filter": {"tribe": "dragonoide", "max_cost": 6}, "divisor": 2, "until_turn": g.turn}
+	g.players[0]["play_discount"] = _sengoku_offer(g.turn)
 	card.discount = 1
-	check(_hand_cost(g, uid) == 3, "sengoku: custo atual ímpar 5 é arredondado para 3")
+	check(_hand_cost(g, uid) == 3, "sengoku: custo atual 5 vira 3")
 	card.turn_discount = 1
 	check(_hand_cost(g, uid) == 2, "sengoku: considera reduções permanentes e do turno")
 	card.cost_mod = 4
-	check(_hand_cost(g, uid) == 4, "sengoku: considera também aumentos no custo atual")
+	check(_hand_cost(g, uid) == 6, "sengoku: considera também aumentos no custo atual")
 	card.cost_mod = -10
 	check(_hand_cost(g, uid) == 0, "sengoku: custo atual não fica negativo")
 	card.discount = 0
 	card.turn_discount = 0
 	card.cost_mod = 0
-	cd["effects"] = [{"action": "cost_reduction", "per": "unspent_turns", "amount": 2, "min_cost": 3}]
+	cd["effects"] = [{ "action": "cost_reduction", "per": "unspent_turns", "amount": 2, "min_cost": 3 }]
 	g.players[0]["unspent_turns"] = 2
-	check(_hand_cost(g, uid) == 2, "sengoku: divide o custo atual após aplicar o mínimo da redução anterior")
-	cd["cost"] = 7
-	check(not g.play_discount_applies(0, card) and _hand_cost(g, uid) == 3, "sengoku: limite de 6 continua usando o custo base mesmo após redução")
+	check(_hand_cost(g, uid) == 1, "sengoku: reduz o custo atual após aplicar o mínimo da redução anterior")
+	card.discount = 5
+	check(_hand_cost(g, uid) == 1, "sengoku: nunca deixa a carta custar menos de 1")
+	check(GrantPlayDiscountEffect.discounted_cost(0, _sengoku_offer(g.turn)) == 0, "sengoku: o mínimo não encarece carta que já custa 0")
+	card.discount = 0
+	cd["cost"] = 8
+	check(
+		not g.play_discount_applies(0, card) and _hand_cost(g, uid) == 4,
+		"sengoku: limite de 7 continua usando o custo base mesmo após redução",
+	)
 
 	_tcard("t_sengoku_subito_trigger", 1, 1, [])
 	_tcard("t_sengoku_subito", 1, 1, [])
 	var sub_data: Dictionary = CardDB.data()["cards"]["t_sengoku_subito"]
-	sub_data["tribe"] = ["dragonoide"]
+	sub_data["tribe"] = ["dragao"]
 	sub_data["cost"] = 4
 	sub_data["subito"] = 6
 	for fixed in [false, true]:
@@ -4022,12 +4143,15 @@ func _test_sengoku_discount_current_cost() -> void:
 		var sub_uid := _give(g, 1, "t_sengoku_subito")
 		var sub_card: Card = g._hand_card(1, sub_uid)
 		sub_card.discount = 1
-		g.players[1]["play_discount"] = {"card_filter": {"tribe": "dragonoide", "max_cost": 6}, "divisor": 2, "until_turn": g.turn}
+		g.players[1]["play_discount"] = _sengoku_offer(g.turn)
 		g.play_card(0, _give(g, 0, "t_sengoku_subito_trigger"))
 		check(g.can_play(1, sub_uid), "sengoku: Súbito pode ser jogado na janela de resposta")
 		var sub_events := g.play_card(1, sub_uid)
-		var sub_plays := sub_events.filter(func(e): return e["type"] == "play" and e["uid"] == sub_uid)
-		var expected_cost := 6 if fixed else 4
+		var sub_plays := sub_events.filter(
+			func(e):
+				return e["type"] == "play" and e["uid"] == sub_uid,
+		)
+		var expected_cost := 6 if fixed else 3
 		check(sub_plays.size() == 1 and int(sub_plays[0]["cost"]) == expected_cost, "sengoku: Súbito paga o custo correto")
 		check(g.players[1]["play_discount"].is_empty() != fixed, "sengoku: Súbito consome a oferta apenas quando usa o desconto")
 
@@ -8611,14 +8735,17 @@ func _test_natureza_canil() -> void:
 	check(g.keyword_aura_of(human).is_empty(), "Regina: unidade que não é Fera não recebe nada")
 	check(g.keyword_aura_of(trainer).is_empty(), "Regina: ela mesma não se concede nada")
 
-	# Alcateia de Esquina: +1/+1 permanent only on allied Feras
+	# Alcateia de Esquina: +1/+2 permanent only on allied Cães
 	g.players[0]["momentum"] = 10
 	var human_atk: int = human.atk_total()
 	var dog_atk: int = dog.atk_total()
 	g.play_card(0, _give(g, 0, "alcateia_de_esquina"), 0)
 	_resolve_whole_stack(g)
-	check(dog.atk_total() == dog_atk + 1 and dog.hp_total() == 2, "Alcateia de Esquina: a Fera aliada ganha +1/+1 (%d/%d)" % [dog.atk_total(), dog.hp_total()])
-	check(human.atk_total() == human_atk, "Alcateia de Esquina: quem não é Fera não ganha nada")
+	check(
+		dog.atk_total() == dog_atk + 1 and dog.hp_total() == 3,
+		"Alcateia de Esquina: o Cão aliado ganha +1/+2 (%d/%d)" % [dog.atk_total(), dog.hp_total()],
+	)
+	check(human.atk_total() == human_atk, "Alcateia de Esquina: quem não é Cão não ganha nada")
 
 	# Rinha Clandestina: an allied Fera and an enemy unit fight (both take damage); a non-Fera cannot be the fighter
 	g = _new_game()
