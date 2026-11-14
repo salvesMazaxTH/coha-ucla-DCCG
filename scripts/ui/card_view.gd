@@ -224,8 +224,8 @@ static var _tex_cache := {}
 static var _dissolve: Shader
 static var _banish: Shader
 static var _stealth_shader: Shader
-static var _shield_sparks_shader: Shader
-var _shield_sparks: ColorRect = null ## animated sparks of Escudo Mágico / Supremo (see _place_shield_sparks)
+static var _shield_dome_shader: Shader
+var _shield_dome: ColorRect = null ## energy dome of the three shields (see _place_shield_dome)
 static var _indestructible_shader: Shader
 var _indestructible_glow: ColorRect = null ## animated steel rim and sheen of Indestrutível (see _place_indestructible_glow)
 static var _rapidez_sparks_shader: Shader
@@ -338,11 +338,11 @@ func update_card(id: String, instance: Dictionary = {}, size_scale := 1.0) -> vo
 	set_process(true)
 	# Tags and target badges belong to the previous state; the shield shader child can safely be reused.
 	for child in get_children():
-		if child != _shield_sparks and child != _indestructible_glow and child != _rapidez_sparks:
+		if child != _shield_dome and child != _indestructible_glow and child != _rapidez_sparks:
 			remove_child(child)
 			child.queue_free()
-	if is_instance_valid(_shield_sparks):
-		_shield_sparks.hide()
+	if is_instance_valid(_shield_dome):
+		_shield_dome.hide()
 	if is_instance_valid(_indestructible_glow):
 		_indestructible_glow.hide()
 	if is_instance_valid(_rapidez_sparks):
@@ -467,7 +467,7 @@ func finish_pointer_interaction() -> void:
 	_screen_touch_index = -1
 
 func _process(delta: float) -> void:
-	# (the shield sparks are not here on purpose: they animate in their own shader, see _place_shield_sparks)
+	# (the shield dome is not here on purpose: it animates in its own shader, see _place_shield_dome)
 	# A cached picture must be snapped again whenever its card moves to a different screen pixel.
 	if _photo_in_use != null and not _painting_photo:
 		var render_transform := get_viewport().get_final_transform() * get_global_transform_with_canvas()
@@ -500,37 +500,43 @@ func prepare_photo_painter(signature: Dictionary, padding: float, slot_height: f
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_process(false)
 
-## Escudo Mágico / Escudo Supremo sparks: a small square over the art window, painted by
-## shield_sparks.gdshader. Called from _draw with where the face is drawn, so it follows zoom, shake and pop.
-## Created the first time a card has one of these shields; hidden (not freed) when the shield is gone.
-func _place_shield_sparks(art: Rect2, face_origin: Vector2, pop: float, s: float, magic_shield: bool, supreme_shield: bool) -> void:
-	if not magic_shield and not supreme_shield:
-		if _shield_sparks != null and _shield_sparks.visible:
-			_shield_sparks.visible = false
+## Escudo / Escudo Mágico / Escudo Supremo: an energy dome over the top of the card, wider than the face and
+## rising above it, painted by shield_dome.gdshader. Called from _draw with where the face is drawn, so it
+## follows zoom, shake and pop. Created the first time a card has a shield; hidden (not freed) when it is gone.
+func _place_shield_dome(face_origin: Vector2, pop: float, s: float, plain_shield: bool, magic_shield: bool, supreme_shield: bool) -> void:
+	if not plain_shield and not magic_shield and not supreme_shield:
+		if _shield_dome != null and _shield_dome.visible:
+			_shield_dome.visible = false
 		return
-	if _shield_sparks == null:
-		if _shield_sparks_shader == null:
-			_shield_sparks_shader = load("res://scripts/ui/shaders/shield_sparks.gdshader")
-		_shield_sparks = ColorRect.new()
-		_shield_sparks.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var sparks_material := ShaderMaterial.new()
-		sparks_material.shader = _shield_sparks_shader
-		sparks_material.set_shader_parameter("phase", randf() * 10.0)
-		_shield_sparks.material = sparks_material
-		add_child(_shield_sparks)
-	# a square as wide as the art window, centered on it, in the same place the face was drawn
-	var side := art.size.x * pop
-	var sparks_rect := Rect2(face_origin + art.get_center() * pop - Vector2(side, side) / 2.0, Vector2(side, side))
-	if _shield_sparks.position != sparks_rect.position:
-		_shield_sparks.position = sparks_rect.position
-	if _shield_sparks.size != sparks_rect.size:
-		_shield_sparks.size = sparks_rect.size
-	var sparks_material := _shield_sparks.material as ShaderMaterial
-	sparks_material.set_shader_parameter("base_pixel", s / art.size.x)
-	sparks_material.set_shader_parameter("spell_on", 1.0 if magic_shield else 0.0)
-	sparks_material.set_shader_parameter("supreme_on", 1.0 if supreme_shield else 0.0)
-	if not _shield_sparks.visible:
-		_shield_sparks.visible = true
+	if _shield_dome == null:
+		if _shield_dome_shader == null:
+			_shield_dome_shader = load("res://scripts/ui/shaders/shield_dome.gdshader")
+		_shield_dome = ColorRect.new()
+		_shield_dome.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var dome_material := ShaderMaterial.new()
+		dome_material.shader = _shield_dome_shader
+		dome_material.set_shader_parameter("phase", randf() * 10.0)
+		_shield_dome.material = dome_material
+		add_child(_shield_dome)
+	# room for the dome to spill past the sides and the top of the face; it ends at about 3/4 of its height
+	var face_size := _face_size * pop
+	var side_room := face_size.x * 0.26
+	var top_room := face_size.x * 0.19
+	var dome_rect := Rect2(face_origin - Vector2(side_room, top_room), Vector2(face_size.x + side_room * 2.0, top_room + face_size.y * 0.76))
+	if _shield_dome.position != dome_rect.position:
+		_shield_dome.position = dome_rect.position
+	if _shield_dome.size != dome_rect.size:
+		_shield_dome.size = dome_rect.size
+	var dome_material := _shield_dome.material as ShaderMaterial
+	dome_material.set_shader_parameter("rect_size", dome_rect.size)
+	dome_material.set_shader_parameter("face_rect", Vector4(side_room, top_room, face_size.x, face_size.y))
+	dome_material.set_shader_parameter("base_pixel", s / maxf(_face_size.x, 1.0))
+	dome_material.set_shader_parameter("plain_on", 1.0 if plain_shield else 0.0)
+	dome_material.set_shader_parameter("spell_on", 1.0 if magic_shield else 0.0)
+	dome_material.set_shader_parameter("supreme_on", 1.0 if supreme_shield else 0.0)
+	dome_material.set_shader_parameter("detail", 1.0 if GraphicsQuality.effect_detail >= 0.7 else 0.0)
+	if not _shield_dome.visible:
+		_shield_dome.visible = true
 
 ## Indestrutível on the board: a steel rim around the whole card face with running glints and a
 ## sheen that sweeps over it, painted by indestructible.gdshader on a ColorRect a little bigger than
@@ -790,8 +796,8 @@ func dissolve(delay := 0.0, edge := Color(1.0, 0.55, 0.15), dur := 0.75) -> void
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var tw := create_tween()
 	tw.tween_interval(delay)
-	if _shield_sparks != null: # the sparks have their own shader, so they would not burn with the card
-		tw.tween_callback(_shield_sparks.hide)
+	if _shield_dome != null: # the dome has its own shader, so it would not burn with the card
+		tw.tween_callback(_shield_dome.hide)
 	if _indestructible_glow != null: # same for the steel glow
 		tw.tween_callback(_indestructible_glow.hide)
 	if _rapidez_sparks != null: # and for the Rapidez sparks
@@ -813,8 +819,8 @@ func banish(delay := 0.0, edge := Color(0.8, 0.7, 1.0), dur := 0.9) -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var tw := create_tween()
 	tw.tween_interval(delay)
-	if _shield_sparks != null: # the sparks have their own shader, so they would not fade with the card
-		tw.tween_callback(_shield_sparks.hide)
+	if _shield_dome != null: # the dome has its own shader, so it would not fade with the card
+		tw.tween_callback(_shield_dome.hide)
 	if _indestructible_glow != null: # same for the steel glow
 		tw.tween_callback(_indestructible_glow.hide)
 	if _rapidez_sparks != null: # and for the Rapidez sparks
@@ -940,7 +946,7 @@ func _draw_photo_slot(photo: CardPhotoStudio.Photo, slot: int) -> void:
 
 ## The card is drawn in layers (the order is the stacking order):
 ##   1. live auras and the drop shadow       (_draw_live_auras)
-##   2. frame, art window, art and the still rings of the shields  (_draw_frame_and_art)
+##   2. frame, art window and art  (_draw_frame_and_art)
 ##   3. live overlays on the art: frost, stun, sickness, marks, veil  (_draw_live_art_overlays)
 ##   4. keywords, name, rules panel and gems (_draw_lettering_and_gems), then the live champion gem
 ##   5. shimmer, flash and dim               (_finish)
@@ -961,7 +967,7 @@ func _draw() -> void:
 	_face_size = (size * zoom).round()
 	var zoom_shift := (pivot_offset * (1.0 - zoom)).round()
 	var pop := 1.0 + 0.08 * proc ## scales around the center
-	var face_origin := zoom_shift + shake + lunge + _face_size / 2.0 * (1.0 - pop) ## where the face is drawn (the shield sparks follow it)
+	var face_origin := zoom_shift + shake + lunge + _face_size / 2.0 * (1.0 - pop) ## where the face is drawn (the shield dome follows it)
 	if fatigue > 0:
 		_photo_in_use = null
 		CardPhotoStudio.withdraw(self)
@@ -970,8 +976,8 @@ func _draw() -> void:
 		var render_transform := get_viewport().get_final_transform() * get_global_transform_with_canvas()
 		face_origin = render_transform.affine_inverse() * (render_transform * face_origin).round()
 	draw_set_transform(face_origin, 0.0, Vector2(pop, pop))
-	if (face_down or fatigue > 0) and _shield_sparks != null:
-		_shield_sparks.visible = false
+	if (face_down or fatigue > 0) and _shield_dome != null:
+		_shield_dome.visible = false
 	if (face_down or fatigue > 0) and _indestructible_glow != null:
 		_indestructible_glow.visible = false
 	if (face_down or fatigue > 0) and _rapidez_sparks != null:
@@ -1113,7 +1119,7 @@ func _draw_live_auras(look: Dictionary, pulse: float) -> void:
 		var k := 1.0 - pow(1.0 - proc_wave, 3.0)
 		_rrect_line(r.grow((3 + 30 * k) * s), rad + 12 * k * s, Color(TRIGGER_COL.lightened(0.35), 0.85 * pow(1.0 - proc_wave, 1.5)), (3.2 - 2.2 * k) * s)
 
-## Layer 2 (still): frame, art window, art, shading, outline and the still rings of the shields.
+## Layer 2 (still): frame, art window, art, shading and outline.
 func _draw_frame_and_art(look: Dictionary) -> void:
 	var s: float = look["s"]
 	var r: Rect2 = look["r"]
@@ -1183,34 +1189,14 @@ func _draw_frame_and_art(look: Dictionary) -> void:
 	else:
 		var outline := Geometry2D.offset_polygon(_art_window, 0.5 * s)[0]
 		draw_polyline(outline + PackedVector2Array([outline[0]]), Color(trim, 0.9), 1.2 * s, true)
-	# divine shield bubble
-	if inst.get("shield", false):
-		var sc := art.get_center()
-		for i in 3:
-			draw_arc(sc, art.size.x * 0.46 - i * 3 * s, 0, TAU, 48, Color("#9fe3ff", (0.55 - i * 0.15) * 1.25), 2.5 * s, true) ## ~25% more visible
-		draw_colored_polygon(_art_window, Color("#9fe3ff", 0.15))
-	# magic shield: violet runic ring
-	if inst.get("magic_shield", false):
-		var sc := art.get_center()
-		var rr := art.size.x * 0.4
-		for i in 3: ## same weight as the divine shield bubble, only the color differs
-			draw_arc(sc, rr - i * 3 * s, 0, TAU, 48, Color("#c9a8ff", (0.55 - i * 0.15) * 1.25), 2.5 * s, true)
-		draw_colored_polygon(_art_window, Color("#c9a8ff", 0.15))
-	# Escudo Supremo: a golden ring with sparks, so it never reads as a plain Escudo or Escudo Mágico
-	if inst.get("supreme_shield", false):
-		var supreme_center := art.get_center()
-		var supreme_radius := art.size.x * 0.43
-		for i in 3:
-			draw_arc(supreme_center, supreme_radius - i * 3 * s, 0, TAU, 48, Color("#ffd86b", (0.55 - i * 0.15) * 1.25), 2.5 * s, true)
-		draw_colored_polygon(_art_window, Color("#ffd86b", 0.15))
 
 ## Layer 3 (live): effects that sit on the art and change with time or with the card's state.
 func _draw_live_art_overlays(look: Dictionary, pulse: float, face_origin: Vector2, pop: float) -> void:
 	var s: float = look["s"]
 	var art: Rect2 = look["art"]
 
-	# the moving sparks of both rings (shield_sparks.gdshader): the GPU animates them, the card stays still
-	_place_shield_sparks(art, face_origin, pop, s, inst.get("magic_shield", false), inst.get("supreme_shield", false))
+	# the shield dome (shield_dome.gdshader): the GPU animates it, the card stays still
+	_place_shield_dome(face_origin, pop, s, inst.get("shield", false), inst.get("magic_shield", false), inst.get("supreme_shield", false))
 	_place_indestructible_glow(face_origin, pop, s, _is_indestructible_now())
 	_place_rapidez_sparks(face_origin, pop, s, rapidez_sparks and not face_down and fatigue <= 0)
 	if inst.has("frozen"):
