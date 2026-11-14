@@ -22,11 +22,11 @@
         "board"
       ],
       "if": {
-        "conditional_use": 1
+        "not": { "conditional_use": 3 }
       },
       "action": "damage",
       "target": "event_source",
-      "amount": 2
+      "amount": 1
     },
     {
       "listen": "unit_attacked",
@@ -35,11 +35,11 @@
         "board"
       ],
       "if": {
-        "conditional_use": 2
+        "conditional_use": 3
       },
       "action": "damage",
       "target": "event_source",
-      "amount": 5
+      "amount": 3
     },
     {
       "listen": "unit_attacked",
@@ -48,11 +48,11 @@
         "board"
       ],
       "if": {
-        "conditional_use": 1
+        "not": { "conditional_use": 3 }
       },
       "action": "damage",
       "target": "opposed_unit",
-      "amount": 2
+      "amount": 1
     },
     {
       "listen": "unit_attacked",
@@ -61,14 +61,14 @@
         "board"
       ],
       "if": {
-        "conditional_use": 2
+        "conditional_use": 3
       },
       "action": "damage",
       "target": "opposed_unit",
-      "amount": 5
+      "amount": 3
     }
   ],
-  "text": "Condicional (2x por turno): quando uma unidade ataca, a atacante inimiga, ou a unidade desafiada por uma aliada, sofre 2 de dano antes do combate. Na 2ª vez do turno, o dano é 5.",
+  "text": "Condicional (3x por turno): quando uma unidade ataca, a atacante inimiga, ou a unidade desafiada por uma aliada, sofre 1 de dano antes do combate. Na 3ª vez do turno, o dano é 3.",
   "flavor": "",
-  "conditional_uses_per_turn": 2
+  "conditional_uses_per_turn": 3
 }

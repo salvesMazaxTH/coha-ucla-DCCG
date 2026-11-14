@@ -1212,7 +1212,7 @@ func _render_command(p: int, pos: Vector2) -> void:
 		empty.size = Vector2(SANCTUARY_W, 20)
 		layer.add_child(empty)
 		return
-	var sanctuary_instance := { "permanent_buffs": l.get("permanent_buffs", { }) }
+	var sanctuary_instance := { "permanent_buffs": l.get("permanent_buffs", { }), "incarnation_casts": int(l["casts"]) }
 	var v := CardView.new().setup(l["card_id"], display_instance_for_id(l["card_id"], p, 0, sanctuary_instance), SANCTUARY_SCALE)
 	v.pivot_offset = v.size / 2.0
 	v.position = pos
@@ -1243,6 +1243,8 @@ func display_instance_for_id(card_id: String, owner: int, uid := 0, base_instanc
 		return instance
 	if not CardDB.data().get("cards", { }).has(card_id):
 		return instance
+	if instance.get("incarnation", false):
+		instance["incarnation_casts"] = int(g.players[owner]["incarnation"]["casts"])
 	var cd := CardDB.card(card_id)
 	if cd.get("critico_growth", false):
 		var shared_critico := int(g.players[owner].get("critico_growth", { }).get(card_id, 0))

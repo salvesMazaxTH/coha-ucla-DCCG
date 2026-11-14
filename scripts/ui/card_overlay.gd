@@ -144,6 +144,12 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 				if int(condition["needed_spells"]) >= 0 and not bool(condition["holds"]):
 					counts_line += " (precisa de %d feitiços ou 0 unidades)" % int(condition["needed_spells"])
 				body += "\n\n[color=%s][b]Condição: %s[/b][/color] — %s" % [status_color, status_word, counts_line]
+		# a unit that returns to the hand when it dies for a rising price: the price of its next return
+		for effect in cd.get("effects", []):
+			if effect.get("trigger", "") == "on_death" and effect.get("action", "") == "return_to_hand" and int(effect.get("cost_increase", 0)) > 0:
+				body += "
+
+[b]Se morrer, volta custando %d.[/b]" % (int(cd["cost"]) + int(instance.get("cost_mod", 0)) + int(effect["cost_increase"]))
 		if instance.has("durability_left"):
 			body += "
 
@@ -190,6 +196,11 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 		var keyword := CardDB.keyword(keyword_id)
 		var keyword_color := CardView.keyword_color(keyword_id).to_html(false)
 		txt += "[color=#%s][b]%s[/b][/color] — %s\n" % [keyword_color, keyword["name"], CardView.colorize_rules(keyword_text(cd, keyword_id, keyword, instance))]
+	if instance.has("incarnation_casts"):
+		var casts := int(instance["incarnation_casts"])
+		txt += "
+[color=#e8c25a][b]Conjurações: %d · taxa atual +%d, próxima +%d[/b][/color]
+" % [casts, GameState.commander_tax(casts), GameState.commander_tax(casts + 1)]
 	if bool(instance.get("incarnation", false)):
 		txt += "\n[color=#e8c25a]Encarnação do Líder:[/color] fica no Santuário. Cada nova conjuração custa mais que a anterior: +1, depois +2, +3, +4... Pode voltar para a mão (jogada de lá, custa o custo normal). Ao ir para o cemitério ou ser banida, volta para o Santuário; se a próxima conjuração passaria de %d, vai para o fundo do deck como carta comum, com o custo normal.\n" % [GameState.MOMENTUM_CAP]
 	elif CardDB.is_leader_card(card_id):

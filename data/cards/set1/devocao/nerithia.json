@@ -32,10 +32,9 @@
       "trigger": "on_death",
       "action": "return_to_hand",
       "target": "self_card",
-      "cost_increase": 2,
-      "cost_increase_doubles": true
+      "cost_increase": 3
     }
   ],
-  "text": "Constante: com 3 ou mais feitiços de Devoção no seu cemitério, o dano que ela sofre é reduzido à metade (arredondada para cima) e depois reduzido em 1 (mín. 0).\nAo Desafiar: ganha +2 de Ataque e, então, o Ataque dela fica igual ao da unidade aliada de maior Ataque neste turno.\nAo Morrer: volta para a sua mão e custa (+2), depois (+4), (+8), (+16)... a cada morte.",
+  "text": "Constante: com 3 ou mais feitiços de Devoção no seu cemitério, o dano que ela sofre é reduzido à metade (arredondada para cima) e depois reduzido em 1 (mín. 0).\nAo Desafiar: ganha +2 de Ataque e, então, o Ataque dela fica igual ao da unidade aliada de maior Ataque neste turno.\nAo Morrer: volta para a sua mão e custa +3 a mais a cada morte.",
   "flavor": "Cada oração rezada por alguém é um degrau a menos que a separa do chão."
 }

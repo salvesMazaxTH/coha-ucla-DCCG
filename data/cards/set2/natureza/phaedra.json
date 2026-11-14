@@ -11,9 +11,9 @@
   "keywords": ["impeto", "provocacao", "regeneracao"],
   "art": "natureza/phaedra.webp",
   "effects": [
-    { "trigger": "on_challenge", "action": "damage", "target": "own_leader", "amount": 1 },
-    { "trigger": "on_challenge", "action": "buff", "target": "self", "atk": 1, "temp": true }
+    { "trigger": "on_challenge", "action": "damage", "target": "own_leader", "amount": 2 },
+    { "trigger": "on_challenge", "action": "buff", "target": "self", "atk": 1, "hp": 1, "temp": true }
   ],
-  "text": "Ao Desafiar: seu Líder sofre 1 de dano e esta unidade ganha +1 de Ataque neste turno.",
+  "text": "Ao Desafiar: seu Líder sofre 2 de dano e esta unidade ganha +1/+1 neste turno.",
   "flavor": ""
 }
