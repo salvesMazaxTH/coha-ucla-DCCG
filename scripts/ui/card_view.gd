@@ -1419,7 +1419,7 @@ func _draw_lettering_and_gems(look: Dictionary) -> void:
 		var hp_col := Color.WHITE
 		if inst.has("damage"):
 			var intrinsic_atk := int(inst.get("intrinsic_atk", 0))
-			var live_atk: int = max(0, inst["atk"] + intrinsic_atk + inst["temp_atk"] + int(inst.get("temp_atk_until_next_turn", 0)) + int(inst.get("bonus_atk", 0)))
+			var live_atk: int = max(0, inst["atk"] + intrinsic_atk + inst["temp_atk"] + int(inst.get("temp_atk_until_next_turn", 0)) + int(inst.get("bonus_atk", 0)) + int(inst.get("fragments", 0)))
 			atk_col = stat_value_color(live_atk, atk + intrinsic_atk)
 			atk = live_atk
 			var intrinsic_hp := int(inst.get("intrinsic_hp", 0))
@@ -1804,7 +1804,7 @@ static func toxico_tag_of_view(cd: Dictionary, instance: Dictionary) -> String:
 	if cd.get("toxico_equals_attack", false):
 		if not instance.has("damage"):
 			return keyword_name + " X"
-		var live_attack: int = int(instance["atk"]) + int(instance.get("intrinsic_atk", 0)) + int(instance["temp_atk"]) + int(instance.get("temp_atk_until_next_turn", 0)) + int(instance.get("bonus_atk", 0))
+		var live_attack: int = int(instance["atk"]) + int(instance.get("intrinsic_atk", 0)) + int(instance["temp_atk"]) + int(instance.get("temp_atk_until_next_turn", 0)) + int(instance.get("bonus_atk", 0)) + int(instance.get("fragments", 0))
 		return "%s %d" % [keyword_name, maxi(1, live_attack)]
 	var level := int(cd.get("toxico_level", 1))
 	return keyword_name if level <= 1 else "%s %d" % [keyword_name, level]
