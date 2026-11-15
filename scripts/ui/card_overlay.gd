@@ -149,7 +149,7 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 			if effect.get("trigger", "") == "on_death" and effect.get("action", "") == "return_to_hand" and int(effect.get("cost_increase", 0)) > 0:
 				body += "
 
-[b]Se morrer, volta custando %d.[/b]" % (int(cd["cost"]) + int(instance.get("cost_mod", 0)) + int(effect["cost_increase"]))
+[b]Próximo custo: %d[/b]" % (int(cd["cost"]) + int(instance.get("cost_mod", 0)) + int(effect["cost_increase"]))
 		if instance.has("durability_left"):
 			body += "
 

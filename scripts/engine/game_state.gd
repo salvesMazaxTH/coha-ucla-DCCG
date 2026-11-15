@@ -4839,6 +4839,23 @@ func _hop_fragments(p: int, count: int, from_uid: int) -> void:
 		emit_event({ "type": "dot", "uid": receiver.uid, "dot": "fragmento", "amount": 1, "total": receiver.fragments })
 
 
+## How far player p is from the ritual of a spell with "fragment_payoff": copies already resolved ("given"), Fragmentos
+## on their side now ("markers") and what the card asks for. Empty when the card has no ritual. The overlay shows it live.
+func fragment_progress(p: int, cd: Dictionary, card_id: String) -> Dictionary:
+	var payoff: Dictionary = cd.get("fragment_payoff", { })
+	if payoff.is_empty():
+		return { }
+	var on_board := 0
+	for unit: Card in players[p]["board"]:
+		on_board += unit.fragments
+	return {
+		"given": int(players[p]["fragments_given"].get(card_id, 0)),
+		"given_needed": int(payoff.get("given", 0)),
+		"markers": on_board,
+		"markers_needed": int(payoff.get("markers", 0)),
+	}
+
+
 ## End of p's turn: a spell card with a "fragment_payoff" ({"markers": 5, "given": 10, "summon": card_id}) summons its
 ## unit once p's side holds enough Fragmentos and the spell has handed out all of its copies. The Fragmentos are consumed.
 func _resolve_fragment_payoffs(p: int) -> void:

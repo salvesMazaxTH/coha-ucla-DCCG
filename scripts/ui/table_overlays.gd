@@ -30,6 +30,13 @@ func scale_suffix(p: int, cd: Dictionary, card_id := "") -> String:
 	# a "shared_x" card (Drex): the X grows during the match, so the overlay shows the current value
 	if card_id != "" and cd.has("shared_x"):
 		return " (X agora: %d)" % host.g.shared_x_of(p, card_id)
+	var fragment_progress: Dictionary = host.g.fragment_progress(p, cd, card_id)
+	if not fragment_progress.is_empty():
+		return "
+
+[b]Cópias usadas: %d/%d · Fragmentos em campo: %d/%d[/b]" % [
+			fragment_progress["given"], fragment_progress["given_needed"],
+			fragment_progress["markers"], fragment_progress["markers_needed"]]
 	var progress: Dictionary = host.g.window_progress(p, cd)
 	if not progress.is_empty():
 		# cost reductions that ask for an amount over a window (Gigantes): how far along, e.g. "(3/8)"
