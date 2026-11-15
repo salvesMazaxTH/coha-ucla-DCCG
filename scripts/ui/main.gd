@@ -1546,6 +1546,7 @@ func _pick_target_when_settled(uid: int) -> void:
 
 
 func _decorate_unit(v: CardView, unit: Card, p: int) -> void:
+	v.floating = g.has_kw(unit, "voo")
 	# reminder for new players: "Ao Ativar" (and Transformar) can be used now, even the turn it is summoned
 	v.ability_ready = (
 		p == viewer and targeting.is_empty() and viewer_can_act()

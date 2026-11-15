@@ -198,6 +198,27 @@ var lock_rattle := 0.0:
 var _lock_tween: Tween
 var _rattled_this_press := false ## one rattle per press, however long the finger keeps pulling
 var shadow := true
+## Voo on the board: the card is lifted off the table and drifts in a slow, endless loop (up, down and
+## sideways), while its shadow stays on the table below it. Main sets it every render; gaining or losing Voo rises or lands smoothly.
+var floating := false:
+	set(value):
+		if value == floating:
+			return
+		floating = value
+		if _float_tween != null:
+			_float_tween.kill()
+		if not is_inside_tree(): # a view built already flying (every re-render) is simply up there
+			_float_strength = 1.0 if floating else 0.0
+			return
+		_float_tween = create_tween()
+		_float_tween.tween_property(self, "_float_strength", 1.0 if floating else 0.0, 0.9) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+var _float_strength := 0.0 ## 0 = resting on the table, 1 = fully up in the air
+var _float_tween: Tween
+const FLOAT_LIFT := 0.065 ## how high a flying card hangs, as a share of its height
+const FLOAT_BOB := 0.032 ## how far it rises and sinks, as a share of its height
+const FLOAT_SWAY := 0.05 ## how far it drifts to each side, as a share of its width
+const FLOAT_GROW := 0.035 ## how much bigger it looks up there (closer to the eye)
 var fatigue := 0## > 0: not a real card but the Fadiga pseudo-card, showing this much damage
 
 ## Frame silhouette of the card being drawn: artifacts get cut (chamfered) corners instead of round ones,
@@ -364,7 +385,7 @@ func _stealth() -> void:
 
 func _has_point(p: Vector2) -> bool:
 	var zoom_shift := pivot_offset * (1.0 - zoom)
-	return Rect2(zoom_shift, size * zoom + Vector2(0, hit_pad)).has_point(p)
+	return Rect2(zoom_shift + _float_motion()["offset"], size * zoom + Vector2(0, hit_pad)).has_point(p)
 
 ## Phones/tablets: no hover and no right button, so tap = click and long-press = overlay.
 static var touched := false ## set by Main on any real touch event; cleared by a real mouse
@@ -474,6 +495,8 @@ func _process(delta: float) -> void:
 		if not render_transform.is_equal_approx(_photo_transform_seen):
 			_photo_transform_seen = render_transform
 			queue_redraw()
+	if _float_strength > 0.0:
+		queue_redraw() # the flight is a slow, wide motion: it needs every frame to look smooth
 	if highlight.a > 0 or hovered or locked or _legendary() or inst.has("frozen") or inst.has("stun_markers") or inst.has("condemned_turn") or inst.get("summoning_sick", false) or _status_amounts().size() > MAX_STATUS_MEDALLIONS:
 		_t += delta
 		_redraw_acc += delta
@@ -872,6 +895,53 @@ func rattle_lock() -> void:
 	if sound_player != null:
 		sound_player.play("chain_rattle")
 
+## Where a flying card is right now: "offset" (moved up and sideways), "height" (0 = on the table,
+## 1 = at its highest) and "grow" (scale). Driven by the clock and the card's uid, so every flyer
+## breathes at its own pace and a re-rendered view continues exactly where the old one was.
+func _float_motion() -> Dictionary:
+	if _float_strength <= 0.0:
+		return {"offset": Vector2.ZERO, "height": 0.0, "grow": 1.0}
+	var seconds := Time.get_ticks_msec() / 1000.0
+	var phase := float(uid) * 2.399 # golden angle: neighbours never move in step
+	# two slow waves per direction with periods that never line up: the path is a loop that keeps changing shape
+	var breath := sin(seconds * TAU / 4.6 + phase) * 0.7 + sin(seconds * TAU / 8.9 + phase * 1.7) * 0.3 # -1..1
+	var sway := sin(seconds * TAU / 6.1 + phase * 0.6) * 0.7 + sin(seconds * TAU / 11.3 + phase * 2.3) * 0.3 # -1..1
+	var lift := FLOAT_LIFT + breath * FLOAT_BOB
+	var height := _float_strength * lift / (FLOAT_LIFT + FLOAT_BOB)
+	return {
+		"offset": Vector2(sway * size.x * FLOAT_SWAY * _float_strength, -_float_strength * lift * size.y),
+		"height": height,
+		"grow": 1.0 + FLOAT_GROW * height,
+	}
+
+## The shadow of a flying card, cast on the table where the card would rest: the higher the card,
+## the farther the shadow falls (light from the upper left), the smaller, lighter and softer it gets.
+func _draw_float_shadow(ground_origin: Vector2, height: float, sideways: float, rad: float, s: float) -> void:
+	if height <= 0.0:
+		return
+	var fall := (Vector2(0.06, 0.16) * _face_size * height).rotated(-rotation) # tapped cards lie sideways, the light does not turn
+	fall.x += sideways * 0.85 # the shadow slides along under the card
+	var shadow_size := _face_size * (1.0 - 0.05 * height)
+	var shadow_rect := Rect2(ground_origin + (_face_size - shadow_size) / 2.0 + fall, shadow_size)
+	var blur := (4.0 + 10.0 * height) * s
+	var layers := 9
+	for layer in layers:
+		var spread := blur * (float(layer) / (layers - 1) - 0.4)
+		_rrect_fill(shadow_rect.grow(spread), rad + maxf(spread, 0.0), Color(0, 0, 0, 0.08 * (1.0 - 0.3 * height)))
+	# a faint cool glow on the table under the card: the air holding it up
+	var air_center := ground_origin + _face_size / 2.0 + fall * 0.5
+	var air_color: Color = BADGES["voo"]
+	for ring in 4:
+		var radius := _face_size.x * (0.32 + 0.1 * ring)
+		_draw_ellipse(air_center, Vector2(radius, radius * 0.45), Color(air_color, 0.03 * height))
+
+func _draw_ellipse(center: Vector2, radii: Vector2, color: Color) -> void:
+	var points := PackedVector2Array()
+	for step in 28:
+		var angle := TAU * step / 28.0
+		points.append(center + Vector2(cos(angle) * radii.x, sin(angle) * radii.y))
+	draw_colored_polygon(points, color)
+
 ## The small knock the card takes when the shackle slams shut.
 func _jolt_from_lock() -> void:
 	var unit := size.x / BASE.x
@@ -966,15 +1036,20 @@ func _draw() -> void:
 	# a zoomed card is drawn at its final size (never stretched), growing around its pivot
 	_face_size = (size * zoom).round()
 	var zoom_shift := (pivot_offset * (1.0 - zoom)).round()
-	var pop := 1.0 + 0.08 * proc ## scales around the center
-	var face_origin := zoom_shift + shake + lunge + _face_size / 2.0 * (1.0 - pop) ## where the face is drawn (the shield dome follows it)
+	var flight := _float_motion()
+	var pop := (1.0 + 0.08 * proc) * float(flight["grow"]) ## scales around the center
+	var ground_origin := zoom_shift + shake + lunge ## where the face would rest on the table
+	var face_origin: Vector2 = ground_origin + flight["offset"] + _face_size / 2.0 * (1.0 - pop) ## where the face is drawn (the shield dome follows it)
 	if fatigue > 0:
 		_photo_in_use = null
 		CardPhotoStudio.withdraw(self)
 	var photo := _find_ready_photo(pop) if fatigue <= 0 else null
-	if photo != null:
+	if photo != null and _float_strength <= 0.0: # a flyer glides between pixels, or its slow motion would step
 		var render_transform := get_viewport().get_final_transform() * get_global_transform_with_canvas()
 		face_origin = render_transform.affine_inverse() * (render_transform * face_origin).round()
+	if not face_down and fatigue <= 0 and shadow:
+		var unit_scale := _face_size.x / BASE.x
+		_draw_float_shadow(ground_origin, flight["height"], flight["offset"].x, 10.0 * unit_scale, unit_scale)
 	draw_set_transform(face_origin, 0.0, Vector2(pop, pop))
 	if (face_down or fatigue > 0) and _shield_dome != null:
 		_shield_dome.visible = false
@@ -1070,10 +1145,11 @@ func _draw_live_auras(look: Dictionary, pulse: float) -> void:
 	# drop shadow, deeper when the card is lifted
 	if shadow:
 		var depth := (12.0 if hovered else 4.0) * s
+		var resting := 1.0 - _float_strength # a flyer's shadow is on the table instead (_draw_float_shadow)
 		for i in 5:
 			var g := r.grow((i * 2.2 + 1) * s)
 			g.position.y += depth
-			_rrect_fill(g, rad + i * 2 * s, Color(0, 0, 0, 0.11))
+			_rrect_fill(g, rad + i * 2 * s, Color(0, 0, 0, 0.11 * resting))
 	# legendary halo
 	if not face_down and cd["rarity"] in ["champion", "legendary"]:
 		for i in 4:
