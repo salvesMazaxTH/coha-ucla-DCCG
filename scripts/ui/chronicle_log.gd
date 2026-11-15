@@ -355,7 +355,7 @@ func log_event(e: Dictionary) -> void:
 			add_line("%s esquivou do ataque" % _chronicle_name_for_uid(int(e["uid"])))
 		"dot":
 			var dotted := g.find_unit(e["uid"])
-			var dot_names := {"queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento"}
+			var dot_names := {"queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento", "fragmento": "Fragmento"}
 			var dotted_name := "Uma unidade" if dotted == null else _cname(dotted.card_id)
 			if int(e["uid"]) < 0: # a Leader holds the markers
 				dotted_name = "O Líder de %s" % _pname(GameState.LEADER_UID.find(int(e["uid"])))

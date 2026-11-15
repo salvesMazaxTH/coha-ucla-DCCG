@@ -17,6 +17,7 @@ extends Effect
 ##   "subtype": "local": only an artifact of that subtype can be picked and destroyed (default: any artifact).
 ## "kill_leader": the targeted Leader dies on the spot, but only if it holds the "requires_markers"
 ##   amount of that marker kind (Viprax's execution). Câmara de Êxtase does not save it.
+##   "execution_color": "#rrggbb" = color of the execution animation, instead of the marker kind's (Rai, Imortal Imperfeito).
 
 var shield_leader_damage := 0
 var banish_instead_domain := ""
@@ -24,6 +25,7 @@ var required_dot := ""
 var required_dot_amount := 0
 var required_subtype := ""
 var max_target_cost := -1 # -1 = any cost
+var execution_color := ""
 
 
 func _read_parameters(data: Dictionary) -> void:
@@ -34,6 +36,7 @@ func _read_parameters(data: Dictionary) -> void:
 	required_dot_amount = int(requirement.get("amount", 0))
 	required_subtype = String(data.get("subtype", ""))
 	max_target_cost = int(data.get("max_target_cost", -1))
+	execution_color = String(data.get("execution_color", ""))
 
 func harms_own_target() -> bool:
 	return true
@@ -83,7 +86,7 @@ func _kill_leader(context: EffectContext, target_uid: int) -> void:
 		return
 	if context.game.leader_dot_markers(leader_player, required_dot) < required_dot_amount:
 		return
-	context.game.kill_leader_outright(leader_player, required_dot)
+	context.game.kill_leader_outright(leader_player, required_dot, execution_color)
 
 func _banish(context: EffectContext, target_uid: int) -> void:
 	var game := context.game

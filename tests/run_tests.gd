@@ -114,6 +114,7 @@ func _init() -> void:
 	_test_combat()
 	_test_toque_letal()
 	_test_banish_what_it_kills()
+	_test_fragmentos_de_rai()
 	_test_toxico()
 	_test_leader_poison()
 	_test_veneno_hold()
@@ -5521,6 +5522,214 @@ func _test_banish_what_it_kills() -> void:
 	check(rai_unit.has_kw("indestrutivel"), "Rai'Emofitir: Indestrutível dura até o fim do turno")
 	g.end_turn(0)
 	check(not rai_unit.has_kw("indestrutivel"), "Rai'Emofitir: Indestrutível some no fim do turno")
+
+func _test_fragmentos_de_rai() -> void:
+	_tcard("t_bearer", 2, 6, [])
+	_tcard("t_bearer_ally", 1, 8, [])
+	_tcard("t_frail_victim", 1, 1, [])
+	_tcard("t_ordinary_ally", 1, 8, [])
+	# Only Dragões Negros and the Veyr family can bear Fragmentos
+	CardDB.data()["cards"]["t_bearer"]["tribe"] = ["dragoes_negros"]
+	CardDB.data()["cards"]["t_bearer_ally"]["name"] = "Teste Veyr"
+	var source_id := "fragmento_de_rai_emofitir"
+
+	var g := _new_game()
+	_quiet(g)
+	var bearer := _put(g, 0, "t_bearer")
+	var ally := _put(g, 0, "t_bearer_ally")
+	g.add_fragments(bearer, 2, source_id)
+	check(bearer.atk_total() == 4, "Fragmento: cada marcador dá +1 Ataque")
+	check(int(g.players[0]["fragments_given"][source_id]) == 2, "Fragmento: a magia registra quantos entregou")
+	g._resolve_fragments(bearer)
+	check(bearer.damage == 2 and bearer.fragments == 2, "Fragmento: no início do turno o portador sofre 1 por marcador e os mantém")
+
+	# Banir o que destrói
+	var victim := _put(g, 1, "t_frail_victim")
+	victim.exhausted = true
+	_hit(g, bearer, victim.uid)
+	check(_zone_has(g, 1, "banished", "t_frail_victim"), "Fragmento: o portador bane o que destrói")
+
+	# Morte do portador: os marcadores pulam para o aliado
+	_kill(g, bearer)
+	check(ally.fragments == 2, "Fragmento: ao morrer, os marcadores passam para um aliado")
+
+	# Unidade comum nunca recebe Fragmento, nem por efeito, nem pulando de um portador que morreu
+	g = _new_game()
+	_quiet(g)
+	bearer = _put(g, 0, "t_bearer")
+	var ordinary := _put(g, 0, "t_ordinary_ally")
+	g.add_fragments(ordinary, 1, source_id)
+	check(ordinary.fragments == 0 and not g.players[0]["fragments_given"].has(source_id), "Fragmento: unidade comum não pode receber")
+	g.add_fragments(bearer, 2, source_id)
+	_kill(g, bearer)
+	check(ordinary.fragments == 0, "Fragmento: ao morrer, os marcadores não pulam para unidade comum")
+	g = _new_game()
+	_quiet(g)
+	bearer = _put(g, 0, "t_bearer")
+	ally = _put(g, 0, "t_bearer_ally")
+	ordinary = _put(g, 0, "t_ordinary_ally")
+	g.add_fragments(bearer, 3, source_id)
+	_kill(g, bearer)
+	check(ally.fragments == 3 and ordinary.fragments == 0, "Fragmento: ao morrer, só o aliado elegível recebe")
+
+	# Sem aliado, os marcadores se perdem sem erro
+	g = _new_game()
+	_quiet(g)
+	bearer = _put(g, 0, "t_bearer")
+	ally = _put(g, 0, "t_bearer_ally")
+	g.add_fragments(bearer, 2, source_id)
+	_kill(g, bearer)
+	_kill(g, ally)
+	check(g.players[0]["board"].is_empty(), "Fragmento: sem aliado os marcadores se perdem")
+
+	# Sair do campo zera os marcadores
+	g = _new_game()
+	_quiet(g)
+	bearer = _put(g, 0, "t_bearer")
+	g.add_fragments(bearer, 3, source_id)
+	g._move(bearer, "hand")
+	check(bearer.fragments == 0, "Fragmento: voltar à mão apaga os marcadores")
+
+	# Ritual: só com 10 entregues e 5 em campo
+	g = _new_game()
+	_quiet(g)
+	bearer = _put(g, 0, "t_bearer")
+	ally = _put(g, 0, "t_bearer_ally")
+	g.add_fragments(bearer, 3, source_id)
+	g.add_fragments(ally, 2, source_id)
+	g._resolve_fragment_payoffs(0)
+	check(_count(g, 0, "rai_imortal_imperfeito") == 0, "Fragmento: com menos de 10 entregues o ritual não acontece")
+	g.players[0]["fragments_given"][source_id] = 10
+	g._resolve_fragment_payoffs(0)
+	g.flush_events()
+	if g.phase == "search":
+		g.choose_search(0, 0)
+		g.flush_events()
+	check(_count(g, 0, "rai_imortal_imperfeito") == 1, "Fragmento: 10 entregues e 5 em campo invocam o Rai")
+	check(bearer.fragments == 0 and ally.fragments == 0, "Fragmento: o ritual consome os marcadores")
+
+	# Dados da carta real
+	var spell := CardDB.card(source_id)
+	check(int(spell.get("max_copies", 0)) == 10 and spell.has("fragment_payoff"), "Fragmento: carta real com 10 cópias e ritual")
+	check(CardDB.card("rai_imortal_imperfeito").get("undraftable", false), "Rai, Imortal Imperfeito: não entra em deck")
+
+	# O limite de cópias vem do max_copies da carta, não do padrão
+	check(DeckDB.copy_limit(source_id) == 10, "Fragmento: o limite de cópias no deck é 10")
+	var deck_leader: String = DeckDB.get_deck("fogo")["leader"]
+	var deck_cards: Dictionary = DeckDB.get_deck("fogo")["cards"].duplicate()
+	deck_cards[source_id] = 10
+	check(
+		DeckDB.validate_cards(deck_leader, deck_cards).filter(
+			func(error: String):
+				return source_id in error and "mais de" in error,
+		).is_empty(),
+		"Fragmento: 10 cópias não geram erro de limite de cópias",
+	)
+	deck_cards[source_id] = 11
+	check(
+		not DeckDB.validate_cards(deck_leader, deck_cards).filter(
+			func(error: String):
+				return source_id in error and "mais de 10" in error,
+		).is_empty(),
+		"Fragmento: 11 cópias passam do limite",
+	)
+
+	# damage com non_lethal nunca mata o Líder (o Ao Entrar do Rai)
+	_tcard("t_soft_blow", 1, 4, [{ "trigger": "on_enter", "action": "damage", "target": "own_leader", "amount": 6, "non_lethal": true }])
+	for case: Array in [[1, 1], [4, 4], [20, 20]]:
+		g = _new_game()
+		_quiet(g)
+		g.players[0]["leader_hp"] = int(case[0])
+		_put(g, 0, "t_soft_blow")
+		var expected_hp: int = 1 if int(case[0]) <= 6 else int(case[0]) - 6
+		check(int(g.players[0]["leader_hp"]) == expected_hp, "non_lethal: Líder com %d de Vida termina com %d" % [case[0], expected_hp])
+
+	# Rai'Emofitir, Dissolvido: no fim do turno esconde um Fragmento entre as 5 do topo e sofre 1; ao morrer passa um marcador
+	var dissolved_id := "rai_emofitir_dissolvido"
+	for _round in 12:
+		g = _new_game()
+		_quiet(g)
+		var dissolved := _put(g, 0, dissolved_id)
+		var friend := _put(g, 0, "t_bearer_ally")
+		var commoner := _put(g, 0, "t_ordinary_ally")
+		var deck_before: int = g.players[0]["deck"].size()
+		g.end_turn(0)
+		var deck_after: Array = g.players[0]["deck"]
+		var top_five := deck_after.slice(maxi(0, deck_after.size() - 5))
+		check(
+			deck_after.size() == deck_before + 1 and top_five.any(func(card: Card): return card.card_id == source_id),
+			"Dissolvido: o Fragmento criado cai entre as 5 cartas do topo",
+		)
+		check(dissolved.damage == 1, "Dissolvido: sofre 1 de dano no fim do turno")
+		_kill(g, dissolved)
+		check(friend.fragments == 1 and commoner.fragments == 0, "Dissolvido: ao morrer, só uma unidade aliada elegível recebe 1 Fragmento")
+
+	# Poder do Líder Rai'Emofitir: olha o topo 7, escolhe obrigatoriamente um Fragmento, que é banido e preso à unidade escolhida
+	var depth_cases := [
+		{ "copy_position_from_top": 0, "found": true },
+		{ "copy_position_from_top": 6, "found": true },
+		{ "copy_position_from_top": 7, "found": false },
+	]
+	for depth_case: Dictionary in depth_cases:
+		g = GameState.new("rai_emofitir", "agua", 42)
+		g.mulligan(0, [])
+		g.mulligan(1, [])
+		_calm_start(g)
+		g.self_response_enabled = false
+		g.players[0]["hand"].clear()
+		g.players[0]["ability_used"] = false
+		g.players[0]["momentum"] = 10
+		var filler_deck: Array = []
+		for _index in 12:
+			filler_deck.append(Card.new(g._uid(), "t_ordinary_ally", 0))
+		var buried_copy := Card.new(g._uid(), source_id, 0)
+		filler_deck[filler_deck.size() - 1 - int(depth_case["copy_position_from_top"])] = buried_copy
+		g.players[0]["deck"] = filler_deck
+		var unit_name := "Leader power, copy at position %d" % depth_case["copy_position_from_top"]
+		check(not g.can_use_ability(0), unit_name + ": sem unidade elegível o poder não pode ser usado")
+		var first_carrier := _put(g, 0, "t_bearer")
+		var chosen_carrier := _put(g, 0, "t_bearer")
+		var ordinary_unit := _put(g, 0, "t_ordinary_ally")
+		check(g.can_use_ability(0), unit_name + ": com unidade elegível o poder pode ser usado")
+		check(g.valid_targets(0, "ally_fragment_bearer").has(chosen_carrier.uid), unit_name + ": a unidade elegível é um alvo válido")
+		check(not g.valid_targets(0, "ally_fragment_bearer").has(ordinary_unit.uid), unit_name + ": a unidade comum não é alvo")
+		var deck_size_before: int = g.players[0]["deck"].size()
+		var hand_size_before: int = g.players[0]["hand"].size()
+		var top_seven_ids: Array = []
+		for index in 7:
+			top_seven_ids.append(g.players[0]["deck"][deck_size_before - 1 - index].uid)
+		g.use_ability(0, chosen_carrier.uid)
+		g.pass_priority(1)
+		check(g.phase == "search", unit_name + ": abre a tela de busca com as cartas do topo")
+		check(int(g.pending_search.get("looked", 0)) == 7 and g.pending_search.get("looked_cards", []).size() == 7, unit_name + ": o jogador olha as 7 cartas do topo")
+		if not bool(depth_case["found"]):
+			check(g.pending_search.get("cards", []).is_empty(), unit_name + ": sem Fragmento nas 7 do topo não há o que escolher")
+			g.choose_search(0, 0)
+			check(first_carrier.fragments == 0 and chosen_carrier.fragments == 0, unit_name + ": ninguém recebe Fragmento")
+			check(g.phase != "search", unit_name + ": a tela de busca fecha")
+			continue
+		check(g.pending_search["cards"].size() == 1, unit_name + ": a única opção é o Fragmento")
+		g.choose_search(0, buried_copy.uid)
+		g.flush_events()
+		check(chosen_carrier.fragments == 1 and first_carrier.fragments == 0, unit_name + ": só a unidade escolhida recebe 1 Fragmento")
+		check(int(g.players[0]["fragments_given"][source_id]) == 1, unit_name + ": conta como Fragmento entregue pela carta")
+		check(g.players[0]["deck"].size() == deck_size_before - 1, unit_name + ": só a cópia sai do deck, sem buscar outra")
+		check(g.players[0]["hand"].size() == hand_size_before, unit_name + ": a mão não muda")
+		check(_zone_has(g, 0, "banished", source_id), unit_name + ": a cópia usada é banida")
+		check(g.players[0]["deck"].size() == 11, unit_name + ": as outras 6 cartas olhadas continuam no deck (fundo)")
+		check(not g.can_use_ability(0), unit_name + ": uma vez por turno")
+
+	# Alvo inelegível é recusado e o poder não gasta Momentum
+	g = GameState.new("rai_emofitir", "agua", 42)
+	g.mulligan(0, [])
+	g.mulligan(1, [])
+	_calm_start(g)
+	g.self_response_enabled = false
+	g.players[0]["ability_used"] = false
+	g.players[0]["momentum"] = 10
+	var refused_ordinary := _put(g, 0, "t_ordinary_ally")
+	check(not g.can_use_ability(0), "Leader power: só com unidade comum aliada o poder não pode ser usado")
+	check(g.use_ability(0, refused_ordinary.uid).is_empty(), "Leader power: unidade que não porta Fragmento é recusada como alvo")
 
 func _test_toxico() -> void:
 	check(CardDB.keyword("toxico")["name"] == "Tóxico", "Tóxico: keyword registrada")

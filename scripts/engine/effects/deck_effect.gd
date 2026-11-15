@@ -10,6 +10,8 @@ extends Effect
 ##   eligible card (declining is refused) and the deck is shuffled afterwards; a whiff shows the deck dimmed with the
 ##   same "shuffle the deck" exit. Keep that for very narrow filters (a single named card, like Bruno's Bola de Neve);
 ##   a broad filter over the whole deck is too strong.
+##   `attach_fragment` (Partir-se): the card taken never reaches the hand. It is banished and becomes a Fragmento on the unit
+##   the player chose as target ("ally_fragment_bearer"); the card's own effects (like a search for another copy) never run.
 ## "discard_hand_pick": the player picks one card from their own hand and discards it to
 ##   the graveyard (only the end-of-turn hand limit banishes; a normal discard goes to the graveyard).
 ##   `who` (default "self"): "opponent" makes the OPPONENT pick the card from their own hand (Calvin Sem-Face); an empty hand does nothing.
@@ -90,4 +92,7 @@ func open_choice(context: EffectContext) -> void:
 	elif action == "look_bottom":
 		context.game._begin_look_bottom(context.controller, count, window, context.self_uid)
 	else:
-		context.game._begin_search(context.controller, raw, context.self_uid)
+		# "attach_fragment": the card taken is banished and attached as a Fragmento to the unit chosen with the card/ability
+		# (target "ally_fragment_bearer") instead of going to the hand
+		var fragment_receiver_uid: int = context.chosen_target if raw.get("attach_fragment", false) else 0
+		context.game._begin_search(context.controller, raw, context.self_uid, fragment_receiver_uid)

@@ -1346,7 +1346,7 @@ static func _pick_target(g: GameState, p: int, spec: String, source, self_uid :=
 	for effect in effects:
 		if effect.get("action") == "return_to_hand" and spec in ["ally_unit", "other_ally_unit"]:
 			return _pick_bounce_ally(g, options)
-	var friendly := spec in ["ally_unit", "other_ally_unit", "ally_or_own_leader"]
+	var friendly := spec in ["ally_unit", "other_ally_unit", "ally_or_own_leader", "ally_fragment_bearer"]
 	if not friendly:
 		for effect in effects:
 			if effect.get("action") == "buff":

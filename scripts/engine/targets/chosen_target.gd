@@ -5,7 +5,7 @@ extends TargetSelector
 ## the opponent's side, on your own side, or on either side; an effect may narrow them with "subtype").
 ## The pick is checked again on resolution (it may have died or left meanwhile).
 
-const NAMES := ["enemy_unit", "enemy_unit_or_leader", "enemy_flying_unit", "enemy_taunt_unit", "weak_enemy_unit", "ally_unit", "other_ally_unit", "ally_or_own_leader", "any_unit", "any", "enemy_stack", "enemy_artifact", "ally_artifact", "any_artifact"]
+const NAMES := ["enemy_unit", "enemy_unit_or_leader", "enemy_flying_unit", "enemy_taunt_unit", "weak_enemy_unit", "ally_unit", "other_ally_unit", "ally_or_own_leader", "ally_fragment_bearer", "any_unit", "any", "enemy_stack", "enemy_artifact", "ally_artifact", "any_artifact"]
 
 func needs_choice() -> bool:
 	return true

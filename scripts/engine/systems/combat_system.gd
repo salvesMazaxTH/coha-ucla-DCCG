@@ -492,6 +492,7 @@ func _exchange_damage(attacker_uid: int, target_uid: int, counter_uid := 0) -> v
 			break
 		if target_uid < 0:
 			if strike_step(attacker) == step:
+				attacker.leader_struck_turn = game.turn
 				game.deal_damage(target_uid, _blow_damage(attacker, target_uid), attacker)
 			continue
 		var defender_unit := game.find_unit(target_uid)
@@ -501,9 +502,11 @@ func _exchange_damage(attacker_uid: int, target_uid: int, counter_uid := 0) -> v
 				var excess := blow - game.hp_left(defender_unit)
 				game.deal_damage(defender_unit.uid, blow, attacker)
 				if game.has_kw(attacker, "sobrepujanca") and excess > 0:
+					attacker.leader_struck_turn = game.turn
 					game.deal_damage(GameState.LEADER_UID[defending_player], excess, attacker)
 			elif game.has_kw(attacker, "sobrepujanca"):
 				var leader_uid: int = GameState.LEADER_UID[defending_player]
+				attacker.leader_struck_turn = game.turn
 				game.deal_damage(leader_uid, _blow_damage(attacker, leader_uid), attacker)
 				# target already dead
 		defender_unit = game.find_unit(target_uid)

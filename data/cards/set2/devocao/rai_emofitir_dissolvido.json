@@ -1,0 +1,19 @@
+{
+  "name": "Rai'Emofitir, Dissolvido",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "tribe": ["celestial", "divindade", "precursor"],
+  "essence": ["devocao", "trevas"],
+  "cost": 2,
+  "atk": 2,
+  "hp": 3,
+  "art": "devocao/rai_emofitir_dissolvido.webp",
+  "effects": [
+    { "trigger": "on_turn_end", "action": "add_card", "target": "none", "card": "fragmento_de_rai_emofitir", "to": "deck_top", "depth": 5 },
+    { "trigger": "on_turn_end", "action": "damage", "target": "self", "amount": 1 },
+    { "trigger": "on_death", "action": "add_fragment", "target": "random_other_ally_unit", "amount": 1, "unit_filter": { "any_of": [{ "tribe_any": ["dragoes_negros"] }, { "name_contains": "Veyr" }] } }
+  ],
+  "text": "No Fim do Seu Turno: cria um Fragmento de Rai'Emofitir em posição aleatória entre as 5 cartas do topo do seu deck e sofre 1 de dano.\nAo Morrer: uma unidade aliada aleatória Dragão Negro ou Veyr recebe 1 Fragmento.",
+  "flavor": "A cada manhã sobra menos dele no altar e mais nos fiéis."
+}

@@ -1,8 +1,8 @@
 class_name FlagCondition
 extends Condition
-## The simple string conditions: "if": "momentum_left" | "unspent_momentum" | "unspent_momentum_threshold" (UNSPENT_MOMENTUM_THRESHOLD or more unspent until this turn's untap) | "battery_full" | "played_two" | "oldest_of_its_name" | "no_snowball_in_hand_or_deck" | "gained_momentum_this_turn" | "lethal_attack" | "no_stunned_enemy" | "armor_spent_last_turn" (this unit spent its own Armadura since its owner's previous turn began; Farkoveth).
+## The simple string conditions: "if": "momentum_left" | "unspent_momentum" | "unspent_momentum_threshold" (UNSPENT_MOMENTUM_THRESHOLD or more unspent until this turn's untap) | "battery_full" | "played_two" | "oldest_of_its_name" | "no_snowball_in_hand_or_deck" | "gained_momentum_this_turn" | "lethal_attack" | "no_stunned_enemy" | "armor_spent_last_turn" (this unit spent its own Armadura since its owner's previous turn began; Farkoveth) | "struck_enemy_leader_this_turn" (this unit struck the enemy Leader in combat this turn, even for 0 damage; Rai, Imortal Imperfeito).
 
-const NAMES := ["momentum_left", "unspent_momentum", "unspent_momentum_threshold", "battery_full", "played_two", "oldest_of_its_name", "no_snowball_in_hand_or_deck", "gained_momentum_this_turn", "lethal_attack", "no_stunned_enemy", "armor_spent_last_turn"]
+const NAMES := ["momentum_left", "unspent_momentum", "unspent_momentum_threshold", "battery_full", "played_two", "oldest_of_its_name", "no_snowball_in_hand_or_deck", "gained_momentum_this_turn", "lethal_attack", "no_stunned_enemy", "armor_spent_last_turn", "struck_enemy_leader_this_turn"]
 
 var name := ""
 
@@ -25,6 +25,9 @@ func check(context: EffectContext) -> bool:
 		"armor_spent_last_turn":
 			var source_unit := context.game.find_unit(context.self_uid)
 			return source_unit != null and source_unit.armor_spent_last_turn
+		"struck_enemy_leader_this_turn":
+			var striking_unit := context.game.find_unit(context.self_uid)
+			return striking_unit != null and striking_unit.leader_struck_turn == context.game.turn
 		"no_snowball_in_hand_or_deck":
 			return not _has_snowball(player["hand"]) and not _has_snowball(player["deck"])
 	return true

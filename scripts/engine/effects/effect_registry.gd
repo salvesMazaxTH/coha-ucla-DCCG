@@ -41,6 +41,7 @@ static var ACTIONS: Dictionary = {
 	"stun": StunEffect,
 	"cap_stats": CapStatsEffect,
 	"add_dot": AddDotEffectScript,
+	"add_fragment": AddFragmentEffect,
 	"burn": AddDotEffectScript, # compatibility alias for old card data
 	"exhaust": ExhaustEffect,
 	"ready": ReadyEffect,

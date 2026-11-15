@@ -70,6 +70,7 @@ var pending_self_revive_turn := 0 ## the turn at whose end this graveyard unit r
 var pending_self_revive_atk := 0
 var pending_self_revive_hp := 0
 var dot_markers: Dictionary = {} ## accumulated periodic-status markers, keyed by dot id
+var fragments := 0 ## Fragmentos de Rai'Emofitir: +1 ATQ and 1 self-damage per turn each; they hop to an ally when the bearer dies
 var tide_mark := false
 var armor_spent_since_turn_start := false ## it spent its own Armadura since its owner's last turn began (Farkoveth)
 var armor_spent_last_turn := false ## the flag above as it stood when its owner's current turn began
@@ -82,6 +83,7 @@ var equipped_cards: Array[Card] = [] ## the equipment this unit wears, oldest fi
 var worn_grant: Dictionary = {} ## on an equipment card: what it gave its unit ({atk, hp, armor, keywords}); taken back when it leaves
 var cap_atk_gain := 0 ## attack given so far by "cap_atk" buffs
 var dodge_turn := -1 ## turn its Esquiva was last used
+var leader_struck_turn := -1 ## turn it last struck the enemy Leader in combat, even if the blow did 0 damage
 var activated_turn := -1 ## turn its Ao Ativar was last used
 var activated_zone_used := false ## its zone-limited Ao Ativar was used before leaving this zone
 var zone_used_effects: Dictionary = {} ## effect index -> true once a trigger with "once_per_zone" fired in this zone
@@ -109,7 +111,7 @@ const NOT_COPIED_FIELDS := ["uid", "card_id", "owner", "zone", "over", "incarnat
 		"intrinsic_atk", "intrinsic_hp",
 		"pending_self_revive_turn", "pending_self_revive_atk", "pending_self_revive_hp",
 		"exhausted", "sick", "attacks_made", "armor_spent_since_turn_start", "armor_spent_last_turn", "used_turn", "capped_uses", "conditional_uses_turn", "conditional_uses",
-		"trigger_counts", "dodge_turn", "activated_turn", "activated_zone_used", "zone_used_effects", "capped_heal_turn", "capped_heal_total",
+		"trigger_counts", "dodge_turn", "leader_struck_turn", "activated_turn", "activated_zone_used", "zone_used_effects", "capped_heal_turn", "capped_heal_total",
 		"capped_heal_locked", "heal_blocked_until", "leader_damage_guard_turn", "death_ward_armed", "banish_on_death", "durability_used", "durability_uses",
 		"stored_momentum"]
 
@@ -233,6 +235,7 @@ func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:
 	stun_markers = 0
 	condemned_turn = 0
 	dot_markers = {}
+	fragments = 0
 	tide_mark = false
 	armor_spent_since_turn_start = false
 	armor_spent_last_turn = false
@@ -245,6 +248,7 @@ func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:
 	worn_grant = {}
 	cap_atk_gain = 0
 	dodge_turn = -1
+	leader_struck_turn = -1
 	activated_turn = -1
 	capped_heal_turn = -1
 	capped_heal_total = 0
@@ -436,7 +440,7 @@ func lose_armor(amount: int) -> void:
 
 ## ATK right now (a Congelada unit keeps its full ATK: it still strikes back when challenged).
 func atk_total() -> int:
-	return maxi(0, atk + intrinsic_atk + temp_atk + temp_atk_until_next_turn + bonus_atk)
+	return maxi(0, atk + intrinsic_atk + temp_atk + temp_atk_until_next_turn + bonus_atk + fragments)
 
 ## Rapidez right now (0-3). A Congelada unit has its Rapidez suppressed, so it counts as Rapidez 0 until it thaws.
 func rapidez_total() -> int:
@@ -588,6 +592,8 @@ func to_dict() -> Dictionary:
 		d["condemned_turn"] = condemned_turn
 	if not dot_markers.is_empty():
 		d["dot_markers"] = dot_markers.duplicate()
+	if fragments > 0:
+		d["fragments"] = fragments
 	if tide_mark:
 		d["tide_mark"] = true
 	if armor_spent_since_turn_start or armor_spent_last_turn:
@@ -614,6 +620,8 @@ func to_dict() -> Dictionary:
 		d["cap_atk_gain"] = cap_atk_gain
 	if dodge_turn >= 0:
 		d["dodge_turn"] = dodge_turn
+	if leader_struck_turn >= 0:
+		d["leader_struck_turn"] = leader_struck_turn
 	if activated_turn >= 0:
 		d["activated_turn"] = activated_turn
 	if activated_zone_used:
@@ -699,6 +707,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.stun_markers = int(d.get("stun_markers", 0))
 	c.condemned_turn = int(d.get("condemned_turn", 0))
 	c.dot_markers = d.get("dot_markers", {}).duplicate()
+	c.fragments = int(d.get("fragments", 0))
 	# Compatibility with snapshots produced before periodic markers became generic.
 	if d.has("burn") and int(d["burn"]) > 0:
 		c.dot_markers["queimadura"] = int(d["burn"])
@@ -719,6 +728,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 		c.equipped_cards.append(worn)
 	c.cap_atk_gain = int(d.get("cap_atk_gain", 0))
 	c.dodge_turn = int(d.get("dodge_turn", -1))
+	c.leader_struck_turn = int(d.get("leader_struck_turn", -1))
 	c.activated_turn = int(d.get("activated_turn", -1))
 	c.activated_zone_used = bool(d.get("activated_zone_used", false))
 	for used_index in d.get("zone_used_effects", []):

@@ -20,6 +20,7 @@ extends Effect
 ## "lifesteal_self": true (with lifesteal) also heals this unit by that same damage, if it is still on the board.
 ## "spend_own_armor": true (with self_atk) also spends ALL of this unit's own Armadura and adds it to the damage (Farkoveth).
 ## "source_gain_per_kill": N = if the damage kills a unit, this unit permanently gains +N Ataque (Jovahr).
+## "non_lethal": true = a Leader target takes at most the damage that leaves it with 1 Vida (Rai, Imortal Imperfeito).
 
 var amount := 0
 var amount_from := ""
@@ -37,6 +38,7 @@ var spends_momentum := false
 var source_gain_per_kill := 0
 var graveyard_kind := ""
 var spends_own_armor := false
+var is_non_lethal := false
 
 func _read_parameters(data: Dictionary) -> void:
 	divisor = maxi(1, int(data.get("divisor", 1)))
@@ -55,6 +57,7 @@ func _read_parameters(data: Dictionary) -> void:
 	source_gain_per_kill = int(data.get("source_gain_per_kill", 0))
 	graveyard_kind = String(data.get("graveyard_kind", ""))
 	spends_own_armor = bool(data.get("spend_own_armor", false))
+	is_non_lethal = bool(data.get("non_lethal", false))
 
 func apply(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
@@ -100,6 +103,9 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	var amplifier_bonus := game.spell_amplifier_bonus(context.controller, "damage") if context.is_spell_source() else 0
 	if damage_amount > 0:
 		damage_amount += amplifier_bonus
+	if is_non_lethal and GameState.LEADER_UID.has(target_uid):
+		var leader_hp := int(game.players[GameState.LEADER_UID.find(target_uid)]["leader_hp"])
+		damage_amount = clampi(damage_amount, 0, maxi(0, leader_hp - 1))
 	# the neighbours are found before any damage, so they stay the same if the target dies
 	var neighbour_uids := _neighbours_of(game, victim) if adjacent_amount > 0 else []
 	var damage_dealt := game.deal_damage(target_uid, damage_amount, null)

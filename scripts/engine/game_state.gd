@@ -228,6 +228,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"snowball_base": SNOWBALL_BASE_LEVEL,
 		"critico_growth": { }, # card_id -> Crítico level reached by "critico_growth" cards (Vael), shared by every copy of it
 		"shared_x": { }, # card_id -> how many times a "shared_x" card (Drex) has grown its X; read through shared_x_of
+		"fragments_given": { }, # card_id -> Fragmentos that spell has handed out so far (the ritual payoff reads it)
 		"ice_spell_discount_used": false, # the Amuleto Glacial (ice spell) discount was already spent this turn
 		"damage_negated_until": 0, # Câmara de Êxtase aftermath: the Leader's next hits are negated while turn <= this
 		"damage_negated_left": 0, # ...and this is how many hits are still left to negate
@@ -494,6 +495,8 @@ func _move(c: Card, to_zone: String, extra_data := { }) -> void:
 	elif to_zone == "sanctuary" and c.incarnation:
 		players[c.owner]["incarnation"]["permanent_buffs"] = c.permanent_buffs.duplicate(true)
 		players[c.owner]["incarnation"]["in_zone"] = true
+	if from_zone == "board" and to_zone != "board":
+		c.fragments = 0 # a unit that leaves the board loses its Fragmentos (a death hands them on first)
 	if to_zone != "graveyard":
 		c.pending_self_revive_turn = 0 # a delayed return only makes sense while waiting in the graveyard
 	if (
@@ -1255,6 +1258,7 @@ func target_spec(effects: Array) -> String:
 			"ally_unit",
 			"other_ally_unit",
 			"ally_or_own_leader",
+			"ally_fragment_bearer",
 			"any_unit",
 			"any",
 			"enemy_stack",
@@ -1754,6 +1758,10 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 			for c: Card in mine:
 				out.append(c.uid)
 			out.append(LEADER_UID[p])
+		"ally_fragment_bearer": # an ally unit that can carry a Fragmento (Partir-se)
+			for c: Card in mine:
+				if can_bear_fragments(c):
+					out.append(c.uid)
 		"any_unit":
 			for c: Card in mine + theirs:
 				out.append(c.uid)
@@ -3286,17 +3294,27 @@ func choose_search(p: int, card_uid: int) -> Array:
 		if found == null:
 			return []
 		deck.erase(found)
-		players[p]["hand"].append(found)
-		_move(found, "hand")
-		# "discount": the card taken costs this much less (Vendedora de Grimório), same per-copy discount as a discount effect
-		found.discount += int(pending_search.get("discount", 0))
-		# "turn_discount": the card taken costs this much less only until the end of this turn. It stops at
-		# "turn_discount_min_cost" (default 1, Sven; 0 lets the card become free, Desvelar o Arcano)
-		var turn_discount_amount: int = int(pending_search.get("turn_discount", 0))
-		if turn_discount_amount > 0:
-			var cost_now := cost_of(p, found.data(), found)
-			var lowest_cost: int = int(pending_search.get("turn_discount_min_cost", 1))
-			found.turn_discount += clampi(turn_discount_amount, 0, maxi(cost_now - lowest_cost, 0))
+		var fragment_receiver_uid := int(pending_search.get("attach_fragment_to", 0))
+		if fragment_receiver_uid != 0:
+			# Partir-se: the Fragmento never reaches the hand, it is banished and attached to the unit the player chose
+			players[p]["banished"].append(found)
+			_move(found, "banished")
+			emit_event({ "type": "ban", "player": p, "uid": found.uid })
+			var receiver := find_unit(fragment_receiver_uid)
+			if receiver != null:
+				add_fragments(receiver, 1, found.card_id)
+		else:
+			players[p]["hand"].append(found)
+			_move(found, "hand")
+			# "discount": the card taken costs this much less (Vendedora de Grimório), same per-copy discount as a discount effect
+			found.discount += int(pending_search.get("discount", 0))
+			# "turn_discount": the card taken costs this much less only until the end of this turn. It stops at
+			# "turn_discount_min_cost" (default 1, Sven; 0 lets the card become free, Desvelar o Arcano)
+			var turn_discount_amount: int = int(pending_search.get("turn_discount", 0))
+			if turn_discount_amount > 0:
+				var cost_now := cost_of(p, found.data(), found)
+				var lowest_cost: int = int(pending_search.get("turn_discount_min_cost", 1))
+				found.turn_discount += clampi(turn_discount_amount, 0, maxi(cost_now - lowest_cost, 0))
 		last_search_took_card = true
 	var look: bool = pending_search.get("look", false)
 	var top_search: bool = pending_search.has("to_bottom") # a search limited to the top N cards
@@ -3777,7 +3795,7 @@ func deck_summon_watches(p: int) -> Array:
 	return watches
 
 
-func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
+func _begin_search(p: int, e: Dictionary, source_uid: int, fragment_receiver_uid := 0) -> void:
 	if phase == "search":
 		return
 	last_search_took_card = false
@@ -3815,6 +3833,8 @@ func _begin_search(p: int, e: Dictionary, source_uid: int) -> void:
 		"turn_discount_min_cost": int(e.get("turn_discount_min_cost", 1)),
 		"fallback_draw": int(e.get("fallback_draw", 0)),
 	}
+	if fragment_receiver_uid != 0:
+		pending_search["attach_fragment_to"] = fragment_receiver_uid # the card taken is banished onto this unit, not put in hand
 	# every card looked at, topmost first; "cards" holds only the eligible ones, so the UI can show the rest dimmed
 	var looked_cards: Array = []
 	for index in range(searched.size() - 1, -1, -1):
@@ -4762,6 +4782,86 @@ func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protec
 	return dealt
 
 
+## Only Dragões Negros and the Veyr family can bear Fragmentos. Every way of giving them goes through this rule.
+const FRAGMENT_BEARER_FILTER := { "any_of": [{ "tribe_any": ["dragoes_negros"] }, { "name_contains": "Veyr" }] }
+
+
+func can_bear_fragments(unit: Card) -> bool:
+	return unit != null and CardFilter.matches(unit.card_id, FRAGMENT_BEARER_FILTER)
+
+
+## Puts `amount` Fragmentos de Rai'Emofitir on a unit. They are not a periodic status: they stay until the bearer
+## leaves the board, and hop to the bearer's allies when it dies (see _hop_fragments).
+## `source_card_id` is the spell that handed them out; the ritual payoff counts them (_resolve_fragment_payoffs).
+func add_fragments(unit: Card, amount: int, source_card_id := "") -> void:
+	if unit == null or amount <= 0 or not can_bear_fragments(unit):
+		return
+	unit.fragments += amount
+	if source_card_id != "":
+		var given: Dictionary = players[unit.owner]["fragments_given"]
+		given[source_card_id] = int(given.get(source_card_id, 0)) + amount
+	emit_event({ "type": "dot", "uid": unit.uid, "dot": "fragmento", "amount": amount, "total": unit.fragments })
+
+
+## Start of the bearer's turn: it hurts itself 1 per Fragmento. Armadura and Escudo do not help, like any marker.
+func _resolve_fragments(unit: Card) -> void:
+	if unit.fragments <= 0:
+		return
+	emit_event(
+		{
+			"type": "dot",
+			"uid": unit.uid,
+			"dot": "fragmento",
+			"amount": unit.fragments,
+			"damage": unit.fragments,
+			"total": unit.fragments,
+			"cleared": true,
+			"held": true,
+		}
+	)
+	_deal_dot_damage(unit.uid, unit.fragments, "fragmento")
+
+
+## A bearer died: each of its Fragmentos lands on a random eligible ally of its controller. With none left they are lost.
+func _hop_fragments(p: int, count: int, from_uid: int) -> void:
+	if count <= 0:
+		return
+	var allies: Array = []
+	for unit: Card in players[p]["board"]:
+		if can_bear_fragments(unit):
+			allies.append(unit)
+	if allies.is_empty():
+		emit_event({ "type": "fragments_lost", "uid": from_uid, "player": p, "amount": count })
+		return
+	for index in count:
+		var receiver: Card = allies[rng.randi_range(0, allies.size() - 1)]
+		receiver.fragments += 1
+		emit_event({ "type": "dot", "uid": receiver.uid, "dot": "fragmento", "amount": 1, "total": receiver.fragments })
+
+
+## End of p's turn: a spell card with a "fragment_payoff" ({"markers": 5, "given": 10, "summon": card_id}) summons its
+## unit once p's side holds enough Fragmentos and the spell has handed out all of its copies. The Fragmentos are consumed.
+func _resolve_fragment_payoffs(p: int) -> void:
+	var given: Dictionary = players[p]["fragments_given"]
+	for source_card_id in given.keys().duplicate():
+		var payoff: Dictionary = CardDB.card(String(source_card_id)).get("fragment_payoff", { })
+		if payoff.is_empty() or int(given[source_card_id]) < int(payoff.get("given", 0)):
+			continue
+		var holders: Array = []
+		var total := 0
+		for unit: Card in players[p]["board"]:
+			if unit.fragments > 0:
+				holders.append(unit)
+				total += unit.fragments
+		if total < int(payoff.get("markers", 0)) or not has_free_slot(p):
+			continue
+		given.erase(source_card_id)
+		for unit: Card in holders:
+			unit.fragments = 0
+		emit_event({ "type": "fragments_consumed", "player": p, "amount": total })
+		_summon(p, Card.new(_uid(), String(payoff["summon"]), p), false, 0)
+
+
 ## Puts `amount` accumulating markers of the `dot_id` kind on the unit (they resolve at its controller's turn start).
 func add_dot_markers(unit: Card, dot_id: String, amount: int, ignores_immunity := false) -> void:
 	if not ignores_immunity and unit_is_immune_to_dot(unit, dot_id):
@@ -4808,7 +4908,7 @@ func unit_is_immune_to_dot(unit: Card, dot_id: String) -> bool:
 ## Kills the Leader of player `p` on the spot (a card effect, e.g. Viprax's execution). Câmara de
 ## Êxtase and the damage halving do not apply. This is not damage: it emits its own "leader_executed"
 ## event (never a "damage" one) so the UI can play a dedicated execution animation instead of a big hit.
-func kill_leader_outright(p: int, dot_id := "") -> void:
+func kill_leader_outright(p: int, dot_id := "", color_hex := "") -> void:
 	var hp_before: int = players[p]["leader_hp"]
 	if hp_before <= 0:
 		return
@@ -4816,6 +4916,8 @@ func kill_leader_outright(p: int, dot_id := "") -> void:
 	var execution_event := { "type": "leader_executed", "uid": LEADER_UID[p], "player": p, "hp_before": hp_before }
 	if dot_id != "":
 		execution_event["dot"] = dot_id
+	if color_hex != "":
+		execution_event["color"] = color_hex
 	emit_event(execution_event)
 
 
@@ -5164,6 +5266,7 @@ func _move_dead_units() -> void:
 					var dying_card_id: String = c.card_id # "dying_card" effects only hear this card (Luto: Myrra)
 					var dying_was_sacrificed: bool = c.sacrificed # "dying_sacrificed" effects only hear a sacrifice
 					var dying_veneno_markers: int = int(c.dot_markers.get("veneno", 0)) # read before the unit leaves; unit_died hands them on
+					var dying_fragments: int = c.fragments # read before the unit leaves; they hop to its allies below
 					c.sacrificed = false # a revive_self brings the same Card back: its next death is a fresh one
 					var effects: Array = c.effect_list()
 					# remembered before the equipment drops to the graveyard, so an Aliado Morre can still take it (Nina)
@@ -5172,6 +5275,7 @@ func _move_dead_units() -> void:
 					# a borrowed unit rests in its REAL owner's graveyard; the death triggers stay with the controller p
 					_end_borrowed_control(c)
 					changed = true
+					_hop_fragments(p, dying_fragments, dead_uid)
 					emit_event({ "type": "death", "uid": dead_uid, "player": p, "card_id": dying_card_id })
 					_release_equipment(c, true)
 					var waits_to_revive: bool = c.incarnation and _incarnation_revives_after_death(effects)
@@ -5247,10 +5351,10 @@ func _send_stranded_incarnations_home() -> void:
 				_incarnation_leaves(p)
 
 
-## True when `source` is a unit whose card says "banish_what_it_kills": a unit it would destroy (combat damage,
-## Toque Letal, its own destroy effects) is banished instead (Rai'Emofitir). Silence removes the rule.
+## True when `source` is a unit whose card says "banish_what_it_kills", or that carries a Fragmento de Rai'Emofitir:
+## a unit it would destroy (combat damage, Toque Letal, its own destroy effects) is banished instead.
 func banishes_what_it_kills(source: Card) -> bool:
-	return source != null and bool(source.data().get("banish_what_it_kills", false))
+	return source != null and (bool(source.data().get("banish_what_it_kills", false)) or source.fragments > 0)
 
 
 ## Returns the Baluarte-like artifact of p, if any.
@@ -5359,6 +5463,7 @@ func _finish_turn() -> void:
 	for c in players[active]["board"].duplicate():
 		fire_trigger(c, "on_turn_end")
 	_fire_deck_effects(active, "on_turn_end")
+	_resolve_fragment_payoffs(active)
 	_fire_any_turn_trigger(active, "on_any_turn_end")
 	check_state()
 	if phase == "over":
@@ -5633,6 +5738,7 @@ func _regenerate_all_units() -> void:
 ## Resolves every periodic marker on every unit controlled by p, and on p's Leader, at the start of that turn.
 func _resolve_dot_markers(p: int) -> void:
 	for unit: Card in players[p]["board"].duplicate():
+		_resolve_fragments(unit)
 		for dot_id in unit.dot_markers.keys().duplicate():
 			resolve_dot(unit, String(dot_id))
 	for dot_id in players[p]["leader_dots"].keys().duplicate():

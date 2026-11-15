@@ -55,7 +55,7 @@ const POISON_COL := Color("#b8e86b") ## Veneno: acid-lime drop over a deep viole
 const BLEED_COL := Color("#e85d75") ## Sangramento: reserved by the same shared badge for the future keyword
 ## Fixed medallion order, so a status keeps its slot. Atordoada comes first: it is the one that changes what the unit can do, so it stays pinned and never takes turns.
 const HEAL_BLOCK_COL := Color("#ff6f91") ## Sem cura (block_healing): rose-pink cross under a ban slash, distinct from Veneno lime, doom violet and frost blue
-const STATUS_ORDER := ["atordoada", "queimadura", "veneno", "sangramento", "sem_cura", "congelar"] # TEMP "congelar": pseudo 5th status for the status-badge scenario
+const STATUS_ORDER := ["atordoada", "queimadura", "veneno", "sangramento", "sem_cura", "congelar", "fragmento"] # TEMP "congelar": pseudo 5th status for the status-badge scenario
 const MAX_STATUS_MEDALLIONS := 3 ## medallions that fit in the column; with more statuses the last one takes turns
 const STATUS_TURN_SECONDS := 1.6 ## how long the sharing medallion shows each status before the next one
 const DOT_BADGE_ENLARGEMENT :=1.75 ## size of the marker medallion (Queimadura/Veneno) vs. the other card badges; big enough to read the count on Leaders, which have no overlay
@@ -251,6 +251,8 @@ static var _indestructible_shader: Shader
 var _indestructible_glow: ColorRect = null ## animated steel rim and sheen of Indestrutível (see _place_indestructible_glow)
 static var _rapidez_sparks_shader: Shader
 var _rapidez_sparks: ColorRect = null ## animated sparks circling a fast unit during combat (see _place_rapidez_sparks)
+static var _fragment_aura_shader: Shader
+var _fragment_aura: ColorRect = null ## animated violet cracks and shards of a unit bearing Fragmentos (see _place_fragment_aura)
 
 ## Keywords that change who can challenge or target whom get an icon medallion on the art (MTG Arena style),
 ## in this order down the left edge, then the right; glyph tint per keyword.
@@ -359,7 +361,7 @@ func update_card(id: String, instance: Dictionary = {}, size_scale := 1.0) -> vo
 	set_process(true)
 	# Tags and target badges belong to the previous state; the shield shader child can safely be reused.
 	for child in get_children():
-		if child != _shield_dome and child != _indestructible_glow and child != _rapidez_sparks:
+		if child != _shield_dome and child != _indestructible_glow and child != _rapidez_sparks and child != _fragment_aura:
 			remove_child(child)
 			child.queue_free()
 	if is_instance_valid(_shield_dome):
@@ -368,6 +370,8 @@ func update_card(id: String, instance: Dictionary = {}, size_scale := 1.0) -> vo
 		_indestructible_glow.hide()
 	if is_instance_valid(_rapidez_sparks):
 		_rapidez_sparks.hide()
+	if is_instance_valid(_fragment_aura):
+		_fragment_aura.hide()
 	if inst.has("damage") and _keywords(CardDB.card_for(id, inst)).has("furtividade"):
 		_stealth()
 	queue_redraw()
@@ -626,6 +630,39 @@ func _place_rapidez_sparks(face_origin: Vector2, pop: float, s: float, active: b
 	if not _rapidez_sparks.visible:
 		_rapidez_sparks.visible = true
 
+## A unit bearing Fragmentos looks like it is coming apart: violet cracks, a breathing rim and drifting
+## shards, painted by fragment_aura.gdshader on a ColorRect a little bigger than the face. More
+## fragments make it stronger. Called from _draw like the other overlays; hidden (not freed) at 0.
+func _place_fragment_aura(face_origin: Vector2, pop: float, s: float, fragment_count: int) -> void:
+	if fragment_count <= 0:
+		if _fragment_aura != null and _fragment_aura.visible:
+			_fragment_aura.visible = false
+		return
+	if _fragment_aura == null:
+		if _fragment_aura_shader == null:
+			_fragment_aura_shader = load("res://scripts/ui/shaders/fragment_aura.gdshader")
+		_fragment_aura = ColorRect.new()
+		_fragment_aura.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var aura_material := ShaderMaterial.new()
+		aura_material.shader = _fragment_aura_shader
+		aura_material.set_shader_parameter("phase", randf() * 10.0)
+		_fragment_aura.material = aura_material
+		add_child(_fragment_aura)
+	var margin := 6.0 * s * pop # room around the face for the halo
+	var aura_rect := Rect2(face_origin - Vector2(margin, margin), _face_size * pop + Vector2(margin, margin) * 2.0)
+	if _fragment_aura.position != aura_rect.position:
+		_fragment_aura.position = aura_rect.position
+	if _fragment_aura.size != aura_rect.size:
+		_fragment_aura.size = aura_rect.size
+	var aura_material := _fragment_aura.material as ShaderMaterial
+	aura_material.set_shader_parameter("rect_size", aura_rect.size)
+	aura_material.set_shader_parameter("margin", margin)
+	aura_material.set_shader_parameter("corner_radius", 10.0 * s * pop)
+	aura_material.set_shader_parameter("base_pixel", s * pop)
+	aura_material.set_shader_parameter("intensity", clampf(fragment_count / 5.0, 0.0, 1.0))
+	if not _fragment_aura.visible:
+		_fragment_aura.visible = true
+
 ## True when this unit on the board has Indestrutível right now (its own, lent until end of turn,
 ## or given by an ally's aura / the Momentum surge).
 func _is_indestructible_now() -> bool:
@@ -825,6 +862,8 @@ func dissolve(delay := 0.0, edge := Color(1.0, 0.55, 0.15), dur := 0.75) -> void
 		tw.tween_callback(_indestructible_glow.hide)
 	if _rapidez_sparks != null: # and for the Rapidez sparks
 		tw.tween_callback(_rapidez_sparks.hide)
+	if _fragment_aura != null: # and for the Fragmentos cracks
+		tw.tween_callback(_fragment_aura.hide)
 	tw.tween_property(m, "shader_parameter/progress", 1.0, dur).set_ease(Tween.EASE_IN)
 	tw.tween_callback(queue_free)
 
@@ -848,6 +887,8 @@ func banish(delay := 0.0, edge := Color(0.8, 0.7, 1.0), dur := 0.9) -> void:
 		tw.tween_callback(_indestructible_glow.hide)
 	if _rapidez_sparks != null: # and for the Rapidez sparks
 		tw.tween_callback(_rapidez_sparks.hide)
+	if _fragment_aura != null: # and for the Fragmentos cracks
+		tw.tween_callback(_fragment_aura.hide)
 	tw.tween_property(m, "shader_parameter/progress", 1.0, dur).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_SINE)
 	tw.tween_callback(queue_free)
 	var st := create_tween()
@@ -1057,6 +1098,8 @@ func _draw() -> void:
 		_indestructible_glow.visible = false
 	if (face_down or fatigue > 0) and _rapidez_sparks != null:
 		_rapidez_sparks.visible = false
+	if (face_down or fatigue > 0) and _fragment_aura != null:
+		_fragment_aura.visible = false
 	var s := _face_size.x / BASE.x
 	var r := Rect2(Vector2.ZERO, _face_size)
 	if fatigue > 0:
@@ -1275,6 +1318,7 @@ func _draw_live_art_overlays(look: Dictionary, pulse: float, face_origin: Vector
 	_place_shield_dome(face_origin, pop, s, inst.get("shield", false), inst.get("magic_shield", false), inst.get("supreme_shield", false))
 	_place_indestructible_glow(face_origin, pop, s, _is_indestructible_now())
 	_place_rapidez_sparks(face_origin, pop, s, rapidez_sparks and not face_down and fatigue <= 0)
+	_place_fragment_aura(face_origin, pop, s, int(inst.get("fragments", 0)) if not face_down and fatigue <= 0 else 0)
 	if inst.has("frozen"):
 		_draw_frost(art, s)
 	if inst.has("stun_markers"):
@@ -1797,6 +1841,8 @@ func _keywords(cd: Dictionary) -> Array:
 ## Live periodic marker count. The old `burn` field is accepted for cards from an older network
 ## snapshot, while all new state uses the generic dot_markers dictionary.
 static func dot_marker_count_of_view(instance: Dictionary, dot_id: String) -> int:
+	if dot_id == "fragmento":
+		return int(instance.get("fragments", 0)) # Fragmentos de Rai'Emofitir live on the card itself, not in dot_markers
 	var markers: Dictionary = instance.get("dot_markers", {})
 	if markers.has(dot_id):
 		return int(markers[dot_id])
@@ -1820,7 +1866,7 @@ static func heal_block_turns_left(blocked_until: int, turn: int) -> int:
 
 ## Shared live-marker palette. Keeping this here makes the exact same badge readable on cards and Leaders.
 static func dot_badge_color(dot_id: String) -> Color:
-	return {"queimadura": BURN_COL, "veneno": POISON_COL, "sangramento": BLEED_COL, "atordoada": STUN_COL, "sem_cura": HEAL_BLOCK_COL, "congelar": FROST_DEEP}.get(dot_id, Color("#d8d2c4"))
+	return {"queimadura": BURN_COL, "veneno": POISON_COL, "sangramento": BLEED_COL, "atordoada": STUN_COL, "sem_cura": HEAL_BLOCK_COL, "congelar": FROST_DEEP, "fragmento": Color("#a63cff")}.get(dot_id, Color("#d8d2c4"))
 
 ## Draws every live status of a unit or Leader as a column of medallions hanging off `right_edge` (the
 ## edge of the card/plate), from `top` down to `bottom`. `amounts` is dot id -> amount.
@@ -1897,9 +1943,11 @@ static func draw_dot_badge(target: CanvasItem, center: Vector2, radius: float, s
 	if target == null or amount <= 0:
 		return
 	var col := dot_badge_color(dot_id)
-	var deep: Color = {"veneno": Color("#241332"), "sangramento": Color("#5d1723"), "atordoada": Color("#4a3200"), "sem_cura": Color("#4a1024")}.get(dot_id, Color("#7d2114"))
+	var deep: Color = {"veneno": Color("#241332"), "sangramento": Color("#5d1723"), "atordoada": Color("#4a3200"), "sem_cura": Color("#4a1024"), "fragmento": Color("#2a0a4a")}.get(dot_id, Color("#7d2114"))
 	var danger := dot_id == "veneno" and amount >= 6
 	var pulse_alpha := 0.6 + 0.4 * clampf(float(pulse), 0.0, 1.0)
+	if dot_id == "fragmento":
+		_draw_fragment_label(target, center, radius, scale, col, deep, pulse_alpha, text_scale)
 	target.draw_circle(center + Vector2(0, 1.4 * scale), radius * 1.2, Color(0, 0, 0, 0.62))
 	target.draw_circle(center, radius * 1.16, deep)
 	target.draw_circle(center, radius * 1.08, Color("#ffb04d") if dot_id == "queimadura" else col)
@@ -1921,6 +1969,12 @@ static func draw_dot_badge(target: CanvasItem, center: Vector2, radius: float, s
 			icon.append(center + Vector2(cos(point_angle), sin(point_angle)) * point_radius)
 	elif dot_id == "sem_cura":
 		_draw_blocked_cross(target, center, radius, scale, col)
+	elif dot_id == "fragmento":
+		# the purple X of Rai'Emofitir
+		var reach := 0.62 * radius
+		for corner in [Vector2(-1, -1), Vector2(1, -1)]:
+			target.draw_line(center + corner * reach, center - corner * reach, Color("#2a0a4a"), 3.6 * scale, true)
+			target.draw_line(center + corner * reach, center - corner * reach, col.lightened(0.25), 2.2 * scale, true)
 	else:
 		_draw_flame(target, center, radius, scale)
 	if not icon.is_empty(): # the drops and the flame draw themselves above
@@ -1934,6 +1988,25 @@ static func draw_dot_badge(target: CanvasItem, center: Vector2, radius: float, s
 	# Near-black digits with a pale halo: the icon behind them is light, so white text washed out.
 	target.draw_string_outline(font, pos, label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, maxi(2, int(radius * 0.28)), Color(col.lightened(0.7), 0.95))
 	target.draw_string(font, pos, label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color("#120a18"))
+
+## The "Fragmentos" capsule that runs from the Fragmentos medallion toward the middle of the card, so the
+## badge reads "Fragmentos N" (the count is in the round medallion on top of the capsule's right end).
+## It glows with the pulse in the Rai'Emofitir violet.
+static func _draw_fragment_label(target: CanvasItem, center: Vector2, radius: float, scale: float, accent: Color, deep: Color, pulse_alpha: float, text_scale: float) -> void:
+	var font := UITheme.font("heavy")
+	var label := "Fragmentos"
+	var font_size := maxi(6, int(radius * 0.72 * text_scale))
+	var text_width := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	var capsule_height := radius * 1.3
+	var capsule_length := text_width + radius * 1.5
+	var left_end := center - Vector2(capsule_length - capsule_height / 2.0, 0.0)
+	var glow_color := Color(accent, 0.35 * pulse_alpha)
+	for layer in 3:
+		var layer_color := glow_color if layer == 0 else (accent.lightened(0.3) if layer == 1 else deep)
+		var grow := (2.2 if layer == 0 else (1.0 if layer == 1 else 0.0)) * scale
+		target.draw_circle(left_end, capsule_height / 2.0 + grow, layer_color)
+		target.draw_rect(Rect2(left_end - Vector2(0, capsule_height / 2.0 + grow), Vector2(center.x - left_end.x, capsule_height + grow * 2.0)), layer_color)
+	target.draw_string(font, Vector2(center.x - radius * 1.2 - text_width, center.y + font_size * 0.36), label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, accent.lightened(0.6))
 
 ## The icon of Sangramento (blood) and Veneno (poison): a smooth drop. Its round body is a true circle and
 ## its two sides are the straight lines that touch that circle and meet at the tip, so the outline has no

@@ -556,7 +556,7 @@ func animate(events: Array, old: Dictionary) -> float:
 				cursor += 0.4
 			"magic_shield_break", "supreme_shield_break", "tide_mark", "tide_draw", "dot", "dot_immune", "freeze", "exhaust", "ready", "stun", "stun_tick", "shrink", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up", "heal_block", "heal_prevented":
 				if actors.has(e["uid"]):
-					var dot_name: String = { "queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento" }.get(
+					var dot_name: String = { "queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento", "fragmento": "Fragmento" }.get(
 						String(e.get("dot", "")),
 						"Marcador",
 					)
@@ -855,7 +855,9 @@ func animate(events: Array, old: Dictionary) -> float:
 				var doomed_leader = views.get(e["uid"])
 				if doomed_leader is LeaderView:
 					var execution_color := Color("#ff4040")
-					if e.has("dot"):
+					if e.has("color"):
+						execution_color = Color(String(e["color"]))
+					elif e.has("dot"):
 						execution_color = CardView.dot_badge_color(String(e["dot"]))
 					var execution_end := fx_library.execution_fx(doomed_leader, int(e["hp_before"]), cursor, execution_color)
 					host.leader_ko_time = maxf(host.leader_ko_time, execution_end - 0.5)

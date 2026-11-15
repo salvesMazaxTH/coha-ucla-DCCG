@@ -1,0 +1,19 @@
+{
+  "name": "Rai'Emofitir",
+  "set": 2,
+  "hp": 30,
+  "art": "devocao/rai_emofitir_lider.webp",
+  "incarnation": "rai_emofitir",
+  "ability": {
+    "name": "Partir-se",
+    "cost": 2,
+    "once_per_turn": true,
+    "speed": "lento",
+    "effects": [
+      { "action": "damage", "target": "own_leader", "amount": 2, "non_lethal": true },
+      { "action": "search_deck", "target": "ally_fragment_bearer", "top": 7, "card_ids": ["fragmento_de_rai_emofitir"], "attach_fragment": true }
+    ],
+    "text": "Lenta. 2 Momentum, uma vez por turno: seu Líder sofre 2 de dano, sem ficar com menos de 1 de Vida, e você olha as 7 cartas do topo do seu deck e escolhe um Fragmento entre elas para passar a uma unidade aliada Dragão Negro ou Veyr à sua escolha; as outras vão para o fundo do deck."
+  },
+  "essences": ["devocao", "trevas"]
+}
