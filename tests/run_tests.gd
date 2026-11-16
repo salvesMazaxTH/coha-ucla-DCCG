@@ -894,24 +894,39 @@ func _test_search() -> void:
 
 func _test_constant() -> void:
 	var g := _new_game()
+	_quiet(g)
+	var hand_uid := _give(g, 0, "jeff")
+	var jeff_in_hand: Card = g._hand_card(0, hand_uid)
+	var jeff_in_deck := Card.new(g._uid(), "jeff", 0, "deck")
+	g.players[0]["deck"].append(jeff_in_deck)
+	check(jeff_in_hand.lasting_growth_atk == 0, "jeff começa 2/2 sem crescimento")
+
+	var ally := _put(g, 0, "serpente_marinha")
+	_kill(g, ally)
+	var growth: Dictionary = g.players[0]["lasting_growth"].get("jeff", { })
+	check(int(growth.get("atk", 0)) == 1 and int(growth.get("hp", 0)) == 1, "aliada do campo ao cemitério dá +1/+1 (uma vez só, mesmo com 2 cópias)")
+	check(jeff_in_hand.lasting_growth_atk == 1 and jeff_in_deck.lasting_growth_hp == 1, "cópias na mão e no deck recebem o crescimento")
+
+	var enemy := _put(g, 1, "serpente_marinha")
+	_kill(g, enemy)
+	check(int(g.players[0]["lasting_growth"]["jeff"]["atk"]) == 1, "unidade inimiga morrendo não conta")
+
+	var discarded_uid := _give(g, 0, "serpente_marinha")
+	var discarded: Card = g._hand_card(0, discarded_uid)
+	g.players[0]["hand"].erase(discarded)
+	g.players[0]["graveyard"].append(discarded)
+	g._move(discarded, "graveyard")
+	g.flush_events()
+	check(int(g.players[0]["lasting_growth"]["jeff"]["atk"]) == 1, "descarte (mão ao cemitério) não conta")
+
+	g.players[0]["deck"].erase(jeff_in_deck)
 	var jeff := _put(g, 0, "jeff")
-	check(g.atk_of(jeff) == 3 and g.hp_left(jeff) == 3, "jeff sem cemitério é 3/3")
-	g.players[0]["graveyard"].append(Card.new(g._uid(), "serpente_marinha", 0, "graveyard"))
-	g.players[0]["graveyard"].append(Card.new(g._uid(), "gaivota_da_tempestade", 0, "graveyard"))
-	g.players[0]["graveyard"].append(Card.new(g._uid(), "bola_de_fogo", 0, "graveyard"))
-	g.check_state()
-	check(g.atk_of(jeff) == 5 and g.hp_left(jeff) == 5, "jeff +1/+1 por unidade no cemitério (feitiço não conta)")
-	g.players[1]["graveyard"].append(Card.new(g._uid(), "serpente_marinha", 1, "graveyard"))
-	g.check_state()
-	check(g.atk_of(jeff) == 5, "cemitério inimigo não conta")
-	g.players[0]["graveyard"].pop_back()
-	g.players[0]["graveyard"].pop_back()
-	g.check_state()
-	check(g.atk_of(jeff) == 4, "bônus encolhe quando o cemitério encolhe")
-	jeff.damage = 1
-	g.players[0]["graveyard"].clear()
-	g.check_state()
-	check(g.hp_left(jeff) == 2, "dano persiste ao perder o bônus")
+	check(g.atk_of(jeff) == 3 and g.hp_left(jeff) == 3, "jeff entra no campo já com o crescimento (3/3)")
+	var second_ally := _put(g, 0, "serpente_marinha")
+	_kill(g, second_ally)
+	check(g.atk_of(jeff) == 4 and g.hp_left(jeff) == 4, "jeff no campo cresce na hora (4/4)")
+	_kill(g, jeff)
+	check(int(g.players[0]["lasting_growth"]["jeff"]["atk"]) == 2, "a morte do próprio jeff não conta")
 
 ## The Obscura tests play the old Ceifa Veloz list (Rusco, no Vagante), kept as a fixture since it is no longer a prebuilt deck.
 func _obscura_game() -> GameState:
@@ -1762,11 +1777,9 @@ func _turn_start_event(g: GameState, unit: Card) -> GameEvent:
 func _test_sacrifice_damage() -> void:
 	var g := _new_game()
 	var jeff := _put(g, 0, "jeff")
-	for i in 3:
-		g.players[0]["graveyard"].append(Card.new(g._uid(), "esqueleto_guerreiro", 0, "graveyard"))
-	g.check_state()
+	g.add_lasting_growth(0, "jeff", 4, 4)
 	var atk: int = g.atk_of(jeff)
-	check(atk == 6, "jeff com 3 unidades no cemitério tem 6 de ataque")
+	check(atk == 6, "jeff com +4/+4 de crescimento tem 6 de ataque")
 	var foe := _put(g, 1, "serpente_marinha")
 	var ally := _put(g, 0, "esqueleto_guerreiro")
 	var spell := Card.new(g._uid(), "mordida_de_defunto", 0, "hand")
@@ -3125,8 +3138,8 @@ func _test_jeff_incarnation_revives() -> void:
 	var back: Array = g.players[0]["board"].filter(func(c: Card): return c.card_id == "jeff")
 	check(back.size() == 1 and back[0].uid != old_uid and back[0].incarnation, "jeff Encarnação: volta ao campo como Encarnação")
 	check(not g.players[0]["graveyard"].any(func(c: Card): return c.card_id == "jeff"), "jeff Encarnação: não fica no cemitério depois de voltar")
-	# the base stats it comes back with are those it died with (Constante not counted twice)
-	check(g.atk_of(back[0]) >= 3 and g.hp_left(back[0]) >= 3, "jeff Encarnação: volta com Ataque e Vida válidos (%d/%d)" % [g.atk_of(back[0]), g.hp_left(back[0])])
+	# the base stats it comes back with are those it died with (lasting growth not counted twice)
+	check(g.atk_of(back[0]) >= 2 and g.hp_left(back[0]) >= 2, "jeff Encarnação: volta com Ataque e Vida válidos (%d/%d)" % [g.atk_of(back[0]), g.hp_left(back[0])])
 	# banished from the field: no revive, ordinary Encarnação rule (back to the Santuário)
 	g.banish_unit(back[0])
 	check(state["in_zone"] and g.players[0]["banished"].is_empty(), "jeff Encarnação: banido volta ao Santuário")
@@ -10359,28 +10372,25 @@ func _test_sim() -> void:
 	print("sim fogo/agua/draw: ", wins)
 
 func _test_ban() -> void:
-	# Overdraw is kept in hand; at the end of the owner's turn they choose what to ban
+	# Overdraw is kept in hand; at the end of the owner's turn they choose what to discard
 	var g := _new_game()
 	var pl: Dictionary = g.players[0]
 	while pl["hand"].size() < GameState.HAND_LIMIT:
 		pl["hand"].append(Card.new(g._uid(), "kai", 0, "hand"))
-	var gy: int = pl["graveyard"].size()
+	var graveyard_before: int = pl["graveyard"].size()
+	var banished_before: int = pl["banished"].size()
 	g._draw(0, 2)
 	g.flush_events()
 	check(pl["hand"].size() == GameState.HAND_LIMIT + 2, "comprar com a mão cheia mantém as cartas na mão")
 	_quiet(g)
 	g.end_turn(0)
-	check(g.phase == "discard", "mão acima do limite pede banimento no fim do turno")
+	check(g.phase == "discard", "mão acima do limite pede descarte no fim do turno")
 	var pick: Array = [pl["hand"][0].uid, pl["hand"][1].uid]
-	check(g.discard(0, [pick[0]]).is_empty(), "banir menos que o necessário é recusado")
+	check(g.discard(0, [pick[0]]).is_empty(), "descartar menos que o necessário é recusado")
 	var ev: Array = g.discard(0, pick)
-	check(pl["hand"].size() == GameState.HAND_LIMIT and pl["banished"].size() == 2, "baniu até o limite da mão")
-	check(pl["graveyard"].size() == gy, "carta banida não vai ao cemitério")
-	check(ev.any(func(e): return e["type"] == "ban") and not ev.any(func(e): return e["type"] == "discard"), "evento ban")
-	# the opponent never sees what was banished from the hand
-	var snap: Dictionary = StateView.snapshot(g, 1)
-	check(snap["players"][0]["banished"].all(func(c): return c["card_id"] == ""), "oponente não vê as cartas banidas da mão")
-	check(StateView.snapshot(g, 0)["players"][0]["banished"].all(func(c): return c["card_id"] != ""), "o dono vê as próprias banidas")
+	check(pl["hand"].size() == GameState.HAND_LIMIT and pl["graveyard"].size() == graveyard_before + 2, "descartou até o limite da mão")
+	check(pl["banished"].size() == banished_before, "carta descartada vai ao cemitério, não é banida")
+	check(ev.any(func(e): return e["type"] == "discard") and not ev.any(func(e): return e["type"] == "ban"), "evento discard")
 
 func _test_ignisar() -> void:
 	var ability: Dictionary = CardDB.leader("ivan_ignisar")["ability"]
@@ -10881,9 +10891,6 @@ func _test_custo_e_contagem() -> void:
 				check(e.get("trigger", "") == "" and not str(CardDB.card(id)["text"]).begins_with("Constante"), "%s: redução de custo não é Constante" % id)
 	var g := _new_game()
 	var vag: Dictionary = CardDB.card("a_vagante_sombria")
-	# Jeff: text counts own unit cards in the graveyard
-	var jeff: Dictionary = CardDB.card("jeff")
-	check(g.scale_count(0, jeff) == g.graveyard_units(0), "jeff: contagem do texto = unidades no cemitério")
 	check(g.scale_count(0, vag) == -1, "carta sem escala: -1")
 	_test_elefante_incomodante()
 	_test_incomodante_shout()
