@@ -4,13 +4,15 @@ extends RefCounted
 ## state and returns an Array of event Dictionaries the UI can animate.
 ## Invalid actions return [] and leave state untouched.
 
-const START_HAND := 7
-const MULLIGAN_MAX := 4
+const START_HAND := 5
+const MULLIGAN_MAX := 3
 const HAND_LIMIT := 7
 const BOARD_LIMIT := 8
 const MOMENTUM_CAP := 12
 const MOMENTUM_ABSOLUTE_CAP := 20 ## no effect, combo or future card takes a Reservoir cap past this (except in development mode / test scenarios)
-const RESERVOIR_STORES_PER_TURN := 1 ## hand cards a player may deposit in the Reservoir each turn, before any Constante raises it
+const RESERVOIR_STORES_PER_TURN := 0 ## hand cards a player may deposit in the Reservoir each turn, before an effect grants more (Eletroad)
+const RESERVOIR_AUTO_CARDS := 1 ## bottom deck cards that enter the Reservoir at the start of each own turn
+const RESERVOIR_AUTO_CARDS_AFTER_RETURN := 2 ## the same, on the turn after the player gave one back (does not stack)
 ## debug / dev-tools gain ceiling only
 const MOMENTUM_OVERFLOW_CAP := 12
 const UNSPENT_MOMENTUM_THRESHOLD := 2 ## a turn that starts with this much unspent Momentum or more counts for "unspent_turns" and "unspent_momentum_threshold"
@@ -194,6 +196,11 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"reservoir": [],
 		"reservoir_stored_turn": -1,
 		"reservoir_stored_count": 0, # hand cards deposited in the turn of reservoir_stored_turn
+		"reservoir_granted_turn": -1,
+		"reservoir_granted_count": 0, # extra deposits granted in the turn of reservoir_granted_turn
+		"reservoir_returnable": [], # uids of this turn's automatic Reservoir cards that can still be given back
+		"reservoir_returnable_turn": -1,
+		"reservoir_bonus_next_turn": false, # gave a card back: the next turn brings RESERVOIR_AUTO_CARDS_AFTER_RETURN
 		"unspent_turns": 0,
 		"next_momentum": 0,
 		"play_restrictions": [],
@@ -266,6 +273,9 @@ func _uid() -> int:
 
 
 func _shuffle(arr: Array) -> void:
+	for item in arr:
+		if item is Card:
+			item.face_up_in_deck = false # a shuffled deck is all face-down again
 	for i in range(arr.size() - 1, 0, -1):
 		var j := rng.randi_range(0, i)
 		var t = arr[i]
@@ -481,6 +491,7 @@ func room_banish_options(p: int) -> Array:
 ## `extra_data` is added to the card_moved event ("unit_died": true tells that an equipment fell because its unit died).
 func _move(c: Card, to_zone: String, extra_data := { }) -> void:
 	var from_zone := c.zone
+	c.face_up_in_deck = false
 	if from_zone == "reservoir":
 		return # cards deposited there are permanent and cannot be moved by effects
 	if from_zone != to_zone:
@@ -1546,15 +1557,19 @@ func _sync_reservoir_momentum(p: int) -> void:
 	players[p]["max_momentum"] = mini(players[p]["reservoir"].size(), momentum_cap(p))
 
 
-## How many hand cards p may deposit in the Reservoir each turn: RESERVOIR_STORES_PER_TURN, unless one of their
-## units on the board has a "reservoir_store_limit" Constante (Eletroad: {"limit": 2}). The highest one counts.
+## How many hand cards p may deposit in the Reservoir this turn: RESERVOIR_STORES_PER_TURN plus what
+## "grant_reservoir_store" effects granted in this same turn (Eletroad).
 func reservoir_store_limit(p: int) -> int:
-	var limit := RESERVOIR_STORES_PER_TURN
-	for unit: Card in players[p]["board"]:
-		for e in card_of(unit).get("effects", []):
-			if e.get("trigger", "") == "constante" and e.get("action", "") == "reservoir_store_limit":
-				limit = maxi(limit, int(e.get("limit", RESERVOIR_STORES_PER_TURN)))
-	return limit
+	if int(players[p]["reservoir_granted_turn"]) != turn:
+		return RESERVOIR_STORES_PER_TURN
+	return RESERVOIR_STORES_PER_TURN + int(players[p]["reservoir_granted_count"])
+
+
+## Lets p deposit `amount` more hand cards in the Reservoir until the end of this turn.
+func grant_reservoir_stores(p: int, amount: int) -> void:
+	var already_granted := int(players[p]["reservoir_granted_count"]) if int(players[p]["reservoir_granted_turn"]) == turn else 0
+	players[p]["reservoir_granted_count"] = already_granted + amount
+	players[p]["reservoir_granted_turn"] = turn
 
 
 ## Hand cards p already deposited in the Reservoir this turn.
@@ -1567,6 +1582,8 @@ func reservoir_stores_used(p: int) -> int:
 ## True when p can permanently deposit one hand card during their Main Phase.
 func can_store_in_reservoir(p: int, hand_uid: int) -> bool:
 	if not _main_phase_idle(p) or reservoir_stores_used(p) >= reservoir_store_limit(p):
+		return false
+	if players[p]["reservoir"].size() >= momentum_cap(p):
 		return false
 	var card := _hand_card(p, hand_uid)
 	return card != null and not bool(CardDB.card(card.card_id).get("non_storable", false))
@@ -1626,6 +1643,87 @@ func _deck_card_to_reservoir(p: int, card: Card, source_uid: int, enters_exhaust
 	})
 
 
+## Start of p's own turn: the lowest face-down deck card enters the Reservoir (two after a turn where p gave
+## one back), as long as the Reservoir is below the cap. Until p spends Momentum that is not from the Bateria,
+## each of those cards can be given back to the deck (see return_reservoir_card).
+func _add_turn_reservoir_cards(p: int) -> void:
+	var pl: Dictionary = players[p]
+	var amount := RESERVOIR_AUTO_CARDS_AFTER_RETURN if bool(pl["reservoir_bonus_next_turn"]) else RESERVOIR_AUTO_CARDS
+	pl["reservoir_bonus_next_turn"] = false
+	pl["reservoir_returnable"] = []
+	pl["reservoir_returnable_turn"] = turn
+	# Use the live effective cap (including Constantes such as Agiota das Nuvens), not MOMENTUM_CAP.
+	var open_slots := maxi(0, momentum_cap(p) - pl["reservoir"].size())
+	var cards_to_add := mini(amount, open_slots)
+	for _index in cards_to_add:
+		var deck_index := _lowest_face_down_deck_index(p)
+		if deck_index < 0:
+			break
+		var card: Card = pl["deck"].pop_at(deck_index)
+		_deck_card_to_reservoir(p, card, 0)
+		_sync_reservoir_momentum(p)
+		refresh_scaling()
+		pl["reservoir_returnable"].append(card.uid)
+
+
+## Index of the card nearest the deck bottom that is not face-up (given back), or -1 when there is none.
+func _lowest_face_down_deck_index(p: int) -> int:
+	var deck: Array = players[p]["deck"]
+	for index in deck.size():
+		if not deck[index].face_up_in_deck:
+			return index
+	return -1
+
+
+## The uids of this turn's automatic Reservoir cards that p can still give back.
+func reservoir_returnable_uids(p: int) -> Array:
+	var pl: Dictionary = players[p]
+	if p != active or int(pl["reservoir_returnable_turn"]) != turn:
+		return []
+	var uids: Array = []
+	for uid in pl["reservoir_returnable"]:
+		var card := _reservoir_card(p, int(uid))
+		if card != null and not card.exhausted:
+			uids.append(int(uid))
+	return uids
+
+
+func can_return_reservoir_card(p: int, uid: int) -> bool:
+	return _main_phase_idle(p) and reservoir_returnable_uids(p).has(uid)
+
+
+## Gives one of this turn's automatic Reservoir cards back: it goes face-up to the deck bottom (the Reservoir
+## skips it from now on, the deck is not shuffled) and the next turn brings two cards instead of one.
+func return_reservoir_card(p: int, uid: int) -> Array:
+	if not can_return_reservoir_card(p, uid):
+		return []
+	var pl: Dictionary = players[p]
+	var card := _reservoir_card(p, uid)
+	pl["reservoir"].erase(card)
+	pl["reservoir_returnable"].erase(uid)
+	card.zone = "deck" # set by hand: _move never takes a card out of the Reservoir
+	card.exhausted = false
+	pl["deck"].push_front(card)
+	card.face_up_in_deck = true
+	pl["reservoir_bonus_next_turn"] = true
+	_sync_reservoir_momentum(p)
+	refresh_scaling()
+	emit_event({"type": "reservoir_return", "player": p, "uid": uid, "card_id": card.card_id})
+	return flush_events()
+
+
+func _reservoir_card(p: int, uid: int) -> Card:
+	for card: Card in players[p]["reservoir"]:
+		if card.uid == uid:
+			return card
+	return null
+
+
+## Spending Momentum that is not from the Bateria closes the chance to give this turn's cards back.
+func _close_reservoir_return(p: int) -> void:
+	players[p]["reservoir_returnable"] = []
+
+
 ## Untaps up to `amount` tapped cards of p's Reservoir (oldest first) and returns how many were untapped.
 ## Each one is worth 1 Momentum again, so it can never go past the cards the Reservoir holds.
 func untap_reservoir_cards(p: int, amount := 1) -> int:
@@ -1681,6 +1779,8 @@ func _pay(p: int, amount: int, fast: bool) -> void:
 		amount -= from_battery
 	var from_momentum := mini(amount, int(pl["momentum"]))
 	pl["momentum"] -= from_momentum
+	if from_momentum > 0:
+		_close_reservoir_return(p)
 	var from_floating := mini(from_momentum, int(pl["momentum_float"]))
 	pl["momentum_float"] -= from_floating
 	var cards_to_tap := from_momentum - from_floating
@@ -1702,6 +1802,7 @@ func drain_momentum(p: int) -> int:
 		return 0
 	players[p]["momentum"] = 0
 	players[p]["momentum_float"] = 0
+	_close_reservoir_return(p)
 	for card: Card in players[p]["reservoir"]:
 		if not card.exhausted:
 			card.exhausted = true
@@ -2578,6 +2679,9 @@ func mulligan(p: int, hand_uids: Array) -> Array:
 	pl["mulligan_done"] = true
 	emit_event({ "type": "mulligan", "player": p, "count": back.size() })
 	if players[0]["mulligan_done"] and players[1]["mulligan_done"]:
+		# free starting Momentum: each player's bottom deck card goes to their Reservoir
+		move_bottom_deck_to_reservoir(first)
+		move_bottom_deck_to_reservoir(opponent(first))
 		var second := opponent(first)
 		var crystal := Card.new(_uid(), SECOND_PLAYER_CRYSTAL_ID, second, "hand")
 		players[second]["hand"].append(crystal)
@@ -5693,6 +5797,7 @@ func _start_turn(p: int, draw: bool) -> void:
 		gain_momentum(p, promised)
 	elif promised < 0:
 		_pay(p, -promised, false)
+	_add_turn_reservoir_cards(p)
 	# what this turn began with, after the second-player bonus and any promise or debt: a "refresh" gain
 	# (gain_momentum with "refresh": true) can win back spent Momentum only up to this
 	pl["turn_start_momentum"] = int(pl["momentum"])

@@ -1,6 +1,7 @@
 class_name TableOverlays
 extends RefCounted
-## The windows drawn over the table: card overlay, pause and concede menus, graveyard viewer and search reveal.
+## The windows drawn over the table: card overlay, pause and concede menus, graveyard viewer, search reveal
+## and the turn-start Reservoir choice.
 ## Main (`host`) owns the table and the match state they read.
 const HubGlyphIconScript = preload("res://scripts/ui/hub_glyph_icon.gd")
 ## Hash of the pending search the player folded away to look at the table (-1 = none). Comparing the
@@ -18,6 +19,12 @@ var search_drag_ms := -1000 ## last scroll of that strip: taps and long-presses 
 const SWIPE_START_DISTANCE := 14.0
 
 var host
+
+## Turn-start Reservoir window: shown once per turn, until the player turns it off for the match.
+var reservoir_choice_match: GameState
+var reservoir_choice_turn := -1
+var reservoir_choice_disabled := false
+var reservoir_choice_pending: Array = [] ## uids still waiting for ARMAZENAR or DEVOLVER
 
 
 func _init(host_node) -> void:
@@ -518,6 +525,82 @@ func _confirm_concede() -> void:
 	if host.g == null or host.g.phase == "over":
 		return
 	host.handle_action_result(host.g.concede(host.viewer))
+
+# ---------------------------------------------------------------- Reservoir choice
+
+## Opens the turn-start window with the card(s) the deck just sent to the Reservoir.
+func maybe_show_reservoir_choice() -> void:
+	if host.g == null or host.g.phase == "over" or host.concede_view or not host.viewer_can_act():
+		return
+	if reservoir_choice_match != host.g:
+		reservoir_choice_match = host.g
+		reservoir_choice_turn = -1
+		reservoir_choice_disabled = false
+	var uids: Array = host.g.reservoir_returnable_uids(host.viewer)
+	if uids.is_empty() or reservoir_choice_disabled or reservoir_choice_turn == host.g.turn:
+		return
+	reservoir_choice_turn = host.g.turn
+	reservoir_choice_pending = uids.duplicate()
+	_open_reservoir_choice()
+
+
+func _open_reservoir_choice() -> void:
+	var cards: Array = []
+	for card: Card in host.g.players[host.viewer]["reservoir"]:
+		if reservoir_choice_pending.has(card.uid) and host.g.can_return_reservoir_card(host.viewer, card.uid):
+			cards.append(card)
+	if cards.is_empty():
+		return
+	var box := _open_modal_box("NOVA CARTA NO RESERVATÓRIO" if cards.size() == 1 else "NOVAS CARTAS NO RESERVATÓRIO")
+	var explanation: Label = host.make_label(
+		"Devolvendo, a carta volta desvirada ao fundo do deck (o Reservatório pula ela) e o próximo turno traz 2 cartas.",
+		19, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "body",
+	)
+	explanation.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	explanation.custom_minimum_size = Vector2(460, 0)
+	box.add_child(explanation)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 24)
+	box.add_child(row)
+	for card: Card in cards:
+		row.add_child(_reservoir_choice_column(card))
+	var hide_toggle: Button = host.make_toggle_button(
+		"NÃO MOSTRAR MAIS",
+		reservoir_choice_disabled,
+		func():
+			reservoir_choice_disabled = not reservoir_choice_disabled
+			close_concede()
+			_open_reservoir_choice.call_deferred(),
+	)
+	hide_toggle.custom_minimum_size = Vector2(460, 48)
+	hide_toggle.tooltip_text = "Nesta partida. O botão DEVOLVER continua na carta do Reservatório."
+	box.add_child(hide_toggle)
+	_center_modal(box)
+
+
+func _reservoir_choice_column(card: Card) -> VBoxContainer:
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 8)
+	var view := CardView.new().setup(card.card_id, {}, 0.8)
+	view.custom_minimum_size = view.size
+	column.add_child(view)
+	var store_button: Button = host.make_button("ARMAZENAR", _decide_reservoir_card.bind(card.uid, false), true)
+	store_button.custom_minimum_size = Vector2(0, 50)
+	column.add_child(store_button)
+	var return_button: Button = host.make_button("DEVOLVER", _decide_reservoir_card.bind(card.uid, true))
+	return_button.custom_minimum_size = Vector2(0, 46)
+	column.add_child(return_button)
+	return column
+
+
+func _decide_reservoir_card(uid: int, give_back: bool) -> void:
+	reservoir_choice_pending.erase(uid)
+	close_concede()
+	if give_back and host.g.can_return_reservoir_card(host.viewer, uid):
+		host.handle_action_result(host.g.return_reservoir_card(host.viewer, uid))
+	if not reservoir_choice_pending.is_empty():
+		_open_reservoir_choice.call_deferred()
 
 # ---------------------------------------------------------------- graveyard viewer
 

@@ -71,6 +71,9 @@ func play_card(_p: int, hand_uid: int, target: int = 0, target2: int = 0, slot: 
 func store_in_reservoir(_p: int, hand_uid: int) -> Array:
 	return _act({"a": "store_in_reservoir", "uid": hand_uid})
 
+func return_reservoir_card(_p: int, uid: int) -> Array:
+	return _act({"a": "return_reservoir_card", "uid": uid})
+
 func cast_incarnation(_p: int, target: int = 0, slot: int = -1, banish_uid: int = 0) -> Array:
 	return _act({"a": "incarnation", "target": target, "slot": slot, "banish": banish_uid})
 

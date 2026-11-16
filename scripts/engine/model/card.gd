@@ -55,6 +55,7 @@ var supreme_shield := false ## Escudo Supremo: one charge that absorbs absolutel
 var supreme_shield_expires := "" ## "" = until used; "next_turn" = until its owner's next turn starts; "end_turn" = until the current turn ends
 var exhausted := false
 var reservoir_revealed_turn := -1 ## face-up only during the turn this card entered the Reservoir
+var face_up_in_deck := false ## given back from the Reservoir: sits face-up at the deck bottom, skipped by the Reservoir
 var sick := true
 var bonus_atk := 0 ## from "constante" scale effects (see GameState.refresh_scaling)
 var bonus_hp := 0

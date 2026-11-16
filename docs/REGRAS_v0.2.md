@@ -30,17 +30,17 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 
 ## Início da partida
 
-- Os dois jogadores começam com **7 cartas** na mão.
+- Os dois jogadores começam com **5 cartas** na mão.
 - **Mulligan:** cada jogador pode devolver até 3 cartas ao deck, que é embaralhado, e comprar a mesma quantidade.
-- Quem joga primeiro **não compra** no primeiro turno. Depois do mulligan, quem joga em segundo recebe o Cristal de Momentum na mão; ele compra normalmente e começa seu primeiro turno com 9 cartas, banindo o excedente até ficar com 7 no fim do turno.
+- Quem joga primeiro **não compra** no primeiro turno. Depois do mulligan, quem joga em segundo recebe o Cristal de Momentum na mão; ele compra normalmente e começa seu primeiro turno com 7 cartas.
 - O limite da mão é **7 cartas**. Se terminar o turno acima desse limite, o jogador bane cartas até ficar com 7.
 
 ## Momentum
 
 - Cada jogador tem um **Reservatório**, uma zona pública de cartas permanentes e inacessíveis a efeitos.
-- Uma vez por turno, na fase principal livre, o jogador pode depositar uma carta da mão no próprio Reservatório, desvirada. Uma Constante pode subir esse limite (Eletroad: 2 por turno). Efeitos que colocam a carta do topo do deck no Reservatório (Espírito Carregado) não contam nesse limite.
+- Uma vez por turno, na fase principal livre, o jogador pode depositar uma carta da mão no próprio Reservatório, desvirada. Um efeito pode liberar depósitos extras só naquele turno (Eletroad, ao entrar, se o seu Líder não tem mais Vida que o inimigo). Efeitos que colocam a carta do topo do deck no Reservatório (Espírito Carregado, só com 6 ou menos cartas no Reservatório ou menos que o oponente) não contam nesse limite.
 - Cada carta desvirada no Reservatório pode ser virada para pagar 1 de Momentum, até o teto de Momentum (12; uma Constante pode subi-lo, Agiota das Nuvens: 15). O Momentum flutuante (ganho de efeitos) pode passar desse teto, até 20, mas só a parte dentro do teto vai para o próximo turno. Não há Momentum automático. Efeitos que desviram uma carta (Diabrete Elétrico) nunca dão mais Momentum do que as cartas que o Reservatório tem.
-- O segundo jogador recebe, depois do mulligan, uma cópia de **Cristal de Momentum** na mão. É uma spell neutra de custo 0, indraftável e que não pode ser armazenada no Reservatório. Ao conjurá-la, recebe 1 de Momentum flutuante naquele turno e recarrega a Bateria do seu Reservatório. A carta permanece na mão até ser jogada; o Momentum flutuante não usado expira no fim do turno.
+- O segundo jogador recebe, depois do mulligan, uma cópia de **Cristal de Momentum** na mão. É uma spell neutra de custo 0, indraftável. Como o depósito da mão só ocorre por efeitos específicos (hoje, o Ao Entrar do Eletroad), ela pode ser armazenada no Reservatório por eles. Ao conjurá-la, recebe 1 de Momentum flutuante naquele turno e recarrega a Bateria do seu Reservatório. A carta permanece na mão até ser jogada; o Momentum flutuante não usado expira no fim do turno.
 - As cartas desviram no fim do turno do dono. Permanecem disponíveis no turno do oponente e as que forem viradas nele permanecem viradas até o próximo fim de turno do dono.
 - As cartas ficam com a face visível no turno em que entram no Reservatório; depois mostram o verso padrão.
 - Cada jogador começa com **2** na **Bateria do seu Reservatório**, que é totalmente recarregada no início de cada turno seu. Uma Constante pode subir essa capacidade (Agiota das Nuvens: 3).

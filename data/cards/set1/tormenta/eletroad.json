@@ -15,11 +15,13 @@
   "art": "tormenta/eletroad.webp",
   "effects": [
     {
-      "trigger": "constante",
-      "action": "reservoir_store_limit",
-      "limit": 2
+      "trigger": "on_enter",
+      "action": "grant_reservoir_store",
+      "target": "none",
+      "limit": 1,
+      "if": { "compare": { "stat": "leader_hp", "who": "self", "op": "<=", "vs": "enemy" } }
     }
   ],
-  "text": "Constante: você pode armazenar 2 cartas por turno no seu Reservatório.",
+  "text": "Ao Entrar: se o seu Líder não tem mais Vida que o Líder inimigo, você pode armazenar 1 carta da sua mão no seu Reservatório neste turno.",
   "flavor": ""
 }

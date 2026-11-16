@@ -334,3 +334,4 @@ func _apply(g: GameState, p: int, m: Dictionary) -> Array:
 func _send(ws, msg: Dictionary) -> void:
 	if ws != null and ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
 		ws.send_text(JSON.stringify(msg))
+		"return_reservoir_card": return g.return_reservoir_card(p, int(m.get("uid", 0)))

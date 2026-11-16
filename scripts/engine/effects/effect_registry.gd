@@ -8,6 +8,7 @@ const DeathWardEffectScript = preload("res://scripts/engine/effects/death_ward_e
 const AutoAttackEffectScript = preload("res://scripts/engine/effects/auto_attack_effect.gd")
 const SpendAllMomentumEffectScript = preload("res://scripts/engine/effects/spend_all_momentum_effect.gd")
 const TopDeckToReservoirEffectScript = preload("res://scripts/engine/effects/top_deck_to_reservoir_effect.gd")
+const GrantReservoirStoreEffectScript = preload("res://scripts/engine/effects/grant_reservoir_store_effect.gd")
 const UntapReservoirEffectScript = preload("res://scripts/engine/effects/untap_reservoir_effect.gd")
 const EquipSelfEffectScript = preload("res://scripts/engine/effects/equip_self_effect.gd")
 const ShoutEffectScript = preload("res://scripts/engine/effects/shout_effect.gd")
@@ -124,7 +125,7 @@ static var ACTIONS: Dictionary = {
 	"momentum_surge": StaticEffect,
 	"momentum_cap": StaticEffect,
 	"battery_cap": StaticEffect,
-	"reservoir_store_limit": StaticEffect,
+	"grant_reservoir_store": GrantReservoirStoreEffectScript,
 	"keyword_aura": StaticEffect,
 	"opponent_aura": StaticEffect,
 	"opponent_cost_tax": StaticEffect,
@@ -149,7 +150,6 @@ const STATIC_ACTIONS := [
 	"momentum_surge",
 	"momentum_cap",
 	"battery_cap",
-	"reservoir_store_limit",
 	"keyword_aura",
 	"opponent_aura",
 	"opponent_cost_tax",

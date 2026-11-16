@@ -75,6 +75,8 @@ var highlight := Color.TRANSPARENT ## outline for selection/targets
 var rapidez_sparks := false ## the unit has Rapidez and combat is on: sparks circle its frame (set by main.gd, reset in update_card)
 var ability_ready := false ## an "Ao Ativar" ability or a Transformar can be used right now: violet glow, distinct from the green attack glow
 const ABILITY_GLOW := Color("#c07bff")
+var store_ready := false ## the hand card can be deposited into the Reservatório right now: blue glow, next to the green play glow
+const STORE_GLOW := Color("#4db8ff")
 var dim := false
 var cost_override := -1
 var text_suffix := "" ## live count appended to the rules text in the big view (e.g. "(agora: 3)")
@@ -310,6 +312,7 @@ func update_card(id: String, instance: Dictionary = {}, size_scale := 1.0) -> vo
 	face_down = false
 	highlight = Color.TRANSPARENT
 	ability_ready = false
+	store_ready = false
 	rapidez_sparks = false
 	dim = false
 	cost_override = -1
@@ -501,7 +504,7 @@ func _process(delta: float) -> void:
 			queue_redraw()
 	if _float_strength > 0.0:
 		queue_redraw() # the flight is a slow, wide motion: it needs every frame to look smooth
-	if highlight.a > 0 or hovered or locked or _legendary() or inst.has("frozen") or inst.has("stun_markers") or inst.has("condemned_turn") or inst.get("summoning_sick", false) or _status_amounts().size() > MAX_STATUS_MEDALLIONS:
+	if highlight.a > 0 or store_ready or hovered or locked or _legendary() or inst.has("frozen") or inst.has("stun_markers") or inst.has("condemned_turn") or inst.get("summoning_sick", false) or _status_amounts().size() > MAX_STATUS_MEDALLIONS:
 		_t += delta
 		_redraw_acc += delta
 		# shimmer at ~30 fps is plenty (GraphicsQuality.card_animation_interval); a glowing or hovered card
@@ -1209,6 +1212,11 @@ func _draw_live_auras(look: Dictionary, pulse: float) -> void:
 		var first_ring := 4 if highlight.a > 0 else 0
 		for i in 4:
 			_rrect_line(r.grow((2 + (first_ring + i) * 2.2) * s), rad + (first_ring + i) * 2 * s, Color(ABILITY_GLOW, (0.9 - i * 0.22) * (0.65 + 0.35 * pulse)), 2.2 * s)
+	# depositable hand card: blue rings, pushed outward when the green play glow already uses the inner ones
+	if store_ready:
+		var store_first_ring := 4 if highlight.a > 0 else 0
+		for i in 4:
+			_rrect_line(r.grow((2 + (store_first_ring + i) * 2.2) * s), rad + (store_first_ring + i) * 2 * s, Color(STORE_GLOW, (0.9 - i * 0.22) * (0.65 + 0.35 * pulse)), 2.2 * s)
 	# The Baluarte's automatic protection is always active while it remains on the field.
 	if death_ward_active:
 		var ward_pulse := 0.7 + 0.3 * pulse
@@ -1789,12 +1797,15 @@ static func armor_of_view(cd: Dictionary, instance: Dictionary) -> int:
 
 ## The number after the keyword "Crítico" (1-4): the live level on the board (it can grow in play, and
 ## effects add temporary levels until end of turn), the printed one everywhere else. 0 = no Crítico, so no tag.
+## On the board (the mirror always has "damage") a missing "rapidez" key means 0 (silenced or lost), not the printed value.
 static func rapidez_of_view(cd: Dictionary, instance: Dictionary) -> int:
-	var lent_or_printed := maxi(int(instance.get("rapidez", cd.get("rapidez", 0))), int(instance.get("rapidez_until_next_turn", 0)))
+	var printed_level := 0 if instance.has("damage") else int(cd.get("rapidez", 0))
+	var lent_or_printed := maxi(int(instance.get("rapidez", printed_level)), int(instance.get("rapidez_until_next_turn", 0)))
 	return clampi(lent_or_printed + int(instance.get("temp_rapidez", 0)), 0, 3) # mirrors Card.rapidez_total
 
 static func critico_of_view(cd: Dictionary, instance: Dictionary) -> int:
-	var permanent_level := int(instance["critico"]) if instance.has("critico") else int(cd.get("critico", 0))
+	var printed_level := 0 if instance.has("damage") else int(cd.get("critico", 0))
+	var permanent_level := int(instance.get("critico", printed_level))
 	return clampi(permanent_level + int(instance.get("temp_critico", 0)), 0, 4)
 
 ## The tag text of a Tóxico card: "Tóxico" (level 1), "Tóxico 2", or for the Ataque-based kind
@@ -2425,7 +2436,7 @@ func _panel_lines(cd: Dictionary) -> Array:
 			continue
 		# A trigger tied to one specific card (Luto de Vael: only Myrra dying) is too specific for
 		# the generic tag "Aliado Morre"; the card text explains it instead
-		if e.has("dying_card") or e.has("dying_sacrificed"):
+		if e.has("dying_card"):
 			continue
 		seen[trg] = true
 		var trigger_tag_name: String = CardDB.data()["triggers"][trg]["name"]

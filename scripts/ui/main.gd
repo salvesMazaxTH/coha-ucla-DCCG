@@ -16,7 +16,6 @@ const DevToolsPanelScript = preload("res://scripts/ui/dev_tools_panel.gd")
 const SEL := Color("#ffd23f")
 const TARGET := Color("#ff5050")
 const OK := Color("#4dff88")
-const INK_BLUE := Color("#50cfff")
 const ICE := FxLibraryScript.ICE
 ## An exhausted (tapped) unit lies sideways on the table, like a tapped Magic card.
 const TAPPED_TILT_DEGREES := 90.0
@@ -96,7 +95,6 @@ var _locked_hand_uids := { } ## hand card uid -> true if it was chained (play re
 const LOCK_STAGGER_SECONDS := 0.07 ## delay between the chain lock-ins of cards locked at the same moment
 const MAX_LOCK_SOUNDS := 4 ## a full hand locking at once plays at most this many clanks
 var hand_uids := { } ## viewer's hand cards in the current render
-var reservoir_ink_glow: Panel ## blue pulse: a card can still be deposited this turn
 var reservoir_drop_glow: Panel ## strong yellow: the card being dragged will be deposited if released here
 var hint_text := "" ## the tip pill fades out after a few seconds and returns when the player seems lost
 var hint_since := 0
@@ -810,7 +808,9 @@ func _render_now() -> void:
 	if g.phase == "over":
 		_over_from = layer.get_child_count()
 		_render_game_over()
-	elif is_ai(g.decider()) and ai_timer.is_stopped():
+	else:
+		table_overlays.maybe_show_reservoir_choice()
+	if g.phase != "over" and is_ai(g.decider()) and ai_timer.is_stopped():
 		ai_timer.start() # not while it is already counting: every redraw would push the AI's move back
 	_finish_unit_view_reuse()
 
@@ -1121,7 +1121,7 @@ func _render_reservoir(p: int) -> void:
 	caption.position = Vector2(8, 3)
 	caption.size = Vector2(390, 19)
 	panel.add_child(caption)
-	if p == viewer:
+	if can_ink:
 		var instruction := make_label("ARRASTE DA MÃO PARA DEPOSITAR", 10, UITheme.TEXT, HORIZONTAL_ALIGNMENT_RIGHT, "bold", 1)
 		instruction.position = Vector2(175, 3)
 		instruction.size = Vector2(225, 18)
@@ -1152,17 +1152,12 @@ func _render_reservoir(p: int) -> void:
 			view.left_clicked.connect(table_overlays.show_overlay)
 			view.right_clicked.connect(table_overlays.show_overlay)
 		cell.add_child(view)
-	if p == viewer:
+		if p == viewer and viewer_can_act() and g.can_return_reservoir_card(viewer, card.uid):
+			_add_return_button(cell, card.uid)
+	if can_ink:
 		panel.tooltip_text = "Arraste uma carta da mão para cá para depositá-la permanentemente."
 	if p != viewer:
 		return
-	reservoir_ink_glow = null
-	if can_ink:
-		reservoir_ink_glow = _add_reservoir_glow(panel, rect.size, INK_BLUE, 2, 12)
-		reservoir_ink_glow.modulate.a = 0.45
-		var pulse := reservoir_ink_glow.create_tween().set_loops()
-		pulse.tween_property(reservoir_ink_glow, "modulate:a", 1.0, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		pulse.tween_property(reservoir_ink_glow, "modulate:a", 0.45, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	reservoir_drop_glow = _add_reservoir_glow(panel, rect.size, SEL, 4, 26)
 	reservoir_drop_glow.visible = false
 
@@ -1186,12 +1181,21 @@ func _add_reservoir_glow(panel: Panel, panel_size: Vector2, color: Color, border
 	return glow
 
 
-## While a dragged card would be deposited, the blue "can deposit" pulse gives way to the yellow glow.
+## Yellow glow while a dragged card would be deposited.
 func _show_reservoir_drop_glow(will_deposit: bool) -> void:
 	if is_instance_valid(reservoir_drop_glow):
 		reservoir_drop_glow.visible = will_deposit
-	if is_instance_valid(reservoir_ink_glow):
-		reservoir_ink_glow.visible = not will_deposit
+
+
+## "DEVOLVER" on a card that came to the Reservoir this turn: it goes back into the deck, which is
+## shuffled, and the next turn brings 2 cards.
+func _add_return_button(cell: Control, uid: int) -> void:
+	var button := make_button("DEVOLVER", func(): handle_action_result(g.return_reservoir_card(viewer, uid)))
+	button.add_theme_font_size_override("font_size", 10)
+	button.position = Vector2(0, cell.custom_minimum_size.y - 22)
+	button.size = Vector2(cell.custom_minimum_size.x, 22)
+	button.tooltip_text = "Devolve a carta desvirada ao fundo do deck; o Reservatório pula ela. No próximo turno vêm 2 cartas."
+	cell.add_child(button)
 
 
 func _render_command(p: int, pos: Vector2) -> void:
@@ -1684,8 +1688,7 @@ func _render_hand(p: int) -> void:
 			v.highlight = SEL
 		elif g.phase in ["main", "combat"] and g.can_play(p, hand_card.uid, true) and not is_ai(p):
 			v.highlight = OK
-		elif viewer_can_act() and g.can_store_in_reservoir(p, hand_card.uid):
-			v.highlight = INK_BLUE
+		v.store_ready = p == viewer and viewer_can_act() and g.phase in ["main", "combat"] and g.can_store_in_reservoir(p, hand_card.uid)
 		v.position = pos
 		v.rotation = rot
 		v.left_clicked.connect(_on_hand_click)

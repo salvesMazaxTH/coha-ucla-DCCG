@@ -11,7 +11,6 @@ const LATE_GAME_TURN := 16
 const LADEIRA_CARD_ID := "ladeira_abaixo_e_sem_freio"
 const SNOWBALL_CARD_IDS := ["bola_de_neve", "grande_bola_de_neve"]
 const SNOWBALL_COMBO_MIN_ENEMY_UNITS := 2
-const LAST_HAND_CARD_COST_MARGIN := 3
 
 ## The Encarnação competes with the hand (see _untaxed_incarnation_should_come_first and _incarnation_rank_against_hand).
 const INCARNATION_WALL_MIN_UNITS := 4 ## an enemy board this wide may be too dangerous to cast into
@@ -66,16 +65,12 @@ static func step(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 			if not g.stack.is_empty() or p != g.active:
 				var response := _try_play(g, p, held_card_ids)
 				return response if not response.is_empty() else g.pass_priority(p)
+			for uid in g.reservoir_returnable_uids(p):
+				if g.can_return_reservoir_card(p, uid) and _should_return_reservoir_card(g, p, uid):
+					return g.return_reservoir_card(p, uid)
 			var discount_events := _play_with_discount_power(g, p, held_card_ids)
 			if not discount_events.is_empty():
 				return discount_events
-			for card: Card in _reservoir_store_order(g, p):
-				if (
-					not held_card_ids.has(card.card_id)
-					and g.can_store_in_reservoir(p, card.uid)
-					and _should_store_in_reservoir(g, p, card)
-				):
-					return g.store_in_reservoir(p, card.uid)
 			var events := _try_play(g, p, held_card_ids)
 			if not events.is_empty():
 				return events
@@ -86,7 +81,7 @@ static func step(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 
 
 ## Leader power that discounts one card (Sengoku, Peso dos Séculos). It has to come before the Reservoir and before the
-## cheap plays, which would spend the Momentum (or store the card) the discount is meant to stretch.
+## cheap plays, which would spend the Momentum the discount is meant to stretch.
 ## 1. an offer is active: the dearest matching unit of the hand is played with it;
 ## 2. otherwise the power is used when it unlocks a unit that is not playable at full price and that costs more
 ##    than anything the hand can play right now.
@@ -138,44 +133,20 @@ static func _discount_unlocks_dearer_unit(g: GameState, p: int, discount: GrantP
 	return best_unlocked_cost > best_playable_cost
 
 
-## Hand order for choosing what to store: the dearest first; with `store_duplicate_first` in the profile,
-## cards that have another copy in hand come before the rest (the dearest of each group first).
-static func _reservoir_store_order(g: GameState, p: int) -> Array:
-	var ordered := _hand_most_expensive_first(g, p)
-	if not bool(AIProfile.of_player(g, p).get("store_duplicate_first", false)):
-		return ordered
-	var copies_in_hand := {}
-	for card: Card in ordered:
-		copies_in_hand[card.card_id] = int(copies_in_hand.get(card.card_id, 0)) + 1
-	var duplicates: Array = []
-	var singles: Array = []
-	for card: Card in ordered:
-		if int(copies_in_hand[card.card_id]) > 1:
-			duplicates.append(card)
-		else:
-			singles.append(card)
-	return duplicates + singles
-
-
-static func _should_store_in_reservoir(g: GameState, p: int, card: Card) -> bool:
-	if g.players[p]["hand"].size() > 1:
-		return true
-	if _reservoir_covers_deck_costs(g, p):
+## Gives back a champion or legendary that came to the Reservoir this turn when the Momentum is not needed:
+## everything in hand still fits the budget without it.
+static func _should_return_reservoir_card(g: GameState, p: int, uid: int) -> bool:
+	var card: Card = null
+	for reservoir_card: Card in g.players[p]["reservoir"]:
+		if reservoir_card.uid == uid:
+			card = reservoir_card
+	if card == null or not ["champion", "legendary"].has(String(CardDB.card(card.card_id).get("rarity", ""))):
 		return false
-	if AIProfile.of_player(g, p) == AIProfile.PROFILES["aggro"]:
-		return false
-	var available := g.budget(p, false)
-	var cost := g.cost_of(p, CardDB.card(card.card_id), card)
-	return available - cost >= LAST_HAND_CARD_COST_MARGIN
-
-
-static func _reservoir_covers_deck_costs(g: GameState, p: int) -> bool:
-	var maximum_budget := mini(g.momentum_cap(p), g.players[p]["reservoir"].size())
-	for card: Card in g.players[p]["deck"]:
-		var cost := g.cost_of(p, CardDB.card(card.card_id), card)
-		if cost > maximum_budget:
+	var budget_without_card := g.budget(p, false) - 1
+	for hand_card: Card in g.players[p]["hand"]:
+		if g.cost_of(p, CardDB.card(hand_card.card_id), hand_card) > budget_without_card:
 			return false
-	return not g.players[p]["deck"].is_empty()
+	return true
 
 
 static func _choose_effect_option(g: GameState, p: int) -> Array:

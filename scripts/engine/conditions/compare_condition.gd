@@ -2,7 +2,7 @@ class_name CompareCondition
 extends Condition
 ## Compares a number of the game against a value:
 ## {"compare": {"stat": "leader_hp", "who": "enemy", "op": "<", "value": 12}}
-## stat: leader_hp | momentum | unspent (Momentum left at the start of the turn) | battery | units | hand | deck | graveyard
+## stat: leader_hp | momentum | unspent (Momentum left at the start of the turn) | battery | units | tokens (fichas on the board) | reservoir (cards in the Reservoir) | hand | deck | graveyard
 ##       sacrificed_units: how many units the "sacrifice" effects of this same run have killed so far (Zelador Vinicius Rangel: >= 2).
 ##       source_hp | source_armor | source_x: a number of the unit that carries the effect (only in a card's own "if",
 ##       not in a play_condition). source_x is the shared X of that card. Drex: {"stat": "source_x", "op": ">=", "value": 6} = phase 2.
@@ -11,7 +11,7 @@ extends Condition
 ## {"stat": "units", "op": ">", "vs": "enemy"} = "you have more units than the opponent" (Magni's play_condition).
 
 const UNIT_STATS := ["source_hp", "source_armor", "source_x"]
-const STATS := ["leader_hp", "momentum", "unspent", "battery", "units", "hand", "deck", "graveyard", "sacrificed_units", "source_hp", "source_armor", "source_x"]
+const STATS := ["leader_hp", "momentum", "unspent", "battery", "units", "tokens", "reservoir", "hand", "deck", "graveyard", "sacrificed_units", "source_hp", "source_armor", "source_x"]
 const OPERATORS := ["<", "<=", "==", "!=", ">=", ">"]
 
 var stat := ""
@@ -74,10 +74,19 @@ func _read_stat(player: Dictionary) -> int:
 		"unspent": return int(player["unspent"])
 		"battery": return int(player["battery"])
 		"units": return player["board"].size()
+		"tokens": return _count_tokens(player["board"])
+		"reservoir": return player["reservoir"].size()
 		"hand": return player["hand"].size()
 		"deck": return player["deck"].size()
 		"graveyard": return player["graveyard"].size()
 	return 0
+
+func _count_tokens(board: Array) -> int:
+	var token_count := 0
+	for unit in board:
+		if unit != null and bool(unit.data().get("token", false)):
+			token_count += 1
+	return token_count
 
 ## The compare specs of a card's play_condition: {"compare": {...}} is one, {"all": [{"compare": {...}}, ...]} is
 ## several that must all hold (Magni). Returns [] when the shape is wrong (the catalog check reports it).

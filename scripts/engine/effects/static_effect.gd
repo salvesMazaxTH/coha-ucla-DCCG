@@ -11,7 +11,6 @@ extends Effect
 ## "strike_cap" ({"stat": "atk" | "hp_left", "at_most": 3, "capped_damage": 1}) makes every unit on either board whose current stat is at most `at_most` strike for only `capped_damage`; two different cards with it cancel each other (GameState.strike_cap_applied; the edicts of Avarik and Avarion).
 ## "momentum_cap" ({"cap": 15}) raises the owner's Momentum ceiling (read by GameState.momentum_cap; Agiota das Nuvens).
 ## "battery_cap" ({"cap": 3}) raises how much the owner's Bateria holds when it refills (read by GameState.battery_cap; Agiota das Nuvens).
-## "reservoir_store_limit" ({"limit": 2}) raises how many hand cards the owner may deposit in the Reservoir each turn (read by GameState.reservoir_store_limit; Eletroad).
 ## All of them are read straight from `raw`.
 
 func is_static() -> bool:
