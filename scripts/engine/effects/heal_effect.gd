@@ -8,6 +8,7 @@ extends Effect
 ##                With "amount_from": "sacrificed_atk" (inside a sacrifice's "then") it heals the Attack the
 ##                sacrificed unit had, instead of `amount` (Drex).
 ##                With "amount_from": "shared_x" it heals the card's shared X plus `amount` (Drex: X+1 with amount 1).
+##                With "amount_from": "self_half_atk" it heals half (rounded up) of the card's own current Attack (Nerithia).
 ##                "heal_origin": "reaction" (opt-in) reports the heal to listeners as that origin instead of "unit", so a card
 ##                that listens to unit heals cannot answer its own heal forever (Drex).
 ##                "per_turn_cap": N (opt-in) gives each instance of the card a hard budget of N Vida healed per turn:
@@ -31,7 +32,8 @@ extends Effect
 
 var amount := 0
 var per := ""
-var amount_from := "" ## "" = use `amount`; "sacrificed_atk" = the Attack of the unit a sacrifice just killed; "shared_x" = the card's shared X + `amount`
+## "" = use `amount`; "sacrificed_atk"; "shared_x"; "self_half_atk" (see the header)
+var amount_from := ""
 var origin_override := "" ## "" = the real origin (EffectContext.heal_origin)
 var per_turn_cap := 0
 var source_temp_hp := 0
@@ -54,11 +56,22 @@ func _leader_heal_amount(context: EffectContext) -> int:
 		return context.sacrificed_attack
 	if amount_from == "shared_x":
 		return context.game.shared_x_of(context.controller, context.source_id()) + amount
+	if amount_from == "self_half_atk":
+		return ceili(_current_attack_of_source(context) / 2.0)
 	if per == "event_damage" and context.event != null:
 		return context.event.amount
 	if per == "half_event_damage" and context.event != null:
 		return maxi(amount, ceili(context.event.amount / 2.0))
 	return amount
+
+## The Attack of the unit this effect belongs to, or the Attack it had at the hit if it is already gone.
+func _current_attack_of_source(context: EffectContext) -> int:
+	var source_unit := context.game.find_unit(context.self_uid)
+	if source_unit != null:
+		return context.game.atk_of(source_unit)
+	if context.event != null:
+		return int(context.event.data.get("dealer_atk", 0))
+	return 0
 
 func apply(context: EffectContext, target_uid: int) -> void:
 	match action:

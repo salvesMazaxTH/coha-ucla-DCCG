@@ -8,7 +8,7 @@
   "element": "vegetal",
   "cost": 8,
   "atk": 8,
-  "hp": 10,
+  "hp": 8,
   "keywords": ["provocacao", "sobrepujanca", "regeneracao"],
   "art": "natureza/sylvar_cerne_andante.webp",
   "effects": [

@@ -8,6 +8,7 @@
   "cost": 4,
   "atk": 2,
   "hp": 5,
+  "max_copies": 1,
   "keywords": ["impeto", "imunidade_trevas"],
   "art": "devocao/nerithia.webp",
   "effects": [
@@ -32,9 +33,15 @@
       "trigger": "on_death",
       "action": "return_to_hand",
       "target": "self_card",
-      "cost_increase": 3
+      "cost_increase": 2
+    },
+    {
+      "trigger": "on_deal_combat_damage",
+      "action": "heal_leader",
+      "target": "own_leader",
+      "amount_from": "self_half_atk"
     }
   ],
-  "text": "Constante: com 3 ou mais feitiços de Devoção no seu cemitério, o dano que ela sofre é reduzido à metade (arredondada para cima) e depois reduzido em 1 (mín. 0).\nAo Desafiar: ganha +2 de Ataque e, então, o Ataque dela fica igual ao da unidade aliada de maior Ataque neste turno.\nAo Morrer: volta para a sua mão e custa +3 a mais a cada morte.",
+  "text": "Constante: com 3 ou mais feitiços de Devoção no seu cemitério, o dano que ela sofre é reduzido à metade (arredondada para cima) e depois reduzido em 1 (mín. 0).\nAo Desafiar: ganha +2 de Ataque e, então, o Ataque dela fica igual ao da unidade aliada de maior Ataque neste turno.\nAo Causar Dano de Combate: o seu Líder recupera de Vida metade do Ataque dela (arredondada para cima).\nAo Morrer: volta para a sua mão e custa +2 a mais a cada morte.",
   "flavor": "Cada oração rezada por alguém é um degrau a menos que a separa do chão."
 }
