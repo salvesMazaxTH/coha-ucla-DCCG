@@ -7,6 +7,7 @@
   "cost": 2,
   "speed": "lento",
   "art": "trevas/censo_de_baixas.webp",
+  "art_crop": {"x": 0.5, "y": 0.4, "zoom": 1.0},
   "extra_cost": { "kind": "sacrifice", "amount": 1, "target": "ally_unit" },
   "effects": [
     { "trigger": "on_play", "action": "enemy_sacrifice_pick", "target": "none" }

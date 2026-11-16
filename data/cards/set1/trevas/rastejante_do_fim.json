@@ -10,6 +10,7 @@
   "atk": 1,
   "hp": 3,
   "art": "trevas/rastejante_do_fim.webp",
+  "art_crop": {"x": 0.5, "y": 0.52, "zoom": 1.0},
   "keywords": ["toque_letal"],
   "effects": [],
   "text": "",

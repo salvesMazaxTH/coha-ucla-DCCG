@@ -6,5 +6,6 @@
   },
   "godotFormatter.useSpaces": false,
   "godotFormatter.maxLineLength": 135,
-  "godotFormatter.linterMaxLineLength": 135
+  "godotFormatter.linterMaxLineLength": 135,
+  "godotFormatter.argsLinter": ["--exclude", "tests"]
 }
