@@ -1250,6 +1250,10 @@ func display_instance_for_id(card_id: String, owner: int, uid := 0, base_instanc
 		var shared_critico := int(g.players[owner].get("critico_growth", { }).get(card_id, 0))
 		if shared_critico > int(instance.get("critico", 0)):
 			instance["critico"] = shared_critico
+	var lasting_growth: Dictionary = g.players[owner].get("lasting_growth", { }).get(card_id, { })
+	if not lasting_growth.is_empty():
+		instance["lasting_growth_atk"] = int(lasting_growth["atk"])
+		instance["lasting_growth_hp"] = int(lasting_growth["hp"])
 	return instance
 
 
@@ -2089,7 +2093,7 @@ func _render_side() -> void:
 	var phase_names := {
 		"mulligan": "Mulligan",
 		"main": "Fase Principal",
-		"discard": "Banimento",
+		"discard": "Descarte",
 		"over": "Fim de jogo",
 		"combat": "Combate · " + { "pre_combat": "Preparação", "attacks": "Ataques" }.get(g.window, ""),
 		"search": "Busca",
@@ -2717,7 +2721,7 @@ func _hint() -> String:
 		"mulligan":
 			return "Clique em até 3 cartas para trocar."
 		"discard":
-			return "Mão acima do limite: escolha %d para banir." % (g.players[viewer]["hand"].size() - GameState.HAND_LIMIT)
+			return "Mão acima do limite: escolha %d para descartar." % (g.players[viewer]["hand"].size() - GameState.HAND_LIMIT)
 		"main":
 			if CardView.touch_ui():
 				return "Arraste cartas para o campo · toque: ver carta · quando acabar, IR PARA O COMBATE"
@@ -2896,7 +2900,7 @@ func _action_buttons() -> Array:
 		"discard":
 			var need: int = g.players[viewer]["hand"].size() - GameState.HAND_LIMIT
 			var b := _action_button(
-				"BANIR (%d/%d)" % [picked.size(), need],
+				"DESCARTAR (%d/%d)" % [picked.size(), need],
 				func():
 					handle_action_result(g.discard(viewer, picked.duplicate())),
 				true,

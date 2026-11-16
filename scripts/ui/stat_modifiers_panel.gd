@@ -70,6 +70,9 @@ static func collect_changes(card_id: String, instance: Dictionary) -> Array:
 		_add_record(changes_list, recorded, String(record.get("source", "")), String(record.get("until", "")), record)
 	for record in instance.get("constant_sources", []):
 		_add_record(changes_list, recorded, String(record.get("source", "")), "constant", record)
+	if instance.has("damage"): # on the board the lasting growth is inside atk / hp
+		var lasting_growth := {"atk": instance.get("lasting_growth_atk", 0), "hp": instance.get("lasting_growth_hp", 0)}
+		_add_record(changes_list, recorded, card_id, "", lasting_growth)
 
 	# what the unit's numbers really are, per duration, to find what the records leave unexplained
 	var printed := CardDB.card_for(card_id, instance)

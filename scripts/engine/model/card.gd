@@ -71,6 +71,10 @@ var pending_self_revive_atk := 0
 var pending_self_revive_hp := 0
 var dot_markers: Dictionary = {} ## accumulated periodic-status markers, keyed by dot id
 var fragments := 0 ## Fragmentos de Rai'Emofitir: +1 ATQ and 1 self-damage per turn each; they hop to an ally when the bearer dies
+## Stats gained by a "lasting_growth" effect (Jeff The Death): kept in every zone, never reset by a zone change.
+## Shared by every copy of the card its owner has (see GameState.add_lasting_growth); on the board they are part of atk / hp.
+var lasting_growth_atk := 0
+var lasting_growth_hp := 0
 var tide_mark := false
 var armor_spent_since_turn_start := false ## it spent its own Armadura since its owner's last turn began (Farkoveth)
 var armor_spent_last_turn := false ## the flag above as it stood when its owner's current turn began
@@ -258,6 +262,16 @@ func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:
 	death_ward_armed = false
 	stat_sources = []
 	apply_permanent_buffs()
+	atk += lasting_growth_atk
+	hp += lasting_growth_hp
+
+## Adds lasting growth (see lasting_growth_atk); on the board the unit's stats go up right away too.
+func add_lasting_growth(atk_gain: int, hp_gain: int) -> void:
+	lasting_growth_atk += atk_gain
+	lasting_growth_hp += hp_gain
+	if zone == "board":
+		atk += atk_gain
+		hp += hp_gain
 
 ## Rebuilds the permanent bonuses that belong to this card, not to an aura or equipment.
 func apply_permanent_buffs() -> void:
@@ -285,8 +299,8 @@ func capture_permanent_buffs() -> void:
 	var cd := data()
 	var printed_keywords: Array = cd.get("keywords", [])
 	var upgrades := {
-		"atk": maxi(0, atk - int(cd.get("atk", 0))),
-		"hp": maxi(0, hp - int(cd.get("hp", 0))),
+		"atk": maxi(0, atk - int(cd.get("atk", 0)) - lasting_growth_atk), # the lasting growth is kept apart, not as a buff
+		"hp": maxi(0, hp - int(cd.get("hp", 0)) - lasting_growth_hp),
 		"armor": maxi(0, armor - int(cd.get("armor", 0))),
 		"critico": maxi(0, critico - int(cd.get("critico", 0))),
 		"rapidez": maxi(0, rapidez - int(cd.get("rapidez", 0))),
@@ -492,6 +506,9 @@ func event_counters() -> Array:
 ## JSON form: {uid, card_id} off the board (plus "discount" in hand); the full unit on the board.
 func to_dict() -> Dictionary:
 	var d := {"uid": uid, "card_id": card_id}
+	if lasting_growth_atk != 0 or lasting_growth_hp != 0:
+		d["lasting_growth_atk"] = lasting_growth_atk
+		d["lasting_growth_hp"] = lasting_growth_hp
 	if zone == "reservoir":
 		d["exhausted"] = exhausted
 		d["reservoir_revealed_turn"] = reservoir_revealed_turn
@@ -648,6 +665,8 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.turn_discount = int(d.get("turn_discount", 0))
 	c.cost_zero_turn = int(d.get("cost_zero_turn", -1))
 	c.cost_mod = int(d.get("cost_mod", 0))
+	c.lasting_growth_atk = int(d.get("lasting_growth_atk", 0))
+	c.lasting_growth_hp = int(d.get("lasting_growth_hp", 0))
 	c.permanent_buffs = d.get("permanent_buffs", {}).duplicate(true)
 	c.death_ward_armed = bool(d.get("death_ward_armed", false))
 	c.durability_used = int(d.get("durability_used", 0))

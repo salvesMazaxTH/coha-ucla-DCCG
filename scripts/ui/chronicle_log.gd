@@ -463,4 +463,6 @@ func log_event(e: Dictionary) -> void:
 			add_line("%s preferiu não colocar nenhum campeão em campo" % _pname(e["player"]))
 		"discard":
 			add_line("%s descartou %s" % [_pname(e["player"]), _cname(e["card_id"])])
+		"lasting_growth":
+			add_line("%s cresceu: agora +%d/+%d permanente" % [_cname(e["card_id"]), int(e["atk"]), int(e["hp"])])
 	_chronicle_visual_context = {}

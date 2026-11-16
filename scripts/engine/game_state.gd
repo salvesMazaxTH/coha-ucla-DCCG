@@ -227,6 +227,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		# the level the Bola de Neve goes back to every turn; raised for the rest of the game by Devaneio Gelado
 		"snowball_base": SNOWBALL_BASE_LEVEL,
 		"critico_growth": { }, # card_id -> Crítico level reached by "critico_growth" cards (Vael), shared by every copy of it
+		"lasting_growth": { }, # card_id -> {"atk", "hp"} gained by a "lasting_growth" effect (Jeff), shared by every copy of it
 		"shared_x": { }, # card_id -> how many times a "shared_x" card (Drex) has grown its X; read through shared_x_of
 		"fragments_given": { }, # card_id -> Fragmentos that spell has handed out so far (the ritual payoff reads it)
 		"ice_spell_discount_used": false, # the Amuleto Glacial (ice spell) discount was already spent this turn
@@ -526,6 +527,10 @@ func _move(c: Card, to_zone: String, extra_data := { }) -> void:
 	# a "critico_growth" copy (Vael) always carries the level its owner's copies have reached, wherever it is going
 	if CardDB.card(c.card_id).get("critico_growth", false):
 		c.critico = maxi(c.critico, int(players[c.owner]["critico_growth"].get(c.card_id, 0)))
+	# a "lasting_growth" card (Jeff) carries what its owner's copies have gained, wherever it is going
+	var growth: Dictionary = players[c.owner]["lasting_growth"].get(c.card_id, { })
+	if not growth.is_empty():
+		c.add_lasting_growth(int(growth["atk"]) - c.lasting_growth_atk, int(growth["hp"]) - c.lasting_growth_hp)
 	var moved := GameEvent.new("card_moved", c.owner, c)
 	moved.data = { "from": from_zone, "to": to_zone }
 	moved.data.merge(extra_data)
@@ -546,6 +551,20 @@ func grow_critico(striker: Card) -> int:
 				copy.critico = new_level
 	striker.critico = new_level
 	return new_level
+
+
+## A "lasting_growth" effect (Jeff): `owner`'s card `card_id` gains +atk/+hp for good, on EVERY copy the owner
+## has (deck, hand, field, graveyard, banished...) and on the copies that show up later (the Santuário's too).
+func add_lasting_growth(owner: int, card_id: String, atk_gain: int, hp_gain: int) -> void:
+	var growth: Dictionary = players[owner]["lasting_growth"].get(card_id, {"atk": 0, "hp": 0})
+	growth["atk"] = int(growth["atk"]) + atk_gain
+	growth["hp"] = int(growth["hp"]) + hp_gain
+	players[owner]["lasting_growth"][card_id] = growth
+	for zone in ["deck", "hand", "board", "relics", "graveyard", "banished"]:
+		for copy: Card in players[owner][zone]:
+			if copy.card_id == card_id:
+				copy.add_lasting_growth(atk_gain, hp_gain)
+	emit_event({"type": "lasting_growth", "player": owner, "card_id": card_id, "atk": growth["atk"], "hp": growth["hp"]})
 
 
 ## The X of a "shared_x" card (Drex): its printed start plus every time one of its owner's copies grew it.
@@ -3027,10 +3046,9 @@ func discard(p: int, hand_uids: Array) -> Array:
 	for uid in hand_uids:
 		var c := _hand_card(p, uid)
 		players[p]["hand"].erase(c)
-		# Banished, not discarded: the card never reaches the graveyard (hidden from the opponent).
-		players[p]["banished"].append(c)
-		_move(c, "banished")
-		emit_event({ "type": "ban", "player": p, "uid": uid })
+		players[p]["graveyard"].append(c)
+		_move(c, "graveyard")
+		emit_event({ "type": "discard", "player": p, "uid": uid, "card_id": c.card_id })
 	phase = "main"
 	_finish_turn()
 	return flush_events()
@@ -3201,7 +3219,7 @@ func choose_search(p: int, card_uid: int) -> Array:
 			pending_search.clear()
 			phase = search_return
 			return activate(p, activation_uid, card_uid)
-		# the chosen card leaves the hand for the graveyard (a normal discard; only overdraw banishes)
+		# the chosen card leaves the hand for the graveyard (a normal discard)
 		var discarded_card := _hand_card(p, card_uid)
 		if discarded_card == null:
 			return []
@@ -3867,7 +3885,7 @@ func _begin_search(p: int, e: Dictionary, source_uid: int, fragment_receiver_uid
 
 
 ## The player picks one card from their own hand to discard to the graveyard.
-## Uses the same choice screen as the overdraw banish; the options are private to the owner.
+## Uses the same choice screen as the overdraw discard; the options are private to the owner.
 ## `p` is the player who discards. When it is the opponent of the card's controller (Calvin Sem-Face), an empty hand
 ## does nothing and says nothing: the "nothing to discard" notice belongs to the controller's own searches.
 func _begin_hand_discard(p: int, source_uid: int, silent_when_empty := false) -> void:
@@ -5597,7 +5615,7 @@ func _resolve_delayed_self_revives() -> bool:
 			card.pending_self_revive_turn = 0
 			card.pending_self_revive_atk = 0
 			card.pending_self_revive_hp = 0
-			if revive_atk <= 0 or revive_hp <= 0 or not has_free_slot(p):
+			if revive_atk + card.lasting_growth_atk <= 0 or revive_hp + card.lasting_growth_hp <= 0 or not has_free_slot(p):
 				continue
 			players[p]["graveyard"].erase(card)
 			var overrides: Dictionary = card.over.duplicate(true)

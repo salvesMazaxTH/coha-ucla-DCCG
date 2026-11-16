@@ -13,7 +13,7 @@ extends Effect
 ##   `attach_fragment` (Partir-se): the card taken never reaches the hand. It is banished and becomes a Fragmento on the unit
 ##   the player chose as target ("ally_fragment_bearer"); the card's own effects (like a search for another copy) never run.
 ## "discard_hand_pick": the player picks one card from their own hand and discards it to
-##   the graveyard (only the end-of-turn hand limit banishes; a normal discard goes to the graveyard).
+##   the graveyard.
 ##   `who` (default "self"): "opponent" makes the OPPONENT pick the card from their own hand (Calvin Sem-Face); an empty hand does nothing.
 ## "discard_if_over" (Soren): BOTH players holding MORE than `limit` cards (default 4) discard `amount` (default 1) cards
 ##   from their own hand to the graveyard. The controller chooses first, then the opponent; a player at the limit or below discards nothing.

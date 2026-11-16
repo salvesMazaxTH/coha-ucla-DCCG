@@ -22,6 +22,7 @@ var returned_ally_count := 0 ## allied units a "return_to_hand" of this run sent
 var last_drawn_card: Card = null ## the latest card drawn by this effect run, for follow-up effects
 var event: GameEvent = null ## the event that made a listening card react (null for plain triggers)
 var milled_cards: Array = [] ## cards the latest mill of this run sent to the graveyard (offered by mill_pick)
+var listening_card_id := "" ## the card whose Condicional heard the event, in any zone (the Santuário too)
 var conditional_use := 0 ## which use of the turn this Condicional is, for cards with "conditional_uses_per_turn" (0 = no limit); fixed when the event is offered
 
 var shielded_uids: Array[int] = [] ## units whose shield cancelled an earlier effect of this run: the card's later aimed effects skip them

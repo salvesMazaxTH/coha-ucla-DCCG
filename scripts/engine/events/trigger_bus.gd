@@ -139,8 +139,14 @@ func _offer_in_sanctuary(p: int, key: String, event: GameEvent) -> void:
 		if effect.own_turn_only and game.active != p:
 			continue
 		var context := EffectContext.new(game, p, effect.trigger)
+		context.event = event
+		context.listening_card_id = incarnation["card_id"]
 		if effect.condition != null and not effect.condition.check(context):
 			continue
+		if effect.one_copy_per_event:
+			if _last_event_answered_by_card_id.get(incarnation["card_id"]) == event:
+				continue # a copy of this card in another zone already reacted to this very event
+			_last_event_answered_by_card_id[incarnation["card_id"]] = event
 		effect.apply(context, 0)
 
 func _offer(card: Card, effect: Effect, event: GameEvent) -> void:
@@ -156,6 +162,7 @@ func _offer(card: Card, effect: Effect, event: GameEvent) -> void:
 	context.self_uid = card.uid
 	context.other_uid = event.other_uid
 	context.event = event
+	context.listening_card_id = card.card_id
 	context.conditional_use = _conditional_use_number(card, event)
 	# intervening-if: checked now, and again by _run_effects right before the effect applies
 	if effect.condition != null and not effect.condition.check(context):

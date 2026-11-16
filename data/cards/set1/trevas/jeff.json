@@ -10,15 +10,19 @@
   "essence": "trevas",
   "element": "sombra",
   "cost": 6,
-  "atk": 3,
-  "hp": 3,
+  "atk": 2,
+  "hp": 2,
   "keywords": ["roubo_de_vida"],
   "art": "trevas/jeff_the_death.webp",
   "effects": [
     {
-      "trigger": "constante",
-      "action": "scale",
-      "per": "own_graveyard_units",
+      "listen": "card_moved",
+      "scope": "other_ally",
+      "zones": ["board", "relics", "hand", "deck", "graveyard", "banished", "sanctuary"],
+      "when": {"from": "board", "to": "graveyard"},
+      "one_copy_per_event": true,
+      "action": "lasting_growth",
+      "target": "none",
       "atk": 1,
       "hp": 1
     },
@@ -29,7 +33,7 @@
       "keeps_incarnation": true
     }
   ],
-  "text": "Única.\nConstante: esta unidade recebe +1/+1 para cada carta de unidade no seu cemitério.\nAo Morrer: volta ao campo no fim do turno seguinte.",
+  "text": "Única.\nCondicional: sempre que outra unidade aliada vai do campo para o cemitério, esta carta recebe +1/+1 permanentemente, onde quer que esteja.\nAo Morrer: volta ao campo no fim do turno seguinte.",
   "flavor": [
     "Todo mundo me deve uma. Eu só cobro no fim.",
     "Chegou cedo? Sem pressa. A fila anda sozinha.",

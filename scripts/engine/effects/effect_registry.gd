@@ -14,6 +14,7 @@ const ShoutEffectScript = preload("res://scripts/engine/effects/shout_effect.gd"
 const ChooseEffectScript = preload("res://scripts/engine/effects/choose_effect.gd")
 const EchoNextSpellEffectScript = preload("res://scripts/engine/effects/echo_next_spell_effect.gd")
 const SummonRandomEffectScript = preload("res://scripts/engine/effects/summon_random_effect.gd")
+const LastingGrowthEffectScript = preload("res://scripts/engine/effects/lasting_growth_effect.gd")
 
 static var ACTIONS: Dictionary = {
 	"damage": DamageEffect,
@@ -83,6 +84,7 @@ static var ACTIONS: Dictionary = {
 	"hold_veneno": HoldVenenoEffect,
 	"block_healing": BlockHealingEffect,
 	"grow_shared_x": GrowSharedXEffect,
+	"lasting_growth": LastingGrowthEffectScript,
 	"resolve_dot": ResolveDotEffect,
 	"veneno_lethal": VenenoLethalEffect,
 	"sacrifice": SacrificeEffect,

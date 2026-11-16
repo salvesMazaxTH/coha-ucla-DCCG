@@ -56,10 +56,11 @@ func _revive_self(context: EffectContext) -> void:
 	var dying := context.dying_card
 	if dying == null or dying.incarnation:
 		return
-	var new_attack: int = dying.atk + attack_change
-	var new_health: int = dying.hp + health_change
+	# the lasting growth is added back by enter_board, so it stays out of the overrides
+	var new_attack: int = dying.atk - dying.lasting_growth_atk + attack_change
+	var new_health: int = dying.hp - dying.lasting_growth_hp + health_change
 	var player: Dictionary = game.players[context.controller]
-	if new_attack <= 0 or new_health <= 0 or not game.has_free_slot(context.controller):
+	if new_attack + dying.lasting_growth_atk <= 0 or new_health + dying.lasting_growth_hp <= 0 or not game.has_free_slot(context.controller):
 		return
 	# while on the board it is not a graveyard card, so it leaves the graveyard
 	player["graveyard"].erase(dying)
@@ -75,9 +76,9 @@ func _schedule_self_revive(context: EffectContext) -> void:
 	var dying := context.dying_card
 	if dying == null or (dying.incarnation and not keeps_incarnation):
 		return
-	var new_attack: int = dying.atk + attack_change
-	var new_health: int = dying.hp + health_change
-	if new_attack <= 0 or new_health <= 0:
+	var new_attack: int = dying.atk - dying.lasting_growth_atk + attack_change
+	var new_health: int = dying.hp - dying.lasting_growth_hp + health_change
+	if new_attack + dying.lasting_growth_atk <= 0 or new_health + dying.lasting_growth_hp <= 0:
 		return
 	dying.pending_self_revive_turn = game.turn + 1
 	dying.pending_self_revive_atk = new_attack

@@ -1426,10 +1426,10 @@ func _draw_lettering_and_gems(look: Dictionary) -> void:
 			var live_max_hp: int = inst["hp"] + intrinsic_hp + int(inst.get("bonus_hp", 0)) + int(inst.get("temp_hp", 0)) + int(inst.get("temp_hp_until_next_turn", 0))
 			hp_col = Color("#ff8a80") if inst["damage"] > 0 else (Color("#a8ffa0") if live_max_hp > hp + intrinsic_hp else Color.WHITE)
 			hp = max(0, live_max_hp - inst["damage"])
-		elif not inst.get("permanent_buffs", {}).is_empty():
-			var persistent: Dictionary = inst["permanent_buffs"]
-			atk += int(persistent.get("atk", 0))
-			hp += int(persistent.get("hp", 0))
+		elif not inst.get("permanent_buffs", {}).is_empty() or inst.has("lasting_growth_atk"):
+			var persistent: Dictionary = inst.get("permanent_buffs", {})
+			atk += int(persistent.get("atk", 0)) + int(inst.get("lasting_growth_atk", 0))
+			hp += int(persistent.get("hp", 0)) + int(inst.get("lasting_growth_hp", 0))
 			atk_col = Color("#a8ffa0") if atk > int(cd["atk"]) else Color.WHITE
 			hp_col = Color("#a8ffa0") if hp > int(cd["hp"]) else Color.WHITE
 		_gem("diamond", Vector2(14 * s, _face_size.y - 15 * s), 13.5 * s, ATK_COL, str(atk), atk_col, s)
