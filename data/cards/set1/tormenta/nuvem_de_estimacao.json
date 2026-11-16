@@ -8,7 +8,7 @@
   "element": "vento",
   "cost": 4,
   "atk": 2,
-  "hp": 6,
+  "hp": 5,
   "keywords": ["voo", "escudo_magico"],
   "art": "tormenta/nuvem_de_estimacao.webp",
   "effects": [

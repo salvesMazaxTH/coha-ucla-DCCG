@@ -4,7 +4,7 @@
   "type": "spell",
   "rarity": "epic",
   "essence": "trevas",
-  "cost": 1,
+  "cost": 2,
   "speed": "lento",
   "art": "trevas/cortejo_de_cinzas.webp",
   "effects": [

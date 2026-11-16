@@ -5,7 +5,7 @@
   "rarity": "common",
   "essence": "furia",
   "element": "sangue",
-  "cost": 1,
+  "cost": 2,
   "speed": "lento",
   "art": "furia/sangria_desatada.webp",
   "effects": [

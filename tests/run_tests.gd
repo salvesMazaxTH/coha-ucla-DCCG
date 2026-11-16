@@ -4272,15 +4272,29 @@ func _test_obscura_rules() -> void:
 	var g := _obscura_game()
 	g.players[0]["passive_used"] = true
 	var dia := _put(g, 0, "diabrete_sombrio")
-	check(g.atk_of(dia) == 2 and g.hp_left(dia) == 2 and CardDB.card("diabrete_sombrio")["cost"] == 2, "diabrete 2-drop 2/2")
+	check(g.atk_of(dia) == 2 and g.hp_left(dia) == 1 and CardDB.card("diabrete_sombrio")["cost"] == 2, "diabrete 2-drop 2/1")
 	var fodder := _put(g, 0, "esqueleto_guerreiro")
+	var other_fodder := _put(g, 0, "esqueleto_guerreiro")
 	var hand: int = g.players[0]["hand"].size()
 	var foe0: int = g.players[1]["leader_hp"]
 	_kill(g, fodder)
-	check(g.players[1]["leader_hp"] == foe0 - 1 and g.players[0]["hand"].size() == hand, "diabrete causa 1 ao Líder quando um aliado morre (e não compra)")
+	check(
+		g.players[1]["leader_hp"] == foe0 - 1 and g.players[0]["hand"].size() == hand + 1,
+		"diabrete causa 1 ao Líder e compra 1 carta quando um aliado morre",
+	)
+	check(g.phase == "search" and g.pending_search.get("discard_hand", false), "diabrete: depois de comprar, pede o descarte")
+	g.choose_search(0, int(g.pending_search["cards"][0]["uid"]))
+	check(g.players[0]["hand"].size() == hand, "diabrete: compra 1 e descarta 1, a mão volta ao tamanho de antes")
+	# once per turn: a second ally dying in the same turn does nothing
+	_kill(g, other_fodder)
+	check(
+		g.players[1]["leader_hp"] == foe0 - 1 and g.phase != "search" and g.players[0]["hand"].size() == hand,
+		"diabrete só ativa uma vez por turno (Aliado Morre)",
+	)
 	var foe: int = g.players[1]["leader_hp"]
 	_kill(g, dia)
 	check(g.players[1]["leader_hp"] == foe - 1, "diabrete não ativa por si mesmo; Ao Morrer fere o Líder")
+	check(g.phase != "search" and g.players[0]["hand"].size() == hand, "diabrete: o Ao Morrer não compra nem descarta")
 	# Aliado Morre fires on every death, even a Revivente that comes right back
 	var gr := _obscura_game()
 	gr.players[0]["passive_used"] = true
@@ -4288,7 +4302,12 @@ func _test_obscura_rules() -> void:
 	var rv := _put(gr, 0, "revivente_eterno")
 	var hr: int = gr.players[1]["leader_hp"]
 	_kill(gr, rv)
-	check(gr.players[1]["leader_hp"] == hr - 1 and _count(gr, 0, "revivente_eterno") == 0, "Aliado Morre ativa na morte antes do retorno atrasado")
+	check(
+		gr.players[1]["leader_hp"] == hr - 1 and _count(gr, 0, "revivente_eterno") == 0,
+		"Aliado Morre ativa na morte antes do retorno atrasado",
+	)
+	check(gr.phase == "search", "diabrete: o descarte do Aliado Morre fica pendente")
+	gr.choose_search(0, int(gr.pending_search["cards"][0]["uid"]))
 	gr.end_turn(gr.active)
 	gr.end_turn(gr.active)
 	check(_count(gr, 0, "revivente_eterno") == 1, "Revivente retorna depois de ativar Aliado Morre")
@@ -8524,13 +8543,24 @@ func _test_set2_neutral_spells() -> void:
 	_resolve_whole_stack(g)
 	check(arco_target.damage == 2, "Arco Informe: 2 de dano em uma unidade inimiga (%d)" % arco_target.damage)
 
-	# Suspiro de Alívio: draws 1
+	# Suspiro de Alívio: draws 1, then discards 1 of the player's choice (cost 3)
 	g = _rich_game()
 	var suspiro := _give(g, 0, "suspiro_de_alivio")
 	var hand_before: int = g.players[0]["hand"].size()
+	var graveyard_before: int = g.players[0]["graveyard"].size()
+	check(CardDB.card("suspiro_de_alivio")["cost"] == 3, "Suspiro de Alívio: custa 3")
 	g.play_card(0, suspiro, 0)
 	_resolve_whole_stack(g)
-	check(g.players[0]["hand"].size() == hand_before, "Suspiro de Alívio: gasta a carta e compra 1 (mão %d -> %d)" % [hand_before, g.players[0]["hand"].size()])
+	check(g.phase == "search" and g.pending_search.get("discard_hand", false), "Suspiro de Alívio: depois de comprar, pede o descarte")
+	g.choose_search(0, int(g.pending_search["cards"][0]["uid"]))
+	check(
+		g.players[0]["hand"].size() == hand_before - 1,
+		"Suspiro de Alívio: gasta a carta, compra 1 e descarta 1 (mão %d -> %d)" % [hand_before, g.players[0]["hand"].size()],
+	)
+	check(
+		g.players[0]["graveyard"].size() == graveyard_before + 2,
+		"Suspiro de Alívio: a própria carta e a descartada vão para o cemitério",
+	)
 
 	# Afrouxar as Amarras: spells in hand cost 1 less (never below 1); units and the deck are untouched
 	g = _rich_game()
@@ -11442,7 +11472,8 @@ func _test_furia_blood_cards() -> void:
 	check(CardDB.card("sangria_desatada")["element"] == "sangue" and CardDB.card("gorbo_escarra_rubra")["element"] == "sangue", "Sangria e Gorbo são do elemento Sangue")
 	check(not CardDB.card("machadada_em_dobro").has("element"), "Machadada em Dobro não tem elemento")
 
-	# Sangria Desatada: o seu Líder sofre 3 e você compra 2 cartas
+	# Sangria Desatada: custa 2, o seu Líder sofre 3 e você compra 2 cartas
+	check(CardDB.card("sangria_desatada")["cost"] == 2, "Sangria Desatada: custa 2")
 	var g := _new_game()
 	_quiet(g)
 	g.players[0]["momentum"] = 10
@@ -13859,6 +13890,7 @@ func _test_glacial() -> void:
 	g.players[a]["momentum"] = 30
 	var hand_before: int = g.players[a]["hand"].size()
 	var graveyard_before: int = g.players[a]["graveyard"].size()
+	check(CardDB.card("folheio_pe_na_neve")["cost"] == 4 and CardDB.card("folheio_pe_na_neve")["speed"] == "rapido", "folheio: Rápido de custo 4")
 	var folheio_uid := _give(g, a, "folheio_pe_na_neve")
 	g.play_card(a, folheio_uid, 0)
 	for guard in 8:
@@ -13870,7 +13902,7 @@ func _test_glacial() -> void:
 	g.choose_search(a, discarded_uid)
 	var discarded_in_graveyard: bool = g.players[a]["graveyard"].any(func(c: Card): return c.uid == discarded_uid)
 	check(g.phase == "main" and discarded_in_graveyard, "folheio: a carta escolhida vai pro cemitério")
-	check(g.players[a]["hand"].size() == hand_before + 3 - 1, "folheio: comprou 3 e descartou 1 (a própria carta já saiu da mão)")
+	check(g.players[a]["hand"].size() == hand_before + 1, "folheio: compra 2 e descarta 1 (mão %d -> %d)" % [hand_before, g.players[a]["hand"].size()])
 	check(g.players[a]["graveyard"].size() == graveyard_before + 2, "folheio: cemitério ganhou o feitiço e a carta descartada")
 
 	# Weyne: her spell trigger works once per turn (buff and freeze), not once per spell
@@ -13901,7 +13933,11 @@ func _test_glacial() -> void:
 	check(frozen_victim.hp_left() == 20 - 1 and thawed_bystander.hp_left() == 20 - 2 - 2, "Mestra do Gelo Frígido: o feitiço glacial dá 1 de dano na unidade Congelada (e só nela)")
 	_cast_and_resolve(g, a, "estilhaco_gelido", thawed_bystander.uid)
 	check(frozen_victim.hp_left() == 20 - 2, "Mestra do Gelo Frígido: age a cada feitiço glacial, não só uma vez por turno")
-	check(CardDB.card("mestra_do_gelo_frigido")["atk"] == 2 and CardDB.card("mestra_do_gelo_frigido")["hp"] == 6 and CardDB.card("mestra_do_gelo_frigido")["cost"] == 4, "Mestra do Gelo Frígido é 2/6 de custo 4")
+	check(
+		CardDB.card("mestra_do_gelo_frigido")["atk"] == 2 and CardDB.card("mestra_do_gelo_frigido")["hp"] == 5
+		and CardDB.card("mestra_do_gelo_frigido")["cost"] == 4,
+		"Mestra do Gelo Frígido é 2/5 de custo 4",
+	)
 
 	# Estilhaço Gélido: 2 damage, 4 when the target is already Congelada
 	g = _glacial_game()

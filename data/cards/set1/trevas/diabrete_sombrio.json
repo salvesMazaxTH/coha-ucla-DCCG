@@ -3,12 +3,14 @@
   "set": 1,
   "type": "unit",
   "rarity": "common",
-  "tribe": ["demonio"],
+  "tribe": [
+    "demonio"
+  ],
   "essence": "trevas",
   "element": "sombra",
   "cost": 2,
   "atk": 2,
-  "hp": 2,
+  "hp": 1,
   "keywords": [
     "impeto"
   ],
@@ -24,9 +26,23 @@
       "trigger": "on_ally_death",
       "action": "damage",
       "target": "enemy_leader",
-      "amount": 1
+      "amount": 1,
+      "once_per_turn": true
+    },
+    {
+      "trigger": "on_ally_death",
+      "action": "draw",
+      "target": "own_leader",
+      "amount": 1,
+      "once_per_turn": true
+    },
+    {
+      "trigger": "on_ally_death",
+      "action": "discard_hand_pick",
+      "target": "none",
+      "once_per_turn": true
     }
   ],
-  "text": "Ao Morrer: causa 1 de dano ao Líder inimigo. Aliado Morre: causa 1 de dano ao Líder inimigo.",
+  "text": "Ao Morrer: causa 1 de dano ao Líder inimigo. Aliado Morre (1x por turno): causa 1 de dano ao Líder inimigo, você compra 1 carta e depois descarta 1 carta.",
   "flavor": "Ri até o último fôlego."
 }

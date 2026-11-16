@@ -5,7 +5,7 @@
   "rarity": "common",
   "essence": "neutra",
   "art": "neutra/suspiro_de_alivio.webp",
-  "cost": 2,
+  "cost": 3,
   "speed": "instantaneo",
   "effects": [
     {
@@ -13,8 +13,13 @@
       "action": "draw",
       "target": "own_leader",
       "amount": 1
+    },
+    {
+      "trigger": "on_play",
+      "action": "discard_hand_pick",
+      "target": "none"
     }
   ],
-  "text": "Você compra 1 carta.",
+  "text": "Você compra 1 carta e depois escolhe 1 carta da sua mão e a descarta.",
   "flavor": "Em Maginácia, respirar fundo em público exige um alvará. Em um porão, ninguém pede."
 }

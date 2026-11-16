@@ -14,8 +14,13 @@
       "action": "draw",
       "target": "own_leader",
       "amount": 2
+    },
+    {
+      "trigger": "on_play",
+      "action": "discard_hand_pick",
+      "target": "none"
     }
   ],
-  "text": "Você compra 2 cartas.",
+  "text": "Você compra 2 cartas e depois escolhe 1 carta da sua mão e a descarta.",
   "flavor": "Leu o livro inteiro correndo. Perdeu uma página no caminho."
 }

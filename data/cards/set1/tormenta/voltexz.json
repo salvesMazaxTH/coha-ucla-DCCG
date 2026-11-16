@@ -57,6 +57,6 @@
       "target": "none"
     }
   ],
-  "text": "Condicional: no início do seu turno, se sobraram 2 ou mais de Momentum, o custo desta carta diminui em (1) por Momentum que sobrou, até (4) por turno, onde quer que ela esteja.\nNo Início do Seu Turno: se sobraram 2 ou mais de Momentum até o seu desvirar, esta unidade ganha +2/+1 e Escudo Mágico até o fim do turno.\nAo Entrar: concede +X/+X permanente e Rapidez 1 (se for menor) às suas outras unidades, onde X é o Momentum restante + 1. Em seguida, você gasta todo o seu Momentum (a Bateria do seu Reservatório não conta).",
+  "text": "Ao Entrar: concede +X/+X permanente e Rapidez 1 (se for menor) às suas outras unidades, onde X é o Momentum restante + 1. Em seguida, você gasta todo o seu Momentum (a Bateria do seu Reservatório não conta).\nCondicional: no início do seu turno, se sobraram 2 ou mais de Momentum, o custo desta carta diminui em (1) por Momentum que sobrou, até (4) por turno, onde quer que ela esteja.\nNo Início do Seu Turno: se sobraram 2 ou mais de Momentum até o seu desvirar, esta unidade ganha +2/+1 e Escudo Mágico até o fim do turno.",
   "flavor": ""
 }
