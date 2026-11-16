@@ -1,0 +1,51 @@
+{
+  "name": "Hermes Pragueiro",
+  "set": 2,
+  "hp": 30,
+  "art": "natureza/hermes_pragueiro_lider.webp",
+  "incarnation": "hermes_pragueiro",
+  "ability": {
+    "name": "Peste de Bueiro",
+    "cost": 2,
+    "once_per_turn": true,
+    "speed": "lento",
+    "effects": [
+      {
+        "action": "summon",
+        "target": "none",
+        "card": "rato_de_esgoto"
+      },
+      {
+        "action": "add_dot",
+        "target": "random_enemy_unit",
+        "dot": "veneno",
+        "amount": 1,
+        "if": {
+          "compare": {
+            "stat": "tokens",
+            "who": "self",
+            "op": ">=",
+            "value": 3
+          }
+        }
+      },
+      {
+        "action": "heal_leader",
+        "target": "none",
+        "amount": 1,
+        "if": {
+          "compare": {
+            "stat": "tokens",
+            "who": "self",
+            "op": ">=",
+            "value": 3
+          }
+        }
+      }
+    ],
+    "text": "Lenta. 2 Momentum, uma vez por turno: cria 1 Rato de Esgoto. Depois, se você controla 3 ou mais fichas, uma unidade inimiga aleatória recebe 1 marcador de Veneno e seu Líder recupera 1 de Vida."
+  },
+  "essences": [
+    "natureza"
+  ]
+}

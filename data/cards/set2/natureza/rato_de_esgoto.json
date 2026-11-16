@@ -1,0 +1,17 @@
+{
+  "name": "Rato de Esgoto",
+  "set": 2,
+  "type": "unit",
+  "rarity": "common",
+  "token": true,
+  "tribe": ["fera"],
+  "essence": "natureza",
+  "cost": 0,
+  "atk": 1,
+  "hp": 2,
+  "keywords": [],
+  "art": "natureza/rato_de_esgoto.webp",
+  "effects": [],
+  "text": "Ficha: não vai para o cemitério ao morrer.",
+  "flavor": ""
+}
