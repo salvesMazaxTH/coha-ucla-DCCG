@@ -10,7 +10,7 @@ This migration prepares the first account-backed data the game needs:
 
 1. Create a Supabase project and enable **Google** under Authentication → Sign In / Providers.
 2. Configure the Google OAuth client and add the game's deployed URL to Supabase Auth's allowed redirect URLs. The Google provider callback is the Supabase Auth callback URL shown in the provider setup. For the desktop build, also add `http://127.0.0.1:54321/**` to the redirect URLs (the game opens the browser and listens on that loopback port for the login to finish).
-3. Run migrations in order in the Supabase SQL Editor (or with the Supabase CLI): `202610250001_profiles_and_decks.sql`, `202610250002_harden_public_grants.sql`, `202610250003_deck_limit.sql`, and `202611040001_deck_match_stats.sql`.
+3. Run migrations in order in the Supabase SQL Editor (or with the Supabase CLI): `202610250001_profiles_and_decks.sql`, `202610250002_harden_public_grants.sql`, `202610250003_deck_limit.sql`, `202611040001_deck_match_stats.sql`, and `202611150001_profile_stats.sql`.
 4. The browser client is configured in `scripts/net/supabase_auth.gd` with the project URL and publishable key.
 
 The publishable/anon key is expected to be visible in a web client; the RLS policies are the access boundary. Never put a `service_role` or secret key in a Godot export, browser script, or repository.
@@ -33,6 +33,10 @@ The match server reads these settings from its environment variables or, when a 
 - `SUPABASE_PUBLISHABLE_KEY` (optional): defaults to the client's publishable key, which is almost always what you want; used for token and deck validation. Not a secret. The old `SUPABASE_ANON_KEY` name is ignored (a stale value made Supabase refuse every account), so remove it from `.env`.
 - `SUPABASE_SERVICE_ROLE_KEY`: the server-only service role key of **that same project**, used to record results. Never include it in a client export, repository, browser code or public logs. Without it accounts are still validated and rooms work, but results stay in the pending queue until the key is set.
 - `MATCH_STATS_QUEUE_PATH` (optional): absolute path to the persistent pending-results file. The default is `user://match_stats_pending.json` under Godot's application data directory.
+
+## Profile statistics
+
+The profile screen (button next to the account button in the main menu) reads the account's own `deck_match_results` rows and computes everything on the client. Since `202611150001_profile_stats.sql`, each row also stores a snapshot of the deck at match time (`leader_id`, `deck_cards`, `deck_domains`) and `card_plays` (how many times each card was played in that match). Older rows have these columns null: the client uses the deck's current contents instead, and the "times played" tie-break only counts newer matches.
 
 Apply the migration before starting the updated server. A database outage leaves completed results queued and shows a pending warning; the server retries them. Players may see a loading or unavailable state until their account data can be refreshed.
 

@@ -234,16 +234,21 @@ func _init() -> void:
 func _test_profile_stats() -> void:
 	var snapshot := {"carga_acumulada": 2, "diabrete_eletrico": 3}
 	var rows := [
-		{"deck_key": "eryon", "result": "win", "leader_id": "eryon", "deck_cards": snapshot, "card_plays": {"carga_acumulada": 4}},
-		{"deck_key": "eryon", "result": "win", "leader_id": "eryon", "deck_cards": snapshot, "card_plays": {}},
-		{"deck_key": "eryon", "result": "loss"},
-		{"deck_key": "mine:apagado", "result": "win"},
-		{"deck_key": "eryon", "result": "abandoned"},
+		{"deck_key": "eryon", "result": "win", "created_at": "2026-11-15T10:05:00Z", "leader_id": "eryon", "deck_cards": snapshot,
+			"card_plays": {"carga_acumulada": 4}},
+		{"deck_key": "eryon", "result": "win", "created_at": "2026-11-15T10:04:00Z", "leader_id": "eryon", "deck_cards": snapshot,
+			"card_plays": {}},
+		{"deck_key": "eryon", "result": "loss", "created_at": "2026-11-15T10:03:00Z"},
+		{"deck_key": "mine:apagado", "result": "win", "created_at": "2026-11-15T10:02:00Z"},
+		{"deck_key": "eryon", "result": "abandoned", "created_at": "2026-11-15T10:01:00Z"},
 	]
 	var stats := ProfileStats.compute(rows, [])
-	check(stats.games == 4 and stats.wins == 3 and stats.losses == 1, "perfil: totais %s" % [[stats.games, stats.wins, stats.losses]])
-	check(stats.current_streak.result == "win" and stats.current_streak.length == 2, "perfil: sequência atual")
-	check(stats.best_win_streak == 2 and stats.tracked_play_games == 2, "perfil: maior sequência / partidas com entradas")
+	check(stats.games == 4 and stats.tracked_play_games == 2, "perfil: partidas %s / com entradas %s" % [stats.games, stats.tracked_play_games])
+	for forbidden_key in ["wins", "losses", "draws", "current_streak", "best_win_streak"]:
+		check(not stats.has(forbidden_key), "perfil: sem total geral de resultados (%s)" % forbidden_key)
+	check(stats.known_deck_games == 3, "perfil: partidas com deck conhecido %s" % stats.known_deck_games)
+	check(stats.recent.size() == 4 and stats.recent[0].result == "win", "perfil: últimas partidas trazem o resultado")
+	check(stats.favorite_deck.wins == 2 and stats.best_domains.size() > 0, "perfil: vitórias por deck e por domínio continuam")
 	check(stats.favorite_deck.key == "eryon" and stats.favorite_deck.games == 3, "perfil: deck favorito")
 	check(stats.favorite_cards.size() == 2 and stats.favorite_cards[0].card_id == "diabrete_eletrico", "perfil: carta favorita por cópias")
 	check(stats.most_played_card.get("card_id", "") == "carga_acumulada", "perfil: carta mais jogada")
@@ -264,15 +269,24 @@ func _test_profile_stats() -> void:
 	# a full tie in decks and cards gives the same favorites whatever the order of the rows
 	var tied_cards := {"carga_acumulada": 2, "diabrete_eletrico": 2, "voltexz": 2, "cristal_de_momentum": 2}
 	var tied_rows := [
-		{"deck_key": "eryon", "result": "win", "leader_id": "eryon", "deck_cards": tied_cards, "card_plays": {}},
-		{"deck_key": "sengoku", "result": "win", "leader_id": "eryon", "deck_cards": tied_cards, "card_plays": {}},
+		{"deck_key": "eryon", "result": "win", "created_at": "2026-11-10T10:00:00Z", "leader_id": "eryon", "deck_cards": tied_cards, "card_plays": {}},
+		{"deck_key": "sengoku", "result": "win", "created_at": "2026-11-11T10:00:00Z", "leader_id": "eryon", "deck_cards": tied_cards, "card_plays": {}},
 	]
 	var tied_first := ProfileStats.compute(tied_rows, [])
 	tied_rows.reverse()
 	var tied_second := ProfileStats.compute(tied_rows, [])
 	var first_cards: Array = tied_first.favorite_cards.map(func(entry: Dictionary) -> String: return entry.card_id)
 	var second_cards: Array = tied_second.favorite_cards.map(func(entry: Dictionary) -> String: return entry.card_id)
-	check(tied_first.favorite_deck.key == "eryon" and tied_second.favorite_deck.key == "eryon", "perfil: empate de decks resolvido pela chave")
+	check(tied_first.favorite_deck.key == "sengoku" and tied_second.favorite_deck.key == "sengoku", "perfil: empate de decks vai para o jogado mais recentemente, em qualquer ordem das linhas")
+	# the two seats of one match share a created_at: the order of the rows must not matter either
+	var same_time_rows := [
+		{"deck_key": "sengoku", "result": "win", "created_at": "2026-11-11T10:00:00Z"},
+		{"deck_key": "eryon", "result": "win", "created_at": "2026-11-11T10:00:00Z"},
+	]
+	var same_time_first := ProfileStats.compute(same_time_rows, [])
+	same_time_rows.reverse()
+	var same_time_second := ProfileStats.compute(same_time_rows, [])
+	check(same_time_first.favorite_deck.key == same_time_second.favorite_deck.key, "perfil: mesmo horário dá o mesmo favorito em qualquer ordem")
 	check(first_cards == second_cards and first_cards.size() == 3, "perfil: empate total entre cartas dá sempre a mesma ordem")
 
 

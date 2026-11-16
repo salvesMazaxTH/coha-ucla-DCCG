@@ -116,7 +116,8 @@ func identify(token: String, deck_key: String, payload: Variant) -> Dictionary:
 			return {"error": "O deck mudou na conta. Atualize a lista e tente novamente."}
 	return {"user_id": String(user.data.id), "deck_key": deck_key, "error": ""}
 
-func enqueue(match_id: String, identities: Array, winner: int) -> bool:
+## `profile_data` holds, per seat, the extra profile columns (leader_id, deck_cards, deck_domains, card_plays).
+func enqueue(match_id: String, identities: Array, winner: int, profile_data: Array = [{}, {}]) -> bool:
 	if not _queue_valid:
 		return false
 	var results: Array = []
@@ -124,8 +125,11 @@ func enqueue(match_id: String, identities: Array, winner: int) -> bool:
 		var identity: Dictionary = identities[seat]
 		if String(identity.get("user_id", "")).is_empty():
 			continue
-		results.append({"match_id": match_id, "seat": seat, "user_id": identity.user_id,
-			"deck_key": identity.deck_key, "result": "draw" if winner == 2 else ("win" if winner == seat else "loss")})
+		var row := {"match_id": match_id, "seat": seat, "user_id": identity.user_id,
+			"deck_key": identity.deck_key, "result": "draw" if winner == 2 else ("win" if winner == seat else "loss")}
+		if seat < profile_data.size() and profile_data[seat] is Dictionary:
+			row.merge(profile_data[seat])
+		results.append(row)
 	if results.is_empty():
 		return true
 	pending.append({"match_id": match_id, "results": results})

@@ -1,6 +1,8 @@
 // Loaded by SupabaseAuth.gd only in the Godot Web export. Supabase's browser
 // client owns OAuth PKCE, refresh, and its persistent browser session.
 (() => {
+	const MATCH_HISTORY_BASE_COLUMNS = "deck_key,result,created_at";
+	const MATCH_HISTORY_COLUMNS = MATCH_HISTORY_BASE_COLUMNS + ",leader_id,deck_cards,deck_domains,card_plays";
 	const bridge = {
 		sdkReady: false,
 		client: null,
@@ -36,6 +38,8 @@
 					this.state.decks = [];
 					this.state.deck_stats = [];
 					this.state.stats_status = "guest";
+					this.state.match_history = [];
+					this.state.history_status = "idle";
 				}
 			});
 			void this.completeOAuthCallback();
@@ -134,6 +138,30 @@
 				}
 			} finally {
 				this.statsRefreshing = false;
+			}
+		},
+		// Every online match of this account, newest first, for the profile screen.
+		async loadMatchHistory() {
+			if (!this.client || !this.state.signed_in) return;
+			const userId = this.state.user.id;
+			this.state.history_status = "loading";
+			try {
+				let result = await this.client.from("deck_match_results").select(MATCH_HISTORY_COLUMNS).order("created_at", { ascending: false });
+				// before the profile migration runs, only the original columns exist
+				if (result.error) result = await this.client.from("deck_match_results").select(MATCH_HISTORY_BASE_COLUMNS).order("created_at", { ascending: false });
+				if (!this.state.signed_in || this.state.user.id !== userId) return;
+				if (result.error) {
+					this.state.match_history = [];
+					this.state.history_status = "error";
+				} else {
+					this.state.match_history = result.data || [];
+					this.state.history_status = "ready";
+				}
+			} catch (error) {
+				if (this.state.signed_in && this.state.user.id === userId) {
+					this.state.match_history = [];
+					this.state.history_status = "error";
+				}
 			}
 		},
 		async saveDeck(id, name, content) {

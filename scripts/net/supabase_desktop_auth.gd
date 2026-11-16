@@ -19,6 +19,8 @@ const SESSION_FILE := "user://supabase_session.dat"
 const LOGIN_WAIT_LIMIT := 300.0
 ## Refresh the access token this many seconds before it expires.
 const REFRESH_MARGIN := 60
+const MATCH_HISTORY_BASE_COLUMNS := "deck_key,result,created_at"
+const MATCH_HISTORY_COLUMNS := MATCH_HISTORY_BASE_COLUMNS + ",leader_id,deck_cards,deck_domains,card_plays"
 
 var project_url := ""
 var publishable_key := ""
@@ -104,6 +106,8 @@ func sign_out() -> void:
 	state.decks = []
 	state.deck_stats = []
 	state.stats_status = "guest"
+	state.match_history = []
+	state.history_status = "idle"
 	state.error = ""
 	_publish()
 
@@ -189,6 +193,8 @@ func _refresh_session() -> bool:
 	state.user = {}
 	state.deck_stats = []
 	state.stats_status = "guest"
+	state.match_history = []
+	state.history_status = "idle"
 	_publish()
 	return false
 
@@ -293,6 +299,23 @@ func refresh_deck_stats() -> void:
 		state.error = "Não foi possível carregar as estatísticas: " + String(response.error)
 	if before != [state.deck_stats, state.stats_status, state.error]:
 		_publish()
+
+## Every online match of this account, newest first, for the profile screen.
+func load_match_history() -> void:
+	if not state.signed_in:
+		return
+	var user_id := String(state.user.get("id", ""))
+	state.history_status = "loading"
+	_publish()
+	var path := "/rest/v1/deck_match_results?select=%s&order=created_at.desc"
+	var response := await _send(HTTPClient.METHOD_GET, path % MATCH_HISTORY_COLUMNS)
+	if not response.ok: # before the profile migration runs, only the original columns exist
+		response = await _send(HTTPClient.METHOD_GET, path % MATCH_HISTORY_BASE_COLUMNS)
+	if not state.signed_in or String(state.user.get("id", "")) != user_id:
+		return
+	state.match_history = response.data if response.ok and response.data is Array else []
+	state.history_status = "ready" if response.ok else "error"
+	_publish()
 
 func save_deck(deck_id: String, deck_name: String, content: Dictionary) -> void:
 	if not state.signed_in:

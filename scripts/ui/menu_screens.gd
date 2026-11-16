@@ -8,6 +8,8 @@ const DomainIconRowScript = preload("res://scripts/ui/domain_icon_row.gd")
 const DeckLeaderTooltipScript = preload("res://scripts/ui/deck_leader_tooltip.gd")
 const BannedRibbonScript = preload("res://scripts/ui/banned_ribbon.gd")
 var account_button: Button
+var profile_button: Button
+var profile_view: ProfileView ## the player's statistics window (child of Main)
 var _account_was_signed_in := false
 var _session_was_checked := false
 ## The entry screen (Google / guest) comes before the mode buttons; this turns true once the player
@@ -314,6 +316,11 @@ func _add_menu_mode_buttons() -> void:
 	account_button.size = Vector2(300, 52)
 	account_button.tooltip_text = "Vincule sua conta para salvar perfil e decks."
 	host.layer.add_child(account_button)
+	profile_button = host.make_button("PERFIL", open_profile)
+	profile_button.position = Vector2(336, 24)
+	profile_button.size = Vector2(150, 52)
+	profile_button.tooltip_text = "Suas estatísticas das partidas online."
+	host.layer.add_child(profile_button)
 	_update_account_button()
 
 
@@ -358,6 +365,10 @@ func on_supabase_auth_state_changed(auth_state: Dictionary) -> void:
 
 
 func _update_account_button() -> void:
+	if is_instance_valid(profile_button):
+		profile_button.visible = SupabaseAuth.is_signed_in()
+	if not SupabaseAuth.is_signed_in():
+		close_profile()
 	if not is_instance_valid(account_button):
 		return
 	if SupabaseAuth.is_signed_in():
@@ -1067,6 +1078,24 @@ func close_decklist() -> void:
 		return
 	var old_view: DecklistView = host.decklist_view
 	host.decklist_view = null
+	if old_view.get_parent() != null:
+		old_view.get_parent().remove_child(old_view)
+	old_view.queue_free()
+
+
+func open_profile() -> void:
+	close_profile()
+	profile_view = ProfileView.new().open(Vector2(host.stage_w, host.STAGE_H))
+	profile_view.closed.connect(close_profile)
+	profile_view.card_chosen.connect(_show_decklist_card)
+	host.add_child(profile_view)
+
+
+func close_profile() -> void:
+	if profile_view == null:
+		return
+	var old_view := profile_view
+	profile_view = null
 	if old_view.get_parent() != null:
 		old_view.get_parent().remove_child(old_view)
 	old_view.queue_free()

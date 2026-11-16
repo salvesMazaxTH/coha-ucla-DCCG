@@ -130,6 +130,13 @@ func refresh_deck_stats() -> void:
 	else:
 		_call_bridge("refreshDeckStats", [])
 
+## Fills state.match_history (and state.history_status) for the profile screen.
+func load_match_history() -> void:
+	if _desktop_auth:
+		_desktop_auth.load_match_history()
+	else:
+		_call_bridge("loadMatchHistory", [])
+
 func save_deck(deck_id: String, deck_name: String, content: Dictionary) -> void:
 	if _desktop_auth:
 		_desktop_auth.save_deck(deck_id, deck_name, content)

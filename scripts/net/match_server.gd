@@ -247,6 +247,7 @@ func _handle_room(r: Dictionary, seat: int, m: Dictionary) -> void:
 	var g: GameState = r["g"]
 	if m.get("a", "") == "auto": # a setting, not a move: allowed off-turn, never rejected
 		var ev := g.set_auto_pass(seat, bool(m.get("on", true)))
+		_count_plays(r, ev)
 		_record_if_over(r)
 		for s in 2:
 			_send(r["peers"][s], {"t": "events", "events": StateView.filter_events(ev, s), "snap": StateView.snapshot(g, s)})
@@ -254,6 +255,7 @@ func _handle_room(r: Dictionary, seat: int, m: Dictionary) -> void:
 	# PASSAR TUDO is a setting and can be switched during the opponent's turn.
 	if m.get("a", "") == "pass_all":
 		var pass_all_events := g.pass_rest_of_turn(seat) if bool(m.get("on", true)) else g.cancel_pass_rest_of_turn(seat)
+		_count_plays(r, pass_all_events)
 		_record_if_over(r)
 		for s in 2:
 			_send(r["peers"][s], {"t": "events", "events": StateView.filter_events(pass_all_events, s), "snap": StateView.snapshot(g, s)})
@@ -262,9 +264,39 @@ func _handle_room(r: Dictionary, seat: int, m: Dictionary) -> void:
 	if events.is_empty():
 		_send(r["peers"][seat], {"t": "reject", "a": m.get("a", "")})
 		return
+	_count_plays(r, events)
 	_record_if_over(r)
 	for s in 2:
 		_send(r["peers"][s], {"t": "events", "events": StateView.filter_events(events, s), "snap": StateView.snapshot(g, s)})
+
+## Counts every card each seat played, for the profile's "most played" numbers.
+func _count_plays(r: Dictionary, events: Array) -> void:
+	if not r.has("plays"):
+		r["plays"] = [{}, {}]
+	for event in events:
+		if event is Dictionary and event.get("type", "") == "play":
+			var seat := int(event.get("player", -1))
+			var card_id := String(event.get("card_id", ""))
+			if seat in [0, 1] and not card_id.is_empty():
+				r["plays"][seat][card_id] = int(r["plays"][seat].get(card_id, 0)) + 1
+
+## What each seat's deck looked like in this match, plus what was played from it.
+func _profile_data(r: Dictionary) -> Array:
+	var data: Array = [{}, {}]
+	for seat in 2:
+		var deck_id := String(r["decks"][seat])
+		if deck_id.is_empty() or not DeckDB.has(deck_id):
+			continue
+		var deck: Dictionary = DeckDB.get_deck(deck_id)
+		var leader_id := String(deck.get("leader", ""))
+		var cards: Dictionary = deck.get("cards", {})
+		data[seat] = {
+			"leader_id": leader_id,
+			"deck_cards": cards,
+			"deck_domains": DeckDB.domains_in(leader_id, cards, String(deck.get("incarnation_id", ""))),
+			"card_plays": r.get("plays", [{}, {}])[seat],
+		}
+	return data
 
 func _record_if_over(r: Dictionary) -> void:
 	var g: GameState = r["g"]
@@ -273,7 +305,7 @@ func _record_if_over(r: Dictionary) -> void:
 	if DeckDB.development_mode_enabled():
 		r["stats_queued"] = true
 		return
-	if stats.enqueue(r["match_id"], r["identities"], g.winner):
+	if stats.enqueue(r["match_id"], r["identities"], g.winner, _profile_data(r)):
 		r["stats_queued"] = true
 		r["stats_retry"] = false
 	else:
@@ -313,6 +345,7 @@ func _apply(g: GameState, p: int, m: Dictionary) -> Array:
 				int(m.get("slot", -1)), int(m.get("banish", 0)),
 			)
 		"store_in_reservoir": return g.store_in_reservoir(p, int(m.get("uid", 0)))
+		"return_reservoir_card": return g.return_reservoir_card(p, int(m.get("uid", 0)))
 		"incarnation": return g.cast_incarnation(p, int(m.get("target", 0)), int(m.get("slot", -1)), int(m.get("banish", 0)))
 		"ability": return g.use_ability(p, int(m.get("target", 0)))
 		"activate": return g.activate(p, int(m.get("uid", 0)), int(m.get("target", 0)), int(m.get("payer", 0)))
@@ -334,4 +367,3 @@ func _apply(g: GameState, p: int, m: Dictionary) -> Array:
 func _send(ws, msg: Dictionary) -> void:
 	if ws != null and ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
 		ws.send_text(JSON.stringify(msg))
-		"return_reservoir_card": return g.return_reservoir_card(p, int(m.get("uid", 0)))
