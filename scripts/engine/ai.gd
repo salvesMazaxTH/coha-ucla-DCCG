@@ -11,6 +11,8 @@ const LATE_GAME_TURN := 16
 const LADEIRA_CARD_ID := "ladeira_abaixo_e_sem_freio"
 const SNOWBALL_CARD_IDS := ["bola_de_neve", "grande_bola_de_neve"]
 const SNOWBALL_COMBO_MIN_ENEMY_UNITS := 2
+const PROTECTED_UNIT_MIN_ATK := 6 ## a unit with at least this Ataque and PROTECTED_UNIT_MIN_HP of total Vida is never sacrificed
+const PROTECTED_UNIT_MIN_HP := 3
 
 ## The Encarnação competes with the hand (see _untaxed_incarnation_should_come_first and _incarnation_rank_against_hand).
 const INCARNATION_WALL_MIN_UNITS := 4 ## an enemy board this wide may be too dangerous to cast into
@@ -244,11 +246,14 @@ static func _choose_search(g: GameState) -> int:
 			return GameState.RESERVOIR_PICK_BOTTOM
 		return int(g.pending_search["cards"][0]["uid"])
 	# a discard and a forced sacrifice (Censo de Baixas) both give up the least valuable option
+	if g.pending_search.get("sacrifice_pick", false):
+		var board_uids: Array = []
+		for option in g.pending_search.get("cards", []):
+			board_uids.append(int(option["uid"]))
+		return _pick_weakest_sacrifice(g, board_uids, true)
 	var discarding: bool = (
 		g.pending_search.get("discard_hand", false)
-		or g.pending_search.get("sacrifice_pick", false) or g \
-				.pending_search \
-				.get("own_hand_bottom", false)
+		or g.pending_search.get("own_hand_bottom", false)
 	)
 	if g.pending_search.get("hand_bottom", false):
 		# Bob Veyr: take the opponent's best card, unless it is a unit and the discards would cost more than it is worth
@@ -512,6 +517,8 @@ static func _try_play_card(g: GameState, p: int, card: Card) -> Array:
 		if card_data.get("cost_sacrifice", false)
 		else _pick_target(g, p, spec, card_data, 0, not is_unit)
 	)
+	if card_data.get("cost_sacrifice", false) and target == 0:
+		return [] # every ally is too strong to give up
 	var spec2 := g.second_spec(card_data)
 	var second_target := 0
 	if _has_sacrifice_effect(card_data):
@@ -1183,14 +1190,32 @@ static func _pick_fight(g: GameState, p: int) -> Array:
 	return best_pair
 
 
-## Additional sacrifice cost: give up the weakest ally.
+## Additional sacrifice cost: give up the weakest ally, or nobody (0) when every ally is too strong to lose.
 static func _pick_sacrifice(g: GameState, p: int) -> int:
-	var weakest_uid := 0
-	var weakest_score := 999
+	var ally_uids: Array = []
 	for unit: Card in g.players[p]["board"]:
-		var score: int = unit.atk_total() + unit.hp_left()
-		if score < weakest_score:
-			weakest_score = score
+		ally_uids.append(unit.uid)
+	return _pick_weakest_sacrifice(g, ally_uids)
+
+
+## A unit this strong is never given up for a sacrifice, not even the only one on the board.
+## A favorable trade (a finisher that kills the Leader, or a sacrifice spell that takes a pricier enemy unit) is planned separately.
+static func _is_too_strong_to_sacrifice(g: GameState, unit: Card) -> bool:
+	return g.atk_of(unit) >= PROTECTED_UNIT_MIN_ATK and unit.hp_total() >= PROTECTED_UNIT_MIN_HP
+
+
+## The weakest of `option_uids` to give up (lowest _unit_value), skipping the protected strong units. 0 when none is left.
+## `forced`: the sacrifice cannot be refused (an enemy Censo de Baixas), so the protection is lifted.
+static func _pick_weakest_sacrifice(g: GameState, option_uids: Array, forced := false) -> int:
+	var weakest_uid := 0
+	var weakest_value := 999
+	for uid in option_uids:
+		var unit := g.find_unit(int(uid))
+		if unit == null or (not forced and _is_too_strong_to_sacrifice(g, unit)):
+			continue
+		var value := _unit_value(g, unit)
+		if value < weakest_value:
+			weakest_value = value
 			weakest_uid = unit.uid
 	return weakest_uid
 
@@ -1226,6 +1251,8 @@ static func _pick_extra_cost_payer(g: GameState, p: int, card_data: Dictionary, 
 	var cheapest_value := 999
 	for uid in g.valid_targets(p, String(extra_cost["target"])):
 		var unit := g.find_unit(int(uid))
+		if unit != null and extra_cost["kind"] == "sacrifice" and _is_too_strong_to_sacrifice(g, unit):
+			continue
 		if unit != null and _unit_value(g, unit) < cheapest_value:
 			cheapest_value = _unit_value(g, unit)
 			cheapest_uid = unit.uid
@@ -1310,6 +1337,8 @@ static func _pick_target(g: GameState, p: int, spec: String, source, self_uid :=
 		options = equipment_targets
 	if options.is_empty():
 		return 0
+	if _has_sacrifice_effect({ "effects": effects }):
+		return _pick_weakest_sacrifice(g, options) # Jeff, Eryon, Esther...: the weakest ally goes, never the best one
 	if spec == "ally_or_own_leader":
 		return _most_damaged(g, p, options)
 	if spec in ["enemy_artifact", "ally_artifact", "any_artifact"]:
