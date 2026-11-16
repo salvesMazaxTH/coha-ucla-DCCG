@@ -1743,11 +1743,12 @@ func _refresh_deck_panel() -> void:
 	# a neutral Leader's own domain is Neutro, which takes one of the places
 	var leader_is_neutral: bool = (CardDB.leader(_leader)["essences"] as Array).all(func(domain): return domain == "neutra")
 	var domain_count: int = (totals["deck_domains"] as Array).size() + (1 if leader_is_neutral else 0)
-	if not domains_are_valid:
+	var domains_fit: bool = totals["domains_fit"]
+	if not domains_fit:
 		domain_count = DeckDB.MAX_DOMAINS + 1
-	_set_meter("domains", domain_count, DeckDB.MAX_DOMAINS, GOOD if domains_are_valid else BAD)
+	_set_meter("domains", domain_count, DeckDB.MAX_DOMAINS, GOOD if domains_fit else BAD)
 	var used_domains: Array = (totals["deck_domains"] as Array).duplicate()
-	if leader_is_neutral and domains_are_valid:
+	if leader_is_neutral and domains_fit:
 		used_domains.push_front("neutra")
 	_set_meter_badges("domains", used_domains)
 	var main_copies: int = totals["main_copies"]

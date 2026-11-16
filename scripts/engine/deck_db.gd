@@ -366,7 +366,7 @@ static func domain_check(leader_id: String, cards: Dictionary) -> Dictionary:
 				best_domain = domain
 		main_domains = [best_domain]
 		main_copies = int(copies_by_domain.get(best_domain, 0))
-	var result := {"domains": [], "mode": "invalid", "error": "", "main_domains": main_domains, "main_copies": main_copies}
+	var result := {"domains": [], "mode": "invalid", "error": "", "domains_fit": false, "main_domains": main_domains, "main_copies": main_copies}
 	# a neutral Leader's own domain (Neutro) takes one of the MAX_DOMAINS places
 	var other_domains_allowed := MAX_DOMAINS - maxi(1, leader_domains.size())
 	var other_domains: Array = CardDB.DOMAIN_ORDER.filter(func(domain): return domain != "neutra" and not leader_domains.has(domain))
@@ -379,6 +379,7 @@ static func domain_check(leader_id: String, cards: Dictionary) -> Dictionary:
 	if not domains_found:
 		result["error"] = "o deck usa domínios demais (máximo %d, contando o do Líder)" % MAX_DOMAINS
 		return result
+	result["domains_fit"] = true
 	var room_outside_main := DECK_SIZE + 1 - MAIN_DOMAIN_MIN
 	if total_copies - main_copies > room_outside_main:
 		result["error"] = "o domínio principal precisa de %d cartas, e as outras já passam de %d" % [MAIN_DOMAIN_MIN, room_outside_main]
@@ -405,7 +406,8 @@ static func is_deckable(card_id: String, leader_id := "") -> bool:
 ##   total              cards that are drawn (one selected Encarnação copy is not counted)
 ##   elite              Champions, counting copies
 ##   domain_mode        "ok" or "invalid" (see domain_check)
-##   deck_domains       the domains the deck uses (empty when invalid)
+##   deck_domains       the domains the deck uses (empty when it has too many domains)
+##   domains_fit        false only when the deck needs more than MAX_DOMAINS domains
 ##   domain_error       why the domains are not allowed ("" when they are)
 ##   main_domains       the main domain and main_copies, its cards (see domain_check)
 ##   incarnation        copies of the Leader's Encarnação in the list
@@ -427,6 +429,7 @@ static func stats(leader_id: String, cards: Dictionary, selected_incarnation_id 
 		"elite": elite_cards,
 		"domain_mode": domain_result["mode"],
 		"deck_domains": domain_result["domains"],
+		"domains_fit": domain_result["domains_fit"],
 		"domain_error": domain_result["error"],
 		"main_domains": domain_result["main_domains"],
 		"main_copies": domain_result["main_copies"],

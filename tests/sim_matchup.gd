@@ -6,6 +6,7 @@ extends SceneTree
 ## With "piloto", seat 0 (deck_a, meant to be glacial_combo) is played by the scripted ComboPilot.
 
 const ComboPilot = preload("res://tests/combo_pilot.gd")
+const RonanPilot = preload("res://tests/ronan_pilot.gd")
 
 ## Turns a command-line deck argument into a deck id DeckDB knows: prebuilt ids pass through,
 ## a deck code or a .json file is registered as a custom deck under `custom_id`.
@@ -48,7 +49,11 @@ func _init() -> void:
 		while g.phase != "over" and guard < 5000:
 			guard += 1
 			var decider: int = g.decider()
-			var events: Array = ComboPilot.step(g, decider) if use_pilot and decider == 0 else SimpleAI.step(g, decider)
+			var events: Array
+			if use_pilot and decider == 0:
+				events = RonanPilot.step(g, decider) if g.players[0]["leader_id"] == "ronan" else ComboPilot.step(g, decider)
+			else:
+				events = SimpleAI.step(g, decider)
 			if events.is_empty():
 				break
 		if g.phase != "over":
@@ -87,7 +92,23 @@ func _init() -> void:
 		if own_turn in [5, 6, 7, 8, 9, 10, 12, 15, 20]:
 			cumulative_text += " até T%d: %.0f%%" % [own_turn, 100.0 * cumulative / max(1, seat_zero_wins)]
 	print("vitórias do assento 0 por turno próprio (acumulado):" + cumulative_text)
-	if use_pilot:
+	if use_pilot and not RonanPilot.potential_by_turn.is_empty():
+		var fired_text := ""
+		for own_turn in range(1, 31):
+			if RonanPilot.fired_by_turn.has(own_turn):
+				fired_text += " T%d:%d" % [own_turn, RonanPilot.fired_by_turn[own_turn]]
+		print("combo do Ronan disparado por turno próprio:" + fired_text)
+		for own_turn in range(4, 14):
+			var damages: Array = RonanPilot.potential_by_turn.get(own_turn, [])
+			if damages.is_empty():
+				continue
+			var total := 0
+			var best := 0
+			for damage: int in damages:
+				total += damage
+				best = maxi(best, damage)
+			print("dano máximo montável no T%d: média %.1f | máx %d | amostras %d" % [own_turn, float(total) / damages.size(), best, damages.size()])
+	elif use_pilot:
 		for own_turn in range(5, 13):
 			var samples: Array = ComboPilot.potential_by_turn.get(own_turn, [])
 			if samples.is_empty():
