@@ -207,6 +207,20 @@ func top_piece_outline() -> PackedVector2Array:
 		outline.append(corners[corner_count * 3 + i])
 	return outline
 
+## Everything that makes up the Leader on screen, as outlines in local coordinates: the plate, the HP gem
+## and the ability gem with its cost and label. A death that unmakes the whole Leader takes these apart.
+func whole_card_outlines() -> Array:
+	var hp_gem := PackedVector2Array([HP_C + Vector2(-20, -20), HP_C + Vector2(20, -20), HP_C + Vector2(20, 2), HP_C + Vector2(0, 24), HP_C + Vector2(-20, 2)])
+	var ability_gem := PackedVector2Array()
+	for corner in 20:
+		ability_gem.append(AC + Vector2.from_angle(TAU * corner / 20.0) * (AR + 4.0))
+	var cost_gem := PackedVector2Array()
+	var cost_center := AC + Vector2(AR * 0.75, -AR * 0.75)
+	for corner in 4:
+		cost_gem.append(cost_center + Vector2.from_angle(TAU * corner / 4.0) * 12.0)
+	var ability_label := PackedVector2Array([AC + Vector2(-42, AR + 3), AC + Vector2(42, AR + 3), AC + Vector2(42, AR + 20), AC + Vector2(-42, AR + 20)])
+	return [_rrect_pts(PLATE.grow(1.0), RAD), _grow(hp_gem, HP_C, 1.18), ability_gem, cost_gem, ability_label]
+
 ## Center of the pile's top card, in this control's coordinates: drawn cards fly out from here.
 static func deck_top_center(count: int) -> Vector2:
 	return deck_top_left(count) + CardView.BASE * DECK_CARD_SCALE / 2.0

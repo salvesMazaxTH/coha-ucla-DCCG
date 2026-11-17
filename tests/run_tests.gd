@@ -7311,6 +7311,14 @@ func _test_fragmentos_de_rai() -> void:
 	var spell := CardDB.card(source_id)
 	check(int(spell.get("max_copies", 0)) == 10 and spell.has("fragment_payoff"), "Fragmento: carta real com 10 cópias e ritual")
 	check(CardDB.card("rai_imortal_imperfeito").get("undraftable", false), "Rai, Imortal Imperfeito: não entra em deck")
+	var rai_execution_style := ""
+	for effect in CardDB.card("rai_imortal_imperfeito").get("effects", []):
+		if effect.get("action", "") == "kill_leader":
+			rai_execution_style = String(effect.get("execution_style", ""))
+	check(
+		rai_execution_style == "rai",
+		"Rai, Imortal Imperfeito: a execução usa a animação própria (execution_style rai)",
+	)
 
 	# O limite de cópias vem do max_copies da carta, não do padrão
 	check(DeckDB.copy_limit(source_id) == 10, "Fragmento: o limite de cópias no deck é 10")
@@ -7343,25 +7351,30 @@ func _test_fragmentos_de_rai() -> void:
 		var expected_hp: int = 1 if int(case[0]) <= 6 else int(case[0]) - 6
 		check(int(g.players[0]["leader_hp"]) == expected_hp, "non_lethal: Líder com %d de Vida termina com %d" % [case[0], expected_hp])
 
-	# Rai'Emofitir, Dissolvido: no fim do turno esconde um Fragmento entre as 5 do topo e sofre 1; ao morrer passa um marcador
+	# Rai'Emofitir, Dissolvido: no fim do turno revive um Dragão Negro ou Veyr de custo 3 ou menos e sofre 1; ao morrer passa um marcador
 	var dissolved_id := "rai_emofitir_dissolvido"
-	for _round in 12:
-		g = _new_game()
-		_quiet(g)
-		var dissolved := _put(g, 0, dissolved_id)
-		var friend := _put(g, 0, "t_bearer_ally")
-		var commoner := _put(g, 0, "t_ordinary_ally")
-		var deck_before: int = g.players[0]["deck"].size()
-		g.end_turn(0)
-		var deck_after: Array = g.players[0]["deck"]
-		var top_five := deck_after.slice(maxi(0, deck_after.size() - 5))
-		check(
-			deck_after.size() == deck_before + 1 and top_five.any(func(card: Card): return card.card_id == source_id),
-			"Dissolvido: o Fragmento criado cai entre as 5 cartas do topo",
-		)
-		check(dissolved.damage == 1, "Dissolvido: sofre 1 de dano no fim do turno")
-		_kill(g, dissolved)
-		check(friend.fragments == 1 and commoner.fragments == 0, "Dissolvido: ao morrer, só uma unidade aliada elegível recebe 1 Fragmento")
+	g = _new_game()
+	_quiet(g)
+	var dissolved := _put(g, 0, dissolved_id)
+	var friend := _put(g, 0, "t_bearer_ally")
+	var commoner := _put(g, 0, "t_ordinary_ally")
+	var fallen_bearer := Card.new(g._uid(), "t_bearer", 0, "graveyard")
+	var fallen_commoner := Card.new(g._uid(), "t_ordinary_ally", 0, "graveyard")
+	g.players[0]["graveyard"].append_array([fallen_bearer, fallen_commoner])
+	g.end_turn(0)
+	g.flush_events()
+	check(
+		g.players[0]["board"].any(func(unit: Card): return unit.card_id == "t_bearer"),
+		"Dissolvido: revive o Dragão Negro do cemitério",
+	)
+	check(_zone_has(g, 0, "graveyard", "t_ordinary_ally"), "Dissolvido: a unidade comum fica no cemitério")
+	check(dissolved.damage == 1, "Dissolvido: sofre 1 de dano no fim do turno")
+	var revived_bearer: Card = g.players[0]["board"].filter(func(unit: Card): return unit.card_id == "t_bearer")[0]
+	_kill(g, dissolved)
+	check(
+		friend.fragments + revived_bearer.fragments == 1 and commoner.fragments == 0,
+		"Dissolvido: ao morrer, só uma unidade aliada elegível recebe 1 Fragmento",
+	)
 
 	# Poder do Líder Rai'Emofitir: olha o topo 7, escolhe obrigatoriamente um Fragmento, que é banido e preso à unidade escolhida
 	var depth_cases := [
@@ -7403,8 +7416,11 @@ func _test_fragmentos_de_rai() -> void:
 		check(int(g.pending_search.get("looked", 0)) == 7 and g.pending_search.get("looked_cards", []).size() == 7, unit_name + ": o jogador olha as 7 cartas do topo")
 		if not bool(depth_case["found"]):
 			check(g.pending_search.get("cards", []).is_empty(), unit_name + ": sem Fragmento nas 7 do topo não há o que escolher")
+			var carrier_hp_before := chosen_carrier.hp
 			g.choose_search(0, 0)
-			check(first_carrier.fragments == 0 and chosen_carrier.fragments == 0, unit_name + ": ninguém recebe Fragmento")
+			g.flush_events()
+			check(chosen_carrier.fragments == 1 and first_carrier.fragments == 0, unit_name + ": sem Fragmento no topo, um é criado na unidade escolhida")
+			check(chosen_carrier.hp == carrier_hp_before + 2, unit_name + ": a unidade escolhida recebe +0/+2")
 			check(g.phase != "search", unit_name + ": a tela de busca fecha")
 			continue
 		check(g.pending_search["cards"].size() == 1, unit_name + ": a única opção é o Fragmento")
@@ -7935,6 +7951,10 @@ func _test_dot_immunity() -> void:
 		"Execução: emite um evento leader_executed com a Vida anterior do Líder",
 	)
 	check(leader_damage_events.is_empty(), "Execução: o Líder não recebe evento de dano (a UI toca a animação própria)")
+	check(
+		executed_events.size() == 1 and not executed_events[0].has("style"),
+		"Execução: a da Viprax usa a animação padrão (sem execution_style)",
+	)
 
 	# the printed cards: D'Lorafya's Queimadura and Tox Vipranna's Veneno carry the flag
 	var dlorafya_effects: Array = CardDB.card("dlorafya")["effects"]

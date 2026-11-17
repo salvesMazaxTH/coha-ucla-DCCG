@@ -20,6 +20,7 @@
       "action": "kill_leader",
       "target": "enemy_leader",
       "execution_color": "#a63cff",
+      "execution_style": "rai",
       "if": {
         "all": [
           "struck_enemy_leader_this_turn",

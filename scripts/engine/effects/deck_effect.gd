@@ -12,6 +12,8 @@ extends Effect
 ##   a broad filter over the whole deck is too strong.
 ##   `attach_fragment` (Partir-se): the card taken never reaches the hand. It is banished and becomes a Fragmento on the unit
 ##   the player chose as target ("ally_fragment_bearer"); the card's own effects (like a search for another copy) never run.
+##   `attach_fragment_hp` (Partir-se): the unit also gains that much permanent Vida. With `attach_fragment` the search never whiffs:
+##   when the looked-at cards hold no Fragmento (or the deck is empty), the Fragmento is conjured onto the unit anyway and still counts as given.
 ## "discard_hand_pick": the player picks one card from their own hand and discards it to
 ##   the graveyard.
 ##   `who` (default "self"): "opponent" makes the OPPONENT pick the card from their own hand (Calvin Sem-Face); an empty hand does nothing.

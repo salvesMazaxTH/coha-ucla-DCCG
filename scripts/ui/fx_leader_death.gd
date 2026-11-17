@@ -82,23 +82,14 @@ func _flash(center: Vector2, t: float) -> void:
 func _break_top_half(leader_view: LeaderView) -> void:
 	if not is_instance_valid(leader_view):
 		return
-	var screen_image := fx.get_viewport().get_texture().get_image()
 	var outline := leader_view.top_piece_outline()
 	var origin := leader_view.position
+	var snapshot := snapshot_top_half(leader_view)
 	leader_view.top_destroyed = true
-	if screen_image == null or screen_image.is_empty():
+	if snapshot.is_empty():
 		return
-	var to_canvas: Transform2D = fx.get_global_transform_with_canvas()
-	var pixels_per_unit: float = float(screen_image.get_width()) / fx.get_viewport().get_visible_rect().size.x
-	var piece_rect := Rect2(origin + outline[0], Vector2.ZERO)
-	for point in outline:
-		piece_rect = piece_rect.expand(origin + point)
-	var corner_a: Vector2 = to_canvas * piece_rect.position * pixels_per_unit
-	var corner_b: Vector2 = to_canvas * piece_rect.end * pixels_per_unit
-	var wanted := Rect2i(Vector2i(corner_a.floor()), Vector2i((corner_b - corner_a).ceil())).intersection(Rect2i(Vector2i.ZERO, screen_image.get_size()))
-	if wanted.size.x < 4 or wanted.size.y < 4:
-		return
-	var picture := ImageTexture.create_from_image(screen_image.get_region(wanted))
+	var picture: ImageTexture = snapshot["picture"]
+	var picture_point: Callable = snapshot["picture_point"]
 	var random := RandomNumberGenerator.new()
 	random.randomize()
 	var burst_center := origin + LeaderView.PC + Vector2(0.0, 20.0)
@@ -118,7 +109,7 @@ func _break_top_half(leader_view: LeaderView) -> void:
 		var picture_points := PackedVector2Array()
 		for point in polygon:
 			local_outline.append(point - centroid)
-			picture_points.append(to_canvas * (origin + point) * pixels_per_unit - Vector2(wanted.position))
+			picture_points.append(picture_point.call(origin + point))
 		shard.polygon = local_outline
 		shard.uv = picture_points
 		var edge := Line2D.new()
@@ -142,6 +133,33 @@ func _break_top_half(leader_view: LeaderView) -> void:
 	var flight := shards.create_tween()
 	flight.tween_method(fly_shards, 0.0, FLIGHT_TIME, FLIGHT_TIME)
 	flight.tween_callback(shards.queue_free)
+
+## A picture of the top half of the Leader's plate as it is on screen right now:
+## {"picture": ImageTexture, "picture_point": Callable(point on the table) -> pixel of the picture}.
+## Empty when there is no screen to read (headless).
+func snapshot_top_half(leader_view: LeaderView) -> Dictionary:
+	return snapshot_area(leader_view, leader_view.top_piece_outline())
+
+## The same kind of picture, of whatever part of the Leader `outline` (local points) surrounds.
+func snapshot_area(leader_view: LeaderView, outline: PackedVector2Array) -> Dictionary:
+	var screen_image := fx.get_viewport().get_texture().get_image()
+	if screen_image == null or screen_image.is_empty():
+		return { }
+	var origin := leader_view.position
+	var to_canvas: Transform2D = fx.get_global_transform_with_canvas()
+	var pixels_per_unit: float = float(screen_image.get_width()) / fx.get_viewport().get_visible_rect().size.x
+	var piece_rect := Rect2(origin + outline[0], Vector2.ZERO)
+	for point in outline:
+		piece_rect = piece_rect.expand(origin + point)
+	var corner_a: Vector2 = to_canvas * piece_rect.position * pixels_per_unit
+	var corner_b: Vector2 = to_canvas * piece_rect.end * pixels_per_unit
+	var wanted := Rect2i(Vector2i(corner_a.floor()), Vector2i((corner_b - corner_a).ceil())).intersection(Rect2i(Vector2i.ZERO, screen_image.get_size()))
+	if wanted.size.x < 4 or wanted.size.y < 4:
+		return { }
+	return {
+		"picture": ImageTexture.create_from_image(screen_image.get_region(wanted)),
+		"picture_point": func(point: Vector2) -> Vector2: return to_canvas * point * pixels_per_unit - Vector2(wanted.position),
+	}
 
 ## Cuts `outline` into irregular pieces: a few random points inside it, each with its own weight, and every
 ## piece is the part of the outline closest to its point (a heavier point claims more room).

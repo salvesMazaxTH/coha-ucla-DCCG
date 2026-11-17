@@ -3422,9 +3422,7 @@ func choose_search(p: int, card_uid: int) -> Array:
 			players[p]["banished"].append(found)
 			_move(found, "banished")
 			emit_event({ "type": "ban", "player": p, "uid": found.uid })
-			var receiver := find_unit(fragment_receiver_uid)
-			if receiver != null:
-				add_fragments(receiver, 1, found.card_id)
+			_give_fragment_with_health(fragment_receiver_uid, found.card_id, int(pending_search.get("attach_fragment_hp", 0)))
 		else:
 			players[p]["hand"].append(found)
 			_move(found, "hand")
@@ -3471,8 +3469,14 @@ func choose_search(p: int, card_uid: int) -> Array:
 	# a look that found nothing offered no card, so there was nothing to decline: the log only says the deck was shuffled
 	var nothing_was_offered := options.is_empty()
 	var fallback_draw := int(pending_search.get("fallback_draw", 0))
+	var conjured_receiver_uid := int(pending_search.get("attach_fragment_to", 0)) if nothing_was_offered else 0
+	var conjured_card_id := String(pending_search.get("attach_fragment_card_id", ""))
+	var conjured_health := int(pending_search.get("attach_fragment_hp", 0))
 	pending_search.clear()
 	phase = search_return
+	if conjured_receiver_uid != 0:
+		# Partir-se never whiffs: the 7 cards held no Fragmento, so one is conjured onto the chosen unit
+		_give_fragment_with_health(conjured_receiver_uid, conjured_card_id, conjured_health)
 	if declined and not nothing_was_offered:
 		emit_event({ "type": "search_decline", "player": p })
 	elif not declined:
@@ -3940,6 +3944,9 @@ func _begin_search(p: int, e: Dictionary, source_uid: int, fragment_receiver_uid
 	var looked_but_found_nothing := matches.is_empty() and not searched.is_empty()
 	if matches.is_empty() and not looked_but_found_nothing:
 		emit_event({ "type": "search_empty", "player": p, "source_uid": source_uid })
+		if fragment_receiver_uid != 0:
+			# Partir-se never whiffs: with an empty deck the Fragmento is conjured
+			_give_fragment_with_health(fragment_receiver_uid, String(e.get("card_ids", [""])[0]), int(e.get("attach_fragment_hp", 0)))
 		# "fallback_draw": the consolation prize when nothing matched, so the spell is never a dead card (Recado Urgente)
 		if int(e.get("fallback_draw", 0)) > 0:
 			_draw(p, int(e["fallback_draw"]))
@@ -3957,6 +3964,8 @@ func _begin_search(p: int, e: Dictionary, source_uid: int, fragment_receiver_uid
 	}
 	if fragment_receiver_uid != 0:
 		pending_search["attach_fragment_to"] = fragment_receiver_uid # the card taken is banished onto this unit, not put in hand
+		pending_search["attach_fragment_card_id"] = String(e.get("card_ids", [""])[0])
+		pending_search["attach_fragment_hp"] = int(e.get("attach_fragment_hp", 0))
 	# every card looked at, topmost first; "cards" holds only the eligible ones, so the UI can show the rest dimmed
 	var looked_cards: Array = []
 	for index in range(searched.size() - 1, -1, -1):
@@ -4925,6 +4934,19 @@ func add_fragments(unit: Card, amount: int, source_card_id := "") -> void:
 	emit_event({ "type": "dot", "uid": unit.uid, "dot": "fragmento", "amount": amount, "total": unit.fragments })
 
 
+## Partir-se hands one Fragmento to the chosen unit (whether it came from the deck or was conjured) and also gives it
+## `bonus_health` permanent Vida, so it survives its first tick.
+func _give_fragment_with_health(receiver_uid: int, fragment_card_id: String, bonus_health: int) -> void:
+	var receiver := find_unit(receiver_uid)
+	if receiver == null or not can_bear_fragments(receiver):
+		return
+	add_fragments(receiver, 1, fragment_card_id)
+	if bonus_health > 0:
+		receiver.hp += bonus_health
+		receiver.record_stat_change(fragment_card_id, "", { "hp": bonus_health })
+		emit_event({ "type": "buff", "uid": receiver.uid, "atk": 0, "hp": bonus_health, "keywords": [] })
+
+
 ## Start of the bearer's turn: it hurts itself 1 per Fragmento. Armadura and Escudo do not help, like any marker.
 func _resolve_fragments(unit: Card) -> void:
 	if unit.fragments <= 0:
@@ -4978,7 +5000,7 @@ func fragment_progress(p: int, cd: Dictionary, card_id: String) -> Dictionary:
 	}
 
 
-## End of p's turn: a spell card with a "fragment_payoff" ({"markers": 5, "given": 10, "summon": card_id}) summons its
+## End of p's turn: a spell card with a "fragment_payoff" ({"markers": 4, "given": 10, "summon": card_id}) summons its
 ## unit once p's side holds enough Fragmentos and the spell has handed out all of its copies. The Fragmentos are consumed.
 func _resolve_fragment_payoffs(p: int) -> void:
 	var given: Dictionary = players[p]["fragments_given"]
@@ -5047,7 +5069,7 @@ func unit_is_immune_to_dot(unit: Card, dot_id: String) -> bool:
 ## Kills the Leader of player `p` on the spot (a card effect, e.g. Viprax's execution). Câmara de
 ## Êxtase and the damage halving do not apply. This is not damage: it emits its own "leader_executed"
 ## event (never a "damage" one) so the UI can play a dedicated execution animation instead of a big hit.
-func kill_leader_outright(p: int, dot_id := "", color_hex := "") -> void:
+func kill_leader_outright(p: int, dot_id := "", color_hex := "", style := "") -> void:
 	var hp_before: int = players[p]["leader_hp"]
 	if hp_before <= 0:
 		return
@@ -5057,6 +5079,8 @@ func kill_leader_outright(p: int, dot_id := "", color_hex := "") -> void:
 		execution_event["dot"] = dot_id
 	if color_hex != "":
 		execution_event["color"] = color_hex
+	if style != "":
+		execution_event["style"] = style
 	emit_event(execution_event)
 
 

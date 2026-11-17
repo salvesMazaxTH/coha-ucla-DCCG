@@ -18,6 +18,8 @@ extends Effect
 ## "kill_leader": the targeted Leader dies on the spot, but only if it holds the "requires_markers"
 ##   amount of that marker kind (Viprax's execution). Câmara de Êxtase does not save it.
 ##   "execution_color": "#rrggbb" = color of the execution animation, instead of the marker kind's (Rai, Imortal Imperfeito).
+##   "execution_style": name of an execution animation of its own (FxExecutions.STYLES, e.g. "rai"); it replaces
+##   both the default execution and the Leader's death burst. Unknown names fall back to the default.
 
 var shield_leader_damage := 0
 var banish_instead_domain := ""
@@ -26,6 +28,7 @@ var required_dot_amount := 0
 var required_subtype := ""
 var max_target_cost := -1 # -1 = any cost
 var execution_color := ""
+var execution_style := ""
 
 
 func _read_parameters(data: Dictionary) -> void:
@@ -37,6 +40,7 @@ func _read_parameters(data: Dictionary) -> void:
 	required_subtype = String(data.get("subtype", ""))
 	max_target_cost = int(data.get("max_target_cost", -1))
 	execution_color = String(data.get("execution_color", ""))
+	execution_style = String(data.get("execution_style", ""))
 
 func harms_own_target() -> bool:
 	return true
@@ -86,7 +90,7 @@ func _kill_leader(context: EffectContext, target_uid: int) -> void:
 		return
 	if context.game.leader_dot_markers(leader_player, required_dot) < required_dot_amount:
 		return
-	context.game.kill_leader_outright(leader_player, required_dot, execution_color)
+	context.game.kill_leader_outright(leader_player, required_dot, execution_color, execution_style)
 
 func _banish(context: EffectContext, target_uid: int) -> void:
 	var game := context.game

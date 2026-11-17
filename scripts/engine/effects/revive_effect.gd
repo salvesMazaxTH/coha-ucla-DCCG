@@ -2,6 +2,7 @@ class_name ReviveEffect
 extends Effect
 ## Returning from the graveyard, told apart by `action`:
 ## "revive": random unit cards (cost <= max_cost) from the controller's graveyard return to the board, `count` of them (default 1; Procissão de Finados).
+##   `unit_filter` (any CardFilter key, like tribe_any or any_of) narrows which graveyard units can return.
 ## "revive_self" (Ao Morrer): the dying unit comes back as a new instance (so it no longer takes
 ##   part in the combat it died in), with base atk/hp changed by `atk`/`hp` (usually negative)
 ##   relative to what it had when it died. It does not return if atk or hp would reach 0.
@@ -10,6 +11,7 @@ extends Effect
 
 var max_cost := 99
 var revive_count := 1
+var unit_filter: Dictionary = { }
 var attack_change := 0
 var health_change := 0
 var keeps_incarnation := false ## revive_self_delayed only: the Encarnação waits in the graveyard and returns as the Encarnação, instead of going straight back to the Santuário
@@ -18,6 +20,7 @@ func _read_parameters(data: Dictionary) -> void:
 	keeps_incarnation = bool(data.get("keeps_incarnation", false))
 	max_cost = int(data.get("max_cost", 99))
 	revive_count = maxi(1, int(data.get("count", 1)))
+	unit_filter = data.get("unit_filter", { })
 	attack_change = int(data.get("atk", 0))
 	health_change = int(data.get("hp", 0))
 
@@ -41,7 +44,7 @@ func _revive_random(context: EffectContext) -> void:
 	var candidates: Array = []
 	for grave_card: Card in player["graveyard"]:
 		var card_data := CardDB.card(grave_card.card_id)
-		if card_data["type"] == "unit" and int(card_data["cost"]) <= max_cost:
+		if card_data["type"] == "unit" and int(card_data["cost"]) <= max_cost and (unit_filter.is_empty() or CardFilter.matches(grave_card.card_id, unit_filter)):
 			candidates.append(grave_card)
 	if candidates.is_empty():
 		return

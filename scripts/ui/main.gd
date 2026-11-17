@@ -115,6 +115,7 @@ var menu_screens: MenuScreens ## title menu, deck hub, online room screens and d
 var table_overlays: TableOverlays ## card overlay, pause menu, graveyard viewer and search reveal (moved out of this file)
 var table_animator: TableAnimator ## plays each batch of events on the table (moved out of this file)
 var fx_leader_death: FxLeaderDeath ## what plays when a Leader dies, before the result screen
+var fx_executions: FxExecutions ## executions with a look of their own (a card's "execution_style")
 var fx_casts: FxCasts ## cast animations of spells and area triggers (a wall of fire, a flood...), built on fx_library
 var ai_timer: Timer
 ## Animations are never cut short: while one is still playing, the next batch of events waits here
@@ -212,6 +213,7 @@ func _ready() -> void:
 	fx_shots = FxShotsScript.new(self, fx_library)
 	fx_casts = FxCastsScript.new(self, fx_library)
 	fx_leader_death = FxLeaderDeath.new(self, fx_library)
+	fx_executions = FxExecutions.new(self, fx_library)
 	table_animator = TableAnimatorScript.new(self, fx_library, fx_shots, fx_casts)
 	chronicle_log = ChronicleLogScript.new(self)
 	table_overlays = TableOverlaysScript.new(self)
@@ -387,6 +389,7 @@ func start_match(ai: bool, deck_a: String, deck_b: String) -> void:
 	_queue_deck_arts([deck_a, deck_b])
 	barricade_was_up.clear() # unit uids restart with every match
 	_locked_hand_uids.clear()
+	fx_executions.unmade_leader_uids.clear()
 	for i in 2:
 		g.auto_pass[i] = _auto_pass_on() or is_ai(i)
 	CardDB.reroll_flavor()
@@ -1027,6 +1030,7 @@ func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	lv.position = pos
 	lv.hp = pl["leader_hp"]
 	lv.top_destroyed = lv.hp <= 0
+	lv.visible = not (lv.hp <= 0 and fx_executions.unmade_leader_uids.has(uid))
 	lv.hp_max = pl["leader_max"]
 	lv.deck = pl["deck"].size()
 	lv.fatigue = g.fatigue_next(p)

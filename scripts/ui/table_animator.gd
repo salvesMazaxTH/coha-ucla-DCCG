@@ -853,7 +853,15 @@ func animate(events: Array, old: Dictionary) -> float:
 			"leader_executed":
 				# a card effect killed the Leader outright: not a hit, so it gets its own animation
 				var doomed_leader = views.get(e["uid"])
-				if doomed_leader is LeaderView:
+				var style := String(e.get("style", ""))
+				if doomed_leader is LeaderView and host.fx_executions.has_style(style):
+					# an execution of its own tells the whole death: no default execution and no burst
+					var style_color := Color(String(e.get("color", "#ff4040")))
+					var style_end: float = host.fx_executions.play(style, doomed_leader, e["uid"], int(e["hp_before"]), cursor, style_color)
+					host.leader_ko_time = maxf(host.leader_ko_time, style_end - host.KO_OVERLAY_DELAY)
+					dying_leaders.erase(e["uid"])
+					cursor = style_end
+				elif doomed_leader is LeaderView:
 					var execution_color := Color("#ff4040")
 					if e.has("color"):
 						execution_color = Color(String(e["color"]))

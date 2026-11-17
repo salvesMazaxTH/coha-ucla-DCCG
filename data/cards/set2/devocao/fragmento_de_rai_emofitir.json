@@ -4,12 +4,12 @@
   "type": "spell",
   "rarity": "legendary",
   "essence": ["trevas", "devocao"],
-  "cost": 3,
+  "cost": 2,
   "speed": "rapido",
   "max_copies": 10,
   "non_storable": true,
   "art": "devocao/fragmento_de_rai_emofitir.webp",
-  "fragment_payoff": { "markers": 5, "given": 10, "summon": "rai_imortal_imperfeito" },
+  "fragment_payoff": { "markers": 4, "given": 10, "summon": "rai_imortal_imperfeito" },
   "effects": [
     {
       "trigger": "on_play",
@@ -26,7 +26,7 @@
       "type": "spell"
     }
   ],
-  "text": "Uma unidade aliada Dragão Negro ou Veyr recebe 1 Fragmento: +1 de Ataque, 1 de dano a si no início do seu turno, bane o que destrói e, ao morrer, passa para um aliado aleatório. Você procura outra cópia desta carta no seu deck e a coloca na mão; depois, embaralha o deck. Não pode ser guardada no Reservatório.\nNo Fim do Seu Turno: com as 10 cópias usadas e 5 Fragmentos no seu campo, eles são consumidos e o que restou do deus se ergue.",
-  "face_text": "Um Dragão Negro ou Veyr aliado recebe 1 Fragmento. Procura outra cópia no deck e a põe na mão. Não vai ao Reservatório.\nFim do Turno: 10 cópias usadas e 5 Fragmentos, o deus se ergue.",
+  "text": "Uma unidade aliada Dragão Negro ou Veyr recebe 1 Fragmento: +1 de Ataque, 1 de dano a si no início do seu turno, bane o que destrói e, ao morrer, passa para um aliado aleatório. Você procura outra cópia desta carta no seu deck e a coloca na mão; depois, embaralha o deck. Não pode ser guardada no Reservatório.\nNo Fim do Seu Turno: com as 10 cópias usadas e 4 Fragmentos no seu campo, eles são consumidos e o que restou do deus se ergue.",
+  "face_text": "Um Dragão Negro ou Veyr aliado recebe 1 Fragmento. Procura outra cópia no deck e a põe na mão. Não vai ao Reservatório.\nFim do Turno: 10 cópias usadas e 4 Fragmentos, o deus se ergue.",
   "flavor":"Dez pedaços. Nenhum deles concorda em ficar."
 }

@@ -1,6 +1,6 @@
 {
   "name": "Dez Partes",
-  "description": "Fragmentos de Rai'Emofitir: dez cópias do feitiço espalham Fragmentos entre Dragões Negros baratos, que se sacrificam e se curam enquanto o Líder se parte para ajudar. Com as 10 cópias usadas e 5 Fragmentos em campo, o que restou do deus se ergue. Rai'Emofitir, Dissolvido, é a Encarnação.",
+  "description": "Fragmentos de Rai'Emofitir: dez cópias do feitiço espalham Fragmentos entre Dragões Negros e Veyr, que morrem cedo enquanto o Líder se parte para ajudar. O cemitério devolve os caídos: Chamado do Além e o próprio Dissolvido os trazem de volta para carregar mais Fragmentos. Com as 10 cópias usadas e 4 Fragmentos em campo, o que restou do deus se ergue. Rai'Emofitir, Dissolvido, é a Encarnação.",
   "order": 31,
   "leader": "rai_emofitir",
   "incarnation_id": "rai_emofitir_dissolvido",
@@ -8,26 +8,26 @@
   "cards": {
     "recruta_cinzento": 3,
     "agua_benta_de_garrafinha": 3,
-    "carga_do_sapador": 2,
     "calvin_sem_face": 3,
     "cantora_de_velorio": 3,
     "mensageira_ilse_rott": 3,
     "rai_emofitir_dissolvido": 1,
     "cha_de_boldo_da_vovo": 2,
-    "colheita_de_almas": 2,
     "consagracao": 3,
     "cortejo_de_cinzas": 1,
-    "lamento_funebre": 2,
+    "fragmento_de_rai_emofitir": 10,
     "luz_transbordante": 3,
     "eufrasia_ponto_firme": 3,
     "sven": 2,
     "vincent_morvane": 2,
-    "fragmento_de_rai_emofitir": 10,
+    "chamado_do_alem": 2,
     "pacto_de_mortalha": 2,
     "drake": 2,
     "inspetora_orna_lutuosa": 3,
+    "jack_veyr": 2,
     "lucian_mortasa": 2,
     "vesper": 2,
+    "layla_veyr": 2,
     "rai_emofitir": 1
   }
 }

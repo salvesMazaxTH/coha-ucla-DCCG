@@ -427,16 +427,19 @@ func execution_fx(leader: LeaderView, hp_before: int, t: float, col: Color) -> f
 	title_tween.tween_property(title, "modulate:a", 0.0, 0.3)
 	title_tween.tween_callback(title.queue_free)
 
-	# the HP count runs down to zero instead of dropping in one step
+	drain_leader_hp(leader, hp_before, strike_t)
+	return strike_t + EXECUTION_DRAIN_TIME + 0.6
+
+## The HP count of an executed Leader runs down to zero from moment t, instead of dropping in one step.
+func drain_leader_hp(leader: LeaderView, hp_before: int, t: float) -> void:
 	var drain := leader.create_tween()
-	drain.tween_interval(strike_t)
+	drain.tween_interval(t)
 	drain.tween_method(func(shown_hp: float):
 		leader.hp = roundi(shown_hp)
 		leader.queue_redraw(), float(hp_before), 0.0, EXECUTION_DRAIN_TIME).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	drain.tween_callback(func():
 		leader.hp = 0
 		leader.queue_redraw())
-	return strike_t + EXECUTION_DRAIN_TIME + 0.6
 
 ## A card yells its line (an effect's "shout", Barão Estrondoso). Unlike every other float it uses the
 ## racing font (UITheme "shout") and builds up: the screen dims, each word but the last slams in over
