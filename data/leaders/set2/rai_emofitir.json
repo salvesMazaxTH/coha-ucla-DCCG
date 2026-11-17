@@ -11,9 +11,9 @@
     "speed": "lento",
     "life_cost": { "start": 2 },
     "effects": [
-      { "action": "search_deck", "target": "ally_fragment_bearer", "top": 7, "card_ids": ["fragmento_de_rai_emofitir"], "attach_fragment": true, "attach_fragment_hp": 2 }
+      { "action": "search_deck", "target": "ally_fragment_bearer", "top": 7, "card_ids": ["fragmento_de_rai_emofitir"], "attach_fragment": true, "attach_fragment_hp": 1 }
     ],
-    "text": "Lenta. 2 Momentum, uma vez por turno: seu Líder paga 2 de Vida. Uma unidade aliada Dragão Negro ou Veyr recebe +0/+2 permanente. Depois, você olha as 7 cartas do topo do seu deck: um Fragmento entre elas é vinculado a essa unidade, e as outras vão para o fundo. Sem Fragmento ali, um é criado e vinculado a ela."
+    "text": "Lenta. 2 Momentum, uma vez por turno: seu Líder paga 2 de Vida. Uma unidade aliada Dragão Negro ou Veyr recebe +0/+1 permanente. Depois, você olha as 7 cartas do topo do seu deck: um Fragmento entre elas é vinculado a essa unidade, e as outras vão para o fundo. Sem Fragmento ali, um é criado e vinculado a ela."
   },
   "essences": ["devocao", "trevas"]
 }

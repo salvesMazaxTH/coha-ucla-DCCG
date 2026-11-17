@@ -7280,6 +7280,25 @@ func _test_fragmentos_de_rai() -> void:
 	_kill(g, bearer)
 	check(ally.fragments == 3 and ordinary.fragments == 0, "Fragmento: ao morrer, só o aliado elegível recebe")
 
+	# Teto de 3 por unidade: nada passa disso, nem por efeito, nem pulando de um portador que morreu
+	g = _new_game()
+	_quiet(g)
+	bearer = _put(g, 0, "t_bearer")
+	ally = _put(g, 0, "t_bearer_ally")
+	g.add_fragments(bearer, 5, source_id)
+	check(bearer.fragments == 3 and int(g.players[0]["fragments_given"][source_id]) == 3, "Fragmento: uma unidade nunca passa de 3 e só conta o que coube")
+	g.add_fragments(ally, 3, source_id)
+	_kill(g, bearer)
+	check(ally.fragments == 3, "Fragmento: ao morrer, os marcadores não pulam para quem já tem 3 (se perdem)")
+	g = _new_game()
+	_quiet(g)
+	bearer = _put(g, 0, "t_bearer")
+	ally = _put(g, 0, "t_bearer_ally")
+	g.add_fragments(bearer, 3, source_id)
+	g.add_fragments(ally, 2, source_id)
+	_kill(g, bearer)
+	check(ally.fragments == 3, "Fragmento: ao morrer, só cabe o que falta para o aliado chegar a 3")
+
 	# Sem aliado, os marcadores se perdem sem erro
 	g = _new_game()
 	_quiet(g)
@@ -7429,7 +7448,7 @@ func _test_fragmentos_de_rai() -> void:
 			g.choose_search(0, 0)
 			g.flush_events()
 			check(chosen_carrier.fragments == 1 and first_carrier.fragments == 0, unit_name + ": sem Fragmento no topo, um é criado na unidade escolhida")
-			check(chosen_carrier.hp == carrier_hp_before + 2, unit_name + ": a unidade escolhida recebe +0/+2")
+			check(chosen_carrier.hp == carrier_hp_before + 1, unit_name + ": a unidade escolhida recebe +0/+1")
 			check(g.phase != "search", unit_name + ": a tela de busca fecha")
 			continue
 		check(g.pending_search["cards"].size() == 1, unit_name + ": a única opção é o Fragmento")
@@ -7454,6 +7473,15 @@ func _test_fragmentos_de_rai() -> void:
 	var refused_ordinary := _put(g, 0, "t_ordinary_ally")
 	check(not g.can_use_ability(0), "Leader power: só com unidade comum aliada o poder não pode ser usado")
 	check(g.use_ability(0, refused_ordinary.uid).is_empty(), "Leader power: unidade que não porta Fragmento é recusada como alvo")
+
+	# Só com unidades já em 3 Fragmentos o poder fica indisponível; uma com espaço o libera
+	var capped_carrier := _put(g, 0, "t_bearer")
+	g.add_fragments(capped_carrier, 3, source_id)
+	check(not g.can_use_ability(0), "Leader power: só com unidades em 3 Fragmentos o poder não pode ser usado")
+	check(g.use_ability(0, capped_carrier.uid).is_empty(), "Leader power: unidade com 3 Fragmentos é recusada como alvo")
+	var roomy_carrier := _put(g, 0, "t_bearer")
+	check(g.can_use_ability(0), "Leader power: uma unidade com espaço libera o poder")
+	check(g.valid_targets(0, "ally_fragment_bearer") == [roomy_carrier.uid], "Leader power: só a unidade com espaço é alvo")
 
 
 func _test_toxico() -> void:

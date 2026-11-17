@@ -1591,7 +1591,7 @@ func can_store_in_reservoir(p: int, hand_uid: int) -> bool:
 	if players[p]["reservoir"].size() >= momentum_cap(p):
 		return false
 	var card := _hand_card(p, hand_uid)
-	return card != null and not bool(CardDB.card(card.card_id).get("non_storable", false))
+	return card != null
 
 
 ## Permanently deposits one hand card. This action does not use the stack or Momentum.
@@ -1891,9 +1891,9 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 			for c: Card in mine:
 				out.append(c.uid)
 			out.append(LEADER_UID[p])
-		"ally_fragment_bearer": # an ally unit that can carry a Fragmento (Partir-se)
+		"ally_fragment_bearer": # an ally unit that can take one more Fragmento (Partir-se)
 			for c: Card in mine:
-				if can_bear_fragments(c):
+				if can_receive_fragment(c):
 					out.append(c.uid)
 		"any_unit":
 			for c: Card in mine + theirs:
@@ -2076,6 +2076,8 @@ func meets_unit_requirement(target_uid: int, spec: String, effects: Array, self_
 				return false
 			if swapping and not ControlEffect.can_be_swapped_out(find_unit(self_uid)):
 				return false
+		if effect.get("action", "") == "add_fragment" and unit != null and unit.fragments >= MAX_FRAGMENTS_PER_UNIT:
+			return false
 		if unit != null and (effect.get("not_rarity", []) as Array).has(CardDB.card(unit.card_id).get("rarity", "")):
 			return false
 		var unit_filter: Dictionary = effect.get("unit_filter", { })
@@ -4945,12 +4947,24 @@ const FRAGMENT_BEARER_FILTER := { "any_of": [{ "tribe_any": ["dragoes_negros"] }
 func can_bear_fragments(unit: Card) -> bool:
 	return unit != null and CardFilter.matches(unit.card_id, FRAGMENT_BEARER_FILTER)
 
+## No unit carries more than this many Fragmentos at once.
+const MAX_FRAGMENTS_PER_UNIT := 3
+
+
+## True when the unit is eligible and still has room for one more Fragmento.
+func can_receive_fragment(unit: Card) -> bool:
+	return can_bear_fragments(unit) and unit.fragments < MAX_FRAGMENTS_PER_UNIT
+
+
 
 ## Puts `amount` Fragmentos de Rai'Emofitir on a unit. They are not a periodic status: they stay until the bearer
 ## leaves the board, and hop to the bearer's allies when it dies (see _hop_fragments).
 ## `source_card_id` is the spell that handed them out; the ritual payoff counts them (_resolve_fragment_payoffs).
 func add_fragments(unit: Card, amount: int, source_card_id := "") -> void:
 	if unit == null or amount <= 0 or not can_bear_fragments(unit):
+	amount = mini(amount, MAX_FRAGMENTS_PER_UNIT - unit.fragments)
+	if amount <= 0:
+		return
 		return
 	unit.fragments += amount
 	if source_card_id != "":
@@ -4963,7 +4977,7 @@ func add_fragments(unit: Card, amount: int, source_card_id := "") -> void:
 ## `bonus_health` permanent Vida, so it survives its first tick.
 func _give_fragment_with_health(receiver_uid: int, fragment_card_id: String, bonus_health: int) -> void:
 	var receiver := find_unit(receiver_uid)
-	if receiver == null or not can_bear_fragments(receiver):
+	if receiver == null or not can_receive_fragment(receiver):
 		return
 	add_fragments(receiver, 1, fragment_card_id)
 	if bonus_health > 0:
@@ -4991,20 +5005,22 @@ func _resolve_fragments(unit: Card) -> void:
 	_deal_dot_damage(unit.uid, unit.fragments, "fragmento")
 
 
-## A bearer died: each of its Fragmentos lands on a random eligible ally of its controller. With none left they are lost.
+## A bearer died: each of its Fragmentos lands on a random eligible ally of its controller that still has room
+## (see MAX_FRAGMENTS_PER_UNIT). With none left they are lost.
 func _hop_fragments(p: int, count: int, from_uid: int) -> void:
-	if count <= 0:
-		return
-	var allies: Array = []
-	for unit: Card in players[p]["board"]:
-		if can_bear_fragments(unit):
-			allies.append(unit)
-	if allies.is_empty():
-		emit_event({ "type": "fragments_lost", "uid": from_uid, "player": p, "amount": count })
-		return
+	var lost := 0
+		var allies: Array = []
+		for unit: Card in players[p]["board"]:
+			if can_receive_fragment(unit):
+				allies.append(unit)
+		if allies.is_empty():
+			lost = count - index
+			break
 	for index in count:
 		var receiver: Card = allies[rng.randi_range(0, allies.size() - 1)]
 		receiver.fragments += 1
+	if lost > 0:
+		emit_event({ "type": "fragments_lost", "uid": from_uid, "player": p, "amount": lost })
 		emit_event({ "type": "dot", "uid": receiver.uid, "dot": "fragmento", "amount": 1, "total": receiver.fragments })
 
 

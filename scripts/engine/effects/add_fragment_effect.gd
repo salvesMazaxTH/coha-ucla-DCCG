@@ -8,6 +8,10 @@ var amount := 1
 func _read_parameters(data: Dictionary) -> void:
 	amount = maxi(1, int(data.get("amount", 1)))
 
+## A random pick never lands on a unit that already carries the maximum of Fragmentos.
+func is_already_applied_to(unit: Card) -> bool:
+	return unit.fragments >= GameState.MAX_FRAGMENTS_PER_UNIT
+
 func apply(context: EffectContext, target_uid: int) -> void:
 	var unit := context.game.find_unit(target_uid)
 	if unit == null:

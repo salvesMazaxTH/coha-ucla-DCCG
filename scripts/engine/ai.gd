@@ -1708,11 +1708,9 @@ static func _board_strike_total(g: GameState, player: int) -> int:
 
 ## Momentum from the Reservoir next turn; the Bateria is counted separately.
 static func _next_turn_plain_budget(g: GameState, p: int) -> int:
-	var can_store := false
+	var can_store: bool = not g.players[p]["hand"].is_empty()
 	var has_crystal := false
 	for card: Card in g.players[p]["hand"]:
-		var cd := CardDB.card(card.card_id)
-		can_store = can_store or not bool(cd.get("non_storable", false))
 		has_crystal = has_crystal or card.card_id == GameState.SECOND_PLAYER_CRYSTAL_ID
 	return mini(
 		g.momentum_cap(p),

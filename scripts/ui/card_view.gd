@@ -663,7 +663,7 @@ func _place_fragment_aura(face_origin: Vector2, pop: float, s: float, fragment_c
 	aura_material.set_shader_parameter("margin", margin)
 	aura_material.set_shader_parameter("corner_radius", 10.0 * s * pop)
 	aura_material.set_shader_parameter("base_pixel", s * pop)
-	aura_material.set_shader_parameter("intensity", clampf(fragment_count / 5.0, 0.0, 1.0))
+	aura_material.set_shader_parameter("intensity", clampf(fragment_count / 3.0, 0.0, 1.0))
 	if not _fragment_aura.visible:
 		_fragment_aura.visible = true
 
