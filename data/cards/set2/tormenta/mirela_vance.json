@@ -5,16 +5,20 @@
   "rarity": "champion",
   "tribe": ["dragoes_negros"],
   "essence": ["tormenta", "fluxo"],
-  "cost": 5,
-  "atk": 3,
-  "hp": 5,
-  "keywords": [],
+  "cost": 9,
+  "atk": 6,
+  "hp": 6,
+  "keywords": ["imunidade_furia"],
   "art": "tormenta/mirela_vance.webp",
   "effects": [
-    { "trigger": "on_enter", "action": "stun", "target": "enemy_unit" }
+    {
+      "trigger": "on_enter",
+      "action": "set_leader_max_hp",
+      "target": "any_leader",
+      "amount": 15,
+      "lock": true,
+      "heal_full": true
+    }
   ],
-  "text": "Ao Entrar: você pode escolher uma unidade inimiga; ela recebe 1 marcador de Atordoamento. (PLACEHOLDER)",
-  "flavor": "",
-  "unreleased": true,
-  "placeholder": true
+  "text": "Ao Entrar: você pode escolher um Líder; a Vida máxima dele passa a ser 15 e nenhum efeito pode alterá-la pelo resto da partida. Depois, ele recupera toda a Vida."
 }

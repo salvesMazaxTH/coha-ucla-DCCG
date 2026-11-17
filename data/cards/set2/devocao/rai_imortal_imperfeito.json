@@ -24,11 +24,11 @@
       "if": {
         "all": [
           "struck_enemy_leader_this_turn",
-          { "compare": { "stat": "leader_hp", "who": "enemy", "op": "<=", "value": 6 } }
+          { "compare": { "stat": "leader_hp", "who": "enemy", "op": "<=", "value": 4 } }
         ]
       }
     }
   ],
-  "text": "Ao Entrar: bane todas as unidades inimigas e causa 6 de dano ao seu Líder, sem deixá-lo com menos de 1 de Vida.\nCondicional: as unidades que seriam destruídas por esta unidade são banidas.\nNo Fim do Seu Turno: se esta unidade golpeou o Líder inimigo neste turno e ele tem 6 ou menos de Vida, executa-o.",
+  "text": "Ao Entrar: bane todas as unidades inimigas e causa 6 de dano ao seu Líder, sem deixá-lo com menos de 1 de Vida.\nCondicional: as unidades que seriam destruídas por esta unidade são banidas.\nNo Fim do Seu Turno: se esta unidade golpeou o Líder inimigo neste turno e ele tem 4 ou menos de Vida, executa-o.",
   "flavor": "Nem todas as dez partes voltaram. Ele não parece sentir falta."
 }

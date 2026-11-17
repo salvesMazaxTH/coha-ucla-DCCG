@@ -22,6 +22,7 @@ static var ACTIONS: Dictionary = {
 	"choose_effect": ChooseEffectScript,
 	"heal_leader": HealEffect,
 	"leader_max_up": HealEffect,
+	"set_leader_max_hp": HealEffect,
 	"heal_full": HealEffect,
 	"heal_unit": HealEffect,
 	"draw": DrawEffect,

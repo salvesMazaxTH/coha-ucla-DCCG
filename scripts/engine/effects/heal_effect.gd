@@ -16,6 +16,9 @@ extends Effect
 ##                "source_temp_hp": N (with per_turn_cap) also gives the card N temporary Vida per accepted trigger,
 ##                until its owner's next turn starts (Tox Vipranna +1).
 ## "leader_max_up": raises the controller's Leader maximum HP (and current HP) by `amount`.
+## "set_leader_max_hp": the picked Leader (target "any_leader") gets `amount` as its maximum Vida. "lock": true makes
+##              that maximum final for the rest of the game (leader_max_up and overflow_max_hp stop working on it),
+##              and "heal_full": true then heals it to the new maximum (Mirela Vance).
 ## "heal_full": removes all damage from the target unit.
 ## "heal_unit": heals the target unit by `amount`, or by its Armadura when "per" is "armor". With "amount_from":
 ##              "shared_x" it heals the card's shared X plus `amount`, and "heal_origin" reports the heal as that
@@ -39,10 +42,14 @@ var per_turn_cap := 0
 var source_temp_hp := 0
 var overflow_max_hp := 0
 var cleanse := false
+var lock := false
+var heal_full_afterwards := false
 
 func _read_parameters(data: Dictionary) -> void:
 	overflow_max_hp = int(data.get("overflow_max_hp", 0))
 	cleanse = bool(data.get("cleanse", false))
+	lock = bool(data.get("lock", false))
+	heal_full_afterwards = bool(data.get("heal_full", false))
 	amount = int(data.get("amount", 0))
 	per = String(data.get("per", ""))
 	amount_from = String(data.get("amount_from", ""))
@@ -85,6 +92,10 @@ func apply(context: EffectContext, target_uid: int) -> void:
 				context.game.cleanse_leader_markers(context.controller)
 		"leader_max_up":
 			context.game._raise_leader_max(context.controller, amount, context.heal_origin())
+		"set_leader_max_hp":
+			var leader_player: int = GameState.LEADER_UID.find(target_uid)
+			if leader_player >= 0:
+				context.game.set_leader_max_hp(leader_player, amount, lock, heal_full_afterwards, context.heal_origin())
 		"heal_full":
 			var unit := context.game.find_unit(target_uid)
 			if unit != null and cleanse:

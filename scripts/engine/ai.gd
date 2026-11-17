@@ -1344,6 +1344,8 @@ static func _pick_target(g: GameState, p: int, spec: String, source, self_uid :=
 		return _pick_weakest_sacrifice(g, options) # Jeff, Eryon, Esther...: the weakest ally goes, never the best one
 	if spec == "ally_or_own_leader":
 		return _most_damaged(g, p, options)
+	if spec == "any_leader":
+		return _pick_leader_to_reset_max(g, p, options, effects)
 	if spec in ["enemy_artifact", "ally_artifact", "any_artifact"]:
 		return _priciest_artifact(g, options)
 	for effect in effects:
@@ -2159,6 +2161,26 @@ static func _priciest_artifact(g: GameState, options: Array) -> int:
 		if artifact != null and int(artifact.data().get("cost", 0)) > best_cost:
 			best_cost = int(artifact.data().get("cost", 0))
 			best_uid = uid
+	return best_uid
+
+
+## For a "set_leader_max_hp" pick: the Leader that gains the most Vida (own) or loses the most (enemy), never a loss
+## for the AI itself. Returns 0 when no Leader is worth it.
+static func _pick_leader_to_reset_max(g: GameState, p: int, options: Array, effects: Array) -> int:
+	var new_max := 0
+	for effect in effects:
+		if effect.get("action") == "set_leader_max_hp":
+			new_max = int(effect.get("amount", 0))
+	var best_uid := 0
+	var best_gain := 0
+	for uid in options:
+		var owner: int = GameState.LEADER_UID.find(int(uid))
+		var gain: int = new_max - int(g.players[owner]["leader_hp"])
+		if owner != p:
+			gain = -gain
+		if gain > best_gain:
+			best_gain = gain
+			best_uid = int(uid)
 	return best_uid
 
 

@@ -192,6 +192,8 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"leader_id": d["leader"],
 		"leader_hp": int(ld["hp"]),
 		"leader_max": int(ld["hp"]),
+		# once true, no effect changes this Leader's maximum Vida anymore (Mirela Vance)
+		"leader_max_locked": false,
 		"momentum": 0,
 		"max_momentum": 0,
 		"turn_start_momentum": 0,
@@ -1298,6 +1300,7 @@ func target_spec(effects: Array) -> String:
 			"ally_unit",
 			"other_ally_unit",
 			"ally_or_own_leader",
+			"any_leader",
 			"ally_fragment_bearer",
 			"any_unit",
 			"any",
@@ -1896,6 +1899,9 @@ func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable 
 			for c: Card in mine:
 				out.append(c.uid)
 			out.append(LEADER_UID[p])
+		"any_leader": # either Leader, own or enemy (Mirela Vance)
+			out.append(LEADER_UID[p])
+			out.append(LEADER_UID[opponent(p)])
 		"ally_fragment_bearer": # an ally unit that can take one more Fragmento (Partir-se)
 			for c: Card in mine:
 				if can_receive_fragment(c):
@@ -5243,12 +5249,27 @@ func _apply_capped_leader_heal(context: EffectContext, amount: int, per_turn_cap
 ## Raises the Leader's maximum life and its current life by the same amount (can pass the starting life).
 func _raise_leader_max(p: int, amount: int, healed_by := "") -> void:
 	var pl: Dictionary = players[p]
+	if pl["leader_max_locked"]:
+		return
 	pl["leader_max"] += amount
 	var hp_before: int = pl["leader_hp"]
 	pl["leader_hp"] += amount
 	pl["healing_this_round"] = int(pl["healing_this_round"]) + amount
 	emit_event({ "type": "heal", "uid": LEADER_UID[p], "amount": amount, "hp_after": pl["leader_hp"] })
 	_emit_leader_healed(p, amount, hp_before, healed_by)
+
+
+## Sets the Leader's maximum Vida to `new_max` (its current Vida never stays above it). With `lock`, the maximum can
+## never change again. With `heal_full`, the Leader is then healed to the new maximum. A Leader whose maximum is
+## already locked keeps it, and is only healed.
+func set_leader_max_hp(p: int, new_max: int, lock: bool, heal_full: bool, healed_by := "") -> void:
+	var pl: Dictionary = players[p]
+	if not pl["leader_max_locked"]:
+		pl["leader_max"] = new_max
+		pl["leader_hp"] = mini(int(pl["leader_hp"]), new_max)
+		pl["leader_max_locked"] = lock
+	if heal_full:
+		_heal_leader(p, int(pl["leader_max"]) - int(pl["leader_hp"]), healed_by)
 
 
 ## Tells the listeners (Seymour) that a unit just got `amount` Vida back. Call it after the damage was removed.

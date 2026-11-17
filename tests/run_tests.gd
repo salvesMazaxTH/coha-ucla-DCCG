@@ -175,6 +175,7 @@ func _init() -> void:
 	_test_drake_power()
 	_test_magni()
 	_test_cornelia()
+	_test_mirela_vance()
 	_test_mali_and_ottilia()
 	_test_natureza_canil()
 	_test_wendell()
@@ -12020,6 +12021,57 @@ func _test_tags_field_removed() -> void:
 	check(
 		found_by_bruno == ["bola_de_neve", "grande_bola_de_neve"],
 		"tags: a busca do Bruno acha só a Bola de Neve e a Grande Bola de Neve (%s)" % ", ".join(found_by_bruno),
+	)
+
+
+func _test_mirela_vance() -> void:
+	var card: Dictionary = CardDB.card("mirela_vance")
+	check(
+		int(card["cost"]) == 9 and int(card["atk"]) == 6 and int(card["hp"]) == 6 and card["keywords"].has("imunidade_furia"),
+		"Mirela Vance: custo 9, 6/6 e Imunidade a Fúria",
+	)
+
+	var g := _new_game()
+	_quiet(g)
+	var p: int = g.active
+	var foe_player: int = 1 - p
+	var targets: Array = g.valid_targets(p, "any_leader")
+	check(
+		targets.has(GameState.LEADER_UID[p]) and targets.has(GameState.LEADER_UID[foe_player]),
+		"Mirela Vance: os dois Líderes são alvos válidos",
+	)
+
+	# o Líder com Vida máxima maior é cortado para 15 e fica totalmente curado
+	g.players[p]["leader_max"] = 35
+	g.players[p]["leader_hp"] = 20
+	var set_max_effect := { "action": "set_leader_max_hp", "amount": 15, "lock": true, "heal_full": true }
+	g._apply_effect(p, set_max_effect, GameState.LEADER_UID[p])
+	check(
+		g.players[p]["leader_max"] == 15 and g.players[p]["leader_hp"] == 15 and g.players[p]["leader_max_locked"],
+		"Mirela Vance: a Vida máxima vira 15, a Vida fica cheia e a trava é ligada",
+	)
+
+	# depois da trava, nenhum efeito muda a Vida máxima
+	g._apply_effect(p, { "action": "leader_max_up", "amount": 1 }, 0)
+	check(g.players[p]["leader_max"] == 15 and g.players[p]["leader_hp"] == 15, "trava: leader_max_up não muda mais a Vida máxima")
+	g.players[p]["leader_hp"] = 10
+	g._apply_effect(p, { "action": "heal_leader", "amount": 99 }, 0)
+	check(g.players[p]["leader_hp"] == 15 and g.players[p]["leader_max"] == 15, "trava: a cura continua funcionando até 15")
+	g._apply_effect(p, { "action": "set_leader_max_hp", "amount": 30, "lock": true, "heal_full": true }, GameState.LEADER_UID[p])
+	check(g.players[p]["leader_max"] == 15, "trava: uma segunda Mirela não troca a Vida máxima")
+	g.players[p]["leader_hp"] = 4
+	g._apply_effect(p, { "action": "set_leader_max_hp", "amount": 30, "lock": true, "heal_full": true }, GameState.LEADER_UID[p])
+	check(g.players[p]["leader_max"] == 15 and g.players[p]["leader_hp"] == 15, "trava: a segunda Mirela ainda cura o Líder por inteiro")
+
+	# o outro Líder não foi afetado
+	check(not g.players[foe_player]["leader_max_locked"], "o Líder inimigo continua sem trava")
+
+	# o Líder inimigo também pode ser escolhido
+	g.players[foe_player]["leader_hp"] = 20
+	g._apply_effect(p, set_max_effect, GameState.LEADER_UID[foe_player])
+	check(
+		g.players[foe_player]["leader_max"] == 15 and g.players[foe_player]["leader_hp"] == 15,
+		"Mirela Vance: também funciona no Líder inimigo",
 	)
 
 
