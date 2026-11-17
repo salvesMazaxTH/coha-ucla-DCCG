@@ -8,7 +8,7 @@
   "cost": 4,
   "atk": 3,
   "hp": 4,
-  "keywords": [],
+  "keywords": ["eterea"],
   "art": "natureza/adestradora_regina_tavares.webp",
   "effects": [
     { "trigger": "constante", "action": "keyword_aura", "keywords": ["impeto", "vigilancia"], "unit_filter": { "tribe_any": ["fera"] } }

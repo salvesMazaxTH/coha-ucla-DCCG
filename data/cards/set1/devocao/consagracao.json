@@ -6,7 +6,7 @@
   "essence": "devocao",
   "element": "luz",
   "cost": 2,
-  "speed": "lento",
+  "speed": "instantaneo",
   "art": "devocao/consagracao.webp",
   "effects": [
     {

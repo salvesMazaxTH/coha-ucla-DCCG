@@ -7,7 +7,7 @@
   "essence": "natureza",
   "element": "vegetal",
   "cost": 9,
-  "atk": 9,
+  "atk": 7,
   "hp": 11,
   "keywords": ["provocacao", "sobrepujanca", "inalcancavel", "prudencia"],
   "art": "natureza/anciao_do_primeiro_bosque.webp",

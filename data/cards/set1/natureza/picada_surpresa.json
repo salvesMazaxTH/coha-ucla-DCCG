@@ -5,7 +5,7 @@
   "rarity": "common",
   "essence": "natureza",
   "element": "veneno",
-  "cost": 1,
+  "cost": 2,
   "speed": "instantaneo",
   "art": "natureza/picada_surpresa.webp",
   "effects": [

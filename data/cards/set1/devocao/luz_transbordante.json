@@ -5,8 +5,8 @@
   "rarity": "common",
   "essence": "devocao",
   "element": "luz",
-  "cost": 2,
-  "speed": "lento",
+  "cost": 3,
+  "speed": "rapido",
   "art": "devocao/luz_transbordante.webp",
   "effects": [
     {

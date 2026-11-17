@@ -12,9 +12,10 @@
   "element": "fogo",
   "cost": 4,
   "atk": 3,
-  "hp": 4,
+  "hp": 3,
   "keywords": [
-    "armadura:1"
+    "armadura:1",
+    "eterea"
   ],
   "art": "furia/gunnar_escamaferro.webp",
   "effects": [
