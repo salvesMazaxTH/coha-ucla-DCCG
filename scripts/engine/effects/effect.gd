@@ -114,7 +114,7 @@ func open_choice(_context: EffectContext) -> void:
 	pass
 
 ## Escudo Mágico, the one place that decides it. True when `unit`'s shield cancels this effect.
-## It works like a temporary Inalcançável: the unit can still be picked as a target, but an effect from the
+## It works like a temporary Imunidade a Alvo: the unit can still be picked as a target, but an effect from the
 ## enemy side that AIMS at it (a chosen target, from any source: spell, unit, artifact, Leader ability) does
 ## nothing to it and only breaks the shield. Area, random and untargeted effects (aimed_by_choice false) pass
 ## through it whole and the shield stays, as do the effects of the unit's own side. Once broken, the card's
@@ -172,7 +172,7 @@ func apply_to(context: EffectContext, target_uid: int) -> void:
 	if held_card != null and cancelled_by_any_shield(context, held_card, target.needs_choice()):
 		return
 	# Imunidade contra <essência>: a card of that essence from the enemy side has no effect on the unit it AIMS at
-	# (nothing is spent). Untargeted and area effects still reach it, as with Inalcançável.
+	# (nothing is spent). Untargeted and area effects still reach it, as with Imunidade a Alvo.
 	if hit_unit != null and hit_unit.owner != context.controller and target.needs_choice() \
 			and game.is_immune_to_essence_of(hit_unit, context.source_id()):
 		game.emit_event({"type": "dot_immune", "uid": target_uid, "dot": ""})

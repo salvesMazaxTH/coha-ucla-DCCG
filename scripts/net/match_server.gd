@@ -355,6 +355,7 @@ func _apply(g: GameState, p: int, m: Dictionary) -> Array:
 		"go_to_combat": return g.go_to_combat(p)
 		"skip_combat": return g.skip_combat(p)
 		"attack": return g.attack_unit(p, int(m.get("attacker", 0)), int(m.get("target", 0)))
+		"block": return g.block(p, int(m.get("uid", 0)))
 		"end_combat": return g.end_combat(p)
 		"enter_tapped": return g.choose_enter_tapped(p, bool(m.get("tapped", false)))
 		"end_turn": return g.end_turn(p)

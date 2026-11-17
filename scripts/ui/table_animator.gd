@@ -546,10 +546,13 @@ func animate(events: Array, old: Dictionary) -> float:
 						trig_color = fx_shots.spell_shot_color(resolved_card_id, elem_color(resolved_card_id).lightened(0.25))
 						destroy_cast_style = fx_casts.destroy_style_of(resolved_card_id)
 			"fizzle":
-				host.show_toast(
-					"%s não teve alvo e foi anulado."
-					% (host.card_name(e["card_id"]) if e["kind"] in ["card", "subito"] else "A habilidade")
-				)
+				if e.get("kind", "") == "block":
+					host.show_toast("Bloqueio falhou: o golpe segue para o alvo original.")
+				else:
+					host.show_toast(
+						"%s não teve alvo e foi anulado."
+						% (host.card_name(e["card_id"]) if e["kind"] in ["card", "subito"] else "A habilidade")
+					)
 				cursor += 0.3
 			"countered":
 				host.show_toast("%s foi anulado!" % ("A habilidade do Líder" if e["kind"] == "ability" else host.card_name(e["card_id"])))

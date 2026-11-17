@@ -32,6 +32,7 @@ func _init() -> void:
 	_test_farkoveth_armor_cycle()
 	_test_ai_reservoir_return()
 	_test_reservoir_turn_card()
+	_test_reservoir_opening_card()
 	_test_reservoir_store_effects()
 	_test_art_crop()
 	_test_art_cache_limit()
@@ -137,6 +138,7 @@ func _init() -> void:
 	_test_listeners()
 	_test_stack()
 	_test_reaction()
+	_test_readiness_block()
 	_test_summon_window()
 	_test_subito()
 	_test_combat_step()
@@ -1304,6 +1306,13 @@ func _test_constant() -> void:
 	check(g.atk_of(jeff) == 4 and g.hp_left(jeff) == 4, "jeff no campo cresce na hora (4/4)")
 	_kill(g, jeff)
 	check(int(g.players[0]["lasting_growth"]["jeff"]["atk"]) == 2, "a morte do próprio jeff não conta")
+
+
+	# Vincent morre e volta para a mão (passa pelo cemitério por dentro do motor): não é "ir para o cemitério"
+	var growth_before := int(g.players[0]["lasting_growth"]["jeff"]["atk"])
+	var vincent := _put(g, 0, "vincent_morvane")
+	_kill(g, vincent)
+	check(int(g.players[0]["lasting_growth"]["jeff"]["atk"]) == growth_before, "unidade que volta para a mão ao morrer não faz o jeff crescer")
 
 
 ## The Obscura tests play the old Ceifa Veloz list (Rusco, no Vagante), kept as a fixture since it is no longer a prebuilt deck.
@@ -3161,7 +3170,7 @@ func _test_domain_removals() -> void:
 	)
 
 
-## Escudo Mágico is a temporary Inalcançável: an enemy effect that picks the unit as its target (from any
+## Escudo Mágico is a temporary Imunidade a Alvo: an enemy effect that picks the unit as its target (from any
 ## source) only breaks it; area, random and untargeted effects pass through it whole and it stays.
 func _test_magic_shield_scope() -> void:
 	_tcard("t_ss_enter", 1, 1, [{ "trigger": "on_enter", "action": "damage", "target": "enemy_unit", "amount": 2 }])
@@ -7047,7 +7056,7 @@ func _test_combat() -> void:
 	check(g.attack_targets(wary) == [wary_prey.uid], "prudência: desafia a unidade exaurida e nunca vai no Líder")
 	check(g.attack_unit(0, wary.uid, GameState.LEADER_UID[1]).is_empty(), "prudência: o ataque direto ao Líder é recusado")
 
-	# Etérea: never challenged, not even with Provocação (so it forces nobody)
+	# Imunidade a Desafio: never challenged, not even with Provocação (so it forces nobody)
 	_tcard("t_ghost", 1, 3, [])
 	CardDB.data()["cards"]["t_ghost"]["keywords"] = ["eterea", "provocacao"]
 	g = _new_game()
@@ -7059,7 +7068,7 @@ func _test_combat() -> void:
 		"etérea: ninguém desafia, a Provocação não obriga",
 	)
 
-	# Inalcançável: enemies can't target it, but it can still be challenged
+	# Imunidade a Alvo: enemies can't target it, but it can still be challenged
 	_tcard("t_far", 1, 3, [])
 	CardDB.data()["cards"]["t_far"]["keywords"] = ["inalcancavel"]
 	var far := _put(g, 1, "t_far")
@@ -7068,7 +7077,7 @@ func _test_combat() -> void:
 		not g.valid_targets(0, "enemy_unit").has(far.uid) and g.can_challenge(chaser, far),
 		"inalcançável: sem alvo de inimigos, mas desafiável",
 	)
-	# only Inalcançável enemies left: the screen keeps the aimed action enabled (to explain the refusal), the engine stays strict
+	# only Imunidade a Alvo enemies left: the screen keeps the aimed action enabled (to explain the refusal), the engine stays strict
 	g.players[1]["board"] = [far]
 	check(
 		g.valid_targets(0, "enemy_unit").is_empty() and g.targets_blocked_by_reach(0, "enemy_unit"),
@@ -9203,6 +9212,87 @@ func _test_reaction() -> void:
 
 
 ## Lets the pass/response priorities settle until the attacker declares again (or combat is over).
+func _test_readiness_block() -> void:
+	_tcard("t_ready_hitter", 2, 3, [])
+	_tcard("t_ready_guard", 1, 6, [])
+	CardDB.data()["cards"]["t_ready_guard"]["keywords"] = ["prontidao"]
+	_tcard("t_plain_guard", 1, 6, [])
+
+	# Leader at full Vida: a plain unit is not offered, a ready Prontidão unit blocks for free
+	var g := _reaction_game([], 0)
+	var hitter := _put(g, 0, "t_ready_hitter")
+	var plain := _put(g, 1, "t_plain_guard")
+	var guard := _put(g, 1, "t_ready_guard")
+	var full_life: int = g.players[1]["leader_hp"]
+	_hit(g, hitter)
+	var candidates: Array = g.combat_system().block_candidates(1)
+	check(g.combat_system().is_reacting(1), "Prontidão: abre a janela de bloqueio mesmo com o Líder cheio")
+	check(candidates.has(guard.uid) and not candidates.has(plain.uid), "Prontidão: só a unidade com Prontidão pode bloquear acima da metade")
+	check(g.combat_system().cheapest_block_cost(1) == 0, "Prontidão: pronta, o bloqueio custa 0")
+	check(g.combat_system().block(1, guard.uid), "Prontidão: bloqueia sem Momentum")
+	check(g.blocks_this_turn == 0 and guard.exhausted, "Prontidão: o bloqueio grátis não avança o contador e cansa a unidade")
+	_pass_windows_until_attacks(g)
+	check(
+		g.players[1]["leader_hp"] == full_life and g.find_unit(guard.uid).damage == 2,
+		"Prontidão: a unidade leva o golpe no lugar do Líder",
+	)
+
+	# already cansada: still a candidate, but pays the normal cost and moves the counter
+	g = _reaction_game([], 0)
+	hitter = _put(g, 0, "t_ready_hitter")
+	guard = _put(g, 1, "t_ready_guard")
+	guard.exhausted = true
+	_hit(g, hitter)
+	check(not g.combat_system().block_candidates(1).has(guard.uid), "Prontidão: cansada e sem Momentum não bloqueia")
+	g = _reaction_game([], 1)
+	hitter = _put(g, 0, "t_ready_hitter")
+	guard = _put(g, 1, "t_ready_guard")
+	guard.exhausted = true
+	_hit(g, hitter)
+	check(g.combat_system().block(1, guard.uid), "Prontidão: cansada, bloqueia pagando o custo")
+	check(g.blocks_this_turn == 1 and g.players[1]["momentum"] == 0, "Prontidão: cansada, paga 1 e avança o contador")
+
+	# Congelada never blocks, even with Prontidão
+	g = _reaction_game([], 5)
+	hitter = _put(g, 0, "t_ready_hitter")
+	guard = _put(g, 1, "t_ready_guard")
+	guard.frozen = 1
+	_hit(g, hitter)
+	check(not g.combat_system().block_candidates(1).has(guard.uid), "Prontidão: Congelada não bloqueia")
+
+	# Voo / Furtividade on the attacker: the blocker must be able to challenge it
+	_tcard("t_flying_hitter", 2, 3, [])
+	CardDB.data()["cards"]["t_flying_hitter"]["keywords"] = ["voo"]
+	_tcard("t_stealth_hitter", 2, 3, [])
+	CardDB.data()["cards"]["t_stealth_hitter"]["keywords"] = ["furtividade"]
+	_tcard("t_ranged_guard", 1, 6, [])
+	CardDB.data()["cards"]["t_ranged_guard"]["keywords"] = ["prontidao", "longo_alcance"]
+	_tcard("t_watch_guard", 1, 6, [])
+	CardDB.data()["cards"]["t_watch_guard"]["keywords"] = ["prontidao", "vigilancia"]
+	g = _reaction_game([], 0)
+	hitter = _put(g, 0, "t_flying_hitter")
+	guard = _put(g, 1, "t_ready_guard")
+	var ranged := _put(g, 1, "t_ranged_guard")
+	var watcher := _put(g, 1, "t_watch_guard")
+	_hit(g, hitter)
+	candidates = g.combat_system().block_candidates(1)
+	check(
+		candidates.has(ranged.uid) and not candidates.has(guard.uid) and not candidates.has(watcher.uid),
+		"Bloqueio: atacante com Voo só é bloqueado por Voo/Longo Alcance",
+	)
+	g = _reaction_game([], 0)
+	hitter = _put(g, 0, "t_stealth_hitter")
+	guard = _put(g, 1, "t_ready_guard")
+	ranged = _put(g, 1, "t_ranged_guard")
+	watcher = _put(g, 1, "t_watch_guard")
+	_hit(g, hitter)
+	candidates = g.combat_system().block_candidates(1)
+	check(
+		candidates.has(watcher.uid) and not candidates.has(guard.uid) and not candidates.has(ranged.uid),
+		"Bloqueio: atacante com Furtividade só é bloqueado por Furtividade/Vigilância",
+	)
+
+
 func _pass_windows_until_attacks(g: GameState) -> void:
 	for i in 10:
 		if g.phase != "combat" or g.combat_system().in_attacks_window(g.active) or g.combat_system().is_reacting(g.opponent(g.active)):
@@ -10203,12 +10293,12 @@ func _test_stack() -> void:
 	g.pass_priority(0)
 	check(g.phase != "combat" or g.window != "attacks", "janela A: passar com a pilha vazia ainda encerra o combate")
 
-	# Escudo Mágico (Neraqa only shields another ally; she is Inalcançável herself)
+	# Escudo Mágico (Neraqa only shields another ally; she is Imunidade a Alvo herself)
 	g = _new_game()
 	g.players[0]["momentum"] = 5
 	var ner := _put(g, 1, "neraqa")
 	check(not g.has_kw(ner, "escudo_magico"), "neraqa never shields herself")
-	check(not g.card_targets(0, CardDB.card("labareda")).has(ner.uid), "neraqa is Inalcançável: enemy spells can't target her")
+	check(not g.card_targets(0, CardDB.card("labareda")).has(ner.uid), "neraqa is Imunidade a Alvo: enemy spells can't target her")
 	# the screen keeps the spell enabled (to explain the refusal) but the auto-pass still sees no play
 	g.players[0]["hand"] = []
 	var blocked_spell := _give(g, 0, "labareda")
@@ -19147,7 +19237,7 @@ func _test_momentum_overflow() -> void:
 	check(damage_steps == 2 and baron.attacks_made == 2, "auto_attack: dois combates completos, o extra primeiro")
 
 	# the random pick has NO restriction: even a Barão with Ímpeto (sick) can hit the Leader, and an untapped
-	# Etérea / Furtiva / Voo / Provocação unit is a valid pick too. Over many seeds, both ends get picked.
+	# Imunidade a Desafio / Furtiva / Voo / Provocação unit is a valid pick too. Over many seeds, both ends get picked.
 	_tcard("t_surge_ghost", 1, 40, [])
 	CardDB.data()["cards"]["t_surge_ghost"]["keywords"] = ["eterea", "furtividade", "voo", "provocacao"]
 	var ghost_picked := false
@@ -19176,7 +19266,7 @@ func _test_momentum_overflow() -> void:
 		if attack_targets.size() == 2:
 			ghost_picked = ghost_picked or attack_targets[0] == ghost.uid
 			leader_picked = leader_picked or attack_targets[0] == GameState.LEADER_UID[enemy]
-	check(ghost_picked, "auto_attack: uma unidade desvirada, Etérea e com Furtividade pode ser sorteada")
+	check(ghost_picked, "auto_attack: uma unidade desvirada, Imunidade a Desafio e com Furtividade pode ser sorteada")
 	check(leader_picked, "auto_attack: o Líder pode ser sorteado mesmo com Ímpeto")
 
 	# the Barão dies to the counter-blow of the extra attack: the declared attack fizzles and combat still closes
@@ -20741,6 +20831,46 @@ func _test_reservoir_turn_card() -> void:
 	check(
 		g.players[a]["reservoir"].size() == g.momentum_cap(a) and g.players[a]["deck"].size() == full_deck - 1,
 		"Reservatório: cheio, não recebe a carta do fundo (o deck só perde a compra)",
+	)
+
+
+## The free starting Reservatório card (bottom of the deck when the mulligan ends) can be given back on its owner's
+## first turn, like the card of the turn; a starting card already spent before that turn cannot.
+func _test_reservoir_opening_card() -> void:
+	var g := _new_game()
+	var first := g.active
+	var second := 1 - first
+	var first_card: Card = g.players[first]["reservoir"].front()
+	var second_card: Card = g.players[second]["reservoir"].front()
+	check(g.reservoir_returnable_uids(first).has(first_card.uid), "Carta inicial: quem começa pode devolver a sua no 1º turno")
+	check(not g.reservoir_returnable_uids(second).has(second_card.uid), "Carta inicial: o outro jogador não devolve no turno alheio")
+	var deck_size: int = g.players[first]["deck"].size()
+	g.return_reservoir_card(first, first_card.uid)
+	check(
+		not g.players[first]["reservoir"].has(first_card) and g.players[first]["deck"].size() == deck_size + 1,
+		"Carta inicial: devolvida, volta ao deck",
+	)
+	check(
+		g.players[first]["deck"].front() == first_card and first_card.face_up_in_deck,
+		"Carta inicial: fica desvirada no fundo, sem embaralhar",
+	)
+	g.end_turn(first)
+	check(g.reservoir_returnable_uids(second).has(second_card.uid), "Carta inicial: o segundo jogador pode devolver a sua no 1º turno dele")
+	g.end_turn(second)
+	check(
+		g.players[first]["reservoir"].size() == 3, # the turn-1 card stayed, plus 2 on the next turn
+		"Carta inicial: depois de devolvê-la, o turno seguinte traz 2 cartas",
+	)
+	check(not g.reservoir_returnable_uids(first).has(first_card.uid), "Carta inicial: só vale no 1º turno")
+
+	var spent := _new_game()
+	var spent_second := 1 - spent.active
+	var spent_card: Card = spent.players[spent_second]["reservoir"].front()
+	spent_card.exhausted = true
+	spent.end_turn(spent.active)
+	check(
+		not spent.reservoir_returnable_uids(spent_second).has(spent_card.uid),
+		"Carta inicial: já gasta antes do turno, não pode ser devolvida",
 	)
 
 

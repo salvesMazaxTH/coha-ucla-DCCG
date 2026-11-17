@@ -9,9 +9,9 @@ var _choice_resolution: Dictionary = {}
 func _init(game_state: GameState) -> void:
 	game = game_state
 
-## Equipping, an Ao Entrar and abilities flagged "uncounterable" can be responded to but never countered.
+## Equipping, an Ao Entrar, a Bloqueio and abilities flagged "uncounterable" can be responded to but never countered.
 func is_uncounterable(it: Dictionary) -> bool:
-	if it["kind"] == "enter_trigger":
+	if it["kind"] == "enter_trigger" or it["kind"] == "block":
 		return true
 	if it["kind"] == "ability":
 		return CardDB.leader(game.players[it["player"]]["leader_id"])["ability"].get("uncounterable", false)
@@ -27,6 +27,8 @@ func stack_item(sid: int) -> Dictionary:
 func stack_cost(item: Dictionary) -> int:
 	if item["kind"] == "enter_trigger":
 		return 0 # the unit's cost was paid when it was played
+	if item["kind"] == "block":
+		return int(item["cost"])
 	if item["kind"] == "ability":
 		return int(CardDB.leader(game.players[item["player"]]["leader_id"])["ability"]["cost"])
 	if item["kind"] == "unit_ability":
@@ -138,8 +140,8 @@ func effects_of(item: Dictionary) -> Array:
 		return CardDB.card(item["card_id"])["activated"]["effects"]
 	if item["kind"] == "artifact_equip":
 		return CardDB.card(item["card_id"])["equip_from_field"]["effects"]
-	if item["kind"] == "subito":
-		return [] # a Súbito summon has no effect of its own: the unit just enters when it resolves
+	if item["kind"] == "subito" or item["kind"] == "block":
+		return [] # a Súbito summon / a Bloqueio has no effect of its own (see resolve_stack)
 	if game.preview_blank_uid != 0 and item["kind"] == "card" and int(item["uid"]) == game.preview_blank_uid:
 		return [] # AI preview: this cast is the "nothing happens" version (see GameState.preview_copy)
 	return CardDB.card(item["card_id"])["effects"]
@@ -153,6 +155,10 @@ func resolve_stack() -> void:
 		for pending_item in game.stack:
 			lower_stack_sids[int(pending_item["sid"])] = true
 		var p: int = item["player"]
+		if item["kind"] == "block":
+			_resolve_block(item)
+			_finish_resolution_priority(lower_stack_sids)
+			return
 		var effects := effects_of(item)
 		# For equipment: the unit's stats before the buff, to work out what the equipment gave it
 		var stats_before_equip := {}
@@ -194,6 +200,13 @@ func resolve_stack() -> void:
 			return
 		_complete_resolved_item(item, spec, gone, stats_before_equip)
 	_finish_resolution_priority(lower_stack_sids)
+
+## A Bloqueio resolves: the blocker takes the blow instead. If the blocker or the attack is gone, it fizzles.
+func _resolve_block(item: Dictionary) -> void:
+	var redirected: bool = game.combat_system().redirect_attack_to_blocker(int(item["uid"]), int(item["attacker"]))
+	var event_type := "resolve" if redirected else "fizzle"
+	game.emit_event({"type": event_type, "sid": item["sid"], "player": item["player"], "card_id": item["card_id"], "kind": "block", "uid": int(item["uid"]), "target": item.get("target", 0), "target2": 0})
+	game.check_state()
 
 func resume_choice_resolution() -> void:
 	if _choice_resolution.is_empty():
@@ -504,6 +517,8 @@ func after_search() -> void:
 
 ## Can p do anything right now besides passing?
 func has_play(p: int) -> bool:
+	if game.combat_system().can_block_now(p):
+		return true
 	for c in game.players[p]["hand"]:
 		if game.can_play(p, c.uid):
 			return true

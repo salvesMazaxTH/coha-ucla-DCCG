@@ -266,6 +266,7 @@ const BADGES := {
 	"vigilancia": Color("#ffe39a"),
 	"obsessao": Color("#ff7f6e"),
 	"prudencia": Color("#9fd0ff"),
+	"prontidao": Color("#ffd27a"),
 	"intimidacao": Color("#ffa24d"),
 	"inalcancavel": Color("#9ff0d0"),
 	"eterea": Color("#e6d9ff"),
@@ -1349,7 +1350,7 @@ func _draw_lettering_and_gems(look: Dictionary) -> void:
 	var is_token: bool = look["is_token"]
 	var full_art: bool = look["full_art"]
 	var art: Rect2 = look["art"]
-	_kw_badges(art, cd, s)
+	_kw_badges(art, cd, s, full_art)
 
 	if full_art: # champions: tribe + element are just lettering on the shaded art, no plate
 		var tribe_label := CardDB.tribe_and_element_label(cd).to_upper()
@@ -2122,34 +2123,48 @@ func _draw_dot_badges(art: Rect2, s: float, pulse: float) -> void:
 	var radius_by_count := [10 * s * DOT_BADGE_ENLARGEMENT, 10 * s * 1.35, 10 * s]
 	draw_status_column(self, _status_amounts(), _face_size.x, column_top, column_bottom, radius_by_count, s, _t, pulse)
 
+const SIDE_BADGE_SHRINK := 0.9 ## keyword medallion size when a card shows 3 or more
+const SIDE_BADGE_SPACING := 23.0 ## distance between medallions of a column, at full size
+const SIDE_BADGE_FIRST_Y := 15.0 ## first medallion's center below the art window top
+const SIDE_BADGE_FIRST_Y_RIGHT := 30.0 ## same, on the right edge (clears the Condenada skull)
+const SIDE_BADGE_FIRST_Y_FULL_ART := 40.0 ## same, on a full-art card (clears the domain seal)
+
 ## Round medallions down the left edge of the art, then the opposite edge when the left fills.
-func _kw_badges(art: Rect2, cd: Dictionary, s: float) -> void:
+## With 3 or more they shrink a little and the column starts as high as the art allows.
+func _kw_badges(art: Rect2, cd: Dictionary, s: float, full_art: bool) -> void:
 	var kws := _keywords(cd)
-	# Leave a little more clearance below the cost orb. Full-art Champion cards start their art
-	# closer to the top edge, so their first medallion otherwise tucks under the orb drawn later.
+	var shown_keywords: Array = BADGES.keys().filter(func(kw: String) -> bool: return kws.has(kw))
+	var armor_value := armor_of_view(cd, inst)
+	var shows_use_badge: bool = inst.has("damage") and cd.get("activated", {}).get("exhaust", false)
+	var total := shown_keywords.size() + (1 if armor_value > 0 else 0) + (1 if shows_use_badge else 0)
+	var shrink := SIDE_BADGE_SHRINK if total >= 3 else 1.0
+	var radius := 10 * s * shrink
 	var badge_index := 0
 	var c := Vector2.ZERO
-	for kw in BADGES:
-		if kws.has(kw):
-			c = _side_badge_position(art, badge_index, s)
-			_kw_badge(kw, c, 10 * s, s)
-			badge_index += 1
-	var armor_value := armor_of_view(cd, inst)
+	for kw in shown_keywords:
+		c = _side_badge_position(art, badge_index, s, shrink, full_art)
+		_kw_badge(kw, c, radius, s)
+		badge_index += 1
 	if armor_value > 0:
-		c = _side_badge_position(art, badge_index, s)
-		_armor_badge(c, 10 * s, s, armor_value)
+		c = _side_badge_position(art, badge_index, s, shrink, full_art)
+		_armor_badge(c, radius, s, armor_value)
 		badge_index += 1
 	# an Ao Ativar that exhausts the unit: lit while it can still be used, dark once spent.
 	# Shown on both turns, since the dim veil only means "can't attack" on the owner's turn.
-	if inst.has("damage") and cd.get("activated", {}).get("exhaust", false):
-		c = _side_badge_position(art, badge_index, s)
-		_use_badge(c, 10 * s, s, not inst.get("exhausted", false))
+	if shows_use_badge:
+		c = _side_badge_position(art, badge_index, s, shrink, full_art)
+		_use_badge(c, radius, s, not inst.get("exhausted", false))
 		badge_index += 1
-func _side_badge_position(art: Rect2, index: int, s: float) -> Vector2:
+
+## Three medallions per edge. A full-art card keeps its domain seal in the top-left corner, so its column starts lower;
+## on the other cards the art window top is free (the cost orb sits on the name plate), except the right edge's
+## Condenada skull.
+func _side_badge_position(art: Rect2, index: int, s: float, shrink: float, full_art: bool) -> Vector2:
 	var on_right := index >= 3
 	var row := index - 3 if on_right else index
+	var first_y := SIDE_BADGE_FIRST_Y_FULL_ART if full_art else (SIDE_BADGE_FIRST_Y_RIGHT if on_right else SIDE_BADGE_FIRST_Y)
 	var x := art.end.x - 11 * s if on_right else art.position.x + 11 * s
-	return Vector2(x, art.position.y + (40 + 23 * row) * s)
+	return Vector2(x, art.position.y + (first_y + SIDE_BADGE_SPACING * shrink * row) * s)
 
 ## Armadura medallion: a steel shield with the amount written on it.
 func _armor_badge(c: Vector2, r: float, s: float, amount: int) -> void:
@@ -2281,6 +2296,10 @@ func _kw_badge(kw: String, c: Vector2, r: float, s: float) -> void:
 			draw_arc(c, g * 0.86, 0, TAU, 28, col, 1.3 * s, true)
 			draw_colored_polygon(_unit_pts(c, g, [[-0.48, -0.42], [0.48, -0.42], [0.48, 0.0], [0, 0.5], [-0.48, 0.0]]), lit)
 			draw_line(c + Vector2(0, -0.3) * g, c + Vector2(0, 0.3) * g, col.darkened(0.85), 1.3 * s, true)
+		"prontidao": # a shield with a lightning bolt: it jumps in to block at any moment
+			draw_colored_polygon(_unit_pts(c, g, [[-0.6, -0.62], [0.6, -0.62], [0.6, 0.05], [0, 0.78], [-0.6, 0.05]]), lit)
+			draw_colored_polygon(_unit_pts(c, g, [[0.12, -0.5], [-0.26, 0.08], [0.0, 0.08], [-0.12, 0.56], [0.28, -0.06],
+				[0.02, -0.06]]), col.darkened(0.85))
 		"inalcancavel": # a crosshair crossed out: it can't be aimed at
 			draw_arc(c, g * 0.55, 0, TAU, 24, lit, 1.2 * s, true)
 			for dir in [Vector2.UP, Vector2.DOWN, Vector2.LEFT, Vector2.RIGHT]:

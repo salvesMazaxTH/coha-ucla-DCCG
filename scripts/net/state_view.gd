@@ -79,6 +79,19 @@ static func snapshot(g: GameState, seat: int) -> Dictionary:
 		"summon_window": g.summon_window,
 		"stack_passed": g.stack_passed,
 		"skip_rest_of_turn": g.skip_rest_of_turn.duplicate(),
+		"blocks_this_turn": g.blocks_this_turn,
+		"pending_attack": _public_attack(g.combat_system().pending_attack),
+	}
+
+## The declared attack, so the client can offer Bloquear (who strikes whom, and if it was already blocked).
+static func _public_attack(attack: Dictionary) -> Dictionary:
+	if attack.is_empty():
+		return {}
+	return {
+		"attacker": int(attack["attacker"]),
+		"target": int(attack["target"]),
+		"awaiting_triggers": bool(attack.get("awaiting_triggers", false)),
+		"block_used": bool(attack.get("block_used", false)),
 	}
 
 ## Events are public information (a draw carries only a uid, plays show the card being

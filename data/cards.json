@@ -240,19 +240,19 @@
     },
     "voo": {
       "name": "Voo",
-      "text": "Só pode ser desafiada por unidades com Voo ou Longo Alcance."
+      "text": "Só pode ser desafiada ou bloqueada por unidades com Voo ou Longo Alcance."
     },
     "longo_alcance": {
       "name": "Longo Alcance",
-      "text": "Pode desafiar unidades com Voo."
+      "text": "Pode desafiar e bloquear unidades com Voo."
     },
     "furtividade": {
       "name": "Furtividade",
-      "text": "Só pode ser desafiada por unidades com Furtividade ou Vigilância."
+      "text": "Só pode ser desafiada ou bloqueada por unidades com Furtividade ou Vigilância."
     },
     "vigilancia": {
       "name": "Vigilância",
-      "text": "Pode desafiar unidades com Furtividade."
+      "text": "Pode desafiar e bloquear unidades com Furtividade."
     },
     "intimidacao": {
       "name": "Intimidação",
@@ -260,14 +260,18 @@
     },
     "obsessao": {
       "name": "Obsessão",
-      "text": "Esta unidade só ataca o Líder inimigo, mas uma Provocação exaurida ainda a obriga a desafiá-la."
+      "text": "Esta unidade só ataca o Líder inimigo, mas uma Provocação exaurida ainda a obriga a desafiá-la. Nunca bloqueia."
+    },
+    "prontidao": {
+      "name": "Prontidão",
+      "text": "Pode bloquear mesmo cansada e mesmo contra ataques ao Líder acima da metade da Vida. Se bloquear enquanto está pronta, o bloqueio é grátis e não encarece o próximo."
     },
     "prudencia": {
       "name": "Prudência",
       "text": "Esta unidade só ataca desafiando unidades inimigas exauridas: nunca ataca o Líder inimigo."
     },
     "inalcancavel": {
-      "name": "Inalcançável",
+      "name": "Imunidade a Alvo",
       "text": "Não pode ser alvo de feitiços, habilidades ou efeitos do oponente (efeitos sem alvo, como os de área, ainda a afetam)."
     },
     "imunidade_furia": {
@@ -303,7 +307,7 @@
       "text": "O dano de combate desta unidade é sempre 0, mesmo com bônus de Ataque. Ela ainda ataca, desafia, sofre o golpe de volta e se exaure."
     },
     "eterea": {
-      "name": "Etérea",
+      "name": "Imunidade a Desafio",
       "text": "Não pode ser desafiada por nada (nem obriga desafios com Provocação)."
     },
     "vulneravel": {
@@ -324,7 +328,7 @@
     },
     "escudo_magico": {
       "name": "Escudo Mágico",
-      "text": "Um Inalcançável temporário: o primeiro efeito do oponente que escolhe esta unidade como alvo não faz nada a ela e só quebra o escudo. Efeitos em área, aleatórios ou sem alvo passam através dele sem quebrá-lo."
+      "text": "Uma Imunidade a Alvo temporária: o primeiro efeito do oponente que escolhe esta unidade como alvo não faz nada a ela e só quebra o escudo. Efeitos em área, aleatórios ou sem alvo passam através dele sem quebrá-lo."
     },
     "escudo_supremo": {
       "name": "Escudo Supremo",

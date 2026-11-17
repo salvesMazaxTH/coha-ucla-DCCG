@@ -587,6 +587,8 @@ func _play_events(events: Array) -> void:
 	for e in events:
 		if e["type"] == "reaction":
 			reaction_attack = { "attacker": int(e["attacker"]), "target": int(e["target"]) }
+		elif e["type"] == "resolve" and e.get("kind", "") == "block" and not reaction_attack.is_empty():
+			reaction_attack["target"] = int(e["uid"]) # the blow now goes to the blocker
 		elif e["type"] in ["combat_damage", "combat_end"]:
 			reaction_attack.clear()
 	var old := fx_library.snapshot_views()
@@ -2138,6 +2140,9 @@ func _render_side() -> void:
 		ph_t = "Resposta · pilha %d" % g.stack.size()
 	elif g.summon_window:
 		ph_t = "Resposta · invocação"
+	elif g.phase == "combat":
+		# both players see what the next Bloqueio costs this turn (1, then 2, then 3...)
+		ph_t = "%s · Bloqueio %d" % [ph_t, g.combat_system().block_cost()]
 	var ph := make_label(ph_t, 17, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
 	ph.position = Vector2(0, 33)
 	ph.size = Vector2(COL_W, 22)
@@ -2394,9 +2399,9 @@ func _render_stack() -> void:
 		tab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		tab.add_theme_stylebox_override("panel", UITheme.box(_leader_color(it["player"]), 3))
 		layer.add_child(tab)
-		if it["kind"] in ["unit_ability", "artifact_equip", "subito", "enter_trigger"]:
+		if it["kind"] in ["unit_ability", "artifact_equip", "subito", "enter_trigger", "block"]:
 			var rb := _stack_pill(
-				{ "unit_ability": "AO ATIVAR", "artifact_equip": "EQUIPAR", "subito": "SÚBITO", "enter_trigger": "AO ENTRAR" }[
+				{ "unit_ability": "AO ATIVAR", "artifact_equip": "EQUIPAR", "subito": "SÚBITO", "enter_trigger": "AO ENTRAR", "block": "BLOQUEIO" }[
 					it["kind"]
 				],
 				UITheme.GOLD_LIGHT,
@@ -2435,6 +2440,8 @@ func _render_stack() -> void:
 ## What the front item aims at (a unit, a Leader or another stack item).
 func _stack_arrow(it: Dictionary, centers: Dictionary, from: Vector2) -> void:
 	var t: int = int(it.get("target", 0))
+	if it["kind"] == "block":
+		t = int(it["uid"]) # a Bloqueio points at the unit stepping in
 	if t == 0:
 		return
 	var to := Vector2.ZERO
@@ -2722,7 +2729,16 @@ func _hint() -> String:
 					if viewer == g.active:
 						return "Arraste uma unidade até o alvo para atacar (ou jogue um Instantâneo) · ENCERRAR COMBATE quando acabar."
 					if g.combat_system().is_reacting(viewer):
-						return "Reagir? Jogue uma Instantânea antes do dano ou passe."
+						if targeting.get("kind") == "block":
+							return "Toque na unidade que vai bloquear."
+						if g.combat_system().can_block_now(viewer):
+							if g.combat_system().reaction_is_block_only(viewer):
+								return "Bloquear? Bloqueie (%d) ou passe." % g.combat_system().cheapest_block_cost(viewer)
+							return "Reagir? Bloqueie (%d) ou jogue um Instantâneo." % g.combat_system().cheapest_block_cost(viewer)
+						var reason := _block_unavailable_reason()
+						if reason != "" and g.combat_system().block_is_offered(g.combat_system().pending_attack):
+							return "Reagir? Jogue um Instantâneo ou passe. %s" % reason
+						return "Reagir? Jogue um Instantâneo antes do dano ou passe."
 		"enter_tapped":
 			return "%s tem Provocação: entrar exaurida obriga os inimigos a desafiá-la." % card_name(_pending_tap_card_id())
 		"mulligan":
@@ -2835,6 +2851,8 @@ func _action_buttons() -> Array:
 					)
 				)
 			else:
+				if g.combat_system().is_reacting(viewer) and not g.combat_system().pending_attack.is_empty():
+					out.append(_block_button())
 				out.append(
 					_action_button(
 						_pass_button_label(),
@@ -3309,7 +3327,7 @@ func _hand_spec(v: CardView) -> String:
 	var cd := CardDB.card(v.card_id)
 	var spec := g.card_spec(cd)
 	if spec != "" and (not g.card_targets(viewer, cd).is_empty() or g.targets_blocked_by_reach(viewer, spec)):
-		return spec # blocked only by Inalcançável: aim anyway, aiming at that unit explains the refusal
+		return spec # blocked only by Imunidade a Alvo: aim anyway, aiming at that unit explains the refusal
 	return ""
 
 
@@ -3358,7 +3376,7 @@ func _update_aim() -> void:
 		aim_arrow.locked = false
 		return
 	var on: bool = (
-		g != null and not targeting.is_empty() and targeting.get("spec") != "enemy_stack"
+		g != null and not targeting.is_empty() and targeting.get("spec") not in ["enemy_stack", "block"]
 		and viewer_can_act() and g.phase in ["main", "combat", "enter_target", "effect_choice"]
 	)
 	if not on:
@@ -3434,6 +3452,8 @@ func _on_incarnation(p: int) -> void:
 ## While our Ao Entrar waits for a target, aim from the unit on the board; the choice is
 ## optional (the side button skips it), so it cannot be cancelled away.
 func _sync_enter_aim() -> void:
+	if targeting.get("kind") == "block" and not (viewer_can_act() and g.combat_system().can_block_now(viewer)):
+		targeting = { } # the reaction window closed while the blocker was being picked
 	if g.phase != "enter_target" or not viewer_can_act():
 		if targeting.get("kind") == "enter":
 			targeting = { }
@@ -3495,6 +3515,8 @@ func _is_target(uid: int) -> bool:
 	if targeting["kind"] == "attack":
 		var attacker := g.find_unit(targeting["uid"])
 		return attacker != null and g.attack_targets(attacker).has(uid)
+	if targeting["kind"] == "block":
+		return g.combat_system().block_candidates(viewer).has(uid)
 	if (
 		targeting.has("first") and not targeting.get("first_is_stack", false)
 		and uid == targeting["first"] and not CardDB.card(targeting["card_id"]).get("same_target_ok", false)
@@ -3615,6 +3637,9 @@ func _fire_target(uid: int, confirmed := false) -> void:
 			handle_action_result(g.choose_enter_target(viewer, uid))
 		"attack":
 			handle_action_result(g.attack_unit(viewer, targeting["uid"], uid))
+		"block":
+			targeting = { }
+			handle_action_result(g.block(viewer, uid))
 		"effect_choice":
 			handle_action_result(g.choose_effect_option(viewer, int(targeting["mode"]), uid))
 
@@ -3789,14 +3814,14 @@ func _unit_click_acted(v: CardView) -> bool:
 	return false
 
 
-## Aiming an effect at an enemy unit with Inalcançável: says why it is refused (true), the aim stays open.
+## Aiming an effect at an enemy unit with Imunidade a Alvo: says why it is refused (true), the aim stays open.
 func _warn_unreachable(uid: int) -> bool:
 	if targeting.is_empty() or targeting["kind"] == "attack" or _is_target(uid):
 		return false
 	var unit := g.find_unit(uid)
 	if unit == null or unit.owner == viewer or not g.has_kw(unit, "inalcancavel"):
 		return false
-	show_toast("Inalcançável: essa unidade não pode ser alvo.")
+	show_toast("Imunidade a Alvo: essa unidade não pode ser alvo.")
 	return true
 
 
@@ -3990,6 +4015,43 @@ func make_toggle_button(title: String, is_on: bool, on_press: Callable) -> Butto
 	)
 	button.add_child(switch_area)
 	return button
+
+
+## "BLOQUEAR (N)": tap to pick the blocker among the highlighted units, tap again to give up.
+## Greyed out when no block is possible; the hint above says why.
+func _block_button() -> Button:
+	var picking: bool = targeting.get("kind") == "block"
+	var button := Button.new()
+	button.text = "CANCELAR BLOQUEIO" if picking else "BLOQUEAR (%d)" % g.combat_system().cheapest_block_cost(viewer)
+	button.disabled = not g.combat_system().can_block_now(viewer)
+	button.tooltip_text = _block_unavailable_reason()
+	button.pressed.connect(Sfx.play.bind("ui_click"))
+	button.pressed.connect(_on_block_pressed)
+	return button
+
+
+func _on_block_pressed() -> void:
+	if targeting.get("kind") == "block":
+		_cancel_targeting()
+		return
+	if not viewer_can_act() or not g.combat_system().can_block_now(viewer):
+		return
+	targeting = { "kind": "block", "uid": 0, "spec": "block" }
+	render_table()
+
+
+## Why the viewer cannot block the declared attack right now ("" when they can).
+func _block_unavailable_reason() -> String:
+	var combat := g.combat_system()
+	if combat.pending_attack.is_empty() or combat.can_block_now(viewer):
+		return ""
+	if combat.pending_attack.get("block_used", false):
+		return "Esse ataque já foi bloqueado."
+	if not combat.block_is_offered(combat.pending_attack):
+		return "Ataque ao Líder só pode ser bloqueado com ele abaixo da metade da Vida."
+	if g.budget(viewer, true) < combat.block_cost():
+		return "Momentum insuficiente: bloquear custa %d." % combat.block_cost()
+	return "Nenhuma unidade pronta para bloquear."
 
 
 ## The "pass action" buttons (PASSAR, ENCERRAR TURNO, IR PARA O COMBATE...). Pressing one greys out

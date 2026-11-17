@@ -56,6 +56,8 @@ func apply_snapshot(snap: Dictionary) -> void:
 	summon_window = bool(s.get("summon_window", false))
 	stack_passed = bool(s.get("stack_passed", false))
 	skip_rest_of_turn = s.get("skip_rest_of_turn", [false, false])
+	blocks_this_turn = int(s.get("blocks_this_turn", 0))
+	combat_system().pending_attack = s.get("pending_attack", {})
 
 func _act(m: Dictionary) -> Array:
 	m["t"] = "act"
@@ -100,6 +102,9 @@ func skip_combat(_p: int) -> Array:
 
 func attack_unit(_p: int, attacker_uid: int, target_uid: int) -> Array:
 	return _act({"a": "attack", "attacker": attacker_uid, "target": target_uid})
+
+func block(_p: int, blocker_uid: int) -> Array:
+	return _act({"a": "block", "uid": blocker_uid})
 
 func end_combat(_p: int) -> Array:
 	return _act({"a": "end_combat"})

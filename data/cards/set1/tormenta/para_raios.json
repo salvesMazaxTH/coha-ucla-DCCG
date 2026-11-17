@@ -10,7 +10,8 @@
   "atk": 2,
   "hp": 5,
   "keywords": [
-    "escudo_magico"
+    "escudo_magico",
+    "prontidao"
   ],
   "art": "tormenta/para_raios.webp",
   "effects": [],

@@ -8,6 +8,7 @@ extends RefCounted
 ## The attacker may cast Instantâneo between attacks.
 ## The defender may react with a castable Instantâneo if an attack could kill a unit or
 ## leave the Leader at 15 HP or less.
+## Bloqueio: the defender may also redirect a declared attack to one of their ready units (see block()).
 
 var game: GameState
 const LEADER_REACTION_HP_THRESHOLD := 15
@@ -77,7 +78,7 @@ func has_any_attacker() -> bool:
 ##   it
 ##     (it can challenge only Provocação units, and then must).
 ##   Rompante (the turn it enters): it goes for the Leader and may only challenge a Provocação.
-##   Etérea: nothing can ever challenge it (not even when it has Provocação).
+##   Imunidade a Desafio: nothing can ever challenge it (not even when it has Provocação).
 func can_challenge(attacker: Card, target: Card) -> bool:
 	if attacker == null or target == null or target.owner == attacker.owner \
 			or (not target.exhausted and not game.has_kw(target, "vulneravel")):
@@ -88,14 +89,16 @@ func can_challenge(attacker: Card, target: Card) -> bool:
 		return false
 	if game.has_kw(target, "eterea"):
 		return false
-	if (
-		game.has_kw(target, "voo")
-		and not (game.has_kw(attacker, "voo") or game.has_kw(attacker, "longo_alcance"))
-	):
+	return can_reach(attacker, target)
+
+## Voo and Furtividade: can `unit` reach `other`? Voo needs Voo or Longo Alcance, Furtividade needs
+## Furtividade or Vigilância. Used for challenges and also for blocks (a blocker must reach the attacker).
+func can_reach(unit: Card, other: Card) -> bool:
+	if game.has_kw(other, "voo") and not (game.has_kw(unit, "voo") or game.has_kw(unit, "longo_alcance")):
 		return false
 	if (
-		game.has_kw(target, "furtividade")
-		and not (game.has_kw(attacker, "furtividade") or game.has_kw(attacker, "vigilancia"))
+		game.has_kw(other, "furtividade")
+		and not (game.has_kw(unit, "furtividade") or game.has_kw(unit, "vigilancia"))
 	):
 		return false
 	return true
@@ -356,24 +359,146 @@ func is_reacting(player: int) -> bool:
 ## otherwise nothing is asked and the attack just resolves. Returns true when the defender now holds
 ## priority.
 func _offer_reaction() -> bool:
-	if game.phase != "combat" or not attack_is_worth_a_reply(pending_attack):
+	if game.phase != "combat":
 		return false
 	var defender := game.opponent(game.active)
 	var previous_priority := game.priority
 	game.priority = defender
 	# with priority on the defender, has_play() only sees what is castable now: an Instantâneo
-	# within
-	# their Momentum
-	if game.stack_system().has_play(defender):
+	# within their Momentum, or a Bloqueio. The window opens when the old rule asks for it (an
+	# Instantâneo is worth casting) or a block is possible.
+	var worth_a_reply := attack_is_worth_a_reply(pending_attack)
+	if (worth_a_reply or can_block_now(defender)) and game.stack_system().has_play(defender):
 		game.emit_event({
 			"type": "reaction",
 			"player": defender,
 			"attacker": int(pending_attack["attacker"]),
 			"target": int(pending_attack["target"]),
+			"block_only": not worth_a_reply,
 		})
 		return true
 	game.priority = previous_priority
 	return false
+
+## Bloqueio: the cost of the defender's next block this turn (1, then 2, then 3...). It is the
+## only limit on how many blocks a turn can have.
+func block_cost() -> int:
+	return game.blocks_this_turn + 1
+
+## Prontidão: blocks even cansada and even against a Leader hit above half Vida.
+func has_readiness(unit: Card) -> bool:
+	return game.has_kw(unit, "prontidao")
+
+## Prontidão: a block made while the unit is still ready is free and does not move the cost ladder.
+func block_is_free(unit: Card) -> bool:
+	return has_readiness(unit) and not unit.exhausted
+
+func block_cost_for(unit: Card) -> int:
+	return 0 if block_is_free(unit) else block_cost()
+
+## The defender's units that could take the blow instead, right now: not the unit already being hit,
+## able to block, ready (or with Prontidão), affordable, and allowed against this attack
+## (a Leader hit above half Vida can only be blocked by a Prontidão unit).
+func block_candidates(player: int) -> Array:
+	var out: Array = []
+	if pending_attack.is_empty():
+		return out
+	var struck_uid := int(pending_attack["target"])
+	var attacker := game.find_unit(int(pending_attack["attacker"]))
+	var offered := block_is_offered(pending_attack)
+	var budget := game.budget(player, true)
+	for unit: Card in game.players[player]["board"]:
+		if unit.uid == struck_uid or not unit_can_block(unit):
+			continue
+		if attacker != null and not can_reach(unit, attacker):
+			continue
+		var readiness := has_readiness(unit)
+		if (unit.exhausted or not offered) and not readiness:
+			continue
+		if budget < block_cost_for(unit):
+			continue
+		out.append(unit.uid)
+	return out
+
+## What the cheapest block available to `player` costs now (0 with a ready Prontidão unit).
+func cheapest_block_cost(player: int) -> int:
+	var cheapest := block_cost()
+	for uid in block_candidates(player):
+		cheapest = mini(cheapest, block_cost_for(game.find_unit(uid)))
+	return cheapest
+
+## Congelada, Atordoada and Obsessão units never block (Obsessão only ever goes for the Leader).
+func unit_can_block(unit: Card) -> bool:
+	return not unit.is_frozen() and not unit.is_stunned() and not game.has_kw(unit, "obsessao")
+
+## Is a block worth offering for this attack? Always against a challenge. Against a Leader hit only
+## while the Leader has less than half of its max Vida, or when the hit would leave it there
+## (Armadura and Escudo are ignored, a Crítico is counted).
+func block_is_offered(attack_info: Dictionary) -> bool:
+	var target_uid := int(attack_info["target"])
+	if target_uid > 0:
+		return true
+	var attacker := game.find_unit(int(attack_info["attacker"]))
+	if attacker == null:
+		return false
+	var defender_state: Dictionary = game.players[game.opponent(attacker.owner)]
+	var leader_life := int(defender_state["leader_hp"])
+	var half_of_max := float(defender_state["leader_max"]) / 2.0
+	if float(leader_life) < half_of_max:
+		return true
+	return float(leader_life - game.strike_power_of(attacker)) < half_of_max
+
+## True while `player` could block the declared attack right now: they hold the reaction priority,
+## the attack was not blocked yet, and they have a unit that may block it and the Momentum to pay.
+func can_block_now(player: int) -> bool:
+	if pending_attack.is_empty() or pending_attack.get("awaiting_triggers", false) \
+			or pending_attack.get("block_used", false) or not is_reacting(player):
+		return false
+	return not block_candidates(player).is_empty()
+
+## True while the reaction window was only opened for the Bloqueio: no Instantâneo is castable
+## in it (the attack is not serious enough for the old rule).
+func reaction_is_block_only(player: int) -> bool:
+	return not pending_attack.is_empty() and is_reacting(player) \
+			and not attack_is_worth_a_reply(pending_attack)
+
+## The defender blocks: pays, the blocker becomes cansada, and the redirect goes on the stack like
+## an Instantâneo (so it can be answered). Only once per declared attack.
+func block(player: int, blocker_uid: int) -> bool:
+	if not can_block_now(player) or not block_candidates(player).has(blocker_uid):
+		return false
+	var blocker := game.find_unit(blocker_uid)
+	var cost := block_cost_for(blocker)
+	if cost > 0:
+		game.pay_momentum(player, cost, true)
+		game.blocks_this_turn += 1
+	blocker.exhausted = true
+	pending_attack["block_used"] = true
+	game.emit_event({
+		"type": "block", "player": player, "uid": blocker_uid,
+		"attacker": int(pending_attack["attacker"]), "target": int(pending_attack["target"]),
+		"cost": cost,
+	})
+	game.stack_system().push(
+		player, "block", blocker_uid, blocker.card_id, int(pending_attack["target"]), "instantaneo",
+		0, false, {"virtual": true, "attacker": int(pending_attack["attacker"]), "cost": cost}
+	)
+	return true
+
+## The block item resolved: the blocker takes the blow (and strikes back) instead of the target.
+## Fails (the cost stays paid, the attack keeps its first target) when the blocker left the board or was
+## Congelada/Atordoada in response, can no longer reach the attacker (Voo/Furtividade), or the attack is gone.
+func redirect_attack_to_blocker(blocker_uid: int, attacker_uid: int) -> bool:
+	if pending_attack.is_empty() or int(pending_attack["attacker"]) != attacker_uid:
+		return false
+	var blocker := game.find_unit(blocker_uid)
+	var attacker := game.find_unit(attacker_uid)
+	if blocker == null or not unit_can_block(blocker) \
+			or (attacker != null and not can_reach(blocker, attacker)):
+		return false
+	pending_attack["target"] = blocker_uid
+	pending_attack["counter_to"] = 0
+	return true
 
 ## The defender passed the reaction prompt: the attack lands.
 func pass_reaction() -> void:
@@ -404,7 +529,8 @@ func attack_is_worth_a_reply(attack_info: Dictionary) -> bool:
 	var target := game.find_unit(target_uid)
 	if target == null:
 		return false
-	return _blow_could_kill(attacker, target) \n		or (not is_cowed_by(target, attacker) and _blow_could_kill(target, attacker))
+	return _blow_could_kill(attacker, target) \
+		or (not is_cowed_by(target, attacker) and _blow_could_kill(target, attacker))
 
 ## Could `striker`'s blow kill `victim`? Tóxico always can; otherwise the Ataque (plus a possible
 ## Crítico) against Vida left.
@@ -418,7 +544,7 @@ func _blow_could_kill(striker: Card, victim: Card) -> bool:
 
 ## Every possible target of an automatic extra attack: ALL enemy units plus the enemy Leader, with
 ## no restriction
-## at all (tapped or not, Provocação, Voo, Furtividade, Etérea, Ímpeto... none of it matters for
+## at all (tapped or not, Provocação, Voo, Furtividade, Imunidade a Desafio, Ímpeto... none of it matters for
 ## the
 ## random pick).
 func auto_attack_targets(attacker: Card) -> Array:
@@ -514,7 +640,8 @@ func _exchange_damage(attacker_uid: int, target_uid: int, counter_uid := 0) -> v
 				# target already dead
 		defender_unit = game.find_unit(target_uid)
 		attacker = game.find_unit(attacker_uid)
-		if defender_unit != null and attacker != null and strike_step(defender_unit) == step \n				and not is_cowed_by(defender_unit, attacker):
+		if defender_unit != null and attacker != null and strike_step(defender_unit) == step \
+				and not is_cowed_by(defender_unit, attacker):
 			var counter_victim := game.find_unit(counter_uid) if counter_uid > 0 else null
 			if counter_victim == null:
 				counter_victim = attacker

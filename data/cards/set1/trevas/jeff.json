@@ -19,7 +19,7 @@
       "listen": "card_moved",
       "scope": "other_ally",
       "zones": ["board", "relics", "hand", "deck", "graveyard", "banished", "sanctuary"],
-      "when": {"from": "board", "to": "graveyard"},
+      "when": {"from": "board", "to": "graveyard", "returns_to_hand": false},
       "one_copy_per_event": true,
       "action": "lasting_growth",
       "target": "none",

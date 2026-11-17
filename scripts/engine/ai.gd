@@ -59,6 +59,9 @@ static func step(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 				# the attacks: one attack per step, ending the combat when nothing is worth it
 				var attack_events := _try_attack(g, p)
 				return attack_events if not attack_events.is_empty() else g.end_combat(p)
+			var block_events := _try_block(g, p)
+			if not block_events.is_empty():
+				return block_events
 			# the pre-combat window (or an answer on the stack): play a Rápido/Instantâneo if there
 			# is a worthwhile one, otherwise pass
 			var events := _try_play(g, p, held_card_ids)
@@ -1544,6 +1547,45 @@ static func _challenge_score(g: GameState, attacker: Card, target: Card) -> int:
 	if not attacker_dies and damage_to_target > 0 and not _is_engine(attacker) and enemy_heal == 0:
 		return 1 # chip damage that stays marked; only used when nothing better exists
 	return 0
+
+
+## Bloqueio only on a favorable trade: the blocker survives and kills or saves a unit that would die,
+## or it trades into a dearer attacker, or the hit would be lethal to the Leader. A free block wins ties.
+static func _try_block(g: GameState, p: int) -> Array:
+	var combat := g.combat_system()
+	if not combat.can_block_now(p):
+		return []
+	var attacker := g.find_unit(int(combat.pending_attack["attacker"]))
+	if attacker == null:
+		return []
+	var struck_uid := int(combat.pending_attack["target"])
+	var struck := g.find_unit(struck_uid)
+	var attacker_damage := g.atk_of(attacker)
+	var hit_is_lethal := struck == null and attacker_damage >= int(g.players[p]["leader_hp"])
+	var struck_would_die := struck != null and attacker_damage >= g.hp_left(struck)
+	var best_uid := 0
+	var best_score := 0
+	for blocker_uid in combat.block_candidates(p):
+		var blocker := g.find_unit(int(blocker_uid))
+		var blocker_dies := attacker_damage >= g.hp_left(blocker)
+		var blocker_kills := g.atk_of(blocker) >= g.hp_left(attacker)
+		var score := 0
+		if hit_is_lethal:
+			score = 100 - _unit_value(g, blocker)
+		elif not blocker_dies and blocker_kills:
+			score = 60
+		elif not blocker_dies and struck_would_die:
+			score = 40
+		elif blocker_dies and blocker_kills and _unit_value(g, blocker) < _unit_value(g, attacker):
+			score = 20 + _unit_value(g, attacker) - _unit_value(g, blocker)
+		if score > 0 and combat.block_is_free(blocker):
+			score += 5
+		if score > best_score:
+			best_score = score
+			best_uid = int(blocker_uid)
+	if best_uid == 0:
+		return []
+	return g.block(p, best_uid)
 
 
 ## How much a unit is worth keeping (or killing): its stats on the board, what was paid for it,

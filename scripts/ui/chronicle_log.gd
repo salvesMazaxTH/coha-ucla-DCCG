@@ -103,7 +103,7 @@ func _chronicle_label(kind: String) -> String:
 		"exhaust": "EXAUSTÃO", "stun": "ATORDOADA", "stun_tick": "ATORDOADA", "shrink": "ENCOLHIMENTO", "dodge": "ESQUIVA", "reflect": "REFLEXO", "condemn": "CONDENADA", "heal_block": "SEM CURA", "heal_prevented": "SEM CURA",
 		"doom": "SENTENÇA", "doom_resisted": "RESISTIU", "fatigue": "FADIGA", "ban": "BANIMENTO",
 		"concede": "DESISTÊNCIA", "enter_tapped": "PROVOCAÇÃO", "death_ward_armed": "BALUARTE",
-		"death_prevented": "BALUARTE"
+		"death_prevented": "BALUARTE", "block": "BLOQUEIO"
 	}.get(kind, "EVENTO")
 
 ## Which player did the event (-1 when it can't be told): the event says it, or the card behind it belongs to someone.
@@ -129,7 +129,7 @@ func _chronicle_icon(kind: String) -> String:
 		"play": "play", "resolve": "spark", "ability": "spark", "passive": "spark", "trigger": "bolt",
 		"attack": "attack", "damage": "minus", "heal": "plus", "death": "cross", "destroy": "cross",
 		"dot": "bullet", "start_turn": "clock", "transform": "cycle", "countered": "forbidden", "fizzle": "forbidden",
-		"death_ward_armed": "diamond", "death_prevented": "diamond"
+		"death_ward_armed": "diamond", "death_prevented": "diamond", "block": "diamond"
 	}.get(kind, "dot")
 
 ## Converts a raw engine event into the visual relationship shown by ChronicleRow.
@@ -221,9 +221,17 @@ func log_event(e: Dictionary) -> void:
 		"trigger":
 			var trg: Dictionary = CardDB.data()["triggers"].get(e["trigger"], {})
 			add_line("%s: %s" % [_cname(e["card_id"]), trg.get("name", e["trigger"])])
+		"block":
+			var blocker := g.find_unit(int(e["uid"]))
+			var blocker_name := "uma unidade" if blocker == null else _cname(blocker.card_id)
+			var cost_text := "grátis" if int(e["cost"]) == 0 else "custo %d" % int(e["cost"])
+			add_line("%s bloqueou com %s (%s)" % [_pname(e["player"]), blocker_name, cost_text])
 		"resolve":
-			var resolved_name := _cname(String(e.get("card_id", ""))) if String(e.get("card_id", "")) != "" else "a habilidade do Líder"
-			add_line("%s resolveu" % resolved_name)
+			if e.get("kind", "") == "block":
+				add_line("%s entrou na frente do golpe" % _cname(String(e["card_id"])))
+			else:
+				var resolved_name := _cname(String(e.get("card_id", ""))) if String(e.get("card_id", "")) != "" else "a habilidade do Líder"
+				add_line("%s resolveu" % resolved_name)
 		"attack":
 			var attacker := g.find_unit(e["attacker"])
 			var attacker_name := _cname(String(e["attacker_card_id"])) if attacker == null and e.get("attacker_card_id", "") != "" else ("uma unidade" if attacker == null else _cname(attacker.card_id))
@@ -409,7 +417,10 @@ func log_event(e: Dictionary) -> void:
 		"search_take":
 			add_line("%s escolheu %s na busca" % [_pname(e["player"]), _cname(e["card_id"])])
 		"fizzle":
-			add_line("%s foi anulado (alvo inválido)" % (_cname(e["card_id"]) if e["kind"] in ["card", "subito"] else "Habilidade"))
+			if e.get("kind", "") == "block":
+				add_line("O bloqueio de %s falhou: o golpe segue para o alvo original" % _cname(String(e["card_id"])))
+			else:
+				add_line("%s foi anulado (alvo inválido)" % (_cname(e["card_id"]) if e["kind"] in ["card", "subito"] else "Habilidade"))
 		"countered":
 			add_line("%s anulou %s" % [_pname(e["by"]), _cname(e["card_id"]) if e["kind"] in ["card", "subito"] else "a habilidade de " + _pname(e["player"])])
 		"magic_shield_break":

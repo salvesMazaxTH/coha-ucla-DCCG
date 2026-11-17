@@ -75,7 +75,9 @@ var _effect_choice_spell_resolving := false
 ## ("unit_ability" = a unit's Ao Ativar; uid is the unit, card_id its card.
 ## "artifact_equip" = a pure artifact's own Equipar action; uid remains the artifact in its relic slot until resolution.
 ## "enter_trigger" = the Ao Entrar of a unit just played: uid is the unit, target the ally picked; uncounterable.
-## "subito" = a unit summoned with Súbito; uid is the card, plus "slot" where it enters.)
+## "subito" = a unit summoned with Súbito; uid is the card, plus "slot" where it enters.
+## "block" = a Bloqueio: uid is the blocker, target the unit first aimed at, "attacker" the attacking unit,
+## "cost" what was paid; virtual, it only redirects the declared attack when it resolves.)
 var stack: Array = []
 ## Who may act during "main"/"combat". Casting hands priority to the opponent (response);
 ## after an item resolves, priority reopens before any lower item resolves.
@@ -91,6 +93,8 @@ var summon_window := false
 ## holding priority may still stack another Instantâneo (and the opponent answers again);
 ## both players passing resolves only the top item, then priority reopens for what's below.
 var stack_passed := false
+## Bloqueios the defender made during the current turn: the next one costs this plus 1 Momentum.
+var blocks_this_turn := 0
 ## Turns the "pass, then it comes back to the caster" rule on or off (on in real games; with it
 ## off, the opponent's pass resolves the stack at once, which the older stack tests expect).
 var self_response_enabled := true
@@ -201,6 +205,7 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"reservoir_returnable": [], # uids of this turn's automatic Reservoir cards that can still be given back
 		"reservoir_returnable_turn": -1,
 		"reservoir_bonus_next_turn": false, # gave a card back: the next turn brings RESERVOIR_AUTO_CARDS_AFTER_RETURN
+		"reservoir_opening_uid": 0, # the free starting Reservoir card, giveable back on the player's first turn
 		"unspent_turns": 0,
 		"next_momentum": 0,
 		"play_restrictions": [],
@@ -543,8 +548,8 @@ func _move(c: Card, to_zone: String, extra_data := { }) -> void:
 	if not growth.is_empty():
 		c.add_lasting_growth(int(growth["atk"]) - c.lasting_growth_atk, int(growth["hp"]) - c.lasting_growth_hp)
 	var moved := GameEvent.new("card_moved", c.owner, c)
-	moved.data = { "from": from_zone, "to": to_zone }
-	moved.data.merge(extra_data)
+	moved.data = { "from": from_zone, "to": to_zone, "returns_to_hand": false }
+	moved.data.merge(extra_data, true)
 	bus().emit(moved)
 
 
@@ -1652,6 +1657,10 @@ func _add_turn_reservoir_cards(p: int) -> void:
 	pl["reservoir_bonus_next_turn"] = false
 	pl["reservoir_returnable"] = []
 	pl["reservoir_returnable_turn"] = turn
+	# the free starting card can be given back on the player's first turn, like the card of the turn
+	if int(pl["reservoir_opening_uid"]) != 0:
+		pl["reservoir_returnable"].append(int(pl["reservoir_opening_uid"]))
+		pl["reservoir_opening_uid"] = 0
 	# Use the live effective cap (including Constantes such as Agiota das Nuvens), not MOMENTUM_CAP.
 	var open_slots := maxi(0, momentum_cap(p) - pl["reservoir"].size())
 	var cards_to_add := mini(amount, open_slots)
@@ -1769,6 +1778,10 @@ func gain_momentum(p: int, gain: int, refresh := false) -> void:
 	emit_event({ "type": "momentum", "player": p })
 
 
+## Public entry for the systems (a Bloqueio pays like an Instantâneo).
+func pay_momentum(p: int, amount: int, fast: bool) -> void:
+	_pay(p, amount, fast)
+
 ## Pays `amount` of Momentum. Fast plays drain the Bateria first; the rest comes out of the floating part,
 ## then out of the ready Reservoir cards (each one is tapped).
 func _pay(p: int, amount: int, fast: bool) -> void:
@@ -1827,13 +1840,13 @@ func _battery_pays_card(cd: Dictionary) -> bool:
 	return _is_spell(cd) and battery_pays(cd)
 
 
-## include_unreachable: also lists the enemy units with Inalcançável (only to explain why a target is refused).
+## include_unreachable: also lists the enemy units with Imunidade a Alvo (only to explain why a target is refused).
 ## effects: the effect dictionaries about to be aimed at the pick. A target that cannot satisfy one of their
 ## "requires_markers" (Ponto Final Sem Vírgula needs 3+ Veneno) is not offered: the effect would do nothing.
 func valid_targets(p: int, spec: String, self_uid: int = 0, include_unreachable := false, effects: Array = []) -> Array:
 	var out: Array = []
 	var mine: Array = players[p]["board"]
-	# Inalcançável: enemy units with it can't be picked as a target by this player
+	# Imunidade a Alvo: enemy units with it can't be picked as a target by this player
 	# (effects that don't aim, like area or random ones, still reach them)
 	var theirs: Array = []
 	for enemy_unit: Card in players[opponent(p)]["board"]:
@@ -2113,7 +2126,7 @@ func meets_marker_requirement(target_uid: int, spec: String, effects: Array) -> 
 	return true
 
 
-## True when the only thing stopping an aimed effect is Inalcançável: there would be a target without it.
+## True when the only thing stopping an aimed effect is Imunidade a Alvo: there would be a target without it.
 ## The screen keeps such an action enabled and explains the refusal when the player aims at the unit.
 func targets_blocked_by_reach(p: int, spec: String, self_uid: int = 0) -> bool:
 	return (
@@ -2157,7 +2170,8 @@ func can_cast_speed(p: int, speed: String) -> bool:
 	if phase == "main":
 		return p == active or (summon_window and speed != "lento")
 	if window == "attacks":
-		return speed == "instantaneo"
+		# a reaction window opened only for the Bloqueio leaves no Instantâneo to cast
+		return speed == "instantaneo" and not combat_system().reaction_is_block_only(p)
 	return window == "pre_combat" and speed != "lento"
 
 
@@ -2679,9 +2693,12 @@ func mulligan(p: int, hand_uids: Array) -> Array:
 	pl["mulligan_done"] = true
 	emit_event({ "type": "mulligan", "player": p, "count": back.size() })
 	if players[0]["mulligan_done"] and players[1]["mulligan_done"]:
-		# free starting Momentum: each player's bottom deck card goes to their Reservoir
-		move_bottom_deck_to_reservoir(first)
-		move_bottom_deck_to_reservoir(opponent(first))
+		# free starting Momentum: each player's bottom deck card goes to their Reservoir, and can be given
+		# back on that player's first turn
+		for starter in [first, opponent(first)]:
+			var starting_card: Card = players[starter]["deck"].front() if not players[starter]["deck"].is_empty() else null
+			if move_bottom_deck_to_reservoir(starter):
+				players[starter]["reservoir_opening_uid"] = starting_card.uid
 		var second := opponent(first)
 		var crystal := Card.new(_uid(), SECOND_PLAYER_CRYSTAL_ID, second, "hand")
 		players[second]["hand"].append(crystal)
@@ -2915,6 +2932,14 @@ func equipment_carrier(equipment: Card) -> Card:
 			if unit.equipped_cards.has(equipment):
 				return unit
 	return null
+
+
+## Bloqueio: the defender redirects the declared attack to one of their ready units.
+func block(p: int, blocker_uid: int) -> Array:
+	if not combat_system().block(p, blocker_uid):
+		return []
+	stack_system().settle()
+	return flush_events()
 
 
 func use_ability(p: int, target: int = 0) -> Array:
@@ -5449,7 +5474,7 @@ func _move_dead_units() -> void:
 						_move(c, "") # a ficha dies without ever reaching the graveyard (Vagante, Jeff don't count it)
 					else:
 						players[c.owner]["graveyard"].append(c)
-						_move(c, "graveyard", { "incarnation_revives": waits_to_revive })
+						_move(c, "graveyard", { "incarnation_revives": waits_to_revive, "returns_to_hand": _returns_to_hand_after_death(effects) })
 					var death_context := EffectContext.new(self, p, "on_death")
 					death_context.self_uid = dead_uid
 					death_context.dying_card = c
@@ -5489,6 +5514,15 @@ func _move_dead_units() -> void:
 					died_event.amount = dying_veneno_markers
 					died_event.data = { "was_token": dying_is_token, "card_id": dying_card_id }
 					bus().emit(died_event)
+
+
+## True when the unit's Ao Morrer takes it straight back from the graveyard to the hand (Vincent, Nerithia).
+## The "card_moved" of that death says so ("returns_to_hand"), so a listener can ignore a unit that never stays.
+func _returns_to_hand_after_death(effects: Array) -> bool:
+	for effect: Effect in effects:
+		if effect is ReturnToHandEffect and effect.trigger == "on_death" and effect.target_name == "self_card":
+			return true
+	return false
 
 
 ## True when the Encarnação's Ao Morrer is a revive_self_delayed with "keeps_incarnation" (Jeff The Death):
@@ -5798,6 +5832,9 @@ func _start_turn(p: int, draw: bool) -> void:
 		pl["unspent_turns"] += 1
 	pl["battery"] = battery_cap(p) # the Bateria refills independently of unspent Momentum
 	_store_unspent_momentum(p, int(pl["unspent"]))
+	var opening_card := _reservoir_card(p, int(pl["reservoir_opening_uid"]))
+	if opening_card != null and opening_card.exhausted:
+		pl["reservoir_opening_uid"] = 0 # already spent before this turn: it can no longer be given back
 	for card: Card in pl["reservoir"]:
 		if card.exhausted:
 			card.exhausted = false
@@ -5826,6 +5863,7 @@ func _start_turn(p: int, draw: bool) -> void:
 	# (gain_momentum with "refresh": true) can win back spent Momentum only up to this
 	pl["turn_start_momentum"] = int(pl["momentum"])
 	pl["attacked"] = false
+	blocks_this_turn = 0
 	pl["played_two"] = false
 	pl["ice_spell_discount_used"] = false
 	for c in pl["board"]:
