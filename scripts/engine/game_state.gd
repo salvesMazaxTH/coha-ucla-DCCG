@@ -20,7 +20,7 @@ const LETHAL_WARD_NEGATED_HITS := 3 # Câmara de Êxtase: how many hits it negat
 const BATTERY_CAP := 2 ## refills at the start of each player's turn; pays only Rápido and Instantâneo plays
 const COMMANDER_TAX_STEP := 1 ## the Encarnação's tax grows by this much per previous cast: +1, then +2, +3, +4... (totals 1, 3, 6, 10)
 const WEAK_UNIT_MAX_HP := 3 ## "weak_enemy_unit" targets: enemy units with this much current Vida or less (Isarelis)
-const INTIMIDATE_ATK := 3 ## Intimidacao: attackers with this ATK or less cannot challenge it
+const INTIMIDATE_ATK := 2 ## Intimidacao: defenders with this ATK or less cannot retaliate nor taunt against it
 const SECOND_PLAYER_CRYSTAL_ID := "cristal_de_momentum"
 const SNOWBALL_GRANDE_AT := 7 ## Bola de Neve level at which every Bola de Neve card of the player evolves into a Grande Bola de Neve
 ## Bola de Neve level a player starts at; each player's own base can grow permanently (Devaneio Gelado), see

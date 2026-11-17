@@ -73,7 +73,6 @@ func has_any_attacker() -> bool:
 ## attacker must be able to reach it:
 ##   Voo: only an attacker with Voo or Longo Alcance can challenge it.
 ##   Furtividade: only an attacker with Furtividade or Vigilância can challenge it.
-##   Intimidação: an attacker with ATK 3 or less cannot challenge it.
 ##   Obsessão: the attacker may only hit the Leader, except that a tapped Provocação still stops
 ##   it
 ##     (it can challenge only Provocação units, and then must).
@@ -99,9 +98,12 @@ func can_challenge(attacker: Card, target: Card) -> bool:
 		and not (game.has_kw(attacker, "furtividade") or game.has_kw(attacker, "vigilancia"))
 	):
 		return false
-	if game.has_kw(target, "intimidacao") and game.atk_of(attacker) <= GameState.INTIMIDATE_ATK:
-		return false
 	return true
+
+## Intimidação (on the attacker): a defender with ATK 2 or less is cowed. It deals no counter-blow
+## and, if it has Provocação, does not force this attacker to challenge it.
+func is_cowed_by(defender: Card, attacker: Card) -> bool:
+	return game.has_kw(attacker, "intimidacao") and game.atk_of(defender) <= GameState.INTIMIDATE_ATK
 
 ## Rompante: on the turn it enters, the unit can hit the enemy Leader (Ímpeto can only challenge)
 ## and
@@ -124,6 +126,7 @@ func forced_taunts(attacker: Card) -> Array:
 			and not enemy_unit.is_frozen()
 			and not enemy_unit.is_stunned()
 			and can_challenge(attacker, enemy_unit)
+			and not is_cowed_by(enemy_unit, attacker)
 		):
 			out.append(enemy_unit.uid)
 	return out
@@ -401,7 +404,7 @@ func attack_is_worth_a_reply(attack_info: Dictionary) -> bool:
 	var target := game.find_unit(target_uid)
 	if target == null:
 		return false
-	return _blow_could_kill(attacker, target) or _blow_could_kill(target, attacker)
+	return _blow_could_kill(attacker, target) \n		or (not is_cowed_by(target, attacker) and _blow_could_kill(target, attacker))
 
 ## Could `striker`'s blow kill `victim`? Tóxico always can; otherwise the Ataque (plus a possible
 ## Crítico) against Vida left.
@@ -511,7 +514,7 @@ func _exchange_damage(attacker_uid: int, target_uid: int, counter_uid := 0) -> v
 				# target already dead
 		defender_unit = game.find_unit(target_uid)
 		attacker = game.find_unit(attacker_uid)
-		if defender_unit != null and attacker != null and strike_step(defender_unit) == step:
+		if defender_unit != null and attacker != null and strike_step(defender_unit) == step \n				and not is_cowed_by(defender_unit, attacker):
 			var counter_victim := game.find_unit(counter_uid) if counter_uid > 0 else null
 			if counter_victim == null:
 				counter_victim = attacker

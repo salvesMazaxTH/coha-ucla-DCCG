@@ -256,7 +256,7 @@
     },
     "intimidacao": {
       "name": "Intimidação",
-      "text": "Unidades com Ataque 3 ou menor não podem desafiar esta unidade."
+      "text": "Ao atacar, unidades com Ataque 2 ou menor não revidam, e as que têm Provocação não a obrigam a desafiar."
     },
     "obsessao": {
       "name": "Obsessão",

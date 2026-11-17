@@ -10657,7 +10657,7 @@ func _test_magni() -> void:
 	_quiet(g2)
 	var q: int = g2.active
 	var defender := _put(g2, q, "magni")
-	var attacker := _put(g2, 1 - q, "t_magni_big") # ATQ 5+1: Intimidação bars 3 or less
+	var attacker := _put(g2, 1 - q, "t_magni_big") # ATQ 5+1
 	g2.end_turn(q)
 	g2.go_to_combat(1 - q)
 	attacker.sick = false
@@ -13977,22 +13977,83 @@ func _test_eletrica() -> void:
 func _test_intimidacao() -> void:
 	_tcard("t_int", 4, 4, [])
 	CardDB.data()["cards"]["t_int"]["keywords"] = ["intimidacao"]
-	_tcard("t_low", 3, 3, [])
-	_tcard("t_high", 4, 4, [])
+	_tcard("t_plain", 4, 4, [])
+	_tcard("t_weak", 2, 3, [])
+	_tcard("t_strong", 3, 3, [])
+	_tcard("t_weak_taunt", 2, 3, [])
+	CardDB.data()["cards"]["t_weak_taunt"]["keywords"] = ["provocacao"]
+	_tcard("t_strong_taunt", 3, 3, [])
+	CardDB.data()["cards"]["t_strong_taunt"]["keywords"] = ["provocacao"]
+	# the defender with ATK 2 or less does not retaliate against an Intimidação attacker
 	var g := _new_game()
 	_quiet(g)
-	var scary := _put(g, 1, "t_int")
-	scary.exhausted = true
-	var low := _put(g, 0, "t_low")
-	var high := _put(g, 0, "t_high")
-	check(not g.can_challenge(low, scary) and g.can_challenge(high, scary), "intimidação: ATK 3 ou menos não desafia, ATK 4 desafia")
-	low.atk = 4
-	check(g.can_challenge(low, scary), "intimidação: usa o ATK atual (buff libera o desafio)")
-	high.atk = 3
-	check(not g.can_challenge(high, scary), "intimidação: debuff tira o direito de desafiar")
-	var plain := _put(g, 1, "t_high")
-	plain.exhausted = true
-	check(g.can_challenge(high, plain), "intimidação: não afeta quem não tem a palavra-chave")
+	var scary := _put(g, g.active, "t_int")
+	var weak := _put(g, 1 - g.active, "t_weak")
+	weak.exhausted = true
+	_hit(g, scary, weak.uid)
+	_pass_windows(g)
+	check(g.find_unit(weak.uid) == null and g.hp_left(scary) == 4, "intimidação: defensor com ATK 2 ou menos não revida")
+	# without the keyword the same defender hits back
+	g = _new_game()
+	_quiet(g)
+	var plain := _put(g, g.active, "t_plain")
+	weak = _put(g, 1 - g.active, "t_weak")
+	weak.exhausted = true
+	_hit(g, plain, weak.uid)
+	_pass_windows(g)
+	check(g.hp_left(plain) == 2, "intimidação: sem a palavra-chave o defensor revida")
+	# ATK 3 retaliates normally, and a buff or debuff counts (the ATK of the moment)
+	g = _new_game()
+	_quiet(g)
+	scary = _put(g, g.active, "t_int")
+	var strong := _put(g, 1 - g.active, "t_strong")
+	strong.exhausted = true
+	_hit(g, scary, strong.uid)
+	_pass_windows(g)
+	check(g.hp_left(scary) == 1, "intimidação: defensor com ATK 3 revida")
+	g = _new_game()
+	_quiet(g)
+	scary = _put(g, g.active, "t_int")
+	weak = _put(g, 1 - g.active, "t_weak")
+	weak.exhausted = true
+	weak.atk = 3
+	_hit(g, scary, weak.uid)
+	_pass_windows(g)
+	check(g.hp_left(scary) == 1, "intimidação: usa o ATK atual (buff faz o defensor revidar)")
+	g = _new_game()
+	_quiet(g)
+	scary = _put(g, g.active, "t_int")
+	strong = _put(g, 1 - g.active, "t_strong")
+	strong.exhausted = true
+	strong.atk = 2
+	_hit(g, scary, strong.uid)
+	_pass_windows(g)
+	check(g.hp_left(scary) == 4, "intimidação: usa o ATK atual (debuff tira o revide)")
+	# a Provocação with ATK 2 or less does not bar the Intimidação attacker (the Leader's face stays open)
+	g = _new_game()
+	_quiet(g)
+	scary = _put(g, g.active, "t_int")
+	plain = _put(g, g.active, "t_plain")
+	var weak_taunt := _put(g, 1 - g.active, "t_weak_taunt")
+	weak_taunt.exhausted = true
+	_open_attacks(g)
+	var leader_uid: int = GameState.LEADER_UID[1 - g.active]
+	check(
+		g.attack_targets(scary).has(leader_uid) and g.attack_targets(scary).has(weak_taunt.uid),
+		"intimidação: Provocação fraca não obriga nem barra o atacante (pode ir no Líder ou desafiá-la)",
+	)
+	check(
+		g.attack_targets(plain) == [weak_taunt.uid],
+		"intimidação: a Provocação fraca continua obrigando atacantes sem a palavra-chave",
+	)
+	# a Provocação with ATK 3 still forces the Intimidação attacker
+	g = _new_game()
+	_quiet(g)
+	scary = _put(g, g.active, "t_int")
+	var strong_taunt := _put(g, 1 - g.active, "t_strong_taunt")
+	strong_taunt.exhausted = true
+	_open_attacks(g)
+	check(g.attack_targets(scary) == [strong_taunt.uid], "intimidação: Provocação com ATK 3 ainda obriga o atacante")
 	# Raiturus: Transformar (8) vira o Primordial 9/9 Intimidacao + Ímpeto sem usar a pilha
 	g = _eletrica_game()
 	var rt := _put(g, g.active, "tony_raiturus")
