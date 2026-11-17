@@ -9111,11 +9111,11 @@ func _test_reaction() -> void:
 	g.players[1]["leader_hp"] = 18
 	_hit(g, hitter)
 	check(
-		not g.combat_system().is_reacting(1) and g.players[1]["leader_hp"] == 16,
-		"reagir: ataque à face que deixa o Líder acima de 15 não abre janela",
+		g.combat_system().is_reacting(1) and g.players[1]["leader_hp"] == 18,
+		"reagir: ataque à face abre a janela mesmo com o Líder bem acima da metade",
 	)
 
-	# an attack that would leave the Leader at 15 HP opens the reaction window
+	# a second scenario: the window also opens when the hit takes the Leader to exactly 15
 	g = _reaction_game(["t_react_heal"], 5)
 	hitter = _put(g, 0, "t_hitter")
 	var second_hitter := _put(g, 0, "t_hitter")
@@ -9149,15 +9149,15 @@ func _test_reaction() -> void:
 		"reagir: sem Momentum para a Instantânea ninguém é perguntado",
 	)
 
-	# a challenge that cannot kill anybody (2 dmg vs 9 HP, 1 counter vs 3 HP): not asked
+	# a challenge that cannot kill anybody (2 dmg vs 9 HP, 1 counter vs 3 HP): asked anyway
 	g = _reaction_game(["t_react_heal"], 5)
 	hitter = _put(g, 0, "t_hitter")
 	var sponge := _put(g, 1, "t_sponge")
 	sponge.exhausted = true # only a tapped unit can be challenged
 	_hit(g, hitter, sponge.uid)
 	check(
-		not g.combat_system().is_reacting(1) and g.find_unit(sponge.uid).damage == 2,
-		"reagir: desafio sem risco de morte não pergunta",
+		g.combat_system().is_reacting(1) and g.find_unit(sponge.uid).damage == 0,
+		"reagir: desafio sem risco de morte também pergunta",
 	)
 
 	# the blow could kill the defender's unit: asked
@@ -9246,7 +9246,7 @@ func _test_readiness_block() -> void:
 	CardDB.data()["cards"]["t_ready_guard"]["keywords"] = ["prontidao"]
 	_tcard("t_plain_guard", 1, 6, [])
 
-	# Leader at full Vida: a plain unit is not offered, a ready Prontidão unit blocks for free
+	# Leader at full Vida: any ready unit can block, but the ready Prontidão unit does it for free
 	var g := _reaction_game([], 0)
 	var hitter := _put(g, 0, "t_ready_hitter")
 	var plain := _put(g, 1, "t_plain_guard")
@@ -9254,8 +9254,13 @@ func _test_readiness_block() -> void:
 	var full_life: int = g.players[1]["leader_hp"]
 	_hit(g, hitter)
 	var candidates: Array = g.combat_system().block_candidates(1)
-	check(g.combat_system().is_reacting(1), "Prontidão: abre a janela de bloqueio mesmo com o Líder cheio")
-	check(candidates.has(guard.uid) and not candidates.has(plain.uid), "Prontidão: só a unidade com Prontidão pode bloquear acima da metade")
+	check(g.combat_system().is_reacting(1), "Bloqueio: o ataque ao Líder cheio abre a janela de bloqueio")
+	check(candidates.has(guard.uid) and not candidates.has(plain.uid), "Bloqueio: sem Momentum só a unidade com Prontidão bloqueia o Líder cheio")
+	var paying_game := _reaction_game([], 1)
+	var paying_hitter := _put(paying_game, 0, "t_ready_hitter")
+	var paying_plain := _put(paying_game, 1, "t_plain_guard")
+	_hit(paying_game, paying_hitter)
+	check(paying_game.combat_system().block_candidates(1).has(paying_plain.uid), "Bloqueio: com Momentum, qualquer unidade pronta bloqueia o Líder cheio")
 	check(g.combat_system().cheapest_block_cost(1) == 0, "Prontidão: pronta, o bloqueio custa 0")
 	check(g.combat_system().block(1, guard.uid), "Prontidão: bloqueia sem Momentum")
 	check(g.blocks_this_turn == 0 and guard.exhausted, "Prontidão: o bloqueio grátis não avança o contador e cansa a unidade")
@@ -9857,6 +9862,7 @@ func _test_combat_step() -> void:
 	check(g.window == "attacks" and g.priority == 0, "os dois passaram: começam os ataques")
 	check(not g.can_play(0, fast_mine) and not g.can_play(1, fast_theirs), "ninguém joga cartas durante os ataques")
 	check(not g.attack_unit(0, attacker.uid, face).is_empty() and g.window == "attacks", "um ataque por vez; o combate continua")
+	g.pass_priority(1) # the defender holds a unit and Momentum, so the attack opens a reaction prompt
 	check(g.attack_unit(0, attacker.uid, face).is_empty(), "quem já atacou (exaurido) não ataca de novo")
 	g.end_combat(0)
 	check(
@@ -10293,9 +10299,11 @@ func _test_stack() -> void:
 	# the defender's hand is set aside for this first attack: holding an Instantâneo would make the game ask them to react (Janela B)
 	var defender_hand: Array = g.players[1]["hand"]
 	g.players[1]["hand"] = []
+	g.players[1]["momentum"] = 0 # without Momentum there is no block either
 	g.players[1]["ability_used"] = true # the Leader's ability is a play too, and would be offered the same way
 	g.attack_unit(0, first_attacker.uid, GameState.LEADER_UID[1])
 	g.players[1]["hand"] = defender_hand
+	g.players[1]["momentum"] = 5
 	check(g.combat_system().in_attacks_window(0), "janela A: depois de um ataque a janela continua aberta")
 	g.play_card(0, window_instant, first_attacker.uid)
 	check(g.stack.size() == 1 and g.priority == 1, "janela A: a Instantânea vai para a pilha e o defensor recebe a prioridade")
@@ -10318,6 +10326,7 @@ func _test_stack() -> void:
 	)
 	var second_events := g.attack_unit(0, second_attacker.uid, GameState.LEADER_UID[1])
 	check(not second_events.is_empty(), "janela A: o segundo ataque acontece normalmente")
+	g.pass_priority(1) # the defender still holds a unit and Momentum, so the second attack asks for a reaction
 	g.pass_priority(0)
 	check(g.phase != "combat" or g.window != "attacks", "janela A: passar com a pilha vazia ainda encerra o combate")
 

@@ -6,12 +6,10 @@ extends RefCounted
 ## Tapped enemies do not guard the Leader, except a non-frozen Provocação.
 ## Both players may cast Rápido/Instantâneo pre-combat.
 ## The attacker may cast Instantâneo between attacks.
-## The defender may react with a castable Instantâneo if an attack could kill a unit or
-## leave the Leader at 15 HP or less.
+## The defender may react to every declared attack with a castable Instantâneo or a Bloqueio.
 ## Bloqueio: the defender may also redirect a declared attack to one of their ready units (see block()).
 
 var game: GameState
-const LEADER_REACTION_HP_THRESHOLD := 15
 ## An attack whose Ao Atacar put something on the stack (a Bola de Neve): its combat damage waits
 ## until the stack is empty. {"attacker": uid, "target": uid}, or empty when no attack is waiting.
 var pending_attack: Dictionary = {}
@@ -353,28 +351,22 @@ func is_reacting(player: int) -> bool:
 		and game.priority == player and game.stack.is_empty()
 
 ## The defender's chance to answer a declared attack before its blows land (Window B). The defender
-## is only asked
-## when they have an Instantâneo they can really cast right now AND the attack matters (see
-## attack_is_worth_a_reply);
-## otherwise nothing is asked and the attack just resolves. Returns true when the defender now holds
-## priority.
+## is asked whenever they can really play something right now (an Instantâneo within their Momentum,
+## or a Bloqueio); otherwise nothing is asked and the attack just resolves. Returns true when the
+## defender now holds priority.
 func _offer_reaction() -> bool:
 	if game.phase != "combat":
 		return false
 	var defender := game.opponent(game.active)
 	var previous_priority := game.priority
 	game.priority = defender
-	# with priority on the defender, has_play() only sees what is castable now: an Instantâneo
-	# within their Momentum, or a Bloqueio. The window opens when the old rule asks for it (an
-	# Instantâneo is worth casting) or a block is possible.
-	var worth_a_reply := attack_is_worth_a_reply(pending_attack)
-	if (worth_a_reply or can_block_now(defender)) and game.stack_system().has_play(defender):
+	# with priority on the defender, has_play() only sees what is castable now
+	if game.stack_system().has_play(defender):
 		game.emit_event({
 			"type": "reaction",
 			"player": defender,
 			"attacker": int(pending_attack["attacker"]),
 			"target": int(pending_attack["target"]),
-			"block_only": not worth_a_reply,
 		})
 		return true
 	game.priority = previous_priority
@@ -397,23 +389,20 @@ func block_cost_for(unit: Card) -> int:
 	return 0 if block_is_free(unit) else block_cost()
 
 ## The defender's units that could take the blow instead, right now: not the unit already being hit,
-## able to block, ready (or with Prontidão), affordable, and allowed against this attack
-## (a Leader hit above half Vida can only be blocked by a Prontidão unit).
+## able to block, ready (or with Prontidão), affordable, and able to reach the attacker.
 func block_candidates(player: int) -> Array:
 	var out: Array = []
 	if pending_attack.is_empty():
 		return out
 	var struck_uid := int(pending_attack["target"])
 	var attacker := game.find_unit(int(pending_attack["attacker"]))
-	var offered := block_is_offered(pending_attack)
 	var budget := game.budget(player, true)
 	for unit: Card in game.players[player]["board"]:
 		if unit.uid == struck_uid or not unit_can_block(unit):
 			continue
 		if attacker != null and not can_reach(unit, attacker):
 			continue
-		var readiness := has_readiness(unit)
-		if (unit.exhausted or not offered) and not readiness:
+		if unit.exhausted and not has_readiness(unit):
 			continue
 		if budget < block_cost_for(unit):
 			continue
@@ -431,23 +420,6 @@ func cheapest_block_cost(player: int) -> int:
 func unit_can_block(unit: Card) -> bool:
 	return not unit.is_frozen() and not unit.is_stunned() and not game.has_kw(unit, "obsessao")
 
-## Is a block worth offering for this attack? Always against a challenge. Against a Leader hit only
-## while the Leader has less than half of its max Vida, or when the hit would leave it there
-## (Armadura and Escudo are ignored, a Crítico is counted).
-func block_is_offered(attack_info: Dictionary) -> bool:
-	var target_uid := int(attack_info["target"])
-	if target_uid > 0:
-		return true
-	var attacker := game.find_unit(int(attack_info["attacker"]))
-	if attacker == null:
-		return false
-	var defender_state: Dictionary = game.players[game.opponent(attacker.owner)]
-	var leader_life := int(defender_state["leader_hp"])
-	var half_of_max := float(defender_state["leader_max"]) / 2.0
-	if float(leader_life) < half_of_max:
-		return true
-	return float(leader_life - game.strike_power_of(attacker)) < half_of_max
-
 ## True while `player` could block the declared attack right now: they hold the reaction priority,
 ## the attack was not blocked yet, and they have a unit that may block it and the Momentum to pay.
 func can_block_now(player: int) -> bool:
@@ -455,12 +427,6 @@ func can_block_now(player: int) -> bool:
 			or pending_attack.get("block_used", false) or not is_reacting(player):
 		return false
 	return not block_candidates(player).is_empty()
-
-## True while the reaction window was only opened for the Bloqueio: no Instantâneo is castable
-## in it (the attack is not serious enough for the old rule).
-func reaction_is_block_only(player: int) -> bool:
-	return not pending_attack.is_empty() and is_reacting(player) \
-			and not attack_is_worth_a_reply(pending_attack)
 
 ## The defender blocks: pays, the blocker becomes cansada, and the redirect goes on the stack like
 ## an Instantâneo (so it can be answered). Only once per declared attack.
@@ -505,42 +471,6 @@ func pass_reaction() -> void:
 	reaction_declined = true
 	game.priority = game.active
 	finish_pending_attack()
-
-## Is the declared attack serious enough to stop the game for? Yes when its damage would leave the
-## Leader at
-## 15 HP or less, or when a unit could die in the exchange: the struck unit by the blow, or the
-## attacker by the counter-blow.
-## Deliberately generous (Armadura, Escudo and the order of strikes are ignored; a Crítico is
-## counted): asking
-## once too often costs a click, missing a real chance would cost the unit.
-func attack_is_worth_a_reply(attack_info: Dictionary) -> bool:
-	var attacker := game.find_unit(int(attack_info["attacker"]))
-	if attacker == null:
-		return false
-	var target_uid := int(attack_info["target"])
-	if target_uid < 0:
-		var damage := game.strike_power_of(attacker)
-		var defender := game.opponent(attacker.owner)
-		return (
-			damage > 0
-			and int(game.players[defender]["leader_hp"]) - damage
-			<= LEADER_REACTION_HP_THRESHOLD
-		)
-	var target := game.find_unit(target_uid)
-	if target == null:
-		return false
-	return _blow_could_kill(attacker, target) \
-		or (not is_cowed_by(target, attacker) and _blow_could_kill(target, attacker))
-
-## Could `striker`'s blow kill `victim`? Tóxico always can; otherwise the Ataque (plus a possible
-## Crítico) against Vida left.
-func _blow_could_kill(striker: Card, victim: Card) -> bool:
-	if game.has_kw(striker, "toxico"):
-		return game.strike_power_of(striker) > 0
-	var most_damage := game.strike_power_of(striker)
-	if most_damage > 0 and striker.critico_total() > 0:
-		most_damage += _critical_bonus(striker, game.hp_left(victim))
-	return most_damage >= game.hp_left(victim)
 
 ## Every possible target of an automatic extra attack: ALL enemy units plus the enemy Leader, with
 ## no restriction

@@ -2732,11 +2732,9 @@ func _hint() -> String:
 						if targeting.get("kind") == "block":
 							return "Toque na unidade que vai bloquear."
 						if g.combat_system().can_block_now(viewer):
-							if g.combat_system().reaction_is_block_only(viewer):
-								return "Bloquear? Bloqueie (%d) ou passe." % g.combat_system().cheapest_block_cost(viewer)
-							return "Reagir? Bloqueie (%d) ou jogue um Instantâneo." % g.combat_system().cheapest_block_cost(viewer)
+							return "Reagir? Bloqueie (%d), jogue um Instantâneo ou passe." % g.combat_system().cheapest_block_cost(viewer)
 						var reason := _block_unavailable_reason()
-						if reason != "" and g.combat_system().block_is_offered(g.combat_system().pending_attack):
+						if reason != "":
 							return "Reagir? Jogue um Instantâneo ou passe. %s" % reason
 						return "Reagir? Jogue um Instantâneo antes do dano ou passe."
 		"enter_tapped":
@@ -4047,8 +4045,6 @@ func _block_unavailable_reason() -> String:
 		return ""
 	if combat.pending_attack.get("block_used", false):
 		return "Esse ataque já foi bloqueado."
-	if not combat.block_is_offered(combat.pending_attack):
-		return "Ataque ao Líder só pode ser bloqueado com ele abaixo da metade da Vida."
 	if g.budget(viewer, true) < combat.block_cost():
 		return "Momentum insuficiente: bloquear custa %d." % combat.block_cost()
 	return "Nenhuma unidade pronta para bloquear."

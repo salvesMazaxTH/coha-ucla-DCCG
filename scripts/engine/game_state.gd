@@ -2172,8 +2172,7 @@ func can_cast_speed(p: int, speed: String) -> bool:
 	if phase == "main":
 		return p == active or (summon_window and speed != "lento")
 	if window == "attacks":
-		# a reaction window opened only for the Bloqueio leaves no Instantâneo to cast
-		return speed == "instantaneo" and not combat_system().reaction_is_block_only(p)
+		return speed == "instantaneo"
 	return window == "pre_combat" and speed != "lento"
 
 
