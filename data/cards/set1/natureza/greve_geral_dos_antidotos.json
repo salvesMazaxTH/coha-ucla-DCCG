@@ -18,6 +18,6 @@
       "target": "none"
     }
   ],
-  "text": "No próximo início de turno de cada jogador, nenhum marcador de Veneno decai (de unidades e de Líderes): eles ferem, mas ficam.",
+  "text": "No fim do próximo turno de cada jogador, nenhum marcador de Veneno decai (de unidades e de Líderes): eles ferem, mas ficam.",
   "flavor": "Em protesto, a cicuta continua no bule."
 }

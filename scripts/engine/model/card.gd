@@ -71,6 +71,7 @@ var pending_self_revive_turn := 0 ## the turn at whose end this graveyard unit r
 var pending_self_revive_atk := 0
 var pending_self_revive_hp := 0
 var dot_markers: Dictionary = {} ## accumulated periodic-status markers, keyed by dot id
+var unripe_dot_markers: Dictionary = {} ## of those, the ones put on during the controller's own turn: they skip that turn's end tick
 var fragments := 0 ## Fragmentos de Rai'Emofitir: +1 ATQ and 1 self-damage per turn each; they hop to an ally when the bearer dies
 ## Stats gained by a "lasting_growth" effect (Jeff The Death): kept in every zone, never reset by a zone change.
 ## Shared by every copy of the card its owner has (see GameState.add_lasting_growth); on the board they are part of atk / hp.
@@ -240,6 +241,7 @@ func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:
 	stun_markers = 0
 	condemned_turn = 0
 	dot_markers = {}
+	unripe_dot_markers = {}
 	fragments = 0
 	tide_mark = false
 	armor_spent_since_turn_start = false
@@ -610,6 +612,8 @@ func to_dict() -> Dictionary:
 		d["condemned_turn"] = condemned_turn
 	if not dot_markers.is_empty():
 		d["dot_markers"] = dot_markers.duplicate()
+	if not unripe_dot_markers.is_empty():
+		d["unripe_dot_markers"] = unripe_dot_markers.duplicate()
 	if fragments > 0:
 		d["fragments"] = fragments
 	if tide_mark:
@@ -727,6 +731,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.stun_markers = int(d.get("stun_markers", 0))
 	c.condemned_turn = int(d.get("condemned_turn", 0))
 	c.dot_markers = d.get("dot_markers", {}).duplicate()
+	c.unripe_dot_markers = d.get("unripe_dot_markers", {}).duplicate()
 	c.fragments = int(d.get("fragments", 0))
 	# Compatibility with snapshots produced before periodic markers became generic.
 	if d.has("burn") and int(d["burn"]) > 0:

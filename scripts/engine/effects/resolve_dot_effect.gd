@@ -1,6 +1,6 @@
 class_name ResolveDotEffect
 extends Effect
-## "resolve_dot": makes the target's markers of one kind tick right now, exactly like at the start of its
+## "resolve_dot": makes the target's markers of one kind tick right now, exactly like at the end of its
 ## owner's turn (damage by the markers, then the usual wear-off), instead of waiting for that turn.
 ##   "dot": the marker kind that ticks (default "sangramento"). Other kinds on the target stay untouched.
 ##   "consume": false = the markers hurt but none wear off ("ferem, mas ficam", like a held Veneno), so

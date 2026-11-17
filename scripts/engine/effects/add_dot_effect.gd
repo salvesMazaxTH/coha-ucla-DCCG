@@ -1,7 +1,7 @@
 class_name AddDotEffect
 extends Effect
 ## "add_dot": adds `amount` accumulated periodic-status markers to each target unit, or to a
-## targeted Leader (negative uid; Leader markers hurt and wear off at the start of its controller's turn like a unit's, see GameState.add_leader_dot_markers).
+## targeted Leader (negative uid; Leader markers hurt and wear off at the end of its controller's next turn like a unit's, see GameState.add_leader_dot_markers).
 ## `dot` identifies the marker type (queimadura, veneno; sangramento can reuse this action too).
 
 ## Units of some elements are innately immune to some markers (GameState.DOT_IMMUNE_ELEMENTS); Leaders never are.

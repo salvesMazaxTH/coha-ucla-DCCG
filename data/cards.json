@@ -368,15 +368,15 @@
     },
     "queimadura": {
       "name": "Queimadura",
-      "text": "Marcadores de Queimadura: no início do turno do controlador, esta unidade sofre dano igual à quantidade de marcadores nela e depois remove esses marcadores. Esse dano ignora Armadura, Escudo e Escudo Mágico; Indestrutível ainda o impede. Unidades de Fogo não recebem Queimadura, a menos que um efeito diga que ignora imunidade; Líderes não têm essa imunidade."
+      "text": "Marcadores de Queimadura: no fim do turno do controlador, esta unidade sofre dano igual à quantidade de marcadores nela e depois remove esses marcadores. Esse dano ignora Armadura, Escudo e Escudo Mágico; Indestrutível ainda o impede. Unidades de Fogo não recebem Queimadura, a menos que um efeito diga que ignora imunidade; Líderes não têm essa imunidade. Marcadores colocados durante o turno do próprio controlador só agem no fim do turno seguinte dele."
     },
     "veneno": {
       "name": "Veneno",
-      "text": "Marcadores de Veneno: no início do turno do controlador, cada marcador causa 2 de dano a esta unidade. Depois, remove todos os marcadores. Esse dano ignora Armadura, Escudo e Escudo Mágico; Indestrutível ainda o impede. Unidades de Veneno ou de Metal não recebem Veneno, a menos que um efeito diga que ignora imunidade; Líderes não têm essa imunidade."
+      "text": "Marcadores de Veneno: no fim do turno do controlador, cada marcador causa 2 de dano a esta unidade. Depois, remove todos os marcadores. Esse dano ignora Armadura, Escudo e Escudo Mágico; Indestrutível ainda o impede. Unidades de Veneno ou de Metal não recebem Veneno, a menos que um efeito diga que ignora imunidade; Líderes não têm essa imunidade. Marcadores colocados durante o turno do próprio controlador só agem no fim do turno seguinte dele."
     },
     "sangramento": {
       "name": "Sangramento",
-      "text": "Marcadores de Sangramento: no início do turno do controlador, cada marcador causa 2 de dano a esta unidade. Depois, remove todos os marcadores. Esse dano ignora Armadura, Escudo e Escudo Mágico; Indestrutível ainda o impede."
+      "text": "Marcadores de Sangramento: no fim do turno do controlador, cada marcador causa 2 de dano a esta unidade. Depois, remove todos os marcadores. Esse dano ignora Armadura, Escudo e Escudo Mágico; Indestrutível ainda o impede. Marcadores colocados durante o turno do próprio controlador só agem no fim do turno seguinte dele."
     },
     "armadura": {
       "name": "Armadura",

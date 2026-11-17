@@ -51,8 +51,10 @@ const LEADER_UID := [-1, -2]
 var players: Array = []
 var active := 0
 var turn := 0
-var veneno_held_until := 0 ## while turn <= this, no Veneno marker is consumed anywhere (Greve Geral dos Antídotos)
-var veneno_lethal_until := 0 ## while turn <= this, a unit's Veneno tick deals damage equal to its current Vida (Neráxia)
+var veneno_held_from := 0 ## the first turn whose end tick the Greve Geral dos Antídotos hold reaches
+var veneno_held_until := 0 ## from held_from to this turn, no Veneno marker is consumed anywhere (Greve Geral dos Antídotos)
+var veneno_lethal_from := 0 ## the first turn whose end tick Neráxia's window reaches
+var veneno_lethal_until := 0 ## from lethal_from to this turn, a unit's Veneno tick deals damage equal to its current Vida (Neráxia)
 var first := 0 ## who takes turn 1 (skips that draw, mulligans first; the other gets the early Momentum bonus)
 var phase := "mulligan"
 var winner := -1 ## -1 none, 0/1 player, 2 draw
@@ -245,12 +247,15 @@ func _make_player(i: int, deck_id: String) -> Dictionary:
 		"ice_spell_discount_used": false, # the Amuleto Glacial (ice spell) discount was already spent this turn
 		"damage_negated_until": 0, # Câmara de Êxtase aftermath: the Leader's next hits are negated while turn <= this
 		"damage_negated_left": 0, # ...and this is how many hits are still left to negate
-		# dot_id -> markers on the Leader. They tick at every turn start of its controller and are consumed like a unit's
+		# dot_id -> markers on the Leader. They tick at the end of every turn of its controller and are consumed like a unit's
 		"leader_dots": { },
+		# dot_id -> how many of those were put on during the controller's own turn (they skip that turn's end tick)
+		"leader_unripe_dots": { },
 		# while turn <= this, this Leader cannot recover Vida (block_healing); -1 = not blocked (0 would block the mulligan, which
 		# runs on turn 0)
 		"leader_heal_blocked_until": -1,
-		# while turn <= this, this Leader's Veneno markers hurt but are not consumed (Antídoto Fora de Estoque)
+		# from the first turn to the last one, this Leader's Veneno markers hurt but are not consumed (Antídoto Fora de Estoque)
+		"leader_veneno_held_from": 0,
 		"leader_veneno_held_until": 0,
 		"frozen_slots": 0, # Rei Gelado: empty field slots of this player that accept no permanent
 		"frozen_slots_until": 0, # they thaw at the end of this player's own turn, once the turn counter reaches this
@@ -4946,6 +4951,7 @@ const FRAGMENT_BEARER_FILTER := { "any_of": [{ "tribe_any": ["dragoes_negros"] }
 func can_bear_fragments(unit: Card) -> bool:
 	return unit != null and CardFilter.matches(unit.card_id, FRAGMENT_BEARER_FILTER)
 
+
 ## No unit carries more than this many Fragmentos at once.
 const MAX_FRAGMENTS_PER_UNIT := 3
 
@@ -4955,15 +4961,14 @@ func can_receive_fragment(unit: Card) -> bool:
 	return can_bear_fragments(unit) and unit.fragments < MAX_FRAGMENTS_PER_UNIT
 
 
-
 ## Puts `amount` Fragmentos de Rai'Emofitir on a unit. They are not a periodic status: they stay until the bearer
 ## leaves the board, and hop to the bearer's allies when it dies (see _hop_fragments).
 ## `source_card_id` is the spell that handed them out; the ritual payoff counts them (_resolve_fragment_payoffs).
 func add_fragments(unit: Card, amount: int, source_card_id := "") -> void:
 	if unit == null or amount <= 0 or not can_bear_fragments(unit):
+		return
 	amount = mini(amount, MAX_FRAGMENTS_PER_UNIT - unit.fragments)
 	if amount <= 0:
-		return
 		return
 	unit.fragments += amount
 	if source_card_id != "":
@@ -5008,6 +5013,7 @@ func _resolve_fragments(unit: Card) -> void:
 ## (see MAX_FRAGMENTS_PER_UNIT). With none left they are lost.
 func _hop_fragments(p: int, count: int, from_uid: int) -> void:
 	var lost := 0
+	for index in count:
 		var allies: Array = []
 		for unit: Card in players[p]["board"]:
 			if can_receive_fragment(unit):
@@ -5015,12 +5021,11 @@ func _hop_fragments(p: int, count: int, from_uid: int) -> void:
 		if allies.is_empty():
 			lost = count - index
 			break
-	for index in count:
 		var receiver: Card = allies[rng.randi_range(0, allies.size() - 1)]
 		receiver.fragments += 1
+		emit_event({ "type": "dot", "uid": receiver.uid, "dot": "fragmento", "amount": 1, "total": receiver.fragments })
 	if lost > 0:
 		emit_event({ "type": "fragments_lost", "uid": from_uid, "player": p, "amount": lost })
-		emit_event({ "type": "dot", "uid": receiver.uid, "dot": "fragmento", "amount": 1, "total": receiver.fragments })
 
 
 ## How far player p is from the ritual of a spell with "fragment_payoff": copies already resolved ("given"), Fragmentos
@@ -5069,6 +5074,8 @@ func add_dot_markers(unit: Card, dot_id: String, amount: int, ignores_immunity :
 		emit_event({ "type": "dot_immune", "uid": unit.uid, "dot": dot_id })
 		return
 	unit.dot_markers[dot_id] = int(unit.dot_markers.get(dot_id, 0)) + amount
+	if players[active]["board"].has(unit):
+		unit.unripe_dot_markers[dot_id] = int(unit.unripe_dot_markers.get(dot_id, 0)) + amount
 	emit_event({ "type": "dot", "uid": unit.uid, "dot": dot_id, "amount": amount, "total": int(unit.dot_markers[dot_id]) })
 
 
@@ -5078,6 +5085,9 @@ func add_dot_markers(unit: Card, dot_id: String, amount: int, ignores_immunity :
 func add_leader_dot_markers(p: int, dot_id: String, amount: int) -> void:
 	var leader_dots: Dictionary = players[p]["leader_dots"]
 	leader_dots[dot_id] = int(leader_dots.get(dot_id, 0)) + amount
+	if p == active:
+		var unripe: Dictionary = players[p]["leader_unripe_dots"]
+		unripe[dot_id] = int(unripe.get(dot_id, 0)) + amount
 	emit_event({ "type": "dot", "uid": LEADER_UID[p], "dot": dot_id, "amount": amount, "total": int(leader_dots[dot_id]) })
 
 
@@ -5086,6 +5096,7 @@ func cleanse_unit_markers(unit: Card) -> void:
 	if unit.dot_markers.is_empty():
 		return
 	unit.dot_markers = { }
+	unit.unripe_dot_markers = { }
 	emit_event({ "type": "cleanse", "uid": unit.uid })
 
 
@@ -5094,6 +5105,7 @@ func cleanse_leader_markers(p: int) -> void:
 	if players[p]["leader_dots"].is_empty():
 		return
 	players[p]["leader_dots"] = { }
+	players[p]["leader_unripe_dots"] = { }
 	emit_event({ "type": "cleanse", "uid": LEADER_UID[p] })
 
 
@@ -5677,6 +5689,7 @@ func _finish_turn() -> void:
 	_fire_deck_effects(active, "on_turn_end")
 	_resolve_fragment_payoffs(active)
 	_fire_any_turn_trigger(active, "on_any_turn_end")
+	_resolve_dot_markers(active)
 	check_state()
 	if phase == "over":
 		return
@@ -5908,7 +5921,7 @@ func _start_turn(p: int, draw: bool) -> void:
 		c.attacks_made = 0
 	emit_event({ "type": "start_turn", "player": p, "turn": turn })
 	_regenerate_all_units()
-	_resolve_dot_markers(p)
+	_resolve_board_fragments(p)
 	_resolve_condemned()
 	bus().emit(GameEvent.new("turn_started", p))
 	_fire_leader_passive(p, "on_turn_start")
@@ -5952,21 +5965,41 @@ func _regenerate_all_units() -> void:
 				)
 
 
-## Resolves every periodic marker on every unit controlled by p, and on p's Leader, at the start of that turn.
+## Resolves every periodic marker on every unit controlled by p, and on p's Leader, at the end of that turn.
+## The markers put on during this very turn are still unripe and wait for the end of p's next turn.
 func _resolve_dot_markers(p: int) -> void:
 	for unit: Card in players[p]["board"].duplicate():
-		_resolve_fragments(unit)
 		for dot_id in unit.dot_markers.keys().duplicate():
-			resolve_dot(unit, String(dot_id))
+			resolve_dot(unit, String(dot_id), false, true)
 	for dot_id in players[p]["leader_dots"].keys().duplicate():
-		_resolve_leader_dot(p, String(dot_id))
+		_resolve_leader_dot(p, String(dot_id), false, true)
+	# what is left, including what the ticks themselves added, is ripe for the next end of turn
+	for unit: Card in players[p]["board"]:
+		unit.unripe_dot_markers = { }
+	players[p]["leader_unripe_dots"] = { }
+
+
+## The Fragmentos on every unit controlled by p hurt it at the start of p's turn.
+func _resolve_board_fragments(p: int) -> void:
+	for unit: Card in players[p]["board"].duplicate():
+		_resolve_fragments(unit)
+
+
+## Keeps the unripe count of one marker kind from exceeding what is left of it.
+func _trim_unripe_markers(unripe: Dictionary, dot_id: String, remaining: int) -> void:
+	if remaining <= 0:
+		unripe.erase(dot_id)
+	elif int(unripe.get(dot_id, 0)) > remaining:
+		unripe[dot_id] = remaining
 
 
 ## A Leader's markers hurt it by the same per-marker damage as a unit's and wear off the same way. It is normal
 ## damage, so Câmara de Êxtase still applies. While its Veneno is held (see veneno_is_held) the
-## markers hurt but none wear off.
-func _resolve_leader_dot(p: int, dot_id: String, keep_markers := false) -> void:
-	var markers := leader_dot_markers(p, dot_id)
+## markers hurt but none wear off. `only_ripe` (the end-of-turn tick) leaves out the markers put on this turn.
+func _resolve_leader_dot(p: int, dot_id: String, keep_markers := false, only_ripe := false) -> void:
+	var total := leader_dot_markers(p, dot_id)
+	var unripe: Dictionary = players[p]["leader_unripe_dots"]
+	var markers := total - (mini(int(unripe.get(dot_id, 0)), total) if only_ripe else 0)
 	if markers <= 0:
 		return
 	var held := keep_markers or veneno_is_held(dot_id, LEADER_UID[p])
@@ -5979,7 +6012,7 @@ func _resolve_leader_dot(p: int, dot_id: String, keep_markers := false) -> void:
 			"dot": dot_id,
 			"amount": markers,
 			"damage": damage,
-			"total": markers - consumed,
+			"total": total - consumed,
 			"cleared": true,
 			"held": held,
 		}
@@ -5993,6 +6026,7 @@ func _resolve_leader_dot(p: int, dot_id: String, keep_markers := false) -> void:
 		players[p]["leader_dots"][dot_id] = remaining
 	else:
 		players[p]["leader_dots"].erase(dot_id)
+	_trim_unripe_markers(unripe, dot_id, remaining)
 
 
 ## True when the Veneno markers of `target_uid` (a unit, or a Leader's negative uid) are not consumed
@@ -6000,23 +6034,30 @@ func _resolve_leader_dot(p: int, dot_id: String, keep_markers := false) -> void:
 func veneno_is_held(dot_id: String, target_uid: int) -> bool:
 	if dot_id != "veneno":
 		return false
-	if turn <= veneno_held_until:
+	if turn >= veneno_held_from and turn <= veneno_held_until:
 		return true
 	var leader_player := LEADER_UID.find(target_uid)
-	return leader_player >= 0 and turn <= int(players[leader_player]["leader_veneno_held_until"])
+	if leader_player < 0:
+		return false
+	var leader_state: Dictionary = players[leader_player]
+	return turn >= int(leader_state["leader_veneno_held_from"]) and turn <= int(leader_state["leader_veneno_held_until"])
 
 
-## Nobody's Veneno is consumed for the next `turn_starts` turn starts (of either player).
+## Nobody's Veneno is consumed at the end of the next `turn_starts` turns (of either player).
 func hold_veneno_for_everyone(turn_starts: int) -> void:
+	if turn > veneno_held_until:
+		veneno_held_from = turn + 1
 	veneno_held_until = maxi(veneno_held_until, turn + turn_starts)
 	emit_event({ "type": "veneno_hold", "player": -1, "turn_starts": turn_starts })
 
 
-## The Veneno on the Leader of player `p` is not consumed for the next `turn_starts` turn starts of
+## The Veneno on the Leader of player `p` is not consumed at the end of the next `turn_starts` turns of
 ## that Leader's controller.
 func hold_veneno_on_leader(p: int, turn_starts: int) -> void:
 	var first_turn_start := turn + (2 if p == active else 1)
 	var until := first_turn_start + 2 * (turn_starts - 1)
+	if turn > int(players[p]["leader_veneno_held_until"]):
+		players[p]["leader_veneno_held_from"] = turn + 1
 	players[p]["leader_veneno_held_until"] = maxi(int(players[p]["leader_veneno_held_until"]), until)
 	emit_event({ "type": "veneno_hold", "player": p, "turn_starts": turn_starts })
 
@@ -6072,10 +6113,12 @@ func block_healing_on_unit(unit: Card, turns: int) -> void:
 
 
 ## Until the start of player `p`'s next turn, the Veneno tick of every poisoned unit deals damage equal to
-## that unit's current Vida. The window closes right before the tick of `p`'s own next turn start, so
-## when `p` casts it on their own turn it only reaches the opponent's turn start.
+## that unit's current Vida. When `p` casts it on their own turn it only reaches the end of the opponent's
+## turn; cast on the opponent's turn, it also reaches the end of that turn.
 func make_veneno_lethal_until_next_turn_of(p: int) -> void:
 	var next_turn_start := turn + (2 if p == active else 1)
+	if turn > veneno_lethal_until:
+		veneno_lethal_from = turn + 1 if p == active else turn
 	veneno_lethal_until = maxi(veneno_lethal_until, next_turn_start - 1)
 	emit_event({ "type": "veneno_lethal", "player": p })
 
@@ -6101,10 +6144,12 @@ func _resolve_condemned() -> void:
 ## a new marker added by an on_survive_damage trigger remains for the next turn. Every marker wears off,
 ## except while Veneno is held (see veneno_is_held): the markers hurt and stay.
 ## `keep_markers` (a card effect, Coagulhão) holds them the same way for this one tick, for any marker kind.
-func resolve_dot(unit: Card, dot_id: String, keep_markers := false) -> void:
+## `only_ripe` (the end-of-turn tick) leaves out the markers put on during the controller's own turn.
+func resolve_dot(unit: Card, dot_id: String, keep_markers := false, only_ripe := false) -> void:
 	if unit == null:
 		return
-	var markers := int(unit.dot_markers.get(dot_id, 0))
+	var total := int(unit.dot_markers.get(dot_id, 0))
+	var markers := total - (mini(int(unit.unripe_dot_markers.get(dot_id, 0)), total) if only_ripe else 0)
 	if markers <= 0:
 		return
 	var damage := dot_damage(dot_id, unit, markers)
@@ -6117,7 +6162,7 @@ func resolve_dot(unit: Card, dot_id: String, keep_markers := false) -> void:
 			"dot": dot_id,
 			"amount": markers,
 			"damage": damage,
-			"total": markers - consumed,
+			"total": total - consumed,
 			"cleared": true,
 			"held": held,
 		}
@@ -6130,16 +6175,19 @@ func resolve_dot(unit: Card, dot_id: String, keep_markers := false) -> void:
 		unit.dot_markers[dot_id] = remaining
 	else:
 		unit.dot_markers.erase(dot_id)
+	_trim_unripe_markers(unit.unripe_dot_markers, dot_id, remaining)
 
 
-## Calculates the damage for one periodic marker type without applying it.
-func dot_damage(dot_id: String, unit: Card, markers: int) -> int:
+## Calculates the damage for one periodic marker type without applying it. `tick_turn` is the turn whose end
+## does the ticking (the current turn by default); Neráxia's window is read at that turn.
+func dot_damage(dot_id: String, unit: Card, markers: int, tick_turn := -1) -> int:
 	if unit == null or markers <= 0:
 		return 0
 	if DOT_RULES.get(dot_id, "flat") != "poison":
 		return markers
 	var normal_damage := markers * VENENO_DAMAGE_PER_MARKER
-	if dot_id == "veneno" and turn <= veneno_lethal_until:
+	var window_turn := turn if tick_turn < 0 else tick_turn
+	if dot_id == "veneno" and window_turn >= veneno_lethal_from and window_turn <= veneno_lethal_until:
 		# Neráxia's window: the tick takes all the Vida the unit has left (never less than the normal tick)
 		return maxi(normal_damage, unit.hp_left())
 	return normal_damage
@@ -6152,12 +6200,13 @@ func leader_dot_damage(dot_id: String, markers: int) -> int:
 	return markers * VENENO_DAMAGE_PER_MARKER if DOT_RULES.get(dot_id, "flat") == "poison" else markers
 
 
-## All the damage the markers a unit holds right now will deal at its controller's next turn start,
+## All the damage the markers a unit holds right now will deal at the end of its controller's turn,
 ## every kind of marker added up (Veneno and Sangramento 2 per marker, Queimadura 1).
 func pending_dot_damage(unit: Card) -> int:
+	var tick_turn := turn if players[active]["board"].has(unit) else turn + 1
 	var total := 0
 	for dot_id in unit.dot_markers:
-		total += dot_damage(String(dot_id), unit, int(unit.dot_markers[dot_id]))
+		total += dot_damage(String(dot_id), unit, int(unit.dot_markers[dot_id]), tick_turn)
 	return total
 
 

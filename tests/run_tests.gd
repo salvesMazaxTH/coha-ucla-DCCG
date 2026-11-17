@@ -126,6 +126,7 @@ func _init() -> void:
 	_test_leader_poison()
 	_test_veneno_hold()
 	_test_veneno_lethal()
+	_test_dot_next_turn_timing()
 	_test_hulglack_death_freeze()
 	_test_venenosa_deck()
 	_test_drex_deck()
@@ -6668,7 +6669,7 @@ func _test_overlay_keyword_immunities() -> void:
 
 
 func _test_burn() -> void:
-	# Queimadura accumulates, uses its periodic-damage rule at the controller's turn start, then clears.
+	# Queimadura accumulates, uses its periodic-damage rule at the end of the controller's turn, then clears.
 	_tcard("t_burn", 1, 8, [])
 	_tcard("t_tank", 1, 13, [])
 	var g := _new_game()
@@ -6693,13 +6694,13 @@ func _test_burn() -> void:
 	var before := victim.to_dict()
 	var mirror := Card.from_dict(before, "board", 1)
 	check(int(mirror.dot_markers.get("queimadura", 0)) == 3, "marcadores de Queimadura sobrevivem ao espelho de rede genérico")
-	g._start_turn(1, false)
-	check(victim.damage == 3 and victim.dot_markers.is_empty(), "no início do turno, Queimadura causa o total e remove os marcadores")
+	g._resolve_dot_markers(1)
+	check(victim.damage == 3 and victim.dot_markers.is_empty(), "no fim do turno, Queimadura causa o total e remove os marcadores")
 	# Queimadura bypasses Armadura and Escudo: the full marker count becomes damage, and the shield stays.
 	victim.armor = 1
 	victim.shield = true
 	victim.dot_markers["queimadura"] = 2
-	g._start_turn(1, false)
+	g._resolve_dot_markers(1)
 	check(
 		victim.damage == 5 and victim.dot_markers.is_empty() and victim.shield,
 		"Queimadura ignora Armadura e Escudo, causando o total e limpando os marcadores",
@@ -6707,7 +6708,7 @@ func _test_burn() -> void:
 	# Indestrutível remains the stronger protection currently defined by the game.
 	victim.keywords.append("indestrutivel")
 	victim.dot_markers["queimadura"] = 2
-	g._start_turn(1, false)
+	g._resolve_dot_markers(1)
 	check(victim.damage == 5 and victim.dot_markers.is_empty(), "Queimadura ainda respeita Indestrutível como proteção superior")
 	# Escudo Mágico cancels the marker application just like any other targeted effect.
 	victim.magic_shield = true
@@ -7587,11 +7588,14 @@ func _test_leader_poison() -> void:
 	_hit(g, attacker)
 	check(g.leader_dot_markers(1, "veneno") == 1, "Veneno no Líder: Tóxico com exceção coloca 1 marcador ao bater no Líder")
 
-	# the Leader's markers hurt it at the start of its controller's turn (2 per marker) and are consumed, like a unit's
+	# the Leader's markers hurt it at the end of its controller's turn (2 per marker) and are consumed, like a unit's
 	var leader_hp_before: int = g.players[1]["leader_hp"]
 	g.end_turn(g.active)
 	g.flush_events()
-	check(g.players[1]["leader_hp"] == leader_hp_before - 2, "Veneno no Líder: no início do turno dele, 2 de dano por marcador")
+	check(g.players[1]["leader_hp"] == leader_hp_before, "Veneno no Líder: no início do turno dele ainda não fere")
+	g.end_turn(g.active)
+	g.flush_events()
+	check(g.players[1]["leader_hp"] == leader_hp_before - 2, "Veneno no Líder: no fim do turno dele, 2 de dano por marcador")
 	check(g.leader_dot_markers(1, "veneno") == 0, "Veneno no Líder: os marcadores são consumidos depois de causar dano")
 	g.end_turn(g.active)
 	g.end_turn(g.active)
@@ -7606,6 +7610,7 @@ func _test_leader_poison() -> void:
 	_quiet(g)
 	g.add_leader_dot_markers(1, "veneno", 3)
 	leader_hp_before = g.players[1]["leader_hp"]
+	g.end_turn(g.active)
 	g.end_turn(g.active)
 	g.flush_events()
 	check(
@@ -7624,6 +7629,7 @@ func _test_leader_poison() -> void:
 	g = _new_game()
 	_quiet(g)
 	g.add_leader_dot_markers(1, "queimadura", 3)
+	g.end_turn(g.active)
 	g.end_turn(g.active)
 	g.flush_events()
 	check(g.leader_dot_markers(1, "queimadura") == 0, "Queimadura no Líder: consumida inteira")
@@ -7763,12 +7769,13 @@ func _test_veneno_hold() -> void:
 	var poisoned_unit := _put(g, victim, "t_hold_dummy")
 	g.add_dot_markers(poisoned_unit, "veneno", 1)
 	var leader_hp_start: int = g.players[victim]["leader_hp"]
-	_next_turn(g) # the victim's first turn start
+	_next_turn(g)
+	_next_turn(g) # the end of the victim's first turn
 	check(g.players[victim]["leader_hp"] == leader_hp_start - 6, "Antídoto: o Veneno do Líder ainda fere (3 marcadores = 6 de dano)")
 	check(g.leader_dot_markers(victim, "veneno") == 3, "Antídoto: os marcadores do Líder ficam no primeiro turno dele")
 	check(poisoned_unit.dot_markers.get("veneno", 0) == 0, "Antídoto: só vale pro Líder, o Veneno de unidade é consumido normal")
 	_next_turn(g)
-	_next_turn(g) # the victim's second turn start: the hold is over
+	_next_turn(g) # the end of the victim's second turn: the hold is over
 	check(
 		g.leader_dot_markers(victim, "veneno") == 0 and g.players[victim]["leader_hp"] == leader_hp_start - 12,
 		"Antídoto: no segundo turno dele o Veneno fere e remove todos os marcadores",
@@ -7787,15 +7794,16 @@ func _test_veneno_hold() -> void:
 	g.add_dot_markers(enemy_unit, "queimadura", 1)
 	g.add_dot_markers(own_unit, "veneno", 1)
 	g.add_leader_dot_markers(victim, "veneno", 2)
-	_next_turn(g) # the victim's turn start
+	_next_turn(g)
+	_next_turn(g) # the end of the victim's turn
 	check(
 		enemy_unit.dot_markers.get("veneno", 0) == 2 and g.leader_dot_markers(victim, "veneno") == 2,
 		"Greve: unidade e Líder inimigos mantêm o Veneno no turno do dono",
 	)
 	check(enemy_unit.dot_markers.get("queimadura", 0) == 0, "Greve: só segura Veneno, Queimadura continua sendo consumida")
-	_next_turn(g) # the caster's turn start
+	_next_turn(g) # the end of the caster's next turn (the marker put on their own turn was unripe before)
 	check(own_unit.dot_markers.get("veneno", 0) == 1, "Greve: o Veneno de quem jogou também fica no turno dele")
-	_next_turn(g) # the victim's next turn start: the hold is over
+	_next_turn(g) # the end of the victim's next turn: the hold is over
 	check(
 		enemy_unit.dot_markers.get("veneno", 0) == 0 and g.leader_dot_markers(victim, "veneno") == 0,
 		"Greve: depois da rodada, o Veneno volta a ser consumido inteiro",
@@ -7847,14 +7855,15 @@ func _test_veneno_lethal() -> void:
 	g.add_dot_markers(own_unit, "veneno", 1)
 	var enemy_leader_hp_before: int = g.players[victim]["leader_hp"]
 	g.add_leader_dot_markers(victim, "veneno", 1)
-	_next_turn(g) # the victim's turn start: inside the window
+	_next_turn(g)
+	_next_turn(g) # the end of the victim's turn: inside the window
 	check(
 		not g.players[victim]["board"].has(enemy_unit),
 		"Neráxia: o tique de Veneno mata a unidade inimiga envenenada (10 de Vida, 1 marcador)",
 	)
 	check(g.players[victim]["board"].has(enemy_unit_without_poison), "Neráxia: unidade sem Veneno não é afetada")
 	check(g.players[victim]["leader_hp"] == enemy_leader_hp_before - 2, "Neráxia: o Líder não é unidade e leva o tique normal")
-	_next_turn(g) # the caster's turn start: the window is already closed
+	_next_turn(g) # the end of the caster's next turn: the window is already closed
 	check(own_unit.hp_left() == 8, "Neráxia: a unidade envenenada de quem jogou leva só o tique normal (2)")
 
 	# a second, later tick on an enemy unit is back to normal
@@ -7863,12 +7872,47 @@ func _test_veneno_lethal() -> void:
 	caster = g.active
 	victim = 1 - caster
 	lethal_effect.apply(EffectContext.new(g, caster, ""), 0)
-	_next_turn(g) # the victim's first turn start (inside the window)
-	_next_turn(g) # the caster's turn start
+	_next_turn(g)
+	_next_turn(g) # the end of the victim's first turn (inside the window)
+	_next_turn(g) # the end of the caster's turn
 	var late_unit := _put(g, victim, "t_lethal_dummy")
 	g.add_dot_markers(late_unit, "veneno", 1)
-	_next_turn(g) # the victim's second turn start after the cast: the window is over
+	_next_turn(g) # the end of the victim's turn (the marker was put on it, so it is not ripe yet)
+	_next_turn(g)
+	_next_turn(g) # the end of the victim's second turn after the cast: the window is over
 	check(late_unit.hp_left() == 8, "Neráxia: depois da janela o Veneno volta ao tique normal (2)")
+
+
+## DOT markers tick at the end of their controller's NEXT turn: markers put on during the controller's own
+## turn skip that turn's end, markers put on during the opponent's turn tick at the end of the controller's turn.
+func _test_dot_next_turn_timing() -> void:
+	_tcard("t_timing_dummy", 1, 10, [])
+	var g := _new_game()
+	_quiet(g)
+	var own_player: int = g.active
+	var other_player := 1 - own_player
+	var own_unit := _put(g, own_player, "t_timing_dummy")
+	var other_unit := _put(g, other_player, "t_timing_dummy")
+	g.add_dot_markers(own_unit, "veneno", 1)
+	g.add_dot_markers(other_unit, "veneno", 1)
+	var own_leader_hp: int = g.players[own_player]["leader_hp"]
+	var other_leader_hp: int = g.players[other_player]["leader_hp"]
+	g.add_leader_dot_markers(own_player, "veneno", 1)
+	g.add_leader_dot_markers(other_player, "veneno", 1)
+
+	_next_turn(g) # the end of the turn in which the markers were put
+	check(own_unit.hp_left() == 10, "DOT: marcador posto no próprio turno não fere no fim dele")
+	check(g.players[own_player]["leader_hp"] == own_leader_hp, "DOT: marcador de Líder posto no próprio turno não fere no fim dele")
+	check(own_unit.dot_markers.get("veneno", 0) == 1, "DOT: o marcador do próprio turno continua na unidade")
+
+	_next_turn(g) # the end of the other player's first turn
+	check(other_unit.hp_left() == 8, "DOT: marcador posto no turno do adversário fere no fim do turno do dono")
+	check(g.players[other_player]["leader_hp"] == other_leader_hp - 2, "DOT: o Líder do adversário também leva o tique")
+	check(other_unit.dot_markers.is_empty(), "DOT: o tique consome os marcadores")
+
+	_next_turn(g) # the end of the next turn of the player who put them on first
+	check(own_unit.hp_left() == 8, "DOT: no fim do turno seguinte o marcador antigo fere")
+	check(g.players[own_player]["leader_hp"] == own_leader_hp - 2, "DOT: o Líder também leva o tique no turno seguinte")
 
 
 ## Ends the active player's turn and settles everything that starts the next one.
@@ -14972,8 +15016,10 @@ func _test_furia_blood_cards() -> void:
 	check(foe.damage == 1 and int(foe.dot_markers.get("sangramento", 0)) == 1, "Gorbo: 1 de dano e 1 marcador de Sangramento no alvo")
 	check(bystander.damage == 0 and bystander.dot_markers.is_empty(), "Gorbo: a outra unidade inimiga não é afetada")
 	check(g.find_unit(gorbo_uid) != null and g.find_unit(gorbo_uid).atk_total() == 3, "Gorbo entra em campo com 3 de Ataque")
-	# o Sangramento dispara no início do turno do dono da unidade: 2 de dano por marcador, e o único marcador some
-	g._start_turn(1, false)
+	# o Sangramento dispara no fim do turno do dono da unidade: 2 de dano por marcador, e o único marcador some
+	_next_turn(g)
+	check(foe.damage == 1, "Gorbo: o Sangramento ainda não feriu no início do turno do dono")
+	_next_turn(g)
 	check(
 		foe.damage == 1 + 2 and foe.dot_markers.is_empty(),
 		"Gorbo: o Sangramento causa 2 de dano por marcador (3 no total com o dano inicial) e some",
@@ -15032,8 +15078,9 @@ func _test_cuspidor_de_brasas() -> void:
 		g.find_unit(cuspidor_uid) != null and g.find_unit(cuspidor_uid).atk_total() == 3,
 		"Cuspidor de Brasas entra em campo com 3 de Ataque",
 	)
-	# a Queimadura causa dano igual aos marcadores no início do turno do dono e some
-	g._start_turn(1, false)
+	# a Queimadura causa dano igual aos marcadores no fim do turno do dono e some
+	_next_turn(g)
+	_next_turn(g)
 	check(foe.damage == 2 and foe.dot_markers.is_empty(), "Cuspidor de Brasas: a Queimadura causa 2 de dano e some")
 
 
