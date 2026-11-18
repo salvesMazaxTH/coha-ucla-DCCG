@@ -254,6 +254,7 @@ func animate(events: Array, old: Dictionary) -> float:
 	var volley_land_t := 0.0 ## when the trigger's last shot lands (the next one follows VOLLEY_GAP later)
 	var trig_color := Color.TRANSPARENT ## color of the shots of a spell (its element); transparent = each effect's own color
 	var area_cast_active := false ## an area cast just played: its hits land without shots and its destroys without the X
+	var ritual_active := false ## a Fragmentos ritual just consumed its bearers: their destroys dissolve into Fragments without the X
 	var destroy_cast_style := "" ## the spell being resolved burns ("fogo") or drowns ("agua") the unit it destroys instead of the X
 	var fatigue_pending := false ## a Fadiga was just announced: the Leader hit that follows is the game's rule, not a card's effect
 	# Leader HP: _render drew the final value, so rewind it to what it was before these events
@@ -298,6 +299,7 @@ func animate(events: Array, old: Dictionary) -> float:
 			trig_color = Color.TRANSPARENT
 			area_cast_active = false
 			destroy_cast_style = ""
+			ritual_active = false
 		elif et in ["damage", "shield_break"] and e.get("src", 0) > 0 and trig_src >= 0 and (in_combat or e["src"] != trig_src):
 			trig_src = 0
 			trig_color = Color.TRANSPARENT
@@ -663,9 +665,18 @@ func animate(events: Array, old: Dictionary) -> float:
 					host.show_toast("%s: %d espaço(s) vazio(s) congelado(s)!" % [host.player_name(e["player"]), e["blocked"]])
 				fx_library.freeze_slots_fx(int(e["player"]), cursor)
 				cursor += 0.5
+			"fragments_consumed":
+				ritual_active = true
 			"summon", "draw", "search_take":
 				appear[e["uid"]] = cursor
 				cursor += 0.1
+				var summon_style := String(CardDB.card(String(e.get("card_id", ""))).get("summon_style", "")) if e["type"] == "summon" else ""
+				if host.fx_summons.has_style(summon_style) and actors.get(e["uid"]) is CardView:
+					var summon_color := Color(String(CardDB.card(String(e["card_id"])).get("summon_color", "#a63cff")))
+					var arrival: float = cursor + host.fx_summons.arrival_delay(summon_style)
+					appear[e["uid"]] = arrival
+					cursor = host.fx_summons.play(summon_style, fx_library.center_of(actors[e["uid"]]), cursor, summon_color)
+					ritual_active = false
 				if short_lived.has(e["uid"]):
 					# pops in with a flash and stays a moment, so the player sees it arrive before the blow lands
 					var arriving: CardView = short_lived[e["uid"]]
@@ -685,7 +696,14 @@ func animate(events: Array, old: Dictionary) -> float:
 				# a "destroy" effect (from any card): the same X as the Leader's execution forms and crosses
 				# over the unit, and only then does it die the usual way (the dissolve)
 				var destroyed_view = actors.get(e["uid"])
-				if destroyed_view is CardView and area_cast_active:
+				if destroyed_view is CardView and ritual_active:
+					# a bearer spent by the ritual: it dissolves into violet right away
+					if ghosts.has(destroyed_view) and not short_lived.has(e["uid"]) and not dissolved_early.has(destroyed_view):
+						destroyed_view.dissolve(cursor, Color("#a63cff").lightened(0.2), 0.6)
+						Sfx.play_in("death", cursor)
+						dissolved_early[destroyed_view] = true
+					cursor += 0.06
+				elif destroyed_view is CardView and area_cast_active:
 					# destroyed by an area cast (the flood of Julgamento): no X, the unit just goes under
 					# right away, a little after the previous one
 					if ghosts.has(destroyed_view) and not short_lived.has(e["uid"]) and not dissolved_early.has(destroyed_view):

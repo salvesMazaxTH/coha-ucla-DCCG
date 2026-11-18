@@ -116,6 +116,7 @@ var table_overlays: TableOverlays ## card overlay, pause menu, graveyard viewer 
 var table_animator: TableAnimator ## plays each batch of events on the table (moved out of this file)
 var fx_leader_death: FxLeaderDeath ## what plays when a Leader dies, before the result screen
 var fx_executions: FxExecutions ## executions with a look of their own (a card's "execution_style")
+var fx_summons: FxSummons ## summons with an entrance of their own (a card's "summon_style")
 var fx_casts: FxCasts ## cast animations of spells and area triggers (a wall of fire, a flood...), built on fx_library
 var ai_timer: Timer
 ## Animations are never cut short: while one is still playing, the next batch of events waits here
@@ -214,6 +215,7 @@ func _ready() -> void:
 	fx_casts = FxCastsScript.new(self, fx_library)
 	fx_leader_death = FxLeaderDeath.new(self, fx_library)
 	fx_executions = FxExecutions.new(self, fx_library)
+	fx_summons = FxSummons.new(self, fx_library)
 	table_animator = TableAnimatorScript.new(self, fx_library, fx_shots, fx_casts)
 	chronicle_log = ChronicleLogScript.new(self)
 	table_overlays = TableOverlaysScript.new(self)

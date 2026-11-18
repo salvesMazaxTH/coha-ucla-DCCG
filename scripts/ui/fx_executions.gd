@@ -54,7 +54,7 @@ func _rai(leader: LeaderView, hp_before: int, t: float, col: Color) -> float:
 	var center := fx_library.center_of(leader)
 	var unmake_t := t + RAI_GATHER_TIME
 	var gone_t := unmake_t + RAI_UNMAKE_TIME
-	_rai_veil(center, col, t, gone_t)
+	void_veil(center, col, t, gone_t)
 	var driver := leader.create_tween()
 	driver.tween_interval(t)
 	driver.tween_callback(func(): _rai_unmake_card(leader, col, unmake_t - t))
@@ -64,8 +64,9 @@ func _rai(leader: LeaderView, hp_before: int, t: float, col: Color) -> float:
 	fx_library.drain_leader_hp(leader, hp_before, unmake_t)
 	return gone_t + RAI_AFTERMATH_TIME
 
-## The void over the whole screen (shaders/rai_void.gdshader): rises at t and quietly lifts once the Leader is gone.
-func _rai_veil(center: Vector2, col: Color, t: float, gone_t: float) -> ColorRect:
+## The void over the whole screen (shaders/rai_void.gdshader): rises at t and quietly lifts (over `fade_time`)
+## after gone_t. Also used by FxSummons.
+func void_veil(center: Vector2, col: Color, t: float, gone_t: float, fade_time := RAI_AFTERMATH_TIME + 0.2) -> ColorRect:
 	if _void_shader == null:
 		_void_shader = load("res://scripts/ui/shaders/rai_void.gdshader")
 	var to_screen := fx.get_global_transform_with_canvas()
@@ -90,7 +91,7 @@ func _rai_veil(center: Vector2, col: Color, t: float, gone_t: float) -> ColorRec
 	darkness.tween_interval(t)
 	darkness.tween_property(veil_material, "shader_parameter/veil", 1.0, 0.5).from(0.0).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 	darkness.tween_interval(gone_t - t - 0.5 - 0.2)
-	darkness.tween_property(veil_material, "shader_parameter/veil", 0.0, RAI_AFTERMATH_TIME + 0.2).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
+	darkness.tween_property(veil_material, "shader_parameter/veil", 0.0, fade_time).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
 	darkness.tween_callback(veil.queue_free)
 	return veil
 
@@ -166,9 +167,9 @@ func _rai_evaporation(leader: LeaderView, col: Color, unmake_t: float) -> void:
 		var start_t := unmake_t + height_share * RAI_UNMAKE_TIME * 0.8 + randf_range(0.0, 0.15)
 		var start := leader.position + spot
 		if i < RAI_DUST_COUNT:
-			_rai_drift(_rai_dust_mote(dust_color), start, start_t, false)
+			drift(dust_mote(dust_color), start, start_t, false)
 		else:
-			_rai_drift(_rai_petal(col), start, start_t, true)
+			drift(petal(col), start, start_t, true)
 
 static func _inside_any(point: Vector2, outlines: Array) -> bool:
 	for outline in outlines:
@@ -177,7 +178,7 @@ static func _inside_any(point: Vector2, outlines: Array) -> bool:
 	return false
 
 ## A soft round mote of ashen dust, medium sized.
-func _rai_dust_mote(dust_color: Color) -> Node2D:
+func dust_mote(dust_color: Color) -> Node2D:
 	var mote := Polygon2D.new()
 	var radius := randf_range(2.5, 5.5)
 	var points := PackedVector2Array()
@@ -188,7 +189,7 @@ func _rai_dust_mote(dust_color: Color) -> Node2D:
 	return mote
 
 ## A small black petal with a faint edge in the accent color, so it still reads over the dark void.
-func _rai_petal(col: Color) -> Node2D:
+func petal(col: Color) -> Node2D:
 	var petal := Node2D.new()
 	var length := randf_range(9.0, 15.0)
 	var width := length * randf_range(0.38, 0.5)
@@ -213,7 +214,7 @@ func _rai_petal(col: Color) -> Node2D:
 	return petal
 
 ## One mote or petal floats up and sideways from `start`, swaying (petals also tumble), and fades out.
-func _rai_drift(particle: Node2D, start: Vector2, start_t: float, is_petal: bool) -> void:
+func drift(particle: Node2D, start: Vector2, start_t: float, is_petal: bool) -> void:
 	particle.position = start
 	particle.z_index = 57
 	particle.modulate.a = 0.0
@@ -238,7 +239,7 @@ func _rai_drift(particle: Node2D, start: Vector2, start_t: float, is_petal: bool
 	motion.tween_callback(particle.queue_free)
 
 ## A diamond of light with a soft glow around it: one Fragment of Rai.
-func _rai_fragment_shape(col: Color, size: float) -> Node2D:
+func fragment_shape(col: Color, size: float) -> Node2D:
 	var fragment := Node2D.new()
 	fragment.z_index = 58
 	fragment.add_child(fx_library._glow_sprite(size * 2.4, col))
@@ -252,7 +253,7 @@ func _rai_fragment_shape(col: Color, size: float) -> Node2D:
 ## One Fragment comes from far off at `start_angle`, spirals in and circles the portrait while it evaporates,
 ## closing in a little and fading out with it, leaving a fading trail of light behind.
 func _rai_fragment_in(center: Vector2, col: Color, t: float, gone_t: float, start_angle: float) -> void:
-	var fragment := _rai_fragment_shape(col, 7.0)
+	var fragment := fragment_shape(col, 7.0)
 	fragment.modulate.a = 0.0
 	fx.add_child(fragment)
 	var trail := Line2D.new()

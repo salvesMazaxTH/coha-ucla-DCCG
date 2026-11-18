@@ -8,7 +8,7 @@
   "cost": 0,
   "undraftable": true,
   "death_ward": true,
-  "keywords": ["escudo_supremo"],
+  "keywords": ["indestrutivel"],
   "art": "devocao/baluarte_santo.webp",
   "effects": [
     {

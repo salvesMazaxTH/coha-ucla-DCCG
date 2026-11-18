@@ -25,7 +25,7 @@
       "type": "spell"
     }
   ],
-  "text": "Aliada Dragão Negro ou Veyr recebe 1 Fragmento (máx. 3): +1 de Ataque, 1 de dano a si no início do turno, bane o que destrói e, ao morrer, salta para um aliado aleatório. Você procura outra cópia no deck e a coloca na mão.\nNo Fim do Seu Turno: com 10 cópias usadas e 4 Fragmentos no campo, eles são consumidos e o deus se ergue.",
-  "face_text": "Um Dragão Negro ou Veyr aliado recebe 1 Fragmento (máx. 3). Procura outra cópia no deck e a põe na mão.\nFim do Turno: 10 cópias usadas e 4 Fragmentos, o deus se ergue.",
+  "text": "Aliada Dragão Negro ou Veyr recebe 1 Fragmento (máx. 3): +1 de Ataque, 1 de dano a si no início do turno, bane o que destrói e, ao morrer, salta para um aliado aleatório. Você procura outra cópia no deck e a coloca na mão.\nNo Fim do Seu Turno: com 10 cópias usadas e 4 Fragmentos no campo, eles são consumidos, os portadores são destruídos e o deus se ergue.",
+  "face_text": "Um Dragão Negro ou Veyr aliado recebe 1 Fragmento (máx. 3). Procura outra cópia no deck e a põe na mão.\nFim do Turno: 10 cópias usadas e 4 Fragmentos, os portadores caem e o deus se ergue.",
   "flavor":"Dez pedaços. Nenhum deles concorda em ficar."
 }

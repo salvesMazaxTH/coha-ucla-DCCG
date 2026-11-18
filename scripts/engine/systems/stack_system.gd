@@ -272,7 +272,8 @@ func _finish_resolution_priority(lower_stack_sids: Dictionary) -> void:
 		if not new_item_was_pushed:
 			game.priority = game.active
 	elif game.phase in ["main", "combat"]:
-		game.combat_system().finish_pending_attack() # the attack that cast it deals damage now (or the defender may react again)
+		if game.entering_queue.is_empty(): # units that just entered resolve their Ao Entrar before the attack goes on
+			game.combat_system().finish_pending_attack() # the attack that cast it deals damage now (or the defender may react again)
 		if game.phase in ["main", "combat"] and game.stack.is_empty():
 			game.summon_window = false
 			if not game.combat_system().is_reacting(game.priority):
@@ -564,6 +565,8 @@ func settle() -> void:
 			return
 		if not game.pending_tap.is_empty() and game.ask_enter_tapped():
 			return # a Provocação just entered: its controller chooses tapped or not first
+		if game.start_queued_enter():
+			continue # a unit that entered by an effect: its Ao Entrar asks a target or goes on the stack
 		if game.stack.is_empty():
 			game.stack_passed = false
 			game.combat_system().finish_pending_attack()

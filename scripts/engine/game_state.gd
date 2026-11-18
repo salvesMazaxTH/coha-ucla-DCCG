@@ -62,6 +62,11 @@ var winner := -1 ## -1 none, 0/1 player, 2 draw
 ## enter tapped (phase "enter_tapped"), oldest first. Holds uids.
 var pending_tap: Array = []
 var _enter_tapped_return := "main" ## the phase to go back to after the choice
+## Units that entered by an effect and still owe their Ao Entrar, in entry order ({uid}). settle() takes
+## them one at a time: the target is asked, the Ao Entrar goes on the stack, and the next waits until it resolved.
+var entering_queue: Array = []
+var _entering_resume_depth := -1 ## stack size under the last queued Ao Entrar pushed (-1 = none waiting)
+var _enter_target_return := "main" ## the phase to go back to after an Ao Entrar target is picked
 ## Pending deterministic deck search. The matching cards are public until chosen.
 var pending_search: Dictionary = { }
 ## Ao Entrar waiting for its owner to pick a target, after the unit is already on the board
@@ -3174,6 +3179,7 @@ func end_turn(p: int) -> Array:
 		emit_event({ "type": "discard_required", "player": p, "count": players[p]["hand"].size() - HAND_LIMIT })
 		return flush_events()
 	_finish_turn()
+	stack_system().settle() # units that entered by an effect at the turn change get their Ao Entrar now
 	return flush_events()
 
 
@@ -3192,6 +3198,7 @@ func discard(p: int, hand_uids: Array) -> Array:
 		emit_event({ "type": "discard", "player": p, "uid": uid, "card_id": c.card_id })
 	phase = "main"
 	_finish_turn()
+	stack_system().settle()
 	return flush_events()
 
 
@@ -3224,7 +3231,7 @@ func choose_enter_target(p: int, target: int) -> Array:
 	var second_target: int = target if asking_second else 0
 	var respond: bool = pending_enter.get("respond", false)
 	pending_enter.clear()
-	phase = "main"
+	phase = _enter_target_return
 	var c := find_unit(uid)
 	var effects: Array = card_of(c)["effects"]
 	if first_target == 0 or (asking_second and second_target == 0):
@@ -3559,8 +3566,10 @@ func _place_relic(p: int, c: Card) -> void:
 		return
 	players[p]["relics"].append(c)
 	_move(c, "relics")
-	# an artifact can be born protected (Baluarte Santo)
-	c.supreme_shield = CardDB.card(c.card_id).get("keywords", []).has("escudo_supremo")
+	# an artifact can be born protected (Escudo Supremo) or indestructible (Baluarte Santo)
+	var printed_keywords: Array = CardDB.card(c.card_id).get("keywords", [])
+	c.keywords = printed_keywords.filter(func(keyword): return keyword != "escudo_supremo")
+	c.supreme_shield = printed_keywords.has("escudo_supremo")
 	c.supreme_shield_expires = ""
 	emit_event({ "type": "relic_enter", "player": p, "uid": c.uid, "card_id": c.card_id })
 
@@ -3699,6 +3708,36 @@ func _summon(
 		pending_tap.append(uid)
 	if suppress_enter:
 		return # suppress_enter: the unit is on the field but its own Ao Entrar does not run (an identical copy, summon_copy)
+	if not respond and _has_enter_effects(cd.get("effects", [])):
+		entering_queue.append({ "uid": uid }) # entered by an effect: settle() asks its target and stacks it in turn
+		return
+	_begin_enter(p, c, target, ask, respond)
+
+
+## The Ao Entrar of the unit at the front of entering_queue starts (its target is asked, or it goes
+## straight on the stack). Waits while the previous one from the queue is still on the stack.
+## Returns true when it did something; units that already left the board are dropped.
+func start_queued_enter() -> bool:
+	if entering_queue.is_empty():
+		return false
+	if _entering_resume_depth >= 0 and stack.size() > _entering_resume_depth:
+		return false
+	_entering_resume_depth = -1
+	while not entering_queue.is_empty():
+		var unit := find_unit(int(entering_queue.pop_front()["uid"]))
+		if unit == null:
+			continue
+		_entering_resume_depth = stack.size() if not entering_queue.is_empty() else -1
+		_begin_enter(unit.owner, unit, 0, true, true)
+		return true
+	return false
+
+
+## The unit c is on the board: its Ao Entrar asks for a target (ask) or runs with `target`;
+## respond puts it on the stack instead of running it at once.
+func _begin_enter(p: int, c: Card, target: int, ask: bool, respond: bool) -> void:
+	var uid := c.uid
+	var cd := c.data()
 	var spec := enter_spec(cd)
 	var enter_options: Array = valid_targets(p, spec, uid, false, cd.get("effects", [])) if spec != "" else []
 	if _enter_pick_is_moot(p, cd.get("effects", [])):
@@ -3711,13 +3750,14 @@ func _summon(
 		pending_enter = {
 			"player": p,
 			"uid": uid,
-			"card_id": card_id,
+			"card_id": c.card_id,
 			"spec": spec,
 			"spec2": enter_second_spec(cd),
 			"respond": respond,
 		}
+		_enter_target_return = phase
 		phase = "enter_target"
-		emit_event({ "type": "enter_target", "player": p, "uid": uid, "card_id": card_id })
+		emit_event({ "type": "enter_target", "player": p, "uid": uid, "card_id": c.card_id })
 		return
 	# "ally_unit" Ao Entrar with no chosen ally falls back to the unit itself
 	if target == 0 and target_spec(cd["effects"]) == "ally_unit":
@@ -5052,7 +5092,8 @@ func fragment_progress(p: int, cd: Dictionary, card_id: String) -> Dictionary:
 
 
 ## End of p's turn: a spell card with a "fragment_payoff" ({"markers": 4, "given": 10, "summon": card_id}) summons its
-## unit once p's side holds enough Fragmentos and the spell has handed out all of its copies. The Fragmentos are consumed.
+## unit once p's side holds enough Fragmentos and the spell has handed out all of its copies. The Fragmentos are consumed
+## and their bearers destroyed.
 func _resolve_fragment_payoffs(p: int) -> void:
 	var given: Dictionary = players[p]["fragments_given"]
 	for source_card_id in given.keys().duplicate():
@@ -5065,13 +5106,28 @@ func _resolve_fragment_payoffs(p: int) -> void:
 			if unit.fragments > 0:
 				holders.append(unit)
 				total += unit.fragments
-		if total < int(payoff.get("markers", 0)) or not has_free_slot(p):
+		# the bearers leave the field before the summon, so they open the room it needs
+		var room_after_ritual := has_free_slot(p) or holders.any(func(unit: Card) -> bool: return not unit.has_kw("indestrutivel"))
+		if total < int(payoff.get("markers", 0)) or not room_after_ritual:
 			continue
 		given.erase(source_card_id)
 		for unit: Card in holders:
 			unit.fragments = 0
 		emit_event({ "type": "fragments_consumed", "player": p, "amount": total })
-		_summon(p, Card.new(_uid(), String(payoff["summon"]), p), false, 0)
+		for unit: Card in holders:
+			_destroy_consumed_bearer(unit)
+		_move_dead_units()
+		if has_free_slot(p):
+			_summon(p, Card.new(_uid(), String(payoff["summon"]), p), false, 0)
+
+
+## The ritual spends its bearers: each one is destroyed like any destroyed unit (an indestructible one
+## survives and a death ward still cancels it). Their Fragmentos are already gone, so none hop to an ally.
+func _destroy_consumed_bearer(unit: Card) -> void:
+	if unit.has_kw("indestrutivel") or _consume_death_ward(unit):
+		return
+	unit.damage = 1000000
+	emit_event({ "type": "destroy", "uid": unit.uid, "card_id": unit.card_id })
 
 
 ## Puts `amount` accumulating markers of the `dot_id` kind on the unit (they resolve at its controller's turn start).

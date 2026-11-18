@@ -53,7 +53,8 @@ func apply(context: EffectContext, target_uid: int) -> void:
 	elif action == "destroy_artifact":
 		var artifact := context.game.find_relic(target_uid)
 		if artifact != null and (required_subtype == "" or artifact.data().get("subtypes", []).has(required_subtype)):
-			context.game.destroy_relic(artifact)
+			if not artifact.has_kw("indestrutivel"):
+				context.game.destroy_relic(artifact)
 		elif artifact == null and required_subtype == "":
 			# A unit that is also an artifact (Relojoeiro Pino-14) is destroyed like any unit: it dies.
 			var unit_artifact := context.game.find_unit(target_uid)
@@ -96,6 +97,9 @@ func _banish(context: EffectContext, target_uid: int) -> void:
 	var game := context.game
 	var exiled := game.find_unit(target_uid)
 	if exiled == null:
+		var relic := game.find_relic(target_uid)
+		if relic != null and required_dot == "":
+			game.banish_relic(relic)
 		return
 	if required_dot != "" and int(exiled.dot_markers.get(required_dot, 0)) < required_dot_amount:
 		return

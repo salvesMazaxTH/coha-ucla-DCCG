@@ -53,10 +53,10 @@ static func traits_of(card: Dictionary) -> Dictionary:
 		var is_group_target := target.begins_with("all_") or target.begins_with("each_") \
 				or target.begins_with("other_") or target.begins_with("center_")
 		var removes_units := action in ["destroy", "banish", "damage"] \
-				and (target.contains("unit") or target == "any")
+				and (target.contains("unit") or target.contains("occupants") or target == "any")
 		if removes_units:
 			if is_group_target:
-				var is_global_target := target in ["all_enemy_units", "all_units", "other_units"]
+				var is_global_target := target in ["all_enemy_units", "all_enemy_occupants", "all_units", "other_units"]
 				var has_group_restriction: bool = not effect.get("unit_filter", {}).is_empty() \
 						or String(effect.get("unit_state", "")) != "" \
 						or not effect.get("unit_state_any", []).is_empty()

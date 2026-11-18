@@ -811,6 +811,7 @@ func _start_turn_without_reservoir_card(g: GameState, p: int) -> void:
 func _put(g: GameState, p: int, card_id: String, ready := true) -> Card:
 	var uid := g._uid()
 	g._summon(p, Card.new(uid, card_id, p), false, 0)
+	_run_queued_enters_now(g)
 	g.flush_events()
 	if g.phase == "search":
 		var options: Array = g.pending_search["cards"]
@@ -823,6 +824,15 @@ func _put(g: GameState, p: int, card_id: String, ready := true) -> Card:
 	if ready:
 		c.sick = false
 	return c
+
+
+## Test setup: the Ao Entrar of units placed by hand runs at once, with no stack.
+## With ask, a target is still asked (and resolves as soon as it is picked).
+func _run_queued_enters_now(g: GameState, ask := false) -> void:
+	while not g.entering_queue.is_empty():
+		var unit := g.find_unit(int(g.entering_queue.pop_front()["uid"]))
+		if unit != null:
+			g._begin_enter(unit.owner, unit, 0, ask, false)
 
 
 ## Cristal do Poder is one card with two states: loose on the table it can be activated; stored in a
@@ -1190,6 +1200,7 @@ func _test_search() -> void:
 	var deck_size: int = deck.size()
 	var uid := g._uid()
 	g._summon(1, Card.new(uid, "serpente_marinha", 1), false, 0)
+	_run_queued_enters_now(g)
 	var evs: Array = g.flush_events()
 	check(g.phase == "search" and g.pending_search.get("look", false), "serpente olha o topo do deck")
 	check(g.pending_search["cards"].size() == 4, "olha 4 cartas")
@@ -1258,6 +1269,7 @@ func _test_search() -> void:
 	deck = g.players[1]["deck"]
 	deck_size = deck.size()
 	g._summon(1, Card.new(g._uid(), "oraculo_das_mares", 1), false, 0)
+	_run_queued_enters_now(g)
 	g.flush_events()
 	check(g.phase == "search" and g.pending_search["cards"].size() == 4, "oráculo olha 4 cartas")
 	var pick: int = int(g.pending_search["cards"][2]["uid"])
@@ -3280,22 +3292,17 @@ func _test_supreme_shield() -> void:
 	holder.grant_supreme_shield("next_turn")
 	var restored := Card.from_dict(holder.to_dict(), "board", 1)
 	check(restored.supreme_shield and restored.supreme_shield_expires == "next_turn", "Escudo Supremo sobrevive ao to_dict/from_dict")
-	# a free-standing artifact (Baluarte Santo) is born with it and survives Desmontador de Quinquilharia
+	# a free-standing artifact (Baluarte Santo) is indestructible and survives Desmontador de Quinquilharia
 	g = _new_game()
 	_quiet(g)
 	var bulwark := Card.new(g._uid(), "baluarte_santo", 0)
 	g._place_relic(0, bulwark)
 	g.flush_events()
-	check(bulwark.supreme_shield, "Baluarte Santo nasce com Escudo Supremo")
-	g._run_effect_dicts(1, CardDB.card("desmontador_de_quinquilharia")["effects"], "on_enter", bulwark.uid, 999)
-	g.flush_events()
-	check(
-		g.find_relic(bulwark.uid) != null and not bulwark.supreme_shield,
-		"Desmontador de Quinquilharia não destrói o Baluarte Santo: só gasta o Escudo Supremo",
-	)
-	g._run_effect_dicts(1, CardDB.card("desmontador_de_quinquilharia")["effects"], "on_enter", bulwark.uid, 999)
-	g.flush_events()
-	check(g.find_relic(bulwark.uid) == null, "sem o Escudo Supremo, o segundo Desmontador destrói o Baluarte")
+	check(bulwark.has_kw("indestrutivel") and not bulwark.supreme_shield, "Baluarte Santo nasce Indestrutível, sem Escudo Supremo")
+	for attempt in 2:
+		g._run_effect_dicts(1, CardDB.card("desmontador_de_quinquilharia")["effects"], "on_enter", bulwark.uid, 999)
+		g.flush_events()
+		check(g.find_relic(bulwark.uid) != null, "Desmontador de Quinquilharia não destrói o Baluarte Santo Indestrutível (tentativa %d)" % (attempt + 1))
 
 
 func _test_durability() -> void:
@@ -4499,6 +4506,58 @@ func _test_enter_target() -> void:
 	var myrra_ally := _give(lone, 0, "myrra")
 	lone.play_card(0, myrra_ally)
 	check(lone.phase == "enter_target", "Myrra com outra unidade aliada: pede alvo")
+	_test_effect_entry_queue()
+
+
+## Units that enter by an effect ask their Ao Entrar target like a hand play, one at a time in entry order,
+## and each Ao Entrar goes on the stack (answerable, not counterable) before the next one is asked.
+func _test_effect_entry_queue() -> void:
+	_tcard("t_queue_enter", 1, 1, [{ "trigger": "on_enter", "action": "damage", "target": "enemy_unit", "amount": 2 }])
+	_tcard("t_queue_foe", 0, 2, [])
+	_tspell("t_queue_summon_two", "lento", [{ "trigger": "on_play", "action": "summon", "target": "none", "card": "t_queue_enter", "count": 2 }])
+	_tspell("t_queue_summon_one", "lento", [{ "trigger": "on_play", "action": "summon", "target": "none", "card": "t_queue_enter" }])
+
+	var g := _new_game()
+	_quiet(g)
+	g.set_auto_pass(0, false)
+	g.set_auto_pass(1, false)
+	var first_foe := _put(g, 1, "t_queue_foe")
+	var second_foe := _put(g, 1, "t_queue_foe")
+	g.play_card(0, _give(g, 0, "t_queue_summon_two"))
+	for guard in 6:
+		if g.phase == "enter_target" or g.stack.is_empty():
+			break
+		g.pass_priority(g.priority)
+	check(g.phase == "enter_target" and g.decider() == 0, "entrada por efeito: o controlador escolhe o alvo do Ao Entrar")
+	var first_uid: int = int(g.pending_enter["uid"])
+	g.choose_enter_target(0, first_foe.uid)
+	check(
+		g.stack.size() == 1 and g.stack[0]["kind"] == "enter_trigger" and g.priority == 1,
+		"entrada por efeito: o Ao Entrar vai para a pilha e o oponente tem prioridade",
+	)
+	check(g.valid_targets(1, "enemy_stack").is_empty(), "entrada por efeito: o Ao Entrar não pode ser anulado")
+	check(g.phase != "enter_target", "entrada por efeito: a segunda unidade espera o primeiro Ao Entrar resolver")
+	for guard in 6:
+		if g.phase == "enter_target" or g.stack.is_empty():
+			break
+		g.pass_priority(g.priority)
+	check(g.find_unit(first_foe.uid) == null, "entrada por efeito: o primeiro Ao Entrar resolveu")
+	check(g.phase == "enter_target" and int(g.pending_enter["uid"]) != first_uid, "entrada por efeito: depois a segunda unidade escolhe")
+	var second_options := g.valid_targets(0, g.pending_enter["spec"], int(g.pending_enter["uid"]))
+	check(second_options == [second_foe.uid], "entrada por efeito: alvos calculados na vez dela (o primeiro alvo já morreu)")
+	g.choose_enter_target(0, second_foe.uid)
+	_resolve_stack(g)
+	check(g.find_unit(second_foe.uid) == null and g.phase == "main" and g.entering_queue.is_empty(), "entrada por efeito: fila vazia")
+
+	# no valid target: nothing is asked, the turn goes on
+	var empty := _new_game()
+	_quiet(empty)
+	empty.play_card(0, _give(empty, 0, "t_queue_summon_one"))
+	_resolve_stack(empty)
+	check(
+		empty.phase == "main" and empty.entering_queue.is_empty() and empty.players[0]["board"].size() == 1,
+		"entrada por efeito sem alvo válido: não pede nada",
+	)
 
 
 func _test_bounce_permanent_buffs() -> void:
@@ -4635,6 +4694,7 @@ func _test_naelys_bounce_discount() -> void:
 	g.players[p]["hand"].append(naelys)
 	g.players[p]["hand"].erase(naelys)
 	g._summon(p, naelys, false, 0, { }, true)
+	_run_queued_enters_now(g, true)
 	var targets := g.valid_targets(p, "other_ally_unit", naelys.uid)
 	check(
 		g.phase == "enter_target" and targets.has(ally.uid) and not targets.has(naelys.uid),
@@ -4672,6 +4732,7 @@ func _test_naelys_bounce_discount() -> void:
 	skipped.players[p]["hand"].append(skipped_naelys)
 	skipped.players[p]["hand"].erase(skipped_naelys)
 	skipped._summon(p, skipped_naelys, false, 0, { }, true)
+	_run_queued_enters_now(skipped, true)
 	skipped.choose_enter_target(p, 0)
 	check(
 		skipped.find_unit(skipped_ally.uid) != null and skipped_draw.discount == 1 and skipped_ally.turn_discount == 0,
@@ -4687,6 +4748,7 @@ func _test_naelys_bounce_discount() -> void:
 	no_draw.players[p]["hand"].append(no_draw_naelys)
 	no_draw.players[p]["hand"].erase(no_draw_naelys)
 	no_draw._summon(p, no_draw_naelys, false, 0, { }, true)
+	_run_queued_enters_now(no_draw, true)
 	check(
 		no_draw.phase != "enter_target" and no_draw.find_unit(retained_ally.uid) != null,
 		"Naelys não pede alvo nem devolve aliada se o deck não tem carta para descontar",
@@ -7328,14 +7390,41 @@ func _test_fragmentos_de_rai() -> void:
 	g.add_fragments(ally, 2, source_id)
 	g._resolve_fragment_payoffs(0)
 	check(_count(g, 0, "rai_imortal_imperfeito") == 0, "Fragmento: com menos de 10 entregues o ritual não acontece")
+	var enemy_unit := _put(g, 1, "t_frail_victim")
+	var enemy_relic := _put_relic(g, 1, "sino_de_aviso_previo")
+	var own_relic := _put_relic(g, 0, "sino_de_aviso_previo")
 	g.players[0]["fragments_given"][source_id] = 10
 	g._resolve_fragment_payoffs(0)
-	g.flush_events()
+	_resolve_stack(g)
 	if g.phase == "search":
 		g.choose_search(0, 0)
 		g.flush_events()
 	check(_count(g, 0, "rai_imortal_imperfeito") == 1, "Fragmento: 10 entregues e 5 em campo invocam o Rai")
 	check(bearer.fragments == 0 and ally.fragments == 0, "Fragmento: o ritual consome os marcadores")
+	g.check_state()
+	check(not g.players[0]["board"].has(bearer) and not g.players[0]["board"].has(ally), "Fragmento: o ritual destrói todos os portadores")
+	check(_count(g, 0, "rai_imortal_imperfeito") == 1, "Fragmento: o Rai sobrevive à destruição dos portadores")
+	check(
+		_zone_has(g, 1, "banished", "t_frail_victim") and _zone_has(g, 1, "banished", "sino_de_aviso_previo"),
+		"Rai: o Ao Entrar bane as unidades e os artefatos soltos inimigos",
+	)
+	check(not g.players[1]["relics"].has(enemy_relic) and g.players[1]["graveyard"].is_empty(), "Rai: o artefato banido não vai ao cemitério")
+	check(g.players[0]["relics"].has(own_relic), "Rai: os artefatos do próprio lado ficam")
+
+	# Campo cheio: os portadores abrem o espaço que o Rai precisa
+	g = _new_game()
+	_quiet(g)
+	g.players[0]["fragments_given"][source_id] = 10
+	for slot_index in GameState.BOARD_LIMIT:
+		var full_bearer := _put(g, 0, "t_bearer")
+		if slot_index < 5:
+			g.add_fragments(full_bearer, 1, source_id)
+	g._resolve_fragment_payoffs(0)
+	g.flush_events()
+	if g.phase == "search":
+		g.choose_search(0, 0)
+		g.flush_events()
+	check(_count(g, 0, "rai_imortal_imperfeito") == 1, "Fragmento: com o campo cheio, os portadores destruídos abrem espaço para o Rai")
 
 	# Dados da carta real
 	var spell := CardDB.card(source_id)
@@ -11578,6 +11667,7 @@ func _test_natureza_canil() -> void:
 	var fireball_cost: int = g.cost_of(foe_player, fireball.data(), fireball)
 	var skeleton_cost: int = g.cost_of(foe_player, skeleton.data(), skeleton)
 	g._summon(p, Card.new(g._uid(), "rex_farejador", p), false, 0)
+	_run_queued_enters_now(g)
 	g.flush_events()
 	check(g.phase == "search" and g.pending_search.get("hand_bottom", false), "Rex Farejador: Ao Entrar abre a mão do oponente")
 	var rex_offered: Array = g.pending_search["cards"]
@@ -11676,6 +11766,7 @@ func _test_wendell() -> void:
 	g.players[p]["hand"] = [kept, sent]
 	var deck_before: int = g.players[p]["deck"].size()
 	g._summon(p, Card.new(g._uid(), "wendell_comportao", p), false, 0)
+	_run_queued_enters_now(g)
 	g.flush_events()
 	check(g.phase == "search" and g.pending_search.get("own_hand_bottom", false), "Wendell: Ao Entrar abre a escolha na própria mão")
 	check(g.pending_search["cards"].size() == 2, "Wendell: as duas cartas da mão são oferecidas")
@@ -11699,6 +11790,7 @@ func _test_wendell() -> void:
 	g.players[p]["hand"] = [only]
 	var deck_declined: int = g.players[p]["deck"].size()
 	g._summon(p, Card.new(g._uid(), "wendell_comportao", p), false, 0)
+	_run_queued_enters_now(g)
 	g.flush_events()
 	g.choose_search(p, 0)
 	check(
@@ -11713,6 +11805,7 @@ func _test_wendell() -> void:
 	g.players[p]["hand"] = []
 	var deck_empty_hand: int = g.players[p]["deck"].size()
 	g._summon(p, Card.new(g._uid(), "wendell_comportao", p), false, 0)
+	_run_queued_enters_now(g)
 	g.flush_events()
 	check(
 		g.phase != "search" and g.players[p]["hand"].is_empty() and g.players[p]["deck"].size() == deck_empty_hand,
@@ -12092,6 +12185,7 @@ func _test_cornelia() -> void:
 	# summoned by hand: _put would answer the prompt on its own
 	var cornelia_uid: int = g._uid()
 	g._summon(p, Card.new(cornelia_uid, "cornelia_aldrovane", p), false, 0)
+	_run_queued_enters_now(g)
 	g.flush_events()
 	var cornelia: Card = g.find_unit(cornelia_uid)
 	cornelia.sick = false
@@ -12135,6 +12229,7 @@ func _test_cornelia() -> void:
 	var untouched := Card.new(g_decline._uid(), "esqueleto_guerreiro", 1 - q, "hand")
 	g_decline.players[1 - q]["hand"] = [untouched]
 	g_decline._summon(q, Card.new(g_decline._uid(), "cornelia_aldrovane", q), false, 0)
+	_run_queued_enters_now(g_decline)
 	g_decline.flush_events()
 	check(g_decline.phase == "search", "Cornélia: a escolha abre também quando a mão tem uma carta só")
 	g_decline.choose_search(q, 0)
@@ -12365,6 +12460,7 @@ func _test_lucian_soren() -> void:
 	var grave_q_before: int = g2.players[q]["graveyard"].size()
 	var grave_r_before: int = g2.players[r]["graveyard"].size()
 	g2._summon(q, Card.new(g2._uid(), "soren", q), false, 0)
+	_run_queued_enters_now(g2)
 	g2.flush_events()
 	check(g2.phase == "search" and g2.decider() == q, "Soren: o controlador descarta primeiro")
 	g2.choose_search(q, int(g2.pending_search["cards"][0]["uid"]))
@@ -12395,6 +12491,7 @@ func _test_lucian_soren() -> void:
 		_give(g3, s3, "t_ls_filler")
 	_give(g3, 1 - s3, "t_ls_filler")
 	g3._summon(s3, Card.new(g3._uid(), "soren", s3), false, 0)
+	_run_queued_enters_now(g3)
 	g3.flush_events()
 	check(
 		g3.phase != "search" and g3.players[s3]["hand"].size() == 3 and g3.players[1 - s3]["hand"].size() == 1,
@@ -12410,6 +12507,7 @@ func _test_lucian_soren() -> void:
 	for i in 5:
 		_give(g4, 1 - s4, "t_ls_filler")
 	g4._summon(s4, Card.new(g4._uid(), "soren", s4), false, 0)
+	_run_queued_enters_now(g4)
 	g4.flush_events()
 	check(g4.phase == "search" and g4.decider() == 1 - s4, "Soren: só o oponente passa do limite, só ele descarta")
 	g4.choose_search(1 - s4, int(g4.pending_search["cards"][0]["uid"]))
@@ -17830,7 +17928,9 @@ func _resolve_stack(g: GameState) -> void:
 		if g.phase == "enter_tapped":
 			g.choose_enter_tapped(g.decider(), false)
 		elif g.stack.is_empty():
-			break
+			if g.entering_queue.is_empty() or g.phase == "enter_target":
+				break
+			g.stack_system().settle() # a unit placed by an effect outside a play still owes its Ao Entrar
 		else:
 			g.pass_priority(g.priority)
 	g.flush_events()

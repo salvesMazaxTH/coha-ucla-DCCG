@@ -7,8 +7,9 @@ extends TargetSelector
 ## unit's printed card, e.g. {"max_cost": 4} keeps only the units that cost 4 or less (Kazeminus).
 ## "unit_state": "frozen" keeps only the units that are Congeladas right now (Jovahr); checked live, when the effect runs.
 ## "unit_state_any": a list of states (see unit_has_state); a unit stays if it matches at least one (Fulgurvoltz).
+## all_enemy_occupants: every enemy field slot taken, the units plus the free-standing artifacts; it takes no unit filters.
 
-const NAMES := ["all_enemy_units", "all_units", "other_units", "all_ally_units", "other_ally_units", "center_enemy_units", "all_enemy_tokens"]
+const NAMES := ["all_enemy_units", "all_units", "other_units", "all_ally_units", "other_ally_units", "center_enemy_units", "all_enemy_tokens", "all_enemy_occupants"]
 
 func resolve(context: EffectContext, effect: Effect) -> Array:
 	var players: Array = context.game.players
@@ -18,6 +19,10 @@ func resolve(context: EffectContext, effect: Effect) -> Array:
 	match name:
 		"all_enemy_units":
 			for unit: Card in enemy_board: uids.append(unit.uid)
+		"all_enemy_occupants":
+			for unit: Card in enemy_board: uids.append(unit.uid)
+			for relic: Card in players[context.opponent()]["relics"]: uids.append(relic.uid)
+			return uids
 		"all_units":
 			for unit: Card in own_board + enemy_board: uids.append(unit.uid)
 		"other_units":

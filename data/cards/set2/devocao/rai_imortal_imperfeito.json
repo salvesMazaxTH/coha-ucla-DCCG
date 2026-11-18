@@ -9,11 +9,13 @@
   "atk": 9,
   "hp": 14,
   "undraftable": true,
+  "summon_style": "rai",
+  "summon_color": "#a63cff",
   "keywords": ["indestrutivel", "toque_letal"],
   "banish_what_it_kills": true,
   "art": "devocao/rai_imortal_imperfeito.webp",
   "effects": [
-    { "trigger": "on_enter", "action": "banish", "target": "all_enemy_units" },
+    { "trigger": "on_enter", "action": "banish", "target": "all_enemy_occupants" },
     { "trigger": "on_enter", "action": "damage", "target": "own_leader", "amount": 6, "non_lethal": true },
     {
       "trigger": "on_turn_end",
@@ -29,6 +31,6 @@
       }
     }
   ],
-  "text": "Ao Entrar: bane todas as unidades inimigas e causa 6 de dano ao seu Líder, sem deixá-lo com menos de 1 de Vida.\nCondicional: as unidades que seriam destruídas por esta unidade são banidas.\nNo Fim do Seu Turno: se esta unidade golpeou o Líder inimigo neste turno e ele tem 4 ou menos de Vida, executa-o.",
+  "text": "Ao Entrar: bane todas as unidades e artefatos inimigos e causa 6 de dano ao seu Líder, sem deixá-lo com menos de 1 de Vida.\nCondicional: as unidades que seriam destruídas por esta unidade são banidas.\nNo Fim do Seu Turno: se esta unidade golpeou o Líder inimigo neste turno e ele tem 4 ou menos de Vida, executa-o.",
   "flavor": "Nem todas as dez partes voltaram. Ele não parece sentir falta."
 }
