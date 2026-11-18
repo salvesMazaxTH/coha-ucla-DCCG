@@ -56,7 +56,23 @@ static func use_phone_settings() -> void:
 	art_cache_limit = 24
 	thumbnail_cache_limit = 160
 	photo_bakes_per_frame = 1
-	# The Android app's video driver paints the card photos with a black band at the bottom.
-	# Native code is fast enough to draw every card live, so the app goes without photos.
+	# The Android app once showed a black band at the bottom of the card photos, so there they are
+	# a choice in the SERVIDOR screen, off unless turned on.
 	if OS.has_feature("android"):
-		bake_card_faces = false
+		bake_card_faces = bool(app_option("card_photos", false))
+
+
+const APP_OPTIONS_FILE := "user://app_options.cfg"
+
+## An option chosen in the Android app (SERVIDOR screen), or `default` if never chosen.
+static func app_option(option_name: String, default: Variant) -> Variant:
+	var config := ConfigFile.new()
+	if config.load(APP_OPTIONS_FILE) != OK:
+		return default
+	return config.get_value("options", option_name, default)
+
+static func save_app_option(option_name: String, value: Variant) -> void:
+	var config := ConfigFile.new()
+	config.load(APP_OPTIONS_FILE)
+	config.set_value("options", option_name, value)
+	config.save(APP_OPTIONS_FILE)

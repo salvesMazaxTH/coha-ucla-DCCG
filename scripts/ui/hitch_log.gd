@@ -18,10 +18,34 @@ static var _work_this_frame: PackedStringArray = []
 static var _run_frames := 0
 static var _run_ms := 0.0
 static var _run_work: PackedStringArray = []
+## What the match was showing (the last batch of events), so a hitch says when it happened.
+static var _moment := ""
+static var _moment_start_ms := 0
+const MOMENT_LASTS_MS := 4000
+const EVENTS_PER_MOMENT := 4
 
 static func note(work: String) -> void:
 	if enabled:
 		_work_this_frame.append(work)
+
+## Remembers the batch of events being animated, as "type card" pairs (the first few that name a card).
+static func note_events(events: Array) -> void:
+	if not enabled:
+		return
+	var described: PackedStringArray = []
+	for event in events:
+		var card_id := String(event.get("card_id", ""))
+		if card_id == "":
+			continue
+		var description := "%s %s" % [event["type"], card_id]
+		if not described.has(description):
+			described.append(description)
+		if described.size() == EVENTS_PER_MOMENT:
+			break
+	if described.is_empty() and not events.is_empty():
+		described.append(String(events[0]["type"]))
+	_moment = ", ".join(described)
+	_moment_start_ms = Time.get_ticks_msec()
 
 ## Called once per frame (by Main) with how long the last frame took.
 static func end_frame(frame_seconds: float) -> void:
@@ -43,7 +67,10 @@ static func _write_down_run() -> void:
 		var duration := "%d ms" % roundi(_run_ms)
 		if _run_frames > 1:
 			duration += " (%d seguidos)" % _run_frames
-		recent_hitches.append(("%s: %s" % [duration, what]).left(MAX_LINE_LENGTH))
+		var line := "%s: %s" % [duration, what]
+		if _moment != "" and Time.get_ticks_msec() - _moment_start_ms < MOMENT_LASTS_MS:
+			line = "[%s] %s" % [_moment, line]
+		recent_hitches.append(line.left(MAX_LINE_LENGTH))
 		if recent_hitches.size() > HITCHES_KEPT:
 			recent_hitches.remove_at(0)
 	_run_frames = 0

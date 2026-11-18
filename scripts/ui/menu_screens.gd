@@ -1588,9 +1588,33 @@ func _show_server_address() -> void:
 	)
 	save.custom_minimum_size = Vector2(600, 64)
 	box.add_child(save)
+	box.add_child(_app_option_switch("Fotos das cartas", "card_photos", _set_card_photos))
+	box.add_child(_app_option_switch("Medidor de engasgos", "hitch_meter", host.set_hitch_meter))
 	var back: Button = host.make_button("Voltar", func() -> void: show_online())
 	back.custom_minimum_size = Vector2(600, 52)
 	box.add_child(back)
+
+
+## A button that turns an app option on and off, saved for the next time the app opens.
+func _app_option_switch(title: String, option_name: String, apply: Callable) -> Button:
+	var button: Button = host.make_button("", func() -> void: pass)
+	var show_state := func() -> void:
+		var turned_on := bool(GraphicsQuality.app_option(option_name, false))
+		button.text = "%s: %s" % [title, "LIGADO" if turned_on else "DESLIGADO"]
+	show_state.call()
+	button.pressed.connect(
+		func() -> void:
+			var turned_on := not bool(GraphicsQuality.app_option(option_name, false))
+			GraphicsQuality.save_app_option(option_name, turned_on)
+			apply.call(turned_on)
+			show_state.call()
+	)
+	button.custom_minimum_size = Vector2(600, 56)
+	return button
+
+
+func _set_card_photos(turned_on: bool) -> void:
+	GraphicsQuality.bake_card_faces = turned_on
 
 
 func _code_text() -> String:

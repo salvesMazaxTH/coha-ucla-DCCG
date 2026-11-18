@@ -29,6 +29,9 @@ const MAX_FRAMES_WAITING_FOR_STILL_TABLE := 120
 const MAX_SPARE_VIEWPORTS := 12
 ## How much bigger than needed a spare viewport may be and still be reused.
 const SPARE_VIEWPORT_SLACK := 1.15
+## Empty rows under the two slots: on the Android app the bottom edge of the picture came out black,
+## cutting the end of the card, so nothing is painted near that edge.
+const EMPTY_ROWS_BELOW_FRACTION := 0.25
 
 ## Anything drawn into a see-through viewport ends up with its color already multiplied by its alpha, which
 ## would darken soft edges (rounded corners, shadows) when the photo is drawn again. This undoes the multiplication.
@@ -231,7 +234,8 @@ func _bake(signature: Dictionary) -> void:
 		ceili(face_size.x * pixel_scale) + 2 * photo.padding_pixels,
 		ceili(face_size.y * pixel_scale) + 2 * photo.padding_pixels)
 
-	var viewport := _take_viewport(Vector2i(photo.slot_pixels.x, photo.slot_pixels.y * 2))
+	var empty_rows_below := ceili(photo.slot_pixels.y * EMPTY_ROWS_BELOW_FRACTION)
+	var viewport := _take_viewport(Vector2i(photo.slot_pixels.x, photo.slot_pixels.y * 2 + empty_rows_below))
 	var reused := _spare_viewports.size() < spares_before
 	viewport.canvas_transform = Transform2D().scaled(Vector2(pixel_scale, pixel_scale))
 	viewport.oversampling_override = pixel_scale # letters are rasterized at the size they will be shown at
