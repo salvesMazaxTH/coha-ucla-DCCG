@@ -140,6 +140,7 @@ func _init() -> void:
 	_test_stack()
 	_test_reaction()
 	_test_readiness_block()
+	_test_ai_block_reserve()
 	_test_summon_window()
 	_test_subito()
 	_test_combat_step()
@@ -9379,6 +9380,48 @@ func _test_reaction() -> void:
 
 
 ## Lets the pass/response priorities settle until the attacker declares again (or combat is over).
+## The AI keeps 1 Momentum on its own turn when a ready unit would block well on the enemy turn,
+## but only by giving up a cheap play; a dearer play still goes first.
+func _test_ai_block_reserve() -> void:
+	_tcard("t_reserve_guard", 3, 4, [])
+	_tcard("t_reserve_ready_guard", 3, 4, [])
+	CardDB.data()["cards"]["t_reserve_ready_guard"]["keywords"] = ["prontidao"]
+	_tcard("t_reserve_raider", 2, 2, [])
+	_tcard("t_reserve_cheap", 2, 2, [])
+	CardDB.data()["cards"]["t_reserve_cheap"]["cost"] = 2
+	_tcard("t_reserve_dear", 3, 3, [])
+	CardDB.data()["cards"]["t_reserve_dear"]["cost"] = 3
+	# player 0 on its main phase with `momentum`, the given guard (or none), one hand card and an enemy 2/2
+	var new_scenario := func(momentum: int, guard_id: String, hand_card_id: String) -> Array:
+		var scenario := GameState.new("vegetal", "agua", 42)
+		scenario.mulligan(0, [])
+		scenario.mulligan(1, [])
+		_calm_start(scenario)
+		scenario.players[0]["hand"].clear()
+		scenario.players[0]["incarnation"]["casts"] = 1 # taxed: never cast before the hand
+		_fill_reservoir(scenario, 0, momentum)
+		if guard_id != "":
+			_put(scenario, 0, guard_id)
+		_put(scenario, 1, "t_reserve_raider")
+		return [scenario, _give(scenario, 0, hand_card_id)]
+
+	var kept: Array = new_scenario.call(2, "t_reserve_guard", "t_reserve_cheap")
+	SimpleAI.step(kept[0], 0)
+	check(_hand_has(kept[0], 0, kept[1]), "IA/Bloqueio: guarda 1 de Momentum em vez de uma jogada barata quando bloquearia bem")
+	var no_guard: Array = new_scenario.call(2, "", "t_reserve_cheap")
+	SimpleAI.step(no_guard[0], 0)
+	check(not _hand_has(no_guard[0], 0, no_guard[1]), "IA/Bloqueio: sem um bom bloqueador, gasta o Momentum normalmente")
+	var with_spare: Array = new_scenario.call(3, "t_reserve_guard", "t_reserve_cheap")
+	SimpleAI.step(with_spare[0], 0)
+	check(not _hand_has(with_spare[0], 0, with_spare[1]), "IA/Bloqueio: com Momentum de sobra, joga e ainda guarda o do bloqueio")
+	var dear: Array = new_scenario.call(3, "t_reserve_guard", "t_reserve_dear")
+	SimpleAI.step(dear[0], 0)
+	check(not _hand_has(dear[0], 0, dear[1]), "IA/Bloqueio: uma jogada cara vale mais que a reserva")
+	var free_block: Array = new_scenario.call(2, "t_reserve_ready_guard", "t_reserve_cheap")
+	SimpleAI.step(free_block[0], 0)
+	check(not _hand_has(free_block[0], 0, free_block[1]), "IA/Bloqueio: com Prontidão pronta o bloqueio é grátis, sem reserva")
+
+
 func _test_readiness_block() -> void:
 	_tcard("t_ready_hitter", 2, 3, [])
 	_tcard("t_ready_guard", 1, 6, [])
@@ -9400,6 +9443,12 @@ func _test_readiness_block() -> void:
 	var paying_plain := _put(paying_game, 1, "t_plain_guard")
 	_hit(paying_game, paying_hitter)
 	check(paying_game.combat_system().block_candidates(1).has(paying_plain.uid), "Bloqueio: com Momentum, qualquer unidade pronta bloqueia o Líder cheio")
+	var sick_game := _reaction_game([], 1)
+	var sick_hitter := _put(sick_game, 0, "t_ready_hitter")
+	var sick_guard := _put(sick_game, 1, "t_plain_guard")
+	sick_guard.sick = true # just entered (e.g. on the attacker's turn)
+	_hit(sick_game, sick_hitter)
+	check(sick_game.combat_system().block(1, sick_guard.uid), "Bloqueio: unidade com enjoo de invocação bloqueia")
 	check(g.combat_system().cheapest_block_cost(1) == 0, "Prontidão: pronta, o bloqueio custa 0")
 	check(g.combat_system().block(1, guard.uid), "Prontidão: bloqueia sem Momentum")
 	check(g.blocks_this_turn == 0 and guard.exhausted, "Prontidão: o bloqueio grátis não avança o contador e cansa a unidade")

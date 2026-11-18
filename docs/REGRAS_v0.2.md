@@ -60,7 +60,7 @@ Cada jogador tem um **Líder** com vida entre 20 e 30. Vence quem zerar a vida d
 - **Bloqueio:** quando um ataque é declarado, o defensor pode pagar Momentum para que uma unidade **pronta** sua entre na frente. O ataque passa a ser um desafio contra ela, e ela fica exaurida.
   - **Custo crescente:** o 1º bloqueio do turno do atacante custa 1, o 2º custa 2, o 3º custa 3, e assim por diante. Esse é o único limite. No físico, um marcador conta os bloqueios do turno; na tela, o painel do turno mostra **Combate · Bloqueio N** (o custo do próximo) para os dois jogadores.
   - **Um bloqueio por ataque.** Todo ataque pode ser bloqueado, seja contra uma unidade, seja contra o **Líder**.
-  - **Quem não bloqueia:** unidades Congeladas, Atordoadas ou com **Obsessão** nunca bloqueiam.
+  - **Quem não bloqueia:** unidades Congeladas, Atordoadas ou com **Obsessão** nunca bloqueiam. Uma unidade recém-jogada (com enjoo de invocação) **pode** bloquear, desde que esteja pronta.
   - **Voo e Furtividade no atacante:** a bloqueadora precisa poder desafiar o atacante. Atacante com Voo só é bloqueado por unidade com Voo ou Longo Alcance; com Furtividade, só por unidade com Furtividade ou Vigilância.
   - **Prontidão:** a unidade pode bloquear mesmo exaurida. Se bloquear enquanto está pronta, não paga nada e o contador de bloqueios não avança; exaurida, paga o custo normal.
   - O bloqueio entra na pilha como um Instantâneo: o atacante pode responder, mas **não pode anulá-lo**. Se, em resposta, a unidade bloqueadora for Congelada, Atordoada, ganhar Obsessão, sair do campo ou deixar de alcançar o atacante (Voo/Furtividade), o bloqueio falha: o custo continua pago e o golpe segue para o alvo original.

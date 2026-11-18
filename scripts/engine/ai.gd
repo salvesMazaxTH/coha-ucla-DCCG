@@ -417,6 +417,7 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 			return first_incarnation_events
 	var incarnation_rank := _incarnation_rank_against_hand(g, p)
 	var incarnation_was_tried := false
+	var momentum_kept_for_block := _momentum_kept_for_block(g, p)
 	# hand first; Réquiem spells in the graveyard are the fallback (they cost 2 more)
 	var candidates: Array = _hand_most_expensive_first(g, p) + g.requiem_cards(p)
 	for card: Card in candidates:
@@ -428,6 +429,8 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 		if held_card_ids.has(card.card_id):
 			continue
 		if card.card_id == GameState.SECOND_PLAYER_CRYSTAL_ID and not _crystal_unlocks_follow_up(g, p, card, held_card_ids):
+			continue
+		if _play_spends_block_reserve(g, p, card, momentum_kept_for_block):
 			continue
 		var card_events := _try_play_card(g, p, card)
 		if not card_events.is_empty():
@@ -1588,6 +1591,49 @@ static func _try_block(g: GameState, p: int) -> Array:
 	if best_uid == 0:
 		return []
 	return g.block(p, best_uid)
+
+
+## A play up to this cost is given up to keep a Bloqueio paid; a dearer one is worth more than the block.
+const MOST_A_PLAY_GIVEN_UP_FOR_BLOCK_COSTS := 2
+
+
+## Momentum the AI keeps on its own turn so it can still pay a Bloqueio on the enemy turn: 1 (the cost
+## ladder starts over on the enemy turn) when a unit that stays ready would block well, 0 otherwise.
+static func _momentum_kept_for_block(g: GameState, p: int) -> int:
+	if g.active != p:
+		return 0
+	var combat := g.combat_system()
+	var enemy := g.opponent(p)
+	var enemy_threatens_lethal: bool = _board_strike_total(g, enemy) >= int(g.players[p]["leader_hp"])
+	var has_paid_good_block := false
+	for blocker: Card in g.players[p]["board"]:
+		if blocker.exhausted or not combat.unit_can_block(blocker):
+			continue
+		for attacker: Card in g.players[enemy]["board"]:
+			if g.atk_of(attacker) <= 0 or not combat.can_reach(blocker, attacker):
+				continue
+			var blocker_survives := g.atk_of(attacker) < g.hp_left(blocker)
+			var blocker_kills := g.atk_of(blocker) >= g.hp_left(attacker)
+			if enemy_threatens_lethal or (blocker_survives and blocker_kills):
+				if combat.has_readiness(blocker):
+					return 0 # a ready Prontidão unit blocks for free
+				has_paid_good_block = true
+	return 1 if has_paid_good_block else 0
+
+
+## True when a cheap card would leave less Momentum (Bateria included) than the block needs.
+static func _play_spends_block_reserve(g: GameState, p: int, card: Card, momentum_kept_for_block: int) -> bool:
+	if momentum_kept_for_block <= 0:
+		return false
+	var card_data := CardDB.card(card.card_id)
+	var cost := (
+		g.subito_cost(p, card_data, card)
+		if g.is_subito_play(p, card_data)
+		else g.cost_of(p, card_data, card)
+	)
+	if cost > MOST_A_PLAY_GIVEN_UP_FOR_BLOCK_COSTS:
+		return false
+	return g.budget(p, true) - cost < momentum_kept_for_block
 
 
 ## How much a unit is worth keeping (or killing): its stats on the board, what was paid for it,
