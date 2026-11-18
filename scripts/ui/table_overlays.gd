@@ -25,6 +25,9 @@ var reservoir_choice_match: GameState
 var reservoir_choice_turn := -1
 var reservoir_choice_disabled := false
 var reservoir_choice_pending: Array = [] ## uids still waiting for ARMAZENAR or DEVOLVER
+const RESERVOIR_CHOICE_MAX_WAITS := 15 ## 0.1 s each
+var reservoir_choice_waits := 0
+var reservoir_choice_retry_pending := false
 
 
 func _init(host_node) -> void:
@@ -539,9 +542,22 @@ func maybe_show_reservoir_choice() -> void:
 	var uids: Array = host.g.reservoir_returnable_uids(host.viewer)
 	if uids.is_empty() or reservoir_choice_disabled or reservoir_choice_turn == host.g.turn:
 		return
+	# the window waits for the turn-start animations, so its cost does not pile onto theirs
+	if CardPhotoStudio.something_is_animating() and reservoir_choice_waits < RESERVOIR_CHOICE_MAX_WAITS:
+		if not reservoir_choice_retry_pending:
+			reservoir_choice_retry_pending = true
+			reservoir_choice_waits += 1
+			host.get_tree().create_timer(0.1).timeout.connect(_retry_reservoir_choice)
+		return
+	reservoir_choice_waits = 0
 	reservoir_choice_turn = host.g.turn
 	reservoir_choice_pending = uids.duplicate()
 	_open_reservoir_choice()
+
+
+func _retry_reservoir_choice() -> void:
+	reservoir_choice_retry_pending = false
+	maybe_show_reservoir_choice()
 
 
 func _open_reservoir_choice() -> void:
@@ -551,6 +567,7 @@ func _open_reservoir_choice() -> void:
 			cards.append(card)
 	if cards.is_empty():
 		return
+	var build_start_ms := Time.get_ticks_msec()
 	var box := _open_modal_box("NOVA CARTA NO RESERVATÓRIO" if cards.size() == 1 else "NOVAS CARTAS NO RESERVATÓRIO")
 	var explanation: Label = host.make_label(
 		"Devolvendo, a carta volta desvirada ao fundo do deck (o Reservatório pula ela) e o próximo turno traz 2 cartas.",
@@ -577,6 +594,7 @@ func _open_reservoir_choice() -> void:
 	hide_toggle.tooltip_text = "Nesta partida. O botão DEVOLVER continua na carta do Reservatório."
 	box.add_child(hide_toggle)
 	_center_modal(box)
+	HitchLog.note("janela do Reservatório %d ms" % (Time.get_ticks_msec() - build_start_ms))
 
 
 func _reservoir_choice_column(card: Card) -> VBoxContainer:

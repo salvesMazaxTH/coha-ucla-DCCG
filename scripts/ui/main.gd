@@ -284,6 +284,7 @@ func _ready() -> void:
 	fx.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(fx)
 	fx_library.prewarm_fx.call_deferred()
+	fx_library.prewarm_all_shaders.call_deferred()
 	ai_timer = Timer.new()
 	ai_timer.one_shot = true
 	ai_timer.wait_time = 0.55
@@ -432,6 +433,11 @@ func _reset_input() -> void:
 ## The deck at `own_seat` is queued first: its cards are the ones about to be drawn, and on a phone
 ## (where the art cache has a limit) the opponent's deck may be left to load on demand.
 func _queue_deck_arts(deck_ids: Array, own_seat := 0) -> void:
+	CardView.queue_art_preload(deck_art_files(deck_ids, own_seat))
+
+
+## Every art the decks can show (Leader, cards, Encarnação), the deck at `own_seat` first.
+func deck_art_files(deck_ids: Array, own_seat := 0) -> Array:
 	var art_files: Array = []
 	var ordered_deck_ids: Array = deck_ids.duplicate()
 	if own_seat == 1:
@@ -447,7 +453,7 @@ func _queue_deck_arts(deck_ids: Array, own_seat := 0) -> void:
 		for card_id in card_ids:
 			if CardDB.data()["cards"].has(card_id):
 				art_files.append(CardDB.card(card_id).get("art", ""))
-	CardView.queue_art_preload(art_files)
+	return art_files
 
 
 func _on_link(up: bool) -> void:
@@ -1106,7 +1112,7 @@ const HAND_SCALE_MIN := 1.3
 const HAND_VISIBLE := 0.78 ## share of a hand card's height that shows (the rest hangs off the screen until hover/click)
 const ENEMY_HAND_SCALE := 0.8
 const ENEMY_HAND_SHOWN := 0.3 ## share of an (upside-down) enemy card that peeks in from the top edge
-const HAND_SHRINK_FROM := 6
+const HAND_SHRINK_FROM := 7 ## the hand keeps its full size up to this many cards
 const HAND_SHRINK_TO := 10
 const SANCTUARY_SCALE := 1.48 ## Incarnation card in the Sanctuary
 ## The Sanctuaries sit in the left margin, each beside its own lane, with the momentum bar next to them
@@ -1667,9 +1673,11 @@ func _target_selection_numbers(uid: int) -> Array:
 	return out
 
 
-## Full size up to HAND_SHRINK_FROM cards, shrinking linearly to HAND_SCALE_MIN at HAND_SHRINK_TO.
+## Full size up to HAND_SHRINK_FROM cards, then two steps down to HAND_SCALE_MIN at HAND_SHRINK_TO.
+## Steps instead of a smooth shrink: each new size makes every hand card paint a new photo (a hitch on phones).
 func _hand_scale(n: int) -> float:
 	var t := clampf(float(n - HAND_SHRINK_FROM) / float(HAND_SHRINK_TO - HAND_SHRINK_FROM), 0.0, 1.0)
+	t = ceilf(t * 2.0) / 2.0
 	return lerpf(HAND_SCALE, HAND_SCALE_MIN, t)
 
 

@@ -164,6 +164,9 @@ var zoom := 1.0:
 		queue_redraw()
 var _face_size := Vector2.ZERO ## the size the card face is drawn at: size * zoom, in whole pixels
 var _painting_photo := false ## this CardView is the hidden painter inside CardPhotoStudio
+## Short-lived cards (ghosts) use a photo only if one already exists: painting a new one for a card about to
+## burn away would cost a phone a whole frame for nothing.
+var never_bake := false
 var _photo_padding := 0.0 ## clear pixels around a photo slot, measured in card drawing units
 var _photo_slot_height := 0.0 ## height of one stacked photo slot, measured in card drawing units
 var _photo_in_use: CardPhotoStudio.Photo
@@ -539,7 +542,9 @@ func finish_pointer_interaction() -> void:
 func _process(delta: float) -> void:
 	# (the shield dome is not here on purpose: it animates in its own shader, see _place_shield_dome)
 	# A cached picture must be snapped again whenever its card moves to a different screen pixel.
-	if GraphicsQuality.bake_card_faces and not _is_headless and not _painting_photo:
+	# (a ghost drawn without a photo moves fine as it is: redrawing it would only cost time)
+	var draws_live_for_good := never_bake and _photo_in_use == null
+	if GraphicsQuality.bake_card_faces and not _is_headless and not _painting_photo and not draws_live_for_good:
 		var render_transform := get_viewport().get_final_transform() * get_global_transform_with_canvas()
 		if not render_transform.is_equal_approx(_photo_transform_seen):
 			_photo_transform_seen = render_transform
@@ -551,7 +556,10 @@ func _process(delta: float) -> void:
 		elif _waiting_to_settle and Engine.get_process_frames() - _last_motion_frame > 2:
 			# it stopped: one more redraw swaps the stretched photo for a sharp one
 			_waiting_to_settle = false
-			queue_redraw()
+			# a card drawn live only asks for its photo here: the studio redraws it once the photo is painted
+			var drawn_live := _photo_in_use == null and is_visible_in_tree() and _face_size != Vector2.ZERO
+			if not drawn_live or _find_ready_photo(1.0) != null or not CardPhotoStudio.is_waiting(self):
+				queue_redraw()
 	if _float_strength > 0.0:
 		_flight_redraw_acc += delta
 		if _flight_redraw_acc >= GraphicsQuality.flight_redraw_interval:
@@ -896,13 +904,21 @@ static func texture(file: String) -> Texture2D:
 		return null
 	return _cached_art(_tex_cache, "res://assets/portraits/" + file, file, GraphicsQuality.art_cache_limit, "arte")
 
+static func has_full_art(file: String) -> bool:
+	return _tex_cache.has(file)
+
 ## Width of the small copies; a card art shown wider than this on screen uses the full art instead.
 const THUMBNAIL_WIDTH := 384.0
 
 ## The art to draw in a window `window_width` wide (in this card's own units), zoomed `crop_zoom` times.
 func _art_for_window(file: String, window_width: float, crop_zoom: float) -> Texture2D:
-	var screen_scale := (get_viewport().get_final_transform() * get_global_transform_with_canvas()).x.length()
-	if window_width * crop_zoom * screen_scale > THUMBNAIL_WIDTH * 1.1:
+	return art_for_canvas(self, file, window_width * crop_zoom)
+
+## The small copy, unless the art shows wider on screen than the small copy has pixels.
+## `width` is in the canvas item's own units (the screen scale is worked out here).
+static func art_for_canvas(canvas: CanvasItem, file: String, width: float) -> Texture2D:
+	var screen_scale := (canvas.get_viewport().get_final_transform() * canvas.get_global_transform_with_canvas()).x.length()
+	if width * screen_scale > THUMBNAIL_WIDTH * 1.1:
 		return texture(file)
 	return thumbnail(file)
 
@@ -961,16 +977,33 @@ static func raw_art_texture(file: String) -> Texture2D:
 ## decks are queued here and loaded in the background, one at a time, within a small time budget per frame.
 static var _art_preload_queue: Array[String] = []
 const ART_PRELOAD_BUDGET_MS := 6 ## time per frame spent loading queued arts (at least one art loads per frame)
+## Arts wait for a still table (a load on a phone stalls the frame), but never longer than this.
+const ART_PRELOAD_MAX_WAIT_FRAMES := 90
+static var _art_preload_frames_waited := 0
+static var _full_art_preload_queue: Array[String] = []
 
 ## Queues art files (as written in the card data, e.g. "furia/ivan.webp") so their small copies load ahead of time.
-static func queue_art_preload(files: Array) -> void:
+## With `full_size`, the full arts load instead (after every small copy already queued).
+static func queue_art_preload(files: Array, full_size := false) -> void:
+	var queue := _full_art_preload_queue if full_size else _art_preload_queue
+	var cache := _tex_cache if full_size else _thumbnail_cache
 	for file in files:
 		var art_file := String(file)
-		if art_file != "" and not _thumbnail_cache.has(art_file) and not _art_preload_queue.has(art_file):
-			_art_preload_queue.append(art_file)
+		if art_file != "" and not cache.has(art_file) and not queue.has(art_file):
+			queue.append(art_file)
 
 ## Called every frame: loads queued arts until the frame budget is spent.
 static func load_queued_arts() -> void:
+	if _art_preload_queue.is_empty() and _full_art_preload_queue.is_empty():
+		return
+	if CardPhotoStudio.something_is_animating() and _art_preload_frames_waited < ART_PRELOAD_MAX_WAIT_FRAMES:
+		_art_preload_frames_waited += 1
+		return
+	_art_preload_frames_waited = 0
+	if _art_preload_queue.is_empty():
+		# a full art costs several small ones, so it gets a frame of its own
+		texture(_full_art_preload_queue.pop_front())
+		return
 	var start_ms := Time.get_ticks_msec()
 	while not _art_preload_queue.is_empty():
 		thumbnail(_art_preload_queue.pop_front())
@@ -1190,11 +1223,14 @@ func _find_ready_photo(pop: float) -> CardPhotoStudio.Photo:
 		photo = _photo_in_use
 		CardPhotoStudio.keep(photo)
 	if photo == null or not photo.is_ready():
-		CardPhotoStudio.request(self, signature)
+		if not never_bake:
+			CardPhotoStudio.request(self, signature)
 		# Until the exact photo is ready, the previous one (stretched) still beats drawing everything live.
 		if _photo_in_use != null and _photo_in_use.is_ready() and _photo_matches_card(_photo_in_use):
 			texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 			return _photo_in_use
+		if _photo_in_use != null and not _photo_shows_card_data(_photo_in_use):
+			CardPhotoStudio.forget(_photo_in_use) # the card changed for good: its viewport paints the new photo
 		_photo_in_use = null
 		texture_filter = CanvasItem.TEXTURE_FILTER_PARENT_NODE
 		return null
@@ -1210,8 +1246,12 @@ func _find_ready_photo(pop: float) -> CardPhotoStudio.Photo:
 
 ## True when the photo shows this card as it is now (only its size on screen may differ).
 func _photo_matches_card(photo: CardPhotoStudio.Photo) -> bool:
+	return photo.signature["face_size"] == _face_size and _photo_shows_card_data(photo)
+
+## True when the photo shows this card's current cost, stats and side, whatever its size (a zoom only resizes it).
+func _photo_shows_card_data(photo: CardPhotoStudio.Photo) -> bool:
 	var taken: Dictionary = photo.signature
-	return taken["card_id"] == card_id and taken["face_down"] == face_down and taken["face_size"] == _face_size \
+	return taken["card_id"] == card_id and taken["face_down"] == face_down \
 		and taken["cost_override"] == cost_override and taken["snowball_level"] == snowball_level \
 		and taken["text_bonuses"] == text_bonuses and taken["inst"] == inst
 

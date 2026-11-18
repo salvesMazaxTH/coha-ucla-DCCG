@@ -25,6 +25,15 @@ var hub_hotseat := false ## the deck hub's two-step flow is picking decks for ho
 var hub_scroll_y := 0 ## how far the gallery was scrolled, kept across the hub's redraws
 var hub_drag_distance := 0.0 ## how far the current press has dragged the gallery (a long drag isn't a tap)
 var hub_collapsed := { } ## collapsed macro-sections and prebuilt subsections, preserved across redraws
+## Picking a deck only swaps the showcase and the two tiles' highlight: redrawing the whole hub took seconds on a phone.
+var _hub_showcase: Control
+var _hub_tiles := { } ## deck id -> its tile in the gallery
+## The showcase opens with the small art and switches to the full art only after the player stops on a deck,
+## so quick picks never wait for a big art to load.
+const SHOWCASE_FULL_ART_DELAY := 0.4
+## Time per frame spent opening arts behind the "Preparando a partida" screen (the bar still moves on a phone).
+const MATCH_LOADING_BUDGET_MS := 50
+const DECK_TILE_BACKGROUND := Color(0.06, 0.055, 0.085, 0.94)
 const MENU_SUBTITLE_FONT_SIZE := 18 ## the small hint under each title-menu button
 const MENU_SUBTITLE_COLOR := Color(0.93, 0.9, 0.84, 0.85) ## near-opaque cream so the hint reads on the busy art
 const DECK_TILE_NAME_FONT_SIZES := [21, 19, 17, 15, 13] ## tried in order until the deck name fits its zone on the tile
@@ -165,6 +174,30 @@ func show_menu() -> void:
 	ver.position = Vector2(host.stage_w - 300, 864.0 + host.BOT)
 	ver.size = Vector2(280, 20)
 	host.layer.add_child(ver)
+	_queue_hub_arts()
+
+
+## The deck hub shows every deck's Leader art at once, which froze the phone when it opened,
+## so those arts load in the background while the menu sits still.
+func _queue_hub_arts() -> void:
+	var leader_ids: Array[String] = []
+	for deck_id in DeckDB.available_ids():
+		leader_ids.append(String(DeckDB.get_deck(deck_id)["leader"]))
+	if deck_store != null:
+		for saved_deck in deck_store.list():
+			leader_ids.append(String(saved_deck["leader"]))
+	var art_files: Array = []
+	for leader_id in leader_ids:
+		if CardDB.data()["leaders"].has(leader_id):
+			art_files.append(String(CardDB.leader(leader_id).get("art", "")))
+	CardView.queue_art_preload(art_files)
+	# the chosen deck's showcase is big enough to need the full art
+	var showcase_deck := sel_deck
+	if not DeckDB.has(showcase_deck) and not DeckDB.available_ids().is_empty():
+		showcase_deck = DeckDB.available_ids()[0]
+	if DeckDB.has(showcase_deck):
+		var showcase_leader := CardDB.leader(String(DeckDB.get_deck(showcase_deck)["leader"]))
+		CardView.queue_art_preload([String(showcase_leader.get("art", ""))], true)
 
 
 ## Entry screen: before the mode buttons, the player either signs in with Google or goes on as a guest.
@@ -479,6 +512,8 @@ func show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 	var showcase := _deck_showcase(selected_id, Vector2(showcase_w, body_h), choosing_ai_deck)
 	showcase.position = Vector2(HUB_MARGIN, body_top)
 	host.layer.add_child(showcase)
+	_hub_showcase = showcase
+	_hub_tiles.clear()
 
 	var gallery_x := HUB_MARGIN + showcase_w + 32.0
 	var gallery_w: float = host.stage_w - gallery_x - HUB_MARGIN
@@ -574,9 +609,6 @@ func show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 						columns,
 						selected_id,
 						choosing_ai_deck,
-						ai,
-						msg,
-						scroll,
 					)
 					section_top += _hub_section_body_height(section, columns)
 				else:
@@ -610,9 +642,6 @@ func show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 								columns,
 								selected_id,
 								choosing_ai_deck,
-								ai,
-								msg,
-								scroll,
 							)
 							if subsection_tile != null:
 								selected_tile = subsection_tile
@@ -629,9 +658,6 @@ func show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 					columns,
 					selected_id,
 					choosing_ai_deck,
-					ai,
-					msg,
-					scroll,
 				)
 				if section_tile != null:
 					selected_tile = section_tile
@@ -676,7 +702,7 @@ func show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 								return d != sel_deck,
 						)
 						opponent_deck = String(others.pick_random()) if not others.is_empty() else sel_deck
-					host.start_match(not hub_hotseat, sel_deck, opponent_deck),
+					_start_match_after_loading(not hub_hotseat, sel_deck, opponent_deck),
 				true,
 			]
 		)
@@ -710,6 +736,8 @@ func show_hub(ai: bool, msg := "", choosing_ai_deck := false) -> void:
 				false,
 			]
 		)
+		if OS.has_feature("android"):
+			actions.append(["SERVIDOR", _show_server_address, false])
 	# one row: Voltar on the left, then the actions
 	var bw := 400.0
 	var back_w := 240.0
@@ -814,9 +842,6 @@ func _add_hub_section_body(
 	columns: int,
 	selected_id: String,
 	choosing_ai_deck: bool,
-	ai: bool,
-	msg: String,
-	scroll: ScrollContainer,
 ) -> Control:
 	var section_ids: Array = section.get("ids", [])
 	if section_ids.is_empty():
@@ -835,20 +860,13 @@ func _add_hub_section_body(
 		tile.position = Vector2(grid_x + (i % columns) * (HUB_TILE.x + HUB_TILE_GAP), y + (i / columns) * (HUB_TILE.y + HUB_TILE_GAP))
 		if id == selected_id:
 			selected_tile = tile
-		tile.gui_input.connect(_on_hub_tile_input.bind(tile, id, choosing_ai_deck, ai, msg, scroll))
+		tile.gui_input.connect(_on_hub_tile_input.bind(tile, id, choosing_ai_deck))
 		content.add_child(tile)
+		_hub_tiles[id] = tile
 	return selected_tile
 
 
-func _on_hub_tile_input(
-	ev: InputEvent,
-	tile: Control,
-	id: String,
-	choosing_ai_deck: bool,
-	ai: bool,
-	msg: String,
-	scroll: ScrollContainer,
-) -> void:
+func _on_hub_tile_input(ev: InputEvent, tile: Control, id: String, choosing_ai_deck: bool) -> void:
 	# picks on release, and not at the end of a scroll drag
 	var mb := ev as InputEventMouseButton
 	if mb == null or mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT or hub_drag_distance > HUB_DRAG_SLOP:
@@ -859,14 +877,31 @@ func _on_hub_tile_input(
 		Sfx.play("ui_click")
 		host.show_toast("Este Líder está BANIDO: só pode ser usado no modo de desenvolvimento.")
 		return
+	var previous_id := ai_deck if choosing_ai_deck else sel_deck
+	if previous_id == id:
+		return
 	if choosing_ai_deck:
 		ai_deck = id
-	elif sel_deck != id:
-		sel_deck = id
 	else:
+		sel_deck = id
+	_show_hub_selection(previous_id, id, choosing_ai_deck)
+
+
+## Moves the highlight to the picked deck and swaps the showcase, leaving the rest of the hub as it is.
+func _show_hub_selection(previous_id: String, id: String, choosing_ai_deck: bool) -> void:
+	if is_instance_valid(_hub_tiles.get(previous_id)):
+		_mark_deck_tile(_hub_tiles[previous_id], previous_id, false)
+	if is_instance_valid(_hub_tiles.get(id)):
+		_mark_deck_tile(_hub_tiles[id], id, true)
+	if not is_instance_valid(_hub_showcase):
 		return
-	hub_scroll_y = scroll.scroll_vertical
-	show_hub.call_deferred(ai, msg, choosing_ai_deck)
+	var showcase := _deck_showcase(id, _hub_showcase.size, choosing_ai_deck)
+	showcase.position = _hub_showcase.position
+	var parent := _hub_showcase.get_parent()
+	parent.add_child(showcase)
+	parent.move_child(showcase, _hub_showcase.get_index())
+	_hub_showcase.queue_free()
+	_hub_showcase = showcase
 
 
 ## Registers the player's saved decks (MEUS DECKS) in DeckDB so the hub, the match and the deck list treat
@@ -1009,11 +1044,18 @@ func _deck_showcase(id: String, size: Vector2, choosing_ai_deck: bool) -> Contro
 	p.add_theme_stylebox_override("panel", UITheme.box(bg, 16, Color(col, 0.85), 3, 20))
 	var art_h := size.y * 0.5
 	var art := TextureRect.new()
-	art.texture = host.crop_portrait_to_top(
-		CardView.texture(String(ld.get("art", ""))),
-		Vector2(size.x - 8, art_h),
-		float(ld.get("art_focus", 0.06)),
-	)
+	var art_file := String(ld.get("art", ""))
+	var art_window := Vector2(size.x - 8, art_h)
+	var art_focus := float(ld.get("art_focus", 0.06))
+	if CardView.has_full_art(art_file):
+		art.texture = host.crop_portrait_to_top(CardView.texture(art_file), art_window, art_focus)
+	else:
+		art.texture = host.crop_portrait_to_top(CardView.thumbnail(art_file), art_window, art_focus)
+		host.get_tree().create_timer(SHOWCASE_FULL_ART_DELAY).timeout.connect(
+			func() -> void:
+				if is_instance_valid(art) and art.is_inside_tree():
+					art.texture = host.crop_portrait_to_top(CardView.texture(art_file), art_window, art_focus),
+		)
 	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	art.stretch_mode = TextureRect.STRETCH_SCALE
 	art.position = Vector2(4, 4)
@@ -1180,8 +1222,6 @@ func _art_fade(bg: Color, pos: Vector2, size: Vector2) -> TextureRect:
 ## One deck in the hub gallery: Leader art, deck name and domain seals. Always the same size (the full
 ## description lives in the showcase). `id` "" is the AI's "random deck" tile.
 func deck_tile(id: String, size: Vector2, selected: bool) -> Control:
-	var bg := Color(0.06, 0.055, 0.085, 0.94)
-	var col := UITheme.GOLD_LIGHT
 	var p := Panel.new()
 	p.size = size
 	p.pivot_offset = size / 2.0
@@ -1199,7 +1239,6 @@ func deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 	else:
 		var d := DeckDB.get_deck(id)
 		var ld := CardDB.leader(d["leader"])
-		col = Color(String(CardDB.essence(CardDB.leader_essences(ld)[0]).get("color", "#8a8f98")))
 		deck_name = String(d["name"])
 		leader_name = String(ld["name"])
 		var art := TextureRect.new()
@@ -1214,11 +1253,7 @@ func deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 		art.size = Vector2(size.x - 8, art_h)
 		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		p.add_child(art)
-		p.add_child(_art_fade(bg, Vector2(4, 4 + art_h * 0.5), Vector2(size.x - 8, art_h * 0.5 + 1)))
-	p.add_theme_stylebox_override(
-		"panel",
-		UITheme.box(bg, 12, UITheme.GOLD if selected else Color(col, 0.55), 4 if selected else 2, 12 if selected else 6),
-	)
+		p.add_child(_art_fade(DECK_TILE_BACKGROUND, Vector2(4, 4 + art_h * 0.5), Vector2(size.x - 8, art_h * 0.5 + 1)))
 	# the name gets the zone between the art and domain seals, and never grows past it: it shrinks
 	# step by step until it fits in two lines, and only a name too long even for the smallest step is cut with "…"
 	var nm: Label = host.make_label(
@@ -1257,16 +1292,7 @@ func deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 		p.add_child(domain_row)
 	if id != "" and DeckDB.is_deck_banned(id):
 		BannedRibbonScript.attach(p)
-	if selected:
-		# drawn with shapes: the "✔" character is missing from the web font and showed as a broken square on phones
-		var check := HubGlyphIconScript.make(HubGlyphIconScript.Kind.CHECK, 18.0, UITheme.GOLD_LIGHT)
-		var badge := PanelContainer.new()
-		badge.add_theme_stylebox_override("panel", UITheme.box(Color(UITheme.GOLD.darkened(0.6), 0.95), 15, UITheme.GOLD, 2))
-		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		badge.custom_minimum_size = Vector2(32, 32)
-		badge.add_child(check)
-		badge.position = Vector2(size.x - 42, 10)
-		p.add_child(badge)
+	_mark_deck_tile(p, id, selected)
 	# hover (mouse only): a gentle lift so the gallery feels alive on desktop
 	p.mouse_entered.connect(
 		func() -> void:
@@ -1278,6 +1304,38 @@ func deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 			p.create_tween().tween_property(p, "scale", Vector2.ONE, 0.12),
 	)
 	return p
+
+
+## The border color of a deck tile: the Leader's first domain, or gold for the AI's random tile.
+func _deck_tile_color(id: String) -> Color:
+	if id == "":
+		return UITheme.GOLD_LIGHT
+	var leader := CardDB.leader(DeckDB.get_deck(id)["leader"])
+	return Color(String(CardDB.essence(CardDB.leader_essences(leader)[0]).get("color", "#8a8f98")))
+
+
+## The gold border and check badge of the chosen deck's tile (or their removal).
+func _mark_deck_tile(tile: Control, id: String, selected: bool) -> void:
+	var border := UITheme.GOLD if selected else Color(_deck_tile_color(id), 0.55)
+	tile.add_theme_stylebox_override(
+		"panel",
+		UITheme.box(DECK_TILE_BACKGROUND, 12, border, 4 if selected else 2, 12 if selected else 6),
+	)
+	var badge := tile.get_node_or_null("SelectedBadge")
+	if badge != null and not selected:
+		tile.remove_child(badge)
+		badge.queue_free()
+	elif badge == null and selected:
+		# drawn with shapes: the "✔" character is missing from the web font and showed as a broken square on phones
+		var check := HubGlyphIconScript.make(HubGlyphIconScript.Kind.CHECK, 18.0, UITheme.GOLD_LIGHT)
+		var new_badge := PanelContainer.new()
+		new_badge.name = "SelectedBadge"
+		new_badge.add_theme_stylebox_override("panel", UITheme.box(Color(UITheme.GOLD.darkened(0.6), 0.95), 15, UITheme.GOLD, 2))
+		new_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		new_badge.custom_minimum_size = Vector2(32, 32)
+		new_badge.add_child(check)
+		new_badge.position = Vector2(tile.size.x - 42, 10)
+		tile.add_child(new_badge)
 
 
 ## Alternate the name with this account's online record without moving the domain seals.
@@ -1490,6 +1548,51 @@ func _show_join(msg := "") -> void:
 	box.add_child(bk)
 
 
+## Android: where the home PC that hosts the matches is (its Wi-Fi IP and the serve_web port).
+func _show_server_address() -> void:
+	host.reset_animation_state()
+	host.clear_table()
+	host.table.visible = false
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 14)
+	box.position = Vector2(host.stage_w / 2.0 - 300, 120)
+	box.custom_minimum_size = Vector2(600, 0)
+	host.layer.add_child(box)
+	box.add_child(host.make_label("SERVIDOR", 48, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 8))
+	box.add_child(
+		host.make_label(
+			"IP do PC que roda o atualizar_e_servir, com a porta",
+			22,
+			UITheme.TEXT,
+			HORIZONTAL_ALIGNMENT_CENTER,
+			"bold",
+		)
+	)
+	var address_edit := LineEdit.new()
+	address_edit.text = NetClient.server_address()
+	address_edit.placeholder_text = NetClient.DEFAULT_SERVER_ADDRESS
+	address_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	address_edit.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_URL
+	address_edit.add_theme_font_size_override("font_size", 34)
+	address_edit.custom_minimum_size = Vector2(600, 72)
+	box.add_child(address_edit)
+	var save: Button = host.make_button(
+		"SALVAR",
+		func() -> void:
+			var address := address_edit.text.strip_edges()
+			NetClient.save_server_address(address if address != "" else NetClient.DEFAULT_SERVER_ADDRESS)
+			if host.net != null:
+				host.net.disconnect_server()
+			show_online("Servidor: %s" % NetClient.server_address()),
+		true,
+	)
+	save.custom_minimum_size = Vector2(600, 64)
+	box.add_child(save)
+	var back: Button = host.make_button("Voltar", func() -> void: show_online())
+	back.custom_minimum_size = Vector2(600, 52)
+	box.add_child(back)
+
+
 func _code_text() -> String:
 	return code_entry + "_".repeat(4 - code_entry.length())
 
@@ -1551,6 +1654,39 @@ func press_main_action_with_keyboard() -> bool:
 	return false
 
 
+## Opens every art the two decks can show behind a "Preparando a partida" screen, then starts the match,
+## so the mulligan and the first hand never stall to open an art.
+func _start_match_after_loading(ai: bool, deck_a: String, deck_b: String) -> void:
+	host.reset_animation_state()
+	host.clear_table()
+	host.table.visible = false
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 20)
+	box.position = Vector2(host.stage_w / 2.0 - 300, 420)
+	box.custom_minimum_size = Vector2(600, 0)
+	host.layer.add_child(box)
+	box.add_child(host.make_label("Preparando a partida…", 28, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "bold"))
+	var bar := ProgressBar.new()
+	bar.show_percentage = false
+	bar.custom_minimum_size = Vector2(600, 12)
+	bar.add_theme_stylebox_override("background", UITheme.box(Color(1, 1, 1, 0.08), 6))
+	bar.add_theme_stylebox_override("fill", UITheme.box(UITheme.GOLD_LIGHT, 6))
+	box.add_child(bar)
+	var art_files: Array = host.deck_art_files([deck_a, deck_b])
+	bar.max_value = maxi(1, art_files.size())
+	await host.get_tree().process_frame # the screen shows before the first art opens
+	var start_ms := Time.get_ticks_msec()
+	for index in art_files.size():
+		CardView.thumbnail(String(art_files[index]))
+		if Time.get_ticks_msec() - start_ms >= MATCH_LOADING_BUDGET_MS:
+			bar.value = index + 1
+			await host.get_tree().process_frame
+			if not is_instance_valid(bar) or not bar.is_inside_tree():
+				return # another screen took over while loading
+			start_ms = Time.get_ticks_msec()
+	host.start_match(ai, deck_a, deck_b)
+
+
 func show_wait(text: String, show_code := "") -> void:
 	host.reset_animation_state()
 	host.clear_table()
@@ -1569,7 +1705,8 @@ func show_wait(text: String, show_code := "") -> void:
 		"Cancelar",
 		func():
 			host.net.forget()
-			host.net.disconnect_server()
+			if host.net != null:
+				host.net.disconnect_server()
 			host.online = false
 			show_menu(),
 	)

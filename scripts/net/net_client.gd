@@ -1,13 +1,17 @@
 class_name NetClient
 extends Node
 ## WebSocket link to the match server: create/join/resume a room and relay messages.
-## Web: wss://<page host>/ws (proxied by tools/serve_web.js). Desktop: ws://127.0.0.1:8061.
+## Web: wss://<page host>/ws (proxied by tools/serve_web.js). Android: wss://<saved PC address>/ws,
+## the same proxy. Desktop: ws://127.0.0.1:8061.
 
 signal message(m: Dictionary)
 signal link_changed(up: bool)
 
 const SESSION_FILE := "user://net_session.cfg"
 const DESKTOP_URL := "ws://127.0.0.1:8061"
+const SERVER_FILE := "user://net_server.cfg"
+## The PC on the home Wi-Fi that runs atualizar_e_servir (IP:port of tools/serve_web.js).
+const DEFAULT_SERVER_ADDRESS := "192.168.0.200:8060"
 
 var ws: WebSocketPeer
 var up := false
@@ -23,11 +27,29 @@ static func url() -> String:
 		var host = JavaScriptBridge.eval("window.location.host")
 		var secure = JavaScriptBridge.eval("window.location.protocol === 'https:'")
 		return ("wss://" if secure else "ws://") + String(host) + "/ws"
+	if OS.has_feature("android"):
+		return "wss://" + server_address() + "/ws"
 	return DESKTOP_URL
+
+## Android only: the PC address typed in the SERVIDOR screen.
+static func server_address() -> String:
+	var config := ConfigFile.new()
+	if config.load(SERVER_FILE) != OK:
+		return DEFAULT_SERVER_ADDRESS
+	return String(config.get_value("server", "address", DEFAULT_SERVER_ADDRESS))
+
+static func save_server_address(address: String) -> void:
+	var config := ConfigFile.new()
+	config.set_value("server", "address", address.strip_edges())
+	config.save(SERVER_FILE)
 
 func connect_server() -> void:
 	ws = WebSocketPeer.new()
-	ws.connect_to_url(url())
+	if OS.has_feature("web"):
+		ws.connect_to_url(url())
+	else:
+		# the home PC uses a self-made certificate, which no authority signs
+		ws.connect_to_url(url(), TLSOptions.client_unsafe())
 
 func disconnect_server() -> void:
 	want_resume = false

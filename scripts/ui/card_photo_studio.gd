@@ -24,6 +24,11 @@ const MAX_PHOTOS := 96
 const MAX_PHOTO_PIXELS := 14000000
 ## Painting a photo freezes a phone for a whole frame, so it waits until nothing is moving, at most this long.
 const MAX_FRAMES_WAITING_FOR_STILL_TABLE := 120
+## Viewports of forgotten photos kept to paint new photos of the same size: making a new one costs the phone
+## far more than painting again into an old one.
+const MAX_SPARE_VIEWPORTS := 12
+## How much bigger than needed a spare viewport may be and still be reused.
+const SPARE_VIEWPORT_SLACK := 1.15
 
 ## Anything drawn into a see-through viewport ends up with its color already multiplied by its alpha, which
 ## would darken soft edges (rounded corners, shadows) when the photo is drawn again. This undoes the multiplication.
@@ -54,13 +59,14 @@ class Photo:
 
 	func _notification(what: int) -> void:
 		if what == NOTIFICATION_PREDELETE and is_instance_valid(viewport):
-			viewport.queue_free()
+			CardPhotoStudio._keep_spare_viewport(viewport)
 
 static var _photos := {} ## hash of signature -> Photo
 static var _requests := {} ## card instance id -> {"signature", "since_frame"}
 static var _studio: CardPhotoStudio
 static var _unfinished: Array[Photo] = [] ## photos whose painter is still alive
 static var _unpremultiply_material: ShaderMaterial
+static var _spare_viewports: Array[SubViewport] = []
 
 ## Whether a face of this size (in photo pixels) is small enough to be photographed.
 static func can_photograph(face_size: Vector2, pixel_scale: float) -> bool:
@@ -99,6 +105,17 @@ static func keep(photo: Photo) -> void:
 	photo.last_used_frame = Engine.get_frames_drawn()
 	_photos[hash(photo.signature)] = photo
 
+## Lets go of a photo whose card changed (cost, stats...): once no card shows it anymore, its viewport
+## paints the next photo of the same size instead of a new viewport being made.
+static func forget(photo: Photo) -> void:
+	var key := hash(photo.signature)
+	if _photos.get(key) == photo:
+		_photos.erase(key)
+
+## Whether the studio still owes this card a photo (it will redraw the card once the photo is ready).
+static func is_waiting(card: CardView) -> bool:
+	return _requests.has(card.get_instance_id())
+
 ## A card that could not draw with a photo leaves this; the studio redraws the card once the photo is ready.
 static func request(card: CardView, signature: Dictionary) -> void:
 	_make_sure_studio_exists()
@@ -112,6 +129,48 @@ static func request(card: CardView, signature: Dictionary) -> void:
 static func withdraw(card: CardView) -> void:
 	_requests.erase(card.get_instance_id())
 
+## The shared material of the photo CanvasGroups (one material, so the shader is compiled only once).
+static func unpremultiply_material() -> ShaderMaterial:
+	if _unpremultiply_material == null:
+		_unpremultiply_material = ShaderMaterial.new()
+		_unpremultiply_material.shader = Shader.new()
+		_unpremultiply_material.shader.code = UNPREMULTIPLY_SHADER
+	return _unpremultiply_material
+
+## A forgotten photo gives its viewport back here; the oldest spare is freed when there are too many.
+static func _keep_spare_viewport(viewport: SubViewport) -> void:
+	if not is_instance_valid(_studio) or viewport.get_parent() != _studio:
+		viewport.queue_free()
+		return
+	for leftover in viewport.get_children():
+		leftover.queue_free()
+	viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	_spare_viewports.append(viewport)
+	if _spare_viewports.size() > MAX_SPARE_VIEWPORTS:
+		_spare_viewports.pop_front().queue_free()
+
+## The smallest spare viewport that fits this size without wasting much room, or a new one.
+## (a photo only uses its own slots, so the leftover edge of a bigger spare just stays empty)
+func _take_viewport(viewport_size: Vector2i) -> SubViewport:
+	var best_spare: SubViewport = null
+	for spare in _spare_viewports:
+		var fits := spare.size.x >= viewport_size.x and spare.size.y >= viewport_size.y \
+			and spare.size.x <= viewport_size.x * SPARE_VIEWPORT_SLACK \
+			and spare.size.y <= viewport_size.y * SPARE_VIEWPORT_SLACK
+		if fits and (best_spare == null or spare.size.x * spare.size.y < best_spare.size.x * best_spare.size.y):
+			best_spare = spare
+	if best_spare != null:
+		_spare_viewports.erase(best_spare)
+		return best_spare
+	var viewport := SubViewport.new()
+	# It must be in the tree before canvas_transform is sent to the rendering server.
+	add_child(viewport)
+	viewport.size = viewport_size
+	viewport.transparent_bg = true
+	viewport.disable_3d = true
+	viewport.gui_disable_input = true
+	return viewport
+
 static func _make_sure_studio_exists() -> void:
 	if is_instance_valid(_studio):
 		return
@@ -122,7 +181,7 @@ static func _make_sure_studio_exists() -> void:
 func _process(_delta: float) -> void:
 	var frame := Engine.get_frames_drawn()
 	var bakes_this_frame := 0
-	var table_is_moving := not _requests.is_empty() and _something_is_animating()
+	var table_is_moving := not _requests.is_empty() and something_is_animating()
 	for card_instance_id in _requests.keys():
 		var card := instance_from_id(card_instance_id) as CardView
 		if card == null or not card.is_visible_in_tree():
@@ -151,8 +210,11 @@ func _process(_delta: float) -> void:
 		_evict_old_photos(frame)
 
 ## Whether a card is flying, a hit is shaking, etc. (endless loops, like a pulsing glow, do not count).
-func _something_is_animating() -> bool:
-	for tween in get_tree().get_processed_tweens():
+static func something_is_animating() -> bool:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null: # the headless tests start before the tree exists
+		return false
+	for tween in tree.get_processed_tweens():
 		if tween.is_running() and tween.get_loops_left() != -1:
 			return true
 	return false
@@ -160,7 +222,8 @@ func _something_is_animating() -> bool:
 func _bake(signature: Dictionary) -> void:
 	var pixel_scale: float = signature["pixel_scale"]
 	var face_size: Vector2 = signature["face_size"]
-	HitchLog.note("foto %s x%.2f" % [signature["card_id"], pixel_scale])
+	var started_microseconds := Time.get_ticks_usec()
+	var spares_before := _spare_viewports.size()
 	var photo := Photo.new()
 	photo.signature = signature
 	photo.padding_pixels = _padding_pixels(face_size, pixel_scale)
@@ -168,13 +231,8 @@ func _bake(signature: Dictionary) -> void:
 		ceili(face_size.x * pixel_scale) + 2 * photo.padding_pixels,
 		ceili(face_size.y * pixel_scale) + 2 * photo.padding_pixels)
 
-	var viewport := SubViewport.new()
-	# It must be in the tree before canvas_transform is sent to the rendering server.
-	add_child(viewport)
-	viewport.size = Vector2i(photo.slot_pixels.x, photo.slot_pixels.y * 2)
-	viewport.transparent_bg = true
-	viewport.disable_3d = true
-	viewport.gui_disable_input = true
+	var viewport := _take_viewport(Vector2i(photo.slot_pixels.x, photo.slot_pixels.y * 2))
+	var reused := _spare_viewports.size() < spares_before
 	viewport.canvas_transform = Transform2D().scaled(Vector2(pixel_scale, pixel_scale))
 	viewport.oversampling_override = pixel_scale # letters are rasterized at the size they will be shown at
 	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
@@ -182,12 +240,7 @@ func _bake(signature: Dictionary) -> void:
 	var group := CanvasGroup.new()
 	# The second painted slot sits one full card height below the painter's own control rectangle.
 	group.fit_margin = photo.slot_pixels.y / pixel_scale
-	if _unpremultiply_material == null:
-		# one shared material: a new shader for every photo would be compiled again each time
-		_unpremultiply_material = ShaderMaterial.new()
-		_unpremultiply_material.shader = Shader.new()
-		_unpremultiply_material.shader.code = UNPREMULTIPLY_SHADER
-	group.material = _unpremultiply_material
+	group.material = unpremultiply_material()
 	viewport.add_child(group)
 
 	var painter := CardView.new()
@@ -200,6 +253,9 @@ func _bake(signature: Dictionary) -> void:
 	photo.last_used_frame = photo.painted_frame
 	_photos[hash(signature)] = photo
 	_unfinished.append(photo)
+	HitchLog.note("foto %s x%.2f %s %d ms" % [
+		signature["card_id"], pixel_scale, "reuso" if reused else "nova",
+		roundi((Time.get_ticks_usec() - started_microseconds) / 1000.0)])
 
 ## Forgets photos nobody used for a while, and the least recently used ones when there are too many.
 ## (A card that is still showing a photo keeps it alive on its own, even after it is forgotten here.)

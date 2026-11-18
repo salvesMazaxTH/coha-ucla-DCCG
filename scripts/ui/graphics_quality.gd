@@ -56,3 +56,7 @@ static func use_phone_settings() -> void:
 	art_cache_limit = 24
 	thumbnail_cache_limit = 160
 	photo_bakes_per_frame = 1
+	# The Android app's video driver paints the card photos with a black band at the bottom.
+	# Native code is fast enough to draw every card live, so the app goes without photos.
+	if OS.has_feature("android"):
+		bake_card_faces = false

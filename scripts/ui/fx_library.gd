@@ -223,6 +223,7 @@ func make_ghost(card_id: String, inst: Dictionary, pose: Dictionary, size_scale 
 	if size_scale < 0.0:
 		size_scale = host.board_card_scale()
 	var v := CardView.new().setup(card_id, inst, size_scale)
+	v.never_bake = true
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.pivot_offset = v.size / 2.0
 	fx.add_child(v)
@@ -958,6 +959,46 @@ var fx_scale := 1.0
 ## The chain part of _fx_scale alone (without the phone economy): sets how fast shots fly, so the
 ## game paces the same on every device.
 var fx_chain_scale := 1.0
+
+const SHADER_FOLDER := "res://scripts/ui/shaders/"
+const SHADERS_WARMED_PER_FRAME := 3
+## Every shader warmed at startup stays here: a shader nobody holds is unloaded, and loading it again
+## would compile it again (the freeze the warm-up was meant to remove).
+static var _warmed_shaders: Array[Shader] = []
+
+## Draws every shader of the game once, invisibly, a few per frame, so the phone compiles them while the
+## menu is open instead of freezing the first time a spell or status shows up.
+func prewarm_all_shaders() -> void:
+	var holder := Control.new()
+	holder.modulate.a = 0.01
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fx.add_child(holder)
+	# the card photos use a CanvasGroup with their own shader (see CardPhotoStudio)
+	var photo_group := CanvasGroup.new()
+	photo_group.material = CardPhotoStudio.unpremultiply_material()
+	var photo_square := ColorRect.new()
+	photo_square.size = Vector2(8, 8)
+	photo_group.add_child(photo_square)
+	holder.add_child(photo_group)
+	var warmed_this_frame := 0
+	for file_name in ResourceLoader.list_directory(SHADER_FOLDER):
+		if not file_name.ends_with(".gdshader"):
+			continue
+		var shader: Shader = load(SHADER_FOLDER + file_name)
+		_warmed_shaders.append(shader)
+		var square := ColorRect.new()
+		square.size = Vector2(8, 8)
+		var shader_material := ShaderMaterial.new()
+		shader_material.shader = shader
+		square.material = shader_material
+		holder.add_child(square)
+		warmed_this_frame += 1
+		if warmed_this_frame == SHADERS_WARMED_PER_FRAME:
+			warmed_this_frame = 0
+			await host.get_tree().process_frame
+	await host.get_tree().process_frame
+	await host.get_tree().process_frame
+	holder.queue_free()
 
 ## Draws the death shader, a particle burst and a gradient line once, invisibly, so the GPU
 ## compiles them at startup instead of freezing the first time a unit dies.

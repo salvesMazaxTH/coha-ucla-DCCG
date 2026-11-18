@@ -143,7 +143,7 @@ func setup(id: String) -> LeaderView:
 	var ess: String = CardDB.leader_essences(ld)[0]
 	elem_color = Color(CardDB.essence(ess)["color"])
 	_style = CardView.STYLES.get(ess, CardView.STYLES["neutra"])
-	_tex = CardView.texture(ld["art"])
+	_tex = CardView.thumbnail(ld["art"]) # the art window is only 128 px wide
 	ability_cost = int(ld["ability"]["cost"])
 	passive = bool(ld["ability"].get("passive", false))
 	custom_minimum_size = SIZE
@@ -1009,7 +1009,7 @@ class DeckPile extends Control:
 
 		## The card's art cropped to a circle (square crop biased toward the top, where the face usually is).
 		func _draw_portrait(center: Vector2, tint: Color) -> void:
-			var art := CardView.texture(String(CardDB.card(String(watch.get("card_id", ""))).get("art", "")))
+			var art := CardView.thumbnail(String(CardDB.card(String(watch.get("card_id", ""))).get("art", "")))
 			if art == null:
 				draw_circle(center, RADIUS, Color("#2a2147"))
 				return

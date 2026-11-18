@@ -275,7 +275,7 @@ static func draw_card_art(canvas: CanvasItem, card_id: String, rect: Rect2, acce
 	var art_texture: Texture2D = null
 	var art_file := art_file_of(card_id)
 	if art_file != "":
-		art_texture = CardView.texture(art_file)
+		art_texture = CardView.art_for_canvas(canvas, art_file, rect.size.x)
 	if art_texture != null:
 		# Leader portraits are tall with the face near the top, so their crop leans higher
 		var is_leader := leader_id_of(card_id) != ""
