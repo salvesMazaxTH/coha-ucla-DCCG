@@ -14,6 +14,11 @@ var grave_owner := 0
 var grave_filter := "all"
 var grave_drag_ms := -1000 ## last finger-drag in the viewer: taps right after it are not clicks
 var search_scroll: ScrollContainer ## the one-row card strip of the open pick window (null when none)
+## Vislumbrar / Garimpar answer being built: the card order left to right (first = new top card) and the
+## cards marked to leave the deck. Reset whenever the pending search changes.
+var scry_signature := -1
+var scry_order: Array = []
+var scry_away: Dictionary = { }
 var search_drag_ms := -1000 ## last scroll of that strip: taps and long-presses right after it are not picks
 ## A finger always trembles a little during a tap; it only counts as a swipe once it has travelled this far (screen pixels).
 const SWIPE_START_DISTANCE := 14.0
@@ -852,6 +857,7 @@ const SEARCH_VERTICAL_ROOM := 440.0 ## stage height kept free for title, texts, 
 const SEARCH_CARD_GAP := 12.0 ## space between two cards of the strip
 const SEARCH_ROW_MARGIN := 10.0 ## space around the strip, so a glowing card is not cut at the edges
 const SEARCH_SCROLLBAR_HEIGHT := 16.0
+const SCRY_CONTROLS_HEIGHT := 92.0 ## the state label and the two arrow buttons under each card of a Vislumbrar / Garimpar
 const SEARCH_DRAG_CLICK_GUARD_MSEC := 250 ## taps this soon after a scroll are not picks
 
 
@@ -1038,8 +1044,13 @@ func render_search_reveal() -> void:
 	var summoning: bool = host.g.pending_search.get("summon_from", false) # "summon_from": a free summon from the deck, hand or graveyard
 	var sacrifice_pick: bool = host.g.pending_search.get("sacrifice_pick", false) # Censo de Baixas: a public pick among units on the board
 	var reservoir_pick: bool = host.g.pending_search.get("reservoir_pick", false) # Agiota: the top card or the unseen bottom card goes to the Reservoir
+	var scry: bool = host.g.pending_search.get("scry", false) # Vislumbrar / Garimpar: keep or send away, then order the rest
+	var scry_to_graveyard: bool = host.g.pending_search.get("send_to", "bottom") == "graveyard"
+	var scry_interactive: bool = scry and host.viewer_can_act()
 	var title := "BUSCA NO DECK"
-	if sacrifice_pick:
+	if scry:
+		title = "GARIMPAR" if scry_to_graveyard else "VISLUMBRAR"
+	elif sacrifice_pick:
 		title = "SACRIFÍCIO"
 	elif summoning:
 		title = "INVOCAÇÃO GRATUITA"
@@ -1106,6 +1117,8 @@ func render_search_reveal() -> void:
 			sub = "Você olhou a carta do topo do deck"
 		else:
 			sub = "%s está olhando a carta do topo do deck" % host.player_name(owner)
+	elif scry and host.viewer_can_act():
+		sub = "Você olhou as %d cartas do topo do deck" % host.g.pending_search["cards"].size()
 	elif look:
 		sub = "%s está olhando as %d cartas do topo do deck" % [host.player_name(owner), host.g.pending_search["cards"].size()]
 	if summoning:
@@ -1126,6 +1139,8 @@ func render_search_reveal() -> void:
 		eligible_uids[int(option["uid"])] = true
 	if not secret_search and not looked_cards.is_empty():
 		shown_options = looked_cards
+	if scry_interactive:
+		shown_options = _scry_options_in_order(search_signature, shown_options)
 	# every pick window is ONE row of cards, big enough to read the card text; a row wider than the screen
 	# scrolls sideways instead of wrapping into more lines or shrinking the cards
 	var card_scale := minf(SEARCH_MAX_CARD_SCALE, (host.STAGE_H + host.BOT - SEARCH_VERTICAL_ROOM) / CardView.BASE.y)
@@ -1140,7 +1155,11 @@ func render_search_reveal() -> void:
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	var scrollbar_height := SEARCH_SCROLLBAR_HEIGHT if row_overflows else 0.0
-	var window_size := Vector2(minf(row_width, room_for_row), card_size.y + 2.0 * SEARCH_ROW_MARGIN + scrollbar_height)
+	var scry_controls_height := SCRY_CONTROLS_HEIGHT if scry_interactive else 0.0
+	var window_size := Vector2(
+		minf(row_width, room_for_row),
+		card_size.y + 2.0 * SEARCH_ROW_MARGIN + scrollbar_height + scry_controls_height,
+	)
 	scroll.custom_minimum_size = window_size
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_style_search_scrollbar(scroll)
@@ -1190,7 +1209,10 @@ func render_search_reveal() -> void:
 		# every card can be inspected (right click / long press), picked or not: some rules texts
 		# only make sense in the full-screen view. Only the eligible ones can be chosen.
 		var can_pick: bool = eligible and host.viewer_can_act()
-		if can_pick:
+		var card_is_away := scry_interactive and scry_away.has(card_uid)
+		if card_is_away:
+			cv.modulate = Color(1, 1, 1, 0.4)
+		elif can_pick:
 			cv.highlight = host.OK # a glow marks what can be clicked, for every kind of choice
 		elif not eligible:
 			cv.modulate = Color(1, 1, 1, 0.4)
@@ -1200,6 +1222,14 @@ func render_search_reveal() -> void:
 				if not _search_just_scrolled():
 					show_overlay(view),
 		)
+		if scry_interactive:
+			cv.left_clicked.connect(
+				func(_v):
+					if not _search_just_scrolled():
+						_toggle_scry_away(card_uid),
+			)
+			card_row.add_child(_scry_card_cell(cv, card_uid, shown_options, scry_to_graveyard))
+			continue
 		if can_pick:
 			cv.left_clicked.connect(
 				func(_v):
@@ -1259,6 +1289,9 @@ func render_search_reveal() -> void:
 		hint = "Clique em uma carta para adicioná-la à sua mão; as outras ficam no cemitério."
 	elif reservoir_pick:
 		hint = "Escolha qual carta vai para o Reservatório: esta, do topo, ou a do fundo do deck (que você não viu)."
+	elif scry:
+		var scry_place := "o cemitério" if scry_to_graveyard else "o fundo do deck"
+		hint = "Toque nas cartas que vão para %s; as outras voltam ao topo, na ordem das setas (a da esquerda fica por cima)." % scry_place
 	elif look:
 		if host.g.pending_search.get("from_bottom", false):
 			hint = "Escolha 1 para a mão; as outras continuam onde estavam no fundo do deck."
@@ -1322,6 +1355,16 @@ func render_search_reveal() -> void:
 		skip_button.custom_minimum_size = Vector2(360, 52)
 		skip_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		box.add_child(skip_button)
+	if scry_interactive:
+		var confirm_button: Button = host.make_button(
+			"CONFIRMAR",
+			func():
+				host.on_scry_choice(_scry_away_uids(), _scry_kept_uids()),
+			true,
+		)
+		confirm_button.custom_minimum_size = Vector2(360, 52)
+		confirm_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		box.add_child(confirm_button)
 	if reservoir_pick and host.viewer_can_act():
 		var top_uid: int = int(host.g.pending_search["cards"][0]["uid"])
 		var top_button: Button = host.make_button(
@@ -1362,6 +1405,81 @@ func render_search_reveal() -> void:
 	minimize_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	box.add_child(minimize_button)
 	host.center_in_screen.call_deferred(host.search_overlay)
+
+
+## The looked-at cards in the order the player arranged them. A new pending search starts with every card
+## kept, in the order they sit in the deck (first = top).
+func _scry_options_in_order(search_signature: int, options: Array) -> Array:
+	if scry_signature != search_signature:
+		scry_signature = search_signature
+		scry_away = { }
+		scry_order = []
+		for option in options:
+			scry_order.append(int(option["uid"]))
+	var by_uid: Dictionary = { }
+	for option in options:
+		by_uid[int(option["uid"])] = option
+	var ordered: Array = []
+	for uid in scry_order:
+		ordered.append(by_uid[uid])
+	return ordered
+
+
+func _scry_away_uids() -> Array:
+	return scry_order.filter(func(uid): return scry_away.has(uid))
+
+
+func _scry_kept_uids() -> Array:
+	return scry_order.filter(func(uid): return not scry_away.has(uid))
+
+
+func _toggle_scry_away(card_uid: int) -> void:
+	if scry_away.has(card_uid):
+		scry_away.erase(card_uid)
+	else:
+		scry_away[card_uid] = true
+	host.render_table()
+
+
+func _move_scry_card(card_uid: int, step: int) -> void:
+	var index := scry_order.find(card_uid)
+	var target := index + step
+	if index < 0 or target < 0 or target >= scry_order.size():
+		return
+	scry_order[index] = scry_order[target]
+	scry_order[target] = card_uid
+	host.render_table()
+
+
+## A card of the Vislumbrar / Garimpar strip with its state label and the two arrows that reorder it.
+func _scry_card_cell(card_view: CardView, card_uid: int, ordered_options: Array, to_graveyard: bool) -> VBoxContainer:
+	var cell := VBoxContainer.new()
+	cell.add_theme_constant_override("separation", 6)
+	cell.add_child(card_view)
+	var state_text: String
+	var state_color: Color
+	if scry_away.has(card_uid):
+		state_text = "CEMITÉRIO" if to_graveyard else "FUNDO DO DECK"
+		state_color = UITheme.TEXT_DIM
+	else:
+		var kept_position := _scry_kept_uids().find(card_uid)
+		state_text = "TOPO" if kept_position == 0 else "%dª DO TOPO" % (kept_position + 1)
+		state_color = host.OK
+	cell.add_child(host.make_label(state_text, 18, state_color, HORIZONTAL_ALIGNMENT_CENTER, "body"))
+	var arrows := HBoxContainer.new()
+	arrows.alignment = BoxContainer.ALIGNMENT_CENTER
+	arrows.add_theme_constant_override("separation", 12)
+	var index := scry_order.find(card_uid)
+	var arrow_kinds := [HubGlyphIconScript.Kind.ARROW_LEFT, HubGlyphIconScript.Kind.ARROW_RIGHT]
+	for side in range(2):
+		var step := -1 if side == 0 else 1
+		var arrow_button: Button = host.make_button("", _move_scry_card.bind(card_uid, step))
+		arrow_button.custom_minimum_size = Vector2(70, 40)
+		arrow_button.disabled = index + step < 0 or index + step >= ordered_options.size()
+		HubGlyphIconScript.attach_to_button(arrow_button, arrow_kinds[side], 18.0, UITheme.TEXT, "center")
+		arrows.add_child(arrow_button)
+	cell.add_child(arrows)
+	return cell
 
 
 ## The search folded into a small bar at the top of the screen, so the table can be seen (and cards on

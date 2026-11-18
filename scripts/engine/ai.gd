@@ -34,6 +34,8 @@ static func step(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 			var waiting_unit := g.find_unit(int(g.pending_tap[0]))
 			return g.choose_enter_tapped(p, _wants_enter_tapped(g, p, waiting_unit))
 		"search":
+			if g.pending_search.get("scry", false):
+				return _resolve_scry(g, p)
 			return g.choose_search(p, _choose_search(g))
 		"enter_target":
 			var card_data := CardDB.card(g.pending_enter["card_id"])
@@ -237,6 +239,24 @@ static func _hand_most_expensive_first(g: GameState, p: int) -> Array:
 			return _base_cost(a) > _base_cost(b),
 	)
 	return hand
+
+
+## Vislumbrar / Garimpar: expensive cards (7+) go to the bottom when that is where they go (never to the
+## graveyard); the rest return on top, cheapest first.
+static func _resolve_scry(g: GameState, p: int) -> Array:
+	var away: Array = []
+	var kept: Array = []
+	for option in g.pending_search["cards"]:
+		var cost := int(CardDB.card(option["card_id"]).get("cost", 0))
+		if cost >= 7 and g.pending_search.get("send_to", "bottom") == "bottom":
+			away.append(int(option["uid"]))
+		else:
+			kept.append(option)
+	kept.sort_custom(func(a, b): return int(CardDB.card(a["card_id"]).get("cost", 0)) < int(CardDB.card(b["card_id"]).get("cost", 0)))
+	var kept_uids: Array = []
+	for option in kept:
+		kept_uids.append(int(option["uid"]))
+	return g.resolve_scry(p, away, kept_uids)
 
 
 static func _choose_search(g: GameState) -> int:

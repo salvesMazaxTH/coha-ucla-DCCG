@@ -3288,6 +3288,8 @@ func choose_enter_tapped(p: int, tapped: bool) -> Array:
 func choose_search(p: int, card_uid: int) -> Array:
 	if phase != "search" or p != decider():
 		return []
+	if pending_search.get("scry", false):
+		return [] # a scry is answered by resolve_scry
 	if pending_search.get("summon_from", false):
 		return _finish_summon_from(p, card_uid)
 	if pending_search.get("reservoir_pick", false):
@@ -4687,6 +4689,69 @@ func _begin_look(p: int, n: int, source_uid: int, reshuffle: bool = false) -> vo
 	search_return = phase
 	phase = "search"
 	emit_event({ "type": "look_top", "player": p, "source_uid": source_uid, "cards": top })
+
+
+## "scry" (Vislumbrar / Garimpar): the owner privately sees the top `n` cards, then chooses which of them leave the deck
+## (`send_to` "bottom" or "graveyard") and in which order the others go back on top. Answered with resolve_scry.
+func _begin_scry(p: int, n: int, send_to: String, source_uid: int) -> void:
+	if phase == "search":
+		return
+	var deck: Array = players[p]["deck"]
+	var top: Array = []
+	for i in range(deck.size() - 1, maxi(deck.size() - n, 0) - 1, -1): # top of the deck is the back
+		top.append({ "uid": deck[i].uid, "card_id": deck[i].card_id })
+	if top.is_empty():
+		emit_event({ "type": "search_empty", "player": p, "source_uid": source_uid })
+		return
+	pending_search = { "player": p, "source_uid": source_uid, "cards": top, "look": true, "scry": true, "send_to": send_to }
+	search_return = phase
+	phase = "search"
+	emit_event({ "type": "look_top", "player": p, "source_uid": source_uid, "cards": top })
+
+
+## Answer to a scry: `away_uids` leave the deck, `top_uids` go back on top (first = the new top card).
+## Together they must be exactly the cards that were looked at.
+func resolve_scry(p: int, away_uids: Array, top_uids: Array) -> Array:
+	if phase != "search" or p != decider() or not pending_search.get("scry", false):
+		return []
+	var looked_uids: Array = []
+	for looked in pending_search["cards"]:
+		looked_uids.append(int(looked["uid"]))
+	var answered: Array = away_uids + top_uids
+	if answered.size() != looked_uids.size():
+		return []
+	for uid in looked_uids:
+		if not answered.has(int(uid)):
+			return []
+	var source_uid: int = int(pending_search.get("source_uid", 0))
+	var send_to: String = String(pending_search.get("send_to", "bottom"))
+	pending_search.clear()
+	phase = search_return
+	var deck: Array = players[p]["deck"]
+	var looked_cards: Dictionary = { }
+	for card: Card in deck:
+		if looked_uids.has(card.uid):
+			looked_cards[card.uid] = card
+	for card in looked_cards.values():
+		deck.erase(card)
+	for i in range(top_uids.size() - 1, -1, -1):
+		deck.append(looked_cards[int(top_uids[i])])
+	var sent_ids: Array = []
+	for uid in away_uids:
+		var sent: Card = looked_cards[int(uid)]
+		sent_ids.append(sent.card_id)
+		if send_to == "graveyard":
+			players[p]["graveyard"].append(sent)
+			_move(sent, "graveyard")
+		else:
+			deck.push_front(sent)
+	emit_event({ "type": "scry_done", "player": p, "source_uid": source_uid, "looked": looked_uids.size(), "away": away_uids.size(), "send_to": send_to })
+	if send_to == "graveyard" and not sent_ids.is_empty():
+		emit_event({ "type": "mill", "player": p, "cards": sent_ids })
+	check_state()
+	stack_system().after_search()
+	stack_system().settle()
+	return flush_events()
 
 
 ## "look_top_to_reservoir" (Agiota das Nuvens): the owner privately sees the top card of the deck, then must choose

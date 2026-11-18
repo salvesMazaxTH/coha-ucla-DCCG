@@ -138,5 +138,8 @@ func discard(_p: int, hand_uids: Array) -> Array:
 func choose_search(_p: int, card_uid: int) -> Array:
 	return _act({"a": "search", "uid": card_uid})
 
+func resolve_scry(_p: int, away_uids: Array, top_uids: Array) -> Array:
+	return _act({"a": "scry", "away": away_uids, "top": top_uids})
+
 func choose_enter_target(_p: int, target: int) -> Array:
 	return _act({"a": "enter", "target": target})

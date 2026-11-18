@@ -234,6 +234,42 @@
       "text": "A quantidade indicada de cartas do topo do deck da pessoa mencionada vai para o cemitério do dono desse deck.",
       "category": "action"
     },
+    "vislumbrar": {
+      "name": "Vislumbrar",
+      "aliases": ["Vislumbra"],
+      "text": "Olhe a quantidade indicada de cartas do topo do seu deck em segredo. Escolha quais vão para o fundo do deck; as demais voltam para o topo na ordem que você quiser.",
+      "category": "action"
+    },
+    "garimpar": {
+      "name": "Garimpar",
+      "aliases": ["Garimpa"],
+      "text": "Olhe a quantidade indicada de cartas do topo do seu deck em segredo. Escolha quais vão para o cemitério; as demais voltam para o topo na ordem que você quiser.",
+      "category": "action"
+    },
+    "sacrificar": {
+      "name": "Sacrificar",
+      "aliases": ["Sacrifica", "Sacrifique"],
+      "text": "Uma unidade que você controla morre por escolha sua, como custo ou efeito. Ela vai para o cemitério e o \"Ao Morrer\" dela acontece normalmente.",
+      "category": "action"
+    },
+    "banir": {
+      "name": "Banir",
+      "aliases": ["Bane", "Banem"],
+      "text": "A carta sai do jogo sem passar pelo cemitério e sem disparar \"Ao Morrer\" nem \"Aliado Morre\". Não morre, então não pode ser revivida.",
+      "category": "action"
+    },
+    "reviver": {
+      "name": "Reviver",
+      "aliases": ["Revive", "Revivem"],
+      "text": "Uma nova cópia de uma carta do cemitério entra em campo sem pagar custo e \"Ao Entrar\" acontece. A carta original continua no cemitério.",
+      "category": "action"
+    },
+    "atordoar": {
+      "name": "Atordoar",
+      "aliases": ["Atordoa", "Atordoam"],
+      "text": "A unidade ou o Líder recebe marcadores de Atordoamento e fica Atordoada: exausta, sem atacar e sem Rapidez, gastando um marcador a cada desvirar.",
+      "category": "action"
+    },
     "rompante": {
       "name": "Rompante",
       "text": "No turno em que entra, só pode atacar o Líder inimigo."
@@ -364,7 +400,9 @@
     },
     "congelar": {
       "name": "Congelar",
-      "text": "A unidade não ataca, não desvira e perde a Rapidez (suprimida) até o fim do próximo turno. Revida normalmente. Unidades de Gelo têm imunidade inata ao Congelamento, mas efeitos que ignoram imunidade podem congelá-las."
+      "aliases": ["Congela", "Congelam"],
+      "text": "A unidade não ataca, não desvira e perde a Rapidez (suprimida) até o fim do próximo turno. Revida normalmente. Unidades de Gelo têm imunidade inata ao Congelamento, mas efeitos que ignoram imunidade podem congelá-las.",
+      "category": "action"
     },
     "queimadura": {
       "name": "Queimadura",

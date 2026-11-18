@@ -44,7 +44,7 @@ static func traits_of(card: Dictionary) -> Dictionary:
 	for effect in effects:
 		var action := String(effect.get("action", ""))
 		var target := String(effect.get("target", ""))
-		if action in ["draw", "search_deck", "look_top", "look_bottom"]:
+		if action in ["draw", "search_deck", "look_top", "scry", "look_bottom"]:
 			has_card_selection = true
 		if _is_sustain_effect(effect):
 			has_sustain = true
@@ -321,7 +321,7 @@ static func _quality(card: Dictionary) -> float:
 		var action := String(effect.get("action", ""))
 		var value := 0.0
 		match action:
-			"draw", "search_deck", "look_top", "look_bottom":
+			"draw", "search_deck", "look_top", "scry", "look_bottom":
 				value = 0.2
 			"destroy", "banish", "return_to_hand", "take_control":
 				value = 0.24

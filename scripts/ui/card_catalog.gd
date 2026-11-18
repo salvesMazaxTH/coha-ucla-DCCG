@@ -24,7 +24,7 @@ const ACTION_CATEGORIES := {
 	"Dano": ["damage", "add_dot", "burn", "fatigue_burn", "fight", "auto_attack", "kill_leader", "veneno_lethal"],
 	"Cura": ["heal_leader", "leader_max_up", "heal_full", "heal_unit"],
 	"Compra de cartas": ["draw", "draw_discounted"],
-	"Busca ou recupera cartas": ["search_deck", "look_top", "look_top_to_reservoir", "look_bottom", "grave_retrieve", "grave_to_hand"],
+	"Busca ou recupera cartas": ["search_deck", "look_top", "scry", "look_top_to_reservoir", "look_bottom", "grave_retrieve", "grave_to_hand"],
 	"Invocação": ["summon", "summon_from", "summon_hand_pick", "revive", "revive_self", "revive_pick"],
 	"Remoção": ["destroy", "destroy_artifact", "banish", "condemn"],
 	"Congela": ["freeze", "freeze_slots"],

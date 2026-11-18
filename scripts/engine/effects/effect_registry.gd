@@ -31,6 +31,7 @@ static var ACTIONS: Dictionary = {
 	"search_deck": DeckEffect,
 	"look_top": DeckEffect,
 	"look_top_to_reservoir": DeckEffect,
+	"scry": DeckEffect,
 	"look_bottom": DeckEffect,
 	"grave_retrieve": DeckEffect,
 	"grave_to_hand": DeckEffect,

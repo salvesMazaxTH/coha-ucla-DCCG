@@ -12,7 +12,8 @@
   "art": "trevas/elias_oraculo.webp",
   "effects": [
     { "trigger": "on_enter", "action": "stun", "target": "enemy_unit" },
-    { "trigger": "on_enter", "action": "stun", "target": "enemy_unit", "pick2": true }
+    { "trigger": "on_enter", "action": "stun", "target": "enemy_unit", "pick2": true },
+    { "trigger": "on_enter", "action": "scry", "target": "none", "count": 2, "send_to": "bottom" }
   ],
   "activated": {
     "cost": 1,
@@ -22,6 +23,6 @@
       { "action": "counter", "target": "enemy_stack", "max_cost": 2 }
     ]
   },
-  "text": "Ao Entrar: você pode escolher até 2 unidades inimigas diferentes; cada uma recebe 1 marcador de Atordoamento.\nAo Ativar (1) {instantaneo} (exaure esta unidade): anula uma carta ou habilidade de custo (2) ou menos na pilha.",
+  "text": "Ao Entrar: você pode escolher até 2 unidades inimigas diferentes; cada uma recebe 1 marcador de Atordoamento. Vislumbra 2.\nAo Ativar (1) {instantaneo} (exaure esta unidade): anula uma carta ou habilidade de custo (2) ou menos na pilha.",
   "flavor": ""
 }

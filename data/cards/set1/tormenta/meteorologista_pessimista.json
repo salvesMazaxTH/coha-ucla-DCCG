@@ -18,8 +18,15 @@
       "target": "none",
       "type": "spell",
       "top": 5
+    },
+    {
+      "trigger": "on_enter",
+      "action": "scry",
+      "target": "none",
+      "count": 2,
+      "send_to": "bottom"
     }
   ],
-  "text": "Ao Entrar: você olha as 5 cartas do topo do seu deck e pega 1 feitiço entre elas; as outras vão para o fundo.",
+  "text": "Ao Entrar: você olha as 5 cartas do topo do seu deck e pega 1 feitiço entre elas; as outras vão para o fundo. Vislumbra 2.",
   "flavor": ""
 }

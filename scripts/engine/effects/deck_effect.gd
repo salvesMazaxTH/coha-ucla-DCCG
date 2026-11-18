@@ -43,6 +43,9 @@ extends Effect
 ##   If they do, they draw `draw_after` cards (default 1). Picking none does nothing.
 ## "look_top": the player looks at the top `count` cards and takes one; the rest go to the
 ##   bottom (or the deck is shuffled, with "shuffle": true).
+## "scry" (Vislumbrar / Garimpar): the player looks at the top `count` cards (default 2) in secret, chooses which ones
+##   leave the deck and puts the rest back on top in any order. `send_to` "bottom" (Vislumbrar, default) or "graveyard"
+##   (Garimpar) is where the chosen ones go. Any number may leave, including none or all.
 ## "look_top_to_reservoir" (Agiota das Nuvens): the player sees the top card of their deck, then chooses to put either
 ##   that card or the bottom card (unseen) into their Reservoir. The choice is mandatory; an empty deck does nothing.
 ## "look_bottom" (Dragar): `count` cards (default 2) drawn at random from the bottom `window` cards of the deck
@@ -54,7 +57,7 @@ var shuffle := false
 var window := 5 ## look_bottom: how many cards at the bottom of the deck the looked-at ones are drawn from
 
 func _read_parameters(data: Dictionary) -> void:
-	count = int(data.get("count", 2 if action == "look_bottom" else 4))
+	count = int(data.get("count", 2 if action in ["look_bottom", "scry"] else 4))
 	window = int(data.get("window", 5))
 	shuffle = bool(data.get("shuffle", false))
 
@@ -89,6 +92,8 @@ func open_choice(context: EffectContext) -> void:
 		context.game._begin_own_hand_bottom(context.controller, int(raw.get("draw_after", 1)), context.self_uid)
 	elif action == "look_top":
 		context.game._begin_look(context.controller, count, context.self_uid, shuffle)
+	elif action == "scry":
+		context.game._begin_scry(context.controller, count, String(raw.get("send_to", "bottom")), context.self_uid)
 	elif action == "look_top_to_reservoir":
 		context.game._begin_reservoir_look(context.controller, context.self_uid)
 	elif action == "look_bottom":

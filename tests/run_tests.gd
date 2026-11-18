@@ -68,6 +68,7 @@ func _init() -> void:
 	_test_first_player()
 	_test_concede()
 	_test_search()
+	_test_scry()
 	_test_freeze()
 	_test_overlay_keyword_immunities()
 	_test_stun_and_cap()
@@ -814,10 +815,17 @@ func _put(g: GameState, p: int, card_id: String, ready := true) -> Card:
 	g._summon(p, Card.new(uid, card_id, p), false, 0)
 	_run_queued_enters_now(g)
 	g.flush_events()
-	if g.phase == "search":
+	# a card may open a search and then a scry (Meteorologista), so answer windows until none is left
+	while g.phase == "search":
 		var options: Array = g.pending_search["cards"]
-		# a top-of-deck look with nothing eligible is a whiff: its only exit is uid 0 (shuffle the deck)
-		g.choose_search(p, int(options[0]["uid"]) if not options.is_empty() else 0)
+		if g.pending_search.get("scry", false):
+			var looked: Array = []
+			for option in options:
+				looked.append(int(option["uid"]))
+			g.resolve_scry(p, [], looked)
+		else:
+			# a top-of-deck look with nothing eligible is a whiff: its only exit is uid 0 (shuffle the deck)
+			g.choose_search(p, int(options[0]["uid"]) if not options.is_empty() else 0)
 		g.flush_events()
 	var c := g.find_unit(uid)
 	# a Provocação put here skips the "enter tapped?" question: tests tap units by hand
@@ -1284,6 +1292,73 @@ func _test_search() -> void:
 		),
 		"oráculo: oponente vê a carta pega",
 	)
+
+
+func _test_scry() -> void:
+	# Vislumbrar: one card to the bottom, the other two back on top in the chosen order
+	var g := _new_game()
+	var deck: Array = g.players[1]["deck"]
+	var deck_size: int = deck.size()
+	var first: Card = deck[deck.size() - 1]
+	var second: Card = deck[deck.size() - 2]
+	var third: Card = deck[deck.size() - 3]
+	g._begin_scry(1, 3, "bottom", 0)
+	check(g.phase == "search" and g.pending_search.get("scry", false), "vislumbrar abre a janela")
+	check(g.pending_search["cards"].size() == 3 and int(g.pending_search["cards"][0]["uid"]) == first.uid, "olha 3 cartas, a do topo primeiro")
+	check(
+		StateView.snapshot(g, 0)["pending_search"]["cards"].all(
+			func(c):
+				return c["card_id"] == "",
+		),
+		"oponente não vê as cartas do vislumbre",
+	)
+	check(g.choose_search(1, int(first.uid)).is_empty() and g.phase == "search", "choose_search é recusado durante o vislumbre")
+	check(g.resolve_scry(0, [], [first.uid, second.uid, third.uid]).is_empty(), "só quem olha responde")
+	check(g.resolve_scry(1, [first.uid], [second.uid]).is_empty() and g.phase == "search", "resposta incompleta é recusada")
+	check(g.resolve_scry(1, [first.uid], [second.uid, 999999]).is_empty() and g.phase == "search", "uid de fora é recusado")
+	var events: Array = g.resolve_scry(1, [first.uid], [third.uid, second.uid])
+	deck = g.players[1]["deck"]
+	check(g.phase == "main" and g.pending_search.is_empty(), "vislumbrar termina após responder")
+	check(deck.size() == deck_size and deck[0].uid == first.uid, "a descartada vai para o fundo do deck")
+	check(deck[deck.size() - 1].uid == third.uid and deck[deck.size() - 2].uid == second.uid, "as outras voltam ao topo na ordem escolhida")
+	check(_has_event(events, "scry_done") and not _has_event(events, "mill"), "vislumbrar não mói")
+
+	# Garimpar: the chosen cards go to the graveyard
+	g = _new_game()
+	deck = g.players[1]["deck"]
+	deck_size = deck.size()
+	var graveyard_size: int = g.players[1]["graveyard"].size()
+	var kept: Card = deck[deck.size() - 1]
+	var dug: Card = deck[deck.size() - 2]
+	g._begin_scry(1, 2, "graveyard", 0)
+	events = g.resolve_scry(1, [dug.uid], [kept.uid])
+	check(g.players[1]["deck"].size() == deck_size - 1, "garimpar tira a carta do deck")
+	check(g.players[1]["graveyard"].size() == graveyard_size + 1 and g.players[1]["graveyard"][-1].uid == dug.uid, "a garimpada vai para o cemitério")
+	check(g.players[1]["deck"][-1].uid == kept.uid, "a mantida continua no topo")
+	check(_has_event(events, "scry_done") and _has_event(events, "mill"), "garimpar emite mill")
+
+	# Everything away / nothing away are both legal
+	g = _new_game()
+	deck_size = g.players[1]["deck"].size()
+	g._begin_scry(1, 2, "bottom", 0)
+	var looked: Array = g.pending_search["cards"].map(
+		func(c):
+			return int(c["uid"]),
+	)
+	g.resolve_scry(1, looked, [])
+	check(g.players[1]["deck"].size() == deck_size and g.players[1]["deck"][0].uid == looked[1] and g.players[1]["deck"][1].uid == looked[0], "mandar tudo ao fundo é válido")
+
+	# Empty deck: no window
+	g = _new_game()
+	g.players[1]["deck"].clear()
+	g._begin_scry(1, 2, "bottom", 0)
+	check(g.phase != "search" and g.pending_search.is_empty(), "deck vazio: sem janela de vislumbre")
+
+	# Titânico Morcegalma mills 2 and then opens a graveyard scry
+	g = _new_game()
+	g._summon(1, Card.new(g._uid(), "titanico_morcegalma", 1), false, 0)
+	_run_queued_enters_now(g)
+	check(g.phase == "search" and g.pending_search.get("scry", false) and g.pending_search.get("send_to", "") == "graveyard", "Titânico garimpa depois de moer")
 
 
 func _test_constant() -> void:
@@ -2802,6 +2877,16 @@ func _test_tormenta_wave_one() -> void:
 		and g.players[0]["hand"].size() == hand_before + 1,
 		"Meteorologista: o feitiço escolhido vai para a mão",
 	)
+	# the Vislumbra 2 that follows the search waits for it and opens right after
+	check(
+		g.phase == "search" and g.pending_search.get("scry", false),
+		"Meteorologista: depois da busca abre o Vislumbra 2",
+	)
+	var looked_uids: Array = []
+	for option in g.pending_search["cards"]:
+		looked_uids.append(int(option["uid"]))
+	g.resolve_scry(0, [], looked_uids)
+	check(g.phase != "search", "Meteorologista: o Vislumbra 2 fecha ao responder")
 
 	# Trovão Arrependido: Ímpeto, and on death 5 damage to the enemy Leader plus untaps 2 Reservoir cards
 	g = _new_game()
@@ -6098,6 +6183,11 @@ func _test_elias_oraculo() -> void:
 		check(g.phase == "enter_target", "Elias: a mesma unidade não pode receber a segunda escolha")
 		g.choose_enter_target(0, second_victim.uid)
 		_resolve_stack(g)
+	if g.phase == "search" and g.pending_search.get("scry", false):
+		var elias_looked: Array = []
+		for option in g.pending_search["cards"]:
+			elias_looked.append(int(option["uid"]))
+		g.resolve_scry(0, [], elias_looked)
 	check(victim.is_stunned() and second_victim.is_stunned(), "Elias: 2 unidades inimigas diferentes ficam Atordoadas")
 
 	# Ao Ativar: answers a cheap card, cannot target an expensive one

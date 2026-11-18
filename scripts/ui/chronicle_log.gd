@@ -299,6 +299,10 @@ func log_event(e: Dictionary) -> void:
 				add_line("%s olhou as %d cartas do topo do deck" % [_pname(e["player"]), e["cards"].size()])
 		"look_bottom":
 			add_line("%s colocou as outras no fundo do deck" % _pname(e["player"]))
+		"scry_done":
+			var scry_verb := "garimpou" if e["send_to"] == "graveyard" else "vislumbrou"
+			var scry_place := "ao cemitério" if e["send_to"] == "graveyard" else "ao fundo do deck"
+			add_line("%s %s as %d cartas do topo: %d %s" % [_pname(e["player"]), scry_verb, int(e["looked"]), int(e["away"]), scry_place])
 		"search_shuffle":
 			add_line("%s embaralhou o deck" % _pname(e["player"]))
 		"mill":

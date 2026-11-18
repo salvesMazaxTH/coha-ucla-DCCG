@@ -19,8 +19,15 @@
       "action": "mill",
       "target": "none",
       "amount": 2
+    },
+    {
+      "trigger": "on_enter",
+      "action": "scry",
+      "target": "none",
+      "count": 2,
+      "send_to": "graveyard"
     }
   ],
-  "text": "Ao Entrar: Mói 2 cartas do seu deck.",
+  "text": "Ao Entrar: Mói 2 cartas do seu deck. Garimpa 2.",
   "flavor": "Suas asas cobrem a lua e o que jaz embaixo dela."
 }

@@ -614,6 +614,7 @@ func _play_events(events: Array) -> void:
 			reaction_attack["target"] = int(e["uid"]) # the blow now goes to the blocker
 		elif e["type"] in ["combat_damage", "combat_end"]:
 			reaction_attack.clear()
+	HitchLog.note_events(events)
 	var old := fx_library.snapshot_views()
 	leader_ko_time = -1.0
 	_over_from = -1
@@ -2678,6 +2679,9 @@ func _hint() -> String:
 			return "Escolha uma carta da mão do oponente para ir ao fundo do deck dele, ou não escolha nenhuma."
 		if g.pending_search.get("sacrifice_pick", false):
 			return "Escolha uma unidade sua para sacrificar."
+		if g.pending_search.get("scry", false):
+			var scry_place := "o cemitério" if g.pending_search.get("send_to", "bottom") == "graveyard" else "o fundo do deck"
+			return "Toque nas cartas que vão para %s; as outras voltam ao topo, na ordem escolhida." % scry_place
 		if g.pending_search.get("reservoir_pick", false):
 			return "Escolha qual carta vai para o Reservatório: a do topo ou a do fundo do deck."
 		if g.pending_search.get("grave_optional", false):
@@ -3009,6 +3013,18 @@ func toggle_fullscreen() -> void:
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if is_full else DisplayServer.WINDOW_MODE_FULLSCREEN)
 
 
+## Android: the hitch meter turned on or off in the SERVIDOR screen.
+func set_hitch_meter(turned_on: bool) -> void:
+	_perf_diagnostics = turned_on
+	HitchLog.enabled = turned_on
+	if is_instance_valid(_fps_counter):
+		_fps_counter.queue_free()
+		_fps_counter = null
+	_fps_counter_visible = false
+	if turned_on:
+		_toggle_fps_counter()
+
+
 func _toggle_fps_counter() -> void:
 	_fps_counter_visible = not _fps_counter_visible
 	if not is_instance_valid(_fps_counter):
@@ -3030,6 +3046,8 @@ func _toggle_fps_counter() -> void:
 
 
 func _performance_diagnostics_requested() -> bool:
+	if OS.has_feature("android"):
+		return bool(GraphicsQuality.app_option("hitch_meter", false))
 	if not OS.has_feature("web"):
 		return false
 	return bool(JavaScriptBridge.eval("new URLSearchParams(location.search).get('perf') === '1'"))
@@ -3526,6 +3544,15 @@ func on_search_choice(card_uid: int) -> void:
 	if g.phase != "search":
 		return
 	handle_action_result(g.choose_search(viewer, card_uid))
+
+
+## Vislumbrar / Garimpar: `away` leave the deck, `top` go back on top (first = new top card).
+func on_scry_choice(away: Array, top: Array) -> void:
+	if not viewer_can_act() or _wait_for_table(on_scry_choice.bind(away, top)):
+		return
+	if g.phase != "search":
+		return
+	handle_action_result(g.resolve_scry(viewer, away, top))
 
 
 func _is_target(uid: int) -> bool:
