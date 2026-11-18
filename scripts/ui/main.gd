@@ -25,6 +25,7 @@ const TAPPED_MIN_SCALE := 0.85
 ## A tapped unit steps forward: its front edge sits this many pixels closer to the middle of the table
 ## than the front edge of the standing units, so "the cards in the front line" are the ones that can be attacked.
 const TAPPED_FRONT_ADVANCE := 26.0
+const TAPPED_FRONT_ADVANCE_PHONE := 16.0 # the phone lanes are taller, so tapped cards stop sooner before the divider
 const COL_W := 232.0 ## right HUD column width
 const STAGE_H := 1034.0
 const BOT := 134.0 ## extra stage height under the boards: room for the Leader plate between the board and the hand
@@ -203,6 +204,19 @@ func _is_phone() -> bool:
 		OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios")
 		or (OS.has_feature("web") and DisplayServer.is_touchscreen_available())
 	)
+
+
+## Board unit cards are bigger on phones (the lanes have spare width and the stat numbers get too small).
+## The Leaders and the divider stay put, so the phone lanes start a little higher to fit the taller card.
+func board_card_scale() -> float:
+	return 1.3 if _is_phone() else 1.15
+
+
+func board_lane_y(player: int) -> float:
+	var on_phone := _is_phone()
+	if player == viewer:
+		return 438.0 if on_phone else 460.0
+	return 152.0 if on_phone else 172.0
 
 
 func _ready() -> void:
@@ -804,8 +818,8 @@ func _render_now() -> void:
 	_render_leader(me, Vector2(lane_cx - LeaderView.CX, LEADER_Y_ME), Vector2(20, SANCTUARY_Y_ME + 272.0))
 	_render_reservoir(op)
 	_render_reservoir(me)
-	_render_board(op, 172)
-	_render_board(me, 460)
+	_render_board(op, board_lane_y(op))
+	_render_board(me, board_lane_y(me))
 	_sync_enter_aim()
 	_sync_effect_choice_prompt()
 	_render_side()
@@ -1311,7 +1325,7 @@ func _render_enemy_hand(p: int) -> void:
 ## Horizontal cell of the unit at `index` in a lane holding `count` units: x = left edge, y = width.
 ## The lane is centered, so adding a unit shifts every cell (used to open a gap while dragging).
 func board_cell(count: int, index: int) -> Vector2:
-	var w: float = min(146.0, (TableView.ENEMY_LANE.size.x - 20.0) / max(1, count))
+	var w: float = min(146.0 * board_card_scale() / 1.15, (TableView.ENEMY_LANE.size.x - 20.0) / max(1, count))
 	var x0 := TableView.ENEMY_LANE.get_center().x - count * w / 2.0
 	return Vector2(x0 + index * w, w)
 
@@ -1342,7 +1356,7 @@ func _render_board(p: int, y: float) -> void:
 		var constant_conditions := g.constant_conditions_of(unit)
 		if not constant_conditions.is_empty():
 			unit_view_data["constant_conditions"] = constant_conditions
-		var card_size := (CardView.BASE * 1.15).round()
+		var card_size := (CardView.BASE * board_card_scale()).round()
 		var cell := board_cell(slots_taken, i)
 		var card_position := Vector2(roundf(cell.x + (cell.y - card_size.x) / 2.0), roundf(y)) # whole pixels keep the card text crisp
 		var card_rotation := 0.0
@@ -1359,11 +1373,12 @@ func _render_board(p: int, y: float) -> void:
 			# edge BACK from the standing units. Instead we place that edge ahead of theirs, toward the divider.
 			var lying_half_depth := card_size.x * card_scale.x / 2.0
 			var standing_front_edge_y := y if p == viewer else y + card_size.y # the edge facing the divider
+			var tapped_advance := TAPPED_FRONT_ADVANCE_PHONE if _is_phone() else TAPPED_FRONT_ADVANCE
 			var tapped_center_y: float
 			if p == viewer:
-				tapped_center_y = standing_front_edge_y - TAPPED_FRONT_ADVANCE + lying_half_depth
+				tapped_center_y = standing_front_edge_y - tapped_advance + lying_half_depth
 			else:
-				tapped_center_y = standing_front_edge_y + TAPPED_FRONT_ADVANCE - lying_half_depth
+				tapped_center_y = standing_front_edge_y + tapped_advance - lying_half_depth
 			card_position.y = roundf(tapped_center_y - card_size.y / 2.0)
 		var v: CardView = _unit_views_for_reuse.get(unit.uid)
 		var reuse_view := (
@@ -1374,12 +1389,12 @@ func _render_board(p: int, y: float) -> void:
 				and v.scale.is_equal_approx(card_scale)
 		if reuse_view:
 			_unit_views_for_reuse.erase(unit.uid)
-			v.update_card(unit.card_id, unit_view_data, 1.15)
+			v.update_card(unit.card_id, unit_view_data, board_card_scale())
 		else:
 			if is_instance_valid(v):
 				v.queue_free()
 			_unit_views_for_reuse.erase(unit.uid)
-			v = CardView.new().setup(unit.card_id, unit_view_data, 1.15)
+			v = CardView.new().setup(unit.card_id, unit_view_data, board_card_scale())
 			v.left_clicked.connect(_on_unit_click)
 			v.right_clicked.connect(table_overlays.show_overlay)
 			v.drag_started.connect(_unit_drag_start)
@@ -1418,7 +1433,7 @@ func _render_equipment_preview(unit: Card, owner: int, unit_view: CardView, boar
 		var equipment_data := { "uid": worn.uid }
 		if worn.durability_left() >= 0:
 			equipment_data["durability_left"] = worn.durability_left()
-		var preview := CardView.new().setup(worn.card_id, equipment_data, 1.15)
+		var preview := CardView.new().setup(worn.card_id, equipment_data, board_card_scale())
 		var peek := 6 + 6 * preview_index
 		preview.position = Vector2(
 			unit_view.position.x + 4 + 4 * preview_index,
@@ -1482,7 +1497,7 @@ func _render_relics(p: int, y: float, slots_taken: int) -> void:
 			relic_view_data["stored_momentum"] = relic.stored_momentum # Bateria de Segunda Mão shows how much it holds
 		# Baluarte Santo is born protected: it needs the golden ring too (and loses ring and tag once it breaks)
 		relic_view_data["supreme_shield"] = relic.supreme_shield
-		var v := CardView.new().setup(relic.card_id, relic_view_data, 1.15)
+		var v := CardView.new().setup(relic.card_id, relic_view_data, board_card_scale())
 		v.text_suffix = table_overlays.scale_suffix(p, CardDB.card(relic.card_id), relic.card_id)
 		v.pivot_offset = v.size / 2.0
 		var cell := board_cell(slots_taken, first_relic_slot + j)
@@ -1517,7 +1532,7 @@ func _render_frozen_slots(p: int, y: float, slots_taken: int) -> void:
 	for j in frozen_count:
 		var tile := FrozenSlotView.new()
 		tile.owner_player = p
-		tile.size = CardView.BASE * 1.15
+		tile.size = CardView.BASE * board_card_scale()
 		var cell := board_cell(slots_taken, first_frozen_slot + j)
 		tile.position = Vector2(cell.x + (cell.y - tile.size.x) / 2.0, y)
 		layer.add_child(tile)
@@ -2989,9 +3004,15 @@ func toggle_fullscreen() -> void:
 func _toggle_fps_counter() -> void:
 	_fps_counter_visible = not _fps_counter_visible
 	if not is_instance_valid(_fps_counter):
-		_fps_counter = make_label("FPS 0", 14 if _perf_diagnostics else 20, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, "bold", 4)
+		_fps_counter = make_label("FPS 0", 26 if _perf_diagnostics else 20, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, "bold", 4)
 		_fps_counter.position = Vector2(14, 12)
-		_fps_counter.size = Vector2(760, 250) if _perf_diagnostics else Vector2(150, 32)
+		_fps_counter.size = Vector2(1500, 420) if _perf_diagnostics else Vector2(150, 32)
+		if _perf_diagnostics:
+			var dark_backing := StyleBoxFlat.new()
+			dark_backing.bg_color = Color(0, 0, 0, 0.78)
+			dark_backing.set_content_margin_all(10)
+			_fps_counter.add_theme_stylebox_override("normal", dark_backing)
+			_fps_counter.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_fps_counter.z_index = 1000
 		add_child(_fps_counter)
 	_fps_sample_seconds = 0.0

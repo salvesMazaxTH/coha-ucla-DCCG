@@ -224,7 +224,7 @@ func animate(events: Array, old: Dictionary) -> float:
 		var lane_index: int = host.laid_out_slots(owner_player) + int(short_lived_per_player.get(owner_player, 0))
 		short_lived_per_player[owner_player] = int(short_lived_per_player.get(owner_player, 0)) + 1
 		var lane_cell: Vector2 = host.board_cell(lane_index + 1, lane_index)
-		var lane_y := 460.0 if owner_player == viewer else 172.0
+		var lane_y: float = host.board_lane_y(owner_player)
 		var short_ghost := fx_library.make_ghost(e["card_id"], { }, { "c": Vector2.ZERO, "rot": 0.0, "w": 1.0 })
 		fx_library.apply_pose(
 			short_ghost,

@@ -1204,7 +1204,7 @@ func deck_tile(id: String, size: Vector2, selected: bool) -> Control:
 		leader_name = String(ld["name"])
 		var art := TextureRect.new()
 		art.texture = host.crop_portrait_to_top(
-			CardView.texture(String(ld.get("art", ""))),
+			CardView.thumbnail(String(ld.get("art", ""))),
 			Vector2(size.x - 8, art_h),
 			float(ld.get("art_focus", 0.06)),
 		)

@@ -38,6 +38,8 @@ static var photo_bakes_per_frame := 2
 ## exhaust a phone browser's memory and make it kill the whole page. Past the limit, the art that went
 ## unused the longest is let go and simply loads again if it is ever needed (see CardView.texture).
 static var art_cache_limit := 0
+## The same for the small copies of the arts the table cards use (about 1 MB each).
+static var thumbnail_cache_limit := 0
 
 static func use_phone_settings() -> void:
 	show_motes = false
@@ -51,5 +53,6 @@ static func use_phone_settings() -> void:
 	flight_redraw_interval = 1.0 / 30.0
 	leader_redraw_interval = 0.05
 	max_fps = 60
-	art_cache_limit = 48
+	art_cache_limit = 24
+	thumbnail_cache_limit = 160
 	photo_bakes_per_frame = 1

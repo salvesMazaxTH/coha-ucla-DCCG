@@ -277,6 +277,7 @@ var input_position := Vector2.ZERO
 var _screen_touch_index := -1
 var draggable := false ## set by Main: hand cards that can be played are dragged onto the board
 var dragging := false
+static var _thumbnail_cache := {} ## art file -> small copy of the art
 static var _tex_cache := {}
 static var _dissolve: Shader
 static var _banish: Shader
@@ -292,8 +293,8 @@ var _fragment_aura: ColorRect = null ## animated violet cracks and shards of a u
 static var _card_glow_shader: Shader
 var _card_glow: ColorRect = null ## animated rings, legendary shine, stun stars and sleepy "z"s (see _place_card_glow)
 
-## Keywords that change who can challenge or target whom get an icon medallion on the art (MTG Arena style),
-## in this order down the left edge, then the right; glyph tint per keyword.
+## Keywords that change who can challenge or target whom get an icon medallion (MTG Arena style),
+## in this order down a column on the left edge of the card; glyph tint per keyword.
 const BADGES := {
 	"provocacao": Color("#ffc66b"),
 	"voo": Color("#bfe6ff"),
@@ -882,45 +883,59 @@ static func _colorize_triggers(body: String, line_px: int) -> String:
 			body = body.replace(m.get_string(0), out)
 	return body
 
+## A small copy of the art (made by tools/make_art_thumbnails.py), or the full art if there is none.
+## Cards on the table and menu tiles use it: it opens several times faster than the full art on a phone.
+static func thumbnail(file: String) -> Texture2D:
+	var path := "res://assets/portrait_thumbs/" + file
+	if file == "" or not ResourceLoader.exists(path):
+		return texture(file)
+	return _cached_art(_thumbnail_cache, path, file, GraphicsQuality.thumbnail_cache_limit, "miniatura")
+
 static func texture(file: String) -> Texture2D:
 	if file == "":
 		return null
-	var limit := GraphicsQuality.art_cache_limit
-	if _tex_cache.has(file):
-		var cached_art: Texture2D = _tex_cache[file]
+	return _cached_art(_tex_cache, "res://assets/portraits/" + file, file, GraphicsQuality.art_cache_limit, "arte")
+
+## Width of the small copies; a card art shown wider than this on screen uses the full art instead.
+const THUMBNAIL_WIDTH := 384.0
+
+## The art to draw in a window `window_width` wide (in this card's own units), zoomed `crop_zoom` times.
+func _art_for_window(file: String, window_width: float, crop_zoom: float) -> Texture2D:
+	var screen_scale := (get_viewport().get_final_transform() * get_global_transform_with_canvas()).x.length()
+	if window_width * crop_zoom * screen_scale > THUMBNAIL_WIDTH * 1.1:
+		return texture(file)
+	return thumbnail(file)
+
+## Loads an art once and keeps it in `cache`. With a `limit`, the art unused the longest is let go past it.
+static func _cached_art(cache: Dictionary, path: String, file: String, limit: int, label: String) -> Texture2D:
+	if cache.has(file):
+		var cached_art: Texture2D = cache[file]
 		if limit > 0:
 			# A dictionary remembers the order things were added in, so taking the art out and putting it
 			# back moves it to the end of the line: the front of the line is always the art unused the longest.
-			_tex_cache.erase(file)
-			_tex_cache[file] = cached_art
+			cache.erase(file)
+			cache[file] = cached_art
 		return cached_art
-	var path := "res://assets/portraits/" + file
 	var load_start_ms := Time.get_ticks_msec()
 	var loaded_art: Texture2D = load(path) if ResourceLoader.exists(path) else null
-	HitchLog.note("arte %s %d ms" % [file.get_file(), Time.get_ticks_msec() - load_start_ms])
-	_tex_cache[file] = loaded_art
+	HitchLog.note("%s %s %d ms" % [label, file.get_file(), Time.get_ticks_msec() - load_start_ms])
+	cache[file] = loaded_art
 	if limit > 0:
-		_forget_oldest_arts(limit)
+		while cache.size() > limit:
+			cache.erase(cache.keys()[0])
 	return loaded_art
-
-## Lets go of the arts unused the longest until at most `limit` remain. A card that is still showing its
-## art keeps the picture alive on its own (Godot frees a texture only when nothing uses it), so this
-## only frees the memory of arts nobody is looking at.
-static func _forget_oldest_arts(limit: int) -> void:
-	while _tex_cache.size() > limit:
-		_tex_cache.erase(_tex_cache.keys()[0])
 
 static func texture_cache_stats() -> Dictionary:
 	var loaded_count := 0
 	var estimated_bytes := 0
-	for value in _tex_cache.values():
+	for value in _tex_cache.values() + _thumbnail_cache.values():
 		if value is Texture2D:
 			var art: Texture2D = value
 			var art_size := art.get_size()
 			loaded_count += 1
 			estimated_bytes += int(float(art_size.x * art_size.y) * 4.0 * 4.0 / 3.0)
 	return {
-		"entries": _tex_cache.size(),
+		"entries": _tex_cache.size() + _thumbnail_cache.size(),
 		"loaded": loaded_count,
 		"estimated_bytes": estimated_bytes,
 		"preload_queue": _art_preload_queue.size(),
@@ -947,26 +962,18 @@ static func raw_art_texture(file: String) -> Texture2D:
 static var _art_preload_queue: Array[String] = []
 const ART_PRELOAD_BUDGET_MS := 6 ## time per frame spent loading queued arts (at least one art loads per frame)
 
-## Queues art files (as written in the card data, e.g. "furia/ivan.webp") to be loaded ahead of time.
+## Queues art files (as written in the card data, e.g. "furia/ivan.webp") so their small copies load ahead of time.
 static func queue_art_preload(files: Array) -> void:
 	for file in files:
 		var art_file := String(file)
-		if art_file != "" and not _tex_cache.has(art_file) and not _art_preload_queue.has(art_file):
+		if art_file != "" and not _thumbnail_cache.has(art_file) and not _art_preload_queue.has(art_file):
 			_art_preload_queue.append(art_file)
-
-## With an art cache limit (phones), the preload stops this many arts short of it, leaving room for the
-## arts that show up during the match. The rest of the queue is dropped and loads on demand instead.
-const ART_PRELOAD_HEADROOM := 12
 
 ## Called every frame: loads queued arts until the frame budget is spent.
 static func load_queued_arts() -> void:
 	var start_ms := Time.get_ticks_msec()
 	while not _art_preload_queue.is_empty():
-		var limit := GraphicsQuality.art_cache_limit
-		if limit > 0 and _tex_cache.size() >= limit - ART_PRELOAD_HEADROOM:
-			_art_preload_queue.clear()
-			return
-		texture(_art_preload_queue.pop_front())
+		thumbnail(_art_preload_queue.pop_front())
 		if Time.get_ticks_msec() - start_ms >= ART_PRELOAD_BUDGET_MS:
 			return
 
@@ -1327,7 +1334,7 @@ func _face_look(s: float, rad: float) -> Dictionary:
 	# Champion units: the art fills the whole card and only a thin border in the essence color(s) is left.
 	# (A champion whose art file is missing keeps the classic layout, with its placeholder.)
 	var full_art: bool = not face_down and cd.get("rarity", "") == "champion" and cd["type"] == "unit" and not is_token \
-		and texture(cd.get("art", "")) != null
+		and thumbnail(cd.get("art", "")) != null
 	if full_art:
 		trim = _average_style_color(styles, "trim") ## no gold finish: the border shows the essence itself
 	var art := Rect2()
@@ -1407,7 +1414,8 @@ func _draw_frame_and_art(look: Dictionary) -> void:
 		draw_rect(art.grow(1.5 * s), Color("#07060a"))
 	elif window_kind != "full":
 		draw_colored_polygon(Geometry2D.offset_polygon(_art_window, 1.5 * s)[0], Color("#07060a"))
-	var tex := texture(cd.get("art", ""))
+	var art_crop: Dictionary = cd.get("art_crop", {})
+	var tex := _art_for_window(cd.get("art", ""), art.size.x, maxf(float(art_crop.get("zoom", 1.0)), 1.0))
 	if tex:
 		var ts := tex.get_size()
 		var source := art_source_rect(ts, art.size, cd.get("art_crop", {}))
@@ -2220,13 +2228,14 @@ func _draw_dot_badges(art: Rect2, s: float, pulse: float) -> void:
 	draw_status_column(self, amounts, _face_size.x, column_top, column_bottom, radius_by_count, s, _t, pulse)
 
 const SIDE_BADGE_SHRINK := 0.9 ## keyword medallion size when a card shows 3 or more
-const SIDE_BADGE_SPACING := 23.0 ## distance between medallions of a column, at full size
-const SIDE_BADGE_FIRST_Y := 15.0 ## first medallion's center below the art window top
-const SIDE_BADGE_FIRST_Y_RIGHT := 30.0 ## same, on the right edge (clears the Condenada skull)
+const SIDE_BADGE_SPACING := 23.0 ## distance between medallions of the column, at full size
+const SIDE_BADGE_FIRST_Y := 22.0 ## first medallion's center below the art window top, like the status column on the right
 const SIDE_BADGE_FIRST_Y_FULL_ART := 40.0 ## same, on a full-art card (clears the domain seal)
+const SIDE_BADGE_OVERHANG := 0.4 ## how much of the medallion's radius sits inside the frame; the rest pokes out of the left edge
 
-## Round medallions down the left edge of the art, then the opposite edge when the left fills.
-## With 3 or more they shrink a little and the column starts as high as the art allows.
+## Round medallions in a column hanging off the left edge of the card, outside the art: the mirror
+## of the status column on the right. With 3 or more they shrink a little, and the column
+## tightens to stay above the name plate.
 func _kw_badges(art: Rect2, cd: Dictionary, s: float, full_art: bool) -> void:
 	var kws := _keywords(cd)
 	var shown_keywords: Array = BADGES.keys().filter(func(kw: String) -> bool: return kws.has(kw))
@@ -2238,29 +2247,29 @@ func _kw_badges(art: Rect2, cd: Dictionary, s: float, full_art: bool) -> void:
 	var badge_index := 0
 	var c := Vector2.ZERO
 	for kw in shown_keywords:
-		c = _side_badge_position(art, badge_index, s, shrink, full_art)
+		c = _side_badge_position(art, badge_index, total, s, shrink, full_art)
 		_kw_badge(kw, c, radius, s)
 		badge_index += 1
 	if armor_value > 0:
-		c = _side_badge_position(art, badge_index, s, shrink, full_art)
+		c = _side_badge_position(art, badge_index, total, s, shrink, full_art)
 		_armor_badge(c, radius, s, armor_value)
 		badge_index += 1
 	# an Ao Ativar that exhausts the unit: lit while it can still be used, dark once spent.
 	# Shown on both turns, since the dim veil only means "can't attack" on the owner's turn.
 	if shows_use_badge:
-		c = _side_badge_position(art, badge_index, s, shrink, full_art)
+		c = _side_badge_position(art, badge_index, total, s, shrink, full_art)
 		_use_badge(c, radius, s, not inst.get("exhausted", false))
 		badge_index += 1
 
-## Three medallions per edge. A full-art card keeps its domain seal in the top-left corner, so its column starts lower;
-## on the other cards the art window top is free (the cost orb sits on the name plate), except the right edge's
-## Condenada skull.
-func _side_badge_position(art: Rect2, index: int, s: float, shrink: float, full_art: bool) -> Vector2:
-	var on_right := index >= 3
-	var row := index - 3 if on_right else index
-	var first_y := SIDE_BADGE_FIRST_Y_FULL_ART if full_art else (SIDE_BADGE_FIRST_Y_RIGHT if on_right else SIDE_BADGE_FIRST_Y)
-	var x := art.end.x - 11 * s if on_right else art.position.x + 11 * s
-	return Vector2(x, art.position.y + (first_y + SIDE_BADGE_SPACING * shrink * row) * s)
+## A full-art card keeps its domain seal in the top-left corner, so its column starts lower. The spacing
+## closes up when the column would run past the bottom of the art.
+func _side_badge_position(art: Rect2, index: int, total: int, s: float, shrink: float, full_art: bool) -> Vector2:
+	var first_y := (SIDE_BADGE_FIRST_Y_FULL_ART if full_art else SIDE_BADGE_FIRST_Y) * s
+	var spacing := SIDE_BADGE_SPACING * shrink * s
+	if total > 1:
+		spacing = minf(spacing, (art.size.y - first_y - 10 * s * shrink) / (total - 1))
+	var radius := 10 * s * shrink
+	return Vector2(radius * SIDE_BADGE_OVERHANG, art.position.y + first_y + spacing * index)
 
 ## Armadura medallion: a steel shield with the amount written on it.
 func _armor_badge(c: Vector2, r: float, s: float, amount: int) -> void:

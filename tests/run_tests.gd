@@ -21276,15 +21276,16 @@ func _test_art_cache_limit() -> void:
 	)
 	check(CardView.texture(art_files[1]) != null, "cache de artes: uma arte descartada carrega de novo quando pedida")
 
-	# A pré-carga para sozinha antes de encher o limite, deixando espaço para o resto da partida.
+	# A pré-carga carrega as miniaturas, não as artes cheias.
 	CardView._tex_cache.clear()
-	GraphicsQuality.art_cache_limit = CardView.ART_PRELOAD_HEADROOM + 2
-	CardView.queue_art_preload(art_files)
+	CardView._thumbnail_cache.clear()
+	CardView.queue_art_preload([art_files[0]])
 	CardView.load_queued_arts()
-	check(
-		CardView._tex_cache.size() <= GraphicsQuality.art_cache_limit - CardView.ART_PRELOAD_HEADROOM + 1,
-		"cache de artes: a pré-carga respeita a folga do limite",
-	)
+	check(CardView._thumbnail_cache.has(art_files[0]) and CardView._tex_cache.is_empty(),
+		"cache de artes: a pré-carga carrega só a miniatura")
+	var small_copy := CardView.thumbnail(art_files[0])
+	check(small_copy != null and small_copy.get_width() <= CardView.THUMBNAIL_WIDTH,
+		"cache de artes: a miniatura é a cópia pequena")
 
 	GraphicsQuality.art_cache_limit = original_limit
 	CardView._art_preload_queue.clear()

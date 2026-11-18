@@ -219,7 +219,9 @@ func _blend_pose(from: Dictionary, to: Dictionary, progress: float) -> Dictionar
 	var eased := ease(clampf(progress, 0.0, 1.0), -2.0) if progress < 1.0 else 1.0
 	return {"c": from["c"].lerp(to["c"], eased), "rot": lerp_angle(from["rot"], to["rot"], eased), "w": lerpf(from["w"], to["w"], eased)}
 
-func make_ghost(card_id: String, inst: Dictionary, pose: Dictionary, size_scale := 1.15) -> CardView:
+func make_ghost(card_id: String, inst: Dictionary, pose: Dictionary, size_scale := -1.0) -> CardView:
+	if size_scale < 0.0:
+		size_scale = host.board_card_scale()
 	var v := CardView.new().setup(card_id, inst, size_scale)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.pivot_offset = v.size / 2.0

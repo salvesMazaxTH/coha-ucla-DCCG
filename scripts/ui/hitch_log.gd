@@ -3,7 +3,7 @@ extends RefCounted
 ## Writes down the heavy work done each frame (an art loaded, a card photo painted, an effect started...),
 ## so when a frame takes too long the performance panel (?perf=1 on the web) can say what happened in it.
 
-const SLOW_FRAME_MS := 50.0
+const SLOW_FRAME_MS := 65.0
 const HITCHES_KEPT := 5
 const MAX_LINE_LENGTH := 110
 

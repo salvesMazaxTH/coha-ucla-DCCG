@@ -22,6 +22,8 @@ const FRAMES_UNUSED_BEFORE_EVICTION := 300
 const EVICTION_CHECK_FRAMES := 60
 const MAX_PHOTOS := 96
 const MAX_PHOTO_PIXELS := 14000000
+## Painting a photo freezes a phone for a whole frame, so it waits until nothing is moving, at most this long.
+const MAX_FRAMES_WAITING_FOR_STILL_TABLE := 120
 
 ## Anything drawn into a see-through viewport ends up with its color already multiplied by its alpha, which
 ## would darken soft edges (rounded corners, shadows) when the photo is drawn again. This undoes the multiplication.
@@ -120,6 +122,7 @@ static func _make_sure_studio_exists() -> void:
 func _process(_delta: float) -> void:
 	var frame := Engine.get_frames_drawn()
 	var bakes_this_frame := 0
+	var table_is_moving := not _requests.is_empty() and _something_is_animating()
 	for card_instance_id in _requests.keys():
 		var card := instance_from_id(card_instance_id) as CardView
 		if card == null or not card.is_visible_in_tree():
@@ -133,6 +136,8 @@ func _process(_delta: float) -> void:
 				card.queue_redraw()
 			continue
 		var waited: int = frame - int(_requests[card_instance_id]["since_frame"])
+		if table_is_moving and waited < MAX_FRAMES_WAITING_FOR_STILL_TABLE:
+			continue
 		if waited >= FRAMES_UNCHANGED_BEFORE_BAKE and bakes_this_frame < GraphicsQuality.photo_bakes_per_frame:
 			_bake(signature)
 			bakes_this_frame += 1
@@ -144,6 +149,13 @@ func _process(_delta: float) -> void:
 			_unfinished.erase(photo)
 	if frame % EVICTION_CHECK_FRAMES == 0:
 		_evict_old_photos(frame)
+
+## Whether a card is flying, a hit is shaking, etc. (endless loops, like a pulsing glow, do not count).
+func _something_is_animating() -> bool:
+	for tween in get_tree().get_processed_tweens():
+		if tween.is_running() and tween.get_loops_left() != -1:
+			return true
+	return false
 
 func _bake(signature: Dictionary) -> void:
 	var pixel_scale: float = signature["pixel_scale"]
