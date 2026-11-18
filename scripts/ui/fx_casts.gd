@@ -10,14 +10,14 @@ extends RefCounted
 ## Which area animation plays comes from the card: its own "cast_fx" field if it has one, otherwise
 ## its element (fogo, agua...). NEVER its domain: a Fluxo card with no element (Coagulhão) is not water.
 ## A card with no area animation that fits it (no cast_fx, no element, or an element with no area animation
-## yet like metal, vento or sombra) is NOT an area cast: its hits fly as the default bolts, one per target,
+## yet like metal or vento) is NOT an area cast: its hits fly as the default bolts, one per target,
 ## even when it hits the whole table (see is_area).
 ## The exception: a card that expressly names its own "hit_fx" (the rubies of Cuspa-Rubi, the slashes of
 ## Rália...) is NOT an area cast, so it keeps firing those shots, one per target (see is_area).
 ## Most of it is built from the same cheap pieces as the shots (soft glow dots, lines, one tinted
 ## rectangle, tweens). Each element animation is ONE rectangle with a shader (shaders/fire_wall,
-## water_surge, ice_frost, holy_light, lightning_storm, toxic_cloud, blood_tide, stone_rockfall, vine_overgrowth for the areas; unit_burn,
-## unit_drown, unit_crush, unit_overgrow, unit_corrode, unit_bleed for the single destroys), because glow dots only ever read
+## water_surge, ice_frost, holy_light, lightning_storm, toxic_cloud, blood_tide, shadow_veil, stone_rockfall, vine_overgrowth for the areas; unit_burn,
+## unit_drown, unit_crush, unit_overgrow, unit_corrode, unit_bleed, unit_shadow for the single destroys), because glow dots only ever read
 ## as energy, never as flames, liquid, ice or rock. On phones (effect_detail below 0.7) the extra glows are skipped.
 
 ## The Main node that owns the table.
@@ -40,24 +40,26 @@ const HARMFUL_ACTIONS := ["damage", "destroy", "add_dot", "freeze", "stun", "exh
 ## Which area animation each element plays. An element missing from this list has none, so its area
 ## effects fly the default bolts. To give an element its own animation, write
 ## a function like _fire_area and add its line here and in area_cast.
-## Some styles only have an area animation (gelo, luz); fogo, agua, veneno, sangue, raio, pedra and vegetal have both. A missing one falls back to the shockwave (area) or the red X (destroy).
+## Some styles only have an area animation (gelo, luz); fogo, agua, veneno, sangue, sombra, raio, pedra and vegetal have both. A missing one falls back to the shockwave (area) or the red X (destroy).
 ## "fagulha" is no element: it is the light fire area that a small fire spell asks for with its own
 ## "cast_fx" (Fagulhame), instead of the wall of flames of the element fogo.
 const ELEMENT_STYLES := {
 	"fogo": "fogo", "sangue": "sangue", "agua": "agua",
 	"gelo": "gelo", "luz": "luz", "raio": "raio",
 	"pedra": "pedra", "vegetal": "vegetal", "veneno": "veneno",
+	"sombra": "sombra",
 }
 ## Only for the SHOTS of a single-target spell (FxShots.spell_hit_style): a Tormenta spell with no element
 ## still fires lightning. It never picks an area animation.
 const DOMAIN_STYLES := {"furia": "fogo", "fluxo": "agua", "tormenta": "raio"}
 
-## The styles that really have an area animation (see area_cast). Any other style (metal, vento, sombra...)
+## The styles that really have an area animation (see area_cast). Any other style (metal, vento...)
 ## plays the default bolts instead.
-const AREA_STYLES := ["fogo", "fagulha", "agua", "gelo", "luz", "raio", "veneno", "sangue", "pedra", "vegetal"]
+const AREA_STYLES := ["fogo", "fagulha", "agua", "gelo", "luz", "raio", "veneno", "sangue", "sombra", "pedra", "vegetal"]
 
 ## The styles that have their own single-unit destroy animation (see destroy_cast).
-const DESTROY_STYLES := ["fogo", "agua", "pedra", "vegetal", "veneno", "sangue", "raio", "gelo", "luz"]
+## "rai" is not an element: only a card's own "destroy_fx" can name it (Rai's banishing).
+const DESTROY_STYLES := ["fogo", "agua", "pedra", "vegetal", "veneno", "sangue", "sombra", "raio", "gelo", "luz", "rai"]
 
 ## Colors of the sparks and glow around each shader (and of the unit dissolving inside it).
 const FIRE_EDGE := Color("#ff5a1e")
@@ -70,6 +72,8 @@ const LEAF_GREEN := Color("#58b34a")
 const VENOM_PURPLE := Color("#a35ad1")
 const BLOOD_RED := Color("#b8212f")
 const BLOOD_DARK := Color("#4a040c")
+const SHADOW_GRAY := Color("#8a8fa3")
+const RAI_VIOLET := Color("#a63cff")
 
 ## The color the unit dissolves in after a destroy animation of `style`.
 static func dissolve_color_of(style: String) -> Color:
@@ -80,6 +84,8 @@ static func dissolve_color_of(style: String) -> Color:
 		"vegetal": return LEAF_GREEN
 		"veneno": return VENOM_PURPLE
 		"sangue": return BLOOD_RED
+		"sombra": return SHADOW_GRAY
+		"rai": return RAI_VIOLET
 		"raio": return BOLT_BLUE
 		"gelo": return ICE_GLOW
 		"luz": return HOLY_GOLD
@@ -150,6 +156,8 @@ func area_cast(card_id: String, origin: Vector2, t: float) -> float:
 			return _poison_area(origin, t)
 		"sangue":
 			return _blood_area(origin, t)
+		"sombra":
+			return _shadow_area(origin, t)
 		"pedra":
 			return _stone_area(origin, t)
 		"vegetal":
@@ -519,6 +527,41 @@ func _poison_area(origin: Vector2, t: float) -> float:
 	# the first hits land when the cloud reaches the near row of units
 	return POISON_ROLL_TIME * 0.4
 
+## Sombra (area): the light goes out. A wall of black smoke (shaders/shadow_veil.gdshader) rolls over the arena
+## from the caster's side with tendrils reaching ahead of it and a cold glow on its edge, hangs a moment,
+## and frays away. A soft darkening of the whole table and one low thud sell the weight of it.
+const SHADOW_ROLL_TIME := 0.8
+const SHADOW_HOLD_TIME := 0.5
+const SHADOW_FADE_TIME := 0.65
+static var _shadow_veil_shader: Shader
+func _shadow_area(origin: Vector2, t: float) -> float:
+	if _shadow_veil_shader == null:
+		_shadow_veil_shader = load("res://scripts/ui/shaders/shadow_veil.gdshader")
+	var overlay := _arena_overlay(_shadow_veil_shader)
+	var veil_material: ShaderMaterial = overlay.material
+	var arena := _arena().grow(30.0)
+	var caster_below := origin.y > arena.get_center().y
+	veil_material.set_shader_parameter("from_bottom", 1.0 if caster_below else 0.0)
+	var tween := overlay.create_tween()
+	tween.tween_interval(t)
+	tween.tween_method(func(value: float): veil_material.set_shader_parameter("progress", value), 0.0, 1.0, SHADOW_ROLL_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.tween_interval(SHADOW_HOLD_TIME)
+	tween.tween_method(func(value: float): veil_material.set_shader_parameter("fade", value), 1.0, 0.0, SHADOW_FADE_TIME)
+	tween.tween_callback(overlay.queue_free)
+	_arena_tint(Color(0.0, 0.0, 0.04), 0.35, t, SHADOW_ROLL_TIME * 0.8, SHADOW_HOLD_TIME, SHADOW_FADE_TIME)
+	# pale motes rising from each row as the dark swallows it (near row first)
+	var rich := fx_library.fx_scale >= 0.7
+	var near_row := TableView.MY_LANE if caster_below else TableView.ENEMY_LANE
+	var far_row := TableView.ENEMY_LANE if caster_below else TableView.MY_LANE
+	for row_and_moment in [[near_row, 0.35], [far_row, 0.7]]:
+		var row: Rect2 = row_and_moment[0]
+		for i in (3 if rich else 2):
+			var x := lerpf(row.position.x + 80.0, row.end.x - 80.0, (i + 0.5) / (3.0 if rich else 2.0))
+			fx_library.spawn_embers(Vector2(x, row.get_center().y), t + SHADOW_ROLL_TIME * row_and_moment[1], SHADOW_GRAY, 10)
+	_shake(t + SHADOW_ROLL_TIME * 0.3, 2.0, 0.3)
+	# the first hits land when the dark reaches the near row of units
+	return SHADOW_ROLL_TIME * 0.4
+
 ## Pedra: a rockslide (shaders/stone_rockfall.gdshader). Boulders rain over the whole arena, each landing at
 ## its own moment with a puff of dust and cracks in the ground; the table jolts on the landings, then the
 ## rubble lies there for a moment and crumbles to dust. One rectangle and one shader, plus a few particles.
@@ -723,6 +766,10 @@ func destroy_cast(style: String, unit_view: Control, t: float) -> float:
 			return _corrode_unit(center, card_size, t)
 		"sangue":
 			return _bleed_unit(center, card_size, t)
+		"sombra":
+			return _shadow_unit(center, card_size, t)
+		"rai":
+			return _rai_unit(center, card_size, t)
 		"raio":
 			return _electrocute_unit(center, card_size, t)
 		"gelo":
@@ -876,6 +923,110 @@ func _corrode_unit(center: Vector2, card_size: Vector2, t: float) -> float:
 	fx_library.spawn_embers(Vector2(center.x, center.y - card_size.y * 0.3), t + CORRODE_TIME * 0.6, Color("#9dff52"), 12)
 	# the unit starts dissolving once the venom has eaten into it
 	return CORRODE_TIME * 0.85
+
+## Sombra (destroy): the dark closes in on the unit (shaders/unit_shadow.gdshader) from the edges of the card
+## like an eye shutting, a cold rim glowing along its edge; the unit dissolves inside it, then the dark frays
+## into wisps.
+const SHADOW_CLOSE_TIME := 0.6
+const SHADOW_UNIT_HOLD_TIME := 0.4
+const SHADOW_UNIT_FADE_TIME := 0.45
+static var _shadow_unit_shader: Shader
+func _shadow_unit(center: Vector2, card_size: Vector2, t: float) -> float:
+	if _shadow_unit_shader == null:
+		_shadow_unit_shader = load("res://scripts/ui/shaders/unit_shadow.gdshader")
+	var dark_size := card_size * Vector2(1.2, 1.12)
+	var dark_rect := Rect2(center - dark_size * 0.5, dark_size)
+	var overlay := _unit_overlay(_shadow_unit_shader, dark_rect)
+	var dark_material: ShaderMaterial = overlay.material
+	var tween := overlay.create_tween()
+	tween.tween_interval(t)
+	tween.tween_method(func(value: float): dark_material.set_shader_parameter("progress", value), 0.0, 1.0, SHADOW_CLOSE_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_interval(SHADOW_UNIT_HOLD_TIME)
+	tween.tween_method(func(value: float): dark_material.set_shader_parameter("fade", value), 1.0, 0.0, SHADOW_UNIT_FADE_TIME)
+	tween.tween_callback(overlay.queue_free)
+	fx_library.spawn_embers(center, t + SHADOW_CLOSE_TIME * 0.7, SHADOW_GRAY, 12)
+	_shake(t + SHADOW_CLOSE_TIME * 0.7, 2.0, 0.25)
+	# the unit starts dissolving once the dark has shut over most of the card
+	return SHADOW_CLOSE_TIME * 0.85
+
+## Rai (banish): violet cracks of light split the card from its middle, then it comes apart into Fragments,
+## ashen dust and black petals that drift up and away (the same pieces as the Leader's unmaking). Short and
+## light on purpose: it plays on every unit Rai banishes.
+const RAI_CRACK_TIME := 0.4
+func _rai_unit(center: Vector2, card_size: Vector2, t: float) -> float:
+	var rich := fx_library.fx_scale >= 0.7
+	var crack_count := 4 if rich else 3
+	for i in crack_count:
+		_rai_unit_crack(center, t + randf() * 0.1, TAU * i / crack_count + randf_range(-0.3, 0.3), card_size.y * 0.55)
+	var flash := fx_library._glow_sprite(32.0, RAI_VIOLET)
+	flash.position = center
+	flash.z_index = 56
+	flash.scale = Vector2(card_size.x / 32.0, card_size.y / 32.0) * 0.8
+	flash.modulate.a = 0.0
+	fx.add_child(flash)
+	var flash_tween := flash.create_tween()
+	flash_tween.tween_interval(t + RAI_CRACK_TIME * 0.5)
+	flash_tween.tween_property(flash, "modulate:a", 0.8, 0.12)
+	flash_tween.tween_property(flash, "modulate:a", 0.0, 0.4)
+	flash_tween.tween_callback(flash.queue_free)
+	var executions: FxExecutions = host.fx_executions
+	var dust_color := executions.RAI_LIGHT.lerp(RAI_VIOLET, 0.25).darkened(0.25)
+	var pieces_start := t + RAI_CRACK_TIME * 0.6
+	for i in (7 if rich else 4):
+		executions.drift(executions.dust_mote(dust_color), _rai_unit_spot(center, card_size), pieces_start + randf() * 0.3, false)
+	for i in (5 if rich else 3):
+		executions.drift(executions.petal(RAI_VIOLET), _rai_unit_spot(center, card_size), pieces_start + randf() * 0.3, true)
+	for i in (5 if rich else 3):
+		_rai_unit_fragment(_rai_unit_spot(center, card_size), pieces_start + randf() * 0.3)
+	# the unit starts coming apart once the cracks have opened
+	return RAI_CRACK_TIME
+
+## A random point inside the card.
+func _rai_unit_spot(center: Vector2, card_size: Vector2) -> Vector2:
+	return center + Vector2(randf_range(-0.45, 0.45) * card_size.x, randf_range(-0.45, 0.45) * card_size.y)
+
+## A jagged line of violet light grows from the middle of the card to its edge, then fades.
+func _rai_unit_crack(center: Vector2, start_t: float, angle: float, reach: float) -> void:
+	var segments := 5
+	var points := PackedVector2Array([center])
+	for step in range(1, segments + 1):
+		points.append(center + Vector2.from_angle(angle + randf_range(-0.25, 0.25)) * reach * step / segments)
+	var crack := Line2D.new()
+	crack.width = 2.5
+	crack.z_index = 55
+	crack.material = fx_library._additive()
+	crack.default_color = RAI_VIOLET.lightened(0.25)
+	crack.modulate.a = 0.0
+	fx.add_child(crack)
+	var reveal_points := func(progress: float):
+		crack.points = points.slice(0, 2 + int(progress * (points.size() - 2)))
+	var motion := crack.create_tween()
+	motion.tween_interval(start_t)
+	motion.tween_property(crack, "modulate:a", 1.0, 0.08)
+	motion.parallel().tween_method(reveal_points, 0.0, 1.0, RAI_CRACK_TIME * 0.8)
+	motion.tween_property(crack, "modulate:a", 0.0, 0.35)
+	motion.tween_callback(crack.queue_free)
+
+## One diamond Fragment of light floats up from the card, turning, and fades.
+func _rai_unit_fragment(start: Vector2, start_t: float) -> void:
+	var fragment: Node2D = host.fx_executions.fragment_shape(RAI_VIOLET, 4.5)
+	fragment.position = start
+	fragment.modulate.a = 0.0
+	fx.add_child(fragment)
+	var drift_side := randf_range(-35.0, 35.0)
+	var rise := randf_range(45.0, 95.0)
+	var spin := randf_range(-3.0, 3.0)
+	var life := randf_range(0.7, 1.1)
+	var float_step := func(progress: float):
+		var eased := 1.0 - (1.0 - progress) * (1.0 - progress)
+		fragment.position = start + Vector2(drift_side * eased, -rise * eased)
+		fragment.rotation = spin * progress
+	var motion := fragment.create_tween()
+	motion.tween_interval(start_t)
+	motion.tween_property(fragment, "modulate:a", 1.0, 0.1)
+	motion.parallel().tween_method(float_step, 0.0, 1.0, life)
+	motion.parallel().tween_property(fragment, "modulate:a", 0.0, life * 0.5).set_delay(life * 0.5)
+	motion.tween_callback(fragment.queue_free)
 
 ## Sangue: the unit is bled dry (shaders/unit_bleed.gdshader). A mix of the two liquid destroys, blood
 ## drips down from the top (like the venom) while a pool rises from the bottom (like the water), plus its

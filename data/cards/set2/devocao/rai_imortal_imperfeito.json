@@ -11,6 +11,7 @@
   "undraftable": true,
   "summon_style": "rai",
   "summon_color": "#a63cff",
+  "destroy_fx": "rai",
   "keywords": ["indestrutivel", "toque_letal"],
   "banish_what_it_kills": true,
   "art": "devocao/rai_imortal_imperfeito.webp",
