@@ -22,12 +22,11 @@
     {
       "trigger": "on_enter",
       "action": "buff",
-      "temp": true,
       "target": "other_ally_units",
       "only_tribe": [
         "dragonoide"
       ],
-      "atk": 2
+      "atk": 1
     },
     {
       "trigger": "on_survive_damage",
@@ -36,7 +35,7 @@
       "atk": 1
     }
   ],
-  "text": "Ao Entrar: concede +2 de Ataque aos seus outros Dragonoides neste turno.\nAo Sobreviver a Dano: esta unidade ganha +1 de Ataque permanente.",
+  "text": "Ao Entrar: concede +1 de Ataque permanente aos seus outros Dragonoides.\nAo Sobreviver a Dano: esta unidade ganha +1 de Ataque permanente.",
   "flavor": [
     "Eu só queria me formar e pagar as contas em dia.",
     "Meu avô nunca me contou nada. Pelo visto, nem o sobrenome.",
