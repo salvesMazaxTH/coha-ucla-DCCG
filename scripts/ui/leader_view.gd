@@ -247,7 +247,12 @@ func _has_point(pt: Vector2) -> bool:
 func _process(delta: float) -> void:
 	if targetable or target_selected or ability_ready or active or requiem > 0 or ward_hits > 0 or _status_count() > CardView.MAX_STATUS_MEDALLIONS:
 		_t += delta
-		queue_redraw()
+		_redraw_acc += delta
+		if _redraw_acc >= GraphicsQuality.leader_redraw_interval:
+			_redraw_acc = 0.0
+			queue_redraw()
+
+var _redraw_acc := 0.0
 
 func _gui_input(e: InputEvent) -> void:
 	# touch: dragging off the gem starts aiming right away (the finger stays down)

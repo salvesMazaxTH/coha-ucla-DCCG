@@ -22,7 +22,7 @@ static func setup(g: GameState) -> void:
 	four_statuses.dot_markers = {"queimadura": 7, "veneno": 3, "sangramento": 1, "congelar": 2}
 	var three_plus_stun := _put(g, 0, "elefante_incomodante")
 	three_plus_stun.dot_markers = {"queimadura": 4, "veneno": 6, "sangramento": 9}
-	three_plus_stun.stun_markers = 2
+	three_plus_stun.stunned = 99
 	g.players[0]["leader_dots"] = {"queimadura": 5, "veneno": 8, "sangramento": 2}
 	g.players[1]["leader_dots"] = {"queimadura": 5, "veneno": 8, "sangramento": 2, "congelar": 3}
 	g.check_state()

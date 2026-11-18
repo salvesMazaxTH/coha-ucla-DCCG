@@ -158,9 +158,9 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 			body += "
 
 [b]Momentum guardado: %d/%d[/b]" % [int(instance["stored_momentum"]), int(cd["momentum_store"])]
-		if instance.has("stun_markers"):
-			body = "[color=#ffd36b][b]Atordoada (%d):[/b] fica exausta, não ataca e perde a Rapidez; cada marcador custa um desvirar (é removido no início do turno de quem a controla). Sua Provocação não obriga ataques. Revida normalmente.[/color]
-" % int(instance["stun_markers"]) + body
+		if instance.has("stunned"):
+			body = "[color=#ffd36b][b]Atordoada:[/b] fica exausta, não ataca e perde a Rapidez até o fim do próximo turno, quando se recupera e desvira na hora. Sua Provocação não obriga ataques. Revida normalmente.[/color]
+" + body
 		if instance.has("frozen"):
 			body = "[color=#9fe8ff][b]Congelada:[/b] não ataca, não desvira e perde a Rapidez (suprimida) até o fim do próximo turno. Revida normalmente.[/color]\n" + body
 		txt += "[font_size=32]%s[/font_size]\n\n" % CardView.colorize_rules(body, 32)
@@ -170,7 +170,7 @@ static func describe(card_id: String, instance: Dictionary, cost_override: int, 
 	var glossary_keywords: Array = cd.get("keywords", []).duplicate()
 	if CardView.armor_of_view(cd, instance) > 0 and not glossary_keywords.has("armadura"):
 		glossary_keywords.append("armadura") # "armadura:N" leaves the keyword list (it is a stat), but the card shows it as a tag
-	if CardView.rapidez_of_view(cd, instance) > 0 and not instance.has("frozen") and not instance.has("stun_markers"):
+	if CardView.rapidez_of_view(cd, instance) > 0 and not instance.has("frozen") and not instance.has("stunned"):
 		glossary_keywords.append("rapidez") # shown as a tag on the card, so the glossary explains it
 	if CardView.critico_of_view(cd, instance) > 0 and not glossary_keywords.has("critico"):
 		glossary_keywords.append("critico") # also shown as a tag (it can grow during the match)

@@ -100,7 +100,7 @@ func _chronicle_label(kind: String) -> String:
 		"relic_enter": "RELÍQUIA", "revive": "RETORNO", "return_to_hand": "DE VOLTA À MÃO",
 		"card_created": "CRIAÇÃO", "search_take": "BUSCA", "leader_executed": "EXECUÇÃO",
 		"shield_break": "ESCUDO", "magic_shield_break": "ESCUDO", "supreme_shield_break": "ESCUDO", "freeze": "CONGELADA", "thaw": "DEGELO",
-		"exhaust": "EXAUSTÃO", "stun": "ATORDOADA", "stun_tick": "ATORDOADA", "shrink": "ENCOLHIMENTO", "dodge": "ESQUIVA", "reflect": "REFLEXO", "condemn": "CONDENADA", "heal_block": "SEM CURA", "heal_prevented": "SEM CURA",
+		"exhaust": "EXAUSTÃO", "stun": "ATORDOADA", "stun_end": "ATORDOADA", "shrink": "ENCOLHIMENTO", "dodge": "ESQUIVA", "reflect": "REFLEXO", "condemn": "CONDENADA", "heal_block": "SEM CURA", "heal_prevented": "SEM CURA",
 		"doom": "SENTENÇA", "doom_resisted": "RESISTIU", "fatigue": "FADIGA", "ban": "BANIMENTO",
 		"concede": "DESISTÊNCIA", "enter_tapped": "PROVOCAÇÃO", "death_ward_armed": "BALUARTE",
 		"death_prevented": "BALUARTE", "block": "BLOQUEIO"
@@ -353,8 +353,8 @@ func log_event(e: Dictionary) -> void:
 			add_line("%s foi congelada" % ("Uma unidade" if frozen == null else _cname(frozen.card_id)))
 		"stun":
 			add_line("%s foi atordoada" % _chronicle_name_for_uid(int(e["uid"])))
-		"stun_tick":
-			add_line("%s se recupera do atordoamento (%d marcador(es) restante(s))" % [_chronicle_name_for_uid(int(e["uid"])), int(e["markers"])])
+		"stun_end":
+			add_line("%s se recupera do atordoamento" % _chronicle_name_for_uid(int(e["uid"])))
 		"shrink":
 			add_line("%s foi encolhida (-%d Ataque, -%d Vida)" % [_chronicle_name_for_uid(int(e["uid"])), int(e["atk"]), int(e["hp"])])
 		"shield_break":

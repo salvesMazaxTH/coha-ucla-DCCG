@@ -17,12 +17,13 @@ static var effect_detail := 1.0
 static var fog_layers := 4
 ## The Furtividade fog warps itself for a swirling look; turning it off halves the fog's cost.
 static var fog_swirl := true
-## Seconds between redraws of animated card frames (legendary shimmer, glowing outlines, frost...).
-## Each redraw of a card costs about 1.5 ms on a PC, so phones animate them less often.
+## Seconds between redraws of the few card animations still drawn by the script (chains, status
+## medallions taking turns). Glows, shine, stars and "z"s are animated by card_glow.gdshader instead.
 static var card_animation_interval := 0.033
-## Glowing (playable/targetable) and hovered cards redraw every frame so their pulse looks smooth.
-## Phones show many glowing cards at once, so there they follow card_animation_interval too.
-static var smooth_card_pulse := true
+## Seconds between redraws of a flying card's floating shadow (0 = every frame).
+static var flight_redraw_interval := 0.0
+## Seconds between redraws of an animated Leader portrait (0 = every frame).
+static var leader_redraw_interval := 0.0
 ## Frame rate cap (0 = no cap: follows the screen). Phones with 90/120 Hz screens would otherwise draw
 ## up to twice as many frames, heating up and draining the battery for no visible gain.
 static var max_fps := 0
@@ -30,6 +31,8 @@ static var max_fps := 0
 ## draws that one picture instead of hundreds of shapes and letters; only the animated layers are drawn
 ## live on top (see CardPhotoStudio). On for every device; turn it off to compare the two looks.
 static var bake_card_faces := true
+## Card photos painted per frame at most. Each one draws a whole card, so a phone takes one at a time.
+static var photo_bakes_per_frame := 2
 ## How many card arts stay loaded in memory at once (0 = no limit: every art ever shown stays).
 ## A decoded art takes about 5-7 MB, so hundreds of them (browsing the deck builder, two full decks) can
 ## exhaust a phone browser's memory and make it kill the whole page. Past the limit, the art that went
@@ -45,6 +48,8 @@ static func use_phone_settings() -> void:
 	fog_layers = 3
 	fog_swirl = true
 	card_animation_interval = 0.05
-	smooth_card_pulse = false
+	flight_redraw_interval = 1.0 / 30.0
+	leader_redraw_interval = 0.05
 	max_fps = 60
 	art_cache_limit = 48
+	photo_bakes_per_frame = 1

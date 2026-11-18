@@ -65,7 +65,7 @@ var aura_keywords: Array = [] ## keywords an ally's "keyword_aura" Constante giv
 var surge_critico := 0 ## Crítico level given by the same surge (the higher of it and the unit's own wins)
 var surge_active := false ## the surge was on at the last refresh: Escudo is granted only when it turns on, not on every refresh
 var frozen := 0 ## Congelada: the turn at whose END it thaws; 0 = not frozen
-var stun_markers := 0 ## Atordoamento: each marker costs the unit one untap (one start of its owner's turn); 0 = not stunned
+var stunned := 0 ## Atordoada: the turn at whose END it recovers; 0 = not stunned
 var condemned_turn := 0 ## Condenada: the turn at whose START it dies; 0 = not condemned
 var pending_self_revive_turn := 0 ## the turn at whose end this graveyard unit returns; 0 = none
 var pending_self_revive_atk := 0
@@ -238,7 +238,7 @@ func enter_board(is_incarnation: bool, overrides: Dictionary = {}) -> void:
 	bonus_hp = 0
 	has_bonus = false
 	frozen = 0
-	stun_markers = 0
+	stunned = 0
 	condemned_turn = 0
 	dot_markers = {}
 	unripe_dot_markers = {}
@@ -480,10 +480,10 @@ func hp_left() -> int:
 func is_frozen() -> bool:
 	return frozen > 0
 
-## Atordoada: it was tapped by the stun and stays tapped for as many of its owner's turn starts as it has markers.
-## Like a Congelada unit it doesn't attack and has no Rapidez, but it is tapped, so it can be challenged.
+## Atordoada until the end of the next turn, like Congelada, but the stun also tapped the unit, and it untaps
+## the moment it recovers. It doesn't attack and has no Rapidez; being tapped, it can be challenged.
 func is_stunned() -> bool:
-	return stun_markers > 0
+	return stunned > 0
 
 func is_condemned() -> bool:
 	return condemned_turn > 0
@@ -606,8 +606,8 @@ func to_dict() -> Dictionary:
 		d["surge_active"] = true
 	if frozen > 0:
 		d["frozen"] = frozen
-	if stun_markers > 0:
-		d["stun_markers"] = stun_markers
+	if stunned > 0:
+		d["stunned"] = stunned
 	if condemned_turn > 0:
 		d["condemned_turn"] = condemned_turn
 	if not dot_markers.is_empty():
@@ -728,7 +728,7 @@ static func from_dict(d: Dictionary, in_zone: String, owner_player: int) -> Card
 	c.surge_critico = int(d.get("surge_critico", 0))
 	c.surge_active = bool(d.get("surge_active", false))
 	c.frozen = int(d.get("frozen", 0))
-	c.stun_markers = int(d.get("stun_markers", 0))
+	c.stunned = int(d.get("stunned", 0))
 	c.condemned_turn = int(d.get("condemned_turn", 0))
 	c.dot_markers = d.get("dot_markers", {}).duplicate()
 	c.unripe_dot_markers = d.get("unripe_dot_markers", {}).duplicate()

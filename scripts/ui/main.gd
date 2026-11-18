@@ -235,6 +235,7 @@ func _ready() -> void:
 	Engine.max_fps = GraphicsQuality.max_fps
 	theme = UITheme.make()
 	_perf_diagnostics = _performance_diagnostics_requested()
+	HitchLog.enabled = _perf_diagnostics
 	if _perf_diagnostics:
 		_toggle_fps_counter()
 	bg_vp = SubViewport.new()
@@ -1572,7 +1573,7 @@ func _decorate_unit(v: CardView, unit: Card, p: int) -> void:
 	v.rapidez_sparks = (
 		g.window != "" and CardView.rapidez_of_view(CardDB.card(unit.card_id), v.inst) > 0 \
 				and not v.inst.has("frozen")
-		and not v.inst.has("stun_markers")
+		and not v.inst.has("stunned")
 	)
 	var selected_numbers := _target_selection_numbers(unit.uid)
 	if not selected_numbers.is_empty():
@@ -2613,6 +2614,7 @@ func _hint_nudge() -> void:
 
 
 func _process(dt: float) -> void:
+	HitchLog.end_frame(dt)
 	CardView.load_queued_arts()
 	if is_instance_valid(hub_scroll) and not hub_scroll.is_queued_for_deletion() and hub_scroll.is_visible_in_tree():
 		menu_screens.refresh_hub_stats_if_due()
@@ -2989,7 +2991,7 @@ func _toggle_fps_counter() -> void:
 	if not is_instance_valid(_fps_counter):
 		_fps_counter = make_label("FPS 0", 14 if _perf_diagnostics else 20, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, "bold", 4)
 		_fps_counter.position = Vector2(14, 12)
-		_fps_counter.size = Vector2(560, 126) if _perf_diagnostics else Vector2(150, 32)
+		_fps_counter.size = Vector2(760, 250) if _perf_diagnostics else Vector2(150, 32)
 		_fps_counter.z_index = 1000
 		add_child(_fps_counter)
 	_fps_sample_seconds = 0.0
@@ -3017,7 +3019,8 @@ func _performance_summary(fps: int) -> String:
 	var photo_mib := float(photo_stats["pixels"]) * 4.0 / mib
 	return (
 		"FPS %d · Godot %d/%d MB · nós %d\nGPU: texturas %d MB / buffers %d MB\n"
-		+ "Artes: %d (%d carregadas, ~%.0f MB) · fila %d\nFotos: %d (~%.0f MB) · pedidos %d · pendentes %d"
+		+ "Artes: %d (%d carregadas, ~%.0f MB) · fila %d\nFotos: %d (~%.0f MB) · pedidos %d · pendentes %d\n"
+		+ "Engasgos:\n" + "\n".join(HitchLog.recent_hitches)
 	) % [
 		fps,
 		roundi(memory_now / mib),

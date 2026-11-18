@@ -6073,8 +6073,8 @@ func _test_adjacent_armor() -> void:
 	check(g.armor_of(right) == 2, "Contador: dois Contadores não dão x4 na Armadura adjacente")
 
 
-## Atordoamento (stacking, auto-exhausting freeze-like status) and the cap_stats effect behind Última Badalada.
-## Elias, Oráculo: Ao Entrar distributes 2 Stun markers; Ao Ativar (instantâneo) counters only cheap things on the stack.
+## Atordoamento (auto-exhausting status with Congelada's timing, never stacks) and the cap_stats effect behind Última Badalada.
+## Elias, Oráculo: Ao Entrar stuns up to 2 different enemy units; Ao Ativar (instantâneo) counters only cheap things on the stack.
 func _test_elias_oraculo() -> void:
 	_tspell("t_cheap_spell", "instantaneo", [{ "trigger": "on_play", "action": "damage", "target": "enemy_leader", "amount": 1 }])
 	CardDB.data()["cards"]["t_cheap_spell"]["cost"] = 2
@@ -6082,19 +6082,22 @@ func _test_elias_oraculo() -> void:
 	CardDB.data()["cards"]["t_dear_spell"]["cost"] = 3
 	_tcard("t_elias_victim", 1, 9, [])
 
-	# Ao Entrar: both markers on the same enemy unit
+	# Ao Entrar: the 2 stuns go to 2 different enemy units (the same unit can't be picked twice)
 	var g := _new_game()
 	_quiet(g)
 	var victim := _put(g, 1, "t_elias_victim")
+	var second_victim := _put(g, 1, "t_elias_victim")
 	var elias_a := _give(g, 0, "elias_oraculo")
 	g.players[0]["momentum"] = 4
 	g.play_card(0, elias_a, 0)
 	_resolve_stack(g)
 	if g.phase == "enter_target":
 		g.choose_enter_target(0, victim.uid)
-		g.choose_enter_target(0, victim.uid)
+		g.choose_enter_target(0, victim.uid) # refused: same unit
+		check(g.phase == "enter_target", "Elias: a mesma unidade não pode receber a segunda escolha")
+		g.choose_enter_target(0, second_victim.uid)
 		_resolve_stack(g)
-	check(victim.stun_markers == 2, "Elias: os 2 marcadores podem ir na mesma unidade (%d)" % victim.stun_markers)
+	check(victim.is_stunned() and second_victim.is_stunned(), "Elias: 2 unidades inimigas diferentes ficam Atordoadas")
 
 	# Ao Ativar: answers a cheap card, cannot target an expensive one
 	g = _new_game()
@@ -6444,30 +6447,34 @@ func _test_stun_and_cap() -> void:
 	check(not victim.exhausted and not victim.is_stunned(), "atordoamento: unidade começa em pé e sem marcador")
 	g._apply_effect(0, { "action": "stun", "target": "enemy_unit" }, victim.uid)
 	check(
-		victim.is_stunned() and victim.stun_markers == 1 and victim.exhausted,
-		"atordoar: 1 marcador e a unidade fica exausta na hora",
+		victim.is_stunned() and victim.exhausted,
+		"atordoar: a unidade fica Atordoada e exausta na hora",
 	)
 	check(not g.can_attack(victim) and victim.rapidez_total() == 0, "atordoada: não ataca e a Rapidez é suprimida")
 	check(g.combat_system().attack_targets(hitter).has(victim.uid), "atordoada: está exausta, então pode ser desafiada")
 	_hit(g, hitter, victim.uid)
 	check(hitter.damage == 3 and victim.damage == 1, "atordoada: desafiada, revida com o ATK cheio")
-	# stacking: two markers cost two untaps
+	# never stacks: stunning again only renews the deadline (same turn here, so nothing changes)
+	var stunned_until := victim.stunned
 	g._apply_effect(0, { "action": "stun", "target": "enemy_unit" }, victim.uid)
-	check(victim.stun_markers == 2, "atordoar de novo acumula marcadores")
+	check(victim.stunned == stunned_until, "atordoar de novo na mesma janela não acumula nem prolonga")
+	# recovers at the END of the next turn and untaps at once
 	_quiet(g)
 	g.end_turn(0)
-	check(g.active == 1 and victim.stun_markers == 1 and victim.exhausted, "início do turno do dono: tira 1 marcador e NÃO desvira")
-	_quiet(g)
-	g.end_turn(1)
-	g.end_turn(0)
-	check(
-		g.active == 1 and victim.stun_markers == 0 and victim.exhausted,
-		"segundo marcador: ainda exausta, só desvira no turno seguinte",
-	)
+	check(g.active == 1 and victim.is_stunned() and victim.exhausted, "turno do dono: segue Atordoada e NÃO desvira")
 	_quiet(g)
 	g.end_turn(1)
+	check(g.active == 0 and not victim.is_stunned() and not victim.exhausted, "fim do turno seguinte: recupera e desvira na hora")
+	_quiet(g)
 	g.end_turn(0)
-	check(not victim.exhausted and g.can_attack(victim), "sem marcadores: desvira e ataca normalmente")
+	check(g.active == 1 and not victim.exhausted and g.can_attack(victim), "início do turno seguinte do dono: pronta e ataca")
+	# stunning again one turn later renews the deadline to the end of the turn after THAT, still one stun
+	g.end_turn(1)
+	g._apply_effect(0, { "action": "stun", "target": "enemy_unit" }, victim.uid)
+	var first_deadline := victim.stunned
+	g.end_turn(0)
+	g._apply_effect(1, { "action": "stun", "target": "enemy_unit" }, victim.uid)
+	check(victim.stunned == first_deadline + 1, "atordoar de novo renova o prazo (não soma)")
 	# a stunned Provocação forces nothing
 	_tcard("t_stn_taunt", 2, 5, [])
 	CardDB.data()["cards"]["t_stn_taunt"]["keywords"] = ["provocacao"]
@@ -6513,7 +6520,7 @@ func _test_stun_and_cap() -> void:
 	)
 	# save/load keeps the markers
 	var restored := Card.from_dict(taunt.to_dict(), "board", 1)
-	check(restored.stun_markers == 1, "atordoamento sobrevive a salvar e carregar")
+	check(restored.is_stunned(), "atordoamento sobrevive a salvar e carregar")
 
 	# cap_stats: big units shrink, small ones stay, damage never kills, temporary bonuses go first
 	_tcard("t_cap_big", 5, 5, [])
@@ -8279,12 +8286,10 @@ func _test_layla_deck() -> void:
 	g.play_card(0, _give(g, 0, "apagao_no_quarteirao"))
 	_resolve_stack(g)
 	var apagao_stunned := 0
-	var apagao_markers := 0
 	for apagao_victim in apagao_victims:
-		apagao_markers += apagao_victim.stun_markers
-		if apagao_victim.stun_markers > 0:
+		if apagao_victim.is_stunned():
 			apagao_stunned += 1
-	check(apagao_stunned == 2 and apagao_markers == 2, "Apagão no Quarteirão: 1 marcador em 2 unidades inimigas diferentes (de 4)")
+	check(apagao_stunned == 2, "Apagão no Quarteirão: 1 marcador em 2 unidades inimigas diferentes (de 4)")
 	g = _new_game()
 	_quiet(g)
 	_tcard("t_layla_victim", 1, 9, [])
@@ -8292,7 +8297,7 @@ func _test_layla_deck() -> void:
 	g.players[0]["momentum"] = 10
 	g.play_card(0, _give(g, 0, "apagao_no_quarteirao"))
 	_resolve_stack(g)
-	check(apagao_lone.stun_markers == 1, "Apagão no Quarteirão: com menos de 2 inimigas, atordoa só as que existem")
+	check(apagao_lone.is_stunned(), "Apagão no Quarteirão: com menos de 2 inimigas, atordoa só as que existem")
 
 	# Hildegard Voltmann: enters stunning 1 marker on up to 3 different random enemy units; only 1 copy per deck
 	g = _new_game()
@@ -8306,7 +8311,7 @@ func _test_layla_deck() -> void:
 	_resolve_stack(g)
 	var hildegard_stunned := 0
 	for hildegard_victim in hildegard_victims:
-		if hildegard_victim.stun_markers == 1:
+		if hildegard_victim.is_stunned():
 			hildegard_stunned += 1
 	check(hildegard_stunned == 3, "Hildegard Voltmann: Ao Entrar atordoa 3 unidades inimigas diferentes (de 4)")
 	check(
@@ -8340,7 +8345,7 @@ func _test_layla_deck() -> void:
 	g.players[0]["momentum"] = 10
 	var veyr_card := g.find_unit(_play_aimed(g, 0, "layla_veyr", victim.uid))
 	_resolve_stack(g)
-	check(victim.stun_markers == 1 and victim.damage == 0, "Layla Veyr: Ao Entrar só Atordoa, sem dano")
+	check(victim.is_stunned() and victim.damage == 0, "Layla Veyr: Ao Entrar só Atordoa, sem dano")
 	check(g.atk_of(veyr_card) == 7, "Layla Veyr: o Atordoamento do próprio Ao Entrar dá +2 de Ataque (5 + 2)")
 	veyr_card.exhausted = true
 	g._apply_effect(0, { "action": "stun", "target": "enemy_unit" }, second_victim.uid)
@@ -14912,7 +14917,7 @@ func _test_summon_copy_and_elephant_recall() -> void:
 	original.shield = true
 	original.keywords.append("provocacao")
 	original.frozen = 5
-	original.stun_markers = 2
+	original.stunned = 7
 	original.dot_markers = { "veneno": 3 }
 	original.stat_sources = [{ "source": "x", "until": "", "atk": 2 }]
 	original.exhausted = true
@@ -14936,7 +14941,7 @@ func _test_summon_copy_and_elephant_recall() -> void:
 		)
 		check(copy.armor == 1 and copy.shield and copy.keywords.has("provocacao"), "Fotocopiadora: copia Armadura, escudo e keywords")
 		check(
-			copy.frozen == 5 and copy.stun_markers == 2 and copy.dot_markers.get("veneno", 0) == 3,
+			copy.frozen == 5 and copy.stunned == 7 and copy.dot_markers.get("veneno", 0) == 3,
 			"Fotocopiadora: copia Congelada, Atordoamento e marcadores de status periódico",
 		)
 		check(

@@ -70,14 +70,39 @@ var card_id := ""
 var domain_badge_only := "" ## draw only the reusable domain seal, for deck chips and other compact summaries
 var inst: Dictionary = {} ## unit on board (live stats) or hand instance
 var uid := 0
-var face_down := false
-var highlight := Color.TRANSPARENT ## outline for selection/targets
-var rapidez_sparks := false ## the unit has Rapidez and combat is on: sparks circle its frame (set by main.gd, reset in update_card)
-var ability_ready := false ## an "Ao Ativar" ability or a Transformar can be used right now: violet glow, distinct from the green attack glow
+# These redraw the card themselves when they change: the card has no per-frame redraw anymore.
+var face_down := false:
+	set(value):
+		if face_down != value:
+			face_down = value
+			queue_redraw()
+var highlight := Color.TRANSPARENT: ## outline for selection/targets
+	set(value):
+		if highlight != value:
+			highlight = value
+			queue_redraw()
+var rapidez_sparks := false: ## the unit has Rapidez and combat is on: sparks circle its frame (set by main.gd, reset in update_card)
+	set(value):
+		if rapidez_sparks != value:
+			rapidez_sparks = value
+			queue_redraw()
+var ability_ready := false: ## an "Ao Ativar" ability or a Transformar can be used right now: violet glow, distinct from the green attack glow
+	set(value):
+		if ability_ready != value:
+			ability_ready = value
+			queue_redraw()
 const ABILITY_GLOW := Color("#c07bff")
-var store_ready := false ## the hand card can be deposited into the Reservatório right now: blue glow, next to the green play glow
+var store_ready := false: ## the hand card can be deposited into the Reservatório right now: blue glow, next to the green play glow
+	set(value):
+		if store_ready != value:
+			store_ready = value
+			queue_redraw()
 const STORE_GLOW := Color("#4db8ff")
-var dim := false
+var dim := false:
+	set(value):
+		if dim != value:
+			dim = value
+			queue_redraw()
 var cost_override := -1
 var text_suffix := "" ## live count appended to the rules text in the big view (e.g. "(agora: 3)")
 var snowball_level := GameState.SNOWBALL_BASE_LEVEL ## the owner's Bola de Neve level, shown where the card text says "{nivel}"
@@ -125,7 +150,11 @@ static func _add_bonus_to_matches(rules: String, pattern: String, bonus: int) ->
 		result += "*%d*" % (int(found.get_string(2)) + bonus)
 		copied_until = number_end
 	return result + rules.substr(copied_until)
-var hovered := false
+var hovered := false:
+	set(value):
+		if hovered != value:
+			hovered = value
+			queue_redraw()
 var hit_pad := 0.0 ## extra hit area below the card (lifted hand cards)
 ## Hover / drag zoom. Unlike the node's `scale`, which stretches the already drawn card (and blurs
 ## its text), the card is redrawn at the bigger size, so every glyph stays sharp.
@@ -139,6 +168,8 @@ var _photo_padding := 0.0 ## clear pixels around a photo slot, measured in card 
 var _photo_slot_height := 0.0 ## height of one stacked photo slot, measured in card drawing units
 var _photo_in_use: CardPhotoStudio.Photo
 var _photo_transform_seen := Transform2D.IDENTITY
+var _last_motion_frame := -100
+var _waiting_to_settle := false
 static var _is_headless := DisplayServer.get_name() == "headless"
 ## Animation hooks, driven by tweens: draw offsets (hit tremor, attack
 ## lunge) and a red hit flash 0..1.
@@ -227,6 +258,7 @@ var fatigue := 0## > 0: not a real card but the Fadiga pseudo-card, showing this
 ## so a non-unit permanent reads differently from a unit at a glance. Only the big frame corners are cut.
 var _chamfer_frame := false
 const FRAME_CORNER_MIN := 5.0 ## corner radius (in base px) from which _chamfer_frame applies; small panels stay rounded
+const CHAMPION_GEM_STILL_TIME := 0.4 ## the moment of the champion gem's animation shown on cards
 const TOKEN_CORNER_BOOST := 1.8 ## fichas: slightly rounder corners than regular cards
 const ARCH_HEIGHT := 0.42 ## artifacts: how far down the art window (fraction of its height) the arch reaches
 var _art_window := PackedVector2Array() ## outline of the art window of the card being drawn (see _art_window_pts)
@@ -235,6 +267,8 @@ const FULL_ART_BORDER := 3.0 ## champion units: width (in base px) of the essenc
 
 var _t := 0.0
 var _redraw_acc := 0.0
+var _flight_redraw_acc := 0.0
+var _status_overflow := false ## more statuses than medallions: the last slot rotates, so the card keeps redrawing
 var _holding := false
 var _long := false
 var _press_id := 0
@@ -255,6 +289,8 @@ static var _rapidez_sparks_shader: Shader
 var _rapidez_sparks: ColorRect = null ## animated sparks circling a fast unit during combat (see _place_rapidez_sparks)
 static var _fragment_aura_shader: Shader
 var _fragment_aura: ColorRect = null ## animated violet cracks and shards of a unit bearing Fragmentos (see _place_fragment_aura)
+static var _card_glow_shader: Shader
+var _card_glow: ColorRect = null ## animated rings, legendary shine, stun stars and sleepy "z"s (see _place_card_glow)
 
 ## Keywords that change who can challenge or target whom get an icon medallion on the art (MTG Arena style),
 ## in this order down the left edge, then the right; glyph tint per keyword.
@@ -345,6 +381,8 @@ func update_card(id: String, instance: Dictionary = {}, size_scale := 1.0) -> vo
 	_photo_in_use = null
 	_photo_transform_seen = Transform2D.IDENTITY
 	_redraw_acc = 0.0
+	_flight_redraw_acc = 0.0
+	_status_overflow = false
 	_holding = false
 	_long = false
 	_press_id = 0
@@ -365,9 +403,11 @@ func update_card(id: String, instance: Dictionary = {}, size_scale := 1.0) -> vo
 	set_process(true)
 	# Tags and target badges belong to the previous state; the shield shader child can safely be reused.
 	for child in get_children():
-		if child != _shield_dome and child != _indestructible_glow and child != _rapidez_sparks and child != _fragment_aura:
+		if child != _shield_dome and child != _indestructible_glow and child != _rapidez_sparks and child != _fragment_aura and child != _card_glow:
 			remove_child(child)
 			child.queue_free()
+	if is_instance_valid(_card_glow):
+		_card_glow.hide()
 	if is_instance_valid(_shield_dome):
 		_shield_dome.hide()
 	if is_instance_valid(_indestructible_glow):
@@ -498,22 +538,116 @@ func finish_pointer_interaction() -> void:
 func _process(delta: float) -> void:
 	# (the shield dome is not here on purpose: it animates in its own shader, see _place_shield_dome)
 	# A cached picture must be snapped again whenever its card moves to a different screen pixel.
-	if _photo_in_use != null and not _painting_photo:
+	if GraphicsQuality.bake_card_faces and not _is_headless and not _painting_photo:
 		var render_transform := get_viewport().get_final_transform() * get_global_transform_with_canvas()
 		if not render_transform.is_equal_approx(_photo_transform_seen):
 			_photo_transform_seen = render_transform
+			# a card without a photo only needs the first frame of a move, to ask for a flight photo
+			if _photo_in_use != null or not _waiting_to_settle:
+				queue_redraw()
+			_last_motion_frame = Engine.get_process_frames()
+			_waiting_to_settle = true
+		elif _waiting_to_settle and Engine.get_process_frames() - _last_motion_frame > 2:
+			# it stopped: one more redraw swaps the stretched photo for a sharp one
+			_waiting_to_settle = false
 			queue_redraw()
 	if _float_strength > 0.0:
-		queue_redraw() # the flight is a slow, wide motion: it needs every frame to look smooth
-	if highlight.a > 0 or store_ready or hovered or locked or _legendary() or inst.has("frozen") or inst.has("stun_markers") or inst.has("condemned_turn") or inst.get("summoning_sick", false) or _status_amounts().size() > MAX_STATUS_MEDALLIONS:
+		_flight_redraw_acc += delta
+		if _flight_redraw_acc >= GraphicsQuality.flight_redraw_interval:
+			_flight_redraw_acc = 0.0
+			queue_redraw()
+	# Glows, shine, frost, stun and sleep animate in shaders (see _place_card_glow): only the chains
+	# and a rotating status slot still need the card to redraw.
+	if locked or _status_overflow:
 		_t += delta
 		_redraw_acc += delta
-		# shimmer at ~30 fps is plenty (GraphicsQuality.card_animation_interval); a glowing or hovered card
-		# redraws every frame for a smooth pulse, except on phones, where every redraw is costly
-		var smooth_pulse := (highlight.a > 0 or hovered) and GraphicsQuality.smooth_card_pulse
-		if _redraw_acc >= GraphicsQuality.card_animation_interval or smooth_pulse:
+		if _redraw_acc >= GraphicsQuality.card_animation_interval:
 			_redraw_acc = 0.0
 			queue_redraw()
+
+## The glowing rings around the frame, the legendary shine, the stun stars and the sleepy "z"s, animated by
+## card_glow.gdshader on one ColorRect a bit bigger than the face, so the card never redraws for them.
+## Each ring set: [color (alpha = strength), ring count, first ring distance, distance between rings,
+## line width, first ring alpha, alpha lost per ring, pulse wave]; sizes in base pixels.
+func _place_card_glow(face_origin: Vector2, pop: float, s: float, look: Dictionary) -> void:
+	var glow: Color = look["glow"]
+	var legendary: bool = not face_down and look["cd"].get("rarity", "") in ["champion", "legendary"]
+	var stun_stars: bool = not face_down and inst.has("stunned")
+	var drowsy: bool = not face_down and inst.get("summoning_sick", false)
+	var highlight_wave := Vector4(0.825, 0.175, 4.0, 0.0)
+	var rings: Array = []
+	if legendary:
+		rings.append([Color(glow, 1.0), 4, 2.0, 2.5, 2.5, 0.22, 0.05, Vector4(0.8, 0.2, 4.0, 0.0)])
+	if highlight.a > 0:
+		rings.append([Color(highlight, 1.0), 4, 2.0, 2.2, 2.2, 0.9, 0.22, highlight_wave])
+	elif hovered:
+		rings.append([Color(glow, 1.0), 3, 1.5, 2.0, 2.0, 0.5, 0.15, Vector4(1.0, 0.0, 0.0, 0.0)])
+	# Ao Ativar and Reservatório rings move outward when the play/attack glow already uses the inner ones
+	var outer_start := 2.0 + (4.0 * 2.2 if highlight.a > 0 else 0.0)
+	if ability_ready:
+		rings.append([Color(ABILITY_GLOW, 1.0), 4, outer_start, 2.2, 2.2, 0.9, 0.22, highlight_wave])
+	if store_ready:
+		rings.append([Color(STORE_GLOW, 1.0), 4, outer_start, 2.2, 2.2, 0.9, 0.22, highlight_wave])
+	if look["death_ward"]:
+		rings.append([Color(DEATH_WARD_COL, 1.0), 3, 2.5, 2.6, 2.4, 0.9, 0.22, Vector4(0.85, 0.15, 4.0, 0.0)])
+	if inst.has("frozen") and frost_grow > 0.0:
+		rings.append([Color(FROST_DEEP, frost_grow), 5, 1.5, 2.6, 2.8, 0.95, 0.17, Vector4(0.75, 0.25, 2.5, 0.0)])
+	if inst.has("stunned"):
+		rings.append([Color(STUN_COL, 1.0), 4, 1.5, 2.4, 2.6, 0.95, 0.2, Vector4(0.7, 0.3, 5.0, 1.7)])
+	if inst.has("condemned_turn"):
+		rings.append([Color(DOOM_COL, 1.0), 4, 1.5, 2.4, 2.6, 0.9, 0.2, Vector4(0.6, 0.4, 3.2, 0.0)])
+	if rings.is_empty() and not stun_stars and not drowsy:
+		if _card_glow != null and _card_glow.visible:
+			_card_glow.visible = false
+		return
+	if _card_glow == null:
+		if _card_glow_shader == null:
+			_card_glow_shader = load("res://scripts/ui/shaders/card_glow.gdshader")
+		_card_glow = ColorRect.new()
+		_card_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var new_material := ShaderMaterial.new()
+		new_material.shader = _card_glow_shader
+		new_material.set_shader_parameter("phase", randf() * 10.0)
+		_card_glow.material = new_material
+		add_child(_card_glow)
+		move_child(_card_glow, 0) # under the other shader layers and the badges
+	var reach := 0.0 # base pixels from the face to the outer edge of the farthest ring
+	for ring in rings:
+		reach = maxf(reach, float(ring[2]) + (float(ring[1]) - 1.0) * float(ring[3]) + float(ring[4]) / 2.0)
+	var margin := reach * s * pop + 1.0
+	var glow_rect := Rect2(face_origin - Vector2(margin, margin), _face_size * pop + Vector2(margin, margin) * 2.0)
+	if _card_glow.position != glow_rect.position:
+		_card_glow.position = glow_rect.position
+	if _card_glow.size != glow_rect.size:
+		_card_glow.size = glow_rect.size
+	var rad := minf(look["rad"], minf(_face_size.x, _face_size.y) / 2.0)
+	var chamfer := 0.0
+	if _chamfer_frame and rad >= FRAME_CORNER_MIN * s:
+		chamfer = minf(2.0 * rad, minf(_face_size.x, _face_size.y) / 2.0) * pop
+	var art: Rect2 = look["art"]
+	var glow_material := _card_glow.material as ShaderMaterial
+	glow_material.set_shader_parameter("rect_size", glow_rect.size)
+	glow_material.set_shader_parameter("margin", margin)
+	glow_material.set_shader_parameter("corner_radius", rad * pop)
+	glow_material.set_shader_parameter("chamfer_cut", chamfer)
+	glow_material.set_shader_parameter("base_pixel", s * pop)
+	glow_material.set_shader_parameter("dim", 1.0 if dim else 0.0)
+	glow_material.set_shader_parameter("shine", legendary)
+	glow_material.set_shader_parameter("stun_stars", stun_stars)
+	glow_material.set_shader_parameter("drowsy", drowsy)
+	glow_material.set_shader_parameter("art_rect", Vector4(art.position.x, art.position.y, art.size.x, art.size.y) * pop)
+	for slot in 8:
+		var prefix := "ring%d_" % slot
+		if slot < rings.size():
+			var ring: Array = rings[slot]
+			glow_material.set_shader_parameter(prefix + "color", ring[0])
+			glow_material.set_shader_parameter(prefix + "shape", Vector4(float(ring[1]), float(ring[2]), float(ring[3]), float(ring[4])))
+			glow_material.set_shader_parameter(prefix + "fade", Vector2(float(ring[5]), float(ring[6])))
+			glow_material.set_shader_parameter(prefix + "wave", ring[7])
+		else:
+			glow_material.set_shader_parameter(prefix + "color", Color(0, 0, 0, 0))
+	if not _card_glow.visible:
+		_card_glow.visible = true
 
 ## Copies the face data into an off-screen CardView that paints the two still photo slots.
 func prepare_photo_painter(signature: Dictionary, padding: float, slot_height: float) -> void:
@@ -761,7 +895,9 @@ static func texture(file: String) -> Texture2D:
 			_tex_cache[file] = cached_art
 		return cached_art
 	var path := "res://assets/portraits/" + file
+	var load_start_ms := Time.get_ticks_msec()
 	var loaded_art: Texture2D = load(path) if ResourceLoader.exists(path) else null
+	HitchLog.note("arte %s %d ms" % [file.get_file(), Time.get_ticks_msec() - load_start_ms])
 	_tex_cache[file] = loaded_art
 	if limit > 0:
 		_forget_oldest_arts(limit)
@@ -969,16 +1105,16 @@ func _draw_float_shadow(ground_origin: Vector2, height: float, sideways: float, 
 	var shadow_size := _face_size * (1.0 - 0.05 * height)
 	var shadow_rect := Rect2(ground_origin + (_face_size - shadow_size) / 2.0 + fall, shadow_size)
 	var blur := (4.0 + 10.0 * height) * s
-	var layers := 9
+	var layers := 5
 	for layer in layers:
 		var spread := blur * (float(layer) / (layers - 1) - 0.4)
-		_rrect_fill(shadow_rect.grow(spread), rad + maxf(spread, 0.0), Color(0, 0, 0, 0.08 * (1.0 - 0.3 * height)))
+		_rrect_fill(shadow_rect.grow(spread), rad + maxf(spread, 0.0), Color(0, 0, 0, 0.14 * (1.0 - 0.3 * height)))
 	# a faint cool glow on the table under the card: the air holding it up
 	var air_center := ground_origin + _face_size / 2.0 + fall * 0.5
 	var air_color: Color = BADGES["voo"]
-	for ring in 4:
-		var radius := _face_size.x * (0.32 + 0.1 * ring)
-		_draw_ellipse(air_center, Vector2(radius, radius * 0.45), Color(air_color, 0.03 * height))
+	for radius_factor in [0.37, 0.57]:
+		var radius: float = _face_size.x * radius_factor
+		_draw_ellipse(air_center, Vector2(radius, radius * 0.45), Color(air_color, 0.06 * height))
 
 func _draw_ellipse(center: Vector2, radii: Vector2, color: Color) -> void:
 	var points := PackedVector2Array()
@@ -995,9 +1131,6 @@ func _jolt_from_lock() -> void:
 	jolt.tween_property(self, "shake", Vector2(-1.5, -1.0) * unit, 0.05)
 	jolt.tween_property(self, "shake", Vector2.ZERO, 0.08)
 
-func _legendary() -> bool:
-	return not face_down and card_id != "" and CardDB.card(card_id)["rarity"] in ["champion", "legendary"]
-
 # ---------------------------------------------------------------- drawing
 
 var badge_only := "" ## tools/render_speed_badges.gd: draw just this speed seal, centered
@@ -1012,15 +1145,24 @@ func _find_ready_photo(pop: float) -> CardPhotoStudio.Photo:
 		CardPhotoStudio.withdraw(self)
 		return null
 	var render_transform := get_viewport().get_final_transform() * get_global_transform_with_canvas()
-	var horizontal_scale := render_transform.x.x
-	var vertical_scale := render_transform.y.y
-	if absf(render_transform.x.y) > 0.001 or absf(render_transform.y.x) > 0.001 \
-		or horizontal_scale <= 0.0 or vertical_scale <= 0.0 or absf(horizontal_scale - vertical_scale) > 0.001:
+	var horizontal_scale := render_transform.x.length()
+	var vertical_scale := render_transform.y.length()
+	if horizontal_scale <= 0.001 or vertical_scale <= 0.001:
 		_photo_in_use = null
 		texture_filter = CanvasItem.TEXTURE_FILTER_PARENT_NODE
 		CardPhotoStudio.withdraw(self)
 		return null
-	var pixel_scale := snappedf(horizontal_scale, 0.001)
+	var turned := absf(render_transform.x.y) > 0.001 or absf(render_transform.y.x) > 0.001 \
+		or absf(horizontal_scale - vertical_scale) > 0.001
+	var moving := Engine.get_process_frames() - _last_motion_frame <= 2
+	var pixel_scale := snappedf(maxf(horizontal_scale, vertical_scale), 0.001)
+	if moving:
+		# A flying card reuses the photo it already has, stretched, instead of redrawing everything each frame.
+		if _photo_in_use != null and _photo_in_use.is_ready() and _photo_matches_card(_photo_in_use):
+			texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+			return _photo_in_use
+		# With no photo yet, it asks for one at a rounded size that stays the same during the whole flight.
+		pixel_scale = maxf(snappedf(pixel_scale, 0.25), 0.25)
 	if not CardPhotoStudio.can_photograph(_face_size, pixel_scale):
 		_photo_in_use = null
 		texture_filter = CanvasItem.TEXTURE_FILTER_PARENT_NODE
@@ -1037,8 +1179,15 @@ func _find_ready_photo(pop: float) -> CardPhotoStudio.Photo:
 		"inst": inst,
 	}
 	var photo := CardPhotoStudio.lookup(signature)
+	if photo == null and _photo_in_use != null and _photo_in_use.is_ready() and _photo_in_use.signature == signature:
+		photo = _photo_in_use
+		CardPhotoStudio.keep(photo)
 	if photo == null or not photo.is_ready():
 		CardPhotoStudio.request(self, signature)
+		# Until the exact photo is ready, the previous one (stretched) still beats drawing everything live.
+		if _photo_in_use != null and _photo_in_use.is_ready() and _photo_matches_card(_photo_in_use):
+			texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+			return _photo_in_use
 		_photo_in_use = null
 		texture_filter = CanvasItem.TEXTURE_FILTER_PARENT_NODE
 		return null
@@ -1047,9 +1196,17 @@ func _find_ready_photo(pop: float) -> CardPhotoStudio.Photo:
 	# Cached faces are rendered at their final pixel size. Avoid the project's nearest-mipmap
 	# default selecting a smaller level for thin lettering.
 	# (while the picture is enlarged by the proc pop, smooth filtering hides the stretch)
-	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST if is_equal_approx(pop, 1.0) else CanvasItem.TEXTURE_FILTER_LINEAR
+	var exact_fit := is_equal_approx(pop, 1.0) and not moving and not turned
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST if exact_fit else CanvasItem.TEXTURE_FILTER_LINEAR
 	_photo_transform_seen = render_transform
 	return photo
+
+## True when the photo shows this card as it is now (only its size on screen may differ).
+func _photo_matches_card(photo: CardPhotoStudio.Photo) -> bool:
+	var taken: Dictionary = photo.signature
+	return taken["card_id"] == card_id and taken["face_down"] == face_down and taken["face_size"] == _face_size \
+		and taken["cost_override"] == cost_override and taken["snowball_level"] == snowball_level \
+		and taken["text_bonuses"] == text_bonuses and taken["inst"] == inst
 
 ## Draws one of the two still parts captured by CardPhotoStudio.
 func _draw_photo_slot(photo: CardPhotoStudio.Photo, slot: int) -> void:
@@ -1104,6 +1261,8 @@ func _draw() -> void:
 		_rapidez_sparks.visible = false
 	if (face_down or fatigue > 0) and _fragment_aura != null:
 		_fragment_aura.visible = false
+	if fatigue > 0 and _card_glow != null:
+		_card_glow.visible = false
 	var s := _face_size.x / BASE.x
 	var r := Rect2(Vector2.ZERO, _face_size)
 	if fatigue > 0:
@@ -1112,7 +1271,8 @@ func _draw() -> void:
 	var pulse := 0.5 + 0.5 * sin(_t * 4.0)
 	var look := _face_look(s, 10.0 * s)
 	var rad: float = look["rad"]
-	_draw_live_auras(look, pulse)
+	_draw_live_auras(look)
+	_place_card_glow(face_origin, pop, s, look)
 	if photo != null:
 		_draw_photo_slot(photo, 0)
 	else:
@@ -1125,9 +1285,10 @@ func _draw() -> void:
 		_draw_photo_slot(photo, 1)
 	else:
 		_draw_lettering_and_gems(look)
-	# the champion gem is animated (it moves with _t), so it is always drawn live, after the still lettering
+	# the champion gem is drawn as one still frame (a moment with a glint and a star showing): animating it
+	# would make every champion card redraw all the time
 	if look["cd"].get("rarity", "") == "champion" and not look["is_token"]:
-		_champion_gem(self, Vector2(_face_size.x / 2, _face_size.y - 3 * s), 5.5 * s, look["trim"], _t)
+		_champion_gem(self, Vector2(_face_size.x / 2, _face_size.y - 3 * s), 5.5 * s, look["trim"], CHAMPION_GEM_STILL_TIME)
 	# forbidden to play: padlock and chains over the finished face, drawn live (they sway and glint)
 	if locked:
 		ChainLockFx.draw(self, Transform2D(0.0, Vector2(pop, pop), 0.0, face_origin), r, _rrect_pts(r, rad), s,
@@ -1180,65 +1341,20 @@ func _face_look(s: float, rad: float) -> Dictionary:
 		"is_token": is_token, "is_artifact": is_artifact, "death_ward": death_ward_active, "full_art": full_art,
 		"art": art, "window_kind": window_kind}
 
-## Layer 1: drop shadow, halos and every animated aura around the frame.
-func _draw_live_auras(look: Dictionary, pulse: float) -> void:
+## Layer 1: drop shadow and the trigger flash around the frame (the animated rings are in _place_card_glow).
+func _draw_live_auras(look: Dictionary) -> void:
 	var s: float = look["s"]
 	var r: Rect2 = look["r"]
 	var rad: float = look["rad"]
-	var cd: Dictionary = look["cd"]
-	var glow: Color = look["glow"]
-	var death_ward_active: bool = look["death_ward"]
 
 	# drop shadow, deeper when the card is lifted
 	if shadow:
 		var depth := (12.0 if hovered else 4.0) * s
 		var resting := 1.0 - _float_strength # a flyer's shadow is on the table instead (_draw_float_shadow)
-		for i in 5:
+		for i in (5 if resting > 0.0 else 0):
 			var g := r.grow((i * 2.2 + 1) * s)
 			g.position.y += depth
 			_rrect_fill(g, rad + i * 2 * s, Color(0, 0, 0, 0.11 * resting))
-	# legendary halo
-	if not face_down and cd["rarity"] in ["champion", "legendary"]:
-		for i in 4:
-			_rrect_line(r.grow((2 + i * 2.5) * s), rad + i * 2 * s, Color(glow, (0.22 - i * 0.05) * (0.6 + 0.4 * pulse)), 2.5 * s)
-	# selection / target glow
-	if highlight.a > 0:
-		for i in 4:
-			_rrect_line(r.grow((2 + i * 2.2) * s), rad + i * 2 * s, Color(highlight, (0.9 - i * 0.22) * (0.65 + 0.35 * pulse)), 2.2 * s)
-	elif hovered:
-		for i in 3:
-			_rrect_line(r.grow((1.5 + i * 2) * s), rad + i * 2 * s, Color(glow, 0.5 - i * 0.15), 2 * s)
-	# usable ability: violet rings; pushed outward when another highlight (e.g. can attack) already uses the inner rings
-	if ability_ready:
-		var first_ring := 4 if highlight.a > 0 else 0
-		for i in 4:
-			_rrect_line(r.grow((2 + (first_ring + i) * 2.2) * s), rad + (first_ring + i) * 2 * s, Color(ABILITY_GLOW, (0.9 - i * 0.22) * (0.65 + 0.35 * pulse)), 2.2 * s)
-	# depositable hand card: blue rings, pushed outward when the green play glow already uses the inner ones
-	if store_ready:
-		var store_first_ring := 4 if highlight.a > 0 else 0
-		for i in 4:
-			_rrect_line(r.grow((2 + (store_first_ring + i) * 2.2) * s), rad + (store_first_ring + i) * 2 * s, Color(STORE_GLOW, (0.9 - i * 0.22) * (0.65 + 0.35 * pulse)), 2.2 * s)
-	# The Baluarte's automatic protection is always active while it remains on the field.
-	if death_ward_active:
-		var ward_pulse := 0.7 + 0.3 * pulse
-		for i in 3:
-			_rrect_line(r.grow((2.5 + i * 2.6) * s), rad + i * 2 * s,
-				Color(DEATH_WARD_COL, (0.9 - i * 0.22) * ward_pulse), 2.4 * s)
-	# Congelada: a cold blue aura breathing around the whole frame
-	if inst.has("frozen"):
-		var breathing := 0.75 + 0.25 * sin(_t * 2.5)
-		for i in 5:
-			_rrect_line(r.grow((1.5 + i * 2.6) * s), rad + i * 2 * s, Color(FROST_DEEP, (0.95 - i * 0.17) * breathing * frost_grow), 2.8 * s)
-	# Atordoada: an amber aura flickering unevenly, like a head still ringing
-	if inst.has("stun_markers"):
-		var ringing := 0.7 + 0.3 * sin(_t * 5.0) * sin(_t * 1.7)
-		for i in 4:
-			_rrect_line(r.grow((1.5 + i * 2.4) * s), rad + i * 2 * s, Color(STUN_COL, (0.95 - i * 0.2) * ringing), 2.6 * s)
-	# Condenada: a violet aura pulsing slowly around the frame, like a heartbeat counting down
-	if inst.has("condemned_turn"):
-		var heartbeat := 0.6 + 0.4 * sin(_t * 3.2)
-		for i in 4:
-			_rrect_line(r.grow((1.5 + i * 2.4) * s), rad + i * 2 * s, Color(DOOM_COL, (0.9 - i * 0.2) * heartbeat), 2.6 * s)
 	# trigger proc: hot rim light, plus a ring pulsing out of the frame
 	if proc > 0:
 		for i in 5:
@@ -1330,7 +1446,7 @@ func _draw_live_art_overlays(look: Dictionary, pulse: float, face_origin: Vector
 	_place_fragment_aura(face_origin, pop, s, int(inst.get("fragments", 0)) if not face_down and fatigue <= 0 else 0)
 	if inst.has("frozen"):
 		_draw_frost(art, s)
-	if inst.has("stun_markers"):
+	if inst.has("stunned"):
 		_draw_stun(art, s)
 	if inst.get("summoning_sick", false):
 		_draw_summoning_sickness(art, s)
@@ -1339,7 +1455,7 @@ func _draw_live_art_overlays(look: Dictionary, pulse: float, face_origin: Vector
 	_draw_dot_badges(art, s, pulse)
 	if inst.has("condemned_turn"):
 		# a dark violet veil over the art, then the skull medallion on the upper-right corner
-		draw_colored_polygon(_art_window, Color("#2a0a4a", 0.28 + 0.08 * sin(_t * 3.2)))
+		draw_colored_polygon(_art_window, Color("#2a0a4a", 0.28))
 		_doom_badge(Vector2(art.end.x - 11 * s, art.position.y + 11 * s), 10 * s, s)
 
 ## Layer 4 (still): keywords, tribe, name, rules panel, seals and the stat gems.
@@ -1572,13 +1688,8 @@ func _draw_full_art_name(card_name: String, s: float, trim: Color) -> void:
 			Vector2(center_x, rule_y + thickness), Vector2(outer_x, rule_y + thickness)]), PackedColorArray([faded, rule_color, rule_color, faded]))
 	_diamond(Vector2(center_x, rule_y), 2.2 * s, rule_color)
 
-## Overlays shared by both faces: foil shimmer, hit flash, dim veil.
+## Overlays shared by both faces: hit flash, dim veil. (The foil shine lives in card_glow.gdshader.)
 func _finish(r: Rect2, rad: float, s: float) -> void:
-	if _legendary():
-		var x := fmod(_t * 0.45, 1.6) * (_face_size.x + _face_size.y) - _face_size.y
-		var band := PackedVector2Array([Vector2(x, _face_size.y), Vector2(x + 26 * s, _face_size.y), Vector2(x + 26 * s + _face_size.y, 0), Vector2(x + _face_size.y, 0)])
-		for poly in Geometry2D.intersect_polygons(band, _rrect_pts(r, rad)):
-			draw_colored_polygon(poly, Color(1, 0.96, 0.8, 0.16))
 	if inst.has("frozen"):
 		_draw_frost_shell(r, rad, s)
 	if proc_wave > 0 and proc_wave < 1:
@@ -1692,7 +1803,7 @@ func _taunt_gate_glyph(c: Vector2, g: float, tint: Color, alpha: float, s: float
 	draw_line(c + Vector2(-0.22, 0.34) * g, c + Vector2(0.22, 0.34) * g, bar_color, 0.8 * s, true)
 
 ## The art of a frozen unit sealed in ice: a deep blue veil, rime on top, ice piling up at the bottom
-## with crystals standing on it, and a big slowly turning snowflake in the middle.
+## with crystals standing on it, and a big snowflake in the middle.
 func _draw_frost(art: Rect2, s: float) -> void:
 	var grow := frost_grow
 	draw_colored_polygon(_art_window, Color(FROST_DEEP, 0.42 * grow))
@@ -1709,31 +1820,14 @@ func _draw_frost(art: Rect2, s: float) -> void:
 	_draw_snowflake(art.get_center(), art.size.x * 0.3 * (0.4 + 0.6 * grow), s, Color(1, 1, 1, 0.78 * grow))
 	draw_polyline(_art_window + PackedVector2Array([_art_window[0]]), Color(1, 1, 1, 0.95 * grow), 2.2 * s, true)
 
-## The art of a stunned unit: a dull amber veil and stars circling over its head. The number of stun
-## markers it still has (each one costs the unit an untap) is a medallion in the status column, see _draw_dot_badges.
-func _draw_stun(art: Rect2, s: float) -> void:
+## The art of a stunned unit: a dull amber veil (the circling stars are in card_glow.gdshader).
+func _draw_stun(_art: Rect2, _s: float) -> void:
 	draw_colored_polygon(_art_window, Color("#3a2a00", 0.34))
-	var orbit_center := Vector2(art.get_center().x, art.position.y + art.size.y * 0.22)
-	for star_index in 5:
-		var angle := _t * 2.4 + star_index * TAU / 5.0
-		var star_position := orbit_center + Vector2(cos(angle) * art.size.x * 0.32, sin(angle) * art.size.y * 0.07)
-		var in_front := 0.6 + 0.4 * sin(angle) # stars on the near side of the orbit read bigger and brighter
-		_draw_glint(star_position, (4.0 + 4.0 * in_front) * s, Color(1.0, 0.9, 0.45, 0.55 + 0.45 * in_front))
 
 ## A unit that just arrived and cannot attack yet (Enjoo de Invocação): the art dims to a calm
-## slate-blue, and three small "z" rise from its upper-right corner, one after the other, each
-## growing a little and fading out. Deliberately quiet: no ring, no badge, no bright color.
-func _draw_summoning_sickness(art: Rect2, s: float) -> void:
-	draw_colored_polygon(_art_window, Color("#141b2e", 0.3 + 0.06 * sin(_t * 1.6)))
-	var drowsy_col := Color("#c3cdee")
-	var rise_seconds := 3.0 # one "z" takes this long to drift up and vanish
-	var z_font := UITheme.font("heavy")
-	for z_index in 3:
-		var progress := fposmod(_t / rise_seconds + z_index / 3.0, 1.0) # 0 = just appeared, 1 = gone
-		var fade := sin(progress * PI) # in and out, brightest halfway up
-		var start := Vector2(art.end.x - 18 * s, art.position.y + art.size.y * 0.5)
-		var z_position := start + Vector2(sin(progress * TAU) * 3 * s, -progress * art.size.y * 0.3)
-		_text(z_font, "z", z_position, (14.0 + 10.0 * progress) * s, Color(drowsy_col, 0.95 * fade))
+## slate-blue (the rising "z"s are in card_glow.gdshader).
+func _draw_summoning_sickness(_art: Rect2, _s: float) -> void:
+	draw_colored_polygon(_art_window, Color("#141b2e", 0.3))
 
 ## Ice over the whole card, drawn on top of everything: a cold tint, a white crust on the frame,
 ## icicles hanging from the top edge, twinkling glints, and the flash and shockwaves of the freezing moment.
@@ -1750,7 +1844,7 @@ func _draw_frost_shell(r: Rect2, rad: float, s: float) -> void:
 		draw_colored_polygon(PackedVector2Array([base, tip, base + Vector2(-half_width, 0)]), Color(1, 1, 1, 0.9 * grow))
 		draw_polyline(PackedVector2Array([base + Vector2(-half_width, 0), tip, base + Vector2(half_width, 0)]), Color(FROST_DEEP.darkened(0.2), 0.8 * grow), 0.8 * s, true)
 	for glint_index in FROST_GLINTS.size():
-		var twinkle := maxf(0.0, sin(_t * 2.2 + glint_index * 1.9))
+		var twinkle := 0.4 + 0.6 * float(glint_index % 3) / 2.0
 		if twinkle > 0.05:
 			_draw_glint(FROST_GLINTS[glint_index] * _face_size, (3.0 + 6.0 * twinkle) * s, Color(1, 1, 1, twinkle * grow))
 	if frost_burst > 0 and frost_burst < 1:
@@ -1761,10 +1855,10 @@ func _draw_frost_shell(r: Rect2, rad: float, s: float) -> void:
 		var late_reach := 1.0 - pow(1.0 - clampf(frost_burst * 1.3 - 0.15, 0.0, 1.0), 3.0)
 		_rrect_line(r.grow((4 + 30 * late_reach) * s), rad + 10 * late_reach * s, Color(FROST_DEEP, 0.8 * pow(fade, 1.4)), (5.0 - 3.0 * late_reach) * s)
 
-## A six-armed snowflake with side branches, slowly turning.
+## A six-armed snowflake with side branches.
 func _draw_snowflake(c: Vector2, arm: float, s: float, col: Color) -> void:
 	for i in 6:
-		var direction := Vector2.from_angle(_t * 0.15 + i * TAU / 6.0)
+		var direction := Vector2.from_angle(i * TAU / 6.0)
 		draw_line(c, c + direction * arm, col, 2.0 * s, true)
 		for branch_at in [0.55, 0.8]:
 			var branch_base: Vector2 = c + direction * arm * branch_at
@@ -2107,7 +2201,7 @@ func _status_amounts() -> Dictionary:
 	for status_id in STATUS_ORDER:
 		var amount := dot_marker_count_of_view(inst, status_id)
 		if status_id == "atordoada":
-			amount = int(inst.get("stun_markers", 0))
+			amount = 1 if inst.has("stunned") else 0
 		elif status_id == "sem_cura":
 			amount = heal_block_turns_left_of_view(inst)
 		if amount > 0:
@@ -2121,7 +2215,9 @@ func _draw_dot_badges(art: Rect2, s: float, pulse: float) -> void:
 	var column_top := art.position.y + 22 * s # just below the essence/doom corner (it ends ~22 px into the art)
 	var column_bottom := art.end.y # the name plate starts right under the art
 	var radius_by_count := [10 * s * DOT_BADGE_ENLARGEMENT, 10 * s * 1.35, 10 * s]
-	draw_status_column(self, _status_amounts(), _face_size.x, column_top, column_bottom, radius_by_count, s, _t, pulse)
+	var amounts := _status_amounts()
+	_status_overflow = amounts.size() > MAX_STATUS_MEDALLIONS
+	draw_status_column(self, amounts, _face_size.x, column_top, column_bottom, radius_by_count, s, _t, pulse)
 
 const SIDE_BADGE_SHRINK := 0.9 ## keyword medallion size when a card shows 3 or more
 const SIDE_BADGE_SPACING := 23.0 ## distance between medallions of a column, at full size
@@ -2412,8 +2508,8 @@ func _panel_lines(cd: Dictionary) -> Array:
 		tags.append([CardDB.keyword("condenada")["name"], DOOM_COL.lightened(0.15)])
 	if inst.has("frozen"):
 		tags.append(["Congelada", FROST])
-	if inst.has("stun_markers"):
-		tags.append(["%s %d" % ["Atordoada", int(inst["stun_markers"])], STUN_COL.lightened(0.2)])
+	if inst.has("stunned"):
+		tags.append(["Atordoada", STUN_COL.lightened(0.2)])
 	if inst.get("magic_shield", false):
 		tags.append([CardDB.keyword("escudo_magico")["name"], Color("#c9a8ff")])
 	if inst.get("supreme_shield", false):
@@ -2429,7 +2525,7 @@ func _panel_lines(cd: Dictionary) -> Array:
 	# Rapidez keyword: Rapidez 0 goes unmentioned and 1-3 read as "Rapidez 1-3"
 	# (a frozen unit has its Rapidez suppressed, so the tag is hidden until it thaws)
 	var rapidez_level := rapidez_of_view(cd, inst)
-	if rapidez_level > 0 and not inst.has("frozen") and not inst.has("stun_markers"):
+	if rapidez_level > 0 and not inst.has("frozen") and not inst.has("stunned"):
 		tags.append(["%s %d" % [CardDB.keyword("rapidez")["name"], rapidez_level], Color("#ffd27a")])
 	# Crítico X: the level reads on the tag ("Crítico 2"); the glossary in the overlay gives the chance
 	var critico_level := critico_of_view(cd, inst)

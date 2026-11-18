@@ -12,8 +12,6 @@ extends Node
 ## draws itself the old way and leaves a request(); the studio paints the photo a few frames later and asks the
 ## card to redraw, so the new look (for example a changed cost) is never shown stale.
 
-## Cards waiting for a photo are served this many per frame, so a whole board never stalls one frame.
-const PHOTO_BAKES_PER_FRAME := 2
 ## A card must ask for the same photo this many frames in a row before it is painted (skips zoom / move tweens).
 const FRAMES_UNCHANGED_BEFORE_BAKE := 2
 ## Room (in base pixels) around the face, because gems and their shadows hang over the card edge.
@@ -60,6 +58,7 @@ static var _photos := {} ## hash of signature -> Photo
 static var _requests := {} ## card instance id -> {"signature", "since_frame"}
 static var _studio: CardPhotoStudio
 static var _unfinished: Array[Photo] = [] ## photos whose painter is still alive
+static var _unpremultiply_material: ShaderMaterial
 
 ## Whether a face of this size (in photo pixels) is small enough to be photographed.
 static func can_photograph(face_size: Vector2, pixel_scale: float) -> bool:
@@ -91,6 +90,12 @@ static func cache_stats() -> Dictionary:
 		"requests": _requests.size(),
 		"unfinished": _unfinished.size(),
 	}
+
+## Puts back a photo a card is still showing after it was forgotten for being unused (a still card never
+## looks its photo up), so the card's next move or trigger does not paint the same picture again.
+static func keep(photo: Photo) -> void:
+	photo.last_used_frame = Engine.get_frames_drawn()
+	_photos[hash(photo.signature)] = photo
 
 ## A card that could not draw with a photo leaves this; the studio redraws the card once the photo is ready.
 static func request(card: CardView, signature: Dictionary) -> void:
@@ -128,7 +133,7 @@ func _process(_delta: float) -> void:
 				card.queue_redraw()
 			continue
 		var waited: int = frame - int(_requests[card_instance_id]["since_frame"])
-		if waited >= FRAMES_UNCHANGED_BEFORE_BAKE and bakes_this_frame < PHOTO_BAKES_PER_FRAME:
+		if waited >= FRAMES_UNCHANGED_BEFORE_BAKE and bakes_this_frame < GraphicsQuality.photo_bakes_per_frame:
 			_bake(signature)
 			bakes_this_frame += 1
 	# the painter is only needed until the picture exists
@@ -143,6 +148,7 @@ func _process(_delta: float) -> void:
 func _bake(signature: Dictionary) -> void:
 	var pixel_scale: float = signature["pixel_scale"]
 	var face_size: Vector2 = signature["face_size"]
+	HitchLog.note("foto %s x%.2f" % [signature["card_id"], pixel_scale])
 	var photo := Photo.new()
 	photo.signature = signature
 	photo.padding_pixels = _padding_pixels(face_size, pixel_scale)
@@ -164,10 +170,12 @@ func _bake(signature: Dictionary) -> void:
 	var group := CanvasGroup.new()
 	# The second painted slot sits one full card height below the painter's own control rectangle.
 	group.fit_margin = photo.slot_pixels.y / pixel_scale
-	var material := ShaderMaterial.new()
-	material.shader = Shader.new()
-	material.shader.code = UNPREMULTIPLY_SHADER
-	group.material = material
+	if _unpremultiply_material == null:
+		# one shared material: a new shader for every photo would be compiled again each time
+		_unpremultiply_material = ShaderMaterial.new()
+		_unpremultiply_material.shader = Shader.new()
+		_unpremultiply_material.shader.code = UNPREMULTIPLY_SHADER
+	group.material = _unpremultiply_material
 	viewport.add_child(group)
 
 	var painter := CardView.new()

@@ -5840,6 +5840,12 @@ func _finish_turn() -> void:
 			if c.frozen > 0 and turn >= c.frozen:
 				c.frozen = 0
 				emit_event({ "type": "thaw", "uid": c.uid })
+			# same deadline rule; on recovering, the unit untaps at once (unless still Congelada or Inerte)
+			if c.stunned > 0 and turn >= c.stunned:
+				c.stunned = 0
+				if not c.is_frozen() and not has_kw(c, "inerte"):
+					c.exhausted = false
+				emit_event({ "type": "stun_end", "uid": c.uid })
 	# Rei Gelado: the frozen empty slots thaw at the END of their owner's turn, so that turn really felt them
 	var ending: Dictionary = players[active]
 	if int(ending["frozen_slots"]) > 0 and turn >= int(ending["frozen_slots_until"]):
@@ -5975,10 +5981,8 @@ func _start_turn(p: int, draw: bool) -> void:
 		if c.temp_hp_until_next_turn > 0:
 			c.damage = maxi(0, c.damage - c.temp_hp_until_next_turn)
 			c.temp_hp_until_next_turn = 0
-		if c.is_stunned(): # an Atordoada unit loses one marker instead of untapping
-			c.stun_markers -= 1
-			emit_event({ "type": "stun_tick", "uid": c.uid, "markers": c.stun_markers })
-		elif not c.is_frozen(): # a Congelada unit stays tapped through this whole turn
+		# a Congelada or Atordoada unit stays tapped through this whole turn
+		if not c.is_frozen() and not c.is_stunned():
 			c.exhausted = false
 		c.sick = false
 		c.temp_armor = 0

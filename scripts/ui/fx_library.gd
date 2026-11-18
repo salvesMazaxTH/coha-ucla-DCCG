@@ -241,7 +241,13 @@ const TAP_DELAY := 0.12
 const SHORT_LIVED_ARRIVAL_TIME := 0.6
 const TAP_TIME := 0.45
 
+## Writes `work` in the HitchLog when the effect actually starts, `t` seconds from now.
+static func note_at(t: float, work: String) -> void:
+	if HitchLog.enabled:
+		(Engine.get_main_loop() as SceneTree).create_timer(t).timeout.connect(HitchLog.note.bind(work))
+
 func lunge_at_target(a: CardView, target: Control, t: float) -> void:
+	note_at(t, "ataque " + a.card_id)
 	var tw := a.create_tween()
 	tw.tween_interval(t)
 	# The direction is measured when the lunge starts, not now: the table was already redrawn in its
@@ -679,6 +685,7 @@ func _apply_screen_trauma(progress: float, rest_position: Vector2, strength: flo
 
 ## Shake + red flash on the target and a floating number over it.
 func hit_impact(target: Control, text: String, col: Color, t: float, hurt: bool) -> void:
+	note_at(t, "texto " + text)
 	var tw := target.create_tween()
 	tw.tween_interval(t)
 	if hurt and target is CardView:
@@ -1105,6 +1112,7 @@ func banish_fx(c: Vector2, w: float, t: float) -> void:
 ## light sweeps across it, sparks fly and a tag names the trigger, in the same orange as
 ## trigger names in the rules text, so what follows reads as coming from this card.
 func trigger_fx(v: Control, trigger: String, t: float) -> void:
+	note_at(t, "gatilho " + trigger)
 	if v is CardView:
 		var cv: CardView = v
 		var tw := cv.create_tween()

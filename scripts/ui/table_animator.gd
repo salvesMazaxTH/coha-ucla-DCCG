@@ -559,7 +559,7 @@ func animate(events: Array, old: Dictionary) -> float:
 			"countered":
 				host.show_toast("%s foi anulado!" % ("A habilidade do Líder" if e["kind"] == "ability" else host.card_name(e["card_id"])))
 				cursor += 0.4
-			"magic_shield_break", "supreme_shield_break", "tide_mark", "tide_draw", "dot", "dot_immune", "freeze", "exhaust", "ready", "stun", "stun_tick", "shrink", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up", "heal_block", "heal_prevented":
+			"magic_shield_break", "supreme_shield_break", "tide_mark", "tide_draw", "dot", "dot_immune", "freeze", "exhaust", "ready", "stun", "stun_end", "shrink", "condemn", "doom", "doom_resisted", "thaw", "dodge", "crit", "crit_negated", "critico_up", "heal_block", "heal_prevented":
 				if actors.has(e["uid"]):
 					var dot_name: String = { "queimadura": "Queimadura", "veneno": "Veneno", "sangramento": "Sangramento", "fragmento": "Fragmento" }.get(
 						String(e.get("dot", "")),
@@ -579,7 +579,7 @@ func animate(events: Array, old: Dictionary) -> float:
 						"exhaust": "Exausta!",
 						"ready": "Desvirou!",
 						"stun": "Atordoada!",
-						"stun_tick": "Recuperando…",
+						"stun_end": "Recuperada!",
 						"shrink": "Encolhida!",
 						"condemn": "Condenada!",
 						"doom": "Ceifada!",
@@ -599,7 +599,7 @@ func animate(events: Array, old: Dictionary) -> float:
 						col = Color("#ffd86b")
 					elif e["type"] in ["freeze", "thaw"]:
 						col = ICE
-					elif e["type"] in ["stun", "stun_tick"]:
+					elif e["type"] in ["stun", "stun_end"]:
 						col = CardView.STUN_COL
 					elif e["type"] == "shrink":
 						col = Color("#ffb347")
