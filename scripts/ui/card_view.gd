@@ -160,8 +160,9 @@ var hit_pad := 0.0 ## extra hit area below the card (lifted hand cards)
 ## its text), the card is redrawn at the bigger size, so every glyph stays sharp.
 var zoom := 1.0:
 	set(value):
-		zoom = value
-		queue_redraw()
+		if zoom != value:
+			zoom = value
+			queue_redraw()
 var _face_size := Vector2.ZERO ## the size the card face is drawn at: size * zoom, in whole pixels
 var _painting_photo := false ## this CardView is the hidden painter inside CardPhotoStudio
 ## Short-lived cards (ghosts) use a photo only if one already exists: painting a new one for a card about to
@@ -178,59 +179,70 @@ static var _is_headless := DisplayServer.get_name() == "headless"
 ## lunge) and a red hit flash 0..1.
 var shake := Vector2.ZERO:
 	set(v):
-		shake = v
-		queue_redraw()
+		if shake != v:
+			shake = v
+			queue_redraw()
 var lunge := Vector2.ZERO:
 	set(v):
-		lunge = v
-		queue_redraw()
+		if lunge != v:
+			lunge = v
+			queue_redraw()
 var flash := 0.0:
 	set(v):
-		flash = v
-		queue_redraw()
+		if flash != v:
+			flash = v
+			queue_redraw()
 ## Trigger going off: proc 0..1 is the pop + rim light, proc_wave 0..1 the ring pulsing out
 ## and the light sweeping across the card (0 = off).
 var proc := 0.0:
 	set(v):
-		proc = v
-		queue_redraw()
+		if proc != v:
+			proc = v
+			queue_redraw()
 var proc_wave := 0.0:
 	set(v):
-		proc_wave = v
-		queue_redraw()
+		if proc_wave != v:
+			proc_wave = v
+			queue_redraw()
 ## Congelada: how far the ice has grown over the card (0 = none yet, 1 = fully frozen). It is 1 by
 ## default; Main sets it to 0 and tweens it up at the moment of the freeze, so the ice spreads over the card.
 var frost_grow := 1.0:
 	set(v):
-		frost_grow = v
-		queue_redraw()
+		if frost_grow != v:
+			frost_grow = v
+			queue_redraw()
 ## The instant of freezing (0 = off, 1 = finished): a white-blue flash and two shockwaves of ice.
 var frost_burst := 0.0:
 	set(v):
-		frost_burst = v
-		queue_redraw()
+		if frost_burst != v:
+			frost_burst = v
+			queue_redraw()
 ## Proibida de jogar: a play restriction (restrict_play) bars this card right now, so it is drawn under a
 ## padlock and two crossed chains (ChainLockFx). Main sets it on the hand cards; dragging it rattles the lock.
 var locked := false:
 	set(value):
-		locked = value
-		queue_redraw()
+		if locked != value:
+			locked = value
+			queue_redraw()
 ## How far the chains have closed over the card (0 = not yet, 1 = locked). It is 1 by default, so a card
 ## that was already locked simply shows the lock; play_lock_in() tweens it up from 0 when the lock arrives.
 var lock_in := 1.0:
 	set(value):
-		lock_in = value
-		queue_redraw()
+		if lock_in != value:
+			lock_in = value
+			queue_redraw()
 ## The lock falling away when the restriction ends (0 = still locked, 1 = gone), see play_unlock().
 var lock_release := 0.0:
 	set(value):
-		lock_release = value
-		queue_redraw()
+		if lock_release != value:
+			lock_release = value
+			queue_redraw()
 ## A tug on the lock when the player tries to drag the card (1 = just tugged, dying down to 0).
 var lock_rattle := 0.0:
 	set(value):
-		lock_rattle = value
-		queue_redraw()
+		if lock_rattle != value:
+			lock_rattle = value
+			queue_redraw()
 var _lock_tween: Tween
 var _rattled_this_press := false ## one rattle per press, however long the finger keeps pulling
 var shadow := true
@@ -343,6 +355,30 @@ func setup_domain_badge(domain_id: String, badge_size: float) -> CardView:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_process(false)
 	return self
+
+## A view kept on the table from the last redraw goes back to how a new one starts (animations may have
+## faded, raised, shaken or lit it). Only what differs is changed, so a card at rest is not drawn again.
+## `keep_zoom`: a hand card still under the cursor stays lifted and grown.
+func return_to_rest(keep_zoom := false) -> void:
+	if not visible:
+		visible = true
+	if modulate != Color.WHITE:
+		modulate = Color.WHITE
+	if self_modulate != Color.WHITE:
+		self_modulate = Color.WHITE
+	if z_index != 0:
+		z_index = 0
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	if not keep_zoom:
+		zoom = 1.0
+	shake = Vector2.ZERO
+	lunge = Vector2.ZERO
+	flash = 0.0
+	proc = 0.0
+	proc_wave = 0.0
+	frost_grow = 1.0
+	frost_burst = 0.0
+	dim = false
 
 ## Updates an existing card view after Main confirms this unit kept the same board slot.
 func update_card(id: String, instance: Dictionary = {}, size_scale := 1.0) -> void:

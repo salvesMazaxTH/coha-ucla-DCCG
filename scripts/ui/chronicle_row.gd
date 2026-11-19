@@ -33,6 +33,11 @@ var is_ally := true ## the event was done by the player looking at the screen
 var is_active := false ## the big scene is open for this row right now
 var _hovered := false
 var _fresh_glow := 0.0 ## 1 when the row has just appeared, fading to 0
+## The title and prose already cut to the row's width (cutting measures the text many times, and the
+## row is drawn again on every hover and glow step).
+var _fitted_width := -1.0
+var _fitted_title := ""
+var _fitted_body := ""
 
 ## `ally`: whether the viewer did it; `active`: the scene is showing it; `fresh`: it just happened.
 func setup(data: Dictionary, ally: bool, active := false, fresh := false) -> ChronicleRow:
@@ -181,13 +186,16 @@ func _draw_event_tile() -> void:
 	# title of the action and one line of prose (the whole sentence is in the big scene)
 	var text_width := maxf(20.0, text_right - TEXT_LEFT)
 	var title_font := UITheme.font("title_bold")
-	var title := String(entry.get("label", "EVENTO"))
-	if target_ids.is_empty() and int(entry.get("amount", 0)) != 0:
-		title += "  " + amount_text(entry)
-	draw_string(title_font, Vector2(TEXT_LEFT, 20), fit_text(title, title_font, 10, text_width), HORIZONTAL_ALIGNMENT_LEFT, -1, 10, accent)
 	var body_font := UITheme.font("body")
-	var body := fit_text(String(entry.get("text", "")), body_font, 13, text_width)
-	draw_string(body_font, Vector2(TEXT_LEFT, 38), body, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UITheme.TEXT if highlighted else Color(UITheme.TEXT, 0.82))
+	if text_width != _fitted_width:
+		_fitted_width = text_width
+		var title := String(entry.get("label", "EVENTO"))
+		if target_ids.is_empty() and int(entry.get("amount", 0)) != 0:
+			title += "  " + amount_text(entry)
+		_fitted_title = fit_text(title, title_font, 10, text_width)
+		_fitted_body = fit_text(String(entry.get("text", "")), body_font, 13, text_width)
+	draw_string(title_font, Vector2(TEXT_LEFT, 20), _fitted_title, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, accent)
+	draw_string(body_font, Vector2(TEXT_LEFT, 38), _fitted_body, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UITheme.TEXT if highlighted else Color(UITheme.TEXT, 0.82))
 
 func _draw_action_badge(center: Vector2, accent: Color) -> void:
 	draw_circle(center, 9.0, Color("#0b0a10"))
@@ -293,7 +301,13 @@ static func draw_card_art(canvas: CanvasItem, card_id: String, rect: Rect2, acce
 static func fit_text(text: String, font: Font, font_size: int, max_width: float) -> String:
 	if font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x <= max_width:
 		return text
-	var clipped := text
-	while clipped.length() > 1 and font.get_string_size(clipped + "…", HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > max_width:
-		clipped = clipped.left(clipped.length() - 1)
-	return clipped + "…"
+	# binary search for the longest start of the text that fits with the "…"
+	var shortest := 1
+	var longest := text.length() - 1
+	while shortest < longest:
+		var middle := (shortest + longest + 1) / 2
+		if font.get_string_size(text.left(middle) + "…", HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x <= max_width:
+			shortest = middle
+		else:
+			longest = middle - 1
+	return text.left(shortest) + "…"

@@ -1,4 +1,4 @@
-# Regras — 0.2.2 Alpha
+# Regras — 0.6 Alpha
 
 ## Objetivo
 

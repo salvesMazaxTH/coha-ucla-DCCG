@@ -11,8 +11,8 @@ if errorlevel 1 (
 	exit /b 1
 )
 
-echo [2/4] Subindo o numero da versao (o Android so atualiza por cima se ele crescer)...
-powershell -NoProfile -Command "$f='export_presets.cfg'; $t=[IO.File]::ReadAllText($f); $t=[regex]::Replace($t,'version/code=(\d+)',{param($m) 'version/code='+([int]$m.Groups[1].Value+1)}); [IO.File]::WriteAllText($f,$t)"
+echo [2/4] Subindo a versao do jogo (0.6 -^> 0.7; o Android so atualiza por cima se ela crescer)...
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\bump_version.ps1
 
 echo [3/4] Exportando o APK (demora alguns minutos)...
 if not exist build\android mkdir build\android

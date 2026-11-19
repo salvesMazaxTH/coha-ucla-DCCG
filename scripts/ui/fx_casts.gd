@@ -745,7 +745,10 @@ func destroy_style_of(card_id: String) -> String:
 	elif card.has("cast_fx"):
 		style = String(card["cast_fx"])
 	else:
-		style = String(ELEMENT_STYLES.get(String(card.get("element", "")), ""))
+		for element in CardDB.elements_of(card): # a card can have two elements
+			if ELEMENT_STYLES.has(element):
+				style = ELEMENT_STYLES[element]
+				break
 	return style if style in DESTROY_STYLES else ""
 
 ## Plays the destroy animation of `style` over the unit `unit_view` at moment t.

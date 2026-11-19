@@ -3,6 +3,8 @@ extends Control
 ## hot-seat pass screen and the full-screen card summary overlay.
 
 const ChronicleRowScript = preload("res://scripts/ui/chronicle_row.gd")
+const ChroniclePanelScript = preload("res://scripts/ui/chronicle_panel.gd")
+const ReservoirPanelScript = preload("res://scripts/ui/reservoir_panel.gd")
 const ChronicleSceneScript = preload("res://scripts/ui/chronicle_scene.gd")
 const FxLibraryScript = preload("res://scripts/ui/fx_library.gd")
 const FxShotsScript = preload("res://scripts/ui/fx_shots.gd")
@@ -70,6 +72,16 @@ var _chronicle_seen_seq := 0 ## entries up to this number were already drawn onc
 var _chronicle_list_rect := Rect2() ## where the Chronicle list is on the stage (empty when it is not drawn)
 var chronicle_scene: ChronicleScene ## the big panel that replays a hovered Chronicle row beside the list
 var _chronicle_rows_box: VBoxContainer ## holds the ChronicleRow nodes of the current screen
+## Match-table panels that stay alive between redraws (only their changes are drawn again). They sit
+## right below `layer`, so veils and windows of the layer still cover them. Emptied off the match table.
+var table_panels: Control
+var chronicle_panel: ChroniclePanel
+var reservoir_panels := { } ## player -> ReservoirPanel
+var _keep_table_panels := false ## set by _render_now: the clear_table it calls keeps the panels
+## Cards, Leaders, piles and buttons of the match table kept between redraws (see table_keeper.gd).
+var table_keeper := TableKeeper.new()
+var _layer_is_match_table := false ## the current `layer` was drawn by _render_now, so its pieces can be kept
+const TABLE_DECORATION := "table_decoration" ## meta of tags and badges added on top of a kept piece
 var bg: TextureRect ## table surface, baked once into bg_vp (the live shader was too heavy for weak phones)
 var bg_vp: SubViewport
 var bg_rect: ColorRect
@@ -89,8 +101,6 @@ var conceded := -1 ## player who gave up this match (-1 = nobody); only used for
 var finger_press_position := Vector2.ZERO ## where the current touch began
 var finger_is_swiping := false ## true once the current touch moved past SWIPE_START_DISTANCE
 var views := { } ## uid (or "cmd<p>") -> Control on screen, for animations
-var _unit_board_views := { } ## uid -> unit CardView from the last board render, kept for same-slot updates
-var _unit_views_for_reuse := { } ## detached unit views being matched against the next board layout
 var barricade_was_up := { } ## unit uid -> was a tapped, unfrozen Provocação up in the previous render?
 var _locked_hand_uids := { } ## hand card uid -> true if it was chained (play restriction) in the previous render
 const LOCK_STAGGER_SECONDS := 0.07 ## delay between the chain lock-ins of cards locked at the same moment
@@ -150,7 +160,7 @@ var _queued_attacker_uid := 0
 ## The press that picked _queued_attacker_uid is still held: releasing it over a card picks the target.
 var _queued_attacker_dragging := false
 
-var _hand_base := 0 ## child index of the first hand card in layer
+var _hand_views_in_order: Array = [] ## the viewer's hand cards, left to right, from the last render
 
 
 ## "Modo leve": renders at the 1600x900 base size and upscales (fewer pixels, softer text).
@@ -666,28 +676,28 @@ func clear_table() -> void:
 	table_overlays.close_overlay()
 	menu_screens.close_decklist()
 	join_slots = null
-	_finish_unit_view_reuse()
-	for unit_uid in _unit_board_views:
-		var unit_view: CardView = _unit_board_views[unit_uid]
-		if (
-			is_instance_valid(unit_view) and not unit_view.is_queued_for_deletion() \
-					and is_instance_valid(layer)
-			and unit_view.get_parent() == layer
-		):
-			# Preserve the node briefly; _render_board will keep it only if this unit stays in the same slot.
-			layer.remove_child(unit_view)
-			_unit_views_for_reuse[unit_uid] = unit_view
-		elif is_instance_valid(unit_view) and not unit_view.is_queued_for_deletion():
-			unit_view.queue_free()
-	_unit_board_views.clear()
-	if layer:
-		layer.queue_free()
 	menu_screen_showing = false
-	layer = Control.new()
 	search_overlay = null
-	layer.set_anchors_preset(Control.PRESET_FULL_RECT)
-	layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(layer)
+	if _keep_table_panels and _layer_is_match_table and is_instance_valid(layer):
+		table_keeper.begin(layer) # one match redraw after another: the unchanged pieces stay
+	else:
+		table_keeper.clear()
+		if layer:
+			layer.queue_free()
+		layer = Control.new()
+		layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+		layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(layer)
+	_layer_is_match_table = _keep_table_panels
+	if not _keep_table_panels:
+		drop_table_panels()
+	if table_panels == null:
+		table_panels = Control.new()
+		table_panels.set_anchors_preset(Control.PRESET_FULL_RECT)
+		table_panels.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(table_panels)
+	table_panels.move_to_front()
+	layer.move_to_front()
 	if fx:
 		fx.move_to_front()
 	if is_instance_valid(_fps_counter):
@@ -701,17 +711,44 @@ func clear_table() -> void:
 	hand_uids.clear()
 
 
-func _finish_unit_view_reuse() -> void:
-	# Any old unit not found in the same board slot has moved or left the board; let its view go.
-	for unit_uid in _unit_views_for_reuse:
-		var unit_view: CardView = _unit_views_for_reuse[unit_uid]
-		if is_instance_valid(unit_view):
-			unit_view.queue_free()
-	_unit_views_for_reuse.clear()
+## Frees the persistent match-table panels (Chronicle, Reservoirs): a new match or a screen without them.
+func drop_table_panels() -> void:
+	if table_panels:
+		for panel in table_panels.get_children():
+			table_panels.remove_child(panel)
+			panel.queue_free()
+	chronicle_panel = null
+	_chronicle_rows_box = null
+	reservoir_panels.clear()
+	reservoir_drop_glow = null
+
+
+## A table piece kept from the last redraw, if it was built from the same `signature` (see TableKeeper);
+## null = build a new one and hand it to table_keeper.keep(). A kept piece loses the tags and target
+## badges of the last redraw (this one adds them again where they still apply), and a card goes back to rest.
+func _kept_piece(piece_name: String, signature: Array, keep_zoom := false) -> Control:
+	var piece: Control = table_keeper.reuse(layer, piece_name, signature)
+	if piece == null:
+		return null
+	for child in piece.get_children():
+		if child.has_meta(TABLE_DECORATION):
+			piece.remove_child(child)
+			child.queue_free()
+	if piece is CardView:
+		(piece as CardView).return_to_rest(keep_zoom)
+	return piece
+
+
+## Pivot in the middle of the piece; set only when it moves, since setting it redraws the piece.
+func _center_pivot(piece: Control) -> void:
+	if piece.pivot_offset != piece.size / 2.0:
+		piece.pivot_offset = piece.size / 2.0
 
 
 func reset_animation_state() -> void:
-	# a new screen or match: nothing from the previous one should still be waiting to play
+	# a new screen or match: nothing from the previous one should still be waiting to play or stay on the table
+	drop_table_panels()
+	_layer_is_match_table = false # the next match starts on a fresh table, with no piece of this one
 	_waiting_event_batches.clear()
 	_animation_busy_until_ms = 0
 	_render_when_settled = false
@@ -796,7 +833,9 @@ func _wait_for_table(input: Callable) -> bool:
 
 func _render_now() -> void:
 	_render_when_settled = false
+	_keep_table_panels = true
 	clear_table()
+	_keep_table_panels = false
 	drag_gap_slot = -1 # fresh board views have no gap
 	var me := viewer
 	var op := g.opponent(me)
@@ -813,8 +852,9 @@ func _render_now() -> void:
 	else:
 		table_overlays.refresh_graveyard()
 	if pending_pass:
+		drop_table_panels()
 		_render_pass()
-		_finish_unit_view_reuse()
+		table_keeper.finish()
 		return
 	# draw order = depth: the hands sit at the back, the Leaders in front of them, the units on top
 	_render_command(op, Vector2(SANCTUARY_X + 1, SANCTUARY_Y_OP + 6.0))
@@ -830,6 +870,7 @@ func _render_now() -> void:
 	_sync_enter_aim()
 	_sync_effect_choice_prompt()
 	_render_side()
+	table_keeper.finish() # before the game-over nodes are counted: pieces that left the table go now
 	_render_hint()
 	if g.phase == "search":
 		table_overlays.render_search_reveal()
@@ -841,7 +882,6 @@ func _render_now() -> void:
 		table_overlays.maybe_show_reservoir_choice()
 	if g.phase != "over" and is_ai(g.decider()) and ai_timer.is_stopped():
 		ai_timer.start() # not while it is already counting: every redraw would push the AI's move back
-	_finish_unit_view_reuse()
 
 
 ## Full-screen veil over the table with a centered panel.
@@ -1052,60 +1092,97 @@ func _render_pass() -> void:
 func _render_leader(p: int, pos: Vector2, mom_pos: Vector2) -> void:
 	var pl: Dictionary = g.players[p]
 	var uid: int = GameState.LEADER_UID[p]
-	var lv := LeaderView.new().setup(pl["leader_id"])
-	lv.position = pos
-	lv.hp = pl["leader_hp"]
-	lv.top_destroyed = lv.hp <= 0
-	lv.visible = not (lv.hp <= 0 and fx_executions.unmade_leader_uids.has(uid))
-	lv.hp_max = pl["leader_max"]
-	lv.deck = pl["deck"].size()
-	lv.fatigue = g.fatigue_next(p)
-	lv.shows_deck_pile = false # both decks and graveyards sit by the right edge of the table (see _render_piles)
-	lv.shows_graveyard = false
-	lv.grave = pl["graveyard"].size()
-	lv.dot_markers = {
+	var hp: int = pl["leader_hp"]
+	var shown := not (hp <= 0 and fx_executions.unmade_leader_uids.has(uid))
+	var dot_markers := {
 		"queimadura": g.leader_dot_markers(p, "queimadura"),
 		"veneno": g.leader_dot_markers(p, "veneno"),
 		"sangramento": g.leader_dot_markers(p, "sangramento"),
 		"sem_cura": CardView.heal_block_turns_left(int(pl["leader_heal_blocked_until"]), g.turn),
 		"congelar": g.leader_dot_markers(p, "congelar"), # TEMP pseudo 4th marker for the status-badge scenario
 	}
-	lv.ward_hits = g.leader_negations_left(p)
-	lv.requiem = g.requiem_cards(p).size() if p == viewer and not is_ai(p) and g.phase in ["main", "combat"] else 0
-	lv.ability_ready = p == viewer and g.can_use_ability(p, true) and not is_ai(p)
-	# passives with a per-turn limit (Thálvaressa) show how many uses are spent; the engine wipes the count every turn start
-	if CardDB.leader(pl["leader_id"])["ability"].has("max_per_turn"):
-		lv.ability_uses = int(pl.get("passive_uses", 0))
-	# an ability paid in Vida that grows with the player's own turns (Sengoku) tells its current price in the tooltip
+	var requiem: int = g.requiem_cards(p).size() if p == viewer and not is_ai(p) and g.phase in ["main", "combat"] else 0
 	var leader_ability: Dictionary = CardDB.leader(pl["leader_id"])["ability"]
-	if leader_ability.has("life_cost"):
-		lv.ability_life_cost_now = g.ability_life_cost(p, leader_ability)
-	lv.targetable = _is_target(uid)
-	lv.target_selected = _is_first_target(uid)
-	lv.active = g.active == p and g.phase != "mulligan"
-	lv.ability_clicked.connect(
-		func():
-			_on_ability(p),
-	)
-	lv.portrait_clicked.connect(
-		func():
-			_on_leader_click(p),
-	)
-	lv.grave_clicked.connect(
-		func():
-			table_overlays.show_graveyard(p),
-	)
-	layer.add_child(lv)
+	# passives with a per-turn limit (Thálvaressa) show how many uses are spent; the engine wipes the count every turn start
+	var ability_uses := int(pl.get("passive_uses", 0)) if leader_ability.has("max_per_turn") else -1
+	# an ability paid in Vida that grows with the player's own turns (Sengoku) tells its current price in the tooltip
+	var life_cost_now: int = g.ability_life_cost(p, leader_ability) if leader_ability.has("life_cost") else -1
+	var leader_signature := [
+		pl["leader_id"], hp, shown, pl["leader_max"], dot_markers, g.leader_negations_left(p), requiem,
+		p == viewer and g.can_use_ability(p, true) and not is_ai(p), ability_uses, life_cost_now,
+		_is_target(uid), _is_first_target(uid), g.active == p and g.phase != "mulligan",
+	]
+	var leader_piece := "leader%d" % p
+	var lv: LeaderView = _kept_piece(leader_piece, leader_signature)
+	# an animation may have left the kept plate showing another Vida (it steps the HP hit by hit)
+	if lv != null and (lv.hp != hp or lv.top_destroyed != (hp <= 0) or lv.visible != shown):
+		table_keeper.drop(leader_piece)
+		lv = null
+	if lv == null:
+		lv = LeaderView.new().setup(pl["leader_id"])
+		lv.hp = hp
+		lv.top_destroyed = hp <= 0
+		lv.visible = shown
+		lv.hp_max = pl["leader_max"]
+		lv.shows_deck_pile = false # both decks and graveyards sit by the right edge of the table (see _render_piles)
+		lv.shows_graveyard = false
+		lv.dot_markers = dot_markers
+		lv.ward_hits = g.leader_negations_left(p)
+		lv.requiem = requiem
+		lv.ability_ready = leader_signature[7]
+		lv.ability_uses = ability_uses
+		lv.ability_life_cost_now = life_cost_now
+		lv.targetable = leader_signature[10]
+		lv.target_selected = leader_signature[11]
+		lv.active = leader_signature[12]
+		lv.ability_clicked.connect(
+			func():
+				_on_ability(p),
+		)
+		lv.portrait_clicked.connect(
+			func():
+				_on_leader_click(p),
+		)
+		lv.grave_clicked.connect(
+			func():
+				table_overlays.show_graveyard(p),
+		)
+		table_keeper.keep(layer, leader_piece, lv, leader_signature)
+	else:
+		_leader_back_to_rest(lv)
+	lv.position = pos
+	lv.deck = pl["deck"].size()
+	lv.fatigue = g.fatigue_next(p)
+	lv.grave = pl["graveyard"].size()
 	views[uid] = lv
 	if lv.target_selected:
 		_add_target_badges(lv, _target_selection_numbers(uid))
-	var mb := MomentumBar.new()
-	mb.position = mom_pos
-	layer.add_child(mb)
-	mb.setup(
+	var momentum_values := [
 		int(pl["momentum"]) - int(pl["momentum_float"]), pl["max_momentum"], int(pl.get("battery", 0)),
 		g.momentum_cap(p), int(pl["momentum_float"]), g.battery_cap(p),
-	)
+	]
+	var momentum_piece := "momentum%d" % p
+	var mb: MomentumBar = _kept_piece(momentum_piece, momentum_values)
+	if mb == null:
+		mb = MomentumBar.new()
+		table_keeper.keep(layer, momentum_piece, mb, momentum_values)
+		mb.setup(
+			momentum_values[0], momentum_values[1], momentum_values[2], momentum_values[3], momentum_values[4],
+			momentum_values[5],
+		)
+	mb.position = mom_pos
+
+
+## A kept Leader plate goes back to how a new one starts, in case an animation faded, shook or raised it.
+func _leader_back_to_rest(leader_view: LeaderView) -> void:
+	if leader_view.modulate != Color.WHITE:
+		leader_view.modulate = Color.WHITE
+	if leader_view.scale != Vector2.ONE:
+		leader_view.scale = Vector2.ONE
+	if leader_view.rotation != 0.0:
+		leader_view.rotation = 0.0
+	if leader_view.z_index != 0:
+		leader_view.z_index = 0
 
 
 const HAND_SCALE := 1.4875 ## hand cards are cut at the bottom, so they can be bigger than the room they take
@@ -1138,77 +1215,31 @@ func _render_reservoir(p: int) -> void:
 			if g.can_store_in_reservoir(p, hand_card.uid):
 				can_ink = true
 				break
-	var panel := Panel.new()
+	var panel: ReservoirPanel = reservoir_panels.get(p)
+	if not is_instance_valid(panel):
+		panel = ReservoirPanelScript.new().build(self, rect.size, SEL)
+		reservoir_panels[p] = panel
+		table_panels.add_child(panel)
 	panel.position = rect.position
-	panel.size = rect.size
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_theme_stylebox_override("panel", UITheme.box(Color(0.03, 0.04, 0.09, 0.88), 8, Color(UITheme.GOLD, 0.65), 2))
-	layer.add_child(panel)
-	var caption := make_label(
-		"RESERVATÓRIO  •  %d disponíveis" % g.reservoir_ready(p),
-		14, UITheme.GOLD_LIGHT, HORIZONTAL_ALIGNMENT_LEFT, "bold", 2,
-	)
-	caption.position = Vector2(8, 3)
-	caption.size = Vector2(390, 19)
-	panel.add_child(caption)
-	if can_ink:
-		var instruction := make_label("ARRASTE DA MÃO PARA DEPOSITAR", 10, UITheme.TEXT, HORIZONTAL_ALIGNMENT_RIGHT, "bold", 1)
-		instruction.position = Vector2(175, 3)
-		instruction.size = Vector2(225, 18)
-		panel.add_child(instruction)
-	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(5, 23)
-	scroll.size = Vector2(400, 84)
-	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.mouse_filter = Control.MOUSE_FILTER_PASS
-	panel.add_child(scroll)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 3)
-	scroll.add_child(row)
+	var face_up := { }
+	var can_return := { }
 	for card: Card in g.players[p]["reservoir"]:
-		var cell := Control.new()
-		cell.custom_minimum_size = Vector2(64, 72)
-		cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.add_child(cell)
-		var visible_face := card.reservoir_revealed_turn == g.turn
-		var view := CardView.new().setup(card.card_id if visible_face else "", {}, 0.36)
-		view.face_down = not visible_face
-		view.mouse_filter = Control.MOUSE_FILTER_STOP if visible_face else Control.MOUSE_FILTER_IGNORE
-		view.pivot_offset = view.size / 2.0
-		view.position = (cell.custom_minimum_size - view.size) / 2.0
-		if card.exhausted:
-			view.rotation = PI / 2.0
-		if visible_face:
-			view.left_clicked.connect(table_overlays.show_overlay)
-			view.right_clicked.connect(table_overlays.show_overlay)
-		cell.add_child(view)
-		if p == viewer and viewer_can_act() and g.can_return_reservoir_card(viewer, card.uid):
-			_add_return_button(cell, card.uid)
-	if can_ink:
-		panel.tooltip_text = "Arraste uma carta da mão para cá para depositá-la permanentemente."
-	if p != viewer:
-		return
-	reservoir_drop_glow = _add_reservoir_glow(panel, rect.size, SEL, 4, 26)
-	reservoir_drop_glow.visible = false
+		face_up[card.uid] = card.reservoir_revealed_turn == g.turn
+		can_return[card.uid] = p == viewer and viewer_can_act() and g.can_return_reservoir_card(viewer, card.uid)
+	panel.show_cards(
+		"RESERVATÓRIO  •  %d disponíveis" % g.reservoir_ready(p),
+		can_ink, g.players[p]["reservoir"], face_up, can_return,
+		table_overlays.show_overlay, _return_reservoir_card,
+	)
+	panel.drop_glow.visible = false
+	if p == viewer:
+		reservoir_drop_glow = panel.drop_glow
 
 
-func _add_reservoir_glow(panel: Panel, panel_size: Vector2, color: Color, border_width: int, shadow_size: int) -> Panel:
-	var glow := Panel.new()
-	glow.size = panel_size
-	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color.TRANSPARENT
-	style.draw_center = false
-	style.set_corner_radius_all(8)
-	style.set_border_width_all(border_width)
-	style.border_color = color
-	style.shadow_color = Color(color.r, color.g, color.b, 0.85)
-	style.shadow_size = shadow_size
-	style.shadow_offset = Vector2.ZERO
-	style.anti_aliasing = true
-	glow.add_theme_stylebox_override("panel", style)
-	panel.add_child(glow)
-	return glow
+## "DEVOLVER" on a card that came to the Reservoir this turn: it goes back into the deck, and the next
+## turn brings 2 cards.
+func _return_reservoir_card(uid: int) -> void:
+	handle_action_result(g.return_reservoir_card(viewer, uid))
 
 
 ## Yellow glow while a dragged card would be deposited.
@@ -1217,52 +1248,63 @@ func _show_reservoir_drop_glow(will_deposit: bool) -> void:
 		reservoir_drop_glow.visible = will_deposit
 
 
-## "DEVOLVER" on a card that came to the Reservoir this turn: it goes back into the deck, which is
-## shuffled, and the next turn brings 2 cards.
-func _add_return_button(cell: Control, uid: int) -> void:
-	var button := make_button("DEVOLVER", func(): handle_action_result(g.return_reservoir_card(viewer, uid)))
-	button.add_theme_font_size_override("font_size", 10)
-	button.position = Vector2(0, cell.custom_minimum_size.y - 22)
-	button.size = Vector2(cell.custom_minimum_size.x, 22)
-	button.tooltip_text = "Devolve a carta desvirada ao fundo do deck; o Reservatório pula ela. No próximo turno vêm 2 cartas."
-	cell.add_child(button)
-
-
 func _render_command(p: int, pos: Vector2) -> void:
 	var l: Dictionary = g.players[p]["incarnation"]
 	if p == viewer:
-		var cap := make_label("SANTUÁRIO", 13, Color(UITheme.GOLD, 0.7), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
-		cap.position = pos + Vector2(-1, -20)
-		cap.size = Vector2(SANCTUARY_W, 16)
-		layer.add_child(cap)
+		var caption: Label = _kept_piece("sanctuary_caption", ["SANTUÁRIO"])
+		if caption == null:
+			caption = make_label("SANTUÁRIO", 13, Color(UITheme.GOLD, 0.7), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
+			caption.size = Vector2(SANCTUARY_W, 16)
+			table_keeper.keep(layer, "sanctuary_caption", caption, ["SANTUÁRIO"])
+		caption.position = pos + Vector2(-1, -20)
 	if not l["in_zone"]:
 		var where := "EM CAMPO"
 		if l.get("retired", false):
 			where = "NO DECK"
 		elif g.incarnation_in_hand(p):
 			where = "NA MÃO"
-		var empty := make_label(where, 12, Color(UITheme.TEXT, 0.35), HORIZONTAL_ALIGNMENT_CENTER, "title", 2)
+		var where_piece := "sanctuary_where%d" % p
+		var empty: Label = _kept_piece(where_piece, [where])
+		if empty == null:
+			empty = make_label(where, 12, Color(UITheme.TEXT, 0.35), HORIZONTAL_ALIGNMENT_CENTER, "title", 2)
+			empty.size = Vector2(SANCTUARY_W, 20)
+			table_keeper.keep(layer, where_piece, empty, [where])
 		empty.position = pos + Vector2(-1, 115)
-		empty.size = Vector2(SANCTUARY_W, 20)
-		layer.add_child(empty)
 		return
 	var sanctuary_instance := { "permanent_buffs": l.get("permanent_buffs", { }), "incarnation_casts": int(l["casts"]) }
-	var v := CardView.new().setup(l["card_id"], display_instance_for_id(l["card_id"], p, 0, sanctuary_instance), SANCTUARY_SCALE)
-	v.pivot_offset = v.size / 2.0
+	var display_instance := display_instance_for_id(l["card_id"], p, 0, sanctuary_instance)
+	var cost_override: int = g.incarnation_cost(p)
+	var text_suffix: String = table_overlays.scale_suffix(p, CardDB.card(l["card_id"]), l["card_id"])
+	var snowball_level := int(g.players[p]["snowball"])
+	var sanctuary_piece := "sanctuary%d" % p
+	var sanctuary_signature := [l["card_id"], display_instance, cost_override, text_suffix, snowball_level]
+	var v: CardView = _kept_piece(sanctuary_piece, sanctuary_signature)
+	if v != null and v.inst != display_instance:
+		table_keeper.drop(sanctuary_piece)
+		v = null
+	if v == null:
+		v = CardView.new().setup(l["card_id"], display_instance, SANCTUARY_SCALE)
+		v.cost_override = cost_override
+		v.text_suffix = text_suffix
+		v.snowball_level = snowball_level
+		v.left_clicked.connect(
+			func(_v):
+				_on_incarnation(p),
+		)
+		v.right_clicked.connect(table_overlays.show_overlay)
+		table_keeper.keep(layer, sanctuary_piece, v, sanctuary_signature)
+	_center_pivot(v)
 	v.position = pos
-	v.cost_override = g.incarnation_cost(p)
-	v.text_suffix = table_overlays.scale_suffix(p, CardDB.card(l["card_id"]), l["card_id"])
-	v.snowball_level = int(g.players[p]["snowball"])
-	if p == viewer and g.can_cast_incarnation(p) and not is_ai(p):
-		v.highlight = OK
+	if v.rotation != 0.0:
+		v.rotation = 0.0
+	if v.scale != Vector2.ONE:
+		v.scale = Vector2.ONE
+	var outline := Color.TRANSPARENT
 	if p == viewer and (targeting.get("kind") == "incarnation" or (targeting.get("kind") == "room_banish" and targeting["uid"] == 0)):
-		v.highlight = SEL
-	v.left_clicked.connect(
-		func(_v):
-			_on_incarnation(p),
-	)
-	v.right_clicked.connect(table_overlays.show_overlay)
-	layer.add_child(v)
+		outline = SEL
+	elif p == viewer and g.can_cast_incarnation(p) and not is_ai(p):
+		outline = OK
+	v.highlight = outline
 	views["cmd%d" % p] = v
 
 
@@ -1310,23 +1352,30 @@ func _screen_bottom() -> float:
 ## Opponent's hand: face-down cards fanned along the top edge.
 func _render_enemy_hand(p: int) -> void:
 	var n: int = g.players[p]["hand"].size()
+	var card_back_signature := [ENEMY_HAND_SCALE] # every card back looks the same: only its place changes
 	for i in n:
 		var k := float(i) - (n - 1) / 2.0
-		var v := CardView.new().setup("", { }, ENEMY_HAND_SCALE)
-		v.face_down = true
+		var card_back_piece := "enemy_hand%d" % i
+		var v: CardView = _kept_piece(card_back_piece, card_back_signature)
+		if v == null:
+			v = CardView.new().setup("", { }, ENEMY_HAND_SCALE)
+			v.face_down = true
+			table_keeper.keep(layer, card_back_piece, v, card_back_signature)
 		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		v.pivot_offset = v.size / 2.0
+		_center_pivot(v)
 		v.rotation = PI - deg_to_rad(k * 4.0) # upside down, as if held facing the opponent
 		v.position = Vector2(
 			lane_cx + EHAND_DX + k * 30 - v.size.x / 2.0,
 			_screen_top() - v.size.y * (1.0 - ENEMY_HAND_SHOWN) + k * k * 1.2,
 		)
-		layer.add_child(v)
 	if n > 0:
-		var cnt := make_label("%d" % n, 15, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 5)
+		var count_signature := ["%d" % n]
+		var cnt: Label = _kept_piece("enemy_hand_count", count_signature)
+		if cnt == null:
+			cnt = make_label(count_signature[0], 15, UITheme.TEXT, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 5)
+			cnt.size = Vector2(30, 20)
+			table_keeper.keep(layer, "enemy_hand_count", cnt, count_signature)
 		cnt.position = Vector2(lane_cx + EHAND_DX + (n - 1) / 2.0 * 30 + 52, _screen_top() + 18.0)
-		cnt.size = Vector2(30, 20)
-		layer.add_child(cnt)
 
 
 ## Horizontal cell of the unit at `index` in a lane holding `count` units: x = left edge, y = width.
@@ -1387,26 +1436,22 @@ func _render_board(p: int, y: float) -> void:
 			else:
 				tapped_center_y = standing_front_edge_y + tapped_advance - lying_half_depth
 			card_position.y = roundf(tapped_center_y - card_size.y / 2.0)
-		var v: CardView = _unit_views_for_reuse.get(unit.uid)
-		var reuse_view := (
-			is_instance_valid(v) and v.card_id == unit.card_id and v.size == card_size \
-					and v.position.is_equal_approx(card_position)
-			and is_equal_approx(v.rotation, card_rotation)
-		) \
-				and v.scale.is_equal_approx(card_scale)
-		if reuse_view:
-			_unit_views_for_reuse.erase(unit.uid)
-			v.update_card(unit.card_id, unit_view_data, board_card_scale())
-		else:
-			if is_instance_valid(v):
-				v.queue_free()
-			_unit_views_for_reuse.erase(unit.uid)
+		# the card of the last redraw stays (not drawn again) while what it shows is the same
+		var unit_piece := "unit%d" % unit.uid
+		var text_suffix: String = table_overlays.scale_suffix(p, CardDB.card(unit.card_id), unit.card_id)
+		var unit_signature := [unit.card_id, unit_view_data, board_card_scale(), text_suffix]
+		var v: CardView = _kept_piece(unit_piece, unit_signature)
+		if v != null and (v.dragging or v.inst != unit_view_data):
+			table_keeper.drop(unit_piece) # a drag in progress is cut, as before; live data left changed is redrawn
+			v = null
+		var is_new_view := v == null
+		if is_new_view:
 			v = CardView.new().setup(unit.card_id, unit_view_data, board_card_scale())
+			v.text_suffix = text_suffix
 			v.left_clicked.connect(_on_unit_click)
 			v.right_clicked.connect(table_overlays.show_overlay)
 			v.drag_started.connect(_unit_drag_start)
-		v.text_suffix = table_overlays.scale_suffix(p, CardDB.card(unit.card_id), unit.card_id)
-		v.pivot_offset = v.size / 2.0
+		_center_pivot(v)
 		v.position = card_position
 		v.rotation = card_rotation
 		v.scale = card_scale
@@ -1414,9 +1459,9 @@ func _render_board(p: int, y: float) -> void:
 		# on touch an attacker is also dragged to its target (on a mouse the press already starts the aim)
 		v.draggable = CardView.touch_ui() and p == viewer and viewer_can_act() and targeting.is_empty() \
 				and g.combat_system().in_attacks_window(viewer)
-		layer.add_child(v)
+		if is_new_view:
+			table_keeper.keep(layer, unit_piece, v, unit_signature)
 		views[unit.uid] = v
-		_unit_board_views[unit.uid] = v
 		var barrier_side: int = TableView.SIDE_MINE if p == viewer else TableView.SIDE_ENEMY
 		var is_barring: bool = _slam_if_barricade_just_closed(unit, barrier_side, v.position.x + v.size.x / 2.0)
 		if is_barring:
@@ -1504,25 +1549,36 @@ func _render_relics(p: int, y: float, slots_taken: int) -> void:
 			relic_view_data["stored_momentum"] = relic.stored_momentum # Bateria de Segunda Mão shows how much it holds
 		# Baluarte Santo is born protected: it needs the golden ring too (and loses ring and tag once it breaks)
 		relic_view_data["supreme_shield"] = relic.supreme_shield
-		var v := CardView.new().setup(relic.card_id, relic_view_data, board_card_scale())
-		v.text_suffix = table_overlays.scale_suffix(p, CardDB.card(relic.card_id), relic.card_id)
-		v.pivot_offset = v.size / 2.0
+		var relic_piece := "relic%d" % relic.uid
+		var text_suffix: String = table_overlays.scale_suffix(p, CardDB.card(relic.card_id), relic.card_id)
+		var relic_signature := [relic.card_id, relic_view_data, board_card_scale(), text_suffix]
+		var v: CardView = _kept_piece(relic_piece, relic_signature)
+		if v != null and (v.dragging or v.inst != relic_view_data):
+			table_keeper.drop(relic_piece)
+			v = null
+		var is_new_view := v == null
+		if is_new_view:
+			v = CardView.new().setup(relic.card_id, relic_view_data, board_card_scale())
+			v.text_suffix = text_suffix
+			v.left_clicked.connect(_on_relic_click)
+			v.right_clicked.connect(table_overlays.show_overlay)
+			v.drag_started.connect(_relic_drag_start) # only fires while the relic is draggable
+		_center_pivot(v)
 		var cell := board_cell(slots_taken, first_relic_slot + j)
 		v.position = Vector2(cell.x + (cell.y - v.size.x) / 2.0, y)
 		v.ability_ready = p == viewer and targeting.is_empty() and viewer_can_act() and g.can_activate(viewer, relic.uid, true)
 		v.draggable = p == viewer and targeting.is_empty() and viewer_can_act() and not _input_must_wait() \
 				and g.can_equip_from_field(viewer, relic.uid, true)
+		var outline := Color.TRANSPARENT
 		var selected_numbers := _target_selection_numbers(relic.uid)
 		if not selected_numbers.is_empty():
-			v.highlight = SEL
+			outline = SEL
 			_add_target_badges(v, selected_numbers)
 		elif _is_target(relic.uid):
-			v.highlight = TARGET
-		v.left_clicked.connect(_on_relic_click)
-		v.right_clicked.connect(table_overlays.show_overlay)
-		if v.draggable:
-			v.drag_started.connect(_relic_drag_start)
-		layer.add_child(v)
+			outline = TARGET
+		v.highlight = outline
+		if is_new_view:
+			table_keeper.keep(layer, relic_piece, v, relic_signature)
 		views[relic.uid] = v
 
 
@@ -1597,21 +1653,21 @@ func _decorate_unit(v: CardView, unit: Card, p: int) -> void:
 				and not v.inst.has("frozen")
 		and not v.inst.has("stunned")
 	)
+	# the outline is worked out first and set once: a kept card is only drawn again if it really changed
+	var outline := Color.TRANSPARENT
 	var selected_numbers := _target_selection_numbers(unit.uid)
 	if not selected_numbers.is_empty():
-		v.highlight = SEL
+		outline = SEL
 		_add_target_badges(v, selected_numbers)
-		return
-	if _is_target(unit.uid):
-		v.highlight = TARGET
-		return
-	if targeting.get("kind") == "attack" and targeting["uid"] == unit.uid:
-		v.highlight = SEL # the attacker being aimed right now
-		return
+	elif _is_target(unit.uid):
+		outline = TARGET
+	elif targeting.get("kind") == "attack" and targeting["uid"] == unit.uid:
+		outline = SEL # the attacker being aimed right now
 	# during our attacks, every unit that can still attack glows
-	if p == viewer and targeting.is_empty() and viewer_can_act() and g.combat_system().in_attacks_window(viewer) \
+	elif p == viewer and targeting.is_empty() and viewer_can_act() and g.combat_system().in_attacks_window(viewer) \
 			and not g.attack_targets(unit).is_empty():
-		v.highlight = OK
+		outline = OK
+	v.highlight = outline
 
 
 func _alive(v) -> bool:
@@ -1629,6 +1685,7 @@ func _tag(v: Control, t: String, col: Color) -> void:
 	pc.add_theme_stylebox_override("panel", sb)
 	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pc.add_child(make_label(t, 11, col.lightened(0.4), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3))
+	pc.set_meta(TABLE_DECORATION, true)
 	var tag_count := 0
 	for child in v.get_children():
 		if child is PanelContainer:
@@ -1651,6 +1708,7 @@ func _add_target_badges(v: Control, numbers: Array) -> void:
 		var sb := UITheme.box(Color("#171221", 0.96), badge_size / 2.0, SEL, 3, 6)
 		badge.add_theme_stylebox_override("panel", sb)
 		badge.add_child(make_label(str(numbers[i]), 34, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, "heavy", 6))
+		badge.set_meta(TABLE_DECORATION, true)
 		v.add_child(badge)
 		badge.reset_size()
 		var art_center := Vector2(v.size.x * 0.5, v.size.y * 0.3353)
@@ -1685,7 +1743,7 @@ func _hand_scale(n: int) -> float:
 func _render_hand(p: int) -> void:
 	var hand: Array = g.players[p]["hand"]
 	var n := hand.size()
-	_hand_base = layer.get_child_count()
+	_hand_views_in_order.clear()
 	var sc := _hand_scale(n)
 	var cw: float = CardView.BASE.x * sc
 	var step: float = min(cw * 0.85, (TableView.ENEMY_LANE.size.x - 20.0 - cw) / max(1, n - 1))
@@ -1698,79 +1756,112 @@ func _render_hand(p: int) -> void:
 	var now_locked_uids := { } # hand card uid -> true, for every card chained in this render
 	var newly_locked_count := 0 # cards that got chained since the previous render (for the ripple delay)
 	var unlock_sound_played := false # one latch sound even when several cards are freed together
+	var view_under_cursor: CardView = null # a kept card the cursor is still on stays lifted, on top of the fan
 	for i in n:
 		var hand_card: Card = hand[i]
-		var v := CardView.new().setup(hand_card.card_id, display_instance_for_card(hand_card), sc)
 		var card_data := CardDB.card(hand_card.card_id)
+		var display_instance := display_instance_for_card(hand_card)
+		var cost_override := -1
 		if g.is_subito_play(p, card_data):
-			v.cost_override = g.subito_cost(p, card_data, hand_card) # Súbito: summoned now at its Súbito cost
+			cost_override = g.subito_cost(p, card_data, hand_card) # Súbito: summoned now at its Súbito cost
 		elif g.cost_of(p, card_data, hand_card) != int(card_data["cost"]):
-			v.cost_override = g.cost_of(p, card_data, hand_card)
-		v.text_suffix = table_overlays.scale_suffix(p, card_data, hand_card.card_id)
-		v.snowball_level = int(g.players[p]["snowball"])
-		v.text_bonuses = g.live_text_bonuses(p, card_data) # amplified damage/draw (Ottilia) shows as "*N*" in the hand
+			cost_override = g.cost_of(p, card_data, hand_card)
+		var text_suffix: String = table_overlays.scale_suffix(p, card_data, hand_card.card_id)
+		var snowball_level := int(g.players[p]["snowball"])
+		var text_bonuses: Dictionary = g.live_text_bonuses(p, card_data) # amplified damage/draw (Ottilia) shows as "*N*"
+		var hand_piece := "hand%d" % hand_card.uid
+		var hand_signature := [hand_card.card_id, display_instance, sc, cost_override, text_suffix, snowball_level, text_bonuses]
+		var v: CardView = _kept_piece(hand_piece, hand_signature, true)
+		if v != null and (v.dragging or v.inst != display_instance):
+			table_keeper.drop(hand_piece)
+			v = null
+		var is_new_view := v == null
+		if is_new_view:
+			v = CardView.new().setup(hand_card.card_id, display_instance, sc)
+			v.cost_override = cost_override
+			v.text_suffix = text_suffix
+			v.snowball_level = snowball_level
+			v.text_bonuses = text_bonuses
+			v.left_clicked.connect(_on_hand_click)
+			v.right_clicked.connect(table_overlays.show_overlay)
+			v.drag_started.connect(_hand_drag_start)
+			v.drag_moved.connect(_hand_drag_move)
+			v.drag_ended.connect(_hand_drag_end)
+			v.mouse_entered.connect(_hand_hover.bind(v, true))
+			v.mouse_exited.connect(_hand_hover.bind(v, false))
 		var k := i - (n - 1) / 2.0
-		v.pivot_offset = Vector2(v.size.x / 2.0, v.size.y)
+		var hand_pivot := Vector2(v.size.x / 2.0, v.size.y)
+		if v.pivot_offset != hand_pivot:
+			v.pivot_offset = hand_pivot
 		var pos := Vector2(lane_cx + k * step - v.size.x / 2.0, rest_y + k * k * 1.4)
 		var rot := deg_to_rad(k * ang)
+		var outline := Color.TRANSPARENT
 		if picked.has(hand_card.uid):
 			pos.y -= rise + 20.0 # selected / targeted cards are raised and show whole
-			v.highlight = TARGET if g.phase == "discard" else SEL
+			outline = TARGET if g.phase == "discard" else SEL
 		elif targeting.get("uid", 0) == hand_card.uid and targeting.get("kind") in ["hand", "room_banish"]:
 			pos.y -= rise + 20.0
-			v.highlight = SEL
+			outline = SEL
 		elif g.phase in ["main", "combat"] and g.can_play(p, hand_card.uid, true) and not is_ai(p):
-			v.highlight = OK
-		v.store_ready = p == viewer and viewer_can_act() and g.phase in ["main", "combat"] and g.can_store_in_reservoir(p, hand_card.uid)
-		v.position = pos
-		v.rotation = rot
-		v.left_clicked.connect(_on_hand_click)
-		v.right_clicked.connect(table_overlays.show_overlay)
+			outline = OK
+		v.highlight = outline
+		var can_store_now: bool = p == viewer and viewer_can_act() and g.phase in ["main", "combat"]
+		v.store_ready = can_store_now and g.can_store_in_reservoir(p, hand_card.uid)
 		v.draggable = (
 			p == viewer and g.phase in ["main", "combat"] and targeting.is_empty()
 			and viewer_can_act() and (g.can_play(p, hand_card.uid, true) or g.can_store_in_reservoir(p, hand_card.uid))
 		)
-		v.drag_started.connect(_hand_drag_start)
-		v.drag_moved.connect(_hand_drag_move)
-		v.drag_ended.connect(_hand_drag_end)
 		var rest := { "pos": pos, "rot": rot, "idx": i, "rise": rise }
+		var stays_lifted: bool = (
+			not is_new_view and v.hovered and not CardView.touch_ui() and v.get_meta("rest", { }) == rest
+		)
 		v.set_meta("rest", rest) # where a dragged card flies back to when the table can't be redrawn yet
-		v.mouse_entered.connect(_hand_hover.bind(v, true, rest))
-		v.mouse_exited.connect(_hand_hover.bind(v, false, rest))
+		if stays_lifted:
+			view_under_cursor = v
+		else:
+			_stop_hand_tween(v)
+			v.zoom = 1.0
+			v.hit_pad = 0.0
+			v.position = pos
+			v.rotation = rot
 		# Chain lock (ChainLockFx): an effect forbids playing this card right now (Liam Tornagron's "custo 5 ou
-		# mais", any restrict_play). The hand is rebuilt on every render, so only a card that was free in the
-		# previous render plays the lock-in animation; one that was locked and is free again plays the unlock.
+		# mais", any restrict_play). Only a card that was free in the previous render plays the lock-in
+		# animation; one that was locked and is free again plays the unlock.
 		var forbidden := p == viewer and not is_ai(p) and g.is_play_restricted(p, card_data)
 		if forbidden:
-			v.locked = true
 			if not _locked_hand_uids.has(hand_card.uid):
 				var lock_delay := newly_locked_count * LOCK_STAGGER_SECONDS # a quick ripple along the hand
 				v.play_lock_in(lock_delay)
 				if newly_locked_count < MAX_LOCK_SOUNDS:
 					Sfx.play_in("chain_lock", lock_delay + ChainLockFx.SNAP_AT * ChainLockFx.LOCK_IN_SECONDS)
 				newly_locked_count += 1
+			else:
+				v.locked = true
 			now_locked_uids[hand_card.uid] = true
 		elif _locked_hand_uids.has(hand_card.uid):
-			v.locked = true # starts closed so the release can play
 			v.play_unlock()
 			if not unlock_sound_played:
 				Sfx.play("chain_unlock")
 				unlock_sound_played = true
-		layer.add_child(v)
+		if is_new_view:
+			table_keeper.keep(layer, hand_piece, v, hand_signature)
 		views[hand_card.uid] = v
 		hand_uids[hand_card.uid] = true
+		_hand_views_in_order.append(v)
 	_locked_hand_uids = now_locked_uids
+	if view_under_cursor != null:
+		view_under_cursor.move_to_front()
 
 
 ## Fan card lifts, straightens and grows under the cursor, and sits above its
 ## neighbours (GUI picking follows tree order) until the cursor leaves.
-func _hand_hover(v: CardView, on: bool, rest: Dictionary) -> void:
+func _hand_hover(v: CardView, on: bool) -> void:
 	if not is_instance_valid(v) or v.is_queued_for_deletion() or CardView.touch_ui() or v.dragging:
 		return
-	if v.has_meta("tw"):
-		var old: Tween = v.get_meta("tw")
-		if old and old.is_valid():
-			old.kill()
+	if not v.has_meta("rest"):
+		return
+	var rest: Dictionary = v.get_meta("rest")
+	_stop_hand_tween(v)
 	var tw := v.create_tween().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	v.set_meta("tw", tw)
 	if on:
@@ -1780,13 +1871,44 @@ func _hand_hover(v: CardView, on: bool, rest: Dictionary) -> void:
 		tw.tween_property(v, "rotation", 0.0, 0.14)
 		tw.tween_property(v, "zoom", 1.28, 0.14)
 	else:
-		# the table may have been redrawn while the cursor was on the card: an old card is no longer in the layer
-		if v.get_parent() == layer:
-			layer.move_child(v, min(layer.get_child_count() - 1, rest["idx"] + _hand_base))
+		_put_hand_card_back_in_fan(v)
 		v.hit_pad = 0.0
 		tw.tween_property(v, "position", rest["pos"], 0.14)
 		tw.tween_property(v, "rotation", rest["rot"], 0.14)
 		tw.tween_property(v, "zoom", 1.0, 0.14)
+
+
+func _stop_hand_tween(v: CardView) -> void:
+	if v.has_meta("tw"):
+		var old: Tween = v.get_meta("tw")
+		if old and old.is_valid():
+			old.kill()
+		v.remove_meta("tw")
+
+
+## A hand card that was raised on top of everything (hover, drag) goes back between its neighbours in the fan.
+func _put_hand_card_back_in_fan(v: CardView) -> void:
+	if v.get_parent() != layer:
+		return # an old card the table no longer holds
+	var fan_index := _hand_views_in_order.find(v)
+	if fan_index == -1:
+		return
+	for next_index in range(fan_index + 1, _hand_views_in_order.size()):
+		var next_view = _hand_views_in_order[next_index]
+		if is_instance_valid(next_view) and next_view.get_parent() == layer:
+			var before_next: int = next_view.get_index()
+			if v.get_index() < before_next:
+				before_next -= 1
+			layer.move_child(v, before_next)
+			return
+	for previous_index in range(fan_index - 1, -1, -1):
+		var previous_view = _hand_views_in_order[previous_index]
+		if is_instance_valid(previous_view) and previous_view.get_parent() == layer:
+			var after_previous: int = previous_view.get_index()
+			if v.get_index() > after_previous:
+				after_previous += 1
+			layer.move_child(v, after_previous)
+			return
 
 
 ## Drag & drop: a playable hand card follows the pointer and is played when released over
@@ -1962,7 +2084,8 @@ func _hand_card_back_to_rest(v: CardView) -> void:
 	if not v.has_meta("rest"):
 		return
 	var rest: Dictionary = v.get_meta("rest")
-	layer.move_child(v, min(layer.get_child_count() - 1, rest["idx"] + _hand_base))
+	_put_hand_card_back_in_fan(v)
+	_stop_hand_tween(v)
 	var tw := v.create_tween().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	v.set_meta("tw", tw)
 	tw.tween_property(v, "position", rest["pos"], 0.18)
@@ -1978,104 +2101,30 @@ func _play_hand_card_when_settled(uid: int, slot: int) -> void:
 
 
 const CHRONICLE_PANEL_HEIGHT := 300.0
-const CHRONICLE_LIST_TOP := 40.0 ## below the title, inside the panel
-const CHRONICLE_ROWS_KEPT := 80
 
 
 ## The Chronicle: a scrolling list of event rows, newest at the bottom. Turns are separated by thin
 ## dividers. Pointing at (or tapping) a row opens the big ChronicleScene beside the column.
+## The panel stays alive during the match; each redraw only adds and removes rows.
 func _render_chronicle() -> void:
-	var chronicle_panel := Panel.new()
+	if not is_instance_valid(chronicle_panel):
+		chronicle_panel = ChroniclePanelScript.new().build(self, Vector2(COL_W, CHRONICLE_PANEL_HEIGHT))
+		chronicle_panel.row_focused.connect(_show_chronicle_scene)
+		chronicle_panel.card_clicked.connect(_show_chronicle_card_overlay)
+		table_panels.add_child(chronicle_panel)
 	chronicle_panel.position = Vector2(col_x, 14)
-	chronicle_panel.size = Vector2(COL_W, CHRONICLE_PANEL_HEIGHT)
-	chronicle_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var panel_style := UITheme.box(Color(0.035, 0.03, 0.055, 0.92), 10, Color(UITheme.GOLD, 0.45), 1, 12)
-	chronicle_panel.add_theme_stylebox_override("panel", panel_style)
-	layer.add_child(chronicle_panel)
-	var title := make_label("CRÔNICA", 15, UITheme.GOLD, HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
-	title.position = Vector2(0, 7)
-	title.size = Vector2(COL_W, 20)
-	chronicle_panel.add_child(title)
-	chronicle_panel.add_child(menu_screens.ornament(Vector2(COL_W / 2.0, 31), 92))
-
-	# the list sits in a darker well, so the rows read as one block
-	var list_size := Vector2(COL_W - 12, CHRONICLE_PANEL_HEIGHT - CHRONICLE_LIST_TOP - 6)
-	var well := Panel.new()
-	well.position = Vector2(6, CHRONICLE_LIST_TOP)
-	well.size = list_size
-	well.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	well.add_theme_stylebox_override("panel", UITheme.box(Color(0, 0, 0, 0.35), 6))
-	chronicle_panel.add_child(well)
-	var scroll := ScrollContainer.new()
-	scroll.position = well.position
-	scroll.size = list_size
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	scroll.mouse_filter = Control.MOUSE_FILTER_PASS
-	_style_thin_scrollbar(scroll.get_v_scroll_bar())
-	chronicle_panel.add_child(scroll)
-	var rows_box := VBoxContainer.new()
-	rows_box.custom_minimum_size = Vector2(list_size.x - 6, 0)
-	rows_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	rows_box.add_theme_constant_override("separation", 2)
-	rows_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	scroll.add_child(rows_box)
-	_chronicle_rows_box = rows_box
-	_chronicle_list_rect = Rect2(chronicle_panel.position + scroll.position, list_size)
+	_chronicle_rows_box = chronicle_panel.rows_box
+	_chronicle_list_rect = chronicle_panel.list_rect()
 
 	var shown: Array = chronicle_log.chronicle_entries
 	if shown.is_empty() and not chronicle_log.log_lines.is_empty():
 		shown = [
 			{ "text": chronicle_log.log_lines[-1], "kind": "info", "icon": "dot", "accent": UITheme.GOLD, "label": "EVENTO", "seq": 0 }
 		]
-	if shown.is_empty():
-		var empty_note := make_label("Nada aconteceu ainda.", 14, Color(UITheme.TEXT, 0.4), HORIZONTAL_ALIGNMENT_CENTER, "body")
-		empty_note.position = well.position + Vector2(0, list_size.y / 2.0 - 10)
-		empty_note.size = Vector2(list_size.x, 20)
-		chronicle_panel.add_child(empty_note)
 	var open_seq: int = chronicle_scene.shown_seq() if chronicle_scene else -1
-	var newest_seq := _chronicle_seen_seq
-	for raw: Dictionary in shown.slice(maxi(0, shown.size() - CHRONICLE_ROWS_KEPT)):
-		var seq := int(raw.get("seq", 0))
-		var row := ChronicleRowScript.new().setup(raw, _chronicle_is_ally(raw), seq == open_seq, seq > _chronicle_seen_seq)
-		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.focused.connect(_show_chronicle_scene)
-		row.card_clicked.connect(_show_chronicle_card_overlay)
-		rows_box.add_child(row)
-		newest_seq = maxi(newest_seq, seq)
-	_chronicle_seen_seq = newest_seq
-	scroll.call_deferred("set", "scroll_vertical", 999999)
-
-	# the oldest rows fade out under the top edge of the list instead of being cut flat
-	var top_fade := Control.new()
-	top_fade.position = well.position
-	top_fade.size = Vector2(list_size.x, 16)
-	top_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	top_fade.draw.connect(
-		func():
-			for line in 16:
-				top_fade.draw_line(
-					Vector2(0, line + 0.5),
-					Vector2(list_size.x, line + 0.5),
-					Color(0.035, 0.03, 0.055, 0.9 * (1.0 - line / 16.0)),
-					1.0,
-				),
-	)
-	chronicle_panel.add_child(top_fade)
-
-
-## A slim gold scrollbar, so the list doesn't lose width to a chunky default one.
-func _style_thin_scrollbar(bar: ScrollBar) -> void:
-	var track := UITheme.box(Color(1, 1, 1, 0.04), 3)
-	track.content_margin_left = 2
-	track.content_margin_right = 2
-	var grabber := UITheme.box(Color(UITheme.GOLD, 0.45), 3)
-	var grabber_hover := UITheme.box(Color(UITheme.GOLD, 0.8), 3)
-	bar.custom_minimum_size.x = 6
-	bar.add_theme_stylebox_override("scroll", track)
-	bar.add_theme_stylebox_override("grabber", grabber)
-	bar.add_theme_stylebox_override("grabber_highlight", grabber_hover)
-	bar.add_theme_stylebox_override("grabber_pressed", grabber_hover)
+	chronicle_panel.show_entries(shown, _chronicle_is_ally, open_seq, _chronicle_seen_seq)
+	for raw: Dictionary in shown:
+		_chronicle_seen_seq = maxi(_chronicle_seen_seq, int(raw.get("seq", 0)))
 
 
 ## True when the entry was done by the player looking at the screen.
@@ -2140,8 +2189,101 @@ func _render_side() -> void:
 	var my_turn := g.active == viewer
 	if g.phase == "mulligan":
 		my_turn = mine
-	var tp := Panel.new()
+	var ph_t: String = phase_names.get(g.phase, g.phase)
+	if not g.stack.is_empty():
+		ph_t = "Resposta · pilha %d" % g.stack.size()
+	elif g.summon_window:
+		ph_t = "Resposta · invocação"
+	elif g.phase == "combat":
+		# both players see what the next Bloqueio costs this turn (1, then 2, then 3...)
+		ph_t = "%s · Bloqueio %d" % [ph_t, g.combat_system().block_cost()]
+	var d := g.decider()
+	var who := ""
+	if mine:
+		who = "SUA VEZ" if my_turn else "SUA PRIORIDADE"
+	elif is_ai(d):
+		who = "VEZ DA IA"
+	elif online:
+		who = "VEZ DO OPONENTE"
+	else:
+		who = "VEZ DO JOGADOR %d" % (d + 1)
+	var plaque_signature := [mine, my_turn, ph_t, who, Sfx.is_enabled()]
+	var tp: Panel = _kept_piece("turn_plaque", plaque_signature)
+	if tp == null:
+		tp = _make_turn_plaque(mine, my_turn, ph_t, who)
+		table_keeper.keep(layer, "turn_plaque", tp, plaque_signature)
 	tp.position = Vector2(col_x, 326)
+
+	# actions
+	var y := 424.0
+	if mine:
+		var buttons := _action_buttons()
+		for index in buttons.size():
+			var button_height := 56.0 if buttons[index].theme_type_variation == "PrimaryButton" else 40.0
+			_place_action_button("action_button%d" % index, buttons[index], Vector2(col_x, y), Vector2(COL_W, button_height))
+			y += button_height + 10
+	elif g.phase != "over":
+		var wait: Button = _kept_piece("wait_button", ["TURNO DO OPONENTE"])
+		if wait == null:
+			wait = make_button(
+				"TURNO DO OPONENTE",
+				func():
+					pass,
+			)
+			wait.disabled = true
+			wait.size = Vector2(COL_W, 56)
+			table_keeper.keep(layer, "wait_button", wait, ["TURNO DO OPONENTE"])
+		wait.position = Vector2(col_x, y)
+		y += 66.0
+	if _pass_all_switch_available():
+		var pass_all_title := _pass_all_switch_title()
+		var pass_all_signature := [pass_all_title, _pass_all_switch_is_on()]
+		var pass_all: Button = _kept_piece("pass_all_switch", pass_all_signature)
+		if pass_all == null:
+			pass_all = _pass_all_switch()
+			pass_all.size = Vector2(COL_W, 48)
+			table_keeper.keep(layer, "pass_all_switch", pass_all, pass_all_signature)
+		pass_all.position = Vector2(col_x, y)
+	_render_piles(viewer)
+	_render_piles(1 - viewer)
+	_render_stack()
+	var ap_on := _auto_pass_on()
+	var ap: Button = _kept_piece("auto_pass_switch", [ap_on])
+	if ap == null:
+		ap = make_toggle_button(
+			"AUTO-PASSE",
+			ap_on,
+			func():
+				_set_auto_pass(not _auto_pass_on()),
+		)
+		ap.size = Vector2(COL_W, 48)
+		ap.tooltip_text = "Pula sozinho as janelas em que você não tem nenhuma jogada válida."
+		table_keeper.keep(layer, "auto_pass_switch", ap, [ap_on])
+	ap.position = Vector2(col_x, 772.0 + BOT)
+	var half := (COL_W - 8.0) / 2.0
+	# during the match "Menu" opens the pause menu (settings, concede, leave); once it is over there is nothing left to pause
+	var match_over := g.phase == "over"
+	var menu: Button = _kept_piece("menu_button", [match_over])
+	if menu == null:
+		menu = make_button("Menu", menu_screens.show_menu if match_over else table_overlays.open_pause_menu)
+		menu.size = Vector2(COL_W if match_over else half, 52)
+		menu.add_theme_font_size_override("font_size", 20)
+		table_keeper.keep(layer, "menu_button", menu, [match_over])
+	menu.position = Vector2(col_x, 832.0 + BOT)
+	if not match_over:
+		var cc: Button = _kept_piece("concede_button", ["Conceder"])
+		if cc == null:
+			cc = make_button("Conceder", table_overlays.ask_concede)
+			cc.size = Vector2(half, 52)
+			cc.add_theme_font_size_override("font_size", 18)
+			cc.tooltip_text = "Desiste da partida: o oponente vence."
+			table_keeper.keep(layer, "concede_button", cc, ["Conceder"])
+		cc.position = Vector2(col_x + half + 8.0, 832.0 + BOT)
+
+
+## The plaque above the action buttons: whose turn it is, the phase and who must act now.
+func _make_turn_plaque(mine: bool, my_turn: bool, phase_text: String, who: String) -> Panel:
+	var tp := Panel.new()
 	tp.size = Vector2(COL_W, 84)
 	tp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var tsb := UITheme.panel()
@@ -2149,7 +2291,6 @@ func _render_side() -> void:
 		tsb.border_color = Color(UITheme.GOLD, 0.85)
 		tsb.shadow_color = Color(UITheme.GOLD, 0.2)
 	tp.add_theme_stylebox_override("panel", tsb)
-	layer.add_child(tp)
 	# no turn number on purpose: the global counter counts both players' turns, which confuses
 	var tt := make_label(
 		"SEU TURNO" if my_turn else "TURNO DO OPONENTE",
@@ -2162,28 +2303,10 @@ func _render_side() -> void:
 	tt.position = Vector2(0, 4)
 	tt.size = Vector2(COL_W, 30)
 	tp.add_child(tt)
-	var ph_t: String = phase_names.get(g.phase, g.phase)
-	if not g.stack.is_empty():
-		ph_t = "Resposta · pilha %d" % g.stack.size()
-	elif g.summon_window:
-		ph_t = "Resposta · invocação"
-	elif g.phase == "combat":
-		# both players see what the next Bloqueio costs this turn (1, then 2, then 3...)
-		ph_t = "%s · Bloqueio %d" % [ph_t, g.combat_system().block_cost()]
-	var ph := make_label(ph_t, 17, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
+	var ph := make_label(phase_text, 17, UITheme.TEXT_DIM, HORIZONTAL_ALIGNMENT_CENTER, "bold")
 	ph.position = Vector2(0, 33)
 	ph.size = Vector2(COL_W, 22)
 	tp.add_child(ph)
-	var d := g.decider()
-	var who := ""
-	if mine:
-		who = "SUA VEZ" if my_turn else "SUA PRIORIDADE"
-	elif is_ai(d):
-		who = "VEZ DA IA"
-	elif online:
-		who = "VEZ DO OPONENTE"
-	else:
-		who = "VEZ DO JOGADOR %d" % (d + 1)
 	var wl := make_label(who, 15, UITheme.GOLD if mine else Color(UITheme.TEXT, 0.5), HORIZONTAL_ALIGNMENT_CENTER, "title_bold", 3)
 	wl.position = Vector2(0, 57)
 	wl.size = Vector2(COL_W, 22)
@@ -2191,59 +2314,26 @@ func _render_side() -> void:
 	var sound_button := _sound_icon_button(36.0)
 	sound_button.position = Vector2(COL_W - 40.0, 4.0)
 	tp.add_child(sound_button)
+	return tp
 
-	# actions
-	var y := 424.0
-	if mine:
-		for b: Button in _action_buttons():
-			b.position = Vector2(col_x, y)
-			b.size = Vector2(COL_W, 56 if b.theme_type_variation == "PrimaryButton" else 40)
-			layer.add_child(b)
-			y += b.size.y + 10
-	elif g.phase != "over":
-		var wait := make_button(
-			"TURNO DO OPONENTE",
-			func():
-				pass,
-		)
-		wait.disabled = true
-		wait.position = Vector2(col_x, y)
-		wait.size = Vector2(COL_W, 56)
-		layer.add_child(wait)
-		y += 66.0
-	if _pass_all_switch_available():
-		var pass_all := _pass_all_switch()
-		pass_all.position = Vector2(col_x, y)
-		pass_all.size = Vector2(COL_W, 48)
-		layer.add_child(pass_all)
-	_render_piles(viewer)
-	_render_piles(1 - viewer)
-	_render_stack()
-	var ap_on := _auto_pass_on()
-	var ap := make_toggle_button(
-		"AUTO-PASSE",
-		ap_on,
-		func():
-			_set_auto_pass(not _auto_pass_on()),
-	)
-	ap.position = Vector2(col_x, 772.0 + BOT)
-	ap.size = Vector2(COL_W, 48)
-	ap.tooltip_text = "Pula sozinho as janelas em que você não tem nenhuma jogada válida."
-	layer.add_child(ap)
-	var half := (COL_W - 8.0) / 2.0
-	# during the match "Menu" opens the pause menu (settings, concede, leave); once it is over there is nothing left to pause
-	var menu := make_button("Menu", menu_screens.show_menu if g.phase == "over" else table_overlays.open_pause_menu)
-	menu.position = Vector2(col_x, 832.0 + BOT)
-	menu.size = Vector2(COL_W if g.phase == "over" else half, 52)
-	menu.add_theme_font_size_override("font_size", 20)
-	layer.add_child(menu)
-	if g.phase != "over":
-		var cc := make_button("Conceder", table_overlays.ask_concede)
-		cc.position = Vector2(col_x + half + 8.0, 832.0 + BOT)
-		cc.size = Vector2(half, 52)
-		cc.add_theme_font_size_override("font_size", 18)
-		cc.tooltip_text = "Desiste da partida: o oponente vence."
-		layer.add_child(cc)
+
+## An action button from _action_buttons(): the one already on the table is kept when it reads the same,
+## and the fresh copy is thrown away before it is ever drawn.
+func _place_action_button(piece_name: String, fresh_button: Button, button_position: Vector2, button_size: Vector2) -> void:
+	var signature := [g.phase, fresh_button.text, fresh_button.theme_type_variation, fresh_button.tooltip_text]
+	var button: Button = _kept_piece(piece_name, signature)
+	if button == null:
+		button = fresh_button
+		button.size = button_size
+		table_keeper.keep(layer, piece_name, button, signature)
+	else:
+		# a press greys out every action button: the kept one must take the state it has now
+		if button.disabled != fresh_button.disabled:
+			button.disabled = fresh_button.disabled
+		if button.has_focus():
+			button.release_focus()
+		fresh_button.free()
+	button.position = button_position
 
 
 ## Each player's deck and graveyard sit side by side, like the two piles of a real TCG table, far
@@ -2270,24 +2360,27 @@ func _render_piles(player: int) -> void:
 	else:
 		deck_position = Vector2(col_x - OPPONENT_PILE_GAP_BEFORE_COLUMN - card_size.x, OPPONENT_PILE_TOP)
 		graveyard_position = deck_position - Vector2(card_size.x + PILE_GAP, 0)
-	var deck_pile := LeaderView.DeckPile.new()
-	deck_pile.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	deck_pile.card_scale = PILE_CARD_SCALE
-	deck_pile.base_top_left = Vector2.ZERO
-	deck_pile.position = deck_position
-	layer.add_child(deck_pile)
 	# a card that jumps into play from the deck (Rusco) is shown only to its owner: it is hidden information
 	var watch := { }
 	if player == viewer:
 		var watches := g.deck_summon_watches(player)
 		if not watches.is_empty():
 			watch = watches[0]
-	deck_pile.set_watch(watch)
+	var deck_piece := "deck_pile%d" % player
+	var deck_pile: LeaderView.DeckPile = _kept_piece(deck_piece, [watch])
+	if deck_pile == null:
+		deck_pile = LeaderView.DeckPile.new()
+		deck_pile.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		deck_pile.card_scale = PILE_CARD_SCALE
+		deck_pile.base_top_left = Vector2.ZERO
+		deck_pile.set_watch(watch)
+		deck_pile.watch_tapped.connect(
+			func(card_id: String):
+				table_overlays.show_overlay(CardView.new().setup(card_id, { }, 1.0)),
+		)
+		table_keeper.keep(layer, deck_piece, deck_pile, [watch])
+	deck_pile.position = deck_position
 	deck_pile.show_count(g.players[player]["deck"].size(), g.fatigue_next(player))
-	deck_pile.watch_tapped.connect(
-		func(card_id: String):
-			table_overlays.show_overlay(CardView.new().setup(card_id, { }, 1.0)),
-	)
 	var watch_state := String(watch.get("state", ""))
 	if watch_state == "ready" and _deck_watch_states.get(player, "") != "ready":
 		deck_pile.ignite()
@@ -2302,13 +2395,17 @@ func _render_piles(player: int) -> void:
 		top_instance = display_instance_for_id(top_card_id, player, top_card.uid)
 	# only the viewer can cast Réquiem spells from their own graveyard: no green glow on the opponent's
 	var castable_requiem: int = table_overlays.requiem_uids(viewer).size() if player == viewer else 0
-	var graveyard_pile := GraveyardPile.new().setup(graveyard.size(), top_card_id, top_instance, castable_requiem, PILE_CARD_SCALE)
+	var graveyard_piece := "graveyard_pile%d" % player
+	var graveyard_signature := [graveyard.size(), top_card_id, top_instance, castable_requiem]
+	var graveyard_pile: GraveyardPile = _kept_piece(graveyard_piece, graveyard_signature)
+	if graveyard_pile == null:
+		graveyard_pile = GraveyardPile.new().setup(graveyard.size(), top_card_id, top_instance, castable_requiem, PILE_CARD_SCALE)
+		graveyard_pile.clicked.connect(
+			func():
+				table_overlays.show_graveyard(player),
+		)
+		table_keeper.keep(layer, graveyard_piece, graveyard_pile, graveyard_signature)
 	graveyard_pile.position = graveyard_position
-	graveyard_pile.clicked.connect(
-		func():
-			table_overlays.show_graveyard(player),
-	)
-	layer.add_child(graveyard_pile)
 	graveyard_piles[player] = graveyard_pile
 
 
@@ -2796,19 +2893,24 @@ func _pass_all_switch_available() -> bool:
 ## "PASSAR TUDO": from the opponent's next play on, you are not asked for responses until their turn ends.
 ## It shows what the server confirmed, "DESFAZER" during the local undo window and "…" while waiting for the server.
 func _pass_all_switch() -> Button:
-	var is_on: bool = g.skip_rest_of_turn[viewer]
-	var title := "PASSAR TUDO"
-	if _pass_all_arming:
-		title = "DESFAZER"
-		is_on = true
-	elif _pass_all_waiting_for_server and is_on != _pass_all_expected_state:
-		title = "…"
-	var button := make_toggle_button(title, is_on, _on_pass_all_pressed)
+	var button := make_toggle_button(_pass_all_switch_title(), _pass_all_switch_is_on(), _on_pass_all_pressed)
 	button.tooltip_text = (
 		"Não pergunta mais por respostas até o turno do oponente acabar. "
 		+ "Vale a partir da próxima jogada dele; só avisa se ela for matar o seu Líder."
 	)
 	return button
+
+
+func _pass_all_switch_is_on() -> bool:
+	return _pass_all_arming or g.skip_rest_of_turn[viewer]
+
+
+func _pass_all_switch_title() -> String:
+	if _pass_all_arming:
+		return "DESFAZER"
+	if _pass_all_waiting_for_server and g.skip_rest_of_turn[viewer] != _pass_all_expected_state:
+		return "…"
+	return "PASSAR TUDO"
 
 
 func _on_pass_all_pressed() -> void:

@@ -29,17 +29,14 @@ const MAX_FRAMES_WAITING_FOR_STILL_TABLE := 120
 const MAX_SPARE_VIEWPORTS := 12
 ## How much bigger than needed a spare viewport may be and still be reused.
 const SPARE_VIEWPORT_SLACK := 1.15
-## Empty rows under the two slots: on the Android app the bottom edge of the picture came out black,
-## cutting the end of the card, so nothing is painted near that edge.
-const EMPTY_ROWS_BELOW_FRACTION := 0.25
-
 ## Anything drawn into a see-through viewport ends up with its color already multiplied by its alpha, which
-## would darken soft edges (rounded corners, shadows) when the photo is drawn again. This undoes the multiplication.
+## would darken soft edges (rounded corners, shadows) when the photo is drawn again. The card is painted into a
+## sketch viewport first, then copied into the photo through this shader, which undoes the multiplication.
+## (It used to read the screen inside a CanvasGroup, but the Android app cut the bottom of the card that way.)
 const UNPREMULTIPLY_SHADER := "shader_type canvas_item;
 render_mode blend_disabled;
-uniform sampler2D screen_texture : hint_screen_texture, repeat_disable, filter_nearest;
 void fragment() {
-	vec4 picked = textureLod(screen_texture, SCREEN_UV, 0.0);
+	vec4 picked = textureLod(TEXTURE, UV, 0.0);
 	if (picked.a > 0.0001) {
 		picked.rgb /= picked.a;
 	}
@@ -50,15 +47,19 @@ class Photo:
 	extends RefCounted
 	var signature: Dictionary
 	var viewport: SubViewport
-	var painter_group: CanvasGroup ## freed as soon as the picture is painted
+	var sketch: SubViewport ## where the painter draws; given back once the photo has copied it
 	var padding_pixels := 0 ## empty border around the face, in photo pixels
 	var slot_pixels := Vector2i.ZERO ## size of one slot, in photo pixels
-	var painted_frame := 0
+	var sketched_frame := 0
+	var painted_frame := 1 << 62 ## set when the photo copies the sketch
 	var last_used_frame := 0
 
 	## The picture exists one frame after the viewport was asked to paint.
 	func is_ready() -> bool:
 		return Engine.get_frames_drawn() > painted_frame
+
+	func is_sketched() -> bool:
+		return Engine.get_frames_drawn() > sketched_frame
 
 	func _notification(what: int) -> void:
 		if what == NOTIFICATION_PREDELETE and is_instance_valid(viewport):
@@ -132,7 +133,7 @@ static func request(card: CardView, signature: Dictionary) -> void:
 static func withdraw(card: CardView) -> void:
 	_requests.erase(card.get_instance_id())
 
-## The shared material of the photo CanvasGroups (one material, so the shader is compiled only once).
+## The shared material that copies sketches into photos (one material, so the shader is compiled only once).
 static func unpremultiply_material() -> ShaderMaterial:
 	if _unpremultiply_material == null:
 		_unpremultiply_material = ShaderMaterial.new()
@@ -203,11 +204,17 @@ func _process(_delta: float) -> void:
 		if waited >= FRAMES_UNCHANGED_BEFORE_BAKE and bakes_this_frame < GraphicsQuality.photo_bakes_per_frame:
 			_bake(signature)
 			bakes_this_frame += 1
-	# the painter is only needed until the picture exists
+	# the photo copies its sketch the frame after the sketch was painted; the sketch is then given back
 	for photo in _unfinished.duplicate():
-		if photo.is_ready():
-			if is_instance_valid(photo.painter_group):
-				photo.painter_group.queue_free()
+		if photo.sketch != null and photo.is_sketched() and photo.painted_frame > frame:
+			photo.viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+			photo.painted_frame = frame
+		elif photo.is_ready():
+			for copier in photo.viewport.get_children():
+				copier.queue_free()
+			if is_instance_valid(photo.sketch):
+				_keep_spare_viewport(photo.sketch)
+			photo.sketch = null
 			_unfinished.erase(photo)
 	if frame % EVICTION_CHECK_FRAMES == 0:
 		_evict_old_photos(frame)
@@ -234,27 +241,31 @@ func _bake(signature: Dictionary) -> void:
 		ceili(face_size.x * pixel_scale) + 2 * photo.padding_pixels,
 		ceili(face_size.y * pixel_scale) + 2 * photo.padding_pixels)
 
-	var empty_rows_below := ceili(photo.slot_pixels.y * EMPTY_ROWS_BELOW_FRACTION)
-	var viewport := _take_viewport(Vector2i(photo.slot_pixels.x, photo.slot_pixels.y * 2 + empty_rows_below))
+	var viewport_size := Vector2i(photo.slot_pixels.x, photo.slot_pixels.y * 2)
+	var sketch := _take_viewport(viewport_size)
+	var viewport := _take_viewport(viewport_size)
 	var reused := _spare_viewports.size() < spares_before
-	viewport.canvas_transform = Transform2D().scaled(Vector2(pixel_scale, pixel_scale))
-	viewport.oversampling_override = pixel_scale # letters are rasterized at the size they will be shown at
-	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
-
-	var group := CanvasGroup.new()
-	# The second painted slot sits one full card height below the painter's own control rectangle.
-	group.fit_margin = photo.slot_pixels.y / pixel_scale
-	group.material = unpremultiply_material()
-	viewport.add_child(group)
-
+	sketch.canvas_transform = Transform2D().scaled(Vector2(pixel_scale, pixel_scale))
+	sketch.oversampling_override = pixel_scale # letters are rasterized at the size they will be shown at
+	sketch.render_target_update_mode = SubViewport.UPDATE_ONCE
 	var painter := CardView.new()
 	painter.prepare_photo_painter(signature, photo.padding_pixels / pixel_scale, photo.slot_pixels.y / pixel_scale)
-	group.add_child(painter)
+	sketch.add_child(painter)
+
+	# the photo paints the next frame (see _process), copying the sketch pixel by pixel
+	viewport.canvas_transform = Transform2D.IDENTITY
+	viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	var copier := TextureRect.new()
+	copier.texture = sketch.get_texture()
+	copier.stretch_mode = TextureRect.STRETCH_KEEP
+	copier.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	copier.material = unpremultiply_material()
+	viewport.add_child(copier)
 
 	photo.viewport = viewport
-	photo.painter_group = group
-	photo.painted_frame = Engine.get_frames_drawn()
-	photo.last_used_frame = photo.painted_frame
+	photo.sketch = sketch
+	photo.sketched_frame = Engine.get_frames_drawn()
+	photo.last_used_frame = photo.sketched_frame
 	_photos[hash(signature)] = photo
 	_unfinished.append(photo)
 	HitchLog.note("foto %s x%.2f %s %d ms" % [

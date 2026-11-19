@@ -4,3 +4,4 @@
 *.tmp
 tools/cert/
 card_renders/
+data/build_info.json

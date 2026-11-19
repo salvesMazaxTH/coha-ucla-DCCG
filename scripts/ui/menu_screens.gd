@@ -170,11 +170,22 @@ func show_menu() -> void:
 	fs.position = Vector2(host.stage_w - 300, 790.0 + host.BOT - 64.0)
 	fs.size = Vector2(280, 52)
 	host.layer.add_child(fs)
-	var ver: Label = host.make_label("0.2.2 Alpha", 13, Color(1, 1, 1, 0.35), HORIZONTAL_ALIGNMENT_RIGHT, "body")
+	var ver: Label = host.make_label(_version_text(), 13, Color(1, 1, 1, 0.35), HORIZONTAL_ALIGNMENT_RIGHT, "body")
 	ver.position = Vector2(host.stage_w - 300, 864.0 + host.BOT)
 	ver.size = Vector2(280, 20)
 	host.layer.add_child(ver)
 	_queue_hub_arts()
+
+
+## "v0.6 Alpha", plus when and from which commit the APK was built (written by gerar_apk.bat).
+func _version_text() -> String:
+	var text := "v%s Alpha" % ProjectSettings.get_setting("application/config/version")
+	if not FileAccess.file_exists("res://data/build_info.json"):
+		return text
+	var build_info = JSON.parse_string(FileAccess.get_file_as_string("res://data/build_info.json"))
+	if build_info is Dictionary:
+		text += " · %s · %s" % [build_info["built_at"], build_info["commit"]]
+	return text
 
 
 ## The deck hub shows every deck's Leader art at once, which froze the phone when it opened,

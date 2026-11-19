@@ -1,0 +1,26 @@
+{
+  "name": "Helena",
+  "set": 2,
+  "type": "unit",
+  "rarity": "champion",
+  "essence": "montanha",
+  "cost": 3,
+  "atk": 2,
+  "hp": 5,
+  "keywords": [],
+  "art": "montanha/helena.webp",
+  "effects": [
+    { "trigger": "on_survive_damage", "action": "buff", "target": "self", "armor": 1 }
+  ],
+  "activated": {
+    "cost": 1,
+    "speed": "instantaneo",
+    "exhaust": true,
+    "effects": [
+      { "action": "redirect_next_damage", "target": "ally_or_own_leader" }
+    ]
+  },
+  "text": "Ao Ativar (1) {instantaneo} (exaure esta unidade): o próximo dano que uma unidade aliada ou seu Líder, à sua escolha, sofreria neste turno é causado a esta unidade em vez disso.\nAo Sobreviver a Dano: esta unidade ganha Armadura 1 permanente.",
+  "flavor": "Ela nunca perguntou o que o filho escondia no porão. Só passou a dormir de frente para a escada.",
+  "unreleased": true
+}

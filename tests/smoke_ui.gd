@@ -25,6 +25,11 @@ func _init() -> void:
 		quit(1)
 		return
 	play.pressed.emit()
+	# the match starts after the "Preparando a partida" screen has opened the arts
+	for frame in 600:
+		if m.g != null and m.g.players[0]["leader_id"] == "jeff":
+			break
+		await process_frame
 	if m.g == null or not m.vs_ai or m.g.players[0]["leader_id"] != "jeff":
 		push_error("hub vs IA não iniciou a partida com o deck escolhido")
 		quit(1)
@@ -550,6 +555,11 @@ func _check_hub_with_own_deck(m) -> bool:
 		push_error("hub com deck próprio sem botão JOGAR")
 		return false
 	play.pressed.emit()
+	# the match starts after the "Preparando a partida" screen has opened the arts
+	for frame in 600:
+		if m.g != null and m.g.players[0]["leader_id"] == template["leader"]:
+			break
+		await process_frame
 	if m.g == null or m.g.players[0]["leader_id"] != template["leader"]:
 		push_error("partida não iniciou com o deck do jogador")
 		return false

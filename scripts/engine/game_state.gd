@@ -127,6 +127,8 @@ var combat_damage := false
 ## "from a spell" for effects marked "only_from_spell" (Tyren).
 var _spell_resolving := false
 var _suffering_fatigue := false # true while a Fadiga hits a Leader (it is nobody's damage dealt)
+## Armed damage redirects (redirect_next_damage): { protected: uid, to: uid }. The next hit on `protected` lands on `to`.
+var damage_redirects: Array = []
 ## Cards sent to the graveyard by the latest mill (offered by mill_pick).
 var rng := RandomNumberGenerator.new()
 var _next_uid := 1
@@ -321,21 +323,48 @@ func flush_events() -> Array:
 ## Variables a preview never copies or compares: the helper systems are rebuilt on first use, the event list
 ## starts empty, and the random generator / uid counter move on even when a spell changes nothing.
 const PREVIEW_SKIPPED_VARIABLES := ["_bus", "_stack_system", "_combat_system", "_events", "rng", "_next_uid"]
+static var _variable_names_by_script := { } ## Script -> names of its variables, read once (listing them on every copy was slow)
+static var _card_variables_sorted := false
+static var _card_plain_list_names: Array = [] ## a Card's lists and dictionaries of plain data (see _sort_card_variables)
+static var _card_names_holding_cards: Array = [] ## a Card's variables that can hold other Cards (its equipment)
+
+
+## Sorts a Card's variables once. Its lists and dictionaries hold plain data (uids, numbers, text: they travel
+## over the network as they are), so a native deep copy is enough for them; only the equipment (and any untyped
+## variable) can hold other Cards, which must be copied one by one.
+static func _sort_card_variables(card: Card) -> void:
+	for property in card.get_property_list():
+		if not property["usage"] & PROPERTY_USAGE_SCRIPT_VARIABLE:
+			continue
+		if property["type"] in [TYPE_OBJECT, TYPE_NIL] or property["hint_string"] == "Card":
+			_card_names_holding_cards.append(property["name"])
+		elif property["type"] in [TYPE_ARRAY, TYPE_DICTIONARY]:
+			_card_plain_list_names.append(property["name"])
+	_card_variables_sorted = true
+
+
+## The variables declared in the script of `object` (a Card has ~90), in declaration order.
+static func _script_variable_names(object: Object) -> Array:
+	var script: Script = object.get_script()
+	if not _variable_names_by_script.has(script):
+		var names: Array = []
+		for property in object.get_property_list():
+			if property["usage"] & PROPERTY_USAGE_SCRIPT_VARIABLE:
+				names.append(property["name"])
+		_variable_names_by_script[script] = names
+	return _variable_names_by_script[script]
 
 
 ## A full, independent copy of this game for the AI to try a move on ("what would happen if I cast this?").
 ## Every Card is copied too, so nothing done on the copy touches this game. The random generator is copied
 ## with its current state, so random effects pick the same way they would right now.
-## Returns null when a safe copy can't be made (triggers still waiting to resolve, or a network game).
+## Returns null when a safe copy can't be made (see can_preview_copy).
 func preview_copy() -> GameState:
-	if not _pending.is_empty() or not pending_effect_choice.is_empty() or get_script() != GameState:
+	if not can_preview_copy():
 		return null
 	var copy := GameState.new()
 	var copied_cards := { } # original Card -> its copy, so a card referenced from two places stays one card
-	for property in get_property_list():
-		if not (property["usage"] & PROPERTY_USAGE_SCRIPT_VARIABLE):
-			continue
-		var variable_name: String = property["name"]
+	for variable_name: String in _script_variable_names(self):
 		if variable_name in PREVIEW_SKIPPED_VARIABLES:
 			continue
 		copy.set(variable_name, _preview_copy_value(get(variable_name), copied_cards))
@@ -343,6 +372,11 @@ func preview_copy() -> GameState:
 	copy.rng.state = rng.state
 	copy.set("_next_uid", _next_uid)
 	return copy
+
+
+## False while triggers still wait to resolve or a choice is open, and in a network game (its mirror is no GameState).
+func can_preview_copy() -> bool:
+	return _pending.is_empty() and pending_effect_choice.is_empty() and get_script() == GameState
 
 
 static func _preview_copy_value(value: Variant, copied_cards: Dictionary) -> Variant:
@@ -364,36 +398,38 @@ static func _preview_copy_value(value: Variant, copied_cards: Dictionary) -> Var
 static func _preview_copy_card(card: Card, copied_cards: Dictionary) -> Card:
 	if copied_cards.has(card):
 		return copied_cards[card]
-	var card_copy := Card.new(card.uid, card.card_id, card.owner, card.zone)
-	copied_cards[card] = card_copy
-	for property in card.get_property_list():
-		if property["usage"] & PROPERTY_USAGE_SCRIPT_VARIABLE:
-			card_copy.set(property["name"], _preview_copy_value(card.get(property["name"]), copied_cards))
+	if not _card_variables_sorted:
+		_sort_card_variables(card)
+	var fields: Dictionary = inst_to_dict(card) # every variable at once: much faster than one get() each
+	for variable_name in _card_plain_list_names:
+		fields[variable_name] = fields[variable_name].duplicate(true)
+	var card_copy: Card = dict_to_inst(fields)
+	copied_cards[card] = card_copy # before the equipment, so a card met twice stays one card
+	for variable_name in _card_names_holding_cards:
+		card_copy.set(variable_name, _preview_copy_value(card.get(variable_name), copied_cards))
 	return card_copy
 
 
-## Text describing everything that matters in this game right now (Leaders, every card in every zone, the stack,
-## markers, counters...). Two games with the same snapshot are the same game, give or take random luck.
-func preview_snapshot() -> String:
+## Everything that matters in this game right now (Leaders, every card in every zone, the stack, markers,
+## counters...), as plain data. Two games with equal snapshots are the same game, give or take random luck.
+func preview_snapshot() -> Dictionary:
 	var snapshot := { }
-	for property in get_property_list():
-		if not (property["usage"] & PROPERTY_USAGE_SCRIPT_VARIABLE):
-			continue
-		var variable_name: String = property["name"]
+	for variable_name: String in _script_variable_names(self):
 		if variable_name in PREVIEW_SKIPPED_VARIABLES or variable_name == "preview_blank_uid":
 			continue
 		snapshot[variable_name] = _snapshot_value(get(variable_name))
-	return var_to_str(snapshot)
+	return snapshot
 
 
 static func _snapshot_value(value: Variant) -> Variant:
 	if value is Card:
-		var card_fields := { }
-		for property in value.get_property_list():
-			if property["usage"] & PROPERTY_USAGE_SCRIPT_VARIABLE:
-				var field: Variant = value.get(property["name"])
-				# a card inside a card (its equipment) is written as its uid, so the snapshot never loops
-				card_fields[property["name"]] = field.uid if field is Card else _snapshot_value(field)
+		if not _card_variables_sorted:
+			_sort_card_variables(value)
+		var card_fields: Dictionary = inst_to_dict(value) # its plain lists are shared, not copied: compare right away
+		for variable_name in _card_names_holding_cards:
+			var field: Variant = card_fields[variable_name]
+			# a card inside a card (its equipment) is written as its uid, so the snapshot never loops
+			card_fields[variable_name] = field.uid if field is Card else _snapshot_value(field)
 		return card_fields
 	if value is Array:
 		var array_snapshot: Array = []
@@ -4888,9 +4924,28 @@ func _apply_leader_damage_guard(p: int, amount: int, src_uid: int) -> int:
 	return amount
 
 
+## Consumes the redirect armed on `t` (if any) and returns the uid that takes the hit instead. Periodic damage and
+## Fadiga are never redirected; a redirect whose protector left the board lapses and the hit stays where it was.
+func _take_damage_redirect(t: int, damage_kind: String) -> int:
+	if damage_redirects.is_empty() or damage_kind != "" or _suffering_fatigue:
+		return t
+	for i in damage_redirects.size():
+		var redirect: Dictionary = damage_redirects[i]
+		if int(redirect["protected"]) != t:
+			continue
+		damage_redirects.remove_at(i)
+		var protector_uid := int(redirect["to"])
+		if protector_uid != t and find_unit(protector_uid) != null:
+			emit_event({ "type": "damage_redirected", "uid": t, "to": protector_uid })
+			return protector_uid
+		return t
+	return t
+
+
 func _deal_damage_internal(t: int, amount: int, source: Card, bypass_unit_protections: bool, damage_kind := "") -> int:
 	if amount <= 0:
 		return 0
+	t = _take_damage_redirect(t, damage_kind)
 	var dealt := 0
 	var victim_owner := -1
 	var src_uid := source.uid if source != null else 0
@@ -5826,6 +5881,7 @@ func _passive_conditions_all_fail(effects: Array, context: EffectContext) -> boo
 
 func _finish_turn() -> void:
 	bus().emit(GameEvent.new("turn_ended", active))
+	damage_redirects.clear()
 	for c in players[active]["board"].duplicate():
 		fire_trigger(c, "on_turn_end")
 	_fire_deck_effects(active, "on_turn_end")

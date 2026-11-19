@@ -18741,6 +18741,36 @@ func _test_sagrada_engine() -> void:
 	g.banish_unit(banished_unit)
 	check(g.find_relic(bulwark.uid) != null and bulwark.death_ward_armed, "Baluarte: banimento não consome a proteção")
 
+	# Helena: instantaneous redirect of the next damage to herself (Leader or unit), once, this turn, never periodic damage
+	_tcard("t_helena_ally", 1, 5, [])
+	CardDB.data()["cards"]["t_helena"] = {
+		"name": "t_helena", "type": "unit", "rarity": "champion", "essence": "montanha", "cost": 3, "atk": 2, "hp": 5,
+		"keywords": [], "art": "", "text": "", "flavor": "",
+		"effects": [{ "trigger": "on_survive_damage", "action": "buff", "target": "self", "armor": 1 }],
+		"activated": { "cost": 1, "speed": "instantaneo", "exhaust": true, "effects": [{ "action": "redirect_next_damage", "target": "ally_or_own_leader" }] },
+	}
+	g = _new_game()
+	_quiet(g)
+	player = g.active
+	var helena := _put(g, player, "t_helena")
+	var helena_ally := _put(g, player, "t_helena_ally")
+	g.players[player]["leader_hp"] = 20
+	g.players[player]["momentum"] = 3
+	g.activate(player, helena.uid, helena_ally.uid)
+	_resolve_stack(g)
+	g.deal_damage(helena_ally.uid, 3, null)
+	g.check_state()
+	check(helena_ally.damage == 0 and helena.damage == 3, "Helena: o dano da unidade aliada vai para ela (%d/%d)" % [helena_ally.damage, helena.damage])
+	check(g.armor_of(helena) == 1, "Helena: ao sobreviver ganha Armadura permanente")
+	g.deal_damage(helena_ally.uid, 2, null)
+	check(helena_ally.damage == 2, "Helena: o redirecionamento vale só para o próximo dano")
+	helena.exhausted = false
+	g.players[player]["momentum"] = 3
+	g.activate(player, helena.uid, GameState.LEADER_UID[player])
+	_resolve_stack(g)
+	g.deal_damage(GameState.LEADER_UID[player], 2, null)
+	check(g.players[player]["leader_hp"] == 20, "Helena: o dano do Líder também é redirecionado (%d)" % g.players[player]["leader_hp"])
+
 	# put_artifact through a Lenta Leader ability: unique, needs a free slot, never charges for a no-op
 	CardDB.data()["leaders"]["t_leader"] = {
 		"name": "t_leader",

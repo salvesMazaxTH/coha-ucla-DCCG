@@ -258,6 +258,8 @@ func lunge_at_target(a: CardView, target: Control, t: float) -> void:
 	# the tap animation plays after the hit. "lunge" is drawn in the card's own space, so the offset
 	# is turned back by the card's rotation and divided by its scale.
 	tw.tween_callback(func():
+		if not is_instance_valid(target):
+			return
 		a.z_index = 20
 		var offset_to_target: Vector2 = ((center_of(target) - center_of(a)) * 0.72 / a.scale.x).rotated(-a.rotation)
 		var strike := a.create_tween()
@@ -742,7 +744,7 @@ func freeze_fx(target: Control, t: float) -> void:
 ## off, and at moment t it slams back on like it does on a unit: flash, shockwaves, growing ice, shards.
 func freeze_slots_fx(frozen_player: int, t: float) -> void:
 	for node in layer.get_children():
-		if not node is FrozenSlotView or node.owner_player != frozen_player:
+		if not node is FrozenSlotView or node.owner_player != frozen_player or node.is_queued_for_deletion():
 			continue
 		var tile: FrozenSlotView = node
 		tile.frost_grow = 0.0
@@ -973,15 +975,15 @@ func prewarm_all_shaders() -> void:
 	holder.modulate.a = 0.01
 	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	fx.add_child(holder)
-	# the card photos use a CanvasGroup with their own shader (see CardPhotoStudio)
-	var photo_group := CanvasGroup.new()
-	photo_group.material = CardPhotoStudio.unpremultiply_material()
+	# the card photos are copied through their own shader (see CardPhotoStudio)
 	var photo_square := ColorRect.new()
 	photo_square.size = Vector2(8, 8)
-	photo_group.add_child(photo_square)
-	holder.add_child(photo_group)
+	photo_square.material = CardPhotoStudio.unpremultiply_material()
+	holder.add_child(photo_square)
 	var warmed_this_frame := 0
 	for file_name in ResourceLoader.list_directory(SHADER_FOLDER):
+		if not is_instance_valid(holder):
+			return # the table effects were cleared meanwhile (a new match started)
 		if not file_name.ends_with(".gdshader"):
 			continue
 		var shader: Shader = load(SHADER_FOLDER + file_name)
@@ -998,7 +1000,8 @@ func prewarm_all_shaders() -> void:
 			await host.get_tree().process_frame
 	await host.get_tree().process_frame
 	await host.get_tree().process_frame
-	holder.queue_free()
+	if is_instance_valid(holder):
+		holder.queue_free()
 
 ## Draws the death shader, a particle burst and a gradient line once, invisibly, so the GPU
 ## compiles them at startup instead of freezing the first time a unit dies.

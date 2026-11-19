@@ -341,16 +341,12 @@ static func _play_snowball_combo(g: GameState, p: int, held_card_ids: Array) -> 
 	for accelerator: Card in g.players[p]["hand"]:
 		if (ladeira_is_held or held_card_ids.has(accelerator.card_id) or not _is_on_play_momentum_generator(accelerator)):
 			continue
-		if not g.can_play(p, accelerator.uid):
+		var plan := _plan_card_play(g, p, accelerator)
+		if plan.is_empty():
 			continue
-		var preview := g.preview_copy()
+		var preview := _play_plan_on_copy(g, p, accelerator, plan)
 		if preview == null:
 			continue
-		var preview_accelerator := _card_in_hand(preview, p, accelerator.uid)
-		if preview_accelerator == null or _try_play_card(preview, p, preview_accelerator).is_empty():
-			continue
-		_resolve_preview_stack(preview)
-		_answer_preview_prompts(preview)
 		if preview.phase != "main" or preview.active != p or not preview.stack.is_empty():
 			continue
 		for ladeira: Card in preview.players[p]["hand"]:
@@ -407,14 +403,14 @@ static func _crystal_unlocks_follow_up(g: GameState, p: int, crystal: Card, held
 	if current_preview == null or not _try_play(current_preview, p, held_with_crystal).is_empty():
 		return false
 
-	var preview := g.preview_copy()
+	if _card_in_hand(g, p, crystal.uid) == null:
+		return false
+	var plan := _plan_card_play(g, p, crystal)
+	if plan.is_empty():
+		return false
+	var preview := _play_plan_on_copy(g, p, crystal, plan)
 	if preview == null:
 		return false
-	var preview_crystal := _card_in_hand(preview, p, crystal.uid)
-	if preview_crystal == null or _try_play_card(preview, p, preview_crystal).is_empty():
-		return false
-	_resolve_preview_stack(preview)
-	_answer_preview_prompts(preview)
 	if preview.phase != "main" or preview.active != p or not preview.stack.is_empty():
 		return false
 	return not _try_play(preview, p, held_with_crystal).is_empty()
@@ -527,16 +523,25 @@ static func _try_play(g: GameState, p: int, held_card_ids: Array = []) -> Array:
 ## skips it when it would change nothing, and returns the events, or [] when the card is not played.
 ## Used both for the real game and for plans made on a copy of it.
 static func _try_play_card(g: GameState, p: int, card: Card) -> Array:
+	var plan := _plan_card_play(g, p, card)
+	if plan.is_empty():
+		return []
+	return g.play_card(p, card.uid, plan["target"], plan["second_target"])
+
+
+## How the AI would play this card right now: its targets ({"target", "second_target"}), or { } when it would not
+## play it. It only looks at the game, so the plan also holds on an exact copy (no need to copy just to find out).
+static func _plan_card_play(g: GameState, p: int, card: Card) -> Dictionary:
 	if not g.can_play(p, card.uid):
-		return []
+		return { }
 	if card.card_id == LADEIRA_CARD_ID and not _ladeira_has_playable_finisher(g, p, card):
-		return []
+		return { }
 	var card_data := CardDB.card(card.card_id)
 	if g.takes_field_slot(card_data, g.is_subito_play(p, card_data)) and not g.has_free_slot(p):
-		return [] # the AI never banishes its own permanents to make room
+		return { } # the AI never banishes its own permanents to make room
 	var is_unit: bool = card_data["type"] == "unit"
 	if not is_unit and (g.is_dud(p, card_data) or not _spell_is_worth_it(g, p, card_data)):
-		return []
+		return { }
 	var spec := g.card_spec(card_data)
 	var target := (
 		_pick_sacrifice(g, p)
@@ -544,21 +549,21 @@ static func _try_play_card(g: GameState, p: int, card: Card) -> Array:
 		else _pick_target(g, p, spec, card_data, 0, not is_unit)
 	)
 	if card_data.get("cost_sacrifice", false) and target == 0:
-		return [] # every ally is too strong to give up
+		return { } # every ally is too strong to give up
 	var spec2 := g.second_spec(card_data)
 	var second_target := 0
 	if _has_sacrifice_effect(card_data):
 		# Mordida / Colheita / Tributo: what is given up and where the damage goes is one decision
 		var plan := _plan_sacrifice_spell(g, p, card_data)
 		if plan.is_empty():
-			return []
+			return { }
 		target = plan[0]
 		second_target = plan[1] if spec2 != "" else 0
 	elif _has_fight(card_data):
 		# a fight needs a matching pair, not the "biggest" unit of each side
 		var pair := _pick_fight(g, p)
 		if pair.is_empty():
-			return []
+			return { }
 		target = pair[0]
 		second_target = pair[1]
 	elif not is_unit and spec == "ally_unit" and not _temporary_buff_effect(card_data).is_empty():
@@ -571,26 +576,27 @@ static func _try_play_card(g: GameState, p: int, card: Card) -> Array:
 				best_attack = unit.atk_total()
 				target = unit.uid
 	elif spec != "" and target == 0 and not is_unit:
-		return []
+		return { }
 	elif card_data.has("extra_cost"):
 		# Oferenda ao Vazio / Esporos / Tremor: the unit that pays the extra cost is the second pick
 		second_target = _pick_extra_cost_payer(g, p, card_data, target)
 		if second_target == 0:
-			return []
+			return { }
 	elif spec2 != "":
 		var foe_leader: int = GameState.LEADER_UID[g.opponent(p)]
 		second_target = (foe_leader
 			if g.valid_targets(p, spec2).has(foe_leader)
 			else _pick_target(g, p, spec2, card_data, 0, true))
 		if second_target == 0:
-			return []
+			return { }
 	if CardDB.is_equipment(card_data):
 		var equipment_target := g.find_unit(target)
 		if equipment_target == null or not equipment_target.has_equipment_room():
-			return [] # never bounce existing gear back to hand just to play another one
-	if (card_data["type"] == "spell" and not _spell_changes_the_game(g, p, card.uid, target, second_target)):
-		return [] # it would resolve and change nothing: keep the Momentum (and the card)
-	return g.play_card(p, card.uid, target, second_target)
+			return { } # never bounce existing gear back to hand just to play another one
+	var kept_cast := { }
+	if (card_data["type"] == "spell" and not _spell_changes_the_game(g, p, card.uid, target, second_target, kept_cast)):
+		return { } # it would resolve and change nothing: keep the Momentum (and the card)
+	return {"target": target, "second_target": second_target, "played_copy": kept_cast.get("copy")}
 
 
 ## Vida the AI keeps in reserve after paying an ability's life cost (Sengoku, Peso dos Séculos).
@@ -731,7 +737,9 @@ const PREVIEW_PASS_LIMIT := 20
 
 ## True when casting this spell now (with these targets) would change anything. It is cast in two copies of the game,
 ## one with the effects stripped; if both end the same, the spell only burns Momentum and the card. True when no copy can be made.
-static func _spell_changes_the_game(g: GameState, p: int, card_uid: int, target: int, second_target: int) -> bool:
+## The copy where the spell was really cast is left in `kept_cast["copy"]`, to be reused (see _play_plan_on_copy).
+static func _spell_changes_the_game(g: GameState, p: int, card_uid: int, target: int, second_target: int,
+		kept_cast: Dictionary = { }) -> bool:
 	var real_cast := g.preview_copy()
 	var blank_cast := g.preview_copy()
 	if real_cast == null or blank_cast == null:
@@ -741,7 +749,22 @@ static func _spell_changes_the_game(g: GameState, p: int, card_uid: int, target:
 		if preview.play_card(p, card_uid, target, second_target).is_empty():
 			return true # the copy refused the play: let the real game decide
 		_resolve_preview_stack(preview)
+	kept_cast["copy"] = real_cast
 	return real_cast.preview_snapshot() != blank_cast.preview_snapshot()
+
+
+## A copy of the game after this card was played as planned and settled, or null when the copy refuses the play.
+## A spell's plan already holds that copy (made to check the spell does something), so it is not made twice.
+static func _play_plan_on_copy(g: GameState, p: int, card: Card, plan: Dictionary) -> GameState:
+	var preview: GameState = plan.get("played_copy")
+	if preview == null:
+		preview = g.preview_copy()
+		if preview == null or preview.play_card(p, card.uid, plan["target"], plan["second_target"]).is_empty():
+			return null
+		_resolve_preview_stack(preview)
+	plan.erase("played_copy") # a copy changes as it is used, so it serves only once
+	_answer_preview_prompts(preview)
+	return preview
 
 
 ## Lets the stack of a preview copy resolve: whoever holds priority passes, nobody answers.
@@ -974,11 +997,12 @@ static func _incarnation_rank_against_hand(g: GameState, p: int) -> int:
 	var cost := g.incarnation_cost(p)
 	var momentum := int(g.players[p]["momentum"])
 	if _enemy_wall_stands(g, p):
-		if _hand_can_relieve_the_wall(g, p):
-			return -1
 		var momentum_left_unspent_if_hand_goes_first := momentum - _most_momentum_the_hand_can_spend(g, p, momentum)
 		var momentum_left_unspent_if_cast_first := (momentum - cost) - _most_momentum_the_hand_can_spend(g, p, momentum - cost)
 		if momentum_left_unspent_if_cast_first - momentum_left_unspent_if_hand_goes_first > INCARNATION_MAX_EXTRA_WASTED_MOMENTUM:
+			return -1
+		# (checked last: it plays the hand on copies of the game, the slowest question the AI asks)
+		if _hand_can_relieve_the_wall(g, p):
 			return -1
 		return INCARNATION_RANK_FIRST
 	if GameState.commander_tax(int(g.players[p]["incarnation"]["casts"])) < INCARNATION_HEAVY_TAX:
@@ -1000,15 +1024,16 @@ static func _hand_can_relieve_the_wall(g: GameState, p: int) -> bool:
 ## One step of _hand_can_relieve_the_wall: plays each of `card_uids[first_index..]` on a fresh copy of `g` and looks.
 ## Each card is tried at most once per chain, in a fixed order.
 static func _a_chain_relieves_the_wall(g: GameState, p: int, card_uids: Array, first_index: int, plays_left: int) -> bool:
+	if first_index < card_uids.size() and not g.can_preview_copy():
+		return true
 	for index in range(first_index, card_uids.size()):
-		var preview := g.preview_copy()
-		if preview == null:
-			return true
-		var preview_card := _card_in_hand(preview, p, int(card_uids[index]))
-		if preview_card == null or _try_play_card(preview, p, preview_card).is_empty():
+		var card := _card_in_hand(g, p, int(card_uids[index]))
+		var plan := _plan_card_play(g, p, card) if card != null else { }
+		if plan.is_empty():
 			continue # not playable here (or not worth playing): this card is no step of a chain
-		_resolve_preview_stack(preview)
-		_answer_preview_prompts(preview)
+		var preview := _play_plan_on_copy(g, p, card, plan)
+		if preview == null:
+			continue
 		if not _enemy_wall_stands(preview, p) or _a_guard_stands(preview, p):
 			return true
 		if (plays_left > 1 and _a_chain_relieves_the_wall(preview, p, card_uids, index + 1, plays_left - 1)):

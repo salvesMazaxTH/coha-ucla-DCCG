@@ -16,6 +16,7 @@ const ChooseEffectScript = preload("res://scripts/engine/effects/choose_effect.g
 const EchoNextSpellEffectScript = preload("res://scripts/engine/effects/echo_next_spell_effect.gd")
 const SummonRandomEffectScript = preload("res://scripts/engine/effects/summon_random_effect.gd")
 const LastingGrowthEffectScript = preload("res://scripts/engine/effects/lasting_growth_effect.gd")
+const RedirectDamageEffectScript = preload("res://scripts/engine/effects/redirect_damage_effect.gd")
 
 static var ACTIONS: Dictionary = {
 	"damage": DamageEffect,
@@ -71,6 +72,7 @@ static var ACTIONS: Dictionary = {
 	"inherit_equipment": InheritEquipmentEffect,
 	"lose_durability": LoseDurabilityEffect,
 	"arm_death_ward": DeathWardEffectScript,
+	"redirect_next_damage": RedirectDamageEffectScript,
 	"decoy": DecoyEffect,
 	"mill": MillEffect,
 	"fatigue_burn": FatigueBurnEffect,
